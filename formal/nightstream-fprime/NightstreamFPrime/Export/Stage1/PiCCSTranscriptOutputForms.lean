@@ -28,7 +28,7 @@ abbrev TranscriptIndex := Fin PiCCSOrdinarySourceSupport.transcriptInvocationCou
 
 def invocation (index : TranscriptIndex) : Fin PiCCSPoseidonPlan.invocationCount :=
   ⟨index.val, by
-    have bound : index.val < 355 := by
+    have bound : index.val < 347 := by
       simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
         using index.isLt
     rw [PiCCSPoseidonPlan.invocationCount_eq]
@@ -50,10 +50,10 @@ theorem transcriptForm_eq_outputState
 
 def pointInvocation (coordinate : Fin Lifecycle.productionShape.cubeVariables)
     (component : Fin 2) : TranscriptIndex :=
-  ⟨217 + coordinate.val * 5 + component.val, by
+  ⟨214 + coordinate.val * 5 + component.val, by
     have coordinateBound := coordinate.isLt
     have componentBound := component.isLt
-    change coordinate.val < 28 at coordinateBound
+    change coordinate.val < 27 at coordinateBound
     rw [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
     omega⟩
 
@@ -130,7 +130,7 @@ def pointGrid (program : ApplicationProgram) (component : Fin 2) : SourceGrid :=
     (PiCCSPoseidonPlan.retainedStart program)
     (Spartan.sourceToSpartan (pointSourceStart + component.val * 1096))
     Lifecycle.productionShape.cubeVariables RunningTransitionInputs.roundStride
-    1 1 1 (32684 + component.val * 150) 750 0
+    1 1 1 (32234 + component.val * 150) 750 0
 
 /-- Exact compact interpretation of all pre-ordinary transcript output lanes.
 The final sixteen retained S-box slots supply each external-layer output. -/
@@ -141,7 +141,7 @@ theorem transcriptGrid_form?
     (transcriptGrid program).form? logicalWidth
         (Spartan.sourceToSpartan (transcriptSource index lane)) =
       some (transcriptForm geometry index lane) := by
-  have indexBound : index.val < 355 := by
+  have indexBound : index.val < 347 := by
     simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
       using index.isLt
   have laneBound := lane.isLt
@@ -209,7 +209,7 @@ theorem pointGrid_form?
       some (pointForm geometry coordinate component) := by
   have coordinateBound := coordinate.isLt
   have componentBound := component.isLt
-  change coordinate.val < 28 at coordinateBound
+  change coordinate.val < 27 at coordinateBound
   have sourceEq :
       Spartan.sourceToSpartan (pointSource coordinate component) =
         Spartan.sourceToSpartan (pointSourceStart + component.val * 1096) +
@@ -228,7 +228,7 @@ theorem pointGrid_form?
     (PiCCSPoseidonPlan.retainedStart program)
     (Spartan.sourceToSpartan (pointSourceStart + component.val * 1096))
     Lifecycle.productionShape.cubeVariables RunningTransitionInputs.roundStride
-    1 1 1 (32684 + component.val * 150) 750 0
+    1 1 1 (32234 + component.val * 150) 750 0
     (PiCCSPoseidonPlan.retainedFits geometry)
     (by norm_num [RunningTransitionInputs.roundStride]) (by omega)
     coordinate offset offset
@@ -243,7 +243,7 @@ theorem pointGrid_form?
         (PiCCSPoseidonPlan.retainedBlock program).form
           (PiCCSPoseidonPlan.retainedStart program)
           (PiCCSPoseidonPlan.retainedFits geometry)
-          ⟨32684 + component.val * 150 + coordinate.val * 750 +
+          ⟨32234 + component.val * 150 + coordinate.val * 750 +
               offset.val * 0 + selected.val, by
             have selectedBound := selected.isLt
             rw [PiCCSPoseidonPlan.retainedBlock_slotCount]

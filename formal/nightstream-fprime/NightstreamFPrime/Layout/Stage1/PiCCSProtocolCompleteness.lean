@@ -100,7 +100,7 @@ theorem prior_word (index : Fin PilotProduction.stateHashWords) :
   rw [pilot_word prior priorPublic output digest priorFixed outputFixed digestFixed values context]
   · rw [PilotProduction.protocolEnv, pilot_prior_word]
     exact fixedList_word _ (PilotProduction.serializePreimage_length_fixed prior priorFixed) index
-  · have indexBound : index.val < 37297 := by
+  · have indexBound : index.val < 37295 := by
       simpa only [PilotProduction.stateHashWords_eq] using index.isLt
     rw [PilotProduction.externalColumnCount_eq]
     simp only [PilotProduction.priorPreimageStart]
@@ -116,7 +116,7 @@ theorem output_word (index : Fin PilotProduction.stateHashWords) :
   rw [pilot_word prior priorPublic output digest priorFixed outputFixed digestFixed values context]
   · rw [PilotProduction.protocolEnv, pilot_output_word]
     exact fixedList_word _ (PilotProduction.serializePreimage_length_fixed output outputFixed) index
-  · have indexBound : index.val < 37297 := by
+  · have indexBound : index.val < 37295 := by
       simpa only [PilotProduction.stateHashWords_eq] using index.isLt
     rw [PilotProduction.externalColumnCount_eq]
     norm_num [PilotProduction.outputPreimageStart, PilotProduction.priorPublicInputStart,

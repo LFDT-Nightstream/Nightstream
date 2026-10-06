@@ -60,7 +60,7 @@ class ProjectionTests(unittest.TestCase):
         self.publics = [[0] * 270 for _ in range(16)]
         self.publics[0][107] = P - 1
         self.running = [
-            [[0, 0] for _ in range(28)],
+            [[0, 0] for _ in range(27)],
             [[0] * 1188 for _ in range(16)], self.publics,
             [[[0, 0] for _ in range(54)] for _ in range(16)],
             [[[[0, 0] for _ in range(54)] for _ in range(7)] for _ in range(16)]]
@@ -79,7 +79,7 @@ class ProjectionTests(unittest.TestCase):
             claims.append({"c": self.claim["c"], "X": {
                 "rows": 54, "cols": 5, "data": [wrapped(value) for value in data],
                 "constant_hint": None, "packed_signed_unit": None},
-                "m_in": 270, "adv": None, "r": [extension([0, 0]) for _ in range(28)],
+                "m_in": 270, "adv": None, "r": [extension([0, 0]) for _ in range(27)],
                 "eval_k": [extension([0, 0]) for _ in range(64)],
                 "eval_a": [[extension([0, 0]) for _ in range(64)] for _ in range(7)]})
             pos, neg = [0] * BLOCKS, [0] * BLOCKS

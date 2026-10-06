@@ -26,28 +26,28 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 /-- Fixed completed pilot source interval. -/
-def pilotSourceColumnCount : Nat := 6892396
+def pilotSourceColumnCount : Nat := 6890200
 
 /-- Fixed completed pilot private interval. -/
-def pilotPrivateColumnCount : Nat := 6892122
+def pilotPrivateColumnCount : Nat := 6889926
 
 /-- Caller-supplied pilot private inputs precede all generated witnesses. -/
-def pilotInputPrivateColumnCount : Nat := 74594
+def pilotInputPrivateColumnCount : Nat := 74590
 
 /-- Caller-supplied PiCCS proof inputs. -/
-def proofInputColumnCount : Nat := 16436
+def proofInputColumnCount : Nat := 16416
 
 /-- Verifier-owned context words that follow the pilot source interval. -/
 def expectedContextColumnCount : Nat := 4
 
 /-- Source boundary between public context and private PiCCS proof inputs. -/
-def proofInputSourceStart : Nat := 6892400
+def proofInputSourceStart : Nat := 6890204
 
 /-- Source boundary between proof inputs and PiCCS local witnesses. -/
-def piCcsPhaseOffset : Nat := 6908836
+def piCcsPhaseOffset : Nat := 6906620
 
 /-- Target boundary after proof inputs and shifted pilot witnesses. -/
-def piCcsLocalStart : Nat := 6908558
+def piCcsLocalStart : Nat := 6906342
 
 /-- All source columns before Spartan inserts its constant column. -/
 def SourceColumnCount : Nat := RunningTransitionLayout.physicalEnd
@@ -635,7 +635,7 @@ theorem spartanToSource_sourceToSpartan (column : Nat)
           have positive : 0 < mapped - pilotPrivateColumnCount :=
             Nat.sub_pos_of_lt mappedAbove
           omega
-        have mappedBoundNumeric : mapped < 6892397 := by
+        have mappedBoundNumeric : mapped < 6890201 := by
           rw [PilotSpartan.spartanColumnCount_eq,
             PilotSpartan.sourceColumnCount_eq] at mappedBound
           norm_num at mappedBound
@@ -915,7 +915,7 @@ def paddedConstantColumn : Nat := domainSize
 def paddedSpartanColumnCount : Nat :=
   domainSize + 1 + publicColumnCount
 
-theorem domainSize_eq : domainSize = 268435456 := by
+theorem domainSize_eq : domainSize = 134217728 := by
   norm_num [domainSize, cubeVariables]
 
 /-- Move the unpadded constant and public suffix after the private domain. -/

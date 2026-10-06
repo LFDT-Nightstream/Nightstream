@@ -190,8 +190,8 @@ fn claim(output: &mut Vec<u8>, value: &Value, digest: &Value) {
             numbers(output, &value[1][column * D + row]);
         }
     }
-    assert_eq!(value[2].as_array().unwrap().len(), 28);
-    word(output, 28);
+    assert_eq!(value[2].as_array().unwrap().len(), 27);
+    word(output, 27);
     numbers(output, &value[2]);
     evaluation(output, &value[3]);
     assert_eq!(value[4].as_array().unwrap().len(), 7);
@@ -210,10 +210,10 @@ fn encode_wire(reference: &Value) -> Vec<u8> {
     let mut expected = b"NS-NIFS-PROOF".to_vec();
     word(&mut expected, 1);
     let mut ccs = Vec::new();
-    for value in [1102, 1, 28, 10] {
+    for value in [1102, 1, 27, 10] {
         word(&mut ccs, value);
     }
-    assert_eq!(reference[1][3].as_array().unwrap().len(), 28);
+    assert_eq!(reference[1][3].as_array().unwrap().len(), 27);
     for round in reference[1][3].as_array().unwrap() {
         assert_eq!(round.as_array().unwrap().len(), 10);
         numbers(&mut ccs, round);

@@ -9,12 +9,12 @@ import sys
 
 from check_piccs_binary_fold import P, require
 
-PAD_BLOCKS = 1107491
-MATRIX_ROWS = 1371020
+PAD_BLOCKS = 1106153
+MATRIX_ROWS = 1369389
 
 
 def main():
-    require(len(sys.argv) == 32, "expected executable, public, new directory and 28 Lean rounds")
+    require(len(sys.argv) == 31, "expected executable, public, new directory and 27 Lean rounds")
     executable, public, directory = Path(sys.argv[1]).resolve(), Path(sys.argv[2]).resolve(), Path(sys.argv[3])
     rounds = [Path(path).resolve() for path in sys.argv[4:]]
     point = [json.loads(path.read_bytes())[5] for path in rounds]

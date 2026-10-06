@@ -31,7 +31,7 @@ statement and empty proof. The sole state premise is its fixed public width;
 counter admissibility and equality of the two endpoints follow by construction. -/
 theorem initial_accepted
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationTerminal.FitsTwoPow28 application)
+    (fits : PerApplicationTerminal.FitsTwoPow27 application)
     (commitmentSetup : PerApplicationTerminal.CommitmentSetup application)
     (z0 : AppState)
     (stateWidth : z0.length = Lifecycle.Stage1.Application.stateWordCount) :

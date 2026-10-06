@@ -53,7 +53,7 @@ private def decodeReplay (commitmentText evaluationText : String) :
       unless (← schema.getNat?) == 1 &&
           (← blocks.getNat?) == Poseidon2HashChainV1Setup.messageColumns do
         throw "expected a complete selected Lean evaluation result"
-      let point ← PiCCSInputCheck.decodeVector 28 decodeExtension point
+      let point ← PiCCSInputCheck.decodeVector 27 decodeExtension point
       let pad ← PiCCSInputCheck.decodeVector 16
         (PiCCSInputCheck.decodeVector 54 decodeExtension) pad
       let matrix ← PiCCSInputCheck.decodeVector 16

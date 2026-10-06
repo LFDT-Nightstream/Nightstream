@@ -168,31 +168,31 @@ private theorem hashChain_of_sourceRows
 private theorem prior_input_map (index : Fin PilotProduction.stateHashWords) :
     Spartan.sourceToSpartan (PilotProduction.priorPreimageStart + index.val) =
       Data.priorChain.inputStart + index.val := by
-  have bound : index.val < 37297 := by simpa only [PilotProduction.stateHashWords_eq] using index.isLt
+  have bound : index.val < 37295 := by simpa only [PilotProduction.stateHashWords_eq] using index.isLt
   change Spartan.sourceToSpartan (0 + index.val) = Spartan.liftPilotColumn 0 + index.val
   unfold Spartan.sourceToSpartan
-  rw [if_pos (by change 0 + index.val < 6892396; omega)]
+  rw [if_pos (by change 0 + index.val < 6890200; omega)]
   unfold PilotSpartan.sourceToSpartan
-  rw [if_pos (by change 0 + index.val < 37297; omega)]
+  rw [if_pos (by change 0 + index.val < 37295; omega)]
   exact Spartan.liftPilotColumn_add_of_input 0 index.val (by
-    change 0 + index.val < 74594
+    change 0 + index.val < 74590
     omega)
 
 private theorem output_input_map (index : Fin PilotProduction.stateHashWords) :
     Spartan.sourceToSpartan (PilotProduction.outputPreimageStart + index.val) =
       Data.outputChain.inputStart + index.val := by
-  have bound : index.val < 37297 := by simpa only [PilotProduction.stateHashWords_eq] using index.isLt
-  change Spartan.sourceToSpartan (37567 + index.val) = Spartan.liftPilotColumn 37297 + index.val
+  have bound : index.val < 37295 := by simpa only [PilotProduction.stateHashWords_eq] using index.isLt
+  change Spartan.sourceToSpartan (37565 + index.val) = Spartan.liftPilotColumn 37295 + index.val
   unfold Spartan.sourceToSpartan
-  rw [if_pos (by change 37567 + index.val < 6892396; omega)]
+  rw [if_pos (by change 37565 + index.val < 6890200; omega)]
   unfold PilotSpartan.sourceToSpartan
-  rw [if_neg (by change ¬37567 + index.val < 37297; omega)]
-  rw [if_neg (by change ¬37567 + index.val < 37567; omega)]
-  rw [if_pos (by change 37567 + index.val < 74864; omega)]
-  change Spartan.liftPilotColumn (37297 + ((37567 + index.val) - 37567)) = _
+  rw [if_neg (by change ¬37565 + index.val < 37295; omega)]
+  rw [if_neg (by change ¬37565 + index.val < 37565; omega)]
+  rw [if_pos (by change 37565 + index.val < 74860; omega)]
+  change Spartan.liftPilotColumn (37295 + ((37565 + index.val) - 37565)) = _
   rw [Nat.add_sub_cancel_left]
-  exact Spartan.liftPilotColumn_add_of_input 37297 index.val (by
-    change 37297 + index.val < 74594
+  exact Spartan.liftPilotColumn_add_of_input 37295 index.val (by
+    change 37295 + index.val < 74590
     omega)
 
 private theorem pilot_witness_map (start index : Nat)
@@ -235,11 +235,11 @@ private theorem prior_local_values (target : Env) (index : Nat)
     rfl
   · exact Nat.le_refl _
   · rw [PilotProduction.witnessOffset_eq]
-    change 74868 + (3109 + 1) * 1096 ≤ 6892396
+    change 74864 + (3108 + 1) * 1096 ≤ 6890200
     norm_num
-  · change 74594 ≤ 74594
+  · change 74590 ≤ 74590
     exact Nat.le_refl _
-  · change 74594 + (3109 + 1) * 1096 ≤ 6892122
+  · change 74590 + (3108 + 1) * 1096 ≤ 6889926
     norm_num
 
 private theorem output_local_values (target : Env) (index : Nat)
@@ -249,16 +249,16 @@ private theorem output_local_values (target : Env) (index : Nat)
   apply local_values PilotData.outputChain PilotProduction.lifecycleOutputOffset
     (target := target) (index := index) (bound := bound)
   · rw [PilotProduction.lifecycleOutputOffset_eq, PilotProduction.witnessOffset_eq]
-    change 3483418 = 74594 + (3483692 - 74868)
+    change 3482318 = 74590 + (3482592 - 74864)
     norm_num
   · rw [PilotProduction.lifecycleOutputOffset_eq, PilotProduction.witnessOffset_eq]
     norm_num
   · rw [PilotProduction.lifecycleOutputOffset_eq]
-    change 3483692 + (3109 + 1) * 1096 ≤ 6892396
+    change 3482592 + (3108 + 1) * 1096 ≤ 6890200
     norm_num
-  · change 74594 ≤ 3483418
+  · change 74590 ≤ 3482318
     norm_num
-  · change 3483418 + (3109 + 1) * 1096 ≤ 6892122
+  · change 3482318 + (3108 + 1) * 1096 ≤ 6889926
     norm_num
 
 private theorem variable_word (env : Env) (start count index : Nat)

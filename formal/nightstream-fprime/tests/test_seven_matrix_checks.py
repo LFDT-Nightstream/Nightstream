@@ -34,10 +34,10 @@ class SevenMatrixChecks(unittest.TestCase):
         self.proof_path = self.write("proof.json", self.proof)
         self.phase_path = self.write("phase.json", self.phase)
         # This tests comparison framing, not independent round production.
-        self.round_path = self.write("round-27.json", [
-            1, self.phase[1], self.phase[2], self.phase[5][26], self.proof[3][27],
-            self.phase[4][27], self.phase[5][27], self.phase[8][26],
-            self.phase[8][26], self.phase[8][27],
+        self.round_path = self.write("round-26.json", [
+            1, self.phase[1], self.phase[2], self.phase[5][25], self.proof[3][26],
+            self.phase[4][26], self.phase[5][26], self.phase[8][25],
+            self.phase[8][25], self.phase[8][26],
         ])
 
     def write(self, name, value):
@@ -86,7 +86,7 @@ class SevenMatrixChecks(unittest.TestCase):
         def prefix(directory, kind, values):
             directory.mkdir(parents=True)
             (directory / "manifest.json").write_text(json.dumps(
-                [1, 28, kind, len(values), 1, self.phase[4], [[0, 1]]]))
+                [1, 27, kind, len(values), 1, self.phase[4], [[0, 1]]]))
             (directory / "0-1.bin").write_bytes(
                 b"".join(struct.pack("<QQ", *value) for value in values))
 
@@ -109,7 +109,7 @@ class SevenMatrixChecks(unittest.TestCase):
             ("caller.json", self.caller),
         )]
         report = self.run_check("check_independent_nifs_bytes.py", *paths, *paths)
-        self.assertEqual(report["caller_private_words"], 128186)
+        self.assertEqual(report["caller_private_words"], 128162)
         self.assertEqual(report["changed_target"], "rejected")
         caller = copy.deepcopy(self.caller)
         caller[2].pop()

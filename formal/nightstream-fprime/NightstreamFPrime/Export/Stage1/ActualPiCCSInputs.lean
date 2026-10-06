@@ -72,7 +72,7 @@ theorem evalFreshPublic_eq_priorPublic
 same decoded prior state that supplies its running claim. -/
 theorem selectedRowsZero_implies_freshPublicHash
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))
     (one : assignment (ApplicationRetainedGeometry.oneColumn
       (PerApplicationFixedPoint.geometry application)) = 1)
@@ -102,7 +102,7 @@ shared hash observations. The public marker supplies the one cell. These
 facts retain one assignment and one decoded PiCCS environment throughout. -/
 theorem selectedRowsAndPublic_imply_phaseAndHashes
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (ajtai : AjtaiKey
       (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))

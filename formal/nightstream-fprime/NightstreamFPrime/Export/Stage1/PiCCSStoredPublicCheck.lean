@@ -874,7 +874,7 @@ private theorem terminalClaim_value (input : PiCCSInputCheck.Input) (probe : Sto
   rfl
 
 private def terminalWork : Nat :=
-  (28 * 7 + 3) + 2 * (28 * 73 + 4) + padHornerWork 8 + matrixHornerWork 9 +
+  (27 * 7 + 3) + 2 * (27 * 73 + 4) + padHornerWork 8 + matrixHornerWork 9 +
     (8 * 2585 + 6) + (17 * 341 + 5) + (864 * 16 + 4) + (6912 * 16 + 4) + (1 * 16 + 4) +
     6 * 13 + 3 * 8 + 11
 
@@ -882,7 +882,7 @@ private theorem terminalClaim_work_le (input : PiCCSInputCheck.Input) (probe : S
     (terminalClaim input probe).work ≤ terminalWork := by
   have prior := pointEquality_work_le probe.coins.roundPoint.coordinates (pointList input.running.point).value
   have alpha := pointEquality_work_le probe.coins.roundPoint.coordinates probe.coins.alpha.coordinates
-  have length : probe.coins.roundPoint.coordinates.length = 28 := probe.coins.roundPoint.dimension
+  have length : probe.coins.roundPoint.coordinates.length = 27 := probe.coins.roundPoint.dimension
   rw [length] at prior alpha
   have pad := padHorner_work_le probe.coins.gamma (outputPad probe) K.zero 8 (by
     intro running coefficient
@@ -922,10 +922,10 @@ theorem check_value (input : PiCCSInputCheck.Input) (probe : StoredProbe product
   simp only [check, checkRounds_value, initialClaim_value, terminalClaim_value,
     ProtocolPolynomial.FixedWidth.check]
 
-/-- A uniform bound on the executed named operations. The 28 challenges,
+/-- A uniform bound on the executed named operations. The 27 challenges,
 ten coefficients, 17 sources, and retained 8-term table determine it. -/
 def workBound : Nat :=
-  matrixHornerWork 6 + padHornerWork 5 + 4 + terminalWork + (28 * 849 + 13) + 7
+  matrixHornerWork 6 + padHornerWork 5 + 4 + terminalWork + (27 * 849 + 13) + 7
 
 theorem check_work_le (input : PiCCSInputCheck.Input) (probe : StoredProbe productionShape) :
     (check input probe).work ≤ workBound := by
@@ -933,7 +933,7 @@ theorem check_work_le (input : PiCCSInputCheck.Input) (probe : StoredProbe produ
   have terminal := terminalClaim_work_le input probe
   have rounds := checkRounds_work_le (initialClaim input probe.coins.gamma).value
     (terminalClaim input probe).value probe.coins.roundPoint.coordinates probe.certificate.rounds
-  have length : probe.coins.roundPoint.coordinates.length = 28 := probe.coins.roundPoint.dimension
+  have length : probe.coins.roundPoint.coordinates.length = 27 := probe.coins.roundPoint.dimension
   rw [length] at rounds
   dsimp only [check]
   unfold workBound

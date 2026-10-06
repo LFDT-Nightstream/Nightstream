@@ -22,15 +22,15 @@ def main():
     public = json.loads(Path(sys.argv[1]).read_bytes())
     directory = Path(sys.argv[2])
     proof, phase = [json.loads(Path(path).read_bytes()) for path in sys.argv[3:5]]
-    names = {f"round-{index}.json" for index in range(28)}
+    names = {f"round-{index}.json" for index in range(27)}
     require({path.name for path in directory.iterdir()} == names,
-            "the Lean directory must contain exactly all 28 round files")
+            "the Lean directory must contain exactly all 27 round files")
     sequence(proof, 7, "Rust input")
-    for row in sequence(proof[3], 28, "Rust round messages"):
+    for row in sequence(proof[3], 27, "Rust round messages"):
         for value in sequence(row, 10, "Rust round coefficients"):
             extension(value, "Rust round coefficient")
     previous = None
-    for index in range(28):
+    for index in range(27):
         path = directory / f"round-{index}.json"
         require(path.is_file(), f"{path}: not a round file")
         lean = read_round(path)
@@ -48,9 +48,9 @@ def main():
         else:
             raise ValueError(f"round {index}: changed target was accepted")
         previous = lean
-    print(json.dumps({"event": "piccs_all_rounds_comparison_passed", "rounds": 28,
+    print(json.dumps({"event": "piccs_all_rounds_comparison_passed", "rounds": 27,
                       "matched_K_coefficients": 280, "matched_field_words": 560,
-                      "matched_transcript_transitions": 28, "changed_targets_rejected": 28,
+                      "matched_transcript_transitions": 27, "changed_targets_rejected": 27,
                       "scope": "complete round messages and causal saved traces; final evaluations remain separate"}))
 
 

@@ -44,7 +44,7 @@ open Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
 def PilotAssignment : Prop :=
   ∀ (application : Lifecycle.Stage1.Application.Program)
-    (fits : Export.Stage1.PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : Export.Stage1.PerApplicationFixedPoint.FitsTwoPow27 application)
     (assignment : Assignment F (Export.Stage1.PerApplicationFixedPoint.logicalWidth application)),
     assignment (ApplicationRetainedGeometry.oneColumn
       (Export.Stage1.PerApplicationFixedPoint.geometry application)) = 1 →
@@ -59,7 +59,7 @@ theorem pilotAssignment : PilotAssignment :=
 
 def PiCCSAssignment : Prop :=
   ∀ (application : Lifecycle.Stage1.Application.Program)
-    (fits : Export.Stage1.PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : Export.Stage1.PerApplicationFixedPoint.FitsTwoPow27 application)
     (ajtai : Lifecycle.PaperAlgebra.AjtaiKey
       (logicalWidth := Export.Stage1.PerApplicationFixedPoint.logicalWidth application)
       (publicFits := Export.Stage1.PerApplicationFixedPoint.publicFits application))
@@ -84,7 +84,7 @@ theorem piCCSAssignment : PiCCSAssignment :=
 
 def PiCCSPublicAssignment : Prop :=
   ∀ (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (ajtai : AjtaiKey
       (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))
@@ -134,7 +134,7 @@ theorem piCCSPublicAssignment : PiCCSPublicAssignment :=
 typed step at the decoded context. Verifier-context binding is separate. -/
 def Stage1Assignment : Prop :=
   ∀ (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (ajtai : AjtaiKey
       (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))
@@ -165,7 +165,7 @@ theorem stage1Assignment : Stage1Assignment := by
 row/public premises, plus exact advertised-state matching or a named collision. -/
 def Stage1TerminalAssignment : Prop :=
   ∀ (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (commitmentSetup : PerApplicationCanonicalPackage.CommitmentSetup application)
     (statement : Spec.HyperNova.Construction2.Paper.TerminalStatement AppState)
     (payload : ActualContextSecurity.TerminalPayload application),
@@ -196,7 +196,7 @@ theorem stage1TerminalAssignment : Stage1TerminalAssignment :=
 The first step needs no NIFS extraction; collisions remain named events. -/
 def Stage1TerminalParent : Prop :=
   ∀ (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (commitmentSetup : PerApplicationCanonicalPackage.CommitmentSetup application)
     (statement : Spec.HyperNova.Construction2.Paper.TerminalStatement AppState)
     (payload : ActualContextSecurity.TerminalPayload application),
@@ -544,9 +544,9 @@ def PiCCSFirstRoundKernel : Prop :=
     (alpha : CubePoint K Lifecycle.productionShape.cubeVariables)
     (gamma value : K),
     (PiCCSFirstRound.firstRound ConcreteCarrier.extensionOps data alpha gamma
-      (remaining := 27) (by decide)).evaluate ConcreteCarrier.extensionOps.toOps value =
+      (remaining := 26) (by decide)).evaluate ConcreteCarrier.extensionOps.toOps value =
       Spec.SumCheck.Finite.HypercubeTruth.sumCompletions ConcreteCarrier.extensionOps.toOps
-        (ProtocolPolynomial.polynomial ConcreteCarrier.extensionOps data alpha gamma) [value] 27
+        (ProtocolPolynomial.polynomial ConcreteCarrier.extensionOps data alpha gamma) [value] 26
 
 /-- The complete sum theorem supplies the exact coefficient-kernel target. -/
 theorem piCCSFirstRoundKernel : PiCCSFirstRoundKernel :=
@@ -678,7 +678,7 @@ theorem piCCSStoredInvocation : PiCCSStoredInvocation := by
 Endpoints and carried totals are arbitrary; no signedness premise is needed. -/
 def PiCCSCachedPairKernel : Prop :=
   ∀ (input : ProtocolPolynomial.VerifierInput K productionShape) (powers : Nat → K)
-    (alpha : CubePoint K productionShape.cubeVariables) (suffix : BooleanVertex 27)
+    (alpha : CubePoint K productionShape.cubeVariables) (suffix : BooleanVertex 26)
     (low high : ProtocolPolynomial.OutputMessage K productionShape)
     (padLow padHigh matrixLow matrixHigh : K),
     PiCCSFirstRoundPair.pairPolynomialWithNorm ConcreteCarrier.extensionOps input powers
@@ -759,7 +759,7 @@ def PiCCSFirstRoundSourceCoefficients : Prop :=
           (PiCCSPublicReplay.running input) (PiCCSPublicReplay.fresh input)).sourceProtocolData
             K.embed ⟨PiCCSNormSource.assignments masks⟩)
         (PiCCSPublicReplay.pre input).alpha (PiCCSPublicReplay.pre input).gamma
-        (remaining := 27) (by decide)).coefficients)
+        (remaining := 26) (by decide)).coefficients)
 
 theorem piCCSFirstRoundSourceCoefficients : PiCCSFirstRoundSourceCoefficients :=
   PiCCSFirstRoundComposition.coefficients_eq_firstRound

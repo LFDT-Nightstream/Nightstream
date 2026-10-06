@@ -23,8 +23,8 @@ open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Spec
 
 abbrev Program := Lifecycle.Stage1.Application.Program
-abbrev FitsTwoPow28 (program : Program) :=
-  PerApplicationCanonicalPackage.FitsTwoPow28 program
+abbrev FitsTwoPow27 (program : Program) :=
+  PerApplicationCanonicalPackage.FitsTwoPow27 program
 
 private theorem map_eq_of_pointwise {Alpha Beta : Type}
     (values : List Alpha) (left right : Alpha → Beta)
@@ -888,38 +888,38 @@ def directInnerValue (context : PerApplicationCachedShift.Context)
         context.program))]
 
 private theorem directSchemaVersion_eq
-    (program : Program) (fits : FitsTwoPow28 program) :
+    (program : Program) (fits : FitsTwoPow27 program) :
     8 = (PerApplicationCanonicalPackage.package program fits).schemaVersion := by
   rfl
 
 private theorem directProfile_eq
-    (program : Program) (fits : FitsTwoPow28 program) :
+    (program : Program) (fits : FitsTwoPow27 program) :
     PilotData.profile =
       (PerApplicationCanonicalPackage.package program fits).profile := by
   rfl
 
 private theorem directPoseidon_eq
-    (program : Program) (fits : FitsTwoPow28 program) :
+    (program : Program) (fits : FitsTwoPow27 program) :
     PilotData.poseidonSchedule =
       (PerApplicationCanonicalPackage.package program fits).poseidon := by
   rfl
 
 private theorem directLayout_eq
-    (program : Program) (fits : FitsTwoPow28 program) :
+    (program : Program) (fits : FitsTwoPow27 program) :
     PerApplicationPackage.directFinalLayout program =
       (PerApplicationCanonicalPackage.package program fits).layout := by
   rw [PerApplicationPackage.directFinalLayout_eq_finalLayout]
   rfl
 
 private theorem directRelation_eq
-    (program : Program) (fits : FitsTwoPow28 program) :
+    (program : Program) (fits : FitsTwoPow27 program) :
     PerApplicationCanonicalPackage.directRecursiveRelation program =
       (PerApplicationCanonicalPackage.package program fits).relation := by
   rw [PerApplicationCanonicalPackage.directRecursiveRelation_eq_recursiveRelation]
   rfl
 
 private theorem directPermutation_eq
-    (program : Program) (fits : FitsTwoPow28 program) :
+    (program : Program) (fits : FitsTwoPow27 program) :
     PilotData.permutationTemplate () =
       (PerApplicationCanonicalPackage.package program fits).permutation := by
   rfl
@@ -959,7 +959,7 @@ private theorem installedReplaced_witnessBatches (source : CircuitPackage)
   rfl
 
 private theorem canonicalPackage_hashChains_eq_source
-    (program : Program) (fits : FitsTwoPow28 program) :
+    (program : Program) (fits : FitsTwoPow27 program) :
     (PerApplicationCanonicalPackage.package program fits).hashChains =
       (PerApplicationPackage.package program).hashChains := by
   change (TerminalPackage.install
@@ -970,7 +970,7 @@ private theorem canonicalPackage_hashChains_eq_source
   exact installedReplaced_hashChains _ _
 
 private theorem canonicalPackage_permutationInvocations_eq_source
-    (program : Program) (fits : FitsTwoPow28 program) :
+    (program : Program) (fits : FitsTwoPow27 program) :
     (PerApplicationCanonicalPackage.package
         program fits).permutationInvocations =
       (PerApplicationPackage.package program).permutationInvocations := by
@@ -982,7 +982,7 @@ private theorem canonicalPackage_permutationInvocations_eq_source
   exact installedReplaced_permutationInvocations _ _
 
 private theorem canonicalPackage_compactRowInvocations_eq_source
-    (program : Program) (fits : FitsTwoPow28 program) :
+    (program : Program) (fits : FitsTwoPow27 program) :
     (PerApplicationCanonicalPackage.package
         program fits).compactRowInvocations =
       (PerApplicationPackage.package program).compactRowInvocations := by
@@ -994,7 +994,7 @@ private theorem canonicalPackage_compactRowInvocations_eq_source
   exact installedReplaced_compactRowInvocations _ _
 
 private theorem canonicalPackage_witnessBatches_eq_source
-    (program : Program) (fits : FitsTwoPow28 program) :
+    (program : Program) (fits : FitsTwoPow27 program) :
     (PerApplicationCanonicalPackage.package program fits).witnessBatches =
       (PerApplicationPackage.package program).witnessBatches := by
   change (TerminalPackage.install
@@ -1005,7 +1005,7 @@ private theorem canonicalPackage_witnessBatches_eq_source
   exact installedReplaced_witnessBatches _ _
 
 private theorem canonicalPackage_witnessInstructions_eq_source
-    (program : Program) (fits : FitsTwoPow28 program) :
+    (program : Program) (fits : FitsTwoPow27 program) :
     (PerApplicationCanonicalPackage.package
         program fits).witnessInstructions =
       (PerApplicationPackage.package program).witnessInstructions := by
@@ -1018,7 +1018,7 @@ private theorem canonicalPackage_witnessInstructions_eq_source
     (PerApplicationCanonicalPackage.replaceRelation_witnessInstructions _ _)
 
 private theorem canonicalPackage_assertionRows_eq_source
-    (program : Program) (fits : FitsTwoPow28 program) :
+    (program : Program) (fits : FitsTwoPow27 program) :
     (PerApplicationCanonicalPackage.package program fits).assertionRows =
       (PerApplicationPackage.package program).assertionRows := by
   change (TerminalPackage.install
@@ -1031,7 +1031,7 @@ private theorem canonicalPackage_assertionRows_eq_source
 
 private theorem directHashChains_eq_canonical
     (context : PerApplicationCachedShift.Context)
-    (fits : FitsTwoPow28 context.program) :
+    (fits : FitsTwoPow27 context.program) :
     directHashChains context =
       (PerApplicationCanonicalPackage.package
         context.program fits).hashChains := by
@@ -1040,7 +1040,7 @@ private theorem directHashChains_eq_canonical
 
 private theorem directPermutationInvocations_eq_canonical
     (context : PerApplicationCachedShift.Context)
-    (fits : FitsTwoPow28 context.program) :
+    (fits : FitsTwoPow27 context.program) :
     directPermutationInvocations context =
       (PerApplicationCanonicalPackage.package
         context.program fits).permutationInvocations := by
@@ -1049,7 +1049,7 @@ private theorem directPermutationInvocations_eq_canonical
       context.program fits).symm
 
 private theorem directCompactRowTemplates_eq
-    (program : Program) (fits : FitsTwoPow28 program) :
+    (program : Program) (fits : FitsTwoPow27 program) :
     Data.compactRowTemplates () =
       (PerApplicationCanonicalPackage.package
         program fits).compactRowTemplates := by
@@ -1057,7 +1057,7 @@ private theorem directCompactRowTemplates_eq
 
 private theorem directCompactRowInvocations_eq_canonical
     (context : PerApplicationCachedShift.Context)
-    (fits : FitsTwoPow28 context.program) :
+    (fits : FitsTwoPow27 context.program) :
     directCompactRowInvocations context =
       (PerApplicationCanonicalPackage.package
         context.program fits).compactRowInvocations := by
@@ -1067,7 +1067,7 @@ private theorem directCompactRowInvocations_eq_canonical
 
 private theorem directWitnessBatches_eq_canonical
     (context : PerApplicationCachedShift.Context)
-    (fits : FitsTwoPow28 context.program) :
+    (fits : FitsTwoPow27 context.program) :
     directWitnessBatches context
         (PerApplicationPackage.directApplicationPlan context.program) =
       (PerApplicationCanonicalPackage.package
@@ -1077,7 +1077,7 @@ private theorem directWitnessBatches_eq_canonical
 
 private theorem directWitnessInstructions_eq_canonical
     (context : PerApplicationCachedShift.Context)
-    (fits : FitsTwoPow28 context.program) :
+    (fits : FitsTwoPow27 context.program) :
     directWitnessInstructions context
         (PerApplicationPackage.directApplicationPlan context.program) =
       (PerApplicationCanonicalPackage.package
@@ -1088,7 +1088,7 @@ private theorem directWitnessInstructions_eq_canonical
 
 private theorem directAssertionRows_eq_canonical
     (context : PerApplicationCachedShift.Context)
-    (fits : FitsTwoPow28 context.program) :
+    (fits : FitsTwoPow27 context.program) :
     directAssertionRows context
         (PerApplicationPackage.directApplicationPlan context.program) =
       (PerApplicationCanonicalPackage.package
@@ -1097,7 +1097,7 @@ private theorem directAssertionRows_eq_canonical
     (canonicalPackage_assertionRows_eq_source context.program fits).symm
 
 private theorem directTerminal_eq
-    (program : Program) (fits : FitsTwoPow28 program) :
+    (program : Program) (fits : FitsTwoPow27 program) :
     some (PerApplicationCanonicalPackage.directTerminalLayout program) =
       (PerApplicationCanonicalPackage.package program fits).terminal := by
   rw [PerApplicationCanonicalPackage.package_terminal,
@@ -1105,7 +1105,7 @@ private theorem directTerminal_eq
 
 theorem directInnerValue_eq
     (context : PerApplicationCachedShift.Context)
-    (fits : FitsTwoPow28 context.program) :
+    (fits : FitsTwoPow27 context.program) :
     directInnerValue context
         (PerApplicationPackage.directApplicationPlan context.program) =
       CircuitPackage.format.encode
@@ -1155,7 +1155,7 @@ theorem directInnerValue_eq
 theorem processInnerPackageWith_eq_processValueWith {State : Type}
     (push : State → StreamingIdentity.Node → State) (state : State)
     (context : PerApplicationCachedShift.Context)
-    (fits : FitsTwoPow28 context.program) :
+    (fits : FitsTwoPow27 context.program) :
     processInnerPackageWith push state context
         (PerApplicationPackage.directApplicationPlan context.program) =
       StreamingIdentity.processValueWith push
@@ -1176,7 +1176,7 @@ theorem processInnerPackageWith_eq_processValueWith {State : Type}
 
 theorem processInnerPackageOfProgramWith_eq_processValueWith {State : Type}
     (push : State → StreamingIdentity.Node → State) (state : State)
-    (program : Program) (fits : FitsTwoPow28 program) :
+    (program : Program) (fits : FitsTwoPow27 program) :
     processInnerPackageWith push state
         (PerApplicationCachedShift.Context.ofProgram program)
         (PerApplicationPackage.directApplicationPlan program) =
@@ -1213,7 +1213,7 @@ by the caller. -/
 
 theorem directStateWith_eq_processValueWith {State : Type}
     (push : State → StreamingIdentity.Node → State) (initial : State)
-    (program : Program) (fits : FitsTwoPow28 program) :
+    (program : Program) (fits : FitsTwoPow27 program) :
     directStateWith push initial program =
       StreamingIdentity.processValueWith push
         (PerApplicationCanonicalPackage.sealedPackageValue program fits)
@@ -1232,7 +1232,7 @@ def semanticState (program : Program) : StreamingIdentity.HashState :=
     StreamingIdentity.initialState program
 
 theorem semanticState_eq
-    (program : Program) (fits : FitsTwoPow28 program) :
+    (program : Program) (fits : FitsTwoPow27 program) :
     semanticState program =
       StreamingIdentity.processValue
         (PerApplicationCanonicalPackage.sealedPackageValue program fits)
@@ -1244,12 +1244,12 @@ theorem semanticState_eq
 /-- Semantic streaming digest. This name is separate from the final native
 entry point so the executable boundary has one monomorphic state type. -/
 def structuralPackageIdentityStream (program : Program)
-    (_fits : FitsTwoPow28 program) : VerifierContext.Digest4 :=
+    (_fits : FitsTwoPow27 program) : VerifierContext.Digest4 :=
   VerifierContext.Digest4.ofList
     (StreamingIdentity.finalize (semanticState program))
 
 theorem structuralPackageIdentityStream_eq
-    (program : Program) (fits : FitsTwoPow28 program) :
+    (program : Program) (fits : FitsTwoPow27 program) :
     structuralPackageIdentityStream program fits =
       PerApplicationCanonicalPackage.structuralPackageIdentity
         program fits := by
@@ -1294,7 +1294,7 @@ private theorem directState_eq_directStateWith (program : Program) :
 
 /-- One whole-traversal refinement. Runtime stays in `HashState64`; the proof
 maps only the final state to the semantic Poseidon2 state. -/
-theorem directState_denote (program : Program) (fits : FitsTwoPow28 program) :
+theorem directState_denote (program : Program) (fits : FitsTwoPow27 program) :
     (directState program).denote = semanticState program := by
   rw [directState_eq_directStateWith]
   unfold semanticState
@@ -1312,14 +1312,14 @@ theorem directState_denote (program : Program) (fits : FitsTwoPow28 program) :
 
 /-- Allocation-bounded executable identity for the final sealed package. -/
 @[inline] def structuralPackageIdentityDirect (program : Program)
-    (_fits : FitsTwoPow28 program) : VerifierContext.Digest4 :=
+    (_fits : FitsTwoPow27 program) : VerifierContext.Digest4 :=
   VerifierContext.Digest4.ofList
     (NativePoseidon2.finalize64 (directState program)).denote
 
 /-- The native result is the canonical relation identifier. The canonical
 package value remains the semantic authority. -/
 theorem structuralPackageIdentityDirect_eq
-    (program : Program) (fits : FitsTwoPow28 program) :
+    (program : Program) (fits : FitsTwoPow27 program) :
     structuralPackageIdentityDirect program fits =
       PerApplicationCanonicalPackage.structuralPackageIdentity program fits := by
   unfold structuralPackageIdentityDirect

@@ -45,13 +45,13 @@ fn sealed_package_builds_the_package_owned_logical_relation_header() {
         .ccs_structure_header()
         .expect("Lean-owned logical CCS header");
 
-    assert_eq!(package.physical_row_count(), 14_660_374);
-    assert_eq!(package.total_column_count(), 14_767_211);
-    assert_eq!(package.private_input_count(), 128_186);
+    assert_eq!(package.physical_row_count(), 14_649_299);
+    assert_eq!(package.total_column_count(), 14_756_116);
+    assert_eq!(package.private_input_count(), 128_162);
     assert_eq!(package.public_input_count(), 278);
-    assert_eq!(relation.row_count(), 1_371_020);
+    assert_eq!(relation.row_count(), 1_369_389);
     // Poseidon2HashChainV1Package.logicalWidth, after shared-value wiring.
-    assert_eq!(relation.column_count(), 59_804_510);
+    assert_eq!(relation.column_count(), 59_732_227);
     assert_eq!(relation.cube_variables(), PI_CCS_V1_1_ROUND_COUNT);
     assert_eq!(
         relation.matrix_sources(),
@@ -82,7 +82,7 @@ fn sealed_package_builds_the_package_owned_logical_relation_header() {
     assert!(header.is_verifier_artifact_header());
     assert_eq!(header.n, relation.row_count());
     assert_eq!(header.m, relation.column_count());
-    // The rows and the carrier fit 2^27; the declared cube keeps 28 rounds.
+    // The rows and the ring-padded carrier both fit the 27-round domain.
     assert!(
         relation
             .row_count()

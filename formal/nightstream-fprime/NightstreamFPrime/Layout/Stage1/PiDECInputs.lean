@@ -62,7 +62,7 @@ theorem proofInputColumnCount_eq : proofInputColumnCount = 37152 := by
 theorem inputStarts_eq :
     [commitmentInputStart, evalKInputStart, evalAInputStart, publicInputStart,
       phaseOffset] =
-    [14724302, 14743310, 14745038, 14757134, 14761454] := by
+    [14713207, 14732215, 14733943, 14746039, 14750359] := by
   rfl
 
 def childCommitmentStart (child : Radix.ChildIndex) : Nat :=

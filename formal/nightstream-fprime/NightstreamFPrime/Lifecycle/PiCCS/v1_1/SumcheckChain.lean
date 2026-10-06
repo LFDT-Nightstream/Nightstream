@@ -5,14 +5,14 @@ import NightstreamFPrime.Spec.Folding.PiCCS.Accepted
 
 /-!
 Paper authority: SuperNeo v1.1, Section 7.3, Step 2, `SumCheck(T; Q)`.
-Obligation: Enforce all 28 equations
+Obligation: Enforce all 27 equations
 `p_i(0) + p_i(1) = claim_i`, then `claim_(i+1) = p_i(r_i)`, and
-export the final `claim_28` for the separate `Q(r')` check.
+export the final `claim_27` for the separate `Q(r')` check.
 
 Inputs:
 - the initial claim `T`;
-- 28 prover round polynomials of the fixed production degree;
-- 28 challenges that are shared with the transcript leaf;
+- 27 prover round polynomials of the fixed production degree;
+- 27 challenges that are shared with the transcript leaf;
 
 Outputs:
 - the final claimed value `v`;
@@ -140,21 +140,21 @@ theorem localLength_eq {degree : Nat} (interface : Interface degree)
 
 theorem operations_length {degree : Nat} (interface : Interface degree)
     (offset : Nat) :
-    (Circuit.ops (circuit interface).main offset).length = 57 := by
+    (Circuit.ops (circuit interface).main offset).length = 55 := by
   change (Circuit.ops
     (FixedChain.Owned.circuit
-      (coreInterface interface offset)).main offset).length = 57
+      (coreInterface interface offset)).main offset).length = 55
   simpa [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables] using!
     FixedChain.Owned.operations_length (coreInterface interface offset) offset
 
 theorem flatConstraints_length {degree : Nat} (interface : Interface degree)
     (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      privateCount degree + 56 := by
+      privateCount degree + 54 := by
   change (flatConstraints (Circuit.ops
     (FixedChain.Owned.circuit
       (coreInterface interface offset)).main offset)).length =
-        privateCount degree + 56
+        privateCount degree + 54
   simpa [privateCount, productionShape, Phi81MatrixSource.phi81Shape,
     cubeVariables] using!
     FixedChain.Owned.flatConstraints_length

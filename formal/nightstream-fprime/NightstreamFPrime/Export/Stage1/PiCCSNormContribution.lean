@@ -147,7 +147,7 @@ private theorem selector_factor (alpha : CubePoint K cubeVariables)
   rcases alpha with ⟨coordinates, length⟩
   cases coordinates with
   | nil =>
-      change (0 : Nat) = 28 at length
+      change (0 : Nat) = 27 at length
       omega
   | cons head tail =>
       have selector := PiCCSCachedSelector.equalitySelector_prepare extensionOps extensionLaws

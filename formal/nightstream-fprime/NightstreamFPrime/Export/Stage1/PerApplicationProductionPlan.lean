@@ -24,8 +24,8 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 abbrev ProgramApplication := Lifecycle.Stage1.Application.Program
 
-abbrev FitsTwoPow28 (application : ProgramApplication) :=
-  PerApplicationFixedPoint.FitsTwoPow28 application
+abbrev FitsTwoPow27 (application : ProgramApplication) :=
+  PerApplicationFixedPoint.FitsTwoPow27 application
 
 /-- Fixed production-plan instruction vocabulary. The order is supplied by
 `canonical`; enum order has no semantic effect. -/
@@ -99,12 +99,12 @@ def piDecGeometry (application : ProgramApplication) :=
     (samplerGeometry application)
 
 def relation (application : ProgramApplication)
-    (fits : FitsTwoPow28 application) :=
+    (fits : FitsTwoPow27 application) :=
   PerApplicationFixedPoint.seedRelation application fits
 
 /-- Exact direct plan selected by one opcode. -/
 def BlockKind.plan (application : ProgramApplication)
-    (fits : FitsTwoPow28 application) : BlockKind →
+    (fits : FitsTwoPow27 application) : BlockKind →
     ProductionRelation.Plan (PerApplicationFixedPoint.logicalWidth application)
   | .pilotPoseidon => DirectPiDECPrefixPlan.pilotPlan
       (piDecGeometry application)
@@ -139,9 +139,9 @@ def BlockKind.plan (application : ProgramApplication)
 
 /-- Direct wire-facing live-row count for one production block. -/
 def BlockKind.rowCount (application : ProgramApplication) : BlockKind → Nat
-  | .pilotPoseidon => 933000
-  | .piCcsPoseidon => 240160
-  | .piCcsOrdinary => 48443
+  | .pilotPoseidon => 932700
+  | .piCcsPoseidon => 238944
+  | .piCcsOrdinary => 48330
   | .pilotOrdinary => 686
   | .pilotDigestBinding => 8
   | .piCcsEndpoint => 64
@@ -149,7 +149,7 @@ def BlockKind.rowCount (application : ProgramApplication) : BlockKind → Nat
   | .samplerOrdinary => 14943
   | .piRlc => 78948
   | .piDec => 6912
-  | .runningTransition => 37263
+  | .runningTransition => 37261
   | .application => (PerApplicationPackage.applicationPlan application).rowCount
   | .nextPreimage => 5
   | .recursivePublicOutput => 4
@@ -157,7 +157,7 @@ def BlockKind.rowCount (application : ProgramApplication) : BlockKind → Nat
 /-- The direct block count is exactly the count of the selected semantic
 plan. -/
 theorem BlockKind.plan_rowCount (application : ProgramApplication)
-    (fits : FitsTwoPow28 application) (kind : BlockKind) :
+    (fits : FitsTwoPow27 application) (kind : BlockKind) :
     (kind.plan application fits).rowCount = kind.rowCount application := by
   cases kind <;>
     simp [BlockKind.plan, BlockKind.rowCount,
@@ -174,7 +174,7 @@ theorem BlockKind.plan_rowCount (application : ProgramApplication)
 /-- Interpreter for the compact tree. Every concatenation checks the final
 row bound before it constructs a plan. -/
 def Program.compile (application : ProgramApplication)
-    (fits : FitsTwoPow28 application) : Program →
+    (fits : FitsTwoPow27 application) : Program →
     Option (ProductionRelation.Plan
       (PerApplicationFixedPoint.logicalWidth application))
   | .leaf kind => some (kind.plan application fits)
@@ -243,7 +243,7 @@ def canonicalKinds : List BlockKind :=
 /-- The flat wire schedule has the exact live-row count of the semantic
 structural plan. -/
 theorem canonicalKinds_rowCount (application : ProgramApplication)
-    (fits : FitsTwoPow28 application) :
+    (fits : FitsTwoPow27 application) :
     (canonicalKinds.map fun kind => kind.rowCount application).sum =
       (PerApplicationFixedPoint.structuralPlan application fits).rowCount := by
   rw [PerApplicationFixedPoint.structuralPlan_rowCount]
@@ -306,14 +306,14 @@ theorem headersFrom_rowCount (application : ProgramApplication)
       simp [headersFrom, inductionHypothesis]
 
 theorem canonicalHeaders_rowCount (application : ProgramApplication)
-    (fits : FitsTwoPow28 application) :
+    (fits : FitsTwoPow27 application) :
     ((canonicalHeaders application).map BlockHeader.rowCount).sum =
       (PerApplicationFixedPoint.structuralPlan application fits).rowCount := by
   rw [canonicalHeaders, headersFrom_rowCount]
   exact canonicalKinds_rowCount application fits
 
 private theorem compile_append
-    (application : ProgramApplication) (fits : FitsTwoPow28 application)
+    (application : ProgramApplication) (fits : FitsTwoPow27 application)
     {left right : Program}
     {leftPlan rightPlan : ProductionRelation.Plan
       (PerApplicationFixedPoint.logicalWidth application)}
@@ -326,7 +326,7 @@ private theorem compile_append
   simp [Program.compile, leftCompiled, rightCompiled, bounded]
 
 private theorem compile_piCcsPoseidonPrefixProgram
-    (application : ProgramApplication) (fits : FitsTwoPow28 application) :
+    (application : ProgramApplication) (fits : FitsTwoPow27 application) :
     piCcsPoseidonPrefixProgram.compile application fits =
       some (DirectPiDECPrefixPlan.piCcsPoseidonPrefix
         (piDecGeometry application)) := by
@@ -350,7 +350,7 @@ private theorem compile_piCcsPoseidonPrefixProgram
       rfl
 
 private theorem compile_piCcsCoreProgram
-    (application : ProgramApplication) (fits : FitsTwoPow28 application) :
+    (application : ProgramApplication) (fits : FitsTwoPow27 application) :
     piCcsCoreProgram.compile application fits =
       some (DirectPiDECPrefixPlan.piCcsCorePlan
         (relation application fits) (piDecGeometry application)) := by
@@ -376,7 +376,7 @@ private theorem compile_piCcsCoreProgram
       rfl
 
 private theorem compile_pilotOrdinaryPrefixProgram
-    (application : ProgramApplication) (fits : FitsTwoPow28 application) :
+    (application : ProgramApplication) (fits : FitsTwoPow27 application) :
     pilotOrdinaryPrefixProgram.compile application fits =
       some (DirectPiDECPrefixPlan.pilotOrdinaryPrefixPlan
         (relation application fits) (piDecGeometry application)) := by
@@ -402,7 +402,7 @@ private theorem compile_pilotOrdinaryPrefixProgram
       rfl
 
 private theorem compile_pilotBindingPrefixProgram
-    (application : ProgramApplication) (fits : FitsTwoPow28 application) :
+    (application : ProgramApplication) (fits : FitsTwoPow27 application) :
     pilotBindingPrefixProgram.compile application fits =
       some (DirectPiDECPrefixPlan.pilotBindingPrefixPlan
         (relation application fits) (piDecGeometry application)) := by
@@ -428,7 +428,7 @@ private theorem compile_pilotBindingPrefixProgram
       rfl
 
 private theorem compile_piCcsCompleteProgram
-    (application : ProgramApplication) (fits : FitsTwoPow28 application) :
+    (application : ProgramApplication) (fits : FitsTwoPow27 application) :
     piCcsCompleteProgram.compile application fits =
       some (DirectPiDECPrefixPlan.piCcsCompletePlan
         (relation application fits) (piDecGeometry application)) := by
@@ -454,7 +454,7 @@ private theorem compile_piCcsCompleteProgram
       rfl
 
 private theorem compile_samplerPrefixProgram
-    (application : ProgramApplication) (fits : FitsTwoPow28 application) :
+    (application : ProgramApplication) (fits : FitsTwoPow27 application) :
     samplerPrefixProgram.compile application fits =
       some (DirectPiDECPrefixPlan.samplerPrefixPlan
         (relation application fits) (piDecGeometry application)) := by
@@ -480,7 +480,7 @@ private theorem compile_samplerPrefixProgram
       rfl
 
 private theorem compile_samplerCompleteProgram
-    (application : ProgramApplication) (fits : FitsTwoPow28 application) :
+    (application : ProgramApplication) (fits : FitsTwoPow27 application) :
     samplerCompleteProgram.compile application fits =
       some (DirectPiRLCSamplerCompletePrefixPlan.samplerCompletePlan
         (relation application fits) (samplerGeometry application)) := by
@@ -513,7 +513,7 @@ private theorem compile_samplerCompleteProgram
       rfl
 
 private theorem compile_piRlcCompleteProgram
-    (application : ProgramApplication) (fits : FitsTwoPow28 application) :
+    (application : ProgramApplication) (fits : FitsTwoPow27 application) :
     piRlcCompleteProgram.compile application fits =
       some (DirectPiRLCSamplerCompletePrefixPlan.piRlcCompletePlan
         (relation application fits) (samplerGeometry application)) := by
@@ -539,7 +539,7 @@ private theorem compile_piRlcCompleteProgram
       rfl
 
 private theorem compile_piDecCompleteProgram
-    (application : ProgramApplication) (fits : FitsTwoPow28 application) :
+    (application : ProgramApplication) (fits : FitsTwoPow27 application) :
     piDecCompleteProgram.compile application fits =
       some (DirectPiRLCSamplerCompletePrefixPlan.piDecCompletePlan
         (relation application fits) (samplerGeometry application)) := by
@@ -565,7 +565,7 @@ private theorem compile_piDecCompleteProgram
       rfl
 
 private theorem compile_runningCompleteProgram
-    (application : ProgramApplication) (fits : FitsTwoPow28 application) :
+    (application : ProgramApplication) (fits : FitsTwoPow27 application) :
     runningCompleteProgram.compile application fits =
       some (DirectPiRLCSamplerCompletePrefixPlan.plan
         (relation application fits) (samplerGeometry application)) := by
@@ -591,7 +591,7 @@ private theorem compile_runningCompleteProgram
       rfl
 
 private theorem compile_applicationCompleteProgram
-    (application : ProgramApplication) (fits : FitsTwoPow28 application) :
+    (application : ProgramApplication) (fits : FitsTwoPow27 application) :
     applicationCompleteProgram.compile application fits =
       some (DirectApplicationPrefixPlan.prefixApplicationPlan
         (relation application fits) fits.package
@@ -630,7 +630,7 @@ private theorem compile_applicationCompleteProgram
       rfl
 
 private theorem compile_throughNextPreimageProgram
-    (application : ProgramApplication) (fits : FitsTwoPow28 application) :
+    (application : ProgramApplication) (fits : FitsTwoPow27 application) :
     throughNextPreimageProgram.compile application fits =
       some (DirectApplicationPrefixPlan.throughNextPreimagePlan
         (relation application fits) fits.package
@@ -664,7 +664,7 @@ private theorem compile_throughNextPreimageProgram
 /-- The compact instruction program expands to the exact self-derived
 7-matrix plan. -/
 theorem compile_canonical (application : ProgramApplication)
-    (fits : FitsTwoPow28 application) :
+    (fits : FitsTwoPow27 application) :
     canonical.compile application fits =
       some (PerApplicationFixedPoint.structuralPlan application fits) := by
   unfold canonical

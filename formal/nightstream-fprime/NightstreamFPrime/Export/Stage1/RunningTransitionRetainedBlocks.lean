@@ -29,7 +29,7 @@ private theorem target_lt_basePackage (source : Nat)
       PiRLCProductPlan.basePackage.layout.totalColumnCount := by
   have mapped := Spartan.sourceToSpartan_lt source bound
   have total : PiRLCProductPlan.basePackage.layout.totalColumnCount =
-      14761727 :=
+      14750632 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
   rw [total]
   simpa [Spartan.spartanColumnCount] using mapped
@@ -60,7 +60,7 @@ def stateBlock (program : Lifecycle.Stage1.Application.Program) :
       change index.val < 11 at indexBound
       rw [RunningTransitionSourceSupport.stateStart_eq,
         Spartan.sourceColumnCount_eq]
-      change 28 + index.val < 14761726
+      change 28 + index.val < 14750631
       omega)
 
 def outputBlock (program : Lifecycle.Stage1.Application.Program) :
@@ -69,10 +69,10 @@ def outputBlock (program : Lifecycle.Stage1.Application.Program) :
     (fun index => RunningTransitionSourceSupport.outputStart + index.val) (by
       intro index
       have indexBound := index.isLt
-      change index.val < 37297 at indexBound
+      change index.val < 37295 at indexBound
       rw [RunningTransitionSourceSupport.outputStart_eq,
         Spartan.sourceColumnCount_eq]
-      change 37567 + index.val < 14761726
+      change 37565 + index.val < 14750631
       omega)
 
 def piDecBlock (program : Lifecycle.Stage1.Application.Program) :
@@ -84,7 +84,7 @@ def piDecBlock (program : Lifecycle.Stage1.Application.Program) :
       change index.val < 37152 at indexBound
       rw [RunningTransitionSourceSupport.piDecStart_eq,
         Spartan.sourceColumnCount_eq]
-      change 14724302 + index.val < 14761726
+      change 14713207 + index.val < 14750631
       omega)
 
 def freshCount : Nat := RunningTransitionSourceSupport.physicalEnd -
@@ -108,7 +108,7 @@ def freshBlock (program : Lifecycle.Stage1.Application.Program) :
 
 @[simp] theorem outputBlock_slotCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (outputBlock program).slotCount = 37297 := by
+    (outputBlock program).slotCount = 37295 := by
   rw [outputBlock]
   exact RunningTransitionSourceSupport.outputCount_eq
 

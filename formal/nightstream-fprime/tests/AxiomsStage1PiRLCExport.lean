@@ -103,7 +103,7 @@ import NightstreamFPrime.Spec.Phi81StrongSet
 #audit_axioms NightstreamFPrime.Layout.R1CS.LoweringPlan.rowsHold_iff_segments_of_constraints
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.Sampler.physical_complete
 #audit_axioms NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLC.cumulativeFootprints_eq
-#audit_axioms NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLC.jointDomain_le_twoPow28
+#audit_axioms NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLC.jointDomain_le_twoPow27
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.TranscriptAbsorption.actions_affine
 #audit_axioms NightstreamFPrime.Gadgets.Polynomial.Horner.compileFast_eq_compile
 #audit_axioms NightstreamFPrime.Gadgets.Polynomial.Horner.compile_eq_compileFast

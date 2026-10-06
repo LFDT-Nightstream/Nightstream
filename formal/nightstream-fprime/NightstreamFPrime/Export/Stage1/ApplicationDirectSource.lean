@@ -124,7 +124,7 @@ theorem sourceRows_varsSatisfy
 
 theorem sourceRows_rowCount_le
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationPackage.FitsTwoPow28 application) :
+    (fits : PerApplicationPackage.FitsTwoPow27 application) :
     (sourceRows application).length ≤ 2 ^ Lifecycle.cubeVariables := by
   have rows := fits.rows
   rw [PerApplicationPackage.package_rowCount] at rows
@@ -133,7 +133,7 @@ theorem sourceRows_rowCount_le
 
 /-- Proof-oriented indexed access to the exact canonical application rows. -/
 def program (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationPackage.FitsTwoPow28 application) :
+    (fits : PerApplicationPackage.FitsTwoPow27 application) :
     OrdinarySourcePlan.Program (sourceWidth application) where
   rowCount := (sourceRows application).length
   rowCount_le := sourceRows_rowCount_le application fits
@@ -143,14 +143,14 @@ def program (application : Lifecycle.Stage1.Application.Program)
 
 @[simp] theorem program_rowCount
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationPackage.FitsTwoPow28 application) :
+    (fits : PerApplicationPackage.FitsTwoPow27 application) :
     (program application fits).rowCount =
       (PerApplicationPackage.applicationPlan application).rowCount := by
   exact sourceRows_length_eq_plan application
 
 theorem program_holds_iff_rowsHold
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationPackage.FitsTwoPow28 application) (env : Env) :
+    (fits : PerApplicationPackage.FitsTwoPow27 application) (env : Env) :
     (program application fits).Holds env ↔
       R1CS.RowsHold env (sourceRows application) := by
   change (∀ index, ((sourceRows application).get index).Holds env) ↔

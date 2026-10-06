@@ -92,7 +92,7 @@ private theorem decodedEnv_location {application : Program} {logicalWidth : Nat}
 /-- The application plan is exactly its physical source rows evaluated in
 the environment decoded from this arbitrary logical assignment. -/
 theorem rowsZero_iff_rowsHold {application : Program} {logicalWidth : Nat}
-    (fits : PerApplicationPackage.FitsTwoPow28 application)
+    (fits : PerApplicationPackage.FitsTwoPow27 application)
     (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
     (one : assignment (ApplicationRetainedGeometry.oneColumn geometry) = 1) :
@@ -131,7 +131,7 @@ theorem rowsZero_iff_rowsHold {application : Program} {logicalWidth : Nat}
 state equal to the selected application step on its actual pilot input current
 state and its decoded witness. No canonical encoding premise is required. -/
 theorem rowsZero_implies_step {application : Program} {logicalWidth : Nat}
-    (fits : PerApplicationPackage.FitsTwoPow28 application)
+    (fits : PerApplicationPackage.FitsTwoPow27 application)
     (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
     (one : assignment (ApplicationRetainedGeometry.oneColumn geometry) = 1)

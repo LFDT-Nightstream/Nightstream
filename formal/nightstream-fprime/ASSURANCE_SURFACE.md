@@ -2,7 +2,7 @@
 
 This document identifies the final row theorems and their scope. The selected
 Nightstream Goldilocks profile uses `b = 2`, `k_rho = 16`, 17 sources, 16 children,
-7 matrices, 28 rounds, and Poseidon2 binding. A successful build checks the
+7 matrices, 27 rounds, and Poseidon2 binding. A successful build checks the
 stated conclusions under their stated hypotheses.
 
 The selected native NIFS-to-successor bridge is checked at `68c5d94a`.

@@ -266,7 +266,7 @@ theorem runningOutput_eq
 PiDEC output for the same arbitrary assignment. -/
 theorem selectedRunningOutput_eq
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application)) :
     RunningTransitionInputs.piDecRunningOutput (PerApplicationFixedPoint.relation application fits)
         (Spartan.pullback (ActualRunningTransition.decodedEnv

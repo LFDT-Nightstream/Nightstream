@@ -59,7 +59,7 @@ def decodedFresh (application : Lifecycle.Stage1.Application.Program)
 /-- Read the PiCCS-owned proof fields from their actual forms. The PiDEC
 fields remain template data until their separate decoding proof is supplied. -/
 def withDecodedPiCCS (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))
     (template : Proof (ProductionKey.degreeBound
       (PerApplicationFixedPoint.relation application fits))) :
@@ -75,7 +75,7 @@ def withDecodedPiCCS (application : Lifecycle.Stage1.Application.Program)
 /-- State and application advice are read from the actual assignment.
 Fresh and proof are protocol data supplied by the phase decoder. -/
 def input (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))
     (fresh : Fresh (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))
@@ -116,7 +116,7 @@ def output (application : Lifecycle.Stage1.Application.Program)
 /-- The typed recursive input hashes the same prior preimage as the pilot. -/
 theorem priorHashPreimage_eq_prior
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (ajtai : AjtaiKey (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))
@@ -137,7 +137,7 @@ theorem priorHashPreimage_eq_prior
 derived from the selected rows, including the prior counter plus one. -/
 theorem nextHashPreimage_eq_next
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (ajtai : AjtaiKey (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))
@@ -161,7 +161,7 @@ every value of its unused fresh/proof advice. No representation, generated
 assignment, application-correctness, or NIFS-correctness premise is assumed. -/
 theorem selectedRowsAndPublic_imply_baseStep
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (ajtai : AjtaiKey (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))
@@ -218,7 +218,7 @@ same decoded values. This theorem does not derive that equation from rows or
 claim that arbitrary proof advice is accepted. -/
 theorem selectedRowsAndPublic_step_iff_baseOrNifs
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (ajtai : AjtaiKey (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))
@@ -309,7 +309,7 @@ step inputs and PiCCS proof fields. Later message fields are still arbitrary;
 their acceptance and the final running output remain separate obligations. -/
 theorem selectedRowsAndPublic_imply_piCcsCheck
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (ajtai : AjtaiKey (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))
@@ -345,7 +345,7 @@ verifier-computed PiRLC parent and equality of the computed running output.
 Neither condition is assumed or discharged by this equivalence. -/
 theorem selectedRowsAndPublic_step_iff_baseOrPiDec
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (ajtai : AjtaiKey (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))

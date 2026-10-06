@@ -3,13 +3,13 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Completeness
 
 /-!
 Paper authority: SuperNeo v1_1, section 7.3, `SumCheck(T; Q)`.
-Obligation: Enforce the 28 degree-9 round equations and export the final
+Obligation: Enforce the 27 degree-9 round equations and export the final
 verifier claim for the separate `Q(r')` identity.
 
 Inputs:
 - the Initial-claim child output;
-- 28 prover degree-9 polynomial messages;
-- 28 transcript-derived challenges.
+- 27 prover degree-9 polynomial messages;
+- 27 transcript-derived challenges.
 
 Outputs:
 - the final child-owned SumCheck claim.
@@ -17,7 +17,7 @@ Outputs:
 Constraint groups:
 - nine stored Horner products for each round evaluation;
 - one generic round equality pair;
-- indexed composition over 28 rounds;
+- indexed composition over 27 rounds;
 - no terminal-copy row.
 
 Parent coverage:
@@ -82,21 +82,21 @@ private theorem core_totalRowCount
     (offset : Nat) (inputs : InputsLinear interface offset) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
       (NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.circuit interface
-        ).main offset)) = 812 := by
+        ).main offset)) = 783 := by
   rw [NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.circuit_ops,
     ← NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.circuit_ops,
     NightstreamFPrime.Layout.SumCheck.FixedChain.ownedCircuit_totalRowCount _ offset inputs.initial
       (coreRounds_linear interface offset inputs)]
   norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
 
-/-- Exact parent-facing physical footprint for the fixed 28-round chain. -/
+/-- Exact parent-facing physical footprint for the fixed 27-round chain. -/
 def footprint
     (interface : Formal.Interface logicalWidth 9 publicFits)
     (inputs : ∀ offset,
       InputsLinear (Formal.sumcheckInterface interface) offset) :
     R1CS.CircuitFootprint (Formal.sumcheckCircuit interface) where
   freshColumnCount := fun _ => 0
-  physicalRowCount := fun _ => 812
+  physicalRowCount := fun _ => 783
   freshColumnCount_eq := by
     intro offset
     unfold Formal.sumcheckCircuit
@@ -123,7 +123,7 @@ theorem physicalRowCount_eq
       InputsLinear (Formal.sumcheckInterface interface) offset)
     (offset : Nat) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
-      (Formal.sumcheckCircuit interface).main offset)) = 812 :=
+      (Formal.sumcheckCircuit interface).main offset)) = 783 :=
   (footprint interface inputs).physicalRowCount_eq offset
 
 theorem physicalPrivateColumnCount_eq
@@ -133,10 +133,10 @@ theorem physicalPrivateColumnCount_eq
     (offset : Nat) :
     localLength (Circuit.ops (Formal.sumcheckCircuit interface).main offset) +
       R1CS.totalFreshCount (flatConstraints (Circuit.ops
-      (Formal.sumcheckCircuit interface).main offset)) = 756 := by
+      (Formal.sumcheckCircuit interface).main offset)) = 729 := by
   have storedColumns :
       localLength (Circuit.ops (Formal.sumcheckCircuit interface).main
-        offset) = 756 := by
+        offset) = 729 := by
     unfold Formal.sumcheckCircuit
     rw [FormalCircuit.withConstantFootprint_main,
       NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.localLength_eq]

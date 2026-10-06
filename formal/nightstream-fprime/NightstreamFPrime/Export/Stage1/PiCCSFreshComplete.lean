@@ -246,13 +246,13 @@ private theorem activePairs_le_domain : activePairs ≤ 2 ^ (cubeVariables - 1) 
       Poseidon2HashChainV1Package.application Poseidon2HashChainV1Package.fits]
     exact PerApplicationFixedPoint.structuralPlan_rowCount_le
       Poseidon2HashChainV1Package.application Poseidon2HashChainV1Package.fits
-  change selectedProgram.rowCount ≤ 268435456 at rows
-  change (selectedProgram.rowCount + 1) / 2 ≤ 134217728
+  change selectedProgram.rowCount ≤ 134217728 at rows
+  change (selectedProgram.rowCount + 1) / 2 ≤ 67108864
   omega
 
 private theorem reference_fresh_zero (input : PiCCSPublicReplay.Input)
     (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
-    (suffix : BooleanVertex 27) (beyond : selectedProgram.rowCount ≤ 2 * NumericBooleanDomain.index suffix)
+    (suffix : BooleanVertex 26) (beyond : selectedProgram.rowCount ≤ 2 * NumericBooleanDomain.index suffix)
     (bit : Bool) (source : Fin productionShape.freshCount)
     (matrix : Fin ProductionRelation.matrixCount) :
     (message input witness (PiCCSFirstRound.endpointVertex (arity := cubeVariables)

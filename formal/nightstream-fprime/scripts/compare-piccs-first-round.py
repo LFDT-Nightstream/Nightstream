@@ -10,8 +10,8 @@ from pathlib import Path
 
 
 def compare(public, lean, proof, trace, round_index=0):
-    if not 0 <= round_index < 28:
-        raise ValueError("round index must be within the selected 28-round protocol")
+    if not 0 <= round_index < 27:
+        raise ValueError("round index must be within the selected 27-round protocol")
     if not (isinstance(lean, list) and len(lean) == 10 and lean[0] == 1):
         raise ValueError("expected Lean round schema 1 with ten fields")
     if not (isinstance(proof, list) and len(proof) == 7 and proof[0] == 2):

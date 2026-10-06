@@ -21,11 +21,11 @@ mod conformance_support;
 mod logical_reference;
 
 const GOLDILOCKS_MODULUS: u64 = 0xffff_ffff_0000_0001;
-const PRIVATE_INPUT_COUNT: usize = 128_186;
+const PRIVATE_INPUT_COUNT: usize = 128_162;
 const PUBLIC_INPUT_COUNT: usize = 278;
-const TOTAL_COLUMN_COUNT: usize = 14_767_211;
-const FIRST_GENERATED_COLUMN: usize = 91_030;
-const STATE_PREIMAGE_WORDS: usize = 37_297;
+const TOTAL_COLUMN_COUNT: usize = 14_756_116;
+const FIRST_GENERATED_COLUMN: usize = 91_006;
+const STATE_PREIMAGE_WORDS: usize = 37_295;
 const OUTPUT_DIGEST_PUBLIC_START: usize = 270;
 const ITERATION_WORD: usize = 28;
 const INITIAL_STATE_WORD_START: usize = 30;
@@ -240,7 +240,7 @@ fn package_generates_the_complete_nonzero_hash_chain_assignment() {
         assignment.public_values(),
     )
     .expect("independent canonical assignment evaluation");
-    assert_eq!(evaluated_rows, 14_660_374);
+    assert_eq!(evaluated_rows, 14_649_299);
     assert_eq!(evaluated_rows, package.physical_row_count());
     let mut changed_assignment = assignment.private_values().to_vec();
     changed_assignment[FIRST_GENERATED_COLUMN] = (changed_assignment[FIRST_GENERATED_COLUMN] + 1) % GOLDILOCKS_MODULUS;
@@ -255,7 +255,7 @@ fn package_generates_the_complete_nonzero_hash_chain_assignment() {
         .r1cs_matrices()
         .expect("intermediate physical R1CS A/B/C matrices");
     let r1cs_matrix_nonzeros = conformance_support::compare_sealed_matrices(&bytes, &matrices);
-    assert_eq!(r1cs_matrix_nonzeros, [78_701_952, 20_026_126, 14_648_647]);
+    assert_eq!(r1cs_matrix_nonzeros, [78_614_502, 20_011_971, 14_637_559]);
     drop(matrices);
     eprintln!("intermediate_r1cs_matrix_nonzeros={r1cs_matrix_nonzeros:?}");
 
@@ -334,7 +334,7 @@ fn check_logical_assignment(
     let production_logical_assignment = package
         .execute_logical_assignment(&physical_assignment)
         .expect("package-produced final logical assignment");
-    assert_eq!(production_logical_assignment.len(), 59_804_510);
+    assert_eq!(production_logical_assignment.len(), 59_732_227);
     assert_eq!(production_logical_assignment.balanced_values()[0], 1);
     for (word, expected) in public_inputs[OUTPUT_DIGEST_PUBLIC_START..OUTPUT_DIGEST_PUBLIC_START + 4]
         .iter()
@@ -361,7 +361,7 @@ fn check_logical_assignment(
         physical_assignment.public_values(),
     )
     .expect("independent final logical assignment constructor");
-    assert_eq!(logical_assignment.len(), 59_804_510);
+    assert_eq!(logical_assignment.len(), 59_732_227);
     assert!(logical_assignment
         .balanced_values()
         .iter()
@@ -382,7 +382,7 @@ fn check_logical_assignment(
     let artifact =
         logical_reference::source::SourcePackage::decode(&sealed_bytes).expect("independent sealed source decoder");
     assert_eq!(artifact.sealed_schema, 6);
-    assert_eq!(artifact.cube_variables, 28);
+    assert_eq!(artifact.cube_variables, 27);
     assert_eq!(artifact.logical_public_inputs, 270);
     let program = logical_reference::matrix::MatrixProgram::decode(
         &artifact.matrix_program,
@@ -397,9 +397,9 @@ fn check_logical_assignment(
     drop(production_logical_assignment);
     let result = logical_reference::evaluation::evaluate(&program, &artifact.sources, &relation, &logical_assignment)
         .expect("Rust assignment satisfies every final Lean logical row");
-    assert_eq!(result.active_rows, 1_371_020);
+    assert_eq!(result.active_rows, 1_369_389);
     assert_eq!(result.relation_terms, 8);
-    assert_eq!(result.carrier_padding_columns, 4);
+    assert_eq!(result.carrier_padding_columns, 35);
     assert_eq!(
         result.assignment_block_mutations,
         logical_assignment.nonempty_block_count()

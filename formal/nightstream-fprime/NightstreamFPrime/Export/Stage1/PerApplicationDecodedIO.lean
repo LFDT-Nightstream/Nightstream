@@ -32,8 +32,8 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 
 abbrev Program := Lifecycle.Stage1.Application.Program
 abbrev RawValues := PerApplicationCanonicalAssignment.RawValues
-abbrev FitsTwoPow28 (application : Program) :=
-  PerApplicationFixedPoint.FitsTwoPow28 application
+abbrev FitsTwoPow27 (application : Program) :=
+  PerApplicationFixedPoint.FitsTwoPow27 application
 
 private theorem cubePoint_ext
     {Field : Type} {variableCount : Nat}
@@ -91,7 +91,7 @@ private theorem kExpr_eval_eq_of_support
     (value.c0.eval_eq_of_agree_satisfy allowed left right support.1 agrees)
     (value.c1.eval_eq_of_agree_satisfy allowed left right support.2 agrees)
 
-def relation (application : Program) (fits : FitsTwoPow28 application) :=
+def relation (application : Program) (fits : FitsTwoPow27 application) :=
   PerApplicationFixedPoint.relation application fits
 
 def geometry (application : Program) :=
@@ -152,9 +152,9 @@ private theorem roundC0Source
         coordinate.val * RunningTransitionInputs.roundStride +
         RunningTransitionInputs.roundSampleC0Offset) := by
   apply PiCCSOrdinarySourceSupport.transcript_output_source
-  refine ⟨⟨217 + coordinate.val * 5, ?_⟩, ⟨0, ?_⟩, ?_⟩
+  refine ⟨⟨214 + coordinate.val * 5, ?_⟩, ⟨0, ?_⟩, ?_⟩
   · have bound := coordinate.isLt
-    change coordinate.val < 28 at bound
+    change coordinate.val < 27 at bound
     rw [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
     omega
   · norm_num [Spec.Poseidon2.width]
@@ -171,9 +171,9 @@ private theorem roundC1Source
         coordinate.val * RunningTransitionInputs.roundStride +
         RunningTransitionInputs.roundSampleC1Offset) := by
   apply PiCCSOrdinarySourceSupport.transcript_output_source
-  refine ⟨⟨218 + coordinate.val * 5, ?_⟩, ⟨0, ?_⟩, ?_⟩
+  refine ⟨⟨215 + coordinate.val * 5, ?_⟩, ⟨0, ?_⟩, ?_⟩
   · have bound := coordinate.isLt
-    change coordinate.val < 28 at bound
+    change coordinate.val < 27 at bound
     rw [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
     omega
   · norm_num [Spec.Poseidon2.width]
@@ -203,7 +203,7 @@ private theorem applicationInputEnv_eq_transition
       PiRLCProductPlan.basePackage.layout.constantColumn := by
     have indexBound := index.isLt
     have constant : PiRLCProductPlan.basePackage.layout.constantColumn =
-        14761448 :=
+        14750353 :=
       NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
     rw [constant, ApplicationInputs.inputColumn_value]
     norm_num [ApplicationInputs.currentWordStart,
@@ -244,7 +244,7 @@ private theorem applicationOutputEnv_eq_transition
       PiRLCProductPlan.basePackage.layout.constantColumn := by
     have indexBound := index.isLt
     have constant : PiRLCProductPlan.basePackage.layout.constantColumn =
-        14761448 :=
+        14750353 :=
       NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
     rw [constant, ApplicationInputs.outputColumn_value]
     norm_num [Lifecycle.Stage1.Application.stateWordCount] at indexBound ⊢
@@ -433,7 +433,7 @@ theorem outputDigestRepresents
   rfl
 
 theorem semantics_imply_canonicalStates
-    (application : Program) (fits : FitsTwoPow28 application)
+    (application : Program) (fits : FitsTwoPow27 application)
     (raw : RawValues application)
     (semantics : DirectApplicationPrefixPlan.Semantics
       (relation application fits) (geometry application) raw.assignment
@@ -458,7 +458,7 @@ theorem semantics_imply_canonicalStates
         binding.outputCanonical
 
 theorem semantics_imply_contextKeys
-    (application : Program) (fits : FitsTwoPow28 application)
+    (application : Program) (fits : FitsTwoPow27 application)
     (raw : RawValues application)
     (semantics : DirectApplicationPrefixPlan.Semantics
       (relation application fits) (geometry application) raw.assignment
@@ -499,7 +499,7 @@ theorem semantics_imply_contextKeys
     PiCCSInputs.priorStateWord, PiCCSInputs.outputStateWord,
     commonEnv] using word
 
-def input (application : Program) (fits : FitsTwoPow28 application)
+def input (application : Program) (fits : FitsTwoPow27 application)
     (raw : RawValues application) :
     Input KeyDigest AppState AppWitness
       (Running
@@ -538,7 +538,7 @@ def output (application : Program) (raw : RawValues application) :
   x := outputDigest raw
 
 theorem priorPublicInputRepresents
-    (application : Program) (fits : FitsTwoPow28 application)
+    (application : Program) (fits : FitsTwoPow27 application)
     (raw : RawValues application) :
     Lifecycle.PriorStateHash.RepresentsPublicInput
       PilotProduction.priorInterface PilotProduction.witnessOffset
@@ -562,7 +562,7 @@ theorem priorPublicInputRepresents
         (priorPublicSource column)).symm
 
 theorem runningInputRepresents
-    (application : Program) (fits : FitsTwoPow28 application)
+    (application : Program) (fits : FitsTwoPow27 application)
     (raw : RawValues application) :
     AccumulatorInputs.running
         (PerApplicationFixedPoint.logicalWidth application)
@@ -600,7 +600,7 @@ theorem runningOutputRepresents
     (PerApplicationFixedPoint.publicFits application) (transitionEnv raw)
 
 theorem iterationZeroRepresents
-    (application : Program) (fits : FitsTwoPow28 application)
+    (application : Program) (fits : FitsTwoPow27 application)
     (raw : RawValues application) :
     Lifecycle.Stage1.RunningTransition.iterationValue
         (RunningTransitionInputs.interface
@@ -636,7 +636,7 @@ theorem iterationZeroRepresents
     simpa using valueZero
 
 theorem initialStateRepresents
-    (application : Program) (fits : FitsTwoPow28 application)
+    (application : Program) (fits : FitsTwoPow27 application)
     (raw : RawValues application) :
     List.ofFn (fun index =>
         (RunningTransitionInputs.initialStateExpr index).eval
@@ -659,7 +659,7 @@ theorem initialStateRepresents
       (priorState_eq_transition raw word).symm
 
 theorem currentStateRepresents
-    (application : Program) (fits : FitsTwoPow28 application)
+    (application : Program) (fits : FitsTwoPow27 application)
     (raw : RawValues application) :
     List.ofFn (fun index =>
         (RunningTransitionInputs.currentStateExpr index).eval
@@ -682,7 +682,7 @@ theorem currentStateRepresents
       (priorState_eq_transition raw word).symm
 
 theorem applicationInputRepresents
-    (application : Program) (fits : FitsTwoPow28 application)
+    (application : Program) (fits : FitsTwoPow27 application)
     (raw : RawValues application) :
     Lifecycle.Stage1.Application.inputState
         (ApplicationInputs.interface application)
@@ -784,7 +784,7 @@ private theorem piDecPoint_eq
   · exact commonEnv_eq_transitionEnv_of_source raw _ (roundC1Source coordinate)
 
 private theorem piDecOutputs_eq
-    (application : Program) (fits : FitsTwoPow28 application)
+    (application : Program) (fits : FitsTwoPow27 application)
     (raw : RawValues application) :
     Lifecycle.PiDEC.v1_1.Semantics.output (relation application fits)
         (PiDECInputs.interface
@@ -825,7 +825,7 @@ private theorem piDecOutputs_eq
   · rfl
 
 theorem accumulatorOutputEnvRepresents
-    (application : Program) (fits : FitsTwoPow28 application)
+    (application : Program) (fits : FitsTwoPow27 application)
     (raw : RawValues application) :
     AccumulatorInputs.output (relation application fits) (commonEnv raw) =
       AccumulatorInputs.output (relation application fits)
@@ -854,7 +854,7 @@ theorem accumulatorOutputEnvRepresents
     PerApplicationCanonicalAssignment.RawValues.outputDigest]
 
 theorem semantics_imply_nextIterationWord
-    (application : Program) (fits : FitsTwoPow28 application)
+    (application : Program) (fits : FitsTwoPow27 application)
     (raw : RawValues application)
     (semantics : DirectApplicationPrefixPlan.Semantics
       (relation application fits) (geometry application) raw.assignment
@@ -892,7 +892,7 @@ theorem semantics_imply_nextIterationWord
       exact (StateDecoder.natWord_val _).symm
 
 theorem semantics_imply_nextInitialState
-    (application : Program) (fits : FitsTwoPow28 application)
+    (application : Program) (fits : FitsTwoPow27 application)
     (raw : RawValues application)
     (semantics : DirectApplicationPrefixPlan.Semantics
       (relation application fits) (geometry application) raw.assignment
@@ -927,7 +927,7 @@ theorem semantics_imply_nextInitialState
     _ = priorState raw word.val := (priorState_eq_transition raw word).symm
 
 theorem semantics_imply_nextSerialization
-    (application : Program) (fits : FitsTwoPow28 application)
+    (application : Program) (fits : FitsTwoPow27 application)
     (ajtai : AjtaiKey
       (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))
@@ -976,7 +976,7 @@ theorem semantics_imply_nextSerialization
   rw [← context, iteration, ← initial]
 
 theorem priorHashPreimageRepresents
-    (application : Program) (fits : FitsTwoPow28 application)
+    (application : Program) (fits : FitsTwoPow27 application)
     (ajtai : AjtaiKey
       (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))
@@ -992,7 +992,7 @@ theorem priorHashPreimageRepresents
     StateDecoder.preimage] using priorRepresents raw canonical
 
 theorem nextHashPreimageRepresents
-    (application : Program) (fits : FitsTwoPow28 application)
+    (application : Program) (fits : FitsTwoPow27 application)
     (ajtai : AjtaiKey
       (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))

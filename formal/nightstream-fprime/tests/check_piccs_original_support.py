@@ -11,14 +11,14 @@ from check_piccs_original_evaluations import compare
 
 
 def main():
-    require(len(sys.argv) == 32, "expected executable, public, new directory and 28 Lean rounds")
+    require(len(sys.argv) == 31, "expected executable, public, new directory and 27 Lean rounds")
     executable, public = map(lambda value: Path(value).resolve(), sys.argv[1:3])
     directory = Path(sys.argv[3]).resolve()
     rounds = [str(Path(value).resolve()) for value in sys.argv[4:]]
     directory.mkdir()
     formal = Path(__file__).resolve().parents[1]
     validator = formal / "scripts" / "validate.sh"
-    header = [1, 54, 17, 1107491]
+    header = [1, 54, 17, 1106153]
     cases = {
         "zero": [],
         "last-source": [[0, [[16, 2 ** 54 - 1, 0]]]],

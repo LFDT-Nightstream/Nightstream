@@ -33,15 +33,15 @@ def main():
     raw = [path.read_bytes() for path in inputs]
     original = [json.loads(value) for value in raw]
     ccs, commitments, evaluations = original
-    require(len(ccs) == 7 and ccs[0] == 2 and len(ccs[3]) == 28,
+    require(len(ccs) == 7 and ccs[0] == 2 and len(ccs[3]) == 27,
             "expected a complete baseline C input")
-    require(len(commitments) == 5 and commitments[:4] == [1, 1107491, 0, 1107491],
+    require(len(commitments) == 5 and commitments[:4] == [1, 1106153, 0, 1106153],
             "expected complete selected baseline commitments")
-    require(len(evaluations) == 5 and evaluations[:2] == [1, 1107491],
+    require(len(evaluations) == 5 and evaluations[:2] == [1, 1106153],
             "expected complete selected baseline evaluations")
     require(len(commitments[4]) == 22 and len(commitments[4][21]) == 16 and
             len(commitments[4][21][15]) == 54, "wrong baseline commitment shape")
-    require(len(evaluations[2]) == 28 and len(evaluations[3]) == 16 and
+    require(len(evaluations[2]) == 27 and len(evaluations[3]) == 16 and
             len(evaluations[3][15]) == 54 and len(evaluations[4]) == 16 and
             len(evaluations[4][15]) == 7 and len(evaluations[4][15][6]) == 54,
             "wrong baseline evaluation shape")
@@ -108,8 +108,8 @@ def main():
         lambda value: value.__setitem__(0, 2))
     run("evaluation-domain", "expected a complete selected Lean evaluation result", 2,
         lambda value: value.__setitem__(1, value[1] + 1))
-    run("point-width", "expected array length 28", 2, lambda value: value[2].pop())
-    run("point-extension", "expected array length 2", 2, lambda value: value[2][27].pop())
+    run("point-width", "expected array length 27", 2, lambda value: value[2].pop())
+    run("point-extension", "expected array length 2", 2, lambda value: value[2][26].pop())
     run("pad-children", "expected array length 16", 2, lambda value: value[3].pop())
     run("pad-lanes", "expected array length 54", 2, lambda value: value[3][15].pop())
     run("pad-extension", "expected array length 2", 2, lambda value: value[3][15][53].pop())
@@ -123,7 +123,7 @@ def main():
     run("matrix-noncanonical-tail", "noncanonical Goldilocks word", 2,
         lambda value: value[4][15][6][53].__setitem__(1, P))
     run("wrong-derived-point", "Lean evaluation point differs from the derived parent", 2,
-        lambda value: value[2][27].__setitem__(1, (value[2][27][1] + 1) % P))
+        lambda value: value[2][26].__setitem__(1, (value[2][26][1] + 1) % P))
     # These keep complete canonical framing. Only the existing D recomposition
     # check can reject the changed final commitment or matrix coefficient.
     run("changed-last-commitment", "independent PiDEC replay rejected", 1,
@@ -134,7 +134,7 @@ def main():
     # Changing the last round's constant term changes its endpoint sum by two,
     # while all prior challenges and the incoming final-round claim stay fixed.
     run("changed-C-round", "PiCCS/PiRLC rejected or returned no parent", 0,
-        lambda value: value[3][27][0].__setitem__(0, (value[3][27][0][0] + 1) % P))
+        lambda value: value[3][26][0].__setitem__(0, (value[3][26][0][0] + 1) % P))
     for path, content in zip(inputs, raw):
         require(path.read_bytes() == content, f"original input changed: {path}")
     print(json.dumps({"event": "pidec_finish_rejection_checks_passed", "rejections": rejected,

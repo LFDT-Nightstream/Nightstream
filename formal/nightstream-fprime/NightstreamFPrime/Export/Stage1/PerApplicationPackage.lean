@@ -14,7 +14,7 @@ The current validated package is an unchanged prefix. For a selected
 application, this module appends its Lean-compiled rows in a new private
 suffix, shifts the prior constant/public suffix, installs outer-terminal
 metadata, and recomputes all binding inputs. A concrete production application
-must still supply the final `Program` and prove the `2^28` fit.
+must still supply the final `Program` and prove the `2^27` fit.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationPackage
@@ -44,7 +44,7 @@ def applicationPlan (program : Lifecycle.Stage1.Application.Program) :
 package authority. -/
 def directApplicationPlan (program : Lifecycle.Stage1.Application.Program) :
     ApplicationPackage.Plan :=
-  ApplicationPackage.productionPlan program 14654885
+  ApplicationPackage.productionPlan program 14643810
 
 theorem directApplicationPlan_eq_applicationPlan
     (program : Lifecycle.Stage1.Application.Program) :
@@ -102,7 +102,7 @@ def nextPreimageRowStart
 
 def directNextPreimageRowStart
     (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  14654885 + directApplicationRowCount program
+  14643810 + directApplicationRowCount program
 
 theorem directNextPreimageRowStart_eq_nextPreimageRowStart
     (program : Lifecycle.Stage1.Application.Program) :
@@ -800,56 +800,56 @@ theorem verificationKeyBinding_context
   rfl
 
 @[simp] theorem basePackage_rowCount_eq :
-    basePackage.layout.rowCount = 14654885 := by
+    basePackage.layout.rowCount = 14643810 := by
   rw [basePackage, Data.circuitPackage_layout]
   rfl
 
 @[simp] theorem basePackage_totalColumnCount_eq :
-    basePackage.layout.totalColumnCount = 14761727 := by
+    basePackage.layout.totalColumnCount = 14750632 := by
   rw [basePackage, Data.circuitPackage_layout]
   rfl
 
-/-- Exact application-only physical row budget in the `2^28` package. -/
-theorem package_rowCount_le_twoPow28_iff
+/-- Exact application-only physical row budget in the `2^27` package. -/
+theorem package_rowCount_le_twoPow27_iff
     (program : Lifecycle.Stage1.Application.Program) :
     (package program).layout.rowCount ≤ 2 ^ Lifecycle.cubeVariables ↔
-      (applicationPlan program).rowCount ≤ 253780566 := by
+      (applicationPlan program).rowCount ≤ 119573913 := by
   rw [package_rowCount, basePackage_rowCount_eq]
   norm_num [Lifecycle.cubeVariables]
   omega
 
-/-- Exact application-only private-column budget in the `2^28` package. -/
-theorem package_totalColumnCount_le_twoPow28_iff
+/-- Exact application-only private-column budget in the `2^27` package. -/
+theorem package_totalColumnCount_le_twoPow27_iff
     (program : Lifecycle.Stage1.Application.Program) :
     (package program).layout.totalColumnCount ≤ 2 ^ Lifecycle.cubeVariables ↔
-      addedPrivateColumnCount program ≤ 253673729 := by
+      addedPrivateColumnCount program ≤ 119467096 := by
   rw [package_totalColumnCount, basePackage_totalColumnCount_eq]
   norm_num [Lifecycle.cubeVariables]
   omega
 
 /-- Exact finite bounds that one concrete application must discharge. -/
-structure FitsTwoPow28 (program : Lifecycle.Stage1.Application.Program) : Prop where
+structure FitsTwoPow27 (program : Lifecycle.Stage1.Application.Program) : Prop where
   rows : (package program).layout.rowCount ≤ 2 ^ Lifecycle.cubeVariables
   columns : (package program).layout.totalColumnCount ≤
     2 ^ Lifecycle.cubeVariables
 
 /-- Construct the physical package fit from application-only row and private
 column bounds. -/
-def fitsTwoPow28OfApplicationBounds
+def fitsTwoPow27OfApplicationBounds
     (program : Lifecycle.Stage1.Application.Program)
-    (rows : (applicationPlan program).rowCount ≤ 253780566)
-    (columns : addedPrivateColumnCount program ≤ 253673729) :
-    FitsTwoPow28 program where
-  rows := (package_rowCount_le_twoPow28_iff program).2 rows
-  columns := (package_totalColumnCount_le_twoPow28_iff program).2 columns
+    (rows : (applicationPlan program).rowCount ≤ 119573913)
+    (columns : addedPrivateColumnCount program ≤ 119467096) :
+    FitsTwoPow27 program where
+  rows := (package_rowCount_le_twoPow27_iff program).2 rows
+  columns := (package_totalColumnCount_le_twoPow27_iff program).2 columns
 
 def jointDomain (program : Lifecycle.Stage1.Application.Program) : Nat :=
   max (package program).layout.rowCount
     (package program).layout.totalColumnCount
 
-theorem jointDomain_le_twoPow28
+theorem jointDomain_le_twoPow27
     (program : Lifecycle.Stage1.Application.Program)
-    (fits : FitsTwoPow28 program) :
+    (fits : FitsTwoPow27 program) :
     jointDomain program ≤ 2 ^ Lifecycle.cubeVariables := by
   exact max_le fits.rows fits.columns
 

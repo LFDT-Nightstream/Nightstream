@@ -83,7 +83,7 @@ fn claim(value: &Value, fold_digest: [u8; 32]) -> CeClaim {
         x[(index % D, index / D)] = value;
     }
     let point = extensions(&value[2]);
-    assert_eq!(point.len(), 28);
+    assert_eq!(point.len(), 27);
     let matrices = value[4].as_array().unwrap();
     assert_eq!(matrices.len(), 7);
     CeClaim {

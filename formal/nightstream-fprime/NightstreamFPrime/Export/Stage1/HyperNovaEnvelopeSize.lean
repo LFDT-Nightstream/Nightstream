@@ -59,7 +59,7 @@ dimensions. The running claim size comes from `serializeRunning_length`. -/
 def fixedWordBound (application : Program) : Nat :=
   let width := Phi81CarrierLayout.carrierWidth
     (PerApplicationFixedPoint.logicalWidth application)
-  2 + slotCount * (37257 + productionShape.runningCount * width) +
+  2 + slotCount * (37255 + productionShape.runningCount * width) +
     productionShape.freshCount *
       (productionProfile.commitmentWidth * ringDegree + 1 +
         ringDegree * publicRingColumns + 1) + width
@@ -83,7 +83,7 @@ depends on the statement's iteration or on retained proof history. All claims
 and complete openings in the actual payload are included in `wordCount`. -/
 theorem accepted_wordCount_le
     (application : Program)
-    (fits : PerApplicationTerminal.FitsTwoPow28 application)
+    (fits : PerApplicationTerminal.FitsTwoPow27 application)
     (commitmentSetup : PerApplicationTerminal.CommitmentSetup application)
     (statement : TerminalStatement AppState)
     (proof : PerApplicationTerminal.ProofEnvelope application)

@@ -40,7 +40,7 @@ private theorem output_not_source (lane : Fin laneCount) :
       PiCCSInputs.proofInputStart_eq, PiCCSInputs.phaseOffset_eq] at external
     omega
   · rcases transcript with ⟨invocation, outputLane, equality⟩
-    have invocationBound : invocation.val < 355 := by
+    have invocationBound : invocation.val < 347 := by
       simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
         using invocation.isLt
     have outputLaneBound : outputLane.val < 16 := outputLane.isLt

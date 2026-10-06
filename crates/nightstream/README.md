@@ -53,6 +53,13 @@ own acceptance policy. Compilation and loading do not change that policy.
 usable if extension fails. Packed witness buffers are shared and immutable;
 the prior proof remains live until the caller replaces or drops it.
 
+`prover.encode_proof(&proof)` returns the proof's strict byte form.
+`verifier.decode_proof(&bytes)` checks the exact length that its configured
+circuit fixes before it allocates. It then rejects noncanonical field words,
+malformed witness masks and trailing data. A decoded proof still needs
+`verify`. Each witness column travels as two 64-bit lane masks for `+1` and
+`-1`; the fixed-key commitment already rejects other witness values.
+
 Engine selection applies to proof arithmetic and terminal row checks. It does
 not change the circuit identity, formulas or fixed commitment key. An unavailable
 engine returns an error without a CPU fallback.
@@ -302,10 +309,10 @@ verifier component and binds the resulting application and circuit identity.
 
 Each `Circuit` uses the production commitment-key prefix required by its
 application. Private input words plus generated local words must be at most
-**4,092,249**. The logical width is
-`86,478,372 + 41 × (private_words + local_words)`, and the maximum key supports
+**4,748,315**. The logical width is
+`59,579,666 + 41 × (private_words + local_words)`, and the maximum key supports
 254,260,620 scalar coordinates (4,708,530 ring columns). The reference application
-uses 1,605,616 columns; this smaller prefix is not the application capacity limit.
+uses 1,107,491 columns; this smaller prefix is not the application capacity limit.
 The exported row and domain checks also apply. See the
 [capacity derivation](tests/evidence/prepared-fixed-source-bound.md).
 

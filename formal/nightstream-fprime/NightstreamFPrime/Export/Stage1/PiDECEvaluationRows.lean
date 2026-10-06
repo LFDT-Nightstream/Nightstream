@@ -79,7 +79,7 @@ private abbrev selectedShape :=
     (PerApplicationFixedPoint.logicalWidth Poseidon2HashChainV1Package.application)
     (PerApplicationFixedPoint.publicFits Poseidon2HashChainV1Package.application)
 
-/-- Every selected active matrix row, including all fourteen ports, is the
+/-- Every selected active matrix row, including all seven ports, is the
 existing complete derived-matrix row. The selected block theorem discharges
 matrix correspondence; no expected-row or matrix-agreement premise remains. -/
 theorem matrixRow_value

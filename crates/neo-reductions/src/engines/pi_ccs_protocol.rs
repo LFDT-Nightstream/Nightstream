@@ -64,10 +64,21 @@ impl PiCcsProof {
     }
 
     /// Canonical bytes used for exact engine cross-checks and transport.
-    pub fn canonical_bytes(&self) -> Vec<u8> {
+    /// The codec records one coefficient count, so every round must have it.
+    pub fn canonical_bytes(&self) -> Result<Vec<u8>, PiCcsError> {
+        let coefficient_count = self.sumcheck_rounds.first().map_or(0, Vec::len);
+        if self
+            .sumcheck_rounds
+            .iter()
+            .any(|round| round.len() != coefficient_count)
+        {
+            return Err(PiCcsError::InvalidInput(
+                "PiCCS proof rounds have different coefficient counts".into(),
+            ));
+        }
         let mut proof = self.clone();
         proof.canonicalize();
-        encode_padded_row_identity(&proof)
+        Ok(encode_padded_row_identity(&proof))
     }
 }
 
@@ -95,7 +106,6 @@ fn encode_padded_row_identity(proof: &PiCcsProof) -> Vec<u8> {
     push_u64(&mut output, proof.sumcheck_rounds.len() as u64);
     push_u64(&mut output, coefficient_count as u64);
     for round in &proof.sumcheck_rounds {
-        debug_assert_eq!(round.len(), coefficient_count);
         for &coefficient in round {
             push_k(&mut output, coefficient);
         }

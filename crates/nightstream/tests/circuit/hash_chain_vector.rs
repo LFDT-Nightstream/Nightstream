@@ -58,6 +58,11 @@ fn two_link_hash_chain_base_step_verifies_and_rejects_changes() {
     let proof = prover.prove(initial, &message).unwrap();
     assert_eq!(proof.state(), &expected);
     verifier.verify(&expected, &proof).unwrap();
+    // The strict byte form carries every value that verification reads.
+    let decoded = verifier
+        .decode_proof(&prover.encode_proof(&proof).unwrap())
+        .unwrap();
+    verifier.verify(&expected, &decoded).unwrap();
 
     // Reassemble the same openings under a supplied statement.
     let running = proof.active_parts().unwrap().0.clone();

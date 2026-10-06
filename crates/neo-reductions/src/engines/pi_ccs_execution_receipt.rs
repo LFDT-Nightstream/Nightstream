@@ -173,6 +173,8 @@ fn output_eval_a(outputs: &[CeClaim<Cmt, F, K>], matrix_count: usize) -> Result<
 
 /// Run the compact production verifier and export a receipt only when it
 /// accepts. This call advances `transcript` exactly as the normal verifier.
+///
+/// The [caller contract](crate::engines::PiCcsEngine::verify) applies.
 #[allow(clippy::too_many_arguments)]
 pub fn verify_and_export_pi_ccs_receipt(
     transcript: &mut Poseidon2Transcript,
@@ -226,7 +228,7 @@ pub fn verify_and_export_pi_ccs_receipt(
             claimed_eval_a: claimed_eval_a(running_claims, dims.matrix_count)?,
         },
         proof: PiCcsExecutionProof {
-            proof_bytes: proof.canonical_bytes(),
+            proof_bytes: proof.canonical_bytes()?,
             output_eval_k: output_eval_k(outputs)?,
             output_eval_a: output_eval_a(outputs, dims.matrix_count)?,
         },

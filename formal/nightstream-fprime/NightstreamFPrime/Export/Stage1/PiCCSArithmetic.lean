@@ -821,7 +821,7 @@ theorem initialClaimRows_length
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (initialClaimRows logicalWidth publicFits).length = 38877 := by
+    (initialClaimRows logicalWidth publicFits).length = 20733 := by
   rw [initialClaimRows, compilePacket_length]
   unfold initialClaimConstraints
   rw [initialClaimLogicalStart_matches logicalWidth publicFits]
@@ -866,7 +866,7 @@ theorem evalARows_length
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (evalARows logicalWidth publicFits).length = 37060 := by
+    (evalARows logicalWidth publicFits).length = 18916 := by
   rw [evalARows, compilePacket_length]
   unfold evalAConstraints
   rw [evalALogicalStart_matches logicalWidth publicFits]
@@ -881,7 +881,7 @@ theorem ccsRows_length
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (ccsRows logicalWidth publicFits).length = 752 := by
+    (ccsRows logicalWidth publicFits).length = 56 := by
   rw [ccsRows, compilePacket_length]
   unfold ccsConstraints mainConstraints
   rw [ccsLogicalStart_matches logicalWidth publicFits]
@@ -918,7 +918,7 @@ theorem finalIdentityRows_length
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (finalIdentityRows logicalWidth publicFits).length = 42458 := by
+    (finalIdentityRows logicalWidth publicFits).length = 3602 := by
   rw [finalIdentityRows, compilePacket_length]
   unfold finalIdentityConstraints mainConstraints
   rw [finalIdentityLogicalStart_matches logicalWidth publicFits]
@@ -955,7 +955,7 @@ theorem arithmeticRows_length
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (arithmeticRows logicalWidth publicFits).length = 124283 := by
+    (arithmeticRows logicalWidth publicFits).length = 48443 := by
   unfold arithmeticRows
   rw [List.length_append, List.length_append, List.length_append,
     List.length_append, List.length_append, List.length_append,

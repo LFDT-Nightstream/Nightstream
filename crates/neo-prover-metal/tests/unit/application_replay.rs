@@ -12,7 +12,7 @@ use neo_reductions::{
 };
 use neo_transcript::Poseidon2Transcript;
 
-// The selected profile has fourteen matrices. A row pair is the input to one
+// This fixture uses fourteen matrices. A row pair is the input to one
 // SumCheck fold; replay can hold a base pair and an extension pair together.
 const MATRIX_COUNT: usize = 14;
 const APPLICATION_WORKSPACE: usize = 2 * MATRIX_COUNT * (size_of::<F>() + size_of::<K>());
@@ -195,7 +195,7 @@ fn run_phase(oracle: &mut dyn PaperJointRoundOracle, initial: K) -> PhaseResult 
     let (rounds, point, _) = prove_phase(&mut transcript, &mut trace, initial, oracle).unwrap();
     let openings = oracle.output_openings(&point).unwrap().unwrap();
     PhaseResult {
-        proof_bytes: assemble_proof(rounds).canonical_bytes(),
+        proof_bytes: assemble_proof(rounds).canonical_bytes().unwrap(),
         trace,
         transcript_state: transcript.state(),
         transcript_cursor: transcript.absorbed(),

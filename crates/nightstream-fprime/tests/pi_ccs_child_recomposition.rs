@@ -20,7 +20,7 @@ use opening::{Extension, Ring, DEGREE};
 use reference::Field;
 
 const CHILDREN: usize = 16;
-const MATRICES: usize = 14;
+const MATRICES: usize = 7;
 
 #[derive(Deserialize)]
 struct Inputs {
@@ -106,7 +106,7 @@ fn all_child_evaluations_recompose_to_the_preceding_pi_ccs_output() {
         assert_eq!(
             phase[13][source]
                 .as_array()
-                .expect("14 matrix families")
+                .expect("7 matrix families")
                 .len(),
             MATRICES
         );
@@ -150,9 +150,6 @@ fn all_child_evaluations_recompose_to_the_preceding_pi_ccs_output() {
             assert_eq!(family[6][child], children[child][5], "same checked public input");
             assert_eq!(family[7][child], children[child][6], "same checked commitment");
             let values = ring(&family[8][child]);
-            if selected == Some(MATRICES - 1) {
-                assert_eq!(values, [Extension::ZERO; DEGREE], "canonical zero matrix");
-            }
             let weight = Field::checked(1u64 << child, "binary child weight").unwrap();
             for (target, value) in combined.iter_mut().zip(values) {
                 *target += value.scale(weight);

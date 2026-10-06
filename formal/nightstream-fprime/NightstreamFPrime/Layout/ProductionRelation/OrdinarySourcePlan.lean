@@ -127,7 +127,7 @@ def Holds {sourceWidth : Nat} (program : Program sourceWidth)
     (source : Circuit.Env) : Prop :=
   ∀ index, (program.row index).Holds source
 
-/-- Compile every indexed source row into the sole 14-matrix row relation. -/
+/-- Compile every indexed source row into the sole 7-matrix row relation. -/
 def compile {sourceWidth logicalWidth : Nat} (program : Program sourceWidth)
     (inputs : program.Inputs logicalWidth) : OrdinaryRow.Program logicalWidth where
   rowCount := program.rowCount
@@ -167,7 +167,7 @@ theorem compile_preserves {sourceWidth logicalWidth : Nat}
     (program.row index) (program.bounded index) assignment source one
     (preserves index)
 
-/-- The final 14-matrix plan accepts exactly the indexed source R1CS rows. -/
+/-- The final 7-matrix plan accepts exactly the indexed source R1CS rows. -/
 theorem rowsZero_iff {sourceWidth logicalWidth : Nat}
     (program : Program sourceWidth) (inputs : program.Inputs logicalWidth)
     (assignment : Assignment F logicalWidth) (source : Circuit.Env)

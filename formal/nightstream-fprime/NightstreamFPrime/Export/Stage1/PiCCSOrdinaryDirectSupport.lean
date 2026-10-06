@@ -123,11 +123,11 @@ private theorem fixedLocal_source (start length : Nat)
 
 private theorem initialProgramLength
     (interface : InitialClaim.Interface) (offset : Nat) :
-    (InitialClaim.program interface offset).recipes.length = 38877 := by
+    (InitialClaim.program interface offset).recipes.length = 20733 := by
   unfold InitialClaim.program Horner.Owned.program
   rw [Horner.compile_recipes_length]
   change 3 * ((InitialClaim.coefficientExprs interface offset).length - 1) =
-    38877
+    20733
   rw [InitialClaim.coefficientExprs_length]
 
 private theorem normProgramLength
@@ -145,7 +145,7 @@ private theorem initial_le_initial :
   Nat.le_refl _
 
 private theorem initial_finish_le :
-    PiCCSArithmetic.initialClaimLogicalStart + 38877 ≤
+    PiCCSArithmetic.initialClaimLogicalStart + 20733 ≤
       PiCCSStarts.outputBindingWitnessStart := by
   rw [PiCCSStarts.outputBindingWitnessStart_eq]
   unfold PiCCSArithmetic.initialClaimLogicalStart
@@ -203,7 +203,7 @@ private theorem initial_le_evalA :
   norm_num
 
 private theorem evalA_finish_le :
-    PiCCSArithmetic.evalALogicalStart + 36395 ≤
+    PiCCSArithmetic.evalALogicalStart + 18251 ≤
       PiCCSStarts.outputBindingWitnessStart := by
   rw [PiCCSStarts.outputBindingWitnessStart_eq]
   unfold PiCCSArithmetic.evalALogicalStart
@@ -220,7 +220,7 @@ private theorem initial_le_ccs :
   exact Nat.le_trans initial_le_evalA (Nat.le_add_right _ _)
 
 private theorem ccs_finish_le :
-    PiCCSArithmetic.ccsLogicalStart + 752 ≤
+    PiCCSArithmetic.ccsLogicalStart + 56 ≤
       PiCCSStarts.outputBindingWitnessStart := by
   rw [PiCCSStarts.outputBindingWitnessStart_eq]
   unfold PiCCSArithmetic.ccsLogicalStart
@@ -443,7 +443,7 @@ theorem emittedConstraints_varsSatisfy
           PiCCSArithmetic.evalALogicalStart) → Source index := by
     intro index lower upper
     rw [EvalATerminal.localLength_eq] at upper
-    apply fixedLocal_source PiCCSArithmetic.evalALogicalStart 36395
+    apply fixedLocal_source PiCCSArithmetic.evalALogicalStart 18251
       initial_le_evalA evalA_finish_le index lower upper
   have evalARoundSupport : ∀ coordinate,
       Horner.KSupported
@@ -483,10 +483,10 @@ theorem emittedConstraints_varsSatisfy
           PiCCSArithmetic.ccsLogicalStart) → Source index := by
     intro index lower upper
     have productCountEq :
-        Sparse.Owned.productCount Formal.ccsRowPolynomial = 750 := by
+        Sparse.Owned.productCount Formal.ccsRowPolynomial = 54 := by
       rfl
     rw [Sparse.Owned.localLength_eq, productCountEq] at upper
-    apply fixedLocal_source PiCCSArithmetic.ccsLogicalStart 752
+    apply fixedLocal_source PiCCSArithmetic.ccsLogicalStart 56
       initial_le_ccs ccs_finish_le index lower upper
   have ccsPointSupport : ∀ matrix,
       Horner.KSupported

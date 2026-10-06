@@ -8,7 +8,7 @@ use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat, SparsePoly, Term};
 use neo_math::{KExtensions, D, F, K};
 use neo_params::NeoParams;
-use neo_reductions::api::{dec_children_with_commit, prove, rlc_with_commit, verify, FoldingMode};
+use neo_reductions::api::{dec_children_with_commit, rlc_with_commit, FoldingMode};
 use neo_reductions::engines::crosscheck_engine::{crosscheck_prove_with_binding, crosscheck_verify_with_binding};
 use neo_reductions::engines::paper_exact_engine::paper_joint::PaperJointOracle;
 use neo_reductions::engines::pi_ccs_joint::{
@@ -16,6 +16,7 @@ use neo_reductions::engines::pi_ccs_joint::{
 };
 use neo_reductions::engines::pi_ccs_joint_protocol::TranscriptBinding;
 use neo_reductions::engines::pi_ccs_protocol::Challenges;
+use neo_reductions::engines::{CrossCheckEngine, OptimizedEngine, PaperExactEngine, PiCcsEngine};
 use neo_reductions::optimized_engine::canonical_audit::OptimizedPaperJointOracle;
 use neo_reductions::optimized_engine::{OptimizedStructureCache, PaperJointRoundOracle};
 use neo_reductions::sumcheck::RoundOracle;
@@ -25,6 +26,8 @@ use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 use rand_chacha::rand_core::SeedableRng;
 use rand_chacha::ChaCha8Rng;
+
+mod zero_running;
 
 type Claim = CcsClaim<neo_ajtai::Commitment, F>;
 type Output = CeClaim<neo_ajtai::Commitment, F, K>;
@@ -51,6 +54,23 @@ fn rectangular_ccs(rows: usize, columns: usize) -> CcsStructure<F> {
         ),
     )
     .expect("valid rectangular CCS")
+}
+
+/// The selected Nightstream profile, with its statistical target set to the
+/// census of this shape, as the lifecycle does. PaperExact requires its rank.
+fn selected_parameters(structure: &CcsStructure<F>) -> NeoParams {
+    let mut params = NeoParams::nightstream_goldilocks_k16();
+    let summary = params
+        .padded_row_security_summary_for_shape(
+            structure.domain_rows(),
+            structure.m,
+            structure.t(),
+            structure.max_degree(),
+            neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
+        )
+        .expect("shape census");
+    params.lambda = params.lambda.min(summary.security_bits);
+    params
 }
 
 fn committer(params: &NeoParams, columns: usize) -> AjtaiSModule {
@@ -111,6 +131,84 @@ fn source(log: &AjtaiSModule, columns: usize, seed: usize) -> (Claim, CcsWitness
     )
 }
 
+/// PiCCS through the public engine that serves `mode`.
+#[allow(clippy::too_many_arguments)]
+fn mode_prove(
+    mode: FoldingMode,
+    transcript: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    structure: &CcsStructure<F>,
+    claims: &[Claim],
+    witnesses: &[CcsWitness<F>],
+    running: &[Output],
+    running_witnesses: &[Mat<F>],
+    log: &AjtaiSModule,
+) -> Result<(Vec<Output>, PiCcsProof), PiCcsError> {
+    match mode {
+        FoldingMode::Optimized => OptimizedEngine.prove(
+            transcript,
+            params,
+            structure,
+            claims,
+            witnesses,
+            running,
+            running_witnesses,
+            log,
+        ),
+        FoldingMode::PaperExact => PaperExactEngine.prove(
+            transcript,
+            params,
+            structure,
+            claims,
+            witnesses,
+            running,
+            running_witnesses,
+            log,
+        ),
+        FoldingMode::OptimizedWithCrosscheck => crosscheck().prove(
+            transcript,
+            params,
+            structure,
+            claims,
+            witnesses,
+            running,
+            running_witnesses,
+            log,
+        ),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn mode_verify(
+    mode: FoldingMode,
+    transcript: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    structure: &CcsStructure<F>,
+    claims: &[Claim],
+    running: &[Output],
+    outputs: &[Output],
+    proof: &PiCcsProof,
+) -> Result<bool, PiCcsError> {
+    match mode {
+        FoldingMode::Optimized => {
+            OptimizedEngine.verify(transcript, params, structure, claims, running, outputs, proof)
+        }
+        FoldingMode::PaperExact => {
+            PaperExactEngine.verify(transcript, params, structure, claims, running, outputs, proof)
+        }
+        FoldingMode::OptimizedWithCrosscheck => {
+            crosscheck().verify(transcript, params, structure, claims, running, outputs, proof)
+        }
+    }
+}
+
+fn crosscheck() -> CrossCheckEngine<OptimizedEngine, PaperExactEngine> {
+    CrossCheckEngine {
+        inner: OptimizedEngine,
+        ref_oracle: PaperExactEngine,
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn prove_mode(
     mode: FoldingMode,
@@ -157,7 +255,7 @@ fn prove_mode_and_state(
     PiCcsError,
 > {
     let mut transcript = Poseidon2Transcript::new(label);
-    let (outputs, proof) = prove(
+    let (outputs, proof) = mode_prove(
         mode,
         &mut transcript,
         params,
@@ -178,6 +276,7 @@ fn seed_running(
     witness: &CcsWitness<F>,
     log: &AjtaiSModule,
 ) -> Output {
+    let (zero, zero_witnesses) = zero_running::zero_running(params, structure, 1, claim.m_in);
     prove_mode(
         FoldingMode::PaperExact,
         b"padded-row/seed",
@@ -185,8 +284,8 @@ fn seed_running(
         structure,
         std::slice::from_ref(claim),
         std::slice::from_ref(witness),
-        &[],
-        &[],
+        &zero,
+        &zero_witnesses,
         log,
     )
     .expect("seed proof")
@@ -196,7 +295,7 @@ fn seed_running(
 
 fn assert_parity(rows: usize, columns: usize) {
     let structure = rectangular_ccs(rows, columns);
-    let params = NeoParams::goldilocks_auto_r1cs_ccs(rows.max(columns)).expect("parameters");
+    let params = selected_parameters(&structure);
     let log = committer(&params, columns);
     let (prior_claim, prior_witness) = source(&log, columns, 1);
     let running = vec![seed_running(&params, &structure, &prior_claim, &prior_witness, &log)];
@@ -238,10 +337,13 @@ fn assert_parity(rows: usize, columns: usize) {
     assert!(paper_outputs
         .iter()
         .all(|output| { output.eval_k.len() == D.next_power_of_two() && output.eval_a.len() == structure.t() }));
-    assert_eq!(paper_proof.canonical_bytes(), optimized_proof.canonical_bytes());
+    assert_eq!(
+        paper_proof.canonical_bytes().unwrap(),
+        optimized_proof.canonical_bytes().unwrap()
+    );
 
     for mode in [FoldingMode::PaperExact, FoldingMode::Optimized] {
-        assert!(verify(
+        assert!(mode_verify(
             mode,
             &mut Poseidon2Transcript::new(label),
             &params,
@@ -268,7 +370,7 @@ fn one_joint_engines_are_byte_exact_for_both_rectangular_directions() {
 fn every_joint_round_polynomial_and_fold_matches() {
     for (rows, columns) in [(4, 8), (16, 8)] {
         let structure = rectangular_ccs(rows, columns);
-        let params = NeoParams::goldilocks_auto_r1cs_ccs(rows.max(columns)).expect("parameters");
+        let params = selected_parameters(&structure);
         let log = committer(&params, columns);
         let (_, first) = source(&log, columns, 3);
         let (_, second) = source(&log, columns, 8);
@@ -332,9 +434,10 @@ fn every_joint_round_polynomial_and_fold_matches() {
 #[test]
 fn public_crosscheck_compares_the_complete_execution() {
     let structure = rectangular_ccs(D / 2, D + 1);
-    let params = NeoParams::goldilocks_auto_r1cs_ccs(D + 1).expect("parameters");
+    let params = selected_parameters(&structure);
     let log = committer(&params, D + 1);
     let (claim, witness) = source(&log, D + 1, 5);
+    let (running, running_witnesses) = zero_running::zero_running(&params, &structure, 1, claim.m_in);
     let mode = FoldingMode::OptimizedWithCrosscheck;
     let label = b"padded-row/crosscheck";
     let (outputs, proof) = prove_mode(
@@ -344,18 +447,18 @@ fn public_crosscheck_compares_the_complete_execution() {
         &structure,
         std::slice::from_ref(&claim),
         std::slice::from_ref(&witness),
-        &[],
-        &[],
+        &running,
+        &running_witnesses,
         &log,
     )
     .expect("crosscheck proof");
-    assert!(verify(
+    assert!(mode_verify(
         mode,
         &mut Poseidon2Transcript::new(label),
         &params,
         &structure,
         std::slice::from_ref(&claim),
-        &[],
+        &running,
         &outputs,
         &proof,
     )
@@ -365,9 +468,10 @@ fn public_crosscheck_compares_the_complete_execution() {
 #[test]
 fn v1_1_transcript_matches_the_independent_reference() {
     let structure = rectangular_ccs(D / 2, D + 1);
-    let params = NeoParams::goldilocks_auto_r1cs_ccs(D + 1).expect("parameters");
+    let params = selected_parameters(&structure);
     let log = committer(&params, D + 1);
     let (claim, witness) = source(&log, D + 1, 6);
+    let (running, running_witnesses) = zero_running::zero_running(&params, &structure, 1, claim.m_in);
     let label = b"pi-ccs/v1_1/crosscheck";
     let binding = TranscriptBinding::digest_only();
     let (outputs, proof) = crosscheck_prove_with_binding(
@@ -378,8 +482,8 @@ fn v1_1_transcript_matches_the_independent_reference() {
         &structure,
         std::slice::from_ref(&claim),
         std::slice::from_ref(&witness),
-        &[],
-        &[],
+        &running,
+        &running_witnesses,
         &log,
         binding,
     )
@@ -391,7 +495,7 @@ fn v1_1_transcript_matches_the_independent_reference() {
         &params,
         &structure,
         std::slice::from_ref(&claim),
-        &[],
+        &running,
         &outputs,
         &proof,
         binding,
@@ -403,10 +507,11 @@ fn v1_1_transcript_matches_the_independent_reference() {
 fn accepting_v1_1_path_exports_receipt_and_rejects_mutations() {
     let columns = D + 1;
     let structure = rectangular_ccs(D / 2, columns);
-    let params = NeoParams::goldilocks_auto_r1cs_ccs(columns).expect("parameters");
+    let params = selected_parameters(&structure);
     let log = committer(&params, columns);
     let cache = OptimizedStructureCache::build(&structure).expect("structure cache");
     let (claim, witness) = source(&log, columns, 12);
+    let (running, running_witnesses) = zero_running::zero_running(&params, &structure, 1, claim.m_in);
     let label = b"padded-row/execution-receipt";
     let (outputs, proof, _, _) = neo_reductions::optimized_engine::optimized_prove_with_cache_and_precompute_and_perf(
         &mut Poseidon2Transcript::new(label),
@@ -414,8 +519,8 @@ fn accepting_v1_1_path_exports_receipt_and_rejects_mutations() {
         &structure,
         std::slice::from_ref(&claim),
         std::slice::from_ref(&witness),
-        &[],
-        &[],
+        &running,
+        &running_witnesses,
         &log,
         &cache,
     )
@@ -426,13 +531,13 @@ fn accepting_v1_1_path_exports_receipt_and_rejects_mutations() {
         &params,
         &structure,
         std::slice::from_ref(&claim),
-        &[],
+        &running,
         &outputs,
         &proof,
         &cache,
     )
     .expect("accepted v1_1 execution receipt");
-    assert_eq!(receipt.proof.proof_bytes, proof.canonical_bytes());
+    assert_eq!(receipt.proof.proof_bytes, proof.canonical_bytes().unwrap());
     assert_eq!(receipt.proof.output_eval_k.len(), outputs.len() * D);
     assert_eq!(receipt.proof.output_eval_a.len(), outputs.len() * structure.t() * D);
     assert_eq!(receipt.statement.relation_id.len(), 4);
@@ -451,7 +556,7 @@ fn accepting_v1_1_path_exports_receipt_and_rejects_mutations() {
         &params,
         &structure,
         std::slice::from_ref(&claim),
-        &[],
+        &running,
         &outputs,
         &changed_proof,
         &cache,
@@ -465,7 +570,7 @@ fn accepting_v1_1_path_exports_receipt_and_rejects_mutations() {
         &params,
         &structure,
         std::slice::from_ref(&claim),
-        &[],
+        &running,
         &changed_output,
         &proof,
         &cache,
@@ -479,7 +584,7 @@ fn accepting_v1_1_path_exports_receipt_and_rejects_mutations() {
         &params,
         &structure,
         std::slice::from_ref(&changed_claim),
-        &[],
+        &running,
         &outputs,
         &proof,
         &cache,
@@ -491,9 +596,10 @@ fn accepting_v1_1_path_exports_receipt_and_rejects_mutations() {
 fn public_crosscheck_covers_v1_1_rlc_and_dec() {
     let columns = D + 1;
     let structure = rectangular_ccs(D / 2, columns);
-    let params = NeoParams::goldilocks_auto_r1cs_ccs(columns).expect("parameters");
+    let params = selected_parameters(&structure);
     let log = committer(&params, columns);
     let (claim, witness) = source(&log, columns, 4);
+    let (running, running_witnesses) = zero_running::zero_running(&params, &structure, 1, claim.m_in);
     let mode = FoldingMode::OptimizedWithCrosscheck;
     let (outputs, _) = prove_mode(
         mode.clone(),
@@ -502,8 +608,8 @@ fn public_crosscheck_covers_v1_1_rlc_and_dec() {
         &structure,
         std::slice::from_ref(&claim),
         std::slice::from_ref(&witness),
-        &[],
-        &[],
+        &running,
+        &running_witnesses,
         &log,
     )
     .expect("PiCCS crosscheck");
@@ -517,7 +623,7 @@ fn public_crosscheck_covers_v1_1_rlc_and_dec() {
         &structure,
         &params,
         &typed_rhos,
-        &outputs,
+        &outputs[..1],
         std::slice::from_ref(&witness.Z),
         D.next_power_of_two().trailing_zeros() as usize,
         |_, commitments| commitments[0].clone(),
@@ -550,12 +656,13 @@ fn public_crosscheck_covers_v1_1_rlc_and_dec() {
 #[test]
 fn verifier_matches_the_paper_mutation_boundary() {
     let structure = rectangular_ccs(D / 2, D);
-    let params = NeoParams::goldilocks_auto_r1cs_ccs(D).expect("parameters");
+    let params = selected_parameters(&structure);
     let log = committer(&params, D);
     let (first_claim, first_witness) = source(&log, D, 1);
     let (second_claim, second_witness) = source(&log, D, 2);
     let claims = vec![first_claim, second_claim];
     let witnesses = vec![first_witness, second_witness];
+    let (running, running_witnesses) = zero_running::zero_running(&params, &structure, claims.len(), claims[0].m_in);
     let label = b"padded-row/mutation";
     let (outputs, proof) = prove_mode(
         FoldingMode::Optimized,
@@ -564,20 +671,20 @@ fn verifier_matches_the_paper_mutation_boundary() {
         &structure,
         &claims,
         &witnesses,
-        &[],
-        &[],
+        &running,
+        &running_witnesses,
         &log,
     )
     .expect("proof");
     let rejects = |claims: &[Claim], outputs: &[Output], proof: &PiCcsProof| {
         !matches!(
-            verify(
+            mode_verify(
                 FoldingMode::Optimized,
                 &mut Poseidon2Transcript::new(label),
                 &params,
                 &structure,
                 claims,
-                &[],
+                &running,
                 outputs,
                 proof,
             ),
@@ -621,10 +728,11 @@ fn verifier_matches_the_paper_mutation_boundary() {
 fn crosscheck_rejects_a_noncanonical_dec_split_that_recomposes() {
     let columns = D;
     let structure = rectangular_ccs(D / 2, columns);
-    let params = NeoParams::goldilocks_auto_r1cs_ccs(columns).expect("parameters");
+    let params = selected_parameters(&structure);
     assert!(params.k_rho >= 2);
     let log = committer(&params, columns);
     let (claim, witness) = source(&log, columns, 4);
+    let (running, running_witnesses) = zero_running::zero_running(&params, &structure, 1, claim.m_in);
     let mode = FoldingMode::OptimizedWithCrosscheck;
     let (outputs, _) = prove_mode(
         mode.clone(),
@@ -633,8 +741,8 @@ fn crosscheck_rejects_a_noncanonical_dec_split_that_recomposes() {
         &structure,
         std::slice::from_ref(&claim),
         std::slice::from_ref(&witness),
-        &[],
-        &[],
+        &running,
+        &running_witnesses,
         &log,
     )
     .expect("PiCCS crosscheck");
@@ -646,7 +754,7 @@ fn crosscheck_rejects_a_noncanonical_dec_split_that_recomposes() {
         &structure,
         &params,
         &typed_rhos,
-        &outputs,
+        &outputs[..1],
         std::slice::from_ref(&witness.Z),
         D.next_power_of_two().trailing_zeros() as usize,
         |_, commitments| commitments[0].clone(),
@@ -679,9 +787,10 @@ fn crosscheck_rejects_a_noncanonical_dec_split_that_recomposes() {
 fn full_carrier_tail_is_part_of_the_padded_identity_relation() {
     let columns = 257;
     let structure = rectangular_ccs(8, columns);
-    let params = NeoParams::goldilocks_auto_r1cs_ccs(512).expect("parameters");
+    let params = selected_parameters(&structure);
     let log = committer(&params, columns);
     let (claim, mut witness) = source(&log, columns, 1);
+    let (running, running_witnesses) = zero_running::zero_running(&params, &structure, 1, claim.m_in);
     witness.Z[(257 % D, 257 / D)] = F::from_u64(2);
     let result = prove_mode(
         FoldingMode::OptimizedWithCrosscheck,
@@ -690,11 +799,15 @@ fn full_carrier_tail_is_part_of_the_padded_identity_relation() {
         &structure,
         std::slice::from_ref(&claim),
         std::slice::from_ref(&witness),
-        &[],
-        &[],
+        &running,
+        &running_witnesses,
         &log,
     );
-    assert!(result.is_err());
+    let error = result
+        .err()
+        .map(|error| error.to_string())
+        .unwrap_or_default();
+    assert!(error.contains("fresh carrier_col=257 must be zero"), "{error}");
 }
 
 #[test]
@@ -726,7 +839,7 @@ fn carried_gamma_power_handles_protocol_scale_exponents() {
 #[test]
 fn canonical_codec_is_versioned_and_not_bincode() {
     let proof = PiCcsProof::new(vec![vec![K::ZERO; 2]]);
-    let bytes = proof.canonical_bytes();
+    let bytes = proof.canonical_bytes().unwrap();
     assert_eq!(u64::from_le_bytes(bytes[0..8].try_into().unwrap()), 1102);
     assert_eq!(u64::from_le_bytes(bytes[8..16].try_into().unwrap()), 1);
 }

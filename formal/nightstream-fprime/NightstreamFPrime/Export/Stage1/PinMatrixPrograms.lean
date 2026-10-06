@@ -3,7 +3,7 @@ import NightstreamFPrime.Export.Stage1.DirectPiDECPrefixPlan
 import NightstreamFPrime.Export.Stage1.RecursivePublicOutputPlan
 
 /-!
-Owns the three small explicit pin blocks in the canonical Stage 1 14-matrix
+Owns the three small explicit pin blocks in the canonical Stage 1 7-matrix
 program: pilot digest custody, PiCCS transcript endpoint custody, and the
 recursive public-output binding.
 

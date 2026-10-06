@@ -427,9 +427,9 @@ theorem canonical_publicHeader {state : Nat → F}
 theorem canonical_evaluationHeader {state : Nat → F}
     (canonical : Canonical state)
     (source : Fin productionShape.runningCount) :
-    state (StateBinding.runningGroupStart source.val + 1460) = natWord 1620 := by
+    state (StateBinding.runningGroupStart source.val + 1460) = natWord 864 := by
   apply canonical
-    ⟨StateBinding.runningGroupStart source.val + 1460, natWord 1620⟩
+    ⟨StateBinding.runningGroupStart source.val + 1460, natWord 864⟩
   simp only [StateBinding.fixedWords, List.mem_append]
   apply Or.inl
   apply Or.inr
@@ -483,7 +483,7 @@ theorem serializeRunning_evaluationPayload
     (state : Nat → F) (source : Fin productionShape.runningCount) :
     serializeEvaluations
         ((directRunning logicalWidth publicFits state).evaluations source) =
-      slice state (StateBinding.runningGroupStart source.val + 1461) 1620 := by
+      slice state (StateBinding.runningGroupStart source.val + 1461) 864 := by
   change serializeEvaluations
       (evaluations state (PiCCSInputs.runningEvaluationStart source.val)) = _
   rw [serializeEvaluations_evaluations]
@@ -508,7 +508,7 @@ theorem serializeRunning_group
         ((directRunning logicalWidth publicFits state).publicInputs source)) ++
       block (serializeEvaluations
         ((directRunning logicalWidth publicFits state).evaluations source)) =
-      slice state (StateBinding.runningGroupStart source.val) 3081 := by
+      slice state (StateBinding.runningGroupStart source.val) 2325 := by
   have commitmentBlock : block (serializeCommitment
         ((directRunning logicalWidth publicFits state).commitments source)) =
       slice state (StateBinding.runningGroupStart source.val) 1189 := by
@@ -524,24 +524,24 @@ theorem serializeRunning_group
       (canonical_publicHeader canonical source)
   have evaluationBlock : block (serializeEvaluations
         ((directRunning logicalWidth publicFits state).evaluations source)) =
-      slice state (StateBinding.runningGroupStart source.val + 1460) 1621 := by
+      slice state (StateBinding.runningGroupStart source.val + 1460) 865 := by
     exact block_eq_slice state
-      (StateBinding.runningGroupStart source.val + 1460) 1620 _
+      (StateBinding.runningGroupStart source.val + 1460) 864 _
       (serializeRunning_evaluationPayload logicalWidth publicFits state source)
       (canonical_evaluationHeader canonical source)
   rw [commitmentBlock, publicBlock, evaluationBlock]
   calc
     slice state (StateBinding.runningGroupStart source.val) 1189 ++
           slice state (StateBinding.runningGroupStart source.val + 1189) 271 ++
-          slice state (StateBinding.runningGroupStart source.val + 1460) 1621 =
+          slice state (StateBinding.runningGroupStart source.val + 1460) 865 =
         slice state (StateBinding.runningGroupStart source.val) (1189 + 271) ++
           slice state (StateBinding.runningGroupStart source.val + 1460)
-            1621 := by
+            865 := by
       rw [← slice_add]
     _ = slice state (StateBinding.runningGroupStart source.val)
-          ((1189 + 271) + 1621) := by
+          ((1189 + 271) + 865) := by
       rw [← slice_add]
-    _ = slice state (StateBinding.runningGroupStart source.val) 3081 := by
+    _ = slice state (StateBinding.runningGroupStart source.val) 2325 := by
       norm_num
 
 theorem serializeRunning_pointBlock
@@ -571,21 +571,21 @@ theorem serializeRunning_groups
         ((directRunning logicalWidth publicFits state).publicInputs source)) ++
       block (serializeEvaluations
         ((directRunning logicalWidth publicFits state).evaluations source))) =
-      slice state 96 (productionShape.runningCount * 3081) := by
+      slice state 96 (productionShape.runningCount * 2325) := by
   calc
     _ = (List.finRange productionShape.runningCount).flatMap (fun source =>
-          slice state (StateBinding.runningGroupStart source.val) 3081) := by
+          slice state (StateBinding.runningGroupStart source.val) 2325) := by
       apply List.flatMap_congr
       intro source _member
       exact serializeRunning_group logicalWidth publicFits canonical source
     _ = (List.finRange productionShape.runningCount).flatMap (fun source =>
-          slice state (96 + source.val * 3081) 3081) := by
+          slice state (96 + source.val * 2325) 2325) := by
       apply List.flatMap_congr
       intro source _member
-      apply congrArg (fun start => slice state start 3081)
+      apply congrArg (fun start => slice state start 2325)
       simp [StateBinding.runningGroupStart, cubeVariables]
-    _ = slice state 96 (productionShape.runningCount * 3081) :=
-      (slice_mul state 96 productionShape.runningCount 3081).symm
+    _ = slice state 96 (productionShape.runningCount * 2325) :=
+      (slice_mul state 96 productionShape.runningCount 2325).symm
 
 /-- Every canonical raw running interval is the serialization of its unique
 typed running-instance decode. -/
@@ -596,20 +596,20 @@ theorem serializeRunning_running
     {state : Nat → F} (canonical : Canonical state) :
     serializeRunning (publicFits := publicFits)
         (running logicalWidth publicFits state) =
-      slice state PiCCSInputs.priorRunningStart 49353 := by
+      slice state PiCCSInputs.priorRunningStart 37257 := by
   rw [← directRunning_eq_running logicalWidth publicFits state]
   unfold serializeRunning
   rw [serializeRunning_pointBlock logicalWidth publicFits canonical]
   rw [serializeRunning_groups logicalWidth publicFits canonical]
   calc
     slice state PiCCSInputs.priorRunningStart 57 ++
-          slice state 96 (productionShape.runningCount * 3081) =
+          slice state 96 (productionShape.runningCount * 2325) =
         slice state PiCCSInputs.priorRunningStart
-          (57 + productionShape.runningCount * 3081) := by
+          (57 + productionShape.runningCount * 2325) := by
       simpa [PiCCSInputs.priorRunningStart] using
         (slice_add state PiCCSInputs.priorRunningStart 57
-          (productionShape.runningCount * 3081)).symm
-    _ = slice state PiCCSInputs.priorRunningStart 49353 := by
+          (productionShape.runningCount * 2325)).symm
+    _ = slice state PiCCSInputs.priorRunningStart 37257 := by
       apply congrArg (slice state PiCCSInputs.priorRunningStart)
       norm_num [productionShape, productionProfile,
         Phi81MatrixSource.phi81Shape]
@@ -712,8 +712,8 @@ theorem canonical_currentHeader {state : Nat → F}
   simp [natWord]
 
 theorem canonical_pc {state : Nat → F}
-    (canonical : Canonical state) : state 49392 = natWord 1 := by
-  apply canonical ⟨49392, natWord 1⟩
+    (canonical : Canonical state) : state 37296 = natWord 1 := by
+  apply canonical ⟨37296, natWord 1⟩
   simp only [StateBinding.fixedWords, List.mem_append]
   apply Or.inr
   simp [natWord]
@@ -754,7 +754,7 @@ theorem currentBlock_eq_slice {state : Nat → F}
 
 theorem pcWord_eq_slice {state : Nat → F}
     (canonical : Canonical state) :
-    [natWord 1] = slice state 49392 1 := by
+    [natWord 1] = slice state 37296 1 := by
   apply List.ext_get
   · simp
   · intro index leftBound rightBound
@@ -786,13 +786,13 @@ theorem serializePreimage_preimage
     pcWord_eq_slice canonical]
   simp only [PiCCSInputs.priorRunningStart, stateDomainTag_length]
   simp only [List.append_assoc]
-  rw [← slice_add state 39 49353 1]
-  rw [← slice_add state 34 5 49354]
-  rw [← slice_add state 29 5 49359]
-  rw [← slice_add state 28 1 49364]
-  rw [← slice_add state 23 5 49365]
+  rw [← slice_add state 39 37257 1]
+  rw [← slice_add state 34 5 37258]
+  rw [← slice_add state 29 5 37263]
+  rw [← slice_add state 28 1 37268]
+  rw [← slice_add state 23 5 37269]
   norm_num
-  rw [← slice_add state 0 23 49370]
+  rw [← slice_add state 0 23 37274]
   unfold slice
   apply congrArg List.ofFn
   funext index

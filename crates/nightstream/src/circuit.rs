@@ -11,7 +11,7 @@ use p3_field::PrimeField64;
 use crate::application::{ApplicationCircuit, ApplicationError};
 use crate::assembly::{self, AssemblyError};
 use crate::engine::{Backend, Engine, EngineError};
-use crate::lifecycle::{ExtendError, PreparedLifecycle, Stage1Envelope, Stage1State, VerifyError};
+use crate::lifecycle::{ExtendError, PreparedLifecycle, ProofCodecError, Stage1Envelope, Stage1State, VerifyError};
 
 mod storage;
 
@@ -31,6 +31,8 @@ pub enum Error {
     Extend(#[from] ExtendError),
     #[error(transparent)]
     Verify(#[from] VerifyError),
+    #[error(transparent)]
+    ProofBytes(#[from] ProofCodecError),
     #[error(transparent)]
     Parameters(#[from] neo_params::ParamsError),
 }
@@ -152,6 +154,11 @@ impl Prover {
             Some(witness.values()),
         )?)
     }
+
+    /// The circuit's strict byte encoding of `proof`, for `Verifier::decode_proof`.
+    pub fn encode_proof(&self, proof: &Stage1Envelope) -> Result<Vec<u8>, Error> {
+        Ok(self.lifecycle.encode_proof(proof)?)
+    }
 }
 
 /// Terminal verification against a circuit chosen independently of the proof.
@@ -187,6 +194,12 @@ impl Verifier {
 
     pub fn engine(&self) -> Engine {
         self.lifecycle.engine()
+    }
+
+    /// Decode untrusted proof bytes. The configured circuit fixes the exact
+    /// length, which is checked before allocation. Acceptance still needs `verify`.
+    pub fn decode_proof(&self, bytes: &[u8]) -> Result<Stage1Envelope, Error> {
+        Ok(self.lifecycle.decode_proof(bytes)?)
     }
 
     /// Check every remaining claim and opening against the configured circuit.

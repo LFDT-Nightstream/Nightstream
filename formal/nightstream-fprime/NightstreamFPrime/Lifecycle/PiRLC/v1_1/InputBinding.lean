@@ -12,7 +12,7 @@ Inputs:
 - one shared point;
 - 17 commitments and packed public inputs;
 - 17 separate `Eval_K` families;
-- 17 families of 14 `Eval_A` values.
+- 17 families of 7 `Eval_A` values.
 
 Outputs:
 - the same symbolic values viewed as the PiRLC input vector.

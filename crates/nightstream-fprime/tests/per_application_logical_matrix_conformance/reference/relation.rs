@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use super::{array, exact_array, field, word, Field, Result, MATRIX_COUNT};
 
-const EXPECTED_TERM_COUNT: usize = 74;
+const EXPECTED_TERM_COUNT: usize = 8;
 const EXPECTED_DEGREE_BOUND: usize = 9;
 
 #[derive(Clone, Debug)]
@@ -65,8 +65,8 @@ impl Relation {
             return Err("unexpected sealed relation envelope".into());
         }
         let fields = exact_array(&raw, 6, "CCS relation")?;
-        if word(&fields[0], "CCS row count")? != 1_992_940
-            || word(&fields[1], "CCS column count")? != 86_703_216
+        if word(&fields[0], "CCS row count")? != 1_371_020
+            || word(&fields[1], "CCS column count")? != 59_804_510
             || word(&fields[2], "CCS cube variables")? != 28
             || array(&fields[3], "CCS matrix sources")?
                 .iter()

@@ -30,7 +30,7 @@ theorem laterWitnessStart_sampler
     (current : Fin (PiRLCSamplerInvocations.sourceCount *
       PermutationPlan.samplerStepsPerSource)) :
     PoseidonRetainedBlock.laterWitnessStart
-        ⟨2651 + current.val, by
+        ⟨1580 + current.val, by
           rw [PoseidonRetainedBlock.laterInvocationCount_eq]
           have currentLt := current.isLt
           norm_num [PiRLCSamplerInvocations.sourceCount,
@@ -44,10 +44,10 @@ theorem laterWitnessStart_sampler
   rw [List.getElem_append_right]
   · have prefixLength :
         (PiCCSInvocations.invocations Data.logicalWidth
-          Data.publicFits).length = 2651 :=
+          Data.publicFits).length = 1580 :=
       PiCCSInvocations.invocations_length Data.logicalWidth Data.publicFits
     have offsetEq :
-        2651 + current.val -
+        1580 + current.val -
             (PiCCSInvocations.invocations Data.logicalWidth
               Data.publicFits).length = current.val := by
       rw [prefixLength]
@@ -100,7 +100,7 @@ theorem laterWitnessStart_sampler
         (PiRLCSamplerInvocations.invocations
           (logicalWidth := Data.logicalWidth)
           (publicFits := Data.publicFits)).length :=
-      ⟨2651 + current.val -
+      ⟨1580 + current.val -
           (PiCCSInvocations.invocations Data.logicalWidth
             Data.publicFits).length,
         by omega⟩
@@ -413,7 +413,7 @@ private theorem ordinaryLocation_sourceColumn_ge
   | logical source position => rw [PiRLCSamplerOrdinaryDirectPlan.logicalColumn]; omega
   | word source position => rw [PiRLCSamplerOrdinaryDirectPlan.wordColumn]; omega
   | fresh source position =>
-      change PiRLCStarts.samplerLogicalStart ≤ PiRLCStarts.samplerFreshStart + source.val * 1548 + position.val
+      change PiRLCStarts.samplerLogicalStart ≤ PiRLCStarts.samplerFreshStart + source.val * 144 + position.val
       simp only [PiRLCStarts.samplerFreshStart, PiRLCStarts.phaseFreshStart,
         PiRLCStarts.samplerLogicalStart, Formal.samplerOffset]
       omega
@@ -523,8 +523,8 @@ private theorem ordinaryMissing (location : StateLocation)
 
       | fresh source position =>
           have selectedLt : source.val < 17 := source.isLt
-          have positionLt : position.val < 1548 := position.isLt
-          change PiRLCStarts.samplerFreshStart + source.val * 1548 + position.val = _ at owns
+          have positionLt : position.val < 144 := position.isLt
+          change PiRLCStarts.samplerFreshStart + source.val * 144 + position.val = _ at owns
           norm_num [StateLocation.sourceColumn, stateOutputOffset, stateStepStride,
             PiRLCStarts.samplerLogicalStart, Formal.samplerOffset, PiRLCStarts.phaseLogicalStart_eq,
             PiRLCStarts.samplerFreshStart, PiRLCStarts.phaseFreshStart_eq,
@@ -633,7 +633,7 @@ theorem baseEnv_eq_transitionEnv
       RunningTransitionDirectPlan.transitionEnv program base
         (Spartan.sourceToSpartan column) := by
   have sourceBound : column < Spartan.SourceColumnCount := by
-    have constant : PiRLCProductPlan.basePackage.layout.constantColumn = 20252764 :=
+    have constant : PiRLCProductPlan.basePackage.layout.constantColumn = 14761448 :=
       Package.circuitPackage_layout_values.2.2.1
     rw [constant] at bound
     rw [Spartan.sourceColumnCount_eq]

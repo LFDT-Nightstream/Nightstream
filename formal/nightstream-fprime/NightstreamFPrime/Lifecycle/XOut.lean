@@ -198,7 +198,7 @@ theorem serializeEvaluations_injective : Function.Injective serializeEvaluations
 
 theorem serializeRunning_length
     (value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) :
-    (serializeRunning (publicFits := publicFits) value).length = 49353 := by
+    (serializeRunning (publicFits := publicFits) value).length = 37257 := by
   simp [serializeRunning, productionShape, productionProfile, fullShape,
     publicRingColumns, ringDegree, cubeVariables,
     Phi81Relation.Shape.publicWidth, Phi81MatrixSource.phi81Shape]
@@ -238,7 +238,7 @@ application-state block lengths remain parameters. -/
 theorem serializePreimage_length
     (value : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     (serializePreimage (publicFits := publicFits) value).length =
-      49381 + (value.verifierKeys functionIndex).length +
+      37285 + (value.verifierKeys functionIndex).length +
         value.z0.length + value.current.length := by
   simp [serializePreimage, stateDomainTag_length, serializeRunning_length]
   omega

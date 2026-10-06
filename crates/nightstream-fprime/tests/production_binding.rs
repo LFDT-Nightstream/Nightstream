@@ -15,8 +15,8 @@ use p3_goldilocks::Goldilocks;
 use serde::Deserialize;
 use serde_json::Value;
 
-const PROFILE: [u64; 14] = [4_294_967_295, 1, 2, 16, 65_536, 1, 16, 17, 16, 14, 28, 9, 54, 22];
-const SCHEDULE: [u64; 10] = [1, 1, 1, 28, 10, 17, 14, 54, 4, 1];
+const PROFILE: [u64; 14] = [4_294_967_295, 1, 2, 16, 65_536, 1, 16, 17, 16, 7, 28, 9, 54, 22];
+const SCHEDULE: [u64; 10] = [1, 1, 1, 28, 10, 17, 7, 54, 4, 1];
 
 fn artifact_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(
@@ -351,7 +351,7 @@ fn production_binding_matches_independent_lean_framing() {
     assert_eq!(independent.components[3].as_slice(), context.commitment_key_words());
     assert_eq!(
         independent.components.each_ref().map(|words| words.len()),
-        [5_120, 2_171_564, 5_184, 73]
+        [380, 2_171_564, 444, 73]
     );
     assert_eq!(binding.verifier_context().descriptor_words().len(), 86);
     assert_eq!(binding.verification_key_words().len(), 131);

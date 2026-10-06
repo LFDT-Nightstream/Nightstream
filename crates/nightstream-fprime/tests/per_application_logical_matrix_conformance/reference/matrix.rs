@@ -27,9 +27,8 @@ impl SourceRange {
             slot_start: word(&fields[3], "source range slot")?,
         };
         range.retained.validate(logical_width)?;
-        if range.source_count == 0
-            || checked_add(range.slot_start, range.source_count, "source range slots")? > range.retained.slot_count
-        {
+        // An empty range selects no source. The PiDEC fresh block is empty.
+        if checked_add(range.slot_start, range.source_count, "source range slots")? > range.retained.slot_count {
             return Err("invalid source range slot mapping".into());
         }
         Ok(range)

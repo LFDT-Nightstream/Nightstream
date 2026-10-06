@@ -19,8 +19,24 @@ use serde::{de::IgnoredAny, Deserialize};
 use serde_json::Value;
 
 const MODULUS: u64 = 0xffff_ffff_0000_0001;
-const PROFILE: [u64; 14] = [4_294_967_295, 1, 2, 16, 65_536, 1, 16, 17, 16, 14, 28, 9, 54, 22];
-const SCHEDULE: [u64; 10] = [1, 1, 1, 28, 10, 17, 14, 54, 4, 1];
+const PROFILE: [u64; 14] = [
+    4_294_967_295,
+    1,
+    2,
+    16,
+    65_536,
+    1,
+    16,
+    17,
+    16,
+    MATRIX_COUNT,
+    28,
+    9,
+    54,
+    22,
+];
+const SCHEDULE: [u64; 10] = [1, 1, 1, 28, 10, 17, MATRIX_COUNT, 54, 4, 1];
+const MATRIX_COUNT: u64 = nightstream_fprime::PI_CCS_V1_1_MATRIX_COUNT as u64;
 
 // Poseidon2HashChainV1BindingParity schema 1 and AjtaiSetupV1Parity schema 4.
 #[derive(Deserialize)]

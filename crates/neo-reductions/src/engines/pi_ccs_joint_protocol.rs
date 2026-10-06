@@ -113,7 +113,7 @@ fn squeeze(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, labe
     value
 }
 
-fn commitment_fields(commitment: &Cmt, params: &NeoParams) -> Result<Vec<F>, PiCcsError> {
+fn check_commitment(commitment: &Cmt, params: &NeoParams) -> Result<(), PiCcsError> {
     if commitment.d != D
         || commitment.kappa != params.kappa as usize
         || commitment.data.len() != D * params.kappa as usize
@@ -122,6 +122,11 @@ fn commitment_fields(commitment: &Cmt, params: &NeoParams) -> Result<Vec<F>, PiC
             "PiCCS v1_1 commitment does not have the fixed Ajtai shape".into(),
         ));
     }
+    Ok(())
+}
+
+fn commitment_fields(commitment: &Cmt, params: &NeoParams) -> Result<Vec<F>, PiCcsError> {
+    check_commitment(commitment, params)?;
     Ok(commitment.data.clone())
 }
 
@@ -180,6 +185,16 @@ pub(crate) fn bind_and_sample_with_trace(
 ) -> Result<(JointDims, Challenges), PiCcsError> {
     let dims = build_joint_dims(params, structure, fresh.len(), running.len())?;
     validate_selected_inputs(structure, fresh, running, dims)?;
+    // The prior digest names the running claims instead of absorbing them;
+    // their commitments still need the shape that fresh commitments get.
+    for claim in running {
+        check_commitment(&claim.c, params)?;
+    }
+    if fresh.iter().any(|claim| claim.adv.is_some()) || running.iter().any(|claim| claim.adv.is_some()) {
+        return Err(PiCcsError::InvalidInput(
+            "PiCCS v1_1 does not bind auxiliary lane commitments".into(),
+        ));
+    }
     if fresh.is_empty() {
         return Err(PiCcsError::InvalidInput(
             "PiCCS v1_1 digest-only statement requires a fresh claim".into(),
@@ -460,6 +475,9 @@ pub(crate) fn verify_with_trace(
     Ok((final_claim == expected, trace))
 }
 
+/// Verify PiCCS with the selected transcript binding.
+///
+/// The [caller contract](crate::engines::PiCcsEngine::verify) applies.
 #[allow(clippy::too_many_arguments)]
 pub fn verify_with_binding(
     transcript: &mut Poseidon2Transcript,
@@ -503,6 +521,9 @@ pub(crate) fn verify_with_binding_and_matrix_digest(
     .0)
 }
 
+/// Verify PiCCS with the digest-only transcript binding.
+///
+/// The [caller contract](crate::engines::PiCcsEngine::verify) applies.
 pub fn verify(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,

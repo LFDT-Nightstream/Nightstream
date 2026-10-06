@@ -2,8 +2,8 @@ import NightstreamFPrime.Layout.ProductionRelation
 import NightstreamFPrime.Spec.ProductionRelation.RowSemantics
 
 /-!
-Owns one selective row for a sum of five products. The row uses the exact
-evaluation-selector port family of the fixed 74-term production polynomial.
+Owns one selective row for a sum of two products. The row uses the exact
+evaluation-selector port family of the fixed 8-term production polynomial.
 
 This module does not group products or select assignment columns.
 -/
@@ -16,11 +16,11 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
-/-- The twelve live sparse forms of one five-product row. -/
+/-- The six live sparse forms of one two-product row. -/
 structure Forms (logicalWidth : Nat) where
   selector : SparseForm logicalWidth
-  left : Fin 5 → SparseForm logicalWidth
-  right : Fin 5 → SparseForm logicalWidth
+  left : Fin 2 → SparseForm logicalWidth
+  right : Fin 2 → SparseForm logicalWidth
   output : SparseForm logicalWidth
 
 namespace Forms
@@ -35,13 +35,7 @@ def meaningfulForm {logicalWidth : Nat} (forms : Forms logicalWidth)
   | 3 => forms.left 1
   | 4 => forms.output
   | 5 => forms.right 1
-  | 6 => forms.left 2
-  | 7 => forms.selector
-  | 8 => forms.right 2
-  | 9 => forms.left 3
-  | 10 => forms.right 3
-  | 11 => forms.left 4
-  | 12 => forms.right 4
+  | 6 => forms.selector
   | _ => .empty
 
 def portForm {logicalWidth : Nat} (forms : Forms logicalWidth)
@@ -87,19 +81,19 @@ theorem residual_eq {logicalWidth : Nat} (forms : Forms logicalWidth)
   rw [portImages_eq_productSum]
   exact Spec.ProductionRelation.RowSemantics.evaluate_productSum _ _ _ _
 
-/-- Exact source-value preservation premise for one five-product row. -/
+/-- Exact source-value preservation premise for one two-product row. -/
 def Preserves {logicalWidth : Nat} (forms : Forms logicalWidth)
     (assignment : Assignment F logicalWidth)
-    (left right : Fin 5 → F) (output : F) : Prop :=
+    (left right : Fin 2 → F) (output : F) : Prop :=
   forms.selector.eval assignment = 1 ∧
     (∀ lane, (forms.left lane).eval assignment = left lane) ∧
     (∀ lane, (forms.right lane).eval assignment = right lane) ∧
     forms.output.eval assignment = output
 
-/-- A preserving row vanishes exactly for the five-product equation. -/
+/-- A preserving row vanishes exactly for the two-product equation. -/
 theorem residual_zero_iff {logicalWidth : Nat} (forms : Forms logicalWidth)
     (assignment : Assignment F logicalWidth)
-    (left right : Fin 5 → F) (output : F)
+    (left right : Fin 2 → F) (output : F)
     (preserves : forms.Preserves assignment left right output) :
     forms.residual assignment = 0 ↔
       Spec.ProductionRelation.RowSemantics.productTotal left right = output := by

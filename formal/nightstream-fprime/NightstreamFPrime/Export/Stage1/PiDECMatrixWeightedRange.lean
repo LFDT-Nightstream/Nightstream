@@ -185,7 +185,7 @@ private theorem add_add_add_comm (first second third fourth : K) :
     extensionLaws.add_comm second third, extensionLaws.add_assoc third,
     ← extensionLaws.add_assoc first]
 
-private theorem mul_embed (weight : K) (coefficient : F) :
+theorem mul_embed (weight : K) (coefficient : F) :
     extensionOps.mul weight (K.embed coefficient) = scale weight coefficient := by
   simp only [extensionOps, K.mul, K.embed, scale, Fin.mul_zero, Fin.add_zero, Fin.zero_add]
 
@@ -202,7 +202,7 @@ private theorem foldl_from {columns : Nat} (read : Fin columns → F) :
         Fin.zero_add]
       exact baseLaws.add_assoc _ _ _
 
-private theorem evalSparse_cons {columns : Nat} (entry : SparseEntry columns)
+theorem evalSparse_cons {columns : Nat} (entry : SparseEntry columns)
     (entries : List (SparseEntry columns)) (read : Fin columns → F) :
     SparseForm.evalSparse ⟨entry :: entries⟩ read =
       entry.coefficient * read entry.column + SparseForm.evalSparse ⟨entries⟩ read := by
@@ -295,7 +295,7 @@ private theorem embed_foldl {columns : Nat} (read : Fin columns → F) :
 
 /-- The embedded sparse evaluation is the dot product of its embedded
 coefficients and embedded column reads. -/
-private theorem embed_evalSparse {columns : Nat} (form : SparseForm columns)
+theorem embed_evalSparse {columns : Nat} (form : SparseForm columns)
     (read : Fin columns → F) :
     K.embed (form.evalSparse read) =
       dot (form.entries.map fun entry => K.embed entry.coefficient)
@@ -303,7 +303,7 @@ private theorem embed_evalSparse {columns : Nat} (form : SparseForm columns)
   unfold SparseForm.evalSparse
   rw [embed_foldl, show K.embed 0 = extensionOps.zero from embed_zero, extensionLaws.zero_add]
 
-private theorem numericSum_succ (count : Nat) (term : Nat → K) :
+theorem numericSum_succ (count : Nat) (term : Nat → K) :
     NumericCompletionSum.numericSum extensionOps (count + 1) term =
       extensionOps.add (NumericCompletionSum.numericSum extensionOps count term)
         (term count) := by
@@ -348,7 +348,7 @@ private theorem aligned_rows {columns count : Nat}
   exact beq_iff_eq.mp row
 
 /-- Appending one weight adds its product. -/
-private theorem dot_append_single :
+theorem dot_append_single :
     ∀ (weights values : List K) (weight value : K), weights.length = values.length →
       dot (weights ++ [weight]) (values ++ [value]) =
         extensionOps.add (dot weights values) (extensionOps.mul weight value)
@@ -365,7 +365,7 @@ private theorem dot_append_single :
   | _ :: _, [], _, _, same => by simp at same
 
 /-- Adding to one weight adds its product. -/
-private theorem dot_set_add :
+theorem dot_set_add :
     ∀ (weights values : List K) (slot : Nat) (weight : K) (bound : slot < weights.length)
       (same : weights.length = values.length),
       dot (weights.set slot (extensionOps.add weights[slot] weight)) values =

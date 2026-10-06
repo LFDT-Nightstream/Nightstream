@@ -255,8 +255,8 @@ def check_inactive_shared_ranges(binary, ccs, directory):
     parent = directory / "shared.zero.jsonl"
     with parent.open("x") as output:
         output.write(stream())
-    # Ordinary and Phi81 ranges both use shared slices when children are active.
-    requests = [(4, 0, 1), (4, 1, 2), (10, 0, 108)]
+    # All row families share slices; include a nonzero Poseidon invocation offset.
+    requests = [(4, 0, 1), (4, 1, 2), (10, 0, 108), (0, 0, 150), (0, 150, 300)]
     for mode, selected in (("single", requests[:1]), ("batch", requests)):
         outputs = [directory / f"shared.{mode}.{index}.json" for index in range(len(selected))]
         arguments = []

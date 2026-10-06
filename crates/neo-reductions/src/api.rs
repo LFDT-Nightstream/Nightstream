@@ -657,7 +657,7 @@ where
 /// skips the per-entry NC-range scan over `Z_split`: the split routine
 /// has just decomposed the parent witness into balanced base-`b` digit
 /// planes, so every child entry is already in range. We still validate
-/// parent shape, child count, `ell_d`, and every split matrix's
+/// parent shape, child commitments, child count, `ell_d`, and every split matrix's
 /// SuperNeo packed shape. Callers with arbitrary `Z_split` must use the
 /// checked API above.
 pub fn dec_children_with_commit_superneo_cached_from_trusted_split_digits<Comb>(

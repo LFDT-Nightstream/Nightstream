@@ -188,9 +188,11 @@ theorem realSuccess_iff_goodActive
     exact iff_of_false id good
 
 /-- At every supported visited context, real success supplies the prior-state
-link for the same running and fresh input. The approved Fiat–Shamir transfer
-is applied only to this law, so wherever it counts a success, the absorbed
-prior digest binds the verifier context and the running statement. -/
+link for the same running and fresh input. The HyperNova history theorems
+apply the approved Fiat–Shamir transfer to this law, so in them every counted
+success has the absorbed prior digest bind the verifier context and the running
+statement. The generic NIFS closure theorems apply the transfer at an arbitrary
+law and carry no such link. -/
 theorem priorLink_of_realSuccess
     (source : Statement → Payload → PMF SourceResult)
     (initial : PMF (Statement × Envelope)) (steps : Nat) (visit : Visit)

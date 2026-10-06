@@ -57,7 +57,9 @@ the prior proof remains live until the caller replaces or drops it.
 `verifier.decode_proof(&bytes)` checks the exact length that its configured
 circuit fixes before it allocates. It then rejects noncanonical field words,
 malformed witness masks and trailing data. A decoded proof still needs
-`verify`. Each witness column travels as two 64-bit lane masks for `+1` and
+`verify`. The bytes carry exactly the values that `verify` reads, so each
+accepted proof has one encoding; the frame digests, PiRLC parent claim and
+private witness copy are not encoded, and `extend` rebuilds them. Each witness column travels as two 64-bit lane masks for `+1` and
 `-1`; the fixed-key commitment already rejects other witness values.
 
 Engine selection applies to proof arithmetic and terminal row checks. It does

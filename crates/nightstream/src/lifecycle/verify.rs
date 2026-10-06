@@ -14,7 +14,7 @@ use neo_reductions::{
 use nightstream_fprime::{PackageError, PI_CCS_V1_1_ROUND_COUNT, PI_DEC_V1_1_CHILD_COUNT};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
-use crate::folding::is_canonical_evaluation;
+use crate::folding::{has_canonical_evaluations, is_canonical_evaluation};
 
 use super::{
     encode_pi_ccs_v1_1_public_input, pi_ccs_v1_1_state_hash, serialize_pi_ccs_v1_1_state_preimage,
@@ -93,13 +93,7 @@ impl PreparedLifecycle {
                     reason: "running claims must share the selected evaluation point",
                 });
             }
-            if !is_canonical_evaluation(&claim.eval_k)
-                || claim.eval_a.len() != self.structure.t()
-                || claim
-                    .eval_a
-                    .iter()
-                    .any(|values| !is_canonical_evaluation(values))
-            {
+            if !has_canonical_evaluations(claim, self.structure.t()) {
                 return Err(VerifyError::Running {
                     index,
                     reason: "evaluation shape or nonzero surplus coefficients",

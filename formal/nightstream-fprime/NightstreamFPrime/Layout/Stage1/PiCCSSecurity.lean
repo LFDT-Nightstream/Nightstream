@@ -366,9 +366,12 @@ theorem committed_authority_statement_finalState_identify_or_failure
 
 /-- The HyperNova prior-state link: the fresh public input carries the hash of
 the well-formed prior preimage, the preimage names the verifier context, and
-the NIFS running statement is the preimage's running vector. The transcript
-absorbs neither the key nor the running statement directly; the context digest
-here takes the place of HyperNova Construction 3's `hs = ρ(pp, s)`.
+the NIFS running statement is the preimage's running vector. The context is the
+`vk_fs` slot of HyperNova Construction 2's state hash. The key itself is fixed
+by the verifier, not by the transcript: unlike Construction 3's `hs = ρ(pp, s)`,
+the context does not seed the transcript, and the terminal verifier recomputes
+the digest with its own context. The link binds the running statement and the
+context digest; it charges no probability to a state-hash collision.
 `ActualTerminalSecurity.terminal_implies_nifsOrBaseOrCollision` supplies the
 link on the positive, collision-free branch of an accepted recursive terminal. -/
 structure PriorLink

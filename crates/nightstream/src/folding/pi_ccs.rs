@@ -1,7 +1,7 @@
 //! Selected PiCCS validation and shared native proving. Copied from neo-fold-clean.
 use super::{
-    has_zero_evaluation_padding, kernels as engine, superneo_has_canonical_x_shape, transcript::Transcript, CcsClaim,
-    CcsWitness, CeClaim, Params, RunningInstance, Structure, EVALUATION_WIDTH,
+    has_evaluation_shape, has_zero_evaluation_padding, kernels as engine, superneo_has_canonical_x_shape,
+    transcript::Transcript, CcsClaim, CcsWitness, CeClaim, Params, RunningInstance, Structure,
 };
 use neo_math::D;
 pub use neo_reductions::api::PiCcsProof as SumcheckProof;
@@ -165,22 +165,13 @@ fn validate_v1_1_claim(s: &Structure, claim: &CeClaim) -> Result<(), Error> {
     if claim.r.len() != ell_n {
         return Err(Error::Shape("CE r length must match the joint row point"));
     }
-    if claim.eval_k.len() != EVALUATION_WIDTH {
-        return Err(Error::Shape("CE Eval_K must use the padded ring degree"));
+    if !has_evaluation_shape(claim, s.t()) {
+        return Err(Error::Shape(
+            "CE evaluations must use the padded ring degree and the CCS matrix count",
+        ));
     }
-    if !has_zero_evaluation_padding(&claim.eval_k) {
-        return Err(Error::Shape("CE Eval_K padding lanes must be zero"));
-    }
-    if claim.eval_a.len() != s.t() {
-        return Err(Error::Shape("CE Eval_A count must equal the CCS matrix count"));
-    }
-    for row in &claim.eval_a {
-        if row.len() != EVALUATION_WIDTH {
-            return Err(Error::Shape("CE Eval_A rows must use the padded ring degree"));
-        }
-        if !has_zero_evaluation_padding(row) {
-            return Err(Error::Shape("CE Eval_A padding lanes must be zero"));
-        }
+    if !has_zero_evaluation_padding(claim) {
+        return Err(Error::Shape("CE evaluation padding lanes must be zero"));
     }
     Ok(())
 }

@@ -33,12 +33,14 @@ impl Stage1Envelope {
     /// Load untrusted active proof data. Only the selected terminal verifier
     /// can establish acceptance of its statement and openings.
     pub(crate) fn from_parts(state: Stage1State, running: RunningInstance, fresh: CcsInstance) -> Self {
-        Self::from_state_and_proof(state, ProofState::Active { running, fresh })
+        Self {
+            state,
+            proof: ProofState::Active { running, fresh },
+        }
     }
 
     /// Any state with any proof, including a bottom proof under a positive
-    /// state. `ProofState` is private to `lifecycle`, so tests elsewhere use
-    /// `from_parts`.
+    /// state, which no production constructor builds.
     #[cfg(test)]
     pub(super) fn from_state_and_proof(state: Stage1State, proof: ProofState) -> Self {
         Self { state, proof }

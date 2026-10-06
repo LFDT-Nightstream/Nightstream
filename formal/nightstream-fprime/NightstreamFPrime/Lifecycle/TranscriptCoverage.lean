@@ -32,7 +32,8 @@ identifies the prior preimage and the NIFS running statement, unless the state
 hash collides.
 
 `AgreeOnAbsorbed` is the dependency specification; a change to it is a
-protocol change.
+protocol change. `tests/TranscriptCoverageChecks.lean` pins it by `Iff.rfl` and
+refutes the identify property for two schedules that drop an absorption.
 
 The `Π_RLC` read keys are `ScheduleLaw.queryAt []`; only the replay of these
 fixed suffix calls (`TranscriptHistory.queryAt_answer`) is reused. The sampler's

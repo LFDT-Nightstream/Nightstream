@@ -89,14 +89,15 @@ pub(super) fn accept(root: &Path, step: u64, engine: EvaluationEngine) {
     assert!(package
         .verify(&Stage1State::new(step, expected.z0(), wrong), &envelope)
         .is_err());
+    let (running, fresh) = envelope.active_parts().unwrap();
     save(
         &root.join(format!("terminal-{step}-accepted.json")),
         &json!({
             "schema":1, "package_identity":package.package_identity(), "iteration":step,
             "z0":expected.z0().map(|value| value.as_canonical_u64()),
             "current":expected.current().map(|value| value.as_canonical_u64()),
-            "running_claims":&envelope.active_parts().unwrap().0.claims,
-            "fresh_claim":&envelope.active_parts().unwrap().1.claim,
+            "running_claims":&running.claims,
+            "fresh_claim":&fresh.claim,
             "engine":format!("{engine:?}"),
             "scope":"new Rust terminal execution on its own generated successor; Lean comparison is a separate check"
         }),

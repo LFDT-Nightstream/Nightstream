@@ -146,6 +146,7 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
     eprintln!("later terminal acceptance started elapsed={:?}", started.elapsed());
     package.verify(&expected_state, &final_proof).unwrap();
     eprintln!("later terminal acceptance elapsed={:?}", terminal.elapsed());
+    let (final_running, final_fresh) = final_proof.active_parts().unwrap();
     eprintln!(
         "new recursive result={}",
         json!({
@@ -153,8 +154,8 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
             "iteration": expected_state.iteration(),
             "initial": initial.map(|value| value.as_canonical_u64()),
             "current": final_output.map(|value| value.as_canonical_u64()),
-            "running_claims": &final_proof.active_parts().unwrap().0.claims,
-            "fresh_claim": &final_proof.active_parts().unwrap().1.claim,
+            "running_claims": &final_running.claims,
+            "fresh_claim": &final_fresh.claim,
         })
     );
 

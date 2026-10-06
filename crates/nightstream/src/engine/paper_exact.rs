@@ -53,19 +53,16 @@ pub(crate) fn prove(
     params: &Params,
     structure: &Structure,
     rows: &dyn PaperMatrixRows<F>,
-    fresh: Vec<CcsInstance>,
+    fresh: CcsInstance,
     running: RunningInstance,
 ) -> Result<(RunningInstance, NifsProof), folding::Error> {
-    let (claims, witnesses): (Vec<_>, Vec<_>) = fresh
-        .into_iter()
-        .map(|source| (source.claim, source.witness))
-        .unzip();
+    let CcsInstance { claim, witness } = fresh;
     let (outputs, sumcheck, _) = paper_exact_prove_with_rows(
         transcript.inner_mut(),
         params.inner(),
         structure,
-        &claims,
-        &witnesses,
+        std::slice::from_ref(&claim),
+        std::slice::from_ref(&witness),
         &running.claims,
         &running.witnesses,
         rows,
@@ -76,7 +73,7 @@ pub(crate) fn prove(
     let rhos = sample_rhos(transcript.inner_mut(), params, c.outputs.len())
         .map_err(folding::kernels::Error::from)
         .map_err(pi_rlc::Error::from)?;
-    let mut sources: Vec<_> = witnesses.into_iter().map(|witness| witness.Z).collect();
+    let mut sources = vec![witness.Z];
     sources.extend(running.witnesses);
     let (parent, witness) = rlc_reduction_paper_exact_with_commit_mix(
         structure,

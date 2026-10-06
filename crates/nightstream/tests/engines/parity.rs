@@ -213,7 +213,7 @@ fn run(engine: Engine, fixture: &Fixture) -> Result<Run, Box<dyn std::error::Err
             &fixture.structure,
             &matrix_rows,
             workspace_bytes,
-            vec![fixture.fresh.clone()],
+            fixture.fresh.clone(),
             fixture.running.clone(),
         )?,
         Backend::PaperExact => super::paper_exact::prove(
@@ -221,7 +221,7 @@ fn run(engine: Engine, fixture: &Fixture) -> Result<Run, Box<dyn std::error::Err
             &fixture.params,
             &fixture.structure,
             &fixture.rows,
-            vec![fixture.fresh.clone()],
+            fixture.fresh.clone(),
             fixture.running.clone(),
         )?,
         Backend::Crosscheck => {
@@ -237,7 +237,7 @@ fn run(engine: Engine, fixture: &Fixture) -> Result<Run, Box<dyn std::error::Err
                 &matrix_rows,
                 workspace_bytes,
                 &rows,
-                vec![fixture.fresh.clone()],
+                fixture.fresh.clone(),
                 fixture.running.clone(),
             )?;
             assert!(
@@ -256,7 +256,7 @@ fn run(engine: Engine, fixture: &Fixture) -> Result<Run, Box<dyn std::error::Err
                 &fixture.structure,
                 &matrix_rows,
                 workspace_bytes,
-                vec![fixture.fresh.clone()],
+                fixture.fresh.clone(),
                 fixture.running.clone(),
             )?;
             assert!(
@@ -273,7 +273,7 @@ fn run(engine: Engine, fixture: &Fixture) -> Result<Run, Box<dyn std::error::Err
         &fixture.structure,
         ajtai_rlc_mixer,
         ajtai_dec_mixer,
-        std::slice::from_ref(&fixture.fresh.claim),
+        &fixture.fresh.claim,
         &fixture.running.claims_only(),
         &proof,
     )?;
@@ -288,7 +288,7 @@ fn run(engine: Engine, fixture: &Fixture) -> Result<Run, Box<dyn std::error::Err
         &fixture.structure,
         ajtai_rlc_mixer,
         ajtai_dec_mixer,
-        std::slice::from_ref(&fixture.fresh.claim),
+        &fixture.fresh.claim,
         &fixture.running.claims_only(),
         &changed
     )
@@ -390,7 +390,7 @@ fn crosscheck_rejects_different_rows_without_updating_the_transcript() {
         &matrix_rows,
         workspace_bytes,
         &fixture.rows,
-        vec![fixture.fresh],
+        fixture.fresh,
         fixture.running,
     );
     assert!(matches!(result, Err(EngineError::CrosscheckMismatch { .. })));
@@ -413,7 +413,7 @@ fn crosscheck_rejects_a_prover_error_without_updating_the_transcript() {
         &matrix_rows,
         workspace_bytes,
         &fixture.rows,
-        vec![fixture.fresh],
+        fixture.fresh,
         fixture.running,
     );
     assert!(matches!(
@@ -446,7 +446,7 @@ fn crosscheck_rejects_a_worker_panic_without_updating_the_transcript() {
         &matrix_rows,
         workspace_bytes,
         &PanickingRows,
-        vec![fixture.fresh],
+        fixture.fresh,
         fixture.running,
     );
     assert!(matches!(

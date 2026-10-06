@@ -17,7 +17,7 @@ pub(crate) fn prove(
     optimized_rows: &dyn MatrixRows,
     workspace_bytes: usize,
     rows: &dyn PaperMatrixRows<F>,
-    fresh: Vec<CcsInstance>,
+    fresh: CcsInstance,
     running: RunningInstance,
 ) -> Result<(RunningInstance, NifsProof), EngineError> {
     let mut optimized_transcript = transcript.clone();

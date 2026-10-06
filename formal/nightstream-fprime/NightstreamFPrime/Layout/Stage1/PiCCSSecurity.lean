@@ -1,9 +1,12 @@
 import NightstreamFPrime.Layout.Stage1.StateEncoding
+import NightstreamFPrime.Lifecycle.TranscriptCoverage
 import NightstreamFPrime.Lifecycle.VerifierContext
 import NightstreamFPrime.Spec.Folding.PiCCS.TranscriptReplay
 
 /-!
-Owns the committed-statement reduction for digest-only PiCCS.
+Owns the committed-statement reduction for digest-only PiCCS, and the
+prior-state link that extends `Lifecycle.TranscriptCoverage` to the running
+statement.
 
 The deterministic result stops at explicit collision events. It assigns no
 probability to Poseidon2 and does not mix commitment binding, Fiat--Shamir
@@ -360,5 +363,50 @@ theorem committed_authority_statement_finalState_identify_or_failure
     · exact Or.inr (Or.inr (Or.inr (Or.inl stateFailure)))
   · exact Or.inr (Or.inl componentFailure)
   · exact Or.inr (Or.inr (Or.inl contextFailure))
+
+/-- The HyperNova prior-state link: the fresh public input carries the hash of
+the well-formed prior preimage, and the NIFS running statement is the
+preimage's running vector. `ActualTerminalSecurity.terminal_implies_nifsOrBaseOrCollision`
+supplies it on the positive, collision-free branch of an accepted recursive
+terminal. -/
+structure PriorLink
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (prior : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)) : Prop where
+  digest : ProductionKey.priorDigest fresh = stateHash (publicFits := publicFits) prior
+  running_eq : prior.running functionIndex = running
+  wellFormed : StateEncoding.WellFormed prior
+
+/-- The transcript coverage contract with the prior-state link. If two
+executions present equal prover-dependent calls before a challenge, they agree
+on the prior preimage, the NIFS running statement, the fresh statement, and
+every earlier prover message, unless the state hash collides. -/
+theorem calls_identify_view_or_collision
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    {degree : Nat} (challenge : TranscriptCoverage.Challenge)
+    {prior prior' : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits)}
+    {running running' : Running (logicalWidth := logicalWidth) (publicFits := publicFits)}
+    {fresh fresh' : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)}
+    {proof proof' : Proof degree}
+    (link : PriorLink prior running fresh) (link' : PriorLink prior' running' fresh')
+    (same : TranscriptCoverage.proverCalls fresh proof challenge =
+      TranscriptCoverage.proverCalls fresh' proof' challenge) :
+    (prior = prior' ∧ running = running' ∧
+        TranscriptCoverage.AgreeOnAbsorbed fresh fresh' proof proof' challenge) ∨
+      StateHashCollision prior prior' := by
+  have agree := TranscriptCoverage.proverCalls_identify challenge same
+  have digestEqual : stateHash (publicFits := publicFits) prior =
+      stateHash (publicFits := publicFits) prior' := by
+    rw [← link.digest, ← link'.digest, agree.fresh_eq]
+  rcases stateHash_identifies_statement_or_collision prior prior'
+      link.wellFormed link'.wellFormed digestEqual with priorEqual | collision
+  · refine Or.inl ⟨priorEqual, ?_, agree⟩
+    rw [← link.running_eq, ← link'.running_eq, priorEqual]
+  · exact Or.inr collision
 
 end NightstreamFPrime.Layout.Stage1.PiCCSSecurity

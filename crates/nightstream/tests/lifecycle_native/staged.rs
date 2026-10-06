@@ -30,7 +30,7 @@ use std::{
 #[path = "staged_fold.rs"]
 mod fold;
 #[path = "staged_opening_tests.rs"]
-mod opening_tests;
+pub(super) mod opening_tests;
 #[path = "staged_terminal.rs"]
 mod terminal;
 

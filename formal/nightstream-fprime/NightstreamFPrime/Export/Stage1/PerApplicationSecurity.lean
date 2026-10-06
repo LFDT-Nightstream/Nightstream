@@ -122,6 +122,22 @@ theorem replayInput_statement_input {program : Program}
           (canonicalKey fits commitmentSetup).lift := by
   rfl
 
+/-- Link to the transcript coverage contract: the replay authority that the
+committed-statement reductions identify is the state after
+`TranscriptCoverage.statementCalls` together with the round messages that
+`TranscriptCoverage.roundCalls` absorbs. -/
+theorem replayInput_authority_eq_coverage {program : Program}
+    (fits : FitsTwoPow28 program)
+    (commitmentSetup : CommitmentSetup program)
+    (input : StepInput program fits) :
+    (replayInput fits commitmentSetup input).authority =
+      { priorState := TranscriptCoverage.run Transcript.initialState
+          (TranscriptCoverage.statementCalls input.fresh)
+        rounds := { rounds := TranscriptCoverage.messages input.nifsProof } } := by
+  simp only [replayInput, Spec.Folding.PiCCS.TranscriptReplay.ReplayInput.authority]
+  rw [TranscriptCoverage.publicInputState_eq_run]
+  rfl
+
 /-- The replay view derives exactly the coins used by the production NIFS
 key. -/
 theorem replayInput_derive_eq_piCcsExecution {program : Program}

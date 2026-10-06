@@ -480,7 +480,7 @@ fn saved_proof_and_transcript_match_lean() {
         &fixture.package.structure,
         folding::ajtai_rlc_mixer,
         folding::ajtai_dec_mixer,
-        std::slice::from_ref(&fixture.fresh),
+        &fixture.fresh,
         &fixture.running,
         &fixture.proof,
     )
@@ -501,7 +501,7 @@ fn saved_proof_and_transcript_match_lean() {
         &fixture.package.structure,
         folding::ajtai_rlc_mixer,
         folding::ajtai_dec_mixer,
-        std::slice::from_ref(&fixture.fresh),
+        &fixture.fresh,
         &fixture.running,
         &invalid
     )

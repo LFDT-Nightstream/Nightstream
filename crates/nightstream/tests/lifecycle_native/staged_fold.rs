@@ -94,7 +94,7 @@ impl SavedNifs {
             &package.structure,
             ajtai_rlc_mixer,
             ajtai_dec_mixer,
-            std::slice::from_ref(&fresh),
+            &fresh,
             &running,
             &proof,
         )
@@ -119,15 +119,7 @@ fn replay_ccs(
     let params = params(package);
     folding::validate_running_parent_authority(&params, &package.structure, ajtai_dec_mixer, running).unwrap();
     let mut transcript = Transcript::session();
-    let outputs = pi_ccs::verify(
-        &mut transcript,
-        &params,
-        &package.structure,
-        std::slice::from_ref(fresh),
-        running,
-        proof,
-    )
-    .unwrap();
+    let outputs = pi_ccs::verify(&mut transcript, &params, &package.structure, fresh, running, proof).unwrap();
     (transcript, outputs)
 }
 fn read_parent(package: &PreparedLifecycle, root: &Path, step: u64) -> SavedParent {
@@ -251,8 +243,8 @@ pub(super) fn ccs(root: &Path, step: u64, engine: EvaluationEngine, cpu_referenc
             &package.structure,
             &rows,
             workspace_bytes,
-            std::slice::from_ref(&source.fresh.claim),
-            std::slice::from_ref(&source.fresh.witness),
+            &source.fresh.claim,
+            &source.fresh.witness,
             &source.running,
         )
         .unwrap(),
@@ -390,7 +382,7 @@ pub(super) fn prove(root: &Path, step: u64, engine: EvaluationEngine, reference_
         &package.structure,
         ajtai_rlc_mixer,
         ajtai_dec_mixer,
-        std::slice::from_ref(&fresh),
+        &fresh,
         &running,
         &proof,
     )

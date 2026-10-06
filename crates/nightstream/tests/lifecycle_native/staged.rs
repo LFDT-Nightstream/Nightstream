@@ -7,7 +7,7 @@ use crate::folding::{
     self, ajtai_dec_mixer, ajtai_rlc_mixer, pi_ccs, pi_dec, pi_rlc, transcript::Transcript, CcsClaim, CcsInstance,
     CcsWitness, CeClaim, NifsProof, Params, RunningInstance,
 };
-use crate::lifecycle::{extend::prepare_running, PreparedLifecycle, Stage1Envelope, Stage1State};
+use crate::lifecycle::{PreparedLifecycle, Stage1Envelope, Stage1State};
 use neo_ajtai::{
     nightstream_fprime_setup::{
         commit_production_signed_unit_prefix_matrices, commit_production_signed_unit_prefix_matrix,
@@ -281,13 +281,10 @@ fn load_claims(package: &PreparedLifecycle, directory: &Path, step: u64) -> (Sta
     assert_eq!(state, expected_state(step), "external source state");
     let fresh: CcsClaim = load(&directory.join("fresh-claim.json"));
     let mut running = RunningInstance::new(saved.running_claims, Vec::new(), saved.running_parent);
-    let (_, digest) = package
-        .checked_prior_state(&state, &running, &fresh)
-        .unwrap();
     // Use the production normalization; supplied parent/frame caches are not authority.
-    let params = params(package);
-    prepare_running(&mut running, &params, digest);
-    folding::validate_running_parent_authority(&params, &package.structure, ajtai_dec_mixer, &running).unwrap();
+    package.prepare_prior(&state, &mut running, &fresh).unwrap();
+    folding::validate_running_parent_authority(&params(package), &package.structure, ajtai_dec_mixer, &running)
+        .unwrap();
     (state, fresh, running)
 }
 fn load_sources(package: &PreparedLifecycle, directory: &Path, step: u64) -> Sources {
@@ -330,7 +327,7 @@ fn save_envelope(
     digit_directory: Option<&Path>,
 ) {
     fs::create_dir(directory).expect("fresh envelope directory");
-    let running = envelope.active_parts().unwrap().0;
+    let (running, fresh) = envelope.active_parts().unwrap();
     assert_eq!(running.claims.len(), 16);
     assert_eq!(running.witnesses.len(), 16);
     for (child, witness) in running.witnesses.iter().enumerate() {
@@ -343,7 +340,6 @@ fn save_envelope(
             save(&directory.join(name), witness);
         }
     }
-    let fresh = envelope.active_parts().unwrap().1;
     save(&directory.join("fresh-claim.json"), &fresh.claim);
     save(&directory.join("fresh-witness.json"), &fresh.witness.Z);
     let state = envelope.state();

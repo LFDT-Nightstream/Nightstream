@@ -1,8 +1,8 @@
 //! Selected PiRLC. Public verification recomputes every parent coordinate.
 //! Legacy projection advice used a cloned transcript and is not part of this path.
 use super::{
-    has_zero_evaluation_padding, kernels as engine, superneo_has_canonical_x_shape, transcript::Transcript, CeClaim,
-    Params, RlcMixer, Structure, EVALUATION_WIDTH,
+    has_evaluation_shape, has_zero_evaluation_padding, kernels as engine, superneo_has_canonical_x_shape,
+    transcript::Transcript, CeClaim, Params, RlcMixer, Structure,
 };
 use neo_ccs::Mat;
 use neo_math::F;
@@ -202,10 +202,7 @@ fn validate_evaluation_shape_one(
     s: &crate::folding::Structure,
     claim: &CeClaim,
 ) -> Result<(), Error> {
-    if claim.eval_k.len() != EVALUATION_WIDTH
-        || claim.eval_a.len() != s.t()
-        || claim.eval_a.iter().any(|row| row.len() != EVALUATION_WIDTH)
-    {
+    if !has_evaluation_shape(claim, s.t()) {
         return Err(Error::EvaluationShape(owner));
     }
     Ok(())
@@ -220,12 +217,7 @@ fn validate_evaluation_padding_zero(inputs: &[CeClaim], combined: &CeClaim) -> R
 }
 
 fn validate_evaluation_padding_zero_one(owner: &'static str, claim: &CeClaim) -> Result<(), Error> {
-    if !has_zero_evaluation_padding(&claim.eval_k)
-        || !claim
-            .eval_a
-            .iter()
-            .all(|row| has_zero_evaluation_padding(row))
-    {
+    if !has_zero_evaluation_padding(claim) {
         return Err(Error::EvaluationPadding(owner));
     }
     Ok(())

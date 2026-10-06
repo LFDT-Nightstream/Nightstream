@@ -75,42 +75,58 @@ as the dependency specification `AgreeOnAbsorbed` states. The `Π_RLC` reads
 reuse only the replay of the sampler's fixed suffix calls, not its ideal-oracle
 law.
 
-The transcript does not absorb the verifier key or the running statement; no
-challenge depends on them. The published HyperNova Construction 3 seeds its
-transcript with `hs = ρ(pp, s)` instead. Here both enter only through the prior
-digest that the fresh public input carries, as in HyperNova Construction 2. The
-prior-state link (`PiCCSSecurity.PriorLink`) states that this digest is the hash
-of a well-formed prior preimage that names the selected verifier context and
-whose running vector is the NIFS running statement. With the link, equal inputs
-also identify the prior preimage, the context and the running statement, unless
-the state hash collides (`PiCCSSecurity.calls_identify_view_or_collision`).
-Terminal acceptance builds the link (`terminal_implies_nifsOrBaseOrCollision`),
-and `terminal_calls_identify_view_or_collision` applies the result to two
-accepted terminals.
+The transcript does not absorb the verifier key or the running statement
+directly. The verifier uses its fixed package key, so the key is bound by the
+verifier, not by the transcript. The published HyperNova Construction 3 seeds
+its transcript with `hs = ρ(pp, s)`; here nothing about the key seeds it. The
+running statement enters only through the prior digest that the fresh public
+input carries, as in HyperNova Construction 2. The prior-state link
+(`PiCCSSecurity.PriorLink`) states that this digest is the hash of a well-formed
+prior preimage that names the verifier context (Construction 2's `vk_fs` slot)
+and whose running vector is the NIFS running statement; the terminal recomputes
+the digest with its own context. So the link binds the running statement and the
+context digest. With the link, equal inputs also identify the prior preimage,
+the context and the running statement, or exhibit a state-hash collision
+(`PiCCSSecurity.calls_identify_view_or_collision`). Terminal acceptance builds
+the link (`terminal_implies_nifsOrBaseOrCollision`), and
+`terminal_calls_identify_view_or_collision` applies the result to two accepted
+terminals.
+
+The coverage theorems are deterministic. Each ends in identification or a named
+event (`StateHashCollision`, `RunCollision`). No probability bound in this
+repository charges these events, and none of the coverage theorems is an input
+to `history_probability_linear_bound`.
 
 The real success event of the transfer (`FiatShamirTransfer.RealSuccess`) admits
 any running statement. In that general event an adaptive adversary could choose
 the running statement after the challenges, which the interactive game does not
-allow. The transfer is applied only to the visited history law, and at every
-supported visit real success implies the prior-state link
-(`HyperNovaVisitedAcceptance.priorLink_of_realSuccess`). So wherever the
-transfer counts a success, the absorbed digest binds the context and the running
-statement, unless the state hash collides. Restricting the formal success event
-to such contexts would change the approved boundary and needs owner approval.
+allow. The HyperNova history theorems (`HyperNovaVisitedSecurity`,
+`HyperNovaFalseAcceptance`) apply the transfer to the visited history law, and
+at every supported visit real success implies the prior-state link
+(`HyperNovaVisitedAcceptance.priorLink_of_realSuccess`). In those theorems every
+counted success therefore comes with the link, which identifies the context and
+the running statement up to a state-hash collision. The generic NIFS closure
+theorems (`NifsClosure`, `NifsFiatShamir`, `NifsProviderLaw`,
+`NifsInvalidSource`) apply the transfer at an arbitrary law and carry no link;
+there, the binding of the running statement stays inside the transfer
+assumption. Restricting the formal success event would change the approved
+boundary and needs owner approval.
 
 The native Rust NIFS absorbs the prior digest from `running[0].fold_digest`,
 while the Lean key reads it from the fresh public input. The lifecycle makes
 them equal: `checked_prior_state` recomputes the digest, and `step_inputs`
-rejects a running or parent frame that differs (tested in
-`actual_nifs_builds_the_checked_successor_assignment`).
+rejects a running or parent frame that differs, even when all frames agree on
+one wrong value (tested in `step_inputs_rejects_one_consistent_wrong_frame`).
+The proof codec does not carry these frames or the PiRLC parent; `extend`
+rebuilds both.
 `PerApplicationSecurity.replayInput_authority_identifies_or_collision` links the
 older committed-statement reductions to this contract: equal replay authority
-identifies the fresh statement and every SumCheck round polynomial, unless the
-statement calls reach one transcript state (`TranscriptCoverage.RunCollision`).
-The transfer statement does not consume the coverage results; they are proved
-properties of the transcript that the assumption ranges over. The assumption
-above still covers the permutation, the duplex construction, and the transfer
-bound.
+identifies the fresh statement and every SumCheck round polynomial, or exhibits
+two statement call lists that reach one transcript state
+(`TranscriptCoverage.RunCollision`). The transfer statement does not consume the
+coverage results; they are proved properties of the transcript that the
+assumption ranges over. The assumption above still covers the permutation, the
+duplex construction, and the transfer bound.
 
 The separate finite sampler laws and `VerifierErrorBudget` are checked.
 Under the stated per-call laws, the selected PiCCS test and sampler-abort

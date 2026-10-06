@@ -1,7 +1,7 @@
 //! Selected radix-two decomposition under the existing production key.
 use super::{
-    ajtai_dec_mixer, has_zero_evaluation_padding, kernels as engine, superneo_has_canonical_x_shape,
-    superneo_public_x_cols, CeClaim, DecMixer, Params, Structure, EVALUATION_WIDTH,
+    ajtai_dec_mixer, has_evaluation_shape, has_zero_evaluation_padding, kernels as engine,
+    superneo_has_canonical_x_shape, superneo_public_x_cols, CeClaim, DecMixer, Params, Structure,
 };
 use neo_ajtai::nightstream_fprime_setup::{
     commit_production_signed_unit_prefix_matrices, MAX_MESSAGE_COLUMNS, PRODUCTION_VERIFIER_ROWS,
@@ -243,10 +243,7 @@ fn validate_evaluation_shape(s: &Structure, parent: &CeClaim, children: &[CeClai
 }
 
 fn validate_evaluation_shape_one(owner: &'static str, s: &Structure, claim: &CeClaim) -> Result<(), Error> {
-    if claim.eval_k.len() != EVALUATION_WIDTH
-        || claim.eval_a.len() != s.t()
-        || claim.eval_a.iter().any(|row| row.len() != EVALUATION_WIDTH)
-    {
+    if !has_evaluation_shape(claim, s.t()) {
         return Err(Error::EvaluationShape(owner));
     }
     Ok(())
@@ -261,12 +258,7 @@ fn validate_evaluation_padding_zero(parent: &CeClaim, children: &[CeClaim]) -> R
 }
 
 fn validate_evaluation_padding_zero_one(owner: &'static str, claim: &CeClaim) -> Result<(), Error> {
-    if !has_zero_evaluation_padding(&claim.eval_k)
-        || !claim
-            .eval_a
-            .iter()
-            .all(|row| has_zero_evaluation_padding(row))
-    {
+    if !has_zero_evaluation_padding(claim) {
         return Err(Error::EvaluationPadding(owner));
     }
     Ok(())

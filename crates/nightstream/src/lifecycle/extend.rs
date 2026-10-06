@@ -83,8 +83,7 @@ impl PreparedLifecycle {
         mut running: RunningInstance,
         mut fresh: CcsInstance,
     ) -> Result<ProvedFold, ExtendError> {
-        let (_, digest) = self.checked_prior_state(&state, &running, &fresh.claim)?;
-        prepare_running(&mut running, &self.params, digest);
+        self.prepare_prior(&state, &mut running, &fresh.claim)?;
         nifs::validate_running_parent_authority(&self.params, &self.structure, ajtai_dec_mixer, &running)
             .map_err(ExtendError::PriorFamily)?;
         // The complete Z opening is the source; w is a redundant cache.
@@ -120,6 +119,21 @@ impl PreparedLifecycle {
         )?;
         Ok(self.complete_proved_step(inputs, fold.next, application_values)?)
     }
+
+    /// Check the prior state against the running claims, then rebuild their
+    /// frames and PiRLC parent from it. The state serializer checks every
+    /// shape, the exact width and the zero surplus before any coordinate is
+    /// read, so normalization never runs on unchecked claims.
+    pub(super) fn prepare_prior(
+        &self,
+        state: &Stage1State,
+        running: &mut RunningInstance,
+        fresh: &CcsClaim,
+    ) -> Result<(), StepInputError> {
+        let (_, digest) = self.checked_prior_state(state, running, fresh)?;
+        prepare_running(running, &self.params, digest);
+        Ok(())
+    }
 }
 
 /// One proved active fold before its caller packet and fresh witness exist.
@@ -132,11 +146,9 @@ pub(super) struct ProvedFold {
     pub(super) proof: nifs::NifsProof,
 }
 
-/// The state serializer has checked all semantic shapes, the exact padded
-/// width and zero surplus before this function reads any evaluation coordinate.
-pub(super) fn prepare_running(running: &mut RunningInstance, params: &Params, digest: [u64; 4]) {
+/// Callers reach this only through `prepare_prior`, after the state check.
+fn prepare_running(running: &mut RunningInstance, params: &Params, digest: [u64; 4]) {
     let frame = digest_bytes(digest);
-    let padded = EVALUATION_WIDTH;
     for claim in &mut running.claims {
         claim.fold_digest = frame;
     }
@@ -149,8 +161,8 @@ pub(super) fn prepare_running(running: &mut RunningInstance, params: &Params, di
         c: ajtai_dec_mixer(&commitments, params.b()),
         X: Mat::zero(D, PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS / D, F::ZERO),
         r: running.claims[0].r.clone(),
-        eval_k: vec![K::ZERO; padded],
-        eval_a: vec![vec![K::ZERO; padded]; running.claims[0].eval_a.len()],
+        eval_k: vec![K::ZERO; EVALUATION_WIDTH],
+        eval_a: vec![vec![K::ZERO; EVALUATION_WIDTH]; running.claims[0].eval_a.len()],
         m_in: PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS,
         fold_digest: frame,
         adv: None,

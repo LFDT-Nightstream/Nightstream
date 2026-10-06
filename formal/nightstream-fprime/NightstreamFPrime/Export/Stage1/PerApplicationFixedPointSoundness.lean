@@ -496,10 +496,12 @@ theorem rowsZero_implies_stepHoldsFor_and_publicOutput
       PerApplicationDecodedIO.outputDigest] using
       PerApplicationCanonicalAssignment.projectPublicInput_completeAssignment raw
 
-/-- The verifier-owned raw constructor pins the exact canonical context digest
-into the state. Acceptance therefore forces the augmented step under that
-digest; the prover cannot select the application, package, or static authority.
--/
+/-- Rows that hold on `bind raw` force the augmented step under the canonical
+verifier-context digest. `bind` overwrites four private context words of one
+canonical raw packet; no SuperNeo public-input, NIFS, or terminal check sets
+them. For an arbitrary accepted witness, use
+`ActualPiDECOutput.selectedRowsAndPublic_imply_step`: it gives the step under
+the decoded context, and the terminal state-hash check binds that context. -/
 theorem verifierBoundRowsZero_implies_stepHoldsFor
     (application : Program) (fits : FitsTwoPow28 application)
     (commitmentSetup : CommitmentSetup application)

@@ -94,11 +94,12 @@ def main():
         equal(target.interval(logical_width, target.columns * WIDTH), bytes(tail), "zero tail")
         compared += tail
     row, directory = records[-1]
-    actual = (directory / row["file"]).read_bytes()
+    # The public prefix is a nonempty compared range if the final block is empty.
+    actual = (directory / row["file"]).read_bytes() or public
     changed = bytearray(actual)
     changed[-1] = 1 if changed[-1] == 0 else 0
     try:
-        equal(actual, changed, "changed final target coefficient")
+        equal(actual, changed, "changed target coefficient")
     except ValueError:
         pass
     else:

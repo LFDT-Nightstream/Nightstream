@@ -12,8 +12,7 @@ use neo_reductions::api::{
 };
 use neo_reductions::common::{
     compute_v1_1_evaluations_from_z_and_r, left_mul_acc, project_x_from_witness_mat, rot_rhos_to_mats,
-    sample_rot_rhos_n, sample_rot_rhos_n_typed, split_b_matrix_k_with_nonzero_flags, validate_packed_witness_nc_range,
-    RotRing,
+    sample_rot_rhos_n_typed, split_b_matrix_k_with_nonzero_flags, validate_packed_witness_nc_range, RotRing,
 };
 use neo_reductions::superneo_eval::build_superneo_eval_cache;
 use neo_transcript::Poseidon2Transcript;
@@ -441,7 +440,9 @@ fn rlc_x_projection_tracks_mixed_witness_under_rotation_rhos() {
     }
 
     let mut transcript = v1_1_test_transcript(b"rlc_x_projection_tracks_mixed_witness_under_rotation_rhos");
-    let rhos = sample_rot_rhos_n(&mut transcript, &params, &RotRing::goldilocks(), 2).expect("sample rhos");
+    let rhos = rot_rhos_to_mats(
+        &sample_rot_rhos_n_typed(&mut transcript, &params, &RotRing::goldilocks(), 2).expect("sample rhos"),
+    );
     assert!(
         rhos.iter()
             .any(|rho| (0..D).any(|row| (0..D).any(|col| row != col && rho[(row, col)] != F::ZERO))),

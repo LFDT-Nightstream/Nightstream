@@ -23,10 +23,10 @@ const RUNNING_TRANSITION_WITNESS_ROLE: u64 = 16;
 
 pub const PI_CCS_V1_1_SOURCE_COUNT: usize = 17;
 pub const PI_CCS_V1_1_COEFFICIENT_COUNT: usize = 54;
-pub const PI_CCS_V1_1_MATRIX_COUNT: usize = 14;
+pub const PI_CCS_V1_1_MATRIX_COUNT: usize = 7;
 pub const PI_CCS_V1_1_ROUND_COUNT: usize = 28;
 pub const PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT: usize = 10;
-pub const PI_CCS_V1_1_STATE_PREIMAGE_WORDS: usize = 49_393;
+pub const PI_CCS_V1_1_STATE_PREIMAGE_WORDS: usize = 37_297;
 pub const PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS: usize = 270;
 pub const PI_CCS_V1_1_FRESH_COMMITMENT_WORDS: usize = 1_188;
 pub const PI_CCS_V1_1_VERIFIER_CONTEXT_WORDS: usize = 4;
@@ -45,7 +45,7 @@ const PI_DEC_EVAL_K_WORDS: usize = PI_DEC_V1_1_CHILD_COUNT * PI_DEC_V1_1_EVAL_K_
 const PI_DEC_EVAL_A_WORDS: usize =
     PI_DEC_V1_1_CHILD_COUNT * PI_DEC_V1_1_EVAL_A_MATRICES_PER_CHILD * PI_CCS_V1_1_COEFFICIENT_COUNT * EXTENSION_WORDS;
 const PI_DEC_CHILD_PUBLIC_INPUT_WORDS: usize = PI_DEC_V1_1_CHILD_COUNT * PI_DEC_V1_1_PUBLIC_INPUT_WORDS_PER_CHILD;
-const PI_DEC_WITNESS_WORDS: usize = 18_090;
+const PI_DEC_WITNESS_WORDS: usize = 270;
 const RUNNING_TRANSITION_WITNESS_WORDS: usize = 2;
 
 pub(super) fn private_segment_roles() -> Vec<u64> {
@@ -237,7 +237,7 @@ impl PiCcsV1_1PackageInputs {
 /// Caller-owned PiDEC v1.1 messages and verifier-computed child public inputs.
 ///
 /// The four fields follow the exact segment order emitted by Lean. Eval_K and
-/// the 14-matrix Eval_A family remain separate.
+/// the 7-matrix Eval_A family remain separate.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PiDecV1_1PackageInputs {
     child_commitments: Vec<Vec<u64>>,

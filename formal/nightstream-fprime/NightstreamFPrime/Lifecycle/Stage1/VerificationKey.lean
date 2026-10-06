@@ -6,8 +6,10 @@ verification key.
 
 The binding joins the final package identity to the verifier-context
 descriptor recomputed from raw relation, application, NIFS-key, and
-commitment-key authority. It is acyclic because the context descriptor does
-not contain the final package identity.
+commitment-key authority, and to the digest of the shared matrix-formula
+library that gives the package's formula references their rows. It is
+acyclic because the context descriptor does not contain the final package
+identity.
 
 This is not a proof-backend verification key and does not authorize one.
 -/
@@ -21,6 +23,7 @@ open NightstreamFPrime.Lifecycle
 structure Binding where
   packageIdentity : VerifierContext.Digest4
   context : VerifierContext.Descriptor
+  formulas : VerifierContext.Digest4
 deriving DecidableEq
 
 def domain : List F :=
@@ -30,7 +33,8 @@ def domain : List F :=
 
 def Binding.serialize (binding : Binding) : List F :=
   domain ++ VerifierContext.framed binding.packageIdentity.toList ++
-    VerifierContext.framed binding.context.serialize
+    VerifierContext.framed binding.context.serialize ++
+    VerifierContext.framed binding.formulas.toList
 
 def Binding.digest4 (binding : Binding) : VerifierContext.Digest4 :=
   VerifierContext.Digest4.ofList (Poseidon2.hash binding.serialize)
@@ -38,28 +42,39 @@ def Binding.digest4 (binding : Binding) : VerifierContext.Digest4 :=
 def Binding.digest (binding : Binding) : KeyDigest :=
   binding.digest4.toList
 
-/-- Construct the binding only from a recomputed verifier-owned authority and
-the final verifier-pinned package identity. -/
+/-- Construct the binding only from a recomputed verifier-owned authority,
+the final verifier-pinned package identity, and the formula-library digest. -/
 def ofAuthority (packageIdentity : VerifierContext.Digest4)
-    (authority : VerifierContext.Authority) : Binding where
+    (authority : VerifierContext.Authority)
+    (formulas : VerifierContext.Digest4) : Binding where
   packageIdentity := packageIdentity
   context := VerifierContext.descriptor authority
+  formulas := formulas
 
 @[simp] theorem ofAuthority_packageIdentity
     (packageIdentity : VerifierContext.Digest4)
-    (authority : VerifierContext.Authority) :
-    (ofAuthority packageIdentity authority).packageIdentity = packageIdentity := by
+    (authority : VerifierContext.Authority)
+    (formulas : VerifierContext.Digest4) :
+    (ofAuthority packageIdentity authority formulas).packageIdentity = packageIdentity := by
   rfl
 
 @[simp] theorem ofAuthority_context
     (packageIdentity : VerifierContext.Digest4)
-    (authority : VerifierContext.Authority) :
-    (ofAuthority packageIdentity authority).context =
+    (authority : VerifierContext.Authority)
+    (formulas : VerifierContext.Digest4) :
+    (ofAuthority packageIdentity authority formulas).context =
       VerifierContext.descriptor authority := by
   rfl
 
+@[simp] theorem ofAuthority_formulas
+    (packageIdentity : VerifierContext.Digest4)
+    (authority : VerifierContext.Authority)
+    (formulas : VerifierContext.Digest4) :
+    (ofAuthority packageIdentity authority formulas).formulas = formulas := by
+  rfl
+
 theorem Binding.serialize_length (binding : Binding) :
-    binding.serialize.length = 126 := by
+    binding.serialize.length = 131 := by
   simp [Binding.serialize, domain, VerifierContext.framed,
     VerifierContext.Digest4.toList,
     VerifierContext.Descriptor.serialize_length]
@@ -69,7 +84,7 @@ theorem Binding.serialize_length (binding : Binding) :
   exact VerifierContext.Digest4.toList_length binding.digest4
 
 /-- Verification-key binding is recomputed from the complete canonical
-package-and-context preimage. -/
+package, context, and formula-library preimage. -/
 theorem Binding.digest_recomputed (binding : Binding) :
     binding.digest =
       (VerifierContext.Digest4.ofList

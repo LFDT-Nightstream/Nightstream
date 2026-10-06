@@ -630,7 +630,7 @@ theorem rowsZero_implies_permute {logicalWidth : Nat}
     (rows interface).length = 166 := by
   simp [rows]
 
-/-- Exact 14-matrix template plan. Slot 13 remains zero through the common
+/-- Exact 7-matrix template plan, built by the common
 `ProductionRelation.Plan` constructor. -/
 def plan {logicalWidth : Nat} (interface : Interface logicalWidth) :
     ProductionRelation.Plan logicalWidth where
@@ -699,7 +699,7 @@ theorem rowsZero_implies_planRowsZero {logicalWidth : Nat}
   exact rowsZero ((rows interface).get row) (List.get_mem _ _)
 
 /-- Exact Poseidon2 trace equations construct a satisfying assignment for
-all live rows of the actual 14-matrix plan. -/
+all live rows of the actual 7-matrix plan. -/
 theorem planRowsZero_of_equations {logicalWidth : Nat}
     (interface : Interface logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -711,8 +711,8 @@ theorem planRowsZero_of_equations {logicalWidth : Nat}
     (rowsZero_of_equations interface assignment one sboxEquations
       outputEquations)
 
-/-- Live rows of the actual 14-matrix plan force the exact Poseidon2
-permutation. Padding and matrix slot 13 are zero by the common plan type. -/
+/-- Live rows of the actual 7-matrix plan force the exact Poseidon2
+permutation. Padding is zero by the common plan type. -/
 theorem planRowsZero_implies_permute {logicalWidth : Nat}
     (interface : Interface logicalWidth)
     (assignment : Assignment F logicalWidth)

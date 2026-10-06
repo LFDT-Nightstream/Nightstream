@@ -25,7 +25,6 @@ fn equal_row(actual: &RowForms, expected: &reference::RowForms, ordinal: usize) 
             .collect();
         assert_eq!(actual, expected, "row {ordinal}, matrix port {port}");
     }
-    assert!(expected[MEANINGFUL_PORTS].entries().is_empty());
 }
 
 #[test]
@@ -156,7 +155,7 @@ fn phi81_quotient_rows_accept_product_and_reject_omitted_node_attack() {
                             sum + entry.coefficient * values[entry.column]
                         })
                 };
-                evaluate(7) * (evaluate(0) * evaluate(2) - evaluate(4))
+                evaluate(6) * (evaluate(0) * evaluate(2) - evaluate(4))
             })
             .collect::<Vec<_>>()
     };

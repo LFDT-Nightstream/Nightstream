@@ -63,18 +63,18 @@ row for every ordinary family. -/
 structure SourceCustody (application : ApplicationProgram)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
     (sourceRow : Nat → Option R1CS.Row) : Prop where
-  piCcsOrdinary : ∀ index : Fin 124283, ∀ sourceIndex,
+  piCcsOrdinary : ∀ index : Fin 48443, ∀ sourceIndex,
     PiCCSOrdinaryMatrixProgram.rowSchedule.index? index.val =
         some sourceIndex →
       sourceRow sourceIndex = some
         (PerApplicationSourceProjection.basePackageRow application
           (PiCCSOrdinaryDirectSource.programRow (relation application fits)
             index))
-  pilotOrdinary : ∀ index : Fin 1330,
+  pilotOrdinary : ∀ index : Fin 686,
     sourceRow (PilotOrdinaryMatrixProgram.rowIndexAt index) =
       some (PerApplicationSourceProjection.pilotPackageRow application
         (PilotOrdinaryDirectSource.programRow index))
-  samplerOrdinary : ∀ index : Fin 38811, ∀ sourceIndex,
+  samplerOrdinary : ∀ index : Fin 14943, ∀ sourceIndex,
     PiRLCSamplerOrdinaryMatrixSchedule.rowSchedule.index? index.val =
         some sourceIndex →
       sourceRow sourceIndex = some
@@ -83,7 +83,7 @@ structure SourceCustody (application : ApplicationProgram)
             (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
             (publicFits := PerApplicationFixedPoint.publicFits application)
             index))
-  piDecPublic : ∀ index : Fin 22680,
+  piDecPublic : ∀ index : Fin 4860,
     sourceRow (PiDECStarts.publicInputRowStart + index.val) =
       some (PerApplicationSourceProjection.basePackageRow application
         (PiDECOrdinaryDirectSource.publicProgramRow
@@ -98,7 +98,7 @@ structure SourceCustody (application : ApplicationProgram)
       some (PerApplicationSourceProjection.basePackageRow application
         (PiDECOrdinaryDirectSource.evalKProgramRow
           (relation application fits) index))
-  piDecEvalA : ∀ index : Fin 1512,
+  piDecEvalA : ∀ index : Fin 756,
     sourceRow (PiDECStarts.evalARowStart + index.val) =
       some (PerApplicationSourceProjection.basePackageRow application
         (PiDECOrdinaryDirectSource.evalAProgramRow

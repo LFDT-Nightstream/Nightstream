@@ -5,7 +5,7 @@ import NightstreamFPrime.Layout.R1CS.Completeness
 Owns physical R1CS lowering for one canonical Goldilocks field lane.
 
 The logical child allocates 66 values. The current optimized lowering adds
-197 multiplication values and emits 264 rows. This owner changes no logical
+36 multiplication values and emits 103 rows. This owner changes no logical
 predicate and adds no boundary-copy row.
 -/
 
@@ -111,42 +111,42 @@ private theorem flagRowCount_eq (offset : Nat) :
   rfl
 
 private theorem booleanFreshCount_eq (offset index : Nat) :
-    R1CS.constraintFreshCount (Logical.booleanConstraint offset index) = 2 := by
+    R1CS.constraintFreshCount (Logical.booleanConstraint offset index) = 0 := by
   rfl
 
 private theorem booleanRowCount_eq (offset index : Nat) :
-    R1CS.constraintRowCount (Logical.booleanConstraint offset index) = 3 := by
+    R1CS.constraintRowCount (Logical.booleanConstraint offset index) = 1 := by
   rfl
 
 private theorem booleanFreshTotal_eq (offset : Nat) :
-    R1CS.totalFreshCount (Logical.booleanConstraints offset) = 128 := by
+    R1CS.totalFreshCount (Logical.booleanConstraints offset) = 0 := by
   unfold R1CS.totalFreshCount
   change (List.map R1CS.constraintFreshCount
     ((List.range CanonicalU64.bitCount).map
-      (Logical.booleanConstraint offset))).sum = 128
+      (Logical.booleanConstraint offset))).sum = 0
   rw [List.map_map]
   simp [booleanFreshCount_eq, CanonicalU64.bitCount, Function.comp_def]
 
 private theorem booleanRowTotal_eq (offset : Nat) :
-    R1CS.totalRowCount (Logical.booleanConstraints offset) = 192 := by
+    R1CS.totalRowCount (Logical.booleanConstraints offset) = 64 := by
   unfold R1CS.totalRowCount
   change (List.map R1CS.constraintRowCount
     ((List.range CanonicalU64.bitCount).map
-      (Logical.booleanConstraint offset))).sum = 192
+      (Logical.booleanConstraint offset))).sum = 64
   rw [List.map_map]
   simp [booleanRowCount_eq, CanonicalU64.bitCount, Function.comp_def]
 
 private theorem canonicalityFreshCount_eq (offset : Nat) :
-    R1CS.constraintFreshCount (Logical.canonicalityConstraint offset) = 33 := by
+    R1CS.constraintFreshCount (Logical.canonicalityConstraint offset) = 0 := by
   rfl
 
 private theorem canonicalityRowCount_eq (offset : Nat) :
-    R1CS.constraintRowCount (Logical.canonicalityConstraint offset) = 34 := by
+    R1CS.constraintRowCount (Logical.canonicalityConstraint offset) = 1 := by
   rfl
 
 theorem totalFreshCount_eq (interface : Logical.Interface) (offset : Nat)
     (inputs : InputsAffine interface offset) :
-    R1CS.totalFreshCount (logicalConstraints interface offset) = 197 := by
+    R1CS.totalFreshCount (logicalConstraints interface offset) = 36 := by
   unfold logicalConstraints
   rw [Logical.flatConstraints_operations,
     R1CS.totalFreshCount_append, R1CS.totalFreshCount_append,
@@ -159,7 +159,7 @@ theorem totalFreshCount_eq (interface : Logical.Interface) (offset : Nat)
 
 theorem totalRowCount_eq (interface : Logical.Interface) (offset : Nat)
     (inputs : InputsAffine interface offset) :
-    R1CS.totalRowCount (logicalConstraints interface offset) = 264 := by
+    R1CS.totalRowCount (logicalConstraints interface offset) = 103 := by
   unfold logicalConstraints
   rw [Logical.flatConstraints_operations,
     R1CS.totalRowCount_append, R1CS.totalRowCount_append,
@@ -173,8 +173,8 @@ theorem totalRowCount_eq (interface : Logical.Interface) (offset : Nat)
 def footprint (interface : Logical.Interface)
     (inputs : ∀ offset, InputsAffine interface offset) :
     R1CS.CircuitFootprint (Logical.circuit interface) where
-  freshColumnCount := fun _ => 197
-  physicalRowCount := fun _ => 264
+  freshColumnCount := fun _ => 36
+  physicalRowCount := fun _ => 103
   freshColumnCount_eq := fun offset =>
     totalFreshCount_eq interface offset (inputs offset)
   physicalRowCount_eq := fun offset =>
@@ -183,9 +183,9 @@ def footprint (interface : Logical.Interface)
 theorem physicalPrivateColumnCount_eq (interface : Logical.Interface)
     (offset : Nat) (inputs : InputsAffine interface offset) :
     localLength (Circuit.ops (Logical.circuit interface).main offset) +
-      R1CS.totalFreshCount (logicalConstraints interface offset) = 263 := by
+      R1CS.totalFreshCount (logicalConstraints interface offset) = 102 := by
   change localLength (Logical.operations interface offset) +
-    R1CS.totalFreshCount (logicalConstraints interface offset) = 263
+    R1CS.totalFreshCount (logicalConstraints interface offset) = 102
   rw [Logical.localLength_eq, totalFreshCount_eq interface offset inputs]
   rfl
 
@@ -211,7 +211,7 @@ theorem physical_complete (interface : Logical.Interface) (offset : Nat)
     (assumptions : Logical.Assumptions interface offset env)
     (specification : Logical.SpecHolds interface offset env) :
     ∃ completed,
-      AgreesOutside env completed offset 263 ∧
+      AgreesOutside env completed offset 102 ∧
       PhysicalHolds interface offset completed := by
   rcases Logical.completeness interface env offset assumptions specification with
     ⟨logicalEnv, logicalAgrees, logicalRows⟩

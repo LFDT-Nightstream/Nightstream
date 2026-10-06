@@ -812,6 +812,9 @@ import tests.AxiomsFoundations
 #audit_axioms NightstreamFPrime.Layout.Polynomial.Horner.compile_totalFreshCount
 #audit_axioms NightstreamFPrime.Layout.Polynomial.Horner.compile_totalRowCount
 #audit_axioms NightstreamFPrime.Layout.Polynomial.Horner.directConstraint_sub_add_eq_none
+#audit_axioms NightstreamFPrime.Layout.Polynomial.Horner.directConstraint_mul_ne_none
+#audit_axioms NightstreamFPrime.Layout.Polynomial.Horner.constraintFreshCount_mul
+#audit_axioms NightstreamFPrime.Layout.Polynomial.Horner.constraintRowCount_mul
 #audit_axioms NightstreamFPrime.Layout.Polynomial.Horner.ownedCircuit_totalFreshCount
 #audit_axioms NightstreamFPrime.Layout.Polynomial.Horner.ownedCircuit_totalRowCount
 #audit_axioms NightstreamFPrime.Layout.Polynomial.Power.compile_succ_output
@@ -1387,6 +1390,4 @@ import tests.AxiomsFoundations
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.CommitmentCombination.physical_implies_spec
 #audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows.compactProgram_row?_eq_structuralPlan_forms
 #audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows.allPort_coefficient_eq_logicalRelation_matrix
-#audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows.slot13_form_empty
-#audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows.slot13_matrix_zero
 #audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows.padding_matrix_coefficient_zero

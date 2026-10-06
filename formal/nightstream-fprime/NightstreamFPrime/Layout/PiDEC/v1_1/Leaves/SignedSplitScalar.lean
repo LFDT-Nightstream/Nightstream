@@ -19,8 +19,8 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
 
 /-- Fresh intermediates for each certified scalar constraint group. -/
-def signFreshCount : Nat := 2
-def digitFreshCount : Nat := 4
+def signFreshCount : Nat := 0
+def digitFreshCount : Nat := 0
 def recompositionFreshCount : Nat := 0
 
 /-- Each logical constraint adds its assertion row to its fresh rows. -/
@@ -59,11 +59,6 @@ private theorem difference_nonconstant
   change Expr.add _ _ = Expr.const value at equality
   cases equality
 
-private theorem sign_directConstraint_eq_none (offset : Nat) :
-    R1CS.directConstraint
-      (Lifecycle.PiDEC.v1_1.SignedSplitScalar.signConstraint offset) = none := by
-  rfl
-
 @[simp] private theorem mulCount_sub (left right : Expr) :
     R1CS.mulCount (left - right) =
       R1CS.mulCount left + R1CS.mulCount right + 1 := by
@@ -72,31 +67,15 @@ private theorem sign_directConstraint_eq_none (offset : Nat) :
   simp [R1CS.mulCount]
   omega
 
-private theorem digit_directConstraint_eq_none
-    (interface : Lifecycle.PiDEC.v1_1.SignedSplitScalar.Interface)
-    (offset : Nat) (index : Radix.ChildIndex)
-    (inputs : InputsLinear interface offset) :
-    R1CS.directConstraint
-      (Lifecycle.PiDEC.v1_1.SignedSplitScalar.digitConstraint
-        interface offset index) = none := by
-  have nonAffine : R1CS.lowerAffine
-      (interface.digit offset index *
-        (interface.digit offset index -
-          Lifecycle.PiDEC.v1_1.SignedSplitScalar.signExpr offset)) = none :=
-    lowerAffine_mul_eq_none (inputs.digit_nonconstant index)
-      (difference_nonconstant interface offset index)
-  unfold Lifecycle.PiDEC.v1_1.SignedSplitScalar.digitConstraint
-  simp [R1CS.directConstraint, R1CS.affineOrRankOneConstraint,
-    R1CS.affineConstraint, R1CS.rankOneConstraint, nonAffine]
-
 theorem sign_freshCount_eq (offset : Nat) :
     R1CS.constraintFreshCount
       (Lifecycle.PiDEC.v1_1.SignedSplitScalar.signConstraint offset) = signFreshCount := by
-  unfold R1CS.constraintFreshCount
-  rw [sign_directConstraint_eq_none]
-  simp [Lifecycle.PiDEC.v1_1.SignedSplitScalar.signConstraint,
-    Lifecycle.PiDEC.v1_1.SignedSplitScalar.signBitExpr,
-    R1CS.mulCount, mulCount_sub, signFreshCount]
+  unfold Lifecycle.PiDEC.v1_1.SignedSplitScalar.signConstraint
+  exact constraintFreshCount_mul (R1CS.isAffine_var offset)
+    ((R1CS.isAffine_var offset).add
+      (R1CS.IsAffine.const_mul (-1) (R1CS.isAffine_const 1)))
+    (by intro value equality; cases equality)
+    (by intro value equality; cases equality)
 
 theorem digit_freshCount_eq
     (interface : Lifecycle.PiDEC.v1_1.SignedSplitScalar.Interface)
@@ -105,12 +84,15 @@ theorem digit_freshCount_eq
     R1CS.constraintFreshCount
       (Lifecycle.PiDEC.v1_1.SignedSplitScalar.digitConstraint
         interface offset index) = digitFreshCount := by
-  unfold R1CS.constraintFreshCount
-  rw [digit_directConstraint_eq_none interface offset index inputs]
-  simp [Lifecycle.PiDEC.v1_1.SignedSplitScalar.digitConstraint,
-    Lifecycle.PiDEC.v1_1.SignedSplitScalar.signExpr,
-    Lifecycle.PiDEC.v1_1.SignedSplitScalar.signBitExpr,
-    R1CS.mulCount, mulCount_sub, inputs.digit_mulCount index, digitFreshCount]
+  unfold Lifecycle.PiDEC.v1_1.SignedSplitScalar.digitConstraint
+  exact constraintFreshCount_mul
+    (isAffine_of_mulCount_zero _ (inputs.digit_mulCount index))
+    ((isAffine_of_mulCount_zero _ (inputs.digit_mulCount index)).add
+      (R1CS.IsAffine.const_mul (-1)
+        ((R1CS.isAffine_const 1).add (R1CS.IsAffine.const_mul (-1)
+          (R1CS.IsAffine.const_mul 2 (R1CS.isAffine_var offset))))))
+    (inputs.digit_nonconstant index)
+    (difference_nonconstant interface offset index)
 
 private theorem weightedFold_affine :
     ∀ (values : List Expr) (weights : List F),

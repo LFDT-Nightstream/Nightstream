@@ -14,7 +14,7 @@ theorem physical_complete (interface : Logical.Interface)
     (inputs : ∀ current, InputsAffine interface current)
     (assumptions : Logical.Assumptions interface offset) :
     ∃ completed,
-      AgreesOutside env completed offset 5815 ∧
+      AgreesOutside env completed offset 4411 ∧
       PhysicalHolds interface coordinate offset completed := by
   obtain ⟨logicalEnv, logicalAgrees, logicalRows⟩ :=
     Lifecycle.PiRLC.v1_1.Sampler.complete interface coordinate env offset assumptions

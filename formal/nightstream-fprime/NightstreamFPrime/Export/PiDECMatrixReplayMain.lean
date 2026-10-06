@@ -2,7 +2,6 @@ import NightstreamFPrime.Export.ParallelChunks
 import NightstreamFPrime.Export.PiDECParentInput
 import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 import NightstreamFPrime.Export.Stage1.PiDECParentIntRead
-import NightstreamFPrime.Export.Stage1.PiDECMatrixInvocationRange
 import NightstreamFPrime.Export.Stage1.PiDECMatrixSparseRange
 import NightstreamFPrime.Export.Stage1.PiDECMatrixWeightedRange
 import NightstreamFPrime.Export.Stage1.PiDECPoseidonColumnWeights
@@ -191,11 +190,9 @@ private def ranges (ccsPath : System.FilePath) (requests : List RangeRequest)
         else 0
       let loadStarted ← IO.monoNanosNow
       let active := fun child : Fin productionGlobalParams.k => decide (¬ maximum < 2 ^ child.val)
-      let (unitCount, evaluate, evaluateAll) : Nat × (Nat → Nat →
-          Fin productionGlobalParams.k →
-          Vector MaterializedRingK matrixCount) ×
-          Option (Nat → Nat → Vector (Vector MaterializedRingK matrixCount)
-            productionGlobalParams.k) ← match selectedEq : selected with
+      let (unitCount, evaluateAll) : Nat × (Nat → Nat →
+          Vector (Vector MaterializedRingK matrixCount) productionGlobalParams.k) ←
+        match selectedEq : selected with
         | .poseidon block => do
             unless firstRow % 150 = 0 && lastRow % 150 = 0 do
               throw (IO.userError "Poseidon range must contain complete 150-row invocations")
@@ -213,7 +210,7 @@ private def ranges (ccsPath : System.FilePath) (requests : List RangeRequest)
               pure interface
             let all := fun lo hi =>
               poseidonChildren first phase.point readChild active interfaces lo hi
-            pure (invocations, fun lo hi child => (all lo hi).get child, some all)
+            pure (invocations, all)
         | .phi81Product block => do
             if aligned : firstRow % 108 = 0 ∧ lastRow % 108 = 0 then
               let invocations := lastRow / 108 - firstRow / 108
@@ -226,7 +223,7 @@ private def ranges (ccsPath : System.FilePath) (requests : List RangeRequest)
                 pure interface
               let all := fun lo hi =>
                 productChildren first phase.point readChild active interfaces lo hi
-              pure (invocations, fun lo hi child => (all lo hi).get child, some all)
+              pure (invocations, all)
             else throw (IO.userError "Phi81 range must contain complete 108-row invocations")
         | other => do
             let cache ← IO.wait (Task.spawn fun _ =>
@@ -238,7 +235,7 @@ private def ranges (ccsPath : System.FilePath) (requests : List RangeRequest)
               pure row
             let all := fun lo hi =>
               sparseChildren first phase.point readChild active forms lo hi
-            pure (count, fun lo hi child => (all lo hi).get child, some all)
+            pure (count, all)
       report ([("event", .str "range_begin"), ("block", Lean.toJson blockIndex),
         ("block_rows", Lean.toJson selected.rowCount),
         ("first_local_row", Lean.toJson firstRow), ("last_local_row_exclusive", Lean.toJson lastRow),
@@ -248,44 +245,24 @@ private def ranges (ccsPath : System.FilePath) (requests : List RangeRequest)
       unless 0 < unitCount do throw (IO.userError "empty selected matrix unit range")
       let workers := max 1 (((← IO.getEnv "LEAN_NUM_THREADS").bind String.toNat?).getD 1)
       let children := List.finRange productionGlobalParams.k
-      let activeCount := (children.filter fun child =>
-        decide (¬ maximum < 2 ^ child.val)).length
+      let activeCount := (children.filter active).length
       let arithmeticStarted ← IO.monoNanosNow
-      let mut tasks := #[]
-      let mut activeRank := 0
-      let mut taskCount := 0
-      -- Shared slices compute every active child; sixteen slices per worker, and each
-      -- of `workers` threads takes the next slice, so the last slices are short.
-      let mut sharedSlices := #[]
-      if let some all := evaluateAll then
-        let parts := min unitCount (16 * workers)
-        sharedSlices ← ParallelChunks.start workers parts fun slice =>
-          pure (all (unitCount * slice / parts) (unitCount * (slice + 1) / parts))
-        taskCount := parts
-      for child in children do
-        let mut childTasks := #[]
-        unless maximum < 2 ^ child.val do
-          if evaluateAll.isSome then
-            childTasks := sharedSlices.map fun slice => slice.map (sync := true) fun result =>
-              result.map fun (values, sliceStarted, sliceFinished) =>
-                (values.get child, sliceStarted, sliceFinished)
-          else
-            let parts := min unitCount (max 1
-              (workers / activeCount + if activeRank < workers % activeCount then 1 else 0))
-            for slice in [:parts] do
-              let lo := unitCount * slice / parts
-              let hi := unitCount * (slice + 1) / parts
-              childTasks := childTasks.push (← IO.asTask do
-                let sliceStarted ← IO.monoNanosNow
-                let values ← IO.wait (Task.spawn fun _ => evaluate lo hi child)
-                let sliceFinished ← IO.monoNanosNow
-                return (values, sliceStarted, sliceFinished))
-            taskCount := taskCount + parts
-          activeRank := activeRank + 1
-        tasks := tasks.push childTasks
+      -- Shared slices compute every active child. Zero parents start no workers.
+      let sharedSlices ←
+        if 0 < activeCount then do
+          let parts := min unitCount (16 * workers)
+          ParallelChunks.start workers parts fun slice =>
+            pure (evaluateAll (unitCount * slice / parts) (unitCount * (slice + 1) / parts))
+        else pure #[]
+      let tasks := children.toArray.map fun child =>
+        if active child then
+          sharedSlices.map fun slice => slice.map (sync := true) fun result =>
+            result.map fun (values, sliceStarted, sliceFinished) =>
+              (values.get child, sliceStarted, sliceFinished)
+        else #[]
       report [("event", .str "slices_queued"), ("workers", Lean.toJson workers),
         ("active_children", Lean.toJson activeCount), ("units", Lean.toJson unitCount),
-        ("tasks", Lean.toJson taskCount),
+        ("tasks", Lean.toJson sharedSlices.size),
         ("queue_ns", Lean.toJson ((← IO.monoNanosNow) - arithmeticStarted))]
       let mut allValues : Array (Vector MaterializedRingK matrixCount) := #[]
       for child in children do

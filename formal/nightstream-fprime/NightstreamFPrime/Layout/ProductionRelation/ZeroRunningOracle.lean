@@ -29,8 +29,7 @@ def freshPrefix {logicalWidth : Nat}
   Array.ofFn fun column : Fin (Phi81CarrierLayout.carrierWidth logicalWidth) =>
     K.embed (Phi81CarrierLayout.extendAssignment 0 assignment column)
 
-/-- Each meaningful matrix prefix contains only the live sparse-row images.
-Slot 13 is represented by the empty prefix and its implicit zero extension. -/
+/-- Each matrix prefix contains only the live sparse-row images. -/
 def matrixPrefix {logicalWidth : Nat} (plan : Plan logicalWidth)
     (assignment : Fin logicalWidth → F)
     (matrix : Fin Spec.ProductionRelation.matrixCount) : Array K :=
@@ -161,22 +160,6 @@ theorem source_running_zero (plan : Plan logicalWidth)
     (source plan cubeFits ajtai fresh assignment).assignments
       (runningSourceIndex index) column = 0 := by
   exact sourceWitness_running assignment index column
-
-/-- Zero completion preserves the plan's literal zero matrix-13 slot. -/
-theorem source_matrix13_zero (plan : Plan logicalWidth)
-    (cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables)
-    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (assignment : Fin logicalWidth → F)
-    (vertex : BooleanVertex cubeVariables)
-    (column : Fin (Phi81CarrierLayout.carrierWidth logicalWidth)) :
-    (source plan cubeFits ajtai fresh assignment).matrixSource.matrices
-      Spec.ProductionRelation.zeroPort vertex column = 0 := by
-  change Phi81CarrierLayout.extendMatrix 0
-    (plan.matrix Spec.ProductionRelation.zeroPort) vertex column = 0
-  rw [plan.zeroPort_matrix]
-  unfold Phi81CarrierLayout.extendMatrix
-  cases Phi81CarrierLayout.logicalColumn? column <;> rfl
 
 /-- The completed assignment array is exactly the fresh source table in the
 actual production-key protocol data at every Boolean vertex. -/

@@ -7,10 +7,11 @@ columns. The 108 rows of one Phi81 product invocation list the same columns in
 the same order with different coefficients, so for each port and lane
 `Σ_r w_r Σ_j c_rj x_j = Σ_j (Σ_r w_r c_rj) x_j`: one pass over the columns
 replaces one pass per row. The column weights do not depend on the read, so
-`prepare` computes them once for every source or child, as one native-word
-sparse form per extension coordinate. Rows that do not list the same columns
-merge the weighted coefficients of each column instead, so each distinct column
-is read once per port and lane rather than once per row that uses it. Every
+`prepare` computes them once for every source or child, as one entry list that
+carries both extension coordinates; `evaluate` reads each listed column once
+for both. Rows that do not list the same columns merge the weighted
+coefficients of each column instead, so each distinct column is read once per
+port and lane rather than once per row that uses it. Every
 port and lane equals `PiDECMatrixSparseRange.sum` for every read; no row, read
 or alignment premise is needed.
 -/
@@ -188,7 +189,7 @@ theorem mul_embed (weight : K) (coefficient : F) :
     extensionOps.mul weight (K.embed coefficient) = scale weight coefficient := by
   simp only [extensionOps, K.mul, K.embed, scale, Fin.mul_zero, Fin.add_zero, Fin.zero_add]
 
-theorem foldl_from {columns : Nat} (read : Fin columns → F) :
+private theorem foldl_from {columns : Nat} (read : Fin columns → F) :
     ∀ (entries : List (SparseEntry columns)) (initial : F),
       entries.foldl (fun total entry => total + entry.coefficient * read entry.column)
           initial =
@@ -277,7 +278,7 @@ private theorem dot_addRow (weight : K) :
   | _, [], _ :: _, _, same => by simp at same
   | _, _ :: _, [], _, same => by simp at same
 
-theorem embed_foldl {columns : Nat} (read : Fin columns → F) :
+private theorem embed_foldl {columns : Nat} (read : Fin columns → F) :
     ∀ (entries : List (SparseEntry columns)) (initial : F),
       K.embed (entries.foldl (fun total entry =>
           total + entry.coefficient * read entry.column) initial) =

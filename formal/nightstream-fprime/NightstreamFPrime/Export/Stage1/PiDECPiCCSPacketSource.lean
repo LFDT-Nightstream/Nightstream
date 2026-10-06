@@ -37,10 +37,10 @@ def row? (logicalWidth : Nat)
       (PiCCSArithmetic.statementBindingRows logicalWidth publicFits)[ordinal]?
     else
       let ordinal := ordinal - 160
-      if ordinal < 38877 then
+      if ordinal < 20733 then
         (PiCCSArithmetic.initialClaimRows logicalWidth publicFits)[ordinal]?
       else
-        let ordinal := ordinal - 38877
+        let ordinal := ordinal - 20733
         if ordinal < 812 then
           (PiCCSArithmetic.sumcheckRows logicalWidth publicFits)[ordinal]?
         else
@@ -49,14 +49,14 @@ def row? (logicalWidth : Nat)
             (PiCCSArithmetic.evalKRows logicalWidth publicFits)[ordinal]?
           else
             let ordinal := ordinal - 3364
-            if ordinal < 37060 then
+            if ordinal < 18916 then
               (PiCCSArithmetic.evalARows logicalWidth publicFits)[ordinal]?
             else
-              let ordinal := ordinal - 37060
-              if ordinal < 752 then
+              let ordinal := ordinal - 18916
+              if ordinal < 56 then
                 (PiCCSArithmetic.ccsRows logicalWidth publicFits)[ordinal]?
               else
-                let ordinal := ordinal - 752
+                let ordinal := ordinal - 56
                 if ordinal < 800 then
                   (PiCCSArithmetic.normRows logicalWidth publicFits)[ordinal]?
                 else
@@ -101,7 +101,7 @@ theorem row?_eq_programRow
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (index : Fin 124283) :
+    (index : Fin 48443) :
     row? logicalWidth publicFits index.val =
       some (PiCCSOrdinaryDirectSource.programRow relation index) := by
   rw [row?_eq_sourceRows_getElem? relation]

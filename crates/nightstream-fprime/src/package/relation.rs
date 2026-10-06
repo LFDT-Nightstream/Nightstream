@@ -19,14 +19,7 @@ pub enum CcsMatrixSource {
     B,
     C,
     SboxInput,
-    CenteredUnit,
     EvalSelector,
-    Class0,
-    Class1,
-    Class2,
-    Class3,
-    Class4,
-    Zero,
 }
 
 /// One sparse term of the Lean-owned CCS constraint polynomial.
@@ -117,14 +110,7 @@ pub(super) fn validate(raw: RawCcsRelation) -> Result<PackageCcsRelation, Packag
             3 => Ok(CcsMatrixSource::B),
             4 => Ok(CcsMatrixSource::C),
             5 => Ok(CcsMatrixSource::SboxInput),
-            6 => Ok(CcsMatrixSource::CenteredUnit),
-            7 => Ok(CcsMatrixSource::EvalSelector),
-            8 => Ok(CcsMatrixSource::Class0),
-            9 => Ok(CcsMatrixSource::Class1),
-            10 => Ok(CcsMatrixSource::Class2),
-            11 => Ok(CcsMatrixSource::Class3),
-            12 => Ok(CcsMatrixSource::Class4),
-            13 => Ok(CcsMatrixSource::Zero),
+            6 => Ok(CcsMatrixSource::EvalSelector),
             _ => Err(PackageError::Invalid("CCS relation matrix source")),
         })
         .collect::<Result<Vec<_>, _>>()?;

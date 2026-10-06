@@ -15,7 +15,7 @@ Child order:
 3. commitment combination;
 4. public-input combination;
 5. separate `Eval_K` combination;
-6. separate 14-matrix `Eval_A` combination;
+6. separate 7-matrix `Eval_A` combination;
 7. zero-row computed-output binding.
 
 The parent owns only shared-value wiring, offsets, operation order, and child
@@ -124,7 +124,7 @@ def evalAOffset (offset : Nat) : Nat :=
   evalKOffset offset + 1836
 
 def outputBindingOffset (offset : Nat) : Nat :=
-  evalAOffset offset + 25704
+  evalAOffset offset + 12852
 
 def finalOffset (offset : Nat) : Nat := outputBindingOffset offset
 
@@ -244,10 +244,10 @@ def main
       opsAt relation interface offset := by
   rfl
 
-def logicalPrivateCount : Nat := 124865
-def logicalRowCount : Nat := 102085
+def logicalPrivateCount : Nat := 112013
+def logicalRowCount : Nat := 89233
 
-theorem logicalPrivateCount_eq : logicalPrivateCount = 124865 := by
+theorem logicalPrivateCount_eq : logicalPrivateCount = 112013 := by
   rfl
 
 structure Assumptions
@@ -392,7 +392,7 @@ theorem soundness
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pirlc.v1_1.eval_A_combination" (evalACircuit interface)
-      offset).localLength = 25704 := by
+      offset).localLength = 12852 := by
   rw [childOp, Sequence.childOp_localLength]
   exact EvalACombination.localLength_eq (evalAInterface interface) offset
 
@@ -464,9 +464,9 @@ theorem soundness
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pirlc.v1_1.eval_A_combination" (evalACircuit interface)
-      offset).rowCount = 25704 := by
+      offset).rowCount = 12852 := by
   change CombinationFamily.logicalRowCount EvalACombination.blockCount
-    RingKCombination.cellCount = 25704
+    RingKCombination.cellCount = 12852
   exact EvalACombination.logicalRowCount_eq
 
 @[simp] private theorem outputBindingOp_rowCount

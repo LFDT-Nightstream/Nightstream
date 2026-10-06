@@ -260,19 +260,19 @@
       "occurrences": 1
     },
     {
-      "path": "Lifecycle/PiDEC/v1_1/PublicInputSplit/Values.lean",
+      "path": "Lifecycle/PiDEC/v1_2/PublicInputSplit/Values.lean",
       "before": "exactPrivateCount = 270 := by",
       "after": "exactPrivateCount = 540 := by",
       "occurrences": 1
     },
     {
-      "path": "Layout/PiDEC/v1_1/Values.lean",
+      "path": "Layout/PiDEC/v1_2/Values.lean",
       "before": "freshColumnCount = 67 := by rfl",
       "after": "freshColumnCount = 68 := by rfl",
       "occurrences": 1
     },
     {
-      "path": "Layout/PiDEC/v1_1/Values.lean",
+      "path": "Layout/PiDEC/v1_2/Values.lean",
       "before": "18090",
       "after": "18360",
       "occurrences": 8

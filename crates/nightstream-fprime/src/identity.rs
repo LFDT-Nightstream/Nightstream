@@ -6,7 +6,7 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 use serde_json::Value;
 
-use crate::package::{PackageError, PI_CCS_V1_1_MATRIX_COUNT, PI_CCS_V1_1_ROUND_COUNT};
+use crate::package::{PackageError, PI_CCS_V1_2_MATRIX_COUNT, PI_CCS_V1_2_ROUND_COUNT};
 
 mod native;
 pub(crate) use native::{
@@ -29,8 +29,8 @@ const VERIFIER_CONTEXT_PROFILE: [u64; 14] = [
     16,
     17,
     16,
-    PI_CCS_V1_1_MATRIX_COUNT as u64,
-    PI_CCS_V1_1_ROUND_COUNT as u64,
+    PI_CCS_V1_2_MATRIX_COUNT as u64,
+    PI_CCS_V1_2_ROUND_COUNT as u64,
     9,
     54,
     22,
@@ -39,10 +39,10 @@ const VERIFIER_CONTEXT_SCHEDULE: [u64; 10] = [
     1,
     1,
     1,
-    PI_CCS_V1_1_ROUND_COUNT as u64,
+    PI_CCS_V1_2_ROUND_COUNT as u64,
     10,
     17,
-    PI_CCS_V1_1_MATRIX_COUNT as u64,
+    PI_CCS_V1_2_MATRIX_COUNT as u64,
     54,
     4,
     1,
@@ -76,7 +76,7 @@ pub const POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST: [u64; 4] = [
 /// Verifier-owned context derived from one identity-checked package and the
 /// canonical serialization of its commitment setup.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PiCcsV1_1VerifierContext {
+pub struct PiCcsV1_2VerifierContext {
     package_identity: [u64; 4],
     relation_words: Vec<u64>,
     application: ApplicationIdentity,
@@ -86,7 +86,7 @@ pub struct PiCcsV1_1VerifierContext {
     digest: [u64; 4],
 }
 
-impl PiCcsV1_1VerifierContext {
+impl PiCcsV1_2VerifierContext {
     pub fn digest(&self) -> [u64; 4] {
         self.digest
     }
@@ -152,7 +152,7 @@ impl ApplicationIdentity {
 pub struct Stage1VerifierBinding {
     structural_identifier: [u64; 4],
     package_identity: [u64; 4],
-    verifier_context: PiCcsV1_1VerifierContext,
+    verifier_context: PiCcsV1_2VerifierContext,
     verification_key_words: Vec<u64>,
     verification_key_digest: [u64; 4],
 }
@@ -166,7 +166,7 @@ impl Stage1VerifierBinding {
         self.package_identity
     }
 
-    pub fn verifier_context(&self) -> &PiCcsV1_1VerifierContext {
+    pub fn verifier_context(&self) -> &PiCcsV1_2VerifierContext {
         &self.verifier_context
     }
 
@@ -194,10 +194,10 @@ pub(crate) fn formula_library_digest(library: &Value) -> Result<[u64; 4], Packag
     Ok(input.finalize().map(|value| value.as_canonical_u64()))
 }
 
-pub(super) fn pi_ccs_v1_1_verifier_context(
+pub(super) fn pi_ccs_v1_2_verifier_context(
     package_identity: [u64; 4],
     commitment_key_words: &[u64],
-) -> Result<PiCcsV1_1VerifierContext, PackageError> {
+) -> Result<PiCcsV1_2VerifierContext, PackageError> {
     validate_context_words(commitment_key_words)?;
     let relation_words = package_identity.to_vec();
     let application = ApplicationIdentity::from_words(&package_identity)?;
@@ -221,7 +221,7 @@ pub(super) fn pi_ccs_v1_1_verifier_context(
     append_framed(&mut descriptor, &commitment_digest)?;
     let digest = poseidon_words(&descriptor);
 
-    Ok(PiCcsV1_1VerifierContext {
+    Ok(PiCcsV1_2VerifierContext {
         package_identity,
         relation_words,
         application,
@@ -267,7 +267,7 @@ pub(super) fn stage1_verifier_binding(
     append_framed(&mut descriptor_words, &commitment_digest)?;
     let digest = poseidon_words(&descriptor_words);
 
-    let verifier_context = PiCcsV1_1VerifierContext {
+    let verifier_context = PiCcsV1_2VerifierContext {
         package_identity: structural_identifier,
         relation_words,
         application: application.clone(),

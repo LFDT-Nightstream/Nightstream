@@ -759,7 +759,7 @@ fn sample_rot_rhos_n(
     }
     if tr.absorbed() != 0 {
         return Err(PiCcsError::InvalidInput(
-            "PiRLC v1_1 sampler requires a zero transcript absorb cursor".into(),
+            "PiRLC v1_2 sampler requires a zero transcript absorb cursor".into(),
         ));
     }
 
@@ -823,8 +823,8 @@ fn sample_rot_rhos_n(
     for i in 0..count {
         let coordinate =
             u64::try_from(i).map_err(|_| PiCcsError::InvalidInput("PiRLC challenge coordinate exceeds u64".into()))?;
-        tr.absorb_v1_1(&[F::from_u64(4), F::from_u64(coordinate)]);
-        let digest = tr.squeeze_digest_v1_1();
+        tr.absorb_v1_2(&[F::from_u64(4), F::from_u64(coordinate)]);
+        let digest = tr.squeeze_digest_v1_2();
         let coeffs_i8 = decode_pi_rlc_coefficients(&digest);
 
         // Lift to field F
@@ -1320,34 +1320,34 @@ where
     Ok(())
 }
 
-/// Compute the separate SuperNeo v1.1 evaluation families from `Z` and `r`.
-pub fn compute_v1_1_evaluations_from_z_and_r<Ff>(
+/// Compute the separate SuperNeo v1.2 evaluation families from `Z` and `r`.
+pub fn compute_v1_2_evaluations_from_z_and_r<Ff>(
     s: &CcsStructure<Ff>,
     z: &Mat<Ff>,
     r: &[K],
     ell_d: usize,
-) -> neo_ccs::V1_1Evaluations<K>
+) -> neo_ccs::V1_2Evaluations<K>
 where
     Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync,
     K: From<Ff>,
 {
     let rb = neo_ccs::utils::tensor_point_parallel::<K>(r);
     let superneo_cache = crate::superneo_eval::build_superneo_eval_cache(s);
-    compute_v1_1_evaluations_from_z_and_rb_with_cache(s, z, &rb, ell_d, superneo_cache.as_ref())
+    compute_v1_2_evaluations_from_z_and_rb_with_cache(s, z, &rb, ell_d, superneo_cache.as_ref())
 }
 
-/// Compute separate v1.1 evaluations from `Z` and a precomputed row tensor
+/// Compute separate v1.2 evaluations from `Z` and a precomputed row tensor
 /// point `r^b`.
 ///
 /// This variant enables callers to amortize the tensor-point and SuperNeo matrix-cache
 /// construction across many ME claims that share `(s, r)`.
-pub fn compute_v1_1_evaluations_from_z_and_rb_with_cache<Ff>(
+pub fn compute_v1_2_evaluations_from_z_and_rb_with_cache<Ff>(
     s: &CcsStructure<Ff>,
     Z: &Mat<Ff>,
     rb: &[K],
     ell_d: usize,
     superneo_cache: Option<&crate::superneo_eval::SuperneoEvalCache>,
-) -> neo_ccs::V1_1Evaluations<K>
+) -> neo_ccs::V1_2Evaluations<K>
 where
     Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync,
     K: From<Ff>,
@@ -1357,11 +1357,11 @@ where
         cache
     } else {
         local_cache = crate::superneo_eval::build_superneo_eval_cache(s)
-            .expect("v1_1 evaluation cache must build for valid CCS width");
+            .expect("v1_2 evaluation cache must build for valid CCS width");
         &local_cache
     };
     let z_vec = decode_superneo_coeffs_from_witness_mat(Z, s.m)
-        .unwrap_or_else(|e| panic!("v1_1 evaluation failed to decode packed witness coefficients: {e}"));
+        .unwrap_or_else(|e| panic!("v1_2 evaluation failed to decode packed witness coefficients: {e}"));
     let z_blocks = crate::superneo_eval::SuperneoZBlocks::from_z(&z_vec);
     let d_pad = 1usize << ell_d;
     let mut eval_k = identity_ring_mle(&z_vec, rb).to_vec();
@@ -1378,7 +1378,7 @@ where
             row
         })
         .collect();
-    neo_ccs::V1_1Evaluations { eval_k, eval_a }
+    neo_ccs::V1_2Evaluations { eval_k, eval_a }
 }
 
 fn identity_ring_mle(assignment: &[K], weights: &[K]) -> [K; D] {

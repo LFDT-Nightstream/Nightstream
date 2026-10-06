@@ -19,7 +19,7 @@ open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
@@ -43,7 +43,7 @@ theorem semanticEnv_eq_packageEnv_belowSampler
     rw [Spartan.sourceColumnCount_eq]
     norm_num [PiRLCStarts.samplerLogicalStart,
       PiRLCStarts.phaseLogicalStart, PiRLCInputs.phaseOffset,
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerOffset]
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.samplerOffset]
   have mappedBound := Spartan.sourceToSpartan_lt column sourceBound
   unfold Spartan.pullback
   rw [PiRLCSamplerRetainedCustody.semanticEnv_source_eq_transitionEnv_of_beforeSampler
@@ -70,12 +70,12 @@ theorem piCcsOutputFinalState_eval_eq
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (lane : Fin Spec.Poseidon2.width) :
-    (NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.finalState
+    (NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBinding.finalState
         (PiCCSInvocations.outputInterface relationLogicalWidth relationPublicFits)
         PiCCSInvocations.outputWitnessStart lane).eval
         (Spartan.pullback
           (PiRLCSamplerRetainedCustody.semanticEnv geometry assignment base)) =
-      (NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.finalState
+      (NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBinding.finalState
         (PiCCSInvocations.outputInterface relationLogicalWidth relationPublicFits)
         PiCCSInvocations.outputWitnessStart lane).eval
         (PiCCSActionPayloadBlock.packageEnv program
@@ -134,7 +134,7 @@ theorem endpointRows_imply_piCcsFinalState
           (Spartan.pullback
             (PiRLCSamplerRetainedCustody.semanticEnv samplerGeometry assignment
               base))
-          (NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.finalState
+          (NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBinding.finalState
             (PiCCSInvocations.outputInterface relationLogicalWidth
               relationPublicFits)
             PiCCSInvocations.outputWitnessStart)) := by
@@ -149,7 +149,7 @@ theorem endpointRows_imply_piCcsFinalState
             (PiCCSActionPayloadBlock.packageEnv program
               (PiRLCRetainedPreservation.sourceAssignment program base
                 groupValue))
-            (NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.finalState
+            (NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBinding.finalState
               (PiCCSInvocations.outputInterface relationLogicalWidth
                 relationPublicFits)
               PiCCSInvocations.outputWitnessStart)) :=
@@ -161,7 +161,7 @@ theorem endpointRows_imply_piCcsFinalState
             (Spartan.pullback
               (PiRLCSamplerRetainedCustody.semanticEnv samplerGeometry
                 assignment base))
-            (NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.finalState
+            (NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBinding.finalState
               (PiCCSInvocations.outputInterface relationLogicalWidth
                 relationPublicFits)
               PiCCSInvocations.outputWitnessStart)) := by

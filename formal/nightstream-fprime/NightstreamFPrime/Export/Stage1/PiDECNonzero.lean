@@ -71,7 +71,7 @@ def parent (fixture : Fixture) : CE.Instance
       (publicFits := PhaseReference.publicFits))
     PaperAlgebra.Point PaperAlgebra.Evaluation PaperAlgebra.Commitment where
   constraintSystem :=
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.InputBinding.relationSource
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.InputBinding.relationSource
       fixtureRelation
   commitment := fixture.commitment.toCommitment
   publicInput := fixture.publicInput.toPublicInput

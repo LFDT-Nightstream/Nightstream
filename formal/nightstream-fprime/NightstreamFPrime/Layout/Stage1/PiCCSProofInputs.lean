@@ -16,8 +16,8 @@ Outputs:
 - one environment that preserves the pilot prefix and loads that encoding.
 
 Parent coverage:
-- `Lifecycle.PiCCS.v1_1.Formal.evalFresh`;
-- `Lifecycle.PiCCS.v1_1.Formal.evalProof`.
+- `Lifecycle.PiCCS.v1_2.Formal.evalFresh`;
+- `Lifecycle.PiCCS.v1_2.Formal.evalProof`.
 
 This module owns external values only. It adds no constraint row and does not
 derive a verifier challenge from witness data.
@@ -29,7 +29,7 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Layout.Stage1.PiCCSInputs
 open NightstreamFPrime.Layout.Stage1.PiCCSRepresentation
@@ -51,7 +51,7 @@ def roundPolynomial (values : ProofValues)
   coefficients := List.ofFn (values.roundCoefficient roundIndex)
   coefficients_length := by simp
 
-/-- The semantic v1_1 output with Pad and CCS matrix families kept separate. -/
+/-- The semantic v1_2 output with Pad and CCS matrix families kept separate. -/
 def output (values : ProofValues) :
     FullOutputCoordinates.FullOutput K productionShape where
   padCoordinate := values.outputEval_K
@@ -762,7 +762,7 @@ private theorem fullOutput_ext
   cases right
   simp_all
 
-/-- The concrete symbolic output evaluates to the exact separate v1_1 output
+/-- The concrete symbolic output evaluates to the exact separate v1_2 output
 families. -/
 theorem evalOutput_eq (values : ExternalValues) :
     ∀ {logicalWidth : Nat}

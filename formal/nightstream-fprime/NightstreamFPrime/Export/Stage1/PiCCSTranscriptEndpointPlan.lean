@@ -21,7 +21,7 @@ open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Gadgets.Poseidon2
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
@@ -679,8 +679,8 @@ private theorem roundInitialState_eq_challengeFinalState :
         (PiCCSInvocations.roundInterface Data.logicalWidth
           Data.publicFits).initialState PiCCSInvocations.roundWitnessStart := by
     simpa [PiCCSInvocations.roundInterface,
-      NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.roundTranscriptInterface,
-      NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.challengeFinalState,
+      NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.roundTranscriptInterface,
+      NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.challengeFinalState,
       PiCCSInvocations.sharedInterface] using!
       PiCCSInvocations.challengeTrace_state_matches
         Data.logicalWidth Data.publicFits
@@ -713,8 +713,8 @@ private theorem outputInitialState_eq_roundFinalState :
         (PiCCSInvocations.outputInterface Data.logicalWidth
           Data.publicFits).initialState PiCCSInvocations.outputWitnessStart := by
     simpa [PiCCSInvocations.outputInterface,
-      NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.outputBindingInterface,
-      NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.roundTranscriptFinalState,
+      NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.outputBindingInterface,
+      NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.roundTranscriptFinalState,
       PiCCSInvocations.sharedInterface] using!
       PiCCSInvocations.roundTrace_state_matches Data.logicalWidth
         Data.publicFits
@@ -1304,8 +1304,8 @@ theorem roundInitialState_eq_challengeFinalState_of_shape
           relationPublicFits).initialState
             PiCCSInvocations.roundWitnessStart := by
     simpa [PiCCSInvocations.roundInterface,
-      NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.roundTranscriptInterface,
-      NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.challengeFinalState,
+      NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.roundTranscriptInterface,
+      NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.challengeFinalState,
       PiCCSInvocations.sharedInterface] using!
       PiCCSInvocations.challengeTrace_state_matches relationLogicalWidth
         relationPublicFits
@@ -1330,8 +1330,8 @@ theorem outputInitialState_eq_roundFinalState_of_shape
           relationPublicFits).initialState
             PiCCSInvocations.outputWitnessStart := by
     simpa [PiCCSInvocations.outputInterface,
-      NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.outputBindingInterface,
-      NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.roundTranscriptFinalState,
+      NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.outputBindingInterface,
+      NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.roundTranscriptFinalState,
       PiCCSInvocations.sharedInterface] using!
       PiCCSInvocations.roundTrace_state_matches relationLogicalWidth
         relationPublicFits

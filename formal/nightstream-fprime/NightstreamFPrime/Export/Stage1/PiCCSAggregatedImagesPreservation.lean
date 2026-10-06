@@ -386,7 +386,7 @@ abbrev selectedProgram := PerApplicationMatrixProgram.matrixProgram
 abbrev selectedSource := fun (row : Nat) =>
   (PiDECCanonicalSourceCache.stored Poseidon2HashChainV1Package.application)[row]?
 abbrev selectedLayout :=
-  (Lifecycle.PiRLC.v1_1.InputBinding.relationSource selectedRelation).cubeLayout
+  (Lifecycle.PiRLC.v1_2.InputBinding.relationSource selectedRelation).cubeLayout
 
 noncomputable abbrev selectedMessage (input : PiCCSPublicReplay.Input)
     (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)

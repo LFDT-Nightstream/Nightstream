@@ -43,7 +43,7 @@ private theorem laneFreshPrefix_add_cost_le (lane : Nat) :
 
 private theorem laneFreshCost_eq (lane : Fin ringDegree) :
     PiRLCCombinationInvocations.laneFreshCost lane.val =
-      NightstreamFPrime.Layout.PiRLC.v1_1.CombinationStep.laneFreshCount lane := by
+      NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep.laneFreshCount lane := by
   unfold PiRLCCombinationInvocations.laneFreshCost
     PiRLCCombinationInvocations.laneFreshCosts
   rw [List.getD_eq_get _ _ ⟨lane.val, by simp⟩]
@@ -295,7 +295,7 @@ private theorem combination_layout
       (PiRLCCombinationInvocations.invocation logicalStart rowStart freshStart
         blockCount cellCount valueStride source.val block.val lane.val cell.val
         valueSourceStart)
-      (NightstreamFPrime.Layout.PiRLC.v1_1.CombinationStep.laneFreshCount
+      (NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep.laneFreshCount
         lane) := by
   constructor
   · rw [PiRLCCombinationInvocations.invocation_localStart]
@@ -316,7 +316,7 @@ private theorem combination_layout
               PiRLCCombinationInvocations.sourceFreshCount blockCount cellCount +
             PiRLCCombinationInvocations.coordinateFreshPrefix cellCount
               block.val lane.val cell.val +
-            NightstreamFPrime.Layout.PiRLC.v1_1.CombinationStep.laneFreshCount
+            NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep.laneFreshCount
               lane ≤
             freshStart + source.val *
               PiRLCCombinationInvocations.sourceFreshCount blockCount cellCount +
@@ -568,7 +568,7 @@ private theorem commitment_layout
         PiRLCStarts.commitmentLogicalStart PiRLCStarts.commitmentRowStart
         PiRLCStarts.commitmentFreshStart 22 1 1 source.val block.val lane.val
         cell.val PiRLCCombinationInvocations.commitmentValueSourceStart)
-      (NightstreamFPrime.Layout.PiRLC.v1_1.CombinationStep.laneFreshCount
+      (NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep.laneFreshCount
         lane) := by
   apply combination_layout
   · exact PiRLCCombinationInvocations.commitmentFreshStart_local
@@ -585,7 +585,7 @@ private theorem publicInput_layout
         PiRLCStarts.publicInputLogicalStart PiRLCStarts.publicInputRowStart
         PiRLCStarts.publicInputFreshStart 5 1 1 source.val block.val lane.val
         cell.val PiRLCCombinationInvocations.publicInputValueSourceStart)
-      (NightstreamFPrime.Layout.PiRLC.v1_1.CombinationStep.laneFreshCount
+      (NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep.laneFreshCount
         lane) := by
   apply combination_layout
   · exact PiRLCCombinationInvocations.publicInputFreshStart_local
@@ -602,7 +602,7 @@ private theorem evalK_layout
         PiRLCStarts.evalKLogicalStart PiRLCStarts.evalKRowStart
         PiRLCStarts.evalKFreshStart 1 2 2 source.val block.val lane.val
         cell.val PiRLCCombinationInvocations.evalKValueSourceStart)
-      (NightstreamFPrime.Layout.PiRLC.v1_1.CombinationStep.laneFreshCount
+      (NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep.laneFreshCount
         lane) := by
   apply combination_layout
   · exact PiRLCCombinationInvocations.evalKFreshStart_local
@@ -619,7 +619,7 @@ private theorem evalA_layout
         PiRLCStarts.evalALogicalStart PiRLCStarts.evalARowStart
         PiRLCStarts.evalAFreshStart 7 2 2 source.val block.val lane.val
         cell.val PiRLCCombinationInvocations.evalAValueSourceStart)
-      (NightstreamFPrime.Layout.PiRLC.v1_1.CombinationStep.laneFreshCount
+      (NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep.laneFreshCount
         lane) := by
   apply combination_layout
   · exact PiRLCCombinationInvocations.evalAFreshStart_local
@@ -638,7 +638,7 @@ private theorem combination_row
       (PiRLCCombinationInvocations.invocation logicalStart rowStart freshStart
         blockCount cellCount valueStride source.val block.val lane.val cell.val
         valueSourceStart)
-      (NightstreamFPrime.Layout.PiRLC.v1_1.CombinationStep.laneFreshCount lane))
+      (NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep.laneFreshCount lane))
     (row : CompactTemplateRow)
     (rowMember : row ∈
       (PiRLCCombinationTemplates.template
@@ -669,7 +669,7 @@ private theorem combination_row
       (Expr.var PiRLCCombinationTemplates.outputInput -
         PiRLCCombinationTemplates.outputRecipe
           (PiRLCCombinationInvocations.firstSource source.val) lane) =
-      NightstreamFPrime.Layout.PiRLC.v1_1.CombinationStep.laneFreshCount lane := by
+      NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep.laneFreshCount lane := by
     simpa [PiRLCCombinationTemplates.template,
       CompactRows.compactTemplate] using
       (PiRLCCombinationTemplates.template_localColumnCount
@@ -684,13 +684,13 @@ private theorem combination_row
       blockCount cellCount valueStride source.val block.val lane.val cell.val
       valueSourceStart)
     (shiftColumn program) PiRLCCombinationTemplates.inputCount
-    (NightstreamFPrime.Layout.PiRLC.v1_1.CombinationStep.laneFreshCount lane)
+    (NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep.laneFreshCount lane)
     row within
     (shiftedCompactColumn program
       (PiRLCCombinationInvocations.invocation logicalStart rowStart freshStart
         blockCount cellCount valueStride source.val block.val lane.val cell.val
         valueSourceStart) PiRLCCombinationTemplates.inputCount
-      (NightstreamFPrime.Layout.PiRLC.v1_1.CombinationStep.laneFreshCount lane)
+      (NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep.laneFreshCount lane)
       layout)
 
 private theorem combinationTemplateSelection
@@ -715,7 +715,7 @@ private theorem combinationFamilyRows
             (PiRLCCombinationInvocations.invocation logicalStart rowStart
               freshStart blockCount cellCount valueStride source.val block.val
               lane.val cell.val valueSourceStart)
-            (NightstreamFPrime.Layout.PiRLC.v1_1.CombinationStep.laneFreshCount
+            (NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep.laneFreshCount
               lane))
     (invocation : CompactRowInvocation)
     (invocationMember : invocation ∈
@@ -736,7 +736,7 @@ private theorem combinationFamilyRows
     ⟨source, List.mem_range.mp sourceMember⟩
   rcases List.mem_ofFn.mp indexedMember with ⟨index, rfl⟩
   let coordinates :=
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.CombinationStep.coordinates index
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationStep.coordinates index
   have selected := combinationTemplateSelection sourceFin coordinates.2.1
   change basePackage.compactRowTemplates[
       PiRLCCombinationTemplates.templateIndex source coordinates.2.1.val]? =

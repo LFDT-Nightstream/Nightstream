@@ -1,7 +1,7 @@
 import Batteries.Data.Fin.Coding
 import NightstreamFPrime.Layout.MatrixProgram
 import NightstreamFPrime.Layout.ProductionRelation.Phi81ProductPlan
-import NightstreamFPrime.Lifecycle.PiRLC.v1_1.CombinationStep
+import NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationStep
 
 /-!
 Owns the compact opcode for complete Phi81 ring products. Each product uses
@@ -15,7 +15,7 @@ namespace NightstreamFPrime.Layout.MatrixProgram.Phi81Product
 
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra

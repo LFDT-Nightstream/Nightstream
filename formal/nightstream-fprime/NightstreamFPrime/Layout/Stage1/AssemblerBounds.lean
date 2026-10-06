@@ -1,11 +1,11 @@
 import NightstreamFPrime.Layout.Stage1.PiRLCOutputRelocation
-import NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions
+import NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions
 import NightstreamFPrime.Layout.Stage1.AssemblerInputs
 import NightstreamFPrime.Layout.Stage1.AssemblerPilotBounds
 import NightstreamFPrime.Layout.Stage1.PiDECInputBounds
 import NightstreamFPrime.Layout.Stage1.PiDECSourceSupportData
 import NightstreamFPrime.Layout.Stage1.RunningTransitionBounds
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.FormalRows
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.FormalRows
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
@@ -40,12 +40,12 @@ private theorem piCcsPhaseOffset_le
 compact parent offset. -/
 def piCcsExternalInputsLinear
     (program : Lifecycle.Stage1.Application.Program) :
-    NightstreamFPrime.Layout.PiCCS.v1_1.ProductionInputs.ExternalInputsLinear
+    NightstreamFPrime.Layout.PiCCS.v1_2.ProductionInputs.ExternalInputsLinear
       (AssemblerInputs.piCcsInterface
         (logicalWidth := logicalWidth) (publicFits := publicFits) program)
       (AssemblerInputs.piCcsOffset program) := by
   let canonical := PiCCSInputs.externalInputsLinear logicalWidth publicFits
-  have below : PiCCS.v1_1.Formal.ExternalInputsBelow
+  have below : PiCCS.v1_2.Formal.ExternalInputsBelow
       (AssemblerInputs.piCcsInterface
         (logicalWidth := logicalWidth) (publicFits := publicFits) program)
       (AssemblerInputs.piCcsOffset program) := by
@@ -102,10 +102,10 @@ def piCcsExternalInputsLinear
 def piCcsAssumptions
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
-    PiCCS.v1_1.Formal.Assumptions relation
+    PiCCS.v1_2.Formal.Assumptions relation
       (AssemblerInputs.piCcsInterface program)
       (AssemblerInputs.piCcsOffset program) env :=
-  NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions.production relation
+  NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions.production relation
     (AssemblerInputs.piCcsInterface program)
     (AssemblerInputs.piCcsOffset program)
     (piCcsExternalInputsLinear program) env
@@ -120,37 +120,37 @@ private theorem piCcs_le_piRlc
 private theorem piRlc_le_commitment
     (program : Lifecycle.Stage1.Application.Program) :
     AssemblerInputs.piRlcOffset program ≤
-      PiRLC.v1_1.Formal.commitmentOffset
+      PiRLC.v1_2.Formal.commitmentOffset
         (AssemblerInputs.piRlcOffset program) := by
-  unfold PiRLC.v1_1.Formal.commitmentOffset
-    PiRLC.v1_1.Formal.samplerOffset
+  unfold PiRLC.v1_2.Formal.commitmentOffset
+    PiRLC.v1_2.Formal.samplerOffset
   omega
 
 private theorem commitment_le_publicInput
     (program : Lifecycle.Stage1.Application.Program) :
-    PiRLC.v1_1.Formal.commitmentOffset
+    PiRLC.v1_2.Formal.commitmentOffset
         (AssemblerInputs.piRlcOffset program) ≤
-      PiRLC.v1_1.Formal.publicInputOffset
+      PiRLC.v1_2.Formal.publicInputOffset
         (AssemblerInputs.piRlcOffset program) := by
-  unfold PiRLC.v1_1.Formal.publicInputOffset
+  unfold PiRLC.v1_2.Formal.publicInputOffset
   omega
 
 private theorem publicInput_le_evalK
     (program : Lifecycle.Stage1.Application.Program) :
-    PiRLC.v1_1.Formal.publicInputOffset
+    PiRLC.v1_2.Formal.publicInputOffset
         (AssemblerInputs.piRlcOffset program) ≤
-      PiRLC.v1_1.Formal.evalKOffset
+      PiRLC.v1_2.Formal.evalKOffset
         (AssemblerInputs.piRlcOffset program) := by
-  unfold PiRLC.v1_1.Formal.evalKOffset
+  unfold PiRLC.v1_2.Formal.evalKOffset
   omega
 
 private theorem evalK_le_evalA
     (program : Lifecycle.Stage1.Application.Program) :
-    PiRLC.v1_1.Formal.evalKOffset
+    PiRLC.v1_2.Formal.evalKOffset
         (AssemblerInputs.piRlcOffset program) ≤
-      PiRLC.v1_1.Formal.evalAOffset
+      PiRLC.v1_2.Formal.evalAOffset
         (AssemblerInputs.piRlcOffset program) := by
-  unfold PiRLC.v1_1.Formal.evalAOffset
+  unfold PiRLC.v1_2.Formal.evalAOffset
   omega
 
 /-- Every lane of the PiCCS output transcript state is allocated before the
@@ -163,30 +163,30 @@ theorem piCcsOutputStateBelow
       (AssemblerInputs.piRlcOffset program) := by
   let interface := AssemblerInputs.piCcsInterface
     (logicalWidth := logicalWidth) (publicFits := publicFits) program
-  let outputAt := PiCCS.v1_1.Formal.outputBindingOffset relation interface
+  let outputAt := PiCCS.v1_2.Formal.outputBindingOffset relation interface
     (AssemblerInputs.piCcsOffset program)
   have outputAssumptions :=
-    NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions.outputBinding relation
+    NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions.outputBinding relation
       interface (AssemblerInputs.piCcsOffset program)
       (piCcsExternalInputsLinear program) env
-  have bound := PiCCS.v1_1.OutputBinding.finalState_varsBelow
-    (PiCCS.v1_1.Formal.outputBindingInterface
-      (PiCCS.v1_1.Formal.atOffset interface
+  have bound := PiCCS.v1_2.OutputBinding.finalState_varsBelow
+    (PiCCS.v1_2.Formal.outputBindingInterface
+      (PiCCS.v1_2.Formal.atOffset interface
         (AssemblerInputs.piCcsOffset program))) outputAt env
       outputAssumptions lane
   apply Expr.VarsBelow.mono _ bound
   have endEq : outputAt + localLength
       (Circuit.ops
-        (PiCCS.v1_1.OutputBinding.circuit
-          (PiCCS.v1_1.Formal.outputBindingInterface
-            (PiCCS.v1_1.Formal.atOffset interface
+        (PiCCS.v1_2.OutputBinding.circuit
+          (PiCCS.v1_2.Formal.outputBindingInterface
+            (PiCCS.v1_2.Formal.atOffset interface
               (AssemblerInputs.piCcsOffset program)))).main outputAt) =
-      PiCCS.v1_1.Formal.finalOffset relation interface
+      PiCCS.v1_2.Formal.finalOffset relation interface
         (AssemblerInputs.piCcsOffset program) := by
     rfl
   rw [endEq,
-    PiCCS.v1_1.Formal.finalOffset_eq_finalRowOffset relation interface,
-    PiCCS.v1_1.Formal.finalRowOffset_eq_add_of_degreeBound_eq_nine interface
+    PiCCS.v1_2.Formal.finalOffset_eq_finalRowOffset relation interface,
+    PiCCS.v1_2.Formal.finalRowOffset_eq_add_of_degreeBound_eq_nine interface
       (AssemblerInputs.piCcsOffset program) rfl]
   unfold AssemblerInputs.piRlcOffset
   omega
@@ -195,10 +195,10 @@ private theorem samplerChallengeBelow
     (_relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program)
     (source : Fin productionShape.sourceCount) (lane : Fin ringDegree) :
-    (PiRLC.v1_1.SamplerChain.outputChallenge
+    (PiRLC.v1_2.SamplerChain.outputChallenge
       (AssemblerInputs.piRlcOffset program) source lane).VarsBelow
-        (PiRLC.v1_1.Formal.commitmentOffset (AssemblerInputs.piRlcOffset program)) := by
-  exact PiRLC.v1_1.SamplerChain.outputChallenge_below _ source lane
+        (PiRLC.v1_2.Formal.commitmentOffset (AssemblerInputs.piRlcOffset program)) := by
+  exact PiRLC.v1_2.SamplerChain.outputChallenge_below _ source lane
 
 private theorem sourceCommitmentBelow
     (program : Lifecycle.Stage1.Application.Program)
@@ -289,10 +289,10 @@ private theorem sourceEvalABelow
 def piRlcAssumptions
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
-    PiRLC.v1_1.Formal.Assumptions relation
+    PiRLC.v1_2.Formal.Assumptions relation
       (AssemblerInputs.piRlcInterface relation program)
       (AssemblerInputs.piRlcOffset program) env := by
-  let shared := PiRLC.v1_1.Formal.atOffset
+  let shared := PiRLC.v1_2.Formal.atOffset
     (AssemblerInputs.piRlcInterface relation program)
     (AssemblerInputs.piRlcOffset program)
   refine {
@@ -302,13 +302,13 @@ def piRlcAssumptions
     eval_K := ?_
     eval_A := ?_ }
   · intro lane
-    simpa [shared, PiRLC.v1_1.Formal.samplerInterface,
-      PiRLC.v1_1.Formal.atOffset, AssemblerInputs.piRlcInterface] using!
+    simpa [shared, PiRLC.v1_2.Formal.samplerInterface,
+      PiRLC.v1_2.Formal.atOffset, AssemblerInputs.piRlcInterface] using!
         piCcsOutputStateBelow relation program env lane
   · refine { challengeBelow := ?_, inputBelow := ?_ }
     · intro source lane
-      simpa [shared, PiRLC.v1_1.Formal.commitmentInterface,
-        PiRLC.v1_1.CommitmentCombination.familyInterface] using!
+      simpa [shared, PiRLC.v1_2.Formal.commitmentInterface,
+        PiRLC.v1_2.CommitmentCombination.familyInterface] using!
           samplerChallengeBelow relation program source lane
     · intro source row lane cell
       apply Expr.VarsBelow.mono _
@@ -322,7 +322,7 @@ def piRlcAssumptions
     · intro source block lane cell
       apply Expr.VarsBelow.mono _
         (sourcePublicInputBelow program source
-          (PiRLC.v1_1.PublicInputCombination.publicColumn block lane))
+          (PiRLC.v1_2.PublicInputCombination.publicColumn block lane))
       exact Nat.le_trans (piRlc_le_commitment program)
         (commitment_le_publicInput program)
   · refine { challengeBelow := ?_, inputBelow := ?_ }
@@ -332,13 +332,13 @@ def piRlcAssumptions
       exact Nat.le_trans (commitment_le_publicInput program)
         (publicInput_le_evalK program)
     · intro source block lane cell
-      change (PiRLC.v1_1.RingKCombination.expressionCell cell
+      change (PiRLC.v1_2.RingKCombination.expressionCell cell
         ((PiRLCInputs.sourceInput (logicalWidth := logicalWidth)
           (publicFits := publicFits) source).evaluation.eval_K
-            (PiRLC.v1_1.EvalKCombination.coefficient lane))).VarsBelow _
+            (PiRLC.v1_2.EvalKCombination.coefficient lane))).VarsBelow _
       have below := sourceEvalKBelow
         (logicalWidth := logicalWidth) (publicFits := publicFits) program source
-        (PiRLC.v1_1.EvalKCombination.coefficient lane)
+        (PiRLC.v1_2.EvalKCombination.coefficient lane)
       have bound := Nat.le_trans
         (Nat.le_trans (piRlc_le_commitment program)
           (commitment_le_publicInput program))
@@ -355,14 +355,14 @@ def piRlcAssumptions
           (publicInput_le_evalK program))
         (evalK_le_evalA program)
     · intro source matrix lane cell
-      change (PiRLC.v1_1.RingKCombination.expressionCell cell
+      change (PiRLC.v1_2.RingKCombination.expressionCell cell
         ((PiRLCInputs.sourceInput (logicalWidth := logicalWidth)
           (publicFits := publicFits) source).evaluation.eval_A matrix
-            (PiRLC.v1_1.EvalKCombination.coefficient lane))).VarsBelow _
+            (PiRLC.v1_2.EvalKCombination.coefficient lane))).VarsBelow _
       have below := sourceEvalABelow
         (logicalWidth := logicalWidth) (publicFits := publicFits) program source
         matrix
-        (PiRLC.v1_1.EvalKCombination.coefficient lane)
+        (PiRLC.v1_2.EvalKCombination.coefficient lane)
       have bound := Nat.le_trans
         (Nat.le_trans
           (Nat.le_trans (piRlc_le_commitment program)
@@ -384,32 +384,32 @@ theorem piCcsRoundPointBelowPiRlc
   let interface := AssemblerInputs.piCcsInterface
     (logicalWidth := logicalWidth) (publicFits := publicFits) program
   have assumptions := (piCcsAssumptions relation program env).roundTranscript
-  have bound := PiCCS.v1_1.RoundTranscript.challenge_varsBelow
-    (PiCCS.v1_1.Formal.roundTranscriptInterface
-      (PiCCS.v1_1.Formal.atOffset interface
+  have bound := PiCCS.v1_2.RoundTranscript.challenge_varsBelow
+    (PiCCS.v1_2.Formal.roundTranscriptInterface
+      (PiCCS.v1_2.Formal.atOffset interface
         (AssemblerInputs.piCcsOffset program)))
-    (PiCCS.v1_1.Formal.roundTranscriptOffset interface
+    (PiCCS.v1_2.Formal.roundTranscriptOffset interface
       (AssemblerInputs.piCcsOffset program)) env assumptions coordinate
-  change (PiCCS.v1_1.RoundTranscript.challenge
-      (PiCCS.v1_1.Formal.roundTranscriptInterface
-        (PiCCS.v1_1.Formal.atOffset interface
+  change (PiCCS.v1_2.RoundTranscript.challenge
+      (PiCCS.v1_2.Formal.roundTranscriptInterface
+        (PiCCS.v1_2.Formal.atOffset interface
           (AssemblerInputs.piCcsOffset program)))
-      (PiCCS.v1_1.Formal.roundTranscriptOffset interface
+      (PiCCS.v1_2.Formal.roundTranscriptOffset interface
         (AssemblerInputs.piCcsOffset program)) coordinate).VarsBelow _ at bound
-  have le : PiCCS.v1_1.Formal.roundTranscriptOffset interface
+  have le : PiCCS.v1_2.Formal.roundTranscriptOffset interface
         (AssemblerInputs.piCcsOffset program) +
       localLength (Circuit.ops
-        (PiCCS.v1_1.RoundTranscript.circuit
-          (PiCCS.v1_1.Formal.roundTranscriptInterface
-            (PiCCS.v1_1.Formal.atOffset interface
+        (PiCCS.v1_2.RoundTranscript.circuit
+          (PiCCS.v1_2.Formal.roundTranscriptInterface
+            (PiCCS.v1_2.Formal.atOffset interface
               (AssemblerInputs.piCcsOffset program)))).main
-        (PiCCS.v1_1.Formal.roundTranscriptOffset interface
+        (PiCCS.v1_2.Formal.roundTranscriptOffset interface
           (AssemblerInputs.piCcsOffset program))) ≤
       AssemblerInputs.piRlcOffset program := by
-    rw [PiCCS.v1_1.RoundTranscript.localLength_eq]
-    rw [PiCCS.v1_1.Formal.roundTranscriptOffset_eq,
-      PiCCS.v1_1.Formal.challengeOffset_eq]
-    norm_num [PiCCS.v1_1.RoundTranscript.perRoundRecipeCount,
+    rw [PiCCS.v1_2.RoundTranscript.localLength_eq]
+    rw [PiCCS.v1_2.Formal.roundTranscriptOffset_eq,
+      PiCCS.v1_2.Formal.challengeOffset_eq]
+    norm_num [PiCCS.v1_2.RoundTranscript.perRoundRecipeCount,
       productionShape, Phi81MatrixSource.phi81Shape, cubeVariables,
       AssemblerInputs.piRlcOffset]
   rw [AssemblerInputs.piCcsRoundPoint_eq_challenge]
@@ -417,7 +417,7 @@ theorem piCcsRoundPointBelowPiRlc
     Expr.VarsBelow.mono _ bound.2 le⟩
 
 private theorem inputInstance_ext
-    (left right : PiRLC.v1_1.InputBinding.InputInstance
+    (left right : PiRLC.v1_2.InputBinding.InputInstance
       logicalWidth publicFits)
     (constraintSystem : left.constraintSystem = right.constraintSystem)
     (commitment : left.commitment = right.commitment)
@@ -449,11 +449,11 @@ theorem piRlcPoint_eq_of_agree_below
     (left right : Env)
     (agrees : ∀ index, index < AssemblerInputs.piRlcOffset program →
       left index = right index) :
-    PiRLC.v1_1.InputBinding.evalPoint
+    PiRLC.v1_2.InputBinding.evalPoint
         (AssemblerInputs.piCcsRoundPoint
           (logicalWidth := logicalWidth) (publicFits := publicFits) program)
         left =
-      PiRLC.v1_1.InputBinding.evalPoint
+      PiRLC.v1_2.InputBinding.evalPoint
         (AssemblerInputs.piCcsRoundPoint
           (logicalWidth := logicalWidth) (publicFits := publicFits) program)
         right := by
@@ -483,29 +483,29 @@ theorem piRlcInitialState_eq_of_agree_below
     (left right : Env)
     (agrees : ∀ index, index < AssemblerInputs.piRlcOffset program →
       left index = right index) :
-    PiRLC.v1_1.SamplerChain.evalInitialState
-        (PiRLC.v1_1.Formal.samplerInterface
-          (PiRLC.v1_1.Formal.atOffset
+    PiRLC.v1_2.SamplerChain.evalInitialState
+        (PiRLC.v1_2.Formal.samplerInterface
+          (PiRLC.v1_2.Formal.atOffset
             (AssemblerInputs.piRlcInterface relation program)
             (AssemblerInputs.piRlcOffset program)))
-        (PiRLC.v1_1.Formal.samplerOffset
+        (PiRLC.v1_2.Formal.samplerOffset
           (AssemblerInputs.piRlcOffset program)) left =
-      PiRLC.v1_1.SamplerChain.evalInitialState
-        (PiRLC.v1_1.Formal.samplerInterface
-          (PiRLC.v1_1.Formal.atOffset
+      PiRLC.v1_2.SamplerChain.evalInitialState
+        (PiRLC.v1_2.Formal.samplerInterface
+          (PiRLC.v1_2.Formal.atOffset
             (AssemblerInputs.piRlcInterface relation program)
             (AssemblerInputs.piRlcOffset program)))
-        (PiRLC.v1_1.Formal.samplerOffset
+        (PiRLC.v1_2.Formal.samplerOffset
           (AssemblerInputs.piRlcOffset program)) right := by
-  unfold PiRLC.v1_1.SamplerChain.evalInitialState
-    PiRLC.v1_1.Sampler.evalState
+  unfold PiRLC.v1_2.SamplerChain.evalInitialState
+    PiRLC.v1_2.Sampler.evalState
     NightstreamFPrime.Gadgets.Poseidon2.Layer.evalState
   apply congrArg List.ofFn
   funext lane
   apply Expr.eval_eq_of_agree_below _
     (AssemblerInputs.piRlcOffset program) left right
-  · simpa [PiRLC.v1_1.Formal.samplerInterface,
-      PiRLC.v1_1.Formal.atOffset, PiRLC.v1_1.Formal.samplerOffset,
+  · simpa [PiRLC.v1_2.Formal.samplerInterface,
+      PiRLC.v1_2.Formal.atOffset, PiRLC.v1_2.Formal.samplerOffset,
       AssemblerInputs.piRlcInterface] using
         piCcsOutputStateBelow relation program left lane
   · exact agrees
@@ -518,19 +518,19 @@ theorem piRlcInputs_eq_of_agree_below
     (left right : Env)
     (agrees : ∀ index, index < AssemblerInputs.piRlcOffset program →
       left index = right index) :
-    PiRLC.v1_1.Semantics.evalInputs relation
+    PiRLC.v1_2.Semantics.evalInputs relation
         (AssemblerInputs.piRlcInterface relation program)
         (AssemblerInputs.piRlcOffset program) left =
-      PiRLC.v1_1.Semantics.evalInputs relation
+      PiRLC.v1_2.Semantics.evalInputs relation
         (AssemblerInputs.piRlcInterface relation program)
         (AssemblerInputs.piRlcOffset program) right := by
   funext source
-  let sourceIndex := PiRLC.v1_1.Semantics.sourceIndex source
-  change PiRLC.v1_1.InputBinding.evalInput relation
+  let sourceIndex := PiRLC.v1_2.Semantics.sourceIndex source
+  change PiRLC.v1_2.InputBinding.evalInput relation
       (PiRLCInputs.sourceInput sourceIndex)
       (AssemblerInputs.piCcsRoundPoint
         (logicalWidth := logicalWidth) (publicFits := publicFits) program) left =
-    PiRLC.v1_1.InputBinding.evalInput relation
+    PiRLC.v1_2.InputBinding.evalInput relation
       (PiRLCInputs.sourceInput sourceIndex)
       (AssemblerInputs.piCcsRoundPoint
         (logicalWidth := logicalWidth) (publicFits := publicFits) program) right
@@ -598,7 +598,7 @@ private theorem below_of_interval (expression : Expr) {start finish : Nat}
 def piDecInputsBelow
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) :
-    PiDEC.v1_1.Formal.InputsBelow
+    PiDEC.v1_2.Formal.InputsBelow
       (AssemblerInputs.piDecInterface relation program)
       (AssemblerInputs.piDecOffset program) := by
   let piRlc := AssemblerInputs.piRlcInterface relation program
@@ -658,7 +658,7 @@ def piDecInputsBelow
 def piDecAssumptions
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
-    PiDEC.v1_1.Formal.Assumptions relation
+    PiDEC.v1_2.Formal.Assumptions relation
       (AssemblerInputs.piDecInterface relation program)
       (AssemblerInputs.piDecOffset program) env :=
   ⟨piDecInputsBelow relation program⟩

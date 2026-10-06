@@ -22,7 +22,7 @@ pub(super) fn successor(root: &Path, step: u64, engine: EvaluationEngine) {
     super::super::check_next_metadata(&packet, &proof);
     let encoded = package
         .package
-        .encode_stage1_v1_1_inputs(packet.pi_ccs(), packet.pi_dec(), packet.application_witness())
+        .encode_stage1_v1_2_inputs(packet.pi_ccs(), packet.pi_dec(), packet.application_witness())
         .unwrap();
     // Export every caller word for the separate fresh Lean comparison.
     save(

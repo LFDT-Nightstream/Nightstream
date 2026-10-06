@@ -2,12 +2,12 @@
 //! This assembles caller data in Lifecycle.XOut.serializeRunning order;
 //! the hash and canonical rows must separately validate that data.
 
-use super::{PI_CCS_V1_1_ROUND_COUNT, STATE_PREIMAGE_WORDS};
+use super::{PI_CCS_V1_2_ROUND_COUNT, STATE_PREIMAGE_WORDS};
 
 const RUNNING_COUNT: usize = 16;
 const MATRIX_COUNT: usize = 7;
 const PRIOR_PUBLIC_WORDS: usize = 270;
-const RUNNING_POINT_WORDS: usize = 2 * PI_CCS_V1_1_ROUND_COUNT;
+const RUNNING_POINT_WORDS: usize = 2 * PI_CCS_V1_2_ROUND_COUNT;
 
 pub fn with_running(base: &[u64], running: &serde_json::Value) -> Vec<u64> {
     // Lifecycle.XOut.serializePreimage places serializeRunning after the
@@ -20,7 +20,7 @@ pub fn with_running(base: &[u64], running: &serde_json::Value) -> Vec<u64> {
     let public: Vec<Vec<u64>> = serde_json::from_value(fields[2].clone()).expect("running public inputs");
     let eval_k: Vec<Vec<[u64; 2]>> = serde_json::from_value(fields[3].clone()).expect("running Eval_K");
     let eval_a: Vec<Vec<Vec<[u64; 2]>>> = serde_json::from_value(fields[4].clone()).expect("running Eval_A");
-    assert_eq!(point.len(), PI_CCS_V1_1_ROUND_COUNT);
+    assert_eq!(point.len(), PI_CCS_V1_2_ROUND_COUNT);
     for count in [commitments.len(), public.len(), eval_k.len(), eval_a.len()] {
         assert_eq!(count, RUNNING_COUNT);
     }

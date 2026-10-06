@@ -1,6 +1,6 @@
 import NightstreamFPrime.Lifecycle.ProductionKey
 import NightstreamFPrime.Lifecycle.XOut
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.ZeroRunningPolynomial
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.ZeroRunningPolynomial
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomialDegree.Support
 
 /-!
@@ -92,7 +92,7 @@ private theorem initial_zero (gamma : K) :
   let statement := (ProductionKey.key relation ajtai).statement defaultRunning (baseFresh prior)
   -- The reused initial-claim lemma ignores these auxiliary assignment values;
   -- it uses only public zero coefficients and assumes no opening validity.
-  exact PiCCS.v1_1.ZeroRunningPolynomial.initial_zero
+  exact PiCCS.v1_2.ZeroRunningPolynomial.initial_zero
     (statement.sourceConnectedInputs ⟨fun _ _ => 0⟩)
     (fun _ => rfl) (fun _ => rfl) gamma
 

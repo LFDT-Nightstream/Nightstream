@@ -186,11 +186,11 @@ struct PhaseResult {
     trace: ProtocolTrace,
     transcript_state: [F; neo_ccs::crypto::poseidon2_goldilocks::WIDTH],
     transcript_cursor: usize,
-    openings: Vec<V1_1Evaluations<K>>,
+    openings: Vec<V1_2Evaluations<K>>,
 }
 
 fn run_phase(oracle: &mut dyn PaperJointRoundOracle, initial: K) -> PhaseResult {
-    let mut transcript = Poseidon2Transcript::new_v1_1();
+    let mut transcript = Poseidon2Transcript::new_v1_2();
     let mut trace = ProtocolTrace::default();
     let (rounds, point, _) = prove_phase(&mut transcript, &mut trace, initial, oracle).unwrap();
     let openings = oracle.output_openings(&point).unwrap().unwrap();
@@ -248,7 +248,7 @@ impl PaperJointRoundOracle for ReplayObserver<'_, '_> {
         Ok(())
     }
 
-    fn output_openings(&mut self, point: &[K]) -> Result<Option<Vec<V1_1Evaluations<K>>>, neo_reductions::PiCcsError> {
+    fn output_openings(&mut self, point: &[K]) -> Result<Option<Vec<V1_2Evaluations<K>>>, neo_reductions::PiCcsError> {
         self.oracle.output_openings(point)
     }
 }

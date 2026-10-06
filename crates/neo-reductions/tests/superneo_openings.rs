@@ -1,5 +1,5 @@
 use neo_ajtai::Commitment;
-use neo_ccs::{CcsStructure, CeClaim, Mat, SparsePoly, V1_1Evaluations};
+use neo_ccs::{CcsStructure, CeClaim, Mat, SparsePoly, V1_2Evaluations};
 use neo_math::{superneo_bar_block, KExtensions, Rq, D, F, K};
 use neo_params::NeoParams;
 use neo_reductions::common::split_b_matrix_k_with_nonzero_flags;
@@ -32,7 +32,7 @@ fn matrix(values: &[F]) -> Mat<F> {
     )
 }
 
-fn direct(matrices: &[Mat<F>], values: &[F], point: &[K]) -> V1_1Evaluations<K> {
+fn direct(matrices: &[Mat<F>], values: &[F], point: &[K]) -> V1_2Evaluations<K> {
     let mut pad = vec![K::ZERO; D];
     for row in 0..values.len() {
         let mut basis = [F::ZERO; D];
@@ -67,7 +67,7 @@ fn direct(matrices: &[Mat<F>], values: &[F], point: &[K]) -> V1_1Evaluations<K> 
             output
         })
         .collect();
-    V1_1Evaluations { eval_k: pad, eval_a }
+    V1_2Evaluations { eval_k: pad, eval_a }
 }
 
 #[test]
@@ -114,7 +114,7 @@ fn real_witness_openings_match_direct_ring_rows() {
         .into_iter()
         .map(|witness| SuperneoZBlocks::from_witness_mat(witness, logical).unwrap())
         .collect::<Vec<_>>();
-    let evaluated = cache.eval_real_v1_1_openings(&point, &blocks).unwrap();
+    let evaluated = cache.eval_real_v1_2_openings(&point, &blocks).unwrap();
     let zero_values = vec![F::ZERO; width];
     for (actual, values) in evaluated
         .iter()
@@ -127,7 +127,7 @@ fn real_witness_openings_match_direct_ring_rows() {
     }
 
     let mixed = cache
-        .eval_real_v1_1_openings(&point, &[blocks[2].clone(), blocks[1].clone(), blocks[2].clone()])
+        .eval_real_v1_2_openings(&point, &[blocks[2].clone(), blocks[1].clone(), blocks[2].clone()])
         .unwrap();
     assert_eq!(mixed[1].eval_k, evaluated[1].eval_k);
     assert_eq!(mixed[1].eval_a, evaluated[1].eval_a);
@@ -137,7 +137,7 @@ fn real_witness_openings_match_direct_ring_rows() {
     }
     let dense_zero = SuperneoZBlocks::from_z(&vec![K::ZERO; width]);
     let dense_zero = cache
-        .eval_real_v1_1_openings(&point, &[dense_zero])
+        .eval_real_v1_2_openings(&point, &[dense_zero])
         .unwrap();
     assert_eq!(dense_zero[0].eval_k, evaluated[2].eval_k);
     assert_eq!(dense_zero[0].eval_a, evaluated[2].eval_a);
@@ -184,10 +184,10 @@ fn real_witness_openings_match_direct_ring_rows() {
         assert_eq!(child.eval_a, expected.eval_a.into_iter().map(pad).collect::<Vec<_>>());
     }
 
-    assert!(cache.eval_real_v1_1_openings(&point[1..], &blocks).is_err());
+    assert!(cache.eval_real_v1_2_openings(&point[1..], &blocks).is_err());
     assert!(cache
-        .eval_real_v1_1_openings(&point, &[SuperneoZBlocks::with_block_len(1)])
+        .eval_real_v1_2_openings(&point, &[SuperneoZBlocks::with_block_len(1)])
         .is_err());
     let imaginary = SuperneoZBlocks::from_z(&vec![K::from_coeffs([F::ZERO, F::ONE]); width]);
-    assert!(cache.eval_real_v1_1_openings(&point, &[imaginary]).is_err());
+    assert!(cache.eval_real_v1_2_openings(&point, &[imaginary]).is_err());
 }

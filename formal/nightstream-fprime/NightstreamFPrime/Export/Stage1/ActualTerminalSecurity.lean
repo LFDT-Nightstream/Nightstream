@@ -1,6 +1,6 @@
 import NightstreamFPrime.Export.Stage1.ActualContextSecurity
 import NightstreamFPrime.Export.Stage1.PerApplicationSecurity
-import NightstreamFPrime.Lifecycle.PiDEC.v1_1.OutputWitnessConsumer
+import NightstreamFPrime.Lifecycle.PiDEC.v1_2.OutputWitnessConsumer
 
 /-!
 Connect the arbitrary terminal opening to the authenticated NIFS inputs and
@@ -144,7 +144,7 @@ theorem terminal_implies_parentOrBaseOrCollision
       application statement payload).mp terminal with
       ⟨_valid, _pcValid, _positive, _publicLink, runningValid, freshValid⟩
     exact Or.inr (Or.inl ⟨positive, attempt, attemptEq,
-      PiDEC.v1_1.OutputWitnessConsumer.terminalHolds_extracts_parent relation ajtai
+      PiDEC.v1_2.OutputWitnessConsumer.terminalHolds_extracts_parent relation ajtai
         (input.running functionIndex) input.fresh input.nifsProof
         (payload.running functionIndex) attempt attemptEq accepted
         (payload.runningWitness functionIndex) payload.fresh payload.freshWitness

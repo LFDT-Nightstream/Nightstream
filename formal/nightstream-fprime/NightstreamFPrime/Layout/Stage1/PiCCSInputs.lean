@@ -1,6 +1,6 @@
 import Mathlib.Data.List.GetD
 import NightstreamFPrime.Layout.PilotProduction
-import NightstreamFPrime.Layout.PiCCS.v1_1.ProductionInputs
+import NightstreamFPrime.Layout.PiCCS.v1_2.ProductionInputs
 
 /-!
 Paper authority: SuperNeo v1.2, section 7.3, PiCCS input and output messages.
@@ -23,7 +23,7 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Circuit.Quadratic
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Layout.Polynomial.Horner
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
@@ -1087,7 +1087,7 @@ def externalInputsLinear
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    NightstreamFPrime.Layout.PiCCS.v1_1.ProductionInputs.ExternalInputsLinear
+    NightstreamFPrime.Layout.PiCCS.v1_2.ProductionInputs.ExternalInputsLinear
       (interface logicalWidth publicFits) phaseOffset where
   below := externalInputsBelow logicalWidth publicFits
   priorState := fun _ => R1CS.isAffine_var _

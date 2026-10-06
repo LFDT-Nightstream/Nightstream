@@ -388,7 +388,7 @@ impl NeoParams {
     ///
     /// - the one joint SumCheck degree budget;
     /// - the paper's total gamma and alpha mixing degree; and
-    /// - Appendix D.5's conservative coordinate-fork loss over `5^54`.
+    /// - SuperNeo v1.2 Appendix B.3's conservative coordinate-fork loss over `5^54`.
     pub fn goldilocks_auto_rectangular_ccs_with(
         row_count: usize,
         column_count: usize,
@@ -702,8 +702,8 @@ impl NeoParams {
 
 /// Field numerator of the one-joint PiCCS test error for explicit counts, as
 /// `(sum-check part, mixing part)`. The error is their sum over `q^s`.
-/// The mixing part is the total gamma and alpha degree of SuperNeo v1.2
-/// equation (16): `k·d·(t+1) + 2K + k - 1 + log m`.
+/// The mixing part is the total gamma and alpha degree of `ε_SZ` in SuperNeo
+/// v1.2 Appendix B.2 equation (14): `k·d·(t+1) + 2K + k - 1 + log m`.
 pub fn pi_ccs_padded_row_field_numerator(
     cube_variables: u32,
     verifier_degree: u32,

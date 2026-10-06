@@ -18,12 +18,12 @@ theorem invocationCount_eq_canonical :
 /-- The old generic R1CS templates used this many rows for the same 43 ring
 cells across all 17 sources. -/
 def genericRowCount : Nat :=
-  NightstreamFPrime.Lifecycle.PiRLC.v1_1.CombinationFamily.sourceCount * 43 *
+  NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationFamily.sourceCount * 43 *
     PiRLCCombinationInvocations.laneRowCosts.sum
 
 @[simp] theorem genericRowCount_eq : genericRowCount = 5960574 := by
   unfold genericRowCount
-  rw [NightstreamFPrime.Lifecycle.PiRLC.v1_1.CombinationFamily.sourceCount_eq,
+  rw [NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationFamily.sourceCount_eq,
     PiRLCCombinationInvocations.laneRowCosts_sum]
 
 @[simp] theorem removedRowCount_eq : genericRowCount - rowCount = 5881626 := by

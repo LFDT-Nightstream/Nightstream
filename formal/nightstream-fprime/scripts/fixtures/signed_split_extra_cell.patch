@@ -1,6 +1,6 @@
-diff --git a/formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiDEC/v1_1/SignedSplitScalar.lean b/formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiDEC/v1_1/SignedSplitScalar.lean
---- a/formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiDEC/v1_1/SignedSplitScalar.lean
-+++ b/formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiDEC/v1_1/SignedSplitScalar.lean
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiDEC/v1_2/SignedSplitScalar.lean b/formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiDEC/v1_2/SignedSplitScalar.lean
+--- a/formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiDEC/v1_2/SignedSplitScalar.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiDEC/v1_2/SignedSplitScalar.lean
 @@ -6,7 +6,8 @@
  Owns the exact signed-binary split of one PiDEC public scalar.
  

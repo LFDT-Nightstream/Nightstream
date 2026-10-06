@@ -197,4 +197,46 @@ theorem nativeEvalTriple_eq_spec {columns : Nat}
   simp only [nativeEvalTriple, SparseForm.evalSparse, List.foldl_map, value.1, value.2.1,
     value.2.2.1, value.2.2.2.1, value.2.2.2.2.1, value.2.2.2.2.2]
 
+/-- An entry of `nativeEvalTriple` whose six coefficients are canonical words. Converting
+the entries once lets every read of the same entries skip the conversions and the nested pairs. -/
+structure TripleEntry (columns : Nat) where
+  column : Fin columns
+  firstLow : { word : UInt64 // word.toNat < goldilocksModulus }
+  firstHigh : { word : UInt64 // word.toNat < goldilocksModulus }
+  secondLow : { word : UInt64 // word.toNat < goldilocksModulus }
+  secondHigh : { word : UInt64 // word.toNat < goldilocksModulus }
+  thirdLow : { word : UInt64 // word.toNat < goldilocksModulus }
+  thirdHigh : { word : UInt64 // word.toNat < goldilocksModulus }
+
+/-- The words of one entry of `nativeEvalTriple`. -/
+def TripleEntry.ofEntry {columns : Nat} (entry : Fin columns × (F × F) × (F × F) × (F × F)) :
+    TripleEntry columns :=
+  ⟨entry.1, fromF entry.2.1.1, fromF entry.2.1.2, fromF entry.2.2.1.1, fromF entry.2.2.1.2,
+    fromF entry.2.2.2.1, fromF entry.2.2.2.2⟩
+
+/-- `nativeEvalTriple` of entries converted by `TripleEntry.ofEntry`. -/
+@[specialize] def nativeEvalTripleWords {columns : Nat} (entries : Array (TripleEntry columns))
+    (read : Fin columns → F) : (F × F) × (F × F) × (F × F) :=
+  let zero := fromF 0
+  let result := entries.foldl (fun (state : TripleWords) entry =>
+    let value := fromF (read entry.column)
+    ⟨addWord state.firstLow (mulWord entry.firstLow value),
+      addWord state.firstHigh (mulWord entry.firstHigh value),
+      addWord state.secondLow (mulWord entry.secondLow value),
+      addWord state.secondHigh (mulWord entry.secondHigh value),
+      addWord state.thirdLow (mulWord entry.thirdLow value),
+      addWord state.thirdHigh (mulWord entry.thirdHigh value)⟩)
+    ⟨zero, zero, zero, zero, zero, zero⟩
+  ((toF result.firstLow, toF result.firstHigh),
+    (toF result.secondLow, toF result.secondHigh),
+    (toF result.thirdLow, toF result.thirdHigh))
+
+/-- Converting the entries first does not change the evaluation. -/
+theorem nativeEvalTripleWords_ofEntry {columns : Nat}
+    (entries : List (Fin columns × (F × F) × (F × F) × (F × F))) (read : Fin columns → F) :
+    nativeEvalTripleWords (entries.map TripleEntry.ofEntry).toArray read =
+      nativeEvalTriple entries read := by
+  simp only [nativeEvalTripleWords, nativeEvalTriple, accumulateTriple, List.foldl_toArray',
+    List.foldl_map, TripleEntry.ofEntry]
+
 end NightstreamFPrime.Export.Stage1.PiDECNativeSparseEvaluation

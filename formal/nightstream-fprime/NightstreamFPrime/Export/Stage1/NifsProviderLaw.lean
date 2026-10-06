@@ -68,7 +68,7 @@ def continuation (context : Context) (coins : PublicCoins K productionShape)
 /-- Restrict the same fixed data to receipts supported under this law.
 Only the proof argument changes; it is ignored by every data accessor. -/
 def supportedProvider (contexts : PMF Context)
-    (firstPhase : Context → InteractivePrefix.Prover State productionShape 9) :
+    (firstPhase : Context → InteractivePrefix.Prover State productionShape 8) :
     SupportedContinuation.Provider Tape relation productionAjtaiKey
       (fun context => PiCCSInputCheck.running (inputs context))
       (fun context => PiCCSInputCheck.fresh (inputs context)) contexts firstPhase :=
@@ -92,7 +92,7 @@ receipt support from positive mass and preserves the same call, tape, checks
 and clocks. It neither conditions the law nor assumes a provider agreement. -/
 theorem source_law_eq_supported_extension
     (contexts : PMF Context)
-    (originalFirstPhase : Context → InteractivePrefix.Prover State productionShape 9)
+    (originalFirstPhase : Context → InteractivePrefix.Prover State productionShape 8)
     (abortTape : Tape)
     (primitives : Primitives RingF
       (PaperAlgebra.Assignment (logicalWidth := PiDECInputCheck.logicalWidth)
@@ -125,7 +125,7 @@ theorem source_law_eq_supported_extension
 law through its exact supported-provider equality. -/
 theorem source_probability_linear_bound
     (law : PMF (Context × Option (FiatShamirTransfer.RealOutput relation)))
-    (originalFirstPhase : Context → InteractivePrefix.Prover State productionShape 9)
+    (originalFirstPhase : Context → InteractivePrefix.Prover State productionShape 8)
     (abortTape : Tape) (g : Nat → ℝ → ℝ) (deltaFS : Nat → ℝ) (Q : Nat)
     (model : FiatShamirTransfer.FiatShamirModel relation productionAjtaiKey
       (fun context => PiCCSInputCheck.running (inputs context))
@@ -157,7 +157,7 @@ theorem source_probability_linear_bound
       abortTape provider
     g Q (FiatShamirTransfer.realSuccessProbability relation productionAjtaiKey running fresh law) - deltaFS Q -
       InteractiveComposition.weakLoss relation productionAjtaiKey -
-      IndependentExecution.testError productionShape 9 -
+      IndependentExecution.testError productionShape 8 -
       AdaptiveBindingProbability.successProbability relation productionAjtaiKey program running fresh
         originalFirstPhase (SupportedExtraction.publicCheck running) extended
         (fun context => PiCCSStoredSourceProbability.sourceProgram (inputs context)

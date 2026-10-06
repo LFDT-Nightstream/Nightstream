@@ -3,7 +3,7 @@ import NightstreamFPrime.Layout.LowNormBlock
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxPlan
 
 /-!
-Owns the low-level wire operands used by a compact sparse 7-matrix program.
+Owns the low-level wire operands used by a compact sparse 4-matrix program.
 The first operand is one retained low-norm block. It carries only the data
 that determines final sparse forms: slot kind, slot count, and final-column
 start. Semantic source functions remain in Lean and are not package data.

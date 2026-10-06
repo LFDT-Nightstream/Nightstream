@@ -14,14 +14,14 @@ def decode(kind, data):
     value = json.loads(data)
     require(isinstance(value, list) and len(value) == 6, "wrong range field count")
     version, rows, first, finish, point, sources = value
-    require(version == 1 and rows == (1371020 if kind == "matrix" else 1107491), "wrong selected evaluation schema or domain")
+    require(version == 1 and rows == (1139450 if kind == "matrix" else 920516), "wrong selected evaluation schema or domain")
     require(isinstance(first, int) and isinstance(finish, int) and 0 <= first < finish <= rows,
             "invalid evaluation range")
     require(len(point) == 28 and len(sources) == 17, "wrong point or source count")
     words = list(point)
     for source in sources:
         if kind == "matrix":
-            require(len(source) == 7, "wrong matrix count")
+            require(len(source) == 4, "wrong matrix count")
             rings = source
         else:
             rings = [source]
@@ -54,7 +54,7 @@ def main():
         reference, actual = reference_path.read_bytes(), actual_path.read_bytes()
         value = compare(kind, reference, actual)
         changed = copy.deepcopy(value)
-        coefficient = changed[5][16][6][53] if kind == "matrix" else changed[5][16][53]
+        coefficient = changed[5][16][3][53] if kind == "matrix" else changed[5][16][53]
         coefficient[1] = (coefficient[1] + 1) % P
         changed_bytes = (json.dumps(changed, separators=(",", ":")) + "\n").encode()
         try:

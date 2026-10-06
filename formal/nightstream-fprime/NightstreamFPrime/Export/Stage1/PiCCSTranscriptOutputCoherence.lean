@@ -110,7 +110,7 @@ theorem physicalTranscript_source
   let selected : Fin (Data.permutationInvocations ()).length :=
     ⟨index.val, by
       rw [PoseidonRetainedBlock.data_permutationInvocations_length]
-      change index.val < 1614
+      change index.val < 1155
       omega⟩
   have same : physicalInvocation (PiCCSTranscriptOutputForms.invocation index) =
       (Data.permutationInvocations ()).get selected := by
@@ -122,7 +122,7 @@ theorem physicalTranscript_source
     have leftBound : index.val <
         PoseidonRetainedBlock.basePackage.permutationInvocations.length := by
       rw [PoseidonRetainedBlock.basePackage_permutationInvocations_length]
-      change index.val < 1614
+      change index.val < 1155
       omega
     rw [List.getElem?_eq_getElem leftBound,
       List.getElem?_eq_getElem selected.isLt] at listEq

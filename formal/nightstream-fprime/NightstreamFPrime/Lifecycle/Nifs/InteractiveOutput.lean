@@ -29,7 +29,7 @@ variable {Context State Tape : Type*} {logicalWidth : Nat}
   [DecidableEq RingF]
   [Fintype (Challenge (ProductionKey.key relation ajtai).piRlcAlgebra)]
   [Nonempty (Challenge (ProductionKey.key relation ajtai).piRlcAlgebra)]
-  (originalFirstPhase : Context → InteractivePrefix.Prover State productionShape 9)
+  (originalFirstPhase : Context → InteractivePrefix.Prover State productionShape 8)
   (publicCheck : Context → Probe K productionShape → Bool)
   (continuation : ∀ context (coins : PublicCoins K productionShape)
     (output : FullOutputCoordinates.FullOutput K productionShape), State →
@@ -64,7 +64,7 @@ theorem finish_value_eq (context : Context) (probe : Probe K productionShape)
       ((WeakExtraction.consume relation ajtai program endpoint).map fun witness => (probe, witness))).value := rfl
 
 variable
-  (sourceCorrect : ∀ context, CheckedWitnessExtraction.Correct (width := 9)
+  (sourceCorrect : ∀ context, CheckedWitnessExtraction.Correct (width := 8)
     (sourceProgram context) (PaperAlgebra.openingMaps ajtai).commit productionGlobalParams
     ((ProductionKey.key relation ajtai).statement (running context) (fresh context)))
 

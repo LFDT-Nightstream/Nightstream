@@ -10,7 +10,7 @@ import NightstreamFPrime.Export.MatrixProgram.Program
 Owns the verifier-owned canonical package for one Lean-authored application.
 
 The physical row program comes from `PerApplicationPackage`. Its `relation`
-field is replaced with the exact dimensions of the self-derived 7-matrix
+field is replaced with the exact dimensions of the self-derived 4-matrix
 plan. The package identity and verifier context are then recomputed from this
 canonical package, the exact application plan, and the actual Ajtai key.
 
@@ -64,7 +64,7 @@ def recursiveRelation (program : Program) (fits : FitsTwoPow28 program) :
     Lifecycle.cubeVariables
 
 def directStructuralRowCount (program : Program) : Nat :=
-  1365527 + (PerApplicationPackage.directApplicationPlan program).rowCount + 9
+  1133957 + (PerApplicationPackage.directApplicationPlan program).rowCount + 9
 
 theorem directStructuralRowCount_eq
     (program : Program) (fits : FitsTwoPow28 program) :
@@ -75,7 +75,7 @@ theorem directStructuralRowCount_eq
     PerApplicationFixedPoint.structuralPlan_rowCount]
 
 def directLogicalWidth (program : Program) : Nat :=
-  59579666 +
+  49483006 +
     (program.witnessWordCount + ApplicationRetainedBlocks.localCount program) * 41
 
 theorem directLogicalWidth_eq (program : Program) :
@@ -285,7 +285,7 @@ def logicalPublicInputCount : Nat := ProductionAssignment.publicWidth
 def sealedPackageSchema : Nat := 6
 
 /-- One prefix-free authority value that carries the physical circuit package,
-the exact compact 7-matrix program, the exact Lean-authored application plan,
+the exact compact 4-matrix program, the exact Lean-authored application plan,
 the retained-assignment transport plan, the exact NextPreimage row owner, and
 the recursive public prefix length. Rust must decode these children; it must
 not reconstruct relation, assignment, or application layout. -/

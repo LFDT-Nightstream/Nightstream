@@ -199,7 +199,7 @@ fn check_positive_opening(sources: OpeningSources) {
                 .expect("family K or A0..A13")
                 .parse()
                 .expect("matrix index");
-            assert!(matrix < 7);
+            assert!(matrix < 4);
             Some(matrix)
         };
     let bytes = fs::read(&paths.package).expect("Lean canonical package");
@@ -220,7 +220,7 @@ fn check_positive_opening(sources: OpeningSources) {
     assert_eq!(metadata[2], json!(context));
     assert_eq!(metadata[3], json!(logical_width));
     assert_eq!(metadata[5], json!(row_count));
-    assert_eq!(metadata[6], 7);
+    assert_eq!(metadata[6], 4);
     assert_eq!(metadata[7], 28);
     assert_eq!(metadata[9], input[2], "same public projection");
     assert_eq!(
@@ -399,7 +399,7 @@ fn check_positive_opening(sources: OpeningSources) {
             signs.is_none(),
             "ALL checks the fresh source; distinct running openings keep their own gate"
         );
-        for selected in std::iter::once(None).chain((0..7).map(Some)) {
+        for selected in std::iter::once(None).chain((0..4).map(Some)) {
             let name = selected.map_or_else(|| "K".to_owned(), |matrix| format!("A{matrix}"));
             let expected: Ring = extension_array(match selected {
                 None => &input[4][0],

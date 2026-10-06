@@ -1,7 +1,7 @@
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
 
 /-!
-Owns theorem-only conformance evidence for the final 7-matrix
+Owns theorem-only conformance evidence for the final 4-matrix
 `Poseidon2HashChainV1` logical relation. The evidence connects the compact
 program carried by the sealed package to the exact structural plan and proves
 the complete Boolean-domain padding suffix is zero.
@@ -66,7 +66,7 @@ theorem compactProgram_row?_eq_structuralPlan_forms
     Poseidon2HashChainV1Package.application
     Poseidon2HashChainV1Package.fits row
 
-/-- Every one of the 7 structural-plan ports supplies the corresponding
+/-- Every one of the 4 structural-plan ports supplies the corresponding
 coefficient of the final key-facing logical relation at the canonical active
 row vertex. -/
 theorem allPort_coefficient_eq_logicalRelation_matrix

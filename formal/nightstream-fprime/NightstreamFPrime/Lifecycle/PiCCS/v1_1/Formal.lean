@@ -638,7 +638,7 @@ def initialClaimCircuit {logicalWidth degreeBound : Nat}
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
-    (InitialClaim.circuit (initialClaimInterface interface)) 20733 20733
+    (InitialClaim.circuit (initialClaimInterface interface)) 12957 12957
     (InitialClaim.localLength_eq (initialClaimInterface interface))
     (InitialClaim.flatConstraints_length (initialClaimInterface interface))
 
@@ -703,7 +703,7 @@ def finalIdentityCircuit {logicalWidth degreeBound : Nat}
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
     (FinalIdentity.circuit (finalIdentityInterface relation interface))
-      FinalIdentity.privateCount 2728
+      FinalIdentity.privateCount 2719
     (FinalIdentity.localLength_eq (finalIdentityInterface relation interface))
     (FinalIdentity.flatConstraints_length (finalIdentityInterface relation interface))
 
@@ -712,7 +712,7 @@ def outputBindingCircuit {logicalWidth degreeBound : Nat}
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
-    (OutputBinding.circuit (outputBindingInterface interface)) 1342600 1342600
+    (OutputBinding.circuit (outputBindingInterface interface)) 839536 839536
     (OutputBinding.localLength_eq (outputBindingInterface interface))
     (OutputBinding.flatConstraints_length (outputBindingInterface interface))
 

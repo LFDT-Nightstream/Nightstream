@@ -7,7 +7,7 @@ import NightstreamFPrime.Layout.ProductionRelation.SourceCompiler
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
-Owns the direct 7-matrix plan for the canonical PiRLC Phi81 product
+Owns the direct 4-matrix plan for the canonical PiRLC Phi81 product
 invocations of one Lean-authored application package.
 
 The plan is parameterized only by a proved source map into the final low-norm
@@ -33,7 +33,7 @@ def baseSourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   (PerApplicationPackage.package program).layout.totalColumnCount
 
 def directBaseSourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  14761727 + PerApplicationPackage.directAddedPrivateColumnCount program
+  12443217 + PerApplicationPackage.directAddedPrivateColumnCount program
 
 theorem directBaseSourceWidth_eq_baseSourceWidth
     (program : Lifecycle.Stage1.Application.Program) :
@@ -53,23 +53,23 @@ def sourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
     PiRLCProductSchedule.invocationCount
 
 private theorem basePackage_constantColumn :
-    basePackage.layout.constantColumn = 14761448 := by
+    basePackage.layout.constantColumn = 12442938 := by
   exact NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
 
 private theorem commitmentLogicalStart_eq :
-    PiRLCStarts.commitmentLogicalStart = 8761280 := by
+    PiRLCStarts.commitmentLogicalStart = 7279662 := by
   rfl
 
 private theorem publicInputLogicalStart_eq :
-    PiRLCStarts.publicInputLogicalStart = 8781476 := by
+    PiRLCStarts.publicInputLogicalStart = 7299858 := by
   rfl
 
 private theorem evalKLogicalStart_eq :
-    PiRLCStarts.evalKLogicalStart = 8786066 := by
+    PiRLCStarts.evalKLogicalStart = 7304448 := by
   rfl
 
 private theorem evalALogicalStart_eq :
-    PiRLCStarts.evalALogicalStart = 8787902 := by
+    PiRLCStarts.evalALogicalStart = 7306284 := by
   rfl
 
 theorem basePackage_fits (program : Lifecycle.Stage1.Application.Program) :
@@ -79,10 +79,10 @@ theorem basePackage_fits (program : Lifecycle.Stage1.Application.Program) :
     PerApplicationPackage.basePackage.layout.totalColumnCount +
       PerApplicationPackage.addedPrivateColumnCount program
   have constant :
-      PerApplicationPackage.basePackage.layout.constantColumn = 14761448 :=
+      PerApplicationPackage.basePackage.layout.constantColumn = 12442938 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
   have total :
-      PerApplicationPackage.basePackage.layout.totalColumnCount = 14761727 :=
+      PerApplicationPackage.basePackage.layout.totalColumnCount = 12443217 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
   rw [constant, total]
   omega
@@ -96,7 +96,7 @@ theorem shiftColumn_lt_baseSourceWidth
   rw [baseSourceWidth, PerApplicationPackage.package_totalColumnCount]
   change column < PerApplicationPackage.basePackage.layout.totalColumnCount at bound
   have total :
-      PerApplicationPackage.basePackage.layout.totalColumnCount = 14761727 :=
+      PerApplicationPackage.basePackage.layout.totalColumnCount = 12443217 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
   rw [total] at bound ⊢
   unfold PerApplicationPackage.shiftColumn
@@ -118,7 +118,7 @@ theorem sourceToSpartan_lt_basePackage (column : Nat)
     rw [Spartan.sourceColumnCount_eq]
     omega
   have mapped := Spartan.sourceToSpartan_lt column sourceBound
-  have total : basePackage.layout.totalColumnCount = 14761727 := by
+  have total : basePackage.layout.totalColumnCount = 12443217 := by
     exact NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
   simpa only [total, Spartan.spartanColumnCount_eq] using mapped
 
@@ -429,7 +429,7 @@ def plan {program : Lifecycle.Stage1.Application.Program}
 
 @[simp] theorem plan_rowCount {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (inputs : Inputs program logicalWidth) :
-    (plan inputs).rowCount = 78948 := by
+    (plan inputs).rowCount = 67932 := by
   rw [plan, Phi81ProductFamilyPlan.plan_rowCount,
     PiRLCProductRingSchedule.invocationCount_eq]
 
@@ -571,7 +571,7 @@ theorem rowsZero_implies_equation
           (PiRLCProductSchedule.descriptor invocation).lane := by
   let ring := PiRLCProductRingSchedule.ringInvocation invocation
   have equation := Phi81ProductFamilyPlan.planRowsZero_implies_ringProduct
-    (interface inputs) rowCount_le assignment one rowsZero ring
+    (interface inputs) rowCount_le assignment rowsZero ring
   have coefficient := congrFun equation
     (PiRLCProductSchedule.descriptor invocation).lane
   change (outputForm inputs (PiRLCProductRingSchedule.laneInvocation ring
@@ -691,7 +691,7 @@ theorem sourceConstraints_imply_rowsZero
         (baseEnv program base) = 0) :
     (plan inputs).RowsZero assignment := by
   apply (Phi81ProductFamilyPlan.planRowsZero_iff
-    (interface inputs) rowCount_le assignment one).mpr
+    (interface inputs) rowCount_le assignment).mpr
   intro ring
   let current := Phi81ProductFamilyPlan.ringInterface (interface inputs) ring
   let left := Phi81ProductPlan.evalState assignment current.left

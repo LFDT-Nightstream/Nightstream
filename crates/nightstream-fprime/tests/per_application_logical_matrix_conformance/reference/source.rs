@@ -248,7 +248,7 @@ fn validate_profile(raw: RawProfile) -> Result<()> {
     let RawProfile(modulus, base, digits, bound, fresh, running, rlc, children, matrices, cube) = raw;
     if (
         modulus, base, digits, bound, fresh, running, rlc, children, matrices, cube,
-    ) != (GOLDILOCKS_MODULUS, 2, 16, 65_536, 1, 16, 17, 16, 7, 28)
+    ) != (GOLDILOCKS_MODULUS, 2, 16, 65_536, 1, 16, 17, 16, 4, 28)
     {
         return Err("unexpected independent production profile".into());
     }
@@ -321,7 +321,7 @@ fn decode_segments(raw: Vec<RawSegment>, first: usize, expected_end: usize) -> R
 
 fn decode_relation(raw: RawRelation) -> Result<(usize, usize, usize)> {
     let RawRelation(rows, columns, cube, sources, degree, _) = raw;
-    if sources.len() != 7 || !sources.iter().copied().eq(0u64..7) || degree == 0 {
+    if sources.len() != 4 || !sources.iter().copied().eq(0u64..4) || degree == 0 {
         return Err("invalid independent logical relation header".into());
     }
     Ok((

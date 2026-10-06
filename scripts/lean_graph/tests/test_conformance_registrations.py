@@ -47,7 +47,7 @@ class ConformanceRegistrationTests(unittest.TestCase):
             with self.assertRaises(EvidenceError):
                 completion(passed.replace('"round": 1,', f'"round": {wrong_round},'),
                            positive["completion"])
-        rejected = "piccs_round_mutation=rejected round=1 coefficient=9 component=0"
+        rejected = "piccs_round_mutation=rejected round=1 coefficient=8 component=0"
         completion(rejected, negative["completion"])
         with self.assertRaises(EvidenceError):
             completion(rejected.replace("round=1", "round=0"), negative["completion"])

@@ -22,7 +22,7 @@ open PiRLCPoseidonGeometry
 
 def invocationCount : Nat := PoseidonRetainedBlock.priorInvocationCount
 
-@[simp] theorem invocationCount_eq : invocationCount = 3110 := by
+@[simp] theorem invocationCount_eq : invocationCount = 2678 := by
   exact PoseidonRetainedBlock.priorInvocationCount_eq
 
 def priorSchedule (program : Lifecycle.Stage1.Application.Program) :
@@ -166,7 +166,7 @@ def plan {program : Lifecycle.Stage1.Application.Program}
 
 @[simp] theorem plan_rowCount {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
-    (plan geometry).rowCount = 933000 := by
+    (plan geometry).rowCount = 803400 := by
   simp [plan, priorPlan, outputPlan, invocationCount_eq]
 
 theorem rowsZero_iff {program : Lifecycle.Stage1.Application.Program}
@@ -218,7 +218,6 @@ theorem equations_imply_rowsZero
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
-    (one : assignment (oneColumn geometry) = 1)
     (priorSboxes : ∀ invocation,
       PoseidonSboxPlan.SboxEquations
         (PoseidonSboxFamilyPlan.invocationInterface
@@ -231,7 +230,7 @@ theorem equations_imply_rowsZero
   apply (rowsZero_iff geometry assignment).mpr
   constructor
   · apply PoseidonSboxFamilyPlan.equations_imply_planRowsZero
-      (priorInterface geometry) familyRowCount_le assignment one
+      (priorInterface geometry) familyRowCount_le assignment
     intro invocation
     refine ⟨priorSboxes invocation, ?_⟩
     exact PoseidonRetainedFamily.outputEquations
@@ -240,7 +239,7 @@ theorem equations_imply_rowsZero
       (PiRLCRetainedGeometry.priorPoseidonFits (prefixGeometry geometry))
       (oneColumn geometry) (priorInputState geometry) assignment invocation
   · apply PoseidonSboxFamilyPlan.equations_imply_planRowsZero
-      (outputInterface geometry) familyRowCount_le assignment one
+      (outputInterface geometry) familyRowCount_le assignment
     intro invocation
     refine ⟨outputSboxes invocation, ?_⟩
     exact PoseidonRetainedFamily.outputEquations

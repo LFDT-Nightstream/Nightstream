@@ -34,13 +34,13 @@ R vector, with all child openings derived and the same source order retained. -/
 theorem exists_honest_execution
     (valid : SourceHolds extensionOps K.embed (PaperAlgebra.openingMaps ajtai) productionGlobalParams
       ((ProductionKey.key relation ajtai).statement running fresh) witness) :
-    ∃ prover : CausalExecution.Prover productionShape (Phi81CarrierLayout.carrierWidth logicalWidth) 9,
+    ∃ prover : CausalExecution.Prover productionShape (Phi81CarrierLayout.carrierWidth logicalWidth) 8,
       ∀ (alpha : CubePoint K productionShape.cubeVariables) (gamma : K)
         (point : CubePoint K productionShape.cubeVariables),
         ∃ probe : Probe K productionShape,
           CausalExecution.run prover alpha gamma point = some (probe, witness) ∧
           probe.FixedWidthAccepted extensionOps K.embed
-            ((ProductionKey.key relation ajtai).statement running fresh) 9 ∧
+            ((ProductionKey.key relation ajtai).statement running fresh) 8 ∧
           ∀ vector : Fin (ProductionKey.key relation ajtai).arity.total →
               Challenge (ProductionKey.key relation ajtai).piRlcAlgebra,
             let key := ProductionKey.key relation ajtai

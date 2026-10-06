@@ -73,7 +73,7 @@ class LeanMutationGenerationTests(unittest.TestCase):
         children[4][0].pop()
         self.children.write_text(mutations.numeric_json(children))
         output = self.directory / "invalid"
-        with self.assertRaisesRegex(ValueError, "expected vector width 7"):
+        with self.assertRaisesRegex(ValueError, "expected vector width 4"):
             mutations.generate(self.ccs, self.children, output)
         self.assertFalse(output.exists())
 

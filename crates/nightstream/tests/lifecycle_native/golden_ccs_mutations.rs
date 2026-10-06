@@ -35,7 +35,7 @@ pub fn check_proof_mutations(
         assert!(!matches!(optimized, Ok((true, _))), "optimized accepted {label}");
     };
     assert_eq!(proof.sumcheck_rounds.len(), 28);
-    assert!(proof.sumcheck_rounds.iter().all(|round| round.len() == 10));
+    assert!(proof.sumcheck_rounds.iter().all(|round| round.len() == 9));
     let mut changed = proof.clone();
     changed.sumcheck_rounds.pop();
     rejects(&changed, "missing round");

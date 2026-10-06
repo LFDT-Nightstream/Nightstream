@@ -1,4 +1,4 @@
-//! Generic execution of the Lean-authored compact 7-matrix program.
+//! Generic execution of the Lean-authored compact 4-matrix program.
 //!
 //! This module owns wire decoding and row interpretation. It does not select
 //! phases, applications, row schedules, or matrix formulas.
@@ -33,7 +33,7 @@ mod shared_formula_rows_tests;
 
 use affine::{AffineProgram, Coordinate};
 
-pub(super) const MEANINGFUL_PORTS: usize = 7;
+pub(super) const MEANINGFUL_PORTS: usize = 4;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct Entry {
@@ -580,14 +580,13 @@ impl OrdinaryBlock {
             .ok_or(PackageError::Invalid("ordinary row ordinal"))?;
         let source = self.projection.row(&source_row(source_index)?)?;
         let mut row = empty_row();
-        row[1] = Form::singleton(self.one_column, Goldilocks::ONE);
-        row[2] = self
+        row[0] = self
             .substitution
             .compile_combination(logical_width, self.one_column, &source.a)?;
-        row[3] = self
+        row[1] = self
             .substitution
             .compile_combination(logical_width, self.one_column, &source.b)?;
-        row[4] = self
+        row[2] = self
             .substitution
             .compile_combination(logical_width, self.one_column, &source.c)?;
         Ok(row)
@@ -596,23 +595,17 @@ impl OrdinaryBlock {
 
 #[derive(Clone, Debug)]
 struct PinBlock {
-    one_column: usize,
     values: Vec<Form>,
 }
 
 impl PinBlock {
     fn decode(value: &Value) -> Result<Self, PackageError> {
-        let fields = exact_array(value, 2, "pin matrix block")?;
         Ok(Self {
-            one_column: usize_atom(&fields[0], "pin one column")?,
-            values: decode_list(&fields[1], decode_form)?,
+            values: decode_list(value, decode_form)?,
         })
     }
 
     fn row(&self, logical_width: usize, ordinal: usize) -> Result<RowForms, PackageError> {
-        if self.one_column >= logical_width {
-            return Err(PackageError::Invalid("pin one column"));
-        }
         let value = self
             .values
             .get(ordinal)
@@ -620,8 +613,7 @@ impl PinBlock {
             .clone();
         validate_form(&value, logical_width)?;
         let mut row = empty_row();
-        row[1] = Form::singleton(self.one_column, Goldilocks::ONE);
-        row[4] = value;
+        row[2] = value;
         Ok(row)
     }
 }
@@ -693,12 +685,11 @@ impl MultiplicationBlock {
         }
         let coordinate = self.shape.coordinate(ordinal)?;
         let mut row = empty_row();
-        row[1] = Form::singleton(self.one_column, Goldilocks::ONE);
-        row[2] = self.left.form(logical_width, self.one_column, coordinate)?;
-        row[3] = self
+        row[0] = self.left.form(logical_width, self.one_column, coordinate)?;
+        row[1] = self
             .right
             .form(logical_width, self.one_column, coordinate)?;
-        row[4] = self
+        row[2] = self
             .output
             .form(logical_width, self.one_column, coordinate)?;
         Ok(row)

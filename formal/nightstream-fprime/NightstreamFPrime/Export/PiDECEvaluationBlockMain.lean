@@ -105,7 +105,7 @@ private def measure (parentPath outputPath : System.FilePath) : IO UInt32 := do
   return 0
 
 /-- Process every Pad row of actual block zero with the point derived by C.
-Output: [1,totalBlocks,block,rowCount,point[28][2],pad[16][54][2]].
+Output: [1,totalBlocks,block,rowCount,point[27][2],pad[16][54][2]].
 This is one complete block contribution, not the full Pad evaluation. -/
 private def measurePad (ccsPath parentPath outputPath : System.FilePath) : IO UInt32 := do
   unless !(← outputPath.pathExists) do throw (IO.userError "output already exists")

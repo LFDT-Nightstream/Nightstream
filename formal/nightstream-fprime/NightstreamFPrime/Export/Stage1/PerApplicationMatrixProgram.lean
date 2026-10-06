@@ -120,7 +120,7 @@ def blockProgram (application : ApplicationProgram) :
   | .recursivePublicOutput => recursivePublicOutputProgram application
 
 theorem blockProgram_rowCount (application : ApplicationProgram)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (kind : PerApplicationProductionPlan.BlockKind) :
     (blockProgram application kind).rowCount =
       (kind.plan application fits).rowCount := by
@@ -231,7 +231,7 @@ theorem matrixProgram_blocks (application : ApplicationProgram) :
 
 @[simp] theorem matrixProgram_rowCount (application : ApplicationProgram) :
     (matrixProgram application).rowCount =
-      1365527 + (PerApplicationPackage.applicationPlan application).rowCount +
+      1363896 + (PerApplicationPackage.applicationPlan application).rowCount +
         9 := by
   simp [matrixProgram, throughNextPreimageProgram, applicationCompleteProgram,
     runningCompleteProgram,
@@ -248,7 +248,7 @@ theorem matrixProgram_blocks (application : ApplicationProgram) :
 
 theorem matrixProgram_rowCount_eq_structuralPlan
     (application : ApplicationProgram)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application) :
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application) :
     (matrixProgram application).rowCount =
       (PerApplicationFixedPoint.structuralPlan application fits).rowCount := by
   rw [matrixProgram_rowCount,

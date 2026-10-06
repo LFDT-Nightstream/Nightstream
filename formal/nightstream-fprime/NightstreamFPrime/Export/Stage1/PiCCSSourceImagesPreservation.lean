@@ -111,7 +111,7 @@ private theorem numericRow_of_plan {columns : Nat}
 
 private theorem canonical_numericRow
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (read : Fin (PerApplicationFixedPoint.logicalWidth application) → F)
     (row : Fin (PerApplicationFixedPoint.structuralPlan application fits).rowCount)
     (matrix : Fin Spec.ProductionRelation.matrixCount) :

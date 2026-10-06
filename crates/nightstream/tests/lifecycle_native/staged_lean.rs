@@ -30,7 +30,7 @@ fn public_words(value: &Mat<F>) -> Vec<u64> {
 fn claim_value(claim: &CeClaim, combined: bool) -> Value {
     assert_eq!((claim.c.d, claim.c.kappa, claim.m_in), (D, 22, 270));
     assert_eq!(claim.c.data.len(), 22 * D);
-    assert_eq!(claim.r.len(), 28);
+    assert_eq!(claim.r.len(), 27);
     assert_eq!(claim.eval_k.len(), D.next_power_of_two());
     assert_eq!(claim.eval_a.len(), 7);
     assert!(claim.adv.is_none());
@@ -74,7 +74,7 @@ fn ccs_input(fresh: &CcsClaim, running: &[CeClaim], proof: &pi_ccs::Proof) -> Va
     assert_eq!(fresh.c.data.len(), 22 * D);
     assert_eq!(fresh.x.len(), 270);
     assert!(fresh.adv.is_none());
-    assert_eq!(proof.sumcheck.sumcheck_rounds.len(), 28);
+    assert_eq!(proof.sumcheck.sumcheck_rounds.len(), 27);
     assert!(proof
         .sumcheck
         .sumcheck_rounds

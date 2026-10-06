@@ -21,7 +21,7 @@ def sourceRow (application : ApplicationProgram) : Nat → Option R1CS.Row :=
 
 theorem runningTransitionSourceRow?_eq_some
     (application : ApplicationProgram)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (index : Fin (RunningTransitionDirectSource.program
       (PerApplicationMatrixProgramSemantics.relation application fits)).rowCount) :
     sourceRow application (RunningTransitionArithmetic.rowStart + index.val) =
@@ -83,7 +83,7 @@ theorem runningTransitionSourceRow?_eq_some
 
 theorem applicationSourceRow?_eq_some
     (application : ApplicationProgram)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (index : Fin (ApplicationDirectSource.program application
       fits.package).rowCount) :
     sourceRow application
@@ -148,7 +148,7 @@ theorem nextPreimageSourceRow?_eq_some
       application) index
 
 theorem custody (application : ApplicationProgram)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application) :
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application) :
     PerApplicationMatrixProgramSemantics.SourceCustody application fits
       (sourceRow application) := by
   let relation := PerApplicationMatrixProgramSemantics.relation application fits

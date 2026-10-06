@@ -112,7 +112,7 @@ private theorem readout_eq_target
   apply PiCCSTranscriptReadout.env_eq_of_invocations target
   intro index
   let selected : InvocationIndex := ⟨index.val, by
-    have bounded : index.val < 355 := by
+    have bounded : index.val < 347 := by
       simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq] using index.isLt
     rw [PiCCSPoseidonPlan.invocationCount_eq]
     omega⟩

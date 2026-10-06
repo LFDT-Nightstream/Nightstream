@@ -27,7 +27,7 @@ def inputEnv (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalW
 private theorem prior_input_lift (index : Fin Data.priorChain.inputLength) :
     Spartan.sourceToSpartan (PilotProduction.priorPreimageStart + index.val) =
       Spartan.liftPilotColumn (PilotData.priorChain.inputStart + index.val) := by
-  have bound : index.val < 37297 := index.isLt
+  have bound : index.val < 37295 := index.isLt
   unfold Spartan.sourceToSpartan
   rw [if_pos (by
     norm_num [PilotProduction.priorPreimageStart, Spartan.pilotSourceColumnCount]
@@ -43,17 +43,17 @@ private theorem prior_input_lift (index : Fin Data.priorChain.inputLength) :
 private theorem output_input_lift (index : Fin Data.outputChain.inputLength) :
     Spartan.sourceToSpartan (PilotProduction.outputPreimageStart + index.val) =
       Spartan.liftPilotColumn (PilotData.outputChain.inputStart + index.val) := by
-  have bound : index.val < 37297 := index.isLt
+  have bound : index.val < 37295 := index.isLt
   unfold Spartan.sourceToSpartan
   rw [if_pos (by
-    change 37567 + index.val < 6892396
+    change 37565 + index.val < 6890200
     omega)]
   apply congrArg Spartan.liftPilotColumn
   unfold PilotSpartan.sourceToSpartan
-  rw [if_neg (by change ¬37567 + index.val < 37297; omega)]
-  rw [if_neg (by change ¬37567 + index.val < 37567; omega)]
-  rw [if_pos (by change 37567 + index.val < 74864; omega)]
-  change 37297 + ((37567 + index.val) - 37567) = 37297 + index.val
+  rw [if_neg (by change ¬37565 + index.val < 37295; omega)]
+  rw [if_neg (by change ¬37565 + index.val < 37565; omega)]
+  rw [if_pos (by change 37565 + index.val < 74860; omega)]
+  change 37295 + ((37565 + index.val) - 37565) = 37295 + index.val
   omega
 
 /-- Every prior-hash input is the actual PiCCS decoded preimage word. -/

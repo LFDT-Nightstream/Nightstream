@@ -36,7 +36,7 @@ def running(value):
     if type(value) is not list or len(value) != 5:
         raise ValueError("expected five running-claim fields")
     for item, shape in zip(value, (
-        (28, 2), (CHILDREN, 22 * DEGREE), (CHILDREN, 270),
+        (27, 2), (CHILDREN, 22 * DEGREE), (CHILDREN, 270),
         (CHILDREN, DEGREE, 2), (CHILDREN, MATRICES, DEGREE, 2),
     )):
         vector(item, shape)
@@ -56,7 +56,7 @@ def generate(input_path, children_path, output):
     if type(ccs) is not list or len(ccs) != 7 or type(ccs[0]) is not int or ccs[0] != 2:
         raise ValueError("expected PiCCS input schema 2")
     for item, shape in zip(ccs[1:6], (
-        (22 * DEGREE,), (270,), (28, 10, 2),
+        (22 * DEGREE,), (270,), (27, 10, 2),
         (CHILDREN + 1, DEGREE, 2), (CHILDREN + 1, MATRICES, DEGREE, 2),
     )):
         vector(item, shape)

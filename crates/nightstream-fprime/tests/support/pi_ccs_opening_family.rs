@@ -32,7 +32,7 @@ pub fn evaluate_family(
             let artifact = SourcePackage::decode(bytes).expect("independent canonical Lean decoder");
             assert_eq!(
                 (artifact.logical_rows, artifact.logical_columns, artifact.cube_variables),
-                (row_count, logical_width, 28)
+                (row_count, logical_width, 27)
             );
             let program = MatrixProgram::decode(&artifact.matrix_program, &artifact.sources, logical_width, row_count)
                 .expect("independent canonical matrix program");

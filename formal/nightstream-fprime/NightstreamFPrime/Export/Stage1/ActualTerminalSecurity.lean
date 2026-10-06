@@ -29,7 +29,7 @@ output. The base branch performs no NIFS call. No input-authentication or
 output-match premise is added at this boundary. -/
 theorem terminal_implies_nifsOrBaseOrCollision
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (commitmentSetup : PerApplicationCanonicalPackage.CommitmentSetup application)
     (statement : TerminalStatement AppState) (payload : TerminalPayload application)
     (terminal : Stage1.Terminal.HoldsFor (PerApplicationFixedPoint.relation application fits)
@@ -100,7 +100,7 @@ valid recomposed PiDEC parent of the decoded recursive proof, or exhibits the
 named state-hash collision. No output-match or child-opening premise is added. -/
 theorem terminal_implies_parentOrBaseOrCollision
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (commitmentSetup : PerApplicationCanonicalPackage.CommitmentSetup application)
     (statement : TerminalStatement AppState) (payload : TerminalPayload application)
     (terminal : Stage1.Terminal.HoldsFor (PerApplicationFixedPoint.relation application fits)
@@ -156,7 +156,7 @@ result on the actual decoded input and proof. Its cryptographic failure
 events retain their existing meaning; this is a deterministic connection. -/
 theorem terminal_implies_securityOrCollision
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (commitmentSetup : PerApplicationCanonicalPackage.CommitmentSetup application)
     (statement : TerminalStatement AppState) (payload : TerminalPayload application)
     (terminal : Stage1.Terminal.HoldsFor (PerApplicationFixedPoint.relation application fits)

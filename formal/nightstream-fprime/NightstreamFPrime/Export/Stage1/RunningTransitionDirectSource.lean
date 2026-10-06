@@ -37,7 +37,7 @@ theorem sourceRows_length
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (sourceRows logicalWidth publicFits).length = 37263 := by
+    (sourceRows logicalWidth publicFits).length = 37261 := by
   rw [sourceRows, Spartan.remapRows, List.length_map,
     RunningTransitionLayout.physicalRows_length,
     RunningTransitionLayout.physicalRowCount_eq relation]
@@ -86,7 +86,7 @@ def program
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (program relation).rowCount = 37263 := by
+    (program relation).rowCount = 37261 := by
   exact sourceRows_length relation
 
 /-- The indexed transition program depends on relation shape only. Matrix

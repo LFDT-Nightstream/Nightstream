@@ -92,8 +92,8 @@ private theorem carrier_pairs_le_domain :
     PiCCSSourceImages.blockCount * PairCount ≤ 2 ^ (cubeVariables - 1) := by
   have covered := (canonicalLayout ()).columns_le
   rw [carrier_pairs] at covered
-  change 2 * (PiCCSSourceImages.blockCount * PairCount) ≤ 2 ^ 28 at covered
-  change PiCCSSourceImages.blockCount * PairCount ≤ 2 ^ 27
+  change 2 * (PiCCSSourceImages.blockCount * PairCount) ≤ 2 ^ 27 at covered
+  change PiCCSSourceImages.blockCount * PairCount ≤ 2 ^ 26
   omega
 
 private theorem numericPairNorm_padding

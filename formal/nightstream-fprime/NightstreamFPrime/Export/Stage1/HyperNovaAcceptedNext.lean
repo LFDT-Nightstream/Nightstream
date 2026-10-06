@@ -42,7 +42,7 @@ private theorem completeAssignment_eq_extend {program : Program} (raw : RawValue
       Phi81CarrierLayout.logicalColumn?, dif_neg below]
 
 theorem freshHolds_of_rows
-    (program : Program) (fit : PerApplicationFixedPoint.FitsTwoPow28 program)
+    (program : Program) (fit : PerApplicationFixedPoint.FitsTwoPow27 program)
     (ajtai : AjtaiKey (logicalWidth := PerApplicationFixedPoint.logicalWidth program)
       (publicFits := PerApplicationFixedPoint.publicFits program))
     (raw : RawValues program)
@@ -75,7 +75,7 @@ theorem freshHolds_of_rows
           publicInputs := fun _ => encHash raw.outputDigest }) assignment) completed) member
 
 theorem terminal_of_memberships
-    (program : Program) (fit : PerApplicationFixedPoint.FitsTwoPow28 program)
+    (program : Program) (fit : PerApplicationFixedPoint.FitsTwoPow27 program)
     (commitmentSetup : PerApplicationCanonicalPackage.CommitmentSetup program)
     (statement : TerminalStatement AppState)
     (running : Running (logicalWidth := PerApplicationFixedPoint.logicalWidth program)

@@ -58,7 +58,7 @@ fn independent_phi81_product_and_dual_basis_cover_all_basis_pairs() {
 
 #[test]
 fn independent_tensor_preserves_every_point_coordinate_and_split_boundary() {
-    let point: Vec<_> = (0..28)
+    let point: Vec<_> = (0..27)
         .map(|index| Extension::checked([index + 2, index + 11]).unwrap())
         .collect();
     let tensor = EqualityTensor::new(&point);
@@ -79,7 +79,7 @@ fn independent_tensor_preserves_every_point_coordinate_and_split_boundary() {
                         coordinate
                     }
             });
-        assert_eq!(tensor.at(row), expected, "complete 28-variable weight at row {row}");
+        assert_eq!(tensor.at(row), expected, "complete 27-variable weight at row {row}");
     }
 }
 
@@ -211,7 +211,7 @@ fn check_positive_opening(sources: OpeningSources) {
         .expect("selected binding")
         .verifier_context()
         .digest();
-    assert_eq!(package.ccs_relation().cube_variables(), 28);
+    assert_eq!(package.ccs_relation().cube_variables(), 27);
     let metadata = read_json(&paths.cache.join("opening.json"));
     let input = read_json(&paths.phase_input);
     let lean = read_json(&paths.lean_result);
@@ -221,7 +221,7 @@ fn check_positive_opening(sources: OpeningSources) {
     assert_eq!(metadata[3], json!(logical_width));
     assert_eq!(metadata[5], json!(row_count));
     assert_eq!(metadata[6], MATRIX_COUNT);
-    assert_eq!(metadata[7], 28);
+    assert_eq!(metadata[7], 27);
     assert_eq!(metadata[9], input[2], "same public projection");
     assert_eq!(
         metadata[10], input[1],
@@ -333,7 +333,7 @@ fn check_positive_opening(sources: OpeningSources) {
         let artifact = SourcePackage::decode(&bytes).expect("independent canonical Lean decoder");
         assert_eq!(
             (artifact.logical_rows, artifact.logical_columns, artifact.cube_variables),
-            (row_count, logical_width, 28)
+            (row_count, logical_width, 27)
         );
         let program = MatrixProgram::decode(&artifact.matrix_program, &artifact.sources, logical_width, row_count)
             .expect("independent canonical matrix program");
@@ -380,7 +380,7 @@ fn check_positive_opening(sources: OpeningSources) {
             relation.evaluate(&[reference::Field::ZERO; reference::MATRIX_COUNT]),
             reference::Field::ZERO
         );
-        for row in [row_count, (1 << 28) - 1, 1 << 28] {
+        for row in [row_count, (1 << 27) - 1, 1 << 27] {
             assert!(
                 program.row(row, &artifact.sources).is_err(),
                 "implicit zero padding is not an active row"
@@ -389,7 +389,7 @@ fn check_positive_opening(sources: OpeningSources) {
         println!(
             "independent_opening_CCS=passed active_rows={checked} carrier={} padding={} elapsed={:?}",
             carrier.len(),
-            (1 << 28) - row_count,
+            (1 << 27) - row_count,
             started.elapsed()
         );
         return;

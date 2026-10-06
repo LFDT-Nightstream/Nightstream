@@ -75,9 +75,9 @@ theorem rowSchedule_indexAt (index : Fin 686) :
 private theorem priorPublicTarget (index : Fin 270) :
     PilotSpartan.sourceToSpartan
         (PilotProduction.priorPublicInputStart + index.val) =
-      6892123 + index.val := by
+      6889927 + index.val := by
   have bound := index.isLt
-  change PilotSpartan.sourceToSpartan (37297 + index.val) = _
+  change PilotSpartan.sourceToSpartan (37295 + index.val) = _
   unfold PilotSpartan.sourceToSpartan
   rw [if_neg (by
     norm_num [PilotSpartan.priorPublicStart_value] at bound ⊢ <;> omega)]
@@ -90,7 +90,7 @@ private theorem canonicalLocalTarget (index : Fin 264) :
     PilotSpartan.sourceToSpartan
         (PriorStateHash.hashEnd PilotProduction.priorInterface
           PilotProduction.witnessOffset + index.val) =
-      3483154 + index.val := by
+      3482054 + index.val := by
   have bound := index.isLt
   unfold PriorStateHash.hashEnd
   rw [PilotProduction.priorHashLogicalLength_eq,
@@ -110,9 +110,9 @@ private theorem canonicalLocalTarget (index : Fin 264) :
 private theorem canonicalFreshTarget (index : Fin 144) :
     PilotSpartan.sourceToSpartan
         (PilotValues.logicalColumnCount + index.val) =
-      6891978 + index.val := by
+      6889782 + index.val := by
   have bound := index.isLt
-  change PilotSpartan.sourceToSpartan (6892252 + index.val) = _
+  change PilotSpartan.sourceToSpartan (6890056 + index.val) = _
   unfold PilotSpartan.sourceToSpartan
   rw [if_neg (by
     norm_num [PilotSpartan.priorPublicStart_value] at bound ⊢ <;> omega)]
@@ -128,9 +128,9 @@ private theorem canonicalFreshTarget (index : Fin 144) :
 private theorem outputDigestTarget (index : Fin 4) :
     PilotSpartan.sourceToSpartan
         (PilotProduction.outputDigestStart + index.val) =
-      6892393 + index.val := by
+      6890197 + index.val := by
   have bound := index.isLt
-  change PilotSpartan.sourceToSpartan (74864 + index.val) = _
+  change PilotSpartan.sourceToSpartan (74860 + index.val) = _
   unfold PilotSpartan.sourceToSpartan
   rw [if_neg (by
     norm_num [PilotSpartan.priorPublicStart_value] at bound ⊢ <;> omega)]
@@ -145,42 +145,42 @@ private theorem outputDigestTarget (index : Fin 4) :
 
 def priorDigestRange (program : Program) : SourceRange :=
   SourceRange.ofSemantic (PiCCSOrdinaryRetainedBlocks.priorLastBlock program)
-    (PiCCSOrdinaryRetainedGeometry.priorLastStart program) 3483138 4 1080
+    (PiCCSOrdinaryRetainedGeometry.priorLastStart program) 3482038 4 1080
 
 def canonicalLocalRange (program : Program) : SourceRange :=
   SourceRange.ofSemantic (canonicalLocalBlock program)
-    (canonicalLocalStart program) 3483154 264 0
+    (canonicalLocalStart program) 3482054 264 0
 
 def outputStateRange (program : Program) : SourceRange :=
   SourceRange.ofSemantic (PiCCSOrdinaryRetainedBlocks.outputLastBlock program)
-    (PiCCSOrdinaryRetainedGeometry.outputLastStart program) 6891962 4 1080
+    (PiCCSOrdinaryRetainedGeometry.outputLastStart program) 6889766 4 1080
 
 def canonicalFreshRange (program : Program) : SourceRange :=
   SourceRange.ofSemantic (canonicalFreshBlock program)
-    (canonicalFreshStart program) 6891978 144 0
+    (canonicalFreshStart program) 6889782 144 0
 
 def priorPublicRange (program : Program) : SourceRange :=
   SourceRange.ofSemantic
     (PiCCSOrdinaryRetainedBlocks.freshPublicInputBlock program)
     (PiCCSOrdinaryRetainedGeometry.freshPublicInputStart program)
-    6892123 270 0
+    6889927 270 0
 
 def outputDigestRange (program : Program) : SourceRange :=
   SourceRange.ofSemantic (outputDigestBlock program)
-    (outputDigestStart program) 6892393 4 0
+    (outputDigestStart program) 6890197 4 0
 
 private theorem rangeValues (program : Program) :
-    (priorDigestRange program).sourceStart = 3483138 ∧
+    (priorDigestRange program).sourceStart = 3482038 ∧
     (priorDigestRange program).sourceCount = 4 ∧
-    (canonicalLocalRange program).sourceStart = 3483154 ∧
+    (canonicalLocalRange program).sourceStart = 3482054 ∧
     (canonicalLocalRange program).sourceCount = 264 ∧
-    (outputStateRange program).sourceStart = 6891962 ∧
+    (outputStateRange program).sourceStart = 6889766 ∧
     (outputStateRange program).sourceCount = 4 ∧
-    (canonicalFreshRange program).sourceStart = 6891978 ∧
+    (canonicalFreshRange program).sourceStart = 6889782 ∧
     (canonicalFreshRange program).sourceCount = 144 ∧
-    (priorPublicRange program).sourceStart = 6892123 ∧
+    (priorPublicRange program).sourceStart = 6889927 ∧
     (priorPublicRange program).sourceCount = 270 ∧
-    (outputDigestRange program).sourceStart = 6892393 ∧
+    (outputDigestRange program).sourceStart = 6890197 ∧
     (outputDigestRange program).sourceCount = 4 := by
   norm_num [priorDigestRange, canonicalLocalRange, outputStateRange,
     canonicalFreshRange, priorPublicRange, outputDigestRange,
@@ -200,7 +200,7 @@ theorem priorDigestRange_form?
     (SourceRange.form?_ofSemantic
       (PiCCSOrdinaryRetainedBlocks.priorLastBlock program)
       (PiCCSOrdinaryRetainedGeometry.priorLastStart program)
-      3483138 4 1080
+      3482038 4 1080
       (PiCCSOrdinaryRetainedGeometry.priorLastFits
         (PilotOrdinaryDirectPlan.piCcsGeometry geometry))
       (by
@@ -219,7 +219,7 @@ theorem canonicalLocalRange_form?
   rw [canonicalLocalTarget]
   simpa [canonicalLocalRange, PilotOrdinaryDirectPlan.Location.form] using
     (SourceRange.form?_ofSemantic (canonicalLocalBlock program)
-      (canonicalLocalStart program) 3483154 264 0
+      (canonicalLocalStart program) 3482054 264 0
       (canonicalLocalFits geometry) (by norm_num) index)
 
 theorem outputStateRange_form?
@@ -237,7 +237,7 @@ theorem outputStateRange_form?
     (SourceRange.form?_ofSemantic
       (PiCCSOrdinaryRetainedBlocks.outputLastBlock program)
       (PiCCSOrdinaryRetainedGeometry.outputLastStart program)
-      6891962 4 1080
+      6889766 4 1080
       (PiCCSOrdinaryRetainedGeometry.outputLastFits
         (PilotOrdinaryDirectPlan.piCcsGeometry geometry))
       (by
@@ -255,7 +255,7 @@ theorem canonicalFreshRange_form?
   rw [canonicalFreshTarget]
   simpa [canonicalFreshRange, PilotOrdinaryDirectPlan.Location.form] using
     (SourceRange.form?_ofSemantic (canonicalFreshBlock program)
-      (canonicalFreshStart program) 6891978 144 0
+      (canonicalFreshStart program) 6889782 144 0
       (canonicalFreshFits geometry) (by norm_num) index)
 
 theorem priorPublicRange_form?
@@ -271,7 +271,7 @@ theorem priorPublicRange_form?
     (SourceRange.form?_ofSemantic
       (PiCCSOrdinaryRetainedBlocks.freshPublicInputBlock program)
       (PiCCSOrdinaryRetainedGeometry.freshPublicInputStart program)
-      6892123 270 0
+      6889927 270 0
       (PiCCSOrdinaryRetainedGeometry.freshPublicInputFits
         (PilotOrdinaryDirectPlan.piCcsGeometry geometry))
       (by
@@ -289,7 +289,7 @@ theorem outputDigestRange_form?
   rw [outputDigestTarget]
   simpa [outputDigestRange, PilotOrdinaryDirectPlan.Location.form] using
     (SourceRange.form?_ofSemantic (outputDigestBlock program)
-      (outputDigestStart program) 6892393 4 0
+      (outputDigestStart program) 6890197 4 0
       (outputDigestFits geometry) (by norm_num) index)
 
 /-- Complete pilot ordinary substitution in increasing post-Spartan column
@@ -313,15 +313,15 @@ theorem substitution_priorDigest_form?
   have bound := lane.isLt
   have values := rangeValues program
   have localNone := SourceRange.form?_eq_none_of_before
-    (canonicalLocalRange program) logicalWidth (3483138 + lane.val) (by omega)
+    (canonicalLocalRange program) logicalWidth (3482038 + lane.val) (by omega)
   have outputNone := SourceRange.form?_eq_none_of_before
-    (outputStateRange program) logicalWidth (3483138 + lane.val) (by omega)
+    (outputStateRange program) logicalWidth (3482038 + lane.val) (by omega)
   have freshNone := SourceRange.form?_eq_none_of_before
-    (canonicalFreshRange program) logicalWidth (3483138 + lane.val) (by omega)
+    (canonicalFreshRange program) logicalWidth (3482038 + lane.val) (by omega)
   have publicNone := SourceRange.form?_eq_none_of_before
-    (priorPublicRange program) logicalWidth (3483138 + lane.val) (by omega)
+    (priorPublicRange program) logicalWidth (3482038 + lane.val) (by omega)
   have digestNone := SourceRange.form?_eq_none_of_before
-    (outputDigestRange program) logicalWidth (3483138 + lane.val) (by omega)
+    (outputDigestRange program) logicalWidth (3482038 + lane.val) (by omega)
   simp [substitution, SourceSubstitution.form?, selected, localNone,
     outputNone, freshNone, publicNone, digestNone]
 
@@ -340,15 +340,15 @@ theorem substitution_canonicalLocal_form?
   have bound := index.isLt
   have values := rangeValues program
   have priorNone := SourceRange.form?_eq_none_of_after
-    (priorDigestRange program) logicalWidth (3483154 + index.val) (by omega)
+    (priorDigestRange program) logicalWidth (3482054 + index.val) (by omega)
   have outputNone := SourceRange.form?_eq_none_of_before
-    (outputStateRange program) logicalWidth (3483154 + index.val) (by omega)
+    (outputStateRange program) logicalWidth (3482054 + index.val) (by omega)
   have freshNone := SourceRange.form?_eq_none_of_before
-    (canonicalFreshRange program) logicalWidth (3483154 + index.val) (by omega)
+    (canonicalFreshRange program) logicalWidth (3482054 + index.val) (by omega)
   have publicNone := SourceRange.form?_eq_none_of_before
-    (priorPublicRange program) logicalWidth (3483154 + index.val) (by omega)
+    (priorPublicRange program) logicalWidth (3482054 + index.val) (by omega)
   have digestNone := SourceRange.form?_eq_none_of_before
-    (outputDigestRange program) logicalWidth (3483154 + index.val) (by omega)
+    (outputDigestRange program) logicalWidth (3482054 + index.val) (by omega)
   simp [substitution, SourceSubstitution.form?, priorNone, selected,
     outputNone, freshNone, publicNone, digestNone]
 
@@ -367,15 +367,15 @@ theorem substitution_outputState_form?
   have bound := lane.isLt
   have values := rangeValues program
   have priorNone := SourceRange.form?_eq_none_of_after
-    (priorDigestRange program) logicalWidth (6891962 + lane.val) (by omega)
+    (priorDigestRange program) logicalWidth (6889766 + lane.val) (by omega)
   have localNone := SourceRange.form?_eq_none_of_after
-    (canonicalLocalRange program) logicalWidth (6891962 + lane.val) (by omega)
+    (canonicalLocalRange program) logicalWidth (6889766 + lane.val) (by omega)
   have freshNone := SourceRange.form?_eq_none_of_before
-    (canonicalFreshRange program) logicalWidth (6891962 + lane.val) (by omega)
+    (canonicalFreshRange program) logicalWidth (6889766 + lane.val) (by omega)
   have publicNone := SourceRange.form?_eq_none_of_before
-    (priorPublicRange program) logicalWidth (6891962 + lane.val) (by omega)
+    (priorPublicRange program) logicalWidth (6889766 + lane.val) (by omega)
   have digestNone := SourceRange.form?_eq_none_of_before
-    (outputDigestRange program) logicalWidth (6891962 + lane.val) (by omega)
+    (outputDigestRange program) logicalWidth (6889766 + lane.val) (by omega)
   simp [substitution, SourceSubstitution.form?, priorNone, localNone,
     selected, freshNone, publicNone, digestNone]
 
@@ -393,15 +393,15 @@ theorem substitution_canonicalFresh_form?
   have bound := index.isLt
   have values := rangeValues program
   have priorNone := SourceRange.form?_eq_none_of_after
-    (priorDigestRange program) logicalWidth (6891978 + index.val) (by omega)
+    (priorDigestRange program) logicalWidth (6889782 + index.val) (by omega)
   have localNone := SourceRange.form?_eq_none_of_after
-    (canonicalLocalRange program) logicalWidth (6891978 + index.val) (by omega)
+    (canonicalLocalRange program) logicalWidth (6889782 + index.val) (by omega)
   have outputNone := SourceRange.form?_eq_none_of_after
-    (outputStateRange program) logicalWidth (6891978 + index.val) (by omega)
+    (outputStateRange program) logicalWidth (6889782 + index.val) (by omega)
   have publicNone := SourceRange.form?_eq_none_of_before
-    (priorPublicRange program) logicalWidth (6891978 + index.val) (by omega)
+    (priorPublicRange program) logicalWidth (6889782 + index.val) (by omega)
   have digestNone := SourceRange.form?_eq_none_of_before
-    (outputDigestRange program) logicalWidth (6891978 + index.val) (by omega)
+    (outputDigestRange program) logicalWidth (6889782 + index.val) (by omega)
   simp [substitution, SourceSubstitution.form?, priorNone, localNone,
     outputNone, selected, publicNone, digestNone]
 
@@ -419,15 +419,15 @@ theorem substitution_priorPublic_form?
   have bound := index.isLt
   have values := rangeValues program
   have priorNone := SourceRange.form?_eq_none_of_after
-    (priorDigestRange program) logicalWidth (6892123 + index.val) (by omega)
+    (priorDigestRange program) logicalWidth (6889927 + index.val) (by omega)
   have localNone := SourceRange.form?_eq_none_of_after
-    (canonicalLocalRange program) logicalWidth (6892123 + index.val) (by omega)
+    (canonicalLocalRange program) logicalWidth (6889927 + index.val) (by omega)
   have outputNone := SourceRange.form?_eq_none_of_after
-    (outputStateRange program) logicalWidth (6892123 + index.val) (by omega)
+    (outputStateRange program) logicalWidth (6889927 + index.val) (by omega)
   have freshNone := SourceRange.form?_eq_none_of_after
-    (canonicalFreshRange program) logicalWidth (6892123 + index.val) (by omega)
+    (canonicalFreshRange program) logicalWidth (6889927 + index.val) (by omega)
   have digestNone := SourceRange.form?_eq_none_of_before
-    (outputDigestRange program) logicalWidth (6892123 + index.val) (by omega)
+    (outputDigestRange program) logicalWidth (6889927 + index.val) (by omega)
   simp [substitution, SourceSubstitution.form?, priorNone, localNone,
     outputNone, freshNone, selected, digestNone]
 
@@ -445,15 +445,15 @@ theorem substitution_outputDigest_form?
   have bound := index.isLt
   have values := rangeValues program
   have priorNone := SourceRange.form?_eq_none_of_after
-    (priorDigestRange program) logicalWidth (6892393 + index.val) (by omega)
+    (priorDigestRange program) logicalWidth (6890197 + index.val) (by omega)
   have localNone := SourceRange.form?_eq_none_of_after
-    (canonicalLocalRange program) logicalWidth (6892393 + index.val) (by omega)
+    (canonicalLocalRange program) logicalWidth (6890197 + index.val) (by omega)
   have outputNone := SourceRange.form?_eq_none_of_after
-    (outputStateRange program) logicalWidth (6892393 + index.val) (by omega)
+    (outputStateRange program) logicalWidth (6890197 + index.val) (by omega)
   have freshNone := SourceRange.form?_eq_none_of_after
-    (canonicalFreshRange program) logicalWidth (6892393 + index.val) (by omega)
+    (canonicalFreshRange program) logicalWidth (6890197 + index.val) (by omega)
   have publicNone := SourceRange.form?_eq_none_of_after
-    (priorPublicRange program) logicalWidth (6892393 + index.val) (by omega)
+    (priorPublicRange program) logicalWidth (6890197 + index.val) (by omega)
   simp [substitution, SourceSubstitution.form?, priorNone, localNone,
     outputNone, freshNone, publicNone, selected]
 

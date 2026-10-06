@@ -132,7 +132,7 @@ theorem specAndRows_imply_hashSlots
 decoded from that assignment. The public boundary must enforce the one cell. -/
 theorem selectedRowsZero_implies_hashSlots
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))
     (one : assignment (ApplicationRetainedGeometry.oneColumn
       (PerApplicationFixedPoint.geometry application)) = 1)
@@ -186,7 +186,7 @@ claimed digest to equal the next-state hash. The one cell is derived from the
 public marker, rather than supplied as an additional value premise. -/
 theorem selectedRowsAndPublic_imply_outputHash
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))
     (digest : Digest) (fixed : digest.length = 4)
     (publicEqual : Phi81Relation.projectPublicInput

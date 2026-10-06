@@ -65,7 +65,7 @@ def round_challenge(path):
     label = str(path)
     value = sequence(json.loads(path.read_bytes()), 10, label)
     require(natural(value[0], label) == 1, f"{label}: wrong Lean round schema")
-    for point in sequence(value[1], 28, f"{label}: alpha"):
+    for point in sequence(value[1], 27, f"{label}: alpha"):
         extension(point, label)
     extension(value[2], label)
     for index in (3, 6):

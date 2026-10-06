@@ -25,7 +25,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 open NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 
 variable (application : Lifecycle.Stage1.Application.Program)
-  (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+  (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
   (commitmentSetup : PerApplicationCanonicalPackage.CommitmentSetup application)
 
 /-- The exact next preimage whose hash is constrained by the selected rows. -/

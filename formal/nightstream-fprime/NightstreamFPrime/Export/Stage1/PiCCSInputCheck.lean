@@ -7,9 +7,9 @@ import NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity
 /-!
 Owns an executable PiCCS check on caller-supplied messages and running claims.
 It does not construct a proof or establish valid openings.
-Input schema: [2, commitment[1188], public[270], rounds[28][10][2],
+Input schema: [2, commitment[1188], public[270], rounds[27][10][2],
 Eval_K[17][54][2], Eval_A[17][7][54][2], running]. The running statement is
-[point[28][2], commitments[16][1188], public[16][270],
+[point[27][2], commitments[16][1188], public[16][270],
 Eval_K[16][54][2], Eval_A[16][7][54][2]]. Words are canonical Goldilocks
 integers. The file is canonical numeric JSON with an optional final newline.
 No input data is embedded in a Lean declaration.
@@ -35,7 +35,7 @@ abbrev PublicInput := PaperAlgebra.PublicInput
   (logicalWidth := logicalWidth) (publicFits := publicFits)
 
 structure RunningInput where
-  point : Vector K 28
+  point : Vector K 27
   commitments : Vector (Vector F 1188) 16
   publicInputs : Vector (Vector F 270) 16
   evalK : Vector (Vector K 54) 16
@@ -44,7 +44,7 @@ structure RunningInput where
 structure Input where
   commitment : Vector F 1188
   publicInput : Vector F 270
-  rounds : Vector (Vector K 10) 28
+  rounds : Vector (Vector K 10) 27
   evalK : Vector (Vector K 54) 17
   evalA : Vector (Vector (Vector K 54) 7) 17
   running : RunningInput
@@ -137,7 +137,7 @@ def decodeRunning (value : Lean.Json) : Except String RunningInput := do
   match values.toList with
   | [point, commitments, publicInputs, evalK, evalA] =>
       pure {
-        point := ← decodeVector 28 decodeExtension point
+        point := ← decodeVector 27 decodeExtension point
         commitments := ← decodeVector 16 (decodeVector 1188 decodeField)
           commitments
         publicInputs := ← decodeVector 16 (decodeVector 270 decodeField)
@@ -156,7 +156,7 @@ def decode (value : Lean.Json) : Except String Input := do
       pure {
         commitment := ← decodeVector 1188 decodeField commitment
         publicInput := ← decodeVector 270 decodeField publicInput
-        rounds := ← decodeVector 28 (decodeVector 10 decodeExtension) rounds
+        rounds := ← decodeVector 27 (decodeVector 10 decodeExtension) rounds
         evalK := ← decodeVector 17 (decodeVector 54 decodeExtension) evalK
         evalA := ← decodeVector 17
           (decodeVector 7 (decodeVector 54 decodeExtension)) evalA
@@ -229,7 +229,7 @@ def runningFromInput (input : RunningInput) :
   point := {
     coordinates := input.point.toList
     dimension := by
-      change input.point.toList.length = 28
+      change input.point.toList.length = 27
       simp }
   commitments := fun source row coefficient =>
     (input.commitments.get source).get

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Check finish-original rejection. Run from the Nightstream repository root.
 
-Arguments: executable public evaluations new-output-directory 28-Lean-round-paths.
+Arguments: executable public evaluations new-output-directory 27-Lean-round-paths.
 This check does not run a successful finish or claim source-bridge coverage.
 """
 
@@ -20,8 +20,8 @@ def require(condition, message):
 
 
 def main():
-    require(len(sys.argv) == 33,
-            "expected executable, public, evaluations, new directory and 28 Lean rounds")
+    require(len(sys.argv) == 32,
+            "expected executable, public, evaluations, new directory and 27 Lean rounds")
     executable, public, evaluations = [Path(value).resolve() for value in sys.argv[1:4]]
     directory = Path(sys.argv[4]).resolve()
     rounds = [Path(value).resolve() for value in sys.argv[5:]]
@@ -87,12 +87,12 @@ def main():
                 f"{name}: rejected input reported completion")
         rejected.append({"case": name, "reason": error})
 
-    run("missing-round", "final PiCCS replay requires all 28 Lean rounds",
+    run("missing-round", "final PiCCS replay requires all 27 Lean rounds",
         selected_rounds=rounds[:-1])
     changed = copy.deepcopy(saved_rounds[-1])
     changed[3][0] = (changed[3][0] + 1) % P
-    run("changed-causal-round", "Lean round 27 differs from the causal public transcript",
-        changed_round=(27, changed))
+    run("changed-causal-round", "Lean round 26 differs from the causal public transcript",
+        changed_round=(26, changed))
     run("duplicate-outputs", "duplicate final PiCCS output path", duplicate=True)
     run("aliased-outputs", "duplicate final PiCCS output path", alias=True)
     # An existing third slot must reject before either earlier output is written.
@@ -102,8 +102,8 @@ def main():
     run("missing-family", "expected the complete original Pad and matrix families",
         change=lambda value: value.pop())
     run("wrong-point", "original evaluation point differs from the Lean transcript",
-        change=lambda value: value[1][27].__setitem__(1, (value[1][27][1] + 1) % P))
-    run("point-width", "expected array length 28", change=lambda value: value[1].pop())
+        change=lambda value: value[1][26].__setitem__(1, (value[1][26][1] + 1) % P))
+    run("point-width", "expected array length 27", change=lambda value: value[1].pop())
     run("pad-sources", "expected array length 17", change=lambda value: value[2].pop())
     run("pad-lanes", "expected array length 54", change=lambda value: value[2][16].pop())
     run("pad-extension", "expected array length 2", change=lambda value: value[2][16][53].pop())

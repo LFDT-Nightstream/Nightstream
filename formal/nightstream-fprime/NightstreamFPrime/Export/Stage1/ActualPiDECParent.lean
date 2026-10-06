@@ -558,7 +558,7 @@ private theorem keyParent_eq_of_piCcsFields
 fields and retained challenge vector. PiDEC messages do not enter this calculation. -/
 theorem selectedRowsAndPublic_imply_parentForChallenges
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (ajtai : AjtaiKey (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))
     (template : Proof (ProductionKey.degreeBound (PerApplicationFixedPoint.relation application fits)))
@@ -625,7 +625,7 @@ theorem selectedRowsAndPublic_imply_parentForChallenges
 actual decoded parent, including successful verifier-owned challenge sampling. -/
 theorem selectedRowsAndPublic_imply_parent
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (ajtai : AjtaiKey (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))
     (template : Proof (ProductionKey.degreeBound (PerApplicationFixedPoint.relation application fits)))

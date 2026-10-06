@@ -109,7 +109,7 @@ private theorem pointWord_eq_piCcs
   have before : PiCCSTranscriptOutputForms.pointSource coordinate component <
       PiRLCInputs.phaseOffset := by
     have bound : (PiCCSTranscriptOutputForms.pointInvocation coordinate component).val <
-        355 := by
+        347 := by
       simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq] using
         (PiCCSTranscriptOutputForms.pointInvocation coordinate component).isLt
     rw [PiCCSTranscriptOutputForms.pointSource_eq_transcriptSource]
@@ -272,7 +272,7 @@ def selectedGeometry (application : Lifecycle.Stage1.Application.Program) :
 its decoded environment. The public marker supplies the one coordinate. -/
 theorem selectedRowsAndPublic_imply_phaseHolds
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (ajtai : AjtaiKey (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))

@@ -188,7 +188,7 @@ fn evaluate(
             let artifact = SourcePackage::decode(bytes).expect("independent canonical Lean decoder");
             assert_eq!(
                 (artifact.logical_rows, artifact.logical_columns, artifact.cube_variables),
-                (row_count, logical_width, 28)
+                (row_count, logical_width, 27)
             );
             let program = MatrixProgram::decode(&artifact.matrix_program, &artifact.sources, logical_width, row_count)
                 .expect("independent canonical matrix program");
@@ -266,7 +266,7 @@ fn independent_actual_child_evaluation_family() {
             package.ccs_relation().cube_variables(),
             package.ccs_relation().matrix_sources().len()
         ),
-        (28, MATRICES)
+        (27, MATRICES)
     );
     let context = package
         .production_verifier_binding()
@@ -284,7 +284,7 @@ fn independent_actual_child_evaluation_family() {
     assert!(bound < 1 << CHILDREN);
     let active_digits = (u64::BITS - bound.leading_zeros()) as usize;
     let prior_point: Vec<[u64; 2]> = serde_json::from_value(meta[12].clone()).expect("input CE point");
-    assert_eq!(prior_point.len(), 28);
+    assert_eq!(prior_point.len(), 27);
     let phase = inputs.lean_result.as_ref().map(|path| read(path));
     let point: Vec<[u64; 2]> = if let Some(phase) = &phase {
         assert_eq!(phase[0], 1);
@@ -296,7 +296,7 @@ fn independent_actual_child_evaluation_family() {
     } else {
         prior_point.clone()
     };
-    assert_eq!(point.len(), 28);
+    assert_eq!(point.len(), 27);
     let weights = EqualityTensor::new(
         &point
             .iter()

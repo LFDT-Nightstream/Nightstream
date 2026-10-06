@@ -33,7 +33,7 @@ pub(super) mod logical_reference;
 #[path = "../support/pi_ccs_parent.rs"]
 mod pi_ccs_parent;
 
-const PI_CCS_CALLER_INPUT_COUNT: usize = 91_030;
+const PI_CCS_CALLER_INPUT_COUNT: usize = 91_006;
 const PI_CCS_ROW_START: usize = 14_623_730;
 const PI_CCS_ROW_END: usize = 19_936_967;
 // Stage1.sourceToSpartan maps the source boundary 20_064_823 here.
@@ -359,7 +359,7 @@ pub(super) fn execute_pilot_prefix(
         private_values,
         public_values,
         PrefixBoundary {
-            caller_input_count: 74_594,
+            caller_input_count: 74_590,
             row_end: PI_CCS_ROW_START,
             private_end: PI_CCS_FIRST_GENERATED_COLUMN,
             next_phase: 3,
@@ -634,7 +634,7 @@ fn check_pi_ccs_prefix(
     let artifact =
         logical_reference::source::SourcePackage::decode(&sealed_bytes).expect("independent sealed source decoder");
     assert_eq!(artifact.sealed_schema, 6);
-    assert_eq!(artifact.cube_variables, 28);
+    assert_eq!(artifact.cube_variables, 27);
     assert_eq!(artifact.logical_public_inputs, 270);
     let program = logical_reference::matrix::MatrixProgram::decode(
         &artifact.matrix_program,

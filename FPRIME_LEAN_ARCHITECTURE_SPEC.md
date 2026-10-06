@@ -72,6 +72,7 @@ The production profile is:
 - 17 PiRLC inputs in exact `K + k` order;
 - 16 PiDEC children;
 - 7 CCS matrices;
+- 27 sum-check rounds and a `2^27` joint domain;
 - Poseidon2-only protocol binding.
 
 The production package must bind one exact profile. It must not contain a
@@ -121,7 +122,7 @@ must include:
 - accumulator and running-instance transitions;
 - Poseidon2 transcript and `XOut` binding;
 - explicit recursive-size closure;
-- a Lean-proved joint domain no larger than `2^28`.
+- a Lean-proved joint domain no larger than `2^27`.
 
 Stage 1 must not contain a free memory predicate or an assumed Nebula phase.
 Its public layout must follow its concrete semantics. The current 32-field

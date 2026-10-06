@@ -95,7 +95,7 @@ theorem sourceSupport (location : Location) :
       exact proofLogicalSource_support index
   | fresh index =>
       have bound := index.isLt
-      change index.val < 2956 at bound
+      change index.val < 2884 at bound
       apply PiCCSOrdinarySourceSupport.fresh_source
       · change PiCCSStarts.initialClaimFreshStart ≤
           PiCCSArithmetic.initialClaimFreshStart + index.val
@@ -241,7 +241,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       rw [sourceEq, RunningTransitionDirectPlan.sourceAssignment_packageSource]
       apply Eq.symm
       apply RunningTransitionDirectPlan.transitionEnv_of_outside program base _ (Location.priorInput index).sourceColumn_lt
-      have indexBound : index.val < 37297 := index.isLt
+      have indexBound : index.val < 37295 := index.isLt
       left
       norm_num [sourceColumn, PilotProduction.priorPreimageStart, PiCCSInputs.phaseOffset_eq] <;> omega
   | freshPublicInput index =>
@@ -267,7 +267,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       rw [sourceEq, RunningTransitionDirectPlan.sourceAssignment_packageSource]
       apply Eq.symm
       apply RunningTransitionDirectPlan.transitionEnv_of_outside program base _ (Location.outputInput index).sourceColumn_lt
-      have indexBound : index.val < 37297 := index.isLt
+      have indexBound : index.val < 37295 := index.isLt
       left
       norm_num [sourceColumn, PilotProduction.outputPreimageStart, PilotProduction.priorPublicInputStart, PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq, Lifecycle.PriorStateHash.publicWidth, Lifecycle.PaperAlgebra.publicRingColumns, Spec.ringDegree, PiCCSInputs.phaseOffset_eq] <;> omega
   | expectedContext index =>
@@ -313,7 +313,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
         apply Eq.symm
         apply RunningTransitionDirectPlan.transitionEnv_of_outside program base _ (proofLogicalSource_lt index)
         left
-        have indexBound : index.val < 16436 := by
+        have indexBound : index.val < 16416 := by
           simpa only [proofInputCount_eq] using proof
         rw [proofLogicalSource, dif_pos proof]
         rw [PiCCSInputs.proofInputStart_eq, PiCCSInputs.phaseOffset_eq]
@@ -707,7 +707,7 @@ private theorem programRow_support
       Phi81CarrierLayout.carrierWidth relationLogicalWidth}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
-    (index : Fin 48443) :
+    (index : Fin 48330) :
     (PiCCSOrdinaryDirectSource.programRow relation index).VarsSatisfy
       PiCCSOrdinarySourceSupport.Target := by
   exact PiCCSOrdinaryDirectSupport.sourceRows_varsSatisfy relation _
@@ -774,7 +774,7 @@ theorem programRow_preserve
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (encodes : Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment program base groupValue))
-    (index : Fin 48443) :
+    (index : Fin 48330) :
     OrdinarySourcePlan.SourceMap.PreservesRow (sourceMap geometry) assignment
       (RunningTransitionDirectPlan.transitionEnv program base)
       (PiCCSOrdinaryDirectSource.programRow relation index)
@@ -796,7 +796,7 @@ def rowForms
       Phi81CarrierLayout.carrierWidth relationLogicalWidth}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
-    (geometry : Geometry program logicalWidth) (index : Fin 48443) :
+    (geometry : Geometry program logicalWidth) (index : Fin 48330) :
     OrdinaryRow.Forms logicalWidth :=
   SourceCompiler.compileRow (sourceMap geometry) (oneColumn geometry)
     (PiCCSOrdinaryDirectSource.programRow relation index)
@@ -840,7 +840,7 @@ def plan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry program logicalWidth) :
-    (plan relation geometry).rowCount = 48443 := by
+    (plan relation geometry).rowCount = 48330 := by
   rfl
 
 /-- The compiled matrix plan depends only on the relation shape. Matrix

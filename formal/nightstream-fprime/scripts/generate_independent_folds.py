@@ -21,7 +21,7 @@ from check_lean_fold import Check, compare_caller, compare_source, package_pin
 from project_replay_sources import BLOCKS, LOGICAL, read, require
 from lean_graph.policy import CAPS
 
-ROWS, CARRIER = 1371020, BLOCKS * 54
+ROWS, CARRIER = 1369389, BLOCKS * 54
 TOOLCHAIN = "nightstream-lean-4.32.2-3019a32c"
 ARTIFACT = FORMAL / "artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"
 
@@ -291,7 +291,7 @@ class Replay:
     def ccs(self):
         first, prefix = "replayPiCCSFirstRound", "replayPiCCSPrefix"
         u, s = self.public, self.sources
-        q = [self.rounds / f"round-{index}.json" for index in range(28)]
+        q = [self.rounds / f"round-{index}.json" for index in range(27)]
         def component(index, kind):
             return self.out(f"q{index}-{kind}.json")
         def initial(name, mode, *args):
@@ -349,7 +349,7 @@ class Replay:
         self.lean("q2-norm", prefix, "norm-after-two", u, q[0], q[1],
                   self.out("norm-after2"), component(2, "norm"), 0, (CARRIER + 7) // 8, 131072,
                   outputs=[component(2, "norm")])
-        for index in range(2, 28):
+        for index in range(2, 27):
             previous = q[:index]
             if index >= 3:
                 self.lean(f"q{index}-norm", prefix, "norm-prefix", u, self.out(f"norm-after{index}"),
@@ -424,10 +424,10 @@ class Replay:
                     self.out("native-ccs.input.json"), self.out("native-ccs.phase.json"))
 
         self.python("c-terminal-prefix-comparison", "tests/check_piccs_terminal_prefix.py",
-                    u, q[27], self.out("fresh-after28"), self.out("norm-after28"),
+                    u, q[26], self.out("fresh-after27"), self.out("norm-after27"),
                     self.out("native-ccs.input.json"), self.out("native-ccs.phase.json"))
         self.python("c-evaluation-comparison", "tests/check_piccs_original_complete.py",
-                    u, q[27], self.out("c-evaluations.json"),
+                    u, q[26], self.out("c-evaluations.json"),
                     self.out("native-ccs.input.json"), self.out("native-ccs.phase.json"))
         self.python("c-complete-bytes", "tests/check_piccs_complete_bytes.py",
                     self.out("ccs-input.json"), self.out("ccs-phase.json"), self.out("ccs-words.json"),
@@ -540,7 +540,7 @@ class Replay:
                     caller, physical, self.out("physical-rejections"), outputs=[self.out("physical-rejections")])
         prior, generated = read(request), read(caller)
         private, result = generated[2], generated[4]
-        offset = 37297  # StateMessage's fixed current-schema field width, checked against both producers.
+        offset = 37295  # StateMessage's fixed current-schema field width, checked against both producers.
         require(private[28] == prior[0] and private[30:34] == prior[1] and private[35:39] == prior[2]
                 and private[-4:] == prior[3] and private[offset + 28] == prior[0] + 1
                 and private[offset + 30:offset + 34] == prior[1]

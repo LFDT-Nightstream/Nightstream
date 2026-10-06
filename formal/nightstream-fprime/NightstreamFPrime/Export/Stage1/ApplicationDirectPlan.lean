@@ -162,7 +162,7 @@ def classifySource (application : Lifecycle.Stage1.Application.Program)
       rw [Location.sourceColumn]
       unfold Layout.Stage1.ApplicationInputs.witnessColumn
       exact rangeIndex_source witness⟩
-  else if output : InRange 37332
+  else if output : InRange 37330
       Lifecycle.Stage1.Application.stateWordCount column then
     some ⟨.output (rangeIndex output), by
       rw [Location.sourceColumn,
@@ -227,7 +227,7 @@ theorem classifySource_complete
       simp only [Layout.Stage1.ApplicationInputs.witnessStart,
         Lifecycle.Stage1.Application.stateWordCount] at indexBound ⊢
       omega
-    have inside : InRange 37332 Lifecycle.Stage1.Application.stateWordCount
+    have inside : InRange 37330 Lifecycle.Stage1.Application.stateWordCount
         (Layout.Stage1.ApplicationInputs.outputColumn index) := by
       rw [Layout.Stage1.ApplicationInputs.outputColumn_value]
       exact ⟨by omega, by have := index.isLt; omega⟩
@@ -250,7 +250,7 @@ theorem classifySource_complete
       unfold InRange
       unfold Layout.Stage1.ApplicationInputs.localStart at localSupport
       omega
-    have notOutput : ¬ InRange 37332
+    have notOutput : ¬ InRange 37330
         Lifecycle.Stage1.Application.stateWordCount column := by
       unfold InRange Lifecycle.Stage1.Application.stateWordCount
       have startLarge : 37336 ≤
@@ -327,7 +327,7 @@ private theorem preservesCombination
 
 private theorem programRow_support
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationPackage.FitsTwoPow28 application)
+    (fits : PerApplicationPackage.FitsTwoPow27 application)
     (index : Fin (ApplicationDirectSource.program application fits).rowCount) :
     ((ApplicationDirectSource.program application fits).row index).VarsSatisfy
       (ApplicationDirectSource.SourceAllowed application) := by
@@ -336,7 +336,7 @@ private theorem programRow_support
 
 def inputs
     {application : Lifecycle.Stage1.Application.Program}
-    {logicalWidth : Nat} (fits : PerApplicationPackage.FitsTwoPow28 application)
+    {logicalWidth : Nat} (fits : PerApplicationPackage.FitsTwoPow27 application)
     (geometry : Geometry application logicalWidth) :
     (ApplicationDirectSource.program application fits).Inputs logicalWidth where
   oneColumn := oneColumn geometry
@@ -344,7 +344,7 @@ def inputs
 
 theorem inputs_preserve
     {application : Lifecycle.Stage1.Application.Program}
-    {logicalWidth : Nat} (fits : PerApplicationPackage.FitsTwoPow28 application)
+    {logicalWidth : Nat} (fits : PerApplicationPackage.FitsTwoPow27 application)
     (geometry : Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
     (source : Fin (sourceWidth application) → F)
@@ -362,7 +362,7 @@ theorem inputs_preserve
 
 def plan
     {application : Lifecycle.Stage1.Application.Program}
-    {logicalWidth : Nat} (fits : PerApplicationPackage.FitsTwoPow28 application)
+    {logicalWidth : Nat} (fits : PerApplicationPackage.FitsTwoPow27 application)
     (geometry : Geometry application logicalWidth) :
     ProductionRelation.Plan logicalWidth :=
   ((ApplicationDirectSource.program application fits).compile
@@ -370,7 +370,7 @@ def plan
 
 @[simp] theorem plan_rowCount
     {application : Lifecycle.Stage1.Application.Program}
-    {logicalWidth : Nat} (fits : PerApplicationPackage.FitsTwoPow28 application)
+    {logicalWidth : Nat} (fits : PerApplicationPackage.FitsTwoPow27 application)
     (geometry : Geometry application logicalWidth) :
     (plan fits geometry).rowCount =
       (PerApplicationPackage.applicationPlan application).rowCount := by
@@ -381,7 +381,7 @@ def plan
 
 theorem rowsZero_iff_rowsHold
     {application : Lifecycle.Stage1.Application.Program}
-    {logicalWidth : Nat} (fits : PerApplicationPackage.FitsTwoPow28 application)
+    {logicalWidth : Nat} (fits : PerApplicationPackage.FitsTwoPow27 application)
     (geometry : Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
     (source : Fin (sourceWidth application) → F)

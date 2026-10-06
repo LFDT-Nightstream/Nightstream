@@ -21,6 +21,7 @@ class ConformanceRegistrationTests(unittest.TestCase):
         cls.ring_degree = len(proof[5][0][0])
         cls.source_count = len(proof[4])
         cls.child_count = len(proof[6][4])
+        cls.round_count = len(proof[3])
 
     def setUp(self):
         self.policy = load_policy()
@@ -145,6 +146,21 @@ class ConformanceRegistrationTests(unittest.TestCase):
                   "norm_target_mutation": "rejected", "fresh_target_mutation": "rejected"}
         check = self.gates["piccs-terminal-prefix-comparison"]["commands"][0]["completion"]
         completion(json.dumps(report), check)
+
+    def test_round_replay_registrations_match_the_current_proof(self):
+        terminal = self.gates["piccs-terminal-prefix-comparison"]["commands"][0]
+        self.assertIn("{input:piccs_saved_lean_rounds}/round-"
+                      + str(self.round_count - 1) + ".json", terminal["argv"])
+        report = {"event": "piccs_all_rounds_comparison_passed", "rounds": self.round_count,
+                  "matched_K_coefficients": self.round_count * 10,
+                  "matched_field_words": self.round_count * 20,
+                  "matched_transcript_transitions": self.round_count,
+                  "changed_targets_rejected": self.round_count}
+        check = self.gates["piccs-all-rounds-comparison"]["commands"][0]["completion"]
+        completion(json.dumps(report), check)
+        for field in list(report)[1:]:
+            with self.subTest(field=field), self.assertRaises(EvidenceError):
+                completion(json.dumps({**report, field: report[field] + 1}), check)
 
     def test_recursive_caller_completion_matches_the_current_proof(self):
         report = (f"recursive_caller_binding=passed prior_iteration=1 output_iteration=2 "
@@ -298,9 +314,9 @@ class ConformanceRegistrationTests(unittest.TestCase):
 
     def test_partial_base_mutation_counts_cannot_satisfy_completion(self):
         for name, label, count in (
-            ("proof", "proof_mutations", 2 + 28 * 10 * 2),
+            ("proof", "proof_mutations", 2 + self.round_count * 10 * 2),
             ("statement", "statement-mutations", 4 + 4 + self.child_count * (3 + self.matrix_count) + 2),
-            ("output", "output-mutations", self.source_count * (3 + self.matrix_count + 28 + 4) + 10),
+            ("output", "output-mutations", self.source_count * (3 + self.matrix_count + self.round_count + 4) + 10),
         ):
             check = self.gates[f"piccs-{name}-mutations"]["commands"][-1]["completion"]
             prefix = "pi_ccs_complete_phase_values=passed accepted=true engine=optimized\n"

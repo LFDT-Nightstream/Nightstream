@@ -23,13 +23,13 @@ private theorem stateRange_values (program : ApplicationProgram) :
   exact ⟨rfl, rfl⟩
 
 private theorem outputRange_values (program : ApplicationProgram) :
-    (outputRange program).sourceStart = 37297 ∧
-      (outputRange program).sourceCount = 37297 := by
+    (outputRange program).sourceStart = 37295 ∧
+      (outputRange program).sourceCount = 37295 := by
   exact ⟨rfl, rfl⟩
 
 private theorem roundC0Grid_values (program : ApplicationProgram) :
-    (roundC0Grid program).sourceStart = 7147470 ∧
-      (roundC0Grid program).majorCount = 28 ∧
+    (roundC0Grid program).sourceStart = 7141966 ∧
+      (roundC0Grid program).majorCount = 27 ∧
       (roundC0Grid program).majorSourceStride = 5480 := by
   simp only [roundC0Grid, PiCCSTranscriptOutputForms.pointGrid,
     SourceGrid.externalOfSemantic, SourceGrid.ofSemantic,
@@ -38,8 +38,8 @@ private theorem roundC0Grid_values (program : ApplicationProgram) :
   exact ⟨rfl, rfl, rfl⟩
 
 private theorem roundC1Grid_values (program : ApplicationProgram) :
-    (roundC1Grid program).sourceStart = 7148566 ∧
-      (roundC1Grid program).majorCount = 28 ∧
+    (roundC1Grid program).sourceStart = 7143062 ∧
+      (roundC1Grid program).majorCount = 27 ∧
       (roundC1Grid program).majorSourceStride = 5480 := by
   simp only [roundC1Grid, PiCCSTranscriptOutputForms.pointGrid,
     SourceGrid.externalOfSemantic, SourceGrid.ofSemantic,
@@ -48,7 +48,7 @@ private theorem roundC1Grid_values (program : ApplicationProgram) :
   exact ⟨rfl, rfl, rfl⟩
 
 private theorem piDecRange_values (program : ApplicationProgram) :
-    (piDecRange program).sourceStart = 14724024 ∧
+    (piDecRange program).sourceStart = 14712929 ∧
       (piDecRange program).sourceCount = 37152 := by
   exact ⟨rfl, rfl⟩
 
@@ -82,9 +82,9 @@ private theorem outputTarget
     (index : Fin RunningTransitionSourceSupport.outputCount) :
     Spartan.sourceToSpartan
         (RunningTransitionSourceSupport.outputStart + index.val) =
-      37297 + index.val := by
+      37295 + index.val := by
   have bound := index.isLt
-  change index.val < 37297 at bound
+  change index.val < 37295 at bound
   rw [RunningTransitionSourceSupport.outputStart_eq]
   unfold Spartan.sourceToSpartan
   rw [if_pos (by norm_num [Spartan.pilotSourceColumnCount]; omega)]
@@ -251,14 +251,14 @@ theorem freshRange_form?
       freshCount 0 (freshFits geometry) (by rfl) index)
 
 private theorem roundC0MappedStart (program : ApplicationProgram) :
-    Spartan.sourceToSpartan roundC0SourceStart = 7147470 := by
+    Spartan.sourceToSpartan roundC0SourceStart = 7141966 := by
   simpa only [roundC0Grid, PiCCSTranscriptOutputForms.pointGrid,
     SourceGrid.externalOfSemantic, SourceGrid.ofSemantic,
     PiCCSTranscriptOutputForms.pointSourceStart, roundC0SourceStart,
     Fin.val_zero, Nat.zero_mul, Nat.add_zero] using (roundC0Grid_values program).1
 
 private theorem roundC1MappedStart (program : ApplicationProgram) :
-    Spartan.sourceToSpartan roundC1SourceStart = 7148566 := by
+    Spartan.sourceToSpartan roundC1SourceStart = 7143062 := by
   have address : PiCCSTranscriptOutputForms.pointSourceStart + (1 : Fin 2).val * 1096 =
       roundC1SourceStart := by
     unfold PiCCSTranscriptOutputForms.pointSourceStart roundC1SourceStart
@@ -272,7 +272,7 @@ private theorem roundC1MappedStart (program : ApplicationProgram) :
 
 private theorem piDecMappedStart (program : ApplicationProgram) :
     Spartan.sourceToSpartan RunningTransitionSourceSupport.piDecStart =
-      14724024 := by
+      14712929 := by
   exact (piDecRange_values program).1
 
 private theorem freshMappedStart (program : ApplicationProgram) :
@@ -290,9 +290,9 @@ private theorem roundC1Grid_form?_none_at_roundC0
               RunningTransitionInputs.roundSampleC0Offset)) = none := by
   rw [roundC0Target, roundC0MappedStart program]
   change (roundC1Grid program).form? logicalWidth
-    (7147470 + coordinate.val * 5480) = none
+    (7141966 + coordinate.val * 5480) = none
   have coordinateBound := coordinate.isLt
-  change coordinate.val < 28 at coordinateBound
+  change coordinate.val < 27 at coordinateBound
   by_cases first : coordinate.val = 0
   · apply SourceGrid.form?_eq_none_of_before
     rw [(roundC1Grid_values program).1]
@@ -324,10 +324,10 @@ private theorem roundC1Grid_form?_none_at_roundC0
         (roundC1Grid program).sourceStart +
               previous.val * (roundC1Grid program).majorSourceStride +
               4384 * (roundC1Grid program).minorSourceStride + 0 =
-          7147470 + coordinate.val * 5480 := by
+          7141966 + coordinate.val * 5480 := by
       rw [(roundC1Grid_values program).1, (roundC1Grid_values program).2.2]
-      change 7148566 + (coordinate.val - 1) * 5480 + 4384 * 1 + 0 =
-        7147470 + coordinate.val * 5480
+      change 7143062 + (coordinate.val - 1) * 5480 + 4384 * 1 + 0 =
+        7141966 + coordinate.val * 5480
       omega
     rw [← sourceEq]
     exact rejected
@@ -342,9 +342,9 @@ private theorem roundC0Grid_form?_none_at_roundC1
               RunningTransitionInputs.roundSampleC1Offset)) = none := by
   rw [roundC1Target, roundC1MappedStart program]
   change (roundC0Grid program).form? logicalWidth
-    (7148566 + coordinate.val * 5480) = none
+    (7143062 + coordinate.val * 5480) = none
   have coordinateBound := coordinate.isLt
-  change coordinate.val < 28 at coordinateBound
+  change coordinate.val < 27 at coordinateBound
   have majorBound : coordinate.val < (roundC0Grid program).majorCount := by
     rw [(roundC0Grid_values program).2.1]
     exact coordinateBound
@@ -371,10 +371,10 @@ private theorem roundC0Grid_form?_none_at_roundC1
       (roundC0Grid program).sourceStart +
             major.val * (roundC0Grid program).majorSourceStride +
             1096 * (roundC0Grid program).minorSourceStride + 0 =
-        7148566 + coordinate.val * 5480 := by
+        7143062 + coordinate.val * 5480 := by
     rw [(roundC0Grid_values program).1, (roundC0Grid_values program).2.2]
-    change 7147470 + coordinate.val * 5480 + 1096 * 1 + 0 =
-      7148566 + coordinate.val * 5480
+    change 7141966 + coordinate.val * 5480 + 1096 * 1 + 0 =
+      7143062 + coordinate.val * 5480
     omega
   rw [← sourceEq]
   exact rejected
@@ -421,89 +421,89 @@ theorem substitution_location_form?
         piDecNone, freshNone, c0None, c1None]
   | output index =>
       have indexBound := index.isLt
-      change index.val < 37297 at indexBound
+      change index.val < 37295 at indexBound
       have selected := outputRange_form? geometry index
       rw [outputTarget] at selected
       simp only [RunningTransitionDirectPlan.Location.sourceColumn]
       rw [outputTarget]
       have stateNone := SourceRange.form?_eq_none_of_after
-        (stateRange program) logicalWidth (37297 + index.val) (by omega)
+        (stateRange program) logicalWidth (37295 + index.val) (by omega)
       have piDecNone := SourceRange.form?_eq_none_of_before
-        (piDecRange program) logicalWidth (37297 + index.val) (by omega)
+        (piDecRange program) logicalWidth (37295 + index.val) (by omega)
       have freshNone := SourceRange.form?_eq_none_of_before
-        (freshRange program) logicalWidth (37297 + index.val) (by omega)
+        (freshRange program) logicalWidth (37295 + index.val) (by omega)
       have c0None := SourceGrid.form?_eq_none_of_before
-        (roundC0Grid program) logicalWidth (37297 + index.val) (by omega)
+        (roundC0Grid program) logicalWidth (37295 + index.val) (by omega)
       have c1None := SourceGrid.form?_eq_none_of_before
-        (roundC1Grid program) logicalWidth (37297 + index.val) (by omega)
+        (roundC1Grid program) logicalWidth (37295 + index.val) (by omega)
       simp [substitution, SourceSubstitution.form?, stateNone, selected,
         piDecNone, freshNone, c0None, c1None]
   | roundC0 coordinate =>
       have coordinateBound := coordinate.isLt
-      change coordinate.val < 28 at coordinateBound
+      change coordinate.val < 27 at coordinateBound
       have selected := roundC0Grid_form? geometry coordinate
       rw [roundC0Target, roundC0MappedStart program] at selected
       change (roundC0Grid program).form? logicalWidth
-        (7147470 + coordinate.val * 5480) =
+        (7141966 + coordinate.val * 5480) =
           some ((RunningTransitionDirectPlan.Location.roundC0 coordinate).form
             geometry) at selected
       simp only [RunningTransitionDirectPlan.Location.sourceColumn]
       rw [roundC0Target, roundC0MappedStart program]
       change (substitution program).form? logicalWidth
-        (7147470 + coordinate.val * 5480) =
+        (7141966 + coordinate.val * 5480) =
           some ((RunningTransitionDirectPlan.Location.roundC0 coordinate).form
             geometry)
       have stateNone := SourceRange.form?_eq_none_of_after
         (stateRange program) logicalWidth
-          (7147470 + coordinate.val * 5480) (by omega)
+          (7141966 + coordinate.val * 5480) (by omega)
       have outputNone := SourceRange.form?_eq_none_of_after
         (outputRange program) logicalWidth
-          (7147470 + coordinate.val * 5480) (by omega)
+          (7141966 + coordinate.val * 5480) (by omega)
       have piDecNone := SourceRange.form?_eq_none_of_before
         (piDecRange program) logicalWidth
-          (7147470 + coordinate.val * 5480) (by omega)
+          (7141966 + coordinate.val * 5480) (by omega)
       have freshNone := SourceRange.form?_eq_none_of_before
         (freshRange program) logicalWidth
-          (7147470 + coordinate.val * 5480) (by omega)
+          (7141966 + coordinate.val * 5480) (by omega)
       have c1None := roundC1Grid_form?_none_at_roundC0
         (program := program) (logicalWidth := logicalWidth) coordinate
       rw [roundC0Target, roundC0MappedStart program] at c1None
       change (roundC1Grid program).form? logicalWidth
-        (7147470 + coordinate.val * 5480) = none at c1None
+        (7141966 + coordinate.val * 5480) = none at c1None
       simp [substitution, SourceSubstitution.form?, stateNone, outputNone,
         piDecNone, freshNone, selected, c1None]
   | roundC1 coordinate =>
       have coordinateBound := coordinate.isLt
-      change coordinate.val < 28 at coordinateBound
+      change coordinate.val < 27 at coordinateBound
       have selected := roundC1Grid_form? geometry coordinate
       rw [roundC1Target, roundC1MappedStart program] at selected
       change (roundC1Grid program).form? logicalWidth
-        (7148566 + coordinate.val * 5480) =
+        (7143062 + coordinate.val * 5480) =
           some ((RunningTransitionDirectPlan.Location.roundC1 coordinate).form
             geometry) at selected
       simp only [RunningTransitionDirectPlan.Location.sourceColumn]
       rw [roundC1Target, roundC1MappedStart program]
       change (substitution program).form? logicalWidth
-        (7148566 + coordinate.val * 5480) =
+        (7143062 + coordinate.val * 5480) =
           some ((RunningTransitionDirectPlan.Location.roundC1 coordinate).form
             geometry)
       have stateNone := SourceRange.form?_eq_none_of_after
         (stateRange program) logicalWidth
-          (7148566 + coordinate.val * 5480) (by omega)
+          (7143062 + coordinate.val * 5480) (by omega)
       have outputNone := SourceRange.form?_eq_none_of_after
         (outputRange program) logicalWidth
-          (7148566 + coordinate.val * 5480) (by omega)
+          (7143062 + coordinate.val * 5480) (by omega)
       have piDecNone := SourceRange.form?_eq_none_of_before
         (piDecRange program) logicalWidth
-          (7148566 + coordinate.val * 5480) (by omega)
+          (7143062 + coordinate.val * 5480) (by omega)
       have freshNone := SourceRange.form?_eq_none_of_before
         (freshRange program) logicalWidth
-          (7148566 + coordinate.val * 5480) (by omega)
+          (7143062 + coordinate.val * 5480) (by omega)
       have c0None := roundC0Grid_form?_none_at_roundC1
         (program := program) (logicalWidth := logicalWidth) coordinate
       rw [roundC1Target, roundC1MappedStart program] at c0None
       change (roundC0Grid program).form? logicalWidth
-        (7148566 + coordinate.val * 5480) = none at c0None
+        (7143062 + coordinate.val * 5480) = none at c0None
       simp [substitution, SourceSubstitution.form?, stateNone, outputNone,
         piDecNone, freshNone, c0None, selected]
   | piDec index =>
@@ -514,17 +514,17 @@ theorem substitution_location_form?
       simp only [RunningTransitionDirectPlan.Location.sourceColumn]
       rw [piDecTarget, piDecMappedStart program]
       have stateNone := SourceRange.form?_eq_none_of_after
-        (stateRange program) logicalWidth (14724024 + index.val) (by omega)
+        (stateRange program) logicalWidth (14712929 + index.val) (by omega)
       have outputNone := SourceRange.form?_eq_none_of_after
-        (outputRange program) logicalWidth (14724024 + index.val) (by omega)
+        (outputRange program) logicalWidth (14712929 + index.val) (by omega)
       have freshNone := SourceRange.form?_eq_none_of_before
-        (freshRange program) logicalWidth (14724024 + index.val) (by omega)
+        (freshRange program) logicalWidth (14712929 + index.val) (by omega)
       have c0None := SourceGrid.form?_eq_none_of_after
-        (roundC0Grid program) logicalWidth (14724024 + index.val)
+        (roundC0Grid program) logicalWidth (14712929 + index.val)
         (by rw [c0StrideValue]; omega)
         (by rw [c0StartValue, c0CountValue, c0StrideValue]; omega)
       have c1None := SourceGrid.form?_eq_none_of_after
-        (roundC1Grid program) logicalWidth (14724024 + index.val)
+        (roundC1Grid program) logicalWidth (14712929 + index.val)
         (by rw [c1StrideValue]; omega)
         (by rw [c1StartValue, c1CountValue, c1StrideValue]; omega)
       simp [substitution, SourceSubstitution.form?, stateNone, outputNone,

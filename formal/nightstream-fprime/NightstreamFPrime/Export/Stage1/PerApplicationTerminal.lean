@@ -21,8 +21,8 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 
 abbrev Program := Lifecycle.Stage1.Application.Program
 
-abbrev FitsTwoPow28 (application : Program) :=
-  PerApplicationFixedPoint.FitsTwoPow28 application
+abbrev FitsTwoPow27 (application : Program) :=
+  PerApplicationFixedPoint.FitsTwoPow27 application
 
 abbrev CommitmentSetup (application : Program) :=
   PerApplicationCanonicalPackage.CommitmentSetup application
@@ -33,7 +33,7 @@ abbrev ProofEnvelope (application : Program) :=
     (publicFits := PerApplicationFixedPoint.publicFits application)
 
 noncomputable def Holds
-    (application : Program) (fits : FitsTwoPow28 application)
+    (application : Program) (fits : FitsTwoPow27 application)
     (commitmentSetup : CommitmentSetup application)
     (statement : TerminalStatement AppState)
     (proof : ProofEnvelope application) : Prop :=
@@ -45,7 +45,7 @@ noncomputable def Holds
     application statement proof
 
 theorem holds_bottom_iff
-    (application : Program) (fits : FitsTwoPow28 application)
+    (application : Program) (fits : FitsTwoPow27 application)
     (commitmentSetup : CommitmentSetup application)
     (statement : TerminalStatement AppState) :
     Holds application fits commitmentSetup statement .bottom ↔
@@ -59,7 +59,7 @@ theorem holds_bottom_iff
     application statement
 
 theorem holds_recursive_iff
-    (application : Program) (fits : FitsTwoPow28 application)
+    (application : Program) (fits : FitsTwoPow27 application)
     (commitmentSetup : CommitmentSetup application)
     (statement : TerminalStatement AppState)
     (payload : TerminalProof
@@ -96,7 +96,7 @@ theorem holds_recursive_iff
     application statement payload
 
 theorem relations_iff_terminalHolds
-    (application : Program) (fits : FitsTwoPow28 application)
+    (application : Program) (fits : FitsTwoPow27 application)
     (commitmentSetup : CommitmentSetup application)
     (running : Running
       (logicalWidth := PerApplicationFixedPoint.logicalWidth application)

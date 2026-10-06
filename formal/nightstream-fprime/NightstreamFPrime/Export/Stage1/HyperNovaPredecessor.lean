@@ -79,7 +79,7 @@ recovered application transition, and terminal proof. The source-opening
 premise is used only when the decoded predecessor counter is positive. -/
 theorem terminal_implies_predecessorOrCollision
     (application : Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (commitmentSetup : PerApplicationCanonicalPackage.CommitmentSetup application)
     (statement : TerminalStatement AppState) (payload : TerminalPayload application)
     (runningWitness : Stage1.Terminal.RunningWitness
@@ -159,7 +159,7 @@ application witness, and accepts the unique bottom predecessor. It requires
 no NIFS call, extracted source witness, or source-membership premise. -/
 theorem terminal_one_implies_baseOrCollision
     (application : Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (commitmentSetup : PerApplicationCanonicalPackage.CommitmentSetup application)
     (statement : TerminalStatement AppState) (payload : TerminalPayload application)
     (first : statement.iteration = 1)

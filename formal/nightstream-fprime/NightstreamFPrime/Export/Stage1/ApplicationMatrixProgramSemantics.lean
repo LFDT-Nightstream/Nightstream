@@ -16,7 +16,7 @@ open NightstreamFPrime.Spec
 open ApplicationRetainedGeometry
 
 theorem rowSchedule_index?
-    (application : ApplicationProgram) (fits : FitsTwoPow28 application)
+    (application : ApplicationProgram) (fits : FitsTwoPow27 application)
     (index : Fin (ApplicationDirectSource.program application fits).rowCount) :
     (rowSchedule application).index? index.val =
       some (PerApplicationPackage.basePackage.layout.rowCount + index.val) := by
@@ -30,7 +30,7 @@ theorem rowSchedule_index?
   simp [rowSchedule, bound]
 
 private theorem programRow_support
-    (application : ApplicationProgram) (fits : FitsTwoPow28 application)
+    (application : ApplicationProgram) (fits : FitsTwoPow27 application)
     (index : Fin (ApplicationDirectSource.program application fits).rowCount) :
     ((ApplicationDirectSource.program application fits).row index).VarsSatisfy
       (ApplicationDirectSource.SourceAllowed application) := by
@@ -61,7 +61,7 @@ private theorem substitution_agrees_on_row
 
 def directForms
     {application : ApplicationProgram} {logicalWidth : Nat}
-    (fits : FitsTwoPow28 application)
+    (fits : FitsTwoPow27 application)
     (geometry : Geometry application logicalWidth)
     (index : Fin (ApplicationDirectSource.program application fits).rowCount) :
     OrdinaryRow.Forms logicalWidth :=
@@ -72,7 +72,7 @@ def directForms
 
 theorem plan_forms
     {application : ApplicationProgram} {logicalWidth : Nat}
-    (fits : FitsTwoPow28 application)
+    (fits : FitsTwoPow27 application)
     (geometry : Geometry application logicalWidth)
     (index : Fin (ApplicationDirectSource.program application fits).rowCount) :
     (ApplicationDirectPlan.plan fits geometry).forms index =
@@ -85,7 +85,7 @@ theorem plan_forms
 
 theorem ordinaryBlock_row?
     {application : ApplicationProgram} {logicalWidth : Nat}
-    (fits : FitsTwoPow28 application)
+    (fits : FitsTwoPow27 application)
     (geometry : Geometry application logicalWidth)
     (sourceRow : Nat → Option R1CS.Row)
     (index : Fin (ApplicationDirectSource.program application fits).rowCount)
@@ -113,7 +113,7 @@ theorem ordinaryBlock_row?
 of its canonical direct Lean plan. -/
 theorem matrixProgram_row?
     {application : ApplicationProgram} {logicalWidth : Nat}
-    (fits : FitsTwoPow28 application)
+    (fits : FitsTwoPow27 application)
     (geometry : Geometry application logicalWidth)
     (sourceRow : Nat → Option R1CS.Row)
     (loaded : ∀ index :

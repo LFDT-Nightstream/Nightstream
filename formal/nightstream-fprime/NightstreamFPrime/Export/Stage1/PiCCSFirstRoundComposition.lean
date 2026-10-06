@@ -58,8 +58,8 @@ def coefficients? (input : PiCCSPublicReplay.Input)
 
 private def freshTerm (input : ProtocolPolynomial.VerifierInput K productionShape)
     (data : ProtocolPolynomial.Data K productionShape) (alpha : CubePoint K cubeVariables)
-    (gamma : K) (index : Fin (2 ^ 27)) : FixedPolynomial K input.sumcheckDegreeBound :=
-  let suffix := NumericBooleanDomain.vertex 27 index
+    (gamma : K) (index : Fin (2 ^ 26)) : FixedPolynomial K input.sumcheckDegreeBound :=
+  let suffix := NumericBooleanDomain.vertex 26 index
   PiCCSFreshComplete.outerFresh input (TargetPolynomial.power extensionOps.toOps gamma)
     (PiCCSFirstRoundPair.ccsPolynomialWithPowers extensionOps input
       (TargetPolynomial.power extensionOps.toOps gamma)
@@ -71,8 +71,8 @@ private def freshTerm (input : ProtocolPolynomial.VerifierInput K productionShap
 
 private def normTerm (input : ProtocolPolynomial.VerifierInput K productionShape)
     (data : ProtocolPolynomial.Data K productionShape) (alpha : CubePoint K cubeVariables)
-    (gamma : K) (index : Fin (2 ^ 27)) : FixedPolynomial K input.sumcheckDegreeBound :=
-  let suffix := NumericBooleanDomain.vertex 27 index
+    (gamma : K) (index : Fin (2 ^ 26)) : FixedPolynomial K input.sumcheckDegreeBound :=
+  let suffix := NumericBooleanDomain.vertex 26 index
   PiCCSNormContribution.normTerm input (TargetPolynomial.power extensionOps.toOps gamma)
     (PiCCSFirstRound.equalitySelector extensionOps suffix alpha)
     (PiCCSFirstRoundPair.normPolynomialWithPowers extensionOps
@@ -91,12 +91,12 @@ private def components (input : ProtocolPolynomial.VerifierInput K productionSha
       (FixedPolynomial.mul extensionOps.toOps
         (PiCCSCarriedMoments.headSelector extensionOps input.priorPoint)
         (FixedPolynomial.affine
-          (PiCCSCarriedMoments.moment extensionOps data gamma (by decide : productionShape.cubeVariables = 27 + 1) false)
-          (extensionOps.sub (PiCCSCarriedMoments.moment extensionOps data gamma (by decide : productionShape.cubeVariables = 27 + 1) true)
-            (PiCCSCarriedMoments.moment extensionOps data gamma (by decide : productionShape.cubeVariables = 27 + 1) false)))))
+          (PiCCSCarriedMoments.moment extensionOps data gamma (by decide : productionShape.cubeVariables = 26 + 1) false)
+          (extensionOps.sub (PiCCSCarriedMoments.moment extensionOps data gamma (by decide : productionShape.cubeVariables = 26 + 1) true)
+            (PiCCSCarriedMoments.moment extensionOps data gamma (by decide : productionShape.cubeVariables = 26 + 1) false)))))
     (FixedPolynomial.add extensionOps.toOps
-      (FixedPolynomial.sum extensionOps.toOps (canonicalFinIndices (2 ^ 27)) (freshTerm input data alpha gamma))
-      (FixedPolynomial.sum extensionOps.toOps (canonicalFinIndices (2 ^ 27)) (normTerm input data alpha gamma)))
+      (FixedPolynomial.sum extensionOps.toOps (canonicalFinIndices (2 ^ 26)) (freshTerm input data alpha gamma))
+      (FixedPolynomial.sum extensionOps.toOps (canonicalFinIndices (2 ^ 26)) (normTerm input data alpha gamma)))
 
 -- Transport the verifier input while it is a symbolic variable. This avoids
 -- reducing the selected key or comparing differently indexed polynomials.
@@ -106,11 +106,11 @@ private theorem components_coefficients
     (agreement : input = data.toVerifierInput)
     (alpha : CubePoint K cubeVariables) (gamma : K) :
     (components input data alpha gamma).coefficients =
-      (PiCCSFirstRound.firstRound extensionOps data alpha gamma (remaining := 27) (by decide)).coefficients := by
+      (PiCCSFirstRound.firstRound extensionOps data alpha gamma (remaining := 26) (by decide)).coefficients := by
   subst input
   exact congrArg FixedPolynomial.coefficients
     (PiCCSCarriedMoments.full_components_eq_firstRound extensionOps extensionLaws data alpha gamma
-      (remaining := 27) (by decide))
+      (remaining := 26) (by decide))
 
 private theorem input_agreement (input : PiCCSPublicReplay.Input)
     (masks : Array (Array (Nat × Nat))) :
@@ -119,7 +119,7 @@ private theorem input_agreement (input : PiCCSPublicReplay.Input)
 
 private theorem fresh_reference (input : PiCCSPublicReplay.Input)
     (masks : Array (Array (Nat × Nat))) (alpha : CubePoint K cubeVariables) (gamma : K)
-    (index : Fin (2 ^ 27)) :
+    (index : Fin (2 ^ 26)) :
     PiCCSFreshComplete.referencePair input (witness masks)
         (TargetPolynomial.power extensionOps.toOps gamma) alpha index.val =
       freshTerm (PiCCSPublicReplay.verifierInput input) (sourceData input masks) alpha gamma index := by
@@ -131,12 +131,12 @@ private theorem fresh_value (input : PiCCSPublicReplay.Input)
     (masks : Array (Array (Nat × Nat))) (alpha : CubePoint K cubeVariables) (gamma : K) :
     PiCCSFreshComplete.freshRange? input (witness masks) (PiCCSNormSource.canonicalLayout ())
         (TargetPolynomial.power extensionOps.toOps gamma) alpha 0 PiCCSFreshComplete.activePairs =
-      some (FixedPolynomial.sum extensionOps.toOps (canonicalFinIndices (2 ^ 27))
+      some (FixedPolynomial.sum extensionOps.toOps (canonicalFinIndices (2 ^ 26))
         (freshTerm (PiCCSPublicReplay.verifierInput input) (sourceData input masks) alpha gamma)) := by
   rw [PiCCSFreshComplete.freshRange_eq_fullPairSum,
     PiCCSPolynomialRange.range_eq_sum extensionOps extensionLaws]
   apply congrArg some
-  apply congrArg (FixedPolynomial.sum extensionOps.toOps (canonicalFinIndices (2 ^ 27)))
+  apply congrArg (FixedPolynomial.sum extensionOps.toOps (canonicalFinIndices (2 ^ 26)))
   funext index
   simpa only [Nat.zero_add] using fresh_reference input masks alpha gamma index
 
@@ -173,7 +173,7 @@ private theorem norm_congr (powers : Nat → K)
 
 private theorem norm_reference (input : PiCCSPublicReplay.Input)
     (masks : Array (Array (Nat × Nat))) (alpha : CubePoint K cubeVariables) (gamma : K)
-    (index : Fin (2 ^ 27)) :
+    (index : Fin (2 ^ 26)) :
     PiCCSNormComplete.numericPairNorm (PiCCSPublicReplay.verifierInput input)
         (TargetPolynomial.power extensionOps.toOps gamma) alpha masks
         (fun _ => Vector.replicate ProductionRelation.matrixCount (0 : F))
@@ -183,7 +183,7 @@ private theorem norm_reference (input : PiCCSPublicReplay.Input)
   simp only [PiCCSNormComplete.numericPairNorm, dif_pos inside, normTerm]
   apply congrArg (PiCCSNormContribution.normTerm (PiCCSPublicReplay.verifierInput input)
     (TargetPolynomial.power extensionOps.toOps gamma)
-    (PiCCSFirstRound.equalitySelector extensionOps (NumericBooleanDomain.vertex 27 index) alpha))
+    (PiCCSFirstRound.equalitySelector extensionOps (NumericBooleanDomain.vertex 26 index) alpha))
   exact norm_congr _ _ _ _ _ (norm_fields input masks _ _) (norm_fields input masks _ _)
 
 private theorem headSelector_agreement (alpha : CubePoint K cubeVariables) :
@@ -200,7 +200,7 @@ private theorem norm_value (input : PiCCSPublicReplay.Input)
           (PiCCSNormScan.range
             (NumericBooleanDomain.tensorWeightCoordinates extensionOps alpha.coordinates.tail)
             masks 0 PiCCSSourceImages.blockCount)) =
-      FixedPolynomial.sum extensionOps.toOps (canonicalFinIndices (2 ^ 27))
+      FixedPolynomial.sum extensionOps.toOps (canonicalFinIndices (2 ^ 26))
         (normTerm (PiCCSPublicReplay.verifierInput input) (sourceData input masks) alpha gamma) := by
   rw [headSelector_agreement]
   rw [PiCCSNormComplete.finished_norm_eq_fullPairSum
@@ -208,7 +208,7 @@ private theorem norm_value (input : PiCCSPublicReplay.Input)
     (fun _ => Vector.replicate ProductionRelation.matrixCount (0 : F))
     (fun _ => Vector.replicate ProductionRelation.matrixCount (0 : F)),
     PiCCSPolynomialRange.range_eq_sum extensionOps extensionLaws]
-  apply congrArg (FixedPolynomial.sum extensionOps.toOps (canonicalFinIndices (2 ^ 27)))
+  apply congrArg (FixedPolynomial.sum extensionOps.toOps (canonicalFinIndices (2 ^ 26)))
   funext index
   simpa only [Nat.zero_add] using norm_reference input masks alpha gamma index
 
@@ -220,7 +220,7 @@ theorem coefficients_eq_firstRound (input : PiCCSPublicReplay.Input)
     coefficients? input masks =
       some ((PiCCSFirstRound.firstRound extensionOps (sourceData input masks)
         (PiCCSPublicReplay.pre input).alpha (PiCCSPublicReplay.pre input).gamma
-        (remaining := 27) (by decide)).coefficients) := by
+        (remaining := 26) (by decide)).coefficients) := by
   let coins := PiCCSPublicReplay.pre input
   let verifier := PiCCSPublicReplay.verifierInput input
   let power := TargetPolynomial.power extensionOps.toOps coins.gamma
@@ -230,14 +230,14 @@ theorem coefficients_eq_firstRound (input : PiCCSPublicReplay.Input)
         (fun matrix => extensionOps.add
           (PiCCSCarriedComplete.padMoment input (witness masks) coins.gamma ⟨0, by decide⟩)
           (extensionOps.mul (power productionShape.matrixEvaluationOffset) matrix)) =
-        some (PiCCSCarriedMoments.moment extensionOps data coins.gamma (by decide : productionShape.cubeVariables = 27 + 1) false) := by
+        some (PiCCSCarriedMoments.moment extensionOps data coins.gamma (by decide : productionShape.cubeVariables = 26 + 1) false) := by
     exact PiCCSCarriedComplete.selected_moment input (witness masks) coins.gamma ⟨0, by decide⟩
   have highMoment :
       (PiCCSCarriedComplete.matrixMoment? input (witness masks) coins.gamma ⟨1, by decide⟩).map
         (fun matrix => extensionOps.add
           (PiCCSCarriedComplete.padMoment input (witness masks) coins.gamma ⟨1, by decide⟩)
           (extensionOps.mul (power productionShape.matrixEvaluationOffset) matrix)) =
-        some (PiCCSCarriedMoments.moment extensionOps data coins.gamma (by decide : productionShape.cubeVariables = 27 + 1) true) := by
+        some (PiCCSCarriedMoments.moment extensionOps data coins.gamma (by decide : productionShape.cubeVariables = 26 + 1) true) := by
     exact PiCCSCarriedComplete.selected_moment input (witness masks) coins.gamma ⟨1, by decide⟩
   obtain ⟨matrixLow, lowLoaded, lowEqual⟩ := Option.map_eq_some_iff.mp lowMoment
   obtain ⟨matrixHigh, highLoaded, highEqual⟩ := Option.map_eq_some_iff.mp highMoment
@@ -254,9 +254,9 @@ theorem coefficients_eq_firstRound (input : PiCCSPublicReplay.Input)
           (FixedPolynomial.mul extensionOps.toOps
             (PiCCSCarriedMoments.headSelector extensionOps verifier.priorPoint)
             (FixedPolynomial.affine
-              (PiCCSCarriedMoments.moment extensionOps data coins.gamma (by decide : productionShape.cubeVariables = 27 + 1) false)
-              (extensionOps.sub (PiCCSCarriedMoments.moment extensionOps data coins.gamma (by decide : productionShape.cubeVariables = 27 + 1) true)
-                (PiCCSCarriedMoments.moment extensionOps data coins.gamma (by decide : productionShape.cubeVariables = 27 + 1) false)))) := by
+              (PiCCSCarriedMoments.moment extensionOps data coins.gamma (by decide : productionShape.cubeVariables = 26 + 1) false)
+              (extensionOps.sub (PiCCSCarriedMoments.moment extensionOps data coins.gamma (by decide : productionShape.cubeVariables = 26 + 1) true)
+                (PiCCSCarriedMoments.moment extensionOps data coins.gamma (by decide : productionShape.cubeVariables = 26 + 1) false)))) := by
     rw [PiCCSCarriedMoments.carriedPair_combined extensionOps extensionLaws, lowEqual, highEqual]
   unfold coefficients?
   dsimp only

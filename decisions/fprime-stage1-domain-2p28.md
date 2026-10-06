@@ -2,6 +2,8 @@
 
 ## Status
 
+Superseded by [the 27-round decision](fprime-stage1-domain-2p27.md).
+
 Accepted by the owner on 2026-08-28. This decision supersedes
 `fprime-stage1-domain-2p26.md`.
 

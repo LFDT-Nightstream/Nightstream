@@ -21,8 +21,8 @@ P = 18446744069414584321
 NONRESIDUE = 7
 # Selected geometry: PICCS_CARRIED_PREFIX_REPLAY.json, pad and matrix records.
 # Profile.lean fixes ring degree 54 and the 7 separate matrix ports.
-ORIGINAL_ROWS = 1371020
-PAD_RECORDS = 1107491
+ORIGINAL_ROWS = 1369389
+PAD_RECORDS = 1106153
 MATRIX_RECORDS = (ORIGINAL_ROWS + 1) // 2
 FIELD = struct.Struct("<QQ")
 
@@ -91,7 +91,7 @@ def extension(value, label):
 def read_round(path):
     value = sequence(json.loads(path.read_bytes()), 10, str(path))
     require(natural(value[0], str(path)) == 1, f"{path}: wrong round schema")
-    for point in sequence(value[1], 28, f"{path}: alpha"):
+    for point in sequence(value[1], 27, f"{path}: alpha"):
         extension(point, f"{path}: alpha")
     extension(value[2], f"{path}: gamma")
     for index in (3, 6):

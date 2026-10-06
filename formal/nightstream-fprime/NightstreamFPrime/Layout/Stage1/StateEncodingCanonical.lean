@@ -45,15 +45,15 @@ private theorem running_group_word
     (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (source : Fin productionShape.runningCount) (index : Nat) (bound : index < 2325) :
     (serializeRunning (publicFits := publicFits) running).getD
-      (57 + source.val * 2325 + index) 0 =
+      (55 + source.val * 2325 + index) 0 =
     (block (serializeCommitment (running.commitments source)) ++
       block (serializePublicInput (publicFits := publicFits) (running.publicInputs source)) ++
       block (serializeEvaluations (running.evaluations source))).getD index 0 := by
   rw [serializeRunning, List.getD_append_right]
-  · have pointLength : (block (serializePoint running.point)).length = 57 := by
+  · have pointLength : (block (serializePoint running.point)).length = 55 := by
       simp [cubeVariables]
     rw [pointLength]
-    have shift : 57 + source.val * 2325 + index - 57 = source.val * 2325 + index := by omega
+    have shift : 55 + source.val * 2325 + index - 55 = source.val * 2325 + index := by omega
     rw [shift]
     exact PiCCSRepresentation.finRange_flatMap_getD _ (running_group_length running) source index bound
   · simp only [block_length, serializePoint_length, cubeVariables]
@@ -76,13 +76,13 @@ private theorem running_headers
     simp [productionShape, Phi81MatrixSource.phi81Shape, productionProfile, ringDegree]
   simp only [List.mem_cons, List.not_mem_nil, or_false] at member
   rcases member with rfl | rfl | rfl
-  · have shift : StateBinding.runningGroupStart source.val - 39 = 57 + source.val * 2325 + 0 := by
+  · have shift : StateBinding.runningGroupStart source.val - 39 = 55 + source.val * 2325 + 0 := by
       simp only [StateBinding.runningGroupStart, cubeVariables]
       omega
     rw [shift, running_group_word running source 0 (by decide)]
     simp only [block, List.cons_append, List.getD_cons_zero, commitmentLength, natWord]
   · have shift : StateBinding.runningGroupStart source.val + 1189 - 39 =
-        57 + source.val * 2325 + 1189 := by
+        55 + source.val * 2325 + 1189 := by
       simp only [StateBinding.runningGroupStart, cubeVariables]
       omega
     rw [shift, running_group_word running source 1189 (by decide)]
@@ -91,7 +91,7 @@ private theorem running_headers
       (block (serializeEvaluations (running.evaluations source)))
     simpa only [block_length, commitmentLength, publicLength, natWord] using header
   · have shift : StateBinding.runningGroupStart source.val + 1460 - 39 =
-        57 + source.val * 2325 + 1460 := by
+        55 + source.val * 2325 + 1460 := by
       simp only [StateBinding.runningGroupStart, cubeVariables]
       omega
     rw [shift, running_group_word running source 1460 (by decide)]
@@ -138,7 +138,7 @@ theorem serializePreimage_canonical
       (serializeRunning (publicFits := publicFits) (preimage.running functionIndex) ++ [natWord preimage.pc])
     rw [currentStart, currentLength] at header
     simpa only [beforeCurrent, beforeInitial, serializePreimage, List.append_assoc, natWord] using header
-  have runningWord (index : Nat) (bound : index < 37257) :
+  have runningWord (index : Nat) (bound : index < 37255) :
       (serializePreimage (publicFits := publicFits) preimage).getD (39 + index) 0 =
         (serializeRunning (publicFits := publicFits) (preimage.running functionIndex)).getD index 0 := by
     have selected := middle_word beforeRunning
@@ -163,7 +163,7 @@ theorem serializePreimage_canonical
         List.getD_cons_zero, serializePoint_length, natWord] using point
   · rw [StateBinding.runningPrefixWords, List.mem_flatMap] at runningMember
     rcases runningMember with ⟨source, _sourceMember, wordMember⟩
-    have indexBounds : 39 ≤ word.index ∧ word.index < 37296 := by
+    have indexBounds : 39 ≤ word.index ∧ word.index < 37294 := by
       have sourceBound := source.isLt
       change source.val < 16 at sourceBound
       simp only [List.mem_cons, List.not_mem_nil, or_false] at wordMember

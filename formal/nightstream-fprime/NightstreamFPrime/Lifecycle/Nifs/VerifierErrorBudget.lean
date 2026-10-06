@@ -21,11 +21,11 @@ open MeasureTheory
 
 /-- The actual selected shape and degree give this test numerator. -/
 theorem test_error_eq : IndependentExecution.testError productionShape 9 =
-    (7209 : ℝ) / (goldilocksModulus : ℝ) ^ 2 := by
+    (7199 : ℝ) / (goldilocksModulus : ℝ) ^ 2 := by
   unfold IndependentExecution.testError
   rw [Nat.cast_pow]
-  change (28 : ℝ) * 9 / (goldilocksModulus : ℝ) ^ 2 +
-    6957 / (goldilocksModulus : ℝ) ^ 2 = _
+  change (27 : ℝ) * 9 / (goldilocksModulus : ℝ) ^ 2 +
+    6956 / (goldilocksModulus : ℝ) ^ 2 = _
   ring
 
 /-- The exported natural-number numerator is the selected test numerator. -/

@@ -242,7 +242,7 @@ def profile : Profile where
   piRlcInputs := 17
   piDecChildren := 16
   ccsMatrices := productionProfile.ccsMatrices
-  cubeVariables := 28
+  cubeVariables := 27
 
 def poseidonSchedule : PoseidonSchedule where
   width := Spec.Poseidon2.width

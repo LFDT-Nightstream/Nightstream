@@ -34,7 +34,7 @@ pub fn check_proof_mutations(
         );
         assert!(!matches!(optimized, Ok((true, _))), "optimized accepted {label}");
     };
-    assert_eq!(proof.sumcheck_rounds.len(), 28);
+    assert_eq!(proof.sumcheck_rounds.len(), 27);
     assert!(proof.sumcheck_rounds.iter().all(|round| round.len() == 10));
     let mut changed = proof.clone();
     changed.sumcheck_rounds.pop();
@@ -66,7 +66,7 @@ pub fn check_proof_mutations(
                 checked
             })
             .sum::<usize>();
-    assert_eq!(checked, 2 + 28 * 10 * 2);
+    assert_eq!(checked, 2 + 27 * 10 * 2);
     println!("positive_pi_ccs_proof_mutations_rejected={checked} engine=optimized");
 }
 
@@ -116,7 +116,7 @@ pub fn check_claim_mutations(
             assert!(running
                 .iter()
                 .any(|claim| claim.eval_k.iter().any(|&value| value != K::ZERO)));
-            for coordinate in 0..28 {
+            for coordinate in 0..27 {
                 for limb in 0..2 {
                     let mut changed = running.to_vec();
                     let mut words: [u64; 2] = changed[0].r[coordinate].to_limbs_u64().into();
@@ -133,7 +133,7 @@ pub fn check_claim_mutations(
                     );
                 }
             }
-            assert_eq!(checked.get(), 28 * 2);
+            assert_eq!(checked.get(), 27 * 2);
         }
         "statement-mutations" => {
             // Zero running openings remain valid at every common point.
@@ -184,7 +184,7 @@ pub fn check_claim_mutations(
             assert_eq!(checked.get(), 4 + 4 + running.len() * claim_families + 2);
         }
         "output-mutations" => {
-            let mutations_per_source = claim_families + 28 + 4;
+            let mutations_per_source = claim_families + 27 + 4;
             (0..outputs.len() * mutations_per_source)
                 .into_iter()
                 .for_each(|mutation| {
@@ -199,12 +199,12 @@ pub fn check_claim_mutations(
                             _ => changed[source].eval_a[mutation - 3][0] += K::ONE,
                         }
                         format!("output source {source}, family {mutation}")
-                    } else if mutation < claim_families + 28 {
+                    } else if mutation < claim_families + 27 {
                         let coordinate = mutation - claim_families;
                         changed[source].r[coordinate] += K::ONE;
                         format!("output source {source}, point {coordinate}")
                     } else {
-                        let lane = mutation - claim_families - 28;
+                        let lane = mutation - claim_families - 27;
                         change_digest(&mut changed[source].fold_digest, lane);
                         format!("output source {source}, digest {lane}")
                     };

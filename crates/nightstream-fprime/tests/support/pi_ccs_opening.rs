@@ -147,8 +147,8 @@ fn tensor(point: &[Extension]) -> Vec<Extension> {
 impl EqualityTensor {
     pub fn new(point: &[Extension]) -> Self {
         // Equal halves minimize the two stored tensor factors for this
-        // 28-variable profile; the split is derived from the point length.
-        assert_eq!(point.len(), 28);
+        // 27-variable profile; the split is derived from the point length.
+        assert_eq!(point.len(), 27);
         let split = point.len() / 2;
         Self {
             low: tensor(&point[..split]),

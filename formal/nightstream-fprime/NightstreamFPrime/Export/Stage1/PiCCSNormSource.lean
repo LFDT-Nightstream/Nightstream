@@ -130,8 +130,8 @@ theorem pairIndex_bound (block : Fin PiCCSSourceImages.blockCount) (pair : Fin P
       (logicalWidth := PiCCSSourceImages.logicalWidth) block (highLane pair)
   rw [highLane_global] at live
   have bound := Nat.lt_of_lt_of_le live (canonicalLayout ()).columns_le
-  change 2 * pairIndex block.val pair + 1 < 2 ^ 28 at bound
-  change pairIndex block.val pair < 2 ^ 27
+  change 2 * pairIndex block.val pair + 1 < 2 ^ 27 at bound
+  change pairIndex block.val pair < 2 ^ 26
   omega
 
 /-- The existing numeric Boolean vertex at this complete-block pair index. -/

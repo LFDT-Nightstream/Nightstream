@@ -31,23 +31,23 @@ open NightstreamFPrime.Spec.HyperNova.NonInteractiveMultiFold
 
 abbrev Program := Lifecycle.Stage1.Application.Program
 
-abbrev FitsTwoPow28 (program : Program) :=
-  PerApplicationFixedPoint.FitsTwoPow28 program
+abbrev FitsTwoPow27 (program : Program) :=
+  PerApplicationFixedPoint.FitsTwoPow27 program
 
 abbrev CommitmentSetup (program : Program) :=
   PerApplicationCanonicalPackage.CommitmentSetup program
 
-abbrev CanonicalKey (program : Program) (fits : FitsTwoPow28 program) :=
+abbrev CanonicalKey (program : Program) (fits : FitsTwoPow27 program) :=
   ProductionKey.KeyType (PerApplicationFixedPoint.relation program fits)
 
 noncomputable def canonicalKey {program : Program}
-    (fits : FitsTwoPow28 program)
+    (fits : FitsTwoPow27 program)
     (commitmentSetup : CommitmentSetup program) :
     CanonicalKey program fits :=
   ProductionKey.key (PerApplicationFixedPoint.relation program fits)
     (commitmentKey commitmentSetup)
 
-abbrev StepInput (program : Program) (fits : FitsTwoPow28 program) :=
+abbrev StepInput (program : Program) (fits : FitsTwoPow27 program) :=
   Input KeyDigest AppState AppWitness
     (Running
       (logicalWidth := PerApplicationFixedPoint.logicalWidth program)
@@ -64,19 +64,19 @@ abbrev StepOutput (program : Program) :=
       (logicalWidth := PerApplicationFixedPoint.logicalWidth program)
       (publicFits := PerApplicationFixedPoint.publicFits program)) slotCount
 
-def selectedRunning {program : Program} {fits : FitsTwoPow28 program}
+def selectedRunning {program : Program} {fits : FitsTwoPow27 program}
     (input : StepInput program fits) :=
   input.running functionIndex
 
 def verifierContextDigest {program : Program}
-    (fits : FitsTwoPow28 program)
+    (fits : FitsTwoPow27 program)
     (commitmentSetup : CommitmentSetup program) : KeyDigest :=
   PerApplicationCanonicalPackage.verifierContextDigest fits commitmentSetup
 
 /-- Exact prior-state hash preimage selected by this package and the actual
 HyperNova input. -/
 noncomputable def replayState {program : Program}
-    (fits : FitsTwoPow28 program)
+    (fits : FitsTwoPow27 program)
     (commitmentSetup : CommitmentSetup program)
     (input : StepInput program fits) :
     HashPreimage
@@ -90,7 +90,7 @@ noncomputable def replayState {program : Program}
 /-- Exact PiCCS statement and round-message replay selected by the canonical
 package key and the actual NIFS proof. No transcript field is caller-owned. -/
 noncomputable def replayInput {program : Program}
-    (fits : FitsTwoPow28 program)
+    (fits : FitsTwoPow27 program)
     (commitmentSetup : CommitmentSetup program)
     (input : StepInput program fits) :
     Spec.Folding.PiCCS.TranscriptReplay.ReplayInput K Transcript.State
@@ -113,7 +113,7 @@ noncomputable def replayInput {program : Program}
 same selected running and fresh claims. It is not inferred from transcript
 coin equality. -/
 theorem replayInput_statement_input {program : Program}
-    (fits : FitsTwoPow28 program)
+    (fits : FitsTwoPow27 program)
     (commitmentSetup : CommitmentSetup program)
     (input : StepInput program fits) :
     (replayInput fits commitmentSetup input).statement.input =
@@ -125,7 +125,7 @@ theorem replayInput_statement_input {program : Program}
 /-- The replay view derives exactly the coins used by the production NIFS
 key. -/
 theorem replayInput_derive_eq_piCcsExecution {program : Program}
-    (fits : FitsTwoPow28 program)
+    (fits : FitsTwoPow27 program)
     (commitmentSetup : CommitmentSetup program)
     (input : StepInput program fits) :
     (replayInput fits commitmentSetup input).derive
@@ -141,7 +141,7 @@ theorem replayInput_derive_eq_piCcsExecution {program : Program}
 /-- Two different complete PiCCS outputs produce one post-output transcript
 state when absorbed from the same causal pre-output state. -/
 def PiCcsOutputAbsorptionCollision {program : Program}
-    (fits : FitsTwoPow28 program)
+    (fits : FitsTwoPow27 program)
     (commitmentSetup : CommitmentSetup program)
     (state : Transcript.State)
     (left right : FullOutputCoordinates.FullOutput K productionShape) : Prop :=
@@ -152,7 +152,7 @@ def PiCcsOutputAbsorptionCollision {program : Program}
 /-- The sole deterministic extraction algebra selected by the exact Ajtai key
 and production NIFS key. -/
 noncomputable def productionExtractionAlgebra {program : Program}
-    (fits : FitsTwoPow28 program)
+    (fits : FitsTwoPow27 program)
     (commitmentSetup : CommitmentSetup program) :
     Spec.Folding.PiRLC.PaperForkExtraction.ExtractionAlgebra
       (canonicalKey fits commitmentSetup).piRlcSemantics
@@ -164,7 +164,7 @@ noncomputable def productionExtractionAlgebra {program : Program}
 /-- The exact strong-set unit record used by the verifier-selected extraction
 algebra. -/
 noncomputable def productionStrongSet {program : Program}
-    (fits : FitsTwoPow28 program)
+    (fits : FitsTwoPow27 program)
     (commitmentSetup : CommitmentSetup program) :
     Spec.Folding.PiRLC.PaperForkExtraction.StrongSetUnits
       (productionExtractionAlgebra fits commitmentSetup).ring
@@ -177,7 +177,7 @@ statement, fresh input, and round messages are all computed from one canonical
 package and one actual HyperNova input. The right side is the alleged replay
 being compared with it. -/
 theorem packageReplay_identifies_claim_or_failure {program : Program}
-    (fits : FitsTwoPow28 program)
+    (fits : FitsTwoPow27 program)
     (commitmentSetup : CommitmentSetup program)
     (input : StepInput program fits)
     (claimedAuthority : VerifierContext.Authority)
@@ -257,7 +257,7 @@ theorem packageReplay_identifies_claim_or_failure {program : Program}
 success branch identifies the actual NIFS proof's PiCCS output as well as its
 authority, state, statement, fresh input, and round messages. -/
 theorem packageReplayAndOutput_identifies_claim_or_failure {program : Program}
-    (fits : FitsTwoPow28 program)
+    (fits : FitsTwoPow27 program)
     (commitmentSetup : CommitmentSetup program)
     (input : StepInput program fits)
     (claimedAuthority : VerifierContext.Authority)
@@ -394,7 +394,7 @@ The base branch performs no NIFS extraction. The recursive branch uses the
 same relation, Ajtai key, proof, running input, and output already selected by
 `StepHoldsFor`. -/
 theorem stepHoldsFor_implies_base_or_securityOutcome {program : Program}
-    (fits : FitsTwoPow28 program)
+    (fits : FitsTwoPow27 program)
     (commitmentSetup : CommitmentSetup program)
     (input : StepInput program fits) (output : StepOutput program)
     (step : Lifecycle.StepHoldsFor
@@ -446,7 +446,7 @@ The base branch performs no extraction. The recursive branch uses the exact
 application, canonical verifier-context digest, relation, Ajtai key,
 raw assignment, and NIFS proof constrained by those rows. -/
 theorem verifierBoundRowsZero_implies_base_or_securityOutcome
-    {program : Program} (fits : FitsTwoPow28 program)
+    {program : Program} (fits : FitsTwoPow27 program)
     (commitmentSetup : CommitmentSetup program)
     (raw : PerApplicationCanonicalAssignment.RawValues program)
     (accepted : (PerApplicationFixedPoint.structuralPlan program fits
@@ -477,8 +477,8 @@ theorem verifierBoundRowsZero_implies_base_or_securityOutcome
 structural package digest. -/
 def StructuralPackageCollision
     (leftProgram rightProgram : Program)
-    (leftFits : FitsTwoPow28 leftProgram)
-    (rightFits : FitsTwoPow28 rightProgram) : Prop :=
+    (leftFits : FitsTwoPow27 leftProgram)
+    (rightFits : FitsTwoPow27 rightProgram) : Prop :=
   sealedPackageValue leftProgram leftFits ≠
       sealedPackageValue rightProgram rightFits ∧
     structuralPackageIdentity leftProgram leftFits =
@@ -488,8 +488,8 @@ def StructuralPackageCollision
 identity. -/
 def FinalPackageBindingCollision
     {leftProgram rightProgram : Program}
-    (leftFits : FitsTwoPow28 leftProgram)
-    (rightFits : FitsTwoPow28 rightProgram)
+    (leftFits : FitsTwoPow27 leftProgram)
+    (rightFits : FitsTwoPow27 rightProgram)
     (leftSetup : CommitmentSetup leftProgram)
     (rightSetup : CommitmentSetup rightProgram) : Prop :=
   packageIdentityPreimage leftFits leftSetup ≠
@@ -502,8 +502,8 @@ matrix program, and every raw verifier-authority word list unless one named
 Poseidon2 binding layer collides. -/
 theorem packageIdentity_identifies_package_authority_or_collision
     {leftProgram rightProgram : Program}
-    (leftFits : FitsTwoPow28 leftProgram)
-    (rightFits : FitsTwoPow28 rightProgram)
+    (leftFits : FitsTwoPow27 leftProgram)
+    (rightFits : FitsTwoPow27 rightProgram)
     (leftSetup : CommitmentSetup leftProgram)
     (rightSetup : CommitmentSetup rightProgram)
     (identityEqual : packageIdentity leftFits leftSetup =
@@ -534,8 +534,8 @@ reduction. The prover cannot use binding equality to select another circuit,
 matrix program, application, or key without one named collision event. -/
 theorem verificationKeyBinding_identifies_package_authority_or_collision
     {leftProgram rightProgram : Program}
-    (leftFits : FitsTwoPow28 leftProgram)
-    (rightFits : FitsTwoPow28 rightProgram)
+    (leftFits : FitsTwoPow27 leftProgram)
+    (rightFits : FitsTwoPow27 rightProgram)
     (leftSetup : CommitmentSetup leftProgram)
     (rightSetup : CommitmentSetup rightProgram)
     (bindingEqual : verificationKeyBinding leftFits leftSetup =
@@ -560,8 +560,8 @@ unless one existing Poseidon2 binding event occurs. This theorem remains
 generic until the owner selects one concrete production application. -/
 theorem verificationKeyBindingAndRowsZero_implies_securityOrCollision
     {expectedProgram claimedProgram : Program}
-    (expectedFits : FitsTwoPow28 expectedProgram)
-    (claimedFits : FitsTwoPow28 claimedProgram)
+    (expectedFits : FitsTwoPow27 expectedProgram)
+    (claimedFits : FitsTwoPow27 claimedProgram)
     (expectedSetup : CommitmentSetup expectedProgram)
     (claimedSetup : CommitmentSetup claimedProgram)
     (raw : PerApplicationCanonicalAssignment.RawValues claimedProgram)

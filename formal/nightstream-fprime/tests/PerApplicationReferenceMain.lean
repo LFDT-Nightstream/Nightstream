@@ -246,7 +246,7 @@ def writeInnerPackage (program : Program) (handle : IO.FS.Handle)
   writeByte handle 93
 
 def writeSealedPackage (program : Program)
-    (_fits : PerApplicationFixedPoint.FitsTwoPow28 program)
+    (_fits : PerApplicationFixedPoint.FitsTwoPow27 program)
     (handle : IO.FS.Handle) : IO Unit := do
   let permutationTask ← IO.asTask Main.preparePermutationBlocks
   let witnessTasks ← Main.prepareWitnessGroups

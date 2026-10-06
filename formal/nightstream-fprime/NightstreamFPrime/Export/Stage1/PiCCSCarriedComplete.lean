@@ -181,29 +181,29 @@ private theorem matrixMoment?_value (input : PiCCSPublicReplay.Input)
   intro row inside
   exact matrixRow?_value input witness gamma row (Nat.lt_of_lt_of_le inside rows_fit)
 
-private theorem endpoint_bound (pair : Fin (2 ^ 27)) (bit : Fin 2) :
+private theorem endpoint_bound (pair : Fin (2 ^ 26)) (bit : Fin 2) :
     2 * pair.val + bit.val < 2 ^ cubeVariables := by
   have pairBound := pair.isLt
   have bitBound := bit.isLt
-  change 2 * pair.val + bit.val < 268435456
-  change pair.val < 134217728 at pairBound
+  change 2 * pair.val + bit.val < 134217728
+  change pair.val < 67108864 at pairBound
   omega
 
-private theorem endpoint_vertex (pair : Fin (2 ^ 27)) (bit : Fin 2) :
+private theorem endpoint_vertex (pair : Fin (2 ^ 26)) (bit : Fin 2) :
     PiCCSFirstRound.endpointVertex (arity := cubeVariables) (by decide) (bit.val == 1)
-        (NumericBooleanDomain.vertex 27 pair) =
+        (NumericBooleanDomain.vertex 26 pair) =
       NumericBooleanDomain.vertex cubeVariables ⟨2 * pair.val + bit.val, endpoint_bound pair bit⟩ := by
   let vertex := PiCCSFirstRound.endpointVertex (arity := cubeVariables) (by decide) (bit.val == 1)
-    (NumericBooleanDomain.vertex 27 pair)
+    (NumericBooleanDomain.vertex 26 pair)
   have indexed : NumericBooleanDomain.index vertex = 2 * pair.val + bit.val := by
     have casesBit : bit.val = 0 ∨ bit.val = 1 := by have bound := bit.isLt; omega
     rcases casesBit with low | high
     · simp only [vertex, low, show (0 == 1) = false by decide]
-      change 0 + 2 * NumericBooleanDomain.index (NumericBooleanDomain.vertex 27 pair) = 2 * pair.val + 0
+      change 0 + 2 * NumericBooleanDomain.index (NumericBooleanDomain.vertex 26 pair) = 2 * pair.val + 0
       rw [NumericBooleanDomain.index_vertex]
       omega
     · simp only [vertex, high, show (1 == 1) = true by decide]
-      change 1 + 2 * NumericBooleanDomain.index (NumericBooleanDomain.vertex 27 pair) = 2 * pair.val + 1
+      change 1 + 2 * NumericBooleanDomain.index (NumericBooleanDomain.vertex 26 pair) = 2 * pair.val + 1
       rw [NumericBooleanDomain.index_vertex]
       omega
   calc
@@ -244,11 +244,11 @@ theorem selected_moment (input : PiCCSPublicReplay.Input)
       extensionOps.add (padMoment input witness gamma bit)
         (extensionOps.mul (powers gamma productionShape.matrixEvaluationOffset) matrix)) =
       some (PiCCSCarriedMoments.moment extensionOps (sourceData input witness) gamma
-        (by decide : productionShape.cubeVariables = 27 + 1) (bit.val == 1)) := by
+        (by decide : productionShape.cubeVariables = 26 + 1) (bit.val == 1)) := by
   rw [matrixMoment?_value, Option.map_some, padMoment_value]
   apply congrArg some
   have complete := PiCCSCarriedAccumulation.moment_of_exact_row_callbacks extensionOps extensionLaws
-    (sourceData input witness) gamma (by decide : productionShape.cubeVariables = 27 + 1)
+    (sourceData input witness) gamma (by decide : productionShape.cubeVariables = 26 + 1)
     (padRow input witness gamma) (matrixRow input witness gamma)
     (Phi81CarrierLayout.carrierWidth PiCCSSourceImages.logicalWidth) selectedProgram.rowCount bit
     selectedRelation.cubeFits rows_fit

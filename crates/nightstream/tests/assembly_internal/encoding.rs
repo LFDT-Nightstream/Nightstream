@@ -152,7 +152,7 @@ fn assembled_fixed_source_reaches_the_compiler_node_bound() {
         .join("artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
     let bytes = std::fs::read(path).unwrap();
     let manifest = Manifest::parse(manifest_bytes()).unwrap();
-    // The fixed maximum key, not the reference application's prefix, bounds
+    // Both the exported domain and the approved maximum key bound
     // application capacity. Both nonempty private segments add array nodes.
     let key_width = neo_ajtai::nightstream_fprime_setup::MAX_CARRIER_WIDTH;
     let fixed_width = manifest
@@ -164,9 +164,10 @@ fn assembled_fixed_source_reaches_the_compiler_node_bound() {
             rows: 4,
         })
         .unwrap();
-    let maximum_fields = (key_width - fixed_width) / 41;
-    assert_eq!(maximum_fields, 4_748_315);
-    for (witness, has_local, expected_nodes) in [(maximum_fields - 1, true, 18_764_865), (0, false, 14_016_543)] {
+    let carrier_capacity = key_width.min(manifest.geometry.domain / 54 * 54);
+    let maximum_fields = (carrier_capacity - fixed_width) / 41;
+    assert_eq!(maximum_fields, 1_822_202);
+    for (witness, has_local, expected_nodes) in [(maximum_fields - 1, true, 15_813_963), (0, false, 13_991_754)] {
         let mut builder = ApplicationBuilder::new(witness).unwrap();
         if has_local {
             builder.affine(Affine::constant(Goldilocks::ZERO)).unwrap();
@@ -176,18 +177,17 @@ fn assembled_fixed_source_reaches_the_compiler_node_bound() {
         if has_local {
             let counts = Counts::of(&application);
             assert_eq!((counts.witness, counts.local, counts.rows), (maximum_fields - 1, 1, 5));
-            assert!(manifest.geometry.logical_width.eval(counts).unwrap() <= key_width);
-            assert!(
-                manifest
-                    .geometry
-                    .logical_width
-                    .eval(Counts {
-                        witness: counts.witness + 1,
-                        ..counts
-                    })
-                    .unwrap()
-                    > key_width
-            );
+            manifest.check_dimensions(counts).unwrap();
+            assert!(manifest.geometry.logical_width.eval(counts).unwrap() <= carrier_capacity);
+            let overflow = Counts {
+                witness: counts.witness + 1,
+                ..counts
+            };
+            assert!(manifest.geometry.logical_width.eval(overflow).unwrap() > carrier_capacity);
+            assert!(matches!(
+                manifest.check_dimensions(overflow),
+                Err(AssemblyError::Invalid("application exceeds exported domain"))
+            ));
         }
         // Reuse the input bytes, while retaining only one assembled Value at a time.
         let reference: wire::Envelope = serde_json::from_slice(&bytes).unwrap();
@@ -269,11 +269,14 @@ fn manifest_rejects_missing_children_changed_roles_profile_and_dimensions() {
     role["ports"][0]["role"] = json!("public_input");
     let mut profile = original.clone();
     profile["profile"][2] = json!(18);
+    let mut old_domain = original.clone();
+    old_domain["profile"][5] = json!(28);
+    old_domain["geometry"]["domain"] = json!(1usize << 28);
     let mut width = original.clone();
     width["geometry"]["logical_width"] = json!([usize::MAX, 1, 1, 0]);
     let mut public = original;
     public["recursive_public"]["digest_port"] = json!("prior_public_input");
-    for value in [missing, reordered, role, profile, width, public] {
+    for value in [missing, reordered, role, profile, old_domain, width, public] {
         assert!(Manifest::parse(&serde_json::to_vec(&value).unwrap()).is_err());
     }
     let manifest = Manifest::parse(manifest_bytes()).unwrap();

@@ -34,7 +34,7 @@ def completeLogicalWidth
 theorem completeLogicalWidth_eq
     (application : Lifecycle.Stage1.Application.Program) :
     completeLogicalWidth application =
-      59579666 + retainedCoordinateCount application := by
+      59507383 + retainedCoordinateCount application := by
   unfold completeLogicalWidth localStart witnessStart
   rw [PiRLCSamplerOrdinaryRetainedGeometry.completeLogicalWidth_eq]
   unfold retainedCoordinateCount
@@ -46,30 +46,30 @@ application input/output words already belong to that prefix. -/
 theorem completeLogicalWidth_eq_applicationCounts
     (application : Lifecycle.Stage1.Application.Program) :
     completeLogicalWidth application =
-      59579666 +
+      59507383 +
         (application.witnessWordCount + localCount application) * 41 := by
   rw [completeLogicalWidth_eq, retainedCoordinateCount_eq,
     retainedSlotCount_eq]
 
 /-- Exact retained-word budget for one application in the owner-selected
-`2^28` carrier. -/
-theorem completeLogicalWidth_le_twoPow28_iff
+`2^27` carrier. -/
+theorem completeLogicalWidth_le_twoPow27_iff
     (application : Lifecycle.Stage1.Application.Program) :
     completeLogicalWidth application ≤
         2 ^ NightstreamFPrime.Lifecycle.cubeVariables ↔
-      application.witnessWordCount + localCount application ≤ 5094043 := by
+      application.witnessWordCount + localCount application ≤ 1822203 := by
   rw [completeLogicalWidth_eq_applicationCounts]
   norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
   omega
 
 /-- Exact application-word budget after completing the logical width to whole
 54-coordinate Phi81 blocks. -/
-theorem carrierWidth_le_twoPow28_iff
+theorem carrierWidth_le_twoPow27_iff
     (application : Lifecycle.Stage1.Application.Program) :
     NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
           (completeLogicalWidth application) ≤
         2 ^ NightstreamFPrime.Lifecycle.cubeVariables ↔
-      application.witnessWordCount + localCount application ≤ 5094042 := by
+      application.witnessWordCount + localCount application ≤ 1822202 := by
   rw [completeLogicalWidth_eq_applicationCounts]
   simp [NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth,
     NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81ColumnLayout.blockCount,
@@ -79,23 +79,23 @@ theorem carrierWidth_le_twoPow28_iff
 
 /-- One concrete application must separately prove its low-norm retained
 width fits the owner-selected row cube. -/
-structure FitsTwoPow28
+structure FitsTwoPow27
     (application : Lifecycle.Stage1.Application.Program) : Prop where
   complete : completeLogicalWidth application ≤
     2 ^ NightstreamFPrime.Lifecycle.cubeVariables
 
 /-- Construct the retained carrier proof from the small application-only
 word budget. -/
-def fitsTwoPow28OfApplicationCounts
+def fitsTwoPow27OfApplicationCounts
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : application.witnessWordCount + localCount application ≤ 5094043) :
-    FitsTwoPow28 application where
+    (fits : application.witnessWordCount + localCount application ≤ 1822203) :
+    FitsTwoPow27 application where
   complete :=
-    (completeLogicalWidth_le_twoPow28_iff application).2 fits
+    (completeLogicalWidth_le_twoPow27_iff application).2 fits
 
 theorem completeLogicalWidth_le_cube
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : FitsTwoPow28 application) :
+    (fits : FitsTwoPow27 application) :
     completeLogicalWidth application ≤
       2 ^ NightstreamFPrime.Lifecycle.cubeVariables :=
   fits.complete
@@ -134,7 +134,7 @@ def inputFits {application : Lifecycle.Stage1.Application.Program}
       logicalWidth := by
   have pilot := PiRLCPoseidonGeometry.priorInputFits (pilotGeometry geometry)
   have full : (PiRLCPoseidonGeometry.priorInputBlock application).coordinateCount =
-      1529177 := by simp [PiRLCPoseidonGeometry.priorInputBlock]
+      1529095 := by simp [PiRLCPoseidonGeometry.priorInputBlock]
   rw [full] at pilot
   change PiRLCPoseidonGeometry.priorInputStart application + 35 * 41 + 4 * 41 ≤
     logicalWidth
@@ -154,7 +154,7 @@ def outputFits {application : Lifecycle.Stage1.Application.Program}
       logicalWidth := by
   have pilot := PiRLCPoseidonGeometry.outputInputFits (pilotGeometry geometry)
   have full : (PiRLCPoseidonGeometry.outputInputBlock application).coordinateCount =
-      1529177 := by simp [PiRLCPoseidonGeometry.outputInputBlock]
+      1529095 := by simp [PiRLCPoseidonGeometry.outputInputBlock]
   rw [full] at pilot
   change PiRLCPoseidonGeometry.outputInputStart application + 35 * 41 + 4 * 41 ≤
     logicalWidth

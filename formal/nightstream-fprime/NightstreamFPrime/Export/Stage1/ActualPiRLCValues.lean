@@ -276,7 +276,7 @@ premise is supplied by a witness constructor. The four parent form identities
 select the final source of this same recurrence. -/
 theorem selectedRowsAndPublic_imply_sums
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))
     (digest : Digest)
     (publicEqual : Phi81Relation.projectPublicInput

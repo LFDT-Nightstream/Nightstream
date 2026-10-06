@@ -69,7 +69,7 @@ private theorem point_below_dInputs (coordinate : Fin productionShape.cubeVariab
         RunningTransitionInputs.directRoundPoint PiCCSStarts.roundTranscriptWitnessStart coordinate := by
     exact RunningTransitionInputs.recursivePoint_eq_direct coordinate
   rw [pointEq, PiCCSStarts.roundTranscriptWitnessStart_eq]
-  have coordinateBound : coordinate.val < 28 := coordinate.isLt
+  have coordinateBound : coordinate.val < 27 := coordinate.isLt
   simp only [RunningTransitionInputs.directRoundPoint, Quadratic.KExpr.VarsBelow, Expr.VarsBelow]
   norm_num [PiDECInputs.proofInputStart, PiRLCStarts.finalBoundaries_eq.2,
     RunningTransitionInputs.roundStride, RunningTransitionInputs.roundSampleC0Offset,
@@ -323,7 +323,7 @@ private theorem rValues_eq_of_agree
             RunningTransitionInputs.directRoundPoint PiCCSStarts.roundTranscriptWitnessStart coordinate :=
         RunningTransitionInputs.recursivePoint_eq_direct coordinate
       rw [pointSource, PiCCSStarts.roundTranscriptWitnessStart_eq]
-      have coordinateBound : coordinate.val < 28 := coordinate.isLt
+      have coordinateBound : coordinate.val < 27 := coordinate.isLt
       simp only [RunningTransitionInputs.directRoundPoint, Quadratic.KExpr.VarsBelow, Expr.VarsBelow]
       norm_num [PiRLCInputs.phaseOffset, PiRLC.v1_1.Formal.logicalPrivateCount,
         RunningTransitionInputs.roundStride, RunningTransitionInputs.roundSampleC0Offset,

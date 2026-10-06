@@ -124,7 +124,7 @@ This driver does not establish conformance or the full Stage 1 step theorem.
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.physicalRowDeltas_eq_production
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.physicalColumnDeltas_eq_production
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.cumulativeFootprints_eq_production
-#audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.jointDomain_le_twoPow28
+#audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.jointDomain_le_twoPow27
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.Ownership.noBoundaryColumns
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.Ownership.noBoundaryRows
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.Ownership.ownedRows_length

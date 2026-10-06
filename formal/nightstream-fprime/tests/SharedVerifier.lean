@@ -167,7 +167,7 @@ def check : IO Unit := do
 #audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationMatrixProgram.matrixProgram_blocks
 #audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPackage.matrixProgram_exact
 #audit_axioms NightstreamFPrime.Export.Stage1.ApplicationRetainedGeometry.completeLogicalWidth_eq_applicationCounts
-#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationRetainedGeometry.carrierWidth_le_twoPow28_iff
+#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationRetainedGeometry.carrierWidth_le_twoPow27_iff
 #audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint.plan_fixedPoint
 #audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationAssignmentBlocks.sourceRuns_expand
 

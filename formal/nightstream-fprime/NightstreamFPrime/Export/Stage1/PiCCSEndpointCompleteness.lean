@@ -41,17 +41,17 @@ theorem physicalEndpoint_column (family : Fin familyCount) (lane : Fin laneCount
     (physicalInvocation (endpointInvocation family)).witnessStart + 1080 + lane.val =
       Spartan.sourceToSpartan (endpointColumn family lane) := by
   let index := endpointInvocation family
-  let sourceStart := if index.val < 355 then
+  let sourceStart := if index.val < 347 then
       PiCCSInputs.phaseOffset + index.val * 1096
-    else PiCCSInvocations.outputWitnessStart + (index.val - 355) * 1096
+    else PiCCSInvocations.outputWitnessStart + (index.val - 347) * 1096
   have startEq : (physicalInvocation index).witnessStart = Spartan.sourceToSpartan sourceStart := by
     rw [physicalInvocation_data]
-    by_cases beforeOutput : index.val < 355
+    by_cases beforeOutput : index.val < 347
     · rw [show sourceStart = PiCCSInputs.phaseOffset + index.val * 1096 from if_pos beforeOutput]
       exact PermutationPlan.canonicalInvocation_witnessStart_of_transcript _ beforeOutput
-    · rw [show sourceStart = PiCCSInvocations.outputWitnessStart + (index.val - 355) * 1096 from if_neg beforeOutput]
+    · rw [show sourceStart = PiCCSInvocations.outputWitnessStart + (index.val - 347) * 1096 from if_neg beforeOutput]
       apply PermutationPlan.canonicalInvocation_witnessStart_of_output
-      · change 355 ≤ index.val
+      · change 347 ≤ index.val
         exact Nat.le_of_not_gt beforeOutput
       · simpa only [PiCCSPoseidonPlan.invocationCount_eq] using
           (show index.val < PiCCSPoseidonPlan.invocationCount from index.isLt)
@@ -59,10 +59,10 @@ theorem physicalEndpoint_column (family : Fin familyCount) (lane : Fin laneCount
     unfold sourceStart
     split
     · rw [PiCCSInputs.phaseOffset_eq]
-      change 6908836 ≤ 6908836 + index.val * 1096
+      change 6906620 ≤ 6906620 + index.val * 1096
       omega
     · rw [PiCCSInvocations.outputWitnessStart, PiCCSStarts.outputBindingWitnessStart_eq]
-      change 6908836 ≤ 7343185 + (index.val - 355) * 1096
+      change 6906620 ≤ 7332162 + (index.val - 347) * 1096
       omega
   have endpointEq : sourceStart + 1080 + lane.val = endpointColumn family lane := by
     unfold sourceStart index endpointInvocation endpointColumn endpointStart

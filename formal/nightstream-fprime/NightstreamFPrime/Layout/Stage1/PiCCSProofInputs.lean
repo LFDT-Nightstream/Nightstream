@@ -8,11 +8,11 @@ source and one canonical encoding.
 
 Inputs:
 - one fresh Ajtai commitment;
-- 28 degree-nine SumCheck coefficient vectors;
+- 27 degree-nine SumCheck coefficient vectors;
 - separate output `Eval_K` and `Eval_A` families.
 
 Outputs:
-- a 16,436-word canonical proof-input encoding;
+- a 16,416-word canonical proof-input encoding;
 - one environment that preserves the pilot prefix and loads that encoding.
 
 Parent coverage:
@@ -470,7 +470,7 @@ theorem eval_roundMessage
   funext coefficient
   exact eval_roundCoefficient values roundIndex coefficient
 
-/-- All 28 symbolic round messages evaluate to the typed proof values. -/
+/-- All 27 symbolic round messages evaluate to the typed proof values. -/
 theorem eval_rounds (values : ExternalValues) :
     (fun roundIndex =>
       (roundMessage roundIndex).semanticPolynomial (loadExternal values)) =

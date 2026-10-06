@@ -37,7 +37,7 @@ private theorem challengeSource_lt (position : Challenge) :
       PiRLCProductPlan.basePackage.layout.constantColumn := by
   have sourceBound := position.1.isLt
   have laneBound := position.2.isLt
-  have constant : PiRLCProductPlan.basePackage.layout.constantColumn = 14761448 :=
+  have constant : PiRLCProductPlan.basePackage.layout.constantColumn = 14750353 :=
     Package.circuitPackage_layout_values.2.2.1
   rw [constant, PiRLCStarts.challengeWordStart_eq, PiRLCStarts.phaseLogicalStart_eq]
   norm_num [PiRLCCombinationInvocations.sourceCount, ringDegree] at sourceBound laneBound

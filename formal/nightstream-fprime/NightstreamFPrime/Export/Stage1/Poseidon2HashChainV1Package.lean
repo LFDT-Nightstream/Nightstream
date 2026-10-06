@@ -130,34 +130,34 @@ theorem sourceWidth :
     Lifecycle.Stage1.Poseidon2HashChainV1.messageWordCount]
 
 /-- All physical-package, retained-carrier, and recursive-plan bounds for the
-approved `2^28` profile. -/
-def fits : PerApplicationFixedPoint.FitsTwoPow28 application :=
-  PerApplicationFixedPoint.fitsTwoPow28OfApplicationBounds application
+approved `2^27` profile. -/
+def fits : PerApplicationFixedPoint.FitsTwoPow27 application :=
+  PerApplicationFixedPoint.fitsTwoPow27OfApplicationBounds application
     (by rw [applicationPlan_rowCount]; norm_num)
     (by rw [addedPrivateColumnCount]; norm_num)
     (by rw [retainedApplicationWordCount]; norm_num)
 
 @[simp] theorem logicalWidth :
-    PerApplicationFixedPoint.logicalWidth application = 59804510 := by
+    PerApplicationFixedPoint.logicalWidth application = 59732227 := by
   unfold PerApplicationFixedPoint.logicalWidth
   rw [ApplicationRetainedGeometry.completeLogicalWidth_eq_applicationCounts,
     retainedApplicationWordCount]
 
 @[simp] theorem structuralRowCount :
     (PerApplicationFixedPoint.structuralPlan application fits).rowCount =
-      1371020 := by
+      1369389 := by
   rw [PerApplicationFixedPoint.structuralPlan_rowCount,
     applicationPlan_rowCount]
 
 @[simp] theorem physicalPackageRowCount :
-    (PerApplicationPackage.package application).layout.rowCount = 14660374 := by
+    (PerApplicationPackage.package application).layout.rowCount = 14649299 := by
   rw [PerApplicationPackage.package_rowCount,
     PerApplicationPackage.basePackage_rowCount_eq,
     applicationPlan_rowCount]
 
 @[simp] theorem physicalPackageTotalColumnCount :
     (PerApplicationPackage.package application).layout.totalColumnCount =
-      14767211 := by
+      14756116 := by
   rw [PerApplicationPackage.package_totalColumnCount,
     PerApplicationPackage.basePackage_totalColumnCount_eq,
     addedPrivateColumnCount]
@@ -169,12 +169,12 @@ theorem plan_fixedPoint :
       PerApplicationFixedPoint.structuralPlan application fits :=
   PerApplicationFixedPoint.plan_fixedPoint application fits
 
-theorem jointDomain_le_twoPow28 :
+theorem jointDomain_le_twoPow27 :
     max (PerApplicationFixedPoint.structuralPlan application fits).rowCount
         (NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
           (PerApplicationFixedPoint.logicalWidth application)) ≤
       2 ^ Lifecycle.cubeVariables :=
-  PerApplicationFixedPoint.jointDomain_le_twoPow28 application fits
+  PerApplicationFixedPoint.jointDomain_le_twoPow27 application fits
 
 /-- Canonical physical package with the self-derived recursive relation and
 terminal metadata installed. The explicit argument prevents artifact-sized

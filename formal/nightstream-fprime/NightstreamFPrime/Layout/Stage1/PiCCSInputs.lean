@@ -9,7 +9,7 @@ circuit.
 
 The running instance reuses its exact serialization in the pilot prior-state
 preimage. The fresh public input reuses the pilot public-input columns. Only
-the fresh commitment, 28 degree-nine SumCheck messages, and separate output
+the fresh commitment, 27 degree-nine SumCheck messages, and separate output
 `Eval_K`/`Eval_A` families allocate new proof-input columns.
 
 No equality row is added at this boundary. The following PiCCS allocation
@@ -225,7 +225,7 @@ private theorem serializeRunning_point_getD_c1
 
 /-- End of the completed pilot source-column interval and start of the
 verifier-owned expected-context words. -/
-def expectedContextStart : Nat := 6892396
+def expectedContextStart : Nat := 6890200
 
 def expectedContextWords : Nat := 4
 
@@ -238,32 +238,32 @@ theorem expectedContextStart_matches_pilot :
   rw [PilotProduction.physicalColumnCount_eq]
   rfl
 
-theorem expectedContextStart_eq : expectedContextStart = 6892396 := by
+theorem expectedContextStart_eq : expectedContextStart = 6890200 := by
   rfl
 
 theorem expectedContextWords_eq : expectedContextWords = 4 := by
   rfl
 
-theorem proofInputStart_eq : proofInputStart = 6892400 := by
+theorem proofInputStart_eq : proofInputStart = 6890204 := by
   rfl
 
 /-- Fixed serialized running-state positions inside the prior preimage. -/
 def runningPointStart : Nat := priorRunningStart + 1
-def runningGroupsStart : Nat := priorRunningStart + 57
+def runningGroupsStart : Nat := priorRunningStart + 55
 def runningGroupWords : Nat := 2325
 def runningCommitmentWords : Nat := 1188
 def runningPublicWords : Nat := 270
 def runningEvaluationWords : Nat := 864
 
 /-- A word position in the fixed serialized running-instance payload. -/
-def priorRunningIndex (index : Fin 37257) :
+def priorRunningIndex (index : Fin 37255) :
     Fin PilotProduction.stateHashWords :=
   ⟨priorRunningStart + index.val, by
     have indexBound := index.isLt
     norm_num [priorRunningStart, PilotProduction.stateHashWords_eq] at *
     omega⟩
 
-@[simp] theorem priorRunningIndex_val (index : Fin 37257) :
+@[simp] theorem priorRunningIndex_val (index : Fin 37255) :
     (priorRunningIndex index).val = priorRunningStart + index.val := by
   rfl
 
@@ -283,7 +283,7 @@ def runningEvaluationStart (source : Nat) : Nat :=
 def freshCommitmentStart : Nat := proofInputStart
 def freshCommitmentWords : Nat := 1188
 def roundMessageStart : Nat := freshCommitmentStart + freshCommitmentWords
-def roundMessageWords : Nat := 560
+def roundMessageWords : Nat := 540
 def outputEvaluationStart : Nat := roundMessageStart + roundMessageWords
 def outputEvaluationWords : Nat := 14688
 def proofInputColumnCount : Nat :=
@@ -307,10 +307,10 @@ theorem outputEvaluationWords_eq :
   norm_num [outputEvaluationWords, productionShape, productionProfile,
     Phi81MatrixSource.phi81Shape, Shape.sourceCount, ringDegree]
 
-theorem proofInputColumnCount_eq : proofInputColumnCount = 16436 := by
+theorem proofInputColumnCount_eq : proofInputColumnCount = 16416 := by
   rfl
 
-theorem phaseOffset_eq : phaseOffset = 6908836 := by
+theorem phaseOffset_eq : phaseOffset = 6906620 := by
   rfl
 
 def pairAt (start : Nat) : KExpr :=
@@ -595,7 +595,7 @@ theorem protocolValues_runningWord
     (priorFixed : PilotProduction.FixedPreimage prior)
     (outputFixed : PilotProduction.FixedPreimage output)
     (digestFixed : digest.length = PilotProduction.digestWords)
-    (index : Fin 37257) :
+    (index : Fin 37255) :
     let values := PilotProduction.protocolValues prior priorPublic output digest
       priorFixed outputFixed digestFixed
     values.priorPreimage (priorRunningIndex index) =
@@ -894,9 +894,9 @@ private theorem allSource_lt_17
     Phi81MatrixSource.phi81Shape, Shape.sourceCount] at bound
   exact bound
 
-private theorem round_lt_28
+private theorem round_lt_27
     (roundIndex : Fin productionShape.cubeVariables) :
-    roundIndex.val < 28 := by
+    roundIndex.val < 27 := by
   have bound := roundIndex.isLt
   norm_num [productionShape, cubeVariables,
     Phi81MatrixSource.phi81Shape] at bound
@@ -984,7 +984,7 @@ theorem externalInputsBelow
     change (pairAt (runningPointStart + coordinate.val * 2)).VarsBelow
       phaseOffset
     simp only [pairAt, KExpr.VarsBelow, Expr.VarsBelow]
-    have coordinateBound := round_lt_28 coordinate
+    have coordinateBound := round_lt_27 coordinate
     rw [phaseOffset_eq]
     norm_num [runningPointStart, priorRunningStart]
     omega
@@ -1049,7 +1049,7 @@ theorem externalInputsBelow
   · intro roundIndex coefficient
     change (roundCoefficient roundIndex coefficient).VarsBelow phaseOffset
     simp only [roundCoefficient, pairAt, KExpr.VarsBelow, Expr.VarsBelow]
-    have roundBound := round_lt_28 roundIndex
+    have roundBound := round_lt_27 roundIndex
     have coefficientBound := coefficient.isLt
     rw [phaseOffset_eq]
     norm_num [roundMessageStart, freshCommitmentStart,

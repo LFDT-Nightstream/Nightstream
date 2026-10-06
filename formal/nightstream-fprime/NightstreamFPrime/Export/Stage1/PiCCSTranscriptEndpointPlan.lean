@@ -321,7 +321,7 @@ private theorem challengeTrace_state_endpoint (lane : Fin laneCount) :
   rw [PiCCSActionPayloadBlock.challengeInvocationCount_eq] at compiled
   rw [PiCCSInvocations.challengeInvocationCount_eq] at endEq
   have startEq :
-      PiCCSInvocations.challengeWitnessStart + (87 - 1) * 1096 + 1080 =
+      PiCCSInvocations.challengeWitnessStart + (84 - 1) * 1096 + 1080 =
         PiCCSInvocations.roundWitnessStart - 16 := by
     rw [← endEq]
     generalize PiCCSInvocations.challengeWitnessStart = start
@@ -352,8 +352,8 @@ private theorem roundTrace_state_endpoint (lane : Fin laneCount) :
             1096) at compiled
   rw [PiCCSActionPayloadBlock.roundInvocationCount_eq] at compiled
   have startEq :
-      PiCCSInvocations.roundWitnessStart + (140 - 1) * 1096 + 1080 =
-        PiCCSInvocations.roundWitnessStart + 140 * 1096 - 16 := by
+      PiCCSInvocations.roundWitnessStart + (135 - 1) * 1096 + 1080 =
+        PiCCSInvocations.roundWitnessStart + 135 * 1096 - 16 := by
     generalize PiCCSInvocations.roundWitnessStart = start
     omega
   rw [congrFun compiled lane]
@@ -361,7 +361,7 @@ private theorem roundTrace_state_endpoint (lane : Fin laneCount) :
   rw [show endpointStart roundFamily =
       PiCCSInvocations.roundWitnessStart +
         PiCCSTranscriptDirectSemantics.roundCount * 1096 - 16 by rfl]
-  rw [show PiCCSTranscriptDirectSemantics.roundCount = 140 by rfl]
+  rw [show PiCCSTranscriptDirectSemantics.roundCount = 135 by rfl]
   rw [startEq]
 
 private theorem outputTrace_state_endpoint (lane : Fin laneCount) :
@@ -423,9 +423,9 @@ def endpointTranscriptInvocation (family : Fin familyCount) :
   if family.val = 0 then
     ⟨127, by rw [PiCCSOrdinaryRetainedBlocks.transcriptInvocationCount_eq]; omega⟩
   else if family.val = 1 then
-    ⟨214, by rw [PiCCSOrdinaryRetainedBlocks.transcriptInvocationCount_eq]; omega⟩
+    ⟨211, by rw [PiCCSOrdinaryRetainedBlocks.transcriptInvocationCount_eq]; omega⟩
   else
-    ⟨354, by rw [PiCCSOrdinaryRetainedBlocks.transcriptInvocationCount_eq]; omega⟩
+    ⟨346, by rw [PiCCSOrdinaryRetainedBlocks.transcriptInvocationCount_eq]; omega⟩
 
 def endpointTranscriptIndex (family : Fin familyCount) (lane : Fin laneCount) :
     Fin PiCCSOrdinaryRetainedBlocks.transcriptOutputCount :=
@@ -1067,7 +1067,7 @@ private theorem challengeTrace_state_endpoint_of_shape
   have count : Invocations.invocationCount
       (ChallengeDerivation.actions
         (PiCCSInvocations.challengeInterface relationLogicalWidth
-          relationPublicFits) PiCCSInvocations.challengeWitnessStart) = 87 := by
+          relationPublicFits) PiCCSInvocations.challengeWitnessStart) = 84 := by
     rw [challengeActions_eq_of_shape]
     exact PiCCSActionPayloadBlock.challengeInvocationCount_eq
   have endEq := PiCCSInvocations.challengeEnd_eq_roundStart
@@ -1075,7 +1075,7 @@ private theorem challengeTrace_state_endpoint_of_shape
   rw [count] at compiled
   rw [PiCCSInvocations.challengeInvocationCount_eq] at endEq
   have startEq :
-      PiCCSInvocations.challengeWitnessStart + (87 - 1) * 1096 + 1080 =
+      PiCCSInvocations.challengeWitnessStart + (84 - 1) * 1096 + 1080 =
         PiCCSInvocations.roundWitnessStart - 16 := by
     rw [← endEq]
     generalize PiCCSInvocations.challengeWitnessStart = start
@@ -1159,13 +1159,13 @@ private theorem roundTrace_state_endpoint_of_shape
   have count : Invocations.invocationCount
       (RoundTranscript.actions
         (PiCCSInvocations.roundInterface relationLogicalWidth
-          relationPublicFits) PiCCSInvocations.roundWitnessStart) = 140 := by
+          relationPublicFits) PiCCSInvocations.roundWitnessStart) = 135 := by
     rw [roundActions_eq_of_shape]
     exact PiCCSActionPayloadBlock.roundInvocationCount_eq
   rw [count] at compiled
   have startEq :
-      PiCCSInvocations.roundWitnessStart + (140 - 1) * 1096 + 1080 =
-        PiCCSInvocations.roundWitnessStart + 140 * 1096 - 16 := by
+      PiCCSInvocations.roundWitnessStart + (135 - 1) * 1096 + 1080 =
+        PiCCSInvocations.roundWitnessStart + 135 * 1096 - 16 := by
     generalize PiCCSInvocations.roundWitnessStart = start
     omega
   rw [congrFun compiled lane]
@@ -1173,7 +1173,7 @@ private theorem roundTrace_state_endpoint_of_shape
   rw [show endpointStart roundFamily =
       PiCCSInvocations.roundWitnessStart +
         PiCCSTranscriptDirectSemantics.roundCount * 1096 - 16 by rfl]
-  rw [show PiCCSTranscriptDirectSemantics.roundCount = 140 by rfl]
+  rw [show PiCCSTranscriptDirectSemantics.roundCount = 135 by rfl]
   rw [startEq]
 
 /-- The existing C phase source wiring is independent of the relation width. -/

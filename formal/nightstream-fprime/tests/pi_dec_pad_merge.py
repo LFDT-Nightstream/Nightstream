@@ -8,8 +8,8 @@ import sys
 
 
 # Selected Poseidon2HashChainV1Setup message columns and protocol dimensions.
-BLOCKS = 1_107_491
-POINT_COORDINATES = 28
+BLOCKS = 1_106_153
+POINT_COORDINATES = 27
 CHILDREN = 16
 LANES = 54
 MODULUS = 2**64 - 2**32 + 1
@@ -102,7 +102,7 @@ def main():
 
     point_shape = copy.deepcopy(valid)
     point_shape[1][4].pop()
-    check_case(binary, directory, "point_count", point_shape, "expected 28 entries")
+    check_case(binary, directory, "point_count", point_shape, "expected 27 entries")
 
     point_pair = copy.deepcopy(valid)
     point_pair[1][4][-1].pop()

@@ -9,7 +9,7 @@ fn library() -> Value {
     json!({
         "format": "nightstream.matrix-templates",
         "version": 1,
-        "profile": [18446744069414584321u64, 2, 16, 65536, 54, 28, 7, 7],
+        "profile": [18446744069414584321u64, 2, 16, 65536, 54, 27, 7, 7],
         "components": [{
             "id": "linear-example", "input_count": 2,
             "ports": [

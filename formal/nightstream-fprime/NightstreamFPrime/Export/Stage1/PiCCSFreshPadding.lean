@@ -46,7 +46,7 @@ theorem freshMatrixImage?_zero_of_pair_beyond
     (program : NightstreamFPrime.Layout.MatrixProgram.Program)
     (sourceRow : Nat → Option NightstreamFPrime.Layout.R1CS.Row)
     (assignment : Phi81Relation.Assignment PiCCSSourceImages.shape)
-    (suffix : BooleanVertex 27)
+    (suffix : BooleanVertex 26)
     (beyond : program.rowCount ≤ 2 * NumericBooleanDomain.index suffix) (bit : Bool) :
     PiCCSSourceImages.freshMatrixImage? program sourceRow assignment
         (PiCCSFirstRound.endpointVertex (arity := cubeVariables) (by decide) bit suffix) =

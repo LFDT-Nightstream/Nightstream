@@ -152,7 +152,7 @@ private theorem serializeKExpr_length (value : KExpr) :
 
 private theorem serializePointExpr_length
     (point : Fin productionShape.cubeVariables → KExpr) :
-    (serializePointExpr point).length = 56 := by
+    (serializePointExpr point).length = 54 := by
   simp [serializePointExpr, serializeKExpr_length, productionShape,
     Phi81MatrixSource.phi81Shape, cubeVariables]
 
@@ -205,7 +205,7 @@ theorem serializeRunningExpr_length {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (running : RunningExpr logicalWidth publicFits) :
-    (serializeRunningExpr running).length = 37257 := by
+    (serializeRunningExpr running).length = 37255 := by
   simp [serializeRunningExpr, blockExpr_length, serializePointExpr_length,
     serializeCommitmentExpr_length, serializePublicInputExpr_length,
     serializeEvaluationExpr_length, productionShape, productionProfile,

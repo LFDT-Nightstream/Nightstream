@@ -89,7 +89,7 @@ theorem allPort_coefficient_eq_logicalRelation_matrix
   exact portForm_coefficient_eq_matrix _ row port column
 
 /-- Every matrix coefficient is zero after the active-row prefix and through
-the end of the exact `2^28` Boolean row domain. -/
+the end of the exact `2^27` Boolean row domain. -/
 theorem padding_matrix_coefficient_zero
     (ordinal : Fin (2 ^ Lifecycle.cubeVariables))
     (padding : (PerApplicationFixedPoint.structuralPlan

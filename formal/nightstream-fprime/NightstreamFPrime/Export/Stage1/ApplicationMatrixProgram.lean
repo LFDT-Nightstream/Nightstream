@@ -18,8 +18,8 @@ open ApplicationRetainedBlocks
 open ApplicationRetainedGeometry
 
 abbrev ApplicationProgram := Lifecycle.Stage1.Application.Program
-abbrev FitsTwoPow28 (application : ApplicationProgram) :=
-  PerApplicationPackage.FitsTwoPow28 application
+abbrev FitsTwoPow27 (application : ApplicationProgram) :=
+  PerApplicationPackage.FitsTwoPow27 application
 
 def inputRange (application : ApplicationProgram) : SourceRange :=
   SourceRange.ofSemantic (PiRLCPoseidonGeometry.priorInputBlock application)
@@ -34,7 +34,7 @@ def witnessRange (application : ApplicationProgram) : SourceRange :=
 def outputRange (application : ApplicationProgram) : SourceRange :=
   SourceRange.ofSemantic (PiRLCPoseidonGeometry.outputInputBlock application)
     (PiRLCPoseidonGeometry.outputInputStart application)
-    37332 Lifecycle.Stage1.Application.stateWordCount
+    37330 Lifecycle.Stage1.Application.stateWordCount
     ApplicationInputs.currentWordStart
 
 def localRange (application : ApplicationProgram) : SourceRange :=
@@ -51,7 +51,7 @@ def rowSchedule (application : ApplicationProgram) : IndexSchedule :=
     (PerApplicationPackage.applicationPlan application).rowCount⟩]
 
 def directRowSchedule (application : ApplicationProgram) : IndexSchedule :=
-  .rangeList [⟨14654885,
+  .rangeList [⟨14643810,
     (PerApplicationPackage.directApplicationPlan application).rowCount⟩]
 
 theorem directRowSchedule_eq_rowSchedule (application : ApplicationProgram) :

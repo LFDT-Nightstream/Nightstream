@@ -159,7 +159,7 @@ private theorem initial_le_sumcheck :
   Nat.le_add_right _ _
 
 private theorem sumcheck_finish_le :
-    PiCCSArithmetic.sumcheckLogicalStart + 756 ≤
+    PiCCSArithmetic.sumcheckLogicalStart + 729 ≤
       PiCCSStarts.outputBindingWitnessStart := by
   rw [PiCCSStarts.outputBindingWitnessStart_eq]
   unfold PiCCSArithmetic.sumcheckLogicalStart
@@ -180,7 +180,7 @@ private theorem initial_le_evalK :
   norm_num
 
 private theorem evalK_finish_le :
-    PiCCSArithmetic.evalKLogicalStart + 2699 ≤
+    PiCCSArithmetic.evalKLogicalStart + 2695 ≤
       PiCCSStarts.outputBindingWitnessStart := by
   rw [PiCCSStarts.outputBindingWitnessStart_eq]
   unfold PiCCSArithmetic.evalKLogicalStart
@@ -203,7 +203,7 @@ private theorem initial_le_evalA :
   norm_num
 
 private theorem evalA_finish_le :
-    PiCCSArithmetic.evalALogicalStart + 18251 ≤
+    PiCCSArithmetic.evalALogicalStart + 18247 ≤
       PiCCSStarts.outputBindingWitnessStart := by
   rw [PiCCSStarts.outputBindingWitnessStart_eq]
   unfold PiCCSArithmetic.evalALogicalStart
@@ -389,7 +389,7 @@ theorem emittedConstraints_varsSatisfy
       PiCCSArithmetic.sumcheckLogicalStart ≤ index →
       index < PiCCSArithmetic.sumcheckLogicalStart +
         SumcheckChain.privateCount 9 → Source index :=
-    fixedLocal_source PiCCSArithmetic.sumcheckLogicalStart 756
+    fixedLocal_source PiCCSArithmetic.sumcheckLogicalStart 729
       initial_le_sumcheck sumcheck_finish_le
   have sumcheckRows := SumcheckChain.flatConstraints_varsSatisfy
     sumcheckInterface PiCCSArithmetic.sumcheckLogicalStart Source
@@ -404,7 +404,7 @@ theorem emittedConstraints_varsSatisfy
           PiCCSArithmetic.evalKLogicalStart) → Source index := by
     intro index lower upper
     rw [EvalKTerminal.localLength_eq] at upper
-    apply fixedLocal_source PiCCSArithmetic.evalKLogicalStart 2699
+    apply fixedLocal_source PiCCSArithmetic.evalKLogicalStart 2695
       initial_le_evalK evalK_finish_le index lower upper
   have evalKRoundSupport : ∀ coordinate,
       Horner.KSupported
@@ -443,7 +443,7 @@ theorem emittedConstraints_varsSatisfy
           PiCCSArithmetic.evalALogicalStart) → Source index := by
     intro index lower upper
     rw [EvalATerminal.localLength_eq] at upper
-    apply fixedLocal_source PiCCSArithmetic.evalALogicalStart 18251
+    apply fixedLocal_source PiCCSArithmetic.evalALogicalStart 18247
       initial_le_evalA evalA_finish_le index lower upper
   have evalARoundSupport : ∀ coordinate,
       Horner.KSupported
@@ -621,7 +621,7 @@ theorem sourceRows_varsSatisfy
   have endEq :
       freshStart + R1CS.totalFreshCount constraints =
         PiRLCInputs.phaseOffset := by
-    rw [show R1CS.totalFreshCount constraints = 2956 by
+    rw [show R1CS.totalFreshCount constraints = 2884 by
       simpa [constraints] using
         PiCCSCompleteness.emittedConstraints_totalFreshCount relation]
     unfold freshStart PiCCSArithmetic.initialClaimFreshStart

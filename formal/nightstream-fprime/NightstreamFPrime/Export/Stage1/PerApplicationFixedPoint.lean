@@ -35,27 +35,27 @@ def publicFits (application : Lifecycle.Stage1.Application.Program) :
   · exact Phi81CarrierLayout.logicalWidth_le_carrierWidth _
 
 /-- Exact finite obligations supplied by one concrete application package. -/
-structure FitsTwoPow28
+structure FitsTwoPow27
     (application : Lifecycle.Stage1.Application.Program) : Prop where
-  package : PerApplicationPackage.FitsTwoPow28 application
+  package : PerApplicationPackage.FitsTwoPow27 application
   carrier : Phi81CarrierLayout.carrierWidth (logicalWidth application) ≤
     2 ^ Lifecycle.cubeVariables
 
 /-- Construct every final domain obligation from the three small numerical
 bounds owned by one concrete application. -/
-def fitsTwoPow28OfApplicationBounds
+def fitsTwoPow27OfApplicationBounds
     (application : Lifecycle.Stage1.Application.Program)
     (rows : (PerApplicationPackage.applicationPlan application).rowCount ≤
-      253780566)
+      119573913)
     (columns : PerApplicationPackage.addedPrivateColumnCount application ≤
-      253673729)
+      119467096)
     (carrierWords : application.witnessWordCount +
-      ApplicationRetainedBlocks.localCount application ≤ 5094042) :
-    FitsTwoPow28 application where
-  package := PerApplicationPackage.fitsTwoPow28OfApplicationBounds application
+      ApplicationRetainedBlocks.localCount application ≤ 1822202) :
+    FitsTwoPow27 application where
+  package := PerApplicationPackage.fitsTwoPow27OfApplicationBounds application
     rows columns
   carrier := by
-    apply (ApplicationRetainedGeometry.carrierWidth_le_twoPow28_iff
+    apply (ApplicationRetainedGeometry.carrierWidth_le_twoPow27_iff
       application).2
     exact carrierWords
 
@@ -66,7 +66,7 @@ def geometry (application : Lifecycle.Stage1.Application.Program) :
 
 /-- Shape-correct seed. Its matrices are not semantic authority. -/
 def seedRelation (application : Lifecycle.Stage1.Application.Program)
-    (fits : FitsTwoPow28 application) :
+    (fits : FitsTwoPow27 application) :
     ProductionKey.LogicalRelation (logicalWidth application)
       (publicFits application) where
   matrices := fun _ _ _ => 0
@@ -74,21 +74,21 @@ def seedRelation (application : Lifecycle.Stage1.Application.Program)
 
 /-- Exact Lean-assembled plan used to derive the recursive relation. -/
 def structuralPlan (application : Lifecycle.Stage1.Application.Program)
-    (fits : FitsTwoPow28 application) :
+    (fits : FitsTwoPow27 application) :
     ProductionRelation.Plan (logicalWidth application) :=
   DirectApplicationPrefixPlan.plan (seedRelation application fits)
     fits.package (geometry application)
 
 /-- The only key-facing relation for this application plan. -/
 def relation (application : Lifecycle.Stage1.Application.Program)
-    (fits : FitsTwoPow28 application) :
+    (fits : FitsTwoPow27 application) :
     ProductionKey.LogicalRelation (logicalWidth application)
       (publicFits application) :=
   (structuralPlan application fits).logicalRelation fits.carrier
 
 /-- Reassembling Stage 1 against its derived relation is the same matrix plan. -/
 theorem plan_fixedPoint (application : Lifecycle.Stage1.Application.Program)
-    (fits : FitsTwoPow28 application) :
+    (fits : FitsTwoPow27 application) :
     DirectApplicationPrefixPlan.plan (relation application fits)
         fits.package (geometry application) =
       structuralPlan application fits := by
@@ -101,7 +101,7 @@ theorem plan_fixedPoint (application : Lifecycle.Stage1.Application.Program)
 ordered application plan. -/
 @[simp] theorem relation_matrices
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : FitsTwoPow28 application) :
+    (fits : FitsTwoPow27 application) :
     (relation application fits).matrices =
       (structuralPlan application fits).matrix := by
   rfl
@@ -110,9 +110,9 @@ ordered application plan. -/
 application. -/
 @[simp] theorem structuralPlan_rowCount
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : FitsTwoPow28 application) :
+    (fits : FitsTwoPow27 application) :
     (structuralPlan application fits).rowCount =
-      1365527 + (PerApplicationPackage.applicationPlan application).rowCount +
+      1363896 + (PerApplicationPackage.applicationPlan application).rowCount +
         9 := by
   unfold structuralPlan
   exact DirectApplicationPrefixPlan.plan_rowCount _ fits.package
@@ -120,15 +120,15 @@ application. -/
 
 theorem structuralPlan_rowCount_le
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : FitsTwoPow28 application) :
+    (fits : FitsTwoPow27 application) :
     (structuralPlan application fits).rowCount ≤
       2 ^ Lifecycle.cubeVariables :=
   (structuralPlan application fits).rowCount_le
 
-/-- The final row cube and retained carrier fit one common `2^28` domain. -/
-theorem jointDomain_le_twoPow28
+/-- The final row cube and retained carrier fit one common `2^27` domain. -/
+theorem jointDomain_le_twoPow27
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : FitsTwoPow28 application) :
+    (fits : FitsTwoPow27 application) :
     max (structuralPlan application fits).rowCount
         (Phi81CarrierLayout.carrierWidth (logicalWidth application)) ≤
       2 ^ Lifecycle.cubeVariables := by
@@ -139,7 +139,7 @@ theorem jointDomain_le_twoPow28
 complete direct prefix and the exact verifier-owned application transition. -/
 theorem rowsZero_implies_semantics
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : FitsTwoPow28 application)
+    (fits : FitsTwoPow27 application)
     (assignment : Assignment F (logicalWidth application))
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)

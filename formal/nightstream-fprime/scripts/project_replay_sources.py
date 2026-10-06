@@ -15,7 +15,7 @@ from pathlib import Path
 import tempfile
 
 P = 18446744069414584321
-D, BLOCKS, LOGICAL, CHILDREN, PUBLIC, MATRICES = 54, 1107491, 59804510, 16, 270, 7
+D, BLOCKS, LOGICAL, CHILDREN, PUBLIC, MATRICES = 54, 1106153, 59732227, 16, 270, 7
 MASK = (1 << D) - 1
 
 
@@ -109,7 +109,7 @@ def original_running(envelope):
     points, commitments, publics, pads, matrices = [], [], [], [], []
     for claim in claims:
         require(claim["m_in"] == PUBLIC and claim["adv"] is None, "unexpected running claim")
-        points.append(vector(claim["r"], 28, extension))
+        points.append(vector(claim["r"], 27, extension))
         commitments.append(commitment(claim["c"]))
         publics.append(public_matrix(claim["X"]))
         pads.append(padded_evaluation(claim["eval_k"]))
@@ -121,7 +121,7 @@ def original_running(envelope):
 def numeric_running(path):
     value = vector(read(path), 5, lambda item: item)
     pair = lambda item: vector(item, 2, field)
-    point = vector(value[0], 28, pair)
+    point = vector(value[0], 27, pair)
     commitments = vector(value[1], CHILDREN, lambda item: vector(item, 1188, field))
     publics = vector(value[2], CHILDREN, lambda item: vector(item, PUBLIC, field))
     pads = vector(value[3], CHILDREN, lambda item: vector(item, D, pair))

@@ -65,7 +65,7 @@ PiCCS phase predicate in decoded values. The fixed-point theorem selects the
 key-facing relation before the three PiCCS row families are projected. -/
 theorem selectedRowsZero_implies_phaseHolds
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (ajtai : AjtaiKey
       (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))

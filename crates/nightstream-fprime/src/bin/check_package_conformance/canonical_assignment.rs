@@ -726,8 +726,8 @@ pub fn evaluate_pilot_assignment(
 ) -> Result<PilotAssignmentReport, usize> {
     // PilotProduction.physicalRowCountValue_eq and PilotValues fix the
     // rows. Stage1.sourceToSpartan relocates the pilot private boundary.
-    const PILOT_ROW_END: usize = 6_817_806;
-    const PILOT_PRIVATE_END: usize = 6_908_558;
+    const PILOT_ROW_END: usize = 6_815_614;
+    const PILOT_PRIVATE_END: usize = 6_906_342;
     const PILOT_PUBLIC_COUNT: usize = 274;
     let raw: RawPackage = serde_json::from_slice(bytes).expect("canonical pilot raw-package decode");
     assert_eq!(raw.0, 8, "canonical pilot raw-package schema");
@@ -745,8 +745,8 @@ pub fn evaluate_pilot_assignment(
     assert_eq!(raw.6.len(), 2, "pilot hash-owner count");
     let prior = &raw.6[0];
     let output = &raw.6[1];
-    assert_eq!((prior.0, prior.1, prior.3, prior.4, prior.5), (1, 0, 0, 37_297, 91_030));
-    assert_eq!((output.0, output.1, output.3, output.4), (2, 3_409_242, 37_297, 37_297));
+    assert_eq!((prior.0, prior.1, prior.3, prior.4, prior.5), (1, 0, 0, 37_295, 91_006));
+    assert_eq!((output.0, output.1, output.3, output.4), (2, 3_408_146, 37_295, 37_295));
     assert_eq!(word(output.1 + output.2), PILOT_ROW_END);
     let binding_rows = [
         word(prior.1 + prior.6)..word(output.1),

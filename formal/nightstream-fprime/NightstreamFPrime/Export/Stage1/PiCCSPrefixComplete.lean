@@ -36,8 +36,8 @@ private theorem ceil_two (width : Nat) :
 theorem activePairs_two : activePairs 2 = (groups + 1) / 2 :=
   congrArg (fun count : Nat => (count + 1) / 2) (ceil_two PiCCSSourceImages.shape.carrierWidth)
 
-private theorem ceil4_geometry (width : Nat) (fits : width ≤ 2 ^ 28) :
-    width ≤ 4 * ((width + 3) / 4) ∧ 4 * ((width + 3) / 4) ≤ 2 ^ 28 := by
+private theorem ceil4_geometry (width : Nat) (fits : width ≤ 2 ^ 27) :
+    width ≤ 4 * ((width + 3) / 4) ∧ 4 * ((width + 3) / 4) ≤ 2 ^ 27 := by
   omega
 
 /-- Both bounds come from the existing full-carrier cube bound. -/

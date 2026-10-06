@@ -25,7 +25,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 /-- The existing accumulator proof reads every PiDEC message from its actual
 physical owner. Its PiCCS fields are replaced by the PiCCS decoder below. -/
 def sourceProof (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application)) :
     Proof (ProductionKey.degreeBound (PerApplicationFixedPoint.relation application fits)) :=
   AccumulatorInputs.proof (PerApplicationFixedPoint.relation application fits)
@@ -35,14 +35,14 @@ def sourceProof (application : Lifecycle.Stage1.Application.Program)
 /-- Both phase message families come from the assignment, with no external
 proof template or caller-supplied representation premise. -/
 def proof (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application)) :
     Proof (ProductionKey.degreeBound (PerApplicationFixedPoint.relation application fits)) :=
   ActualStep.withDecodedPiCCS application fits assignment
     (sourceProof application fits assignment)
 
 def attempt (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application)) :=
   PiDEC.v1_1.Semantics.inputAttempt (PerApplicationFixedPoint.relation application fits)
     (PiDECArithmetic.phaseInterface (PerApplicationFixedPoint.logicalWidth application)
@@ -53,7 +53,7 @@ def attempt (application : Lifecycle.Stage1.Application.Program)
 /-- Every child commitment coefficient uses the actual PiDEC message wire. -/
 theorem proof_commitment_eq
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))
     (child : Fin productionShape.runningCount)
     (row : Fin productionProfile.commitmentWidth) (lane : Fin ringDegree) :
@@ -66,7 +66,7 @@ theorem proof_commitment_eq
 /-- Every child Pad evaluation uses the actual separate Eval_K message. -/
 theorem proof_evalK_eq
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))
     (child : Fin productionShape.runningCount)
     (coefficient : Fin productionShape.coefficientCount) :
@@ -79,7 +79,7 @@ theorem proof_evalK_eq
 /-- Every child and CCS matrix uses its actual separate Eval_A message. -/
 theorem proof_evalA_eq
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))
     (child : Fin productionShape.runningCount) (matrix : Fin productionShape.matrixCount)
     (coefficient : Fin productionShape.coefficientCount) :
@@ -93,7 +93,7 @@ theorem proof_evalA_eq
 attempt over its actual parent. This equality needs no honest encoding. -/
 theorem attemptForParent_eq
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (ajtai : AjtaiKey (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application)) :
@@ -115,7 +115,7 @@ theorem attemptForParent_eq
 optional attempt. Its message fields are already fixed by the assignment. -/
 theorem keyPiDecAttempt_eq_some_of_parent
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (ajtai : AjtaiKey (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))
@@ -137,7 +137,7 @@ theorem keyPiDecAttempt_eq_some_of_parent
 production PiDEC attempt, including every child message and its exact parent. -/
 theorem selectedRowsAndPublic_imply_attempt
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (ajtai : AjtaiKey (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))

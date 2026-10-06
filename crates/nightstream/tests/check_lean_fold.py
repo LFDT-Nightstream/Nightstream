@@ -122,10 +122,12 @@ def wait_for_exit(process, timeout):
     try:
         if hasattr(select, "kqueue"):
             with closing(select.kqueue()) as queue:
-                queue.control([select.kevent(
+                events = queue.control([select.kevent(
                     process.pid, filter=select.KQ_FILTER_PROC,
                     flags=select.KQ_EV_ADD | select.KQ_EV_ONESHOT, fflags=select.KQ_NOTE_EXIT)],
                     1, timeout)
+            if events and events[0].flags & select.KQ_EV_ERROR:
+                return process.wait(timeout=timeout)
         elif hasattr(os, "pidfd_open"):
             descriptor = os.pidfd_open(process.pid)
             try:
@@ -138,7 +140,7 @@ def wait_for_exit(process, timeout):
         pass  # The process has already exited; `wait` reaps it.
     except InterruptedError:
         raise
-    except OSError:
+    except (OSError, ValueError):
         return process.wait(timeout=timeout)
     return process.wait(timeout=0)
 

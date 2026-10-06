@@ -195,7 +195,7 @@ fn run_phase(oracle: &mut dyn PaperJointRoundOracle, initial: K) -> PhaseResult 
     let (rounds, point, _) = prove_phase(&mut transcript, &mut trace, initial, oracle).unwrap();
     let openings = oracle.output_openings(&point).unwrap().unwrap();
     PhaseResult {
-        proof_bytes: assemble_proof(rounds).canonical_bytes(),
+        proof_bytes: assemble_proof(rounds).canonical_bytes().unwrap(),
         trace,
         transcript_state: transcript.state(),
         transcript_cursor: transcript.absorbed(),

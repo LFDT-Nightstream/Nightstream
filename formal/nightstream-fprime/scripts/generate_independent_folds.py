@@ -35,7 +35,7 @@ def write_new(path, value):
 
 
 # SHA-256 and file reads release the GIL, so threads hash different files in parallel.
-HASHING = ThreadPoolExecutor(max_workers=min(8, os.cpu_count() or 1))
+HASHING = ThreadPoolExecutor(max_workers=os.cpu_count() or 1)
 
 
 def file_identity(path):

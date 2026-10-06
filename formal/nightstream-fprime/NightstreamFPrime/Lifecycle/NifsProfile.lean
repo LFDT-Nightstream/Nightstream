@@ -49,7 +49,7 @@ theorem selected_matrix
 /-- Exact production dimensions and the whole-ring public/carrier widths. -/
 theorem selected_shape :
     productionShape.cubeVariables = 28 ∧
-    productionShape.matrixCount = 14 ∧
+    productionShape.matrixCount = 7 ∧
     productionShape.coefficientCount = 54 ∧
     productionShape.freshCount = 1 ∧
     productionShape.runningCount = 16 ∧

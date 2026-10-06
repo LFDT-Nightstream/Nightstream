@@ -887,8 +887,18 @@ fn validate_profile(raw: RawProfile) -> Result<(), PackageError> {
         dec_children,
         matrices,
         cube,
-    ) != (GOLDILOCKS_MODULUS, 2, 16, 65_536, 1, 16, 17, 16, 14, 28)
-    {
+    ) != (
+        GOLDILOCKS_MODULUS,
+        2,
+        16,
+        65_536,
+        1,
+        16,
+        17,
+        16,
+        PI_CCS_V1_1_MATRIX_COUNT as u64,
+        28,
+    ) {
         return Err(PackageError::Invalid("fixed production profile"));
     }
     Ok(())

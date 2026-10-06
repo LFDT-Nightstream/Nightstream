@@ -11,7 +11,9 @@ SPEC = importlib.util.spec_from_file_location(
 mutations = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(mutations)
 ROOT = Path(__file__).resolve().parents[3]
+# The retained archive records the case table of the older 14-matrix format.
 ARCHIVE = ROOT / "docs/reviews/nightstream-fprime-requirements/NIFS_DEC_AND_FINAL_OUTPUT_EVIDENCE.zip"
+VECTORS = Path(__file__).with_name("fixtures") / "golden-v1.zip"
 
 
 class LeanMutationGenerationTests(unittest.TestCase):
@@ -21,26 +23,50 @@ class LeanMutationGenerationTests(unittest.TestCase):
         self.directory = Path(self.temporary.name)
         self.ccs = self.directory / "pi_ccs_input.json"
         self.children = self.directory / "children.json"
-        with ZipFile(ARCHIVE) as archive:
-            self.ccs.write_bytes(archive.read("fixtures/recursive_phase_input.json"))
-            self.children.write_bytes(archive.read("fixtures/dec_running.json"))
+        with ZipFile(VECTORS) as vectors:
+            self.ccs.write_bytes(vectors.read("native/fold-1/pi_ccs_input.json"))
+            self.children.write_bytes(vectors.read("native/fold-1/children.json"))
 
-    def test_every_case_matches_retained_archive_and_sources_stay_unchanged(self):
+    def test_every_case_matches_retained_owners_and_sources_stay_unchanged(self):
         originals = self.ccs.read_bytes(), self.children.read_bytes()
         output = self.directory / "generated"
         manifest = mutations.generate(self.ccs, self.children, output)
         with ZipFile(ARCHIVE) as archive:
-            expected = json.loads(archive.read("fixtures/dec_mutation_manifest.json"))
-            self.assertEqual(
-                {case["case"]: case["expected_owner"] for case in manifest["cases"][:-1]},
-                {case["name"]: case["expected_owner"] for case in expected},
-            )
-            for case in expected:
-                name = case["name"] + ".json"
-                self.assertEqual((output / "mutations" / name).read_bytes(),
-                                 archive.read("fixtures/dec_mutations/" + name), name)
-            self.assertEqual((output / manifest["changed_ccs_input"]).read_bytes(),
-                             archive.read("fixtures/invalid_first_round_constant.json"))
+            retained = json.loads(archive.read("fixtures/dec_mutation_manifest.json"))
+        removed = {f"public_child_eval_A{matrix}" for matrix in range(mutations.MATRICES, 14)}
+        self.assertEqual(
+            {case["case"]: case["expected_owner"] for case in manifest["cases"][:-1]},
+            {case["name"]: case["expected_owner"] for case in retained if case["name"] not in removed},
+        )
+        children = json.loads(originals[1])
+        public_changes = {
+            **{f"public_child_{child}_commitment": (1, child, 0) for child in range(16)},
+            "public_child_public": (2, 0, 0),
+            "public_shared_point": (0, 0, 0),
+            "public_child_eval_K": (3, 0, 0, 0),
+            **{f"public_child_eval_A{matrix}": (4, 0, matrix, 0, 0) for matrix in range(7)},
+            "public_child_digit_range": (2, 0, 0),
+        }
+        for case in manifest["cases"][:-1]:
+            name = case["case"]
+            if name not in public_changes:
+                continue
+            with self.subTest(case=name):
+                changed = json.loads((output / case["file"]).read_bytes())
+                indices = public_changes[name]
+                parent, original = changed, children
+                for index in indices[:-1]:
+                    parent, original = parent[index], original[index]
+                field = indices[-1]
+                expected = 2 if name == "public_child_digit_range" else (original[field] + 1) % mutations.MODULUS
+                self.assertEqual(parent[field], expected)
+                parent[field] = original[field]
+                self.assertEqual(changed, children, "mutation changed a different field")
+        changed = json.loads((output / manifest["changed_ccs_input"]).read_text())
+        source = json.loads(originals[0])
+        self.assertEqual(changed[3][0][0][0], (source[3][0][0][0] + 1) % mutations.MODULUS)
+        changed[3][0][0][0] = source[3][0][0][0]
+        self.assertEqual(changed, source)
         self.assertEqual(originals, (self.ccs.read_bytes(), self.children.read_bytes()))
         self.assertEqual(json.loads((output / "manifest.json").read_text()), manifest)
         self.assertEqual(manifest["cases"][-1]["expected_owner"], "upstream_pi_ccs")
@@ -71,7 +97,7 @@ class LeanMutationGenerationTests(unittest.TestCase):
         children[4][0].pop()
         self.children.write_text(mutations.numeric_json(children))
         output = self.directory / "invalid"
-        with self.assertRaisesRegex(ValueError, "expected vector width 14"):
+        with self.assertRaisesRegex(ValueError, "expected vector width 7"):
             mutations.generate(self.ccs, self.children, output)
         self.assertFalse(output.exists())
 

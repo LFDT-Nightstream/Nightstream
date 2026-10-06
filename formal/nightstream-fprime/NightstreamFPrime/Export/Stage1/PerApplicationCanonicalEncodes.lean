@@ -269,15 +269,15 @@ private theorem priorInputSource_eq (application : Program)
     (PiRLCPoseidonGeometry.priorInputBlock application).source slot =
       (PiCCSOrdinaryRetainedBlocks.priorInputBlock application).source slot := by
   have slotBound := slot.isLt
-  change slot.val < 49393 at slotBound
+  change slot.val < 37297 at slotBound
   have mapped : Layout.Stage1.Spartan.sourceToSpartan (0 + slot.val) =
       0 + slot.val := by
     have zero : Layout.Stage1.Spartan.sourceToSpartan 0 = 0 := by rfl
     simpa only [zero] using
       Layout.Stage1.Spartan.sourceToSpartan_add_of_pilotPriorPrivate
-        0 slot.val (by change 0 + slot.val < 49393; omega)
+        0 slot.val (by change 0 + slot.val < 37297; omega)
   have constant : PerApplicationPackage.basePackage.layout.constantColumn =
-      20252764 :=
+      14761448 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
   apply Fin.ext
   change 0 + slot.val = PerApplicationPackage.shiftColumn application
@@ -293,29 +293,29 @@ private theorem outputInputSource_eq (application : Program)
     (PiRLCPoseidonGeometry.outputInputBlock application).source slot =
       (PiCCSOrdinaryRetainedBlocks.outputInputBlock application).source slot := by
   have slotBound := slot.isLt
-  change slot.val < 49393 at slotBound
-  have mapped : Layout.Stage1.Spartan.sourceToSpartan (49663 + slot.val) =
-      49393 + slot.val := by
+  change slot.val < 37297 at slotBound
+  have mapped : Layout.Stage1.Spartan.sourceToSpartan (37567 + slot.val) =
+      37297 + slot.val := by
     unfold Layout.Stage1.Spartan.sourceToSpartan
-    rw [if_pos (by change 49663 + slot.val < 9126768; omega)]
+    rw [if_pos (by change 37567 + slot.val < 6892396; omega)]
     unfold Layout.PilotSpartan.sourceToSpartan
-    rw [if_neg (by change ¬ (49663 + slot.val < 49393); omega),
-      if_neg (by change ¬ (49663 + slot.val < 49663); omega),
-      if_pos (by change 49663 + slot.val < 99056; omega)]
-    have offset : 49663 + slot.val - Layout.PilotSpartan.outputPreimageStart =
+    rw [if_neg (by change ¬ (37567 + slot.val < 37297); omega),
+      if_neg (by change ¬ (37567 + slot.val < 37567); omega),
+      if_pos (by change 37567 + slot.val < 74864; omega)]
+    have offset : 37567 + slot.val - Layout.PilotSpartan.outputPreimageStart =
         slot.val := by
-      change 49663 + slot.val - 49663 = slot.val
+      change 37567 + slot.val - 37567 = slot.val
       omega
     rw [offset]
     unfold Layout.Stage1.Spartan.liftPilotColumn
-    rw [if_pos (by change 49393 + slot.val < 98786; omega)]
+    rw [if_pos (by change 37297 + slot.val < 74594; omega)]
     rw [Layout.PilotSpartan.secondPrivateStart_value]
   have constant : PerApplicationPackage.basePackage.layout.constantColumn =
-      20252764 :=
+      14761448 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
   apply Fin.ext
-  change 49393 + slot.val = PerApplicationPackage.shiftColumn application
-    (Layout.Stage1.Spartan.sourceToSpartan (49663 + slot.val))
+  change 37297 + slot.val = PerApplicationPackage.shiftColumn application
+    (Layout.Stage1.Spartan.sourceToSpartan (37567 + slot.val))
   rw [mapped, PerApplicationPackage.shiftColumn_private application _ (by
     rw [constant]
     omega)]
@@ -840,7 +840,7 @@ private theorem applicationOutputEncodes {application : Program}
         (applicationBaseColumn ((ApplicationRetainedBlocks.outputBlock application).source
           slot)) := by
     apply Fin.ext
-    change 49393 + (35 + slot.val) = Layout.Stage1.ApplicationInputs.outputColumn slot
+    change 37297 + (35 + slot.val) = Layout.Stage1.ApplicationInputs.outputColumn slot
     rw [Layout.Stage1.ApplicationInputs.outputColumn_value]
     omega
   have value := view slot coordinate

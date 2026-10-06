@@ -216,9 +216,9 @@ theorem externalInputsSupported
       omega
   · intro source coefficient
     change External (PiCCSInputs.outputEvaluationStart +
-          source.val * 1620 + coefficient.val * 2) ∧
+          source.val * 864 + coefficient.val * 2) ∧
       External (PiCCSInputs.outputEvaluationStart +
-          source.val * 1620 + coefficient.val * 2 + 1)
+          source.val * 864 + coefficient.val * 2 + 1)
     have sourceBound := source.isLt
     have coefficientBound := coefficient.isLt
     norm_num [productionShape, productionProfile,
@@ -235,9 +235,9 @@ theorem externalInputsSupported
       omega
   · intro source matrix coefficient
     change External (PiCCSInputs.outputEvaluationStart +
-          source.val * 1620 + 108 + matrix.val * 108 + coefficient.val * 2) ∧
+          source.val * 864 + 108 + matrix.val * 108 + coefficient.val * 2) ∧
       External (PiCCSInputs.outputEvaluationStart +
-          source.val * 1620 + 108 + matrix.val * 108 + coefficient.val * 2 + 1)
+          source.val * 864 + 108 + matrix.val * 108 + coefficient.val * 2 + 1)
     have sourceBound := source.isLt
     have matrixBound := matrix.isLt
     have coefficientBound := coefficient.isLt

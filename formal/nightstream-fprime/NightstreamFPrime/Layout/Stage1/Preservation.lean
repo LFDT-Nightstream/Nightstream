@@ -91,13 +91,13 @@ private theorem compactEnv_shiftedPiCcsLocal
     (program : Lifecycle.Stage1.Application.Program) (env : Env)
     (index : Nat)
     (support : SupportRange.Extend (fun _ => False)
-      PilotPiCCS.piCcsOffset (PilotPiCCS.piCcsOffset + 3026605) index) :
+      PilotPiCCS.piCcsOffset (PilotPiCCS.piCcsOffset + 1776949) index) :
     CompactPullback.compactEnv program env (index + piCcsDelta program) =
       sourceEnv program env index := by
   rcases support with impossible | ⟨lower, upper⟩
   · contradiction
   · let relative := index - PilotPiCCS.piCcsOffset
-    have relativeLt : relative < 3026605 := by
+    have relativeLt : relative < 1776949 := by
       dsimp only [relative]
       omega
     have sourceIndex : PilotPiCCS.piCcsOffset + relative = index := by
@@ -479,7 +479,7 @@ private theorem compactPiCcsOutputSupport
         (PilotPiCCS.interface (publicFits := publicFits))
         PilotPiCCS.piCcsOffset)
       (SupportRange.Extend (fun _ => False) PilotPiCCS.piCcsOffset
-        (PilotPiCCS.piCcsOffset + 3026605)) := by
+        (PilotPiCCS.piCcsOffset + 1776949)) := by
   intro lane
   unfold Lifecycle.PiCCS.v1_1.Formal.outputBindingFinalState
   rw [congrFun (PiCCSTranscriptRelocation.outputFinalState_direct
@@ -544,7 +544,7 @@ private theorem compactPiCcsOutgoingState_eq
       (PilotPiCCS.interface (publicFits := publicFits))
       PilotPiCCS.piCcsOffset)
     (SupportRange.Extend (fun _ => False) PilotPiCCS.piCcsOffset
-      (PilotPiCCS.piCcsOffset + 3026605))
+      (PilotPiCCS.piCcsOffset + 1776949))
     (sourceEnv program env) (CompactPullback.compactEnv program env)
     (compactPiCcsOutputSupport relation)
     (compactEnv_shiftedPiCcsLocal program env) lane).symm
@@ -706,7 +706,7 @@ private theorem compactPilotOutputCanonical
   · intro index bounded
     apply CompactPullback.compactEnv_source
     rw [← PilotProduction.lifecycleOutputOffset_matches] at bounded
-    change index < 4612652 at bounded
+    change index < 3483692 at bounded
     rw [Spartan.sourceColumnCount_eq]
     omega
   · exact specification

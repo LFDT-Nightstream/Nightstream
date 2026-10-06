@@ -4,7 +4,7 @@ import NightstreamFPrime.Layout.ProductionRelation.OrdinarySourcePlan
 import NightstreamFPrime.Layout.R1CS.Support
 
 /-!
-Owns indexed access and exact source support for the 1,330 non-Poseidon pilot
+Owns indexed access and exact source support for the 686 non-Poseidon pilot
 rows. The source rows remain the canonical pilot witness-instruction rows
 followed by the canonical assertion rows.
 -/
@@ -29,7 +29,7 @@ def assertionRows : List R1CS.Row :=
 /-- Exact canonical package order for all non-Poseidon pilot rows. -/
 def sourceRows : List R1CS.Row := instructionRows ++ assertionRows
 
-theorem sourceRows_length : sourceRows.length = 1330 := by
+theorem sourceRows_length : sourceRows.length = 686 := by
   unfold sourceRows instructionRows assertionRows
   simp only [List.length_append, List.length_map]
   rw [PilotData.witnessInstructions, PilotData.assertionRows,
@@ -41,7 +41,7 @@ theorem sourceRows_length : sourceRows.length = 1330 := by
   omega
 
 private theorem priorDigestStart_eq :
-    PilotProduction.priorDigestStart = 4612372 := by
+    PilotProduction.priorDigestStart = 3483412 := by
   unfold PilotProduction.priorDigestStart
   rw [PilotProduction.witnessOffset_eq, PilotProduction.absorbCount_eq]
   norm_num [PilotProduction.permutationRecipeCount,
@@ -50,53 +50,53 @@ private theorem priorDigestStart_eq :
 
 private theorem priorHashEnd_eq :
     PriorStateHash.hashEnd PilotProduction.priorInterface
-      PilotProduction.witnessOffset = 4612388 := by
+      PilotProduction.witnessOffset = 3483428 := by
   unfold PriorStateHash.hashEnd
   rw [PilotProduction.priorHashLogicalLength_eq,
     PilotProduction.witnessOffset_eq]
 
 private theorem priorPublicInputStart_eq :
-    PilotProduction.priorPublicInputStart = 49393 := by rfl
+    PilotProduction.priorPublicInputStart = 37297 := by rfl
 
 private theorem outputStateStart_eq :
     PilotProduction.lifecycleOutputOffset +
-      PilotValues.absorbCount * 1096 + 1080 = 9125964 := by
+      PilotValues.absorbCount * 1096 + 1080 = 6892236 := by
   rw [PilotProduction.lifecycleOutputOffset_eq]
   norm_num [PilotValues.absorbCount, PilotValues.stateHashWords,
     PilotValues.stateHashBaseWords, Spec.Poseidon2.rate]
 
 private theorem outputDigestStart_eq :
-    PilotProduction.outputDigestStart = 99056 := by rfl
+    PilotProduction.outputDigestStart = 74864 := by rfl
 
 private theorem sourceColumnCount_eq :
-    PilotValues.sourceColumnCount = 9126768 := by rfl
+    PilotValues.sourceColumnCount = 6892396 := by rfl
 
 private theorem outputChainAbsorbCount_eq :
-    PilotData.outputChain.absorbCount = 4117 := by rfl
+    PilotData.outputChain.absorbCount = 3109 := by rfl
 
 private theorem outputChainWitnessStart_eq :
-    PilotData.outputChain.witnessStart = 4612378 := by rfl
+    PilotData.outputChain.witnessStart = 3483418 := by rfl
 
 private theorem outputChainDigestStart_eq :
-    PilotData.outputChain.digestStart = 9126765 := by rfl
+    PilotData.outputChain.digestStart = 6892393 := by rfl
 
 private theorem outputStateSource_eq (lane : Fin 4) :
     PilotProduction.lifecycleOutputOffset +
         PilotData.outputChain.absorbCount * 1096 + 1080 + lane.val =
-      9125964 + lane.val := by
+      6892236 + lane.val := by
   rw [PilotProduction.lifecycleOutputOffset_eq,
     outputChainAbsorbCount_eq]
 
 private theorem outputStateTarget_eq (lane : Fin 4) :
     PilotData.outputChain.witnessStart +
         PilotData.outputChain.absorbCount * 1096 + 1080 + lane.val =
-      9125690 + lane.val := by
+      6891962 + lane.val := by
   rw [outputChainWitnessStart_eq, outputChainAbsorbCount_eq]
 
 theorem priorDigest_targetColumn (lane : Fin 4) :
     PilotSpartan.sourceToSpartan
         (PilotProduction.priorDigestStart + lane.val) =
-      4612098 + lane.val := by
+      3483138 + lane.val := by
   have sourceEq : PilotProduction.priorDigestStart + lane.val =
       PilotProduction.witnessOffset +
         (PilotProduction.absorbCount * 1096 + 1080 + lane.val) := by
@@ -114,7 +114,7 @@ theorem outputState_targetColumn (lane : Fin 4) :
     PilotSpartan.sourceToSpartan
         (PilotProduction.lifecycleOutputOffset +
           PilotValues.absorbCount * 1096 + 1080 + lane.val) =
-      9125690 + lane.val := by
+      6891962 + lane.val := by
   have sourceEq : PilotProduction.lifecycleOutputOffset +
       PilotValues.absorbCount * 1096 + 1080 + lane.val =
       PilotProduction.witnessOffset +
@@ -128,12 +128,12 @@ theorem outputState_targetColumn (lane : Fin 4) :
       Spec.Poseidon2.rate]
     omega
   rw [sourceEq, PilotSpartan.sourceToSpartan_pilotWitness]
-  have hashCount : PilotValues.hashWitnessCount = 4513328 := by rfl
+  have hashCount : PilotValues.hashWitnessCount = 3408560 := by rfl
   have privateCount : PilotValues.priorCanonicalPrivateCount = 264 := by rfl
-  have absorbCount : PilotValues.absorbCount = 4117 := by rfl
+  have absorbCount : PilotValues.absorbCount = 3109 := by rfl
   rw [PilotSpartan.witnessPrivateStart_value, hashCount, privateCount,
     absorbCount]
-  change 98786 + (9026904 + lane.val) = 9125690 + lane.val
+  change 74594 + (6817368 + lane.val) = 6891962 + lane.val
   rw [← Nat.add_assoc]
 
 def InRange (start count column : Nat) : Prop :=
@@ -154,7 +154,7 @@ inductive LogicalSource (column : Nat) : Prop where
   | outputDigest : InRange PilotProduction.outputDigestStart 4 column →
       LogicalSource column
 
-/-- Logical sources plus the exact 788 R1CS-fresh interval. -/
+/-- Logical sources plus the exact 144 R1CS-fresh interval. -/
 def PhysicalSource : Nat → Prop :=
   R1CS.SourceOrFresh LogicalSource PilotValues.logicalColumnCount
     PilotValues.sourceColumnCount
@@ -281,7 +281,7 @@ theorem priorLoweredRows_varsSatisfy :
         PilotValues.logicalColumnCount).rows,
       row.VarsSatisfy PhysicalSource := by
   have freshCount :
-      R1CS.totalFreshCount (PilotData.priorExtraConstraints ()) = 788 := by
+      R1CS.totalFreshCount (PilotData.priorExtraConstraints ()) = 144 := by
     rw [PilotData.priorExtraConstraints_eq,
       R1CS.totalFreshCount_append,
       PilotProduction.priorWordConstraints_freshCount,
@@ -466,7 +466,7 @@ theorem target_lt (column : Nat) (support : Target column) :
   exact PilotSpartan.sourceToSpartan_lt source
     (physicalSource_lt source sourceSupport)
 
-def programRow (index : Fin 1330) : R1CS.Row :=
+def programRow (index : Fin 686) : R1CS.Row :=
   sourceRows.get (Fin.cast sourceRows_length.symm index)
 
 private theorem ofFn_cast_get {Alpha : Type} (rows : List Alpha) {count : Nat}
@@ -501,14 +501,14 @@ def SupportedProgram.toProgram {rows : List R1CS.Row}
   bounded := source.bounded
 
 /-- Stable row-boundedness interface for executable package decoders. -/
-theorem programRow_bounded (index : Fin 1330) :
+theorem programRow_bounded (index : Fin 686) :
     SourceCompiler.RowBounded PilotSpartan.spartanColumnCount
       (programRow index) := by
   exact sourceRows_varsBelow _
     (List.get_mem _ (Fin.cast sourceRows_length.symm index))
 
 def supportedProgram : SupportedProgram sourceRows where
-  rowCount := 1330
+  rowCount := 686
   rowCount_le := by norm_num [Lifecycle.cubeVariables]
   row := programRow
   exactRows := programRows_eq
@@ -517,7 +517,7 @@ def supportedProgram : SupportedProgram sourceRows where
 def program : OrdinarySourcePlan.Program PilotSpartan.spartanColumnCount :=
   supportedProgram.toProgram
 
-@[simp] theorem program_rowCount : program.rowCount = 1330 := by rfl
+@[simp] theorem program_rowCount : program.rowCount = 686 := by rfl
 
 private theorem holds_iff_rowsHold_ofFn {count : Nat}
     (rowAt : Fin count → R1CS.Row) (env : Env) :
@@ -534,7 +534,7 @@ private theorem predicate_iff_of_eq {Alpha : Type} (predicate : Alpha → Prop)
 /-- Indexed canonical pilot rows hold exactly when the complete Lean-lowered
 row list holds in package order. -/
 theorem programRows_hold_iff_rowsHold (env : Env) :
-    (∀ index : Fin 1330, (programRow index).Holds env) ↔
+    (∀ index : Fin 686, (programRow index).Holds env) ↔
       R1CS.RowsHold env sourceRows := by
   exact (holds_iff_rowsHold_ofFn programRow env).trans
     (predicate_iff_of_eq (R1CS.RowsHold env) programRows_eq)

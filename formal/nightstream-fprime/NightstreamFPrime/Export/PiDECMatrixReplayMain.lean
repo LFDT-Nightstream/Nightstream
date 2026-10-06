@@ -79,9 +79,21 @@ so their total is the slice sum. -/
       totals := Vector.ofFn fun child =>
         if active child then
           PiDECEvaluationBatch.add (totals.get child)
-            (PiDECMatrixWeightedRange.evaluate prepared start point (read child) forms)
+            (PiDECMatrixWeightedRange.evaluate prepared (read child))
         else totals.get child
   return totals
+
+/-- Every active child of one slice of sparse rows. The column weights of the
+slice do not depend on the child, so they are prepared once. -/
+@[specialize] private def sparseChildren {columns arity count children : Nat}
+    (firstRow : Nat) (point : CubePoint K arity)
+    (read : Fin children → Fin ringDegree → Fin columns → F) (active : Fin children → Bool)
+    (forms : Vector (MatrixProgram.RowForms columns) count) (lo hi : Nat) :
+    Vector (Vector MaterializedRingK matrixCount) children :=
+  let prepared := PiDECMatrixWeightedRange.prepare (firstRow + lo) point (forms.extract lo hi)
+  Vector.ofFn fun child =>
+    if active child then PiDECMatrixWeightedRange.evaluate prepared (read child)
+    else PiDECEvaluationBatch.zero matrixCount
 
 private def ranges (ccsPath : System.FilePath) (requests : List RangeRequest)
     (parentPaths : List String) (batch : Bool) : IO UInt32 := do
@@ -210,9 +222,9 @@ private def ranges (ccsPath : System.FilePath) (requests : List RangeRequest)
               let some row := other.row? logicalWidth source (firstRow + index.val)
                 | throw (IO.userError "selected sparse row rejected")
               pure row
-            pure (count, fun lo hi child =>
-              PiDECMatrixSparseRange.sum (first + lo) phase.point (readChild child)
-                (forms.extract lo hi), none)
+            let all := fun lo hi =>
+              sparseChildren first phase.point readChild active forms lo hi
+            pure (count, fun lo hi child => (all lo hi).get child, some all)
       report ([("event", .str "range_begin"), ("block", Lean.toJson blockIndex),
         ("block_rows", Lean.toJson selected.rowCount),
         ("first_local_row", Lean.toJson firstRow), ("last_local_row_exclusive", Lean.toJson lastRow),
@@ -231,11 +243,12 @@ private def ranges (ccsPath : System.FilePath) (requests : List RangeRequest)
       -- Shared slices compute every active child; sixteen slices per worker, and each
       -- of `workers` threads takes the next slice, so the last slices are short.
       let mut sharedSlices := #[]
-      if let some all := evaluateAll then
-        let parts := min unitCount (16 * workers)
-        sharedSlices ← ParallelChunks.start workers parts fun slice =>
-          pure (all (unitCount * slice / parts) (unitCount * (slice + 1) / parts))
-        taskCount := parts
+      if 0 < activeCount then
+        if let some all := evaluateAll then
+          let parts := min unitCount (16 * workers)
+          sharedSlices ← ParallelChunks.start workers parts fun slice =>
+            pure (all (unitCount * slice / parts) (unitCount * (slice + 1) / parts))
+          taskCount := parts
       for child in children do
         let mut childTasks := #[]
         unless maximum < 2 ^ child.val do

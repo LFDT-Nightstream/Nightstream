@@ -141,15 +141,8 @@ fn acc_mul_add_inplace(acc: &mut [Fq; D], col: &[Fq; D], scalar: Fq) {
 /// MUST: Setup(κ,m) → sample M ← R_q^{κ×m} uniformly (Def. 9).
 pub fn setup<R: RngCore + CryptoRng>(rng: &mut R, d: usize, kappa: usize, m: usize) -> AjtaiResult<PP<RqEl>> {
     // Ensure d matches the fixed ring dimension from neo-math
-    if d != neo_math::ring::D {
-        return Err(AjtaiError::InvalidDimensions(
-            "d parameter must match ring dimension D".to_string(),
-        ));
-    }
-    if kappa == 0 || m == 0 {
-        return Err(AjtaiError::InvalidDimensions(
-            "kappa and m must both be nonzero".to_string(),
-        ));
+    if d != neo_math::ring::D || kappa == 0 || m == 0 {
+        return PP::new(d, kappa, m, Vec::new());
     }
     let mut rows = Vec::with_capacity(kappa);
     for _ in 0..kappa {
@@ -160,12 +153,7 @@ pub fn setup<R: RngCore + CryptoRng>(rng: &mut R, d: usize, kappa: usize, m: usi
         }
         rows.push(row);
     }
-    Ok(PP {
-        kappa,
-        m,
-        d,
-        m_rows: rows,
-    })
+    PP::new(d, kappa, m, rows)
 }
 
 /// Commit `Z` with the Ajtai map `cf(M · cf⁻¹(Z))`.

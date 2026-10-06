@@ -1,7 +1,6 @@
 //! Public API for Π_CCS folding and RLC/DEC operations.
 //!
 //! This module exposes the main entry points for:
-//! - Π_CCS proving and verification: `prove`, `verify`
 //! - RLC/DEC operations with commitments: `rlc_with_commit`, `dec_children_with_commit`
 //! - Public verification helpers: `rlc_public`, `verify_dec_public`
 //!
@@ -10,16 +9,14 @@
 #![allow(non_snake_case)]
 
 use neo_ajtai::Commitment as Cmt;
-use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat};
+use neo_ccs::{CcsStructure, CeClaim, Mat};
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
-use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeCharacteristicRing;
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 use std::time::Instant;
 
-use crate::engines::PiCcsEngine;
 use crate::error::PiCcsError;
 
 mod accelerator;
@@ -29,8 +26,8 @@ pub use dec::verify_dec_public;
 mod validation;
 pub(crate) use validation::{
     checked_superneo_d_pad, ell_n_for_ccs, ensure_superneo_width, validate_ce_claim_shape, validate_ce_claims_shape,
-    validate_dec_boundary_inputs, validate_dec_boundary_inputs_from_trusted_split, validate_mcs_claims,
-    validate_mcs_witnesses, validate_pi_ccs_outputs, validate_rlc_batch_compatibility,
+    validate_dec_boundary_inputs, validate_dec_boundary_inputs_from_trusted_split, validate_pi_ccs_outputs,
+    validate_rlc_batch_compatibility,
 };
 
 // Re-export types that are part of the public API
@@ -43,7 +40,6 @@ pub use crate::common::{
     left_mul_acc,
     rot_rhos_from_mats,
     rot_rhos_to_mats,
-    sample_rot_rhos_n, // Dynamic: samples N rhos with norm bound check
     sample_rot_rhos_n_typed,
     split_b_matrix_k,
     split_b_matrix_k_with_nonzero_flags,
@@ -95,112 +91,6 @@ fn require_dec_crosscheck(
 // ---------------------------------------------------------------------------
 // Π_CCS API
 // ---------------------------------------------------------------------------
-
-/// Prove Π_CCS folding.
-pub fn prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt> + Sync>(
-    mode: FoldingMode,
-    tr: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    s: &CcsStructure<F>,
-    mcs_list: &[CcsClaim<Cmt, F>],
-    mcs_witnesses: &[CcsWitness<F>],
-    me_inputs: &[CeClaim<Cmt, F, K>],
-    me_witnesses: &[Mat<F>],
-    log: &L,
-) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof), PiCcsError> {
-    use crate::engines::OptimizedEngine;
-
-    ensure_superneo_width(s)?;
-    if mcs_list.is_empty() {
-        return Err(PiCcsError::InvalidInput("prove: empty mcs_list".into()));
-    }
-    if mcs_list.len() != mcs_witnesses.len() {
-        return Err(PiCcsError::InvalidInput(format!(
-            "prove: |mcs_list| mismatch (expected {}, got {})",
-            mcs_list.len(),
-            mcs_witnesses.len()
-        )));
-    }
-    if me_inputs.len() != me_witnesses.len() {
-        return Err(PiCcsError::InvalidInput(format!(
-            "prove: |me_inputs| mismatch (expected {}, got {})",
-            me_inputs.len(),
-            me_witnesses.len()
-        )));
-    }
-    validate_mcs_claims("prove", s, mcs_list)?;
-    validate_mcs_witnesses("prove", s, mcs_list, mcs_witnesses)?;
-    validate_ce_claims_shape("prove: me_inputs", s, me_inputs)?;
-    let _ = crate::engines::utils::shared_me_input_r(me_inputs, ell_n_for_ccs(s))?;
-    for (idx, wit) in mcs_witnesses.iter().enumerate() {
-        crate::common::validate_fresh_witness_tail_zero(&wit.Z, s.m, &format!("prove: mcs_witnesses[{idx}].Z"))?;
-        crate::common::validate_packed_witness_nc_alphabet(
-            params,
-            &wit.Z,
-            s.m,
-            &format!("prove: mcs_witnesses[{idx}].Z"),
-        )?;
-    }
-    for (idx, z) in me_witnesses.iter().enumerate() {
-        crate::common::validate_packed_witness_nc_alphabet(params, z, s.m, &format!("prove: me_witnesses[{idx}]"))?;
-    }
-    match mode {
-        FoldingMode::Optimized => {
-            OptimizedEngine.prove(tr, params, s, mcs_list, mcs_witnesses, me_inputs, me_witnesses, log)
-        }
-        #[cfg(feature = "paper-exact")]
-        FoldingMode::PaperExact => {
-            crate::engines::PaperExactEngine.prove(tr, params, s, mcs_list, mcs_witnesses, me_inputs, me_witnesses, log)
-        }
-        #[cfg(feature = "paper-exact")]
-        FoldingMode::OptimizedWithCrosscheck => crate::engines::CrossCheckEngine {
-            inner: OptimizedEngine,
-            ref_oracle: crate::engines::PaperExactEngine,
-        }
-        .prove(tr, params, s, mcs_list, mcs_witnesses, me_inputs, me_witnesses, log),
-    }
-}
-
-/// Verify Π_CCS proof using the selected engine mode.
-pub fn verify(
-    mode: FoldingMode,
-    tr: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    s: &CcsStructure<F>,
-    mcs_list: &[CcsClaim<Cmt, F>],
-    me_inputs: &[CeClaim<Cmt, F, K>],
-    me_outputs: &[CeClaim<Cmt, F, K>],
-    proof: &PiCcsProof,
-) -> Result<bool, PiCcsError> {
-    ensure_superneo_width(s)?;
-    if mcs_list.is_empty() {
-        return Err(PiCcsError::InvalidInput("verify: empty mcs_list".into()));
-    }
-    validate_mcs_claims("verify", s, mcs_list)?;
-    validate_ce_claims_shape("verify: me_inputs", s, me_inputs)?;
-    validate_ce_claims_shape("verify: me_outputs", s, me_outputs)?;
-    validate_pi_ccs_outputs("verify: me_outputs", s, me_outputs)?;
-    let ell_n = ell_n_for_ccs(s);
-    let _ = crate::engines::utils::shared_me_input_r(me_inputs, ell_n)?;
-    let _ = crate::engines::utils::shared_me_input_r(me_outputs, ell_n)?;
-    crate::engines::utils::validate_mcs_output_x_recomposition(params, s.m, mcs_list, me_outputs)?;
-
-    match mode {
-        FoldingMode::Optimized => {
-            crate::engines::OptimizedEngine.verify(tr, params, s, mcs_list, me_inputs, me_outputs, proof)
-        }
-        #[cfg(feature = "paper-exact")]
-        FoldingMode::PaperExact => {
-            crate::engines::PaperExactEngine.verify(tr, params, s, mcs_list, me_inputs, me_outputs, proof)
-        }
-        #[cfg(feature = "paper-exact")]
-        FoldingMode::OptimizedWithCrosscheck => crate::engines::CrossCheckEngine {
-            inner: crate::engines::OptimizedEngine,
-            ref_oracle: crate::engines::PaperExactEngine,
-        }
-        .verify(tr, params, s, mcs_list, me_inputs, me_outputs, proof),
-    }
-}
 
 // ---------------------------------------------------------------------------
 // RLC/DEC API

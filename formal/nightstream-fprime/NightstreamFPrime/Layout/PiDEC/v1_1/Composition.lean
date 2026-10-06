@@ -11,7 +11,7 @@ Owns physical composition and the exact six-child footprint ledger for the
 PiDEC v1_1 phase.
 
 The parent order is operational input binding, public split, commitment,
-separate Pad `Eval_K`, separate 14-matrix `Eval_A`, and output binding. The
+separate Pad `Eval_K`, separate 7-matrix `Eval_A`, and output binding. The
 parent and both boundary views add no row.
 -/
 

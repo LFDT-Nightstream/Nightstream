@@ -4,7 +4,7 @@ import NightstreamFPrime.Layout.ProductionRelation.OrdinarySourcePlan
 import NightstreamFPrime.Layout.R1CS.Support
 
 /-!
-Owns the five-row 14-matrix plan for HyperNova Construction 2's next-preimage
+Owns the five-row 7-matrix plan for HyperNova Construction 2's next-preimage
 wiring. It reuses the retained prior/output preimage forms already owned by
 PiCCS. No retained slot, source column, or private value is added.
 -/

@@ -18,7 +18,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 /-- Completed PiCCS boundaries. -/
 def phaseLogicalStart : Nat := PiRLCInputs.phaseOffset
-def phaseRowStart : Nat := 12057765
+def phaseRowStart : Nat := 8597929
 
 /-- The phase lowering starts after all seven logical child intervals. -/
 def phaseFreshStart : Nat :=
@@ -32,27 +32,27 @@ def evalALogicalStart : Nat := Formal.evalAOffset phaseLogicalStart
 def outputLogicalStart : Nat := Formal.outputBindingOffset phaseLogicalStart
 
 def samplerRowStart : Nat := phaseRowStart
-def commitmentRowStart : Nat := samplerRowStart + 76075
+def commitmentRowStart : Nat := samplerRowStart + 52207
 def publicInputRowStart : Nat := commitmentRowStart + 3049596
 def evalKRowStart : Nat := publicInputRowStart + 693090
 def evalARowStart : Nat := evalKRowStart + 277236
-def outputRowStart : Nat := evalARowStart + 3881304
+def outputRowStart : Nat := evalARowStart + 1940652
 
 def samplerFreshStart : Nat := phaseFreshStart
-def commitmentFreshStart : Nat := samplerFreshStart + 26316
+def commitmentFreshStart : Nat := samplerFreshStart + 2448
 def publicInputFreshStart : Nat := commitmentFreshStart + 3029400
 def evalKFreshStart : Nat := publicInputFreshStart + 688500
 def evalAFreshStart : Nat := evalKFreshStart + 275400
-def outputFreshStart : Nat := evalAFreshStart + 3855600
+def outputFreshStart : Nat := evalAFreshStart + 1927800
 
-/-- One scalar owns 4,267 logical columns, 4,475 physical rows,
-and 1,548 R1CS lowering columns. -/
+/-- One scalar owns 4,267 logical columns, 3,071 physical rows,
+and 144 R1CS lowering columns. -/
 def samplerSourceLogicalStart (source : Nat) : Nat :=
   SamplerChain.sourceOffset samplerLogicalStart source
 
-def samplerSourceRowStart (source : Nat) : Nat := samplerRowStart + source * 4475
+def samplerSourceRowStart (source : Nat) : Nat := samplerRowStart + source * 3071
 
-def samplerSourceFreshStart (source : Nat) : Nat := samplerFreshStart + source * 1548
+def samplerSourceFreshStart (source : Nat) : Nat := samplerFreshStart + source * 144
 
 def entryLogicalStart (source : Nat) : Nat := samplerSourceLogicalStart source
 
@@ -66,7 +66,7 @@ def rangeFreshStart (source : Nat) : Nat := samplerSourceFreshStart source
 
 def advanceLogicalStart (source : Nat) : Nat := Sampler.advanceOffset (samplerSourceLogicalStart source)
 
-def advanceRowStart (source : Nat) : Nat := rangeRowStart source + 2229
+def advanceRowStart (source : Nat) : Nat := rangeRowStart source + 825
 
 /-- The sampler checks each digit word before the combination circuit reads it. -/
 def challengeWordStart (source : Nat) : Nat := Sampler.wordsOffset (samplerSourceLogicalStart source)
@@ -79,7 +79,7 @@ theorem challengeWordStart_eq (source : Nat) :
     Formal.samplerOffset SamplerChain.sourceOffset Sampler.wordsOffset Sampler.advanceOffset Sampler.rangeOffset
   rw [Sampler.counts.1, Gadgets.Sampling.WideReduction.Program.privateCount_eq]
 
-theorem phaseLogicalStart_eq : phaseLogicalStart = 12185621 := by
+theorem phaseLogicalStart_eq : phaseLogicalStart = 8688741 := by
   rfl
 
 theorem phaseRowStart_matches
@@ -91,41 +91,41 @@ theorem phaseRowStart_matches
   rw [PilotPiCCS.physicalRowCount_eq]
   rfl
 
-theorem phaseFreshStart_eq : phaseFreshStart = 12310486 := by
+theorem phaseFreshStart_eq : phaseFreshStart = 8800754 := by
   rfl
 
-theorem commitmentFreshStart_eq : commitmentFreshStart = 12336802 := by
+theorem commitmentFreshStart_eq : commitmentFreshStart = 8803202 := by
   rfl
 
-theorem publicInputFreshStart_eq : publicInputFreshStart = 15366202 := by
+theorem publicInputFreshStart_eq : publicInputFreshStart = 11832602 := by
   rfl
 
-theorem evalKFreshStart_eq : evalKFreshStart = 16054702 := by
+theorem evalKFreshStart_eq : evalKFreshStart = 12521102 := by
   rfl
 
-theorem evalAFreshStart_eq : evalAFreshStart = 16330102 := by
+theorem evalAFreshStart_eq : evalAFreshStart = 12796502 := by
   rfl
 
 theorem childLogicalStarts_eq :
     [samplerLogicalStart, commitmentLogicalStart, publicInputLogicalStart,
       evalKLogicalStart, evalALogicalStart, outputLogicalStart] =
-    [12185621, 12258160, 12278356, 12282946, 12284782, 12310486] := by
+    [8688741, 8761280, 8781476, 8786066, 8787902, 8800754] := by
   rfl
 
 theorem childRowStarts_eq :
     [samplerRowStart, commitmentRowStart, publicInputRowStart,
       evalKRowStart, evalARowStart, outputRowStart] =
-    [12057765, 12133840, 15183436, 15876526, 16153762, 20035066] := by
+    [8597929, 8650136, 11699732, 12392822, 12670058, 14610710] := by
   rfl
 
 theorem childFreshStarts_eq :
     [samplerFreshStart, commitmentFreshStart, publicInputFreshStart,
       evalKFreshStart, evalAFreshStart, outputFreshStart] =
-    [12310486, 12336802, 15366202, 16054702, 16330102, 20185702] := by
+    [8800754, 8803202, 11832602, 12521102, 12796502, 14724302] := by
   rfl
 
 theorem finalBoundaries_eq :
-    outputRowStart = 20035066 ∧ outputFreshStart = 20185702 := by
+    outputRowStart = 14610710 ∧ outputFreshStart = 14724302 := by
   exact ⟨rfl, rfl⟩
 
 end NightstreamFPrime.Layout.Stage1.PiRLCStarts

@@ -67,11 +67,11 @@ fn signed_commitment_matches_the_ordinary_sum_under_the_same_key() {
     for ((block, lane), value) in selected.into_iter().zip([0, 27, 53]).zip([1, -1, 1]) {
         carrier[block as usize * D + lane] = value;
     }
-    let key = PP {
-        d: D,
-        kappa: PRODUCTION_VERIFIER_ROWS as usize,
-        m: selected.len(),
-        m_rows: (0..PRODUCTION_VERIFIER_ROWS)
+    let key = PP::new(
+        D,
+        PRODUCTION_VERIFIER_ROWS as usize,
+        selected.len(),
+        (0..PRODUCTION_VERIFIER_ROWS)
             .map(|row| {
                 selected
                     .iter()
@@ -84,7 +84,8 @@ fn signed_commitment_matches_the_ordinary_sum_under_the_same_key() {
                     .collect()
             })
             .collect(),
-    };
+    )
+    .expect("checked Ajtai key");
     let message = selected
         .iter()
         .copied()

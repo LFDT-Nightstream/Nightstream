@@ -1,5 +1,6 @@
 import Mathlib.MeasureTheory.Measure.Typeclasses.Probability
 import NightstreamFPrime.Lifecycle.Types
+import NightstreamFPrime.Lifecycle.Nifs.SelectedTestNumerator
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.IndependentExecution
 
 /-!
@@ -20,12 +21,19 @@ open MeasureTheory
 
 /-- The actual selected shape and degree give this test numerator. -/
 theorem test_error_eq : IndependentExecution.testError productionShape 9 =
-    (13257 : ℝ) / (goldilocksModulus : ℝ) ^ 2 := by
+    (7209 : ℝ) / (goldilocksModulus : ℝ) ^ 2 := by
   unfold IndependentExecution.testError
   rw [Nat.cast_pow]
   change (28 : ℝ) * 9 / (goldilocksModulus : ℝ) ^ 2 +
-    13005 / (goldilocksModulus : ℝ) ^ 2 = _
+    6957 / (goldilocksModulus : ℝ) ^ 2 = _
   ring
+
+/-- The exported natural-number numerator is the selected test numerator. -/
+theorem test_error_eq_selected :
+    IndependentExecution.testError productionShape SelectedTestNumerator.width =
+      (SelectedTestNumerator.numerator : ℝ) / (goldilocksModulus : ℝ) ^ 2 := by
+  rw [SelectedTestNumerator.numerator_eq, Nat.cast_ofNat]
+  exact test_error_eq
 
 /-- Union the actual events in one probability space. The hypotheses can be
 obtained from bounds conditional on the full preceding history; a claim only

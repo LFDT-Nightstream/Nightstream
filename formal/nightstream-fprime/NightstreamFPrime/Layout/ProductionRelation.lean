@@ -2,9 +2,9 @@ import NightstreamFPrime.Lifecycle.ProductionKey
 
 /-!
 Owns the exact matrix authority for the production selective relation. A plan
-stores the 13 meaningful sparse matrix-row forms in canonical numeric row
-order. Matrix slot 13 is zero by construction. The derived matrices are the
-only values accepted by `ProductionKey.LogicalRelation`.
+stores the 7 sparse matrix-row forms in canonical numeric row order. The
+derived matrices are the only values accepted by
+`ProductionKey.LogicalRelation`.
 
 This module does not compile field-valued circuit wires to low-norm
 coordinates. That compiler must construct one `Plan` and prove its source
@@ -210,7 +210,7 @@ private theorem foldl_scale_terms {Index : Type}
 
 end SparseForm
 
-/-- Convert one of the 14 matrix slots to its meaningful 13-slot index. -/
+/-- Convert one of the 7 matrix slots to its selective-port index. -/
 def meaningfulPort?
     (port : Fin Spec.ProductionRelation.matrixCount) :
     Option (Fin Spec.ProductionRelation.meaningfulPortCount) :=
@@ -218,10 +218,6 @@ def meaningfulPort?
     some ⟨port.val, bounded⟩
   else
     none
-
-@[simp] theorem meaningfulPort?_zeroPort :
-    meaningfulPort? Spec.ProductionRelation.zeroPort = none := by
-  rfl
 
 /-- A canonical live-row plan for all meaningful production matrix ports. -/
 structure Plan (logicalWidth : Nat) where
@@ -235,7 +231,6 @@ namespace Plan
 def rowLayout {logicalWidth : Nat} (plan : Plan logicalWidth) :=
   CanonicalRowLayout.layout cubeVariables plan.rowCount plan.rowCount_le
 
-/-- Slot 13 is absent from the stored plan and becomes the empty form. -/
 def portForm {logicalWidth : Nat} (plan : Plan logicalWidth)
     (row : Fin plan.rowCount)
     (port : Fin Spec.ProductionRelation.matrixCount) : SparseForm logicalWidth :=
@@ -280,15 +275,6 @@ theorem matrixVectorAt_matrix {logicalWidth : Nat} (plan : Plan logicalWidth)
       simp only [rowImage, decoded]
       unfold matrixVectorAt SparseForm.eval
       simp [matrix, decoded]
-
-/-- The final matrix slot is the canonical zero matrix for every row and
-column. -/
-theorem zeroPort_matrix {logicalWidth : Nat} (plan : Plan logicalWidth) :
-    plan.matrix Spec.ProductionRelation.zeroPort = fun _ _ => 0 := by
-  funext vertex column
-  unfold matrix portForm
-  rw [meaningfulPort?_zeroPort]
-  split <;> rfl
 
 /-- Construct the sole key-facing logical relation from the exact plan. -/
 def logicalRelation {logicalWidth : Nat}

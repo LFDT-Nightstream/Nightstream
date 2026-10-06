@@ -40,9 +40,9 @@ theorem check_affine (offset : Nat) (check : Fin checkCount) : R1CS.IsAffine (ch
       simp only [checkTerms, List.forall_mem_map, checkBit]
       simp
 
-theorem boolean_fresh (column : Nat) : R1CS.constraintFreshCount (booleanRow (.var column)) = 2 := rfl
+theorem boolean_fresh (column : Nat) : R1CS.constraintFreshCount (booleanRow (.var column)) = 0 := rfl
 
-theorem digit_fresh (offset position : Nat) : R1CS.constraintFreshCount (digitRangeRow offset position) = 1 := rfl
+theorem digit_fresh (offset position : Nat) : R1CS.constraintFreshCount (digitRangeRow offset position) = 0 := rfl
 
 private theorem newBits_vars (offset : Nat) (atom : Expr) (member : atom ∈ newBits offset) :
     ∃ column, atom = .var column := by
@@ -53,15 +53,14 @@ private theorem newBits_vars (offset : Nat) (atom : Expr) (member : atom ∈ new
   exact all atom member
 
 private theorem boolean_total (bits : List Expr) (atomsAreVars : ∀ atom ∈ bits, ∃ column, atom = .var column) :
-    R1CS.totalFreshCount (bits.map booleanRow) = bits.length * 2 := by
+    R1CS.totalFreshCount (bits.map booleanRow) = 0 := by
   induction bits with
   | nil => rfl
   | cons atom rest ih =>
       obtain ⟨column, rfl⟩ := atomsAreVars atom (by simp)
-      simp only [List.map_cons, R1CS.totalFreshCount, List.sum_cons, List.length_cons]
+      simp only [List.map_cons, R1CS.totalFreshCount, List.sum_cons]
       change R1CS.constraintFreshCount (booleanRow (.var column)) + R1CS.totalFreshCount (rest.map booleanRow) = _
       rw [boolean_fresh, ih (fun atom member => atomsAreVars atom (by simp [member]))]
-      omega
 
 private theorem flatMap_single {α β : Type*} (items : List α) (f : α → β) :
     items.flatMap (fun item => [f item]) = items.map f := by
@@ -69,31 +68,30 @@ private theorem flatMap_single {α β : Type*} (items : List α) (f : α → β)
   | nil => rfl
   | cons item rest ih => simp only [List.flatMap_cons, List.map_cons, List.singleton_append, ih]
 
-private theorem rows_fresh (offset : Nat) : R1CS.totalFreshCount (flatConstraints (rowOps offset)) = 760 := by
+private theorem rows_fresh (offset : Nat) : R1CS.totalFreshCount (flatConstraints (rowOps offset)) = 0 := by
   have constraints : flatConstraints (rowOps offset) =
       (newBits offset).map booleanRow ++ (List.range digitCount).map (digitRangeRow offset) ++
         (List.finRange checkCount).map (checkRow offset) := by
     simp [rowOps, flatConstraints, List.flatMap_map, Op.flatConstraints, flatMap_single]
   rw [constraints, R1CS.totalFreshCount_append, R1CS.totalFreshCount_append,
-    boolean_total _ (newBits_vars offset), newBits_length, newBitCount_eq]
-  have digits : R1CS.totalFreshCount ((List.range digitCount).map (digitRangeRow offset)) = digitCount := by
+    boolean_total _ (newBits_vars offset)]
+  have digits : R1CS.totalFreshCount ((List.range digitCount).map (digitRangeRow offset)) = 0 := by
     simp only [R1CS.totalFreshCount, List.map_map, Function.comp_def, digit_fresh,
-      List.map_const', List.length_range, List.sum_replicate, smul_eq_mul, Nat.mul_one]
+      List.map_const', List.length_range, List.sum_replicate, smul_eq_mul, Nat.mul_zero]
   have checks : R1CS.totalFreshCount ((List.finRange checkCount).map (checkRow offset)) = 0 := by
     apply R1CS.totalFreshCount_eq_zero_of_noFresh
     intro expression member
     obtain ⟨check, _, rfl⟩ := List.mem_map.mp member
     exact R1CS.constraintFreshCount_eq_zero_of_affine _ (check_affine offset check)
   rw [digits, checks]
-  rfl
 
 private theorem children_fresh (interface : Interface) (offset : Nat)
     (inputs : ∀ lane, R1CS.IsAffine (interface.source lane offset)) :
-    R1CS.totalFreshCount (flatConstraints (childOps interface offset)) = 788 := by
+    R1CS.totalFreshCount (flatConstraints (childOps interface offset)) = 144 := by
   have all : ∀ children : List (Fin fieldCount),
       R1CS.totalFreshCount (flatConstraints (children.map (fun lane =>
         Sequence.childOp (childName lane) (Gadgets.Range.CanonicalU64.circuit (childInterface interface offset lane))
-          (childOffset offset lane)))) = children.length * 197 := by
+          (childOffset offset lane)))) = children.length * 36 := by
     intro children
     induction children with
     | nil => rfl
@@ -109,9 +107,9 @@ private theorem children_fresh (interface : Interface) (offset : Nat)
 
 theorem counts (interface : Interface) (hints : Nat → List Hint) (offset : Nat)
     (inputs : ∀ lane, R1CS.IsAffine (interface.source lane offset)) :
-    R1CS.totalFreshCount (flatConstraints (operations interface hints offset)) = 1548 ∧
-      R1CS.totalRowCount (flatConstraints (operations interface hints offset)) = 2229 := by
-  have fresh : R1CS.totalFreshCount (flatConstraints (operations interface hints offset)) = 1548 := by
+    R1CS.totalFreshCount (flatConstraints (operations interface hints offset)) = 144 ∧
+      R1CS.totalRowCount (flatConstraints (operations interface hints offset)) = 825 := by
+  have fresh : R1CS.totalFreshCount (flatConstraints (operations interface hints offset)) = 144 := by
     simp only [operations, flatConstraints_append, R1CS.totalFreshCount_append]
     rw [children_fresh interface offset inputs, rows_fresh]
     rfl

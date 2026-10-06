@@ -3,13 +3,15 @@ import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcrip
 
 /-!
 Owns the Stage 1 Fiat–Shamir transcript over the Poseidon2 sponge: duplex
-absorb and squeeze, the Π_CCS oracle (statement absorb, one absorb per
-sum-check round, labelled `α`/`γ`/`r′` squeezes), absorption of the complete
-Π_CCS output, and the total Π_RLC challenge sampler into the strong set
+absorb and squeeze, the Π_CCS oracle (one absorb per sum-check round,
+labelled `α`/`γ`/`r′` squeezes), the digest-only PiCCS domain tag, and the
+total Π_RLC challenge sampler into the strong set
 `𝓒 = {coefficients in {−2,…,2}}`. Each scalar uses one four-field Poseidon2
-window, interpreted in base Goldilocks and reduced modulo `5^54`. The absorb order is the paper's
-(SuperNeo B.1): every challenge is squeezed only after the data it must depend
-on has been absorbed. All parity-surface definitions are computable.
+window, interpreted in base Goldilocks and reduced modulo `5^54`. The
+challenge order is the paper's (SuperNeo §7.3–7.4): every challenge is
+squeezed only after the data it must depend on has been absorbed. The
+statement absorption itself is `ProductionKey.absorbPublicInput`. All
+parity-surface definitions are computable.
 -/
 
 namespace NightstreamFPrime.Lifecycle.Transcript
@@ -59,18 +61,6 @@ def squeezeKs : Nat → State → List K × State
 
 def initialState : State := Poseidon2.zeroState
 
-/-- ASCII bytes of `Nightstream/SuperNeo/NIFS/v1`, retained for the complete
-NIFS transcript after PiCCS. -/
-def domainTagBytes : List Nat :=
-  [78, 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47,
-    83, 117, 112, 101, 114, 78, 101, 111, 47, 78, 73, 70, 83, 47, 118, 49]
-
-/-- Domain tag absorbed before every protocol transcript. -/
-def domainTag : List F := domainTagBytes.map Poseidon2.ofNat
-
-@[simp] theorem domainTag_length : domainTag.length = 28 := by
-  simp [domainTag, domainTagBytes]
-
 /-- ASCII bytes of `Nightstream/SuperNeo/PiCCS/digest-only/v1_1`. This tag
 selects the owner-approved committed-statement schedule. -/
 def piCcsDigestDomainTagBytes : List Nat :=
@@ -91,7 +81,8 @@ def serializeMessage (m : SumCheck.Finite.Message K) : List F :=
   m.coefficients.flatMap serializeK
 
 /-- The two verifier-input blocks of v1.1 Π_CCS: prior point, then Pad
-claims in `I_K` order followed by matrix claims in `I_A` order. -/
+claims in `I_K` order followed by matrix claims in `I_A` order. This is a
+parity surface only: the transcript does not absorb these blocks. -/
 def verifierInputBlocks
     (input : ProtocolPolynomial.VerifierInput K productionShape) :
     List (List F) :=
@@ -100,12 +91,6 @@ def verifierInputBlocks
         (fun coordinate => serializeK (input.claimedPadCoefficient coordinate)) ++
       (canonicalMatrixCoordinates productionShape).flatMap
         (fun coordinate => serializeK (input.claimedMatrixCoefficient coordinate))]
-
-/-- Absorb the verifier input from its one canonical block list. The
-constraint polynomial is key data bound through the verifier-key digest. -/
-def absorbVerifierInput (state : State)
-    (input : ProtocolPolynomial.VerifierInput K productionShape) : State :=
-  absorbBlocks state (verifierInputBlocks input)
 
 /-- Label words keep `α`, `γ`, and round squeezes in distinct domains. -/
 def labelWord : FiatShamir.ChallengeLabel productionShape → List F

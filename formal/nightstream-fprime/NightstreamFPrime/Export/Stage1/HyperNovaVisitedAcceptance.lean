@@ -173,6 +173,7 @@ theorem realSuccess_iff_goodActive
     (initial : PMF (Statement × Envelope)) (steps : Nat) (visit : Visit)
     (supported : visit ∈ (visitedLaw source initial steps).support) :
     FiatShamirTransfer.RealSuccess PiDECInputCheck.relation productionAjtaiKey
+      (PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup)
       (PiCCSInputCheck.running (inputs visit)) (PiCCSInputCheck.fresh (inputs visit))
       (realOutput visit) ↔ goodActive visit := by
   by_cases good : goodActive visit
@@ -187,40 +188,21 @@ theorem realSuccess_iff_goodActive
   · rw [HyperNovaGuardedSourceLaw.realOutput_off visit good]
     exact iff_of_false id good
 
-/-- At every supported visited context, real success supplies the prior-state
-link for the same running and fresh input. The HyperNova history theorems
-apply the approved Fiat–Shamir transfer to this law, so in them every counted
-success has the absorbed prior digest bind the verifier context and the running
-statement. The generic NIFS closure theorems apply the transfer at an arbitrary
-law and carry no such link. -/
-theorem priorLink_of_realSuccess
-    (source : Statement → Payload → PMF SourceResult)
-    (initial : PMF (Statement × Envelope)) (steps : Nat) (visit : Visit)
-    (supported : visit ∈ (visitedLaw source initial steps).support)
-    (success : FiatShamirTransfer.RealSuccess PiDECInputCheck.relation productionAjtaiKey
-      (PiCCSInputCheck.running (inputs visit)) (PiCCSInputCheck.fresh (inputs visit))
-      (realOutput visit)) :
-    ∃ prior, Layout.Stage1.PiCCSSecurity.PriorLink prior
-      (PiCCSInputCheck.running (inputs visit)) (PiCCSInputCheck.fresh (inputs visit))
-      (PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup) := by
-  rcases good_terminal source initial steps visit supported
-      ((realSuccess_iff_goodActive source initial steps visit supported).mp success) with
-    ⟨statement, payload, current, accepted, safe, positive⟩
-  simpa only [inputs, current] using
-    HyperNovaRealInput.priorLink_of_terminal statement payload accepted safe positive
-
 private theorem realSuccessProbability_eq_event
     (distribution : PMF (Visit × Option (FiatShamirTransfer.RealOutput PiDECInputCheck.relation))) :
     FiatShamirTransfer.realSuccessProbability PiDECInputCheck.relation productionAjtaiKey
+      (PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup)
       (fun visit => PiCCSInputCheck.running (inputs visit))
       (fun visit => PiCCSInputCheck.fresh (inputs visit)) distribution =
       (distribution.toOuterMeasure {sample |
         FiatShamirTransfer.RealSuccess PiDECInputCheck.relation productionAjtaiKey
+          (PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup)
           (PiCCSInputCheck.running (inputs sample.1)) (PiCCSInputCheck.fresh (inputs sample.1))
           sample.2}).toReal := by
   unfold FiatShamirTransfer.realSuccessProbability
   rw [PMF.toOuterMeasure_apply, ENNReal.tsum_toReal_eq (fun sample => by
     by_cases success : FiatShamirTransfer.RealSuccess PiDECInputCheck.relation productionAjtaiKey
+        (PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup)
         (PiCCSInputCheck.running (inputs sample.1)) (PiCCSInputCheck.fresh (inputs sample.1)) sample.2
     · simpa only [Set.indicator, Set.mem_setOf_eq, if_pos success] using
         distribution.apply_ne_top sample
@@ -229,6 +211,7 @@ private theorem realSuccessProbability_eq_event
   apply tsum_congr
   intro sample
   by_cases success : FiatShamirTransfer.RealSuccess PiDECInputCheck.relation productionAjtaiKey
+      (PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup)
       (PiCCSInputCheck.running (inputs sample.1)) (PiCCSInputCheck.fresh (inputs sample.1)) sample.2
   · simp only [Set.indicator, Set.mem_setOf_eq, if_pos success]
   · simp only [Set.indicator, Set.mem_setOf_eq, if_neg success, ENNReal.toReal_zero]
@@ -240,6 +223,7 @@ theorem realSuccessProbability_eq_goodActive
     (source : Statement → Payload → PMF SourceResult)
     (initial : PMF (Statement × Envelope)) (steps : Nat) :
     FiatShamirTransfer.realSuccessProbability PiDECInputCheck.relation productionAjtaiKey
+      (PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup)
       (fun visit => PiCCSInputCheck.running (inputs visit))
       (fun visit => PiCCSInputCheck.fresh (inputs visit))
       (realLaw (visitedLaw source initial steps)) =

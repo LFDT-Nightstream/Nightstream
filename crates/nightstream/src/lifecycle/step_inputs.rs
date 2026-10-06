@@ -138,17 +138,6 @@ impl PreparedLifecycle {
         }
         let context = self.binding.verifier_context().digest().map(F::from_u64);
         let prior_public_input = encode_pi_ccs_v1_1_public_input(prior_digest)?;
-        let prior_frame = digest_bytes(prior_digest);
-        if running
-            .claims
-            .iter()
-            .chain(running.parent_authority.iter())
-            .any(|claim| claim.fold_digest != prior_frame)
-        {
-            return Err(StepInputError::Input(
-                "running child or parent frame differs from the prior state hash",
-            ));
-        }
         let params = &self.params;
         let mut transcript = Transcript::session();
         let mut next_running = nifs::verify(

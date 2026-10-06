@@ -321,7 +321,9 @@ private theorem verifierClaimWords_length {logicalWidth : Nat}
     Phi81MatrixSource.phi81Shape, Shape.padEvaluationCount,
     Shape.matrixEvaluationCount, ringDegree]
 
-/-- The two verifier-owned blocks: prior point, then `Eval_K ++ Eval_A`. -/
+/-- The two verifier-owned blocks: prior point, then `Eval_K ++ Eval_A`.
+The statement transcript does not absorb them; `verifierInputBlocks_eval`
+only relates them to the key's verifier input. -/
 def verifierInputBlocks {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -329,23 +331,6 @@ def verifierInputBlocks {logicalWidth : Nat}
     (offset : Nat) : List (List Expr) :=
   [serializePointExpr (interface.running offset).point,
     verifierClaimWords interface offset]
-
-/-- The public verifier input is absorbed after the key-owned public prefix. -/
-def verifierInputActions {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
-    (interface : Interface logicalWidth publicFits)
-    (offset : Nat) : List Formal.Action :=
-  (verifierInputBlocks interface offset).map absorbBlock
-
-private theorem verifierInputActions_eq {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
-    (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    verifierInputActions interface offset =
-      [absorbBlock (serializePointExpr (interface.running offset).point),
-        absorbBlock (verifierClaimWords interface offset)] := by
-  rfl
 
 private theorem map_flatMap_congr
     {Index Left Right : Type}
@@ -424,26 +409,6 @@ private theorem serializeEvaluationExpr_eval
     apply map_flatMap_congr
     intro coefficient
     exact serializeKExpr_eval env (evaluation.eval_A matrix coefficient)
-
-private theorem runningGroup_eval {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
-    (running : RunningExpr logicalWidth publicFits) (env : Env)
-    (index : Fin productionShape.runningCount) :
-    [serializeCommitmentExpr (running.commitment index),
-        serializePublicInputExpr (running.publicInput index),
-        serializeEvaluationExpr (running.evaluation index)].map
-        (Hash.evalList env) =
-      [NightstreamFPrime.Lifecycle.serializeCommitment
-          ((evalRunning running env).commitments index),
-        NightstreamFPrime.Lifecycle.serializePublicInput
-          (publicFits := publicFits) ((evalRunning running env).publicInputs index),
-        NightstreamFPrime.Lifecycle.serializeEvaluations
-          ((evalRunning running env).evaluations index)] := by
-  simp only [List.map_cons, List.map_nil]
-  rw [serializeCommitmentExpr_eval, serializePublicInputExpr_eval,
-    serializeEvaluationExpr_eval]
-  rfl
 
 private theorem blockExpr_map_eval (words : List Expr) (env : Env) :
     (blockExpr words).map (Expr.eval env) =
@@ -751,18 +716,6 @@ private theorem absorb_recipeCount (input : List Expr) :
   rw [absorb_recipeCount, blockExpr_length,
     verifierClaimWords_length]
 
-private theorem runningGroup_recipeCount {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
-    (running : RunningExpr logicalWidth publicFits)
-    (index : Fin productionShape.runningCount) :
-    Formal.recipeCount
-      [absorbBlock (serializeCommitmentExpr (running.commitment index)),
-        absorbBlock (serializePublicInputExpr (running.publicInput index)),
-        absorbBlock (serializeEvaluationExpr (running.evaluation index))] =
-      214816 := by
-  simp [Formal.recipeCount]
-
 private theorem freshGroup_recipeCount {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -794,14 +747,6 @@ private theorem publicInputActions_recipeCount {logicalWidth : Nat}
   rw [freshCost]
   simp [Formal.recipeCount, productionShape, productionProfile,
     Phi81MatrixSource.phi81Shape]
-
-private theorem verifierInputActions_recipeCount {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
-    (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    Formal.recipeCount (verifierInputActions interface offset) = 1269168 := by
-  rw [verifierInputActions_eq]
-  simp [Formal.recipeCount]
 
 def actions {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

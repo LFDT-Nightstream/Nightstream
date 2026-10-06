@@ -53,6 +53,7 @@ def prefixCall {Context State : Type*}
 
 variable {Context State Tape : Type*}
   (inputs : Context → PiCCSInputCheck.Input)
+  (contextDigest : KeyDigest)
   [DecidableEq RingF]
   [Fintype (Challenge (ProductionKey.key relation productionAjtaiKey).piRlcAlgebra)]
   [Nonempty (Challenge (ProductionKey.key relation productionAjtaiKey).piRlcAlgebra)]
@@ -102,7 +103,7 @@ variable {Context State Tape : Type*}
           (storageClock context coins output state support))
         (rawCall context coins output state support) vector tape : ℝ))
   (g : Nat → ℝ → ℝ) (deltaFS : Nat → ℝ) (Q : Nat)
-  (model : FiatShamirTransfer.FiatShamirModel relation productionAjtaiKey
+  (model : FiatShamirTransfer.FiatShamirModel relation productionAjtaiKey contextDigest
     (fun context => PiCCSInputCheck.running (inputs context))
     (fun context => PiCCSInputCheck.fresh (inputs context))
     law originalFirstPhase abortTape
@@ -142,7 +143,7 @@ theorem source_probability_linear_bound :
       (NifsExtractionProvider.provider inputs contexts
         (InteractiveComposition.firstPhase originalFirstPhase (SupportedExtraction.publicCheck running))
         tapes rawCall suffixCheckClock storageClock parentClock storageBound storageBounded suffixSummable)
-    g Q (FiatShamirTransfer.realSuccessProbability relation productionAjtaiKey running fresh law) - deltaFS Q -
+    g Q (FiatShamirTransfer.realSuccessProbability relation productionAjtaiKey contextDigest running fresh law) - deltaFS Q -
       InteractiveComposition.weakLoss relation productionAjtaiKey -
       IndependentExecution.testError productionShape 9 -
       AdaptiveBindingProbability.successProbability relation productionAjtaiKey program running fresh
@@ -164,7 +165,7 @@ theorem source_probability_linear_bound :
     (InteractiveComposition.firstPhase originalFirstPhase (SupportedExtraction.publicCheck running))
     abortTape provider
   have lower := FiatShamirTransfer.returned_source_bound_with_adaptive_msis relation productionAjtaiKey
-    running fresh law originalFirstPhase abortTape provider g deltaFS Q model program
+    contextDigest running fresh law originalFirstPhase abortTape provider g deltaFS Q model program
     (fun context => PiCCSStoredSourceProbability.sourceProgram (inputs context)
       (checkClock context) (accessClock context))
     (PiRLCExtractionPrimitives.program_correct scalarSubClock inverseAdapterClock
@@ -190,7 +191,7 @@ theorem source_probability_linear_bound_with_sampler {OracleState : Type*}
     (test : NonInteractive.PiRlcSampler.OracleModel.Outcome OracleState → ℝ)
     (nonnegative : ∀ outcome, 0 ≤ test outcome) (atMostOne : ∀ outcome, test outcome ≤ 1)
     (rawTransfer :
-      g Q (FiatShamirTransfer.realSuccessProbability relation productionAjtaiKey
+      g Q (FiatShamirTransfer.realSuccessProbability relation productionAjtaiKey contextDigest
         (fun context => PiCCSInputCheck.running (inputs context))
         (fun context => PiCCSInputCheck.fresh (inputs context)) law) - deltaFS Q ≤
       NonInteractive.PiRlcSampler.average (fun tape => test
@@ -221,7 +222,7 @@ theorem source_probability_linear_bound_with_sampler {OracleState : Type*}
       (NifsExtractionProvider.provider inputs contexts
         (InteractiveComposition.firstPhase originalFirstPhase (SupportedExtraction.publicCheck running))
         tapes rawCall suffixCheckClock storageClock parentClock storageBound storageBounded suffixSummable)
-    g Q (FiatShamirTransfer.realSuccessProbability relation productionAjtaiKey running fresh law) - deltaFS Q -
+    g Q (FiatShamirTransfer.realSuccessProbability relation productionAjtaiKey contextDigest running fresh law) - deltaFS Q -
       sampleQueries Q * NonInteractive.PiRlcSampler.distance -
       InteractiveComposition.weakLoss relation productionAjtaiKey -
       IndependentExecution.testError productionShape 9 -
@@ -231,7 +232,7 @@ theorem source_probability_linear_bound_with_sampler {OracleState : Type*}
       ((HyperNovaSourceLaw.law inputs contexts originalFirstPhase continuation program).toOuterMeasure
         {sample | SourceReturned PiCCSStoredWitnessCheck.commit productionGlobalParams
           (PiCCSStoredWitnessCheck.statement (inputs sample.1)) sample.2}).toReal := by
-  have model := FiatShamirTransfer.FiatShamirModel.of_blockOracle relation productionAjtaiKey
+  have model := FiatShamirTransfer.FiatShamirModel.of_blockOracle relation productionAjtaiKey contextDigest
     (fun context => PiCCSInputCheck.running (inputs context))
     (fun context => PiCCSInputCheck.fresh (inputs context)) law originalFirstPhase abortTape
     (NifsExtractionProvider.provider inputs (FiatShamirTransfer.contextLaw relation law)
@@ -239,7 +240,7 @@ theorem source_probability_linear_bound_with_sampler {OracleState : Type*}
           (SupportedExtraction.publicCheck (fun context => PiCCSInputCheck.running (inputs context))))
         tapes rawCall suffixCheckClock storageClock parentClock storageBound storageBounded suffixSummable)
     g deltaFS sampleQueries Q experiment initial test nonnegative atMostOne rawTransfer balancedTransfer
-  have result := source_probability_linear_bound inputs law originalFirstPhase abortTape
+  have result := source_probability_linear_bound inputs contextDigest law originalFirstPhase abortTape
     tapes rawCall suffixCheckClock storageClock parentClock storageBound storageBounded suffixSummable
     g (FiatShamirTransfer.samplerTransferError deltaFS sampleQueries) Q model
     scalarSubClock inverseAdapterClock assignmentSubClock scalarActionClock
@@ -298,7 +299,7 @@ theorem finishValue_probability_and_expected_work
     (accessBound : ℝ) ≤ accessPolynomial.eval (securityParameter : ℝ) →
     (∑' context, (contexts context).toReal * preparationClock context) ≤
       preparationPolynomial.eval (securityParameter : ℝ) →
-    (g Q (FiatShamirTransfer.realSuccessProbability relation productionAjtaiKey running fresh law) - deltaFS Q -
+    (g Q (FiatShamirTransfer.realSuccessProbability relation productionAjtaiKey contextDigest running fresh law) - deltaFS Q -
       InteractiveComposition.weakLoss relation productionAjtaiKey -
       Real.sqrt ((∑' context, (contexts context).toReal * BindingProbability.localSuccessProbability
         productionAjtaiKey program (sourceProgram context).access relation running fresh
@@ -319,7 +320,7 @@ theorem finishValue_probability_and_expected_work
     simpa only [ContextPreparation.contexts, prepare] using!
       (PMF.map_id (FiatShamirTransfer.contextLaw relation law)).symm
   have checked := NifsFiatShamir.finishValue_probability_and_expected_work
-    inputs law originalFirstPhase abortTape
+    inputs contextDigest law originalFirstPhase abortTape
     (NifsExtractionProvider.provider inputs (FiatShamirTransfer.contextLaw relation law)
       (InteractiveComposition.firstPhase originalFirstPhase
         (SupportedExtraction.publicCheck (fun context => PiCCSInputCheck.running (inputs context))))

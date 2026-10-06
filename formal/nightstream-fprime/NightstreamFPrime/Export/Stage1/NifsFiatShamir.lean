@@ -1,6 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSStoredSourceProbability
 import NightstreamFPrime.Export.Stage1.PiRLCExtractionPrimitives
-import NightstreamFPrime.Lifecycle.Nifs.FiatShamirTransfer
+import NightstreamFPrime.Export.Stage1.FiatShamirTransfer
 
 /-!
 Selected source-return and declared expected-work consumer. The input
@@ -9,8 +9,8 @@ are the existing production owners. Their value correctness is proved here
 by their existing contracts, with no free checker or primitive premise.
 
 FiatShamirModel is the owner-approved parametric game-transfer hypothesis.
-The real event is the actual verifier's acceptance with witnesses for its
-exact children. Its law and the interactive context marginal are shared.
+The real event is the prior-state link under the supplied verifier context,
+the actual verifier's acceptance, and witnesses for its exact children. Its law and the interactive context marginal are shared.
 No adversary translation, query bound, or FS model instance is constructed.
 Declared clock bounds, preparation/call refinement, and moment bounds remain
 separate hypotheses. The work conclusion is for
@@ -37,6 +37,7 @@ open PiDECInputCheck (relation)
 
 variable {Context State Tape : Type*}
   (inputs : Context → PiCCSInputCheck.Input)
+  (contextDigest : KeyDigest)
   [DecidableEq RingF]
   [Fintype (Challenge (ProductionKey.key relation productionAjtaiKey).piRlcAlgebra)]
   [Nonempty (Challenge (ProductionKey.key relation productionAjtaiKey).piRlcAlgebra)]
@@ -50,7 +51,7 @@ variable {Context State Tape : Type*}
     (InteractiveComposition.firstPhase originalFirstPhase
       (SupportedExtraction.publicCheck (fun context => PiCCSInputCheck.running (inputs context)))))
   (g : Nat → ℝ → ℝ) (deltaFS : Nat → ℝ) (Q : Nat)
-  (model : FiatShamirTransfer.FiatShamirModel relation productionAjtaiKey
+  (model : FiatShamirTransfer.FiatShamirModel relation productionAjtaiKey contextDigest
     (fun context => PiCCSInputCheck.running (inputs context))
     (fun context => PiCCSInputCheck.fresh (inputs context))
     law originalFirstPhase abortTape provider g deltaFS Q)
@@ -120,7 +121,7 @@ theorem finishValue_probability_and_expected_work {SetupTape : Type*}
     (accessBound : ℝ) ≤ accessPolynomial.eval (securityParameter : ℝ) →
     (∑' tape, (setupTapes tape).toReal * (prepare tape).work) ≤
       preparationPolynomial.eval (securityParameter : ℝ) →
-    (g Q (FiatShamirTransfer.realSuccessProbability relation productionAjtaiKey running fresh law) - deltaFS Q -
+    (g Q (FiatShamirTransfer.realSuccessProbability relation productionAjtaiKey contextDigest running fresh law) - deltaFS Q -
       InteractiveComposition.weakLoss relation productionAjtaiKey -
       Real.sqrt ((∑' tape, (setupTapes tape).toReal * BindingProbability.localSuccessProbability
         productionAjtaiKey program (sourceProgram (prepare tape).value).access relation running fresh
@@ -142,7 +143,7 @@ theorem finishValue_probability_and_expected_work {SetupTape : Type*}
   dsimp only
   intro baseSummable basePPT primitivePPT accessPPT preparationPPT
   have checked := FiatShamirTransfer.prepared_probability_and_expected_work
-    relation productionAjtaiKey
+    relation productionAjtaiKey contextDigest
     (fun context => PiCCSInputCheck.running (inputs context))
     (fun context => PiCCSInputCheck.fresh (inputs context))
     law originalFirstPhase abortTape provider g deltaFS Q model

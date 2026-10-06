@@ -225,7 +225,8 @@ theorem probability_linear_bound
       SupportedContinuation.extension relation productionAjtaiKey running fresh (contexts j) checked
         abortTape (provider j)
     (∀ j : Fin depth,
-      FiatShamirTransfer.FiatShamirModel relation productionAjtaiKey running fresh
+      FiatShamirTransfer.FiatShamirModel relation productionAjtaiKey
+        (PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup) running fresh
         (realLaw (visits j)) firstPhase abortTape (provider j) g deltaFS (queries j)) →
     (initial.toOuterMeasure {input | FalseAcceptance input}).toReal ≤
       ∑ j : Fin depth,

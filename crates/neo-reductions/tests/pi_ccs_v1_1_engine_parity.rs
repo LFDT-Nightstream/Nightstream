@@ -9,16 +9,15 @@ use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat, SparsePoly, Term
 use neo_math::{KExtensions, D, F, K};
 use neo_params::NeoParams;
 use neo_reductions::api::{dec_children_with_commit, rlc_with_commit, FoldingMode};
-use neo_reductions::engines::crosscheck_engine::{crosscheck_prove_with_binding, crosscheck_verify_with_binding};
+use neo_reductions::engines::crosscheck_engine::{crosscheck_prove, crosscheck_verify};
 use neo_reductions::engines::paper_exact_engine::paper_joint::PaperJointOracle;
 use neo_reductions::engines::pi_ccs_joint::{
-    build_joint_dims, eval_a_gamma_exponent, eval_k_gamma_exponent, gamma_power,
+    build_joint_dims, eval_a_gamma_exponent, eval_k_gamma_exponent, gamma_power, TraceEvent,
 };
-use neo_reductions::engines::pi_ccs_joint_protocol::TranscriptBinding;
 use neo_reductions::engines::pi_ccs_protocol::Challenges;
 use neo_reductions::engines::{CrossCheckEngine, OptimizedEngine, PaperExactEngine, PiCcsEngine};
 use neo_reductions::optimized_engine::canonical_audit::OptimizedPaperJointOracle;
-use neo_reductions::optimized_engine::{OptimizedStructureCache, PaperJointRoundOracle};
+use neo_reductions::optimized_engine::{optimized_verify_with_trace, OptimizedStructureCache, PaperJointRoundOracle};
 use neo_reductions::sumcheck::RoundOracle;
 use neo_reductions::superneo_eval::{CachedMatrixRows, MatrixWindow};
 use neo_reductions::{split_b_matrix_k, verify_and_export_pi_ccs_receipt, PiCcsError, PiCcsProof};
@@ -114,9 +113,9 @@ fn source(log: &AjtaiSModule, columns: usize, seed: usize) -> (Claim, CcsWitness
     for (column, &value) in values.iter().enumerate() {
         Z[(column % D, column / D)] = value;
     }
-    // The digest-only transcript takes the four prior-digest slots from the
-    // first complete public ring. Smaller oracle-only fixtures keep an empty
-    // public prefix.
+    // The digest-only transcript decodes the prior digest from the marker-offset
+    // bit cells of the first fresh public input; this ring sets four of them.
+    // Smaller oracle-only fixtures keep an empty public prefix.
     (
         CcsClaim {
             adv: None,
@@ -473,8 +472,7 @@ fn v1_1_transcript_matches_the_independent_reference() {
     let (claim, witness) = source(&log, D + 1, 6);
     let (running, running_witnesses) = zero_running::zero_running(&params, &structure, 1, claim.m_in);
     let label = b"pi-ccs/v1_1/crosscheck";
-    let binding = TranscriptBinding::digest_only();
-    let (outputs, proof) = crosscheck_prove_with_binding(
+    let (outputs, proof) = crosscheck_prove(
         &(),
         &(),
         &mut Poseidon2Transcript::new(label),
@@ -485,10 +483,9 @@ fn v1_1_transcript_matches_the_independent_reference() {
         &running,
         &running_witnesses,
         &log,
-        binding,
     )
     .expect("v1_1 transcript crosscheck proof");
-    assert!(crosscheck_verify_with_binding(
+    assert!(crosscheck_verify(
         &(),
         &(),
         &mut Poseidon2Transcript::new(label),
@@ -498,9 +495,69 @@ fn v1_1_transcript_matches_the_independent_reference() {
         &running,
         &outputs,
         &proof,
-        binding,
     )
     .expect("v1_1 transcript crosscheck verify"));
+}
+
+/// Both engines absorb the Lean `decodeHash` of the first fresh public input
+/// as the prior digest. The running claims' carried frames are not read.
+#[test]
+fn prior_digest_comes_from_the_fresh_public_input() {
+    let structure = rectangular_ccs(D / 2, D + 1);
+    let params = selected_parameters(&structure);
+    let log = committer(&params, D + 1);
+    let (claim, witness) = source(&log, D + 1, 6);
+    let (running, running_witnesses) = zero_running::zero_running(&params, &structure, 1, claim.m_in);
+    let label = b"pi-ccs/v1_1/prior-digest";
+    let (outputs, proof) = crosscheck_prove(
+        &(),
+        &(),
+        &mut Poseidon2Transcript::new(label),
+        &params,
+        &structure,
+        std::slice::from_ref(&claim),
+        std::slice::from_ref(&witness),
+        &running,
+        &running_witnesses,
+        &log,
+    )
+    .expect("prior-digest crosscheck proof");
+
+    let mut reframed = running.clone();
+    reframed[0].fold_digest = [7; 32];
+    assert!(crosscheck_verify(
+        &(),
+        &(),
+        &mut Poseidon2Transcript::new(label),
+        &params,
+        &structure,
+        std::slice::from_ref(&claim),
+        &reframed,
+        &outputs,
+        &proof,
+    )
+    .expect("a running frame is not transcript input"));
+
+    let (accepted, trace) = optimized_verify_with_trace(
+        &mut Poseidon2Transcript::new(label),
+        &params,
+        &structure,
+        std::slice::from_ref(&claim),
+        &running,
+        &outputs,
+        &proof,
+    )
+    .expect("prior-digest trace");
+    assert!(accepted);
+    let cell = |index: usize| claim.x.get(index).copied().unwrap_or(F::ZERO);
+    let mut block = vec![F::from_u64(4)];
+    block.extend((0..4).map(|word| {
+        (0..64).fold(F::ZERO, |value, bit| {
+            value + F::from_u64(1 << bit) * cell(1 + 64 * word + bit)
+        })
+    }));
+    assert_ne!(block[1], F::ZERO, "the fixture must set a digest bit");
+    assert_eq!(trace.events[1], TraceEvent::Absorb(block));
 }
 
 #[test]

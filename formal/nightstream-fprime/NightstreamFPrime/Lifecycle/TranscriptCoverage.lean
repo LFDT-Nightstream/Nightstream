@@ -32,16 +32,22 @@ identifies the prior preimage and the NIFS running statement, unless the state
 hash collides.
 
 `AgreeOnAbsorbed` is the dependency specification; a change to it is a
-protocol change. `tests/TranscriptCoverageChecks.lean` pins it by `Iff.rfl` and
-refutes the identify property for two schedules that drop an absorption.
+protocol change. `tests/TranscriptCoverageChecks.lean` pins it by `Iff.rfl`,
+pins the PiCCS tag, the challenge labels, the round index and the length
+prefix by `rfl`, and refutes the identify property for two schedules that drop
+an absorption.
 
 The `Π_RLC` read keys are `ScheduleLaw.queryAt []`; only the replay of these
 fixed suffix calls (`TranscriptHistory.queryAt_answer`) is reused. The sampler's
 ideal-oracle law does not cover the prover-dependent prefix.
 
-Invariant: removing an absorption of verifier-relevant data, moving it after
-a challenge that depends on it, or making its encoding ambiguous breaks
-`challenge_seal` or a coverage proof.
+Invariant: for the prover data that `AgreeOnAbsorbed` names (the fresh
+statement and the earlier prover messages), removing its absorption, moving it
+after a challenge that depends on it, or making its encoding ambiguous breaks
+`challenge_seal` or a coverage proof. A matching edit of the key and of this
+schedule can still drop a tag, a label, a round index or a length prefix and
+keep every statement true; the `rfl` pins in `tests/TranscriptCoverageChecks.lean`
+make such an edit visible.
 
 Does not own: Poseidon2 security, the Fiat–Shamir transfer (an approved
 external assumption), or the circuit refinement of this schedule. The running

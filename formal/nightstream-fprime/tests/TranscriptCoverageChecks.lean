@@ -3,11 +3,13 @@ import NightstreamFPrime.Lifecycle.TranscriptCoverage
 /-!
 Checks for the transcript coverage contract.
 
-The pins restate the dependency specification `AgreeOnAbsorbed` by `Iff.rfl`, so
-a change to it must also change this file. The two refutations show that the
-identify property fails for statement calls without the fresh commitment and
-for `y′` words without the matrix coordinates: removing either absorption from
-the key breaks a coverage proof.
+The pins restate the dependency specification `AgreeOnAbsorbed` by `Iff.rfl`,
+and the PiCCS domain tag, the challenge labels `[1, c]`, `[2]`, `[3, r]`,
+`[4, i]`, the key's round index and the block length prefix by `rfl`, so a
+change to any of them must also change this file. The
+two refutations show that the identify property fails for statement calls
+without the fresh commitment and for `y′` words without the matrix coordinates:
+removing either absorption from the key breaks a coverage proof.
 -/
 
 namespace NightstreamFPrime.Tests.TranscriptCoverageChecks
@@ -50,6 +52,38 @@ example (index : Fin (Nifs.PaperProfile.arity).total) :
   Iff.rfl
 
 end Pins
+
+section TagsAndLabels
+
+example : Transcript.piCcsDigestDomainTagBytes =
+    "Nightstream/SuperNeo/PiCCS/digest-only/v1_1".toList.map Char.toNat :=
+  rfl
+
+example (coordinate : Fin productionShape.cubeVariables) :
+    Transcript.labelWord (.alpha coordinate) = [natWord 1, natWord coordinate.val] :=
+  rfl
+
+example : Transcript.labelWord .gamma = [natWord 2] :=
+  rfl
+
+example (round : Fin productionShape.cubeVariables) :
+    Transcript.labelWord (.sumcheck round) = [natWord 3, natWord round.val] :=
+  rfl
+
+example (state : Transcript.State) (coordinate : Nat) :
+    Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.enter state coordinate =
+      Poseidon2.absorbBlock state [natWord 4, natWord coordinate] :=
+  rfl
+
+example (state : Transcript.State) (round : Fin productionShape.cubeVariables)
+    (message : SumCheck.Finite.Message K) :
+    Transcript.piCcsOracle.transcript.absorbRound state round message =
+      Transcript.absorb state
+        (natWord (Transcript.serializeMessage message).length.succ ::
+          natWord round.val :: Transcript.serializeMessage message) :=
+  rfl
+
+end TagsAndLabels
 
 section Refutations
 

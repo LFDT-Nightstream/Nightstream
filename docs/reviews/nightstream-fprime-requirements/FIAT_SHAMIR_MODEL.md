@@ -12,8 +12,9 @@ and gate evidence at `01a8fd8ca68280c7f642451ab33bc714cee5bc98` are recorded in
 
 For the fixed Nightstream Goldilocks profile, assume an external classical
 FS/SuperNeo game transfer for the **actual additive Poseidon2 transcript**.
-The real success event is `FiatShamirTransfer.RealSuccess`: the actual
-`ProductionKey` NIFS verifier accepts, and the adversary supplies valid
+The real success event is `FiatShamirTransfer.RealSuccess`: the prior-state
+link holds for the running statement and the verifier context digest, the
+actual `ProductionKey` NIFS verifier accepts, and the adversary supplies valid
 witnesses for its exact 16 returned children. Public acceptance alone is
 not a knowledge claim.
 
@@ -97,28 +98,29 @@ event (`StateHashCollision`, `RunCollision`). No probability bound in this
 repository charges these events, and none of the coverage theorems is an input
 to `history_probability_linear_bound`.
 
-The real success event of the transfer (`FiatShamirTransfer.RealSuccess`) admits
-any running statement. In that general event an adaptive adversary could choose
-the running statement after the challenges, which the interactive game does not
-allow. The HyperNova history theorems (`HyperNovaVisitedSecurity`,
-`HyperNovaFalseAcceptance`) apply the transfer to the visited history law, and
-at every supported visit real success implies the prior-state link
-(`HyperNovaVisitedAcceptance.priorLink_of_realSuccess`). In those theorems every
-counted success therefore comes with the link, which identifies the context and
-the running statement up to a state-hash collision. The generic NIFS closure
-theorems (`NifsClosure`, `NifsFiatShamir`, `NifsProviderLaw`,
-`NifsInvalidSource`) apply the transfer at an arbitrary law and carry no link;
-there, the binding of the running statement stays inside the transfer
-assumption. Restricting the formal success event would change the approved
-boundary and needs owner approval.
+Owner decision (2026-10-06): the success event requires the prior-state link.
+`FiatShamirTransfer.RealSuccess` takes the verifier context digest and holds
+only when a well-formed prior preimage hashes to the absorbed prior digest,
+names that context, and has the NIFS running statement as its running vector.
+No challenge depends on the running statement. Without the link, an adversary
+could choose it after `γ` and keep the claimed sum, and the transfer would have
+no useful instance. With the link, a running statement chosen after the
+challenges needs a second preimage of the state hash for a digest that was
+absorbed before them. The module moved to
+`Export/Stage1/FiatShamirTransfer.lean`, because the link is a Layout
+definition. The generic NIFS closure theorems (`NifsClosure`,
+`NifsFiatShamir`, `NifsProviderLaw`, `NifsInvalidSource`) take the context
+digest as a parameter. The HyperNova history theorems (`HyperNovaVisitedSecurity`,
+`HyperNovaFalseAcceptance`) use the package's context digest, and
+`HyperNovaRealInput.realSuccess_of_terminal` derives the link from terminal
+acceptance.
 
-The native Rust NIFS absorbs the prior digest from `running[0].fold_digest`,
-while the Lean key reads it from the fresh public input. The lifecycle makes
-them equal: `checked_prior_state` recomputes the digest, and `step_inputs`
-rejects a running or parent frame that differs, even when all frames agree on
-one wrong value (tested in `step_inputs_rejects_one_consistent_wrong_frame`).
-The proof codec does not carry these frames or the PiRLC parent; `extend`
-rebuilds both.
+Both native Rust PiCCS engines read the prior digest from the first fresh
+public input with Lean's `decodeHash` formula, as `ProductionKey.priorDigest`
+does. The transcript does not read the running frames (`fold_digest`); they
+are caches, and the proof codec does not carry them or the PiRLC parent.
+`extend` rebuilds both. `prior_digest_comes_from_the_fresh_public_input` in
+`neo-reductions` tests both engines.
 `PerApplicationSecurity.replayInput_authority_identifies_or_collision` links the
 older committed-statement reductions to this contract: equal replay authority
 identifies the fresh statement and every SumCheck round polynomial, or exhibits
@@ -127,6 +129,24 @@ two statement call lists that reach one transcript state
 coverage results; they are proved properties of the transcript that the
 assumption ranges over. The assumption above still covers the permutation, the
 duplex construction, and the transfer bound.
+
+The in-circuit hash class of attacks (Khovratovich–Rothblum–Soukhanov,
+[ePrint 2025/118](https://eprint.iacr.org/2025/118); see also Fenzi,
+[ePrint 2026/1838](https://eprint.iacr.org/2026/1838)) applies when the proven
+relation evaluates the Fiat–Shamir hash. F′ does this by design: it recomputes
+the NIFS transcript with the same Poseidon2 permutation. The published attacks
+need a relation that the attacker shapes; here the verifier fixes the relation
+through its package key. The transfer assumption must still hold with these
+in-circuit hash calls. No theorem here proves that.
+
+The transcript and the state hash `Poseidon2.hash` share the permutation and
+the zero initial state. Only their leading tag words separate them. Two facts
+follow from the definitions. First, the label `[1, 0]` of the first `α`
+coordinate equals the hash's final padding, so the first word of that
+coordinate is word 0 of `Poseidon2.hash` of the zero-padded statement chunks.
+Second, `Poseidon2.hash` does not absorb the input length, so trailing zeros in
+the last rate chunk do not change it; every protocol preimage is therefore a
+fixed tag followed by length-prefixed blocks.
 
 The separate finite sampler laws and `VerifierErrorBudget` are checked.
 Under the stated per-call laws, the selected PiCCS test and sampler-abort

@@ -8,7 +8,7 @@ use neo_ccs::{CcsClaim, CcsStructure, CeClaim};
 use neo_math::{KExtensions, D, F, K};
 use neo_params::NeoParams;
 use neo_transcript::Poseidon2Transcript;
-use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use p3_field::PrimeCharacteristicRing;
 
 use crate::engines::pi_ccs_joint::{
     build_joint_dims, JointDims, ProtocolTrace, TraceEvent, ALPHA_TAG, GAMMA_TAG, ROUND_CHALLENGE_TAG,
@@ -40,16 +40,6 @@ pub trait PaperJointRoundOracle {
     }
 }
 
-/// The one Lean-owned Fiat--Shamir binding profile.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct TranscriptBinding;
-
-impl TranscriptBinding {
-    pub const fn digest_only() -> Self {
-        Self
-    }
-}
-
 const DOMAIN_TAG: &[u64] = &[
     78, 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47, 83, 117, 112, 101, 114, 78, 101, 111, 47, 80, 105, 67, 67,
     83, 47, 100, 105, 103, 101, 115, 116, 45, 111, 110, 108, 121, 47, 118, 49, 95, 49,
@@ -72,29 +62,17 @@ fn append_block(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace,
     trace.events.push(TraceEvent::Absorb(framed));
 }
 
-fn prior_digest_fields(running: &[CeClaim<Cmt, F, K>]) -> Result<Vec<F>, PiCcsError> {
-    let first = running.first().ok_or_else(|| {
-        PiCcsError::InvalidInput("optimized v1_1 digest-only statement requires a running claim".into())
-    })?;
-    if running
-        .iter()
-        .any(|claim| claim.fold_digest != first.fold_digest)
-    {
-        return Err(PiCcsError::InvalidInput(
-            "optimized v1_1 running claims do not share the prior digest".into(),
-        ));
-    }
-    first
-        .fold_digest
-        .chunks_exact(8)
-        .map(|chunk| {
-            let word = u64::from_le_bytes(chunk.try_into().expect("digest lane width"));
-            if word >= F::ORDER_U64 {
-                return Err(PiCcsError::InvalidInput(
-                    "optimized v1_1 prior digest has a noncanonical field word".into(),
-                ));
-            }
-            Ok(F::from_u64(word))
+/// Lean `decodeHash` of the first fresh public input: digest word `w` is
+/// `sum over bit < 64 of 2^bit * x[1 + 64 w + bit]`. Cells past a shorter input
+/// read as zero; the transcript absorbs the complete input next, so this adds
+/// no binding of its own.
+fn prior_digest_fields(fresh: &CcsClaim<Cmt, F>) -> Vec<F> {
+    (0..4)
+        .map(|word| {
+            (0..64).fold(F::ZERO, |value, bit| {
+                let cell = fresh.x.get(1 + 64 * word + bit).copied().unwrap_or(F::ZERO);
+                value + F::from_u64(1 << bit) * cell
+            })
         })
         .collect()
 }
@@ -180,13 +158,11 @@ pub(crate) fn bind_and_sample_with_trace(
     structure: &CcsStructure<F>,
     fresh: &[CcsClaim<Cmt, F>],
     running: &[CeClaim<Cmt, F, K>],
-    _binding: TranscriptBinding,
-    _expected_matrix_digest: Option<&[F; 4]>,
 ) -> Result<(JointDims, Challenges), PiCcsError> {
     let dims = build_joint_dims(params, structure, fresh.len(), running.len())?;
     validate_selected_inputs(structure, fresh, running, dims)?;
-    // The prior digest names the running claims instead of absorbing them;
-    // their commitments still need the shape that fresh commitments get.
+    // The fresh public input carries the prior digest that names the running
+    // claims; their commitments still need the shape fresh commitments get.
     for claim in running {
         check_commitment(&claim.c, params)?;
     }
@@ -216,7 +192,7 @@ pub(crate) fn bind_and_sample_with_trace(
         DOMAIN_TAG.iter().map(|&word| F::from_u64(word)).collect(),
     );
 
-    append_block(transcript, trace, prior_digest_fields(running)?);
+    append_block(transcript, trace, prior_digest_fields(&fresh[0]));
     for claim in fresh {
         append_block(transcript, trace, commitment_fields(&claim.c, params)?);
         append_block(transcript, trace, claim.x.clone());
@@ -436,20 +412,9 @@ pub(crate) fn verify_with_trace(
     running: &[CeClaim<Cmt, F, K>],
     outputs: &[CeClaim<Cmt, F, K>],
     proof: &PiCcsProof,
-    binding: TranscriptBinding,
-    expected_matrix_digest: Option<&[F; 4]>,
 ) -> Result<(bool, ProtocolTrace), PiCcsError> {
     let mut trace = ProtocolTrace::default();
-    let (dims, challenges) = bind_and_sample_with_trace(
-        transcript,
-        &mut trace,
-        params,
-        structure,
-        fresh,
-        running,
-        binding,
-        expected_matrix_digest,
-    )?;
+    let (dims, challenges) = bind_and_sample_with_trace(transcript, &mut trace, params, structure, fresh, running)?;
     let prior_point = crate::engines::utils::shared_me_input_r(running, dims.variables)?;
     let initial =
         crate::engines::optimized_engine::paper_joint::initial_claim(structure, &challenges, fresh.len(), running)?;
@@ -475,52 +440,6 @@ pub(crate) fn verify_with_trace(
     Ok((final_claim == expected, trace))
 }
 
-/// Verify PiCCS with the selected transcript binding.
-///
-/// The [caller contract](crate::engines::PiCcsEngine::verify) applies.
-#[allow(clippy::too_many_arguments)]
-pub fn verify_with_binding(
-    transcript: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    structure: &CcsStructure<F>,
-    fresh: &[CcsClaim<Cmt, F>],
-    running: &[CeClaim<Cmt, F, K>],
-    outputs: &[CeClaim<Cmt, F, K>],
-    proof: &PiCcsProof,
-    binding: TranscriptBinding,
-) -> Result<bool, PiCcsError> {
-    Ok(verify_with_trace(
-        transcript, params, structure, fresh, running, outputs, proof, binding, None,
-    )?
-    .0)
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn verify_with_binding_and_matrix_digest(
-    transcript: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    structure: &CcsStructure<F>,
-    fresh: &[CcsClaim<Cmt, F>],
-    running: &[CeClaim<Cmt, F, K>],
-    outputs: &[CeClaim<Cmt, F, K>],
-    proof: &PiCcsProof,
-    binding: TranscriptBinding,
-    expected_matrix_digest: &[F; 4],
-) -> Result<bool, PiCcsError> {
-    Ok(verify_with_trace(
-        transcript,
-        params,
-        structure,
-        fresh,
-        running,
-        outputs,
-        proof,
-        binding,
-        Some(expected_matrix_digest),
-    )?
-    .0)
-}
-
 /// Verify PiCCS with the digest-only transcript binding.
 ///
 /// The [caller contract](crate::engines::PiCcsEngine::verify) applies.
@@ -533,14 +452,5 @@ pub fn verify(
     outputs: &[CeClaim<Cmt, F, K>],
     proof: &PiCcsProof,
 ) -> Result<bool, PiCcsError> {
-    verify_with_binding(
-        transcript,
-        params,
-        structure,
-        fresh,
-        running,
-        outputs,
-        proof,
-        TranscriptBinding::digest_only(),
-    )
+    Ok(verify_with_trace(transcript, params, structure, fresh, running, outputs, proof)?.0)
 }

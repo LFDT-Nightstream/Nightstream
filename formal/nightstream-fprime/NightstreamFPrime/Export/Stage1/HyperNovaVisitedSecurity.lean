@@ -29,7 +29,8 @@ open HyperNovaHistory (Statement Envelope)
 open HyperNovaVisitedLaw (Visit goodActive visitedLaw guardedDraw)
 open HyperNovaGuardedSourceLaw (inputs realLaw guardedPrefix)
 open HyperNovaFirstFailure (MarkedSourceFailure)
-open Poseidon2HashChainV1Setup (productionAjtaiKey)
+open Poseidon2HashChainV1Package (fits)
+open Poseidon2HashChainV1Setup (productionSetup productionAjtaiKey)
 open PiDECInputCheck (relation)
 
 private theorem event_ne_top {Sample : Type*} (distribution : PMF Sample) (event : Set Sample) :
@@ -132,7 +133,8 @@ theorem source_failure_probability_linear_le
       SupportedContinuation.extension relation productionAjtaiKey running fresh (contexts j) checked
         abortTape (provider j)
     (∀ j : Fin depth,
-      FiatShamirTransfer.FiatShamirModel relation productionAjtaiKey running fresh
+      FiatShamirTransfer.FiatShamirModel relation productionAjtaiKey
+        (PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup) running fresh
         (realLaw (visits j)) firstPhase abortTape (provider j) g deltaFS (queries j)) →
     ∀ j : Fin depth,
       (((visits j).bind (guardedDraw source)).toOuterMeasure
@@ -154,8 +156,9 @@ theorem source_failure_probability_linear_le
   let source := HyperNovaGuardedSourceLaw.source originalFirstPhase continuation program
   let visits := visitedLaw source initial j.val
   have extracted := NifsProviderLaw.source_probability_linear_bound inputs tapes rawCall checkClock storageClock
-    parentClock storageBound storageBounded baseSummable (realLaw visits) (guardedPrefix originalFirstPhase)
-    abortTape g deltaFS (queries j) (models j) scalarSubClock inverseAdapterClock
+    parentClock storageBound storageBounded baseSummable
+    (PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup) (realLaw visits)
+    (guardedPrefix originalFirstPhase) abortTape g deltaFS (queries j) (models j) scalarSubClock inverseAdapterClock
     assignmentSubClock scalarActionClock sourceCheckClock accessClock bounds bounded
   dsimp only at extracted
   rw [HyperNovaVisitedAcceptance.realSuccessProbability_eq_goodActive] at extracted
@@ -211,7 +214,8 @@ theorem history_probability_linear_bound
       SupportedContinuation.extension relation productionAjtaiKey running fresh (contexts j) checked
         abortTape (provider j)
     (∀ j : Fin depth,
-      FiatShamirTransfer.FiatShamirModel relation productionAjtaiKey running fresh
+      FiatShamirTransfer.FiatShamirModel relation productionAjtaiKey
+        (PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup) running fresh
         (realLaw (visits j)) firstPhase abortTape (provider j) g deltaFS (queries j)) →
     (initial.toOuterMeasure {input |
       PerApplicationTerminal.Holds Poseidon2HashChainV1Package.application

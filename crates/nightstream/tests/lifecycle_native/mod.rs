@@ -509,37 +509,6 @@ fn state_and_proof_bridges_require_the_padded_evaluation_width() {
 }
 
 #[test]
-fn step_inputs_rejects_one_consistent_wrong_frame() {
-    // All children and the parent agree on one wrong frame, so the child and
-    // parent recomposition checks pass and only the frame check can reject it.
-    let fixture = Fixture::load();
-    let mut running = fixture.running.claims_only();
-    for claim in running
-        .claims
-        .iter_mut()
-        .chain(running.parent_authority.iter_mut())
-    {
-        claim.fold_digest = [7; 32];
-    }
-    let error = fixture
-        .package
-        .step_inputs(
-            &fixture.state,
-            &running,
-            &fixture.fresh,
-            &fixture.proof,
-            &fixture.message.map(|f| f.as_canonical_u64()),
-            output(fixture.state.current(), fixture.message),
-        )
-        .unwrap_err();
-    assert!(
-        matches!(&error, StepInputError::Input(message)
-            if *message == "running child or parent frame differs from the prior state hash"),
-        "{error}"
-    );
-}
-
-#[test]
 fn saved_proof_and_transcript_match_lean() {
     let fixture = Fixture::load();
     let params = Params::for_ccs_shape(

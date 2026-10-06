@@ -98,8 +98,6 @@ import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
 #audit_axioms NightstreamFPrime.Lifecycle.TranscriptCoverage.AgreeOnAbsorbed.fresh_eq
 #audit_axioms NightstreamFPrime.Lifecycle.TranscriptCoverage.statementState_identifies_fresh_or_collision
 #audit_axioms NightstreamFPrime.Lifecycle.TranscriptCoverage.messages_injective
-#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaRealInput.priorLink_of_terminal
-#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaVisitedAcceptance.priorLink_of_realSuccess
 #audit_axioms NightstreamFPrime.Spec.flatMap_eq_of_lengths
 #audit_axioms NightstreamFPrime.Spec.flatMap_length_eq
 #audit_axioms NightstreamFPrime.Spec.flatMap_length_constant

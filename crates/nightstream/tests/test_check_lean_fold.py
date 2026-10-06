@@ -1,5 +1,6 @@
 import contextlib
 import copy
+import errno
 import importlib.util
 import json
 import os
@@ -159,7 +160,10 @@ class LeanFoldCheckTests(unittest.TestCase):
 
 class WaitForExitTests(unittest.TestCase):
     def child(self, code):
-        return subprocess.Popen([sys.executable, "-c", code])
+        process = subprocess.Popen([sys.executable, "-c", code])
+        self.addCleanup(process.wait)
+        self.addCleanup(process.kill)
+        return process
 
     def test_returns_the_exit_code_before_the_timeout(self):
         process = self.child("import sys; sys.exit(3)")
@@ -169,14 +173,36 @@ class WaitForExitTests(unittest.TestCase):
 
     def test_running_process_times_out_like_wait(self):
         process = self.child("import time; time.sleep(60)")
-        try:
-            with self.assertRaises(subprocess.TimeoutExpired):
-                check.wait_for_exit(process, 0.2)
-            self.assertIsNone(process.poll())
-        finally:
-            process.kill()
-            process.wait()
+        with self.assertRaises(subprocess.TimeoutExpired):
+            check.wait_for_exit(process, 0.2)
+        self.assertIsNone(process.poll())
 
+    def test_kqueue_registration_error_uses_timed_wait(self):
+        process = self.child("import time; time.sleep(60)")
+        selector = MagicMock(KQ_EV_ERROR=0x4000)
+        queue = selector.kqueue.return_value
+        queue.control.return_value = [MagicMock(flags=selector.KQ_EV_ERROR, data=errno.ENOMEM)]
+        with patch.object(check, "select", selector):
+            with self.assertRaises(subprocess.TimeoutExpired) as expired:
+                check.wait_for_exit(process, 0.2)
+        self.assertEqual(expired.exception.timeout, 0.2)
+        self.assertIsNone(process.poll())
+        queue.close.assert_called_once_with()
+
+    def test_pidfd_select_rejection_uses_timed_wait_and_closes_descriptor(self):
+        process = self.child("import time; time.sleep(60)")
+        selector = MagicMock(spec=["select"])
+        selector.select.side_effect = ValueError("filedescriptor out of range in select()")
+        with patch.object(check, "select", selector), \
+             patch.object(check.os, "pidfd_open", return_value=1024, create=True), \
+             patch.object(check.os, "close") as close:
+            with self.assertRaises(subprocess.TimeoutExpired) as expired:
+                check.wait_for_exit(process, 0.2)
+        self.assertEqual(expired.exception.timeout, 0.2)
+        self.assertIsNone(process.poll())
+        close.assert_called_once_with(1024)
+
+    @unittest.skipUnless(hasattr(os, "waitid"), "os.waitid requires Python 3.13+ on macOS")
     def test_exited_unreaped_process_is_reaped(self):
         process = self.child("pass")
         # Wait for the exit without reaping, so that the process is a zombie.

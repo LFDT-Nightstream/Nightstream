@@ -20,13 +20,19 @@ Outputs:
 - `proverCalls_identify`: equal prover-dependent calls give equal fresh
   statements and equal earlier prover messages; before `Π_RLC` they give equal
   proofs up to the `Π_DEC` child messages, so a new proof field breaks it;
-- `publicInputState_eq_run`: the state before `α` is the run of the statement
-  calls; `PerApplicationSecurity.replayInput_authority_eq_coverage` uses it to
-  link the committed-statement reductions to this contract.
+- `statementState_identifies_fresh_or_collision`, `messages_injective`: equal
+  replay authority (the state after the statement calls and the round
+  messages) identifies the fresh statement and every round polynomial, unless
+  the statement calls collide (`RunCollision`).
+  `PerApplicationSecurity.replayInput_authority_identifies_or_collision` uses
+  them to link the committed-statement reductions to this contract.
 
 `PiCCSSecurity.calls_identify_view_or_collision` adds the prior-state link and
 identifies the prior preimage and the NIFS running statement, unless the state
 hash collides.
+
+`AgreeOnAbsorbed` is the dependency specification; a change to it is a
+protocol change.
 
 The `Π_RLC` read keys are `ScheduleLaw.queryAt []`; only the replay of these
 fixed suffix calls (`TranscriptHistory.queryAt_answer`) is reused. The sampler's
@@ -558,9 +564,10 @@ private theorem rho_seal :
     List.foldl_nil, rhoIndex]
 
 /-- Seal: every key challenge reads the state after its prover-dependent
-calls followed by fixed calls. A schedule change that moves prover data after
-a challenge cannot satisfy this statement, because `fixedCalls` admits no
-prover data. -/
+calls followed by fixed calls, and `fixedCalls` admits no prover data. With
+`proverCalls_identify` against the dependency specification `AgreeOnAbsorbed`,
+a schedule change that moves prover data after a challenge that depends on it
+breaks a proof. -/
 theorem challenge_seal (challenge : Challenge) :
     keyChallenge relation ajtai running fresh proof challenge =
       some (challenge.read (run Transcript.initialState
@@ -758,11 +765,13 @@ private theorem outputCalls_identify {degree : Nat}
 
 /-! ## Contract -/
 
-/-- Two executions agree on everything the transcript absorbs directly before
-a challenge: the fresh statement and the earlier prover messages. Before
-`Π_RLC` the proofs are equal except for the `Π_DEC` child messages, which follow
-the last challenge. The running statement enters only through the prior
-digest; see `PriorLink`. -/
+/-- The dependency specification: two executions agree on everything the
+transcript absorbs directly before a challenge, namely the fresh statement and
+the earlier prover messages in the SuperNeo §7.3–7.4 order. Before `Π_RLC` the
+proofs are equal except for the `Π_DEC` child messages, which follow the last
+challenge. This definition is normative: a change to it is a protocol change.
+The running statement enters only through the prior digest; see
+`PiCCSSecurity.PriorLink`. -/
 def AgreeOnAbsorbed {degree : Nat}
     (fresh fresh' : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof proof' : Proof degree) : Challenge → Prop
@@ -797,6 +806,29 @@ theorem proverCalls_identify {degree : Nat}
   | gamma => exact statementCalls_identify_fresh same
   | round => exact roundPrefixCalls_identify same
   | rho => exact outputCalls_identify same
+
+/-- Two different call lists that reach one transcript state: a named
+Poseidon2 sponge collision. -/
+def RunCollision (left right : List Call) : Prop :=
+  left ≠ right ∧ run Transcript.initialState left = run Transcript.initialState right
+
+/-- Equal states after the statement calls identify the fresh statement, unless
+the two call lists collide. -/
+theorem statementState_identifies_fresh_or_collision
+    {fresh fresh' : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)}
+    (same : run Transcript.initialState (statementCalls fresh) =
+      run Transcript.initialState (statementCalls fresh')) :
+    fresh = fresh' ∨ RunCollision (statementCalls fresh) (statementCalls fresh') := by
+  classical
+  by_cases equal : statementCalls fresh = statementCalls fresh'
+  · exact Or.inl (statementCalls_identify_fresh equal)
+  · exact Or.inr ⟨equal, same⟩
+
+/-- Equal SumCheck messages identify the round polynomials. -/
+theorem messages_injective {degree : Nat} {left right : Proof degree}
+    (same : messages left = messages right) : left.piCcsRounds = right.piCcsRounds :=
+  funext fun round => SumCheck.Finite.FixedPolynomial.eq_of_coefficients
+    (congrArg SumCheck.Finite.Message.coefficients (congrFun same round))
 
 end Contract
 

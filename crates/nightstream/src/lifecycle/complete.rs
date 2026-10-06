@@ -34,13 +34,12 @@ impl Stage1Envelope {
     /// can establish acceptance of its statement and openings.
     #[cfg(test)]
     pub(crate) fn from_parts(state: Stage1State, running: RunningInstance, fresh: CcsInstance) -> Self {
-        Self {
-            state,
-            proof: ProofState::active(running, fresh),
-        }
+        Self::from_state_and_proof(state, ProofState::Active { running, fresh })
     }
 
-    /// Rebuild an envelope from changed parts for field-level terminal tests.
+    /// Any state with any proof, including a bottom proof under a positive
+    /// state. `ProofState` is private to `lifecycle`, so tests elsewhere use
+    /// `from_parts`.
     #[cfg(test)]
     pub(super) fn from_state_and_proof(state: Stage1State, proof: ProofState) -> Self {
         Self { state, proof }
@@ -50,7 +49,7 @@ impl Stage1Envelope {
     pub(crate) fn initial(z0: [F; 4]) -> Self {
         Self {
             state: Stage1State::new(0, z0, z0),
-            proof: ProofState::initial(),
+            proof: ProofState::Initial,
         }
     }
 
@@ -60,22 +59,10 @@ impl Stage1Envelope {
 
     /// The running and fresh instances of an active envelope; `None` at the bottom.
     pub(crate) fn active_parts(&self) -> Option<(&RunningInstance, &CcsInstance)> {
-        self.proof.parts()
-    }
-
-    #[cfg(test)]
-    pub(crate) fn running(&self) -> Option<&RunningInstance> {
-        self.active_parts().map(|(running, _)| running)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn fresh(&self) -> Option<&CcsInstance> {
-        self.active_parts().map(|(_, fresh)| fresh)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn is_initial(&self) -> bool {
-        self.active_parts().is_none()
+        match &self.proof {
+            ProofState::Initial => None,
+            ProofState::Active { running, fresh } => Some((running, fresh)),
+        }
     }
 
     pub(super) fn into_parts(self) -> (Stage1State, ProofState) {
@@ -260,7 +247,7 @@ impl PreparedLifecycle {
         running.witnesses = child_witnesses;
         Ok(Stage1Envelope {
             state,
-            proof: ProofState::active(running, fresh),
+            proof: ProofState::Active { running, fresh },
         })
     }
 }

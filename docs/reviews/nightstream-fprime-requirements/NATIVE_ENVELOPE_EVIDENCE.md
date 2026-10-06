@@ -9,9 +9,9 @@ commitment. It retains the ordered matrices in the existing `RunningInstance`.
 It then runs the emitted witness IR and logical transport, checks the next
 public input, packs the complete fresh carrier with a zero completion tail,
 and commits and retains that same matrix. `Stage1Envelope` uses the existing
-`ProofState` and one `LatestInstance`; it stores no proof history.
-Since PR #155 (2026-10-05), `ProofState::Active` holds the running instance
-and exactly one fresh `CcsInstance`; `LatestInstance` no longer exists.
+`ProofState`, whose active state holds the running instance and exactly one
+fresh `CcsInstance` (PR #155 removed the earlier `LatestInstance` wrapper); it
+stores no proof history.
 
 `Stage1Envelope.initial` creates the exact empty case with iteration zero
 and equal initial/current states. The complete fresh opening uses `Z`;

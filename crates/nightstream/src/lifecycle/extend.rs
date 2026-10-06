@@ -11,9 +11,11 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use super::ProofState;
 use super::{
     step_inputs::digest_bytes, CompleteStepError, PiCcsV1_1PackageBridgeError, PreparedLifecycle, ProveError,
-    Stage1Envelope, StepInputError,
+    Stage1Envelope, Stage1State, StepInputError,
 };
-use crate::folding::{self as nifs, ajtai_dec_mixer, CeClaim, Params, RunningInstance};
+use crate::folding::{
+    self as nifs, ajtai_dec_mixer, CcsClaim, CcsInstance, CeClaim, Params, RunningInstance, EVALUATION_WIDTH,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ExtendError {
@@ -66,28 +68,75 @@ impl PreparedLifecycle {
                 let (inputs, witnesses) = self.base_inputs(params, state.z0(), application_witness, output)?;
                 Ok(self.complete_step(inputs, witnesses, application_values)?)
             }
-            ProofState::Active { mut running, mut fresh } => {
-                let (_, digest) = self.checked_prior_state(&state, &running, &fresh.claim)?;
-                prepare_running(&mut running, params, digest);
-                nifs::validate_running_parent_authority(params, &self.structure, ajtai_dec_mixer, &running)
-                    .map_err(ExtendError::PriorFamily)?;
-                // The complete Z opening is the source; w is a redundant cache.
-                fresh.witness.w.clear();
-                let prior = running.claims_only();
-                let fresh_claim = fresh.claim.clone();
-                let (next, proof) = self.prove(fresh, running)?;
-                let inputs = self.step_inputs(&state, &prior, &fresh_claim, &proof, application_witness, output)?;
-                Ok(self.complete_proved_step(inputs, next, application_values)?)
+            ProofState::Active { running, fresh } => {
+                let fold = self.prove_active(state, running, fresh)?;
+                self.complete_fold(fold, application_witness, output, application_values)
             }
         }
     }
+
+    /// Prove the NIFS fold of an active envelope from its normalized prior
+    /// claims. The supplied parent cache, frame digests and `w` are not used.
+    pub(super) fn prove_active(
+        &self,
+        state: Stage1State,
+        mut running: RunningInstance,
+        mut fresh: CcsInstance,
+    ) -> Result<ProvedFold, ExtendError> {
+        let (_, digest) = self.checked_prior_state(&state, &running, &fresh.claim)?;
+        prepare_running(&mut running, &self.params, digest);
+        nifs::validate_running_parent_authority(&self.params, &self.structure, ajtai_dec_mixer, &running)
+            .map_err(ExtendError::PriorFamily)?;
+        // The complete Z opening is the source; w is a redundant cache.
+        fresh.witness.w.clear();
+        let prior = running.claims_only();
+        let fresh_claim = fresh.claim.clone();
+        let (next, proof) = self.prove(fresh, running)?;
+        Ok(ProvedFold {
+            state,
+            prior,
+            fresh: fresh_claim,
+            next,
+            proof,
+        })
+    }
+
+    /// Replay the fold's NIFS verifier into the caller packet, then complete
+    /// the envelope from the proved children.
+    pub(super) fn complete_fold(
+        &self,
+        fold: ProvedFold,
+        application_witness: &[u64],
+        output: [F; 4],
+        application_values: Option<&[F]>,
+    ) -> Result<Stage1Envelope, ExtendError> {
+        let inputs = self.step_inputs(
+            &fold.state,
+            &fold.prior,
+            &fold.fresh,
+            &fold.proof,
+            application_witness,
+            output,
+        )?;
+        Ok(self.complete_proved_step(inputs, fold.next, application_values)?)
+    }
+}
+
+/// One proved active fold before its caller packet and fresh witness exist.
+#[cfg_attr(test, derive(Clone))]
+pub(super) struct ProvedFold {
+    pub(super) state: Stage1State,
+    pub(super) prior: RunningInstance,
+    pub(super) fresh: CcsClaim,
+    pub(super) next: RunningInstance,
+    pub(super) proof: nifs::NifsProof,
 }
 
 /// The state serializer has checked all semantic shapes, the exact padded
 /// width and zero surplus before this function reads any evaluation coordinate.
 pub(super) fn prepare_running(running: &mut RunningInstance, params: &Params, digest: [u64; 4]) {
     let frame = digest_bytes(digest);
-    let padded = D.next_power_of_two();
+    let padded = EVALUATION_WIDTH;
     for claim in &mut running.claims {
         claim.fold_digest = frame;
     }

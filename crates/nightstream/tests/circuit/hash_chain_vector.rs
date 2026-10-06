@@ -60,8 +60,8 @@ fn two_link_hash_chain_base_step_verifies_and_rejects_changes() {
     verifier.verify(&expected, &proof).unwrap();
 
     // Reassemble the same openings under a supplied statement.
-    let running = proof.running().unwrap().clone();
-    let fresh = proof.fresh().unwrap().clone();
+    let running = proof.active_parts().unwrap().0.clone();
+    let fresh = proof.active_parts().unwrap().1.clone();
     let reseal =
         |state: &Stage1State, fresh: CcsInstance| Stage1Envelope::from_parts(state.clone(), running.clone(), fresh);
     verifier
@@ -170,8 +170,8 @@ fn two_link_hash_chain_folds_on_metal() {
     let state = Stage1State::new(2, initial, changed);
     let envelope = Stage1Envelope::from_parts(
         state.clone(),
-        proof.running().unwrap().clone(),
-        proof.fresh().unwrap().clone(),
+        proof.active_parts().unwrap().0.clone(),
+        proof.active_parts().unwrap().1.clone(),
     );
     assert!(matches!(
         verifier.verify(&state, &envelope),

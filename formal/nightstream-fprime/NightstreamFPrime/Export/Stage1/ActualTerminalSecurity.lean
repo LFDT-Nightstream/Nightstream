@@ -24,10 +24,12 @@ open NightstreamFPrime.Spec.HyperNova.NonInteractiveMultiFold
 open ActualContextSecurity
 
 /-- The accepted terminal opening supplies the selected context, the complete
-prior-state public input, the prior-state link of the transcript coverage
-contract (the digest absorbed by PiCCS, the running vector read by NIFS, and a
-well-formed prior preimage), and the exact NIFS output. The base branch performs no NIFS call. No
-input-authentication or output-match premise is added at this boundary. -/
+prior-state public input (all words, so stronger than the decoded digest), the
+prior-state link of the transcript coverage contract (the digest absorbed by
+PiCCS, the selected verifier context, the running vector read by NIFS, and a
+well-formed prior preimage), and the exact NIFS output. The base branch
+performs no NIFS call. No input-authentication or output-match premise is added
+at this boundary. -/
 theorem terminal_implies_nifsOrBaseOrCollision
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
@@ -49,7 +51,7 @@ theorem terminal_implies_nifsOrBaseOrCollision
       (input.iteration = 0 ∨
         (0 < input.iteration ∧
           input.fresh.publicInputs ⟨0, by decide⟩ = encHash (stateHash prior) ∧
-          PiCCSSecurity.PriorLink prior (input.running functionIndex) input.fresh ∧
+          PiCCSSecurity.PriorLink prior (input.running functionIndex) input.fresh context ∧
           Nifs.PaperNonInteractive.verify (ProductionKey.key relation ajtai)
             (input.running functionIndex) input.fresh input.nifsProof =
               some (payload.running functionIndex)))) ∨
@@ -100,7 +102,7 @@ theorem terminal_implies_nifsOrBaseOrCollision
         simpa [Accepts, Lifecycle.setup, Lifecycle.nifsVerifier] using selectedNifs
       have outputSame : output.runningNext functionIndex = payload.running functionIndex :=
         congrArg (fun preimage => preimage.running functionIndex) same
-      exact Or.inr ⟨positive, priorPublic, ⟨digest, rfl, wellFormed⟩,
+      exact Or.inr ⟨positive, priorPublic, ⟨digest, rfl, rfl, wellFormed⟩,
         checked.trans (congrArg some outputSame)⟩
   · exact Or.inr collision
 
@@ -156,8 +158,8 @@ theorem terminal_calls_identify_view_or_collision
       statement' payload' terminal' with ⟨_, base' | ⟨_, _, link', _⟩⟩ | collision'
     · exact Or.inr (Or.inl base')
     · rcases PiCCSSecurity.calls_identify_view_or_collision challenge link link' same with
-        view | collision
-      · exact Or.inr (Or.inr (Or.inl view))
+        ⟨priorEqual, _, runningEqual, agree⟩ | collision
+      · exact Or.inr (Or.inr (Or.inl ⟨priorEqual, runningEqual, agree⟩))
       · exact Or.inr (Or.inr (Or.inr (Or.inl collision)))
     · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr collision'))))
   · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inl collision))))

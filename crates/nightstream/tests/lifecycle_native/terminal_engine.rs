@@ -61,7 +61,7 @@ fn metal_terminal_accepts_cpu_proof_and_matches_cpu_rejection() {
     // Keep the true public statement, replace the rest of the fresh witness,
     // and recompute its commitment. Digest and commitment consistency alone
     // must not make this false opening acceptable.
-    let fresh = proof.fresh().unwrap();
+    let fresh = proof.active_parts().unwrap().1;
     let blocks = package.structure.m.div_ceil(D);
     let mut positive = vec![0u64; blocks];
     let negative = vec![0u64; blocks];
@@ -77,7 +77,7 @@ fn metal_terminal_accepts_cpu_proof_and_matches_cpu_rejection() {
     claim.c = commit_production_signed_unit_prefix_matrix(&witness).unwrap();
     let bad = Stage1Envelope::from_parts(
         expected.clone(),
-        proof.running().unwrap().clone(),
+        proof.active_parts().unwrap().0.clone(),
         CcsInstance {
             claim,
             witness: CcsWitness { w: vec![], Z: witness },

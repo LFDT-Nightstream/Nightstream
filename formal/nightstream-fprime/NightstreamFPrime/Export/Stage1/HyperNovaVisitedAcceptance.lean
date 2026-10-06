@@ -135,6 +135,36 @@ theorem marked_accepted
   | some input =>
       exact ⟨input.1, input.2, rfl, by simpa only [current] using accepted⟩
 
+/-- A good active supported visit holds an accepted, collision-free, non-base
+recursive terminal. -/
+private theorem good_terminal
+    (source : Statement → Payload → PMF SourceResult)
+    (initial : PMF (Statement × Envelope)) (steps : Nat) (visit : Visit)
+    (supported : visit ∈ (visitedLaw source initial steps).support)
+    (good : goodActive visit) :
+    ∃ statement payload, visit.1 = some (statement, .recursive payload) ∧
+      PerApplicationTerminal.Holds application fits productionSetup statement
+        (.recursive payload) ∧
+      ¬ Collision statement payload ∧ 0 < (decodedInput payload).iteration := by
+  rcases marked_accepted source initial steps visit supported good.1 with
+    ⟨statement, proof, current, accepted⟩
+  cases proof with
+  | bottom =>
+      have impossible := good.2.1
+      simp only [ready, current] at impossible
+  | recursive payload =>
+      have active : statement.iteration ≠ 0 ∧
+          (decodedInput payload).iteration + 1 = statement.iteration ∧
+          (decodedInput payload).iteration ≠ 0 := by
+        simpa only [ready, current] using good.2.1
+      have safe : ¬ Collision statement payload := by
+        have safe := good.2.2
+        change ¬ (match visit.1 with
+          | some (statement, .recursive payload) => Collision statement payload
+          | _ => False) at safe
+        simpa only [current] using safe
+      exact ⟨statement, payload, current, accepted, safe, Nat.pos_of_ne_zero active.2.2⟩
+
 /-- At every supported visited context, the guarded real verifier event is
 exactly the good active mark. This includes the original stopped and abort
 mass, with no renormalization or accepted-context law as input. -/
@@ -147,31 +177,35 @@ theorem realSuccess_iff_goodActive
       (realOutput visit) ↔ goodActive visit := by
   by_cases good : goodActive visit
   · refine ⟨fun _ => good, fun _ => ?_⟩
-    rcases marked_accepted source initial steps visit supported good.1 with
-      ⟨statement, proof, current, accepted⟩
-    cases proof with
-    | bottom =>
-        have impossible := good.2.1
-        simp only [ready, current] at impossible
-    | recursive payload =>
-        have active : statement.iteration ≠ 0 ∧
-            (decodedInput payload).iteration + 1 = statement.iteration ∧
-            (decodedInput payload).iteration ≠ 0 := by
-          simpa only [ready, current] using good.2.1
-        have safe : ¬ Collision statement payload := by
-          have safe := good.2.2
-          change ¬ (match visit.1 with
-            | some (statement, .recursive payload) => Collision statement payload
-            | _ => False) at safe
-          simpa only [current] using safe
-        have outputEq : realOutput visit = some (HyperNovaRealInput.output payload) := by
-          simp only [realOutput, if_pos good, current]
-        rw [outputEq]
-        simpa only [inputs, current] using
-          HyperNovaRealInput.realSuccess_of_terminal statement payload accepted safe
-            (Nat.pos_of_ne_zero active.2.2)
+    rcases good_terminal source initial steps visit supported good with
+      ⟨statement, payload, current, accepted, safe, positive⟩
+    have outputEq : realOutput visit = some (HyperNovaRealInput.output payload) := by
+      simp only [realOutput, if_pos good, current]
+    rw [outputEq]
+    simpa only [inputs, current] using
+      HyperNovaRealInput.realSuccess_of_terminal statement payload accepted safe positive
   · rw [HyperNovaGuardedSourceLaw.realOutput_off visit good]
     exact iff_of_false id good
+
+/-- At every supported visited context, real success supplies the prior-state
+link for the same running and fresh input. The approved Fiat–Shamir transfer
+is applied only to this law, so wherever it counts a success, the absorbed
+prior digest binds the verifier context and the running statement. -/
+theorem priorLink_of_realSuccess
+    (source : Statement → Payload → PMF SourceResult)
+    (initial : PMF (Statement × Envelope)) (steps : Nat) (visit : Visit)
+    (supported : visit ∈ (visitedLaw source initial steps).support)
+    (success : FiatShamirTransfer.RealSuccess PiDECInputCheck.relation productionAjtaiKey
+      (PiCCSInputCheck.running (inputs visit)) (PiCCSInputCheck.fresh (inputs visit))
+      (realOutput visit)) :
+    ∃ prior, Layout.Stage1.PiCCSSecurity.PriorLink prior
+      (PiCCSInputCheck.running (inputs visit)) (PiCCSInputCheck.fresh (inputs visit))
+      (PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup) := by
+  rcases good_terminal source initial steps visit supported
+      ((realSuccess_iff_goodActive source initial steps visit supported).mp success) with
+    ⟨statement, payload, current, accepted, safe, positive⟩
+  simpa only [inputs, current] using
+    HyperNovaRealInput.priorLink_of_terminal statement payload accepted safe positive
 
 private theorem realSuccessProbability_eq_event
     (distribution : PMF (Visit × Option (FiatShamirTransfer.RealOutput PiDECInputCheck.relation))) :

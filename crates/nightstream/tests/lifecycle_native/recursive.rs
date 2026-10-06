@@ -153,8 +153,8 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
             "iteration": expected_state.iteration(),
             "initial": initial.map(|value| value.as_canonical_u64()),
             "current": final_output.map(|value| value.as_canonical_u64()),
-            "running_claims": &final_proof.running().unwrap().claims,
-            "fresh_claim": &final_proof.fresh().unwrap().claim,
+            "running_claims": &final_proof.active_parts().unwrap().0.claims,
+            "fresh_claim": &final_proof.active_parts().unwrap().1.claim,
         })
     );
 

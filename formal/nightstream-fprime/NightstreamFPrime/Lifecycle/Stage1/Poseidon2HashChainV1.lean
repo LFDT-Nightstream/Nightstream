@@ -49,11 +49,9 @@ def step (priorState message : List F) : List F :=
 
 theorem step_output_length (priorState message : List F) :
     (step priorState message).length = Application.stateWordCount := by
-  unfold step Poseidon2.hash
-  dsimp only
-  rw [List.length_take, Poseidon2.permute_length]
-  norm_num [Poseidon2.digestLen, Poseidon2.width,
-    Application.stateWordCount]
+  unfold step
+  rw [Poseidon2.hash_length]
+  rfl
 
 def inputExpressions (interface : Application.Interface messageWordCount)
     (offset : Nat) : List Expr :=

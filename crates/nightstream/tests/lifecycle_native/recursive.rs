@@ -56,7 +56,7 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
     let fresh_claim = fresh.claim.clone();
     let first_fold = Instant::now();
     eprintln!("first full C/R/D started elapsed={:?}", started.elapsed());
-    let (next, proof) = package.prove(vec![fresh], running).unwrap();
+    let (next, proof) = package.prove(fresh, running).unwrap();
     eprintln!("first full C/R/D elapsed={:?}", first_fold.elapsed());
 
     // Only assertions read expected proof bytes. They never enter the prover.

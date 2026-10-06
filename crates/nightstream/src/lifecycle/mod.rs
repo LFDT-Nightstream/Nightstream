@@ -128,19 +128,10 @@ impl ProofState {
     fn active(running: RunningInstance, fresh: CcsInstance) -> Self {
         Self::Active { running, fresh }
     }
-    fn is_initial(&self) -> bool {
-        matches!(self, Self::Initial)
-    }
-    fn running(&self) -> Option<&RunningInstance> {
+    fn parts(&self) -> Option<(&RunningInstance, &CcsInstance)> {
         match self {
             Self::Initial => None,
-            Self::Active { running, .. } => Some(running),
-        }
-    }
-    fn fresh(&self) -> Option<&CcsInstance> {
-        match self {
-            Self::Initial => None,
-            Self::Active { fresh, .. } => Some(fresh),
+            Self::Active { running, fresh } => Some((running, fresh)),
         }
     }
 }

@@ -376,7 +376,7 @@ pub(super) fn prove(root: &Path, step: u64, engine: EvaluationEngine, reference_
     let fresh = source.fresh.claim.clone();
     let running = source.running.claims_only();
     let started = Instant::now();
-    let (next, proof) = package.prove(vec![source.fresh], source.running).unwrap();
+    let (next, proof) = package.prove(source.fresh, source.running).unwrap();
     eprintln!("complete C/R/D engine={engine:?} elapsed={:?}", started.elapsed());
     let wire = proof.canonical_bytes();
     assert!(

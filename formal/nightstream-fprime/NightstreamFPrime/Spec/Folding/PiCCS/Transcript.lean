@@ -154,32 +154,4 @@ theorem derive_rounds_holds
       (FiatShamir.derive oracle context certificate).finalState := by
   exact ⟨rfl, rfl⟩
 
-/-- The pre-SumCheck state: every `α` squeeze, then the `γ` squeeze. -/
-theorem derivePreSumcheck_state
-    {Context : Type uContext}
-    {Field : Type uField}
-    {State : Type uState}
-    {shape : Shape}
-    (oracle : FiatShamir.Oracle Context Field State shape)
-    (context : Context) :
-    (FiatShamir.derivePreSumcheck oracle context).state =
-      (oracle.squeeze (FiatShamir.squeezeMany oracle (oracle.initialState context)
-        (FiatShamir.alphaLabels shape)).2 .gamma).2 := by
-  rfl
-
-/-- The final state of the complete replay follows every round message. -/
-theorem derive_finalState
-    {Context : Type uContext}
-    {Field : Type uField}
-    {State : Type uState}
-    {shape : Shape}
-    (oracle : FiatShamir.Oracle Context Field State shape)
-    (context : Context)
-    (certificate : FiatShamir.Certificate Field shape) :
-    (FiatShamir.derive oracle context certificate).finalState =
-      (FiatShamir.deriveRoundsFrom oracle certificate.rounds
-        (FiatShamir.derivePreSumcheck oracle context).state
-        (canonicalFinIndices shape.cubeVariables)).2 := by
-  rfl
-
 end NightstreamFPrime.Spec.Folding.PiCCS.Transcript

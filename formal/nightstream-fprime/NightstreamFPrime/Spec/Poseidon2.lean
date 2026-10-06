@@ -171,6 +171,11 @@ theorem permute_length (state : State) : (permute state).length = width := by
         simp [fullRound, externalLayer]
       · simp [externalLayer]
 
+/-- Every absorption output has exactly `width` lanes. -/
+theorem absorbBlock_length (state : State) (block : List F) :
+    (absorbBlock state block).length = width :=
+  permute_length _
+
 /-- Absorbing an all-zero block into a full-width state is a plain
 permutation. -/
 theorem absorbBlock_zero (state : State) (fixed : state.length = width)
@@ -242,6 +247,13 @@ def hashFast (input : List F) : List F :=
   let padded := permute ((List.range width).map fun i =>
     if i = 0 then absorbed.getD 0 0 + 1 else absorbed.getD i 0)
   padded.take digestLen
+
+/-- Every digest has exactly `digestLen` words. -/
+theorem hash_length (input : List F) : (hash input).length = digestLen := by
+  unfold hash
+  dsimp only
+  rw [List.length_take, permute_length]
+  decide
 
 @[csimp] theorem hash_eq_hashFast : @hash = @hashFast := by
   funext input

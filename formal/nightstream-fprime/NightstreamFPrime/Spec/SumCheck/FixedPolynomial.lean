@@ -58,6 +58,17 @@ structure Laws
     ops.mul (ops.add left middle) right =
       ops.add (ops.mul left right) (ops.mul middle right)
 
+/-- A fixed-width polynomial is determined by its coefficients. -/
+theorem eq_of_coefficients
+    {Field : Type uField}
+    {degree : Nat}
+    {left right : FixedPolynomial Field degree}
+    (same : left.coefficients = right.coefficients) : left = right := by
+  cases left
+  cases right
+  cases same
+  rfl
+
 /-- Forget the static width while preserving constant-first order exactly. -/
 def toMessage
     {Field : Type uField}

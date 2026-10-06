@@ -237,14 +237,13 @@ impl PreparedLifecycle {
         )?;
         #[cfg(test)]
         let recorded_output_preimage = output_preimage.clone();
-        let pi_ccs = PiCcsV1_1ProofInputs::from_proof(std::slice::from_ref(fresh), &proof.pi_ccs)?
-            .into_package_inputs(
-                prior_preimage,
-                output_preimage,
-                prior_public_input,
-                output_digest,
-                self.binding.verifier_context().clone(),
-            )?;
+        let pi_ccs = PiCcsV1_1ProofInputs::from_proof(fresh, &proof.pi_ccs)?.into_package_inputs(
+            prior_preimage,
+            output_preimage,
+            prior_public_input,
+            output_digest,
+            self.binding.verifier_context().clone(),
+        )?;
 
         // The next PiCCS call absorbs its state hash as the prior frame.
         // Rebind only this returned carrier after verifying the original proof.

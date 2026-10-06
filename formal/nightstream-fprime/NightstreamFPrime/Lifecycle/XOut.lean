@@ -1,5 +1,6 @@
 import Mathlib.Data.List.GetD
 import NightstreamFPrime.Lifecycle.PaperAlgebra
+import NightstreamFPrime.Spec.FlatMap
 import NightstreamFPrime.Spec.Poseidon2
 import NightstreamFPrime.Spec.Folding.Nifs
 
@@ -123,32 +124,7 @@ theorem stateDomainTag_length : stateDomainTag.length = 23 := by
         productionShape.coefficientCount * 2 := by
   simp [serializeEvaluations, Nat.add_mul, Nat.mul_assoc, Nat.add_comm]
 
-/-! Fixed-width encodings are injective: equal flat maps with equal piece
-lengths agree piece by piece. -/
-
-theorem flatMap_eq_of_lengths {α β : Type*} (indices : List α) (left right : α → List β)
-    (lengths : ∀ index ∈ indices, (left index).length = (right index).length)
-    (same : indices.flatMap left = indices.flatMap right) :
-    ∀ index ∈ indices, left index = right index := by
-  induction indices with
-  | nil => simp
-  | cons head tail inductionHypothesis =>
-      simp only [List.flatMap_cons] at same
-      obtain ⟨headEqual, tailEqual⟩ := List.append_inj same (lengths head (by simp))
-      intro index member
-      rcases List.mem_cons.mp member with rfl | member
-      · exact headEqual
-      · exact inductionHypothesis
-          (fun index member => lengths index (List.mem_cons_of_mem _ member))
-          tailEqual index member
-
-/-- Flat maps with equal piece lengths have equal lengths. -/
-theorem flatMap_length_eq {α β : Type*} (indices : List α) (left right : α → List β)
-    (lengths : ∀ index ∈ indices, (left index).length = (right index).length) :
-    (indices.flatMap left).length = (indices.flatMap right).length := by
-  rw [List.length_flatMap, List.length_flatMap]
-  congr 1
-  exact List.map_congr_left lengths
+/-! The serializers are injective at their fixed widths. -/
 
 theorem block_injective : Function.Injective block :=
   fun _ _ same => (List.cons.inj same).2
@@ -226,6 +202,36 @@ theorem serializeRunning_length
   simp [serializeRunning, productionShape, productionProfile, fullShape,
     publicRingColumns, ringDegree, cubeVariables,
     Phi81Relation.Shape.publicWidth, Phi81MatrixSource.phi81Shape]
+
+theorem serializeRunning_injective :
+    Function.Injective
+      (serializeRunning (logicalWidth := logicalWidth) (publicFits := publicFits)) := by
+  intro left right same
+  obtain ⟨pointWords, groups⟩ := List.append_inj same (by simp)
+  have point : left.point = right.point := by
+    have coordinates := serializeKs_injective (block_injective pointWords)
+    rcases left with ⟨⟨leftCoordinates, _⟩, _, _, _⟩
+    rcases right with ⟨⟨rightCoordinates, _⟩, _, _, _⟩
+    simp only at coordinates
+    subst coordinates
+    rfl
+  have parts := fun index => flatMap_eq_of_lengths _ _ _ (fun _ _ => by simp) groups index
+    (List.mem_finRange index)
+  have splits := fun index =>
+    List.append_inj (parts index) (by simp [serializeCommitment_length])
+  have commitments : left.commitments = right.commitments := funext fun index =>
+    serializeCommitment_injective (block_injective
+      (List.append_inj (splits index).1 (by simp)).1)
+  have publicInputs : left.publicInputs = right.publicInputs := funext fun index =>
+    serializePublicInput_injective (block_injective
+      (List.append_inj (splits index).1 (by simp)).2)
+  have evaluations : left.evaluations = right.evaluations := funext fun index =>
+    serializeEvaluations_injective (block_injective (splits index).2)
+  cases left
+  cases right
+  simp only at point commitments publicInputs evaluations
+  subst point commitments publicInputs evaluations
+  rfl
 
 /-- Exact static serialization cost. Only the verifier-key and two
 application-state block lengths remain parameters. -/

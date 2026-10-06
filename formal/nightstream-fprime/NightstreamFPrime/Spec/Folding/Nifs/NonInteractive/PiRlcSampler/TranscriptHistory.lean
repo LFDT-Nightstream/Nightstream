@@ -34,11 +34,6 @@ private theorem absorb_domain (state : Poseidon2.State) (coordinate : Nat) :
   have bound : index < 16 := List.mem_range.mp member
   interval_cases index <;> simp [domain, drawWidth]
 
-private theorem enter_length (state : Poseidon2.State) (coordinate : Nat) :
-    (Transcript.enter state coordinate).length = Poseidon2.width := by
-  unfold Transcript.enter Poseidon2.absorbBlock
-  exact Poseidon2.permute_length _
-
 private theorem historyAt_succ (initial : List Draw) (coordinate : Nat) :
     historyAt initial (coordinate + 1) =
       historyAt initial coordinate ++ [domain coordinate, zeroBlock] := by
@@ -59,7 +54,7 @@ theorem stateAt_replay (seed : Poseidon2.State) (initial : List Draw) (coordinat
       rw [Transcript.stateAt_succ, absorb_domain]
       exact Poseidon2.absorbBlock_zero
         (Transcript.enter (Transcript.stateAt (replay seed initial) coordinate) coordinate)
-        (enter_length _ _) zeroBlock_getD
+        (Poseidon2.absorbBlock_length _ _) zeroBlock_getD
 
 def answer (seed : Poseidon2.State) (query : Query) : Draw :=
   Transcript.block (replay seed query.val)

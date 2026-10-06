@@ -27,7 +27,7 @@ theorem spec_typed_base
         (outputRunningExpr logicalWidth publicFits) env =
       defaultRunning (logicalWidth := logicalWidth)
         (publicFits := publicFits) := by
-  apply PiCCSRepresentation.serializeRunning_injective
+  apply NightstreamFPrime.Lifecycle.serializeRunning_injective
   exact RunningTransition.spec_serialized_base specification iterationZero
 
 /-- Serialized branch equality lifts to exact typed PiDEC-output equality. -/
@@ -44,7 +44,7 @@ theorem spec_typed_recursive
         (outputRunningExpr logicalWidth publicFits) env =
       StatementAbsorption.evalRunning
         (recursiveRunningExpr logicalWidth publicFits) env := by
-  apply PiCCSRepresentation.serializeRunning_injective
+  apply NightstreamFPrime.Lifecycle.serializeRunning_injective
   exact RunningTransition.spec_serialized_recursive specification
     iterationNonzero
 

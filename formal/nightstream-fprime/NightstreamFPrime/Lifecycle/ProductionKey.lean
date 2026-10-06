@@ -119,7 +119,7 @@ def publicInputBlocks
 
 /-- Absorb the digest-only PiCCS statement from its canonical block list. -/
 def absorbPublicInput (state : Transcript.State)
-    (running : Nifs.PaperNonInteractive.Running K PaperAlgebra.Commitment (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits)) productionShape)
+    (_running : Nifs.PaperNonInteractive.Running K PaperAlgebra.Commitment (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits)) productionShape)
     (fresh : Nifs.PaperNonInteractive.Fresh PaperAlgebra.Commitment (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits)) productionShape) :
     Transcript.State :=
   Transcript.absorbBlocks state (publicInputBlocks fresh)

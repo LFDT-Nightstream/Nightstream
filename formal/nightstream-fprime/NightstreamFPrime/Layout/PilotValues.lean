@@ -9,7 +9,7 @@ the package serializer both read these definitions.
 namespace NightstreamFPrime.Layout.PilotValues
 
 abbrev digestWords : Nat := 4
-abbrev stateHashBaseWords : Nat := 32101
+abbrev stateHashBaseWords : Nat := 27807
 abbrev stateHashWords : Nat :=
   stateHashBaseWords + digestWords + digestWords + digestWords
 abbrev priorPublicInputWords : Nat := 270

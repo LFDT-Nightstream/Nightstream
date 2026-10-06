@@ -6,6 +6,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSTranscriptEndpointPlan
 import NightstreamFPrime.Export.Stage1.PiDECDirectPlan
 import NightstreamFPrime.Export.Stage1.PilotDirectSemantics
 import NightstreamFPrime.Layout.PiDEC.v1_1.Values
+import NightstreamFPrime.Lifecycle.PiCCS.v1_1.FormalPhase
 
 /-!
 Owns the first complete ordered direct 4-matrix prefix through PiDEC and the
@@ -156,7 +157,7 @@ def transitionPlan
 @[simp] theorem pilotPlan_rowCount
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (pilotPlan geometry).rowCount = 803400 := by
+    (pilotPlan geometry).rowCount = 696000 := by
   simp [pilotPlan, DirectPrefixPlan.pilotPlan]
 
 @[simp] theorem piCcsPoseidonPlan_rowCount
@@ -213,7 +214,7 @@ def piCcsPoseidonPrefix
 @[simp] theorem piCcsPoseidonPrefix_rowCount
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (piCcsPoseidonPrefix geometry).rowCount = 973792 := by
+    (piCcsPoseidonPrefix geometry).rowCount = 866392 := by
   simp [piCcsPoseidonPrefix]
 
 private theorem piCcsCoreRowCount_le
@@ -243,7 +244,7 @@ def piCcsCorePlan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (piCcsCorePlan relation geometry).rowCount = 1006557 := by
+    (piCcsCorePlan relation geometry).rowCount = 903709 := by
   simp [piCcsCorePlan, piCcsOrdinaryPlan]
 
 private theorem pilotOrdinaryPrefixRowCount_le
@@ -272,7 +273,7 @@ def pilotOrdinaryPrefixPlan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (pilotOrdinaryPrefixPlan relation geometry).rowCount = 1007243 := by
+    (pilotOrdinaryPrefixPlan relation geometry).rowCount = 904395 := by
   simp [pilotOrdinaryPrefixPlan]
 
 private theorem pilotBindingPrefixRowCount_le
@@ -301,7 +302,7 @@ def pilotBindingPrefixPlan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (pilotBindingPrefixPlan relation geometry).rowCount = 1007251 := by
+    (pilotBindingPrefixPlan relation geometry).rowCount = 904403 := by
   simp [pilotBindingPrefixPlan]
 
 private theorem piCcsCompleteRowCount_le
@@ -330,7 +331,7 @@ def piCcsCompletePlan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (piCcsCompletePlan relation geometry).rowCount = 1007315 := by
+    (piCcsCompletePlan relation geometry).rowCount = 904467 := by
   simp [piCcsCompletePlan]
 
 private theorem samplerPrefixRowCount_le
@@ -357,7 +358,7 @@ def samplerPrefixPlan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (samplerPrefixPlan relation geometry).rowCount = 1012415 := by
+    (samplerPrefixPlan relation geometry).rowCount = 909567 := by
   simp [samplerPrefixPlan]
 
 private theorem piRlcPrefixRowCount_le
@@ -384,7 +385,7 @@ def piRlcPrefixPlan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (piRlcPrefixPlan relation geometry).rowCount = 1080347 := by
+    (piRlcPrefixPlan relation geometry).rowCount = 977499 := by
   simp [piRlcPrefixPlan]
 
 private theorem piDecPrefixRowCount_le
@@ -414,7 +415,7 @@ def piDecPrefixPlan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (piDecPrefixPlan relation geometry).rowCount = 1086935 := by
+    (piDecPrefixPlan relation geometry).rowCount = 984087 := by
   simp [piDecPrefixPlan, piDecPlan, Layout.PiDEC.v1_1.exactRowCount_value]
 
 private theorem totalRowCount_le
@@ -443,7 +444,7 @@ def plan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (plan relation geometry).rowCount = 1119014 := by
+    (plan relation geometry).rowCount = 1011887 := by
   simp [plan, transitionPlan]
 
 /-- The complete ordered prefix depends on the verified relation shape, but

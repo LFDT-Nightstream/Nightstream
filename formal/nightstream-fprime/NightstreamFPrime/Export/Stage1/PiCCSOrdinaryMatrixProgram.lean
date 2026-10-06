@@ -213,7 +213,7 @@ def proofInputIndex (index : Fin proofInputRangeCount) :
 
 def proofInputRange (program : Program) : SourceRange :=
   SourceRange.ofSemantic (proofLogicalBlock program) (proofLogicalStart program)
-    (Spartan.sourceToSpartan PiCCSInputs.proofInputStart)
+    (Spartan.sourceToSpartan PiCCSInputs.priorChildrenStart)
     proofInputRangeCount 0
 
 theorem proofInputRange_form?
@@ -222,25 +222,25 @@ theorem proofInputRange_form?
     (index : Fin proofInputRangeCount) :
     (proofInputRange program).form? logicalWidth
         (Spartan.sourceToSpartan
-          (PiCCSInputs.proofInputStart + index.val)) =
+          (PiCCSInputs.priorChildrenStart + index.val)) =
       some ((PiCCSOrdinaryDirectPlan.Location.proofLogical
         (proofInputIndex index)).form geometry) := by
-  have lower : Spartan.proofInputSourceStart ≤ PiCCSInputs.proofInputStart := by
-    norm_num [Spartan.proofInputSourceStart, PiCCSInputs.proofInputStart_eq]
-  have upper : PiCCSInputs.proofInputStart + index.val <
+  have lower : Spartan.proofInputSourceStart ≤ PiCCSInputs.priorChildrenStart := by
+    norm_num [Spartan.proofInputSourceStart, PiCCSInputs.priorChildrenStart_eq]
+  have upper : PiCCSInputs.priorChildrenStart + index.val <
       Spartan.piCcsPhaseOffset := by
     have bound := index.isLt
-    norm_num [PiCCSInputs.proofInputStart_eq,
+    norm_num [PiCCSInputs.priorChildrenStart_eq,
       proofInputRangeCount, Spartan.proofInputColumnCount,
       Spartan.piCcsPhaseOffset] at bound ⊢
     omega
   rw [Spartan.sourceToSpartan_add_of_proofInput
-    PiCCSInputs.proofInputStart index.val lower upper]
+    PiCCSInputs.priorChildrenStart index.val lower upper]
   rw [proofInputIndex, PiCCSOrdinaryDirectPlan.Location.form_proofInput]
   simpa only [proofInputRange, proofInputSlot, Nat.zero_add] using!
     (SourceRange.form?_ofSemantic (proofLogicalBlock program)
       (proofLogicalStart program)
-      (Spartan.sourceToSpartan PiCCSInputs.proofInputStart)
+      (Spartan.sourceToSpartan PiCCSInputs.priorChildrenStart)
       proofInputRangeCount 0 (proofLogicalFits geometry)
       (by
         change proofInputRangeCount ≤ proofLogicalCount
@@ -338,18 +338,18 @@ theorem expectedContextRange_form?
 
 private theorem rangeValues (program : Program) :
     (priorInputRange program).sourceStart = 0 ∧
-    (priorInputRange program).sourceCount = 32113 ∧
-    (outputInputRange program).sourceStart = 32113 ∧
-    (outputInputRange program).sourceCount = 32113 ∧
-    (proofInputRange program).sourceStart = 64226 ∧
-    (proofInputRange program).sourceCount = 10872 ∧
-    (ordinaryLogicalRange program).sourceStart = 6334762 ∧
+    (priorInputRange program).sourceCount = 27819 ∧
+    (outputInputRange program).sourceStart = 27819 ∧
+    (outputInputRange program).sourceCount = 27819 ∧
+    (proofInputRange program).sourceStart = 55638 ∧
+    (proofInputRange program).sourceCount = 15462 ∧
+    (ordinaryLogicalRange program).sourceStart = 5546028 ∧
     (ordinaryLogicalRange program).sourceCount = 29591 ∧
-    (freshRange program).sourceStart = 7203889 ∧
+    (freshRange program).sourceStart = 6415155 ∧
     (freshRange program).sourceCount = 2956 ∧
-    (freshPublicInputRange program).sourceStart = 12442939 ∧
+    (freshPublicInputRange program).sourceStart = 11654205 ∧
     (freshPublicInputRange program).sourceCount = 270 ∧
-    (expectedContextRange program).sourceStart = 12443213 ∧
+    (expectedContextRange program).sourceStart = 11654479 ∧
     (expectedContextRange program).sourceCount = 4 := by
   unfold priorInputRange outputInputRange proofInputRange ordinaryLogicalRange
     freshRange freshPublicInputRange expectedContextRange SourceRange.ofSemantic
@@ -391,10 +391,10 @@ private theorem rangeValues (program : Program) :
     PilotSpartan.witnessPrivateStart_value,
     PilotSpartan.firstPublicStart_value,
     PilotSpartan.secondPublicStart_value,
-    PiCCSInputs.proofInputStart_eq]
+    PiCCSInputs.priorChildrenStart_eq]
 
 private theorem transcriptGridValues (program : Program) :
-    (transcriptOutputGrid program).sourceStart = 5946762 ∧
+    (transcriptOutputGrid program).sourceStart = 5158028 ∧
       (transcriptOutputGrid program).majorCount = 355 ∧
       (transcriptOutputGrid program).majorSourceStride = 1096 ∧
       (transcriptOutputGrid program).minorCount = 1 ∧
@@ -429,30 +429,30 @@ private theorem outputTarget_eq (program : Program)
     (index : Fin PilotProduction.stateHashWords) :
     Spartan.sourceToSpartan
         (PilotProduction.outputPreimageStart + index.val) =
-      32113 + index.val := by
+      27819 + index.val := by
   rw [sourceToSpartan_outputInput_add]
   change (outputInputRange program).sourceStart + index.val =
-    32113 + index.val
+    27819 + index.val
   have values := rangeValues program
   omega
 
 private theorem proofInputTarget_eq (program : Program)
     (index : Fin proofInputRangeCount) :
-    Spartan.sourceToSpartan (PiCCSInputs.proofInputStart + index.val) =
-      64226 + index.val := by
-  have lower : Spartan.proofInputSourceStart ≤ PiCCSInputs.proofInputStart := by
-    norm_num [Spartan.proofInputSourceStart, PiCCSInputs.proofInputStart_eq]
-  have upper : PiCCSInputs.proofInputStart + index.val <
+    Spartan.sourceToSpartan (PiCCSInputs.priorChildrenStart + index.val) =
+      55638 + index.val := by
+  have lower : Spartan.proofInputSourceStart ≤ PiCCSInputs.priorChildrenStart := by
+    norm_num [Spartan.proofInputSourceStart, PiCCSInputs.priorChildrenStart_eq]
+  have upper : PiCCSInputs.priorChildrenStart + index.val <
       Spartan.piCcsPhaseOffset := by
     have bound := index.isLt
-    norm_num [PiCCSInputs.proofInputStart_eq,
+    norm_num [PiCCSInputs.priorChildrenStart_eq,
       proofInputRangeCount, Spartan.proofInputColumnCount,
       Spartan.piCcsPhaseOffset] at bound ⊢
     omega
   rw [Spartan.sourceToSpartan_add_of_proofInput
-    PiCCSInputs.proofInputStart index.val lower upper]
+    PiCCSInputs.priorChildrenStart index.val lower upper]
   change (proofInputRange program).sourceStart + index.val =
-    64226 + index.val
+    55638 + index.val
   have values := rangeValues program
   omega
 
@@ -460,14 +460,14 @@ private theorem ordinaryLogicalTarget_eq (program : Program)
     (index : Fin ordinaryLogicalRangeCount) :
     Spartan.sourceToSpartan
         (PiCCSStarts.initialClaimLogicalStart + index.val) =
-      6334762 + index.val := by
+      5546028 + index.val := by
   rw [Spartan.sourceToSpartan_add_of_piCcsLocal
     PiCCSStarts.initialClaimLogicalStart index.val (by
       unfold PiCCSStarts.initialClaimLogicalStart
       rw [PiCCSStarts.roundTranscriptWitnessStart_eq]
       norm_num [Spartan.piCcsPhaseOffset])]
   change (ordinaryLogicalRange program).sourceStart + index.val =
-    6334762 + index.val
+    5546028 + index.val
   have values := rangeValues program
   omega
 
@@ -475,7 +475,7 @@ private theorem transcriptOutputTarget_eq (index : Fin transcriptOutputCount) :
     let decoded : Fin transcriptInvocationCount × Fin Spec.Poseidon2.width :=
       Fin.decodeProd index
     Spartan.sourceToSpartan (transcriptOutputSource index) =
-      5946762 + decoded.1.val * 1096 + decoded.2.val := by
+      5158028 + decoded.1.val * 1096 + decoded.2.val := by
   let decoded : Fin transcriptInvocationCount × Fin Spec.Poseidon2.width :=
     Fin.decodeProd index
   dsimp only
@@ -500,7 +500,7 @@ private theorem transcriptOutputTarget_eq (index : Fin transcriptOutputCount) :
       simpa only [Nat.add_assoc] using mapped
     _ = _ := by
       have startEq : Spartan.sourceToSpartan transcriptOutputSourceStart =
-          5946762 := by
+          5158028 := by
         unfold transcriptOutputSourceStart
         rw [PiCCSInputs.phaseOffset_eq]
         norm_num [Spartan.sourceToSpartan,
@@ -512,7 +512,7 @@ private theorem transcriptOutputTarget_eq (index : Fin transcriptOutputCount) :
 private theorem freshTarget_eq (program : Program) (index : Fin freshCount) :
     Spartan.sourceToSpartan
         (PiCCSArithmetic.initialClaimFreshStart + index.val) =
-      7203889 + index.val := by
+      6415155 + index.val := by
   have phaseBound : Spartan.piCcsPhaseOffset ≤
       PiCCSArithmetic.initialClaimFreshStart := by
     unfold PiCCSArithmetic.initialClaimFreshStart
@@ -524,14 +524,14 @@ private theorem freshTarget_eq (program : Program) (index : Fin freshCount) :
   rw [Spartan.sourceToSpartan_add_of_piCcsLocal
     PiCCSArithmetic.initialClaimFreshStart index.val phaseBound]
   change (freshRange program).sourceStart + index.val =
-    7203889 + index.val
+    6415155 + index.val
   have values := rangeValues program
   omega
 
 private theorem freshPublicTarget_eq (program : Program) (index : Fin 270) :
     Spartan.sourceToSpartan
         (PilotProduction.priorPublicInputStart + index.val) =
-      12442939 + index.val := by
+      11654205 + index.val := by
   have upper : PilotProduction.priorPublicInputStart + index.val <
       PilotProduction.outputPreimageStart := by
     have bound : index.val < 270 := index.isLt
@@ -542,13 +542,13 @@ private theorem freshPublicTarget_eq (program : Program) (index : Fin 270) :
   rw [Spartan.sourceToSpartan_add_of_pilotPriorPublic
     PilotProduction.priorPublicInputStart index.val (Nat.le_refl _) upper]
   change (freshPublicInputRange program).sourceStart + index.val =
-    12442939 + index.val
+    11654205 + index.val
   have values := rangeValues program
   omega
 
 private theorem expectedContextTarget_eq (lane : Fin 4) :
     Spartan.sourceToSpartan (PiCCSInputs.expectedContextStart + lane.val) =
-      12443213 + lane.val := by
+      11654479 + lane.val := by
   rw [Spartan.sourceToSpartan_expectedContext]
   rfl
 
@@ -563,7 +563,7 @@ def substitution (program : Program) : SourceSubstitution where
 /-- Exact physical packet intervals whose expanded R1CS rows form the
 PiCCS ordinary source program. -/
 def rowSchedule : IndexSchedule := .rangeList [
-    ⟨PiCCSArithmetic.statementBindingRowStart, 160⟩,
+    ⟨PiCCSArithmetic.statementBindingRowStart, 4712⟩,
     ⟨PiCCSArithmetic.initialClaimRowStart, 12957⟩,
     ⟨PiCCSArithmetic.sumcheckRowStart, 728⟩,
     ⟨PiCCSArithmetic.evalKRowStart, 3364⟩,
@@ -575,7 +575,7 @@ def rowSchedule : IndexSchedule := .rangeList [
 /-- Proof-oriented reference expansion of the eight row intervals. The wire
 interpreter uses `IndexSchedule.index?` and does not build this list. -/
 def rowIndexReference : List Nat :=
-  List.range' PiCCSArithmetic.statementBindingRowStart 160 ++
+  List.range' PiCCSArithmetic.statementBindingRowStart 4712 ++
     List.range' PiCCSArithmetic.initialClaimRowStart 12957 ++
     List.range' PiCCSArithmetic.sumcheckRowStart 728 ++
     List.range' PiCCSArithmetic.evalKRowStart 3364 ++
@@ -592,13 +592,13 @@ theorem rowSchedule_index? (ordinal : Nat) :
     rowSchedule.index? ordinal = rowIndexReference[ordinal]? := by
   rw [IndexSchedule.index?_eq_getElem?, rowSchedule_indices]
 
-@[simp] theorem rowSchedule_count : rowSchedule.count = 32765 := by
+@[simp] theorem rowSchedule_count : rowSchedule.count = 37317 := by
   rfl
 
 theorem rowSchedule_valid :
     rowSchedule.valid PerApplicationPackage.basePackage.layout.rowCount =
       true := by
-  rw [show PerApplicationPackage.basePackage.layout.rowCount = 12351983 by
+  rw [show PerApplicationPackage.basePackage.layout.rowCount = 11567520 by
     exact Package.circuitPackage_layout_values.1]
   decide
 
@@ -634,7 +634,7 @@ theorem arithmeticRows_rowIndices
     (PiCCSArithmetic.arithmeticRows logicalWidth publicFits).map
         Rows.CompiledRow.rowIndex = rowIndexReference := by
   have statement := packetRowIndices PiCCSArithmetic.statementBindingRowStart
-    PiCCSArithmetic.statementBindingFreshStart 160
+    PiCCSArithmetic.statementBindingFreshStart 4712
     (PiCCSArithmetic.statementBindingConstraints logicalWidth publicFits)
     (PiCCSArithmetic.statementBindingRows_length logicalWidth publicFits relation)
   have initial := packetRowIndices PiCCSArithmetic.initialClaimRowStart
@@ -700,7 +700,7 @@ def block {program : Program} {logicalWidth : Nat}
 @[simp] theorem block_rowCount
     {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) :
-    (block geometry).rowCount = 32765 := by
+    (block geometry).rowCount = 37317 := by
   rfl
 
 def matrixProgram {program : Program} {logicalWidth : Nat}
@@ -710,7 +710,7 @@ def matrixProgram {program : Program} {logicalWidth : Nat}
 @[simp] theorem matrixProgram_rowCount
     {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) :
-    (matrixProgram geometry).rowCount = 32765 := by
+    (matrixProgram geometry).rowCount = 37317 := by
   rfl
 
 theorem substitution_priorInput_form?
@@ -726,7 +726,7 @@ theorem substitution_priorInput_form?
   have selected := priorInputRange_form? geometry index
   rw [target] at selected
   have values := rangeValues program
-  have indexBound : index.val < 32113 := by
+  have indexBound : index.val < 27819 := by
     simpa only [PilotProduction.stateHashWords_eq] using index.isLt
   have outputNone := SourceRange.form?_eq_none_of_before
     (outputInputRange program) logicalWidth index.val (by omega)
@@ -761,22 +761,22 @@ theorem substitution_outputInput_form?
   have selected := outputInputRange_form? geometry index
   rw [target] at selected
   have values := rangeValues program
-  have indexBound : index.val < 32113 := by
+  have indexBound : index.val < 27819 := by
     simpa only [PilotProduction.stateHashWords_eq] using index.isLt
   have priorNone := SourceRange.form?_eq_none_of_after
-    (priorInputRange program) logicalWidth (32113 + index.val) (by omega)
+    (priorInputRange program) logicalWidth (27819 + index.val) (by omega)
   have proofInputNone := SourceRange.form?_eq_none_of_before
-    (proofInputRange program) logicalWidth (32113 + index.val) (by omega)
+    (proofInputRange program) logicalWidth (27819 + index.val) (by omega)
   have ordinaryNone := SourceRange.form?_eq_none_of_before
-    (ordinaryLogicalRange program) logicalWidth (32113 + index.val) (by omega)
+    (ordinaryLogicalRange program) logicalWidth (27819 + index.val) (by omega)
   have freshNone := SourceRange.form?_eq_none_of_before
-    (freshRange program) logicalWidth (32113 + index.val) (by omega)
+    (freshRange program) logicalWidth (27819 + index.val) (by omega)
   have publicNone := SourceRange.form?_eq_none_of_before
-    (freshPublicInputRange program) logicalWidth (32113 + index.val) (by omega)
+    (freshPublicInputRange program) logicalWidth (27819 + index.val) (by omega)
   have contextNone := SourceRange.form?_eq_none_of_before
-    (expectedContextRange program) logicalWidth (32113 + index.val) (by omega)
+    (expectedContextRange program) logicalWidth (27819 + index.val) (by omega)
   have gridNone := SourceGrid.form?_eq_none_of_before
-    (transcriptOutputGrid program) logicalWidth (32113 + index.val) (by
+    (transcriptOutputGrid program) logicalWidth (27819 + index.val) (by
       rw [(transcriptGridValues program).1]
       omega)
   rw [target]
@@ -789,30 +789,30 @@ theorem substitution_proofInput_form?
     (index : Fin proofInputRangeCount) :
     (substitution program).form? logicalWidth
         (Spartan.sourceToSpartan
-          (PiCCSInputs.proofInputStart + index.val)) =
+          (PiCCSInputs.priorChildrenStart + index.val)) =
       some ((PiCCSOrdinaryDirectPlan.Location.proofLogical
         (proofInputIndex index)).form geometry) := by
   have target := proofInputTarget_eq program index
   have selected := proofInputRange_form? geometry index
   rw [target] at selected
   have values := rangeValues program
-  have indexBound : index.val < 10872 := by
+  have indexBound : index.val < 15462 := by
     simpa only [proofInputRangeCount, proofInputCount_eq]
       using index.isLt
   have priorNone := SourceRange.form?_eq_none_of_after
-    (priorInputRange program) logicalWidth (64226 + index.val) (by omega)
+    (priorInputRange program) logicalWidth (55638 + index.val) (by omega)
   have outputNone := SourceRange.form?_eq_none_of_after
-    (outputInputRange program) logicalWidth (64226 + index.val) (by omega)
+    (outputInputRange program) logicalWidth (55638 + index.val) (by omega)
   have ordinaryNone := SourceRange.form?_eq_none_of_before
-    (ordinaryLogicalRange program) logicalWidth (64226 + index.val) (by omega)
+    (ordinaryLogicalRange program) logicalWidth (55638 + index.val) (by omega)
   have freshNone := SourceRange.form?_eq_none_of_before
-    (freshRange program) logicalWidth (64226 + index.val) (by omega)
+    (freshRange program) logicalWidth (55638 + index.val) (by omega)
   have publicNone := SourceRange.form?_eq_none_of_before
-    (freshPublicInputRange program) logicalWidth (64226 + index.val) (by omega)
+    (freshPublicInputRange program) logicalWidth (55638 + index.val) (by omega)
   have contextNone := SourceRange.form?_eq_none_of_before
-    (expectedContextRange program) logicalWidth (64226 + index.val) (by omega)
+    (expectedContextRange program) logicalWidth (55638 + index.val) (by omega)
   have gridNone := SourceGrid.form?_eq_none_of_before
-    (transcriptOutputGrid program) logicalWidth (64226 + index.val) (by
+    (transcriptOutputGrid program) logicalWidth (55638 + index.val) (by
       rw [(transcriptGridValues program).1]
       omega)
   rw [target]
@@ -830,7 +830,7 @@ theorem substitution_transcriptOutput_form?
   let decoded : Fin transcriptInvocationCount × Fin Spec.Poseidon2.width :=
     Fin.decodeProd index
   have target : Spartan.sourceToSpartan (transcriptOutputSource index) =
-      5946762 + decoded.1.val * 1096 + decoded.2.val := by
+      5158028 + decoded.1.val * 1096 + decoded.2.val := by
     simpa only [decoded] using transcriptOutputTarget_eq index
   have selected := transcriptOutputGrid_form? geometry index
   rw [target] at selected
@@ -841,25 +841,25 @@ theorem substitution_transcriptOutput_form?
   change decoded.2.val < 16 at laneBound
   have priorNone := SourceRange.form?_eq_none_of_after
     (priorInputRange program) logicalWidth
-      (5946762 + decoded.1.val * 1096 + decoded.2.val) (by omega)
+      (5158028 + decoded.1.val * 1096 + decoded.2.val) (by omega)
   have outputNone := SourceRange.form?_eq_none_of_after
     (outputInputRange program) logicalWidth
-      (5946762 + decoded.1.val * 1096 + decoded.2.val) (by omega)
+      (5158028 + decoded.1.val * 1096 + decoded.2.val) (by omega)
   have proofInputNone := SourceRange.form?_eq_none_of_after
     (proofInputRange program) logicalWidth
-      (5946762 + decoded.1.val * 1096 + decoded.2.val) (by omega)
+      (5158028 + decoded.1.val * 1096 + decoded.2.val) (by omega)
   have ordinaryNone := SourceRange.form?_eq_none_of_before
     (ordinaryLogicalRange program) logicalWidth
-      (5946762 + decoded.1.val * 1096 + decoded.2.val) (by omega)
+      (5158028 + decoded.1.val * 1096 + decoded.2.val) (by omega)
   have freshNone := SourceRange.form?_eq_none_of_before
     (freshRange program) logicalWidth
-      (5946762 + decoded.1.val * 1096 + decoded.2.val) (by omega)
+      (5158028 + decoded.1.val * 1096 + decoded.2.val) (by omega)
   have publicNone := SourceRange.form?_eq_none_of_before
     (freshPublicInputRange program) logicalWidth
-      (5946762 + decoded.1.val * 1096 + decoded.2.val) (by omega)
+      (5158028 + decoded.1.val * 1096 + decoded.2.val) (by omega)
   have contextNone := SourceRange.form?_eq_none_of_before
     (expectedContextRange program) logicalWidth
-      (5946762 + decoded.1.val * 1096 + decoded.2.val) (by omega)
+      (5158028 + decoded.1.val * 1096 + decoded.2.val) (by omega)
   rw [target]
   simp [substitution, SourceSubstitution.form?, priorNone, outputNone,
     proofInputNone, ordinaryNone, freshNone, publicNone, contextNone, selected]
@@ -872,14 +872,14 @@ private theorem transcriptOutputGrid_form?_none_at_ordinary
           (PiCCSStarts.initialClaimLogicalStart + index.val)) = none := by
   rw [ordinaryLogicalTarget_eq program index]
   change (transcriptOutputGrid program).form? logicalWidth
-    (6334762 + index.val) = none
+    (5546028 + index.val) = none
   rcases transcriptGridValues program with
     ⟨gridStart, gridCount, gridStride, minorCount, minorStride⟩
   have indexBound := index.isLt
   change index.val < 29591 at indexBound
   by_cases after : 1080 ≤ index.val
   · apply SourceGrid.form?_eq_none_of_after
-      (transcriptOutputGrid program) logicalWidth (6334762 + index.val)
+      (transcriptOutputGrid program) logicalWidth (5546028 + index.val)
     · rw [gridStride]
       omega
     · rw [gridStart, gridCount, gridStride]
@@ -906,11 +906,11 @@ private theorem transcriptOutputGrid_form?_none_at_ordinary
             (1 + index.val / 16) *
               (transcriptOutputGrid program).minorSourceStride +
             index.val % 16 =
-          6334762 + index.val := by
+          5546028 + index.val := by
       rw [gridStart, gridStride, minorStride]
-      change 5946762 + 354 * 1096 +
+      change 5158028 + 354 * 1096 +
           (1 + index.val / 16) * 16 + index.val % 16 =
-        6334762 + index.val
+        5546028 + index.val
       omega
     rw [← sourceEq]
     exact rejected
@@ -932,17 +932,17 @@ theorem substitution_ordinaryLogical_form?
     simpa only [ordinaryLogicalRangeCount, ordinaryLogicalCount_eq]
       using index.isLt
   have priorNone := SourceRange.form?_eq_none_of_after
-    (priorInputRange program) logicalWidth (6334762 + index.val) (by omega)
+    (priorInputRange program) logicalWidth (5546028 + index.val) (by omega)
   have outputNone := SourceRange.form?_eq_none_of_after
-    (outputInputRange program) logicalWidth (6334762 + index.val) (by omega)
+    (outputInputRange program) logicalWidth (5546028 + index.val) (by omega)
   have proofInputNone := SourceRange.form?_eq_none_of_after
-    (proofInputRange program) logicalWidth (6334762 + index.val) (by omega)
+    (proofInputRange program) logicalWidth (5546028 + index.val) (by omega)
   have freshNone := SourceRange.form?_eq_none_of_before
-    (freshRange program) logicalWidth (6334762 + index.val) (by omega)
+    (freshRange program) logicalWidth (5546028 + index.val) (by omega)
   have publicNone := SourceRange.form?_eq_none_of_before
-    (freshPublicInputRange program) logicalWidth (6334762 + index.val) (by omega)
+    (freshPublicInputRange program) logicalWidth (5546028 + index.val) (by omega)
   have contextNone := SourceRange.form?_eq_none_of_before
-    (expectedContextRange program) logicalWidth (6334762 + index.val) (by omega)
+    (expectedContextRange program) logicalWidth (5546028 + index.val) (by omega)
   have gridNone := transcriptOutputGrid_form?_none_at_ordinary
     (program := program) (logicalWidth := logicalWidth) index
   rw [target] at gridNone
@@ -964,19 +964,19 @@ theorem substitution_fresh_form?
   have indexBound : index.val < 2956 := by
     simpa only [freshCount] using index.isLt
   have priorNone := SourceRange.form?_eq_none_of_after
-    (priorInputRange program) logicalWidth (7203889 + index.val) (by omega)
+    (priorInputRange program) logicalWidth (6415155 + index.val) (by omega)
   have outputNone := SourceRange.form?_eq_none_of_after
-    (outputInputRange program) logicalWidth (7203889 + index.val) (by omega)
+    (outputInputRange program) logicalWidth (6415155 + index.val) (by omega)
   have proofInputNone := SourceRange.form?_eq_none_of_after
-    (proofInputRange program) logicalWidth (7203889 + index.val) (by omega)
+    (proofInputRange program) logicalWidth (6415155 + index.val) (by omega)
   have ordinaryNone := SourceRange.form?_eq_none_of_after
-    (ordinaryLogicalRange program) logicalWidth (7203889 + index.val) (by omega)
+    (ordinaryLogicalRange program) logicalWidth (6415155 + index.val) (by omega)
   have publicNone := SourceRange.form?_eq_none_of_before
-    (freshPublicInputRange program) logicalWidth (7203889 + index.val) (by omega)
+    (freshPublicInputRange program) logicalWidth (6415155 + index.val) (by omega)
   have contextNone := SourceRange.form?_eq_none_of_before
-    (expectedContextRange program) logicalWidth (7203889 + index.val) (by omega)
+    (expectedContextRange program) logicalWidth (6415155 + index.val) (by omega)
   have gridNone := SourceGrid.form?_eq_none_of_after
-    (transcriptOutputGrid program) logicalWidth (7203889 + index.val)
+    (transcriptOutputGrid program) logicalWidth (6415155 + index.val)
     (by rw [(transcriptGridValues program).2.2.1]; omega)
     (by
       rcases transcriptGridValues program with
@@ -1001,19 +1001,19 @@ theorem substitution_freshPublicInput_form?
   have values := rangeValues program
   have indexBound : index.val < 270 := index.isLt
   have priorNone := SourceRange.form?_eq_none_of_after
-    (priorInputRange program) logicalWidth (12442939 + index.val) (by omega)
+    (priorInputRange program) logicalWidth (11654205 + index.val) (by omega)
   have outputNone := SourceRange.form?_eq_none_of_after
-    (outputInputRange program) logicalWidth (12442939 + index.val) (by omega)
+    (outputInputRange program) logicalWidth (11654205 + index.val) (by omega)
   have proofInputNone := SourceRange.form?_eq_none_of_after
-    (proofInputRange program) logicalWidth (12442939 + index.val) (by omega)
+    (proofInputRange program) logicalWidth (11654205 + index.val) (by omega)
   have ordinaryNone := SourceRange.form?_eq_none_of_after
-    (ordinaryLogicalRange program) logicalWidth (12442939 + index.val) (by omega)
+    (ordinaryLogicalRange program) logicalWidth (11654205 + index.val) (by omega)
   have freshNone := SourceRange.form?_eq_none_of_after
-    (freshRange program) logicalWidth (12442939 + index.val) (by omega)
+    (freshRange program) logicalWidth (11654205 + index.val) (by omega)
   have contextNone := SourceRange.form?_eq_none_of_before
-    (expectedContextRange program) logicalWidth (12442939 + index.val) (by omega)
+    (expectedContextRange program) logicalWidth (11654205 + index.val) (by omega)
   have gridNone := SourceGrid.form?_eq_none_of_after
-    (transcriptOutputGrid program) logicalWidth (12442939 + index.val)
+    (transcriptOutputGrid program) logicalWidth (11654205 + index.val)
     (by rw [(transcriptGridValues program).2.2.1]; omega)
     (by
       rcases transcriptGridValues program with
@@ -1038,19 +1038,19 @@ theorem substitution_expectedContext_form?
   have values := rangeValues program
   have laneBound : lane.val < 4 := lane.isLt
   have priorNone := SourceRange.form?_eq_none_of_after
-    (priorInputRange program) logicalWidth (12443213 + lane.val) (by omega)
+    (priorInputRange program) logicalWidth (11654479 + lane.val) (by omega)
   have outputNone := SourceRange.form?_eq_none_of_after
-    (outputInputRange program) logicalWidth (12443213 + lane.val) (by omega)
+    (outputInputRange program) logicalWidth (11654479 + lane.val) (by omega)
   have proofInputNone := SourceRange.form?_eq_none_of_after
-    (proofInputRange program) logicalWidth (12443213 + lane.val) (by omega)
+    (proofInputRange program) logicalWidth (11654479 + lane.val) (by omega)
   have ordinaryNone := SourceRange.form?_eq_none_of_after
-    (ordinaryLogicalRange program) logicalWidth (12443213 + lane.val) (by omega)
+    (ordinaryLogicalRange program) logicalWidth (11654479 + lane.val) (by omega)
   have freshNone := SourceRange.form?_eq_none_of_after
-    (freshRange program) logicalWidth (12443213 + lane.val) (by omega)
+    (freshRange program) logicalWidth (11654479 + lane.val) (by omega)
   have publicNone := SourceRange.form?_eq_none_of_after
-    (freshPublicInputRange program) logicalWidth (12443213 + lane.val) (by omega)
+    (freshPublicInputRange program) logicalWidth (11654479 + lane.val) (by omega)
   have gridNone := SourceGrid.form?_eq_none_of_after
-    (transcriptOutputGrid program) logicalWidth (12443213 + lane.val)
+    (transcriptOutputGrid program) logicalWidth (11654479 + lane.val)
     (by rw [(transcriptGridValues program).2.2.1]; omega)
     (by
       rcases transcriptGridValues program with
@@ -1088,7 +1088,7 @@ theorem substitution_location_form?
           apply Fin.ext
           rfl
         have sourceEq : proofLogicalSource index =
-            PiCCSInputs.proofInputStart + inputIndex.val := by
+            PiCCSInputs.priorChildrenStart + inputIndex.val := by
           rw [← indexEq]
           change proofLogicalSource (proofInputSlot inputIndex) = _
           rw [proofLogicalSource_proofInput]
@@ -1171,7 +1171,7 @@ private theorem programRow_support
           relationLogicalWidth}
     (relation : Lifecycle.ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
-    (index : Fin 32765) :
+    (index : Fin 37317) :
     (PiCCSOrdinaryDirectSource.programRow relation index).VarsSatisfy
       PiCCSOrdinarySourceSupport.Target := by
   exact PiCCSOrdinaryDirectSupport.sourceRows_varsSatisfy relation _
@@ -1189,7 +1189,7 @@ theorem substitution_agrees_on_programRow
     (relation : Lifecycle.ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry program logicalWidth)
-    (index : Fin 32765) :
+    (index : Fin 37317) :
     let row := PiCCSOrdinaryDirectSource.programRow relation index
     Ordinary.AgreesOnTerms (substitution program)
         (PiCCSOrdinaryDirectPlan.sourceMap geometry) row.a.terms ∧
@@ -1221,7 +1221,7 @@ theorem compile_programRow?
     (relation : Lifecycle.ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry program logicalWidth)
-    (index : Fin 32765)
+    (index : Fin 37317)
     (bounded : Layout.ProductionRelation.SourceCompiler.RowBounded
       Spartan.spartanColumnCount
       (PiCCSOrdinaryDirectSource.programRow relation index)) :

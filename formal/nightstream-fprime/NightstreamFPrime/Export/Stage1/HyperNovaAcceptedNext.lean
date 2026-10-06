@@ -93,6 +93,7 @@ theorem terminal_of_memberships
       current := statement.zi
       running := fun _ => running
       pc := 1 })
+    (canonical : ChildrenCanonical running)
     (runningMember : ∀ child,
       CE.Holds (semantics (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)) productionGlobalParams
         (Lifecycle.runningStatement (PerApplicationFixedPoint.relation program fit) running child)
@@ -113,7 +114,7 @@ theorem terminal_of_memberships
       freshWitness := raw.completeAssignment
       pc := 1 }) := by
   apply (PerApplicationTerminal.holds_recursive_iff program fit commitmentSetup statement _).mpr
-  refine ⟨valid, ?_⟩
+  refine ⟨valid, fun _ => canonical, ?_⟩
   refine ⟨(show InRange slotCount 1 from ⟨Nat.le_refl 1, Nat.le_refl 1⟩),
     positive, ?_, ?_, ?_⟩
   · exact congrArg (encHash (publicFits := PerApplicationFixedPoint.publicFits program)) digest
@@ -200,7 +201,7 @@ theorem recursive_extend
     ⟨nonwrap, priorValid.2.1, Stage1.Poseidon2HashChainV1.step_output_length statement.zi advice⟩
   have nextAccepted := terminal_of_memberships application fits productionSetup next
     result children raw nextValid (Nat.zero_lt_succ statement.iteration)
-    digest childrenMember freshMember
+    digest nextWellFormed.2.2.2 childrenMember freshMember
   exact ⟨proof, result, children, raw, roundsEq, outputEq, sampleEq, verified,
     childrenMember, actualAdvice, digest, nextAccepted⟩
 
@@ -281,10 +282,10 @@ theorem base_extend
     exact (by decide : 0 + 1 < goldilocksModulus)
   have priorWellFormed : StateEncoding.WellFormed
       (priorHashPreimage (setup relation productionAjtaiKey context.toList) before) :=
-    ⟨priorFixed, valid.1, rfl⟩
+    ⟨priorFixed, valid.1, rfl, StateEncoding.defaultRunning_canonical⟩
   have nextWellFormed : StateEncoding.WellFormed
       (nextHashPreimage (setup relation productionAjtaiKey context.toList) before after) :=
-    ⟨nextFixed, nonwrap, rfl⟩
+    ⟨nextFixed, nonwrap, rfl, StateEncoding.defaultRunning_canonical⟩
   have freshPublic : before.fresh.publicInputs ⟨0, by decide⟩ =
       encHash (stateHash (priorHashPreimage (setup relation productionAjtaiKey context.toList) before)) := by
     rfl
@@ -310,6 +311,7 @@ theorem base_extend
   have nextAccepted := terminal_of_memberships application fits productionSetup next
     defaultRunning (fun _ => Phi81Relation.EvaluationHomomorphism.BaseLinear.assignmentZero) raw
     nextValid (Nat.zero_lt_succ statement.iteration) digest
+    StateEncoding.defaultRunning_canonical
     (PilotZeroRunning.defaultRunning_holds relation productionAjtaiKey) freshMember
   exact ⟨dummyResult, raw, verified, actualAdvice, digest, nextAccepted⟩
 

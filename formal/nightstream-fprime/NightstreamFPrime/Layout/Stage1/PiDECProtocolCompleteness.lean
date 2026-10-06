@@ -466,7 +466,7 @@ the outer circuit's fixed input prerequisites. No child opening, generated
 phase specification, or generated output value is a premise. -/
 theorem completePrefix_from
     (result : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (priorPc : prior.pc = 1) (advertisedPc : advertised.pc = 1)
+    (priorCanonical : Lifecycle.ChildrenCanonical (prior.running functionIndex))
     (priorContext : prior.verifierKeys functionIndex = context.toList)
     (advertisedContext : advertised.verifierKeys functionIndex = context.toList)
     (accepted : Nifs.PaperNonInteractive.verify (ProductionKey.key relation ajtai)
@@ -501,7 +501,7 @@ theorem completePrefix_from
     (prior.running functionIndex) fresh proof result accepted
   obtain ⟨c, r, cOperations, rOperations, cRowsAtR, _, rSampled, rParent⟩ :=
     PiRLCProtocolCompleteness.completePrefix_from relation ajtai prior priorPublic advertised digest
-      priorFixed advertisedFixed digestFixed values context template priorPc advertisedPc
+      priorFixed advertisedFixed digestFixed values context template priorCanonical
       priorContext advertisedContext cAccepted initial source
   obtain ⟨d, dOperations, rRows, dPhase, dOutput⟩ := completePrefix_after_r relation ajtai
     (prior.running functionIndex) fresh proof result accepted c.current r rOperations rSampled rParent
@@ -535,7 +535,7 @@ the outer circuit's fixed input prerequisites. No child opening, generated
 phase specification, or generated output value is a premise. -/
 theorem completePrefix
     (result : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (priorPc : prior.pc = 1) (advertisedPc : advertised.pc = 1)
+    (priorCanonical : Lifecycle.ChildrenCanonical (prior.running functionIndex))
     (priorContext : prior.verifierKeys functionIndex = context.toList)
     (advertisedContext : advertised.verifierKeys functionIndex = context.toList)
     (accepted : Nifs.PaperNonInteractive.verify (ProductionKey.key relation ajtai)
@@ -563,7 +563,7 @@ theorem completePrefix
             PiDECInputs.phaseOffset d.current ∧
           RunningTransitionInputs.piDecRunningOutput relation d.current = result := by
   exact completePrefix_from relation ajtai prior priorPublic advertised digest priorFixed advertisedFixed
-    digestFixed values context template result priorPc advertisedPc priorContext advertisedContext accepted
+    digestFixed values context template result priorCanonical priorContext advertisedContext accepted
     (PiCCSProtocolCompleteness.environment prior priorPublic advertised digest
       priorFixed advertisedFixed digestFixed values context) (fun _ _ => rfl)
 

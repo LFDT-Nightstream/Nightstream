@@ -59,6 +59,8 @@ private theorem externalInputsSource
     priorStateContext := ?_
     outputStateContext := ?_
     expectedContext := ?_
+    priorStatePacked := ?_
+    priorSign := ?_
     runningPoint := ?_
     runningCommitment := ?_
     runningPublicInput := ?_
@@ -79,6 +81,10 @@ private theorem externalInputsSource
     exact expression_external_source (support.outputStateContext lane)
   · intro lane
     exact expression_external_source (support.expectedContext lane)
+  · intro word
+    exact expression_external_source (support.priorStatePacked word)
+  · intro word lane
+    exact expression_external_source (support.priorSign word lane)
   · intro coordinate
     exact k_external_source (support.runningPoint coordinate)
   · intro source row coefficient

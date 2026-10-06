@@ -151,11 +151,11 @@ private theorem selectedStateWord_eq_prior
         (RunningTransitionSourceSupport.stateStart + index.val) =
       ActualPreimageFraming.priorState
         (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry
-          (PerApplicationFixedPoint.geometry application)) assignment (28 + index.val) := by
+          (PerApplicationFixedPoint.geometry application)) assignment (27810 + index.val) := by
   rw [stateWord_eq_form, RunningTransitionDirectPlan.Location.state_form_eq_pilot]
-  have bounded : 28 + index.val < PilotProduction.stateHashWords := by
+  have bounded : 27810 + index.val < PilotProduction.stateHashWords := by
     have bound := index.isLt
-    change index.val < 11 at bound
+    change index.val < 9 at bound
     rw [PilotProduction.stateHashWords_eq]
     omega
   rw [ActualPreimageFraming.priorState, dif_pos bounded]
@@ -188,7 +188,7 @@ theorem selectedIteration_eq_prior
         (Spartan.pullback (decodedEnv (selectedGeometry application) assignment)) =
       ActualPreimageFraming.priorState
         (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry
-          (PerApplicationFixedPoint.geometry application)) assignment 28 := by
+          (PerApplicationFixedPoint.geometry application)) assignment 27810 := by
   simpa only [Lifecycle.Stage1.RunningTransition.iterationValue,
     RunningTransitionInputs.interface, RunningTransitionInputs.iterationExpr,
     RunningTransitionInputs.iterationWordIndex, Expr.eval, Nat.add_zero,
@@ -200,27 +200,22 @@ Every point, commitment, public input, and evaluation uses the same forms. -/
 theorem selectedOutputRunning_eq_running
     (application : Lifecycle.Stage1.Application.Program)
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application)) :
-    PiCCS.v1_1.StatementAbsorption.evalRunning
-        (RunningTransitionInputs.outputRunningExpr
-          (PerApplicationFixedPoint.logicalWidth application)
-          (PerApplicationFixedPoint.publicFits application))
+    RunningTransitionInputs.outputRunning
+        (PerApplicationFixedPoint.logicalWidth application)
+        (PerApplicationFixedPoint.publicFits application)
         (Spartan.pullback (decodedEnv (selectedGeometry application) assignment)) =
       StateDecoder.running (PerApplicationFixedPoint.logicalWidth application)
         (PerApplicationFixedPoint.publicFits application)
         (ActualPreimageFraming.outputState
           (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry
             (PerApplicationFixedPoint.geometry application)) assignment) := by
-  rw [StateDecoder.evalOutputRunning_eq_running]
-  unfold StateDecoder.running
-  apply congrArg (PiCCSInputs.decodedRunning
-    (PerApplicationFixedPoint.logicalWidth application)
-    (PerApplicationFixedPoint.publicFits application))
-  unfold StateDecoder.externalValues
-  apply congrArg (fun words : Fin PilotProduction.stateHashWords → F =>
-    PilotProduction.ExternalValues.mk words (fun _ => 0)
-      (fun _ => 0) (fun _ => 0))
-  funext word
-  exact selectedOutputWord_eq_next application assignment word
+  apply StateDecoder.running_congr
+  intro word bound
+  have stateBound : word < PilotProduction.stateHashWords := by
+    rw [PilotProduction.stateHashWords_eq]
+    unfold PiCCS.v1_1.StateBinding.contextWordStart at bound
+    omega
+  exact selectedOutputWord_eq_next application assignment ⟨word, stateBound⟩
 
 /-- The sole complete selected row plan contains the running-transition rows.
 This projection preserves the arbitrary assignment and the existing layout. -/
@@ -291,7 +286,7 @@ theorem selectedRowsAndPublic_imply_baseState
     geometry assignment digest publicBound
   have specification := selectedRowsZero_implies_specHolds application fits
     assignment one rows
-  have fieldZero : prior 28 = 0 := by
+  have fieldZero : prior 27810 = 0 := by
     simpa only [StateDecoder.iteration, StateDecoder.natWord_val] using!
       congrArg natWord iterationZero
   have iterationRead := selectedIteration_eq_prior application assignment
@@ -303,15 +298,15 @@ theorem selectedRowsAndPublic_imply_baseState
     funext index
     have bound : index.val < 4 := index.isLt
     have initial := selectedStateWord_eq_prior application assignment
-      ⟨2 + index.val, by change 2 + index.val < 11; omega⟩
+      ⟨1 + index.val, by change 1 + index.val < 9; omega⟩
     have current := selectedStateWord_eq_prior application assignment
-      ⟨7 + index.val, by change 7 + index.val < 11; omega⟩
-    change env (28 + (2 + index.val)) = prior (28 + (2 + index.val)) at initial
-    change env (28 + (7 + index.val)) = prior (28 + (7 + index.val)) at current
-    rw [show 28 + (2 + index.val) = 30 + index.val by omega] at initial
-    rw [show 28 + (7 + index.val) = 35 + index.val by omega] at current
+      ⟨5 + index.val, by change 5 + index.val < 9; omega⟩
+    change env (27810 + (1 + index.val)) = prior (27810 + (1 + index.val)) at initial
+    change env (27810 + (5 + index.val)) = prior (27810 + (5 + index.val)) at current
+    rw [show 27810 + (1 + index.val) = 27811 + index.val by omega] at initial
+    rw [show 27810 + (5 + index.val) = 27815 + index.val by omega] at current
     have native := specification.initialState transitionZero index
-    change env (30 + index.val) = env (35 + index.val) at native
+    change env (27811 + index.val) = env (27815 + index.val) at native
     exact initial.symm.trans (native.trans current)
   · have base := RunningTransitionInputs.spec_typed_base specification transitionZero
     rw [selectedOutputRunning_eq_running] at base

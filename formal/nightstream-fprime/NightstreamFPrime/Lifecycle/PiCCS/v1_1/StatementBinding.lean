@@ -109,15 +109,16 @@ theorem localLength_eq (interface : Interface) (offset : Nat) :
     localLength (Circuit.ops (circuit interface).main offset) = 0 := by
   exact StateBinding.localLength_eq interface.state offset
 
-/-- This boundary emits the 160 canonical state and context assertions. -/
+/-- This boundary emits the 32 domain-chunk and context assertions and the
+4,680 prior child-split assertions. -/
 theorem operations_length (interface : Interface) (offset : Nat) :
-    (Circuit.ops (circuit interface).main offset).length = 160 := by
+    (Circuit.ops (circuit interface).main offset).length = 4712 := by
   exact StateBinding.operations_length interface.state offset
 
 /-- Each state-binding assertion lowers to one direct row. -/
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      160 := by
+      4712 := by
   exact StateBinding.flatConstraints_length interface.state offset
 
 theorem flatConstraints_eq_stateAssertions (interface : Interface)

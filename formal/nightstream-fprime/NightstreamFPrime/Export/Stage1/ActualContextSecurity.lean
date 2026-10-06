@@ -173,7 +173,7 @@ theorem selectedRowsAndTerminal_imply_stepOrCollision
     (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
     (PerApplicationCanonicalPackage.verifierContextDigest fits commitmentSetup)
     application statement payload).mp terminal with
-    ⟨_statementValid, _pcValid, _positive, publicLink, _runningValid, _freshValid⟩
+    ⟨_statementValid, _canonical, _pcValid, _positive, publicLink, _runningValid, _freshValid⟩
   let expected := terminalPreimage application fits commitmentSetup statement payload
   change payload.fresh.publicInputs ⟨0, by decide⟩ = encHash (stateHash expected) at publicLink
   have fixed : (stateHash expected).length = 4 := by
@@ -202,7 +202,7 @@ theorem terminal_implies_rowsAndPublic
     (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
     (PerApplicationCanonicalPackage.verifierContextDigest fits commitmentSetup)
     application statement payload).mp terminal with
-    ⟨_statementValid, _pcValid, _positive, _publicLink, _runningValid, freshValid⟩
+    ⟨_statementValid, _canonical, _pcValid, _positive, _publicLink, _runningValid, freshValid⟩
   have publicLogicalFits : ringDegree * publicRingColumns ≤
       PerApplicationFixedPoint.logicalWidth application := by
     unfold PerApplicationFixedPoint.logicalWidth
@@ -213,6 +213,40 @@ theorem terminal_implies_rowsAndPublic
     (PerApplicationFixedPoint.structuralPlan application fits) fits.carrier
     (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
     payload.fresh payload.freshWitness publicLogicalFits freshValid
+
+/-- The accepted terminal opening checks the canonical child split of the
+decoded prior running instance. -/
+theorem terminal_implies_priorCanonical
+    (statement : TerminalStatement AppState) (payload : TerminalPayload application)
+    (terminal : Stage1.Terminal.HoldsFor (PerApplicationFixedPoint.relation application fits)
+      (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
+      (PerApplicationCanonicalPackage.verifierContextDigest fits commitmentSetup)
+      application statement (.recursive payload)) :
+    ChildrenCanonical (StateDecoder.running (PerApplicationFixedPoint.logicalWidth application)
+      (PerApplicationFixedPoint.publicFits application)
+      (ActualStep.priorState application
+        (ProductionRelation.Plan.logicalAssignment payload.freshWitness))) := by
+  rcases (Stage1.Terminal.holdsFor_recursive_iff
+    (PerApplicationFixedPoint.relation application fits)
+    (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
+    (PerApplicationCanonicalPackage.verifierContextDigest fits commitmentSetup)
+    application statement payload).mp terminal with
+    ⟨_valid, _canonical, _pcValid, _positive, publicLink, _runningValid, _freshValid⟩
+  let assignment := ProductionRelation.Plan.logicalAssignment payload.freshWitness
+  let geometry := PerApplicationFixedPoint.geometry application
+  let expected := terminalPreimage application fits commitmentSetup statement payload
+  have accepted := terminal_implies_rowsAndPublic application fits commitmentSetup
+    statement payload terminal
+  change payload.fresh.publicInputs ⟨0, by decide⟩ = encHash (stateHash expected) at publicLink
+  have publicBound : RecursivePublicOutputPlan.publicInput geometry assignment =
+      encHash (publicFits := RecursivePublicOutputPlan.carrierPublicFits geometry)
+        (stateHash expected) := by
+    rw [RecursivePublicOutputPlan.publicInput_eq_projectPublicInput]
+    exact accepted.2.trans publicLink
+  have one := RecursivePublicOutputPlan.publicEqual_implies_one
+    geometry assignment (stateHash expected) publicBound
+  exact ActualPiCCSInputs.selectedRowsZero_implies_priorCanonical application fits
+    assignment one accepted.1
 
 /-- The terminal's fresh opening supplies the arbitrary assignment, its rows
 and its public input. No extra row, padding, encoder, representation, context
@@ -257,7 +291,7 @@ theorem terminal_implies_preimageOrCollision
     (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
     (PerApplicationCanonicalPackage.verifierContextDigest fits commitmentSetup)
     application statement payload).mp terminal with
-    ⟨valid, pcValid, positive, publicLink, _runningValid, _freshValid⟩
+    ⟨valid, canonical, pcValid, positive, publicLink, _runningValid, _freshValid⟩
   let assignment := ProductionRelation.Plan.logicalAssignment payload.freshWitness
   let actual := decodedNext application assignment
   let expected := terminalPreimage application fits commitmentSetup statement payload
@@ -278,15 +312,23 @@ theorem terminal_implies_preimageOrCollision
         PilotProduction.digestWords, PilotValues.digestWords]
     have counterWord := StateEncoding.serializePreimage_eq_implies_iteration_word_eq
       actual expected keyLength encodedEqual
-    have priorBound := (StateDecoder.preimage_wellFormed
-      (PerApplicationFixedPoint.logicalWidth application)
-      (PerApplicationFixedPoint.publicFits application)
-      (ActualStep.priorState application assignment)).2.1
+    have priorBound := StateDecoder.iteration_lt
+      (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
+      (publicFits := PerApplicationFixedPoint.publicFits application)
+      (ActualStep.priorState application assignment)
     have iteration := StateEncoding.natWord_successor_eq_below_modulus
       (StateDecoder.iteration (ActualStep.priorState application assignment))
       statement.iteration priorBound positive valid.1 counterWord
+    have runningEqual : actual.running functionIndex = expected.running functionIndex :=
+      StateDecoder.running_eq_of_serialized (canonical functionIndex)
+        ((StateDecoder.serializeRunning_running
+            (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
+            (publicFits := PerApplicationFixedPoint.publicFits application)
+            (ActualStep.outputState application assignment)).symm.trans
+          (StateEncoding.serializePreimage_eq_implies_running_eq actual expected
+            encodedEqual))
     have actualWellFormed : StateEncoding.WellFormed actual := by
-      refine ⟨?_, ?_, rfl⟩
+      refine ⟨?_, ?_, rfl, ?_⟩
       · simp [PilotProduction.FixedPreimage, actual, decodedNext, ActualHashSlots.nextPreimage,
           StateDecoder.preimage, PilotProduction.digestWords, PilotValues.digestWords,
           Stage1.Application.stateWordCount]
@@ -294,8 +336,10 @@ theorem terminal_implies_preimageOrCollision
           goldilocksModulus
         rw [iteration]
         exact valid.1
+      · rw [runningEqual]
+        exact canonical functionIndex
     have expectedWellFormed : StateEncoding.WellFormed expected := by
-      refine ⟨⟨?_, valid.2.1, valid.2.2⟩, valid.1, ?_⟩
+      refine ⟨⟨?_, valid.2.1, valid.2.2⟩, valid.1, ?_, canonical functionIndex⟩
       · simp [expected, terminalPreimage, PerApplicationCanonicalPackage.verifierContextDigest,
           PilotProduction.digestWords, PilotValues.digestWords]
       · change payload.pc = 1

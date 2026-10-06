@@ -227,11 +227,43 @@ theorem stateBinding_of_agree_satisfy
     StateBinding.SpecHolds
       (statementBindingInterface (atOffset interface offset)).state
       offset right := by
+  have same : ∀ expression : Expr, expression.VarsSatisfy allowed →
+      expression.eval right = expression.eval left := fun expression supported =>
+    (Expr.eval_eq_of_agree_satisfy expression allowed left right supported agrees).symm
   refine {
     priorCanonical := ?_
     outputCanonical := ?_
     priorContext := ?_
-    outputContext := ?_ }
+    outputContext := ?_
+    priorChildren := ?_ }
+  rotate_left 4
+  · have signSame (word : Fin packedParentWords) (lane : Fin 3) :
+        StateBinding.priorSignValue (statementBindingInterface (atOffset interface offset)).state
+            offset right word lane =
+          StateBinding.priorSignValue (statementBindingInterface (atOffset interface offset)).state
+            offset left word lane :=
+      same _ (by simpa [statementBindingInterface, atOffset] using support.priorSign word lane)
+    have digitsSame (word : Fin packedParentWords) (lane : Fin 3) :
+        StateBinding.priorDigits (statementBindingInterface (atOffset interface offset)).state
+            offset right word lane =
+          StateBinding.priorDigits (statementBindingInterface (atOffset interface offset)).state
+            offset left word lane :=
+      funext fun child => same _ (by
+        simpa [statementBindingInterface, atOffset] using
+          support.runningPublicInput
+            (Fin.cast runningCount_eq_radixChildCount.symm child) (packedColumn word lane))
+    refine ⟨?_, ?_, ?_⟩
+    · intro word lane
+      rw [signSame]
+      exact specification.priorChildren.sign word lane
+    · intro word lane child
+      rw [digitsSame, signSame]
+      exact specification.priorChildren.digit word lane child
+    · intro word
+      rw [same _ (by simpa [statementBindingInterface, atOffset] using
+          support.priorStatePacked word),
+        digitsSame, digitsSame, digitsSame]
+      exact specification.priorChildren.packed word
   · intro word member
     calc
       ((statementBindingInterface (atOffset interface offset)).state.priorState

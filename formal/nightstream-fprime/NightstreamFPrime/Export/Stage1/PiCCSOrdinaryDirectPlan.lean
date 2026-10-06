@@ -241,7 +241,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       rw [sourceEq, RunningTransitionDirectPlan.sourceAssignment_packageSource]
       apply Eq.symm
       apply RunningTransitionDirectPlan.transitionEnv_of_outside program base _ (Location.priorInput index).sourceColumn_lt
-      have indexBound : index.val < 32113 := index.isLt
+      have indexBound : index.val < 27819 := index.isLt
       left
       norm_num [sourceColumn, PilotProduction.priorPreimageStart, PiCCSInputs.phaseOffset_eq] <;> omega
   | freshPublicInput index =>
@@ -267,7 +267,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       rw [sourceEq, RunningTransitionDirectPlan.sourceAssignment_packageSource]
       apply Eq.symm
       apply RunningTransitionDirectPlan.transitionEnv_of_outside program base _ (Location.outputInput index).sourceColumn_lt
-      have indexBound : index.val < 32113 := index.isLt
+      have indexBound : index.val < 27819 := index.isLt
       left
       norm_num [sourceColumn, PilotProduction.outputPreimageStart, PilotProduction.priorPublicInputStart, PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq, Lifecycle.PriorStateHash.publicWidth, Lifecycle.PaperAlgebra.publicRingColumns, Spec.ringDegree, PiCCSInputs.phaseOffset_eq] <;> omega
   | expectedContext index =>
@@ -313,10 +313,10 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
         apply Eq.symm
         apply RunningTransitionDirectPlan.transitionEnv_of_outside program base _ (proofLogicalSource_lt index)
         left
-        have indexBound : index.val < 10872 := by
+        have indexBound : index.val < 15462 := by
           simpa only [proofInputCount_eq] using proof
         rw [proofLogicalSource, dif_pos proof]
-        rw [PiCCSInputs.proofInputStart_eq, PiCCSInputs.phaseOffset_eq]
+        rw [PiCCSInputs.priorChildrenStart_eq, PiCCSInputs.phaseOffset_eq]
         omega
       · by_cases transcript : index.val < proofInputCount + transcriptOutputCount
         · let slot : Fin transcriptOutputCount := ⟨index.val - proofInputCount, by omega⟩
@@ -378,7 +378,7 @@ structure Located (column : Nat) where
   owns : location.sourceColumn = column
 
 def proofInputLocated {column : Nat}
-    (inside : PiCCSOrdinarySourceSupport.InRange PiCCSInputs.proofInputStart
+    (inside : PiCCSOrdinarySourceSupport.InRange PiCCSInputs.priorChildrenStart
       proofInputCount column) : Located column :=
   ⟨.proofLogical (proofInputSlot (rangeIndex inside)), by
     rw [Location.sourceColumn, proofLogicalSource_proofInput,
@@ -502,7 +502,7 @@ def classifySource (column : Nat) : Option (Located column) :=
     some ⟨.expectedContext (rangeIndex context), by
       rw [Location.sourceColumn, rangeIndex_source context]⟩
   else if proofInput : PiCCSOrdinarySourceSupport.InRange
-      PiCCSInputs.proofInputStart proofInputCount column then
+      PiCCSInputs.priorChildrenStart proofInputCount column then
     some (proofInputLocated proofInput)
   else match decodeTranscript column with
     | some decoded =>
@@ -522,9 +522,9 @@ def classifySource (column : Nat) : Option (Located column) :=
           none
 
 private theorem externalProof_in_proofInput {column : Nat}
-    (inside : PiCCSOrdinarySourceSupport.InRange PiCCSInputs.proofInputStart
-      (PiCCSInputs.phaseOffset - PiCCSInputs.proofInputStart) column) :
-    PiCCSOrdinarySourceSupport.InRange PiCCSInputs.proofInputStart
+    (inside : PiCCSOrdinarySourceSupport.InRange PiCCSInputs.priorChildrenStart
+      PiCCSOrdinarySourceSupport.proofInputCount column) :
+    PiCCSOrdinarySourceSupport.InRange PiCCSInputs.priorChildrenStart
       proofInputCount column := by
   exact inside
 
@@ -567,7 +567,7 @@ theorem classifySource_complete {column : Nat}
     rw [dif_neg prior, dif_neg freshPublic, dif_neg output, dif_pos context]
     rfl
   by_cases proofInput : PiCCSOrdinarySourceSupport.InRange
-      PiCCSInputs.proofInputStart proofInputCount column
+      PiCCSInputs.priorChildrenStart proofInputCount column
   · unfold classifySource
     rw [dif_neg prior, dif_neg freshPublic, dif_neg output, dif_neg context,
       dif_pos proofInput]
@@ -707,7 +707,7 @@ private theorem programRow_support
       Phi81CarrierLayout.carrierWidth relationLogicalWidth}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
-    (index : Fin 32765) :
+    (index : Fin 37317) :
     (PiCCSOrdinaryDirectSource.programRow relation index).VarsSatisfy
       PiCCSOrdinarySourceSupport.Target := by
   exact PiCCSOrdinaryDirectSupport.sourceRows_varsSatisfy relation _
@@ -774,7 +774,7 @@ theorem programRow_preserve
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (encodes : Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment program base groupValue))
-    (index : Fin 32765) :
+    (index : Fin 37317) :
     OrdinarySourcePlan.SourceMap.PreservesRow (sourceMap geometry) assignment
       (RunningTransitionDirectPlan.transitionEnv program base)
       (PiCCSOrdinaryDirectSource.programRow relation index)
@@ -796,7 +796,7 @@ def rowForms
       Phi81CarrierLayout.carrierWidth relationLogicalWidth}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
-    (geometry : Geometry program logicalWidth) (index : Fin 32765) :
+    (geometry : Geometry program logicalWidth) (index : Fin 37317) :
     OrdinaryRow.Forms logicalWidth :=
   SourceCompiler.compileRow (sourceMap geometry) (oneColumn geometry)
     (PiCCSOrdinaryDirectSource.programRow relation index)
@@ -840,7 +840,7 @@ def plan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry program logicalWidth) :
-    (plan relation geometry).rowCount = 32765 := by
+    (plan relation geometry).rowCount = 37317 := by
   rfl
 
 /-- The compiled matrix plan depends only on the relation shape. Matrix

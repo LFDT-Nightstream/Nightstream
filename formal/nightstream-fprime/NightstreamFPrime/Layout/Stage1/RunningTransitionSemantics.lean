@@ -1,5 +1,5 @@
 import NightstreamFPrime.Layout.Stage1.RunningTransitionBounds
-import NightstreamFPrime.Layout.Stage1.PiCCSRepresentation
+import NightstreamFPrime.Layout.Stage1.StateDecoder
 
 /-! Owns typed base and recursive semantics for the running transition. -/
 
@@ -13,7 +13,17 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Lifecycle.PiCCS.v1_1
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-/-- Serialized branch equality lifts to exact typed base-state equality. -/
+/-- The typed running value carried by the output state block. -/
+def outputRunning
+    (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth)
+    (env : Env) :
+    Running (logicalWidth := logicalWidth) (publicFits := publicFits) :=
+  StateDecoder.running logicalWidth publicFits
+    (fun word => env (PilotProduction.outputPreimageStart + word))
+
+/-- The base branch stores the default running instance. -/
 theorem spec_typed_base
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -23,14 +33,13 @@ theorem spec_typed_base
       (interface logicalWidth publicFits) phaseOffset env)
     (iterationZero : RunningTransition.iterationValue
       (interface logicalWidth publicFits) phaseOffset env = 0) :
-    StatementAbsorption.evalRunning
-        (outputRunningExpr logicalWidth publicFits) env =
+    outputRunning logicalWidth publicFits env =
       defaultRunning (logicalWidth := logicalWidth)
-        (publicFits := publicFits) := by
-  apply PiCCSRepresentation.serializeRunning_injective
-  exact RunningTransition.spec_serialized_base specification iterationZero
+        (publicFits := publicFits) :=
+  StateDecoder.outputRunning_eq_of_serialized env StateEncoding.defaultRunning_canonical
+    (RunningTransition.spec_serialized_base specification iterationZero)
 
-/-- Serialized branch equality lifts to exact typed PiDEC-output equality. -/
+/-- The recursive branch stores the canonical PiDEC running instance. -/
 theorem spec_typed_recursive
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -39,14 +48,33 @@ theorem spec_typed_recursive
     (specification : RunningTransition.SpecHolds
       (interface logicalWidth publicFits) phaseOffset env)
     (iterationNonzero : RunningTransition.iterationValue
-      (interface logicalWidth publicFits) phaseOffset env ≠ 0) :
-    StatementAbsorption.evalRunning
-        (outputRunningExpr logicalWidth publicFits) env =
+      (interface logicalWidth publicFits) phaseOffset env ≠ 0)
+    (canonical : Lifecycle.ChildrenCanonical
+      (StatementAbsorption.evalRunning (recursiveRunningExpr logicalWidth publicFits) env)) :
+    outputRunning logicalWidth publicFits env =
       StatementAbsorption.evalRunning
-        (recursiveRunningExpr logicalWidth publicFits) env := by
-  apply PiCCSRepresentation.serializeRunning_injective
-  exact RunningTransition.spec_serialized_recursive specification
-    iterationNonzero
+        (recursiveRunningExpr logicalWidth publicFits) env :=
+  StateDecoder.outputRunning_eq_of_serialized env canonical
+    (RunningTransition.spec_serialized_recursive specification iterationNonzero)
+
+/-- Accepted PiDEC public splits make the recursive running instance
+canonical. -/
+theorem recursive_canonical
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (env : Env)
+    (split : NightstreamFPrime.Lifecycle.PiDEC.v1_1.PublicInputSplit.RelationHolds
+      (NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal.publicInputInterface
+        (NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal.atOffset
+          (piDecInterface logicalWidth publicFits) PiDECInputs.phaseOffset))
+      (NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal.publicInputOffset
+        PiDECInputs.phaseOffset) env) :
+    Lifecycle.ChildrenCanonical
+      (StatementAbsorption.evalRunning (recursiveRunningExpr logicalWidth publicFits) env) := by
+  intro column
+  rcases split (digitCoordinate column) with ⟨sign, accepted⟩
+  exact ⟨sign, accepted.constraint⟩
 
 /-- The complete 16-slot running value selected from the exact PiDEC child
 outputs. Child order is the proved `runningCount_eq_childCount` cast. -/
@@ -98,11 +126,12 @@ theorem spec_typed_recursive_eq_piDecOutput
     (specification : RunningTransition.SpecHolds
       (interface logicalWidth publicFits) phaseOffset env)
     (iterationNonzero : RunningTransition.iterationValue
-      (interface logicalWidth publicFits) phaseOffset env ≠ 0) :
-    StatementAbsorption.evalRunning
-        (outputRunningExpr logicalWidth publicFits) env =
+      (interface logicalWidth publicFits) phaseOffset env ≠ 0)
+    (canonical : Lifecycle.ChildrenCanonical
+      (StatementAbsorption.evalRunning (recursiveRunningExpr logicalWidth publicFits) env)) :
+    outputRunning logicalWidth publicFits env =
       piDecRunningOutput relation env := by
-  rw [spec_typed_recursive specification iterationNonzero,
+  rw [spec_typed_recursive specification iterationNonzero canonical,
     eval_recursiveRunningExpr_eq_piDecRunningOutput relation env]
 
 end NightstreamFPrime.Layout.Stage1.RunningTransitionInputs

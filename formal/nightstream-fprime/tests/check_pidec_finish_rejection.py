@@ -35,9 +35,9 @@ def main():
     ccs, commitments, evaluations = original
     require(len(ccs) == 7 and ccs[0] == 2 and len(ccs[3]) == 28,
             "expected a complete baseline C input")
-    require(len(commitments) == 5 and commitments[:4] == [1, 920516, 0, 920516],
+    require(len(commitments) == 5 and commitments[:4] == [1, 835936, 0, 835936],
             "expected complete selected baseline commitments")
-    require(len(evaluations) == 5 and evaluations[:2] == [1, 920516],
+    require(len(evaluations) == 5 and evaluations[:2] == [1, 835936],
             "expected complete selected baseline evaluations")
     require(len(commitments[4]) == 22 and len(commitments[4][21]) == 16 and
             len(commitments[4][21][15]) == 54, "wrong baseline commitment shape")

@@ -54,144 +54,46 @@ private theorem serializeKExpr_mulFree (value : KExpr)
   · exact linear.c0_mulCount
   · exact linear.c1_mulCount
 
-private theorem serializePointExpr_mulFree
-    (point : Fin productionShape.cubeVariables → KExpr)
-    (linear : ∀ coordinate, KExprLinear (point coordinate)) :
-    ∀ expression ∈ StatementAbsorption.serializePointExpr point,
-      R1CS.mulCount expression = 0 := by
-  intro expression member
-  rw [StatementAbsorption.serializePointExpr, List.mem_flatMap] at member
-  rcases member with ⟨coordinate, _coordinateMember, expressionMember⟩
-  exact serializeKExpr_mulFree (point coordinate) (linear coordinate)
-    expression expressionMember
-
-private theorem serializeCommitmentExpr_mulFree
-    (commitment : Fin productionProfile.commitmentWidth →
-      Fin ringDegree → Expr)
-    (linear : ∀ row coefficient,
-      R1CS.mulCount (commitment row coefficient) = 0) :
-    ∀ expression ∈ StatementAbsorption.serializeCommitmentExpr commitment,
-      R1CS.mulCount expression = 0 := by
-  intro expression member
-  rw [StatementAbsorption.serializeCommitmentExpr, List.mem_flatMap] at member
-  rcases member with ⟨row, _rowMember, expressionMember⟩
-  rw [List.mem_map] at expressionMember
-  rcases expressionMember with ⟨coefficient, _coefficientMember, rfl⟩
-  exact linear row coefficient
-
-private theorem serializePublicInputExpr_mulFree
-    {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
-    (input : Fin (FullShape logicalWidth publicFits).publicWidth → Expr)
-    (linear : ∀ column, R1CS.mulCount (input column) = 0) :
-    ∀ expression ∈ StatementAbsorption.serializePublicInputExpr input,
-      R1CS.mulCount expression = 0 := by
-  intro expression member
-  rw [StatementAbsorption.serializePublicInputExpr, List.mem_map] at member
-  rcases member with ⟨column, _columnMember, rfl⟩
-  exact linear column
-
-private theorem serializeEvaluationExpr_mulFree
-    (evaluation : StatementAbsorption.EvaluationExpr)
-    (eval_K : ∀ coefficient, KExprLinear (evaluation.eval_K coefficient))
-    (eval_A : ∀ matrix coefficient,
-      KExprLinear (evaluation.eval_A matrix coefficient)) :
-    ∀ expression ∈ StatementAbsorption.serializeEvaluationExpr evaluation,
-      R1CS.mulCount expression = 0 := by
-  intro expression member
-  rw [StatementAbsorption.serializeEvaluationExpr, List.mem_append] at member
-  rcases member with padMember | matrixMember
-  · rw [List.mem_flatMap] at padMember
-    rcases padMember with ⟨coefficient, _coefficientMember, expressionMember⟩
-    exact serializeKExpr_mulFree (evaluation.eval_K coefficient)
-      (eval_K coefficient) expression expressionMember
-  · rw [List.mem_flatMap] at matrixMember
-    rcases matrixMember with ⟨matrix, _matrixMember, coefficientMember⟩
-    rw [List.mem_flatMap] at coefficientMember
-    rcases coefficientMember with
-      ⟨coefficient, _coefficientMember, expressionMember⟩
-    exact serializeKExpr_mulFree (evaluation.eval_A matrix coefficient)
-      (eval_A matrix coefficient) expression expressionMember
-
-private theorem blockExpr_mulFree (words : List Expr)
-    (linear : ∀ expression ∈ words, R1CS.mulCount expression = 0) :
-    ∀ expression ∈ StatementAbsorption.blockExpr words,
-      R1CS.mulCount expression = 0 := by
-  intro expression member
-  simp only [StatementAbsorption.blockExpr, List.mem_cons] at member
-  rcases member with rfl | wordMember
-  · rfl
-  · exact linear expression wordMember
-
-private theorem serializeRunningExpr_mulFree {logicalWidth : Nat}
+/-- Every hashed running word is affine: the fields are multiplication-free
+and each packed parent word is a constant-weighted sum of child inputs. -/
+private theorem serializeRunningExpr_affine {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (running : StatementAbsorption.RunningExpr logicalWidth publicFits)
     (linear : RunningMulFree running) :
     ∀ expression ∈ StatementAbsorption.serializeRunningExpr running,
-      R1CS.mulCount expression = 0 := by
+      R1CS.IsAffine expression := by
   intro expression member
-  rw [StatementAbsorption.serializeRunningExpr, List.mem_append] at member
-  rcases member with pointMember | groupMember
-  · exact blockExpr_mulFree _
-      (serializePointExpr_mulFree running.point linear.point)
-      expression pointMember
-  · rw [List.mem_flatMap] at groupMember
-    rcases groupMember with ⟨source, _sourceMember, expressionMember⟩
-    simp only [List.mem_append] at expressionMember
-    rcases expressionMember with (commitmentMember | publicMember) |
-      evaluationMember
-    · exact blockExpr_mulFree _
-        (serializeCommitmentExpr_mulFree (running.commitment source)
-          (linear.commitment source)) expression commitmentMember
-    · exact blockExpr_mulFree _
-        (serializePublicInputExpr_mulFree (running.publicInput source)
-          (linear.publicInput source)) expression publicMember
-    · exact blockExpr_mulFree _
-        (serializeEvaluationExpr_mulFree (running.evaluation source)
-          (linear.eval_K source) (linear.eval_A source))
-        expression evaluationMember
+  rcases StatementAbsorption.serializeRunningExpr_mem member with
+    ⟨source, row, coefficient, rfl⟩ | ⟨source, coefficient, kMember⟩ |
+      ⟨source, matrix, coefficient, kMember⟩ | ⟨coordinate, kMember⟩ | ⟨word, rfl⟩
+  · exact isAffine_of_mulCount_zero _ (linear.commitment source row coefficient)
+  · exact isAffine_of_mulCount_zero _
+      (serializeKExpr_mulFree _ (linear.eval_K source coefficient) _ kMember)
+  · exact isAffine_of_mulCount_zero _
+      (serializeKExpr_mulFree _ (linear.eval_A source matrix coefficient) _ kMember)
+  · exact isAffine_of_mulCount_zero _
+      (serializeKExpr_mulFree _ (linear.point coordinate) _ kMember)
+  · exact StatementAbsorption.packWordExpr_parent_closed R1CS.IsAffine
+      R1CS.isAffine_const (fun _ _ => R1CS.IsAffine.add)
+      (fun weight _ => R1CS.IsAffine.const_mul weight) running
+      (fun source column =>
+        isAffine_of_mulCount_zero _ (linear.publicInput source column)) word
 
-theorem runningWord_mulCount {logicalWidth : Nat}
+theorem runningWord_isAffine {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (running : StatementAbsorption.RunningExpr logicalWidth publicFits)
     (linear : RunningMulFree running) (index : RunningTransition.WordIndex) :
-    R1CS.mulCount (RunningTransition.runningWord running index) = 0 := by
+    R1CS.IsAffine (RunningTransition.runningWord running index) := by
   have indexBound : index.val <
       (StatementAbsorption.serializeRunningExpr running).length := by
     rw [StatementAbsorption.serializeRunningExpr_length]
     exact index.isLt
   rw [RunningTransition.runningWord,
     List.getD_eq_get _ _ ⟨index.val, indexBound⟩]
-  exact serializeRunningExpr_mulFree running linear _
+  exact serializeRunningExpr_affine running linear _
     (List.get_mem _ ⟨index.val, indexBound⟩)
-
-def outputMulFree
-    (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
-    RunningMulFree (outputRunningExpr logicalWidth publicFits) := by
-  refine {
-    point := ?_
-    commitment := ?_
-    publicInput := ?_
-    eval_K := ?_
-    eval_A := ?_ }
-  · intro coordinate
-    refine ⟨rfl, rfl, ?_, ?_⟩ <;>
-      simp [outputRunningExpr, outputPoint, outputPairAt, Nonconstant]
-  · intro source row coefficient
-    rfl
-  · intro source column
-    rfl
-  · intro source coefficient
-    refine ⟨rfl, rfl, ?_, ?_⟩ <;>
-      simp [outputRunningExpr, outputEval_K, outputPairAt, Nonconstant]
-  · intro source matrix coefficient
-    refine ⟨rfl, rfl, ?_, ?_⟩ <;>
-      simp [outputRunningExpr, outputEval_A, outputPairAt, Nonconstant]
 
 def recursiveMulFree
     {logicalWidth : Nat}
@@ -245,8 +147,7 @@ private theorem runningWord_affine {logicalWidth : Nat}
       (RunningTransition.runningWord running index - Expr.const
         (RunningTransition.defaultWord
           (logicalWidth := logicalWidth) (publicFits := publicFits) index)) :=
-  R1CS.IsAffine.add
-    (isAffine_of_mulCount_zero _ (runningWord_mulCount running linear index))
+  R1CS.IsAffine.add (runningWord_isAffine running linear index)
     (R1CS.IsAffine.const_mul _ (R1CS.isAffine_const _))
 
 private theorem baseFlag_affine
@@ -280,7 +181,8 @@ private theorem constraintFreshCount_eq_zero
       (baseFlag_affine logicalWidth publicFits)
   · rcases List.mem_ofFn.mp muxMember with ⟨index, rfl⟩
     exact R1CS.constraintFreshCount_rankOne_eq_zero _ _ _
-      (runningWord_affine _ (outputMulFree logicalWidth publicFits) index)
+      (R1CS.IsAffine.add (R1CS.isAffine_var _)
+        (R1CS.IsAffine.const_mul _ (R1CS.isAffine_const _)))
       (R1CS.isAffine_var _)
       (runningWord_affine _ (recursiveMulFree relation) index)
   · rcases List.mem_ofFn.mp stateMember with ⟨index, rfl⟩
@@ -312,7 +214,7 @@ theorem logicalConstraints_length_eq
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    (logicalConstraints logicalWidth publicFits).length = 32079 := by
+    (logicalConstraints logicalWidth publicFits).length = 27800 := by
   exact RunningTransition.flatConstraints_length_eq _ _
 
 theorem totalRowCount_eq
@@ -321,7 +223,7 @@ theorem totalRowCount_eq
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalRowCount (logicalConstraints logicalWidth publicFits) =
-      32079 := by
+      27800 := by
   rw [R1CS.totalRowCount_eq_fresh_add_length,
     totalFreshCount_eq relation, logicalConstraints_length_eq]
 

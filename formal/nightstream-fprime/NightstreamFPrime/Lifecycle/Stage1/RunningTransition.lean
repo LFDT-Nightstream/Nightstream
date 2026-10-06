@@ -25,10 +25,10 @@ open NightstreamFPrime.Circuit.Quadratic
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Lifecycle.PiCCS.v1_1
 
-def exactWordCount : Nat := 32073
+def exactWordCount : Nat := 27794
 def stateWordCount : Nat := 4
 def exactPrivateCount : Nat := 2
-def exactRowCount : Nat := 32079
+def exactRowCount : Nat := 27800
 
 abbrev WordIndex := Fin exactWordCount
 abbrev StateIndex := Fin stateWordCount
@@ -40,7 +40,7 @@ structure Interface (logicalWidth : Nat)
   initialState : Nat → StateIndex → Expr
   currentState : Nat → StateIndex → Expr
   recursive : Nat → StatementAbsorption.RunningExpr logicalWidth publicFits
-  output : Nat → StatementAbsorption.RunningExpr logicalWidth publicFits
+  output : Nat → Fin 27794 → Expr
 
 def iterationValue {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -105,7 +105,7 @@ def muxConstraint {logicalWidth : Nat}
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat)
     (index : WordIndex) : Expr :=
-  (runningWord (interface.output offset) index -
+  (interface.output offset index -
       Expr.const (defaultWord (logicalWidth := logicalWidth)
         (publicFits := publicFits) index)) -
     recursiveFlag interface offset *
@@ -211,7 +211,13 @@ def muxConstraintsFast {logicalWidth : Nat}
       (defaultRunning (logicalWidth := logicalWidth)
         (publicFits := publicFits)))
     (StatementAbsorption.serializeRunningExpr (interface.recursive offset))
-    (StatementAbsorption.serializeRunningExpr (interface.output offset))
+    (List.ofFn (interface.output offset))
+
+private theorem ofFn_getD {Alpha : Type} {count : Nat} (values : Fin count → Alpha)
+    (fallback : Alpha) (index : Fin count) :
+    (List.ofFn values).getD index.val fallback = values index := by
+  rw [List.getD_eq_getElem _ _ (by rw [List.length_ofFn]; exact index.isLt),
+    List.getElem_ofFn]
 
 theorem muxConstraintsFast_eq_muxConstraints {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -221,12 +227,14 @@ theorem muxConstraintsFast_eq_muxConstraints {logicalWidth : Nat}
   rw [muxConstraintsFast, muxConstraints]
   rw [zipWith3_eq_ofFn_getD _ (0 : F) (0 : Expr) (0 : Expr)
     exactWordCount]
-  · rfl
-  · simp [exactWordCount, serializeRunning_length]
-  · simp [exactWordCount,
-      StatementAbsorption.serializeRunningExpr_length]
-  · simp [exactWordCount,
-      StatementAbsorption.serializeRunningExpr_length]
+  · refine congrArg List.ofFn (funext fun index => ?_)
+    rw [ofFn_getD]
+    rfl
+  · rw [serializeRunning_length]
+    rfl
+  · rw [StatementAbsorption.serializeRunningExpr_length]
+    rfl
+  · exact List.length_ofFn
 
 def constraints {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -279,7 +287,7 @@ structure Assumptions {logicalWidth : Nat}
   recursive : ∀ index,
     (runningWord (interface.recursive offset) index).VarsBelow offset
   output : ∀ index,
-    (runningWord (interface.output offset) index).VarsBelow offset
+    (interface.output offset index).VarsBelow offset
 
 /-- Field-level scope certificate for one complete symbolic running vector. -/
 structure RunningBelow {logicalWidth : Nat}
@@ -327,79 +335,6 @@ private theorem serializeKExpr_varsBelow (value : KExpr) (bound : Nat)
   · exact below.1
   · exact below.2
 
-private theorem serializePointExpr_varsBelow
-    (point : Fin productionShape.cubeVariables → KExpr) (bound : Nat)
-    (below : ∀ coordinate, (point coordinate).VarsBelow bound) :
-    ∀ expression ∈ StatementAbsorption.serializePointExpr point,
-      expression.VarsBelow bound := by
-  intro expression member
-  rw [StatementAbsorption.serializePointExpr, List.mem_flatMap] at member
-  rcases member with ⟨coordinate, _coordinateMember, expressionMember⟩
-  exact serializeKExpr_varsBelow (point coordinate) bound (below coordinate)
-    expression expressionMember
-
-private theorem serializeCommitmentExpr_varsBelow
-    (commitment : Fin productionProfile.commitmentWidth →
-      Fin ringDegree → Expr) (bound : Nat)
-    (below : ∀ row coefficient,
-      (commitment row coefficient).VarsBelow bound) :
-    ∀ expression ∈ StatementAbsorption.serializeCommitmentExpr commitment,
-      expression.VarsBelow bound := by
-  intro expression member
-  rw [StatementAbsorption.serializeCommitmentExpr, List.mem_flatMap] at member
-  rcases member with ⟨row, _rowMember, expressionMember⟩
-  rw [List.mem_map] at expressionMember
-  rcases expressionMember with ⟨coefficient, _coefficientMember, rfl⟩
-  exact below row coefficient
-
-private theorem serializePublicInputExpr_varsBelow
-    {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
-    (input : Fin (FullShape logicalWidth publicFits).publicWidth → Expr)
-    (bound : Nat) (below : ∀ column, (input column).VarsBelow bound) :
-    ∀ expression ∈ StatementAbsorption.serializePublicInputExpr input,
-      expression.VarsBelow bound := by
-  intro expression member
-  rw [StatementAbsorption.serializePublicInputExpr, List.mem_map] at member
-  rcases member with ⟨column, _columnMember, rfl⟩
-  exact below column
-
-private theorem serializeEvaluationExpr_varsBelow
-    (evaluation : StatementAbsorption.EvaluationExpr) (bound : Nat)
-    (eval_K : ∀ coefficient,
-      (evaluation.eval_K coefficient).VarsBelow bound)
-    (eval_A : ∀ matrix coefficient,
-      (evaluation.eval_A matrix coefficient).VarsBelow bound) :
-    ∀ expression ∈ StatementAbsorption.serializeEvaluationExpr evaluation,
-      expression.VarsBelow bound := by
-  intro expression member
-  rw [StatementAbsorption.serializeEvaluationExpr, List.mem_append] at member
-  rcases member with padMember | matrixMember
-  · rw [List.mem_flatMap] at padMember
-    rcases padMember with ⟨coefficient, _coefficientMember, expressionMember⟩
-    exact serializeKExpr_varsBelow (evaluation.eval_K coefficient) bound
-      (eval_K coefficient)
-      expression expressionMember
-  · rw [List.mem_flatMap] at matrixMember
-    rcases matrixMember with ⟨matrix, _matrixMember, coefficientMember⟩
-    rw [List.mem_flatMap] at coefficientMember
-    rcases coefficientMember with
-      ⟨coefficient, _coefficientMember, expressionMember⟩
-    exact serializeKExpr_varsBelow
-      (evaluation.eval_A matrix coefficient) bound (eval_A matrix coefficient)
-      expression expressionMember
-
-private theorem blockExpr_varsBelow (words : List Expr) (bound : Nat)
-    (below : ∀ expression ∈ words, expression.VarsBelow bound) :
-    ∀ expression ∈ StatementAbsorption.blockExpr words,
-      expression.VarsBelow bound := by
-  intro expression member
-  simp only [StatementAbsorption.blockExpr, List.mem_cons] at member
-  rcases member with rfl | wordMember
-  · trivial
-  · exact below expression wordMember
-
 theorem serializeRunningExpr_varsBelow {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -408,26 +343,19 @@ theorem serializeRunningExpr_varsBelow {logicalWidth : Nat}
     ∀ expression ∈ StatementAbsorption.serializeRunningExpr running,
       expression.VarsBelow bound := by
   intro expression member
-  rw [StatementAbsorption.serializeRunningExpr, List.mem_append] at member
-  rcases member with pointMember | groupMember
-  · exact blockExpr_varsBelow _ bound
-      (serializePointExpr_varsBelow running.point bound below.point)
-      expression pointMember
-  · rw [List.mem_flatMap] at groupMember
-    rcases groupMember with ⟨source, _sourceMember, expressionMember⟩
-    simp only [List.mem_append] at expressionMember
-    rcases expressionMember with (commitmentMember | publicMember) |
-      evaluationMember
-    · exact blockExpr_varsBelow _ bound
-        (serializeCommitmentExpr_varsBelow (running.commitment source) bound
-          (below.commitment source)) expression commitmentMember
-    · exact blockExpr_varsBelow _ bound
-        (serializePublicInputExpr_varsBelow (running.publicInput source) bound
-          (below.publicInput source)) expression publicMember
-    · exact blockExpr_varsBelow _ bound
-        (serializeEvaluationExpr_varsBelow (running.evaluation source) bound
-          (below.eval_K source) (below.eval_A source))
-        expression evaluationMember
+  rcases StatementAbsorption.serializeRunningExpr_mem member with
+    ⟨source, row, coefficient, rfl⟩ | ⟨source, coefficient, evalK⟩ |
+      ⟨source, matrix, coefficient, evalA⟩ | ⟨coordinate, point⟩ | ⟨word, rfl⟩
+  · exact below.commitment source row coefficient
+  · exact serializeKExpr_varsBelow _ bound (below.eval_K source coefficient) _ evalK
+  · exact serializeKExpr_varsBelow _ bound (below.eval_A source matrix coefficient) _ evalA
+  · exact serializeKExpr_varsBelow _ bound (below.point coordinate) _ point
+  · exact StatementAbsorption.packWordExpr_parent_closed
+      (fun expression => expression.VarsBelow bound) (fun _ => trivial)
+      (fun left right => Expr.VarsBelow.add left right bound)
+      (fun weight value valueBelow =>
+        Expr.VarsBelow.mul (Expr.const weight) value bound trivial valueBelow)
+      running below.publicInput word
 
 theorem runningWord_varsBelow {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -446,17 +374,16 @@ theorem runningWord_varsBelow {logicalWidth : Nat}
 def WordsEqual {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
-    (left right : StatementAbsorption.RunningExpr logicalWidth publicFits)
-    (env : Env) : Prop :=
-  ∀ index, (runningWord left index).eval env =
-    (runningWord right index).eval env
-
-def WordsEqualDefault {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (words : WordIndex → Expr)
     (running : StatementAbsorption.RunningExpr logicalWidth publicFits)
     (env : Env) : Prop :=
-  ∀ index, (runningWord running index).eval env =
+  ∀ index, (words index).eval env = (runningWord running index).eval env
+
+def WordsEqualDefault (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth)
+    (words : WordIndex → Expr) (env : Env) : Prop :=
+  ∀ index, (words index).eval env =
     defaultWord (logicalWidth := logicalWidth) (publicFits := publicFits) index
 
 structure SpecHolds {logicalWidth : Nat}
@@ -468,7 +395,7 @@ structure SpecHolds {logicalWidth : Nat}
     (interface.initialState offset index).eval env =
       (interface.currentState offset index).eval env
   base : iterationValue interface offset env = 0 →
-    WordsEqualDefault (interface.output offset) env
+    WordsEqualDefault logicalWidth publicFits (interface.output offset) env
   recursive : iterationValue interface offset env ≠ 0 →
     WordsEqual (interface.output offset) (interface.recursive offset) env
 
@@ -511,8 +438,8 @@ theorem specHolds_of_agree_below
       rw [← iterationEq]
       exact afterZero
     calc
-      (runningWord (interface.output offset) index).eval after =
-          (runningWord (interface.output offset) index).eval before :=
+      (interface.output offset index).eval after =
+          (interface.output offset index).eval before :=
         Expr.eval_eq_of_agree_below _ offset after before
           (assumptions.output index) agrees
       _ = defaultWord (logicalWidth := logicalWidth)
@@ -523,8 +450,8 @@ theorem specHolds_of_agree_below
       apply afterNonzero
       rw [iterationEq, beforeZero]
     calc
-      (runningWord (interface.output offset) index).eval after =
-          (runningWord (interface.output offset) index).eval before :=
+      (interface.output offset index).eval after =
+          (interface.output offset index).eval before :=
         Expr.eval_eq_of_agree_below _ offset after before
           (assumptions.output index) agrees
       _ = (runningWord (interface.recursive offset) index).eval before :=
@@ -554,8 +481,8 @@ theorem specHolds_of_values_eq
       (runningWord (interface.recursive offset) index).eval before =
         (runningWord (interface.recursive offset) index).eval after)
     (outputEq : ∀ index,
-      (runningWord (interface.output offset) index).eval before =
-        (runningWord (interface.output offset) index).eval after)
+      (interface.output offset index).eval before =
+        (interface.output offset index).eval after)
     (specification : SpecHolds interface offset before) :
     SpecHolds interface offset after := by
   refine {
@@ -579,8 +506,8 @@ theorem specHolds_of_values_eq
       rw [iterationEq]
       exact afterZero
     calc
-      (runningWord (interface.output offset) index).eval after =
-          (runningWord (interface.output offset) index).eval before :=
+      (interface.output offset index).eval after =
+          (interface.output offset index).eval before :=
         (outputEq index).symm
       _ = defaultWord (logicalWidth := logicalWidth)
           (publicFits := publicFits) index :=
@@ -592,8 +519,8 @@ theorem specHolds_of_values_eq
       rw [← iterationEq]
       exact beforeZero
     calc
-      (runningWord (interface.output offset) index).eval after =
-          (runningWord (interface.output offset) index).eval before :=
+      (interface.output offset index).eval after =
+          (interface.output offset index).eval before :=
         (outputEq index).symm
       _ = (runningWord (interface.recursive offset) index).eval before :=
         specification.recursive beforeNonzero index
@@ -703,7 +630,7 @@ theorem flatConstraints_varsBelow {logicalWidth : Nat}
   · rcases List.mem_append.mp muxMember with muxMember | stateMember
     · rcases List.mem_ofFn.mp muxMember with ⟨index, rfl⟩
       have outputBelow := Expr.VarsBelow.mono
-        (runningWord (interface.output offset) index)
+        (interface.output offset index)
         (lower := offset) (upper := offset + exactPrivateCount)
         (assumptions.output index) (by simp [exactPrivateCount])
       have recursiveBelow := Expr.VarsBelow.mono
@@ -801,7 +728,7 @@ private theorem muxConstraint_eval {logicalWidth : Nat}
     (interface : Interface logicalWidth publicFits) (offset : Nat)
     (index : WordIndex) (env : Env) :
     (muxConstraint interface offset index).eval env =
-      ((runningWord (interface.output offset) index).eval env -
+      ((interface.output offset index).eval env -
           defaultWord (logicalWidth := logicalWidth)
             (publicFits := publicFits) index) -
         (recursiveFlag interface offset).eval env *
@@ -956,9 +883,9 @@ private theorem completed_outputWord {logicalWidth : Nat}
     (interface : Interface logicalWidth publicFits) (env : Env)
     (offset : Nat) (assumptions : Assumptions interface offset env)
     (index : WordIndex) :
-    (runningWord (interface.output offset) index).eval
+    (interface.output offset index).eval
         (completeEnv interface env offset) =
-      (runningWord (interface.output offset) index).eval env := by
+      (interface.output offset index).eval env := by
   exact Expr.eval_eq_of_agree_below _ offset _ _
     (assumptions.output index)
     (completed_agrees_below interface env offset)
@@ -1111,10 +1038,9 @@ theorem specHolds_of_cross_values_eq
         (beforeInterface.recursive beforeOffset) before =
       StatementAbsorption.evalRunning
         (afterInterface.recursive afterOffset) after)
-    (outputEq : StatementAbsorption.evalRunning
-        (beforeInterface.output beforeOffset) before =
-      StatementAbsorption.evalRunning
-        (afterInterface.output afterOffset) after)
+    (outputEq : ∀ index,
+      (beforeInterface.output beforeOffset index).eval before =
+        (afterInterface.output afterOffset index).eval after)
     (specification : SpecHolds beforeInterface beforeOffset before) :
     SpecHolds afterInterface afterOffset after := by
   refine {
@@ -1139,10 +1065,8 @@ theorem specHolds_of_cross_values_eq
         iterationValue beforeInterface beforeOffset before = 0 := by
       rw [iterationEq]
       exact afterZero
-    have word := specification.base beforeZero index
-    rw [runningWord_eval] at word ⊢
-    rw [← outputEq]
-    exact word
+    rw [← outputEq index]
+    exact specification.base beforeZero index
   · intro afterNonzero index
     have beforeNonzero :
         iterationValue beforeInterface beforeOffset before ≠ 0 := by
@@ -1151,83 +1075,66 @@ theorem specHolds_of_cross_values_eq
       rw [← iterationEq]
       exact beforeZero
     have word := specification.recursive beforeNonzero index
-    rw [runningWord_eval, runningWord_eval] at word ⊢
-    rw [← outputEq, ← recursiveEq]
+    rw [runningWord_eval] at word ⊢
+    rw [← outputEq index, ← recursiveEq]
     exact word
 
-private theorem serialized_eq_default_of_words {logicalWidth : Nat}
+/-- The committed output running words. -/
+def outputWords {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
-    (running : StatementAbsorption.RunningExpr logicalWidth publicFits)
-    (env : Env) (equal : WordsEqualDefault running env) :
-    serializeRunning (publicFits := publicFits)
-        (StatementAbsorption.evalRunning running env) =
-      serializeRunning (publicFits := publicFits)
-        (defaultRunning (logicalWidth := logicalWidth)
-          (publicFits := publicFits)) := by
-  apply List.ext_get
-  · simp [serializeRunning_length]
-  · intro index leftBound rightBound
-    have exactBound : index < exactWordCount := by
-      simpa [exactWordCount, serializeRunning_length] using leftBound
-    have word := equal ⟨index, exactBound⟩
-    rw [runningWord_eval] at word
-    change _ = (serializeRunning (publicFits := publicFits)
-      (defaultRunning (logicalWidth := logicalWidth)
-        (publicFits := publicFits))).getD index 0 at word
-    rw [List.getD_eq_get _ _ ⟨index, leftBound⟩,
-      List.getD_eq_get _ _ ⟨index, rightBound⟩] at word
-    exact word
+    (interface : Interface logicalWidth publicFits) (offset : Nat) (env : Env) :
+    List F :=
+  List.ofFn fun index => (interface.output offset index).eval env
 
-private theorem serialized_eq_running_of_words {logicalWidth : Nat}
+private theorem ofFn_eq_of_getD {count : Nat} (values : Fin count → F)
+    (words : List F) (length : words.length = count)
+    (each : ∀ index : Fin count, values index = words.getD index.val 0) :
+    List.ofFn values = words := by
+  apply List.ext_getElem
+  · rw [List.length_ofFn, length]
+  · intro index ofFnBound wordsBound
+    rw [List.getElem_ofFn, each, List.getD_eq_getElem _ _ wordsBound]
+
+private theorem outputWords_eq_of_get {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
-    (left right : StatementAbsorption.RunningExpr logicalWidth publicFits)
-    (env : Env) (equal : WordsEqual left right env) :
-    serializeRunning (publicFits := publicFits)
-        (StatementAbsorption.evalRunning left env) =
-      serializeRunning (publicFits := publicFits)
-        (StatementAbsorption.evalRunning right env) := by
-  apply List.ext_get
-  · simp [serializeRunning_length]
-  · intro index leftBound rightBound
-    have exactBound : index < exactWordCount := by
-      simpa [exactWordCount, serializeRunning_length] using leftBound
-    have word := equal ⟨index, exactBound⟩
-    rw [runningWord_eval, runningWord_eval] at word
-    rw [List.getD_eq_get _ _ ⟨index, leftBound⟩,
-      List.getD_eq_get _ _ ⟨index, rightBound⟩] at word
-    exact word
+    (interface : Interface logicalWidth publicFits) (offset : Nat) (env : Env)
+    (words : List F) (length : words.length = exactWordCount)
+    (each : ∀ index : WordIndex,
+      (interface.output offset index).eval env = words.getD index.val 0) :
+    outputWords interface offset env = words :=
+  ofFn_eq_of_getD _ words length each
 
-/-- The base branch selects the exact canonical serialized default running
-instance, including all nonzero framing words. -/
+/-- The base branch selects the exact default running words, which are all
+zero. -/
 theorem spec_serialized_base {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     {interface : Interface logicalWidth publicFits} {offset : Nat}
     {env : Env} (specification : SpecHolds interface offset env)
     (iterationZero : iterationValue interface offset env = 0) :
-    serializeRunning (publicFits := publicFits)
-        (StatementAbsorption.evalRunning (interface.output offset) env) =
+    outputWords interface offset env =
       serializeRunning (publicFits := publicFits)
         (defaultRunning (logicalWidth := logicalWidth)
           (publicFits := publicFits)) :=
-  serialized_eq_default_of_words _ _ (specification.base iterationZero)
+  outputWords_eq_of_get interface offset env _
+    (by rw [serializeRunning_length]; rfl) (specification.base iterationZero)
 
-/-- The recursive branch selects every canonical serialized PiDEC output
-word, with no digest-only substitution. -/
+/-- The recursive branch selects every hashed PiDEC output word, with no
+digest-only substitution. -/
 theorem spec_serialized_recursive {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     {interface : Interface logicalWidth publicFits} {offset : Nat}
     {env : Env} (specification : SpecHolds interface offset env)
     (iterationNonzero : iterationValue interface offset env ≠ 0) :
-    serializeRunning (publicFits := publicFits)
-        (StatementAbsorption.evalRunning (interface.output offset) env) =
+    outputWords interface offset env =
       serializeRunning (publicFits := publicFits)
         (StatementAbsorption.evalRunning (interface.recursive offset) env) :=
-  serialized_eq_running_of_words _ _ _
-    (specification.recursive iterationNonzero)
+  outputWords_eq_of_get interface offset env _
+    (by rw [serializeRunning_length]; rfl) fun index => by
+      rw [specification.recursive iterationNonzero index, runningWord_eval]
 
 /-- The sole logical circuit for the Stage 1 running-instance branch. -/
 def circuit {logicalWidth : Nat}

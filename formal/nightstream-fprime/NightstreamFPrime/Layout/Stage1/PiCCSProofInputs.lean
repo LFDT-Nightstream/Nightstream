@@ -1,4 +1,4 @@
-import NightstreamFPrime.Layout.Stage1.PiCCSRepresentation
+import NightstreamFPrime.Layout.Stage1.StateEncodingCanonical
 import NightstreamFPrime.Lifecycle.VerifierContext
 
 /-!
@@ -13,7 +13,8 @@ Inputs:
 
 Outputs:
 - a 10,872-word canonical proof-input encoding;
-- one environment that preserves the pilot prefix and loads that encoding.
+- the 4,590-word prior child region: child digits, then sign bits;
+- one environment that preserves the pilot prefix and loads both.
 
 Parent coverage:
 - `Lifecycle.PiCCS.v1_1.Formal.evalFresh`;
@@ -32,7 +33,6 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Lifecycle.PiCCS.v1_1
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Layout.Stage1.PiCCSInputs
-open NightstreamFPrime.Layout.Stage1.PiCCSRepresentation
 
 /-- Exactly the prover-owned PiCCS values on the production interface. -/
 structure ProofValues where
@@ -95,16 +95,120 @@ theorem serializeProofInputs_length (values : ProofValues) :
     proofInputColumnCount, freshCommitmentWords, roundMessageWords,
     outputEvaluationWords, productionProfile, ringDegree]
 
-/-- One combined source for the pilot columns and the new PiCCS proof-input
-columns. -/
+private theorem serializeRingF_getD
+    (value : RingF) (coefficient : Fin ringDegree) :
+    (serializeRingF value).getD coefficient.val 0 = value coefficient :=
+  finRange_map_getD value coefficient
+
+private theorem serializeCommitment_getD
+    (commitment : PaperAlgebra.Commitment)
+    (row : Fin productionProfile.commitmentWidth)
+    (coefficient : Fin ringDegree) :
+    (serializeCommitment commitment).getD
+        (row.val * ringDegree + coefficient.val) 0 =
+      commitment row coefficient := by
+  unfold serializeCommitment
+  calc
+    _ = (serializeRingF (commitment row)).getD coefficient.val 0 := by
+      exact finRange_flatMap_getD
+        (fun index => serializeRingF (commitment index))
+        (fun index => serializeRingF_length (commitment index))
+        row coefficient.val coefficient.isLt
+    _ = _ := serializeRingF_getD (commitment row) coefficient
+
+private theorem serializeEvaluations_evalK_getD
+    (evaluations : StrongReduction.EvaluationFamily K productionShape)
+    (coefficient : Fin productionShape.coefficientCount)
+    (component : Fin 2) :
+    (serializeEvaluations evaluations).getD
+        (coefficient.val * 2 + component.val) 0 =
+      (serializeK (evaluations.pad coefficient)).getD component.val 0 := by
+  unfold serializeEvaluations
+  rw [List.getD_append]
+  · exact finRange_flatMap_getD
+      (fun index => serializeK (evaluations.pad index))
+      (fun index => serializeK_length (evaluations.pad index))
+      coefficient component.val component.isLt
+  · rw [serializeEvalK_length]
+    have coefficientBound := coefficient.isLt
+    have componentBound := component.isLt
+    norm_num [productionShape, ringDegree,
+      Phi81MatrixSource.phi81Shape] at coefficientBound componentBound ⊢
+    omega
+
+private theorem serializeEvaluations_evalA_getD
+    (evaluations : StrongReduction.EvaluationFamily K productionShape)
+    (matrix : Fin productionShape.matrixCount)
+    (coefficient : Fin productionShape.coefficientCount)
+    (component : Fin 2) :
+    (serializeEvaluations evaluations).getD
+        (108 + matrix.val * 108 + coefficient.val * 2 + component.val) 0 =
+      (serializeK (evaluations.matrix matrix coefficient)).getD
+        component.val 0 := by
+  have padLength : (serializeEvalK evaluations).length = 108 := by
+    rw [serializeEvalK_length]
+    rfl
+  unfold serializeEvaluations
+  rw [List.getD_append_right _ _ _ _ (by rw [padLength]; omega), padLength]
+  have shifted :
+      108 + matrix.val * 108 + coefficient.val * 2 + component.val - 108 =
+        matrix.val * 108 + (coefficient.val * 2 + component.val) := by
+    omega
+  rw [shifted]
+  have coefficientBound := coefficient.isLt
+  have componentBound := component.isLt
+  have innerBound : coefficient.val * 2 + component.val < 108 := by
+    norm_num [productionShape, ringDegree,
+      Phi81MatrixSource.phi81Shape] at coefficientBound
+    norm_num at componentBound
+    omega
+  calc
+    _ = ((List.finRange productionShape.coefficientCount).flatMap
+        (fun index => serializeK (evaluations.matrix matrix index))).getD
+          (coefficient.val * 2 + component.val) 0 :=
+      finRange_flatMap_getD
+        (fun index =>
+          (List.finRange productionShape.coefficientCount).flatMap
+            (fun coefficient => serializeK (evaluations.matrix index coefficient)))
+        (fun _ => by simp [productionShape, ringDegree, Phi81MatrixSource.phi81Shape])
+        matrix (coefficient.val * 2 + component.val) innerBound
+    _ = _ :=
+      finRange_flatMap_getD
+        (fun index => serializeK (evaluations.matrix matrix index))
+        (fun index => serializeK_length (evaluations.matrix matrix index))
+        coefficient component.val component.isLt
+
+/-- The sign bit of one prior parent coordinate: one on the negative branch,
+so the common digit sign is `1 - 2 · bit`. -/
+def signWord (parent : F) : F :=
+  if Spec.Phi81Relation.PiDECAlgebra.Radix.isNonnegative parent then 0 else 1
+
+/-- The prior child region: the sixteen child public inputs, child-major,
+then one sign bit per parent coordinate. -/
+def priorChildWords
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) :
+    List F :=
+  serializeChildPublicInputs (publicFits := publicFits) running ++
+    (List.finRange (FullShape logicalWidth publicFits).publicWidth).map fun column =>
+      signWord (parentPublic running column)
+
+/-- One combined source for the pilot columns, the prior child region, and
+the new PiCCS proof-input columns. -/
 structure ExternalValues where
   pilot : PilotProduction.ExternalValues
+  children : List F
   proof : ProofValues
 
-/-- Load the pilot prefix unchanged, then the canonical PiCCS proof words. -/
+/-- Load the pilot prefix unchanged, then the child region, then the
+canonical PiCCS proof words. -/
 def loadExternal (values : ExternalValues) : Env := fun index =>
-  if index < proofInputStart then
+  if index < priorChildrenStart then
     PilotProduction.loadExternal values.pilot index
+  else if index < proofInputStart then
+    values.children.getD (index - priorChildrenStart) 0
   else
     (serializeProofInputs values.proof).getD (index - proofInputStart) 0
 
@@ -126,7 +230,7 @@ theorem loadExpectedContext_read (env : Env) (context : VerifierContext.Digest4)
       VerifierContext.Digest4.toList]
 
 /-- Loading context preserves every other source coordinate, including the
-pilot prefix and the proof input starting immediately after these slots. -/
+pilot prefix and the child region starting immediately after these slots. -/
 theorem loadExpectedContext_agreesOutside (env : Env)
     (context : VerifierContext.Digest4) :
     AgreesOutside env (loadExpectedContext env context)
@@ -148,22 +252,30 @@ theorem loadExpectedContext_agreesOutside (env : Env)
     if_neg third, if_neg fourth]
 
 theorem eval_pilotPrefix (values : ExternalValues) (index : Nat)
-    (bound : index < proofInputStart) :
+    (bound : index < priorChildrenStart) :
     loadExternal values index =
       PilotProduction.loadExternal values.pilot index := by
   simp [loadExternal, bound]
+
+theorem eval_childWord (values : ExternalValues) (index : Nat)
+    (bound : index < priorChildrenWords) :
+    loadExternal values (priorChildrenStart + index) =
+      values.children.getD index 0 := by
+  have notPilot : ¬ priorChildrenStart + index < priorChildrenStart := by omega
+  have inRegion : priorChildrenStart + index < proofInputStart := by
+    unfold proofInputStart
+    omega
+  simp [loadExternal, notPilot, inRegion]
 
 theorem eval_proofWord (values : ExternalValues)
     (index : Fin proofInputColumnCount) :
     loadExternal values (proofInputStart + index.val) =
       (serializeProofInputs values.proof).getD index.val 0 := by
-  unfold loadExternal
-  split
-  · omega
-  · have shifted :
-        proofInputStart + index.val - proofInputStart = index.val := by
-      omega
-    rw [shifted]
+  have notPilot : ¬ proofInputStart + index.val < priorChildrenStart := by
+    unfold proofInputStart
+    omega
+  have notRegion : ¬ proofInputStart + index.val < proofInputStart := by omega
+  simp [loadExternal, notPilot, notRegion]
 
 private def freshCommitmentWordIndex
     (row : Fin productionProfile.commitmentWidth)
@@ -252,7 +364,7 @@ theorem eval_freshPublicInput
     simpa [PilotProduction.priorInterface_publicInput_apply,
       PilotProduction.priorPublicInput] using loaded
   · have columnBound := column.isLt
-    norm_num [proofInputStart, expectedContextStart, expectedContextWords,
+    norm_num [priorChildrenStart, expectedContextStart, expectedContextWords,
       PilotProduction.priorPublicInputStart,
       PilotProduction.priorPreimageStart, PilotProduction.stateHashWords,
       PilotProduction.digestWords,
@@ -482,9 +594,9 @@ private theorem serializeOutputSource_length
     (values : ProofValues)
     (source : Fin productionShape.sourceCount) :
     (serializeEvaluations (outputEvaluation values source)).length =
-      runningEvaluationWords := by
+      outputEvaluationSourceWords := by
   rw [serializeEvaluations_length]
-  norm_num [runningEvaluationWords, productionShape, productionProfile,
+  norm_num [outputEvaluationSourceWords, productionShape, productionProfile,
     ringDegree, Phi81MatrixSource.phi81Shape]
 
 private theorem serializeOutput_evalK_getD
@@ -493,7 +605,7 @@ private theorem serializeOutput_evalK_getD
     (coefficient : Fin productionShape.coefficientCount)
     (component : Fin 2) :
     (serializeOutput values).getD
-        (source.val * runningEvaluationWords +
+        (source.val * outputEvaluationSourceWords +
           coefficient.val * 2 + component.val) 0 =
       (serializeK (values.outputEval_K source coefficient)).getD
         component.val 0 := by
@@ -501,11 +613,11 @@ private theorem serializeOutput_evalK_getD
   have coefficientBound := coefficient.isLt
   have componentBound := component.isLt
   have innerBound : coefficient.val * 2 + component.val <
-      runningEvaluationWords := by
+      outputEvaluationSourceWords := by
     norm_num [productionShape, ringDegree,
       Phi81MatrixSource.phi81Shape] at coefficientBound
     norm_num at componentBound
-    norm_num [runningEvaluationWords]
+    norm_num [outputEvaluationSourceWords]
     omega
   calc
     _ = (serializeEvaluations (outputEvaluation values source)).getD
@@ -527,7 +639,7 @@ private theorem serializeOutput_evalA_getD
     (coefficient : Fin productionShape.coefficientCount)
     (component : Fin 2) :
     (serializeOutput values).getD
-        (source.val * runningEvaluationWords + 108 + matrix.val * 108 +
+        (source.val * outputEvaluationSourceWords + 108 + matrix.val * 108 +
           coefficient.val * 2 + component.val) 0 =
       (serializeK
         (values.outputEval_A source matrix coefficient)).getD
@@ -538,13 +650,13 @@ private theorem serializeOutput_evalA_getD
   have componentBound := component.isLt
   have innerBound :
       108 + matrix.val * 108 + coefficient.val * 2 + component.val <
-        runningEvaluationWords := by
+        outputEvaluationSourceWords := by
     norm_num [productionShape, productionProfile,
       Phi81MatrixSource.phi81Shape] at matrixBound
     norm_num [productionShape, ringDegree,
       Phi81MatrixSource.phi81Shape] at coefficientBound
     norm_num at componentBound
-    norm_num [runningEvaluationWords]
+    norm_num [outputEvaluationSourceWords]
     omega
   calc
     _ = (serializeEvaluations (outputEvaluation values source)).getD
@@ -588,15 +700,15 @@ private theorem serializeProofInputs_outputEvalK_getD
     (component : Fin 2) :
     (serializeProofInputs values).getD
         (freshCommitmentWords + roundMessageWords +
-          source.val * runningEvaluationWords +
+          source.val * outputEvaluationSourceWords +
           coefficient.val * 2 + component.val) 0 =
       (serializeK (values.outputEval_K source coefficient)).getD
         component.val 0 := by
   rw [show freshCommitmentWords + roundMessageWords +
-      source.val * runningEvaluationWords + coefficient.val * 2 +
+      source.val * outputEvaluationSourceWords + coefficient.val * 2 +
         component.val =
     freshCommitmentWords + roundMessageWords +
-      (source.val * runningEvaluationWords + coefficient.val * 2 +
+      (source.val * outputEvaluationSourceWords + coefficient.val * 2 +
         component.val) by omega]
   rw [serializeProofInputs_output_getD]
   exact serializeOutput_evalK_getD
@@ -610,16 +722,16 @@ private theorem serializeProofInputs_outputEvalA_getD
     (component : Fin 2) :
     (serializeProofInputs values).getD
         (freshCommitmentWords + roundMessageWords +
-          source.val * runningEvaluationWords + 108 + matrix.val * 108 +
+          source.val * outputEvaluationSourceWords + 108 + matrix.val * 108 +
           coefficient.val * 2 + component.val) 0 =
       (serializeK
         (values.outputEval_A source matrix coefficient)).getD
           component.val 0 := by
   rw [show freshCommitmentWords + roundMessageWords +
-      source.val * runningEvaluationWords + 108 + matrix.val * 108 +
+      source.val * outputEvaluationSourceWords + 108 + matrix.val * 108 +
         coefficient.val * 2 + component.val =
     freshCommitmentWords + roundMessageWords +
-      (source.val * runningEvaluationWords + 108 + matrix.val * 108 +
+      (source.val * outputEvaluationSourceWords + 108 + matrix.val * 108 +
         coefficient.val * 2 + component.val) by omega]
   rw [serializeProofInputs_output_getD]
   exact serializeOutput_evalA_getD
@@ -630,7 +742,7 @@ private def outputEvalKProofWordIndex
     (coefficient : Fin productionShape.coefficientCount)
     (component : Fin 2) : Fin proofInputColumnCount :=
   ⟨freshCommitmentWords + roundMessageWords +
-      source.val * runningEvaluationWords +
+      source.val * outputEvaluationSourceWords +
       coefficient.val * 2 + component.val, by
     have sourceBound := source.isLt
     have coefficientBound := coefficient.isLt
@@ -641,7 +753,7 @@ private def outputEvalKProofWordIndex
       Phi81MatrixSource.phi81Shape] at coefficientBound
     norm_num at componentBound
     norm_num [proofInputColumnCount, freshCommitmentWords,
-      roundMessageWords, outputEvaluationWords, runningEvaluationWords]
+      roundMessageWords, outputEvaluationWords, outputEvaluationSourceWords]
     omega⟩
 
 private def outputEvalAProofWordIndex
@@ -650,7 +762,7 @@ private def outputEvalAProofWordIndex
     (coefficient : Fin productionShape.coefficientCount)
     (component : Fin 2) : Fin proofInputColumnCount :=
   ⟨freshCommitmentWords + roundMessageWords +
-      source.val * runningEvaluationWords + 108 + matrix.val * 108 +
+      source.val * outputEvaluationSourceWords + 108 + matrix.val * 108 +
       coefficient.val * 2 + component.val, by
     have sourceBound := source.isLt
     have matrixBound := matrix.isLt
@@ -663,7 +775,7 @@ private def outputEvalAProofWordIndex
       Phi81MatrixSource.phi81Shape] at coefficientBound
     norm_num at componentBound
     norm_num [proofInputColumnCount, freshCommitmentWords,
-      roundMessageWords, outputEvaluationWords, runningEvaluationWords]
+      roundMessageWords, outputEvaluationWords, outputEvaluationSourceWords]
     omega⟩
 
 private theorem eval_outputEvalKComponent
@@ -672,21 +784,21 @@ private theorem eval_outputEvalKComponent
     (coefficient : Fin productionShape.coefficientCount)
     (component : Fin 2) :
     loadExternal values
-        (outputEvaluationStart + source.val * runningEvaluationWords +
+        (outputEvaluationStart + source.val * outputEvaluationSourceWords +
           coefficient.val * 2 + component.val) =
       (serializeK (values.proof.outputEval_K source coefficient)).getD
         component.val 0 := by
   rw [show outputEvaluationStart =
     proofInputStart + freshCommitmentWords + roundMessageWords by rfl]
   rw [show proofInputStart + freshCommitmentWords + roundMessageWords +
-      source.val * runningEvaluationWords + coefficient.val * 2 +
+      source.val * outputEvaluationSourceWords + coefficient.val * 2 +
         component.val =
     proofInputStart +
       (freshCommitmentWords + roundMessageWords +
-        source.val * runningEvaluationWords + coefficient.val * 2 +
+        source.val * outputEvaluationSourceWords + coefficient.val * 2 +
           component.val) by omega]
   rw [show freshCommitmentWords + roundMessageWords +
-      source.val * runningEvaluationWords + coefficient.val * 2 +
+      source.val * outputEvaluationSourceWords + coefficient.val * 2 +
         component.val =
     (outputEvalKProofWordIndex source coefficient component).val by rfl]
   rw [eval_proofWord]
@@ -700,7 +812,7 @@ private theorem eval_outputEvalAComponent
     (coefficient : Fin productionShape.coefficientCount)
     (component : Fin 2) :
     loadExternal values
-        (outputEvaluationStart + source.val * runningEvaluationWords + 108 +
+        (outputEvaluationStart + source.val * outputEvaluationSourceWords + 108 +
           matrix.val * 108 + coefficient.val * 2 + component.val) =
       (serializeK
         (values.proof.outputEval_A source matrix coefficient)).getD
@@ -708,14 +820,14 @@ private theorem eval_outputEvalAComponent
   rw [show outputEvaluationStart =
     proofInputStart + freshCommitmentWords + roundMessageWords by rfl]
   rw [show proofInputStart + freshCommitmentWords + roundMessageWords +
-      source.val * runningEvaluationWords + 108 + matrix.val * 108 +
+      source.val * outputEvaluationSourceWords + 108 + matrix.val * 108 +
         coefficient.val * 2 + component.val =
     proofInputStart +
       (freshCommitmentWords + roundMessageWords +
-        source.val * runningEvaluationWords + 108 + matrix.val * 108 +
+        source.val * outputEvaluationSourceWords + 108 + matrix.val * 108 +
           coefficient.val * 2 + component.val) by omega]
   rw [show freshCommitmentWords + roundMessageWords +
-      source.val * runningEvaluationWords + 108 + matrix.val * 108 +
+      source.val * outputEvaluationSourceWords + 108 + matrix.val * 108 +
         coefficient.val * 2 + component.val =
     (outputEvalAProofWordIndex source matrix coefficient component).val by rfl]
   rw [eval_proofWord]
@@ -831,6 +943,7 @@ def relationInterface
   priorState := (interface logicalWidth publicFits).priorState
   outputState := (interface logicalWidth publicFits).outputState
   expectedContext := (interface logicalWidth publicFits).expectedContext
+  priorSign := (interface logicalWidth publicFits).priorSign
   running := (interface logicalWidth publicFits).running
   fresh := (interface logicalWidth publicFits).fresh
   round := fun offset roundIndex => relationMessage relation
@@ -914,7 +1027,7 @@ private theorem evalProof_output
         (loadExternal values) := by
   rfl
 
-private theorem evalRunning_relationInterface
+theorem evalRunning_relationInterface
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -955,80 +1068,6 @@ theorem evalProof_eq
   · rfl
   · rfl
 
-private theorem pilotIndex_beforeProof
-    (index : Fin PilotProduction.stateHashWords) :
-    index.val < proofInputStart := by
-  have indexBound := index.isLt
-  norm_num [proofInputStart, expectedContextStart, expectedContextWords,
-    PilotProduction.stateHashWords_eq] at *
-  omega
-
-private theorem eval_runningPoint_eq_pilot
-    (values : ExternalValues)
-    (coordinate : Fin productionShape.cubeVariables) :
-    (runningPoint coordinate).eval (loadExternal values) =
-      (runningPoint coordinate).eval
-        (PilotProduction.loadExternal values.pilot) := by
-  apply congrArg₂ K.mk
-  · exact eval_pilotPrefix values _
-      (pilotIndex_beforeProof (runningPointC0Index coordinate))
-  · exact eval_pilotPrefix values _
-      (pilotIndex_beforeProof (runningPointC1Index coordinate))
-
-private theorem eval_runningCommitment_eq_pilot
-    (values : ExternalValues)
-    (source : Fin productionShape.runningCount)
-    (row : Fin productionProfile.commitmentWidth)
-    (coefficient : Fin ringDegree) :
-    (runningCommitment source row coefficient).eval (loadExternal values) =
-      (runningCommitment source row coefficient).eval
-        (PilotProduction.loadExternal values.pilot) := by
-  exact eval_pilotPrefix values _
-    (pilotIndex_beforeProof
-      (runningCommitmentIndex source row coefficient))
-
-private theorem eval_runningPublicInput_eq_pilot
-    {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
-    (values : ExternalValues)
-    (source : Fin productionShape.runningCount)
-    (column : Fin (FullShape logicalWidth publicFits).publicWidth) :
-    (runningPublicInput source column).eval (loadExternal values) =
-      (runningPublicInput source column).eval
-        (PilotProduction.loadExternal values.pilot) := by
-  exact eval_pilotPrefix values _
-    (pilotIndex_beforeProof (runningPublicInputIndex source column))
-
-private theorem eval_runningEvalK_eq_pilot
-    (values : ExternalValues)
-    (source : Fin productionShape.runningCount)
-    (coefficient : Fin productionShape.coefficientCount) :
-    (runningEval_K source coefficient).eval (loadExternal values) =
-      (runningEval_K source coefficient).eval
-        (PilotProduction.loadExternal values.pilot) := by
-  apply congrArg₂ K.mk
-  · exact eval_pilotPrefix values _
-      (pilotIndex_beforeProof (runningEval_KIndex source coefficient 0))
-  · exact eval_pilotPrefix values _
-      (pilotIndex_beforeProof (runningEval_KIndex source coefficient 1))
-
-private theorem eval_runningEvalA_eq_pilot
-    (values : ExternalValues)
-    (source : Fin productionShape.runningCount)
-    (matrix : Fin productionShape.matrixCount)
-    (coefficient : Fin productionShape.coefficientCount) :
-    (runningEval_A source matrix coefficient).eval (loadExternal values) =
-      (runningEval_A source matrix coefficient).eval
-        (PilotProduction.loadExternal values.pilot) := by
-  apply congrArg₂ K.mk
-  · exact eval_pilotPrefix values _
-      (pilotIndex_beforeProof
-        (runningEval_AIndex source matrix coefficient 0))
-  · exact eval_pilotPrefix values _
-      (pilotIndex_beforeProof
-        (runningEval_AIndex source matrix coefficient 1))
-
 private theorem cubePoint_ext
     {Field : Type} {variableCount : Nat}
     (left right : CubePoint Field variableCount)
@@ -1060,39 +1099,6 @@ private theorem running_ext
   simp only [NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Running.mk.injEq]
   exact ⟨point, commitments, publicInputs, evaluations⟩
 
-/-- Extending the pilot environment with proof-input words cannot change the
-PiCCS running statement. -/
-theorem evalRunning_eq_pilot
-    {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
-    (values : ExternalValues) :
-    StatementAbsorption.evalRunning (runningExpr logicalWidth publicFits)
-        (loadExternal values) =
-      StatementAbsorption.evalRunning (runningExpr logicalWidth publicFits)
-        (PilotProduction.loadExternal values.pilot) := by
-  apply running_ext
-  · apply cubePoint_ext
-    change
-      List.ofFn (fun coordinate =>
-        (runningPoint coordinate).eval (loadExternal values)) =
-      List.ofFn (fun coordinate =>
-        (runningPoint coordinate).eval
-          (PilotProduction.loadExternal values.pilot))
-    apply congrArg List.ofFn
-    funext coordinate
-    exact eval_runningPoint_eq_pilot values coordinate
-  · funext source row coefficient
-    exact eval_runningCommitment_eq_pilot values source row coefficient
-  · funext source column
-    exact eval_runningPublicInput_eq_pilot values source column
-  · funext source
-    apply evaluationFamily_ext
-    · funext coefficient
-      exact eval_runningEvalK_eq_pilot values source coefficient
-    · funext matrix coefficient
-      exact eval_runningEvalA_eq_pilot values source matrix coefficient
-
 /-- Concrete protocol values for the pilot plus one typed PiCCS proof input. -/
 def protocolValues
     {logicalWidth : Nat}
@@ -1111,6 +1117,7 @@ def protocolValues
     (proofValues : ProofValues) : ExternalValues where
   pilot := PilotProduction.protocolValues prior priorPublic outputPreimage
     digest priorFixed outputFixed digestFixed
+  children := priorChildWords (prior.running functionIndex)
   proof := proofValues
 
 def protocolEnv
@@ -1131,37 +1138,6 @@ def protocolEnv
   loadExternal (protocolValues prior priorPublic outputPreimage digest
     priorFixed outputFixed digestFixed proofValues)
 
-/-- The combined protocol environment presents the exact authoritative prior
-running instance to PiCCS. -/
-theorem evalRunning_protocolEnv_eq_priorRunning
-    {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
-    (prior : HashPreimage
-      (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (priorPublic : PublicInput
-      (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (outputPreimage : HashPreimage
-      (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (digest : Digest)
-    (priorFixed : PilotProduction.FixedPreimage prior)
-    (outputFixed : PilotProduction.FixedPreimage outputPreimage)
-    (digestFixed : digest.length = PilotProduction.digestWords)
-    (proofValues : ProofValues) :
-    StatementAbsorption.evalRunning (runningExpr logicalWidth publicFits)
-        (protocolEnv prior priorPublic outputPreimage digest
-          priorFixed outputFixed digestFixed proofValues) =
-      prior.running functionIndex := by
-  calc
-    _ = StatementAbsorption.evalRunning
-        (runningExpr logicalWidth publicFits)
-        (PilotProduction.protocolEnv prior priorPublic outputPreimage digest
-          priorFixed outputFixed digestFixed) := by
-      exact evalRunning_eq_pilot
-        (protocolValues prior priorPublic outputPreimage digest
-          priorFixed outputFixed digestFixed proofValues)
-    _ = _ := PiCCSRepresentation.evalRunning_protocolEnv_eq_priorRunning
-      prior priorPublic outputPreimage digest priorFixed outputFixed digestFixed
 
 /-- Exact semantic fresh instance: the proof commitment and the lifecycle
 public input. -/
@@ -1179,31 +1155,6 @@ def protocolFresh
       productionShape where
   commitments := fun _ => proofValues.freshCommitment
   publicInputs := fun _ => priorPublic
-
-/-- Relation-typed parent view of the authoritative running instance. -/
-theorem formalEvalRunning_protocolEnv_eq
-    {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
-    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (prior : HashPreimage
-      (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (priorPublic : PublicInput
-      (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (outputPreimage : HashPreimage
-      (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (digest : Digest)
-    (priorFixed : PilotProduction.FixedPreimage prior)
-    (outputFixed : PilotProduction.FixedPreimage outputPreimage)
-    (digestFixed : digest.length = PilotProduction.digestWords)
-    (proofValues : ProofValues) :
-    Formal.evalRunning (relationInterface relation) phaseOffset
-        (protocolEnv prior priorPublic outputPreimage digest
-          priorFixed outputFixed digestFixed proofValues) =
-      prior.running functionIndex := by
-  rw [evalRunning_relationInterface]
-  exact evalRunning_protocolEnv_eq_priorRunning prior priorPublic outputPreimage
-    digest priorFixed outputFixed digestFixed proofValues
 
 /-- Relation-typed parent view of the exact fresh instance. -/
 theorem formalEvalFresh_protocolEnv_eq
@@ -1260,45 +1211,6 @@ theorem formalEvalProof_protocolEnv_eq
     (protocolValues prior priorPublic outputPreimage digest
       priorFixed outputFixed digestFixed proofValues) template
 
-/-- Complete semantic coverage of every caller-owned value read by the
-production PiCCS parent. -/
-theorem protocolInputs_eq
-    {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
-    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (prior : HashPreimage
-      (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (priorPublic : PublicInput
-      (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (outputPreimage : HashPreimage
-      (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (digest : Digest)
-    (priorFixed : PilotProduction.FixedPreimage prior)
-    (outputFixed : PilotProduction.FixedPreimage outputPreimage)
-    (digestFixed : digest.length = PilotProduction.digestWords)
-    (proofValues : ProofValues)
-    (template : Proof 8) :
-    Formal.evalRunning (relationInterface relation) phaseOffset
-        (protocolEnv prior priorPublic outputPreimage digest
-          priorFixed outputFixed digestFixed proofValues) =
-        prior.running functionIndex ∧
-      Formal.evalFresh (relationInterface relation) phaseOffset
-          (protocolEnv prior priorPublic outputPreimage digest
-            priorFixed outputFixed digestFixed proofValues) =
-        protocolFresh logicalWidth publicFits priorPublic proofValues ∧
-      Formal.evalProof relation (relationInterface relation) phaseOffset
-          (protocolEnv prior priorPublic outputPreimage digest
-            priorFixed outputFixed digestFixed proofValues)
-          (relationProof relation proofValues template) =
-        relationProof relation proofValues template := by
-  exact ⟨formalEvalRunning_protocolEnv_eq relation prior priorPublic
-      outputPreimage digest priorFixed outputFixed digestFixed proofValues,
-    formalEvalFresh_protocolEnv_eq relation prior priorPublic outputPreimage
-      digest priorFixed outputFixed digestFixed proofValues,
-    formalEvalProof_protocolEnv_eq relation prior priorPublic outputPreimage
-      digest priorFixed outputFixed digestFixed proofValues template⟩
-
 /-- Loading the selected context preserves the exact running, fresh and proof
 inputs. Their source ranges exclude the four context slots, so this applies
 to `protocolEnv` without assuming agreement on the entire phase prefix. -/
@@ -1320,19 +1232,25 @@ theorem loadExpectedContext_inputs_eq
       Formal.evalProof relation (relationInterface relation) phaseOffset env template := by
   let updated := loadExpectedContext env context
   have unchanged := loadExpectedContext_agreesOutside env context
-  have priorEnd : PilotProduction.stateHashWords ≤ expectedContextStart := by
-    norm_num [PilotProduction.stateHashWords_eq, expectedContextStart_eq]
-  have priorRead (index : Fin PilotProduction.stateHashWords) :
-      updated index.val = env index.val :=
-    unchanged index.val (Or.inl (Nat.lt_of_lt_of_le index.isLt priorEnd))
-  have proofRead (index : Nat) (bound : proofInputStart ≤ index) :
+  have stateRead (index : Nat) (bound : index < 27819) :
+      updated index = env index :=
+    unchanged index (Or.inl (by rw [expectedContextStart_eq]; omega))
+  have regionRead (index : Nat) (bound : priorChildrenStart ≤ index) :
       updated index = env index :=
     unchanged index (Or.inr bound)
+  have proofRead (index : Nat) (bound : proofInputStart ≤ index) :
+      updated index = env index :=
+    regionRead index (by unfold proofInputStart at bound; omega)
   have pairRead (start : Nat) (bound : proofInputStart ≤ start) :
       (pairAt start).eval updated = (pairAt start).eval env := by
     apply congrArg₂ K.mk
     · exact proofRead start bound
     · exact proofRead (start + 1) (by omega)
+  have statePairRead (start : Nat) (bound : start + 1 < 27819) :
+      (pairAt start).eval updated = (pairAt start).eval env := by
+    apply congrArg₂ K.mk
+    · exact stateRead start (by omega)
+    · exact stateRead (start + 1) bound
   refine ⟨?_, ?_, ?_⟩
   · apply running_ext
     · apply cubePoint_ext
@@ -1340,23 +1258,36 @@ theorem loadExpectedContext_inputs_eq
         List.ofFn (fun coordinate => (runningPoint coordinate).eval env)
       apply congrArg List.ofFn
       funext coordinate
-      apply congrArg₂ K.mk
-      · exact priorRead (runningPointC0Index coordinate)
-      · exact priorRead (runningPointC1Index coordinate)
+      have coordinateBound : coordinate.val < 28 := coordinate.isLt
+      apply statePairRead
+      unfold runningPointStart priorRunningStart
+      omega
     · funext source row coefficient
-      exact priorRead (runningCommitmentIndex source row coefficient)
+      have sourceBound : source.val < 16 := source.isLt
+      have rowBound : row.val < 22 := row.isLt
+      have coefficientBound : coefficient.val < 54 := coefficient.isLt
+      apply stateRead
+      change runningCommitmentStart source.val + row.val * 54 + coefficient.val < 27819
+      unfold runningCommitmentStart priorRunningStart runningCommitmentWords
+      omega
     · funext source column
-      exact priorRead (runningPublicInputIndex source column)
+      apply regionRead
+      unfold runningPublicStart
+      omega
     · funext source
+      have sourceBound : source.val < 16 := source.isLt
       apply evaluationFamily_ext
       · funext coefficient
-        apply congrArg₂ K.mk
-        · exact priorRead (runningEval_KIndex source coefficient 0)
-        · exact priorRead (runningEval_KIndex source coefficient 1)
+        have coefficientBound : coefficient.val < 54 := coefficient.isLt
+        apply statePairRead
+        unfold runningEvalKStart priorRunningStart runningEvalKWords
+        omega
       · funext matrix coefficient
-        apply congrArg₂ K.mk
-        · exact priorRead (runningEval_AIndex source matrix coefficient 0)
-        · exact priorRead (runningEval_AIndex source matrix coefficient 1)
+        have matrixBound : matrix.val < 4 := matrix.isLt
+        have coefficientBound : coefficient.val < 54 := coefficient.isLt
+        apply statePairRead
+        unfold runningEvalAStart priorRunningStart runningEvalAWords
+        omega
   · apply fresh_ext
     · funext source row coefficient
       apply proofRead

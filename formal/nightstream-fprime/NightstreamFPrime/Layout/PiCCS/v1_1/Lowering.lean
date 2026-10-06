@@ -135,7 +135,7 @@ theorem logicalConstraints_length_eq_of_degreeBound_eq_eight
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
     (offset : Nat) (degreeEq : degreeBound = 8) :
-    (logicalConstraints relation interface offset).length = 1258425 := by
+    (logicalConstraints relation interface offset).length = 1262977 := by
   rw [logicalConstraints_length]
   exact Formal.rowCount_eq_of_degreeBound_eq_eight degreeBound degreeEq
 

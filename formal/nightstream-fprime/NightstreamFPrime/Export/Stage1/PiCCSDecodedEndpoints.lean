@@ -37,7 +37,8 @@ private theorem output_not_source (lane : Fin laneCount) :
       Lifecycle.PriorStateHash.publicWidth,
       Lifecycle.PaperAlgebra.publicRingColumns, ringDegree,
       PiCCSInputs.expectedContextStart_eq, PiCCSInputs.expectedContextWords,
-      PiCCSInputs.proofInputStart_eq, PiCCSInputs.phaseOffset_eq] at external
+      PiCCSInputs.priorChildrenStart_eq, PiCCSOrdinarySourceSupport.proofInputCount_eq,
+      PiCCSInputs.phaseOffset_eq] at external
     omega
   · rcases transcript with ⟨invocation, outputLane, equality⟩
     have invocationBound : invocation.val < 355 := by

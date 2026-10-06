@@ -43,6 +43,12 @@ def field (value : Nat) : F := Poseidon2.ofNat (value + 1)
 def extension (low high : Nat) : K :=
   ⟨field low, field high⟩
 
+/-- Child `source` of public column `column`: the canonical signed split of
+the parent `±(column + 1)`, negative on odd columns. -/
+def runningPublicDigit (source column : Nat) : F :=
+  let digit := Poseidon2.ofNat ((column + 1) / 2 ^ source % 2)
+  if column % 2 = 1 then -digit else digit
+
 def running : Running K PaperAlgebra.Commitment
     (PaperAlgebra.PublicInput
       (logicalWidth := fixtureLogicalWidth)
@@ -56,7 +62,7 @@ def running : Running K PaperAlgebra.Commitment
   }
   commitments := fun source row coefficient =>
     field (1_000 + source.val * 2_000 + row.val * ringDegree + coefficient.val)
-  publicInputs := fun source column => field (source.val + column.val)
+  publicInputs := fun source column => runningPublicDigit source.val column.val
   evaluations := fun source => {
     pad := fun coefficient =>
       extension

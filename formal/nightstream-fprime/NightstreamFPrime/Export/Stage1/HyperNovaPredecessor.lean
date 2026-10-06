@@ -42,6 +42,7 @@ private theorem step_implies_predecessor
     (valid : Stage1.Terminal.StatementValid
       { iteration := input.iteration, z0 := input.z0, zi := input.zi })
     (step : StepHoldsFor relation ajtai context application input output)
+    (priorCanonical : ∀ slot, ChildrenCanonical (input.running slot))
     (sources : 0 < input.iteration → Lifecycle.TerminalHolds relation ajtai
       (input.running functionIndex) runningWitness input.fresh freshWitness) :
     Stage1.Terminal.HoldsFor relation ajtai context application
@@ -61,7 +62,7 @@ private theorem step_implies_predecessor
   · rcases recursive with ⟨pcValid, positive, publicLink, _fold, _unchanged⟩
     rw [if_neg (Nat.ne_of_gt positive)]
     apply (Stage1.Terminal.holdsFor_recursive_iff relation ajtai context application _ _).mpr
-    refine ⟨valid, pcValid, positive, publicLink, ?_, ?_⟩
+    refine ⟨valid, priorCanonical, pcValid, positive, publicLink, ?_, ?_⟩
     · intro slot
       have selected : slot = functionIndex := by
         apply Fin.ext
@@ -141,17 +142,20 @@ theorem terminal_implies_predecessorOrCollision
     have valid : Stage1.Terminal.StatementValid
         { iteration := input.iteration, z0 := input.z0, zi := input.zi } := by
       refine ⟨?_, ?_, ?_⟩
-      · exact (StateDecoder.preimage_wellFormed
-          (PerApplicationFixedPoint.logicalWidth application)
-          (PerApplicationFixedPoint.publicFits application)
-          (ActualStep.priorState application assignment)).2.1
+      · exact StateDecoder.iteration_lt
+          (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
+          (publicFits := PerApplicationFixedPoint.publicFits application)
+          (ActualStep.priorState application assignment)
       · exact StateDecoder.initialState_length (ActualStep.priorState application assignment)
       · exact StateDecoder.currentState_length (ActualStep.priorState application assignment)
     exact ⟨iteration, initial, current.symm.trans applicationStep,
       step_implies_predecessor (PerApplicationFixedPoint.relation application fits)
         (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
         (PerApplicationCanonicalPackage.verifierContextDigest fits commitmentSetup)
-        application input output runningWitness freshWitness valid step sourceHolds⟩
+        application input output runningWitness freshWitness valid step
+        (fun _ => terminal_implies_priorCanonical application fits commitmentSetup
+          statement payload terminal)
+        sourceHolds⟩
   · exact Or.inr collision
 
 /-- Reverse iteration one uses the base branch, recovers its actual

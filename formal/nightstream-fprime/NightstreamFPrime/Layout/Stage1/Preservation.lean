@@ -149,8 +149,9 @@ private theorem compactPiCcsStateBinding
       (PiCCSOrdinarySourceSupport.externalInputsSupported logicalWidth publicFits)
       (compactPiCcsExternalAgreement program env) baseBinding
   rcases transported with
-    ⟨priorCanonical, outputCanonical, priorContext, outputContext⟩
-  exact ⟨priorCanonical, outputCanonical, priorContext, outputContext⟩
+    ⟨priorCanonical, outputCanonical, priorContext, outputContext, priorChildren⟩
+  exact ⟨priorCanonical, outputCanonical, priorContext, outputContext,
+    priorChildren.congr (fun _ => rfl) (fun _ _ _ => rfl) (fun _ _ => rfl)⟩
 
 private theorem compactCubePoint_ext
     {Field : Type} {variableCount : Nat}
@@ -706,7 +707,7 @@ private theorem compactPilotOutputCanonical
   · intro index bounded
     apply CompactPullback.compactEnv_source
     rw [← PilotProduction.lifecycleOutputOffset_matches] at bounded
-    change index < 2999852 at bounded
+    change index < 2598896 at bounded
     rw [Spartan.sourceColumnCount_eq]
     omega
   · exact specification

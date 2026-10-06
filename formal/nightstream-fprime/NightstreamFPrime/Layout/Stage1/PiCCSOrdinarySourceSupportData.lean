@@ -17,9 +17,10 @@ namespace NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupport
 def InRange (start count column : Nat) : Prop :=
   start ≤ column ∧ column < start + count
 
-/-- Exact caller-supplied PiCCS proof-input interval. -/
+/-- Exact caller-supplied PiCCS interval: the prior child region, then the
+proof inputs. -/
 def proofInputCount : Nat :=
-  PiCCSInputs.phaseOffset - PiCCSInputs.proofInputStart
+  PiCCSInputs.phaseOffset - PiCCSInputs.priorChildrenStart
 
 /-- Statement, challenge, and round-transcript permutations before the first
 ordinary PiCCS child. -/
@@ -33,9 +34,9 @@ def ordinaryLogicalCount : Nat :=
   PiCCSStarts.outputBindingWitnessStart -
     PiCCSStarts.initialClaimLogicalStart
 
-@[simp] theorem proofInputCount_eq : proofInputCount = 10872 := by
+@[simp] theorem proofInputCount_eq : proofInputCount = 15462 := by
   rw [proofInputCount, PiCCSInputs.phaseOffset_eq,
-    PiCCSInputs.proofInputStart_eq]
+    PiCCSInputs.priorChildrenStart_eq]
 
 @[simp] theorem transcriptInvocationCount_eq :
     transcriptInvocationCount = 355 := by
@@ -59,8 +60,7 @@ def External (column : Nat) : Prop :=
       column ∨
     InRange PiCCSInputs.expectedContextStart PiCCSInputs.expectedContextWords
       column ∨
-    InRange PiCCSInputs.proofInputStart
-      (PiCCSInputs.phaseOffset - PiCCSInputs.proofInputStart) column
+    InRange PiCCSInputs.priorChildrenStart proofInputCount column
 
 /-- One of the eight state lanes output by a pre-ordinary PiCCS transcript
 permutation. Intermediate permutation recipes are not included. -/
@@ -104,8 +104,7 @@ theorem external_context (column : Nat)
   Or.inr (Or.inr (Or.inr (Or.inl support)))
 
 theorem external_proof (column : Nat)
-    (support : InRange PiCCSInputs.proofInputStart
-      (PiCCSInputs.phaseOffset - PiCCSInputs.proofInputStart) column) :
+    (support : InRange PiCCSInputs.priorChildrenStart proofInputCount column) :
     External column :=
   Or.inr (Or.inr (Or.inr (Or.inr support)))
 
@@ -142,7 +141,7 @@ theorem source_lt_sourceColumnCount {column : Nat} (support : Source column) :
     column < Spartan.SourceColumnCount := by
   have phaseValue := congrArg (fun starts : List Nat => starts[4]!)
     PiDECInputs.inputStarts_eq
-  change PiDECInputs.phaseOffset = 12442944 at phaseValue
+  change PiDECInputs.phaseOffset = 11654210 at phaseValue
   have sourceLower := Spartan.sourceColumnCount_ge_piDecPhaseOffset
   rw [phaseValue] at sourceLower
   apply Nat.lt_of_lt_of_le ?_ sourceLower
@@ -168,8 +167,7 @@ theorem source_lt_sourceColumnCount {column : Nat} (support : Source column) :
           rw [PiCCSInputs.expectedContextStart_eq]
           norm_num [PiCCSInputs.expectedContextWords])
       · exact Nat.lt_of_lt_of_le proofRange.2 (by
-          rw [PiCCSInputs.phaseOffset_eq,
-            PiCCSInputs.proofInputStart_eq]
+          rw [proofInputCount_eq, PiCCSInputs.priorChildrenStart_eq]
           norm_num)
     · rcases transcriptOrOrdinary with transcript | ordinary
       · rcases transcript with ⟨invocation, lane, rfl⟩
@@ -188,7 +186,7 @@ theorem source_lt_sourceColumnCount {column : Nat} (support : Source column) :
                 PiCCSStarts.outputBindingWitnessStart_eq]
               unfold PiCCSStarts.initialClaimLogicalStart
               rw [PiCCSStarts.roundTranscriptWitnessStart_eq]
-            _ ≤ 12442944 := by
+            _ ≤ 11654210 := by
               rw [PiCCSStarts.outputBindingWitnessStart_eq]
               norm_num)
   · exact Nat.lt_of_lt_of_le fresh.2 (by

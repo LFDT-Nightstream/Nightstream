@@ -8,7 +8,7 @@ import shutil
 import subprocess
 
 P = 18446744069414584321
-CARRIER = 49707864
+CARRIER = 45140544
 
 
 def main():

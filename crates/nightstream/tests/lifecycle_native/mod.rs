@@ -513,5 +513,6 @@ mod base;
 mod key_prefix;
 mod matrix_workspace;
 mod recursive;
+mod state_encoding;
 
 mod staged;

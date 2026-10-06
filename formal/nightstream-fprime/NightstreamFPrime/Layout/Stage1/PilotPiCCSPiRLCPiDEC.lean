@@ -22,7 +22,7 @@ variable {logicalWidth : Nat}
 
 def piDecOffset : Nat := PiDECInputs.phaseOffset
 
-theorem piDecOffset_eq : piDecOffset = 12442944 := by
+theorem piDecOffset_eq : piDecOffset = 11654210 := by
   rfl
 
 def physicalRows

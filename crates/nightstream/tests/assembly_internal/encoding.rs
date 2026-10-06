@@ -165,8 +165,8 @@ fn assembled_fixed_source_reaches_the_compiler_node_bound() {
         })
         .unwrap();
     let maximum_fields = (key_width - fixed_width) / 41;
-    assert_eq!(maximum_fields, 4_994_575);
-    for (witness, has_local, expected_nodes) in [(maximum_fields - 1, true, 17_704_845), (0, false, 12_710_263)] {
+    assert_eq!(maximum_fields, 5_105_973);
+    for (witness, has_local, expected_nodes) in [(maximum_fields - 1, true, 17_821_173), (0, false, 12_715_193)] {
         let mut builder = ApplicationBuilder::new(witness).unwrap();
         if has_local {
             builder.affine(Affine::constant(Goldilocks::ZERO)).unwrap();

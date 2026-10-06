@@ -76,7 +76,8 @@ theorem recursive_completePrefix
     (step : StepHoldsFor relation ajtai context.toList
       Lifecycle.Stage1.Poseidon2HashChainV1.program input output)
     (positive : 0 < input.iteration)
-    (successor : input.iteration + 1 < goldilocksModulus) :
+    (successor : input.iteration + 1 < goldilocksModulus)
+    (priorCanonical : Lifecycle.ChildrenCanonical (input.running functionIndex)) :
     let prior := priorHashPreimage (setup relation ajtai context.toList) input
     let next := nextHashPreimage (setup relation ajtai context.toList) input output
     let values := PiCCSProofReadback.ofProof
@@ -134,8 +135,13 @@ theorem recursive_completePrefix
     change oneBased output.pcNext = 1
     rw [step.1]
     rfl
-  have priorWellFormed : StateEncoding.WellFormed prior := ⟨priorFixed, valid.1, priorPc⟩
-  have nextWellFormed : StateEncoding.WellFormed next := ⟨nextFixed, successor, nextPc⟩
+  have nextCanonical : Lifecycle.ChildrenCanonical (output.runningNext functionIndex) :=
+    StateEncoding.output_canonical relation ajtai
+      ((Nifs.PaperNonInteractive.verify_eq_some_iff _ _ _ _ _).mp accepted).2.2
+  have priorWellFormed : StateEncoding.WellFormed prior :=
+    ⟨priorFixed, valid.1, priorPc, priorCanonical⟩
+  have nextWellFormed : StateEncoding.WellFormed next :=
+    ⟨nextFixed, successor, nextPc, nextCanonical⟩
   exact ⟨priorWellFormed, nextWellFormed,
     StepWitnessPrefix.completePrefix relation ajtai context input output
       (output.runningNext functionIndex) step priorWellFormed nextWellFormed

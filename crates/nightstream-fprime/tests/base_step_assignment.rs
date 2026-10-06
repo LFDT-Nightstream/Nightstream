@@ -23,11 +23,14 @@ mod conformance_support;
 mod logical_reference;
 
 // Exact current package and BaseStepFixture schema dimensions.
-const PRIVATE_INPUTS: usize = 107_070;
+const PRIVATE_INPUTS: usize = 103_072;
 const PUBLIC_INPUTS: usize = 278;
-const STATE_WORDS: usize = 32_113;
-const PI_CCS_INPUT_END: usize = 75_098;
-const CHILD_PUBLIC_START: usize = 102_746;
+const STATE_WORDS: usize = 27_819;
+const PI_CCS_INPUT_END: usize = 71_100;
+const CHILD_PUBLIC_START: usize = 98_748;
+const DOMAIN_WORDS: usize = 12;
+/// `vk, i, z0, zi` close the state preimage.
+const TAIL_START: usize = STATE_WORDS - 13;
 const CHILD_COUNT: usize = 16;
 const PUBLIC_WORDS: usize = 270;
 const INITIAL_STATE: [u64; 4] = [202, 203, 204, 205];
@@ -108,33 +111,27 @@ fn enc_hash(digest: [u64; 4]) -> Vec<u64> {
     values
 }
 
+/// `Lifecycle.XOut.serializePreimage`: the domain chunk, the running state,
+/// then `vk, i, z0, zi`.
 fn check_preimage(words: &[u64], context: [u64; 4], iteration: u64, current: [u64; 4]) {
     assert_eq!(words.len(), STATE_WORDS);
-    let domain = b"HyperNova/NIVC/state/v1"
-        .iter()
-        .copied()
-        .map(u64::from)
-        .collect::<Vec<_>>();
-    assert_eq!(&words[..domain.len()], domain);
-    assert_eq!(words[domain.len()], 4);
-    assert_eq!(&words[domain.len() + 1..28], context);
-    assert_eq!(words[28], iteration);
-    assert_eq!(words[29], 4);
-    assert_eq!(&words[30..34], INITIAL_STATE);
-    assert_eq!(words[34], 4);
-    assert_eq!(&words[35..39], current);
-    let mut cursor = 39;
-    for length in std::iter::once(56).chain((0..CHILD_COUNT).flat_map(|_| [1_188, PUBLIC_WORDS, 540])) {
-        assert_eq!(words[cursor], length as u64);
-        cursor += 1;
-        assert!(
-            words[cursor..cursor + length].iter().all(|word| *word == 0),
-            "default running claim"
-        );
-        cursor += length;
+    let tag = b"HyperNova/NIVC/state/v2";
+    for (chunk, word) in words[..DOMAIN_WORDS].iter().enumerate() {
+        let bytes = tag.get(8 * chunk..).unwrap_or_default();
+        let mut expected = [0; 8];
+        expected[..bytes.len().min(8)].copy_from_slice(&bytes[..bytes.len().min(8)]);
+        assert_eq!(*word, u64::from_le_bytes(expected), "domain chunk word {chunk}");
     }
-    assert_eq!(cursor + 1, words.len());
-    assert_eq!(words[cursor], 1);
+    assert!(
+        words[DOMAIN_WORDS..TAIL_START]
+            .iter()
+            .all(|word| *word == 0),
+        "default running claim"
+    );
+    assert_eq!(&words[TAIL_START..TAIL_START + 4], context);
+    assert_eq!(words[TAIL_START + 4], iteration);
+    assert_eq!(&words[TAIL_START + 5..TAIL_START + 9], INITIAL_STATE);
+    assert_eq!(&words[TAIL_START + 9..], current);
 }
 
 fn centered(value: u64) -> i128 {
@@ -158,7 +155,7 @@ fn check_caller_layout(bytes: &[u8], private: &[u64], public: &[u64], assignment
     assert_eq!((outer, inner, logical_public), (6, 8, PUBLIC_WORDS));
     assert_eq!(
         (layout.0, layout.1, layout.2, layout.3, layout.4),
-        (12_357_472, 12_448_422, 12_448_422, PUBLIC_INPUTS, 12_448_701)
+        (11_573_009, 11_659_688, 11_659_688, PUBLIC_INPUTS, 11_659_967)
     );
     assert_eq!(assignment.private_values().len(), layout.1);
     assert_eq!(assignment.public_values(), public);
@@ -167,7 +164,7 @@ fn check_caller_layout(bytes: &[u8], private: &[u64], public: &[u64], assignment
         // Schema-8 roles 3,15,16,18 are generated witness intervals.
         match role {
             3 | 15 | 16 | 18 => continue,
-            1 | 2 | 6..=14 | 17 => {}
+            1 | 2 | 6..=14 | 17 | 19 => {}
             _ => panic!("unexpected private caller role {role}"),
         }
         assert_eq!(
@@ -386,8 +383,8 @@ fn checked_caller_fixture(package: &LoadedPerApplicationPackage, bytes: &[u8]) -
         (package.private_input_count(), package.public_input_count()),
         (private.len(), public.len())
     );
-    assert_eq!(package.total_column_count(), 12_448_701);
-    assert_eq!(package.physical_row_count(), 12_357_472);
+    assert_eq!(package.total_column_count(), 11_659_967);
+    assert_eq!(package.physical_row_count(), 11_573_009);
     assert_eq!(package.row_count(), logical_reference::evaluation::ACTIVE_ROWS);
     assert_eq!(
         package.logical_column_count(),
@@ -619,7 +616,7 @@ fn check_assignment(package: LoadedPerApplicationPackage, sealed: Vec<u8>, fixtu
         assert_eq!(actual, expected, "caller logical transport coordinate {column}");
     }
     let alignment = logical_reference::evaluation::CARRIER_WIDTH - production.len();
-    assert_eq!(alignment, 14);
+    assert_eq!(alignment, 12);
     // The public transport returns logical coordinates. The paper carrier
     // extends them with these alignment zeros; no backend allocator is used.
     for column in production.len()..logical_reference::evaluation::CARRIER_WIDTH {
@@ -782,7 +779,7 @@ pub fn check_detached_application(package: LoadedPerApplicationPackage, sealed: 
         changed_output, expected.0,
         "the changed message has a different application output"
     );
-    changed_private[STATE_WORDS + 35..STATE_WORDS + 39].copy_from_slice(&changed_output);
+    changed_private[2 * STATE_WORDS - 4..2 * STATE_WORDS].copy_from_slice(&changed_output);
     let mut changed_public = public.clone();
     changed_public[PUBLIC_WORDS..PUBLIC_WORDS + 4]
         .copy_from_slice(&hash(&changed_private[STATE_WORDS..2 * STATE_WORDS]));

@@ -4,7 +4,7 @@ import NightstreamFPrime.Lifecycle.ProductionKey
 import NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity
 
 /-!
-Paper authority: SuperNeo v1.1, Section 7.3, Step 4, `E_K`.
+Paper authority: SuperNeo v1.2, Section 7.3, Step 4, `E_K`.
 Obligation: Enforce
 `E_K = eq(r', r) * sum_(i,l) gamma^I_K(i,l) cf(y'_i)_l`.
 
@@ -22,7 +22,7 @@ Constraint groups:
 Parent coverage:
 - `ProtocolPolynomial.padAtMessage` in the production PiCCS terminal.
 
-This file owns only the v1.1 Pad coordinate order and production-key wiring.
+This file owns only the v1.2 Pad coordinate order and production-key wiring.
 -/
 
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_1.EvalKTerminal

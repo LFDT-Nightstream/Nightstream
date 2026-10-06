@@ -2,7 +2,7 @@ import NightstreamFPrime.Layout.SumCheck.FixedChain
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Completeness
 
 /-!
-Paper authority: SuperNeo v1_1, section 7.3, `SumCheck(T; Q)`.
+Paper authority: SuperNeo v1.2, section 7.3, `SumCheck(T; Q)`.
 Obligation: Enforce the 28 degree-9 round equations and export the final
 verifier claim for the separate `Q(r')` identity.
 

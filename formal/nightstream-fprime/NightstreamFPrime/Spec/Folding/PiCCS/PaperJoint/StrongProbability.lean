@@ -7,7 +7,7 @@ import Mathlib.Tactic.Ring
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.IndependentExecution
 
 /-!
-SuperNeo v1.1 Appendix B.2 averaging for arbitrary PMF context and private-coin
+SuperNeo v1.2 Appendix B.2 averaging for arbitrary PMF context and private-coin
 laws. No context or prover randomness is replaced by uniform finite sampling.
 The local helpers use real weighted sums of the stated normalized PMF.
 -/
@@ -811,7 +811,8 @@ theorem source_success_ge_retry :
     freshBound constantLaw degreeCovers
   linarith
 
-/-- B.2 equations (13)–(20) for the actual causal execution events. The
+/-- The superseded square-root argument for the actual causal execution
+events; SuperNeo v1.2 Appendix B.2 replaces it with the retry bound. The
 square-root loss uses arbitrary context and private-tape PMFs, including aborts.
 No numeric error, success, independence, or pair-bound premise is supplied. -/
 theorem source_error_le_sqrt :

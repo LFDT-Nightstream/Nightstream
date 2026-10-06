@@ -2,7 +2,7 @@ import NightstreamFPrime.Circuit.StraightLine
 import Mathlib.Logic.Equiv.Fin.Basic
 
 /-!
-Paper authority: SuperNeo v1.1, Section 7.4, verifier Step 1.
+Paper authority: SuperNeo v1.2, Section 7.4, verifier Step 1.
 Obligation: one indexed source updates an accumulated family by the exact
 Phi81 ring-module equation `next = prior + rho * value`.
 

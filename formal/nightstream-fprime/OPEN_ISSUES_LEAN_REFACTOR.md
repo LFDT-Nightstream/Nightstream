@@ -44,7 +44,7 @@ Do not absorb the complete running vector or repeat its point, `Eval_K`, and
   identity-pinned package relation.
 
 **Impact.** This changes the protocol identity, transcript vectors, emitted
-package, and Rust transcript tests. The SuperNeo v1_1 PiCCS formulas in
+package, and Rust transcript tests. The SuperNeo v1.2 PiCCS formulas in
 `paper_exact` and `optimized` do not change.
 
 **Closed when.** Lean proves the new transcript sound and complete, the layout

@@ -1,7 +1,7 @@
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics
 
 /-!
-Completes the six-child PiDEC v1.1 logical assembler. This file owns only
+Completes the six-child PiDEC v1.2 logical assembler. This file owns only
 ordered child-witness composition and the sole parent `FormalCircuit`. It adds
 no protocol predicate or verifier row.
 -/
@@ -263,7 +263,7 @@ theorem completeness
     rw [← operationsEq]
     exact completed.rows
 
-/-- The sole proved logical PiDEC v1.1 circuit. -/
+/-- The sole proved logical PiDEC v1.2 circuit. -/
 def circuit
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

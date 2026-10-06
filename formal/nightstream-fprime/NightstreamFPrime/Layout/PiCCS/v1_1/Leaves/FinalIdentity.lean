@@ -4,7 +4,7 @@ import NightstreamFPrime.Layout.R1CS.Completeness
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Completeness
 
 /-!
-Paper authority: SuperNeo v1_1, section 7.3, Step 4, `v = Q(r')`.
+Paper authority: SuperNeo v1.2, section 7.3, Step 4, `v = Q(r')`.
 Obligation: Lower
 `v = E_K + gamma^864 E_A + gamma^6912 eq(r', alpha) (F + gamma N)`.
 

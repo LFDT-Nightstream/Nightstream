@@ -1,6 +1,6 @@
 # Nightstream F′ Lean package
 
-This package defines SuperNeo v1.1 and the Nightstream F′ implementation.
+This package defines SuperNeo v1.2 and the Nightstream F′ implementation.
 The goal is to prove SuperNeo's protocol rules and implementation links,
 validate the complete Rust implementation against them, and support later
 protocol optimization and reductions in constraint count, including candidates

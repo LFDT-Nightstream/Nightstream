@@ -4,7 +4,7 @@ import NightstreamFPrime.Lifecycle.ProductionKey
 import NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity
 
 /-!
-Paper authority: SuperNeo v1.1, Section 7.3, Step 4, `F`.
+Paper authority: SuperNeo v1.2, Section 7.3, Step 4, `F`.
 Obligation: Enforce
 `F = sum_(i=1)^K gamma^(i-1) f(ct(y'_(i,1)), ..., ct(y'_(i,t)))`.
 

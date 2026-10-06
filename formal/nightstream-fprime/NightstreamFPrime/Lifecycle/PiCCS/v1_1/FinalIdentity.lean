@@ -5,7 +5,7 @@ import NightstreamFPrime.Lifecycle.ProductionKey
 import NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity
 
 /-!
-Paper authority: SuperNeo v1.1, Section 7.3, Step 4, `v = Q(r')`.
+Paper authority: SuperNeo v1.2, Section 7.3, Step 4, `v = Q(r')`.
 Obligation: Enforce
 `E_K + gamma^864 E_A + gamma^6912 eq(r',alpha) (F + gamma N)`.
 
@@ -15,7 +15,7 @@ Inputs:
 - the SumCheck terminal claim `v`.
 
 Outputs:
-- the exact complete v1.1 PiCCS terminal equality.
+- the exact complete v1.2 PiCCS terminal equality.
 
 Constraint groups:
 - C1: one opaque owned `PointEquality` child;
@@ -250,7 +250,7 @@ def referenceTerminal (interface : Interface) (offset : Nat) (env : Env) : K :=
             (K.mul (interface.gamma offset |>.eval env)
               (interface.norm offset |>.eval env)))
 
-/-- Named semantic predicate: the SumCheck terminal equals exact v1.1
+/-- Named semantic predicate: the SumCheck terminal equals exact v1.2
 `Q(r')`. Internal child outputs are not caller premises. -/
 def SpecHolds (interface : Interface) (offset : Nat) (env : Env) : Prop :=
   (interface.terminal offset).eval env = referenceTerminal interface offset env

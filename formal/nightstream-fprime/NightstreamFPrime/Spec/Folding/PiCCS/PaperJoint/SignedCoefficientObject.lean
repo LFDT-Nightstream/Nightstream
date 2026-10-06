@@ -7,7 +7,7 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 /-!
 Unsampled signed coefficient object for paper-level joint `Pi_CCS`.
 
-Protocol: SuperNeo v1.1 `Pi_CCS` (Section 7.3 / Appendix B.2).
+Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
 Phase: alpha/gamma compression boundary before SumCheck.
 Constraint family: finite Pad, matrix, CCS, and norm residuals before
 the verifier samples `alpha` and `gamma`.

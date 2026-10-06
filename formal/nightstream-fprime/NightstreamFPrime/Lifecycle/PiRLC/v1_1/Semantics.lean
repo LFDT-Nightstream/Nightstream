@@ -2,7 +2,7 @@ import NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal
 import NightstreamFPrime.Spec.Folding.Nifs.PaperProfile
 
 /-!
-Owns the semantic result of the exact PiRLC v1.1 logical assembler.
+Owns the semantic result of the exact PiRLC v1.2 logical assembler.
 
 The public attempt uses the production `K + k = 17` arity. Its inputs are
 the input-binding values, its challenges are replayed sampler outputs, and

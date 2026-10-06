@@ -7,9 +7,9 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetPolynomial
 at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
 
 /-!
-Concrete v1.1 matrix-evaluation residuals for `Eval_A`.
+Concrete v1.2 matrix-evaluation residuals for `Eval_A`.
 
-Protocol: SuperNeo v1.1 `Pi_CCS` (Section 7.3 / Appendix B.2).
+Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
 Phase: construction of the matrix `Eval_A(X, C)` coefficient family.
 Constraint family: one prior-CE evaluation equation per typed
 `(running source, matrix, ring coefficient)` coordinate.
@@ -39,7 +39,7 @@ unproved homomorphism claim here.
 | `computedCoefficient` | `sum_x eq(x,r) * cf((M_j z_i)(x))_l` | explicit canonical hypercube sum | equals recursive table MLE |
 | zero assignment | `z_i = 0` | every image-table leaf and its explicit hypercube sum are zero | `imageCoefficientAt_eq_zero_of_assignment_zero`, `computedCoefficient_eq_zero_of_assignment_zero` |
 | `residual` | Equation (9) orientation | claimed minus computed | zero iff the evaluation equation holds |
-| `allResidualsZero_iff_allClaimsHold` | Lemma 7 Item 3 | every carried coordinate | unconditional relative to explicit algebra/lift data |
+| `allResidualsZero_iff_allClaimsHold` | Lemma 9 Item 4 | every carried coordinate | unconditional relative to explicit algebra/lift data |
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.MatrixEvaluationResidual

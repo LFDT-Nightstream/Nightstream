@@ -3,7 +3,7 @@ import NightstreamFPrime.Lifecycle.PiDEC.v1_1.RadixRecomposition
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Commitment
 
 /-!
-Paper authority: SuperNeo v1.1, Section 7.5, verifier commitment equation
+Paper authority: SuperNeo v1.2, Section 7.5, verifier commitment equation
 `c = sum_i b^i c_i`.
 
 Obligation: enforce the fixed-radix recomposition of all 22×54 coefficients

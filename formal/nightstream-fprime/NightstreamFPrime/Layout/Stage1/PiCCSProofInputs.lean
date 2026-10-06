@@ -2,7 +2,7 @@ import NightstreamFPrime.Layout.Stage1.PiCCSRepresentation
 import NightstreamFPrime.Lifecycle.VerifierContext
 
 /-!
-Paper authority: SuperNeo v1_1, section 7.3, PiCCS prover messages.
+Paper authority: SuperNeo v1.2, section 7.3, PiCCS prover messages.
 Obligation: Give the concrete caller-owned PiCCS columns one typed value
 source and one canonical encoding.
 

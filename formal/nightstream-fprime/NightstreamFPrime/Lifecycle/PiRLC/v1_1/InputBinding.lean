@@ -4,7 +4,7 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption
 import NightstreamFPrime.Spec.Folding.PiRLC.v1_1.InputBinding
 
 /-!
-Paper authority: SuperNeo v1.1, Section 7.4, PiRLC input and output.
+Paper authority: SuperNeo v1.2, Section 7.4, PiRLC input and output.
 Obligation: Bind the 17 PiCCS output claims, in `K+k` order, as fresh PiRLC
 inputs for one production structure and one verifier-derived point.
 

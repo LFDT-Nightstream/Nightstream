@@ -5,7 +5,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier.Algebra
 Owns the one production CCS polynomial for the Nightstream F-prime relation.
 
 The relation uses the Lean-owned selective low-norm compiler gate. Its 7
-matrix slots are named selective ports. SuperNeo v1.1 Pad is not a CCS matrix and remains the separate `Eval_K`
+matrix slots are named selective ports. SuperNeo v1.2 Pad is not a CCS matrix and remains the separate `Eval_K`
 family.
 -/
 
@@ -15,7 +15,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 
-/-- Fixed SuperNeo v1.1 `Eval_A` arity. -/
+/-- Fixed SuperNeo v1.2 `Eval_A` arity. -/
 def matrixCount : Nat := SelectivePolynomial.matrixCount
 
 /-- Number of matrix slots used by the selective compiler. -/

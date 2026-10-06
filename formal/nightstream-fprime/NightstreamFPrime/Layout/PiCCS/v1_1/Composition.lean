@@ -13,7 +13,7 @@ import NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.FinalIdentity
 import NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.OutputBinding
 
 /-!
-Paper authority: SuperNeo v1_1, section 7.3, PiCCS Steps 1--5.
+Paper authority: SuperNeo v1.2, section 7.3, PiCCS Steps 1--5.
 Obligation: Assemble the twelve physical leaf owners in the exact order of
 the sole logical PiCCS circuit.
 

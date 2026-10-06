@@ -5,7 +5,7 @@ import NightstreamFPrime.Layout.ProductionRelation.PlanComposition
 Owns an invocation-major family of 108-row Phi81 quotient product plans.
 Each invocation owns one complete ring product, its prior and output rings,
 and 54 retained quotient coefficients. The family uses the fixed CCS
-polynomial and all 14 matrix ports.
+polynomial and all 7 matrix ports.
 
 This module does not select the concrete Stage 1 invocation schedule.
 -/

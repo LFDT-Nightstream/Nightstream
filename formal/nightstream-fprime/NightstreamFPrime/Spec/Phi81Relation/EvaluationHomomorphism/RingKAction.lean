@@ -6,7 +6,7 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 /-!
 Boolean-MLE compatibility with the concrete Phi81 `RingK` action.
 
-Protocol: SuperNeo Theorem 5 and the evaluation branch of `Pi_RLC`.
+Protocol: SuperNeo v1.2 Theorem 11 and the evaluation branch of `Pi_RLC`.
 Phase: fixed ring action on every Boolean row, followed by evaluation at the
 verifier-owned extension-field point.
 Constraint family: semantic evaluation only; this file emits no rows.

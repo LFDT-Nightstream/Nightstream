@@ -2,7 +2,7 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.RingKRecomposition
 
 /-!
-Paper authority: SuperNeo v1.1, Section 7.5, verifier equation
+Paper authority: SuperNeo v1.2, Section 7.5, verifier equation
 `y = sum_i b^i y_i` for the separate Pad evaluation family.
 
 Obligation: enforce fixed-radix recomposition of the one 54-coefficient

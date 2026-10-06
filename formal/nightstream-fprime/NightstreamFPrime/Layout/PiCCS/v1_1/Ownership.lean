@@ -1,7 +1,7 @@
 import NightstreamFPrime.Layout.PiCCS.v1_1.ProductionInputs
 
 /-!
-Paper authority: SuperNeo v1_1, section 7.3, PiCCS Steps 1--5.
+Paper authority: SuperNeo v1.2, section 7.3, PiCCS Steps 1--5.
 Obligation: Give every row family and physical column in the sole PiCCS
 layout one explicit owner.
 

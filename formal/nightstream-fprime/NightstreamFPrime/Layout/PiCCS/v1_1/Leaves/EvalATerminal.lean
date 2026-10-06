@@ -2,7 +2,7 @@ import NightstreamFPrime.Layout.Multilinear.PointWeightedHorner
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Completeness
 
 /-!
-Paper authority: SuperNeo v1_1, section 7.3, Step 4, separate `E_A`.
+Paper authority: SuperNeo v1.2, section 7.3, Step 4, separate `E_A`.
 Obligation: Lower
 `E_A = eq(r', r) * sum_(i,j,l) gamma^I_A(i,j,l) cf(y'_(i,j))_l`.
 

@@ -2,7 +2,7 @@ import NightstreamFPrime.Layout.Polynomial.Horner
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Completeness
 
 /-!
-Paper authority: SuperNeo v1_1, section 7.3, Step 4, `N`.
+Paper authority: SuperNeo v1.2, section 7.3, Step 4, `N`.
 Obligation: Lower
 `N = sum_(i=1)^(K+k) gamma^(i-1) (x_i + 1) x_i (x_i - 1)`
 for the fixed strict `b = 2` profile.

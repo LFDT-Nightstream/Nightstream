@@ -4,7 +4,7 @@ import NightstreamFPrime.Lifecycle.PaperAlgebra
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.PublicInput
 
 /-!
-Paper authority: SuperNeo v1.1, Section 7.5, verifier Step 2.
+Paper authority: SuperNeo v1.2, Section 7.5, verifier Step 2.
 
 Obligation: reject a parent public input with any coordinate outside
 `B = 2^16`, and constrain the exact signed-binary split of all 270 production

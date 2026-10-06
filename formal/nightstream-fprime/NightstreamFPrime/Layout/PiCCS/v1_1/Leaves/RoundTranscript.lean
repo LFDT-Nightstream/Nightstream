@@ -2,7 +2,7 @@ import NightstreamFPrime.Layout.Poseidon2.Duplex
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Completeness
 
 /-!
-Paper authority: SuperNeo v1_1, section 7.3, indexed PiCCS SumCheck rounds.
+Paper authority: SuperNeo v1.2, section 7.3, indexed PiCCS SumCheck rounds.
 Obligation: Absorb each prover polynomial, absorb its round label, and derive
 the corresponding verifier challenge in exact round order.
 

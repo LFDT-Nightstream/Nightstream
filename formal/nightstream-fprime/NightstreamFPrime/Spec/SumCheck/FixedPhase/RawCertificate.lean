@@ -6,7 +6,7 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 /-!
 Exact-width transport for the paper SumCheck message relation.
 
-Source: SuperNeo Definition 6, Section 7.3, and Appendix D.4.  The paper
+Source: SuperNeo v1.2 Definition 11, Section 7.3, and Appendix B.2.  The paper
 message is a polynomial of verifier-bounded degree; it does not require a
 canonical variable-length coefficient serialization.
 

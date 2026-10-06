@@ -37,7 +37,7 @@ def externalColumnCount : Nat := outputDigestStart + digestWords
 theorem externalColumnCount_eq : externalColumnCount = 74868 := by
   rfl
 
-/-- Fixed physical schedule values derived from the v1.1 state-hash width. -/
+/-- Fixed physical schedule values derived from the v1.2 state-hash width. -/
 def absorbCount : Nat :=
   (stateHashWords + NightstreamFPrime.Spec.Poseidon2.rate - 1) /
     NightstreamFPrime.Spec.Poseidon2.rate

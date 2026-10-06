@@ -4,7 +4,7 @@ import NightstreamFPrime.Lifecycle.ProductionKey
 import NightstreamFPrime.Spec.Folding.PiCCS.Accepted
 
 /-!
-Paper authority: SuperNeo v1.1, Section 7.3, Step 2, `SumCheck(T; Q)`.
+Paper authority: SuperNeo v1.2, Section 7.3, Step 2, `SumCheck(T; Q)`.
 Obligation: Enforce all 28 equations
 `p_i(0) + p_i(1) = claim_i`, then `claim_(i+1) = p_i(r_i)`, and
 export the final `claim_28` for the separate `Q(r')` check.

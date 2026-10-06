@@ -1,7 +1,7 @@
 import NightstreamFPrime.Layout.PiCCS.v1_1.Composition
 
 /-!
-Paper authority: SuperNeo v1_1, section 7.3, PiCCS Steps 1--5.
+Paper authority: SuperNeo v1.2, section 7.3, PiCCS Steps 1--5.
 Obligation: Derive every physical child-input shape from the caller-owned
 production wires and the proved outputs of preceding children.
 

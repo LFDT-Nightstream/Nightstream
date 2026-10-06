@@ -3,7 +3,7 @@ import NightstreamFPrime.Lifecycle.ProductionKey
 import NightstreamFPrime.Spec.Folding.PiCCS.Transcript
 
 /-!
-Paper authority: SuperNeo v1.1, Section 7.3, Step 1; Fiat–Shamir transform.
+Paper authority: SuperNeo v1.2, Section 7.3, Step 1; Fiat–Shamir transform.
 Obligation: Derive `α ∈ K^28`, then `γ ∈ K`, from the state after the
 complete public statement absorption.
 

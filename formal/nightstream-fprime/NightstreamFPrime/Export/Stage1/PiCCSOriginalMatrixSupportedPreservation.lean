@@ -47,7 +47,7 @@ theorem weighted_source_port {columns arity count : Nat}
   · simp only [if_neg zero]
     exact PiDECMatrixWeightedRange.evaluate_prepare_toRing firstRow point (read source) forms port
 
-/-- The same flag preserves complete prepared numeric invocation ranges.
+/-- Prepared column weights preserve every source, port and ring lane.
 The existing zero-read theorem covers selectors, constants and output pins. -/
 theorem invocations_source_port {columns arity count : Nat}
     (zeroSource : Fin productionShape.sourceCount → Bool)
@@ -61,11 +61,16 @@ theorem invocations_source_port {columns arity count : Nat}
       ((PiCCSOriginalMatrixBatch.sumInvocations firstRow point read interfaces).get
         (Fin.encodeProd (source, port))).toRing := by
   rw [PiCCSOriginalMatrixBatch.sumInvocations_source_port]
-  simp only [invocations, get_ofFn, Fin.decodeProd_encodeProd]
-  by_cases zero : zeroSource source = true
-  · rw [if_pos zero, PiDECEvaluationBatch.zero_value, zeroRead zero,
+  by_cases allZero : ∀ source, zeroSource source = true
+  · rw [invocations, if_pos allZero, PiDECEvaluationBatch.zero_value, zeroRead (allZero source),
       PiDECMatrixZeroRead.invocation_sum_zero]
-  · simp only [if_neg zero]
+  · simp only [invocations, if_neg allZero, get_ofFn, Fin.decodeProd_encodeProd]
+    by_cases zero : zeroSource source = true
+    · rw [if_pos zero, PiDECEvaluationBatch.zero_value, zeroRead zero,
+        PiDECMatrixZeroRead.invocation_sum_zero]
+    · simp only [if_neg zero]
+      exact PiDECPoseidonColumnWeights.evaluate_prepare_toRing firstRow point (read source)
+        interfaces port
 
 /-- Flags computed from every original mask preserve the unguarded sparse
 batch through prepared column weights, for arbitrary supplied basis tables,

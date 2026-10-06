@@ -56,6 +56,11 @@ where
         if let Err(error) = super::validate_ce_claim_shape(&format!("verify_dec_public: children[{index}]"), s, child) {
             return fail(error);
         }
+        if let Err(error) =
+            super::validation::validate_commitment_shape("verify_dec_public: child", &child.c, parent.c.kappa)
+        {
+            return fail(error);
+        }
         if let Err(error) = super::validate_pi_ccs_outputs(
             &format!("verify_dec_public: selected child[{index}]"),
             s,

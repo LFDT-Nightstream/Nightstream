@@ -193,7 +193,9 @@ pub fn check_fixture(fixture: &[u8], base: &[u8], input: &[u8], children: &[u8],
     assert_eq!(&fixture[4][5], rlc_state);
     assert_eq!(fixture[4][6], json!(parent_public));
     println!(
-        "recursive_caller_binding=passed prior_iteration={} output_iteration={} children=16 matrix_families=14",
-        prior[28], next[28]
+        "recursive_caller_binding=passed prior_iteration={} output_iteration={} children=16 matrix_families={}",
+        prior[28],
+        next[28],
+        nightstream_fprime::PI_CCS_V1_1_MATRIX_COUNT
     );
 }

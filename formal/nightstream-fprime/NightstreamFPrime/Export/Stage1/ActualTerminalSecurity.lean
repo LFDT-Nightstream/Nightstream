@@ -25,9 +25,10 @@ open NightstreamFPrime.Spec.HyperNova.NonInteractiveMultiFold
 open ActualContextSecurity
 
 /-- The accepted terminal opening supplies the selected context, the complete
-prior-state public input and the digest absorbed by PiCCS, and the exact NIFS
-output. The base branch performs no NIFS call. No input-authentication or
-output-match premise is added at this boundary. -/
+prior-state public input, the prior-state link of the transcript coverage
+contract (the digest absorbed by PiCCS and a well-formed prior preimage), and
+the exact NIFS output. The base branch performs no NIFS call. No
+input-authentication or output-match premise is added at this boundary. -/
 theorem terminal_implies_nifsOrBaseOrCollision
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
@@ -49,7 +50,7 @@ theorem terminal_implies_nifsOrBaseOrCollision
       (input.iteration = 0 ∨
         (0 < input.iteration ∧
           input.fresh.publicInputs ⟨0, by decide⟩ = encHash (stateHash prior) ∧
-          ProductionKey.priorDigest input.fresh = stateHash prior ∧
+          TranscriptCoverage.PriorLink prior input.fresh ∧
           Nifs.PaperNonInteractive.verify (ProductionKey.key relation ajtai)
             (input.running functionIndex) input.fresh input.nifsProof =
               some (payload.running functionIndex)))) ∨
@@ -67,8 +68,10 @@ theorem terminal_implies_nifsOrBaseOrCollision
   let prior := priorHashPreimage (Lifecycle.setup relation ajtai context) input
   rcases terminal_implies_matchingStepOrCollision application fits commitmentSetup
     statement payload terminal with ⟨step, same⟩ | collision
-  · apply Or.inl
-    refine ⟨congrArg (fun preimage => preimage.verifierKeys functionIndex) same, ?_⟩
+  · have contextEqual : ActualStep.contextKey application assignment = context :=
+      congrArg (fun preimage => preimage.verifierKeys functionIndex) same
+    apply Or.inl
+    refine ⟨contextEqual, ?_⟩
     change FixedAugmentedTransition (Lifecycle.setup relation ajtai context)
       (Lifecycle.machineFor (PerApplicationFixedPoint.publicFits application) application)
       functionIndex input output at step
@@ -87,51 +90,77 @@ theorem terminal_implies_nifsOrBaseOrCollision
         unfold ProductionKey.priorDigest
         rw [priorPublic]
         exact decodeHash_encHash _ (StateEncoding.stateHash_length prior)
+      have wellFormed : StateEncoding.WellFormed prior := by
+        show StateEncoding.WellFormed
+          (priorHashPreimage (Lifecycle.setup relation ajtai context) input)
+        rw [← contextEqual, ActualStep.priorHashPreimage_eq_prior]
+        exact StateDecoder.preimage_wellFormed _ _ _
       have checked : Nifs.PaperNonInteractive.verify (ProductionKey.key relation ajtai)
           (input.running functionIndex) input.fresh input.nifsProof =
             some (output.runningNext functionIndex) := by
         simpa [Accepts, Lifecycle.setup, Lifecycle.nifsVerifier] using selectedNifs
       have outputSame : output.runningNext functionIndex = payload.running functionIndex :=
         congrArg (fun preimage => preimage.running functionIndex) same
-      exact Or.inr ⟨positive, priorPublic, digest, checked.trans (congrArg some outputSame)⟩
+      exact Or.inr ⟨positive, priorPublic, ⟨digest, wellFormed⟩,
+        checked.trans (congrArg some outputSame)⟩
   · exact Or.inr collision
 
-/-- Actual terminal acceptance supplies the prior-state link that the
-transcript coverage contract needs, unless it is the base step or the state
-hash collides. -/
-theorem terminal_implies_priorLinkOrBaseOrCollision
+/-- Transcript coverage for accepted terminals. If two accepted recursive
+terminals present equal prover-dependent transcript inputs before a challenge,
+they have the same prior preimage (verifier-key digest, iteration, application
+states, running statement) and agree on everything the transcript absorbs
+directly. Otherwise one of them is the base step or a state hash collides. -/
+theorem terminal_calls_identify_view_or_collision
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
     (commitmentSetup : PerApplicationCanonicalPackage.CommitmentSetup application)
-    (statement : TerminalStatement AppState) (payload : TerminalPayload application)
+    (statement statement' : TerminalStatement AppState)
+    (payload payload' : TerminalPayload application)
     (terminal : Stage1.Terminal.HoldsFor (PerApplicationFixedPoint.relation application fits)
       (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
       (PerApplicationCanonicalPackage.verifierContextDigest fits commitmentSetup)
-      application statement (.recursive payload)) :
+      application statement (.recursive payload))
+    (terminal' : Stage1.Terminal.HoldsFor (PerApplicationFixedPoint.relation application fits)
+      (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
+      (PerApplicationCanonicalPackage.verifierContextDigest fits commitmentSetup)
+      application statement' (.recursive payload'))
+    (challenge : TranscriptCoverage.Challenge) :
     let assignment := ProductionRelation.Plan.logicalAssignment payload.freshWitness
+    let assignment' := ProductionRelation.Plan.logicalAssignment payload'.freshWitness
     let input := ActualStep.input application fits assignment
       (ActualStep.decodedFresh application assignment)
       (ActualPiDECMessages.proof application fits assignment)
+    let input' := ActualStep.input application fits assignment'
+      (ActualStep.decodedFresh application assignment')
+      (ActualPiDECMessages.proof application fits assignment')
     let relation := PerApplicationFixedPoint.relation application fits
     let ajtai := PerApplicationCanonicalPackage.commitmentKey commitmentSetup
     let context := PerApplicationCanonicalPackage.verifierContextDigest fits commitmentSetup
     let prior := priorHashPreimage (Lifecycle.setup relation ajtai context) input
-    input.iteration = 0 ∨
-      (0 < input.iteration ∧
-        TranscriptCoverage.PriorLink prior (input.running functionIndex) input.fresh) ∨
-      PiCCSSecurity.StateHashCollision (decodedNext application assignment)
-        (terminalPreimage application fits commitmentSetup statement payload) := by
-  intro assignment input relation ajtai context prior
+    let prior' := priorHashPreimage (Lifecycle.setup relation ajtai context) input'
+    TranscriptCoverage.proverCalls input.fresh input.nifsProof challenge =
+        TranscriptCoverage.proverCalls input'.fresh input'.nifsProof challenge →
+      input.iteration = 0 ∨ input'.iteration = 0 ∨
+        (prior = prior' ∧ TranscriptCoverage.AgreeOnAbsorbed input.fresh input'.fresh
+          input.nifsProof input'.nifsProof challenge) ∨
+        PiCCSSecurity.StateHashCollision prior prior' ∨
+        PiCCSSecurity.StateHashCollision (decodedNext application assignment)
+          (terminalPreimage application fits commitmentSetup statement payload) ∨
+        PiCCSSecurity.StateHashCollision (decodedNext application assignment')
+          (terminalPreimage application fits commitmentSetup statement' payload') := by
+  intro assignment assignment' input input' relation ajtai context prior prior' same
   rcases terminal_implies_nifsOrBaseOrCollision application fits commitmentSetup
-    statement payload terminal with ⟨contextEqual, base | recursive⟩ | collision
+    statement payload terminal with ⟨_, base | ⟨_, _, link, _⟩⟩ | collision
   · exact Or.inl base
-  · rcases recursive with ⟨positive, _priorPublic, digest, _accepted⟩
-    refine Or.inr (Or.inl ⟨positive, digest, rfl, ?_⟩)
-    show StateEncoding.WellFormed (priorHashPreimage (Lifecycle.setup relation ajtai
-      (PerApplicationCanonicalPackage.verifierContextDigest fits commitmentSetup)) input)
-    rw [← contextEqual, ActualStep.priorHashPreimage_eq_prior]
-    exact StateDecoder.preimage_wellFormed _ _ _
-  · exact Or.inr (Or.inr collision)
+  · rcases terminal_implies_nifsOrBaseOrCollision application fits commitmentSetup
+      statement' payload' terminal' with ⟨_, base' | ⟨_, _, link', _⟩⟩ | collision'
+    · exact Or.inr (Or.inl base')
+    · rcases TranscriptCoverage.calls_identify_view_or_collision challenge link link' same with
+        view | collision
+      · exact Or.inr (Or.inr (Or.inl view))
+      · exact Or.inr (Or.inr (Or.inr (Or.inl collision)))
+    · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr collision'))))
+  · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inl collision))))
 
 /-- Actual terminal acceptance either comes from the base step, supplies the
 valid recomposed PiDEC parent of the decoded recursive proof, or exhibits the

@@ -55,27 +55,29 @@ total query count; the code does not infer `g_d Q p = p`. The conditional
 theorem remains useful for the requested implementation proofs and constraint
 reduction.
 
-Absorption coverage is proved, not assumed.
-`Layout/Stage1/TranscriptCoverage.lean` models each production challenge
-(`α`, `γ`, the SumCheck points, the `Π_RLC` scalars) as a read of the Poseidon2
-state after an explicit list of permutation inputs: zero-padded rate chunks,
-with a squeeze as the zero chunk. `challenge_seal` ties every key challenge to
-its prover-dependent inputs followed by inputs that admit no prover data.
-Equal prover-dependent inputs before a challenge identify the fresh statement
-and every earlier prover message (`proverCalls_identify`). The running
-statement enters only through the prior digest:
-`terminal_implies_priorLinkOrBaseOrCollision` builds the prior-state link from
-terminal acceptance, and with it equal inputs also identify the prior preimage
-(verifier-key digest, iteration, application states, program counter) and the
-running statement, unless the state hash collides
-(`calls_identify_view_or_collision`). The assumption above still covers the
-permutation, the duplex construction, and the transfer bound.
-
 This is stronger than Poseidon2 collision resistance. Chiesa–Orrù's
 [duplex-sponge result](https://eprint.iacr.org/2025/536) uses overwrite
 absorption; its theorem is not currently matched to our additive absorption
 and initialization. The note makes no ideal-permutation proof, quantum
 security, machine-time, or full-history extraction claim.
+
+Absorption coverage is proved, not assumed.
+`Layout/Stage1/TranscriptCoverage.lean` models each production challenge
+(`α`, `γ`, the SumCheck points, the `Π_RLC` scalars) as a read of the Poseidon2
+state after an explicit list of permutation inputs: zero-padded rate chunks,
+with a squeeze as the zero chunk. `challenge_seal` ties every key challenge to
+its prover-dependent inputs followed by inputs that admit no prover data, and
+`coins_eq_reads` states that the PiCCS coin record is exactly these reads.
+Equal prover-dependent inputs before a challenge identify the fresh statement
+and every earlier prover message (`proverCalls_identify`). The running
+statement enters only through the prior digest. With the prior-state link,
+equal inputs also identify the prior preimage (verifier-key digest, iteration,
+application states, program counter) and the running statement, unless the
+state hash collides (`calls_identify_view_or_collision`). Terminal acceptance
+builds that link (`terminal_implies_nifsOrBaseOrCollision`), and
+`terminal_calls_identify_view_or_collision` applies the result to two accepted
+terminals. The assumption above still covers the permutation, the duplex
+construction, and the transfer bound.
 
 The separate finite sampler laws and `VerifierErrorBudget` are checked.
 Under the stated per-call laws, the selected PiCCS test and sampler-abort

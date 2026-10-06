@@ -694,14 +694,6 @@ private theorem cubePoint_eq_of_coordinates_owned
   cases right
   simp_all
 
-private theorem fixedPolynomial_eq_of_coefficients
-    {Field : Type} {degree : Nat}
-    (left right : SumCheck.Finite.FixedPolynomial Field degree)
-    (coefficients : left.coefficients = right.coefficients) : left = right := by
-  cases left
-  cases right
-  simp_all
-
 theorem specHolds_of_agree_below {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat)
     (before after : Env) (assumptions : Assumptions interface offset before)
@@ -721,7 +713,7 @@ theorem specHolds_of_agree_below {degreeBound : Nat}
       semanticRounds interface offset before := by
     funext roundIndex
     apply congrArg SumCheck.Finite.FixedPolynomial.toMessage
-    apply fixedPolynomial_eq_of_coefficients
+    apply SumCheck.Finite.FixedPolynomial.eq_of_coefficients
     change (List.ofFn (interface.round offset roundIndex).coefficient).map
         (KExpr.eval after) =
       (List.ofFn (interface.round offset roundIndex).coefficient).map

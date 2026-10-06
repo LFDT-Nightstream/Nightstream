@@ -53,23 +53,17 @@ impl PreparedLifecycle {
                 "iteration is not a canonical Goldilocks counter",
             ));
         }
-        if envelope.is_initial() {
+        let Some((running, fresh)) = envelope.active_parts() else {
             if expected_state.iteration() != 0 || expected_state.current() != expected_state.z0() {
                 return Err(VerifyError::Statement(
                     "bottom requires zero iterations and equal endpoints",
                 ));
             }
             return Ok(());
-        }
+        };
         if expected_state.iteration() == 0 {
             return Err(VerifyError::Statement("an active proof requires a positive iteration"));
         }
-        let running = envelope
-            .running()
-            .ok_or(VerifyError::Statement("missing running payload"))?;
-        let fresh = envelope
-            .fresh()
-            .ok_or(VerifyError::Statement("missing fresh payload"))?;
         if running.claims.len() != PI_DEC_V1_1_CHILD_COUNT || running.witnesses.len() != PI_DEC_V1_1_CHILD_COUNT {
             return Err(VerifyError::Statement(
                 "running claim or witness count differs from the selected profile",

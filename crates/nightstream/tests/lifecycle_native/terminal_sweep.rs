@@ -1,12 +1,13 @@
 //! Terminal tamper sweep on a folded proof: every field of an active envelope
-//! either produces its expected rejection or is named below as
-//! non-authoritative. Exhaustive patterns make a new proof variant or a new
-//! claim, instance, witness, or commitment field a compile error until it has
-//! a case. `Stage1State` fields are private; the three state cases cover them.
+//! either produces its expected rejection or is checked below as
+//! non-authoritative. The exhaustive patterns list every proof variant and
+//! every claim, instance, witness, and commitment field, so a new one fails to
+//! compile until this sweep is reviewed. `Stage1State` fields are private; the
+//! state cases cover them.
 use super::*;
+use crate::engine::Backend;
 use crate::folding::{CcsInstance, CcsWitness};
-use crate::lifecycle::{ProofState, Stage1Envelope};
-use crate::{Circuit, Engine, Verifier};
+use crate::lifecycle::{ProofState, Stage1Envelope, VerifyError};
 use nightstream_fprime::PI_DEC_V1_1_CHILD_COUNT;
 use std::time::Instant;
 
@@ -19,12 +20,40 @@ struct Parts {
 
 impl Parts {
     fn envelope(self) -> Stage1Envelope {
-        Stage1Envelope::from_state_and_proof(self.state, ProofState::active(self.running, self.fresh))
+        Stage1Envelope::from_parts(self.state, self.running, self.fresh)
     }
 
     fn with_state(&mut self, iteration: u64, z0: [F; 4], current: [F; 4]) {
         self.state = Stage1State::new(iteration, z0, current);
     }
+
+    fn last_claim(&mut self) -> &mut CeClaim {
+        self.running.claims.last_mut().unwrap()
+    }
+}
+
+/// The terminal checks a case can reach, by error kind and reason.
+#[derive(Debug, PartialEq)]
+enum Rejection {
+    Statement(&'static str),
+    Running(usize, &'static str),
+    Fresh(&'static str),
+}
+
+fn rejection(error: VerifyError) -> Rejection {
+    match error {
+        VerifyError::Statement(reason) => Rejection::Statement(reason),
+        VerifyError::Running { index, reason } => Rejection::Running(index, reason),
+        VerifyError::Fresh(reason) => Rejection::Fresh(reason),
+        other => panic!("unexpected terminal error: {other:?}"),
+    }
+}
+
+/// One envelope change and the terminal decision it must produce.
+struct Case {
+    name: &'static str,
+    change: fn(&mut Parts),
+    expected: Result<(), Rejection>,
 }
 
 /// Change one signed-unit coordinate of a witness to another unit value.
@@ -46,204 +75,250 @@ fn lanes(commitment: &Commitment) -> LaneCommitments<Commitment> {
     }
 }
 
-const STATEMENT: &str = "selected terminal statement";
-const FRESH: &str = "selected terminal fresh opening";
-const HASH: &str = "selected terminal fresh opening: public input differs from the recomputed terminal state hash";
+const LAST: usize = PI_DEC_V1_1_CHILD_COUNT - 1;
+const HASH: Rejection = Rejection::Fresh("public input differs from the recomputed terminal state hash");
 
-/// One change: a name, the change, and the exact expected rejection.
-type Case = (&'static str, fn(&mut Parts), String);
+fn rejected(name: &'static str, change: fn(&mut Parts), rejection: Rejection) -> Case {
+    Case {
+        name,
+        change,
+        expected: Err(rejection),
+    }
+}
 
-fn running(index: usize, reason: &str) -> String {
-    format!("selected terminal running child {index}: {reason}")
+fn ignored(name: &'static str, change: fn(&mut Parts)) -> Case {
+    Case {
+        name,
+        change,
+        expected: Ok(()),
+    }
 }
 
 fn cases() -> Vec<Case> {
-    let last = PI_DEC_V1_1_CHILD_COUNT - 1;
+    use Rejection::{Fresh, Running, Statement};
     vec![
-        (
+        rejected(
             "state iteration",
             |parts| parts.with_state(parts.state.iteration() + 1, parts.state.z0(), parts.state.current()),
-            HASH.into(),
+            HASH,
         ),
-        (
+        rejected(
+            "zero state iteration",
+            |parts| parts.with_state(0, parts.state.z0(), parts.state.current()),
+            Statement("an active proof requires a positive iteration"),
+        ),
+        rejected(
+            "non-canonical state iteration",
+            |parts| parts.with_state(F::ORDER_U64, parts.state.z0(), parts.state.current()),
+            Statement("iteration is not a canonical Goldilocks counter"),
+        ),
+        rejected(
             "state z0",
             |parts| {
                 let mut z0 = parts.state.z0();
                 z0[0] += F::ONE;
                 parts.with_state(parts.state.iteration(), z0, parts.state.current())
             },
-            HASH.into(),
+            HASH,
         ),
-        (
+        rejected(
             "state current",
             |parts| {
                 let mut current = parts.state.current();
                 current[0] += F::ONE;
                 parts.with_state(parts.state.iteration(), parts.state.z0(), current)
             },
-            HASH.into(),
+            HASH,
         ),
-        (
+        rejected(
             "running claim count",
             |parts| drop(parts.running.claims.pop()),
-            format!("{STATEMENT}: running claim or witness count differs from the selected profile"),
+            Statement("running claim or witness count differs from the selected profile"),
         ),
-        (
+        rejected(
             "running witness count",
             |parts| drop(parts.running.witnesses.pop()),
-            format!("{STATEMENT}: running claim or witness count differs from the selected profile"),
+            Statement("running claim or witness count differs from the selected profile"),
         ),
-        (
+        rejected(
             "last running commitment d",
-            |parts| parts.running.claims.last_mut().unwrap().c.d += 1,
-            running(last, "commitment or public-input shape"),
+            |parts| parts.last_claim().c.d += 1,
+            Running(LAST, "commitment or public-input shape"),
         ),
-        (
+        rejected(
             "last running commitment kappa",
-            |parts| parts.running.claims.last_mut().unwrap().c.kappa += 1,
-            running(last, "commitment or public-input shape"),
+            |parts| parts.last_claim().c.kappa += 1,
+            Running(LAST, "commitment or public-input shape"),
         ),
-        (
+        rejected(
             "first running commitment data",
             |parts| parts.running.claims[0].c.data[0] += F::ONE,
-            HASH.into(),
+            HASH,
         ),
-        (
+        rejected(
             "last running commitment data",
-            |parts| parts.running.claims.last_mut().unwrap().c.data[0] += F::ONE,
-            HASH.into(),
+            |parts| parts.last_claim().c.data[0] += F::ONE,
+            HASH,
         ),
-        (
+        rejected(
             "first running public input X",
             |parts| parts.running.claims[0].X[(0, 0)] += F::ONE,
-            running(0, "witness public projection differs from X"),
+            Running(0, "witness public projection differs from X"),
         ),
-        (
+        rejected(
             "last running public input X",
-            |parts| parts.running.claims.last_mut().unwrap().X[(0, 0)] += F::ONE,
-            running(last, "witness public projection differs from X"),
+            |parts| parts.last_claim().X[(0, 0)] += F::ONE,
+            Running(LAST, "witness public projection differs from X"),
         ),
-        (
+        rejected(
             "last running point r",
-            |parts| parts.running.claims.last_mut().unwrap().r[0] += K::ONE,
-            running(last, "running claims must share the selected evaluation point"),
+            |parts| parts.last_claim().r[0] += K::ONE,
+            Running(LAST, "running claims must share the selected evaluation point"),
         ),
-        (
+        rejected(
             "every running point r",
             |parts| {
                 for claim in &mut parts.running.claims {
                     claim.r[0] += K::ONE;
                 }
             },
-            HASH.into(),
+            HASH,
         ),
-        (
+        rejected(
             "first running Eval_K",
             |parts| parts.running.claims[0].eval_k[0] += K::ONE,
-            HASH.into(),
+            HASH,
         ),
-        (
+        rejected(
             "last running Eval_K",
-            |parts| parts.running.claims.last_mut().unwrap().eval_k[0] += K::ONE,
-            HASH.into(),
+            |parts| parts.last_claim().eval_k[0] += K::ONE,
+            HASH,
         ),
-        (
+        rejected(
             "last running Eval_K surplus",
-            |parts| parts.running.claims.last_mut().unwrap().eval_k.push(K::ONE),
-            running(last, "evaluation shape or nonzero surplus coefficients"),
+            |parts| parts.last_claim().eval_k.push(K::ONE),
+            Running(LAST, "evaluation shape or nonzero surplus coefficients"),
         ),
-        (
+        rejected(
             "last running Eval_A",
-            |parts| parts.running.claims.last_mut().unwrap().eval_a[0][0] += K::ONE,
-            HASH.into(),
+            |parts| parts.last_claim().eval_a[0][0] += K::ONE,
+            HASH,
         ),
-        (
+        rejected(
             "last running Eval_A count",
-            |parts| drop(parts.running.claims.last_mut().unwrap().eval_a.pop()),
-            running(last, "evaluation shape or nonzero surplus coefficients"),
+            |parts| drop(parts.last_claim().eval_a.pop()),
+            Running(LAST, "evaluation shape or nonzero surplus coefficients"),
         ),
-        (
+        rejected(
             "last running m_in",
-            |parts| parts.running.claims.last_mut().unwrap().m_in += D,
-            running(last, "commitment or public-input shape"),
+            |parts| parts.last_claim().m_in += D,
+            Running(LAST, "commitment or public-input shape"),
         ),
-        (
+        rejected(
             "last running auxiliary commitments",
             |parts| {
-                let claim = parts.running.claims.last_mut().unwrap();
+                let claim = parts.last_claim();
                 claim.adv = Some(lanes(&claim.c));
             },
-            running(last, "plain claims cannot carry auxiliary commitments"),
+            Running(LAST, "plain claims cannot carry auxiliary commitments"),
         ),
-        (
+        rejected(
             "first running witness public coordinate",
             |parts| flip(&mut parts.running.witnesses[0], 0),
-            running(0, "witness public projection differs from X"),
+            Running(0, "witness public projection differs from X"),
         ),
-        (
+        rejected(
             "last running witness public coordinate",
             |parts| flip(parts.running.witnesses.last_mut().unwrap(), 0),
-            running(last, "witness public projection differs from X"),
+            Running(LAST, "witness public projection differs from X"),
         ),
-        (
+        rejected(
             "first running witness private coordinate",
             |parts| {
                 let position = parts.running.claims[0].m_in;
                 flip(&mut parts.running.witnesses[0], position)
             },
-            running(0, "fixed-key commitment differs from the witness"),
+            Running(0, "fixed-key commitment differs from the witness"),
         ),
-        (
+        rejected(
             "last running witness private coordinate",
             |parts| {
-                let position = parts.running.claims[0].m_in;
+                let position = parts.last_claim().m_in;
                 flip(parts.running.witnesses.last_mut().unwrap(), position)
             },
-            running(last, "fixed-key commitment differs from the witness"),
+            Running(LAST, "fixed-key commitment differs from the witness"),
         ),
-        (
+        rejected(
             "fresh commitment d",
             |parts| parts.fresh.claim.c.d += 1,
-            format!("{FRESH}: commitment or public-input shape"),
+            Fresh("commitment or public-input shape"),
         ),
-        (
+        rejected(
             "fresh commitment kappa",
             |parts| parts.fresh.claim.c.kappa += 1,
-            format!("{FRESH}: commitment or public-input shape"),
+            Fresh("commitment or public-input shape"),
         ),
-        (
+        rejected(
             "fresh commitment data",
             |parts| parts.fresh.claim.c.data[0] += F::ONE,
-            format!("{FRESH}: fixed-key commitment differs from the witness"),
+            Fresh("fixed-key commitment differs from the witness"),
         ),
-        (
-            "fresh public input x",
-            |parts| parts.fresh.claim.x[1] += F::ONE,
-            HASH.into(),
-        ),
-        (
+        rejected("fresh public input x", |parts| parts.fresh.claim.x[1] += F::ONE, HASH),
+        rejected(
             "fresh m_in",
             |parts| parts.fresh.claim.m_in += D,
-            format!("{FRESH}: commitment or public-input shape"),
+            Fresh("commitment or public-input shape"),
         ),
-        (
+        rejected(
             "fresh auxiliary commitments",
             |parts| parts.fresh.claim.adv = Some(lanes(&parts.fresh.claim.c)),
-            format!("{FRESH}: plain claims cannot carry auxiliary commitments"),
+            Fresh("plain claims cannot carry auxiliary commitments"),
         ),
-        (
+        rejected(
             "fresh witness public coordinate",
             |parts| flip(&mut parts.fresh.witness.Z, 1),
-            format!("{FRESH}: witness public projection differs from x"),
+            Fresh("witness public projection differs from x"),
         ),
-        (
+        rejected(
             "fresh witness private coordinate",
             |parts| {
                 let position = parts.fresh.claim.m_in;
                 flip(&mut parts.fresh.witness.Z, position)
             },
-            format!("{FRESH}: fixed-key commitment differs from the witness"),
+            Fresh("fixed-key commitment differs from the witness"),
         ),
+        rejected(
+            "fresh witness completion tail",
+            |parts| {
+                let position = parts.fresh.witness.Z.cols() * D - 1;
+                flip(&mut parts.fresh.witness.Z, position)
+            },
+            Fresh("complete witness shape or nonzero fresh completion tail"),
+        ),
+        ignored("running fold digests", |parts| {
+            for claim in &mut parts.running.claims {
+                claim.fold_digest[0] ^= 1;
+            }
+        }),
+        ignored("running parent authority", |parts| {
+            parts.running.parent_authority = match parts.running.parent_authority {
+                Some(_) => None,
+                None => Some(parts.running.claims[0].clone()),
+            }
+        }),
+        ignored("running Eval_K zero padding", |parts| {
+            for claim in &mut parts.running.claims {
+                claim.eval_k.push(K::ZERO);
+            }
+        }),
+        ignored("running Eval_A zero padding", |parts| {
+            for claim in &mut parts.running.claims {
+                claim.eval_a[0].push(K::ZERO);
+            }
+        }),
+        ignored("fresh private witness cache w", |parts| {
+            parts.fresh.witness.w = vec![F::ONE]
+        }),
     ]
 }
 
@@ -253,18 +328,23 @@ fn terminal_rejects_every_authoritative_envelope_change() {
     let started = Instant::now();
     let initial = [1, 2, 3, 4].map(F::from_u64);
     let message = [5, 6, 7, 8].map(F::from_u64);
+    let words = message.map(|word| word.as_canonical_u64());
+    let application = crate::application::poseidon2_hash_chain_v1().unwrap();
     let bytes = fs::read(artifact("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json")).unwrap();
-    let circuit = Circuit::compile(&bytes, crate::application::poseidon2_hash_chain_v1().unwrap()).unwrap();
+    let (source, binding) = crate::assembly::prepare(&bytes, &application).unwrap();
     drop(bytes);
-    let verifier = Verifier::from_package(&circuit, Engine::Optimized, 114).unwrap();
-    let prover = circuit.prover(Engine::Optimized, 114).unwrap();
-    // The second step folds a real running instance; the base step's running
-    // claims are all the zero default.
-    let proof = prover
-        .extend(&prover.prove(initial, &message).unwrap(), &message)
+    let package = PreparedLifecycle::from_package(source.into(), binding, Backend::Optimized, 114).unwrap();
+    assert_ne!(package.structure.m % D, 0, "the selected carrier has a completion tail");
+    let first = output(initial, message);
+    let base = package
+        .extend_with_output(Stage1Envelope::initial(initial), &words, first, None)
         .unwrap();
-    let expected = Stage1State::new(2, initial, output(output(initial, message), message));
-    verifier.verify(&expected, &proof).unwrap();
+    let second = output(first, message);
+    let proof = package
+        .extend_with_output(base, &words, second, None)
+        .unwrap();
+    let expected = Stage1State::new(2, initial, second);
+    package.verify(&expected, &proof).unwrap();
     eprintln!("honest folded proof accepted elapsed={:?}", started.elapsed());
 
     let (state, proof) = proof.into_parts();
@@ -304,41 +384,26 @@ fn terminal_rejects_every_authoritative_envelope_change() {
     let LaneCommitments { ops: _, is: _, fs: _ } = lanes(&honest.fresh.claim.c);
     assert_ne!(
         honest.running.claims[0].eval_k, honest.running.claims[1].eval_k,
-        "the sweep needs distinct running claims"
+        "the folded proof carries a non-default running instance"
     );
 
     // Each change is verified against the envelope's own state, so the state
     // cases must fail at the state-hash binding, not at the state comparison.
-    for (name, change, expected_error) in cases() {
+    for case in cases() {
         let mut parts = honest.clone();
-        change(&mut parts);
+        (case.change)(&mut parts);
         let state = parts.state.clone();
-        let case = Instant::now();
-        let error = verifier
-            .verify(&state, &parts.envelope())
-            .expect_err(&format!("the terminal verifier accepted a changed {name}"));
-        eprintln!("{name}: {error} elapsed={:?}", case.elapsed());
-        assert_eq!(error.to_string(), expected_error, "{name}");
+        let timer = Instant::now();
+        let actual = package.verify(&state, &parts.envelope()).map_err(rejection);
+        eprintln!("{}: {actual:?} elapsed={:?}", case.name, timer.elapsed());
+        assert_eq!(actual, case.expected, "{}", case.name);
     }
     let bottom = Stage1Envelope::from_state_and_proof(expected.clone(), ProofState::Initial);
     assert_eq!(
-        verifier.verify(&expected, &bottom).unwrap_err().to_string(),
-        format!("{STATEMENT}: bottom requires zero iterations and equal endpoints")
+        package.verify(&expected, &bottom).map_err(rejection),
+        Err(Rejection::Statement(
+            "bottom requires zero iterations and equal endpoints"
+        ))
     );
-
-    // These fields are non-authoritative: the terminal decision must ignore
-    // them. Zero coefficients beyond `D` are padding of the same evaluation.
-    let mut ignored = honest.clone();
-    for claim in &mut ignored.running.claims {
-        claim.fold_digest[0] ^= 1;
-        claim.eval_k.push(K::ZERO);
-        claim.eval_a[0].push(K::ZERO);
-    }
-    ignored.running.parent_authority = match ignored.running.parent_authority {
-        Some(_) => None,
-        None => Some(ignored.running.claims[0].clone()),
-    };
-    ignored.fresh.witness.w = vec![F::ONE];
-    verifier.verify(&expected, &ignored.envelope()).unwrap();
     eprintln!("terminal tamper sweep elapsed={:?}", started.elapsed());
 }

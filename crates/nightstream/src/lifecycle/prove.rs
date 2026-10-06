@@ -3,9 +3,7 @@ use super::PreparedLifecycle;
 use crate::engine::{paper_exact, Backend};
 use crate::folding::{self as nifs, transcript::Transcript, CcsInstance, RunningInstance};
 use neo_math::D;
-use nightstream_fprime::{
-    PackageError, PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_1_SOURCE_COUNT, PI_DEC_V1_1_CHILD_COUNT,
-};
+use nightstream_fprime::{PackageError, PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS, PI_DEC_V1_1_CHILD_COUNT};
 #[derive(Debug, thiserror::Error)]
 pub enum ProveError {
     #[error(transparent)]
@@ -20,10 +18,11 @@ pub enum ProveError {
 impl PreparedLifecycle {
     pub fn prove(
         &self,
-        fresh: Vec<CcsInstance>,
+        fresh: CcsInstance,
         running: RunningInstance,
     ) -> Result<(RunningInstance, nifs::NifsProof), ProveError> {
         self.validate_prover_sources(&fresh, &running)?;
+        let fresh = vec![fresh];
         let params = &self.params;
         let mut transcript = Transcript::session();
         let rows = self.matrix_rows();
@@ -76,25 +75,20 @@ impl PreparedLifecycle {
         })
     }
 
-    fn validate_prover_sources(&self, fresh: &[CcsInstance], running: &RunningInstance) -> Result<(), ProveError> {
-        if fresh.len() != PI_CCS_V1_1_SOURCE_COUNT - PI_DEC_V1_1_CHILD_COUNT
-            || running.claims.len() != PI_DEC_V1_1_CHILD_COUNT
-            || !running.prover_shape_is_valid()
-        {
+    fn validate_prover_sources(&self, fresh: &CcsInstance, running: &RunningInstance) -> Result<(), ProveError> {
+        if running.claims.len() != PI_DEC_V1_1_CHILD_COUNT || !running.prover_shape_is_valid() {
             return Err(ProveError::Input("source counts do not match the selected profile"));
         }
         let blocks = self.structure.m.div_ceil(D);
         let public = PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS;
-        for source in fresh {
-            if source.claim.m_in != public
-                || source.claim.x.len() != public
-                || source.witness.Z.rows() != D
-                || source.witness.Z.cols() != blocks
-                || source.claim.adv.is_some()
-                || (0..public).any(|index| source.witness.Z[(index % D, index / D)] != source.claim.x[index])
-            {
-                return Err(ProveError::Input("fresh carrier or public prefix does not match"));
-            }
+        if fresh.claim.m_in != public
+            || fresh.claim.x.len() != public
+            || fresh.witness.Z.rows() != D
+            || fresh.witness.Z.cols() != blocks
+            || fresh.claim.adv.is_some()
+            || (0..public).any(|index| fresh.witness.Z[(index % D, index / D)] != fresh.claim.x[index])
+        {
+            return Err(ProveError::Input("fresh carrier or public prefix does not match"));
         }
         for (claim, witness) in running.claims.iter().zip(&running.witnesses) {
             if claim.m_in != public

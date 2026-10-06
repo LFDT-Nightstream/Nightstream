@@ -42,13 +42,10 @@ pub struct PiCcsV1_1ProofInputs {
 
 impl PiCcsV1_1ProofInputs {
     /// Convert one native v1_1 PiCCS proof without changing its order.
-    pub fn from_proof(fresh: &[CcsClaim], proof: &pi_ccs::Proof) -> Result<Self, PiCcsV1_1PackageBridgeError> {
-        if fresh.len() != 1 {
-            return Err(PiCcsV1_1PackageBridgeError::Shape("fresh source count"));
-        }
-        if fresh[0].c.d != PI_CCS_V1_1_COEFFICIENT_COUNT
-            || fresh[0].c.kappa != COMMITMENT_WIDTH
-            || fresh[0].c.data.len() != PI_CCS_V1_1_FRESH_COMMITMENT_WORDS
+    pub fn from_proof(fresh: &CcsClaim, proof: &pi_ccs::Proof) -> Result<Self, PiCcsV1_1PackageBridgeError> {
+        if fresh.c.d != PI_CCS_V1_1_COEFFICIENT_COUNT
+            || fresh.c.kappa != COMMITMENT_WIDTH
+            || fresh.c.data.len() != PI_CCS_V1_1_FRESH_COMMITMENT_WORDS
         {
             return Err(PiCcsV1_1PackageBridgeError::Shape("fresh commitment width"));
         }
@@ -65,7 +62,7 @@ impl PiCcsV1_1ProofInputs {
             return Err(PiCcsV1_1PackageBridgeError::Shape("output source count"));
         }
 
-        let fresh_commitment = fresh[0]
+        let fresh_commitment = fresh
             .c
             .data
             .iter()

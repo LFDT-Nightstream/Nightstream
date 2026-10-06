@@ -289,20 +289,6 @@ def verifierClaimWords {logicalWidth : Nat}
       serializeKExpr ((running.evaluation coordinate.running).eval_A
         coordinate.matrix coordinate.coefficient)
 
-private theorem flatMap_length_constant
-    {Index Value : Type}
-    (indices : List Index)
-    (values : Index → List Value)
-    (count : Nat)
-    (each : ∀ index, (values index).length = count) :
-    (indices.flatMap values).length = indices.length * count := by
-  induction indices with
-  | nil => simp
-  | cons head tail inductionHypothesis =>
-      rw [List.flatMap_cons, List.length_append, each,
-        inductionHypothesis]
-      simp [Nat.succ_mul, Nat.add_comm]
-
 private theorem verifierClaimWords_length {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -636,10 +622,8 @@ theorem absorbedBlocks_eval
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) (env : Env) :
     (absorbedBlocks interface offset).map (Hash.evalList env) =
-      let fresh := evalFresh (interface.fresh offset) env
-      ProductionKey.publicInputBlocks fresh := by
-  dsimp only
-  exact publicInputBlocks_eval interface offset env
+      ProductionKey.publicInputBlocks (evalFresh (interface.fresh offset) env) :=
+  publicInputBlocks_eval interface offset env
 
 private theorem constantWords_eval (env : Env) (words : List F) :
     Hash.evalList env (constantWords words) = words := by

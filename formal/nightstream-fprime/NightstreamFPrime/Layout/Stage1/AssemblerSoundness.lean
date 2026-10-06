@@ -832,7 +832,7 @@ theorem spec_implies_stepHoldsFor
       have runningBase : outputRunningValue interface runningAt env =
           defaultRunning (logicalWidth := logicalWidth)
             (publicFits := publicFits) := by
-        apply PiCCSRepresentation.serializeRunning_injective
+        apply NightstreamFPrime.Lifecycle.serializeRunning_injective
         exact RunningTransition.spec_serialized_base runningSpec fieldZero
       have defaultOutput : output.runningNext =
           fun _ => (setup relation ajtai vk).defaultRunning := by
@@ -855,7 +855,7 @@ theorem spec_implies_stepHoldsFor
         exact iterationNonzero (represents.iterationZero.mp fieldZero)
       have runningRecursive : outputRunningValue interface runningAt env =
           recursiveRunningValue interface runningAt env := by
-        apply PiCCSRepresentation.serializeRunning_injective
+        apply NightstreamFPrime.Lifecycle.serializeRunning_injective
         exact RunningTransition.spec_serialized_recursive runningSpec
           fieldNonzero
       have priorPcValid : InRange slotCount input.priorPc := by

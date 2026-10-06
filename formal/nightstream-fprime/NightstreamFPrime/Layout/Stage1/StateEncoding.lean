@@ -121,34 +121,8 @@ the input length. The proof follows the round structure symbolically. -/
 theorem stateHash_length
     (preimage : HashPreimage
       (logicalWidth := logicalWidth) (publicFits := publicFits)) :
-    (stateHash preimage).length = 4 := by
-  have roundsLength (roundStep : Nat → Poseidon2.State → Poseidon2.State)
-      (stepLength : ∀ round state, (roundStep round state).length = Poseidon2.width)
-      (rounds : List Nat) (state : Poseidon2.State)
-      (stateLength : state.length = Poseidon2.width) :
-      (rounds.foldl (fun current round => roundStep round current) state).length =
-        Poseidon2.width := by
-    induction rounds generalizing state with
-    | nil => exact stateLength
-    | cons round rest inductionHypothesis =>
-        exact inductionHypothesis _ (stepLength round state)
-  have permuteLength (state : Poseidon2.State) :
-      (Poseidon2.permute state).length = Poseidon2.width := by
-    unfold Poseidon2.permute Poseidon2.rounds
-    apply roundsLength
-    · intro round current
-      simp [Poseidon2.fullRound, Poseidon2.externalLayer]
-    · apply roundsLength
-      · intro round current
-        simp [Poseidon2.partialRound, Poseidon2.internalLayer]
-      · apply roundsLength
-        · intro round current
-          simp [Poseidon2.fullRound, Poseidon2.externalLayer]
-        · simp [Poseidon2.externalLayer]
-  unfold stateHash Poseidon2.hash
-  dsimp only
-  rw [List.length_take, permuteLength]
-  norm_num [Poseidon2.digestLen, Poseidon2.width]
+    (stateHash preimage).length = 4 :=
+  Poseidon2.hash_length _
 
 private theorem natWord_injective_below_modulus
     {left right : Nat}

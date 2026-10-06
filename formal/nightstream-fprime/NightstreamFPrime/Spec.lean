@@ -1,4 +1,5 @@
 import NightstreamFPrime.Spec.Algebra
+import NightstreamFPrime.Spec.FlatMap
 import NightstreamFPrime.Spec.Relation
 import NightstreamFPrime.Spec.Profile
 import NightstreamFPrime.Spec.Poseidon2

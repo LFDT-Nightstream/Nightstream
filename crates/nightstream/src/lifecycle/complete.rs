@@ -58,16 +58,24 @@ impl Stage1Envelope {
         &self.state
     }
 
+    /// The running and fresh instances of an active envelope; `None` at the bottom.
+    pub(crate) fn active_parts(&self) -> Option<(&RunningInstance, &CcsInstance)> {
+        self.proof.parts()
+    }
+
+    #[cfg(test)]
     pub(crate) fn running(&self) -> Option<&RunningInstance> {
-        self.proof.running()
+        self.active_parts().map(|(running, _)| running)
     }
 
+    #[cfg(test)]
     pub(crate) fn fresh(&self) -> Option<&CcsInstance> {
-        self.proof.fresh()
+        self.active_parts().map(|(_, fresh)| fresh)
     }
 
+    #[cfg(test)]
     pub(crate) fn is_initial(&self) -> bool {
-        self.proof.is_initial()
+        self.active_parts().is_none()
     }
 
     pub(super) fn into_parts(self) -> (Stage1State, ProofState) {

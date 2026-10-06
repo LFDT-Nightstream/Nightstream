@@ -35,6 +35,33 @@ variable (application : Lifecycle.Stage1.Application.Program)
 
 include digest publicEqual rows
 
+/-- Accepted rows split each packed prior parent word into its children, so
+the PiCCS running claim is the running value of the actual prior preimage. -/
+private theorem selectedRowsAndPublic_imply_priorRunning :
+    PiCCS.v1_1.Formal.evalRunning
+        (PiCCSInvocations.parentInterface (PerApplicationFixedPoint.logicalWidth application)
+          (PerApplicationFixedPoint.publicFits application))
+        PiCCSInputs.phaseOffset
+        (Spartan.pullback (PiCCSAssignmentSoundness.decodedEnv
+          (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry
+            (PerApplicationFixedPoint.geometry application)) assignment)) =
+      (StateDecoder.preimage (PerApplicationFixedPoint.logicalWidth application)
+        (PerApplicationFixedPoint.publicFits application)
+        (ActualPreimageFraming.priorState
+          (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry
+            (PerApplicationFixedPoint.geometry application)) assignment)).running
+        functionIndex := by
+  let geometry := PerApplicationFixedPoint.geometry application
+  have publicBound : RecursivePublicOutputPlan.publicInput geometry assignment =
+      encHash (publicFits := RecursivePublicOutputPlan.carrierPublicFits geometry) digest := by
+    rw [RecursivePublicOutputPlan.publicInput_eq_projectPublicInput]
+    exact publicEqual
+  have one := RecursivePublicOutputPlan.publicEqual_implies_one
+    geometry assignment digest publicBound
+  exact ActualPiCCSInputs.evalRunning_eq_priorRunning _ assignment
+    (ActualPiCCSInputs.selectedRowsZero_implies_priorSplit application fits assignment
+      one rows)
+
 /-- The actual PiDEC messages pass the production check over the exact
 verifier-derived parent and actual prior running state. -/
 theorem selectedRowsAndPublic_imply_check :
@@ -58,11 +85,8 @@ theorem selectedRowsAndPublic_imply_check :
     (fun running => Nifs.PaperNonInteractive.piDecCheck (ProductionKey.key relation ajtai)
       running (ActualStep.decodedFresh application assignment)
       (ActualPiDECMessages.proof application fits assignment))
-    (ActualPiCCSInputs.evalRunning_eq_priorRunning
-      (relationLogicalWidth := PerApplicationFixedPoint.logicalWidth application)
-      (relationPublicFits := PerApplicationFixedPoint.publicFits application)
-      (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry
-        (PerApplicationFixedPoint.geometry application)) assignment)
+    (selectedRowsAndPublic_imply_priorRunning application fits assignment digest
+      publicEqual rows)
   exact agreement.symm.trans checked
 
 /-- The production key computes all sixteen typed children from the actual
@@ -98,11 +122,8 @@ theorem selectedRowsAndPublic_imply_decodedOutput :
     (fun running => (ProductionKey.key relation ajtai).output
       running (ActualStep.decodedFresh application assignment)
       (ActualPiDECMessages.proof application fits assignment))
-    (ActualPiCCSInputs.evalRunning_eq_priorRunning
-      (relationLogicalWidth := PerApplicationFixedPoint.logicalWidth application)
-      (relationPublicFits := PerApplicationFixedPoint.publicFits application)
-      (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry
-        (PerApplicationFixedPoint.geometry application)) assignment)
+    (selectedRowsAndPublic_imply_priorRunning application fits assignment digest
+      publicEqual rows)
   exact agreement.symm.trans computed
 
 /-- On a recursive step, the key's complete output is exactly the running
@@ -138,12 +159,18 @@ theorem selectedRowsAndPublic_imply_output
       RunningTransitionInputs.phaseOffset env ≠ 0 := by
     intro zero
     apply iterationNonzero
-    change (ActualStep.priorState application assignment 28).val = 0
-    have fieldZero : ActualStep.priorState application assignment 28 = 0 :=
+    change (ActualStep.priorState application assignment 27810).val = 0
+    have fieldZero : ActualStep.priorState application assignment 27810 = 0 :=
       counter.symm.trans zero
     exact congrArg (fun word : F => word.val) fieldZero
+  have outputCanonical := StateEncoding.output_canonical relation ajtai
+    (selectedRowsAndPublic_imply_decodedOutput application fits ajtai assignment
+      digest publicEqual rows)
+  rw [← ActualPiDECCarriedValues.selectedRunningOutput_eq application fits assignment,
+    ← RunningTransitionInputs.eval_recursiveRunningExpr_eq_piDecRunningOutput relation]
+    at outputCanonical
   have transition := RunningTransitionInputs.spec_typed_recursive_eq_piDecOutput
-    relation specification nonzero
+    relation specification nonzero outputCanonical
   have carried := (ActualRunningTransition.selectedOutputRunning_eq_running
     application assignment).symm.trans
       (transition.trans (ActualPiDECCarriedValues.selectedRunningOutput_eq

@@ -95,6 +95,7 @@ private def valueFromPriorIO (context : VerifierContext.Digest4)
       fun matrix => (List.ofFn ((childRunning.evaluations child).matrix matrix)
         ).flatMap extensionWords
   let privateInputs := priorWords ++ outputWords ++
+    PiCCSProofInputs.priorChildWords (prior.running functionIndex) ++
     PiCCSProofInputs.serializeProofInputs (PiCCSInputCheck.proofValues input) ++
     childCommitmentWords ++ childEvalKWords ++ childEvalAWords ++
     childPublicWords ++ message

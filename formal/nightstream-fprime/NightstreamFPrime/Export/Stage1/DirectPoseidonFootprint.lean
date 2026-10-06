@@ -20,12 +20,12 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-/-- The two pilot chains each contain 2,677 absorption permutations and one
+/-- The two pilot chains each contain 2,319 absorption permutations and one
 final padding permutation. -/
 def pilotPermutationCount : Nat :=
   2 * (PilotValues.absorbCount + 1)
 
-@[simp] theorem pilotPermutationCount_eq : pilotPermutationCount = 5356 := by
+@[simp] theorem pilotPermutationCount_eq : pilotPermutationCount = 4640 := by
   rfl
 
 /-- PiCCS and PiRLC sampler permutations in the current Stage 1 package. -/
@@ -51,7 +51,7 @@ theorem phaseInvocations_length (logicalWidth : Nat)
 def totalPermutationCount : Nat :=
   pilotPermutationCount + laterPermutationCount
 
-@[simp] theorem totalPermutationCount_eq : totalPermutationCount = 6511 := by
+@[simp] theorem totalPermutationCount_eq : totalPermutationCount = 5795 := by
   simp [totalPermutationCount]
 
 /-- One authoritative general-field slot for every retained S-box output in
@@ -60,7 +60,7 @@ def directSboxFieldCount : Nat :=
   totalPermutationCount *
     PoseidonRetainedSlots.slots.length
 
-@[simp] theorem directSboxFieldCount_eq : directSboxFieldCount = 976650 := by
+@[simp] theorem directSboxFieldCount_eq : directSboxFieldCount = 869250 := by
   rw [directSboxFieldCount, totalPermutationCount_eq,
     PoseidonRetainedSlots.slots_length]
 
@@ -71,7 +71,7 @@ def directSboxCoordinateCount : Nat :=
     LowNormAssignment.logicalWidth PoseidonRetainedSlots.slots
 
 @[simp] theorem directSboxCoordinateCount_eq :
-    directSboxCoordinateCount = 40042650 := by
+    directSboxCoordinateCount = 35639250 := by
   rw [directSboxCoordinateCount, totalPermutationCount_eq,
     PoseidonRetainedSlots.slots_logicalWidth]
 

@@ -59,7 +59,7 @@ dimensions. The running claim size comes from `serializeRunning_length`. -/
 def fixedWordBound (application : Program) : Nat :=
   let width := Phi81CarrierLayout.carrierWidth
     (PerApplicationFixedPoint.logicalWidth application)
-  2 + slotCount * (32073 + productionShape.runningCount * width) +
+  2 + slotCount * (27794 + productionShape.runningCount * width) +
     productionShape.freshCount *
       (productionProfile.commitmentWidth * ringDegree + 1 +
         ringDegree * publicRingColumns + 1) + width
@@ -99,7 +99,7 @@ theorem accepted_wordCount_le
   | recursive payload =>
       obtain ⟨validPc, _⟩ :=
         ((PerApplicationTerminal.holds_recursive_iff application fits
-          commitmentSetup statement payload).mp accepted).2
+          commitmentSetup statement payload).mp accepted).2.2
       change 1 ≤ payload.pc ∧ payload.pc ≤ 1 at validPc
       exact Nat.le_antisymm validPc.2 validPc.1
 

@@ -21,33 +21,33 @@ abbrev Program := Lifecycle.Stage1.Application.Program
 
 def freshCommitmentRange (program : Program) : SourceRange :=
   SourceRange.ofSemantic (proofLogicalBlock program)
-    (proofLogicalStart program) 0 1188 0
+    (proofLogicalStart program) 0 1188 4590
 
 def runningCommitmentGrid (program : Program) : SourceGrid :=
   SourceGrid.ofSemantic (priorInputBlock program) (priorInputStart program)
     1188 16 1188 1 1188 1188
     (PiCCSInputs.runningCommitmentStart 0 - PilotProduction.priorPreimageStart)
-    PiCCSInputs.runningGroupWords 0
+    PiCCSInputs.runningCommitmentWords 0
 
 def freshPublicRange (program : Program) : SourceRange :=
   SourceRange.ofSemantic (freshPublicInputBlock program)
     (freshPublicInputStart program) 20196 270 0
 
 def runningPublicGrid (program : Program) : SourceGrid :=
-  SourceGrid.ofSemantic (priorInputBlock program) (priorInputStart program)
+  SourceGrid.ofSemantic (proofLogicalBlock program) (proofLogicalStart program)
     20466 16 270 1 270 270
-    (PiCCSInputs.runningPublicStart 0 - PilotProduction.priorPreimageStart)
-    PiCCSInputs.runningGroupWords 0
+    (PiCCSInputs.runningPublicStart 0 - PiCCSInputs.priorChildrenStart)
+    PiCCSInputs.runningPublicWords 0
 
 def evalKGrid (program : Program) : SourceGrid :=
   SourceGrid.ofSemantic (proofLogicalBlock program) (proofLogicalStart program)
     24786 17 108 1 108 108
-    (PiCCSInputs.outputEvaluationStart - PiCCSInputs.proofInputStart) 540 0
+    (PiCCSInputs.outputEvaluationStart - PiCCSInputs.priorChildrenStart) 540 0
 
 def evalAGrid (program : Program) : SourceGrid :=
   SourceGrid.ofSemantic (proofLogicalBlock program) (proofLogicalStart program)
     26622 17 432 1 432 432
-    (PiCCSInputs.outputEvaluationStart + 108 - PiCCSInputs.proofInputStart)
+    (PiCCSInputs.outputEvaluationStart + 108 - PiCCSInputs.priorChildrenStart)
     540 0
 
 /-- Exact invocation-major value map. The six key domains are disjoint and
@@ -87,14 +87,14 @@ private theorem freshCommitmentRange_lookup {program : Program} {logicalWidth : 
     (index : Fin 1188) :
     (substitution program).form? logicalWidth (0 + index.val) =
       some ((proofLogicalBlock program).form (proofLogicalStart program)
-        (proofLogicalFits geometry) ⟨0 + index.val, by
-          change 0 + index.val < 46143
+        (proofLogicalFits geometry) ⟨4590 + index.val, by
+          change 4590 + index.val < 50733
           have bound := index.isLt
           omega⟩) := by
   have bound := index.isLt
   have selected := SourceRange.form?_ofSemantic (proofLogicalBlock program)
-    (proofLogicalStart program) 0 1188 0 (proofLogicalFits geometry)
-    (by change 0 + 1188 ≤ 46143; decide) index
+    (proofLogicalStart program) 0 1188 4590 (proofLogicalFits geometry)
+    (by change 4590 + 1188 ≤ 50733; decide) index
   change (freshCommitmentRange program).form? logicalWidth (0 + index.val) = _ at selected
   have none_freshPublicRange := SourceRange.form?_eq_none_of_before
     (freshPublicRange program) logicalWidth (0 + index.val) (by
@@ -125,8 +125,8 @@ private theorem runningCommitmentGrid_lookup {program : Program} {logicalWidth :
     (index : Fin 1188) :
     (substitution program).form? logicalWidth (1188 + source.val * 1188 + index.val) =
       some ((priorInputBlock program).form (priorInputStart program)
-        (priorInputFits geometry) ⟨97 + source.val * 2001 + index.val, by
-          change 97 + source.val * 2001 + index.val < 32113
+        (priorInputFits geometry) ⟨12 + source.val * 1188 + index.val, by
+          change 12 + source.val * 1188 + index.val < 27819
           have bound := index.isLt
           have sources := source.isLt
           omega⟩) := by
@@ -134,9 +134,9 @@ private theorem runningCommitmentGrid_lookup {program : Program} {logicalWidth :
   have sources := source.isLt
   have selected := SourceGrid.form?_ofSemantic (priorInputBlock program)
     (priorInputStart program) 1188 16 1188 1 1188 1188
-    97 2001 0 (priorInputFits geometry) (by decide) (by decide)
+    12 1188 0 (priorInputFits geometry) (by decide) (by decide)
     source ⟨0, by decide⟩ index (by simpa using index.isLt)
-    index.isLt (by change 97 + source.val * 2001 + index.val < 32113; omega)
+    index.isLt (by change 12 + source.val * 1188 + index.val < 27819; omega)
   change (runningCommitmentGrid program).form? logicalWidth
     (1188 + source.val * 1188 + 0 * 1188 + index.val) = _ at selected
   simp only [Nat.zero_mul, Nat.add_zero] at selected
@@ -205,19 +205,19 @@ private theorem runningPublicGrid_lookup {program : Program} {logicalWidth : Nat
     (source : Fin 16)
     (index : Fin 270) :
     (substitution program).form? logicalWidth (20466 + source.val * 270 + index.val) =
-      some ((priorInputBlock program).form (priorInputStart program)
-        (priorInputFits geometry) ⟨1286 + source.val * 2001 + index.val, by
-          change 1286 + source.val * 2001 + index.val < 32113
+      some ((proofLogicalBlock program).form (proofLogicalStart program)
+        (proofLogicalFits geometry) ⟨0 + source.val * 270 + index.val, by
+          change 0 + source.val * 270 + index.val < 50733
           have bound := index.isLt
           have sources := source.isLt
           omega⟩) := by
   have bound := index.isLt
   have sources := source.isLt
-  have selected := SourceGrid.form?_ofSemantic (priorInputBlock program)
-    (priorInputStart program) 20466 16 270 1 270 270
-    1286 2001 0 (priorInputFits geometry) (by decide) (by decide)
+  have selected := SourceGrid.form?_ofSemantic (proofLogicalBlock program)
+    (proofLogicalStart program) 20466 16 270 1 270 270
+    0 270 0 (proofLogicalFits geometry) (by decide) (by decide)
     source ⟨0, by decide⟩ index (by simpa using index.isLt)
-    index.isLt (by change 1286 + source.val * 2001 + index.val < 32113; omega)
+    index.isLt (by change 0 + source.val * 270 + index.val < 50733; omega)
   change (runningPublicGrid program).form? logicalWidth
     (20466 + source.val * 270 + 0 * 270 + index.val) = _ at selected
   simp only [Nat.zero_mul, Nat.add_zero] at selected
@@ -250,8 +250,8 @@ private theorem evalKGrid_lookup {program : Program} {logicalWidth : Nat}
     (index : Fin 108) :
     (substitution program).form? logicalWidth (24786 + source.val * 108 + index.val) =
       some ((proofLogicalBlock program).form (proofLogicalStart program)
-        (proofLogicalFits geometry) ⟨1692 + source.val * 540 + index.val, by
-          change 1692 + source.val * 540 + index.val < 46143
+        (proofLogicalFits geometry) ⟨6282 + source.val * 540 + index.val, by
+          change 6282 + source.val * 540 + index.val < 50733
           have bound := index.isLt
           have sources := source.isLt
           omega⟩) := by
@@ -259,9 +259,9 @@ private theorem evalKGrid_lookup {program : Program} {logicalWidth : Nat}
   have sources := source.isLt
   have selected := SourceGrid.form?_ofSemantic (proofLogicalBlock program)
     (proofLogicalStart program) 24786 17 108 1 108 108
-    1692 540 0 (proofLogicalFits geometry) (by decide) (by decide)
+    6282 540 0 (proofLogicalFits geometry) (by decide) (by decide)
     source ⟨0, by decide⟩ index (by simpa using index.isLt)
-    index.isLt (by change 1692 + source.val * 540 + index.val < 46143; omega)
+    index.isLt (by change 6282 + source.val * 540 + index.val < 50733; omega)
   change (evalKGrid program).form? logicalWidth
     (24786 + source.val * 108 + 0 * 108 + index.val) = _ at selected
   simp only [Nat.zero_mul, Nat.add_zero] at selected
@@ -294,8 +294,8 @@ private theorem evalAGrid_lookup {program : Program} {logicalWidth : Nat}
     (index : Fin 432) :
     (substitution program).form? logicalWidth (26622 + source.val * 432 + index.val) =
       some ((proofLogicalBlock program).form (proofLogicalStart program)
-        (proofLogicalFits geometry) ⟨1800 + source.val * 540 + index.val, by
-          change 1800 + source.val * 540 + index.val < 46143
+        (proofLogicalFits geometry) ⟨6390 + source.val * 540 + index.val, by
+          change 6390 + source.val * 540 + index.val < 50733
           have bound := index.isLt
           have sources := source.isLt
           omega⟩) := by
@@ -303,9 +303,9 @@ private theorem evalAGrid_lookup {program : Program} {logicalWidth : Nat}
   have sources := source.isLt
   have selected := SourceGrid.form?_ofSemantic (proofLogicalBlock program)
     (proofLogicalStart program) 26622 17 432 1 432 432
-    1800 540 0 (proofLogicalFits geometry) (by decide) (by decide)
+    6390 540 0 (proofLogicalFits geometry) (by decide) (by decide)
     source ⟨0, by decide⟩ index (by simpa using index.isLt)
-    index.isLt (by change 1800 + source.val * 540 + index.val < 46143; omega)
+    index.isLt (by change 6390 + source.val * 540 + index.val < 50733; omega)
   change (evalAGrid program).form? logicalWidth
     (26622 + source.val * 432 + 0 * 432 + index.val) = _ at selected
   simp only [Nat.zero_mul, Nat.add_zero] at selected
@@ -348,7 +348,7 @@ private theorem substitution_form?_descriptor
           exact first
         subst source
         let index : Fin PiCCSOrdinaryRetainedBlocks.proofInputCount :=
-          ⟨block.val * ringDegree + lane.val, by
+          ⟨4590 + block.val * ringDegree + lane.val, by
             have blockBound := block.isLt
             have laneBound := lane.isLt
             rw [PiCCSOrdinaryRetainedBlocks.proofInputCount_eq]
@@ -367,7 +367,8 @@ private theorem substitution_form?_descriptor
             PiCCSOrdinaryRetainedBlocks.proofLogicalSource_proofInput,
             PiRLCProductSchedule.Descriptor.valueColumn,
             PiRLCCombinationInvocations.commitmentValueSourceStart,
-            PiCCSInputs.freshCommitmentStart] <;> norm_num [PiCCSInputs.freshCommitmentWords, PiCCSInputs.roundMessageWords] <;> omega
+            PiCCSInputs.freshCommitmentStart, PiCCSInputs.proofInputStart,
+            PiCCSInputs.priorChildrenWords] <;> norm_num [PiCCSInputs.freshCommitmentWords, PiCCSInputs.roundMessageWords] <;> omega
         rw [← form_eq_location geometry _ location owns]
         let operand : Fin 1188 := ⟨block.val * 54 + lane.val, by
           have b := block.isLt
@@ -393,7 +394,7 @@ private theorem substitution_form?_descriptor
           operand, index, proofInputSlot, ringDegree,
           Nat.zero_add, Nat.add_assoc] using! freshCommitmentRange_lookup geometry operand
       · let index : Fin PilotProduction.stateHashWords :=
-          ⟨97 + (source.val - 1) * 2001 + block.val * ringDegree + lane.val, by
+          ⟨12 + (source.val - 1) * 1188 + block.val * ringDegree + lane.val, by
             have sourceBound := source.isLt
             have blockBound := block.isLt
             have laneBound := lane.isLt
@@ -409,9 +410,8 @@ private theorem substitution_form?_descriptor
           simp [location, index, PiCCSOrdinaryDirectPlan.Location.sourceColumn,
             PiRLCProductSchedule.Descriptor.valueColumn,
             PiRLCCombinationInvocations.commitmentValueSourceStart,
-            PiCCSInputs.runningCommitmentStart, PiCCSInputs.runningGroupStart,
-            PiCCSInputs.runningGroupsStart, PiCCSInputs.priorRunningStart,
-            PilotProduction.priorPreimageStart, PiCCSInputs.runningGroupWords,
+            PiCCSInputs.runningCommitmentStart, PiCCSInputs.priorRunningStart,
+            PilotProduction.priorPreimageStart, PiCCSInputs.runningCommitmentWords,
             first] <;> norm_num [PiCCSInputs.freshCommitmentWords, PiCCSInputs.roundMessageWords] <;> omega
         rw [← form_eq_location geometry _ location owns]
         let operand : Fin 1188 := ⟨block.val * 54 + lane.val, by
@@ -482,27 +482,27 @@ private theorem substitution_form?_descriptor
         simpa only [location, PiCCSOrdinaryDirectPlan.Location.form,
           operand, index, proofInputSlot, ringDegree,
           Nat.zero_add, Nat.add_assoc] using! freshPublicRange_lookup geometry operand
-      · let index : Fin PilotProduction.stateHashWords :=
-          ⟨1286 + (source.val - 1) * 2001 + block.val * ringDegree + lane.val, by
+      · let index : Fin PiCCSOrdinaryRetainedBlocks.proofInputCount :=
+          ⟨(source.val - 1) * 270 + block.val * ringDegree + lane.val, by
             have sourceBound := source.isLt
             have blockBound := block.isLt
             have laneBound := lane.isLt
+            rw [PiCCSOrdinaryRetainedBlocks.proofInputCount_eq]
             norm_num [PiRLCCombinationInvocations.sourceCount,
-              PiRLCProductSchedule.Family.blockCount,
-              PilotProduction.stateHashWords_eq, ringDegree]
+              PiRLCProductSchedule.Family.blockCount, ringDegree]
               at sourceBound blockBound laneBound ⊢
             omega⟩
-        let location : PiCCSOrdinaryDirectPlan.Location := .priorInput index
+        let location : PiCCSOrdinaryDirectPlan.Location :=
+          .proofLogical (PiCCSOrdinaryRetainedBlocks.proofInputSlot index)
         have owns : location.sourceColumn =
             (⟨.publicInput, source, block, lane, cell⟩ :
               PiRLCProductSchedule.Descriptor).valueColumn lane := by
           simp [location, index, PiCCSOrdinaryDirectPlan.Location.sourceColumn,
+            PiCCSOrdinaryRetainedBlocks.proofLogicalSource_proofInput,
             PiRLCProductSchedule.Descriptor.valueColumn,
             PiRLCCombinationInvocations.publicInputValueSourceStart,
-            PiCCSInputs.runningPublicStart, PiCCSInputs.runningGroupStart,
-            PiCCSInputs.runningGroupsStart, PiCCSInputs.priorRunningStart,
-            PilotProduction.priorPreimageStart, PiCCSInputs.runningGroupWords,
-            first] <;> norm_num [PiCCSInputs.freshCommitmentWords, PiCCSInputs.roundMessageWords] <;> omega
+            PiCCSInputs.runningPublicStart, PiCCSInputs.runningPublicWords,
+            first] <;> omega
         rw [← form_eq_location geometry _ location owns]
         let operand : Fin 270 := ⟨block.val * 54 + lane.val, by
           have b := block.isLt
@@ -525,12 +525,15 @@ private theorem substitution_form?_descriptor
             PiRLCProductSchedule.Family.cellCount, operand, priorSource]
           omega
         rw [key]
+        change _ = some ((PiCCSOrdinaryDirectPlan.Location.proofLogical
+          (proofInputSlot index)).form geometry)
+        rw [PiCCSOrdinaryDirectPlan.Location.form_proofInput]
         simpa only [location, PiCCSOrdinaryDirectPlan.Location.form,
           operand, index, proofInputSlot, priorSource, ringDegree,
           Nat.zero_add, Nat.add_assoc] using! runningPublicGrid_lookup geometry priorSource operand
   | evalK =>
       let index : Fin PiCCSOrdinaryRetainedBlocks.proofInputCount :=
-        ⟨1692 + source.val * 540 + lane.val * 2 + cell.val, by
+        ⟨6282 + source.val * 540 + lane.val * 2 + cell.val, by
           have sourceBound := source.isLt
           have laneBound := lane.isLt
           have cellBound := cell.isLt
@@ -549,7 +552,8 @@ private theorem substitution_form?_descriptor
           PiRLCProductSchedule.Descriptor.valueColumn,
           PiRLCCombinationInvocations.evalKValueSourceStart,
           PiCCSInputs.outputEvaluationStart, PiCCSInputs.roundMessageStart,
-          PiCCSInputs.freshCommitmentStart] <;> norm_num [PiCCSInputs.freshCommitmentWords, PiCCSInputs.roundMessageWords] <;> omega
+          PiCCSInputs.freshCommitmentStart, PiCCSInputs.proofInputStart,
+          PiCCSInputs.priorChildrenWords] <;> norm_num [PiCCSInputs.freshCommitmentWords, PiCCSInputs.roundMessageWords] <;> omega
       rw [← form_eq_location geometry _ location owns]
       let operand : Fin 108 := ⟨lane.val * 2 + cell.val, by
         have b := block.isLt
@@ -576,7 +580,7 @@ private theorem substitution_form?_descriptor
         Nat.zero_add, Nat.add_assoc] using! evalKGrid_lookup geometry source operand
   | evalA =>
       let index : Fin PiCCSOrdinaryRetainedBlocks.proofInputCount :=
-        ⟨1800 + source.val * 540 + block.val * 108 + lane.val * 2 + cell.val, by
+        ⟨6390 + source.val * 540 + block.val * 108 + lane.val * 2 + cell.val, by
           have sourceBound := source.isLt
           have blockBound := block.isLt
           have laneBound := lane.isLt
@@ -597,7 +601,8 @@ private theorem substitution_form?_descriptor
           PiRLCProductSchedule.Descriptor.valueColumn,
           PiRLCCombinationInvocations.evalAValueSourceStart,
           PiCCSInputs.outputEvaluationStart, PiCCSInputs.roundMessageStart,
-          PiCCSInputs.freshCommitmentStart] <;> norm_num [PiCCSInputs.freshCommitmentWords, PiCCSInputs.roundMessageWords] <;> omega
+          PiCCSInputs.freshCommitmentStart, PiCCSInputs.proofInputStart,
+          PiCCSInputs.priorChildrenWords] <;> norm_num [PiCCSInputs.freshCommitmentWords, PiCCSInputs.roundMessageWords] <;> omega
       rw [← form_eq_location geometry _ location owns]
       let operand : Fin 432 := ⟨block.val * 108 + lane.val * 2 + cell.val, by
         have b := block.isLt

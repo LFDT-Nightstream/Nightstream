@@ -3,20 +3,29 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionData
 import NightstreamFPrime.Layout.Stage1.StateEncoding
 
 /-!
-Owns structural decoding of the fixed Stage 1 state-hash word array.
+Owns structural decoding of the fixed Stage 1 state block.
 
-The decoder is a value view only. It does not select a package, application,
-verification key, or transcript. Its right-inverse theorems require the exact
-fixed-word conditions enforced by the PiCCS state-binding rows.
+The decoder is a value view only. It reads the running fields and the tail in
+place and takes every child public input as `split_b` of the unpacked parent.
+Hence `serializeRunning ∘ running` is the identity on every word array, and
+`running ∘ serializeRunning` is the identity on every canonical running
+instance. It does not select a package, application, verification key, or
+transcript.
 -/
 
 namespace NightstreamFPrime.Layout.Stage1.StateDecoder
 
 open NightstreamFPrime.Spec
+open NightstreamFPrime.Circuit
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Lifecycle.PiCCS.v1_1
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
+
+variable {logicalWidth : Nat}
+  {publicFits : ringDegree * publicRingColumns ≤
+    Phi81CarrierLayout.carrierWidth logicalWidth}
 
 /-- A bounded logical slice of an unbounded state-word view. -/
 def slice (state : Nat → F) (start count : Nat) : List F :=
@@ -124,26 +133,6 @@ theorem serializeCommitment_commitment (state : Nat → F) (start : Nat) :
           (productionProfile.commitmentWidth * ringDegree) :=
       (slice_mul state start productionProfile.commitmentWidth ringDegree).symm
 
-def publicInput
-    (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
-    (state : Nat → F) (start : Nat) :
-    PaperAlgebra.PublicInput
-      (logicalWidth := logicalWidth) (publicFits := publicFits) :=
-  fun column => state (start + column.val)
-
-theorem serializePublicInput_publicInput
-    (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
-    (state : Nat → F) (start : Nat) :
-    serializePublicInput (publicFits := publicFits)
-        (publicInput logicalWidth publicFits state start) =
-      slice state start (FullShape logicalWidth publicFits).publicWidth := by
-  unfold serializePublicInput publicInput slice
-  rw [List.ofFn_eq_map]
-
 theorem serializePairs (state : Nat → F) (start count : Nat) :
     (List.finRange count).flatMap (fun index =>
         serializeK (pair state (start + index.val * 2))) =
@@ -190,429 +179,197 @@ theorem serializePoint_point (state : Nat → F) (start : Nat) :
   rw [List.ofFn_eq_map]
   exact serializePairs state start cubeVariables
 
-def evaluations (state : Nat → F) (start : Nat) :
+def evaluations (state : Nat → F) (source : Nat) :
     StrongReduction.EvaluationFamily K productionShape where
-  pad := fun coefficient => pair state (start + coefficient.val * 2)
+  pad := fun coefficient =>
+    pair state (PiCCSInputs.runningEvalKStart source + coefficient.val * 2)
   matrix := fun matrix coefficient => pair state
-    (start + productionShape.coefficientCount * 2 +
-      matrix.val * (productionShape.coefficientCount * 2) +
-      coefficient.val * 2)
+    (PiCCSInputs.runningEvalAStart source +
+      matrix.val * (productionShape.coefficientCount * 2) + coefficient.val * 2)
 
-theorem serializeEvaluations_evaluations (state : Nat → F) (start : Nat) :
-    serializeEvaluations (evaluations state start) =
-      slice state start
-        ((productionShape.matrixCount + 1) *
-          productionShape.coefficientCount * 2) := by
-  unfold serializeEvaluations evaluations
-  rw [serializePairs state start productionShape.coefficientCount]
-  rw [serializePairRows state
-    (start + productionShape.coefficientCount * 2)
-    productionShape.matrixCount productionShape.coefficientCount]
-  rw [← slice_add]
-  apply congrArg (slice state start)
-  norm_num [productionShape, productionProfile,
-    Phi81MatrixSource.phi81Shape, ringDegree]
+def packedWords (state : Nat → F) : Fin packedParentWords → F :=
+  fun word => state (StateBinding.packedWordStart + word.val)
 
-/-- View one state word array as the pilot's prior-preimage input. Other
-pilot fields are irrelevant to running-instance decoding. -/
-def externalValues (state : Nat → F) : PilotProduction.ExternalValues where
-  priorPreimage := fun index => state index.val
-  priorPublicInput := fun _ => 0
-  outputPreimage := fun _ => 0
-  outputDigest := fun _ => 0
-
+/-- The running instance stored in one state block. Each child public input
+is `split_b` of the unpacked parent coordinate. -/
 def running
-    (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
-    (state : Nat → F) :
-    Running (logicalWidth := logicalWidth) (publicFits := publicFits) :=
-  PiCCSInputs.decodedRunning logicalWidth publicFits (externalValues state)
-
-def directRunning
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth)
     (state : Nat → F) :
     Running (logicalWidth := logicalWidth) (publicFits := publicFits) where
   point := point state PiCCSInputs.runningPointStart
-  commitments := fun source => commitment state
-    (PiCCSInputs.runningCommitmentStart source.val)
-  publicInputs := fun source => publicInput logicalWidth publicFits state
-    (PiCCSInputs.runningPublicStart source.val)
-  evaluations := fun source => evaluations state
-    (PiCCSInputs.runningEvaluationStart source.val)
+  commitments := fun source =>
+    commitment state (PiCCSInputs.runningCommitmentStart source.val)
+  publicInputs := fun source column =>
+    Radix.splitScalar (unpackParent (packedWords state) column)
+      (Fin.cast runningCount_eq_radixChildCount source)
+  evaluations := fun source => evaluations state source.val
 
-theorem directRunning_eq_running
-    (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
-    (state : Nat → F) :
-    directRunning logicalWidth publicFits state =
-      running logicalWidth publicFits state := by
+theorem unpackParent_packedColumn (packed : Fin packedParentWords → F)
+    (word : Fin packedParentWords) (lane : Fin 3) :
+    unpackParent (logicalWidth := logicalWidth) (publicFits := publicFits) packed
+        (packedColumn word lane) =
+      unpackWord (packed word) lane := by
+  have laneBound := lane.isLt
+  unfold unpackParent packedColumn
+  congr 2 <;> (try apply Fin.ext) <;> dsimp only <;> omega
+
+theorem parentPublic_running (state : Nat → F)
+    (column : Fin (FullShape logicalWidth publicFits).publicWidth) :
+    parentPublic (running logicalWidth publicFits state) column =
+      unpackParent (packedWords state) column := by
+  change Radix.recomposeScalar
+      (Radix.splitScalar (unpackParent (packedWords state) column)) = _
+  exact Radix.splitScalar_recompose _
+
+theorem serializeParentPublic_running (state : Nat → F) :
+    serializeParentPublic (running logicalWidth publicFits state) =
+      slice state StateBinding.packedWordStart packedParentWords := by
+  unfold serializeParentPublic slice
+  rw [List.ofFn_eq_map]
+  apply List.map_congr_left
+  intro word _member
+  rw [parentPublic_running, parentPublic_running, parentPublic_running,
+    unpackParent_packedColumn, unpackParent_packedColumn,
+    unpackParent_packedColumn, StateEncoding.packWord_unpackWord]
   rfl
 
-theorem evalRunning_eq_running
-    (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
-    (env : Circuit.Env) :
-    StatementAbsorption.evalRunning
-        (PiCCSInputs.runningExpr logicalWidth publicFits) env =
-      running logicalWidth publicFits
-        (fun word => env (PilotProduction.priorPreimageStart + word)) := by
-  unfold running PiCCSInputs.decodedRunning
-    StatementAbsorption.evalRunning StatementAbsorption.evalPoint
-    StatementAbsorption.evalEvaluation
-  congr 1
-  · funext source row coefficient
-    simp [PiCCSInputs.runningExpr, PiCCSInputs.runningCommitment,
-      PiCCSInputs.runningCommitmentIndex, externalValues,
-      PilotProduction.priorPreimageStart]
-  · funext source column
-    simp [PiCCSInputs.runningExpr, PiCCSInputs.runningPublicInput,
-      PiCCSInputs.runningPublicInputIndex, externalValues,
-      PilotProduction.priorPreimageStart]
-  · funext source
-    congr 1
-    · funext coefficient
-      simp [PiCCSInputs.runningExpr, PiCCSInputs.runningEval_K,
-        PiCCSInputs.runningEval_KIndex, PiCCSInputs.pairAt,
-        Circuit.Quadratic.KExpr.eval, externalValues,
-        PilotProduction.priorPreimageStart]
-    · funext matrix coefficient
-      simp [PiCCSInputs.runningExpr, PiCCSInputs.runningEval_A,
-        PiCCSInputs.runningEval_AIndex, PiCCSInputs.pairAt,
-        Circuit.Quadratic.KExpr.eval, externalValues,
-        PilotProduction.priorPreimageStart]
+/-- Every word array is the serialization of its decoded running instance. -/
+theorem serializeRunning_running (state : Nat → F) :
+    serializeRunning (publicFits := publicFits)
+        (running logicalWidth publicFits state) =
+      slice state PiCCSInputs.priorRunningStart 27794 := by
+  have commitments :
+      serializeCommitments (running logicalWidth publicFits state) =
+        slice state 12 19008 := by
+    unfold serializeCommitments
+    calc
+      _ = (List.finRange productionShape.runningCount).flatMap
+          (fun source => slice state (12 + source.val * 1188) 1188) := by
+        apply List.flatMap_congr
+        intro source _member
+        change serializeCommitment
+            (commitment state (PiCCSInputs.runningCommitmentStart source.val)) = _
+        rw [serializeCommitment_commitment]
+        rfl
+      _ = slice state 12 (productionShape.runningCount * 1188) :=
+        (slice_mul state 12 productionShape.runningCount 1188).symm
+  have evalKs :
+      serializeEvalKs (running logicalWidth publicFits state) =
+        slice state 19020 1728 := by
+    unfold serializeEvalKs
+    calc
+      _ = (List.finRange productionShape.runningCount).flatMap
+          (fun source => slice state (19020 + source.val * 108) 108) := by
+        apply List.flatMap_congr
+        intro source _member
+        change (List.finRange productionShape.coefficientCount).flatMap
+            (fun coefficient => serializeK (pair state
+              (PiCCSInputs.runningEvalKStart source.val + coefficient.val * 2))) = _
+        rw [serializePairs]
+        rfl
+      _ = slice state 19020 (productionShape.runningCount * 108) :=
+        (slice_mul state 19020 productionShape.runningCount 108).symm
+  have evalAs :
+      serializeEvalAs (running logicalWidth publicFits state) =
+        slice state 20748 6912 := by
+    unfold serializeEvalAs
+    calc
+      _ = (List.finRange productionShape.runningCount).flatMap
+          (fun source => slice state (20748 + source.val * 432) 432) := by
+        apply List.flatMap_congr
+        intro source _member
+        change (List.finRange productionShape.matrixCount).flatMap (fun matrix =>
+            (List.finRange productionShape.coefficientCount).flatMap
+              (fun coefficient => serializeK (pair state
+                (PiCCSInputs.runningEvalAStart source.val +
+                  matrix.val * (productionShape.coefficientCount * 2) +
+                  coefficient.val * 2)))) = _
+        rw [serializePairRows]
+        rfl
+      _ = slice state 20748 (productionShape.runningCount * 432) :=
+        (slice_mul state 20748 productionShape.runningCount 432).symm
+  have parent := serializeParentPublic_running (logicalWidth := logicalWidth)
+    (publicFits := publicFits) state
+  have pointWords : serializePoint (running logicalWidth publicFits state).point =
+      slice state 27660 56 :=
+    serializePoint_point state PiCCSInputs.runningPointStart
+  unfold serializeRunning serializeRunningFields
+  rw [commitments, evalKs, evalAs, pointWords, parent]
+  rw [show PiCCSInputs.priorRunningStart = 12 from rfl,
+    show (27794 : Nat) = 19008 + 1728 + 6912 + 56 + 90 from rfl,
+    slice_add state 12 (19008 + 1728 + 6912 + 56) 90,
+    slice_add state 12 (19008 + 1728 + 6912) 56,
+    slice_add state 12 (19008 + 1728) 6912,
+    slice_add state 12 19008 1728]
+  rfl
 
-private theorem cubePoint_ext
-    {Field : Type} {variableCount : Nat}
-    (left right : CubePoint Field variableCount)
-    (coordinates : left.coordinates = right.coordinates) : left = right := by
-  cases left
-  cases right
-  simp_all
+/-- A canonical running instance is the decode of its serialized words. -/
+theorem running_eq_of_serialized {state : Nat → F}
+    {value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)}
+    (canonical : Lifecycle.ChildrenCanonical value)
+    (words : slice state PiCCSInputs.priorRunningStart 27794 =
+      serializeRunning (publicFits := publicFits) value) :
+    running logicalWidth publicFits state = value := by
+  have encoded := (serializeRunning_running (logicalWidth := logicalWidth)
+    (publicFits := publicFits) state).trans words
+  unfold serializeRunning at encoded
+  rcases List.append_inj encoded (by simp only [serializeRunningFields_length]) with
+    ⟨fieldsEqual, parentEqual⟩
+  rcases StateEncoding.serializeRunningFields_injective fieldsEqual with
+    ⟨pointEqual, commitmentsEqual, evaluationsEqual⟩
+  apply StateEncoding.running_ext pointEqual commitmentsEqual _ evaluationsEqual
+  funext source column
+  rcases StateEncoding.packedColumn_cover column with ⟨word, lane, rfl⟩
+  have packedValue : packedWords state word =
+      packWord (parentPublic value (packedColumn word 0))
+        (parentPublic value (packedColumn word 1))
+        (parentPublic value (packedColumn word 2)) := by
+    have wordsEq := (serializeParentPublic_running (logicalWidth := logicalWidth)
+      (publicFits := publicFits) state).symm.trans parentEqual
+    have selected := congrArg (fun words => words.getD word.val 0) wordsEq
+    have left : (slice state StateBinding.packedWordStart packedParentWords).getD
+        word.val 0 = packedWords state word :=
+      slice_getD state _ _ _ word.isLt
+    have right : (serializeParentPublic value).getD word.val 0 =
+        packWord (parentPublic value (packedColumn word 0))
+          (parentPublic value (packedColumn word 1))
+          (parentPublic value (packedColumn word 2)) :=
+      finRange_map_getD _ word
+    exact left.symm.trans (selected.trans right)
+  have bounded (lane : Fin 3) := canonical.parentBounded (packedColumn word lane)
+  rcases StateEncoding.unpackWord_packWord (bounded 0) (bounded 1) (bounded 2) with
+    ⟨low, middle, high⟩
+  have unpacked : unpackWord (packedWords state word) lane =
+      parentPublic value (packedColumn word lane) := by
+    rw [packedValue]
+    fin_cases lane
+    · exact low
+    · exact middle
+    · exact high
+  change Radix.splitScalar (unpackParent (packedWords state) (packedColumn word lane))
+      (Fin.cast runningCount_eq_radixChildCount source) =
+    value.publicInputs source (packedColumn word lane)
+  rw [unpackParent_packedColumn, unpacked, ← canonical.childDigits_eq]
+  rfl
 
-private theorem evaluationFamily_ext
-    (left right : StrongReduction.EvaluationFamily K productionShape)
-    (pad : left.pad = right.pad)
-    (matrix : left.matrix = right.matrix) : left = right := by
-  cases left
-  cases right
-  simp_all
+/-! ## Fixed words, tail, and preimage -/
 
-private theorem running_ext
-    {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
-    (left right : Running
-      (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (pointEqual : left.point = right.point)
-    (commitmentsEqual : left.commitments = right.commitments)
-    (publicInputsEqual : left.publicInputs = right.publicInputs)
-    (evaluationsEqual : left.evaluations = right.evaluations) : left = right := by
-  cases left
-  cases right
-  simp only [
-    NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Running.mk.injEq]
-  exact ⟨pointEqual, commitmentsEqual, publicInputsEqual, evaluationsEqual⟩
-
-theorem evalOutputRunning_eq_running
-    (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
-    (env : Circuit.Env) :
-    StatementAbsorption.evalRunning
-        (RunningTransitionInputs.outputRunningExpr logicalWidth publicFits) env =
-      running logicalWidth publicFits
-        (fun word => env (PilotProduction.outputPreimageStart + word)) := by
-  rw [← directRunning_eq_running logicalWidth publicFits
-    (fun word => env (PilotProduction.outputPreimageStart + word))]
-  apply running_ext
-  · apply cubePoint_ext
-    change List.ofFn (fun coordinate =>
-        (RunningTransitionInputs.outputPoint coordinate).eval env) =
-      List.ofFn (fun coordinate => pair
-        (fun word => env (PilotProduction.outputPreimageStart + word))
-        (PiCCSInputs.runningPointStart + coordinate.val * 2))
-    apply congrArg List.ofFn
-    funext coordinate
-    simp [RunningTransitionInputs.outputPoint,
-      RunningTransitionInputs.outputPairAt, pair,
-      Circuit.Quadratic.KExpr.eval, RunningTransitionInputs.outputBase,
-      Nat.add_assoc]
-  · funext source row coefficient
-    simp [StatementAbsorption.evalRunning,
-      RunningTransitionInputs.outputRunningExpr,
-      RunningTransitionInputs.outputCommitment, directRunning, commitment,
-      RunningTransitionInputs.outputBase]
-    apply congrArg env
-    omega
-  · funext source column
-    simp [StatementAbsorption.evalRunning,
-      RunningTransitionInputs.outputRunningExpr,
-      RunningTransitionInputs.outputPublicInput, directRunning, publicInput,
-      RunningTransitionInputs.outputBase]
-    apply congrArg env
-    omega
-  · funext source
-    apply evaluationFamily_ext
-    · funext coefficient
-      simp [StatementAbsorption.evalRunning,
-        StatementAbsorption.evalEvaluation,
-        RunningTransitionInputs.outputRunningExpr,
-        RunningTransitionInputs.outputEval_K,
-        RunningTransitionInputs.outputPairAt, directRunning, evaluations, pair,
-        Circuit.Quadratic.KExpr.eval, RunningTransitionInputs.outputBase,
-        Nat.add_assoc]
-    · funext matrix coefficient
-      simp [StatementAbsorption.evalRunning,
-        StatementAbsorption.evalEvaluation,
-        RunningTransitionInputs.outputRunningExpr,
-        RunningTransitionInputs.outputEval_A,
-        RunningTransitionInputs.outputPairAt, directRunning, evaluations, pair,
-        Circuit.Quadratic.KExpr.eval, RunningTransitionInputs.outputBase,
-        productionShape, Phi81MatrixSource.phi81Shape, ringDegree,
-        Nat.add_assoc]
-
-/-- The value-level form of the fixed-word rows. -/
+/-- The value-level form of the fixed-word rows: the domain chunk. -/
 def Canonical (state : Nat → F) : Prop :=
   ∀ word ∈ StateBinding.fixedWords, state word.index = word.value
 
-theorem block_eq_slice (state : Nat → F) (start count : Nat)
-    (payload : List F) (payloadEq : payload = slice state (start + 1) count)
-    (header : state start = natWord count) :
-    block payload = slice state start (count + 1) := by
-  rw [payloadEq]
-  unfold block
-  rw [show count + 1 = 1 + count by omega, slice_add]
-  simp [slice, header]
-
-theorem canonical_pointHeader {state : Nat → F}
-    (canonical : Canonical state) :
-    state PiCCSInputs.priorRunningStart = natWord (cubeVariables * 2) := by
-  apply canonical ⟨PiCCSInputs.priorRunningStart, natWord (cubeVariables * 2)⟩
-  simp only [StateBinding.fixedWords, List.mem_append]
-  apply Or.inl
-  apply Or.inl
-  apply Or.inr
-  simp [PiCCSInputs.priorRunningStart, natWord]
-
-theorem canonical_commitmentHeader {state : Nat → F}
-    (canonical : Canonical state)
-    (source : Fin productionShape.runningCount) :
-    state (StateBinding.runningGroupStart source.val) = natWord 1188 := by
-  apply canonical ⟨StateBinding.runningGroupStart source.val, natWord 1188⟩
-  simp only [StateBinding.fixedWords, List.mem_append]
-  apply Or.inl
-  apply Or.inr
-  rw [StateBinding.runningPrefixWords, List.mem_flatMap]
-  refine ⟨source, by simp, ?_⟩
-  simp [natWord]
-
-theorem canonical_publicHeader {state : Nat → F}
-    (canonical : Canonical state)
-    (source : Fin productionShape.runningCount) :
-    state (StateBinding.runningGroupStart source.val + 1189) = natWord 270 := by
-  apply canonical
-    ⟨StateBinding.runningGroupStart source.val + 1189, natWord 270⟩
-  simp only [StateBinding.fixedWords, List.mem_append]
-  apply Or.inl
-  apply Or.inr
-  rw [StateBinding.runningPrefixWords, List.mem_flatMap]
-  refine ⟨source, by simp, ?_⟩
-  simp [natWord]
-
-theorem canonical_evaluationHeader {state : Nat → F}
-    (canonical : Canonical state)
-    (source : Fin productionShape.runningCount) :
-    state (StateBinding.runningGroupStart source.val + 1460) = natWord 540 := by
-  apply canonical
-    ⟨StateBinding.runningGroupStart source.val + 1460, natWord 540⟩
-  simp only [StateBinding.fixedWords, List.mem_append]
-  apply Or.inl
-  apply Or.inr
-  rw [StateBinding.runningPrefixWords, List.mem_flatMap]
-  refine ⟨source, by simp, ?_⟩
-  simp [natWord]
-
-theorem serializeRunning_commitmentPayload
-    (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
-    (state : Nat → F) (source : Fin productionShape.runningCount) :
-    serializeCommitment
-        ((directRunning logicalWidth publicFits state).commitments source) =
-      slice state (StateBinding.runningGroupStart source.val + 1) 1188 := by
-  change serializeCommitment
-      (commitment state (PiCCSInputs.runningCommitmentStart source.val)) = _
-  rw [serializeCommitment_commitment]
-  apply congrArg₂ (slice state)
-  · simp [PiCCSInputs.runningCommitmentStart,
-      PiCCSInputs.runningGroupStart, PiCCSInputs.runningGroupsStart,
-      PiCCSInputs.priorRunningStart, PiCCSInputs.runningGroupWords,
-      StateBinding.runningGroupStart,
-      cubeVariables]
-  · norm_num [productionProfile, ringDegree]
-
-theorem serializeRunning_publicPayload
-    (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
-    (state : Nat → F) (source : Fin productionShape.runningCount) :
-    serializePublicInput (publicFits := publicFits)
-        ((directRunning logicalWidth publicFits state).publicInputs source) =
-      slice state (StateBinding.runningGroupStart source.val + 1190) 270 := by
-  change serializePublicInput (publicFits := publicFits)
-      (publicInput logicalWidth publicFits state
-        (PiCCSInputs.runningPublicStart source.val)) = _
-  rw [serializePublicInput_publicInput]
-  apply congrArg₂ (slice state)
-  · simp [PiCCSInputs.runningPublicStart, PiCCSInputs.runningGroupStart,
-      PiCCSInputs.runningGroupsStart, PiCCSInputs.priorRunningStart,
-      PiCCSInputs.runningGroupWords,
-      StateBinding.runningGroupStart, cubeVariables]
-  · norm_num [FullShape, fullShape, Phi81Relation.Shape.publicWidth,
-      publicRingColumns, ringDegree]
-
-theorem serializeRunning_evaluationPayload
-    (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
-    (state : Nat → F) (source : Fin productionShape.runningCount) :
-    serializeEvaluations
-        ((directRunning logicalWidth publicFits state).evaluations source) =
-      slice state (StateBinding.runningGroupStart source.val + 1461) 540 := by
-  change serializeEvaluations
-      (evaluations state (PiCCSInputs.runningEvaluationStart source.val)) = _
-  rw [serializeEvaluations_evaluations]
-  apply congrArg₂ (slice state)
-  · simp [PiCCSInputs.runningEvaluationStart,
-      PiCCSInputs.runningGroupStart, PiCCSInputs.runningGroupsStart,
-      PiCCSInputs.priorRunningStart, PiCCSInputs.runningGroupWords,
-      StateBinding.runningGroupStart,
-      cubeVariables]
-  · norm_num [productionShape, productionProfile,
-      Phi81MatrixSource.phi81Shape, ringDegree]
-
-theorem serializeRunning_group
-    (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
-    {state : Nat → F} (canonical : Canonical state)
-    (source : Fin productionShape.runningCount) :
-    block (serializeCommitment
-        ((directRunning logicalWidth publicFits state).commitments source)) ++
-      block (serializePublicInput (publicFits := publicFits)
-        ((directRunning logicalWidth publicFits state).publicInputs source)) ++
-      block (serializeEvaluations
-        ((directRunning logicalWidth publicFits state).evaluations source)) =
-      slice state (StateBinding.runningGroupStart source.val) 2001 := by
-  have commitmentBlock : block (serializeCommitment
-        ((directRunning logicalWidth publicFits state).commitments source)) =
-      slice state (StateBinding.runningGroupStart source.val) 1189 := by
-    exact block_eq_slice state (StateBinding.runningGroupStart source.val) 1188 _
-      (serializeRunning_commitmentPayload logicalWidth publicFits state source)
-      (canonical_commitmentHeader canonical source)
-  have publicBlock : block (serializePublicInput (publicFits := publicFits)
-        ((directRunning logicalWidth publicFits state).publicInputs source)) =
-      slice state (StateBinding.runningGroupStart source.val + 1189) 271 := by
-    exact block_eq_slice state
-      (StateBinding.runningGroupStart source.val + 1189) 270 _
-      (serializeRunning_publicPayload logicalWidth publicFits state source)
-      (canonical_publicHeader canonical source)
-  have evaluationBlock : block (serializeEvaluations
-        ((directRunning logicalWidth publicFits state).evaluations source)) =
-      slice state (StateBinding.runningGroupStart source.val + 1460) 541 := by
-    exact block_eq_slice state
-      (StateBinding.runningGroupStart source.val + 1460) 540 _
-      (serializeRunning_evaluationPayload logicalWidth publicFits state source)
-      (canonical_evaluationHeader canonical source)
-  rw [commitmentBlock, publicBlock, evaluationBlock]
-  calc
-    slice state (StateBinding.runningGroupStart source.val) 1189 ++
-          slice state (StateBinding.runningGroupStart source.val + 1189) 271 ++
-          slice state (StateBinding.runningGroupStart source.val + 1460) 541 =
-        slice state (StateBinding.runningGroupStart source.val) (1189 + 271) ++
-          slice state (StateBinding.runningGroupStart source.val + 1460)
-            541 := by
-      rw [← slice_add]
-    _ = slice state (StateBinding.runningGroupStart source.val)
-          ((1189 + 271) + 541) := by
-      rw [← slice_add]
-    _ = slice state (StateBinding.runningGroupStart source.val) 2001 := by
-      norm_num
-
-theorem serializeRunning_pointBlock
-    (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
-    {state : Nat → F} (canonical : Canonical state) :
-    block (serializePoint
-        (directRunning logicalWidth publicFits state).point) =
-      slice state PiCCSInputs.priorRunningStart 57 := by
-  apply block_eq_slice state PiCCSInputs.priorRunningStart 56
-  · change serializePoint (point state PiCCSInputs.runningPointStart) = _
-    simpa [PiCCSInputs.runningPointStart, PiCCSInputs.priorRunningStart,
-      cubeVariables] using serializePoint_point state
-        PiCCSInputs.runningPointStart
-  · simpa [cubeVariables] using canonical_pointHeader canonical
-
-theorem serializeRunning_groups
-    (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
-    {state : Nat → F} (canonical : Canonical state) :
-    (List.finRange productionShape.runningCount).flatMap (fun source =>
-      block (serializeCommitment
-        ((directRunning logicalWidth publicFits state).commitments source)) ++
-      block (serializePublicInput (publicFits := publicFits)
-        ((directRunning logicalWidth publicFits state).publicInputs source)) ++
-      block (serializeEvaluations
-        ((directRunning logicalWidth publicFits state).evaluations source))) =
-      slice state 96 (productionShape.runningCount * 2001) := by
-  calc
-    _ = (List.finRange productionShape.runningCount).flatMap (fun source =>
-          slice state (StateBinding.runningGroupStart source.val) 2001) := by
-      apply List.flatMap_congr
-      intro source _member
-      exact serializeRunning_group logicalWidth publicFits canonical source
-    _ = (List.finRange productionShape.runningCount).flatMap (fun source =>
-          slice state (96 + source.val * 2001) 2001) := by
-      apply List.flatMap_congr
-      intro source _member
-      apply congrArg (fun start => slice state start 2001)
-      simp [StateBinding.runningGroupStart, cubeVariables]
-    _ = slice state 96 (productionShape.runningCount * 2001) :=
-      (slice_mul state 96 productionShape.runningCount 2001).symm
-
-/-- Every canonical raw running interval is the serialization of its unique
-typed running-instance decode. -/
-theorem serializeRunning_running
-    (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
-    {state : Nat → F} (canonical : Canonical state) :
-    serializeRunning (publicFits := publicFits)
-        (running logicalWidth publicFits state) =
-      slice state PiCCSInputs.priorRunningStart 32073 := by
-  rw [← directRunning_eq_running logicalWidth publicFits state]
-  unfold serializeRunning
-  rw [serializeRunning_pointBlock logicalWidth publicFits canonical]
-  rw [serializeRunning_groups logicalWidth publicFits canonical]
-  calc
-    slice state PiCCSInputs.priorRunningStart 57 ++
-          slice state 96 (productionShape.runningCount * 2001) =
-        slice state PiCCSInputs.priorRunningStart
-          (57 + productionShape.runningCount * 2001) := by
-      simpa [PiCCSInputs.priorRunningStart] using
-        (slice_add state PiCCSInputs.priorRunningStart 57
-          (productionShape.runningCount * 2001)).symm
-    _ = slice state PiCCSInputs.priorRunningStart 32073 := by
-      apply congrArg (slice state PiCCSInputs.priorRunningStart)
-      norm_num [productionShape, productionProfile,
-        Phi81MatrixSource.phi81Shape]
+theorem stateDomainChunk_eq_slice {state : Nat → F} (canonical : Canonical state) :
+    stateDomainChunk = slice state 0 12 := by
+  apply List.ext_getElem
+  · simp [stateDomainChunk_length]
+  · intro index leftBound _rightBound
+    have fixed := canonical ⟨index, stateDomainChunk.getD index 0⟩ (by
+      rw [StateBinding.fixedWords, List.mem_map]
+      exact ⟨⟨index, leftBound⟩, List.mem_finRange _, rfl⟩)
+    simp only [slice, List.getElem_ofFn, Nat.zero_add]
+    rw [fixed, List.getD_eq_getElem _ _ leftBound]
 
 def keyDigest (state : Nat → F) : KeyDigest :=
   slice state StateBinding.contextWordStart PilotProduction.digestWords
@@ -652,118 +409,21 @@ theorem natWord_val_add_one (value : F) :
   apply Fin.ext
   simp [natWord, Poseidon2.ofNat, Fin.val_add, Nat.add_mod]
 
-theorem canonical_tagWord {state : Nat → F}
-    (canonical : Canonical state)
-    (index : Fin stateDomainTag.length) :
-    state index.val = stateDomainTag.getD index.val 0 := by
-  apply canonical ⟨index.val, stateDomainTag.getD index.val 0⟩
-  simp only [StateBinding.fixedWords, List.mem_append]
-  apply Or.inl
-  apply Or.inl
-  apply Or.inl
-  rw [StateBinding.tagWords, List.mem_map]
-  exact ⟨index, by simp, rfl⟩
-
-theorem stateDomainTag_eq_slice {state : Nat → F}
-    (canonical : Canonical state) :
-    stateDomainTag = slice state 0 stateDomainTag.length := by
-  apply List.ext_get
-  · simp
-  · intro index leftBound rightBound
-    let bounded : Fin stateDomainTag.length := ⟨index, leftBound⟩
-    have tagValue := canonical_tagWord canonical bounded
-    rw [List.getD_eq_get stateDomainTag 0 bounded] at tagValue
-    have sliceValue := slice_getD state 0 stateDomainTag.length index rightBound
-    rw [List.getD_eq_get (slice state 0 stateDomainTag.length) 0
-      ⟨index, by simpa using rightBound⟩] at sliceValue
-    calc
-      stateDomainTag.get ⟨index, leftBound⟩ = state index := by
-        simpa [bounded] using tagValue.symm
-      _ = state (0 + index) := by simp
-      _ = (slice state 0 stateDomainTag.length).get
-          ⟨index, rightBound⟩ := by
-        simpa using sliceValue.symm
-
-theorem canonical_keyHeader {state : Nat → F}
-    (canonical : Canonical state) : state 23 = natWord 4 := by
-  apply canonical ⟨23, natWord 4⟩
-  simp only [StateBinding.fixedWords, List.mem_append]
-  apply Or.inl
-  apply Or.inl
-  apply Or.inr
-  simp [natWord]
-
-theorem canonical_initialHeader {state : Nat → F}
-    (canonical : Canonical state) : state 29 = natWord 4 := by
-  apply canonical ⟨29, natWord 4⟩
-  simp only [StateBinding.fixedWords, List.mem_append]
-  apply Or.inl
-  apply Or.inl
-  apply Or.inr
-  simp [natWord]
-
-theorem canonical_currentHeader {state : Nat → F}
-    (canonical : Canonical state) : state 34 = natWord 4 := by
-  apply canonical ⟨34, natWord 4⟩
-  simp only [StateBinding.fixedWords, List.mem_append]
-  apply Or.inl
-  apply Or.inl
-  apply Or.inr
-  simp [natWord]
-
-theorem canonical_pc {state : Nat → F}
-    (canonical : Canonical state) : state 32112 = natWord 1 := by
-  apply canonical ⟨32112, natWord 1⟩
-  simp only [StateBinding.fixedWords, List.mem_append]
-  apply Or.inr
-  simp [natWord]
-
-theorem keyBlock_eq_slice {state : Nat → F}
-    (canonical : Canonical state) :
-    block (keyDigest state) = slice state 23 5 := by
-  apply block_eq_slice state 23 4
-  · simp [keyDigest, StateBinding.contextWordStart,
-      PilotProduction.digestWords, PilotValues.digestWords]
-  · exact canonical_keyHeader canonical
-
-theorem iterationWord_eq_slice (state : Nat → F) :
-    [natWord (iteration state)] = slice state 28 1 := by
-  apply List.ext_get
-  · simp
-  · intro index leftBound rightBound
-    have indexZero : index = 0 := by simpa using leftBound
-    subst index
-    simp [iteration, RunningTransitionInputs.iterationWordIndex, slice,
-      natWord_val]
-
-theorem initialBlock_eq_slice {state : Nat → F}
-    (canonical : Canonical state) :
-    block (initialState state) = slice state 29 5 := by
-  apply block_eq_slice state 29 4
-  · simp [initialState, RunningTransitionInputs.initialStateWordStart,
-      Lifecycle.Stage1.Application.stateWordCount]
-  · exact canonical_initialHeader canonical
-
-theorem currentBlock_eq_slice {state : Nat → F}
-    (canonical : Canonical state) :
-    block (currentState state) = slice state 34 5 := by
-  apply block_eq_slice state 34 4
-  · simp [currentState, RunningTransitionInputs.currentStateWordStart,
-      Lifecycle.Stage1.Application.stateWordCount]
-  · exact canonical_currentHeader canonical
-
-theorem pcWord_eq_slice {state : Nat → F}
-    (canonical : Canonical state) :
-    [natWord 1] = slice state 32112 1 := by
-  apply List.ext_get
-  · simp
-  · intro index leftBound rightBound
-    have indexZero : index = 0 := by simpa using leftBound
-    subst index
-    simpa [slice] using (canonical_pc canonical).symm
+theorem serializeTail_preimage (state : Nat → F) :
+    serializeTail (preimage logicalWidth publicFits state) =
+      slice state StateBinding.contextWordStart 13 := by
+  have iterationWord : [natWord (iteration state)] = slice state 27810 1 := by
+    simp [iteration, RunningTransitionInputs.iterationWordIndex, slice, natWord_val]
+  unfold serializeTail
+  change keyDigest state ++ [natWord (iteration state)] ++ initialState state ++
+    currentState state = _
+  rw [iterationWord, show (13 : Nat) = 4 + 1 + 4 + 4 from rfl,
+    slice_add state _ (4 + 1 + 4) 4, slice_add state _ (4 + 1) 4,
+    slice_add state _ 4 1]
+  rfl
 
 /-- Every value array accepted by the fixed-word rows is exactly the
-canonical serialization of its typed Construction 2 decode. -/
+canonical serialization of its decode. -/
 theorem serializePreimage_preimage
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
@@ -773,30 +433,21 @@ theorem serializePreimage_preimage
         (preimage logicalWidth publicFits state) =
       List.ofFn fun index : Fin PilotProduction.stateHashWords =>
         state index.val := by
-  unfold serializePreimage preimage
-  change stateDomainTag ++ block (keyDigest state) ++
-      [natWord (iteration state)] ++ block (initialState state) ++
-      block (currentState state) ++
+  unfold serializePreimage
+  change stateDomainChunk ++
       serializeRunning (publicFits := publicFits)
-        (running logicalWidth publicFits state) ++ [natWord 1] = _
-  rw [stateDomainTag_eq_slice canonical, keyBlock_eq_slice canonical,
-    iterationWord_eq_slice state, initialBlock_eq_slice canonical,
-    currentBlock_eq_slice canonical,
-    serializeRunning_running logicalWidth publicFits canonical,
-    pcWord_eq_slice canonical]
-  simp only [PiCCSInputs.priorRunningStart, stateDomainTag_length]
-  simp only [List.append_assoc]
-  rw [← slice_add state 39 32073 1]
-  rw [← slice_add state 34 5 32074]
-  rw [← slice_add state 29 5 32079]
-  rw [← slice_add state 28 1 32084]
-  rw [← slice_add state 23 5 32085]
-  norm_num
-  rw [← slice_add state 0 23 32090]
+        (running logicalWidth publicFits state) ++
+      serializeTail (preimage logicalWidth publicFits state) = _
+  rw [stateDomainChunk_eq_slice canonical, serializeRunning_running,
+    serializeTail_preimage]
+  have joined : slice state 0 12 ++ slice state PiCCSInputs.priorRunningStart 27794 ++
+      slice state StateBinding.contextWordStart 13 = slice state 0 (12 + 27794 + 13) := by
+    rw [slice_add state 0 (12 + 27794) 13, slice_add state 0 12 27794]
+    rfl
+  rw [joined]
   unfold slice
-  apply congrArg List.ofFn
-  funext index
-  simp
+  simp only [Nat.zero_add]
+  rfl
 
 @[simp] theorem keyDigest_length (state : Nat → F) :
     (keyDigest state).length = PilotProduction.digestWords := by
@@ -823,14 +474,9 @@ theorem preimage_fixed
     simp [preimage, PilotProduction.digestWords, PilotValues.digestWords,
       Lifecycle.Stage1.Application.stateWordCount]
 
-theorem preimage_wellFormed
-    (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
-    (state : Nat → F) :
-    StateEncoding.WellFormed (preimage logicalWidth publicFits state) := by
-  refine ⟨preimage_fixed logicalWidth publicFits state, ?_, rfl⟩
-  exact (state RunningTransitionInputs.iterationWordIndex).isLt
+theorem iteration_lt (state : Nat → F) :
+    (preimage logicalWidth publicFits state).iteration < goldilocksModulus :=
+  (state RunningTransitionInputs.iterationWordIndex).isLt
 
 /-- Canonical decoded words represent the complete prior hash preimage at
 the pilot interface. The agreement is over the actual hashed word interval. -/
@@ -872,5 +518,200 @@ theorem outputRepresents
     PilotProduction.variableExprs, List.map_ofFn]
   rw [serializePreimage_preimage _ _ canonical]
   exact congrArg List.ofFn (funext agrees)
+
+/-! ## PiCCS and running-transition readback -/
+
+private theorem cubePoint_ext {variableCount : Nat}
+    {left right : CubePoint K variableCount}
+    (coordinates : left.coordinates = right.coordinates) : left = right := by
+  cases left
+  cases right
+  simp_all
+
+private theorem evaluationFamily_ext
+    {left right : StrongReduction.EvaluationFamily K productionShape}
+    (pad : left.pad = right.pad) (matrix : left.matrix = right.matrix) :
+    left = right := by
+  cases left
+  cases right
+  simp_all
+
+/-- The decode reads only the running words, all below the tail. -/
+theorem running_congr {left right : Nat → F}
+    (agree : ∀ word, word < StateBinding.contextWordStart → left word = right word) :
+    running logicalWidth publicFits left = running logicalWidth publicFits right := by
+  have bound : StateBinding.contextWordStart = 27806 := rfl
+  apply StateEncoding.running_ext
+  · apply cubePoint_ext
+    change List.ofFn (fun coordinate : Fin cubeVariables =>
+        pair left (PiCCSInputs.runningPointStart + coordinate.val * 2)) =
+      List.ofFn (fun coordinate : Fin cubeVariables =>
+        pair right (PiCCSInputs.runningPointStart + coordinate.val * 2))
+    apply congrArg List.ofFn
+    funext coordinate
+    have coordinateBound : coordinate.val < 28 := coordinate.isLt
+    unfold pair PiCCSInputs.runningPointStart PiCCSInputs.priorRunningStart
+    rw [agree _ (by omega), agree _ (by omega)]
+  · funext source row coefficient
+    have sourceBound : source.val < 16 := source.isLt
+    have rowBound : row.val < 22 := row.isLt
+    have coefficientBound : coefficient.val < 54 := coefficient.isLt
+    change left (PiCCSInputs.runningCommitmentStart source.val + row.val * 54 +
+        coefficient.val) =
+      right (PiCCSInputs.runningCommitmentStart source.val + row.val * 54 +
+        coefficient.val)
+    unfold PiCCSInputs.runningCommitmentStart PiCCSInputs.priorRunningStart
+      PiCCSInputs.runningCommitmentWords
+    exact agree _ (by omega)
+  · have packed : packedWords left = packedWords right := by
+      funext word
+      have wordBound : word.val < 90 := word.isLt
+      unfold packedWords StateBinding.packedWordStart
+      exact agree _ (by omega)
+    funext source column
+    change Radix.splitScalar (unpackParent (packedWords left) column) _ =
+      Radix.splitScalar (unpackParent (packedWords right) column) _
+    rw [packed]
+  · funext source
+    have sourceBound : source.val < 16 := source.isLt
+    apply evaluationFamily_ext
+    · funext coefficient
+      have coefficientBound : coefficient.val < 54 := coefficient.isLt
+      change pair left (PiCCSInputs.runningEvalKStart source.val + coefficient.val * 2) =
+        pair right (PiCCSInputs.runningEvalKStart source.val + coefficient.val * 2)
+      unfold pair PiCCSInputs.runningEvalKStart PiCCSInputs.priorRunningStart
+        PiCCSInputs.runningEvalKWords
+      rw [agree _ (by omega), agree _ (by omega)]
+    · funext matrix coefficient
+      have matrixBound : matrix.val < 4 := matrix.isLt
+      have coefficientBound : coefficient.val < 54 := coefficient.isLt
+      change pair left (PiCCSInputs.runningEvalAStart source.val +
+          matrix.val * (productionShape.coefficientCount * 2) + coefficient.val * 2) =
+        pair right (PiCCSInputs.runningEvalAStart source.val +
+          matrix.val * (productionShape.coefficientCount * 2) + coefficient.val * 2)
+      have width : productionShape.coefficientCount * 2 = 108 := rfl
+      rw [width]
+      unfold pair PiCCSInputs.runningEvalAStart PiCCSInputs.priorRunningStart
+        PiCCSInputs.runningEvalAWords
+      rw [agree _ (by omega), agree _ (by omega)]
+
+/-- PiCCS reads the decoded prior running instance whenever its child-split
+rows hold: the region digits are `split_b` of the unpacked hashed parent. -/
+theorem evalRunning_eq_running (env : Env)
+    (split : StateBinding.ChildrenSplit
+      (Formal.statementBindingInterface
+        (Formal.atOffset (PiCCSInputs.interface logicalWidth publicFits)
+          PiCCSInputs.phaseOffset)).state
+      PiCCSInputs.phaseOffset env) :
+    StatementAbsorption.evalRunning (PiCCSInputs.runningExpr logicalWidth publicFits) env =
+      running logicalWidth publicFits
+        (fun word => env (PilotProduction.priorPreimageStart + word)) := by
+  apply StateEncoding.running_ext
+  · apply cubePoint_ext
+    change List.ofFn (fun coordinate =>
+        (PiCCSInputs.runningPoint coordinate).eval env) =
+      List.ofFn (fun coordinate => pair
+        (fun word => env (PilotProduction.priorPreimageStart + word))
+        (PiCCSInputs.runningPointStart + coordinate.val * 2))
+    apply congrArg List.ofFn
+    funext coordinate
+    simp [PiCCSInputs.runningPoint, PiCCSInputs.pairAt, pair,
+      Circuit.Quadratic.KExpr.eval, PilotProduction.priorPreimageStart]
+  · funext source row coefficient
+    simp [StatementAbsorption.evalRunning, PiCCSInputs.runningExpr,
+      PiCCSInputs.runningCommitment, running, commitment,
+      PilotProduction.priorPreimageStart]
+  · funext source column
+    rcases StateEncoding.packedColumn_cover column with ⟨word, lane, rfl⟩
+    let digits := StateBinding.priorDigits
+      (Formal.statementBindingInterface
+        (Formal.atOffset (PiCCSInputs.interface logicalWidth publicFits)
+          PiCCSInputs.phaseOffset)).state
+      PiCCSInputs.phaseOffset env word
+    have accepted (lane : Fin 3) : Radix.UniformSignedDigits.Accepted
+        (Radix.recomposeScalar (digits lane))
+        (1 - 2 * StateBinding.priorSignValue
+          (Formal.statementBindingInterface
+            (Formal.atOffset (PiCCSInputs.interface logicalWidth publicFits)
+              PiCCSInputs.phaseOffset)).state
+          PiCCSInputs.phaseOffset env word lane)
+        (digits lane) :=
+      ⟨split.constraint word lane, rfl⟩
+    have bounded (lane : Fin 3) :
+        centeredMagnitude (Radix.recomposeScalar (digits lane)) < 2 ^ 16 := by
+      have parentBound := (accepted lane).parentBounded
+      rw [Radix.production_parameters.2.2] at parentBound
+      exact parentBound
+    rcases StateEncoding.unpackWord_packWord (bounded 0) (bounded 1) (bounded 2) with
+      ⟨low, middle, high⟩
+    have unpacked : unpackWord
+        (packedWords (fun word => env (PilotProduction.priorPreimageStart + word)) word)
+        lane = Radix.recomposeScalar (digits lane) := by
+      rw [show packedWords (fun word => env (PilotProduction.priorPreimageStart + word)) word =
+          packWord (Radix.recomposeScalar (digits 0)) (Radix.recomposeScalar (digits 1))
+            (Radix.recomposeScalar (digits 2)) from split.packed word]
+      fin_cases lane
+      · exact low
+      · exact middle
+      · exact high
+    show env (PiCCSInputs.runningPublicStart source.val + (packedColumn word lane).val) =
+      Radix.splitScalar (unpackParent
+          (packedWords (fun word => env (PilotProduction.priorPreimageStart + word)))
+          (packedColumn word lane))
+        (Fin.cast runningCount_eq_radixChildCount source)
+    rw [unpackParent_packedColumn, unpacked, ← (accepted lane).digits_eq_splitScalar]
+    rfl
+  · funext source
+    apply evaluationFamily_ext
+    · funext coefficient
+      simp [StatementAbsorption.evalRunning, StatementAbsorption.evalEvaluation,
+        PiCCSInputs.runningExpr, PiCCSInputs.runningEval_K, PiCCSInputs.pairAt,
+        Circuit.Quadratic.KExpr.eval, running, evaluations, pair,
+        PilotProduction.priorPreimageStart]
+    · funext matrix coefficient
+      simp [StatementAbsorption.evalRunning, StatementAbsorption.evalEvaluation,
+        PiCCSInputs.runningExpr, PiCCSInputs.runningEval_A, PiCCSInputs.pairAt,
+        Circuit.Quadratic.KExpr.eval, running, evaluations, pair,
+        PilotProduction.priorPreimageStart, productionShape,
+        Phi81MatrixSource.phi81Shape, ringDegree]
+
+/-- The checked prior child digits make the decoded prior running instance
+canonical. -/
+theorem running_canonical (env : Env)
+    (split : StateBinding.ChildrenSplit
+      (Formal.statementBindingInterface
+        (Formal.atOffset (PiCCSInputs.interface logicalWidth publicFits)
+          PiCCSInputs.phaseOffset)).state
+      PiCCSInputs.phaseOffset env) :
+    Lifecycle.ChildrenCanonical (running logicalWidth publicFits
+      (fun word => env (PilotProduction.priorPreimageStart + word))) := by
+  rw [← evalRunning_eq_running env split]
+  intro column
+  rcases StateEncoding.packedColumn_cover column with ⟨word, lane, rfl⟩
+  exact ⟨_, split.constraint word lane⟩
+
+/-- The running-transition output words are the output block's running words. -/
+theorem outputWords_eq_slice (env : Env) :
+    Lifecycle.Stage1.RunningTransition.outputWords (RunningTransitionInputs.interface logicalWidth publicFits)
+        RunningTransitionInputs.phaseOffset env =
+      slice (fun word => env (PilotProduction.outputPreimageStart + word))
+        PiCCSInputs.priorRunningStart 27794 := by
+  unfold Lifecycle.Stage1.RunningTransition.outputWords slice
+  apply congrArg List.ofFn
+  funext index
+  simp [RunningTransitionInputs.interface, RunningTransitionInputs.outputWord,
+    RunningTransitionInputs.outputBase, Nat.add_assoc]
+
+/-- Output words that serialize a canonical running instance decode to it. -/
+theorem outputRunning_eq_of_serialized (env : Env)
+    {value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)}
+    (canonical : Lifecycle.ChildrenCanonical value)
+    (words : Lifecycle.Stage1.RunningTransition.outputWords
+        (RunningTransitionInputs.interface logicalWidth publicFits)
+        RunningTransitionInputs.phaseOffset env =
+      serializeRunning (publicFits := publicFits) value) :
+    running logicalWidth publicFits
+        (fun word => env (PilotProduction.outputPreimageStart + word)) = value :=
+  running_eq_of_serialized canonical ((outputWords_eq_slice env).symm.trans words)
 
 end NightstreamFPrime.Layout.Stage1.StateDecoder

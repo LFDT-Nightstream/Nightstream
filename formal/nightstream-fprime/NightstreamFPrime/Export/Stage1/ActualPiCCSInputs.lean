@@ -24,10 +24,18 @@ variable {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     Phi81CarrierLayout.carrierWidth relationLogicalWidth}
 
 /-- PiCCS reads the complete running claim from the same prior preimage
-that the pilot hashes, for every assignment. -/
+that the pilot hashes. The accepted state-binding rows supply the child
+split of each packed parent word. -/
 theorem evalRunning_eq_priorRunning
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
-    (assignment : Assignment F logicalWidth) :
+    (assignment : Assignment F logicalWidth)
+    (split : PiCCS.v1_1.StateBinding.ChildrenSplit
+      (PiCCS.v1_1.Formal.statementBindingInterface
+        (PiCCS.v1_1.Formal.atOffset
+          (PiCCSInvocations.parentInterface relationLogicalWidth relationPublicFits)
+          PiCCSInputs.phaseOffset)).state
+      PiCCSInputs.phaseOffset
+      (Spartan.pullback (PiCCSAssignmentSoundness.decodedEnv geometry assignment))) :
     PiCCS.v1_1.Formal.evalRunning
         (PiCCSInvocations.parentInterface relationLogicalWidth relationPublicFits)
         PiCCSInputs.phaseOffset
@@ -39,15 +47,66 @@ theorem evalRunning_eq_priorRunning
       (Spartan.pullback (PiCCSAssignmentSoundness.decodedEnv geometry assignment)) =
     StateDecoder.running relationLogicalWidth relationPublicFits
       (ActualPreimageFraming.priorState geometry assignment)
-  rw [StateDecoder.evalRunning_eq_running]
-  unfold StateDecoder.running
-  apply congrArg (PiCCSInputs.decodedRunning relationLogicalWidth relationPublicFits)
-  unfold StateDecoder.externalValues
-  apply congrArg (fun words : Fin PilotProduction.stateHashWords → F =>
-    PilotProduction.ExternalValues.mk words (fun _ => 0)
-      (fun _ => 0) (fun _ => 0))
-  funext word
-  exact ActualPreimageFraming.priorWord_eq geometry assignment word
+  rw [StateDecoder.evalRunning_eq_running _ split]
+  apply StateDecoder.running_congr
+  intro word bound
+  have stateBound : word < PilotProduction.stateHashWords := by
+    rw [PilotProduction.stateHashWords_eq]
+    unfold PiCCS.v1_1.StateBinding.contextWordStart at bound
+    omega
+  exact ActualPreimageFraming.priorWord_eq geometry assignment ⟨word, stateBound⟩
+
+/-- Accepted selected rows check the prior child split in the decoded PiCCS
+environment. -/
+theorem selectedRowsZero_implies_priorSplit
+    (application : Lifecycle.Stage1.Application.Program)
+    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))
+    (one : assignment (ApplicationRetainedGeometry.oneColumn
+      (PerApplicationFixedPoint.geometry application)) = 1)
+    (accepted : (PerApplicationFixedPoint.structuralPlan application fits).RowsZero
+      assignment) :
+    PiCCS.v1_1.StateBinding.ChildrenSplit
+      (PiCCS.v1_1.Formal.statementBindingInterface
+        (PiCCS.v1_1.Formal.atOffset
+          (PiCCSInvocations.parentInterface
+            (PerApplicationFixedPoint.logicalWidth application)
+            (PerApplicationFixedPoint.publicFits application))
+          PiCCSInputs.phaseOffset)).state
+      PiCCSInputs.phaseOffset
+      (Spartan.pullback (PiCCSAssignmentSoundness.decodedEnv
+        (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry
+          (PerApplicationFixedPoint.geometry application)) assignment)) :=
+  (PiCCSDecodedPhase.selectedRowsZero_implies_specHolds application fits assignment
+    one accepted).statementBinding.state.priorChildren
+
+/-- Accepted selected rows make the decoded prior running instance canonical. -/
+theorem selectedRowsZero_implies_priorCanonical
+    (application : Lifecycle.Stage1.Application.Program)
+    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))
+    (one : assignment (ApplicationRetainedGeometry.oneColumn
+      (PerApplicationFixedPoint.geometry application)) = 1)
+    (accepted : (PerApplicationFixedPoint.structuralPlan application fits).RowsZero
+      assignment) :
+    ChildrenCanonical (StateDecoder.running
+      (PerApplicationFixedPoint.logicalWidth application)
+      (PerApplicationFixedPoint.publicFits application)
+      (ActualPreimageFraming.priorState
+        (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry
+          (PerApplicationFixedPoint.geometry application)) assignment)) := by
+  let geometry := DirectApplicationPrefixPlan.piCcsOrdinaryGeometry
+    (PerApplicationFixedPoint.geometry application)
+  have split := selectedRowsZero_implies_priorSplit application fits assignment one accepted
+  have canonical := StateDecoder.running_canonical _ split
+  rw [← StateDecoder.evalRunning_eq_running _ split] at canonical
+  change ChildrenCanonical (PiCCS.v1_1.Formal.evalRunning
+    (PiCCSInvocations.parentInterface (PerApplicationFixedPoint.logicalWidth application)
+      (PerApplicationFixedPoint.publicFits application))
+    PiCCSInputs.phaseOffset
+    (Spartan.pullback (PiCCSAssignmentSoundness.decodedEnv geometry assignment))) at canonical
+  rw [evalRunning_eq_priorRunning geometry assignment split] at canonical
+  exact canonical
 
 /-- The typed fresh public input is the same public value as the prior hash
 slot. The parent shares these forms without a copy constraint. -/
@@ -152,10 +211,12 @@ theorem selectedRowsAndPublic_imply_phaseAndHashes
     exact publicEqual
   have one := RecursivePublicOutputPlan.publicEqual_implies_one
     geometry assignment digest publicBound
-  refine ⟨PiCCSDecodedPhase.selectedRowsZero_implies_phaseHolds
-      application fits ajtai template assignment one accepted,
+  have phase := PiCCSDecodedPhase.selectedRowsZero_implies_phaseHolds
+    application fits ajtai template assignment one accepted
+  refine ⟨phase,
     evalRunning_eq_priorRunning
-      (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry geometry) assignment,
+      (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry geometry) assignment
+      phase.stateBinding.priorChildren,
     ?_, ActualHashSlots.selectedRowsAndPublic_imply_outputHash
       application fits assignment digest fixed publicEqual accepted⟩
   intro source

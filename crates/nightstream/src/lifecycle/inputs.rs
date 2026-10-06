@@ -6,12 +6,14 @@
 //! or verify a relation.
 
 use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
+use neo_ccs::Mat;
 use neo_math::{KExtensions, F, K};
+use neo_reductions::common::split_b_matrix_k;
 use nightstream_fprime::{
     PackageError, PiCcsV1_1OutputEvaluations, PiCcsV1_1PackageInputs, PiCcsV1_1VerifierContext,
     PI_CCS_V1_1_COEFFICIENT_COUNT, PI_CCS_V1_1_FRESH_COMMITMENT_WORDS, PI_CCS_V1_1_MATRIX_COUNT,
-    PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT, PI_CCS_V1_1_ROUND_COUNT,
-    PI_CCS_V1_1_SOURCE_COUNT, PI_CCS_V1_1_STATE_PREIMAGE_WORDS,
+    PI_CCS_V1_1_PRIOR_CHILDREN_WORDS, PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT,
+    PI_CCS_V1_1_ROUND_COUNT, PI_CCS_V1_1_SOURCE_COUNT, PI_CCS_V1_1_STATE_PREIMAGE_WORDS, PI_DEC_V1_1_CHILD_COUNT,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use thiserror::Error;
@@ -19,10 +21,14 @@ use thiserror::Error;
 use crate::folding::pi_ccs;
 use crate::folding::{CcsClaim, CeClaim};
 
-const STATE_DOMAIN_TAG: [u64; 23] = [
-    72, 121, 112, 101, 114, 78, 111, 118, 97, 47, 78, 73, 86, 67, 47, 115, 116, 97, 116, 101, 47, 118, 49,
-];
+/// `HyperNova/NIVC/state/v2`, eight little-endian bytes per word, then zero
+/// words up to one full sponge rate.
+const STATE_DOMAIN_TAG: &[u8; 23] = b"HyperNova/NIVC/state/v2";
+const STATE_DOMAIN_WORDS: usize = 12;
 const COMMITMENT_WIDTH: usize = PI_CCS_V1_1_FRESH_COMMITMENT_WORDS / PI_CCS_V1_1_COEFFICIENT_COUNT;
+/// Three parent coordinates share one state word in radix `2^17`.
+const PACK_RADIX: u64 = 1 << 17;
+const PUBLIC_COLUMNS: usize = PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS / PI_CCS_V1_1_COEFFICIENT_COUNT;
 
 #[derive(Debug, Error)]
 pub enum PiCcsV1_1PackageBridgeError {
@@ -118,6 +124,7 @@ impl PiCcsV1_1ProofInputs {
         self,
         prior_preimage: Vec<u64>,
         output_preimage: Vec<u64>,
+        prior_children: Vec<u64>,
         prior_public_input: Vec<u64>,
         output_digest: [u64; 4],
         verifier_context: PiCcsV1_1VerifierContext,
@@ -125,6 +132,7 @@ impl PiCcsV1_1ProofInputs {
         Ok(PiCcsV1_1PackageInputs::new(
             prior_preimage,
             output_preimage,
+            prior_children,
             self.fresh_commitment,
             self.round_messages,
             self.output_evaluations,
@@ -135,22 +143,135 @@ impl PiCcsV1_1ProofInputs {
     }
 }
 
-/// Serialize the exact Lean `HashPreimage` for the fixed v1_1 profile.
-#[allow(clippy::too_many_arguments)]
+/// Serialize the exact Lean `HashPreimage` for the fixed v1_1 profile: the
+/// domain chunk, the running commitments, `Eval_K`, `Eval_A` and point, the
+/// packed parent public input, then `vk, i, z0, zi`. The children's public
+/// inputs enter only through their parent.
 pub fn serialize_pi_ccs_v1_1_state_preimage(
     verifier_context_digest: [F; 4],
     iteration: u64,
     z0: [F; 4],
     current: [F; 4],
     running: &[CeClaim],
-    pc: u64,
 ) -> Result<Vec<u64>, PiCcsV1_1PackageBridgeError> {
-    if iteration >= F::ORDER_U64 || pc >= F::ORDER_U64 {
+    if iteration >= F::ORDER_U64 {
+        return Err(PiCcsV1_1PackageBridgeError::Shape("iteration is not canonical"));
+    }
+    let point = checked_running_point(running)?;
+    let mut words = Vec::with_capacity(PI_CCS_V1_1_STATE_PREIMAGE_WORDS);
+    for chunk in 0..STATE_DOMAIN_WORDS {
+        let bytes = STATE_DOMAIN_TAG.get(8 * chunk..).unwrap_or_default();
+        let mut word = [0; 8];
+        word[..bytes.len().min(8)].copy_from_slice(&bytes[..bytes.len().min(8)]);
+        words.push(u64::from_le_bytes(word));
+    }
+    for claim in running {
+        if claim.c.d != PI_CCS_V1_1_COEFFICIENT_COUNT
+            || claim.c.kappa != COMMITMENT_WIDTH
+            || claim.c.data.len() != PI_CCS_V1_1_FRESH_COMMITMENT_WORDS
+        {
+            return Err(PiCcsV1_1PackageBridgeError::Shape("running commitment"));
+        }
+        words.extend(claim.c.data.iter().map(|value| value.as_canonical_u64()));
+    }
+    for claim in running {
+        validate_family(&claim.eval_k)?;
+        for value in &claim.eval_k[..PI_CCS_V1_1_COEFFICIENT_COUNT] {
+            words.extend_from_slice(&extension_words(*value));
+        }
+    }
+    for claim in running {
+        if claim.eval_a.len() != PI_CCS_V1_1_MATRIX_COUNT {
+            return Err(PiCcsV1_1PackageBridgeError::Shape("running Eval_A matrix count"));
+        }
+        for matrix in &claim.eval_a {
+            validate_family(matrix)?;
+            for value in &matrix[..PI_CCS_V1_1_COEFFICIENT_COUNT] {
+                words.extend_from_slice(&extension_words(*value));
+            }
+        }
+    }
+    for value in point {
+        words.extend_from_slice(&extension_words(*value));
+    }
+    let parent = parent_public_input(running)?;
+    let radix = F::from_u64(PACK_RADIX);
+    for lanes in parent.chunks_exact(3) {
+        words.push((lanes[0] + radix * lanes[1] + radix * radix * lanes[2]).as_canonical_u64());
+    }
+    words.extend(verifier_context_digest.map(|value| value.as_canonical_u64()));
+    words.push(iteration);
+    words.extend(z0.map(|value| value.as_canonical_u64()));
+    words.extend(current.map(|value| value.as_canonical_u64()));
+    if words.len() != PI_CCS_V1_1_STATE_PREIMAGE_WORDS {
+        return Err(PiCcsV1_1PackageBridgeError::Shape("serialized state preimage length"));
+    }
+    Ok(words)
+}
+
+/// The PiCCS prior child region: the sixteen child public inputs, child-major,
+/// then one sign bit per parent coordinate, one when the parent is negative.
+/// The children must be the canonical split of their parent.
+pub fn pi_ccs_v1_1_prior_children(running: &[CeClaim]) -> Result<Vec<u64>, PiCcsV1_1PackageBridgeError> {
+    let parent = canonical_parent(running)?;
+    let mut words = Vec::with_capacity(PI_CCS_V1_1_PRIOR_CHILDREN_WORDS);
+    for claim in running {
+        words.extend((0..PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS).map(|column| public_input(claim, column)));
+    }
+    words.extend(
+        parent
+            .iter()
+            .map(|value| u64::from(value.as_canonical_u64() > F::ORDER_U64 / 2)),
+    );
+    Ok(words)
+}
+
+/// The state hash binds only the parent public input, so every running child
+/// must be its canonical split (SuperNeo Π_DEC verifier step 2).
+pub fn check_pi_ccs_v1_1_canonical_children(running: &[CeClaim]) -> Result<(), PiCcsV1_1PackageBridgeError> {
+    canonical_parent(running).map(|_| ())
+}
+
+fn canonical_parent(running: &[CeClaim]) -> Result<Vec<F>, PiCcsV1_1PackageBridgeError> {
+    checked_running_point(running)?;
+    let parent = parent_public_input(running)?;
+    let mut matrix = Mat::zero(PI_CCS_V1_1_COEFFICIENT_COUNT, PUBLIC_COLUMNS, F::ZERO);
+    for (column, value) in parent.iter().enumerate() {
+        matrix[(
+            column % PI_CCS_V1_1_COEFFICIENT_COUNT,
+            column / PI_CCS_V1_1_COEFFICIENT_COUNT,
+        )] = *value;
+    }
+    let split = split_b_matrix_k(&matrix, running.len(), 2)
+        .map_err(|_| PiCcsV1_1PackageBridgeError::Shape("running parent public input exceeds the split bound"))?;
+    if split
+        .iter()
+        .zip(running)
+        .any(|(digits, claim)| *digits != claim.X)
+    {
         return Err(PiCcsV1_1PackageBridgeError::Shape(
-            "iteration or program counter is not canonical",
+            "running children are not the canonical split of their parent",
         ));
     }
-    if running.len() != 16 {
+    Ok(parent)
+}
+
+/// Lean `parentPublic`: `Σ_j 2^j x_j` in Lean column order.
+fn parent_public_input(running: &[CeClaim]) -> Result<Vec<F>, PiCcsV1_1PackageBridgeError> {
+    let mut parent = vec![F::ZERO; PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS];
+    let mut power = F::ONE;
+    for claim in running {
+        checked_public_shape(claim)?;
+        for (column, value) in parent.iter_mut().enumerate() {
+            *value += power * F::from_u64(public_input(claim, column));
+        }
+        power = power.double();
+    }
+    Ok(parent)
+}
+
+fn checked_running_point(running: &[CeClaim]) -> Result<&[K], PiCcsV1_1PackageBridgeError> {
+    if running.len() != PI_DEC_V1_1_CHILD_COUNT {
         return Err(PiCcsV1_1PackageBridgeError::Shape("running source count"));
     }
     let point = &running[0].r;
@@ -161,76 +282,26 @@ pub fn serialize_pi_ccs_v1_1_state_preimage(
     {
         return Err(PiCcsV1_1PackageBridgeError::Shape("shared running point"));
     }
+    Ok(point)
+}
 
-    let mut words = Vec::with_capacity(PI_CCS_V1_1_STATE_PREIMAGE_WORDS);
-    words.extend_from_slice(&STATE_DOMAIN_TAG);
-    push_block(
-        &mut words,
-        &verifier_context_digest.map(|value| value.as_canonical_u64()),
-    );
-    words.push(iteration);
-    push_block(&mut words, &z0.map(|value| value.as_canonical_u64()));
-    push_block(&mut words, &current.map(|value| value.as_canonical_u64()));
-
-    let mut point_words = Vec::with_capacity(2 * PI_CCS_V1_1_ROUND_COUNT);
-    for value in point {
-        point_words.extend_from_slice(&extension_words(*value));
+fn checked_public_shape(claim: &CeClaim) -> Result<(), PiCcsV1_1PackageBridgeError> {
+    if claim.m_in != PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS
+        || claim.X.rows() != PI_CCS_V1_1_COEFFICIENT_COUNT
+        || claim.X.cols() != PUBLIC_COLUMNS
+    {
+        return Err(PiCcsV1_1PackageBridgeError::Shape("running public input"));
     }
-    push_block(&mut words, &point_words);
+    Ok(())
+}
 
-    for claim in running {
-        if claim.c.d != PI_CCS_V1_1_COEFFICIENT_COUNT
-            || claim.c.kappa != COMMITMENT_WIDTH
-            || claim.c.data.len() != PI_CCS_V1_1_FRESH_COMMITMENT_WORDS
-        {
-            return Err(PiCcsV1_1PackageBridgeError::Shape("running commitment"));
-        }
-        let commitment: Vec<_> = claim
-            .c
-            .data
-            .iter()
-            .map(|value| value.as_canonical_u64())
-            .collect();
-        push_block(&mut words, &commitment);
-
-        if claim.m_in != PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS
-            || claim.X.rows() != PI_CCS_V1_1_COEFFICIENT_COUNT
-            || claim.X.cols() != PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS / PI_CCS_V1_1_COEFFICIENT_COUNT
-        {
-            return Err(PiCcsV1_1PackageBridgeError::Shape("running public input"));
-        }
-        let public_input: Vec<_> = (0..PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS)
-            .map(|index| {
-                claim.X[(
-                    index % PI_CCS_V1_1_COEFFICIENT_COUNT,
-                    index / PI_CCS_V1_1_COEFFICIENT_COUNT,
-                )]
-                    .as_canonical_u64()
-            })
-            .collect();
-        push_block(&mut words, &public_input);
-
-        validate_family(&claim.eval_k)?;
-        if claim.eval_a.len() != PI_CCS_V1_1_MATRIX_COUNT {
-            return Err(PiCcsV1_1PackageBridgeError::Shape("running Eval_A matrix count"));
-        }
-        let mut evaluations = Vec::with_capacity((PI_CCS_V1_1_MATRIX_COUNT + 1) * PI_CCS_V1_1_COEFFICIENT_COUNT * 2);
-        for value in &claim.eval_k[..PI_CCS_V1_1_COEFFICIENT_COUNT] {
-            evaluations.extend_from_slice(&extension_words(*value));
-        }
-        for matrix in &claim.eval_a {
-            validate_family(matrix)?;
-            for value in &matrix[..PI_CCS_V1_1_COEFFICIENT_COUNT] {
-                evaluations.extend_from_slice(&extension_words(*value));
-            }
-        }
-        push_block(&mut words, &evaluations);
-    }
-    words.push(pc);
-    if words.len() != PI_CCS_V1_1_STATE_PREIMAGE_WORDS {
-        return Err(PiCcsV1_1PackageBridgeError::Shape("serialized state preimage length"));
-    }
-    Ok(words)
+/// Lean public-input column `j` is the ring coefficient `j mod 54` of column `j / 54`.
+fn public_input(claim: &CeClaim, column: usize) -> u64 {
+    claim.X[(
+        column % PI_CCS_V1_1_COEFFICIENT_COUNT,
+        column / PI_CCS_V1_1_COEFFICIENT_COUNT,
+    )]
+        .as_canonical_u64()
 }
 
 /// Recompute the Lean `stateHash` from its canonical serialized preimage.
@@ -255,11 +326,6 @@ pub fn encode_pi_ccs_v1_1_public_input(digest: [u64; 4]) -> Result<Vec<u64>, PiC
         }
     }
     Ok(output)
-}
-
-fn push_block(output: &mut Vec<u64>, block: &[u64]) {
-    output.push(block.len() as u64);
-    output.extend_from_slice(block);
 }
 
 fn validate_family(values: &[K]) -> Result<(), PiCcsV1_1PackageBridgeError> {

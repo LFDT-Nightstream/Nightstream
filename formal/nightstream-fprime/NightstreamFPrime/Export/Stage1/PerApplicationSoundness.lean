@@ -104,10 +104,8 @@ structure Represents
   proofInput : Layout.Stage1.AccumulatorInputs.proof relation
     (sourceEnv program env) = input.nifsProof
   runningOutput :
-    PiCCS.v1_1.StatementAbsorption.evalRunning
-        (Layout.Stage1.RunningTransitionInputs.outputRunningExpr
-          Data.logicalWidth Data.publicFits)
-        (sourceEnv program env) =
+    Layout.Stage1.RunningTransitionInputs.outputRunning
+        Data.logicalWidth Data.publicFits (sourceEnv program env) =
       output.runningNext functionIndex
   priorPc : input.priorPc = 1
   pcNext : output.pcNext = functionIndex
@@ -234,9 +232,8 @@ theorem packageRows_imply_stepHoldsFor
       subst slot
       calc
         output.runningNext functionIndex =
-            PiCCS.v1_1.StatementAbsorption.evalRunning
-              (Layout.Stage1.RunningTransitionInputs.outputRunningExpr
-                Data.logicalWidth Data.publicFits)
+            Layout.Stage1.RunningTransitionInputs.outputRunning
+              Data.logicalWidth Data.publicFits
               (sourceEnv program env) := represents.runningOutput.symm
         _ = defaultRunning (logicalWidth := Data.logicalWidth)
               (publicFits := Data.publicFits) := by
@@ -252,13 +249,14 @@ theorem packageRows_imply_stepHoldsFor
           (sourceEnv program env) ≠ 0 := by
       intro fieldZero
       exact iterationNonzero (represents.iterationZero.mp fieldZero)
+    have recursiveCanonical := Layout.Stage1.StateEncoding.output_canonical relation ajtai
+      ((Nifs.PaperNonInteractive.verify_eq_some_iff _ _ _ _ _).mp accumulator).2.2
     have runningRecursive :=
       RunningTransitionPackage.circuitPackage_implies_typed_recursive relation
         (PerApplicationPackage.baseEnv program env) baseRows fieldNonzero
-    change PiCCS.v1_1.StatementAbsorption.evalRunning
-        (Layout.Stage1.RunningTransitionInputs.outputRunningExpr
-          Data.logicalWidth Data.publicFits)
-        (sourceEnv program env) =
+        recursiveCanonical
+    change Layout.Stage1.RunningTransitionInputs.outputRunning
+        Data.logicalWidth Data.publicFits (sourceEnv program env) =
       Layout.Stage1.AccumulatorInputs.output relation (sourceEnv program env)
         at runningRecursive
     have accumulatorOutput : Accumulator.Holds relation ajtai vk

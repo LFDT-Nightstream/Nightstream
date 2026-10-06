@@ -14,8 +14,8 @@ use nightstream_fprime::{PackageError, PI_CCS_V1_1_ROUND_COUNT, PI_DEC_V1_1_CHIL
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use super::{
-    encode_pi_ccs_v1_1_public_input, pi_ccs_v1_1_state_hash, serialize_pi_ccs_v1_1_state_preimage,
-    PiCcsV1_1PackageBridgeError, PreparedLifecycle, Stage1Envelope, Stage1State,
+    check_pi_ccs_v1_1_canonical_children, encode_pi_ccs_v1_1_public_input, pi_ccs_v1_1_state_hash,
+    serialize_pi_ccs_v1_1_state_preimage, PiCcsV1_1PackageBridgeError, PreparedLifecycle, Stage1Envelope, Stage1State,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -131,15 +131,17 @@ impl PreparedLifecycle {
             return Err(VerifyError::Fresh("commitment or public-input shape"));
         }
 
+        // The state hash binds only the parent public input; the decider
+        // accepts only children that are its canonical split.
+        check_pi_ccs_v1_1_canonical_children(&running.claims)?;
         // The formal terminal preimage contains the semantic running claims,
-        // not parent_authority or fold_digest. The single selected pc is one.
+        // not parent_authority or fold_digest.
         let preimage = serialize_pi_ccs_v1_1_state_preimage(
             self.binding.verifier_context().digest().map(F::from_u64),
             expected_state.iteration(),
             expected_state.z0(),
             expected_state.current(),
             &running.claims,
-            1,
         )?;
         let public = encode_pi_ccs_v1_1_public_input(pi_ccs_v1_1_state_hash(&preimage)?)?;
         if fresh

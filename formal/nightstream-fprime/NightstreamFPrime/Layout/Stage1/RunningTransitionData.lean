@@ -37,10 +37,11 @@ theorem phaseOffset_matches_piDec
   rw [PilotPiCCSPiRLCPiDEC.physicalColumnCount_eq]
   rfl
 
-def iterationWordIndex : Nat := 28
+/-- Tail positions in the state block: `vk` at 27,806, then `i`, `z0`, `zi`. -/
+def iterationWordIndex : Nat := 27810
 
-def initialStateWordStart : Nat := 30
-def currentStateWordStart : Nat := 35
+def initialStateWordStart : Nat := 27811
+def currentStateWordStart : Nat := 27815
 
 def iterationExpr : Expr :=
   Expr.var (PilotProduction.priorPreimageStart + iterationWordIndex)
@@ -53,52 +54,9 @@ def currentStateExpr (index : RunningTransition.StateIndex) : Expr :=
 
 def outputBase : Nat := PilotProduction.outputPreimageStart
 
-def outputPairAt (relative : Nat) : KExpr :=
-  ⟨Expr.var (outputBase + relative), Expr.var (outputBase + relative + 1)⟩
-
-def outputPoint
-    (coordinate : Fin productionShape.cubeVariables) : KExpr :=
-  outputPairAt (PiCCSInputs.runningPointStart + coordinate.val * 2)
-
-def outputCommitment
-    (source : Fin productionShape.runningCount)
-    (row : Fin productionProfile.commitmentWidth)
-    (coefficient : Fin ringDegree) : Expr :=
-  Expr.var (outputBase + PiCCSInputs.runningCommitmentStart source.val +
-    row.val * ringDegree + coefficient.val)
-
-def outputPublicInput
-    {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
-    (source : Fin productionShape.runningCount)
-    (column : Fin (FullShape logicalWidth publicFits).publicWidth) : Expr :=
-  Expr.var (outputBase + PiCCSInputs.runningPublicStart source.val + column.val)
-
-def outputEval_K
-    (source : Fin productionShape.runningCount)
-    (coefficient : Fin productionShape.coefficientCount) : KExpr :=
-  outputPairAt
-    (PiCCSInputs.runningEvaluationStart source.val + coefficient.val * 2)
-
-def outputEval_A
-    (source : Fin productionShape.runningCount)
-    (matrix : Fin productionShape.matrixCount)
-    (coefficient : Fin productionShape.coefficientCount) : KExpr :=
-  outputPairAt (PiCCSInputs.runningEvaluationStart source.val + 108 +
-    matrix.val * 108 + coefficient.val * 2)
-
-def outputRunningExpr
-    (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
-    StatementAbsorption.RunningExpr logicalWidth publicFits where
-  point := outputPoint
-  commitment := outputCommitment
-  publicInput := outputPublicInput
-  evaluation := fun source => {
-    eval_K := outputEval_K source
-    eval_A := outputEval_A source }
+/-- Running word `index` of the output state block, in place. -/
+def outputWord (index : RunningTransition.WordIndex) : Expr :=
+  Expr.var (outputBase + PiCCSInputs.priorRunningStart + index.val)
 
 theorem runningCount_eq_childCount :
     productionShape.runningCount = productionGlobalParams.k := by
@@ -173,6 +131,6 @@ def interface
   initialState := fun _ => initialStateExpr
   currentState := fun _ => currentStateExpr
   recursive := fun _ => recursiveRunningExpr logicalWidth publicFits
-  output := fun _ => outputRunningExpr logicalWidth publicFits
+  output := fun _ => outputWord
 
 end NightstreamFPrime.Layout.Stage1.RunningTransitionInputs

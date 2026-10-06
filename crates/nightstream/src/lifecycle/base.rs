@@ -14,8 +14,9 @@ use nightstream_fprime::{
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use super::{
-    encode_pi_ccs_v1_1_public_input, pi_ccs_v1_1_state_hash, serialize_pi_ccs_v1_1_state_preimage,
-    step_inputs::digest_bytes, ExtendError, PreparedLifecycle, Stage1State, Stage1StepInputs,
+    encode_pi_ccs_v1_1_public_input, pi_ccs_v1_1_prior_children, pi_ccs_v1_1_state_hash,
+    serialize_pi_ccs_v1_1_state_preimage, step_inputs::digest_bytes, ExtendError, PreparedLifecycle, Stage1State,
+    Stage1StepInputs,
 };
 use crate::folding::{ajtai_rlc_mixer, kernels as optimized, Params, RunningInstance};
 
@@ -31,7 +32,7 @@ impl PreparedLifecycle {
             RunningInstance::canonical_zero(params, &self.structure, PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS)
                 .map_err(|_| ExtendError::Input("canonical zero running shape"))?;
         let context = self.binding.verifier_context().digest().map(F::from_u64);
-        let prior_preimage = serialize_pi_ccs_v1_1_state_preimage(context, 0, z0, z0, &running.claims, 1)?;
+        let prior_preimage = serialize_pi_ccs_v1_1_state_preimage(context, 0, z0, z0, &running.claims)?;
         let prior_digest = pi_ccs_v1_1_state_hash(&prior_preimage)?;
         let prior_public = encode_pi_ccs_v1_1_public_input(prior_digest)?;
         let rounds = vec![vec![[0; 2]; PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT]; PI_CCS_V1_1_ROUND_COUNT];
@@ -92,7 +93,7 @@ impl PreparedLifecycle {
 
         // Dummy child public digits fill the always-present IR input; the
         // formal base branch retains the canonical zero running instance.
-        let output_preimage = serialize_pi_ccs_v1_1_state_preimage(context, 1, z0, output, &running.claims, 1)?;
+        let output_preimage = serialize_pi_ccs_v1_1_state_preimage(context, 1, z0, output, &running.claims)?;
         let output_digest = pi_ccs_v1_1_state_hash(&output_preimage)?;
         let next_public_input = encode_pi_ccs_v1_1_public_input(output_digest)?;
         #[cfg(test)]
@@ -100,6 +101,7 @@ impl PreparedLifecycle {
         let pi_ccs = PiCcsV1_1PackageInputs::new(
             prior_preimage,
             output_preimage,
+            pi_ccs_v1_1_prior_children(&running.claims)?,
             vec![0; PI_CCS_V1_1_FRESH_COMMITMENT_WORDS],
             rounds,
             PiCcsV1_1OutputEvaluations::new(

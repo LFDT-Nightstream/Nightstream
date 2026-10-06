@@ -31,7 +31,7 @@ open _root_.NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork (Result
 attribute [local irreducible] PiDECOrdinarySourceWork.commitmentRow
   PiDECOrdinaryDirectSource.commitmentProgramRow PiDECInputCheck.relation
 
-private theorem selectedWidth : 49707850 = PiDECInputCheck.logicalWidth :=
+private theorem selectedWidth : 45140532 = PiDECInputCheck.logicalWidth :=
   Poseidon2HashChainV1Package.logicalWidth.symm
 
 private abbrev selectedGeometry : PiDECRetainedGeometry.Geometry
@@ -43,7 +43,7 @@ attribute [local irreducible] PerApplicationFixedPoint.logicalWidth
 
 /-- Two kind constructors, four literals, two block records, pair and Result. -/
 private def blocks (_ : Unit) : Result (RetainedBlock × RetainedBlock) :=
-  ⟨(⟨.field, 1188, 42252492⟩, ⟨.field, 31968, 45499036⟩), 10⟩
+  ⟨(⟨.field, 1188, 37849092⟩, ⟨.field, 31968, 40743528⟩), 10⟩
 
 private theorem blocks_value (application : Lifecycle.Stage1.Application.Program) :
     (blocks ()).value =
@@ -51,17 +51,17 @@ private theorem blocks_value (application : Lifecycle.Stage1.Application.Program
         (PiDECRetainedGeometry.parentCommitmentStart application),
        RetainedBlock.ofSemantic (PiDECRetainedBlocks.proofBlock application)
         (PiDECRetainedGeometry.proofStart application)) := by
-  have parentStart : PiDECRetainedGeometry.parentCommitmentStart application = 42252492 := by
+  have parentStart : PiDECRetainedGeometry.parentCommitmentStart application = 37849092 := by
     have total := PiRLCRetainedGeometry.prefixLogicalWidth_eq application
     rw [PiRLCRetainedGeometry.prefixLogicalWidth,
       PiRLCRetainedGeometry.productOutputBlock,
       LowNormBlock.Block.lift_coordinateCount,
       PiRLCProductSourceBlocks.outputBlock_coordinateCount] at total
-    change PiRLCRetainedGeometry.productOutputStart application + 19008 * 41 = 42252492
+    change PiRLCRetainedGeometry.productOutputStart application + 19008 * 41 = 37849092
     omega
-  have proofStart : PiDECRetainedGeometry.proofStart application = 45499036 := by
+  have proofStart : PiDECRetainedGeometry.proofStart application = 40743528 := by
     exact PiRLCPoseidonGeometry.pilotLogicalWidth_eq application
-  change ((⟨.field, 1188, 42252492⟩, ⟨.field, 31968, 45499036⟩) : RetainedBlock × RetainedBlock) =
+  change ((⟨.field, 1188, 37849092⟩, ⟨.field, 31968, 40743528⟩) : RetainedBlock × RetainedBlock) =
     (⟨.field, 1188, PiDECRetainedGeometry.parentCommitmentStart application⟩,
      ⟨.field, 31968, PiDECRetainedGeometry.proofStart application⟩)
   rw [parentStart, proofStart]
@@ -74,12 +74,12 @@ private theorem oneColumn_eq {application : Lifecycle.Stage1.Application.Program
   rfl
 
 private def Supported (column : Nat) : Prop :=
-  (7298392 ≤ column ∧ column < 7298392 + 1188) ∨
-    (12410698 ≤ column ∧ column < 12410698 + 31968)
+  (6509658 ≤ column ∧ column < 6509658 + 1188) ∨
+    (11621964 ≤ column ∧ column < 11621964 + 31968)
 
 private theorem parent_column (index : Nat) :
     Spartan.sourceToSpartan (PiDECSourceSupport.parentCommitmentStart + index) =
-      7298392 + index := by
+      6509658 + index := by
   rw [Spartan.sourceToSpartan_add_of_piCcsLocal _ _ (by
     rw [PiDECSourceSupport.parentCommitmentStart_eq]
     decide)]
@@ -88,7 +88,7 @@ private theorem parent_column (index : Nat) :
     Spartan.proofInputSourceStart, Spartan.piCcsPhaseOffset, Spartan.piCcsLocalStart]
 
 private theorem proof_column (index : Nat) :
-    Spartan.sourceToSpartan (PiDECInputs.proofInputStart + index) = 12410698 + index := by
+    Spartan.sourceToSpartan (PiDECInputs.proofInputStart + index) = 11621964 + index := by
   rw [Spartan.sourceToSpartan_add_of_piCcsLocal _ _ (by decide)]
   rfl
 
@@ -100,8 +100,8 @@ private theorem row_supported (index : Fin 1188) :
     rcases List.mem_ofFn.mp member with ⟨child, rfl⟩
     have source : PiDECInputs.childCommitmentStart child + index.val =
         PiDECInputs.proofInputStart + (child.val * 1188 + index.val) := by
-      change 12410976 + child.val * 1188 + index.val =
-        12410976 + (child.val * 1188 + index.val)
+      change 11622242 + child.val * 1188 + index.val =
+        11622242 + (child.val * 1188 + index.val)
       omega
     change Supported (Spartan.sourceToSpartan (PiDECInputs.childCommitmentStart child + index.val))
     rw [source, proof_column]
@@ -180,9 +180,9 @@ literal/subtraction/retained call (3), unpack call/value read/Result (3).
 RetainedWork checks the slot and complete block geometry. -/
 private def sourceForm (columns : Nat) (parent proof : RetainedBlock) (column : Nat) :
     Result (SparseForm columns) :=
-  let opened := if column < 12410698 then
-      RetainedWork.form? parent columns (column - 7298392)
-    else RetainedWork.form? proof columns (column - 12410698)
+  let opened := if column < 11621964 then
+      RetainedWork.form? parent columns (column - 6509658)
+    else RetainedWork.form? proof columns (column - 11621964)
   let result := unpackForm opened
   ⟨result.value, result.work + 9⟩
 
@@ -200,36 +200,36 @@ private theorem unpackChoice_length_le (columns : Nat) (condition : Prop) [Decid
 private theorem sourceForm_length_le (columns : Nat) (parent proof : RetainedBlock)
     (parentKind : parent.kind = .field) (proofKind : proof.kind = .field) (column : Nat) :
     (sourceForm columns parent proof column).value.entries.length ≤ 41 :=
-  @unpackChoice_length_le columns (column < 12410698)
-    (inferInstance : Decidable (column < 12410698))
-    (RetainedWork.form? parent columns (column - 7298392))
-    (RetainedWork.form? proof columns (column - 12410698))
-    (unpackedRetained_length_le columns parent parentKind (column - 7298392))
-    (unpackedRetained_length_le columns proof proofKind (column - 12410698))
+  @unpackChoice_length_le columns (column < 11621964)
+    (inferInstance : Decidable (column < 11621964))
+    (RetainedWork.form? parent columns (column - 6509658))
+    (RetainedWork.form? proof columns (column - 11621964))
+    (unpackedRetained_length_le columns parent parentKind (column - 6509658))
+    (unpackedRetained_length_le columns proof proofKind (column - 11621964))
 
 private theorem sourceForm_work_le (columns : Nat) (parent proof : RetainedBlock)
     (parentKind : parent.kind = .field) (proofKind : proof.kind = .field) (column : Nat) :
     (sourceForm columns parent proof column).work ≤ 13819 := by
-  have parentWork := RetainedWork.form?_work_le parent columns (column - 7298392)
-  have proofWork := RetainedWork.form?_work_le proof columns (column - 12410698)
+  have parentWork := RetainedWork.form?_work_le parent columns (column - 6509658)
+  have proofWork := RetainedWork.form?_work_le proof columns (column - 11621964)
   simp only [parentKind, proofKind, LowNormSlot.Kind.width, BalancedTernary.width] at parentWork proofWork
-  have parentUnpack := unpackForm_work_le (RetainedWork.form? parent columns (column - 7298392))
-  have proofUnpack := unpackForm_work_le (RetainedWork.form? proof columns (column - 12410698))
-  by_cases before : column < 12410698
+  have parentUnpack := unpackForm_work_le (RetainedWork.form? parent columns (column - 6509658))
+  have proofUnpack := unpackForm_work_le (RetainedWork.form? proof columns (column - 11621964))
+  by_cases before : column < 11621964
   · simp only [sourceForm, if_pos before]
-    change (unpackForm (RetainedWork.form? parent columns (column - 7298392))).work + 9 ≤ 13819
+    change (unpackForm (RetainedWork.form? parent columns (column - 6509658))).work + 9 ≤ 13819
     omega
   · simp only [sourceForm, if_neg before]
-    change (unpackForm (RetainedWork.form? proof columns (column - 12410698))).work + 9 ≤ 13819
+    change (unpackForm (RetainedWork.form? proof columns (column - 11621964))).work + 9 ≤ 13819
     omega
 
 private theorem parentForm_correct
     {application : Lifecycle.Stage1.Application.Program} {columns : Nat}
     (geometry : PiDECRetainedGeometry.Geometry application columns) (index : Fin 1188) :
-    (sourceForm columns (blocks ()).value.1 (blocks ()).value.2 (7298392 + index.val)).value =
+    (sourceForm columns (blocks ()).value.1 (blocks ()).value.2 (6509658 + index.val)).value =
         (PiDECDirectPlan.Location.parentCommitment index).form geometry ∧
       (sourceForm columns (blocks ()).value.1 (blocks ()).value.2
-        (7298392 + index.val)).value.entries.length = 41 := by
+        (6509658 + index.val)).value.entries.length = 41 := by
   let form := (PiDECDirectPlan.Location.parentCommitment index).form geometry
   have opened : (RetainedWork.form? (blocks ()).value.1 columns index.val).value = some form := by
     rw [RetainedWork.form?_value, blocks_value application]
@@ -238,10 +238,10 @@ private theorem parentForm_correct
       (PiDECRetainedGeometry.parentCommitmentFits geometry) index
   have value := unpackForm_value _ form opened
   have length := RetainedWork.form?_length (blocks ()).value.1 columns index.val form opened
-  have before : 7298392 + index.val < 12410698 := by omega
-  have offset : 7298392 + index.val - 7298392 = index.val := by omega
+  have before : 6509658 + index.val < 11621964 := by omega
+  have offset : 6509658 + index.val - 6509658 = index.val := by omega
   have resultValue : (sourceForm columns (blocks ()).value.1 (blocks ()).value.2
-      (7298392 + index.val)).value = form := by
+      (6509658 + index.val)).value = form := by
     simpa only [sourceForm, if_pos before, offset] using value
   refine ⟨resultValue, ?_⟩
   rw [resultValue]
@@ -250,10 +250,10 @@ private theorem parentForm_correct
 private theorem proofForm_correct
     {application : Lifecycle.Stage1.Application.Program} {columns : Nat}
     (geometry : PiDECRetainedGeometry.Geometry application columns) (index : Fin 31968) :
-    (sourceForm columns (blocks ()).value.1 (blocks ()).value.2 (12410698 + index.val)).value =
+    (sourceForm columns (blocks ()).value.1 (blocks ()).value.2 (11621964 + index.val)).value =
         (PiDECDirectPlan.Location.proof index).form geometry ∧
       (sourceForm columns (blocks ()).value.1 (blocks ()).value.2
-        (12410698 + index.val)).value.entries.length = 41 := by
+        (11621964 + index.val)).value.entries.length = 41 := by
   let form := (PiDECDirectPlan.Location.proof index).form geometry
   have opened : (RetainedWork.form? (blocks ()).value.2 columns index.val).value = some form := by
     rw [RetainedWork.form?_value, blocks_value application]
@@ -261,10 +261,10 @@ private theorem proofForm_correct
       (PiDECRetainedGeometry.proofStart application) (PiDECRetainedGeometry.proofFits geometry) index
   have value := unpackForm_value _ form opened
   have length := RetainedWork.form?_length (blocks ()).value.2 columns index.val form opened
-  have before : ¬ 12410698 + index.val < 12410698 := by omega
-  have offset : 12410698 + index.val - 12410698 = index.val := by omega
+  have before : ¬ 11621964 + index.val < 11621964 := by omega
+  have offset : 11621964 + index.val - 11621964 = index.val := by omega
   have resultValue : (sourceForm columns (blocks ()).value.1 (blocks ()).value.2
-      (12410698 + index.val)).value = form := by
+      (11621964 + index.val)).value = form := by
     simpa only [sourceForm, if_neg before, offset] using value
   refine ⟨resultValue, ?_⟩
   rw [resultValue]
@@ -278,8 +278,8 @@ private theorem sourceForm_correct
         (PiDECDirectPlan.sourceMap geometry).form column ∧
       (sourceForm columns (blocks ()).value.1 (blocks ()).value.2 column.val).value.entries.length = 41 := by
   rcases supported with parent | proof
-  · let index : Fin 1188 := ⟨column.val - 7298392, by omega⟩
-    have coordinate : column.val = 7298392 + index.val := by dsimp only [index]; omega
+  · let index : Fin 1188 := ⟨column.val - 6509658, by omega⟩
+    have coordinate : column.val = 6509658 + index.val := by dsimp only [index]; omega
     have represented : column.val = Spartan.sourceToSpartan
         (PiDECDirectPlan.Location.parentCommitment index).sourceColumn := by
       simpa only [PiDECDirectPlan.Location.sourceColumn, parent_column] using coordinate
@@ -287,8 +287,8 @@ private theorem sourceForm_correct
     have correct := parentForm_correct geometry index
     rw [← coordinate] at correct
     exact ⟨correct.1.trans mapped.symm, correct.2⟩
-  · let index : Fin 31968 := ⟨column.val - 12410698, by omega⟩
-    have coordinate : column.val = 12410698 + index.val := by dsimp only [index]; omega
+  · let index : Fin 31968 := ⟨column.val - 11621964, by omega⟩
+    have coordinate : column.val = 11621964 + index.val := by dsimp only [index]; omega
     have represented : column.val = Spartan.sourceToSpartan
         (PiDECDirectPlan.Location.proof index).sourceColumn := by
       simpa only [PiDECDirectPlan.Location.sourceColumn, proof_column] using coordinate
@@ -496,7 +496,7 @@ private theorem run_work_le (columns : Nat) (positive : 0 < columns) (index : Fi
 cost four; the equality transport changes only the erased type index. -/
 def commitmentForms (index : Fin 1188) :
     Result (OrdinaryRow.Forms PiDECInputCheck.logicalWidth) :=
-  let result := run 49707850 (by decide) index
+  let result := run 45140532 (by decide) index
   ⟨selectedWidth ▸ result.value, result.work + 4⟩
 
 private theorem cast_run_value {application : Lifecycle.Stage1.Application.Program}
@@ -511,7 +511,7 @@ theorem commitmentForms_value (index : Fin 1188) :
     (commitmentForms index).value =
       PiDECMatrixProgram.commitmentDirectForms PiDECInputCheck.relation
         (PerApplicationMatrixProgram.piDecGeometry Poseidon2HashChainV1Package.application) index :=
-  @cast_run_value Poseidon2HashChainV1Package.application 49707850 PiDECInputCheck.logicalWidth
+  @cast_run_value Poseidon2HashChainV1Package.application 45140532 PiDECInputCheck.logicalWidth
     selectedWidth (by decide) selectedGeometry index
 
 private theorem cast_lengths {columns output : Nat} (equal : columns = output)
@@ -527,13 +527,13 @@ theorem commitmentForms_lengths (index : Fin 1188) :
     (commitmentForms index).value.a.entries.length = 657 ∧
       (commitmentForms index).value.b.entries.length = 1 ∧
       (commitmentForms index).value.c.entries.length = 42 :=
-  @cast_lengths 49707850 PiDECInputCheck.logicalWidth selectedWidth
-    (run 49707850 (by decide) index).value
-    (@run_lengths Poseidon2HashChainV1Package.application 49707850 (by decide)
+  @cast_lengths 45140532 PiDECInputCheck.logicalWidth selectedWidth
+    (run 45140532 (by decide) index).value
+    (@run_lengths Poseidon2HashChainV1Package.application 45140532 (by decide)
       (selectedWidth.symm ▸ selectedGeometry) index)
 
 theorem commitmentForms_work_le (index : Fin 1188) :
     (commitmentForms index).work ≤ commitmentFormsWork :=
-  run_work_le 49707850 (by decide) index
+  run_work_le 45140532 (by decide) index
 
 end NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixWork

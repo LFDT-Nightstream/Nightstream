@@ -26,8 +26,8 @@ private theorem pilot_before_c :
       PiCCSInputs.expectedContextStart := by
     rw [PiCCSInputs.expectedContextStart_matches_pilot, Pilot.physicalColumnCount_eq]
     exact Nat.le_add_right _ _
-  unfold PiCCSInputs.phaseOffset PiCCSInputs.proofInputStart
-  exact Nat.le_trans bound (Nat.le_trans (Nat.le_add_right _ _) (Nat.le_add_right _ _))
+  unfold PiCCSInputs.phaseOffset PiCCSInputs.proofInputStart PiCCSInputs.priorChildrenStart
+  omega
 
 private theorem c_before_r : PiCCSInputs.phaseOffset ≤ PiRLCInputs.phaseOffset := by
   have bound := PiRLCInputs.piCcsLogicalFreshBase_le_phaseOffset
@@ -174,7 +174,7 @@ theorem completePrefix
     exact accepted
   have constructed := PilotNifsCompleteness.completePrefix prior next output.x priorWellFormed.1
     nextWellFormed.1 digestFixed values context relation ajtai input.nifsProof result
-    priorWellFormed.2.2 nextWellFormed.2.2 rfl rfl outputHash acceptedSource
+    priorWellFormed.2.2.2 rfl rfl outputHash acceptedSource
   rw [proofReadback] at constructed
   obtain ⟨p, c, r, d, pEnd, pConstraints, cOperations, rOperations, dOperations,
     pRows, cRows, rRows, _, _, dOutput⟩ := constructed

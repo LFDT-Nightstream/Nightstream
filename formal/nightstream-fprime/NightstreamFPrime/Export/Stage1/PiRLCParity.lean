@@ -45,7 +45,7 @@ def inputPublicInputFromComputed (computed : PiCCSNonzero.Computed)
   Fin.addCases
     (fun _ column => encHash (publicFits := PhaseReference.publicFits)
       computed.statement.digest column)
-    (fun runningSource column => PiCCSNonzero.field (runningSource.val + column.val))
+    (fun runningSource column => PiCCSNonzero.runningPublicDigit runningSource.val column.val)
     (sourceIndex source)
 
 def inputEvaluationFromComputed (computed : PiCCSNonzero.Computed)

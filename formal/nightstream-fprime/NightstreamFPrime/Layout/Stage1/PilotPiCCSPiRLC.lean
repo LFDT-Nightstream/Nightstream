@@ -25,7 +25,7 @@ variable {logicalWidth : Nat}
 /-- The exact PiRLC source-column start is the completed PiCCS endpoint. -/
 def piRlcOffset : Nat := PiRLCInputs.phaseOffset
 
-theorem piRlcOffset_eq : piRlcOffset = 7207123 := by
+theorem piRlcOffset_eq : piRlcOffset = 6418389 := by
   rfl
 
 /-- Exact physical row order of the Stage 1 prefix through PiRLC. -/
@@ -64,7 +64,7 @@ def cumulativePhysicalRows
   (NightstreamFPrime.Layout.PiRLC.v1_1.cumulativePhysicalRows relation
     (PiRLCInputs.interface (logicalWidth := logicalWidth)
       (publicFits := publicFits)) piRlcOffset).map
-      (7132243 + ·)
+      (6352059 + ·)
 
 /-- Stage 1 source-column endpoints after the seven PiRLC children. -/
 def cumulativePhysicalColumns
@@ -93,13 +93,13 @@ theorem physicalHolds_iff
 
 theorem physicalRowCount_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    physicalRowCount relation = 12313316 := by
+    physicalRowCount relation = 11533132 := by
   unfold physicalRowCount physicalRows
   rw [List.length_append]
   change PilotPiCCS.physicalRowCount relation +
     NightstreamFPrime.Layout.PiRLC.v1_1.physicalRowCount relation
       (PiRLCInputs.interface (logicalWidth := logicalWidth)
-        (publicFits := publicFits)) piRlcOffset = 12313316
+        (publicFits := publicFits)) piRlcOffset = 11533132
   rw [PilotPiCCS.physicalRowCount_eq,
     NightstreamFPrime.Layout.PiRLC.v1_1.physicalRowCount_eq_production
     relation
@@ -109,7 +109,7 @@ theorem physicalRowCount_eq
 
 theorem physicalColumnCount_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    physicalColumnCount relation = 12410976 := by
+    physicalColumnCount relation = 11622242 := by
   unfold physicalColumnCount
   rw [PilotPiCCS.physicalColumnCount_eq,
     NightstreamFPrime.Layout.PiRLC.v1_1.physicalColumnCount_eq_production
@@ -122,7 +122,7 @@ theorem physicalColumnCount_eq
 
 theorem jointDomain_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    jointDomain relation = 12410976 := by
+    jointDomain relation = 11622242 := by
   unfold jointDomain
   rw [physicalRowCount_eq relation, physicalColumnCount_eq relation]
   norm_num
@@ -146,14 +146,14 @@ theorem cumulativeFootprints_eq
           (publicFits := publicFits)) piRlcOffset =
         [0, 74987, 3049596, 693090, 277236, 1108944, 0] ∧
       cumulativePhysicalRows relation =
-        [7132243, 7184450, 10234046, 10927136, 11204372, 12313316,
-          12313316] ∧
+        [6352059, 6404266, 9453862, 10146952, 10424188, 11533132,
+          11533132] ∧
       cumulativePhysicalColumns relation =
-        [7207123, 7282110, 10331706, 11024796, 11302032, 12410976,
-          12410976] ∧
+        [6418389, 6493376, 9542972, 10236062, 10513298, 11622242,
+          11622242] ∧
       cumulativeJointDomains relation =
-        [7207123, 7282110, 10331706, 11024796, 11302032, 12410976,
-          12410976] := by
+        [6418389, 6493376, 9542972, 10236062, 10513298, 11622242,
+          11622242] := by
   let inputs := PiRLCInputs.inputShapes relation
   have rows :=
     NightstreamFPrime.Layout.PiRLC.v1_1.physicalRowDeltas_eq_production

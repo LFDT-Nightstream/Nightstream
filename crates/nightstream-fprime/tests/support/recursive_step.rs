@@ -7,7 +7,10 @@ use p3_goldilocks::Goldilocks;
 use serde_json::{json, Value};
 
 const PI_CCS_V1_1_ROUND_COUNT: usize = 28;
-const STATE_PREIMAGE_WORDS: usize = 32_113;
+const STATE_PREIMAGE_WORDS: usize = 27_819;
+/// `Lifecycle.XOut.serializeTail`: `vk, i, z0, zi` close the preimage.
+const ITERATION_WORD: usize = 27_810;
+const CURRENT_STATE: std::ops::Range<usize> = 27_815..27_819;
 const PUBLIC: usize = 270;
 const MODULUS: u64 = 0xffff_ffff_0000_0001;
 
@@ -124,7 +127,7 @@ pub fn check_fixture(fixture: &[u8], base: &[u8], input: &[u8], children: &[u8],
     let private = words(&fixture[2]);
     let public = words(&fixture[3]);
     let base_private = words(&base[2]);
-    assert_eq!(private.len(), 107_070);
+    assert_eq!(private.len(), 103_072);
     assert_eq!(public.len(), 278);
     let prior = &private[..STATE_PREIMAGE_WORDS];
     let output = &private[STATE_PREIMAGE_WORDS..2 * STATE_PREIMAGE_WORDS];
@@ -134,7 +137,7 @@ pub fn check_fixture(fixture: &[u8], base: &[u8], input: &[u8], children: &[u8],
         "the preceding checked caller output is the next prior"
     );
     assert!(
-        prior[28] > 0 && prior[28] + 1 < MODULUS,
+        prior[ITERATION_WORD] > 0 && prior[ITERATION_WORD] + 1 < MODULUS,
         "recursive counter has a canonical successor"
     );
     assert_eq!(
@@ -149,12 +152,12 @@ pub fn check_fixture(fixture: &[u8], base: &[u8], input: &[u8], children: &[u8],
         .iter()
         .map(|&byte| u64::from(byte))
         .collect::<Vec<_>>();
-    application.extend_from_slice(&prior[35..39]);
+    application.extend_from_slice(&prior[CURRENT_STATE]);
     application.extend_from_slice(message);
     let application_output = hash(&application);
     let mut next = prior.to_vec();
-    next[28] = prior[28] + 1;
-    next[35..39].copy_from_slice(&application_output);
+    next[ITERATION_WORD] = prior[ITERATION_WORD] + 1;
+    next[CURRENT_STATE].copy_from_slice(&application_output);
     assert_eq!(
         output,
         parent::with_running(&next, &children),
@@ -178,6 +181,7 @@ pub fn check_fixture(fixture: &[u8], base: &[u8], input: &[u8], children: &[u8],
     }
     let mut expected_private = prior.to_vec();
     expected_private.extend_from_slice(output);
+    expected_private.extend(parent::prior_children(&input[6]));
     expected_private.extend(proof_words);
     for index in [1, 3, 4, 2] {
         expected_private.extend(words(&children[index]));
@@ -194,8 +198,8 @@ pub fn check_fixture(fixture: &[u8], base: &[u8], input: &[u8], children: &[u8],
     assert_eq!(fixture[4][6], json!(parent_public));
     println!(
         "recursive_caller_binding=passed prior_iteration={} output_iteration={} children=16 matrix_families={}",
-        prior[28],
-        next[28],
+        prior[ITERATION_WORD],
+        next[ITERATION_WORD],
         nightstream_fprime::PI_CCS_V1_1_MATRIX_COUNT
     );
 }

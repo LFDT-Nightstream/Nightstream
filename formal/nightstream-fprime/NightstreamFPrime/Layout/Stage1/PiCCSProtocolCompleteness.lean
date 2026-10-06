@@ -1,4 +1,4 @@
-import NightstreamFPrime.Layout.Stage1.PiCCSProofInputs
+import NightstreamFPrime.Layout.Stage1.PiCCSPriorRunning
 import NightstreamFPrime.Layout.Stage1.StateEncodingCanonical
 import NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions
 import NightstreamFPrime.Layout.Stage1.PiCCSInputSupport
@@ -51,8 +51,8 @@ theorem pilot_word (index : Nat) (bound : index < PilotProduction.externalColumn
     rw [PilotProduction.externalColumnCount_eq] at bound
     rw [PiCCSInputs.expectedContextStart_eq]
     omega
-  have proofBound : index < PiCCSInputs.proofInputStart := by
-    unfold PiCCSInputs.proofInputStart
+  have proofBound : index < PiCCSInputs.priorChildrenStart := by
+    unfold PiCCSInputs.priorChildrenStart
     omega
   rw [environment, PiCCSProofInputs.loadExpectedContext_agreesOutside _ _ index (Or.inl contextBound)]
   exact PiCCSProofInputs.eval_pilotPrefix
@@ -100,7 +100,7 @@ theorem prior_word (index : Fin PilotProduction.stateHashWords) :
   rw [pilot_word prior priorPublic output digest priorFixed outputFixed digestFixed values context]
   · rw [PilotProduction.protocolEnv, pilot_prior_word]
     exact fixedList_word _ (PilotProduction.serializePreimage_length_fixed prior priorFixed) index
-  · have indexBound : index.val < 32113 := by
+  · have indexBound : index.val < 27819 := by
       simpa only [PilotProduction.stateHashWords_eq] using index.isLt
     rw [PilotProduction.externalColumnCount_eq]
     simp only [PilotProduction.priorPreimageStart]
@@ -116,7 +116,7 @@ theorem output_word (index : Fin PilotProduction.stateHashWords) :
   rw [pilot_word prior priorPublic output digest priorFixed outputFixed digestFixed values context]
   · rw [PilotProduction.protocolEnv, pilot_output_word]
     exact fixedList_word _ (PilotProduction.serializePreimage_length_fixed output outputFixed) index
-  · have indexBound : index.val < 32113 := by
+  · have indexBound : index.val < 27819 := by
       simpa only [PilotProduction.stateHashWords_eq] using index.isLt
     rw [PilotProduction.externalColumnCount_eq]
     norm_num [PilotProduction.outputPreimageStart, PilotProduction.priorPublicInputStart,
@@ -125,17 +125,85 @@ theorem output_word (index : Fin PilotProduction.stateHashWords) :
 
 variable (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
 
+/-- The honest child region satisfies every prior child-split row after the
+context is loaded: those rows read no context slot. -/
+private theorem childrenSplit_environment
+    (priorCanonical : Lifecycle.ChildrenCanonical (prior.running functionIndex)) :
+    StateBinding.ChildrenSplit
+      (Formal.statementBindingInterface (Formal.atOffset (relationInterface relation) phaseOffset)).state
+      phaseOffset
+      (environment prior priorPublic output digest priorFixed outputFixed digestFixed values context) := by
+  have base := PiCCSPriorRunning.childrenSplit_protocolEnv prior priorPublic output digest
+    priorFixed outputFixed digestFixed values priorCanonical
+  have same (index : Nat) (outside : index < PiCCSInputs.expectedContextStart ∨
+      PiCCSInputs.expectedContextStart + PiCCSInputs.expectedContextWords ≤ index) :
+      environment prior priorPublic output digest priorFixed outputFixed digestFixed values context
+          index =
+        PiCCSProofInputs.protocolEnv prior priorPublic output digest priorFixed outputFixed
+          digestFixed values index :=
+    PiCCSProofInputs.loadExpectedContext_agreesOutside
+      (PiCCSProofInputs.protocolEnv prior priorPublic output digest priorFixed outputFixed
+        digestFixed values) context index outside
+  have signSame (word : Fin packedParentWords) (lane : Fin 3) :
+      StateBinding.priorSignValue
+          (Formal.statementBindingInterface
+            (Formal.atOffset (relationInterface relation) phaseOffset)).state
+          phaseOffset
+          (environment prior priorPublic output digest priorFixed outputFixed digestFixed
+            values context) word lane =
+        StateBinding.priorSignValue
+          (Formal.statementBindingInterface
+            (Formal.atOffset (PiCCSInputs.interface logicalWidth publicFits) phaseOffset)).state
+          phaseOffset
+          (PiCCSProofInputs.protocolEnv prior priorPublic output digest priorFixed outputFixed
+            digestFixed values) word lane :=
+    same _ (Or.inr (by
+      unfold PiCCSInputs.priorSignStart PiCCSInputs.priorChildrenStart
+      omega))
+  have digitsSame (word : Fin packedParentWords) (lane : Fin 3) :
+      StateBinding.priorDigits
+          (Formal.statementBindingInterface
+            (Formal.atOffset (relationInterface relation) phaseOffset)).state
+          phaseOffset
+          (environment prior priorPublic output digest priorFixed outputFixed digestFixed
+            values context) word lane =
+        StateBinding.priorDigits
+          (Formal.statementBindingInterface
+            (Formal.atOffset (PiCCSInputs.interface logicalWidth publicFits) phaseOffset)).state
+          phaseOffset
+          (PiCCSProofInputs.protocolEnv prior priorPublic output digest priorFixed outputFixed
+            digestFixed values) word lane :=
+    funext fun _ => same _ (Or.inr (by
+      unfold PiCCSInputs.runningPublicStart PiCCSInputs.priorChildrenStart
+      omega))
+  refine ⟨?_, ?_, ?_⟩
+  · intro word lane
+    rw [signSame]
+    exact base.sign word lane
+  · intro word lane child
+    rw [digitsSame, signSame]
+    exact base.digit word lane child
+  · intro word
+    have wordBound : word.val < 90 := word.isLt
+    rw [digitsSame, digitsSame, digitsSame]
+    exact (same _ (Or.inl (by
+      rw [PiCCSInputs.expectedContextStart_eq]
+      unfold PilotProduction.priorPreimageStart StateBinding.packedWordStart
+      omega))).trans (base.packed word)
+
 /-- The typed state serializer and loaded selected context establish all
 state-binding checks. There is no caller-supplied state-binding conclusion. -/
 theorem stateBinding
-    (priorPc : prior.pc = 1) (outputPc : output.pc = 1)
+    (priorCanonical : Lifecycle.ChildrenCanonical (prior.running functionIndex))
     (priorContext : prior.verifierKeys functionIndex = context.toList)
     (outputContext : output.verifierKeys functionIndex = context.toList) :
     StateBinding.SpecHolds
       (Formal.statementBindingInterface (Formal.atOffset (relationInterface relation) phaseOffset)).state
       phaseOffset
       (environment prior priorPublic output digest priorFixed outputFixed digestFixed values context) := by
-  refine ⟨?_, ?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_,
+    childrenSplit_environment prior priorPublic output digest priorFixed outputFixed
+      digestFixed values context relation priorCanonical⟩
   · intro word member
     change (PiCCSInputs.priorStateWord word.index).eval
       (environment prior priorPublic output digest priorFixed outputFixed digestFixed values context) = word.value
@@ -143,7 +211,7 @@ theorem stateBinding
       ⟨word.index, by simpa only [PilotProduction.stateHashWords_eq] using
         StateBinding.fixedWord_index_lt word member⟩
     exact (prior_word prior priorPublic output digest priorFixed outputFixed digestFixed values context index).trans
-      (StateEncodingCanonical.serializePreimage_canonical prior priorFixed priorPc word member)
+      (StateEncodingCanonical.serializePreimage_canonical prior word member)
   · intro word member
     change (PiCCSInputs.outputStateWord word.index).eval
       (environment prior priorPublic output digest priorFixed outputFixed digestFixed values context) = word.value
@@ -151,32 +219,36 @@ theorem stateBinding
       ⟨word.index, by simpa only [PilotProduction.stateHashWords_eq] using
         StateBinding.fixedWord_index_lt word member⟩
     exact (output_word prior priorPublic output digest priorFixed outputFixed digestFixed values context index).trans
-      (StateEncodingCanonical.serializePreimage_canonical output outputFixed outputPc word member)
+      (StateEncodingCanonical.serializePreimage_canonical output word member)
   · intro lane
-    change (PiCCSInputs.priorStateWord (24 + lane.val)).eval
+    change (PiCCSInputs.priorStateWord (StateBinding.contextWordStart + lane.val)).eval
         (environment prior priorPublic output digest priorFixed outputFixed digestFixed values context) =
       (PiCCSInputs.expectedContext lane).eval
         (environment prior priorPublic output digest priorFixed outputFixed digestFixed values context)
-    let index : Fin PilotProduction.stateHashWords := ⟨24 + lane.val, by
+    let index : Fin PilotProduction.stateHashWords := ⟨StateBinding.contextWordStart + lane.val, by
       rw [PilotProduction.stateHashWords_eq]
+      unfold StateBinding.contextWordStart
       omega⟩
     calc
-      _ = (serializePreimage (publicFits := publicFits) prior).getD (24 + lane.val) 0 :=
+      _ = (serializePreimage (publicFits := publicFits) prior).getD
+            (StateBinding.contextWordStart + lane.val) 0 :=
         prior_word prior priorPublic output digest priorFixed outputFixed digestFixed values context index
       _ = (prior.verifierKeys functionIndex).getD lane.val 0 :=
         StateEncodingCanonical.serializePreimage_context_word prior priorFixed lane
       _ = context.toList.getD lane.val 0 := by rw [priorContext]
       _ = _ := (PiCCSProofInputs.loadExpectedContext_read _ context lane).symm
   · intro lane
-    change (PiCCSInputs.outputStateWord (24 + lane.val)).eval
+    change (PiCCSInputs.outputStateWord (StateBinding.contextWordStart + lane.val)).eval
         (environment prior priorPublic output digest priorFixed outputFixed digestFixed values context) =
       (PiCCSInputs.expectedContext lane).eval
         (environment prior priorPublic output digest priorFixed outputFixed digestFixed values context)
-    let index : Fin PilotProduction.stateHashWords := ⟨24 + lane.val, by
+    let index : Fin PilotProduction.stateHashWords := ⟨StateBinding.contextWordStart + lane.val, by
       rw [PilotProduction.stateHashWords_eq]
+      unfold StateBinding.contextWordStart
       omega⟩
     calc
-      _ = (serializePreimage (publicFits := publicFits) output).getD (24 + lane.val) 0 :=
+      _ = (serializePreimage (publicFits := publicFits) output).getD
+            (StateBinding.contextWordStart + lane.val) 0 :=
         output_word prior priorPublic output digest priorFixed outputFixed digestFixed values context index
       _ = (output.verifierKeys functionIndex).getD lane.val 0 :=
         StateEncodingCanonical.serializePreimage_context_word output outputFixed lane
@@ -188,6 +260,7 @@ same typed running instance, fresh instance, and proof. Generated pilot cells
 are not part of that source agreement. -/
 theorem inputs_eq_of_external
     (template : Proof 8) (initial : Env)
+    (priorCanonical : Lifecycle.ChildrenCanonical (prior.running functionIndex))
     (source : ∀ index, PiCCSOrdinarySourceSupport.External index → initial index =
       environment prior priorPublic output digest priorFixed outputFixed digestFixed values context index) :
     Formal.evalRunning (relationInterface relation) phaseOffset initial = prior.running functionIndex ∧
@@ -198,8 +271,8 @@ theorem inputs_eq_of_external
   have support : Formal.ExternalInputsSupported (relationInterface relation) phaseOffset
       PiCCSOrdinarySourceSupport.External :=
     PiCCSOrdinarySourceSupport.externalInputsSupported logicalWidth publicFits
-  have original := PiCCSProofInputs.protocolInputs_eq relation prior priorPublic output digest
-    priorFixed outputFixed digestFixed values template
+  have original := PiCCSPriorRunning.protocolInputs_eq relation prior priorPublic output digest
+    priorFixed outputFixed digestFixed values template priorCanonical
   have loaded := PiCCSProofInputs.loadExpectedContext_inputs_eq relation
     (PiCCSProofInputs.protocolEnv prior priorPublic output digest priorFixed outputFixed digestFixed values)
     context (relationProof relation values template)
@@ -220,7 +293,7 @@ outside this phase, and generated phase outputs are derived from its rows. -/
 theorem completePrefix_from
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (template : Proof 8)
-    (priorPc : prior.pc = 1) (outputPc : output.pc = 1)
+    (priorCanonical : Lifecycle.ChildrenCanonical (prior.running functionIndex))
     (priorContext : prior.verifierKeys functionIndex = context.toList)
     (outputContext : output.verifierKeys functionIndex = context.toList)
     (accepted : NightstreamFPrime.Spec.Folding.PiCCS.Accepted (ProductionKey.key relation ajtai)
@@ -240,7 +313,7 @@ theorem completePrefix_from
   have assumptions := NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions.production
     relation (relationInterface relation) phaseOffset external initial
   have inputs := inputs_eq_of_external prior priorPublic output digest priorFixed outputFixed
-    digestFixed values context relation template initial source
+    digestFixed values context relation template initial priorCanonical source
   have acceptedEnv : NightstreamFPrime.Spec.Folding.PiCCS.Accepted (ProductionKey.key relation ajtai)
       (Formal.evalRunning (relationInterface relation) phaseOffset initial)
       (Formal.evalFresh (relationInterface relation) phaseOffset initial)
@@ -255,7 +328,7 @@ theorem completePrefix_from
     PiCCSOrdinarySourceSupport.External _ initial support
     (fun index supported => (source index supported).symm)
     (stateBinding prior priorPublic output digest priorFixed outputFixed digestFixed values context
-      relation priorPc outputPc priorContext outputContext)
+      relation priorCanonical priorContext outputContext)
   exact Formal.completePrefix_of_accepted relation ajtai (relationInterface relation)
     (relationProof relation values template) initial phaseOffset assumptions binding acceptedEnv
 
@@ -266,7 +339,7 @@ proved rather than supplied. -/
 theorem completePrefix
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (template : Proof 8)
-    (priorPc : prior.pc = 1) (outputPc : output.pc = 1)
+    (priorCanonical : Lifecycle.ChildrenCanonical (prior.running functionIndex))
     (priorContext : prior.verifierKeys functionIndex = context.toList)
     (outputContext : output.verifierKeys functionIndex = context.toList)
     (accepted : NightstreamFPrime.Spec.Folding.PiCCS.Accepted (ProductionKey.key relation ajtai)
@@ -278,7 +351,7 @@ theorem completePrefix
         Formal.PhaseHolds relation ajtai (relationInterface relation) phaseOffset completed.current
           (relationProof relation values template) := by
   exact completePrefix_from prior priorPublic output digest priorFixed outputFixed digestFixed values
-    context relation ajtai template priorPc outputPc priorContext outputContext accepted
+    context relation ajtai template priorCanonical priorContext outputContext accepted
     (environment prior priorPublic output digest priorFixed outputFixed digestFixed values context)
     (fun _ _ => rfl)
 

@@ -2,19 +2,24 @@ import Mathlib.Data.List.GetD
 import NightstreamFPrime.Lifecycle.PaperAlgebra
 import NightstreamFPrime.Spec.Poseidon2
 import NightstreamFPrime.Spec.Folding.Nifs
+import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix.UniformSignedDigits
 
 /-!
-Owns the Stage 1 public-state binding: the canonical self-delimiting
-serialization of the Construction-2 hash preimage `(tag, vk, i, z0, zi, U, pc)`
-into field words, the state hash `XOut = Poseidon2(preimage)`, the fixed
-public-instance encoding of a digest, and the paper default running instance.
-Every function is computable (Rust parity surface, spec §11).
+Owns the Stage 1 public-state binding: the Construction-2 hash preimage
+`(vk, i, z0, zi, U, pc)` as field words, the state hash
+`XOut = Poseidon2(preimage)`, the fixed public-instance encoding of a digest,
+and the paper default running instance. Every function is computable (Rust
+parity surface, spec §11).
 
-The sponge `Poseidon2.hash` does not absorb its input length, so two word
-lists that differ only by trailing zeros collide. Every protocol preimage is
-therefore a fixed-length tag followed by length-prefixed blocks: the
-serialization is injective on well-formed preimages, and a list with extra
-trailing zeros is not the serialization of any preimage.
+The preimage starts with one constant domain chunk. Then it lists the running
+commitments, `Eval_K`, `Eval_A` and the point, each child-major, then the Π_DEC
+parent public input once, packed three coordinates per word, then the tail
+`vk, i, z0, zi`. All widths are fixed by the production profile, so the
+preimage needs no length prefixes. It omits `pc`; Stage 1 has one function and
+fixes `pc = 1`. The children's public inputs are the verifier-computed split of
+the parent (SuperNeo Π_DEC verifier step 2), so the packed parent determines
+them on every canonical state (`StateEncoding.serializePreimage_injective`).
+The committed state columns are exactly these words.
 -/
 
 namespace NightstreamFPrime.Lifecycle
@@ -25,6 +30,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongReduction (EvaluationFamily)
 open NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 open NightstreamFPrime.Lifecycle.PaperAlgebra
+open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
 
 section
 
@@ -43,15 +49,30 @@ abbrev HashPreimage :=
   HyperNova.Construction2.Paper.HashPreimage KeyDigest AppState
     (Running (logicalWidth := logicalWidth) (publicFits := publicFits)) slotCount
 
-/-- Domain-separation tag `HyperNova/NIVC/state/v1`, one byte per word. -/
-def stateDomainTag : List F :=
-  ([72, 121, 112, 101, 114, 78, 111, 118, 97, 47, 78, 73, 86, 67,
-    47, 115, 116, 97, 116, 101, 47, 118, 49] : List Nat).map Poseidon2.ofNat
+/-- Domain-separation tag `HyperNova/NIVC/state/v2` as ASCII bytes. -/
+def stateDomainBytes : List Nat :=
+  [72, 121, 112, 101, 114, 78, 111, 118, 97, 47, 78, 73, 86, 67,
+    47, 115, 116, 97, 116, 101, 47, 118, 50]
+
+/-- Little-endian bytes as one word. Eight ASCII bytes stay below `p`. -/
+def packBytes (bytes : List Nat) : F :=
+  Poseidon2.ofNat (bytes.foldr (fun byte rest => byte + 256 * rest) 0)
+
+/-- The first sponge chunk: the domain tag, eight bytes per word, then zero
+words up to one full rate chunk. Every word is a constant. -/
+def stateDomainChunk : List F :=
+  (List.range Poseidon2.rate).map fun word =>
+    packBytes ((stateDomainBytes.drop (8 * word)).take 8)
 
 def natWord (n : Nat) : F := Poseidon2.ofNat n
 
-/-- A length prefix makes every variable-length block self-delimiting. -/
+/-- A length prefix makes one variable-length transcript block
+self-delimiting. The state layouts have fixed widths and use none. -/
 def block (xs : List F) : List F := natWord xs.length :: xs
+
+@[simp] theorem block_length (xs : List F) :
+    (block xs).length = xs.length + 1 := by
+  simp [block]
 
 def serializeK (k : K) : List F := [k.c0, k.c1]
 def serializeRingF (a : RingF) : List F := (List.finRange ringDegree).map fun i => a i
@@ -62,35 +83,151 @@ def serializePublicInput
   (List.finRange (FullShape logicalWidth publicFits).publicWidth).map fun j => x j
 def serializePoint (p : CubePoint K cubeVariables) : List F :=
   p.coordinates.flatMap serializeK
+
+/-- The `Eval_K` words of one evaluation family. -/
+def serializeEvalK (e : EvaluationFamily K productionShape) : List F :=
+  (List.finRange productionShape.coefficientCount).flatMap fun l => serializeK (e.pad l)
+
+/-- The `Eval_A` words of one evaluation family, matrix-major. -/
+def serializeEvalA (e : EvaluationFamily K productionShape) : List F :=
+  (List.finRange productionShape.matrixCount).flatMap fun j =>
+    (List.finRange productionShape.coefficientCount).flatMap fun l =>
+      serializeK (e.matrix j l)
+
+/-- `Eval_K` then `Eval_A` of one family: the PiCCS output proof-input order. -/
 def serializeEvaluations (e : EvaluationFamily K productionShape) : List F :=
-  (List.finRange productionShape.coefficientCount).flatMap
-      (fun l => serializeK (e.pad l)) ++
-    (List.finRange productionShape.matrixCount).flatMap fun j =>
-      (List.finRange productionShape.coefficientCount).flatMap fun l =>
-        serializeK (e.matrix j l)
+  serializeEvalK e ++ serializeEvalA e
 
-/-- The complete running vector: point, then for each of the 16 slots its
-commitment, public input, and evaluation family, each as a block. -/
-def serializeRunning (u : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) : List F :=
-  block (serializePoint u.point) ++
-  ((List.finRange productionShape.runningCount).flatMap fun i =>
-    block (serializeCommitment (u.commitments i)) ++
-      block (serializePublicInput (publicFits := publicFits) (u.publicInputs i)) ++
-      block (serializeEvaluations (u.evaluations i)))
+/-- Running sections, each child-major. -/
+def serializeCommitments
+    (u : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) : List F :=
+  (List.finRange productionShape.runningCount).flatMap fun source =>
+    serializeCommitment (u.commitments source)
 
-/-- `hEnc(tag, vk, i, z0, zi, U, pc)`; `slotCount = 1`, so the key and running
-vectors each have one entry. -/
-def serializePreimage (p : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits)) : List F :=
-  stateDomainTag ++ block (p.verifierKeys functionIndex) ++ [natWord p.iteration] ++
-    block p.z0 ++ block p.current ++ serializeRunning (publicFits := publicFits) (p.running functionIndex) ++
-    [natWord p.pc]
+def serializeEvalKs
+    (u : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) : List F :=
+  (List.finRange productionShape.runningCount).flatMap fun source =>
+    serializeEvalK (u.evaluations source)
 
-theorem stateDomainTag_length : stateDomainTag.length = 23 := by
-  simp [stateDomainTag]
+def serializeEvalAs
+    (u : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) : List F :=
+  (List.finRange productionShape.runningCount).flatMap fun source =>
+    serializeEvalA (u.evaluations source)
 
-@[simp] theorem block_length (xs : List F) :
-    (block xs).length = xs.length + 1 := by
-  simp [block]
+def serializeChildPublicInputs
+    (u : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) : List F :=
+  (List.finRange productionShape.runningCount).flatMap fun source =>
+    serializePublicInput (publicFits := publicFits) (u.publicInputs source)
+
+theorem runningCount_eq_radixChildCount :
+    productionShape.runningCount = productionGlobalParams.k := by
+  rfl
+
+/-- The Π_DEC parent public input `Σ_j 2^j x_j` of the sixteen children. -/
+def parentPublic
+    (u : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (column : Fin (FullShape logicalWidth publicFits).publicWidth) : F :=
+  Spec.Phi81Relation.PiDECAlgebra.Radix.recomposeScalar fun child =>
+    u.publicInputs (Fin.cast runningCount_eq_radixChildCount.symm child) column
+
+/-- The sixteen child digits of one parent coordinate. -/
+def childDigits
+    (u : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (column : Fin (FullShape logicalWidth publicFits).publicWidth) :
+    Radix.ChildIndex → F :=
+  fun child => u.publicInputs (Fin.cast runningCount_eq_radixChildCount.symm child) column
+
+/-- Every parent coordinate splits into common-sign digits: the Π_DEC
+accepted public-input language. -/
+def ChildrenCanonical
+    (u : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) : Prop :=
+  ∀ column, ∃ sign, Radix.UniformSignedDigits.ConstraintPredicate sign (childDigits u column)
+
+theorem ChildrenCanonical.accepted
+    {u : Running (logicalWidth := logicalWidth) (publicFits := publicFits)}
+    (canonical : ChildrenCanonical u)
+    (column : Fin (FullShape logicalWidth publicFits).publicWidth) :
+    ∃ sign, Radix.UniformSignedDigits.Accepted (parentPublic u column) sign
+      (childDigits u column) := by
+  rcases canonical column with ⟨sign, constraint⟩
+  exact ⟨sign, constraint, rfl⟩
+
+theorem ChildrenCanonical.parentBounded
+    {u : Running (logicalWidth := logicalWidth) (publicFits := publicFits)}
+    (canonical : ChildrenCanonical u)
+    (column : Fin (FullShape logicalWidth publicFits).publicWidth) :
+    centeredMagnitude (parentPublic u column) < 2 ^ 16 := by
+  rcases canonical.accepted column with ⟨sign, accepted⟩
+  have bounded := accepted.parentBounded
+  rw [Radix.production_parameters.2.2] at bounded
+  exact bounded
+
+/-- Canonical children are the production split of their parent. -/
+theorem ChildrenCanonical.childDigits_eq
+    {u : Running (logicalWidth := logicalWidth) (publicFits := publicFits)}
+    (canonical : ChildrenCanonical u)
+    (column : Fin (FullShape logicalWidth publicFits).publicWidth) :
+    childDigits u column = Radix.splitScalar (parentPublic u column) := by
+  rcases canonical.accepted column with ⟨_, accepted⟩
+  exact accepted.digits_eq_splitScalar
+
+/-- Three parent coordinates share one word in radix `2^17`. Every accepted
+coordinate has centered magnitude below `2^16`, so the radix is injective and
+every packed word has magnitude below `2^51`. -/
+def packRadix : F := Poseidon2.ofNat (2 ^ 17)
+
+def packWord (low middle high : F) : F :=
+  low + packRadix * middle + packRadix * packRadix * high
+
+def packedParentWords : Nat := 90
+
+theorem publicWidth_eq :
+    (FullShape logicalWidth publicFits).publicWidth = 3 * packedParentWords := by
+  rfl
+
+/-- Parent coordinate `3 · word + lane`. -/
+def packedColumn (word : Fin packedParentWords) (lane : Fin 3) :
+    Fin (FullShape logicalWidth publicFits).publicWidth :=
+  ⟨3 * word.val + lane.val, by
+    rw [publicWidth_eq]
+    have wordBound := word.isLt
+    have laneBound := lane.isLt
+    omega⟩
+
+def serializeParentPublic
+    (u : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) : List F :=
+  (List.finRange packedParentWords).map fun word =>
+    packWord (parentPublic u (packedColumn word 0))
+      (parentPublic u (packedColumn word 1))
+      (parentPublic u (packedColumn word 2))
+
+/-- The running fields that both layouts share: commitments, `Eval_K`,
+`Eval_A`, then the point. -/
+def serializeRunningFields
+    (u : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) : List F :=
+  serializeCommitments u ++ serializeEvalKs u ++ serializeEvalAs u ++
+    serializePoint u.point
+
+/-- The running instance as hashed: the shared fields, then the packed parent
+public input. -/
+def serializeRunning
+    (u : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) : List F :=
+  serializeRunningFields u ++ serializeParentPublic u
+
+/-- `vk, i, z0, zi`; `slotCount = 1`, so the key and running vectors each
+have one entry. -/
+def serializeTail
+    (p : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits)) : List F :=
+  p.verifierKeys functionIndex ++ [natWord p.iteration] ++ p.z0 ++ p.current
+
+/-- The preimage `domain chunk, U, vk, i, z0, zi`. -/
+def serializePreimage
+    (p : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits)) : List F :=
+  stateDomainChunk ++ serializeRunning (publicFits := publicFits) (p.running functionIndex) ++
+    serializeTail p
+
+theorem stateDomainChunk_length : stateDomainChunk.length = 12 := by
+  simp [stateDomainChunk, Poseidon2.rate]
 
 @[simp] theorem serializeK_length (value : K) :
     (serializeK value).length = 2 := by
@@ -116,29 +253,172 @@ theorem stateDomainTag_length : stateDomainTag.length = 23 := by
     (serializePoint value).length = cubeVariables * 2 := by
   simp [serializePoint, value.dimension]
 
+@[simp] theorem serializeEvalK_length (value : EvaluationFamily K productionShape) :
+    (serializeEvalK value).length = productionShape.coefficientCount * 2 := by
+  simp [serializeEvalK]
+
+@[simp] theorem serializeEvalA_length (value : EvaluationFamily K productionShape) :
+    (serializeEvalA value).length =
+      productionShape.matrixCount * (productionShape.coefficientCount * 2) := by
+  simp [serializeEvalA]
+
 @[simp] theorem serializeEvaluations_length
     (value : EvaluationFamily K productionShape) :
     (serializeEvaluations value).length =
-      (productionShape.matrixCount + 1) *
-        productionShape.coefficientCount * 2 := by
+      (productionShape.matrixCount + 1) * productionShape.coefficientCount * 2 := by
   simp [serializeEvaluations, Nat.add_mul, Nat.mul_assoc, Nat.add_comm]
+
+theorem serializeCommitments_length
+    (value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) :
+    (serializeCommitments value).length = 19008 := by
+  simp [serializeCommitments, productionShape, productionProfile, ringDegree,
+    Phi81MatrixSource.phi81Shape]
+
+theorem serializeEvalKs_length
+    (value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) :
+    (serializeEvalKs value).length = 1728 := by
+  simp [serializeEvalKs, productionShape, productionProfile, ringDegree,
+    Phi81MatrixSource.phi81Shape]
+
+theorem serializeEvalAs_length
+    (value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) :
+    (serializeEvalAs value).length = 6912 := by
+  simp [serializeEvalAs, productionShape, productionProfile, ringDegree,
+    Phi81MatrixSource.phi81Shape]
+
+theorem serializeChildPublicInputs_length
+    (value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) :
+    (serializeChildPublicInputs (publicFits := publicFits) value).length = 4320 := by
+  simp [serializeChildPublicInputs, productionShape, productionProfile, FullShape,
+    fullShape, Phi81Relation.Shape.publicWidth, publicRingColumns, ringDegree,
+    Phi81MatrixSource.phi81Shape]
+
+theorem serializeParentPublic_length
+    (value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) :
+    (serializeParentPublic value).length = packedParentWords := by
+  simp [serializeParentPublic]
+
+theorem serializeRunningFields_length
+    (value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) :
+    (serializeRunningFields value).length = 27704 := by
+  simp only [serializeRunningFields, List.length_append, serializeCommitments_length,
+    serializeEvalKs_length, serializeEvalAs_length, serializePoint_length]
+  norm_num [cubeVariables, Phi81MatrixSource.phi81Shape]
 
 theorem serializeRunning_length
     (value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) :
-    (serializeRunning (publicFits := publicFits) value).length = 32073 := by
-  simp [serializeRunning, productionShape, productionProfile, fullShape,
-    publicRingColumns, ringDegree, cubeVariables,
-    Phi81Relation.Shape.publicWidth, Phi81MatrixSource.phi81Shape]
+    (serializeRunning (publicFits := publicFits) value).length = 27794 := by
+  simp only [serializeRunning, List.length_append, serializeRunningFields_length,
+    serializeParentPublic_length]
+  norm_num [packedParentWords]
 
-/-- Exact static serialization cost. Only the verifier-key and two
-application-state block lengths remain parameters. -/
+theorem serializeTail_length
+    (value : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits)) :
+    (serializeTail value).length =
+      (value.verifierKeys functionIndex).length + 1 + value.z0.length +
+        value.current.length := by
+  simp [serializeTail]
+  omega
+
+/-- Exact preimage length. Only the verifier-key and two application-state
+lengths remain parameters. -/
 theorem serializePreimage_length
     (value : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     (serializePreimage (publicFits := publicFits) value).length =
-      32101 + (value.verifierKeys functionIndex).length +
+      27807 + (value.verifierKeys functionIndex).length +
         value.z0.length + value.current.length := by
-  simp [serializePreimage, stateDomainTag_length, serializeRunning_length]
+  simp only [serializePreimage, List.length_append, stateDomainChunk_length,
+    serializeRunning_length, serializeTail_length]
   omega
+
+/-! ## Hash input from committed state words -/
+
+/-- Concatenated fixed-width encodings: the word at `position·width + inner`. -/
+theorem finRange_flatMap_getD
+    {count width : Nat}
+    (encode : Fin count → List F)
+    (encodedLength : ∀ index, (encode index).length = width)
+    (position : Fin count)
+    (inner : Nat)
+    (innerBound : inner < width) :
+    ((List.finRange count).flatMap encode).getD
+        (position.val * width + inner) 0 =
+      (encode position).getD inner 0 := by
+  induction count with
+  | zero => exact Fin.elim0 position
+  | succ count inductionHypothesis =>
+      rw [List.finRange_succ, List.flatMap_cons]
+      refine Fin.cases ?_ (fun tail => ?_) position
+      · simp only [Fin.val_zero, Nat.zero_mul, Nat.zero_add]
+        rw [List.getD_append]
+        rw [encodedLength]
+        exact innerBound
+      · simp only [Fin.val_succ]
+        have offset :
+            (tail.val + 1) * width + inner =
+              width + (tail.val * width + inner) := by
+          simp only [Nat.add_mul, Nat.one_mul]
+          omega
+        rw [List.getD_append_right]
+        · rw [encodedLength]
+          rw [offset]
+          simp only [Nat.add_sub_cancel_left]
+          rw [List.flatMap_map]
+          exact inductionHypothesis (fun index => encode index.succ)
+            (fun index => encodedLength index.succ) tail
+        · rw [encodedLength]
+          rw [offset]
+          omega
+
+theorem finRange_map_getD
+    {count : Nat} (encode : Fin count → F) (position : Fin count) :
+    ((List.finRange count).map encode).getD position.val 0 =
+      encode position := by
+  rw [List.getD_eq_get _ _ ⟨position.val, by simp⟩]
+  simp only [List.get_eq_getElem, List.getElem_map,
+    List.getElem_finRange, Fin.eta]
+  apply congrArg encode
+  exact Fin.ext rfl
+
+theorem serializeChildPublicInputs_getD
+    (u : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (child : Fin productionShape.runningCount)
+    (column : Fin (FullShape logicalWidth publicFits).publicWidth) :
+    (serializeChildPublicInputs (publicFits := publicFits) u).getD
+        (child.val * 270 + column.val) 0 =
+      u.publicInputs child column := by
+  rw [show child.val * 270 + column.val =
+      child.val * (FullShape logicalWidth publicFits).publicWidth + column.val by rfl]
+  unfold serializeChildPublicInputs
+  rw [finRange_flatMap_getD _ (fun _ => serializePublicInput_length _) child
+    column.val column.isLt]
+  exact finRange_map_getD (fun index => u.publicInputs child index) column
+
+/-! ## Packed parent decoding -/
+
+def packOffset : F := Poseidon2.ofNat (2 ^ 16)
+
+/-- `pack(2^16, 2^16, 2^16)`: the shift that makes every bounded lane a natural
+number below `2^17`. -/
+def packShift : F := packWord packOffset packOffset packOffset
+
+/-- Radix-`2^17` digits of a shifted packed word. The high lane keeps every
+remaining bit, so `packWord ∘ unpackWord` is the identity on every word. -/
+def unpackWord (word : F) (lane : Fin 3) : F :=
+  let shifted := (word + packShift).val
+  match lane with
+  | 0 => Poseidon2.ofNat (shifted % 2 ^ 17) - packOffset
+  | 1 => Poseidon2.ofNat (shifted / 2 ^ 17 % 2 ^ 17) - packOffset
+  | 2 => Poseidon2.ofNat (shifted / 2 ^ 34) - packOffset
+
+/-- The parent coordinate stored in packed word `column / 3`. -/
+def unpackParent (packed : Fin packedParentWords → F)
+    (column : Fin (FullShape logicalWidth publicFits).publicWidth) : F :=
+  unpackWord (packed ⟨column.val / 3, by
+      have bound : column.val < 3 * packedParentWords :=
+        lt_of_lt_of_eq column.isLt publicWidth_eq
+      omega⟩)
+    ⟨column.val % 3, Nat.mod_lt _ (by decide)⟩
 
 /-- `stateHash`: the public output of one F′ step. -/
 def stateHash (p : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits)) : Digest :=

@@ -1,6 +1,7 @@
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Completeness.Transcript
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Completeness.Evaluation
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Completeness.Terminal
+import NightstreamFPrime.Lifecycle.PiCCS.v1_1.FormalPhase
 
 /-!
 Completes the opaque-child PiCCS v1_1 assembler. This file owns only the
@@ -63,7 +64,7 @@ def privateCount (degreeBound : Nat) : Nat :=
 
 /-- Exact flattened logical-row count of the complete PiCCS assembler. -/
 def rowCount (degreeBound : Nat) : Nat :=
-  1104313 + productionShape.cubeVariables *
+  1108865 + productionShape.cubeVariables *
     RoundTranscript.perRoundRecipeCount degreeBound +
       SumcheckChain.privateCount degreeBound
 
@@ -122,7 +123,7 @@ private theorem transcriptPrefix_rowCount_eq
     (offset : Nat) :
     NightstreamFPrime.Circuit.rowCount
       (transcriptPrefixOps interface offset) =
-      235800 + productionShape.cubeVariables *
+      240352 + productionShape.cubeVariables *
         RoundTranscript.perRoundRecipeCount degreeBound := by
   simp only [transcriptPrefixOps, NightstreamFPrime.Circuit.rowCount,
     List.map_cons, List.map_nil, List.sum_cons, List.sum_nil, Nat.add_zero,
@@ -220,7 +221,7 @@ theorem privateCount_eq_of_degreeBound_eq_eight (degreeBound : Nat)
     productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
 
 theorem rowCount_eq_of_degreeBound_eq_eight (degreeBound : Nat)
-    (degreeEq : degreeBound = 8) : rowCount degreeBound = 1258425 := by
+    (degreeEq : degreeBound = 8) : rowCount degreeBound = 1262977 := by
   rw [degreeEq]
   norm_num [rowCount, RoundTranscript.perRoundRecipeCount,
     SumcheckChain.privateCount, FixedChain.Owned.privateCount,

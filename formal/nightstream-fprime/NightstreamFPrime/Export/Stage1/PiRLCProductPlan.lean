@@ -33,7 +33,7 @@ def baseSourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   (PerApplicationPackage.package program).layout.totalColumnCount
 
 def directBaseSourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  12443217 + PerApplicationPackage.directAddedPrivateColumnCount program
+  11654483 + PerApplicationPackage.directAddedPrivateColumnCount program
 
 theorem directBaseSourceWidth_eq_baseSourceWidth
     (program : Lifecycle.Stage1.Application.Program) :
@@ -53,23 +53,23 @@ def sourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
     PiRLCProductSchedule.invocationCount
 
 private theorem basePackage_constantColumn :
-    basePackage.layout.constantColumn = 12442938 := by
+    basePackage.layout.constantColumn = 11654204 := by
   exact NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
 
 private theorem commitmentLogicalStart_eq :
-    PiRLCStarts.commitmentLogicalStart = 7279662 := by
+    PiRLCStarts.commitmentLogicalStart = 6490928 := by
   rfl
 
 private theorem publicInputLogicalStart_eq :
-    PiRLCStarts.publicInputLogicalStart = 7299858 := by
+    PiRLCStarts.publicInputLogicalStart = 6511124 := by
   rfl
 
 private theorem evalKLogicalStart_eq :
-    PiRLCStarts.evalKLogicalStart = 7304448 := by
+    PiRLCStarts.evalKLogicalStart = 6515714 := by
   rfl
 
 private theorem evalALogicalStart_eq :
-    PiRLCStarts.evalALogicalStart = 7306284 := by
+    PiRLCStarts.evalALogicalStart = 6517550 := by
   rfl
 
 theorem basePackage_fits (program : Lifecycle.Stage1.Application.Program) :
@@ -79,10 +79,10 @@ theorem basePackage_fits (program : Lifecycle.Stage1.Application.Program) :
     PerApplicationPackage.basePackage.layout.totalColumnCount +
       PerApplicationPackage.addedPrivateColumnCount program
   have constant :
-      PerApplicationPackage.basePackage.layout.constantColumn = 12442938 :=
+      PerApplicationPackage.basePackage.layout.constantColumn = 11654204 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
   have total :
-      PerApplicationPackage.basePackage.layout.totalColumnCount = 12443217 :=
+      PerApplicationPackage.basePackage.layout.totalColumnCount = 11654483 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
   rw [constant, total]
   omega
@@ -96,7 +96,7 @@ theorem shiftColumn_lt_baseSourceWidth
   rw [baseSourceWidth, PerApplicationPackage.package_totalColumnCount]
   change column < PerApplicationPackage.basePackage.layout.totalColumnCount at bound
   have total :
-      PerApplicationPackage.basePackage.layout.totalColumnCount = 12443217 :=
+      PerApplicationPackage.basePackage.layout.totalColumnCount = 11654483 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
   rw [total] at bound ⊢
   unfold PerApplicationPackage.shiftColumn
@@ -118,7 +118,7 @@ theorem sourceToSpartan_lt_basePackage (column : Nat)
     rw [Spartan.sourceColumnCount_eq]
     omega
   have mapped := Spartan.sourceToSpartan_lt column sourceBound
-  have total : basePackage.layout.totalColumnCount = 12443217 := by
+  have total : basePackage.layout.totalColumnCount = 11654483 := by
     exact NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
   simpa only [total, Spartan.spartanColumnCount_eq] using mapped
 
@@ -165,11 +165,13 @@ private theorem valueColumn_lt_basePackage
       PiRLCCombinationInvocations.evalKValueSourceStart,
       PiRLCCombinationInvocations.evalAValueSourceStart,
       PiCCSInputs.freshCommitmentStart, PiCCSInputs.runningCommitmentStart,
-      PiCCSInputs.runningPublicStart, PiCCSInputs.runningGroupStart,
-      PiCCSInputs.runningGroupsStart, PiCCSInputs.priorRunningStart,
-      PiCCSInputs.runningGroupWords, PiCCSInputs.outputEvaluationStart,
+      PiCCSInputs.runningPublicStart, PiCCSInputs.priorRunningStart,
+      PiCCSInputs.runningCommitmentWords, PiCCSInputs.runningPublicWords,
+        PiCCSInputs.runningEvalKWords, PiCCSInputs.runningEvalAWords, PiCCSInputs.priorChildrenStart,
+        PiCCSInputs.expectedContextStart, PiCCSInputs.expectedContextWords, PiCCSInputs.outputEvaluationStart,
       PiCCSInputs.roundMessageStart, PiCCSInputs.freshCommitmentWords,
-      PiCCSInputs.proofInputStart, PiCCSInputs.expectedContextStart,
+      PiCCSInputs.proofInputStart, PiCCSInputs.priorChildrenStart,
+        PiCCSInputs.priorChildrenWords, PiCCSInputs.expectedContextStart,
       PiCCSInputs.expectedContextWords, PiCCSInputs.roundMessageWords,
       PilotProduction.priorPublicInputStart, PilotProduction.priorPreimageStart,
       PilotProduction.stateHashWords_eq] at sourceBound blockBound cellBound laneBound ⊢

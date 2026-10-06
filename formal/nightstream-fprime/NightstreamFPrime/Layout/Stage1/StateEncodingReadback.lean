@@ -30,8 +30,9 @@ private theorem serialized_words
       (d := 0) rightBound
 
 /-- Exact words on the declared ABI interval decode to the same well-formed
-state. WellFormed includes the natural counter bound and pc=1, so this theorem
-does not identify distinct natural counters through modular field encoding. -/
+state. WellFormed includes the natural counter bound, pc=1 and canonical
+children, so this theorem does not identify distinct natural counters through
+modular field encoding or distinct children through the packed parent. -/
 theorem preimage_eq_of_words
     (value : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits))
     (wellFormed : StateEncoding.WellFormed value)
@@ -39,16 +40,33 @@ theorem preimage_eq_of_words
     (matching : ∀ index : Fin PilotProduction.stateHashWords,
       words index.val = (serializePreimage (publicFits := publicFits) value).getD index.val 0) :
     StateDecoder.preimage logicalWidth publicFits words = value := by
-  have encodedCanonical := StateEncodingCanonical.serializePreimage_canonical
-    value wellFormed.1 wellFormed.2.2
+  have encodedCanonical := StateEncodingCanonical.serializePreimage_canonical value
   have canonical : StateDecoder.Canonical words := by
     intro word member
     let index : Fin PilotProduction.stateHashWords := ⟨word.index, by
       rw [PilotProduction.stateHashWords_eq]
       exact PiCCS.v1_1.StateBinding.fixedWord_index_lt word member⟩
     exact (matching index).trans (encodedCanonical word member)
-  apply StateEncoding.serializePreimage_injective
-    (StateDecoder.preimage_wellFormed logicalWidth publicFits words) wellFormed
+  have runningEq : StateDecoder.running logicalWidth publicFits words =
+      value.running functionIndex := by
+    apply StateDecoder.running_eq_of_serialized wellFormed.2.2.2
+    apply List.ext_getElem
+    · simp [serializeRunning_length]
+    · intro index leftBound rightBound
+      have indexBound : index < 27794 := by simpa using leftBound
+      simp only [StateDecoder.slice, List.getElem_ofFn]
+      rw [show PiCCSInputs.priorRunningStart + index = 12 + index from rfl,
+        matching ⟨12 + index, by rw [PilotProduction.stateHashWords_eq]; omega⟩,
+        StateEncodingCanonical.serializePreimage_running_word value index indexBound,
+        List.getD_eq_getElem _ _ rightBound]
+  have decodedWellFormed : StateEncoding.WellFormed
+      (StateDecoder.preimage logicalWidth publicFits words) := by
+    refine ⟨StateDecoder.preimage_fixed logicalWidth publicFits words,
+      StateDecoder.iteration_lt words, rfl, ?_⟩
+    change Lifecycle.ChildrenCanonical (StateDecoder.running logicalWidth publicFits words)
+    rw [runningEq]
+    exact wellFormed.2.2.2
+  apply StateEncoding.serializePreimage_injective decodedWellFormed wellFormed
   calc
     serializePreimage (publicFits := publicFits)
         (StateDecoder.preimage logicalWidth publicFits words) =

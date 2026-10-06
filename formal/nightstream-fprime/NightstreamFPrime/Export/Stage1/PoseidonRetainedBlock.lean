@@ -30,13 +30,13 @@ def laterInvocationCountReference (_delay : Unit := ()) : Nat :=
 def laterInvocationCount : Nat := 1155
 def totalInvocationCount : Nat := pilotInvocationCount + laterInvocationCount
 
-@[simp] theorem priorInvocationCount_eq : priorInvocationCount = 2678 := by
+@[simp] theorem priorInvocationCount_eq : priorInvocationCount = 2320 := by
   rfl
 
-@[simp] theorem outputInvocationCount_eq : outputInvocationCount = 2678 := by
+@[simp] theorem outputInvocationCount_eq : outputInvocationCount = 2320 := by
   rfl
 
-@[simp] theorem pilotInvocationCount_eq : pilotInvocationCount = 5356 := by
+@[simp] theorem pilotInvocationCount_eq : pilotInvocationCount = 4640 := by
   simp [pilotInvocationCount]
 
 @[simp] theorem laterInvocationCount_eq : laterInvocationCount = 1155 := by
@@ -78,7 +78,7 @@ theorem laterInvocationCount_eq_reference :
   unfold laterInvocationCountReference
   exact basePackage_permutationInvocations_length.symm
 
-@[simp] theorem totalInvocationCount_eq : totalInvocationCount = 6511 := by
+@[simp] theorem totalInvocationCount_eq : totalInvocationCount = 5795 := by
   simp [totalInvocationCount]
 
 private theorem priorChain_mem :
@@ -192,12 +192,12 @@ def laterBlock : LowNormBlock.Block basePackage.layout.constantColumn :=
 @[simp] theorem laterBlock_kind : laterBlock.kind = .field := by
   rfl
 
-@[simp] theorem priorBlock_slotCount : priorBlock.slotCount = 401700 := by
+@[simp] theorem priorBlock_slotCount : priorBlock.slotCount = 348000 := by
   rw [priorBlock,
     Layout.ProductionRelation.PoseidonRetainedBlock.block_slotCount,
     priorInvocationCount_eq]
 
-@[simp] theorem outputBlock_slotCount : outputBlock.slotCount = 401700 := by
+@[simp] theorem outputBlock_slotCount : outputBlock.slotCount = 348000 := by
   rw [outputBlock,
     Layout.ProductionRelation.PoseidonRetainedBlock.block_slotCount,
     outputInvocationCount_eq]
@@ -208,13 +208,13 @@ def laterBlock : LowNormBlock.Block basePackage.layout.constantColumn :=
     laterInvocationCount_eq]
 
 @[simp] theorem priorBlock_coordinateCount :
-    priorBlock.coordinateCount = 16469700 := by
+    priorBlock.coordinateCount = 14268000 := by
   rw [priorBlock,
     Layout.ProductionRelation.PoseidonRetainedBlock.block_coordinateCount,
     priorInvocationCount_eq]
 
 @[simp] theorem outputBlock_coordinateCount :
-    outputBlock.coordinateCount = 16469700 := by
+    outputBlock.coordinateCount = 14268000 := by
   rw [outputBlock,
     Layout.ProductionRelation.PoseidonRetainedBlock.block_coordinateCount,
     outputInvocationCount_eq]
@@ -236,14 +236,14 @@ def retainedSlotCount : Nat :=
 def retainedCoordinateCount : Nat :=
   (retainedBlocks.map fun block => block.coordinateCount).sum
 
-@[simp] theorem retainedSlotCount_eq : retainedSlotCount = 976650 := by
+@[simp] theorem retainedSlotCount_eq : retainedSlotCount = 869250 := by
   simp [retainedSlotCount, retainedBlocks, priorBlock, outputBlock, laterBlock,
     Layout.ProductionRelation.PoseidonRetainedBlock.block_slotCount,
     priorInvocationCount_eq, outputInvocationCount_eq,
     laterInvocationCount_eq]
 
 @[simp] theorem retainedCoordinateCount_eq :
-    retainedCoordinateCount = 40042650 := by
+    retainedCoordinateCount = 35639250 := by
   simp [retainedCoordinateCount, retainedBlocks, priorBlock, outputBlock,
     laterBlock,
     Layout.ProductionRelation.PoseidonRetainedBlock.block_coordinateCount,

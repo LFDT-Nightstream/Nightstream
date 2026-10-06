@@ -1,6 +1,7 @@
 import NightstreamFPrime.Layout.Stage1.PiCCSProtocolCompleteness
 import NightstreamFPrime.Layout.Stage1.PiRLCInputBounds
 import NightstreamFPrime.Layout.Stage1.AccumulatorSemantics
+import NightstreamFPrime.Lifecycle.PiCCS.v1_1.FormalPhase
 
 /-!
 Owns construction of the canonical local C/R witnesses from protocol inputs.
@@ -116,6 +117,7 @@ variable
   (template : Proof 8)
 
 private theorem protocol_readback
+    (priorCanonical : Lifecycle.ChildrenCanonical (prior.running functionIndex))
     (initial : Env)
     (source : ∀ index, PiCCSOrdinarySourceSupport.External index → initial index =
       PiCCSProtocolCompleteness.environment prior priorPublic output digest
@@ -130,7 +132,7 @@ private theorem protocol_readback
       (relationProof relation values template) = relationProof relation values template := by
   have initialRead := PiCCSProtocolCompleteness.inputs_eq_of_external
     prior priorPublic output digest priorFixed outputFixed digestFixed values context
-    relation template initial source
+    relation template initial priorCanonical source
   have preserved := input_readback relation env initial (relationProof relation values template) agrees
   exact ⟨preserved.1.trans initialRead.1, preserved.2.1.trans initialRead.2.1,
     preserved.2.2.trans initialRead.2.2⟩
@@ -140,6 +142,7 @@ physical fresh interval. Agreement is needed only below the logical C end;
 the constructor derives C semantics, the actual sampler state, and R outputs.
 No equality on the physical fresh cells is required. -/
 theorem completePrefix_after_c
+    (priorCanonical : Lifecycle.ChildrenCanonical (prior.running functionIndex))
     (initial : Env)
     (source : ∀ index, PiCCSOrdinarySourceSupport.External index → initial index =
       PiCCSProtocolCompleteness.environment prior priorPublic output digest
@@ -201,7 +204,7 @@ theorem completePrefix_after_c
     (Formal.soundness relation (relationInterface relation) r.current PiCCSInputs.phaseOffset
       cAssumptions cRows)
   have finalRead := protocol_readback relation prior priorPublic output digest priorFixed outputFixed
-    digestFixed values context template initial source r.current (fun index below =>
+    digestFixed values context template priorCanonical initial source r.current (fun index below =>
       (r.agrees index (Or.inl (by omega))).trans
         ((preserved index (Nat.lt_of_lt_of_le below (Nat.le_add_right _ _))).trans
           (c.agrees index (Or.inl below))))
@@ -245,7 +248,7 @@ construct the canonical local C/R witnesses. R preserves the constructed C
 rows and its output is the exact production-key parent for the same statement,
 proof, and transcript-derived challenges. No generated phase output is assumed. -/
 theorem completePrefix_from
-    (priorPc : prior.pc = 1) (outputPc : output.pc = 1)
+    (priorCanonical : Lifecycle.ChildrenCanonical (prior.running functionIndex))
     (priorContext : prior.verifierKeys functionIndex = context.toList)
     (outputContext : output.verifierKeys functionIndex = context.toList)
     (accepted : Folding.PiCCS.Accepted (ProductionKey.key relation ajtai)
@@ -283,9 +286,9 @@ theorem completePrefix_from
               PiRLCInputs.phaseOffset r.current) := by
   obtain ⟨c, cOperations, _⟩ := PiCCSProtocolCompleteness.completePrefix_from
     prior priorPublic output digest priorFixed outputFixed digestFixed values context relation
-    ajtai template priorPc outputPc priorContext outputContext accepted initial source
+    ajtai template priorCanonical priorContext outputContext accepted initial source
   obtain ⟨r, completed⟩ := completePrefix_after_c relation ajtai prior priorPublic output digest
-    priorFixed outputFixed digestFixed values context template initial source
+    priorFixed outputFixed digestFixed values context template priorCanonical initial source
     c cOperations c.current (fun _ _ => rfl)
   exact ⟨c, r, cOperations, completed⟩
 
@@ -295,7 +298,7 @@ construct the canonical local C/R witnesses. R preserves the constructed C
 rows and its output is the exact production-key parent for the same statement,
 proof, and transcript-derived challenges. No generated phase output is assumed. -/
 theorem completePrefix
-    (priorPc : prior.pc = 1) (outputPc : output.pc = 1)
+    (priorCanonical : Lifecycle.ChildrenCanonical (prior.running functionIndex))
     (priorContext : prior.verifierKeys functionIndex = context.toList)
     (outputContext : output.verifierKeys functionIndex = context.toList)
     (accepted : Folding.PiCCS.Accepted (ProductionKey.key relation ajtai)
@@ -331,7 +334,7 @@ theorem completePrefix
               (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
               PiRLCInputs.phaseOffset r.current) := by
   exact completePrefix_from relation ajtai prior priorPublic output digest priorFixed outputFixed
-    digestFixed values context template priorPc outputPc priorContext outputContext accepted
+    digestFixed values context template priorCanonical priorContext outputContext accepted
     (PiCCSProtocolCompleteness.environment prior priorPublic output digest
       priorFixed outputFixed digestFixed values context) (fun _ _ => rfl)
 

@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSDecodedEndpoints
 import NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint
+import NightstreamFPrime.Lifecycle.PiCCS.v1_1.FormalPhase
 
 /-!
 Owns the emitted-row soundness connection to the existing PiCCS phase
@@ -60,9 +61,55 @@ theorem rowsZero_implies_specHolds
     finalIdentity := arithmetic.finalIdentity_parent
     outputBinding := transcripts.outputBinding_parent relation }
 
-/-- Acceptance of the selected complete Stage 1 row plan implies the exact
-PiCCS phase predicate in decoded values. The fixed-point theorem selects the
+/-- Acceptance of the selected complete Stage 1 row plan implies the PiCCS
+specification in decoded values. The fixed-point theorem selects the
 key-facing relation before the three PiCCS row families are projected. -/
+theorem selectedRowsZero_implies_specHolds
+    (application : Lifecycle.Stage1.Application.Program)
+    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))
+    (one : assignment (ApplicationRetainedGeometry.oneColumn
+      (PerApplicationFixedPoint.geometry application)) = 1)
+    (accepted : (PerApplicationFixedPoint.structuralPlan application fits).RowsZero
+      assignment) :
+    Lifecycle.PiCCS.v1_1.Formal.SpecHolds
+      (PerApplicationFixedPoint.relation application fits)
+      (PiCCSInvocations.parentInterface
+        (PerApplicationFixedPoint.logicalWidth application)
+        (PerApplicationFixedPoint.publicFits application))
+      PiCCSInputs.phaseOffset
+      (Spartan.pullback (PiCCSAssignmentSoundness.decodedEnv
+        (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry
+          (PerApplicationFixedPoint.geometry application)) assignment)) := by
+  let relation := PerApplicationFixedPoint.relation application fits
+  let geometry := PerApplicationFixedPoint.geometry application
+  have selected : (DirectApplicationPrefixPlan.plan relation fits.package geometry
+      ).RowsZero assignment := by
+    rw [PerApplicationFixedPoint.plan_fixedPoint]
+    exact accepted
+  have applicationRows := (DirectApplicationPrefixPlan.rowsZero_iff relation
+    fits.package geometry assignment).mp selected
+  have prefixRows := (DirectPiRLCSamplerCompletePrefixPlan.rowsZero_iff relation
+    (DirectApplicationPrefixPlan.prefixGeometry geometry) assignment).mp
+      applicationRows.1.1.1
+  have samplerPrefixRows := prefixRows.1
+  simp only [DirectPiRLCSamplerCompletePrefixPlan.samplerPrefixPlan,
+    DirectPiDECPrefixPlan.samplerPrefixPlan, DirectPiDECPrefixPlan.piCcsCompletePlan,
+    DirectPiDECPrefixPlan.pilotBindingPrefixPlan,
+    DirectPiDECPrefixPlan.pilotOrdinaryPrefixPlan,
+    DirectPiDECPrefixPlan.piCcsCorePlan, DirectPiDECPrefixPlan.piCcsPoseidonPrefix,
+    ProductionRelation.Plan.append_rowsZero_iff] at samplerPrefixRows
+  rcases samplerPrefixRows with
+    ⟨⟨⟨⟨⟨⟨_pilot, transcriptRows⟩, ordinaryRows⟩, _pilotOrdinary⟩,
+      _pilotBinding⟩, endpointRows⟩, _sampler⟩
+  exact rowsZero_implies_specHolds relation
+    (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry geometry)
+    (DirectPiDECPrefixPlan.poseidonGeometry
+      (DirectApplicationPrefixPlan.piDecGeometry geometry)) assignment one
+    ordinaryRows transcriptRows endpointRows
+
+/-- Acceptance of the selected complete Stage 1 row plan implies the exact
+PiCCS phase predicate in decoded values. -/
 theorem selectedRowsZero_implies_phaseHolds
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
@@ -85,33 +132,8 @@ theorem selectedRowsZero_implies_phaseHolds
       (Spartan.pullback (PiCCSAssignmentSoundness.decodedEnv
         (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry
           (PerApplicationFixedPoint.geometry application)) assignment))
-      template := by
-  let relation := PerApplicationFixedPoint.relation application fits
-  let geometry := PerApplicationFixedPoint.geometry application
-  have selected : (DirectApplicationPrefixPlan.plan relation fits.package geometry
-      ).RowsZero assignment := by
-    rw [PerApplicationFixedPoint.plan_fixedPoint]
-    exact accepted
-  have applicationRows := (DirectApplicationPrefixPlan.rowsZero_iff relation
-    fits.package geometry assignment).mp selected
-  have prefixRows := (DirectPiRLCSamplerCompletePrefixPlan.rowsZero_iff relation
-    (DirectApplicationPrefixPlan.prefixGeometry geometry) assignment).mp
-      applicationRows.1.1.1
-  have samplerPrefixRows := prefixRows.1
-  simp only [DirectPiRLCSamplerCompletePrefixPlan.samplerPrefixPlan,
-    DirectPiDECPrefixPlan.samplerPrefixPlan, DirectPiDECPrefixPlan.piCcsCompletePlan,
-    DirectPiDECPrefixPlan.pilotBindingPrefixPlan,
-    DirectPiDECPrefixPlan.pilotOrdinaryPrefixPlan,
-    DirectPiDECPrefixPlan.piCcsCorePlan, DirectPiDECPrefixPlan.piCcsPoseidonPrefix,
-    ProductionRelation.Plan.append_rowsZero_iff] at samplerPrefixRows
-  rcases samplerPrefixRows with
-    ⟨⟨⟨⟨⟨⟨_pilot, transcriptRows⟩, ordinaryRows⟩, _pilotOrdinary⟩,
-      _pilotBinding⟩, endpointRows⟩, _sampler⟩
-  apply Lifecycle.PiCCS.v1_1.Formal.spec_implies_phaseHolds
-  exact rowsZero_implies_specHolds relation
-    (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry geometry)
-    (DirectPiDECPrefixPlan.poseidonGeometry
-      (DirectApplicationPrefixPlan.piDecGeometry geometry)) assignment one
-    ordinaryRows transcriptRows endpointRows
+      template :=
+  Lifecycle.PiCCS.v1_1.Formal.spec_implies_phaseHolds _ _ _ _ _ _
+    (selectedRowsZero_implies_specHolds application fits assignment one accepted)
 
 end NightstreamFPrime.Export.Stage1.PiCCSDecodedPhase

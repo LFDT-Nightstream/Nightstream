@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.Stage1.DirectPiRLCSamplerCompletePrefixPlan
 import NightstreamFPrime.Export.Stage1.PiCCSTranscriptCommonSemantics
+import NightstreamFPrime.Lifecycle.PiCCS.v1_1.FormalPhase
 
 /-!
 Owns deterministic PiCCS parent semantics in the complete PiRLC sampler

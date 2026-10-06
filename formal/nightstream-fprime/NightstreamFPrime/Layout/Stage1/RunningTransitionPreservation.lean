@@ -62,8 +62,7 @@ theorem physical_implies_typed_base
     (physical : PhysicalHolds logicalWidth publicFits env)
     (iterationZero : RunningTransition.iterationValue
       (interface logicalWidth publicFits) phaseOffset env = 0) :
-    StatementAbsorption.evalRunning
-        (outputRunningExpr logicalWidth publicFits) env =
+    outputRunning logicalWidth publicFits env =
       defaultRunning (logicalWidth := logicalWidth)
         (publicFits := publicFits) :=
   spec_typed_base (physical_implies_specHolds relation env physical)
@@ -77,12 +76,13 @@ theorem physical_implies_typed_recursive
     (env : Env)
     (physical : PhysicalHolds logicalWidth publicFits env)
     (iterationNonzero : RunningTransition.iterationValue
-      (interface logicalWidth publicFits) phaseOffset env ≠ 0) :
-    StatementAbsorption.evalRunning
-        (outputRunningExpr logicalWidth publicFits) env =
+      (interface logicalWidth publicFits) phaseOffset env ≠ 0)
+    (canonical : Lifecycle.ChildrenCanonical
+      (StatementAbsorption.evalRunning (recursiveRunningExpr logicalWidth publicFits) env)) :
+    outputRunning logicalWidth publicFits env =
       piDecRunningOutput relation env :=
   spec_typed_recursive_eq_piDecOutput relation
-    (physical_implies_specHolds relation env physical) iterationNonzero
+    (physical_implies_specHolds relation env physical) iterationNonzero canonical
 
 /-- Every running-transition row is confined to the exact physical endpoint.
 This is a static layout fact and needs no satisfying phase witness. -/

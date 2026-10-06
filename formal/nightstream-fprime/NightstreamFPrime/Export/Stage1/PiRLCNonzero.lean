@@ -52,7 +52,7 @@ def inputPublicInput (source : Fin SourceCount) :
     PublicInput (logicalWidth := PhaseReference.logicalWidth)
       (publicFits := PhaseReference.publicFits) :=
   Fin.addCases (fun _ => candidateFreshPublicInput)
-    (fun runningSource column => field (runningSource.val + column.val))
+    (fun runningSource column => runningPublicDigit runningSource.val column.val)
     (sourceIndex source)
 
 def inputEvaluation (source : Fin SourceCount) : Evaluation where
@@ -77,7 +77,7 @@ def combinedPublicInput (challenges : Fin SourceCount → RingF) :
       (fun _ column =>
         encHash (publicFits := PhaseReference.publicFits)
           digest column)
-      (fun runningSource column => field (runningSource.val + column.val))
+      (fun runningSource column => runningPublicDigit runningSource.val column.val)
       (sourceIndex source)
   NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput.combinePublicInputs
     challenges inputs

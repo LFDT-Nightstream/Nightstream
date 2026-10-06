@@ -73,10 +73,10 @@ import NightstreamFPrime.Layout.Stage1.PiCCSInputs
 import NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupportData
 import NightstreamFPrime.Layout.Stage1.PiCCSInputSupport
 import NightstreamFPrime.Layout.Stage1.PiCCSTranscriptSupport
-import NightstreamFPrime.Layout.Stage1.PiCCSRepresentation
 import NightstreamFPrime.Layout.Stage1.StateEncoding
 import NightstreamFPrime.Layout.Stage1.PiCCSSecurity
 import NightstreamFPrime.Layout.Stage1.PiCCSProofInputs
+import NightstreamFPrime.Layout.Stage1.PiCCSPriorRunning
 import NightstreamFPrime.Layout.Stage1.PilotPiCCS
 import NightstreamFPrime.Layout.Stage1.PiRLCInputs
 import NightstreamFPrime.Layout.Stage1.PiDECInputs

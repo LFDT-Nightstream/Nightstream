@@ -126,7 +126,7 @@ theorem transcript
   let frozen := Formal.atOffset interface parentOffset
   have stateAssumption : StateBinding.Assumptions
       (Formal.statementBindingInterface frozen).state parentOffset env := by
-    refine ⟨?_, ?_, ?_, ?_, ?_⟩
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
     · intro word member
       simpa [frozen, Formal.atOffset, Formal.statementBindingInterface] using
         external.below.priorStateFixed word member
@@ -142,6 +142,16 @@ theorem transcript
     · intro lane
       simpa [frozen, Formal.atOffset, Formal.statementBindingInterface] using
         external.below.expectedContext lane
+    · intro word
+      simpa [frozen, Formal.atOffset, Formal.statementBindingInterface] using
+        external.below.priorStatePacked word
+    · intro word lane child
+      simpa [frozen, Formal.atOffset, Formal.statementBindingInterface] using
+        external.below.runningPublicInput
+          (Fin.cast runningCount_eq_radixChildCount.symm child) (packedColumn word lane)
+    · intro word lane
+      simpa [frozen, Formal.atOffset, Formal.statementBindingInterface] using
+        external.below.priorSign word lane
   have statementInputs :
       Leaves.StatementAbsorption.InputsBelow
         (Formal.statementAbsorptionInterface frozen) parentOffset := by

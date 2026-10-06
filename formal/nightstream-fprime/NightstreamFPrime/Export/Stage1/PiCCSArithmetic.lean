@@ -803,7 +803,7 @@ theorem statementBindingRows_length
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (statementBindingRows logicalWidth publicFits).length = 160 := by
+    (statementBindingRows logicalWidth publicFits).length = 4712 := by
   rw [statementBindingRows, compilePacket_length]
   unfold statementBindingConstraints
   exact
@@ -955,7 +955,7 @@ theorem arithmeticRows_length
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (arithmeticRows logicalWidth publicFits).length = 32765 := by
+    (arithmeticRows logicalWidth publicFits).length = 37317 := by
   unfold arithmeticRows
   rw [List.length_append, List.length_append, List.length_append,
     List.length_append, List.length_append, List.length_append,

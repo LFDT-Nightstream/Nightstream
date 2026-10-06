@@ -35,6 +35,11 @@ structure ExternalInputsSupported
       (StateBinding.contextWordStart + lane.val)).VarsSatisfy allowed
   expectedContext : ∀ lane : Fin 4,
     (interface.expectedContext offset lane).VarsSatisfy allowed
+  priorStatePacked : ∀ word : Fin packedParentWords,
+    (interface.priorState offset
+      (StateBinding.packedWordStart + word.val)).VarsSatisfy allowed
+  priorSign : ∀ word lane,
+    (interface.priorSign offset word lane).VarsSatisfy allowed
   runningPoint : ∀ coordinate,
     Expr.VarsSatisfy allowed
         ((interface.running offset).point coordinate).c0 ∧
@@ -100,6 +105,10 @@ theorem ExternalInputsSupported.mono
       (support.outputStateContext lane) includes
     expectedContext := fun lane => Expr.VarsSatisfy.mono _
       (support.expectedContext lane) includes
+    priorStatePacked := fun word => Expr.VarsSatisfy.mono _
+      (support.priorStatePacked word) includes
+    priorSign := fun word lane => Expr.VarsSatisfy.mono _
+      (support.priorSign word lane) includes
     runningPoint := fun coordinate => ⟨
       Expr.VarsSatisfy.mono _ (support.runningPoint coordinate).1 includes,
       Expr.VarsSatisfy.mono _ (support.runningPoint coordinate).2 includes⟩

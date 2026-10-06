@@ -33,7 +33,7 @@ pub(super) mod logical_reference;
 #[path = "../support/pi_ccs_parent.rs"]
 mod pi_ccs_parent;
 
-const PI_CCS_CALLER_INPUT_COUNT: usize = 75_098;
+const PI_CCS_CALLER_INPUT_COUNT: usize = 71_100;
 const PI_CCS_ROW_START: usize = 14_623_730;
 const PI_CCS_ROW_END: usize = 19_936_967;
 // Stage1.sourceToSpartan maps the source boundary 20_064_823 here.
@@ -126,7 +126,7 @@ fn pi_ccs_inputs(bytes: &[u8], binding: &Stage1VerifierBinding) -> PiCcsV1_1Pack
     assert_eq!(parity[0].as_u64(), Some(8), "current PiCCS parity schema");
     let input = parity[1].as_array().expect("current PiCCS parity input");
     let output = parity[2].as_array().expect("current PiCCS parity output");
-    assert_eq!(input.len(), 11, "current PiCCS input field count");
+    assert_eq!(input.len(), 12, "current PiCCS input field count");
     assert_eq!(output.len(), 16, "current PiCCS output field count");
     assert_eq!(output[0].as_u64(), Some(1), "current PiCCS acceptance result");
 
@@ -169,6 +169,7 @@ fn pi_ccs_inputs(bytes: &[u8], binding: &Stage1VerifierBinding) -> PiCcsV1_1Pack
     PiCcsV1_1PackageInputs::new(
         canonical_words(&input[0]),
         canonical_words(&input[1]),
+        canonical_words(&input[11]),
         canonical_words(&input[5]),
         round_messages,
         output_evaluations,
@@ -359,7 +360,7 @@ pub(super) fn execute_pilot_prefix(
         private_values,
         public_values,
         PrefixBoundary {
-            caller_input_count: 64_226,
+            caller_input_count: 55_638,
             row_end: PI_CCS_ROW_START,
             private_end: PI_CCS_FIRST_GENERATED_COLUMN,
             next_phase: 3,
@@ -534,6 +535,7 @@ fn external_positive_pi_ccs_prefix() {
     let inputs = PiCcsV1_1PackageInputs::new(
         prior,
         output,
+        pi_ccs_parent::prior_children(&input[6]),
         canonical_words(&input[1]),
         rounds,
         PiCcsV1_1OutputEvaluations::new(eval_k, eval_a).expect("complete positive output families"),

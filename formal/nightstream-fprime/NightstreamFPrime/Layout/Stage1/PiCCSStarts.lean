@@ -29,7 +29,7 @@ def prefixStarts : Nat → List Nat → List Nat
   | base, delta :: deltas => base :: prefixStarts (base + delta) deltas
 
 /-- The completed pilot owns the physical row prefix. -/
-def rowBase : Nat := 5870862
+def rowBase : Nat := 5086126
 
 theorem rowBase_eq_layout :
     rowBase = Pilot.physicalRowCount PilotProduction.interface
@@ -37,7 +37,7 @@ theorem rowBase_eq_layout :
   rw [rowBase, PilotProduction.physicalRowCount_eq]
 
 def statementBindingRowStart : Nat := rowBase
-def statementAbsorptionRowStart : Nat := statementBindingRowStart + 160
+def statementAbsorptionRowStart : Nat := statementBindingRowStart + 4712
 def challengeRowStart : Nat := statementAbsorptionRowStart + 140288
 def roundTranscriptRowStart : Nat := challengeRowStart + 95352
 def initialClaimRowStart : Nat := roundTranscriptRowStart + 153440
@@ -70,21 +70,21 @@ def normLogicalStart : Nat := ccsLogicalStart + 23
 def finalIdentityLogicalStart : Nat := normLogicalStart + 48
 def outputBindingWitnessStart : Nat := finalIdentityLogicalStart + 2717
 
-theorem statementWitnessStart_eq : statementWitnessStart = 5945960 := by
+theorem statementWitnessStart_eq : statementWitnessStart = 5157226 := by
   unfold statementWitnessStart
   exact PiCCSInputs.phaseOffset_eq
 
-theorem challengeWitnessStart_eq : challengeWitnessStart = 6086248 := by
+theorem challengeWitnessStart_eq : challengeWitnessStart = 5297514 := by
   unfold challengeWitnessStart
   rw [statementWitnessStart_eq]
 
 theorem roundTranscriptWitnessStart_eq :
-    roundTranscriptWitnessStart = 6181600 := by
+    roundTranscriptWitnessStart = 5392866 := by
   unfold roundTranscriptWitnessStart
   rw [challengeWitnessStart_eq]
 
 theorem outputBindingWitnessStart_eq :
-    outputBindingWitnessStart = 6364631 := by
+    outputBindingWitnessStart = 5575897 := by
   unfold outputBindingWitnessStart finalIdentityLogicalStart
     normLogicalStart ccsLogicalStart evalALogicalStart evalKLogicalStart
     sumcheckLogicalStart initialClaimLogicalStart

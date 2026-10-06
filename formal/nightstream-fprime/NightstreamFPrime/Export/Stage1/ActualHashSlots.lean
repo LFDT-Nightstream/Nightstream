@@ -84,7 +84,7 @@ theorem rowsZero_implies_nextPreimageSerialization
     geometry assignment one ordinaryRows
   have headers := ActualNextPreimage.rowsZero_implies_decodedHeaders
     geometry assignment one nextRows
-  simp only [nextPreimage, StateDecoder.preimage, serializePreimage]
+  simp only [nextPreimage, StateDecoder.preimage, serializePreimage, serializeTail]
   rw [← context, ← headers.2, headers.1]
   rw [StateDecoder.iteration, StateDecoder.natWord_val]
 

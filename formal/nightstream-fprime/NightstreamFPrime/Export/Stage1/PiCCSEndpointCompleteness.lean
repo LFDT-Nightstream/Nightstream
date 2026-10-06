@@ -59,10 +59,10 @@ theorem physicalEndpoint_column (family : Fin familyCount) (lane : Fin laneCount
     unfold sourceStart
     split
     · rw [PiCCSInputs.phaseOffset_eq]
-      change 5945960 ≤ 5945960 + index.val * 1096
+      change 5157226 ≤ 5157226 + index.val * 1096
       omega
     · rw [PiCCSInvocations.outputWitnessStart, PiCCSStarts.outputBindingWitnessStart_eq]
-      change 5945960 ≤ 6364631 + (index.val - 355) * 1096
+      change 5157226 ≤ 5575897 + (index.val - 355) * 1096
       omega
   have endpointEq : sourceStart + 1080 + lane.val = endpointColumn family lane := by
     unfold sourceStart index endpointInvocation endpointColumn endpointStart

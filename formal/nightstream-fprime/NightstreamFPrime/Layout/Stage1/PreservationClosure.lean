@@ -52,55 +52,6 @@ private theorem sourceEnv_eq_compactEnv_belowRunning
     List.sum_cons, List.sum_nil, Nat.zero_add, Nat.add_zero] using
       PiDECSourceSupport.fresh_end_le_sourceColumnCount
 
-private theorem compactRunningOutput_eq
-    (program : Lifecycle.Stage1.Application.Program) (env : Env) :
-    PiCCS.v1_1.StatementAbsorption.evalRunning
-        (RunningTransitionInputs.outputRunningExpr logicalWidth publicFits)
-        (CompactPullback.sourceEnv program env) =
-      PiCCS.v1_1.StatementAbsorption.evalRunning
-        (RunningTransitionInputs.outputRunningExpr logicalWidth publicFits)
-        (CompactPullback.compactEnv program env) := by
-  let running := RunningTransitionInputs.outputRunningExpr logicalWidth publicFits
-  let before := CompactPullback.sourceEnv program env
-  let after := CompactPullback.compactEnv program env
-  have below := RunningTransitionInputs.outputRunningBelow
-    logicalWidth publicFits
-  have agrees : ∀ index, index < RunningTransitionInputs.phaseOffset →
-      before index = after index :=
-    sourceEnv_eq_compactEnv_belowRunning program env
-  unfold PiCCS.v1_1.StatementAbsorption.evalRunning
-  apply Lifecycle.PiCCS.v1_1.Formal.PhaseTransport.running_ext
-  · apply cubePoint_ext
-    dsimp only [PiCCS.v1_1.StatementAbsorption.evalPoint]
-    apply congrArg List.ofFn
-    funext coordinate
-    exact (running.point coordinate).eval_eq_of_agree_below
-      RunningTransitionInputs.phaseOffset before after
-      (below.point coordinate) agrees
-  · funext source row coefficient
-    simpa only [running, RunningTransitionInputs.outputRunningExpr,
-      RunningTransitionInputs.outputCommitment, Expr.eval_var, before, after] using
-      (running.commitment source row coefficient).eval_eq_of_agree_below
-        RunningTransitionInputs.phaseOffset before after
-        (below.commitment source row coefficient) agrees
-  · funext source column
-    simpa only [running, RunningTransitionInputs.outputRunningExpr,
-      RunningTransitionInputs.outputPublicInput, Expr.eval_var, before, after] using
-      (running.publicInput source column).eval_eq_of_agree_below
-        RunningTransitionInputs.phaseOffset before after
-        (below.publicInput source column) agrees
-  · funext source
-    unfold PiCCS.v1_1.StatementAbsorption.evalEvaluation
-    apply congrArg₂ StrongReduction.EvaluationFamily.mk
-    · funext coefficient
-      exact ((running.evaluation source).eval_K coefficient
-        ).eval_eq_of_agree_below RunningTransitionInputs.phaseOffset
-          before after (below.eval_K source coefficient) agrees
-    · funext matrix coefficient
-      exact ((running.evaluation source).eval_A matrix coefficient
-        ).eval_eq_of_agree_below RunningTransitionInputs.phaseOffset
-          before after (below.eval_A source matrix coefficient) agrees
-
 private theorem compactRecursiveRunning_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
@@ -198,7 +149,9 @@ theorem physical_implies_compactRunning
     exact Expr.eval_eq_of_agree_below _ RunningTransitionInputs.phaseOffset
       before after (assumptions.currentState index) agrees
   · exact compactRecursiveRunning_eq relation program env
-  · exact compactRunningOutput_eq program env
+  · intro index
+    exact Expr.eval_eq_of_agree_below _ RunningTransitionInputs.phaseOffset
+      before after (assumptions.output index) agrees
   · exact children.running
 
 /-- Physical next-preimage rows preserve the same pilot inputs in the compact

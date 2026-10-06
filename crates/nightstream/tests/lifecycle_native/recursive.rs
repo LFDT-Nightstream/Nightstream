@@ -27,7 +27,8 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
 
     let base = read(artifact("nightstream-fprime-stage1-base-step-fixture-v1.json"));
     let private: Vec<u64> = serde_json::from_value(base[2].clone()).unwrap();
-    let initial: [u64; 4] = private[30..34].try_into().unwrap();
+    // `z0` sits in the prior preimage tail `vk, i, z0, zi`.
+    let initial: [u64; 4] = private[27_811..27_815].try_into().unwrap();
     let message: [u64; 4] = private[private.len() - 4..].try_into().unwrap();
     let initial = initial.map(F::from_u64);
     let message = message.map(F::from_u64);
@@ -201,7 +202,6 @@ pub(super) fn rehash_false_running_opening(package: &PreparedLifecycle, final_pr
         expected_state.z0(),
         expected_state.current(),
         &running.claims,
-        1,
     )
     .unwrap();
     fresh.claim.x = encode_pi_ccs_v1_1_public_input(pi_ccs_v1_1_state_hash(&preimage).unwrap())

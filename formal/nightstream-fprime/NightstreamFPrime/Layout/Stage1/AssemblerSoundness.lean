@@ -1,6 +1,6 @@
 import NightstreamFPrime.Layout.Stage1.AssemblerInputs
 import NightstreamFPrime.Layout.Stage1.AccumulatorSemantics
-import NightstreamFPrime.Layout.Stage1.PiCCSRepresentation
+import NightstreamFPrime.Layout.Stage1.StateDecoder
 import NightstreamFPrime.Lifecycle.Stage1.Accumulator
 
 /-!
@@ -56,14 +56,42 @@ def recursiveRunningValue
   PiCCS.v1_1.StatementAbsorption.evalRunning
     (interface.running.recursive offset) env
 
+/-- The typed running value stored by the output words: the decode of the
+running block they fill. -/
 def outputRunningValue
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {program : Application.Program}
     (interface : Lifecycle.Stage1.Interface relation program)
     (offset : Nat) (env : Env) :
     Running (logicalWidth := logicalWidth) (publicFits := publicFits) :=
-  PiCCS.v1_1.StatementAbsorption.evalRunning
-    (interface.running.output offset) env
+  StateDecoder.running logicalWidth publicFits fun word =>
+    (RunningTransition.outputWords interface.running offset env).getD
+      (word - PiCCSInputs.priorRunningStart) 0
+
+/-- Output words that serialize a canonical running instance store it. -/
+theorem outputRunningValue_eq_of_serialized
+    {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
+    {program : Application.Program}
+    (interface : Lifecycle.Stage1.Interface relation program)
+    (offset : Nat) (env : Env)
+    {value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)}
+    (canonical : Lifecycle.ChildrenCanonical value)
+    (words : RunningTransition.outputWords interface.running offset env =
+      serializeRunning (publicFits := publicFits) value) :
+    outputRunningValue interface offset env = value := by
+  apply StateDecoder.running_eq_of_serialized canonical
+  rw [← words]
+  apply List.ext_getElem
+  · rw [StateDecoder.slice_length]
+    unfold RunningTransition.outputWords
+    rw [List.length_ofFn]
+  · intro index _leftBound rightBound
+    unfold StateDecoder.slice
+    rw [List.getElem_ofFn]
+    change (RunningTransition.outputWords interface.running offset env).getD
+        (PiCCSInputs.priorRunningStart + index - PiCCSInputs.priorRunningStart) 0 = _
+    rw [Nat.add_sub_cancel_left]
+    exact List.getD_eq_getElem _ _ rightBound
 
 /-- The one complete NIFS proof value carried by the Stage 1 parent. PiCCS
 owns the round and output fields; PiDEC owns the child message fields. -/
@@ -775,6 +803,11 @@ theorem spec_implies_stepHoldsFor
         input.fresh input.nifsProof
         (recursiveRunningValue interface
           (Lifecycle.Stage1.runningOffset relation ajtai program interface
+            template offset) env))
+    (recursiveCanonical : input.iteration ≠ 0 →
+      Lifecycle.ChildrenCanonical
+        (recursiveRunningValue interface
+          (Lifecycle.Stage1.runningOffset relation ajtai program interface
             template offset) env)) :
     StepHoldsFor relation ajtai vk program input output := by
   let runningAt := Lifecycle.Stage1.runningOffset relation ajtai program
@@ -831,9 +864,10 @@ theorem spec_implies_stepHoldsFor
           _ = input.zi := represents.currentState
       have runningBase : outputRunningValue interface runningAt env =
           defaultRunning (logicalWidth := logicalWidth)
-            (publicFits := publicFits) := by
-        apply PiCCSRepresentation.serializeRunning_injective
-        exact RunningTransition.spec_serialized_base runningSpec fieldZero
+            (publicFits := publicFits) :=
+        outputRunningValue_eq_of_serialized interface runningAt env
+          StateEncoding.defaultRunning_canonical
+          (RunningTransition.spec_serialized_base runningSpec fieldZero)
       have defaultOutput : output.runningNext =
           fun _ => (setup relation ajtai vk).defaultRunning := by
         funext slot
@@ -854,10 +888,10 @@ theorem spec_implies_stepHoldsFor
         intro fieldZero
         exact iterationNonzero (represents.iterationZero.mp fieldZero)
       have runningRecursive : outputRunningValue interface runningAt env =
-          recursiveRunningValue interface runningAt env := by
-        apply PiCCSRepresentation.serializeRunning_injective
-        exact RunningTransition.spec_serialized_recursive runningSpec
-          fieldNonzero
+          recursiveRunningValue interface runningAt env :=
+        outputRunningValue_eq_of_serialized interface runningAt env
+          (recursiveCanonical iterationNonzero)
+          (RunningTransition.spec_serialized_recursive runningSpec fieldNonzero)
       have priorPcValid : InRange slotCount input.priorPc := by
         rw [represents.priorPc]
         norm_num [InRange, slotCount]
@@ -947,9 +981,35 @@ theorem compactSpec_implies_stepHoldsFor
           (AssemblerInputs.rootOffset program)) env) := by
     rw [AssemblerInputs.parent_runningOffset_eq relation ajtai program template]
     exact accumulator
+  have recursiveCanonical : Lifecycle.ChildrenCanonical
+      (recursiveRunningValue (AssemblerInputs.interface relation program)
+        (Lifecycle.Stage1.runningOffset relation ajtai program
+          (AssemblerInputs.interface relation program) template
+          (AssemblerInputs.rootOffset program)) env) := by
+    have accepted := specification.piDec
+    intro column
+    let parentValue := (PiDEC.v1_1.Semantics.inputAttempt relation
+      (AssemblerInputs.interface relation program).piDec
+      (Lifecycle.Stage1.piDecOffset relation ajtai program
+        (AssemblerInputs.interface relation program) template
+        (AssemblerInputs.rootOffset program)) env).parent.publicInput column
+    have digitsEq : Lifecycle.childDigits
+        (recursiveRunningValue (AssemblerInputs.interface relation program)
+          (Lifecycle.Stage1.runningOffset relation ajtai program
+            (AssemblerInputs.interface relation program) template
+            (AssemblerInputs.rootOffset program)) env) column =
+        Spec.Phi81Relation.PiDECAlgebra.Radix.splitScalar parentValue := by
+      funext child
+      have selected := congrArg (fun output => (output child).publicInput column)
+        accepted.outputComputed
+      exact selected.symm
+    refine ⟨Spec.Phi81Relation.PiDECAlgebra.Radix.UniformSignedDigits.honestSign parentValue, ?_⟩
+    rw [digitsEq]
+    exact (Spec.Phi81Relation.PiDECAlgebra.Radix.UniformSignedDigits.honest_complete parentValue
+      (accepted.checks.parentBounded column)).constraint
   exact spec_implies_stepHoldsFor relation ajtai vk program
     (AssemblerInputs.interface relation program) template
     (AssemblerInputs.rootOffset program) env input output specification
-    represents (fun _ => accumulatorAtParent)
+    represents (fun _ => accumulatorAtParent) (fun _ => recursiveCanonical)
 
 end NightstreamFPrime.Layout.Stage1.AssemblerSoundness

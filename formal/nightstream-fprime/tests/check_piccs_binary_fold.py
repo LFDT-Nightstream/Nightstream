@@ -8,7 +8,6 @@ Causal trace and source provenance are supplied by separate evidence.
 from __future__ import annotations
 
 from array import array
-from concurrent.futures import ProcessPoolExecutor
 import contextlib
 from dataclasses import dataclass
 import json
@@ -208,6 +207,8 @@ def main():
         if count * width * FIELD.size < POOL_INPUT_BYTES:
             results = map(check_chunk, jobs)
         else:
+            # Imported here: most checks are small, and the import costs a third of their run.
+            from concurrent.futures import ProcessPoolExecutor
             executor = stack.enter_context(ProcessPoolExecutor(max_workers=os.cpu_count()))
             results = executor.map(check_chunk, jobs)
         for checked_input, rows, checked_output, crossings, tail in results:

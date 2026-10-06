@@ -184,7 +184,7 @@ def accept_batch(binary, ccs, directory, parent, first_output, second_output):
         assert [event["child"] for event in children] == list(range(16)), "incomplete children"
         assert all(event["zero_from_parent_bound"] is True for event in children)
         assert end["children"] == 16 and end["matrices"] == 4
-        assert end["field_words"] == 16 * 14 * LANES * 2
+        assert end["field_words"] == 16 * 4 * LANES * 2
         assert end["timing_scope"] == "range_after_shared_load", "wrong range timing scope"
         assert type(end["total_ns"]) is int and end["total_ns"] >= 0
         completions.append(end)
@@ -251,6 +251,48 @@ def check_batches(binary, ccs, directory):
     accept_batch(binary, ccs, directory, parent, first, second)
 
 
+def check_inactive_shared_ranges(binary, ccs, directory):
+    parent = directory / "shared.zero.jsonl"
+    with parent.open("x") as output:
+        output.write(stream())
+    # All row families share slices; include a nonzero Poseidon invocation offset.
+    requests = [(4, 0, 1), (4, 1, 2), (10, 0, 108), (0, 0, 150), (0, 150, 300)]
+    for mode, selected in (("single", requests[:1]), ("batch", requests)):
+        outputs = [directory / f"shared.{mode}.{index}.json" for index in range(len(selected))]
+        arguments = []
+        for output, (block, first, last) in zip(outputs, selected):
+            arguments.extend([str(output), str(block), str(first), str(last)])
+        command = ([str(binary), "ranges", str(ccs), *arguments, "--", str(parent)]
+                   if mode == "batch" else [str(binary), str(ccs), *arguments, str(parent)])
+        result = subprocess.run(command, capture_output=True, text=True, timeout=300)
+        text = result.stdout + result.stderr
+        with (directory / f"shared.{mode}.log").open("x") as log:
+            log.write(text)
+        assert result.returncode == 0, f"valid shared zero-parent ranges rejected\n{text}"
+        events = [json.loads(line) for line in result.stdout.splitlines() if line.startswith("{")]
+        magnitude = next(event for event in events if event.get("event") == "parent_magnitude_ready")
+        assert magnitude["maximum"] == 0, "wrong zero-parent magnitude"
+        begins = [event for event in events if event.get("event") == "range_begin"]
+        queues = [event for event in events if event.get("event") == "slices_queued"]
+        completed = [event for event in events if event.get("event") == "range_complete"]
+        assert len(begins) == len(queues) == len(completed) == len(selected)
+        for output, (block, first, last), begin, queue in zip(outputs, selected, begins, queues):
+            assert begin["block"] == block
+            assert (begin["first_local_row"], begin["last_local_row_exclusive"]) == (first, last)
+            assert begin["end"] - begin["start"] == last - first, "wrong global range length"
+            check_zero_output(output, begin["start"], begin["end"])
+            assert queue["active_children"] == 0, "zero parent has an active child"
+            assert queue["tasks"] == 0, "inactive shared range queued unused arithmetic"
+        children = [event for event in events if event.get("event") == "child_complete"]
+        assert [event["child"] for event in children] == list(range(16)) * len(selected)
+        assert all(event["zero_from_parent_bound"] and event["slices"] == 0 for event in children)
+        assert not any(event.get("event") == "slice_complete" for event in events)
+        if mode == "batch":
+            assert [event["output"] for event in completed] == list(map(str, outputs))
+            assert events[-1].get("event") == "batch_complete"
+        print(f"pidec_parent_boundary=inactive_shared_{mode} accepted tasks=0", flush=True)
+
+
 def main():
     if len(sys.argv) != 4:
         raise SystemExit("usage: pi_dec_parent_input.py <replayPiDECMatrix> <valid-C-input> <new-results-directory>")
@@ -290,6 +332,7 @@ def main():
     check_case(binary, ccs, directory, "incomplete_poseidon_invocation", [stream()],
                "Poseidon range must contain complete 150-row invocations", last=1)
     check_batches(binary, ccs, directory)
+    check_inactive_shared_ranges(binary, ccs, directory)
     print("pidec_parent_boundaries=passed scope=decoder_coverage_and_zero_action", flush=True)
 
 

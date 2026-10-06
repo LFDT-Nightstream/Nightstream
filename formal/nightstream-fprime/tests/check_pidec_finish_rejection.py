@@ -114,7 +114,7 @@ def main():
     run("pad-lanes", "expected array length 54", 2, lambda value: value[3][15].pop())
     run("pad-extension", "expected array length 2", 2, lambda value: value[3][15][53].pop())
     run("matrix-children", "expected array length 16", 2, lambda value: value[4].pop())
-    run("matrix-ports", "expected array length 14", 2, lambda value: value[4][15].pop())
+    run("matrix-ports", "expected array length 4", 2, lambda value: value[4][15].pop())
     run("matrix-lanes", "expected array length 54", 2, lambda value: value[4][15][3].pop())
     run("matrix-extension", "expected array length 2", 2,
         lambda value: value[4][15][3][53].pop())

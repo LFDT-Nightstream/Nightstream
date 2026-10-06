@@ -32,7 +32,7 @@ def main():
             result[5][0] == result[7][0] == result[9][0] == result[9][16][0] == 1,
             "complete C/R/D was not accepted")
     require(result[9][16][1] == children, "complete result has different children")
-    require(len(caller[2]) == 177326 and len(caller[3]) == 278,
+    require(len(caller[2]) == 107070 and len(caller[3]) == 278,
             "wrong selected caller width")
     require(caller[4][3] == result[5][6] and caller[4][4] == result[5][14] and
             caller[4][5] == result[7][9], "caller point or transcript differs")

@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixBatch
 import NightstreamFPrime.Export.Stage1.PiDECMatrixWeightedRange
+import NightstreamFPrime.Export.Stage1.PiDECPoseidonColumnWeights
 
 /-!
 Skip a complete source sum when its supplied zero flag is true, then retain
@@ -18,22 +19,8 @@ open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Lifecycle (productionShape)
 
-/-- The zero branch precedes all sparse source arithmetic. Each nonzero source
-uses the existing single-source range; flattening preserves every port slot. -/
-@[specialize] def sparse {columns arity count : Nat}
-    (zeroSource : Fin productionShape.sourceCount → Bool)
-    (firstRow : Nat) (point : CubePoint K arity)
-    (read : Fin productionShape.sourceCount → Fin ringDegree → Fin columns → F)
-    (forms : Vector (MatrixProgram.RowForms columns) count) : PiCCSOriginalMatrixBatch.Batch :=
-  let bySource := Vector.ofFn fun source : Fin productionShape.sourceCount =>
-    if zeroSource source then PiDECEvaluationBatch.zero matrixCount
-    else PiDECMatrixSparseRange.sum firstRow point (read source) forms
-  Vector.ofFn fun code =>
-    let pair : Fin productionShape.sourceCount × Fin matrixCount := Fin.decodeProd code
-    (bySource.get pair.1).get pair.2
-
-/-- The zero branch precedes all source arithmetic. The column weights of rows
-that share their columns are prepared once for every nonzero source. -/
+/-- The zero branch precedes all source arithmetic. The column weights of the
+rows are prepared once for every nonzero source. -/
 @[specialize] def weighted {columns arity count : Nat}
     (zeroSource : Fin productionShape.sourceCount → Bool)
     (firstRow : Nat) (point : CubePoint K arity)
@@ -42,23 +29,28 @@ that share their columns are prepared once for every nonzero source. -/
   let prepared := PiDECMatrixWeightedRange.prepare firstRow point forms
   let bySource := Vector.ofFn fun source : Fin productionShape.sourceCount =>
     if zeroSource source then PiDECEvaluationBatch.zero matrixCount
-    else PiDECMatrixWeightedRange.evaluate prepared firstRow point (read source) forms
+    else PiDECMatrixWeightedRange.evaluate prepared (read source)
   Vector.ofFn fun code =>
     let pair : Fin productionShape.sourceCount × Fin matrixCount := Fin.decodeProd code
     (bySource.get pair.1).get pair.2
 
-/-- The zero branch precedes numeric invocation preparation and weighting.
-The stored numeric evaluator and complete output shape remain unchanged. -/
+/-- Skip preparation when every source is zero; otherwise prepare the invocation
+weights once and retain every source/port slot. -/
 @[specialize] def invocations {columns arity count : Nat}
     (zeroSource : Fin productionShape.sourceCount → Bool)
     (firstRow : Nat) (point : CubePoint K arity)
     (read : Fin productionShape.sourceCount → Fin ringDegree → Fin columns → F)
-    (interfaces : Vector (PoseidonSboxPlan.Interface columns) count) : PiCCSOriginalMatrixBatch.Batch :=
-  let bySource := Vector.ofFn fun source : Fin productionShape.sourceCount =>
-    if zeroSource source then PiDECEvaluationBatch.zero matrixCount
-    else PiDECMatrixInvocationRange.sum firstRow point (read source) interfaces
-  Vector.ofFn fun code =>
-    let pair : Fin productionShape.sourceCount × Fin matrixCount := Fin.decodeProd code
-    (bySource.get pair.1).get pair.2
+    (interfaces : Vector (PoseidonSboxPlan.Interface columns) count) :
+    PiCCSOriginalMatrixBatch.Batch :=
+  if ∀ source, zeroSource source = true then
+    PiDECEvaluationBatch.zero (productionShape.sourceCount * matrixCount)
+  else
+    let prepared := PiDECPoseidonColumnWeights.prepare firstRow point interfaces
+    let bySource := Vector.ofFn fun source : Fin productionShape.sourceCount =>
+      if zeroSource source then PiDECEvaluationBatch.zero matrixCount
+      else PiDECPoseidonColumnWeights.evaluate prepared (read source)
+    Vector.ofFn fun code =>
+      let pair : Fin productionShape.sourceCount × Fin matrixCount := Fin.decodeProd code
+      (bySource.get pair.1).get pair.2
 
 end NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixSupported

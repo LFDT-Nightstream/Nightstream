@@ -177,7 +177,7 @@ where
             "crosscheck proof or output values differ".into(),
         ));
     }
-    if optimized_proof.canonical_bytes()
+    if optimized_proof.canonical_bytes()?
         != crate::engines::paper_exact_engine::encode_proof(&reference_proof)
             .map_err(|error| PiCcsError::ProtocolError(format!("PaperExact codec failed: {error}")))?
     {
@@ -188,6 +188,9 @@ where
     Ok((optimized_outputs, optimized_proof))
 }
 
+/// Verify PiCCS with both engines and compare their complete execution traces.
+///
+/// The [caller contract](crate::engines::PiCcsEngine::verify) applies.
 #[allow(clippy::too_many_arguments)]
 pub fn crosscheck_verify<I, R>(
     _inner: &I,
@@ -214,6 +217,9 @@ pub fn crosscheck_verify<I, R>(
     )
 }
 
+/// Cross-check PiCCS verification with the selected transcript binding.
+///
+/// The [caller contract](crate::engines::PiCcsEngine::verify) applies.
 #[allow(clippy::too_many_arguments)]
 pub fn crosscheck_verify_with_binding<I, R>(
     _inner: &I,

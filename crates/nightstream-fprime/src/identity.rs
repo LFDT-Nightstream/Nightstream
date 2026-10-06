@@ -54,6 +54,7 @@ const VERIFIER_CONTEXT_DOMAIN: &[u8] = b"Nightstream/FPrime/verifier-context/v1_
 const NIFS_KEY_DOMAIN: &[u8] = b"Nightstream/FPrime/nifs-key/v1_1";
 const PACKAGE_IDENTITY_DOMAIN: &[u8] = b"Nightstream/FPrime/sealed-package/v2";
 const VERIFICATION_KEY_DOMAIN: &[u8] = b"Nightstream/FPrime/verifier-key/v1";
+const FORMULA_LIBRARY_DOMAIN: &[u8] = b"Nightstream/FPrime/formulas/v1";
 
 pub const POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER: [u64; 4] = [
     10_486_567_789_619_211_669,
@@ -68,10 +69,10 @@ pub const POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY: [u64; 4] = [
     5_634_536_311_740_117_718,
 ];
 pub const POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST: [u64; 4] = [
-    275_051_168_690_280_583,
-    13_815_090_190_550_297_275,
-    7_904_572_613_627_394_220,
-    1_707_824_512_104_541_530,
+    6_440_006_626_521_140_497,
+    11_367_969_945_792_140_899,
+    13_964_748_106_270_585_065,
+    16_959_349_855_816_716_292,
 ];
 
 /// Verifier-owned context derived from one identity-checked package and the
@@ -187,6 +188,14 @@ pub(super) fn relation_identifier(package: &Value) -> Result<[u64; 4], PackageEr
     Ok(input.finalize().map(|value| value.as_canonical_u64()))
 }
 
+/// Lean `SharedFormulas.libraryDigest` of the library's codec value.
+pub(crate) fn formula_library_digest(library: &Value) -> Result<[u64; 4], PackageError> {
+    let mut input = poseidon2::Poseidon2Hasher::default();
+    update_words(&mut input, &bytes_as_words(FORMULA_LIBRARY_DOMAIN));
+    append_value_preimage(library, &mut input)?;
+    Ok(input.finalize().map(|value| value.as_canonical_u64()))
+}
+
 pub(super) fn pi_ccs_v1_1_verifier_context(
     package_identity: [u64; 4],
     commitment_key_words: &[u64],
@@ -230,6 +239,7 @@ pub(super) fn stage1_verifier_binding(
     logical_columns: usize,
     relation_value_words: &[u64],
     application: &ApplicationIdentity,
+    formula_digest: [u64; 4],
 ) -> Result<Stage1VerifierBinding, PackageError> {
     let message_columns = u64::try_from(logical_columns.div_ceil(54))
         .map_err(|_| PackageError::Invalid("Stage 1 carrier block count"))?;
@@ -277,6 +287,7 @@ pub(super) fn stage1_verifier_binding(
     let mut verification_key_words = bytes_as_words(VERIFICATION_KEY_DOMAIN);
     append_framed(&mut verification_key_words, &package_identity)?;
     append_framed(&mut verification_key_words, &descriptor_words)?;
+    append_framed(&mut verification_key_words, &formula_digest)?;
     let verification_key_digest = poseidon_words(&verification_key_words);
 
     Ok(Stage1VerifierBinding {

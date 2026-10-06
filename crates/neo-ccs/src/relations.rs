@@ -125,7 +125,7 @@ impl<F: Field> CcsStructure<F> {
         matrix_count: usize,
         f: SparsePoly<F>,
     ) -> Result<Self, RelationError> {
-        if n == 0 || m == 0 || matrix_count == 0 {
+        if n == 0 || m == 0 || matrix_count == 0 || padded_carrier_width(m).is_none() {
             return Err(RelationError::InvalidStructure);
         }
         if f.arity() != matrix_count {
@@ -166,7 +166,8 @@ impl<F: Field> CcsStructure<F> {
             .ok()
             .and_then(|shift| 1usize.checked_shl(shift))
             .ok_or(RelationError::InvalidStructure)?;
-        if self.n > size || self.m.div_ceil(D) * D > size {
+        let carrier = padded_carrier_width(self.m).ok_or(RelationError::InvalidStructure)?;
+        if self.n > size || carrier > size {
             return Err(RelationError::InvalidStructure);
         }
         Ok(())
@@ -183,7 +184,7 @@ impl<F: Field> CcsStructure<F> {
 
     /// Recheck all structure invariants at a public boundary.
     pub fn validate(&self) -> Result<(), RelationError> {
-        if self.matrices.is_empty() || self.n == 0 || self.m == 0 {
+        if self.matrices.is_empty() || self.n == 0 || self.m == 0 || padded_carrier_width(self.m).is_none() {
             return Err(RelationError::InvalidStructure);
         }
         let artifact_header = self.is_verifier_artifact_header();
@@ -531,6 +532,11 @@ pub struct CeWitness<F> {
 #[inline]
 pub fn superneo_public_x_cols(m_in: usize) -> usize {
     m_in.div_ceil(D)
+}
+
+/// Witness columns rounded up to whole ring elements, or `None` on overflow.
+fn padded_carrier_width(m: usize) -> Option<usize> {
+    m.div_ceil(D).checked_mul(D)
 }
 
 fn validate_superneo_witness_mat_for_expected_m<F: Field>(z: &Mat<F>, expected_m: usize) -> Result<(), CcsError> {

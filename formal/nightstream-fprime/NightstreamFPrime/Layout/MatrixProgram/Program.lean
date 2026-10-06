@@ -5,9 +5,8 @@ import NightstreamFPrime.Layout.MatrixProgram.Pin
 import NightstreamFPrime.Layout.MatrixProgram.Poseidon
 
 /-!
-Owns the generic ordered interpreter for a compact sparse 14-matrix program.
-Each decoded row returns the 13 meaningful sparse ports. Matrix slot 13
-remains zero through `ProductionRelation.Plan.portForm`.
+Owns the generic ordered interpreter for a compact sparse 7-matrix program.
+Each decoded row returns the 7 sparse ports.
 
 The interpreter does not select Stage 1 phases, row order, or source rows.
 -/

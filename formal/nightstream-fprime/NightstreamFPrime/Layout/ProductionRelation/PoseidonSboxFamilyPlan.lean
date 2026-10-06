@@ -4,7 +4,7 @@ import NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedRows
 /-!
 Owns an invocation-major family of fixed 150-row Poseidon2 plans. One shared
 constant-one column and one indexed set of input, retained S-box, and output
-forms produce one actual 14-matrix plan.
+forms produce one actual 7-matrix plan.
 
 This module does not select a concrete invocation schedule.
 -/

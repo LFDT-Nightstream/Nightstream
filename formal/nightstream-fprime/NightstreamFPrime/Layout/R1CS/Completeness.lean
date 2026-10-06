@@ -631,9 +631,25 @@ private theorem rankOneConstraint_row_varsBelow (expression : Expr)
                         loweredConstant constantEq⟩
       · rw [rankOneConstraint, dif_neg coefficientEquals] at found
         cases found
+  | .mul left right, scope, result, found =>
+      cases leftEq : lowerAffine left with
+      | none => simp [rankOneConstraint, leftEq] at found
+      | some loweredLeft =>
+          cases rightEq : lowerAffine right with
+          | none => simp [rankOneConstraint, leftEq, rightEq] at found
+          | some loweredRight =>
+              simp only [rankOneConstraint, leftEq, rightEq,
+                Option.some.injEq] at found
+              subst result
+              refine ⟨lowerAffine_varsBelow left start scope.1
+                  loweredLeft leftEq,
+                lowerAffine_varsBelow right start scope.2
+                  loweredRight rightEq, ?_⟩
+              intro term member
+              change term ∈ ([] : List (Nat × F)) at member
+              simp at member
   | .var _, _, _, found => cases found
   | .const _, _, _, found => cases found
-  | .mul _ _, _, _, found => cases found
   | .add _ (.var _), _, _, found => cases found
   | .add _ (.const _), _, _, found => cases found
   | .add _ (.add _ _), _, _, found => cases found

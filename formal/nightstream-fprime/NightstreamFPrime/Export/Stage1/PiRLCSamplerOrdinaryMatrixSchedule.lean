@@ -11,7 +11,7 @@ open NightstreamFPrime.Layout.MatrixProgram NightstreamFPrime.Layout.Stage1
 
 def reductionRange (source : Nat) : IndexRange where
   start := PiRLCStarts.rangeRowStart source
-  count := 2229
+  count := 825
 
 def wordRange (source : Nat) : IndexRange where
   start := PiRLCStarts.challengeWordRowStart source
@@ -33,13 +33,13 @@ private theorem sum_map_flatMap {Alpha Beta : Type}
   | cons item rest ih => simp [ih]
 
 @[simp] theorem sourceRanges_count (source : Nat) :
-    ((sourceRanges source).map IndexRange.count).sum = 2283 := rfl
+    ((sourceRanges source).map IndexRange.count).sum = 879 := rfl
 
-@[simp] theorem ranges_count : (ranges.map IndexRange.count).sum = 38811 := by
+@[simp] theorem ranges_count : (ranges.map IndexRange.count).sum = 14943 := by
   rw [ranges, sum_map_flatMap]
   simp [PiRLCSamplerInvocations.sourceCount]
 
-@[simp] theorem rowSchedule_count : rowSchedule.count = 38811 := ranges_count
+@[simp] theorem rowSchedule_count : rowSchedule.count = 14943 := ranges_count
 
 theorem rowSchedule_indices : rowSchedule.indices = rowIndexReference := rfl
 
@@ -49,8 +49,8 @@ theorem rowSchedule_index? (ordinal : Nat) :
 
 private theorem sourceRanges_valid (source minimum limit : Nat) (suffix : List IndexRange)
     (minimumLe : minimum ≤ PiRLCStarts.samplerSourceRowStart source + 1096)
-    (endLe : PiRLCStarts.samplerSourceRowStart source + 4475 ≤ limit)
-    (suffixValid : validIndexRanges limit (PiRLCStarts.samplerSourceRowStart source + 4475) suffix = true) :
+    (endLe : PiRLCStarts.samplerSourceRowStart source + 3071 ≤ limit)
+    (suffixValid : validIndexRanges limit (PiRLCStarts.samplerSourceRowStart source + 3071) suffix = true) :
     validIndexRanges limit minimum (sourceRanges source ++ suffix) = true := by
   simp [sourceRanges, reductionRange, wordRange, validIndexRanges, IndexRange.endExclusive,
     PiRLCStarts.rangeRowStart, PiRLCStarts.challengeWordRowStart, PiRLCStarts.advanceRowStart,
@@ -85,7 +85,7 @@ private theorem samplerEnd_eq :
     PiRLCStarts.samplerSourceRowStart PiRLCSamplerInvocations.sourceCount = PiRLCStarts.commitmentRowStart := by
   unfold PiRLCStarts.samplerSourceRowStart PiRLCStarts.commitmentRowStart
   exact congrArg (PiRLCStarts.samplerRowStart + ·) (by decide :
-    PiRLCSamplerInvocations.sourceCount * 4475 = 76075)
+    PiRLCSamplerInvocations.sourceCount * 3071 = 52207)
 
 theorem rowSchedule_valid : rowSchedule.valid PiRLCStarts.commitmentRowStart = true :=
   @rowSchedule_valid_of_le PiRLCStarts.commitmentRowStart (Nat.le_of_eq samplerEnd_eq)

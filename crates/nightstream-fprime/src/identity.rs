@@ -6,7 +6,7 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 use serde_json::Value;
 
-use crate::package::{PackageError, PI_CCS_V1_1_ROUND_COUNT};
+use crate::package::{PackageError, PI_CCS_V1_1_MATRIX_COUNT, PI_CCS_V1_1_ROUND_COUNT};
 
 mod native;
 pub(crate) use native::{
@@ -29,13 +29,24 @@ const VERIFIER_CONTEXT_PROFILE: [u64; 14] = [
     16,
     17,
     16,
-    14,
+    PI_CCS_V1_1_MATRIX_COUNT as u64,
     PI_CCS_V1_1_ROUND_COUNT as u64,
     9,
     54,
     22,
 ];
-const VERIFIER_CONTEXT_SCHEDULE: [u64; 10] = [1, 1, 1, PI_CCS_V1_1_ROUND_COUNT as u64, 10, 17, 14, 54, 4, 1];
+const VERIFIER_CONTEXT_SCHEDULE: [u64; 10] = [
+    1,
+    1,
+    1,
+    PI_CCS_V1_1_ROUND_COUNT as u64,
+    10,
+    17,
+    PI_CCS_V1_1_MATRIX_COUNT as u64,
+    54,
+    4,
+    1,
+];
 const VERIFIER_CONTEXT_COMPONENT_DOMAIN: &[u8] = b"Nightstream/FPrime/context/v1_1";
 const VERIFIER_CONTEXT_DOMAIN: &[u8] = b"Nightstream/FPrime/verifier-context/v1_1";
 const NIFS_KEY_DOMAIN: &[u8] = b"Nightstream/FPrime/nifs-key/v1_1";
@@ -44,22 +55,22 @@ const VERIFICATION_KEY_DOMAIN: &[u8] = b"Nightstream/FPrime/verifier-key/v1";
 const FORMULA_LIBRARY_DOMAIN: &[u8] = b"Nightstream/FPrime/formulas/v1";
 
 pub const POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER: [u64; 4] = [
-    14_764_501_797_423_590_719,
-    13_137_466_278_964_290_588,
-    10_036_210_837_749_289_980,
-    8_944_256_517_400_356_286,
+    6_140_047_365_154_428_978,
+    15_014_356_542_662_835_441,
+    8_837_665_427_653_281_796,
+    16_105_464_800_666_874_060,
 ];
 pub const POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY: [u64; 4] = [
-    7_548_990_011_328_446_471,
-    17_135_259_440_128_128_963,
-    5_831_077_210_202_460_744,
-    9_417_456_504_682_884_501,
+    7_147_714_140_347_778_281,
+    2_702_919_217_022_180_743,
+    18_419_811_066_073_596_212,
+    17_282_503_508_119_195_553,
 ];
 pub const POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST: [u64; 4] = [
-    3_605_039_183_831_707_843,
-    9_453_705_151_270_631_031,
-    14_566_018_075_002_203_335,
-    6_098_419_449_100_536_627,
+    13_403_009_536_525_963_686,
+    8_093_998_191_745_443_646,
+    7_285_817_855_273_359_339,
+    11_691_738_023_119_990_703,
 ];
 
 /// Verifier-owned context derived from one identity-checked package and the

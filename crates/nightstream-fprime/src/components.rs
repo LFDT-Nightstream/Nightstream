@@ -12,8 +12,17 @@ use thiserror::Error;
 
 const GOLDILOCKS_MODULUS: u64 = 0xffff_ffff_0000_0001;
 // The selected Nightstream profile, in the exported profile field order.
-const PROFILE: [u64; 8] = [GOLDILOCKS_MODULUS, 2, 16, 65536, 54, 28, 14, 13];
-const MATRIX_PORTS: usize = 13;
+const PROFILE: [u64; 8] = [
+    GOLDILOCKS_MODULUS,
+    2,
+    16,
+    65536,
+    54,
+    28,
+    crate::PI_CCS_V1_1_MATRIX_COUNT as u64,
+    7,
+];
+const MATRIX_PORTS: usize = 7;
 
 #[derive(Debug, Error)]
 pub enum ComponentError {
@@ -179,7 +188,6 @@ pub struct MatrixRow {
 }
 
 impl MatrixRow {
-    /// The fourteenth matrix is fixed to zero by the exported production relation.
     pub fn ports(&self) -> &[SparseForm; MATRIX_PORTS] {
         &self.ports
     }

@@ -130,7 +130,7 @@ pub(super) fn check(package_path: &Path, identity: [u64; 4], input_path: &Path, 
         }
     }
     for coefficient in 0..D {
-        for matrix in 0..14 {
+        for matrix in 0..7 {
             for source in 0..16 {
                 claimed.extend(words(&[running[source].eval_a[matrix][coefficient]])[0]);
             }

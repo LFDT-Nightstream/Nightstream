@@ -377,7 +377,7 @@ private def padHorner (gamma : K) (read : Fin 16 → Fin 54 → Result K) (initi
   foldRight (fun coefficient tail =>
     foldRight (fun running accumulated => hornerStep gamma (read running coefficient) accumulated) tail) initial
 
-private def matrixHorner (gamma : K) (read : Fin 16 → Fin 14 → Fin 54 → Result K)
+private def matrixHorner (gamma : K) (read : Fin 16 → Fin 7 → Fin 54 → Result K)
     (initial : K) : Result K :=
   foldRight (fun coefficient tail =>
     foldRight (fun matrix accumulated =>
@@ -392,7 +392,7 @@ private theorem padHorner_value (gamma : K) (read : Fin 16 → Fin 54 → Result
     List.foldr_flatMap, List.foldr_map]
   rfl
 
-private theorem matrixHorner_value (gamma : K) (read : Fin 16 → Fin 14 → Fin 54 → Result K)
+private theorem matrixHorner_value (gamma : K) (read : Fin 16 → Fin 7 → Fin 54 → Result K)
     (initial : K) :
     (matrixHorner gamma read initial).value =
       (canonicalMatrixCoordinates productionShape).foldr
@@ -404,7 +404,7 @@ private theorem matrixHorner_value (gamma : K) (read : Fin 16 → Fin 14 → Fin
   rfl
 
 private def padHornerWork (readWork : Nat) := 54 * (16 * (readWork + 30) + 11) + 3
-private def matrixHornerWork (readWork : Nat) := 54 * (14 * (16 * (readWork + 30) + 11) + 11) + 3
+private def matrixHornerWork (readWork : Nat) := 54 * (7 * (16 * (readWork + 30) + 11) + 11) + 3
 
 private theorem padHorner_work_le (gamma : K) (read : Fin 16 → Fin 54 → Result K)
     (initial : K) (bound : Nat) (bounded : ∀ running coefficient, (read running coefficient).work ≤ bound) :
@@ -416,11 +416,11 @@ private theorem padHorner_work_le (gamma : K) (read : Fin 16 → Fin 54 → Resu
   rw [hornerStep_work]
   exact Nat.add_le_add_right (bounded running coefficient) 22
 
-private theorem matrixHorner_work_le (gamma : K) (read : Fin 16 → Fin 14 → Fin 54 → Result K)
+private theorem matrixHorner_work_le (gamma : K) (read : Fin 16 → Fin 7 → Fin 54 → Result K)
     (initial : K) (bound : Nat)
     (bounded : ∀ running matrix coefficient, (read running matrix coefficient).work ≤ bound) :
     (matrixHorner gamma read initial).work ≤ matrixHornerWork bound := by
-  apply foldRight_work_le _ _ (14 * (16 * (bound + 30) + 11) + 3)
+  apply foldRight_work_le _ _ (7 * (16 * (bound + 30) + 11) + 3)
   intro coefficient tail
   apply foldRight_work_le _ _ (16 * (bound + 30) + 3)
   intro matrix accumulated
@@ -443,7 +443,7 @@ private def priorPad (input : PiCCSInputCheck.Input) (running : Fin 16) (coeffic
   ⟨(values.get running).get coefficient, 2 + 2 + 1⟩
 
 private def priorMatrix (input : PiCCSInputCheck.Input) (running : Fin 16)
-    (matrix : Fin 14) (coefficient : Fin 54) : Result K :=
+    (matrix : Fin 7) (coefficient : Fin 54) : Result K :=
   let prior := input.running
   let values := prior.evalA
   ⟨((values.get running).get matrix).get coefficient, 2 + 3 + 1⟩
@@ -455,7 +455,7 @@ private def outputPad (probe : StoredProbe productionShape) (running : Fin 16)
   ⟨value.value, value.work + 4⟩
 
 private def outputMatrix (probe : StoredProbe productionShape) (running : Fin 16)
-    (matrix : Fin 14) (coefficient : Fin 54) : Result K :=
+    (matrix : Fin 7) (coefficient : Fin 54) : Result K :=
   let source : Fin 17 := ⟨1 + running.val, by have bound := running.isLt; omega⟩
   let value := probe.matrixRead source matrix coefficient
   ⟨value.value, value.work + 4⟩
@@ -653,8 +653,8 @@ private abbrev Term := ProductionRelation.SelectivePolynomial.Term
 private abbrev PortExponents := ProductionRelation.SelectivePolynomial.PortExponents
 
 /-- Execute the selected record lookup. Each tested index costs equality
-and branch; the selected arm reads its field. The zero slot reads no field. -/
-private def portRead (powers : PortExponents) (index : Fin 14) : Result Nat :=
+and branch; the selected arm reads its field. -/
+private def portRead (powers : PortExponents) (index : Fin 7) : Result Nat :=
   let port := index.val
   if port = 0 then ⟨powers.bit, 5⟩
   else if port = 1 then ⟨powers.generalSelector, 7⟩
@@ -662,21 +662,14 @@ private def portRead (powers : PortExponents) (index : Fin 14) : Result Nat :=
   else if port = 3 then ⟨powers.b, 11⟩
   else if port = 4 then ⟨powers.c, 13⟩
   else if port = 5 then ⟨powers.sboxInput, 15⟩
-  else if port = 6 then ⟨powers.centeredUnit, 17⟩
-  else if port = 7 then ⟨powers.evalSelector, 19⟩
-  else if port = 8 then ⟨powers.class0, 21⟩
-  else if port = 9 then ⟨powers.class1, 23⟩
-  else if port = 10 then ⟨powers.class2, 25⟩
-  else if port = 11 then ⟨powers.class3, 27⟩
-  else if port = 12 then ⟨powers.class4, 29⟩
-  else ⟨0, 28⟩
+  else ⟨powers.evalSelector, 16⟩
 
-private theorem portRead_value (powers : PortExponents) (index : Fin 14) :
+private theorem portRead_value (powers : PortExponents) (index : Fin 7) :
     (portRead powers index).value = powers.get index := by
   fin_cases index <;> rfl
 
-private theorem portRead_work_le (powers : PortExponents) (index : Fin 14) :
-    (portRead powers index).work ≤ 29 := by
+private theorem portRead_work_le (powers : PortExponents) (index : Fin 7) :
+    (portRead powers index).work ≤ 16 := by
   fin_cases index <;> simp only [portRead, Nat.reduceEqDiff, ↓reduceIte] <;> decide
 
 private theorem member_le_sum (values : List Nat) (value : Nat) (member : value ∈ values) :
@@ -692,15 +685,15 @@ private theorem member_le_sum (values : List Nat) (value : Nat) (member : value 
         omega
 
 private theorem term_exponent_le (term : Term)
-    (member : term ∈ ProductionRelation.SelectivePolynomial.termData) (index : Fin 14) :
+    (member : term ∈ ProductionRelation.SelectivePolynomial.termData) (index : Fin 7) :
     term.powers.get index ≤ 8 := by
   have erased : term.toMonomial ∈ ProductionRelation.SelectivePolynomial.terms := by
     rw [← ProductionRelation.SelectivePolynomial.termData_toMonomial]
     exact List.mem_map_of_mem member
   have degree := ProductionRelation.SelectivePolynomial.term_totalDegree_le_eight term.toMonomial erased
-  have indexMember : index ∈ canonicalFinIndices 14 := by
+  have indexMember : index ∈ canonicalFinIndices 7 := by
     exact List.mem_ofFn.mpr ⟨index, rfl⟩
-  have exponent := member_le_sum ((canonicalFinIndices 14).map term.toMonomial.exponents)
+  have exponent := member_le_sum ((canonicalFinIndices 7).map term.toMonomial.exponents)
     (term.toMonomial.exponents index) (List.mem_map_of_mem indexMember)
   exact Nat.le_trans exponent degree
 
@@ -726,8 +719,8 @@ private theorem termValue_value (probe : StoredProbe productionShape) (term : Te
     StoredWitnessCheckPrimitives.embed_value, StoredProbe.matrixRead_value,
     CCSResidualTable.evaluateMonomial, ConstraintPolynomialLift.liftMonomial,
     ProductionRelation.SelectivePolynomial.Term.toMonomial, ProductionRelation.SelectivePolynomial.monomial]
-  apply congrArg (fun step : K → Fin 14 → K =>
-    (canonicalFinIndices 14).foldl step (K.embed term.coefficient))
+  apply congrArg (fun step : K → Fin 7 → K =>
+    (canonicalFinIndices 7).foldl step (K.embed term.coefficient))
   funext accumulated matrix
   rfl
 
@@ -749,7 +742,7 @@ private theorem termValue_work_le (probe : StoredProbe productionShape) (term : 
   dsimp only at folded
   dsimp only [termValue]
   rw [StoredWitnessCheckPrimitives.embed_work]
-  have count : productionShape.matrixCount = 14 := rfl
+  have count : productionShape.matrixCount = 7 := rfl
   omega
 
 private def polynomialLoop (probe : StoredProbe productionShape) : List Term → Result K → Result K
@@ -804,7 +797,7 @@ private theorem polynomialValue_value (input : PiCCSInputCheck.Input) (probe : S
   simp only [List.foldl_map] <;> rfl
 
 private theorem polynomialValue_work_le (probe : StoredProbe productionShape) :
-    (polynomialValue probe).work ≤ 74 * 2585 + 6 := by
+    (polynomialValue probe).work ≤ 8 * 2585 + 6 := by
   have value := polynomialLoop_work_le probe ProductionRelation.SelectivePolynomial.termData
     (fun _ member => member) (⟨K.zero, 2⟩ : Result K)
   simp only [ProductionRelation.SelectivePolynomial.termData_length] at value
@@ -854,7 +847,7 @@ private def terminalClaim (input : PiCCSInputCheck.Input) (probe : StoredProbe p
   let ccs := polynomialValue probe
   let norm := normClaim probe gamma
   let matrixWeight := power gamma 864
-  let constraintWeight := power gamma 12960
+  let constraintWeight := power gamma 6912
   let normWeight := power gamma 1
   let weightedNorm := mul normWeight.value norm.value
   let inner := add ccs.value weightedNorm.value
@@ -882,7 +875,7 @@ private theorem terminalClaim_value (input : PiCCSInputCheck.Input) (probe : Sto
 
 private def terminalWork : Nat :=
   (28 * 7 + 3) + 2 * (28 * 73 + 4) + padHornerWork 8 + matrixHornerWork 9 +
-    (74 * 2585 + 6) + (17 * 341 + 5) + (864 * 16 + 4) + (12960 * 16 + 4) + (1 * 16 + 4) +
+    (8 * 2585 + 6) + (17 * 341 + 5) + (864 * 16 + 4) + (6912 * 16 + 4) + (1 * 16 + 4) +
     6 * 13 + 3 * 8 + 11
 
 private theorem terminalClaim_work_le (input : PiCCSInputCheck.Input) (probe : StoredProbe productionShape) :
@@ -930,7 +923,7 @@ theorem check_value (input : PiCCSInputCheck.Input) (probe : StoredProbe product
     ProtocolPolynomial.FixedWidth.check]
 
 /-- A uniform bound on the executed named operations. The 28 challenges,
-ten coefficients, 17 sources, and retained 74-term table determine it. -/
+ten coefficients, 17 sources, and retained 8-term table determine it. -/
 def workBound : Nat :=
   matrixHornerWork 6 + padHornerWork 5 + 4 + terminalWork + (28 * 849 + 13) + 7
 

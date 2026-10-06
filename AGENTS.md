@@ -11,7 +11,7 @@
 - Use subagents when the user requests them or an explicitly invoked skill requires delegation.
 - Proofs must remain compatible with on-chain verification targets. In proof/transcript/public-digest paths, use Poseidon2-only hashing unless explicitly approved otherwise.
 - Do not introduce mixed hash families (e.g., Blake3/SHA prehashes) in protocol-binding paths without explicit user approval.
-- You can find the SuperNeo paper which is what the main protocol is based upon in ./docs/superneo-paper
+- The main protocol follows SuperNeo v1.2 (ePrint 2026/242, 4 September 2026) in `./docs/superneo-paper-v1_2`. Cite SuperNeo only by its v1.2 numbers.
 - **Fixed SuperNeo Goldilocks decomposition policy (hard rule).** Keep `b = 2`. Use `k_rho = 16` and `B = 2^16` by default for a Nightstream production profile. Use `k_rho = 18` and `B = 2^18` only when an explicit requirement or a measured result shows that `k_rho = 16` is insufficient. In both cases, `B = b^k_rho`.
 - The SuperNeo Appendix B.2 values `k_rho = 14` and `B = 2^14` are reference values only. Do not use them for a Nightstream production proof artifact.
 - Each frozen or generated profile must select and protocol-bind one exact allowed pair. Do not mix `k_rho = 16` and `k_rho = 18` within one profile or its artifacts.
@@ -134,9 +134,8 @@ State the authority or derivation whenever proposing or applying a limit. If no 
 
 ## Formal Lean Subprojects
 - Lean-specific instructions live in subdirectory `AGENTS.md` files so they apply only to the matching formal project.
-- **Frozen and deprecated Nightstream Lean project (hard rule).** `formal/nightstream-lean` is a read-only reference corpus. Do not edit, add, delete, generate, format, repair, or otherwise maintain files in this project. Do not add new production dependencies on it or use it as the production proof authority. Read its files only for reference. Resume work in it only when the user explicitly unfreezes it in the current task.
-- Before a permitted inspection of the frozen Nightstream Lean project, read `formal/nightstream-lean/AGENTS.md`.
-- For the SuperNeo Lean project, read `formal/superneo-lean/AGENTS.md`.
+- `formal/nightstream-lean` was deleted. Do not restore, import, or depend on it. Provenance comments that name it record history only.
+- For `formal/nightstream-fprime`, read `formal/nightstream-fprime/AGENTS.md` before work.
 
 
 ## Perf & Constraint Debugging
@@ -172,11 +171,3 @@ checks, not the default benchmark for current prover work.
 Usage: `./scripts/<tool> <package> <test_file> <test_function> [--ignored]`
 
 For xctrace, add `--template <name>` (Allocations, Leaks, File Activity, System Trace, etc.)
-
-Examples:
-```bash
-./scripts/profile_for_ai.sh neo-fold test_sha256_single_step test_sha256_preimage_4k --ignored
-./scripts/profile_xctrace.sh neo-fold test_sha256_single_step test_sha256_preimage_4k --ignored
-./scripts/profile_xctrace.sh neo-fold test_sha256_single_step test_sha256_preimage_4k --ignored --template Allocations
-./scripts/profile_memory_deep.sh neo-fold test_sha256_single_step test_sha256_preimage_4k --ignored
-```

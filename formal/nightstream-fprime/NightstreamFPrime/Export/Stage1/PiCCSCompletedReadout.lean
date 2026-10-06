@@ -2,7 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSPhysicalPackets
 import NightstreamFPrime.Export.Stage1.PiCCSInvocationSchedule
 import NightstreamFPrime.Export.Stage1.PerApplicationSourceAssignment
 import NightstreamFPrime.Export.Stage1.PiCCSTranscriptEndpointPlan
-import NightstreamFPrime.Export.Stage1.PiCCSTranscriptOutputCoherence
 
 /-!
 Owns the source agreement derived from completed PiCCS permutation rows.

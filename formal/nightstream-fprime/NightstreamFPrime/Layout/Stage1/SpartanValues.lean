@@ -6,19 +6,19 @@ map proofs use count relationships and do not import this module. -/
 namespace NightstreamFPrime.Layout.Stage1.Spartan
 
 theorem appendedPrivateColumnCount_eq :
-    appendedPrivateColumnCount = 11126270 := by
+    appendedPrivateColumnCount = 7869326 := by
   rfl
 
-theorem sourceColumnCount_eq : SourceColumnCount = 20253042 := by
+theorem sourceColumnCount_eq : SourceColumnCount = 14761726 := by
   rfl
 
-theorem privateColumnCount_eq : privateColumnCount = 20252764 := by
+theorem privateColumnCount_eq : privateColumnCount = 14761448 := by
   rfl
 
-theorem constantColumn_eq : constantColumn = 20252764 := by
+theorem constantColumn_eq : constantColumn = 14761448 := by
   exact privateColumnCount_eq
 
-theorem spartanColumnCount_eq : spartanColumnCount = 20253043 := by
+theorem spartanColumnCount_eq : spartanColumnCount = 14761727 := by
   rfl
 
 theorem privateColumnCount_bound : privateColumnCount ≤ domainSize := by

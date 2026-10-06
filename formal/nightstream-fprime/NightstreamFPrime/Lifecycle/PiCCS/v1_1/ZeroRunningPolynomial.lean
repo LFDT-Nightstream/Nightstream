@@ -6,8 +6,8 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanReproduction
 /-!
 Owns the SuperNeo v1.1 Section 7.3 polynomial reduction for the production
 shape with literal zero running assignments. All tables come from the same
-connected matrix source. Matrix 13 stays a separate zero CCS matrix; Pad
-retains its complete coefficient family. No CCS validity premise is used.
+connected matrix source. Pad retains its complete coefficient family. No CCS
+validity premise is used.
 -/
 
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_1.ZeroRunningPolynomial
@@ -46,19 +46,6 @@ private theorem evaluate_zero_assignment {arity columns : Nat}
   have assignmentEqual : assignment = fun _ => baseOps.zero := funext zero
   rw [assignmentEqual]
   exact matrixVectorAt_zero baseOps baseLaws matrix vertex
-
-private theorem evaluate_zero_matrix {arity columns : Nat}
-    (matrix : BooleanMatrix F arity columns)
-    (zero : ∀ vertex column, matrix vertex column = 0)
-    (assignment : Assignment F columns)
-    (point : CubePoint K arity) :
-    (BooleanTable.tabulate fun vertex =>
-      K.embed (matrixVectorAt baseOps matrix assignment vertex)).evaluate
-        extensionOps point = K.zero := by
-  apply evaluate_zero_table
-  intro vertex
-  exact matrixVectorAt_zeroRow baseOps baseLaws matrix assignment vertex
-    (zero vertex)
 
 private theorem sumMap_zero {Index : Type}
     (indices : List Index) (term : Index → K)
@@ -150,44 +137,6 @@ theorem runningOutput_zero
   · intro matrix coefficient
     exact evaluate_zero_assignment _ _ (runningZero index) point
 
-private theorem zeroPort_coefficientMatrix
-    (matrix13Zero : ∀ vertex column,
-      data.matrixSource.matrices Spec.ProductionRelation.zeroPort vertex column = 0)
-    (coefficient : Fin productionShape.coefficientCount)
-    (vertex : BooleanVertex cubeVariables) (column : Fin columns) :
-    data.matrixSource.coefficientMatrix baseOps Spec.ProductionRelation.zeroPort
-      coefficient vertex column = 0 := by
-  unfold MatrixSource.coefficientMatrix MatrixSource.coefficientMatrixOf
-  apply sumRange_eq_zero baseOps baseLaws
-  intro rowIndex rowLt
-  rw [dif_pos rowLt]
-  dsimp only
-  have entryZero : data.matrixSource.paddedEntry baseOps
-      (data.matrixSource.matrices Spec.ProductionRelation.zeroPort) vertex
-      (data.matrixSource.columnLayout.decode column).1 ⟨rowIndex, rowLt⟩ = 0 := by
-    unfold MatrixSource.paddedEntry
-    cases data.matrixSource.columnLayout.encode?
-        (data.matrixSource.columnLayout.decode column).1 ⟨rowIndex, rowLt⟩ with
-    | none => rfl
-    | some selected => exact matrix13Zero vertex selected
-  rw [entryZero]
-  change baseOps.mul baseOps.zero _ = baseOps.zero
-  rw [baseLaws.mul_comm, baseLaws.mul_zero]
-
-/-- The complete matrix-13 output is zero for every source and every ring
-coefficient. This follows from its literal matrix entries and the existing
-coefficient expansion, without a constant-term-only replacement. -/
-theorem matrix13Output_zero
-    (matrix13Zero : ∀ vertex column,
-      data.matrixSource.matrices Spec.ProductionRelation.zeroPort vertex column = 0)
-    (point : CubePoint K cubeVariables)
-    (source : Fin productionShape.sourceCount)
-    (coefficient : Fin productionShape.coefficientCount) :
-    (FullOutput.honestAt baseOps extensionOps K.embed data point).matrixCoordinate
-      source Spec.ProductionRelation.zeroPort coefficient = K.zero := by
-  exact evaluate_zero_matrix _
-    (zeroPort_coefficientMatrix data matrix13Zero coefficient) _ point
-
 /-- The norm input of each running source is the MLE of its zero-padded
 assignment, so it is zero at every field point. -/
 theorem runningAssignment_zero
@@ -209,18 +158,6 @@ theorem runningAssignment_zero
   cases data.cubeLayout.toColumn? vertex with
   | none => rfl
   | some column => exact runningZero index column
-
-/-- The fresh scalar matrix-13 image is zero before the nonlinear CCS
-polynomial is applied. -/
-theorem freshMatrix13_zero
-    (matrix13Zero : ∀ vertex column,
-      data.matrixSource.matrices Spec.ProductionRelation.zeroPort vertex column = 0)
-    (point : CubePoint K cubeVariables) :
-    (ProtocolPolynomial.messageAt extensionOps
-      (ProtocolDataRefinement.toProtocolData baseOps K.embed
-        (data.toUnifiedInputs baseOps)) point).freshMatrixImage
-      freshIndex Spec.ProductionRelation.zeroPort = K.zero := by
-  exact evaluate_zero_matrix _ matrix13Zero _ point
 
 private theorem padAtMessage_zero
     (runningZero : ∀ index column,
@@ -323,23 +260,20 @@ private theorem ccsAtMessage_eq_fresh
 
 /-- The exact source-derived polynomial with zero running openings reduces
 to one fresh CCS residual and one fresh strict-norm residual. The fixed
-`gamma^12960` offset and zero matrix-13 slot are preserved. -/
+`gamma^6912` offset is preserved. -/
 theorem qAtPoint_eq_fresh
     (runningZero : ∀ index column,
       data.assignments (runningSourceIndex index) column = 0)
-    (matrix13Zero : ∀ vertex column,
-      data.matrixSource.matrices Spec.ProductionRelation.zeroPort vertex column = 0)
     (alpha point : CubePoint K cubeVariables) (gamma : K) :
     let protocol := ProtocolDataRefinement.toProtocolData baseOps K.embed
       (data.toUnifiedInputs baseOps)
     let message := ProtocolPolynomial.messageAt extensionOps protocol point
     ProtocolPolynomial.qAtPoint extensionOps protocol alpha gamma point =
-      SignedJointIdentity.gammaTerm extensionOps gamma 12960
+      SignedJointIdentity.gammaTerm extensionOps gamma 6912
         (extensionOps.mul (SumCheckTruthPath.pointEquality extensionOps point alpha)
           (extensionOps.add
             (CCSResidualTable.evaluatePolynomial extensionOps protocol.constraintPolynomial
-              (fun matrix => if matrix = Spec.ProductionRelation.zeroPort then K.zero
-                else message.freshMatrixImage freshIndex matrix))
+              (message.freshMatrixImage freshIndex))
             (extensionOps.mul gamma
               (ProtocolPolynomial.strictNormResidual extensionOps
                 (message.sourceAssignment sourceIndex))))) := by
@@ -350,32 +284,7 @@ theorem qAtPoint_eq_fresh
     gammaTerm_zero, zero_add, zero_add,
     ccsAtMessage_eq_fresh, normAtMessage_eq_fresh data runningZero point gamma,
     gammaTerm_freshCount]
-  have images :
-      (fun matrix => if matrix = Spec.ProductionRelation.zeroPort then K.zero
-        else (ProtocolPolynomial.messageAt extensionOps
-          (ProtocolDataRefinement.toProtocolData baseOps K.embed
-            (data.toUnifiedInputs baseOps)) point).freshMatrixImage freshIndex matrix) =
-      (ProtocolPolynomial.messageAt extensionOps
-        (ProtocolDataRefinement.toProtocolData baseOps K.embed
-          (data.toUnifiedInputs baseOps)) point).freshMatrixImage freshIndex := by
-    funext matrix
-    by_cases equal : matrix = Spec.ProductionRelation.zeroPort
-    · rw [if_pos equal, equal, freshMatrix13_zero data matrix13Zero point]
-    · rw [if_neg equal]
-  exact congrArg
-    (fun values : Fin productionShape.matrixCount → K =>
-      SignedJointIdentity.gammaTerm extensionOps gamma 12960
-        (extensionOps.mul (SumCheckTruthPath.pointEquality extensionOps point alpha)
-          (extensionOps.add
-            (CCSResidualTable.evaluatePolynomial extensionOps
-              (ProtocolDataRefinement.toProtocolData baseOps K.embed
-                (data.toUnifiedInputs baseOps)).constraintPolynomial values)
-            (extensionOps.mul gamma
-              (ProtocolPolynomial.strictNormResidual extensionOps
-                ((ProtocolPolynomial.messageAt extensionOps
-                  (ProtocolDataRefinement.toProtocolData baseOps K.embed
-                    (data.toUnifiedInputs baseOps)) point).sourceAssignment
-                  sourceIndex)))))) images.symm
+  rfl
 
 private theorem foldr_map_zero {Index : Type}
     (indices : List Index) (term : Index → K)

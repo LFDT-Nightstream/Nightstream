@@ -108,23 +108,23 @@ def main():
     run("pad-lanes", "expected array length 54", change=lambda value: value[2][16].pop())
     run("pad-extension", "expected array length 2", change=lambda value: value[2][16][53].pop())
     run("matrix-sources", "expected array length 17", change=lambda value: value[3].pop())
-    run("matrix-ports", "expected array length 14", change=lambda value: value[3][16].pop())
-    run("matrix-lanes", "expected array length 54", change=lambda value: value[3][16][13].pop())
+    run("matrix-ports", "expected array length 7", change=lambda value: value[3][16].pop())
+    run("matrix-lanes", "expected array length 54", change=lambda value: value[3][16][6].pop())
     run("matrix-extension", "expected array length 2",
-        change=lambda value: value[3][16][13][53].pop())
+        change=lambda value: value[3][16][6][53].pop())
     run("pad-noncanonical", "noncanonical Goldilocks word",
         change=lambda value: value[2][16][53].__setitem__(1, P))
     run("matrix-noncanonical", "noncanonical Goldilocks word",
-        change=lambda value: value[3][16][13][53].__setitem__(1, P))
+        change=lambda value: value[3][16][6][53].__setitem__(1, P))
     run("matrix-word-type", "Natural number expected",
-        change=lambda value: value[3][16][13][53].__setitem__(1, "not-a-field"))
+        change=lambda value: value[3][16][6][53].__setitem__(1, "not-a-field"))
     # These remain well-formed and canonical, so the independent final check
     # must reject the changed values rather than a decoder rejecting the shape.
     run("changed-pad", "independent final PiCCS check rejected",
         change=lambda value: value[2][16][53].__setitem__(1, (value[2][16][53][1] + 1) % P))
     run("changed-matrix", "independent final PiCCS check rejected",
-        change=lambda value: value[3][16][13][53].__setitem__(1,
-                                                         (value[3][16][13][53][1] + 1) % P))
+        change=lambda value: value[3][16][6][53].__setitem__(1,
+                                                         (value[3][16][6][53][1] + 1) % P))
     print(json.dumps({"event": "piccs_finish_rejection_checks_passed", "rejections": rejected,
                       "scope": "finish-original input and output rejection only; "
                                "successful production parity and source bridge are separate"}))

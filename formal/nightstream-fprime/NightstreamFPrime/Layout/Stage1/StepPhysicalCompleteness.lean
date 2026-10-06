@@ -196,7 +196,7 @@ private theorem nifs_complete
       pPhysical index = initial index := by
     intro index support
     have outside := support.elim Or.inl (external_outside_pilot_physical index)
-    have physicalEnd : Pilot.logicalColumnCount PilotProduction.interface PilotProduction.witnessOffset + 788 =
+    have physicalEnd : Pilot.logicalColumnCount PilotProduction.interface PilotProduction.witnessOffset + 144 =
         Pilot.physicalColumnCount PilotProduction.interface PilotProduction.witnessOffset := by
       rw [Pilot.physicalColumnCount_eq, PilotProduction.logicalConstraints_freshCount]
     exact (pLower index (outside.imp (fun h => h.trans_le pilot_start_le_end) (by

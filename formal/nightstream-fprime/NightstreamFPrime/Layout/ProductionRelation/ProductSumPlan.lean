@@ -3,8 +3,8 @@ import NightstreamFPrime.Layout.ProductionRelation.PinRow
 import NightstreamFPrime.Layout.ProductionRelation.ProductSumRow
 
 /-!
-Owns the proof-oriented grouping core for direct five-product selective rows.
-Products remain in source order and are split into groups of at most five.
+Owns the proof-oriented grouping core for direct two-product selective rows.
+Products remain in source order and are split into groups of at most two.
 
 This module does not select a concrete Stage 1 product schedule.
 -/
@@ -41,50 +41,31 @@ end Term
 def groups {Alpha : Type} : List Alpha → List (List Alpha)
   | [] => []
   | [a] => [[a]]
-  | [a, b] => [[a, b]]
-  | [a, b, c] => [[a, b, c]]
-  | [a, b, c, d] => [[a, b, c, d]]
-  | a :: b :: c :: d :: e :: rest =>
-      [a, b, c, d, e] :: groups rest
+  | a :: b :: rest => [a, b] :: groups rest
 
 theorem groups_join {Alpha : Type} :
     ∀ values : List Alpha, (groups values).flatten = values
   | [] => rfl
   | [a] => rfl
-  | [a, b] => rfl
-  | [a, b, c] => rfl
-  | [a, b, c, d] => rfl
-  | a :: b :: c :: d :: e :: rest => by
+  | a :: b :: rest => by
       simp [groups, groups_join rest]
 
 theorem group_length_le {Alpha : Type} :
     ∀ (values : List Alpha) (group : List Alpha),
-      group ∈ groups values → group.length ≤ 5
+      group ∈ groups values → group.length ≤ 2
   | [], group, member => by simp [groups] at member
   | [a], group, member => by
       simp [groups] at member
       subst group
       norm_num
-  | [a, b], group, member => by
-      simp [groups] at member
-      subst group
-      norm_num
-  | [a, b, c], group, member => by
-      simp [groups] at member
-      subst group
-      norm_num
-  | [a, b, c, d], group, member => by
-      simp [groups] at member
-      subst group
-      norm_num
-  | a :: b :: c :: d :: e :: rest, group, member => by
+  | a :: b :: rest, group, member => by
       simp only [groups, List.mem_cons] at member
       rcases member with rfl | member
       · norm_num
       · exact group_length_le rest group member
 
 def termAt {logicalWidth : Nat} (group : List (Term logicalWidth))
-    (lane : Fin 5) : Term logicalWidth :=
+    (lane : Fin 2) : Term logicalWidth :=
   group.getD lane.val .zero
 
 def groupTotal {logicalWidth : Nat}
@@ -94,10 +75,10 @@ def groupTotal {logicalWidth : Nat}
     (fun lane => (termAt group lane).left.eval assignment)
     (fun lane => (termAt group lane).right.eval assignment)
 
-/-- A padded five-product row evaluates to the exact unpadded group sum. -/
+/-- A padded two-product row evaluates to the exact unpadded group sum. -/
 theorem groupTotal_eq_sum {logicalWidth : Nat}
     (assignment : Assignment F logicalWidth)
-    (group : List (Term logicalWidth)) (bound : group.length ≤ 5) :
+    (group : List (Term logicalWidth)) (bound : group.length ≤ 2) :
     groupTotal assignment group = (group.map (Term.eval assignment)).sum := by
   rcases group with _ | ⟨a, rest⟩
   · simp [groupTotal, termAt,
@@ -106,18 +87,6 @@ theorem groupTotal_eq_sum {logicalWidth : Nat}
   · simp [groupTotal, termAt,
       Spec.ProductionRelation.RowSemantics.productTotal, Term.eval, Term.zero]
   rcases rest with _ | ⟨c, rest⟩
-  · simp [groupTotal, termAt,
-      Spec.ProductionRelation.RowSemantics.productTotal, Term.eval, Term.zero]
-    <;> try abel
-  rcases rest with _ | ⟨d, rest⟩
-  · simp [groupTotal, termAt,
-      Spec.ProductionRelation.RowSemantics.productTotal, Term.eval, Term.zero]
-    <;> try abel
-  rcases rest with _ | ⟨e, rest⟩
-  · simp [groupTotal, termAt,
-      Spec.ProductionRelation.RowSemantics.productTotal, Term.eval, Term.zero]
-    <;> try abel
-  rcases rest with _ | ⟨f, rest⟩
   · simp [groupTotal, termAt,
       Spec.ProductionRelation.RowSemantics.productTotal, Term.eval, Term.zero]
     <;> try abel
@@ -496,7 +465,7 @@ theorem rowsZero_iff_equations {logicalWidth : Nat}
                 (fun form => form.eval assignment)).sum := by
             rw [sumsEqual]
 
-/-- Actual 14-matrix plan for one grouped-product computation. -/
+/-- Actual 7-matrix plan for one grouped-product computation. -/
 def plan {logicalWidth : Nat} (interface : Interface logicalWidth)
     (rowCount_le : (rows interface).length ≤
       2 ^ NightstreamFPrime.Lifecycle.cubeVariables) :

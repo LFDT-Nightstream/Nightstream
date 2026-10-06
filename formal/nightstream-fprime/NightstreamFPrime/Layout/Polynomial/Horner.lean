@@ -71,6 +71,40 @@ theorem lowerAffine_mul_eq_none {left right : Expr}
   cases left <;> cases right <;>
     simp_all [Nonconstant, R1CS.lowerAffine]
 
+/-- A zero assertion `left * right` with non-constant affine factors lowers to
+one rank-one row. -/
+theorem directConstraint_mul_ne_none {left right : Expr}
+    (leftAffine : R1CS.IsAffine left) (rightAffine : R1CS.IsAffine right)
+    (leftNonconstant : Nonconstant left) (rightNonconstant : Nonconstant right) :
+    R1CS.directConstraint (left * right) ≠ none := by
+  obtain ⟨loweredLeft, leftEq⟩ := leftAffine
+  obtain ⟨loweredRight, rightEq⟩ := rightAffine
+  have nonAffine := lowerAffine_mul_eq_none leftNonconstant rightNonconstant
+  change R1CS.affineOrRankOneConstraint (.mul left right) ≠ none
+  simp only [HMul.hMul, Mul.mul] at nonAffine
+  simp [R1CS.affineOrRankOneConstraint, R1CS.affineConstraint, nonAffine,
+    R1CS.rankOneConstraint, leftEq, rightEq]
+
+theorem constraintFreshCount_mul {left right : Expr}
+    (leftAffine : R1CS.IsAffine left) (rightAffine : R1CS.IsAffine right)
+    (leftNonconstant : Nonconstant left) (rightNonconstant : Nonconstant right) :
+    R1CS.constraintFreshCount (left * right) = 0 := by
+  unfold R1CS.constraintFreshCount
+  cases direct : R1CS.directConstraint (left * right) with
+  | none => exact absurd direct (directConstraint_mul_ne_none leftAffine
+      rightAffine leftNonconstant rightNonconstant)
+  | some _ => rfl
+
+theorem constraintRowCount_mul {left right : Expr}
+    (leftAffine : R1CS.IsAffine left) (rightAffine : R1CS.IsAffine right)
+    (leftNonconstant : Nonconstant left) (rightNonconstant : Nonconstant right) :
+    R1CS.constraintRowCount (left * right) = 1 := by
+  unfold R1CS.constraintRowCount
+  cases direct : R1CS.directConstraint (left * right) with
+  | none => exact absurd direct (directConstraint_mul_ne_none leftAffine
+      rightAffine leftNonconstant rightNonconstant)
+  | some _ => rfl
+
 /-- A recipe that is a sum of two non-affine parts has no one-row lowering. -/
 theorem directConstraint_sub_add_eq_none
     (output : Nat) (left right : Expr)

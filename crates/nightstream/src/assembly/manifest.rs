@@ -7,7 +7,16 @@ use crate::application::ApplicationCircuit;
 
 use super::{wire::Envelope, AssemblyError};
 
-const PROFILE: [u64; 8] = [0xffff_ffff_0000_0001, 2, 16, 65536, 54, 28, 14, 13];
+const PROFILE: [u64; 8] = [
+    0xffff_ffff_0000_0001,
+    2,
+    16,
+    65536,
+    54,
+    28,
+    nightstream_fprime::PI_CCS_V1_1_MATRIX_COUNT as u64,
+    7,
+];
 const CHILDREN: [&str; 14] = [
     "pilot_poseidon",
     "pi_ccs_poseidon",

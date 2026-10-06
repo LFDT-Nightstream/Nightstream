@@ -128,7 +128,7 @@ theorem logicalConstraints_eq_ordered (interface : Logical.Interface)
 private theorem childFreshCount_eq (interface : Logical.Interface)
     (offset : Nat) (inputs : InputsAffine interface offset) (source : Nat) :
     R1CS.totalFreshCount (childConstraints interface offset source) =
-      1548 := by
+      144 := by
   exact Sampler.totalFreshCount_eq
     (Logical.childInterface interface offset source) source
     (Logical.sourceOffset offset source) (childInputs interface offset inputs source)
@@ -136,7 +136,7 @@ private theorem childFreshCount_eq (interface : Logical.Interface)
 private theorem childRowCount_eq (interface : Logical.Interface)
     (offset : Nat) (inputs : InputsAffine interface offset) (source : Nat) :
     R1CS.totalRowCount (childConstraints interface offset source) =
-      4475 := by
+      3071 := by
   exact Sampler.totalRowCount_eq
     (Logical.childInterface interface offset source) source
     (Logical.sourceOffset offset source) (childInputs interface offset inputs source)
@@ -146,7 +146,7 @@ private theorem totalFreshCount_sources (interface : Logical.Interface)
     (sources : List Nat) :
     R1CS.totalFreshCount
         ((sources.map (childConstraints interface offset)).flatten) =
-      sources.length * 1548 := by
+      sources.length * 144 := by
   induction sources with
   | nil => rfl
   | cons source rest inductionHypothesis =>
@@ -160,7 +160,7 @@ private theorem totalRowCount_sources (interface : Logical.Interface)
     (sources : List Nat) :
     R1CS.totalRowCount
         ((sources.map (childConstraints interface offset)).flatten) =
-      sources.length * 4475 := by
+      sources.length * 3071 := by
   induction sources with
   | nil => rfl
   | cons source rest inductionHypothesis =>
@@ -173,24 +173,24 @@ private theorem totalRowCount_sources (interface : Logical.Interface)
 theorem totalFreshCount_eq (interface : Logical.Interface) (offset : Nat)
     (inputs : InputsAffine interface offset) :
     R1CS.totalFreshCount (logicalConstraints interface offset) =
-      26316 := by
+      2448 := by
   rw [logicalConstraints_eq_ordered]
   unfold orderedConstraints childConstraintLists
   rw [totalFreshCount_sources interface offset inputs]
   simp only [List.length_range]
-  change 17 * 1548 = 26316
+  change 17 * 144 = 2448
   norm_num
 
 /-- Exact physical-row count for 17 scalar samplers. -/
 theorem totalRowCount_eq (interface : Logical.Interface) (offset : Nat)
     (inputs : InputsAffine interface offset) :
     R1CS.totalRowCount (logicalConstraints interface offset) =
-      76075 := by
+      52207 := by
   rw [logicalConstraints_eq_ordered]
   unfold orderedConstraints childConstraintLists
   rw [totalRowCount_sources interface offset inputs]
   simp only [List.length_range]
-  change 17 * 4475 = 76075
+  change 17 * 3071 = 52207
   norm_num
 
 /-- Exact logical-plus-R1CS private-column count for the chain. -/
@@ -198,7 +198,7 @@ theorem physicalPrivateColumnCount_eq (interface : Logical.Interface)
     (offset : Nat) (inputs : InputsAffine interface offset) :
     localLength (Circuit.ops (Logical.main interface) offset) +
       R1CS.totalFreshCount (logicalConstraints interface offset) =
-      98855 := by
+      74987 := by
   change localLength (Logical.opsAt interface offset) + _ = _
   rw [Logical.localLength_eq, totalFreshCount_eq interface offset inputs]
   rw [NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerChain.counts.1]
@@ -206,8 +206,8 @@ theorem physicalPrivateColumnCount_eq (interface : Logical.Interface)
 def footprint (interface : Logical.Interface)
     (inputs : ∀ offset, InputsAffine interface offset) :
     R1CS.CircuitFootprint (Logical.circuit interface) where
-  freshColumnCount := fun _ => 26316
-  physicalRowCount := fun _ => 76075
+  freshColumnCount := fun _ => 2448
+  physicalRowCount := fun _ => 52207
   freshColumnCount_eq := fun offset =>
     totalFreshCount_eq interface offset (inputs offset)
   physicalRowCount_eq := fun offset =>

@@ -78,8 +78,7 @@ private theorem foldedMatrices_get {logicalWidth : Nat} (plan : Plan logicalWidt
 private def matrixValues
     (matrices : Vector (Array K) Spec.ProductionRelation.matrixCount)
     (index : Nat) : Fin Spec.ProductionRelation.matrixCount → K :=
-  fun matrix => if matrix = Spec.ProductionRelation.zeroPort then K.zero
-    else (matrices[matrix.val]'matrix.isLt).getD index K.zero
+  fun matrix => (matrices[matrix.val]'matrix.isLt).getD index K.zero
 
 private def polynomial : CCSResidualTable.ConstraintPolynomial K
     Spec.ProductionRelation.matrixCount :=
@@ -112,7 +111,7 @@ def completionSum {logicalWidth : Nat} (plan : Plan logicalWidth)
     (alpha : CubePoint K cubeVariables) (gamma : K) : K :=
   let matrices := foldedMatrices plan assignment fixed
   let values := PrefixFold.foldPrefix extensionOps (freshPrefix assignment) fixed
-  SignedJointIdentity.gammaTerm extensionOps gamma 12960
+  SignedJointIdentity.gammaTerm extensionOps gamma 6912
     (extensionOps.add
       (NumericCompletionSum.numericSum extensionOps (foldedWidth plan.rowCount fixed)
         (matrixTerm fixed arity alpha matrices))
@@ -153,13 +152,11 @@ private theorem matrixTerm_outside {logicalWidth : Nat} (plan : Plan logicalWidt
       fun _ => K.zero := by
     funext matrix
     unfold matrixValues
-    by_cases zeroPort : matrix = Spec.ProductionRelation.zeroPort
-    · rw [if_pos zeroPort]
-    · rw [if_neg zeroPort, foldedMatrices_get]
-      apply getD_outside
-      rw [folded_size]
-      exact Nat.le_trans
-        (foldedWidth_mono fixed _ _ (matrixPrefix_size_le plan assignment matrix)) outside
+    rw [foldedMatrices_get]
+    apply getD_outside
+    rw [folded_size]
+    exact Nat.le_trans
+      (foldedWidth_mono fixed _ _ (matrixPrefix_size_le plan assignment matrix)) outside
   rw [matrixTerm, dif_pos inside, zeroImages, polynomial_zero]
   exact extensionLaws.mul_zero _
 
@@ -256,7 +253,7 @@ private theorem term_eq_polynomial (plan : Plan logicalWidth)
     (assignment : Fin logicalWidth → F) (fixed : List K) {arity : Nat}
     (dimension : arity + fixed.length = cubeVariables)
     (alpha : CubePoint K cubeVariables) (gamma : K) (vertex : BooleanVertex arity) :
-    SignedJointIdentity.gammaTerm extensionOps gamma 12960
+    SignedJointIdentity.gammaTerm extensionOps gamma 6912
         (extensionOps.add
           (matrixTerm fixed arity alpha (foldedMatrices plan assignment fixed)
             (NumericBooleanDomain.index vertex))
@@ -269,8 +266,7 @@ private theorem term_eq_polynomial (plan : Plan logicalWidth)
   let point := completionPoint fixed dimension vertex
   have reduction := PiCCS.v1_1.ZeroRunningPolynomial.qAtPoint_eq_fresh
     (source plan cubeFits ajtai fresh assignment)
-    (source_running_zero plan cubeFits ajtai fresh assignment)
-    (source_matrix13_zero plan cubeFits ajtai fresh assignment) alpha point gamma
+    (source_running_zero plan cubeFits ajtai fresh assignment) alpha point gamma
   have protocolEq : ProtocolDataRefinement.toProtocolData baseOps K.embed
       ((source plan cubeFits ajtai fresh assignment).toUnifiedInputs baseOps) =
       protocol plan cubeFits ajtai fresh assignment := rfl
@@ -279,13 +275,12 @@ private theorem term_eq_polynomial (plan : Plan logicalWidth)
   dsimp only [ProtocolPolynomial.messageAt] at reduction
   change ProtocolPolynomial.qAtPoint extensionOps
       (protocol plan cubeFits ajtai fresh assignment) alpha gamma point =
-    SignedJointIdentity.gammaTerm extensionOps gamma 12960
+    SignedJointIdentity.gammaTerm extensionOps gamma 6912
       (extensionOps.mul (SumCheckTruthPath.pointEquality extensionOps point alpha)
         (extensionOps.add
           (CCSResidualTable.evaluatePolynomial extensionOps
             (protocol plan cubeFits ajtai fresh assignment).constraintPolynomial
-            (fun matrix => if matrix = Spec.ProductionRelation.zeroPort then K.zero
-              else ((protocol plan cubeFits ajtai fresh assignment).freshMatrixImages
+            (fun matrix => ((protocol plan cubeFits ajtai fresh assignment).freshMatrixImages
                 freshIndex matrix).evaluate extensionOps point))
           (extensionOps.mul gamma
             (ProtocolPolynomial.strictNormResidual extensionOps
@@ -293,15 +288,11 @@ private theorem term_eq_polynomial (plan : Plan logicalWidth)
                 freshSource).evaluate extensionOps point))))) at reduction
   have images : matrixValues (foldedMatrices plan assignment fixed)
       (NumericBooleanDomain.index vertex) =
-      (fun matrix => if matrix = Spec.ProductionRelation.zeroPort then K.zero
-        else ((protocol plan cubeFits ajtai fresh assignment).freshMatrixImages freshIndex matrix).evaluate
-          extensionOps point) := by
+      (fun matrix => ((protocol plan cubeFits ajtai fresh assignment).freshMatrixImages
+        freshIndex matrix).evaluate extensionOps point) := by
     funext matrix
     unfold matrixValues
-    by_cases zeroPort : matrix = Spec.ProductionRelation.zeroPort
-    · rw [if_pos zeroPort, if_pos zeroPort]
-    · rw [if_neg zeroPort, if_neg zeroPort]
-      exact matrixRead_eq plan cubeFits ajtai fresh assignment fixed dimension vertex matrix
+    exact matrixRead_eq plan cubeFits ajtai fresh assignment fixed dimension vertex matrix
   have freshRead := freshRead_eq plan cubeFits ajtai fresh assignment fixed dimension vertex
   have constraint : (protocol plan cubeFits ajtai fresh assignment).constraintPolynomial = polynomial := rfl
   rw [constraint] at reduction
@@ -347,7 +338,7 @@ theorem completionSum_eq_sumCompletions (plan : Plan logicalWidth)
   have normSum := NumericCompletionSum.numericSum_prefix_eq_vertexSum
     extensionOps extensionLaws arity values.size
     (normTerm fixed arity alpha values) valuesFit (normTerm_outside fixed arity alpha values)
-  change SignedJointIdentity.gammaTerm extensionOps gamma 12960
+  change SignedJointIdentity.gammaTerm extensionOps gamma 6912
     (extensionOps.add
       (NumericCompletionSum.numericSum extensionOps (foldedWidth plan.rowCount fixed)
         (matrixTerm fixed arity alpha matrices))

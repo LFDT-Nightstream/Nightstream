@@ -14,7 +14,7 @@ from pathlib import Path
 
 # PiCCSInputCheck's selected Nightstream Goldilocks b=2, k_rho=16 schema.
 MODULUS = 18446744069414584321
-CHILDREN, MATRICES, DEGREE = 16, 14, 54
+CHILDREN, MATRICES, DEGREE = 16, 7, 54
 
 
 def numeric_json(value):

@@ -60,8 +60,8 @@ private def logicalCandidate (column : Nat) : Location :=
     ⟨(logicalOffset column - 2500) % logicalCountPerSource, Nat.mod_lt _ (by decide)⟩
 
 private def freshCandidate (column : Nat) : Location :=
-  .fresh ⟨((column - PiRLCStarts.samplerFreshStart) / 1548) % sourceCount, Nat.mod_lt _ (by decide)⟩
-    ⟨(column - PiRLCStarts.samplerFreshStart) % 1548, Nat.mod_lt _ (by decide)⟩
+  .fresh ⟨((column - PiRLCStarts.samplerFreshStart) / 144) % sourceCount, Nat.mod_lt _ (by decide)⟩
+    ⟨(column - PiRLCStarts.samplerFreshStart) % 144, Nat.mod_lt _ (by decide)⟩
 
 private def wordCandidate (column : Nat) : Location :=
   .word ⟨logicalIndex column % sourceCount, Nat.mod_lt _ (by decide)⟩
@@ -217,22 +217,22 @@ theorem classifySource_word (source : Fin sourceCount) (position : Fin ringDegre
 
 theorem classifySource_fresh (source : Fin sourceCount) (position : Fin freshCountPerSource) :
     classifySource (freshSource source position) = some (.fresh source position) := by
-  have bound : position.val < 1548 := position.isLt
+  have bound : position.val < 144 := position.isLt
   have column : freshSource source position =
-      PiRLCStarts.samplerFreshStart + source.val * 1548 + position.val := rfl
+      PiRLCStarts.samplerFreshStart + source.val * 144 + position.val := rfl
   have delta : freshSource source position - PiRLCStarts.samplerFreshStart =
-      source.val * 1548 + position.val := by rw [column]; omega
-  have quotient : (source.val * 1548 + position.val) / 1548 = source.val := by
-    rw [Nat.mul_comm source.val 1548, Nat.mul_add_div (by decide : 0 < 1548),
+      source.val * 144 + position.val := by rw [column]; omega
+  have quotient : (source.val * 144 + position.val) / 144 = source.val := by
+    rw [Nat.mul_comm source.val 144, Nat.mul_add_div (by decide : 0 < 144),
       Nat.div_eq_of_lt bound, Nat.add_zero]
   have candidate : freshCandidate (freshSource source position) = .fresh source position := by
     unfold freshCandidate
     apply congrArg₂ Location.fresh
     · apply Fin.ext
-      change ((freshSource source position - PiRLCStarts.samplerFreshStart) / 1548) % sourceCount = source.val
+      change ((freshSource source position - PiRLCStarts.samplerFreshStart) / 144) % sourceCount = source.val
       rw [delta, quotient, Nat.mod_eq_of_lt source.isLt]
     · apply Fin.ext
-      change (freshSource source position - PiRLCStarts.samplerFreshStart) % 1548 = position.val
+      change (freshSource source position - PiRLCStarts.samplerFreshStart) % 144 = position.val
       rw [delta, Nat.mul_add_mod_of_lt bound]
   unfold classifySource
   rw [if_pos (by rw [column]; omega), candidate]
@@ -423,7 +423,7 @@ theorem programRow_preserve
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
       logicalWidth) (assignment : Assignment F logicalWidth)
-    (index : Fin 38811) :
+    (index : Fin 14943) :
     OrdinarySourcePlan.SourceMap.PreservesRow (sourceMap geometry) assignment
       (resolvedEnv geometry assignment)
       (PiRLCSamplerOrdinaryDirectSource.programRow
@@ -443,7 +443,7 @@ def rowForms
     (_relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
-      logicalWidth) (index : Fin 38811) : OrdinaryRow.Forms logicalWidth :=
+      logicalWidth) (index : Fin 14943) : OrdinaryRow.Forms logicalWidth :=
   SourceCompiler.compileRow (sourceMap geometry)
     (PiRLCSamplerOrdinaryRetainedGeometry.oneColumn geometry)
     (PiRLCSamplerOrdinaryDirectSource.programRow
@@ -453,7 +453,7 @@ def rowForms
       (logicalWidth := relationLogicalWidth)
       (publicFits := relationPublicFits) index)
 
-/-- Canonical direct 14-matrix rows for every sampler ordinary constraint. -/
+/-- Canonical direct 7-matrix rows for every sampler ordinary constraint. -/
 def plan
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (_relation : ProductionKey.LogicalRelation relationLogicalWidth

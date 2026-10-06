@@ -26,7 +26,7 @@ def main():
     output = Path(args.claim_output)
     require(not output.exists(), "claim output already exists")
     commitment = json.loads(Path(args.commitment).read_text())
-    require(len(commitment) == 5 and commitment[:4] == [1, 1605616, 0, 1605616],
+    require(len(commitment) == 5 and commitment[:4] == [1, 1107491, 0, 1107491],
             "expected the complete selected Lean commitment")
     rows = commitment[4]
     require(len(rows) == 22 and all(len(row) == 54 and canonical(row) for row in rows),

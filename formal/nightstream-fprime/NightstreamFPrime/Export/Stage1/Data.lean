@@ -238,7 +238,7 @@ def outputEval_ASegment
     outputEval_AWords⟩
 
 /-- The 17 output claims remain in source order. Within each source, the
-separate Pad family precedes the separate 14-matrix family. -/
+separate Pad family precedes the separate 7-matrix family. -/
 def piCcsOutputSegments : List Segment :=
   (List.finRange productionShape.sourceCount).flatMap fun source =>
     [outputEval_KSegment source, outputEval_ASegment source]
@@ -306,7 +306,7 @@ def publicSegments : List Segment :=
       NightstreamFPrime.Layout.Stage1.Spartan.expectedContextColumnCount⟩]
 
 def physicalLayout : PhysicalLayout where
-  rowCount := 20109913
+  rowCount := 14654885
   privateColumnCount :=
     NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount
   constantColumn := NightstreamFPrime.Layout.Stage1.Spartan.constantColumn
@@ -521,18 +521,18 @@ theorem Components.ordinaryRows_length (components : Components) :
 /-- Exact total row coverage for any component lists with the production
 counts. This theorem never inspects a concrete component list. -/
 theorem Components.rowCoverage (components : Components)
-    (arithmeticRows_length : components.arithmeticRows.length = 237941)
+    (arithmeticRows_length : components.arithmeticRows.length = 107561)
     (permutationInvocations_length :
-      components.permutationInvocations.length = 2685)
+      components.permutationInvocations.length = 1614)
     (templateRows_length :
       (PilotData.permutationTemplate ()).rows.length = 1096)
     (pilotOrdinaryRows_length :
       (PilotData.circuitPackage ()).witnessInstructions.length +
-        (PilotData.circuitPackage ()).assertionRows.length = 1330)
+        (PilotData.circuitPackage ()).assertionRows.length = 686)
     (hashChainRows :
-      priorChain.witnessLength + outputChain.witnessLength = 9026656)
+      priorChain.witnessLength + outputChain.witnessLength = 6817120)
     (compactRows_length :
-      components.toCircuitPackage.compactRowCount = 7901226) :
+      components.toCircuitPackage.compactRowCount = 5960574) :
     (components.toCircuitPackage.hashChains.map
         (fun chain => chain.witnessLength)).sum +
       components.toCircuitPackage.permutationInvocations.length *
@@ -543,15 +543,15 @@ theorem Components.rowCoverage (components : Components)
       components.toCircuitPackage.layout.rowCount := by
   have ordinaryFixed :
       components.toCircuitPackage.witnessInstructions.length +
-      components.toCircuitPackage.assertionRows.length = 239271 := by
+      components.toCircuitPackage.assertionRows.length = 108247 := by
     calc
       _ = (PilotData.circuitPackage ()).witnessInstructions.length +
           (PilotData.circuitPackage ()).assertionRows.length +
             components.arithmeticRows.length :=
         components.ordinaryRows_length
-      _ = 1330 + 237941 := by
+      _ = 686 + 107561 := by
         rw [pilotOrdinaryRows_length, arithmeticRows_length]
-      _ = 239271 := by norm_num
+      _ = 108247 := by norm_num
   rw [components.toCircuitPackage_hashChains,
     components.toCircuitPackage_permutationInvocations,
     components.toCircuitPackage_permutation,
@@ -559,17 +559,17 @@ theorem Components.rowCoverage (components : Components)
   simp only [List.map_cons, List.map_nil, List.sum_cons, List.sum_nil,
     Nat.add_zero]
   rw [permutationInvocations_length, templateRows_length]
-  rw [show physicalLayout.rowCount = 20109913 from rfl]
+  rw [show physicalLayout.rowCount = 14654885 from rfl]
   calc
     _ = (priorChain.witnessLength + outputChain.witnessLength) +
-          2685 * 1096 +
+          1614 * 1096 +
           components.toCircuitPackage.compactRowCount +
           (components.toCircuitPackage.witnessInstructions.length +
           components.toCircuitPackage.assertionRows.length) := by
       omega
-    _ = 9026656 + 2685 * 1096 + 7901226 + 239271 := by
+    _ = 6817120 + 1614 * 1096 + 5960574 + 108247 := by
       rw [hashChainRows, compactRows_length, ordinaryFixed]
-    _ = 20109913 := by norm_num
+    _ = 14654885 := by norm_num
 
 def components (_unit : Unit) : Components :=
   Components.of (arithmeticRows ()) (permutationInvocations ())

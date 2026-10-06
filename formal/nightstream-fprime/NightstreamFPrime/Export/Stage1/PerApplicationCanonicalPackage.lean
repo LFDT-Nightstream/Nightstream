@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint
+import NightstreamFPrime.Export.SharedFormulas
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransport
 import NightstreamFPrime.Export.Stage1.PerApplicationPackageSourceCustody
 import NightstreamFPrime.Export.StreamingIdentity
@@ -666,6 +667,7 @@ def verificationKeyBinding {program : Program}
     Lifecycle.Stage1.VerificationKey.Binding :=
   Lifecycle.Stage1.VerificationKey.ofAuthority
     (packageIdentity fits setup) (authority fits setup)
+    (SharedFormulas.libraryDigest ())
 
 def verificationKeyBindingFromStructural {program : Program}
     (fits : FitsTwoPow28 program) (setup : CommitmentSetup program)
@@ -676,6 +678,7 @@ def verificationKeyBindingFromStructural {program : Program}
   {
     packageIdentity := packageIdentityFromParts structural context
     context := context
+    formulas := SharedFormulas.libraryDigest ()
   }
 
 /-- Construct the complete binding from independently recomputed structural
@@ -692,6 +695,7 @@ def verificationKeyBindingFromStructuralAndApplicationDigest
   {
     packageIdentity := packageIdentityFromParts structural context
     context := context
+    formulas := SharedFormulas.libraryDigest ()
   }
 
 @[simp] theorem

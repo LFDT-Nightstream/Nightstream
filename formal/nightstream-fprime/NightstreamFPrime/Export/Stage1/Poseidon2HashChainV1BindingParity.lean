@@ -16,7 +16,7 @@ open NightstreamFPrime.Export.Codec
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Spec
 
-def schema : Nat := 1
+def schema : Nat := 2
 
 private def packageIdentityFromParts
     (structural : VerifierContext.Digest4)
@@ -39,6 +39,7 @@ private def bindingFromComponentDigests
   {
     packageIdentity := packageIdentityFromParts structural context
     context := context
+    formulas := SharedFormulas.libraryDigest ()
   }
 
 theorem bindingFromComponentDigests_eq_production
@@ -87,11 +88,12 @@ private def bindingValue (structural : VerifierContext.Digest4)
     fieldWordsValue currentBinding.packageIdentity.toList,
     fieldWordsValue currentBinding.context.serialize,
     fieldWordsValue currentBinding.serialize,
-    fieldWordsValue currentBinding.digest]
+    fieldWordsValue currentBinding.digest,
+    fieldWordsValue currentBinding.formulas.toList]
 
-/-- Schema 1 fields: structural package identity, final package identity,
-serialized verifier-context descriptor, complete binding preimage, and final
-verification-key digest. This mode replays supplied component digests. -/
+/-- Schema 2 fields: structural package identity, final package identity,
+serialized verifier-context descriptor, complete binding preimage, final
+verification-key digest, and formula-library digest. This mode replays supplied component digests. -/
 def parityValue (structural relation application nifsKey commitmentKey :
     VerifierContext.Digest4) : Value :=
   bindingValue structural

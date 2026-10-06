@@ -58,8 +58,8 @@ def rust_code(text):
 
 
 def check(actual, expected, rust):
-    if not isinstance(actual, list) or len(actual) != 6 or type(actual[0]) is not int or actual[0] != 1:
-        raise ValueError('Expected the canonical schema-1 binding value')
+    if not isinstance(actual, list) or len(actual) != 7 or type(actual[0]) is not int or actual[0] != 2:
+        raise ValueError('Expected the canonical schema-2 binding value')
     # JSON equality preserves types: a Boolean is not a field element.
     if json.dumps(actual, separators=(',', ':')) != json.dumps(expected, separators=(',', ':')):
         raise ValueError('Canonical binding differs from the committed fixture')

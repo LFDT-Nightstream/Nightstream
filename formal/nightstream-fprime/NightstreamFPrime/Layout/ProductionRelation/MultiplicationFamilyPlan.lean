@@ -24,8 +24,7 @@ structure Interface (logicalWidth rowCount : Nat) where
 def forms {logicalWidth rowCount : Nat}
     (interface : Interface logicalWidth rowCount) (row : Fin rowCount) :
     OrdinaryRow.Forms logicalWidth :=
-  { selector := SparseForm.singleton interface.oneColumn 1
-    a := interface.left row
+  { a := interface.left row
     b := interface.right row
     c := interface.output row }
 
@@ -73,7 +72,7 @@ theorem planRowsZero_iff {logicalWidth rowCount : Nat}
     (interface : Interface logicalWidth rowCount)
     (rowCount_le : rowCount ≤ 2 ^ NightstreamFPrime.Lifecycle.cubeVariables)
     (assignment : Assignment F logicalWidth)
-    (one : assignment interface.oneColumn = 1) :
+    :
     (plan interface rowCount_le).RowsZero assignment ↔
       ∀ row,
         (interface.left row).eval assignment *
@@ -83,10 +82,10 @@ theorem planRowsZero_iff {logicalWidth rowCount : Nat}
   · intro rowsZero row
     have zero := rowsZero row
     rw [plan_residual_at, OrdinaryRow.Forms.residual_eq] at zero
-    simp [forms, one] at zero
+    simp [forms] at zero
     exact Lean.Grind.AddCommGroup.sub_eq_zero_iff.mp zero
   · intro equations row
     rw [plan_residual_at, OrdinaryRow.Forms.residual_eq]
-    simp [forms, one, equations row]
+    simp [forms, equations row]
 
 end NightstreamFPrime.Layout.ProductionRelation.MultiplicationFamilyPlan

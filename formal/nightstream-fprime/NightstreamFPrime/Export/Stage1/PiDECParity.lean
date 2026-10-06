@@ -89,7 +89,7 @@ def childPublicInputsValue (fixture : PiDECNonzero.Fixture) : Value :=
     publicInputValue (PiDECNonzero.childPublicInput fixture child))
 
 /-- Input order after the PiRLC parent: 16 commitments, 16 `Eval_K`
-families, 16 separate 7-matrix `Eval_A` families, then 16 public digit
+families, 16 separate 4-matrix `Eval_A` families, then 16 public digit
 vectors. This is the exact `PiDECInputs` physical segment order. -/
 def inputValue (fixture : PiDECNonzero.Fixture)
     (packageIdentity : VerifierContext.Digest4) : Value :=

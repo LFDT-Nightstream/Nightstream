@@ -144,7 +144,7 @@ latest reviewed cut, the Lean source uses schema 6 while the stored artifact
 and recorded identity use schema 5; the Rust package gates are therefore red.
 
 - `Spec/`: Goldilocks/Φ₈₁ algebra, profile, Poseidon2 reference, sumcheck,
-  exact v1.1 PiCCS with separate Pad and 7-matrix evaluation families,
+  exact v1.1 PiCCS with separate Pad and 4-matrix evaluation families,
   PiRLC/PiDEC verifiers, composed NIFS `Key`/`verify`, Φ₈₁ PiRLC/PiDEC
   algebras, HyperNova Construction 2, and Goldilocks primality.
 - `Lifecycle/`: `Types` (slotCount 1, cubeVariables 28,
@@ -169,8 +169,8 @@ and recorded identity use schema 5; the Rust package gates are therefore red.
   soundness and completeness, physical preservation, package soundness,
   and package completeness. `PackageCompleteness.complete_piCcsRows`
   constructs all canonical PiCCS package rows from `PhaseHolds`.
-- The current pilot + PiCCS source package carries the Lean-owned selective
-  relation with 14 matrix tags, 74 terms, degree bound 9, and 28 rounds. Its
+- The current pilot + PiCCS source package carries the Lean-owned gate
+  relation with 4 matrix tags, 3 terms, degree bound 8, and 28 rounds. Its
   proved layout has 27,893,668 rows, 28,007,520 private columns, 58 public
   columns, 28,007,579 total columns, and joint domain 28,007,578. Re-check
   and update these values from the proved layout on every identity-changing
@@ -351,7 +351,7 @@ PiCCS
 │   └── the fixed 25-round chain
 ├── final evaluation
 │   ├── Eval_K: the separate Pad family
-│   ├── Eval_A: the separate 7-matrix family
+│   ├── Eval_A: the separate 4-matrix family
 │   └── the v1.1 final joint identity
 ├── output reduced claims
 └── the complete PiCCS FormalCircuit

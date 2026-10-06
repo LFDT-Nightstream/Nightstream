@@ -55,7 +55,7 @@ fn shared_poseidon_templates_match_every_reference_row() {
             assert_eq!(*row, actual.row(logical_width, ordinal).unwrap());
         }
         // A retained field remains one operator through formula substitution.
-        let output = &visited[0][4];
+        let output = &visited[0][2];
         assert_eq!(output.terms().len(), 1);
         assert_eq!(output.terms()[0].column_count(), 41);
         assert_eq!(output.entries().len(), 41);
@@ -155,7 +155,7 @@ fn phi81_quotient_rows_accept_product_and_reject_omitted_node_attack() {
                             sum + entry.coefficient * values[entry.column]
                         })
                 };
-                evaluate(6) * (evaluate(0) * evaluate(2) - evaluate(4))
+                evaluate(0) * evaluate(1) - evaluate(2)
             })
             .collect::<Vec<_>>()
     };

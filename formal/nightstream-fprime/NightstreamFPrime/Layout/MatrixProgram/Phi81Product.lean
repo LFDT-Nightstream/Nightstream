@@ -263,7 +263,7 @@ theorem Block.row?_of_loaded (block : Block) (logicalWidth ordinal : Nat)
     (selected : ringDescriptor? block.families (ordinal / 108) = some descriptor)
     (interface : Phi81ProductPlan.Interface logicalWidth)
     (loaded : block.interface? logicalWidth descriptor = some interface)
-    (row : ProductSumPlan.Row logicalWidth)
+    (row : OrdinaryRow.Forms logicalWidth)
     (rowSelected : (Phi81ProductPlan.rows interface)[ordinal % 108]? = some row) :
     block.row? logicalWidth ordinal = some row.meaningfulForm := by
   simp [Block.row?, bound, selected, loaded, rowSelected]

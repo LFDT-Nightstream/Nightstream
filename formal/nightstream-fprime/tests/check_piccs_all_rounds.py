@@ -27,7 +27,7 @@ def main():
             "the Lean directory must contain exactly all 28 round files")
     sequence(proof, 7, "Rust input")
     for row in sequence(proof[3], 28, "Rust round messages"):
-        for value in sequence(row, 10, "Rust round coefficients"):
+        for value in sequence(row, 9, "Rust round coefficients"):
             extension(value, "Rust round coefficient")
     previous = None
     for index in range(28):
@@ -39,17 +39,17 @@ def main():
                     f"Lean round {index} does not continue the prior saved round")
         compare(public, lean, proof, phase, index)
         changed = copy.deepcopy(proof)
-        changed[3][index][9][0] = (changed[3][index][9][0] + 1) % 18446744069414584321
+        changed[3][index][8][0] = (changed[3][index][8][0] + 1) % 18446744069414584321
         try:
             compare(public, lean, changed, phase, index)
         except ValueError as error:
-            require(str(error).startswith(f"Q[{index}] coefficient 9 differs:"),
+            require(str(error).startswith(f"Q[{index}] coefficient 8 differs:"),
                     f"round {index}: target mutation failed for an unrelated reason")
         else:
             raise ValueError(f"round {index}: changed target was accepted")
         previous = lean
     print(json.dumps({"event": "piccs_all_rounds_comparison_passed", "rounds": 28,
-                      "matched_K_coefficients": 280, "matched_field_words": 560,
+                      "matched_K_coefficients": 252, "matched_field_words": 504,
                       "matched_transcript_transitions": 28, "changed_targets_rejected": 28,
                       "scope": "complete round messages and causal saved traces; final evaluations remain separate"}))
 

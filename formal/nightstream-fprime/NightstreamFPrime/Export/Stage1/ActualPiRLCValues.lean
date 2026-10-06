@@ -137,7 +137,7 @@ theorem rowsZero_implies_equation
   let ring := (PiRLCProductRingSchedule.ofLane descriptor).invocation
   have ringEquation := Phi81ProductFamilyPlan.planRowsZero_implies_ringProduct
     (PiRLCProductPlan.interface (inputs geometry)) PiRLCProductPlan.rowCount_le
-    assignment one rows ring
+    assignment rows ring
   have equation := congrFun ringEquation descriptor.lane
   change (PiRLCProductPlan.outputForm (inputs geometry)
       (PiRLCProductRingSchedule.laneInvocation ring descriptor.lane)).eval assignment =
@@ -261,7 +261,7 @@ theorem rowsZero_implies_parentEvalA_sum
     (assignment : Assignment F logicalWidth)
     (one : assignment (inputs geometry).oneColumn = 1)
     (rows : (PiRLCProductPlan.plan (inputs geometry)).RowsZero assignment)
-    (index : Fin 756) :
+    (index : Fin 432) :
     ((PiDECDirectPlan.Location.parentEvalA index).form geometry).eval assignment =
       (Finset.range PiRLCCombinationInvocations.sourceCount).sum
         (contributionAt geometry assignment (PiDECValueWiring.finalDescriptor .evalA index)) := by

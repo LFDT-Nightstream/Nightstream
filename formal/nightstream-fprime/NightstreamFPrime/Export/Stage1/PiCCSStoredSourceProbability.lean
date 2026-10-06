@@ -92,7 +92,7 @@ def sourceProgram (input : PiCCSInputCheck.Input) (checkClock : CheckClock) (acc
 malformed raw certificates. Neither a matrix nor a checker premise remains. -/
 theorem sourceProgram_correct (input : PiCCSInputCheck.Input)
     (checkClock : CheckClock) (accessClock : AccessClock) :
-    CheckedWitnessExtraction.Correct (width := 9) (sourceProgram input checkClock accessClock)
+    CheckedWitnessExtraction.Correct (width := 8) (sourceProgram input checkClock accessClock)
       commit productionGlobalParams (statement input) := by
   constructor
   · intro probe witness
@@ -141,7 +141,7 @@ variable {Context State Tape : Type*}
   [Fintype (Challenge (ProductionKey.key PiDECInputCheck.relation Poseidon2HashChainV1Setup.productionAjtaiKey).piRlcAlgebra)]
   [Nonempty (Challenge (ProductionKey.key PiDECInputCheck.relation Poseidon2HashChainV1Setup.productionAjtaiKey).piRlcAlgebra)]
   (contexts : PMF Context)
-  (originalFirstPhase : Context → InteractivePrefix.Prover State productionShape 9)
+  (originalFirstPhase : Context → InteractivePrefix.Prover State productionShape 8)
   (publicCheck : Context → Probe K productionShape → Bool)
   (continuation : ∀ context (coins : PublicCoins K productionShape)
     (output : FullOutputCoordinates.FullOutput K productionShape), State →

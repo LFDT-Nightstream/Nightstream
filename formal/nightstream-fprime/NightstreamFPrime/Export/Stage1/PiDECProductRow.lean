@@ -14,7 +14,7 @@ open NightstreamFPrime.Layout.ProductionRelation
 
 /-- Select a fixed quotient check without constructing its sibling rows. -/
 def row? {columns : Nat} (interface : Phi81ProductPlan.Interface columns)
-    (ordinal : Nat) : Option (ProductSumPlan.Row columns) :=
+    (ordinal : Nat) : Option (OrdinaryRow.Forms columns) :=
   if within : ordinal < 108 then
     some (Phi81ProductPlan.rowAt interface ⟨ordinal, within⟩)
   else none
@@ -54,7 +54,7 @@ theorem blockRow?_of_grouped_loaded (block : MatrixProgram.Phi81Product.Block)
     (interface : Phi81ProductPlan.Interface columns)
     (interfaceLoaded : PiDECProductInterface.interface? block columns descriptor =
       some interface)
-    (row : ProductSumPlan.Row columns)
+    (row : OrdinaryRow.Forms columns)
     (rowLoaded : row? interface (index % 108) = some row) :
     block.row? columns (firstRow + index) = some row.meaningfulForm := by
   have quotient : (firstRow + index) / 108 = firstRow / 108 + index / 108 := by

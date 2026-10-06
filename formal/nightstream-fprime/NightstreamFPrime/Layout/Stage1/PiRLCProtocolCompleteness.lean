@@ -113,7 +113,7 @@ variable
   (outputFixed : PilotProduction.FixedPreimage output)
   (digestFixed : digest.length = PilotProduction.digestWords)
   (values : PiCCSProofInputs.ProofValues) (context : VerifierContext.Digest4)
-  (template : Proof 9)
+  (template : Proof 8)
 
 private theorem protocol_readback
     (initial : Env)

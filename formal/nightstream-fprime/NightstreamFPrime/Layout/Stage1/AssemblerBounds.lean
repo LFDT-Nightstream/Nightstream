@@ -186,7 +186,7 @@ theorem piCcsOutputStateBelow
     rfl
   rw [endEq,
     PiCCS.v1_1.Formal.finalOffset_eq_finalRowOffset relation interface,
-    PiCCS.v1_1.Formal.finalRowOffset_eq_add_of_degreeBound_eq_nine interface
+    PiCCS.v1_1.Formal.finalRowOffset_eq_add_of_degreeBound_eq_eight interface
       (AssemblerInputs.piCcsOffset program) rfl]
   unfold AssemblerInputs.piRlcOffset
   omega

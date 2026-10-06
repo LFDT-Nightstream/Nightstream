@@ -92,13 +92,18 @@ fn squeeze(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, labe
     value
 }
 
-fn commitment_fields(commitment: &Cmt) -> Result<Vec<F>, PiCcsError> {
+fn check_commitment(commitment: &Cmt) -> Result<(), PiCcsError> {
     let kappa = neo_params::nightstream_goldilocks_k16::KAPPA as usize;
     if commitment.d != D || commitment.kappa != kappa || commitment.data.len() != D * kappa {
         return Err(PiCcsError::InvalidInput(
             "PaperExact v1_1 commitment does not have the fixed Ajtai shape".into(),
         ));
     }
+    Ok(())
+}
+
+fn commitment_fields(commitment: &Cmt) -> Result<Vec<F>, PiCcsError> {
+    check_commitment(commitment)?;
     Ok(commitment.data.clone())
 }
 
@@ -160,6 +165,14 @@ pub(super) fn bind_and_sample(
     if fresh.is_empty() {
         return Err(PiCcsError::InvalidInput(
             "PaperExact v1_1 digest-only statement requires a fresh claim".into(),
+        ));
+    }
+    for claim in running {
+        check_commitment(&claim.c)?;
+    }
+    if fresh.iter().any(|claim| claim.adv.is_some()) || running.iter().any(|claim| claim.adv.is_some()) {
+        return Err(PiCcsError::InvalidInput(
+            "PaperExact v1_1 does not bind auxiliary lane commitments".into(),
         ));
     }
     let prior_point = running

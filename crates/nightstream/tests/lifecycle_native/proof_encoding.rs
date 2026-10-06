@@ -8,7 +8,13 @@ use p3_field::PrimeField64;
 impl crate::folding::pi_ccs::Proof {
     pub(crate) fn canonical_bytes(&self) -> Vec<u8> {
         let mut output = Vec::new();
-        push_bytes(&mut output, &self.sumcheck.canonical_bytes());
+        push_bytes(
+            &mut output,
+            &self
+                .sumcheck
+                .canonical_bytes()
+                .expect("rectangular PiCCS rounds"),
+        );
         push_claims(&mut output, &self.outputs);
         output
     }
@@ -25,7 +31,11 @@ impl NifsProof {
         output.extend_from_slice(b"NS-NIFS-PROOF");
         push_u64(&mut output, 1);
 
-        let pi_ccs = self.pi_ccs.sumcheck.canonical_bytes();
+        let pi_ccs = self
+            .pi_ccs
+            .sumcheck
+            .canonical_bytes()
+            .expect("rectangular PiCCS rounds");
         push_bytes(&mut output, &pi_ccs);
         push_claims(&mut output, &self.pi_ccs.outputs);
         push_claim(&mut output, &self.pi_rlc.combined);

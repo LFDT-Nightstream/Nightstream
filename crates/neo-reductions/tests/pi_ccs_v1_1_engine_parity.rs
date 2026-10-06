@@ -337,7 +337,10 @@ fn assert_parity(rows: usize, columns: usize) {
     assert!(paper_outputs
         .iter()
         .all(|output| { output.eval_k.len() == D.next_power_of_two() && output.eval_a.len() == structure.t() }));
-    assert_eq!(paper_proof.canonical_bytes(), optimized_proof.canonical_bytes());
+    assert_eq!(
+        paper_proof.canonical_bytes().unwrap(),
+        optimized_proof.canonical_bytes().unwrap()
+    );
 
     for mode in [FoldingMode::PaperExact, FoldingMode::Optimized] {
         assert!(mode_verify(
@@ -534,7 +537,7 @@ fn accepting_v1_1_path_exports_receipt_and_rejects_mutations() {
         &cache,
     )
     .expect("accepted v1_1 execution receipt");
-    assert_eq!(receipt.proof.proof_bytes, proof.canonical_bytes());
+    assert_eq!(receipt.proof.proof_bytes, proof.canonical_bytes().unwrap());
     assert_eq!(receipt.proof.output_eval_k.len(), outputs.len() * D);
     assert_eq!(receipt.proof.output_eval_a.len(), outputs.len() * structure.t() * D);
     assert_eq!(receipt.statement.relation_id.len(), 4);
@@ -836,7 +839,7 @@ fn carried_gamma_power_handles_protocol_scale_exponents() {
 #[test]
 fn canonical_codec_is_versioned_and_not_bincode() {
     let proof = PiCcsProof::new(vec![vec![K::ZERO; 2]]);
-    let bytes = proof.canonical_bytes();
+    let bytes = proof.canonical_bytes().unwrap();
     assert_eq!(u64::from_le_bytes(bytes[0..8].try_into().unwrap()), 1102);
     assert_eq!(u64::from_le_bytes(bytes[8..16].try_into().unwrap()), 1);
 }

@@ -1,8 +1,12 @@
-//! Terminal tamper sweep on a folded proof: every field of an active envelope
-//! either produces its expected rejection or is checked below as
-//! non-authoritative. The exhaustive patterns list every proof variant and
-//! every claim, instance, witness, and commitment field, so a new one fails to
-//! compile until this sweep is reviewed. `Stage1State` fields are private; the
+//! Terminal tamper sweep on a folded proof. Each case changes one envelope
+//! field and checks the exact decision: the first check that fails, or
+//! acceptance for a documented non-authoritative field. The cases stop at the
+//! statement, shape, projection, state-hash and commitment checks. The
+//! relation check is covered by the recursive and staged terminal tests; the
+//! opening checks only by the manual `staged_opening_tests`. The patterns
+//! below name every proof variant and every claim, instance, witness and
+//! commitment field, so a new field must at least be named here. The
+//! `Stage1State` and `Stage1Envelope` fields are private; `Parts` and the
 //! state cases cover them.
 use super::*;
 use crate::engine::Backend;

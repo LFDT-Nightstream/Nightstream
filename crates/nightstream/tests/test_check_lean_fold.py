@@ -2,10 +2,12 @@ import contextlib
 import copy
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -153,6 +155,34 @@ class LeanFoldCheckTests(unittest.TestCase):
         self.assertEqual(owners["internal"], ["unbounded_parent", "rejected_C_stops_D"])
         with self.assertRaisesRegex(ValueError, "incomplete Lean mutation result"):
             check.mutation_rejections(manifest, complete.replace("rejected_C_stops_D=1", "rejected_C_stops_D=0"))
+
+
+class WaitForExitTests(unittest.TestCase):
+    def child(self, code):
+        return subprocess.Popen([sys.executable, "-c", code])
+
+    def test_returns_the_exit_code_before_the_timeout(self):
+        process = self.child("import sys; sys.exit(3)")
+        started = time.monotonic()
+        self.assertEqual(check.wait_for_exit(process, 60), 3)
+        self.assertLess(time.monotonic() - started, 30)
+
+    def test_running_process_times_out_like_wait(self):
+        process = self.child("import time; time.sleep(60)")
+        try:
+            with self.assertRaises(subprocess.TimeoutExpired):
+                check.wait_for_exit(process, 0.2)
+            self.assertIsNone(process.poll())
+        finally:
+            process.kill()
+            process.wait()
+
+    def test_exited_unreaped_process_is_reaped(self):
+        process = self.child("pass")
+        # Wait for the exit without reaping, so that the process is a zombie.
+        os.waitid(os.P_PID, process.pid, os.WEXITED | os.WNOWAIT)
+        self.assertEqual(check.wait_for_exit(process, 60), 0)
+        self.assertEqual(process.returncode, 0)
 
 
 if __name__ == "__main__":

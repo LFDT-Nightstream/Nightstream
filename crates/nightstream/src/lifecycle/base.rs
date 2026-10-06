@@ -110,14 +110,6 @@ impl PreparedLifecycle {
             output_digest,
             self.binding.verifier_context().clone(),
         )?;
-        let frame = digest_bytes(output_digest);
-        for claim in running
-            .claims
-            .iter_mut()
-            .chain(running.parent_authority.iter_mut())
-        {
-            claim.fold_digest = frame;
-        }
         let witnesses = std::mem::take(&mut running.witnesses);
         Ok((
             Stage1StepInputs {

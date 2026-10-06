@@ -106,7 +106,7 @@ pub(crate) fn prove(
         return Err(pi_dec::Error::Engine(folding::kernels::Error::PiDecPublicCheckFailed { ok_y, ok_x, ok_c }).into());
     }
     Ok((
-        RunningInstance::new(children.clone(), digits, Some(parent.clone())),
+        RunningInstance::new(children.clone(), digits),
         NifsProof {
             pi_ccs: c,
             pi_rlc: pi_rlc::Proof { combined: parent },

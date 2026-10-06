@@ -84,7 +84,6 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
     )
     .unwrap();
     assert_eq!(next.claims, verified.claims);
-    assert_eq!(next.parent_authority, verified.parent_authority);
     let outgoing = transcript
         .snapshot()
         .state()

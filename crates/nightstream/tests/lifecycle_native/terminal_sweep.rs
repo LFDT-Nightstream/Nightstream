@@ -8,7 +8,8 @@
 //! opening checks. A relation failure is covered by the recursive and staged
 //! terminal tests. The patterns
 //! below name every proof variant and every claim, instance, witness and
-//! commitment field, so a new field must at least be named here. The
+//! commitment field, so a new field must at least be named here. The second
+//! fold starts from decoded proof bytes. The
 //! `Stage1State` and `Stage1Envelope` fields are private; `Parts` and the
 //! state cases cover them.
 use super::staged::opening_tests::{change_openings, labels, Opening};
@@ -355,12 +356,6 @@ fn cases() -> Vec<Case> {
                 claim.fold_digest[0] ^= 1;
             }
         }),
-        ignored("running parent authority removed", |parts| {
-            parts.running.parent_authority = None
-        }),
-        ignored("running parent authority replaced", |parts| {
-            parts.running.parent_authority = Some(parts.running.claims[0].clone())
-        }),
         ignored("fresh private witness cache w", |parts| {
             parts.fresh.witness.w = vec![F::ONE]
         }),
@@ -383,6 +378,11 @@ fn terminal_rejects_every_authoritative_envelope_change() {
     let first = output(initial, message);
     let base = package
         .extend_with_output(Stage1Envelope::initial(initial), &words, first, None)
+        .unwrap();
+    // Fold from the decoded bytes, as a separate prover would: the codec
+    // carries no frame digest or `w`, and no check reads them.
+    let base = package
+        .decode_proof(&package.encode_proof(&base).unwrap())
         .unwrap();
     let second = output(first, message);
     // Prove the second fold once; the honest envelope and the balanced
@@ -408,7 +408,6 @@ fn terminal_rejects_every_authoritative_envelope_change() {
     let RunningInstance {
         claims: _,
         witnesses: _,
-        parent_authority: _,
     } = &honest.running;
     let CeClaim {
         c: _,
@@ -437,10 +436,6 @@ fn terminal_rejects_every_authoritative_envelope_change() {
     assert_ne!(
         honest.running.claims[0].eval_k, honest.running.claims[1].eval_k,
         "the folded proof carries a non-default running instance"
-    );
-    assert!(
-        honest.running.parent_authority.is_some(),
-        "the parent cases remove and replace an existing parent"
     );
 
     // Each change is verified against the envelope's own state, so the state

@@ -39,28 +39,25 @@ pub struct CcsInstance {
     pub claim: CcsClaim,
     pub witness: CcsWitness,
 }
+/// The running PiDEC children and, for the prover, their openings. A claim's
+/// `fold_digest` is a cache: no reduction reads a running claim's frame.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct RunningInstance {
     pub claims: Vec<CeClaim>,
     pub witnesses: Vec<Mat<F>>,
-    pub parent_authority: Option<CeClaim>,
 }
 impl RunningInstance {
-    pub fn new(claims: Vec<CeClaim>, witnesses: Vec<Mat<F>>, parent_authority: Option<CeClaim>) -> Self {
-        Self {
-            claims,
-            witnesses,
-            parent_authority,
-        }
+    pub fn new(claims: Vec<CeClaim>, witnesses: Vec<Mat<F>>) -> Self {
+        Self { claims, witnesses }
     }
     pub fn claims_only(&self) -> Self {
-        Self::new(self.claims.clone(), Vec::new(), self.parent_authority.clone())
+        Self::new(self.claims.clone(), Vec::new())
     }
     pub(crate) fn is_empty(&self) -> bool {
-        self.claims.is_empty() && self.witnesses.is_empty() && self.parent_authority.is_none()
+        self.claims.is_empty() && self.witnesses.is_empty()
     }
     pub(crate) fn prover_shape_is_valid(&self) -> bool {
-        self.claims.len() == self.witnesses.len() && self.claims.is_empty() == self.parent_authority.is_none()
+        self.claims.len() == self.witnesses.len()
     }
     pub(crate) fn canonical_zero(pp: &Params, s: &Structure, m_in: usize) -> Result<Self, &'static str> {
         if m_in > s.m || m_in % D != 0 {
@@ -83,9 +80,8 @@ impl RunningInstance {
             adv: None,
         };
         Ok(Self::new(
-            vec![claim.clone(); pp.k_rho() as usize],
+            vec![claim; pp.k_rho() as usize],
             vec![Mat::virtual_constant(D, s.m.div_ceil(D), F::ZERO); pp.k_rho() as usize],
-            Some(claim),
         ))
     }
 }

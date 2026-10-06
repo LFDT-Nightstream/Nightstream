@@ -13,12 +13,13 @@ import sys
 ROOT = Path(__file__).resolve().parents[3]
 GOLDILOCKS_MODULUS = 18446744069414584321
 ENVELOPE_FIELDS = {
-    "schema", "iteration", "z0", "current", "child_witness_count",
-    "running_claims", "running_parent",
+    "schema", "iteration", "z0", "current", "child_witness_count", "running_claims",
 }
-# These old record fields describe file locations and the evidence scope.
+# These old record fields describe file locations and the evidence scope. The
+# old `running_parent` was a cache that no check reads; it is not compared.
 REFERENCE_METADATA = {
     "child_witness_directory", "fresh_claim_file", "fresh_witness_file", "scope",
+    "running_parent",
 }
 
 

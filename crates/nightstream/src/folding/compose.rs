@@ -24,7 +24,7 @@ pub(crate) fn prove_owned_with_rows(
     drop(running);
     let (children, d) = pi_dec::prove_with_production_key(pp, s, rows, workspace_bytes, &parent.claim, parent.witness)?;
     Ok((
-        RunningInstance::new(children.claims, children.witnesses, Some(parent.claim)),
+        RunningInstance::new(children.claims, children.witnesses),
         NifsProof {
             pi_ccs: c,
             pi_rlc: r,
@@ -42,28 +42,18 @@ pub(crate) fn verify(
     running: &RunningInstance,
     proof: &NifsProof,
 ) -> Result<RunningInstance, Error> {
-    validate_running_parent_authority(pp, s, combine, running)?;
+    validate_running_children(pp, s, running)?;
     let outputs = pi_ccs::verify(tr, pp, s, fresh, running, &proof.pi_ccs)?;
     let parent = pi_rlc::verify(tr, pp, s, mix, &outputs, &proof.pi_rlc)?;
     let children = pi_dec::verify(pp, s, combine, &parent, &proof.pi_dec)?;
-    Ok(RunningInstance::new(children, Vec::new(), Some(parent)))
+    Ok(RunningInstance::new(children, Vec::new()))
 }
-pub(crate) fn validate_running_parent_authority(
-    pp: &Params,
-    s: &Structure,
-    combine: DecMixer,
-    running: &RunningInstance,
-) -> Result<(), Error> {
-    match (running.claims.is_empty(), running.parent_authority.as_ref()) {
-        (true, None) => Ok(()),
-        (true, Some(_)) => Err(pi_dec::Error::VerifyRejected.into()),
-        (false, None) => Err(pi_dec::Error::VerifyRejected.into()),
-        (false, Some(parent)) => {
-            let proof = pi_dec::Proof {
-                children: running.claims.clone(),
-            };
-            pi_dec::verify(pp, s, combine, parent, &proof)?;
-            Ok(())
-        }
+/// A nonempty running instance must be one PiDEC child family. The caller
+/// binds the claims to the prior digest that PiCCS absorbs.
+pub(crate) fn validate_running_children(pp: &Params, s: &Structure, running: &RunningInstance) -> Result<(), Error> {
+    if running.claims.is_empty() {
+        return Ok(());
     }
+    pi_dec::validate_children(pp, s, &running.claims)?;
+    Ok(())
 }

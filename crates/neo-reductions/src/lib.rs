@@ -37,6 +37,6 @@ pub use error::PiCcsError;
 
 // Re-export common utilities
 pub use common::{
-    rot_rhos_from_mats, rot_rhos_to_mats, sample_rot_rhos_n, sample_rot_rhos_n_typed, split_b_matrix_k,
+    rot_rhos_from_mats, rot_rhos_to_mats, sample_rot_rhos_n_typed, split_b_matrix_k,
     split_b_matrix_k_with_nonzero_flags, RotRho, RotRing,
 };

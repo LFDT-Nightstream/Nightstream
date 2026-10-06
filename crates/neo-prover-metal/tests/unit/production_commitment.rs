@@ -135,7 +135,7 @@ fn production_commitment_checks_all_inputs_before_device_work() {
 #[ignore = "timing evidence at production width; run on its own under the 300 s cap"]
 fn production_commitment_cost_per_witness() {
     let session = MetalSession::new().unwrap();
-    let columns = 1_605_616;
+    let columns = PRODUCTION_MESSAGE_COLUMNS as usize;
     let mut state = 0x9e3779b97f4a7c15u64;
     let mut next = move || {
         state ^= state << 13;

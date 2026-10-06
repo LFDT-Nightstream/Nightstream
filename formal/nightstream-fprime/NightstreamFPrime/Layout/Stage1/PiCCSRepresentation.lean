@@ -229,7 +229,7 @@ private theorem serializeRunning_commitment_getD
 private def runningCommitmentPayloadIndex
     (source : Fin productionShape.runningCount)
     (row : Fin productionProfile.commitmentWidth)
-    (coefficient : Fin ringDegree) : Fin 49353 :=
+    (coefficient : Fin ringDegree) : Fin 37257 :=
   ⟨57 + source.val * runningGroupWords +
       (1 + row.val * ringDegree + coefficient.val), by
     have sourceBound := source.isLt
@@ -446,7 +446,7 @@ private def runningPublicInputPayloadIndex
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (source : Fin productionShape.runningCount)
     (column : Fin (FullShape logicalWidth publicFits).publicWidth) :
-    Fin 49353 :=
+    Fin 37257 :=
   ⟨57 + source.val * runningGroupWords + (1190 + column.val), by
     have sourceBound := source.isLt
     have columnBound := publicColumn_lt_270 column
@@ -675,7 +675,7 @@ private theorem serializeRunning_evalK_getD
 private def runningEvalKPayloadIndex
     (source : Fin productionShape.runningCount)
     (coefficient : Fin productionShape.coefficientCount)
-    (component : Fin 2) : Fin 49353 :=
+    (component : Fin 2) : Fin 37257 :=
   ⟨57 + source.val * runningGroupWords +
       (1461 + coefficient.val * 2 + component.val), by
     have sourceBound := source.isLt
@@ -975,7 +975,7 @@ private def runningEvalAPayloadIndex
     (source : Fin productionShape.runningCount)
     (matrix : Fin productionShape.matrixCount)
     (coefficient : Fin productionShape.coefficientCount)
-    (component : Fin 2) : Fin 49353 :=
+    (component : Fin 2) : Fin 37257 :=
   ⟨57 + source.val * runningGroupWords +
       (1461 + 108 + matrix.val * 108 + coefficient.val * 2 +
         component.val), by

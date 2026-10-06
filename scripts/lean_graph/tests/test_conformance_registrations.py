@@ -1,8 +1,10 @@
+import json
 import re
 from copy import deepcopy
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from zipfile import ZipFile
 
 from scripts.lean_graph.policy import gate_order, gate_scope, load_policy, validate, verify_checker_sources
 from scripts.lean_graph.runner import completion
@@ -10,6 +12,16 @@ from scripts.lean_graph.snapshot import EvidenceError, entries, inspect
 
 
 class ConformanceRegistrationTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        root = Path(__file__).resolve().parents[3]
+        with ZipFile(root / "crates/nightstream/tests/fixtures/golden-v1.zip") as vectors:
+            proof = json.loads(vectors.read("native/fold-1/pi_ccs_input.json"))
+        cls.matrix_count = len(proof[5][0])
+        cls.ring_degree = len(proof[5][0][0])
+        cls.source_count = len(proof[4])
+        cls.child_count = len(proof[6][4])
+
     def setUp(self):
         self.policy = load_policy()
         self.gates = self.policy["gates"]
@@ -79,7 +91,7 @@ class ConformanceRegistrationTests(unittest.TestCase):
 
     def test_child_inputs_and_outputs_cover_every_separate_family(self):
         order = self.selected("piccs-conformance")
-        for family in ["K", *[f"A{index}" for index in range(14)]]:
+        for family in ["K", *[f"A{index}" for index in range(self.matrix_count)]]:
             for side in ("input", "output"):
                 name = f"child-{side}-{family.lower()}"
                 self.assertIn(name, order)
@@ -100,6 +112,48 @@ class ConformanceRegistrationTests(unittest.TestCase):
                 self.assertEqual(command["completion"]["tests"],
                                  ["independent_actual_child_evaluation_family"])
 
+    def test_registered_opening_families_match_the_current_proof(self):
+        families = {"k", *[f"a{index}" for index in range(self.matrix_count)]}
+        for prefix in ("opening-", "child-input-", "child-output-", "recursive-fresh-"):
+            registered = {name for name in self.gates
+                          if re.fullmatch(re.escape(prefix) + r"(?:k|a[0-9]+)", name)}
+            with self.subTest(prefix=prefix):
+                self.assertEqual(registered, {prefix + family for family in families})
+
+    def test_child_recomposition_completion_matches_the_current_proof(self):
+        check = self.gates["child-recomposition"]["commands"][0]["completion"]
+        families = self.matrix_count + 1
+        coefficients = families * self.ring_degree
+        line = (f"child_evaluation_recomposition=passed children={self.child_count} "
+                f"families={families} coefficients={coefficients} "
+                "exact_prior_point_and_outgoing_state=checked")
+        suffix = ("\ntest all_child_evaluations_recompose_to_the_preceding_pi_ccs_output ... ok\n"
+                  "test result: ok. 1 passed; 0 failed;\n")
+        completion(line + suffix, check)
+        for missing in (line.replace(f"families={families}", f"families={families - 1}"),
+                        line.replace(f"coefficients={coefficients}",
+                                     f"coefficients={coefficients - self.ring_degree}")):
+            with self.subTest(incomplete=missing), self.assertRaises(EvidenceError):
+                completion(missing + suffix, check)
+
+    def test_terminal_prefix_completion_matches_the_current_proof(self):
+        values = self.source_count + self.matrix_count
+        report = {"event": "piccs_terminal_prefix_comparison_passed",
+                  "norm_sources": self.source_count, "fresh_matrices": self.matrix_count,
+                  "compared_K_values": values, "compared_field_words": values * 2,
+                  "canonical_field_bytes": values * 16,
+                  "norm_target_mutation": "rejected", "fresh_target_mutation": "rejected"}
+        check = self.gates["piccs-terminal-prefix-comparison"]["commands"][0]["completion"]
+        completion(json.dumps(report), check)
+
+    def test_recursive_caller_completion_matches_the_current_proof(self):
+        report = (f"recursive_caller_binding=passed prior_iteration=1 output_iteration=2 "
+                  f"children={self.child_count} matrix_families={self.matrix_count}\n")
+        for mode in ("recursive", "recursive-mutations"):
+            check = self.gates[f"candidate-{mode}"]["commands"][0]["completion"]
+            completion(report + f"candidate_{mode}_conformance=passed elapsed=1s\n"
+                       "independent_child_assignment_mutations=passed cases=3\n", check)
+
     def test_recursive_phase_does_not_reuse_the_base_result(self):
         order = self.selected("piccs-conformance")
         for mode in ("accept", "proof-mutations", "statement-mutations", "output-mutations", "point-mutations"):
@@ -112,7 +166,7 @@ class ConformanceRegistrationTests(unittest.TestCase):
                              ["{input:recursive_phase_input}", "{input:recursive_lean_result}", mode])
             self.assertEqual(data["operation"], "ccs")
             self.assertLess(order.index("recursive-lean-input"), order.index(name))
-        for family in ["k", *[f"a{index}" for index in range(14)], "ccs", "commitment"]:
+        for family in ["k", *[f"a{index}" for index in range(self.matrix_count)], "ccs", "commitment"]:
             command = self.gates["recursive-fresh-" + family]["commands"][0]
             self.assertEqual(command["completion"]["tests"], ["external_positive_fresh_opening_family"])
             self.assertEqual(command["stdin_json"]["cache"], "{input:recursive_opening_cache}")
@@ -245,8 +299,8 @@ class ConformanceRegistrationTests(unittest.TestCase):
     def test_partial_base_mutation_counts_cannot_satisfy_completion(self):
         for name, label, count in (
             ("proof", "proof_mutations", 2 + 28 * 10 * 2),
-            ("statement", "statement-mutations", 4 + 4 + 16 * 17 + 2),
-            ("output", "output-mutations", 17 * (17 + 28 + 4) + 10),
+            ("statement", "statement-mutations", 4 + 4 + self.child_count * (3 + self.matrix_count) + 2),
+            ("output", "output-mutations", self.source_count * (3 + self.matrix_count + 28 + 4) + 10),
         ):
             check = self.gates[f"piccs-{name}-mutations"]["commands"][-1]["completion"]
             prefix = "pi_ccs_complete_phase_values=passed accepted=true engine=optimized\n"
@@ -278,7 +332,7 @@ class ConformanceRegistrationTests(unittest.TestCase):
                              [f"piccs-{group}-mutations", f"recursive-piccs-{group}-mutations"])
         self.assertEqual(branches["common-prior-point"]["gates"],
                          ["recursive-piccs-point-mutations", "pilot-result"])
-        for family in ["k", *[f"a{index}" for index in range(14)]]:
+        for family in ["k", *[f"a{index}" for index in range(self.matrix_count)]]:
             self.assertIn("opening-" + family, branches["base-positive"]["gates"])
             for prefix in ("child-input-", "child-output-", "recursive-fresh-"):
                 self.assertIn(prefix + family, branches["actual-child-recursive-positive"]["gates"])

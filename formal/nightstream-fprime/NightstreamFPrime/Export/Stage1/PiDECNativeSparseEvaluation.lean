@@ -77,4 +77,124 @@ theorem nativeEvalSparse_eq_spec {columns : Nat} (form : SparseForm columns)
   unfold nativeEvalSparse SparseForm.evalSparse
   rw [accumulate_value, toF_fromF]
 
+/-- Two native-word accumulators. -/
+private structure PairWords where
+  low : CanonicalWord
+  high : CanonicalWord
+
+/-- Traverse entries with two coefficients each: two native-word accumulators
+and one read per entry. -/
+@[inline] private def accumulatePair {columns : Nat} (read : Fin columns → F)
+    (entries : List (Fin columns × F × F)) (initial : PairWords) : PairWords :=
+  entries.foldl (fun state entry =>
+    let value := fromF (read entry.1)
+    ⟨addWord state.low (mulWord (fromF entry.2.1) value),
+      addWord state.high (mulWord (fromF entry.2.2) value)⟩) initial
+
+private theorem accumulatePair_value {columns : Nat} (read : Fin columns → F)
+    (entries : List (Fin columns × F × F)) (initial : PairWords) :
+    toF (accumulatePair read entries initial).low =
+        entries.foldl (fun total entry => total + entry.2.1 * read entry.1) (toF initial.low) ∧
+      toF (accumulatePair read entries initial).high =
+        entries.foldl (fun total entry => total + entry.2.2 * read entry.1) (toF initial.high) := by
+  unfold accumulatePair
+  induction entries generalizing initial with
+  | nil => exact ⟨rfl, rfl⟩
+  | cons entry entries ih =>
+      simp only [List.foldl_cons, ih, addWord_value, mulWord_value, toF_fromF, and_self]
+
+/-- Evaluate two sparse forms over the same columns with one read per column. -/
+@[specialize] def nativeEvalPair {columns : Nat} (entries : List (Fin columns × F × F))
+    (read : Fin columns → F) : F × F :=
+  let result := accumulatePair read entries ⟨fromF 0, fromF 0⟩
+  (toF result.low, toF result.high)
+
+/-- Each coordinate is the evaluation of its own sparse form, for every list of
+entries and every read. -/
+theorem nativeEvalPair_eq_spec {columns : Nat} (entries : List (Fin columns × F × F))
+    (read : Fin columns → F) :
+    nativeEvalPair entries read =
+      ((SparseForm.mk (entries.map fun entry => ⟨entry.1, entry.2.1⟩)).evalSparse read,
+        (SparseForm.mk (entries.map fun entry => ⟨entry.1, entry.2.2⟩)).evalSparse read) := by
+  have value := accumulatePair_value read entries ⟨fromF 0, fromF 0⟩
+  rw [toF_fromF] at value
+  simp only [nativeEvalPair, SparseForm.evalSparse, List.foldl_map, value.1, value.2]
+
+/-- Six native-word accumulators: three pairs. -/
+private structure TripleWords where
+  firstLow : CanonicalWord
+  firstHigh : CanonicalWord
+  secondLow : CanonicalWord
+  secondHigh : CanonicalWord
+  thirdLow : CanonicalWord
+  thirdHigh : CanonicalWord
+
+/-- Entries with three coefficient pairs: one read per entry for all of them. -/
+@[inline] private def accumulateTriple {columns : Nat} (read : Fin columns → F)
+    (entries : List (Fin columns × (F × F) × (F × F) × (F × F))) (initial : TripleWords) :
+    TripleWords :=
+  entries.foldl (fun state entry =>
+    let value := fromF (read entry.1)
+    ⟨addWord state.firstLow (mulWord (fromF entry.2.1.1) value),
+      addWord state.firstHigh (mulWord (fromF entry.2.1.2) value),
+      addWord state.secondLow (mulWord (fromF entry.2.2.1.1) value),
+      addWord state.secondHigh (mulWord (fromF entry.2.2.1.2) value),
+      addWord state.thirdLow (mulWord (fromF entry.2.2.2.1) value),
+      addWord state.thirdHigh (mulWord (fromF entry.2.2.2.2) value)⟩)
+    initial
+
+private theorem accumulateTriple_value {columns : Nat} (read : Fin columns → F)
+    (entries : List (Fin columns × (F × F) × (F × F) × (F × F))) (initial : TripleWords) :
+    toF (accumulateTriple read entries initial).firstLow =
+        entries.foldl (fun total entry => total + entry.2.1.1 * read entry.1)
+          (toF initial.firstLow) ∧
+      toF (accumulateTriple read entries initial).firstHigh =
+        entries.foldl (fun total entry => total + entry.2.1.2 * read entry.1)
+          (toF initial.firstHigh) ∧
+      toF (accumulateTriple read entries initial).secondLow =
+        entries.foldl (fun total entry => total + entry.2.2.1.1 * read entry.1)
+          (toF initial.secondLow) ∧
+      toF (accumulateTriple read entries initial).secondHigh =
+        entries.foldl (fun total entry => total + entry.2.2.1.2 * read entry.1)
+          (toF initial.secondHigh) ∧
+      toF (accumulateTriple read entries initial).thirdLow =
+        entries.foldl (fun total entry => total + entry.2.2.2.1 * read entry.1)
+          (toF initial.thirdLow) ∧
+      toF (accumulateTriple read entries initial).thirdHigh =
+        entries.foldl (fun total entry => total + entry.2.2.2.2 * read entry.1)
+          (toF initial.thirdHigh) := by
+  unfold accumulateTriple
+  induction entries generalizing initial with
+  | nil => exact ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩
+  | cons entry entries ih =>
+      simp only [List.foldl_cons, ih, addWord_value, mulWord_value, toF_fromF, and_self]
+
+/-- Evaluate three pairs of sparse forms over the same columns with one read per
+column. -/
+@[specialize] def nativeEvalTriple {columns : Nat}
+    (entries : List (Fin columns × (F × F) × (F × F) × (F × F))) (read : Fin columns → F) :
+    (F × F) × (F × F) × (F × F) :=
+  let zero := fromF 0
+  let result := accumulateTriple read entries ⟨zero, zero, zero, zero, zero, zero⟩
+  ((toF result.firstLow, toF result.firstHigh),
+    (toF result.secondLow, toF result.secondHigh),
+    (toF result.thirdLow, toF result.thirdHigh))
+
+/-- Each coordinate of each pair is the evaluation of its own sparse form, for
+every list of entries and every read. -/
+theorem nativeEvalTriple_eq_spec {columns : Nat}
+    (entries : List (Fin columns × (F × F) × (F × F) × (F × F))) (read : Fin columns → F) :
+    nativeEvalTriple entries read =
+      (((SparseForm.mk (entries.map fun entry => ⟨entry.1, entry.2.1.1⟩)).evalSparse read,
+          (SparseForm.mk (entries.map fun entry => ⟨entry.1, entry.2.1.2⟩)).evalSparse read),
+        ((SparseForm.mk (entries.map fun entry => ⟨entry.1, entry.2.2.1.1⟩)).evalSparse read,
+          (SparseForm.mk (entries.map fun entry => ⟨entry.1, entry.2.2.1.2⟩)).evalSparse read),
+        ((SparseForm.mk (entries.map fun entry => ⟨entry.1, entry.2.2.2.1⟩)).evalSparse read,
+          (SparseForm.mk (entries.map fun entry => ⟨entry.1, entry.2.2.2.2⟩)).evalSparse read)) := by
+  have value := accumulateTriple_value read entries
+    ⟨fromF 0, fromF 0, fromF 0, fromF 0, fromF 0, fromF 0⟩
+  simp only [toF_fromF] at value
+  simp only [nativeEvalTriple, SparseForm.evalSparse, List.foldl_map, value.1, value.2.1,
+    value.2.2.1, value.2.2.2.1, value.2.2.2.2.1, value.2.2.2.2.2]
+
 end NightstreamFPrime.Export.Stage1.PiDECNativeSparseEvaluation

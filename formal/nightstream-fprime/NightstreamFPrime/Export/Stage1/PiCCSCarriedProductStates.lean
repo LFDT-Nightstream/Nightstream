@@ -46,7 +46,7 @@ def outputAt (output prior quotient : Vector K ringDegree) (point : F) : K :=
       -1 * Phi81Relation.QuotientProduct.evaluate (fun lane => (prior.get lane).c1) point) +
       modulus * Phi81Relation.QuotientProduct.evaluate (fun lane => (quotient.get lane).c1) point⟩
 
-/-- The fourteen carried port values of one product row from its state values. -/
+/-- The seven carried port values of one product row from its state values. -/
 def rowValues (left right output prior quotient : Vector K ringDegree) (selector : K)
     (row : Fin 108) : Vector K Spec.ProductionRelation.matrixCount :=
   let point := Phi81Relation.QuotientProduct.node row
@@ -57,7 +57,7 @@ def rowValues (left right output prior quotient : Vector K ringDegree) (selector
         | 0 => evaluateAt left point
         | 2 => evaluateAt right point
         | 4 => outputAt output prior quotient point
-        | 7 => selector
+        | 6 => selector
         | _ => ⟨0, 0⟩
     | none => ⟨0, 0⟩
 
@@ -118,8 +118,8 @@ private theorem rowValues_eq {columns : Nat} (interface : Phi81ProductPlan.Inter
   | 0, _ => exact (evaluateK_evaluateForm _ _ _).symm
   | 2, _ => exact (evaluateK_evaluateForm _ _ _).symm
   | 4, _ => exact (evaluateK_outputForm _ _ _).symm
-  | 1, _ | 3, _ | 5, _ | 6, _ | 7, _ | 8, _ | 9, _ | 10, _ | 11, _ | 12, _ | 13, _ => rfl
-  | _ + 14, bounded => exact absurd bounded (by change ¬ _ < 14; omega)
+  | 1, _ | 3, _ | 5, _ | 6, _ => rfl
+  | _ + 7, bounded => exact absurd bounded (by change ¬ _ < 7; omega)
 
 /-- Every row and port equals the existing direct product row under the original
 carried read. No cache, interface or row premise is used. -/

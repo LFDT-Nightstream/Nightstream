@@ -35,7 +35,7 @@ use crate::WitnessAssignment;
 
 const SEALED_PACKAGE_SCHEMA: u64 = 6;
 pub(super) const INNER_PACKAGE_SCHEMA: u64 = 8;
-const MATRIX_COUNT: usize = 14;
+const MATRIX_COUNT: usize = super::PI_CCS_V1_1_MATRIX_COUNT;
 const APPLICATION_PLAN_SCHEMA: u64 = 1;
 const APPLICATION_STATE_WORDS: usize = 4;
 const NEXT_PREIMAGE_ROW_COUNT: usize = 5;
@@ -88,8 +88,7 @@ impl LogicalMatrixEntry {
     }
 }
 
-/// The fourteen matrix forms at one Boolean-row ordinal. Slot 13 is always
-/// the canonical zero form.
+/// The seven matrix forms at one Boolean-row ordinal.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LogicalMatrixRow {
     matrices: [Vec<LogicalMatrixEntry>; MATRIX_COUNT],
@@ -141,7 +140,7 @@ impl LogicalMatrixRow {
 }
 
 fn logical_matrix_row(forms: RowForms) -> Result<LogicalMatrixRow, PackageError> {
-    let mut matrices = forms
+    let matrices = forms
         .into_iter()
         .map(|form| {
             form.into_entries()
@@ -154,7 +153,6 @@ fn logical_matrix_row(forms: RowForms) -> Result<LogicalMatrixRow, PackageError>
         })
         .collect::<Vec<_>>();
     debug_assert_eq!(matrices.len(), MEANINGFUL_PORTS);
-    matrices.push(Vec::new());
     Ok(LogicalMatrixRow {
         matrices: matrices
             .try_into()
@@ -440,8 +438,8 @@ impl LoadedPerApplicationPackage {
     /// Execute and validate every live Lean-authored logical matrix row.
     ///
     /// This avoids constructing a second public row representation while it
-    /// checks canonical entry order, nonzero coefficients, column bounds, and
-    /// the implicit zero matrix. The returned counts are deterministic.
+    /// checks canonical entry order, nonzero coefficients, and column bounds.
+    /// The returned counts are deterministic.
     pub fn validate_all_matrix_rows(&self) -> Result<[u64; MATRIX_COUNT], PackageError> {
         let meaningful = self
             .matrix_program
@@ -472,7 +470,7 @@ impl LoadedPerApplicationPackage {
     }
 
     /// Visit the same linear maps without expanding retained-field coordinates.
-    /// Coefficients from overlapping runs add; the final matrix remains zero.
+    /// Coefficients from overlapping runs add.
     pub fn visit_matrix_runs(
         &self,
         rows: Range<usize>,

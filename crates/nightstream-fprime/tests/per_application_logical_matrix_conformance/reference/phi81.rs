@@ -248,7 +248,7 @@ impl Block {
                 .append(forms.difference[degree].clone().scaled(power))
                 .append(forms.quotient[degree].clone().scaled(phi81 * power));
         }
-        row[7] = Form::singleton(self.one_column, Field::ONE);
+        row[6] = Form::singleton(self.one_column, Field::ONE);
         Ok(row)
     }
 }

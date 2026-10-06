@@ -104,7 +104,7 @@ def main():
         ("float-spelling", 0.0),
     ]:
         changed = copy.deepcopy(positive)
-        changed[6][4][15][13][53][1] = word
+        changed[6][4][15][6][53][1] = word
         check(label, numeric_json(changed), False)
     print(f"pi_ccs_input_codec_cases_passed={len(records)}", flush=True)
 

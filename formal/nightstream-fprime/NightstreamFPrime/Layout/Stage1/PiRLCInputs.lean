@@ -29,7 +29,7 @@ variable {logicalWidth : Nat}
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
 /-- The exact completed pilot-plus-PiCCS source-column endpoint. -/
-def phaseOffset : Nat := 12185621
+def phaseOffset : Nat := 8688741
 
 /-- The completed PiCCS transcript state precedes the physical PiCCS endpoint
 that starts PiRLC. The intervening columns are the PiCCS lowering suffix. -/
@@ -414,21 +414,21 @@ def inputShapes
     rw [NightstreamFPrime.Lifecycle.PiRLC.v1_1.EvalKCombination.logicalPrivateCount_eq]
   evalAFresh := by
     change NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.physicalFreshColumnCount
-      _ _ = 3855600
+      _ _ = 1927800
     rw [NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.physicalFreshColumnCountEqProduction
       _ _ (evalAProductionInputs (logicalWidth := logicalWidth)
         (publicFits := publicFits))]
     change NightstreamFPrime.Lifecycle.PiRLC.v1_1.CombinationFamily.logicalPrivateCount
-      _ _ * 150 = 3855600
+      _ _ * 150 = 1927800
     rw [NightstreamFPrime.Lifecycle.PiRLC.v1_1.EvalACombination.logicalPrivateCount_eq]
   evalARows := by
     change NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.physicalRowCount
-      _ _ = 3881304
+      _ _ = 1940652
     rw [NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.physicalRowCountEqProduction
       _ _ (evalAProductionInputs (logicalWidth := logicalWidth)
         (publicFits := publicFits))]
     change NightstreamFPrime.Lifecycle.PiRLC.v1_1.CombinationFamily.logicalPrivateCount
-      _ _ * 151 = 3881304
+      _ _ * 151 = 1940652
     rw [NightstreamFPrime.Lifecycle.PiRLC.v1_1.EvalACombination.logicalPrivateCount_eq]
 
 end NightstreamFPrime.Layout.Stage1.PiRLCInputs

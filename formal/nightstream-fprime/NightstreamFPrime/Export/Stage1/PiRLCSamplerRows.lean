@@ -74,7 +74,7 @@ theorem rows_toR1CS :
 
 theorem rows_length :
     (rows (logicalWidth := logicalWidth) (publicFits := publicFits)).length =
-      76075 := by
+      52207 := by
   rw [rows, PiCCSArithmetic.compilePacket_length,
     constraints_eq_samplerChain]
   exact
@@ -88,7 +88,7 @@ theorem rows_length :
 theorem freshCount_eq :
     R1CS.totalFreshCount
         (constraints (logicalWidth := logicalWidth) (publicFits := publicFits)) =
-      26316 := by
+      2448 := by
   rw [constraints_eq_samplerChain]
   exact
     NightstreamFPrime.Layout.PiRLC.v1_1.SamplerChain.totalFreshCount_eq

@@ -8,10 +8,10 @@ use super::relation::Relation;
 use super::source::SourcePackage;
 use super::{empty_row, Field, Form, Result, RowForms, MATRIX_COUNT};
 
-pub const ACTIVE_ROWS: usize = 1_992_940;
+pub const ACTIVE_ROWS: usize = 1_371_020;
 pub const PADDED_ROWS: usize = 1 << 28;
-pub const LOGICAL_WIDTH: usize = 86_703_216;
-pub const CARRIER_WIDTH: usize = 86_703_264;
+pub const LOGICAL_WIDTH: usize = 59_804_510;
+pub const CARRIER_WIDTH: usize = 59_804_514;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Evaluation {
@@ -20,7 +20,6 @@ pub struct Evaluation {
     pub carrier_padding_columns: usize,
     pub assignment_block_mutations: usize,
     pub matrix_slot_mutations: usize,
-    pub zero_slot_mutation_rejected: bool,
     pub public_digest_bit_mutations: usize,
     pub public_digest_word_mutations: usize,
 }
@@ -93,7 +92,6 @@ pub fn verify_satisfaction_range_with(
             return Err(format!("logical row order changed: got {ordinal}, expected {next}"));
         }
         let matrix_values = evaluate_row_with_result(&row, &mut value_at)?;
-        validate_zero_slot(&matrix_values, ordinal)?;
         let residual = relation.evaluate(&matrix_values);
         if residual != Field::ZERO {
             return Err(format!(
@@ -115,9 +113,8 @@ pub fn verify_satisfaction_range_with(
 struct MutationCoverage {
     assignment: [Option<usize>; super::assignment::BLOCK_COUNT],
     referenced: [bool; super::assignment::BLOCK_COUNT],
-    matrix: [Option<usize>; MATRIX_COUNT - 1],
+    matrix: [Option<usize>; MATRIX_COUNT],
     public_bits: [Option<usize>; 256],
-    zero_slot: bool,
 }
 
 impl MutationCoverage {
@@ -125,9 +122,8 @@ impl MutationCoverage {
         Self {
             assignment: [None; super::assignment::BLOCK_COUNT],
             referenced: [false; super::assignment::BLOCK_COUNT],
-            matrix: [None; MATRIX_COUNT - 1],
+            matrix: [None; MATRIX_COUNT],
             public_bits: [None; 256],
-            zero_slot: false,
         }
     }
 
@@ -145,7 +141,6 @@ impl MutationCoverage {
         for (left, right) in self.referenced.iter_mut().zip(other.referenced) {
             *left |= right;
         }
-        self.zero_slot |= other.zero_slot;
     }
 }
 
@@ -160,9 +155,8 @@ fn evaluate_range(
     let mut next = start;
     let mut assignment_mutations = [None; super::assignment::BLOCK_COUNT];
     let mut referenced_blocks = [false; super::assignment::BLOCK_COUNT];
-    let mut matrix_mutations = [None; MATRIX_COUNT - 1];
+    let mut matrix_mutations = [None; MATRIX_COUNT];
     let mut public_bit_mutations = [None; 256];
-    let mut zero_slot_mutation_rejected = false;
     let mut candidate_columns = Vec::new();
     let matrix_degrees = relation.slot_degrees();
     program.visit_rows(start, end, sources, |ordinal, row| {
@@ -170,7 +164,6 @@ fn evaluate_range(
             return Err(format!("logical row order changed: got {ordinal}, expected {next}"));
         }
         let matrix_values = evaluate_row(&row, assignment)?;
-        validate_zero_slot(&matrix_values, ordinal)?;
         let residual = relation.evaluate(&matrix_values);
         if residual != Field::ZERO {
             return Err(format!(
@@ -192,11 +185,6 @@ fn evaluate_range(
                     }
                 }
             }
-        }
-        if !zero_slot_mutation_rejected {
-            let mut changed = matrix_values;
-            changed[MATRIX_COUNT - 1] = Field::ONE;
-            zero_slot_mutation_rejected = validate_zero_slot(&changed, ordinal).is_err();
         }
 
         if assignment_mutations
@@ -249,7 +237,6 @@ fn evaluate_range(
         referenced: referenced_blocks,
         matrix: matrix_mutations,
         public_bits: public_bit_mutations,
-        zero_slot: zero_slot_mutation_rejected,
     })
 }
 
@@ -291,7 +278,6 @@ pub fn evaluate(
         referenced: referenced_blocks,
         matrix: matrix_mutations,
         public_bits: public_bit_mutations,
-        zero_slot: zero_slot_mutation_rejected,
     } = coverage;
 
     let implicit_padding = empty_row();
@@ -327,7 +313,7 @@ pub fn evaluate(
         ));
     }
     let matrix_slot_mutations = matrix_mutations.iter().flatten().count();
-    if matrix_slot_mutations != MATRIX_COUNT - 1 {
+    if matrix_slot_mutations != MATRIX_COUNT {
         let missing = matrix_mutations
             .iter()
             .enumerate()
@@ -336,9 +322,6 @@ pub fn evaluate(
         return Err(format!(
             "no effective coefficient mutation found for matrix slots {missing:?}"
         ));
-    }
-    if !zero_slot_mutation_rejected {
-        return Err("a nonzero insertion into logical matrix slot 13 was not rejected".into());
     }
     let public_digest_bit_mutations = public_bit_mutations.iter().flatten().count();
     if public_digest_bit_mutations != public_bit_mutations.len() {
@@ -362,7 +345,6 @@ pub fn evaluate(
         carrier_padding_columns: CARRIER_WIDTH - LOGICAL_WIDTH,
         assignment_block_mutations,
         matrix_slot_mutations,
-        zero_slot_mutation_rejected,
         public_digest_bit_mutations,
         public_digest_word_mutations,
     })
@@ -388,7 +370,6 @@ pub fn first_failure(
             let mut failure = None;
             let result = program.visit_rows(start, (start + range_size).min(ACTIVE_ROWS), sources, |ordinal, row| {
                 let values = evaluate_row(&row, assignment)?;
-                validate_zero_slot(&values, ordinal)?;
                 if relation.evaluate(&values) != Field::ZERO {
                     failure = Some(ordinal);
                     return Err(STOP.into());
@@ -404,14 +385,6 @@ pub fn first_failure(
         })
         .collect::<Result<Vec<_>>>()?;
     Ok(failures.into_iter().flatten().min())
-}
-
-fn validate_zero_slot(values: &[Field; MATRIX_COUNT], ordinal: usize) -> Result<()> {
-    if values[MATRIX_COUNT - 1] == Field::ZERO {
-        Ok(())
-    } else {
-        Err(format!("logical zero matrix is nonzero at row {ordinal}"))
-    }
 }
 
 fn evaluate_row(row: &RowForms, assignment: &LogicalAssignment) -> Result<[Field; MATRIX_COUNT]> {

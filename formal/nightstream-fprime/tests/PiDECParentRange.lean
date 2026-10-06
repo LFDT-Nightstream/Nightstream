@@ -46,7 +46,7 @@ private def broken : IO Unit := IO.FS.withTempDir fun directory => do
     ("block after the parent range", header 10 20 ++ record 20 1 ++ "[]\n"),
     ("unselected bad block", header 10 20 ++ record 13 1 ++ record 18 1 53 ++ "[]\n"),
     ("noncanonical coefficient", header 10 20 ++ record 13 (goldilocksModulus - 1) ++ "[]\n"),
-    ("wrong schema", "[2,1605616,10,20]\n[]\n"),
+    ("wrong schema", s!"[2,{Poseidon2HashChainV1Setup.messageColumns},10,20]\n[]\n"),
     ("wrong carrier width", "[1,54,10,20]\n[]\n"),
     ("selection after the parent range", header 10 13 ++ "[]\n"),
     ("empty file", "")]

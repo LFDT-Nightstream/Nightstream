@@ -90,7 +90,7 @@ fn claim(value: &Value, fold_digest: [u8; 32]) -> CeClaim {
     let point = extensions(&value[2]);
     assert_eq!(point.len(), 28);
     let matrices = value[4].as_array().unwrap();
-    assert_eq!(matrices.len(), 14);
+    assert_eq!(matrices.len(), 7);
     CeClaim {
         c: commitment(&value[0]),
         X: x,

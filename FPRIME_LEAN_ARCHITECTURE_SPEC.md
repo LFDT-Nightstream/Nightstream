@@ -71,7 +71,7 @@ The production profile is:
 - 16 running sources;
 - 17 PiRLC inputs in exact `K + k` order;
 - 16 PiDEC children;
-- 14 CCS matrices;
+- 7 CCS matrices;
 - Poseidon2-only protocol binding.
 
 The production package must bind one exact profile. It must not contain a

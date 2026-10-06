@@ -1,6 +1,9 @@
 use super::*;
 use crate::lifecycle::tests::{claim, commitment, fields as input_fields, frame, proof as fixture_proof};
 
+#[path = "golden_ccs_mutations.rs"]
+mod mutations;
+
 fn fixture() -> (Value, CcsClaim, Vec<CeClaim>, NifsProof) {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/stage1_actual_nifs/actual_result.json");
     let actual = read(path);
@@ -82,4 +85,63 @@ fn export_keeps_changed_messages_and_rejects_dropped_native_padding() {
     assert_ne!(ccs_input(&fresh, &running, &proof.pi_ccs), actual["pi_ccs_input"]);
     proof.pi_dec.children[0].eval_k[D] = K::ONE;
     assert!(std::panic::catch_unwind(|| running_value(&proof.pi_dec.children)).is_err());
+}
+
+#[test]
+fn retained_pi_ccs_mutations_cover_the_current_matrix_families() {
+    let (_, fresh, running, proof) = fixture();
+    let loaded = nightstream_fprime::load_poseidon2_hash_chain_v1_package(
+        &fs::read(artifact("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json")).unwrap(),
+    )
+    .unwrap();
+    let structure = loaded.ccs_structure_header().unwrap();
+    let level = Params::production()
+        .inner()
+        .padded_row_security_summary_for_shape(
+            structure.domain_rows(),
+            structure.m,
+            structure.t(),
+            structure.max_degree(),
+            neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
+        )
+        .unwrap()
+        .security_bits;
+    let params = Params::for_ccs_shape(
+        structure.domain_rows(),
+        structure.m,
+        structure.t(),
+        structure.max_degree(),
+        level,
+    )
+    .unwrap();
+    let (accepted, _) = optimized_verify_with_trace(
+        &mut Poseidon2Transcript::new_v1_1(),
+        params.inner(),
+        &structure,
+        std::slice::from_ref(&fresh),
+        &running,
+        &proof.pi_ccs.outputs,
+        &proof.pi_ccs.sumcheck,
+    )
+    .unwrap();
+    assert!(accepted, "positive fixture must pass before mutation checks");
+    mutations::check_proof_mutations(
+        params.inner(),
+        &structure,
+        &fresh,
+        &running,
+        &proof.pi_ccs.outputs,
+        &proof.pi_ccs.sumcheck,
+    );
+    for group in ["statement-mutations", "output-mutations"] {
+        mutations::check_claim_mutations(
+            params.inner(),
+            &structure,
+            &fresh,
+            &running,
+            &proof.pi_ccs.outputs,
+            &proof.pi_ccs.sumcheck,
+            group,
+        );
+    }
 }

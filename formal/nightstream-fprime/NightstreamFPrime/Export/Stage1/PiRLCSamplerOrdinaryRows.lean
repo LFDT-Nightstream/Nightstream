@@ -44,7 +44,7 @@ def rangeRows (source : Nat) : List Rows.CompiledRow :=
 
 def wordRows (source : Nat) : List Rows.CompiledRow :=
   PiCCSArithmetic.compilePacket (Layout.Stage1.PiRLCStarts.challengeWordRowStart source)
-    (Layout.Stage1.PiRLCStarts.rangeFreshStart source + 1548) (wordConstraints source)
+    (Layout.Stage1.PiRLCStarts.rangeFreshStart source + 144) (wordConstraints source)
 
 def sourceRows (source : Nat) : List Rows.CompiledRow :=
   rangeRows (logicalWidth := logicalWidth) (publicFits := publicFits) source ++ wordRows source
@@ -73,11 +73,11 @@ theorem rangeRows_toR1CS (source : Nat) :
 theorem wordRows_toR1CS (source : Nat) :
     (wordRows source).map Rows.CompiledRow.toR1CS =
       Layout.Stage1.Spartan.remapRows (R1CS.lowerConstraints (wordConstraints source)
-        (Layout.Stage1.PiRLCStarts.rangeFreshStart source + 1548)).rows :=
+        (Layout.Stage1.PiRLCStarts.rangeFreshStart source + 144)).rows :=
   PiCCSArithmetic.compilePacket_toR1CS _ _ _
 
 @[simp] theorem rangeRows_length (source : Nat) :
-    (rangeRows (logicalWidth := logicalWidth) (publicFits := publicFits) source).length = 2229 := by
+    (rangeRows (logicalWidth := logicalWidth) (publicFits := publicFits) source).length = 825 := by
   rw [rangeRows, PiCCSArithmetic.compilePacket_length]
   unfold rangeConstraints
   rw [rangeInterface_eq, WideReduction.Program.constraints_eq]
@@ -95,11 +95,11 @@ theorem wordRows_toR1CS (source : Nat) :
   rw [SamplerWords.rowCount_eq, SamplerWords.count_eq]
 
 @[simp] theorem sourceRows_length (source : Nat) :
-    (sourceRows (logicalWidth := logicalWidth) (publicFits := publicFits) source).length = 2283 := by
+    (sourceRows (logicalWidth := logicalWidth) (publicFits := publicFits) source).length = 879 := by
   simp [sourceRows]
 
 theorem rows_length :
-    (rows (logicalWidth := logicalWidth) (publicFits := publicFits)).length = 38811 := by
+    (rows (logicalWidth := logicalWidth) (publicFits := publicFits)).length = 14943 := by
   simp [rows, PiRLCSamplerInvocations.sourceCount]
 
 theorem rows_imply_sourceRows (source : Fin PiRLCSamplerInvocations.sourceCount) (env : Env)

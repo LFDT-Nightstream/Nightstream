@@ -15,6 +15,7 @@ use nightstream_fprime::{
 };
 mod base;
 mod complete;
+mod encoding;
 mod evaluation;
 mod extend;
 mod inputs;
@@ -22,6 +23,7 @@ mod prove;
 mod step_inputs;
 mod verify;
 pub use complete::{CompleteStepError, Stage1Envelope};
+pub use encoding::ProofCodecError;
 pub use extend::ExtendError;
 pub use inputs::{
     encode_pi_ccs_v1_1_public_input, pi_ccs_v1_1_state_hash, serialize_pi_ccs_v1_1_state_preimage,

@@ -1,4 +1,4 @@
-//! Generic execution of the Lean-authored compact 14-matrix program.
+//! Generic execution of the Lean-authored compact 7-matrix program.
 //!
 //! This module owns wire decoding and row interpretation. It does not select
 //! phases, applications, row schedules, or matrix formulas.
@@ -34,7 +34,7 @@ mod shared_formula_rows_tests;
 
 use affine::{AffineProgram, Coordinate};
 
-pub(super) const MEANINGFUL_PORTS: usize = 13;
+pub(super) const MEANINGFUL_PORTS: usize = 7;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct Entry {

@@ -7,12 +7,22 @@ use std::collections::BTreeSet;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 use serde::Deserialize;
+use serde_json::Value;
 use thiserror::Error;
 
 const GOLDILOCKS_MODULUS: u64 = 0xffff_ffff_0000_0001;
 // The selected Nightstream profile, in the exported profile field order.
-const PROFILE: [u64; 8] = [GOLDILOCKS_MODULUS, 2, 16, 65536, 54, 28, 14, 13];
-const MATRIX_PORTS: usize = 13;
+const PROFILE: [u64; 8] = [
+    GOLDILOCKS_MODULUS,
+    2,
+    16,
+    65536,
+    54,
+    28,
+    crate::PI_CCS_V1_1_MATRIX_COUNT as u64,
+    7,
+];
+const MATRIX_PORTS: usize = 7;
 
 #[derive(Debug, Error)]
 pub enum ComponentError {
@@ -110,6 +120,17 @@ pub enum PortRole {
     Output,
 }
 
+impl PortRole {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Constant => "constant",
+            Self::Input => "input",
+            Self::Witness => "witness",
+            Self::Output => "output",
+        }
+    }
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Port {
@@ -167,7 +188,6 @@ pub struct MatrixRow {
 }
 
 impl MatrixRow {
-    /// The fourteenth matrix is fixed to zero by the exported production relation.
     pub fn ports(&self) -> &[SparseForm; MATRIX_PORTS] {
         &self.ports
     }
@@ -365,6 +385,7 @@ impl FormulaComponent {
 #[derive(Debug)]
 pub struct FormulaLibrary {
     components: Vec<FormulaComponent>,
+    digest: [u64; 4],
 }
 
 impl FormulaLibrary {
@@ -376,6 +397,8 @@ impl FormulaLibrary {
         if raw.components.is_empty() {
             return Err(ComponentError::Invalid("empty formula library"));
         }
+        let digest = crate::identity::formula_library_digest(&library_value(&raw))
+            .map_err(|_| ComponentError::Invalid("formula library digest"))?;
         let mut ids = BTreeSet::new();
         let mut components = Vec::with_capacity(raw.components.len());
         for component in raw.components {
@@ -384,7 +407,12 @@ impl FormulaLibrary {
             }
             components.push(FormulaComponent::compile(component)?);
         }
-        Ok(Self { components })
+        Ok(Self { components, digest })
+    }
+
+    /// Lean `SharedFormulas.libraryDigest`, bound by the verification key.
+    pub fn digest(&self) -> [u64; 4] {
+        self.digest
     }
 
     pub fn component(&self, id: &str) -> Option<&FormulaComponent> {
@@ -394,4 +422,65 @@ impl FormulaLibrary {
     pub fn components(&self) -> &[FormulaComponent] {
         &self.components
     }
+}
+
+/// Lean `SharedFormulas.libraryValue`: every field in file order, with each
+/// string as the array of its UTF-8 bytes.
+fn library_value(raw: &RawLibrary) -> Value {
+    fn text(text: &str) -> Value {
+        Value::Array(text.bytes().map(Value::from).collect())
+    }
+    fn texts(texts: &[String]) -> Value {
+        Value::Array(texts.iter().map(|value| text(value)).collect())
+    }
+    fn form(form: &RawForm) -> Value {
+        Value::Array(
+            form.iter()
+                .map(|&(column, coefficient)| Value::Array(vec![column.into(), coefficient.into()]))
+                .collect(),
+        )
+    }
+    fn port(port: &Port) -> Value {
+        Value::Array(vec![
+            text(&port.name),
+            text(port.role.name()),
+            port.start.into(),
+            port.count.into(),
+        ])
+    }
+    fn variant(variant: &RawVariant) -> Value {
+        Value::Array(vec![
+            Value::Array(variant.linear_forms.iter().map(form).collect()),
+            Value::Array(
+                variant
+                    .rows
+                    .iter()
+                    .map(|row| Value::Array(row.iter().map(form).collect()))
+                    .collect(),
+            ),
+            Value::Array(
+                variant
+                    .output_registers
+                    .iter()
+                    .map(|&index| index.into())
+                    .collect(),
+            ),
+        ])
+    }
+    fn component(component: &RawComponent) -> Value {
+        Value::Array(vec![
+            text(&component.id),
+            component.input_count.into(),
+            Value::Array(component.ports.iter().map(port).collect()),
+            Value::Array(component.variants.iter().map(variant).collect()),
+            texts(&component.definitions),
+            texts(&component.contracts),
+        ])
+    }
+    Value::Array(vec![
+        text(&raw.format),
+        raw.version.into(),
+        Value::Array(raw.profile.iter().map(|&value| value.into()).collect()),
+        Value::Array(raw.components.iter().map(component).collect()),
+    ])
 }

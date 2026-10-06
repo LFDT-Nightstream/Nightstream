@@ -194,8 +194,8 @@ fn claim(output: &mut Vec<u8>, value: &Value, digest: &Value) {
     word(output, 28);
     numbers(output, &value[2]);
     evaluation(output, &value[3]);
-    assert_eq!(value[4].as_array().unwrap().len(), 14);
-    word(output, 14);
+    assert_eq!(value[4].as_array().unwrap().len(), 7);
+    word(output, 7);
     for family in value[4].as_array().unwrap() {
         evaluation(output, family);
     }

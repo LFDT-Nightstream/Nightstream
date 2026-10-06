@@ -481,8 +481,22 @@ def rankOneConstraintRow (constant left right : Expr) (coefficient : F)
       loweredConstant.sound env]
     exact equation.symm
 
-/-- Recognize the zero assertion `constant − left * right` with affine
-parts as one rank-one row. -/
+/-- The rank-one row `left · right = 0` for the zero assertion
+`left * right` with affine parts. -/
+def productConstraintRow (left right : Expr)
+    (loweredLeft : AffineResult left) (loweredRight : AffineResult right) :
+    DirectConstraintResult (.mul left right) where
+  row := ⟨loweredLeft.combination, loweredRight.combination,
+    LinearCombination.zero⟩
+  sound := by
+    intro env holds
+    simpa [Row.Holds, loweredLeft.sound env, loweredRight.sound env] using holds
+  complete := by
+    intro env holds
+    simpa [Row.Holds, loweredLeft.sound env, loweredRight.sound env] using holds
+
+/-- Recognize the zero assertions `constant − left * right` and
+`left * right` with affine parts as one rank-one row. -/
 def rankOneConstraint : (expression : Expr) →
     Option (DirectConstraintResult expression)
   | .add constant (.mul (.const coefficient) (.mul left right)) =>
@@ -493,6 +507,11 @@ def rankOneConstraint : (expression : Expr) →
               coefficientEquals loweredConstant loweredLeft loweredRight)
         | _, _, _ => none
       else none
+  | .mul left right =>
+      match lowerAffine left, lowerAffine right with
+      | some loweredLeft, some loweredRight =>
+          some (productConstraintRow left right loweredLeft loweredRight)
+      | _, _ => none
   | _ => none
 
 /-- An affine zero assertion, or else a rank-one one. -/

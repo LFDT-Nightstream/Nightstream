@@ -33,7 +33,8 @@ private theorem equalities_supported (left right : KExpr)
   · exact ⟨leftSupport.2, ⟨trivial, rightSupport.2⟩⟩
 
 /-- Exact support propagation through all three owned children and the final
-two extension-component equality rows. -/
+two extension-component equality rows. The constraint power reads the matrix
+power output. -/
 theorem flatConstraints_varsSatisfy (interface : Interface) (offset : Nat)
     (allowed : Nat → Prop)
     (roundPointSupport : ∀ coordinate,
@@ -65,7 +66,7 @@ theorem flatConstraints_varsSatisfy (interface : Interface) (offset : Nat)
     norm_num [productionShape, Phi81MatrixSource.phi81Shape,
       cubeVariables] at upper
     simpa [privateCount] using (Nat.lt_trans upper (by omega :
-      offset + 110 < offset + 41582))
+      offset + 110 < offset + 2726))
   have matrixLocal : ∀ index,
       matrixOffset interface offset ≤ index →
       index < matrixOffset interface offset + localLength
@@ -85,7 +86,7 @@ theorem flatConstraints_varsSatisfy (interface : Interface) (offset : Nat)
       norm_num [productionShape, Phi81MatrixSource.phi81Shape,
         cubeVariables] at upper
       simpa [privateCount] using (Nat.lt_trans upper (by omega :
-        offset + 110 + 2592 < offset + 41582))
+        offset + 110 + 2592 < offset + 2726))
   have constraintLocal : ∀ index,
       constraintOffset interface offset ≤ index →
       index < constraintOffset interface offset + localLength
@@ -105,7 +106,7 @@ theorem flatConstraints_varsSatisfy (interface : Interface) (offset : Nat)
       rw [PointEquality.Owned.localLength_eq_of_positive
         (pointInterfaceAt interface offset) offset
           productionCubeVariables_positive] at upper
-      rw [matrixExponent_eq, constraintExponent_eq] at upper
+      rw [matrixExponent_eq, constraintFactor_eq] at upper
       norm_num [productionShape, Phi81MatrixSource.phi81Shape,
         cubeVariables] at upper
       simpa [privateCount] using upper
@@ -118,10 +119,6 @@ theorem flatConstraints_varsSatisfy (interface : Interface) (offset : Nat)
   have matrixRows := Power.flatConstraints_varsSatisfy matrixExponent
     (matrixPowerInterfaceAt interface offset) (matrixOffset interface offset)
     allowed (by simpa [matrixPowerInterfaceAt] using gammaSupport) matrixLocal
-  have constraintRows := Power.flatConstraints_varsSatisfy constraintExponent
-    (constraintPowerInterfaceAt interface offset)
-    (constraintOffset interface offset) allowed
-    (by simpa [constraintPowerInterfaceAt] using gammaSupport) constraintLocal
   have pointOutputSupport := PointEquality.Owned.output_varsSatisfy
     (pointInterfaceAt interface offset) offset allowed
     (by intro coordinate; simpa [pointInterfaceAt] using
@@ -131,10 +128,19 @@ theorem flatConstraints_varsSatisfy (interface : Interface) (offset : Nat)
   have matrixOutputSupport := Power.output_varsSatisfy matrixExponent
     (matrixPowerInterfaceAt interface offset) (matrixOffset interface offset)
     allowed (by simpa [matrixPowerInterfaceAt] using gammaSupport) matrixLocal
-  have constraintOutputSupport := Power.output_varsSatisfy constraintExponent
+  have constraintPointSupport : Horner.KSupported
+      ((constraintPowerInterfaceAt interface offset).point
+        (constraintOffset interface offset)) allowed := by
+    simpa [constraintPowerInterfaceAt, gammaMatrixOutput] using
+      matrixOutputSupport
+  have constraintRows := Power.flatConstraints_varsSatisfy constraintFactor
     (constraintPowerInterfaceAt interface offset)
-    (constraintOffset interface offset) allowed
-    (by simpa [constraintPowerInterfaceAt] using gammaSupport) constraintLocal
+    (constraintOffset interface offset) allowed constraintPointSupport
+    constraintLocal
+  have constraintOutputSupport := Power.output_varsSatisfy constraintFactor
+    (constraintPowerInterfaceAt interface offset)
+    (constraintOffset interface offset) allowed constraintPointSupport
+    constraintLocal
   have terminalExprSupport :
       Horner.KSupported (terminalExpr interface offset) allowed := by
     unfold terminalExpr gammaMatrixOutput gammaConstraintOutput

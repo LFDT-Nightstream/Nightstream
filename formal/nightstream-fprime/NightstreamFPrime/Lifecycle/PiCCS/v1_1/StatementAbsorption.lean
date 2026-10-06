@@ -171,7 +171,7 @@ private theorem serializePublicInputExpr_length {logicalWidth : Nat}
     Phi81Relation.Shape.publicWidth, publicRingColumns, ringDegree]
 
 private theorem serializeEvaluationExpr_length (evaluation : EvaluationExpr) :
-    (serializeEvaluationExpr evaluation).length = 1620 := by
+    (serializeEvaluationExpr evaluation).length = 864 := by
   simp [serializeEvaluationExpr, serializeKExpr_length, productionShape,
     productionProfile, Phi81MatrixSource.phi81Shape, ringDegree]
 
@@ -205,7 +205,7 @@ theorem serializeRunningExpr_length {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (running : RunningExpr logicalWidth publicFits) :
-    (serializeRunningExpr running).length = 49353 := by
+    (serializeRunningExpr running).length = 37257 := by
   simp [serializeRunningExpr, blockExpr_length, serializePointExpr_length,
     serializeCommitmentExpr_length, serializePublicInputExpr_length,
     serializeEvaluationExpr_length, productionShape, productionProfile,
@@ -307,7 +307,7 @@ private theorem verifierClaimWords_length {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    (verifierClaimWords interface offset).length = 25920 := by
+    (verifierClaimWords interface offset).length = 13824 := by
   let running := interface.running offset
   have padLength :
       ((canonicalPadCoordinates productionShape).flatMap fun coordinate =>
@@ -755,7 +755,7 @@ private theorem absorb_recipeCount (input : List Expr) :
 
 @[simp] private theorem evaluation_recipeCount (evaluation : EvaluationExpr) :
     Formal.Action.recipeCount
-        (absorbBlock (serializeEvaluationExpr evaluation)) = 149056 := by
+        (absorbBlock (serializeEvaluationExpr evaluation)) = 80008 := by
   unfold absorbBlock
   rw [absorb_recipeCount, blockExpr_length, serializeEvaluationExpr_length]
 
@@ -764,7 +764,7 @@ private theorem absorb_recipeCount (input : List Expr) :
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     Formal.Action.recipeCount
-        (absorbBlock (verifierClaimWords interface offset)) = 2368456 := by
+        (absorbBlock (verifierClaimWords interface offset)) = 1263688 := by
   unfold absorbBlock
   rw [absorb_recipeCount, blockExpr_length,
     verifierClaimWords_length]
@@ -778,7 +778,7 @@ private theorem runningGroup_recipeCount {logicalWidth : Nat}
       [absorbBlock (serializeCommitmentExpr (running.commitment index)),
         absorbBlock (serializePublicInputExpr (running.publicInput index)),
         absorbBlock (serializeEvaluationExpr (running.evaluation index))] =
-      283864 := by
+      214816 := by
   simp [Formal.recipeCount]
 
 private theorem freshGroup_recipeCount {logicalWidth : Nat}
@@ -817,7 +817,7 @@ private theorem verifierInputActions_recipeCount {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    Formal.recipeCount (verifierInputActions interface offset) = 2373936 := by
+    Formal.recipeCount (verifierInputActions interface offset) = 1269168 := by
   rw [verifierInputActions_eq]
   simp [Formal.recipeCount]
 

@@ -37,7 +37,7 @@ theorem physical_complete (interface : Logical.Interface) (offset : Nat)
     (env : Env) (inputs : InputsAffine interface offset)
     (assumptions : Logical.Assumptions interface offset) :
     ∃ completed,
-      AgreesOutside env completed offset 98855 ∧
+      AgreesOutside env completed offset 74987 ∧
       PhysicalHolds interface offset completed := by
   rcases Logical.complete interface env offset assumptions with
     ⟨logicalEnv, logicalAgrees, logicalRows⟩
@@ -60,7 +60,7 @@ theorem physical_complete (interface : Logical.Interface) (offset : Nat)
       planScope planLogical with
     ⟨completed, physicalAgrees, rows⟩
   have physicalAgreesFixed : AgreesOutside logicalEnv completed
-      (offset + Logical.logicalPrivateCount) 26316 := by
+      (offset + Logical.logicalPrivateCount) 2448 := by
     rw [← plan_firstFresh interface offset,
       ← freshColumnCount_eq interface offset inputs]
     exact physicalAgrees

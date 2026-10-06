@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint
+import NightstreamFPrime.Export.SharedFormulas
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransport
 import NightstreamFPrime.Export.Stage1.PerApplicationPackageSourceCustody
 import NightstreamFPrime.Export.StreamingIdentity
@@ -10,7 +11,7 @@ import NightstreamFPrime.Export.MatrixProgram.Program
 Owns the verifier-owned canonical package for one Lean-authored application.
 
 The physical row program comes from `PerApplicationPackage`. Its `relation`
-field is replaced with the exact dimensions of the self-derived 14-matrix
+field is replaced with the exact dimensions of the self-derived 7-matrix
 plan. The package identity and verifier context are then recomputed from this
 canonical package, the exact application plan, and the actual Ajtai key.
 
@@ -64,7 +65,7 @@ def recursiveRelation (program : Program) (fits : FitsTwoPow28 program) :
     Lifecycle.cubeVariables
 
 def directStructuralRowCount (program : Program) : Nat :=
-  1987447 + (PerApplicationPackage.directApplicationPlan program).rowCount + 9
+  1365527 + (PerApplicationPackage.directApplicationPlan program).rowCount + 9
 
 theorem directStructuralRowCount_eq
     (program : Program) (fits : FitsTwoPow28 program) :
@@ -75,7 +76,7 @@ theorem directStructuralRowCount_eq
     PerApplicationFixedPoint.structuralPlan_rowCount]
 
 def directLogicalWidth (program : Program) : Nat :=
-  86478372 +
+  59579666 +
     (program.witnessWordCount + ApplicationRetainedBlocks.localCount program) * 41
 
 theorem directLogicalWidth_eq (program : Program) :
@@ -285,7 +286,7 @@ def logicalPublicInputCount : Nat := ProductionAssignment.publicWidth
 def sealedPackageSchema : Nat := 6
 
 /-- One prefix-free authority value that carries the physical circuit package,
-the exact compact 14-matrix program, the exact Lean-authored application plan,
+the exact compact 7-matrix program, the exact Lean-authored application plan,
 the retained-assignment transport plan, the exact NextPreimage row owner, and
 the recursive public prefix length. Rust must decode these children; it must
 not reconstruct relation, assignment, or application layout. -/
@@ -666,6 +667,7 @@ def verificationKeyBinding {program : Program}
     Lifecycle.Stage1.VerificationKey.Binding :=
   Lifecycle.Stage1.VerificationKey.ofAuthority
     (packageIdentity fits setup) (authority fits setup)
+    (SharedFormulas.libraryDigest ())
 
 def verificationKeyBindingFromStructural {program : Program}
     (fits : FitsTwoPow28 program) (setup : CommitmentSetup program)
@@ -676,6 +678,7 @@ def verificationKeyBindingFromStructural {program : Program}
   {
     packageIdentity := packageIdentityFromParts structural context
     context := context
+    formulas := SharedFormulas.libraryDigest ()
   }
 
 /-- Construct the complete binding from independently recomputed structural
@@ -692,6 +695,7 @@ def verificationKeyBindingFromStructuralAndApplicationDigest
   {
     packageIdentity := packageIdentityFromParts structural context
     context := context
+    formulas := SharedFormulas.libraryDigest ()
   }
 
 @[simp] theorem

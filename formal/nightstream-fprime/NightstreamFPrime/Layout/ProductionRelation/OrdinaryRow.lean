@@ -5,7 +5,7 @@ import NightstreamFPrime.Spec.ProductionRelation.RowSemantics
 /-!
 Owns the ordinary-row branch of the production selective compiler. One source
 R1CS equation supplies only the selector, `A`, `B`, and `C` matrix images.
-The fixed 74-term polynomial then checks exactly the source equation.
+The fixed 8-term polynomial then checks exactly the source equation.
 
 Programs are indexed functions, not artifact-sized lists. This module does
 not choose retained source slots or construct their low-norm substitutions.
@@ -41,7 +41,7 @@ def meaningfulForm {logicalWidth : Nat} (forms : Forms logicalWidth)
   | 4 => forms.c
   | _ => .empty
 
-/-- Complete 14-port view. Slot 13 is zero through `meaningfulPort?`. -/
+/-- Complete 7-port view. -/
 def portForm {logicalWidth : Nat} (forms : Forms logicalWidth)
     (port : Fin Spec.ProductionRelation.matrixCount) : SparseForm logicalWidth :=
   match ProductionRelation.meaningfulPort? port with
@@ -75,7 +75,7 @@ def residual {logicalWidth : Nat} (forms : Forms logicalWidth)
   evaluatePolynomial baseOps Spec.ProductionRelation.polynomial
     (forms.portImages assignment)
 
-/-- The complete 74-term polynomial reduces to the selected source residual. -/
+/-- The complete 8-term polynomial reduces to the selected source residual. -/
 theorem residual_eq {logicalWidth : Nat} (forms : Forms logicalWidth)
     (assignment : Assignment F logicalWidth) :
     forms.residual assignment =

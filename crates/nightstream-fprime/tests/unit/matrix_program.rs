@@ -189,7 +189,7 @@ fn every_lean_matrix_opcode_decodes_exact_rows() {
     );
     assert_eq!(entries(&program, phi_row, 2), vec![(7_054, 1)]);
     assert_eq!(entries(&program, phi_row, 4), vec![(7_108, 1), (7_162, 1)]);
-    assert_eq!(entries(&program, phi_row, 7), vec![(9_999, 1)]);
+    assert_eq!(entries(&program, phi_row, 6), vec![(9_999, 1)]);
 
     let phi_at_one = entries(&program, phi_row + 1, 4);
     assert_eq!(phi_at_one.len(), 108);
@@ -198,7 +198,7 @@ fn every_lean_matrix_opcode_decodes_exact_rows() {
     assert_eq!(phi_at_one[54], (7_162, 3));
     assert_eq!(phi_at_one[107], (7_162 + 53, 3));
 
-    assert_eq!(MEANINGFUL_PORTS, 13);
+    assert_eq!(MEANINGFUL_PORTS, 7);
 }
 
 #[test]

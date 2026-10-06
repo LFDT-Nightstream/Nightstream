@@ -82,6 +82,9 @@ fn validate_outputs(
     Ok(())
 }
 
+/// Verify PiCCS with the reference engine and return its conformance trace.
+///
+/// The [caller contract](crate::engines::PiCcsEngine::verify) applies.
 pub fn paper_exact_verify_with_trace(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,
@@ -150,6 +153,9 @@ pub(crate) fn paper_exact_verify_with_trace_and_binding(
     Ok((final_claim == expected, trace))
 }
 
+/// Verify PiCCS with the reference engine.
+///
+/// The [caller contract](crate::engines::PiCcsEngine::verify) applies.
 pub fn paper_exact_verify(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,

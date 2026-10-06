@@ -23,7 +23,7 @@ def sourceRows : List R1CS.Row :=
     (publicFits := publicFits)).map Rows.CompiledRow.toR1CS
 
 @[simp] theorem sourceRows_length :
-    (sourceRows (logicalWidth := logicalWidth) (publicFits := publicFits)).length = 38811 := by
+    (sourceRows (logicalWidth := logicalWidth) (publicFits := publicFits)).length = 14943 := by
   rw [sourceRows, List.length_map]
   exact PiRLCSamplerOrdinaryRows.rows_length
 
@@ -46,7 +46,7 @@ inductive Source : Nat → Prop where
       Source (poseidonSource source lane)
   | logical (source position : Nat) (sourceLt : source < 17) (positionLt : position < 617) :
       Source (coreStart source + position)
-  | fresh (source position : Nat) (sourceLt : source < 17) (positionLt : position < 1548) :
+  | fresh (source position : Nat) (sourceLt : source < 17) (positionLt : position < 144) :
       Source (PiRLCStarts.rangeFreshStart source + position)
   | word (source position : Nat) (sourceLt : source < 17) (positionLt : position < 54) :
       Source (PiRLCStarts.challengeWordStart source + position)
@@ -101,7 +101,7 @@ private theorem wordConstraints_supported (source : Nat) (sourceLt : source < 17
 
 private theorem range_fresh (source : Nat) :
     R1CS.totalFreshCount (PiRLCSamplerOrdinaryRows.rangeConstraints
-      (logicalWidth := logicalWidth) (publicFits := publicFits) source) = 1548 := by
+      (logicalWidth := logicalWidth) (publicFits := publicFits) source) = 144 := by
   have total := PiRLCSamplerOrdinaryRows.rangeRows_length
     (logicalWidth := logicalWidth) (publicFits := publicFits) source
   rw [PiRLCSamplerOrdinaryRows.rangeRows, PiCCSArithmetic.compilePacket_length,
@@ -126,7 +126,7 @@ private theorem rangeLowered_supported (source : Nat) (sourceLt : source < 17) :
   intro column support
   rcases support with supported | fresh
   · exact supported
-  · have positionLt : column - PiRLCStarts.rangeFreshStart source < 1548 := by omega
+  · have positionLt : column - PiRLCStarts.rangeFreshStart source < 144 := by omega
     have eq : PiRLCStarts.rangeFreshStart source +
         (column - PiRLCStarts.rangeFreshStart source) = column := by omega
     rw [← eq]
@@ -134,10 +134,10 @@ private theorem rangeLowered_supported (source : Nat) (sourceLt : source < 17) :
 
 private theorem wordLowered_supported (source : Nat) (sourceLt : source < 17) :
     ∀ row ∈ (R1CS.lowerConstraints (PiRLCSamplerOrdinaryRows.wordConstraints source)
-        (PiRLCStarts.rangeFreshStart source + 1548)).rows,
+        (PiRLCStarts.rangeFreshStart source + 144)).rows,
       row.VarsSatisfy Source := by
   have lowered := R1CS.lowerConstraints_rows_varsSatisfy _
-    (PiRLCStarts.rangeFreshStart source + 1548) Source
+    (PiRLCStarts.rangeFreshStart source + 144) Source
     (wordConstraints_supported source sourceLt)
   have fresh := Layout.PiRLC.v1_1.Sampler.words_fresh
     (PiRLCSamplerInvocations.sourceLogicalStart source)
@@ -189,12 +189,12 @@ theorem sourceRows_rowCount_le :
   rw [sourceRows_length]
   norm_num [Lifecycle.cubeVariables]
 
-def sourceListIndex (index : Fin 38811) :
+def sourceListIndex (index : Fin 14943) :
     Fin (sourceRows (logicalWidth := logicalWidth)
       (publicFits := publicFits)).length :=
   Fin.cast sourceRows_length.symm index
 
-def programRow (index : Fin 38811) : R1CS.Row :=
+def programRow (index : Fin 14943) : R1CS.Row :=
   (sourceRows (logicalWidth := logicalWidth)
     (publicFits := publicFits)).get (sourceListIndex index)
 
@@ -229,7 +229,7 @@ def SupportedProgram.toProgram {rows : List R1CS.Row}
 
 def supportedProgram : SupportedProgram
     (sourceRows (logicalWidth := logicalWidth) (publicFits := publicFits)) where
-  rowCount := 38811
+  rowCount := 14943
   rowCount_le := by norm_num [Lifecycle.cubeVariables]
   row := programRow (logicalWidth := logicalWidth) (publicFits := publicFits)
   exactRows := programRows_eq
@@ -247,10 +247,10 @@ def program : OrdinarySourcePlan.Program Spartan.spartanColumnCount :=
 
 @[simp] theorem program_rowCount :
     (program (logicalWidth := logicalWidth)
-      (publicFits := publicFits)).rowCount = 38811 := by
+      (publicFits := publicFits)).rowCount = 14943 := by
   rfl
 
-theorem programRow_bounded (index : Fin 38811) :
+theorem programRow_bounded (index : Fin 14943) :
     (programRow (logicalWidth := logicalWidth)
       (publicFits := publicFits) index).VarsBelow
         Spartan.spartanColumnCount := by
@@ -276,7 +276,7 @@ private theorem predicate_iff_of_eq {Alpha : Type} (predicate : Alpha → Prop)
 /-- Indexed canonical sampler rows hold exactly when the complete Lean-lowered
 row list holds in package order. -/
 theorem programRows_hold_iff_rowsHold (env : Env) :
-    (∀ index : Fin 38811,
+    (∀ index : Fin 14943,
       (programRow (logicalWidth := logicalWidth)
         (publicFits := publicFits) index).Holds env) ↔
       R1CS.RowsHold env

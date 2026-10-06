@@ -31,7 +31,7 @@ def canonicalLocalBlock (program : Lifecycle.Stage1.Application.Program) :
 
 def canonicalFreshBlock (program : Lifecycle.Stage1.Application.Program) :
     LowNormBlock.Block (sourceWidth program) :=
-  PiCCSOrdinaryRetainedBlocks.sourceFieldBlock program 788
+  PiCCSOrdinaryRetainedBlocks.sourceFieldBlock program 144
     PilotValues.logicalColumnCount (by
       rw [Spartan.sourceColumnCount_eq]
       norm_num [PilotValues.logicalColumnCount,
@@ -59,7 +59,7 @@ def outputDigestBlock (program : Lifecycle.Stage1.Application.Program) :
 
 @[simp] theorem canonicalFreshBlock_slotCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (canonicalFreshBlock program).slotCount = 788 := by rfl
+    (canonicalFreshBlock program).slotCount = 144 := by rfl
 
 @[simp] theorem outputDigestBlock_slotCount
     (program : Lifecycle.Stage1.Application.Program) :
@@ -72,7 +72,7 @@ def retainedSlotCount (program : Lifecycle.Stage1.Application.Program) : Nat :=
 
 @[simp] theorem retainedSlotCount_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    retainedSlotCount program = 1056 := by
+    retainedSlotCount program = 412 := by
   simp [retainedSlotCount]
 
 def retainedCoordinateCount
@@ -83,8 +83,8 @@ def retainedCoordinateCount
 
 @[simp] theorem retainedCoordinateCount_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    retainedCoordinateCount program = 43296 := by
-  change 264 * 41 + 788 * 41 + 4 * 41 = 43296
+    retainedCoordinateCount program = 16892 := by
+  change 264 * 41 + 144 * 41 + 4 * 41 = 16892
   norm_num
 
 end NightstreamFPrime.Export.Stage1.PilotOrdinaryRetainedBlocks

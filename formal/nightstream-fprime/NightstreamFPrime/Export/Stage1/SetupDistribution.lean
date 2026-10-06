@@ -15,7 +15,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 def setupCoefficientCount : Nat := verifierRows * messageColumns * ringDegree
 
-theorem setupCoefficientCount_eq : setupCoefficientCount = 1907471808 := by
+theorem setupCoefficientCount_eq : setupCoefficientCount = 1315699308 := by
   rw [setupCoefficientCount, verifierRows_eq, messageColumns_eq]
   rfl
 
@@ -24,7 +24,7 @@ def idealReductionErrorBudget : ℚ :=
   setupCoefficientCount * ((2 ^ 256 % goldilocksModulus : Nat) : ℚ) / 2 ^ 256
 
 theorem idealReductionErrorBudget_eq :
-    idealReductionErrorBudget = (1907471808 : ℚ) * 4294967295 / 2 ^ 256 := by
+    idealReductionErrorBudget = (1315699308 : ℚ) * 4294967295 / 2 ^ 256 := by
   rw [idealReductionErrorBudget, setupCoefficientCount_eq,
     AjtaiSetupV1.ReductionBias.wide_remainder_eq]
   rfl

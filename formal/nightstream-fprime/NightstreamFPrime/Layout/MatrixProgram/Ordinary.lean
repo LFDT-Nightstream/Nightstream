@@ -3,7 +3,7 @@ import NightstreamFPrime.Layout.ProductionRelation.OrdinarySourcePlan
 
 /-!
 Owns the generic executable interpreter for ordinary source R1CS rows in a
-compact sparse 14-matrix program. Source rows come from the package's existing
+compact sparse 7-matrix program. Source rows come from the package's existing
 canonical row stream. The interpreter only applies the package-carried sparse
 source substitution and places the result in the fixed ordinary matrix ports.
 

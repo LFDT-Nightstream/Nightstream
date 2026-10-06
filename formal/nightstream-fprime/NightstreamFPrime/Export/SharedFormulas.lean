@@ -1,5 +1,7 @@
 import Lean.Data.Json
 import NightstreamFPrime.Export.MatrixProgram
+import NightstreamFPrime.Export.Package
+import NightstreamFPrime.Lifecycle.VerifierContext
 import NightstreamFPrime.Layout.MatrixProgram.Phi81Product
 import NightstreamFPrime.Layout.MatrixProgram.Poseidon
 
@@ -235,16 +237,22 @@ private def writeComponent (handle : IO.FS.Handle) (component : Component) : IO 
     | .ok () => handle.putStr variant.json.compress
   handle.putStr "]}"
 
-/-- Stream fixed component variants; do not construct expanded matrices. -/
-def write (path : System.FilePath) : IO Unit := do
-  let handle ← IO.FS.Handle.mk path .write
-  let profile := [goldilocksModulus, productionGlobalParams.b,
+def format : String := "nightstream.matrix-templates"
+
+def version : Nat := 1
+
+def profile : List Nat :=
+  [goldilocksModulus, productionGlobalParams.b,
     productionGlobalParams.k, productionGlobalParams.bigB, ringDegree,
     NightstreamFPrime.Lifecycle.cubeVariables,
     Spec.ProductionRelation.matrixCount,
     Spec.ProductionRelation.meaningfulPortCount]
+
+/-- Stream fixed component variants; do not construct expanded matrices. -/
+def write (path : System.FilePath) : IO Unit := do
+  let handle ← IO.FS.Handle.mk path .write
   let header := Lean.Json.mkObj [
-    ("format", .str "nightstream.matrix-templates"), ("version", Lean.toJson (1 : Nat)),
+    ("format", .str format), ("version", Lean.toJson version),
     ("profile", Lean.toJson profile)]
   handle.putStr (header.compress.dropEnd 1).toString
   handle.putStr ",\"components\":["
@@ -254,5 +262,59 @@ def write (path : System.FilePath) : IO Unit := do
   handle.putStr ","
   writeComponent handle (phi81Component ())
   handle.putStr "]}\n"
+
+/-! ## Library identity
+
+The verification key binds this digest. Its value lists every field of the
+written library in file order. A string is the array of its UTF-8 bytes.
+Rust computes the same value from the file it loads. -/
+
+open NightstreamFPrime.Export.Codec
+
+private def natsValue (values : List Nat) : Value :=
+  .array (values.map .atom)
+
+private def stringValue (text : String) : Value :=
+  natsValue (text.toUTF8.toList.map UInt8.toNat)
+
+private def formValue (form : WireForm) : Value :=
+  .array (form.entries.map fun entry => .array [.atom entry.column, .atom entry.coefficient])
+
+private def Variant.value (variant : Variant) : Value :=
+  .array [
+    .array (variant.linearForms.map formValue),
+    .array (variant.rows.map fun row => .array (row.map formValue)),
+    natsValue variant.outputRegisters]
+
+private def Port.value (port : Port) : Value :=
+  .array [stringValue port.name, stringValue port.role, .atom port.start, .atom port.count]
+
+private def Component.value (component : Component) : Value :=
+  .array [
+    stringValue component.id,
+    .atom component.inputCount,
+    .array (component.ports.map Port.value),
+    .array ((List.finRange component.variantCount).map fun index =>
+      (component.variant index).value),
+    .array (component.definitions.map stringValue),
+    .array (component.contracts.map stringValue)]
+
+def libraryValue (_ : Unit) : Value :=
+  .array [
+    stringValue format,
+    .atom version,
+    natsValue profile,
+    .array [(poseidonComponent ()).value, (externalComponent ()).value,
+      (phi81Component ()).value]]
+
+/-- The ASCII bytes of `Nightstream/FPrime/formulas/v1`. -/
+def digestDomain : List F :=
+  ([78, 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47,
+    70, 80, 114, 105, 109, 101, 47, 102, 111, 114, 109, 117, 108, 97, 115,
+    47, 118, 49] : List Nat).map Poseidon2.ofNat
+
+def libraryDigest (_ : Unit) : Lifecycle.VerifierContext.Digest4 :=
+  Lifecycle.VerifierContext.Digest4.ofList
+    (Poseidon2.hash (digestDomain ++ Package.valuePreimage (libraryValue ())))
 
 end NightstreamFPrime.Export.SharedFormulas

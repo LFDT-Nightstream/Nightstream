@@ -196,7 +196,8 @@ def matrixRanges (point : PaperAlgebra.Point) (sourcePath : System.FilePath)
             pure (count, fun lo hi =>
               if reference then referenceBatch fun source =>
                 PiDECMatrixSparseRange.sum (first + lo) point (read source) (forms.extract lo hi)
-              else PiCCSOriginalMatrixSupported.sparse zeroSources.get (first + lo) point read (forms.extract lo hi))
+              else PiCCSOriginalMatrixSupported.weighted zeroSources.get (first + lo) point read
+                (forms.extract lo hi))
       report [("event", .str "range_begin"), ("block", Lean.toJson request.blockIndex),
         ("start", Lean.toJson first), ("end", Lean.toJson finish),
         ("load_ns", Lean.toJson ((← IO.monoNanosNow) - loadStarted))]

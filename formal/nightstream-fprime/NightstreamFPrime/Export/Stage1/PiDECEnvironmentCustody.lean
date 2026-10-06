@@ -46,8 +46,8 @@ private theorem ordinaryLocation_beforePiDECProof
       omega
   | fresh source position =>
       have sourceLt : source.val < 17 := source.isLt
-      have positionLt : position.val < 1548 := position.isLt
-      change PiRLCStarts.samplerFreshStart + source.val * 1548 + position.val < 20185702
+      have positionLt : position.val < 144 := position.isLt
+      change PiRLCStarts.samplerFreshStart + source.val * 144 + position.val < 14724302
       rw [PiRLCStarts.samplerFreshStart, PiRLCStarts.phaseFreshStart_eq]
       omega
 

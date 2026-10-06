@@ -233,11 +233,18 @@ fn native_records_preserve_complete_frozen_envelope_preimage_and_binding() {
     assert_eq!(structural, POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER);
     let identity = native_application_identity(&application).unwrap();
     let relation = value_preimage_words(&original[1][4]).unwrap();
+    let formulas =
+        std::fs::read(std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("artifacts/shared-formulas-v1.json"))
+            .unwrap();
+    let formula_digest = crate::components::FormulaLibrary::from_json(&formulas)
+        .unwrap()
+        .digest();
     let binding = stage1_verifier_binding(
         structural,
         original[1][4][1].as_u64().unwrap() as usize,
         &relation,
         &identity,
+        formula_digest,
     )
     .unwrap();
     assert_eq!(binding.package_identity(), POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY);
@@ -246,7 +253,7 @@ fn native_records_preserve_complete_frozen_envelope_preimage_and_binding() {
         POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST
     );
     assert_eq!(binding.verifier_context().descriptor_words().len(), 86);
-    assert_eq!(binding.verification_key_words().len(), 126);
+    assert_eq!(binding.verification_key_words().len(), 131);
 }
 
 #[test]

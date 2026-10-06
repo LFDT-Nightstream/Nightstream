@@ -22,7 +22,6 @@ mod commit;
 mod decomp;
 mod error;
 pub mod nightstream_fprime_setup;
-pub mod prg;
 mod types;
 pub mod util;
 

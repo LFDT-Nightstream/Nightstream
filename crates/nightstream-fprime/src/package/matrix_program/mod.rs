@@ -22,6 +22,7 @@ mod phi81;
 mod poseidon;
 mod poseidon_input;
 mod template;
+pub(super) use template::formula_digest;
 
 #[cfg(test)]
 #[path = "../../../tests/unit/matrix_program.rs"]

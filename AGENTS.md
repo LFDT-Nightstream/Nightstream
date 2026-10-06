@@ -8,6 +8,7 @@
 - When creating commits, always include a DCO sign-off (`git commit -s` or an equivalent `Signed-off-by:` trailer).
 - No single file should ever exceed 1,500 lines of code unless explicitly confirmed by the user.
 - Heavily avoid bloat. We want to maintain a compact and lean codebase.
+- Use subagents when the user requests them or an explicitly invoked skill requires delegation.
 - Proofs must remain compatible with on-chain verification targets. In proof/transcript/public-digest paths, use Poseidon2-only hashing unless explicitly approved otherwise.
 - Do not introduce mixed hash families (e.g., Blake3/SHA prehashes) in protocol-binding paths without explicit user approval.
 - You can find the SuperNeo paper which is what the main protocol is based upon in ./docs/superneo-paper

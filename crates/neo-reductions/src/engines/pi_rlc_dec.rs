@@ -83,36 +83,6 @@ pub trait RlcDecOps {
 pub struct OptimizedRlcDec;
 
 impl OptimizedRlcDec {
-    /// Optimized DEC that can reuse a caller-provided CSC cache to avoid dense n×m scans.
-    pub fn dec_children_with_commit_cached<Comb>(
-        s: &CcsStructure<F>,
-        params: &NeoParams,
-        parent: &CeClaim<Cmt, F, K>,
-        Z_split: &[Mat<F>],
-        ell_d: usize,
-        child_commitments: &[Cmt],
-        combine_b_pows: Comb,
-        sparse: Option<&super::optimized_engine::SparseCache<F>>,
-    ) -> (Vec<CeClaim<Cmt, F, K>>, bool, bool, bool)
-    where
-        Comb: Fn(&[Cmt], u32) -> Cmt,
-    {
-        if Z_split.len() != params.k_rho as usize || child_commitments.len() != Z_split.len() {
-            return (Vec::new(), false, false, false);
-        }
-        let split_valid = canonical_dec_split(Z_split, params.b);
-        let _ = sparse;
-        let (mut children, ok_y, ok_X) =
-            super::optimized_engine::dec_reduction_optimized::<F>(s, params, parent, Z_split, ell_d);
-
-        // Patch children commitments and check c relation.
-        for (ch, c) in children.iter_mut().zip(child_commitments.iter()) {
-            ch.c = c.clone();
-        }
-        let ok_c = split_valid && combine_b_pows(child_commitments, params.b) == parent.c;
-        (children, split_valid && ok_y, split_valid && ok_X, ok_c)
-    }
-
     /// Optimized DEC that reuses a caller-provided SuperNeo eval cache.
     pub fn dec_children_with_commit_superneo_cached<Comb>(
         s: &CcsStructure<F>,

@@ -40,7 +40,7 @@ const MATRIX_COUNT: u64 = nightstream_fprime::PI_CCS_V1_1_MATRIX_COUNT as u64;
 
 // Poseidon2HashChainV1BindingParity schema 1 and AjtaiSetupV1Parity schema 4.
 #[derive(Deserialize)]
-struct LeanBinding(u64, [u64; 4], [u64; 4], Vec<u64>, Vec<u64>, [u64; 4]);
+struct LeanBinding(u64, [u64; 4], [u64; 4], Vec<u64>, Vec<u64>, [u64; 4], [u64; 4]);
 
 #[derive(Deserialize)]
 struct LeanSetup(
@@ -213,9 +213,9 @@ impl Candidate {
         );
         let bytes = fs::read(path).expect("Lean candidate sealed package");
         let package = load_per_application_package(&bytes, expected).expect("expected Lean candidate identity");
-        let LeanBinding(schema, structural, package_identity, descriptor, key_preimage, key_digest) =
+        let LeanBinding(schema, structural, package_identity, descriptor, key_preimage, key_digest, formulas) =
             serde_json::from_value(read_metadata(binding_path)).expect("Lean binding schema");
-        assert_eq!(schema, 1);
+        assert_eq!(schema, 2);
         assert_eq!(structural, expected, "separately supplied Lean structural identity");
         let LeanSetup(schema, setup_id, _, _, seed, _, authority, _) =
             serde_json::from_value(read_metadata(setup_path)).expect("Lean setup schema");
@@ -270,6 +270,7 @@ impl Candidate {
         let mut expected_key_preimage = words(b"Nightstream/FPrime/verifier-key/v1");
         expected_key_preimage.extend(framed(&package_identity));
         expected_key_preimage.extend(framed(&descriptor));
+        expected_key_preimage.extend(framed(&formulas));
         require_words(
             &key_preimage,
             &expected_key_preimage,

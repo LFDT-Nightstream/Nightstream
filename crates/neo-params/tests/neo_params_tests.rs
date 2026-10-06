@@ -108,8 +108,8 @@ fn maximum_geometry_padded_row_census_matches_formula() {
     assert_eq!(summary.cube_variables, 30);
     assert_eq!(summary.verifier_degree, 4);
     assert_eq!(summary.sumcheck_factor, 120);
-    assert_eq!(summary.mixing_factor, 3159);
-    assert_eq!(summary.field_factor, 3279);
+    assert_eq!(summary.mixing_factor, 3189);
+    assert_eq!(summary.field_factor, 3309);
     assert_eq!(summary.fork_factor, 76);
     assert_eq!(
         summary.challenge_set_cardinality,

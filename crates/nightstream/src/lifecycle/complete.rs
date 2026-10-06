@@ -32,7 +32,6 @@ impl Stage1Envelope {
 
     /// Load untrusted active proof data. Only the selected terminal verifier
     /// can establish acceptance of its statement and openings.
-    #[cfg(test)]
     pub(crate) fn from_parts(state: Stage1State, running: RunningInstance, fresh: CcsInstance) -> Self {
         Self {
             state,

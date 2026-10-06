@@ -324,12 +324,6 @@ private theorem add_value {columns : Nat} (merged : Merged columns) (port : Fin 
 private theorem vget {Alpha : Type} {size : Nat} (values : Vector Alpha size) (index : Fin size) :
     values.get index = values[index.val] := rfl
 
-private theorem K_eq {first second : K} (low : first.c0 = second.c0)
-    (high : first.c1 = second.c1) : first = second := by
-  cases first
-  cases second
-  simp_all
-
 open Fin.CommRing in
 /-- `externalT` is the transpose of `Layer.externalF` for every adjoint and state. -/
 theorem externalT_dot (adjoint : Fin 16 → K) (state : Fin 16 → F) :

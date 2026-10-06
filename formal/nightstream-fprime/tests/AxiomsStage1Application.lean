@@ -61,6 +61,7 @@ import NightstreamFPrime.Layout.R1CS.ColumnMap
 #audit_axioms NightstreamFPrime.Export.Stage1.ApplicationPackage.bindApplication_descriptor_application
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.VerificationKey.ofAuthority_packageIdentity
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.VerificationKey.ofAuthority_context
+#audit_axioms NightstreamFPrime.Lifecycle.Stage1.VerificationKey.ofAuthority_formulas
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.VerificationKey.Binding.serialize_length
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.VerificationKey.Binding.digest_length
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.VerificationKey.Binding.digest_recomputed

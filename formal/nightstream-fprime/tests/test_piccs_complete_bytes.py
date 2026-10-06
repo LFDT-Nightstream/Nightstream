@@ -13,7 +13,7 @@ class PiCCSCompleteBytesTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         eval_k = [[[0, 0] for _ in range(54)] for _ in range(17)]
-        eval_a = [[[[0, 0] for _ in range(54)] for _ in range(14)] for _ in range(17)]
+        eval_a = [[[[0, 0] for _ in range(54)] for _ in range(7)] for _ in range(17)]
         value = [2, [0] * 1188, [0] * 270,
                  [[[0, 0] for _ in range(10)] for _ in range(28)], eval_k, eval_a, []]
         phase = [1] + [0] * 11 + [eval_k, eval_a, [0] * 16]

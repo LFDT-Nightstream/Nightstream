@@ -202,7 +202,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.ZeroRunningOracle.matrixPrefix_fits
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.ZeroRunningOracle.matrixPrefix_getD
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.ZeroRunningOracle.source_running_zero
-#audit_axioms NightstreamFPrime.Layout.ProductionRelation.ZeroRunningOracle.source_matrix13_zero
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.ZeroRunningOracle.freshPrefix_table
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.ZeroRunningOracle.matrixPrefix_table
 
@@ -222,9 +221,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSInputCheck.execute_accepted_iff
 
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.ZeroRunningPolynomial.runningOutput_zero
-#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.ZeroRunningPolynomial.matrix13Output_zero
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.ZeroRunningPolynomial.runningAssignment_zero
-#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.ZeroRunningPolynomial.freshMatrix13_zero
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.ZeroRunningPolynomial.qAtPoint_eq_fresh
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.ZeroRunningPolynomial.initial_zero
 
@@ -627,14 +624,10 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalSupport.assignment_eq_zero
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalSupport.read_eq_zero
-#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixSupported.sparse_source_port
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixSupported.weighted_source_port
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixSupported.weighted_isZero_source_port
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixSupported.invocations_source_port
-#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixSupported.sparse_isZero_source_port
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixSupported.invocations_isZero_source_port
-#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixSupported.invocationsWeighted_source_port
-#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixSupported.invocationsWeighted_isZero_source_port
 
 -- Selected original-source carried values and complete first-round coefficients.
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedSource.matrix_sourceProtocolData

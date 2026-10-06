@@ -9,7 +9,7 @@ the package serializer both read these definitions.
 namespace NightstreamFPrime.Layout.PilotValues
 
 abbrev digestWords : Nat := 4
-abbrev stateHashBaseWords : Nat := 49381
+abbrev stateHashBaseWords : Nat := 37285
 abbrev stateHashWords : Nat :=
   stateHashBaseWords + digestWords + digestWords + digestWords
 abbrev priorPublicInputWords : Nat := 270
@@ -30,8 +30,8 @@ abbrev hashWitnessCount : Nat :=
   (absorbCount + 1) * permutationRecipeCount
 abbrev outputHashRowCount : Nat := hashWitnessCount + digestWords
 abbrev priorCanonicalPrivateCount : Nat := 4 * 66
-abbrev priorCanonicalFreshCount : Nat := 4 * 197
-abbrev priorCanonicalRowCount : Nat := 4 * 328
+abbrev priorCanonicalFreshCount : Nat := 4 * 36
+abbrev priorCanonicalRowCount : Nat := 4 * 167
 abbrev priorFixedRowCount : Nat := 14
 abbrev priorExtraRowCount : Nat :=
   priorCanonicalRowCount + priorFixedRowCount

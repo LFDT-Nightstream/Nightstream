@@ -6,7 +6,7 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 use serde_json::Value;
 
-use crate::package::{PackageError, PI_CCS_V1_1_ROUND_COUNT};
+use crate::package::{PackageError, PI_CCS_V1_1_MATRIX_COUNT, PI_CCS_V1_1_ROUND_COUNT};
 
 mod native;
 pub(crate) use native::{
@@ -29,36 +29,48 @@ const VERIFIER_CONTEXT_PROFILE: [u64; 14] = [
     16,
     17,
     16,
-    14,
+    PI_CCS_V1_1_MATRIX_COUNT as u64,
     PI_CCS_V1_1_ROUND_COUNT as u64,
     9,
     54,
     22,
 ];
-const VERIFIER_CONTEXT_SCHEDULE: [u64; 10] = [1, 1, 1, PI_CCS_V1_1_ROUND_COUNT as u64, 10, 17, 14, 54, 4, 1];
+const VERIFIER_CONTEXT_SCHEDULE: [u64; 10] = [
+    1,
+    1,
+    1,
+    PI_CCS_V1_1_ROUND_COUNT as u64,
+    10,
+    17,
+    PI_CCS_V1_1_MATRIX_COUNT as u64,
+    54,
+    4,
+    1,
+];
 const VERIFIER_CONTEXT_COMPONENT_DOMAIN: &[u8] = b"Nightstream/FPrime/context/v1_1";
 const VERIFIER_CONTEXT_DOMAIN: &[u8] = b"Nightstream/FPrime/verifier-context/v1_1";
 const NIFS_KEY_DOMAIN: &[u8] = b"Nightstream/FPrime/nifs-key/v1_1";
 const PACKAGE_IDENTITY_DOMAIN: &[u8] = b"Nightstream/FPrime/sealed-package/v2";
 const VERIFICATION_KEY_DOMAIN: &[u8] = b"Nightstream/FPrime/verifier-key/v1";
+const FORMULA_LIBRARY_DOMAIN: &[u8] = b"Nightstream/FPrime/formulas/v1";
 
 pub const POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER: [u64; 4] = [
-    14_764_501_797_423_590_719,
-    13_137_466_278_964_290_588,
-    10_036_210_837_749_289_980,
-    8_944_256_517_400_356_286,
+    6_140_047_365_154_428_978,
+    15_014_356_542_662_835_441,
+    8_837_665_427_653_281_796,
+    16_105_464_800_666_874_060,
 ];
 pub const POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY: [u64; 4] = [
-    7_548_990_011_328_446_471,
-    17_135_259_440_128_128_963,
-    5_831_077_210_202_460_744,
-    9_417_456_504_682_884_501,
+    7_147_714_140_347_778_281,
+    2_702_919_217_022_180_743,
+    18_419_811_066_073_596_212,
+    17_282_503_508_119_195_553,
 ];
 pub const POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST: [u64; 4] = [
-    1_612_518_194_126_583_911,
-    13_314_152_462_129_068_354,
-    4_916_810_167_131_489_256,
-    6_670_504_575_770_714_994,
+    13_403_009_536_525_963_686,
+    8_093_998_191_745_443_646,
+    7_285_817_855_273_359_339,
+    11_691_738_023_119_990_703,
 ];
 
 /// Verifier-owned context derived from one identity-checked package and the
@@ -174,6 +186,14 @@ pub(super) fn relation_identifier(package: &Value) -> Result<[u64; 4], PackageEr
     Ok(input.finalize().map(|value| value.as_canonical_u64()))
 }
 
+/// Lean `SharedFormulas.libraryDigest` of the library's codec value.
+pub(crate) fn formula_library_digest(library: &Value) -> Result<[u64; 4], PackageError> {
+    let mut input = poseidon2::Poseidon2Hasher::default();
+    update_words(&mut input, &bytes_as_words(FORMULA_LIBRARY_DOMAIN));
+    append_value_preimage(library, &mut input)?;
+    Ok(input.finalize().map(|value| value.as_canonical_u64()))
+}
+
 pub(super) fn pi_ccs_v1_1_verifier_context(
     package_identity: [u64; 4],
     commitment_key_words: &[u64],
@@ -217,6 +237,7 @@ pub(super) fn stage1_verifier_binding(
     logical_columns: usize,
     relation_value_words: &[u64],
     application: &ApplicationIdentity,
+    formula_digest: [u64; 4],
 ) -> Result<Stage1VerifierBinding, PackageError> {
     let message_columns = u64::try_from(logical_columns.div_ceil(54))
         .map_err(|_| PackageError::Invalid("Stage 1 carrier block count"))?;
@@ -264,6 +285,7 @@ pub(super) fn stage1_verifier_binding(
     let mut verification_key_words = bytes_as_words(VERIFICATION_KEY_DOMAIN);
     append_framed(&mut verification_key_words, &package_identity)?;
     append_framed(&mut verification_key_words, &descriptor_words)?;
+    append_framed(&mut verification_key_words, &formula_digest)?;
     let verification_key_digest = poseidon_words(&verification_key_words);
 
     Ok(Stage1VerifierBinding {

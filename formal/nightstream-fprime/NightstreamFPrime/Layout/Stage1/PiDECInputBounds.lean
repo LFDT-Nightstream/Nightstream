@@ -105,7 +105,7 @@ theorem inputsBelow
         PiRLCStarts.commitmentLogicalStart row lane
         PiRLC.v1_1.CommitmentCombination.cell)
     rw [PiRLC.v1_1.CommitmentCombination.logicalPrivateCount_eq]
-    change 12258160 + 20196 ≤ 20234950
+    change 8761280 + 20196 ≤ 14761454
     norm_num
   · intro column
     apply Expr.VarsBelow.mono _
@@ -120,7 +120,7 @@ theorem inputsBelow
           column)
         PiRLC.v1_1.PublicInputCombination.cell)
     rw [PiRLC.v1_1.PublicInputCombination.logicalPrivateCount_eq]
-    change 12278356 + 4590 ≤ 20234950
+    change 8781476 + 4590 ≤ 14761454
     norm_num
   · intro coefficient
     constructor
@@ -135,7 +135,7 @@ theorem inputsBelow
             coefficient)
           PiRLC.v1_1.RingKCombination.c0Cell)
       rw [PiRLC.v1_1.EvalKCombination.logicalPrivateCount_eq]
-      change 12282946 + 1836 ≤ 20234950
+      change 8786066 + 1836 ≤ 14761454
       norm_num
     · apply Expr.VarsBelow.mono _
         (combinationOutput_varsBelow
@@ -148,7 +148,7 @@ theorem inputsBelow
             coefficient)
           PiRLC.v1_1.RingKCombination.c1Cell)
       rw [PiRLC.v1_1.EvalKCombination.logicalPrivateCount_eq]
-      change 12282946 + 1836 ≤ 20234950
+      change 8786066 + 1836 ≤ 14761454
       norm_num
   · intro matrix coefficient
     constructor
@@ -163,7 +163,7 @@ theorem inputsBelow
             coefficient)
           PiRLC.v1_1.RingKCombination.c0Cell)
       rw [PiRLC.v1_1.EvalACombination.logicalPrivateCount_eq]
-      change 12284782 + 25704 ≤ 20234950
+      change 8787902 + 12852 ≤ 14761454
       norm_num
     · apply Expr.VarsBelow.mono _
         (combinationOutput_varsBelow
@@ -176,7 +176,7 @@ theorem inputsBelow
             coefficient)
           PiRLC.v1_1.RingKCombination.c1Cell)
       rw [PiRLC.v1_1.EvalACombination.logicalPrivateCount_eq]
-      change 12284782 + 25704 ≤ 20234950
+      change 8787902 + 12852 ≤ 14761454
       norm_num
   · intro child row lane
     simp only [interface, message, childCommitment, Expr.VarsBelow]

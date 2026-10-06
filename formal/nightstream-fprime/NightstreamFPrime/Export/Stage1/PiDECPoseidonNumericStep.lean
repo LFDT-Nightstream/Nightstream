@@ -131,7 +131,7 @@ def rowValues {logicalWidth : Nat} (read : Fin logicalWidth → F)
     (forms.input.evalSparse read) (forms.output.evalSparse read)
 
 /-- Every stored port equals the evaluation of its existing sparse form,
-including the empty ports and matrix slot 13. -/
+including the empty ports. -/
 theorem rowValues_get {logicalWidth : Nat} (read : Fin logicalWidth → F)
     (forms : SboxRow.Forms logicalWidth) (port : Fin matrixCount) :
     (rowValues read forms).get port = (forms.portForm port).evalSparse read := by

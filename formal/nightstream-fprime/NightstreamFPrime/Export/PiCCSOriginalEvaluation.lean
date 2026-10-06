@@ -157,8 +157,8 @@ def matrixRanges (point : PaperAlgebra.Point) (sourcePath : System.FilePath)
               if reference then referenceBatch fun source =>
                 PiDECMatrixInvocationRange.sum (first + 150 * lo) point (read source)
                   (interfaces.extract lo hi)
-              else PiCCSOriginalMatrixSupported.invocationsWeighted zeroSources.get (first + 150 * lo)
-                point read (interfaces.extract lo hi))
+              else PiCCSOriginalMatrixSupported.invocations zeroSources.get (first + 150 * lo) point read
+                (interfaces.extract lo hi))
         | .phi81Product block => do
             if aligned : firstRow % 108 = 0 ∧ lastRow % 108 = 0 then
               let invocations := lastRow / 108 - firstRow / 108

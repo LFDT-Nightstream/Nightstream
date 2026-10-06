@@ -44,8 +44,8 @@ fn ajtai_smodule_materializes_owned_pp() {
     let l = AjtaiSModule::new(Arc::new(pp.clone()));
 
     let materialized = l.materialize_pp().unwrap();
-    assert_eq!(materialized.d, pp.d);
-    assert_eq!(materialized.m, pp.m);
-    assert_eq!(materialized.kappa, pp.kappa);
-    assert_eq!(materialized.m_rows, pp.m_rows);
+    assert_eq!(materialized.d(), pp.d());
+    assert_eq!(materialized.m(), pp.m());
+    assert_eq!(materialized.kappa(), pp.kappa());
+    assert_eq!(materialized.rows(), pp.rows());
 }

@@ -82,9 +82,6 @@ pub use verify::optimized_verify_with_cache;
 pub use verify::optimized_verify_with_cache_and_perf;
 pub use verify::optimized_verify_with_trace;
 
-/// Wrapper for simple case (k=1, no ME inputs)
-pub use prove::optimized_prove_simple as pi_ccs_prove_simple;
-
 /// Canonical oracle types exposed only for the independent PaperExact audit
 /// suite. Normal clients use the prover and verifier entrypoints.
 #[cfg(feature = "paper-exact")]

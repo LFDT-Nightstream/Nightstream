@@ -425,19 +425,19 @@ theorem evalKInvocationRows_imply_sourceConstraint
 
 theorem evalAInvocationRows_imply_sourceConstraint
     (source block cell : Nat) (lane : Fin ringDegree)
-    (sourceLt : source < sourceCount) (blockLt : block < 14)
+    (sourceLt : source < sourceCount) (blockLt : block < 7)
     (cellLt : cell < 2) (env : Env)
     (holds : R1CS.RowsHold env
       (CompactRows.instantiateRows
         (CompactRows.inputColumnOfRanges
           (invocation PiRLCStarts.evalALogicalStart PiRLCStarts.evalARowStart
-            PiRLCStarts.evalAFreshStart 14 2 2 source block lane.val cell
+            PiRLCStarts.evalAFreshStart 7 2 2 source block lane.val cell
             evalAValueSourceStart).inputRanges)
         (invocation PiRLCStarts.evalALogicalStart PiRLCStarts.evalARowStart
-          PiRLCStarts.evalAFreshStart 14 2 2 source block lane.val cell
+          PiRLCStarts.evalAFreshStart 7 2 2 source block lane.val cell
           evalAValueSourceStart).localStart
         (PiRLCCombinationTemplates.template (firstSource source) lane))) :
-    (sourceConstraint PiRLCStarts.evalALogicalStart 14 2 2 source block cell
+    (sourceConstraint PiRLCStarts.evalALogicalStart 7 2 2 source block cell
       evalAValueSourceStart lane).eval (Spartan.pullback env) = 0 := by
   apply invocationRows_imply_sourceConstraint
   · exact invocationFreshSource_local _ _ _ _ _ _ _ evalAFreshStart_local
@@ -616,7 +616,7 @@ theorem evalAFamilyRows_imply_canonical
         logicalWidth}
     (env : Env)
     (rows : FamilyInvocationRowsHold PiRLCStarts.evalALogicalStart
-      PiRLCStarts.evalARowStart PiRLCStarts.evalAFreshStart 14 2 2
+      PiRLCStarts.evalARowStart PiRLCStarts.evalAFreshStart 7 2 2
       evalAValueSourceStart env) :
     CombinationFamily.CanonicalHolds
       (productionEvalAFamilyInterface (logicalWidth := logicalWidth)

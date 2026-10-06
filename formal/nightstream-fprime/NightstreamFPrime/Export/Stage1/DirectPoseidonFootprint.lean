@@ -20,18 +20,18 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-/-- The two pilot chains each contain 4,117 absorption permutations and one
+/-- The two pilot chains each contain 3,109 absorption permutations and one
 final padding permutation. -/
 def pilotPermutationCount : Nat :=
   2 * (PilotValues.absorbCount + 1)
 
-@[simp] theorem pilotPermutationCount_eq : pilotPermutationCount = 8236 := by
+@[simp] theorem pilotPermutationCount_eq : pilotPermutationCount = 6220 := by
   rfl
 
 /-- PiCCS and PiRLC sampler permutations in the current Stage 1 package. -/
-def laterPermutationCount : Nat := 2651 + 34
+def laterPermutationCount : Nat := 1580 + 34
 
-@[simp] theorem laterPermutationCount_eq : laterPermutationCount = 2685 := by
+@[simp] theorem laterPermutationCount_eq : laterPermutationCount = 1614 := by
   rfl
 
 /-- The two phase schedule owners have exactly the fixed later count at every
@@ -51,7 +51,7 @@ theorem phaseInvocations_length (logicalWidth : Nat)
 def totalPermutationCount : Nat :=
   pilotPermutationCount + laterPermutationCount
 
-@[simp] theorem totalPermutationCount_eq : totalPermutationCount = 10921 := by
+@[simp] theorem totalPermutationCount_eq : totalPermutationCount = 7834 := by
   simp [totalPermutationCount]
 
 /-- One authoritative general-field slot for every retained S-box output in
@@ -60,7 +60,7 @@ def directSboxFieldCount : Nat :=
   totalPermutationCount *
     PoseidonRetainedSlots.slots.length
 
-@[simp] theorem directSboxFieldCount_eq : directSboxFieldCount = 1638150 := by
+@[simp] theorem directSboxFieldCount_eq : directSboxFieldCount = 1175100 := by
   rw [directSboxFieldCount, totalPermutationCount_eq,
     PoseidonRetainedSlots.slots_length]
 
@@ -71,7 +71,7 @@ def directSboxCoordinateCount : Nat :=
     LowNormAssignment.logicalWidth PoseidonRetainedSlots.slots
 
 @[simp] theorem directSboxCoordinateCount_eq :
-    directSboxCoordinateCount = 67164150 := by
+    directSboxCoordinateCount = 48179100 := by
   rw [directSboxCoordinateCount, totalPermutationCount_eq,
     PoseidonRetainedSlots.slots_logicalWidth]
 

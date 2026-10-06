@@ -460,6 +460,9 @@ pub(crate) fn verify_with_trace(
     Ok((final_claim == expected, trace))
 }
 
+/// Verify PiCCS with the selected transcript binding.
+///
+/// The [caller contract](crate::engines::PiCcsEngine::verify) applies.
 #[allow(clippy::too_many_arguments)]
 pub fn verify_with_binding(
     transcript: &mut Poseidon2Transcript,
@@ -503,6 +506,9 @@ pub(crate) fn verify_with_binding_and_matrix_digest(
     .0)
 }
 
+/// Verify PiCCS with the digest-only transcript binding.
+///
+/// The [caller contract](crate::engines::PiCcsEngine::verify) applies.
 pub fn verify(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,

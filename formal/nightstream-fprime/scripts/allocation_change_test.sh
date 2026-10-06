@@ -44,10 +44,10 @@ run_target() {
 }
 
 # A failed leaf is an invalid experiment, not evidence about parent interfaces.
-run_target leaf NightstreamFPrime.Layout.PiDEC.v1_1.Leaves.SignedSplitScalar
+run_target leaf NightstreamFPrime.Layout.PiDEC.v1_2.Leaves.SignedSplitScalar
 control_failed=0
-run_target piccs NightstreamFPrime.Layout.PiCCS.v1_1.Lowering || control_failed=1
-run_target pirlc NightstreamFPrime.Layout.PiRLC.v1_1.Lowering || control_failed=1
+run_target piccs NightstreamFPrime.Layout.PiCCS.v1_2.Lowering || control_failed=1
+run_target pirlc NightstreamFPrime.Layout.PiRLC.v1_2.Lowering || control_failed=1
 run_target pirlc_input NightstreamFPrime.Layout.Stage1.PiRLCInputBounds || control_failed=1
 full_failed=0
 # Distinguish interface/consumer failures from value-only default-profile checks.

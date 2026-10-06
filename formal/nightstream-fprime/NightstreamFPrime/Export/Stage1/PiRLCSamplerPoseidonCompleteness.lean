@@ -23,7 +23,7 @@ open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
@@ -373,7 +373,7 @@ private theorem initial_value
     (relation : ProductionKey.LogicalRelation relationLogicalWidth relationPublicFits)
     (target : Env)
     (suffix : Fin (PerApplicationPackage.addedPrivateColumnCount application) → F)
-    (physical : NightstreamFPrime.Layout.PiCCS.v1_1.PhysicalHolds relation
+    (physical : NightstreamFPrime.Layout.PiCCS.v1_2.PhysicalHolds relation
       (PiCCSInputs.interface relationLogicalWidth relationPublicFits) PiCCSInputs.phaseOffset
       (Spartan.pullback target)) :
     let raw := canonicalRawValues application (PerApplicationSourceAssignment.ofCompleted application target suffix)
@@ -386,7 +386,7 @@ private theorem initial_value
   funext lane
   have state : PiRLCSamplerProjection.productionInitialState
       (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits) =
-      Lifecycle.PiCCS.v1_1.OutputBinding.finalState
+      Lifecycle.PiCCS.v1_2.OutputBinding.finalState
         (PiCCSInvocations.outputInterface Data.logicalWidth Data.publicFits)
         PiCCSInvocations.outputWitnessStart := by
     change PiCCSProjection.fastOutputState Data.logicalWidth Data.publicFits = _

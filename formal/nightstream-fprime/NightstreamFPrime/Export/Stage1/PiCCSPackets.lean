@@ -15,7 +15,7 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
@@ -138,7 +138,7 @@ theorem initialClaim_rows (logicalWidth : Nat)
       PiCCSArithmetic.initialClaimRows logicalWidth publicFits := by
   simp only [initialClaim, make_rows, PiCCSArithmetic.initialClaimRows,
     PiCCSArithmetic.initialClaimConstraints,
-    NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints,
+    NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints,
     PiCCSArithmetic.mainConstraints]
 
 theorem sumcheck_batches (logicalWidth : Nat)
@@ -155,7 +155,7 @@ theorem sumcheck_rows (logicalWidth : Nat)
       PiCCSArithmetic.sumcheckRows logicalWidth publicFits := by
   simp only [sumcheck, make_rows, PiCCSArithmetic.sumcheckRows,
     PiCCSArithmetic.sumcheckConstraints,
-    NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints,
+    NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints,
     PiCCSArithmetic.mainConstraints]
 
 theorem evalK_batches (logicalWidth : Nat)
@@ -172,7 +172,7 @@ theorem evalK_rows (logicalWidth : Nat)
       PiCCSArithmetic.evalKRows logicalWidth publicFits := by
   simp only [evalK, make_rows, PiCCSArithmetic.evalKRows,
     PiCCSArithmetic.evalKConstraints,
-    NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints,
+    NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints,
     PiCCSArithmetic.mainConstraints]
 
 theorem evalA_batches (logicalWidth : Nat)
@@ -189,7 +189,7 @@ theorem evalA_rows (logicalWidth : Nat)
       PiCCSArithmetic.evalARows logicalWidth publicFits := by
   simp only [evalA, make_rows, PiCCSArithmetic.evalARows,
     PiCCSArithmetic.evalAConstraints,
-    NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints,
+    NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints,
     PiCCSArithmetic.mainConstraints]
 
 theorem ccs_batches (logicalWidth : Nat)

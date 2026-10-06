@@ -1,6 +1,6 @@
 import NightstreamFPrime.Layout.ProductionRelation.ZeroRunningOracle
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NumericCompletionSum
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.ZeroRunningPolynomial
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.ZeroRunningPolynomial
 
 /-!
 Owns numeric completion sums of the canonical zero-running PiCCS polynomial.
@@ -264,7 +264,7 @@ private theorem term_eq_polynomial (plan : Plan logicalWidth)
       ProtocolPolynomial.polynomial extensionOps (protocol plan cubeFits ajtai fresh assignment)
         alpha gamma (fixed ++ vertex.fieldCoordinates extensionOps) := by
   let point := completionPoint fixed dimension vertex
-  have reduction := PiCCS.v1_1.ZeroRunningPolynomial.qAtPoint_eq_fresh
+  have reduction := PiCCS.v1_2.ZeroRunningPolynomial.qAtPoint_eq_fresh
     (source plan cubeFits ajtai fresh assignment)
     (source_running_zero plan cubeFits ajtai fresh assignment) alpha point gamma
   have protocolEq : ProtocolDataRefinement.toProtocolData baseOps K.embed

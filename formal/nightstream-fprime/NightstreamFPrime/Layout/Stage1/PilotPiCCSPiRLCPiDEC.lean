@@ -1,7 +1,7 @@
 import NightstreamFPrime.Layout.Stage1.PiDECStarts
 
 /-!
-Owns the Stage 1 prefix through the exact PiDEC v1_1 phase.
+Owns the Stage 1 prefix through the exact PiDEC v1_2 phase.
 
 The 37,152-word PiDEC input ABI follows the completed PiRLC physical endpoint.
 The PiDEC packet then adds 6,912 rows and 18,090 logical-plus-R1CS private
@@ -29,7 +29,7 @@ def physicalRows
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     List R1CS.Row :=
   PilotPiCCSPiRLC.physicalRows relation ++
-    NightstreamFPrime.Layout.PiDEC.v1_1.physicalRows relation
+    NightstreamFPrime.Layout.PiDEC.v1_2.physicalRows relation
       (PiDECInputs.interface logicalWidth publicFits) piDecOffset
 
 def physicalRowCount
@@ -39,7 +39,7 @@ def physicalRowCount
 def physicalColumnCount
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) : Nat :=
   max PiDECInputs.phaseOffset
-    (NightstreamFPrime.Layout.PiDEC.v1_1.physicalColumnCount relation
+    (NightstreamFPrime.Layout.PiDEC.v1_2.physicalColumnCount relation
       (PiDECInputs.interface logicalWidth publicFits) piDecOffset)
 
 def jointDomain
@@ -56,7 +56,7 @@ theorem physicalHolds_iff
     (env : Env) :
     PhysicalHolds relation env ↔
       PilotPiCCSPiRLC.PhysicalHolds relation env ∧
-        NightstreamFPrime.Layout.PiDEC.v1_1.PhysicalHolds relation
+        NightstreamFPrime.Layout.PiDEC.v1_2.PhysicalHolds relation
           (PiDECInputs.interface logicalWidth publicFits) piDecOffset env := by
   exact R1CS.rowsHold_append env _ _
 
@@ -66,10 +66,10 @@ theorem physicalRowCount_eq
   unfold physicalRowCount physicalRows
   rw [List.length_append]
   change PilotPiCCSPiRLC.physicalRowCount relation +
-    NightstreamFPrime.Layout.PiDEC.v1_1.physicalRowCount relation
+    NightstreamFPrime.Layout.PiDEC.v1_2.physicalRowCount relation
       (PiDECInputs.interface logicalWidth publicFits) piDecOffset = PiDECStarts.outputRowStart
   rw [PilotPiCCSPiRLC.physicalRowCount_eq,
-    NightstreamFPrime.Layout.PiDEC.v1_1.physicalRowCount_eq_production
+    NightstreamFPrime.Layout.PiDEC.v1_2.physicalRowCount_eq_production
       relation (PiDECInputs.interface logicalWidth publicFits) piDecOffset
       (PiDECInputs.inputShapes relation)]
   rfl
@@ -78,7 +78,7 @@ theorem physicalColumnCount_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     physicalColumnCount relation = PiDECStarts.outputFreshStart := by
   unfold physicalColumnCount
-  rw [NightstreamFPrime.Layout.PiDEC.v1_1.physicalColumnCount_eq_production
+  rw [NightstreamFPrime.Layout.PiDEC.v1_2.physicalColumnCount_eq_production
     relation (PiDECInputs.interface logicalWidth publicFits) piDecOffset
     (PiDECInputs.inputShapes relation)]
   dsimp only [piDecOffset]
@@ -101,14 +101,14 @@ theorem jointDomain_le_twoPow28
 def cumulativePhysicalRows
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     List Nat :=
-  (NightstreamFPrime.Layout.PiDEC.v1_1.cumulativePhysicalRows relation
+  (NightstreamFPrime.Layout.PiDEC.v1_2.cumulativePhysicalRows relation
     (PiDECInputs.interface logicalWidth publicFits) piDecOffset).map
       (PiDECStarts.phaseRowStart + ·)
 
 def cumulativePhysicalColumns
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     List Nat :=
-  (NightstreamFPrime.Layout.PiDEC.v1_1.cumulativePhysicalColumns relation
+  (NightstreamFPrime.Layout.PiDEC.v1_2.cumulativePhysicalColumns relation
     (PiDECInputs.interface logicalWidth publicFits) piDecOffset).map
       (piDecOffset + ·)
 
@@ -122,16 +122,16 @@ def cumulativeJointDomains
 theorem cumulativeFootprints_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     cumulativePhysicalRows relation =
-      (PiDEC.v1_1.cumulativeFrom 0 PiDEC.v1_1.exactRowDeltas).map
+      (PiDEC.v1_2.cumulativeFrom 0 PiDEC.v1_2.exactRowDeltas).map
         (PiDECStarts.phaseRowStart + ·) ∧
     cumulativePhysicalColumns relation =
-      (PiDEC.v1_1.cumulativeFrom 0 PiDEC.v1_1.exactPhysicalColumnDeltas).map
+      (PiDEC.v1_2.cumulativeFrom 0 PiDEC.v1_2.exactPhysicalColumnDeltas).map
         (piDecOffset + ·) := by
   have inputs := PiDECInputs.inputShapes relation
   constructor
-  · simp only [cumulativePhysicalRows, PiDEC.v1_1.cumulativePhysicalRows, piDecOffset,
-      PiDEC.v1_1.physicalRowDeltas_eq relation _ _ inputs]
-  · simp only [cumulativePhysicalColumns, PiDEC.v1_1.cumulativePhysicalColumns, piDecOffset,
-      PiDEC.v1_1.physicalColumnDeltas_eq relation _ _ inputs]
+  · simp only [cumulativePhysicalRows, PiDEC.v1_2.cumulativePhysicalRows, piDecOffset,
+      PiDEC.v1_2.physicalRowDeltas_eq relation _ _ inputs]
+  · simp only [cumulativePhysicalColumns, PiDEC.v1_2.cumulativePhysicalColumns, piDecOffset,
+      PiDEC.v1_2.physicalColumnDeltas_eq relation _ _ inputs]
 
 end NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDEC

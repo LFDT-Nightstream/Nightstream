@@ -163,7 +163,7 @@ private structure Represents
       (commonEnv application assignment base) =
     AccumulatorInputs.output (relation application fits)
       (transitionEnv application base)
-  runningOutput : PiCCS.v1_1.StatementAbsorption.evalRunning
+  runningOutput : PiCCS.v1_2.StatementAbsorption.evalRunning
     (RunningTransitionInputs.outputRunningExpr
       (PerApplicationFixedPoint.logicalWidth application)
       (PerApplicationFixedPoint.publicFits application))
@@ -304,7 +304,7 @@ private theorem representedSemantics_imply_stepHoldsFor
         subst slot
         calc
           output.runningNext functionIndex =
-              PiCCS.v1_1.StatementAbsorption.evalRunning
+              PiCCS.v1_2.StatementAbsorption.evalRunning
                 (RunningTransitionInputs.outputRunningExpr
                   (PerApplicationFixedPoint.logicalWidth application)
                   (PerApplicationFixedPoint.publicFits application))
@@ -336,7 +336,7 @@ private theorem representedSemantics_imply_stepHoldsFor
             (relation application fits) (transitionEnv application base) := by
         calc
           output.runningNext functionIndex =
-              PiCCS.v1_1.StatementAbsorption.evalRunning
+              PiCCS.v1_2.StatementAbsorption.evalRunning
                 (RunningTransitionInputs.outputRunningExpr
                   (PerApplicationFixedPoint.logicalWidth application)
                   (PerApplicationFixedPoint.publicFits application))

@@ -19,7 +19,7 @@ open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Gadgets.Sampling
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
@@ -192,7 +192,7 @@ theorem sourceColumn_lt (location : StateLocation) :
     Sampler.counts.1, stateStepStride,
     PiRLCStarts.samplerLogicalStart, PiRLCStarts.phaseLogicalStart,
     PiRLCInputs.phaseOffset,
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerOffset] at sourceLt stepLt laneLt ⊢
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.samplerOffset] at sourceLt stepLt laneLt ⊢
   omega
 
 end StateLocation
@@ -428,7 +428,7 @@ private theorem samplerLogicalStart_lt_sourceColumnCount :
   rw [Spartan.sourceColumnCount_eq]
   norm_num [PiRLCStarts.samplerLogicalStart, PiRLCStarts.phaseLogicalStart,
     PiRLCInputs.phaseOffset,
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerOffset]
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.samplerOffset]
 
 private theorem ordinaryTarget_none_of_beforeSampler {column : Nat}
     (before : column < PiRLCStarts.samplerLogicalStart) :

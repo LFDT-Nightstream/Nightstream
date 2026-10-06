@@ -57,7 +57,9 @@ tests      axiom gate (explicit imports, `#audit_axioms` per theorem)
 ## Rules
 
 - Cite SuperNeo only by its v1.2 numbers (`docs/superneo-paper-v1_2`). The
-  `v1_1` module and namespace names are code names, not paper citations.
+  byte tags that spell `v1_1` (`PiCCS/digest-only/v1_1`, `nifs-key/v1_1`,
+  `verifier-context/v1_1`, `context/v1_1`) are frozen protocol bytes; do not
+  change them.
 - `formal/nightstream-lean` was deleted. Do not restore or import it;
   provenance comments that name it record history only.
 - No generated modules, no embedded artifact data, no `native_decide`, no

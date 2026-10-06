@@ -227,7 +227,7 @@ def compactEnv (program : Lifecycle.Stage1.Application.Program)
 
 @[simp] theorem compactEnv_piRlcLocal
     (program : Lifecycle.Stage1.Application.Program) (env : Env)
-    (index : Nat) (bound : index < Lifecycle.PiRLC.v1_1.Formal.logicalPrivateCount) :
+    (index : Nat) (bound : index < Lifecycle.PiRLC.v1_2.Formal.logicalPrivateCount) :
     compactEnv program env (AssemblerInputs.piRlcOffset program + index) =
       sourceEnv program env (PilotPiCCSPiRLC.piRlcOffset + index) := by
   have notRoot : ¬ AssemblerInputs.piRlcOffset program + index <
@@ -257,7 +257,7 @@ def compactEnv (program : Lifecycle.Stage1.Application.Program)
 
 @[simp] theorem compactEnv_piDecLocal
     (program : Lifecycle.Stage1.Application.Program) (env : Env)
-    (index : Nat) (bound : index < PiDEC.v1_1.Formal.logicalPrivateCount) :
+    (index : Nat) (bound : index < PiDEC.v1_2.Formal.logicalPrivateCount) :
     compactEnv program env (AssemblerInputs.piDecOffset program + index) =
       sourceEnv program env (PilotPiCCSPiRLCPiDEC.piDecOffset + index) := by
   have notRoot : ¬ AssemblerInputs.piDecOffset program + index <

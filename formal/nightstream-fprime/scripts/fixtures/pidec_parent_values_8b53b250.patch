@@ -342,7 +342,7 @@ index e7dbd542..54c97c19 100644
    ⟨result.value, forms.work + selected.work + result.work + 8⟩
 @@ -253,7 +253,7 @@ theorem entry_value (matrix : Fin productionShape.matrixCount)
      (entry matrix coefficient row column).value =
-       (Lifecycle.PiRLC.v1_1.InputBinding.relationSource PiDECInputCheck.relation).matrixSource.coefficientMatrix
+       (Lifecycle.PiRLC.v1_2.InputBinding.relationSource PiDECInputCheck.relation).matrixSource.coefficientMatrix
          baseOps matrix coefficient (selectedPlan.rowLayout.toVertex (globalRow row)) column := by
 -  change (CoefficientWork.coefficient (logicalWidth := 254260583)
 +  change (CoefficientWork.coefficient (logicalWidth := 254271653)
@@ -628,14 +628,14 @@ index 1a6a2501..5cc50c1f 100644
        omega)
  
  def freshCount : Nat := RunningTransitionSourceSupport.physicalEnd -
-diff --git a/formal/nightstream-fprime/NightstreamFPrime/Layout/PiDEC/v1_1/Values.lean b/formal/nightstream-fprime/NightstreamFPrime/Layout/PiDEC/v1_1/Values.lean
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Layout/PiDEC/v1_2/Values.lean b/formal/nightstream-fprime/NightstreamFPrime/Layout/PiDEC/v1_2/Values.lean
 index 3efbaa6d..f3504116 100644
---- a/formal/nightstream-fprime/NightstreamFPrime/Layout/PiDEC/v1_1/Values.lean
-+++ b/formal/nightstream-fprime/NightstreamFPrime/Layout/PiDEC/v1_1/Values.lean
+--- a/formal/nightstream-fprime/NightstreamFPrime/Layout/PiDEC/v1_2/Values.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Layout/PiDEC/v1_2/Values.lean
 @@ -21,7 +21,7 @@ theorem Leaves.SignedSplitScalar.physicalRowCount_value :
  
  theorem Leaves.SignedSplitScalar.physicalPrivateColumnCount_value :
-     Lifecycle.PiDEC.v1_1.SignedSplitScalar.exactPrivateCount +
+     Lifecycle.PiDEC.v1_2.SignedSplitScalar.exactPrivateCount +
 -      Leaves.SignedSplitScalar.freshColumnCount = 67 := by rfl
 +      Leaves.SignedSplitScalar.freshColumnCount = 68 := by rfl
  
@@ -656,9 +656,9 @@ index 3efbaa6d..f3504116 100644
 -    Formal.logicalPrivateCount + exactFreshCount = 18090 := by
 +    Formal.logicalPrivateCount + exactFreshCount = 18360 := by
    rw [exactFreshCount_value]
--  change Lifecycle.PiDEC.v1_1.PublicInputSplit.exactPrivateCount + 17820 = 18090
-+  change Lifecycle.PiDEC.v1_1.PublicInputSplit.exactPrivateCount + 17820 = 18360
-   rw [Lifecycle.PiDEC.v1_1.PublicInputSplit.exactPrivateCount_eq]
+-  change Lifecycle.PiDEC.v1_2.PublicInputSplit.exactPrivateCount + 17820 = 18090
++  change Lifecycle.PiDEC.v1_2.PublicInputSplit.exactPrivateCount + 17820 = 18360
+   rw [Lifecycle.PiDEC.v1_2.PublicInputSplit.exactPrivateCount_eq]
  
  variable {logicalWidth : Nat}
 @@ -68,7 +68,7 @@ theorem cumulativeFootprints_eq
@@ -779,11 +779,11 @@ index 800f75bd..3e619243 100644
            omega
          unfold spartanToSource
          rw [if_neg notPilotPrivate, if_neg notProofInput,
-diff --git a/formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiDEC/v1_1/PublicInputSplit/Values.lean b/formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiDEC/v1_1/PublicInputSplit/Values.lean
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiDEC/v1_2/PublicInputSplit/Values.lean b/formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiDEC/v1_2/PublicInputSplit/Values.lean
 index 00ad5044..1c2d88d2 100644
---- a/formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiDEC/v1_1/PublicInputSplit/Values.lean
-+++ b/formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiDEC/v1_1/PublicInputSplit/Values.lean
-@@ -8,7 +8,7 @@ namespace NightstreamFPrime.Lifecycle.PiDEC.v1_1.PublicInputSplit
+--- a/formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiDEC/v1_2/PublicInputSplit/Values.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiDEC/v1_2/PublicInputSplit/Values.lean
+@@ -8,7 +8,7 @@ namespace NightstreamFPrime.Lifecycle.PiDEC.v1_2.PublicInputSplit
  open NightstreamFPrime.Spec
  open NightstreamFPrime.Lifecycle.PaperAlgebra
  

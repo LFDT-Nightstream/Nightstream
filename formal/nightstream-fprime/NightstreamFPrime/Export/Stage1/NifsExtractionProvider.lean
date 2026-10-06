@@ -190,7 +190,7 @@ private theorem relationSource_eq {width : Nat}
       Phi81CarrierLayout.carrierWidth width}
     (selectedRelation : ProductionKey.LogicalRelation width fits)
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := width) (publicFits := fits)) :
-    Lifecycle.PiRLC.v1_1.InputBinding.relationSource selectedRelation =
+    Lifecycle.PiRLC.v1_2.InputBinding.relationSource selectedRelation =
       (ProductionKey.key selectedRelation ajtai).relationSource := by
   rfl
 
@@ -206,7 +206,7 @@ The empty certificate is only a batch view; this constructor makes no
 acceptance claim and does not alter the checked prefix receipt. -/
 def batchAt (context : Context) (coins : PublicCoins K productionShape)
     (output : FullOutputCoordinates.FullOutput K productionShape) : Batch where
-  system := Lifecycle.PiRLC.v1_1.InputBinding.relationSource relation
+  system := Lifecycle.PiRLC.v1_2.InputBinding.relationSource relation
   point := coins.roundPoint
   inputs := fun coordinate =>
     (PiCCSStoredWitnessCheck.statement (inputs context)).publicOutput

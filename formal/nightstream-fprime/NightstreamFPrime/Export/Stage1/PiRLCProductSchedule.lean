@@ -15,7 +15,7 @@ namespace NightstreamFPrime.Export.Stage1.PiRLCProductSchedule
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Export.Package
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Export.Stage1.PiRLCCombinationInvocations
 

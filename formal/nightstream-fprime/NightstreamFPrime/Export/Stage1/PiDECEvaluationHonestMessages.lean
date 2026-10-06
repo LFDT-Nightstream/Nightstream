@@ -60,19 +60,19 @@ private theorem evaluationFamily_rows {logicalWidth : Nat}
       (PaperAlgebra.FullShape logicalWidth publicFits))
     (point : PaperAlgebra.Point) :
     PaperAlgebra.evaluationFamily
-        (Lifecycle.PiRLC.v1_1.InputBinding.relationSource relation) assignment point =
+        (Lifecycle.PiRLC.v1_2.InputBinding.relationSource relation) assignment point =
       ({ pad := fun lane =>
           (BooleanTable.tabulate (fun vertex => K.embed
             (PiRLC.ExplicitMatrix.rowRing relation.system
               (PaperAlgebra.padMatrix
-                (Lifecycle.PiRLC.v1_1.InputBinding.relationSource relation))
+                (Lifecycle.PiRLC.v1_2.InputBinding.relationSource relation))
               assignment vertex lane))).evaluate extensionOps point
          matrix := fun matrix lane =>
           (BooleanTable.tabulate (fun vertex => K.embed
             (PiRLC.rowRing relation.system assignment matrix vertex lane))).evaluate
             extensionOps point } : PaperAlgebra.Evaluation) := by
   exact PaperAlgebra.evaluationFamily_eq_paper
-    (Lifecycle.PiRLC.v1_1.InputBinding.relationSource relation).cubeLayout
+    (Lifecycle.PiRLC.v1_2.InputBinding.relationSource relation).cubeLayout
     relation.system assignment point
 
 /-- The executed prefixes produce the complete selected semantic family.
@@ -84,7 +84,7 @@ theorem family_eq_evaluationFamily
     (point : PaperAlgebra.Point) (child : Fin productionGlobalParams.k) :
     family assignments point child =
       PaperAlgebra.evaluationFamily
-        (Lifecycle.PiRLC.v1_1.InputBinding.relationSource PiDECInputCheck.relation)
+        (Lifecycle.PiRLC.v1_2.InputBinding.relationSource PiDECInputCheck.relation)
         (view (assignments.get child)) point := by
   rw [PiDECInputCheck.relation_eq_selected,
     evaluationFamily_rows selectedRelation (view (assignments.get child)) point]

@@ -65,31 +65,31 @@ def piRlcOffset (program : Lifecycle.Stage1.Application.Program) : Nat :=
   piCcsOffset program + 1776949
 
 def piDecOffset (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  piRlcOffset program + PiRLC.v1_1.Formal.logicalPrivateCount
+  piRlcOffset program + PiRLC.v1_2.Formal.logicalPrivateCount
 
 def runningOffset (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  piDecOffset program + Lifecycle.PiDEC.v1_1.Formal.logicalPrivateCount
+  piDecOffset program + Lifecycle.PiDEC.v1_2.Formal.logicalPrivateCount
 
 def applicationOffset (program : Lifecycle.Stage1.Application.Program) : Nat :=
   runningOffset program + 2
 
 def piCcsInterface
     (program : Lifecycle.Stage1.Application.Program) :
-    Lifecycle.PiCCS.v1_1.Formal.Interface logicalWidth 9 publicFits :=
+    Lifecycle.PiCCS.v1_2.Formal.Interface logicalWidth 9 publicFits :=
   { PiCCSInputs.interface logicalWidth publicFits with
     baseOffset := piCcsOffset program }
 
 def piCcsOutputState
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) :=
-  Lifecycle.PiCCS.v1_1.Formal.outputBindingFinalState relation
+  Lifecycle.PiCCS.v1_2.Formal.outputBindingFinalState relation
     (piCcsInterface (logicalWidth := logicalWidth) (publicFits := publicFits)
       program)
     (piCcsOffset program)
 
 def piCcsRoundPoint
     (program : Lifecycle.Stage1.Application.Program) :=
-  Lifecycle.PiCCS.v1_1.Formal.roundPoint
+  Lifecycle.PiCCS.v1_2.Formal.roundPoint
     (piCcsInterface (logicalWidth := logicalWidth) (publicFits := publicFits)
       program)
     (piCcsOffset program)
@@ -100,26 +100,26 @@ theorem piCcsRoundPoint_eq_challenge
     piCcsRoundPoint
         (logicalWidth := logicalWidth) (publicFits := publicFits) program
         coordinate =
-      Lifecycle.PiCCS.v1_1.RoundTranscript.challenge
-        (Lifecycle.PiCCS.v1_1.Formal.roundTranscriptInterface
-          (Lifecycle.PiCCS.v1_1.Formal.atOffset
+      Lifecycle.PiCCS.v1_2.RoundTranscript.challenge
+        (Lifecycle.PiCCS.v1_2.Formal.roundTranscriptInterface
+          (Lifecycle.PiCCS.v1_2.Formal.atOffset
             (piCcsInterface
               (logicalWidth := logicalWidth) (publicFits := publicFits) program)
             (piCcsOffset program)))
-        (Lifecycle.PiCCS.v1_1.Formal.roundTranscriptOffset
+        (Lifecycle.PiCCS.v1_2.Formal.roundTranscriptOffset
           (piCcsInterface
             (logicalWidth := logicalWidth) (publicFits := publicFits) program)
           (piCcsOffset program)) coordinate := by
-  unfold piCcsRoundPoint Lifecycle.PiCCS.v1_1.Formal.roundPoint
+  unfold piCcsRoundPoint Lifecycle.PiCCS.v1_2.Formal.roundPoint
   have interfaceEq :
-      Lifecycle.PiCCS.v1_1.Formal.atOffset
+      Lifecycle.PiCCS.v1_2.Formal.atOffset
           (piCcsInterface
             (logicalWidth := logicalWidth) (publicFits := publicFits) program)
           (piCcsOffset program) =
         piCcsInterface
           (logicalWidth := logicalWidth) (publicFits := publicFits) program := by
     rfl
-  rw [← Lifecycle.PiCCS.v1_1.Formal.roundTranscriptStart_atOffset
+  rw [← Lifecycle.PiCCS.v1_2.Formal.roundTranscriptStart_atOffset
     (piCcsInterface
       (logicalWidth := logicalWidth) (publicFits := publicFits) program)
     (piCcsOffset program), interfaceEq]
@@ -129,7 +129,7 @@ inputs remain the shared external PiCCS output fields. -/
 def piRlcInterface
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) :
-    Lifecycle.PiRLC.v1_1.Formal.Interface logicalWidth publicFits where
+    Lifecycle.PiRLC.v1_2.Formal.Interface logicalWidth publicFits where
   baseOffset := piRlcOffset program
   initialState := fun _ => piCcsOutputState relation program
   point := fun _ => piCcsRoundPoint
@@ -140,23 +140,23 @@ def piRlcInterface
 def piRlcShared
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) :=
-  Lifecycle.PiRLC.v1_1.Formal.atOffset
+  Lifecycle.PiRLC.v1_2.Formal.atOffset
     (piRlcInterface relation program) (piRlcOffset program)
 
 def piRlcOutputInterface
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) :=
-  Lifecycle.PiRLC.v1_1.Formal.outputBindingInterface
+  Lifecycle.PiRLC.v1_2.Formal.outputBindingInterface
     (piRlcShared relation program) (piRlcOffset program)
 
 def piRlcOutputOffset (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  Lifecycle.PiRLC.v1_1.Formal.outputBindingOffset (piRlcOffset program)
+  Lifecycle.PiRLC.v1_2.Formal.outputBindingOffset (piRlcOffset program)
 
 /-- PiDEC's parent is exactly the compact PiRLC combined output. -/
 def piDecParent
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) :
-    Lifecycle.PiDEC.v1_1.InputBinding.ParentExpr logicalWidth publicFits :=
+    Lifecycle.PiDEC.v1_2.InputBinding.ParentExpr logicalWidth publicFits :=
   let output := piRlcOutputInterface relation program
   let offset := piRlcOutputOffset program
   { commitment := output.commitment offset
@@ -168,7 +168,7 @@ def piDecParent
 def piDecInterface
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) :
-    Lifecycle.PiDEC.v1_1.Formal.Interface logicalWidth publicFits where
+    Lifecycle.PiDEC.v1_2.Formal.Interface logicalWidth publicFits where
   parent := fun _ => piDecParent relation program
   point := fun _ =>
     (piRlcOutputInterface relation program).point (piRlcOutputOffset program)
@@ -176,7 +176,7 @@ def piDecInterface
   digit := fun _ child coordinate =>
     PiDECInputs.childPublicInput child
       (Fin.cast
-        (Lifecycle.PiDEC.v1_1.PublicInputSplit.coordinateCount_eq
+        (Lifecycle.PiDEC.v1_2.PublicInputSplit.coordinateCount_eq
           logicalWidth publicFits)
         coordinate)
 
@@ -190,14 +190,14 @@ def childOfRunning
 
 def publicWidth_eq_coordinateCount :
     (FullShape logicalWidth publicFits).publicWidth =
-      Lifecycle.PiDEC.v1_1.PublicInputSplit.coordinateCount
+      Lifecycle.PiDEC.v1_2.PublicInputSplit.coordinateCount
         logicalWidth publicFits := by
-  rw [Lifecycle.PiDEC.v1_1.PublicInputSplit.coordinateCount_eq]
+  rw [Lifecycle.PiDEC.v1_2.PublicInputSplit.coordinateCount_eq]
   rfl
 
 def digitCoordinate
     (coordinate : Fin (FullShape logicalWidth publicFits).publicWidth) :
-    Fin (Lifecycle.PiDEC.v1_1.PublicInputSplit.coordinateCount
+    Fin (Lifecycle.PiDEC.v1_2.PublicInputSplit.coordinateCount
       logicalWidth publicFits) :=
   Fin.cast publicWidth_eq_coordinateCount coordinate
 
@@ -205,7 +205,7 @@ def digitCoordinate
 def recursiveRunningExpr
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) :
-    Lifecycle.PiCCS.v1_1.StatementAbsorption.RunningExpr
+    Lifecycle.PiCCS.v1_2.StatementAbsorption.RunningExpr
       logicalWidth publicFits :=
   let piDec := piDecInterface relation program
   let offset := piDecOffset program
@@ -266,9 +266,9 @@ PiRLC combined output; no copied digest or boundary value intervenes. -/
 theorem piDecParent_eval_eq_piRlcOutput
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
-    (Lifecycle.PiDEC.v1_1.Semantics.inputAttempt relation
+    (Lifecycle.PiDEC.v1_2.Semantics.inputAttempt relation
       (piDecInterface relation program) (piDecOffset program) env).parent =
-      Lifecycle.PiRLC.v1_1.Semantics.evalOutput relation
+      Lifecycle.PiRLC.v1_2.Semantics.evalOutput relation
         (piRlcInterface relation program) (piRlcOffset program) env := by
   rfl
 
@@ -362,9 +362,9 @@ private theorem piCcsPrivateCount_eq
     (Lifecycle.Stage1.piCcsChild relation ajtai program
       (interface relation program) template).privateCount (piCcsOffset program) =
       1776949 := by
-  change Lifecycle.PiCCS.v1_1.Formal.privateCount
+  change Lifecycle.PiCCS.v1_2.Formal.privateCount
     (ProductionKey.degreeBound relation) = 1776949
-  exact Lifecycle.PiCCS.v1_1.Formal.privateCount_eq_of_degreeBound_eq_nine
+  exact Lifecycle.PiCCS.v1_2.Formal.privateCount_eq_of_degreeBound_eq_nine
     _ (ProductionKey.degreeBound_eq relation)
 
 theorem parent_piRlcOffset_eq
@@ -393,7 +393,7 @@ theorem parent_piDecOffset_eq
   unfold Lifecycle.Stage1.piDecOffset
   rw [parent_piRlcOffset_eq relation ajtai program template]
   change piRlcOffset program +
-    Lifecycle.PiRLC.v1_1.Formal.logicalPrivateCount = piDecOffset program
+    Lifecycle.PiRLC.v1_2.Formal.logicalPrivateCount = piDecOffset program
   rfl
 
 theorem parent_runningOffset_eq
@@ -408,7 +408,7 @@ theorem parent_runningOffset_eq
   unfold Lifecycle.Stage1.runningOffset
   rw [parent_piDecOffset_eq relation ajtai program template]
   change piDecOffset program +
-    Lifecycle.PiDEC.v1_1.Formal.logicalPrivateCount = runningOffset program
+    Lifecycle.PiDEC.v1_2.Formal.logicalPrivateCount = runningOffset program
   rfl
 
 theorem parent_applicationOffset_eq

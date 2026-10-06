@@ -13,7 +13,7 @@ use neo_ajtai::nightstream_fprime_setup::{signed_unit_prefix_blocks, PRODUCTION_
 use neo_ajtai::Commitment;
 use neo_ccs::Mat;
 use neo_math::{KExtensions, D, F, K};
-use nightstream_fprime::{PI_CCS_V1_1_ROUND_COUNT, PI_DEC_V1_1_CHILD_COUNT};
+use nightstream_fprime::{PI_CCS_V1_2_ROUND_COUNT, PI_DEC_V1_2_CHILD_COUNT};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use super::{PreparedLifecycle, Stage1Envelope, Stage1State};
@@ -43,7 +43,7 @@ impl Shape {
         let evaluations = self.matrices.checked_add(1)?.checked_mul(2 * D)?;
         D.checked_mul(KAPPA)?
             .checked_add(self.public_width)?
-            .checked_add(2 * PI_CCS_V1_1_ROUND_COUNT)?
+            .checked_add(2 * PI_CCS_V1_2_ROUND_COUNT)?
             .checked_add(evaluations)?
             .checked_mul(WORD)?
             .checked_add(DIGEST_BYTES)
@@ -62,8 +62,8 @@ impl Shape {
                 let claim = self.claim_bytes()?;
                 let witness = self.witness_bytes()?;
                 let running = claim
-                    .checked_mul(PI_DEC_V1_1_CHILD_COUNT + 1)?
-                    .checked_add(witness.checked_mul(PI_DEC_V1_1_CHILD_COUNT)?)?;
+                    .checked_mul(PI_DEC_V1_2_CHILD_COUNT + 1)?
+                    .checked_add(witness.checked_mul(PI_DEC_V1_2_CHILD_COUNT)?)?;
                 let fresh = (D * KAPPA + self.public_width)
                     .checked_mul(WORD)?
                     .checked_add(witness)?;
@@ -112,7 +112,7 @@ impl PreparedLifecycle {
                 .parent_authority
                 .as_ref()
                 .ok_or(ProofCodecError("missing PiRLC parent"))?;
-            if running.claims.len() != PI_DEC_V1_1_CHILD_COUNT || running.witnesses.len() != PI_DEC_V1_1_CHILD_COUNT {
+            if running.claims.len() != PI_DEC_V1_2_CHILD_COUNT || running.witnesses.len() != PI_DEC_V1_2_CHILD_COUNT {
                 return Err(ProofCodecError("running claim or witness count"));
             }
             output.word(state.iteration());
@@ -157,11 +157,11 @@ impl PreparedLifecycle {
             return Ok(Stage1Envelope::initial(input.four()?));
         }
         let state = Stage1State::new(input.word()?, input.four()?, input.four()?);
-        let mut claims = (0..=PI_DEC_V1_1_CHILD_COUNT)
+        let mut claims = (0..=PI_DEC_V1_2_CHILD_COUNT)
             .map(|_| input.claim(&shape))
             .collect::<Result<Vec<_>, _>>()?;
         let parent = claims.pop();
-        let witnesses = (0..PI_DEC_V1_1_CHILD_COUNT)
+        let witnesses = (0..PI_DEC_V1_2_CHILD_COUNT)
             .map(|_| input.witness(&shape))
             .collect::<Result<Vec<_>, _>>()?;
         let c = input.commitment()?;
@@ -222,7 +222,7 @@ impl Writer {
         if claim.m_in != shape.public_width
             || claim.X.rows() != D
             || claim.X.cols() != shape.public_width / D
-            || claim.r.len() != PI_CCS_V1_1_ROUND_COUNT
+            || claim.r.len() != PI_CCS_V1_2_ROUND_COUNT
             || claim.eval_a.len() != shape.matrices
             || claim.adv.is_some()
         {
@@ -321,7 +321,7 @@ impl<'a> Reader<'a> {
     fn claim(&mut self, shape: &Shape) -> Result<CeClaim, ProofCodecError> {
         let c = self.commitment()?;
         let projection = self.fields(shape.public_width)?;
-        let r = (0..PI_CCS_V1_1_ROUND_COUNT)
+        let r = (0..PI_CCS_V1_2_ROUND_COUNT)
             .map(|_| self.extension())
             .collect::<Result<Vec<_>, _>>()?;
         let eval_k = self.evaluations()?;

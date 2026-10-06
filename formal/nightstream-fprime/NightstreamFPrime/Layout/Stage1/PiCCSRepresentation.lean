@@ -15,7 +15,7 @@ Outputs:
 - one theorem for the complete PiCCS semantic input.
 
 Parent coverage:
-- `Lifecycle.PiCCS.v1_1.StatementBinding.SpecHolds`;
+- `Lifecycle.PiCCS.v1_2.StatementBinding.SpecHolds`;
 - `Lifecycle.Stage1` pilot-to-PiCCS wiring.
 
 This module proves value identity only. It adds no circuit row, column, or
@@ -27,7 +27,7 @@ namespace NightstreamFPrime.Layout.Stage1.PiCCSRepresentation
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Layout.Stage1.PiCCSInputs
 

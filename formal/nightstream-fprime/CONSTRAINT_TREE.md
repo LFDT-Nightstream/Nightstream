@@ -269,9 +269,9 @@ These matrices are the relation in the current sealed package.
 
 ```text
 Lifecycle/Pilot.lean                         ✓ two hash children
-Lifecycle/PiCCS/v1_1/Formal.lean             ✓ twelve-child assembler
-Lifecycle/PiRLC/v1_1/Formal.lean             ✓ seven-child assembler
-Lifecycle/PiDEC/v1_1/Formal.lean             ✓ six-child assembler
+Lifecycle/PiCCS/v1_2/Formal.lean             ✓ twelve-child assembler
+Lifecycle/PiRLC/v1_2/Formal.lean             ✓ seven-child assembler
+Lifecycle/PiDEC/v1_2/Formal.lean             ✓ six-child assembler
 Lifecycle/Stage1/RunningTransition.lean      ✓ running-instance branch
 Lifecycle/Stage1/Accumulator.lean            ✓ exact NIFS verifier result
 Layout/Stage1/AccumulatorSemantics.lean      ✓ zero-copy phase composition
@@ -1246,7 +1246,7 @@ with `RUSTC_WRAPPER=""`, explicit external candidate paths on stdin, and one
   coordinates, and public projection to an opening with the actual key
   commitment. This generic CCS result does not prove the F′ lifecycle
   semantics of a faulty plan.
-- `Lifecycle.PiCCS.v1_1.ZeroRunningPolynomial` built in 4.322 seconds and
+- `Lifecycle.PiCCS.v1_2.ZeroRunningPolynomial` built in 4.322 seconds and
   `Export.Stage1.PiCCSInputCheck` in 5.266 seconds. The polynomial's current
   audit passes. The current positive executable result is recorded above.
 - `PrefixFold`, `SparseEvaluation`, `ZeroRunningOracle`, and

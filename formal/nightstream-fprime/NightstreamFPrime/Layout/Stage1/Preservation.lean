@@ -6,10 +6,10 @@ import NightstreamFPrime.Layout.Stage1.PiDECSourceSupportData
 import NightstreamFPrime.Layout.Stage1.PiRLCInputBounds
 import NightstreamFPrime.Layout.Stage1.PiRLCGeneratedRelocation
 import NightstreamFPrime.Layout.Stage1.PiRLCOutputRelocation
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBindingSupport
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.PhaseTransport
-import NightstreamFPrime.Lifecycle.PiRLC.v1_1.GeneratedSupport
-import NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerGeneratedSupport
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBindingSupport
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.PhaseTransport
+import NightstreamFPrime.Lifecycle.PiRLC.v1_2.GeneratedSupport
+import NightstreamFPrime.Lifecycle.PiRLC.v1_2.SamplerGeneratedSupport
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
@@ -120,29 +120,29 @@ private theorem compactPiCcsExternalAgreement
 
 private theorem compactPiCcsStateBinding
     (program : Lifecycle.Stage1.Application.Program) (env : Env)
-    (binding : Lifecycle.PiCCS.v1_1.StateBinding.SpecHolds
-      (Lifecycle.PiCCS.v1_1.Formal.statementBindingInterface
-        (Lifecycle.PiCCS.v1_1.Formal.atOffset
+    (binding : Lifecycle.PiCCS.v1_2.StateBinding.SpecHolds
+      (Lifecycle.PiCCS.v1_2.Formal.statementBindingInterface
+        (Lifecycle.PiCCS.v1_2.Formal.atOffset
           (PilotPiCCS.interface (publicFits := publicFits))
           PilotPiCCS.piCcsOffset)).state PilotPiCCS.piCcsOffset
       (sourceEnv program env)) :
-    Lifecycle.PiCCS.v1_1.StateBinding.SpecHolds
-      (Lifecycle.PiCCS.v1_1.Formal.statementBindingInterface
-        (Lifecycle.PiCCS.v1_1.Formal.atOffset
+    Lifecycle.PiCCS.v1_2.StateBinding.SpecHolds
+      (Lifecycle.PiCCS.v1_2.Formal.statementBindingInterface
+        (Lifecycle.PiCCS.v1_2.Formal.atOffset
           (AssemblerInputs.piCcsInterface
             (logicalWidth := logicalWidth) (publicFits := publicFits) program)
           (AssemblerInputs.piCcsOffset program))).state
       (AssemblerInputs.piCcsOffset program)
       (CompactPullback.compactEnv program env) := by
-  have baseBinding : Lifecycle.PiCCS.v1_1.StateBinding.SpecHolds
-      (Lifecycle.PiCCS.v1_1.Formal.statementBindingInterface
-        (Lifecycle.PiCCS.v1_1.Formal.atOffset
+  have baseBinding : Lifecycle.PiCCS.v1_2.StateBinding.SpecHolds
+      (Lifecycle.PiCCS.v1_2.Formal.statementBindingInterface
+        (Lifecycle.PiCCS.v1_2.Formal.atOffset
           (PiCCSInputs.interface logicalWidth publicFits)
           PiCCSInputs.phaseOffset)).state PiCCSInputs.phaseOffset
       (sourceEnv program env) := by
     simpa [PilotPiCCS.interface, PilotPiCCS.piCcsOffset] using binding
   have transported :=
-    Lifecycle.PiCCS.v1_1.Formal.PhaseTransport.stateBinding_of_agree_satisfy
+    Lifecycle.PiCCS.v1_2.Formal.PhaseTransport.stateBinding_of_agree_satisfy
       (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
       PiCCSOrdinarySourceSupport.External (sourceEnv program env)
       (CompactPullback.compactEnv program env)
@@ -162,23 +162,23 @@ private theorem compactCubePoint_ext
 
 private theorem compactPiCcsRunningPoint_eq
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
-    (Lifecycle.PiCCS.v1_1.Formal.evalRunning
+    (Lifecycle.PiCCS.v1_2.Formal.evalRunning
       (PilotPiCCS.interface (logicalWidth := logicalWidth)
         (publicFits := publicFits))
       PilotPiCCS.piCcsOffset (sourceEnv program env)).point =
-    (Lifecycle.PiCCS.v1_1.Formal.evalRunning
+    (Lifecycle.PiCCS.v1_2.Formal.evalRunning
       (AssemblerInputs.piCcsInterface
         (logicalWidth := logicalWidth) (publicFits := publicFits) program)
       (AssemblerInputs.piCcsOffset program)
       (CompactPullback.compactEnv program env)).point := by
-  change Lifecycle.PiCCS.v1_1.StatementAbsorption.evalPoint
+  change Lifecycle.PiCCS.v1_2.StatementAbsorption.evalPoint
       (PiCCSInputs.runningExpr logicalWidth publicFits).point
       (sourceEnv program env) =
-    Lifecycle.PiCCS.v1_1.StatementAbsorption.evalPoint
+    Lifecycle.PiCCS.v1_2.StatementAbsorption.evalPoint
       (PiCCSInputs.runningExpr logicalWidth publicFits).point
       (CompactPullback.compactEnv program env)
   apply compactCubePoint_ext
-  unfold Lifecycle.PiCCS.v1_1.StatementAbsorption.evalPoint
+  unfold Lifecycle.PiCCS.v1_2.StatementAbsorption.evalPoint
   change List.ofFn (fun coordinate =>
       ((PiCCSInputs.runningExpr logicalWidth publicFits).point coordinate).eval
         (sourceEnv program env)) =
@@ -241,49 +241,49 @@ private theorem compactFullOutput_ext
 
 private theorem compactPiCcsRunningCommitments_eq
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
-    (Lifecycle.PiCCS.v1_1.Formal.evalRunning
+    (Lifecycle.PiCCS.v1_2.Formal.evalRunning
       (PilotPiCCS.interface (logicalWidth := logicalWidth)
         (publicFits := publicFits)) PilotPiCCS.piCcsOffset
       (sourceEnv program env)).commitments =
-    (Lifecycle.PiCCS.v1_1.Formal.evalRunning
+    (Lifecycle.PiCCS.v1_2.Formal.evalRunning
       (AssemblerInputs.piCcsInterface
         (logicalWidth := logicalWidth) (publicFits := publicFits) program)
       (AssemblerInputs.piCcsOffset program)
       (CompactPullback.compactEnv program env)).commitments := by
   funext source row coefficient
-  dsimp only [Lifecycle.PiCCS.v1_1.Formal.evalRunning, PilotPiCCS.interface,
+  dsimp only [Lifecycle.PiCCS.v1_2.Formal.evalRunning, PilotPiCCS.interface,
     AssemblerInputs.piCcsInterface, PiCCSInputs.interface,
-    Lifecycle.PiCCS.v1_1.StatementAbsorption.evalRunning]
+    Lifecycle.PiCCS.v1_2.StatementAbsorption.evalRunning]
   exact compactPiCcsExpr_eval_eq program env _
     ((PiCCSOrdinarySourceSupport.externalInputsSupported logicalWidth publicFits
       ).runningCommitment source row coefficient)
 
 private theorem compactPiCcsRunningPublicInputs_eq
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
-    (Lifecycle.PiCCS.v1_1.Formal.evalRunning
+    (Lifecycle.PiCCS.v1_2.Formal.evalRunning
       (PilotPiCCS.interface (logicalWidth := logicalWidth)
         (publicFits := publicFits)) PilotPiCCS.piCcsOffset
       (sourceEnv program env)).publicInputs =
-    (Lifecycle.PiCCS.v1_1.Formal.evalRunning
+    (Lifecycle.PiCCS.v1_2.Formal.evalRunning
       (AssemblerInputs.piCcsInterface
         (logicalWidth := logicalWidth) (publicFits := publicFits) program)
       (AssemblerInputs.piCcsOffset program)
       (CompactPullback.compactEnv program env)).publicInputs := by
   funext source column
-  dsimp only [Lifecycle.PiCCS.v1_1.Formal.evalRunning, PilotPiCCS.interface,
+  dsimp only [Lifecycle.PiCCS.v1_2.Formal.evalRunning, PilotPiCCS.interface,
     AssemblerInputs.piCcsInterface, PiCCSInputs.interface,
-    Lifecycle.PiCCS.v1_1.StatementAbsorption.evalRunning]
+    Lifecycle.PiCCS.v1_2.StatementAbsorption.evalRunning]
   exact compactPiCcsExpr_eval_eq program env _
     ((PiCCSOrdinarySourceSupport.externalInputsSupported logicalWidth publicFits
       ).runningPublicInput source column)
 
 private theorem compactPiCcsRunningEvaluations_eq
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
-    (Lifecycle.PiCCS.v1_1.Formal.evalRunning
+    (Lifecycle.PiCCS.v1_2.Formal.evalRunning
       (PilotPiCCS.interface (logicalWidth := logicalWidth)
         (publicFits := publicFits)) PilotPiCCS.piCcsOffset
       (sourceEnv program env)).evaluations =
-    (Lifecycle.PiCCS.v1_1.Formal.evalRunning
+    (Lifecycle.PiCCS.v1_2.Formal.evalRunning
       (AssemblerInputs.piCcsInterface
         (logicalWidth := logicalWidth) (publicFits := publicFits) program)
       (AssemblerInputs.piCcsOffset program)
@@ -310,38 +310,38 @@ private theorem compactPiCcsRunningEvaluations_eq
 
 private theorem compactPiCcsFreshCommitments_eq
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
-    (Lifecycle.PiCCS.v1_1.Formal.evalFresh
+    (Lifecycle.PiCCS.v1_2.Formal.evalFresh
       (PilotPiCCS.interface (logicalWidth := logicalWidth)
         (publicFits := publicFits)) PilotPiCCS.piCcsOffset
       (sourceEnv program env)).commitments =
-    (Lifecycle.PiCCS.v1_1.Formal.evalFresh
+    (Lifecycle.PiCCS.v1_2.Formal.evalFresh
       (AssemblerInputs.piCcsInterface
         (logicalWidth := logicalWidth) (publicFits := publicFits) program)
       (AssemblerInputs.piCcsOffset program)
       (CompactPullback.compactEnv program env)).commitments := by
   funext source row coefficient
-  dsimp only [Lifecycle.PiCCS.v1_1.Formal.evalFresh, PilotPiCCS.interface,
+  dsimp only [Lifecycle.PiCCS.v1_2.Formal.evalFresh, PilotPiCCS.interface,
     AssemblerInputs.piCcsInterface, PiCCSInputs.interface,
-    Lifecycle.PiCCS.v1_1.StatementAbsorption.evalFresh]
+    Lifecycle.PiCCS.v1_2.StatementAbsorption.evalFresh]
   exact compactPiCcsExpr_eval_eq program env _
     ((PiCCSOrdinarySourceSupport.externalInputsSupported logicalWidth publicFits
       ).freshCommitment source row coefficient)
 
 private theorem compactPiCcsFreshPublicInputs_eq
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
-    (Lifecycle.PiCCS.v1_1.Formal.evalFresh
+    (Lifecycle.PiCCS.v1_2.Formal.evalFresh
       (PilotPiCCS.interface (logicalWidth := logicalWidth)
         (publicFits := publicFits)) PilotPiCCS.piCcsOffset
       (sourceEnv program env)).publicInputs =
-    (Lifecycle.PiCCS.v1_1.Formal.evalFresh
+    (Lifecycle.PiCCS.v1_2.Formal.evalFresh
       (AssemblerInputs.piCcsInterface
         (logicalWidth := logicalWidth) (publicFits := publicFits) program)
       (AssemblerInputs.piCcsOffset program)
       (CompactPullback.compactEnv program env)).publicInputs := by
   funext source column
-  dsimp only [Lifecycle.PiCCS.v1_1.Formal.evalFresh, PilotPiCCS.interface,
+  dsimp only [Lifecycle.PiCCS.v1_2.Formal.evalFresh, PilotPiCCS.interface,
     AssemblerInputs.piCcsInterface, PiCCSInputs.interface,
-    Lifecycle.PiCCS.v1_1.StatementAbsorption.evalFresh]
+    Lifecycle.PiCCS.v1_2.StatementAbsorption.evalFresh]
   exact compactPiCcsExpr_eval_eq program env _
     ((PiCCSOrdinarySourceSupport.externalInputsSupported logicalWidth publicFits
       ).freshPublicInput source column)
@@ -350,10 +350,10 @@ private theorem compactPiCcsProofRounds_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program)
     (template : Proof (ProductionKey.degreeBound relation)) (env : Env) :
-    (Lifecycle.PiCCS.v1_1.Formal.evalProof relation
+    (Lifecycle.PiCCS.v1_2.Formal.evalProof relation
       (PilotPiCCS.interface (publicFits := publicFits)) PilotPiCCS.piCcsOffset
       (sourceEnv program env) template).piCcsRounds =
-    (Lifecycle.PiCCS.v1_1.Formal.evalProof relation
+    (Lifecycle.PiCCS.v1_2.Formal.evalProof relation
       (AssemblerInputs.piCcsInterface
         (logicalWidth := logicalWidth) (publicFits := publicFits) program)
       (AssemblerInputs.piCcsOffset program)
@@ -363,7 +363,7 @@ private theorem compactPiCcsProofRounds_eq
       (sourceEnv program env) =
     (PiCCSInputs.roundMessage roundIndex).semanticPolynomial
       (CompactPullback.compactEnv program env)
-  exact Lifecycle.PiCCS.v1_1.Formal.PhaseTransport.messagePolynomial_eq_of_agree_satisfy
+  exact Lifecycle.PiCCS.v1_2.Formal.PhaseTransport.messagePolynomial_eq_of_agree_satisfy
       (PiCCSInputs.roundMessage roundIndex)
       PiCCSOrdinarySourceSupport.External (sourceEnv program env)
       (CompactPullback.compactEnv program env)
@@ -376,10 +376,10 @@ private theorem compactPiCcsProofOutput_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program)
     (template : Proof (ProductionKey.degreeBound relation)) (env : Env) :
-    (Lifecycle.PiCCS.v1_1.Formal.evalProof relation
+    (Lifecycle.PiCCS.v1_2.Formal.evalProof relation
       (PilotPiCCS.interface (publicFits := publicFits)) PilotPiCCS.piCcsOffset
       (sourceEnv program env) template).piCcsOutput =
-    (Lifecycle.PiCCS.v1_1.Formal.evalProof relation
+    (Lifecycle.PiCCS.v1_2.Formal.evalProof relation
       (AssemblerInputs.piCcsInterface
         (logicalWidth := logicalWidth) (publicFits := publicFits) program)
       (AssemblerInputs.piCcsOffset program)
@@ -406,10 +406,10 @@ private theorem compactPiCcsProofCommitments_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program)
     (template : Proof (ProductionKey.degreeBound relation)) (env : Env) :
-    (Lifecycle.PiCCS.v1_1.Formal.evalProof relation
+    (Lifecycle.PiCCS.v1_2.Formal.evalProof relation
       (PilotPiCCS.interface (publicFits := publicFits)) PilotPiCCS.piCcsOffset
       (sourceEnv program env) template).piDecCommitments =
-    (Lifecycle.PiCCS.v1_1.Formal.evalProof relation
+    (Lifecycle.PiCCS.v1_2.Formal.evalProof relation
       (AssemblerInputs.piCcsInterface
         (logicalWidth := logicalWidth) (publicFits := publicFits) program)
       (AssemblerInputs.piCcsOffset program)
@@ -421,10 +421,10 @@ private theorem compactPiCcsProofEvaluations_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program)
     (template : Proof (ProductionKey.degreeBound relation)) (env : Env) :
-    (Lifecycle.PiCCS.v1_1.Formal.evalProof relation
+    (Lifecycle.PiCCS.v1_2.Formal.evalProof relation
       (PilotPiCCS.interface (publicFits := publicFits)) PilotPiCCS.piCcsOffset
       (sourceEnv program env) template).piDecEvaluations =
-    (Lifecycle.PiCCS.v1_1.Formal.evalProof relation
+    (Lifecycle.PiCCS.v1_2.Formal.evalProof relation
       (AssemblerInputs.piCcsInterface
         (logicalWidth := logicalWidth) (publicFits := publicFits) program)
       (AssemblerInputs.piCcsOffset program)
@@ -452,13 +452,13 @@ private theorem compactEnv_shiftedPiRlcLocal
     (index : Nat)
     (support : SupportRange.Extend (fun _ => False)
       PilotPiCCSPiRLC.piRlcOffset
-      (PilotPiCCSPiRLC.piRlcOffset + Lifecycle.PiRLC.v1_1.Formal.logicalPrivateCount) index) :
+      (PilotPiCCSPiRLC.piRlcOffset + Lifecycle.PiRLC.v1_2.Formal.logicalPrivateCount) index) :
     CompactPullback.compactEnv program env (index + piRlcDelta program) =
       sourceEnv program env index := by
   rcases support with impossible | ⟨lower, upper⟩
   · contradiction
   · let relative := index - PilotPiCCSPiRLC.piRlcOffset
-    have relativeLt : relative < Lifecycle.PiRLC.v1_1.Formal.logicalPrivateCount := by
+    have relativeLt : relative < Lifecycle.PiRLC.v1_2.Formal.logicalPrivateCount := by
       dsimp only [relative]
       omega
     have sourceIndex : PilotPiCCSPiRLC.piRlcOffset + relative = index := by
@@ -475,41 +475,41 @@ private theorem compactEnv_shiftedPiRlcLocal
 private theorem compactPiCcsOutputSupport
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     Duplex.Formal.StateSupported
-      (Lifecycle.PiCCS.v1_1.Formal.outputBindingFinalState relation
+      (Lifecycle.PiCCS.v1_2.Formal.outputBindingFinalState relation
         (PilotPiCCS.interface (publicFits := publicFits))
         PilotPiCCS.piCcsOffset)
       (SupportRange.Extend (fun _ => False) PilotPiCCS.piCcsOffset
         (PilotPiCCS.piCcsOffset + 1776949)) := by
   intro lane
-  unfold Lifecycle.PiCCS.v1_1.Formal.outputBindingFinalState
+  unfold Lifecycle.PiCCS.v1_2.Formal.outputBindingFinalState
   rw [congrFun (PiCCSTranscriptRelocation.outputFinalState_direct
-    (Lifecycle.PiCCS.v1_1.Formal.outputBindingInterface
-      (Lifecycle.PiCCS.v1_1.Formal.atOffset
+    (Lifecycle.PiCCS.v1_2.Formal.outputBindingInterface
+      (Lifecycle.PiCCS.v1_2.Formal.atOffset
         (PilotPiCCS.interface (publicFits := publicFits))
         PilotPiCCS.piCcsOffset))
-    (Lifecycle.PiCCS.v1_1.Formal.outputBindingOffset relation
+    (Lifecycle.PiCCS.v1_2.Formal.outputBindingOffset relation
       (PilotPiCCS.interface (publicFits := publicFits))
       PilotPiCCS.piCcsOffset)) lane]
   simp only [Permutation.scheduleOutput, Permutation.freshState,
     Expr.VarsSatisfy]
   apply Or.inr
   constructor
-  · rw [Lifecycle.PiCCS.v1_1.Formal.outputBindingOffset_eq_outputBindingRowOffset]
-    unfold Lifecycle.PiCCS.v1_1.Formal.outputBindingRowOffset
-      Lifecycle.PiCCS.v1_1.Formal.finalIdentityRowOffset
-      Lifecycle.PiCCS.v1_1.Formal.normRowOffset
-      Lifecycle.PiCCS.v1_1.Formal.ccsRowOffset
-      Lifecycle.PiCCS.v1_1.Formal.evalARowOffset
-      Lifecycle.PiCCS.v1_1.Formal.evalKRowOffset
-      Lifecycle.PiCCS.v1_1.Formal.sumcheckRowOffset
-      Lifecycle.PiCCS.v1_1.Formal.initialClaimRowOffset
+  · rw [Lifecycle.PiCCS.v1_2.Formal.outputBindingOffset_eq_outputBindingRowOffset]
+    unfold Lifecycle.PiCCS.v1_2.Formal.outputBindingRowOffset
+      Lifecycle.PiCCS.v1_2.Formal.finalIdentityRowOffset
+      Lifecycle.PiCCS.v1_2.Formal.normRowOffset
+      Lifecycle.PiCCS.v1_2.Formal.ccsRowOffset
+      Lifecycle.PiCCS.v1_2.Formal.evalARowOffset
+      Lifecycle.PiCCS.v1_2.Formal.evalKRowOffset
+      Lifecycle.PiCCS.v1_2.Formal.sumcheckRowOffset
+      Lifecycle.PiCCS.v1_2.Formal.initialClaimRowOffset
     omega
   · have finish :=
-      Lifecycle.PiCCS.v1_1.Formal.finalRowOffset_eq_add_of_degreeBound_eq_nine
+      Lifecycle.PiCCS.v1_2.Formal.finalRowOffset_eq_add_of_degreeBound_eq_nine
         (PilotPiCCS.interface (publicFits := publicFits))
         PilotPiCCS.piCcsOffset (ProductionKey.degreeBound_eq relation)
-    unfold Lifecycle.PiCCS.v1_1.Formal.finalRowOffset at finish
-    rw [← Lifecycle.PiCCS.v1_1.Formal.outputBindingOffset_eq_outputBindingRowOffset
+    unfold Lifecycle.PiCCS.v1_2.Formal.finalRowOffset at finish
+    rw [← Lifecycle.PiCCS.v1_2.Formal.outputBindingOffset_eq_outputBindingRowOffset
       relation (PilotPiCCS.interface (publicFits := publicFits))
       PilotPiCCS.piCcsOffset] at finish
     have laneBound := lane.isLt
@@ -519,18 +519,18 @@ private theorem compactPiCcsOutputSupport
 private theorem compactPiCcsOutgoingState_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
-    Lifecycle.PiCCS.v1_1.StatementAbsorption.evalState
+    Lifecycle.PiCCS.v1_2.StatementAbsorption.evalState
         (sourceEnv program env)
-        (Lifecycle.PiCCS.v1_1.Formal.outputBindingFinalState relation
+        (Lifecycle.PiCCS.v1_2.Formal.outputBindingFinalState relation
           (PilotPiCCS.interface (publicFits := publicFits))
           PilotPiCCS.piCcsOffset) =
-      Lifecycle.PiCCS.v1_1.StatementAbsorption.evalState
+      Lifecycle.PiCCS.v1_2.StatementAbsorption.evalState
         (CompactPullback.compactEnv program env)
-        (Lifecycle.PiCCS.v1_1.Formal.outputBindingFinalState relation
+        (Lifecycle.PiCCS.v1_2.Formal.outputBindingFinalState relation
           (AssemblerInputs.piCcsInterface
             (logicalWidth := logicalWidth) (publicFits := publicFits) program)
           (AssemblerInputs.piCcsOffset program)) := by
-  unfold Lifecycle.PiCCS.v1_1.StatementAbsorption.evalState Layer.evalState
+  unfold Lifecycle.PiCCS.v1_2.StatementAbsorption.evalState Layer.evalState
   apply congrArg List.ofFn
   funext lane
   rw [← piCcsOffset_add_delta program,
@@ -540,7 +540,7 @@ private theorem compactPiCcsOutgoingState_eq
         (logicalWidth := logicalWidth) (publicFits := publicFits) program)
       PilotPiCCS.piCcsOffset (piCcsDelta program)) lane]
   exact (state_eval_eq_of_shift_agreement (piCcsDelta program)
-    (Lifecycle.PiCCS.v1_1.Formal.outputBindingFinalState relation
+    (Lifecycle.PiCCS.v1_2.Formal.outputBindingFinalState relation
       (PilotPiCCS.interface (publicFits := publicFits))
       PilotPiCCS.piCcsOffset)
     (SupportRange.Extend (fun _ => False) PilotPiCCS.piCcsOffset
@@ -551,15 +551,15 @@ private theorem compactPiCcsOutgoingState_eq
 
 private theorem compactPiCcsRunning_eq
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
-    Lifecycle.PiCCS.v1_1.Formal.evalRunning
+    Lifecycle.PiCCS.v1_2.Formal.evalRunning
         (PilotPiCCS.interface (publicFits := publicFits))
         PilotPiCCS.piCcsOffset (sourceEnv program env) =
-      Lifecycle.PiCCS.v1_1.Formal.evalRunning
+      Lifecycle.PiCCS.v1_2.Formal.evalRunning
         (AssemblerInputs.piCcsInterface
           (logicalWidth := logicalWidth) (publicFits := publicFits) program)
         (AssemblerInputs.piCcsOffset program)
         (CompactPullback.compactEnv program env) := by
-  exact Lifecycle.PiCCS.v1_1.Formal.PhaseTransport.running_ext _ _
+  exact Lifecycle.PiCCS.v1_2.Formal.PhaseTransport.running_ext _ _
     (compactPiCcsRunningPoint_eq program env)
     (compactPiCcsRunningCommitments_eq program env)
     (compactPiCcsRunningPublicInputs_eq program env)
@@ -567,15 +567,15 @@ private theorem compactPiCcsRunning_eq
 
 private theorem compactPiCcsFresh_eq
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
-    Lifecycle.PiCCS.v1_1.Formal.evalFresh
+    Lifecycle.PiCCS.v1_2.Formal.evalFresh
         (PilotPiCCS.interface (publicFits := publicFits))
         PilotPiCCS.piCcsOffset (sourceEnv program env) =
-      Lifecycle.PiCCS.v1_1.Formal.evalFresh
+      Lifecycle.PiCCS.v1_2.Formal.evalFresh
         (AssemblerInputs.piCcsInterface
           (logicalWidth := logicalWidth) (publicFits := publicFits) program)
         (AssemblerInputs.piCcsOffset program)
         (CompactPullback.compactEnv program env) := by
-  exact Lifecycle.PiCCS.v1_1.Formal.PhaseTransport.fresh_ext _ _
+  exact Lifecycle.PiCCS.v1_2.Formal.PhaseTransport.fresh_ext _ _
     (compactPiCcsFreshCommitments_eq program env)
     (compactPiCcsFreshPublicInputs_eq program env)
 
@@ -583,15 +583,15 @@ private theorem compactPiCcsProof_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program)
     (template : Proof (ProductionKey.degreeBound relation)) (env : Env) :
-    Lifecycle.PiCCS.v1_1.Formal.evalProof relation
+    Lifecycle.PiCCS.v1_2.Formal.evalProof relation
         (PilotPiCCS.interface (publicFits := publicFits))
         PilotPiCCS.piCcsOffset (sourceEnv program env) template =
-      Lifecycle.PiCCS.v1_1.Formal.evalProof relation
+      Lifecycle.PiCCS.v1_2.Formal.evalProof relation
         (AssemblerInputs.piCcsInterface
           (logicalWidth := logicalWidth) (publicFits := publicFits) program)
         (AssemblerInputs.piCcsOffset program)
         (CompactPullback.compactEnv program env) template := by
-  exact Lifecycle.PiCCS.v1_1.Formal.PhaseTransport.proof_ext _ _
+  exact Lifecycle.PiCCS.v1_2.Formal.PhaseTransport.proof_ext _ _
     (compactPiCcsProofRounds_eq relation program template env)
     (compactPiCcsProofOutput_eq relation program template env)
     (compactPiCcsProofCommitments_eq relation program template env)
@@ -604,10 +604,10 @@ theorem compactPiCcsPhaseHolds
     (program : Lifecycle.Stage1.Application.Program)
     (template : Proof (ProductionKey.degreeBound relation))
     (env : Env)
-    (phase : Lifecycle.PiCCS.v1_1.Formal.PhaseHolds relation ajtai
+    (phase : Lifecycle.PiCCS.v1_2.Formal.PhaseHolds relation ajtai
       (PilotPiCCS.interface (publicFits := publicFits))
       PilotPiCCS.piCcsOffset (sourceEnv program env) template) :
-    Lifecycle.PiCCS.v1_1.Formal.PhaseHolds relation ajtai
+    Lifecycle.PiCCS.v1_2.Formal.PhaseHolds relation ajtai
       (AssemblerInputs.piCcsInterface
         (logicalWidth := logicalWidth) (publicFits := publicFits) program)
       (AssemblerInputs.piCcsOffset program)
@@ -628,26 +628,26 @@ theorem compactPiCcsPhaseHolds
     (logicalWidth := logicalWidth) (publicFits := publicFits) program env
   have proofEq := compactPiCcsProof_eq relation program template env
   have inputsEq :
-      ((Lifecycle.PiCCS.v1_1.Formal.evalRunning
+      ((Lifecycle.PiCCS.v1_2.Formal.evalRunning
           (PilotPiCCS.interface (publicFits := publicFits))
           PilotPiCCS.piCcsOffset (sourceEnv program env),
-        Lifecycle.PiCCS.v1_1.Formal.evalFresh
+        Lifecycle.PiCCS.v1_2.Formal.evalFresh
           (PilotPiCCS.interface (publicFits := publicFits))
           PilotPiCCS.piCcsOffset (sourceEnv program env)),
-        Lifecycle.PiCCS.v1_1.Formal.evalProof relation
+        Lifecycle.PiCCS.v1_2.Formal.evalProof relation
           (PilotPiCCS.interface (publicFits := publicFits))
           PilotPiCCS.piCcsOffset (sourceEnv program env) template) =
-      ((Lifecycle.PiCCS.v1_1.Formal.evalRunning
+      ((Lifecycle.PiCCS.v1_2.Formal.evalRunning
           (AssemblerInputs.piCcsInterface
             (logicalWidth := logicalWidth) (publicFits := publicFits) program)
           (AssemblerInputs.piCcsOffset program)
           (CompactPullback.compactEnv program env),
-        Lifecycle.PiCCS.v1_1.Formal.evalFresh
+        Lifecycle.PiCCS.v1_2.Formal.evalFresh
           (AssemblerInputs.piCcsInterface
             (logicalWidth := logicalWidth) (publicFits := publicFits) program)
           (AssemblerInputs.piCcsOffset program)
           (CompactPullback.compactEnv program env)),
-        Lifecycle.PiCCS.v1_1.Formal.evalProof relation
+        Lifecycle.PiCCS.v1_2.Formal.evalProof relation
           (AssemblerInputs.piCcsInterface
             (logicalWidth := logicalWidth) (publicFits := publicFits) program)
           (AssemblerInputs.piCcsOffset program)
@@ -744,14 +744,14 @@ theorem compactPilotOutput
 private theorem compactPiCcsRoundPointCoordinate_eq
     (program : Lifecycle.Stage1.Application.Program) (env : Env)
     (coordinate : Fin productionShape.cubeVariables) :
-    (Lifecycle.PiCCS.v1_1.Formal.roundPoint
-      (Lifecycle.PiCCS.v1_1.Formal.atOffset
+    (Lifecycle.PiCCS.v1_2.Formal.roundPoint
+      (Lifecycle.PiCCS.v1_2.Formal.atOffset
         (PilotPiCCS.interface
           (logicalWidth := logicalWidth) (publicFits := publicFits))
         PilotPiCCS.piCcsOffset)
       PilotPiCCS.piCcsOffset coordinate).eval (sourceEnv program env) =
-    (Lifecycle.PiCCS.v1_1.Formal.roundPoint
-      (Lifecycle.PiCCS.v1_1.Formal.atOffset
+    (Lifecycle.PiCCS.v1_2.Formal.roundPoint
+      (Lifecycle.PiCCS.v1_2.Formal.atOffset
         (AssemblerInputs.piCcsInterface
           (logicalWidth := logicalWidth) (publicFits := publicFits) program)
         (AssemblerInputs.piCcsOffset program))
@@ -776,12 +776,12 @@ private theorem compactPiCcsRoundPointCoordinate_eq
 private theorem compactPiRlcPoint_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
-    Lifecycle.PiRLC.v1_1.InputBinding.evalPoint
+    Lifecycle.PiRLC.v1_2.InputBinding.evalPoint
         ((PiRLCInputs.interface
           (logicalWidth := logicalWidth) (publicFits := publicFits)).point
           PilotPiCCSPiRLC.piRlcOffset)
         (sourceEnv program env) =
-      Lifecycle.PiRLC.v1_1.InputBinding.evalPoint
+      Lifecycle.PiRLC.v1_2.InputBinding.evalPoint
         ((AssemblerInputs.piRlcInterface relation program).point
           (AssemblerInputs.piRlcOffset program))
         (CompactPullback.compactEnv program env) := by
@@ -789,11 +789,11 @@ private theorem compactPiRlcPoint_eq
   change List.ofFn _ = List.ofFn _
   apply congrArg List.ofFn
   funext coordinate
-  simpa [Lifecycle.PiRLC.v1_1.InputBinding.evalPoint,
-    Lifecycle.PiCCS.v1_1.StatementAbsorption.evalPoint,
+  simpa [Lifecycle.PiRLC.v1_2.InputBinding.evalPoint,
+    Lifecycle.PiCCS.v1_2.StatementAbsorption.evalPoint,
     PiRLCInputs.interface, PiRLCInputs.piCcsInterface,
     AssemblerInputs.piRlcInterface, AssemblerInputs.piCcsRoundPoint,
-    Lifecycle.PiCCS.v1_1.Formal.atOffset] using!
+    Lifecycle.PiCCS.v1_2.Formal.atOffset] using!
       compactPiCcsRoundPointCoordinate_eq program env coordinate
 
 private theorem sourceEnv_eq_compactEnv_belowPiRlc
@@ -810,22 +810,22 @@ private theorem sourceEnv_eq_compactEnv_belowPiRlc
 private theorem compactPiRlcInputs_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
-    Lifecycle.PiRLC.v1_1.Semantics.evalInputs relation
+    Lifecycle.PiRLC.v1_2.Semantics.evalInputs relation
         (PiRLCInputs.interface
           (logicalWidth := logicalWidth) (publicFits := publicFits))
         PilotPiCCSPiRLC.piRlcOffset (sourceEnv program env) =
-      Lifecycle.PiRLC.v1_1.Semantics.evalInputs relation
+      Lifecycle.PiRLC.v1_2.Semantics.evalInputs relation
         (AssemblerInputs.piRlcInterface relation program)
         (AssemblerInputs.piRlcOffset program)
         (CompactPullback.compactEnv program env) := by
   funext source
-  let sourceIndex := Lifecycle.PiRLC.v1_1.Semantics.sourceIndex source
-  change Lifecycle.PiRLC.v1_1.InputBinding.evalInput relation
+  let sourceIndex := Lifecycle.PiRLC.v1_2.Semantics.sourceIndex source
+  change Lifecycle.PiRLC.v1_2.InputBinding.evalInput relation
       (PiRLCInputs.sourceInput sourceIndex)
       ((PiRLCInputs.interface
         (logicalWidth := logicalWidth) (publicFits := publicFits)).point
         PilotPiCCSPiRLC.piRlcOffset) (sourceEnv program env) =
-    Lifecycle.PiRLC.v1_1.InputBinding.evalInput relation
+    Lifecycle.PiRLC.v1_2.InputBinding.evalInput relation
       (PiRLCInputs.sourceInput sourceIndex)
       ((AssemblerInputs.piRlcInterface relation program).point
         (AssemblerInputs.piRlcOffset program))
@@ -837,173 +837,173 @@ private theorem compactPiRlcInputs_eq
 private theorem compactPiRlcInitialState_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
-    Lifecycle.PiRLC.v1_1.SamplerChain.evalInitialState
-        (Lifecycle.PiRLC.v1_1.Formal.samplerInterface
-          (Lifecycle.PiRLC.v1_1.Formal.atOffset
+    Lifecycle.PiRLC.v1_2.SamplerChain.evalInitialState
+        (Lifecycle.PiRLC.v1_2.Formal.samplerInterface
+          (Lifecycle.PiRLC.v1_2.Formal.atOffset
             (PiRLCInputs.interface
               (logicalWidth := logicalWidth) (publicFits := publicFits))
             PilotPiCCSPiRLC.piRlcOffset))
         PilotPiCCSPiRLC.piRlcOffset (sourceEnv program env) =
-      Lifecycle.PiRLC.v1_1.SamplerChain.evalInitialState
-        (Lifecycle.PiRLC.v1_1.Formal.samplerInterface
-          (Lifecycle.PiRLC.v1_1.Formal.atOffset
+      Lifecycle.PiRLC.v1_2.SamplerChain.evalInitialState
+        (Lifecycle.PiRLC.v1_2.Formal.samplerInterface
+          (Lifecycle.PiRLC.v1_2.Formal.atOffset
             (AssemblerInputs.piRlcInterface relation program)
             (AssemblerInputs.piRlcOffset program)))
         (AssemblerInputs.piRlcOffset program)
         (CompactPullback.compactEnv program env) := by
-  change Lifecycle.PiRLC.v1_1.Sampler.evalState (sourceEnv program env)
+  change Lifecycle.PiRLC.v1_2.Sampler.evalState (sourceEnv program env)
       (PiRLCInputs.piCcsOutputState
         (logicalWidth := logicalWidth) (publicFits := publicFits)) =
-    Lifecycle.PiRLC.v1_1.Sampler.evalState
+    Lifecycle.PiRLC.v1_2.Sampler.evalState
       (CompactPullback.compactEnv program env)
       (AssemblerInputs.piCcsOutputState relation program)
   rw [PiRLCInputs.piCcsOutputState_eq_parent relation]
   exact compactPiCcsOutgoingState_eq relation program env
 
 private theorem compactPiRlcOutputWordSupport
-    (source : Fin Lifecycle.PiRLC.v1_1.SamplerChain.sourceCount)
+    (source : Fin Lifecycle.PiRLC.v1_2.SamplerChain.sourceCount)
     (position : Fin ringDegree) :
-    (Lifecycle.PiRLC.v1_1.Sampler.outputWord
-      (Lifecycle.PiRLC.v1_1.SamplerChain.sourceOffset
+    (Lifecycle.PiRLC.v1_2.Sampler.outputWord
+      (Lifecycle.PiRLC.v1_2.SamplerChain.sourceOffset
         PilotPiCCSPiRLC.piRlcOffset source.val) position).VarsSatisfy
       (SupportRange.Extend (fun _ => False) PilotPiCCSPiRLC.piRlcOffset
-        (PilotPiCCSPiRLC.piRlcOffset + Lifecycle.PiRLC.v1_1.Formal.logicalPrivateCount)) := by
-  simp only [Lifecycle.PiRLC.v1_1.Sampler.outputWord,
-    Lifecycle.PiRLC.v1_1.SamplerWords.outputWord, Expr.VarsSatisfy]
+        (PilotPiCCSPiRLC.piRlcOffset + Lifecycle.PiRLC.v1_2.Formal.logicalPrivateCount)) := by
+  simp only [Lifecycle.PiRLC.v1_2.Sampler.outputWord,
+    Lifecycle.PiRLC.v1_2.SamplerWords.outputWord, Expr.VarsSatisfy]
   apply Or.inr
   have sourceBound : source.val < 17 := source.isLt
   have positionBound : position.val < 54 := position.isLt
-  simp only [Lifecycle.PiRLC.v1_1.SamplerChain.sourceOffset,
-    Lifecycle.PiRLC.v1_1.Sampler.counts.1,
-    Lifecycle.PiRLC.v1_1.Sampler.wordsOffset,
-    Lifecycle.PiRLC.v1_1.Sampler.advanceOffset,
-    Lifecycle.PiRLC.v1_1.Sampler.rangeOffset,
-    Lifecycle.PiRLC.v1_1.Formal.logicalPrivateCount,
+  simp only [Lifecycle.PiRLC.v1_2.SamplerChain.sourceOffset,
+    Lifecycle.PiRLC.v1_2.Sampler.counts.1,
+    Lifecycle.PiRLC.v1_2.Sampler.wordsOffset,
+    Lifecycle.PiRLC.v1_2.Sampler.advanceOffset,
+    Lifecycle.PiRLC.v1_2.Sampler.rangeOffset,
+    Lifecycle.PiRLC.v1_2.Formal.logicalPrivateCount,
     WideReduction.Program.privateCount_eq]
   omega
 
 private theorem compactPiRlcOutputStateSupport
-    (source : Fin Lifecycle.PiRLC.v1_1.SamplerChain.sourceCount) :
+    (source : Fin Lifecycle.PiRLC.v1_2.SamplerChain.sourceCount) :
     Duplex.Formal.StateSupported
-      (Lifecycle.PiRLC.v1_1.Sampler.outputState
-        (Lifecycle.PiRLC.v1_1.SamplerChain.childInterface
-          (Lifecycle.PiRLC.v1_1.Formal.samplerInterface
-            (Lifecycle.PiRLC.v1_1.Formal.atOffset
+      (Lifecycle.PiRLC.v1_2.Sampler.outputState
+        (Lifecycle.PiRLC.v1_2.SamplerChain.childInterface
+          (Lifecycle.PiRLC.v1_2.Formal.samplerInterface
+            (Lifecycle.PiRLC.v1_2.Formal.atOffset
               (PiRLCInputs.interface
                 (logicalWidth := logicalWidth) (publicFits := publicFits))
               PilotPiCCSPiRLC.piRlcOffset))
           PilotPiCCSPiRLC.piRlcOffset source.val)
         source.val
-        (Lifecycle.PiRLC.v1_1.SamplerChain.sourceOffset
+        (Lifecycle.PiRLC.v1_2.SamplerChain.sourceOffset
           PilotPiCCSPiRLC.piRlcOffset source.val))
       (SupportRange.Extend (fun _ => False) PilotPiCCSPiRLC.piRlcOffset
-        (PilotPiCCSPiRLC.piRlcOffset + Lifecycle.PiRLC.v1_1.Formal.logicalPrivateCount)) := by
+        (PilotPiCCSPiRLC.piRlcOffset + Lifecycle.PiRLC.v1_2.Formal.logicalPrivateCount)) := by
   intro lane
-  simp only [Lifecycle.PiRLC.v1_1.Sampler.outputState,
+  simp only [Lifecycle.PiRLC.v1_2.Sampler.outputState,
     Permutation.Owned.output, Permutation.scheduleOutput,
     Permutation.freshState, Expr.VarsSatisfy]
   apply Or.inr
   have sourceBound : source.val < 17 := source.isLt
   have laneBound : lane.val < 16 := lane.isLt
-  simp only [Lifecycle.PiRLC.v1_1.SamplerChain.sourceOffset,
-    Lifecycle.PiRLC.v1_1.Sampler.counts.1,
-    Lifecycle.PiRLC.v1_1.Sampler.advanceOffset,
-    Lifecycle.PiRLC.v1_1.Sampler.rangeOffset,
-    Lifecycle.PiRLC.v1_1.Formal.logicalPrivateCount,
+  simp only [Lifecycle.PiRLC.v1_2.SamplerChain.sourceOffset,
+    Lifecycle.PiRLC.v1_2.Sampler.counts.1,
+    Lifecycle.PiRLC.v1_2.Sampler.advanceOffset,
+    Lifecycle.PiRLC.v1_2.Sampler.rangeOffset,
+    Lifecycle.PiRLC.v1_2.Formal.logicalPrivateCount,
     WideReduction.Program.privateCount_eq]
   omega
 
 private theorem compactPiRlcSourceOffset_shift
     (program : Lifecycle.Stage1.Application.Program) (source : Nat) :
-    Lifecycle.PiRLC.v1_1.SamplerChain.sourceOffset
+    Lifecycle.PiRLC.v1_2.SamplerChain.sourceOffset
         (AssemblerInputs.piRlcOffset program) source =
-      Lifecycle.PiRLC.v1_1.SamplerChain.sourceOffset
+      Lifecycle.PiRLC.v1_2.SamplerChain.sourceOffset
         PilotPiCCSPiRLC.piRlcOffset source + piRlcDelta program := by
   rw [← piRlcOffset_add_delta program]
-  unfold Lifecycle.PiRLC.v1_1.SamplerChain.sourceOffset
+  unfold Lifecycle.PiRLC.v1_2.SamplerChain.sourceOffset
   omega
 
 private theorem compactPiRlcOutputWord_eq
     (program : Lifecycle.Stage1.Application.Program) (env : Env)
-    (source : Fin Lifecycle.PiRLC.v1_1.SamplerChain.sourceCount)
+    (source : Fin Lifecycle.PiRLC.v1_2.SamplerChain.sourceCount)
     (position : Fin ringDegree) :
-    (Lifecycle.PiRLC.v1_1.Sampler.outputWord
-      (Lifecycle.PiRLC.v1_1.SamplerChain.sourceOffset
+    (Lifecycle.PiRLC.v1_2.Sampler.outputWord
+      (Lifecycle.PiRLC.v1_2.SamplerChain.sourceOffset
         PilotPiCCSPiRLC.piRlcOffset source.val) position).eval
         (sourceEnv program env) =
-      (Lifecycle.PiRLC.v1_1.Sampler.outputWord
-        (Lifecycle.PiRLC.v1_1.SamplerChain.sourceOffset
+      (Lifecycle.PiRLC.v1_2.Sampler.outputWord
+        (Lifecycle.PiRLC.v1_2.SamplerChain.sourceOffset
           (AssemblerInputs.piRlcOffset program) source.val) position).eval
         (CompactPullback.compactEnv program env) := by
   rw [compactPiRlcSourceOffset_shift program source.val]
   rw [PiRLCGeneratedRelocation.samplerOutputWord_shift]
   exact (expression_eval_eq_of_shift_agreement (piRlcDelta program)
-    (Lifecycle.PiRLC.v1_1.Sampler.outputWord
-      (Lifecycle.PiRLC.v1_1.SamplerChain.sourceOffset
+    (Lifecycle.PiRLC.v1_2.Sampler.outputWord
+      (Lifecycle.PiRLC.v1_2.SamplerChain.sourceOffset
         PilotPiCCSPiRLC.piRlcOffset source.val) position)
     (SupportRange.Extend (fun _ => False) PilotPiCCSPiRLC.piRlcOffset
-      (PilotPiCCSPiRLC.piRlcOffset + Lifecycle.PiRLC.v1_1.Formal.logicalPrivateCount))
+      (PilotPiCCSPiRLC.piRlcOffset + Lifecycle.PiRLC.v1_2.Formal.logicalPrivateCount))
     (sourceEnv program env) (CompactPullback.compactEnv program env)
     (compactPiRlcOutputWordSupport source position)
     (compactEnv_shiftedPiRlcLocal program env)).symm
 
 private theorem compactPiRlcChallenges_eq
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
-    Lifecycle.PiRLC.v1_1.SamplerChain.evalChallenges
+    Lifecycle.PiRLC.v1_2.SamplerChain.evalChallenges
         PilotPiCCSPiRLC.piRlcOffset (sourceEnv program env) =
-      Lifecycle.PiRLC.v1_1.SamplerChain.evalChallenges
+      Lifecycle.PiRLC.v1_2.SamplerChain.evalChallenges
         (AssemblerInputs.piRlcOffset program) (CompactPullback.compactEnv program env) := by
-  apply Lifecycle.PiRLC.v1_1.SamplerChain.evalChallenges_eq_of_outputWord_eq
+  apply Lifecycle.PiRLC.v1_2.SamplerChain.evalChallenges_eq_of_outputWord_eq
   intro source position
   exact compactPiRlcOutputWord_eq program env source position
 
 private theorem compactPiRlcOutputState_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) (env : Env)
-    (source : Fin Lifecycle.PiRLC.v1_1.SamplerChain.sourceCount) :
-    Lifecycle.PiRLC.v1_1.Sampler.evalState (sourceEnv program env)
-        (Lifecycle.PiRLC.v1_1.Sampler.outputState
-          (Lifecycle.PiRLC.v1_1.SamplerChain.childInterface
-            (Lifecycle.PiRLC.v1_1.Formal.samplerInterface
-              (Lifecycle.PiRLC.v1_1.Formal.atOffset
+    (source : Fin Lifecycle.PiRLC.v1_2.SamplerChain.sourceCount) :
+    Lifecycle.PiRLC.v1_2.Sampler.evalState (sourceEnv program env)
+        (Lifecycle.PiRLC.v1_2.Sampler.outputState
+          (Lifecycle.PiRLC.v1_2.SamplerChain.childInterface
+            (Lifecycle.PiRLC.v1_2.Formal.samplerInterface
+              (Lifecycle.PiRLC.v1_2.Formal.atOffset
                 (PiRLCInputs.interface
                   (logicalWidth := logicalWidth) (publicFits := publicFits))
                 PilotPiCCSPiRLC.piRlcOffset))
             PilotPiCCSPiRLC.piRlcOffset source.val)
           source.val
-          (Lifecycle.PiRLC.v1_1.SamplerChain.sourceOffset
+          (Lifecycle.PiRLC.v1_2.SamplerChain.sourceOffset
             PilotPiCCSPiRLC.piRlcOffset source.val)) =
-      Lifecycle.PiRLC.v1_1.Sampler.evalState
+      Lifecycle.PiRLC.v1_2.Sampler.evalState
         (CompactPullback.compactEnv program env)
-        (Lifecycle.PiRLC.v1_1.Sampler.outputState
-          (Lifecycle.PiRLC.v1_1.SamplerChain.childInterface
-            (Lifecycle.PiRLC.v1_1.Formal.samplerInterface
-              (Lifecycle.PiRLC.v1_1.Formal.atOffset
+        (Lifecycle.PiRLC.v1_2.Sampler.outputState
+          (Lifecycle.PiRLC.v1_2.SamplerChain.childInterface
+            (Lifecycle.PiRLC.v1_2.Formal.samplerInterface
+              (Lifecycle.PiRLC.v1_2.Formal.atOffset
                 (AssemblerInputs.piRlcInterface relation program)
                 (AssemblerInputs.piRlcOffset program)))
             (AssemblerInputs.piRlcOffset program) source.val)
           source.val
-          (Lifecycle.PiRLC.v1_1.SamplerChain.sourceOffset
+          (Lifecycle.PiRLC.v1_2.SamplerChain.sourceOffset
             (AssemblerInputs.piRlcOffset program) source.val)) := by
   rw [compactPiRlcSourceOffset_shift program source.val]
   rw [PiRLCGeneratedRelocation.samplerOutputState_shift]
-  unfold Lifecycle.PiRLC.v1_1.Sampler.evalState
+  unfold Lifecycle.PiRLC.v1_2.Sampler.evalState
   apply congrArg List.ofFn
   funext lane
   exact (state_eval_eq_of_shift_agreement (piRlcDelta program)
-    (Lifecycle.PiRLC.v1_1.Sampler.outputState
-      (Lifecycle.PiRLC.v1_1.SamplerChain.childInterface
-        (Lifecycle.PiRLC.v1_1.Formal.samplerInterface
-          (Lifecycle.PiRLC.v1_1.Formal.atOffset
+    (Lifecycle.PiRLC.v1_2.Sampler.outputState
+      (Lifecycle.PiRLC.v1_2.SamplerChain.childInterface
+        (Lifecycle.PiRLC.v1_2.Formal.samplerInterface
+          (Lifecycle.PiRLC.v1_2.Formal.atOffset
             (PiRLCInputs.interface
               (logicalWidth := logicalWidth) (publicFits := publicFits))
             PilotPiCCSPiRLC.piRlcOffset))
         PilotPiCCSPiRLC.piRlcOffset source.val)
       source.val
-      (Lifecycle.PiRLC.v1_1.SamplerChain.sourceOffset
+      (Lifecycle.PiRLC.v1_2.SamplerChain.sourceOffset
         PilotPiCCSPiRLC.piRlcOffset source.val))
     (SupportRange.Extend (fun _ => False) PilotPiCCSPiRLC.piRlcOffset
-      (PilotPiCCSPiRLC.piRlcOffset + Lifecycle.PiRLC.v1_1.Formal.logicalPrivateCount))
+      (PilotPiCCSPiRLC.piRlcOffset + Lifecycle.PiRLC.v1_2.Formal.logicalPrivateCount))
     (sourceEnv program env) (CompactPullback.compactEnv program env)
     (compactPiRlcOutputStateSupport source)
     (compactEnv_shiftedPiRlcLocal program env) lane).symm
@@ -1011,21 +1011,21 @@ private theorem compactPiRlcOutputState_eq
 private theorem compactPiRlcSampler
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) (env : Env)
-    (sampler : Lifecycle.PiRLC.v1_1.SamplerChain.SpecHolds
-      (Lifecycle.PiRLC.v1_1.Formal.samplerInterface
-        (Lifecycle.PiRLC.v1_1.Formal.atOffset
+    (sampler : Lifecycle.PiRLC.v1_2.SamplerChain.SpecHolds
+      (Lifecycle.PiRLC.v1_2.Formal.samplerInterface
+        (Lifecycle.PiRLC.v1_2.Formal.atOffset
           (PiRLCInputs.interface
             (logicalWidth := logicalWidth) (publicFits := publicFits))
           PilotPiCCSPiRLC.piRlcOffset))
       PilotPiCCSPiRLC.piRlcOffset (sourceEnv program env)) :
-    Lifecycle.PiRLC.v1_1.SamplerChain.SpecHolds
-      (Lifecycle.PiRLC.v1_1.Formal.samplerInterface
-        (Lifecycle.PiRLC.v1_1.Formal.atOffset
+    Lifecycle.PiRLC.v1_2.SamplerChain.SpecHolds
+      (Lifecycle.PiRLC.v1_2.Formal.samplerInterface
+        (Lifecycle.PiRLC.v1_2.Formal.atOffset
           (AssemblerInputs.piRlcInterface relation program)
           (AssemblerInputs.piRlcOffset program)))
       (AssemblerInputs.piRlcOffset program)
       (CompactPullback.compactEnv program env) := by
-  apply Lifecycle.PiRLC.v1_1.SamplerChain.SpecHolds.of_cross_eval_eq
+  apply Lifecycle.PiRLC.v1_2.SamplerChain.SpecHolds.of_cross_eval_eq
   · exact compactPiRlcInitialState_eq relation program env
   · intro source position
     exact compactPiRlcOutputWord_eq program env source position
@@ -1035,26 +1035,26 @@ private theorem compactPiRlcSampler
 private theorem compactPiRlcSemanticChallenges_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
-    Lifecycle.PiRLC.v1_1.Semantics.evalChallenges
+    Lifecycle.PiRLC.v1_2.Semantics.evalChallenges
         (PiRLCInputs.interface
           (logicalWidth := logicalWidth) (publicFits := publicFits))
         PilotPiCCSPiRLC.piRlcOffset (sourceEnv program env) =
-      Lifecycle.PiRLC.v1_1.Semantics.evalChallenges
+      Lifecycle.PiRLC.v1_2.Semantics.evalChallenges
         (AssemblerInputs.piRlcInterface relation program)
         (AssemblerInputs.piRlcOffset program)
         (CompactPullback.compactEnv program env) := by
   funext source
   exact congrFun (compactPiRlcChallenges_eq program env)
-    (Lifecycle.PiRLC.v1_1.Semantics.sourceIndex source)
+    (Lifecycle.PiRLC.v1_2.Semantics.sourceIndex source)
 
 private theorem compactPiRlcOutput_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
-    Lifecycle.PiRLC.v1_1.Semantics.evalOutput relation
+    Lifecycle.PiRLC.v1_2.Semantics.evalOutput relation
         (PiRLCInputs.interface
           (logicalWidth := logicalWidth) (publicFits := publicFits))
         PilotPiCCSPiRLC.piRlcOffset (sourceEnv program env) =
-      Lifecycle.PiRLC.v1_1.Semantics.evalOutput relation
+      Lifecycle.PiRLC.v1_2.Semantics.evalOutput relation
         (AssemblerInputs.piRlcInterface relation program)
         (AssemblerInputs.piRlcOffset program)
         (CompactPullback.compactEnv program env) := by
@@ -1069,7 +1069,7 @@ private theorem compactPiRlcOutput_eq
       rw [piRlcOffset_add_delta program]
       exact compactPiRlcPoint_eq relation program env)
     (by
-      simpa [Lifecycle.PiRLC.v1_1.Formal.logicalPrivateCount] using
+      simpa [Lifecycle.PiRLC.v1_2.Formal.logicalPrivateCount] using
         compactEnv_shiftedPiRlcLocal program env)
   rw [piRlcOffset_add_delta program] at relocated
   exact relocated
@@ -1077,15 +1077,15 @@ private theorem compactPiRlcOutput_eq
 private theorem compactPiRlcAttempt_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
-    Lifecycle.PiRLC.v1_1.Semantics.attempt relation
+    Lifecycle.PiRLC.v1_2.Semantics.attempt relation
         (PiRLCInputs.interface
           (logicalWidth := logicalWidth) (publicFits := publicFits))
         PilotPiCCSPiRLC.piRlcOffset (sourceEnv program env) =
-      Lifecycle.PiRLC.v1_1.Semantics.attempt relation
+      Lifecycle.PiRLC.v1_2.Semantics.attempt relation
         (AssemblerInputs.piRlcInterface relation program)
         (AssemblerInputs.piRlcOffset program)
         (CompactPullback.compactEnv program env) := by
-  exact Lifecycle.PiRLC.v1_1.Semantics.attempt_eq_of_cross_components
+  exact Lifecycle.PiRLC.v1_2.Semantics.attempt_eq_of_cross_components
     relation
     (PiRLCInputs.interface
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -1101,15 +1101,15 @@ theorem compactPiRlcPhaseHolds
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
     (program : Lifecycle.Stage1.Application.Program) (env : Env)
-    (phase : Lifecycle.PiRLC.v1_1.Semantics.PhaseHolds relation ajtai
+    (phase : Lifecycle.PiRLC.v1_2.Semantics.PhaseHolds relation ajtai
       (PiRLCInputs.interface
         (logicalWidth := logicalWidth) (publicFits := publicFits))
       PilotPiCCSPiRLC.piRlcOffset (sourceEnv program env)) :
-    Lifecycle.PiRLC.v1_1.Semantics.PhaseHolds relation ajtai
+    Lifecycle.PiRLC.v1_2.Semantics.PhaseHolds relation ajtai
       (AssemblerInputs.piRlcInterface relation program)
       (AssemblerInputs.piRlcOffset program)
       (CompactPullback.compactEnv program env) := by
-  exact Lifecycle.PiRLC.v1_1.Semantics.PhaseHolds.of_cross_attempt_eq
+  exact Lifecycle.PiRLC.v1_2.Semantics.PhaseHolds.of_cross_attempt_eq
     relation ajtai
     (PiRLCInputs.interface
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -1133,19 +1133,19 @@ private theorem sourceEnv_eq_compactEnv_belowPiDec
 private theorem compactPiDecParent_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
-    (Lifecycle.PiDEC.v1_1.Semantics.inputAttempt relation
+    (Lifecycle.PiDEC.v1_2.Semantics.inputAttempt relation
       (PiDECInputs.interface logicalWidth publicFits)
       PilotPiCCSPiRLCPiDEC.piDecOffset (sourceEnv program env)).parent =
-    (Lifecycle.PiDEC.v1_1.Semantics.inputAttempt relation
+    (Lifecycle.PiDEC.v1_2.Semantics.inputAttempt relation
       (AssemblerInputs.piDecInterface relation program)
       (AssemblerInputs.piDecOffset program)
       (CompactPullback.compactEnv program env)).parent := by
   calc
-    _ = Lifecycle.PiRLC.v1_1.Semantics.evalOutput relation
+    _ = Lifecycle.PiRLC.v1_2.Semantics.evalOutput relation
         (PiRLCInputs.interface
           (logicalWidth := logicalWidth) (publicFits := publicFits))
         PilotPiCCSPiRLC.piRlcOffset (sourceEnv program env) := by rfl
-    _ = Lifecycle.PiRLC.v1_1.Semantics.evalOutput relation
+    _ = Lifecycle.PiRLC.v1_2.Semantics.evalOutput relation
         (AssemblerInputs.piRlcInterface relation program)
         (AssemblerInputs.piRlcOffset program)
         (CompactPullback.compactEnv program env) :=
@@ -1156,14 +1156,14 @@ private theorem compactPiDecParent_eq
 theorem compactPiDecOutput_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
-    Lifecycle.PiDEC.v1_1.Semantics.output relation
+    Lifecycle.PiDEC.v1_2.Semantics.output relation
         (PiDECInputs.interface logicalWidth publicFits)
         PilotPiCCSPiRLCPiDEC.piDecOffset (sourceEnv program env) =
-      Lifecycle.PiDEC.v1_1.Semantics.output relation
+      Lifecycle.PiDEC.v1_2.Semantics.output relation
         (AssemblerInputs.piDecInterface relation program)
         (AssemblerInputs.piDecOffset program)
         (CompactPullback.compactEnv program env) := by
-  apply Lifecycle.PiDEC.v1_1.Semantics.output_eq_of_cross_components
+  apply Lifecycle.PiDEC.v1_2.Semantics.output_eq_of_cross_components
   · exact congrArg (fun value => value.point)
       (compactPiDecParent_eq relation program env)
   · intro child row lane
@@ -1178,11 +1178,11 @@ theorem compactPiDecOutput_eq
   · intro child coordinate
     change (PiDECInputs.childPublicInput child
         (Fin.cast
-          (Lifecycle.PiDEC.v1_1.PublicInputSplit.coordinateCount_eq
+          (Lifecycle.PiDEC.v1_2.PublicInputSplit.coordinateCount_eq
             logicalWidth publicFits) coordinate)).eval (sourceEnv program env) =
       (PiDECInputs.childPublicInput child
         (Fin.cast
-          (Lifecycle.PiDEC.v1_1.PublicInputSplit.coordinateCount_eq
+          (Lifecycle.PiDEC.v1_2.PublicInputSplit.coordinateCount_eq
             logicalWidth publicFits) coordinate)).eval
         (CompactPullback.compactEnv program env)
     exact Expr.eval_eq_of_agree_below _ PiDECInputs.phaseOffset
@@ -1208,14 +1208,14 @@ theorem compactPiDecPhaseHolds
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
     (program : Lifecycle.Stage1.Application.Program) (env : Env)
-    (phase : Lifecycle.PiDEC.v1_1.Semantics.PhaseHolds relation ajtai
+    (phase : Lifecycle.PiDEC.v1_2.Semantics.PhaseHolds relation ajtai
       (PiDECInputs.interface logicalWidth publicFits)
       PilotPiCCSPiRLCPiDEC.piDecOffset (sourceEnv program env)) :
-    Lifecycle.PiDEC.v1_1.Semantics.PhaseHolds relation ajtai
+    Lifecycle.PiDEC.v1_2.Semantics.PhaseHolds relation ajtai
       (AssemblerInputs.piDecInterface relation program)
       (AssemblerInputs.piDecOffset program)
       (CompactPullback.compactEnv program env) := by
-  exact Lifecycle.PiDEC.v1_1.Semantics.phaseHolds_of_cross_parent_output_eq
+  exact Lifecycle.PiDEC.v1_2.Semantics.phaseHolds_of_cross_parent_output_eq
     relation ajtai (PiDECInputs.interface logicalWidth publicFits)
     (AssemblerInputs.piDecInterface relation program)
     PilotPiCCSPiRLCPiDEC.piDecOffset (AssemblerInputs.piDecOffset program)
@@ -1228,14 +1228,14 @@ structure ChildPhysicalHolds
     (program : Lifecycle.Stage1.Application.Program) (env : Env) : Prop where
   pilot : Pilot.PhysicalHolds PilotProduction.interface
     PilotProduction.witnessOffset (sourceEnv program env)
-  piCcs : NightstreamFPrime.Layout.PiCCS.v1_1.PhysicalHolds relation
+  piCcs : NightstreamFPrime.Layout.PiCCS.v1_2.PhysicalHolds relation
     (PilotPiCCS.interface (publicFits := publicFits))
     PilotPiCCS.piCcsOffset (sourceEnv program env)
-  piRlc : NightstreamFPrime.Layout.PiRLC.v1_1.PhysicalHolds relation
+  piRlc : NightstreamFPrime.Layout.PiRLC.v1_2.PhysicalHolds relation
     (PiRLCInputs.interface
       (logicalWidth := logicalWidth) (publicFits := publicFits))
     PilotPiCCSPiRLC.piRlcOffset (sourceEnv program env)
-  piDec : NightstreamFPrime.Layout.PiDEC.v1_1.PhysicalHolds relation
+  piDec : NightstreamFPrime.Layout.PiDEC.v1_2.PhysicalHolds relation
     (PiDECInputs.interface logicalWidth publicFits)
     PilotPiCCSPiRLCPiDEC.piDecOffset (sourceEnv program env)
   running : RunningTransitionLayout.PhysicalHolds logicalWidth publicFits
@@ -1278,14 +1278,14 @@ structure ChildSpecs
     (env : Env) : Prop where
   pilot : Lifecycle.Pilot.SpecHolds PilotProduction.interface
     PilotProduction.witnessOffset (sourceEnv program env)
-  piCcs : Lifecycle.PiCCS.v1_1.Formal.PhaseHolds relation ajtai
+  piCcs : Lifecycle.PiCCS.v1_2.Formal.PhaseHolds relation ajtai
     (PilotPiCCS.interface (publicFits := publicFits))
     PilotPiCCS.piCcsOffset (sourceEnv program env) template
-  piRlc : Lifecycle.PiRLC.v1_1.Semantics.PhaseHolds relation ajtai
+  piRlc : Lifecycle.PiRLC.v1_2.Semantics.PhaseHolds relation ajtai
     (PiRLCInputs.interface
       (logicalWidth := logicalWidth) (publicFits := publicFits))
     PilotPiCCSPiRLC.piRlcOffset (sourceEnv program env)
-  piDec : Lifecycle.PiDEC.v1_1.Semantics.PhaseHolds relation ajtai
+  piDec : Lifecycle.PiDEC.v1_2.Semantics.PhaseHolds relation ajtai
     (PiDECInputs.interface logicalWidth publicFits)
     PilotPiCCSPiRLCPiDEC.piDecOffset (sourceEnv program env)
   running : Lifecycle.Stage1.RunningTransition.SpecHolds
@@ -1307,10 +1307,10 @@ theorem physical_implies_childSpecs
     ChildSpecs relation ajtai program template env := by
   have children := physical_implies_children relation program env physical
   let source := sourceEnv program env
-  have piCcsAssumptions : Lifecycle.PiCCS.v1_1.Formal.Assumptions relation
+  have piCcsAssumptions : Lifecycle.PiCCS.v1_2.Formal.Assumptions relation
       (PilotPiCCS.interface (publicFits := publicFits))
       PilotPiCCS.piCcsOffset source :=
-    NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions.production relation
+    NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions.production relation
       (PilotPiCCS.interface (publicFits := publicFits)) PilotPiCCS.piCcsOffset
       (PiCCSInputs.externalInputsLinear logicalWidth publicFits) source
   have piRlcAssumptions := PiRLCInputBounds.assumptions relation source
@@ -1328,15 +1328,15 @@ theorem physical_implies_childSpecs
     pilot := Pilot.physical_implies_spec PilotProduction.interface
       PilotProduction.witnessOffset source (PilotProduction.assumptions source)
       children.pilot
-    piCcs := NightstreamFPrime.Layout.PiCCS.v1_1.physical_implies_phaseHolds
+    piCcs := NightstreamFPrime.Layout.PiCCS.v1_2.physical_implies_phaseHolds
       relation ajtai (PilotPiCCS.interface (publicFits := publicFits)) template
       PilotPiCCS.piCcsOffset source piCcsAssumptions children.piCcs
-    piRlc := NightstreamFPrime.Layout.PiRLC.v1_1.physical_implies_phaseHolds
+    piRlc := NightstreamFPrime.Layout.PiRLC.v1_2.physical_implies_phaseHolds
       relation ajtai
       (PiRLCInputs.interface
         (logicalWidth := logicalWidth) (publicFits := publicFits))
       PilotPiCCSPiRLC.piRlcOffset source piRlcAssumptions children.piRlc
-    piDec := NightstreamFPrime.Layout.PiDEC.v1_1.physical_implies_phaseHolds
+    piDec := NightstreamFPrime.Layout.PiDEC.v1_2.physical_implies_phaseHolds
       relation ajtai (PiDECInputs.interface logicalWidth publicFits)
       PilotPiCCSPiRLCPiDEC.piDecOffset source piDecAssumptions children.piDec
     running := RunningTransitionLayout.physical_implies_specHolds relation source

@@ -17,7 +17,7 @@ open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
@@ -41,7 +41,7 @@ def inputs (relation : ProductionKey.LogicalRelation relationLogicalWidth relati
 def parent (relation : ProductionKey.LogicalRelation relationLogicalWidth relationPublicFits)
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth) :=
-  (PiDEC.v1_1.Semantics.inputAttempt relation
+  (PiDEC.v1_2.Semantics.inputAttempt relation
     (PiDECArithmetic.phaseInterface relationLogicalWidth relationPublicFits) PiDECInputs.phaseOffset
     (Spartan.pullback (ActualPiDEC.decodedEnv (piDecGeometry geometry) assignment))).parent
 
@@ -102,9 +102,9 @@ theorem parentCommitment_eq_form
     (parent relation geometry assignment).commitment row lane =
       ((PiDECDirectPlan.Location.parentCommitment
         (CombinationStep.indexOf row lane CommitmentCombination.cell)).form (piDecGeometry geometry)).eval assignment := by
-  dsimp only [parent, PiDEC.v1_1.Semantics.inputAttempt, PiDEC.v1_1.InputBinding.evalAttempt,
-    PiDEC.v1_1.InputBinding.evalParent, PiDEC.v1_1.Formal.inputBindingInterface,
-    PiDEC.v1_1.Formal.atOffset, PiDECArithmetic.phaseInterface, PiDECInputs.interface,
+  dsimp only [parent, PiDEC.v1_2.Semantics.inputAttempt, PiDEC.v1_2.InputBinding.evalAttempt,
+    PiDEC.v1_2.InputBinding.evalParent, PiDEC.v1_2.Formal.inputBindingInterface,
+    PiDEC.v1_2.Formal.atOffset, PiDECArithmetic.phaseInterface, PiDECInputs.interface,
     PiDECInputs.parent, PiDECInputs.piRlcOutputInterface, Formal.outputBindingInterface,
     CommitmentCombination.output, CombinationFamily.output, CombinationStep.output,
     Expr.eval]
@@ -188,9 +188,9 @@ theorem parentPublicInput_eq_form
           (Phi81Relation.PiRLCAlgebra.PublicInput.publicLaneIndex
             (shape := FullShape relationLogicalWidth relationPublicFits) column)
           PublicInputCombination.cell)).form (piDecGeometry geometry)).eval assignment := by
-  dsimp only [parent, PiDEC.v1_1.Semantics.inputAttempt, PiDEC.v1_1.InputBinding.evalAttempt,
-    PiDEC.v1_1.InputBinding.evalParent, PiDEC.v1_1.Formal.inputBindingInterface,
-    PiDEC.v1_1.Formal.atOffset, PiDECArithmetic.phaseInterface, PiDECInputs.interface,
+  dsimp only [parent, PiDEC.v1_2.Semantics.inputAttempt, PiDEC.v1_2.InputBinding.evalAttempt,
+    PiDEC.v1_2.InputBinding.evalParent, PiDEC.v1_2.Formal.inputBindingInterface,
+    PiDEC.v1_2.Formal.atOffset, PiDECArithmetic.phaseInterface, PiDECInputs.interface,
     PiDECInputs.parent, PiDECInputs.piRlcOutputInterface, Formal.outputBindingInterface,
     PublicInputCombination.output, CombinationFamily.output, CombinationStep.output,
     Expr.eval]
@@ -313,7 +313,7 @@ private theorem parentEvaluation_eq
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth) :
     parentEvaluation relation geometry assignment =
-      PiCCS.v1_1.StatementAbsorption.evalEvaluation
+      PiCCS.v1_2.StatementAbsorption.evalEvaluation
         (PiDECInputs.parent relationLogicalWidth relationPublicFits).evaluation
         (Spartan.pullback (ActualPiDEC.decodedEnv (piDecGeometry geometry) assignment)) := by rfl
 
@@ -578,9 +578,9 @@ theorem selectedRowsAndPublic_imply_parentForChallenges
       (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry geometry) assignment)
     parent relation (DirectApplicationPrefixPlan.prefixGeometry geometry) assignment =
       (ProductionKey.key relation ajtai).parentForChallenges
-        (PiCCS.v1_1.Formal.evalRunning interface PiCCSInputs.phaseOffset env)
-        (PiCCS.v1_1.Formal.evalFresh interface PiCCSInputs.phaseOffset env)
-        (PiCCS.v1_1.Formal.evalProof relation interface PiCCSInputs.phaseOffset env template)
+        (PiCCS.v1_2.Formal.evalRunning interface PiCCSInputs.phaseOffset env)
+        (PiCCS.v1_2.Formal.evalFresh interface PiCCSInputs.phaseOffset env)
+        (PiCCS.v1_2.Formal.evalProof relation interface PiCCSInputs.phaseOffset env template)
         (ActualPiRLCSampling.challenge (DirectApplicationPrefixPlan.prefixGeometry geometry) assignment) := by
   let geometry := PerApplicationFixedPoint.geometry application
   let relation := PerApplicationFixedPoint.relation application fits
@@ -644,9 +644,9 @@ theorem selectedRowsAndPublic_imply_parent
     let env := Spartan.pullback (PiCCSAssignmentSoundness.decodedEnv
       (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry geometry) assignment)
     (ProductionKey.key relation ajtai).parent
-        (PiCCS.v1_1.Formal.evalRunning interface PiCCSInputs.phaseOffset env)
-        (PiCCS.v1_1.Formal.evalFresh interface PiCCSInputs.phaseOffset env)
-        (PiCCS.v1_1.Formal.evalProof relation interface PiCCSInputs.phaseOffset env template) =
+        (PiCCS.v1_2.Formal.evalRunning interface PiCCSInputs.phaseOffset env)
+        (PiCCS.v1_2.Formal.evalFresh interface PiCCSInputs.phaseOffset env)
+        (PiCCS.v1_2.Formal.evalProof relation interface PiCCSInputs.phaseOffset env template) =
       some (parent relation (DirectApplicationPrefixPlan.prefixGeometry geometry) assignment) := by
   have challenges := ActualPiRLC.selectedRowsAndPublic_imply_keyChallenges application fits ajtai
     template assignment digest publicEqual accepted

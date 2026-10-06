@@ -3,9 +3,9 @@ import NightstreamFPrime.Export.Stage1.Data
 import NightstreamFPrime.Export.Stage1.PiCCSInvocationSchedule
 import NightstreamFPrime.Export.Stage1.PiRLCCombinationCounts
 import NightstreamFPrime.Export.Stage1.PiRLCCombinationConformance
-import NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions
-import NightstreamFPrime.Layout.PiDEC.v1_1.Preservation
-import NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics
+import NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions
+import NightstreamFPrime.Layout.PiDEC.v1_2.Preservation
+import NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics
 import NightstreamFPrime.Lifecycle.VerifierContext
 
 /-!
@@ -25,7 +25,7 @@ open NightstreamFPrime.Gadgets.Poseidon2
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.HyperNova.Construction2.Paper
@@ -436,11 +436,11 @@ theorem circuitPackage_implies_piDecPhaseHolds
     (env : Env)
     (holds : (Data.circuitPackage ()).RowsHold env)
     (assumptions :
-      NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal.Assumptions relation
+      NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.Assumptions relation
         (PiDECArithmetic.phaseInterface Data.logicalWidth Data.publicFits)
         NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset
         (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)) :
-    NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.PhaseHolds
+    NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.PhaseHolds
       relation ajtai
       (PiDECArithmetic.phaseInterface Data.logicalWidth Data.publicFits)
       NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset
@@ -454,7 +454,7 @@ theorem circuitPackage_implies_piDecPhaseHolds
   have physical :=
     (NightstreamFPrime.Layout.Stage1.Spartan.remapRows_hold env _).mp
       packageRows
-  exact NightstreamFPrime.Layout.PiDEC.v1_1.physical_implies_phaseHolds
+  exact NightstreamFPrime.Layout.PiDEC.v1_2.physical_implies_phaseHolds
     relation ajtai
     (PiDECArithmetic.phaseInterface Data.logicalWidth Data.publicFits)
     NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset
@@ -1067,13 +1067,13 @@ theorem circuitPackage_implies_piCcsSpecHolds
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
     (env : Env)
     (holds : (Data.circuitPackage ()).RowsHold env) :
-    NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.SpecHolds relation
+    NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.SpecHolds relation
       (PiCCSInvocations.parentInterface Data.logicalWidth Data.publicFits)
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset
       (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
   let parent := PiCCSInvocations.parentInterface Data.logicalWidth Data.publicFits
   have assumptions :=
-    NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions.production relation parent
+    NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions.production relation parent
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.externalInputsLinear
         Data.logicalWidth Data.publicFits)
@@ -1131,13 +1131,13 @@ theorem circuitPackage_implies_selectedVerifierContext
     (holds : (Data.circuitPackage ()).RowsHold env) :
     (∀ lane : Fin 4,
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.priorStateWord
-        (NightstreamFPrime.Lifecycle.PiCCS.v1_1.StateBinding.contextWordStart +
+        (NightstreamFPrime.Lifecycle.PiCCS.v1_2.StateBinding.contextWordStart +
           lane.val)).eval
           (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) =
         (VerifierContext.digest authority).getD lane.val 0) ∧
     (∀ lane : Fin 4,
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.outputStateWord
-        (NightstreamFPrime.Lifecycle.PiCCS.v1_1.StateBinding.contextWordStart +
+        (NightstreamFPrime.Lifecycle.PiCCS.v1_2.StateBinding.contextWordStart +
           lane.val)).eval
           (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) =
         (VerifierContext.digest authority).getD lane.val 0) := by
@@ -1147,7 +1147,7 @@ theorem circuitPackage_implies_selectedVerifierContext
     have context := specification.statementBinding.state.priorContext lane
     change
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.priorStateWord
-        (NightstreamFPrime.Lifecycle.PiCCS.v1_1.StateBinding.contextWordStart +
+        (NightstreamFPrime.Lifecycle.PiCCS.v1_2.StateBinding.contextWordStart +
           lane.val)).eval
           (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) =
         (NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContext lane).eval
@@ -1162,7 +1162,7 @@ theorem circuitPackage_implies_selectedVerifierContext
     have context := specification.statementBinding.state.outputContext lane
     change
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.outputStateWord
-        (NightstreamFPrime.Lifecycle.PiCCS.v1_1.StateBinding.contextWordStart +
+        (NightstreamFPrime.Lifecycle.PiCCS.v1_2.StateBinding.contextWordStart +
           lane.val)).eval
           (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) =
         (NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContext lane).eval
@@ -1183,11 +1183,11 @@ theorem circuitPackage_implies_piCcsPhaseHolds
     (template : Proof (ProductionKey.degreeBound relation))
     (env : Env)
     (holds : (Data.circuitPackage ()).RowsHold env) :
-    NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.PhaseHolds relation ajtai
+    NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.PhaseHolds relation ajtai
       (PiCCSInvocations.parentInterface Data.logicalWidth Data.publicFits)
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset
       (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) template := by
-  apply NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.spec_implies_phaseHolds
+  apply NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.spec_implies_phaseHolds
     relation ajtai
   exact circuitPackage_implies_piCcsSpecHolds relation env holds
 

@@ -11,7 +11,7 @@ ASSEMBLE = FORMAL / "scripts/assemble_fresh_assignment.py"
 CHECK = FORMAL / "tests/check_fresh_assignment_bytes.py"
 
 
-def write_blocks(directory, empty_slots):
+def write_blocks(directory, empty_slots, first_block=0, finish_block=26):
     """26 blocks of two coordinates each, except block 21, which is empty."""
     directory.mkdir()
     (directory / "public.bin").write_bytes(bytes(270))
@@ -19,13 +19,14 @@ def write_blocks(directory, empty_slots):
     for ordinal in range(26):
         size = 0 if ordinal == 21 else 2
         name = f"block-{ordinal}.bin"
-        (directory / name).write_bytes(bytes([1, 255][:size]))
-        blocks.append({"ordinal": ordinal, "first": first, "finish": first + size,
-                       "slots": empty_slots if ordinal == 21 else 1, "file": name})
+        if first_block <= ordinal < finish_block:
+            (directory / name).write_bytes(bytes([1, 255][:size]))
+            blocks.append({"ordinal": ordinal, "first": first, "finish": first + size,
+                           "slots": empty_slots if ordinal == 21 else 1, "file": name})
         first += size
     (directory / "manifest.json").write_text(json.dumps({
         "schema": 1, "logical_width": first, "physical_fields": 0, "public_width": 270,
-        "first_block": 0, "finish_block": 26, "blocks": blocks}))
+        "first_block": first_block, "finish_block": finish_block, "blocks": blocks}))
 
 
 class EmptyBlocks(unittest.TestCase):
@@ -59,6 +60,30 @@ class EmptyBlocks(unittest.TestCase):
         checked = self.run_script(CHECK, witness, self.root / "blocks", "--complete")
         self.assertNotEqual(checked.returncode, 0)
         self.assertIn("AssertionError", checked.stderr)
+
+    def test_partial_ranges_ending_in_empty_block_still_check_target(self):
+        write_blocks(self.root / "valid", empty_slots=0)
+        witness = self.root / "witness.json"
+        assembled = self.run_script(ASSEMBLE, self.root / "carrier.bin", witness,
+                                    self.root / "valid")
+        self.assertEqual(assembled.returncode, 0, assembled.stderr)
+        changed = json.loads(witness.read_text())
+        changed["packed_signed_unit"]["bits"]["ColumnMasks"]["positive"][0] ^= 1
+        changed_witness = self.root / "changed-witness.json"
+        changed_witness.write_text(json.dumps(changed))
+        for first in (20, 21):
+            with self.subTest(first_block=first):
+                directory = self.root / f"blocks-{first}-22"
+                write_blocks(directory, empty_slots=0, first_block=first, finish_block=22)
+                checked = self.run_script(CHECK, witness, directory)
+                self.assertEqual(checked.returncode, 0, checked.stderr)
+                report = json.loads(checked.stdout)
+                self.assertEqual(report["status"], "passed")
+                self.assertFalse(report["complete"])
+                self.assertTrue(report["changed_target_rejected"])
+                rejected = self.run_script(CHECK, changed_witness, directory)
+                self.assertNotEqual(rejected.returncode, 0)
+                self.assertIn("coefficient bytes differ", rejected.stderr)
 
 
 if __name__ == "__main__":

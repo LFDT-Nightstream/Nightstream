@@ -1,7 +1,8 @@
 //! Selected terminal verification against an external state statement.
 //! The exact running and fresh openings use the package relation and fixed
-//! key. Parent caches, carried frame digests and redundant `w` storage are
-//! non-authoritative; every witness check uses the complete matrix `Z`.
+//! key. Parent caches, carried frame digests, redundant `w` storage and zero
+//! evaluation coefficients past `D` are non-authoritative; every witness check
+//! uses the complete matrix `Z`.
 
 use neo_ajtai::{nightstream_fprime_setup::PRODUCTION_VERIFIER_ROWS, Commitment};
 use neo_math::{D, F, K};

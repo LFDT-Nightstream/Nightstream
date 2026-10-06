@@ -11,7 +11,7 @@ use neo_math::D;
 use neo_reductions::superneo_eval::RetainedMatrixWindow;
 use nightstream_fprime::{
     LoadedPerApplicationPackage, PackageError, PiCcsV1_1PackageInputs, PiDecV1_1PackageInputs, Stage1VerifierBinding,
-    WitnessAssignment,
+    WitnessAssignment, PI_CCS_V1_1_SOURCE_COUNT, PI_DEC_V1_1_CHILD_COUNT,
 };
 mod base;
 mod complete;
@@ -111,6 +111,9 @@ pub(crate) fn validate_key_prefix(logical_width: usize, commitment_key_words: &[
     }
     Ok(())
 }
+
+// The running children and the one fresh instance fill every PiCCS source.
+const _: () = assert!(PI_CCS_V1_1_SOURCE_COUNT == PI_DEC_V1_1_CHILD_COUNT + 1);
 
 /// The selected profile carries exactly one fresh instance per active proof.
 #[derive(Clone, Debug)]

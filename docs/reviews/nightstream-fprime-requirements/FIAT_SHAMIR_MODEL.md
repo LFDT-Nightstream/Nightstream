@@ -61,7 +61,9 @@ absorption; its theorem is not currently matched to our additive absorption
 and initialization. The note makes no ideal-permutation proof, quantum
 security, machine-time, or full-history extraction claim.
 
-Absorption coverage is proved, not assumed.
+The transfer assumption is stated over the real production key, and its
+statement does not change. What is proved is that this key's transcript
+absorbs every verifier input before the challenges that depend on it.
 `Layout/Stage1/TranscriptCoverage.lean` models each production challenge
 (`α`, `γ`, the SumCheck points, the `Π_RLC` scalars) as a read of the Poseidon2
 state after an explicit list of permutation inputs: zero-padded rate chunks,
@@ -70,14 +72,19 @@ its prover-dependent inputs followed by inputs that admit no prover data, and
 `coins_eq_reads` states that the PiCCS coin record is exactly these reads.
 Equal prover-dependent inputs before a challenge identify the fresh statement
 and every earlier prover message (`proverCalls_identify`). The running
-statement enters only through the prior digest. With the prior-state link,
-equal inputs also identify the prior preimage (verifier-key digest, iteration,
-application states, program counter) and the running statement, unless the
-state hash collides (`calls_identify_view_or_collision`). Terminal acceptance
-builds that link (`terminal_implies_nifsOrBaseOrCollision`), and
+statement is not absorbed; the challenges do not depend on it. It is bound
+only through the prior digest. The prior-state link states that the fresh
+public input carries the hash of a well-formed prior preimage whose running
+vector is the NIFS running statement. With that link, equal inputs also
+identify the prior preimage and the running statement, unless the state hash
+collides (`calls_identify_view_or_collision`). Terminal acceptance builds the
+link (`terminal_implies_nifsOrBaseOrCollision`), and
 `terminal_calls_identify_view_or_collision` applies the result to two accepted
-terminals. The assumption above still covers the permutation, the duplex
-construction, and the transfer bound.
+terminals. The `Π_RLC` reads reuse only the replay of the sampler's fixed
+suffix calls, not its ideal-oracle law. No theorem consumes these results yet;
+they are a proved check on the transcript that the assumption ranges over.
+The assumption above still covers the permutation, the duplex construction,
+and the transfer bound.
 
 The separate finite sampler laws and `VerifierErrorBudget` are checked.
 Under the stated per-call laws, the selected PiCCS test and sampler-abort

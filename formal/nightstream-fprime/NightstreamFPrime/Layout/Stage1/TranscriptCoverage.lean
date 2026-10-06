@@ -23,13 +23,14 @@ Outputs:
   statements and equal earlier prover messages; before `Π_RLC` they give equal
   proofs up to the `Π_DEC` child messages, so a new proof field breaks it;
 - `calls_identify_view_or_collision`: with the prior-state link, equal calls
-  also identify the prior preimage (verifier-key digest, iteration,
-  application states, program counter, running statement), unless the state
+  also identify the prior preimage (iteration, application states, program
+  counter, running vector) and the NIFS running statement, unless the state
   hash collides. `ActualTerminalSecurity.terminal_calls_identify_view_or_collision`
   applies it to accepted terminals.
 
-The `Π_RLC` reads use the query keys of the sampler's oracle model
-(`ScheduleLaw.queryAt`).
+The `Π_RLC` read keys are `ScheduleLaw.queryAt []`; only the replay of these
+fixed suffix calls (`TranscriptHistory.queryAt_answer`) is reused. The sampler's
+ideal-oracle law does not cover the prover-dependent prefix.
 
 Invariant: removing an absorption of verifier-relevant data, moving it after
 a challenge that depends on it, or making its encoding ambiguous breaks
@@ -414,8 +415,8 @@ def fixedCalls : Challenge → List Call
         absorbCalls (Transcript.labelWord .gamma)
   | .round index => absorbCalls (Transcript.labelWord (.sumcheck index))
   | .rho index =>
-      (Spec.Folding.Nifs.NonInteractive.PiRlcSampler.ScheduleLaw.queryAt [] (rhoIndex index)).val.map
-        widen
+      (Spec.Folding.Nifs.NonInteractive.PiRlcSampler.ScheduleLaw.queryAt []
+        (rhoIndex index)).val.map widen
 
 section Contract
 
@@ -797,27 +798,31 @@ theorem proverCalls_identify {degree : Nat}
   | rho => exact outputCalls_identify same
 
 /-- The HyperNova prior-state link: the fresh public input carries the hash of
-the well-formed prior preimage, whose running vector is the NIFS running
-statement. `ActualTerminalSecurity.terminal_implies_nifsOrBaseOrCollision`
-supplies it for every accepted recursive terminal. -/
+the well-formed prior preimage, and the NIFS running statement is the
+preimage's running vector. `ActualTerminalSecurity.terminal_implies_nifsOrBaseOrCollision`
+supplies it on the positive, collision-free branch of an accepted recursive
+terminal. -/
 structure PriorLink
     (prior : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)) : Prop where
   digest : ProductionKey.priorDigest fresh = stateHash (publicFits := publicFits) prior
+  running_eq : prior.running functionIndex = running
   wellFormed : StateEncoding.WellFormed prior
 
 /-- The coverage contract. If two executions present equal prover-dependent
-calls before a challenge, they agree on the prior preimage (verifier-key
-digest, iteration, application states, program counter, running statement),
-the fresh statement, and every earlier prover message, unless the state hash
-collides. -/
+calls before a challenge, they agree on the prior preimage, the NIFS running
+statement, the fresh statement, and every earlier prover message, unless the
+state hash collides. -/
 theorem calls_identify_view_or_collision {degree : Nat} (challenge : Challenge)
     {prior prior' : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits)}
+    {running running' : Running (logicalWidth := logicalWidth) (publicFits := publicFits)}
     {fresh fresh' : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)}
     {proof proof' : Proof degree}
-    (link : PriorLink prior fresh) (link' : PriorLink prior' fresh')
+    (link : PriorLink prior running fresh) (link' : PriorLink prior' running' fresh')
     (same : proverCalls fresh proof challenge = proverCalls fresh' proof' challenge) :
-    (prior = prior' ∧ AgreeOnAbsorbed fresh fresh' proof proof' challenge) ∨
+    (prior = prior' ∧ running = running' ∧
+        AgreeOnAbsorbed fresh fresh' proof proof' challenge) ∨
       PiCCSSecurity.StateHashCollision prior prior' := by
   have agree := proverCalls_identify challenge same
   have digestEqual : stateHash (publicFits := publicFits) prior =
@@ -825,7 +830,8 @@ theorem calls_identify_view_or_collision {degree : Nat} (challenge : Challenge)
     rw [← link.digest, ← link'.digest, agree.fresh_eq]
   rcases PiCCSSecurity.stateHash_identifies_statement_or_collision prior prior'
       link.wellFormed link'.wellFormed digestEqual with priorEqual | collision
-  · exact Or.inl ⟨priorEqual, agree⟩
+  · refine Or.inl ⟨priorEqual, ?_, agree⟩
+    rw [← link.running_eq, ← link'.running_eq, priorEqual]
   · exact Or.inr collision
 
 end Contract

@@ -4,7 +4,9 @@ Status: **DRAFT for review (2026-10-07).** Owner decisions of 2026-10-07: a
 direct random-oracle (ROM) knowledge theorem replaces the external
 `FiatShamirModel` assumption; the oracle is a random function of each
 challenge's exact absorbed prefix; this written proof is reviewed before the
-Lean formalization. No Lean or Rust change depends on this note yet.
+forking work. Lemmas 1–4 are proved in Lean (Section 6). Lemmas 5–6 and the
+history capstone wait for the review in Section 7. No Rust change depends on
+this note.
 
 Neither paper supplies this proof. SuperNeo is stated for the interactive
 protocol only. The published HyperNova asserts a Fiat–Shamir lemma for
@@ -102,14 +104,20 @@ The proof has six lemmas. Lemmas 1–3 are standard or already proved. Lemmas
 4–6 carry the new argument and need the closest review.
 
 **Lemma 1 (prefix oracle).** Each verifier challenge is `H` at a prefix that
-identifies all earlier prover data. *Status:* coverage proved in this PR;
-distinct prefixes to prove (phase 1).
+identifies all earlier prover data. *Status:* proved. Coverage:
+`challenge_seal`, `proverCalls_identify`; the key's coins are one read of each
+prefix (`piCcsProbe_coins`); distinct challenges have distinct prefixes
+(`challengeCalls_injective`).
 
-**Lemma 2 (pinned squeeze; Ironwood `xEscAtPoint_measure_le`).** For any
-point-indexed bad set `bad : T → Set B` with `μ(bad t) ≤ ε` for every `t`,
-and any `Q`-query `A` with an output point `xpt`,
-`Pr_H[H(xpt(A^H)) ∈ bad(xpt(A^H))] ≤ (Q+1)·ε`. *Status:* proved in Ironwood
-(Apache-2.0/MIT); to port with credit (phase 1).
+**Lemma 2 (pinned squeeze; after Ironwood `xEscAtPoint_measure_le`).** Let
+`bad t H ⊆ B` read `H` only away from `t`, with `μ(bad t H) ≤ ε` for every
+`t` and `H`. For any `Q`-query `A` with an output point `xpt`,
+`Pr_H[H(xpt(A^H)) ∈ bad(xpt(A^H), H)] ≤ (Q+1)·ε`. *Proof:* at the first
+query of a point, its answer is independent of the adversary's view and of
+`H` elsewhere. *Status:* proved as `RandomOracle.pinned_le` (`escape_le` for
+every queried point). Ironwood proves the case where `bad` does not read `H`;
+the local form is needed because a round's bad set reads the earlier
+challenges.
 
 **Lemma 3 (per-challenge test bound).** `ε_test` splits into point-indexed
 round-by-round bounds. Fix a statement and a witness `w`. For each challenge
@@ -125,8 +133,10 @@ passing one:
 
 The sum is exactly `testError`. Each set depends only on `w`, the statement
 and the prover data before `c`, which the prefix identifies (Lemma 1).
-*Status:* the Schwartz–Zippel facts exist in the interactive proof; the
-round-by-round split must be restated per prefix (phase 2).
+*Status:* proved as `RoundByRound.falseAcceptance_splits` with the counts
+`alphaBad_probability_le`, `gammaBad_probability_le` and
+`roundBad_probability_le`. The `α` split follows one fixed path of nonzero
+sub-tables, one coordinate per step.
 
 **Lemma 4 (test error in the ROM).** For a fixed fork state `x` (below) and a
 fixed witness `w` that is not source-valid, the probability that the
@@ -135,7 +145,10 @@ witness is `w` is at most `(Q+1)·ε_test`. *Proof:* if the output is accepted
 with witness `w`, some challenge of the final transcript lies in its
 `bad_w` set (the round-by-round argument of the interactive proof, applied to
 the final transcript). Apply Lemma 2 to each of the 57 extension-field
-challenges and sum. *Status:* new; direct.
+challenges and sum. *Status:* proved as `RandomOracleTest.test_error_le` for an
+adaptive fresh statement, with the running statement and `w` fixed. The fork
+form needs the pre-fork answers held fixed; `escape_le` is proved through that
+form.
 
 **Lemma 5 (Π_RLC coordinate retry in the ROM).** The interactive weak
 extractor (SuperNeo B.3; Fenzi–Moghaddas–Nguyen Lemma 7.1, as formalized in
@@ -181,19 +194,40 @@ and the summation need review.
 - The in-circuit hash attack class (KRS) is outside every random-oracle
   model; the relation is still fixed by the verifier's package key.
 
-## 6. Formalization plan
+## 6. Formalization design
 
-1. **Oracle foundation:** bounded prefix type `T`; port Ironwood's
-   `OracleComp`, `QueryBound`, `escapesDuringC_measure_le'` and
-   `xEscAtPoint_measure_le` with credit; prove distinct prefixes.
-2. **PiCCS in the ROM:** per-prefix bad sets and Lemmas 3–4.
-3. **Review of this note** before the forking work.
-4. **Forking:** Lemma 5 (reprogrammed coordinate retry, with expected work)
-   and Lemma 6 (forked uniqueness), joined with `PaperSecurityComposition`
-   and the adaptive binding reduction.
-5. **History capstone:** `history_probability_linear_bound` without
-   `FiatShamirModel`; update `FIAT_SHAMIR_MODEL.md`, `ASSURANCE_SURFACE.md`
-   and the requirements map; delete `FiatShamirTransfer` once nothing uses it.
+**Oracle model.** `H` is a uniformly random function from bounded call lists
+to four-word blocks, averaged over all such functions (Ironwood's full-table
+model). The lazily sampled `PiRlcSampler.OracleModel` is not reused: the bad
+set of a challenge reads other challenges (later α coordinates, earlier
+rounds), which a lazy tape may not have sampled yet. With a full table, the
+only condition is *locality*: the bad set at a point may read `H` anywhere
+except at that point. The domain bound covers every challenge prefix; no
+result depends on its value.
+
+**Verifier fidelity.** The verifier already accepts a `Probe` with explicit
+coins (`piCcsCheck_eq_true_iff_fixedWidthAccepted`). One definition,
+`TranscriptCoverage.coinsFrom read`, builds the coins from any read of the
+challenge prefixes. The deployed coins are `coinsFrom (readK ∘ run)`; the
+oracle coins are `coinsFrom (decodeK ∘ H)`. Nothing else in the verifier
+changes, so the theorem is about the deployed verifier with only the reads
+idealized. A key with a call-list state was rejected: `readK` reads lane 0
+of two consecutive states, so no single oracle function reproduces it, and
+the key's construction and coverage proofs would be duplicated.
+
+**Modules.**
+
+| Module | Owns |
+|---|---|
+| `Spec/RandomOracle.lean` | `OracleComp`, `run`, `queries`, `QueryBound`, locality, `escape_le` (`Q·ε`), `pinned_le` (`(Q+1)·ε`); credit Ironwood |
+| `Spec/.../PaperJoint/RoundByRound.lean` | deterministic split of a false acceptance into one bad coin per α coordinate, γ or round; bad-set counts `1`, `J−1`, `9` |
+| `Lifecycle/TranscriptCoverage.lean` | `point`, `coinsFrom`, distinct point lengths, the deployed-coins bridge |
+| `Lifecycle/RandomOracleTest.lean` | bounded domain, `decodeK`, oracle bad sets, `test_error_le`: `(Q+1)·testError` |
+
+Phases 1 and 2 of the plan become these four modules. The forking lemmas
+(Lemmas 5–6) and the history capstone follow after the review in Section 7.
+At a fork state, Lemma 4 needs `escape_le` with the pre-fork answers held
+fixed; its proof already carries that form.
 
 ## 7. Open questions for review
 

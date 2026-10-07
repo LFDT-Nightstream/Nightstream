@@ -145,7 +145,7 @@ private theorem hit_count_le {degree : Nat} (samples : Finset K) (q : List K →
     simp only [empty, Finset.card_empty]
     exact Nat.zero_le degree
 
-private theorem hit_probability_le {degree : Nat} (samples : Finset K) (q : List K → K)
+theorem hit_probability_le {degree : Nat} (samples : Finset K) (q : List K → K)
     (fixed : List K) (remaining : Nat) (message semantic : FixedPolynomial K degree)
     (represents : FixedPhase.Represents ops semantic (expected q fixed remaining)) :
     (𝔼 challenge ∈ samples,

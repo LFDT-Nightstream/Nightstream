@@ -26,6 +26,12 @@ Outputs:
   the statement calls collide (`RunCollision`).
   `PerApplicationSecurity.replayInput_authority_identifies_or_collision` uses
   them to link the committed-statement reductions to this contract.
+- `coinsFrom`, `piCcsProbe_coins`: the key's PiCCS probe coins are one read of
+  each challenge's calls (`challengeCalls`). `RandomOracleTest` replaces that
+  read by a random oracle and changes nothing else;
+- `challengeCalls_injective`, `challengeCalls_length_eq`: distinct challenges
+  of one execution read after distinct call lists, whose lengths the shape
+  fixes.
 
 `PiCCSSecurity.calls_identify_view_or_collision` adds the prior-state link and
 identifies the prior preimage and the NIFS running statement, unless the state
@@ -403,6 +409,7 @@ inductive Challenge where
   | gamma
   | round (index : Fin productionShape.cubeVariables)
   | rho (index : Fin (Nifs.PaperProfile.arity).total)
+  deriving DecidableEq, Fintype
 
 /-- The value type of a challenge. -/
 abbrev Challenge.Value : Challenge → Type
@@ -446,6 +453,24 @@ def proverCalls {degree : Nat}
   | .gamma => statementCalls fresh
   | .round index => roundPrefixCalls fresh proof index
   | .rho _ => outputCalls fresh proof
+
+/-- The calls whose final state a challenge reads. -/
+def challengeCalls {degree : Nat}
+    (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (proof : Proof degree) (challenge : Challenge) : List Call :=
+  proverCalls fresh proof challenge ++ fixedCalls challenge
+
+/-- The PiCCS coins that one read of each challenge's calls gives. The key
+reads the sponge state (`piCcsProbe_coins`); the random-oracle model reads an
+oracle answer. -/
+def coinsFrom {degree : Nat} (read : List Call → K)
+    (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (proof : Proof degree) : StrongReduction.PublicCoins K productionShape where
+  alpha := ⟨List.ofFn fun coordinate => read (challengeCalls fresh proof (.alpha coordinate)),
+    List.length_ofFn⟩
+  gamma := read (challengeCalls fresh proof .gamma)
+  roundPoint := ⟨List.ofFn fun index => read (challengeCalls fresh proof (.round index)),
+    List.length_ofFn⟩
 
 section Seals
 
@@ -630,6 +655,13 @@ theorem coins_eq_reads :
   subst alphaEqual pointEqual gammaSeal finalSeal
   rfl
 
+/-- The key's PiCCS probe reads the sponge state after each challenge's calls. -/
+theorem piCcsProbe_coins :
+    ((ProductionKey.key relation ajtai).piCcsProbe running fresh proof).coins =
+      coinsFrom (fun calls => readK (run Transcript.initialState calls)) fresh proof := by
+  simp only [Nifs.PaperNonInteractive.Key.piCcsProbe, coins_eq_reads relation ajtai running fresh proof]
+  rfl
+
 end Seals
 
 /-! ## Coverage -/
@@ -770,6 +802,179 @@ private theorem outputCalls_identify {degree : Nat}
   simp only at rounds output
   subst rounds output
   rfl
+
+/-! ## Distinct challenge calls -/
+
+private theorem cubeVariables_eq : productionShape.cubeVariables = 28 := rfl
+
+private theorem flatMap_length_const {Item : Type} (items : List Item) (calls : Item → List Call)
+    (count : Nat) (each : ∀ item ∈ items, (calls item).length = count) :
+    (items.flatMap calls).length = items.length * count := by
+  induction items with
+  | nil => simp
+  | cons item items inductionHypothesis =>
+      simp only [List.flatMap_cons, List.length_append, List.length_cons]
+      rw [each item List.mem_cons_self,
+        inductionHypothesis fun other inside => each other (List.mem_cons_of_mem _ inside)]
+      ring
+
+private theorem labelCalls_length (label : FiatShamir.ChallengeLabel productionShape) :
+    (labelCalls label).length = 3 := by
+  cases label <;> simp [labelCalls, Transcript.labelWord, Poseidon2.rate]
+
+private theorem labelWordCalls_length (label : FiatShamir.ChallengeLabel productionShape) :
+    (absorbCalls (Transcript.labelWord label)).length = 1 := by
+  cases label <;> simp [Transcript.labelWord, Poseidon2.rate]
+
+/-- One round message has the same number of calls in every round. -/
+private theorem messageCalls_length_eq {degree : Nat} (left right : Proof degree)
+    (round other : Fin productionShape.cubeVariables) :
+    (messageCalls (messages left) round).length =
+      (messageCalls (messages right) other).length := by
+  simp [messageCalls, messages, block, Transcript.serializeMessage,
+    SumCheck.Finite.FixedPolynomial.toMessage, (left.piCcsRounds round).coefficients_length,
+    (right.piCcsRounds other).coefficients_length]
+
+private theorem take_rounds_length {degree : Nat} (proof : Proof degree)
+    (round : Fin productionShape.cubeVariables) :
+    (((canonicalFinIndices productionShape.cubeVariables).take round.val).flatMap
+      (roundCalls (messages proof))).length =
+      round.val * ((messageCalls (messages proof) ⟨0, by decide⟩).length + 3) := by
+  rw [flatMap_length_const _ _ ((messageCalls (messages proof) ⟨0, by decide⟩).length + 3)]
+  · simp [canonicalFinIndices, cubeVariables_eq]
+  · intro other _
+    simp only [roundCalls, List.length_append, labelCalls_length,
+      messageCalls_length_eq proof proof other ⟨0, by decide⟩]
+
+private theorem alphaLabels_length :
+    ((FiatShamir.alphaLabels productionShape).flatMap labelCalls).length = 84 := by
+  rw [flatMap_length_const _ _ 3 fun label _ => labelCalls_length label]
+  simp [FiatShamir.alphaLabels, canonicalFinIndices, cubeVariables_eq]
+
+/-- Where a challenge's read falls after the statement calls. `count` is the
+call count of one round message, `output` that of the complete `y′`. -/
+private def offset (count output : Nat) : Challenge → Nat
+  | .alpha coordinate => 3 * coordinate.val + 1
+  | .gamma => 85
+  | .round index => 87 + index.val * (count + 3) + count + 1
+  | .rho index => 87 + 28 * (count + 3) + output + 2 * index.val + 1
+
+private theorem offset_injective (count output : Nat) :
+    Function.Injective (offset count output) := by
+  have cube : productionShape.cubeVariables = 28 := rfl
+  have product (round : Fin productionShape.cubeVariables) :
+      round.val * (count + 3) ≤ 27 * (count + 3) :=
+    Nat.mul_le_mul_right _ (by omega)
+  intro challenge other same
+  match challenge, other with
+  | .alpha coordinate, .alpha coordinate' =>
+      simp only [offset] at same
+      exact congrArg Challenge.alpha (Fin.ext (by omega))
+  | .alpha _, .gamma => simp only [offset] at same; omega
+  | .alpha _, .round index =>
+      simp only [offset] at same
+      generalize index.val * (count + 3) = steps at same
+      omega
+  | .alpha _, .rho _ => simp only [offset] at same; omega
+  | .gamma, .alpha _ => simp only [offset] at same; omega
+  | .gamma, .gamma => rfl
+  | .gamma, .round index =>
+      simp only [offset] at same
+      generalize index.val * (count + 3) = steps at same
+      omega
+  | .gamma, .rho _ => simp only [offset] at same; omega
+  | .round index, .alpha _ =>
+      simp only [offset] at same
+      generalize index.val * (count + 3) = steps at same
+      omega
+  | .round index, .gamma =>
+      simp only [offset] at same
+      generalize index.val * (count + 3) = steps at same
+      omega
+  | .round index, .round index' =>
+      simp only [offset] at same
+      have steps : index.val * (count + 3) = index'.val * (count + 3) := by omega
+      exact congrArg Challenge.round (Fin.ext (Nat.eq_of_mul_eq_mul_right (by omega) steps))
+  | .round index, .rho _ =>
+      simp only [offset] at same
+      have bound := product index
+      generalize index.val * (count + 3) = steps at same bound
+      omega
+  | .rho _, .alpha _ => simp only [offset] at same; omega
+  | .rho _, .gamma => simp only [offset] at same; omega
+  | .rho _, .round index' =>
+      simp only [offset] at same
+      have bound := product index'
+      generalize index'.val * (count + 3) = steps at same bound
+      omega
+  | .rho scalar, .rho scalar' =>
+      simp only [offset] at same
+      exact congrArg Challenge.rho (Fin.ext (by omega))
+
+/-- The length of a challenge's calls: the statement calls, then the
+challenge's offset in the schedule. -/
+private theorem challengeCalls_length {degree : Nat}
+    (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (proof : Proof degree) (challenge : Challenge) :
+    (challengeCalls fresh proof challenge).length = (statementCalls fresh).length +
+      offset (messageCalls (messages proof) ⟨0, by decide⟩).length
+        (absorbCalls (block (ProductionKey.fullOutputWords proof.piCcsOutput))).length
+        challenge := by
+  cases challenge with
+  | alpha coordinate =>
+      have below : coordinate.val < 28 := coordinate.isLt
+      rw [challengeCalls, proverCalls, fixedCalls, List.length_append, List.length_append,
+        labelWordCalls_length, flatMap_length_const _ _ 3 fun label _ => labelCalls_length label]
+      simp [offset, FiatShamir.alphaLabels, canonicalFinIndices, cubeVariables_eq]
+      omega
+  | gamma =>
+      simp only [challengeCalls, proverCalls, fixedCalls, List.length_append, alphaLabels_length,
+        labelWordCalls_length, offset]
+  | round index =>
+      simp only [challengeCalls, proverCalls, fixedCalls, roundPrefixCalls, preRoundCalls,
+        List.length_append, alphaLabels_length, labelCalls_length, labelWordCalls_length,
+        take_rounds_length, messageCalls_length_eq proof proof index ⟨0, by decide⟩, offset]
+      omega
+  | rho index =>
+      have rounds : ((canonicalFinIndices productionShape.cubeVariables).flatMap
+          (roundCalls (messages proof))).length =
+          28 * ((messageCalls (messages proof) ⟨0, by decide⟩).length + 3) := by
+        rw [flatMap_length_const _ _ ((messageCalls (messages proof) ⟨0, by decide⟩).length + 3)]
+        · simp [canonicalFinIndices, cubeVariables_eq]
+        · intro other _
+          simp only [roundCalls, List.length_append, labelCalls_length,
+            messageCalls_length_eq proof proof other ⟨0, by decide⟩]
+      have scalars : ((Spec.Folding.Nifs.NonInteractive.PiRlcSampler.ScheduleLaw.queryAt []
+          (rhoIndex index)).val.map widen).length = 2 * index.val + 1 := by
+        rw [List.length_map, Spec.Folding.Nifs.NonInteractive.PiRlcSampler.ScheduleLaw.queryAt_length]
+        simp [rhoIndex]
+      simp only [challengeCalls, proverCalls, fixedCalls, outputCalls, preRoundCalls,
+        List.length_append, alphaLabels_length, labelCalls_length, rounds, scalars, offset]
+      omega
+
+/-- Lengths of challenge calls do not depend on the statement or the proof. -/
+theorem challengeCalls_length_eq {degree : Nat}
+    (fresh fresh' : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (proof proof' : Proof degree) (challenge : Challenge) :
+    (challengeCalls fresh proof challenge).length =
+      (challengeCalls fresh' proof' challenge).length := by
+  have outputLength :
+      (absorbCalls (block (ProductionKey.fullOutputWords proof.piCcsOutput))).length =
+        (absorbCalls (block (ProductionKey.fullOutputWords proof'.piCcsOutput))).length := by
+    simp [block, ProductionKey.fullOutputWords, List.length_flatMap]
+  rw [challengeCalls_length, challengeCalls_length, statementCalls_length fresh fresh',
+    messageCalls_length_eq proof proof', outputLength]
+
+/-- Distinct challenges of one execution read after distinct call lists, so a
+random oracle answers them independently. -/
+theorem challengeCalls_injective {degree : Nat}
+    (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (proof : Proof degree) {challenge other : Challenge}
+    (same : challengeCalls fresh proof challenge = challengeCalls fresh proof other) :
+    challenge = other := by
+  have lengths := congrArg List.length same
+  rw [challengeCalls_length, challengeCalls_length] at lengths
+  exact offset_injective _ _ (Nat.add_left_cancel lengths)
 
 /-! ## Contract -/
 

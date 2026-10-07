@@ -28,6 +28,7 @@ import NightstreamFPrime.Layout.Stage1.StateEncodingCanonical
 import NightstreamFPrime.Layout.Stage1.StateEncodingReadback
 import NightstreamFPrime.Layout.Stage1.StepSourceSpecs
 import NightstreamFPrime.Layout.Stage1.NifsSourceReadback
+import NightstreamFPrime.Lifecycle.RandomOracleTest
 import NightstreamFPrime.Layout.Stage1.StepWitnessPrefix
 import NightstreamFPrime.Layout.Stage1.StepPhysicalCompleteness
 import NightstreamFPrime.Export.Stage1.ApplicationWitnessCompleteness
@@ -98,6 +99,19 @@ import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
 #audit_axioms NightstreamFPrime.Lifecycle.TranscriptCoverage.AgreeOnAbsorbed.fresh_eq
 #audit_axioms NightstreamFPrime.Lifecycle.TranscriptCoverage.statementState_identifies_fresh_or_collision
 #audit_axioms NightstreamFPrime.Lifecycle.TranscriptCoverage.messages_injective
+#audit_axioms NightstreamFPrime.Lifecycle.TranscriptCoverage.piCcsProbe_coins
+#audit_axioms NightstreamFPrime.Lifecycle.TranscriptCoverage.challengeCalls_length_eq
+#audit_axioms NightstreamFPrime.Lifecycle.TranscriptCoverage.challengeCalls_injective
+#audit_axioms NightstreamFPrime.Spec.RandomOracle.escape_le
+#audit_axioms NightstreamFPrime.Spec.RandomOracle.pinned_le
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RoundByRound.falseAcceptance_splits
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RoundByRound.alphaBad_probability_le
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RoundByRound.gammaBad_probability_le
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RoundByRound.roundBad_probability_le
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracleTest.expect_decodeK
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracleTest.bad_local
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracleTest.bad_mass_le
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracleTest.test_error_le
 #audit_axioms NightstreamFPrime.Spec.flatMap_eq_of_lengths
 #audit_axioms NightstreamFPrime.Spec.flatMap_length_eq
 #audit_axioms NightstreamFPrime.Spec.flatMap_length_constant

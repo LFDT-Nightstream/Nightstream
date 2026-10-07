@@ -16,7 +16,11 @@ each point.
 Outputs:
 - `escape_le`: the probability that some queried point has its answer in its
   bad set is at most `Q * ε`;
-- `pinned_le`: the same for one point of the output, at most `(Q + 1) * ε`.
+- `pinned_le`: the same for one point of the output, at most `(Q + 1) * ε`;
+- `repeat_le`, `retries_le`: a rewinding extractor that resamples one point
+  until it succeeds again repeats the base answer's key with total chance at
+  most `Q * ε`, after at most `Q` expected retries; each queried point is
+  charged once (`expect_queried_le`, `mem_queries_update_iff`).
 
 Invariant: a bad set is `Local`. It may read the oracle anywhere except at its
 own point, so the bad set of a later challenge may read earlier challenges.
@@ -95,6 +99,29 @@ theorem QueryBound.thenQuery {point : Output → Point}
   | done output bound => exact .query _ _ bound fun _ => .done output bound
   | query asked next bound _ inductionHypothesis =>
       exact .query asked _ (bound + 1) inductionHypothesis
+
+theorem QueryBound.queries_length_le {computation : OracleComp Point Answer Output}
+    {bound : Nat} (bounded : computation.QueryBound bound) (oracle : Point → Answer) :
+    (computation.queries oracle).length ≤ bound := by
+  induction bounded with
+  | done => exact Nat.zero_le _
+  | query asked next bound _ inductionHypothesis =>
+      exact Nat.succ_le_succ (inductionHypothesis (oracle asked))
+
+/-- Whether a point is queried does not depend on its own answer: the run is
+the same until that point is first queried. -/
+theorem mem_queries_update_iff [DecidableEq Point] (oracle : Point → Answer) (point : Point)
+    (answer : Answer) (computation : OracleComp Point Answer Output) :
+    point ∈ computation.queries (Function.update oracle point answer) ↔
+      point ∈ computation.queries oracle := by
+  induction computation with
+  | done => simp [queries]
+  | query asked next inductionHypothesis =>
+      by_cases same : asked = point
+      · subst same
+        simp [queries]
+      · simp only [queries, List.mem_cons, Function.update_of_ne same]
+        rw [inductionHypothesis (oracle asked)]
 
 end OracleComp
 
@@ -281,6 +308,167 @@ theorem pinned_le {computation : OracleComp Point Answer Output} {bound : Nat}
     norm_num
   · simp only [if_neg isBad]
     split <;> norm_num
+
+omit [Nonempty Answer] in
+theorem mass_mono {small large : Set Answer} (inside : small ⊆ large) :
+    mass small ≤ mass large :=
+  Finset.expect_le_expect fun answer _ => by
+    by_cases member : answer ∈ small
+    · simp [member, inside member]
+    · simp only [member, if_false]
+      split <;> norm_num
+
+omit [Nonempty Answer] in
+theorem mass_nonnegative (answers : Set Answer) : 0 ≤ mass answers :=
+  Finset.expect_nonneg fun answer _ => by split <;> norm_num
+
+omit [Nonempty Answer] in
+/-- The mean over all answers of a constant on `answers` and zero elsewhere. -/
+private theorem expect_indicator (answers : Set Answer) (value : ℝ) :
+    𝔼 answer, (if answer ∈ answers then value else 0) = value * mass answers := by
+  unfold mass
+  rw [Finset.mul_expect]
+  exact Finset.expect_congr rfl fun answer _ => by split <;> simp
+
+/-- The expected number of distinct queried points is at most the query
+bound. -/
+theorem expect_queried_le {computation : OracleComp Point Answer Output} {bound : Nat}
+    (bounded : computation.QueryBound bound) :
+    𝔼 oracle, (∑ point, if point ∈ computation.queries oracle then (1 : ℝ) else 0) ≤ bound := by
+  refine (Finset.expect_le_expect fun oracle _ => ?_).trans
+    (Finset.expect_const Finset.univ_nonempty (bound : ℝ)).le
+  have count : (∑ point, if point ∈ computation.queries oracle then (1 : ℝ) else 0) =
+      ((computation.queries oracle).toFinset.card : ℝ) := by
+    rw [Finset.sum_ite, Finset.sum_const_zero, add_zero, Finset.sum_const, nsmul_eq_mul, mul_one]
+    congr 2
+    ext point
+    simp
+  rw [count]
+  exact_mod_cast (List.toFinset_card_le _).trans (bounded.queries_length_le oracle)
+
+/-! ## Line retries
+
+A rewinding extractor resamples the answer at one point and reruns the
+adversary until the point succeeds again. The first success is uniform on the
+point's line set. The two bounds below charge each queried point once. -/
+
+section LineRetry
+
+variable (success : Point → (Point → Answer) → Prop)
+
+/-- The answers at `point` under which `point` succeeds, the rest of the
+oracle unchanged. -/
+def lineSet (point : Point) (oracle : Point → Answer) : Set Answer :=
+  {answer | success point (Function.update oracle point answer)}
+
+omit [Fintype Point] [Fintype Answer] [Nonempty Answer] in
+theorem lineSet_update (point : Point) (oracle : Point → Answer) (answer : Answer) :
+    lineSet success point (Function.update oracle point answer) = lineSet success point oracle := by
+  ext candidate
+  simp [lineSet]
+
+/-- Probability that the first successful retry has the base answer's key. -/
+noncomputable def repeatChance {Key : Type*} (key : Answer → Key) (point : Point)
+    (oracle : Point → Answer) : ℝ :=
+  mass (lineSet success point oracle ∩ {answer | key answer = key (oracle point)}) /
+    mass (lineSet success point oracle)
+
+/-- Expected number of retries until the first success. -/
+noncomputable def retryCount (point : Point) (oracle : Point → Answer) : ℝ :=
+  1 / mass (lineSet success point oracle)
+
+omit [Fintype Point] [Nonempty Answer] in
+/-- A line with positive mass has a success, so its point is queried. -/
+private theorem queried_of_mass {computation : OracleComp Point Answer Output}
+    (queried : ∀ point oracle, success point oracle → point ∈ computation.queries oracle)
+    (point : Point) (oracle : Point → Answer) (positive : mass (lineSet success point oracle) ≠ 0) :
+    point ∈ computation.queries oracle := by
+  by_contra absent
+  apply positive
+  unfold mass
+  refine Finset.expect_eq_zero fun answer _ => if_neg fun inside => absent ?_
+  exact (OracleComp.mem_queries_update_iff oracle point answer computation).mp
+    (queried point _ inside)
+
+/-- Charge one point: average its answer, then bound the line term by the
+point's query indicator. -/
+private theorem line_term_le {computation : OracleComp Point Answer Output}
+    (queried : ∀ point oracle, success point oracle → point ∈ computation.queries oracle)
+    (point : Point) (term : Set Answer → Answer → ℝ) (bound : ℝ)
+    (local_ : ∀ set answer, answer ∈ set → term set answer ≤ bound / mass set)
+    (nonnegative : 0 ≤ bound) :
+    𝔼 oracle, (if success point oracle then
+        term (lineSet success point oracle) (oracle point) else 0) ≤
+      bound * 𝔼 oracle, (if point ∈ computation.queries oracle then (1 : ℝ) else 0) := by
+  rw [expect_update point]
+  rw [Finset.mul_expect]
+  refine Finset.expect_le_expect fun oracle _ => ?_
+  simp only [Function.update_self, lineSet_update]
+  have rewrite (answer : Answer) :
+      success point (Function.update oracle point answer) ↔
+        answer ∈ lineSet success point oracle := Iff.rfl
+  simp only [rewrite]
+  calc
+    _ ≤ 𝔼 answer, (if answer ∈ lineSet success point oracle then
+          bound / mass (lineSet success point oracle) else 0) :=
+      Finset.expect_le_expect fun answer _ => by
+        by_cases inside : answer ∈ lineSet success point oracle
+        · simp only [if_pos inside]
+          exact local_ _ answer inside
+        · simp only [if_neg inside, le_refl]
+    _ = bound / mass (lineSet success point oracle) * mass (lineSet success point oracle) :=
+      expect_indicator _ _
+    _ ≤ bound * (if point ∈ computation.queries oracle then 1 else 0) := by
+      by_cases positive : mass (lineSet success point oracle) = 0
+      · rw [positive, mul_zero]
+        split <;> nlinarith
+      · rw [div_mul_cancel₀ _ positive, if_pos (queried_of_mass success queried point oracle positive),
+          mul_one]
+
+/-- The extractor's repeated-key loss: summed over every point that succeeds,
+the chance that its first retry repeats the base key is at most
+`bound * ε`. -/
+theorem repeat_le {Key : Type*} (key : Answer → Key) (ε : ℝ)
+    (small : ∀ value : Key, mass {answer | key answer = value} ≤ ε) (nonnegative : 0 ≤ ε)
+    {computation : OracleComp Point Answer Output} {bound : Nat}
+    (bounded : computation.QueryBound bound)
+    (queried : ∀ point oracle, success point oracle → point ∈ computation.queries oracle) :
+    𝔼 oracle, (∑ point, if success point oracle then repeatChance success key point oracle else 0) ≤
+      bound * ε := by
+  rw [Finset.expect_sum_comm]
+  calc
+    _ ≤ ∑ point, ε * 𝔼 oracle, (if point ∈ computation.queries oracle then (1 : ℝ) else 0) :=
+      Finset.sum_le_sum fun point _ => by
+        refine le_trans (le_of_eq ?_) (line_term_le success queried point
+          (fun set answer => mass (set ∩ {other | key other = key answer}) / mass set) ε
+          (fun set answer _ => div_le_div_of_nonneg_right
+            ((mass_mono Set.inter_subset_right).trans (small (key answer)))
+            (mass_nonnegative set)) nonnegative)
+        rfl
+    _ = ε * 𝔼 oracle, (∑ point, if point ∈ computation.queries oracle then (1 : ℝ) else 0) := by
+      rw [Finset.expect_sum_comm, Finset.mul_sum]
+    _ ≤ ε * bound := mul_le_mul_of_nonneg_left (expect_queried_le bounded) nonnegative
+    _ = bound * ε := mul_comm _ _
+
+/-- The extractor's expected retries: summed over every point that succeeds,
+the expected number of retries until the next success is at most `bound`. -/
+theorem retries_le {computation : OracleComp Point Answer Output} {bound : Nat}
+    (bounded : computation.QueryBound bound)
+    (queried : ∀ point oracle, success point oracle → point ∈ computation.queries oracle) :
+    𝔼 oracle, (∑ point, if success point oracle then retryCount success point oracle else 0) ≤
+      bound := by
+  rw [Finset.expect_sum_comm]
+  calc
+    _ ≤ ∑ point, 1 * 𝔼 oracle, (if point ∈ computation.queries oracle then (1 : ℝ) else 0) :=
+      Finset.sum_le_sum fun point _ =>
+        line_term_le success queried point (fun set _ => 1 / mass set) 1
+          (fun _ _ _ => le_rfl) zero_le_one
+    _ ≤ bound := by
+      simp only [one_mul]
+      rw [← Finset.expect_sum_comm]
+      exact expect_queried_le bounded
+
+end LineRetry
 
 end Probability
 

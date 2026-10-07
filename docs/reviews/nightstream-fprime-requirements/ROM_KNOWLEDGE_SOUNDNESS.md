@@ -229,19 +229,30 @@ Phases 1 and 2 of the plan become these four modules. The forking lemmas
 At a fork state, Lemma 4 needs `escape_le` with the pre-fork answers held
 fixed; its proof already carries that form.
 
-## 7. Open questions for review
+## 7. Review decisions (owner, 2026-10-07)
 
-1. Lemma 5: is the Attema–Fehr–Klooß bound the right citation for
-   coordinate-wise special soundness, or does Fenzi–Moghaddas–Nguyen state
-   the Fiat–Shamir version directly?
-2. Lemma 6: is "first query whose prefix extends the final statement calls"
-   the right fork index when `A` queries several statements, and does the
-   expected-time extractor need a bound on how often it re-forks?
-3. Is `(Q+1)·ε_test ≈ 2^-51` at `Q = 2^64` an acceptable deployment target,
-   or should the profile enlarge the γ challenge space (the 115-bit term)?
+1. **Lemma 5 citation.** Use Attema, Fehr, Klooß, Resch, *The Fiat–Shamir
+   Transformation of (Γ₁,…,Γμ)-Special-Sound Interactive Proofs* (ePrint
+   2023/1945): its loss is linear in the oracle queries and independent of
+   the round count. Coordinate-wise special soundness is an instance of
+   Γ-special soundness (Attema, Fehr, Resch, ePrint 2023/818).
+   Fenzi–Moghaddas–Nguyen Lemma 7.1 stays the source of the interactive
+   extractor.
+2. **Lemma 6 fork point.** Keep "the first query that extends the output
+   statement's calls". The output defines it, every challenge of that
+   statement comes at or after it, and its call list fixes the fresh
+   statement. The knowledge extractor does not fork; only the binding
+   reduction forks, and it runs the adversary exactly twice. No re-fork bound
+   is needed.
+3. **Deployment margin.** `(Q+1)·ε_test` is linear in `Q`, so the cost per
+   unit of success stays `2^115.2`: about 115-bit security, equal to the
+   interactive bound, and tight against a grinding attack. Accept it for this
+   work. Reaching 128 bits is a separate parameter decision (a larger field
+   for `γ`).
 
-References: Attema, Fehr, Klooß, *Fiat–Shamir Transformation of Multi-Round
-Interactive Proofs*, J. Cryptology 2023; Fenzi, Moghaddas, Nguyen,
+References: Attema, Fehr, Klooß, Resch, ePrint 2023/1945; Attema, Fehr,
+Resch, ePrint 2023/818; Attema, Fehr, Klooß, *Fiat–Shamir Transformation of
+Multi-Round Interactive Proofs*, J. Cryptology 2023; Fenzi, Moghaddas, Nguyen,
 *Lattice-Based Polynomial Commitments*, J. Cryptology 2024, Lemma 7.1;
 Bellare, Neven, *Multi-Signatures in the Plain Public-Key Model and a General
 Forking Lemma*, CCS 2006; zcash/ironwood `86e3c7026db8`,

@@ -471,7 +471,8 @@ absorb_block_v1_1(tr, [D_pre.ops, D_mem, D_pre.fs])
 ```
 
 These inputs fix every tuple of the segment's four multisets. The three roots
-fix the records (security note Lemma 2). `ts` fixes the write timestamps.
+fix the records (security note Lemmas 1 and 2). `ts` fixes the write
+timestamps.
 `plan_digest` fixes the tuple layout. `D_mem` MUST be absorbed: without it, a
 prover could learn `η` first and then choose the previous segment's final
 snapshot. The proposals get authority only from the close check (§11.2).

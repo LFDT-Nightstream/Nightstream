@@ -47,7 +47,8 @@ after a challenge that depends on it, or making its encoding ambiguous breaks
 `challenge_seal` or a coverage proof. A matching edit of the key and of this
 schedule can still drop a tag, a label, a round index or a length prefix and
 keep every statement true; the `rfl` pins in `tests/TranscriptCoverageChecks.lean`
-make such an edit visible.
+fix each of these values and that the key absorbs them, so such an edit must
+also change that file.
 
 Does not own: Poseidon2 security, the Fiat–Shamir transfer (an approved
 external assumption), or the circuit refinement of this schedule. The running

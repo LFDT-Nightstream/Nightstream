@@ -111,8 +111,9 @@ the transfer would have no useful instance. The preimage must be an output, not
 merely exist: its initial state, current state and iteration are free, so some
 well-formed preimage with any running vector hashes to almost every digest.
 With the output link, a running statement chosen after the challenges needs a
-second preimage of the state hash for a digest that was absorbed before them,
-or a state-hash collision found in advance. The module moved to
+preimage of the state hash for a digest that was absorbed before them: a first
+preimage if none was known, a second preimage otherwise, or a collision found
+in advance. The module moved to
 `Export/Stage1/FiatShamirTransfer.lean`, because the link is a Layout
 definition. The generic NIFS closure theorems (`NifsClosure`,
 `NifsFiatShamir`, `NifsProviderLaw`, `NifsInvalidSource`) take the context
@@ -126,8 +127,8 @@ public input with Lean's `decodeHash` formula, as `ProductionKey.priorDigest`
 does. No check reads a running claim's frame (`fold_digest`), and the proof
 codec does not carry it; the running instance holds only the 16 PiDEC children
 and their openings. `prior_digest_comes_from_the_fresh_public_input` in
-`neo-reductions` tests both engines, and the native fixtures fold with
-noncanonical running frames.
+`neo-reductions` tests both engines, and the CI native fixture runs
+`step_inputs` and the native NIFS verifier with noncanonical running frames.
 `PerApplicationSecurity.replayInput_authority_identifies_or_collision` links the
 older committed-statement reductions to this contract: equal replay authority
 identifies the fresh statement and every SumCheck round polynomial, or exhibits
@@ -152,8 +153,9 @@ follow from the definitions. First, the label `[1, 0]` of the first `α`
 coordinate equals the hash's final padding, so the first word of that
 coordinate is word 0 of `Poseidon2.hash` of the zero-padded statement chunks.
 Second, `Poseidon2.hash` does not absorb the input length, so trailing zeros in
-the last rate chunk do not change it; every protocol preimage is therefore a
-fixed tag followed by length-prefixed blocks.
+the last rate chunk do not change it. The state preimage therefore has a fixed
+tag and, by `WellFormed`, a fixed total length; the transcript absorbs
+fixed-length tags and labels, and each message as a length-prefixed block.
 
 The separate finite sampler laws and `VerifierErrorBudget` are checked.
 Under the stated per-call laws, the selected PiCCS test and sampler-abort

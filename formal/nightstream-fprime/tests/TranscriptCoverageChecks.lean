@@ -3,10 +3,11 @@ import NightstreamFPrime.Lifecycle.TranscriptCoverage
 /-!
 Checks for the transcript coverage contract.
 
-The pins restate the dependency specification `AgreeOnAbsorbed` by `Iff.rfl`,
-and the PiCCS domain tag, the challenge labels `[1, c]`, `[2]`, `[3, r]`,
-`[4, i]`, the key's round index and the block length prefix by `rfl`, so a
-change to any of them must also change this file. The two refutations take
+The pins restate the dependency specification `AgreeOnAbsorbed` by `Iff.rfl`.
+By `rfl` they also pin the PiCCS domain tag, the challenge labels `[1, c]`,
+`[2]`, `[3, r]`, `[4, i]`, the key's round index and the block length prefix,
+and that the key absorbs the tag before the statement blocks and each label
+before its squeeze. A change to any of them must also change this file. The two refutations take
 copies of the schedule, one without the fresh commitment and one with `y′`
 words without the matrix coordinates, and show that the identify property
 fails for them. They show only that the property is not vacuous;
@@ -82,6 +83,24 @@ example (state : Transcript.State) (round : Fin productionShape.cubeVariables)
       Transcript.absorb state
         (natWord (Transcript.serializeMessage message).length.succ ::
           natWord round.val :: Transcript.serializeMessage message) :=
+  rfl
+
+example {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)) :
+    (ProductionKey.key relation ajtai).publicInputState running fresh =
+      Transcript.absorbBlocks
+        (Transcript.absorb Transcript.initialState Transcript.piCcsDigestDomainTag)
+        (ProductionKey.publicInputBlocks fresh) :=
+  rfl
+
+example (state : Transcript.State) (label : FiatShamir.ChallengeLabel productionShape) :
+    Transcript.piCcsOracle.transcript.squeeze state label =
+      Transcript.squeezeK (Transcript.absorb state (Transcript.labelWord label)) :=
   rfl
 
 end TagsAndLabels

@@ -37,9 +37,11 @@ checked run; preparation returns the context supplied by the experiment.
 
 The owner-approved parametric FS boundary, raw adversary calls and tape laws, declared clock bounds and moment bounds
 remain explicit. This result does not construct an efficient adversary
-translation or PMF sampler. Its real success event requires accepted NIFS
-output with valid witnesses for all 16 exact children; public acceptance
-alone is not the paper's reduction-of-knowledge success event.
+translation or PMF sampler. Its real success event requires a prior preimage,
+output by the adversary, whose prior-state link holds for the running statement
+and the verifier context digest (owner decision 2026-10-06), and accepted NIFS
+output with valid witnesses for all 16 exact children; public acceptance alone
+is not the paper's reduction-of-knowledge success event.
 
 `NifsInvalidSource.real_success_bound_of_invalid_source` additionally bounds
 `g Q p_real` by `deltaFS Q + weakLoss + sqrt(17 * epsilonMSIS + testError)`

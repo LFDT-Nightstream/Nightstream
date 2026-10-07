@@ -2,7 +2,7 @@
 """Project original or Lean-produced signed witnesses into the existing C/R input.
 
 No C proof or expected output is read. This is a checked format projection,
-not a substitute for source opening, state/public, or running-parent checks.
+not a substitute for source opening, state/public, or running child-family checks.
 Bootstrap requires the maintained native source-opening check. Feedback takes the
 independent Lean D claims and private ranges plus the Lean fresh witness/claim.
 Constants are the selected Poseidon2HashChainV1 b=2, k_rho=16 profile.

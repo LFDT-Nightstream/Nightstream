@@ -299,7 +299,7 @@ class ConformanceRegistrationTests(unittest.TestCase):
     def test_partial_base_mutation_counts_cannot_satisfy_completion(self):
         for name, label, count in (
             ("proof", "proof_mutations", 2 + 28 * 10 * 2),
-            ("statement", "statement-mutations", 4 + 4 + self.child_count * (3 + self.matrix_count) + 2),
+            ("statement", "statement-mutations", 3 + self.child_count * (3 + self.matrix_count) + 2),
             ("output", "output-mutations", self.source_count * (3 + self.matrix_count + 28 + 4) + 10),
         ):
             check = self.gates[f"piccs-{name}-mutations"]["commands"][-1]["completion"]

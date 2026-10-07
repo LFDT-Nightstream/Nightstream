@@ -352,6 +352,25 @@ fn actual_nifs_builds_the_checked_successor_assignment() {
             output(current, message)
         )
         .is_err());
+    // The prior digest names the running claims only through the state hash:
+    // a changed running opening must fail that recomputation before any fold.
+    let mut detached_running = running.clone();
+    detached_running.claims[0].eval_k[0] += K::ONE;
+    let error = package
+        .step_inputs(
+            &state,
+            &detached_running,
+            &fresh,
+            &proof,
+            &message.map(|f| f.as_canonical_u64()),
+            output(current, message),
+        )
+        .unwrap_err();
+    assert!(
+        matches!(&error, StepInputError::Input(message)
+            if *message == "fresh public input differs from the recomputed prior state hash"),
+        "{error}"
+    );
     let mut detached_fresh = fresh.clone();
     detached_fresh.x[1] += F::ONE;
     assert!(package

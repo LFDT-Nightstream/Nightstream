@@ -63,6 +63,19 @@ theorem pack_lt (bits : List Bool) : ∀ x ∈ pack bits, x < 2 ^ 63 := by
         (Nat.pow_le_pow_right Nat.zero_lt_two (List.length_take_le _ _))
     · exact ih x mem
 
+/-- The number of packed elements of a lane of `n` bits. -/
+def packedLength (n : ℕ) : ℕ := (n + 62) / 63
+
+/-- The packing of a lane has `packedLength` elements. -/
+theorem pack_length (bits : List Bool) : (pack bits).length = packedLength bits.length := by
+  induction bits using pack.induct with
+  | case1 => simp [pack_nil, packedLength]
+  | case2 bits nonempty ih =>
+    have pos : 0 < bits.length := List.length_pos_of_ne_nil nonempty
+    rw [pack_of_ne_nil nonempty, List.length_cons, ih, List.length_drop]
+    unfold packedLength
+    omega
+
 /-- Lemma 1, over the natural numbers: equal packings of equal-length bit
 strings come from equal bit strings. -/
 theorem pack_injective {xs ys : List Bool} (length : xs.length = ys.length)

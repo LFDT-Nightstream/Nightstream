@@ -1,8 +1,7 @@
 # Nebula memory phase on SuperNeo F′ — protocol specification
 
-Status: **Proposed.** This document is not approved for implementation. The
-trunk decisions authorize Stage 1 only. A Stage 2 memory relation needs an
-explicit owner decision.
+Status: **Approved for implementation.** The owner authorized Stage 2 on
+2026-10-07.
 
 Base revision: `nico/f-prime-constraints-cuda-formal` at `42df46bef`.
 
@@ -196,7 +195,9 @@ Setup MUST reject a plan that breaks any of these rules:
 2. **Timestamp range:** `S_max · N · B_ops < 2^W_ts`.
 3. **Field encoding:** `W_ts ≤ 62`. Then every timestamp and value is an
    integer below `q`, its field encoding is injective, and row O4 (§8.1)
-   cannot wrap modulo `q`.
+   cannot wrap modulo `q`. Each lane has fewer than `q` bits:
+   `B_ops · (3 + μ + 64 + W_ts) < q` and `B_scan · (32 + W_ts) < q`. Then the
+   length prefix of each packed block (§9.1) is one canonical field element.
 4. **Address width:** `r ≤ μ` and `R + M < q`. The address field has `μ` bits,
    and every global index is below `R + M`. Only ROM addresses need a range
    gate (§8.1, O6).

@@ -45,23 +45,6 @@ def SegmentView.accesses (v : SegmentView Digest) : List PortAccess :=
 
 /-! ### One segment -/
 
-private theorem mem_activeOps {o : MemOp} {ts : ℕ} {ops : List OpSlot}
-    (member : o ∈ activeOps ts ops) : ∃ s ∈ ops, s.port = some o.access := by
-  induction ops generalizing ts with
-  | nil => simp [activeOps] at member
-  | cons s rest ih =>
-    cases port : s.port with
-    | none =>
-      simp only [activeOps, port] at member
-      obtain ⟨s', mem', e⟩ := ih member
-      exact ⟨s', List.mem_cons_of_mem _ mem', e⟩
-    | some a =>
-      simp only [activeOps, port, List.mem_cons] at member
-      rcases member with rfl | member
-      · exact ⟨s, List.mem_cons_self, port⟩
-      · obtain ⟨s', mem', e⟩ := ih member
-        exact ⟨s', List.mem_cons_of_mem _ mem', e⟩
-
 private theorem port_valid {p : Plan} {s : OpSlot} {a : PortAccess} (rows : s.Rows p)
     (fits : s.Fits p) (port : s.port = some a) : a.Valid p := by
   unfold OpSlot.port at port
@@ -84,7 +67,7 @@ private theorem segmentOps_rows {p : Plan} {ts : ℕ} {rs : List StepRecords}
     intro o member
     simp only [segmentOps, List.mem_append] at member
     rcases member with member | member
-    · obtain ⟨s, slot, port⟩ := mem_activeOps member
+    · obtain ⟨s, slot, port, -⟩ := mem_activeOps member
       exact ⟨step.fresh o member,
         port_valid (step.slots s slot) (step.shaped.opsFit s slot) port⟩
     · exact ih rows o member
@@ -186,6 +169,20 @@ private theorem segment_inputs_subset {ctx : Context E Digest} {run : List (Invo
     {S k : ℕ} (hk : k < S) : (segmentView ctx run k).chainInputs ctx ⊆ runInputs ctx run S := by
   intro x member
   exact List.mem_append_right _ (List.mem_flatMap.2 ⟨k, List.mem_range.2 hk, member⟩)
+
+/-- Every hash input of an accepted run is canonical (Ob3 input range). -/
+theorem runInputs_canonical {ctx : Context E Digest} {app : Application ctx.plan σ}
+    {stmt : Statement σ Digest} {run : List (Invocation σ Digest)}
+    (valid : ctx.plan.Valid) (accepted : Accepts ctx app stmt run) :
+    ∀ x ∈ runInputs ctx run stmt.segments, x.Canonical ctx.plan.laneLength ctx.plan.n := by
+  have count : run.length = stmt.segments * ctx.plan.n := accepted.steps.trans accepted.stepCount
+  obtain ⟨c, final, -⟩ := accepted.terminal
+  have closes := ((finalCarry_isSome_iff valid count accepted.segmentsRange.1).1 ⟨c, final⟩).2
+  intro x member
+  rcases List.mem_append.1 member with initial | segments
+  · exact initialInputs_canonical valid _ _ x initial
+  · obtain ⟨k, hk, member⟩ := List.mem_flatMap.1 segments
+    exact (closes k (List.mem_range.1 hk)).chainInputs_canonical x member
 
 /-- The final root of a machine that holds the FS snapshot of a closing
 segment is the segment's FS proposal. -/

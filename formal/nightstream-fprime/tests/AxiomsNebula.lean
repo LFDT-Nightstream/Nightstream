@@ -1,7 +1,9 @@
 import tests.AxiomAudit
 import NightstreamFPrime.Spec.Nebula
+import NightstreamFPrime.Lifecycle.Nebula.Framing
 
-/-! Axiom audits for the Nebula memory-phase model (`Spec/Nebula`). -/
+/-! Axiom audits for the Nebula memory-phase model (`Spec/Nebula`) and its
+Poseidon2 framing (`Lifecycle/Nebula`). -/
 
 #audit_axioms NightstreamFPrime.Spec.Nebula.Plan.romSize_le_ramSize
 #audit_axioms NightstreamFPrime.Spec.Nebula.pack_lt
@@ -15,7 +17,6 @@ import NightstreamFPrime.Spec.Nebula
 #audit_axioms NightstreamFPrime.Spec.Nebula.chainRoot_nil
 #audit_axioms NightstreamFPrime.Spec.Nebula.chainRoot_append
 #audit_axioms NightstreamFPrime.Spec.Nebula.chainRoot_eq_or_collision
-#audit_axioms NightstreamFPrime.Spec.Nebula.collision_of_frame
 #audit_axioms NightstreamFPrime.Spec.Nebula.product_add
 #audit_axioms NightstreamFPrime.Spec.Nebula.productEq_iff
 #audit_axioms NightstreamFPrime.Spec.Nebula.productEq_of_balanced
@@ -73,3 +74,20 @@ import NightstreamFPrime.Spec.Nebula
 #audit_axioms NightstreamFPrime.Spec.Nebula.segment_multisets_card
 #audit_axioms NightstreamFPrime.Spec.Nebula.segment_multisets_small
 #audit_axioms NightstreamFPrime.Spec.Nebula.segment_fingerprint_bound
+#audit_axioms NightstreamFPrime.Spec.Nebula.pack_length
+#audit_axioms NightstreamFPrime.Spec.Nebula.chainInputs_canonical
+#audit_axioms NightstreamFPrime.Spec.Nebula.mem_activeOps
+#audit_axioms NightstreamFPrime.Spec.Nebula.Plan.laneLength_lt
+#audit_axioms NightstreamFPrime.Spec.Nebula.scanLanes_shape
+#audit_axioms NightstreamFPrime.Spec.Nebula.opsLanes_shape
+#audit_axioms NightstreamFPrime.Spec.Nebula.SegmentView.ClosesAt.chainInputs_canonical
+#audit_axioms NightstreamFPrime.Spec.Nebula.initialInputs_canonical
+#audit_axioms NightstreamFPrime.Spec.Nebula.runInputs_canonical
+#audit_axioms NightstreamFPrime.Spec.Nebula.Plan.secure_iff
+#audit_axioms NightstreamFPrime.Spec.Nebula.GoldilocksFingerprint.goldilocks_segment_fingerprint_bound
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.absorbBlocks_eq
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.blockChunks_cons
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.blockChunks_injective
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.blocks_injective
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.runCollision_transcript
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.poseidon2_soundness

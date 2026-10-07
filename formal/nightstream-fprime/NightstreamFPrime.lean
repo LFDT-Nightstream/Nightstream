@@ -1,4 +1,5 @@
 import NightstreamFPrime.Spec
+import NightstreamFPrime.Spec.Nebula
 import NightstreamFPrime.Spec.Folding.PiRLC.CoordinateRetry
 import NightstreamFPrime.Spec.Folding.PiRLC.CoordinateForkProbability
 import NightstreamFPrime.Spec.Folding.PiRLC.CoordinateForkSampler

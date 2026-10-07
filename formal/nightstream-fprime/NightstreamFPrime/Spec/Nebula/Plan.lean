@@ -40,11 +40,14 @@ def scanWidth (p : Plan) : ℕ := 32 + p.wTs
 /-- Upper bound `m_mem` on the size of each side of one segment's check. -/
 def maxTuples (p : Plan) : ℕ := p.cells + p.n * p.bOps
 
-/-- Spec §4.2 rules 1–5, and the image word width of §4.1. -/
+/-- Spec §4.2 rules 1–5, and the image word width of §4.1. Rule 3 includes
+the lane widths: each lane has fewer than `q` bits, so the length prefix of its
+packed block (spec §9.1) is one canonical field element. -/
 structure Valid (p : Plan) : Prop where
   exactCover : p.n * p.bScan = p.cells
   timestampRange : p.sMax * p.n * p.bOps < 2 ^ p.wTs
   fieldEncoding : p.wTs ≤ 62
+  laneBits : p.bOps * p.opWidth < goldilocksModulus ∧ p.bScan * p.scanWidth < goldilocksModulus
   addressWidth : p.r ≤ p.μ
   belowModulus : p.cells < goldilocksModulus
   positive : 0 < p.bOps ∧ 0 < p.bScan ∧ 0 < p.n ∧ 0 < p.sMax

@@ -101,7 +101,9 @@ theorem activeOps_length (ts : ℕ) (z : StepRecords) :
 /-- All tuples of the four multisets of a step. -/
 def Multisets.all (m : Multisets) : Multiset Tuple := m.read + m.write + m.initial + m.final
 
-private theorem mem_activeOps {o : MemOp} {ts : ℕ} {ops : List OpSlot}
+/-- An active operation comes from an active slot of the step: same port and
+`rt`, with a write stamp after `ts` and at most `ts` plus the active count. -/
+theorem mem_activeOps {o : MemOp} {ts : ℕ} {ops : List OpSlot}
     (mem : o ∈ activeOps ts ops) :
     ∃ s ∈ ops, s.port = some o.access ∧ o.rt = s.rt ∧ ts < o.wt ∧
       o.wt ≤ ts + (ops.filterMap OpSlot.port).length := by

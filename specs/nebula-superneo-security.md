@@ -434,9 +434,32 @@ generated relation MUST supply the exact census.
    that A6 states. Its numerical values stay open with item 6.
 4. **Generated relation** that fits the `2^28` domain, with its exact shape and
    census, and the recomputed §5 table.
-5. **Lean formalization** of the Stage 2 phase: Lemma 1 (packing), Lemmas 2–6,
-   and the extended composition, Property 6, fixed-point, and domain theorems
-   for the larger state (A4; `FPRIME_LEAN_ARCHITECTURE_SPEC.md` §6).
+5. **Lean formalization.** Done in
+   `formal/nightstream-fprime/NightstreamFPrime/Spec/Nebula/`, with each
+   theorem audited in `tests/AxiomsNebula.lean`:
+   - Lemma 1;
+   - Lemma 2, with the collision among the inputs of the two chains;
+   - Lemma 3 part 1, as a count and as a frequency, and on the trunk `K` as
+     `2·m/q²`;
+   - Lemma 3 part 2, as the retry count; the one-call game and the A6
+     transfer stay premises;
+   - Lemma 4;
+   - Lemma 5 and its converse;
+   - the lifecycle (Ob8);
+   - Lemma 6 as a deterministic theorem: an accepted run gives an
+     execution, or a collision among the run's own chain inputs and the
+     `D_init` chain, or a segment that passes the product test with
+     unbalanced multisets;
+   - completeness (Ob5), for every hash function and every challenge
+     function.
+
+   These theorems start from an extracted run (A1, A4). Still open:
+   - the refinement of the generated relation to the typed rows, ports, and
+     carry (Ob1–Ob4, Ob6, Ob7), with item 4;
+   - the framing injectivity of Ob3;
+   - the union bound of §5 over `S_max` segments;
+   - the extended composition, Property 6, fixed-point, and domain theorems
+     for the larger state (A4; `FPRIME_LEAN_ARCHITECTURE_SPEC.md` §6).
 6. **Shared with Stage 1:** useful values of `g_d` and `delta_d` (A6), the
    concrete extractor time (A4), the arity adaptation of HyperNova Lemma 4, the
    terminal decider, encoding, and implementation terms, and an approved F′

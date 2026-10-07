@@ -191,6 +191,28 @@ theorem mem_queries_update_iff [DecidableEq Point] (oracle : Point → Answer) (
       · simp only [queries, List.mem_cons, Function.update_of_ne same]
         rw [inductionHypothesis (oracle asked)]
 
+/-- The first `index + 1` queries depend only on the answers to the first
+`index`. -/
+theorem take_succ_queries_congr (oracle other : Point → Answer)
+    (computation : OracleComp Point Answer Output) (index : Nat)
+    (agree : ∀ point ∈ (computation.queries oracle).take index, oracle point = other point) :
+    (computation.queries other).take (index + 1) = (computation.queries oracle).take (index + 1) := by
+  induction computation generalizing index with
+  | done => rfl
+  | query asked next inductionHypothesis =>
+      cases index with
+      | zero => rfl
+      | succ index =>
+          have first : oracle asked = other asked := agree asked (by simp [queries])
+          simp only [queries, List.take_succ_cons, first]
+          congr 1
+          apply inductionHypothesis
+          intro point inside
+          rw [← first] at inside
+          apply agree point
+          simp only [queries, List.take_succ_cons, List.mem_cons]
+          exact Or.inr inside
+
 end OracleComp
 
 section Probability
@@ -228,35 +250,35 @@ private theorem expect_update (point : Point) (value : (Point → Answer) → �
   field_simp
 
 /-- Answers held fixed on `fixed`; elsewhere `oracle` answers. -/
-private def over (fixed : Finset Point) (values oracle : Point → Answer) : Point → Answer :=
+def overlay (fixed : Finset Point) (values oracle : Point → Answer) : Point → Answer :=
   fun point => if point ∈ fixed then values point else oracle point
 
 omit [Fintype Point] [Fintype Answer] [Nonempty Answer] in
-private theorem over_update {fixed : Finset Point} {point : Point} (outside : point ∉ fixed)
+private theorem overlay_update {fixed : Finset Point} {point : Point} (outside : point ∉ fixed)
     (values oracle : Point → Answer) (answer : Answer) :
-    over fixed values (Function.update oracle point answer) =
-      over (insert point fixed) (Function.update values point answer) oracle := by
+    overlay fixed values (Function.update oracle point answer) =
+      overlay (insert point fixed) (Function.update values point answer) oracle := by
   funext other
   by_cases same : other = point
   · subst same
-    simp [over, outside]
-  · simp [over, same]
+    simp [overlay, outside]
+  · simp [overlay, same]
 
 omit [Fintype Point] [Fintype Answer] [Nonempty Answer] in
-private theorem update_over {fixed : Finset Point} {point : Point} (outside : point ∉ fixed)
+private theorem update_overlay {fixed : Finset Point} {point : Point} (outside : point ∉ fixed)
     (values oracle : Point → Answer) (answer : Answer) :
-    over fixed values (Function.update oracle point answer) =
-      Function.update (over fixed values oracle) point answer := by
+    overlay fixed values (Function.update oracle point answer) =
+      Function.update (overlay fixed values oracle) point answer := by
   funext other
   by_cases same : other = point
   · subst same
-    simp [over, outside]
-  · simp [over, same]
+    simp [overlay, outside]
+  · simp [overlay, same]
 
 omit [Fintype Point] [Fintype Answer] [Nonempty Answer] in
-private theorem over_empty (values oracle : Point → Answer) : over ∅ values oracle = oracle := by
+private theorem overlay_empty (values oracle : Point → Answer) : overlay ∅ values oracle = oracle := by
   funext point
-  simp [over]
+  simp [overlay]
 
 /-- Some queried point outside `fixed` has its answer in its bad set. -/
 private def Escapes (bad : Point → (Point → Answer) → Set Answer)
@@ -272,7 +294,7 @@ include local_ small nonnegative in
 holds the answers it shares with the first run this way. -/
 private theorem escape_le_over {computation : OracleComp Point Answer Output} {bound : Nat}
     (bounded : computation.QueryBound bound) (fixed : Finset Point) (values : Point → Answer) :
-    𝔼 oracle, (if Escapes bad computation fixed (over fixed values oracle) then (1 : ℝ) else 0) ≤
+    𝔼 oracle, (if Escapes bad computation fixed (overlay fixed values oracle) then (1 : ℝ) else 0) ≤
       bound * ε := by
   induction bounded generalizing fixed values with
   | done output bound =>
@@ -282,27 +304,27 @@ private theorem escape_le_over {computation : OracleComp Point Answer Output} {b
   | query point next bound _ inductionHypothesis =>
       by_cases inside : point ∈ fixed
       · have same (oracle : Point → Answer) :
-            Escapes bad (.query point next) fixed (over fixed values oracle) ↔
-              Escapes bad (next (values point)) fixed (over fixed values oracle) := by
-          simp [Escapes, OracleComp.queries, over, inside]
+            Escapes bad (.query point next) fixed (overlay fixed values oracle) ↔
+              Escapes bad (next (values point)) fixed (overlay fixed values oracle) := by
+          simp [Escapes, OracleComp.queries, overlay, inside]
         simp only [same]
         refine (inductionHypothesis (values point) fixed values).trans ?_
         push_cast
         linarith
       · let first (oracle : Point → Answer) : Prop :=
-          over fixed values oracle point ∈ bad point (over fixed values oracle)
+          overlay fixed values oracle point ∈ bad point (overlay fixed values oracle)
         let later (oracle : Point → Answer) : Prop :=
-          Escapes bad (next (over fixed values oracle point)) (insert point fixed)
-            (over fixed values oracle)
+          Escapes bad (next (overlay fixed values oracle point)) (insert point fixed)
+            (overlay fixed values oracle)
         have split (oracle : Point → Answer) :
-            (if Escapes bad (.query point next) fixed (over fixed values oracle) then (1 : ℝ)
+            (if Escapes bad (.query point next) fixed (overlay fixed values oracle) then (1 : ℝ)
               else 0) ≤
               (if first oracle then 1 else 0) + (if later oracle then 1 else 0) := by
           have firstNonnegative : (0 : ℝ) ≤ if first oracle then 1 else 0 := by
             split <;> norm_num
           have laterNonnegative : (0 : ℝ) ≤ if later oracle then 1 else 0 := by
             split <;> norm_num
-          by_cases escapes : Escapes bad (.query point next) fixed (over fixed values oracle)
+          by_cases escapes : Escapes bad (.query point next) fixed (overlay fixed values oracle)
           · rw [if_pos escapes]
             obtain ⟨other, member, outside, isBad⟩ := escapes
             by_cases same : other = point
@@ -310,8 +332,8 @@ private theorem escape_le_over {computation : OracleComp Point Answer Output} {b
               have holds : first oracle := isBad
               rw [if_pos holds]
               linarith
-            · have tail : other ∈ (next (over fixed values oracle point)).queries
-                  (over fixed values oracle) := by
+            · have tail : other ∈ (next (overlay fixed values oracle point)).queries
+                  (overlay fixed values oracle) := by
                 simpa [OracleComp.queries, same] using member
               have holds : later oracle :=
                 ⟨other, tail, by simp [same, outside], isBad⟩
@@ -322,18 +344,18 @@ private theorem escape_le_over {computation : OracleComp Point Answer Output} {b
         have firstBound :
             𝔼 oracle, (if first oracle then (1 : ℝ) else 0) ≤ ε := by
           rw [expect_update point]
-          simp only [first, update_over inside, Function.update_self, local_ point]
+          simp only [first, update_overlay inside, Function.update_self, local_ point]
           refine (Finset.expect_le_expect fun oracle _ => small point
-            (over fixed values oracle)).trans ?_
+            (overlay fixed values oracle)).trans ?_
           exact (Finset.expect_const Finset.univ_nonempty ε).le
         have laterBound :
             𝔼 oracle, (if later oracle then (1 : ℝ) else 0) ≤ bound * ε := by
           rw [expect_update point]
           have reached (oracle : Point → Answer) (answer : Answer) :
-              over (insert point fixed) (Function.update values point answer) oracle point =
+              overlay (insert point fixed) (Function.update values point answer) oracle point =
                 answer := by
-            simp [over]
-          simp only [later, over_update inside, reached]
+            simp [overlay]
+          simp only [later, overlay_update inside, reached]
           rw [Finset.expect_comm]
           refine (Finset.expect_le_expect fun answer _ => inductionHypothesis answer
             (insert point fixed) (Function.update values point answer)).trans ?_
@@ -356,7 +378,7 @@ theorem escape_le {computation : OracleComp Point Answer Output} {bound : Nat}
     𝔼 oracle, (if ∃ point ∈ computation.queries oracle, oracle point ∈ bad point oracle
       then (1 : ℝ) else 0) ≤ bound * ε := by
   have escape := escape_le_over bad local_ ε small nonnegative bounded ∅ (fun point => Classical.arbitrary _)
-  simpa [Escapes, over_empty] using escape
+  simpa [Escapes, overlay_empty] using escape
 
 include local_ small nonnegative in
 /-- Pinned escape: one output point has its answer in its bad set with
@@ -389,6 +411,15 @@ theorem mass_mono {small large : Set Answer} (inside : small ⊆ large) :
 omit [Nonempty Answer] in
 theorem mass_nonnegative (answers : Set Answer) : 0 ≤ mass answers :=
   Finset.expect_nonneg fun answer _ => by split <;> norm_num
+
+/-- A nonnegative value that is positive somewhere has a positive mean. -/
+theorem expect_pos {Item : Type*} [Fintype Item] {value : Item → ℝ}
+    (nonnegative : ∀ item, 0 ≤ value item) {item : Item} (positive : 0 < value item) :
+    0 < 𝔼 other, value other := by
+  rw [Finset.expect_eq_sum_div_card]
+  apply div_pos _ (by exact_mod_cast Finset.card_pos.mpr ⟨item, Finset.mem_univ item⟩)
+  exact positive.trans_le (Finset.single_le_sum (fun other _ => nonnegative other)
+    (Finset.mem_univ item))
 
 omit [Nonempty Answer] in
 /-- The mean over all answers of a constant on `answers` and zero elsewhere. -/
@@ -614,7 +645,135 @@ theorem expected_bad_retries {Index : Type*} [Fintype Index] [DecidableEq Index]
             (by simp [div_self (positive coordinate)])
       · simp
 
+omit [Fintype Point] [DecidableEq Point] [Nonempty Answer] in
+/-- The retry law has total mass one when every line has positive mass. -/
+theorem retryWeight_sum_eq_one {Index : Type*} [Fintype Index] [DecidableEq Index]
+    (sets : Index → Set Answer) (positive : ∀ index, mass (sets index) ≠ 0) :
+    ∑ retries : Index → Answer, retryWeight sets retries = 1 := by
+  by_cases empty : IsEmpty Index
+  · have single : ∀ retries : Index → Answer, retryWeight sets retries = 1 := fun _ => by
+      simp [retryWeight]
+    simp [single]
+  · have nonempty : Nonempty Index := not_isEmpty_iff.mp empty
+    have total := expected_bad_retries sets positive (fun _ => Set.univ)
+    simp only [Set.mem_univ, if_true, Finset.sum_const, Finset.card_univ, nsmul_eq_mul, mul_one,
+      Set.inter_univ, div_self (positive _)] at total
+    have count : (0 : ℝ) < Fintype.card Index := by exact_mod_cast Fintype.card_pos
+    rw [← Finset.sum_mul] at total
+    field_simp at total
+    linarith
+
+omit [Fintype Point] [DecidableEq Point] [Nonempty Answer] in
+/-- The retry law has total mass at most one: one when every line has
+positive mass, zero otherwise. -/
+theorem retryWeight_sum_le_one {Index : Type*} [Fintype Index] [DecidableEq Index]
+    (sets : Index → Set Answer) : ∑ retries : Index → Answer, retryWeight sets retries ≤ 1 := by
+  by_cases positive : ∀ index, mass (sets index) ≠ 0
+  · exact (retryWeight_sum_eq_one sets positive).le
+  · obtain ⟨index, zero⟩ := not_forall.mp positive
+    have each : ∀ retries : Index → Answer, retryWeight sets retries = 0 := fun retries =>
+      Finset.prod_eq_zero (Finset.mem_univ index) (by simp [not_not.mp zero])
+    simp [each]
+
 end LineRetry
+
+/-! ## Forks at a stopping set
+
+A fork keeps the answers a run has already seen and resamples the rest. The
+points seen before a query index form a stopping set. -/
+
+/-- A set of points that the oracle's answers on that set determine. -/
+def Stopping (stop : (Point → Answer) → Finset Point) : Prop :=
+  ∀ oracle other, (∀ point ∈ stop oracle, oracle point = other point) → stop other = stop oracle
+
+/-- The points a run queries before query `index`. -/
+def queriedBefore (computation : OracleComp Point Answer Output) (index : Nat)
+    (oracle : Point → Answer) : Finset Point :=
+  ((computation.queries oracle).take index).toFinset
+
+omit [Fintype Point] [Fintype Answer] [Nonempty Answer] in
+theorem queriedBefore_stopping (computation : OracleComp Point Answer Output) (index : Nat) :
+    Stopping (queriedBefore computation index) := by
+  intro oracle other agree
+  have longer := OracleComp.take_succ_queries_congr oracle other computation index
+    (fun point inside => agree point (List.mem_toFinset.mpr inside))
+  have same : (computation.queries other).take index = (computation.queries oracle).take index := by
+    have := congrArg (List.take index) longer
+    simpa [List.take_take] using this
+  simp only [queriedBefore, same]
+
+omit [Fintype Point] [Fintype Answer] [Nonempty Answer] in
+theorem overlay_agree (fixed : Finset Point) (values oracle : Point → Answer) :
+    ∀ point ∈ fixed, values point = overlay fixed values oracle point := by
+  intro point inside
+  simp [overlay, inside]
+
+/-- Resampling every answer outside a stopping set keeps the oracle uniform. -/
+theorem expect_resample (stop : (Point → Answer) → Finset Point) (stopping : Stopping stop)
+    (value : (Point → Answer) → ℝ) :
+    𝔼 oracle, value oracle = 𝔼 oracle, 𝔼 fresh, value (overlay (stop oracle) oracle fresh) := by
+  let swap : (Point → Answer) × (Point → Answer) → (Point → Answer) × (Point → Answer) :=
+    fun pair => (overlay (stop pair.1) pair.1 pair.2, overlay (stop pair.1) pair.2 pair.1)
+  have involutive : Function.Involutive swap := by
+    rintro ⟨oracle, fresh⟩
+    have same : stop (overlay (stop oracle) oracle fresh) = stop oracle :=
+      stopping oracle _ (overlay_agree (stop oracle) oracle fresh)
+    simp only [swap, same]
+    refine Prod.ext (funext fun point => ?_) (funext fun point => ?_) <;>
+      by_cases inside : point ∈ stop oracle <;> simp [overlay, inside]
+  have sums : ∑ oracle, ∑ fresh, value (overlay (stop oracle) oracle fresh) =
+      Fintype.card (Point → Answer) * ∑ oracle, value oracle := by
+    rw [← Fintype.sum_prod_type', Fintype.sum_equiv involutive.toPerm
+      (fun pair => value (swap pair).1) (fun pair => value pair.1) (fun _ => rfl),
+      Fintype.sum_prod_type, Finset.mul_sum]
+    simp
+  simp only [Finset.expect_eq_sum_div_card, Finset.card_univ, div_eq_mul_inv, ← Finset.sum_mul]
+  rw [sums]
+  have positive : (0 : ℝ) < Fintype.card (Point → Answer) := by exact_mod_cast Fintype.card_pos
+  field_simp
+
+omit [Fintype Point] [Fintype Answer] [Nonempty Answer] in
+theorem overlay_self (fixed : Finset Point) (oracle : Point → Answer) :
+    overlay fixed oracle oracle = oracle := by
+  funext point
+  by_cases inside : point ∈ fixed <;> simp [overlay, inside]
+
+omit [Fintype Point] [Fintype Answer] [Nonempty Answer] in
+/-- A fork of a fork keeps the same context. -/
+theorem overlay_overlay (stop : (Point → Answer) → Finset Point) (stopping : Stopping stop)
+    (oracle fresh other : Point → Answer) :
+    stop (overlay (stop oracle) oracle fresh) = stop oracle ∧
+      overlay (stop (overlay (stop oracle) oracle fresh)) (overlay (stop oracle) oracle fresh) other =
+        overlay (stop oracle) oracle other := by
+  have same : stop (overlay (stop oracle) oracle fresh) = stop oracle :=
+    stopping oracle _ (overlay_agree (stop oracle) oracle fresh)
+  refine ⟨same, ?_⟩
+  rw [same]
+  funext point
+  by_cases inside : point ∈ stop oracle <;> simp [overlay, inside]
+
+/-- A run's weight over its resampled average: for a factor that only the
+context fixes, the ratio averages to that factor wherever the average is
+positive. -/
+theorem expect_div_resampled (stop : (Point → Answer) → Finset Point) (stopping : Stopping stop)
+    (value factor : (Point → Answer) → ℝ)
+    (determined : ∀ oracle fresh, factor (overlay (stop oracle) oracle fresh) = factor oracle) :
+    𝔼 oracle, factor oracle * value oracle / (𝔼 fresh, value (overlay (stop oracle) oracle fresh)) =
+      𝔼 oracle, (if 𝔼 fresh, value (overlay (stop oracle) oracle fresh) = 0 then 0 else factor oracle) := by
+  rw [expect_resample stop stopping]
+  refine Finset.expect_congr rfl fun oracle _ => ?_
+  have resampled (fresh : Point → Answer) :
+      𝔼 other, value (overlay (stop (overlay (stop oracle) oracle fresh))
+          (overlay (stop oracle) oracle fresh) other) =
+        𝔼 other, value (overlay (stop oracle) oracle other) := by
+    simp only [(overlay_overlay stop stopping oracle fresh _).2]
+  simp only [determined, resampled]
+  rw [← Finset.expect_div, ← Finset.mul_expect]
+  split
+  · rename_i zero
+    rw [zero, div_zero]
+  · rename_i positive
+    field_simp
 
 end Probability
 

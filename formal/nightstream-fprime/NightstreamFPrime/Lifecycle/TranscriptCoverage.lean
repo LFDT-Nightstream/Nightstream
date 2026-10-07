@@ -718,7 +718,8 @@ private theorem fullOutputWords_injective
   simp only at pad matrix
   rw [pad, matrix]
 
-private theorem statementCalls_length
+/-- Every fresh statement absorbs the same number of calls. -/
+theorem statementCalls_length
     (fresh fresh' : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     (statementCalls fresh).length = (statementCalls fresh').length := by
   simp only [statementCalls, ProductionKey.publicInputBlocks, List.flatMap_append,
@@ -731,7 +732,8 @@ private theorem statementCalls_length
       absorbCalls (block (serializePublicInput (fresh'.publicInputs index))))
     (fun _ _ => by simp)]
 
-private theorem statementCalls_identify_fresh
+/-- The statement calls identify the fresh statement. -/
+theorem statementCalls_identify_fresh
     {fresh fresh' : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)}
     (same : statementCalls fresh = statementCalls fresh') : fresh = fresh' := by
   have blocks := List.append_cancel_left same

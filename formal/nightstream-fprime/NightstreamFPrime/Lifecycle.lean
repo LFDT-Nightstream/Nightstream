@@ -8,6 +8,8 @@ import NightstreamFPrime.Lifecycle.ProductionKey
 import NightstreamFPrime.Lifecycle.TranscriptCoverage
 import NightstreamFPrime.Lifecycle.RandomOracleTest
 import NightstreamFPrime.Lifecycle.RandomOracleExtraction
+import NightstreamFPrime.Lifecycle.RandomOracleUniqueness
+import NightstreamFPrime.Lifecycle.RandomOracleKnowledge
 import NightstreamFPrime.Lifecycle.NifsProfile
 import NightstreamFPrime.Lifecycle.Nifs.StrongExtraction
 import NightstreamFPrime.Lifecycle.Nifs.WeakExtraction

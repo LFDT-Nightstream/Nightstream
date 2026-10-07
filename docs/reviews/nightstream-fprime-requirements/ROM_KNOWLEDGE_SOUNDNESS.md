@@ -1,12 +1,11 @@
 # Knowledge soundness of the Nightstream NIFS in the random-oracle model
 
-Status: **DRAFT for review (2026-10-07).** Owner decisions of 2026-10-07: a
-direct random-oracle (ROM) knowledge theorem replaces the external
-`FiatShamirModel` assumption; the oracle is a random function of each
-challenge's exact absorbed prefix; this written proof is reviewed before the
-forking work. Lemmas 1–4 are proved in Lean (Section 6). Lemmas 5–6 and the
-history capstone wait for the review in Section 7. No Rust change depends on
-this note.
+Status: **one-fold theorem proved (2026-10-07).** Owner decisions of
+2026-10-07: a direct random-oracle (ROM) knowledge theorem replaces the
+external `FiatShamirModel` assumption; the oracle is a random function of each
+challenge's exact absorbed prefix. Lemmas 1–6 and the one-fold knowledge
+theorem are proved in Lean (Section 6). The history step, which retires
+`FiatShamirModel`, is next. No Rust change depends on this note.
 
 Neither paper supplies this proof. SuperNeo is stated for the interactive
 protocol only. The published HyperNova asserts a Fiat–Shamir lemma for
@@ -71,32 +70,42 @@ open the verifier-computed children.
 `A` and the ability to rerun `A` on a modified table, returns a valid source
 witness (the paper's `SourceHolds` for the fresh and running claims).
 
-## 3. Main theorem (target statement)
+## 3. Main theorem (proved for one fold)
 
-For every `A` with at most `Q` queries:
+`RandomOracleKnowledge.knowledge_error_le`: for every adversary `A` with at
+most `Q` queries,
 
 ```
-Pr[RealSuccess ∧ E fails]
-  ≤ (Q + 1) · ε_test          -- PiCCS challenges, Lemma 4
-  + (Q + 1) · ε_weak          -- Π_RLC coordinate retry, Lemma 5
-  + Q · ε_sampler             -- strong-set sampler bias, per Π_RLC query
-  + ε_uniq                    -- forked disagreement, Lemma 6
-  + Pr[state-hash collision]  -- named event, unchanged
+Pr[the claim of A is accepted]
+  ≤ Pr[E extracts a source-valid witness]
+  + 17 · (Q + 17) · ε_sample   -- Π_RLC coordinate retry, Lemma 5
+  + (Q + 74) · ε_test          -- PiCCS challenges, Lemmas 4 and 6
+  + Pr[mismatch]               -- a retry changes the running statement
+  + Pr[collision]              -- binding reduction: two witnesses, Lemma 6
+  + Pr[running]                -- binding reduction: other running statement
 ```
 
-with `ε_test = IndependentExecution.testError productionShape 9`,
-`ε_weak = 17 / |C|` (`|C| = 5^54`), and `ε_sampler = distance`. `ε_uniq` is
-the forked disagreement probability that the existing adaptive binding
-reduction turns into a fixed-seed MSIS solution (`AdaptiveBindingProbability`
-term, multiplied by 17 as today).
+`E` is the Π_RLC fork extractor of Lemma 5; it takes `17 · (Q + 17)`
+expected retries (`expected_retries_le`). Its retry law has total mass one
+after each acceptance, so a missing retry counts as a failure.
+`ε_sample = 1/5^54 + distance` is the mass of one sampler fiber, and
+`ε_test = IndependentExecution.testError productionShape 9`. `Q + 17` counts
+the adversary's queries and the 17 Π_RLC queries; `Q + 74` also counts the 28
+α, γ and 28 round queries. The mismatch and running terms are state-hash
+collisions once `PriorLink` binds the running statement into the fresh
+statement (Export layer). The collision term is an MSIS break by the binding
+reduction of Lemma 6, which takes `Q + 74` expected reruns
+(`expected_reruns_le`).
 
 Numerically (7 CCS matrices, `J = 6930`), `ε_test = 7209/p² ≈ 2^-115.2`,
-and its γ term `(J − 1)/p² ≈ 2^-115.24` dominates; `ε_weak ≈ 2^-121.3`. At
-`Q = 2^64` oracle queries, `(Q+1)·ε_test ≈ 2^-51.2`. This is the honest
-Fiat–Shamir cost; the interactive analysis does not show it.
+and its γ term `(J − 1)/p² ≈ 2^-115.24` dominates; `ε_sample ≈ 2^-125.4`. At
+`Q = 2^64` oracle queries, `(Q + 74)·ε_test ≈ 2^-51.2` and
+`17·(Q + 17)·ε_sample ≈ 2^-57.3`. This is the honest Fiat–Shamir cost; the
+interactive analysis does not show it.
 
-The history theorem then applies this bound at each visited step in place of
-`FiatShamirModel`, with the visited-law composition already proved.
+The history theorem will apply this bound at each visited step in place of
+`FiatShamirModel`, with the visited-law composition already proved. That
+step is not done yet.
 
 ## 4. Proof outline
 
@@ -146,44 +155,55 @@ with witness `w`, some challenge of the final transcript lies in its
 `bad_w` set (the round-by-round argument of the interactive proof, applied to
 the final transcript). Apply Lemma 2 to each of the 57 extension-field
 challenges and sum. *Status:* proved as `RandomOracleTest.test_error_le` for an
-adaptive fresh statement, with the running statement and `w` fixed. The fork
-form needs the pre-fork answers held fixed; `escape_le` is proved through that
-form.
+adaptive fresh statement, with the running statement and `w` fixed. Lemma 6
+removes the fixed `w`.
 
-**Lemma 5 (Π_RLC coordinate retry in the ROM).** The interactive weak
-extractor (SuperNeo B.3; Fenzi–Moghaddas–Nguyen Lemma 7.1, as formalized in
-`PiRLC/CoordinateRetry.lean`) fixes the other coordinates and resamples one
-coordinate until acceptance. In the ROM, the extractor reruns `A` with the
-same tape and the same table except at the prefix of that coordinate, which
-it reprograms with a fresh block. The other 16 coordinates keep their
-answers, as the interactive retry requires, because each Π_RLC scalar is a
-separate oracle point (the existing `scalarQuery` schedule). Reprogramming
-can change which history `A` outputs; a retry counts only when the history
-is unchanged. The expected-time argument of Attema–Fehr–Klooß
-(JoC 2023, Theorem 3) for multi-round special-sound protocols gives the
-`(Q+1)` factor on the per-coordinate loss. *Status:* new composition of a
-published technique; needs the most careful review. The expected-work
-accounting of `InteractiveWork` must be restated with `Q`.
+**Lemma 5 (Π_RLC coordinate retry in the ROM).** After an acceptance, the
+extractor resamples the answer at one Π_RLC point and reruns `A` until that
+point succeeds again, once for each of the 17 coordinates. The other
+coordinates keep their answers, as the interactive retry (SuperNeo B.3;
+Fenzi–Moghaddas–Nguyen Lemma 7.1) requires, because each Π_RLC scalar is a
+separate oracle point. A retry is valid when it keeps the running statement
+and draws a different scalar. The base and 17 valid retries form the paper's
+complete coordinate fork, and the existing Appendix D.5 algebra extracts a
+witness that opens every Π_CCS output of the base probe. A retry draws the
+base scalar with probability at most `ε_sample`; each queried point is
+charged once (`repeat_le`), so the loss is `17 · (Q + 17) · ε_sample` plus the
+chance that a retry changes the running statement. The loss is linear in `Q`,
+as in Attema–Fehr–Klooß–Resch. *Status:* proved as
+`RandomOracleExtraction.fork_failure_le`, `expected_retries_le` and
+`extracted_ambient`.
 
 **Lemma 6 (forked uniqueness; replaces SuperNeo v1.2 B.2 retry).** The
-interactive argument uses two independent executions at one fixed context,
-giving `E·S ≤ D + E·ε_test` and so `E ≤ ε_test + D/S` (proved as
-`StrongProbability.local_source_error_le_retry`). In the ROM the statement is
-adaptive, so the second execution is a *fork*: rerun `A` with the same tape
-and the same answers up to the first query whose prefix extends the final
-statement calls (the fork index `J`), and fresh answers from there. The fork
-state `x` is `A`'s state at `J`; it fixes the statement, and so (by the
-commitment) the witness up to an MSIS break. At each fork state the
-interactive inequality holds with Lemma 4 in place of `ε_test`:
-`e(x)·s(x) ≤ d(x) + e(x)·(Q+1)·ε_test`. Sum over the `Q+1` possible fork
-indices; the disagreement mass becomes `ε_uniq`, which the existing adaptive
-binding reduction bounds by MSIS. *Status:* new; the fork-index definition
-and the summation need review.
+interactive argument uses two independent executions at one fixed context
+(`StrongProbability.local_source_error_le_retry`). In the ROM the statement is
+adaptive, so the second execution is a *fork*. Run `A` followed by the
+verifier's 74 challenge queries. The fork index `J` is the first query whose
+call list extends the output statement's calls; the fork context is the set
+of points queried before `J`. The binding reduction runs the extractor, then
+reruns `A` with the context answers kept and fresh answers elsewhere until a
+rerun succeeds at index `J` again. Both runs output the same fresh statement,
+because the query at `J` fixes it. The rerun then changes the running
+statement (a state-hash collision), extracts another witness for the same
+statement (an MSIS break), or extracts the same witness. In the last case the
+rerun is a false acceptance of the first run's witness. That witness depends
+on answers after the context, so a bad set built from it would not be local.
+The proof replaces it by the *worst witness* of the context: the extraction,
+over all valid runs, that the reruns from this context falsely accept most
+often. The context alone determines it. The bad set at a challenge point uses
+the worst witness of the context where that point's statement first appears,
+so it is local, and Lemma 2 charges each of the `Q + 74` checked queries once.
+The division by the rerun success cancels on average over the base run
+(`RandomOracle.expect_div_resampled`). Result:
+`Pr[E's witness fails SourceHolds] ≤ (Q + 74)·ε_test + Pr[collision] +
+Pr[running]`. *Status:* proved as `RandomOracleUniqueness.source_error_le` and
+`expected_reruns_le`.
 
 ## 5. What this changes and what it does not
 
-- `FiatShamirModel` and its parameters `g`, `deltaFS` are retired. The
-  history bound takes `Q` and the ROM terms above instead.
+- `FiatShamirModel` and its parameters `g`, `deltaFS` are to be retired by
+  the history step. The history bound will take `Q` and the ROM terms above
+  instead.
 - The PriorLink, coverage and identify results of this PR are inputs
   (Lemma 1), not replaced.
 - The MSIS assumption, the state-hash collision event and the
@@ -219,15 +239,15 @@ the key's construction and coverage proofs would be duplicated.
 
 | Module | Owns |
 |---|---|
-| `Spec/RandomOracle.lean` | `OracleComp`, `run`, `queries`, `QueryBound`, locality, `escape_le` (`Q·ε`), `pinned_le` (`(Q+1)·ε`); credit Ironwood |
+| `Spec/RandomOracle.lean` | `OracleComp`, `run`, `queries`, `QueryBound`, locality, `escape_le` (`Q·ε`), `pinned_le` (`(Q+1)·ε`); credit Ironwood. Line retries (`repeat_le`, `retries_le`), the retry law (`retryWeight`, total mass one), stopping sets and resampling (`expect_resample`, `expect_div_resampled`) |
 | `Spec/.../PaperJoint/RoundByRound.lean` | deterministic split of a false acceptance into one bad coin per α coordinate, γ or round; bad-set counts `1`, `J−1`, `9` |
 | `Lifecycle/TranscriptCoverage.lean` | `point`, `coinsFrom`, distinct point lengths, the deployed-coins bridge |
-| `Lifecycle/RandomOracleTest.lean` | bounded domain, `decodeK`, oracle bad sets, `test_error_le`: `(Q+1)·testError` |
+| `Lifecycle/RandomOracleTest.lean` | bounded domain, `decodeK`, oracle bad sets, `test_error_le`: `(Q+1)·testError`; `hits_error_le`, the per-coin sum |
+| `Lifecycle/RandomOracleExtraction.lean` | Lemma 5: oracle verifier `Accepts`, coordinate retries, `completeFork`, `extractedWitness`, `fork_failure_le`, `expected_retries_le` |
+| `Lifecycle/RandomOracleUniqueness.lean` | Lemma 6: fork index and context, worst witness, local bad sets, `source_error_le`, `expected_reruns_le` |
+| `Lifecycle/RandomOracleKnowledge.lean` | `knowledge_error_le`: Lemmas 5 and 6 together |
 
-Phases 1 and 2 of the plan become these four modules. The forking lemmas
-(Lemmas 5–6) and the history capstone follow after the review in Section 7.
-At a fork state, Lemma 4 needs `escape_le` with the pre-fork answers held
-fixed; its proof already carries that form.
+`tests/AxiomsStage1Security.lean` audits every theorem above for axioms.
 
 ## 7. Review decisions (owner, 2026-10-07)
 
@@ -242,8 +262,10 @@ fixed; its proof already carries that form.
    statement's calls". The output defines it, every challenge of that
    statement comes at or after it, and its call list fixes the fresh
    statement. The knowledge extractor does not fork; only the binding
-   reduction forks, and it runs the adversary exactly twice. No re-fork bound
-   is needed.
+   reduction forks. No re-fork bound is needed. *Correction from the Lean
+   proof:* the reduction reruns from the fork context until a rerun succeeds
+   at the fork index, not exactly twice; it takes at most `Q + 74` expected
+   reruns (`expected_reruns_le`).
 3. **Deployment margin.** `(Q+1)·ε_test` is linear in `Q`, so the cost per
    unit of success stays `2^115.2`: about 115-bit security, equal to the
    interactive bound, and tight against a grinding attack. Accept it for this

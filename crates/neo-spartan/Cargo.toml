@@ -1,0 +1,41 @@
+[package]
+name = "neo-spartan"
+description = "Layer 1 of Nightstream compression: an argument of knowledge for one SuperNeo CE(B) claim"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+neo-ajtai = { path = "../neo-ajtai" }
+neo-ccs = { path = "../neo-ccs" }
+neo-math = { path = "../neo-math" }
+neo-reductions = { path = "../neo-reductions" }
+neo-transcript = { path = "../neo-transcript" }
+p3-field = { workspace = true }
+bincode = { workspace = true }
+rand_chacha_p3 = { workspace = true }
+rayon = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+
+# Plonky3 0.8 for WHIR. Only this crate names these types; values cross to the
+# workspace's Plonky3 0.5 types as canonical u64 in `field.rs`.
+p3-whir = { version = "=0.8.0", features = ["parallel"] }
+p3-challenger-v08 = { package = "p3-challenger", version = "=0.8.0" }
+p3-commit-v08 = { package = "p3-commit", version = "=0.8.0" }
+p3-dft-v08 = { package = "p3-dft", version = "=0.8.0" }
+p3-field-v08 = { package = "p3-field", version = "=0.8.0" }
+p3-goldilocks-v08 = { package = "p3-goldilocks", version = "=0.8.0" }
+p3-matrix-v08 = { package = "p3-matrix", version = "=0.8.0" }
+p3-merkle-tree-v08 = { package = "p3-merkle-tree", version = "=0.8.0" }
+p3-multilinear-util-v08 = { package = "p3-multilinear-util", version = "=0.8.0" }
+p3-security-v08 = { package = "p3-security", version = "=0.8.0" }
+p3-sumcheck-v08 = { package = "p3-sumcheck", version = "=0.8.0" }
+p3-symmetric-v08 = { package = "p3-symmetric", version = "=0.8.0" }
+
+[dev-dependencies]
+neo-params = { path = "../neo-params" }

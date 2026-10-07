@@ -10,6 +10,7 @@ members = [
   "crates/neo-prover-cuda",
   "crates/neo-prover-metal",
   "crates/nightstream-fprime",
+  "crates/neo-spartan",
   "crates/nightstream",
 ]
 exclude = [

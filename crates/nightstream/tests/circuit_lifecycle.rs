@@ -70,6 +70,47 @@ fn poseidon_metal_proofs_equal_cpu_proofs() {
     );
 }
 
+/// Compression after one fold: the final proof carries no witness, verifies
+/// after a byte round trip, and rejects a wrong state or a changed byte.
+#[test]
+#[ignore = "Full production compression; run this test separately under the 300-second cap."]
+fn poseidon_finish_with_spartan_verifies() {
+    let started = Instant::now();
+    let circuit = Circuit::compile(&selected_reference(), poseidon2_hash_chain_v1().unwrap()).unwrap();
+    let prover = circuit.prover(Engine::Optimized, 114).unwrap();
+    let verifier = Verifier::from_package(&circuit, Engine::Optimized, 114).unwrap();
+    let initial = [202, 203, 204, 205].map(F::from_u64);
+    let message = [7, 11, 13, 17].map(F::from_u64);
+    let proof = prover.prove(initial, &message).unwrap();
+    let proof = prover.extend(&proof, &message).unwrap();
+    eprintln!("compile, base step and one fold elapsed={:?}", started.elapsed());
+
+    let finishing = Instant::now();
+    let finished = prover.finish_with_spartan(&proof).unwrap();
+    eprintln!("finish_with_spartan elapsed={:?}", finishing.elapsed());
+    let bytes = prover.encode_final_proof(&finished).unwrap();
+    eprintln!(
+        "final proof bytes={} (accumulator proof bytes={})",
+        bytes.len(),
+        prover.encode_proof(&proof).unwrap().len()
+    );
+    let decoded = verifier.decode_final_proof(&bytes).unwrap();
+    let verifying = Instant::now();
+    verifier.verify(proof.state(), &decoded).unwrap();
+    eprintln!("final verification elapsed={:?}", verifying.elapsed());
+
+    let mut changed = proof.state().current();
+    changed[0] += F::ONE;
+    let wrong = State::new(proof.state().iteration(), initial, changed);
+    assert!(verifier.verify(&wrong, &decoded).is_err());
+    let mut flipped = bytes.clone();
+    let index = bytes.len() - 100;
+    flipped[index] ^= 1;
+    assert!(verifier
+        .decode_final_proof(&flipped)
+        .map_or(true, |changed| verifier.verify(proof.state(), &changed).is_err()));
+}
+
 fn poseidon_lifecycle(engine: Engine, recursive: bool) {
     let started = Instant::now();
     let reference: Value = serde_json::from_slice(

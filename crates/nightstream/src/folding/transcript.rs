@@ -30,6 +30,10 @@ impl Transcript {
     pub(crate) fn inner_mut(&mut self) -> &mut Poseidon2Transcript {
         &mut self.inner
     }
+    /// Hand the transcript to a protocol that continues it.
+    pub(crate) fn into_inner(self) -> Poseidon2Transcript {
+        self.inner
+    }
     pub(crate) fn snapshot(&self) -> Poseidon2TranscriptSnapshot {
         Poseidon2TranscriptSnapshot {
             state: self.inner.state(),

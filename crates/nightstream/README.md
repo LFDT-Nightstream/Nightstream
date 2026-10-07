@@ -318,7 +318,16 @@ The exported row and domain checks also apply. See the
 
 The selected profile remains `b = 2`, `k_rho = 16`, `B = 2^16`, with one fresh
 claim and sixteen carried claims. Terminal verification checks all remaining
-openings. A production compression backend is outside this crate goal.
+openings.
+
+`Prover::finish_with_spartan` compresses an active proof. It runs PiCCS and
+PiRLC once more and stops before PiDEC (SuperNeo Lemma 1). The `neo-spartan`
+crate then proves the folded CE(B) claim with sum-checks and WHIR, so the final
+proof carries no witness. `Verifier::verify` accepts the result. In the
+production test, one fold gives a 918,934-byte final proof, against 221,738,816
+bytes for the accumulator proof. The verifier still reads the commitment key
+and the matrix rows (9.8 s on CPU). Setup commitments and a smaller recursive
+proof are later milestones.
 
 The independent Rust Poseidon2 application supplies the first comparison with
 the existing Lean package. Exact comparisons are implementation evidence, not

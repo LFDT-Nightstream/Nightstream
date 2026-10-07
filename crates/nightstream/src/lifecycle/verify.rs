@@ -17,6 +17,7 @@ use super::{
     check_pi_ccs_v1_1_canonical_children, encode_pi_ccs_v1_1_public_input, pi_ccs_v1_1_state_hash,
     serialize_pi_ccs_v1_1_state_preimage, PiCcsV1_1PackageBridgeError, PreparedLifecycle, Stage1Envelope, Stage1State,
 };
+use crate::folding::{CcsClaim, CeClaim};
 
 #[derive(Debug, thiserror::Error)]
 pub enum VerifyError {
@@ -38,6 +39,10 @@ pub enum VerifyError {
     RunningOpenings(#[source] PiCcsError),
     #[error("selected terminal fresh CCS relation: {0}")]
     FreshRelation(#[source] SuperneoCachedRelationError),
+    #[error("final proof layer 0: {0}")]
+    Layer0(#[source] crate::folding::Error),
+    #[error("final proof layer 1: {0}")]
+    Layer1(#[source] neo_spartan::Error),
 }
 
 impl PreparedLifecycle {
@@ -61,53 +66,20 @@ impl PreparedLifecycle {
             }
             return Ok(());
         }
-        if expected_state.iteration() == 0 {
-            return Err(VerifyError::Statement("an active proof requires a positive iteration"));
-        }
         let running = envelope
             .running()
             .ok_or(VerifyError::Statement("missing running payload"))?;
         let fresh = envelope
             .fresh()
             .ok_or(VerifyError::Statement("missing fresh payload"))?;
-        if running.claims.len() != PI_DEC_V1_1_CHILD_COUNT || running.witnesses.len() != PI_DEC_V1_1_CHILD_COUNT {
+        if running.witnesses.len() != PI_DEC_V1_1_CHILD_COUNT {
             return Err(VerifyError::Statement(
-                "running claim or witness count differs from the selected profile",
+                "running witness count differs from the selected profile",
             ));
         }
-        let public_width = self.package.logical_public_input_count();
+        self.check_statement(expected_state, &running.claims, &fresh.claim)?;
         let point = &running.claims[0].r;
         for (index, (claim, witness)) in running.claims.iter().zip(&running.witnesses).enumerate() {
-            if claim.adv.is_some() {
-                return Err(VerifyError::Running {
-                    index,
-                    reason: "plain claims cannot carry auxiliary commitments",
-                });
-            }
-            if !commitment_has_selected_shape(&claim.c) || claim.m_in != public_width {
-                return Err(VerifyError::Running {
-                    index,
-                    reason: "commitment or public-input shape",
-                });
-            }
-            if claim.r.len() != PI_CCS_V1_1_ROUND_COUNT || claim.r.as_slice() != point.as_slice() {
-                return Err(VerifyError::Running {
-                    index,
-                    reason: "running claims must share the selected evaluation point",
-                });
-            }
-            if !evaluation_has_selected_shape(&claim.eval_k)
-                || claim.eval_a.len() != self.structure.t()
-                || claim
-                    .eval_a
-                    .iter()
-                    .any(|values| !evaluation_has_selected_shape(values))
-            {
-                return Err(VerifyError::Running {
-                    index,
-                    reason: "evaluation shape or nonzero surplus coefficients",
-                });
-            }
             let projected = project_x_from_witness_mat(witness, self.structure.m, claim.m_in).map_err(|_| {
                 VerifyError::Running {
                     index,
@@ -120,41 +92,6 @@ impl PreparedLifecycle {
                     reason: "witness public projection differs from X",
                 });
             }
-        }
-        if fresh.claim.adv.is_some() {
-            return Err(VerifyError::Fresh("plain claims cannot carry auxiliary commitments"));
-        }
-        if !commitment_has_selected_shape(&fresh.claim.c)
-            || fresh.claim.m_in != public_width
-            || fresh.claim.x.len() != public_width
-        {
-            return Err(VerifyError::Fresh("commitment or public-input shape"));
-        }
-
-        // The state hash binds only the parent public input; the decider
-        // accepts only children that are its canonical split.
-        check_pi_ccs_v1_1_canonical_children(&running.claims)?;
-        // The formal terminal preimage contains the semantic running claims,
-        // not parent_authority or fold_digest.
-        let preimage = serialize_pi_ccs_v1_1_state_preimage(
-            self.binding.verifier_context().digest().map(F::from_u64),
-            expected_state.iteration(),
-            expected_state.z0(),
-            expected_state.current(),
-            &running.claims,
-        )?;
-        let public = encode_pi_ccs_v1_1_public_input(pi_ccs_v1_1_state_hash(&preimage)?)?;
-        if fresh
-            .claim
-            .x
-            .iter()
-            .zip(&public)
-            .any(|(actual, expected)| actual.as_canonical_u64() != *expected)
-            || fresh.claim.x.len() != public.len()
-        {
-            return Err(VerifyError::Fresh(
-                "public input differs from the recomputed terminal state hash",
-            ));
         }
         validate_fresh_witness_tail_zero(&fresh.witness.Z, self.structure.m, "selected terminal")
             .map_err(|_| VerifyError::Fresh("complete witness shape or nonzero fresh completion tail"))?;
@@ -244,6 +181,97 @@ impl PreparedLifecycle {
             }
         }
         Ok(())
+    }
+}
+
+impl PreparedLifecycle {
+    /// The witness-free part of `Terminal.HoldsFor` for an active proof: the
+    /// shapes of the 16 running claims and the fresh claim, their shared
+    /// point, the canonical child split, and the fresh public input against
+    /// the recomputed state hash. Returns that state digest.
+    pub(super) fn check_statement(
+        &self,
+        expected_state: &Stage1State,
+        claims: &[CeClaim],
+        fresh: &CcsClaim,
+    ) -> Result<[u64; 4], VerifyError> {
+        if expected_state.iteration() == 0 || expected_state.iteration() >= F::ORDER_U64 {
+            return Err(VerifyError::Statement(
+                "an active proof requires a positive canonical iteration",
+            ));
+        }
+        if claims.len() != PI_DEC_V1_1_CHILD_COUNT {
+            return Err(VerifyError::Statement(
+                "running claim count differs from the selected profile",
+            ));
+        }
+        let public_width = self.package.logical_public_input_count();
+        let point = &claims[0].r;
+        for (index, claim) in claims.iter().enumerate() {
+            if claim.adv.is_some() {
+                return Err(VerifyError::Running {
+                    index,
+                    reason: "plain claims cannot carry auxiliary commitments",
+                });
+            }
+            if !commitment_has_selected_shape(&claim.c) || claim.m_in != public_width {
+                return Err(VerifyError::Running {
+                    index,
+                    reason: "commitment or public-input shape",
+                });
+            }
+            if claim.r.len() != PI_CCS_V1_1_ROUND_COUNT || claim.r.as_slice() != point.as_slice() {
+                return Err(VerifyError::Running {
+                    index,
+                    reason: "running claims must share the selected evaluation point",
+                });
+            }
+            if !evaluation_has_selected_shape(&claim.eval_k)
+                || claim.eval_a.len() != self.structure.t()
+                || claim
+                    .eval_a
+                    .iter()
+                    .any(|values| !evaluation_has_selected_shape(values))
+            {
+                return Err(VerifyError::Running {
+                    index,
+                    reason: "evaluation shape or nonzero surplus coefficients",
+                });
+            }
+        }
+        if fresh.adv.is_some() {
+            return Err(VerifyError::Fresh("plain claims cannot carry auxiliary commitments"));
+        }
+        if !commitment_has_selected_shape(&fresh.c) || fresh.m_in != public_width || fresh.x.len() != public_width {
+            return Err(VerifyError::Fresh("commitment or public-input shape"));
+        }
+
+        // The state hash binds only the parent public input; the decider
+        // accepts only children that are its canonical split.
+        check_pi_ccs_v1_1_canonical_children(claims)?;
+        // The formal terminal preimage contains the semantic running claims,
+        // not parent_authority or fold_digest.
+        let preimage = serialize_pi_ccs_v1_1_state_preimage(
+            self.binding.verifier_context().digest().map(F::from_u64),
+            expected_state.iteration(),
+            expected_state.z0(),
+            expected_state.current(),
+            claims,
+        )?;
+        let digest = pi_ccs_v1_1_state_hash(&preimage)?;
+        let public = encode_pi_ccs_v1_1_public_input(digest)?;
+        if fresh
+            .x
+            .iter()
+            .zip(&public)
+            .any(|(actual, expected)| actual.as_canonical_u64() != *expected)
+            || fresh.x.len() != public.len()
+        {
+            return Err(VerifyError::Fresh(
+                "public input differs from the recomputed terminal state hash",
+            ));
+        }
+        Ok(digest)
     }
 }
 

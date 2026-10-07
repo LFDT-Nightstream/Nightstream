@@ -35,5 +35,5 @@ pub trait TranscriptProtocol {
     fn absorb_public_fields(&mut self, label: &'static [u8], fs: &[F]);
 }
 
-pub use poseidon2::{fold_domain_chunk_v1_1, Poseidon2Transcript};
+pub use poseidon2::{domain_chunk_v1_1, fold_domain_chunk_v1_1, Poseidon2Transcript};
 pub use rng::{TranscriptRng, TranscriptRngBuilder};

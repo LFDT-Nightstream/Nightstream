@@ -32,6 +32,7 @@ neo-ccs = { path = "../neo-ccs" }
 neo-ajtai = { path = "../neo-ajtai" }
 neo-transcript = { path = "../neo-transcript" }
 neo-reductions = { path = "../neo-reductions" }
+neo-spartan = { path = "../neo-spartan" }
 p3-field = { workspace = true }
 p3-goldilocks = { workspace = true }
 serde = { workspace = true }

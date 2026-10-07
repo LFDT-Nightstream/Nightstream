@@ -19,10 +19,9 @@ Outputs:
 - the post-round transcript state.
 
 Constraint groups:
-- C1: absorb `len(round-index || coefficients)` for each indexed round;
-- C2: absorb label `[3, i]`;
-- C3: derive `r_i` from the next Duplex squeeze;
-- C4: expose the owned final eight-lane state.
+- C1: absorb the round coefficients, with no index and no length prefix;
+- C2: read `r_i` from rate lanes 0 and 1 of the state after that absorb;
+- C3: expose the owned final state.
 
 Parent coverage:
 - the round suffix of `v1_1.Coverage.transcript`;
@@ -81,10 +80,8 @@ def serializeRoundExpr {degreeBound : Nat} (round : Message degreeBound) :
     List Expr :=
   serializeKExprs (List.ofFn round.coefficient)
 
-def constantWords (words : List F) : List Expr := words.map Expr.const
-
-def blockExpr (words : List Expr) : List Expr :=
-  Expr.const (NightstreamFPrime.Lifecycle.natWord words.length) :: words
+/-- Every round coin is the first lane pair of the state after its absorb. -/
+def roundCoinPair : Read.Pair := ⟨0, by decide⟩
 
 /-- One paper round with an explicit expected sample. Layout uses zero only to
 fix positions; production uses the compiler-owned sample at this position. -/
@@ -92,13 +89,8 @@ def roundActionsWithExpected {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat)
     (roundIndex : Fin productionShape.cubeVariables)
     (expected : KExpr) : List Formal.Action :=
-  let round := interface.round offset roundIndex
-  [.absorb (blockExpr
-      (Expr.const (NightstreamFPrime.Lifecycle.natWord roundIndex.val) ::
-        serializeRoundExpr round)),
-    .absorb (constantWords (NightstreamFPrime.Lifecycle.Transcript.labelWord
-      (.sumcheck roundIndex))),
-    .squeezeK expected]
+  [.absorb (serializeRoundExpr (interface.round offset roundIndex)),
+    .readK roundCoinPair expected]
 
 def layoutActions {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat) : List Formal.Action :=
@@ -142,11 +134,11 @@ theorem layoutWiring_samples_eq {degreeBound : Nat}
     _ = (layoutProgram interface offset).samples := by
       rfl
 
-private theorem layoutActions_squeezeCount {degreeBound : Nat}
+private theorem layoutActions_readCount {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat) :
     ((layoutActions interface offset).filterMap fun action => match action with
       | .absorb _ => none
-      | .squeezeK _ => some ()).length =
+      | .readK _ _ => some ()).length =
       (canonicalFinIndices productionShape.cubeVariables).length := by
   unfold layoutActions
   generalize canonicalFinIndices productionShape.cubeVariables = indices
@@ -166,7 +158,7 @@ private theorem layoutActions_squeezeCount {degreeBound : Nat}
   rw [Formal.compile_samples_length]
   calc
     _ = (canonicalFinIndices productionShape.cubeVariables).length :=
-      layoutActions_squeezeCount interface offset
+      layoutActions_readCount interface offset
     _ = 28 := canonicalFinIndices_length productionShape.cubeVariables
 
 @[simp] theorem layoutWiring_samples_length {degreeBound : Nat}
@@ -410,21 +402,8 @@ private theorem layoutRoundActions_below {degreeBound : Nat}
   intro action member
   simp only [roundActionsWithExpected, List.mem_cons, List.not_mem_nil,
     or_false] at member
-  rcases member with rfl | rfl | rfl
-  · intro expression expressionMember
-    unfold blockExpr at expressionMember
-    rw [List.mem_cons] at expressionMember
-    rcases expressionMember with rfl | expressionMember
-    · trivial
-    rw [List.mem_cons] at expressionMember
-    rcases expressionMember with rfl | expressionMember
-    · trivial
-    exact serializeRoundExpr_below interface offset assumptions roundIndex
-      expression expressionMember
-  · intro expression expressionMember
-    simp [constantWords] at expressionMember
-    rcases expressionMember with ⟨_, _, rfl⟩
-    trivial
+  rcases member with rfl | rfl
+  · exact serializeRoundExpr_below interface offset assumptions roundIndex
   · exact ⟨trivial, trivial⟩
 
 theorem layoutActions_below {degreeBound : Nat}
@@ -455,10 +434,6 @@ def SpecHolds {degreeBound : Nat}
     (evalRoundPoint interface offset env)
     (evalState env (finalState interface offset))
 
-private theorem eval_constantWords (env : Env) (words : List F) :
-    Hash.evalList env (constantWords words) = words := by
-  simp [Hash.evalList, constantWords, Function.comp_def]
-
 private theorem eval_serializeKExprs (env : Env) (values : List KExpr) :
     Hash.evalList env (serializeKExprs values) =
       (values.map (KExpr.eval env)).flatMap
@@ -488,24 +463,6 @@ private theorem eval_serializeRoundExpr {degreeBound : Nat}
   rw [eval_serializeKExprs]
   rfl
 
-private theorem eval_roundPayload {degreeBound : Nat}
-    (env : Env) (roundIndex : Fin productionShape.cubeVariables)
-    (round : Message degreeBound) :
-    Hash.evalList env
-        (Expr.const (NightstreamFPrime.Lifecycle.natWord roundIndex.val) ::
-          serializeRoundExpr round) =
-      NightstreamFPrime.Lifecycle.natWord roundIndex.val ::
-        NightstreamFPrime.Lifecycle.Transcript.serializeMessage
-          (round.semanticPolynomial env).toMessage := by
-  simpa [Hash.evalList] using congrArg
-    (List.cons (NightstreamFPrime.Lifecycle.natWord roundIndex.val))
-    (eval_serializeRoundExpr env round)
-
-private theorem eval_blockExpr (env : Env) (words : List Expr) :
-    Hash.evalList env (blockExpr words) =
-      NightstreamFPrime.Lifecycle.block (Hash.evalList env words) := by
-  simp [Hash.evalList, blockExpr, NightstreamFPrime.Lifecycle.block]
-
 private theorem roundActions_trace_iff {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat) (env : Env)
     (state final : State)
@@ -521,18 +478,14 @@ private theorem roundActions_trace_iff {degreeBound : Nat}
         Formal.TraceHolds sample.2
           (tail.map (Formal.Action.eval env)) final := by
   simp [roundActions, roundActionsWithExpected, Formal.Action.eval,
-    Formal.TraceHolds,
-    eval_constantWords, eval_blockExpr, eval_roundPayload,
-    semanticRounds, oracle,
+    Formal.TraceHolds, eval_serializeRoundExpr, semanticRounds, oracle,
+    roundCoinPair,
     NightstreamFPrime.Lifecycle.Transcript.piCcsOracle,
+    NightstreamFPrime.Lifecycle.Transcript.squeezeAt,
+    NightstreamFPrime.Lifecycle.Transcript.coinPosition,
+    NightstreamFPrime.Gadgets.Poseidon2.Duplex.Read.referenceSample,
     NightstreamFPrime.Gadgets.Poseidon2.Duplex.Absorb.reference,
-    NightstreamFPrime.Lifecycle.Transcript.absorb,
-    NightstreamFPrime.Lifecycle.Transcript.absorbBlock,
-    NightstreamFPrime.Lifecycle.block,
-    NightstreamFPrime.Gadgets.Poseidon2.Duplex.Squeeze.referenceSample,
-    NightstreamFPrime.Gadgets.Poseidon2.Duplex.Squeeze.referenceState,
-    NightstreamFPrime.Lifecycle.Transcript.squeezeK,
-    NightstreamFPrime.Lifecycle.Transcript.squeezeF, Hash.inputChunks]
+    NightstreamFPrime.Lifecycle.Transcript.absorb, Hash.inputChunks]
 
 private theorem rounds_trace_iff {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat) (env : Env)
@@ -838,7 +791,7 @@ private theorem actions_length_list {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat)
     (indices : List (Fin productionShape.cubeVariables)) :
     (indices.flatMap fun roundIndex =>
-      roundActions interface offset roundIndex).length = 3 * indices.length := by
+      roundActions interface offset roundIndex).length = 2 * indices.length := by
   induction indices with
   | nil => rfl
   | cons roundIndex indices inductionHypothesis =>
@@ -848,12 +801,12 @@ private theorem actions_length_list {degreeBound : Nat}
 
 theorem actions_length {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat) :
-    (actions interface offset).length = 84 := by
+    (actions interface offset).length = 56 := by
   rw [actions, actions_length_list, canonicalFinIndices_length]
   rfl
 
 def perRoundRecipeCount (degreeBound : Nat) : Nat :=
-  (((2 * degreeBound + 15) / 12) + 3) * 1096
+  ((2 * degreeBound + 13) / 12) * 1096
 
 private theorem serializeKExprs_length (values : List KExpr) :
     (serializeKExprs values).length = 2 * values.length := by
@@ -881,39 +834,13 @@ private theorem absorb_recipeCount (input : List Expr) :
   change (Hash.inputChunks input).length * 1096 = _
   rw [inputChunks_length]
 
-private theorem constantWords_length (words : List F) :
-    (constantWords words).length = words.length := by
-  simp [constantWords]
-
-private theorem blockExpr_length (words : List Expr) :
-    (blockExpr words).length = words.length + 1 := by
-  simp [blockExpr]
-
-private theorem roundPayload_length {degreeBound : Nat}
-    (roundIndex : Fin productionShape.cubeVariables)
-    (round : Message degreeBound) :
-    (Expr.const (NightstreamFPrime.Lifecycle.natWord roundIndex.val) ::
-      serializeRoundExpr round).length = 2 * degreeBound + 3 := by
-  rw [List.length_cons, serializeRoundExpr_length]
-  omega
-
 private theorem messageAbsorb_recipeCount {degreeBound : Nat}
-    (roundIndex : Fin productionShape.cubeVariables)
     (round : Message degreeBound) :
-    Formal.Action.recipeCount (.absorb (blockExpr
-      (Expr.const (NightstreamFPrime.Lifecycle.natWord roundIndex.val) ::
-        serializeRoundExpr round))) =
-      ((2 * degreeBound + 15) / 12) * 1096 := by
-  rw [absorb_recipeCount, blockExpr_length,
-    roundPayload_length roundIndex round]
-
-private theorem labelAbsorb_recipeCount
-    (roundIndex : Fin productionShape.cubeVariables) :
-    Formal.Action.recipeCount (.absorb (constantWords
-      (NightstreamFPrime.Lifecycle.Transcript.labelWord
-        (.sumcheck roundIndex)))) = 1096 := by
-  rw [absorb_recipeCount, constantWords_length]
-  simp [NightstreamFPrime.Lifecycle.Transcript.labelWord]
+    Formal.Action.recipeCount (.absorb (serializeRoundExpr round)) =
+      ((2 * degreeBound + 13) / 12) * 1096 := by
+  rw [absorb_recipeCount, serializeRoundExpr_length]
+  have words : 2 * (degreeBound + 1) + 11 = 2 * degreeBound + 13 := by omega
+  rw [words]
 
 private theorem roundActions_recipeCount {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat)
@@ -922,11 +849,10 @@ private theorem roundActions_recipeCount {degreeBound : Nat}
       perRoundRecipeCount degreeBound := by
   unfold roundActions
   unfold roundActionsWithExpected
-  dsimp only
   unfold Formal.recipeCount
   simp only [List.map_cons, List.map_nil, List.sum_cons, List.sum_nil,
     Nat.add_zero]
-  rw [messageAbsorb_recipeCount, labelAbsorb_recipeCount]
+  rw [messageAbsorb_recipeCount]
   simp only [Formal.Action.recipeCount]
   unfold perRoundRecipeCount
   omega

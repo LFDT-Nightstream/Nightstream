@@ -108,14 +108,16 @@ private theorem pointWord_eq_piCcs
         (PiCCSTranscriptOutputForms.pointSource coordinate component) := by
   have before : PiCCSTranscriptOutputForms.pointSource coordinate component <
       PiRLCInputs.phaseOffset := by
-    have bound : (PiCCSTranscriptOutputForms.pointInvocation coordinate component).val <
-        355 := by
+    have bound : (PiCCSTranscriptOutputForms.pointInvocation coordinate).val <
+        183 := by
       simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq] using
-        (PiCCSTranscriptOutputForms.pointInvocation coordinate component).isLt
+        (PiCCSTranscriptOutputForms.pointInvocation coordinate).isLt
+    have laneBound := (PiCCSTranscriptOutputForms.pointLane component).isLt
     rw [PiCCSTranscriptOutputForms.pointSource_eq_transcriptSource]
     unfold PiCCSTranscriptOutputForms.transcriptSource
       PiCCSTranscriptOutputForms.transcriptSourceStart
     rw [PiCCSInputs.phaseOffset_eq]
+    norm_num [Poseidon2.width] at laneBound
     norm_num [PiRLCInputs.phaseOffset]
     omega
   apply decodedEnv_beforePiRLC geometry assignment _ before

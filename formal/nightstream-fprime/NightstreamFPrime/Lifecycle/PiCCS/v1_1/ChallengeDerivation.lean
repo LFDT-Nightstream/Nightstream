@@ -14,15 +14,16 @@ Outputs:
 - the state immediately before the first SumCheck round message.
 
 Constraint groups:
-- C1: absorb label `[1, i]`, then derive `α_i` from one Duplex squeeze;
-- C2: absorb label `[2]`, then derive `γ` from one Duplex squeeze.
+- C1: read `α_i` from rate lane pair `i mod 6`;
+- C2: read `γ` from the next lane pair;
+- C3: after each sixth read, absorb one zero chunk (one permutation).
 
 Parent coverage:
 - the pre-SumCheck prefix of `v1_1.Coverage.transcript`;
 - `Key.piCcsExecution.coins.alpha` and `.gamma`.
 
 No challenge is an unconstrained witness value. The generic Duplex child owns
-all Poseidon2 operations. This leaf owns only labels, order, and wiring.
+all Poseidon2 operations. This leaf owns only read order and wiring.
 -/
 
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation
@@ -50,11 +51,24 @@ structure Interface where
 
 def constantWords (words : List F) : List Expr := words.map Expr.const
 
+/-- The rate lane pair that holds the coin of `label`. -/
+def coinPair (label : FiatShamir.ChallengeLabel productionShape) : Read.Pair :=
+  ⟨NightstreamFPrime.Lifecycle.Transcript.coinPosition label %
+      NightstreamFPrime.Lifecycle.Transcript.coinsPerChunk,
+    Nat.mod_lt _ (by decide)⟩
+
+/-- One zero-chunk absorb after the sixth read of a state, else nothing. -/
+def refreshActions (label : FiatShamir.ChallengeLabel productionShape) :
+    List Formal.Action :=
+  if NightstreamFPrime.Lifecycle.Transcript.coinPosition label %
+      NightstreamFPrime.Lifecycle.Transcript.coinsPerChunk =
+      NightstreamFPrime.Lifecycle.Transcript.coinsPerChunk - 1 then
+    [.absorb (constantWords NightstreamFPrime.Lifecycle.Transcript.zeroChunk)]
+  else []
+
 def labelActions (label : FiatShamir.ChallengeLabel productionShape)
     (expected : KExpr) : List Formal.Action :=
-  [.absorb (constantWords
-      (NightstreamFPrime.Lifecycle.Transcript.labelWord label)),
-    .squeezeK expected]
+  .readK (coinPair label) expected :: refreshActions label
 
 /-- Pair labels and samples without copying a fixed constraint block. -/
 def labelledActions :
@@ -140,6 +154,22 @@ private theorem productionCubeVariables_eq :
     productionShape.cubeVariables = 28 := by
   rfl
 
+private theorem refreshActions_expectedSamples
+    (label : FiatShamir.ChallengeLabel productionShape)
+    (rest : List Formal.Action) :
+    Formal.expectedSamples (refreshActions label ++ rest) =
+      Formal.expectedSamples rest := by
+  unfold refreshActions
+  split <;> rfl
+
+private theorem refreshActions_readCount
+    (label : FiatShamir.ChallengeLabel productionShape) :
+    ((refreshActions label).filterMap fun action => match action with
+      | .absorb _ => none
+      | .readK _ _ => some ()) = [] := by
+  unfold refreshActions
+  split <;> rfl
+
 private theorem labelledActions_expectedSamples
     (labels : List (FiatShamir.ChallengeLabel productionShape))
     (samples : List KExpr) (sameLength : samples.length = labels.length) :
@@ -154,7 +184,8 @@ private theorem labelledActions_expectedSamples
       | nil => simp at sameLength
       | cons sample samples =>
           simp only [List.length_cons, Nat.succ.injEq] at sameLength
-          simp [labelledActions, labelActions, Formal.expectedSamples,
+          simp only [labelledActions, labelActions, List.cons_append,
+            Formal.expectedSamples, refreshActions_expectedSamples,
             inductionHypothesis samples sameLength]
 
 private theorem labelledActions_shape_eq
@@ -183,12 +214,12 @@ private theorem labelledActions_shape_eq
               simp [labelledActions, labelActions, Formal.Action.shape,
                 inductionHypothesis left right leftLength rightLength]
 
-private theorem labelledActions_squeezeCount
+private theorem labelledActions_readCount
     (labels : List (FiatShamir.ChallengeLabel productionShape))
     (samples : List KExpr) (sameLength : samples.length = labels.length) :
     ((labelledActions labels samples).filterMap fun action => match action with
       | .absorb _ => none
-      | .squeezeK _ => some ()).length = labels.length := by
+      | .readK _ _ => some ()).length = labels.length := by
   induction labels generalizing samples with
   | nil =>
       have : samples = [] := List.eq_nil_of_length_eq_zero sameLength
@@ -199,27 +230,8 @@ private theorem labelledActions_squeezeCount
       | nil => simp at sameLength
       | cons sample samples =>
           simp only [List.length_cons, Nat.succ.injEq] at sameLength
-          simp [labelledActions, labelActions,
-            inductionHypothesis samples sameLength]
-
-private theorem labelledActions_length
-    (labels : List (FiatShamir.ChallengeLabel productionShape))
-    (samples : List KExpr) (sameLength : samples.length = labels.length) :
-    (labelledActions labels samples).length = labels.length * 2 := by
-  induction labels generalizing samples with
-  | nil =>
-      have : samples = [] := List.eq_nil_of_length_eq_zero sameLength
-      subst samples
-      rfl
-  | cons label labels inductionHypothesis =>
-      cases samples with
-      | nil => simp at sameLength
-      | cons sample samples =>
-          simp only [List.length_cons, Nat.succ.injEq] at sameLength
-          rw [labelledActions, List.length_append,
-            inductionHypothesis samples sameLength]
-          simp [labelActions]
-          omega
+          simp [labelledActions, labelActions, List.filterMap_append,
+            refreshActions_readCount, inductionHypothesis samples sameLength]
 
 private theorem labelledActions_append
     (leftLabels rightLabels :
@@ -251,9 +263,9 @@ private theorem labelledActions_append
   calc
     ((layoutActions.filterMap fun action => match action with
       | .absorb _ => none
-      | .squeezeK _ => some ()).length) = challengeLabels.length := by
+      | .readK _ _ => some ()).length) = challengeLabels.length := by
         unfold layoutActions
-        apply labelledActions_squeezeCount
+        apply labelledActions_readCount
         simp [challengeLabels_length]
     _ = 29 := challengeLabels_length
 
@@ -492,13 +504,16 @@ private theorem labelActions_zero_below
     (label : FiatShamir.ChallengeLabel productionShape) (offset : Nat) :
     Formal.ActionsBelow offset (labelActions label KExpr.zero) := by
   intro action member
-  simp only [labelActions, List.mem_cons, List.not_mem_nil, or_false] at member
-  rcases member with rfl | rfl
-  · intro expression expressionMember
-    simp [constantWords] at expressionMember
-    rcases expressionMember with ⟨_, _, rfl⟩
-    trivial
+  simp only [labelActions, refreshActions, List.mem_cons] at member
+  rcases member with rfl | member
   · exact ⟨trivial, trivial⟩
+  · split at member
+    · simp only [List.mem_singleton] at member
+      subst member
+      intro expression expressionMember
+      obtain ⟨_, _, rfl⟩ := List.mem_map.mp expressionMember
+      trivial
+    · simp at member
 
 private theorem labelledActions_zero_below
     (labels : List (FiatShamir.ChallengeLabel productionShape))
@@ -579,15 +594,16 @@ private theorem labelActions_trace_iff
       expected.eval env = (oracle.squeeze state label).1 ∧
         Formal.TraceHolds (oracle.squeeze state label).2
           (tail.map (Formal.Action.eval env)) final := by
-  simp [labelActions, Formal.Action.eval, Formal.TraceHolds,
-    eval_constantWords, oracle,
+  unfold labelActions refreshActions
+  by_cases last :
+      NightstreamFPrime.Lifecycle.Transcript.coinPosition label % 6 = 5 <;>
+  simp [last, Formal.Action.eval, Formal.TraceHolds,
+    eval_constantWords, oracle, coinPair,
     NightstreamFPrime.Lifecycle.Transcript.piCcsOracle,
+    NightstreamFPrime.Lifecycle.Transcript.squeezeAt,
+    NightstreamFPrime.Gadgets.Poseidon2.Duplex.Read.referenceSample,
     NightstreamFPrime.Gadgets.Poseidon2.Duplex.Absorb.reference,
-    NightstreamFPrime.Lifecycle.Transcript.absorb,
-    NightstreamFPrime.Gadgets.Poseidon2.Duplex.Squeeze.referenceSample,
-    NightstreamFPrime.Gadgets.Poseidon2.Duplex.Squeeze.referenceState,
-    NightstreamFPrime.Lifecycle.Transcript.squeezeK,
-    NightstreamFPrime.Lifecycle.Transcript.squeezeF, Hash.inputChunks]
+    NightstreamFPrime.Lifecycle.Transcript.absorb, Hash.inputChunks]
 
 private theorem labelActions_trace_terminal_iff
     (env : Env) (state final : State)
@@ -690,10 +706,14 @@ private theorem trace_iff_specHolds
   rw [labelActions_trace_terminal_iff]
   constructor
   · rintro ⟨alphaEq, gammaEq, finalEq⟩
-    refine ⟨?_, gammaEq, finalEq.symm⟩
-    exact cubePoint_eq_of_coordinates _ _ alphaEq
+    refine ⟨cubePoint_eq_of_coordinates _ _ alphaEq, gammaEq, ?_⟩
+    dsimp only [NightstreamFPrime.Spec.Folding.PiCCS.Transcript.deriveFromState]
+    exact finalEq.symm
   · rintro ⟨alphaEq, gammaEq, finalEq⟩
-    exact ⟨congrArg CubePoint.coordinates alphaEq, gammaEq, finalEq.symm⟩
+    refine ⟨congrArg CubePoint.coordinates alphaEq, gammaEq, ?_⟩
+    dsimp only [NightstreamFPrime.Spec.Folding.PiCCS.Transcript.deriveFromState]
+      at finalEq
+    exact finalEq.symm
 
 theorem trace_implies_specHolds
     (interface : Interface) (offset : Nat) (env : Env)
@@ -910,69 +930,42 @@ theorem alphaSchedule_length (interface : Interface) (offset : Nat) :
   norm_num [FiatShamir.alphaLabels, canonicalFinIndices_length,
     productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
 
-/-- The leaf has 28 label/squeeze pairs for `α` and one for `γ`. -/
+/-- The leaf reads 29 coins and permutes after reads 6, 12, 18 and 24. -/
 theorem actions_length (interface : Interface) (offset : Nat) :
-    (actions interface offset).length = 58 := by
-  rw [actions_eq_labelled]
-  rw [labelledActions_length]
-  · norm_num [challengeLabels_length]
-  · exact layoutProgram_samples_length interface offset |>.trans
-      challengeLabels_length.symm
+    (actions interface offset).length = 33 := by
+  have lengths := congrArg List.length (actions_shape_eq_layout interface offset)
+  simp only [List.length_map] at lengths
+  rw [lengths]
+  rfl
 
-private theorem labelActions_recipeCount
-    (label : FiatShamir.ChallengeLabel productionShape)
-    (expected : KExpr) :
-    Formal.recipeCount (labelActions label expected) = 3288 := by
-  cases label <;>
-    norm_num [labelActions, constantWords, Formal.recipeCount,
-      Formal.Action.recipeCount, Hash.inputChunks,
-      NightstreamFPrime.Lifecycle.Transcript.labelWord, Poseidon2.rate]
-
-private theorem labelledActions_recipeCount
-    (labels : List (FiatShamir.ChallengeLabel productionShape))
-    (samples : List KExpr) (sameLength : samples.length = labels.length) :
-    Formal.recipeCount (labelledActions labels samples) =
-      labels.length * 3288 := by
-  induction labels generalizing samples with
-  | nil =>
-      have : samples = [] := List.eq_nil_of_length_eq_zero sameLength
-      subst samples
-      rfl
-  | cons label labels inductionHypothesis =>
-      cases samples with
-      | nil => simp at sameLength
-      | cons sample samples =>
-          simp only [List.length_cons, Nat.succ.injEq] at sameLength
-          rw [labelledActions, Formal.recipeCount_append,
-            labelActions_recipeCount,
-            inductionHypothesis samples sameLength]
-          simp only [List.length_cons, Nat.succ_mul]
-          omega
+/-- Four zero-chunk permutations; a read allocates nothing. -/
+theorem layoutActions_recipeCount :
+    Formal.recipeCount layoutActions = 4384 := by
+  rfl
 
 def recipeCount (interface : Interface) (offset : Nat) : Nat :=
   Formal.recipeCount (actions interface offset)
 
-/-- Exact private symbolic footprint: 29 labelled squeezes and their label
-absorptions compile to 95,352 recipe variables. -/
+/-- Exact private symbolic footprint: 29 reads and four zero-chunk
+permutations compile to 4,384 recipe variables. -/
 theorem recipeCount_eq (interface : Interface) (offset : Nat) :
-    recipeCount interface offset = 95352 := by
+    recipeCount interface offset = 4384 := by
   unfold recipeCount
-  rw [actions_eq_labelled]
-  rw [labelledActions_recipeCount]
-  · norm_num [challengeLabels_length]
-  · exact layoutProgram_samples_length interface offset |>.trans
-      challengeLabels_length.symm
+  rw [← Formal.compile_recipes_length offset (interface.initialState offset)]
+  change (program interface offset).recipes.length = 4384
+  rw [(program_shape_eq_layout interface offset).1, layoutProgram,
+    Formal.compile_recipes_length, layoutActions_recipeCount]
 
 @[simp] theorem program_recipes_length (interface : Interface) (offset : Nat) :
-    (program interface offset).recipes.length = 95352 := by
+    (program interface offset).recipes.length = 4384 := by
   change (Formal.compile offset (interface.initialState offset)
-    (actions interface offset)).recipes.length = 95352
+    (actions interface offset)).recipes.length = 4384
   rw [Formal.compile_recipes_length]
   exact recipeCount_eq interface offset
 
 /-- Layout may allocate exactly this private interval and no boundary copy. -/
 theorem localLength_eq (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 95352 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 4384 := by
   rw [circuit_ops, opsAt_localLength, program_recipes_length]
 
 /-- One owned witness operation and no sample or final-state copy operation. -/
@@ -984,7 +977,7 @@ theorem operations_length (interface : Interface) (offset : Nat) :
 /-- One row per causal recipe and no boundary-copy row. -/
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      95352 := by
+      4384 := by
   rw [circuit_ops, flatConstraints_opsAt, recipeConstraints_length,
     program_recipes_length]
 

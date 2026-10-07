@@ -174,7 +174,7 @@ fn v1_1_test_transcript(domain: &[u8]) -> Poseidon2Transcript {
         .iter()
         .map(|byte| F::from_u64(u64::from(*byte)))
         .collect::<Vec<_>>();
-    transcript.absorb_block_v1_1(&domain_fields);
+    transcript.absorb_v1_1(&domain_fields);
     transcript
 }
 

@@ -82,7 +82,7 @@ theorem env_source_of_notTranscript (source : Env) (column : Nat)
 private def physicalIndex (index : Index) :
     Fin PoseidonRetainedBlock.basePackage.permutationInvocations.length :=
   ⟨index.val, by
-    have bound : index.val < 355 := by
+    have bound : index.val < 183 := by
       simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq] using index.isLt
     rw [PoseidonRetainedBlock.basePackage_permutationInvocations_length]
     rw [PoseidonRetainedBlock.laterInvocationCount_eq]
@@ -94,7 +94,7 @@ def invocation (index : Index) : PermutationInvocation :=
 theorem invocation_witnessStart (index : Index) :
     (invocation index).witnessStart =
       PermutationOutput.Readout.witnessStart phaseStart index := by
-  have bound : index.val < 355 := by
+  have bound : index.val < 183 := by
     simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq] using index.isLt
   let selected : Fin (Data.permutationInvocations ()).length :=
     ⟨index.val, by

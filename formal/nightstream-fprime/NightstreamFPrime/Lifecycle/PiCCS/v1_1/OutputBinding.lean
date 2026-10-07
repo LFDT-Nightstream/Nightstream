@@ -19,8 +19,8 @@ Outputs:
 - the transcript state from which `Pi_RLC` samples all 17 challenges.
 
 Constraint groups:
-- C1: one complete length-prefixed output absorption through the generic
-  Duplex circuit;
+- C1: one complete output absorption, with no length prefix, through the
+  generic Duplex circuit;
 - C2: no final-state or reduced-claim copy rows.
 
 Parent coverage:
@@ -171,9 +171,9 @@ theorem outputWords_length (interface : Interface) (offset : Nat) :
   norm_num [productionShape, productionProfile,
     Phi81MatrixSource.phi81Shape, Shape.sourceCount]
 
-/-- One length-prefixed output block is the complete post-SumCheck action. -/
+/-- One output absorb is the complete post-SumCheck action. -/
 def actions (interface : Interface) (offset : Nat) : List Formal.Action :=
-  [StatementAbsorption.absorbBlock (outputWords interface offset)]
+  [.absorb (outputWords interface offset)]
 
 def duplexInterface (interface : Interface) : Formal.Owned.Interface where
   initial := interface.initialState
@@ -271,21 +271,17 @@ private theorem inputChunks_length (input : List Expr) :
   rw [List.length_map, List.length_range]
   rfl
 
-private theorem blockExpr_length (words : List Expr) :
-    (StatementAbsorption.blockExpr words).length = words.length + 1 := by
-  simp [StatementAbsorption.blockExpr]
-
-/-- One 14,689-word length-prefixed block uses 766 Poseidon2 chunks and
-839,536 private recipe variables. -/
+/-- The 9,180 output words use 765 Poseidon2 chunks and 838,440 private
+recipe variables. -/
 theorem recipeCount_eq (interface : Interface) (offset : Nat) :
-    recipeCount interface offset = 839536 := by
-  unfold recipeCount actions StatementAbsorption.absorbBlock
+    recipeCount interface offset = 838440 := by
+  unfold recipeCount actions
   simp only [Formal.recipeCount, List.map_cons, List.map_nil,
     List.sum_cons, List.sum_nil, Nat.add_zero, Formal.Action.recipeCount]
-  rw [inputChunks_length, blockExpr_length, outputWords_length]
+  rw [inputChunks_length, outputWords_length]
 
 theorem localLength_eq (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 839536 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 838440 := by
   change localLength (Formal.Owned.opsAt (duplexInterface interface) offset) = _
   rw [Formal.Owned.opsAt_localLength]
   unfold Formal.Owned.program
@@ -297,22 +293,22 @@ theorem operations_length (interface : Interface) (offset : Nat) :
     (Circuit.ops (circuit interface).main offset).length = 1 := by
   change (Formal.Owned.opsAt (duplexInterface interface) offset).length = 1
   rw [Formal.Owned.operations_length]
-  simp [duplexInterface, actions, StatementAbsorption.absorbBlock,
-    Formal.assertionCount, Formal.Action.assertionCount]
+  simp [duplexInterface, actions, Formal.assertionCount,
+    Formal.Action.assertionCount]
 
 /-- One row per recipe and no final-state row. -/
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      839536 := by
+      838440 := by
   change (flatConstraints
     (Formal.Owned.opsAt (duplexInterface interface) offset)).length = _
   rw [Formal.Owned.flatConstraints_length]
   have recipes : Formal.recipeCount
-      ((duplexInterface interface).actions offset) = 839536 := by
+      ((duplexInterface interface).actions offset) = 838440 := by
     simpa [duplexInterface, recipeCount] using recipeCount_eq interface offset
   rw [recipes]
-  simp [duplexInterface, actions, StatementAbsorption.absorbBlock,
-    Formal.assertionCount, Formal.Action.assertionCount]
+  simp [duplexInterface, actions, Formal.assertionCount,
+    Formal.Action.assertionCount]
 
 def valuePadWords
     (output : FullOutputCoordinates.FullOutput K productionShape)
@@ -432,12 +428,6 @@ theorem outputWords_eval (interface : Interface) (offset : Nat) (env : Env)
   intro source
   exact sourceWords_eval interface offset env output padEq matrixEq source
 
-private theorem reference_block_eq_absorbBlock
-    (state : NightstreamFPrime.Lifecycle.Transcript.State) (words : List F) :
-    Absorb.reference state (NightstreamFPrime.Lifecycle.block words) =
-      NightstreamFPrime.Lifecycle.Transcript.absorbBlock state words := by
-  rfl
-
 /-- Circuit coverage of the verifier-owned outgoing state. The prover
 supplies only `y′`; the final transcript state is recomputed. -/
 theorem spec_implies_keyOutgoingState
@@ -471,45 +461,21 @@ theorem spec_implies_keyOutgoingState
   have trace := specification
   change Absorb.reference
       (List.ofFn (Layer.evalState env (interface.initialState offset)))
-      (Hash.evalList env
-        (StatementAbsorption.blockExpr (outputWords interface offset))) =
+      (Hash.evalList env (outputWords interface offset)) =
     List.ofFn (Layer.evalState env (finalState interface offset)) at trace
-  have wordsEq := outputWords_eval interface offset env proof.piCcsOutput
-    padEq matrixEq
-  have blockEq : Hash.evalList env
-      (StatementAbsorption.blockExpr (outputWords interface offset)) =
-      NightstreamFPrime.Lifecycle.block (valueWords proof.piCcsOutput) := by
-    unfold StatementAbsorption.blockExpr NightstreamFPrime.Lifecycle.block
-    change NightstreamFPrime.Lifecycle.natWord
-        (outputWords interface offset).length ::
-          Hash.evalList env (outputWords interface offset) =
-      NightstreamFPrime.Lifecycle.natWord
-        (valueWords proof.piCcsOutput).length ::
-          valueWords proof.piCcsOutput
-    have lengthEq : (outputWords interface offset).length =
-        (valueWords proof.piCcsOutput).length := by
-      calc
-        (outputWords interface offset).length =
-            (Hash.evalList env (outputWords interface offset)).length := by
-          simp [Hash.evalList]
-        _ = (valueWords proof.piCcsOutput).length :=
-          congrArg List.length wordsEq
-    rw [wordsEq, lengthEq]
-  rw [blockEq] at trace
+  rw [outputWords_eval interface offset env proof.piCcsOutput padEq matrixEq]
+    at trace
   calc
     List.ofFn (Layer.evalState env (finalState interface offset)) =
         Absorb.reference
           (List.ofFn (Layer.evalState env (interface.initialState offset)))
-          (NightstreamFPrime.Lifecycle.block
-            (valueWords proof.piCcsOutput)) := trace.symm
-    _ = NightstreamFPrime.Lifecycle.Transcript.absorbBlock
-          (List.ofFn (Layer.evalState env (interface.initialState offset)))
-          (valueWords proof.piCcsOutput) :=
-      reference_block_eq_absorbBlock _ _
-    _ = NightstreamFPrime.Lifecycle.Transcript.absorbBlock
+          (valueWords proof.piCcsOutput) := trace.symm
+    _ = NightstreamFPrime.Lifecycle.Transcript.absorb
           ((ProductionKey.key relation ajtai).piCcsExecution
             running fresh proof).coins.finalState
-          (valueWords proof.piCcsOutput) := by rw [initialEq]
+          (valueWords proof.piCcsOutput) := by
+      rw [initialEq]
+      rfl
     _ = ProductionKey.absorbFullOutput
           ((ProductionKey.key relation ajtai).piCcsExecution
             running fresh proof).coins.finalState proof.piCcsOutput := by

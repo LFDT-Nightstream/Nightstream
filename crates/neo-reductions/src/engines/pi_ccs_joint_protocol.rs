@@ -7,7 +7,7 @@ use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsStructure, CeClaim};
 use neo_math::{KExtensions, D, F, K};
 use neo_params::NeoParams;
-use neo_transcript::Poseidon2Transcript;
+use neo_transcript::{fold_domain_chunk_v1_1, Poseidon2Transcript};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::engines::pi_ccs_joint::{
@@ -15,6 +15,9 @@ use crate::engines::pi_ccs_joint::{
 };
 use crate::engines::pi_ccs_protocol::{Challenges, PiCcsProof};
 use crate::error::PiCcsError;
+
+const RATE: usize = neo_ccs::crypto::poseidon2_goldilocks::RATE;
+const COINS_PER_CHUNK: usize = RATE / 2;
 
 /// One SuperNeo v1.1 output opening. Pad (`Eval_K`) is separate from the
 /// genuine CCS-matrix family (`Eval_A`).
@@ -50,11 +53,6 @@ impl TranscriptBinding {
     }
 }
 
-const DOMAIN_TAG: &[u64] = &[
-    78, 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47, 83, 117, 112, 101, 114, 78, 101, 111, 47, 80, 105, 67, 67,
-    83, 47, 100, 105, 103, 101, 115, 116, 45, 111, 110, 108, 121, 47, 118, 49, 95, 49,
-];
-
 fn k_fields(output: &mut Vec<F>, value: K) {
     output.extend_from_slice(&value.as_coeffs());
 }
@@ -62,14 +60,6 @@ fn k_fields(output: &mut Vec<F>, value: K) {
 fn append(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, fields: Vec<F>) {
     transcript.absorb_v1_1(&fields);
     trace.events.push(TraceEvent::Absorb(fields));
-}
-
-fn append_block(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, fields: Vec<F>) {
-    transcript.absorb_block_v1_1(&fields);
-    let mut framed = Vec::with_capacity(fields.len() + 1);
-    framed.push(F::from_u64(fields.len() as u64));
-    framed.extend(fields);
-    trace.events.push(TraceEvent::Absorb(framed));
 }
 
 fn prior_digest_fields(running: &[CeClaim<Cmt, F, K>]) -> Result<Vec<F>, PiCcsError> {
@@ -99,17 +89,25 @@ fn prior_digest_fields(running: &[CeClaim<Cmt, F, K>]) -> Result<Vec<F>, PiCcsEr
         .collect()
 }
 
-fn squeeze(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, label: u64, index: Option<usize>) -> K {
-    let fields = match index {
-        Some(index) => vec![F::from_u64(label), F::from_u64(index as u64)],
-        None => vec![F::from_u64(label)],
-    };
-    append(transcript, trace, fields);
-    let sampled = transcript.squeeze_extension_v1_1();
+/// Read the coin at `position` from rate-lane pair `position % 6`. The
+/// label is trace metadata only. After the sixth pair of a state, absorb one
+/// zero chunk.
+fn read_coin(
+    transcript: &mut Poseidon2Transcript,
+    trace: &mut ProtocolTrace,
+    label: u64,
+    index: Option<usize>,
+    position: usize,
+) -> K {
+    let pair = position % COINS_PER_CHUNK;
+    let sampled = transcript.read_pair_v1_1(pair);
     let value = neo_math::from_complex(sampled[0], sampled[1]);
     trace
         .events
         .push(TraceEvent::Challenge { label, index, value });
+    if pair == COINS_PER_CHUNK - 1 {
+        append(transcript, trace, vec![F::ZERO; RATE]);
+    }
     value
 }
 
@@ -210,22 +208,19 @@ pub(crate) fn bind_and_sample_with_trace(
     }
 
     transcript.reset_v1_1();
-    append(
-        transcript,
-        trace,
-        DOMAIN_TAG.iter().map(|&word| F::from_u64(word)).collect(),
-    );
+    append(transcript, trace, fold_domain_chunk_v1_1().to_vec());
 
-    append_block(transcript, trace, prior_digest_fields(running)?);
+    let mut statement = prior_digest_fields(running)?;
     for claim in fresh {
-        append_block(transcript, trace, commitment_fields(&claim.c, params)?);
-        append_block(transcript, trace, claim.x.clone());
+        statement.extend(commitment_fields(&claim.c, params)?);
+        statement.extend_from_slice(&claim.x);
     }
+    append(transcript, trace, statement);
 
     let alpha: Vec<K> = (0..dims.variables)
-        .map(|index| squeeze(transcript, trace, ALPHA_TAG, Some(index)))
+        .map(|index| read_coin(transcript, trace, ALPHA_TAG, Some(index), index))
         .collect();
-    let gamma = squeeze(transcript, trace, GAMMA_TAG, None);
+    let gamma = read_coin(transcript, trace, GAMMA_TAG, None, dims.variables);
     trace.alpha = alpha.clone();
     trace.gamma = gamma;
     trace.pre_sumcheck_state = transcript.state();
@@ -255,12 +250,12 @@ pub fn prove_phase<O: PaperJointRoundOracle + ?Sized>(
             )));
         }
         let coefficients = crate::sumcheck::interpolate_from_evals(&points, &evaluations);
-        let mut fields = vec![F::from_u64(round as u64)];
+        let mut fields = Vec::with_capacity(coefficients.len() * 2);
         for &coefficient in &coefficients {
             k_fields(&mut fields, coefficient);
         }
-        append_block(transcript, trace, fields);
-        let challenge = squeeze(transcript, trace, ROUND_CHALLENGE_TAG, Some(round));
+        append(transcript, trace, fields);
+        let challenge = read_coin(transcript, trace, ROUND_CHALLENGE_TAG, Some(round), 0);
         claim = crate::sumcheck::poly_eval_k(&coefficients, challenge);
         oracle.fold(challenge)?;
         rounds.push(coefficients);
@@ -295,12 +290,12 @@ fn verify_phase(
                 "optimized verifier rejected SumCheck round {round_index}"
             )));
         }
-        let mut fields = vec![F::from_u64(round_index as u64)];
+        let mut fields = Vec::with_capacity(coefficients.len() * 2);
         for &coefficient in coefficients {
             k_fields(&mut fields, coefficient);
         }
-        append_block(transcript, trace, fields);
-        let challenge = squeeze(transcript, trace, ROUND_CHALLENGE_TAG, Some(round_index));
+        append(transcript, trace, fields);
+        let challenge = read_coin(transcript, trace, ROUND_CHALLENGE_TAG, Some(round_index), 0);
         claim = crate::sumcheck::poly_eval_k(coefficients, challenge);
         challenges.push(challenge);
         trace.round_states.push(transcript.state());
@@ -349,7 +344,7 @@ pub fn absorb_outputs(
 ) -> Result<[u8; 32], PiCcsError> {
     let _ = fresh_count;
     let fields = output_message_fields(outputs, dims)?;
-    append_block(transcript, trace, fields);
+    append(transcript, trace, fields);
     trace.outgoing_state = transcript.state();
     let digest = transcript.state_prefix_v1_1();
     trace.final_digest = digest;

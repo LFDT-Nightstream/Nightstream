@@ -38,10 +38,10 @@ rows. Application state has four input words and four output words. The manifest
 exports the existing source-row, source-column, and retained-carrier conditions
 for the `2^28` Nightstream Goldilocks profile with `k_rho = 16`.
 
-The current selected application has 45,140,532 logical coordinates and
-45,140,544 padded coordinates, using 835,936 columns of the unchanged fixed
+The current selected application has 43,963,750 logical coordinates and
+43,963,776 padded coordinates, using 814,144 columns of the unchanged fixed
 key. The approved maximum is 4,708,530 columns. With logical width
-`44915688 + 41 * (witness_words + local_words)`, that maximum permits 5,105,973
+`43738906 + 41 * (witness_words + local_words)`, that maximum permits 5,134,675
 application witness and local fields together. Source rows, source columns,
 and the padded carrier must also fit the declared domain.
 

@@ -150,6 +150,7 @@ private theorem appendChallengeDerivation
       (challengeInterface (atOffset interface offset) offset)
       before.current (challengeOffset interface offset) childAssumptions with
     ⟨built, childAgrees, childRows⟩
+  rw [← ChallengeDerivation.opsAt_localLength] at childAgrees
   rcases appendBuiltAt before "piccs.v1_1.challenge_derivation"
       (challengeCircuit interface offset) (challengeOffset interface offset)
       startEq childScope built childAgrees childRows with

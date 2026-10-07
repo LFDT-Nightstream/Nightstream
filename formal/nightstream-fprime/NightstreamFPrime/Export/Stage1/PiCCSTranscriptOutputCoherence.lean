@@ -91,10 +91,11 @@ theorem pointForm_of_packageRows {application : Program}
         coordinate component).eval raw.assignment =
       PerApplicationPackage.baseEnv application (SourceCompiler.sourceEnv raw.base)
         ((physicalInvocation (PiCCSTranscriptOutputForms.invocation
-          (PiCCSTranscriptOutputForms.pointInvocation coordinate component))).witnessStart +
-          1080) := by
-  simpa only [Nat.add_zero] using! transcriptForm_of_packageRows raw rows
-    (PiCCSTranscriptOutputForms.pointInvocation coordinate component) (0 : Fin 16)
+          (PiCCSTranscriptOutputForms.pointInvocation coordinate))).witnessStart +
+          1080 + component.val) := by
+  exact transcriptForm_of_packageRows raw rows
+    (PiCCSTranscriptOutputForms.pointInvocation coordinate)
+    (PiCCSTranscriptOutputForms.pointLane component)
 
 /-- The selected physical invocation and the ordinary transcript source
 grid name the same output column. This is an address equality only. -/
@@ -104,13 +105,13 @@ theorem physicalTranscript_source
         1080 + lane.val =
       Layout.Stage1.Spartan.sourceToSpartan
         (PiCCSTranscriptOutputForms.transcriptSource index lane) := by
-  have bound : index.val < 355 := by
+  have bound : index.val < 183 := by
     simpa only [Layout.Stage1.PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
       using index.isLt
   let selected : Fin (Data.permutationInvocations ()).length :=
     ⟨index.val, by
       rw [PoseidonRetainedBlock.data_permutationInvocations_length]
-      change index.val < 1155
+      change index.val < 982
       omega⟩
   have same : physicalInvocation (PiCCSTranscriptOutputForms.invocation index) =
       (Data.permutationInvocations ()).get selected := by
@@ -122,7 +123,7 @@ theorem physicalTranscript_source
     have leftBound : index.val <
         PoseidonRetainedBlock.basePackage.permutationInvocations.length := by
       rw [PoseidonRetainedBlock.basePackage_permutationInvocations_length]
-      change index.val < 1155
+      change index.val < 982
       omega
     rw [List.getElem?_eq_getElem leftBound,
       List.getElem?_eq_getElem selected.isLt] at listEq
@@ -171,6 +172,7 @@ theorem pointForm_source_of_packageRows {application : Program}
           (PiCCSTranscriptOutputForms.pointSource coordinate component)) := by
   rw [PiCCSTranscriptOutputForms.pointSource_eq_transcriptSource]
   exact transcriptForm_source_of_packageRows raw rows
-    (PiCCSTranscriptOutputForms.pointInvocation coordinate component) 0
+    (PiCCSTranscriptOutputForms.pointInvocation coordinate)
+    (PiCCSTranscriptOutputForms.pointLane component)
 
 end NightstreamFPrime.Export.Stage1.PiCCSTranscriptOutputCoherence

@@ -1,5 +1,4 @@
 import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPlan.Retained
-import NightstreamFPrime.Layout.ProductionRelation.PinFamilyPlan
 
 /-!
 Owns the direct Poseidon2 plan for all four PiCCS transcript action families.
@@ -39,8 +38,6 @@ def inputState {program : Lifecycle.Stage1.Application.Program}
   match PiCCSActionPayloadBlock.kindAt invocation with
   | .absorb _ => fun lane =>
       SparseForm.add (previous lane) (payloadForm payload invocation lane)
-  | .squeezeFirst _ => previous
-  | .squeezeSecond => previous
 
 def interface {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (payload : Payload logicalWidth)
@@ -50,133 +47,24 @@ def interface {program : Lifecycle.Stage1.Application.Program}
     (retainedStart program) (retainedFits geometry)
     (oneColumn geometry) (inputState payload geometry)
 
-def bindingActual {program : Lifecycle.Stage1.Application.Program}
-    {logicalWidth : Nat} (geometry : Geometry program logicalWidth)
-    (invocation : Fin invocationCount) (component : Fin 2) :
-    SparseForm logicalWidth :=
-  if component.val = 0 then
-    previousOutput geometry invocation 0
-  else
-    outputState geometry invocation 0
-
-def bindingForm {program : Lifecycle.Stage1.Application.Program}
-    {logicalWidth : Nat} (payload : Payload logicalWidth)
-    (geometry : Geometry program logicalWidth)
-    (invocation : Fin invocationCount) (component : Fin 2) :
-    SparseForm logicalWidth :=
-  match PiCCSActionPayloadBlock.kindAt invocation with
-  | .squeezeFirst _ =>
-      SparseForm.add
-        (payloadForm payload invocation
-          ⟨component.val, Nat.lt_trans component.isLt (by
-            norm_num [Spec.Poseidon2.width])⟩)
-        (SparseForm.scale (-1) (bindingActual geometry invocation component))
-  | .absorb _ | .squeezeSecond => .empty
-
-theorem bindingForm_squeezeFirst_zero
-    {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
-    (payload : Payload logicalWidth)
-    (geometry : Geometry program logicalWidth)
-    (invocation : Fin invocationCount)
-    (expected : NightstreamFPrime.Circuit.Quadratic.KExpr)
-    (found : PiCCSActionPayloadBlock.kindAt invocation =
-      .squeezeFirst expected) :
-    bindingForm payload geometry invocation (0 : Fin 2) =
-      SparseForm.add (payloadForm payload invocation (0 : Fin 16))
-        (SparseForm.scale (-1) (previousOutput geometry invocation 0)) := by
-  unfold bindingForm bindingActual
-  rw [found]
-  rfl
-
-theorem bindingForm_squeezeFirst_one
-    {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
-    (payload : Payload logicalWidth)
-    (geometry : Geometry program logicalWidth)
-    (invocation : Fin invocationCount)
-    (expected : NightstreamFPrime.Circuit.Quadratic.KExpr)
-    (found : PiCCSActionPayloadBlock.kindAt invocation =
-      .squeezeFirst expected) :
-    bindingForm payload geometry invocation (1 : Fin 2) =
-      SparseForm.add (payloadForm payload invocation (1 : Fin 16))
-        (SparseForm.scale (-1) (outputState geometry invocation 0)) := by
-  unfold bindingForm bindingActual
-  rw [found]
-  rfl
-
-def bindingRowCount : Nat := invocationCount * 2
-
-def bindingInterface {program : Lifecycle.Stage1.Application.Program}
-    {logicalWidth : Nat} (payload : Payload logicalWidth)
-    (geometry : Geometry program logicalWidth) :
-    PinFamilyPlan.Interface logicalWidth bindingRowCount where
-  value := fun row =>
-    let decoded : Fin invocationCount × Fin 2 := Fin.decodeProd row
-    bindingForm payload geometry decoded.1 decoded.2
-
-theorem bindingRowCount_le : bindingRowCount ≤
-    2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by
-  rw [bindingRowCount, invocationCount_eq]
-  norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
-
 theorem familyRowCount_le : invocationCount * 150 ≤
     2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by
   rw [invocationCount_eq]
-  norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
-
-def sboxPlan {program : Lifecycle.Stage1.Application.Program}
-    {logicalWidth : Nat} (payload : Payload logicalWidth)
-    (geometry : Geometry program logicalWidth) :
-    ProductionRelation.Plan logicalWidth :=
-  PoseidonSboxFamilyPlan.plan (interface payload geometry) familyRowCount_le
-
-def bindingPlan {program : Lifecycle.Stage1.Application.Program}
-    {logicalWidth : Nat} (payload : Payload logicalWidth)
-    (geometry : Geometry program logicalWidth) :
-    ProductionRelation.Plan logicalWidth :=
-  PinFamilyPlan.plan (bindingInterface payload geometry) bindingRowCount_le
-
-theorem combinedRowCount_le {program : Lifecycle.Stage1.Application.Program}
-    {logicalWidth : Nat} (payload : Payload logicalWidth)
-    (geometry : Geometry program logicalWidth) :
-    (sboxPlan payload geometry).rowCount + (bindingPlan payload geometry).rowCount ≤
-      2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by
-  change invocationCount * 150 + bindingRowCount ≤ _
-  rw [bindingRowCount, invocationCount_eq]
   norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
 
 def plan {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (payload : Payload logicalWidth)
     (geometry : Geometry program logicalWidth) :
     ProductionRelation.Plan logicalWidth :=
-  ProductionRelation.Plan.append (sboxPlan payload geometry) (bindingPlan payload geometry)
-    (combinedRowCount_le payload geometry)
+  PoseidonSboxFamilyPlan.plan (interface payload geometry) familyRowCount_le
 
 @[simp] theorem plan_rowCount
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (payload : Payload logicalWidth)
     (geometry : Geometry program logicalWidth) :
-    (plan payload geometry).rowCount = 170392 := by
-  change invocationCount * 150 + bindingRowCount = 170392
-  rw [bindingRowCount, invocationCount_eq]
-
-theorem bindingRowsZero_iff
-    {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
-    (payload : Payload logicalWidth)
-    (geometry : Geometry program logicalWidth)
-    (assignment : Assignment F logicalWidth) :
-    (bindingPlan payload geometry).RowsZero assignment ↔
-      ∀ invocation component,
-        (bindingForm payload geometry invocation component).eval assignment = 0 := by
-  rw [bindingPlan, PinFamilyPlan.planRowsZero_iff
-    (bindingInterface payload geometry) bindingRowCount_le assignment]
-  constructor
-  · intro rows invocation component
-    simpa [bindingInterface] using
-      rows (Fin.encodeProd (invocation, component))
-  · intro rows row
-    let decoded : Fin invocationCount × Fin 2 := Fin.decodeProd row
-    change (bindingForm payload geometry decoded.1 decoded.2).eval assignment = 0
-    exact rows decoded.1 decoded.2
+    (plan payload geometry).rowCount = 142200 := by
+  change invocationCount * 150 = 142200
+  rw [invocationCount_eq]
 
 theorem rowsZero_iff
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
@@ -184,14 +72,10 @@ theorem rowsZero_iff
     (geometry : Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth) :
     (plan payload geometry).RowsZero assignment ↔
-      (∀ invocation, PoseidonSboxPlan.RowsZero
+      ∀ invocation, PoseidonSboxPlan.RowsZero
         (PoseidonSboxFamilyPlan.invocationInterface
-          (interface payload geometry) invocation) assignment) ∧
-      (∀ invocation component,
-        (bindingForm payload geometry invocation component).eval assignment = 0) := by
-  rw [plan, ProductionRelation.Plan.append_rowsZero_iff]
-  rw [sboxPlan, PoseidonSboxFamilyPlan.planRowsZero_iff]
-  rw [bindingRowsZero_iff payload geometry assignment]
+          (interface payload geometry) invocation) assignment := by
+  rw [plan, PoseidonSboxFamilyPlan.planRowsZero_iff]
 
 structure Semantics {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (payload : Payload logicalWidth)
@@ -203,8 +87,6 @@ structure Semantics {program : Lifecycle.Stage1.Application.Program}
       Spec.Poseidon2.permute
         (List.ofFn (SparseLayer.evalState assignment
           ((interface payload geometry).input current)))
-  squeezeBinding : ∀ current component,
-    (bindingForm payload geometry current component).eval assignment = 0
 
 theorem rowsZero_implies_semantics
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
@@ -214,11 +96,11 @@ theorem rowsZero_implies_semantics
     (one : assignment (oneColumn geometry) = 1)
     (rowsZero : (plan payload geometry).RowsZero assignment) :
     Semantics payload geometry assignment := by
-  have children := (rowsZero_iff payload geometry assignment).mp rowsZero
-  refine ⟨?_, children.2⟩
+  refine ⟨?_⟩
   intro invocation
   have sboxRows := (PoseidonSboxFamilyPlan.planRowsZero_iff
-    (interface payload geometry) familyRowCount_le assignment).mpr children.1
+    (interface payload geometry) familyRowCount_le assignment).mpr
+      ((rowsZero_iff payload geometry assignment).mp rowsZero)
   exact PoseidonSboxFamilyPlan.planRowsZero_implies_permute
     (interface payload geometry) familyRowCount_le assignment one sboxRows invocation
 
@@ -232,20 +114,16 @@ theorem equations_imply_rowsZero
     (sboxes : ∀ invocation,
       PoseidonSboxPlan.SboxEquations
         (PoseidonSboxFamilyPlan.invocationInterface
-          (interface payload geometry) invocation) assignment)
-    (bindings : ∀ invocation component,
-      (bindingForm payload geometry invocation component).eval assignment = 0) :
+          (interface payload geometry) invocation) assignment) :
     (plan payload geometry).RowsZero assignment := by
   apply (rowsZero_iff payload geometry assignment).mpr
-  constructor
-  · intro invocation
-    apply PoseidonSboxPlan.rowsZero_of_equations
-      (PoseidonSboxFamilyPlan.invocationInterface
-        (interface payload geometry) invocation) assignment
-      (sboxes invocation)
-    exact PoseidonRetainedFamily.outputEquations
-      (schedule program) (retainedStart program) (retainedFits geometry)
-      (oneColumn geometry) (inputState payload geometry) assignment invocation
-  · exact bindings
+  intro invocation
+  apply PoseidonSboxPlan.rowsZero_of_equations
+    (PoseidonSboxFamilyPlan.invocationInterface
+      (interface payload geometry) invocation) assignment
+    (sboxes invocation)
+  exact PoseidonRetainedFamily.outputEquations
+    (schedule program) (retainedStart program) (retainedFits geometry)
+    (oneColumn geometry) (inputState payload geometry) assignment invocation
 
 end NightstreamFPrime.Export.Stage1.PiCCSPoseidonPlan

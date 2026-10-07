@@ -148,19 +148,6 @@ private theorem outputWords_affine
   rcases member with ⟨source, _, member⟩
   exact sourceWords_affine interface offset inputs source expression member
 
-private theorem blockExpr_affine (words : List Expr)
-    (affine : ListAffine words) :
-    ListAffine
-      (NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.blockExpr
-        words) := by
-  intro expression member
-  simp only [
-    NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.blockExpr,
-    List.mem_cons] at member
-  rcases member with rfl | member
-  · exact R1CS.isAffine_const _
-  · exact affine expression member
-
 theorem actions_affine
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.Interface)
@@ -172,7 +159,7 @@ theorem actions_affine
   simp only [NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.actions,
     List.mem_singleton] at member
   subst action
-  exact blockExpr_affine _ (outputWords_affine interface offset inputs)
+  exact outputWords_affine interface offset inputs
 
 private theorem serializeKExpr_below (bound : Nat) (value : KExpr)
     (below : value.VarsBelow bound) :
@@ -249,19 +236,6 @@ private theorem outputWords_below
   exact sourceWords_below interface offset inputs source expression
     expressionMember
 
-private theorem blockExpr_below (bound : Nat) (words : List Expr)
-    (below : ListBelow bound words) :
-    ListBelow bound
-      (NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.blockExpr
-        words) := by
-  intro expression member
-  simp only [
-    NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.blockExpr,
-    List.mem_cons] at member
-  rcases member with rfl | member
-  · trivial
-  · exact below expression member
-
 private theorem actions_below
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.Interface)
@@ -273,7 +247,7 @@ private theorem actions_below
   simp only [NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.actions,
     List.mem_singleton] at member
   subst action
-  exact blockExpr_below offset _ (outputWords_below interface offset inputs)
+  exact outputWords_below interface offset inputs
 
 /-- The fixed output serializer supplies the exact causal assumption of the
 owned duplex child. -/
@@ -312,11 +286,11 @@ private theorem core_totalRowCount
     (offset : Nat) (inputs : InputsAffine interface offset) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
       (NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.circuit interface
-        ).main offset)) = 839536 := by
+        ).main offset)) = 838440 := by
   change R1CS.totalRowCount (flatConstraints
     (Formal.Owned.opsAt
       (NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.duplexInterface
-        interface) offset)) = 839536
+        interface) offset)) = 838440
   rw [Formal.Owned.flatConstraints_opsAt]
   unfold Formal.Owned.program
   rw [NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.noAssertions]
@@ -337,7 +311,7 @@ def footprint
       InputsAffine (Formal.outputBindingInterface interface) offset) :
     R1CS.CircuitFootprint (Formal.outputBindingCircuit interface) where
   freshColumnCount := fun _ => 0
-  physicalRowCount := fun _ => 839536
+  physicalRowCount := fun _ => 838440
   freshColumnCount_eq := by
     intro offset
     unfold Formal.outputBindingCircuit
@@ -364,7 +338,7 @@ theorem physicalRowCount_eq
       InputsAffine (Formal.outputBindingInterface interface) offset)
     (offset : Nat) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
-      (Formal.outputBindingCircuit interface).main offset)) = 839536 :=
+      (Formal.outputBindingCircuit interface).main offset)) = 838440 :=
   (footprint interface inputs).physicalRowCount_eq offset
 
 theorem physicalPrivateColumnCount_eq
@@ -375,9 +349,9 @@ theorem physicalPrivateColumnCount_eq
     localLength (Circuit.ops (Formal.outputBindingCircuit interface).main
         offset) +
       R1CS.totalFreshCount (flatConstraints (Circuit.ops
-        (Formal.outputBindingCircuit interface).main offset)) = 839536 := by
+        (Formal.outputBindingCircuit interface).main offset)) = 838440 := by
   have logicalColumns : localLength (Circuit.ops
-      (Formal.outputBindingCircuit interface).main offset) = 839536 :=
+      (Formal.outputBindingCircuit interface).main offset) = 838440 :=
     (Formal.outputBindingCircuit interface).privateCount_eq offset
   rw [logicalColumns, freshColumnCount_eq interface inputs offset]
 
@@ -394,7 +368,7 @@ def physicalRows
       NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.Interface)
     (offset : Nat) : List R1CS.Row :=
   (R1CS.lowerConstraints (logicalConstraints interface offset)
-    (offset + 839536)).rows
+    (offset + 838440)).rows
 
 def PhysicalHolds
     (interface :
@@ -410,7 +384,7 @@ private theorem logicalConstraints_varsBelow
       NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.Assumptions
         interface offset env) :
     ∀ expression ∈ logicalConstraints interface offset,
-      expression.VarsBelow (offset + 839536) := by
+      expression.VarsBelow (offset + 838440) := by
   have scope :=
     NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.flatConstraints_varsBelow
       interface offset env assumptions
@@ -433,7 +407,7 @@ theorem physical_implies_spec
   apply holdsFlat_implies_holds
   unfold PhysicalHolds physicalRows at physical
   exact R1CS.lowerConstraints_sound env
-    (logicalConstraints interface offset) (offset + 839536) physical
+    (logicalConstraints interface offset) (offset + 838440) physical
 
 theorem physical_complete
     (interface :
@@ -447,7 +421,7 @@ theorem physical_complete
         interface offset env) :
     ∃ completed,
       AgreesOutside env completed offset
-          (839536 + R1CS.totalFreshCount
+          (838440 + R1CS.totalFreshCount
             (logicalConstraints interface offset)) ∧
         PhysicalHolds interface offset completed := by
   rcases NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.completeness
@@ -455,11 +429,11 @@ theorem physical_complete
     ⟨logicalEnv, logicalAgrees, logicalRows⟩
   have lengthEq : localLength (Circuit.ops
       (NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.circuit interface
-        ).main offset) = 839536 :=
+        ).main offset) = 838440 :=
     NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.localLength_eq
       interface offset
   have logicalAgreesFixed :
-      AgreesOutside env logicalEnv offset 839536 := by
+      AgreesOutside env logicalEnv offset 838440 := by
     rw [lengthEq] at logicalAgrees
     exact logicalAgrees
   have logicalAssumptions :
@@ -471,7 +445,7 @@ theorem physical_complete
       ConstraintsHold logicalEnv (logicalConstraints interface offset) :=
     logicalRows
   rcases R1CS.lowerConstraints_complete logicalEnv
-      (logicalConstraints interface offset) (offset + 839536) scope logicalHolds
+      (logicalConstraints interface offset) (offset + 838440) scope logicalHolds
       with ⟨completed, physicalAgrees, physicalRowsHold⟩
   refine ⟨completed, logicalAgreesFixed.append physicalAgrees, ?_⟩
   exact physicalRowsHold

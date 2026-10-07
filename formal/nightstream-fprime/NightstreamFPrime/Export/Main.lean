@@ -143,7 +143,7 @@ def prepareWitnessGroups : IO PreparedWitnessTasks := do
 def permutationActionShapeNodeCount :
     Stage1.PermutationPlan.ActionShape → Nat
   | .absorb input => (input.map exprNodeCount).sum
-  | .squeezeK => 0
+  | .readK _ => 0
 
 def permutationBlockNodeCount : Stage1.PermutationPlan.Block → Nat
   | .actions block =>

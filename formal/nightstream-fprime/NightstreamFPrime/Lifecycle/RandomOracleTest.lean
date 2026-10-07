@@ -449,15 +449,6 @@ private theorem coinBad_congr (challenge : Challenge) (oracle : Oracle)
         (alpha_gamma_proof_irrelevant oracle fresh proof proof').2]
   | rho => simp only [coinBad]
 
-omit relation ajtai running witness in
-private theorem mass_mono {small large : Set Answer} (inside : small ⊆ large) :
-    mass small ≤ mass large :=
-  Finset.expect_le_expect fun answer _ => by
-    by_cases member : answer ∈ small
-    · simp [member, inside member]
-    · simp only [member, if_false]
-      split <;> norm_num
-
 private theorem coinBad_probability_le (challenge : Challenge) (coins : PublicCoins K productionShape)
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Proof (ProductionKey.degreeBound relation)) :

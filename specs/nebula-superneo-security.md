@@ -67,8 +67,8 @@ modeled as a random oracle. This is the Stage 1 assumption without change.
 
 **A3 (Poseidon2).** `H` is a random oracle for Fiat–Shamir. Its digest is
 collision resistant and preimage resistant at the ceiling of the trunk
-decision. `ε_H` is the error of this assumption. Stage 2 adds digests of the
-same kind as Stage 1.
+decision. `ε_coll(t)` is the probability that an adversary with expected time
+`t` finds a collision of `H`. Stage 2 adds digests of the same kind as Stage 1.
 
 **A4 (Recursive extraction).** HyperNova Lemma 4, as corrected in
 `docs/hypernova-paper/`, gives knowledge soundness of Construction 2 for a
@@ -103,26 +103,18 @@ transfers success from the real Poseidon2 experiment to a translated
 experiment, through external functions `g_d` and `delta_d` of the total
 permutation-query count `Q`.
 
-The Stage 1 premise moves success to an interactive game, which has no oracle
-query log. Stage 2 needs more. A6 therefore adds a premise of the same kind:
+A6 extends that premise to the memory round of each segment. In the translated
+interactive game, the prover sends the three roots `(D_pre.ops, D_mem,
+D_pre.fs)` and `ts`, and the verifier then samples `η` uniformly. The record
+chains need only collision resistance (A3). Lemma 3 holds in that game, and A6
+carries the §5 bound to the real protocol. One transfer covers the whole F′
+transcript. The owner approved this extension on 2026-10-07. Like the Stage 1
+boundary, it selects no numerical value for `g_d` or `delta_d`.
 
-- **Observable oracle for in-circuit hashes.** In the translated experiment,
-  every output of `H` that the relation computes — the memory challenges `η`
-  (spec §9.3) and the record chains (spec §9.2) — is the answer to an oracle
-  query. The reduction sees the query log, including the verifier's setup
-  queries for `D_init`. The chain inputs are private witness data, as the
-  inputs of the Stage 1 state hash already are.
-
-Lemmas 2 and 3 hold in that experiment, and A6 carries the §5 bound to the real
-protocol. This premise needs its own owner approval. Like the Stage 1 boundary,
-it selects no numerical value for `g_d` or `delta_d`.
-
-**Fallback.** If the owner approves only an interactive-style transfer, the
-argument still works with one more term. Lemma 3 then uses the uniqueness
-argument of SuperNeo v1.2 Appendix B: rewind at `η`, and a second, different
-record set under the same root is a Poseidon2 collision. The memory term
-becomes `q_η · (ε_test + ε_coll(t_1))`, where `t_1` is about twice the time of
-one run with extraction.
+**Optional stronger premise, not used.** A stronger premise would treat every
+in-circuit output of `H` as an observable oracle answer, with the query log
+visible to the reduction. The query order would then fix the records before
+`η`, and Lemma 3 would need no rewind. This note does not rely on it.
 
 ## 3. Deterministic obligations
 
@@ -146,9 +138,9 @@ this note, and each proof needs an independent review (§7).
 
 | Joint | Argument | Status |
 |---|---|---|
-| J1: records into chains | Lemmas 1 and 2; Ob2, Ob3, Ob6 | Proof in this note, in the translated experiment of A6 |
+| J1: records into chains | Lemmas 1 and 2; Ob2, Ob3, Ob6 | Proof in this note, deterministic |
 | J2: carry thread | A3, A4; Ob8 | Assumed. The arity adaptation and Property 6 are open |
-| J3: commit, then test | Lemmas 2–5 | Proof in this note, in the translated experiment of A6 |
+| J3: commit, then test | Lemmas 2–5 | Proof in this note, in the translated game of A6 |
 | J4: segment joins and terminal | Lemma 6 | Proof in this note |
 
 ### Lemma 1 — Packing is injective
@@ -170,42 +162,19 @@ Both hypotheses are necessary. Without O1 and S1, a coordinate can be `−1`, an
 `Σ 2^k · b_k` over `{−1, 0, 1}` is not injective. With 64 bits in one chunk,
 values at or above `q` alias values below it.
 
-### Lemma 2 — Records fixed before `η`
+### Lemma 2 — Chain binding
 
-**Statement.** Work in the translated experiment of A6. Suppose a segment
-closes: `D_seen = (D_pre.ops, D_mem, D_pre.fs)`, where the relation computes
-`D_seen` from the lanes of the segment's `N` steps, and the three roots
-entered an `η` query (spec §9.3). Then, except with `ε_H`, the packed lanes of
-all `N` steps were inputs of chain queries made before that `η` query. The
-lanes in the extracted witnesses equal those query inputs.
+**Statement.** Fix a lane `l` and the chain formulas of spec §9.2. Let
+`P[0..N)` and `P′[0..N)` be two sequences of packed lanes whose chains have the
+same root. If `P ≠ P′`, then the two chain computations contain two different
+inputs of `H` with the same output: a collision.
 
-**Proof.** In that experiment, every output of `H` is an oracle answer. Ob8
-makes each step hash its own lanes, and the relation computes `D_seen.l` by `N`
-chain evaluations. The last one equals the root in the `η` query. For that
-equality to hold, one of three events occurs:
-
-1. The adversary made that chain query before the `η` query. The query input
-   contains the index `N − 1`, the previous chain value, and the packed lane of
-   step `N − 1`. By induction down to the fixed header, every chain input of
-   the segment was in a query before the `η` query.
-2. Two different chain inputs give the same output: a collision.
-3. At some level of the chain, the adversary used a value before any query
-   returned it, and a later query returns that value: a preimage. The root in
-   the `η` query is one case.
-
-Events 2 and 3 are inside `ε_H`. In event 1, the oracle is a function, so the
-chain inputs in each extracted witness equal the logged inputs, unless two
-inputs give one output.
-
-The extractor of A1 and A4 forks only at fold challenges. To extract the
-witness of step `j` of a segment, it forks at the fold in `A[j+1]`. That fork
-comes after the segment's `η` query, because the witness of `u_j` contains `η`.
-So every run that the extractor uses shares the oracle answers to the
-segment's chain queries. In each run, `u_j.x` fixes the output carry through
-the state hash, and the chain output in that carry fixes the chain input,
-except with a collision. So all runs extract the same records. No extra fork at
-`η` is necessary. The query log includes the verifier's setup queries, so the
-same argument covers `D_init`.
+**Proof.** Compare the two chains from the root down. At index `N − 1`, the two
+outputs are equal. If the two inputs `(tag, [N − 1, D[N − 1]], P[N − 1])`
+differ, they form a collision. Otherwise `D[N − 1] = D′[N − 1]` and
+`P[N − 1] = P′[N − 1]`, and the same argument applies at index `N − 2`. Both
+chains start at the same header. So if no level gives a collision, then
+`P[j] = P′[j]` for every `j`. ∎
 
 The fixed length `N`, the index in each chain input, the fixed lane lengths, and
 the domain tags prevent reordering, truncation, and extension. The IS and FS
@@ -215,15 +184,18 @@ the previous segment's FS chain, or the verifier's `D_init`. ∎
 
 ### Lemma 3 — Fingerprint test
 
-**Statement.** Work in the translated experiment of A6. Let the adversary make
-at most `q_η` queries to the `η` transcript. For each closed segment, let
-`A = IS ∪ WS` and `B = RS ∪ FS` be the multisets that the extracted records
-define, each of size at most `m_mem`. Then
+**Statement.** Work in the translated game of A6, for one segment. Let `in` be
+everything fixed before `η`: the three roots, `ts`, and the adversary's state.
+After `η`, the extractor of A1 and A4 returns the segment's records. Let
+`A = IS ∪ WS` and `B = RS ∪ FS` be the multisets that these records define,
+each of size at most `m_mem`. Then
 
 ```text
-Pr[ some segment closes with A ≠ B ]  ≤  q_η · ε_test + ε_H,
-ε_test = 2·m_mem / |𝕂|.
+Pr[ the close product equation holds and A ≠ B ]  ≤  ε_test + ε_coll(t_1),
+ε_test = 2·m_mem / |𝕂|,
 ```
+
+where `t_1` is at most twice the time `t_E` of one run with extraction.
 
 **Proof, part 1: fixed multisets.** Fix `A ≠ B` with the tuple ranges of
 Lemma 4. Spec §4.2 rules 3 and 4 make `t`, `g`, and `v` integers below `q`, so
@@ -237,19 +209,31 @@ polynomial of total degree at most `2·m_mem`, because each factor has total
 degree at most 2. Schwartz–Zippel gives `Pr[G(η1, η2) = 0] ≤ 2·m_mem/|𝕂|`,
 which is `ε_test`, for a uniform pair.
 
-**Proof, part 2: the multisets are fixed before `η`.** By Lemma 2, the records
-of a closed segment are the inputs of chain queries made before its `η` query,
-except with `ε_H`. By Lemma 1, the packed inputs determine the records. By
-Lemma 4 and Ob6, the tuples of `A` and `B` are functions of the records, of
-`ts` and `plan_digest` (both in the `η` query input), and of the structural
-index. So for each `η` query, the multisets that a later close can use are
-fixed by the query input and the query log before it. The answer `η` is
-uniform and independent of them. By part 1, a query whose multisets differ
-passes the product equation with probability at most `ε_test`. A union bound
-over the `q_η` queries gives the statement. ∎
+**Proof, part 2: records extracted after `η`.** The extractor returns the
+records after `η`, so they can depend on `η`. We use the uniqueness argument of
+SuperNeo v1.2 Appendix B, proof of (ii) for PiCCS. Here `η` takes the role of
+`(α, γ)`, and the fingerprint identity takes the role of the sum-check test.
 
-Under the observable oracle of A6, no fork at `η` and no commitment-binding term
-is necessary: the chains hash the records themselves. A6 states the fallback.
+One oracle call runs the rest of the game from `in` with a fresh uniform `η`,
+and then runs the extractor. `Succ` is the event that the segment closes and the
+extraction is valid. `Err` is `Succ` together with `A ≠ B`, so `Err ⊆ Succ`.
+The uniqueness adversary makes one call. If `Err` does not occur, it stops.
+Otherwise it repeats calls until `Succ` occurs, and it returns both record
+sets. By the calculation of SuperNeo v1.2 Appendix B, `t_in + (a_in/p_in)·t_in`
+with `a_in ≤ p_in`, its expected time `t_1` is at most twice the time of one
+call.
+
+- If the two record sets agree, then the multisets `(A, B)` that the first
+  call fixed pass the equation for a fresh, independent `η`. By Lemma 4 and
+  Ob6, the tuples depend only on the records, on `ts` (in `in`), and on plan
+  constants. By part 1 and the conditional-probability step of SuperNeo v1.2
+  Appendix B, `Pr[Err and agree] ≤ ε_test`.
+- If they differ, both calls closed the segment against the same roots, which
+  `in` fixes. By Lemma 1, different records give different packed lanes. By
+  Lemma 2, the two chain computations then contain a collision of `H`. So
+  `Pr[Err and differ] ≤ ε_coll(t_1)`.
+
+So `Pr[Err] ≤ ε_test + ε_coll(t_1)`. ∎
 
 In one segment, `|IS| = |FS| = R + M` and `|RS| = |WS|` is the active count.
 So `m_mem ≤ R + M + N · B_ops`.
@@ -342,17 +326,17 @@ these properties:
    carry of `A[i]` equal to the output carry of `A[i−1]`. The arm follows from
    that carry (Ob8). So the steps run in order, each step hashes its own lanes
    once, and a segment closes exactly when `idx` reaches `N`.
-3. **One segment.** At each close, Lemma 2 fixes the records before `η`.
-   Lemma 4 turns the rows into the four products. Lemma 3 gives
-   `IS ∪ WS = RS ∪ FS`, except with the error of Lemma 3. Lemma 5 gives one
-   sequential history per segment.
+3. **One segment.** At each close, Lemma 4 turns the rows into the four
+   products. Lemma 3 gives `IS ∪ WS = RS ∪ FS`, except with the error of
+   Lemma 3. Lemma 5 gives one sequential history per segment.
 4. **Segment joins.** For segment 0, `D_seen.is = D_init`. The verifier
    computed `D_init` with the same chain and packing over the plan images, and
-   the relation reads it as a package constant. So by A3 (collision
-   resistance) and Lemma 1, the IS records equal the plan images with `t = 0`. For segment `k + 1`, `D_seen.is = D_mem`, which is the
-   FS root of segment `k`. The IS and FS chains share formulas, so the IS
-   records of segment `k + 1` equal the FS records of segment `k`, cell by
-   cell, except with `ε_H`. The global timestamp never resets, so the write
+   the relation reads it as a package constant. So by Lemmas 1 and 2, the IS
+   records equal the plan images with `t = 0`, except with a collision. For
+   segment `k + 1`, `D_seen.is = D_mem`, which is the FS root of segment `k`.
+   The IS and FS chains share formulas, so by Lemmas 1 and 2 the IS records of
+   segment `k + 1` equal the FS records of segment `k`, cell by cell, except
+   with a collision. The global timestamp never resets, so the write
    timestamps of all segments are distinct. Joining the segment histories gives
    one sequential execution.
 5. **Application.** The port rows (Ob7) make these memory accesses the
@@ -364,31 +348,37 @@ these properties:
 
 ## 5. Composition and evaluation
 
-**Theorem.** Assume A1–A6 and Ob1–Ob8. Let the adversary make at most `q_η`
-queries to the `η` transcript. There is an extractor `E`, built from the
-extractors of A1 and A4, such that, in the translated experiment of A6,
+**Theorem.** Assume A1–A6 and Ob1–Ob8. There is an extractor `E`, built from
+the extractors of A1 and A4, such that, in the translated game of A6,
 
 ```text
 Pr[accept and E's output is not a valid execution]
    ≤  ε_Stage1                          (A1, A4: every fold and the terminal)
-    + q_η · ε_test                      (Lemma 3)
-    + ε_H                               (A3: every query of the adversary and of the extractor)
+    + S_max · (ε_test + ε_coll(t_1))    (Lemma 3, once per segment)
+    + ε_coll(t_E)                       (Lemma 2 at every segment join)
 ```
 
 with `ε_test = 2·m_mem/|𝕂|` and `m_mem ≤ R + M + N · B_ops`. `ε_Stage1` is
 the Stage 1 error for the Stage 2 relation shape, including SuperNeo's
-`ε_uniq` for `L_full`. The proof is Lemma 6 with a union bound.
+`ε_uniq` for `L_full`. One reduction checks every segment join in one run. The
+proof is Lemma 6 with a union bound.
 
-A6 carries this bound to the real protocol through `g_d` and `delta_d`.
-`ε_H` comes from a work estimate. It becomes a probability only for a stated
-query count.
+A6 carries this bound to the real protocol through `g_d` and `delta_d`. The
+transfer accounts for the oracle-query count. `ε_coll` comes from a work
+estimate (A3). It becomes a probability only for a stated adversary time.
 
 **Setup check (spec §4.2 rule 6).** For the final relation shape and the plan,
 setup MUST check that `ε_test ≤ 2^−109.91`, the owner-approved floor. This
 holds exactly when `R + M + N · B_ops ≤ 139,509`. Setup MUST reject the plan
 if the check fails. A larger memory needs a new owner decision. The check
-applies to the per-check value. The theorem multiplies `ε_test` by `q_η`, as
-Fiat–Shamir multiplies the fold term by its query count.
+applies to the per-check value. The A6 transfer adds the query loss, as it
+does for the fold term.
+
+**Above the cap.** The recommended upgrade for a plan with more than 139,509
+tuples per segment is a second, independent challenge pair. Then `ε_test`
+becomes `(2·m_mem/|𝕂|)²`: 219.83 bits at the example geometry, for about +2%
+coordinates. It needs an owner decision and a spec change before use. It is not
+part of this specification.
 
 **Evaluation at the current values.** The values use the trunk formula with
 `f_fold = 7,781` and `f_fork = 304`. The example geometry is `R = 2^12`,
@@ -440,8 +430,8 @@ generated relation MUST supply the exact census.
 
 1. **Non-author review** of Lemmas 2, 3, 5, and 6, and of §5.
 2. **Stage 2 authorization** by the owner.
-3. **A6 Stage 2 premise.** Owner approval of the observable-oracle premise for
-   in-circuit `H` (`η` and the record chains), or of the fallback in A6.
+3. **A6 Stage 2 extension.** The owner approved it on 2026-10-07 in the form
+   that A6 states. Its numerical values stay open with item 6.
 4. **Generated relation** that fits the `2^28` domain, with its exact shape and
    census, and the recomputed §5 table.
 5. **Lean formalization** of the Stage 2 phase: Lemma 1 (packing), Lemmas 2–6,

@@ -89,7 +89,10 @@ case "$phase" in
     if (( $# == 0 )); then set -- NightstreamFPrime; fi
     capped lake build "$@"
     ;;
-  axioms) capped lake build NightstreamFPrimeTests ;;
+  axioms)
+    # Lake does not track the documents that the census reads; rerun it.
+    capped lake build NightstreamFPrimeTests && lean_file tests/EndpointCensus.lean
+    ;;
   pi-ccs-first-round)
     if (( $# != 6 )); then echo "usage: validate.sh pi-ccs-first-round <public-input> <original-sources> <output> <first-pair> <end-pair>" >&2; exit 2; fi
     shift

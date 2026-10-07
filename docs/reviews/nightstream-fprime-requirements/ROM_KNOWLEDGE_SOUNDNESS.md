@@ -245,7 +245,7 @@ the key's construction and coverage proofs would be duplicated.
 | `Lifecycle/RandomOracleTest.lean` | bounded domain, `decodeK`, oracle bad sets, `test_error_le`: `(Q+1)·testError`; `hits_error_le`, the per-coin sum |
 | `Lifecycle/RandomOracleExtraction.lean` | Lemma 5: oracle verifier `Accepts`, coordinate retries, `completeFork`, `extractedWitness`, `fork_failure_le`, `expected_retries_le` |
 | `Lifecycle/RandomOracleUniqueness.lean` | Lemma 6: fork index and context, worst witness, local bad sets, `source_error_le`, `expected_reruns_le` |
-| `Lifecycle/RandomOracleKnowledge.lean` | `knowledge_error_le`: Lemmas 5 and 6 together |
+| `Lifecycle/RandomOracleKnowledge.lean` | `knowledge_error_le`: Lemmas 5 and 6 together; `contract`, the `Spec.KnowledgeContract` instance (Ironwood's six questions) |
 
 `tests/AxiomsStage1Security.lean` audits every theorem above for axioms.
 

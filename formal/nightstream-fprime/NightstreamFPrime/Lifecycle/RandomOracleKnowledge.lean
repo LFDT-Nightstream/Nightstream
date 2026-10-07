@@ -1,4 +1,5 @@
 import NightstreamFPrime.Lifecycle.RandomOracleUniqueness
+import NightstreamFPrime.Spec.KnowledgeContract
 
 /-!
 Owns the knowledge error of the production NIFS key in the random-oracle
@@ -13,7 +14,9 @@ Outputs:
 - `knowledge_error_le`: the extractor succeeds with probability at least the
   acceptance probability minus `17 (Q + 17) sampleError + (Q + 74) testError`,
   the running-mismatch chance of Lemma 5, and the two binding-reduction
-  chances of Lemma 6.
+  chances of Lemma 6;
+- `contract`: the same result as a `Spec.KnowledgeContract`, which answers
+  the six auditor questions.
 
 The extractor's retry law has total mass one after every acceptance
 (`RandomOracle.retryWeight_sum_eq_one`), so a missing retry counts as a
@@ -65,21 +68,26 @@ def Extracts (oracle : Oracle) (retries : Retries) : Prop :=
         (claimed relation adversary claim oracle).fresh)
       (extractedWitness relation ajtai adversary claim oracle retries valid.1 valid.2)
 
+/-- The knowledge error: the statistical error
+`17 (Q + 17) sampleError + (Q + 74) testError`, the chance that a retry
+changes the running statement (Lemma 5), and the two binding-reduction
+chances (Lemma 6). -/
+noncomputable def knowledgeError (queries : Nat) : ℝ :=
+  ((Nifs.PaperProfile.arity).total *
+      (((queries + (Nifs.PaperProfile.arity).total : Nat) : ℝ) * sampleError) +
+    ((queries + challenges.length : Nat) : ℝ) * IndependentExecution.testError productionShape 9) +
+  (𝔼 oracle, (if Succeeds relation ajtai adversary claim oracle then
+      ∑ index, mismatchChance relation ajtai adversary claim index oracle else 0) +
+    collisionChance relation ajtai adversary claim + runningChance relation ajtai adversary claim)
+
 /-- **ROM knowledge soundness of the production NIFS.** The extractor
 succeeds with probability at least the acceptance probability minus the
-statistical error `17 (Q + 17) sampleError + (Q + 74) testError` and the
-chances of a running mismatch (Lemma 5) and of the binding reduction
-(Lemma 6). -/
+knowledge error. -/
 theorem knowledge_error_le {queries : Nat} (bounded : adversary.QueryBound queries) :
     𝔼 oracle, (if Succeeds relation ajtai adversary claim oracle then (1 : ℝ) else 0) ≤
       𝔼 oracle, ∑ retries, weight relation ajtai adversary claim oracle retries *
           (if Extracts relation ajtai adversary claim oracle retries then 1 else 0) +
-        ((Nifs.PaperProfile.arity).total *
-            (((queries + (Nifs.PaperProfile.arity).total : Nat) : ℝ) * sampleError) +
-          ((queries + challenges.length : Nat) : ℝ) * IndependentExecution.testError productionShape 9) +
-        (𝔼 oracle, (if Succeeds relation ajtai adversary claim oracle then
-            ∑ index, mismatchChance relation ajtai adversary claim index oracle else 0) +
-          collisionChance relation ajtai adversary claim + runningChance relation ajtai adversary claim) := by
+        knowledgeError relation ajtai adversary claim queries := by
   have pointwise (oracle : Oracle) :
       (if Succeeds relation ajtai adversary claim oracle then (1 : ℝ) else 0) ≤
         ∑ retries, weight relation ajtai adversary claim oracle retries *
@@ -142,6 +150,133 @@ theorem knowledge_error_le {queries : Nat} (bounded : adversary.QueryBound queri
   have summed := Finset.expect_le_expect (s := Finset.univ) fun oracle (_ : oracle ∈ Finset.univ) =>
     pointwise oracle
   rw [Finset.expect_add_distrib, Finset.expect_add_distrib] at summed
+  unfold knowledgeError
   linarith
+
+/-! ## The knowledge contract -/
+
+/-- The extractor's output: the fork's witness when it satisfies the source
+relation of the claimed statement, else nothing. The last step is the source
+relation's own check. -/
+noncomputable def extract (oracle : Oracle) (retries : Retries) :
+    Option (OutputWitness productionShape (Phi81CarrierLayout.carrierWidth logicalWidth)) :=
+  if Extracts relation ajtai adversary claim oracle retries then
+    witnessOf relation ajtai adversary claim oracle retries
+  else none
+
+theorem extract_eq_none_iff (oracle : Oracle) (retries : Retries) :
+    extract relation ajtai adversary claim oracle retries = none ↔
+      ¬ Extracts relation ajtai adversary claim oracle retries := by
+  unfold extract witnessOf
+  by_cases extracts : Extracts relation ajtai adversary claim oracle retries
+  · simp [extracts, extracts.fst]
+  · simp [extracts]
+
+/-- The law of a run: a uniform oracle, then the extractor's retries after an
+acceptance. Retries after a rejection are uniform; no event reads them. -/
+noncomputable def runWeight (run : Oracle × Retries) : ℝ :=
+  (if Succeeds relation ajtai adversary claim run.1 then
+      weight relation ajtai adversary claim run.1 run.2
+    else 1 / Fintype.card Retries) / Fintype.card Oracle
+
+/-- The retries of an accepted run have total weight one. -/
+theorem weight_sum_eq_one {oracle : Oracle} (succeeds : Succeeds relation ajtai adversary claim oracle) :
+    ∑ retries, weight relation ajtai adversary claim oracle retries = 1 :=
+  retryWeight_sum_eq_one _ fun index =>
+    mass_ne_zero (base_mem_retrySets relation ajtai adversary claim succeeds index)
+
+/-- The knowledge contract of the production NIFS in the random-oracle model,
+for an adversary with at most `queries` oracle queries. -/
+noncomputable def contract {queries : Nat} (bounded : adversary.QueryBound queries) :
+    KnowledgeContract where
+  Run := Oracle × Retries
+  weight := runWeight relation ajtai adversary claim
+  weight_nonnegative run := by
+    unfold runWeight
+    have : 0 ≤ if Succeeds relation ajtai adversary claim run.1 then
+        weight relation ajtai adversary claim run.1 run.2 else 1 / (Fintype.card Retries : ℝ) := by
+      split
+      · exact weight_nonnegative relation ajtai adversary claim _ _
+      · positivity
+    positivity
+  weight_sum := by
+    have oracles : (0 : ℝ) < Fintype.card Oracle := by exact_mod_cast Fintype.card_pos
+    have each (oracle : Oracle) :
+        ∑ retries, runWeight relation ajtai adversary claim (oracle, retries) =
+          1 / Fintype.card Oracle := by
+      unfold runWeight
+      rw [← Finset.sum_div]
+      refine congrArg (· / (Fintype.card Oracle : ℝ)) ?_
+      by_cases succeeds : Succeeds relation ajtai adversary claim oracle
+      · simp only [if_pos succeeds]
+        exact weight_sum_eq_one relation ajtai adversary claim succeeds
+      · have retries : (0 : ℝ) < Fintype.card Retries := by exact_mod_cast Fintype.card_pos
+        simp only [if_neg succeeds, Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
+        field_simp
+    rw [Fintype.sum_prod_type]
+    simp only [each, Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
+    field_simp
+  Statement := Running (logicalWidth := logicalWidth) (publicFits := publicFits) ×
+    Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)
+  statement run := ((claimed relation adversary claim run.1).running,
+    (claimed relation adversary claim run.1).fresh)
+  accepts run := Succeeds relation ajtai adversary claim run.1
+  Witness := OutputWitness productionShape (Phi81CarrierLayout.carrierWidth logicalWidth)
+  extract run := extract relation ajtai adversary claim run.1 run.2
+  Holds statement witness := SourceHolds extensionOps K.embed (PaperAlgebra.openingMaps ajtai)
+    productionGlobalParams ((ProductionKey.key relation ajtai).statement statement.1 statement.2) witness
+  witness_statement := by
+    rintro ⟨oracle, retries⟩ witness returned
+    change extract relation ajtai adversary claim oracle retries = some witness at returned
+    unfold extract at returned
+    by_cases extracts : Extracts relation ajtai adversary claim oracle retries
+    · rw [if_pos extracts] at returned
+      obtain ⟨valid, holds⟩ := extracts
+      unfold witnessOf at returned
+      rw [dif_pos valid] at returned
+      cases returned
+      exact holds
+    · rw [if_neg extracts] at returned
+      cases returned
+  error := knowledgeError relation ajtai adversary claim queries
+  knowledge_sound := by
+    have main := knowledge_error_le relation ajtai adversary claim bounded
+    calc
+      _ = ∑ oracle : Oracle, ∑ retries : Retries,
+            (if Succeeds relation ajtai adversary claim oracle then
+              weight relation ajtai adversary claim oracle retries -
+                weight relation ajtai adversary claim oracle retries *
+                  (if Extracts relation ajtai adversary claim oracle retries then 1 else 0)
+            else 0) / Fintype.card Oracle := by
+        rw [Fintype.sum_prod_type]
+        refine Finset.sum_congr rfl fun oracle _ => Finset.sum_congr rfl fun retries _ => ?_
+        by_cases succeeds : Succeeds relation ajtai adversary claim oracle
+        · by_cases extracts : Extracts relation ajtai adversary claim oracle retries
+          · have returned : extract relation ajtai adversary claim oracle retries ≠ none :=
+              fun none => (extract_eq_none_iff relation ajtai adversary claim oracle retries).mp none
+                extracts
+            simp [runWeight, succeeds, extracts, returned]
+          · have none : extract relation ajtai adversary claim oracle retries = none :=
+              (extract_eq_none_iff relation ajtai adversary claim oracle retries).mpr extracts
+            simp [runWeight, succeeds, extracts, none]
+        · simp only [succeeds, false_and, if_false, mul_zero, zero_div]
+      _ = ((∑ oracle : Oracle, if Succeeds relation ajtai adversary claim oracle then (1 : ℝ) else 0) -
+            ∑ oracle : Oracle, ∑ retries, weight relation ajtai adversary claim oracle retries *
+              (if Extracts relation ajtai adversary claim oracle retries then 1 else 0)) /
+          Fintype.card Oracle := by
+        rw [← Finset.sum_sub_distrib, Finset.sum_div]
+        refine Finset.sum_congr rfl fun oracle _ => ?_
+        rw [← Finset.sum_div]
+        refine congrArg (· / (Fintype.card Oracle : ℝ)) ?_
+        by_cases succeeds : Succeeds relation ajtai adversary claim oracle
+        · simp only [if_pos succeeds]
+          rw [Finset.sum_sub_distrib, weight_sum_eq_one relation ajtai adversary claim succeeds]
+        · have never (retries : Retries) : ¬ Extracts relation ajtai adversary claim oracle retries :=
+            fun extracts => succeeds extracts.fst.1
+          simp [succeeds, never]
+      _ ≤ knowledgeError relation ajtai adversary claim queries := by
+        rw [Finset.expect_eq_sum_div_card, Finset.expect_eq_sum_div_card, Finset.card_univ] at main
+        rw [sub_div]
+        linarith
 
 end NightstreamFPrime.Lifecycle.RandomOracleKnowledge

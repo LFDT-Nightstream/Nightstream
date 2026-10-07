@@ -32,6 +32,10 @@ pub(crate) fn prove_owned_with_rows(
         },
     ))
 }
+/// Replay the NIFS verifier for one fold. PiCCS absorbs the prior digest that
+/// the fresh public input carries, not the running claims, so the caller must
+/// first bind that digest to these claims (the lifecycle uses
+/// `checked_prior_state`).
 pub(crate) fn verify(
     tr: &mut Transcript,
     pp: &Params,

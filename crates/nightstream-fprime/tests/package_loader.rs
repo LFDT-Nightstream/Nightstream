@@ -245,7 +245,6 @@ fn rust_v1_1_pi_ccs_transcript_matches_lean_emitted_vector() {
     let expected_eval_k: Vec<Vec<[u64; 2]>> = serde_json::from_value(input[7].clone()).expect("output Eval_K");
     let expected_eval_a: Vec<Vec<Vec<[u64; 2]>>> = serde_json::from_value(input[8].clone()).expect("output Eval_A");
     let public: Vec<Vec<u64>> = serde_json::from_value(input[9].clone()).expect("public statement blocks");
-    let verifier: Vec<Vec<u64>> = serde_json::from_value(input[10].clone()).expect("verifier input blocks");
     let alpha: Vec<[u64; 2]> = serde_json::from_value(result[1].clone()).expect("alpha");
     let gamma: [u64; 2] = serde_json::from_value(result[2].clone()).expect("gamma");
     let round_point: Vec<[u64; 2]> = serde_json::from_value(result[6].clone()).expect("round point");
@@ -268,8 +267,10 @@ fn rust_v1_1_pi_ccs_transcript_matches_lean_emitted_vector() {
         }
     }
 
+    // The function decodes the prior digest from the public input; the Lean
+    // challenges below match only if it equals the statement block `public[0]`.
     let actual =
-        derive_pi_ccs_v1_1_transcript(&public, &verifier, &rounds, &output).expect("exact v1_1 transcript replay");
+        derive_pi_ccs_v1_1_transcript(&public[1], &public[2], &rounds, &output).expect("exact v1_1 transcript replay");
     assert_eq!(actual.alpha(), alpha);
     assert_eq!(actual.gamma(), gamma);
     assert_eq!(actual.round_point(), round_point);

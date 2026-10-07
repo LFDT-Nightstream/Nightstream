@@ -12,7 +12,6 @@ use super::{canonical_field, PackageError, PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT, 
 
 const WIDTH: usize = neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
 const CUBE_VARIABLES: usize = PI_CCS_V1_1_ROUND_COUNT;
-const RUNNING_SOURCES: usize = 16;
 const SOURCE_COUNT: usize = 17;
 const MATRIX_COUNT: usize = super::PI_CCS_V1_1_MATRIX_COUNT;
 const COEFFICIENT_COUNT: usize = 54;
@@ -59,22 +58,22 @@ impl PiCcsV1_1Transcript {
 
 /// Derive the fixed-profile v1.1 PiCCS transcript.
 ///
-/// Public statement blocks are: the pilot-recomputed prior-state digest, the
-/// fresh commitment, and the fresh public input. The semantic verifier blocks
-/// are validated but are not absorbed again because the prior digest already
-/// binds them.
+/// The statement is the fresh commitment and the fresh public input. The
+/// absorbed prior-state digest is Lean's `decodeHash` of that input, as
+/// `ProductionKey.priorDigest` reads it, so it is not a separate argument.
 pub fn derive_pi_ccs_v1_1_transcript(
-    public_statement_blocks: &[Vec<u64>],
-    verifier_input_blocks: &[Vec<u64>],
+    fresh_commitment: &[u64],
+    fresh_public_input: &[u64],
     rounds: &[Vec<[u64; 2]>],
     output_words: &[u64],
 ) -> Result<PiCcsV1_1Transcript, PackageError> {
-    validate_shapes(public_statement_blocks, verifier_input_blocks, rounds, output_words)?;
+    validate_shapes(fresh_commitment, fresh_public_input, rounds, output_words)?;
+    let public_input = canonical_words(fresh_public_input)?;
     let mut transcript = Poseidon2Transcript::new_v1_1();
     transcript.absorb_v1_1(&canonical_words(DOMAIN_TAG)?);
-    for block in public_statement_blocks {
-        transcript.absorb_block_v1_1(&canonical_words(block)?);
-    }
+    transcript.absorb_block_v1_1(&prior_digest(&public_input));
+    transcript.absorb_block_v1_1(&canonical_words(fresh_commitment)?);
+    transcript.absorb_block_v1_1(&public_input);
 
     let mut alpha = Vec::with_capacity(CUBE_VARIABLES);
     for coordinate in 0..CUBE_VARIABLES {
@@ -105,19 +104,26 @@ pub fn derive_pi_ccs_v1_1_transcript(
     })
 }
 
+/// Lean `decodeHash`: digest word `w` is `sum over bit < 64 of
+/// 2^bit * input[1 + 64 w + bit]`, computed in the field.
+fn prior_digest(public_input: &[Goldilocks]) -> Vec<Goldilocks> {
+    (0..4)
+        .map(|word| {
+            (0..64).fold(Goldilocks::ZERO, |value, bit| {
+                value + Goldilocks::from_u64(1 << bit) * public_input[1 + 64 * word + bit]
+            })
+        })
+        .collect()
+}
+
 fn validate_shapes(
-    public: &[Vec<u64>],
-    verifier: &[Vec<u64>],
+    commitment: &[u64],
+    public_input: &[u64],
     rounds: &[Vec<[u64; 2]>],
     output: &[u64],
 ) -> Result<(), PackageError> {
-    if public.len() != 3
-        || public[0].len() != 4
-        || public[1].len() != COMMITMENT_WORDS
-        || public[2].len() != PUBLIC_INPUT_WORDS
-        || verifier.len() != 2
-        || verifier[0].len() != CUBE_VARIABLES * 2
-        || verifier[1].len() != RUNNING_SOURCES * EVALUATION_WORDS
+    if commitment.len() != COMMITMENT_WORDS
+        || public_input.len() != PUBLIC_INPUT_WORDS
         || rounds.len() != CUBE_VARIABLES
         || rounds
             .iter()

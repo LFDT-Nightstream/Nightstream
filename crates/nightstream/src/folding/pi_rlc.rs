@@ -1,8 +1,8 @@
 //! Selected PiRLC. Public verification recomputes every parent coordinate.
 //! Legacy projection advice used a cloned transcript and is not part of this path.
 use super::{
-    has_evaluation_shape, has_zero_evaluation_padding, kernels as engine, superneo_has_canonical_x_shape,
-    transcript::Transcript, CeClaim, Params, RlcMixer, Structure,
+    has_canonical_evaluations, kernels as engine, superneo_has_canonical_x_shape, transcript::Transcript, CeClaim,
+    Params, RlcMixer, Structure,
 };
 use neo_ccs::Mat;
 use neo_math::F;
@@ -25,10 +25,8 @@ pub enum Error {
     RShape(&'static str),
     #[error("PiRLC input points differ")]
     RConsistency,
-    #[error("PiRLC evaluation shape in {0}")]
-    EvaluationShape(&'static str),
-    #[error("PiRLC evaluation padding in {0}")]
-    EvaluationPadding(&'static str),
+    #[error("PiRLC noncanonical evaluations in {0}")]
+    Evaluation(&'static str),
     #[error("plain claims cannot carry auxiliary commitments")]
     Auxiliary,
     #[error(transparent)]
@@ -109,8 +107,7 @@ fn validate_inputs_before_rho(s: &Structure, inputs: &[CeClaim]) -> Result<(), E
         validate_fold_digest_canonical("input", input)?;
         validate_canonical_x_shape_one("input", input)?;
         validate_r_shape_one("input", s, input)?;
-        validate_evaluation_shape_one("input", s, input)?;
-        validate_evaluation_padding_zero_one("input", input)?;
+        validate_evaluations("input", s, input)?;
     }
     Ok(())
 }
@@ -122,8 +119,10 @@ fn validate_combined_claim(s: &Structure, inputs: &[CeClaim], combined: &CeClaim
     validate_canonical_x_shape(inputs, combined)?;
     validate_r_shape(s, inputs, combined)?;
     validate_r_consistency(inputs, combined)?;
-    validate_evaluation_shape(s, inputs, combined)?;
-    validate_evaluation_padding_zero(inputs, combined)?;
+    for input in inputs {
+        validate_evaluations("input", s, input)?;
+    }
+    validate_evaluations("combined", s, combined)?;
     validate_fold_digest_consistency(inputs, combined)
 }
 fn validate_input_shape(claims: &[CeClaim], witnesses: &[&Mat<F>]) -> Result<(), Error> {
@@ -185,40 +184,9 @@ fn validate_r_consistency(inputs: &[CeClaim], combined: &CeClaim) -> Result<(), 
     Ok(())
 }
 
-fn validate_evaluation_shape(
-    s: &crate::folding::Structure,
-    inputs: &[CeClaim],
-    combined: &CeClaim,
-) -> Result<(), Error> {
-    for input in inputs {
-        validate_evaluation_shape_one("input", s, input)?;
-    }
-    validate_evaluation_shape_one("combined", s, combined)?;
-    Ok(())
-}
-
-fn validate_evaluation_shape_one(
-    owner: &'static str,
-    s: &crate::folding::Structure,
-    claim: &CeClaim,
-) -> Result<(), Error> {
-    if !has_evaluation_shape(claim, s.t()) {
-        return Err(Error::EvaluationShape(owner));
-    }
-    Ok(())
-}
-
-fn validate_evaluation_padding_zero(inputs: &[CeClaim], combined: &CeClaim) -> Result<(), Error> {
-    for input in inputs {
-        validate_evaluation_padding_zero_one("input", input)?;
-    }
-    validate_evaluation_padding_zero_one("combined", combined)?;
-    Ok(())
-}
-
-fn validate_evaluation_padding_zero_one(owner: &'static str, claim: &CeClaim) -> Result<(), Error> {
-    if !has_zero_evaluation_padding(claim) {
-        return Err(Error::EvaluationPadding(owner));
+fn validate_evaluations(owner: &'static str, s: &Structure, claim: &CeClaim) -> Result<(), Error> {
+    if !has_canonical_evaluations(claim, s.t()) {
+        return Err(Error::Evaluation(owner));
     }
     Ok(())
 }

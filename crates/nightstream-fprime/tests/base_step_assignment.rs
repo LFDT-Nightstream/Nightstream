@@ -446,8 +446,8 @@ fn checked_base_fixture(package: &LoadedPerApplicationPackage, bytes: &[u8]) -> 
         );
     }
     let transcript = derive_pi_ccs_v1_1_transcript(
-        &[hash(prior).to_vec(), vec![0; 1_188], public[..PUBLIC_WORDS].to_vec()],
-        &[vec![0; 28 * 2], vec![0; 16 * 864]],
+        &[0; 1_188],
+        &public[..PUBLIC_WORDS],
         &vec![vec![[0; 2]; 10]; 28],
         &vec![0; 17 * 864],
     )

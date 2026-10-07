@@ -1,7 +1,7 @@
 //! Selected PiCCS validation and shared native proving. Copied from neo-fold-clean.
 use super::{
-    has_evaluation_shape, has_zero_evaluation_padding, kernels as engine, superneo_has_canonical_x_shape,
-    transcript::Transcript, CcsClaim, CcsWitness, CeClaim, Params, RunningInstance, Structure,
+    has_canonical_evaluations, kernels as engine, superneo_has_canonical_x_shape, transcript::Transcript, CcsClaim,
+    CcsWitness, CeClaim, Params, RunningInstance, Structure,
 };
 use neo_math::D;
 pub use neo_reductions::api::PiCcsProof as SumcheckProof;
@@ -165,13 +165,10 @@ fn validate_v1_1_claim(s: &Structure, claim: &CeClaim) -> Result<(), Error> {
     if claim.r.len() != ell_n {
         return Err(Error::Shape("CE r length must match the joint row point"));
     }
-    if !has_evaluation_shape(claim, s.t()) {
+    if !has_canonical_evaluations(claim, s.t()) {
         return Err(Error::Shape(
-            "CE evaluations must use the padded ring degree and the CCS matrix count",
+            "CE evaluations must use the padded ring degree, the CCS matrix count and zero padding",
         ));
-    }
-    if !has_zero_evaluation_padding(claim) {
-        return Err(Error::Shape("CE evaluation padding lanes must be zero"));
     }
     Ok(())
 }

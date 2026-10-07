@@ -8,30 +8,17 @@ use p3_field::PrimeCharacteristicRing;
 /// Evaluation vectors use the padded ring degree; the lanes from `D` on are zero.
 pub(crate) const EVALUATION_WIDTH: usize = D.next_power_of_two();
 
-fn zero_padding(values: &[K]) -> bool {
-    values.iter().skip(D).all(|lane| *lane == K::ZERO)
-}
-
 /// The one canonical encoding of an `Eval_K` vector or an `Eval_A` row.
 pub(crate) fn is_canonical_evaluation(values: &[K]) -> bool {
-    values.len() == EVALUATION_WIDTH && zero_padding(values)
+    values.len() == EVALUATION_WIDTH && values[D..].iter().all(|lane| *lane == K::ZERO)
 }
 
-/// `Eval_K` and `matrices` rows of `Eval_A`, each of the padded width.
-pub(crate) fn has_evaluation_shape(claim: &CeClaim, matrices: usize) -> bool {
-    claim.eval_k.len() == EVALUATION_WIDTH
-        && claim.eval_a.len() == matrices
-        && claim.eval_a.iter().all(|row| row.len() == EVALUATION_WIDTH)
-}
-
-/// Every lane from `D` on is zero in `Eval_K` and in every `Eval_A` row.
-pub(crate) fn has_zero_evaluation_padding(claim: &CeClaim) -> bool {
-    zero_padding(&claim.eval_k) && claim.eval_a.iter().all(|row| zero_padding(row))
-}
-
-/// The canonical evaluation families of one claim.
+/// The canonical evaluation families of one claim: `Eval_K` and `matrices`
+/// rows of `Eval_A`, each a canonical evaluation.
 pub(crate) fn has_canonical_evaluations(claim: &CeClaim, matrices: usize) -> bool {
-    has_evaluation_shape(claim, matrices) && has_zero_evaluation_padding(claim)
+    claim.eval_a.len() == matrices
+        && is_canonical_evaluation(&claim.eval_k)
+        && claim.eval_a.iter().all(|row| is_canonical_evaluation(row))
 }
 
 #[derive(Clone, Debug)]

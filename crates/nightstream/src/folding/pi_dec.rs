@@ -1,7 +1,7 @@
 //! Selected radix-two decomposition under the existing production key.
 use super::{
-    ajtai_dec_mixer, has_evaluation_shape, has_zero_evaluation_padding, kernels as engine,
-    superneo_has_canonical_x_shape, superneo_public_x_cols, CeClaim, DecMixer, Params, Structure,
+    ajtai_dec_mixer, has_canonical_evaluations, kernels as engine, superneo_has_canonical_x_shape,
+    superneo_public_x_cols, CeClaim, DecMixer, Params, Structure,
 };
 use neo_ajtai::nightstream_fprime_setup::{
     commit_production_signed_unit_prefix_matrices, MAX_MESSAGE_COLUMNS, PRODUCTION_VERIFIER_ROWS,
@@ -26,10 +26,8 @@ pub enum Error {
     FoldDigestCanonicality { owner: &'static str, lane: usize },
     #[error("PiDEC point shape in {0}")]
     RShape(&'static str),
-    #[error("PiDEC evaluation shape in {0}")]
-    EvaluationShape(&'static str),
-    #[error("PiDEC evaluation padding in {0}")]
-    EvaluationPadding(&'static str),
+    #[error("PiDEC noncanonical evaluations in {0}")]
+    Evaluation(&'static str),
     #[error("plain claims cannot carry auxiliary commitments")]
     Auxiliary,
     #[error(transparent)]
@@ -169,14 +167,11 @@ fn validate_claim(owner: &'static str, s: &Structure, claim: &CeClaim) -> Result
     if claim.r.len() != point {
         return Err(Error::RShape(owner));
     }
-    if !has_evaluation_shape(claim, s.t()) {
-        return Err(Error::EvaluationShape(owner));
+    if !has_canonical_evaluations(claim, s.t()) {
+        return Err(Error::Evaluation(owner));
     }
     if !superneo_has_canonical_x_shape(&claim.X, claim.m_in) {
         return Err(Error::NoncanonicalXShape(owner));
-    }
-    if !has_zero_evaluation_padding(claim) {
-        return Err(Error::EvaluationPadding(owner));
     }
     if claim.adv.is_some() {
         return Err(Error::Auxiliary);

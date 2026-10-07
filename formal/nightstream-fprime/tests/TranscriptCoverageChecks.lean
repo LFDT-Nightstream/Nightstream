@@ -6,10 +6,11 @@ Checks for the transcript coverage contract.
 The pins restate the dependency specification `AgreeOnAbsorbed` by `Iff.rfl`,
 and the PiCCS domain tag, the challenge labels `[1, c]`, `[2]`, `[3, r]`,
 `[4, i]`, the key's round index and the block length prefix by `rfl`, so a
-change to any of them must also change this file. The
-two refutations show that the identify property fails for statement calls
-without the fresh commitment and for `y′` words without the matrix coordinates:
-removing either absorption from the key breaks a coverage proof.
+change to any of them must also change this file. The two refutations take
+copies of the schedule, one without the fresh commitment and one with `y′`
+words without the matrix coordinates, and show that the identify property
+fails for them. They show only that the property is not vacuous;
+`challenge_seal` and the identify theorems tie it to the key.
 -/
 
 namespace NightstreamFPrime.Tests.TranscriptCoverageChecks

@@ -37,15 +37,8 @@ impl PreparedLifecycle {
         let rounds = vec![vec![[0; 2]; PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT]; PI_CCS_V1_1_ROUND_COUNT];
         let evaluation_words = (PI_CCS_V1_1_MATRIX_COUNT + 1) * D * 2;
         let transcript = derive_pi_ccs_v1_1_transcript(
-            &[
-                prior_digest.to_vec(),
-                vec![0; PI_CCS_V1_1_FRESH_COMMITMENT_WORDS],
-                prior_public.clone(),
-            ],
-            &[
-                vec![0; PI_CCS_V1_1_ROUND_COUNT * 2],
-                vec![0; PI_DEC_V1_1_CHILD_COUNT * evaluation_words],
-            ],
+            &[0; PI_CCS_V1_1_FRESH_COMMITMENT_WORDS],
+            &prior_public,
             &rounds,
             &vec![0; PI_CCS_V1_1_SOURCE_COUNT * evaluation_words],
         )?;

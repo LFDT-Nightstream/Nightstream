@@ -46,7 +46,7 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Lifecycle.TranscriptCoverage
 open StrongReduction ConcreteCarrier
 
-attribute [local instance] Classical.propDecidable
+attribute [local instance low] Classical.propDecidable
 
 /-! ## Answers -/
 

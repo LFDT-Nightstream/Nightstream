@@ -20,7 +20,9 @@ Outputs:
 - `repeat_le`, `retries_le`: a rewinding extractor that resamples one point
   until it succeeds again repeats the base answer's key with total chance at
   most `Q * ε`, after at most `Q` expected retries; each queried point is
-  charged once (`expect_queried_le`, `mem_queries_update_iff`).
+  charged once (`expect_queried_le`, `mem_queries_update_iff`);
+- `expected_bad_retries`: under independent retries (`retryWeight`), the
+  expected number of bad retries is the sum of the per-coordinate chances.
 
 Invariant: a bad set is `Local`. It may read the oracle anywhere except at its
 own point, so the bad set of a later challenge may read earlier challenges.
@@ -100,6 +102,72 @@ theorem QueryBound.thenQuery {point : Output → Point}
   | query asked next bound _ inductionHypothesis =>
       exact .query asked _ (bound + 1) inductionHypothesis
 
+/-- Query a list of points, then return `output`. -/
+def queryAll (output : Output) : List Point → OracleComp Point Answer Output
+  | [] => done output
+  | point :: rest => query point fun _ => queryAll output rest
+
+/-- Run the computation, then query every listed point of its output, as a
+verifier does. -/
+def thenQueries (points : Output → List Point) : OracleComp Point Answer Output →
+    OracleComp Point Answer Output
+  | done output => queryAll output (points output)
+  | query asked next => query asked fun answer => (next answer).thenQueries points
+
+private theorem run_queryAll (oracle : Point → Answer) (output : Output) (points : List Point) :
+    (queryAll output points).run oracle = output := by
+  induction points with
+  | nil => rfl
+  | cons point rest inductionHypothesis => exact inductionHypothesis
+
+private theorem queries_queryAll (oracle : Point → Answer) (output : Output) (points : List Point) :
+    (queryAll output points : OracleComp Point Answer Output).queries oracle = points := by
+  induction points with
+  | nil => rfl
+  | cons point rest inductionHypothesis => exact congrArg (point :: ·) inductionHypothesis
+
+theorem run_thenQueries (points : Output → List Point) (oracle : Point → Answer)
+    (computation : OracleComp Point Answer Output) :
+    (computation.thenQueries points).run oracle = computation.run oracle := by
+  induction computation with
+  | done output => exact run_queryAll oracle output (points output)
+  | query asked next inductionHypothesis => exact inductionHypothesis (oracle asked)
+
+theorem mem_queries_thenQueries (points : Output → List Point) (oracle : Point → Answer)
+    (computation : OracleComp Point Answer Output) {point : Point}
+    (member : point ∈ points (computation.run oracle)) :
+    point ∈ (computation.thenQueries points).queries oracle := by
+  induction computation with
+  | done output =>
+      change point ∈ (queryAll output (points output) : OracleComp Point Answer Output).queries oracle
+      rw [queries_queryAll]
+      exact member
+  | query asked next inductionHypothesis =>
+      exact List.mem_cons_of_mem _ (inductionHypothesis (oracle asked) member)
+
+theorem QueryBound.thenQueries {points : Output → List Point} {count : Nat}
+    (counted : ∀ output, (points output).length ≤ count)
+    {computation : OracleComp Point Answer Output} {bound : Nat}
+    (bounded : computation.QueryBound bound) :
+    (computation.thenQueries points).QueryBound (bound + count) := by
+  induction bounded with
+  | done output bound =>
+      have listed : ∀ (rest : List Point) (extra : Nat), rest.length ≤ extra →
+          (queryAll output rest : OracleComp Point Answer Output).QueryBound (bound + extra) := by
+        intro rest
+        induction rest with
+        | nil => exact fun extra _ => .done output _
+        | cons point rest inductionHypothesis =>
+            intro extra short
+            obtain ⟨smaller, rfl⟩ : ∃ smaller, extra = smaller + 1 :=
+              ⟨extra - 1, by simp at short; omega⟩
+            exact .query point _ (bound + smaller) fun _ =>
+              inductionHypothesis smaller (by simpa using short)
+      exact listed (points output) count (counted output)
+  | query asked next bound _ inductionHypothesis =>
+      rw [show bound + 1 + count = (bound + count) + 1 by omega]
+      exact .query asked _ (bound + count) inductionHypothesis
+
 theorem QueryBound.queries_length_le {computation : OracleComp Point Answer Output}
     {bound : Nat} (bounded : computation.QueryBound bound) (oracle : Point → Answer) :
     (computation.queries oracle).length ≤ bound := by
@@ -130,7 +198,7 @@ section Probability
 variable {Point : Type uPoint} {Answer : Type uAnswer} {Output : Type uOutput}
   [Fintype Point] [DecidableEq Point] [Fintype Answer] [Nonempty Answer]
 
-attribute [local instance] Classical.propDecidable
+attribute [local instance low] Classical.propDecidable
 
 /-- The uniform probability of a set of answers. -/
 noncomputable def mass (answers : Set Answer) : ℝ :=
@@ -467,6 +535,84 @@ theorem retries_le {computation : OracleComp Point Answer Output} {bound : Nat}
       simp only [one_mul]
       rw [← Finset.expect_sum_comm]
       exact expect_queried_le bounded
+
+omit [Fintype Point] [DecidableEq Point] [Nonempty Answer] in
+private theorem sum_weight (set : Set Answer) (positive : mass set ≠ 0) (extra : Set Answer) :
+    ∑ answer, (if answer ∈ set then (1 : ℝ) else 0) / (Fintype.card Answer * mass set) *
+        (if answer ∈ extra then 1 else 0) = mass (set ∩ extra) / mass set := by
+  have nonempty : Nonempty Answer := by
+    by_contra empty
+    apply positive
+    have none : (Finset.univ : Finset Answer) = ∅ :=
+      Finset.univ_eq_empty_iff.mpr (not_nonempty_iff.mp empty)
+    simp [mass, none]
+  have card : (0 : ℝ) < Fintype.card Answer := by exact_mod_cast Fintype.card_pos
+  have joint : mass (set ∩ extra) =
+      (∑ answer, (if answer ∈ set then (1 : ℝ) else 0) * (if answer ∈ extra then 1 else 0)) /
+        Fintype.card Answer := by
+    rw [mass, Finset.expect_eq_sum_div_card, Finset.card_univ]
+    congr 1
+    exact Finset.sum_congr rfl fun answer _ => by
+      by_cases left : answer ∈ set <;> by_cases right : answer ∈ extra <;> simp [left, right]
+  have pull : ∑ answer, (if answer ∈ set then (1 : ℝ) else 0) / (Fintype.card Answer * mass set) *
+        (if answer ∈ extra then 1 else 0) =
+      (∑ answer, (if answer ∈ set then (1 : ℝ) else 0) * (if answer ∈ extra then 1 else 0)) *
+        (Fintype.card Answer * mass set)⁻¹ := by
+    rw [Finset.sum_mul]
+    exact Finset.sum_congr rfl fun _ _ => by ring
+  rw [joint, pull]
+  field_simp
+
+/-- Independent first successes: coordinate `index` is uniform on
+`sets index`, as the retry loop returns it. -/
+noncomputable def retryWeight {Index : Type*} [Fintype Index] (sets : Index → Set Answer)
+    (retries : Index → Answer) : ℝ :=
+  ∏ index, (if retries index ∈ sets index then (1 : ℝ) else 0) /
+    (Fintype.card Answer * mass (sets index))
+
+omit [Fintype Point] [DecidableEq Point] [Nonempty Answer] in
+theorem retryWeight_nonnegative {Index : Type*} [Fintype Index] (sets : Index → Set Answer)
+    (retries : Index → Answer) : 0 ≤ retryWeight sets retries :=
+  Finset.prod_nonneg fun _ _ => div_nonneg (by split <;> norm_num)
+    (mul_nonneg (Nat.cast_nonneg _) (mass_nonnegative _))
+
+omit [Fintype Point] [DecidableEq Point] [Nonempty Answer] in
+/-- Independent retries: the expected number of retries that land in their
+bad sets is the sum of the per-coordinate chances. -/
+theorem expected_bad_retries {Index : Type*} [Fintype Index] [DecidableEq Index]
+    (sets : Index → Set Answer) (positive : ∀ index, mass (sets index) ≠ 0)
+    (bad : Index → Set Answer) :
+    ∑ retries : Index → Answer, retryWeight sets retries *
+        (∑ index, if retries index ∈ bad index then (1 : ℝ) else 0) =
+      ∑ index, mass (sets index ∩ bad index) / mass (sets index) := by
+  calc
+    _ = ∑ index, ∑ retries : Index → Answer, retryWeight sets retries *
+          (if retries index ∈ bad index then (1 : ℝ) else 0) := by
+      simp_rw [Finset.mul_sum]
+      exact Finset.sum_comm
+    _ = ∑ index, ∑ retries : Index → Answer, ∏ coordinate,
+          (if retries coordinate ∈ sets coordinate then (1 : ℝ) else 0) /
+              (Fintype.card Answer * mass (sets coordinate)) *
+            (if coordinate = index then
+              (if retries coordinate ∈ bad coordinate then 1 else 0) else 1) := by
+      refine Finset.sum_congr rfl fun index _ => Finset.sum_congr rfl fun retries _ => ?_
+      simp only [Finset.prod_mul_distrib, Finset.prod_ite_eq', Finset.mem_univ, if_true,
+        retryWeight]
+    _ = ∑ index, ∏ coordinate, ∑ answer : Answer,
+          (if answer ∈ sets coordinate then (1 : ℝ) else 0) /
+              (Fintype.card Answer * mass (sets coordinate)) *
+            (if coordinate = index then (if answer ∈ bad coordinate then 1 else 0) else 1) := by
+      refine Finset.sum_congr rfl fun index _ => ?_
+      rw [Fintype.prod_sum]
+    _ = ∑ index, mass (sets index ∩ bad index) / mass (sets index) := by
+      refine Finset.sum_congr rfl fun index _ => ?_
+      rw [Finset.prod_eq_single index]
+      · simpa using sum_weight (sets index) (positive index) (bad index)
+      · intro coordinate _ different
+        simpa [different, mul_one] using
+          (sum_weight (sets coordinate) (positive coordinate) Set.univ).trans
+            (by simp [div_self (positive coordinate)])
+      · simp
 
 end LineRetry
 

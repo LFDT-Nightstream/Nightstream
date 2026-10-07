@@ -96,12 +96,27 @@ lemma gives no concrete extractor time. That bound is also open for Stage 1.
 `q`. Then `𝕂 = F[U]/(U² − 7)` is a field of size `q²`, and `F → 𝕂` is
 injective. A release needs machine-checked certificates for both facts.
 
-**A6 (Fiat–Shamir).** SuperNeo folding with the Poseidon2 transcript is
-knowledge sound, with a loss that depends on the oracle-query count and the
-extraction cost. The trunk has no theorem for this premise yet. The memory
-challenges `η` are different: the F′ relation computes them with `H` inside a
-recursively proven step. Lemma 4 handles them directly in the random-oracle
-model, so A6 does not cover them.
+**A6 (Fiat–Shamir game transfer).** The F′ relation computes outputs of `H`
+inside a recursively proven step. A random oracle cannot run inside a circuit,
+so no random-oracle proof covers these outputs directly. Stage 1 states this
+gap as an explicit premise, which the owner approved on 2026-09-11
+(`docs/reviews/nightstream-fprime-requirements/FIAT_SHAMIR_MODEL.md`; Lean
+`FiatShamirModel` in `Lifecycle/Nifs/FiatShamirTransfer.lean`). The premise
+transfers success from the real Poseidon2 experiment to a translated
+experiment, through external functions `g_d` and `delta_d` of the total
+permutation-query count `Q`.
+
+A6 extends that premise to the outputs of `H` that Stage 2 adds:
+
+- the memory challenges `η` (spec §9.3);
+- the chain digests (spec §9.2).
+
+In the translated experiment, each of these outputs is the answer to an oracle
+query that the adversary made. Lemmas 3 and 4 hold in that experiment, and A6
+carries the §5 bound to the real protocol. One transfer covers the whole F′
+transcript: the Stage 1 and the Stage 2 outputs together. The extension needs
+the owner's approval, as the Stage 1 boundary did. Like that boundary, it
+selects no numerical value for `g_d` or `delta_d`.
 
 ## 3. Deterministic obligations
 
@@ -121,6 +136,18 @@ These obligations have no probability term. A failure is a defect.
 | Ob10 | Lifecycle (spec §12): the arm follows from the authenticated carry; `absorb` reads only the folded claim's bundle; the terminal absorbs `u_{T−1}` and closes |
 
 ## 4. Lemmas
+
+The lemmas cover the six joints of spec §1.1. The author wrote every proof in
+this note, and each proof needs an independent review (§7).
+
+| Joint | Argument | Status |
+|---|---|---|
+| J1: lanes into `L*` | Lemma 1; Ob2, Ob8 | Proof in this note, under A1 and A2 |
+| J2: bundle through the fold | Lemmas 1 and 2 | Proof in this note. The trunk preimage already binds every running child |
+| J3: delayed absorb | Ob10 | Deterministic obligation |
+| J4: carry thread | A3, A4 | Assumed. The arity adaptation and Property 6 are open |
+| J5: commit, then test | Lemmas 3–6 | Proof in this note, in the translated experiment of A6 |
+| J6: segment joins and terminal | Corollary 1.1; Lemma 7 | Proof in this note |
 
 ### Lemma 1 — The product map is a SuperNeo commitment
 
@@ -197,13 +224,14 @@ when the commitment block becomes the bundle.
 
 ### Lemma 3 — Commitments fixed before `η`
 
-**Statement.** Suppose a segment closes: `D_seen = (D_pre.ops, D_mem,
-D_pre.fs)`, where `D_seen` comes from the absorbed bundles and the three roots
-entered the `η` transcript (spec §9.3). Then, except with `ε_H`, the `N` lane
-commitments of each lane were fixed when the `η` query was made.
+**Statement.** Work in the translated experiment of A6. Suppose a segment
+closes: `D_seen = (D_pre.ops, D_mem, D_pre.fs)`, where `D_seen` comes from the
+absorbed bundles and the three roots entered the `η` transcript (spec §9.3).
+Then, except with `ε_H`, the `N` lane commitments of each lane were fixed when
+the `η` query was made.
 
-**Proof.** In the random-oracle model, `D_seen.l` is the output of the last
-chain query for lane `l`. For that output to equal the root in the `η` query,
+**Proof.** In that experiment, every output of `H` is an oracle answer.
+`D_seen.l` is the output of the last chain query for lane `l`. For that output to equal the root in the `η` query,
 one of three events occurs:
 
 1. The prover made that chain query before the `η` query. The query input
@@ -223,8 +251,8 @@ output of the previous segment's FS chain, or the verifier's `D_init`. ∎
 
 ### Lemma 4 — Commit-then-test
 
-**Statement.** Let the adversary make at most `q_η` queries to the `η`
-transcript of spec §9.3. For an accepted proof, run the extractor of A1 and
+**Statement.** Work in the translated experiment of A6. Let the adversary make
+at most `q_η` queries to the `η` transcript of spec §9.3. For an accepted proof, run the extractor of A1 and
 A4. For each closed segment, let `A = IS ∪ WS` and `B = RS ∪ FS` be the
 multisets that the extracted lane contents define, each of size at most
 `m_mem`. Then
@@ -395,11 +423,11 @@ relation with these properties:
 
 **Theorem.** Assume A1–A6 and Ob1–Ob10. Let the adversary make at most `q_η`
 queries to the `η` transcript. There is an extractor `E`, built from the
-extractors of A1 and A4, such that
+extractors of A1 and A4, such that, in the translated experiment of A6,
 
 ```text
 Pr[accept and E's output is not a valid execution]
-   ≤  ε_Stage1                          (A1, A4, A6: every fold and the terminal)
+   ≤  ε_Stage1                          (A1, A4: every fold and the terminal)
     + q_η · (ε_test + ε_lane(t_1))      (Lemma 4)
     + ε_lane(t_E)                       (Corollary 1.1 at every segment join)
     + ε_H                               (A3: every query of the adversary and of the reductions)
@@ -410,6 +438,8 @@ the Stage 1 error for the Stage 2 relation shape, including SuperNeo's
 `ε_uniq` for `L_full`. `t_E` is the time of one adversary run with extraction,
 and `t_1 ≤ 2·t_E`. One reduction checks every segment join in one run. The
 proof is Lemma 7 with a union bound.
+
+A6 carries this bound to the real protocol through `g_d` and `delta_d`.
 
 A4 gives no concrete bound on `t_E`, so the `ε_lane` terms have no number yet.
 `ε_lane` and `ε_H` come from work estimates. They become probabilities only
@@ -477,17 +507,19 @@ generated relation MUST supply the exact census.
 2. **Stage 2 authorization** by the owner, and a decision record for the lane
    maps: setup IDs, expander input layout, `κ_lane`, and the Module-SIS
    estimate at infinity norm 1 (spec §7.2).
-3. **Generated relation** that fits the `2^28` domain, with its exact shape and
+3. **A6 extension.** Owner approval of the A6 extension to `η` and the chain
+   digests, in the form of the Stage 1 boundary.
+4. **Generated relation** that fits the `2^28` domain, with its exact shape and
    census, and the recomputed §5 table.
-4. **Lean formalization** of the Stage 2 phase, with the extended composition,
+5. **Lean formalization** of the Stage 2 phase, with the extended composition,
    Property 6, fixed-point, and domain theorems (A4;
    `FPRIME_LEAN_ARCHITECTURE_SPEC.md` §6).
-5. **Shared with Stage 1:** the Fiat–Shamir theorem (A6), the concrete
-   extractor time `t_E` (A4), the arity adaptation of HyperNova Lemma 4, the
+6. **Shared with Stage 1:** useful values of `g_d` and `delta_d` (A6), the
+   concrete extractor time `t_E` (A4), the arity adaptation of HyperNova Lemma 4, the
    terminal decider, encoding, and implementation terms, and an approved F′
    threat model with an end-to-end target. The legacy
    `protocol-contract/security-reduction.md` §8 shows the form of these terms.
-6. **Query model, shared with Stage 1.** The Module-SIS level is a quantum
+7. **Query model, shared with Stage 1.** The Module-SIS level is a quantum
    estimate, but this note counts classical oracle queries. A quantum search
    finds a bad one-check challenge in about the square root of the classical
    work: about `2^55` for a `2^−109.91` check. The fold challenges have the

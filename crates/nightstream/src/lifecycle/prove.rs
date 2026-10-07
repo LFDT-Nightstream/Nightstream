@@ -76,7 +76,11 @@ impl PreparedLifecycle {
         })
     }
 
-    fn validate_prover_sources(&self, fresh: &[CcsInstance], running: &RunningInstance) -> Result<(), ProveError> {
+    pub(super) fn validate_prover_sources(
+        &self,
+        fresh: &[CcsInstance],
+        running: &RunningInstance,
+    ) -> Result<(), ProveError> {
         if fresh.len() != PI_CCS_V1_1_SOURCE_COUNT - PI_DEC_V1_1_CHILD_COUNT
             || running.claims.len() != PI_DEC_V1_1_CHILD_COUNT
             || !running.prover_shape_is_valid()

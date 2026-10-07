@@ -11,7 +11,9 @@ use p3_field::PrimeField64;
 use crate::application::{ApplicationCircuit, ApplicationError};
 use crate::assembly::{self, AssemblyError};
 use crate::engine::{Backend, Engine, EngineError};
-use crate::lifecycle::{ExtendError, PreparedLifecycle, ProofCodecError, Stage1Envelope, Stage1State, VerifyError};
+use crate::lifecycle::{
+    ExtendError, FinalProof, FinishError, PreparedLifecycle, ProofCodecError, Stage1Envelope, Stage1State, VerifyError,
+};
 
 mod storage;
 
@@ -31,6 +33,8 @@ pub enum Error {
     Extend(#[from] ExtendError),
     #[error(transparent)]
     Verify(#[from] VerifyError),
+    #[error(transparent)]
+    Finish(#[from] FinishError),
     #[error(transparent)]
     ProofBytes(#[from] ProofCodecError),
     #[error(transparent)]
@@ -163,6 +167,18 @@ impl Prover {
     pub fn encode_proof(&self, proof: &Stage1Envelope) -> Result<Vec<u8>, Error> {
         Ok(self.lifecycle.encode_proof(proof)?)
     }
+
+    /// Compress `proof`: one more PiCCS + PiRLC fold without PiDEC, then a
+    /// sum-check and WHIR argument for the folded claim. The result carries
+    /// no witness and cannot be extended; `proof` does not change.
+    pub fn finish_with_spartan(&self, proof: &Stage1Envelope) -> Result<FinalProof, Error> {
+        Ok(self.lifecycle.finish_with_spartan(proof)?)
+    }
+
+    /// The circuit's byte encoding of `proof`, for `Verifier::decode_final_proof`.
+    pub fn encode_final_proof(&self, proof: &FinalProof) -> Result<Vec<u8>, Error> {
+        Ok(self.lifecycle.encode_final_proof(proof)?)
+    }
 }
 
 /// Terminal verification against a circuit chosen independently of the proof.
@@ -206,9 +222,41 @@ impl Verifier {
         Ok(self.lifecycle.decode_proof(bytes)?)
     }
 
-    /// Check every remaining claim and opening against the configured circuit.
-    pub fn verify(&self, expected_state: &Stage1State, proof: &Stage1Envelope) -> Result<(), Error> {
-        Ok(self.lifecycle.verify(expected_state, proof)?)
+    /// Decode untrusted finished-proof bytes. Acceptance still needs `verify`.
+    pub fn decode_final_proof(&self, bytes: &[u8]) -> Result<FinalProof, Error> {
+        Ok(self.lifecycle.decode_final_proof(bytes)?)
+    }
+
+    /// Check `proof` against the configured circuit and the expected state.
+    /// A `Proof` is checked with its witnesses; a `FinalProof` through its
+    /// layer-0 replay and layer-1 argument.
+    pub fn verify<P: Verifiable>(&self, expected_state: &Stage1State, proof: &P) -> Result<(), Error> {
+        proof.verify_in(&self.lifecycle, expected_state)
+    }
+}
+
+/// A proof that `Verifier::verify` accepts: `Proof` or `FinalProof`.
+pub trait Verifiable: sealed::Verify {}
+impl Verifiable for Stage1Envelope {}
+impl Verifiable for FinalProof {}
+
+mod sealed {
+    use super::{Error, FinalProof, PreparedLifecycle, Stage1Envelope, Stage1State};
+
+    pub trait Verify {
+        fn verify_in(&self, lifecycle: &PreparedLifecycle, expected_state: &Stage1State) -> Result<(), Error>;
+    }
+
+    impl Verify for Stage1Envelope {
+        fn verify_in(&self, lifecycle: &PreparedLifecycle, expected_state: &Stage1State) -> Result<(), Error> {
+            Ok(lifecycle.verify(expected_state, self)?)
+        }
+    }
+
+    impl Verify for FinalProof {
+        fn verify_in(&self, lifecycle: &PreparedLifecycle, expected_state: &Stage1State) -> Result<(), Error> {
+            Ok(lifecycle.verify_final(expected_state, self)?)
+        }
     }
 }
 

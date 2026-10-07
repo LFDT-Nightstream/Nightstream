@@ -188,7 +188,6 @@ import NightstreamFPrime.Export.Stage1.HyperNovaInput
 import NightstreamFPrime.Export.Stage1.HyperNovaSource
 import NightstreamFPrime.Export.Stage1.HyperNovaHistory
 import NightstreamFPrime.Export.Stage1.HyperNovaHistoryProbability
-import NightstreamFPrime.Export.Stage1.HyperNovaSourceLaw
 import NightstreamFPrime.Export.Stage1.HyperNovaRealInput
 import NightstreamFPrime.Export.Stage1.HyperNovaCompleteness
 import NightstreamFPrime.Export.Stage1.HyperNovaAcceptedNext
@@ -200,8 +199,6 @@ import NightstreamFPrime.Export.Stage1.HyperNovaVisitedAcceptance
 import NightstreamFPrime.Export.Stage1.HyperNovaFirstFailure
 import NightstreamFPrime.Export.Stage1.HyperNovaVisitedSecurity
 import NightstreamFPrime.Export.Stage1.HyperNovaFalseAcceptance
-import NightstreamFPrime.Export.Stage1.HyperNovaHistoryWork
-import NightstreamFPrime.Export.Stage1.HyperNovaSourceWork
 import NightstreamFPrime.Export.Stage1.ActualPiDEC
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectSource
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryRetainedBlocks
@@ -265,8 +262,6 @@ import NightstreamFPrime.Export.Stage1.DirectPiRLCProductFootprint
 import NightstreamFPrime.Export.Stage1.DirectPiRLCProductFootprintBridge
 import NightstreamFPrime.Export.Stage1.DirectLowNormFootprint
 
-import NightstreamFPrime.Export.Stage1.NifsProviderLaw
-
 import NightstreamFPrime.Export.Stage1.PiCCSFirstRound
 import NightstreamFPrime.Export.Stage1.PiCCSFreshPolynomial
 import NightstreamFPrime.Export.Stage1.PiCCSFreshPadding
@@ -299,5 +294,46 @@ import NightstreamFPrime.Export.Stage1.PiCCSNormContribution
 import NightstreamFPrime.Export.Stage1.PiCCSNormRangeMerge
 import NightstreamFPrime.Export.Stage1.PiCCSNormComplete
 import NightstreamFPrime.Export.Stage1.PiCCSPublicReplay
+import Mathlib.Probability.ProbabilityMassFunction.Constructions
+import Mathlib.Topology.Algebra.InfiniteSum.Real
+import Mathlib.Analysis.Normed.Group.InfiniteSum
+import Mathlib.Data.Real.Sqrt
+import Mathlib.Tactic.Linarith
+import Mathlib.Tactic.Ring
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.IndependentExecution
+import Mathlib.Data.ENNReal.BigOperators
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CausalExecution
+import Mathlib.Algebra.BigOperators.Ring.Finset
+import NightstreamFPrime.Export.Stage1.PiCCSStoredWitnessCheck
+import Mathlib.Analysis.SpecificLimits.Basic
+import Mathlib.Tactic.FieldSimp
+import Mathlib.Tactic.Positivity
+import Mathlib.Algebra.BigOperators.Field
+import Mathlib.Algebra.Order.BigOperators.Expect
+import Mathlib.Logic.Equiv.Prod
+import Mathlib.Data.Fintype.Option
+import NightstreamFPrime.Spec.Folding.PiRLC.CoordinateForkLaw
+import Mathlib.Algebra.Polynomial.Eval.Defs
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CheckedWitnessExtraction
+import NightstreamFPrime.Lifecycle.ProductionKey
+import NightstreamFPrime.Lifecycle.PaperExtractionAlgebra
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtraction
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.WitnessProjection
+import NightstreamFPrime.Lifecycle.XOut
+import NightstreamFPrime.Spec.Folding.Nifs.PaperWeakSuffix
+import Mathlib.Probability.ProbabilityMassFunction.Basic
+import Mathlib.Topology.Algebra.InfiniteSum.Constructions
+import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongInterface
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
+import Mathlib.Analysis.Normed.Group.Tannery
+import NightstreamFPrime.Spec.Phi81StrongSet.LowNormInvertibility
+import NightstreamFPrime.Lifecycle.PaperAlgebra
+import NightstreamFPrime.Spec.Folding.Nifs.StoredAssignmentArithmetic
+import NightstreamFPrime.Export.Stage1.PiDECInputCheck
+import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingPowerInverse
+import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Binding
+import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Product
+import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFLaws
+import NightstreamFPrime.Spec.Profile
 
 /-! Export layer root. Lists the modules of this layer explicitly. -/

@@ -181,8 +181,7 @@ as in Attema–Fehr–Klooß–Resch. *Status:* proved as
 `extracted_ambient`.
 
 **Lemma 6 (forked uniqueness; replaces SuperNeo v1.2 B.2 retry).** The
-interactive argument uses two independent executions at one fixed context
-(`StrongProbability.local_source_error_le_retry`). In the ROM the statement is
+interactive argument uses two independent executions at one fixed context. In the ROM the statement is
 adaptive, so the second execution is a *fork*. Run `A` followed by the
 verifier's 74 challenge queries. The fork index `J` is the first query whose
 call list extends the output statement's calls; the fork context is the set

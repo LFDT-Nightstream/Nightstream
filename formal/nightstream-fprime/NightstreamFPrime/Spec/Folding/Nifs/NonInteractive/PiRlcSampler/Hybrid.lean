@@ -5,23 +5,23 @@ import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
 import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Law
-import NightstreamFPrime.Spec.Folding.PiRLC.CoordinateTerminalLaw
+import Mathlib.Analysis.SpecificLimits.Basic
+import Mathlib.Tactic.FieldSimp
+import Mathlib.Algebra.BigOperators.Field
+import Mathlib.Algebra.Order.BigOperators.Expect
+import Mathlib.Logic.Equiv.Prod
+import Mathlib.Data.Fintype.Option
 
 /-!
-Owns the transfer of the interactive PiRLC extraction bound to challenges
-drawn by the whole-vector sampler.
+Owns the hybrid argument for the whole-vector PiRLC sampler.
 
 Experiment: each coordinate of the challenge vector is `sample` applied to its
 own four independent uniform field values.
 Per-call bound: `distance < 2^-132` from `Law`.
 Cumulative bound: for `n` challenge coordinates, every acceptance test with
-values in `[0, 1]` changes by at most `n * distance`. One PiRLC fold has
-`n = K + k`; over `L` folds the loss is at most `L * n * distance`, with `L`
-kept as a parameter.
+values in `[0, 1]` changes by at most `n * distance`.
 
-The existing extractor keeps uniform challenges; its loss `n / |C|` stays a
-separate term. The sampler has no failure event. No law is assigned to
-Poseidon2.
+The sampler has no failure event. No law is assigned to Poseidon2.
 -/
 
 namespace NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
@@ -168,55 +168,5 @@ theorem vector_average_difference_abs_le {Index : Type*} [Fintype Index] [Decida
       rw [average_sample, average_scalar]
       exact expect_difference_abs_le t low high)
     test nonnegative atMostOne
-
-/-! ### Transfer to the interactive PiRLC extractor -/
-
-section Extractor
-
-open NightstreamFPrime.Spec.Folding.PiRLC
-open CoordinateRetry CoordinateOracle CoordinateOracleStar CoordinateTerminalLaw
-
-variable {Index Assignment : Type*} [Fintype Index] [DecidableEq Index] [Fintype Assignment]
-
-/-- Acceptance probability when the verifier draws every challenge coordinate
-with the whole-vector sampler. -/
-noncomputable def sampledRate (oracle : Oracle Index Scalar Assignment)
-    (check : (Index → Scalar) → Assignment → Bool) : ℝ :=
-  average (fun draws : Index → Draw =>
-    (line oracle check).acceptance (fun index => sample (draws index)))
-
-theorem rate_eq_average (oracle : Oracle Index Scalar Assignment)
-    (check : (Index → Scalar) → Assignment → Bool) :
-    (line oracle check).rate = average (line oracle check).acceptance := by
-  unfold Line.rate Line.weight average
-  rw [sum_div]
-
-/-- Sampled acceptance exceeds uniform acceptance by at most `n * distance`. -/
-theorem sampledRate_le (oracle : Oracle Index Scalar Assignment)
-    (check : (Index → Scalar) → Assignment → Bool) :
-    sampledRate oracle check ≤ (line oracle check).rate + Fintype.card Index * distance := by
-  have close := vector_average_difference_abs_le (line oracle check).acceptance
-    (line oracle check).nonnegative (line oracle check).atMostOne
-  rw [rate_eq_average]
-  unfold sampledRate
-  linarith [(abs_le.mp close).2]
-
-/-- V6: the existing uniform-challenge extractor returns with probability
-at least the sampled acceptance minus `n / |C|` and `n * distance`.
-The right-hand probability is still the uniform extractor experiment;
-this theorem does not identify a Poseidon2 transcript execution. -/
-theorem returningProbability_sampled_lower_bound (oracle : Oracle Index Scalar Assignment)
-    (check : (Index → Scalar) → Assignment → Bool)
-    (returns : (Index → Scalar) → Option Assignment →
-      (Index → Outcome (Challenge := Scalar) (Assignment := Assignment)) → Bool)
-    (returnsOnFork : ∀ vector initial outputs,
-      0 < outcomeMass oracle check vector initial outputs → returns vector initial outputs = true) :
-    sampledRate oracle check - Fintype.card Index * distance -
-        (Fintype.card Index : ℝ) / Fintype.card Scalar ≤
-      returningProbability oracle check returns := by
-  have uniform := returningProbability_lower_bound oracle check returns returnsOnFork
-  linarith [sampledRate_le oracle check]
-
-end Extractor
 
 end NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler

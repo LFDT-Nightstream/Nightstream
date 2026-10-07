@@ -5,8 +5,11 @@
 `NifsProviderLaw` and `FiatShamirTransfer` are deleted; the real success
 event moved to `NifsRealSuccess`. The history bound
 `HyperNovaVisitedSecurity.history_probability_bound` takes HyperNova errata
-Assumption 1 at each visit (see `TRUST_BOUNDARY.md`). The record below
-describes the retired chain at its checked commits.
+Assumption 1 at each visit (see `TRUST_BOUNDARY.md`). The interactive
+extraction chain that only the retired history used (adaptive binding,
+supported extraction, weak suffix, stored checker programs and their work
+bounds) is deleted as well. The record below describes the retired chain at
+its checked commits.
 
 The selected v1.2 linear-security extension is checked at
 `1ad23f557b73e0564a27b62e20fe9d01a688f6b0`.

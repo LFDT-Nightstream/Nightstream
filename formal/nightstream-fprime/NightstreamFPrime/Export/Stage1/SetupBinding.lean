@@ -1,7 +1,33 @@
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.RelaxedBinding
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
-import NightstreamFPrime.Lifecycle.Nifs.BindingReduction
 import NightstreamFPrime.Spec.AjtaiSetupV1.Prefix
+import NightstreamFPrime.Lifecycle.ProductionKey
+import NightstreamFPrime.Lifecycle.PaperExtractionAlgebra
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtraction
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.WitnessProjection
+import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Binding
+import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Product
+import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFLaws
+import NightstreamFPrime.Spec.Profile
+import Mathlib.Analysis.SpecificLimits.Basic
+import Mathlib.Tactic.FieldSimp
+import Mathlib.Tactic.Linarith
+import Mathlib.Tactic.Positivity
+import Mathlib.Tactic.Ring
+import Mathlib.Algebra.BigOperators.Field
+import Mathlib.Algebra.Order.BigOperators.Expect
+import Mathlib.Logic.Equiv.Prod
+import Mathlib.Data.Fintype.Option
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
+import Mathlib.Probability.ProbabilityMassFunction.Constructions
+import Mathlib.Algebra.BigOperators.Ring.Finset
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CausalExecution
+import Mathlib.Topology.Algebra.InfiniteSum.Real
+import Mathlib.Analysis.Normed.Group.InfiniteSum
+import Mathlib.Data.Real.Sqrt
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.IndependentExecution
+import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongInterface
+import NightstreamFPrime.Spec.Folding.PiRLC.CoordinateForkLaw
+import Mathlib.Algebra.Polynomial.Eval.Defs
 
 /-! The two binding reductions instantiated at the verifier's exact public
 seed, matrix dimensions and `8TB` MSIS norm. This is a deterministic link;
@@ -28,35 +54,6 @@ def productionBindingCollision_to_shortKernel
     nonzero := witness.nonzero
     bounded := fun column => (witness.bounded column).trans_le (by decide)
     kernel := witness.kernel }
-
-/-- The relaxed collision uses actual `C-C` challenges and strict `2B`
-openings, and returns a short integer kernel vector under the selected key. -/
-def productionRelaxedBindingCollision_to_shortKernel
-    (commitment : Commitment.Value verifierRows)
-    (collision : Folding.PiRLC.RelaxedBindingCollision
-      (relationSemantics (Commitment.commit productionAjtaiKey))
-      productionGlobalParams Binding.relaxedOps commitment) :
-    Binding.ShortKernelVector productionAjtaiKey productionGlobalParams.msisNormBound :=
-  Binding.relaxedBindingCollision_to_shortKernel productionAjtaiKey commitment collision
-
-/-- A successful emitted NIFS vector solves the selected public-seed
-instance: 59804514 integer coordinates and strict norm 113246208. The
-kernel is for `productionAjtaiKey`; no setup average or numerical hardness
-estimate is introduced by this deterministic identification. -/
-theorem productionNifsOutput_is_msis (output : List Int)
-    (success : Lifecycle.Nifs.BindingReduction.Succeeds productionAjtaiKey (some output)) :
-    ∃ witness : Binding.ShortKernelVector productionAjtaiKey 113246208,
-      output = List.ofFn witness.vector ∧ output.length = 59804514 := by
-  obtain ⟨witness, returned⟩ := success
-  have same := Option.some.inj returned
-  refine ⟨{
-    vector := witness.vector
-    nonzero := witness.nonzero
-    bounded := fun column => by
-      simpa only [production_msis_norm_bound] using witness.bounded column
-    kernel := witness.kernel }, same, ?_⟩
-  rw [same, List.length_ofFn]
-  exact carrierWidth_eq
 
 /-- Shape of the larger fixed-seed instance named in the approved
 `PUBLIC_SEED_MSIS_ASSUMPTION.md`, before unused allocation removal. -/

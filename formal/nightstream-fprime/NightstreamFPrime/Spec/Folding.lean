@@ -9,12 +9,32 @@ import NightstreamFPrime.Spec.Folding.Nifs
 import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongCompleteness
 import NightstreamFPrime.Spec.Folding.Nifs.PaperCausalReplay
 import NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Completeness
-import NightstreamFPrime.Spec.Folding.Nifs.PaperWeakAlgorithm
 import NightstreamFPrime.Spec.Folding.Nifs.PaperWeakCompleteness
-import NightstreamFPrime.Spec.Folding.Nifs.PaperAlignedExtraction
-import NightstreamFPrime.Spec.Folding.Nifs.PaperCompositionProbability
-import NightstreamFPrime.Spec.Folding.Nifs.PaperCompositionWork
-import NightstreamFPrime.Spec.Folding.Nifs.PaperCompositionAgreement
+import NightstreamFPrime.Spec.Folding.Nifs.PaperWeakSuffix
+import Mathlib.Analysis.SpecificLimits.Basic
+import Mathlib.Tactic.FieldSimp
+import Mathlib.Tactic.Linarith
+import Mathlib.Tactic.Positivity
+import Mathlib.Tactic.Ring
+import Mathlib.Algebra.BigOperators.Field
+import Mathlib.Algebra.Order.BigOperators.Expect
+import Mathlib.Logic.Equiv.Prod
+import Mathlib.Data.Fintype.Option
+import Mathlib.Probability.ProbabilityMassFunction.Basic
+import Mathlib.Topology.Algebra.InfiniteSum.Real
+import Mathlib.Topology.Algebra.InfiniteSum.Constructions
+import Mathlib.Analysis.Normed.Group.InfiniteSum
+import NightstreamFPrime.Spec.Folding.PiRLC.CoordinateForkLaw
+import Mathlib.Algebra.Polynomial.Eval.Defs
+import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongInterface
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CausalExecution
+import Mathlib.Probability.ProbabilityMassFunction.Constructions
+import Mathlib.Data.Real.Sqrt
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.IndependentExecution
+import Mathlib.Algebra.BigOperators.Ring.Finset
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CheckedWitnessExtraction
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtraction
 
 /-! Folding-path verifier semantics: batch arity, Π_RLC combination, Π_DEC
 decomposition and its paper verifier. -/

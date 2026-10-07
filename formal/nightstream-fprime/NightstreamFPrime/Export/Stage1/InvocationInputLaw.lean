@@ -117,8 +117,7 @@ private theorem compileActions_at
           (let previous := if index = 0 then state
             else permutationOutput (witnessStart + (index - 1) * 1096)
            match kind with
-           | .absorb block => Hash.absorbE previous block
-           | .squeezeFirst _ | .squeezeSecond => previous)) := by
+           | .absorb block => Hash.absorbE previous block)) := by
   induction actions generalizing rowStart witnessStart state index with
   | nil => simp [compileActions, PoseidonActionSchedule.kinds]
   | cons action actions inductionHypothesis =>
@@ -157,35 +156,10 @@ private theorem compileActions_at
             have witnessEq : witnessStart + blocks.length * 1096 + (index - blocks.length) * 1096 =
                 witnessStart + index * 1096 := by omega
             simp only [rowEq, witnessEq, previousEq]
-      | squeezeK expected =>
-          cases index with
-          | zero => simp [compileActions, PoseidonActionSchedule.kinds,
-              PoseidonActionSchedule.actionKinds]
-          | succ index =>
-              cases index with
-              | zero => simp [compileActions, PoseidonActionSchedule.kinds,
-                  PoseidonActionSchedule.actionKinds]
-              | succ index =>
-                  have previousEq :
-                      (if index = 0 then permutationOutput (witnessStart + 1096)
-                        else permutationOutput (witnessStart + 2192 + (index - 1) * 1096)) =
-                      permutationOutput (witnessStart + (index + 1) * 1096) := by
-                    by_cases first : index = 0
-                    · subst index
-                      simp
-                    · rw [if_neg first]
-                      apply congrArg permutationOutput
-                      omega
-                  have rowEq : rowStart + 2192 + index * 1096 =
-                      rowStart + (index + 1 + 1) * 1096 := by omega
-                  have witnessEq : witnessStart + 2192 + index * 1096 =
-                      witnessStart + (index + 1 + 1) * 1096 := by omega
-                  simp only [compileActions, PoseidonActionSchedule.kinds,
-                    List.flatMap_cons, PoseidonActionSchedule.actionKinds,
-                    List.cons_append, List.nil_append, List.getElem?_cons_succ]
-                  rw [inductionHypothesis]
-                  simp only [rowEq, witnessEq, previousEq, Nat.succ_ne_zero,
-                    if_false, Nat.add_sub_cancel, PoseidonActionSchedule.kinds]
+      | readK pair expected =>
+          simpa [compileActions, PoseidonActionSchedule.kinds,
+            PoseidonActionSchedule.actionKinds] using
+            inductionHypothesis rowStart witnessStart state index
 
 private theorem compiled_invocation
     (phase rowStart witnessStart : Nat) (state : EState)
@@ -196,8 +170,7 @@ private theorem compiled_invocation
         (let previous := if index.val = 0 then state
           else permutationOutput (witnessStart + (index.val - 1) * 1096)
          match PoseidonActionSchedule.kindAt actions index with
-         | .absorb block => Hash.absorbE previous block
-         | .squeezeFirst _ | .squeezeSecond => previous) := by
+         | .absorb block => Hash.absorbE previous block) := by
   have selected := compileActions_at phase rowStart witnessStart state actions index.val
   rw [← PoseidonActionSchedule.kindAt_materializes, List.getElem?_ofFn,
     dif_pos index.isLt, Option.map_some] at selected
@@ -227,7 +200,7 @@ private theorem selectedBlock_affine
       have inputAffine : Poseidon2.ListAffine input :=
         affine (.absorb input) (List.mem_map.mpr ⟨.absorb input, actionMember, rfl⟩)
       exact Poseidon2.inputChunks_affine input inputAffine block selectedMember
-  | squeezeK expected =>
+  | readK pair expected =>
       simp [PoseidonActionSchedule.actionKinds] at kindMember
 
 private theorem invocation_input
@@ -237,9 +210,8 @@ private theorem invocation_input
   exact Lifecycle.PriorStateHash.ofFn_getD
     (fun current : Fin 16 => inputCombination (state current)) lane zeroSparseCombination
 
-/-- Each actual indexed invocation reads the preceding stored output. An
-absorb adds its actual payload lane; both squeeze permutations use that
-preceding state unchanged. The only premises are the compiler's existing
+/-- Each actual indexed invocation reads the preceding stored output and adds
+its actual payload lane. The only premises are the compiler's existing
 affine-input contract and its local source interval, never row validity. -/
 theorem compileActions_input_eval
     (phase rowStart witnessStart : Nat) (state : EState)
@@ -258,8 +230,7 @@ theorem compileActions_input_eval
     (invocationInputCombination (selectedInvocation index) lane.val).toR1CS.eval target =
       match PoseidonActionSchedule.kindAt actions index with
       | .absorb block => previous.getD lane.val 0 +
-          (block.getD lane.val (0 : Expr)).eval (Spartan.pullback target)
-      | .squeezeFirst _ | .squeezeSecond => previous.getD lane.val 0 := by
+          (block.getD lane.val (0 : Expr)).eval (Spartan.pullback target) := by
   intro trace selectedInvocation outputs previous
   let previousExpr : EState := if index.val = 0 then state
     else permutationOutput (witnessStart + (index.val - 1) * 1096)
@@ -307,166 +278,5 @@ theorem compileActions_input_eval
       rw [Expr.eval_hadd]
       exact congrArg (fun value : F => value +
         (block.getD lane.val (0 : Expr)).eval (Spartan.pullback target)) previousValue.symm
-  | squeezeFirst expected =>
-      rw [inputCombination_eval (previousAffine lane)]
-      exact previousValue.symm
-  | squeezeSecond =>
-      rw [inputCombination_eval (previousAffine lane)]
-      exact previousValue.symm
-
-open NightstreamFPrime.Circuit.Quadratic
-
-private theorem stored_output_lane
-    (phase rowStart witnessStart : Nat) (state : EState)
-    (actions : List Action) (target : Env)
-    (witnessLocal : Spartan.piCcsPhaseOffset ≤ witnessStart)
-    (index : Fin (invocationCount actions)) (lane : Fin 16) :
-    let selected := (compileActions phase rowStart witnessStart state actions).invocations.get
-      (Fin.cast (compileActions_invocations_length phase rowStart witnessStart state actions).symm index)
-    (List.ofFn fun coordinate : Fin 16 =>
-      target (selected.witnessStart + 1080 + coordinate.val)).getD lane.val 0 =
-      (permutationOutput (witnessStart + index.val * 1096) lane).eval (Spartan.pullback target) := by
-  intro selected
-  have position : selected.witnessStart = Spartan.sourceToSpartan (witnessStart + index.val * 1096) :=
-    congrArg PermutationInvocation.witnessStart
-      (compiled_invocation phase rowStart witnessStart state actions index)
-  rw [Lifecycle.PriorStateHash.ofFn_getD, position]
-  change target (Spartan.sourceToSpartan (witnessStart + index.val * 1096) + 1080 + lane.val) =
-    target (Spartan.sourceToSpartan (witnessStart + index.val * 1096 + 1080 + lane.val))
-  apply congrArg target
-  have mapped := Spartan.sourceToSpartan_add_of_piCcsLocal
-    (witnessStart + index.val * 1096) (1080 + lane.val) (by omega)
-  simpa only [Nat.add_assoc] using mapped.symm
-
-private theorem compiled_expected_at
-    (witnessStart : Nat) (state : EState) (actions : List Action) (env : Env)
-    (assertions : ConstraintsHold env (Formal.compile witnessStart state actions).assertions)
-    (index : Nat) (expected : KExpr)
-    (found : (PoseidonActionSchedule.kinds actions)[index]? = some (.squeezeFirst expected)) :
-    expected.eval env =
-      ⟨((if index = 0 then state
-          else permutationOutput (witnessStart + (index - 1) * 1096)) 0).eval env,
-        (permutationOutput (witnessStart + index * 1096) 0).eval env⟩ := by
-  induction actions generalizing witnessStart state index expected with
-  | nil => simp [PoseidonActionSchedule.kinds] at found
-  | cons action actions inductionHypothesis =>
-      cases action with
-      | absorb input =>
-          let blocks := Hash.inputChunks input
-          change ((blocks.map PoseidonActionSchedule.Kind.absorb ++
-            PoseidonActionSchedule.kinds actions)[index]?) = some (.squeezeFirst expected) at found
-          by_cases inHead : index < blocks.length
-          · rw [List.getElem?_append_left (by simpa only [List.length_map] using inHead),
-              List.getElem?_map] at found
-            cases selected : blocks[index]? <;> simp [selected] at found
-          · rw [List.getElem?_append_right
-              (by simpa only [List.length_map] using Nat.le_of_not_gt inHead), List.length_map] at found
-            let absorbed := compileBlocks 0 0 witnessStart state blocks
-            have tailAssertions : ConstraintsHold env
-                (Formal.compile (witnessStart + blocks.length * 1096) absorbed.state actions).assertions := by
-              rw [show absorbed.state = (Hash.compileAbsorptions witnessStart state blocks).output from
-                compileBlocks_state_eq 0 0 witnessStart state blocks]
-              simpa only [Formal.compile, Hash.compileAbsorptions_recipes_length] using assertions
-            have tail := inductionHypothesis (witnessStart + blocks.length * 1096) absorbed.state
-              tailAssertions (index - blocks.length) expected found
-            have indexEq : blocks.length + (index - blocks.length) = index := by omega
-            have previousEq := previous_shift state absorbed.state witnessStart blocks.length
-              (index - blocks.length)
-              (compileBlocks_last_or_initial 0 0 witnessStart state blocks)
-            rw [indexEq] at previousEq
-            have witnessEq : witnessStart + blocks.length * 1096 + (index - blocks.length) * 1096 =
-                witnessStart + index * 1096 := by omega
-            simpa only [previousEq, witnessEq] using tail
-      | squeezeK headExpected =>
-          let squeezed := Squeeze.compile witnessStart state
-          have parts : ConstraintsHold env (KExpr.equalities squeezed.sample headExpected) ∧
-              ConstraintsHold env
-                (Formal.compile (witnessStart + squeezed.recipes.length) squeezed.output actions).assertions := by
-            exact (Permutation.constraintsHold_append env _ _).mp assertions
-          cases index with
-          | zero =>
-              have same : headExpected = expected := by
-                simpa [PoseidonActionSchedule.kinds, PoseidonActionSchedule.actionKinds] using found
-              subst expected
-              have sampleEq := (KExpr.equalities_hold_iff env squeezed.sample headExpected).mp parts.1
-              calc
-                headExpected.eval env = squeezed.sample.eval env := sampleEq.symm
-                _ = ⟨(state 0).eval env, (permutationOutput witnessStart 0).eval env⟩ := by
-                  rw [Squeeze.compile_sample_eq, ← permutationOutput_eq_compile witnessStart state]
-                  rfl
-                _ = _ := by simp
-          | succ index =>
-              cases index with
-              | zero =>
-                  simp [PoseidonActionSchedule.kinds, PoseidonActionSchedule.actionKinds] at found
-              | succ index =>
-                  have tailFound : (PoseidonActionSchedule.kinds actions)[index]? =
-                      some (.squeezeFirst expected) := by
-                    simpa [PoseidonActionSchedule.kinds, PoseidonActionSchedule.actionKinds] using found
-                  have tailAssertions : ConstraintsHold env
-                      (Formal.compile (witnessStart + 2192)
-                        (permutationOutput (witnessStart + 1096)) actions).assertions := by
-                    simpa only [squeezed, Squeeze.compile_recipes_length,
-                      ← squeezeOutput_eq_compile] using parts.2
-                  have tail := inductionHypothesis (witnessStart + 2192)
-                    (permutationOutput (witnessStart + 1096)) tailAssertions index expected tailFound
-                  have previousEq :
-                      (if index = 0 then permutationOutput (witnessStart + 1096)
-                        else permutationOutput (witnessStart + 2192 + (index - 1) * 1096)) =
-                      permutationOutput (witnessStart + (index + 1) * 1096) := by
-                    by_cases first : index = 0
-                    · subst index
-                      simp
-                    · rw [if_neg first]
-                      apply congrArg permutationOutput
-                      omega
-                  have witnessEq : witnessStart + 2192 + index * 1096 =
-                      witnessStart + (index + 1 + 1) * 1096 := by omega
-                  simpa only [previousEq, witnessEq, Nat.succ_ne_zero, if_false,
-                    Nat.add_sub_cancel] using tail
-
-/-- The actual compiler assertions bind a selected squeeze expectation to
-lane zero before its first permutation and lane zero after that permutation.
-This is assertion custody only; permutation rows establish the separate
-Poseidon2 relation. No affine-input or row-validity premise is needed here. -/
-theorem compileActions_expected_eval
-    (phase rowStart witnessStart : Nat) (state : EState)
-    (actions : List Action) (target : Env)
-    (witnessLocal : Spartan.piCcsPhaseOffset ≤ witnessStart)
-    (assertions : ConstraintsHold (Spartan.pullback target)
-      (Formal.compile witnessStart state actions).assertions)
-    (index : Fin (invocationCount actions)) (expected : KExpr)
-    (found : PoseidonActionSchedule.kindAt actions index = .squeezeFirst expected) :
-    let trace := compileActions phase rowStart witnessStart state actions
-    let selectedInvocation := fun current : Fin (invocationCount actions) => trace.invocations.get
-      (Fin.cast (compileActions_invocations_length phase rowStart witnessStart state actions).symm current)
-    let outputs := fun current => List.ofFn fun coordinate : Fin 16 =>
-      target ((selectedInvocation current).witnessStart + 1080 + coordinate.val)
-    let previous := PoseidonActionSemantics.previousState
-      (List.ofFn (Layer.evalState (Spartan.pullback target) state)) outputs index
-    expected.eval (Spartan.pullback target) = ⟨previous.getD 0 0, (outputs index).getD 0 0⟩ := by
-  intro trace selectedInvocation outputs previous
-  have selectedKind : (PoseidonActionSchedule.kinds actions)[index.val]? =
-      some (.squeezeFirst expected) := by
-    rw [← PoseidonActionSchedule.kindAt_materializes, List.getElem?_ofFn, dif_pos index.isLt]
-    exact congrArg some found
-  have expectedEq := compiled_expected_at witnessStart state actions (Spartan.pullback target)
-    assertions index.val expected selectedKind
-  have currentValue : (outputs index).getD 0 0 =
-      (permutationOutput (witnessStart + index.val * 1096) 0).eval (Spartan.pullback target) :=
-    stored_output_lane phase rowStart witnessStart state actions target witnessLocal index 0
-  have previousValue : previous.getD 0 0 =
-      ((if index.val = 0 then state
-        else permutationOutput (witnessStart + (index.val - 1) * 1096)) 0).eval
-          (Spartan.pullback target) := by
-    by_cases first : index.val = 0
-    · simp only [previous, PoseidonActionSemantics.previousState, dif_pos first, if_pos first]
-      exact Lifecycle.PriorStateHash.ofFn_getD _ (0 : Fin 16) (0 : F)
-    · let priorIndex : Fin (invocationCount actions) := ⟨index.val - 1, by
-        have bounded := index.isLt
-        omega⟩
-      simp only [previous, PoseidonActionSemantics.previousState, dif_neg first, if_neg first]
-      exact stored_output_lane phase rowStart witnessStart state actions target witnessLocal priorIndex 0
-  exact expectedEq.trans (congrArg₂ K.mk previousValue.symm currentValue.symm)
 
 end NightstreamFPrime.Export.Stage1.InvocationInputLaw

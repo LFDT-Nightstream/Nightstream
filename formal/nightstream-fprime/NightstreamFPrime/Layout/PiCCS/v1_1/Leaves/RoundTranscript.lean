@@ -86,21 +86,6 @@ private theorem serializeRoundExpr_affine
   rcases member with ⟨coefficient, rfl⟩
   exact affine coefficient
 
-private theorem constantWords_affine (words : List F) :
-    ListAffine (constantWords words) := by
-  intro expression member
-  rw [constantWords, List.mem_map] at member
-  rcases member with ⟨word, _, rfl⟩
-  exact R1CS.isAffine_const word
-
-private theorem blockExpr_affine (words : List Expr)
-    (affine : ListAffine words) : ListAffine (blockExpr words) := by
-  intro expression member
-  simp only [blockExpr, List.mem_cons] at member
-  rcases member with rfl | member
-  · exact R1CS.isAffine_const _
-  · exact affine expression member
-
 private theorem zero_affine : KExprAffine KExpr.zero := by
   exact ⟨R1CS.isAffine_const 0, R1CS.isAffine_const 0⟩
 
@@ -113,25 +98,14 @@ private theorem roundActionsWithExpected_affine
     (expectedAffine : KExprAffine expected) :
     ActionsAffine
       (roundActionsWithExpected interface offset roundIndex expected) := by
-  let message := interface.round offset roundIndex
-  have payloadAffine : ListAffine
-      (Expr.const (NightstreamFPrime.Lifecycle.natWord roundIndex.val) ::
-        serializeRoundExpr message) := by
-    intro expression member
-    rcases List.mem_cons.mp member with rfl | member
-    · exact R1CS.isAffine_const _
-    · exact serializeRoundExpr_affine message
-        (inputs.roundCoefficient roundIndex) expression member
   unfold roundActionsWithExpected
-  dsimp only
   apply ActionsAffine.cons
-  · exact blockExpr_affine _ payloadAffine
+  · exact serializeRoundExpr_affine (interface.round offset roundIndex)
+      (inputs.roundCoefficient roundIndex)
   · apply ActionsAffine.cons
-    · exact constantWords_affine _
-    · apply ActionsAffine.cons
-      · exact expectedAffine
-      · intro action member
-        simp at member
+    · exact expectedAffine
+    · intro action member
+      simp at member
 
 private theorem ActionsAffine.flatMap
     {Index : Type} (indices : List Index)
@@ -412,7 +386,7 @@ theorem physicalRowCount_eq_of_degreeBound_eq_eight
       InputsAffine (Formal.roundTranscriptInterface interface) offset)
     (offset : Nat) (degreeBound_eq : degreeBound = 8) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
-      (Formal.roundTranscriptCircuit interface).main offset)) = 153440 := by
+      (Formal.roundTranscriptCircuit interface).main offset)) = 61376 := by
   rw [physicalRowCount_eq interface inputs offset, degreeBound_eq]
   rfl
 

@@ -544,9 +544,20 @@ fn accepting_v1_1_path_exports_receipt_and_rejects_mutations() {
     assert_eq!(
         receipt.statement.transcript_absorptions[0],
         vec![
-            78, 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47, 83, 117, 112, 101, 114, 78, 101, 111, 47, 80, 105,
-            67, 67, 83, 47, 100, 105, 103, 101, 115, 116, 45, 111, 110, 108, 121, 47, 118, 49, 95, 49,
-        ]
+            8_247_343_761_427_229_006,
+            7_309_471_195_360_747_877,
+            7_813_576_232_429_506_162,
+            846_606_180,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+        ],
+        "first absorb is the packed `Nightstream/SuperNeo/fold/v2` chunk"
     );
 
     let mut changed_proof = proof.clone();

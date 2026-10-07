@@ -28,7 +28,7 @@ abbrev TranscriptIndex := Fin PiCCSOrdinarySourceSupport.transcriptInvocationCou
 
 def invocation (index : TranscriptIndex) : Fin PiCCSPoseidonPlan.invocationCount :=
   ⟨index.val, by
-    have bound : index.val < 355 := by
+    have bound : index.val < 183 := by
       simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
         using index.isLt
     rw [PiCCSPoseidonPlan.invocationCount_eq]
@@ -48,21 +48,28 @@ theorem transcriptForm_eq_outputState
       PiCCSPoseidonPlan.outputState geometry (invocation index) lane := by
   rfl
 
-def pointInvocation (coordinate : Fin Lifecycle.productionShape.cubeVariables)
-    (component : Fin 2) : TranscriptIndex :=
-  ⟨217 + coordinate.val * 5 + component.val, by
+/-- Round `r` reads its coin from the output of the second permutation of its
+message absorb. -/
+def pointInvocation (coordinate : Fin Lifecycle.productionShape.cubeVariables) :
+    TranscriptIndex :=
+  ⟨128 + coordinate.val * 2, by
     have coordinateBound := coordinate.isLt
-    have componentBound := component.isLt
     change coordinate.val < 28 at coordinateBound
     rw [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
+    omega⟩
+
+/-- The two coin components are rate lanes 0 and 1. -/
+def pointLane (component : Fin 2) : Fin Poseidon2.width :=
+  ⟨component.val, by
+    have componentBound := component.isLt
+    norm_num [Poseidon2.width]
     omega⟩
 
 def pointForm {program : ApplicationProgram} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)
     (coordinate : Fin Lifecycle.productionShape.cubeVariables) (component : Fin 2) :
     SparseForm logicalWidth :=
-  transcriptForm geometry (pointInvocation coordinate component)
-    ⟨0, by norm_num [Poseidon2.width]⟩
+  transcriptForm geometry (pointInvocation coordinate) (pointLane component)
 
 theorem pointForm_eq_outputState
     {program : ApplicationProgram} {logicalWidth : Nat}
@@ -70,7 +77,7 @@ theorem pointForm_eq_outputState
     (coordinate : Fin Lifecycle.productionShape.cubeVariables) (component : Fin 2) :
     pointForm geometry coordinate component =
       PiCCSPoseidonPlan.outputState geometry
-        (invocation (pointInvocation coordinate component)) 0 := by
+        (invocation (pointInvocation coordinate)) (pointLane component) := by
   rfl
 
 def transcriptSourceStart : Nat := PiCCSInputs.phaseOffset + 1080
@@ -85,14 +92,14 @@ def pointSourceStart : Nat :=
 def pointSource (coordinate : Fin Lifecycle.productionShape.cubeVariables)
     (component : Fin 2) : Nat :=
   pointSourceStart + coordinate.val * RunningTransitionInputs.roundStride +
-    component.val * 1096
+    component.val
 
 theorem pointSource_eq_transcriptSource
     (coordinate : Fin Lifecycle.productionShape.cubeVariables) (component : Fin 2) :
     pointSource coordinate component =
-      transcriptSource (pointInvocation coordinate component)
-        ⟨0, by norm_num [Poseidon2.width]⟩ := by
-  unfold pointSource pointSourceStart transcriptSource transcriptSourceStart pointInvocation
+      transcriptSource (pointInvocation coordinate) (pointLane component) := by
+  unfold pointSource pointSourceStart transcriptSource transcriptSourceStart
+    pointInvocation pointLane
   rw [PiCCSStarts.roundTranscriptWitnessStart_eq, PiCCSInputs.phaseOffset_eq]
   norm_num [RunningTransitionInputs.roundSampleC0Offset,
     RunningTransitionInputs.roundStride]
@@ -124,13 +131,14 @@ def transcriptGrid (program : ApplicationProgram) : SourceGrid :=
     (Spartan.sourceToSpartan transcriptSourceStart)
     PiCCSOrdinarySourceSupport.transcriptInvocationCount 1096 1 16 16 134 150 0
 
-def pointGrid (program : ApplicationProgram) (component : Fin 2) : SourceGrid :=
+/-- One grid reads both coin lanes of every round. -/
+def pointGrid (program : ApplicationProgram) : SourceGrid :=
   SourceGrid.externalOfSemantic
     (PiCCSPoseidonPlan.retainedBlock program)
     (PiCCSPoseidonPlan.retainedStart program)
-    (Spartan.sourceToSpartan (pointSourceStart + component.val * 1096))
+    (Spartan.sourceToSpartan pointSourceStart)
     Lifecycle.productionShape.cubeVariables RunningTransitionInputs.roundStride
-    1 1 1 (32684 + component.val * 150) 750 0
+    1 2 2 19334 300 0
 
 /-- Exact compact interpretation of all pre-ordinary transcript output lanes.
 The final sixteen retained S-box slots supply each external-layer output. -/
@@ -141,7 +149,7 @@ theorem transcriptGrid_form?
     (transcriptGrid program).form? logicalWidth
         (Spartan.sourceToSpartan (transcriptSource index lane)) =
       some (transcriptForm geometry index lane) := by
-  have indexBound : index.val < 355 := by
+  have indexBound : index.val < 183 := by
     simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
       using index.isLt
   have laneBound := lane.isLt
@@ -204,7 +212,7 @@ theorem pointGrid_form?
     {program : ApplicationProgram} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)
     (coordinate : Fin Lifecycle.productionShape.cubeVariables) (component : Fin 2) :
-    (pointGrid program component).form? logicalWidth
+    (pointGrid program).form? logicalWidth
         (Spartan.sourceToSpartan (pointSource coordinate component)) =
       some (pointForm geometry coordinate component) := by
   have coordinateBound := coordinate.isLt
@@ -212,28 +220,31 @@ theorem pointGrid_form?
   change coordinate.val < 28 at coordinateBound
   have sourceEq :
       Spartan.sourceToSpartan (pointSource coordinate component) =
-        Spartan.sourceToSpartan (pointSourceStart + component.val * 1096) +
-          coordinate.val * RunningTransitionInputs.roundStride := by
+        Spartan.sourceToSpartan pointSourceStart +
+          coordinate.val * RunningTransitionInputs.roundStride + 0 * 2 +
+            component.val := by
     have grouped : pointSource coordinate component =
-        pointSourceStart + component.val * 1096 +
-          coordinate.val * RunningTransitionInputs.roundStride := by
+        pointSourceStart +
+          (coordinate.val * RunningTransitionInputs.roundStride + component.val) := by
       unfold pointSource
       omega
     rw [grouped, Spartan.sourceToSpartan_add_of_piCcsLocal]
-    norm_num [pointSourceStart, PiCCSStarts.roundTranscriptWitnessStart_eq,
-      RunningTransitionInputs.roundSampleC0Offset, Spartan.piCcsPhaseOffset] <;> omega
-  let offset : Fin 1 := ⟨0, by omega⟩
+    · omega
+    · norm_num [pointSourceStart, PiCCSStarts.roundTranscriptWitnessStart_eq,
+        RunningTransitionInputs.roundSampleC0Offset, Spartan.piCcsPhaseOffset]
+  let minor : Fin 1 := ⟨0, by omega⟩
+  let offset : Fin 2 := component
   have direct := SourceGrid.form?_externalOfSemantic
     (PiCCSPoseidonPlan.retainedBlock program)
     (PiCCSPoseidonPlan.retainedStart program)
-    (Spartan.sourceToSpartan (pointSourceStart + component.val * 1096))
+    (Spartan.sourceToSpartan pointSourceStart)
     Lifecycle.productionShape.cubeVariables RunningTransitionInputs.roundStride
-    1 1 1 (32684 + component.val * 150) 750 0
+    1 2 2 19334 300 0
     (PiCCSPoseidonPlan.retainedFits geometry)
     (by norm_num [RunningTransitionInputs.roundStride]) (by omega)
-    coordinate offset offset
-    (by norm_num [RunningTransitionInputs.roundStride] <;> omega)
-    (by omega) (by omega) (by
+    coordinate minor offset
+    (by norm_num [RunningTransitionInputs.roundStride, minor, offset]; omega)
+    (by simp only [offset]; omega) (by simp only [offset]; omega) (by
       intro selected
       have selectedBound := selected.isLt
       rw [PiCCSPoseidonPlan.retainedBlock_slotCount]
@@ -243,14 +254,19 @@ theorem pointGrid_form?
         (PiCCSPoseidonPlan.retainedBlock program).form
           (PiCCSPoseidonPlan.retainedStart program)
           (PiCCSPoseidonPlan.retainedFits geometry)
-          ⟨32684 + component.val * 150 + coordinate.val * 750 +
-              offset.val * 0 + selected.val, by
+          ⟨19334 + coordinate.val * 300 + minor.val * 0 + selected.val, by
             have selectedBound := selected.isLt
             rw [PiCCSPoseidonPlan.retainedBlock_slotCount]
-            omega⟩) 0 = pointForm geometry coordinate component := by
+            omega⟩) ⟨offset.val, by simp only [offset]; omega⟩ =
+        pointForm geometry coordinate component := by
     unfold pointForm transcriptForm PiCCSPoseidonPlan.outputState
       PoseidonRetainedFamily.outputState
-    apply congrArg (fun state => SparseLayer.external state (0 : Fin 16))
+    have laneEq : (⟨offset.val, by simp only [offset]; omega⟩ : Fin 16) =
+        pointLane component := by
+      apply Fin.ext
+      rfl
+    rw [laneEq]
+    apply congrArg (fun state => SparseLayer.external state (pointLane component))
     funext selected
     unfold PoseidonRetainedFamily.form
     apply congrArg ((PiCCSPoseidonPlan.retainedBlock program).form
@@ -258,16 +274,12 @@ theorem pointGrid_form?
       (PiCCSPoseidonPlan.retainedFits geometry))
     apply Fin.ext
     simp only [PoseidonRetainedFamily.slot_val, PoseidonRetainedSlots.rows_length,
-      PoseidonRetainedSlots.finalRow_val, invocation, pointInvocation]
+      PoseidonRetainedSlots.finalRow_val, invocation, pointInvocation, minor]
     omega
-  have laneEq : (⟨offset.val, by omega⟩ : Fin 16) = 0 := by
-    apply Fin.ext
-    rfl
-  rw [laneEq] at direct
   have result := direct.trans
     (congrArg (fun value : SparseForm logicalWidth => some value) outputEq)
   rw [sourceEq]
-  simpa [pointGrid, offset] using result
+  simpa [pointGrid, offset, minor] using result
 
 /-- The logical transcript source and the physical readout use one address. -/
 theorem transcriptSource_column (index : TranscriptIndex) (lane : Fin 16) :
@@ -337,6 +349,6 @@ theorem pointForm_eval
         (Spartan.sourceToSpartan (pointSource coordinate component)) := by
   rw [pointSource_eq_transcriptSource]
   exact transcriptForm_eval geometry assignment base groupValue sboxes
-    (pointInvocation coordinate component) 0
+    (pointInvocation coordinate) (pointLane component)
 
 end NightstreamFPrime.Export.Stage1.PiCCSTranscriptOutputForms

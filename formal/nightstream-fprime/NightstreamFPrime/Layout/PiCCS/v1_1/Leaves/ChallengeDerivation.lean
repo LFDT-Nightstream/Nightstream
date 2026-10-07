@@ -65,11 +65,14 @@ private theorem labelActions_affine
     (expected : KExpr) (expectedAffine : KExprAffine expected) :
     ActionsAffine (labelActions label expected) := by
   apply ActionsAffine.cons
-  · exact constantWords_affine _
-  · apply ActionsAffine.cons
-    · exact expectedAffine
-    · intro action member
-      simp at member
+  · exact expectedAffine
+  · intro action member
+    unfold refreshActions at member
+    split at member
+    · rw [List.mem_singleton] at member
+      subst member
+      exact constantWords_affine _
+    · simp at member
 
 private theorem labelledActions_affine
     (labels : List (FiatShamir.ChallengeLabel productionShape))
@@ -186,7 +189,7 @@ def footprint
     (Formal.atOffset interface parentOffset) parentOffset
   {
     freshColumnCount := fun _ => 0
-    physicalRowCount := fun _ => 95352
+    physicalRowCount := fun _ => 4384
     freshColumnCount_eq := by
       intro offset
       unfold Formal.challengeCircuit
@@ -205,7 +208,7 @@ def footprint
       dsimp only
       rw [FormalCircuit.withConstantFootprint_main]
       change R1CS.totalRowCount (flatConstraints
-        (opsAt child offset)) = 95352
+        (opsAt child offset)) = 4384
       rw [NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation.flatConstraints_opsAt]
       rw [R1CS.recipeConstraints_totalRowCount]
       exact NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation.program_recipes_length
@@ -237,7 +240,7 @@ theorem physicalRowCount_eq
     (offset : Nat) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
       (Formal.challengeCircuit interface parentOffset).main offset)) =
-        95352 :=
+        4384 :=
   (footprint interface parentOffset inputs).physicalRowCount_eq offset
 
 end NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.ChallengeDerivation

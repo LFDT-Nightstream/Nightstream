@@ -89,7 +89,7 @@ def transitionPlan
       relationPublicFits)
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry application
       logicalWidth) :
-    (samplerPrefixPlan relation geometry).rowCount = 909567 := by
+    (samplerPrefixPlan relation geometry).rowCount = 881375 := by
   exact DirectPiDECPrefixPlan.samplerPrefixPlan_rowCount relation _
 
 @[simp] theorem samplerOrdinaryPlan_rowCount
@@ -136,7 +136,7 @@ def samplerCompletePlan
       relationPublicFits)
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry application
       logicalWidth) :
-    (samplerCompletePlan relation geometry).rowCount = 924510 := by
+    (samplerCompletePlan relation geometry).rowCount = 896318 := by
   simp [samplerCompletePlan]
 
 private theorem piRlcCompleteRowCount_le
@@ -165,7 +165,7 @@ def piRlcCompletePlan
       relationPublicFits)
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry application
       logicalWidth) :
-    (piRlcCompletePlan relation geometry).rowCount = 992442 := by
+    (piRlcCompletePlan relation geometry).rowCount = 964250 := by
   simp [piRlcCompletePlan]
 
 private theorem piDecCompleteRowCount_le
@@ -197,7 +197,7 @@ def piDecCompletePlan
       relationPublicFits)
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry application
       logicalWidth) :
-    (piDecCompletePlan relation geometry).rowCount = 999030 := by
+    (piDecCompletePlan relation geometry).rowCount = 970838 := by
   simp [piDecCompletePlan, piDecPlan, DirectPiDECPrefixPlan.piDecPlan,
     Layout.PiDEC.v1_1.exactRowCount_value]
 
@@ -230,7 +230,7 @@ def plan
       relationPublicFits)
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry application
       logicalWidth) :
-    (plan relation geometry).rowCount = 1026830 := by
+    (plan relation geometry).rowCount = 998638 := by
   simp [plan, transitionPlan, DirectPiDECPrefixPlan.transitionPlan]
 
 theorem plan_eq_of_same_shape

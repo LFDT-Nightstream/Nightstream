@@ -155,7 +155,7 @@ fn check_caller_layout(bytes: &[u8], private: &[u64], public: &[u64], assignment
     assert_eq!((outer, inner, logical_public), (6, 8, PUBLIC_WORDS));
     assert_eq!(
         (layout.0, layout.1, layout.2, layout.3, layout.4),
-        (11_573_009, 11_659_688, 11_659_688, PUBLIC_INPUTS, 11_659_967)
+        (11_383_401, 11_470_080, 11_470_080, PUBLIC_INPUTS, 11_470_359)
     );
     assert_eq!(assignment.private_values().len(), layout.1);
     assert_eq!(assignment.public_values(), public);
@@ -383,8 +383,8 @@ fn checked_caller_fixture(package: &LoadedPerApplicationPackage, bytes: &[u8]) -
         (package.private_input_count(), package.public_input_count()),
         (private.len(), public.len())
     );
-    assert_eq!(package.total_column_count(), 11_659_967);
-    assert_eq!(package.physical_row_count(), 11_573_009);
+    assert_eq!(package.total_column_count(), 11_470_359);
+    assert_eq!(package.physical_row_count(), 11_383_401);
     assert_eq!(package.row_count(), logical_reference::evaluation::ACTIVE_ROWS);
     assert_eq!(
         package.logical_column_count(),
@@ -616,7 +616,7 @@ fn check_assignment(package: LoadedPerApplicationPackage, sealed: Vec<u8>, fixtu
         assert_eq!(actual, expected, "caller logical transport coordinate {column}");
     }
     let alignment = logical_reference::evaluation::CARRIER_WIDTH - production.len();
-    assert_eq!(alignment, 12);
+    assert_eq!(alignment, 26);
     // The public transport returns logical coordinates. The paper carrier
     // extends them with these alignment zeros; no backend allocator is used.
     for column in production.len()..logical_reference::evaluation::CARRIER_WIDTH {

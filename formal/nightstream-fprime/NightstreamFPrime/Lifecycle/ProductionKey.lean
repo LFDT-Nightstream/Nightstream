@@ -118,17 +118,18 @@ def publicInputBlocks
       [serializeCommitment (fresh.commitments index),
         serializePublicInput (fresh.publicInputs index)])
 
-/-- Absorb the digest-only PiCCS statement from its canonical block list. -/
+/-- Absorb the digest-only PiCCS statement: its blocks in order, with no
+length prefixes. -/
 def absorbPublicInput (state : Transcript.State)
     (running : Nifs.PaperNonInteractive.Running K PaperAlgebra.Commitment (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits)) productionShape)
     (fresh : Nifs.PaperNonInteractive.Fresh PaperAlgebra.Commitment (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits)) productionShape) :
     Transcript.State :=
-  Transcript.absorbBlocks state (publicInputBlocks running fresh)
+  Transcript.absorb state (publicInputBlocks running fresh).flatten
 
 /-- Absorb the complete paper `y′` family after the sum-check. -/
 def absorbFullOutput (s : Transcript.State)
     (out : FullOutputCoordinates.FullOutput K productionShape) : Transcript.State :=
-  Transcript.absorbBlock s ((List.finRange productionShape.sourceCount).flatMap fun i =>
+  Transcript.absorb s ((List.finRange productionShape.sourceCount).flatMap fun i =>
     ((List.finRange productionShape.coefficientCount).flatMap fun l =>
       serializeK (out.padCoordinate i l)) ++
     ((List.finRange productionShape.matrixCount).flatMap fun j =>
@@ -203,8 +204,7 @@ noncomputable def key (relation : LogicalRelation logicalWidth publicFits)
   piDecEvaluationCount := rfl
   piDecDecision := PaperAlgebra.piDecDecision ajtai
   oracle := Transcript.piCcsOracle
-  initialTranscriptState :=
-    Transcript.absorb Transcript.initialState Transcript.piCcsDigestDomainTag
+  initialTranscriptState := Transcript.foldInitialState
   absorbPublicInput := absorbPublicInput
   absorbPiCcsOutput := absorbFullOutput
   piRlcResponse := piRlcResponse
@@ -242,8 +242,8 @@ theorem key_absorbPiCcsOutput
       absorbFullOutput state output := by
   rfl
 
-/-- The key-owned public-input state is the digest-only PiCCS tag followed by
-the prior digest and fresh claim. -/
+/-- The key-owned public-input state is the fold-domain chunk followed by the
+prior digest and fresh claim. -/
 theorem key_publicInputState_eq
     (relation : LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
@@ -257,10 +257,8 @@ theorem key_publicInputState_eq
         (logicalWidth := logicalWidth) (publicFits := publicFits))
       productionShape) :
     (key relation ajtai).publicInputState running fresh =
-      Transcript.absorbBlocks
-        (Transcript.absorb Transcript.initialState
-          Transcript.piCcsDigestDomainTag)
-        (publicInputBlocks running fresh) := by
+      Transcript.absorb Transcript.foldInitialState
+        (publicInputBlocks running fresh).flatten := by
   rfl
 
 /-- The verifier input is bound through the pilot digest and the

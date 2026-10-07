@@ -81,7 +81,7 @@ def plan
     (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (values : PiRLCRetainedInputs.Values logicalWidth)
     (geometry : RunningTransitionRetainedGeometry.Geometry program logicalWidth) :
-    (plan relation payloadForms values geometry).rowCount = 967224 := by
+    (plan relation payloadForms values geometry).rowCount = 939032 := by
   simp [plan, prefixPlan, transitionPlan]
 
 theorem rowsZero_iff

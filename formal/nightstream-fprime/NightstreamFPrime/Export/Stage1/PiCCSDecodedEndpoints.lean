@@ -41,7 +41,7 @@ private theorem output_not_source (lane : Fin laneCount) :
       PiCCSInputs.phaseOffset_eq] at external
     omega
   · rcases transcript with ⟨invocation, outputLane, equality⟩
-    have invocationBound : invocation.val < 355 := by
+    have invocationBound : invocation.val < 183 := by
       simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
         using invocation.isLt
     have outputLaneBound : outputLane.val < 16 := outputLane.isLt
@@ -154,6 +154,22 @@ theorem rowsZero_implies_endpointStates
     simpa [sub_eq_add_neg] using rowZero
   exact formsEq.trans (sourceForm_eval ordinary assignment family lane)
 
+/-- The decoded environment reads every transcript output slot as its retained
+output form. -/
+theorem decoded_transcriptOutputs
+    (ordinary : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
+    (poseidon : PiCCSPoseidonPlan.Geometry program logicalWidth)
+    (assignment : Assignment F logicalWidth) :
+    PiCCSTranscriptEndpointPlan.TranscriptOutputs poseidon assignment
+      (Spartan.pullback (PiCCSAssignmentSoundness.decodedEnv ordinary assignment)) := by
+  apply PiCCSTranscriptEndpointPlan.transcriptOutputs_of_forms poseidon ordinary
+  intro slot
+  have mapped := PiCCSAssignmentSoundness.decodedEnv_location ordinary assignment
+    (.proofLogical (PiCCSOrdinaryRetainedBlocks.transcriptOutputSlot slot))
+  rw [PiCCSOrdinaryDirectPlan.Location.sourceColumn,
+    PiCCSOrdinaryRetainedBlocks.proofLogicalSource_transcriptOutput] at mapped
+  exact mapped
+
 /-- Accepted direct transcript and endpoint rows imply all four transcript
 leaf contracts in the arbitrary decoded environment, without an encoding
 or representation premise. -/
@@ -173,8 +189,12 @@ theorem rowsZero_implies_transcriptSpecs
       (PiCCSAssignmentSoundness.decodedEnv ordinary assignment) :=
   PiCCSTranscriptEndpointPlan.traces_and_endpoints_imply_transcriptSpecs
     poseidon assignment (PiCCSAssignmentSoundness.decodedEnv ordinary assignment)
-    (PiCCSDecodedTranscript.rowsZero_implies_traces ordinary poseidon assignment
-      one transcriptRows)
+    (PiCCSTranscriptDirectSemantics.indexedSemantics_implies_traces poseidon
+      assignment _
+      (PiCCSDecodedTranscript.rowsZero_implies_indexedSemantics ordinary poseidon
+        assignment one transcriptRows)
+      (PiCCSTranscriptEndpointPlan.reads_of_outputs poseidon assignment _
+        (decoded_transcriptOutputs ordinary poseidon assignment)))
     (rowsZero_implies_endpointStates ordinary poseidon assignment endpointRows)
 
 end NightstreamFPrime.Export.Stage1.PiCCSDecodedEndpoints

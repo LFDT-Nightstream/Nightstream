@@ -92,11 +92,11 @@ inductive SameShape : List Action → List Action → Prop
       (tail : SameShape leftTail rightTail) :
       SameShape (.absorb leftInput :: leftTail)
         (.absorb rightInput :: rightTail)
-  | squeeze (leftExpected rightExpected : KExpr)
+  | read (pair : Read.Pair) (leftExpected rightExpected : KExpr)
       (leftTail rightTail : List Action)
       (tail : SameShape leftTail rightTail) :
-      SameShape (.squeezeK leftExpected :: leftTail)
-        (.squeezeK rightExpected :: rightTail)
+      SameShape (.readK pair leftExpected :: leftTail)
+        (.readK pair rightExpected :: rightTail)
 
 theorem SameShape.refl (actions : List Action) : SameShape actions actions := by
   induction actions with
@@ -105,8 +105,8 @@ theorem SameShape.refl (actions : List Action) : SameShape actions actions := by
       cases action with
       | absorb input =>
           exact .absorb input input rfl actions actions inductionHypothesis
-      | squeezeK expected =>
-          exact .squeeze expected expected actions actions inductionHypothesis
+      | readK pair expected =>
+          exact .read pair expected expected actions actions inductionHypothesis
 
 theorem SameShape.append {leftPrefix rightPrefix leftTail rightTail : List Action}
     (headShape : SameShape leftPrefix rightPrefix)
@@ -116,8 +116,8 @@ theorem SameShape.append {leftPrefix rightPrefix leftTail rightTail : List Actio
   | nil => exact tail
   | absorb leftInput rightInput chunkCount leftRest rightRest _ hypothesis =>
       exact .absorb leftInput rightInput chunkCount _ _ (hypothesis tail)
-  | squeeze leftExpected rightExpected leftRest rightRest _ hypothesis =>
-      exact .squeeze leftExpected rightExpected _ _ (hypothesis tail)
+  | read pair leftExpected rightExpected leftRest rightRest _ hypothesis =>
+      exact .read pair leftExpected rightExpected _ _ (hypothesis tail)
 
 theorem SameShape.flatMap
     {Index : Type} (indices : List Index)
@@ -190,7 +190,7 @@ private theorem compileAbsorbWiring_output_shift
                 (leftBlock :: leftRest)).output := by
             rw [compileAbsorbWiring_output_cons]
 
-/-- Recipe-free Duplex wiring reads only absorb chunk counts and squeeze
+/-- Recipe-free Duplex wiring reads only absorb chunk counts and read
 positions. Under the same shape, a uniform start and state shift relocates
 every exposed sample and final-state variable by the same delta. -/
 theorem compileWiring_shift_of_sameShape
@@ -232,43 +232,11 @@ theorem compileWiring_shift_of_sameShape
                     leftTail).output
           rw [nextEq, outputEq]
           exact tailResult
-  | squeeze leftExpected rightExpected leftTail rightTail tail
+  | read pair leftExpected rightExpected leftTail rightTail tail
       inductionHypothesis =>
-          have tailResult := inductionHypothesis (start + 2192)
-            (Permutation.scheduleOutput (start + 1096))
-          change
-            (⟨state delta initial 0,
-                Permutation.scheduleOutput (start + delta) 0⟩ : KExpr) ::
-                  (compileWiring (start + delta + 2192)
-                    (Permutation.scheduleOutput (start + delta + 1096))
-                    rightTail).samples =
-                ((⟨initial 0, Permutation.scheduleOutput start 0⟩ : KExpr) ::
-                  (compileWiring (start + 2192)
-                    (Permutation.scheduleOutput (start + 1096))
-                    leftTail).samples).map (quadratic delta) ∧
-              (compileWiring (start + delta + 2192)
-                  (Permutation.scheduleOutput (start + delta + 1096))
-                  rightTail).output =
-                state delta
-                  (compileWiring (start + 2192)
-                    (Permutation.scheduleOutput (start + 1096))
-                    leftTail).output
-          have firstEq :
-              (⟨state delta initial 0,
-                  Permutation.scheduleOutput (start + delta) 0⟩ : KExpr) =
-                quadratic delta
-                  (⟨initial 0, Permutation.scheduleOutput start 0⟩ : KExpr) := by
-            exact congrArg₂ KExpr.mk rfl
-              (congrFun (state_scheduleOutput delta start).symm 0)
-          have firstStateEq :
-              Permutation.scheduleOutput (start + delta + 1096) =
-                state delta (Permutation.scheduleOutput (start + 1096)) := by
-            rw [state_scheduleOutput]
-            congr 1
-            omega
-          rw [firstEq, firstStateEq]
-          simpa [List.map_cons, Nat.add_assoc, Nat.add_comm,
-            Nat.add_left_comm] using tailResult
+          have tailResult := inductionHypothesis start initial
+          simp only [compileWiring, List.map_cons]
+          exact ⟨congrArg₂ List.cons rfl tailResult.1, tailResult.2⟩
 
 /-- Recipe-free Duplex wiring commutes with one uniform column shift. -/
 theorem compileWiring_shift

@@ -234,6 +234,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation.alphaSchedule_eq_alphaScheduleFast
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation.layoutSamples_take_gamma
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation.actions_shape_eq_layout
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.finalState_eq_finalStateFast_pointwise
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation.finalState_eq_finalStateFast_pointwise
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation.layoutActions_below
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation.program_causal

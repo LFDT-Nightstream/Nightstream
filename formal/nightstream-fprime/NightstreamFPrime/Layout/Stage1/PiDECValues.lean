@@ -7,37 +7,37 @@ namespace NightstreamFPrime.Layout.Stage1.PiDECStarts
 
 theorem phaseStarts_eq :
     [phaseLogicalStart, phaseRowStart, phaseFreshStart] =
-      [11654210, 11533132, 11654480] := by
+      [11464602, 11343524, 11464872] := by
   rfl
 
 theorem childLogicalStarts_eq :
     [inputLogicalStart, publicInputLogicalStart, commitmentLogicalStart,
       evalKLogicalStart, evalALogicalStart, outputLogicalStart] =
-    [11654210, 11654210, 11654480, 11654480, 11654480, 11654480] := by
+    [11464602, 11464602, 11464872, 11464872, 11464872, 11464872] := by
   rfl
 
 theorem childRowStarts_eq :
     [inputRowStart, publicInputRowStart, commitmentRowStart, evalKRowStart,
       evalARowStart, outputRowStart] =
-    [11533132, 11533132, 11537992, 11539180, 11539288, 11539720] := by
+    [11343524, 11343524, 11348384, 11349572, 11349680, 11350112] := by
   rfl
 
 theorem childFreshStarts_eq :
     [inputFreshStart, publicInputFreshStart, commitmentFreshStart,
       evalKFreshStart, evalAFreshStart, outputFreshStart] =
-    [11654480, 11654480, 11654480, 11654480, 11654480, 11654480] := by
+    [11464872, 11464872, 11464872, 11464872, 11464872, 11464872] := by
   rfl
 
 theorem scalarStarts_eq (source : Nat) :
-    scalarLogicalStart source = 11654210 + source ∧
-      scalarRowStart source = 11533132 + source * 18 ∧
-      scalarFreshStart source = 11654480 + source * 0 := by
+    scalarLogicalStart source = 11464602 + source ∧
+      scalarRowStart source = 11343524 + source * 18 ∧
+      scalarFreshStart source = 11464872 + source * 0 := by
   refine ⟨?_, rfl, rfl⟩
-  change 11654210 + source * 1 = 11654210 + source
+  change 11464602 + source * 1 = 11464602 + source
   rw [Nat.mul_one]
 
 theorem finalBoundaries_eq :
-    outputRowStart = 11539720 ∧ outputFreshStart = 11654480 := by
+    outputRowStart = 11350112 ∧ outputFreshStart = 11464872 := by
   exact ⟨rfl, rfl⟩
 
 end NightstreamFPrime.Layout.Stage1.PiDECStarts
@@ -56,14 +56,14 @@ variable {logicalWidth : Nat}
 theorem cumulativeFootprints_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     cumulativePhysicalRows relation =
-        [11533132, 11537992, 11539180, 11539288, 11539720, 11539720,
-          11567520] ∧
+        [11343524, 11348384, 11349572, 11349680, 11350112, 11350112,
+          11377912] ∧
       cumulativePhysicalColumns relation =
-        [11654210, 11654480, 11654480, 11654480, 11654480, 11654480,
-          11654482] ∧
+        [11464602, 11464872, 11464872, 11464872, 11464872, 11464872,
+          11464874] ∧
       cumulativeJointDomains relation =
-        [11654210, 11654480, 11654480, 11654480, 11654480, 11654480,
-          11654482] := by
+        [11464602, 11464872, 11464872, 11464872, 11464872, 11464872,
+          11464874] := by
   rcases PilotPiCCSPiRLCPiDEC.cumulativeFootprints_eq relation with ⟨rows, columns⟩
   have joint : PilotPiCCSPiRLCPiDEC.cumulativeJointDomains relation =
       List.zipWith max

@@ -24,7 +24,7 @@ def KExprAffine (value : KExpr) : Prop :=
 /-- Symbolic inputs read by one Duplex action are affine. -/
 def ActionAffine : Formal.Action → Prop
   | .absorb input => ListAffine input
-  | .squeezeK expected => KExprAffine expected
+  | .readK _ expected => KExprAffine expected
 
 /-- Every action input in one Duplex schedule is affine. -/
 def ActionsAffine (actions : List Formal.Action) : Prop :=
@@ -70,22 +70,13 @@ theorem compileAbsorptions_output_fresh
       exact compileAbsorptions_output_fresh_of_nonempty start state
         (block :: rest) (by simp)
 
-theorem squeeze_output_fresh (start : Nat) (state : Layer.EState) :
-    StateFresh (Squeeze.compile start state).output := by
-  refine ⟨start + 2176, ?_⟩
-  funext lane
-  rw [Squeeze.compile_output_apply]
-  unfold Squeeze.secondPermutation
-  rw [Squeeze.first_recipes_length, compile_schedule_output_eq]
-
-theorem squeeze_sample_linear (start : Nat) (state : Layer.EState)
+theorem read_sample_linear (state : Layer.EState) (pair : Read.Pair)
     (stateFresh : StateFresh state) :
-    KExprLinear (Squeeze.compile start state).sample := by
+    KExprLinear (Read.sample state pair) := by
   rcases stateFresh with ⟨stateStart, rfl⟩
-  rw [Squeeze.compile_sample_eq, compile_schedule_output_eq]
   refine ⟨rfl, rfl, ?_, ?_⟩
-  · simp [Permutation.freshState, Nonconstant]
-  · simp [Permutation.freshState, Nonconstant]
+  · simp [Read.sample, Permutation.freshState, Nonconstant]
+  · simp [Read.sample, Permutation.freshState, Nonconstant]
 
 /-- Every action preserves a fresh state once the initial state is fresh. -/
 theorem compile_output_fresh (start : Nat) (state : Layer.EState)
@@ -104,15 +95,11 @@ theorem compile_output_fresh (start : Nat) (state : Layer.EState)
           exact inductionHypothesis _ _
             (compileAbsorptions_output_fresh start state
               (Hash.inputChunks input) stateFresh)
-      | squeezeK expected =>
-          let squeezed := Squeeze.compile start state
-          change StateFresh
-            (Formal.compile (start + squeezed.recipes.length)
-              squeezed.output actions).output
-          exact inductionHypothesis _ _ (squeeze_output_fresh start state)
+      | readK pair expected =>
+          exact inductionHypothesis start state stateFresh
 
-/-- Every squeeze sample is a nonconstant linear pair once the initial state
-is fresh. -/
+/-- Every read sample is a nonconstant linear pair once the initial state is
+fresh. -/
 theorem compile_samples_linear (start : Nat) (state : Layer.EState)
     (actions : List Formal.Action) (stateFresh : StateFresh state) :
     ∀ sample ∈ (Formal.compile start state actions).samples,
@@ -127,16 +114,13 @@ theorem compile_samples_linear (start : Nat) (state : Layer.EState)
           exact inductionHypothesis _ _
             (compileAbsorptions_output_fresh start state
               (Hash.inputChunks input) stateFresh)
-      | squeezeK expected =>
-          let squeezed := Squeeze.compile start state
+      | readK pair expected =>
           intro sample member
-          change sample ∈ squeezed.sample ::
-            (Formal.compile (start + squeezed.recipes.length)
-              squeezed.output actions).samples at member
+          change sample ∈ Read.sample state pair ::
+            (Formal.compile start state actions).samples at member
           rcases List.mem_cons.mp member with rfl | member
-          · exact squeeze_sample_linear start state stateFresh
-          · exact inductionHypothesis _ _ (squeeze_output_fresh start state)
-              sample member
+          · exact read_sample_linear state pair stateFresh
+          · exact inductionHypothesis start state stateFresh sample member
 
 /-- A leading nonempty absorb establishes the fresh-state invariant for the
 remainder of the program. -/
@@ -173,33 +157,10 @@ theorem ActionsAffine.cons {action : Formal.Action}
   · exact headAffine
   · exact tailAffine current member
 
-theorem squeeze_recipes_direct (start : Nat) (state : Layer.EState)
+theorem read_sample_affine (state : Layer.EState) (pair : Read.Pair)
     (stateAffine : StateAffine state) :
-    R1CS.RecipesDirect start (Squeeze.compile start state).recipes := by
-  rw [Squeeze.compile_recipes_eq]
-  apply R1CS.recipesDirect_append
-  · exact compile_schedule_direct start state stateAffine
-  · exact compile_schedule_direct
-      (start + (Squeeze.firstPermutation start state).recipes.length)
-      (Squeeze.firstPermutation start state).output
-      (compile_schedule_output_affine start state stateAffine)
-
-theorem squeeze_output_affine (start : Nat) (state : Layer.EState)
-    (stateAffine : StateAffine state) :
-    StateAffine (Squeeze.compile start state).output := by
-  intro lane
-  rw [Squeeze.compile_output_apply]
-  exact compile_schedule_output_affine
-    (start + (Squeeze.firstPermutation start state).recipes.length)
-    (Squeeze.firstPermutation start state).output
-    (compile_schedule_output_affine start state stateAffine) lane
-
-theorem squeeze_sample_affine (start : Nat) (state : Layer.EState)
-    (stateAffine : StateAffine state) :
-    KExprAffine (Squeeze.compile start state).sample := by
-  rw [Squeeze.compile_sample_eq]
-  exact ⟨stateAffine 0,
-    compile_schedule_output_affine start state stateAffine 0⟩
+    KExprAffine (Read.sample state pair) :=
+  ⟨stateAffine (Read.lowLane pair), stateAffine (Read.highLane pair)⟩
 
 /-- Every Duplex witness recipe lowers to one direct R1CS row. This theorem
 is structural in the action list and does not evaluate an emitted schedule. -/
@@ -235,19 +196,9 @@ theorem compile_recipes_direct (start : Nat) (state : Layer.EState)
                 (Hash.inputChunks input) stateAffine
                 (inputChunks_affine input headAffine))
               tailAffine
-      | squeezeK expected =>
-          let squeezed := Squeeze.compile start state
-          change R1CS.RecipesDirect start
-            (squeezed.recipes ++
-              (Formal.compile (start + squeezed.recipes.length)
-                squeezed.output actions).recipes)
-          apply R1CS.recipesDirect_append
-          · exact squeeze_recipes_direct start state stateAffine
-          · exact inductionHypothesis
-              (start := start + squeezed.recipes.length)
-              (state := squeezed.output)
-              (squeeze_output_affine start state stateAffine)
-              tailAffine
+      | readK pair expected =>
+          exact inductionHypothesis (start := start) (state := state)
+            stateAffine tailAffine
 
 /-- Every verifier-derived Duplex sample is an affine pair of existing
 symbolic variables. Expected samples do not alter this output list. -/
@@ -276,19 +227,14 @@ theorem compile_samples_affine (start : Nat) (state : Layer.EState)
               (Hash.inputChunks input) stateAffine
               (inputChunks_affine input headAffine))
             tailAffine
-      | squeezeK expected =>
-          let squeezed := Squeeze.compile start state
+      | readK pair expected =>
           intro sample member
-          change sample ∈ squeezed.sample ::
-            (Formal.compile (start + squeezed.recipes.length)
-              squeezed.output actions).samples at member
+          change sample ∈ Read.sample state pair ::
+            (Formal.compile start state actions).samples at member
           rcases List.mem_cons.mp member with rfl | member
-          · exact squeeze_sample_affine start state stateAffine
-          · exact inductionHypothesis
-              (start := start + squeezed.recipes.length)
-              (state := squeezed.output)
-              (squeeze_output_affine start state stateAffine)
-              tailAffine sample member
+          · exact read_sample_affine state pair stateAffine
+          · exact inductionHypothesis (start := start) (state := state)
+              stateAffine tailAffine sample member
 
 /-- The final Duplex state is affine when the initial state and action inputs
 are affine. -/
@@ -316,12 +262,8 @@ theorem compile_output_affine (start : Nat) (state : Layer.EState)
               (Hash.inputChunks input) stateAffine
               (inputChunks_affine input headAffine))
             tailAffine
-      | squeezeK expected =>
-          let squeezed := Squeeze.compile start state
-          exact inductionHypothesis
-            (start := start + squeezed.recipes.length)
-            (state := squeezed.output)
-            (squeeze_output_affine start state stateAffine)
-            tailAffine
+      | readK pair expected =>
+          exact inductionHypothesis (start := start) (state := state)
+            stateAffine tailAffine
 
 end NightstreamFPrime.Layout.Poseidon2.Duplex

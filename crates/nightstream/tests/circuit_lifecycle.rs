@@ -44,6 +44,32 @@ fn poseidon_metal_recursive_lifecycle() {
     poseidon_lifecycle(Engine::Metal, true);
 }
 
+/// Device proving changes no proof byte: Metal proofs equal the CPU engine's
+/// after the base step and after each of two folds.
+#[cfg(feature = "metal")]
+#[test]
+#[ignore = "Full production Metal and CPU lifecycles; run this test separately under the 300-second cap."]
+fn poseidon_metal_proofs_equal_cpu_proofs() {
+    let circuit = Circuit::compile(&selected_reference(), poseidon2_hash_chain_v1().unwrap()).unwrap();
+    let initial = [202, 203, 204, 205].map(F::from_u64);
+    let message = [7, 11, 13, 17].map(F::from_u64);
+    let proofs = |engine| {
+        let prover = circuit.prover(engine, 114).unwrap();
+        let mut proof = prover.prove(initial, &message).unwrap();
+        let mut bytes = vec![prover.encode_proof(&proof).unwrap()];
+        for _ in 0..2 {
+            proof = prover.extend(&proof, &message).unwrap();
+            bytes.push(prover.encode_proof(&proof).unwrap());
+        }
+        bytes
+    };
+    let metal = proofs(Engine::Metal);
+    assert!(
+        metal == proofs(Engine::Optimized),
+        "Metal proof bytes differ from the CPU engine"
+    );
+}
+
 fn poseidon_lifecycle(engine: Engine, recursive: bool) {
     let started = Instant::now();
     let reference: Value = serde_json::from_slice(

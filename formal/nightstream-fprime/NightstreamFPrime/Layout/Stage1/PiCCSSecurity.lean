@@ -364,8 +364,9 @@ theorem committed_authority_statement_finalState_identify_or_failure
   · exact Or.inr (Or.inl componentFailure)
   · exact Or.inr (Or.inr (Or.inl contextFailure))
 
-/-- The HyperNova prior-state link: the fresh public input carries the hash of
-the well-formed prior preimage, the preimage names the verifier context, and
+/-- The HyperNova prior-state link: the digest that the fresh public input
+decodes to is the hash of the well-formed prior preimage, the preimage names the
+verifier context, and
 the NIFS running statement is the preimage's running vector. The context is the
 `vk_fs` slot of HyperNova Construction 2's state hash. The key itself is fixed
 by the verifier, not by the transcript: unlike Construction 3's `hs = ρ(pp, s)`,

@@ -363,7 +363,7 @@ This consistency check does not decide whether the branch set is sufficient;
 the independent formula review must make that decision.
 
 Base mutation completion requires the same exact counts as the recursive
-case: 562 proof, 170 statement, and 724 output mutations using the optimized
+case: 562 proof, 165 statement, and 724 output mutations using the optimized
 Rust verifier. These counts come from the selected claim shape and assertions
 in `crates/nightstream/tests/lifecycle_native/golden_ccs_mutations.rs`.
 The common-point case requires 56 limb

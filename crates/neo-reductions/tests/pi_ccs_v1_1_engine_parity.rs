@@ -501,8 +501,9 @@ fn v1_1_transcript_matches_the_independent_reference() {
 
 /// Both engines absorb the Lean `decodeHash` of the first fresh public input
 /// as the prior digest. The input is `encHash(d)`, built by the encoder for four
-/// distinct words that use all 64 bit positions. The crosscheck proves that the
-/// optimized and PaperExact traces agree. Running frames are not read.
+/// distinct words. The first two are complements, so every bit position is set
+/// in one word and clear in another. The crosscheck proves that the optimized
+/// and PaperExact traces agree. Running frames are not read.
 #[test]
 fn prior_digest_comes_from_the_fresh_public_input() {
     let public = 5 * D;
@@ -510,7 +511,12 @@ fn prior_digest_comes_from_the_fresh_public_input() {
     let structure = rectangular_ccs(D / 2, columns);
     let params = selected_parameters(&structure);
     let log = committer(&params, columns);
-    let digest: [u64; 4] = [1 << 63 | 5, 0x1234_5678_9abc_def0, 3, 0x7fff_ffff_0000_0001];
+    let digest: [u64; 4] = [
+        0x5555_5555_5555_5555,
+        0xaaaa_aaaa_aaaa_aaaa,
+        1 << 63 | 5,
+        0x1234_5678_9abc_def0,
+    ];
     let mut values = vec![F::ZERO; columns];
     values[0] = F::ONE;
     for (word, value) in digest.iter().enumerate() {

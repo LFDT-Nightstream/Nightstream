@@ -64,7 +64,8 @@ old-package fixture to provide the bootstrap.
 A previously completed native comparison run may be reused only with its actual
 receipts and unchanged production source, package, and inputs. Keep that origin
 explicit. The independent coordinator rechecks the actual source commitments,
-state/public binding and running-parent authority. A saved digest or claimed
+state/public binding and the running child family (`validate_running_children`).
+A saved digest or claimed
 success receipt does not supply those checks.
 
 ## Generate and compare

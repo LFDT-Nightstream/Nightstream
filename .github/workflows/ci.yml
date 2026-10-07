@@ -30,7 +30,7 @@ jobs:
 
   test:
     name: Nightstream and shared regression tests
-    runs-on: self-hosted
+    runs-on: [self-hosted, Linux]
     
     steps:
     - name: Install Git LFS if missing
@@ -104,3 +104,42 @@ jobs:
         timeout --signal=KILL 300 python3 -B -m unittest scripts.tests.test_golden_conformance_ci scripts.tests.test_golden_conformance_changes scripts.lean_graph.tests.test_guard scripts.lean_graph.tests.test_replay_coverage
         timeout --signal=KILL 300 python3 -B -m unittest discover -s crates/nightstream/tests -p 'test_*.py'
         timeout --signal=KILL 300 python3 -B -m unittest discover -s formal/nightstream-fprime/tests -p 'test_*.py'
+
+  lean:
+    name: Lean F-prime proofs
+    # The proofs build on the owner's self-hosted Mac (64 GB). Fork pull
+    # requests never run on it.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, macOS, ARM64]
+    timeout-minutes: 120
+    env:
+      # Lake schedules one build job per Lean thread. Large generated modules
+      # use about 10 GB each, so two keep the build under the 64 GB cap.
+      LEAN_NUM_THREADS: "2"
+    defaults:
+      run:
+        working-directory: formal/nightstream-fprime
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        # Keep `.lake` between runs so a build replays unchanged modules.
+        clean: false
+
+    - name: Tool paths
+      run: |
+        echo "/opt/homebrew/bin" >> "$GITHUB_PATH"
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+    - name: Fetch Mathlib build cache
+      run: lake exe cache get
+
+    - name: Boundary checks
+      run: bash scripts/validate.sh static
+
+    - name: Build the library
+      run: bash scripts/validate.sh build
+
+    - name: Build the tests and the axiom audit
+      run: bash scripts/validate.sh axioms

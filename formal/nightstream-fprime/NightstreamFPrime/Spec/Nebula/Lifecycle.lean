@@ -33,13 +33,15 @@ structure Carry (E Digest : Type) where
   seen : Roots Digest
   memRoot : Digest
 
-/-- The verifier context: the plan, the abstract hash, the abstract §9.3
-challenge function, and the package constant `plan_digest`. `D_init` is
-derived from the plan (`Context.initRoot`), never supplied. -/
+/-- The verifier context: the plan, the abstract hash, the challenges of each
+segment, and the package constant `plan_digest`. `eta k inp` is the challenge
+pair of segment `k` with transcript input `inp`: the Fiat–Shamir context reads
+only `inp` (§9.3); the interactive game of A6 samples one pair per segment.
+`D_init` is derived from the plan (`Context.initRoot`), never supplied. -/
 structure Context (E Digest : Type) where
   plan : Plan
   hash : HashInput Digest → Digest
-  eta : EtaInput Digest → E × E
+  eta : ℕ → EtaInput Digest → E × E
   planDigest : Digest
 
 /-- One invocation of an extracted run: the proposals that an opening arm
@@ -96,7 +98,7 @@ def openedCarry (ctx : Context E Digest) (c : Carry E Digest) (proposal : Digest
     Carry E Digest :=
   { c with
     proposed := proposal
-    eta := ctx.eta ⟨ctx.planDigest, c.ts, proposal.1, c.memRoot, proposal.2⟩
+    eta := ctx.eta c.segIdx ⟨ctx.planDigest, c.ts, proposal.1, c.memRoot, proposal.2⟩
     products := ⟨1, 1, 1, 1⟩
     seen := ⟨ctx.header .ops, ctx.header .mem, ctx.header .mem⟩
     idx := 0 }
@@ -197,6 +199,7 @@ def proposalAt (ctx : Context E Digest) (run : List (Invocation σ Digest)) (k :
 
 /-- What the security proofs read about one segment. -/
 structure SegmentView (Digest : Type) where
+  index : ℕ
   openTs : ℕ
   memIn : Digest
   proposal : Digest × Digest
@@ -206,6 +209,7 @@ structure SegmentView (Digest : Type) where
 proposal of segment `k − 1` otherwise. -/
 def segmentView (ctx : Context E Digest) (run : List (Invocation σ Digest)) (k : ℕ) :
     SegmentView Digest where
+  index := k
   openTs := tsBefore run (k * ctx.plan.n)
   memIn := match k with
     | 0 => ctx.initRoot
@@ -231,7 +235,8 @@ def etaInput (ctx : Context E Digest) (v : SegmentView Digest) : EtaInput Digest
   ⟨ctx.planDigest, v.openTs, v.proposal.1, v.memIn, v.proposal.2⟩
 
 /-- The challenges of the segment. -/
-def eta (ctx : Context E Digest) (v : SegmentView Digest) : E × E := ctx.eta (v.etaInput ctx)
+def eta (ctx : Context E Digest) (v : SegmentView Digest) : E × E :=
+  ctx.eta v.index (v.etaInput ctx)
 
 /-- The four multisets of the segment. -/
 def multisets (p : Plan) (v : SegmentView Digest) : Multisets :=
@@ -351,7 +356,7 @@ private theorem runSteps_opened {ctx : Context E Digest} {c r : Carry E Digest}
       r.seen.final = chainRoot ctx.hash .mem ctx.planDigest (zs.map (finalPacked ctx.plan)) ∧
       ((r.products.initial * r.products.write = r.products.read * r.products.final) ↔
         (segmentMultisets ctx.plan c.ts 0 zs).ProductEq
-          (ctx.eta ⟨ctx.planDigest, c.ts, proposal.1, c.memRoot, proposal.2⟩)) := by
+          (ctx.eta c.segIdx ⟨ctx.planDigest, c.ts, proposal.1, c.memRoot, proposal.2⟩)) := by
   subst run
   obtain ⟨hSeg, hProp, hMem, hIdx, hTs⟩ := runSteps_fixed ctx zs (openedCarry ctx c proposal)
   obtain ⟨hOps, hInit, hFin⟩ := runSteps_seen ctx zs (openedCarry ctx c proposal)
@@ -467,7 +472,7 @@ private theorem steps_eq_some (ctx : Context E Digest) (c' : Carry E Digest)
 private theorem continueRun_segment {ctx : Context E Digest} {c : Carry E Digest}
     {inv : Invocation σ Digest} {rest : List (Invocation σ Digest)} {v : SegmentView Digest}
     (closed : c.idx = ctx.plan.n) (len : rest.length + 1 = ctx.plan.n)
-    (openTs : v.openTs = c.ts) (memIn : v.memIn = c.memRoot)
+    (index : v.index = c.segIdx) (openTs : v.openTs = c.ts) (memIn : v.memIn = c.memRoot)
     (proposal : v.proposal = inv.proposal)
     (records : v.records = (inv :: rest).map Invocation.records) :
     ((∃ c', continueRun ctx c (inv :: rest) = some c') ↔
@@ -476,9 +481,9 @@ private theorem continueRun_segment {ctx : Context E Digest} {c : Carry E Digest
         c'.idx = ctx.plan.n ∧ c'.segIdx = c.segIdx + 1 ∧
           c'.ts = c.ts + (((inv :: rest).map Invocation.records).map activeCount).sum ∧
           c'.memRoot = inv.proposal.2 := by
-  obtain ⟨vTs, vMem, vProp, vRec⟩ := v
-  dsimp only at openTs memIn proposal records
-  subst openTs memIn proposal records
+  obtain ⟨vIdx, vTs, vMem, vProp, vRec⟩ := v
+  dsimp only at index openTs memIn proposal records
+  subst index openTs memIn proposal records
   have len' : ((inv :: rest).map Invocation.records).length = ctx.plan.n := by
     simpa using len
   obtain ⟨rSeg, rIdx, rTs, rProp, rMem, rOps, rInit, rFin, rProd⟩ :=
@@ -581,7 +586,8 @@ private theorem prefix_run {ctx : Context E Digest} {run : List (Invocation σ D
         rw [hseg, List.length_cons] at segLen
         exact segLen
       obtain ⟨segIff, segFields⟩ := continueRun_segment (v := segmentView ctx run k) cIdx len
-        cTs.symm cMem.symm head (by show (segmentRun ctx.plan run k).map _ = _; rw [hseg])
+        cSeg.symm cTs.symm cMem.symm head
+        (by show (segmentRun ctx.plan run k).map _ = _; rw [hseg])
       simp only [Option.bind_some]
       refine ⟨?_, fun c' hc' => ?_⟩
       · rw [segIff, cSeg]

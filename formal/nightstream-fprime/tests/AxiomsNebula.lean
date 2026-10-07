@@ -1,6 +1,7 @@
 import tests.AxiomAudit
 import NightstreamFPrime.Spec.Nebula
 import NightstreamFPrime.Lifecycle.Nebula.Framing
+import NightstreamFPrime.Lifecycle.Nebula.MemoryBound
 
 /-! Axiom audits for the Nebula memory-phase model (`Spec/Nebula`) and its
 Poseidon2 framing (`Lifecycle/Nebula`). -/
@@ -89,5 +90,23 @@ Poseidon2 framing (`Lifecycle/Nebula`). -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.blockChunks_cons
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.blockChunks_injective
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.blocks_injective
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.collision_transcript
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.runCollision_transcript
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.poseidon2_soundness
+#audit_axioms NightstreamFPrime.Spec.Nebula.retry_expected_calls
+#audit_axioms NightstreamFPrime.Spec.Nebula.splice_card
+#audit_axioms NightstreamFPrime.Spec.Nebula.withChallenges_plan
+#audit_axioms NightstreamFPrime.Spec.Nebula.runInputs_withChallenges
+#audit_axioms NightstreamFPrime.Spec.Nebula.segmentView_withChallenges
+#audit_axioms NightstreamFPrime.Spec.Nebula.SegmentView.ClosesAt.of_withChallenges
+#audit_axioms NightstreamFPrime.Spec.Nebula.Game.view_eq
+#audit_axioms NightstreamFPrime.Spec.Nebula.Game.play_closes
+#audit_axioms NightstreamFPrime.Spec.Nebula.Game.badAt_error
+#audit_axioms NightstreamFPrime.Spec.Nebula.Game.disagreement_collision
+#audit_axioms NightstreamFPrime.Spec.Nebula.Game.fails_cases
+#audit_axioms NightstreamFPrime.Spec.Nebula.Game.badAt_frequency
+#audit_axioms NightstreamFPrime.Spec.Nebula.Game.fails_frequency
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.context_hash
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.memory_bound
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.collides_transcript
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.closing_collision_transcript

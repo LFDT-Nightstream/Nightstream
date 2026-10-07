@@ -41,8 +41,11 @@ Required premises:
   operational source and all visit laws. Existing storage and primitive clock
   bounds, correctness facts and summability stay visible. The concrete Phi81
   low-norm invertibility fact is supplied by its checked proof.
-- Every guarded real experiment satisfies the already approved classical
-  additive-Poseidon2 `FiatShamirTransfer.FiatShamirModel`, with shared `g` and
+- Every guarded real experiment satisfies the approved classical
+  additive-Poseidon2 `FiatShamirTransfer.FiatShamirModel`. Since 2026-10-06 its
+  success event also requires a prior preimage, output by the adversary, that
+  links the running statement and the verifier context to the absorbed digest.
+  The model has shared `g` and
   combined error `samplerTransferError deltaFS sampleQueries` and its own total
   permutation-query count `Q_j`. `FiatShamirModel.of_blockOracle` derives this
   interface from an explicitly supplied raw/balanced block-oracle game transfer

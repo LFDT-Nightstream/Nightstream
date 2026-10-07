@@ -28,11 +28,12 @@ private def makeOutput
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (prior : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Lifecycle.Proof 9)
     (children : Stage1.Terminal.RunningWitness
       (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     FiatShamirTransfer.RealOutput relation :=
-  ⟨proof, children⟩
+  ⟨prior, proof, children⟩
 
 private theorem success_of_relation_eq
     {logicalWidth : Nat}
@@ -44,13 +45,14 @@ private theorem success_of_relation_eq
     (context : KeyDigest)
     (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (prior : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Lifecycle.Proof 9)
     (children : Stage1.Terminal.RunningWitness
       (logicalWidth := logicalWidth) (publicFits := publicFits))
     (success : FiatShamirTransfer.RealSuccess right ajtai context running fresh
-      (some (makeOutput right proof children))) :
+      (some (makeOutput right prior proof children))) :
     FiatShamirTransfer.RealSuccess left ajtai context running fresh
-      (some (makeOutput left proof children)) := by
+      (some (makeOutput left prior proof children)) := by
   cases same
   exact success
 
@@ -63,17 +65,18 @@ private theorem success_of_verified_output
     (context : KeyDigest)
     (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (prior : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Lifecycle.Proof (ProductionKey.degreeBound relation))
     (result : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (children : Stage1.Terminal.RunningWitness
       (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (link : ∃ prior, PiCCSSecurity.PriorLink prior running fresh context)
+    (link : PiCCSSecurity.PriorLink prior running fresh context)
     (verified : Nifs.PaperNonInteractive.verify (ProductionKey.key relation ajtai)
       running fresh proof = some result)
     (valid : ∀ child, CE.Holds (semantics ajtai) productionGlobalParams
       (Lifecycle.runningStatement relation result child) (children child)) :
     FiatShamirTransfer.RealSuccess relation ajtai context running fresh
-      (some (makeOutput relation proof children)) := by
+      (some (makeOutput relation prior proof children)) := by
   have checks := (Nifs.PaperNonInteractive.verify_eq_some_iff
     (ProductionKey.key relation ajtai) running fresh proof result).mp verified
   rcases (Nifs.PaperNonInteractive.piDecCheck_eq_true_iff
@@ -85,11 +88,20 @@ private theorem success_of_verified_output
     relation ajtai result child]
   exact valid child
 
-/-- The decoded local proof with the terminal's existing ordered sixteen
-child witnesses. No claimed output or source witness is added. -/
-def output (payload : HyperNovaHistory.Payload) :
+/-- The prior preimage that the decoded local step names under the package's
+verifier context: the preimage whose hash the terminal checks. -/
+noncomputable def prior (payload : HyperNovaHistory.Payload) :=
+  HyperNova.Construction2.Paper.priorHashPreimage
+    (Lifecycle.setup (PerApplicationFixedPoint.relation application fits)
+      (PerApplicationCanonicalPackage.commitmentKey productionSetup)
+      (PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup))
+    (HyperNovaHistory.decodedInput payload)
+
+/-- The decoded prior preimage and local proof with the terminal's existing
+ordered sixteen child witnesses. No claimed output or source witness is added. -/
+noncomputable def output (payload : HyperNovaHistory.Payload) :
     FiatShamirTransfer.RealOutput PiDECInputCheck.relation :=
-  makeOutput PiDECInputCheck.relation
+  makeOutput PiDECInputCheck.relation (prior payload)
     (HyperNovaHistory.decodedInput payload).nifsProof (payload.runningWitness functionIndex)
 
 /-- A non-base accepted terminal opening supplies the actual NIFS real-success
@@ -122,15 +134,15 @@ theorem realSuccess_of_terminal
       (PerApplicationCanonicalPackage.commitmentKey productionSetup)
       (PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup)
       ((HyperNovaHistory.decodedInput payload).running functionIndex)
-      (HyperNovaHistory.decodedInput payload).fresh
+      (HyperNovaHistory.decodedInput payload).fresh (prior payload)
       (HyperNovaHistory.decodedInput payload).nifsProof
       (payload.running functionIndex) (payload.runningWitness functionIndex)
-      ⟨_, link⟩ verified (runningValid functionIndex)
+      link verified (runningValid functionIndex)
     have selected := success_of_relation_eq PiDECInputCheck.relation
       (PerApplicationFixedPoint.relation application fits) PiDECInputCheck.relation_eq_selected
       productionAjtaiKey (PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup)
       ((HyperNovaHistory.decodedInput payload).running functionIndex)
-      (HyperNovaHistory.decodedInput payload).fresh
+      (HyperNovaHistory.decodedInput payload).fresh (prior payload)
       (HyperNovaHistory.decodedInput payload).nifsProof
       (payload.runningWitness functionIndex) success
     simpa only [output, HyperNovaHistory.sourceInput,

@@ -1,7 +1,7 @@
 //! Native NIFS handoff to the selected Stage 1 caller packet.
-//! Package-owned verification fixes the returned children. State hashes and
-//! frame metadata are recomputed; packet data still requires the emitted
-//! witness program and its relation checks.
+//! Package-owned verification fixes the returned children. State hashes are
+//! recomputed; packet data still requires the emitted witness program and its
+//! relation checks.
 
 use neo_math::{KExtensions, F};
 use nightstream_fprime::{
@@ -275,12 +275,4 @@ impl PreparedLifecycle {
         }
         Ok((preimage, digest))
     }
-}
-
-pub(super) fn digest_bytes(words: [u64; 4]) -> [u8; 32] {
-    let mut bytes = [0; 32];
-    for (lane, word) in words.into_iter().enumerate() {
-        bytes[lane * 8..(lane + 1) * 8].copy_from_slice(&word.to_le_bytes());
-    }
-    bytes
 }

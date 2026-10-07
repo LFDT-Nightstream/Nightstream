@@ -11,10 +11,13 @@ absorption, existing domain labels, complete C output absorption, total four-fie
 R sampling, and the actual PiDEC attempt. It includes valid witnesses for
 all sixteen returned children; bare public acceptance is not this event.
 The event also requires the prior-state link (owner decision 2026-10-06): the
-absorbed prior digest hashes a well-formed prior preimage that names the
-verifier context and whose running vector is the NIFS running statement. No
-challenge depends on the running statement, so without the link a prover could
-choose it after γ and keep the claimed sum; that event has no useful transfer.
+adversary outputs a well-formed prior preimage whose hash is the absorbed prior
+digest, which names the verifier context and whose running vector is the NIFS
+running statement. No challenge depends on the running statement, so without
+the link a prover could choose it after γ and keep the claimed sum; that event
+has no useful transfer. The preimage must be an output, not merely exist: its
+initial state, current state and iteration are free, so some well-formed
+preimage with any running vector hashes to almost every digest.
 
 The translated side is the existing checked causal prefix and supported
 R/D provider under the real law's context marginal, with the same public
@@ -52,9 +55,12 @@ open PiRLC.CoordinateForkLaw
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- Existing proof data paired with witnesses for the existing ordered output.
-This adds no protocol message, claimed verifier output, or representation. -/
+/-- The adversary's prior preimage, the existing proof data, and witnesses
+for the existing ordered output. The preimage is the HyperNova Construction 2
+state that the IVC prover holds; this adds no NIFS message, claimed verifier
+output, or representation. -/
 structure RealOutput (relation : ProductionKey.LogicalRelation logicalWidth publicFits) where
+  prior : Lifecycle.HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits)
   proof : PaperNonInteractive.Proof K PaperAlgebra.Commitment productionShape
     (ProductionKey.degreeBound relation)
   children : Fin productionShape.runningCount →
@@ -65,9 +71,10 @@ variable
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
   (contextDigest : KeyDigest)
 
-/-- The prior-state link binds the running statement and the verifier context,
-the actual NIFS verifier accepts, and the supplied witnesses open its exact
-sixteen returned children. The same proof supplies the PiDEC attempt. -/
+/-- The output prior preimage links the running statement and the verifier
+context to the absorbed digest, the actual NIFS verifier accepts, and the
+supplied witnesses open its exact sixteen returned children. The same proof
+supplies the PiDEC attempt. -/
 def RealSuccess
     (running : Lifecycle.Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (fresh : Lifecycle.Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)) :
@@ -75,7 +82,7 @@ def RealSuccess
   | none => False
   | some output =>
       let key := ProductionKey.key relation ajtai
-      (∃ prior, Layout.Stage1.PiCCSSecurity.PriorLink prior running fresh contextDigest) ∧
+      Layout.Stage1.PiCCSSecurity.PriorLink output.prior running fresh contextDigest ∧
       ∃ result attempt,
         PaperNonInteractive.verify key running fresh output.proof = some result ∧
         key.piDecAttempt running fresh output.proof = some attempt ∧

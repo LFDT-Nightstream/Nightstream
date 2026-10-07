@@ -20,6 +20,10 @@ equal the separately checked iteration-3 output.
 These two cases also exercise successful active extension. A separate
 ordinary-cache run adds no necessary coverage to this check.
 
+Note (2026-10-07, PR #155): the running instance no longer has a parent
+cache, and no check reads running frames or `w`. Both cases reduce to frame and
+`w` changes, which the terminal sweep covers.
+
 ## Proposed allowance, not yet approved
 
 The measured C, R, D-material, terminal-acceptance and successor-construction

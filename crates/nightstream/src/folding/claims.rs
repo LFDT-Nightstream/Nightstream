@@ -26,8 +26,8 @@ pub struct CcsInstance {
     pub claim: CcsClaim,
     pub witness: CcsWitness,
 }
-/// The running PiDEC children and, for the prover, their openings. A claim's
-/// `fold_digest` is a cache: no reduction reads a running claim's frame.
+/// The running PiDEC children and, for the prover, their openings. No check
+/// reads a running claim's `fold_digest` frame.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct RunningInstance {
     pub claims: Vec<CeClaim>,

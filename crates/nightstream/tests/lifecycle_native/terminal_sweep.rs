@@ -379,8 +379,10 @@ fn terminal_rejects_every_authoritative_envelope_change() {
     let base = package
         .extend_with_output(Stage1Envelope::initial(initial), &words, first, None)
         .unwrap();
-    // Fold from the decoded bytes, as a separate prover would: the codec
-    // carries no frame digest or `w`, and no check reads them.
+    // Fold from the decoded bytes, as a separate prover would: this checks that
+    // the strict codec carries everything `extend` needs. The base envelope
+    // already has zero frames and an empty `w`; the CI fixture and the
+    // neo-reductions prior-digest test show that frames are not read.
     let base = package
         .decode_proof(&package.encode_proof(&base).unwrap())
         .unwrap();

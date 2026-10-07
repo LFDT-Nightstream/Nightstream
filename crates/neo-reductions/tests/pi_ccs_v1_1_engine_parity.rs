@@ -500,14 +500,42 @@ fn v1_1_transcript_matches_the_independent_reference() {
 }
 
 /// Both engines absorb the Lean `decodeHash` of the first fresh public input
-/// as the prior digest. The running claims' carried frames are not read.
+/// as the prior digest. The input is `encHash(d)`, built by the encoder for four
+/// distinct words that use all 64 bit positions. The crosscheck proves that the
+/// optimized and PaperExact traces agree. Running frames are not read.
 #[test]
 fn prior_digest_comes_from_the_fresh_public_input() {
-    let structure = rectangular_ccs(D / 2, D + 1);
+    let public = 5 * D;
+    let columns = public + D;
+    let structure = rectangular_ccs(D / 2, columns);
     let params = selected_parameters(&structure);
-    let log = committer(&params, D + 1);
-    let (claim, witness) = source(&log, D + 1, 6);
-    let (running, running_witnesses) = zero_running::zero_running(&params, &structure, 1, claim.m_in);
+    let log = committer(&params, columns);
+    let digest: [u64; 4] = [1 << 63 | 5, 0x1234_5678_9abc_def0, 3, 0x7fff_ffff_0000_0001];
+    let mut values = vec![F::ZERO; columns];
+    values[0] = F::ONE;
+    for (word, value) in digest.iter().enumerate() {
+        for bit in 0..64 {
+            values[1 + 64 * word + bit] = F::from_u64((value >> bit) & 1);
+        }
+    }
+    for (column, value) in values.iter_mut().enumerate().skip(public) {
+        *value = if column % 2 == 0 { F::ONE } else { -F::ONE };
+    }
+    let mut Z = Mat::zero(D, columns / D, F::ZERO);
+    for (column, &value) in values.iter().enumerate() {
+        Z[(column % D, column / D)] = value;
+    }
+    let claim = Claim {
+        adv: None,
+        c: log.commit(&Z),
+        x: values[..public].to_vec(),
+        m_in: public,
+    };
+    let witness = CcsWitness {
+        w: values[public..].to_vec(),
+        Z,
+    };
+    let (running, running_witnesses) = zero_running::zero_running(&params, &structure, 1, public);
     let label = b"pi-ccs/v1_1/prior-digest";
     let (outputs, proof) = crosscheck_prove(
         &(),
@@ -549,14 +577,8 @@ fn prior_digest_comes_from_the_fresh_public_input() {
     )
     .expect("prior-digest trace");
     assert!(accepted);
-    let cell = |index: usize| claim.x.get(index).copied().unwrap_or(F::ZERO);
     let mut block = vec![F::from_u64(4)];
-    block.extend((0..4).map(|word| {
-        (0..64).fold(F::ZERO, |value, bit| {
-            value + F::from_u64(1 << bit) * cell(1 + 64 * word + bit)
-        })
-    }));
-    assert_ne!(block[1], F::ZERO, "the fixture must set a digest bit");
+    block.extend(digest.map(F::from_u64));
     assert_eq!(trace.events[1], TraceEvent::Absorb(block));
 }
 

@@ -14,8 +14,8 @@ use nightstream_fprime::{
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use super::{
-    encode_pi_ccs_v1_1_public_input, pi_ccs_v1_1_state_hash, serialize_pi_ccs_v1_1_state_preimage,
-    step_inputs::digest_bytes, ExtendError, PreparedLifecycle, Stage1State, Stage1StepInputs,
+    encode_pi_ccs_v1_1_public_input, pi_ccs_v1_1_state_hash, serialize_pi_ccs_v1_1_state_preimage, ExtendError,
+    PreparedLifecycle, Stage1State, Stage1StepInputs,
 };
 use crate::folding::{ajtai_rlc_mixer, kernels as optimized, Params, RunningInstance};
 
@@ -55,7 +55,6 @@ impl PreparedLifecycle {
         let mut sources = vec![running.claims[0].clone(); PI_CCS_V1_1_SOURCE_COUNT];
         for source in &mut sources {
             source.r = point.clone();
-            source.fold_digest = digest_bytes(prior_digest);
         }
         for (column, value) in prior_public.iter().copied().enumerate() {
             sources[0].X[(column % D, column / D)] = F::from_u64(value);

@@ -30,11 +30,13 @@ class RecursiveComparisonTests(unittest.TestCase):
         envelope = {
             "schema": 1, "package_identity": [2], "iteration": 3, "z0": [0],
             "current": [13], "child_witness_count": 16,
-            "running_claims": list(range(16)),
+            "running_claims": [{"r": [index], "fold_digest": [0]} for index in range(16)],
         }
         self.write(self.cpu / "step-2/envelope.json", dict(envelope, iteration=2))
         self.write(self.cpu / "step-3/envelope.json", envelope)
         archived = {key: envelope[key] for key in compare.ENVELOPE_FIELDS}
+        # Older provers stored other running frames; the comparison ignores them.
+        archived["running_claims"] = [dict(claim, fold_digest=[7]) for claim in envelope["running_claims"]]
         archived.update({key: "record metadata" for key in compare.REFERENCE_METADATA})
         self.write(self.reference / "output/envelope/envelope.json", archived)
         for step in (2, 3):

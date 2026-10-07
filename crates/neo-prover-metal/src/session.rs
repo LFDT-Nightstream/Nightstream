@@ -103,6 +103,9 @@ pub struct MetalSession {
     fe_weighted_row_table: Pipeline,
     // Shared convolution kernels for batched full and lane commitments.
     dec_ring_reduce_phi81: Pipeline,
+    // A prover keeps the production key rows after their first commitment;
+    // `None` expands the needed rows in every call.
+    production_key: Option<Mutex<production_commitment::ResidentKeyRows>>,
     activity: ActivityCounters,
 }
 
@@ -234,8 +237,16 @@ impl MetalSession {
             joint_carried_projection,
             fe_weighted_row_table,
             dec_ring_reduce_phi81,
+            production_key: None,
             activity: ActivityCounters::default(),
         })
+    }
+
+    /// Keep the production key rows on the device after their first
+    /// commitment. A prover commits at every step; a verifier commits once,
+    /// so it streams the rows and holds no complete key.
+    pub(crate) fn keep_production_key(&mut self) {
+        self.production_key = Some(Mutex::default());
     }
 
     pub fn goldilocks_ops(&self, lhs: &[u64], rhs: &[u64]) -> Result<Vec<GoldilocksOps>, MetalError> {

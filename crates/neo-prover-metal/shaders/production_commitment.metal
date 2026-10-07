@@ -1,6 +1,7 @@
 // nightstream-ajtai-shake128-wide256-v1, with the verifier-owned setup ID
-// and seed supplied by Rust. One key row at a time is expanded into a device
-// slab, then every witness accumulates its signed ring products from that slab.
+// and seed supplied by Rust. Key rows are expanded into device memory, either
+// one row at a time for one call or once for every call of a prover. Every
+// witness accumulates its signed ring products from the row it is given.
 
 constant ulong PRODUCTION_KECCAK_RC[24] = {
     0x0000000000000001ul, 0x0000000000008082ul, 0x800000000000808aul, 0x8000000080008000ul,
@@ -134,7 +135,7 @@ inline void production_ajtai_element(
     }
 }
 
-// One key row: one thread per occupied column. slab[position * 54 + L] holds
+// One key row: one thread per listed column. slab[position * 54 + L] holds
 // coefficient L of key element (row, columns[position]), so the lanes of one
 // witness read one column's coefficients from consecutive words.
 kernel void production_key_row(
@@ -191,14 +192,16 @@ inline ulong production_join_halves(ulong lo, ulong hi) {
 }
 
 // One threadgroup sums the signed key products of a block of witnesses over a
-// range of columns; 64 lanes serve one witness. Each group writes one
+// range of occupied columns; 64 lanes serve one witness. Occupied position p
+// reads key element key_columns[p] of the row. Each group writes one
 // Phi81-reduced partial per witness. The integer work is 32-bit where it can
 // be: the GPU emulates 64-bit operations, and this loop is ALU-bound.
 kernel void production_ajtai_accumulate(
-    device const ulong *slab [[buffer(0)]],
+    device const ulong *key [[buffer(0)]],
     device const ulong2 *masks [[buffer(1)]],
     device const ulong *shape [[buffer(2)]],
     device ulong *partials [[buffer(3)]],
+    device const uint *key_columns [[buffer(4)]],
     threadgroup ulong *scratch [[threadgroup(0)]],
     uint group_index [[threadgroup_position_in_grid]],
     uint thread_index [[thread_index_in_threadgroup]]) {
@@ -218,8 +221,9 @@ kernel void production_ajtai_accumulate(
     if (active) {
         for (ulong position = first; position < end; ++position) {
             ulong2 digits = masks[witness * count + position];
-            production_add_digits(digits.x, slab + position * RING_DEGREE, lane, positive);
-            production_add_digits(digits.y, slab + position * RING_DEGREE, lane, negative);
+            device const ulong *element = key + (ulong)key_columns[position] * RING_DEGREE;
+            production_add_digits(digits.x, element, lane, positive);
+            production_add_digits(digits.y, element, lane, negative);
         }
     }
     // Raw-coefficient scratch, one row of 107 per witness.

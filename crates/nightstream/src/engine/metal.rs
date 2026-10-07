@@ -6,9 +6,11 @@ use crate::folding::{
     self, ajtai_dec_mixer, ajtai_rlc_mixer, pi_ccs, pi_dec, pi_rlc, transcript::Transcript, CcsInstance, NifsProof,
     Params, RunningInstance, Structure,
 };
-use neo_math::D;
+use neo_ajtai::{scale_commitment_add_inplace, Commitment};
+use neo_math::{D, F};
 use neo_prover_metal::MetalRowProver;
 use neo_reductions::{optimized_engine::optimized_prove_with_matrix_rows, superneo_eval::MatrixRows};
+use p3_field::PrimeCharacteristicRing;
 
 pub(crate) fn prove(
     device: &mut MetalRowProver,
@@ -63,10 +65,13 @@ pub(crate) fn prove(
     let (digits, flags) = split
         .map_err(folding::kernels::Error::from)
         .map_err(pi_dec::Error::from)?;
-    let commitments = device
-        .commit_production_prefixes(&digits)
+    // The device commits children 1..; child 0 follows from the parent by
+    // linearity. The terminal verifier still commits every child itself.
+    let mut commitments = device
+        .commit_production_prefixes(&digits[1..])
         .map_err(folding::kernels::Error::from)
         .map_err(pi_dec::Error::from)?;
+    commitments.insert(0, lowest_child_commitment(&parent.c, &commitments, params.b()));
     let openings = device
         .child_openings(rows, workspace_bytes, &digits, &parent.r, structure.m)
         .map_err(folding::kernels::Error::from)
@@ -100,3 +105,22 @@ pub(crate) fn prove(
         },
     ))
 }
+
+/// Child 0's commitment from the parent's and children 1.. . The split gives
+/// `Z_parent = Σ b^i Z_i` and the commitment is linear, so
+/// `C_0 = C_parent - Σ_{i≥1} b^i C_i` exactly; `ajtai_dec_mixer` then
+/// recomposes the parent.
+fn lowest_child_commitment(parent: &Commitment, higher: &[Commitment], b: u32) -> Commitment {
+    let mut child = parent.clone();
+    let base = F::from_u64(b as u64);
+    let mut pow = base;
+    for c in higher {
+        scale_commitment_add_inplace(&mut child, -pow, c);
+        pow *= base;
+    }
+    child
+}
+
+#[cfg(test)]
+#[path = "../../tests/engine_internal/dec_children.rs"]
+mod dec_children_tests;

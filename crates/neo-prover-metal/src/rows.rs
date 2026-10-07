@@ -18,10 +18,25 @@ pub struct MetalRowProver {
 }
 
 impl MetalRowProver {
+    /// A session that expands the needed commitment key rows in every call.
     pub fn new() -> Result<Self, MetalError> {
         Ok(Self {
             session: MetalSession::new()?,
         })
+    }
+
+    /// A prover session: the commitment key rows stay on the device after the
+    /// first commitment, at 8 bytes per key coefficient.
+    pub fn with_resident_commitment_key() -> Result<Self, MetalError> {
+        let mut session = MetalSession::new()?;
+        session.keep_production_key();
+        Ok(Self { session })
+    }
+
+    /// Device bytes the kept commitment key holds over `columns` commitment
+    /// columns; zero for a session that streams key rows.
+    pub fn kept_commitment_key_bytes(&self, columns: usize) -> usize {
+        self.session.kept_production_key_bytes(columns)
     }
 
     pub fn activity(&self) -> MetalActivity {

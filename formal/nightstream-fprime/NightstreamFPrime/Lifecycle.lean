@@ -6,6 +6,7 @@ import NightstreamFPrime.Lifecycle.PaperExtractionAlgebra
 import NightstreamFPrime.Lifecycle.Transcript
 import NightstreamFPrime.Lifecycle.ProductionKey
 import NightstreamFPrime.Lifecycle.TranscriptCoverage
+import NightstreamFPrime.Lifecycle.RandomOracleTest
 import NightstreamFPrime.Lifecycle.NifsProfile
 import NightstreamFPrime.Lifecycle.Nifs.StrongExtraction
 import NightstreamFPrime.Lifecycle.Nifs.WeakExtraction

@@ -21,7 +21,7 @@ open GoldilocksCausal ConcreteCarrier SignedCoefficientObject
 
 attribute [local instance] Classical.propDecidable
 
-private theorem neg_zero_iff (value : K) : extensionOps.neg value = K.zero ↔ value = K.zero := by
+theorem neg_zero_iff (value : K) : extensionOps.neg value = K.zero ↔ value = K.zero := by
   constructor
   · intro zero
     change extensionOps.neg value = extensionOps.zero at zero
@@ -34,7 +34,7 @@ private theorem neg_zero_iff (value : K) : extensionOps.neg value = K.zero ↔ v
 
 /-- Every alpha-dependent signed coefficient comes from one of the exact CCS
 or norm tables in this data object. -/
-private theorem negative_coefficient_is_table {shape : Shape}
+theorem negative_coefficient_is_table {shape : Shape}
     (data : SignedJointIdentity.JointData K shape)
     (polynomial : AlphaPolynomial K (canonicalAlphaBasis shape))
     (inside : Coefficient.negativeAlpha polynomial ∈ coefficients extensionOps data) :

@@ -63,19 +63,21 @@ at `Q = 2^64` is about `2^-51.2`. The proof is in
    `Lifecycle.RandomOracleUniqueness.runningChance` are retries that change
    the running statement. With `Layout.Stage1.PiCCSSecurity.PriorLink` they
    are state-hash collisions. Lean bounds none of these events numerically.
-3. **The history.** The multi-step bound
-   `Export.Stage1.HyperNovaVisitedSecurity.history_probability_linear_bound`
-   still takes `Export.Stage1.FiatShamirTransfer.FiatShamirModel`, the
-   owner-approved transfer assumption. The one-fold endpoint above does not
-   replace it yet.
-4. **The hash inside the circuit.** The step circuit recomputes the challenges
-   of the previous fold with Poseidon2. A recursive argument therefore uses the
-   concrete hash, which no random-oracle model covers (HyperNova errata,
-   Assumption 1).
-5. **Rust and Lean agree on recorded inputs only.** The golden conformance runs
+3. **The history: HyperNova errata Assumption 1.**
+   `Export.Stage1.HyperNovaVisitedSecurity.history_probability_bound` takes
+   `Export.Stage1.HyperNovaVisitedSecurity.NifsKnowledgeSound`: at each visited
+   step, the source extractor of the Poseidon2 NIFS fails after a real
+   acceptance with probability at most `error j`. This is the paper's
+   plain-model premise, not a theorem. The step circuit recomputes the
+   challenges of the previous fold with Poseidon2, so a recursive argument
+   uses the concrete hash, which no random-oracle model covers. The one-fold
+   endpoint above justifies the value `knowledgeError(Q_j)`.
+   `Export.Stage1.HyperNovaFalseAcceptance.probability_bound` is the
+   false-acceptance form.
+4. **Rust and Lean agree on recorded inputs only.** The golden conformance runs
    and the native evidence of the assurance surface cover their recorded
    inputs. No theorem covers arbitrary Rust execution.
-6. **Runtime checks.** The verifier's identity and setup checks stay necessary.
+5. **Runtime checks.** The verifier's identity and setup checks stay necessary.
 
 ## What this page does not say
 

@@ -1,4 +1,6 @@
-import NightstreamFPrime.Export.Stage1.HyperNovaVisitedSecurity
+import NightstreamFPrime.Export.Stage1.HyperNovaFirstFailure
+import NightstreamFPrime.Export.Stage1.NifsProviderLaw
+import NightstreamFPrime.Export.Stage1.PiRLCExtractionPrimitives
 import NightstreamFPrime.Export.Stage1.HyperNovaHistoryWork
 
 /-!
@@ -35,6 +37,18 @@ open Poseidon2HashChainV1Setup (productionAjtaiKey)
 open PiDECInputCheck (relation)
 
 attribute [local instance] Classical.propDecidable
+
+/-- Execute the given checked causal prefix, retaining its exact receipt.
+The supplied clock covers this whole call in the declared experiment. -/
+def prefixCall {Context State : Type*}
+    (firstPhase : Context → InteractivePrefix.Prover State productionShape 9)
+    (clock : Context → CubePoint K productionShape.cubeVariables → K →
+      CubePoint K productionShape.cubeVariables → Nat)
+    (context : Context) (alpha : CubePoint K productionShape.cubeVariables)
+    (gamma : K) (point : CubePoint K productionShape.cubeVariables) :
+    Result (Option (Probe K productionShape × State)) :=
+  ⟨InteractivePrefix.run (firstPhase context) alpha gamma point,
+    clock context alpha gamma point⟩
 
 /-- The operational kernel ignores the analytical mark. This changes no
 terminal data, public input, witness, or transcript. -/
@@ -307,7 +321,7 @@ variable
 /-- The existing checked prefix call with its fixed declared clock. Inactive
 visits do not call the prefix and receive zero prefix work. -/
 noncomputable def call :=
-  NifsClosure.prefixCall
+  prefixCall
     (InteractiveComposition.firstPhase (operationalPrefix originalFirstPhase)
       (SupportedExtraction.publicCheck (fun visit => PiCCSInputCheck.running (inputs visit))))
     (fun visit alpha gamma point =>

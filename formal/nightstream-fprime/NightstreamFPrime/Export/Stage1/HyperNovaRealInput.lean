@@ -1,6 +1,6 @@
 import NightstreamFPrime.Export.Stage1.HyperNovaHistory
 import NightstreamFPrime.Export.Stage1.ActualTerminalSecurity
-import NightstreamFPrime.Export.Stage1.FiatShamirTransfer
+import NightstreamFPrime.Export.Stage1.NifsRealSuccess
 
 /-!
 The actual local proof and current child witnesses for one recursive reverse
@@ -18,7 +18,6 @@ open NightstreamFPrime.Spec.Folding
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.Nifs
 open NightstreamFPrime.Layout.Stage1
 open Poseidon2HashChainV1Package (application fits)
 open Poseidon2HashChainV1Setup (productionSetup productionAjtaiKey)
@@ -32,7 +31,7 @@ private def makeOutput
     (proof : Lifecycle.Proof 9)
     (children : Stage1.Terminal.RunningWitness
       (logicalWidth := logicalWidth) (publicFits := publicFits)) :
-    FiatShamirTransfer.RealOutput relation :=
+    NifsRealSuccess.RealOutput relation :=
   ⟨prior, proof, children⟩
 
 private theorem success_of_relation_eq
@@ -49,9 +48,9 @@ private theorem success_of_relation_eq
     (proof : Lifecycle.Proof 9)
     (children : Stage1.Terminal.RunningWitness
       (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (success : FiatShamirTransfer.RealSuccess right ajtai context running fresh
+    (success : NifsRealSuccess.RealSuccess right ajtai context running fresh
       (some (makeOutput right prior proof children))) :
-    FiatShamirTransfer.RealSuccess left ajtai context running fresh
+    NifsRealSuccess.RealSuccess left ajtai context running fresh
       (some (makeOutput left prior proof children)) := by
   cases same
   exact success
@@ -75,7 +74,7 @@ private theorem success_of_verified_output
       running fresh proof = some result)
     (valid : ∀ child, CE.Holds (semantics ajtai) productionGlobalParams
       (Lifecycle.runningStatement relation result child) (children child)) :
-    FiatShamirTransfer.RealSuccess relation ajtai context running fresh
+    NifsRealSuccess.RealSuccess relation ajtai context running fresh
       (some (makeOutput relation prior proof children)) := by
   have checks := (Nifs.PaperNonInteractive.verify_eq_some_iff
     (ProductionKey.key relation ajtai) running fresh proof result).mp verified
@@ -100,7 +99,7 @@ noncomputable def prior (payload : HyperNovaHistory.Payload) :=
 /-- The decoded prior preimage and local proof with the terminal's existing
 ordered sixteen child witnesses. No claimed output or source witness is added. -/
 noncomputable def output (payload : HyperNovaHistory.Payload) :
-    FiatShamirTransfer.RealOutput PiDECInputCheck.relation :=
+    NifsRealSuccess.RealOutput PiDECInputCheck.relation :=
   makeOutput PiDECInputCheck.relation (prior payload)
     (HyperNovaHistory.decodedInput payload).nifsProof (payload.runningWitness functionIndex)
 
@@ -114,7 +113,7 @@ theorem realSuccess_of_terminal
       statement (.recursive payload))
     (safe : ¬ HyperNovaHistory.Collision statement payload)
     (positive : 0 < (HyperNovaHistory.decodedInput payload).iteration) :
-    FiatShamirTransfer.RealSuccess PiDECInputCheck.relation productionAjtaiKey
+    NifsRealSuccess.RealSuccess PiDECInputCheck.relation productionAjtaiKey
       (PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup)
       (PiCCSInputCheck.running (HyperNovaHistory.sourceInput payload))
       (PiCCSInputCheck.fresh (HyperNovaHistory.sourceInput payload))

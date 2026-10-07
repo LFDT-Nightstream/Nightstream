@@ -1,11 +1,13 @@
 # Knowledge soundness of the Nightstream NIFS in the random-oracle model
 
-Status: **one-fold theorem proved (2026-10-07).** Owner decisions of
-2026-10-07: a direct random-oracle (ROM) knowledge theorem replaces the
+Status: **proved for one fold; history done (2026-10-07).** Owner decisions
+of 2026-10-07: a direct random-oracle (ROM) knowledge theorem replaces the
 external `FiatShamirModel` assumption; the oracle is a random function of each
 challenge's exact absorbed prefix. Lemmas 1–6 and the one-fold knowledge
-theorem are proved in Lean (Section 6). The history step, which retires
-`FiatShamirModel`, is next. No Rust change depends on this note.
+theorem are proved in Lean (Section 6). `FiatShamirModel` is retired: the
+history bound takes HyperNova errata Assumption 1 at each visit, and this
+theorem justifies its error (Section 7, decision 4). No Rust change depends on
+this note.
 
 Neither paper supplies this proof. SuperNeo is stated for the interactive
 protocol only. The published HyperNova asserts a Fiat–Shamir lemma for
@@ -103,9 +105,13 @@ and its γ term `(J − 1)/p² ≈ 2^-115.24` dominates; `ε_sample ≈ 2^-125.4
 `17·(Q + 17)·ε_sample ≈ 2^-57.3`. This is the honest Fiat–Shamir cost; the
 interactive analysis does not show it.
 
-The history theorem will apply this bound at each visited step in place of
-`FiatShamirModel`, with the visited-law composition already proved. That
-step is not done yet.
+The history theorem cannot be a pure ROM theorem: the step circuit
+recomputes the previous fold's challenges with Poseidon2, so a recursive
+argument uses the concrete hash. It takes HyperNova errata Assumption 1,
+plain-model part, at each visit
+(`HyperNovaVisitedSecurity.NifsKnowledgeSound`), with the visited-law
+composition already proved; this theorem justifies the per-visit error
+`knowledgeError(Q_j)`.
 
 ## 4. Proof outline
 
@@ -201,9 +207,8 @@ Pr[running]`. *Status:* proved as `RandomOracleUniqueness.source_error_le` and
 
 ## 5. What this changes and what it does not
 
-- `FiatShamirModel` and its parameters `g`, `deltaFS` are to be retired by
-  the history step. The history bound will take `Q` and the ROM terms above
-  instead.
+- `FiatShamirModel` and its parameters `g`, `deltaFS` are retired. The
+  history bound takes Assumption 1 with a per-visit error instead.
 - The PriorLink, coverage and identify results of this PR are inputs
   (Lemma 1), not replaced.
 - The MSIS assumption, the state-hash collision event and the
@@ -271,6 +276,14 @@ the key's construction and coverage proofs would be duplicated.
    interactive bound, and tight against a grinding attack. Accept it for this
    work. Reaching 128 bits is a separate parameter decision (a larger field
    for `γ`).
+
+4. **History step (2026-10-07).** Replace `FiatShamirModel` in the history
+   bound by HyperNova errata Assumption 1, plain-model part, at each visited
+   step: the Poseidon2 NIFS is knowledge sound at error `knowledgeError(Q)`,
+   which the ROM theorem justifies but does not prove. Delete the transfer
+   code that only `FiatShamirModel` uses. Done in
+   `HyperNovaVisitedSecurity.history_probability_bound` and
+   `HyperNovaFalseAcceptance.probability_bound`.
 
 References: Attema, Fehr, Klooß, Resch, ePrint 2023/1945; Attema, Fehr,
 Resch, ePrint 2023/818; Attema, Fehr, Klooß, *Fiat–Shamir Transformation of

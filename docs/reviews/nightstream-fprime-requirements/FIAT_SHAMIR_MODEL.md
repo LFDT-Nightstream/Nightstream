@@ -1,5 +1,17 @@
 # Classical Fiat–Shamir assumption boundary
 
+**Retired on 2026-10-07 (owner decision).** The black-box transfer to the
+causal interactive game has no useful `g`: guessing which oracle query carries
+each SumCheck message loses about `(Q+1)^29`. `FiatShamirModel` and every
+declaration that only it used are deleted. The history bound now takes
+HyperNova errata Assumption 1, plain-model part, at each visit
+(`Export.Stage1.HyperNovaVisitedSecurity.NifsKnowledgeSound`). The
+random-oracle theorem `Lifecycle.RandomOracleKnowledge.knowledge_error_le`
+justifies its per-visit error; see
+[ROM_KNOWLEDGE_SOUNDNESS.md](ROM_KNOWLEDGE_SOUNDNESS.md) and
+`formal/nightstream-fprime/TRUST_BOUNDARY.md`. The text below records the
+retired boundary.
+
 Status: the owner approved this explicit assumption boundary on 2026-09-11
 UTC after the source review. The approved proposal had SHA-256
 `207b67740a6948633870891048091a0c7b2dd90599c04392622ab5cc52cb7498`.

@@ -1,5 +1,13 @@
 # NIFS closure status
 
+**Update 2026-10-07.** `FiatShamirModel` is retired. `NifsClosure`,
+`NifsFiatShamir`, `NifsInvalidSource` and the model-dependent declarations of
+`NifsProviderLaw` and `FiatShamirTransfer` are deleted; the real success
+event moved to `NifsRealSuccess`. The history bound
+`HyperNovaVisitedSecurity.history_probability_bound` takes HyperNova errata
+Assumption 1 at each visit (see `TRUST_BOUNDARY.md`). The record below
+describes the retired chain at its checked commits.
+
 The selected v1.2 linear-security extension is checked at
 `1ad23f557b73e0564a27b62e20fe9d01a688f6b0`.
 `NifsClosure.source_probability_linear_bound` uses the loss

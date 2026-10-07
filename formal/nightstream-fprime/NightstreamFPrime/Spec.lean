@@ -18,6 +18,5 @@ import NightstreamFPrime.Spec.Phi81StrongSet.Cardinality
 import NightstreamFPrime.Spec.Folding.Nifs.VerifierCoinLaw
 import NightstreamFPrime.Spec.Folding.Nifs.SequentialOutputLaw
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.AcceptedRetry
-import NightstreamFPrime.Spec.Nebula
 
 /-! Spec layer root. Lists the modules of this layer explicitly. -/

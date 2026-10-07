@@ -91,32 +91,38 @@ def startCarry (ctx : Context E Digest) : Carry E Digest :=
   ⟨0, 0, 0, (0, 0), ⟨1, 1, 1, 1⟩, (ctx.initRoot, ctx.initRoot),
     ⟨ctx.initRoot, ctx.initRoot, ctx.initRoot⟩, ctx.initRoot⟩
 
+/-- The carry that spec §11.2 `open` writes. -/
+def openedCarry (ctx : Context E Digest) (c : Carry E Digest) (proposal : Digest × Digest) :
+    Carry E Digest :=
+  { c with
+    proposed := proposal
+    eta := ctx.eta ⟨ctx.planDigest, c.ts, proposal.1, c.memRoot, proposal.2⟩
+    products := ⟨1, 1, 1, 1⟩
+    seen := ⟨ctx.header .ops, ctx.header .mem, ctx.header .mem⟩
+    idx := 0 }
+
+/-- The carry that spec §11.2 `step` writes: the three chain links over the
+step's own records, the products, the timestamp, and the index. -/
+def advance (ctx : Context E Digest) (c : Carry E Digest) (z : StepRecords) : Carry E Digest :=
+  { c with
+    seen := ⟨ctx.hash (.chain .ops c.idx c.seen.ops (opsPacked ctx.plan z)),
+      ctx.hash (.chain .mem c.idx c.seen.initial (initialPacked ctx.plan z)),
+      ctx.hash (.chain .mem c.idx c.seen.final (finalPacked ctx.plan z))⟩
+    products := stepProducts ctx.plan c.eta c.ts c.idx z c.products
+    ts := c.ts + activeCount z
+    idx := c.idx + 1 }
+
 /-- Spec §11.2 `open`. -/
 def openSegment (ctx : Context E Digest) (c : Carry E Digest) (proposal : Digest × Digest) :
     Option (Carry E Digest) :=
-  if c.segIdx < ctx.plan.sMax then
-    some { c with
-      proposed := proposal
-      eta := ctx.eta ⟨ctx.planDigest, c.ts, proposal.1, c.memRoot, proposal.2⟩
-      products := ⟨1, 1, 1, 1⟩
-      seen := ⟨ctx.header .ops, ctx.header .mem, ctx.header .mem⟩
-      idx := 0 }
-  else none
+  if c.segIdx < ctx.plan.sMax then some (openedCarry ctx c proposal) else none
 
 open Classical in
-/-- Spec §11.2 `step`: the §8 rows on the invocation's own records, then the
-three chain links, the products, the timestamp, and the index. -/
+/-- Spec §11.2 `step`: the §8 rows on the invocation's own records, then
+`advance`. -/
 noncomputable def stepSegment (ctx : Context E Digest) (c : Carry E Digest) (z : StepRecords) :
     Option (Carry E Digest) :=
-  if StepRows ctx.plan c.ts z then
-    some { c with
-      seen := ⟨ctx.hash (.chain .ops c.idx c.seen.ops (opsPacked ctx.plan z)),
-        ctx.hash (.chain .mem c.idx c.seen.initial (initialPacked ctx.plan z)),
-        ctx.hash (.chain .mem c.idx c.seen.final (finalPacked ctx.plan z))⟩
-      products := stepProducts ctx.plan c.eta c.ts c.idx z c.products
-      ts := c.ts + activeCount z
-      idx := c.idx + 1 }
-  else none
+  if StepRows ctx.plan c.ts z then some (advance ctx c z) else none
 
 open Classical in
 /-- Spec §11.2 `close`. -/
@@ -265,27 +271,6 @@ end SegmentView
 private def closedStart (ctx : Context E Digest) : Carry E Digest :=
   { startCarry ctx with idx := ctx.plan.n }
 
-/-- The carry that `open` writes, without the `S_max` check. -/
-private def openedCarry (ctx : Context E Digest) (c : Carry E Digest)
-    (proposal : Digest × Digest) : Carry E Digest :=
-  { c with
-    proposed := proposal
-    eta := ctx.eta ⟨ctx.planDigest, c.ts, proposal.1, c.memRoot, proposal.2⟩
-    products := ⟨1, 1, 1, 1⟩
-    seen := ⟨ctx.header .ops, ctx.header .mem, ctx.header .mem⟩
-    idx := 0 }
-
-/-- The carry that `step` writes, without the row check. -/
-private def advance (ctx : Context E Digest) (c : Carry E Digest) (z : StepRecords) :
-    Carry E Digest :=
-  { c with
-    seen := ⟨ctx.hash (.chain .ops c.idx c.seen.ops (opsPacked ctx.plan z)),
-      ctx.hash (.chain .mem c.idx c.seen.initial (initialPacked ctx.plan z)),
-      ctx.hash (.chain .mem c.idx c.seen.final (finalPacked ctx.plan z))⟩
-    products := stepProducts ctx.plan c.eta c.ts c.idx z c.products
-    ts := c.ts + activeCount z
-    idx := c.idx + 1 }
-
 /-- `advance` over consecutive steps. -/
 private def runSteps (ctx : Context E Digest) (c : Carry E Digest) (zs : List StepRecords) :
     Carry E Digest :=
@@ -381,7 +366,6 @@ private theorem stepSegment_of_rows {ctx : Context E Digest} {c : Carry E Digest
     stepSegment ctx c z = some (advance ctx c z) := by
   unfold stepSegment
   rw [if_pos rows]
-  rfl
 
 private theorem stepSegment_of_not_rows {ctx : Context E Digest} {c : Carry E Digest}
     {z : StepRecords} (rows : ¬ StepRows ctx.plan c.ts z) : stepSegment ctx c z = none := by

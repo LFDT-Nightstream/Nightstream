@@ -30,6 +30,11 @@ def ScansShaped (p : Plan) (scans : List (List ScanSlot)) : Prop :=
 def OpsShaped (p : Plan) (ops : List (List OpSlot)) : Prop :=
   ∀ c ∈ ops, c.length = p.bOps ∧ ∀ s ∈ c, s.Fits p
 
+/-- The number of packed elements of each lane of a step (spec §6.3, §9.1). -/
+def Plan.laneLength (p : Plan) : Lane → ℕ
+  | .ops => packedLength (p.bOps * p.opWidth)
+  | .mem => packedLength (p.bScan * p.scanWidth)
+
 namespace SegmentView
 
 /-- The ops lanes of a segment, one per step. -/
@@ -105,10 +110,6 @@ private theorem activeOps_access (ts : ℕ) (ops : List OpSlot) :
   | cons s rest ih =>
     cases h : s.port <;> simp [activeOps, h, ih]
 
-private theorem activeOps_length_eq (ts : ℕ) (ops : List OpSlot) :
-    (activeOps ts ops).length = (ops.filterMap OpSlot.port).length := by
-  rw [← activeOps_access ts ops, List.length_map]
-
 private theorem activeOps_wt (ts : ℕ) (ops : List OpSlot) (k : ℕ)
     (hk : k < (activeOps ts ops).length) : ((activeOps ts ops)[k]).wt = ts + k + 1 := by
   induction ops generalizing ts k with
@@ -134,7 +135,7 @@ theorem segmentOps_wt (ts : ℕ) (rs : List StepRecords) (k : ℕ)
   induction rs generalizing ts k with
   | nil => simp [segmentOps] at hk
   | cons z rest ih =>
-    have hlen : (activeOps ts z.ops).length = activeCount z := activeOps_length_eq ts z.ops
+    have hlen : (activeOps ts z.ops).length = activeCount z := activeOps_length ts z
     simp only [List.get_eq_getElem, segmentOps] at hk ⊢
     rw [List.getElem_append]
     split_ifs with h
@@ -153,8 +154,7 @@ theorem segmentOps_length (ts : ℕ) (rs : List StepRecords) :
   induction rs generalizing ts with
   | nil => rfl
   | cons z rest ih =>
-    rw [segmentOps, List.length_append, ih, activeOps_length_eq, List.map_cons, List.sum_cons]
-    rfl
+    rw [segmentOps, List.length_append, ih, activeOps_length, List.map_cons, List.sum_cons]
 
 theorem segmentOps_access (ts : ℕ) (rs : List StepRecords) :
     (segmentOps ts rs).map MemOp.access = rs.flatMap fun z => z.ops.filterMap OpSlot.port := by
@@ -283,6 +283,36 @@ private theorem opsLane_length (p : Plan) (c : List OpSlot) :
     (opsLane p c).length = c.length * p.opWidth := by
   simp [opsLane, List.length_flatMap, OpSlot.bits_length]
 
+/-- Every packed lane of a valid plan has fewer than `q` elements. -/
+theorem Plan.laneLength_lt {p : Plan} (valid : p.Valid) (lane : Lane) :
+    p.laneLength lane < goldilocksModulus := by
+  have shrink : ∀ n, packedLength n ≤ n := fun n => by unfold packedLength; omega
+  cases lane
+  · exact (shrink _).trans_lt valid.laneBits.1
+  · exact (shrink _).trans_lt valid.laneBits.2
+
+/-- Packed scan lanes of shaped chunks have the plan's length and elements
+below `2 ^ 63`. -/
+theorem scanLanes_shape {p : Plan} {scans : List (List ScanSlot)} (shaped : ScansShaped p scans) :
+    ∀ P ∈ scans.map (fun c => pack (scanLane p c)),
+      P.length = p.laneLength .mem ∧ ∀ x ∈ P, x < 2 ^ 63 := by
+  intro P member
+  obtain ⟨c, hc, rfl⟩ := List.mem_map.1 member
+  refine ⟨?_, pack_lt _⟩
+  rw [pack_length, scanLane_length, (shaped c hc).1]
+  rfl
+
+/-- Packed operation lanes of shaped slots have the plan's length and elements
+below `2 ^ 63`. -/
+theorem opsLanes_shape {p : Plan} {ops : List (List OpSlot)} (shaped : OpsShaped p ops) :
+    ∀ P ∈ ops.map (fun c => pack (opsLane p c)),
+      P.length = p.laneLength .ops ∧ ∀ x ∈ P, x < 2 ^ 63 := by
+  intro P member
+  obtain ⟨c, hc, rfl⟩ := List.mem_map.1 member
+  refine ⟨?_, pack_lt _⟩
+  rw [pack_length, opsLane_length, (shaped c hc).1]
+  rfl
+
 /-- Lemmas 1 and 2 for scan chunks. -/
 theorem scans_eq_or_collision (H : HashInput Digest → Digest) (p : Plan) (pd : Digest)
     {xs ys : List (List ScanSlot)} (shapedX : ScansShaped p xs) (shapedY : ScansShaped p ys)
@@ -381,6 +411,33 @@ private theorem finalInputs_subset {ctx : Context E Digest} (v : SegmentView Dig
   fun _ h => by simp [chainInputs, h]
 
 end SegmentView
+
+/-- Every chain input of a closing segment is canonical (Ob3 input range). -/
+theorem SegmentView.ClosesAt.chainInputs_canonical {ctx : Context E Digest} {η : E × E}
+    {v : SegmentView Digest} (closes : v.ClosesAt ctx η) :
+    ∀ x ∈ v.chainInputs ctx, x.Canonical ctx.plan.laneLength ctx.plan.n := by
+  have count : v.records.length ≤ ctx.plan.n := closes.length.le
+  intro x member
+  simp only [SegmentView.chainInputs, List.mem_append] at member
+  rcases member with (ops | initial) | final
+  · rw [SegmentView.opsLanes_eq] at ops
+    exact Nebula.chainInputs_canonical _ _ _ (by simpa [SegmentView.opsSlots] using count)
+      (opsLanes_shape closes.opsShaped) x ops
+  · rw [SegmentView.initialLanes_eq] at initial
+    exact Nebula.chainInputs_canonical _ _ _ (by simpa [SegmentView.initialScans] using count)
+      (scanLanes_shape closes.initialShaped) x initial
+  · rw [SegmentView.finalLanes_eq] at final
+    exact Nebula.chainInputs_canonical _ _ _ (by simpa [SegmentView.finalScans] using count)
+      (scanLanes_shape closes.finalShaped) x final
+
+/-- Every input of the `D_init` chain is canonical. -/
+theorem initialInputs_canonical {p : Plan} (valid : p.Valid) (H : HashInput Digest → Digest)
+    (pd : Digest) :
+    ∀ x ∈ chainInputs H .mem pd (memoryLanes p (initialMemory p)),
+      x.Canonical p.laneLength p.n := by
+  rw [memoryLanes_eq]
+  exact chainInputs_canonical _ _ _ (by simp [scansOf])
+    (scanLanes_shape (scansOf_shaped valid (initialMemory_fits valid)))
 
 /-- Segment 0 reads the plan images, or the IS chain and the `D_init` chain
 collide. -/

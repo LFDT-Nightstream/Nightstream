@@ -91,7 +91,8 @@ time. That bound is also open for Stage 1.
 
 **A5 (Field facts).** `q` is prime, and 7 is a quadratic nonresidue modulo
 `q`. Then `𝕂 = F[U]/(U² − 7)` is a field of size `q²`, and `F → 𝕂` is
-injective. A release needs machine-checked certificates for both facts.
+injective. Lean proves both facts (`GoldilocksPrime.goldilocks_natPrime`,
+`GoldilocksExtension.extensionNoZeroDivisors`), so A5 is not an assumption.
 
 **A6 (Fiat–Shamir game transfer).** The F′ relation computes outputs of `H`
 inside a recursively proven step. A random oracle cannot run inside a circuit,
@@ -369,7 +370,7 @@ estimate (A3). It becomes a probability only for a stated adversary time.
 
 **Setup check (spec §4.2 rule 6).** For the final relation shape and the plan,
 setup MUST check that `ε_test ≤ 2^−109.91`, the owner-approved floor. This
-holds exactly when `R + M + N · B_ops ≤ 139,509`. Setup MUST reject the plan
+holds exactly when `R + M + N · B_ops ≤ 139,509` (Lean `Plan.secure_iff`). Setup MUST reject the plan
 if the check fails. A larger memory needs a new owner decision. The check
 applies to the per-check value. The A6 transfer adds the query loss, as it
 does for the fold term.
@@ -429,35 +430,51 @@ generated relation MUST supply the exact census.
 ## 7. Open obligations
 
 1. **Non-author review** of Lemmas 2, 3, 5, and 6, and of §5.
-2. **Stage 2 authorization** by the owner.
+2. **Stage 2 authorization.** The owner authorized Stage 2 on 2026-10-07.
 3. **A6 Stage 2 extension.** The owner approved it on 2026-10-07 in the form
    that A6 states. Its numerical values stay open with item 6.
 4. **Generated relation** that fits the `2^28` domain, with its exact shape and
    census, and the recomputed §5 table.
-5. **Lean formalization.** Done in
-   `formal/nightstream-fprime/NightstreamFPrime/Spec/Nebula/`, with each
-   theorem audited in `tests/AxiomsNebula.lean`:
-   - Lemma 1;
+5. **Lean formalization.** The model is in
+   `formal/nightstream-fprime/NightstreamFPrime/Spec/Nebula/`, the Poseidon2
+   framing in `Lifecycle/Nebula/Framing.lean`, and each theorem is audited in
+   `tests/AxiomsNebula.lean`. Done:
+   - Lemma 1, and the length of each packed lane;
    - Lemma 2, with the collision among the inputs of the two chains;
-   - Lemma 3 part 1, as a count and as a frequency, and on the trunk `K` as
-     `2·m/q²`;
-   - Lemma 3 part 2, as the retry count; the one-call game and the A6
-     transfer stay premises;
-   - Lemma 4;
+   - Lemma 3 part 1, as a count, as a frequency, and on `𝕂` as `2·m/q²`;
+   - Lemma 3 part 2 for one segment, also on `𝕂`, in counting form: for a
+     fixed transcript input and a call function of uniform `(η, coins)`;
+   - Lemma 4 in typed form. The typed rows contain the pad gate. The field
+     form of rows O1, O4, and the O8 gate is proved separately for the
+     generated relation to use;
    - Lemma 5 and its converse;
-   - the lifecycle (Ob8);
-   - Lemma 6 as a deterministic theorem: an accepted run gives an
-     execution, or a collision among the run's own chain inputs and the
-     `D_init` chain, or a segment that passes the product test with
-     unbalanced multisets;
-   - completeness (Ob5), for every hash function and every challenge
-     function.
+   - the lifecycle of the typed model (Ob8 for the model);
+   - Lemma 6 as a deterministic theorem over an extracted typed run: an
+     accepted run gives an execution, or a collision among the run's own chain
+     inputs and the `D_init` chain, or a segment that passes the product test
+     with unbalanced multisets. In the concrete context, the collision is a
+     Poseidon2 transcript collision: two different absorbed chunk sequences
+     with the same digest;
+   - Ob3 for the record chains: the framing of spec §9.1–§9.2 separates
+     canonical chain inputs;
+   - rule 6 of spec §4.2 (`ε_test ≤ 2^−109.91` exactly when
+     `m_mem ≤ 139,509`);
+   - completeness of the typed model (Ob5 for the model), for every hash
+     function and every challenge function.
 
-   These theorems start from an extracted run (A1, A4). Still open:
+   Still open:
+   - the probabilistic theorem that joins Lemma 6 to Lemma 3: the segment
+     game built from the extracted run, the link from the bad-challenge event
+     to the Lemma 3 error event, the time `t_1 ≤ 2·t_E`, and the union bound
+     of §5 over `S_max` segments;
+   - a Lean statement of the A6 memory-round extension, as a premise in the
+     form of the Stage 1 `FiatShamirModel`;
    - the refinement of the generated relation to the typed rows, ports, and
-     carry (Ob1–Ob4, Ob6, Ob7), with item 4;
-   - the framing injectivity of Ob3;
-   - the union bound of §5 over `S_max` segments;
+     carry, in both directions: soundness (Ob1, Ob2, Ob4, Ob6, Ob7, and Ob8
+     for the relation) and completeness (Ob5 for the relation, with the
+     counter widths `W_step`, `W_seg`, `W_cnt` and the O4 words `diff_j`);
+   - the link from the package constants `plan_digest` and `D_init` to the
+     relation (spec §4.3);
    - the extended composition, Property 6, fixed-point, and domain theorems
      for the larger state (A4; `FPRIME_LEAN_ARCHITECTURE_SPEC.md` §6).
 6. **Shared with Stage 1:** useful values of `g_d` and `delta_d` (A6), the

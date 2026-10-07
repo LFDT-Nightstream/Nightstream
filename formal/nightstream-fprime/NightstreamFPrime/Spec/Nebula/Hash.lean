@@ -5,7 +5,7 @@ transcript input of §9.3, and security note Lemma 2 (chain binding). A hash is
 any function. A collision is always a pair of inputs from explicit, finite
 input lists that a run determines, so a reduction can find it by search; a
 collision "somewhere" would say nothing for a hash with finite output. The
-concrete Poseidon2 framing (obligation Ob3) is not owned here. -/
+concrete Poseidon2 framing (obligation Ob3) is in `Lifecycle/Nebula/Framing`. -/
 
 namespace NightstreamFPrime.Spec.Nebula
 
@@ -163,14 +163,28 @@ theorem chainRoot_eq_or_collision {Digest : Type} (H : HashInput Digest → Dige
     ps = qs ∨ CollisionIn H (chainInputs H lane pd ps) (chainInputs H lane pd qs) :=
   eq_or_collision_of_length H lane pd ps.length rfl same
 
-/-- A collision of `sponge ∘ frame` among `xs` and `ys`, with an injective
-framing, is a collision of the sponge among the framed inputs. This is the form
-in which Ob3 turns the abstract collision into a Poseidon2 collision. -/
-theorem collision_of_frame {Digest Word : Type} {frame : HashInput Digest → List Word}
-    {sponge : List Word → Digest} (injective : Function.Injective frame)
-    {xs ys : List (HashInput Digest)} (collision : CollisionIn (sponge ∘ frame) xs ys) :
-    ∃ a ∈ xs.map frame, ∃ b ∈ ys.map frame, a ≠ b ∧ sponge a = sponge b := by
-  obtain ⟨a, ha, b, hb, ne, eq⟩ := collision
-  exact ⟨frame a, List.mem_map_of_mem ha, frame b, List.mem_map_of_mem hb, injective.ne ne, eq⟩
+/-- A chain input whose words are canonical: its index is below `indexBound`,
+its packed lane has the plan's length for its lane, and every packed element is
+below `2 ^ 63` (Lemma 1). A header input is always canonical. -/
+def HashInput.Canonical {Digest : Type} (laneLength : Lane → ℕ) (indexBound : ℕ) :
+    HashInput Digest → Prop
+  | .header _ _ => True
+  | .chain lane index _ packed =>
+    index < indexBound ∧ packed.length = laneLength lane ∧ ∀ x ∈ packed, x < 2 ^ 63
+
+/-- Every input of a chain over at most `indexBound` lanes of canonical shape
+is canonical. -/
+theorem chainInputs_canonical {Digest : Type} (H : HashInput Digest → Digest) (lane : Lane)
+    (pd : Digest) {laneLength : Lane → ℕ} {indexBound : ℕ} {ps : List (List ℕ)}
+    (count : ps.length ≤ indexBound)
+    (shape : ∀ P ∈ ps, P.length = laneLength lane ∧ ∀ x ∈ P, x < 2 ^ 63) :
+    ∀ x ∈ chainInputs H lane pd ps, x.Canonical laneLength indexBound := by
+  intro x member
+  rcases List.mem_cons.1 member with rfl | member
+  · trivial
+  obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.1 member
+  simp only [List.length_zipWith, List.length_range, Nat.min_self] at hi
+  simp only [List.getElem_zipWith, List.getElem_range]
+  exact ⟨by omega, shape _ (List.getElem_mem hi)⟩
 
 end NightstreamFPrime.Spec.Nebula

@@ -36,6 +36,76 @@ Out of scope: application semantics (for example WASM), stacks, private
 initial memory, zero knowledge, more than one checked step per fresh claim, and
 more than one fresh claim per fold.
 
+### 1.1 Overview (informative)
+
+This subsection explains how the phase joins the Stage 1 stack. The rules are
+in §6–§13.
+
+Three layers keep their own protocols:
+
+- **SuperNeo** folds claims with the linear map `L*` (§7.1). It treats the
+  four-component bundle as one commitment, so PiCCS, PiRLC, and PiDEC do not
+  change.
+- **HyperNova Construction 2** links each invocation to the next through the
+  hash of the F′ state. The memory carry (§11) is a new block of that state.
+- **Nebula** checks memory with fingerprints of four multisets (§8). Each
+  segment closes with the checks of Nebula's `F_final` (§11.2).
+
+The layers meet at six joints:
+
+| Joint | Mechanism | Spec |
+|---|---|---|
+| J1 | The lanes stay in the step assignment `z`. `L*` also commits each lane in its own component. | §6.3, §7.1 |
+| J2 | PiCCS absorbs the fresh bundle. The prior-state digest holds the 16 running bundles. PiRLC and PiDEC act on all four components. | §7.3, §7.4 |
+| J3 | `absorb` adds the lane components of the claim that NIFS just verified to the chains `D_seen`. | §11.2 |
+| J4 | The memory rows read `η`, `h`, `ts`, and `idx` from the authenticated carry and write the new values back. | §8, §11.1 |
+| J5 | The proposed roots and `D_mem` enter the `η` transcript. The close checks that the absorbed chains equal them. | §9.3, §11.2 |
+| J6 | The verifier opens the last claim, then runs `absorb` and `close` natively. | §12, §13 |
+
+One segment runs in five stages:
+
+1. **Open.** The prover proposes the ops root and the FS root. The relation
+   derives `η` from them, `D_mem`, `ts`, and `plan_digest`. To compute the
+   roots, the prover must first run the whole segment natively.
+2. **Step.** Each invocation runs the memory rows on its own assignment. The
+   rows update the four products. The lanes of the step go into the bundle of
+   the fresh claim that the invocation produces.
+3. **Fold and absorb.** The next invocation folds that claim with SuperNeo.
+   Then `absorb` adds the three lane commitments of the claim to `D_seen`.
+4. **Close**, when `idx = N`. The chains must equal the roots that entered
+   `η`, and the product equation must hold. Then `D_mem` takes the FS root.
+5. **Terminal.** The verifier runs `absorb` and `close` on the last claim,
+   outside the circuit.
+
+```mermaid
+flowchart TB
+  subgraph NEB["Nebula memory checking"]
+    ROWS["memory rows on z_i (§8)"]
+    ETA["eta transcript at open (§9.3)"]
+    CLOSE["close at idx = N (§11.2)"]
+  end
+  subgraph HN["HyperNova Construction 2 state link"]
+    CARRY["MemoryCarry in the F′ state (§11.1)"]
+    ABS["absorb the folded claim's lanes (§11.2)"]
+  end
+  subgraph SN["SuperNeo folding with L = L*"]
+    LSTAR["bundle L*(z_i) (§7.1)"]
+    FOLD["PiCCS, PiRLC, PiDEC on all four components (§7.3)"]
+    TERM["native terminal (§12)"]
+  end
+  ROWS -- "J1" --> LSTAR
+  LSTAR -- "J2" --> FOLD
+  FOLD -- "J3" --> ABS
+  ABS --> CARRY
+  ETA --> CARRY
+  CARRY -- "J4" --> ROWS
+  CARRY --> CLOSE
+  CLOSE -. "J5" .-> ETA
+  TERM -- "J6" --> CLOSE
+```
+
+Security note §4 gives the argument for each joint and its status.
+
 ## 2. Sources and authority
 
 The published papers are the source of truth:

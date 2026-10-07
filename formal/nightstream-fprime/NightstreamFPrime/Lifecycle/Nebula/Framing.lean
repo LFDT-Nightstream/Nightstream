@@ -66,7 +66,7 @@ def etaChallenges (inp : EtaInput Digest) : K × K :=
 
 /-- The verifier context of a plan: Poseidon2 chains, the §9.3 transcript, and
 the plan digest that the verifier computes. -/
-def context (p : Plan) : Context K Digest := ⟨p, hash, etaChallenges, planDigest p⟩
+def context (p : Plan) : Context K Digest := ⟨p, hash, fun _ => etaChallenges, planDigest p⟩
 
 /-! ### Absorbed chunks -/
 
@@ -263,32 +263,44 @@ theorem blocks_injective {p : Plan} (valid : p.Valid) {x y : HashInput Digest}
 
 open scoped NightstreamFPrime.Spec.Nebula.GoldilocksFingerprint
 
-variable {p : Plan} {σ : Type} {app : Application p σ} {stmt : Statement σ Digest}
-  {run : List (Invocation σ Digest)}
-
-/-- Ob3 for the record chains: in the concrete context, a collision among the
-hash inputs of an accepted run is a Poseidon2 transcript collision. -/
-theorem runCollision_transcript (valid : p.Valid) (accepted : Accepts (context p) app stmt run)
-    (collision : RunCollision (context p) run stmt.segments) :
-    ∃ a ∈ runInputs (context p) run stmt.segments, ∃ b ∈ runInputs (context p) run stmt.segments,
-      TranscriptCollision (blocks a) (blocks b) := by
-  have canonical := runInputs_canonical valid accepted
+/-- Ob3 for two input lists: if every input is canonical, a collision of the
+Poseidon2 chains between the lists is a Poseidon2 transcript collision. -/
+theorem collision_transcript {ctx : Context K Digest} (concrete : ctx.hash = hash)
+    (valid : ctx.plan.Valid) {xs ys : List (HashInput Digest)}
+    (canonicalX : ∀ x ∈ xs, x.Canonical ctx.plan.laneLength ctx.plan.n)
+    (canonicalY : ∀ y ∈ ys, y.Canonical ctx.plan.laneLength ctx.plan.n)
+    (collision : CollisionIn ctx.hash xs ys) :
+    ∃ a ∈ xs, ∃ b ∈ ys, TranscriptCollision (blocks a) (blocks b) := by
   obtain ⟨a, ha, b, hb, differ, same⟩ := collision
+  rw [concrete] at same
   refine ⟨a, ha, b, hb, fun chunksEqual => differ ?_, same⟩
-  exact blocks_injective valid (canonical a ha) (canonical b hb)
-    (blockChunks_injective (blocks_small valid (canonical a ha))
-      (blocks_small valid (canonical b hb)) chunksEqual)
+  exact blocks_injective valid (canonicalX a ha) (canonicalY b hb)
+    (blockChunks_injective (blocks_small valid (canonicalX a ha))
+      (blocks_small valid (canonicalY b hb)) chunksEqual)
 
-/-- Security note Lemma 6 in the concrete context: an accepted run gives an
+variable {σ : Type} {ctx : Context K Digest} {app : Application ctx.plan σ}
+  {stmt : Statement σ Digest} {run : List (Invocation σ Digest)}
+
+/-- Ob3 for the record chains: when the context uses the Poseidon2 chains, a
+collision among the hash inputs of an accepted run is a Poseidon2 transcript
+collision. -/
+theorem runCollision_transcript (concrete : ctx.hash = hash) (valid : ctx.plan.Valid)
+    (accepted : Accepts ctx app stmt run) (collision : RunCollision ctx run stmt.segments) :
+    ∃ a ∈ runInputs ctx run stmt.segments, ∃ b ∈ runInputs ctx run stmt.segments,
+      TranscriptCollision (blocks a) (blocks b) :=
+  collision_transcript concrete valid (runInputs_canonical valid accepted)
+    (runInputs_canonical valid accepted) collision
+
+/-- Security note Lemma 6 with the Poseidon2 chains: an accepted run gives an
 execution, or a Poseidon2 transcript collision among its own chain inputs, or a
 segment whose challenges pass the product test with unbalanced multisets. -/
-theorem poseidon2_soundness (valid : p.Valid) (accepted : Accepts (context p) app stmt run) :
-    Attests (context p) app stmt run ∨
-      (∃ a ∈ runInputs (context p) run stmt.segments,
-        ∃ b ∈ runInputs (context p) run stmt.segments,
-          TranscriptCollision (blocks a) (blocks b)) ∨
-      ∃ k < stmt.segments, BadChallenge (context p) (segmentView (context p) run k) :=
+theorem poseidon2_soundness (concrete : ctx.hash = hash) (valid : ctx.plan.Valid)
+    (accepted : Accepts ctx app stmt run) :
+    Attests ctx app stmt run ∨
+      (∃ a ∈ runInputs ctx run stmt.segments, ∃ b ∈ runInputs ctx run stmt.segments,
+        TranscriptCollision (blocks a) (blocks b)) ∨
+      ∃ k < stmt.segments, BadChallenge ctx (segmentView ctx run k) :=
   (Spec.Nebula.soundness valid accepted).imp_right
-    (Or.imp_left (runCollision_transcript valid accepted))
+    (Or.imp_left (runCollision_transcript concrete valid accepted))
 
 end NightstreamFPrime.Lifecycle.Nebula

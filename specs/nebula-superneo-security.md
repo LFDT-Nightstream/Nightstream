@@ -364,7 +364,10 @@ the Stage 1 error for the Stage 2 relation shape, including SuperNeo's
 `ε_uniq` for `L_full`. One reduction checks every segment join in one run. The
 proof is Lemma 6 with a union bound.
 
-A6 carries this bound to the real protocol through `g_d` and `delta_d`. The
+In Lean, the memory terms of this bound in the translated game are
+`Game.fails_frequency` and, over `𝕂` with Poseidon2, `memory_bound` (§7
+item 5). A6 carries this bound to the real protocol through `g_d` and
+`delta_d`. The
 transfer accounts for the oracle-query count. `ε_coll` comes from a work
 estimate (A3). It becomes a probability only for a stated adversary time.
 
@@ -460,15 +463,26 @@ generated relation MUST supply the exact census.
    - rule 6 of spec §4.2 (`ε_test ≤ 2^−109.91` exactly when
      `m_mem ≤ 139,509`);
    - completeness of the typed model (Ob5 for the model), for every hash
-     function and every challenge function.
+     function and every challenge function;
+   - the memory terms of §5 in the interactive game of A6
+     (`Spec/Nebula/Game.lean`, `Lifecycle/Nebula/MemoryBound.lean`). An
+     outcome is the prover's coins and one fresh uniform challenge pair per
+     segment. The prover commits each segment's transcript input before its
+     challenge, and the extractor returns the run after the last challenge.
+     The frequency of an accepted, consistent run that is not an execution is
+     at most the frequency of a run collision, plus `S_max · 2·m_mem/q²`, plus
+     one retry term per segment. Both collision terms are Poseidon2 transcript
+     collisions. The retry adversary makes at most 2 calls in expectation
+     (`t_1 ≤ 2·t_E`, counted in calls).
 
    Still open:
-   - the probabilistic theorem that joins Lemma 6 to Lemma 3: the segment
-     game built from the extracted run, the link from the bad-challenge event
-     to the Lemma 3 error event, the time `t_1 ≤ 2·t_E`, and the union bound
-     of §5 over `S_max` segments;
-   - a Lean statement of the A6 memory-round extension, as a premise in the
-     form of the Stage 1 `FiatShamirModel`;
+   - the A6 transfer from the real verifier to this game, as a premise in the
+     form of the Stage 1 `FiatShamirModel`. Its real-side event needs the
+     Stage 2 verifier;
+   - an extracted run whose segment transcript inputs differ from the
+     committed ones is an extraction failure. A1 and A4 must bound it; the
+     game theorem does not;
+   - `ε_coll` as a probability needs a stated adversary time (A3);
    - the refinement of the generated relation to the typed rows, ports, and
      carry, in both directions: soundness (Ob1, Ob2, Ob4, Ob6, Ob7, and Ob8
      for the relation) and completeness (Ob5 for the relation, with the

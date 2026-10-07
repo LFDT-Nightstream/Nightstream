@@ -90,6 +90,22 @@ theorem retry_frequency {bound : ℕ}
   rw [← mul_div_mul_right (e : ℚ≥0) _ hs', ← mul_div_mul_right (bound : ℚ≥0) _ hs', ← add_div]
   exact div_le_div_of_nonneg_right (by exact_mod_cast key) zero_le
 
+/-- The uniqueness adversary of SuperNeo v1.2 Appendix B makes one call and,
+after an erroneous call, repeats calls until one succeeds. Its expected number
+of calls is `1 + #Err/#Succ`, which is at most 2: `t_1 ≤ 2·t_E`, counted in
+calls. -/
+theorem retry_expected_calls :
+    (1 : ℚ≥0) + ((errors play bad).card : ℚ≥0) / (successes play).card ≤ 2 := by
+  have subset := Finset.card_le_card (errors_subset_successes play bad)
+  rcases Nat.eq_zero_or_pos (successes play).card with none | some
+  · simp [none]
+  have ratio : ((errors play bad).card : ℚ≥0) / (successes play).card ≤ 1 := by
+    rw [div_le_one₀ (by exact_mod_cast some)]
+    exact_mod_cast subset
+  calc (1 : ℚ≥0) + ((errors play bad).card : ℚ≥0) / (successes play).card ≤ 1 + 1 := by
+        gcongr
+    _ = 2 := by norm_num
+
 end Count
 
 section Segment
@@ -97,8 +113,9 @@ section Segment
 variable {E Digest : Type} [CommRing E]
 
 /-- The segment view of records closed against a fixed transcript input. -/
-def EtaInput.view (inp : EtaInput Digest) (records : List StepRecords) : SegmentView Digest :=
-  ⟨inp.ts, inp.memRoot, (inp.opsRoot, inp.finalRoot), records⟩
+def EtaInput.view (inp : EtaInput Digest) (k : ℕ) (records : List StepRecords) :
+    SegmentView Digest :=
+  ⟨k, inp.ts, inp.memRoot, (inp.opsRoot, inp.finalRoot), records⟩
 
 private theorem scanTuplesFrom_length (base : ℕ) (cs : List ScanSlot) :
     (scanTuplesFrom base cs).length = cs.length := by
@@ -200,19 +217,19 @@ variable [IsDomain E] [Fintype E] [DecidableEq E] [CharP E goldilocksModulus]
 `Pr[Err] ≤ 2·m_mem/|E| + Pr[Err and the retry disagrees]`, and every
 disagreeing pair gives a collision among the two calls' chain inputs. -/
 theorem segment_fingerprint_bound {ctx : Context E Digest} (valid : ctx.plan.Valid)
-    (inp : EtaInput Digest) {Coins : Type} [Fintype Coins]
+    (inp : EtaInput Digest) (k : ℕ) {Coins : Type} [Fintype Coins]
     (play : (E × E) × Coins → Option (List StepRecords))
-    (closes : ∀ c z, play c = some z → (inp.view z).ClosesAt ctx c.1) :
-    ((errors play fun z => ¬ ((inp.view z).multisets ctx.plan).Balanced).card : ℚ≥0) /
+    (closes : ∀ c z, play c = some z → (inp.view k z).ClosesAt ctx c.1) :
+    ((errors play fun z => ¬ ((inp.view k z).multisets ctx.plan).Balanced).card : ℚ≥0) /
         Fintype.card ((E × E) × Coins) ≤
       2 * (ctx.plan.maxTuples : ℚ≥0) / Fintype.card E +
-        ((disagreements play fun z => ¬ ((inp.view z).multisets ctx.plan).Balanced).card :
+        ((disagreements play fun z => ¬ ((inp.view k z).multisets ctx.plan).Balanced).card :
             ℚ≥0) /
           ((Fintype.card ((E × E) × Coins) : ℚ≥0) * (successes play).card) ∧
-      ∀ q ∈ disagreements play (fun z => ¬ ((inp.view z).multisets ctx.plan).Balanced),
+      ∀ q ∈ disagreements play (fun z => ¬ ((inp.view k z).multisets ctx.plan).Balanced),
         ∃ z z', play q.1 = some z ∧ play q.2 = some z' ∧
-          CollisionIn ctx.hash ((inp.view z).chainInputs ctx) ((inp.view z').chainInputs ctx) := by
-  refine ⟨(retry_frequency play (fun z => ¬ ((inp.view z).multisets ctx.plan).Balanced)
+          CollisionIn ctx.hash ((inp.view k z).chainInputs ctx) ((inp.view k z').chainInputs ctx) := by
+  refine ⟨(retry_frequency play (fun z => ¬ ((inp.view k z).multisets ctx.plan).Balanced)
     (bound := 2 * ctx.plan.maxTuples * Fintype.card E * Fintype.card Coins)
     fun z bad => ?_).trans (add_le_add ?_ le_rfl), fun q hq => ?_⟩
   · by_cases hit : ∃ c, play c = some z
@@ -220,8 +237,8 @@ theorem segment_fingerprint_bound {ctx : Context E Digest} (valid : ctx.plan.Val
       have size := segment_multisets_card valid (closes c₀ z hc₀)
       have small := segment_multisets_small valid (closes c₀ z hc₀)
       refine (Finset.card_le_card (t := BadChallenges (E := E)
-          (((inp.view z).multisets ctx.plan).initial + ((inp.view z).multisets ctx.plan).write)
-          (((inp.view z).multisets ctx.plan).read + ((inp.view z).multisets ctx.plan).final) ×ˢ
+          (((inp.view k z).multisets ctx.plan).initial + ((inp.view k z).multisets ctx.plan).write)
+          (((inp.view k z).multisets ctx.plan).read + ((inp.view k z).multisets ctx.plan).final) ×ˢ
           (Finset.univ : Finset Coins)) fun c hc => ?_).trans ?_
       · have product := (productEq_iff c.1 _).1 (closes c z (mem_filter_any.1 hc).2).products
         exact Finset.mem_product.2

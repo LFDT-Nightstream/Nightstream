@@ -74,19 +74,19 @@ open Classical in
 and every disagreeing pair gives a collision among the two calls' chain
 inputs. -/
 theorem goldilocks_segment_fingerprint_bound {Digest : Type} {ctx : Context K Digest}
-    (valid : ctx.plan.Valid) (inp : EtaInput Digest) {Coins : Type} [Fintype Coins]
+    (valid : ctx.plan.Valid) (inp : EtaInput Digest) (k : ℕ) {Coins : Type} [Fintype Coins]
     (play : (K × K) × Coins → Option (List StepRecords))
-    (closes : ∀ c z, play c = some z → (inp.view z).ClosesAt ctx c.1) :
-    ((errors play fun z => ¬ ((inp.view z).multisets ctx.plan).Balanced).card : ℚ≥0) /
+    (closes : ∀ c z, play c = some z → (inp.view k z).ClosesAt ctx c.1) :
+    ((errors play fun z => ¬ ((inp.view k z).multisets ctx.plan).Balanced).card : ℚ≥0) /
         Fintype.card ((K × K) × Coins) ≤
       2 * (ctx.plan.maxTuples : ℚ≥0) / (goldilocksModulus ^ 2 : ℕ) +
-        ((disagreements play fun z => ¬ ((inp.view z).multisets ctx.plan).Balanced).card :
+        ((disagreements play fun z => ¬ ((inp.view k z).multisets ctx.plan).Balanced).card :
             ℚ≥0) /
           ((Fintype.card ((K × K) × Coins) : ℚ≥0) * (successes play).card) ∧
-      ∀ q ∈ disagreements play (fun z => ¬ ((inp.view z).multisets ctx.plan).Balanced),
+      ∀ q ∈ disagreements play (fun z => ¬ ((inp.view k z).multisets ctx.plan).Balanced),
         ∃ z z', play q.1 = some z ∧ play q.2 = some z' ∧
-          CollisionIn ctx.hash ((inp.view z).chainInputs ctx) ((inp.view z').chainInputs ctx) := by
-  have bound := segment_fingerprint_bound valid inp play closes
+          CollisionIn ctx.hash ((inp.view k z).chainInputs ctx) ((inp.view k z').chainInputs ctx) := by
+  have bound := segment_fingerprint_bound valid inp k play closes
   rwa [card_K] at bound
 
 end NightstreamFPrime.Spec.Nebula.GoldilocksFingerprint

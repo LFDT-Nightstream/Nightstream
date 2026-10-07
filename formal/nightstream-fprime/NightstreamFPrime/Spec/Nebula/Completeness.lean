@@ -531,7 +531,7 @@ private theorem honest_segmentView (valid : ctx.plan.Valid) {S : ℕ}
     (count : steps.length = S * ctx.plan.n) (tr : Trace ctx.plan steps ms) {k : ℕ}
     (hk : k < S) :
     segmentView ctx (honestRun ctx ms st steps) k =
-      ⟨(ms (k * ctx.plan.n)).ts,
+      ⟨k, (ms (k * ctx.plan.n)).ts,
         memoryRoot ctx.hash ctx.plan ctx.planDigest (ms (k * ctx.plan.n)).memory,
         honestProposal ctx ms steps k,
         (List.range' (k * ctx.plan.n) ctx.plan.n).map (honestRecords ctx.plan ms steps)⟩ := by
@@ -543,7 +543,7 @@ private theorem honest_segmentView (valid : ctx.plan.Valid) {S : ℕ}
   have hstart : k * ctx.plan.n < steps.length := by omega
   rw [segmentView.eq_def, honestRun_tsBefore tr hstart.le, honestRun_proposal npos hstart,
     honestRun_segment hend, List.map_map, SegmentView.mk.injEq]
-  refine ⟨rfl, ?_, rfl, rfl⟩
+  refine ⟨rfl, rfl, ?_, rfl, rfl⟩
   cases k with
   | zero =>
     rw [Nat.zero_mul, tr.start]

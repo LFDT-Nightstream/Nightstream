@@ -55,10 +55,16 @@ at `Q = 2^64` is about `2^-51.2`. The proof is in
    Ironwood's abstract squeeze is. It is not a theorem about Poseidon2 or the
    additive duplex.
 2. **Three named events.** `Lifecycle.RandomOracleUniqueness.collisionChance`
-   is the success of the binding reduction: two witnesses for one running
-   statement, an MSIS break for the SHAKE128-expanded Ajtai matrix
-   (`Export.Stage1.NifsBinding.bindingEvent_to_shortKernel`,
-   `Export.Stage1.Poseidon2HashChainV1Setup.production_binding_lt_solver`).
+   is the success of the binding reduction: two different witnesses for one
+   running statement. The paper turns this into a binding collision; Lean does
+   not prove that step. Lean proves the steps after it for the production
+   key: a binding collision gives a short kernel vector at the approved MSIS
+   norm (`Export.Stage1.Poseidon2HashChainV1Setup.productionBindingCollision_to_shortKernel`),
+   which solves the approved public-seed instance
+   (`Export.Stage1.Poseidon2HashChainV1Setup.productionShortKernel_to_approvedMsis`);
+   for a uniform matrix, a binding collision gives an MSIS solution in the
+   ideal model of the SHAKE128 expansion
+   (`Export.Stage1.Poseidon2HashChainV1Setup.production_binding_lt_solver`).
    `Lifecycle.RandomOracleExtraction.mismatchChance` and
    `Lifecycle.RandomOracleUniqueness.runningChance` are retries that change
    the running statement. With `Layout.Stage1.PiCCSSecurity.PriorLink` they
@@ -67,7 +73,10 @@ at `Q = 2^64` is about `2^-51.2`. The proof is in
    `Export.Stage1.HyperNovaVisitedSecurity.history_probability_bound` takes
    `Export.Stage1.HyperNovaVisitedSecurity.NifsKnowledgeSound`: at each visited
    step, the source extractor of the Poseidon2 NIFS fails after a real
-   acceptance with probability at most `error j`. This is the paper's
+   acceptance with probability at most `error j`. A real acceptance is the
+   `goodActive` mark of the visit
+   (`Export.Stage1.HyperNovaVisitedAcceptance.realSuccess_iff_goodActive`).
+   This is the paper's
    plain-model premise, not a theorem. The step circuit recomputes the
    challenges of the previous fold with Poseidon2, so a recursive argument
    uses the concrete hash, which no random-oracle model covers. The one-fold

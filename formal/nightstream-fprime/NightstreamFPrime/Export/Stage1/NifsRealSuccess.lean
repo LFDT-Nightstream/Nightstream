@@ -14,9 +14,8 @@ on the running statement, so without the link a prover could choose it after
 its initial state, current state and iteration are free, so some well-formed
 preimage with any running vector hashes to almost every digest.
 
-Outputs: `RealSuccess`, `realSuccessProbability` under an adversary output
-law, and `contextLaw`, the law's context marginal. The visited history laws
-read the event through `HyperNovaVisitedAcceptance`.
+Outputs: `RealOutput`, `RealSuccess` and `realSuccess_implies_exact_children`.
+`HyperNovaVisitedAcceptance` reads the event at each history visit.
 
 Does not own: any extractor, Fiat–Shamir assumption or probability bound.
 -/
@@ -93,23 +92,5 @@ theorem realSuccess_implies_exact_children
   rw [← PiDEC.OutputWitnessConsumer.runningStatement_eq_child
     (ProductionKey.key relation ajtai) running fresh output.proof result attempt attemptEq accepted child]
   exact valid (Fin.cast (ProductionKey.key relation ajtai).outputCount_eq child)
-
-variable {Context : Type*}
-  (running : Context → Lifecycle.Running
-    (logicalWidth := logicalWidth) (publicFits := publicFits))
-  (fresh : Context → Lifecycle.Fresh
-    (logicalWidth := logicalWidth) (publicFits := publicFits))
-
-/-- Success mass under the supplied classical adversary output law.
-There is no caller-supplied scalar standing in for verifier success. -/
-noncomputable def realSuccessProbability
-    (law : PMF (Context × Option (RealOutput relation))) : ℝ :=
-  ∑' outcome, if RealSuccess relation ajtai contextDigest (running outcome.1) (fresh outcome.1) outcome.2
-    then (law outcome).toReal else 0
-
-/-- The context marginal of an adversary output law: the law of the running
-and fresh public inputs. -/
-noncomputable def contextLaw (law : PMF (Context × Option (RealOutput relation))) : PMF Context :=
-  law.map Prod.fst
 
 end NightstreamFPrime.Export.Stage1.NifsRealSuccess

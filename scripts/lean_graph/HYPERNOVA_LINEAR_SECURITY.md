@@ -34,8 +34,8 @@ hash, which no random-oracle model covers.
 form for one fold and justifies `error_j = knowledgeError(Q_j)`: linear in the
 query count, about `(Q_j + 74) · 2^-115.2` plus the named MSIS and state-hash
 events. Definition 7 also requires an expected polynomial-time extractor;
-`HyperNovaSourceWork` bounds the work of the selected interactive kernel
-separately.
+that requirement is part of Assumption 1. The random-oracle extractor takes
+`17 (Q + 17)` expected retries.
 
 Required premises:
 

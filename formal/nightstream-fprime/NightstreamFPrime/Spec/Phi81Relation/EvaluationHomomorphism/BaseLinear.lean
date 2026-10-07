@@ -69,20 +69,6 @@ def assignmentZero {columns : Nat} :
     PaperLinearAlgebra.Assignment F columns :=
   fun _ => 0
 
-/-- Canonical head-first finite base-field combination at an arbitrary width. -/
-def combineAssignments {columns : Nat} :
-    {count : Nat} ->
-      (Fin count -> F) ->
-      (Fin count -> PaperLinearAlgebra.Assignment F columns) ->
-      PaperLinearAlgebra.Assignment F columns
-  | 0, _, _ => assignmentZero
-  | _ + 1, weights, assignments =>
-      assignmentAdd
-        (assignmentScale (weights 0) (assignments 0))
-        (combineAssignments
-          (fun index => weights index.succ)
-          (fun index => assignments index.succ))
-
 end Raw
 
 /-- Add two typed complete-carrier relation assignments coordinatewise. -/
@@ -121,24 +107,6 @@ def combineAssignments {shape : Shape} :
         (combineAssignments
           (fun index => weights index.succ)
           (fun index => assignments index.succ))
-
-/-- The raw width-only fold and the typed relation fold are extensionally
-identical. This is the refinement seam used by independent packed semantics;
-it prevents the two recursive definitions from drifting silently. -/
-theorem raw_combineAssignments_eq
-    {shape : Shape} {count : Nat}
-    (weights : Fin count -> F)
-    (assignments : Fin count -> Assignment shape) :
-    Raw.combineAssignments weights assignments =
-      combineAssignments weights assignments := by
-  induction count with
-  | zero => rfl
-  | succ count inductionHypothesis =>
-      simp only [Raw.combineAssignments, combineAssignments]
-      rw [inductionHypothesis
-        (fun index => weights index.succ)
-        (fun index => assignments index.succ)]
-      rfl
 
 /-- The identical finite combination on one `RingK` evaluation. -/
 def combineEvaluations :

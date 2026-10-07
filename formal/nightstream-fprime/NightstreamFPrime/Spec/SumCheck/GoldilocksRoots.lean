@@ -3,8 +3,9 @@ import Mathlib.Algebra.QuadraticAlgebra.Defs
 import Mathlib.Algebra.Ring.TransferInstance
 import Mathlib.Data.NNRat.Lemmas
 import NightstreamFPrime.Spec.GoldilocksExtension
-import NightstreamFPrime.Spec.FieldTower
 import NightstreamFPrime.Spec.SumCheck.FixedPhase
+import Mathlib.SetTheory.Cardinal.Finite
+import NightstreamFPrime.Spec.Profile
 
 /-! Root counts for the verifier's actual coefficient lists over `K`.
 The probability statement uses a uniform point from the stated finite set,
@@ -118,52 +119,5 @@ theorem uniform_agreement_probability_le {degree : Nat}
       challenges.card ≤ (degree : ℚ≥0) / challenges.card := by
   apply div_le_div_of_nonneg_right _ zero_le
   exact_mod_cast agreement_count_le claimed expected challenges different
-
-@[reducible] private noncomputable def kFintype : Fintype K := Fintype.ofEquiv (F × F) {
-  toFun value := ⟨value.1, value.2⟩
-  invFun value := (value.c0, value.c1)
-  left_inv _ := rfl
-  right_inv _ := rfl }
-
-attribute [local instance] kFintype
-
-/-- The whole extension field is the ideal uniform sampling space. -/
-noncomputable def fullChallengeSet : Finset K := Finset.univ
-
-theorem fullChallengeSet_card : fullChallengeSet.card = goldilocksModulus ^ 2 := by
-  rw [fullChallengeSet, Finset.card_univ, ← Nat.card_eq_fintype_card]
-  exact FieldTower.extension_cardinality
-
-theorem uniform_fullField_agreement_probability_le {degree : Nat}
-    (claimed expected : FixedPolynomial K degree)
-    (different : ∃ point, claimed.evaluate ops point ≠ expected.evaluate ops point) :
-    ((fullChallengeSet.filter fun point =>
-      claimed.evaluate ops point = expected.evaluate ops point).card : ℚ≥0) /
-      (goldilocksModulus ^ 2 : Nat) ≤ (degree : ℚ≥0) / (goldilocksModulus ^ 2 : Nat) := by
-  rw [← fullChallengeSet_card]
-  exact uniform_agreement_probability_le claimed expected fullChallengeSet
-    (by exact Finset.univ_nonempty) different
-
-/-- Connect the existing false-acceptance event to the root count, retaining
-its independently proved expected-polynomial representation. -/
-theorem badChallenge_count_le {degree challengeSetSize : Nat}
-    (q : List K → K) (initial : K) (transcriptChallenges : List K)
-    (certificate : FixedPhase.Certificate K degree) (round : SumCheck.Round K K)
-    (bad : FixedPhase.BadChallenge ops q degree challengeSetSize initial
-      transcriptChallenges certificate round) (sampleSpace : Finset K) :
-    (sampleSpace.filter fun point => round.claimed point = round.expected point).card ≤ degree := by
-  obtain ⟨algebraic, claimed, expected, claimedRepresents, expectedRepresents⟩ := bad
-  dsimp only [FixedPhase.Represents] at claimedRepresents expectedRepresents
-  have different : ∃ point, claimed.evaluate ops point ≠ expected.evaluate ops point := by
-    by_contra same
-    apply algebraic.2.2.1
-    funext point
-    have atPoint : claimed.evaluate ops point = expected.evaluate ops point := by
-      by_contra unequal
-      exact same ⟨point, unequal⟩
-    rw [claimedRepresents point, expectedRepresents point] at atPoint
-    exact atPoint
-  have bound := agreement_count_le claimed expected sampleSpace different
-  simpa only [claimedRepresents, expectedRepresents] using bound
 
 end NightstreamFPrime.Spec.SumCheck.Finite.GoldilocksRoots

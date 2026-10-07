@@ -112,9 +112,6 @@ import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcrip
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.hybrid
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.hybrid_index
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.vector_average_difference_abs_le
-#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.rate_eq_average
-#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.sampledRate_le
-#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.returningProbability_sampled_lower_bound
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.modulus_lt
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.modulus_pos
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.fieldOfNat_add
@@ -272,7 +269,6 @@ import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcrip
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.ScheduleLaw.readScalars_eq
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.ScheduleLaw.fresh_batch_law
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.ScheduleLaw.fresh_folds_bias_bound
-#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.ScheduleLaw.fresh_blocks_extractor_lower_bound
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.TranscriptHistory.replay_append
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.TranscriptHistory.stateAt_replay
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.TranscriptHistory.queryAt_answer

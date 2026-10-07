@@ -1,6 +1,5 @@
 import tests.AxiomAudit
 import NightstreamFPrime.Spec.GoldilocksExtension
-import NightstreamFPrime.Spec.FieldTower
 import NightstreamFPrime.Spec.SumCheck.GoldilocksRoots
 import NightstreamFPrime.Spec.Phi81StrongSet.Cardinality
 import NightstreamFPrime.Spec.Phi81StrongSet.LowNormInvertibility
@@ -20,6 +19,8 @@ import NightstreamFPrime.Export.Stage1.SetupIndexEncoding
 import NightstreamFPrime.Export.Stage1.SetupDistribution
 import NightstreamFPrime.Export.Stage1.SetupBinding
 import NightstreamFPrime.Export.Stage1.SetupSecurity
+import Mathlib.SetTheory.Cardinal.Finite
+import NightstreamFPrime.Spec.Profile
 
 #audit_axioms NightstreamFPrime.Spec.GoldilocksExtension.sevenProjectiveNonresidue
 #audit_axioms NightstreamFPrime.Spec.GoldilocksExtension.extensionNoZeroDivisors
@@ -55,10 +56,6 @@ import NightstreamFPrime.Export.Stage1.SetupSecurity
 #audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.Setup.coefficientNat_lt
 #audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.Setup.authorityWords_eq_iff
 #audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup.authorityWords_injective
-#audit_axioms NightstreamFPrime.Spec.FieldTower.base_cardinality
-#audit_axioms NightstreamFPrime.Spec.FieldTower.extension_cardinality
-#audit_axioms NightstreamFPrime.Spec.FieldTower.embed_injective
-#audit_axioms NightstreamFPrime.Spec.FieldTower.basis_reconstruct
 #audit_axioms NightstreamFPrime.Spec.Folding.PiDEC.parentCollisionEquiv
 #audit_axioms NightstreamFPrime.Spec.Folding.PiDEC.parent_bindingCollision_iff
 #audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.Setup.verifierKey_eq_of_authorityWords
@@ -75,9 +72,6 @@ import NightstreamFPrime.Export.Stage1.SetupSecurity
 #audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup.production_index_injective
 #audit_axioms NightstreamFPrime.Spec.SumCheck.Finite.GoldilocksRoots.agreement_count_le
 #audit_axioms NightstreamFPrime.Spec.SumCheck.Finite.GoldilocksRoots.uniform_agreement_probability_le
-#audit_axioms NightstreamFPrime.Spec.SumCheck.Finite.GoldilocksRoots.fullChallengeSet_card
-#audit_axioms NightstreamFPrime.Spec.SumCheck.Finite.GoldilocksRoots.uniform_fullField_agreement_probability_le
-#audit_axioms NightstreamFPrime.Spec.SumCheck.Finite.GoldilocksRoots.badChallenge_count_le
 #audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.ReductionBias.event_count
 #audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.ReductionBias.frequency_error_le
 #audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.ReductionBias.wide_remainder_eq
@@ -106,11 +100,7 @@ import NightstreamFPrime.Export.Stage1.SetupSecurity
 #audit_axioms NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Product.rawTerm_le_twice_bound
 #audit_axioms NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Product.rawMulCoeffF_le_support_of_bounded
 #audit_axioms NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Product.ringFMul_le_expansion_of_bounded
-#audit_axioms NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Binding.difference_action_bounded
-#audit_axioms NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Binding.relaxedBindingCollision_to_shortKernel
 #audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup.productionBindingCollision_to_shortKernel
-#audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup.productionRelaxedBindingCollision_to_shortKernel
-#audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup.productionNifsOutput_is_msis
 #audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup.packageIdentity_identifies_selected_setup_or_collision
 
 #audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup.productionShortKernel_to_approvedMsis

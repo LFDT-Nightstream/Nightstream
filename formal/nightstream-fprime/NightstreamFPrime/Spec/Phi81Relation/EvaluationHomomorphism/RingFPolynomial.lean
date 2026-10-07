@@ -135,15 +135,6 @@ abbrev QuotientRing := AdjoinRoot modulus
 noncomputable def image (value : RingF) : QuotientRing :=
   AdjoinRoot.mk modulus (toPolynomial value)
 
-theorem image_injective : Function.Injective image := by
-  intro left right equal
-  apply toPolynomial_injective
-  have remainder := congrArg (AdjoinRoot.modByMonicHom modulus_monic) equal
-  simpa only [image, AdjoinRoot.modByMonicHom_mk, toPolynomial_mod] using remainder
-
-theorem image_one : image ringFOne = 1 := by
-  rw [image, toPolynomial_one, map_one]
-
 private theorem image_zero : image ringFZero = 0 := by
   rw [image, toPolynomial_zero, map_zero]
 

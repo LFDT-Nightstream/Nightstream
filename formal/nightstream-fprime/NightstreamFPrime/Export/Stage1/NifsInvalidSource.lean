@@ -2,8 +2,9 @@ import NightstreamFPrime.Export.Stage1.NifsFiatShamir
 
 /-!
 The selected NIFS knowledge bound when every positive-mass input has no
-source witness. The actual verifier-success event includes witnesses for
-its exact sixteen children. Source return then has probability zero.
+source witness. The real success event includes the output prior-state link,
+actual verifier acceptance, and witnesses for its exact sixteen children.
+Source return then has probability zero.
 
 The FS transfer, supported continuation, low-norm property, primitive bounds
 and exact MSIS success bound remain explicit. No conditioning on semantic

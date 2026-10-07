@@ -12,8 +12,9 @@ and gate evidence at `01a8fd8ca68280c7f642451ab33bc714cee5bc98` are recorded in
 
 For the fixed Nightstream Goldilocks profile, assume an external classical
 FS/SuperNeo game transfer for the **actual additive Poseidon2 transcript**.
-The real success event is `FiatShamirTransfer.RealSuccess`: the prior-state
-link holds for the running statement and the verifier context digest, the
+The real success event is `FiatShamirTransfer.RealSuccess`: the adversary
+outputs a prior preimage whose prior-state link holds for the running statement
+and the verifier context digest, the
 actual `ProductionKey` NIFS verifier accepts, and the adversary supplies valid
 witnesses for its exact 16 returned children. Public acceptance alone is
 not a knowledge claim.
@@ -102,20 +103,23 @@ to `history_probability_linear_bound`.
 
 Owner decision (2026-10-06): the success event requires the prior-state link.
 `FiatShamirTransfer.RealSuccess` takes the verifier context digest and holds
-only when a well-formed prior preimage hashes to the absorbed prior digest,
-names that context, and has the NIFS running statement as its running vector.
-No challenge depends on the running statement. Without the link, an adversary
-could choose it after `γ` and keep the claimed sum, and the transfer would have
-no useful instance. With the link, a running statement chosen after the
-challenges needs a second preimage of the state hash for a digest that was
-absorbed before them. The module moved to
+only when the adversary outputs a well-formed prior preimage that hashes to the
+absorbed prior digest, names that context, and has the NIFS running statement
+as its running vector. No challenge depends on the running statement. Without
+the link, an adversary could choose it after `γ` and keep the claimed sum, and
+the transfer would have no useful instance. The preimage must be an output, not
+merely exist: its initial state, current state and iteration are free, so some
+well-formed preimage with any running vector hashes to almost every digest.
+With the output link, a running statement chosen after the challenges needs a
+second preimage of the state hash for a digest that was absorbed before them,
+or a state-hash collision found in advance. The module moved to
 `Export/Stage1/FiatShamirTransfer.lean`, because the link is a Layout
 definition. The generic NIFS closure theorems (`NifsClosure`,
 `NifsFiatShamir`, `NifsProviderLaw`, `NifsInvalidSource`) take the context
 digest as a parameter. The HyperNova history theorems (`HyperNovaVisitedSecurity`,
 `HyperNovaFalseAcceptance`) use the package's context digest, and
 `HyperNovaRealInput.realSuccess_of_terminal` derives the link from terminal
-acceptance.
+acceptance for the decoded prior preimage (`HyperNovaRealInput.prior`).
 
 Both native Rust PiCCS engines read the prior digest from the first fresh
 public input with Lean's `decodeHash` formula, as `ProductionKey.priorDigest`

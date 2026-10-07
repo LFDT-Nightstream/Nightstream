@@ -105,7 +105,6 @@ def original_running(envelope):
     vector(envelope["z0"], 4, field)
     vector(envelope["current"], 4, field)
     claims = vector(envelope["running_claims"], CHILDREN, lambda item: item)
-    require(envelope["running_parent"] is not None, "missing running parent")
     points, commitments, publics, pads, matrices = [], [], [], [], []
     for claim in claims:
         require(claim["m_in"] == PUBLIC and claim["adv"] is None, "unexpected running claim")

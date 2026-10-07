@@ -18,7 +18,9 @@ Outputs:
   key's own;
 - `test_error_le`: the oracle probe is accepted with an output that the
   witness opens, while the witness fails the source relation, with
-  probability at most `(Q + 1) * IndependentExecution.testError`.
+  probability at most `(Q + 1) * IndependentExecution.testError`;
+- `hits_error_le`: the sum over the PiCCS coins that `test_error_le` and
+  Lemma 6 (`RandomOracleUniqueness`) share.
 
 Invariant: each challenge's bad set reads the oracle only at the other
 challenges of the same execution (`TranscriptCoverage.challengeCalls_injective`),
@@ -543,7 +545,7 @@ private theorem indicator_sum_nonnegative {Index : Type} [Fintype Index] (event 
 
 /-- The `α`, `γ` and round coins of a false acceptance: one of them hits its
 bad set at its own point. -/
-private theorem falseAcceptance_hits (oracle : Oracle)
+theorem falseAcceptance_hits (oracle : Oracle)
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Proof (ProductionKey.degreeBound relation))
     (false_ : FalseAcceptance relation ajtai running witness oracle fresh proof) :
@@ -580,6 +582,64 @@ private theorem falseAcceptance_hits (oracle : Oracle)
     change RoundByRound.coordinate (coins oracle fresh proof).roundPoint index ∈ _ at member
     rwa [coordinate_round] at member
 
+omit ajtai running witness in
+/-- An event that always hits one PiCCS coin's event has chance at most
+`scale * testError` when each coin's event has chance at most
+`scale * error`. -/
+theorem hits_error_le (event : Oracle → Prop) (hit : Challenge → Oracle → Prop) (scale : ℝ)
+    (hits : ∀ oracle, event oracle → (∃ index, hit (.alpha index) oracle) ∨ hit .gamma oracle ∨
+      ∃ index, hit (.round index) oracle)
+    (chance : ∀ challenge, 𝔼 oracle, (if hit challenge oracle then (1 : ℝ) else 0) ≤
+      scale * error challenge) :
+    𝔼 oracle, (if event oracle then (1 : ℝ) else 0) ≤
+      scale * IndependentExecution.testError productionShape 9 := by
+  have split (oracle : Oracle) :
+      (if event oracle then (1 : ℝ) else 0) ≤
+        (∑ index, if hit (.alpha index) oracle then (1 : ℝ) else 0) +
+          (if hit .gamma oracle then (1 : ℝ) else 0) +
+          ∑ index, if hit (.round index) oracle then (1 : ℝ) else 0 := by
+    have alphas := indicator_sum_nonnegative fun index => hit (.alpha index) oracle
+    have rounds := indicator_sum_nonnegative fun index => hit (.round index) oracle
+    have gamma : (0 : ℝ) ≤ if hit .gamma oracle then (1 : ℝ) else 0 := by split <;> norm_num
+    by_cases happens : event oracle
+    · rw [if_pos happens]
+      rcases hits oracle happens with ⟨index, holds⟩ | holds | ⟨index, holds⟩
+      · have := indicator_le_sum (fun index => hit (.alpha index) oracle) index holds
+        linarith
+      · have : (1 : ℝ) ≤ if hit .gamma oracle then (1 : ℝ) else 0 := by
+          rw [if_pos holds]
+        linarith
+      · have := indicator_le_sum (fun index => hit (.round index) oracle) index holds
+        linarith
+    · rw [if_neg happens]
+      linarith
+  have alphaBound : 𝔼 oracle, (∑ index, if hit (.alpha index) oracle then (1 : ℝ) else 0) ≤
+      productionShape.cubeVariables * (scale * error (.alpha ⟨0, by decide⟩)) := by
+    rw [Finset.expect_sum_comm]
+    refine (Finset.sum_le_sum fun index _ => chance (.alpha index)).trans (le_of_eq ?_)
+    simp [error]
+  have roundBound : 𝔼 oracle, (∑ index, if hit (.round index) oracle then (1 : ℝ) else 0) ≤
+      productionShape.cubeVariables * (scale * error (.round ⟨0, by decide⟩)) := by
+    rw [Finset.expect_sum_comm]
+    refine (Finset.sum_le_sum fun index _ => chance (.round index)).trans (le_of_eq ?_)
+    simp [error]
+  have total :
+      𝔼 oracle, (if event oracle then (1 : ℝ) else 0) ≤
+        (𝔼 oracle, ∑ index, if hit (.alpha index) oracle then (1 : ℝ) else 0) +
+          (𝔼 oracle, if hit .gamma oracle then (1 : ℝ) else 0) +
+          𝔼 oracle, ∑ index, if hit (.round index) oracle then (1 : ℝ) else 0 := by
+    refine (Finset.expect_le_expect fun oracle _ => split oracle).trans (le_of_eq ?_)
+    rw [Finset.expect_add_distrib, Finset.expect_add_distrib]
+  refine total.trans ((add_le_add (add_le_add alphaBound (chance .gamma)) roundBound).trans
+    (le_of_eq ?_))
+  have cube : (productionShape.cubeVariables : ℝ) = 28 := by
+    exact_mod_cast (rfl : productionShape.cubeVariables = 28)
+  have coefficients : productionShape.jointCoefficientCount - 1 + productionShape.cubeVariables =
+      (productionShape.jointCoefficientCount - 1) + 28 := rfl
+  simp only [error, IndependentExecution.testError, coefficients, cube]
+  push_cast
+  ring
+
 /-- PiCCS test error in the random-oracle model. An adaptive adversary with at
 most `queries` oracle queries outputs a fresh statement and a proof; the
 oracle probe of that output is a false acceptance for the fixed witness with
@@ -592,66 +652,16 @@ theorem test_error_le {Output : Type}
     (proof : Output → Proof (ProductionKey.degreeBound relation)) :
     𝔼 oracle, (if FalseAcceptance relation ajtai running witness oracle
         (fresh (adversary.run oracle)) (proof (adversary.run oracle)) then (1 : ℝ) else 0) ≤
-      (queries + 1) * IndependentExecution.testError productionShape 9 := by
-  let hit (challenge : Challenge) (oracle : Oracle) : Prop :=
-    oracle (point (fresh (adversary.run oracle)) (proof (adversary.run oracle)) challenge) ∈
-      bad relation ajtai running witness challenge
-        (point (fresh (adversary.run oracle)) (proof (adversary.run oracle)) challenge) oracle
-  have pinned (challenge : Challenge) :
-      𝔼 oracle, (if hit challenge oracle then (1 : ℝ) else 0) ≤ (queries + 1) * error challenge :=
-    pinned_le (bad relation ajtai running witness challenge)
+      (queries + 1) * IndependentExecution.testError productionShape 9 :=
+  hits_error_le relation _
+    (fun challenge oracle =>
+      oracle (point (fresh (adversary.run oracle)) (proof (adversary.run oracle)) challenge) ∈
+        bad relation ajtai running witness challenge
+          (point (fresh (adversary.run oracle)) (proof (adversary.run oracle)) challenge) oracle)
+    _ (fun oracle => falseAcceptance_hits relation ajtai running witness oracle _ _)
+    fun challenge => pinned_le (bad relation ajtai running witness challenge)
       (bad_local relation ajtai running witness challenge) (error challenge)
       (bad_mass_le relation ajtai running witness challenge) (error_nonnegative challenge) bounded
       (fun output => point (fresh output) (proof output) challenge)
-  have split (oracle : Oracle) :
-      (if FalseAcceptance relation ajtai running witness oracle
-          (fresh (adversary.run oracle)) (proof (adversary.run oracle)) then (1 : ℝ) else 0) ≤
-        (∑ index, if hit (.alpha index) oracle then (1 : ℝ) else 0) +
-          (if hit .gamma oracle then (1 : ℝ) else 0) +
-          ∑ index, if hit (.round index) oracle then (1 : ℝ) else 0 := by
-    have alphas := indicator_sum_nonnegative fun index => hit (.alpha index) oracle
-    have rounds := indicator_sum_nonnegative fun index => hit (.round index) oracle
-    have gamma : (0 : ℝ) ≤ if hit .gamma oracle then (1 : ℝ) else 0 := by split <;> norm_num
-    by_cases false_ : FalseAcceptance relation ajtai running witness oracle
-        (fresh (adversary.run oracle)) (proof (adversary.run oracle))
-    · rw [if_pos false_]
-      rcases falseAcceptance_hits relation ajtai running witness oracle _ _ false_ with
-        ⟨index, holds⟩ | holds | ⟨index, holds⟩
-      · have := indicator_le_sum (fun index => hit (.alpha index) oracle) index holds
-        linarith
-      · have : (1 : ℝ) ≤ if hit .gamma oracle then (1 : ℝ) else 0 := by
-          rw [if_pos holds]
-        linarith
-      · have := indicator_le_sum (fun index => hit (.round index) oracle) index holds
-        linarith
-    · rw [if_neg false_]
-      linarith
-  have alphaBound : 𝔼 oracle, (∑ index, if hit (.alpha index) oracle then (1 : ℝ) else 0) ≤
-      productionShape.cubeVariables * ((queries + 1) * error (.alpha ⟨0, by decide⟩)) := by
-    rw [Finset.expect_sum_comm]
-    refine (Finset.sum_le_sum fun index _ => pinned (.alpha index)).trans (le_of_eq ?_)
-    simp [error]
-  have roundBound : 𝔼 oracle, (∑ index, if hit (.round index) oracle then (1 : ℝ) else 0) ≤
-      productionShape.cubeVariables * ((queries + 1) * error (.round ⟨0, by decide⟩)) := by
-    rw [Finset.expect_sum_comm]
-    refine (Finset.sum_le_sum fun index _ => pinned (.round index)).trans (le_of_eq ?_)
-    simp [error]
-  have total :
-      𝔼 oracle, (if FalseAcceptance relation ajtai running witness oracle
-          (fresh (adversary.run oracle)) (proof (adversary.run oracle)) then (1 : ℝ) else 0) ≤
-        (𝔼 oracle, ∑ index, if hit (.alpha index) oracle then (1 : ℝ) else 0) +
-          (𝔼 oracle, if hit .gamma oracle then (1 : ℝ) else 0) +
-          𝔼 oracle, ∑ index, if hit (.round index) oracle then (1 : ℝ) else 0 := by
-    refine (Finset.expect_le_expect fun oracle _ => split oracle).trans (le_of_eq ?_)
-    rw [Finset.expect_add_distrib, Finset.expect_add_distrib]
-  refine total.trans ((add_le_add (add_le_add alphaBound (pinned .gamma)) roundBound).trans
-    (le_of_eq ?_))
-  have cube : (productionShape.cubeVariables : ℝ) = 28 := by
-    exact_mod_cast (rfl : productionShape.cubeVariables = 28)
-  have coefficients : productionShape.jointCoefficientCount - 1 + productionShape.cubeVariables =
-      (productionShape.jointCoefficientCount - 1) + 28 := rfl
-  simp only [error, IndependentExecution.testError, coefficients, cube]
-  push_cast
-  ring
 
 end NightstreamFPrime.Lifecycle.RandomOracleTest

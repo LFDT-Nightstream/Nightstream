@@ -552,7 +552,7 @@ private theorem mass_union_le (left right : Set Answer) :
     by_cases inLeft : answer ∈ left <;> by_cases inRight : answer ∈ right <;>
       simp [inLeft, inRight]
 
-private theorem mass_ne_zero {set : Set Answer} {answer : Answer} (inside : answer ∈ set) :
+theorem mass_ne_zero {set : Set Answer} {answer : Answer} (inside : answer ∈ set) :
     mass set ≠ 0 := by
   unfold mass
   apply ne_of_gt

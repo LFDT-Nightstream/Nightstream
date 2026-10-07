@@ -265,9 +265,7 @@ import NightstreamFPrime.Export.Stage1.DirectPiRLCProductFootprint
 import NightstreamFPrime.Export.Stage1.DirectPiRLCProductFootprintBridge
 import NightstreamFPrime.Export.Stage1.DirectLowNormFootprint
 
-import NightstreamFPrime.Export.Stage1.NifsClosure
 import NightstreamFPrime.Export.Stage1.NifsProviderLaw
-import NightstreamFPrime.Export.Stage1.NifsInvalidSource
 
 import NightstreamFPrime.Export.Stage1.PiCCSFirstRound
 import NightstreamFPrime.Export.Stage1.PiCCSFreshPolynomial

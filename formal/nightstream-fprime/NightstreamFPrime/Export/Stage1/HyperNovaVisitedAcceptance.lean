@@ -172,7 +172,7 @@ theorem realSuccess_iff_goodActive
     (source : Statement → Payload → PMF SourceResult)
     (initial : PMF (Statement × Envelope)) (steps : Nat) (visit : Visit)
     (supported : visit ∈ (visitedLaw source initial steps).support) :
-    FiatShamirTransfer.RealSuccess PiDECInputCheck.relation productionAjtaiKey
+    NifsRealSuccess.RealSuccess PiDECInputCheck.relation productionAjtaiKey
       (PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup)
       (PiCCSInputCheck.running (inputs visit)) (PiCCSInputCheck.fresh (inputs visit))
       (realOutput visit) ↔ goodActive visit := by
@@ -189,19 +189,19 @@ theorem realSuccess_iff_goodActive
     exact iff_of_false id good
 
 private theorem realSuccessProbability_eq_event
-    (distribution : PMF (Visit × Option (FiatShamirTransfer.RealOutput PiDECInputCheck.relation))) :
-    FiatShamirTransfer.realSuccessProbability PiDECInputCheck.relation productionAjtaiKey
+    (distribution : PMF (Visit × Option (NifsRealSuccess.RealOutput PiDECInputCheck.relation))) :
+    NifsRealSuccess.realSuccessProbability PiDECInputCheck.relation productionAjtaiKey
       (PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup)
       (fun visit => PiCCSInputCheck.running (inputs visit))
       (fun visit => PiCCSInputCheck.fresh (inputs visit)) distribution =
       (distribution.toOuterMeasure {sample |
-        FiatShamirTransfer.RealSuccess PiDECInputCheck.relation productionAjtaiKey
+        NifsRealSuccess.RealSuccess PiDECInputCheck.relation productionAjtaiKey
           (PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup)
           (PiCCSInputCheck.running (inputs sample.1)) (PiCCSInputCheck.fresh (inputs sample.1))
           sample.2}).toReal := by
-  unfold FiatShamirTransfer.realSuccessProbability
+  unfold NifsRealSuccess.realSuccessProbability
   rw [PMF.toOuterMeasure_apply, ENNReal.tsum_toReal_eq (fun sample => by
-    by_cases success : FiatShamirTransfer.RealSuccess PiDECInputCheck.relation productionAjtaiKey
+    by_cases success : NifsRealSuccess.RealSuccess PiDECInputCheck.relation productionAjtaiKey
         (PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup)
         (PiCCSInputCheck.running (inputs sample.1)) (PiCCSInputCheck.fresh (inputs sample.1)) sample.2
     · simpa only [Set.indicator, Set.mem_setOf_eq, if_pos success] using
@@ -210,7 +210,7 @@ private theorem realSuccessProbability_eq_event
       exact ENNReal.zero_ne_top)]
   apply tsum_congr
   intro sample
-  by_cases success : FiatShamirTransfer.RealSuccess PiDECInputCheck.relation productionAjtaiKey
+  by_cases success : NifsRealSuccess.RealSuccess PiDECInputCheck.relation productionAjtaiKey
       (PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup)
       (PiCCSInputCheck.running (inputs sample.1)) (PiCCSInputCheck.fresh (inputs sample.1)) sample.2
   · simp only [Set.indicator, Set.mem_setOf_eq, if_pos success]
@@ -222,7 +222,7 @@ arbitrary; success of its earlier returns is checked by the analytical mark. -/
 theorem realSuccessProbability_eq_goodActive
     (source : Statement → Payload → PMF SourceResult)
     (initial : PMF (Statement × Envelope)) (steps : Nat) :
-    FiatShamirTransfer.realSuccessProbability PiDECInputCheck.relation productionAjtaiKey
+    NifsRealSuccess.realSuccessProbability PiDECInputCheck.relation productionAjtaiKey
       (PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup)
       (fun visit => PiCCSInputCheck.running (inputs visit))
       (fun visit => PiCCSInputCheck.fresh (inputs visit))

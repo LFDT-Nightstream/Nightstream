@@ -1,16 +1,13 @@
-import NightstreamFPrime.Export.Stage1.NifsFiatShamir
 import NightstreamFPrime.Spec.Folding.Nifs.SequentialObservationLaw
 import NightstreamFPrime.Lifecycle.Nifs.AdaptiveBinding
 import NightstreamFPrime.Lifecycle.Nifs.AdaptiveBindingRun
 import NightstreamFPrime.Lifecycle.Nifs.AdaptiveBindingLaw
 import NightstreamFPrime.Lifecycle.Nifs.AdaptiveBindingProbability
 import NightstreamFPrime.Lifecycle.Nifs.AdaptiveBindingWork
-import NightstreamFPrime.Export.Stage1.NifsClosure
 import NightstreamFPrime.Export.Stage1.NifsProviderLaw
-import NightstreamFPrime.Export.Stage1.NifsInvalidSource
 import NightstreamFPrime.Lifecycle.Nifs.VerifierErrorBudget
 import NightstreamFPrime.Export.Stage1.PiRLCExtractionPrimitives
-import NightstreamFPrime.Export.Stage1.FiatShamirTransfer
+import NightstreamFPrime.Export.Stage1.NifsRealSuccess
 import NightstreamFPrime.Export.Stage1.PiCCSStoredSourceProbability
 import NightstreamFPrime.Export.Stage1.NifsBinding
 import NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixEntry
@@ -408,9 +405,6 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.AdaptiveBindingWork.prepared_expected_work_bound
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.AdaptiveBindingWork.prepared_expected_work_polynomial_bound
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.SupportedExtraction.returned_source_bound_with_adaptive_msis
-#audit_axioms NightstreamFPrime.Export.Stage1.FiatShamirTransfer.returned_source_bound_with_adaptive_msis
-#audit_axioms NightstreamFPrime.Export.Stage1.NifsClosure.source_probability_linear_bound
-#audit_axioms NightstreamFPrime.Export.Stage1.NifsProviderLaw.source_probability_linear_bound
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.BindingProbability.binding_le_success
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.BindingWork.postClock_range
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.BindingWork.suffixLaw_eq_workLaw
@@ -514,11 +508,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSStoredSourceProbability.returnedSourceProbability_eq_finishValue
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSStoredSourceProbability.returnedSourceProbability_eq_sourceProbability
 
-#audit_axioms NightstreamFPrime.Export.Stage1.FiatShamirTransfer.realSuccess_implies_exact_children
-#audit_axioms NightstreamFPrime.Export.Stage1.FiatShamirTransfer.returned_source_bound_with_binding
-#audit_axioms NightstreamFPrime.Export.Stage1.FiatShamirTransfer.returned_source_bound_with_msis
-#audit_axioms NightstreamFPrime.Export.Stage1.FiatShamirTransfer.returned_source_bound_of_msis
-#audit_axioms NightstreamFPrime.Export.Stage1.FiatShamirTransfer.prepared_probability_and_expected_work
+#audit_axioms NightstreamFPrime.Export.Stage1.NifsRealSuccess.realSuccess_implies_exact_children
 
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCExtractionPrimitives.program_correct
 
@@ -526,9 +516,6 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.VerifierErrorBudget.test_error_eq_selected
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.SelectedTestNumerator.numerator_eq
 
-#audit_axioms NightstreamFPrime.Export.Stage1.NifsFiatShamir.finishValue_probability_and_expected_work
-#audit_axioms NightstreamFPrime.Export.Stage1.NifsInvalidSource.source_event_probability_eq_zero
-#audit_axioms NightstreamFPrime.Export.Stage1.NifsInvalidSource.real_success_bound_of_invalid_source
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheck.allFin_eq_true
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheck.matrixRow_eq
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheck.evaluateRows_eq
@@ -541,9 +528,4 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries
 #audit_axioms NightstreamFPrime.Export.Stage1.NifsExtractionProvider.parentChecker_spec
 #audit_axioms NightstreamFPrime.Export.Stage1.NifsExtractionProvider.batchAt_eq
 #audit_axioms NightstreamFPrime.Export.Stage1.NifsExtractionProvider.continuationAt
-#audit_axioms NightstreamFPrime.Export.Stage1.NifsClosure.finishValue_probability_and_expected_work
-#audit_axioms NightstreamFPrime.Export.Stage1.NifsProviderLaw.source_law_eq_supported_extension
 
-#audit_axioms NightstreamFPrime.Export.Stage1.FiatShamirTransfer.FiatShamirModel.of_blockOracle
-#audit_axioms NightstreamFPrime.Export.Stage1.FiatShamirTransfer.samplerTransferError_sum
-#audit_axioms NightstreamFPrime.Export.Stage1.NifsClosure.source_probability_linear_bound_with_sampler

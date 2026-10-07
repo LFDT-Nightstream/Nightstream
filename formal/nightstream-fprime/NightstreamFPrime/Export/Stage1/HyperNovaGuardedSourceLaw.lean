@@ -105,7 +105,7 @@ theorem guardedPrefix_abort {State : Type*}
 /-- The actual local proof and current child witnesses on the good active
 branch. Every other visit remains present with an absent real output. -/
 noncomputable def realOutput (visit : Visit) :
-    Option (FiatShamirTransfer.RealOutput relation) :=
+    Option (NifsRealSuccess.RealOutput relation) :=
   if goodActive visit then
     match visit.1 with
     | some (_, .recursive payload) => some (HyperNovaRealInput.output payload)
@@ -119,14 +119,14 @@ theorem realOutput_off (visit : Visit) (inactive : ¬ goodActive visit) :
 
 /-- The normalized real experiment keeps the entire supplied visited law. -/
 noncomputable def realLaw (contexts : PMF Visit) :
-    PMF (Visit × Option (FiatShamirTransfer.RealOutput relation)) :=
+    PMF (Visit × Option (NifsRealSuccess.RealOutput relation)) :=
   contexts.map (fun visit => (visit, realOutput visit))
 
 /-- The guarded real experiment retains stopped, rejected and abort contexts
 with their original mass; it performs no conditioning. -/
 theorem realLaw_context_marginal (contexts : PMF Visit) :
-    FiatShamirTransfer.contextLaw relation (realLaw contexts) = contexts := by
-  rw [FiatShamirTransfer.contextLaw, realLaw, PMF.map_comp]
+    NifsRealSuccess.contextLaw relation (realLaw contexts) = contexts := by
+  rw [NifsRealSuccess.contextLaw, realLaw, PMF.map_comp]
   exact PMF.map_id contexts
 
 /-- The existing sequential law at one context draws the same public coins,

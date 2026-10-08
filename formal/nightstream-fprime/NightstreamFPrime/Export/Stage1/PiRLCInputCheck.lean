@@ -98,7 +98,7 @@ theorem sampled_fixedWidthAccepted (input : Input)
     (returned : sampled input = some batch) :
     (PiCCSInputCheck.probe input).FixedWidthAccepted ConcreteCarrier.extensionOps K.embed
       ((ProductionKey.key relation ajtai).statement
-        (PiCCSInputCheck.running input) (PiCCSInputCheck.fresh input)) 9 :=
+        (PiCCSInputCheck.running input) (PiCCSInputCheck.fresh input)) 8 :=
   (PiCCSInputCheck.execute_accepted_iff input relation ajtai).mp
     (sampled_response input batch returned).1
 

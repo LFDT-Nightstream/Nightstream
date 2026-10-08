@@ -27,13 +27,13 @@ def tagWords : List FixedWord :=
     ⟨index.val, stateDomainTag.getD index.val 0⟩
 
 def runningGroupStart (source : Nat) : Nat :=
-  40 + cubeVariables * 2 + source * 2325
+  40 + cubeVariables * 2 + source * 2001
 
 def runningPrefixWords : List FixedWord :=
   (List.finRange productionShape.runningCount).flatMap fun source =>
     [⟨runningGroupStart source.val, Poseidon2.ofNat 1188⟩,
       ⟨runningGroupStart source.val + 1189, Poseidon2.ofNat 270⟩,
-      ⟨runningGroupStart source.val + 1460, Poseidon2.ofNat 864⟩]
+      ⟨runningGroupStart source.val + 1460, Poseidon2.ofNat 540⟩]
 
 /-- All fixed tag, block-length, and program-counter words. -/
 def fixedWords : List FixedWord :=
@@ -42,7 +42,7 @@ def fixedWords : List FixedWord :=
       ⟨29, Poseidon2.ofNat 4⟩,
       ⟨34, Poseidon2.ofNat 4⟩,
       ⟨39, Poseidon2.ofNat (cubeVariables * 2)⟩] ++
-    runningPrefixWords ++ [⟨37296, Poseidon2.ofNat 1⟩]
+    runningPrefixWords ++ [⟨32112, Poseidon2.ofNat 1⟩]
 
 def contextWordStart : Nat := 24
 
@@ -57,14 +57,14 @@ theorem fixedWords_length : fixedWords.length = 76 := by
   simp [fixedWords, tagWords_length, runningPrefixWords_length]
 
 theorem fixedWord_index_lt (word : FixedWord) (member : word ∈ fixedWords) :
-    word.index < 37297 := by
+    word.index < 32113 := by
   simp only [fixedWords, List.mem_append] at member
   rcases member with ((tagMember | fixedMember) | runningMember) | pcMember
   · rw [tagWords, List.mem_map] at tagMember
     rcases tagMember with ⟨index, _indexMember, rfl⟩
     have bound := index.isLt
     have tagLength := stateDomainTag_length
-    change index.val < 37297
+    change index.val < 32113
     omega
   · simp only [List.mem_cons, List.not_mem_nil, or_false] at fixedMember
     rcases fixedMember with rfl | rfl | rfl | rfl <;> norm_num

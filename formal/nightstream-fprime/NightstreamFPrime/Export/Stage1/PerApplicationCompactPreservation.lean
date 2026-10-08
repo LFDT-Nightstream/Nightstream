@@ -215,7 +215,7 @@ private theorem samplerColumn_private (column : Nat)
     (upper : column < PiRLCStarts.commitmentLogicalStart) :
     Spartan.sourceToSpartan column < basePackage.layout.constantColumn := by
   have sourceLocal : Spartan.piCcsPhaseOffset ≤ column := by
-    have lowerValue : 8688741 ≤ column := by
+    have lowerValue : 7207123 ≤ column := by
       simpa [PiRLCStarts.phaseLogicalStart,
         NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset] using lower
     norm_num [Spartan.piCcsPhaseOffset] at lowerValue ⊢
@@ -225,8 +225,8 @@ private theorem samplerColumn_private (column : Nat)
   · norm_num [basePackage, Data.circuitPackage_layout, Data.physicalLayout,
       Spartan.piCcsLocalStart, Spartan.piCcsPhaseOffset,
       Spartan.constantColumn] at sourceLocal ⊢
-    have upperValue : column < 8761280 := by
-      change column < 8761280 at upper
+    have upperValue : column < 7279662 := by
+      change column < 7279662 at upper
       exact upper
     omega
 
@@ -239,7 +239,7 @@ private theorem samplerRange_compatible
     CompactRangeCompatible program
       ⟨inputStart, inputCount, Spartan.sourceToSpartan sourceStart, stride⟩ := by
   have sourceLocal : Spartan.piCcsPhaseOffset ≤ sourceStart := by
-    have lowerValue : 8688741 ≤ sourceStart := by
+    have lowerValue : 7207123 ≤ sourceStart := by
       simpa [PiRLCStarts.phaseLogicalStart,
         NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset] using sourceLower
     norm_num [Spartan.piCcsPhaseOffset] at lowerValue ⊢
@@ -258,7 +258,7 @@ private theorem piRlcFreshInterval_private (sourceStart count : Nat)
     (sourceUpper : sourceStart + count ≤ PiRLCStarts.outputFreshStart) :
     Spartan.sourceToSpartan sourceStart + count ≤
       basePackage.layout.constantColumn := by
-  have outputValue : PiRLCStarts.outputFreshStart = 14724302 := by rfl
+  have outputValue : PiRLCStarts.outputFreshStart = 12410976 := by rfl
   rw [outputValue] at sourceUpper
   have affine := Spartan.sourceToSpartan_add_of_piCcsLocal sourceStart count
     sourceLocal
@@ -371,8 +371,8 @@ private theorem combination_layout
         unfold PiRLCCombinationInvocations.challengeSourceStart
         rw [PiRLCStarts.challengeWordStart_eq]
         have sourceLt := source.isLt
-        rw [show PiRLCStarts.phaseLogicalStart = 8688741 by rfl,
-          show PiRLCStarts.commitmentLogicalStart = 8761280 by rfl]
+        rw [show PiRLCStarts.phaseLogicalStart = 7207123 by rfl,
+          show PiRLCStarts.commitmentLogicalStart = 7279662 by rfl]
         norm_num [PiRLCCombinationInvocations.sourceCount, ringDegree]
           at sourceLt offsetLt ⊢
         omega
@@ -520,7 +520,7 @@ private theorem evalKValueRange_compatible
 private theorem evalAValueRange_compatible
     (program : Lifecycle.Stage1.Application.Program)
     (source : Fin PiRLCCombinationInvocations.sourceCount)
-    (block : Fin 7) (cell : Fin 2) :
+    (block : Fin 4) (cell : Fin 2) :
     CompactRangeCompatible program
       { inputStart := PiRLCCombinationTemplates.valueInputStart
         inputCount := ringDegree
@@ -572,7 +572,7 @@ private theorem commitment_layout
         lane) := by
   apply combination_layout
   · exact PiRLCCombinationInvocations.commitmentFreshStart_local
-  · change 8803202 + 17 * (22 * 1 * 8100) ≤ 14724302
+  · change 7316076 + 17 * (22 * 1 * 8100) ≤ 12410976
     norm_num
   · exact commitmentValueRange_compatible program source block cell
 
@@ -589,7 +589,7 @@ private theorem publicInput_layout
         lane) := by
   apply combination_layout
   · exact PiRLCCombinationInvocations.publicInputFreshStart_local
-  · change 11832602 + 17 * (5 * 1 * 8100) ≤ 14724302
+  · change 10345476 + 17 * (5 * 1 * 8100) ≤ 12410976
     norm_num
   · exact publicInputValueRange_compatible program source block cell
 
@@ -606,24 +606,24 @@ private theorem evalK_layout
         lane) := by
   apply combination_layout
   · exact PiRLCCombinationInvocations.evalKFreshStart_local
-  · change 12521102 + 17 * (1 * 2 * 8100) ≤ 14724302
+  · change 11033976 + 17 * (1 * 2 * 8100) ≤ 12410976
     norm_num
   · exact evalKValueRange_compatible program source block cell
 
 private theorem evalA_layout
     (program : Lifecycle.Stage1.Application.Program)
     (source : Fin PiRLCCombinationInvocations.sourceCount)
-    (block : Fin 7) (lane : Fin ringDegree) (cell : Fin 2) :
+    (block : Fin 4) (lane : Fin ringDegree) (cell : Fin 2) :
     CompactInvocationPrivate program
       (PiRLCCombinationInvocations.invocation
         PiRLCStarts.evalALogicalStart PiRLCStarts.evalARowStart
-        PiRLCStarts.evalAFreshStart 7 2 2 source.val block.val lane.val
+        PiRLCStarts.evalAFreshStart 4 2 2 source.val block.val lane.val
         cell.val PiRLCCombinationInvocations.evalAValueSourceStart)
       (NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep.laneFreshCount
         lane) := by
   apply combination_layout
   · exact PiRLCCombinationInvocations.evalAFreshStart_local
-  · change 12796502 + 17 * (7 * 2 * 8100) ≤ 14724302
+  · change 11309376 + 17 * (4 * 2 * 8100) ≤ 12410976
     norm_num
   · exact evalAValueRange_compatible program source block cell
 
@@ -790,7 +790,7 @@ theorem combinationRows
       (fun source block lane cell => evalK_layout program source block lane cell)
       invocation evalKMember template templateEquation row rowMember
   · exact combinationFamilyRows program PiRLCStarts.evalALogicalStart
-      PiRLCStarts.evalARowStart PiRLCStarts.evalAFreshStart 7 2 2
+      PiRLCStarts.evalARowStart PiRLCStarts.evalAFreshStart 4 2 2
       PiRLCCombinationInvocations.evalAValueSourceStart
       (fun source block lane cell => evalA_layout program source block lane cell)
       invocation evalAMember template templateEquation row rowMember

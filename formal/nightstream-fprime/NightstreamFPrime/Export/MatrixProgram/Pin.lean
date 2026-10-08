@@ -11,13 +11,9 @@ open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 
 def Block.format : Format Block where
-  encode := fun block => .array [
-    .atom block.oneColumn,
-    (list WireForm.format).encode block.values]
-  decode
-    | .array [.atom oneColumn, values] => do
-        pure ⟨oneColumn, ← (list WireForm.format).decode values⟩
-    | _ => .error "invalid pin matrix block"
+  encode := fun block => (list WireForm.format).encode block.values
+  decode := fun value => do
+    pure ⟨← (list WireForm.format).decode value⟩
   decode_encode := by
     intro block
     cases block

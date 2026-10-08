@@ -14,7 +14,7 @@ Child order:
 2. strict parent bound and canonical 16-child public split;
 3. commitment recomposition;
 4. separate Pad `Eval_K` recomposition;
-5. separate 7-matrix `Eval_A` recomposition;
+5. separate 4-matrix `Eval_A` recomposition;
 6. zero-row computed-output binding.
 
 The parent owns only shared-value wiring, offsets, operation order, and child

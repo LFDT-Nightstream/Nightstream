@@ -260,7 +260,7 @@ private theorem ccsAtMessage_eq_fresh
 
 /-- The exact source-derived polynomial with zero running openings reduces
 to one fresh CCS residual and one fresh strict-norm residual. The fixed
-`gamma^6912` offset is preserved. -/
+`gamma^4320` offset is preserved. -/
 theorem qAtPoint_eq_fresh
     (runningZero : ∀ index column,
       data.assignments (runningSourceIndex index) column = 0)
@@ -269,7 +269,7 @@ theorem qAtPoint_eq_fresh
       (data.toUnifiedInputs baseOps)
     let message := ProtocolPolynomial.messageAt extensionOps protocol point
     ProtocolPolynomial.qAtPoint extensionOps protocol alpha gamma point =
-      SignedJointIdentity.gammaTerm extensionOps gamma 6912
+      SignedJointIdentity.gammaTerm extensionOps gamma 4320
         (extensionOps.mul (SumCheckTruthPath.pointEquality extensionOps point alpha)
           (extensionOps.add
             (CCSResidualTable.evaluatePolynomial extensionOps protocol.constraintPolynomial

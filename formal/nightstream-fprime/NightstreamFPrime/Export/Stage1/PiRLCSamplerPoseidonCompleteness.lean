@@ -437,7 +437,7 @@ theorem rowsZero_of_completed
   have encoding := PiRLCSamplerPoseidonPreservation.encodingOfRetained geometry raw.assignment
     raw.retainedSource _ (PerApplicationCanonicalEncodes.retainedEncodes raw).laterPoseidon
   have one := PerApplicationCanonicalAssignment.assignment_one raw
-  apply PiRLCSamplerPoseidonPlan.equations_imply_rowsZero geometry raw.assignment one
+  apply PiRLCSamplerPoseidonPlan.equations_imply_rowsZero geometry raw.assignment
   intro current
   let decoded := PiRLCSamplerPoseidonPlan.descriptor current
   have same : PiRLCSamplerPoseidonPlan.invocation decoded.1 decoded.2 = current :=

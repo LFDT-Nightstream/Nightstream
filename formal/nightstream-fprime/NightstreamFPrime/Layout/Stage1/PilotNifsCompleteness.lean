@@ -174,7 +174,7 @@ private theorem external_outside_pilot (index : Nat)
 variable
   (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
-  (template : Proof 9)
+  (template : Proof 8)
 
 /-- Actual hash and NIFS acceptance construct the existing pilot and C/R/D
 rows in one final environment. The initial source values and accepted NIFS

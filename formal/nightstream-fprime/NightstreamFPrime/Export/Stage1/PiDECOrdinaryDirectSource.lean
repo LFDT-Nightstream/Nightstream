@@ -5,7 +5,7 @@ import NightstreamFPrime.Layout.Stage1.SpartanBounds
 
 /-!
 Owns indexed access to the four nonempty canonical PiDEC row packets for the
-direct 7-matrix compiler. Each packet keeps its own proved expression support;
+direct 4-matrix compiler. Each packet keeps its own proved expression support;
 the exact R1CS append law fixes their combined order.
 -/
 

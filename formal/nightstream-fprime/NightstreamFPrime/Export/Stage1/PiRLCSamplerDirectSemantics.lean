@@ -120,8 +120,6 @@ theorem endpointRows_imply_piCcsFinalState
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
-    (one : assignment
-      (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
       assignment (PiRLCRetainedPreservation.sourceAssignment program base
         groupValue))
@@ -154,7 +152,7 @@ theorem endpointRows_imply_piCcsFinalState
                 relationPublicFits)
               PiCCSInvocations.outputWitnessStart)) :=
       PiCCSTranscriptEndpointPlan.outputEndpoint_eq_finalEval poseidonGeometry
-        ordinaryGeometry assignment base groupValue one encoding
+        ordinaryGeometry assignment base groupValue encoding
         rowsZero
     _ = List.ofFn
           (NightstreamFPrime.Gadgets.Poseidon2.Layer.evalState
@@ -284,8 +282,6 @@ theorem previousValue_entry_eq_chainStateFn
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
-    (one : assignment
-      (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
       assignment (PiRLCRetainedPreservation.sourceAssignment program base
         groupValue))
@@ -311,7 +307,7 @@ theorem previousValue_entry_eq_chainStateFn
     apply List.ofFn_injective
     have endpoint := endpointRows_imply_piCcsFinalState relation
       (PiRLCSamplerOrdinaryDirectPlan.poseidonGeometry samplerGeometry)
-      ordinaryGeometry samplerGeometry assignment base groupValue one encoding endpointRows
+      ordinaryGeometry samplerGeometry assignment base groupValue encoding endpointRows
     simpa [PiRLCSamplerPoseidonPreservation.previousValue,
       PiRLCSamplerPoseidonPlan.invocation, Fin.encodeProd, SamplerChain.stateAtExpr,
       PiRLCSamplerRows.samplerInterface, PiRLCSamplerRows.sharedInterface,
@@ -344,8 +340,6 @@ theorem canonicalInput_entry
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
-    (one : assignment
-      (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
       assignment (PiRLCRetainedPreservation.sourceAssignment program base
         groupValue))
@@ -369,7 +363,7 @@ theorem canonicalInput_entry
               PiRLCStarts.samplerLogicalStart source.val) lane +
           PiRLCSamplerPoseidonPlan.entryWord source lane := by
   have previous := previousValue_entry_eq_chainStateFn relation
-    ordinaryGeometry samplerGeometry assignment base groupValue one
+    ordinaryGeometry samplerGeometry assignment base groupValue
     encoding endpointRows source
   unfold PiRLCSamplerPoseidonPreservation.canonicalInput
   rw [PiRLCSamplerPoseidonPlan.descriptor_invocation]
@@ -410,8 +404,6 @@ theorem canonicalSemantics_imply_entry
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
-    (one : assignment
-      (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
       assignment (PiRLCRetainedPreservation.sourceAssignment program base
         groupValue))
@@ -462,7 +454,7 @@ theorem canonicalSemantics_imply_entry
               assignment
               (PiRLCSamplerPoseidonPlan.invocation source ⟨0, by decide⟩))) := by
       rw [canonicalInput_entry relation ordinaryGeometry samplerGeometry
-        assignment base groupValue one encoding endpointRows source]
+        assignment base groupValue encoding endpointRows source]
     _ = List.ofFn
           (PiRLCSamplerPoseidonPreservation.outputValue
             (PiRLCSamplerOrdinaryDirectPlan.poseidonGeometry samplerGeometry)

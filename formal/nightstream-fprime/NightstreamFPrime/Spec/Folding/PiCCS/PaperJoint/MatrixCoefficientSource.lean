@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.UnifiedSources
 
 /-! Provenance: adapted from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/MatrixCoefficientSource.lean`
 at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; split into the
-SuperNeo v1.2 canonical Pad and 7-matrix coefficient sources. -/
+SuperNeo v1.2 canonical Pad and 4-matrix coefficient sources. -/
 
 /-!
 One authoritative source for the canonical Pad and every CCS ring-matrix

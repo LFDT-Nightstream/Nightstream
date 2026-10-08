@@ -4,7 +4,7 @@ import NightstreamFPrime.Export.Stage1.RunningTransitionDirectPlan
 import NightstreamFPrime.Layout.PiDEC.v1_2.Preservation
 
 /-!
-Owns the executable retained-source resolver and direct 7-matrix plan for the
+Owns the executable retained-source resolver and direct 4-matrix plan for the
 four nonempty canonical PiDEC row packets. It does not append the plan to the
 final Stage 1 package or close PiDEC conformance.
 -/
@@ -870,7 +870,7 @@ theorem rowsZero_iff_canonicalRowsHold
         (R1CS.RowsHold (RunningTransitionDirectPlan.transitionEnv application base))
         PiDECOrdinaryDirectSource.sourceRows_eq_canonical)
 
-/-- Acceptance by the direct 7-matrix plan implies the exact PiDEC phase
+/-- Acceptance by the direct 4-matrix plan implies the exact PiDEC phase
 predicate under the existing formal input assumptions. -/
 theorem rowsZero_implies_phaseHolds
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}

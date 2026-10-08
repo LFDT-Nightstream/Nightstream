@@ -121,7 +121,7 @@ variable {Context Tape : Type*}
   (fresh : Context → Lifecycle.Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
   [Fintype (Challenge (ProductionKey.key relation ajtai).piRlcAlgebra)]
   [Nonempty (Challenge (ProductionKey.key relation ajtai).piRlcAlgebra)]
-  (originalFirstPhase : Context → InteractivePrefix.Prover State productionShape 9)
+  (originalFirstPhase : Context → InteractivePrefix.Prover State productionShape 8)
   (publicCheck : Context → Probe K productionShape → Bool)
   (continuation : ∀ context (coins : PublicCoins K productionShape)
     (output : FullOutputCoordinates.FullOutput K productionShape), State →
@@ -178,7 +178,7 @@ theorem checkedMean_eq_rate (context : Context) :
 
 /-- The first call uses the exact relaxed-success rate at this context. -/
 theorem rate_eq (context : Context)
-    (sourceCorrect : CheckedWitnessExtraction.Correct (width := 9) sourceProgram
+    (sourceCorrect : CheckedWitnessExtraction.Correct (width := 8) sourceProgram
       (PaperAlgebra.openingMaps ajtai).commit productionGlobalParams
       ((ProductionKey.key relation ajtai).statement (running context) (fresh context))) :
     AdaptiveBindingLaw.rate relation ajtai program sourceProgram
@@ -189,7 +189,7 @@ theorem rate_eq (context : Context)
         (SequentialObservationLaw.law
           (InteractiveComposition.firstPhase originalFirstPhase publicCheck context)
           (InteractiveComposition.suffixLaw relation ajtai running fresh continuation context) observation).toReal *
-        (if StrongProbability.RelaxedSuccess (width := 9) (PaperAlgebra.openingMaps ajtai)
+        (if StrongProbability.RelaxedSuccess (width := 8) (PaperAlgebra.openingMaps ajtai)
           productionGlobalParams ((ProductionKey.key relation ajtai).statement (running context) (fresh context))
           (PaperCompositionAgreement.outputOf (InteractiveComposition.consume relation ajtai program context)
             observation) then (1 : ℝ) else 0) := by
@@ -198,7 +198,7 @@ theorem rate_eq (context : Context)
   apply tsum_congr
   intro observation
   have checked : (AdaptiveBinding.check relation ajtai program sourceProgram observation).value = true ↔
-      StrongProbability.RelaxedSuccess (width := 9) (PaperAlgebra.openingMaps ajtai)
+      StrongProbability.RelaxedSuccess (width := 8) (PaperAlgebra.openingMaps ajtai)
         productionGlobalParams ((ProductionKey.key relation ajtai).statement (running context) (fresh context))
         (PaperCompositionAgreement.outputOf (InteractiveComposition.consume relation ajtai program context)
           observation) :=
@@ -358,7 +358,7 @@ include strongSet correct in
 success after both acceptance gates. Division uses this same context's rate. -/
 theorem local_retryDisagreement_le_success (context : Context)
     (accessCorrect : CostedWitnessProjection.Correct sourceProgram.access)
-    (sourceCorrect : CheckedWitnessExtraction.Correct (width := 9) sourceProgram
+    (sourceCorrect : CheckedWitnessExtraction.Correct (width := 8) sourceProgram
       (PaperAlgebra.openingMaps ajtai).commit productionGlobalParams
       ((ProductionKey.key relation ajtai).statement (running context) (fresh context))) :
     StrongProbability.retryDisagreementProbability
@@ -389,7 +389,7 @@ theorem local_retryDisagreement_le_success (context : Context)
     exact (continuation context probe.coins probe.response.fullOutput state).parentChecker_spec response
   have numerator :
       PaperCompositionAgreement.pairMean firstPhase suffixLaw (fun left right =>
-        if StrongProbability.SuccessfulDisagreement (width := 9) (PaperAlgebra.openingMaps ajtai)
+        if StrongProbability.SuccessfulDisagreement (width := 8) (PaperAlgebra.openingMaps ajtai)
           productionGlobalParams ((ProductionKey.key relation ajtai).statement (running context) (fresh context))
           (PaperCompositionAgreement.outputOf (InteractiveComposition.consume relation ajtai program context) left)
           (PaperCompositionAgreement.outputOf (InteractiveComposition.consume relation ajtai program context) right)
@@ -399,7 +399,7 @@ theorem local_retryDisagreement_le_success (context : Context)
       originalFirstPhase publicCheck continuation context, ← PaperCompositionAgreement.pairMean_mul_const]
     apply PaperCompositionAgreement.pairMean_mono
     intro left right leftSupported rightSupported
-    by_cases disagreement : StrongProbability.SuccessfulDisagreement (width := 9)
+    by_cases disagreement : StrongProbability.SuccessfulDisagreement (width := 8)
         (PaperAlgebra.openingMaps ajtai) productionGlobalParams
         ((ProductionKey.key relation ajtai).statement (running context) (fresh context))
         (PaperCompositionAgreement.outputOf (InteractiveComposition.consume relation ajtai program context) left)
@@ -448,7 +448,7 @@ include strongSet correct in
 the arity times actual adaptive MSIS success under the original context law. -/
 theorem retryDisagreement_le_success (contexts : PMF Context)
     (accessesCorrect : ∀ context, CostedWitnessProjection.Correct (sourcePrograms context).access)
-    (sourcesCorrect : ∀ context, CheckedWitnessExtraction.Correct (width := 9) (sourcePrograms context)
+    (sourcesCorrect : ∀ context, CheckedWitnessExtraction.Correct (width := 8) (sourcePrograms context)
       (PaperAlgebra.openingMaps ajtai).commit productionGlobalParams
       ((ProductionKey.key relation ajtai).statement (running context) (fresh context))) :
     PaperCompositionProbability.retryDisagreementProbability contexts

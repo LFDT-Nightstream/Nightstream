@@ -198,7 +198,7 @@ section Provider
 
 variable {Context State Tape : Type*}
   (inputs : Context → PiCCSInputCheck.Input) (contexts : PMF Context)
-  (firstPhase : Context → InteractivePrefix.Prover State productionShape 9)
+  (firstPhase : Context → InteractivePrefix.Prover State productionShape 8)
 
 /-- The literal receipt supplies the new point and all 17 evaluation claims.
 Commitments, public inputs and the relation come from the selected statement.

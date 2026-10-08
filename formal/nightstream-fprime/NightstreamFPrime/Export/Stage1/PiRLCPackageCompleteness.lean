@@ -264,7 +264,7 @@ theorem completePackets
         phaseInterface PiRLCInputs.phaseOffset (Spartan.pullback env)) :
     ∃ completed,
       AgreesOutside env completed
-          (Spartan.sourceToSpartan PiRLCInputs.phaseOffset) 6035561 ∧
+          (Spartan.sourceToSpartan PiRLCInputs.phaseOffset) 5203853 ∧
         RemappedPacketRowsHold completed := by
   rcases PiRLCPhysicalCompleteness.completePhysicalRows relation ajtai env
       assumptions phase with ⟨completed, agrees, physical⟩

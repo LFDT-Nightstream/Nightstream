@@ -29,7 +29,7 @@ def prefixStarts : Nat → List Nat → List Nat
   | base, delta :: deltas => base :: prefixStarts (base + delta) deltas
 
 /-- The completed pilot owns the physical row prefix. -/
-def rowBase : Nat := 6817806
+def rowBase : Nat := 5870862
 
 theorem rowBase_eq_layout :
     rowBase = Pilot.physicalRowCount PilotProduction.interface
@@ -41,13 +41,13 @@ def statementAbsorptionRowStart : Nat := statementBindingRowStart + 160
 def challengeRowStart : Nat := statementAbsorptionRowStart + 140288
 def roundTranscriptRowStart : Nat := challengeRowStart + 95352
 def initialClaimRowStart : Nat := roundTranscriptRowStart + 153440
-def sumcheckRowStart : Nat := initialClaimRowStart + 20733
-def evalKRowStart : Nat := sumcheckRowStart + 812
+def sumcheckRowStart : Nat := initialClaimRowStart + 12957
+def evalKRowStart : Nat := sumcheckRowStart + 728
 def evalARowStart : Nat := evalKRowStart + 3364
-def ccsRowStart : Nat := evalARowStart + 18916
-def normRowStart : Nat := ccsRowStart + 56
+def ccsRowStart : Nat := evalARowStart + 11140
+def normRowStart : Nat := ccsRowStart + 23
 def finalIdentityRowStart : Nat := normRowStart + 800
-def outputBindingRowStart : Nat := finalIdentityRowStart + 3602
+def outputBindingRowStart : Nat := finalIdentityRowStart + 3593
 
 /-- Row starts in the exact twelve-child parent order. -/
 def rowStarts : List Nat :=
@@ -62,29 +62,29 @@ def statementWitnessStart : Nat := PiCCSInputs.phaseOffset
 def challengeWitnessStart : Nat := statementWitnessStart + 140288
 def roundTranscriptWitnessStart : Nat := challengeWitnessStart + 95352
 def initialClaimLogicalStart : Nat := roundTranscriptWitnessStart + 153440
-def sumcheckLogicalStart : Nat := initialClaimLogicalStart + 20733
-def evalKLogicalStart : Nat := sumcheckLogicalStart + 756
+def sumcheckLogicalStart : Nat := initialClaimLogicalStart + 12957
+def evalKLogicalStart : Nat := sumcheckLogicalStart + 672
 def evalALogicalStart : Nat := evalKLogicalStart + 2699
-def ccsLogicalStart : Nat := evalALogicalStart + 18251
-def normLogicalStart : Nat := ccsLogicalStart + 56
+def ccsLogicalStart : Nat := evalALogicalStart + 10475
+def normLogicalStart : Nat := ccsLogicalStart + 23
 def finalIdentityLogicalStart : Nat := normLogicalStart + 48
-def outputBindingWitnessStart : Nat := finalIdentityLogicalStart + 2726
+def outputBindingWitnessStart : Nat := finalIdentityLogicalStart + 2717
 
-theorem statementWitnessStart_eq : statementWitnessStart = 6908836 := by
+theorem statementWitnessStart_eq : statementWitnessStart = 5945960 := by
   unfold statementWitnessStart
   exact PiCCSInputs.phaseOffset_eq
 
-theorem challengeWitnessStart_eq : challengeWitnessStart = 7049124 := by
+theorem challengeWitnessStart_eq : challengeWitnessStart = 6086248 := by
   unfold challengeWitnessStart
   rw [statementWitnessStart_eq]
 
 theorem roundTranscriptWitnessStart_eq :
-    roundTranscriptWitnessStart = 7144476 := by
+    roundTranscriptWitnessStart = 6181600 := by
   unfold roundTranscriptWitnessStart
   rw [challengeWitnessStart_eq]
 
 theorem outputBindingWitnessStart_eq :
-    outputBindingWitnessStart = 7343185 := by
+    outputBindingWitnessStart = 6364631 := by
   unfold outputBindingWitnessStart finalIdentityLogicalStart
     normLogicalStart ccsLogicalStart evalALogicalStart evalKLogicalStart
     sumcheckLogicalStart initialClaimLogicalStart
@@ -107,7 +107,7 @@ theorem outputBindingWitnessStart_matches
 
 /-- Generic R1CS multiplication columns begin after all PiCCS logical
 variables. -/
-def logicalFreshBase : Nat := PiCCSInputs.phaseOffset + 1776949
+def logicalFreshBase : Nat := PiCCSInputs.phaseOffset + 1258207
 
 theorem logicalFreshBase_eq_layout
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
@@ -115,7 +115,7 @@ theorem logicalFreshBase_eq_layout
       NightstreamFPrime.Layout.PiCCS.v1_2.logicalColumnCount relation
         (PiCCSInputs.interface logicalWidth publicFits)
         PiCCSInputs.phaseOffset := by
-  rw [NightstreamFPrime.Layout.PiCCS.v1_2.logicalColumnCount_eq_of_degreeBound_eq_nine
+  rw [NightstreamFPrime.Layout.PiCCS.v1_2.logicalColumnCount_eq_of_degreeBound_eq_eight
     relation (PiCCSInputs.interface logicalWidth publicFits)
       PiCCSInputs.phaseOffset rfl]
   rfl

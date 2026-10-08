@@ -46,7 +46,7 @@ def productionProfile : ProductionProfile where
   challengeSetBitsFloor := 125
   freshSources := 1
   runningSources := 16
-  ccsMatrices := 7
+  ccsMatrices := 4
 
 /-- Exact size of the five-symbol Phi81 challenge set. This is a count,
 not the rounded bit descriptor or an end-to-end security estimate. -/
@@ -74,7 +74,7 @@ theorem production_parameter_values :
     productionProfile.challengeSetBitsFloor = 125 ∧
     productionProfile.piRlcInputs = 17 ∧
     productionProfile.piDecChildren = 16 ∧
-    productionProfile.ccsMatrices = 7 := by
+    productionProfile.ccsMatrices = 4 := by
   decide
 
 theorem production_norm_stages :

@@ -71,11 +71,11 @@ noncomputable def totalClock : Context → CubePoint K productionShape.cubeVaria
     (parentChecker relation ajtai running fresh continuation) extraction sourceProgram
     (PaperWeakOutput.decode (ProductionKey.key relation ajtai))
 
-variable (originalFirstPhase : Context → InteractivePrefix.Prover State productionShape 9)
+variable (originalFirstPhase : Context → InteractivePrefix.Prover State productionShape 8)
   (publicCheck : Context → Probe K productionShape → Bool)
 
 /-- Public C rejection stops the program before the suffix. -/
-def firstPhase (context : Context) : InteractivePrefix.Prover State productionShape 9 :=
+def firstPhase (context : Context) : InteractivePrefix.Prover State productionShape 8 :=
   InteractivePrefix.checked (originalFirstPhase context) (publicCheck context)
 
 variable (callCorrect : ∀ context alpha gamma point,
@@ -114,12 +114,12 @@ include callCorrect in
 theorem call_returns_accepted
     (publicCheck_spec : ∀ context probe, publicCheck context probe = true ↔
       probe.FixedWidthAccepted extensionOps K.embed
-        ((ProductionKey.key relation ajtai).statement (running context) (fresh context)) 9)
+        ((ProductionKey.key relation ajtai).statement (running context) (fresh context)) 8)
     (context : Context) (alpha : CubePoint K productionShape.cubeVariables) (gamma : K)
     (point : CubePoint K productionShape.cubeVariables) (receipt : Probe K productionShape × State)
     (returned : (call context alpha gamma point).value = some receipt) :
     receipt.1.FixedWidthAccepted extensionOps K.embed
-      ((ProductionKey.key relation ajtai).statement (running context) (fresh context)) 9 := by
+      ((ProductionKey.key relation ajtai).statement (running context) (fresh context)) 8 := by
   have actual : InteractivePrefix.run
       (InteractivePrefix.checked (originalFirstPhase context) (publicCheck context))
       alpha gamma point = some receipt :=

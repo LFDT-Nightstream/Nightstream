@@ -301,7 +301,7 @@ theorem checked_children_imply_rlc_success
         productionGlobalParams (PiDECInputCheck.children values messages child) (assignments child)) :
     (PiCCSInputCheck.probe input).FixedWidthAccepted ConcreteCarrier.extensionOps K.embed
         ((ProductionKey.key PiDECInputCheck.relation Poseidon2HashChainV1Setup.productionAjtaiKey).statement
-          (PiCCSInputCheck.running input) (PiCCSInputCheck.fresh input)) 9 ∧
+          (PiCCSInputCheck.running input) (PiCCSInputCheck.fresh input)) 8 ∧
       ProductionKey.piRlcResponse (PiCCSInputCheck.execute input).outgoing = some batch.challenges ∧
       PiRLC.PaperForkExtraction.Response.Success
         (semantics Poseidon2HashChainV1Setup.productionAjtaiKey) productionGlobalParams

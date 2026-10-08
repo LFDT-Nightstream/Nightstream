@@ -38,8 +38,6 @@ theorem directSampler_imply_specHolds_of_combinationRows
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
-    (one : assignment
-      (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (piCcsEncoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
       assignment (PiRLCRetainedPreservation.sourceAssignment program base
         groupValue))
@@ -82,7 +80,7 @@ theorem directSampler_imply_specHolds_of_combinationRows
         assumptions.sampler
   have samplerChain :=
     PiRLCSamplerFullSemantics.directSemantics_imply_samplerChain relation
-      ordinaryGeometry samplerGeometry assignment base groupValue one
+      ordinaryGeometry samplerGeometry assignment base groupValue
       piCcsEncoding endpointRows ordinaryRows
       poseidonSemantics chainAssumptions
   refine {
@@ -154,8 +152,6 @@ theorem directSampler_imply_specHolds_of_productSemantics
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
-    (one : assignment
-      (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (piCcsEncoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
       assignment (PiRLCRetainedPreservation.sourceAssignment program base
         groupValue))
@@ -202,7 +198,7 @@ theorem directSampler_imply_specHolds_of_productSemantics
         assumptions.sampler
   have samplerChain :=
     PiRLCSamplerFullSemantics.directSemantics_imply_samplerChain relation
-      ordinaryGeometry samplerGeometry assignment base groupValue one
+      ordinaryGeometry samplerGeometry assignment base groupValue
       piCcsEncoding endpointRows ordinaryRows
       poseidonSemantics chainAssumptions
   refine {
@@ -275,8 +271,6 @@ theorem directSampler_imply_phaseHolds_of_combinationRows
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
-    (one : assignment
-      (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (piCcsEncoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
       assignment (PiRLCRetainedPreservation.sourceAssignment program base
         groupValue))
@@ -309,7 +303,7 @@ theorem directSampler_imply_phaseHolds_of_combinationRows
           base)) := by
   apply Semantics.spec_implies_phaseHolds
   exact directSampler_imply_specHolds_of_combinationRows relation
-    ordinaryGeometry samplerGeometry assignment base groupValue one
+    ordinaryGeometry samplerGeometry assignment base groupValue
     piCcsEncoding endpointRows ordinaryRows poseidonSemantics combinationRows assumptions
 
 /-- The self-derived product plan and retained sampler evidence entail the
@@ -330,8 +324,6 @@ theorem directSampler_imply_phaseHolds_of_productSemantics
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
-    (one : assignment
-      (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (piCcsEncoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
       assignment (PiRLCRetainedPreservation.sourceAssignment program base
         groupValue))
@@ -368,7 +360,7 @@ theorem directSampler_imply_phaseHolds_of_productSemantics
           base)) := by
   apply Semantics.spec_implies_phaseHolds
   exact directSampler_imply_specHolds_of_productSemantics relation
-    ordinaryGeometry samplerGeometry assignment base groupValue one
+    ordinaryGeometry samplerGeometry assignment base groupValue
     piCcsEncoding retained endpointRows ordinaryRows poseidonSemantics productSemantics assumptions
 
 end NightstreamFPrime.Export.Stage1.PiRLCDirectPhaseSemantics

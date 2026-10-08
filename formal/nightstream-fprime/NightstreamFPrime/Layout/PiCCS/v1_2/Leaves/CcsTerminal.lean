@@ -4,24 +4,24 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Completeness
 
 /-!
 Paper authority: SuperNeo v1.2, section 7.3, Step 4, `F`.
-Obligation: Lower the materialized evaluation of the fixed 8-term selective
-constraint polynomial over all 7 `Eval_A` matrix images.
+Obligation: Lower the materialized evaluation of the fixed 3-term gate
+constraint polynomial over all 4 `Eval_A` matrix images.
 
 Inputs:
-- 7 selective matrix images;
+- 4 gate matrix images;
 - the relation-owned sparse polynomial. Pad and `Eval_K` do not enter.
 
 Outputs:
 - two child-owned residual wires consumed by final identity.
 
 Constraint groups:
-- C1: three rank-one recipes for each of the 18 stored extension products;
+- C1: three rank-one recipes for each of the 7 stored extension products;
 - C2: two rank-one recipes for the result components.
 
 Parent coverage:
 - `Formal.opsAt`, child `piccs.v1_2.ccs_terminal`.
 
-The structural sparse cost model proves no fresh lowering column and 56
+The structural sparse cost model proves no fresh lowering column and 23
 physical rows. No proof evaluates emitted circuit data.
 -/
 
@@ -58,7 +58,7 @@ theorem output_varsBelow_norm
       (Formal.normOffset relation interface parentOffset)).VarsBelow
         (Formal.normOffset relation interface parentOffset) := by
   have normOffsetEq : Formal.normOffset relation interface parentOffset =
-      Formal.ccsOffset interface parentOffset + 56 := by
+      Formal.ccsOffset interface parentOffset + 23 := by
     calc
       Formal.normOffset relation interface parentOffset =
           Formal.normStart (Formal.atOffset interface parentOffset) :=
@@ -93,7 +93,7 @@ private theorem core_totalRowCount
     (offset : Nat)
     (inputs : InputsLinear (Formal.ccsInterface relation interface) offset) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
-      (Formal.ccsCircuit relation interface).main offset)) = 56 := by
+      (Formal.ccsCircuit relation interface).main offset)) = 23 := by
   unfold Formal.ccsCircuit
   rw [FormalCircuit.withConstantFootprint_main]
   have rows :=
@@ -113,7 +113,7 @@ def footprint
       InputsLinear (Formal.ccsInterface relation interface) offset) :
     R1CS.CircuitFootprint (Formal.ccsCircuit relation interface) where
   freshColumnCount := fun _ => 0
-  physicalRowCount := fun _ => 56
+  physicalRowCount := fun _ => 23
   freshColumnCount_eq := by
     intro offset
     exact core_totalFreshCount relation interface offset (inputs offset)
@@ -138,7 +138,7 @@ theorem physicalRowCount_eq
       InputsLinear (Formal.ccsInterface relation interface) offset)
     (offset : Nat) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
-      (Formal.ccsCircuit relation interface).main offset)) = 56 :=
+      (Formal.ccsCircuit relation interface).main offset)) = 23 :=
   (footprint relation interface inputs).physicalRowCount_eq offset
 
 theorem physicalPrivateColumnCount_eq
@@ -150,10 +150,10 @@ theorem physicalPrivateColumnCount_eq
     localLength (Circuit.ops (Formal.ccsCircuit relation interface).main
         offset) +
       R1CS.totalFreshCount (flatConstraints (Circuit.ops
-        (Formal.ccsCircuit relation interface).main offset)) = 56 := by
+        (Formal.ccsCircuit relation interface).main offset)) = 23 := by
   have logicalColumns :
       localLength (Circuit.ops (Formal.ccsCircuit relation interface).main
-        offset) = 56 := by
+        offset) = 23 := by
     unfold Formal.ccsCircuit
     rw [FormalCircuit.withConstantFootprint_main]
     exact

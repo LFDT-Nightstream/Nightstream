@@ -27,7 +27,6 @@ namespace SboxStep
 def compile {sourceWidth logicalWidth : Nat} (step : SboxStep sourceWidth)
     (sourceMap : SourceCompiler.SourceMap sourceWidth logicalWidth)
     (oneColumn : Fin logicalWidth) : SboxRow.Forms logicalWidth where
-  selector := SparseForm.singleton oneColumn 1
   input := SourceCompiler.compileCombination sourceMap oneColumn
     step.input step.inputBounded
   output := sourceMap.form step.output
@@ -40,8 +39,7 @@ theorem compile_preserves {sourceWidth logicalWidth : Nat}
     (preserves : sourceMap.Preserves assignment source) :
     (step.compile sourceMap oneColumn).Preserves assignment
       (step.input.eval source) (source step.output.val) := by
-  refine ⟨?_, ?_, ?_⟩
-  · simp [compile, one]
+  refine ⟨?_, ?_⟩
   · exact SourceCompiler.compileCombination_eval sourceMap oneColumn
       step.input step.inputBounded assignment source one preserves
   · exact preserves step.output
@@ -81,7 +79,6 @@ def difference {sourceWidth logicalWidth : Nat}
 def compile {sourceWidth logicalWidth : Nat} (step : OutputStep sourceWidth)
     (sourceMap : SourceCompiler.SourceMap sourceWidth logicalWidth)
     (oneColumn : Fin logicalWidth) : PinRow.Forms logicalWidth where
-  selector := SparseForm.singleton oneColumn 1
   value := step.difference sourceMap oneColumn
 
 theorem difference_eval {sourceWidth logicalWidth : Nat}
@@ -106,9 +103,7 @@ theorem compile_preserves {sourceWidth logicalWidth : Nat}
     (preserves : sourceMap.Preserves assignment source) :
     (step.compile sourceMap oneColumn).Preserves assignment
       (source step.output.val - step.linear.eval source) := by
-  constructor
-  · simp [compile, one]
-  · exact step.difference_eval sourceMap oneColumn assignment source one preserves
+  exact step.difference_eval sourceMap oneColumn assignment source one preserves
 
 /-- The compiled output pin is exact under a preserving source map. -/
 theorem residual_zero_iff {sourceWidth logicalWidth : Nat}

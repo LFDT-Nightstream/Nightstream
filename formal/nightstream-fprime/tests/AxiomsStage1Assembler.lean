@@ -122,7 +122,7 @@ import NightstreamFPrime.Layout.MatrixProgram.SourceProjection
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.outputBindingOffset_eq_outputBindingRowOffset
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.finalOffset_eq_finalRowOffset
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.finalRowOffset_eq_add
-#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.finalRowOffset_eq_add_of_degreeBound_eq_nine
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.finalRowOffset_eq_add_of_degreeBound_eq_eight
 #audit_axioms NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal.compileAbsorbWiring_output_cons
 #audit_axioms NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal.compileAbsorbWiring_output_supported_from_start
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBinding.finalState_supported_from_offset

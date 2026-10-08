@@ -4,7 +4,7 @@ import NightstreamFPrime.Spec.Folding.PiRLC.PaperCorrections
 
 /-! Provenance: adapted from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/StrongReduction.lean`
 at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; split into the
-SuperNeo v1.2 Pad and 7-matrix evaluation families. -/
+SuperNeo v1.2 Pad and 4-matrix evaluation families. -/
 
 /-!
 Operational public-coin core of the paper's strong `Pi_CCS` reduction.

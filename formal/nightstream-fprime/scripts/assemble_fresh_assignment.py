@@ -37,7 +37,9 @@ def main():
     next_column = 270
     for row, directory in rows:
         assert row["file"] == f'block-{row["ordinal"]}.bin'
-        assert row["first"] == next_column < row["finish"] <= logical_width
+        # A block kind without slots, such as the PiDEC fresh block, has an empty block.
+        assert row["first"] == next_column <= row["finish"] <= logical_width
+        assert row["first"] < row["finish"] or row["slots"] == 0
         assert (directory / row["file"]).stat().st_size == row["finish"] - row["first"]
         next_column = row["finish"]
     assert next_column == logical_width

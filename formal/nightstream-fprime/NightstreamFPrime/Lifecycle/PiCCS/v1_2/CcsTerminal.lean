@@ -9,8 +9,8 @@ Obligation: Enforce
 `F = sum_(i=1)^K gamma^(i-1) f(ct(y'_(i,1)), ..., ct(y'_(i,t)))`.
 
 Inputs:
-- all 7 fresh CCS-matrix evaluations for the sole production fresh source;
-- the relation-owned selective sparse constraint polynomial.
+- all 4 fresh CCS-matrix evaluations for the sole production fresh source;
+- the relation-owned sparse gate constraint polynomial.
 
 Outputs:
 - the exact symbolic fresh CCS residual term.
@@ -74,7 +74,7 @@ abbrev Assumptions
   Sparse.Owned.Assumptions (polynomial relation) (sparseInterface interface)
     offset env
 
-/-- Named semantic predicate for the exact selective polynomial evaluation. -/
+/-- Named semantic predicate for the exact gate polynomial evaluation. -/
 abbrev SpecHolds
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -138,17 +138,17 @@ theorem completeness
         (Circuit.ops (circuit relation interface).main offset) :=
   build relation interface env offset assumptions
 
-/-- The 8 production monomials store 18 extension products. -/
+/-- The 3 production monomials store 7 extension products. -/
 theorem productCount_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    Sparse.Owned.productCount (polynomial relation) = 54 := by
+    Sparse.Owned.productCount (polynomial relation) = 21 := by
   rfl
 
-def privateCount : Nat := 56
-def rowCount : Nat := 56
+def privateCount : Nat := 23
+def rowCount : Nat := 23
 
 theorem localLength_eq
     {logicalWidth : Nat}
@@ -216,7 +216,7 @@ theorem ccsAtMessage_eq_singleFresh
     productionProfile, Phi81MatrixSource.phi81Shape, freshIndex,
     extensionLaws.one_mul, extensionLaws.add_zero]
 
-/-- The selective evaluation is exactly production `ccsAtMessage`. -/
+/-- The gate evaluation is exactly production `ccsAtMessage`. -/
 theorem spec_implies_keyCcsAtMessage
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

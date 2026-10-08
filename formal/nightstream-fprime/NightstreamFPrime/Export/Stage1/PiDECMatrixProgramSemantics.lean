@@ -2,7 +2,7 @@ import NightstreamFPrime.Export.Stage1.PiDECMatrixProgramSubstitution
 
 /-!
 Proves row-by-row equality between the compact PiDEC matrix program and the
-canonical direct 7-matrix PiDEC plan. The package row accessor is an explicit
+canonical direct 4-matrix PiDEC plan. The package row accessor is an explicit
 identity-checked premise.
 -/
 

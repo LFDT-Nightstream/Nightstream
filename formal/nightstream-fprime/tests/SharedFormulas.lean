@@ -115,7 +115,6 @@ def check : IO Unit := do
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.Poseidon.Block.rowWithInput?_ofSemantic
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.SparseLayer.eval_external
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.Phi81ProductPlan.rowsZero_implies_ringProduct
-#audit_axioms NightstreamFPrime.Layout.ProductionRelation.ProductSumPlan.rowsZero_iff_equations
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.Phi81Product.Block.row?_of_loaded
 
 #eval check

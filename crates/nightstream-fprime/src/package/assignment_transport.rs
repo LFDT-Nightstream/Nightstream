@@ -14,7 +14,7 @@ const TRANSPORT_SCHEMA: usize = 3;
 pub(super) const BLOCK_COUNT: usize = 26;
 const FIELD_COORDINATES: usize = 41;
 const OUTPUT_DIGEST_WORDS: usize = 4;
-const PHI81_INVOCATIONS: usize = 39_474;
+const PHI81_INVOCATIONS: usize = 33_966;
 const PHI81_RING_DEGREE: usize = 54;
 const CENTERED_HALF_MODULUS: u64 = (GOLDILOCKS_MODULUS - 1) / 2;
 

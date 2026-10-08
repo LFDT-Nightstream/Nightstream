@@ -126,7 +126,7 @@ private theorem canonical_numericRow
     (PerApplicationCanonicalPackage.sourceRow application fits) read row matrix
     (PerApplicationCanonicalPackage.matrixProgram_row? application fits row)
 
-/-- All selected rows and all seven ports, including the complete zero
+/-- All selected rows and all four ports, including the complete zero
 suffix. Matrix/source correspondence is discharged by the selected theorem. -/
 theorem matrixImage_value (assignment : Phi81Relation.Assignment shape)
     (output : Fin ringDegree) (vertex : BooleanVertex Lifecycle.cubeVariables)

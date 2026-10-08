@@ -276,7 +276,7 @@ def HyperNovaLinearSecurity : Prop :=
   [Nonempty (Challenge (ProductionKey.key relation productionAjtaiKey).piRlcAlgebra)]
     (initial : PMF (Statement × Envelope)) (depth : Nat)
     (_depthBound : ∀ input ∈ initial.support, input.1.iteration ≤ depth)
-    (originalFirstPhase : Visit → InteractivePrefix.Prover State productionShape 9)
+    (originalFirstPhase : Visit → InteractivePrefix.Prover State productionShape 8)
     (abortTape : Tape) (g : Nat → ℝ → ℝ) (deltaFS : Nat → ℝ) (sampleQueries : Nat → Nat) (queries : Fin depth → Nat)
     (scalarSubClock : RingF → RingF → Nat) (inverseAdapterClock : RingF → Nat)
     (assignmentSubClock : PiRLCExtractionPrimitives.Assignment → PiRLCExtractionPrimitives.Assignment → Nat)
@@ -322,7 +322,7 @@ def HyperNovaLinearSecurity : Prop :=
               deltaFS (queries j) +
               sampleQueries (queries j) * NonInteractive.PiRlcSampler.distance +
               InteractiveComposition.weakLoss relation productionAjtaiKey +
-              IndependentExecution.testError productionShape 9 +
+              IndependentExecution.testError productionShape 8 +
               AdaptiveBindingProbability.successProbability relation productionAjtaiKey program running fresh
                 firstPhase (SupportedExtraction.publicCheck running) (extended j)
                 (fun visit => PiCCSStoredSourceProbability.sourceProgram (inputs visit)
@@ -373,7 +373,7 @@ def HyperNovaTerminalFalseAcceptance : Prop :=
   [Nonempty (Challenge (ProductionKey.key relation productionAjtaiKey).piRlcAlgebra)]
     (initial : PMF (Statement × Envelope)) (depth : Nat)
     (_depthBound : ∀ input ∈ initial.support, input.1.iteration ≤ depth)
-    (originalFirstPhase : Visit → InteractivePrefix.Prover State productionShape 9)
+    (originalFirstPhase : Visit → InteractivePrefix.Prover State productionShape 8)
     (abortTape : Tape) (g : Nat → ℝ → ℝ) (deltaFS : Nat → ℝ) (sampleQueries : Nat → Nat) (queries : Fin depth → Nat)
     (scalarSubClock : RingF → RingF → Nat) (inverseAdapterClock : RingF → Nat)
     (assignmentSubClock : PiRLCExtractionPrimitives.Assignment → PiRLCExtractionPrimitives.Assignment → Nat)
@@ -415,7 +415,7 @@ def HyperNovaTerminalFalseAcceptance : Prop :=
               deltaFS (queries j) +
               sampleQueries (queries j) * NonInteractive.PiRlcSampler.distance +
               InteractiveComposition.weakLoss relation productionAjtaiKey +
-              IndependentExecution.testError productionShape 9 +
+              IndependentExecution.testError productionShape 8 +
               AdaptiveBindingProbability.successProbability relation productionAjtaiKey program running fresh
                 firstPhase (SupportedExtraction.publicCheck running) (extended j)
                 (fun visit => PiCCSStoredSourceProbability.sourceProgram (inputs visit)

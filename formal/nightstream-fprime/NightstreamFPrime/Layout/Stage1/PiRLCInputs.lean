@@ -29,7 +29,7 @@ variable {logicalWidth : Nat}
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
 /-- The exact completed pilot-plus-PiCCS source-column endpoint. -/
-def phaseOffset : Nat := 8688741
+def phaseOffset : Nat := 7207123
 
 /-- The completed PiCCS transcript state precedes the physical PiCCS endpoint
 that starts PiRLC. The intervening columns are the PiCCS lowering suffix. -/
@@ -47,12 +47,12 @@ theorem phaseOffset_matches_piCcs
 
 def piCcsInterface :
     NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.Interface
-      logicalWidth 9 publicFits :=
+      logicalWidth 8 publicFits :=
   PiCCSInputs.interface logicalWidth publicFits
 
 def piCcsSharedInterface :
     NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.Interface
-      logicalWidth 9 publicFits :=
+      logicalWidth 8 publicFits :=
   NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.atOffset
     (piCcsInterface (logicalWidth := logicalWidth)
       (publicFits := publicFits)) PiCCSInputs.phaseOffset
@@ -414,21 +414,21 @@ def inputShapes
     rw [NightstreamFPrime.Lifecycle.PiRLC.v1_2.EvalKCombination.logicalPrivateCount_eq]
   evalAFresh := by
     change NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.physicalFreshColumnCount
-      _ _ = 1927800
+      _ _ = 1101600
     rw [NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.physicalFreshColumnCountEqProduction
       _ _ (evalAProductionInputs (logicalWidth := logicalWidth)
         (publicFits := publicFits))]
     change NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationFamily.logicalPrivateCount
-      _ _ * 150 = 1927800
+      _ _ * 150 = 1101600
     rw [NightstreamFPrime.Lifecycle.PiRLC.v1_2.EvalACombination.logicalPrivateCount_eq]
   evalARows := by
     change NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.physicalRowCount
-      _ _ = 1940652
+      _ _ = 1108944
     rw [NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.physicalRowCountEqProduction
       _ _ (evalAProductionInputs (logicalWidth := logicalWidth)
         (publicFits := publicFits))]
     change NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationFamily.logicalPrivateCount
-      _ _ * 151 = 1940652
+      _ _ * 151 = 1108944
     rw [NightstreamFPrime.Lifecycle.PiRLC.v1_2.EvalACombination.logicalPrivateCount_eq]
 
 end NightstreamFPrime.Layout.Stage1.PiRLCInputs

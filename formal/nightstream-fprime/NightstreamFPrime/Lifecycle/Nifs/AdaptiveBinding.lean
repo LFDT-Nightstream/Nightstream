@@ -92,7 +92,7 @@ theorem check_some_eq (receipt : Probe K productionShape × State)
 variable
   (running : Lifecycle.Running (logicalWidth := logicalWidth) (publicFits := publicFits))
   (fresh : Lifecycle.Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
-  (sourceCorrect : CheckedWitnessExtraction.Correct (width := 9) sourceProgram
+  (sourceCorrect : CheckedWitnessExtraction.Correct (width := 8) sourceProgram
     (PaperAlgebra.openingMaps ajtai).commit productionGlobalParams
     ((ProductionKey.key relation ajtai).statement running fresh))
 
@@ -103,7 +103,7 @@ include sourceCorrect in
 private theorem finish_isSome_iff
     (outcome : CheckedWitnessExtraction.Outcome productionShape (FullShape logicalWidth publicFits)) :
     (CheckedWitnessExtraction.finish sourceProgram outcome).value.isSome = true ↔
-      StrongProbability.RelaxedSuccess (width := 9) (PaperAlgebra.openingMaps ajtai)
+      StrongProbability.RelaxedSuccess (width := 8) (PaperAlgebra.openingMaps ajtai)
         productionGlobalParams ((ProductionKey.key relation ajtai).statement running fresh) outcome := by
   constructor
   · intro present
@@ -130,7 +130,7 @@ including rejected prefixes, malformed returns and ambient-check failures. -/
 theorem check_correct (observation : PaperCompositionAgreement.Observation State
     (InteractiveComposition.Endpoint relation ajtai) productionShape) :
     (check relation ajtai program sourceProgram observation).value = true ↔
-      StrongProbability.RelaxedSuccess (width := 9) (PaperAlgebra.openingMaps ajtai)
+      StrongProbability.RelaxedSuccess (width := 8) (PaperAlgebra.openingMaps ajtai)
         productionGlobalParams ((ProductionKey.key relation ajtai).statement running fresh)
         (PaperCompositionAgreement.outputOf
           (fun _ _ _ endpoint => WeakExtraction.consume relation ajtai program endpoint) observation) := by

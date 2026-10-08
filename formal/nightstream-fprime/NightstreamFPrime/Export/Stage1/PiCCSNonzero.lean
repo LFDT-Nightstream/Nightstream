@@ -297,9 +297,9 @@ def addCopies : Nat → K → K
   | count + 1, value => K.add value (addCopies count value)
 
 def roundPolynomial (current : K) :
-    NightstreamFPrime.Spec.SumCheck.Finite.FixedPolynomial K 9 :=
+    NightstreamFPrime.Spec.SumCheck.Finite.FixedPolynomial K 8 :=
   let unit := extension 7 11
-  let rest := addCopies 8 unit
+  let rest := addCopies 7 unit
   let solve := fun first =>
     K.sub current (K.add (K.add first first) rest)
   let firstCandidate := extension 13 17
@@ -308,7 +308,7 @@ def roundPolynomial (current : K) :
     if solve firstCandidate = K.zero then firstAlternative else firstCandidate
   {
     coefficients :=
-      [first, solve first, unit, unit, unit, unit, unit, unit, unit, unit]
+      [first, solve first, unit, unit, unit, unit, unit, unit, unit]
     coefficients_length := by simp
   }
 
@@ -316,7 +316,7 @@ structure RoundTrace where
   state : Transcript.State
   claim : K
   rounds : List
-    (NightstreamFPrime.Spec.SumCheck.Finite.FixedPolynomial K 9)
+    (NightstreamFPrime.Spec.SumCheck.Finite.FixedPolynomial K 8)
   challenges : List K
   states : List Transcript.State
   claims : List K
@@ -350,8 +350,8 @@ def buildRoundTrace
     claims := []
   }
 
-def zeroRound : NightstreamFPrime.Spec.SumCheck.Finite.FixedPolynomial K 9 where
-  coefficients := List.replicate 10 K.zero
+def zeroRound : NightstreamFPrime.Spec.SumCheck.Finite.FixedPolynomial K 8 where
+  coefficients := List.replicate 9 K.zero
   coefficients_length := by simp
 
 def RoundTrace.round (trace : RoundTrace)
@@ -360,7 +360,7 @@ def RoundTrace.round (trace : RoundTrace)
 
 def RoundTrace.roundCoefficient (trace : RoundTrace)
     (roundIndex : Fin productionShape.cubeVariables)
-    (coefficient : Fin (9 + 1)) : K :=
+    (coefficient : Fin (8 + 1)) : K :=
   (trace.round roundIndex).coefficients.getD coefficient.val K.zero
 
 def basePad (source : Fin productionShape.sourceCount)

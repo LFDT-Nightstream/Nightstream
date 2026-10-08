@@ -211,8 +211,7 @@ private theorem binding_rows
       raw.assignment := by
   intro raw
   apply (PilotDigestBindingPlan.rowsZero_iff_matches
-    (PerApplicationCanonicalEncodes.pilotOrdinaryGeometry application) raw.assignment
-    (PerApplicationCanonicalAssignment.assignment_one raw)).mpr
+    (PerApplicationCanonicalEncodes.pilotOrdinaryGeometry application) raw.assignment).mpr
   intro row
   let decoded := PilotDigestBindingPlan.descriptor row
   have inverse : Fin.encodeProd decoded = row := Fin.encodeProd_decodeProd row

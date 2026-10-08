@@ -1,4 +1,5 @@
 """Checkpoint integrity and producer-input separation for the independent run."""
+import hashlib
 import json
 from pathlib import Path
 import sys
@@ -54,6 +55,39 @@ class Checkpoints(unittest.TestCase):
         initial = runner.identity(path)
         (path / "unexpected").write_bytes(b"extra")
         self.assertNotEqual(initial, runner.identity(path))
+
+    def test_concurrent_identities_match_sequential_hashes_and_order(self):
+        tree = self.root / "tree"
+        (tree / "nested").mkdir(parents=True)
+        contents = {"z-large": bytes(range(256)) * 9000, "a-empty": b"", "nested/one": b"one"}
+        for name, value in contents.items():
+            (tree / name).write_bytes(value)
+        def sequential(path):
+            if path.is_dir():
+                return {child.name: sequential(child) for child in sorted(path.iterdir())}
+            value = path.read_bytes()
+            return {"bytes": len(value), "sha256": hashlib.sha256(value).hexdigest()}
+        self.assertEqual(json.dumps(runner.identity(tree)), json.dumps(sequential(tree)))
+        paths = {"second": tree / "z-large", "first": tree / "nested", "third": tree}
+        self.assertEqual(json.dumps(runner.identities(paths)),
+                         json.dumps({key: sequential(path) for key, path in paths.items()}))
+        (tree / "nested/link").symlink_to(tree / "a-empty")
+        with self.assertRaisesRegex(ValueError, "unexpected evidence symlink"):
+            runner.identity(tree)
+
+    def test_input_changed_during_execution_blocks_output_receipt(self):
+        source = self.root / "original.bin"
+        source.write_bytes(b"original")
+        produced = self.root / "produced.bin"
+        def phase(*args, **kwargs):
+            produced.write_bytes(b"result")
+            source.write_bytes(b"tampered")
+        self.replay.check.phase.side_effect = phase
+        with self.assertRaisesRegex(ValueError, "inputs changed during execution"):
+            self.replay.run("tamper", "python", ["comparison", str(source)], [produced])
+        self.assertEqual(runner.read(self.replay.logs / "tamper.inputs.json"),
+                         {str(source.resolve()): {"bytes": 8, "sha256": hashlib.sha256(b"original").hexdigest()}})
+        self.assertFalse((self.replay.logs / "tamper.outputs.json").exists())
 
     def test_changed_original_input_cannot_reuse_result(self):
         source = self.root / "original.bin"

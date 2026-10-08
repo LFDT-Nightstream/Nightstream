@@ -74,7 +74,7 @@ def CheckedRecursiveReplay : Prop :=
     let successor := CheckedReplaySuccessor.payload result openings raw
     let nextStatement := CheckedReplaySuccessor.nextStatement statement advice
     PerApplicationTerminal.Holds application fits productionSetup nextStatement (.recursive successor) ∧
-      ∀ nextProof : Lifecycle.Proof 9,
+      ∀ nextProof : Lifecycle.Proof 8,
         PerApplicationTerminal.Holds application fits productionSetup nextStatement
           (.recursive (CheckedReplayStep.prior
             (HyperNovaInput.ofClaims result successor.fresh nextProof)

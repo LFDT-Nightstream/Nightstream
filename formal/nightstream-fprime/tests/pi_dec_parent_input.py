@@ -8,7 +8,7 @@ from threading import Thread
 
 
 # The selected setup and field; these are existing production dimensions.
-BLOCKS = 1_107_491
+BLOCKS = 920_516
 MODULUS = 2**64 - 2**32 + 1
 LANES = 54
 
@@ -51,7 +51,7 @@ def check_zero_output(output, first, last, point=None):
     values = json.loads(output.read_text())
     assert isinstance(values, list) and len(values) == 6, "complete matrix range"
     assert all(type(word) is int for word in values[:4]), "numeric range identity"
-    assert values[:4] == [1, 1_371_020, first, last], "selected range identity"
+    assert values[:4] == [1, 1_139_450, first, last], "selected range identity"
     assert isinstance(values[4], list) and len(values[4]) == 28, "complete C-derived point"
     for pair in values[4]:
         assert isinstance(pair, list) and len(pair) == 2, "complete point coefficient"
@@ -61,7 +61,7 @@ def check_zero_output(output, first, last, point=None):
         assert values[4] == point, "batch changed the C-derived point"
     assert isinstance(values[5], list) and len(values[5]) == 16, "all children"
     for matrices in values[5]:
-        assert isinstance(matrices, list) and len(matrices) == 7, "all matrices"
+        assert isinstance(matrices, list) and len(matrices) == 4, "all matrices"
         for lanes in matrices:
             assert isinstance(lanes, list) and len(lanes) == LANES, "all Phi81 lanes"
             for pair in lanes:
@@ -183,8 +183,8 @@ def accept_batch(binary, ccs, directory, parent, first_output, second_output):
                     if event.get("event") == "child_complete"]
         assert [event["child"] for event in children] == list(range(16)), "incomplete children"
         assert all(event["zero_from_parent_bound"] is True for event in children)
-        assert end["children"] == 16 and end["matrices"] == 7
-        assert end["field_words"] == 16 * 7 * LANES * 2
+        assert end["children"] == 16 and end["matrices"] == 4
+        assert end["field_words"] == 16 * 4 * LANES * 2
         assert end["timing_scope"] == "range_after_shared_load", "wrong range timing scope"
         assert type(end["total_ns"]) is int and end["total_ns"] >= 0
         completions.append(end)
@@ -222,7 +222,7 @@ def check_batches(binary, ccs, directory):
         ("invalid_block", 19, 0, 1, "invalid selected matrix block"),
         ("empty_range", 0, 0, 0, "invalid selected matrix row range"),
         ("reversed_range", 0, 1, 0, "invalid selected matrix row range"),
-        ("past_range", 0, 0, 1_371_020, "invalid selected matrix row range"),
+        ("past_range", 0, 0, 1_139_450, "invalid selected matrix row range"),
         ("poseidon_start", 0, 1, 150, "Poseidon range must contain complete 150-row invocations"),
         ("poseidon_end", 0, 0, 1, "Poseidon range must contain complete 150-row invocations"),
         ("phi81_start", 10, 1, 108, "Phi81 range must contain complete 108-row invocations"),
@@ -328,7 +328,7 @@ def main():
     check_case(binary, ccs, directory, "reversed_invocation_range", [stream()],
                "invalid selected matrix row range", first=1, last=0)
     check_case(binary, ccs, directory, "past_invocation_range", [stream()],
-               "invalid selected matrix row range", last=1_371_020)
+               "invalid selected matrix row range", last=1_139_450)
     check_case(binary, ccs, directory, "incomplete_poseidon_invocation", [stream()],
                "Poseidon range must contain complete 150-row invocations", last=1)
     check_batches(binary, ccs, directory)

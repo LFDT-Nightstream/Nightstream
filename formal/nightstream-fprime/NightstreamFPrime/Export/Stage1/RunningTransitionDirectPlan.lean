@@ -4,7 +4,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSTranscriptOutputForms
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
-Owns the executable source resolver and direct 7-matrix plan for the
+Owns the executable source resolver and direct 4-matrix plan for the
 running-instance transition. The resolver uses the established Spartan
 partial inverse and six source views. State and output alias the actual pilot
 preimages; the remaining four views own allocated blocks.
@@ -61,7 +61,7 @@ theorem sourceColumn_lt (location : Location) :
       omega
   | output index =>
       have bound := index.isLt
-      change index.val < 37297 at bound
+      change index.val < 32113 at bound
       rw [sourceColumn, RunningTransitionSourceSupport.outputStart_eq,
         Spartan.sourceColumnCount_eq]
       omega
@@ -83,7 +83,7 @@ theorem sourceColumn_lt (location : Location) :
       omega
   | piDec index =>
       have bound := index.isLt
-      change index.val < 37152 at bound
+      change index.val < 31968 at bound
       rw [sourceColumn, RunningTransitionSourceSupport.piDecStart_eq,
         Spartan.sourceColumnCount_eq]
       omega
@@ -118,7 +118,7 @@ def statePreimageWord (index : Fin RunningTransitionSourceSupport.stateCount) :
   ⟨28 + index.val, by
     have bound := index.isLt
     change index.val < 11 at bound
-    change 28 + index.val < 37297
+    change 28 + index.val < 32113
     omega⟩
 
 /-- The output transition uses every word of the actual output preimage in
@@ -126,7 +126,7 @@ the same order. This changes only the typed bound of its index. -/
 def outputPreimageWord (index : Fin RunningTransitionSourceSupport.outputCount) :
     Fin PilotValues.stateHashWords :=
   ⟨index.val, by
-    change index.val < 37297
+    change index.val < 32113
     simpa only [RunningTransitionSourceSupport.outputCount_eq] using index.isLt⟩
 
 /-- The running state form is the actual prior-hash preimage form for every
@@ -408,7 +408,7 @@ private theorem mapped_lt_basePackage (source : Nat)
     Spartan.sourceToSpartan source <
       PiRLCProductPlan.basePackage.layout.totalColumnCount := by
   have mapped := Spartan.sourceToSpartan_lt source bound
-  have total : PiRLCProductPlan.basePackage.layout.totalColumnCount = 14761727 :=
+  have total : PiRLCProductPlan.basePackage.layout.totalColumnCount = 12443217 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
   rw [total]
   simpa [Spartan.spartanColumnCount] using mapped
@@ -494,7 +494,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
           using invocation.isLt
       have laneBound : lane.val < 16 := lane.isLt
       have address : 28 + index.val =
-          6908836 + invocation.val * 1096 + 1080 + lane.val := by
+          5945960 + invocation.val * 1096 + 1080 + lane.val := by
         simpa only [sourceColumn, RunningTransitionSourceSupport.stateStart_eq,
           PiCCSInputs.phaseOffset_eq] using same
       omega
@@ -509,13 +509,13 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       apply Eq.symm
       apply transitionEnv_of_notTranscript program base _ (Location.output index).sourceColumn_lt
       rintro ⟨invocation, lane, same⟩
-      have indexBound : index.val < 37297 := index.isLt
+      have indexBound : index.val < 32113 := index.isLt
       have invocationBound : invocation.val < 355 := by
         simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
           using invocation.isLt
       have laneBound : lane.val < 16 := lane.isLt
-      have address : 37567 + index.val =
-          6908836 + invocation.val * 1096 + 1080 + lane.val := by
+      have address : 32383 + index.val =
+          5945960 + invocation.val * 1096 + 1080 + lane.val := by
         simpa only [sourceColumn, RunningTransitionSourceSupport.outputStart_eq,
           PiCCSInputs.phaseOffset_eq] using same
       omega
@@ -530,13 +530,13 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       apply Eq.symm
       apply transitionEnv_of_notTranscript program base _ (Location.piDec index).sourceColumn_lt
       rintro ⟨invocation, lane, same⟩
-      have indexBound : index.val < 37152 := index.isLt
+      have indexBound : index.val < 31968 := index.isLt
       have invocationBound : invocation.val < 355 := by
         simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
           using invocation.isLt
       have laneBound : lane.val < 16 := lane.isLt
-      have address : 14724302 + index.val =
-          6908836 + invocation.val * 1096 + 1080 + lane.val := by
+      have address : 12410976 + index.val =
+          5945960 + invocation.val * 1096 + 1080 + lane.val := by
         simpa only [sourceColumn, RunningTransitionSourceSupport.piDecStart_eq,
           PiCCSInputs.phaseOffset_eq] using same
       omega
@@ -654,7 +654,7 @@ theorem inputs_preserve
     preservesCombination geometry assignment base groupValue encodes
       _ _ scope.2.2⟩
 
-/-- Canonical direct 7-matrix rows for the running transition. -/
+/-- Canonical direct 4-matrix rows for the running transition. -/
 def plan
     {program : Lifecycle.Stage1.Application.Program}
     {sourceLogicalWidth targetLogicalWidth : Nat}
@@ -673,8 +673,8 @@ def plan
       Phi81CarrierLayout.carrierWidth sourceLogicalWidth}
     (relation : ProductionKey.LogicalRelation sourceLogicalWidth publicFits)
     (geometry : Geometry program targetLogicalWidth) :
-    (plan relation geometry).rowCount = 37263 := by
-  change (RunningTransitionDirectSource.program relation).rowCount = 37263
+    (plan relation geometry).rowCount = 32079 := by
+  change (RunningTransitionDirectSource.program relation).rowCount = 32079
   exact RunningTransitionDirectSource.program_rowCount relation
 
 /-- The compiled transition plan depends on relation shape only. -/

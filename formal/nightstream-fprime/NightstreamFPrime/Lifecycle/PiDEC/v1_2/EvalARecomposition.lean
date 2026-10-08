@@ -14,7 +14,7 @@ Inputs:
 Outputs: none.
 
 Constraint group:
-- A1: 7 matrices × 54 coefficients × 2 extension cells = 756 affine rows.
+- A1: 4 matrices × 54 coefficients × 2 extension cells = 432 affine rows.
 
 Parent coverage:
 - the matrix field of `PiDEC.PaperVerifier.Accepted.evaluationEquation`.
@@ -89,7 +89,7 @@ theorem specHolds_of_parentCoverage
     RingKRecomposition.evalChildren, ringInterface] using! equation
 
 theorem coordinateCount_eq :
-    RingKRecomposition.coordinateCount blockCount = 756 := by
+    RingKRecomposition.coordinateCount blockCount = 432 := by
   norm_num [RingKRecomposition.coordinateCount,
     RingKRecomposition.cellCount, blockCount, productionShape,
     Phi81MatrixSource.phi81Shape, productionProfile, ringDegree]
@@ -103,11 +103,11 @@ theorem localLength_eq (interface : Interface) (offset : Nat) :
 
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      756 := by
+      432 := by
   calc
     _ = RingKRecomposition.coordinateCount blockCount :=
       (circuit interface).rowCount_eq offset
-    _ = 756 := coordinateCount_eq
+    _ = 432 := coordinateCount_eq
 
 theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
     (env : Env) (assumptions : Assumptions interface offset env) :

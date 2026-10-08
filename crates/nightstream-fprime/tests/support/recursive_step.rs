@@ -7,7 +7,7 @@ use p3_goldilocks::Goldilocks;
 use serde_json::{json, Value};
 
 const PI_CCS_V1_2_ROUND_COUNT: usize = 28;
-const STATE_PREIMAGE_WORDS: usize = 37_297;
+const STATE_PREIMAGE_WORDS: usize = 32_113;
 const PUBLIC: usize = 270;
 const MODULUS: u64 = 0xffff_ffff_0000_0001;
 
@@ -124,7 +124,7 @@ pub fn check_fixture(fixture: &[u8], base: &[u8], input: &[u8], children: &[u8],
     let private = words(&fixture[2]);
     let public = words(&fixture[3]);
     let base_private = words(&base[2]);
-    assert_eq!(private.len(), 128_186);
+    assert_eq!(private.len(), 107_070);
     assert_eq!(public.len(), 278);
     let prior = &private[..STATE_PREIMAGE_WORDS];
     let output = &private[STATE_PREIMAGE_WORDS..2 * STATE_PREIMAGE_WORDS];

@@ -35,7 +35,7 @@ pub fn check_proof_mutations(
         assert!(!matches!(optimized, Ok((true, _))), "optimized accepted {label}");
     };
     assert_eq!(proof.sumcheck_rounds.len(), 28);
-    assert!(proof.sumcheck_rounds.iter().all(|round| round.len() == 10));
+    assert!(proof.sumcheck_rounds.iter().all(|round| round.len() == 9));
     let mut changed = proof.clone();
     changed.sumcheck_rounds.pop();
     rejects(&changed, "missing round");
@@ -66,7 +66,7 @@ pub fn check_proof_mutations(
                 checked
             })
             .sum::<usize>();
-    assert_eq!(checked, 2 + 28 * 10 * 2);
+    assert_eq!(checked, 2 + 28 * 9 * 2);
     println!("positive_pi_ccs_proof_mutations_rejected={checked} engine=optimized");
 }
 

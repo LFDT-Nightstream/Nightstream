@@ -39,7 +39,7 @@ def stateValue (state : Transcript.State) : Value :=
 
 def roundMessagesValue (computed : Computed) : Value :=
   .array ((List.finRange productionShape.cubeVariables).map fun roundIndex =>
-    .array ((List.finRange (9 + 1)).map fun coefficient =>
+    .array ((List.finRange (8 + 1)).map fun coefficient =>
       extensionValue
         (computed.roundTrace.roundCoefficient roundIndex coefficient)))
 

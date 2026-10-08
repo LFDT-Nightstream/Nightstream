@@ -55,7 +55,7 @@ def parentInterface
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
     NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.Interface
-      logicalWidth 9 publicFits :=
+      logicalWidth 8 publicFits :=
   NightstreamFPrime.Layout.Stage1.PiCCSInputs.interface
     logicalWidth publicFits
 
@@ -64,7 +64,7 @@ def sharedInterface
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
     NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.Interface
-      logicalWidth 9 publicFits :=
+      logicalWidth 8 publicFits :=
   NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.atOffset
     (parentInterface logicalWidth publicFits) phaseOffset
 
@@ -900,14 +900,14 @@ theorem outputInvocations_length
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    (outputTrace logicalWidth publicFits).invocations.length = 1225 := by
+    (outputTrace logicalWidth publicFits).invocations.length = 766 := by
   rw [outputTrace, compileActions_invocations_length]
   have compiled := recipeCount_eq_invocationCount_mul
     (outputActions logicalWidth publicFits)
   have fixed := OutputBinding.recipeCount_eq
     (outputInterface logicalWidth publicFits) outputWitnessStart
   change Formal.recipeCount (outputActions logicalWidth publicFits) =
-    1342600 at fixed
+    839536 at fixed
   rw [fixed] at compiled
   omega
 
@@ -915,7 +915,7 @@ theorem invocations_length
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    (invocations logicalWidth publicFits).length = 1580 := by
+    (invocations logicalWidth publicFits).length = 1121 := by
   unfold invocations
   rw [List.length_append, List.length_append, List.length_append,
     statementInvocations_length, challengeInvocations_length,
@@ -928,7 +928,7 @@ mapped start of the generic R1CS-fresh region, not a new layout owner. -/
 def invocationCeiling : Nat :=
   NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
     NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
-theorem invocationCeiling_eq : invocationCeiling = 8685507 := by
+theorem invocationCeiling_eq : invocationCeiling = 7203889 := by
   unfold invocationCeiling NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
   rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
   norm_num [NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan,
@@ -966,7 +966,7 @@ theorem roundInvocationCount_eq (logicalWidth : Nat)
 theorem outputInvocationCount_eq (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    invocationCount (outputActions logicalWidth publicFits) = 1225 := by
+    invocationCount (outputActions logicalWidth publicFits) = 766 := by
   have count := outputInvocations_length logicalWidth publicFits
   rw [outputTrace, compileActions_invocations_length] at count
   exact count
@@ -1041,10 +1041,10 @@ theorem outputFinalState_varsBelow_samplerStart
   have startMatch := outputWitnessStart_matches logicalWidth publicFits relation
   rw [← startMatch] at finalBelow
   rw [OutputBinding.localLength_eq] at finalBelow
-  have endMatch : outputWitnessStart + 1342600 =
+  have endMatch : outputWitnessStart + 839536 =
       NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase := by
     calc
-      outputWitnessStart + 1342600 =
+      outputWitnessStart + 839536 =
           outputWitnessStart +
             invocationCount (outputActions logicalWidth publicFits) * 1096 := by
         rw [outputInvocationCount_eq]

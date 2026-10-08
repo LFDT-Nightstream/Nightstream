@@ -114,35 +114,30 @@ def wait_for_exit(process, timeout):
     """`process.wait(timeout=timeout)`, woken by the exit of the process itself.
 
     With a timeout, `Popen.wait` polls with sleeps of up to 50 ms, which added up to that much to
-    every command. A kqueue (macOS) or a pidfd (Linux) reports the exit; `wait(timeout=0)` then
-    reaps the process, or raises `TimeoutExpired` if it is still running.
+    every command. A kqueue (macOS) or a pidfd (Linux) reports the exit. The final wait uses
+    the remaining time because the exit notification can arrive before the process is reapable.
     """
-    if not isinstance(process, POPEN) or process.returncode is not None:
+    if timeout is None or not isinstance(process, POPEN) or process.returncode is not None:
         return process.wait(timeout=timeout)
+    deadline = time.monotonic() + timeout
     try:
         if hasattr(select, "kqueue"):
             with closing(select.kqueue()) as queue:
-                events = queue.control([select.kevent(
+                queue.control([select.kevent(
                     process.pid, filter=select.KQ_FILTER_PROC,
                     flags=select.KQ_EV_ADD | select.KQ_EV_ONESHOT, fflags=select.KQ_NOTE_EXIT)],
                     1, timeout)
-            if events and events[0].flags & select.KQ_EV_ERROR:
-                return process.wait(timeout=timeout)
         elif hasattr(os, "pidfd_open"):
             descriptor = os.pidfd_open(process.pid)
             try:
                 select.select([descriptor], [], [], timeout)
             finally:
                 os.close(descriptor)
-        else:
-            return process.wait(timeout=timeout)
-    except ProcessLookupError:
-        pass  # The process has already exited; `wait` reaps it.
     except InterruptedError:
         raise
     except (OSError, ValueError):
-        return process.wait(timeout=timeout)
-    return process.wait(timeout=0)
+        pass
+    return process.wait(timeout=max(0, deadline - time.monotonic()))
 
 
 class Check:

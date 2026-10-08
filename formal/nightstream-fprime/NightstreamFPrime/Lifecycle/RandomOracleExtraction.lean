@@ -15,14 +15,15 @@ production key, and one retry answer per `Π_RLC` coordinate.
 
 Outputs:
 - `Accepts`: the key's NIFS verifier with every coin read from the oracle,
-  and valid witnesses for the exact children it returns;
+  and valid witnesses for the exact children it returns. At the sponge reads
+  it is `PaperNonInteractive.verify` (`RandomOracleFidelity.accepts_iff_verify`);
 - `completeFork`: a base acceptance and one valid retry per coordinate form
   the paper's complete coordinate fork over the base batch, so
   `extracted_ambient` opens every `Π_CCS` output of the base probe;
 - `fork_failure_le`: the retries fail to form that fork with probability at
   most `17 * (Q + 17) * ε_sample`, plus the chance that a retry changes the
-  running statement (`mismatchChance`, a state-hash collision at the Export
-  layer);
+  running statement (`mismatchChance`; with `PriorLink` it is a state-hash
+  collision, `Export.Stage1.RandomOracleLink.mismatch_collision`);
 - `expected_retries_le`: at most `17 * (Q + 17)` expected retries.
 
 A retry resamples the oracle answer at one `Π_RLC` point and reruns the
@@ -329,13 +330,17 @@ theorem batch_update (oracle : Oracle)
 /-! ## The adversary's coordinate forks -/
 
 /-- What the adversary outputs: both statements, a NIFS proof, and witnesses
-for the children it claims. -/
+for the children it claims. `linked` is the verifier's check on the rest of
+the output; the caller's parse function sets it. In production it is the
+prior-state link of the running statement (`Export.Stage1.RandomOracleLink`);
+`True` gives the bare NIFS game. -/
 structure Claim where
   running : Running (logicalWidth := logicalWidth) (publicFits := publicFits)
   fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)
   proof : Proof (ProductionKey.degreeBound relation)
   children : Fin productionShape.runningCount →
     PaperAlgebra.Assignment (logicalWidth := logicalWidth) (publicFits := publicFits)
+  linked : Prop
 
 variable {Output : Type}
   (adversary : OracleComp (Point logicalWidth publicFits (ProductionKey.degreeBound relation))
@@ -346,11 +351,13 @@ variable {Output : Type}
 noncomputable def claimed (oracle : Oracle) : Claim relation :=
   claim (adversary.run oracle)
 
-/-- The oracle verifier accepts the adversary's claim. -/
+/-- The oracle verifier accepts the adversary's claim, and the claim passes
+the verifier's `linked` check. -/
 def Succeeds (oracle : Oracle) : Prop :=
   Accepts relation ajtai oracle (claimed relation adversary claim oracle).running
     (claimed relation adversary claim oracle).fresh (claimed relation adversary claim oracle).proof
-    (claimed relation adversary claim oracle).children
+    (claimed relation adversary claim oracle).children ∧
+  (claimed relation adversary claim oracle).linked
 
 /-- The oracle point of the claim's `index`-th `Π_RLC` challenge. -/
 noncomputable def rhoPoint (index : Fin (Nifs.PaperProfile.arity).total) (oracle : Oracle) :
@@ -429,7 +436,7 @@ theorem fork_success {oracle : Oracle} {retries : Fin (Nifs.PaperProfile.arity).
         (ProductionKey.key relation ajtai).piRlcAlgebra
         (batch relation ajtai (forked relation adversary claim oracle retries index)
           fork.running fork.fresh fork.proof) :=
-    response_success relation ajtai _ fork.running fork.fresh fork.proof fork.children valid.1.1
+    response_success relation ajtai _ fork.running fork.fresh fork.proof fork.children valid.1.1.1
   obtain ⟨freshEq, same⟩ := fork_identifies relation ajtai adversary claim valid
   have batchEq : batch relation ajtai (forked relation adversary claim oracle retries index)
       fork.running fork.fresh fork.proof = batch relation ajtai oracle base.running base.fresh base.proof := by
@@ -470,7 +477,7 @@ noncomputable def completeFork (oracle : Oracle)
     (claimed relation adversary claim (forked relation adversary claim oracle retries index)).fresh
     (claimed relation adversary claim (forked relation adversary claim oracle retries index)).proof
     (claimed relation adversary claim (forked relation adversary claim oracle retries index)).children
-  baseSuccess := response_success relation ajtai oracle _ _ _ _ succeeds
+  baseSuccess := response_success relation ajtai oracle _ _ _ _ succeeds.1
   forkSuccess index := fork_success relation ajtai adversary claim (valid index)
   baseStrong _ := readRho_valid _
   forkStrong _ _ := readRho_valid _
@@ -526,7 +533,8 @@ def retrySets (oracle : Oracle) (index : Fin (Nifs.PaperProfile.arity).total) : 
   lineSet (Hits relation ajtai adversary claim index) (rhoPoint relation adversary claim index oracle) oracle
 
 /-- The chance that a retry at coordinate `index` changes the running
-statement. With the prior link this is a state-hash collision. -/
+statement. With the prior link this is a state-hash collision
+(`Export.Stage1.RandomOracleLink.mismatch_collision`). -/
 noncomputable def mismatchChance (index : Fin (Nifs.PaperProfile.arity).total) (oracle : Oracle) : ℝ :=
   mass (retrySets relation ajtai adversary claim oracle index ∩
       {answer | (claimed relation adversary claim

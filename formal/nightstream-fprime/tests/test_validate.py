@@ -50,6 +50,15 @@ class ValidateTests(unittest.TestCase):
             "requested:SecondAudit"
         ])
 
+    def test_executables_builds_every_lean_exe_and_fails_on_warnings(self):
+        lakefile = (SCRIPT.parents[1] / "lakefile.toml").read_text()
+        result = self.run_validation("executables")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        requested = [line for line in result.stdout.splitlines() if line.startswith("requested:")]
+        self.assertEqual(requested[:2], ["requested:build", "requested:--wfail"])
+        self.assertEqual(len(requested) - 2, lakefile.count("[[lean_exe]]"))
+        self.assertIn("requested:emit", requested)
+
     def test_failure_in_later_target_fails_validation(self):
         result = self.run_validation("build", "Production", "BrokenAudit")
         self.assertEqual(result.returncode, 7, result.stdout + result.stderr)

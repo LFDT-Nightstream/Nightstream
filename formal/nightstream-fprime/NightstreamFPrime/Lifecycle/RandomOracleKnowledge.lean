@@ -23,6 +23,9 @@ The extractor's retry law has total mass one after every acceptance
 failure. It runs `17 (Q + 17)` expected retries
 (`RandomOracleExtraction.expected_retries_le`).
 
+With the prior-state link, `Export.Stage1.RandomOracleLink.knowledge_error_le_linked`
+states the same theorem with the two running terms as state-hash collisions.
+
 Does not own: the hardness of MSIS or of the state hash, which bound the
 binding-reduction and running-mismatch chances, or the fit of the oracle to
 Poseidon2.

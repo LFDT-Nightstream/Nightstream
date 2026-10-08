@@ -62,21 +62,6 @@ fn append_block(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace,
     trace.events.push(TraceEvent::Absorb(framed));
 }
 
-/// Lean `decodeHash` of the first fresh public input: digest word `w` is
-/// `sum over bit < 64 of 2^bit * x[1 + 64 w + bit]`. Cells past a shorter input
-/// read as zero; the transcript absorbs the complete input next, so this adds
-/// no binding of its own.
-fn prior_digest_fields(fresh: &CcsClaim<Cmt, F>) -> Vec<F> {
-    (0..4)
-        .map(|word| {
-            (0..64).fold(F::ZERO, |value, bit| {
-                let cell = fresh.x.get(1 + 64 * word + bit).copied().unwrap_or(F::ZERO);
-                value + F::from_u64(1 << bit) * cell
-            })
-        })
-        .collect()
-}
-
 fn squeeze(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, label: u64, index: Option<usize>) -> K {
     let fields = match index {
         Some(index) => vec![F::from_u64(label), F::from_u64(index as u64)],
@@ -192,7 +177,11 @@ pub(crate) fn bind_and_sample_with_trace(
         DOMAIN_TAG.iter().map(|&word| F::from_u64(word)).collect(),
     );
 
-    append_block(transcript, trace, prior_digest_fields(&fresh[0]));
+    append_block(
+        transcript,
+        trace,
+        neo_transcript::prior_digest_v1_1(&fresh[0].x).to_vec(),
+    );
     for claim in fresh {
         append_block(transcript, trace, commitment_fields(&claim.c, params)?);
         append_block(transcript, trace, claim.x.clone());

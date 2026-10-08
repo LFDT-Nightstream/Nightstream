@@ -195,13 +195,6 @@ private theorem vertexIndex_value {arity : Nat} (vertex : BooleanVertex arity) :
   | @cons arity bit tail ih =>
       cases bit <;> simp only [vertexIndex, NumericBooleanDomain.index, ih] <;> rfl
 
-private theorem vertexIndex_work {arity : Nat} (vertex : BooleanVertex arity) :
-    (vertexIndex vertex).work = arity * 7 + 2 := by
-  induction vertex with
-  | nil => rfl
-  | @cons arity bit tail ih =>
-      simp only [vertexIndex, ih, Nat.add_mul, Nat.one_mul]
-
 /-- Only the matching live Pad position invokes the kernel. The live path
 charges three comparisons/branches, two index operations, a Fin constructor,
 and return. Padding and other positions return zero. -/
@@ -217,16 +210,6 @@ private def padTerm (columns block selected : Nat) (output assignment : Fin ring
     else ⟨0, 7⟩
   else ⟨0, 3⟩
 
-private theorem padTerm_work_le (columns block selected : Nat) (output assignment : Fin ringDegree)
-    (lane : Nat) : (padTerm columns block selected output assignment lane).work ≤ kernelWork + 10 := by
-  dsimp only [padTerm]
-  split
-  · rename_i live
-    have weight := kernelWeight_work_le output ⟨lane, live⟩ assignment
-    split_ifs <;> dsimp only <;> omega
-  · dsimp only
-    omega
-
 /-- Execute the canonical Pad coefficient entry without calling a function
 from a statement. Column read, quotient/remainder, lane construction, term
 closure, and return contribute six operations outside the two traversals. -/
@@ -239,9 +222,6 @@ def padEntry {arity columns : Nat} (output : Fin ringDegree)
     ⟨flatColumn % ringDegree, Nat.mod_lt _ (by decide)⟩
   let value := sum (padTerm columns block selected.value output assignment) ringDegree
   ⟨value.value, selected.work + value.work + 6⟩
-
-def padWork (arity : Nat) : Nat :=
-  (arity * 7 + 2) + (ringDegree * (kernelWork + 10 + 4) + 2) + 6
 
 private theorem padTerm_value {arity columns : Nat}
     (covered : columns ≤ 2 ^ arity) (output : Fin ringDegree)
@@ -296,17 +276,5 @@ theorem padEntry_value (arity freshCount runningCount matrixCount logicalWidth :
   cases encoded : Phi81ColumnLayout.encode? (Phi81ColumnLayout.decode column).1 ⟨lane, live⟩ <;>
     simp only [encoded] at term ⊢ <;>
     simpa only [Phi81ColumnLayout.decode] using term
-
-theorem padEntry_work_le {arity columns : Nat} (output : Fin ringDegree)
-    (vertex : BooleanVertex arity) (column : Fin columns) :
-    (padEntry output vertex column).work ≤ padWork arity := by
-  have terms := sum_work_le
-    (padTerm columns (column.val / ringDegree) (vertexIndex vertex).value output
-      (Phi81ColumnLayout.decode column).2) ringDegree (kernelWork + 10)
-    (fun lane _ => padTerm_work_le _ _ _ _ _ lane)
-  dsimp only [padEntry]
-  rw [vertexIndex_work]
-  unfold padWork
-  exact Nat.add_le_add_right (Nat.add_le_add_left terms _) _
 
 end NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries

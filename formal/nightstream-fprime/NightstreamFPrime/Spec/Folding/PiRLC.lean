@@ -329,19 +329,52 @@ theorem complete
       inputs challenges assignments inputFresh sameStructure samePoint
       challengesValid inputValid pointValid
 
-/-- The `(K+k)+1` singular/repeated challenge events in Appendix D.5. -/
-inductive SamplingFailure (n : Nat) where
-  | baseFork
-  | coordinateFork (index : Fin n)
-deriving Repr
+/-- The scalar and assignment actions of Definition 4's relaxed-binding game. -/
+structure RelaxedBindingOps
+    (Assignment : Type uAssignment)
+    (Commitment : Type uCommitment)
+    (Scalar : Type uScalar) where
+  scaleAssignment : Scalar → Assignment → Assignment
+  scaleCommitment : Scalar → Commitment → Commitment
+  differenceChallenge : Scalar → Prop
 
-def samplingErrorNumerator (n : Nat) : Nat := n + 1
+/-- A literal `(2B, C)`-relaxed binding collision from Definition 4. -/
+structure RelaxedBindingCollision
+    {Structure : Type uStructure}
+    {Assignment : Type uAssignment}
+    {PublicInput : Type uPublicInput}
+    {Point : Type uPoint}
+    {Evaluation : Type uEvaluation}
+    {Commitment : Type uCommitment}
+    {Scalar : Type uScalar}
+    (semantics : RelationSemantics
+      Structure Assignment PublicInput Point Evaluation Commitment)
+    (params : GlobalParams)
+    (ops : RelaxedBindingOps Assignment Commitment Scalar)
+    (commitment : Commitment) where
+  delta₁ : Scalar
+  delta₂ : Scalar
+  opening₁ : Assignment
+  opening₂ : Assignment
+  delta₁Valid : ops.differenceChallenge delta₁
+  delta₂Valid : ops.differenceChallenge delta₂
+  firstEquation : ops.scaleCommitment delta₁ commitment = semantics.commit opening₁
+  secondEquation : ops.scaleCommitment delta₂ commitment = semantics.commit opening₂
+  firstNorm : semantics.normBounded (2 * params.bigB) opening₁
+  secondNorm : semantics.normBounded (2 * params.bigB) opening₂
+  crossDifferent :
+    ops.scaleAssignment delta₁ opening₂ ≠ ops.scaleAssignment delta₂ opening₁
 
-/-- A concrete extractor supplies the actual failure predicate for its fixed
-sampling schedule. Keeping it as a proposition prevents the named reason type
-from making the bad event vacuously inhabited. -/
-structure SamplingBoundary (n : Nat) where
-  Failure : Prop
-  classify : Failure → SamplingFailure n
+/-- The weak reduction's `φ`: the uncombined vector of input commitments. -/
+def phi
+    {Structure : Type uStructure}
+    {PublicInput : Type uPublicInput}
+    {Point : Type uPoint}
+    {Evaluation : Type uEvaluation}
+    {Commitment : Type uCommitment}
+    {n : Nat}
+    (inputs : Fin n → CE.Instance Structure PublicInput Point Evaluation Commitment) :
+    Fin n → Commitment :=
+  fun i => (inputs i).commitment
 
 end NightstreamFPrime.Spec.Folding.PiRLC

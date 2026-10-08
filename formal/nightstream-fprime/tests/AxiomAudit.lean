@@ -28,7 +28,7 @@ elab "#endpoint_census " path:str : command => do
   for index in [0:pieces.length] do
     let piece := pieces[index]!
     if index % 2 == 1 && roots.any (piece.startsWith ·) &&
-        piece.all (fun c => c.isAlphanum || c == '_' || c == '.') && !cited.contains piece then
+        piece.all (fun c => Lean.isIdRest c || c == '.') && !cited.contains piece then
       cited := cited ++ [piece]
   let env ← getEnv
   let mut declarations : Nat := 0

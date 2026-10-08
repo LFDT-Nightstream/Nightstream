@@ -883,10 +883,9 @@ theorem acceptedProbe_extracts_source_or_badEvent
 
 /-- Fixed-width counterpart of `acceptedProbe_extracts_source_or_badEvent`.
 
-This is the paper-owned gate used by the causal interactive composition.  It
-accepts the same exact-width messages as the frozen NIFS verifier and exposes
-the same fixed-phase bad-challenge event; canonical variable-length encoding
-is absent. -/
+It accepts the same exact-width messages as the frozen NIFS verifier and
+exposes the same fixed-phase bad-challenge event; canonical variable-length
+encoding is absent. `RoundByRound.falseAcceptance_splits` consumes it. -/
 theorem fixedWidthAcceptedProbe_extracts_source_or_badEvent
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}

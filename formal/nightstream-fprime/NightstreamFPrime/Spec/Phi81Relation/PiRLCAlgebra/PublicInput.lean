@@ -100,16 +100,6 @@ theorem assignmentBlock_projectPublicInput
   apply Fin.ext
   rfl
 
-private theorem decode_publicColumn
-    {shape : Shape} (column : Fin shape.publicWidth) :
-    Phi81ColumnLayout.decode (shape.publicColumn column) =
-      (carrierBlock (publicBlockIndex shape column), publicLaneIndex column) := by
-  apply Prod.ext
-  · apply Fin.ext
-    rfl
-  · apply Fin.ext
-    rfl
-
 /-! ## Public-only action and finite combination -/
 
 /-- The executable `RingF` action computed solely from one public input. -/

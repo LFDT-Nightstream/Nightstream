@@ -115,27 +115,6 @@ theorem extractedOutputWitness_ambient
       ).assignments source) rfl]
   simpa [piRlcBatch, Key.piCcsOutputs, extractedOutputWitness] using extracted
 
-/-- One fork's extracted assignment vector in the exact PiRLC input order. -/
-def extractedAssignments
-    {Extension : Type uExtension}
-    {Commitment : Type uCommitment}
-    {PublicInput : Type uPublicInput}
-    {Scalar : Type uScalar}
-    {State : Type uState}
-    {shape : Shape}
-    {columns blockCount degreeBound : Nat}
-    (key : Key Extension Commitment PublicInput Scalar State shape
-      columns blockCount degreeBound)
-    (running : Running Extension Commitment PublicInput shape)
-    (fresh : Fresh Commitment PublicInput shape)
-    (proof : Proof Extension Commitment shape degreeBound)
-    (laws : ExtractionAlgebra key.piRlcSemantics key.params key.piRlcAlgebra)
-    (strongSet : StrongSetUnits laws.ring key.piRlcAlgebra.challengeValid)
-    (fork : CompleteFork key.piRlcSemantics key.params key.piRlcAlgebra
-      (piRlcBatch key running fresh proof)) :
-    Fin key.arity.total -> PaperLinearAlgebra.Assignment F columns :=
-  fun coordinate => extractedAssignment laws strongSet fork coordinate
-
 /-- Accepted NIFS plus a complete PiRLC coordinate fork extracts the exact
 PiCCS source relation, or exposes the precise mixing-root or fixed-width
 SumCheck failure. -/

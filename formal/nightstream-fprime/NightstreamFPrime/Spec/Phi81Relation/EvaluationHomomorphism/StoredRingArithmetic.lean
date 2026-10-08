@@ -113,6 +113,4 @@ def add (left right : StoredRing) : Result StoredRing :=
   let result := build (fun index => (⟨left.get index + right.get index, 6⟩ : Result F))
   ⟨result.value, result.work + 2⟩
 
-def addWork : Nat := ringDegree + 1 + ringDegree * (6 + 2) + 1 + 2
-
 end NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingArithmetic

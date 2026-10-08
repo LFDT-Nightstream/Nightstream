@@ -18,10 +18,11 @@ Outputs:
   and `error j`.
 
 Assumption 1 is not a theorem here. `Lifecycle.RandomOracleKnowledge` proves
-its random-oracle form for one fold at error `knowledgeError Q`, which
-justifies the value of `error`. The step circuit recomputes the previous
-fold's challenges with Poseidon2, so the history uses the concrete hash, which
-no random-oracle model covers.
+a random-oracle analogue for one fold at error `knowledgeError Q`, which
+motivates the value of `error`; no Lean statement derives one from the other
+(TRUST_BOUNDARY.md lists the differences). The step circuit recomputes the
+previous fold's challenges with Poseidon2, so the history uses the concrete
+hash, which no random-oracle model covers.
 
 Does not own: the extractor's work (HyperNova Definition 7 requires an
 expected polynomial-time extractor), numerical hardness, or query
@@ -37,7 +38,8 @@ open HyperNovaHistory (Statement Envelope Payload SourceResult)
 open HyperNovaVisitedLaw (visitedLaw guardedDraw)
 open HyperNovaFirstFailure (MarkedSourceFailure)
 
-private theorem event_ne_top {Sample : Type*} (distribution : PMF Sample) (event : Set Sample) :
+/-- Every event of a PMF has finite mass. -/
+theorem event_ne_top {Sample : Type*} (distribution : PMF Sample) (event : Set Sample) :
     distribution.toOuterMeasure event ≠ ∞ := by
   rw [PMF.toOuterMeasure_apply]
   exact distribution.tsum_coe_indicator_ne_top event

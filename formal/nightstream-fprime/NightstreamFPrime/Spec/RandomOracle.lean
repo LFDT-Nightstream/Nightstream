@@ -78,13 +78,6 @@ def thenQuery (point : Output → Point) : OracleComp Point Answer Output →
   | done output => query (point output) fun _ => done output
   | query asked next => query asked fun answer => (next answer).thenQuery point
 
-theorem run_thenQuery (point : Output → Point) (oracle : Point → Answer)
-    (computation : OracleComp Point Answer Output) :
-    (computation.thenQuery point).run oracle = computation.run oracle := by
-  induction computation with
-  | done => rfl
-  | query asked next inductionHypothesis => exact inductionHypothesis (oracle asked)
-
 theorem mem_queries_thenQuery (point : Output → Point) (oracle : Point → Answer)
     (computation : OracleComp Point Answer Output) :
     point (computation.run oracle) ∈ (computation.thenQuery point).queries oracle := by
@@ -125,13 +118,6 @@ private theorem queries_queryAll (oracle : Point → Answer) (output : Output) (
   induction points with
   | nil => rfl
   | cons point rest inductionHypothesis => exact congrArg (point :: ·) inductionHypothesis
-
-theorem run_thenQueries (points : Output → List Point) (oracle : Point → Answer)
-    (computation : OracleComp Point Answer Output) :
-    (computation.thenQueries points).run oracle = computation.run oracle := by
-  induction computation with
-  | done output => exact run_queryAll oracle output (points output)
-  | query asked next inductionHypothesis => exact inductionHypothesis (oracle asked)
 
 theorem mem_queries_thenQueries (points : Output → List Point) (oracle : Point → Answer)
     (computation : OracleComp Point Answer Output) {point : Point}

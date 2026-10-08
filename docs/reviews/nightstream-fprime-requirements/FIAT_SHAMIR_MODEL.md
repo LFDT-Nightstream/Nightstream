@@ -7,17 +7,20 @@ declaration that only it used are deleted. The history bound now takes
 HyperNova errata Assumption 1, plain-model part, at each visit
 (`Export.Stage1.HyperNovaVisitedSecurity.NifsKnowledgeSound`). The
 random-oracle theorem `Lifecycle.RandomOracleKnowledge.knowledge_error_le`
-justifies its per-visit error; see
+motivates its per-visit error but does not prove it; see
 [ROM_KNOWLEDGE_SOUNDNESS.md](ROM_KNOWLEDGE_SOUNDNESS.md) and
-`formal/nightstream-fprime/TRUST_BOUNDARY.md`. The text below records the
-retired boundary.
+`formal/nightstream-fprime/TRUST_BOUNDARY.md`. The real success event is now
+`NifsRealSuccess.RealSuccess`. The text below records the retired boundary in
+the tense of its time. `FiatShamirModel`, `FiatShamirTransfer`, `NifsClosure`,
+`NifsFiatShamir`, `NifsInvalidSource` and `history_probability_linear_bound`
+no longer exist.
 
 Status: the owner approved this explicit assumption boundary on 2026-09-11
 UTC after the source review. The approved proposal had SHA-256
 `207b67740a6948633870891048091a0c7b2dd90599c04392622ab5cc52cb7498`.
 Approval selects no model instance or numerical security level. The
 conditional code was checked at `88d394fb4b24cfba21fd1a995bff16c3449312a8`;
-the concrete continuation is now consumed by
+the concrete continuation was consumed by
 `NifsClosure.finishValue_probability_and_expected_work`. Its checked source
 and gate evidence at `01a8fd8ca68280c7f642451ab33bc714cee5bc98` are recorded in
 `formal/nightstream-fprime/NIFS_CLOSURE_STATUS.md`.
@@ -54,8 +57,8 @@ For each fixed `d`, the existing Lean record takes `g := g_d` and
 `deltaFS := delta_d`. It does not construct the adversary translation or
 prove a history-depth or query bound.
 
-The source-witness conclusion is proved after this assumption. The selected
-checker and primitive correctness proofs are supplied by
+The source-witness conclusion was proved after this assumption. The selected
+checker and primitive correctness proofs were supplied by
 `NifsClosure.finishValue_probability_and_expected_work`. The selected
 provider constructs all suffix and parent checks; the checked prefix call
 and identity preparation supply their value/law equalities. Low-norm
@@ -110,11 +113,12 @@ terminals.
 
 The coverage theorems are deterministic. Each ends in identification or a named
 event (`StateHashCollision`, `RunCollision`). No probability bound in this
-repository charges these events, and none of the coverage theorems is an input
-to `history_probability_linear_bound`.
+repository charges these events numerically. None of the coverage theorems
+was an input to the retired `history_probability_linear_bound`; the
+random-oracle theorem now consumes them (Lemma 1 of the ROM note).
 
 Owner decision (2026-10-06): the success event requires the prior-state link.
-`FiatShamirTransfer.RealSuccess` takes the verifier context digest and holds
+`FiatShamirTransfer.RealSuccess` took the verifier context digest and held
 only when the adversary outputs a well-formed prior preimage that hashes to the
 absorbed prior digest, names that context, and has the NIFS running statement
 as its running vector. No challenge depends on the running statement. Without
@@ -125,11 +129,10 @@ well-formed preimage with any running vector hashes to almost every digest.
 With the output link, a running statement chosen after the challenges needs a
 preimage of the state hash for a digest that was absorbed before them: a first
 preimage if none was known, a second preimage otherwise, or a collision found
-in advance. The module moved to
-`Export/Stage1/FiatShamirTransfer.lean`, because the link is a Layout
-definition. The generic NIFS closure theorems (`NifsClosure`,
-`NifsFiatShamir`, `NifsProviderLaw`, `NifsInvalidSource`) take the context
-digest as a parameter. The HyperNova history theorems (`HyperNovaVisitedSecurity`,
+in advance. The event now lives in `Export/Stage1/NifsRealSuccess.lean`,
+because the link is a Layout definition. The retired NIFS closure theorems
+(`NifsClosure`, `NifsFiatShamir`, `NifsProviderLaw`, `NifsInvalidSource`)
+took the context digest as a parameter. The HyperNova history theorems (`HyperNovaVisitedSecurity`,
 `HyperNovaFalseAcceptance`) use the package's context digest, and
 `HyperNovaRealInput.realSuccess_of_terminal` derives the link from terminal
 acceptance for the decoded prior preimage (`HyperNovaRealInput.prior`).
@@ -145,10 +148,8 @@ and their openings. `prior_digest_comes_from_the_fresh_public_input` in
 older committed-statement reductions to this contract: equal replay authority
 identifies the fresh statement and every SumCheck round polynomial, or exhibits
 two statement call lists that reach one transcript state
-(`TranscriptCoverage.RunCollision`). The transfer statement does not consume the
-coverage results; they are proved properties of the transcript that the
-assumption ranges over. The assumption above still covers the permutation, the
-duplex construction, and the transfer bound.
+(`TranscriptCoverage.RunCollision`). The retired transfer statement did not
+consume the coverage results; the random-oracle theorem does.
 
 The in-circuit hash class of attacks (Khovratovich–Rothblum–Soukhanov,
 [ePrint 2025/118](https://eprint.iacr.org/2025/118); see also Fenzi,
@@ -156,8 +157,9 @@ The in-circuit hash class of attacks (Khovratovich–Rothblum–Soukhanov,
 relation evaluates the Fiat–Shamir hash. F′ does this by design: it recomputes
 the NIFS transcript with the same Poseidon2 permutation. The published attacks
 need a relation that the attacker shapes; here the verifier fixes the relation
-through its package key. The transfer assumption must still hold with these
-in-circuit hash calls. No theorem here proves that.
+through its package key. HyperNova Assumption 1 must still hold with these
+in-circuit hash calls, which no random-oracle model covers. No theorem here
+proves that.
 
 The transcript and the state hash `Poseidon2.hash` share the permutation and
 the zero initial state. Only their leading tag words separate them. Two facts

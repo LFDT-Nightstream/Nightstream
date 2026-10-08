@@ -38,7 +38,7 @@ pub use sparse::{CcsMatrix, CscMat, SparseCache};
 // Main CCS types and functions (audit-ready)
 pub use relations::{
     build_superneo_ring_forms, check_ccs_claim_opening, check_ccs_rowwise_relaxed, check_ccs_rowwise_zero,
-    superneo_public_x_cols, CcsClaim, CcsStructure, CcsWitness, CeClaim, CeWitness, LaneCommitments, V1_1Evaluations,
+    superneo_public_x_cols, CcsClaim, CcsStructure, CcsWitness, CeClaim, CeWitness, LaneCommitments, V1_2Evaluations,
 };
 pub use traits::SModuleHomomorphism;
 pub use utils::{mat_vec_mul_ff, mat_vec_mul_fk, tensor_point, validate_power_of_two};

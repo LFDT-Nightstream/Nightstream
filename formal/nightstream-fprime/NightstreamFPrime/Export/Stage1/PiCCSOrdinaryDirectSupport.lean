@@ -4,14 +4,14 @@ import NightstreamFPrime.Gadgets.Polynomial.SparseSupport
 import NightstreamFPrime.Layout.R1CS.Support
 import NightstreamFPrime.Layout.Stage1.PiCCSInputSupport
 import NightstreamFPrime.Layout.Stage1.PiCCSTranscriptSupport
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Support.CcsTerminal
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Support.EvalATerminal
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Support.EvalKTerminal
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Support.FinalIdentity
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Support.InitialClaim
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Support.NormTerminal
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Support.StatementBinding
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Support.SumcheckChain
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.CcsTerminal
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.EvalATerminal
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.EvalKTerminal
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.FinalIdentity
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.InitialClaim
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.NormTerminal
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.StatementBinding
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.SumcheckChain
 
 /-!
 Owns retained-source support for the complete canonical PiCCS ordinary-row
@@ -30,7 +30,7 @@ open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupport
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
@@ -123,11 +123,11 @@ private theorem fixedLocal_source (start length : Nat)
 
 private theorem initialProgramLength
     (interface : InitialClaim.Interface) (offset : Nat) :
-    (InitialClaim.program interface offset).recipes.length = 20733 := by
+    (InitialClaim.program interface offset).recipes.length = 12957 := by
   unfold InitialClaim.program Horner.Owned.program
   rw [Horner.compile_recipes_length]
   change 3 * ((InitialClaim.coefficientExprs interface offset).length - 1) =
-    20733
+    12957
   rw [InitialClaim.coefficientExprs_length]
 
 private theorem normProgramLength
@@ -145,7 +145,7 @@ private theorem initial_le_initial :
   Nat.le_refl _
 
 private theorem initial_finish_le :
-    PiCCSArithmetic.initialClaimLogicalStart + 20733 ≤
+    PiCCSArithmetic.initialClaimLogicalStart + 12957 ≤
       PiCCSStarts.outputBindingWitnessStart := by
   rw [PiCCSStarts.outputBindingWitnessStart_eq]
   unfold PiCCSArithmetic.initialClaimLogicalStart
@@ -159,7 +159,7 @@ private theorem initial_le_sumcheck :
   Nat.le_add_right _ _
 
 private theorem sumcheck_finish_le :
-    PiCCSArithmetic.sumcheckLogicalStart + 756 ≤
+    PiCCSArithmetic.sumcheckLogicalStart + 672 ≤
       PiCCSStarts.outputBindingWitnessStart := by
   rw [PiCCSStarts.outputBindingWitnessStart_eq]
   unfold PiCCSArithmetic.sumcheckLogicalStart
@@ -203,7 +203,7 @@ private theorem initial_le_evalA :
   norm_num
 
 private theorem evalA_finish_le :
-    PiCCSArithmetic.evalALogicalStart + 18251 ≤
+    PiCCSArithmetic.evalALogicalStart + 10475 ≤
       PiCCSStarts.outputBindingWitnessStart := by
   rw [PiCCSStarts.outputBindingWitnessStart_eq]
   unfold PiCCSArithmetic.evalALogicalStart
@@ -220,7 +220,7 @@ private theorem initial_le_ccs :
   exact Nat.le_trans initial_le_evalA (Nat.le_add_right _ _)
 
 private theorem ccs_finish_le :
-    PiCCSArithmetic.ccsLogicalStart + 56 ≤
+    PiCCSArithmetic.ccsLogicalStart + 23 ≤
       PiCCSStarts.outputBindingWitnessStart := by
   rw [PiCCSStarts.outputBindingWitnessStart_eq]
   unfold PiCCSArithmetic.ccsLogicalStart
@@ -388,8 +388,8 @@ theorem emittedConstraints_varsSatisfy
   have sumcheckLocal : ∀ index,
       PiCCSArithmetic.sumcheckLogicalStart ≤ index →
       index < PiCCSArithmetic.sumcheckLogicalStart +
-        SumcheckChain.privateCount 9 → Source index :=
-    fixedLocal_source PiCCSArithmetic.sumcheckLogicalStart 756
+        SumcheckChain.privateCount 8 → Source index :=
+    fixedLocal_source PiCCSArithmetic.sumcheckLogicalStart 672
       initial_le_sumcheck sumcheck_finish_le
   have sumcheckRows := SumcheckChain.flatConstraints_varsSatisfy
     sumcheckInterface PiCCSArithmetic.sumcheckLogicalStart Source
@@ -443,7 +443,7 @@ theorem emittedConstraints_varsSatisfy
           PiCCSArithmetic.evalALogicalStart) → Source index := by
     intro index lower upper
     rw [EvalATerminal.localLength_eq] at upper
-    apply fixedLocal_source PiCCSArithmetic.evalALogicalStart 18251
+    apply fixedLocal_source PiCCSArithmetic.evalALogicalStart 10475
       initial_le_evalA evalA_finish_le index lower upper
   have evalARoundSupport : ∀ coordinate,
       Horner.KSupported
@@ -483,10 +483,10 @@ theorem emittedConstraints_varsSatisfy
           PiCCSArithmetic.ccsLogicalStart) → Source index := by
     intro index lower upper
     have productCountEq :
-        Sparse.Owned.productCount Formal.ccsRowPolynomial = 54 := by
+        Sparse.Owned.productCount Formal.ccsRowPolynomial = 21 := by
       rfl
     rw [Sparse.Owned.localLength_eq, productCountEq] at upper
-    apply fixedLocal_source PiCCSArithmetic.ccsLogicalStart 56
+    apply fixedLocal_source PiCCSArithmetic.ccsLogicalStart 23
       initial_le_ccs ccs_finish_le index lower upper
   have ccsPointSupport : ∀ matrix,
       Horner.KSupported
@@ -569,7 +569,7 @@ theorem emittedConstraints_varsSatisfy
       Source (externalInputsSource (logicalWidth := logicalWidth)
         (publicFits := publicFits)) expression
     simpa [PiCCSArithmetic.statementBindingConstraints,
-      NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints] using!
+      NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints] using!
       statementMember
   · rw [PiCCSCompleteness.packetConstraints] at packetMember
     simp only [List.mem_append] at packetMember
@@ -577,19 +577,19 @@ theorem emittedConstraints_varsSatisfy
         evalAMember | ccsMember | normMember | finalMember
     · exact initialRows expression (by
         simpa [PiCCSArithmetic.initialClaimConstraints,
-          NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints,
+          NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints,
           Formal.initialClaimCircuit] using initialMember)
     · exact sumcheckRows expression (by
         simpa [PiCCSArithmetic.sumcheckConstraints,
-          NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints,
+          NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints,
           Formal.sumcheckCircuit] using sumcheckMember)
     · exact evalKRows expression (by
         simpa [PiCCSArithmetic.evalKConstraints,
-          NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints,
+          NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints,
           Formal.evalKCircuit] using evalKMember)
     · exact evalARows expression (by
         simpa [PiCCSArithmetic.evalAConstraints,
-          NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints,
+          NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints,
           Formal.evalACircuit] using evalAMember)
     · exact ccsRows expression (by
         simpa [PiCCSArithmetic.ccsConstraints, PiCCSArithmetic.mainConstraints,

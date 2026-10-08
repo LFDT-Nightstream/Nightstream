@@ -304,7 +304,7 @@ required inputs. Missing inputs keep their gates open.
 The base PiCCS input has valid zero-running openings. The recursive input uses
 the sixteen actual children of its first fold. The child commitment directory
 contains `child-0.json` through `child-15.json`; each evaluation directory
-contains `family-K.json` and `family-A0.json` through `family-A6.json`.
+contains `family-K.json` and `family-A0.json` through `family-A3.json`.
 The folded directory contains `folded.json` and the complete `folded.i16`
 carrier. The base and recursive opening caches contain their complete carriers,
 matrix images, and metadata. `verifier_context` contains four words; the pilot
@@ -334,7 +334,7 @@ python3 scripts/lean_graph/evidence.py --store /tmp/nightstream-evidence \
 
 Registered gates call the existing package checker, complete PiCCS result
 checker, mutation implementations, and independent opening evaluator.
-The opening gates cover `K`, `A0` through `A6`, the CCS rows, and all commitment
+The opening gates cover `K`, `A0` through `A3`, the CCS rows, and all commitment
 rows. `opening-commitment` checks rows 0 through 21 and all 1,188 coefficients
 in one invocation. It replaces the repeated per-row package loads.
 Zero-valued evaluations are valid.

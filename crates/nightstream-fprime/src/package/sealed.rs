@@ -21,8 +21,8 @@ use super::matrix_program::{MatrixProgram, MatrixRun, RowForms, MEANINGFUL_PORTS
 use super::native_application::PreparedApplication;
 use super::{
     relation_identifier, Layout, LoadedAssignmentPlan, LoadedPackage, LoadedTerminalLayout, LogicalAssignment,
-    PackageError, PackageR1cs, PiCcsV1_1EncodedInputs, PiCcsV1_1OutputEvaluations, PiCcsV1_1PackageInputs,
-    PiDecV1_1PackageInputs, RawPackage, PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS,
+    PackageError, PackageR1cs, PiCcsV1_2EncodedInputs, PiCcsV1_2OutputEvaluations, PiCcsV1_2PackageInputs,
+    PiDecV1_2PackageInputs, RawPackage, PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS,
 };
 use crate::application_records::{ApplicationRecords, PrivateSnapshot};
 use crate::identity::{
@@ -35,7 +35,7 @@ use crate::WitnessAssignment;
 
 const SEALED_PACKAGE_SCHEMA: u64 = 6;
 pub(super) const INNER_PACKAGE_SCHEMA: u64 = 8;
-const MATRIX_COUNT: usize = super::PI_CCS_V1_1_MATRIX_COUNT;
+const MATRIX_COUNT: usize = super::PI_CCS_V1_2_MATRIX_COUNT;
 const APPLICATION_PLAN_SCHEMA: u64 = 1;
 const APPLICATION_STATE_WORDS: usize = 4;
 const NEXT_PREIMAGE_ROW_COUNT: usize = 5;
@@ -88,7 +88,7 @@ impl LogicalMatrixEntry {
     }
 }
 
-/// The seven matrix forms at one Boolean-row ordinal.
+/// The four matrix forms at one Boolean-row ordinal.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LogicalMatrixRow {
     matrices: [Vec<LogicalMatrixEntry>; MATRIX_COUNT],
@@ -341,11 +341,11 @@ impl LoadedPerApplicationPackage {
     /// The generic prefix validates the caller's package context. This final
     /// application package replaces the public context slot with the digest
     /// recomputed from the complete production package binding.
-    pub fn encode_pi_ccs_v1_1_inputs(
+    pub fn encode_pi_ccs_v1_2_inputs(
         &self,
-        inputs: &PiCcsV1_1PackageInputs,
-    ) -> Result<PiCcsV1_1EncodedInputs, PackageError> {
-        let encoded = self.circuit.encode_pi_ccs_v1_1_inputs(inputs)?;
+        inputs: &PiCcsV1_2PackageInputs,
+    ) -> Result<PiCcsV1_2EncodedInputs, PackageError> {
+        let encoded = self.circuit.encode_pi_ccs_v1_2_inputs(inputs)?;
         let mut public_values = encoded.public_values().to_vec();
         let verifier_context = self
             .production_verifier_binding()?
@@ -360,19 +360,19 @@ impl LoadedPerApplicationPackage {
             .get_mut(context_start..context_end)
             .ok_or(PackageError::Invalid("Stage 1 verifier-context public slot"))?
             .copy_from_slice(&verifier_context);
-        Ok(PiCcsV1_1EncodedInputs::from_parts(
+        Ok(PiCcsV1_2EncodedInputs::from_parts(
             encoded.private_values().to_vec(),
             public_values,
         ))
     }
 
     /// Encode every caller-owned Stage 1 input in the exact package order.
-    pub fn encode_stage1_v1_1_inputs(
+    pub fn encode_stage1_v1_2_inputs(
         &self,
-        pi_ccs: &PiCcsV1_1PackageInputs,
-        pi_dec: &PiDecV1_1PackageInputs,
+        pi_ccs: &PiCcsV1_2PackageInputs,
+        pi_dec: &PiDecV1_2PackageInputs,
         application_witness: &[u64],
-    ) -> Result<PiCcsV1_1EncodedInputs, PackageError> {
+    ) -> Result<PiCcsV1_2EncodedInputs, PackageError> {
         if application_witness.len() != self.application.witness_word_count
             || application_witness
                 .iter()
@@ -380,41 +380,41 @@ impl LoadedPerApplicationPackage {
         {
             return Err(PackageError::Invalid("application witness"));
         }
-        let encoded = self.encode_pi_ccs_v1_1_inputs(pi_ccs)?;
+        let encoded = self.encode_pi_ccs_v1_2_inputs(pi_ccs)?;
         let mut private_values = encoded.private_values().to_vec();
         pi_dec.append_private_values(&mut private_values);
         private_values.extend_from_slice(application_witness);
         if private_values.len() != self.circuit.private_input_count() {
-            return Err(PackageError::Invalid("Stage 1 v1_1 encoded private-input length"));
+            return Err(PackageError::Invalid("Stage 1 v1_2 encoded private-input length"));
         }
-        Ok(PiCcsV1_1EncodedInputs::from_parts(
+        Ok(PiCcsV1_2EncodedInputs::from_parts(
             private_values,
             encoded.public_values().to_vec(),
         ))
     }
 
     /// Execute the package witness program from typed Stage 1 inputs.
-    pub fn execute_stage1_v1_1_witness(
+    pub fn execute_stage1_v1_2_witness(
         &self,
-        pi_ccs: &PiCcsV1_1PackageInputs,
-        pi_dec: &PiDecV1_1PackageInputs,
+        pi_ccs: &PiCcsV1_2PackageInputs,
+        pi_dec: &PiDecV1_2PackageInputs,
         application_witness: &[u64],
     ) -> Result<WitnessAssignment, PackageError> {
-        let encoded = self.encode_stage1_v1_1_inputs(pi_ccs, pi_dec, application_witness)?;
+        let encoded = self.encode_stage1_v1_2_inputs(pi_ccs, pi_dec, application_witness)?;
         self.circuit
             .execute_witness(encoded.private_values(), encoded.public_values())
     }
 
     /// Reuse application values already computed by the caller. Inputs and
     /// outputs must match the frame, and all circuit assertions are checked.
-    pub fn execute_stage1_v1_1_witness_with_application_values(
+    pub fn execute_stage1_v1_2_witness_with_application_values(
         &self,
-        pi_ccs: &PiCcsV1_1PackageInputs,
-        pi_dec: &PiDecV1_1PackageInputs,
+        pi_ccs: &PiCcsV1_2PackageInputs,
+        pi_dec: &PiDecV1_2PackageInputs,
         application_witness: &[u64],
         application_values: &[Goldilocks],
     ) -> Result<WitnessAssignment, PackageError> {
-        let encoded = self.encode_stage1_v1_1_inputs(pi_ccs, pi_dec, application_witness)?;
+        let encoded = self.encode_stage1_v1_2_inputs(pi_ccs, pi_dec, application_witness)?;
         self.circuit.execute_witness_with_application(
             encoded.private_values(),
             encoded.public_values(),
@@ -423,11 +423,11 @@ impl LoadedPerApplicationPackage {
     }
 
     /// Decode the PiCCS output segments through this verifier-owned package.
-    pub fn pi_ccs_v1_1_output_evaluations(
+    pub fn pi_ccs_v1_2_output_evaluations(
         &self,
         private_inputs: &[u64],
-    ) -> Result<PiCcsV1_1OutputEvaluations, PackageError> {
-        self.circuit.pi_ccs_v1_1_output_evaluations(private_inputs)
+    ) -> Result<PiCcsV1_2OutputEvaluations, PackageError> {
+        self.circuit.pi_ccs_v1_2_output_evaluations(private_inputs)
     }
 
     /// Build the exact final padded A/B/C matrices from this sealed package.
@@ -673,7 +673,7 @@ pub(super) fn decode_native_application_records(
         return Err(PackageError::Invalid("matrix program relation row count"));
     }
     let logical_public_input_count = word_to_usize(raw_public, "logical public input count")?;
-    if logical_public_input_count != PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS
+    if logical_public_input_count != PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS
         || logical_public_input_count > circuit.relation.column_count()
     {
         return Err(PackageError::Invalid("logical public input count"));
@@ -770,7 +770,7 @@ fn decode_per_application_value(value: Value, computed: [u64; 4]) -> Result<Load
     validate_next_preimage_assertion_suffix(&circuit_value, &next_preimage_rows)?;
     let logical_public_input_count = usize::try_from(raw_logical_public_input_count)
         .map_err(|_| PackageError::Invalid("logical public input count"))?;
-    if logical_public_input_count != PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS
+    if logical_public_input_count != PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS
         || logical_public_input_count > circuit.relation.column_count()
     {
         return Err(PackageError::Invalid("logical public input count"));

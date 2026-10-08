@@ -93,8 +93,7 @@ private theorem rowsWithState_rows {columns : Nat} (read : Fin columns → F)
 private def referenceRowValues {columns : Nat} (read : Fin columns → F) :
     PoseidonSboxPlan.Row columns → PortValues
   | .sbox forms => rowValues read forms
-  | .pin forms => RowSemantics.pin (forms.selector.evalSparse read)
-      (forms.value.evalSparse read)
+  | .pin forms => RowSemantics.pin (forms.value.evalSparse read)
 
 private theorem referenceRowValues_get {columns : Nat} (read : Fin columns → F)
     (row : PoseidonSboxPlan.Row columns) (port : Fin matrixCount) :
@@ -106,7 +105,7 @@ private theorem referenceRowValues_get {columns : Nat} (read : Fin columns → F
       fin_cases port <;>
         simp [PoseidonSboxPlan.Row.portForm, PoseidonSboxPlan.Row.meaningfulForm,
           PinRow.Forms.meaningfulForm, meaningfulPort?, RowSemantics.pin,
-          RowSemantics.multiplication, RowSemantics.general, PortValues.get]
+          RowSemantics.multiplication, PortValues.get]
 
 /-- Compute exactly the retained nonlinear rows; no final pin is emitted. -/
 @[specialize] def values {columns : Nat} (read : Fin columns → F)
@@ -134,7 +133,7 @@ theorem values_length {columns : Nat} (read : Fin columns → F)
   ⟨(values read interface).toArray, by simp only [List.size_toArray, values_length]⟩
 
 /-- Every computed port equals the original row's sparse evaluation. This
-includes the empty ports and requires no valid-row or selector assumption. -/
+includes the empty ports and requires no valid-row or one-column assumption. -/
 theorem stored_value {columns : Nat} (read : Fin columns → F)
     (interface : PoseidonSboxPlan.Interface columns) (row : Fin 150)
     (port : Fin matrixCount) :

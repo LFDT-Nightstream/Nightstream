@@ -1,15 +1,15 @@
 import Mathlib.Data.List.GetD
 import NightstreamFPrime.Layout.PilotProduction
-import NightstreamFPrime.Layout.PiCCS.v1_1.ProductionInputs
+import NightstreamFPrime.Layout.PiCCS.v1_2.ProductionInputs
 
 /-!
-Paper authority: SuperNeo v1_1, section 7.3, PiCCS input and output messages.
+Paper authority: SuperNeo v1.2, section 7.3, PiCCS input and output messages.
 Obligation: Own the concrete parent columns read by the production PiCCS
 circuit.
 
 The running instance reuses its exact serialization in the pilot prior-state
 preimage. The fresh public input reuses the pilot public-input columns. Only
-the fresh commitment, 28 degree-nine SumCheck messages, and separate output
+the fresh commitment, 28 degree-eight SumCheck messages, and separate output
 `Eval_K`/`Eval_A` families allocate new proof-input columns.
 
 No equality row is added at this boundary. The following PiCCS allocation
@@ -23,7 +23,7 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Circuit.Quadratic
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Layout.Polynomial.Horner
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
@@ -225,7 +225,7 @@ private theorem serializeRunning_point_getD_c1
 
 /-- End of the completed pilot source-column interval and start of the
 verifier-owned expected-context words. -/
-def expectedContextStart : Nat := 6892396
+def expectedContextStart : Nat := 5935084
 
 def expectedContextWords : Nat := 4
 
@@ -238,32 +238,32 @@ theorem expectedContextStart_matches_pilot :
   rw [PilotProduction.physicalColumnCount_eq]
   rfl
 
-theorem expectedContextStart_eq : expectedContextStart = 6892396 := by
+theorem expectedContextStart_eq : expectedContextStart = 5935084 := by
   rfl
 
 theorem expectedContextWords_eq : expectedContextWords = 4 := by
   rfl
 
-theorem proofInputStart_eq : proofInputStart = 6892400 := by
+theorem proofInputStart_eq : proofInputStart = 5935088 := by
   rfl
 
 /-- Fixed serialized running-state positions inside the prior preimage. -/
 def runningPointStart : Nat := priorRunningStart + 1
 def runningGroupsStart : Nat := priorRunningStart + 57
-def runningGroupWords : Nat := 2325
+def runningGroupWords : Nat := 2001
 def runningCommitmentWords : Nat := 1188
 def runningPublicWords : Nat := 270
-def runningEvaluationWords : Nat := 864
+def runningEvaluationWords : Nat := 540
 
 /-- A word position in the fixed serialized running-instance payload. -/
-def priorRunningIndex (index : Fin 37257) :
+def priorRunningIndex (index : Fin 32073) :
     Fin PilotProduction.stateHashWords :=
   ⟨priorRunningStart + index.val, by
     have indexBound := index.isLt
     norm_num [priorRunningStart, PilotProduction.stateHashWords_eq] at *
     omega⟩
 
-@[simp] theorem priorRunningIndex_val (index : Fin 37257) :
+@[simp] theorem priorRunningIndex_val (index : Fin 32073) :
     (priorRunningIndex index).val = priorRunningStart + index.val := by
   rfl
 
@@ -283,9 +283,9 @@ def runningEvaluationStart (source : Nat) : Nat :=
 def freshCommitmentStart : Nat := proofInputStart
 def freshCommitmentWords : Nat := 1188
 def roundMessageStart : Nat := freshCommitmentStart + freshCommitmentWords
-def roundMessageWords : Nat := 560
+def roundMessageWords : Nat := 504
 def outputEvaluationStart : Nat := roundMessageStart + roundMessageWords
-def outputEvaluationWords : Nat := 14688
+def outputEvaluationWords : Nat := 9180
 def proofInputColumnCount : Nat :=
   freshCommitmentWords + roundMessageWords + outputEvaluationWords
 def phaseOffset : Nat := proofInputStart + proofInputColumnCount
@@ -296,7 +296,7 @@ theorem freshCommitmentWords_eq :
 
 theorem roundMessageWords_eq :
     roundMessageWords =
-      productionShape.cubeVariables * (9 + 1) * 2 := by
+      productionShape.cubeVariables * (8 + 1) * 2 := by
   norm_num [roundMessageWords, productionShape, cubeVariables,
     Phi81MatrixSource.phi81Shape]
 
@@ -307,10 +307,10 @@ theorem outputEvaluationWords_eq :
   norm_num [outputEvaluationWords, productionShape, productionProfile,
     Phi81MatrixSource.phi81Shape, Shape.sourceCount, ringDegree]
 
-theorem proofInputColumnCount_eq : proofInputColumnCount = 16436 := by
+theorem proofInputColumnCount_eq : proofInputColumnCount = 10872 := by
   rfl
 
-theorem phaseOffset_eq : phaseOffset = 6908836 := by
+theorem phaseOffset_eq : phaseOffset = 5945960 := by
   rfl
 
 def pairAt (start : Nat) : KExpr :=
@@ -595,7 +595,7 @@ theorem protocolValues_runningWord
     (priorFixed : PilotProduction.FixedPreimage prior)
     (outputFixed : PilotProduction.FixedPreimage output)
     (digestFixed : digest.length = PilotProduction.digestWords)
-    (index : Fin 37257) :
+    (index : Fin 32073) :
     let values := PilotProduction.protocolValues prior priorPublic output digest
       priorFixed outputFixed digestFixed
     values.priorPreimage (priorRunningIndex index) =
@@ -814,19 +814,19 @@ def freshPublicInput
 
 def roundCoefficient
     (roundIndex : Fin productionShape.cubeVariables)
-    (coefficient : Fin (9 + 1)) : KExpr :=
-  pairAt (roundMessageStart + roundIndex.val * 20 + coefficient.val * 2)
+    (coefficient : Fin (8 + 1)) : KExpr :=
+  pairAt (roundMessageStart + roundIndex.val * 18 + coefficient.val * 2)
 
 def outputEval_K
     (source : Fin productionShape.sourceCount)
     (coefficient : Fin productionShape.coefficientCount) : KExpr :=
-  pairAt (outputEvaluationStart + source.val * 864 + coefficient.val * 2)
+  pairAt (outputEvaluationStart + source.val * 540 + coefficient.val * 2)
 
 def outputEval_A
     (source : Fin productionShape.sourceCount)
     (matrix : Fin productionShape.matrixCount)
     (coefficient : Fin productionShape.coefficientCount) : KExpr :=
-  pairAt (outputEvaluationStart + source.val * 864 + 108 +
+  pairAt (outputEvaluationStart + source.val * 540 + 108 +
     matrix.val * 108 + coefficient.val * 2)
 
 def freshExpr
@@ -838,7 +838,7 @@ def freshExpr
   publicInput := freshPublicInput
 
 def roundMessage (roundIndex : Fin productionShape.cubeVariables) :
-    RoundTranscript.Message 9 where
+    RoundTranscript.Message 8 where
   coefficient := roundCoefficient roundIndex
 
 def outputExpr : OutputBinding.OutputExpr where
@@ -859,7 +859,7 @@ def interface
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    Formal.Interface logicalWidth 9 publicFits where
+    Formal.Interface logicalWidth 8 publicFits where
   baseOffset := phaseOffset
   priorState := fun _ => priorStateWord
   outputState := fun _ => outputStateWord
@@ -902,8 +902,8 @@ private theorem round_lt_28
     Phi81MatrixSource.phi81Shape] at bound
   exact bound
 
-private theorem matrix_lt_7
-    (matrix : Fin productionShape.matrixCount) : matrix.val < 7 := by
+private theorem matrix_lt_4
+    (matrix : Fin productionShape.matrixCount) : matrix.val < 4 := by
   have bound := matrix.isLt
   norm_num [productionShape, productionProfile,
     Phi81MatrixSource.phi81Shape] at bound
@@ -1021,7 +1021,7 @@ theorem externalInputsBelow
     change (runningEval_A source matrix coefficient).VarsBelow phaseOffset
     simp only [runningEval_A, pairAt, KExpr.VarsBelow, Expr.VarsBelow]
     have sourceBound := runningSource_lt_16 source
-    have matrixBound := matrix_lt_7 matrix
+    have matrixBound := matrix_lt_4 matrix
     have coefficientBound := coefficient_lt_54 coefficient
     rw [phaseOffset_eq]
     norm_num [runningEvaluationStart, runningGroupStart,
@@ -1072,7 +1072,7 @@ theorem externalInputsBelow
     change (outputEval_A source matrix coefficient).VarsBelow phaseOffset
     simp only [outputEval_A, pairAt, KExpr.VarsBelow, Expr.VarsBelow]
     have sourceBound := allSource_lt_17 source
-    have matrixBound := matrix_lt_7 matrix
+    have matrixBound := matrix_lt_4 matrix
     have coefficientBound := coefficient_lt_54 coefficient
     rw [phaseOffset_eq]
     norm_num [outputEvaluationStart, roundMessageStart,
@@ -1087,7 +1087,7 @@ def externalInputsLinear
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    NightstreamFPrime.Layout.PiCCS.v1_1.ProductionInputs.ExternalInputsLinear
+    NightstreamFPrime.Layout.PiCCS.v1_2.ProductionInputs.ExternalInputsLinear
       (interface logicalWidth publicFits) phaseOffset where
   below := externalInputsBelow logicalWidth publicFits
   priorState := fun _ => R1CS.isAffine_var _

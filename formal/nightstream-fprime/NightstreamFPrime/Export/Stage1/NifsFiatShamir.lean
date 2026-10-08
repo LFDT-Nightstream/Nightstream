@@ -41,7 +41,7 @@ variable {Context State Tape : Type*}
   [Fintype (Challenge (ProductionKey.key relation productionAjtaiKey).piRlcAlgebra)]
   [Nonempty (Challenge (ProductionKey.key relation productionAjtaiKey).piRlcAlgebra)]
   (law : PMF (Context × Option (FiatShamirTransfer.RealOutput relation)))
-  (originalFirstPhase : Context → InteractivePrefix.Prover State productionShape 9)
+  (originalFirstPhase : Context → InteractivePrefix.Prover State productionShape 8)
   (abortTape : Tape)
   (provider : SupportedContinuation.Provider Tape relation productionAjtaiKey
     (fun context => PiCCSInputCheck.running (inputs context))
@@ -125,7 +125,7 @@ theorem finishValue_probability_and_expected_work {SetupTape : Type*}
       Real.sqrt ((∑' tape, (setupTapes tape).toReal * BindingProbability.localSuccessProbability
         productionAjtaiKey program (sourceProgram (prepare tape).value).access relation running fresh
         originalFirstPhase (SupportedExtraction.publicCheck running) continuation (prepare tape).value) *
-          PaperProfile.arity.total + IndependentExecution.testError productionShape 9) ≤
+          PaperProfile.arity.total + IndependentExecution.testError productionShape 8) ≤
       PaperCompositionProbability.eventProbability contexts
         (InteractiveComposition.firstPhase originalFirstPhase (SupportedExtraction.publicCheck running))
         (InteractiveComposition.suffixLaw relation productionAjtaiKey running fresh continuation)

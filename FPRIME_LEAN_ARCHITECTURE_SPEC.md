@@ -38,13 +38,13 @@ The implementation must preserve the obligations in these paper sections.
 
 ### SuperNeo
 
-- `docs/superneo-paper-v1_1/04_preliminaries.md`
-- `docs/superneo-paper-v1_1/05_embeddings_and_evaluation_homomorphism.md`
-- `docs/superneo-paper-v1_1/06_strong_and_weak_interactive_reductions.md`
-- `docs/superneo-paper-v1_1/07_superneo_folding_scheme_for_ccs.md`
-- `docs/superneo-paper-v1_1/08_concrete_parameters.md`
+- `docs/superneo-paper-v1_2/04_preliminaries.md`
+- `docs/superneo-paper-v1_2/05_embeddings_and_evaluation_homomorphism.md`
+- `docs/superneo-paper-v1_2/06_strong_and_weak_interactive_reductions.md`
+- `docs/superneo-paper-v1_2/07_superneo_folding_scheme_for_ccs.md`
+- `docs/superneo-paper-v1_2/08_concrete_parameters.md`
 - Appendix B.1 through B.4 in
-  `docs/superneo-paper-v1_1/11_appendix_B_deferred_theorems_and_proofs.md`
+  `docs/superneo-paper-v1_2/11_appendix_B_deferred_theorems_and_proofs.md`
 
 ### Nebula
 
@@ -71,7 +71,7 @@ The production profile is:
 - 16 running sources;
 - 17 PiRLC inputs in exact `K + k` order;
 - 16 PiDEC children;
-- 7 CCS matrices;
+- 4 CCS matrices;
 - Poseidon2-only protocol binding.
 
 The production package must bind one exact profile. It must not contain a

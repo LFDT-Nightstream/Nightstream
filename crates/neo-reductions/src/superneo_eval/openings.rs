@@ -1,6 +1,6 @@
 //! Complete real-witness openings shared by the normal PiCCS and PiDEC paths.
 
-use neo_ccs::V1_1Evaluations;
+use neo_ccs::V1_2Evaluations;
 use neo_math::{superneo_bar_block, KExtensions, D, K};
 use p3_field::PrimeCharacteristicRing;
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
@@ -14,20 +14,20 @@ impl SuperneoEvalCache {
     /// Evaluate all D Pad coefficients and all genuine matrix coefficients
     /// from concrete real witness blocks over the complete carrier.
     /// The cache and witnesses are prover data, not verifier authority.
-    pub fn eval_real_v1_1_openings(
+    pub fn eval_real_v1_2_openings(
         &self,
         point: &[K],
         witnesses: &[SuperneoZBlocks],
-    ) -> Result<Vec<V1_1Evaluations<K>>, PiCcsError> {
-        self.eval_real_v1_1_openings_reusing(point, witnesses, Vec::new())
+    ) -> Result<Vec<V1_2Evaluations<K>>, PiCcsError> {
+        self.eval_real_v1_2_openings_reusing(point, witnesses, Vec::new())
     }
 
-    pub(crate) fn eval_real_v1_1_openings_reusing(
+    pub(crate) fn eval_real_v1_2_openings_reusing(
         &self,
         point: &[K],
         witnesses: &[SuperneoZBlocks],
         storage: Vec<K>,
-    ) -> Result<Vec<V1_1Evaluations<K>>, PiCcsError> {
+    ) -> Result<Vec<V1_2Evaluations<K>>, PiCcsError> {
         #[cfg(feature = "perf-timers")]
         let started = std::time::Instant::now();
         let (rows, width, matrix_count) = self
@@ -44,7 +44,7 @@ impl SuperneoEvalCache {
         }
         if witnesses.iter().all(SuperneoZBlocks::real_is_zero) {
             return Ok((0..witnesses.len())
-                .map(|_| V1_1Evaluations {
+                .map(|_| V1_2Evaluations {
                     eval_k: vec![K::ZERO; D],
                     eval_a: vec![vec![K::ZERO; D]; matrix_count],
                 })
@@ -62,7 +62,7 @@ impl SuperneoEvalCache {
         let result = pad_openings(witnesses, point)
             .into_iter()
             .zip(matrices)
-            .map(|(eval_k, eval_a)| V1_1Evaluations {
+            .map(|(eval_k, eval_a)| V1_2Evaluations {
                 eval_k: eval_k.to_vec(),
                 eval_a: eval_a
                     .into_iter()

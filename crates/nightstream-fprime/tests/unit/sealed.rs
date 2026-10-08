@@ -50,7 +50,7 @@ fn application_plan() -> Value {
 fn assignment_transport_accepts_only_the_lean_owned_order() {
     const PHYSICAL_WIDTH: usize = 60_000;
     const LOGICAL_PUBLIC_WIDTH: usize = 270;
-    const PHI81_INVOCATIONS: usize = 39_474;
+    const PHI81_INVOCATIONS: usize = 33_966;
     const PHI81_QUOTIENT_VALUES: usize = PHI81_INVOCATIONS;
 
     let mut logical_width = LOGICAL_PUBLIC_WIDTH;
@@ -80,7 +80,7 @@ fn assignment_transport_accepts_only_the_lean_owned_order() {
             27,
             81,
             54,
-            [[17, 22, 1], [17, 5, 1], [17, 1, 2], [17, 7, 2]],
+            [[17, 22, 1], [17, 5, 1], [17, 1, 2], [17, 4, 2]],
             4,
             0,
             54,
@@ -192,8 +192,8 @@ fn application_plan_decodes_exact_lean_owned_ranges() {
 
 #[test]
 fn application_message_is_input_and_application_local_is_generated() {
-    assert!(!crate::package::v1_1::is_witness_role(APPLICATION_WITNESS_ROLE));
-    assert!(crate::package::v1_1::is_witness_role(APPLICATION_LOCAL_ROLE));
+    assert!(!crate::package::v1_2::is_witness_role(APPLICATION_WITNESS_ROLE));
+    assert!(crate::package::v1_2::is_witness_role(APPLICATION_LOCAL_ROLE));
 }
 
 #[test]

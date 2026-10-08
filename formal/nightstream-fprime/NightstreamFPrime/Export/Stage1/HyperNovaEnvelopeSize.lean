@@ -59,7 +59,7 @@ dimensions. The running claim size comes from `serializeRunning_length`. -/
 def fixedWordBound (application : Program) : Nat :=
   let width := Phi81CarrierLayout.carrierWidth
     (PerApplicationFixedPoint.logicalWidth application)
-  2 + slotCount * (37257 + productionShape.runningCount * width) +
+  2 + slotCount * (32073 + productionShape.runningCount * width) +
     productionShape.freshCount *
       (productionProfile.commitmentWidth * ringDegree + 1 +
         ringDegree * publicRingColumns + 1) + width

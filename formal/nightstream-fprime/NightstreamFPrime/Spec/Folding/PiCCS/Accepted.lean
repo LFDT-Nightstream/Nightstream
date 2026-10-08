@@ -5,10 +5,10 @@ import NightstreamFPrime.Spec.Folding.PiCCS.EvalA
 import NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity
 
 /-!
-Paper authority: SuperNeo v1.1, Section 7.3, complete `Pi_CCS` verifier.
+Paper authority: SuperNeo v1.2, Section 7.3, complete `Pi_CCS` verifier.
 Obligation: Replay the verifier transcript, bind separate `Eval_K` and
 `Eval_A` inputs and outputs, and check the fixed-width SumCheck chain against
-the exact v1.1 initial and terminal formulas.
+the exact v1.2 initial and terminal formulas.
 
 Inputs:
 - the one production NIFS key;

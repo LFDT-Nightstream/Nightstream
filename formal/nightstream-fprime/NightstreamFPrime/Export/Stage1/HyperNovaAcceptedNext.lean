@@ -135,7 +135,7 @@ theorem recursive_extend
     (nonwrap : statement.iteration + 1 < goldilocksModulus) :
     let relation := PerApplicationFixedPoint.relation application fits
     let key := ProductionKey.key relation productionAjtaiKey
-    ∃ (messages : Fin productionShape.cubeVariables → FixedPolynomial K 9)
+    ∃ (messages : Fin productionShape.cubeVariables → FixedPolynomial K 8)
       (fullOutput : FullOutputCoordinates.FullOutput K productionShape),
       let coins := FiatShamir.derive key.oracle.transcript
         ({ priorState := key.publicInputState (payload.running functionIndex) payload.fresh
@@ -144,7 +144,7 @@ theorem recursive_extend
         { rounds := fun round => (messages round).toMessage }
       ∃ rho : Fin key.arity.total → RingF,
         key.piRlcResponse (key.absorbPiCcsOutput coins.finalState fullOutput) = some rho ∧
-        ∃ (proof : Lifecycle.Proof 9)
+        ∃ (proof : Lifecycle.Proof 8)
           (result : Running
             (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
             (publicFits := PerApplicationFixedPoint.publicFits application))
@@ -254,7 +254,7 @@ theorem base_extend
         (publicFits := PerApplicationFixedPoint.publicFits application))
       (Fresh (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
         (publicFits := PerApplicationFixedPoint.publicFits application))
-      (Lifecycle.Proof 9) slotCount := {
+      (Lifecycle.Proof 8) slotCount := {
     iteration := statement.iteration
     z0 := statement.z0
     zi := statement.zi

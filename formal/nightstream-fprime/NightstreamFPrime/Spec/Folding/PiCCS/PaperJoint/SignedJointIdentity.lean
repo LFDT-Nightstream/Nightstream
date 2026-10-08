@@ -4,8 +4,8 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FiniteSumAlgebra
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetPolynomial
 
 /-!
-Exact finite SuperNeo v1.1 joint identity from Section 7.3 and Appendix B.2.
-`Pad` and the 7 CCS matrices are separate evaluation families. This file
+Exact finite SuperNeo v1.2 joint identity from Section 7.3 and Appendix B.2.
+`Pad` and the 4 CCS matrices are separate evaluation families. This file
 owns the pointwise four-term `Q`, its claimed target, the four residual
 families, and their signed identity. It emits no constraints.
 -/
@@ -180,7 +180,7 @@ def constraintAt
     (ops.add (ccsAt ops data gamma vertex)
       (gammaTerm ops gamma shape.freshCount (normAt ops data gamma vertex)))
 
-/-- Exact v1.1 four-term pointwise polynomial. -/
+/-- Exact v1.2 four-term pointwise polynomial. -/
 def qAt
     {Field : Type uField} {shape : Shape}
     (ops : InterpolationOps Field) (data : JointData Field shape)
@@ -607,7 +607,7 @@ private theorem sub_targets_and_three
       congr 1
       exact (laws.add_assoc _ _ _).symm
 
-/-- Exact v1.1 finite joint identity, for every verifier challenge. -/
+/-- Exact v1.2 finite joint identity, for every verifier challenge. -/
 theorem paperDifference_eq_signedResidualBlocks
     {Field : Type uField} {shape : Shape}
     (ops : InterpolationOps Field)

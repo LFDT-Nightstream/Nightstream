@@ -27,7 +27,7 @@ private noncomputable abbrev selectedKey :=
 /-- Use exactly the supplied C polynomials/full output and D message fields.
 The returned point and public inputs remain verifier-derived. -/
 def proof (input : PiCCSInputCheck.Input) (messages : PiDECInputCheck.Messages) :
-    Lifecycle.Proof 9 where
+    Lifecycle.Proof 8 where
   piCcsRounds := PiCCSProofInputs.roundPolynomial (PiCCSInputCheck.proofValues input)
   piCcsOutput := PiCCSProofInputs.output (PiCCSInputCheck.proofValues input)
   piDecCommitments := (PiCCSInputCheck.runningFromInput messages).commitments

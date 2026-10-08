@@ -16,7 +16,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
 private theorem previousRule_zero
     {sourceWidth logicalWidth : Nat}
-    (schedule : PoseidonRetainedFamily.Schedule sourceWidth 3110)
+    (schedule : PoseidonRetainedFamily.Schedule sourceWidth 2678)
     (retainedStart oneColumn : Nat) (lane : Fin 16) :
     (previousRule schedule retainedStart).form? logicalWidth oneColumn
         0 lane.val = some none := by
@@ -25,10 +25,10 @@ private theorem previousRule_zero
 
 private theorem previousRule_succ
     {sourceWidth logicalWidth : Nat}
-    (schedule : PoseidonRetainedFamily.Schedule sourceWidth 3110)
+    (schedule : PoseidonRetainedFamily.Schedule sourceWidth 2678)
     (retainedStart oneColumn : Nat)
     (fits : retainedStart + schedule.block.coordinateCount ≤ logicalWidth)
-    (invocationOffset : Fin 3109) (lane : Fin 16) :
+    (invocationOffset : Fin 2677) (lane : Fin 16) :
     (previousRule schedule retainedStart).form? logicalWidth oneColumn
         (1 + invocationOffset.val) lane.val =
       some (some (PoseidonRetainedFamily.outputState schedule retainedStart fits
@@ -47,7 +47,7 @@ private theorem previousRule_succ
               slotBound selected⟩) lane)) by
     simpa [previousRule] using
       PoseidonInput.Rule.external_form?_ofSemantic
-        (region := PoseidonInput.Region.mk 1 3109 0 16)
+        (region := PoseidonInput.Region.mk 1 2677 0 16)
         invocationOffset lane lane.isLt schedule.block retainedStart fits
         oneColumn 134 150 slotBound]
   apply congrArg some
@@ -63,7 +63,7 @@ private theorem previousRule_succ
 
 private theorem previousProgram_zero
     {sourceWidth logicalWidth : Nat}
-    (schedule : PoseidonRetainedFamily.Schedule sourceWidth 3110)
+    (schedule : PoseidonRetainedFamily.Schedule sourceWidth 2678)
     (retainedStart oneColumn : Nat) (lane : Fin 16) :
     (previousProgram schedule retainedStart).form? logicalWidth oneColumn
         0 lane.val = some .empty := by
@@ -75,10 +75,10 @@ private theorem previousProgram_zero
 
 private theorem previousProgram_succ
     {sourceWidth logicalWidth : Nat}
-    (schedule : PoseidonRetainedFamily.Schedule sourceWidth 3110)
+    (schedule : PoseidonRetainedFamily.Schedule sourceWidth 2678)
     (retainedStart oneColumn : Nat)
     (fits : retainedStart + schedule.block.coordinateCount ≤ logicalWidth)
-    (invocationOffset : Fin 3109) (lane : Fin 16) :
+    (invocationOffset : Fin 2677) (lane : Fin 16) :
     (previousProgram schedule retainedStart).form? logicalWidth oneColumn
         (1 + invocationOffset.val) lane.val =
       some (PoseidonRetainedFamily.outputState schedule retainedStart fits
@@ -92,10 +92,10 @@ private theorem previousProgram_succ
 
 private theorem previousRule_result
     {sourceWidth logicalWidth : Nat}
-    (schedule : PoseidonRetainedFamily.Schedule sourceWidth 3110)
+    (schedule : PoseidonRetainedFamily.Schedule sourceWidth 2678)
     (retainedStart oneColumn : Nat)
     (fits : retainedStart + schedule.block.coordinateCount ≤ logicalWidth)
-    (invocation : Fin 3110) (lane : Fin 16) :
+    (invocation : Fin 2678) (lane : Fin 16) :
     (previousRule schedule retainedStart).form? logicalWidth oneColumn
         invocation.val lane.val =
       some (if first : invocation.val = 0 then none else
@@ -109,7 +109,7 @@ private theorem previousRule_result
     rw [invocationEq]
     exact previousRule_zero schedule retainedStart oneColumn lane
   · rw [dif_neg first]
-    let invocationOffset : Fin 3109 :=
+    let invocationOffset : Fin 2677 :=
       ⟨invocation.val - 1, by omega⟩
     have invocationEq : invocation.val = 1 + invocationOffset.val := by
       dsimp [invocationOffset]
@@ -127,11 +127,11 @@ private theorem fullInputRule_result
     {sourceWidth logicalWidth : Nat}
     (inputBlock : LowNormBlock.Block sourceWidth) (inputStart : Nat)
     (fits : inputStart + inputBlock.coordinateCount ≤ logicalWidth)
-    (slotCount : inputBlock.slotCount = 37297) (oneColumn : Nat)
-    (invocation : Fin 3110) (lane : Fin 16) :
+    (slotCount : inputBlock.slotCount = 32113) (oneColumn : Nat)
+    (invocation : Fin 2678) (lane : Fin 16) :
     (fullInputRule inputBlock inputStart).form? logicalWidth oneColumn
         invocation.val lane.val =
-      some (if invocationBound : invocation.val < 3108 then
+      some (if invocationBound : invocation.val < 2676 then
         if laneBound : lane.val < 12 then
           some (inputBlock.form inputStart fits
             ⟨invocation.val * 12 + lane.val, by
@@ -139,12 +139,12 @@ private theorem fullInputRule_result
               omega⟩)
         else none
       else none) := by
-  by_cases invocationBound : invocation.val < 3108
+  by_cases invocationBound : invocation.val < 2676
   · rw [dif_pos invocationBound]
     by_cases laneBound : lane.val < 12
     · rw [dif_pos laneBound]
       have selected := PoseidonInput.Rule.retained_form?_ofSemantic
-        (region := PoseidonInput.Region.mk 0 3108 0 12)
+        (region := PoseidonInput.Region.mk 0 2676 0 12)
         ⟨invocation.val, invocationBound⟩ ⟨lane.val, laneBound⟩
         inputBlock inputStart fits oneColumn 0 12 1 (by
           change 0 + invocation.val * 12 + lane.val * 1 <
@@ -164,22 +164,22 @@ private theorem tailInputRule_result
     {sourceWidth logicalWidth : Nat}
     (inputBlock : LowNormBlock.Block sourceWidth) (inputStart : Nat)
     (fits : inputStart + inputBlock.coordinateCount ≤ logicalWidth)
-    (slotCount : inputBlock.slotCount = 37297) (oneColumn : Nat)
-    (invocation : Fin 3110) (lane : Fin 16) :
+    (slotCount : inputBlock.slotCount = 32113) (oneColumn : Nat)
+    (invocation : Fin 2678) (lane : Fin 16) :
     (tailInputRule inputBlock inputStart).form? logicalWidth oneColumn
         invocation.val lane.val =
-      some (if selected : invocation.val = 3108 ∧ lane.val = 0 then
-        some (inputBlock.form inputStart fits ⟨37296, by
+      some (if selected : invocation.val = 2676 ∧ lane.val = 0 then
+        some (inputBlock.form inputStart fits ⟨32112, by
           rw [slotCount]
           omega⟩)
       else none) := by
-  by_cases selected : invocation.val = 3108 ∧ lane.val = 0
+  by_cases selected : invocation.val = 2676 ∧ lane.val = 0
   · rw [dif_pos selected]
     have ruleSelected := PoseidonInput.Rule.retained_form?_ofSemantic
-      (region := PoseidonInput.Region.mk 3108 1 0 1)
+      (region := PoseidonInput.Region.mk 2676 1 0 1)
       (0 : Fin 1) (0 : Fin 1) inputBlock inputStart fits oneColumn
-      37296 0 1 (by
-        change 37296 + 0 * 0 + 0 * 1 < inputBlock.slotCount
+      32112 0 1 (by
+        change 32112 + 0 * 0 + 0 * 1 < inputBlock.slotCount
         rw [slotCount]
         omega)
     simpa [tailInputRule, selected.1, selected.2] using ruleSelected
@@ -189,15 +189,15 @@ private theorem tailInputRule_result
     omega
 
 private theorem paddingRule_result {logicalWidth : Nat}
-    (oneColumn : Fin logicalWidth) (invocation : Fin 3110) (lane : Fin 16) :
+    (oneColumn : Fin logicalWidth) (invocation : Fin 2678) (lane : Fin 16) :
     paddingRule.form? logicalWidth oneColumn.val invocation.val lane.val =
-      some (if selected : invocation.val = 3109 ∧ lane.val = 0 then
+      some (if selected : invocation.val = 2677 ∧ lane.val = 0 then
         some (SparseForm.singleton oneColumn 1)
       else none) := by
-  by_cases selected : invocation.val = 3109 ∧ lane.val = 0
+  by_cases selected : invocation.val = 2677 ∧ lane.val = 0
   · rw [dif_pos selected]
     have ruleSelected := PoseidonInput.Rule.constant_form?
-      (region := PoseidonInput.Region.mk 3109 1 0 1)
+      (region := PoseidonInput.Region.mk 2677 1 0 1)
       (0 : Fin 1) (0 : Fin 1) oneColumn (1 : F)
     simpa [paddingRule, selected.1, selected.2] using! ruleSelected
   · rw [dif_neg selected]
@@ -207,23 +207,23 @@ private theorem paddingRule_result {logicalWidth : Nat}
 
 private theorem chainInputProgram_form?
     {poseidonSourceWidth inputSourceWidth logicalWidth : Nat}
-    (schedule : PoseidonRetainedFamily.Schedule poseidonSourceWidth 3110)
+    (schedule : PoseidonRetainedFamily.Schedule poseidonSourceWidth 2678)
     (retainedStart : Nat)
     (poseidonFits : retainedStart + schedule.block.coordinateCount ≤
       logicalWidth)
     (inputBlock : LowNormBlock.Block inputSourceWidth) (inputStart : Nat)
     (inputFits : inputStart + inputBlock.coordinateCount ≤ logicalWidth)
-    (inputSlotCount : inputBlock.slotCount = 37297)
-    (oneColumn : Fin logicalWidth) (invocation : Fin 3110) (lane : Fin 16) :
+    (inputSlotCount : inputBlock.slotCount = 32113)
+    (oneColumn : Fin logicalWidth) (invocation : Fin 2678) (lane : Fin 16) :
     (chainInputProgram schedule retainedStart inputBlock inputStart).form?
         logicalWidth oneColumn.val invocation.val lane.val =
       some (
         let previous := PilotPoseidonPlan.previousOutput schedule retainedStart
           poseidonFits invocation lane
-        if invocation.val < 3109 then
+        if invocation.val < 2677 then
           if lane.val < 12 then
             let offset := invocation.val * 12 + lane.val
-            if present : offset < 37297 then
+            if present : offset < 32113 then
               SparseForm.add previous
                 (inputBlock.form inputStart inputFits ⟨offset, by
                   rw [inputSlotCount]
@@ -246,48 +246,48 @@ private theorem chainInputProgram_form?
       oneColumn.val invocation lane)
     (paddingRule_result oneColumn invocation lane)
   by_cases first : invocation.val = 0
-  · have full : invocation.val < 3108 := by omega
-    have absorbing : invocation.val < 3109 := by omega
+  · have full : invocation.val < 2676 := by omega
+    have absorbing : invocation.val < 2677 := by omega
     by_cases rateLane : lane.val < 12
-    · have present : invocation.val * 12 + lane.val < 37297 := by omega
-      have firstPresent : lane.val < 37297 := by omega
+    · have present : invocation.val * 12 + lane.val < 32113 := by omega
+      have firstPresent : lane.val < 32113 := by omega
       simpa [chainInputProgram, first, full, absorbing, rateLane, present,
         firstPresent, PilotPoseidonPlan.previousOutput, SparseForm.add,
         SparseForm.empty] using folded
     · simpa [chainInputProgram, first, full, absorbing, rateLane,
         PilotPoseidonPlan.previousOutput, SparseForm.add,
         SparseForm.empty] using folded
-  · by_cases full : invocation.val < 3108
-    · have absorbing : invocation.val < 3109 := by omega
-      have notTail : invocation.val ≠ 3108 := by omega
-      have notPadding : invocation.val ≠ 3109 := by omega
+  · by_cases full : invocation.val < 2676
+    · have absorbing : invocation.val < 2677 := by omega
+      have notTail : invocation.val ≠ 2676 := by omega
+      have notPadding : invocation.val ≠ 2677 := by omega
       by_cases rateLane : lane.val < 12
-      · have present : invocation.val * 12 + lane.val < 37297 := by omega
+      · have present : invocation.val * 12 + lane.val < 32113 := by omega
         simpa [chainInputProgram, first, full, absorbing, rateLane, present,
           notTail, notPadding, SparseForm.add, SparseForm.empty] using folded
       · simpa [chainInputProgram, first, full, absorbing, rateLane,
           notTail, notPadding, SparseForm.add, SparseForm.empty] using folded
-    · have last : invocation.val = 3108 ∨ invocation.val = 3109 := by
+    · have last : invocation.val = 2676 ∨ invocation.val = 2677 := by
         omega
       rcases last with tail | padding
-      · have absorbing : invocation.val < 3109 := by omega
+      · have absorbing : invocation.val < 2677 := by omega
         by_cases zeroLane : lane.val = 0
         · have rateLane : lane.val < 12 := by omega
-          have present : invocation.val * 12 + lane.val < 37297 := by omega
-          have tailPresent : 37296 + lane.val < 37297 := by omega
+          have present : invocation.val * 12 + lane.val < 32113 := by omega
+          have tailPresent : 32112 + lane.val < 32113 := by omega
           simpa [chainInputProgram, first, full, tail, absorbing, zeroLane,
             rateLane, present, tailPresent, SparseForm.add,
             SparseForm.empty] using folded
         · by_cases rateLane : lane.val < 12
-          · have absent : ¬invocation.val * 12 + lane.val < 37297 := by
+          · have absent : ¬invocation.val * 12 + lane.val < 32113 := by
               omega
-            have tailAbsent : ¬37296 + lane.val < 37297 := by omega
+            have tailAbsent : ¬32112 + lane.val < 32113 := by omega
             simpa [chainInputProgram, first, full, tail, absorbing, zeroLane,
               rateLane, absent, tailAbsent, SparseForm.add,
               SparseForm.empty] using folded
           · simpa [chainInputProgram, first, full, tail, absorbing, zeroLane,
               rateLane, SparseForm.add, SparseForm.empty] using folded
-      · have notAbsorbing : ¬invocation.val < 3109 := by omega
+      · have notAbsorbing : ¬invocation.val < 2677 := by omega
         by_cases zeroLane : lane.val = 0
         · simpa [chainInputProgram, first, full, padding, notAbsorbing,
             zeroLane, SparseForm.add, SparseForm.empty] using folded
@@ -302,7 +302,7 @@ theorem priorInputProgram_form?
         (PiRLCPoseidonGeometry.oneColumn geometry).val invocation.val lane.val =
       some (PilotPoseidonPlan.priorInputState geometry invocation lane) := by
   have slotCount :
-      (PiRLCPoseidonGeometry.priorInputBlock program).slotCount = 37297 := by
+      (PiRLCPoseidonGeometry.priorInputBlock program).slotCount = 32113 := by
     simp [PiRLCPoseidonGeometry.priorInputBlock]
   simpa [priorInputProgram, PilotPoseidonPlan.priorInputState,
     Data.priorChain, Data.liftPilotChain, PilotData.priorChain,
@@ -325,7 +325,7 @@ theorem outputInputProgram_form?
         (PiRLCPoseidonGeometry.oneColumn geometry).val invocation.val lane.val =
       some (PilotPoseidonPlan.outputInputState geometry invocation lane) := by
   have slotCount :
-      (PiRLCPoseidonGeometry.outputInputBlock program).slotCount = 37297 := by
+      (PiRLCPoseidonGeometry.outputInputBlock program).slotCount = 32113 := by
     simp [PiRLCPoseidonGeometry.outputInputBlock]
   simpa [outputInputProgram, PilotPoseidonPlan.outputInputState,
     Data.outputChain, Data.liftPilotChain, PilotData.outputChain,

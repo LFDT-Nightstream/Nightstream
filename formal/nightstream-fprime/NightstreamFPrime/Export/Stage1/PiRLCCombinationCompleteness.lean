@@ -17,7 +17,7 @@ open NightstreamFPrime.Export.Package
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Export.Stage1.PiRLCCombinationInvocations
 open NightstreamFPrime.Export.Stage1.PiRLCCombinationConformance
@@ -75,7 +75,7 @@ private theorem sum_map_mul_left (factor : Nat) (values : List Nat) :
 
 private theorem laneFreshCost_eq (lane : Fin ringDegree) :
     laneFreshCost lane.val =
-      NightstreamFPrime.Layout.PiRLC.v1_1.CombinationStep.laneFreshCount lane := by
+      NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep.laneFreshCount lane := by
   simp [laneFreshCost, laneFreshCosts, lane.isLt]
 
 private theorem laneFreshCosts_ofFn :
@@ -479,7 +479,7 @@ theorem sourcePhysicalRows_imply_invocationRows
   rw [startEq] at cellRows
   have costPositive : 0 < laneFreshCost lane.val := by
     rw [laneFreshCost_eq lane]
-    unfold NightstreamFPrime.Layout.PiRLC.v1_1.CombinationStep.laneFreshCount
+    unfold NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep.laneFreshCount
     omega
   have constraintPositive :
       0 < R1CS.constraintFreshCount
@@ -550,7 +550,7 @@ private theorem sourceConstraint_freshCount_of_production
     (logicalStart valueStride : Nat)
     (valueSourceStart : Nat → Nat → Nat → Nat)
     (inputs :
-      NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.ProductionInputs
+      NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.ProductionInputs
         interface logicalStart)
     (source : Fin sourceCount) (block : Fin blockCount)
     (lane : Fin ringDegree) (cell : Fin cellCount)
@@ -653,10 +653,10 @@ private theorem evalKSourceFreshCount
         canonicalSource block lane cell))
 
 private theorem evalASourceFreshCount
-    (source : Fin sourceCount) (block : Fin 7) (lane : Fin ringDegree)
+    (source : Fin sourceCount) (block : Fin 4) (lane : Fin ringDegree)
     (cell : Fin 2) :
     R1CS.constraintFreshCount
-        (sourceConstraint PiRLCStarts.evalALogicalStart 7 2 2 source.val
+        (sourceConstraint PiRLCStarts.evalALogicalStart 4 2 2 source.val
           block.val cell.val evalAValueSourceStart lane) =
       laneFreshCost lane.val := by
   let canonicalSource : Fin CombinationFamily.sourceCount :=
@@ -690,7 +690,7 @@ structure ProductionFamilyInvocationRowsHold (env : Env) : Prop where
     PiRLCStarts.evalKRowStart PiRLCStarts.evalKFreshStart 1 2 2
     evalKValueSourceStart env
   evalA : FamilyInvocationRowsHold PiRLCStarts.evalALogicalStart
-    PiRLCStarts.evalARowStart PiRLCStarts.evalAFreshStart 7 2 2
+    PiRLCStarts.evalARowStart PiRLCStarts.evalAFreshStart 4 2 2
     evalAValueSourceStart env
 
 /-- The remapped child packets construct every exact production combination
@@ -706,26 +706,26 @@ theorem remappedPackets_imply_familyInvocationRows
   have evalARows := (Spartan.remapRows_hold env _).mp packets.evalA
   change R1CS.RowsHold (Spartan.pullback env)
     (R1CS.lowerConstraints
-      (NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.logicalConstraints
+      (NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.logicalConstraints
         (productionCommitmentFamilyInterface (logicalWidth := Data.logicalWidth)
           (publicFits := Data.publicFits)) PiRLCStarts.commitmentLogicalStart)
       PiRLCStarts.commitmentFreshStart).rows at commitmentRows
   change R1CS.RowsHold (Spartan.pullback env)
     (R1CS.lowerConstraints
-      (NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.logicalConstraints
+      (NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.logicalConstraints
         (productionPublicInputFamilyInterface
           (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
         PiRLCStarts.publicInputLogicalStart)
       PiRLCStarts.publicInputFreshStart).rows at publicInputRows
   change R1CS.RowsHold (Spartan.pullback env)
     (R1CS.lowerConstraints
-      (NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.logicalConstraints
+      (NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.logicalConstraints
         (productionEvalKFamilyInterface (logicalWidth := Data.logicalWidth)
           (publicFits := Data.publicFits)) PiRLCStarts.evalKLogicalStart)
       PiRLCStarts.evalKFreshStart).rows at evalKRows
   change R1CS.RowsHold (Spartan.pullback env)
     (R1CS.lowerConstraints
-      (NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.logicalConstraints
+      (NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.logicalConstraints
         (productionEvalAFamilyInterface (logicalWidth := Data.logicalWidth)
           (publicFits := Data.publicFits)) PiRLCStarts.evalALogicalStart)
       PiRLCStarts.evalAFreshStart).rows at evalARows
@@ -761,7 +761,7 @@ theorem remappedPackets_imply_familyInvocationRows
     exact evalKValueSource_affine source.val block.val cell.val offset source.isLt
       cell.isLt offsetLt
   · refine familyPhysicalRows_imply_invocationRows
-      (blockCount := 7) (cellCount := 2)
+      (blockCount := 4) (cellCount := 2)
       PiRLCStarts.evalALogicalStart PiRLCStarts.evalARowStart
       PiRLCStarts.evalAFreshStart 2 evalAValueSourceStart
       evalAFreshStart_local evalASourceFreshCount ?_ env evalARows

@@ -13,7 +13,7 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Circuit.Quadratic
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Lifecycle.Stage1
 open NightstreamFPrime.Layout.Polynomial.Horner
 open NightstreamFPrime.Layout.Stage1.RunningTransitionInputs
@@ -312,7 +312,7 @@ theorem logicalConstraints_length_eq
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    (logicalConstraints logicalWidth publicFits).length = 37263 := by
+    (logicalConstraints logicalWidth publicFits).length = 32079 := by
   exact RunningTransition.flatConstraints_length_eq _ _
 
 theorem totalRowCount_eq
@@ -321,7 +321,7 @@ theorem totalRowCount_eq
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalRowCount (logicalConstraints logicalWidth publicFits) =
-      37263 := by
+      32079 := by
   rw [R1CS.totalRowCount_eq_fresh_add_length,
     totalFreshCount_eq relation, logicalConstraints_length_eq]
 

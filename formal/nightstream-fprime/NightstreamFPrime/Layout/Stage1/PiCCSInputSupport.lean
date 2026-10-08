@@ -1,4 +1,4 @@
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Support
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support
 import NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupportData
 
 /-!
@@ -13,7 +13,7 @@ namespace NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupport
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
@@ -198,9 +198,9 @@ theorem externalInputsSupported
     unfold InRange
     omega
   · intro roundIndex coefficient
-    change External (PiCCSInputs.roundMessageStart + roundIndex.val * 20 +
+    change External (PiCCSInputs.roundMessageStart + roundIndex.val * 18 +
           coefficient.val * 2) ∧
-      External (PiCCSInputs.roundMessageStart + roundIndex.val * 20 +
+      External (PiCCSInputs.roundMessageStart + roundIndex.val * 18 +
           coefficient.val * 2 + 1)
     have roundBound := roundIndex.isLt
     have coefficientBound := coefficient.isLt
@@ -216,9 +216,9 @@ theorem externalInputsSupported
       omega
   · intro source coefficient
     change External (PiCCSInputs.outputEvaluationStart +
-          source.val * 864 + coefficient.val * 2) ∧
+          source.val * 540 + coefficient.val * 2) ∧
       External (PiCCSInputs.outputEvaluationStart +
-          source.val * 864 + coefficient.val * 2 + 1)
+          source.val * 540 + coefficient.val * 2 + 1)
     have sourceBound := source.isLt
     have coefficientBound := coefficient.isLt
     norm_num [productionShape, productionProfile,
@@ -235,9 +235,9 @@ theorem externalInputsSupported
       omega
   · intro source matrix coefficient
     change External (PiCCSInputs.outputEvaluationStart +
-          source.val * 864 + 108 + matrix.val * 108 + coefficient.val * 2) ∧
+          source.val * 540 + 108 + matrix.val * 108 + coefficient.val * 2) ∧
       External (PiCCSInputs.outputEvaluationStart +
-          source.val * 864 + 108 + matrix.val * 108 + coefficient.val * 2 + 1)
+          source.val * 540 + 108 + matrix.val * 108 + coefficient.val * 2 + 1)
     have sourceBound := source.isLt
     have matrixBound := matrix.isLt
     have coefficientBound := coefficient.isLt

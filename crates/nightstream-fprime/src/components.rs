@@ -19,10 +19,10 @@ const PROFILE: [u64; 8] = [
     65536,
     54,
     28,
-    crate::PI_CCS_V1_1_MATRIX_COUNT as u64,
-    7,
+    crate::PI_CCS_V1_2_MATRIX_COUNT as u64,
+    4,
 ];
-const MATRIX_PORTS: usize = 7;
+const MATRIX_PORTS: usize = 4;
 
 #[derive(Debug, Error)]
 pub enum ComponentError {

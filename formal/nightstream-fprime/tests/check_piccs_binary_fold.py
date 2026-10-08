@@ -71,7 +71,7 @@ def round_challenge(path):
     for index in (3, 6):
         for word in sequence(value[index], None, f"{label}: state"):
             field(word, label)
-    for coefficient in sequence(value[4], 10, f"{label}: polynomial"):
+    for coefficient in sequence(value[4], 9, f"{label}: polynomial"):
         extension(coefficient, label)
     for index in (5, 7, 8, 9):
         extension(value[index], label)

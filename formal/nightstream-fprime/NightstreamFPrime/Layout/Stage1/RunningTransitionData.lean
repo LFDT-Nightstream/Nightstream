@@ -12,7 +12,7 @@ open NightstreamFPrime.Circuit.Quadratic
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.Stage1
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
 
@@ -118,9 +118,9 @@ theorem publicWidth_eq_coordinateCount
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
     (FullShape logicalWidth publicFits).publicWidth =
-      NightstreamFPrime.Lifecycle.PiDEC.v1_1.PublicInputSplit.coordinateCount
+      NightstreamFPrime.Lifecycle.PiDEC.v1_2.PublicInputSplit.coordinateCount
         logicalWidth publicFits := by
-  rw [NightstreamFPrime.Lifecycle.PiDEC.v1_1.PublicInputSplit.coordinateCount_eq]
+  rw [NightstreamFPrime.Lifecycle.PiDEC.v1_2.PublicInputSplit.coordinateCount_eq]
   rfl
 
 def digitCoordinate
@@ -128,7 +128,7 @@ def digitCoordinate
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (coordinate : Fin (FullShape logicalWidth publicFits).publicWidth) :
-    Fin (NightstreamFPrime.Lifecycle.PiDEC.v1_1.PublicInputSplit.coordinateCount
+    Fin (NightstreamFPrime.Lifecycle.PiDEC.v1_2.PublicInputSplit.coordinateCount
       logicalWidth publicFits) :=
   Fin.cast (publicWidth_eq_coordinateCount logicalWidth publicFits) coordinate
 

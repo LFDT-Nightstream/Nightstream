@@ -120,123 +120,103 @@ theorem nativeEvalPair_eq_spec {columns : Nat} (entries : List (Fin columns × F
   rw [toF_fromF] at value
   simp only [nativeEvalPair, SparseForm.evalSparse, List.foldl_map, value.1, value.2]
 
-/-- Six native-word accumulators: three pairs. -/
-private structure TripleWords where
+/-- Four native-word accumulators: two pairs. -/
+private structure TwoPairWords where
   firstLow : CanonicalWord
   firstHigh : CanonicalWord
   secondLow : CanonicalWord
   secondHigh : CanonicalWord
-  thirdLow : CanonicalWord
-  thirdHigh : CanonicalWord
 
-/-- Entries with three coefficient pairs: one read per entry for all of them. -/
-@[inline] private def accumulateTriple {columns : Nat} (read : Fin columns → F)
-    (entries : List (Fin columns × (F × F) × (F × F) × (F × F))) (initial : TripleWords) :
-    TripleWords :=
+/-- Entries with two coefficient pairs: one read per entry for both of them. -/
+@[inline] private def accumulateTwoPairs {columns : Nat} (read : Fin columns → F)
+    (entries : List (Fin columns × (F × F) × (F × F))) (initial : TwoPairWords) :
+    TwoPairWords :=
   entries.foldl (fun state entry =>
     let value := fromF (read entry.1)
     ⟨addWord state.firstLow (mulWord (fromF entry.2.1.1) value),
       addWord state.firstHigh (mulWord (fromF entry.2.1.2) value),
-      addWord state.secondLow (mulWord (fromF entry.2.2.1.1) value),
-      addWord state.secondHigh (mulWord (fromF entry.2.2.1.2) value),
-      addWord state.thirdLow (mulWord (fromF entry.2.2.2.1) value),
-      addWord state.thirdHigh (mulWord (fromF entry.2.2.2.2) value)⟩)
+      addWord state.secondLow (mulWord (fromF entry.2.2.1) value),
+      addWord state.secondHigh (mulWord (fromF entry.2.2.2) value)⟩)
     initial
 
-private theorem accumulateTriple_value {columns : Nat} (read : Fin columns → F)
-    (entries : List (Fin columns × (F × F) × (F × F) × (F × F))) (initial : TripleWords) :
-    toF (accumulateTriple read entries initial).firstLow =
+private theorem accumulateTwoPairs_value {columns : Nat} (read : Fin columns → F)
+    (entries : List (Fin columns × (F × F) × (F × F))) (initial : TwoPairWords) :
+    toF (accumulateTwoPairs read entries initial).firstLow =
         entries.foldl (fun total entry => total + entry.2.1.1 * read entry.1)
           (toF initial.firstLow) ∧
-      toF (accumulateTriple read entries initial).firstHigh =
+      toF (accumulateTwoPairs read entries initial).firstHigh =
         entries.foldl (fun total entry => total + entry.2.1.2 * read entry.1)
           (toF initial.firstHigh) ∧
-      toF (accumulateTriple read entries initial).secondLow =
-        entries.foldl (fun total entry => total + entry.2.2.1.1 * read entry.1)
+      toF (accumulateTwoPairs read entries initial).secondLow =
+        entries.foldl (fun total entry => total + entry.2.2.1 * read entry.1)
           (toF initial.secondLow) ∧
-      toF (accumulateTriple read entries initial).secondHigh =
-        entries.foldl (fun total entry => total + entry.2.2.1.2 * read entry.1)
-          (toF initial.secondHigh) ∧
-      toF (accumulateTriple read entries initial).thirdLow =
-        entries.foldl (fun total entry => total + entry.2.2.2.1 * read entry.1)
-          (toF initial.thirdLow) ∧
-      toF (accumulateTriple read entries initial).thirdHigh =
-        entries.foldl (fun total entry => total + entry.2.2.2.2 * read entry.1)
-          (toF initial.thirdHigh) := by
-  unfold accumulateTriple
+      toF (accumulateTwoPairs read entries initial).secondHigh =
+        entries.foldl (fun total entry => total + entry.2.2.2 * read entry.1)
+          (toF initial.secondHigh) := by
+  unfold accumulateTwoPairs
   induction entries generalizing initial with
-  | nil => exact ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩
+  | nil => exact ⟨rfl, rfl, rfl, rfl⟩
   | cons entry entries ih =>
       simp only [List.foldl_cons, ih, addWord_value, mulWord_value, toF_fromF, and_self]
 
-/-- Evaluate three pairs of sparse forms over the same columns with one read per
+/-- Evaluate two pairs of sparse forms over the same columns with one read per
 column. -/
-@[specialize] def nativeEvalTriple {columns : Nat}
-    (entries : List (Fin columns × (F × F) × (F × F) × (F × F))) (read : Fin columns → F) :
-    (F × F) × (F × F) × (F × F) :=
+@[specialize] def nativeEvalTwoPairs {columns : Nat}
+    (entries : List (Fin columns × (F × F) × (F × F))) (read : Fin columns → F) :
+    (F × F) × (F × F) :=
   let zero := fromF 0
-  let result := accumulateTriple read entries ⟨zero, zero, zero, zero, zero, zero⟩
+  let result := accumulateTwoPairs read entries ⟨zero, zero, zero, zero⟩
   ((toF result.firstLow, toF result.firstHigh),
-    (toF result.secondLow, toF result.secondHigh),
-    (toF result.thirdLow, toF result.thirdHigh))
+    (toF result.secondLow, toF result.secondHigh))
 
 /-- Each coordinate of each pair is the evaluation of its own sparse form, for
 every list of entries and every read. -/
-theorem nativeEvalTriple_eq_spec {columns : Nat}
-    (entries : List (Fin columns × (F × F) × (F × F) × (F × F))) (read : Fin columns → F) :
-    nativeEvalTriple entries read =
+theorem nativeEvalTwoPairs_eq_spec {columns : Nat}
+    (entries : List (Fin columns × (F × F) × (F × F))) (read : Fin columns → F) :
+    nativeEvalTwoPairs entries read =
       (((SparseForm.mk (entries.map fun entry => ⟨entry.1, entry.2.1.1⟩)).evalSparse read,
           (SparseForm.mk (entries.map fun entry => ⟨entry.1, entry.2.1.2⟩)).evalSparse read),
-        ((SparseForm.mk (entries.map fun entry => ⟨entry.1, entry.2.2.1.1⟩)).evalSparse read,
-          (SparseForm.mk (entries.map fun entry => ⟨entry.1, entry.2.2.1.2⟩)).evalSparse read),
-        ((SparseForm.mk (entries.map fun entry => ⟨entry.1, entry.2.2.2.1⟩)).evalSparse read,
-          (SparseForm.mk (entries.map fun entry => ⟨entry.1, entry.2.2.2.2⟩)).evalSparse read)) := by
-  have value := accumulateTriple_value read entries
-    ⟨fromF 0, fromF 0, fromF 0, fromF 0, fromF 0, fromF 0⟩
+        ((SparseForm.mk (entries.map fun entry => ⟨entry.1, entry.2.2.1⟩)).evalSparse read,
+          (SparseForm.mk (entries.map fun entry => ⟨entry.1, entry.2.2.2⟩)).evalSparse read)) := by
+  have value := accumulateTwoPairs_value read entries ⟨fromF 0, fromF 0, fromF 0, fromF 0⟩
   simp only [toF_fromF] at value
-  simp only [nativeEvalTriple, SparseForm.evalSparse, List.foldl_map, value.1, value.2.1,
-    value.2.2.1, value.2.2.2.1, value.2.2.2.2.1, value.2.2.2.2.2]
+  simp only [nativeEvalTwoPairs, SparseForm.evalSparse, List.foldl_map, value.1, value.2.1,
+    value.2.2.1, value.2.2.2]
 
-/-- An entry of `nativeEvalTriple` whose six coefficients are canonical words. Converting
+/-- An entry of `nativeEvalTwoPairs` whose four coefficients are canonical words. Converting
 the entries once lets every read of the same entries skip the conversions and the nested pairs. -/
-structure TripleEntry (columns : Nat) where
+structure TwoPairEntry (columns : Nat) where
   column : Fin columns
   firstLow : { word : UInt64 // word.toNat < goldilocksModulus }
   firstHigh : { word : UInt64 // word.toNat < goldilocksModulus }
   secondLow : { word : UInt64 // word.toNat < goldilocksModulus }
   secondHigh : { word : UInt64 // word.toNat < goldilocksModulus }
-  thirdLow : { word : UInt64 // word.toNat < goldilocksModulus }
-  thirdHigh : { word : UInt64 // word.toNat < goldilocksModulus }
 
-/-- The words of one entry of `nativeEvalTriple`. -/
-def TripleEntry.ofEntry {columns : Nat} (entry : Fin columns × (F × F) × (F × F) × (F × F)) :
-    TripleEntry columns :=
-  ⟨entry.1, fromF entry.2.1.1, fromF entry.2.1.2, fromF entry.2.2.1.1, fromF entry.2.2.1.2,
-    fromF entry.2.2.2.1, fromF entry.2.2.2.2⟩
+/-- The words of one entry of `nativeEvalTwoPairs`. -/
+def TwoPairEntry.ofEntry {columns : Nat} (entry : Fin columns × (F × F) × (F × F)) :
+    TwoPairEntry columns :=
+  ⟨entry.1, fromF entry.2.1.1, fromF entry.2.1.2, fromF entry.2.2.1, fromF entry.2.2.2⟩
 
-/-- `nativeEvalTriple` of entries converted by `TripleEntry.ofEntry`. -/
-@[specialize] def nativeEvalTripleWords {columns : Nat} (entries : Array (TripleEntry columns))
-    (read : Fin columns → F) : (F × F) × (F × F) × (F × F) :=
+/-- `nativeEvalTwoPairs` of entries converted by `TwoPairEntry.ofEntry`. -/
+@[specialize] def nativeEvalTwoPairsWords {columns : Nat} (entries : Array (TwoPairEntry columns))
+    (read : Fin columns → F) : (F × F) × (F × F) :=
   let zero := fromF 0
-  let result := entries.foldl (fun (state : TripleWords) entry =>
+  let result := entries.foldl (fun (state : TwoPairWords) entry =>
     let value := fromF (read entry.column)
     ⟨addWord state.firstLow (mulWord entry.firstLow value),
       addWord state.firstHigh (mulWord entry.firstHigh value),
       addWord state.secondLow (mulWord entry.secondLow value),
-      addWord state.secondHigh (mulWord entry.secondHigh value),
-      addWord state.thirdLow (mulWord entry.thirdLow value),
-      addWord state.thirdHigh (mulWord entry.thirdHigh value)⟩)
-    ⟨zero, zero, zero, zero, zero, zero⟩
+      addWord state.secondHigh (mulWord entry.secondHigh value)⟩)
+    ⟨zero, zero, zero, zero⟩
   ((toF result.firstLow, toF result.firstHigh),
-    (toF result.secondLow, toF result.secondHigh),
-    (toF result.thirdLow, toF result.thirdHigh))
+    (toF result.secondLow, toF result.secondHigh))
 
 /-- Converting the entries first does not change the evaluation. -/
-theorem nativeEvalTripleWords_ofEntry {columns : Nat}
-    (entries : List (Fin columns × (F × F) × (F × F) × (F × F))) (read : Fin columns → F) :
-    nativeEvalTripleWords (entries.map TripleEntry.ofEntry).toArray read =
-      nativeEvalTriple entries read := by
-  simp only [nativeEvalTripleWords, nativeEvalTriple, accumulateTriple, List.foldl_toArray',
-    List.foldl_map, TripleEntry.ofEntry]
+theorem nativeEvalTwoPairsWords_ofEntry {columns : Nat}
+    (entries : List (Fin columns × (F × F) × (F × F))) (read : Fin columns → F) :
+    nativeEvalTwoPairsWords (entries.map TwoPairEntry.ofEntry).toArray read =
+      nativeEvalTwoPairs entries read := by
+  simp only [nativeEvalTwoPairsWords, nativeEvalTwoPairs, accumulateTwoPairs,
+    List.foldl_toArray', List.foldl_map, TwoPairEntry.ofEntry]
 
 end NightstreamFPrime.Export.Stage1.PiDECNativeSparseEvaluation

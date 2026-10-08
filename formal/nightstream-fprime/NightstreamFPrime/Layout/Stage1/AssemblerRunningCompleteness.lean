@@ -39,15 +39,15 @@ theorem completeRunningPrefix
           (Lifecycle.Stage1.outputHashChild relation program
             (AssemblerInputs.interface relation program))
           (AssemblerInputs.outputHashOffset program),
-        Lifecycle.Stage1.childOp "stage1.piccs.v1_1"
+        Lifecycle.Stage1.childOp "stage1.piccs.v1_2"
           (Lifecycle.Stage1.piCcsChild relation ajtai program
             (AssemblerInputs.interface relation program) template)
           (AssemblerInputs.piCcsOffset program),
-        Lifecycle.Stage1.childOp "stage1.pirlc.v1_1"
+        Lifecycle.Stage1.childOp "stage1.pirlc.v1_2"
           (Lifecycle.Stage1.piRlcChild relation ajtai program
             (AssemblerInputs.interface relation program))
           (AssemblerInputs.piRlcOffset program),
-        Lifecycle.Stage1.childOp "stage1.pidec.v1_1"
+        Lifecycle.Stage1.childOp "stage1.pidec.v1_2"
           (Lifecycle.Stage1.piDecChild relation ajtai program
             (AssemblerInputs.interface relation program))
           (AssemblerInputs.piDecOffset program),

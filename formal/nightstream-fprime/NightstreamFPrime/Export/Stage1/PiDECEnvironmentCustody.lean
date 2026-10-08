@@ -16,7 +16,7 @@ open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
@@ -47,7 +47,7 @@ private theorem ordinaryLocation_beforePiDECProof
   | fresh source position =>
       have sourceLt : source.val < 17 := source.isLt
       have positionLt : position.val < 144 := position.isLt
-      change PiRLCStarts.samplerFreshStart + source.val * 144 + position.val < 14724302
+      change PiRLCStarts.samplerFreshStart + source.val * 144 + position.val < 12410976
       rw [PiRLCStarts.samplerFreshStart, PiRLCStarts.phaseFreshStart_eq]
       omega
 
@@ -155,7 +155,7 @@ theorem semanticEnv_source_eq_transitionEnv
           PiDECInputs.proofInputColumnCount, PiDECInputs.childCount,
           PiDECInputs.commitmentWordsPerChild, PiDECInputs.evalKWordsPerChild,
           PiDECInputs.evalAWordsPerChild, PiDECInputs.publicInputWordsPerChild,
-          PiDEC.v1_1.Formal.logicalPrivateCount] at lower ⊢
+          PiDEC.v1_2.Formal.logicalPrivateCount] at lower ⊢
         omega) sourceBound
 
 theorem semanticEnv_eq_transitionEnv_of_target

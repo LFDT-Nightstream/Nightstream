@@ -104,7 +104,7 @@ structure Represents
   proofInput : Layout.Stage1.AccumulatorInputs.proof relation
     (sourceEnv program env) = input.nifsProof
   runningOutput :
-    PiCCS.v1_1.StatementAbsorption.evalRunning
+    PiCCS.v1_2.StatementAbsorption.evalRunning
         (Layout.Stage1.RunningTransitionInputs.outputRunningExpr
           Data.logicalWidth Data.publicFits)
         (sourceEnv program env) =
@@ -234,7 +234,7 @@ theorem packageRows_imply_stepHoldsFor
       subst slot
       calc
         output.runningNext functionIndex =
-            PiCCS.v1_1.StatementAbsorption.evalRunning
+            PiCCS.v1_2.StatementAbsorption.evalRunning
               (Layout.Stage1.RunningTransitionInputs.outputRunningExpr
                 Data.logicalWidth Data.publicFits)
               (sourceEnv program env) := represents.runningOutput.symm
@@ -255,7 +255,7 @@ theorem packageRows_imply_stepHoldsFor
     have runningRecursive :=
       RunningTransitionPackage.circuitPackage_implies_typed_recursive relation
         (PerApplicationPackage.baseEnv program env) baseRows fieldNonzero
-    change PiCCS.v1_1.StatementAbsorption.evalRunning
+    change PiCCS.v1_2.StatementAbsorption.evalRunning
         (Layout.Stage1.RunningTransitionInputs.outputRunningExpr
           Data.logicalWidth Data.publicFits)
         (sourceEnv program env) =

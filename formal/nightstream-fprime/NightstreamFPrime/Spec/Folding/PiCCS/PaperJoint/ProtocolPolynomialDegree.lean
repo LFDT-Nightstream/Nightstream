@@ -7,7 +7,7 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 /-!
 Exact per-round degree bound for the paper-joint `Pi_CCS` polynomial.
 
-Protocol: SuperNeo v1.1 `Pi_CCS` (Section 7.3 / Appendix B.2).
+Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
 Phase: the single joint SumCheck.
 Constraint family: semantic degree and honest-message representability only;
 this file emits no rows.

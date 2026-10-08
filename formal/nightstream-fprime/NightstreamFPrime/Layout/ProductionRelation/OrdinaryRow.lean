@@ -3,9 +3,9 @@ import NightstreamFPrime.Layout.R1CS
 import NightstreamFPrime.Spec.ProductionRelation.RowSemantics
 
 /-!
-Owns the ordinary-row branch of the production selective compiler. One source
-R1CS equation supplies only the selector, `A`, `B`, and `C` matrix images.
-The fixed 8-term polynomial then checks exactly the source equation.
+Owns the ordinary-row branch of the production gate compiler. One source
+R1CS equation supplies only the `A`, `B`, and `C` matrix images. The fixed
+3-term gate then checks exactly the source equation.
 
 Programs are indexed functions, not artifact-sized lists. This module does
 not choose retained source slots or construct their low-norm substitutions.
@@ -20,9 +20,8 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 open NightstreamFPrime.Lifecycle
 
-/-- The four live sparse forms of one ordinary source equation. -/
+/-- The three live sparse forms of one ordinary source equation. -/
 structure Forms (logicalWidth : Nat) where
-  selector : SparseForm logicalWidth
   a : SparseForm logicalWidth
   b : SparseForm logicalWidth
   c : SparseForm logicalWidth
@@ -35,13 +34,12 @@ def meaningfulForm {logicalWidth : Nat} (forms : Forms logicalWidth)
     (port : Fin Spec.ProductionRelation.meaningfulPortCount) :
     SparseForm logicalWidth :=
   match port.val with
-  | 1 => forms.selector
-  | 2 => forms.a
-  | 3 => forms.b
-  | 4 => forms.c
+  | 0 => forms.a
+  | 1 => forms.b
+  | 2 => forms.c
   | _ => .empty
 
-/-- Complete 7-port view. -/
+/-- Complete 4-port view. -/
 def portForm {logicalWidth : Nat} (forms : Forms logicalWidth)
     (port : Fin Spec.ProductionRelation.matrixCount) : SparseForm logicalWidth :=
   match ProductionRelation.meaningfulPort? port with
@@ -57,7 +55,6 @@ private theorem portImages_eq_multiplication {logicalWidth : Nat}
     (forms : Forms logicalWidth) (assignment : Assignment F logicalWidth) :
     forms.portImages assignment =
       (Spec.ProductionRelation.RowSemantics.multiplication
-        (forms.selector.eval assignment)
         (forms.a.eval assignment)
         (forms.b.eval assignment)
         (forms.c.eval assignment)).get := by
@@ -66,7 +63,6 @@ private theorem portImages_eq_multiplication {logicalWidth : Nat}
     simp [portImages, portForm, meaningfulForm,
       ProductionRelation.meaningfulPort?,
       Spec.ProductionRelation.RowSemantics.multiplication,
-      Spec.ProductionRelation.RowSemantics.general,
       Spec.ProductionRelation.RowSemantics.PortValues.get]
 
 /-- Residual of the sole production polynomial on this compiled row. -/
@@ -75,23 +71,21 @@ def residual {logicalWidth : Nat} (forms : Forms logicalWidth)
   evaluatePolynomial baseOps Spec.ProductionRelation.polynomial
     (forms.portImages assignment)
 
-/-- The complete 8-term polynomial reduces to the selected source residual. -/
+/-- The complete 3-term gate reduces to the source residual. -/
 theorem residual_eq {logicalWidth : Nat} (forms : Forms logicalWidth)
     (assignment : Assignment F logicalWidth) :
     forms.residual assignment =
-      forms.selector.eval assignment *
-        (forms.a.eval assignment * forms.b.eval assignment -
-          forms.c.eval assignment) := by
+      forms.a.eval assignment * forms.b.eval assignment -
+        forms.c.eval assignment := by
   unfold residual
   rw [portImages_eq_multiplication]
-  exact Spec.ProductionRelation.RowSemantics.evaluate_multiplication _ _ _ _
+  exact Spec.ProductionRelation.RowSemantics.evaluate_multiplication _ _ _
 
 /-- The compiled forms reconstruct one source row under these two assignments. -/
 def Preserves {logicalWidth : Nat} (forms : Forms logicalWidth)
     (assignment : Assignment F logicalWidth) (source : Circuit.Env)
     (row : R1CS.Row) : Prop :=
-  forms.selector.eval assignment = 1 ∧
-    forms.a.eval assignment = row.a.eval source ∧
+  forms.a.eval assignment = row.a.eval source ∧
     forms.b.eval assignment = row.b.eval source ∧
     forms.c.eval assignment = row.c.eval source
 
@@ -101,8 +95,8 @@ theorem residual_zero_iff {logicalWidth : Nat} (forms : Forms logicalWidth)
     (assignment : Assignment F logicalWidth) (source : Circuit.Env)
     (row : R1CS.Row) (preserves : forms.Preserves assignment source row) :
     forms.residual assignment = 0 ↔ row.Holds source := by
-  rcases preserves with ⟨selector, a, b, c⟩
-  rw [residual_eq, selector, a, b, c, one_mul]
+  rcases preserves with ⟨a, b, c⟩
+  rw [residual_eq, a, b, c]
   change
     row.a.eval source * row.b.eval source - row.c.eval source = 0 ↔
       row.a.eval source * row.b.eval source = row.c.eval source

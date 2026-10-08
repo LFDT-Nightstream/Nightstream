@@ -46,7 +46,7 @@ def productionProfile : ProductionProfile where
   challengeSetBitsFloor := 125
   freshSources := 1
   runningSources := 16
-  ccsMatrices := 7
+  ccsMatrices := 4
 
 /-- Exact size of the five-symbol Phi81 challenge set. This is a count,
 not the rounded bit descriptor or an end-to-end security estimate. -/
@@ -74,7 +74,7 @@ theorem production_parameter_values :
     productionProfile.challengeSetBitsFloor = 125 ∧
     productionProfile.piRlcInputs = 17 ∧
     productionProfile.piDecChildren = 16 ∧
-    productionProfile.ccsMatrices = 7 := by
+    productionProfile.ccsMatrices = 4 := by
   decide
 
 theorem production_norm_stages :
@@ -92,7 +92,7 @@ theorem production_msis_norm_bound :
     productionGlobalParams.msisNormBound = 113246208 := by
   decide
 
-/-- Definition 14 at the production arity `K + k = 17`. -/
+/-- SuperNeo v1.2 Definition 22 at the production arity `K + k = 17`. -/
 theorem production_rlc_bound_one_fresh :
     (1 + 16) * 216 * (2 - 1) < 65536 := by decide
 

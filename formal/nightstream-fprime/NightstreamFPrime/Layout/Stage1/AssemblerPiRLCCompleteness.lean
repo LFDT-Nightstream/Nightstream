@@ -1,7 +1,7 @@
 import NightstreamFPrime.Layout.Stage1.AssemblerCompleteness
 import NightstreamFPrime.Layout.Stage1.AssemblerSoundness
-import NightstreamFPrime.Lifecycle.PiRLC.v1_1.GeneratedSupport
-import NightstreamFPrime.Lifecycle.PiRLC.v1_1.PhaseDeterminism
+import NightstreamFPrime.Lifecycle.PiRLC.v1_2.GeneratedSupport
+import NightstreamFPrime.Lifecycle.PiRLC.v1_2.PhaseDeterminism
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
@@ -34,22 +34,22 @@ private theorem piRlcPhase_of_piCcs
       left index = right index)
     (localAgrees : ∀ index, AssemblerInputs.piRlcOffset program ≤ index →
       left index = right index)
-    (piCcsLeft : PiCCS.v1_1.Formal.PhaseHolds relation ajtai
+    (piCcsLeft : PiCCS.v1_2.Formal.PhaseHolds relation ajtai
       (AssemblerInputs.piCcsInterface program)
       (AssemblerInputs.piCcsOffset program) left template)
-    (piCcsRight : PiCCS.v1_1.Formal.PhaseHolds relation ajtai
+    (piCcsRight : PiCCS.v1_2.Formal.PhaseHolds relation ajtai
       (AssemblerInputs.piCcsInterface program)
       (AssemblerInputs.piCcsOffset program) right template)
-    (piRlcLeft : PiRLC.v1_1.Semantics.PhaseHolds relation ajtai
+    (piRlcLeft : PiRLC.v1_2.Semantics.PhaseHolds relation ajtai
       (AssemblerInputs.piRlcInterface relation program)
       (AssemblerInputs.piRlcOffset program) left) :
-    PiRLC.v1_1.Semantics.PhaseHolds relation ajtai
+    PiRLC.v1_2.Semantics.PhaseHolds relation ajtai
         (AssemblerInputs.piRlcInterface relation program)
         (AssemblerInputs.piRlcOffset program) right ∧
-      PiRLC.v1_1.Semantics.attempt relation
+      PiRLC.v1_2.Semantics.attempt relation
           (AssemblerInputs.piRlcInterface relation program)
           (AssemblerInputs.piRlcOffset program) left =
-        PiRLC.v1_1.Semantics.attempt relation
+        PiRLC.v1_2.Semantics.attempt relation
           (AssemblerInputs.piRlcInterface relation program)
           (AssemblerInputs.piRlcOffset program) right := by
   let piCcsInterface := AssemblerInputs.piCcsInterface
@@ -58,15 +58,15 @@ private theorem piRlcPhase_of_piCcs
   let support := AssemblerCompleteness.piCcsExternalSupport
     (logicalWidth := logicalWidth) (publicFits := publicFits) program
   have runningEq :=
-    PiCCS.v1_1.Formal.PhaseTransport.evalRunning_eq_of_agree_satisfy
+    PiCCS.v1_2.Formal.PhaseTransport.evalRunning_eq_of_agree_satisfy
       piCcsInterface piCcsOffset PiCCSOrdinarySourceSupport.External
       left right support externalAgrees
   have freshEq :=
-    PiCCS.v1_1.Formal.PhaseTransport.evalFresh_eq_of_agree_satisfy
+    PiCCS.v1_2.Formal.PhaseTransport.evalFresh_eq_of_agree_satisfy
       piCcsInterface piCcsOffset PiCCSOrdinarySourceSupport.External
       left right support externalAgrees
   have proofEq :=
-    PiCCS.v1_1.Formal.PhaseTransport.evalProof_eq_of_agree_satisfy
+    PiCCS.v1_2.Formal.PhaseTransport.evalProof_eq_of_agree_satisfy
       relation piCcsInterface piCcsOffset
       PiCCSOrdinarySourceSupport.External left right template support
       externalAgrees
@@ -86,77 +86,77 @@ private theorem piRlcPhase_of_piCcs
   let key := ProductionKey.key relation ajtai
   have executionEq :
       key.piCcsExecution
-          (PiCCS.v1_1.Formal.evalRunning piCcsInterface piCcsOffset left)
-          (PiCCS.v1_1.Formal.evalFresh piCcsInterface piCcsOffset left)
+          (PiCCS.v1_2.Formal.evalRunning piCcsInterface piCcsOffset left)
+          (PiCCS.v1_2.Formal.evalFresh piCcsInterface piCcsOffset left)
           leftProof =
         key.piCcsExecution
-          (PiCCS.v1_1.Formal.evalRunning piCcsInterface piCcsOffset right)
-          (PiCCS.v1_1.Formal.evalFresh piCcsInterface piCcsOffset right)
+          (PiCCS.v1_2.Formal.evalRunning piCcsInterface piCcsOffset right)
+          (PiCCS.v1_2.Formal.evalFresh piCcsInterface piCcsOffset right)
           rightProof := by
     rw [runningEq, freshEq]
     unfold Key.piCcsExecution Key.piCcsCertificate
     rw [roundsEq, outputEq]
   have outputsEq :
       key.piCcsOutputs
-          (PiCCS.v1_1.Formal.evalRunning piCcsInterface piCcsOffset left)
-          (PiCCS.v1_1.Formal.evalFresh piCcsInterface piCcsOffset left)
+          (PiCCS.v1_2.Formal.evalRunning piCcsInterface piCcsOffset left)
+          (PiCCS.v1_2.Formal.evalFresh piCcsInterface piCcsOffset left)
           leftProof =
         key.piCcsOutputs
-          (PiCCS.v1_1.Formal.evalRunning piCcsInterface piCcsOffset right)
-          (PiCCS.v1_1.Formal.evalFresh piCcsInterface piCcsOffset right)
+          (PiCCS.v1_2.Formal.evalRunning piCcsInterface piCcsOffset right)
+          (PiCCS.v1_2.Formal.evalFresh piCcsInterface piCcsOffset right)
           rightProof := by
     rw [runningEq, freshEq]
     unfold Key.piCcsOutputs Key.piCcsProbe Key.piCcsExecution
       Key.piCcsCertificate
     rw [roundsEq, outputEq]
-  have inputsEq : PiRLC.v1_1.Semantics.evalInputs relation
+  have inputsEq : PiRLC.v1_2.Semantics.evalInputs relation
       (AssemblerInputs.piRlcInterface relation program)
       (AssemblerInputs.piRlcOffset program) left =
-    PiRLC.v1_1.Semantics.evalInputs relation
+    PiRLC.v1_2.Semantics.evalInputs relation
       (AssemblerInputs.piRlcInterface relation program)
       (AssemblerInputs.piRlcOffset program) right := by
     calc
       _ = key.piCcsOutputs
-          (PiCCS.v1_1.Formal.evalRunning piCcsInterface piCcsOffset left)
-          (PiCCS.v1_1.Formal.evalFresh piCcsInterface piCcsOffset left)
+          (PiCCS.v1_2.Formal.evalRunning piCcsInterface piCcsOffset left)
+          (PiCCS.v1_2.Formal.evalFresh piCcsInterface piCcsOffset left)
           leftProof := by
         simpa [piCcsInterface, piCcsOffset, stageInterface, leftProof, key] using!
           AssemblerSoundness.compactPiRlcInputs_eq_keyOutputs relation ajtai
             program left template piCcsLeft
       _ = key.piCcsOutputs
-          (PiCCS.v1_1.Formal.evalRunning piCcsInterface piCcsOffset right)
-          (PiCCS.v1_1.Formal.evalFresh piCcsInterface piCcsOffset right)
+          (PiCCS.v1_2.Formal.evalRunning piCcsInterface piCcsOffset right)
+          (PiCCS.v1_2.Formal.evalFresh piCcsInterface piCcsOffset right)
           rightProof := outputsEq
       _ = _ := by
         symm
         simpa [piCcsInterface, piCcsOffset, stageInterface, rightProof, key] using!
           AssemblerSoundness.compactPiRlcInputs_eq_keyOutputs relation ajtai
             program right template piCcsRight
-  have initialStateEq : PiRLC.v1_1.SamplerChain.evalInitialState
-      (PiRLC.v1_1.Formal.samplerInterface
-        (PiRLC.v1_1.Formal.atOffset
+  have initialStateEq : PiRLC.v1_2.SamplerChain.evalInitialState
+      (PiRLC.v1_2.Formal.samplerInterface
+        (PiRLC.v1_2.Formal.atOffset
           (AssemblerInputs.piRlcInterface relation program)
           (AssemblerInputs.piRlcOffset program)))
-      (PiRLC.v1_1.Formal.samplerOffset
+      (PiRLC.v1_2.Formal.samplerOffset
         (AssemblerInputs.piRlcOffset program)) left =
-    PiRLC.v1_1.SamplerChain.evalInitialState
-      (PiRLC.v1_1.Formal.samplerInterface
-        (PiRLC.v1_1.Formal.atOffset
+    PiRLC.v1_2.SamplerChain.evalInitialState
+      (PiRLC.v1_2.Formal.samplerInterface
+        (PiRLC.v1_2.Formal.atOffset
           (AssemblerInputs.piRlcInterface relation program)
           (AssemblerInputs.piRlcOffset program)))
-      (PiRLC.v1_1.Formal.samplerOffset
+      (PiRLC.v1_2.Formal.samplerOffset
         (AssemblerInputs.piRlcOffset program)) right := by
     calc
       _ = (key.piCcsExecution
-          (PiCCS.v1_1.Formal.evalRunning piCcsInterface piCcsOffset left)
-          (PiCCS.v1_1.Formal.evalFresh piCcsInterface piCcsOffset left)
+          (PiCCS.v1_2.Formal.evalRunning piCcsInterface piCcsOffset left)
+          (PiCCS.v1_2.Formal.evalFresh piCcsInterface piCcsOffset left)
           leftProof).outgoingState := by
         simpa [piCcsInterface, piCcsOffset, stageInterface, leftProof, key] using
           AssemblerSoundness.compactPiRlcInitialState_eq_key relation ajtai
             program left template piCcsLeft
       _ = (key.piCcsExecution
-          (PiCCS.v1_1.Formal.evalRunning piCcsInterface piCcsOffset right)
-          (PiCCS.v1_1.Formal.evalFresh piCcsInterface piCcsOffset right)
+          (PiCCS.v1_2.Formal.evalRunning piCcsInterface piCcsOffset right)
+          (PiCCS.v1_2.Formal.evalFresh piCcsInterface piCcsOffset right)
           rightProof).outgoingState := congrArg
             (fun execution => execution.outgoingState) executionEq
       _ = _ := by
@@ -165,50 +165,50 @@ private theorem piRlcPhase_of_piCcs
           AssemblerSoundness.compactPiRlcInitialState_eq_key relation ajtai
             program right template piCcsRight
   have roundPointEq :
-      PiCCS.v1_1.RoundTranscript.evalRoundPoint
-          (PiCCS.v1_1.Formal.roundTranscriptInterface
-            (PiCCS.v1_1.Formal.atOffset piCcsInterface piCcsOffset))
-          (PiCCS.v1_1.Formal.roundTranscriptOffset piCcsInterface piCcsOffset)
+      PiCCS.v1_2.RoundTranscript.evalRoundPoint
+          (PiCCS.v1_2.Formal.roundTranscriptInterface
+            (PiCCS.v1_2.Formal.atOffset piCcsInterface piCcsOffset))
+          (PiCCS.v1_2.Formal.roundTranscriptOffset piCcsInterface piCcsOffset)
           left =
-        PiCCS.v1_1.RoundTranscript.evalRoundPoint
-          (PiCCS.v1_1.Formal.roundTranscriptInterface
-            (PiCCS.v1_1.Formal.atOffset piCcsInterface piCcsOffset))
-          (PiCCS.v1_1.Formal.roundTranscriptOffset piCcsInterface piCcsOffset)
+        PiCCS.v1_2.RoundTranscript.evalRoundPoint
+          (PiCCS.v1_2.Formal.roundTranscriptInterface
+            (PiCCS.v1_2.Formal.atOffset piCcsInterface piCcsOffset))
+          (PiCCS.v1_2.Formal.roundTranscriptOffset piCcsInterface piCcsOffset)
           right := by
     calc
       _ = (key.piCcsExecution
-          (PiCCS.v1_1.Formal.evalRunning piCcsInterface piCcsOffset left)
-          (PiCCS.v1_1.Formal.evalFresh piCcsInterface piCcsOffset left)
+          (PiCCS.v1_2.Formal.evalRunning piCcsInterface piCcsOffset left)
+          (PiCCS.v1_2.Formal.evalFresh piCcsInterface piCcsOffset left)
           leftProof).coins.roundPoint := by
         simpa [piCcsInterface, piCcsOffset, stageInterface, leftProof, key,
           AssemblerSoundness.nifsProofValue] using! piCcsLeft.roundPoint
       _ = (key.piCcsExecution
-          (PiCCS.v1_1.Formal.evalRunning piCcsInterface piCcsOffset right)
-          (PiCCS.v1_1.Formal.evalFresh piCcsInterface piCcsOffset right)
+          (PiCCS.v1_2.Formal.evalRunning piCcsInterface piCcsOffset right)
+          (PiCCS.v1_2.Formal.evalFresh piCcsInterface piCcsOffset right)
           rightProof).coins.roundPoint := congrArg
             (fun execution => execution.coins.roundPoint) executionEq
       _ = _ := by
         symm
         simpa [piCcsInterface, piCcsOffset, stageInterface, rightProof, key,
           AssemblerSoundness.nifsProofValue] using! piCcsRight.roundPoint
-  have pointEq : PiCCS.v1_1.StatementAbsorption.evalPoint
+  have pointEq : PiCCS.v1_2.StatementAbsorption.evalPoint
       (AssemblerInputs.piCcsRoundPoint
         (logicalWidth := logicalWidth) (publicFits := publicFits) program) left =
-    PiCCS.v1_1.StatementAbsorption.evalPoint
+    PiCCS.v1_2.StatementAbsorption.evalPoint
       (AssemblerInputs.piCcsRoundPoint
         (logicalWidth := logicalWidth) (publicFits := publicFits) program) right := by
     calc
-      _ = PiCCS.v1_1.RoundTranscript.evalRoundPoint
-          (PiCCS.v1_1.Formal.roundTranscriptInterface
-            (PiCCS.v1_1.Formal.atOffset piCcsInterface piCcsOffset))
-          (PiCCS.v1_1.Formal.roundTranscriptOffset piCcsInterface piCcsOffset)
+      _ = PiCCS.v1_2.RoundTranscript.evalRoundPoint
+          (PiCCS.v1_2.Formal.roundTranscriptInterface
+            (PiCCS.v1_2.Formal.atOffset piCcsInterface piCcsOffset))
+          (PiCCS.v1_2.Formal.roundTranscriptOffset piCcsInterface piCcsOffset)
           left := by
         simpa [piCcsInterface, piCcsOffset] using
           AssemblerSoundness.compactPoint_eq_roundTranscript
             (logicalWidth := logicalWidth) (publicFits := publicFits)
             program left
       _ = _ := roundPointEq
-      _ = PiCCS.v1_1.StatementAbsorption.evalPoint
+      _ = PiCCS.v1_2.StatementAbsorption.evalPoint
           (AssemblerInputs.piCcsRoundPoint
             (logicalWidth := logicalWidth) (publicFits := publicFits) program) right := by
         symm
@@ -218,34 +218,34 @@ private theorem piRlcPhase_of_piCcs
             program right
   let piRlcInterface := AssemblerInputs.piRlcInterface relation program
   let piRlcOffset := AssemblerInputs.piRlcOffset program
-  let samplerInterface := PiRLC.v1_1.Formal.samplerInterface
-    (PiRLC.v1_1.Formal.atOffset piRlcInterface piRlcOffset)
+  let samplerInterface := PiRLC.v1_2.Formal.samplerInterface
+    (PiRLC.v1_2.Formal.atOffset piRlcInterface piRlcOffset)
   have samplerRight :=
-    PiRLC.v1_1.SamplerChain.specHolds_of_initial_and_agree_from
-      samplerInterface (PiRLC.v1_1.Formal.samplerOffset piRlcOffset)
+    PiRLC.v1_2.SamplerChain.specHolds_of_initial_and_agree_from
+      samplerInterface (PiRLC.v1_2.Formal.samplerOffset piRlcOffset)
       left right (by simpa [samplerInterface, piRlcInterface, piRlcOffset]
         using initialStateEq) (by
           intro index bounded
           apply localAgrees index
-          simpa [piRlcOffset, PiRLC.v1_1.Formal.samplerOffset] using bounded)
+          simpa [piRlcOffset, PiRLC.v1_2.Formal.samplerOffset] using bounded)
       (by simpa [samplerInterface, piRlcInterface, piRlcOffset] using
         piRlcLeft.sampler)
   have challengesEq :=
-    PiRLC.v1_1.SamplerChain.evalChallenges_eq_of_agree_from
-      (PiRLC.v1_1.Formal.samplerOffset piRlcOffset)
+    PiRLC.v1_2.SamplerChain.evalChallenges_eq_of_agree_from
+      (PiRLC.v1_2.Formal.samplerOffset piRlcOffset)
       left right (by
         intro index bounded
         apply localAgrees index
-        simpa [piRlcOffset, PiRLC.v1_1.Formal.samplerOffset] using bounded)
-  have outputValueEq := PiRLC.v1_1.Semantics.evalOutput_eq_of_point_and_agree_from
+        simpa [piRlcOffset, PiRLC.v1_2.Formal.samplerOffset] using bounded)
+  have outputValueEq := PiRLC.v1_2.Semantics.evalOutput_eq_of_point_and_agree_from
     relation piRlcInterface piRlcOffset left right (by
       simpa [piRlcInterface, AssemblerInputs.piRlcInterface] using! pointEq)
     localAgrees
-  have attemptEq := PiRLC.v1_1.Semantics.attempt_eq_of_components relation
+  have attemptEq := PiRLC.v1_2.Semantics.attempt_eq_of_components relation
     piRlcInterface piRlcOffset left right inputsEq (by
-      simpa [PiRLC.v1_1.Semantics.evalChallenges, piRlcInterface, piRlcOffset,
+      simpa [PiRLC.v1_2.Semantics.evalChallenges, piRlcInterface, piRlcOffset,
         samplerInterface] using! challengesEq) outputValueEq
-  exact ⟨PiRLC.v1_1.Semantics.PhaseHolds.of_attempt_eq relation ajtai
+  exact ⟨PiRLC.v1_2.Semantics.PhaseHolds.of_attempt_eq relation ajtai
     piRlcInterface piRlcOffset left right samplerRight attemptEq piRlcLeft,
     attemptEq⟩
 
@@ -272,39 +272,39 @@ theorem completePiRlcPrefix
           (Lifecycle.Stage1.outputHashChild relation program
             (AssemblerInputs.interface relation program))
           (AssemblerInputs.outputHashOffset program),
-        Lifecycle.Stage1.childOp "stage1.piccs.v1_1"
+        Lifecycle.Stage1.childOp "stage1.piccs.v1_2"
           (Lifecycle.Stage1.piCcsChild relation ajtai program
             (AssemblerInputs.interface relation program) template)
           (AssemblerInputs.piCcsOffset program),
-        Lifecycle.Stage1.childOp "stage1.pirlc.v1_1"
+        Lifecycle.Stage1.childOp "stage1.pirlc.v1_2"
           (Lifecycle.Stage1.piRlcChild relation ajtai program
             (AssemblerInputs.interface relation program))
           (AssemblerInputs.piRlcOffset program)] ∧
       AssemblerInputs.rootOffset program +
           localLength completed.operations =
         AssemblerInputs.piDecOffset program ∧
-      PiRLC.v1_1.Semantics.attempt relation
+      PiRLC.v1_2.Semantics.attempt relation
           (AssemblerInputs.piRlcInterface relation program)
           (AssemblerInputs.piRlcOffset program) env =
-        PiRLC.v1_1.Semantics.attempt relation
+        PiRLC.v1_2.Semantics.attempt relation
           (AssemblerInputs.piRlcInterface relation program)
           (AssemblerInputs.piRlcOffset program) completed.current := by
   rcases AssemblerCompleteness.completePiCcsPrefix relation ajtai program
       template env specification with
     ⟨p3, p3Operations, p3End⟩
   have piCcsInitial := specification.piCcs
-  change PiCCS.v1_1.Formal.PhaseHolds relation ajtai
+  change PiCCS.v1_2.Formal.PhaseHolds relation ajtai
     (AssemblerInputs.piCcsInterface program)
     (Lifecycle.Stage1.piCcsOffset relation program
       (AssemblerInputs.interface relation program)
       (AssemblerInputs.rootOffset program)) env template at piCcsInitial
   rw [AssemblerInputs.parent_piCcsOffset_eq relation program] at piCcsInitial
   have p3Holds := holdsFlat_implies_holds p3.current p3.operations p3.rows
-  have piCcsCurrent : PiCCS.v1_1.Formal.PhaseHolds relation ajtai
+  have piCcsCurrent : PiCCS.v1_2.Formal.PhaseHolds relation ajtai
       (AssemblerInputs.piCcsInterface program)
       (AssemblerInputs.piCcsOffset program) p3.current template := by
     have selected := p3Holds
-      (Lifecycle.Stage1.childOp "stage1.piccs.v1_1"
+      (Lifecycle.Stage1.childOp "stage1.piccs.v1_2"
         (Lifecycle.Stage1.piCcsChild relation ajtai program
           (AssemblerInputs.interface relation program) template)
         (AssemblerInputs.piCcsOffset program))
@@ -317,7 +317,7 @@ theorem completePiRlcPrefix
           (AssemblerInputs.piCcsOffset program) p3.current at selected
     exact selected (AssemblerBounds.piCcsAssumptions relation program p3.current)
   have piRlcInitial := specification.piRlc
-  change PiRLC.v1_1.Semantics.PhaseHolds relation ajtai
+  change PiRLC.v1_2.Semantics.PhaseHolds relation ajtai
     (AssemblerInputs.piRlcInterface relation program)
     (Lifecycle.Stage1.piRlcOffset relation ajtai program
       (AssemblerInputs.interface relation program) template
@@ -350,18 +350,18 @@ theorem completePiRlcPrefix
       piRlcInitial with
     ⟨phase, envToP3Attempt⟩
   have assumptions := AssemblerBounds.piRlcAssumptions relation program p3.current
-  rcases PiRLC.v1_1.Formal.completePrefix relation ajtai
+  rcases PiRLC.v1_2.Formal.completePrefix relation ajtai
       (AssemblerInputs.piRlcInterface relation program) p3.current
       (AssemblerInputs.piRlcOffset program) assumptions phase with
     ⟨built, builtOperations⟩
   let child := Lifecycle.Stage1.piRlcChild relation ajtai program
     (AssemblerInputs.interface relation program)
-  have childMain : child.main = PiRLC.v1_1.Formal.main relation
+  have childMain : child.main = PiRLC.v1_2.Formal.main relation
       (AssemblerInputs.piRlcInterface relation program) := by
     rfl
   have childOperations : built.operations = Circuit.ops child.main
       (AssemblerInputs.piRlcOffset program) := by
-    rw [childMain, PiRLC.v1_1.Formal.main_ops]
+    rw [childMain, PiRLC.v1_2.Formal.main_ops]
     exact builtOperations
   have childScope : ∀ expression ∈ flatConstraints
       (Circuit.ops child.main (AssemblerInputs.piRlcOffset program)),
@@ -380,11 +380,11 @@ theorem completePiRlcPrefix
       (Circuit.ops child.main (AssemblerInputs.piRlcOffset program)) := by
     rw [← childOperations]
     exact built.rows
-  rcases Sequence.appendBuiltAt p3 "stage1.pirlc.v1_1" child
+  rcases Sequence.appendBuiltAt p3 "stage1.pirlc.v1_2" child
       (AssemblerInputs.piRlcOffset program) p3End childScope built.current
       childAgrees childRows with
     ⟨p4, p4Operations, p4End, p3to4, piRlcRows⟩
-  have p4Phase : PiRLC.v1_1.Semantics.PhaseHolds relation ajtai
+  have p4Phase : PiRLC.v1_2.Semantics.PhaseHolds relation ajtai
       (AssemblerInputs.piRlcInterface relation program)
       (AssemblerInputs.piRlcOffset program) p4.current := by
     change child.spec (AssemblerInputs.piRlcOffset program) p4.current
@@ -407,26 +407,26 @@ theorem completePiRlcPrefix
   have pointP3P4 := AssemblerBounds.piRlcPoint_eq_of_agree_below
     relation program p3.current p4.current belowAgrees
   have outputPointP3P4 :
-      (PiRLC.v1_1.Semantics.evalOutput relation
+      (PiRLC.v1_2.Semantics.evalOutput relation
           (AssemblerInputs.piRlcInterface relation program)
           (AssemblerInputs.piRlcOffset program) p3.current).point =
-        (PiRLC.v1_1.Semantics.evalOutput relation
+        (PiRLC.v1_2.Semantics.evalOutput relation
           (AssemblerInputs.piRlcInterface relation program)
           (AssemblerInputs.piRlcOffset program) p4.current).point := by
-    simpa [PiRLC.v1_1.Semantics.evalOutput,
-      PiRLC.v1_1.OutputBinding.evalOutput,
-      PiRLC.v1_1.Formal.outputBindingInterface,
-      PiRLC.v1_1.Formal.atOffset, AssemblerInputs.piRlcInterface] using
+    simpa [PiRLC.v1_2.Semantics.evalOutput,
+      PiRLC.v1_2.OutputBinding.evalOutput,
+      PiRLC.v1_2.Formal.outputBindingInterface,
+      PiRLC.v1_2.Formal.atOffset, AssemblerInputs.piRlcInterface] using
         pointP3P4
   have challengesP3P4 :=
-    PiRLC.v1_1.Semantics.PhaseHolds.challenges_eq_of_initialState_eq
+    PiRLC.v1_2.Semantics.PhaseHolds.challenges_eq_of_initialState_eq
       phase p4Phase initialStateP3P4
   have outputP3P4 :=
-    PiRLC.v1_1.Semantics.PhaseHolds.evalOutput_eq_of_shared relation ajtai
+    PiRLC.v1_2.Semantics.PhaseHolds.evalOutput_eq_of_shared relation ajtai
       (AssemblerInputs.piRlcInterface relation program)
       (AssemblerInputs.piRlcOffset program) p3.current p4.current phase p4Phase
       inputsP3P4 initialStateP3P4 outputPointP3P4
-  have attemptP3P4 := PiRLC.v1_1.Semantics.attempt_eq_of_components relation
+  have attemptP3P4 := PiRLC.v1_2.Semantics.attempt_eq_of_components relation
     (AssemblerInputs.piRlcInterface relation program)
     (AssemblerInputs.piRlcOffset program) p3.current p4.current inputsP3P4
     challengesP3P4 outputP3P4

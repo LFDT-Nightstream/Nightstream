@@ -17,7 +17,7 @@ open NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransport
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Lifecycle
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
@@ -80,7 +80,7 @@ def invocationIndex (recipe : Phi81QuotientRecipe)
       | .commitment => ⟨17, 22, 1⟩
       | .publicInput => ⟨17, 5, 1⟩
       | .evalK => ⟨17, 1, 2⟩
-      | .evalA => ⟨17, 7, 2⟩ := by
+      | .evalA => ⟨17, 4, 2⟩ := by
   cases family <;> rfl
 
 /-- The assignment recipe uses the authoritative flat product index. -/

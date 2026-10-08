@@ -19,7 +19,7 @@ open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
@@ -43,7 +43,7 @@ theorem semanticEnv_eq_packageEnv_belowSampler
     rw [Spartan.sourceColumnCount_eq]
     norm_num [PiRLCStarts.samplerLogicalStart,
       PiRLCStarts.phaseLogicalStart, PiRLCInputs.phaseOffset,
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerOffset]
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.samplerOffset]
   have mappedBound := Spartan.sourceToSpartan_lt column sourceBound
   unfold Spartan.pullback
   rw [PiRLCSamplerRetainedCustody.semanticEnv_source_eq_transitionEnv_of_beforeSampler
@@ -70,12 +70,12 @@ theorem piCcsOutputFinalState_eval_eq
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (lane : Fin Spec.Poseidon2.width) :
-    (NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.finalState
+    (NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBinding.finalState
         (PiCCSInvocations.outputInterface relationLogicalWidth relationPublicFits)
         PiCCSInvocations.outputWitnessStart lane).eval
         (Spartan.pullback
           (PiRLCSamplerRetainedCustody.semanticEnv geometry assignment base)) =
-      (NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.finalState
+      (NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBinding.finalState
         (PiCCSInvocations.outputInterface relationLogicalWidth relationPublicFits)
         PiCCSInvocations.outputWitnessStart lane).eval
         (PiCCSActionPayloadBlock.packageEnv program
@@ -120,8 +120,6 @@ theorem endpointRows_imply_piCcsFinalState
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
-    (one : assignment
-      (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
       assignment (PiRLCRetainedPreservation.sourceAssignment program base
         groupValue))
@@ -134,7 +132,7 @@ theorem endpointRows_imply_piCcsFinalState
           (Spartan.pullback
             (PiRLCSamplerRetainedCustody.semanticEnv samplerGeometry assignment
               base))
-          (NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.finalState
+          (NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBinding.finalState
             (PiCCSInvocations.outputInterface relationLogicalWidth
               relationPublicFits)
             PiCCSInvocations.outputWitnessStart)) := by
@@ -149,19 +147,19 @@ theorem endpointRows_imply_piCcsFinalState
             (PiCCSActionPayloadBlock.packageEnv program
               (PiRLCRetainedPreservation.sourceAssignment program base
                 groupValue))
-            (NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.finalState
+            (NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBinding.finalState
               (PiCCSInvocations.outputInterface relationLogicalWidth
                 relationPublicFits)
               PiCCSInvocations.outputWitnessStart)) :=
       PiCCSTranscriptEndpointPlan.outputEndpoint_eq_finalEval poseidonGeometry
-        ordinaryGeometry assignment base groupValue one encoding
+        ordinaryGeometry assignment base groupValue encoding
         rowsZero
     _ = List.ofFn
           (NightstreamFPrime.Gadgets.Poseidon2.Layer.evalState
             (Spartan.pullback
               (PiRLCSamplerRetainedCustody.semanticEnv samplerGeometry
                 assignment base))
-            (NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.finalState
+            (NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBinding.finalState
               (PiCCSInvocations.outputInterface relationLogicalWidth
                 relationPublicFits)
               PiCCSInvocations.outputWitnessStart)) := by
@@ -284,8 +282,6 @@ theorem previousValue_entry_eq_chainStateFn
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
-    (one : assignment
-      (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
       assignment (PiRLCRetainedPreservation.sourceAssignment program base
         groupValue))
@@ -311,7 +307,7 @@ theorem previousValue_entry_eq_chainStateFn
     apply List.ofFn_injective
     have endpoint := endpointRows_imply_piCcsFinalState relation
       (PiRLCSamplerOrdinaryDirectPlan.poseidonGeometry samplerGeometry)
-      ordinaryGeometry samplerGeometry assignment base groupValue one encoding endpointRows
+      ordinaryGeometry samplerGeometry assignment base groupValue encoding endpointRows
     simpa [PiRLCSamplerPoseidonPreservation.previousValue,
       PiRLCSamplerPoseidonPlan.invocation, Fin.encodeProd, SamplerChain.stateAtExpr,
       PiRLCSamplerRows.samplerInterface, PiRLCSamplerRows.sharedInterface,
@@ -344,8 +340,6 @@ theorem canonicalInput_entry
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
-    (one : assignment
-      (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
       assignment (PiRLCRetainedPreservation.sourceAssignment program base
         groupValue))
@@ -369,7 +363,7 @@ theorem canonicalInput_entry
               PiRLCStarts.samplerLogicalStart source.val) lane +
           PiRLCSamplerPoseidonPlan.entryWord source lane := by
   have previous := previousValue_entry_eq_chainStateFn relation
-    ordinaryGeometry samplerGeometry assignment base groupValue one
+    ordinaryGeometry samplerGeometry assignment base groupValue
     encoding endpointRows source
   unfold PiRLCSamplerPoseidonPreservation.canonicalInput
   rw [PiRLCSamplerPoseidonPlan.descriptor_invocation]
@@ -410,8 +404,6 @@ theorem canonicalSemantics_imply_entry
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
-    (one : assignment
-      (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
       assignment (PiRLCRetainedPreservation.sourceAssignment program base
         groupValue))
@@ -462,7 +454,7 @@ theorem canonicalSemantics_imply_entry
               assignment
               (PiRLCSamplerPoseidonPlan.invocation source ⟨0, by decide⟩))) := by
       rw [canonicalInput_entry relation ordinaryGeometry samplerGeometry
-        assignment base groupValue one encoding endpointRows source]
+        assignment base groupValue encoding endpointRows source]
     _ = List.ofFn
           (PiRLCSamplerPoseidonPreservation.outputValue
             (PiRLCSamplerOrdinaryDirectPlan.poseidonGeometry samplerGeometry)

@@ -11,10 +11,10 @@ import NightstreamFPrime.Export.Stage1.PilotOrdinaryMatrixProgram
 import NightstreamFPrime.Export.Stage1.PilotPoseidonMatrixProgram
 import NightstreamFPrime.Export.Stage1.PinMatrixPrograms
 import NightstreamFPrime.Export.Stage1.RunningTransitionMatrixProgram
-import NightstreamFPrime.Layout.PiDEC.v1_1.Values
+import NightstreamFPrime.Layout.PiDEC.v1_2.Values
 
 /-!
-Owns the exact compact 7-matrix row program for one Lean-authored
+Owns the exact compact 4-matrix row program for one Lean-authored
 application. Its fourteen children use the same order and geometry projections
 as `PerApplicationProductionPlan.canonical`.
 
@@ -132,7 +132,7 @@ theorem blockProgram_rowCount (application : ApplicationProgram)
       samplerPoseidonProgram, samplerOrdinaryProgram, piRlcProgram,
       piDecProgram, runningTransitionProgram, applicationProgram,
       nextPreimageProgram, recursivePublicOutputProgram,
-      Layout.PiDEC.v1_1.exactRowCount_value]
+      Layout.PiDEC.v1_2.exactRowCount_value]
 
 /-- Interpret the same ordered tree as a compact matrix program. -/
 def compileMatrix (application : ApplicationProgram) :
@@ -231,7 +231,7 @@ theorem matrixProgram_blocks (application : ApplicationProgram) :
 
 @[simp] theorem matrixProgram_rowCount (application : ApplicationProgram) :
     (matrixProgram application).rowCount =
-      1365527 + (PerApplicationPackage.applicationPlan application).rowCount +
+      1133957 + (PerApplicationPackage.applicationPlan application).rowCount +
         9 := by
   simp [matrixProgram, throughNextPreimageProgram, applicationCompleteProgram,
     runningCompleteProgram,
@@ -244,7 +244,7 @@ theorem matrixProgram_blocks (application : ApplicationProgram) :
     piCcsEndpointProgram, samplerPoseidonProgram, samplerOrdinaryProgram,
     piRlcProgram, piDecProgram, runningTransitionProgram, applicationProgram,
     nextPreimageProgram, recursivePublicOutputProgram,
-    Layout.PiDEC.v1_1.exactRowCount_value]
+    Layout.PiDEC.v1_2.exactRowCount_value]
 
 theorem matrixProgram_rowCount_eq_structuralPlan
     (application : ApplicationProgram)

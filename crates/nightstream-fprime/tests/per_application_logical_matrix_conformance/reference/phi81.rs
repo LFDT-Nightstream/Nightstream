@@ -240,15 +240,14 @@ impl Block {
             row[0] = row[0]
                 .clone()
                 .append(forms.left[degree].clone().scaled(power));
-            row[2] = row[2]
+            row[1] = row[1]
                 .clone()
                 .append(forms.right[degree].clone().scaled(power));
-            row[4] = row[4]
+            row[2] = row[2]
                 .clone()
                 .append(forms.difference[degree].clone().scaled(power))
                 .append(forms.quotient[degree].clone().scaled(phi81 * power));
         }
-        row[6] = Form::singleton(self.one_column, Field::ONE);
         Ok(row)
     }
 }

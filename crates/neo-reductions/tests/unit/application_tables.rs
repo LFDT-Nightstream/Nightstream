@@ -269,9 +269,9 @@ fn complete_first_round_window_serves_the_openings_without_another_visit() {
     assert_eq!(window.rows(), 0..source.rows);
 
     let expected =
-        crate::superneo_eval::eval_real_v1_1_openings_from_rows(&source, &alpha, &blocks, resident_budget).unwrap();
+        crate::superneo_eval::eval_real_v1_2_openings_from_rows(&source, &alpha, &blocks, resident_budget).unwrap();
     let visits = source.visits.load(Ordering::Relaxed);
-    let actual = crate::superneo_eval::eval_real_v1_1_openings_from_rows_reusing(
+    let actual = crate::superneo_eval::eval_real_v1_2_openings_from_rows_reusing(
         &source,
         &alpha,
         &blocks,

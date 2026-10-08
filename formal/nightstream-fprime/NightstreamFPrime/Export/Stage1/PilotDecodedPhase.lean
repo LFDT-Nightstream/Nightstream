@@ -47,7 +47,7 @@ theorem rowsZero_implies_specHolds
   exact PilotDirectSemantics.implies_spec geometry assignment
     (PilotDecodedEnvironment.env geometry assignment) hashes
     (PilotDecodedEnvironment.rowsZero_implies_sourceRows geometry assignment one ordinaryRows)
-    ((PilotDigestBindingPlan.rowsZero_iff_matches geometry assignment one).mp bindingRows)
+    ((PilotDigestBindingPlan.rowsZero_iff_matches geometry assignment).mp bindingRows)
     (fun lane => (PilotDecodedEnvironment.env_location geometry assignment
       (.priorDigest lane)).symm)
     (fun lane => (PilotDecodedEnvironment.env_location geometry assignment

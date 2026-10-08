@@ -6,7 +6,7 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 /-!
 Paper Phi81 CE evaluation packing over the batch-invariant relation carrier.
 
-Protocol: SuperNeo Definition 13.
+Protocol: SuperNeo v1.2 Definition 21.
 Phase: one matrix evaluation and the complete matrix-indexed CE array.
 Constraint family: semantic evaluation only; this file emits no rows.
 

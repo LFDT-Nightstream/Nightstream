@@ -108,7 +108,7 @@ impl Fixture {
         let mut running = RunningInstance::canonical_zero(&params, &structure, D).unwrap();
         let blocks = SuperneoZBlocks::from_witness_mat(&witness, structure.m).unwrap();
         let opening = cache
-            .eval_real_v1_1_openings(&running.claims[0].r, &[blocks])
+            .eval_real_v1_2_openings(&running.claims[0].r, &[blocks])
             .unwrap()
             .remove(0);
         let claim = &mut running.claims[0];
@@ -165,9 +165,9 @@ impl Fixture {
         });
         let count = polynomial.terms()[0].exps.len();
         // Exercise the complete exported polynomial with nonzero input ports.
-        // Its C port (slot 4) is affine; solve that coordinate so the fresh row
-        // is valid. The declared final zero matrix stays zero.
-        assert!(polynomial.terms().iter().all(|term| term.exps[4] <= 1));
+        // Its C port (slot 2) is affine; solve that coordinate so the fresh row
+        // is valid.
+        assert!(polynomial.terms().iter().all(|term| term.exps[2] <= 1));
         let mut matrices = vec![Vec::new(); count];
         // Two distinct rows exercise interpolation across rows and two witness
         // columns. This count comes from the requested multi-row parity case.
@@ -175,13 +175,12 @@ impl Fixture {
             let mut values: Vec<_> = (1..=count)
                 .map(|value| F::from_usize(value + row * count))
                 .collect();
-            values[count - 1] = F::ZERO;
-            values[4] = F::ZERO;
+            values[2] = F::ZERO;
             let constant = polynomial.eval(&values);
-            values[4] = F::ONE;
+            values[2] = F::ONE;
             let coefficient = polynomial.eval(&values) - constant;
             assert_ne!(coefficient, F::ZERO);
-            values[4] = -constant * coefficient.inverse();
+            values[2] = -constant * coefficient.inverse();
             assert_eq!(polynomial.eval(&values), F::ZERO);
             for (matrix, value) in matrices.iter_mut().zip(values) {
                 matrix.push(if value == F::ZERO {

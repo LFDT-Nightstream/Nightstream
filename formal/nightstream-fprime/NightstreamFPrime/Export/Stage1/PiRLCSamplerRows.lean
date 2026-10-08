@@ -1,5 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiCCSArithmetic
-import NightstreamFPrime.Layout.PiRLC.v1_1.SamplerChain
+import NightstreamFPrime.Layout.PiRLC.v1_2.SamplerChain
 import NightstreamFPrime.Layout.Stage1.PiRLCInputs
 import NightstreamFPrime.Layout.Stage1.PiRLCStarts
 
@@ -26,22 +26,22 @@ variable {logicalWidth : Nat}
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
 def sharedInterface :
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.Interface
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.Interface
       logicalWidth publicFits :=
-  NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.atOffset
+  NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.atOffset
     (NightstreamFPrime.Layout.Stage1.PiRLCInputs.interface
       (logicalWidth := logicalWidth) (publicFits := publicFits))
     NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
 
 def samplerInterface :
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerChain.Interface :=
-  NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerInterface
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.SamplerChain.Interface :=
+  NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.samplerInterface
     (sharedInterface (logicalWidth := logicalWidth) (publicFits := publicFits))
 
 /-- The exact sampler child list in the production PiRLC parent. -/
 def constraints : List Expr :=
-  NightstreamFPrime.Layout.PiRLC.v1_1.childConstraints
-    (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerCircuit
+  NightstreamFPrime.Layout.PiRLC.v1_2.childConstraints
+    (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.samplerCircuit
       (sharedInterface (logicalWidth := logicalWidth)
         (publicFits := publicFits)))
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerLogicalStart
@@ -55,7 +55,7 @@ def rows : List Rows.CompiledRow :=
 
 theorem constraints_eq_samplerChain :
     constraints (logicalWidth := logicalWidth) (publicFits := publicFits) =
-      NightstreamFPrime.Layout.PiRLC.v1_1.SamplerChain.logicalConstraints
+      NightstreamFPrime.Layout.PiRLC.v1_2.SamplerChain.logicalConstraints
         (samplerInterface (logicalWidth := logicalWidth)
           (publicFits := publicFits))
         NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerLogicalStart := by
@@ -78,7 +78,7 @@ theorem rows_length :
   rw [rows, PiCCSArithmetic.compilePacket_length,
     constraints_eq_samplerChain]
   exact
-    NightstreamFPrime.Layout.PiRLC.v1_1.SamplerChain.totalRowCount_eq
+    NightstreamFPrime.Layout.PiRLC.v1_2.SamplerChain.totalRowCount_eq
       (samplerInterface (logicalWidth := logicalWidth)
         (publicFits := publicFits))
       NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerLogicalStart
@@ -91,7 +91,7 @@ theorem freshCount_eq :
       2448 := by
   rw [constraints_eq_samplerChain]
   exact
-    NightstreamFPrime.Layout.PiRLC.v1_1.SamplerChain.totalFreshCount_eq
+    NightstreamFPrime.Layout.PiRLC.v1_2.SamplerChain.totalFreshCount_eq
       (samplerInterface (logicalWidth := logicalWidth)
         (publicFits := publicFits))
       NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerLogicalStart
@@ -102,14 +102,14 @@ theorem freshCount_eq :
 sampler-chain relation. -/
 theorem rows_imply_relation (env : Env)
     (assumptions :
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerChain.Assumptions
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.SamplerChain.Assumptions
         (samplerInterface (logicalWidth := logicalWidth)
           (publicFits := publicFits))
         NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerLogicalStart)
     (holds : R1CS.RowsHold env
       ((rows (logicalWidth := logicalWidth) (publicFits := publicFits)).map
         Rows.CompiledRow.toR1CS)) :
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerChain.SpecHolds
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.SamplerChain.SpecHolds
       (samplerInterface (logicalWidth := logicalWidth)
         (publicFits := publicFits))
       NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerLogicalStart
@@ -120,13 +120,13 @@ theorem rows_imply_relation (env : Env)
     (constraints (logicalWidth := logicalWidth) (publicFits := publicFits)) env
     holds
   rw [constraints_eq_samplerChain] at logical
-  apply NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerChain.soundness
+  apply NightstreamFPrime.Lifecycle.PiRLC.v1_2.SamplerChain.soundness
     (samplerInterface (logicalWidth := logicalWidth)
       (publicFits := publicFits))
     (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerLogicalStart assumptions
   exact holdsFlat_implies_holds _ _ (by
-    simpa only [NightstreamFPrime.Layout.PiRLC.v1_1.SamplerChain.logicalConstraints]
+    simpa only [NightstreamFPrime.Layout.PiRLC.v1_2.SamplerChain.logicalConstraints]
       using! logical)
 
 end NightstreamFPrime.Export.Stage1.PiRLCSamplerRows

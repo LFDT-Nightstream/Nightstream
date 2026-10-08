@@ -21,27 +21,27 @@ open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
 
 theorem combinationOutput_varsBelow
     {blockCount cellCount : Nat} [NeZero cellCount]
-    (interface : PiRLC.v1_1.CombinationFamily.Interface blockCount cellCount)
+    (interface : PiRLC.v1_2.CombinationFamily.Interface blockCount cellCount)
     (offset : Nat) (block : Fin blockCount) (lane : Fin ringDegree)
     (cell : Fin cellCount) :
-    (PiRLC.v1_1.CombinationFamily.output interface offset block lane cell
+    (PiRLC.v1_2.CombinationFamily.output interface offset block lane cell
       ).VarsBelow
       (offset +
-        PiRLC.v1_1.CombinationFamily.logicalPrivateCount blockCount
+        PiRLC.v1_2.CombinationFamily.logicalPrivateCount blockCount
           cellCount) := by
-  simp only [PiRLC.v1_1.CombinationFamily.output,
-    PiRLC.v1_1.CombinationStep.output, Expr.VarsBelow]
+  simp only [PiRLC.v1_2.CombinationFamily.output,
+    PiRLC.v1_2.CombinationStep.output, Expr.VarsBelow]
   have indexBound :
-      (PiRLC.v1_1.CombinationStep.indexOf block lane cell).val <
-        PiRLC.v1_1.CombinationFamily.stepSize blockCount cellCount := by
-    exact (PiRLC.v1_1.CombinationStep.indexOf block lane cell).isLt
+      (PiRLC.v1_2.CombinationStep.indexOf block lane cell).val <
+        PiRLC.v1_2.CombinationFamily.stepSize blockCount cellCount := by
+    exact (PiRLC.v1_2.CombinationStep.indexOf block lane cell).isLt
   have finalSourceValue :
-      PiRLC.v1_1.CombinationFamily.finalSource.val = 16 := by
+      PiRLC.v1_2.CombinationFamily.finalSource.val = 16 := by
     rfl
-  unfold PiRLC.v1_1.CombinationFamily.stepOffset
-    PiRLC.v1_1.CombinationFamily.logicalPrivateCount
+  unfold PiRLC.v1_2.CombinationFamily.stepOffset
+    PiRLC.v1_2.CombinationFamily.logicalPrivateCount
   rw [finalSourceValue]
-  simp only [PiRLC.v1_1.CombinationFamily.sourceCount_eq]
+  simp only [PiRLC.v1_2.CombinationFamily.sourceCount_eq]
   omega
 
 private theorem piDecField_lt_phaseOffset {column : Nat}
@@ -84,7 +84,7 @@ theorem inputsBelow
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    PiDEC.v1_1.Formal.InputsBelow (interface logicalWidth publicFits)
+    PiDEC.v1_2.Formal.InputsBelow (interface logicalWidth publicFits)
       phaseOffset := by
   refine {
     point := parentPoint_varsBelow relation
@@ -99,84 +99,84 @@ theorem inputsBelow
   · intro row lane
     apply Expr.VarsBelow.mono _
       (combinationOutput_varsBelow
-        (PiRLC.v1_1.CommitmentCombination.familyInterface
-          (PiRLC.v1_1.Formal.commitmentInterface
+        (PiRLC.v1_2.CommitmentCombination.familyInterface
+          (PiRLC.v1_2.Formal.commitmentInterface
             (piRlcSharedInterface logicalWidth publicFits)))
         PiRLCStarts.commitmentLogicalStart row lane
-        PiRLC.v1_1.CommitmentCombination.cell)
-    rw [PiRLC.v1_1.CommitmentCombination.logicalPrivateCount_eq]
-    change 8761280 + 20196 ≤ 14761454
+        PiRLC.v1_2.CommitmentCombination.cell)
+    rw [PiRLC.v1_2.CommitmentCombination.logicalPrivateCount_eq]
+    change 7279662 + 20196 ≤ 12442944
     norm_num
   · intro column
     apply Expr.VarsBelow.mono _
       (combinationOutput_varsBelow
-        (PiRLC.v1_1.PublicInputCombination.familyInterface
-          (PiRLC.v1_1.Formal.publicInputInterface
+        (PiRLC.v1_2.PublicInputCombination.familyInterface
+          (PiRLC.v1_2.Formal.publicInputInterface
             (piRlcSharedInterface logicalWidth publicFits)))
         PiRLCStarts.publicInputLogicalStart
         (NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput.publicBlockIndex
           (FullShape logicalWidth publicFits) column)
         (NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput.publicLaneIndex
           column)
-        PiRLC.v1_1.PublicInputCombination.cell)
-    rw [PiRLC.v1_1.PublicInputCombination.logicalPrivateCount_eq]
-    change 8781476 + 4590 ≤ 14761454
+        PiRLC.v1_2.PublicInputCombination.cell)
+    rw [PiRLC.v1_2.PublicInputCombination.logicalPrivateCount_eq]
+    change 7299858 + 4590 ≤ 12442944
     norm_num
   · intro coefficient
     constructor
     · apply Expr.VarsBelow.mono _
         (combinationOutput_varsBelow
-          (PiRLC.v1_1.RingKCombination.familyInterface
-            (PiRLC.v1_1.EvalKCombination.ringInterface
-              (PiRLC.v1_1.Formal.evalKInterface
+          (PiRLC.v1_2.RingKCombination.familyInterface
+            (PiRLC.v1_2.EvalKCombination.ringInterface
+              (PiRLC.v1_2.Formal.evalKInterface
                 (piRlcSharedInterface logicalWidth publicFits))))
-          PiRLCStarts.evalKLogicalStart PiRLC.v1_1.EvalKCombination.block
-          (Fin.cast PiRLC.v1_1.EvalKCombination.coefficientCount_eq
+          PiRLCStarts.evalKLogicalStart PiRLC.v1_2.EvalKCombination.block
+          (Fin.cast PiRLC.v1_2.EvalKCombination.coefficientCount_eq
             coefficient)
-          PiRLC.v1_1.RingKCombination.c0Cell)
-      rw [PiRLC.v1_1.EvalKCombination.logicalPrivateCount_eq]
-      change 8786066 + 1836 ≤ 14761454
+          PiRLC.v1_2.RingKCombination.c0Cell)
+      rw [PiRLC.v1_2.EvalKCombination.logicalPrivateCount_eq]
+      change 7304448 + 1836 ≤ 12442944
       norm_num
     · apply Expr.VarsBelow.mono _
         (combinationOutput_varsBelow
-          (PiRLC.v1_1.RingKCombination.familyInterface
-            (PiRLC.v1_1.EvalKCombination.ringInterface
-              (PiRLC.v1_1.Formal.evalKInterface
+          (PiRLC.v1_2.RingKCombination.familyInterface
+            (PiRLC.v1_2.EvalKCombination.ringInterface
+              (PiRLC.v1_2.Formal.evalKInterface
                 (piRlcSharedInterface logicalWidth publicFits))))
-          PiRLCStarts.evalKLogicalStart PiRLC.v1_1.EvalKCombination.block
-          (Fin.cast PiRLC.v1_1.EvalKCombination.coefficientCount_eq
+          PiRLCStarts.evalKLogicalStart PiRLC.v1_2.EvalKCombination.block
+          (Fin.cast PiRLC.v1_2.EvalKCombination.coefficientCount_eq
             coefficient)
-          PiRLC.v1_1.RingKCombination.c1Cell)
-      rw [PiRLC.v1_1.EvalKCombination.logicalPrivateCount_eq]
-      change 8786066 + 1836 ≤ 14761454
+          PiRLC.v1_2.RingKCombination.c1Cell)
+      rw [PiRLC.v1_2.EvalKCombination.logicalPrivateCount_eq]
+      change 7304448 + 1836 ≤ 12442944
       norm_num
   · intro matrix coefficient
     constructor
     · apply Expr.VarsBelow.mono _
         (combinationOutput_varsBelow
-          (PiRLC.v1_1.RingKCombination.familyInterface
-            (PiRLC.v1_1.EvalACombination.ringInterface
-              (PiRLC.v1_1.Formal.evalAInterface
+          (PiRLC.v1_2.RingKCombination.familyInterface
+            (PiRLC.v1_2.EvalACombination.ringInterface
+              (PiRLC.v1_2.Formal.evalAInterface
                 (piRlcSharedInterface logicalWidth publicFits))))
           PiRLCStarts.evalALogicalStart matrix
-          (Fin.cast PiRLC.v1_1.EvalKCombination.coefficientCount_eq
+          (Fin.cast PiRLC.v1_2.EvalKCombination.coefficientCount_eq
             coefficient)
-          PiRLC.v1_1.RingKCombination.c0Cell)
-      rw [PiRLC.v1_1.EvalACombination.logicalPrivateCount_eq]
-      change 8787902 + 12852 ≤ 14761454
+          PiRLC.v1_2.RingKCombination.c0Cell)
+      rw [PiRLC.v1_2.EvalACombination.logicalPrivateCount_eq]
+      change 7306284 + 7344 ≤ 12442944
       norm_num
     · apply Expr.VarsBelow.mono _
         (combinationOutput_varsBelow
-          (PiRLC.v1_1.RingKCombination.familyInterface
-            (PiRLC.v1_1.EvalACombination.ringInterface
-              (PiRLC.v1_1.Formal.evalAInterface
+          (PiRLC.v1_2.RingKCombination.familyInterface
+            (PiRLC.v1_2.EvalACombination.ringInterface
+              (PiRLC.v1_2.Formal.evalAInterface
                 (piRlcSharedInterface logicalWidth publicFits))))
           PiRLCStarts.evalALogicalStart matrix
-          (Fin.cast PiRLC.v1_1.EvalKCombination.coefficientCount_eq
+          (Fin.cast PiRLC.v1_2.EvalKCombination.coefficientCount_eq
             coefficient)
-          PiRLC.v1_1.RingKCombination.c1Cell)
-      rw [PiRLC.v1_1.EvalACombination.logicalPrivateCount_eq]
-      change 8787902 + 12852 ≤ 14761454
+          PiRLC.v1_2.RingKCombination.c1Cell)
+      rw [PiRLC.v1_2.EvalACombination.logicalPrivateCount_eq]
+      change 7306284 + 7344 ≤ 12442944
       norm_num
   · intro child row lane
     simp only [interface, message, childCommitment, Expr.VarsBelow]
@@ -201,7 +201,7 @@ theorem inputsBelow
     simp only [interface, childPublicInput, Expr.VarsBelow]
     exact piDecField_lt_phaseOffset
       (Or.inr (Or.inl ⟨child,
-        Fin.cast (PiDEC.v1_1.PublicInputSplit.coordinateCount_eq
+        Fin.cast (PiDEC.v1_2.PublicInputSplit.coordinateCount_eq
           logicalWidth publicFits) coordinate, rfl⟩))
 
 /-- The production PiDEC assumptions are fully derived from the canonical
@@ -212,7 +212,7 @@ theorem assumptions
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (env : Env) :
-    PiDEC.v1_1.Formal.Assumptions relation
+    PiDEC.v1_2.Formal.Assumptions relation
       (interface logicalWidth publicFits) phaseOffset env := by
   exact ⟨inputsBelow relation⟩
 

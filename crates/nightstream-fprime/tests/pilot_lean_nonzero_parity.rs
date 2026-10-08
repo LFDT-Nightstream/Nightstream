@@ -4,8 +4,8 @@ use std::{fs, path::PathBuf};
 
 use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
 use nightstream_fprime::{
-    load_per_application_package, load_poseidon2_hash_chain_v1_package, PI_CCS_V1_1_ROUND_COUNT,
-    PI_CCS_V1_1_STATE_PREIMAGE_WORDS as STATE_PREIMAGE_WORDS,
+    load_per_application_package, load_poseidon2_hash_chain_v1_package, PI_CCS_V1_2_ROUND_COUNT,
+    PI_CCS_V1_2_STATE_PREIMAGE_WORDS as STATE_PREIMAGE_WORDS,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
@@ -19,9 +19,9 @@ const PRIOR_PUBLIC_WORDS: usize = 270;
 const DIGEST_WORDS: usize = 4;
 const PUBLIC_WORDS: usize = PRIOR_PUBLIC_WORDS + DIGEST_WORDS;
 const RUNNING_COUNT: usize = 16;
-const MATRIX_COUNT: usize = 7;
-const RUNNING_GROUP_WORDS: usize = 2_325;
-const RUNNING_POINT_WORDS: usize = 2 * PI_CCS_V1_1_ROUND_COUNT;
+const MATRIX_COUNT: usize = 4;
+const RUNNING_GROUP_WORDS: usize = 2_001;
+const RUNNING_POINT_WORDS: usize = 2 * PI_CCS_V1_2_ROUND_COUNT;
 
 #[derive(Clone, Deserialize)]
 struct RawInput(Vec<u64>, Vec<u64>, Vec<u64>, Vec<u64>);
@@ -202,7 +202,7 @@ fn fixture_mutation_indices(words: &[u64]) -> Vec<(String, usize)> {
         cursor += 270;
 
         indices.push((format!("source {source} evaluation length prefix"), cursor));
-        expect_prefix(words, &mut cursor, 864, "running evaluation");
+        expect_prefix(words, &mut cursor, 540, "running evaluation");
         indices.push((format!("source {source} Eval_K first word"), cursor));
         indices.push((format!("source {source} Eval_K last word"), cursor + 107));
         cursor += 108;
@@ -260,7 +260,7 @@ fn check_zero_running_openings(input: &RawInput) {
         // The zero carrier has norm below b = 2. Its linear commitment,
         // public projection, and separate Pad/matrix evaluations are zero.
         for source in 0..RUNNING_COUNT {
-            for (family, length) in [("commitment", 1_188), ("public input", 270), ("evaluations", 864)] {
+            for (family, length) in [("commitment", 1_188), ("public input", 270), ("evaluations", 540)] {
                 expect_prefix(words, &mut cursor, length, family);
                 assert!(
                     words[cursor..cursor + length].iter().all(|word| *word == 0),

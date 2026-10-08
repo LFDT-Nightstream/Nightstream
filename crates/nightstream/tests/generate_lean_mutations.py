@@ -14,7 +14,7 @@ from pathlib import Path
 
 # PiCCSInputCheck's selected Nightstream Goldilocks b=2, k_rho=16 schema.
 MODULUS = 18446744069414584321
-CHILDREN, MATRICES, DEGREE = 16, 7, 54
+CHILDREN, MATRICES, DEGREE = 16, 4, 54
 
 
 def numeric_json(value):
@@ -56,7 +56,7 @@ def generate(input_path, children_path, output):
     if type(ccs) is not list or len(ccs) != 7 or type(ccs[0]) is not int or ccs[0] != 2:
         raise ValueError("expected PiCCS input schema 2")
     for item, shape in zip(ccs[1:6], (
-        (22 * DEGREE,), (270,), (28, 10, 2),
+        (22 * DEGREE,), (270,), (28, 9, 2),
         (CHILDREN + 1, DEGREE, 2), (CHILDREN + 1, MATRICES, DEGREE, 2),
     )):
         vector(item, shape)

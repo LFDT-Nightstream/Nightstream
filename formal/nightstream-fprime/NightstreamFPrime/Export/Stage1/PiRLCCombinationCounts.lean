@@ -14,11 +14,11 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Export.Package
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Layout.Stage1
 
 abbrev laneFreshCount :=
-  NightstreamFPrime.Layout.PiRLC.v1_1.CombinationStep.laneFreshCount
+  NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep.laneFreshCount
 
 private theorem compactInvocationRowCountFor_invocation
     (templates : List CompactRowTemplate)
@@ -186,7 +186,7 @@ theorem invocationsCompactRowCountFor
     (selection : ∀ source : Nat, ∀ lane : Fin ringDegree,
       templates[PiRLCCombinationTemplates.templateIndex source lane.val]? =
         some (PiRLCCombinationTemplates.template (firstSource source) lane)) :
-    compactRowCountFor templates invocations = 5960574 := by
+    compactRowCountFor templates invocations = 5128866 := by
   rw [invocations, compactRowCountFor_append, compactRowCountFor_append,
     compactRowCountFor_append]
   rw [commitmentInvocations, familyCompactRowCountFor templates selection,

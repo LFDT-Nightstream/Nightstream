@@ -39,11 +39,13 @@ pub use r1cs::{PackageR1cs, PackageSparseMatrix};
 mod relation;
 pub use relation::{CcsMatrixSource, PackageCcsRelation, PackagePolynomialTerm};
 mod sealed;
+mod terminal;
 pub use sealed::{
     load_per_application_package, load_poseidon2_hash_chain_v1_package, load_prepared_application_records,
     load_prepared_application_value, LoadedApplicationPlan, LoadedPerApplicationPackage, LogicalMatrixEntry,
     LogicalMatrixRow,
 };
+pub use terminal::{load_terminal_package, TerminalOutputs};
 mod pi_ccs_v1_1_transcript;
 mod source_row;
 pub use pi_ccs_v1_1_transcript::{derive_pi_ccs_v1_1_transcript, PiCcsV1_1Transcript};
@@ -705,6 +707,41 @@ fn validate_package(
     relation_identifier: [u64; 4],
     native_application: Option<PreparedApplication>,
 ) -> Result<LoadedPackage, PackageError> {
+    let (mut package, terminal) = decode_components(raw, relation_identifier, native_application)?;
+    package.terminal = validate_terminal(&terminal, package.relation.row_count())?;
+    validate_chain_order(&package.hash_chains)?;
+    validate_row_coverage(
+        &package.layout,
+        &package.permutation,
+        &package.hash_chains,
+        &package.permutation_invocations,
+        &package.compact_templates,
+        &package.compact_invocations,
+        &package.witness_instructions,
+        &package.assertion_rows,
+        package.native_application.as_deref(),
+    )?;
+    let witness_segments = witness_segments(&package.layout);
+    let witness_intervals = owned_witness_intervals(&package, &witness_segments)?;
+    for segment in &witness_segments {
+        let end = segment.start + segment.length;
+        let owned = witness_intervals
+            .iter()
+            .copied()
+            .filter(|&(start, interval_end)| segment.start <= start && interval_end <= end)
+            .collect();
+        validate_witness_coverage(segment.start, segment.length, owned)?;
+    }
+    Ok(package)
+}
+
+/// Every component check of a package, without the terminal option (returned
+/// raw) and the physical coverage checks.
+fn decode_components(
+    raw: RawPackage,
+    relation_identifier: [u64; 4],
+    native_application: Option<PreparedApplication>,
+) -> Result<(LoadedPackage, Vec<Value>), PackageError> {
     let RawPackage(
         schema,
         profile,
@@ -735,13 +772,11 @@ fn validate_package(
         })
         .transpose()?;
     let relation = relation::validate(relation)?;
-    let terminal = validate_terminal(&terminal, relation.row_count())?;
     let permutation = validate_permutation(permutation)?;
     let hash_chains = chains
         .into_iter()
         .map(|chain| validate_chain(chain, &layout, &permutation))
         .collect::<Result<Vec<_>, _>>()?;
-    validate_chain_order(&hash_chains)?;
 
     let permutation_invocations = invocations
         .into_iter()
@@ -751,13 +786,7 @@ fn validate_package(
 
     let compact_templates = compact::validate_templates(compact_templates)?;
 
-    let witness_segments = layout
-        .private_segments
-        .iter()
-        .copied()
-        .filter(|segment| v1_1::is_witness_role(segment.role))
-        .collect::<Vec<_>>();
-    let witness_start = witness_segments
+    let witness_start = witness_segments(&layout)
         .first()
         .ok_or(PackageError::Invalid("witness segment"))?
         .start;
@@ -788,73 +817,11 @@ fn validate_package(
         .map(|row| validate_sparse_row(row, &layout))
         .collect::<Result<Vec<_>, _>>()?;
     validate_assertion_order(&assertion_rows)?;
-    validate_row_coverage(
-        &layout,
-        &permutation,
-        &hash_chains,
-        &permutation_invocations,
-        &compact_templates,
-        &compact_invocations,
-        &witness_instructions,
-        &assertion_rows,
-        native_application.as_deref(),
-    )?;
-    let mut witness_intervals = hash_chains
-        .iter()
-        .map(|chain| (chain.witness_start, chain.witness_start + chain.witness_length))
-        .collect::<Vec<_>>();
-    witness_intervals.extend(permutation_invocations.iter().map(|invocation| {
-        (
-            invocation.witness_start,
-            invocation.witness_start + permutation.local_column_count,
-        )
-    }));
-    witness_intervals.extend(
-        compact_invocations
-            .iter()
-            .map(|invocation| (invocation.output_column, invocation.output_column + 1)),
-    );
-    witness_intervals.extend(compact_invocations.iter().filter_map(|invocation| {
-        let local_count = invocation.local_column_count(&compact_templates);
-        (local_count != 0).then_some((invocation.local_start, invocation.local_start + local_count))
-    }));
-    witness_intervals.extend(
-        witness_batches
-            .iter()
-            .map(|batch| (batch.start, batch.end())),
-    );
-    witness_intervals.extend(
-        witness_instructions
-            .iter()
-            .map(|instruction| (instruction.target, instruction.target + 1)),
-    );
-    if let Some(application) = native_application
-        .as_deref()
-        .filter(|app| app.records().recipe_count() != 0)
-    {
-        let range = application.plan().private_range();
-        witness_intervals.push((range.start, range.end));
-    }
-    if witness_intervals
-        .iter()
-        .any(|&(start, end)| !interval_owned_by_witness_segment(start, end, &witness_segments))
-    {
-        return Err(PackageError::Invalid("witness interval ownership"));
-    }
-    for segment in &witness_segments {
-        let end = segment.start + segment.length;
-        let owned = witness_intervals
-            .iter()
-            .copied()
-            .filter(|&(start, interval_end)| segment.start <= start && interval_end <= end)
-            .collect();
-        validate_witness_coverage(segment.start, segment.length, owned)?;
-    }
 
-    Ok(LoadedPackage {
+    let package = LoadedPackage {
         layout,
         relation,
-        terminal,
+        terminal: None,
         permutation,
         hash_chains,
         permutation_invocations,
@@ -865,7 +832,70 @@ fn validate_package(
         assertion_rows,
         native_application,
         relation_identifier,
-    })
+    };
+    Ok((package, terminal))
+}
+
+fn witness_segments(layout: &Layout) -> Vec<Segment> {
+    layout
+        .private_segments
+        .iter()
+        .copied()
+        .filter(|segment| v1_1::is_witness_role(segment.role))
+        .collect()
+}
+
+/// The columns each producer writes; every interval lies in one witness
+/// segment.
+fn owned_witness_intervals(package: &LoadedPackage, segments: &[Segment]) -> Result<Vec<(usize, usize)>, PackageError> {
+    let mut witness_intervals = package
+        .hash_chains
+        .iter()
+        .map(|chain| (chain.witness_start, chain.witness_start + chain.witness_length))
+        .collect::<Vec<_>>();
+    witness_intervals.extend(package.permutation_invocations.iter().map(|invocation| {
+        (
+            invocation.witness_start,
+            invocation.witness_start + package.permutation.local_column_count,
+        )
+    }));
+    witness_intervals.extend(
+        package
+            .compact_invocations
+            .iter()
+            .map(|invocation| (invocation.output_column, invocation.output_column + 1)),
+    );
+    witness_intervals.extend(package.compact_invocations.iter().filter_map(|invocation| {
+        let local_count = invocation.local_column_count(&package.compact_templates);
+        (local_count != 0).then_some((invocation.local_start, invocation.local_start + local_count))
+    }));
+    witness_intervals.extend(
+        package
+            .witness_batches
+            .iter()
+            .map(|batch| (batch.start, batch.end())),
+    );
+    witness_intervals.extend(
+        package
+            .witness_instructions
+            .iter()
+            .map(|instruction| (instruction.target, instruction.target + 1)),
+    );
+    if let Some(application) = package
+        .native_application
+        .as_deref()
+        .filter(|app| app.records().recipe_count() != 0)
+    {
+        let range = application.plan().private_range();
+        witness_intervals.push((range.start, range.end));
+    }
+    if witness_intervals
+        .iter()
+        .any(|&(start, end)| !interval_owned_by_witness_segment(start, end, segments))
+    {
+        return Err(PackageError::Invalid("witness interval ownership"));
+    }
+    Ok(witness_intervals)
 }
 
 fn interval_owned_by_witness_segment(start: usize, end: usize, segments: &[Segment]) -> bool {

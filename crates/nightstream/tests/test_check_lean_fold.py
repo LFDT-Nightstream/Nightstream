@@ -177,12 +177,42 @@ class WaitForExitTests(unittest.TestCase):
             check.wait_for_exit(process, 0.2)
         self.assertIsNone(process.poll())
 
+    def test_exit_notification_uses_remaining_time_to_reap(self):
+        process = MagicMock(spec=check.POPEN, pid=123, returncode=None)
+
+        def reap(*, timeout):
+            if timeout == 0:
+                raise subprocess.TimeoutExpired(["child"], timeout)
+            return 3
+
+        process.wait.side_effect = reap
+        selector = MagicMock(KQ_EV_ERROR=0x4000)
+        selector.kqueue.return_value.control.return_value = [MagicMock(flags=0)]
+        with patch.object(check, "select", selector), \
+             patch.object(check.time, "monotonic", side_effect=[0, 0.25]):
+            self.assertEqual(check.wait_for_exit(process, 1), 3)
+        process.wait.assert_called_once_with(timeout=0.75)
+
+    def test_notification_timeout_does_not_restart_deadline(self):
+        for elapsed in (1, 1.25):
+            with self.subTest(elapsed=elapsed):
+                process = MagicMock(spec=check.POPEN, pid=123, returncode=None)
+                process.wait.side_effect = subprocess.TimeoutExpired(["child"], 0)
+                selector = MagicMock(KQ_EV_ERROR=0x4000)
+                selector.kqueue.return_value.control.return_value = []
+                with patch.object(check, "select", selector), \
+                     patch.object(check.time, "monotonic", side_effect=[0, elapsed]):
+                    with self.assertRaises(subprocess.TimeoutExpired):
+                        check.wait_for_exit(process, 1)
+                process.wait.assert_called_once_with(timeout=0)
+
     def test_kqueue_registration_error_uses_timed_wait(self):
         process = self.child("import time; time.sleep(60)")
         selector = MagicMock(KQ_EV_ERROR=0x4000)
         queue = selector.kqueue.return_value
         queue.control.return_value = [MagicMock(flags=selector.KQ_EV_ERROR, data=errno.ENOMEM)]
-        with patch.object(check, "select", selector):
+        with patch.object(check, "select", selector), \
+             patch.object(check.time, "monotonic", return_value=0):
             with self.assertRaises(subprocess.TimeoutExpired) as expired:
                 check.wait_for_exit(process, 0.2)
         self.assertEqual(expired.exception.timeout, 0.2)
@@ -194,6 +224,7 @@ class WaitForExitTests(unittest.TestCase):
         selector = MagicMock(spec=["select"])
         selector.select.side_effect = ValueError("filedescriptor out of range in select()")
         with patch.object(check, "select", selector), \
+             patch.object(check.time, "monotonic", return_value=0), \
              patch.object(check.os, "pidfd_open", return_value=1024, create=True), \
              patch.object(check.os, "close") as close:
             with self.assertRaises(subprocess.TimeoutExpired) as expired:

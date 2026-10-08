@@ -7,7 +7,7 @@ use neo_params::NeoParams;
 use neo_reductions::api::{
     dec_children_with_commit, rlc_public, rlc_public_matches_with_perf, rlc_with_commit, verify_dec_public, FoldingMode,
 };
-use neo_reductions::common::{compute_v1_1_evaluations_from_z_and_r, sample_rot_rhos_n_typed, RotRing};
+use neo_reductions::common::{compute_v1_2_evaluations_from_z_and_r, sample_rot_rhos_n_typed, RotRing};
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 
@@ -104,7 +104,7 @@ fn build_me_from_z(
     commitment: Commitment,
     _aux_seed: u64,
 ) -> CeClaim<Commitment, F, K> {
-    let evaluations = compute_v1_1_evaluations_from_z_and_r(structure, z, r, ell_d);
+    let evaluations = compute_v1_2_evaluations_from_z_and_r(structure, z, r, ell_d);
     let X = neo_reductions::common::project_x_from_witness_mat(z, structure.m, m_in).expect("project X");
     CeClaim {
         c: commitment,

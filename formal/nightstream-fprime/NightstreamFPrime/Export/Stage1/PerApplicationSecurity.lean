@@ -474,9 +474,11 @@ theorem stepHoldsFor_implies_base_or_securityOutcome {program : Program}
         (productionExtractionAlgebra fits commitmentSetup)
         (productionStrongSet fits commitmentSetup) accepted⟩
 
-/-- Acceptance of the verifier-bound canonical matrix plan reaches the full
-per-application security boundary without a caller-owned semantic premise.
-The base branch performs no extraction. The recursive branch uses the exact
+/-- Rows that hold on `bind raw` reach the per-application security boundary
+without a caller-owned semantic premise. As in
+`PerApplicationFixedPointSoundness.verifierBoundRowsZero_implies_stepHoldsFor`,
+`bind` sets the verifier-context columns, so this theorem does not cover an
+arbitrary accepted witness. The base branch performs no extraction. The recursive branch uses the exact
 application, canonical verifier-context digest, relation, Ajtai key,
 raw assignment, and NIFS proof constrained by those rows. -/
 theorem verifierBoundRowsZero_implies_base_or_securityOutcome
@@ -588,9 +590,11 @@ theorem verificationKeyBinding_identifies_package_authority_or_collision
   simpa only [verificationKeyBinding_packageIdentity] using
     packageIdentityEqual
 
-/-- A verifier-owned expected binding and accepted canonical rows identify the
-exact package authority and reach the complete deterministic/security outcome,
-unless one existing Poseidon2 binding event occurs. This theorem remains
+/-- A verifier-owned expected binding and rows that hold on `bind raw` identify
+the exact package authority and reach the complete deterministic/security
+outcome, unless one existing Poseidon2 binding event occurs. Like
+`verifierBoundRowsZero_implies_base_or_securityOutcome`, it does not cover an
+arbitrary accepted witness. This theorem remains
 generic until the owner selects one concrete production application. -/
 theorem verificationKeyBindingAndRowsZero_implies_securityOrCollision
     {expectedProgram claimedProgram : Program}

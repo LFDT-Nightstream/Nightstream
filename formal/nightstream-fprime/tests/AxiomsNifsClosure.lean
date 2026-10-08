@@ -14,7 +14,7 @@ import NightstreamFPrime.Lifecycle.NifsProfile
 import NightstreamFPrime.Lifecycle.Nifs.InteractiveCompleteness
 import NightstreamFPrime.Lifecycle.Nifs.BaseCompleteness
 import NightstreamFPrime.Lifecycle.Nifs.BaseVerifierCompleteness
-import NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerChain
+import NightstreamFPrime.Lifecycle.PiRLC.v1_2.SamplerChain
 import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongCompleteness
 import NightstreamFPrime.Spec.Folding.Nifs.PaperCausalReplay
 import NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Completeness

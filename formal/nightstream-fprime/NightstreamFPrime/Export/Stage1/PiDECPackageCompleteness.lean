@@ -21,12 +21,12 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 def phaseInterface :
-    NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal.Interface
+    NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.Interface
       Data.logicalWidth Data.publicFits :=
   PiDECArithmetic.phaseInterface Data.logicalWidth Data.publicFits
 
 def piRlcInterface :
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.Interface
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.Interface
       Data.logicalWidth Data.publicFits :=
   PiRLCInputs.interface
     (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)
@@ -55,12 +55,12 @@ private theorem piDecStartLocal :
 private theorem piDecEnd_eq
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits) :
     PiDECInputs.phaseOffset +
-        (Lifecycle.PiDEC.v1_1.Formal.logicalPrivateCount +
-          Layout.PiDEC.v1_1.exactFreshCount) =
+        (Lifecycle.PiDEC.v1_2.Formal.logicalPrivateCount +
+          Layout.PiDEC.v1_2.exactFreshCount) =
       RunningTransitionInputs.phaseOffset := by
   have endpoint := RunningTransitionInputs.phaseOffset_matches_piDec relation
   rw [PilotPiCCSPiRLCPiDEC.physicalColumnCount,
-    Layout.PiDEC.v1_1.physicalColumnCount_eq_production relation
+    Layout.PiDEC.v1_2.physicalColumnCount_eq_production relation
       (PiDECInputs.interface Data.logicalWidth Data.publicFits)
       PilotPiCCSPiRLCPiDEC.piDecOffset (PiDECInputs.inputShapes relation)] at endpoint
   dsimp only [PilotPiCCSPiRLCPiDEC.piDecOffset] at endpoint
@@ -84,8 +84,8 @@ theorem runningTransitionTargetStart_eq :
 
 private theorem targetLength_eq
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits) :
-    Data.piDecWitnessLength = Lifecycle.PiDEC.v1_1.Formal.logicalPrivateCount +
-      Layout.PiDEC.v1_1.exactFreshCount := by
+    Data.piDecWitnessLength = Lifecycle.PiDEC.v1_2.Formal.logicalPrivateCount +
+      Layout.PiDEC.v1_2.exactFreshCount := by
   unfold Data.piDecWitnessLength
   rw [← runningTransitionTargetStart_eq, ← targetStart_eq, ← piDecEnd_eq relation,
     Spartan.sourceToSpartan_add_of_piCcsLocal _ _ piDecStartLocal]
@@ -167,9 +167,9 @@ theorem completeRows
       (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
     (env : Env)
     (assumptions :
-      NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal.Assumptions relation
+      NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.Assumptions relation
         phaseInterface PiDECInputs.phaseOffset (Spartan.pullback env))
-    (phase : NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.PhaseHolds
+    (phase : NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.PhaseHolds
       relation ajtai phaseInterface PiDECInputs.phaseOffset
         (Spartan.pullback env)) :
     ∃ completed,
@@ -177,7 +177,7 @@ theorem completeRows
           Data.piDecWitnessLength ∧
         PackageCompleteness.PiDECRowsHold completed := by
   rcases
-      NightstreamFPrime.Layout.PiDEC.v1_1.physical_complete_production
+      NightstreamFPrime.Layout.PiDEC.v1_2.physical_complete_production
         relation ajtai phaseInterface PiDECInputs.phaseOffset
         (Spartan.pullback env) (PiDECInputs.inputShapes relation)
         assumptions phase with
@@ -204,10 +204,10 @@ theorem completeRows
     omega
   have remappedRows : R1CS.RowsHold completed
       (Spartan.remapRows
-        (NightstreamFPrime.Layout.PiDEC.v1_1.physicalRows relation
+        (NightstreamFPrime.Layout.PiDEC.v1_2.physicalRows relation
           phaseInterface PiDECInputs.phaseOffset)) := by
     exact Spartan.remapRows_hold_copyMappedInterval
-      (NightstreamFPrime.Layout.PiDEC.v1_1.physicalRows relation
+      (NightstreamFPrime.Layout.PiDEC.v1_2.physicalRows relation
         phaseInterface PiDECInputs.phaseOffset)
       env source PiDECInputs.phaseOffset Data.piDecWitnessLength startLocal
       targetPrivate
@@ -318,7 +318,7 @@ private theorem recursiveRunningBelowPiDec
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
     (env : Env)
     (assumptions :
-      NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal.Assumptions relation
+      NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.Assumptions relation
         phaseInterface PiDECInputs.phaseOffset (Spartan.pullback env)) :
     NightstreamFPrime.Lifecycle.Stage1.RunningTransition.RunningBelow
       (RunningTransitionInputs.recursiveRunningExpr
@@ -378,7 +378,7 @@ private theorem transitionSpec_of_piDecAgreesOutside
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
     (before after : Env)
     (assumptions :
-      NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal.Assumptions relation
+      NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.Assumptions relation
         phaseInterface PiDECInputs.phaseOffset (Spartan.pullback before))
     (agrees : AgreesOutside before after Data.piDecWitnessStart
       Data.piDecWitnessLength)
@@ -522,23 +522,23 @@ theorem piRlcPhysicalRows_varsBelow
       (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
     (env : Env)
     (assumptions :
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.Assumptions relation
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.Assumptions relation
         piRlcInterface PiRLCInputs.phaseOffset (Spartan.pullback env))
-    (phase : NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.PhaseHolds
+    (phase : NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.PhaseHolds
       relation ajtai piRlcInterface PiRLCInputs.phaseOffset
         (Spartan.pullback env)) :
-    ∀ row ∈ NightstreamFPrime.Layout.PiRLC.v1_1.physicalRows relation
+    ∀ row ∈ NightstreamFPrime.Layout.PiRLC.v1_2.physicalRows relation
         piRlcInterface PiRLCInputs.phaseOffset,
       row.VarsBelow PiDECInputs.phaseOffset := by
   have physicalEnd :
-      NightstreamFPrime.Layout.PiRLC.v1_1.physicalColumnCount relation
+      NightstreamFPrime.Layout.PiRLC.v1_2.physicalColumnCount relation
           piRlcInterface PiRLCInputs.phaseOffset ≤
         PiDECInputs.phaseOffset := by
     apply Nat.le_trans ?_ proofInputStart_le_phaseOffset
     rw [PiDECInputs.proofInputStart_matches_piRlc relation]
     exact Nat.le_max_right _ _
   intro row member
-  exact (NightstreamFPrime.Layout.PiRLC.v1_1.physicalRows_varsBelow_of_phase
+  exact (NightstreamFPrime.Layout.PiRLC.v1_2.physicalRows_varsBelow_of_phase
     relation ajtai piRlcInterface PiRLCInputs.phaseOffset
     (Spartan.pullback env) assumptions phase row member).mono row physicalEnd
 
@@ -548,22 +548,22 @@ theorem piRlcPhysicalRows_of_piDecAgreesOutside
       (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
     (before after : Env)
     (assumptions :
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.Assumptions relation
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.Assumptions relation
         piRlcInterface PiRLCInputs.phaseOffset (Spartan.pullback before))
-    (phase : NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.PhaseHolds
+    (phase : NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.PhaseHolds
       relation ajtai piRlcInterface PiRLCInputs.phaseOffset
         (Spartan.pullback before))
     (agrees : AgreesOutside before after Data.piDecWitnessStart
       Data.piDecWitnessLength)
     (holds : R1CS.RowsHold before (Spartan.remapRows
-      (NightstreamFPrime.Layout.PiRLC.v1_1.physicalRows relation
+      (NightstreamFPrime.Layout.PiRLC.v1_2.physicalRows relation
         piRlcInterface PiRLCInputs.phaseOffset))) :
     R1CS.RowsHold after (Spartan.remapRows
-      (NightstreamFPrime.Layout.PiRLC.v1_1.physicalRows relation
+      (NightstreamFPrime.Layout.PiRLC.v1_2.physicalRows relation
         piRlcInterface PiRLCInputs.phaseOffset)) := by
   have sourceHolds := (Spartan.remapRows_hold before _).mp holds
   have sourceAfter := R1CS.rowsHold_of_agree_below
-    (NightstreamFPrime.Layout.PiRLC.v1_1.physicalRows relation
+    (NightstreamFPrime.Layout.PiRLC.v1_2.physicalRows relation
       piRlcInterface PiRLCInputs.phaseOffset)
     PiDECInputs.phaseOffset (Spartan.pullback before)
     (Spartan.pullback after)
@@ -577,19 +577,19 @@ theorem piRlcPhysicalRows_of_transitionAgreesOutside
       (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
     (scopeEnv before after : Env)
     (assumptions :
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.Assumptions relation
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.Assumptions relation
         piRlcInterface PiRLCInputs.phaseOffset (Spartan.pullback scopeEnv))
-    (phase : NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.PhaseHolds
+    (phase : NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.PhaseHolds
       relation ajtai piRlcInterface PiRLCInputs.phaseOffset
         (Spartan.pullback scopeEnv))
     (agrees : AgreesOutside before after
       Data.runningTransitionWitnessStart
       Data.runningTransitionWitnessLength)
     (holds : R1CS.RowsHold before (Spartan.remapRows
-      (NightstreamFPrime.Layout.PiRLC.v1_1.physicalRows relation
+      (NightstreamFPrime.Layout.PiRLC.v1_2.physicalRows relation
         piRlcInterface PiRLCInputs.phaseOffset))) :
     R1CS.RowsHold after (Spartan.remapRows
-      (NightstreamFPrime.Layout.PiRLC.v1_1.physicalRows relation
+      (NightstreamFPrime.Layout.PiRLC.v1_2.physicalRows relation
         piRlcInterface PiRLCInputs.phaseOffset)) := by
   have sourceHolds := (Spartan.remapRows_hold before _).mp holds
   have sourceAgrees : ∀ index, index < PiDECInputs.phaseOffset →
@@ -598,7 +598,7 @@ theorem piRlcPhysicalRows_of_transitionAgreesOutside
     apply pullback_agreesBelow_runningTransition before after agrees index
     exact lt_of_lt_of_le below RunningTransitionInputs.piDecPhaseOffset_le
   have sourceAfter := R1CS.rowsHold_of_agree_below
-    (NightstreamFPrime.Layout.PiRLC.v1_1.physicalRows relation
+    (NightstreamFPrime.Layout.PiRLC.v1_2.physicalRows relation
       piRlcInterface PiRLCInputs.phaseOffset)
     PiDECInputs.phaseOffset (Spartan.pullback before)
     (Spartan.pullback after)
@@ -612,9 +612,9 @@ theorem piDecRows_of_transitionAgreesOutside
       (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
     (scopeEnv before after : Env)
     (assumptions :
-      NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal.Assumptions relation
+      NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.Assumptions relation
         phaseInterface PiDECInputs.phaseOffset (Spartan.pullback scopeEnv))
-    (phase : NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.PhaseHolds
+    (phase : NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.PhaseHolds
       relation ajtai phaseInterface PiDECInputs.phaseOffset
         (Spartan.pullback scopeEnv))
     (agrees : AgreesOutside before after
@@ -630,20 +630,20 @@ theorem piDecRows_of_transitionAgreesOutside
   rw [exactRows] at remappedBefore
   have sourceBefore := (Spartan.remapRows_hold before _).mp remappedBefore
   have sourceScope :=
-    NightstreamFPrime.Layout.PiDEC.v1_1.physicalRows_varsBelow_of_phase
+    NightstreamFPrime.Layout.PiDEC.v1_2.physicalRows_varsBelow_of_phase
       relation ajtai phaseInterface PiDECInputs.phaseOffset
       (Spartan.pullback scopeEnv) assumptions phase
   have endpoint :
-      NightstreamFPrime.Layout.PiDEC.v1_1.physicalColumnCount relation
+      NightstreamFPrime.Layout.PiDEC.v1_2.physicalColumnCount relation
           phaseInterface PiDECInputs.phaseOffset =
         RunningTransitionInputs.phaseOffset := by
-    rw [NightstreamFPrime.Layout.PiDEC.v1_1.physicalColumnCount_eq_production
+    rw [NightstreamFPrime.Layout.PiDEC.v1_2.physicalColumnCount_eq_production
         relation phaseInterface
         PiDECInputs.phaseOffset (PiDECInputs.inputShapes relation)]
     exact piDecEnd_eq relation
   rw [endpoint] at sourceScope
   have sourceAfter := R1CS.rowsHold_of_agree_below
-    (NightstreamFPrime.Layout.PiDEC.v1_1.physicalRows relation
+    (NightstreamFPrime.Layout.PiDEC.v1_2.physicalRows relation
       phaseInterface PiDECInputs.phaseOffset)
     RunningTransitionInputs.phaseOffset (Spartan.pullback before)
     (Spartan.pullback after) sourceScope
@@ -661,15 +661,15 @@ theorem completePackageRows
       (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
     (env : Env)
     (piRlcAssumptions :
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.Assumptions relation
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.Assumptions relation
         piRlcInterface PiRLCInputs.phaseOffset (Spartan.pullback env))
-    (piRlcPhase : NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.PhaseHolds
+    (piRlcPhase : NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.PhaseHolds
       relation ajtai piRlcInterface PiRLCInputs.phaseOffset
         (Spartan.pullback env))
     (piDecAssumptions :
-      NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal.Assumptions relation
+      NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.Assumptions relation
         phaseInterface PiDECInputs.phaseOffset (Spartan.pullback env))
-    (piDecPhase : NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.PhaseHolds
+    (piDecPhase : NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.PhaseHolds
       relation ajtai phaseInterface PiDECInputs.phaseOffset
         (Spartan.pullback env))
     (runningTransition :
@@ -688,7 +688,7 @@ theorem completePackageRows
         row.Holds env)
     (piCcs : PackageCompleteness.PiCCSRowsHold env)
     (piRlcPhysical : R1CS.RowsHold env (Spartan.remapRows
-      (NightstreamFPrime.Layout.PiRLC.v1_1.physicalRows relation
+      (NightstreamFPrime.Layout.PiRLC.v1_2.physicalRows relation
         piRlcInterface PiRLCInputs.phaseOffset))) :
     ∃ completed,
       AgreesOutside env completed Data.piDecWitnessStart

@@ -15,7 +15,7 @@ namespace NightstreamFPrime.Layout.Stage1.StateDecoder
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 /-- A bounded logical slice of an unbounded state-word view. -/

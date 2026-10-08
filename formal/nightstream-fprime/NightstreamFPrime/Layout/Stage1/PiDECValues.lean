@@ -67,9 +67,9 @@ theorem cumulativeFootprints_eq
   rcases PilotPiCCSPiRLCPiDEC.cumulativeFootprints_eq relation with ⟨rows, columns⟩
   have joint : PilotPiCCSPiRLCPiDEC.cumulativeJointDomains relation =
       List.zipWith max
-        ((PiDEC.v1_1.cumulativeFrom 0 PiDEC.v1_1.exactRowDeltas).map
+        ((PiDEC.v1_2.cumulativeFrom 0 PiDEC.v1_2.exactRowDeltas).map
           (PiDECStarts.phaseRowStart + ·))
-        ((PiDEC.v1_1.cumulativeFrom 0 PiDEC.v1_1.exactPhysicalColumnDeltas).map
+        ((PiDEC.v1_2.cumulativeFrom 0 PiDEC.v1_2.exactPhysicalColumnDeltas).map
           (PilotPiCCSPiRLCPiDEC.piDecOffset + ·)) := by
     rw [PilotPiCCSPiRLCPiDEC.cumulativeJointDomains, rows, columns]
   refine ⟨?_, ?_, ?_⟩

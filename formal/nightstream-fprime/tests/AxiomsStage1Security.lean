@@ -51,7 +51,7 @@ import NightstreamFPrime.Layout.Stage1.PiCCSProtocolCompleteness
 import NightstreamFPrime.Layout.Stage1.PiCCSProofReadback
 import NightstreamFPrime.Layout.Stage1.PiRLCProtocolCompleteness
 import NightstreamFPrime.Layout.Stage1.PiCCSSecurity
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.PhaseTransport
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.PhaseTransport
 import NightstreamFPrime.Spec.Folding.PiRLC.CoordinateForkLaw
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
@@ -267,8 +267,8 @@ import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
 #audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationSecurity.stepHoldsFor_implies_base_or_securityOutcome
 #audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationSecurity.verifierBoundRowsZero_implies_base_or_securityOutcome
 #audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationSecurity.verificationKeyBindingAndRowsZero_implies_securityOrCollision
-#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.PhaseTransport.phaseHolds_of_eval_eq
-#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.PhaseTransport.phaseHolds_of_components_eq
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.PhaseTransport.phaseHolds_of_eval_eq
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.PhaseTransport.phaseHolds_of_components_eq
 
 #audit_axioms NightstreamFPrime.Export.Stage1.InvocationInputLaw.compileActions_input_eval
 #audit_axioms NightstreamFPrime.Export.Stage1.InvocationInputLaw.compileActions_expected_eval

@@ -16,7 +16,7 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Gadgets.Poseidon2
 open NightstreamFPrime.Gadgets.Poseidon2.Duplex
 open NightstreamFPrime.Layout
@@ -56,7 +56,7 @@ theorem statement_affine (relation : ProductionKey.LogicalRelation logicalWidth 
   refine ⟨Layout.Poseidon2.zeroE_affine, ?_⟩
   rw [← statementActions_eq_of_shape logicalWidth publicFits]
   exact Invocations.actionsInvocationInputsAffine_of_actionsAffine _
-    (Layout.PiCCS.v1_1.Leaves.StatementAbsorption.actions_affine
+    (Layout.PiCCS.v1_2.Leaves.StatementAbsorption.actions_affine
       (statementInterface logicalWidth publicFits) statementWitnessStart
       ((inputShapes logicalWidth publicFits relation).statementAbsorption statementWitnessStart))
 
@@ -72,7 +72,7 @@ theorem challenge_affine (relation : ProductionKey.LogicalRelation logicalWidth 
     exact R1CS.isAffine_var _
   · rw [← challengeActions_eq_of_shape logicalWidth publicFits]
     exact Invocations.actionsInvocationInputsAffine_of_actionsAffine _
-      (Layout.PiCCS.v1_1.Leaves.ChallengeDerivation.actions_affine
+      (Layout.PiCCS.v1_2.Leaves.ChallengeDerivation.actions_affine
         (challengeInterface logicalWidth publicFits) challengeWitnessStart
         ((inputShapes logicalWidth publicFits relation).challengeDerivation challengeWitnessStart))
 
@@ -87,7 +87,7 @@ theorem round_affine (relation : ProductionKey.LogicalRelation logicalWidth publ
     exact R1CS.isAffine_var _
   · rw [← roundActions_eq_of_shape logicalWidth publicFits]
     exact Invocations.actionsInvocationInputsAffine_of_actionsAffine _
-      (Layout.PiCCS.v1_1.Leaves.RoundTranscript.actions_affine
+      (Layout.PiCCS.v1_2.Leaves.RoundTranscript.actions_affine
         (roundInterface logicalWidth publicFits) roundWitnessStart
         ((inputShapes logicalWidth publicFits relation).roundTranscript roundWitnessStart))
 
@@ -102,7 +102,7 @@ theorem output_affine (relation : ProductionKey.LogicalRelation logicalWidth pub
     exact R1CS.isAffine_var _
   · rw [← outputActions_eq_of_shape logicalWidth publicFits]
     exact Invocations.actionsInvocationInputsAffine_of_actionsAffine _
-      (Layout.PiCCS.v1_1.Leaves.OutputBinding.actions_affine
+      (Layout.PiCCS.v1_2.Leaves.OutputBinding.actions_affine
         (outputInterface logicalWidth publicFits) outputWitnessStart
         ((inputShapes logicalWidth publicFits relation).outputBinding outputWitnessStart))
 
@@ -112,7 +112,7 @@ variable (application : Lifecycle.Stage1.Application.Program)
   (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
   (target : Env)
   (suffix : Fin (PerApplicationPackage.addedPrivateColumnCount application) → F)
-  (physical : Layout.PiCCS.v1_1.PhysicalHolds relation
+  (physical : Layout.PiCCS.v1_2.PhysicalHolds relation
     (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset (Spartan.pullback target))
 
 local notation "raw" => canonicalRawValues application

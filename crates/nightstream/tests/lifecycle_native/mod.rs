@@ -1,6 +1,6 @@
 //! Native migration checks. Saved Lean inputs are test data, never producer input.
 use super::{
-    serialize_pi_ccs_v1_1_state_preimage, PiCcsV1_1PackageBridgeError, PiCcsV1_1ProofInputs, PreparedLifecycle,
+    serialize_pi_ccs_v1_2_state_preimage, PiCcsV1_2PackageBridgeError, PiCcsV1_2ProofInputs, PreparedLifecycle,
     Stage1State, Stage1StepInputs, StepInputError,
 };
 use crate::folding::{
@@ -9,7 +9,7 @@ use crate::folding::{
 use neo_ajtai::Commitment;
 use neo_ccs::{LaneCommitments, Mat};
 use neo_math::{from_complex, D, F, K};
-use nightstream_fprime::{load_poseidon2_hash_chain_v1_package, PI_CCS_V1_1_STATE_PREIMAGE_WORDS};
+use nightstream_fprime::{load_poseidon2_hash_chain_v1_package, PI_CCS_V1_2_STATE_PREIMAGE_WORDS};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use serde_json::{json, Value};
 use std::{fs, path::PathBuf};
@@ -276,7 +276,7 @@ fn actual_nifs_builds_the_checked_successor_assignment() {
         )
         .unwrap();
     let encoded = loaded
-        .encode_stage1_v1_1_inputs(packet.pi_ccs(), packet.pi_dec(), packet.application_witness())
+        .encode_stage1_v1_2_inputs(packet.pi_ccs(), packet.pi_dec(), packet.application_witness())
         .unwrap();
     let private: Vec<u64> = serde_json::from_value(expected[2].clone()).unwrap();
     let public: Vec<u64> = serde_json::from_value(expected[3].clone()).unwrap();
@@ -288,7 +288,7 @@ fn actual_nifs_builds_the_checked_successor_assignment() {
         .position(|(a, b)| a != b);
     assert_eq!(first_difference, None, "first differing caller-private input word");
     assert_eq!(encoded.public_values(), public, "every caller-public input word");
-    let state_width = PI_CCS_V1_1_STATE_PREIMAGE_WORDS;
+    let state_width = PI_CCS_V1_2_STATE_PREIMAGE_WORDS;
     assert_eq!(packet.output_preimage(), &private[state_width..2 * state_width]);
     assert_eq!(json!(packet.output_digest()), expected[4][1]);
     assert_eq!(json!(packet.next_public_input()), expected[4][2]);
@@ -459,7 +459,7 @@ fn state_and_proof_bridges_require_the_padded_evaluation_width() {
         .digest()
         .map(F::from_u64);
     let serialize = |running: &RunningInstance| {
-        serialize_pi_ccs_v1_1_state_preimage(
+        serialize_pi_ccs_v1_2_state_preimage(
             context,
             fixture.state.iteration(),
             fixture.state.z0(),
@@ -469,14 +469,14 @@ fn state_and_proof_bridges_require_the_padded_evaluation_width() {
         )
         .map(|_| ())
     };
-    let width_error = |result: Result<(), PiCcsV1_1PackageBridgeError>| {
+    let width_error = |result: Result<(), PiCcsV1_2PackageBridgeError>| {
         matches!(
             result,
-            Err(PiCcsV1_1PackageBridgeError::Shape("evaluation family width or padding"))
+            Err(PiCcsV1_2PackageBridgeError::Shape("evaluation family width or padding"))
         )
     };
     assert!(serialize(&fixture.running).is_ok());
-    assert!(PiCcsV1_1ProofInputs::from_proof(&fixture.fresh, &fixture.proof.pi_ccs).is_ok());
+    assert!(PiCcsV1_2ProofInputs::from_proof(&fixture.fresh, &fixture.proof.pi_ccs).is_ok());
     for width in [D, EVALUATION_WIDTH + 1] {
         let mut running = fixture.running.claims_only();
         running.claims[0].eval_k.resize(width, K::ZERO);
@@ -484,7 +484,7 @@ fn state_and_proof_bridges_require_the_padded_evaluation_width() {
         let mut proof = fixture.proof.pi_ccs.clone();
         proof.outputs[0].eval_a[0].resize(width, K::ZERO);
         assert!(
-            width_error(PiCcsV1_1ProofInputs::from_proof(&fixture.fresh, &proof).map(|_| ())),
+            width_error(PiCcsV1_2ProofInputs::from_proof(&fixture.fresh, &proof).map(|_| ())),
             "proof outputs, width {width}"
         );
     }

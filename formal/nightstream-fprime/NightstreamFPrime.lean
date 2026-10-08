@@ -13,7 +13,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CheckedWitnessExtraction
 import NightstreamFPrime.Circuit
 import NightstreamFPrime.Gadgets
 import NightstreamFPrime.Lifecycle
-import NightstreamFPrime.Lifecycle.PiDEC.v1_1.OutputWitnessConsumer
+import NightstreamFPrime.Lifecycle.PiDEC.v1_2.OutputWitnessConsumer
 import NightstreamFPrime.Layout
 import NightstreamFPrime.Export
 

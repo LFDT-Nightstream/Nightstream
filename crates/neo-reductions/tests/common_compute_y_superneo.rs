@@ -2,10 +2,10 @@
 
 use neo_ccs::poly::{SparsePoly, Term};
 use neo_ccs::utils::tensor_point;
-use neo_ccs::{CcsStructure, Mat, V1_1Evaluations};
+use neo_ccs::{CcsStructure, Mat, V1_2Evaluations};
 use neo_math::{superneo_bar_block, Fq, KExtensions, Rq, D, F, K};
 use neo_reductions::common::{
-    compute_v1_1_evaluations_from_z_and_r, decode_superneo_coeffs_from_witness_mat, validate_superneo_witness_mat,
+    compute_v1_2_evaluations_from_z_and_r, decode_superneo_coeffs_from_witness_mat, validate_superneo_witness_mat,
 };
 use neo_reductions::superneo_eval::build_superneo_eval_cache;
 use p3_field::PrimeCharacteristicRing;
@@ -41,7 +41,7 @@ fn make_z(seed: u64, m: usize) -> Mat<F> {
     Mat::from_row_major(D, cols, data)
 }
 
-fn manual_compute_v1_1_evaluations(s: &CcsStructure<F>, Z: &Mat<F>, r: &[K], ell_d: usize) -> V1_1Evaluations<K> {
+fn manual_compute_v1_2_evaluations(s: &CcsStructure<F>, Z: &Mat<F>, r: &[K], ell_d: usize) -> V1_2Evaluations<K> {
     let d_pad = 1usize << ell_d;
     let rb = tensor_point::<K>(r);
     let n_eff = core::cmp::min(s.n, rb.len());
@@ -79,11 +79,11 @@ fn manual_compute_v1_1_evaluations(s: &CcsStructure<F>, Z: &Mat<F>, r: &[K], ell
         }
         eval_a.push(row);
     }
-    V1_1Evaluations { eval_k, eval_a }
+    V1_2Evaluations { eval_k, eval_a }
 }
 
 #[test]
-fn compute_v1_1_evaluations_superneo_compatible_match_manual() {
+fn compute_v1_2_evaluations_superneo_compatible_match_manual() {
     let n = 16usize;
     let m = D; // SuperNeo-compatible width
     let s = CcsStructure::new(
@@ -112,13 +112,13 @@ fn compute_v1_1_evaluations_superneo_compatible_match_manual() {
     ]; // n_pad = 16
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
 
-    let got = compute_v1_1_evaluations_from_z_and_r(&s, &Z, &r, ell_d);
-    let want = manual_compute_v1_1_evaluations(&s, &Z, &r, ell_d);
+    let got = compute_v1_2_evaluations_from_z_and_r(&s, &Z, &r, ell_d);
+    let want = manual_compute_v1_2_evaluations(&s, &Z, &r, ell_d);
     assert_eq!(got, want);
 }
 
 #[test]
-fn compute_v1_1_evaluations_nondiv_width_use_packed_layout() {
+fn compute_v1_2_evaluations_nondiv_width_use_packed_layout() {
     let n = 8usize;
     let m = D + 1; // non-divisible width uses packed ceil(m/D) layout.
     let s = CcsStructure::new(
@@ -147,7 +147,7 @@ fn compute_v1_1_evaluations_nondiv_width_use_packed_layout() {
         K::from(F::from_u64(17)),
     ]; // n_pad = 8
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
-    let evaluations = compute_v1_1_evaluations_from_z_and_r(&s, &Z, &r, ell_d);
+    let evaluations = compute_v1_2_evaluations_from_z_and_r(&s, &Z, &r, ell_d);
     let d_pad = D.next_power_of_two();
     assert_eq!(evaluations.eval_k.len(), d_pad);
     assert_eq!(evaluations.eval_a.len(), s.t());
@@ -155,7 +155,7 @@ fn compute_v1_1_evaluations_nondiv_width_use_packed_layout() {
         assert_eq!(
             family.len(),
             d_pad,
-            "each v1_1 evaluation family must use the padded ring width"
+            "each v1_2 evaluation family must use the padded ring width"
         );
         assert!(family[D..].iter().all(|value| *value == K::ZERO));
     }

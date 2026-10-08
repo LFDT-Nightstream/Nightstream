@@ -1,5 +1,5 @@
 import NightstreamFPrime.Export.Stage1.Package
-import NightstreamFPrime.Layout.PiRLC.v1_1.Preservation
+import NightstreamFPrime.Layout.PiRLC.v1_2.Preservation
 
 /-!
 Owns the constructive bridge from the semantic PiRLC phase to its exact
@@ -23,13 +23,13 @@ theorem completePhysicalRows
       (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
     (env : Env)
     (assumptions :
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.Assumptions relation
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.Assumptions relation
         (NightstreamFPrime.Layout.Stage1.PiRLCInputs.interface
           (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
         NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
         (NightstreamFPrime.Layout.Stage1.Spartan.pullback env))
     (phase :
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.PhaseHolds relation ajtai
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.PhaseHolds relation ajtai
         (NightstreamFPrime.Layout.Stage1.PiRLCInputs.interface
           (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
         NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
@@ -41,12 +41,12 @@ theorem completePhysicalRows
           5203853 ∧
         R1CS.RowsHold completed
           (NightstreamFPrime.Layout.Stage1.Spartan.remapRows
-            (NightstreamFPrime.Layout.PiRLC.v1_1.physicalRows relation
+            (NightstreamFPrime.Layout.PiRLC.v1_2.physicalRows relation
               (NightstreamFPrime.Layout.Stage1.PiRLCInputs.interface
                 (logicalWidth := Data.logicalWidth)
                 (publicFits := Data.publicFits))
               NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset)) := by
-  rcases NightstreamFPrime.Layout.PiRLC.v1_1.physical_complete_production
+  rcases NightstreamFPrime.Layout.PiRLC.v1_2.physical_complete_production
       relation ajtai
       (NightstreamFPrime.Layout.Stage1.PiRLCInputs.interface
         (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))

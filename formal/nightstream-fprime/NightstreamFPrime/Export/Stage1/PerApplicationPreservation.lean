@@ -400,9 +400,9 @@ private theorem samplerEntryInvocation_witnessStart
   simp [PiRLCSamplerInvocations.entryInvocations,
     PiRLCSamplerInvocations.entryTrace, Invocations.compileActions,
     Invocations.compileBlocks,
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.TranscriptAbsorption.actions,
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.TranscriptAbsorption.constantWords,
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.TranscriptAbsorption.frameWords,
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.TranscriptAbsorption.actions,
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.TranscriptAbsorption.constantWords,
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.TranscriptAbsorption.frameWords,
     NightstreamFPrime.Gadgets.Poseidon2.Hash.inputChunks,
     NightstreamFPrime.Spec.Poseidon2.rate] at member
   subst invocation
@@ -429,14 +429,14 @@ private theorem samplerInvocation_witnessBound
     apply bounded
     · norm_num [Spartan.piCcsPhaseOffset, PiRLCSamplerInvocations.sourceLogicalStart,
         PiRLCStarts.samplerSourceLogicalStart, PiRLCStarts.samplerLogicalStart,
-        PiRLCStarts.phaseLogicalStart_eq, PiRLC.v1_1.Formal.samplerOffset,
-        PiRLC.v1_1.SamplerChain.sourceOffset, PiRLC.v1_1.Sampler.counts.1]
+        PiRLCStarts.phaseLogicalStart_eq, PiRLC.v1_2.Formal.samplerOffset,
+        PiRLC.v1_2.SamplerChain.sourceOffset, PiRLC.v1_2.Sampler.counts.1]
       omega
     · rw [Spartan.sourceColumnCount_eq]
       norm_num [PiRLCSamplerInvocations.sourceLogicalStart, PiRLCStarts.samplerSourceLogicalStart,
         PiRLCStarts.samplerLogicalStart, PiRLCStarts.phaseLogicalStart_eq,
-        PiRLC.v1_1.Formal.samplerOffset, PiRLC.v1_1.SamplerChain.sourceOffset,
-        PiRLC.v1_1.Sampler.counts.1]
+        PiRLC.v1_2.Formal.samplerOffset, PiRLC.v1_2.SamplerChain.sourceOffset,
+        PiRLC.v1_2.Sampler.counts.1]
       omega
   · have same := List.mem_singleton.mp advanceMember
     subst invocation
@@ -444,17 +444,17 @@ private theorem samplerInvocation_witnessBound
     apply bounded
     · norm_num [Spartan.piCcsPhaseOffset, PiRLCStarts.advanceLogicalStart,
         PiRLCStarts.samplerSourceLogicalStart, PiRLCStarts.samplerLogicalStart,
-        PiRLCStarts.phaseLogicalStart_eq, PiRLC.v1_1.Formal.samplerOffset,
-        PiRLC.v1_1.SamplerChain.sourceOffset, PiRLC.v1_1.Sampler.advanceOffset,
-        PiRLC.v1_1.Sampler.rangeOffset, PiRLC.v1_1.Sampler.counts.1,
+        PiRLCStarts.phaseLogicalStart_eq, PiRLC.v1_2.Formal.samplerOffset,
+        PiRLC.v1_2.SamplerChain.sourceOffset, PiRLC.v1_2.Sampler.advanceOffset,
+        PiRLC.v1_2.Sampler.rangeOffset, PiRLC.v1_2.Sampler.counts.1,
         Gadgets.Sampling.WideReduction.Program.privateCount_eq]
       omega
     · rw [Spartan.sourceColumnCount_eq]
       norm_num [PiRLCStarts.advanceLogicalStart, PiRLCStarts.samplerSourceLogicalStart,
         PiRLCStarts.samplerLogicalStart, PiRLCStarts.phaseLogicalStart_eq,
-        PiRLC.v1_1.Formal.samplerOffset, PiRLC.v1_1.SamplerChain.sourceOffset,
-        PiRLC.v1_1.Sampler.advanceOffset, PiRLC.v1_1.Sampler.rangeOffset,
-        PiRLC.v1_1.Sampler.counts.1, Gadgets.Sampling.WideReduction.Program.privateCount_eq]
+        PiRLC.v1_2.Formal.samplerOffset, PiRLC.v1_2.SamplerChain.sourceOffset,
+        PiRLC.v1_2.Sampler.advanceOffset, PiRLC.v1_2.Sampler.rangeOffset,
+        PiRLC.v1_2.Sampler.counts.1, Gadgets.Sampling.WideReduction.Program.privateCount_eq]
       omega
 
 theorem canonicalPermutationInvocation_witnessBound

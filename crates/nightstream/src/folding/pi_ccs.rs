@@ -49,7 +49,7 @@ pub(crate) fn prove_from_parts_with_rows(
         None,
     )
     .map_err(engine::Error::from)?;
-    validate_v1_1_claims(s, &outputs)?;
+    validate_v1_2_claims(s, &outputs)?;
     Ok(Proof { sumcheck, outputs })
 }
 
@@ -119,7 +119,7 @@ fn validate_input_shape(
         &running.claims,
         "running X must use the canonical coefficient embedding",
     )?;
-    validate_v1_1_claims(s, &running.claims)?;
+    validate_v1_2_claims(s, &running.claims)?;
     Ok(())
 }
 
@@ -141,19 +141,19 @@ fn validate_verifier_shape(
         fold_outputs,
         "fold output X must use the canonical coefficient embedding",
     )?;
-    validate_v1_1_claims(s, running_claims)?;
-    validate_v1_1_claims(s, fold_outputs)?;
+    validate_v1_2_claims(s, running_claims)?;
+    validate_v1_2_claims(s, fold_outputs)?;
     Ok(())
 }
 
-fn validate_v1_1_claims(s: &Structure, claims: &[CeClaim]) -> Result<(), Error> {
+fn validate_v1_2_claims(s: &Structure, claims: &[CeClaim]) -> Result<(), Error> {
     for claim in claims {
-        validate_v1_1_claim(s, claim)?;
+        validate_v1_2_claim(s, claim)?;
     }
     Ok(())
 }
 
-fn validate_v1_1_claim(s: &Structure, claim: &CeClaim) -> Result<(), Error> {
+fn validate_v1_2_claim(s: &Structure, claim: &CeClaim) -> Result<(), Error> {
     let assignment_width = neo_reductions::common::superneo_carrier_width(s.m);
     let ell_n = s
         .domain_rows()

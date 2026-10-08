@@ -10,8 +10,8 @@ use neo_ajtai::nightstream_fprime_setup::{
 use neo_math::D;
 use neo_reductions::superneo_eval::RetainedMatrixWindow;
 use nightstream_fprime::{
-    LoadedPerApplicationPackage, PackageError, PiCcsV1_1PackageInputs, PiDecV1_1PackageInputs, Stage1VerifierBinding,
-    WitnessAssignment, PI_CCS_V1_1_COEFFICIENT_COUNT, PI_CCS_V1_1_SOURCE_COUNT, PI_DEC_V1_1_CHILD_COUNT,
+    LoadedPerApplicationPackage, PackageError, PiCcsV1_2PackageInputs, PiDecV1_2PackageInputs, Stage1VerifierBinding,
+    WitnessAssignment, PI_CCS_V1_2_COEFFICIENT_COUNT, PI_CCS_V1_2_SOURCE_COUNT, PI_DEC_V1_2_CHILD_COUNT,
 };
 mod base;
 mod complete;
@@ -26,8 +26,8 @@ pub use complete::{CompleteStepError, Stage1Envelope};
 pub use encoding::ProofCodecError;
 pub use extend::ExtendError;
 pub use inputs::{
-    encode_pi_ccs_v1_1_public_input, pi_ccs_v1_1_state_hash, serialize_pi_ccs_v1_1_state_preimage,
-    PiCcsV1_1PackageBridgeError, PiCcsV1_1ProofInputs,
+    encode_pi_ccs_v1_2_public_input, pi_ccs_v1_2_state_hash, serialize_pi_ccs_v1_2_state_preimage,
+    PiCcsV1_2PackageBridgeError, PiCcsV1_2ProofInputs,
 };
 pub use prove::ProveError;
 pub use step_inputs::{Stage1State, Stage1StepInputs, StepInputError};
@@ -91,12 +91,12 @@ impl PreparedLifecycle {
     }
     pub(crate) fn execute_step_witness(
         &self,
-        c: &PiCcsV1_1PackageInputs,
-        d: &PiDecV1_1PackageInputs,
+        c: &PiCcsV1_2PackageInputs,
+        d: &PiDecV1_2PackageInputs,
         application_witness: &[u64],
     ) -> Result<WitnessAssignment, PackageError> {
         self.package
-            .execute_stage1_v1_1_witness(c, d, application_witness)
+            .execute_stage1_v1_2_witness(c, d, application_witness)
     }
 }
 /// The package binds its exact prefix dimensions; the selected seed and rows are fixed.
@@ -115,9 +115,9 @@ pub(crate) fn validate_key_prefix(logical_width: usize, commitment_key_words: &[
 }
 
 // The running children and the one fresh instance fill every PiCCS source.
-const _: () = assert!(PI_CCS_V1_1_SOURCE_COUNT == PI_DEC_V1_1_CHILD_COUNT + 1);
+const _: () = assert!(PI_CCS_V1_2_SOURCE_COUNT == PI_DEC_V1_2_CHILD_COUNT + 1);
 // The package bridges slice the coefficients that the evaluation checks bound.
-const _: () = assert!(D == PI_CCS_V1_1_COEFFICIENT_COUNT);
+const _: () = assert!(D == PI_CCS_V1_2_COEFFICIENT_COUNT);
 
 /// The selected profile carries exactly one fresh instance per active proof.
 #[derive(Clone, Debug)]

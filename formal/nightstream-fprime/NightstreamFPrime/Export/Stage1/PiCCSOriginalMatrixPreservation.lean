@@ -22,7 +22,7 @@ open NightstreamFPrime.Export.Stage1.PiRLCPartialTrace (MaterializedRingK)
 private abbrev selectedRelation := PerApplicationFixedPoint.relation
   Poseidon2HashChainV1Package.application Poseidon2HashChainV1Package.fits
 private abbrev selectedRelationSource :=
-  Lifecycle.PiRLC.v1_1.InputBinding.relationSource selectedRelation
+  Lifecycle.PiRLC.v1_2.InputBinding.relationSource selectedRelation
 
 /-- Proof adapter for the existing arbitrary-assignment family theorem.
 This does not split an original assignment or constrain its carrier tail. -/

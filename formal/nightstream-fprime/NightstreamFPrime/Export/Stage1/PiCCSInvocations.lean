@@ -1,10 +1,10 @@
 import NightstreamFPrime.Export.Stage1.Invocations
-import NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions
+import NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions
 import NightstreamFPrime.Layout.Stage1.PiCCSStarts
 import NightstreamFPrime.Layout.Stage1.PiRLCInputs
 import NightstreamFPrime.Layout.Stage1.PiRLCStarts
 import NightstreamFPrime.Layout.Stage1.SpartanValues
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.FormalRows
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.FormalRows
 
 /-!
 Owns the four Poseidon2-only PiCCS row packets in the current Stage 1 package.
@@ -21,7 +21,7 @@ open NightstreamFPrime.Gadgets.Poseidon2
 open NightstreamFPrime.Gadgets.Poseidon2.Duplex
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Export.Package
 open NightstreamFPrime.Export.Stage1.Invocations
@@ -54,7 +54,7 @@ def parentInterface
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.Interface
+    NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.Interface
       logicalWidth 8 publicFits :=
   NightstreamFPrime.Layout.Stage1.PiCCSInputs.interface
     logicalWidth publicFits
@@ -63,9 +63,9 @@ def sharedInterface
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.Interface
+    NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.Interface
       logicalWidth 8 publicFits :=
-  NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.atOffset
+  NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.atOffset
     (parentInterface logicalWidth publicFits) phaseOffset
 
 theorem inputShapes
@@ -73,9 +73,9 @@ theorem inputShapes
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    NightstreamFPrime.Layout.PiCCS.v1_1.InputShapes relation
+    NightstreamFPrime.Layout.PiCCS.v1_2.InputShapes relation
       (parentInterface logicalWidth publicFits) phaseOffset :=
-  NightstreamFPrime.Layout.PiCCS.v1_1.ProductionInputs.inputShapes relation
+  NightstreamFPrime.Layout.PiCCS.v1_2.ProductionInputs.inputShapes relation
     (parentInterface logicalWidth publicFits) phaseOffset
     (NightstreamFPrime.Layout.Stage1.PiCCSInputs.externalInputsLinear
       logicalWidth publicFits)
@@ -84,28 +84,28 @@ def statementInterface
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :=
-  NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.statementAbsorptionInterface
+  NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.statementAbsorptionInterface
     (sharedInterface logicalWidth publicFits)
 
 def challengeInterface
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :=
-  NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.challengeInterface
+  NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.challengeInterface
     (parentInterface logicalWidth publicFits) phaseOffset
 
 def roundInterface
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :=
-  NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.roundTranscriptInterface
+  NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.roundTranscriptInterface
     (sharedInterface logicalWidth publicFits)
 
 def outputInterface
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :=
-  NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.outputBindingInterface
+  NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.outputBindingInterface
     (sharedInterface logicalWidth publicFits)
 
 /-! The following named equalities are the transcript-to-parent wiring
@@ -303,7 +303,7 @@ theorem statementTrace_implies_spec
       rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart_eq]
       norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset])
     NightstreamFPrime.Layout.Poseidon2.zeroE_affine
-    (NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.StatementAbsorption.actions_affine
+    (NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.StatementAbsorption.actions_affine
       (statementInterface logicalWidth publicFits) statementWitnessStart
       ((inputShapes logicalWidth publicFits relation).statementAbsorption
         statementWitnessStart))
@@ -335,8 +335,8 @@ theorem challengeInitialState_eq_statementFinalState
         statementWitnessStart := by
   let parent := parentInterface logicalWidth publicFits
   let targetInterface :=
-    NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.statementAbsorptionInterface
-      (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.atOffset parent phaseOffset)
+    NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.statementAbsorptionInterface
+      (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.atOffset parent phaseOffset)
   have interfaceEq : targetInterface =
       statementInterface logicalWidth publicFits := by
     rfl
@@ -344,12 +344,12 @@ theorem challengeInitialState_eq_statementFinalState
     simpa [statementWitnessStart] using!
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq
   have finalStateEq :
-      NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.statementFinalState
+      NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.statementFinalState
           parent phaseOffset =
         StatementAbsorption.finalState
           (statementInterface logicalWidth publicFits)
           statementWitnessStart := by
-    unfold NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.statementFinalState
+    unfold NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.statementFinalState
     exact (congrArg
       (fun current => StatementAbsorption.finalState current phaseOffset)
       interfaceEq).trans (congrArg
@@ -358,10 +358,10 @@ theorem challengeInitialState_eq_statementFinalState
   calc
     (challengeInterface logicalWidth publicFits).initialState
         challengeWitnessStart =
-      NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.statementFinalState
+      NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.statementFinalState
         parent phaseOffset := by
       exact
-        NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.challengeInterface_initialState
+        NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.challengeInterface_initialState
           parent phaseOffset challengeWitnessStart
     _ = _ := finalStateEq
 
@@ -460,7 +460,7 @@ theorem challengeTrace_implies_spec
       norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset])
     ((inputShapes logicalWidth publicFits relation).challengeDerivation
       challengeWitnessStart).initialState
-    (NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.ChallengeDerivation.actions_affine
+    (NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.ChallengeDerivation.actions_affine
       interface challengeWitnessStart
       ((inputShapes logicalWidth publicFits relation).challengeDerivation
         challengeWitnessStart))
@@ -540,7 +540,7 @@ theorem roundTrace_implies_spec
       norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset])
     ((inputShapes logicalWidth publicFits relation).roundTranscript
       roundWitnessStart).initialState
-    (NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.RoundTranscript.actions_affine
+    (NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.RoundTranscript.actions_affine
       interface roundWitnessStart
       ((inputShapes logicalWidth publicFits relation).roundTranscript
         roundWitnessStart))
@@ -652,7 +652,7 @@ theorem outputTrace_implies_spec
       norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset])
     ((inputShapes logicalWidth publicFits relation).outputBinding
       outputWitnessStart).initialState
-    (NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.OutputBinding.actions_affine
+    (NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.OutputBinding.actions_affine
       interface outputWitnessStart
       ((inputShapes logicalWidth publicFits relation).outputBinding
         outputWitnessStart))
@@ -1030,7 +1030,7 @@ theorem outputFinalState_varsBelow_samplerStart
     NightstreamFPrime.Layout.Stage1.PiCCSInputs.externalInputsLinear
       logicalWidth publicFits
   have assumptions :=
-    NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions.outputBinding relation
+    NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions.outputBinding relation
       (parentInterface logicalWidth publicFits) phaseOffset external env
   have finalBelow := OutputBinding.finalState_varsBelow
     (Formal.outputBindingInterface
@@ -1098,25 +1098,25 @@ theorem statementTrace_scheduleWithin (logicalWidth : Nat)
     NightstreamFPrime.Layout.Stage1.PiCCSInputs.externalInputsLinear
       logicalWidth publicFits
   let transcript :=
-    NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions.transcript relation
+    NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions.transcript relation
       (parentInterface logicalWidth publicFits) phaseOffset external
       (fun _ => 0)
   have startMatch := statementWitnessStart_matches logicalWidth publicFits
   have strongAffine :=
-    NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.StatementAbsorption.actions_affine
+    NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.StatementAbsorption.actions_affine
       (statementInterface logicalWidth publicFits) statementWitnessStart
       ((inputShapes logicalWidth publicFits relation).statementAbsorption
         statementWitnessStart)
   have actionsAffine := actionsInvocationInputsAffine_of_actionsAffine
     (statementActions logicalWidth publicFits) strongAffine
   have boundedAtFormal := actionsInvocationInputsBelow_of_actionsBelow
-    (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.statementAbsorptionOffset
+    (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.statementAbsorptionOffset
       (parentInterface logicalWidth publicFits) phaseOffset)
-    (NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.actions
-      (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.statementAbsorptionInterface
-        (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.atOffset
+    (NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption.actions
+      (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.statementAbsorptionInterface
+        (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.atOffset
           (parentInterface logicalWidth publicFits) phaseOffset))
-      (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.statementAbsorptionOffset
+      (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.statementAbsorptionOffset
         (parentInterface logicalWidth publicFits) phaseOffset))
     transcript.statementAbsorption
   have actionsBelow : ActionsInvocationInputsBelow statementWitnessStart
@@ -1173,7 +1173,7 @@ theorem challengeTrace_scheduleWithin (logicalWidth : Nat)
     NightstreamFPrime.Layout.Stage1.PiCCSInputs.externalInputsLinear
       logicalWidth publicFits
   let transcript :=
-    NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions.transcript relation
+    NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions.transcript relation
       (parentInterface logicalWidth publicFits) phaseOffset external
       (fun _ => 0)
   let interface := challengeInterface logicalWidth publicFits
@@ -1198,7 +1198,7 @@ theorem challengeTrace_scheduleWithin (logicalWidth : Nat)
     rw [initialEq]
     exact stateBelowSemantic
   have semanticStrongAffine :=
-    NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.ChallengeDerivation.actions_affine
+    NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.ChallengeDerivation.actions_affine
       interface challengeWitnessStart
       ((inputShapes logicalWidth publicFits relation).challengeDerivation
         challengeWitnessStart)
@@ -1263,7 +1263,7 @@ theorem roundTrace_scheduleWithin (logicalWidth : Nat)
     NightstreamFPrime.Layout.Stage1.PiCCSInputs.externalInputsLinear
       logicalWidth publicFits
   let transcript :=
-    NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions.transcript relation
+    NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions.transcript relation
       (parentInterface logicalWidth publicFits) phaseOffset external
       (fun _ => 0)
   let interface := roundInterface logicalWidth publicFits
@@ -1289,7 +1289,7 @@ theorem roundTrace_scheduleWithin (logicalWidth : Nat)
     rw [initialEq]
     exact stateBelowSemantic
   have semanticStrongAffine :=
-    NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.RoundTranscript.actions_affine
+    NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.RoundTranscript.actions_affine
       interface roundWitnessStart
       ((inputShapes logicalWidth publicFits relation).roundTranscript
         roundWitnessStart)
@@ -1373,11 +1373,11 @@ theorem outputTrace_scheduleWithin (logicalWidth : Nat)
     exact ((inputShapes logicalWidth publicFits relation).outputBinding
       outputWitnessStart).initialState
   have outputAssumptions :=
-    NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions.outputBinding relation
+    NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions.outputBinding relation
       (parentInterface logicalWidth publicFits) phaseOffset external
       (fun _ => 0)
   have outputInputsBelow :=
-    NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions.outputBindingInputsBelow
+    NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions.outputBindingInputsBelow
       relation (parentInterface logicalWidth publicFits) phaseOffset external
       (fun _ => 0)
   have stateBelowSemantic : ∀ lane,
@@ -1398,7 +1398,7 @@ theorem outputTrace_scheduleWithin (logicalWidth : Nat)
     rw [initialEq]
     exact stateBelowSemantic
   have strongAffine :=
-    NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.OutputBinding.actions_affine
+    NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.OutputBinding.actions_affine
       interface outputWitnessStart
       ((inputShapes logicalWidth publicFits relation).outputBinding
         outputWitnessStart)

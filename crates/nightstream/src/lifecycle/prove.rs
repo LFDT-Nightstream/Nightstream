@@ -3,7 +3,7 @@ use super::PreparedLifecycle;
 use crate::engine::{paper_exact, Backend};
 use crate::folding::{self as nifs, transcript::Transcript, CcsInstance, RunningInstance};
 use neo_math::D;
-use nightstream_fprime::{PackageError, PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS, PI_DEC_V1_1_CHILD_COUNT};
+use nightstream_fprime::{PackageError, PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS, PI_DEC_V1_2_CHILD_COUNT};
 #[derive(Debug, thiserror::Error)]
 pub enum ProveError {
     #[error(transparent)]
@@ -75,11 +75,11 @@ impl PreparedLifecycle {
     }
 
     fn validate_prover_sources(&self, fresh: &CcsInstance, running: &RunningInstance) -> Result<(), ProveError> {
-        if running.claims.len() != PI_DEC_V1_1_CHILD_COUNT || !running.prover_shape_is_valid() {
+        if running.claims.len() != PI_DEC_V1_2_CHILD_COUNT || !running.prover_shape_is_valid() {
             return Err(ProveError::Input("source counts do not match the selected profile"));
         }
         let blocks = self.structure.m.div_ceil(D);
-        let public = PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS;
+        let public = PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS;
         if fresh.claim.m_in != public
             || fresh.claim.x.len() != public
             || fresh.witness.Z.rows() != D

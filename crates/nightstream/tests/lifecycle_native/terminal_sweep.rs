@@ -17,7 +17,7 @@ use super::*;
 use crate::engine::Backend;
 use crate::folding::{CcsInstance, CcsWitness};
 use crate::lifecycle::{ProofState, Stage1Envelope, VerifyError};
-use nightstream_fprime::PI_DEC_V1_1_CHILD_COUNT;
+use nightstream_fprime::PI_DEC_V1_2_CHILD_COUNT;
 use std::time::Instant;
 
 #[derive(Clone)]
@@ -84,7 +84,7 @@ fn lanes(commitment: &Commitment) -> LaneCommitments<Commitment> {
     }
 }
 
-const LAST: usize = PI_DEC_V1_1_CHILD_COUNT - 1;
+const LAST: usize = PI_DEC_V1_2_CHILD_COUNT - 1;
 const HASH: Rejection = Rejection::Fresh("public input differs from the recomputed terminal state hash");
 
 fn rejected(name: &'static str, change: fn(&mut Parts), rejection: Rejection) -> Case {

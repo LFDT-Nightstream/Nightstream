@@ -1,4 +1,4 @@
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Support
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support
 import NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupportData
 
 /-!
@@ -13,7 +13,7 @@ namespace NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupport
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 

@@ -80,7 +80,7 @@ def piCcsDigestDomainTag : List F :=
 def serializeMessage (m : SumCheck.Finite.Message K) : List F :=
   m.coefficients.flatMap serializeK
 
-/-- The two verifier-input blocks of v1.1 Π_CCS: prior point, then Pad
+/-- The two verifier-input blocks of v1.2 Π_CCS: prior point, then Pad
 claims in `I_K` order followed by matrix claims in `I_A` order. This is a
 parity surface only: the transcript does not absorb these blocks. -/
 def verifierInputBlocks

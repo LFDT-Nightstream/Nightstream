@@ -16,7 +16,7 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open PiCCSProofInputs (relationInterface relationProof)
 
@@ -65,10 +65,10 @@ private theorem initialState_eq_of_phase
     (env : Env) (template : Proof (ProductionKey.degreeBound relation))
     (phase : Formal.PhaseHolds relation ajtai (relationInterface relation)
       PiCCSInputs.phaseOffset env template) :
-    PiRLC.v1_1.SamplerChain.evalInitialState
-      (PiRLC.v1_1.Formal.samplerInterface (PiRLC.v1_1.Formal.atOffset
+    PiRLC.v1_2.SamplerChain.evalInitialState
+      (PiRLC.v1_2.Formal.samplerInterface (PiRLC.v1_2.Formal.atOffset
         (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
-        PiRLCInputs.phaseOffset)) (PiRLC.v1_1.Formal.samplerOffset PiRLCInputs.phaseOffset) env =
+        PiRLCInputs.phaseOffset)) (PiRLC.v1_2.Formal.samplerOffset PiRLCInputs.phaseOffset) env =
     ((ProductionKey.key relation ajtai).piCcsExecution
       (Formal.evalRunning (relationInterface relation) PiCCSInputs.phaseOffset env)
       (Formal.evalFresh (relationInterface relation) PiCCSInputs.phaseOffset env)
@@ -150,34 +150,34 @@ theorem completePrefix_after_c
     (preserved : ∀ index, index < PiCCSInputs.phaseOffset + localLength c.operations →
       afterC index = c.current index) :
     ∃ r : Sequence.Prefix afterC PiRLCInputs.phaseOffset,
-        r.operations = PiRLC.v1_1.Formal.opsAt relation
+        r.operations = PiRLC.v1_2.Formal.opsAt relation
           (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
           PiRLCInputs.phaseOffset ∧
         holdsFlat r.current c.operations ∧
-        PiRLC.v1_1.Semantics.PhaseHolds relation ajtai
+        PiRLC.v1_2.Semantics.PhaseHolds relation ajtai
           (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
           PiRLCInputs.phaseOffset r.current ∧
         (ProductionKey.key relation ajtai).piRlcChallenges (prior.running functionIndex)
           (PiCCSProofInputs.protocolFresh logicalWidth publicFits priorPublic values)
           (relationProof relation values template) =
-          some (PiRLC.v1_1.Semantics.evalChallenges
+          some (PiRLC.v1_2.Semantics.evalChallenges
             (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
             PiRLCInputs.phaseOffset r.current) ∧
-        PiRLC.v1_1.Semantics.evalOutput relation
+        PiRLC.v1_2.Semantics.evalOutput relation
           (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
           PiRLCInputs.phaseOffset r.current =
           (ProductionKey.key relation ajtai).parentForChallenges (prior.running functionIndex)
             (PiCCSProofInputs.protocolFresh logicalWidth publicFits priorPublic values)
             (relationProof relation values template)
-            (PiRLC.v1_1.Semantics.evalChallenges
+            (PiRLC.v1_2.Semantics.evalChallenges
               (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
               PiRLCInputs.phaseOffset r.current) := by
-  obtain ⟨r, rOperations, rPhase⟩ := PiRLC.v1_1.Formal.completePrefix_with_phase relation ajtai
+  obtain ⟨r, rOperations, rPhase⟩ := PiRLC.v1_2.Formal.completePrefix_with_phase relation ajtai
     (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)) afterC
     PiRLCInputs.phaseOffset (PiRLCInputBounds.assumptions relation afterC)
   have cLimit : PiCCSInputs.phaseOffset + localLength c.operations ≤ PiRLCInputs.phaseOffset := by
     rw [cOperations, ← Formal.main_ops, Formal.localLength_eq]
-    change NightstreamFPrime.Layout.PiCCS.v1_1.logicalColumnCount relation
+    change NightstreamFPrime.Layout.PiCCS.v1_2.logicalColumnCount relation
       (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset ≤ _
     rw [← PiCCSStarts.logicalFreshBase_eq_layout relation]
     exact PiRLCInputs.piCcsLogicalFreshBase_le_phaseOffset
@@ -193,7 +193,7 @@ theorem completePrefix_after_c
       (Circuit.ops (Formal.main relation (relationInterface relation)) PiCCSInputs.phaseOffset) := by
     rw [Formal.main_ops, ← cOperations]
     exact holdsFlat_implies_holds r.current c.operations rowsPreserved
-  have cAssumptions := NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions.production relation
+  have cAssumptions := NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions.production relation
     (relationInterface relation) PiCCSInputs.phaseOffset
     (PiCCSInputs.externalInputsLinear logicalWidth publicFits) r.current
   have finalC := Formal.spec_implies_phaseHolds relation ajtai (relationInterface relation)
@@ -259,26 +259,26 @@ theorem completePrefix_from
     ∃ c : Sequence.Prefix initial PiCCSInputs.phaseOffset,
       ∃ r : Sequence.Prefix c.current PiRLCInputs.phaseOffset,
         c.operations = Formal.opsAt relation (relationInterface relation) PiCCSInputs.phaseOffset ∧
-        r.operations = PiRLC.v1_1.Formal.opsAt relation
+        r.operations = PiRLC.v1_2.Formal.opsAt relation
           (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
           PiRLCInputs.phaseOffset ∧
         holdsFlat r.current c.operations ∧
-        PiRLC.v1_1.Semantics.PhaseHolds relation ajtai
+        PiRLC.v1_2.Semantics.PhaseHolds relation ajtai
           (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
           PiRLCInputs.phaseOffset r.current ∧
         (ProductionKey.key relation ajtai).piRlcChallenges (prior.running functionIndex)
           (PiCCSProofInputs.protocolFresh logicalWidth publicFits priorPublic values)
           (relationProof relation values template) =
-          some (PiRLC.v1_1.Semantics.evalChallenges
+          some (PiRLC.v1_2.Semantics.evalChallenges
             (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
             PiRLCInputs.phaseOffset r.current) ∧
-        PiRLC.v1_1.Semantics.evalOutput relation
+        PiRLC.v1_2.Semantics.evalOutput relation
           (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
           PiRLCInputs.phaseOffset r.current =
           (ProductionKey.key relation ajtai).parentForChallenges (prior.running functionIndex)
             (PiCCSProofInputs.protocolFresh logicalWidth publicFits priorPublic values)
             (relationProof relation values template)
-            (PiRLC.v1_1.Semantics.evalChallenges
+            (PiRLC.v1_2.Semantics.evalChallenges
               (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
               PiRLCInputs.phaseOffset r.current) := by
   obtain ⟨c, cOperations, _⟩ := PiCCSProtocolCompleteness.completePrefix_from
@@ -308,26 +308,26 @@ theorem completePrefix
           priorFixed outputFixed digestFixed values context) PiCCSInputs.phaseOffset,
       ∃ r : Sequence.Prefix c.current PiRLCInputs.phaseOffset,
         c.operations = Formal.opsAt relation (relationInterface relation) PiCCSInputs.phaseOffset ∧
-        r.operations = PiRLC.v1_1.Formal.opsAt relation
+        r.operations = PiRLC.v1_2.Formal.opsAt relation
           (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
           PiRLCInputs.phaseOffset ∧
         holdsFlat r.current c.operations ∧
-        PiRLC.v1_1.Semantics.PhaseHolds relation ajtai
+        PiRLC.v1_2.Semantics.PhaseHolds relation ajtai
           (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
           PiRLCInputs.phaseOffset r.current ∧
         (ProductionKey.key relation ajtai).piRlcChallenges (prior.running functionIndex)
           (PiCCSProofInputs.protocolFresh logicalWidth publicFits priorPublic values)
           (relationProof relation values template) =
-          some (PiRLC.v1_1.Semantics.evalChallenges
+          some (PiRLC.v1_2.Semantics.evalChallenges
             (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
             PiRLCInputs.phaseOffset r.current) ∧
-        PiRLC.v1_1.Semantics.evalOutput relation
+        PiRLC.v1_2.Semantics.evalOutput relation
           (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
           PiRLCInputs.phaseOffset r.current =
           (ProductionKey.key relation ajtai).parentForChallenges (prior.running functionIndex)
             (PiCCSProofInputs.protocolFresh logicalWidth publicFits priorPublic values)
             (relationProof relation values template)
-            (PiRLC.v1_1.Semantics.evalChallenges
+            (PiRLC.v1_2.Semantics.evalChallenges
               (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
               PiRLCInputs.phaseOffset r.current) := by
   exact completePrefix_from relation ajtai prior priorPublic output digest priorFixed outputFixed

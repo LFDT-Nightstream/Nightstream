@@ -1,5 +1,5 @@
 import NightstreamFPrime.Layout.Stage1.AssemblerPiRLCCompleteness
-import NightstreamFPrime.Lifecycle.PiDEC.v1_1.Completeness
+import NightstreamFPrime.Lifecycle.PiDEC.v1_2.Completeness
 
 /-!
 Owns the exact PiRLC-to-PiDEC semantic handoff and the fifth opaque-child
@@ -56,58 +56,58 @@ private theorem recursiveRunning_eval_eq_of_piDecOutput_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program)
     (left right : Env)
-    (outputsEq : PiDEC.v1_1.Semantics.output relation
+    (outputsEq : PiDEC.v1_2.Semantics.output relation
         (AssemblerInputs.piDecInterface relation program)
         (AssemblerInputs.piDecOffset program) left =
-      PiDEC.v1_1.Semantics.output relation
+      PiDEC.v1_2.Semantics.output relation
         (AssemblerInputs.piDecInterface relation program)
         (AssemblerInputs.piDecOffset program) right) :
-    PiCCS.v1_1.StatementAbsorption.evalRunning
+    PiCCS.v1_2.StatementAbsorption.evalRunning
         (AssemblerInputs.recursiveRunningExpr relation program) left =
-      PiCCS.v1_1.StatementAbsorption.evalRunning
+      PiCCS.v1_2.StatementAbsorption.evalRunning
         (AssemblerInputs.recursiveRunningExpr relation program) right := by
   apply running_ext
   · let child : Spec.Phi81Relation.PiDECAlgebra.Radix.ChildIndex :=
       ⟨0, by decide⟩
     have childEq := congrFun outputsEq child
     have pointEq := congrArg (fun value => value.point) childEq
-    simpa [PiCCS.v1_1.StatementAbsorption.evalRunning,
+    simpa [PiCCS.v1_2.StatementAbsorption.evalRunning,
       AssemblerInputs.recursiveRunningExpr,
-      PiDEC.v1_1.Semantics.output, PiDEC.v1_1.OutputBinding.evalOutput,
-      PiDEC.v1_1.Formal.outputBindingInterface,
-      PiDEC.v1_1.Formal.atOffset] using! pointEq
+      PiDEC.v1_2.Semantics.output, PiDEC.v1_2.OutputBinding.evalOutput,
+      PiDEC.v1_2.Formal.outputBindingInterface,
+      PiDEC.v1_2.Formal.atOffset] using! pointEq
   · funext source row coefficient
     have childEq := congrFun outputsEq
       (AssemblerInputs.childOfRunning source)
     have commitmentEq := congrArg (fun value => value.commitment) childEq
     have coordinateEq := congrFun (congrFun commitmentEq row) coefficient
-    simpa [PiCCS.v1_1.StatementAbsorption.evalRunning,
+    simpa [PiCCS.v1_2.StatementAbsorption.evalRunning,
       AssemblerInputs.recursiveRunningExpr,
-      PiDEC.v1_1.Semantics.output, PiDEC.v1_1.OutputBinding.evalOutput,
-      PiDEC.v1_1.Formal.outputBindingInterface,
-      PiDEC.v1_1.Formal.atOffset] using coordinateEq
+      PiDEC.v1_2.Semantics.output, PiDEC.v1_2.OutputBinding.evalOutput,
+      PiDEC.v1_2.Formal.outputBindingInterface,
+      PiDEC.v1_2.Formal.atOffset] using coordinateEq
   · funext source column
     have childEq := congrFun outputsEq
       (AssemblerInputs.childOfRunning source)
     have publicEq := congrArg (fun value => value.publicInput) childEq
     have coordinateEq := congrFun publicEq
       (AssemblerInputs.digitCoordinate column)
-    simpa [PiCCS.v1_1.StatementAbsorption.evalRunning,
+    simpa [PiCCS.v1_2.StatementAbsorption.evalRunning,
       AssemblerInputs.recursiveRunningExpr,
-      PiDEC.v1_1.Semantics.output, PiDEC.v1_1.OutputBinding.evalOutput,
-      PiDEC.v1_1.Formal.outputBindingInterface,
-      PiDEC.v1_1.Formal.atOffset] using coordinateEq
+      PiDEC.v1_2.Semantics.output, PiDEC.v1_2.OutputBinding.evalOutput,
+      PiDEC.v1_2.Formal.outputBindingInterface,
+      PiDEC.v1_2.Formal.atOffset] using coordinateEq
   · funext source
     have childEq := congrFun outputsEq
       (AssemblerInputs.childOfRunning source)
     have evaluationEq := congrArg
       (fun value => value.evaluations.getD 0 PaperAlgebra.evaluationZero)
       childEq
-    simpa [PiCCS.v1_1.StatementAbsorption.evalRunning,
+    simpa [PiCCS.v1_2.StatementAbsorption.evalRunning,
       AssemblerInputs.recursiveRunningExpr,
-      PiDEC.v1_1.Semantics.output, PiDEC.v1_1.OutputBinding.evalOutput,
-      PiDEC.v1_1.Formal.outputBindingInterface,
-      PiDEC.v1_1.Formal.atOffset] using evaluationEq
+      PiDEC.v1_2.Semantics.output, PiDEC.v1_2.OutputBinding.evalOutput,
+      PiDEC.v1_2.Formal.outputBindingInterface,
+      PiDEC.v1_2.Formal.atOffset] using evaluationEq
 
 private theorem piDecOutput_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -115,30 +115,30 @@ private theorem piDecOutput_eq
     {env : Env}
     (completed : Sequence.Prefix env (AssemblerInputs.rootOffset program))
     (piRlcOutputEq :
-      PiRLC.v1_1.Semantics.evalOutput relation
+      PiRLC.v1_2.Semantics.evalOutput relation
           (AssemblerInputs.piRlcInterface relation program)
           (AssemblerInputs.piRlcOffset program) env =
-        PiRLC.v1_1.Semantics.evalOutput relation
+        PiRLC.v1_2.Semantics.evalOutput relation
           (AssemblerInputs.piRlcInterface relation program)
           (AssemblerInputs.piRlcOffset program) completed.current) :
-    PiDEC.v1_1.Semantics.output relation
+    PiDEC.v1_2.Semantics.output relation
         (AssemblerInputs.piDecInterface relation program)
         (AssemblerInputs.piDecOffset program) env =
-      PiDEC.v1_1.Semantics.output relation
+      PiDEC.v1_2.Semantics.output relation
         (AssemblerInputs.piDecInterface relation program)
         (AssemblerInputs.piDecOffset program) completed.current := by
   have inputs := PiDECInputs.inputsBelow relation
   have agrees : ∀ index, index < PiDECInputs.phaseOffset →
       env index = completed.current index := fun _ below =>
     sourceInput_agrees program completed below
-  apply PiDEC.v1_1.Semantics.output_eq_of_components
+  apply PiDEC.v1_2.Semantics.output_eq_of_components
   · have pointEq := congrArg (fun value => value.point) piRlcOutputEq
     simpa [AssemblerInputs.piDecInterface,
       AssemblerInputs.piRlcOutputInterface,
-      PiRLC.v1_1.Semantics.evalOutput,
-      PiRLC.v1_1.OutputBinding.evalOutput,
-      PiRLC.v1_1.Formal.outputBindingInterface,
-      PiRLC.v1_1.Formal.atOffset] using! pointEq
+      PiRLC.v1_2.Semantics.evalOutput,
+      PiRLC.v1_2.OutputBinding.evalOutput,
+      PiRLC.v1_2.Formal.outputBindingInterface,
+      PiRLC.v1_2.Formal.atOffset] using! pointEq
   · intro child row lane
     exact Expr.eval_eq_of_agree_below _ PiDECInputs.phaseOffset
       env completed.current (inputs.messageCommitment child row lane) agrees
@@ -177,15 +177,15 @@ theorem completePiDecPrefix
           (Lifecycle.Stage1.outputHashChild relation program
             (AssemblerInputs.interface relation program))
           (AssemblerInputs.outputHashOffset program),
-        Lifecycle.Stage1.childOp "stage1.piccs.v1_1"
+        Lifecycle.Stage1.childOp "stage1.piccs.v1_2"
           (Lifecycle.Stage1.piCcsChild relation ajtai program
             (AssemblerInputs.interface relation program) template)
           (AssemblerInputs.piCcsOffset program),
-        Lifecycle.Stage1.childOp "stage1.pirlc.v1_1"
+        Lifecycle.Stage1.childOp "stage1.pirlc.v1_2"
           (Lifecycle.Stage1.piRlcChild relation ajtai program
             (AssemblerInputs.interface relation program))
           (AssemblerInputs.piRlcOffset program),
-        Lifecycle.Stage1.childOp "stage1.pidec.v1_1"
+        Lifecycle.Stage1.childOp "stage1.pidec.v1_2"
           (Lifecycle.Stage1.piDecChild relation ajtai program
             (AssemblerInputs.interface relation program))
           (AssemblerInputs.piDecOffset program)] ∧
@@ -200,29 +200,29 @@ theorem completePiDecPrefix
     ⟨p4, p4Operations, p4End, piRlcAttemptEq⟩
   have piRlcOutputEq := congrArg (fun attempt => attempt.output) piRlcAttemptEq
   have parentEq :
-      (PiDEC.v1_1.Semantics.inputAttempt relation
+      (PiDEC.v1_2.Semantics.inputAttempt relation
         (AssemblerInputs.piDecInterface relation program)
         (AssemblerInputs.piDecOffset program) env).parent =
-      (PiDEC.v1_1.Semantics.inputAttempt relation
+      (PiDEC.v1_2.Semantics.inputAttempt relation
         (AssemblerInputs.piDecInterface relation program)
         (AssemblerInputs.piDecOffset program) p4.current).parent := by
     calc
-      _ = PiRLC.v1_1.Semantics.evalOutput relation
+      _ = PiRLC.v1_2.Semantics.evalOutput relation
           (AssemblerInputs.piRlcInterface relation program)
           (AssemblerInputs.piRlcOffset program) env :=
         AssemblerInputs.piDecParent_eval_eq_piRlcOutput relation program env
-      _ = PiRLC.v1_1.Semantics.evalOutput relation
+      _ = PiRLC.v1_2.Semantics.evalOutput relation
           (AssemblerInputs.piRlcInterface relation program)
           (AssemblerInputs.piRlcOffset program) p4.current := piRlcOutputEq
       _ = _ :=
         (AssemblerInputs.piDecParent_eval_eq_piRlcOutput relation program
           p4.current).symm
   have outputEq := piDecOutput_eq relation program p4 piRlcOutputEq
-  have piDecInitial : PiDEC.v1_1.Semantics.PhaseHolds relation ajtai
+  have piDecInitial : PiDEC.v1_2.Semantics.PhaseHolds relation ajtai
       (AssemblerInputs.piDecInterface relation program)
       (AssemblerInputs.piDecOffset program) env := by
     have phase := specification.piDec
-    change PiDEC.v1_1.Semantics.PhaseHolds relation ajtai
+    change PiDEC.v1_2.Semantics.PhaseHolds relation ajtai
       (AssemblerInputs.piDecInterface relation program)
       (Lifecycle.Stage1.piDecOffset relation ajtai program
         (AssemblerInputs.interface relation program) template
@@ -230,23 +230,23 @@ theorem completePiDecPrefix
     rw [AssemblerInputs.parent_piDecOffset_eq relation ajtai program template]
       at phase
     exact phase
-  have phase := PiDEC.v1_1.Semantics.phaseHolds_of_parent_output_eq relation
+  have phase := PiDEC.v1_2.Semantics.phaseHolds_of_parent_output_eq relation
     ajtai (AssemblerInputs.piDecInterface relation program)
     (AssemblerInputs.piDecOffset program) env p4.current parentEq outputEq
     piDecInitial
   have assumptions := AssemblerBounds.piDecAssumptions relation program p4.current
-  rcases PiDEC.v1_1.Formal.completePrefix relation ajtai
+  rcases PiDEC.v1_2.Formal.completePrefix relation ajtai
       (AssemblerInputs.piDecInterface relation program) p4.current
       (AssemblerInputs.piDecOffset program) assumptions phase with
     ⟨built, builtOperations⟩
   let child := Lifecycle.Stage1.piDecChild relation ajtai program
     (AssemblerInputs.interface relation program)
-  have childMain : child.main = PiDEC.v1_1.Formal.main relation
+  have childMain : child.main = PiDEC.v1_2.Formal.main relation
       (AssemblerInputs.piDecInterface relation program) := by
     rfl
   have childOperations : built.operations = Circuit.ops child.main
       (AssemblerInputs.piDecOffset program) := by
-    rw [childMain, PiDEC.v1_1.Formal.main_ops]
+    rw [childMain, PiDEC.v1_2.Formal.main_ops]
     exact builtOperations
   have childScope : ∀ expression ∈ flatConstraints
       (Circuit.ops child.main (AssemblerInputs.piDecOffset program)),
@@ -265,7 +265,7 @@ theorem completePiDecPrefix
       (Circuit.ops child.main (AssemblerInputs.piDecOffset program)) := by
     rw [← childOperations]
     exact built.rows
-  rcases Sequence.appendBuiltAt p4 "stage1.pidec.v1_1" child
+  rcases Sequence.appendBuiltAt p4 "stage1.pidec.v1_2" child
       (AssemblerInputs.piDecOffset program) p4End childScope built.current
       childAgrees childRows with
     ⟨p5, p5Operations, p5End, p4to5, _piDecRows⟩
@@ -276,7 +276,7 @@ theorem completePiDecPrefix
     apply p4to5.values index
     rw [p4End]
     exact below
-  have piDecOutputP4P5 := PiDEC.v1_1.Semantics.output_eq_of_agree relation
+  have piDecOutputP4P5 := PiDEC.v1_2.Semantics.output_eq_of_agree relation
     (AssemblerInputs.piDecInterface relation program)
     (AssemblerInputs.piDecOffset program) p4.current p5.current
     (AssemblerBounds.piDecAssumptions relation program p4.current) belowP4P5

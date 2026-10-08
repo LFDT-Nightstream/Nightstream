@@ -1020,7 +1020,7 @@
     },
     {
       "id": "nifs_knowledge",
-      "label": "Assumption 1 at each visit",
+      "label": "Assumption 1 for each reverse stage",
       "detail": "HyperNova errata Assumption 1, plain-model part, for the recursive history."
     }
   ],

@@ -55,18 +55,34 @@ theorem eval_sum (env : Env) (l : List Circuit.Expr) :
   | nil => rfl
   | cons e rest ih => simp [sum, ih]
 
+/-- `acc + Σ_k 2^(start + k) · b_k`. The sum nests to the left, so each bit
+adds one nesting level; a package decoder reads a 63-bit chunk without deep
+recursion. -/
+def chunkFrom (acc : Circuit.Expr) (start : ℕ) : List Circuit.Expr → Circuit.Expr
+  | [] => acc
+  | b :: bs => chunkFrom (acc + .const ((2 : F) ^ start) * b) (start + 1) bs
+
 /-- The little-endian value of a list of bit expressions. -/
 def chunk : List Circuit.Expr → Circuit.Expr
   | [] => 0
-  | b :: bs => b + 2 * chunk bs
+  | b :: bs => chunkFrom b 1 bs
+
+theorem eval_chunkFrom (env : Env) (acc : Circuit.Expr) (start : ℕ) (l : List Circuit.Expr) :
+    (chunkFrom acc start l).eval env =
+      acc.eval env + 2 ^ start * chunkWord (l.map (Circuit.Expr.eval env)) := by
+  induction l generalizing acc start with
+  | nil => simp [chunkFrom, chunkWord]
+  | cons b bs ih =>
+    rw [chunkFrom, ih]
+    simp only [Circuit.Expr.eval_hadd, Circuit.Expr.eval_hmul, List.map_cons, chunkWord]
+    change acc.eval env + 2 ^ start * b.eval env + _ = _
+    rw [pow_succ, mul_add, ← add_assoc, mul_assoc]
 
 theorem eval_chunk (env : Env) (l : List Circuit.Expr) :
     (chunk l).eval env = chunkWord (l.map (Circuit.Expr.eval env)) := by
-  induction l with
+  cases l with
   | nil => rfl
-  | cons b bs ih =>
-    simp only [chunk, Circuit.Expr.eval_hadd, Circuit.Expr.eval_hmul, ih, List.map_cons, chunkWord]
-    rfl
+  | cons b bs => rw [chunk, eval_chunkFrom, pow_one]; rfl
 
 /-- The little-endian value of a bit vector of expressions. -/
 def bits {n : ℕ} (f : Fin n → Circuit.Expr) : Circuit.Expr := chunk (List.ofFn f)

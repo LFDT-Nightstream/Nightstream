@@ -99,6 +99,13 @@ def eta : Sponge.Interface := absorbing (etaBlocks p i offset)
 /-- The sponge length of an absorbing child. -/
 def span (blocks : List (List Circuit.Expr)) : ℕ := (transcriptChunks blocks).length * 1096
 
+/-- The rate chunks of blocks with the given word counts. -/
+def chunkCount (lengths : List ℕ) : ℕ := (lengths.map fun l => (l + 1 + 11) / 12).sum
+
+/-- The challenge transcript's chunk count. Its block lengths do not depend on
+the plan digest's value, so start offsets never hash the plan. -/
+def etaChunkCount : ℕ := chunkCount [(textWords "Nightstream/Nebula/v3/eta").length, 4, 1, 12]
+
 def stateOutStart : ℕ := offset + span (stateBlocks p i offset Words.appIn Words.carryIn)
 def chainOpsStart : ℕ :=
   stateOutStart p i offset + span (stateBlocks p i offset Words.appOut Words.carryOut)
@@ -108,12 +115,14 @@ def chainFinalStart : ℕ := chainInitialStart p i offset +
   span (chainBlocks p i offset .mem 4 (scanLanes p fun j => Words.initial p j 0))
 def etaStart : ℕ := chainFinalStart p i offset +
   span (chainBlocks p i offset .mem 8 (scanLanes p fun j => Words.final p j 0))
-def squeeze1Start : ℕ := etaStart p i offset + span (etaBlocks p i offset)
+def squeeze1Start : ℕ := etaStart p i offset + etaChunkCount * 1096
 def squeeze2Start : ℕ := squeeze1Start p i offset + 1096
 def squeeze3Start : ℕ := squeeze2Start p i offset + 1096
 def endOffset : ℕ := squeeze3Start p i offset + 1096
 
-def etaState : Sponge.EState := Sponge.output (eta p i offset) (etaStart p i offset)
+/-- The challenge transcript's final state in closed form (`etaState_output`). -/
+def etaState : Sponge.EState :=
+  Permutation.freshState (etaStart p i offset + (etaChunkCount - 1) * 1096 + 1080)
 def squeeze1 : Sponge.Interface := permuting (etaState p i offset)
 def squeeze1State : Sponge.EState := Sponge.output (squeeze1 p i offset) (squeeze1Start p i offset)
 def squeeze2 : Sponge.Interface := permuting (squeeze1State p i offset)
@@ -168,5 +177,30 @@ def assertions : List Circuit.Expr :=
 def opsAt : List Op := childOps p i offset ++ (assertions p i offset).map Op.assertZero
 
 def main : Circuit Unit := fun offset => ((), endOffset p i offset, opsAt p i offset)
+
+theorem transcriptChunks_length (blocks : List (List Circuit.Expr)) :
+    (transcriptChunks blocks).length = chunkCount (blocks.map List.length) := by
+  induction blocks with
+  | nil => rfl
+  | cons b rest ih =>
+    rw [transcriptChunks, List.flatMap_cons, List.length_append, ← transcriptChunks, ih]
+    simp only [chunkCount, Gadgets.Poseidon2.Hash.inputChunks, blockE, Spec.Poseidon2.rate,
+      List.length_map, List.length_range, List.length_cons, List.map_cons, List.sum_cons]
+    omega
+
+theorem etaChunks_length (start : ℕ) : ((eta p i offset).chunks start).length = etaChunkCount := by
+  change (transcriptChunks (etaBlocks p i offset)).length = _
+  rw [transcriptChunks_length]
+  simp [etaBlocks, wires, textE, etaChunkCount, digestWords]
+
+theorem etaState_output : etaState p i offset = Sponge.output (eta p i offset) (etaStart p i offset) := by
+  have nonempty : (eta p i offset).chunks (etaStart p i offset) ≠ [] := by
+    intro empty
+    have length := etaChunks_length p i offset (etaStart p i offset)
+    rw [empty] at length
+    exact absurd length (by decide)
+  rw [Sponge.output_eq_program, Sponge.program, Sponge.compileAbsorptions_output _ nonempty,
+    etaChunks_length]
+  rfl
 
 end NightstreamFPrime.Lifecycle.Nebula.MemoryApp

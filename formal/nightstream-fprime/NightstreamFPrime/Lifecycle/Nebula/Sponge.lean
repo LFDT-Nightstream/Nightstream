@@ -21,14 +21,48 @@ structure Interface where
 def program (i : Interface) (offset : Nat) : Hash.AbsorbProgram :=
   Hash.compileAbsorptions offset (i.initial offset) (i.chunks offset)
 
-/-- The final state, over the child's own recipe variables. -/
-def output (i : Interface) (offset : Nat) : EState := (program i offset).output
+/-- The final state, in closed form: the last permutation's fresh outputs, or
+the initial state when there is no chunk (`output_eq_program`). Parents read it
+without compiling the recipes. -/
+def output (i : Interface) (offset : Nat) : EState :=
+  match i.chunks offset with
+  | [] => i.initial offset
+  | chunks => Permutation.freshState (offset + (chunks.length - 1) * 1096 + 1080)
 
 def opsAt (i : Interface) (offset : Nat) : List Op :=
   [Op.witness (WitnessBatch.arithmetic offset (program i offset).recipes)]
 
 def main (i : Interface) : Circuit Unit := fun offset =>
-  ((), offset + (program i offset).recipes.length, opsAt i offset)
+  ((), offset + (i.chunks offset).length * 1096, opsAt i offset)
+
+/-- The final state of a nonempty absorption is its last permutation's fresh
+outputs. -/
+theorem compileAbsorptions_output (chunks : List (List Expr)) (nonempty : chunks ≠ []) :
+    ∀ (start : Nat) (state : EState), (Hash.compileAbsorptions start state chunks).output =
+      Permutation.freshState (start + (chunks.length - 1) * 1096 + 1080) := by
+  induction chunks with
+  | nil => exact absurd rfl nonempty
+  | cons b rest ih =>
+    intro start state
+    rw [Hash.compileAbsorptions]
+    dsimp only
+    cases rest with
+    | nil =>
+      rw [Hash.compileAbsorptions]
+      dsimp only
+      rw [← Permutation.scheduleOutput_eq_compile, Permutation.scheduleOutput]
+      simp
+    | cons c rest =>
+      rw [ih (List.cons_ne_nil _ _)]
+      congr 1
+      simp only [List.length_cons]
+      omega
+
+theorem output_eq_program (i : Interface) (offset : Nat) : output i offset = (program i offset).output := by
+  unfold output program
+  cases h : i.chunks offset with
+  | nil => rfl
+  | cons b rest => exact (compileAbsorptions_output (b :: rest) (List.cons_ne_nil _ _) _ _).symm
 
 def Assumptions (i : Interface) (offset : Nat) (_env : Env) : Prop :=
   (∀ lane, (i.initial offset lane).VarsBelow offset) ∧ Hash.BlocksBelow offset (i.chunks offset)
@@ -69,9 +103,8 @@ theorem soundness (i : Interface) (env : Env) (offset : Nat)
     rows (Op.witness (WitnessBatch.arithmetic offset (program i offset).recipes)) (by simp [opsAt])
   have computed := Hash.compileAbsorptions_sound env offset (i.initial offset) (i.chunks offset)
     recipeRows
-  unfold SpecHolds evalState output
-  rw [show (program i offset).output = (Hash.compileAbsorptions offset (i.initial offset)
-    (i.chunks offset)).output from rfl, computed, Hash.absorbManyF_eq_reference]
+  unfold SpecHolds evalState
+  rw [output_eq_program, program, computed, Hash.absorbManyF_eq_reference]
 
 theorem completeness (i : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions i offset env) :
@@ -99,7 +132,7 @@ theorem flatConstraints_varsBelow (i : Interface) (offset : Nat) (env : Env)
 theorem output_varsBelow (i : Interface) (offset : Nat) (env : Env)
     (assumptions : Assumptions i offset env) (lane : Fin 16) :
     (output i offset lane).VarsBelow (offset + localLength (Circuit.ops (main i) offset)) := by
-  rw [localLength_ops]
+  rw [localLength_ops, output_eq_program]
   exact Hash.compileAbsorptions_output_varsBelow offset (i.initial offset) (i.chunks offset)
     assumptions.1 assumptions.2 lane
 
@@ -116,7 +149,7 @@ theorem supported (i : Interface) (offset : Nat) (allowed : Nat → Prop)
     fun index bound => localSupported _ (by omega) (by rw [localLength_ops]; omega)
   have compiled := Support.compileAbsorptions_supported offset (i.initial offset) (i.chunks offset)
     allowed initialSupported chunksSupported targets
-  refine ⟨?_, compiled.2⟩
+  refine ⟨?_, by rw [output_eq_program]; exact compiled.2⟩
   rw [flatConstraints_eq]
   exact recipeConstraints_varsSatisfy offset _ allowed compiled.1 targets
 

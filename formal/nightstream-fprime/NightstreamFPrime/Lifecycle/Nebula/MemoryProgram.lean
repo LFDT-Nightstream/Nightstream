@@ -54,7 +54,7 @@ theorem child_ends :
     squeeze3Start p i offset +
       ((squeeze3 p i offset).chunks (squeeze3Start p i offset)).length * 1096 =
       endOffset p i offset := by
-  refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, ?_, ?_, ?_⟩
+  refine ⟨rfl, rfl, rfl, rfl, rfl, by rw [etaChunks_length]; rfl, ?_, ?_, ?_⟩
   · simp only [squeeze2Start, squeeze1, permuting, List.length_singleton, one_mul]
   · simp only [squeeze3Start, squeeze2, permuting, List.length_singleton, one_mul]
   · simp only [endOffset, squeeze3, permuting, List.length_singleton, one_mul]
@@ -100,8 +100,11 @@ theorem supported (allowed : ℕ → Prop) (inputs : Application.InputsSupported
     (transcriptChunks_supported (etaBlocks_supported wires)) (within _ _ (by omega) (by omega))
   have noChunks : ∀ chunk ∈ ([[]] : List (List Circuit.Expr)), ∀ e ∈ chunk, e.VarsSatisfy allowed := by
     simp
+  have etaStateS : ∀ lane, (etaState p i offset lane).VarsSatisfy allowed := fun lane => by
+    rw [etaState_output]
+    exact etaS.2 lane
   have squeeze1S := Sponge.supported (squeeze1 p i offset) (squeeze1Start p i offset) allowed
-    etaS.2 noChunks (within _ _ (by omega) (by omega))
+    etaStateS noChunks (within _ _ (by omega) (by omega))
   have squeeze2S := Sponge.supported (squeeze2 p i offset) (squeeze2Start p i offset) allowed
     squeeze1S.2 noChunks (within _ _ (by omega) (by omega))
   have squeeze3S := Sponge.supported (squeeze3 p i offset) (squeeze3Start p i offset) allowed
@@ -140,7 +143,7 @@ theorem supported (allowed : ℕ → Prop) (inputs : Application.InputsSupported
     · exact Circuit.Expr.VarsSatisfy.sub _ _ _ (laneOf chainOpsS.2 k) (wire_supported wires _)
     · exact Circuit.Expr.VarsSatisfy.sub _ _ _ (laneOf chainInitialS.2 k) (wire_supported wires _)
     · exact Circuit.Expr.VarsSatisfy.sub _ _ _ (laneOf chainFinalS.2 k) (wire_supported wires _)
-    · exact Circuit.Expr.VarsSatisfy.sub _ _ _ (laneOf etaS.2 0) (wire_supported wires _)
+    · exact Circuit.Expr.VarsSatisfy.sub _ _ _ (laneOf etaStateS 0) (wire_supported wires _)
     · exact Circuit.Expr.VarsSatisfy.sub _ _ _ (laneOf squeeze1S.2 0) (wire_supported wires _)
     · exact Circuit.Expr.VarsSatisfy.sub _ _ _ (laneOf squeeze2S.2 0) (wire_supported wires _)
     · exact Circuit.Expr.VarsSatisfy.sub _ _ _ (laneOf squeeze3S.2 0) (wire_supported wires _)

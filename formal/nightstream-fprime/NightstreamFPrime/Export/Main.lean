@@ -3,8 +3,10 @@ import NightstreamFPrime.Export.Stage1.OrdinaryRowPlan
 import NightstreamFPrime.Export.Stage1.PackagePlan
 import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPackage
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransport
+import NightstreamFPrime.Export.Stage1.PerApplicationCachedBlocks
 import NightstreamFPrime.Export.Stage1.PerApplicationCachedShift
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
+import NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package
 import NightstreamFPrime.Export.Stage1.PiCCSPackets
 import NightstreamFPrime.Export.TypedWriter
 import NightstreamFPrime.Export.MatrixProgram.Program
@@ -697,8 +699,13 @@ def run (arguments : List String) : IO UInt32 := do
   | ["--expanded", path] | ["--", "--expanded", path] =>
       emitExpanded ⟨path⟩
       pure 0
+  | ["--application", "nebula-memory-v1", path]
+  | ["--", "--application", "nebula-memory-v1", path] =>
+      emitPerApplication Stage1.NebulaMemoryV1Package.application
+        Stage1.NebulaMemoryV1Package.fits ⟨path⟩
+      pure 0
   | _ =>
-      IO.eprintln "usage: lake exe emit -- [--expanded] <output-path>"
+      IO.eprintln "usage: lake exe emit -- [--expanded | --application nebula-memory-v1] <output-path>"
       pure 2
 
 end NightstreamFPrime.Export.Main

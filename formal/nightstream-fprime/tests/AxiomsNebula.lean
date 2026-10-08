@@ -5,10 +5,11 @@ import NightstreamFPrime.Lifecycle.Nebula.MemoryBound
 import NightstreamFPrime.Lifecycle.Nebula.RunLink
 import NightstreamFPrime.Lifecycle.Nebula.RowMeaning
 import NightstreamFPrime.Lifecycle.Nebula.ProgramSoundness
+import NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package
 
 /-! Axiom audits for the Nebula memory-phase model (`Spec/Nebula`) and its
-memory application layer (`Lifecycle/Nebula`): framing, carry, step rows, and
-their refinement to the model. -/
+memory application layer (`Lifecycle/Nebula`): framing, carry, step rows,
+their refinement to the model, and the first memory package's bounds. -/
 
 #audit_axioms NightstreamFPrime.Spec.Nebula.Plan.romSize_le_ramSize
 #audit_axioms NightstreamFPrime.Spec.Nebula.pack_lt
@@ -229,6 +230,7 @@ their refinement to the model. -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Expr.eval_subst
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Expr.varsSatisfy_subst
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Expr.eval_sum
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Expr.eval_chunkFrom
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Expr.eval_chunk
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Expr.eval_bits
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Expr.eval_pack
@@ -312,6 +314,7 @@ their refinement to the model. -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.etaBlocks_eval
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.wire_supported
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.sub_supported
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.chunkFrom_supported
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.chunk_supported
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.pack_supported
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.transcriptChunks_supported
@@ -359,3 +362,63 @@ their refinement to the model. -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.supported
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.holds_of_valid
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.chain_soundness
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Sponge.compileAbsorptions_output
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Sponge.output_eq_program
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.transcriptChunks_length
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.etaChunks_length
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.etaState_output
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.FirstPlan.two
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.FirstPlan.valid
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.FirstPlan.secure
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.constraints_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.operations_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.wire_affine
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.sub_mulCount
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.chunkFrom_affine
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.chunk_affine
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.pack_affine
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.transcriptChunks_affine
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.wires_affine
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.textE_affine
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.sub_word_affine
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.stateBlocks_affine
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.chainBlocks_affine
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.etaBlocks_affine
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.opsLanes_words
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.scanLanes_words
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.absorbing_direct
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.absorbing_output_affine
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.noChunks_affine
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.permuting_direct
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.permuting_output_affine
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.constraintFreshCount_le
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.totalFreshCount_le
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.sub_affine
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.etaState_affine
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.squeeze1State_affine
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.squeeze2State_affine
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.squeeze3State_affine
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.childConstraints_noFresh
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.flatAssertions
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.freshCount_le
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.transcriptChunks_length_le
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.pack_length_le
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.stateBlocks_size
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.chainBlocks_size
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.opsLanes_length
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.scanLanes_length
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.span_le
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.localLength_le
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.polyRows_mulCount
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.polyRows_length
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.child_length
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.flat_length_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.childOps_length
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.assertions_length
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.constraints_length
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.rows_le
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.columns_le
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.carrier_le
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.plan_fixedPoint
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.jointDomain_le_twoPow28
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.matrixProgram_exact

@@ -108,6 +108,7 @@ import NightstreamFPrime.Export.Stage1.DirectApplicationPrefixPlan
 import NightstreamFPrime.Export.Stage1.Stage1LoweringBridge
 import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPackage
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
+import NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows
 import NightstreamFPrime.Export.Stage1.PiCCSOwnershipAudit
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Parity
@@ -136,6 +137,7 @@ import NightstreamFPrime.Export.Stage1.PilotHashRowsCompleteness
 import NightstreamFPrime.Export.Stage1.PilotCompletedAssignment
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentBlocks
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransport
+import NightstreamFPrime.Export.Stage1.PerApplicationCachedBlocks
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransportExpressions
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransportProducts
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransportExecution

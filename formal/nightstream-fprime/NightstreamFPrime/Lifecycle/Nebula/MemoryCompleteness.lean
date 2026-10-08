@@ -74,8 +74,10 @@ theorem squeeze1_assumptions (inputs : Application.InputsBelow i offset) (env : 
   have scope := Sponge.output_varsBelow (eta p i offset) (etaStart p i offset) env
     (eta_assumptions inputs env) lane
   have bound : etaStart p i offset + ((eta p i offset).chunks (etaStart p i offset)).length * 1096 =
-      squeeze1Start p i offset := rfl
-  rw [Sponge.localLength_eq, bound] at scope
+      squeeze1Start p i offset := by
+    rw [etaChunks_length]
+    rfl
+  rw [Sponge.localLength_eq, bound, ← etaState_output] at scope
   exact scope
 
 theorem squeeze2_assumptions (inputs : Application.InputsBelow i offset) (env : Env) :
@@ -121,7 +123,8 @@ theorem children_complete (inputs : Application.InputsBelow i offset) (env : Env
   obtain ⟨c6, ops6, end6⟩ := appendSponge c5 "nebula.eta" (eta p i offset)
     (etaStart p i offset) end5 (eta_assumptions inputs)
   obtain ⟨c7, ops7, end7⟩ := appendSponge c6 "nebula.eta_squeeze_1" (squeeze1 p i offset)
-    (squeeze1Start p i offset) end6 (squeeze1_assumptions inputs)
+    (squeeze1Start p i offset) (end6.trans (by rw [etaChunks_length]; rfl))
+    (squeeze1_assumptions inputs)
   obtain ⟨c8, ops8, end8⟩ := appendSponge c7 "nebula.eta_squeeze_2" (squeeze2 p i offset)
     (squeeze2Start p i offset) (end7.trans (by
       simp only [squeeze2Start, squeeze1, permuting, List.length_singleton, one_mul]))
@@ -206,8 +209,9 @@ theorem completeness (two : p.bOps = 2) (env : Env) (inputs : Application.Inputs
         digestWords ((StepWitness.ofWords p (values p i offset env)).proposalDigest 0) ++
           digestWords (StepWitness.carryDigest
             (StepWitness.ofWords p (values p i offset env)).carryIn 35) ++
-          digestWords ((StepWitness.ofWords p (values p i offset env)).proposalDigest 4)] :=
-    etaAbsorbed
+          digestWords ((StepWitness.ofWords p (values p i offset env)).proposalDigest 4)] := by
+    rw [etaState_output]
+    exact etaAbsorbed
   have flatAssertions : ∀ l : List Circuit.Expr, flatConstraints (l.map Op.assertZero) = l := by
     intro l
     induction l with

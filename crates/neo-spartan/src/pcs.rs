@@ -23,9 +23,11 @@ use crate::Error;
 type Dft = Radix2DFTSmallBatch<Gl>;
 type Layout = SuffixProver<Gl, Ext>;
 type Whir = WhirProver<Ext, Gl, Dft, Mmcs, Challenger, Layout>;
+pub(crate) type Config = WhirConfig<Ext, Gl, Challenger>;
 pub(crate) type Commitment = <Whir as MultilinearPcs<Ext, Challenger>>::Commitment;
 pub(crate) type ProverData = <Whir as MultilinearPcs<Ext, Challenger>>::ProverData;
 pub(crate) type Opening = <Whir as MultilinearPcs<Ext, Challenger>>::Proof;
+pub(crate) type MultiProof = <Mmcs as p3_commit_v08::Mmcs<Gl>>::MultiProof;
 
 /// Initial code rate 1/2: the smallest codeword, so the fastest commitment.
 const LOG_INV_RATE: usize = 1;
@@ -46,6 +48,7 @@ pub(crate) struct TablePlan {
 /// WHIR over a fixed list of tables, opened at caller-fixed points.
 pub(crate) struct Pcs {
     whir: Whir,
+    config: Config,
     protocol: OpeningProtocol,
     plans: Vec<TablePlan>,
     level: usize,
@@ -88,7 +91,7 @@ impl Pcs {
             if !config.check_pow_bits() {
                 return Err(Error::Setup("WHIR configuration needs proof-of-work grinding"));
             }
-            let whir = Whir::new(config, Dft::default(), mmcs());
+            let whir = Whir::new(config.clone(), Dft::default(), mmcs());
             let mut report = whir
                 .prescribed_security(&protocol)
                 .ok_or(Error::Setup("WHIR security report"))?;
@@ -100,6 +103,7 @@ impl Pcs {
             if security_bits >= required_bits {
                 return Ok(Self {
                     whir,
+                    config,
                     protocol,
                     plans,
                     level,
@@ -114,6 +118,16 @@ impl Pcs {
     /// `-log2` of the composed error, as Plonky3 reports it.
     pub(crate) fn security_bits(&self) -> f64 {
         self.security_bits
+    }
+
+    /// The WHIR schedule, for our own verifier (`whir/`).
+    pub(crate) fn config(&self) -> &Config {
+        &self.config
+    }
+
+    /// The opening protocol, padded to the first folding round.
+    pub(crate) fn protocol(&self) -> &OpeningProtocol {
+        &self.protocol
     }
 
     /// `log2` of the candidate polynomials the commitment leaves open.

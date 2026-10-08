@@ -1,11 +1,13 @@
 //! Crate-private tests of layer 1.
 
+mod circuit;
 mod gkr;
 mod layer1;
 mod matrix;
 mod mle;
 mod setup;
 mod whir;
+mod whir_verify;
 
 use std::path::PathBuf;
 use std::sync::Arc;

@@ -25,6 +25,7 @@
 //! Plonky3 0.8 type appears in the public API; the verifier reads only the
 //! key, never the setup files or the matrices.
 
+mod circuit;
 mod field;
 mod gkr;
 mod hash;
@@ -35,6 +36,7 @@ mod pcs;
 mod ring;
 mod setup;
 mod sumcheck;
+mod whir;
 
 #[cfg(test)]
 #[path = "../tests/internal/mod.rs"]

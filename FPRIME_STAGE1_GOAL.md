@@ -82,7 +82,7 @@ schedule, recursive-size claim, or exported theorem.
   - B.3 Proofs for PiRLC
   - B.4 PiDEC is a Reduction of Knowledge
 
-The Appendix B.2 parameters `k_rho = 14`, `B = 2^14` are reference values
+The Section 8.2 parameters `k_rho = 14`, `B = 2^14` are reference values
 only. The Nightstream profile is `k_rho = 16`; do not describe it as paper
 exact.
 

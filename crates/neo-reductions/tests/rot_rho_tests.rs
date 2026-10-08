@@ -21,7 +21,7 @@ fn sample_rot_rhos_n(
 #[test]
 #[allow(non_snake_case)]
 fn test_goldilocks_ring_expansion_factor() {
-    // Test that Goldilocks ring produces the Appendix B.2 expansion factor.
+    // Test that Goldilocks ring produces the Section 8.2 expansion factor.
     let ring = RotRing::goldilocks();
 
     let max_coeff = ring
@@ -34,7 +34,7 @@ fn test_goldilocks_ring_expansion_factor() {
     assert_eq!(
         T_computed,
         goldilocks_paper_b2::T as u128,
-        "Goldilocks expansion factor should match Appendix B.2"
+        "Goldilocks expansion factor should match Section 8.2"
     );
 
     // Check parameter set has matching T
@@ -42,7 +42,7 @@ fn test_goldilocks_ring_expansion_factor() {
     assert_eq!(
         params.T,
         goldilocks_paper_b2::T,
-        "Goldilocks preset T should match Appendix B.2"
+        "Goldilocks preset T should match Section 8.2"
     );
 }
 
@@ -52,7 +52,7 @@ fn test_sample_rot_rhos_succeeds_with_valid_params() {
     let ring = RotRing::goldilocks();
     let mut tr = Poseidon2Transcript::new_v1_2();
 
-    // Should sample params.k_rho+1 rhos under the Appendix B.2 norm budget.
+    // Should sample params.k_rho+1 rhos under the Section 8.2 norm budget.
     let result = sample_rot_rhos_n(&mut tr, &params, &ring, (params.k_rho as usize) + 1);
 
     assert!(result.is_ok(), "Sampling should succeed with valid params");
@@ -159,11 +159,11 @@ fn test_rlc_bound_violation_detected() {
     let ring = RotRing::goldilocks();
     let mut tr = Poseidon2Transcript::new_v1_2();
 
-    // Appendix B.2 Goldilocks should satisfy the ΠRLC norm budget.
+    // Section 8.2 Goldilocks should satisfy the ΠRLC norm budget.
     let result = sample_rot_rhos_n(&mut tr, &params, &ring, (params.k_rho as usize) + 1);
     assert!(
         result.is_ok(),
-        "Appendix B.2 Goldilocks params should satisfy the ΠRLC bound"
+        "Section 8.2 Goldilocks params should satisfy the ΠRLC bound"
     );
 }
 

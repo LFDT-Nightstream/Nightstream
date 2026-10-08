@@ -38,7 +38,7 @@ unproved homomorphism claim here.
 | `imageCoefficientAt` | `cf((M_j z_i)(x))_l` | shared finite matrix-vector row, then explicit lift | no evaluator supplied |
 | `computedCoefficient` | `sum_x eq(x,r) * cf((M_j z_i)(x))_l` | explicit canonical hypercube sum | equals recursive table MLE |
 | zero assignment | `z_i = 0` | every image-table leaf and its explicit hypercube sum are zero | `imageCoefficientAt_eq_zero_of_assignment_zero`, `computedCoefficient_eq_zero_of_assignment_zero` |
-| `residual` | Equation (9) orientation | claimed minus computed | zero iff the evaluation equation holds |
+| `residual` | Equation (10) orientation | claimed minus computed | zero iff the evaluation equation holds |
 | `allResidualsZero_iff_allClaimsHold` | Lemma 9 Item 4 | every carried coordinate | unconditional relative to explicit algebra/lift data |
 -/
 

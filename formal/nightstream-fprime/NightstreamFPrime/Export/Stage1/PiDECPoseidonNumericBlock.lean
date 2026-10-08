@@ -5,7 +5,7 @@ import NightstreamFPrime.Layout.MatrixProgram.Poseidon
 Load the existing Poseidon invocation interface from a package block, then
 evaluate its rows numerically. Geometry guards, input decoding and product
 indexing remain those of the existing block interpreter. The optional value
-theorem includes malformed inputs and all fourteen matrix ports.
+theorem includes malformed inputs and all seven matrix ports.
 -/
 
 set_option autoImplicit false
@@ -111,7 +111,7 @@ def row? (block : Poseidon.Block) {columns : Nat} (read : Fin columns → F)
   (loadRow? block columns ordinal).map fun loaded =>
     (PiDECPoseidonNumericRows.stored read loaded.1).get loaded.2
 
-/-- All fourteen numeric ports equal the corresponding sparse evaluations.
+/-- All seven numeric ports equal the corresponding sparse evaluations.
 The zero port is the existing empty form. Equality of optional values also
 retains rejection of malformed geometry or unavailable package input states. -/
 theorem row?_value (block : Poseidon.Block) {columns : Nat} (read : Fin columns → F)

@@ -5,7 +5,7 @@ import NightstreamFPrime.Export.Stage1.PiDECEvaluationBatch
 Prepare one Poseidon invocation for all Phi81 output reads, then weight its
 150 global rows. The stored table contains the existing PortValues records;
 the sum reads that table without repeating numeric invocation evaluation.
-This computes one child's fourteen matrix contributions.
+This computes one child's seven matrix contributions.
 -/
 
 set_option autoImplicit false
@@ -68,7 +68,7 @@ private theorem row_value (prepared : Vector (Vector PortValues 150) ringDegree)
       (Vector.replicate ringDegree (0 : F)))[matrix.val])[output.val] = 0
     rw [Vector.getElem_replicate, Vector.getElem_replicate]
 
-/-- Weight the 150 global rows from the prepared table. All fourteen matrices
+/-- Weight the 150 global rows from the prepared table. All seven matrices
 share each computed point weight through the existing batch range loop. -/
 def sum {arity : Nat} (start : Nat) (point : CubePoint K arity)
     (prepared : Vector (Vector PortValues 150) ringDegree) :

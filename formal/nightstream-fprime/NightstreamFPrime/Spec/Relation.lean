@@ -33,7 +33,7 @@ def bigB (p : GlobalParams) : Nat := p.b ^ p.k
 /-- Least strict bound containing every centered residue of odd `q`. -/
 def ambientBound (p : GlobalParams) : Nat := p.q / 2 + 1
 
-/-- MSIS ∞-norm at which (2B, C)-relaxed binding must be assumed (Appendix B). -/
+/-- MSIS ∞-norm at which (2B, C)-relaxed binding must be assumed (SuperNeo v1.2 Section 8). -/
 def msisNormBound (p : GlobalParams) : Nat := 8 * p.expansionT * p.bigB
 
 theorem rlc_bound_for (p : GlobalParams) {fresh : Nat}

@@ -381,7 +381,7 @@ private theorem padE_supported (state : Layer.EState) (allowed : Nat → Prop)
   · simp [Hash.padE, hzero, Expr.VarsSatisfy, stateSupported lane]
   · simpa [Hash.padE, hzero] using stateSupported lane
 
-private theorem compileAbsorptions_supported (start : Nat)
+theorem compileAbsorptions_supported (start : Nat)
     (state : Layer.EState) (blocks : List (List Expr))
     (allowed : Nat → Prop) (stateSupported : StateSupported state allowed)
     (blocksSupported : BlocksSupported blocks allowed)

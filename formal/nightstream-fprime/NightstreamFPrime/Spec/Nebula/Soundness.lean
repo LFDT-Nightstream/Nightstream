@@ -177,7 +177,7 @@ theorem runInputs_canonical {ctx : Context E Digest} {app : Application ctx.plan
     ∀ x ∈ runInputs ctx run stmt.segments, x.Canonical ctx.plan.laneLength ctx.plan.n := by
   have count : run.length = stmt.segments * ctx.plan.n := accepted.steps.trans accepted.stepCount
   obtain ⟨c, final, -⟩ := accepted.terminal
-  have closes := ((finalCarry_isSome_iff valid count accepted.segmentsRange.1).1 ⟨c, final⟩).2
+  have closes := ((finalCarry_isSome_iff valid count).1 ⟨c, final⟩).2
   intro x member
   rcases List.mem_append.1 member with initial | segments
   · exact initialInputs_canonical valid _ _ x initial
@@ -252,7 +252,7 @@ theorem soundness {ctx : Context E Digest} {app : Application ctx.plan σ}
   have count : run.length = stmt.segments * ctx.plan.n := accepted.steps.trans accepted.stepCount
   have pos : 1 ≤ stmt.segments := accepted.segmentsRange.1
   obtain ⟨c, final, -, -, finalTs, finalRoot⟩ := accepted.terminal
-  have closes := ((finalCarry_isSome_iff valid count pos).1 ⟨c, final⟩).2
+  have closes := ((finalCarry_isSome_iff valid count).1 ⟨c, final⟩).2
   obtain ⟨-, -, carryTs, carryRoot⟩ := finalCarry_fields valid count pos final
   by_cases bad : ∃ k < stmt.segments, ¬ ((segmentView ctx run k).multisets ctx.plan).Balanced
   · obtain ⟨k, hk, unbalanced⟩ := bad

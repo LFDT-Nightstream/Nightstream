@@ -241,8 +241,9 @@ plain-model part: for any source extractor whose failure after a real NIFS
 acceptance at visit `j` has probability at most `error j`, the accepted
 terminal mass is at most the returned-history mass plus, at each visit, the
 marked hash-collision mass and `error j`. The random-oracle theorem
-`RandomOracleKnowledge.knowledge_error_le` justifies the value of `error`;
-it does not prove Assumption 1 for Poseidon2. -/
+`RandomOracleKnowledge.knowledge_error_le` motivates the value of `error`;
+it does not prove Assumption 1 for Poseidon2, and no Lean statement derives
+`error` from it. -/
 def HyperNovaLinearSecurity : Prop :=
   ∀ (source : Statement → Payload → PMF SourceResult)
     (initial : PMF (Statement × Envelope)) (depth : Nat)

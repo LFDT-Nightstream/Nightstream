@@ -5,8 +5,8 @@ import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Centered
 at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
 
 /-!
-Selected ambient norm boundary and historical obstruction for SuperNeo
-Appendix D.5.
+Selected ambient norm boundary and historical obstruction for SuperNeo v1.2
+Appendix B.3.
 
 Owns: the selected `B_amb = floor(q / 2) + 1` bound, the concrete obstruction
 to the older strict `q / 2` bound, and the smallest strict natural bound that
@@ -17,7 +17,7 @@ Fiat--Shamir, Rust, R1CS, or costs.
 
 Emits constraints: no.
 
-The corrected Appendix D.5 selects `B_amb = floor(q / 2) + 1`. The older
+The corrected Appendix B.3 selects `B_amb = floor(q / 2) + 1`. The older
 strict `q / 2` form cannot contain the midpoint residues because the
 Goldilocks modulus is odd. This module records both the selected bound and the
 kernel-checked historical obstruction.

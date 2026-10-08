@@ -1,5 +1,5 @@
 import NightstreamFPrime.Export.Stage1.HyperNovaHistory
-import NightstreamFPrime.Lifecycle.PiDEC.v1_1.OutputWitnessConsumer
+import NightstreamFPrime.Lifecycle.PiDEC.v1_2.OutputWitnessConsumer
 import NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Completeness
 
 /-!
@@ -152,7 +152,7 @@ theorem recursive_nifs
       statement (.recursive payload)) :
     let relation := PerApplicationFixedPoint.relation application fits
     let key := ProductionKey.key relation productionAjtaiKey
-    ∃ (messages : Fin productionShape.cubeVariables → FixedPolynomial K 9)
+    ∃ (messages : Fin productionShape.cubeVariables → FixedPolynomial K 8)
       (fullOutput : FullOutputCoordinates.FullOutput K productionShape),
       let coins := FiatShamir.derive key.oracle.transcript
         ({ priorState := key.publicInputState (payload.running functionIndex) payload.fresh
@@ -161,7 +161,7 @@ theorem recursive_nifs
         { rounds := fun round => (messages round).toMessage }
       ∃ rho : Fin key.arity.total → RingF,
         key.piRlcResponse (key.absorbPiCcsOutput coins.finalState fullOutput) = some rho ∧
-        ∃ (proof : Lifecycle.Proof 9)
+        ∃ (proof : Lifecycle.Proof 8)
           (result : Running
             (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
             (publicFits := PerApplicationFixedPoint.publicFits application))
@@ -199,7 +199,7 @@ theorem recursive_nifs
   refine ⟨proof, result, children, roundsEq, outputEq, sampleEq, verified, ?_⟩
   intro child
   have member := childValid child
-  rw [Lifecycle.PiDEC.v1_1.OutputWitnessConsumer.runningStatement_eq
+  rw [Lifecycle.PiDEC.v1_2.OutputWitnessConsumer.runningStatement_eq
     relation productionAjtaiKey result child] at member
   exact member
 

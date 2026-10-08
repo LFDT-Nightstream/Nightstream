@@ -90,7 +90,7 @@ theorem runningFromInput_runningInput (value : Running) :
       simp only [PiCCSInputCheck.runningFromInput, runningInput, vector_get_ofFn]
 
 /-- Preserve the actual PiCCS messages when forming the existing checker input. -/
-def ofClaims (running : Running) (fresh : Fresh) (proof : Lifecycle.Proof 9) :
+def ofClaims (running : Running) (fresh : Fresh) (proof : Lifecycle.Proof 8) :
     PiCCSInputCheck.Input where
   commitment := commitmentWords (fresh.commitments ⟨0, by decide⟩)
   publicInput := Vector.ofFn (fresh.publicInputs ⟨0, by decide⟩)
@@ -103,12 +103,12 @@ def ofClaims (running : Running) (fresh : Fresh) (proof : Lifecycle.Proof 9) :
   running := runningInput running
 
 /-- The checked source statement retains the exact decoded running claims. -/
-theorem running_ofClaims (running : Running) (fresh : Fresh) (proof : Lifecycle.Proof 9) :
+theorem running_ofClaims (running : Running) (fresh : Fresh) (proof : Lifecycle.Proof 8) :
     PiCCSInputCheck.running (ofClaims running fresh proof) = running :=
   runningFromInput_runningInput running
 
 /-- The checked source statement retains the exact decoded fresh claim. -/
-theorem fresh_ofClaims (running : Running) (fresh : Fresh) (proof : Lifecycle.Proof 9) :
+theorem fresh_ofClaims (running : Running) (fresh : Fresh) (proof : Lifecycle.Proof 8) :
     PiCCSInputCheck.fresh (ofClaims running fresh proof) = fresh := by
   apply fresh_ext
   · funext source row coefficient

@@ -133,7 +133,6 @@ theorem rowsZero_implies_endpointStates
     (ordinary : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (poseidon : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
-    (one : assignment (PiCCSOrdinaryRetainedGeometry.oneColumn ordinary) = 1)
     (rows : (PiCCSTranscriptEndpointPlan.plan poseidon ordinary).RowsZero assignment)
     (family : Fin familyCount) :
     PiCCSPoseidonPreservation.valueState poseidon assignment
@@ -145,7 +144,7 @@ theorem rowsZero_implies_endpointStates
   apply congrArg List.ofFn
   funext lane
   have rowZero := (PiCCSTranscriptEndpointPlan.rowsZero_iff poseidon ordinary
-    assignment one).mp rows (row family lane)
+    assignment).mp rows (row family lane)
   rw [bindingForm, descriptor_row, SparseForm.add_eval,
     SparseForm.scale_eval] at rowZero
   have formsEq : (directForm poseidon family lane).eval assignment =
@@ -175,6 +174,6 @@ theorem rowsZero_implies_transcriptSpecs
     poseidon assignment (PiCCSAssignmentSoundness.decodedEnv ordinary assignment)
     (PiCCSDecodedTranscript.rowsZero_implies_traces ordinary poseidon assignment
       one transcriptRows)
-    (rowsZero_implies_endpointStates ordinary poseidon assignment one endpointRows)
+    (rowsZero_implies_endpointStates ordinary poseidon assignment endpointRows)
 
 end NightstreamFPrime.Export.Stage1.PiCCSDecodedEndpoints

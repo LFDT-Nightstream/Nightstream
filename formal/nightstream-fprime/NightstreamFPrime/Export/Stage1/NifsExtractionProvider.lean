@@ -4,7 +4,7 @@ import NightstreamFPrime.Lifecycle.Nifs.SupportedContinuation
 import NightstreamFPrime.Spec.Folding.Nifs.StoredAssignmentArithmetic
 
 /-!
-Selected PiRLC/PiDEC continuation checks for SuperNeo v1.1 Section 7.5 and
+Selected PiRLC/PiDEC continuation checks for SuperNeo v1.2 Section 7.5 and
 Appendix B.4. Each raw reply is checked against its verifier-computed parent
 and all sixteen exact child claims. Stored binary recomposition and the
 parent CE check use the existing production key and relation.
@@ -190,7 +190,7 @@ private theorem relationSource_eq {width : Nat}
       Phi81CarrierLayout.carrierWidth width}
     (selectedRelation : ProductionKey.LogicalRelation width fits)
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := width) (publicFits := fits)) :
-    Lifecycle.PiRLC.v1_1.InputBinding.relationSource selectedRelation =
+    Lifecycle.PiRLC.v1_2.InputBinding.relationSource selectedRelation =
       (ProductionKey.key selectedRelation ajtai).relationSource := by
   rfl
 
@@ -198,7 +198,7 @@ section Provider
 
 variable {Context State Tape : Type*}
   (inputs : Context → PiCCSInputCheck.Input) (contexts : PMF Context)
-  (firstPhase : Context → InteractivePrefix.Prover State productionShape 9)
+  (firstPhase : Context → InteractivePrefix.Prover State productionShape 8)
 
 /-- The literal receipt supplies the new point and all 17 evaluation claims.
 Commitments, public inputs and the relation come from the selected statement.
@@ -206,7 +206,7 @@ The empty certificate is only a batch view; this constructor makes no
 acceptance claim and does not alter the checked prefix receipt. -/
 def batchAt (context : Context) (coins : PublicCoins K productionShape)
     (output : FullOutputCoordinates.FullOutput K productionShape) : Batch where
-  system := Lifecycle.PiRLC.v1_1.InputBinding.relationSource relation
+  system := Lifecycle.PiRLC.v1_2.InputBinding.relationSource relation
   point := coins.roundPoint
   inputs := fun coordinate =>
     (PiCCSStoredWitnessCheck.statement (inputs context)).publicOutput

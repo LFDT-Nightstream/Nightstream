@@ -3,8 +3,8 @@ import NightstreamFPrime.Layout.ProductionRelation.PinFamilyPlan
 
 /-!
 Owns the generic executable interpreter for small explicit zero-pin families
-in a compact sparse 7-matrix program. The package supplies the selector
-column and each value form in order.
+in a compact sparse 4-matrix program. The package supplies each value form in
+order.
 
 This module does not select Stage 1 pin families or their order.
 -/
@@ -16,7 +16,6 @@ open NightstreamFPrime.Layout.ProductionRelation
 
 /-- Complete package operands for one ordered zero-pin family. -/
 structure Block where
-  oneColumn : Nat
   values : List WireForm
 deriving Repr, DecidableEq
 
@@ -26,19 +25,14 @@ def Block.rowCount (block : Block) : Nat :=
 /-- Decode one pin row without materializing any other row. -/
 def Block.row? (block : Block) (logicalWidth ordinal : Nat) :
     Option (PinRow.Forms logicalWidth) :=
-  if oneBound : block.oneColumn < logicalWidth then do
+  do
     let encoded ← block.values[ordinal]?
     let value ← encoded.semantic? logicalWidth
-    pure {
-      selector := SparseForm.singleton ⟨block.oneColumn, oneBound⟩ 1
-      value := value }
-  else
-    none
+    pure { value := value }
 
 /-- Canonical wire block derived from one semantic pin interface. -/
 def Block.ofSemantic {logicalWidth rowCount : Nat}
     (interface : PinFamilyPlan.Interface logicalWidth rowCount) : Block where
-  oneColumn := interface.oneColumn.val
   values := List.ofFn fun row => WireForm.ofSemantic (interface.value row)
 
 @[simp] theorem Block.ofSemantic_rowCount {logicalWidth rowCount : Nat}
@@ -52,7 +46,6 @@ theorem Block.row?_ofSemantic {logicalWidth rowCount : Nat}
     (row : Fin rowCount) :
     (Block.ofSemantic interface).row? logicalWidth row.val =
       some (PinFamilyPlan.forms interface row) := by
-  simp [Block.row?, Block.ofSemantic, interface.oneColumn.isLt,
-    PinFamilyPlan.forms]
+  simp [Block.row?, Block.ofSemantic, PinFamilyPlan.forms]
 
 end NightstreamFPrime.Layout.MatrixProgram.Pin

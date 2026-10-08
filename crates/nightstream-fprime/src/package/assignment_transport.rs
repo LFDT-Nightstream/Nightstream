@@ -14,7 +14,7 @@ const TRANSPORT_SCHEMA: usize = 3;
 pub(super) const BLOCK_COUNT: usize = 26;
 const FIELD_COORDINATES: usize = 41;
 const OUTPUT_DIGEST_WORDS: usize = 4;
-const PHI81_INVOCATIONS: usize = 39_474;
+const PHI81_INVOCATIONS: usize = 33_966;
 const PHI81_RING_DEGREE: usize = 54;
 const CENTERED_HALF_MODULUS: u64 = (GOLDILOCKS_MODULUS - 1) / 2;
 
@@ -440,7 +440,7 @@ impl Phi81Recipe {
             [17, 22, 1],
             [17, 5, 1],
             [17, 1, 2],
-            [17, super::PI_CCS_V1_1_MATRIX_COUNT, 2],
+            [17, super::PI_CCS_V1_2_MATRIX_COUNT, 2],
         ];
         let shapes = exact_array(&fields[4], expected_shapes.len(), "Phi81 family shapes")?;
         let mut first_invocation = 0usize;

@@ -1,8 +1,8 @@
-import NightstreamFPrime.Layout.PiDEC.v1_1.Values
+import NightstreamFPrime.Layout.PiDEC.v1_2.Values
 import NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint
 
 /-!
-Owns the compact Lean instruction program for one per-application 7-matrix
+Owns the compact Lean instruction program for one per-application 4-matrix
 relation. Each opcode denotes one proved direct-plan constructor. The ordered
 program is the transport authority; consumers may interpret it but may not
 select block order, row counts, geometry, or application rows.
@@ -139,17 +139,17 @@ def BlockKind.plan (application : ProgramApplication)
 
 /-- Direct wire-facing live-row count for one production block. -/
 def BlockKind.rowCount (application : ProgramApplication) : BlockKind → Nat
-  | .pilotPoseidon => 933000
-  | .piCcsPoseidon => 240160
-  | .piCcsOrdinary => 48443
+  | .pilotPoseidon => 803400
+  | .piCcsPoseidon => 170392
+  | .piCcsOrdinary => 32765
   | .pilotOrdinary => 686
   | .pilotDigestBinding => 8
   | .piCcsEndpoint => 64
   | .samplerPoseidon => 5100
   | .samplerOrdinary => 14943
-  | .piRlc => 78948
-  | .piDec => 6912
-  | .runningTransition => 37263
+  | .piRlc => 67932
+  | .piDec => 6588
+  | .runningTransition => 32079
   | .application => (PerApplicationPackage.applicationPlan application).rowCount
   | .nextPreimage => 5
   | .recursivePublicOutput => 4
@@ -169,7 +169,7 @@ theorem BlockKind.plan_rowCount (application : ProgramApplication)
       DirectPiDECPrefixPlan.transitionPlan,
       DirectApplicationPrefixPlan.applicationPlan,
       DirectApplicationPrefixPlan.nextPreimagePlan,
-      DirectApplicationPrefixPlan.publicOutputPlan, Layout.PiDEC.v1_1.exactRowCount_value]
+      DirectApplicationPrefixPlan.publicOutputPlan, Layout.PiDEC.v1_2.exactRowCount_value]
 
 /-- Interpreter for the compact tree. Every concatenation checks the final
 row bound before it constructs a plan. -/
@@ -662,7 +662,7 @@ private theorem compile_throughNextPreimageProgram
       rfl
 
 /-- The compact instruction program expands to the exact self-derived
-7-matrix plan. -/
+4-matrix plan. -/
 theorem compile_canonical (application : ProgramApplication)
     (fits : FitsTwoPow28 application) :
     canonical.compile application fits =

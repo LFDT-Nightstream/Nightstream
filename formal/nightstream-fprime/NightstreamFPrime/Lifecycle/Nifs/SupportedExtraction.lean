@@ -57,7 +57,7 @@ def publicCheck (context : Context) (probe : Probe K productionShape) : Bool :=
     matrixImage := fun coordinate =>
       probe.response.fullOutput.matrixCoordinate (UnifiedSources.runningSourceIndex coordinate.running)
         coordinate.matrix coordinate.coefficient }
-  ProtocolPolynomial.FixedWidth.check extensionOps 9 input
+  ProtocolPolynomial.FixedWidth.check extensionOps 8 input
     probe.coins.alpha probe.coins.gamma probe.coins.roundPoint
     output probe.response.rounds
 
@@ -66,14 +66,14 @@ all probes, including malformed messages and rejected public equations. -/
 theorem publicCheck_correct (context : Context) (probe : Probe K productionShape) :
     publicCheck running context probe = true ↔
       probe.FixedWidthAccepted extensionOps K.embed
-        ((ProductionKey.key relation ajtai).statement (running context) (fresh context)) 9 := Iff.rfl
+        ((ProductionKey.key relation ajtai).statement (running context) (fresh context)) 8 := Iff.rfl
 
 variable
   [DecidableEq RingF]
   [Fintype (Challenge (ProductionKey.key relation ajtai).piRlcAlgebra)]
   [Nonempty (Challenge (ProductionKey.key relation ajtai).piRlcAlgebra)]
   (contexts : PMF Context)
-  (originalFirstPhase : Context → InteractivePrefix.Prover State productionShape 9)
+  (originalFirstPhase : Context → InteractivePrefix.Prover State productionShape 8)
   (abortTape : Tape)
   (provider : SupportedContinuation.Provider Tape relation ajtai running fresh contexts
     (InteractiveComposition.firstPhase originalFirstPhase (publicCheck running)))
@@ -85,7 +85,7 @@ variable
     (PaperExtractionAlgebra.extractionAlgebra ajtai).assignmentModule program)
   (bounds : PrimitiveBounds)
   (bounded : Bounded (PaperExtractionAlgebra.extractionAlgebra ajtai).ring program bounds)
-  (sourceCorrect : ∀ context, CheckedWitnessExtraction.Correct (width := 9)
+  (sourceCorrect : ∀ context, CheckedWitnessExtraction.Correct (width := 8)
     (sourceProgram context) (PaperAlgebra.openingMaps ajtai).commit productionGlobalParams
     ((ProductionKey.key relation ajtai).statement (running context) (fresh context)))
 
@@ -106,7 +106,7 @@ theorem returned_source_success_bound :
         (InteractiveComposition.consume relation ajtai program)
         (fun _ => PaperAlgebra.openingMaps ajtai) productionGlobalParams
         (fun context => (ProductionKey.key relation ajtai).statement (running context) (fresh context)) +
-          IndependentExecution.testError productionShape 9) ≤
+          IndependentExecution.testError productionShape 8) ≤
       InteractiveOutput.returnedSourceProbability relation ajtai running fresh originalFirstPhase
         (publicCheck running) continuation program sourceProgram contexts := by
   dsimp only
@@ -130,7 +130,7 @@ theorem returned_source_bound_with_binding :
         (publicCheck running) continuation) - InteractiveComposition.weakLoss relation ajtai -
       Real.sqrt (InteractiveAgreement.bindingProbability relation ajtai running fresh
         originalFirstPhase (publicCheck running) continuation program contexts +
-        IndependentExecution.testError productionShape 9) ≤
+        IndependentExecution.testError productionShape 8) ≤
       InteractiveOutput.returnedSourceProbability relation ajtai running fresh originalFirstPhase
         (publicCheck running) continuation program sourceProgram contexts := by
   dsimp only
@@ -143,7 +143,7 @@ theorem returned_source_bound_with_binding :
       (InteractiveComposition.firstPhase originalFirstPhase (publicCheck running)) abortTape provider)
     program (Phi81Relation.PiRLCAlgebra.ForkStrongSet.strongSetUnits Phi81StrongSet.lowNormInvertibility) correct contexts
   exact (sub_le_sub_left (Real.sqrt_le_sqrt
-    (_root_.add_le_add agreement (le_refl (IndependentExecution.testError productionShape 9)))) _).trans source
+    (_root_.add_le_add agreement (le_refl (IndependentExecution.testError productionShape 8)))) _).trans source
 
 include correct bounded sourceCorrect in
 /-- The existing source-success theorem now consumes the actual same-key
@@ -157,7 +157,7 @@ theorem returned_source_bound_with_msis :
         (publicCheck running) continuation) - InteractiveComposition.weakLoss relation ajtai -
       Real.sqrt (BindingProbability.successProbability ajtai program relation running fresh
         originalFirstPhase (publicCheck running) continuation (fun context => (sourceProgram context).access)
-        contexts * PaperProfile.arity.total + IndependentExecution.testError productionShape 9) ≤
+        contexts * PaperProfile.arity.total + IndependentExecution.testError productionShape 8) ≤
       InteractiveOutput.returnedSourceProbability relation ajtai running fresh originalFirstPhase
         (publicCheck running) continuation program sourceProgram contexts := by
   dsimp only
@@ -171,7 +171,7 @@ theorem returned_source_bound_with_msis :
     (Phi81Relation.PiRLCAlgebra.ForkStrongSet.strongSetUnits Phi81StrongSet.lowNormInvertibility) correct
     (fun context => (sourceProgram context).access) (fun context => (sourceCorrect context).access) contexts
   exact (sub_le_sub_left (Real.sqrt_le_sqrt
-    (_root_.add_le_add reduction (le_refl (IndependentExecution.testError productionShape 9)))) _).trans source
+    (_root_.add_le_add reduction (le_refl (IndependentExecution.testError productionShape 8)))) _).trans source
 
 include correct bounded sourceCorrect in
 /-- The v1.2 additive source bound uses the actual adaptive MSIS reduction
@@ -184,7 +184,7 @@ theorem returned_source_bound_with_adaptive_msis :
     StrongProbability.clockMean contexts
       (InteractiveComposition.originalSuccess relation ajtai running fresh originalFirstPhase
         (publicCheck running) continuation) - InteractiveComposition.weakLoss relation ajtai -
-      IndependentExecution.testError productionShape 9 -
+      IndependentExecution.testError productionShape 8 -
       AdaptiveBindingProbability.successProbability relation ajtai program running fresh
         originalFirstPhase (publicCheck running) continuation sourceProgram contexts * PaperProfile.arity.total ≤
       InteractiveOutput.returnedSourceProbability relation ajtai running fresh originalFirstPhase
@@ -244,7 +244,7 @@ theorem probability_and_expected_work
         (publicCheck running) continuation) - InteractiveComposition.weakLoss relation ajtai -
       Real.sqrt (InteractiveAgreement.bindingProbability relation ajtai running fresh
         originalFirstPhase (publicCheck running) continuation program contexts +
-        IndependentExecution.testError productionShape 9) ≤
+        IndependentExecution.testError productionShape 8) ≤
       InteractiveOutput.returnedSourceProbability relation ajtai running fresh originalFirstPhase
         (publicCheck running) continuation program sourceProgram contexts) ∧
     Summable (fun context => (contexts context).toReal * StrongProbability.verifierMean (total context)) ∧
@@ -337,7 +337,7 @@ theorem msis_probability_and_expected_work {SetupTape : Type*}
       Real.sqrt ((∑' tape, (setupTapes tape).toReal * BindingProbability.localSuccessProbability ajtai program
         (sourceProgram (prepare tape).value).access relation running fresh originalFirstPhase (publicCheck running)
         continuation (prepare tape).value) * PaperProfile.arity.total +
-          IndependentExecution.testError productionShape 9) ≤
+          IndependentExecution.testError productionShape 8) ≤
       InteractiveOutput.returnedSourceProbability relation ajtai running fresh originalFirstPhase
         (publicCheck running) continuation program sourceProgram contexts) ∧
     Summable (fun tape => (setupTapes tape).toReal * total tape) ∧

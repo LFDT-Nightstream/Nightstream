@@ -6,7 +6,7 @@ import NightstreamFPrime.Spec.SumCheck.FixedPhase
 
 /-! Provenance: adapted from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/Nifs/PaperNonInteractive/Types.lean`
 at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; split into the
-SuperNeo v1.1 Pad and 7-matrix evaluation families. -/
+SuperNeo v1.2 Pad and 4-matrix evaluation families. -/
 
 /-!
 Typed public data and deterministic dataflow for the paper SuperNeo NIFS.
@@ -243,7 +243,7 @@ structure Key
 
 namespace Key
 
-/-- The one v1.1 relation source selected by the key. Canonical Pad comes
+/-- The one v1.2 relation source selected by the key. Canonical Pad comes
 from `cubeLayout`; all CCS matrices come from `matrixSource`. -/
 def relationSource
     {Extension : Type uExtension}

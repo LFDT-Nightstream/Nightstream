@@ -3,13 +3,13 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FiniteSumAlgebra
 
 /-! Provenance: adapted from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/SignedCoefficientPolynomial.lean`
 at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed and the
-generic canonical-position Horner theorem exported for the v1.1 initial-claim
+generic canonical-position Horner theorem exported for the v1.2 initial-claim
 circuit. -/
 
 /-!
 Finite signed gamma-coefficient polynomial for paper-level joint `Pi_CCS`.
 
-Protocol: SuperNeo v1.1 `Pi_CCS` (Section 7.3 / Appendix B.2).
+Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
 Phase: pre-SumCheck alpha specialization and gamma mixing.
 Constraint family: exact constant-first serialization of Pad, matrix, CCS,
 and norm residual blocks.

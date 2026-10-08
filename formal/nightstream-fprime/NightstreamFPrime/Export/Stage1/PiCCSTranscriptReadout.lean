@@ -23,7 +23,7 @@ abbrev Index := Fin PiCCSOrdinarySourceSupport.transcriptInvocationCount
 
 def phaseStart : Nat := Spartan.sourceToSpartan PiCCSInputs.phaseOffset
 
-theorem phaseStart_eq : phaseStart = 6908558 := by
+theorem phaseStart_eq : phaseStart = 5945682 := by
   unfold phaseStart
   rw [PiCCSInputs.phaseOffset_eq]
   rfl

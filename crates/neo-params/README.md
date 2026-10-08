@@ -4,12 +4,12 @@ Typed parameter sets with validation and security estimates for Nightstream prot
 
 ## Surface
 - `NeoParams` struct with typed presets for different security levels and field choices.
-- **Appendix B.2 Goldilocks preset**: Goldilocks field, η=81, s=2, paper challenge set size |C|≈2^125, expansion T=216.
+- **SuperNeo v1.2 Section 8.2 Goldilocks preset**: Goldilocks field, η=81, s=2, paper challenge set size |C|≈2^125, expansion T=216.
 - **Guard enforcement**: validates `(k+1)·T·(b−1) < B` at parameter load; rejects unsafe combinations.
 - **Extension degree computation**: computes minimal s for target soundness (v1 supports s=2 only).
 
 ## Presets
-- **goldilocks_paper_b2**: SuperNeo Appendix B.2 parameters with Goldilocks prime
+- **goldilocks_paper_b2**: SuperNeo v1.2 Section 8.2 parameters with Goldilocks prime
   - Base field: q = 2^64 - 2^32 + 1
   - Extension: K = F_{q^2} (s=2) 
   - Cyclotomic: η=81, d=φ(81)=54, Φ_η = X^54 + X^27 + 1
@@ -29,5 +29,5 @@ Typed parameter sets with validation and security estimates for Nightstream prot
 
 ## Tests
 - Parameter consistency validation across all presets
-- Guard inequality verification for Appendix B.2 Goldilocks and other secure presets
+- Guard inequality verification for Section 8.2 Goldilocks and other secure presets
 - Security estimate regression tests

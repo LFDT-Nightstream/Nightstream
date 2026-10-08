@@ -163,7 +163,7 @@ private structure Represents
       (commonEnv application assignment base) =
     AccumulatorInputs.output (relation application fits)
       (transitionEnv application base)
-  runningOutput : PiCCS.v1_1.StatementAbsorption.evalRunning
+  runningOutput : PiCCS.v1_2.StatementAbsorption.evalRunning
     (RunningTransitionInputs.outputRunningExpr
       (PerApplicationFixedPoint.logicalWidth application)
       (PerApplicationFixedPoint.publicFits application))
@@ -183,8 +183,6 @@ private theorem representedSemantics_imply_stepHoldsFor
       (PerApplicationFixedPoint.logicalWidth application))
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
-    (one : assignment
-      (ApplicationRetainedGeometry.oneColumn (geometry application)) = 1)
     (encodes : DirectApplicationPrefixPlan.Encodes (geometry application)
       assignment base groupValue)
     (input : Input KeyDigest AppState AppWitness
@@ -251,7 +249,7 @@ private theorem representedSemantics_imply_stepHoldsFor
     simpa [commonEnv] using
       DirectAccumulatorCommonSemantics.semantics_imply_accumulatorHolds
         (relation application fits) ajtai vk
-        (prefixGeometry application) assignment base groupValue one
+        (prefixGeometry application) assignment base groupValue
         encodes.runningPrefix semantics.runningPrefix
         (PiRLCInputBounds.assumptions (relation application fits)
           (commonEnv application assignment base))
@@ -304,7 +302,7 @@ private theorem representedSemantics_imply_stepHoldsFor
         subst slot
         calc
           output.runningNext functionIndex =
-              PiCCS.v1_1.StatementAbsorption.evalRunning
+              PiCCS.v1_2.StatementAbsorption.evalRunning
                 (RunningTransitionInputs.outputRunningExpr
                   (PerApplicationFixedPoint.logicalWidth application)
                   (PerApplicationFixedPoint.publicFits application))
@@ -336,7 +334,7 @@ private theorem representedSemantics_imply_stepHoldsFor
             (relation application fits) (transitionEnv application base) := by
         calc
           output.runningNext functionIndex =
-              PiCCS.v1_1.StatementAbsorption.evalRunning
+              PiCCS.v1_2.StatementAbsorption.evalRunning
                 (RunningTransitionInputs.outputRunningExpr
                   (PerApplicationFixedPoint.logicalWidth application)
                   (PerApplicationFixedPoint.publicFits application))
@@ -469,7 +467,7 @@ theorem rowsZero_implies_stepHoldsFor
     · rfl
   exact representedSemantics_imply_stepHoldsFor application fits ajtai
     (PerApplicationDecodedIO.contextKey raw) raw.assignment raw.base
-    raw.groupValue one encodes
+    raw.groupValue encodes
     (PerApplicationDecodedIO.input application fits raw)
     (PerApplicationDecodedIO.output application raw) represents semantics
 
@@ -496,10 +494,14 @@ theorem rowsZero_implies_stepHoldsFor_and_publicOutput
       PerApplicationDecodedIO.outputDigest] using
       PerApplicationCanonicalAssignment.projectPublicInput_completeAssignment raw
 
-/-- The verifier-owned raw constructor pins the exact canonical context digest
-into the state. Acceptance therefore forces the augmented step under that
-digest; the prover cannot select the application, package, or static authority.
--/
+/-- Rows that hold on `bind raw` force the augmented step under the canonical
+verifier-context digest. `bind` overwrites the four verifier-context columns
+of one canonical raw packet. These columns are not part of the SuperNeo
+public input `x`, and no NIFS or terminal check sets them. For an arbitrary
+accepted witness, use
+`ActualContextSecurity.selectedRowsAndCheckedPublic_imply_stepOrCollision`:
+with the terminal public-input check, it gives the step under the canonical
+verifier context or a named state-hash collision. -/
 theorem verifierBoundRowsZero_implies_stepHoldsFor
     (application : Program) (fits : FitsTwoPow28 application)
     (commitmentSetup : CommitmentSetup application)

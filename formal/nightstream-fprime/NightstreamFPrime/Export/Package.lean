@@ -145,34 +145,25 @@ def PhysicalLayout.format : Format PhysicalLayout where
     simp [Format.decode_encode] <;> rfl
 
 /-- The physical R1CS matrix selected for one logical CCS matrix slot. Pad is
-not a source: SuperNeo v1_1 carries its evaluations in `Eval_K`. -/
+not a source: SuperNeo v1.2 carries its evaluations in `Eval_K`. -/
 inductive CcsMatrixSource where
-  | bit
-  | generalSelector
   | a
   | b
   | c
   | sboxInput
-  | evalSelector
 deriving Repr
 
 def CcsMatrixSource.format : Format CcsMatrixSource where
   encode
-    | .bit => .atom 0
-    | .generalSelector => .atom 1
-    | .a => .atom 2
-    | .b => .atom 3
-    | .c => .atom 4
-    | .sboxInput => .atom 5
-    | .evalSelector => .atom 6
+    | .a => .atom 0
+    | .b => .atom 1
+    | .c => .atom 2
+    | .sboxInput => .atom 3
   decode
-    | .atom 0 => .ok .bit
-    | .atom 1 => .ok .generalSelector
-    | .atom 2 => .ok .a
-    | .atom 3 => .ok .b
-    | .atom 4 => .ok .c
-    | .atom 5 => .ok .sboxInput
-    | .atom 6 => .ok .evalSelector
+    | .atom 0 => .ok .a
+    | .atom 1 => .ok .b
+    | .atom 2 => .ok .c
+    | .atom 3 => .ok .sboxInput
     | _ => .error "invalid CCS matrix source"
   decode_encode := by
     intro value
@@ -230,9 +221,9 @@ def CcsRelation.format : Format CcsRelation where
     cases value
     simp [Format.decode_encode] <;> rfl
 
-/-- Exact selective matrix-slot order. Pad remains outside this list. -/
+/-- Exact gate matrix-slot order. Pad remains outside this list. -/
 def productionMatrixSources : List CcsMatrixSource :=
-  [.bit, .generalSelector, .a, .b, .c, .sboxInput, .evalSelector]
+  [.a, .b, .c, .sboxInput]
 
 def encodeProductionTerm
     (term : NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable.Monomial
@@ -267,13 +258,13 @@ def productionCcsRelation
   rfl
 
 @[simp] theorem productionMatrixSources_length :
-    productionMatrixSources.length = 7 := by
+    productionMatrixSources.length = 4 := by
   rfl
 
-@[simp] theorem productionTerms_length : productionTerms.length = 8 := by
+@[simp] theorem productionTerms_length : productionTerms.length = 3 := by
   unfold productionTerms
   rw [List.length_map, Spec.ProductionRelation.polynomial_terms]
-  exact Spec.ProductionRelation.SelectivePolynomial.terms_length
+  exact Spec.ProductionRelation.GatePolynomial.terms_length
 
 /-- A sparse template column is one of eight invocation inputs or one local
 witness column. -/

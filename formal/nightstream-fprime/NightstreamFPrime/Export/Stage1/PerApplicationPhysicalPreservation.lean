@@ -29,7 +29,7 @@ theorem basePackageRows_imply_piDecPhysical
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits)
     (env : Env) (holds : (Data.circuitPackage ()).RowsHold env) :
-    NightstreamFPrime.Layout.PiDEC.v1_1.PhysicalHolds relation
+    NightstreamFPrime.Layout.PiDEC.v1_2.PhysicalHolds relation
       (PiDECInputs.interface Data.logicalWidth Data.publicFits)
       PiDECInputs.phaseOffset (Spartan.pullback env) := by
   have packageRows := Package.circuitPackage_implies_piDecArithmeticRows
@@ -40,7 +40,7 @@ theorem basePackageRows_imply_piDecPhysical
     (PiDECArithmetic.canonicalPlan_matches relation)
   rw [exactRows] at packageRows
   have physical := (Spartan.remapRows_hold env _).mp packageRows
-  simpa [NightstreamFPrime.Layout.PiDEC.v1_1.PhysicalHolds,
+  simpa [NightstreamFPrime.Layout.PiDEC.v1_2.PhysicalHolds,
     PiDECArithmetic.canonicalLayoutPlan, PiDECArithmetic.phaseInterface]
     using physical
 
@@ -122,7 +122,7 @@ structure PhysicalSlices
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits)
     (program : Lifecycle.Stage1.Application.Program) (env : Env) : Prop where
-  piDec : NightstreamFPrime.Layout.PiDEC.v1_1.PhysicalHolds relation
+  piDec : NightstreamFPrime.Layout.PiDEC.v1_2.PhysicalHolds relation
     (PiDECInputs.interface Data.logicalWidth Data.publicFits)
     PiDECInputs.phaseOffset
     (Spartan.pullback (PerApplicationPackage.baseEnv program env))

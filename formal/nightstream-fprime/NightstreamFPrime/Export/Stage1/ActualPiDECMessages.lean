@@ -44,7 +44,7 @@ def proof (application : Lifecycle.Stage1.Application.Program)
 def attempt (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application)) :=
-  PiDEC.v1_1.Semantics.inputAttempt (PerApplicationFixedPoint.relation application fits)
+  PiDEC.v1_2.Semantics.inputAttempt (PerApplicationFixedPoint.relation application fits)
     (PiDECArithmetic.phaseInterface (PerApplicationFixedPoint.logicalWidth application)
       (PerApplicationFixedPoint.publicFits application)) PiDECInputs.phaseOffset
     (Spartan.pullback (ActualPiDEC.decodedEnv
@@ -108,7 +108,7 @@ theorem attemptForParent_eq
     (AccumulatorSemantics.piDecAttempt_eq_keyAttemptForParent relation ajtai env).symm
   rw [← AccumulatorSemantics.piDecParent_eq_piRlcOutput] at boundary
   simpa only [Nifs.PaperNonInteractive.Key.piDecAttemptForParent, proof,
-    ActualStep.withDecodedPiCCS, PiCCS.v1_1.Formal.evalProof, sourceProof,
+    ActualStep.withDecodedPiCCS, PiCCS.v1_2.Formal.evalProof, sourceProof,
     attempt, PiDECArithmetic.phaseInterface, relation, env] using! boundary
 
 /-- Exact parent equality is the remaining input to the production key's
@@ -155,8 +155,8 @@ theorem selectedRowsAndPublic_imply_attempt
       (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry
         (PerApplicationFixedPoint.geometry application)) assignment)
     (ProductionKey.key relation ajtai).piDecAttempt
-        (PiCCS.v1_1.Formal.evalRunning interface PiCCSInputs.phaseOffset env)
-        (PiCCS.v1_1.Formal.evalFresh interface PiCCSInputs.phaseOffset env)
+        (PiCCS.v1_2.Formal.evalRunning interface PiCCSInputs.phaseOffset env)
+        (PiCCS.v1_2.Formal.evalFresh interface PiCCSInputs.phaseOffset env)
         (proof application fits assignment) =
       some (attempt application fits assignment) := by
   have parentEqual := ActualPiDECParent.selectedRowsAndPublic_imply_parent

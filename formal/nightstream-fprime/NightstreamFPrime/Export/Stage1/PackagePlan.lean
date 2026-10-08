@@ -84,10 +84,10 @@ def expandCombinationFamily (sourceCount : Nat)
     List CompactRowInvocation :=
   (List.range sourceCount).flatMap fun source =>
     List.ofFn fun index : Fin
-        (NightstreamFPrime.Lifecycle.PiRLC.v1_1.CombinationStep.privateCount
+        (NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationStep.privateCount
           block.blockCount block.cellCount) =>
       let coordinates :=
-        NightstreamFPrime.Lifecycle.PiRLC.v1_1.CombinationStep.coordinates
+        NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationStep.coordinates
           index
       PiRLCCombinationInvocations.invocation block.logicalStart
         block.rowStart block.freshStart block.blockCount block.cellCount
@@ -136,7 +136,7 @@ def canonicalCombinationBlock : CombinationInvocationBlock where
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.evalALogicalStart,
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.evalARowStart,
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.evalAFreshStart,
-    7, 2, 2⟩
+    4, 2, 2⟩
 
 theorem canonicalCombinationBlock_expand :
     canonicalCombinationBlock.expand =

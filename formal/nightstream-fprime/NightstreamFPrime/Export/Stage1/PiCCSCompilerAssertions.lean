@@ -15,7 +15,7 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Circuit.Quadratic
 open NightstreamFPrime.Gadgets.Poseidon2
 open NightstreamFPrime.Gadgets.Poseidon2.Duplex
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open PiCCSInvocations
 
 private theorem assertions_of_samples (env : Env) (start : Nat)

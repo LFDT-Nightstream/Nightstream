@@ -19,7 +19,7 @@ open NightstreamFPrime.Gadgets.Polynomial
 open NightstreamFPrime.Gadgets.Poseidon2
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
@@ -97,7 +97,7 @@ private theorem challengePermutationCount
   omega
 
 private theorem roundPermutationCount
-    (interface : RoundTranscript.Interface 9) (offset : Nat) :
+    (interface : RoundTranscript.Interface 8) (offset : Nat) :
     Duplex.Formal.permutationCount
       (RoundTranscript.layoutActions interface offset) = 140 := by
   have recipes := Duplex.Formal.recipeCount_eq_permutationCount_mul
@@ -331,7 +331,7 @@ theorem roundOutputs_outputPrefix_supported
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
-    (interface : Formal.Interface logicalWidth 9 publicFits)
+    (interface : Formal.Interface logicalWidth 8 publicFits)
     (offset : Nat) :
     (∀ coordinate, Horner.KSupported
         (Formal.roundPoint (Formal.atOffset interface offset) offset coordinate)
@@ -426,7 +426,7 @@ theorem roundPoint_outputPrefix_supported
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
-    (interface : Formal.Interface logicalWidth 9 publicFits)
+    (interface : Formal.Interface logicalWidth 8 publicFits)
     (offset : Nat) (coordinate : Fin productionShape.cubeVariables) :
     Horner.KSupported
       (Formal.roundPoint (Formal.atOffset interface offset) offset coordinate)
@@ -447,7 +447,7 @@ theorem evalRoundPoint_eq_of_agree_outputPrefix
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
-    (interface : Formal.Interface logicalWidth 9 publicFits)
+    (interface : Formal.Interface logicalWidth 8 publicFits)
     (offset : Nat) (left right : Env)
     (agrees : ∀ index,
       Duplex.Formal.OutputPrefix External offset 355 index →
@@ -486,7 +486,7 @@ theorem roundFinalState_outputPrefix_supported
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
-    (interface : Formal.Interface logicalWidth 9 publicFits)
+    (interface : Formal.Interface logicalWidth 8 publicFits)
     (offset : Nat) :
     Duplex.Formal.StateSupported
       (Formal.roundTranscriptFinalState

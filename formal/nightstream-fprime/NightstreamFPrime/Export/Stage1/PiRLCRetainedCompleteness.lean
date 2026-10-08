@@ -20,7 +20,7 @@ open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open PiRLCCombinationInvocations
@@ -109,13 +109,13 @@ theorem packets_of_completed
   have rRows := ((PilotPiCCSPiRLC.physicalHolds_iff relation
     (Spartan.pullback target)).mp throughR).2
   have assumptions := PiRLCInputBounds.assumptions relation (Spartan.pullback target)
-  have phase := NightstreamFPrime.Layout.PiRLC.v1_1.physical_implies_phaseHolds
+  have phase := NightstreamFPrime.Layout.PiRLC.v1_2.physical_implies_phaseHolds
     relation ajtai PiRLCInputs.interface PiRLCInputs.phaseOffset
     (Spartan.pullback target) assumptions rRows
-  have scope := NightstreamFPrime.Layout.PiRLC.v1_1.physicalRows_varsBelow_of_phase
+  have scope := NightstreamFPrime.Layout.PiRLC.v1_2.physicalRows_varsBelow_of_phase
     relation ajtai PiRLCInputs.interface PiRLCInputs.phaseOffset
     (Spartan.pullback target) assumptions phase
-  have endpoint : NightstreamFPrime.Layout.PiRLC.v1_1.physicalColumnCount relation
+  have endpoint : NightstreamFPrime.Layout.PiRLC.v1_2.physicalColumnCount relation
       PiRLCInputs.interface PiRLCInputs.phaseOffset ≤ Spartan.SourceColumnCount := by
     calc
       _ ≤ PilotPiCCSPiRLC.physicalColumnCount relation := Nat.le_max_right _ _
@@ -123,7 +123,7 @@ theorem packets_of_completed
       _ ≤ PiDECInputs.phaseOffset := Nat.le_add_right _ _
       _ ≤ Spartan.SourceColumnCount := Spartan.sourceColumnCount_ge_piDecPhaseOffset
   have copiedRows : R1CS.RowsHold (Spartan.pullback env)
-      (NightstreamFPrime.Layout.PiRLC.v1_1.physicalRows relation
+      (NightstreamFPrime.Layout.PiRLC.v1_2.physicalRows relation
         PiRLCInputs.interface PiRLCInputs.phaseOffset) := by
     apply R1CS.rowsHold_of_agree_below _ _ (Spartan.pullback target)
       (Spartan.pullback env) scope _ rRows

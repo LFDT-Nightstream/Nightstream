@@ -25,7 +25,7 @@ theorem selected_terms_positive (input : PiCCSPublicReplay.Input)
     (ConstraintPolynomialLift.liftMonomial K.embed) at member
   obtain ⟨base, baseMember, rfl⟩ := List.mem_map.mp member
   change 0 < base.totalDegree
-  exact Spec.ProductionRelation.SelectivePolynomial.term_totalDegree_pos base baseMember
+  exact Spec.ProductionRelation.GatePolynomial.term_totalDegree_pos base baseMember
 
 /-- The selected production fresh kernel has an exact zero padded suffix. -/
 theorem selected_ccsPolynomialWithPowers_zero (input : PiCCSPublicReplay.Input)

@@ -37,10 +37,6 @@ def sboxOutputAt {logicalWidth : Nat} (interface : Interface logicalWidth)
   else
     .empty
 
-def selector {logicalWidth : Nat} (interface : Interface logicalWidth) :
-    SparseForm logicalWidth :=
-  SparseForm.singleton interface.oneColumn 1
-
 def fullInput {logicalWidth : Nat} (interface : Interface logicalWidth)
     (constants : List (List Nat)) (round : Nat) (state : State logicalWidth)
     (lane : Fin 16) : SparseForm logicalWidth :=
@@ -55,8 +51,7 @@ def fullRows {logicalWidth : Nat} (interface : Interface logicalWidth)
     (constants : List (List Nat)) (round nextSbox : Nat)
     (state : State logicalWidth) : List (SboxRow.Forms logicalWidth) :=
   List.ofFn fun lane =>
-    { selector := selector interface
-      input := fullInput interface constants round state lane
+    { input := fullInput interface constants round state lane
       output := fullOutput interface nextSbox lane }
 
 def partialInput {logicalWidth : Nat} (interface : Interface logicalWidth)
@@ -72,8 +67,7 @@ def partialOutput {logicalWidth : Nat} (interface : Interface logicalWidth)
 def partialRows {logicalWidth : Nat} (interface : Interface logicalWidth)
     (round nextSbox : Nat) (state : State logicalWidth) :
     List (SboxRow.Forms logicalWidth) :=
-  [{ selector := selector interface
-     input := partialInput interface round state
+  [{ input := partialInput interface round state
      output := partialOutput interface nextSbox }]
 
 def partialState {logicalWidth : Nat} (interface : Interface logicalWidth)
@@ -97,7 +91,6 @@ theorem fullRowsZero_lane {logicalWidth : Nat}
     (interface : Interface logicalWidth) (constants : List (List Nat))
     (round nextSbox : Nat) (state : State logicalWidth)
     (assignment : Assignment F logicalWidth)
-    (one : assignment interface.oneColumn = 1)
     (rowsZero : SboxRowsZero assignment
       (fullRows interface constants round nextSbox state))
     (lane : Fin 16) :
@@ -105,8 +98,7 @@ theorem fullRowsZero_lane {logicalWidth : Nat}
       Layer.sboxF ((fullInput interface constants round state lane).eval
         assignment) := by
   let forms : SboxRow.Forms logicalWidth :=
-    { selector := selector interface
-      input := fullInput interface constants round state lane
+    { input := fullInput interface constants round state lane
       output := fullOutput interface nextSbox lane }
   have member : forms ∈ fullRows interface constants round nextSbox state := by
     unfold fullRows forms
@@ -115,8 +107,7 @@ theorem fullRowsZero_lane {logicalWidth : Nat}
   have preserves : forms.Preserves assignment
       ((fullInput interface constants round state lane).eval assignment)
       ((fullOutput interface nextSbox lane).eval assignment) := by
-    refine ⟨?_, ?_, ?_⟩
-    · simp [forms, selector, one]
+    refine ⟨?_, ?_⟩
     · dsimp only [forms]
     · dsimp only [forms]
   have semantic := (SboxRow.Forms.residual_zero_iff forms assignment _ _
@@ -127,14 +118,12 @@ theorem fullRowsZero_lane {logicalWidth : Nat}
 theorem partialRowsZero_output {logicalWidth : Nat}
     (interface : Interface logicalWidth) (round nextSbox : Nat)
     (state : State logicalWidth) (assignment : Assignment F logicalWidth)
-    (one : assignment interface.oneColumn = 1)
     (rowsZero : SboxRowsZero assignment
       (partialRows interface round nextSbox state)) :
     (partialOutput interface nextSbox).eval assignment =
       Layer.sboxF ((partialInput interface round state).eval assignment) := by
   let forms : SboxRow.Forms logicalWidth :=
-    { selector := selector interface
-      input := partialInput interface round state
+    { input := partialInput interface round state
       output := partialOutput interface nextSbox }
   have member : forms ∈ partialRows interface round nextSbox state := by
     simp [partialRows, forms]
@@ -142,8 +131,7 @@ theorem partialRowsZero_output {logicalWidth : Nat}
   have preserves : forms.Preserves assignment
       ((partialInput interface round state).eval assignment)
       ((partialOutput interface nextSbox).eval assignment) := by
-    refine ⟨?_, ?_, ?_⟩
-    · simp [forms, selector, one]
+    refine ⟨?_, ?_⟩
     · dsimp only [forms]
     · dsimp only [forms]
   have semantic := (SboxRow.Forms.residual_zero_iff forms assignment _ _
@@ -206,7 +194,7 @@ theorem compileStep_sound {logicalWidth : Nat}
                 state lane).eval assignment) := by
         funext lane
         exact fullRowsZero_lane interface Spec.Poseidon2.initialConstants round
-          nextSbox state assignment one rowsZero lane
+          nextSbox state assignment rowsZero lane
       funext lane
       change
         (SparseLayer.external outputs lane).eval assignment =
@@ -220,7 +208,7 @@ theorem compileStep_sound {logicalWidth : Nat}
       simp [fullInput, SparseLayer.evalState, one]
   | partialRound round =>
       have outputEqual := partialRowsZero_output interface round nextSbox state
-        assignment one rowsZero
+        assignment rowsZero
       funext lane
       change
         (SparseLayer.internal (partialState interface nextSbox state) lane).eval
@@ -245,7 +233,7 @@ theorem compileStep_sound {logicalWidth : Nat}
                 state lane).eval assignment) := by
         funext lane
         exact fullRowsZero_lane interface Spec.Poseidon2.terminalConstants round
-          nextSbox state assignment one rowsZero lane
+          nextSbox state assignment rowsZero lane
       funext lane
       change
         (SparseLayer.external outputs lane).eval assignment =
@@ -342,8 +330,7 @@ def outputDifference {logicalWidth : Nat}
 def outputRows {logicalWidth : Nat} (interface : Interface logicalWidth) :
     List (PinRow.Forms logicalWidth) :=
   List.ofFn fun lane =>
-    { selector := selector interface
-      value := outputDifference interface lane }
+    { value := outputDifference interface lane }
 
 def PinRowsZero {logicalWidth : Nat}
     (assignment : Assignment F logicalWidth)
@@ -353,22 +340,18 @@ def PinRowsZero {logicalWidth : Nat}
 theorem outputRowsZero_lane {logicalWidth : Nat}
     (interface : Interface logicalWidth)
     (assignment : Assignment F logicalWidth)
-    (one : assignment interface.oneColumn = 1)
     (rowsZero : PinRowsZero assignment (outputRows interface))
     (lane : Fin 16) :
     (interface.output lane).eval assignment =
       ((trace interface).state lane).eval assignment := by
   let forms : PinRow.Forms logicalWidth :=
-    { selector := selector interface
-      value := outputDifference interface lane }
+    { value := outputDifference interface lane }
   have member : forms ∈ outputRows interface := by
     unfold outputRows forms
     exact List.mem_ofFn.mpr ⟨lane, rfl⟩
   have zero := rowsZero forms member
   have preserves : forms.Preserves assignment
-      (forms.value.eval assignment) := by
-    refine ⟨?_, rfl⟩
-    simp [forms, selector, one]
+      (forms.value.eval assignment) := rfl
   have differenceZero := (PinRow.Forms.residual_zero_iff forms assignment _
     preserves).mp zero
   have differenceEval :
@@ -443,74 +426,15 @@ def OutputEquations {logicalWidth : Nat} (interface : Interface logicalWidth)
     (interface.output lane).eval assignment =
       ((trace interface).state lane).eval assignment
 
-private theorem fullRows_selector {logicalWidth : Nat}
-    (interface : Interface logicalWidth) (constants : List (List Nat))
-    (round nextSbox : Nat) (state : State logicalWidth) :
-    ∀ forms ∈ fullRows interface constants round nextSbox state,
-      forms.selector = selector interface := by
-  intro forms member
-  unfold fullRows at member
-  rcases List.mem_ofFn.mp member with ⟨lane, rfl⟩
-  rfl
-
-private theorem partialRows_selector {logicalWidth : Nat}
-    (interface : Interface logicalWidth) (round nextSbox : Nat)
-    (state : State logicalWidth) :
-    ∀ forms ∈ partialRows interface round nextSbox state,
-      forms.selector = selector interface := by
-  simp [partialRows]
-
-private theorem compileStep_rows_selector {logicalWidth : Nat}
-    (interface : Interface logicalWidth) (nextSbox : Nat)
-    (state : State logicalWidth) (step : Permutation.Step) :
-    ∀ forms ∈ (compileStep interface nextSbox state step).rows,
-      forms.selector = selector interface := by
-  cases step with
-  | initialLayer => simp [compileStep]
-  | initialFullRound round =>
-      exact fullRows_selector interface Spec.Poseidon2.initialConstants round
-        nextSbox state
-  | partialRound round =>
-      exact partialRows_selector interface round nextSbox state
-  | terminalFullRound round =>
-      exact fullRows_selector interface Spec.Poseidon2.terminalConstants round
-        nextSbox state
-
-private theorem compile_rows_selector {logicalWidth : Nat}
-    (interface : Interface logicalWidth) (nextSbox : Nat)
-    (state : State logicalWidth) (steps : List Permutation.Step) :
-    ∀ forms ∈ (compile interface nextSbox state steps).rows,
-      forms.selector = selector interface := by
-  induction steps generalizing nextSbox state with
-  | nil => simp [compile]
-  | cons step rest inductionHypothesis =>
-      intro forms member
-      simp only [compile, List.mem_append] at member
-      rcases member with headMember | tailMember
-      · exact compileStep_rows_selector interface nextSbox state step forms
-          headMember
-      · exact inductionHypothesis
-          (compileStep interface nextSbox state step).nextSbox
-          (compileStep interface nextSbox state step).state forms tailMember
-
-private theorem trace_rows_selector {logicalWidth : Nat}
-    (interface : Interface logicalWidth) :
-    ∀ forms ∈ (trace interface).rows,
-      forms.selector = selector interface := by
-  exact compile_rows_selector interface 0 interface.input Permutation.schedule
-
 theorem sboxRowsZero_of_equations {logicalWidth : Nat}
     (interface : Interface logicalWidth)
     (assignment : Assignment F logicalWidth)
-    (one : assignment interface.oneColumn = 1)
     (equations : SboxEquations interface assignment) :
     SboxRowsZero assignment (trace interface).rows := by
   intro forms member
   have preserves : forms.Preserves assignment
-      (forms.input.eval assignment) (forms.output.eval assignment) := by
-    refine ⟨?_, rfl, rfl⟩
-    rw [trace_rows_selector interface forms member]
-    simp [selector, one]
+      (forms.input.eval assignment) (forms.output.eval assignment) :=
+    ⟨rfl, rfl⟩
   apply (SboxRow.Forms.residual_zero_iff forms assignment _ _ preserves).mpr
   rw [seventhPower_eq_sboxF]
   exact (equations forms member).symm
@@ -518,18 +442,14 @@ theorem sboxRowsZero_of_equations {logicalWidth : Nat}
 theorem pinRowsZero_of_equations {logicalWidth : Nat}
     (interface : Interface logicalWidth)
     (assignment : Assignment F logicalWidth)
-    (one : assignment interface.oneColumn = 1)
     (equations : OutputEquations interface assignment) :
     PinRowsZero assignment (outputRows interface) := by
   intro forms member
   unfold outputRows at member
   rcases List.mem_ofFn.mp member with ⟨lane, rfl⟩
   let row : PinRow.Forms logicalWidth :=
-    { selector := selector interface
-      value := outputDifference interface lane }
-  have preserves : row.Preserves assignment (row.value.eval assignment) := by
-    refine ⟨?_, rfl⟩
-    simp [row, selector, one]
+    { value := outputDifference interface lane }
+  have preserves : row.Preserves assignment (row.value.eval assignment) := rfl
   apply (PinRow.Forms.residual_zero_iff row assignment _ preserves).mpr
   have differenceEval :
       row.value.eval assignment =
@@ -542,7 +462,6 @@ theorem pinRowsZero_of_equations {logicalWidth : Nat}
 theorem rowsZero_of_equations {logicalWidth : Nat}
     (interface : Interface logicalWidth)
     (assignment : Assignment F logicalWidth)
-    (one : assignment interface.oneColumn = 1)
     (sboxEquations : SboxEquations interface assignment)
     (outputEquations : OutputEquations interface assignment) :
     RowsZero interface assignment := by
@@ -550,9 +469,9 @@ theorem rowsZero_of_equations {logicalWidth : Nat}
   simp only [rows, List.mem_append, List.mem_map] at member
   rcases member with ⟨forms, formsMember, rfl⟩ |
       ⟨forms, formsMember, rfl⟩
-  · exact sboxRowsZero_of_equations interface assignment one sboxEquations
+  · exact sboxRowsZero_of_equations interface assignment sboxEquations
       forms formsMember
-  · exact pinRowsZero_of_equations interface assignment one outputEquations
+  · exact pinRowsZero_of_equations interface assignment outputEquations
       forms formsMember
 
 theorem rowsZero_implies_sboxRowsZero {logicalWidth : Nat}
@@ -594,7 +513,7 @@ theorem rowsZero_implies_permute {logicalWidth : Nat}
       SparseLayer.evalState assignment interface.output =
         SparseLayer.evalState assignment (trace interface).state := by
     funext lane
-    exact outputRowsZero_lane interface assignment one
+    exact outputRowsZero_lane interface assignment
       (rowsZero_implies_pinRowsZero interface assignment rowsZero) lane
   calc
     List.ofFn (SparseLayer.evalState assignment interface.output) =
@@ -630,7 +549,7 @@ theorem rowsZero_implies_permute {logicalWidth : Nat}
     (rows interface).length = 166 := by
   simp [rows]
 
-/-- Exact 7-matrix template plan, built by the common
+/-- Exact 4-matrix template plan, built by the common
 `ProductionRelation.Plan` constructor. -/
 def plan {logicalWidth : Nat} (interface : Interface logicalWidth) :
     ProductionRelation.Plan logicalWidth where
@@ -699,19 +618,18 @@ theorem rowsZero_implies_planRowsZero {logicalWidth : Nat}
   exact rowsZero ((rows interface).get row) (List.get_mem _ _)
 
 /-- Exact Poseidon2 trace equations construct a satisfying assignment for
-all live rows of the actual 7-matrix plan. -/
+all live rows of the actual 4-matrix plan. -/
 theorem planRowsZero_of_equations {logicalWidth : Nat}
     (interface : Interface logicalWidth)
     (assignment : Assignment F logicalWidth)
-    (one : assignment interface.oneColumn = 1)
     (sboxEquations : SboxEquations interface assignment)
     (outputEquations : OutputEquations interface assignment) :
     PlanRowsZero interface assignment :=
   rowsZero_implies_planRowsZero interface assignment
-    (rowsZero_of_equations interface assignment one sboxEquations
+    (rowsZero_of_equations interface assignment sboxEquations
       outputEquations)
 
-/-- Live rows of the actual 7-matrix plan force the exact Poseidon2
+/-- Live rows of the actual 4-matrix plan force the exact Poseidon2
 permutation. Padding is zero by the common plan type. -/
 theorem planRowsZero_implies_permute {logicalWidth : Nat}
     (interface : Interface logicalWidth)

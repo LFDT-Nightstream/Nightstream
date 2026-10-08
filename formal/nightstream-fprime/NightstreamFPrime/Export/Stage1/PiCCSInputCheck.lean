@@ -7,10 +7,10 @@ import NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity
 /-!
 Owns an executable PiCCS check on caller-supplied messages and running claims.
 It does not construct a proof or establish valid openings.
-Input schema: [2, commitment[1188], public[270], rounds[28][10][2],
-Eval_K[17][54][2], Eval_A[17][7][54][2], running]. The running statement is
+Input schema: [2, commitment[1188], public[270], rounds[28][9][2],
+Eval_K[17][54][2], Eval_A[17][4][54][2], running]. The running statement is
 [point[28][2], commitments[16][1188], public[16][270],
-Eval_K[16][54][2], Eval_A[16][7][54][2]]. Words are canonical Goldilocks
+Eval_K[16][54][2], Eval_A[16][4][54][2]]. Words are canonical Goldilocks
 integers. The file is canonical numeric JSON with an optional final newline.
 No input data is embedded in a Lean declaration.
 -/
@@ -39,14 +39,14 @@ structure RunningInput where
   commitments : Vector (Vector F 1188) 16
   publicInputs : Vector (Vector F 270) 16
   evalK : Vector (Vector K 54) 16
-  evalA : Vector (Vector (Vector K 54) 7) 16
+  evalA : Vector (Vector (Vector K 54) 4) 16
 
 structure Input where
   commitment : Vector F 1188
   publicInput : Vector F 270
-  rounds : Vector (Vector K 10) 28
+  rounds : Vector (Vector K 9) 28
   evalK : Vector (Vector K 54) 17
-  evalA : Vector (Vector (Vector K 54) 7) 17
+  evalA : Vector (Vector (Vector K 54) 4) 17
   running : RunningInput
 
 /-- Decode exactly the declared number of canonical input items. -/
@@ -144,7 +144,7 @@ def decodeRunning (value : Lean.Json) : Except String RunningInput := do
           publicInputs
         evalK := ← decodeVector 16 (decodeVector 54 decodeExtension) evalK
         evalA := ← decodeVector 16
-          (decodeVector 7 (decodeVector 54 decodeExtension)) evalA }
+          (decodeVector 4 (decodeVector 54 decodeExtension)) evalA }
   | _ => throw "expected five running statement fields"
 
 def decode (value : Lean.Json) : Except String Input := do
@@ -156,10 +156,10 @@ def decode (value : Lean.Json) : Except String Input := do
       pure {
         commitment := ← decodeVector 1188 decodeField commitment
         publicInput := ← decodeVector 270 decodeField publicInput
-        rounds := ← decodeVector 28 (decodeVector 10 decodeExtension) rounds
+        rounds := ← decodeVector 28 (decodeVector 9 decodeExtension) rounds
         evalK := ← decodeVector 17 (decodeVector 54 decodeExtension) evalK
         evalA := ← decodeVector 17
-          (decodeVector 7 (decodeVector 54 decodeExtension)) evalA
+          (decodeVector 4 (decodeVector 54 decodeExtension)) evalA
         running := ← decodeRunning running }
   | _ => throw "expected seven PiCCS input fields"
 
@@ -438,7 +438,7 @@ theorem traceFrom_eq_derive (input : Input) (state : Transcript.State)
           (sample.1 :: result.1, result.2)) (inductionHypothesis sample.2)
 
 private def postRoundClaims :
-    List (SumCheck.Finite.FixedPolynomial K 9) → List K → List K
+    List (SumCheck.Finite.FixedPolynomial K 8) → List K → List K
   | [], _ => []
   | _, [] => []
   | polynomial :: rounds, challenge :: challenges =>
@@ -545,7 +545,7 @@ theorem execute_accepted_iff (input : Input)
       (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     (execute input).accepted = true ↔
       (probe input).FixedWidthAccepted extensionOps K.embed
-        ((ProductionKey.key relation ajtai).statement (running input) (fresh input)) 9 := by
+        ((ProductionKey.key relation ajtai).statement (running input) (fresh input)) 8 := by
   unfold StrongReduction.Probe.FixedWidthAccepted ProtocolPolynomial.FixedWidth.check
   simp only [probe, SumCheck.Finite.FixedPhase.RawCertificate.check_encode]
   rw [← verifierInput_eq_production input relation ajtai,

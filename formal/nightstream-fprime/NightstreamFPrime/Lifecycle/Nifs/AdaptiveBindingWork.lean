@@ -67,7 +67,7 @@ noncomputable def callThenClock (context : Context)
             (some (receipt, endpoint))).work : ℝ) + nextWork (some (receipt, endpoint)))) + 1
 
 variable
-  (originalFirstPhase : Context → InteractivePrefix.Prover State productionShape 9)
+  (originalFirstPhase : Context → InteractivePrefix.Prover State productionShape 8)
   (publicCheck : Context → Probe K productionShape → Bool)
   (callCorrect : ∀ context alpha gamma point,
     (call context alpha gamma point).value =

@@ -33,7 +33,7 @@ theorem rowsZero_iff {logicalWidth : Nat}
     · rcases List.mem_map.mp pin with ⟨forms, member, rfl⟩
       unfold PoseidonSboxPlan.outputRows at member
       rcases List.mem_ofFn.mp member with ⟨lane, rfl⟩
-      change (PinRow.Forms.mk _ _).residual assignment = 0
+      change (PinRow.Forms.mk _).residual assignment = 0
       rw [PinRow.Forms.residual_eq]
       simp [PoseidonSboxPlan.outputDifference, output, SparseForm.add_eval,
         SparseForm.scale_eval]

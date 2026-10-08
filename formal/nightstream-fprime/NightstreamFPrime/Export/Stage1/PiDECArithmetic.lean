@@ -3,12 +3,12 @@ import NightstreamFPrime.Layout.Stage1.PiDECInputs
 import NightstreamFPrime.Layout.Stage1.PiDECStarts
 
 /-!
-Owns the ordinary-row encoding of the exact PiDEC v1_1 phase.
+Owns the ordinary-row encoding of the exact PiDEC v1_2 phase.
 
 The relation-parameterized input and output binding children have no rows.
 The exported list therefore contains, in parent order, only the public split,
 commitment recomposition, separate `Eval_K` recomposition, and separate
-7-matrix `Eval_A` recomposition constraints. The equality theorem below ties
+4-matrix `Eval_A` recomposition constraints. The equality theorem below ties
 that relation-independent executable list to the canonical Lean lowering for
 every verifier-owned logical relation.
 -/
@@ -20,7 +20,7 @@ open NightstreamFPrime.Export.Stage1
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiDEC.v1_1
+open NightstreamFPrime.Lifecycle.PiDEC.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
@@ -41,7 +41,7 @@ def publicInputConstraints
       Phi81CarrierLayout.carrierWidth logicalWidth) : List Expr :=
   let shared := Formal.atOffset (phaseInterface logicalWidth publicFits)
     NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset
-  NightstreamFPrime.Layout.PiDEC.v1_1.childConstraints
+  NightstreamFPrime.Layout.PiDEC.v1_2.childConstraints
     (Formal.publicInputCircuit shared)
     (Formal.publicInputOffset
       NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset)
@@ -52,7 +52,7 @@ def commitmentConstraints
       Phi81CarrierLayout.carrierWidth logicalWidth) : List Expr :=
   let shared := Formal.atOffset (phaseInterface logicalWidth publicFits)
     NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset
-  NightstreamFPrime.Layout.PiDEC.v1_1.childConstraints
+  NightstreamFPrime.Layout.PiDEC.v1_2.childConstraints
     (Formal.commitmentCircuit shared)
     (Formal.commitmentOffset
       NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset)
@@ -63,7 +63,7 @@ def evalKConstraints
       Phi81CarrierLayout.carrierWidth logicalWidth) : List Expr :=
   let shared := Formal.atOffset (phaseInterface logicalWidth publicFits)
     NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset
-  NightstreamFPrime.Layout.PiDEC.v1_1.childConstraints
+  NightstreamFPrime.Layout.PiDEC.v1_2.childConstraints
     (Formal.evalKCircuit shared)
     (Formal.evalKOffset NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset)
 
@@ -73,7 +73,7 @@ def evalAConstraints
       Phi81CarrierLayout.carrierWidth logicalWidth) : List Expr :=
   let shared := Formal.atOffset (phaseInterface logicalWidth publicFits)
     NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset
-  NightstreamFPrime.Layout.PiDEC.v1_1.childConstraints
+  NightstreamFPrime.Layout.PiDEC.v1_2.childConstraints
     (Formal.evalACircuit shared)
     (Formal.evalAOffset NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset)
 
@@ -92,7 +92,7 @@ theorem constraints_eq_nonBoundary
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
     constraints logicalWidth publicFits =
-      NightstreamFPrime.Layout.PiDEC.v1_1.nonBoundaryConstraints
+      NightstreamFPrime.Layout.PiDEC.v1_2.nonBoundaryConstraints
         (phaseInterface logicalWidth publicFits)
         NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset := by
   rfl
@@ -100,11 +100,11 @@ theorem constraints_eq_nonBoundary
 theorem constraints_eq_logical
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     constraints logicalWidth publicFits =
-      NightstreamFPrime.Layout.PiDEC.v1_1.logicalConstraints relation
+      NightstreamFPrime.Layout.PiDEC.v1_2.logicalConstraints relation
         (phaseInterface logicalWidth publicFits)
         NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset := by
   rw [constraints_eq_nonBoundary]
-  exact (NightstreamFPrime.Layout.PiDEC.v1_1.logicalConstraints_eq_nonBoundary
+  exact (NightstreamFPrime.Layout.PiDEC.v1_2.logicalConstraints_eq_nonBoundary
     relation (phaseInterface logicalWidth publicFits)
     NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset).symm
 
@@ -129,7 +129,7 @@ def canonicalPlan
 abbrev canonicalLayoutPlan
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.LoweringPlan :=
-  NightstreamFPrime.Layout.PiDEC.v1_1.plan relation
+  NightstreamFPrime.Layout.PiDEC.v1_2.plan relation
     (phaseInterface logicalWidth publicFits)
     NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset
 
@@ -178,10 +178,10 @@ theorem Plan.rows_length (plan : Plan) :
 theorem canonicalPlan_rowCount
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalRowCount (canonicalPlan logicalWidth publicFits).constraints =
-      6912 := by
-  change R1CS.totalRowCount (constraints logicalWidth publicFits) = 6912
+      6588 := by
+  change R1CS.totalRowCount (constraints logicalWidth publicFits) = 6588
   rw [constraints_eq_logical relation]
-  exact NightstreamFPrime.Layout.PiDEC.v1_1.totalRowCount_eq relation
+  exact NightstreamFPrime.Layout.PiDEC.v1_2.totalRowCount_eq relation
     (phaseInterface logicalWidth publicFits)
     NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset
     (NightstreamFPrime.Layout.Stage1.PiDECInputs.inputShapes relation)

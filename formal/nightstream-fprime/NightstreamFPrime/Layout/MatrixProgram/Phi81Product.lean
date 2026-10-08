@@ -1,7 +1,7 @@
 import Batteries.Data.Fin.Coding
 import NightstreamFPrime.Layout.MatrixProgram
 import NightstreamFPrime.Layout.ProductionRelation.Phi81ProductPlan
-import NightstreamFPrime.Lifecycle.PiRLC.v1_1.CombinationStep
+import NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationStep
 
 /-!
 Owns the compact opcode for complete Phi81 ring products. Each product uses
@@ -15,7 +15,7 @@ namespace NightstreamFPrime.Layout.MatrixProgram.Phi81Product
 
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
@@ -245,7 +245,7 @@ def Block.interface? (block : Block) (logicalWidth : Nat)
   let output ← block.outputState? logicalWidth descriptor
   let left : Phi81ProductPlan.State logicalWidth := fun lane =>
     SparseForm.add (challenge lane) (SparseForm.singleton oneColumn (-2))
-  pure { oneColumn, left, right := input, quotient, prior, output }
+  pure { left, right := input, quotient, prior, output }
 
 /-- Ring-major order, then every fixed evaluation point in increasing order. -/
 def Block.row? (block : Block) (logicalWidth ordinal : Nat) :
@@ -263,7 +263,7 @@ theorem Block.row?_of_loaded (block : Block) (logicalWidth ordinal : Nat)
     (selected : ringDescriptor? block.families (ordinal / 108) = some descriptor)
     (interface : Phi81ProductPlan.Interface logicalWidth)
     (loaded : block.interface? logicalWidth descriptor = some interface)
-    (row : ProductSumPlan.Row logicalWidth)
+    (row : OrdinaryRow.Forms logicalWidth)
     (rowSelected : (Phi81ProductPlan.rows interface)[ordinal % 108]? = some row) :
     block.row? logicalWidth ordinal = some row.meaningfulForm := by
   simp [Block.row?, bound, selected, loaded, rowSelected]

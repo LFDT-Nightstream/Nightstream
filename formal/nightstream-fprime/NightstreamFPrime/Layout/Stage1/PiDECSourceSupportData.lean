@@ -12,7 +12,7 @@ ranges are the PiDEC proof inputs, logical split cells, and R1CS fresh cells.
 namespace NightstreamFPrime.Layout.Stage1.PiDECSourceSupport
 
 open NightstreamFPrime.Lifecycle
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 
 def InRange (start count column : Nat) : Prop :=
   start ≤ column ∧ column < start + count
@@ -48,13 +48,13 @@ def External (column : Nat) : Prop :=
     InRange PiDECInputs.proofInputStart PiDECInputs.proofInputColumnCount column
 
 /-- Logical cells allocated by the PiDEC phase. -/
-def logicalCount : Nat := PiDEC.v1_1.Formal.logicalPrivateCount
+def logicalCount : Nat := PiDEC.v1_2.Formal.logicalPrivateCount
 
 def Logical (column : Nat) : Prop :=
   External column ∨
     InRange PiDECStarts.phaseLogicalStart logicalCount column
 
-def freshCount : Nat := NightstreamFPrime.Layout.PiDEC.v1_1.exactFreshCount
+def freshCount : Nat := NightstreamFPrime.Layout.PiDEC.v1_2.exactFreshCount
 
 def Source (column : Nat) : Prop :=
   Logical column ∨
@@ -64,22 +64,22 @@ def Target (column : Nat) : Prop :=
   ∃ source, Source source ∧ Spartan.sourceToSpartan source = column
 
 @[simp] theorem parentCommitmentStart_eq :
-    parentCommitmentStart = 8780288 := by
+    parentCommitmentStart = 7298670 := by
   rfl
 
 @[simp] theorem parentPublicInputStart_eq :
-    parentPublicInputStart = 8785796 := by
+    parentPublicInputStart = 7304178 := by
   rfl
 
-@[simp] theorem parentEvalKStart_eq : parentEvalKStart = 8787794 := by
+@[simp] theorem parentEvalKStart_eq : parentEvalKStart = 7306176 := by
   rfl
 
-@[simp] theorem parentEvalAStart_eq : parentEvalAStart = 8799998 := by
+@[simp] theorem parentEvalAStart_eq : parentEvalAStart = 7313196 := by
   rfl
 
 @[simp] theorem parentStarts_eq :
     [parentCommitmentStart, parentPublicInputStart, parentEvalKStart,
-      parentEvalAStart] = [8780288, 8785796, 8787794, 8799998] := by
+      parentEvalAStart] = [7298670, 7304178, 7306176, 7313196] := by
   simp
 
 theorem parentCommitment (column : Nat)
@@ -151,11 +151,11 @@ private theorem runningOffset_le_sourceColumnCount :
 
 private theorem fresh_end_eq_runningOffset :
     PiDECStarts.phaseFreshStart + freshCount = RunningTransitionInputs.phaseOffset := by
-  simp only [freshCount, NightstreamFPrime.Layout.PiDEC.v1_1.exactFreshCount,
-    NightstreamFPrime.Layout.PiDEC.v1_1.exactFreshDeltas, List.sum_cons, List.sum_nil,
-    NightstreamFPrime.Layout.PiDEC.v1_1.CommitmentRecomposition.freshColumnCount,
-    NightstreamFPrime.Layout.PiDEC.v1_1.EvalKRecomposition.freshColumnCount,
-    NightstreamFPrime.Layout.PiDEC.v1_1.EvalARecomposition.freshColumnCount,
+  simp only [freshCount, NightstreamFPrime.Layout.PiDEC.v1_2.exactFreshCount,
+    NightstreamFPrime.Layout.PiDEC.v1_2.exactFreshDeltas, List.sum_cons, List.sum_nil,
+    NightstreamFPrime.Layout.PiDEC.v1_2.CommitmentRecomposition.freshColumnCount,
+    NightstreamFPrime.Layout.PiDEC.v1_2.EvalKRecomposition.freshColumnCount,
+    NightstreamFPrime.Layout.PiDEC.v1_2.EvalARecomposition.freshColumnCount,
     RunningTransitionInputs.phaseOffset, PiDECStarts.outputFreshStart,
     PiDECStarts.evalAFreshStart, PiDECStarts.evalKFreshStart,
     PiDECStarts.commitmentFreshStart, PiDECStarts.publicInputFreshStart,

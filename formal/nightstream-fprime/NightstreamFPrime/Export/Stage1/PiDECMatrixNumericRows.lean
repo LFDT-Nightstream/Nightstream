@@ -25,7 +25,7 @@ private theorem ofFn_get {count : Nat} (values : Fin count → F)
   change (Vector.ofFn values)[port.val] = values port
   rw [Vector.getElem_ofFn]
 
-/-- Materialize the exact seven sparse port evaluations. -/
+/-- Materialize the exact four sparse port evaluations. -/
 def sparseValues {columns : Nat} (read : Fin columns → F)
     (forms : RowForms columns) : Vector F matrixCount :=
   Vector.ofFn fun port =>

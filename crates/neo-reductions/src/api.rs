@@ -35,7 +35,7 @@ pub use crate::engines::optimized_engine::PiCcsProof;
 
 // Re-export common utilities for convenience (single import path for users)
 pub use crate::common::{
-    compute_v1_1_evaluations_from_z_and_r,
+    compute_v1_2_evaluations_from_z_and_r,
     format_ext,
     left_mul_acc,
     rot_rhos_from_mats,
@@ -562,7 +562,7 @@ pub fn dec_children_with_commit_superneo_cached_from_trusted_split_digits<Comb>(
     combine_b_pows: Comb,
     superneo_cache: Option<&crate::superneo_eval::SuperneoEvalCache>,
     ring_linear_forms: Option<&[crate::superneo_eval::SuperneoRingLinearForm]>,
-    precomputed_openings: Option<&[neo_ccs::V1_1Evaluations<K>]>,
+    precomputed_openings: Option<&[neo_ccs::V1_2Evaluations<K>]>,
 ) -> (Vec<CeClaim<Cmt, F, K>>, bool, bool, bool)
 where
     Comb: Fn(&[Cmt], u32) -> Cmt,

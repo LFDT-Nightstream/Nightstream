@@ -191,10 +191,6 @@ decreasing_by
 /-- The four words of a Poseidon2 transcript digest over `blocks`. -/
 def digestOfBlocks (blocks : List (List F)) : Digest := squeezeDigest (absorbed blocks)
 
-/-- The four state words of spec §11.1 over raw application and carry words. -/
-def stateWordsRaw (app carry : List F) : List F :=
-  digestWords (digestOfBlocks [textWords "Nightstream/Nebula/v3/state", app, carry])
-
 /-- A chain link of spec §9.2 over field words. -/
 def chainLink (lane : Lane) (index : F) (previous : Digest) (packed : List F) : Digest :=
   digestOfBlocks [textWords (chainTag lane), index :: digestWords previous, packed]
@@ -276,7 +272,7 @@ structure StepWitness.RowsHold {p : Plan} (w : StepWitness p) (zIn : List F) : P
   freshEta : etaChallenges ⟨planDigest p, (w.cIn 2).val, w.proposalDigest 0,
     StepWitness.carryDigest w.carryIn 35, w.proposalDigest 4⟩ = w.freshEta
   -- §11.1 input state
-  stateIn : stateWordsRaw (List.ofFn w.appIn) (List.ofFn w.carryIn) = zIn
+  stateIn : stateWords (List.ofFn w.appIn) (List.ofFn w.carryIn) = zIn
 
 namespace StepWitness
 

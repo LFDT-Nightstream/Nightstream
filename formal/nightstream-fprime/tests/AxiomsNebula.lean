@@ -2,8 +2,7 @@ import tests.AxiomAudit
 import NightstreamFPrime.Spec.Nebula
 import NightstreamFPrime.Lifecycle.Nebula.Framing
 import NightstreamFPrime.Lifecycle.Nebula.MemoryBound
-import NightstreamFPrime.Lifecycle.Nebula.StepInvoke
-import NightstreamFPrime.Lifecycle.Nebula.MachineRefinement
+import NightstreamFPrime.Lifecycle.Nebula.RunLink
 
 /-! Axiom audits for the Nebula memory-phase model (`Spec/Nebula`) and its
 memory application layer (`Lifecycle/Nebula`): framing, carry, step rows, and
@@ -219,3 +218,9 @@ their refinement to the model. -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.records_ops_two
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.RowsHold.argument_val
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.RowsHold.machineStep
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.decodeCarry_startCarry
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.state_eq_or_collision
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.state_wordsAfter
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.prefix_or_collision
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.accepts_or_collision
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.chain_soundness

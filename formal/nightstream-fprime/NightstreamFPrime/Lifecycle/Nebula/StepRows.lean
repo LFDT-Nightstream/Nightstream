@@ -200,10 +200,10 @@ def headerWords (p : Plan) (i : ℕ) : F :=
   if i < 4 then hash (.header .ops (planDigest p)) ⟨i % 4, Nat.mod_lt _ (by decide)⟩
   else hash (.header .mem (planDigest p)) ⟨i % 4, Nat.mod_lt _ (by decide)⟩
 
-/-- Every equation that the circuit of one memory-application invocation
-checks, except the output state, which is the step function. `zIn` is the
-input state. Indices follow spec §11.1 carry word order. -/
-structure StepWitness.RowsHold {p : Plan} (w : StepWitness p) (zIn : List F) : Prop where
+/-- The polynomial equations of one memory-application invocation: the memory
+rows of spec §8 and the carry actions of §11.2 with the arms of §12. Indices
+follow spec §11.1 carry word order. -/
+structure StepWitness.PolyRows {p : Plan} (w : StepWitness p) : Prop where
   -- O1, S1, and the auxiliary bits
   opsBits : ∀ j, ∀ x ∈ (w.ops j).lane, IsBit x
   diffBits : ∀ j k, IsBit ((w.ops j).diff k)
@@ -262,7 +262,12 @@ structure StepWitness.RowsHold {p : Plan} (w : StepWitness p) (zIn : List F) : P
   segOut : w.cOut 0 = w.cIn 0 + w.isClose
   memOut : ∀ i : Fin 4,
     w.cOut (35 + i) = w.isClose * w.cOut (19 + i) + (1 - w.isClose) * w.cIn (35 + i)
-  -- §9.2 chains and §9.3 challenges
+
+/-- Every equation that the circuit of one memory-application invocation
+checks, except the output state, which is the step function: the polynomial
+rows, the §9.2 chains, the §9.3 challenges, and the §11.1 input state `zIn`. -/
+structure StepWitness.RowsHold {p : Plan} (w : StepWitness p) (zIn : List F) : Prop
+    extends w.PolyRows where
   chainOps : StepWitness.carryDigest w.carryOut 23 =
     chainLink .ops w.idxEff (w.previousDigest 0) (packWords w.opsLaneBits)
   chainInitial : StepWitness.carryDigest w.carryOut 27 =
@@ -271,7 +276,6 @@ structure StepWitness.RowsHold {p : Plan} (w : StepWitness p) (zIn : List F) : P
     chainLink .mem w.idxEff (w.previousDigest 8) (packWords (StepWitness.scanLaneBits w.final))
   freshEta : etaChallenges ⟨planDigest p, (w.cIn 2).val, w.proposalDigest 0,
     StepWitness.carryDigest w.carryIn 35, w.proposalDigest 4⟩ = w.freshEta
-  -- §11.1 input state
   stateIn : stateWords (List.ofFn w.appIn) (List.ofFn w.carryIn) = zIn
 
 namespace StepWitness

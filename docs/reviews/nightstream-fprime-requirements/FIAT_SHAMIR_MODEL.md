@@ -8,7 +8,7 @@ HyperNova errata Assumption 1, plain-model part, at each visit
 (`Export.Stage1.HyperNovaVisitedSecurity.Assumption1`). The
 random-oracle theorem `Lifecycle.RandomOracleKnowledge.knowledge_error_le`
 motivates its per-visit error but does not prove it; see
-[ROM_KNOWLEDGE_SOUNDNESS.md](ROM_KNOWLEDGE_SOUNDNESS.md) and
+[ROM_KNOWLEDGE_SOUNDNESS.md](../../../formal/nightstream-fprime/ROM_KNOWLEDGE_SOUNDNESS.md) and
 `formal/nightstream-fprime/TRUST_BOUNDARY.md`. The real success event is now
 `NifsRealSuccess.RealSuccess`. The text below records the retired boundary in
 the tense of its time. `FiatShamirModel`, `FiatShamirTransfer`, `NifsClosure`,

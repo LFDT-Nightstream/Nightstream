@@ -4,7 +4,7 @@ This page states what a reader must trust to accept the Nightstream F′
 security results, and which Lean declaration states each result. Names omit
 the common `NightstreamFPrime` namespace. `tests/EndpointCensus.lean` checks
 that every full name on this page, on [the assurance surface](ASSURANCE_SURFACE.md)
-and in [the ROM note](../../docs/reviews/nightstream-fprime-requirements/ROM_KNOWLEDGE_SOUNDNESS.md)
+and in [the ROM note](ROM_KNOWLEDGE_SOUNDNESS.md)
 exists, and that every cited theorem uses only `propext`, `Classical.choice`
 and `Quot.sound`.
 
@@ -54,7 +54,7 @@ reduction takes `Q + 74` expected reruns
 (`Lifecycle.Nifs.VerifierErrorBudget.test_error_eq`) and
 `ε_sample ≈ 2^-125.4`, the statistical part at `Q = 2^64` is about
 `2^-51.84`. The proof is in
-[the ROM note](../../docs/reviews/nightstream-fprime-requirements/ROM_KNOWLEDGE_SOUNDNESS.md).
+[the ROM note](ROM_KNOWLEDGE_SOUNDNESS.md).
 
 ## What you trust
 

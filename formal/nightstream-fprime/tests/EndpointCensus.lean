@@ -9,4 +9,4 @@ audit. -/
 
 #endpoint_census "ASSURANCE_SURFACE.md"
 #endpoint_census "TRUST_BOUNDARY.md"
-#endpoint_census "../../docs/reviews/nightstream-fprime-requirements/ROM_KNOWLEDGE_SOUNDNESS.md"
+#endpoint_census "ROM_KNOWLEDGE_SOUNDNESS.md"

@@ -66,7 +66,7 @@ use p3_security_v08::{ErrorBits, SecurityTerm};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::circuit::{algebra, Backend, Native};
+use crate::circuit::algebra;
 use crate::field::{coordinates, eq_table, gl, re_im, Ext, Gl};
 use crate::gkr::{GkrProof, Tree};
 use crate::hash::Challenger;
@@ -75,6 +75,8 @@ use crate::pcs::{Pcs, TablePlan};
 use crate::ring::Mixing;
 use crate::setup::{Leaf, Store, FOLD};
 use crate::verifier::ProofView;
+
+pub use crate::circuit::{Backend, Native};
 
 /// The claim this crate proves.
 pub type Claim = neo_ccs::CeClaim<Commitment, F, K>;

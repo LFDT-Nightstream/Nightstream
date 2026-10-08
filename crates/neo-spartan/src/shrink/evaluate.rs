@@ -3,7 +3,8 @@
 
 use p3_field_v08::PrimeCharacteristicRing;
 
-use super::layout::{Layout, C, MATRICES};
+use super::layout::Layout;
+use crate::circuit::block::{Kind, C, KINDS, MATRICES};
 use crate::circuit::record::{Sink, Term};
 use crate::field::{eq_table, Ext, Gl};
 
@@ -39,7 +40,7 @@ pub(crate) struct Evaluate<'l> {
     pub(crate) total: Ext,
     pub(crate) glue_rows: usize,
     pub(crate) glue_cells: usize,
-    pub(crate) blocks: usize,
+    pub(crate) blocks: [usize; KINDS.len()],
     pub(crate) publics: Vec<Gl>,
 }
 
@@ -53,7 +54,7 @@ impl<'l> Evaluate<'l> {
             total: Ext::ZERO,
             glue_rows: 0,
             glue_cells: 0,
-            blocks: 0,
+            blocks: [0; KINDS.len()],
             publics: Vec::new(),
         }
     }
@@ -80,8 +81,8 @@ impl Sink for Evaluate<'_> {
         self.glue_cells += 1;
     }
 
-    fn block(&mut self, _: &[Gl]) {
-        self.blocks += 1;
+    fn block(&mut self, kind: Kind, _: &[Gl]) {
+        self.blocks[kind.index()] += 1;
     }
 
     fn public(&mut self, value: Gl) {

@@ -71,11 +71,11 @@ impl<'p, B: Backend> ProofView<'p, B> {
                 Some(_) => return Err(Error::Rejected("commitment cap")),
                 None => [Gl::ZERO; 4],
             };
-            Ok(root.map(|word| b.private(word)))
+            Ok(root.map(|word| algebra::private(b, word)))
         };
         let p0 = root(b, proof.map(|proof| &proof.p0))?;
         let histogram = (0..2 * shape.norm_bound as usize + 1)
-            .map(|slot| b.private(proof.map_or(Gl::ZERO, |proof| Gl::from_u32(proof.histogram[slot]))))
+            .map(|slot| b.private(proof.map_or(0, |proof| u64::from(proof.histogram[slot]))))
             .collect();
         let early = GkrView::read(b, proof.map(|proof| &proof.early), &early_shapes(relation))?;
         let early_values = EarlyValues {
@@ -145,7 +145,7 @@ pub(crate) fn verify<B: Backend>(
     let mut duplex = Duplex::new(b);
     duplex.observe_slice(b, &seed);
     for word in relation.words() {
-        let word = b.constant(word);
+        let word = algebra::constant(b, word);
         duplex.observe(b, word);
     }
     duplex.observe_slice(b, &statement.words());
@@ -242,7 +242,7 @@ pub(crate) fn verify<B: Backend>(
         run_weights.push(b.ext_mul(last, mu));
     }
     let groups = [commitment_rows, run_weights];
-    let root = key.root().map(|word| b.constant(word));
+    let root = key.root().map(|word| algebra::constant(b, word));
     let mut queried = Vec::with_capacity(2 * relation.queries);
     for (bits, leaf) in index_bits.iter().zip(&proof.leaves) {
         queried.extend(setup::check(b, root, variables, bits, leaf, &groups, &alpha)?);
@@ -354,7 +354,7 @@ fn from_coordinates<B: Backend>(b: &mut B, values: &[B::E]) -> B::E {
     let mut total = algebra::ext_zero(b);
     for (c, &value) in values.iter().enumerate() {
         let basis = <Ext as BasedVectorSpace<Gl>>::ith_basis_element(c).expect("three coordinates");
-        let basis = b.ext_constant(basis);
+        let basis = algebra::ext_constant(b, basis);
         let term = b.ext_mul(basis, value);
         total = b.ext_add(total, term);
     }

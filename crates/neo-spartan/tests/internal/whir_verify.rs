@@ -9,7 +9,7 @@ use p3_sumcheck_v08::OpeningBatch;
 use super::word;
 use crate::circuit::hash::Duplex;
 use crate::circuit::record::{Recorder, Trace};
-use crate::circuit::{poseidon2, Backend, Native};
+use crate::circuit::{algebra, Backend, Native};
 use crate::field::{Ext, Gl};
 use crate::hash::{permutation, Challenger};
 use crate::pcs::{Opening, Pcs, TablePlan};
@@ -169,11 +169,11 @@ fn mutated_openings_reject_in_both() {
 fn record(case: &Case, opening: Option<&Opening>) -> (Trace, Option<&'static str>) {
     let mut recorder = Recorder::new(Trace::default());
     let b = &mut recorder;
-    let root = case.root.map(|word| b.private(word));
+    let root = case.root.map(|word| algebra::private(b, word));
     let points: Vec<Vec<<Recorder<Trace> as Backend>::E>> = case
         .points
         .iter()
-        .map(|point| point.iter().map(|&x| b.ext_constant(x)).collect())
+        .map(|point| point.iter().map(|&x| algebra::ext_constant(b, x)).collect())
         .collect();
     let mut duplex = Duplex::new(b);
     observe_root(b, &mut duplex, root);
@@ -190,12 +190,13 @@ fn recorded_verification_holds_and_does_not_depend_on_the_proof() {
     for r in 0..honest.rows.len() {
         assert_eq!(honest.row_value(r), Gl::ZERO, "row {r}");
     }
-    for block in 0..honest.blocks.len() / poseidon2::CELLS {
-        assert_eq!(honest.block_failure(block), None, "block {block}");
-    }
+    assert_eq!(honest.failing_block(), None);
     let (shape, _) = record(&case, None);
     assert_eq!(honest.rows, shape.rows);
     assert_eq!(honest.entries, shape.entries);
     assert_eq!(honest.glue.len(), shape.glue.len());
-    assert_eq!(honest.blocks.len(), shape.blocks.len());
+    assert_eq!(
+        honest.blocks.each_ref().map(Vec::len),
+        shape.blocks.each_ref().map(Vec::len)
+    );
 }

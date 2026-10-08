@@ -2,33 +2,53 @@
 //! and `K ⊗ Ext` values, eq tables and interpolation. Points are low bit
 //! first.
 
-use p3_field_v08::{Field, PrimeCharacteristicRing};
+use p3_field_v08::{Field, PrimeCharacteristicRing, PrimeField64};
 
 use super::Backend;
 use crate::field::{ext_words, Ext, Gl};
 
+/// A constant from a layer-1 field value.
+pub(crate) fn constant<B: Backend>(b: &mut B, value: Gl) -> B::F {
+    b.constant(value.as_canonical_u64())
+}
+
+/// A proof word from a layer-1 field value.
+pub(crate) fn private<B: Backend>(b: &mut B, value: Gl) -> B::F {
+    b.private(value.as_canonical_u64())
+}
+
+/// `a·by` for a layer-1 field constant.
+pub(crate) fn scale<B: Backend>(b: &mut B, a: B::F, by: Gl) -> B::F {
+    b.scale(a, by.as_canonical_u64())
+}
+
+/// An extension constant from a layer-1 value.
+pub(crate) fn ext_constant<B: Backend>(b: &mut B, value: Ext) -> B::E {
+    b.ext_constant(ext_words(value).map(|word| word.as_canonical_u64()))
+}
+
 pub(crate) fn ext_zero<B: Backend>(b: &mut B) -> B::E {
-    b.ext_constant(Ext::ZERO)
+    ext_constant(b, Ext::ZERO)
 }
 
 pub(crate) fn ext_one<B: Backend>(b: &mut B) -> B::E {
-    b.ext_constant(Ext::ONE)
+    ext_constant(b, Ext::ONE)
 }
 
 /// An extension proof value, as three proof words.
 pub(crate) fn private_ext<B: Backend>(b: &mut B, value: Ext) -> B::E {
-    let words = ext_words(value).map(|word| b.private(word));
+    let words = ext_words(value).map(|word| private(b, word));
     b.ext(words)
 }
 
 /// A base word as an extension value.
 pub(crate) fn lift<B: Backend>(b: &mut B, value: B::F) -> B::E {
-    let zero = b.constant(Gl::ZERO);
+    let zero = b.constant(0);
     b.ext([value, zero, zero])
 }
 
 pub(crate) fn ext_scale_constant<B: Backend>(b: &mut B, a: B::E, by: Gl) -> B::E {
-    let by = b.constant(by);
+    let by = constant(b, by);
     b.ext_scale(a, by)
 }
 
@@ -106,7 +126,7 @@ pub(crate) fn interpolate<B: Backend>(b: &mut B, values: &[B::E], x: B::E) -> B:
         let mut denominator = Gl::ONE;
         for j in 0..n {
             if i != j {
-                let node = b.ext_constant(Ext::from(Gl::from_usize(j)));
+                let node = ext_constant(b, Ext::from(Gl::from_usize(j)));
                 let factor = b.ext_sub(x, node);
                 numerator = b.ext_mul(numerator, factor);
                 denominator *= Gl::from_usize(i) - Gl::from_usize(j);
@@ -203,11 +223,11 @@ impl<B: Backend> Kx<B> {
 
 /// `generator^index` from the little-endian bits of `index`.
 pub(crate) fn power_from_bits<B: Backend>(b: &mut B, generator: Gl, bits: &[B::F]) -> B::F {
-    let mut total = b.constant(Gl::ONE);
+    let mut total = b.constant(1);
     let mut base = generator;
     for &bit in bits {
-        let one = b.constant(Gl::ONE);
-        let factor_minus = b.scale(bit, base - Gl::ONE);
+        let one = b.constant(1);
+        let factor_minus = scale(b, bit, base - Gl::ONE);
         let factor = b.add(one, factor_minus);
         total = b.mul(total, factor);
         base = base.square();

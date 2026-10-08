@@ -1,44 +1,33 @@
 //! Where the rows and cells of a recorded program sit in the shrink CCS, and
-//! the permutation-block part of the matrix MLEs in closed form.
+//! the block part of the matrix MLEs in closed form.
 //!
-//! Owns: the row and column of every recorded row and wire, the block
-//! template as entries of the eight CCS matrices, and the sum of those
-//! entries over all blocks at a point pair. Does not own the recording or the
-//! sum-checks.
+//! Owns: the row and column of every recorded row and wire, and the sum of
+//! the block template entries over all blocks at a point pair. Does not own
+//! the templates (`circuit/block.rs`), the recording or the sum-checks.
 //!
-//! - Matrices: `X, A_0, B_0, A_1, B_1, A_2, B_2, C`; row `r` holds when
-//!   `(X·z)_r^7 + Σ_i (A_i·z)_r·(B_i·z)_r − (C·z)_r = 0`.
-//! - Block `b < P`, template row or cell `k`: `128·b + k` for `k < 128`
-//!   (region A), else `128·P + 64·b + (k − 128)` (region B). A block has 166
-//!   rows and 182 cells, so both regions fit.
-//! - Glue row `g` sits at `192·P + g`, glue cell `i` at `192·P + i`.
+//! - A block kind with `s` rows (or cells) has two parts: a wide one of
+//!   `2^⌊log2 s⌋` slots and a narrow one for the rest, rounded up to a power
+//!   of two. Template index `k` of block `b` sits at `start + b·stride + k'`
+//!   in its part. Parts are placed by decreasing stride, so every part start
+//!   is a multiple of its stride.
+//! - Glue rows and glue cells follow the blocks.
 //! - `z = (w, 1, x)`: `w` on `2^n` cells, then the constant one and the
 //!   statement words in the upper half.
 
 use serde::{Deserialize, Serialize};
 
-use crate::circuit::poseidon2::{self, OUTPUT, SBOXES};
+use crate::circuit::block::{Kind, KINDS, MATRICES};
 use crate::circuit::record::Wire;
 use crate::field::{eq_table, Ext, Gl};
-use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
 use p3_field_v08::PrimeCharacteristicRing;
-
-/// `X, A_0, B_0, A_1, B_1, A_2, B_2, C`.
-pub(crate) const MATRICES: usize = 8;
-pub(crate) const X: usize = 0;
-pub(crate) const C: usize = 7;
-/// Template rows: the S-boxes, then the outputs.
-const BLOCK_ROWS: usize = SBOXES + WIDTH;
-const WIDE: usize = 128;
-const NARROW: usize = 64;
-const STRIDE: usize = WIDE + NARROW;
 
 /// The counts of one program's recording. Authority: derived from the
 /// program by a shape run; the rows of a run depend only on these and the
 /// program.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct Shape {
-    pub(crate) blocks: usize,
+    /// Blocks per kind, in `KINDS` order.
+    pub(crate) blocks: [usize; KINDS.len()],
     pub(crate) glue_rows: usize,
     pub(crate) glue_cells: usize,
     /// Statement words, the constant one excluded.
@@ -47,120 +36,120 @@ pub(crate) struct Shape {
 
 impl Shape {
     pub(crate) fn words(&self) -> Vec<Gl> {
-        [self.blocks, self.glue_rows, self.glue_cells, self.publics]
-            .map(Gl::from_usize)
-            .to_vec()
+        let mut words: Vec<Gl> = self
+            .blocks
+            .iter()
+            .map(|&count| Gl::from_usize(count))
+            .collect();
+        words.extend([self.glue_rows, self.glue_cells, self.publics].map(Gl::from_usize));
+        words
     }
 }
 
-/// One nonzero of a block row: the matrix, the template row, the block cell
-/// (`None` for the constant one) and the coefficient.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct Entry {
-    pub(crate) matrix: usize,
-    pub(crate) row: usize,
-    pub(crate) cell: Option<usize>,
-    pub(crate) coefficient: Gl,
+/// One part of one kind: one slot of `stride` per block from `start`.
+#[derive(Clone, Copy, Debug, Default)]
+struct Part {
+    start: usize,
+    stride: usize,
 }
 
-/// Every nonzero of the block template. S-box row `r`: `X` is the S-box input
-/// form, `C` the S-box output cell. Output row `150 + i`: `C` is the output
-/// cell minus its form.
-pub(crate) fn entries() -> &'static [Entry] {
-    static ENTRIES: std::sync::OnceLock<Vec<Entry>> = std::sync::OnceLock::new();
-    ENTRIES.get_or_init(|| {
-        let template = poseidon2::template();
-        let mut entries = Vec::new();
-        let mut push = |matrix, row, form: &poseidon2::Linear, sign: Gl| {
-            for &(cell, coefficient) in &form.terms {
-                entries.push(Entry {
-                    matrix,
-                    row,
-                    cell: Some(cell),
-                    coefficient: sign * coefficient,
-                });
-            }
-            if form.constant != Gl::ZERO {
-                entries.push(Entry {
-                    matrix,
-                    row,
-                    cell: None,
-                    coefficient: sign * form.constant,
-                });
-            }
-        };
-        for (row, form) in template.sbox_inputs.iter().enumerate() {
-            push(X, row, form, Gl::ONE);
-        }
-        for (lane, form) in template.outputs.iter().enumerate() {
-            push(C, SBOXES + lane, form, -Gl::ONE);
-        }
-        for row in 0..BLOCK_ROWS {
-            let cell = if row < SBOXES {
-                WIDTH + row
-            } else {
-                OUTPUT + row - SBOXES
-            };
-            entries.push(Entry {
-                matrix: C,
-                row,
-                cell: Some(cell),
-                coefficient: Gl::ONE,
-            });
-        }
-        entries
-    })
+/// The wide and narrow sizes of `size` template indices.
+fn split(size: usize) -> [usize; 2] {
+    let wide = 1 << (usize::BITS - 1 - size.leading_zeros());
+    let rest = size - wide;
+    [wide, if rest == 0 { 0 } else { rest.next_power_of_two() }]
 }
 
-/// The positions of one shape.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct Layout {
-    pub(crate) shape: Shape,
-    /// Variables of the row cube.
-    pub(crate) row_variables: usize,
-    /// Variables of `w`; `z` has one more.
-    pub(crate) cell_variables: usize,
+/// Place the parts of every kind; returns the parts and their end.
+fn place(size: impl Fn(Kind) -> usize, counts: &[usize; KINDS.len()]) -> ([[Part; 2]; KINDS.len()], usize) {
+    let mut slots: Vec<(usize, Kind, usize)> = Vec::new();
+    for kind in KINDS {
+        for (part, stride) in split(size(kind)).into_iter().enumerate() {
+            if stride > 0 {
+                slots.push((stride, kind, part));
+            }
+        }
+    }
+    slots.sort_by(|a, b| b.0.cmp(&a.0));
+    let mut parts = [[Part::default(); 2]; KINDS.len()];
+    let mut start = 0;
+    for (stride, kind, part) in slots {
+        parts[kind.index()][part] = Part { start, stride };
+        start += stride * counts[kind.index()];
+    }
+    (parts, start)
 }
 
 fn variables(count: usize) -> usize {
     (count.next_power_of_two().trailing_zeros() as usize).max(1)
 }
 
+/// The positions of one shape.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Layout {
+    pub(crate) shape: Shape,
+    rows: [[Part; 2]; KINDS.len()],
+    cells: [[Part; 2]; KINDS.len()],
+    glue_rows: usize,
+    glue_cells: usize,
+    /// Variables of the row cube.
+    pub(crate) row_variables: usize,
+    /// Variables of `w`; `z` has one more.
+    pub(crate) cell_variables: usize,
+}
+
 impl Layout {
     pub(crate) fn new(shape: Shape) -> Self {
-        let blocks = STRIDE * shape.blocks;
+        let (rows, glue_rows) = place(Kind::rows, &shape.blocks);
+        let (cells, glue_cells) = place(Kind::cells, &shape.blocks);
         Self {
             shape,
-            row_variables: variables(blocks + shape.glue_rows),
-            cell_variables: variables((blocks + shape.glue_cells).max(shape.publics + 1)),
+            rows,
+            cells,
+            glue_rows,
+            glue_cells,
+            row_variables: variables(glue_rows + shape.glue_rows),
+            cell_variables: variables((glue_cells + shape.glue_cells).max(shape.publics + 1)),
         }
     }
 
-    /// The row or cell of template index `k` of block `b`.
-    pub(crate) fn block_index(&self, b: usize, k: usize) -> usize {
-        if k < WIDE {
-            WIDE * b + k
-        } else {
-            WIDE * self.shape.blocks + NARROW * b + (k - WIDE)
-        }
+    fn index(parts: &[Part; 2], b: usize, k: usize) -> usize {
+        let wide = parts[0].stride;
+        let (part, local) = if k < wide { (parts[0], k) } else { (parts[1], k - wide) };
+        part.start + b * part.stride + local
+    }
+
+    /// The row of template row `k` of block `b` of `kind`.
+    pub(crate) fn block_row(&self, kind: Kind, b: usize, k: usize) -> usize {
+        Self::index(&self.rows[kind.index()], b, k)
+    }
+
+    /// The column of template cell `k` of block `b` of `kind`.
+    pub(crate) fn block_cell(&self, kind: Kind, b: usize, k: usize) -> usize {
+        Self::index(&self.cells[kind.index()], b, k)
     }
 
     pub(crate) fn glue_row(&self, g: usize) -> usize {
-        STRIDE * self.shape.blocks + g
+        self.glue_rows + g
+    }
+
+    /// The column of the constant one.
+    pub(crate) fn one(&self) -> usize {
+        1 << self.cell_variables
     }
 
     /// The column of `wire` in `z`.
     pub(crate) fn column(&self, wire: Wire) -> usize {
         match wire {
-            Wire::Glue(cell) => STRIDE * self.shape.blocks + cell as usize,
-            Wire::Block(block, cell) => self.block_index(block as usize, cell as usize),
-            Wire::Public(index) => (1 << self.cell_variables) + index as usize,
+            Wire::Glue(cell) => self.glue_cells + cell as usize,
+            Wire::Block(kind, block, cell) => self.block_cell(kind, block as usize, cell as usize),
+            Wire::Public(index) => self.one() + index as usize,
         }
     }
 
     /// The column of a template entry's cell in block `b`.
-    pub(crate) fn entry_column(&self, b: usize, cell: Option<usize>) -> usize {
-        cell.map_or(1 << self.cell_variables, |cell| self.block_index(b, cell))
+    pub(crate) fn entry_column(&self, kind: Kind, b: usize, cell: Option<usize>) -> usize {
+        cell.map_or(self.one(), |cell| self.block_cell(kind, b, cell))
     }
 
     /// `Σ_j ρ^j·M̃_j(rx, ry)` over the block rows. `rx` has `row_variables`
@@ -169,44 +158,52 @@ impl Layout {
         let n = self.cell_variables;
         assert_eq!(rx.len(), self.row_variables);
         assert_eq!(ry.len(), n + 1);
-        let blocks = self.shape.blocks as u64;
-        if blocks == 0 {
-            return Ext::ZERO;
-        }
-        // Region A of rows or cells: low 7 bits, block offset 0; region B: low
-        // 6 bits, block offset 2P (128·P / 64).
-        let split = |region: usize| if region == 0 { (7, 0) } else { (6, 2 * blocks) };
-        let row_low = [eq_table(&rx[..7]), eq_table(&rx[..6])];
-        let cell_low = [eq_table(&ry[..7]), eq_table(&ry[..6])];
         let w_half = Ext::ONE - ry[n];
         let one_column: Ext = ry[..n].iter().map(|&y| Ext::ONE - y).product::<Ext>() * ry[n];
-        // sums[row region][cell region]; cell region 2 is the constant one.
-        let mut sums = [[Ext::ZERO; 3]; 2];
-        for entry in entries() {
-            let row_region = usize::from(entry.row >= WIDE);
-            let local_row = entry.row - WIDE * row_region;
-            let (cell_region, cell_value) = match entry.cell {
-                None => (2, Ext::ONE),
-                Some(cell) => {
-                    let region = usize::from(cell >= WIDE);
-                    (region, cell_low[region][cell - WIDE * region])
-                }
-            };
-            sums[row_region][cell_region] +=
-                rho[entry.matrix] * row_low[row_region][local_row] * cell_value * entry.coefficient;
-        }
+        let bits = |stride: usize| stride.trailing_zeros() as usize;
         let mut total = Ext::ZERO;
-        for (row_region, row_sums) in sums.iter().enumerate() {
-            let (row_bits, row_offset) = split(row_region);
-            let x = (&rx[row_bits..], row_offset);
-            for (cell_region, &sum) in row_sums.iter().enumerate() {
-                let diagonal = if cell_region == 2 {
-                    one_column * diagonal(&[x], blocks)
-                } else {
-                    let (cell_bits, cell_offset) = split(cell_region);
-                    w_half * diagonal(&[x, (&ry[cell_bits..n], cell_offset)], blocks)
+        for kind in KINDS {
+            let count = self.shape.blocks[kind.index()];
+            if count == 0 {
+                continue;
+            }
+            let (rows, cells) = (&self.rows[kind.index()], &self.cells[kind.index()]);
+            let row_low = rows.map(|part| eq_table(&rx[..bits(part.stride)]));
+            let cell_low = cells.map(|part| eq_table(&ry[..bits(part.stride)]));
+            // sums[row part][cell part]; cell part 2 is the constant one.
+            let mut sums = [[Ext::ZERO; 3]; 2];
+            for entry in kind.entries() {
+                let row_part = usize::from(entry.row >= rows[0].stride);
+                let local_row = entry.row - row_part * rows[0].stride;
+                let (cell_part, cell_value) = match entry.cell {
+                    None => (2, Ext::ONE),
+                    Some(cell) => {
+                        let part = usize::from(cell >= cells[0].stride);
+                        (part, cell_low[part][cell - part * cells[0].stride])
+                    }
                 };
-                total += sum * diagonal;
+                sums[row_part][cell_part] +=
+                    rho[entry.matrix] * row_low[row_part][local_row] * cell_value * entry.coefficient;
+            }
+            for (row_part, row_sums) in sums.iter().enumerate() {
+                let row = rows[row_part];
+                if row.stride == 0 {
+                    continue;
+                }
+                let x = (&rx[bits(row.stride)..], (row.start / row.stride) as u64);
+                for (cell_part, &sum) in row_sums.iter().enumerate() {
+                    if sum == Ext::ZERO {
+                        continue;
+                    }
+                    let diagonal = if cell_part == 2 {
+                        one_column * diagonal(&[x], count as u64)
+                    } else {
+                        let cell = cells[cell_part];
+                        let y = (&ry[bits(cell.stride)..n], (cell.start / cell.stride) as u64);
+                        w_half * diagonal(&[x, y], count as u64)
+                    };
+                    total += sum * diagonal;
+                }
             }
         }
         total

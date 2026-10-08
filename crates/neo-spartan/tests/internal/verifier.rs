@@ -2,11 +2,12 @@
 //! a noted failure for every tampered input, and rows that do not depend on
 //! the proof.
 
-use p3_field_v08::PrimeCharacteristicRing;
+use p3_field_v08::{PrimeCharacteristicRing, PrimeField64};
 
 use super::layer1::{claim_mutations, proof_mutations, relation_of, setup_toy, transcript};
+use crate::circuit::block::Kind;
 use crate::circuit::record::{Recorder, Trace};
-use crate::circuit::{poseidon2, Backend};
+use crate::circuit::Backend;
 use crate::field::Gl;
 use crate::hash::seed;
 use crate::verifier::{verify, ProofView};
@@ -18,7 +19,7 @@ pub(super) fn statement_input<B: Backend>(b: &mut B, statement: &Statement<Gl>) 
     let mut rings = |values: &[[Gl; D]]| -> Vec<[B::F; D]> {
         values
             .iter()
-            .map(|ring| ring.map(|word| b.public(word)))
+            .map(|ring| ring.map(|word| b.public(word.as_canonical_u64())))
             .collect()
     };
     let commitment = rings(&statement.commitment);
@@ -26,7 +27,7 @@ pub(super) fn statement_input<B: Backend>(b: &mut B, statement: &Statement<Gl>) 
     let mut pairs = |values: &[[Gl; 2]]| -> Vec<[B::F; 2]> {
         values
             .iter()
-            .map(|pair| pair.map(|word| b.public(word)))
+            .map(|pair| pair.map(|word| b.public(word.as_canonical_u64())))
             .collect()
     };
     let point = pairs(&statement.point);
@@ -56,7 +57,7 @@ fn record(
     let statement = Statement::new(&relation.shape, claim).unwrap();
     let mut recorder = Recorder::new(Trace::default());
     let b = &mut recorder;
-    let seed = seed.map(|word| b.public(word));
+    let seed = seed.map(|word| b.public(word.as_canonical_u64()));
     let statement = statement_input(b, &statement);
     let view = ProofView::read(b, relation, proof).unwrap();
     verify(b, relation, seed, &statement, &view).unwrap();
@@ -75,21 +76,22 @@ fn recorded_layer1_verifier_holds_rejects_and_keeps_its_shape() {
     for r in 0..honest.rows.len() {
         assert_eq!(honest.row_value(r), Gl::ZERO, "row {r}");
     }
-    for block in 0..honest.blocks.len() / poseidon2::CELLS {
-        assert_eq!(honest.block_failure(block), None, "block {block}");
-    }
+    assert_eq!(honest.failing_block(), None);
     eprintln!(
         "layer-1 verifier: {} rows, {} glue cells, {} permutations",
         honest.rows.len(),
         honest.glue.len(),
-        honest.blocks.len() / poseidon2::CELLS
+        honest.count(Kind::Permutation)
     );
 
     let (shape, _) = record(&relation, honest_seed, &toy.claim, None);
     assert_eq!(honest.rows, shape.rows);
     assert_eq!(honest.entries, shape.entries);
     assert_eq!(honest.glue.len(), shape.glue.len());
-    assert_eq!(honest.blocks.len(), shape.blocks.len());
+    assert_eq!(
+        honest.blocks.each_ref().map(Vec::len),
+        shape.blocks.each_ref().map(Vec::len)
+    );
     assert_eq!(honest.public.len(), shape.public.len());
 
     let (_, failure) = record(&relation, seed(transcript(2)), &toy.claim, Some(&proof));

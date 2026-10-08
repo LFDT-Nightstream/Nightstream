@@ -39,7 +39,7 @@ pub(crate) fn table_sum<B: Backend>(b: &mut B, counts: &[B::F], bound: u32, beta
     assert_eq!(counts.len(), 2 * bound as usize + 1);
     let mut total = algebra::ext_zero(b);
     for (slot, &count) in counts.iter().enumerate() {
-        let value = b.ext_constant(Ext::from(signed(slot as i64 - i64::from(bound))));
+        let value = algebra::ext_constant(b, Ext::from(signed(slot as i64 - i64::from(bound))));
         let denominator = b.ext_sub(beta, value);
         let inverse = b.ext_inverse(denominator, "histogram pole")?;
         let term = b.ext_scale(inverse, count);

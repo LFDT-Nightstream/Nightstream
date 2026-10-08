@@ -4,10 +4,8 @@
 //! Merkle path verification. Tests pin each one to its Plonky3 counterpart.
 
 use neo_ccs::crypto::poseidon2_goldilocks::{DIGEST_LEN, RATE, WIDTH};
-use p3_field_v08::PrimeCharacteristicRing;
 
 use super::Backend;
-use crate::field::Gl;
 use crate::Error;
 
 pub(crate) type Digest<B> = [<B as Backend>::F; DIGEST_LEN];
@@ -22,7 +20,7 @@ pub(crate) struct Duplex<B: Backend> {
 
 impl<B: Backend> Duplex<B> {
     pub(crate) fn new(b: &mut B) -> Self {
-        let zero = b.constant(Gl::ZERO);
+        let zero = b.constant(0);
         Self {
             state: [zero; WIDTH],
             input: Vec::new(),
@@ -80,9 +78,9 @@ impl<B: Backend> Duplex<B> {
             self.state[lane] = value;
         }
         if absorbed > 0 {
-            let zero = b.constant(Gl::ZERO);
+            let zero = b.constant(0);
             self.state[absorbed..RATE].fill(zero);
-            let tag = b.constant(Gl::from_usize(absorbed));
+            let tag = b.constant(absorbed as u64);
             self.state[RATE] = b.add(self.state[RATE], tag);
         }
         self.state = b.permute(self.state);
@@ -93,7 +91,7 @@ impl<B: Backend> Duplex<B> {
 
 /// The overwrite sponge of p3 `PaddingFreeSponge` over `values`.
 pub(crate) fn hash_leaf<B: Backend>(b: &mut B, values: &[B::F]) -> Digest<B> {
-    let zero = b.constant(Gl::ZERO);
+    let zero = b.constant(0);
     let mut state = [zero; WIDTH];
     for chunk in values.chunks(RATE) {
         state[..chunk.len()].copy_from_slice(chunk);
@@ -104,7 +102,7 @@ pub(crate) fn hash_leaf<B: Backend>(b: &mut B, values: &[B::F]) -> Digest<B> {
 
 /// p3 `TruncatedPermutation`: `[left, right, 0…]`, permute, first four lanes.
 pub(crate) fn compress<B: Backend>(b: &mut B, left: Digest<B>, right: Digest<B>) -> Digest<B> {
-    let zero = b.constant(Gl::ZERO);
+    let zero = b.constant(0);
     let mut state = [zero; WIDTH];
     state[..DIGEST_LEN].copy_from_slice(&left);
     state[DIGEST_LEN..2 * DIGEST_LEN].copy_from_slice(&right);

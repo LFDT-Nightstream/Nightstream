@@ -105,7 +105,7 @@ fn rows<B: Backend>(
         rows: (0..draws)
             .map(|d| {
                 (0..row_len)
-                    .map(|i| b.private(words.as_ref().map_or(Gl::ZERO, |words| words[d][i])))
+                    .map(|i| algebra::private(b, words.as_ref().map_or(Gl::ZERO, |words| words[d][i])))
                     .collect()
             })
             .collect(),
@@ -165,7 +165,7 @@ impl<'p, B: Backend> OpeningView<'p, B> {
             };
             let width = 1 << config.round_folding_factor(r);
             views.push(RoundView {
-                root: root.map(|word| b.private(word)),
+                root: root.map(|word| algebra::private(b, word)),
                 ood: exts(b, proof_round.map(|p| p.ood_answers.as_slice()), round.ood_samples)?,
                 queries: rows(
                     b,
@@ -220,7 +220,7 @@ impl<'p, B: Backend> OpeningView<'p, B> {
 
 fn absorb<B: Backend>(b: &mut B, duplex: &mut Duplex<B>, words: &[Gl]) {
     for &word in words {
-        let constant = b.constant(word);
+        let constant = algebra::constant(b, word);
         duplex.observe(b, constant);
     }
 }
@@ -246,7 +246,7 @@ fn expand<B: Backend>(b: &mut B, x: B::E, n: usize) -> Vec<B::E> {
 /// `Π (2·q·p − p − q + 1)`: `Point::eval_eq`.
 fn eval_eq<B: Backend>(b: &mut B, p: &[B::E], q: &[B::E]) -> B::E {
     assert_eq!(p.len(), q.len());
-    let one = b.ext_constant(Ext::ONE);
+    let one = algebra::ext_one(b);
     let mut total = one;
     for (&p, &q) in p.iter().zip(q) {
         let product = b.ext_mul(p, q);
@@ -262,11 +262,11 @@ fn eval_eq<B: Backend>(b: &mut B, p: &[B::E], q: &[B::E]) -> B::E {
 /// `Π_j (1 + r_j·(var^{2^j} − 1))` over the coordinates of `point` from the
 /// last: `Point::eval_select`.
 fn eval_select<B: Backend>(b: &mut B, var: B::F, point: &[B::E]) -> B::E {
-    let one = b.ext_constant(Ext::ONE);
+    let one = algebra::ext_one(b);
     let mut power = var;
     let mut total = one;
     for &r in point.iter().rev() {
-        let one_base = b.constant(Gl::ONE);
+        let one_base = b.constant(1);
         let minus = b.sub(power, one_base);
         let scaled = b.ext_scale(r, minus);
         let term = b.ext_add(scaled, one);
@@ -295,7 +295,7 @@ fn mle<B: Backend>(b: &mut B, values: &[B::E], r: &[B::E]) -> B::E {
 
 /// `Σ_i values_i·var^i` by Horner.
 fn horner<B: Backend>(b: &mut B, values: &[B::E], var: B::F) -> B::E {
-    let mut total = b.ext_constant(Ext::ZERO);
+    let mut total = algebra::ext_zero(b);
     for &value in values.iter().rev() {
         let scaled = b.ext_scale(total, var);
         total = b.ext_add(scaled, value);
@@ -310,7 +310,7 @@ fn sumcheck<B: Backend>(b: &mut B, duplex: &mut Duplex<B>, rounds: &[[B::E; 2]],
         return Vec::new();
     }
     absorb(b, duplex, &seeds::sumcheck(rounds.len()));
-    let one = b.ext_constant(Ext::ONE);
+    let one = algebra::ext_one(b);
     rounds
         .iter()
         .map(|&[at_zero, at_infinity]| {
@@ -344,7 +344,7 @@ struct Constraint<B: Backend> {
 impl<B: Backend> Constraint<B> {
     /// The challenge powers in statement order, from `challenge^initial_power`.
     fn powers(&self, b: &mut B) -> Vec<B::E> {
-        let mut power = b.ext_constant(Ext::ONE);
+        let mut power = algebra::ext_one(b);
         for _ in 0..self.initial_power {
             power = b.ext_mul(power, self.challenge);
         }
@@ -358,7 +358,7 @@ impl<B: Backend> Constraint<B> {
     }
 
     fn claimed(&self, b: &mut B, powers: &[B::E]) -> B::E {
-        let mut total = b.ext_constant(Ext::ZERO);
+        let mut total = algebra::ext_zero(b);
         let values = self
             .eq
             .iter()
@@ -380,7 +380,7 @@ impl<B: Backend> Constraint<B> {
             .take(self.variables)
             .copied()
             .collect();
-        let mut total = b.ext_constant(Ext::ZERO);
+        let mut total = algebra::ext_zero(b);
         let mut powers = powers.iter();
         for (point, _) in &self.eq {
             let weight = eval_eq(b, point, &local);
@@ -400,16 +400,16 @@ impl<B: Backend> Constraint<B> {
 /// bits of the canonical value. Returns the bits and the index as a word.
 fn query_index<B: Backend>(b: &mut B, duplex: &mut Duplex<B>, width: usize) -> Result<(Vec<B::F>, B::F), Error> {
     let sample = duplex.sample(b);
-    let one = b.constant(Gl::ONE);
+    let one = b.constant(1);
     let shifted = b.add(sample, one);
-    let zero = b.constant(Gl::ZERO);
+    let zero = b.constant(0);
     let embedded = b.ext([shifted, zero, zero]);
     b.ext_inverse(embedded, "WHIR query sample p - 1")?;
     let mut bits = b.bits(sample, 64, "WHIR query bits")?;
     bits.truncate(width);
-    let mut index = b.constant(Gl::ZERO);
+    let mut index = b.constant(0);
     for (i, &bit) in bits.iter().enumerate() {
-        let weighted = b.scale(bit, Gl::from_u64(1u64 << i));
+        let weighted = b.scale(bit, 1u64 << i);
         index = b.add(index, weighted);
     }
     Ok((bits, index))
@@ -434,9 +434,9 @@ fn stir<B: Backend>(
     if draws == 0 {
         for index in 0..1usize << index_bits {
             let bits: Vec<B::F> = (0..index_bits)
-                .map(|i| b.constant(Gl::from_u64(((index >> i) & 1) as u64)))
+                .map(|i| b.constant(((index >> i) & 1) as u64))
                 .collect();
-            let word = b.constant(Gl::from_usize(index));
+            let word = b.constant(index as u64);
             indices.push((bits, word));
         }
     } else {
@@ -458,17 +458,19 @@ fn stir<B: Backend>(
         QueryOpenings::Extension(opening) => opening.proof.sibling_hashes.clone(),
     });
     let path_words = b.hint(&words, words.len() * index_bits * 4, &|values| {
-        let zeros = vec![Gl::ZERO; values.len() * index_bits * 4];
+        let zeros = vec![0; values.len() * index_bits * 4];
         let (Some(rows), Some(siblings)) = (&rows_native, &siblings) else {
             return zeros;
         };
-        let indices: Vec<usize> = values
-            .iter()
-            .map(|v| p3_field_v08::PrimeField64::as_canonical_u64(v) as usize)
-            .collect();
+        let indices: Vec<usize> = values.iter().map(|&v| v as usize).collect();
         let leaves: Vec<[Gl; 4]> = rows.iter().map(|row| crate::hash::hash_leaf(row)).collect();
         match paths::expand(&indices, &leaves, siblings, index_bits) {
-            Some(paths) => paths.into_iter().flatten().flatten().collect(),
+            Some(paths) => paths
+                .into_iter()
+                .flatten()
+                .flatten()
+                .map(|word| p3_field_v08::PrimeField64::as_canonical_u64(&word))
+                .collect(),
             None => zeros,
         }
     });
@@ -487,7 +489,7 @@ fn stir<B: Backend>(
         let values: Vec<B::E> = if base {
             row.iter()
                 .map(|&value| {
-                    let zero = b.constant(Gl::ZERO);
+                    let zero = b.constant(0);
                     b.ext([value, zero, zero])
                 })
                 .collect()
@@ -541,7 +543,7 @@ pub(crate) fn verify<B: Backend>(
         }
         let arity = tables[table].num_variables();
         assert!(point.len() <= arity);
-        let zero = b.ext_constant(Ext::ZERO);
+        let zero = algebra::ext_zero(b);
         let mut padded = point.clone();
         padded.resize(arity, zero);
         padded.reverse();
@@ -562,7 +564,7 @@ pub(crate) fn verify<B: Backend>(
             let mut lifted: Vec<B::E> = (0..selector.num_variables())
                 .map(|i| {
                     let bit = (selector.index() >> (selector.num_variables() - 1 - i)) & 1;
-                    b.ext_constant(Ext::from(Gl::from_usize(bit)))
+                    algebra::ext_constant(b, Ext::from(Gl::from_usize(bit)))
                 })
                 .collect();
             lifted.extend_from_slice(point);
@@ -647,7 +649,7 @@ pub(crate) fn verify<B: Backend>(
     let final_randomness = sumcheck(b, duplex, &view.final_sumcheck, &mut claimed);
     randomness.extend_from_slice(&final_randomness);
 
-    let mut weights = b.ext_constant(Ext::ZERO);
+    let mut weights = algebra::ext_zero(b);
     for (constraint, powers) in constraints.iter().zip(&all_powers) {
         let weight = constraint.weight(b, powers, &randomness);
         weights = b.ext_add(weights, weight);

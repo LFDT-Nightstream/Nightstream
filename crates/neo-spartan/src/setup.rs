@@ -201,7 +201,7 @@ impl Store {
 /// coordinates): `q = y^8 = g^8·ω_{2^{n-2}}^index`.
 pub(crate) fn query_point<B: Backend>(b: &mut B, variables: usize, bits: &[B::F]) -> Vec<B::E> {
     let rotation = algebra::power_from_bits(b, Gl::two_adic_generator(variables + 1 - FOLD), bits);
-    let mut q = b.scale(rotation, Gl::GENERATOR.exp_u64(LEAF as u64));
+    let mut q = algebra::scale(b, rotation, Gl::GENERATOR.exp_u64(LEAF as u64));
     (0..variables - FOLD)
         .map(|_| {
             let value = algebra::lift(b, q);
@@ -224,10 +224,12 @@ impl<B: Backend> LeafView<B> {
             return Err(Error::Rejected("setup leaf shape"));
         }
         let values = (0..oracles * LEAF)
-            .map(|i| b.private(leaf.map_or(Gl::ZERO, |leaf| leaf.values[i])))
+            .map(|i| algebra::private(b, leaf.map_or(Gl::ZERO, |leaf| leaf.values[i])))
             .collect();
         let path = (0..depth)
-            .map(|level| std::array::from_fn(|lane| b.private(leaf.map_or(Gl::ZERO, |leaf| leaf.path[level][lane]))))
+            .map(|level| {
+                std::array::from_fn(|lane| algebra::private(b, leaf.map_or(Gl::ZERO, |leaf| leaf.path[level][lane])))
+            })
             .collect();
         Ok(Self { values, path })
     }
@@ -256,13 +258,13 @@ pub(crate) fn check<B: Backend>(
     // Σ_v weight[v]·Ô(y·ω_8^v) with weight[v] = Σ_u α^[u]·8^{-1}·y^{-u}·ω_8^{-uv}.
     // y^{-1} = g^{-1}·ω^{-index}, with ω of order 2^{n+1}.
     let rotation = algebra::power_from_bits(b, Gl::two_adic_generator(variables + 1).inverse(), bits);
-    let y_inverse = b.scale(rotation, Gl::GENERATOR.inverse());
+    let y_inverse = algebra::scale(b, rotation, Gl::GENERATOR.inverse());
     let mut monomials = vec![algebra::ext_one(b)];
     for &a in alpha {
         let scaled: Vec<B::E> = monomials.iter().map(|&m| b.ext_mul(m, a)).collect();
         monomials.extend(scaled);
     }
-    let mut scale = b.constant(Gl::from_usize(LEAF).inverse());
+    let mut scale = algebra::constant(b, Gl::from_usize(LEAF).inverse());
     let mut coefficients = Vec::with_capacity(LEAF);
     for &monomial in &monomials {
         coefficients.push(b.ext_scale(monomial, scale));

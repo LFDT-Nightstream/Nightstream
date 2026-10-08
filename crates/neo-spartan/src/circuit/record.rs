@@ -4,16 +4,18 @@
 //! rows, the permutation blocks, and the first failed check. Does not own
 //! where rows and cells sit in the shrink cube.
 //!
-//! A glue row is `Σ_{i<3} (A_i·z)·(B_i·z) − C·z = 0`. A permutation is one
-//! block of `poseidon2::CELLS` cells whose rows the template fixes; its 16
-//! inputs are tied to the caller's forms by 16 linear glue rows. The value of
-//! every row is computed when it is emitted, so the first failed check is
-//! known without stopping: the rows never depend on the values.
+//! A glue row is `Σ_{i<3} (A_i·z)·(B_i·z) − C·z = 0`. A permutation or a
+//! ring product is one block (`block.rs`) whose rows its template fixes; its
+//! inputs are tied to the caller's forms by one linear glue row each. The
+//! value of every row is computed when it is emitted, so the first failed
+//! check is known without stopping: the rows never depend on the values.
 
 use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
 use p3_field_v08::{BasedVectorSpace, Field, PrimeCharacteristicRing, PrimeField64};
 
-use super::poseidon2::{self, OUTPUT};
+use neo_math::D;
+
+use super::block::{Kind, KINDS};
 use super::Backend;
 use crate::field::{Ext, Gl};
 use crate::Error;
@@ -22,7 +24,8 @@ use crate::Error;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum Wire {
     Glue(u32),
-    Block(u32, u8),
+    /// Kind, block, cell.
+    Block(Kind, u32, u16),
     Public(u32),
 }
 
@@ -104,8 +107,8 @@ pub(crate) trait Sink {
     /// One glue row: `Σ (Σ a)·(Σ b) − Σ c`, with each side's terms.
     fn row(&mut self, products: &[(Vec<Term>, Vec<Term>)], linear: &[Term]);
     fn cell(&mut self, value: Gl);
-    /// The cells of one permutation block, in template order.
-    fn block(&mut self, cells: &[Gl]);
+    /// The cells of one block, in template order.
+    fn block(&mut self, kind: Kind, cells: &[Gl]);
     fn public(&mut self, value: Gl);
 }
 
@@ -113,7 +116,7 @@ pub(crate) trait Sink {
 pub(crate) struct Recorder<S: Sink> {
     sink: S,
     glue: u32,
-    blocks: u32,
+    blocks: [u32; KINDS.len()],
     publics: u32,
     failure: Option<&'static str>,
 }
@@ -123,7 +126,7 @@ impl<S: Sink> Recorder<S> {
         Self {
             sink,
             glue: 0,
-            blocks: 0,
+            blocks: [0; KINDS.len()],
             publics: 1,
             failure: None,
         }
@@ -176,6 +179,23 @@ impl<S: Sink> Recorder<S> {
         cell
     }
 
+    /// One block of `kind` on `inputs`; returns its output cells.
+    fn block(&mut self, kind: Kind, inputs: &[Form]) -> Vec<Form> {
+        let block = self.blocks[kind.index()];
+        self.blocks[kind.index()] += 1;
+        let values: Vec<Gl> = inputs.iter().map(Form::value).collect();
+        let cells = kind.trace(&values);
+        self.sink.block(kind, &cells);
+        for (cell, form) in inputs.iter().enumerate() {
+            let mut linear = vec![(Wire::Block(kind, block, cell as u16), Gl::ONE)];
+            linear.extend(form.row_terms().into_iter().map(|(wire, c)| (wire, -c)));
+            self.row(&[], &linear, Gl::ZERO, "block input");
+        }
+        kind.outputs()
+            .map(|cell| Form::wire(Wire::Block(kind, block, cell as u16), cells[cell]))
+            .collect()
+    }
+
     fn linear(&mut self, parts: &[(Form, Gl)]) -> Form {
         let (terms, constant, value) = combine(parts);
         self.form(terms, constant, value)
@@ -214,15 +234,16 @@ impl<S: Sink> Backend for Recorder<S> {
     type F = Form;
     type E = [Form; 3];
 
-    fn constant(&mut self, value: Gl) -> Form {
-        Form::constant(value)
+    fn constant(&mut self, value: u64) -> Form {
+        Form::constant(Gl::from_u64(value))
     }
 
-    fn private(&mut self, value: Gl) -> Form {
-        self.cell(value)
+    fn private(&mut self, value: u64) -> Form {
+        self.cell(Gl::from_u64(value))
     }
 
-    fn public(&mut self, value: Gl) -> Form {
+    fn public(&mut self, value: u64) -> Form {
+        let value = Gl::from_u64(value);
         let wire = Wire::Public(self.publics);
         self.publics += 1;
         self.sink.public(value);
@@ -237,16 +258,16 @@ impl<S: Sink> Backend for Recorder<S> {
         self.linear(&[(a, Gl::ONE), (b, -Gl::ONE)])
     }
 
-    fn scale(&mut self, a: Form, by: Gl) -> Form {
-        self.linear(&[(a, by)])
+    fn scale(&mut self, a: Form, by: u64) -> Form {
+        self.linear(&[(a, Gl::from_u64(by))])
     }
 
     fn mul(&mut self, a: Form, b: Form) -> Form {
         if a.is_constant() {
-            return self.scale(b, a.constant);
+            return self.linear(&[(b, a.constant)]);
         }
         if b.is_constant() {
-            return self.scale(a, b.constant);
+            return self.linear(&[(a, b.constant)]);
         }
         let product = self.cell(a.value * b.value);
         self.row(&[(a.row_terms(), b.row_terms())], product.terms(), Gl::ZERO, "product");
@@ -261,8 +282,8 @@ impl<S: Sink> Backend for Recorder<S> {
         a
     }
 
-    fn ext_constant(&mut self, value: Ext) -> [Form; 3] {
-        ext_coordinates(value).map(Form::constant)
+    fn ext_constant(&mut self, value: [u64; 3]) -> [Form; 3] {
+        value.map(|word| Form::constant(Gl::from_u64(word)))
     }
 
     fn ext_add(&mut self, a: [Form; 3], b: [Form; 3]) -> [Form; 3] {
@@ -308,10 +329,10 @@ impl<S: Sink> Backend for Recorder<S> {
         let inverse = value.try_inverse();
         if a.iter().all(Form::is_constant) {
             return match inverse {
-                Some(inverse) => Ok(self.ext_constant(inverse)),
+                Some(inverse) => Ok(ext_coordinates(inverse).map(Form::constant)),
                 None => {
                     self.fail(what);
-                    Ok(self.ext_constant(Ext::ZERO))
+                    Ok([Form::constant(Gl::ZERO); 3])
                 }
             };
         }
@@ -375,24 +396,26 @@ impl<S: Sink> Backend for Recorder<S> {
     }
 
     fn permute(&mut self, state: [Form; WIDTH]) -> [Form; WIDTH] {
-        let block = self.blocks;
-        self.blocks += 1;
-        let input: [Gl; WIDTH] = std::array::from_fn(|lane| state[lane].value);
-        let cells = poseidon2::trace(&input);
-        self.sink.block(&cells);
-        for (lane, form) in state.iter().enumerate() {
-            let mut linear = vec![(Wire::Block(block, lane as u8), Gl::ONE)];
-            linear.extend(form.row_terms().into_iter().map(|(wire, c)| (wire, -c)));
-            self.row(&[], &linear, Gl::ZERO, "permutation input");
-        }
-        std::array::from_fn(|lane| Form::wire(Wire::Block(block, (OUTPUT + lane) as u8), cells[OUTPUT + lane]))
+        let outputs = self.block(Kind::Permutation, &state);
+        std::array::from_fn(|lane| outputs[lane])
     }
 
-    fn hint(&mut self, inputs: &[Form], len: usize, compute: &dyn Fn(&[Gl]) -> Vec<Gl>) -> Vec<Form> {
-        let values: Vec<Gl> = inputs.iter().map(Form::value).collect();
+    fn ring_mul(&mut self, a: &[Form; D], b: &[Form; D]) -> [Form; D] {
+        let outputs = self.block(Kind::RingProduct, &[a.as_slice(), b.as_slice()].concat());
+        std::array::from_fn(|i| outputs[i])
+    }
+
+    fn hint(&mut self, inputs: &[Form], len: usize, compute: &dyn Fn(&[u64]) -> Vec<u64>) -> Vec<Form> {
+        let values: Vec<u64> = inputs
+            .iter()
+            .map(|form| form.value.as_canonical_u64())
+            .collect();
         let outputs = compute(&values);
         assert_eq!(outputs.len(), len, "a hint must return its declared length");
-        outputs.into_iter().map(|value| self.cell(value)).collect()
+        outputs
+            .into_iter()
+            .map(|value| self.cell(Gl::from_u64(value)))
+            .collect()
     }
 }
 
@@ -401,8 +424,8 @@ impl<S: Sink> Backend for Recorder<S> {
 pub(crate) struct Trace {
     /// Glue cell values.
     pub(crate) glue: Vec<Gl>,
-    /// Block cell values, `poseidon2::CELLS` per block.
-    pub(crate) blocks: Vec<Gl>,
+    /// Block cell values per kind, `kind.cells()` per block.
+    pub(crate) blocks: [Vec<Gl>; KINDS.len()],
     /// Statement words (index 1 and up; index 0 is the constant one).
     pub(crate) public: Vec<Gl>,
     /// Row entries; `rows[r]` holds the start of each of the seven sides
@@ -433,8 +456,8 @@ impl Sink for Trace {
         self.glue.push(value);
     }
 
-    fn block(&mut self, cells: &[Gl]) {
-        self.blocks.extend_from_slice(cells);
+    fn block(&mut self, kind: Kind, cells: &[Gl]) {
+        self.blocks[kind.index()].extend_from_slice(cells);
     }
 
     fn public(&mut self, value: Gl) {
@@ -446,7 +469,7 @@ impl Trace {
     pub(crate) fn value(&self, wire: Wire) -> Gl {
         match wire {
             Wire::Glue(cell) => self.glue[cell as usize],
-            Wire::Block(block, cell) => self.blocks[block as usize * poseidon2::CELLS + cell as usize],
+            Wire::Block(kind, block, cell) => self.blocks[kind.index()][block as usize * kind.cells() + cell as usize],
             Wire::Public(0) => Gl::ONE,
             Wire::Public(index) => self.public[index as usize - 1],
         }
@@ -463,22 +486,23 @@ impl Trace {
         (0..3).fold(-side(6), |acc, i| acc + side(2 * i) * side(2 * i + 1))
     }
 
-    /// The first row of a block that fails, if any.
-    pub(crate) fn block_failure(&self, block: usize) -> Option<usize> {
-        let cells = &self.blocks[block * poseidon2::CELLS..(block + 1) * poseidon2::CELLS];
-        let template = poseidon2::template();
-        let sbox = template
-            .sbox_inputs
-            .iter()
-            .enumerate()
-            .position(|(r, form)| form.evaluate(cells).exp_const_u64::<7>() != cells[WIDTH + r]);
-        sbox.or_else(|| {
-            template
-                .outputs
-                .iter()
-                .enumerate()
-                .position(|(lane, form)| form.evaluate(cells) != cells[OUTPUT + lane])
-                .map(|lane| poseidon2::SBOXES + lane)
+    /// The number of blocks of `kind`.
+    pub(crate) fn count(&self, kind: Kind) -> usize {
+        self.blocks[kind.index()].len() / kind.cells()
+    }
+
+    /// The first block, of any kind, with a failing row.
+    pub(crate) fn failing_block(&self) -> Option<(Kind, usize)> {
+        KINDS.into_iter().find_map(|kind| {
+            (0..self.count(kind))
+                .find(|&block| self.block_failure(kind, block).is_some())
+                .map(|block| (kind, block))
         })
+    }
+
+    /// The first row of block `block` of `kind` that fails, if any.
+    pub(crate) fn block_failure(&self, kind: Kind, block: usize) -> Option<usize> {
+        let cells = kind.cells();
+        kind.failure(&self.blocks[kind.index()][block * cells..(block + 1) * cells])
     }
 }

@@ -14,10 +14,12 @@ use std::sync::OnceLock;
 use neo_ccs::crypto::poseidon2_goldilocks::{round_constants, WIDTH};
 use p3_field_v08::PrimeCharacteristicRing;
 
+use super::block::{Entry, C, X};
 use crate::field::Gl;
 
 pub(crate) const SBOXES: usize = 150;
 pub(crate) const CELLS: usize = WIDTH + SBOXES + WIDTH;
+pub(crate) const ROWS: usize = SBOXES + WIDTH;
 /// The first output cell.
 pub(crate) const OUTPUT: usize = WIDTH + SBOXES;
 
@@ -85,6 +87,52 @@ pub(crate) fn trace(input: &[Gl; WIDTH]) -> Vec<Gl> {
         cells[OUTPUT + lane] = form.evaluate(&cells);
     }
     cells
+}
+
+/// Every nonzero of the block. S-box row `r`: `X` is the S-box input form,
+/// `C` the S-box output cell. Output row `150 + i`: `C` is the output cell
+/// minus its form.
+pub(crate) fn entries() -> Vec<Entry> {
+    let template = template();
+    let mut entries = Vec::new();
+    let mut push = |matrix, row, form: &Linear, sign: Gl| {
+        for &(cell, coefficient) in &form.terms {
+            entries.push(Entry {
+                matrix,
+                row,
+                cell: Some(cell),
+                coefficient: sign * coefficient,
+            });
+        }
+        if form.constant != Gl::ZERO {
+            entries.push(Entry {
+                matrix,
+                row,
+                cell: None,
+                coefficient: sign * form.constant,
+            });
+        }
+    };
+    for (row, form) in template.sbox_inputs.iter().enumerate() {
+        push(X, row, form, Gl::ONE);
+    }
+    for (lane, form) in template.outputs.iter().enumerate() {
+        push(C, SBOXES + lane, form, -Gl::ONE);
+    }
+    for row in 0..ROWS {
+        let cell = if row < SBOXES {
+            WIDTH + row
+        } else {
+            OUTPUT + row - SBOXES
+        };
+        entries.push(Entry {
+            matrix: C,
+            row,
+            cell: Some(cell),
+            coefficient: Gl::ONE,
+        });
+    }
+    entries
 }
 
 fn build() -> Template {

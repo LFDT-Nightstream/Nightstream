@@ -1,11 +1,18 @@
-//! The norm conjunct's fraction sum `Σ_x 1 / (β - z(x))`, proven by GKR
-//! (logUp-GKR, Papini and Haböck, ePrint 2023/1284).
+//! Fraction sums `Σ_x p(x) / q(x)` over several trees, proven by one batched
+//! GKR (logUp-GKR, Papini and Haböck, ePrint 2023/1284).
 //!
-//! Owns: the layered fraction tree over the committed cube, its prover and
-//! its verifier. Layer `k` has `2^k` nodes indexed by the low `k` bits of a
-//! leaf index; a node of layer `k - 1` combines the two layer-`k` nodes that
-//! differ in bit `k - 1`. Leaves are `(p, q) = (1, β - z(x))`, so the leaf
-//! claim is a claim on `z` at one point.
+//! Owns: the layered fraction trees, the batched layer sum-checks, and the
+//! leaf claims. Does not own what the leaves mean: the caller checks each
+//! root and each leaf claim against its own columns.
+//!
+//! Layer `k` of a tree has `2^k` nodes indexed by the low `k` bits of a leaf
+//! index; a node of layer `k - 1` combines the two layer-`k` nodes that differ
+//! in bit `k - 1`. A leaf is `(Π_j f_j(x), d(x))` with zero, one or two
+//! numerator factors `f_j` and one denominator `d`, each a multilinear table.
+//! All trees start at the root together; at each layer the trees that reach
+//! it share one sum-check, so trees of equal depth share the leaf point.
+//! The leaf claim of a tree is every factor's and the denominator's value at
+//! its leaf point.
 
 use p3_challenger_v08::FieldChallenger;
 use p3_field_v08::PrimeCharacteristicRing;
@@ -17,193 +24,307 @@ use crate::hash::Challenger;
 use crate::sumcheck;
 use crate::Error;
 
+/// The leaves of one tree: numerator factors (none means all ones) and the
+/// denominator, each of length `2^depth`.
+#[derive(Default)]
+pub(crate) struct Tree {
+    pub(crate) factors: Vec<Vec<Ext>>,
+    pub(crate) denominator: Vec<Ext>,
+}
+
+/// What the verifier knows of a tree before the proof.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct TreeShape {
+    pub(crate) depth: usize,
+    pub(crate) factors: usize,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub(crate) struct GkrProof {
-    /// `(P_0, Q_0)`: the root fraction.
-    pub(crate) root: [Ext; 2],
-    /// One entry per layer `k = 1..=variables`.
+    /// `(P, Q)` at each tree's root, in tree order.
+    pub(crate) roots: Vec<[Ext; 2]>,
+    /// One entry per layer `k = 1..=` the largest depth.
     pub(crate) layers: Vec<Layer>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub(crate) struct Layer {
-    /// `k - 1` degree-3 round messages (none for `k = 1`).
+    /// `k - 1` round messages of the batched sum-check.
     pub(crate) rounds: Vec<Vec<Ext>>,
-    /// `P_k(ρ', 0), P_k(ρ', 1), Q_k(ρ', 0), Q_k(ρ', 1)`; the leaf layer sends
-    /// only the two `Q` values because every leaf `P` is one.
-    pub(crate) children: Vec<Ext>,
+    /// For each tree that reaches layer `k`, in tree order: each part's values
+    /// at the two children. The parts are `P, Q` inside the tree and the
+    /// factors, then the denominator, at its leaf layer.
+    pub(crate) children: Vec<Vec<Ext>>,
 }
 
-/// The leaf claim: `q~(point) = β - z~(point)`.
-pub(crate) struct LeafClaim {
+/// One tree's root fraction and its leaf claim.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct TreeClaim {
+    pub(crate) root: [Ext; 2],
     pub(crate) point: Vec<Ext>,
-    pub(crate) q: Ext,
+    /// The factors' values, then the denominator's, at `point`.
+    pub(crate) values: Vec<Ext>,
 }
 
-/// Prove the fraction sum of the leaves `(1, β - z(x))`; return the proof and
-/// the leaf point.
-pub(crate) fn prove(z: &[Gl], beta: Ext, challenger: &mut Challenger) -> (GkrProof, Vec<Ext>) {
-    let variables = z.len().trailing_zeros() as usize;
-    assert_eq!(z.len(), 1 << variables);
-    let leaf = |x: usize| beta - z[x];
+impl Tree {
+    fn depth(&self) -> usize {
+        let depth = self.denominator.len().trailing_zeros() as usize;
+        assert!(depth >= 1 && self.denominator.len() == 1 << depth);
+        assert!(self.factors.len() <= 2 && self.factors.iter().all(|f| f.len() == 1 << depth));
+        depth
+    }
 
-    // tree[k] = (P_k, Q_k) for k < variables; the leaves are computed from z.
-    let mut tree: Vec<(Vec<Ext>, Vec<Ext>)> = Vec::with_capacity(variables);
-    let half = z.len() / 2;
-    let (p, q): (Vec<Ext>, Vec<Ext>) = (0..half)
-        .into_par_iter()
-        .map(|y| {
-            let (q0, q1) = (leaf(y), leaf(y + half));
-            (q0 + q1, q0 * q1)
-        })
-        .unzip();
-    tree.push((p, q));
-    while tree.last().expect("nonempty").0.len() > 1 {
-        let (p, q) = tree.last().expect("nonempty");
-        let half = p.len() / 2;
-        let next = (0..half)
+    fn numerator(&self, x: usize) -> Ext {
+        self.factors.iter().map(|factor| factor[x]).product()
+    }
+
+    /// The layer above: one factor `P` and the denominator `Q`.
+    fn parent(&self) -> Tree {
+        let half = self.denominator.len() / 2;
+        let (p, q) = (0..half)
             .into_par_iter()
             .map(|y| {
-                let (p0, p1, q0, q1) = (p[y], p[y + half], q[y], q[y + half]);
+                let (p0, p1) = (self.numerator(y), self.numerator(y + half));
+                let (q0, q1) = (self.denominator[y], self.denominator[y + half]);
                 (p0 * q1 + p1 * q0, q0 * q1)
             })
             .unzip();
-        tree.push(next);
+        Tree {
+            factors: vec![p],
+            denominator: q,
+        }
     }
-    tree.reverse();
 
-    let root = [tree[0].0[0], tree[0].1[0]];
-    challenger.observe_algebra_slice(&root);
-    let mut point = Vec::new();
-    let mut layers = Vec::with_capacity(variables);
-    for k in 1..=variables {
-        let half = 1 << (k - 1);
-        let (p0, p1, q0, q1) = if k == variables {
-            let q0 = (0..half).into_par_iter().map(leaf).collect();
-            let q1 = (0..half).into_par_iter().map(|y| leaf(y + half)).collect();
-            (None, None, q0, q1)
-        } else {
-            let (p, q) = &tree[k];
-            (
-                Some(p[..half].to_vec()),
-                Some(p[half..].to_vec()),
-                q[..half].to_vec(),
-                q[half..].to_vec(),
-            )
-        };
-        let (rounds, next, children) = if k == 1 {
-            let children = layer_children(&p0, &p1, &q0, &q1);
-            (Vec::new(), Vec::new(), children)
-        } else {
-            let mu: Ext = challenger.sample_algebra_element();
-            prove_layer(eq_table(&point), p0, p1, q0, q1, mu, challenger)
-        };
-        challenger.observe_algebra_slice(&children);
-        let tau: Ext = challenger.sample_algebra_element();
-        point = next;
-        point.push(tau);
-        layers.push(Layer { rounds, children });
+    fn parts(&self) -> impl Iterator<Item = &Vec<Ext>> {
+        self.factors
+            .iter()
+            .chain(std::iter::once(&self.denominator))
     }
-    (GkrProof { root, layers }, point)
+
+    fn parts_mut(&mut self) -> impl Iterator<Item = &mut Vec<Ext>> {
+        self.factors
+            .iter_mut()
+            .chain(std::iter::once(&mut self.denominator))
+    }
 }
 
-/// Verify the tree whose root must equal `table_sum`; return the leaf claim.
+/// The batched round degree: 3, or `factors + 2` at a product leaf layer.
+fn degree(factors: impl Iterator<Item = usize>) -> usize {
+    factors.map(|f| f + 2).max().unwrap_or(0).max(3)
+}
+
+/// `p0·q1 + p1·q0 + μ·q0·q1` from one tree's child values: each part's pair.
+fn combine(children: &[Ext], mu: Ext) -> Ext {
+    let factors = children.len() / 2 - 1;
+    let p = |b: usize| (0..factors).map(|j| children[2 * j + b]).product::<Ext>();
+    let q = |b: usize| children[2 * factors + b];
+    p(0) * q(1) + p(1) * q(0) + mu * q(0) * q(1)
+}
+
+/// Prove the fraction sums of `trees`; return the proof and one claim per tree.
+pub(crate) fn prove(trees: Vec<Tree>, challenger: &mut Challenger) -> (GkrProof, Vec<TreeClaim>) {
+    let depths: Vec<usize> = trees.iter().map(Tree::depth).collect();
+    // levels[i][k] is tree i at layer k; levels[i][depth] is its leaves.
+    let mut levels: Vec<Vec<Tree>> = trees
+        .into_iter()
+        .map(|leaves| {
+            let mut levels = vec![leaves];
+            while levels.last().expect("nonempty").denominator.len() > 1 {
+                let parent = levels.last().expect("nonempty").parent();
+                levels.push(parent);
+            }
+            levels.reverse();
+            levels
+        })
+        .collect();
+    let roots: Vec<[Ext; 2]> = levels
+        .iter()
+        .map(|levels| [levels[0].factors[0][0], levels[0].denominator[0]])
+        .collect();
+    for root in &roots {
+        challenger.observe_algebra_slice(root);
+    }
+
+    let mut claims: Vec<Option<TreeClaim>> = vec![None; depths.len()];
+    let mut point = Vec::new();
+    let mut layers = Vec::new();
+    for k in 1..=depths.iter().copied().max().unwrap_or(0) {
+        let active: Vec<usize> = (0..depths.len()).filter(|&i| depths[i] >= k).collect();
+        let mut tables: Vec<Tree> = active
+            .iter()
+            .map(|&i| std::mem::take(&mut levels[i][k]))
+            .collect();
+        let mu: Ext = challenger.sample_algebra_element();
+        let nu: Ext = challenger.sample_algebra_element();
+        let degree = degree(tables.iter().map(|tree| tree.factors.len()));
+        let (rounds, mut next) = prove_layer(eq_table(&point), &mut tables, mu, nu, degree, challenger);
+        let children: Vec<Vec<Ext>> = tables
+            .iter()
+            .map(|tree| tree.parts().flat_map(|part| [part[0], part[1]]).collect())
+            .collect();
+        for values in &children {
+            challenger.observe_algebra_slice(values);
+        }
+        let tau: Ext = challenger.sample_algebra_element();
+        next.push(tau);
+        for (&i, values) in active.iter().zip(&children) {
+            if depths[i] == k {
+                claims[i] = Some(TreeClaim {
+                    root: roots[i],
+                    point: next.clone(),
+                    values: values
+                        .chunks(2)
+                        .map(|pair| pair[0] + tau * (pair[1] - pair[0]))
+                        .collect(),
+                });
+            }
+        }
+        point = next;
+        layers.push(Layer { rounds, children });
+    }
+    let claims = claims
+        .into_iter()
+        .map(|claim| claim.expect("every tree ends"))
+        .collect();
+    (GkrProof { roots, layers }, claims)
+}
+
+/// Verify `proof` for trees of `shapes`; return one claim per tree. The
+/// caller checks the roots and the leaf values.
 pub(crate) fn verify(
     proof: &GkrProof,
-    variables: usize,
-    table_sum: Ext,
+    shapes: &[TreeShape],
     challenger: &mut Challenger,
-) -> Result<LeafClaim, Error> {
-    if proof.layers.len() != variables {
-        return Err(Error::Rejected("GKR layer count"));
+) -> Result<Vec<TreeClaim>, Error> {
+    let layer_count = shapes.iter().map(|shape| shape.depth).max().unwrap_or(0);
+    if proof.roots.len() != shapes.len()
+        || proof.layers.len() != layer_count
+        || shapes
+            .iter()
+            .any(|shape| shape.depth == 0 || shape.factors > 2)
+    {
+        return Err(Error::Rejected("GKR shape"));
     }
-    let [mut p, mut q] = proof.root;
-    challenger.observe_algebra_slice(&proof.root);
-    if q == Ext::ZERO || p != q * table_sum {
-        return Err(Error::Rejected("GKR root against the histogram"));
+    for root in &proof.roots {
+        challenger.observe_algebra_slice(root);
     }
+    // Each tree's current claim `(p, q)` at `point`.
+    let mut current: Vec<[Ext; 2]> = proof.roots.clone();
+    let mut claims: Vec<Option<TreeClaim>> = vec![None; shapes.len()];
     let mut point = Vec::new();
     for (index, layer) in proof.layers.iter().enumerate() {
         let k = index + 1;
-        let leaf = k == variables;
-        let [p0, p1, q0, q1] = match (leaf, layer.children.as_slice()) {
-            (true, &[q0, q1]) => [Ext::ONE, Ext::ONE, q0, q1],
-            (false, &[p0, p1, q0, q1]) => [p0, p1, q0, q1],
-            _ => return Err(Error::Rejected("GKR children")),
-        };
-        let next = if k == 1 {
-            if !layer.rounds.is_empty() || p != p0 * q1 + p1 * q0 || q != q0 * q1 {
-                return Err(Error::Rejected("GKR first layer"));
-            }
-            Vec::new()
-        } else {
-            let mu: Ext = challenger.sample_algebra_element();
-            if layer.rounds.len() != k - 1 {
-                return Err(Error::Rejected("GKR round count"));
-            }
-            let (next, last) = sumcheck::verify(&layer.rounds, 3, p + mu * q, challenger)?;
-            if last != eq_eval(&point, &next) * (p0 * q1 + p1 * q0 + mu * q0 * q1) {
-                return Err(Error::Rejected("GKR layer"));
-            }
-            next
-        };
-        challenger.observe_algebra_slice(&layer.children);
+        let active: Vec<usize> = (0..shapes.len())
+            .filter(|&i| shapes[i].depth >= k)
+            .collect();
+        let factors = |i: usize| if shapes[i].depth == k { shapes[i].factors } else { 1 };
+        if layer.rounds.len() != k - 1
+            || layer.children.len() != active.len()
+            || active
+                .iter()
+                .zip(&layer.children)
+                .any(|(&i, values)| values.len() != 2 * (factors(i) + 1))
+        {
+            return Err(Error::Rejected("GKR layer shape"));
+        }
+        let mu: Ext = challenger.sample_algebra_element();
+        let nu: Ext = challenger.sample_algebra_element();
+        let mut claim = Ext::ZERO;
+        let mut expected = Ext::ZERO;
+        let mut weight = Ext::ONE;
+        for (&i, values) in active.iter().zip(&layer.children) {
+            let [p, q] = current[i];
+            claim += weight * (p + mu * q);
+            expected += weight * combine(values, mu);
+            weight *= nu;
+        }
+        let degree = degree(active.iter().map(|&i| factors(i)));
+        let (mut next, last) = sumcheck::verify(&layer.rounds, degree, claim, challenger)?;
+        if last != eq_eval(&point, &next) * expected {
+            return Err(Error::Rejected("GKR layer"));
+        }
+        for values in &layer.children {
+            challenger.observe_algebra_slice(values);
+        }
         let tau: Ext = challenger.sample_algebra_element();
-        p = p0 + tau * (p1 - p0);
-        q = q0 + tau * (q1 - q0);
+        next.push(tau);
+        for (&i, values) in active.iter().zip(&layer.children) {
+            let reduced: Vec<Ext> = values
+                .chunks(2)
+                .map(|pair| pair[0] + tau * (pair[1] - pair[0]))
+                .collect();
+            if shapes[i].depth == k {
+                claims[i] = Some(TreeClaim {
+                    root: proof.roots[i],
+                    point: next.clone(),
+                    values: reduced,
+                });
+            } else {
+                current[i] = [reduced[0], reduced[1]];
+            }
+        }
         point = next;
-        point.push(tau);
     }
-    Ok(LeafClaim { point, q })
+    Ok(claims
+        .into_iter()
+        .map(|claim| claim.expect("every tree ends"))
+        .collect())
 }
 
-fn layer_children(p0: &Option<Vec<Ext>>, p1: &Option<Vec<Ext>>, q0: &[Ext], q1: &[Ext]) -> Vec<Ext> {
-    match (p0, p1) {
-        (Some(p0), Some(p1)) => vec![p0[0], p1[0], q0[0], q1[0]],
-        _ => vec![q0[0], q1[0]],
-    }
-}
-
-/// Sum-check of `Σ_y eq(ρ, y)·(P0·Q1 + P1·Q0 + μ·Q0·Q1)`; absent `P` tables
-/// are the all-ones leaf numerators.
+/// The batched sum-check of `Σ_y eq(point, y)·Σ_t ν^t·(P0·Q1 + P1·Q0 + μ·Q0·Q1)`
+/// over the trees' layer tables, whose halves are the two children. Returns
+/// the rounds and the point; the tables end with length 2.
 fn prove_layer(
     mut eq: Vec<Ext>,
-    mut p0: Option<Vec<Ext>>,
-    mut p1: Option<Vec<Ext>>,
-    mut q0: Vec<Ext>,
-    mut q1: Vec<Ext>,
+    tables: &mut [Tree],
     mu: Ext,
+    nu: Ext,
+    degree: usize,
     challenger: &mut Challenger,
-) -> (Vec<Vec<Ext>>, Vec<Ext>, Vec<Ext>) {
+) -> (Vec<Vec<Ext>>, Vec<Ext>) {
+    let weights: Vec<Ext> = std::iter::successors(Some(Ext::ONE), |&w| Some(w * nu))
+        .take(tables.len())
+        .collect();
+    let nodes: Vec<Ext> = std::iter::once(0)
+        .chain(2..=degree)
+        .map(|x| Ext::from(Gl::from_usize(x)))
+        .collect();
     let mut rounds = Vec::new();
     let mut point = Vec::new();
     while eq.len() > 1 {
-        let at = |table: &[Ext], m: usize, x: Ext| table[2 * m] + x * (table[2 * m + 1] - table[2 * m]);
-        let nodes = [Ext::ZERO, Ext::TWO, Ext::from(Gl::from_u8(3))];
+        let tables_ref = &*tables;
         let message = (0..eq.len() / 2)
             .into_par_iter()
             .map(|m| {
-                nodes.map(|x| {
-                    let (a0, a1) = match (&p0, &p1) {
-                        (Some(p0), Some(p1)) => (at(p0, m, x), at(p1, m, x)),
-                        _ => (Ext::ONE, Ext::ONE),
-                    };
-                    let (b0, b1) = (at(&q0, m, x), at(&q1, m, x));
-                    at(&eq, m, x) * (a0 * b1 + a1 * b0 + mu * b0 * b1)
-                })
+                let at = |table: &[Ext], base: usize, x: Ext| table[base] + x * (table[base + 1] - table[base]);
+                nodes
+                    .iter()
+                    .map(|&x| {
+                        let mut total = Ext::ZERO;
+                        for (tree, &weight) in tables_ref.iter().zip(&weights) {
+                            let half = tree.denominator.len() / 2;
+                            let child = |table: &[Ext], b: usize| at(table, b * half + 2 * m, x);
+                            let p = |b: usize| tree.factors.iter().map(|f| child(f, b)).product::<Ext>();
+                            let (q0, q1) = (child(&tree.denominator, 0), child(&tree.denominator, 1));
+                            total += weight * (p(0) * q1 + p(1) * q0 + mu * q0 * q1);
+                        }
+                        at(&eq, 2 * m, x) * total
+                    })
+                    .collect::<Vec<Ext>>()
             })
-            .reduce(|| [Ext::ZERO; 3], |a, b| [a[0] + b[0], a[1] + b[1], a[2] + b[2]])
-            .to_vec();
+            .reduce(
+                || vec![Ext::ZERO; nodes.len()],
+                |a, b| a.iter().zip(&b).map(|(&x, &y)| x + y).collect(),
+            );
         let r = sumcheck::send(&message, challenger);
         fold_low(&mut eq, r);
-        for table in [&mut p0, &mut p1].into_iter().flatten() {
-            fold_low(table, r);
+        for tree in tables.iter_mut() {
+            for table in tree.parts_mut() {
+                fold_low(table, r);
+            }
         }
-        fold_low(&mut q0, r);
-        fold_low(&mut q1, r);
         rounds.push(message);
         point.push(r);
     }
-    let children = layer_children(&p0, &p1, &q0, &q1);
-    (rounds, point, children)
+    (rounds, point)
 }

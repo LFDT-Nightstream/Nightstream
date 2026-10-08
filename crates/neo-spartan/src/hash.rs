@@ -11,7 +11,9 @@ use neo_transcript::{domain_chunk_v1_1, Poseidon2Transcript};
 use p3_challenger_v08::{CanObserve, DuplexChallenger};
 use p3_field_v08::Field;
 use p3_merkle_tree_v08::MerkleTreeMmcs;
-use p3_symmetric_v08::{PaddingFreeSponge, TruncatedPermutation};
+use p3_symmetric_v08::{
+    CryptographicHasher, PaddingFreeSponge, Permutation, PseudoCompressionFunction, TruncatedPermutation,
+};
 use rand_chacha_p3::{rand_core::SeedableRng, ChaCha8Rng};
 
 use crate::field::{gl, Gl};
@@ -37,6 +39,39 @@ pub(crate) fn permutation() -> &'static Perm {
 pub(crate) fn mmcs() -> Mmcs {
     let perm = permutation().clone();
     Mmcs::new(LeafHash::new(perm.clone()), Compress::new(perm), 0)
+}
+
+/// The Merkle leaf hash: an overwrite-mode sponge over `values`.
+pub(crate) fn hash_leaf(values: &[Gl]) -> [Gl; DIGEST_LEN] {
+    LeafHash::new(permutation().clone()).hash_slice(values)
+}
+
+/// The Merkle node compression of a left and a right child.
+pub(crate) fn compress(left: [Gl; DIGEST_LEN], right: [Gl; DIGEST_LEN]) -> [Gl; DIGEST_LEN] {
+    Compress::new(permutation().clone()).compress([left, right])
+}
+
+/// One sponge block absorbed into `state` in place, as `hash_leaf` does:
+/// overwrite `state[at..at + values.len()]`; permute when the rate is full.
+/// Returns the new fill position. Used to hash many leaves in lockstep.
+pub(crate) fn absorb(state: &mut [Gl; WIDTH], mut at: usize, values: &[Gl]) -> usize {
+    for &value in values {
+        state[at] = value;
+        at += 1;
+        if at == RATE {
+            permutation().permute_mut(state);
+            at = 0;
+        }
+    }
+    at
+}
+
+/// Close a lockstep sponge: permute a partial block, then squeeze.
+pub(crate) fn squeeze(state: &mut [Gl; WIDTH], at: usize) -> [Gl; DIGEST_LEN] {
+    if at != 0 {
+        permutation().permute_mut(state);
+    }
+    std::array::from_fn(|lane| state[lane])
 }
 
 /// Take ownership of the fold transcript, name layer 1 in it, and seed the

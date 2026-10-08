@@ -7,9 +7,9 @@
 //! not own the reductions, the layer-1 protocol, or the byte layout
 //! (`encoding.rs`). The verifier recomputes the state digest, the running
 //! frames and the parent claim; nothing carried in the proof is authority.
+//! Layer 1 takes its constants from a compression key the caller trusts.
 
 use neo_math::D;
-use neo_reductions::superneo_eval::MatrixRows;
 use nightstream_fprime::{PackageError, PI_CCS_V1_1_SOURCE_COUNT};
 
 use super::{
@@ -61,7 +61,11 @@ pub enum FinishError {
 impl PreparedLifecycle {
     /// Prove the final accumulator of `envelope` without its witnesses.
     /// `envelope` does not change and can still be extended.
-    pub(crate) fn finish_with_spartan(&self, envelope: &Stage1Envelope) -> Result<FinalProof, FinishError> {
+    pub(crate) fn finish_with_spartan(
+        &self,
+        envelope: &Stage1Envelope,
+        setup: &neo_spartan::Setup,
+    ) -> Result<FinalProof, FinishError> {
         let state = envelope.state().clone();
         let (mut running, mut fresh) = match (envelope.running(), envelope.fresh()) {
             (Some(running), Some(fresh)) => (running.clone(), fresh.clone()),
@@ -89,8 +93,14 @@ impl PreparedLifecycle {
             vec![fresh],
             running,
         )?;
-        let relation = self.compression_relation(&rows, &parent.claim)?;
-        let layer1 = neo_spartan::prove(&relation, transcript.into_inner(), &parent.claim, &parent.witness)?;
+        let relation = self.compression_relation(setup.key(), &parent.claim)?;
+        let layer1 = neo_spartan::prove(
+            &relation,
+            setup,
+            transcript.into_inner(),
+            &parent.claim,
+            &parent.witness,
+        )?;
         Ok(FinalProof {
             state,
             running: semantic,
@@ -101,8 +111,13 @@ impl PreparedLifecycle {
         })
     }
 
-    /// Check a finished proof against the caller's expected state.
-    pub(crate) fn verify_final(&self, expected_state: &Stage1State, proof: &FinalProof) -> Result<(), VerifyError> {
+    /// Check a finished proof against the caller's expected state and key.
+    pub(crate) fn verify_final(
+        &self,
+        expected_state: &Stage1State,
+        key: &neo_spartan::Key,
+        proof: &FinalProof,
+    ) -> Result<(), VerifyError> {
         if proof.state != *expected_state {
             return Err(VerifyError::Statement("final proof differs from the external state"));
         }
@@ -122,9 +137,8 @@ impl PreparedLifecycle {
             &proof.pi_rlc,
         )
         .map_err(VerifyError::Layer0)?;
-        let rows = self.matrix_rows();
         let relation = self
-            .compression_relation(&rows, &parent)
+            .compression_relation(key, &parent)
             .map_err(VerifyError::Layer1)?;
         neo_spartan::verify(&relation, transcript.into_inner(), &parent, &proof.layer1).map_err(VerifyError::Layer1)
     }
@@ -133,11 +147,11 @@ impl PreparedLifecycle {
     /// signed-unit vector, so the honest parent obeys PiRLC's guard bound
     /// `sources · T · (b - 1)`. The security share is what the caller's
     /// minimum leaves after the fold's exact error.
-    fn compression_relation<'r>(
+    fn compression_relation<'k>(
         &self,
-        rows: &'r dyn MatrixRows,
+        key: &'k neo_spartan::Key,
         parent: &CeClaim,
-    ) -> Result<neo_spartan::Relation<'r>, neo_spartan::Error> {
+    ) -> Result<neo_spartan::Relation<'k>, neo_spartan::Error> {
         let bits = self
             .params
             .compression_security_bits()
@@ -145,6 +159,25 @@ impl PreparedLifecycle {
                 "the fold error leaves no room under the security minimum",
             ))?;
         let bound = PI_CCS_V1_1_SOURCE_COUNT as u32 * self.params.T() * (self.params.b() - 1);
-        neo_spartan::Relation::new(rows, parent.m_in / D, parent.r.len(), bound, bits)
+        neo_spartan::Relation::new(key, parent.m_in / D, parent.r.len(), bound, bits)
+    }
+
+    /// Write the compression setup files of this circuit into `dir`.
+    pub(crate) fn compression_setup(&self, dir: &std::path::Path) -> Result<neo_spartan::Setup, neo_spartan::Error> {
+        neo_spartan::Setup::build(&self.matrix_rows(), dir)
+    }
+
+    /// Reopen setup files written for `key`.
+    pub(crate) fn open_compression_setup(
+        &self,
+        dir: &std::path::Path,
+        key: &neo_spartan::Key,
+    ) -> Result<neo_spartan::Setup, neo_spartan::Error> {
+        neo_spartan::Setup::open(&self.matrix_rows(), dir, key)
+    }
+
+    /// Derive the compression key from the package, without files.
+    pub(crate) fn compression_key(&self) -> Result<neo_spartan::Key, neo_spartan::Error> {
+        neo_spartan::Key::derive(&self.matrix_rows())
     }
 }

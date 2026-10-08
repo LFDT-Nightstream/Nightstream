@@ -2,8 +2,12 @@
 
 mod gkr;
 mod layer1;
+mod matrix;
+mod mle;
+mod setup;
 mod whir;
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use neo_ajtai::nightstream_fprime_setup::{coefficient_block, PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS};
@@ -21,6 +25,23 @@ pub(super) fn word(seed: u64, index: u64) -> u64 {
     x ^= x >> 31;
     x = x.wrapping_mul(0x94d0_49bb_1331_11eb);
     x ^ (x >> 29)
+}
+
+/// A scratch directory removed on drop.
+pub(super) struct Scratch(pub(super) PathBuf);
+
+impl Scratch {
+    pub(super) fn new(name: &str) -> Self {
+        let dir = std::env::temp_dir().join(format!("neo-spartan-{name}-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        Self(dir)
+    }
+}
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
 }
 
 pub(super) fn small(seed: u64, index: u64, bound: u32) -> F {

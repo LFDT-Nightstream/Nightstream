@@ -11,8 +11,9 @@ use p3_symmetric_v08::Permutation;
 
 use crate::field::{gl, Ext, Gl};
 use crate::hash::{challenger, permutation};
-use crate::pcs::{Pcs, POINTS};
-use crate::{outer_terms, Shape};
+use crate::matrix::Structure;
+use crate::pcs::{Pcs, TablePlan};
+use crate::{Key, Relation};
 
 /// Deterministic pseudo-random words; the tests need variety, not secrecy.
 fn word(seed: u64, index: u64) -> u64 {
@@ -58,25 +59,49 @@ fn poseidon2_matches_the_workspace_permutation() {
 }
 
 #[test]
-fn whir_opens_two_points_through_the_seeded_challenger() {
-    let variables = 12;
-    let values: Vec<Gl> = (0..1u64 << variables)
-        .map(|i| Gl::from_u64(word(7, i)))
-        .collect();
-    let points: [Vec<Ext>; POINTS] = std::array::from_fn(|batch| {
-        (0..variables)
-            .map(|c| ext(100 * batch as u64 + c as u64))
+fn whir_opens_two_tables_through_the_seeded_challenger() {
+    // Table 0: one column of 2^12, opened at two points. Table 1: three
+    // columns of 2^3 (below the first folding round), opened at one point.
+    let plans = vec![
+        TablePlan {
+            variables: 12,
+            width: 1,
+            points: vec![vec![0]; 2],
+        },
+        TablePlan {
+            variables: 3,
+            width: 3,
+            points: vec![vec![0, 2]],
+        },
+    ];
+    let column = |seed: u64, variables: usize| -> Vec<Gl> {
+        (0..1u64 << variables)
+            .map(|i| Gl::from_u64(word(seed, i)))
             .collect()
-    });
-    let expected = points.each_ref().map(|point| mle(&values, point));
-    let pcs = Pcs::new(variables, 100.0, &[]).unwrap();
+    };
+    let large = column(7, 12);
+    let small: Vec<Vec<Gl>> = (0..3).map(|c| column(20 + c, 3)).collect();
+    let points: Vec<Vec<Ext>> = [(0, 12), (1, 12), (2, 3)]
+        .iter()
+        .map(|&(batch, variables)| {
+            (0..variables)
+                .map(|c| ext(100 * batch + c as u64))
+                .collect()
+        })
+        .collect();
+    let expected = vec![
+        vec![mle(&large, &points[0])],
+        vec![mle(&large, &points[1])],
+        vec![mle(&small[0], &points[2]), mle(&small[2], &points[2])],
+    ];
+    let pcs = Pcs::new(plans, 100.0, &|_| Vec::new()).unwrap();
     assert!(pcs.security_bits() >= 100.0);
 
     let mut prover = challenger(fold_transcript(1));
-    let (commitment, data) = pcs.commit(values, &mut prover);
+    let (commitment, data) = pcs.commit(vec![large, small.concat()], &mut prover);
     let opening = pcs.open(data, &points, &mut prover);
 
-    let verify = |transcript: Poseidon2Transcript, points: &[Vec<Ext>; POINTS], opening| {
+    let verify = |transcript: Poseidon2Transcript, points: &[Vec<Ext>], opening| {
         let mut verifier = challenger(transcript);
         pcs.observe(&commitment, &mut verifier);
         pcs.verify(&commitment, opening, points, &mut verifier)
@@ -87,33 +112,45 @@ fn whir_opens_two_points_through_the_seeded_challenger() {
     assert!(verify(fold_transcript(2), &points, &opening).is_err());
     // A point the prover did not open.
     let mut moved = points.clone();
-    moved[1][0] += Ext::ONE;
+    moved[2][0] += Ext::ONE;
     assert!(verify(fold_transcript(1), &moved, &opening).is_err());
     // A claimed value that the commitment does not hold.
     let mut changed = opening.clone();
-    let batch = &changed.evals[0];
+    let batch = &changed.evals[2];
     let mut current = batch.current().to_vec();
-    current[0] += Ext::ONE;
-    changed.evals[0] = OpeningBatch::new(current, batch.next().to_vec());
+    current[1] += Ext::ONE;
+    changed.evals[2] = OpeningBatch::new(current, batch.next().to_vec());
     assert!(verify(fold_transcript(1), &points, &changed).is_err());
 }
 
 #[test]
 fn production_shape_reaches_the_required_security() {
     // The production shape at e402a6d99: 814,144 blocks (a 2^26 cube),
-    // 1,004,131 rows, t = 4, 5 public blocks, a 28-variable point, H = 3,672.
-    // 117 bits is the design's estimate of the layer-1 share of a 114-bit
-    // total; the real target is derived at run time.
-    let shape = Shape {
+    // 1,004,131 rows, t = 4, 5 public blocks, a 28-variable point, H = 3,672;
+    // 38,533,993 runs and 1,070,525 slots (census, 2026-10-07). 117 bits is
+    // the design's estimate of the layer-1 share of a 114-bit total; the
+    // real target is derived at run time.
+    let key = Key {
+        root: [0; 4],
         blocks: 814_144,
-        block_variables: 20,
         rows: 1_004_131,
-        matrices: 4,
-        kappa: 22,
-        public_blocks: 5,
-        point_variables: 28,
-        norm_bound: 3_672,
+        structure: Structure {
+            matrices: 4,
+            row_variables: 20,
+            run_variables: 26,
+            slot_variables: 21,
+            run_bounds: vec![0, 10_000_000, 20_000_000, 30_000_000, 38_533_993],
+            classes: Vec::new(),
+            segments: Vec::new(),
+            slots: 1_070_525,
+        },
     };
-    let pcs = Pcs::new(shape.cube_variables(), 117.0, &outer_terms(&shape)).unwrap();
-    assert!(pcs.security_bits() >= 117.0, "{}", pcs.security_bits());
+    let relation = Relation::new(&key, 5, 28, 3_672, 117.0).unwrap();
+    assert!(relation.security_bits() >= 117.0, "{}", relation.security_bits());
+    eprintln!(
+        "P0 {:.1} bits, P1 {:.1} bits, {} setup queries",
+        relation.p0.security_bits(),
+        relation.p1.security_bits(),
+        relation.queries
+    );
 }

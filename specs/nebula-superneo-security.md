@@ -491,20 +491,39 @@ generated relation MUST supply the exact census.
      for the relation);
    - the run-level join (`MemoryApp.chain_soundness`): a chain of states whose
      steps satisfy the program's predicate, with the spec §13 terminal checks,
-     gives Lemma 6's three results, or a collision in a state digest. The
-     relation reads `plan_digest` and the chain headers as constants, and the
-     terminal computes the initial state from the start carry and `D_init`.
+     gives Lemma 6's three results, or a collision between two state-digest
+     inputs of the run: at a link of the chain, or between the words after the
+     last step and the statement's final words. (An earlier form allowed a
+     collision of any two inputs; for a compressing hash such a collision
+     always exists, so that form said nothing. It is fixed.) The relation
+     reads `plan_digest` and the chain headers as constants, and the terminal
+     computes the initial state from the start carry and `D_init`.
+   - the end-to-end statement over two named premises
+     (`Lifecycle/Nebula/EndToEnd.lean`, owner decision 2026-10-08).
+     `Stage1Extraction` says what Stage 1 must deliver: an accepted sample's
+     statement has a step history that satisfies the program's step and
+     validity predicate, or a named Stage 1 failure occurs.
+     `MemoryRoundTransfer` is A6 for the memory round: the real mass of
+     accepted runs that are not executions is at most the failure frequency
+     of one translated game, plus `delta`. With both, `bad_probability` bounds
+     the mass of accepted samples that pass the §13 checks without an attested
+     execution by the Stage 1 failure mass, the state-link collision mass, the
+     game's collision frequency, `S_max · 2·m_mem/q²`, the retry terms, and
+     `delta`.
    - the first memory package (`Export/Stage1/NebulaMemoryV1Package.lean`)
      for the test plan `FirstPlan` (ROM and RAM of four words, `N = 2`,
      `S_max = 4`). Its row, column, and carrier bounds give the Stage 1 fixed
      point and the `2^28` domain (`plan_fixedPoint`,
-     `jointDomain_le_twoPow28`). The Rust crate loads the emitted package
-     with a pinned structural identifier.
+     `jointDomain_le_twoPow28`). A second test package
+     (`NebulaMemoryN1Package`, plan `SecondPlan`: `N = 1`, `r < μ`) covers
+     the spec §14 cases that the first plan cannot reach. Both use the
+     plan-independent geometry of `NebulaMemoryPackage`. The Rust crate loads
+     each emitted package with a pinned structural identifier.
 
    Still open:
-   - the A6 transfer from the real verifier to this game, as a premise in the
-     form of the Stage 1 `FiatShamirModel`. Its real-side event needs the
-     Stage 2 verifier;
+   - a proof or an accepted model of `MemoryRoundTransfer` (A6 for the memory
+     round), and of `Stage1Extraction` for the memory program: Stage 1
+     extraction is written for the hash-chain application only;
    - an extracted run whose segment transcript inputs differ from the
      committed ones is an extraction failure. A1 and A4 must bound it; the
      game theorem does not;
@@ -513,8 +532,7 @@ generated relation MUST supply the exact census.
      step has a witness that satisfies the program's predicate, with the
      counter widths `W_step`, `W_seg`, `W_cnt` and the O4 words `diff_j`;
    - a package for a production plan;
-   - the Stage 1 extraction that turns an accepted proof over that package
-     into the chain of states that `MemoryApp.chain_soundness` reads (A1–A4).
+   - concrete values for the Stage 1 failure and collision terms (A1–A4).
 6. **Shared with Stage 1:** useful values of `g_d` and `delta_d` (A6), the
    concrete extractor time (A4), the arity adaptation of HyperNova Lemma 4, the
    terminal decider, encoding, and implementation terms, and an approved F′

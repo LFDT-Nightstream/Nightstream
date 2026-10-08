@@ -6,6 +6,7 @@ mod layer1;
 mod matrix;
 mod mle;
 mod setup;
+mod verifier;
 mod whir;
 mod whir_verify;
 
@@ -17,9 +18,15 @@ use neo_ajtai::Commitment;
 use neo_ccs::Mat;
 use neo_math::{cf_inv, Rq, D, F, K};
 use neo_reductions::superneo_eval::{SuperneoEvalCache, SuperneoEvalCacheBuilder, SuperneoZBlocks};
+use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeCharacteristicRing;
 
-use crate::Claim;
+use crate::circuit::hash::Duplex;
+use crate::circuit::Native;
+use crate::field::{Ext, Gl};
+use crate::gkr::{GkrProof, GkrView, TreeClaim, TreeShape};
+use crate::hash::Challenger;
+use crate::{Claim, Error};
 
 /// Deterministic pseudo-random words; the tests need variety, not secrecy.
 pub(super) fn word(seed: u64, index: u64) -> u64 {
@@ -27,6 +34,25 @@ pub(super) fn word(seed: u64, index: u64) -> u64 {
     x ^= x >> 31;
     x = x.wrapping_mul(0x94d0_49bb_1331_11eb);
     x ^ (x >> 29)
+}
+
+/// The layer-1 seed of an empty fold transcript.
+pub(super) fn seed() -> [Gl; 4] {
+    crate::hash::seed(Poseidon2Transcript::new_v1_1())
+}
+
+/// A prover challenger at `seed()`.
+pub(super) fn fresh() -> Challenger {
+    crate::hash::challenger(seed())
+}
+
+/// The GKR verifier on plain values, at `seed()`.
+pub(super) fn gkr_verify(proof: &GkrProof, shapes: &[TreeShape]) -> Result<Vec<TreeClaim<Ext>>, Error> {
+    let b = &mut Native;
+    let mut duplex = Duplex::new(b);
+    duplex.observe_slice(b, &seed());
+    let view = GkrView::read(b, Some(proof), shapes)?;
+    crate::gkr::verify(b, &view, shapes, &mut duplex)
 }
 
 /// A scratch directory removed on drop.

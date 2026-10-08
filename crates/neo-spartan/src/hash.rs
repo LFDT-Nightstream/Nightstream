@@ -74,12 +74,16 @@ pub(crate) fn squeeze(state: &mut [Gl; WIDTH], at: usize) -> [Gl; DIGEST_LEN] {
     std::array::from_fn(|lane| state[lane])
 }
 
-/// Take ownership of the fold transcript, name layer 1 in it, and seed the
-/// layer-1 challenger with a four-word digest of everything absorbed so far.
-pub(crate) fn challenger(mut transcript: Poseidon2Transcript) -> Challenger {
+/// Take ownership of the fold transcript, name layer 1 in it, and return a
+/// four-word digest of everything absorbed so far: the layer-1 seed.
+pub(crate) fn seed(mut transcript: Poseidon2Transcript) -> [Gl; 4] {
     transcript.absorb_v1_1(&domain_chunk_v1_1(DOMAIN));
-    let seed = transcript.squeeze_digest_v1_1();
+    transcript.squeeze_digest_v1_1().map(gl)
+}
+
+/// A layer-1 challenger that starts from `seed`.
+pub(crate) fn challenger(seed: [Gl; 4]) -> Challenger {
     let mut challenger = Challenger::new(permutation().clone());
-    challenger.observe_slice(&seed.map(gl));
+    challenger.observe_slice(&seed);
     challenger
 }

@@ -27,62 +27,10 @@ pub(crate) fn re_im(value: K) -> [Gl; 2] {
     value.as_coeffs().map(gl)
 }
 
-/// `weights[0]·Re(value) + weights[1]·Im(value)`: one F-linear projection of
-/// a `K` value. A `K` equation over F-valued data holds exactly when both
-/// coordinates hold, so distinct weights per coordinate lose nothing.
-pub(crate) fn project(value: K, weights: [Ext; 2]) -> Ext {
-    let [re, im] = re_im(value);
-    weights[0] * re + weights[1] * im
-}
-
-/// `K ⊗ Ext = Ext[u] / (u^2 - 7)`, where `K` values meet `Ext` points. Seven
-/// is a non-square in Goldilocks and the cubic extension has odd degree, so
-/// this is a field. `re` and `im` are the coordinates in the basis `(1, u)`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct Kx {
-    pub(crate) re: Ext,
-    pub(crate) im: Ext,
-}
-
-impl Kx {
-    pub(crate) const ZERO: Self = Self {
-        re: Ext::ZERO,
-        im: Ext::ZERO,
-    };
-    pub(crate) const ONE: Self = Self {
-        re: Ext::ONE,
-        im: Ext::ZERO,
-    };
-
-    pub(crate) fn from_k(value: K) -> Self {
-        let [re, im] = re_im(value);
-        Self {
-            re: re.into(),
-            im: im.into(),
-        }
-    }
-
-    pub(crate) fn mul(self, other: Self) -> Self {
-        let seven = Gl::from_u8(7);
-        Self {
-            re: self.re * other.re + self.im * other.im * seven,
-            im: self.re * other.im + self.im * other.re,
-        }
-    }
-
-    pub(crate) fn add(self, other: Self) -> Self {
-        Self {
-            re: self.re + other.re,
-            im: self.im + other.im,
-        }
-    }
-
-    pub(crate) fn scale(self, factor: Ext) -> Self {
-        Self {
-            re: self.re * factor,
-            im: self.im * factor,
-        }
-    }
+/// The three base coordinates of an `Ext` value.
+pub(crate) fn ext_words(value: Ext) -> [Gl; 3] {
+    let slice = <Ext as BasedVectorSpace<Gl>>::as_basis_coefficients_slice(&value);
+    [slice[0], slice[1], slice[2]]
 }
 
 /// The base-field coordinates of an `Ext` table, one column per basis element.
@@ -97,15 +45,6 @@ pub(crate) fn coordinates(table: &[Ext]) -> Vec<Gl> {
         }
     }
     columns
-}
-
-/// The `Ext` value whose coordinate columns evaluate to `values` at one point.
-pub(crate) fn from_coordinates(values: &[Ext]) -> Ext {
-    values
-        .iter()
-        .enumerate()
-        .map(|(c, &value)| <Ext as BasedVectorSpace<Gl>>::ith_basis_element(c).expect("three coordinates") * value)
-        .sum()
 }
 
 /// The signed integer `value` as a field element.
@@ -129,15 +68,6 @@ pub(crate) fn eq_table(point: &[Ext]) -> Vec<Ext> {
         table = next;
     }
     table
-}
-
-/// `eq(a, b) = Π (a_t b_t + (1 - a_t)(1 - b_t))`.
-pub(crate) fn eq_eval(a: &[Ext], b: &[Ext]) -> Ext {
-    assert_eq!(a.len(), b.len());
-    a.iter()
-        .zip(b)
-        .map(|(&x, &y)| x * y + (Ext::ONE - x) * (Ext::ONE - y))
-        .product()
 }
 
 /// Bind the lowest index variable of `table` to `r`.

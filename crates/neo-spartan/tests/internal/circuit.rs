@@ -25,12 +25,16 @@ fn permutation_block_matches_p3() {
         let cells = poseidon2::trace(&input);
         assert_eq!(cells[OUTPUT..], permutation().permute(input)[..], "input {seed}");
     }
-    let mut trace = Trace::default();
-    trace.blocks = poseidon2::trace(&std::array::from_fn(|i| gl(3, i as u64)));
+    let trace = Trace {
+        blocks: poseidon2::trace(&std::array::from_fn(|i| gl(3, i as u64))),
+        ..Default::default()
+    };
     assert_eq!(trace.block_failure(0), None);
     for cell in [0, 16, 100, 165, 170] {
-        let mut mutated = Trace::default();
-        mutated.blocks = trace.blocks.clone();
+        let mut mutated = Trace {
+            blocks: trace.blocks.clone(),
+            ..Default::default()
+        };
         mutated.blocks[cell] += Gl::ONE;
         assert!(mutated.block_failure(0).is_some(), "cell {cell}");
     }

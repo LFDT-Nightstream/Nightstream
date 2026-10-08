@@ -36,6 +36,7 @@ use p3_field_v08::{PrimeCharacteristicRing, PrimeField64};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
+use crate::circuit::{algebra, Backend};
 use crate::field::{eq_table, gl, re_im, Ext, Gl};
 use crate::gkr::{Tree, TreeClaim, TreeShape};
 use crate::mle::{chi, identity, lane_split, step};
@@ -94,40 +95,39 @@ pub(crate) struct Early {
 
 /// The lookup challenges `(β, γ)` and the scatter challenges `(β, μ)`.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct EarlyChallenges {
-    pub(crate) lookup: [Ext; 2],
-    pub(crate) scatter: [Ext; 2],
+pub(crate) struct EarlyChallenges<E> {
+    pub(crate) lookup: [E; 2],
+    pub(crate) scatter: [E; 2],
 }
 
-/// Column values the prover sends at the early leaf points.
+/// Column values the prover sends at the early leaf points (`E` is `Ext` in
+/// a proof, a backend value in the verifier).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub(crate) struct EarlyValues {
+pub(crate) struct EarlyValues<E> {
     /// `e_re`, `e_im` and the row column `i` at the run point.
-    pub(crate) runs: [Ext; 3],
+    pub(crate) runs: [E; 3],
     /// `U_j` (real, imaginary) per matrix at the slot part of the pair point.
-    pub(crate) pairs: Vec<[Ext; 2]>,
+    pub(crate) pairs: Vec<[E; 2]>,
     /// The slot blocks at the slot part of the run point.
-    pub(crate) block: Ext,
+    pub(crate) block: E,
 }
 
 /// What the early leaf checks leave to openings.
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct EarlyOpenings {
-    pub(crate) run_point: Vec<Ext>,
-    pub(crate) pair_point: Vec<Ext>,
-    pub(crate) row_point: Vec<Ext>,
-    pub(crate) mult: Ext,
+pub(crate) struct EarlyOpenings<E> {
+    pub(crate) run_point: Vec<E>,
+    pub(crate) pair_point: Vec<E>,
+    pub(crate) row_point: Vec<E>,
+    pub(crate) mult: E,
     /// The setup run columns `i`, `σ`, `m` at the run point.
-    pub(crate) setup: [Ext; 3],
+    pub(crate) setup: [E; 3],
 }
 
 /// What the late leaf checks leave to openings.
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct LateOpenings {
-    pub(crate) pair_point: Vec<Ext>,
-    pub(crate) block: Ext,
-    pub(crate) block_point: Vec<Ext>,
-    pub(crate) omega: Ext,
+pub(crate) struct LateOpenings<E> {
+    pub(crate) pair_point: Vec<E>,
+    pub(crate) block: E,
+    pub(crate) block_point: Vec<E>,
+    pub(crate) omega: E,
 }
 
 fn bits(count: u64) -> usize {
@@ -169,10 +169,10 @@ impl Structure {
     }
 
     /// `[H0, H1]` of every class for the lane weights `tau`.
-    pub(crate) fn lane_tables(&self, tau: &[Ext; D]) -> Vec<[[Ext; D]; 2]> {
+    pub(crate) fn lane_tables<B: Backend>(&self, b: &mut B, tau: &[B::E; D]) -> Vec<[[B::E; D]; 2]> {
         self.classes
             .iter()
-            .map(|class| lane_split(tau, class.len as usize, Gl::new(class.ratio)))
+            .map(|class| lane_split(b, tau, class.len as usize, Gl::new(class.ratio)))
             .collect()
     }
 
@@ -212,107 +212,106 @@ impl Structure {
         ]
     }
 
-    /// Check the early roots and leaf claims against `values`.
-    pub(crate) fn check_early(
+    /// Check the early roots and leaf claims against `values`. The claims are
+    /// in the order of `early_shapes`.
+    pub(crate) fn check_early<B: Backend>(
         &self,
-        r: &[K],
-        challenges: EarlyChallenges,
-        claims: &[TreeClaim],
-        values: &EarlyValues,
-    ) -> Result<EarlyOpenings, Error> {
+        b: &mut B,
+        r: &[algebra::K<B>],
+        challenges: EarlyChallenges<B::E>,
+        claims: &[TreeClaim<B::E>],
+        values: &EarlyValues<B::E>,
+    ) -> Result<EarlyOpenings<B::E>, Error> {
         let [lookup_runs, lookup_rows, scatter_runs, scatter_pairs] = claims else {
-            return Err(Error::Rejected("early tree count"));
+            unreachable!("four early trees");
         };
-        if values.pairs.len() != self.matrices {
-            return Err(Error::Rejected("early values shape"));
-        }
-        check_pair(lookup_runs, lookup_rows, "row lookup")?;
-        check_pair(scatter_runs, scatter_pairs, "slot scatter")?;
+        check_pair(b, lookup_runs, lookup_rows, "row lookup")?;
+        check_pair(b, scatter_runs, scatter_pairs, "slot scatter")?;
         let [beta, gamma] = challenges.lookup;
         let [e_re, e_im, row] = values.runs;
-        if lookup_runs.values[0] != beta - (row + gamma * e_re + gamma * gamma * e_im) {
-            return Err(Error::Rejected("row lookup run leaf"));
-        }
+        let combined = tuple(b, row, gamma, e_re, e_im);
+        let expected = b.ext_sub(beta, combined);
+        b.assert_ext_equal(lookup_runs.values[0], expected, "row lookup run leaf")?;
         let row_point = &lookup_rows.point;
-        let chi = chi(r, row_point);
-        let [mult, denominator] = lookup_rows.values[..] else {
-            return Err(Error::Rejected("row lookup row leaf"));
-        };
-        if denominator != beta - (identity(row_point) + gamma * chi.re + gamma * gamma * chi.im) {
-            return Err(Error::Rejected("row lookup row leaf"));
-        }
+        let chi = chi(b, r, row_point);
+        let index = identity(b, row_point);
+        let combined = tuple(b, index, gamma, chi.re, chi.im);
+        let expected = b.ext_sub(beta, combined);
+        b.assert_ext_equal(lookup_rows.values[1], expected, "row lookup row leaf")?;
         let [beta, mu] = challenges.scatter;
-        let [coefficient, e, denominator] = scatter_runs.values[..] else {
-            return Err(Error::Rejected("slot scatter run leaf"));
-        };
-        if e != e_re + mu * e_im {
-            return Err(Error::Rejected("slot scatter run leaf"));
-        }
+        let mixed = b.ext_mul(mu, e_im);
+        let e = b.ext_add(e_re, mixed);
+        b.assert_ext_equal(scatter_runs.values[1], e, "slot scatter run leaf")?;
         let run_point = &scatter_runs.point;
-        let slot = beta - denominator - self.matrix_step(run_point) * self.slot_scale();
+        let matrix = self.matrix_step(b, run_point);
+        let tag = algebra::ext_scale_constant(b, matrix, self.slot_scale());
+        let rest = b.ext_sub(beta, scatter_runs.values[2]);
+        let slot = b.ext_sub(rest, tag);
         let pair_point = &scatter_pairs.point;
         let (slot_part, matrix_part) = pair_point.split_at(self.slot_variables);
-        let eq = eq_table(matrix_part);
-        let combined: Ext = values
-            .pairs
-            .iter()
-            .zip(&eq)
-            .map(|(&[re, im], &weight)| weight * (re + mu * im))
-            .sum();
-        if scatter_pairs.values[..] != [combined, beta - identity(pair_point)] {
-            return Err(Error::Rejected("slot scatter pair leaf"));
+        let eq = algebra::eq_table(b, matrix_part);
+        let mut combined = algebra::ext_zero(b);
+        for (&[re, im], &weight) in values.pairs.iter().zip(&eq) {
+            let mixed = b.ext_mul(mu, im);
+            let value = b.ext_add(re, mixed);
+            let term = b.ext_mul(weight, value);
+            combined = b.ext_add(combined, term);
         }
+        b.assert_ext_equal(scatter_pairs.values[0], combined, "slot scatter pair leaf")?;
+        let index = identity(b, pair_point);
+        let expected = b.ext_sub(beta, index);
+        b.assert_ext_equal(scatter_pairs.values[1], expected, "slot scatter pair leaf")?;
         Ok(EarlyOpenings {
             run_point: run_point.clone(),
             pair_point: slot_part.to_vec(),
             row_point: row_point.clone(),
-            mult,
-            setup: [row, slot, coefficient],
+            mult: lookup_rows.values[0],
+            setup: [row, slot, scatter_runs.values[0]],
         })
     }
 
     /// Check the late roots and leaf claims against the `U_j` values sent at
-    /// the slot part of the pair point.
-    pub(crate) fn check_late(
+    /// the slot part of the pair point. The claims are in the order of
+    /// `late_shapes`.
+    pub(crate) fn check_late<B: Backend>(
         &self,
-        beta: Ext,
-        eval_a: &[[Ext; 2]],
-        lanes: &[[[Ext; D]; 2]],
-        claims: &[TreeClaim],
-        pairs: &[[Ext; 2]],
-    ) -> Result<LateOpenings, Error> {
+        b: &mut B,
+        beta: B::E,
+        eval_a: &[[B::E; 2]],
+        lanes: &[[[B::E; D]; 2]],
+        claims: &[TreeClaim<B::E>],
+        pairs: &[[B::E; 2]],
+    ) -> Result<LateOpenings<B::E>, Error> {
         let [block_pairs, blocks] = claims else {
-            return Err(Error::Rejected("late tree count"));
+            unreachable!("two late trees");
         };
-        if pairs.len() != self.matrices || eval_a.len() != self.matrices {
-            return Err(Error::Rejected("late values shape"));
-        }
-        check_pair(block_pairs, blocks, "block scatter")?;
+        check_pair(b, block_pairs, blocks, "block scatter")?;
         let (slot_part, t) = block_pairs.point.split_at(self.slot_variables);
         let t = t[0];
-        let ubar: Ext = pairs
-            .iter()
-            .zip(eval_a)
-            .map(|(&[re, im], &[w_re, w_im])| w_re * re + w_im * im)
-            .sum();
-        let lane = (Ext::ONE - t) * self.slot_step(slot_part, lanes, 0) + t * self.slot_step(slot_part, lanes, 1);
-        let [weight, split, denominator] = block_pairs.values[..] else {
-            return Err(Error::Rejected("block scatter pair leaf"));
-        };
-        if weight != ubar || split != lane {
-            return Err(Error::Rejected("block scatter pair leaf"));
+        let mut ubar = algebra::ext_zero(b);
+        for (&[re, im], &[w_re, w_im]) in pairs.iter().zip(eval_a) {
+            let a = b.ext_mul(w_re, re);
+            let c = b.ext_mul(w_im, im);
+            let term = b.ext_add(a, c);
+            ubar = b.ext_add(ubar, term);
         }
-        let [omega, block_denominator] = blocks.values[..] else {
-            return Err(Error::Rejected("block scatter block leaf"));
-        };
-        if block_denominator != beta - identity(&blocks.point) {
-            return Err(Error::Rejected("block scatter block leaf"));
-        }
+        let head = self.slot_step(b, slot_part, lanes, 0);
+        let tail = self.slot_step(b, slot_part, lanes, 1);
+        let low = algebra::one_minus(b, t);
+        let a = b.ext_mul(low, head);
+        let c = b.ext_mul(t, tail);
+        let lane = b.ext_add(a, c);
+        b.assert_ext_equal(block_pairs.values[0], ubar, "block scatter pair leaf")?;
+        b.assert_ext_equal(block_pairs.values[1], lane, "block scatter pair leaf")?;
+        let index = identity(b, &blocks.point);
+        let expected = b.ext_sub(beta, index);
+        b.assert_ext_equal(blocks.values[1], expected, "block scatter block leaf")?;
+        let rest = b.ext_sub(beta, block_pairs.values[2]);
         Ok(LateOpenings {
             pair_point: slot_part.to_vec(),
-            block: beta - denominator - t,
+            block: b.ext_sub(rest, t),
             block_point: blocks.point.clone(),
-            omega,
+            omega: blocks.values[0],
         })
     }
 
@@ -321,11 +320,12 @@ impl Structure {
     }
 
     /// `j~` over runs: matrix `j` on its run range, zero on padding runs.
-    fn matrix_step(&self, point: &[Ext]) -> Ext {
-        let values: Vec<Ext> = (0..self.matrices)
-            .map(|j| Ext::from(Gl::from_usize(j)))
+    fn matrix_step<B: Backend>(&self, b: &mut B, point: &[B::E]) -> B::E {
+        let values: Vec<B::E> = (0..self.matrices)
+            .map(|j| b.ext_constant(Ext::from(Gl::from_usize(j))))
             .collect();
         step(
+            b,
             point,
             &self.run_bounds[..self.matrices],
             &values,
@@ -334,24 +334,38 @@ impl Structure {
     }
 
     /// `Ĥ_t~` over slots: the class's lane table at the slot's lane.
-    fn slot_step(&self, point: &[Ext], lanes: &[[[Ext; D]; 2]], t: usize) -> Ext {
+    fn slot_step<B: Backend>(&self, b: &mut B, point: &[B::E], lanes: &[[[B::E; D]; 2]], t: usize) -> B::E {
         let starts: Vec<u64> = self.segments.iter().map(|segment| segment.first).collect();
-        let values: Vec<Ext> = self
+        let values: Vec<B::E> = self
             .segments
             .iter()
             .map(|segment| lanes[segment.class as usize][t][segment.lane as usize])
             .collect();
-        step(point, &starts, &values, self.slots)
+        step(b, point, &starts, &values, self.slots)
     }
 }
 
+/// `i + γ·re + γ²·im`.
+fn tuple<B: Backend>(b: &mut B, index: B::E, gamma: B::E, re: B::E, im: B::E) -> B::E {
+    let a = b.ext_mul(gamma, im);
+    let c = b.ext_add(re, a);
+    let d = b.ext_mul(gamma, c);
+    b.ext_add(index, d)
+}
+
 /// `P_x·Q_y = P_y·Q_x` with both denominators nonzero.
-fn check_pair(x: &TreeClaim, y: &TreeClaim, name: &'static str) -> Result<(), Error> {
+fn check_pair<B: Backend>(
+    b: &mut B,
+    x: &TreeClaim<B::E>,
+    y: &TreeClaim<B::E>,
+    name: &'static str,
+) -> Result<(), Error> {
     let ([px, qx], [py, qy]) = (x.root, y.root);
-    if qx == Ext::ZERO || qy == Ext::ZERO || px * qy != py * qx {
-        return Err(Error::Rejected(name));
-    }
-    Ok(())
+    b.ext_inverse(qx, name)?;
+    b.ext_inverse(qy, name)?;
+    let left = b.ext_mul(px, qy);
+    let right = b.ext_mul(py, qx);
+    b.assert_ext_equal(left, right, name)
 }
 
 /// `χ_r(i)` for every `i < 2^variables`; the higher coordinates of `r` see bit zero.
@@ -553,7 +567,7 @@ impl Tables {
     }
 
     /// Early trees, in the order of `Structure::early_shapes`.
-    pub(crate) fn early_trees(&self, early: &Early, r: &[K], challenges: EarlyChallenges) -> Vec<Tree> {
+    pub(crate) fn early_trees(&self, early: &Early, r: &[K], challenges: EarlyChallenges<Ext>) -> Vec<Tree> {
         let structure = &self.structure;
         let runs = 1usize << structure.run_variables;
         let row = |k: usize| self.row.get(k).map_or(0, |&row| row);
@@ -619,7 +633,7 @@ impl Tables {
     }
 
     /// The column values at the early leaf points of `claims`.
-    pub(crate) fn early_values(&self, early: &Early, claims: &[TreeClaim]) -> EarlyValues {
+    pub(crate) fn early_values(&self, early: &Early, claims: &[TreeClaim<Ext>]) -> EarlyValues<Ext> {
         let structure = &self.structure;
         let run_eq = eq_table(&claims[0].point);
         let runs = [

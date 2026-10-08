@@ -20,7 +20,10 @@ use p3_field::PrimeCharacteristicRing as _;
 use p3_field_v08::PrimeCharacteristicRing;
 use rayon::prelude::*;
 
-use crate::field::{gl, project, Ext, Gl};
+use crate::circuit::algebra;
+use crate::circuit::Backend;
+use crate::circuit::Native;
+use crate::field::{gl, re_im, Ext, Gl};
 use crate::{Shape, Statement};
 
 /// Coefficients of `Σ_b ω_b ⋆ z_b` before reduction: degree below `2D - 1`.
@@ -28,19 +31,25 @@ const PRODUCT: usize = 2 * D - 1;
 /// `Φ81 = X^54 + X^27 + 1`.
 const PHI_MIDDLE: usize = 27;
 
+/// Commitment rows, Eval_K (2), Eval_A (2 per matrix), public blocks.
+pub(crate) fn row_count(shape: &Shape) -> usize {
+    shape.kappa + 2 + 2 * shape.matrices + shape.public_blocks
+}
+
 /// Powers of λ in row order. The order here is the only row list.
-pub(crate) struct Mixing {
-    powers: Vec<Ext>,
+pub(crate) struct Mixing<E> {
+    powers: Vec<E>,
     kappa: usize,
     matrices: usize,
 }
 
-impl Mixing {
-    pub(crate) fn new(lambda: Ext, shape: &Shape) -> Self {
-        let rows = Self::rows(shape);
-        let powers = std::iter::successors(Some(Ext::ONE), |&power| Some(power * lambda))
-            .take(rows)
-            .collect();
+impl<E: Copy> Mixing<E> {
+    pub(crate) fn new<B: Backend<E = E>>(b: &mut B, lambda: E, shape: &Shape) -> Self {
+        let mut powers = vec![algebra::ext_one(b)];
+        for _ in 1..row_count(shape) {
+            let last = *powers.last().expect("one power");
+            powers.push(b.ext_mul(last, lambda));
+        }
         Self {
             powers,
             kappa: shape.kappa,
@@ -48,21 +57,16 @@ impl Mixing {
         }
     }
 
-    /// Commitment rows, Eval_K (2), Eval_A (2 per matrix), public blocks.
-    pub(crate) fn rows(shape: &Shape) -> usize {
-        shape.kappa + 2 + 2 * shape.matrices + shape.public_blocks
-    }
-
-    pub(crate) fn commitment(&self, row: usize) -> Ext {
+    pub(crate) fn commitment(&self, row: usize) -> E {
         self.powers[row]
     }
 
-    pub(crate) fn eval_k(&self) -> [Ext; 2] {
+    pub(crate) fn eval_k(&self) -> [E; 2] {
         [self.powers[self.kappa], self.powers[self.kappa + 1]]
     }
 
     /// The Eval_A projection weights of every matrix.
-    pub(crate) fn eval_a(&self) -> Vec<[Ext; 2]> {
+    pub(crate) fn eval_a(&self) -> Vec<[E; 2]> {
         (0..self.matrices)
             .map(|matrix| {
                 let first = self.kappa + 2 + 2 * matrix;
@@ -71,14 +75,14 @@ impl Mixing {
             .collect()
     }
 
-    pub(crate) fn public(&self, block: usize) -> Ext {
+    pub(crate) fn public(&self, block: usize) -> E {
         self.powers[self.kappa + 2 + 2 * self.matrices + block]
     }
 }
 
 /// `A_λ(b) = Σ_i λ^i·a_{i,b}` for every block: the commitment rows' part of
 /// `ω_b`, one pass over the key.
-pub(crate) fn key_weights(shape: &Shape, mixing: &Mixing) -> Vec<[Ext; D]> {
+pub(crate) fn key_weights(shape: &Shape, mixing: &Mixing<Ext>) -> Vec<[Ext; D]> {
     (0..shape.blocks)
         .into_par_iter()
         .map(|block| {
@@ -95,23 +99,25 @@ pub(crate) fn key_weights(shape: &Shape, mixing: &Mixing) -> Vec<[Ext; D]> {
         .collect()
 }
 
-/// `ω_b` for every block `b < shape.blocks`, from the Eval_A weight of every
-/// coordinate (`eval_a`) and the key part (`key_weights`).
+/// `ω_b` for every block `b < shape.blocks`, from the evaluation point `r`,
+/// the Eval_A weight of every coordinate (`eval_a`) and the key part
+/// (`key_weights`).
 pub(crate) fn block_weights(
     shape: &Shape,
-    statement: &Statement,
-    mixing: &Mixing,
+    r: &[K],
+    mixing: &Mixing<Ext>,
     eval_a: &[[Ext; D]],
     key: &[[Ext; D]],
 ) -> Vec<[Ext; D]> {
-    let chi = Chi::new(&statement.point);
+    let chi = Chi::new(r);
     let eval_k = mixing.eval_k();
     let bar = bar_rows();
     (0..shape.blocks)
         .into_par_iter()
         .map(|block| {
-            let weight: [Ext; D] =
-                std::array::from_fn(|lane| project(chi.at(D * block + lane), eval_k) + eval_a[block][lane]);
+            let weight: [Ext; D] = std::array::from_fn(|lane| {
+                project(&mut Native, re_im(chi.at(D * block + lane)), eval_k) + eval_a[block][lane]
+            });
             let mut out = key[block];
             for (row, terms) in bar.iter().enumerate() {
                 for &(column, sign) in terms {
@@ -127,35 +133,49 @@ pub(crate) fn block_weights(
 }
 
 /// `τ_l = Σ_p bar[p][l]·ζ^p`, so that `<bar(w), (ζ^p)_p> = Σ_l τ_l·w_l`.
-pub(crate) fn tau(zeta: Ext) -> [Ext; D] {
-    let mut tau = [Ext::ZERO; D];
-    let mut power = Ext::ONE;
+pub(crate) fn tau<B: Backend>(b: &mut B, zeta: B::E) -> [B::E; D] {
+    let mut tau = [algebra::ext_zero(b); D];
+    let mut power = algebra::ext_one(b);
     for terms in bar_rows() {
         for &(column, sign) in terms {
-            tau[column] += power * sign;
+            let term = algebra::ext_scale_constant(b, power, sign);
+            tau[column] = b.ext_add(tau[column], term);
         }
-        power *= zeta;
+        power = b.ext_mul(power, zeta);
     }
     tau
 }
 
 /// `Ȳ = Σ_rows λ^row · y_row`, as a ring element.
-pub(crate) fn targets(statement: &Statement, mixing: &Mixing) -> [Ext; D] {
+pub(crate) fn targets<B: Backend>(b: &mut B, statement: &Statement<B::F>, mixing: &Mixing<B::E>) -> [B::E; D] {
     let eval_a = mixing.eval_a();
     std::array::from_fn(|lane| {
-        let mut total = Ext::ZERO;
+        let mut total = algebra::ext_zero(b);
         for (row, coefficients) in statement.commitment.iter().enumerate() {
-            total += mixing.commitment(row) * coefficients[lane];
+            let term = b.ext_scale(mixing.commitment(row), coefficients[lane]);
+            total = b.ext_add(total, term);
         }
-        total += project(statement.eval_k[lane], mixing.eval_k());
+        let term = project(b, statement.eval_k[lane], mixing.eval_k());
+        total = b.ext_add(total, term);
         for (values, &weights) in statement.eval_a.iter().zip(&eval_a) {
-            total += project(values[lane], weights);
+            let term = project(b, values[lane], weights);
+            total = b.ext_add(total, term);
         }
         for (block, values) in statement.public.iter().enumerate() {
-            total += mixing.public(block) * values[lane];
+            let term = b.ext_scale(mixing.public(block), values[lane]);
+            total = b.ext_add(total, term);
         }
         total
     })
+}
+
+/// `weights[0]·Re(value) + weights[1]·Im(value)`: one F-linear projection of
+/// a `K` value. A `K` equation over F-valued data holds exactly when both
+/// coordinates hold, so distinct weights per coordinate lose nothing.
+pub(crate) fn project<B: Backend>(b: &mut B, value: algebra::K<B>, weights: [B::E; 2]) -> B::E {
+    let re = b.ext_scale(weights[0], value[0]);
+    let im = b.ext_scale(weights[1], value[1]);
+    b.ext_add(re, im)
 }
 
 /// `Σ_b ω_b ⋆ z_b - Ȳ = Q·Φ81 + remainder` over `Ext[X]`. The remainder is
@@ -194,9 +214,19 @@ pub(crate) fn divide(weights: &[[Ext; D]], z: &[Gl], lanes: usize, target: &[Ext
 }
 
 /// `Ȳ(ζ) + Q(ζ)·Φ81(ζ)`: the value of `Σ_b ω_b(ζ)·z_b(ζ)` the quotient claims.
-pub(crate) fn lifted_target(target: &[Ext; D], quotient: &[Ext; D - 1], zeta: Ext) -> Ext {
-    let phi = zeta.exp_u64(D as u64) + zeta.exp_u64(PHI_MIDDLE as u64) + Ext::ONE;
-    horner(target, zeta) + horner(quotient, zeta) * phi
+pub(crate) fn lifted_target<B: Backend>(b: &mut B, target: &[B::E; D], quotient: &[B::E], zeta: B::E) -> B::E {
+    let mut middle = zeta;
+    for _ in 1..PHI_MIDDLE {
+        middle = b.ext_mul(middle, zeta);
+    }
+    let top = b.ext_mul(middle, middle);
+    let one = algebra::ext_one(b);
+    let sum = b.ext_add(top, middle);
+    let phi = b.ext_add(sum, one);
+    let target = algebra::horner(b, target, zeta);
+    let quotient = algebra::horner(b, quotient, zeta);
+    let lifted = b.ext_mul(quotient, phi);
+    b.ext_add(target, lifted)
 }
 
 /// `Ω_b = ω_b(ζ)` for every block.

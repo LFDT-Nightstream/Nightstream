@@ -12,29 +12,30 @@ use p3_field_v08::{BasedVectorSpace, PrimeCharacteristicRing as _};
 use p3_sumcheck_v08::OpeningBatch;
 
 use super::{commit, word, Scratch, Toy};
+use crate::circuit::Native;
 use crate::field::{Ext, Gl};
 use crate::ring::{self, Mixing};
 use crate::{prove, verify, witness_table, Claim, Key, Proof, Relation, Setup, Statement, LANES};
 
 /// The honest parent bound for 17 folded sources: 17 · T · (b - 1) = 17 · 216.
-const BOUND: u32 = 3672;
+pub(super) const BOUND: u32 = 3672;
 const BITS: f64 = 100.0;
 
-fn transcript(extra: u64) -> Poseidon2Transcript {
+pub(super) fn transcript(extra: u64) -> Poseidon2Transcript {
     let mut transcript = Poseidon2Transcript::new_v1_1();
     transcript.absorb_v1_1(&[F::from_u64(9), F::from_u64(extra)]);
     transcript
 }
 
 /// A toy claim with its setup files in a scratch directory.
-fn setup_toy(seed: u64, blocks: usize, rows: usize) -> (Toy, Setup, Scratch) {
+pub(super) fn setup_toy(seed: u64, blocks: usize, rows: usize) -> (Toy, Setup, Scratch) {
     let toy = Toy::new(seed, blocks, rows, 4, BOUND);
     let scratch = Scratch::new(&format!("layer1-{seed}"));
     let setup = Setup::build(&CachedMatrixRows::new(&toy.cache).unwrap(), &scratch.0).unwrap();
     (toy, setup, scratch)
 }
 
-fn relation_of<'k>(toy: &Toy, key: &'k Key) -> Relation<'k> {
+pub(super) fn relation_of<'k>(toy: &Toy, key: &'k Key) -> Relation<'k> {
     Relation::new(key, toy.public_blocks, toy.point_variables, BOUND, BITS).unwrap()
 }
 
@@ -42,17 +43,17 @@ fn holds(setup: &Setup, relation: &Relation<'_>, claim: &Claim, witness: &Mat<F>
     let shape = &relation.shape;
     let statement = Statement::new(shape, claim).unwrap();
     let lambda = Ext::from_basis_coefficients_fn(|i| Gl::from_u64(word(77, i as u64)));
-    let mixing = Mixing::new(lambda, shape);
-    let early = setup.tables.early(&statement.point);
+    let mixing = Mixing::new(&mut Native, lambda, shape);
+    let early = setup.tables.early(&claim.r);
     let ubar = setup.tables.slot_weights(&early, &mixing.eval_a());
     let eval_a = setup.tables.column_weights(&ubar, shape.blocks);
-    let weights = ring::block_weights(shape, &statement, &mixing, &eval_a, &ring::key_weights(shape, &mixing));
+    let weights = ring::block_weights(shape, &claim.r, &mixing, &eval_a, &ring::key_weights(shape, &mixing));
     let z = witness_table(shape, witness).unwrap();
-    let (_, remainder) = ring::divide(&weights, &z, LANES, &ring::targets(&statement, &mixing));
+    let (_, remainder) = ring::divide(&weights, &z, LANES, &ring::targets(&mut Native, &statement, &mixing));
     remainder.iter().all(|&value| value == Ext::ZERO)
 }
 
-fn claim_mutations(claim: &Claim) -> Vec<(&'static str, Claim)> {
+pub(super) fn claim_mutations(claim: &Claim) -> Vec<(&'static str, Claim)> {
     let bump = |value: K, part: usize| {
         let mut parts = neo_math::KExtensions::as_coeffs(&value);
         parts[part] += F::ONE;
@@ -86,7 +87,7 @@ fn claim_mutations(claim: &Claim) -> Vec<(&'static str, Claim)> {
 }
 
 /// One mutation of every proof part.
-fn proof_mutations(proof: &Proof) -> Vec<(&'static str, Proof)> {
+pub(super) fn proof_mutations(proof: &Proof) -> Vec<(&'static str, Proof)> {
     let mut cases = Vec::new();
     let mut push = |name, change: &dyn Fn(&mut Proof)| {
         let mut changed = proof.clone();

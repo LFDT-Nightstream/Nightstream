@@ -8,8 +8,9 @@
 //! probability.
 
 use p3_field::PrimeField64;
-use p3_field_v08::{Field, PrimeCharacteristicRing};
+use p3_field_v08::PrimeCharacteristicRing;
 
+use crate::circuit::{algebra, Backend};
 use crate::field::{signed, Ext, Gl};
 use crate::Error;
 
@@ -32,22 +33,17 @@ pub(crate) fn histogram(z: &[Gl], bound: u32) -> Result<Vec<u32>, Error> {
     Ok(counts)
 }
 
-/// `Σ_t m_t / (β - t)` over `t ∈ [-bound, bound]`.
-pub(crate) fn table_sum(counts: &[u32], bound: u32, beta: Ext) -> Result<Ext, Error> {
-    if counts.len() != 2 * bound as usize + 1 {
-        return Err(Error::Rejected("histogram length"));
-    }
-    let mut total = Ext::ZERO;
+/// `Σ_t m_t / (β - t)` over `t ∈ [-bound, bound]`. Rejects when `β` is in
+/// the table, an event of probability `(2·bound + 1) / |Ext|`.
+pub(crate) fn table_sum<B: Backend>(b: &mut B, counts: &[B::F], bound: u32, beta: B::E) -> Result<B::E, Error> {
+    assert_eq!(counts.len(), 2 * bound as usize + 1);
+    let mut total = algebra::ext_zero(b);
     for (slot, &count) in counts.iter().enumerate() {
-        if count == 0 {
-            continue;
-        }
-        let value = signed(slot as i64 - i64::from(bound));
-        let denominator = beta - value;
-        let inverse = denominator
-            .try_inverse()
-            .ok_or(Error::Rejected("histogram pole"))?;
-        total += inverse * Gl::from_u32(count);
+        let value = b.ext_constant(Ext::from(signed(slot as i64 - i64::from(bound))));
+        let denominator = b.ext_sub(beta, value);
+        let inverse = b.ext_inverse(denominator, "histogram pole")?;
+        let term = b.ext_scale(inverse, count);
+        total = b.ext_add(total, term);
     }
     Ok(total)
 }

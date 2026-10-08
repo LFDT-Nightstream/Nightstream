@@ -4,11 +4,13 @@
 //! `h(1) = claim - h(0)`. Variables bind low index bit first.
 
 use p3_challenger_v08::FieldChallenger;
-use p3_field_v08::{Field, PrimeCharacteristicRing};
+use p3_field_v08::PrimeCharacteristicRing;
 
-use crate::field::{eq_table, fold_low, Ext, Gl};
+use crate::circuit::algebra;
+use crate::circuit::hash::Duplex;
+use crate::circuit::Backend;
+use crate::field::{eq_table, fold_low, Ext};
 use crate::hash::Challenger;
-use crate::Error;
 
 /// Bind one round message and draw its challenge.
 pub(crate) fn send(message: &[Ext], challenger: &mut Challenger) -> Ext {
@@ -16,47 +18,28 @@ pub(crate) fn send(message: &[Ext], challenger: &mut Challenger) -> Ext {
     challenger.sample_algebra_element()
 }
 
-/// Replay `rounds` against `claim`; return the point and the final claim.
-pub(crate) fn verify(
-    rounds: &[Vec<Ext>],
-    degree: usize,
-    mut claim: Ext,
-    challenger: &mut Challenger,
-) -> Result<(Vec<Ext>, Ext), Error> {
+/// Replay `rounds` (each `h(0), h(2), ..., h(degree)`) against `claim`;
+/// return the point and the final claim. The caller fixes the shape.
+pub(crate) fn replay<B: Backend>(
+    b: &mut B,
+    duplex: &mut Duplex<B>,
+    rounds: &[Vec<B::E>],
+    mut claim: B::E,
+) -> (Vec<B::E>, B::E) {
     let mut point = Vec::with_capacity(rounds.len());
     for message in rounds {
-        if message.len() != degree {
-            return Err(Error::Rejected("sum-check round length"));
-        }
-        let mut values = Vec::with_capacity(degree + 1);
+        let mut values = Vec::with_capacity(message.len() + 1);
         values.push(message[0]);
-        values.push(claim - message[0]);
+        values.push(b.ext_sub(claim, message[0]));
         values.extend_from_slice(&message[1..]);
-        let r = send(message, challenger);
-        claim = interpolate(&values, r);
+        for &value in message {
+            duplex.observe_ext(b, value);
+        }
+        let r = duplex.sample_ext(b);
+        claim = algebra::interpolate(b, &values, r);
         point.push(r);
     }
-    Ok((point, claim))
-}
-
-/// The polynomial through `(i, values[i])` for `i = 0..values.len()`, at `x`.
-pub(crate) fn interpolate(values: &[Ext], x: Ext) -> Ext {
-    let nodes: Vec<Ext> = (0..values.len())
-        .map(|i| Ext::from(Gl::from_usize(i)))
-        .collect();
-    let mut total = Ext::ZERO;
-    for (i, &value) in values.iter().enumerate() {
-        let mut numerator = Ext::ONE;
-        let mut denominator = Gl::ONE;
-        for (j, &node) in nodes.iter().enumerate() {
-            if i != j {
-                numerator *= x - node;
-                denominator *= Gl::from_usize(i) - Gl::from_usize(j);
-            }
-        }
-        total += value * numerator * denominator.inverse();
-    }
-    total
+    (point, claim)
 }
 
 /// Prove `Σ_x a(x)·b(x) = claim` over `log2(a.len())` variables.

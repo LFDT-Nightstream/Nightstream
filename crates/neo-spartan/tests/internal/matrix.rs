@@ -7,15 +7,15 @@ use neo_ccs::GeometricRowRun;
 use neo_math::{KExtensions, D, F, K};
 use neo_reductions::superneo_eval::{MatrixRowSink, MatrixRows, MatrixShape};
 use neo_reductions::PiCcsError;
-use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeCharacteristicRing as _;
 use p3_field_v08::{BasedVectorSpace, PrimeCharacteristicRing};
 
-use super::word;
-use crate::field::{eq_table, project, Ext, Gl};
-use crate::gkr::{prove, verify};
-use crate::hash::challenger;
+use super::{fresh, gkr_verify, word};
+use crate::circuit::Native;
+use crate::field::{eq_table, re_im, Ext, Gl};
+use crate::gkr::prove;
 use crate::matrix::{EarlyChallenges, Tables};
+use crate::ring::project;
 use crate::sumcheck::evaluate;
 
 const BLOCKS: usize = 6;
@@ -86,6 +86,11 @@ fn point() -> Vec<K> {
         .collect()
 }
 
+/// `r` as `[re, im]` words, as the verifier reads it.
+fn k_point(r: &[K]) -> Vec<[Gl; 2]> {
+    r.iter().map(|&value| re_im(value)).collect()
+}
+
 fn chi_at(r: &[K], index: usize) -> K {
     r.iter()
         .enumerate()
@@ -103,7 +108,7 @@ fn eval_a() -> Vec<[Ext; 2]> {
 fn direct_weights(runs: &Runs, r: &[K], eval_a: &[[Ext; 2]]) -> Vec<[Ext; D]> {
     let mut weights = vec![[Ext::ZERO; D]; BLOCKS];
     for &(row, matrix, start, len, initial, ratio) in &runs.0 {
-        let mut weight = project(chi_at(r, row), eval_a[matrix]) * Gl::from_u64(initial);
+        let mut weight = project(&mut Native, re_im(chi_at(r, row)), eval_a[matrix]) * Gl::from_u64(initial);
         for column in start..start + len {
             weights[column / D][column % D] += weight;
             weight *= Gl::from_u64(if len == 1 { 1 } else { ratio });
@@ -126,7 +131,7 @@ fn two_level_scatter_matches_the_direct_scatter() {
     assert_eq!(tables.column_weights(&ubar, BLOCKS), direct);
 
     let tau: [Ext; D] = std::array::from_fn(|l| ext(10, l as u64));
-    let lanes = structure.lane_tables(&tau);
+    let lanes = structure.lane_tables(&mut Native, &tau);
     let omega = tables.block_weights(&ubar, &lanes, 3);
     for (block, &value) in omega.iter().enumerate() {
         let expected: Ext = direct.get(block).map_or(Ext::ZERO, |weights| {
@@ -149,7 +154,7 @@ fn runs_longer_than_a_block_are_refused() {
     assert!(Tables::from_rows(&runs).is_err());
 }
 
-fn challenges() -> EarlyChallenges {
+fn challenges() -> EarlyChallenges<Ext> {
     EarlyChallenges {
         lookup: [ext(20, 0), ext(20, 1)],
         scatter: [ext(20, 2), ext(20, 3)],
@@ -172,16 +177,11 @@ fn matrix_trees_verify_and_leave_true_openings() {
 
     // Early trees.
     let trees = tables.early_trees(&early, &r, challenges());
-    let (proof, prover) = prove(trees, &mut challenger(Poseidon2Transcript::new_v1_1()));
+    let (proof, prover) = prove(trees, &mut fresh());
     let values = tables.early_values(&early, &prover);
-    let claims = verify(
-        &proof,
-        &structure.early_shapes(),
-        &mut challenger(Poseidon2Transcript::new_v1_1()),
-    )
-    .unwrap();
+    let claims = gkr_verify(&proof, &structure.early_shapes()).unwrap();
     let openings = structure
-        .check_early(&r, challenges(), &claims, &values)
+        .check_early(&mut Native, &k_point(&r), challenges(), &claims, &values)
         .unwrap();
     assert_eq!(openings.mult, evaluate(&lift(&early.mult), &openings.row_point));
     for (k, &value) in openings.setup.iter().enumerate() {
@@ -212,7 +212,7 @@ fn matrix_trees_verify_and_leave_true_openings() {
         tampered.runs[index] += Ext::ONE;
         assert!(
             structure
-                .check_early(&r, challenges(), &claims, &tampered)
+                .check_early(&mut Native, &k_point(&r), challenges(), &claims, &tampered)
                 .is_err(),
             "run value {index}"
         );
@@ -222,7 +222,7 @@ fn matrix_trees_verify_and_leave_true_openings() {
         tampered.pairs[j][1] += Ext::ONE;
         assert!(
             structure
-                .check_early(&r, challenges(), &claims, &tampered)
+                .check_early(&mut Native, &k_point(&r), challenges(), &claims, &tampered)
                 .is_err(),
             "pair value {j}"
         );
@@ -232,40 +232,32 @@ fn matrix_trees_verify_and_leave_true_openings() {
     let eval_a = eval_a();
     let ubar = tables.slot_weights(&early, &eval_a);
     let tau: [Ext; D] = std::array::from_fn(|l| ext(10, l as u64));
-    let lanes = structure.lane_tables(&tau);
+    let lanes = structure.lane_tables(&mut Native, &tau);
     let omega = tables.block_weights(&ubar, &lanes, 3);
     let beta = ext(21, 0);
     let late = |omega: &[Ext]| {
-        let (proof, prover) = prove(
-            tables.late_trees(&ubar, &lanes, omega, beta),
-            &mut challenger(Poseidon2Transcript::new_v1_1()),
-        );
+        let (proof, prover) = prove(tables.late_trees(&ubar, &lanes, omega, beta), &mut fresh());
         let pairs = tables.slot_values(&early, &eq_table(&prover[0].point[..structure.slot_variables]));
-        let claims = verify(
-            &proof,
-            &structure.late_shapes(3),
-            &mut challenger(Poseidon2Transcript::new_v1_1()),
-        )
-        .unwrap();
+        let claims = gkr_verify(&proof, &structure.late_shapes(3)).unwrap();
         (claims, pairs)
     };
     let (claims, pairs) = late(&omega);
     let openings = structure
-        .check_late(beta, &eval_a, &lanes, &claims, &pairs)
+        .check_late(&mut Native, beta, &eval_a, &lanes, &claims, &pairs)
         .unwrap();
     assert_eq!(openings.block, evaluate(&lift(&tables.blocks()), &openings.pair_point));
     assert_eq!(openings.omega, evaluate(&omega, &openings.block_point));
     let mut tampered = pairs.clone();
     tampered[2][0] += Ext::ONE;
     assert!(structure
-        .check_late(beta, &eval_a, &lanes, &claims, &tampered)
+        .check_late(&mut Native, beta, &eval_a, &lanes, &claims, &tampered)
         .is_err());
     // A wrong block weight breaks the block scatter roots.
     let mut forged = omega.clone();
     forged[1] += Ext::ONE;
     let (claims, pairs) = late(&forged);
     assert!(structure
-        .check_late(beta, &eval_a, &lanes, &claims, &pairs)
+        .check_late(&mut Native, beta, &eval_a, &lanes, &claims, &pairs)
         .is_err());
 }
 
@@ -276,18 +268,10 @@ fn wrong_early_columns_break_the_roots() {
     let structure = tables.structure();
     let r = point();
     let run = |early: &crate::matrix::Early| {
-        let (proof, prover) = prove(
-            tables.early_trees(early, &r, challenges()),
-            &mut challenger(Poseidon2Transcript::new_v1_1()),
-        );
+        let (proof, prover) = prove(tables.early_trees(early, &r, challenges()), &mut fresh());
         let values = tables.early_values(early, &prover);
-        let claims = verify(
-            &proof,
-            &structure.early_shapes(),
-            &mut challenger(Poseidon2Transcript::new_v1_1()),
-        )
-        .unwrap();
-        structure.check_early(&r, challenges(), &claims, &values)
+        let claims = gkr_verify(&proof, &structure.early_shapes()).unwrap();
+        structure.check_early(&mut Native, &k_point(&r), challenges(), &claims, &values)
     };
     assert!(run(&tables.early(&r)).is_ok());
     let mut wrong_e = tables.early(&r);

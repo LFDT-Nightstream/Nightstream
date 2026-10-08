@@ -31,10 +31,18 @@ theorem sub_supported (wiresSupported : WiresSupported p i offset allowed) (e : 
     (sub p i offset e).VarsSatisfy allowed :=
   Expr.varsSatisfy_subst _ allowed (wire_supported wiresSupported) e
 
+theorem chunkFrom_supported : ∀ {acc : Circuit.Expr} {start : ℕ} {l : List Circuit.Expr},
+    acc.VarsSatisfy allowed → (∀ x ∈ l, x.VarsSatisfy allowed) →
+      (Expr.chunkFrom acc start l).VarsSatisfy allowed
+  | _, _, [], accSupported, _ => accSupported
+  | acc, start, b :: bs, accSupported, each =>
+    chunkFrom_supported (acc := acc + .const ((2 : F) ^ start) * b) (start := start + 1)
+      ⟨accSupported, trivial, each b (by simp)⟩ fun x hx => each x (by simp [hx])
+
 theorem chunk_supported : ∀ {l : List Circuit.Expr}, (∀ x ∈ l, x.VarsSatisfy allowed) →
     (Expr.chunk l).VarsSatisfy allowed
   | [], _ => trivial
-  | b :: bs, each => ⟨each b (by simp), trivial, chunk_supported fun x hx => each x (by simp [hx])⟩
+  | b :: bs, each => chunkFrom_supported (each b (by simp)) fun x hx => each x (by simp [hx])
 
 theorem pack_supported {l : List Circuit.Expr} (each : ∀ x ∈ l, x.VarsSatisfy allowed) :
     ∀ e ∈ Expr.pack l, e.VarsSatisfy allowed := by

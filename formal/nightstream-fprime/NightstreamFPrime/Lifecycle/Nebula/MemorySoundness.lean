@@ -173,8 +173,10 @@ theorem soundness (two : p.bOps = 2) (inputs : Application.InputsBelow i offset)
     refine ⟨fun lane => ?_, noBlocks _⟩
     have scope := Sponge.output_varsBelow (eta p i offset) (etaStart p i offset) env etaAssumptions lane
     have bound : etaStart p i offset + ((eta p i offset).chunks (etaStart p i offset)).length * 1096 =
-        squeeze1Start p i offset := rfl
-    rw [Sponge.localLength_eq, bound] at scope
+        squeeze1Start p i offset := by
+      rw [etaChunks_length]
+      rfl
+    rw [Sponge.localLength_eq, bound, ← etaState_output] at scope
     exact scope
   have squeeze1Spec : Sponge.SpecHolds (squeeze1 p i offset) (squeeze1Start p i offset) env :=
     child_spec (name := "nebula.eta_squeeze_1") (child := Sponge.circuit (squeeze1 p i offset)) rows (by simp [childOps])
@@ -270,6 +272,8 @@ theorem soundness (two : p.bOps = 2) (inputs : Application.InputsBelow i offset)
       StepWitness.carryDigest (W).carryIn 35, (W).proposalDigest 4⟩ = (W).freshEta := by
     have etaAbsorbed := absorbing_state env etaSpec
     rw [etaBlocks_eval] at etaAbsorbed
+    have etaAbsorbed' :=
+      (congrArg (Sponge.evalState env) (etaState_output p i offset)).trans etaAbsorbed
     have s1 := permuting_state env squeeze1Spec
     have s2 := permuting_state env squeeze2Spec
     have s3 := permuting_state env squeeze3Spec
@@ -290,7 +294,7 @@ theorem soundness (two : p.bOps = 2) (inputs : Application.InputsBelow i offset)
     rw [s3', s2', s1'] at e3
     rw [etaChallenges_eq]
     dsimp only
-    rw [← etaAbsorbed]
+    rw [← etaAbsorbed']
     exact Prod.ext (congrArg₂ K.mk e0 e1) (congrArg₂ K.mk e2 e3)
   refine ⟨outputEq, ?_, machine⟩
   exact {

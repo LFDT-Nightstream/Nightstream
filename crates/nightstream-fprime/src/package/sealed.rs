@@ -88,7 +88,7 @@ impl LogicalMatrixEntry {
     }
 }
 
-/// The seven matrix forms at one Boolean-row ordinal.
+/// The four matrix forms at one Boolean-row ordinal.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LogicalMatrixRow {
     matrices: [Vec<LogicalMatrixEntry>; MATRIX_COUNT],

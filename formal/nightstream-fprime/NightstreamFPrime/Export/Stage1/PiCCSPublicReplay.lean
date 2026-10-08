@@ -98,12 +98,12 @@ def initialClaim (input : Input) (gamma : K) : K :=
   SumCheck.Finite.Message.evaluateCoefficients extensionOps.toOps gamma
     (Folding.PiCCS.FinalIdentity.targetCoefficientList (verifierInput input))
 
-/-- The executable constructor retains the ten coefficients required by the
+/-- The executable constructor retains the nine coefficients required by the
 selected sparse CCS syntax. No concrete row plan is evaluated. -/
-theorem degree_eq (input : Input) : (verifierInput input).sumcheckDegreeBound = 9 := by
+theorem degree_eq (input : Input) : (verifierInput input).sumcheckDegreeBound = 8 := by
   dsimp only [verifierInput, ProtocolPolynomial.VerifierInput.sumcheckDegreeBound]
   rw [ConstraintPolynomialLift.liftConstraintPolynomial_canonicalEqualityGatedDegreeBound]
-  change Nat.max Spec.ProductionRelation.polynomial.canonicalEqualityGatedDegreeBound 4 = 9
+  change Nat.max Spec.ProductionRelation.polynomial.canonicalEqualityGatedDegreeBound 4 = 8
   rw [Spec.ProductionRelation.polynomial_canonicalEqualityGatedDegreeBound]
   rfl
 
@@ -112,7 +112,7 @@ private def firstIndex : Fin productionShape.cubeVariables := ⟨0, by decide⟩
 /-- Absorb the newly constructed first polynomial, then derive its challenge.
 The caller supplies pre.state; no claimed challenge is accepted. -/
 def firstRound (state : Transcript.State)
-    (polynomial : SumCheck.Finite.FixedPolynomial K 9) : K × Transcript.State :=
+    (polynomial : SumCheck.Finite.FixedPolynomial K 8) : K × Transcript.State :=
   let absorbed := Transcript.piCcsOracle.transcript.absorbRound
     state firstIndex polynomial.toMessage
   Transcript.piCcsOracle.transcript.squeeze absorbed (.sumcheck firstIndex)
@@ -172,7 +172,7 @@ theorem initialClaim_fromCheckInput (input : PiCCSInputCheck.Input) (gamma : K) 
 
 /-- One causal step equals the existing indexed round-replay operation. -/
 theorem firstRound_eq_derive (state : Transcript.State)
-    (polynomial : SumCheck.Finite.FixedPolynomial K 9) :
+    (polynomial : SumCheck.Finite.FixedPolynomial K 8) :
     ([(firstRound state polynomial).1], (firstRound state polynomial).2) =
       FiatShamir.deriveRoundsFrom Transcript.piCcsOracle.transcript
         (fun _ => polynomial.toMessage) state [firstIndex] := rfl

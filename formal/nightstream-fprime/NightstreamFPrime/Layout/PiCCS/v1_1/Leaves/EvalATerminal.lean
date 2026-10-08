@@ -9,18 +9,18 @@ Obligation: Lower
 Inputs:
 - the 28-coordinate verifier-derived point `r'` and prior point `r`;
 - verifier-derived `gamma`;
-- 6,048 CCS-matrix-family coefficients, with no Pad coefficient.
+- 3,456 CCS-matrix-family coefficients, with no Pad coefficient.
 
 Outputs:
 - the child-owned exact unshifted `Eval_A` terminal term.
 
 Constraint groups:
 - point equality: 110 logical columns, 665 fresh columns, 775 rows;
-- 6,048-term Horner: 18,141 logical columns, no fresh column,
-  18,141 rows;
+- 3,456-term Horner: 10,365 logical columns, no fresh column,
+  10,365 rows;
 - parent wiring: zero columns and zero rows.
-- total leaf footprint: 18,251 logical columns, 665 fresh columns,
-  18,916 rows.
+- total leaf footprint: 10,475 logical columns, 665 fresh columns,
+  11,140 rows.
 
 Parent coverage:
 - `Formal.opsAt`, child `piccs.v1_1.eval_A_terminal`.
@@ -148,7 +148,7 @@ private theorem core_totalRowCount
     (offset : Nat) (inputs : InputsLinear interface offset) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
       (NightstreamFPrime.Lifecycle.PiCCS.v1_1.EvalATerminal.circuit interface
-        ).main offset)) = 18916 := by
+        ).main offset)) = 11140 := by
   calc
     _ = (28 * productionShape.cubeVariables - 9) +
         3 * ((NightstreamFPrime.Lifecycle.PiCCS.v1_1.EvalATerminal.coefficientExprs
@@ -159,7 +159,7 @@ private theorem core_totalRowCount
           (NightstreamFPrime.Lifecycle.PiCCS.v1_1.EvalATerminal.coreInterface
             interface) cubeVariables_positive offset
           (coreInputs interface offset inputs)
-    _ = 18916 := by
+    _ = 11140 := by
       rw [NightstreamFPrime.Lifecycle.PiCCS.v1_1.EvalATerminal.coefficientExprs_length]
       norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
 
@@ -170,7 +170,7 @@ def footprint
       InputsLinear (Formal.evalAInterface interface) offset) :
     R1CS.CircuitFootprint (Formal.evalACircuit interface) where
   freshColumnCount := fun _ => 665
-  physicalRowCount := fun _ => 18916
+  physicalRowCount := fun _ => 11140
   freshColumnCount_eq := by
     intro offset
     unfold Formal.evalACircuit
@@ -197,7 +197,7 @@ theorem physicalRowCount_eq
       InputsLinear (Formal.evalAInterface interface) offset)
     (offset : Nat) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
-      (Formal.evalACircuit interface).main offset)) = 18916 :=
+      (Formal.evalACircuit interface).main offset)) = 11140 :=
   (footprint interface inputs).physicalRowCount_eq offset
 
 theorem physicalPrivateColumnCount_eq
@@ -207,10 +207,10 @@ theorem physicalPrivateColumnCount_eq
     (offset : Nat) :
     localLength (Circuit.ops (Formal.evalACircuit interface).main offset) +
       R1CS.totalFreshCount (flatConstraints (Circuit.ops
-        (Formal.evalACircuit interface).main offset)) = 18916 := by
+        (Formal.evalACircuit interface).main offset)) = 11140 := by
   have logicalColumns :
       localLength (Circuit.ops (Formal.evalACircuit interface).main offset) =
-        18251 := by
+        10475 := by
     unfold Formal.evalACircuit
     rw [FormalCircuit.withConstantFootprint_main]
     exact

@@ -36,8 +36,7 @@ because its encoded public digest and retained digest words have one source. -/
 theorem rowsZero {application : Program} (raw : RawValues application) :
     (RecursivePublicOutputPlan.plan (PerApplicationFixedPoint.geometry application)).RowsZero
       raw.assignment := by
-  apply (RecursivePublicOutputPlan.rowsZero_iff_matches _ raw.assignment
-    (PerApplicationCanonicalAssignment.assignment_one raw)).mpr
+  apply (RecursivePublicOutputPlan.rowsZero_iff_matches _ raw.assignment).mpr
   intro word
   rw [publicInput_eq raw, decodeHashWord_encHash]
   have held := PilotOrdinaryDirectPlan.Location.form_eval

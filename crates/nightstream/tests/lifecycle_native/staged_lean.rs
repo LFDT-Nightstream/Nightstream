@@ -32,7 +32,7 @@ fn claim_value(claim: &CeClaim, combined: bool) -> Value {
     assert_eq!(claim.c.data.len(), 22 * D);
     assert_eq!(claim.r.len(), 28);
     assert_eq!(claim.eval_k.len(), D.next_power_of_two());
-    assert_eq!(claim.eval_a.len(), 7);
+    assert_eq!(claim.eval_a.len(), 4);
     assert!(claim.adv.is_none());
     assert!(claim.eval_k[D..].iter().all(|&value| value == K::ZERO));
     for family in &claim.eval_a {
@@ -79,7 +79,7 @@ fn ccs_input(fresh: &CcsClaim, running: &[CeClaim], proof: &pi_ccs::Proof) -> Va
         .sumcheck
         .sumcheck_rounds
         .iter()
-        .all(|round| round.len() == 10));
+        .all(|round| round.len() == 9));
     assert_eq!(proof.outputs.len(), 17);
     let outputs: Vec<_> = proof
         .outputs

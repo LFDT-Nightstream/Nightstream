@@ -28,7 +28,7 @@ private def makeOutput
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (proof : Lifecycle.Proof 9)
+    (proof : Lifecycle.Proof 8)
     (children : Stage1.Terminal.RunningWitness
       (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     FiatShamirTransfer.RealOutput relation :=
@@ -43,7 +43,7 @@ private theorem success_of_relation_eq
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (proof : Lifecycle.Proof 9)
+    (proof : Lifecycle.Proof 8)
     (children : Stage1.Terminal.RunningWitness
       (logicalWidth := logicalWidth) (publicFits := publicFits))
     (success : FiatShamirTransfer.RealSuccess right ajtai running fresh

@@ -71,7 +71,7 @@ private theorem good_recursive (visit : Visit) (good : goodActive visit) :
       | recursive payload =>
           exact ⟨statement, payload, Prod.ext rfl marked⟩
 
-private def abortPrefix {State : Type*} : InteractivePrefix.Prover State productionShape 9 where
+private def abortPrefix {State : Type*} : InteractivePrefix.Prover State productionShape 8 where
   rounds := fun _ _ _ => none
   output := fun _ _ _ => none
 
@@ -85,14 +85,14 @@ private theorem abortPrefix_run {State : Type*}
 /-- The actual causal prefix on the marked active branch, and an explicit
 abort otherwise. The original history transition does not use this mask. -/
 noncomputable def guardedPrefix {State : Type*}
-    (originalFirstPhase : Visit → InteractivePrefix.Prover State productionShape 9)
-    (visit : Visit) : InteractivePrefix.Prover State productionShape 9 :=
+    (originalFirstPhase : Visit → InteractivePrefix.Prover State productionShape 8)
+    (visit : Visit) : InteractivePrefix.Prover State productionShape 8 :=
   if goodActive visit then originalFirstPhase visit else abortPrefix
 
 /-- Inactive branches return no receipt before the public checker or suffix
 can be called. This holds for every checker, without evaluating its input. -/
 theorem guardedPrefix_abort {State : Type*}
-    (originalFirstPhase : Visit → InteractivePrefix.Prover State productionShape 9)
+    (originalFirstPhase : Visit → InteractivePrefix.Prover State productionShape 8)
     (visit : Visit) (inactive : ¬ goodActive visit)
     (check : Probe K productionShape → Bool)
     (alpha : CubePoint K productionShape.cubeVariables) (gamma : K)
@@ -182,7 +182,7 @@ variable {State Tape : Type*}
   [DecidableEq RingF]
   [Fintype (Challenge (ProductionKey.key relation productionAjtaiKey).piRlcAlgebra)]
   [Nonempty (Challenge (ProductionKey.key relation productionAjtaiKey).piRlcAlgebra)]
-  (originalFirstPhase : Visit → InteractivePrefix.Prover State productionShape 9)
+  (originalFirstPhase : Visit → InteractivePrefix.Prover State productionShape 8)
   (continuation : ∀ visit (coins : PublicCoins K productionShape)
     (output : FullOutputCoordinates.FullOutput K productionShape), State →
       Lifecycle.Nifs.WeakExtraction.Continuation Tape relation productionAjtaiKey

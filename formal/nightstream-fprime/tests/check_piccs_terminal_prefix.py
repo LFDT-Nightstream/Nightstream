@@ -38,8 +38,8 @@ def compare_terminal(norm, fresh, proof):
         require(len(proof[4][source]) == 54, "wrong Pad coefficient count")
         if norm[source] != proof[4][source][0]:
             raise ValueError(f"sourceAssignment[{source}] differs")
-    require(len(proof[5][0]) == 7, "wrong fresh matrix count")
-    for matrix in range(7):
+    require(len(proof[5][0]) == 4, "wrong fresh matrix count")
+    for matrix in range(4):
         require(len(proof[5][0][matrix]) == 54, "wrong fresh matrix coefficient count")
         if fresh[matrix] != proof[5][0][matrix][0]:
             raise ValueError(f"freshMatrixImage[{matrix}] differs")
@@ -53,7 +53,7 @@ def main():
     proof, phase = [json.loads(Path(path).read_bytes()) for path in sys.argv[5:7]]
     compare_round(public, final_round, proof, phase, 27)
     point = phase[4]  # Comparison target only; no producer runs in this script.
-    fresh = values(fresh_dir, 2, 7, point)
+    fresh = values(fresh_dir, 2, 4, point)
     require({path.name for path in norm_dir.iterdir()} ==
             {f"source-{source}" for source in range(17)}, "missing or extra final norm source")
     norm = [values(norm_dir / f"source-{source}", 3 + source, 1, point)[0]
@@ -66,9 +66,9 @@ def main():
             changed_phase[12] = copy.deepcopy(changed[4])
             expected = "sourceAssignment[16] differs"
         else:
-            changed[5][0][6][0][1] = (changed[5][0][6][0][1] + 1) % P
+            changed[5][0][3][0][1] = (changed[5][0][3][0][1] + 1) % P
             changed_phase[13] = copy.deepcopy(changed[5])
-            expected = "freshMatrixImage[6] differs"
+            expected = "freshMatrixImage[3] differs"
         # A mutually consistent proof/phase mutation must still fail the actual
         # field comparison. It must not reject only for mismatched target copies.
         compare_round(public, final_round, changed, changed_phase, 27)
@@ -79,9 +79,9 @@ def main():
         else:
             raise ValueError(f"changed {name} terminal target was accepted")
     print(json.dumps({"event": "piccs_terminal_prefix_comparison_passed",
-                      "norm_sources": 17, "fresh_matrices": 7,
-                      "compared_K_values": 24, "compared_field_words": 48,
-                      "canonical_field_bytes": 384,
+                      "norm_sources": 17, "fresh_matrices": 4,
+                      "compared_K_values": 21, "compared_field_words": 42,
+                      "canonical_field_bytes": 336,
                       "norm_target_mutation": "rejected",
                       "fresh_target_mutation": "rejected",
                       "scope": "coefficient-zero fields only; full individual evaluations remain open"}))

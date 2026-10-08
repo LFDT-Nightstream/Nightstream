@@ -444,7 +444,7 @@ theorem constraints_length :
 @[simp] theorem witnessWordCount : application.witnessWordCount = 600 := by
   decide
 
-theorem rows_le : (PerApplicationPackage.applicationPlan application).rowCount ≤ 253780566 := by
+theorem rows_le : (PerApplicationPackage.applicationPlan application).rowCount ≤ 256083468 := by
   rw [PerApplicationPackage.applicationPlan, ApplicationPackage.productionPlan_rowCount]
   unfold ApplicationPackage.compiledRows
   rw [Rows.compileRowsTR_length, Rows.lowerConstraintsTR_eq, R1CS.lowerConstraints_rows_length,
@@ -455,7 +455,7 @@ theorem rows_le : (PerApplicationPackage.applicationPlan application).rowCount �
   have := polyRows_length
   omega
 
-theorem columns_le : PerApplicationPackage.addedPrivateColumnCount application ≤ 253673729 := by
+theorem columns_le : PerApplicationPackage.addedPrivateColumnCount application ≤ 255992239 := by
   rw [PerApplicationPackage.addedPrivateColumnCount, PerApplicationPackage.applicationPlan,
     ApplicationPackage.productionPlan_privateCount, witnessWordCount, operations_eq, constraints_eq]
   have := freshCount_le
@@ -464,7 +464,7 @@ theorem columns_le : PerApplicationPackage.addedPrivateColumnCount application �
   omega
 
 theorem carrier_le :
-    application.witnessWordCount + ApplicationRetainedBlocks.localCount application ≤ 5094042 := by
+    application.witnessWordCount + ApplicationRetainedBlocks.localCount application ≤ 5340302 := by
   unfold ApplicationRetainedBlocks.localCount ApplicationRetainedBlocks.sourceWidth
     ApplicationDirectSource.sourceWidth ApplicationPackage.r1csFreshStart
   rw [witnessWordCount, operations_eq, constraints_eq]

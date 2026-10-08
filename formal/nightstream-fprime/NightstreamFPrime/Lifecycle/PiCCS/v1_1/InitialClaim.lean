@@ -102,22 +102,22 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
     (ownedInterface interface) offset env assumptions
 
 theorem coefficientExprs_length (interface : Interface) (offset : Nat) :
-    (coefficientExprs interface offset).length = 6912 := by
+    (coefficientExprs interface offset).length = 4320 := by
   simp [coefficientExprs, canonicalPadCoordinates_length,
     canonicalMatrixCoordinates_length, productionShape, productionProfile,
     Phi81MatrixSource.phi81Shape, Shape.padEvaluationCount,
     Shape.matrixEvaluationCount, cubeVariables, ringDegree]
 
 /-- Private symbolic variables owned by the fixed production leaf. -/
-def privateCount : Nat := 20733
+def privateCount : Nat := 12957
 
 /-- Exact private symbolic footprint of the optimized Horner child. -/
 theorem localLength_eq (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 20733 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 12957 := by
   change localLength (Circuit.ops
-    (Horner.Owned.circuit (ownedInterface interface)).main offset) = 20733
+    (Horner.Owned.circuit (ownedInterface interface)).main offset) = 12957
   rw [Horner.Owned.localLength_eq]
-  change 3 * ((coefficientExprs interface offset).length - 1) = 20733
+  change 3 * ((coefficientExprs interface offset).length - 1) = 12957
   rw [coefficientExprs_length]
 
 theorem operations_length (interface : Interface) (offset : Nat) :
@@ -126,11 +126,11 @@ theorem operations_length (interface : Interface) (offset : Nat) :
 
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      20733 := by
+      12957 := by
   change (flatConstraints (Circuit.ops
-    (Horner.Owned.circuit (ownedInterface interface)).main offset)).length = 20733
+    (Horner.Owned.circuit (ownedInterface interface)).main offset)).length = 12957
   rw [Horner.Owned.flatConstraints_length]
-  change 3 * ((coefficientExprs interface offset).length - 1) = 20733
+  change 3 * ((coefficientExprs interface offset).length - 1) = 12957
   rw [coefficientExprs_length]
 
 /-- Concrete parent coverage: shared target wires and the challenge leaf make

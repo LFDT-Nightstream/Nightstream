@@ -66,7 +66,7 @@ private theorem final_outputColumn (family : Family)
 
 private def parentCommitmentSlot (index : Fin 1188) : Fin invocationCount :=
   ⟨PiDECRetainedGeometry.parentCommitmentSlot + index.val, by
-    change 19008 + index.val < 39474
+    change 19008 + index.val < 33966
     have bound := index.isLt
     omega⟩
 
@@ -140,7 +140,7 @@ theorem parentCommitmentEncodes
 
 private def parentPublicInputSlot (index : Fin 270) : Fin invocationCount :=
   ⟨PiDECRetainedGeometry.parentPublicInputSlot + index.val, by
-    change 24516 + index.val < 39474
+    change 24516 + index.val < 33966
     have bound := index.isLt
     omega⟩
 
@@ -214,7 +214,7 @@ theorem parentPublicInputEncodes
 
 private def parentEvalKSlot (index : Fin 108) : Fin invocationCount :=
   ⟨PiDECRetainedGeometry.parentEvalKSlot + index.val, by
-    change 26514 + index.val < 39474
+    change 26514 + index.val < 33966
     have bound := index.isLt
     omega⟩
 
@@ -286,14 +286,14 @@ theorem parentEvalKEncodes
   rw [columns, parentEvalK_source]
   exact output (parentEvalKSlot index) coordinate
 
-private def parentEvalASlot (index : Fin 756) : Fin invocationCount :=
+private def parentEvalASlot (index : Fin 432) : Fin invocationCount :=
   ⟨PiDECRetainedGeometry.parentEvalASlot + index.val, by
-    change 38718 + index.val < 39474
+    change 33534 + index.val < 33966
     have bound := index.isLt
     omega⟩
 
 private theorem parentEvalA_source (program : Lifecycle.Stage1.Application.Program)
-    (index : Fin 756) :
+    (index : Fin 432) :
     (PiDECRetainedBlocks.parentEvalABlock program).source index =
       (PiRLCRetainedGeometry.productOutputBlock program).source
         (parentEvalASlot index) := by
@@ -313,7 +313,7 @@ private theorem parentEvalA_source (program : Lifecycle.Stage1.Application.Progr
 theorem parentEvalA_form_eq_output
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry program logicalWidth)
-    (index : Fin 756) :
+    (index : Fin 432) :
     (PiDECDirectPlan.Location.parentEvalA index).form geometry =
       (PiRLCRetainedGeometry.productOutputBlock program).form
         (PiRLCRetainedGeometry.productOutputStart program)
@@ -321,12 +321,12 @@ theorem parentEvalA_form_eq_output
           (PiDECRetainedGeometry.piRlcGeometry geometry)) (finalDescriptor .evalA index).invocation := by
   apply LowNormBlock.Block.form_eq_of_coordinates
   · rfl
-  · change PiRLCRetainedGeometry.productOutputStart program + 38718 * 41 +
+  · change PiRLCRetainedGeometry.productOutputStart program + 33534 * 41 +
       index.val * 41 = PiRLCRetainedGeometry.productOutputStart program +
         (finalDescriptor .evalA index).invocation.val * 41
     rw [final_invocation]
     change _ = PiRLCRetainedGeometry.productOutputStart program +
-      (38718 + index.val) * 41
+      (33534 + index.val) * 41
     ring
 
 /-- The honest constructor reuses the PiRLC encoding at the shared columns. -/
@@ -352,10 +352,10 @@ theorem parentEvalAEncodes
         (PiRLCRetainedGeometry.productOutputFits
           (PiDECRetainedGeometry.piRlcGeometry geometry)) (parentEvalASlot index) coordinate := by
     apply Fin.ext
-    change PiRLCRetainedGeometry.productOutputStart program + 38718 * 41 +
+    change PiRLCRetainedGeometry.productOutputStart program + 33534 * 41 +
       (index.val * 41 + coordinate.val) =
       PiRLCRetainedGeometry.productOutputStart program +
-        ((38718 + index.val) * 41 + coordinate.val)
+        ((33534 + index.val) * 41 + coordinate.val)
     ring
   rw [columns, parentEvalA_source]
   exact output (parentEvalASlot index) coordinate

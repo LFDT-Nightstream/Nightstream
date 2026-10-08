@@ -93,7 +93,7 @@ theorem complete
         (publicFits := PerApplicationFixedPoint.publicFits application))
       (Fresh (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
         (publicFits := PerApplicationFixedPoint.publicFits application))
-      (Lifecycle.Proof 9) slotCount)
+      (Lifecycle.Proof 8) slotCount)
     (output : Output Digest AppState
       (Running (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
         (publicFits := PerApplicationFixedPoint.publicFits application)) slotCount)

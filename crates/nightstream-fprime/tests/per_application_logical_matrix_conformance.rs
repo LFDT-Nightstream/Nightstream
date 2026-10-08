@@ -1,4 +1,4 @@
-//! Exact final 7-matrix comparison from the sealed Lean package alone.
+//! Exact final 4-matrix comparison from the sealed Lean package alone.
 //!
 //! The expected path has its own raw package decoder, source-row custody,
 //! Goldilocks sparse arithmetic, and interpreter for every matrix-program
@@ -70,12 +70,12 @@ use reference::{
     RowForms, GOLDILOCKS_MODULUS,
 };
 
-const EXPECTED_ACTIVE_ROWS: usize = 1_371_020;
-const EXPECTED_LOGICAL_COLUMNS: usize = 59_804_510;
+const EXPECTED_ACTIVE_ROWS: usize = 1_139_450;
+const EXPECTED_LOGICAL_COLUMNS: usize = 49_707_850;
 const EXPECTED_CUBE_VARIABLES: usize = 28;
 const EXPECTED_PADDED_ROWS: usize = 268_435_456;
-const EXPECTED_PHYSICAL_ROWS: usize = 14_660_374;
-const EXPECTED_PHYSICAL_COLUMNS: usize = 14_767_211;
+const EXPECTED_PHYSICAL_ROWS: usize = 12_357_472;
+const EXPECTED_PHYSICAL_COLUMNS: usize = 12_448_701;
 const EXPECTED_PUBLIC_COLUMNS: usize = 278;
 const EXPECTED_LOGICAL_PUBLIC_INPUTS: usize = 270;
 const MAX_OPCODE_ROWS_PER_INVOCATION: usize = 108;
@@ -108,8 +108,6 @@ fn canonical_pin_entry(package: &mut Value) -> &mut Vec<Value> {
         .and_then(|blocks| blocks.get_mut(3))
         .and_then(Value::as_array_mut)
         .and_then(|block| block.get_mut(1))
-        .and_then(Value::as_array_mut)
-        .and_then(|pin| pin.get_mut(1))
         .and_then(Value::as_array_mut)
         .and_then(|rows| rows.get_mut(258))
         .and_then(Value::as_array_mut)
@@ -282,7 +280,7 @@ pub fn check_matrix_mutations(current: LoadedPerApplicationPackage, sealed_bytes
 
 #[test]
 #[ignore = "full independent 6,377,559-row matrix interpretation; run the documented release target under the 300-second cap"]
-fn final_seven_matrices_equal_the_independent_sealed_interpretation() {
+fn final_four_matrices_equal_the_independent_sealed_interpretation() {
     let sealed_bytes = fs::read(artifact_path()).expect("Lean-emitted sealed package");
     let package = load_poseidon2_hash_chain_v1_package(&sealed_bytes).expect("production package decoder");
     check_logical_matrices(package, sealed_bytes);
@@ -315,7 +313,7 @@ pub fn check_logical_matrices(package: LoadedPerApplicationPackage, sealed_bytes
     assert_eq!(relation.matrix_sources().len(), PI_CCS_V1_1_MATRIX_COUNT);
     assert_eq!(
         relation.matrix_sources()[PI_CCS_V1_1_MATRIX_COUNT - 1],
-        CcsMatrixSource::EvalSelector
+        CcsMatrixSource::SboxInput
     );
     assert_eq!(
         1usize << u32::try_from(artifact.cube_variables).expect("cube variables fit u32"),

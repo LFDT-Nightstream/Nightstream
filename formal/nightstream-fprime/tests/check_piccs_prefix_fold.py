@@ -20,9 +20,9 @@ import sys
 P = 18446744069414584321
 NONRESIDUE = 7
 # Selected geometry: PICCS_CARRIED_PREFIX_REPLAY.json, pad and matrix records.
-# Profile.lean fixes ring degree 54 and the 7 separate matrix ports.
-ORIGINAL_ROWS = 1371020
-PAD_RECORDS = 1107491
+# Profile.lean fixes ring degree 54 and the 4 separate matrix ports.
+ORIGINAL_ROWS = 1139450
+PAD_RECORDS = 920516
 MATRIX_RECORDS = (ORIGINAL_ROWS + 1) // 2
 FIELD = struct.Struct("<QQ")
 
@@ -49,7 +49,7 @@ class Profile:
 PROFILES = {
     "pad": Profile(0, PAD_RECORDS, 27),
     "matrix": Profile(1, MATRIX_RECORDS, 1),
-    "fresh": Profile(2, MATRIX_RECORDS, 7),
+    "fresh": Profile(2, MATRIX_RECORDS, 4),
 }
 
 
@@ -97,7 +97,7 @@ def read_round(path):
     for index in (3, 6):
         for word in sequence(value[index], None, f"{path}: state"):
             field(word, f"{path}: state")
-    for coefficient in sequence(value[4], 10, f"{path}: polynomial"):
+    for coefficient in sequence(value[4], 9, f"{path}: polynomial"):
         extension(coefficient, f"{path}: polynomial")
     for index in (5, 7, 8, 9):
         extension(value[index], f"{path}: challenge or claim")

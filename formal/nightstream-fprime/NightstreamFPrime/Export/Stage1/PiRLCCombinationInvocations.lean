@@ -72,10 +72,10 @@ def publicInputValueSourceStart (source block _cell : Nat) : Nat :=
   else PiCCSInputs.runningPublicStart (source - 1) + block * ringDegree
 
 def evalKValueSourceStart (source _block cell : Nat) : Nat :=
-  PiCCSInputs.outputEvaluationStart + source * 864 + cell
+  PiCCSInputs.outputEvaluationStart + source * 540 + cell
 
 def evalAValueSourceStart (source block cell : Nat) : Nat :=
-  PiCCSInputs.outputEvaluationStart + source * 864 + 108 +
+  PiCCSInputs.outputEvaluationStart + source * 540 + 108 +
     block * 108 + cell
 
 theorem commitmentValueSource_affine (source block cell offset : Nat)
@@ -158,7 +158,7 @@ theorem evalKValueSource_affine (source block cell offset : Nat)
     omega
 
 theorem evalAValueSource_affine (source block cell offset : Nat)
-    (sourceLt : source < sourceCount) (blockLt : block < 7)
+    (sourceLt : source < sourceCount) (blockLt : block < 4)
     (cellLt : cell < 2) (offsetLt : offset < ringDegree) :
     Spartan.sourceToSpartan
         (evalAValueSourceStart source block cell + offset * 2) =
@@ -1034,16 +1034,16 @@ theorem evalKInvocationOutputRecipe_eq_remappedSourceRecipe
 
 theorem evalAInvocationOutputRecipe_eq_remappedSourceRecipe
     (source block cell : Nat) (lane : Fin ringDegree)
-    (sourceLt : source < sourceCount) (blockLt : block < 7)
+    (sourceLt : source < sourceCount) (blockLt : block < 4)
     (cellLt : cell < 2) :
     CompactRows.renameExpr
         (CompactRows.inputColumnOfRanges
           (invocation PiRLCStarts.evalALogicalStart PiRLCStarts.evalARowStart
-            PiRLCStarts.evalAFreshStart 7 2 2 source block lane.val cell
+            PiRLCStarts.evalAFreshStart 4 2 2 source block lane.val cell
             evalAValueSourceStart).inputRanges)
         (PiRLCCombinationTemplates.outputRecipe (firstSource source) lane) =
       CompactRows.renameExpr Spartan.sourceToSpartan
-        (sourcePrior PiRLCStarts.evalALogicalStart 7 2 source block lane.val
+        (sourcePrior PiRLCStarts.evalALogicalStart 4 2 source block lane.val
             cell +
           CombinationStep.mulExpr (sourceChallenge source)
             (sourceValue 2 source block cell evalAValueSourceStart) lane) := by
@@ -1219,22 +1219,22 @@ theorem evalKInvocationRows_eq_remappedSource
 
 theorem evalAInvocationRows_eq_remappedSource
     (source block cell : Nat) (lane : Fin ringDegree)
-    (sourceLt : source < sourceCount) (blockLt : block < 7)
+    (sourceLt : source < sourceCount) (blockLt : block < 4)
     (cellLt : cell < 2) :
     CompactRows.instantiateRows
         (CompactRows.inputColumnOfRanges
           (invocation PiRLCStarts.evalALogicalStart PiRLCStarts.evalARowStart
-            PiRLCStarts.evalAFreshStart 7 2 2 source block lane.val cell
+            PiRLCStarts.evalAFreshStart 4 2 2 source block lane.val cell
             evalAValueSourceStart).inputRanges)
         (invocation PiRLCStarts.evalALogicalStart PiRLCStarts.evalARowStart
-          PiRLCStarts.evalAFreshStart 7 2 2 source block lane.val cell
+          PiRLCStarts.evalAFreshStart 4 2 2 source block lane.val cell
           evalAValueSourceStart).localStart
         (PiRLCCombinationTemplates.template (firstSource source) lane) =
       Spartan.remapRows
         (R1CS.lowerGenericConstraint
-          (sourceConstraint PiRLCStarts.evalALogicalStart 7 2 2 source block
+          (sourceConstraint PiRLCStarts.evalALogicalStart 4 2 2 source block
             cell evalAValueSourceStart lane)
-          (invocationFreshSource PiRLCStarts.evalAFreshStart 7 2 source block
+          (invocationFreshSource PiRLCStarts.evalAFreshStart 4 2 source block
             lane.val cell)).rows := by
   apply invocationRows_eq_remappedSource
   · exact invocationFreshSource_local _ _ _ _ _ _ _ evalAFreshStart_local
@@ -1271,7 +1271,7 @@ def evalKInvocations : List CompactRowInvocation :=
 def evalAInvocations : List CompactRowInvocation :=
   familyInvocations PiRLCStarts.evalALogicalStart
     PiRLCStarts.evalARowStart PiRLCStarts.evalAFreshStart
-    7 2 2 evalAValueSourceStart
+    4 2 2 evalAValueSourceStart
 
 def invocations : List CompactRowInvocation :=
   commitmentInvocations ++ publicInputInvocations ++
@@ -1327,11 +1327,11 @@ theorem evalKInvocations_length : evalKInvocations.length = 1836 := by
   rw [evalKInvocations, familyInvocations_length]
   rfl
 
-theorem evalAInvocations_length : evalAInvocations.length = 12852 := by
+theorem evalAInvocations_length : evalAInvocations.length = 7344 := by
   rw [evalAInvocations, familyInvocations_length]
   rfl
 
-theorem invocations_length : invocations.length = 39474 := by
+theorem invocations_length : invocations.length = 33966 := by
   simp [invocations, commitmentInvocations_length,
     publicInputInvocations_length, evalKInvocations_length,
     evalAInvocations_length]
@@ -1350,9 +1350,9 @@ theorem familyBoundaries_eq :
         PiRLCStarts.evalARowStart ∧
     PiRLCStarts.evalKFreshStart + sourceCount * sourceFreshCount 1 2 =
         PiRLCStarts.evalAFreshStart ∧
-    PiRLCStarts.evalARowStart + sourceCount * sourceRowCount 7 2 =
+    PiRLCStarts.evalARowStart + sourceCount * sourceRowCount 4 2 =
         PiRLCStarts.outputRowStart ∧
-    PiRLCStarts.evalAFreshStart + sourceCount * sourceFreshCount 7 2 =
+    PiRLCStarts.evalAFreshStart + sourceCount * sourceFreshCount 4 2 =
         PiRLCStarts.outputFreshStart := by
   unfold sourceCount sourceRowCount sourceFreshCount
     PiRLCStarts.outputRowStart PiRLCStarts.outputFreshStart

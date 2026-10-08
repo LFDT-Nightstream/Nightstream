@@ -1,9 +1,8 @@
 import NightstreamFPrime.Spec.ProductionRelation
 
 /-!
-Owns the named 7-port image interface used by the production selective
-compiler. Each row constructor is interpreted by the sole fixed 8-term
-constraint polynomial.
+Owns the named 4-port image interface used by the production gate compiler.
+Each row constructor is interpreted by the sole fixed 3-term gate polynomial.
 
 This module does not assign columns or construct sparse matrices.
 -/
@@ -14,146 +13,74 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 
-/-- Named values of the 7 selective matrix images. -/
+/-- Named values of the 4 gate matrix images. -/
 structure PortValues where
-  bit : F := 0
-  generalSelector : F := 0
   a : F := 0
   b : F := 0
   c : F := 0
   sboxInput : F := 0
-  evalSelector : F := 0
 deriving Repr, DecidableEq
 
-/-- Convert the named interface to the exact 7-slot matrix-image order. -/
+/-- Convert the named interface to the exact 4-slot matrix-image order. -/
 def PortValues.get (values : PortValues)
     (port : Fin matrixCount) : F :=
   match port.val with
-  | 0 => values.bit
-  | 1 => values.generalSelector
-  | 2 => values.a
-  | 3 => values.b
-  | 4 => values.c
-  | 5 => values.sboxInput
-  | 6 => values.evalSelector
+  | 0 => values.a
+  | 1 => values.b
+  | 2 => values.c
+  | 3 => values.sboxInput
   | _ => 0
 
 /-- Fixed seventh power used by the Poseidon2 S-box row. -/
 def seventhPower (value : F) : F := pow baseOps value 7
 
-/-- Complete selector-gated base row. Individual row families set unused
-ports to zero. -/
-def general (selector bitValue left right output sboxValue : F) :
-    PortValues :=
-  { bit := bitValue
-    generalSelector := selector
-    a := left
-    b := right
-    c := output
-    sboxInput := sboxValue }
-
-/-- Exact residual of the general row family before specialization. -/
-theorem evaluate_general
-    (selector bitValue left right output sboxValue : F) :
-    evaluatePolynomial baseOps polynomial
-        (general selector bitValue left right output sboxValue).get =
-      selector *
-        ((bitValue * bitValue - bitValue) +
-          (left * right - output) + seventhPower sboxValue) := by
-  simp [polynomial, SelectivePolynomial.polynomial,
-    SelectivePolynomial.terms, SelectivePolynomial.termData,
-    SelectivePolynomial.monomial,
-    SelectivePolynomial.Term.toMonomial, SelectivePolynomial.sboxTermData,
-    SelectivePolynomial.powers, SelectivePolynomial.PortExponents.get,
+/-- Exact gate value on named port images. -/
+theorem evaluate (values : PortValues) :
+    evaluatePolynomial baseOps polynomial values.get =
+      values.a * values.b - values.c + seventhPower values.sboxInput := by
+  simp [polynomial, GatePolynomial.polynomial,
+    GatePolynomial.terms, GatePolynomial.termData, GatePolynomial.monomial,
+    GatePolynomial.Term.toMonomial, GatePolynomial.sboxTermData,
+    GatePolynomial.powers, GatePolynomial.PortExponents.get,
     evaluatePolynomial, evaluateMonomial, canonicalFinIndices, List.foldl,
-    Fin.val_cast, pow, seventhPower, general, PortValues.get, baseOps]
-  simp only [mul_add, mul_neg, sub_eq_add_neg, mul_comm, mul_left_comm]
-  abel
+    Fin.val_cast, pow, seventhPower, PortValues.get, baseOps]
+  rw [sub_eq_add_neg]
 
-/-- One selector-gated multiplication row `left * right = output`. -/
-def multiplication (selector left right output : F) : PortValues :=
-  general selector 0 left right output 0
+/-- One multiplication row `left * right = output`. -/
+def multiplication (left right output : F) : PortValues :=
+  { a := left, b := right, c := output }
 
-/-- Exact residual selected by a multiplication row. -/
-theorem evaluate_multiplication (selector left right output : F) :
+/-- Exact residual of a multiplication row. -/
+theorem evaluate_multiplication (left right output : F) :
     evaluatePolynomial baseOps polynomial
-        (multiplication selector left right output).get =
-      selector * (left * right - output) := by
-  rw [multiplication, evaluate_general]
-  simp [seventhPower, pow, baseOps]
+        (multiplication left right output).get =
+      left * right - output := by
+  rw [evaluate]
+  simp [multiplication, seventhPower, pow, baseOps]
 
-/-- One selector-gated Boolean row `value * value = value`. -/
-def boolean (selector value : F) : PortValues :=
-  general selector value 0 0 0 0
+/-- One S-box row `input^7 = output`. -/
+def sbox (input output : F) : PortValues :=
+  { c := output, sboxInput := input }
 
-theorem evaluate_boolean (selector value : F) :
-    evaluatePolynomial baseOps polynomial (boolean selector value).get =
-      selector * (value * value - value) := by
-  rw [boolean, evaluate_general]
-  simp [seventhPower, pow, baseOps]
+theorem evaluate_sbox (input output : F) :
+    evaluatePolynomial baseOps polynomial (sbox input output).get =
+      seventhPower input - output := by
+  rw [evaluate]
+  simp [sbox, sub_eq_add_neg, add_comm]
 
-/-- One selector-gated S-box row `input^7 = output`. -/
-def sbox (selector input output : F) : PortValues :=
-  general selector 0 0 0 output input
+/-- One zero pin. -/
+def pin (value : F) : PortValues :=
+  multiplication 0 0 value
 
-theorem evaluate_sbox (selector input output : F) :
-    evaluatePolynomial baseOps polynomial (sbox selector input output).get =
-      selector * (seventhPower input - output) := by
-  rw [sbox, evaluate_general]
-  simp [seventhPower, pow, baseOps, sub_eq_add_neg]
-  rw [add_comm]
-
-/-- One selector-gated zero pin. -/
-def pin (selector value : F) : PortValues :=
-  multiplication selector 0 0 value
-
-theorem evaluate_pin (selector value : F) :
-    evaluatePolynomial baseOps polynomial (pin selector value).get =
-      -(selector * value) := by
+theorem evaluate_pin (value : F) :
+    evaluatePolynomial baseOps polynomial (pin value).get = -value := by
   rw [pin, evaluate_multiplication]
-  simp [sub_eq_add_neg]
+  simp
 
-theorem multiplication_zero_of_equal (selector left right output : F)
+theorem multiplication_zero_of_equal (left right output : F)
     (equal : left * right = output) :
     evaluatePolynomial baseOps polynomial
-      (multiplication selector left right output).get = 0 := by
-  rw [evaluate_multiplication, equal, sub_self, mul_zero]
-
-/-- Exact sum selected by one two-product evaluation row. -/
-def productTotal (left right : Fin 2 → F) : F :=
-  left 0 * right 0 + left 1 * right 1
-
-/-- One evaluation-selector row. The general selector stays zero, so the two
-pair ports are independent multiplication factors. -/
-def productSum (selector : F) (left right : Fin 2 → F)
-    (output : F) : PortValues :=
-  { bit := left 0
-    a := right 0
-    b := left 1
-    c := output
-    sboxInput := right 1
-    evalSelector := selector }
-
-/-- Exact residual selected by a two-product row. -/
-theorem evaluate_productSum (selector : F) (left right : Fin 2 → F)
-    (output : F) :
-    evaluatePolynomial baseOps polynomial
-        (productSum selector left right output).get =
-      selector * (productTotal left right - output) := by
-  simp [polynomial, SelectivePolynomial.polynomial,
-    SelectivePolynomial.terms, SelectivePolynomial.termData,
-    SelectivePolynomial.monomial,
-    SelectivePolynomial.Term.toMonomial, SelectivePolynomial.sboxTermData,
-    SelectivePolynomial.powers, SelectivePolynomial.PortExponents.get,
-    evaluatePolynomial, evaluateMonomial, canonicalFinIndices, List.foldl,
-    Fin.val_cast, pow, productSum, productTotal, PortValues.get, baseOps]
-  simp only [mul_add, mul_neg, sub_eq_add_neg, mul_comm]
-  abel
-
-theorem productSum_zero_of_equal (selector : F) (left right : Fin 2 → F)
-    (output : F) (equal : productTotal left right = output) :
-    evaluatePolynomial baseOps polynomial
-      (productSum selector left right output).get = 0 := by
-  rw [evaluate_productSum, equal, sub_self, mul_zero]
+      (multiplication left right output).get = 0 := by
+  rw [evaluate_multiplication, equal, sub_self]
 
 end NightstreamFPrime.Spec.ProductionRelation.RowSemantics

@@ -6,7 +6,9 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 use serde_json::Value;
 
-use crate::package::{PackageError, PI_CCS_V1_1_MATRIX_COUNT, PI_CCS_V1_1_ROUND_COUNT};
+use crate::package::{
+    PackageError, PI_CCS_V1_1_MATRIX_COUNT, PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT, PI_CCS_V1_1_ROUND_COUNT,
+};
 
 mod native;
 pub(crate) use native::{
@@ -31,7 +33,7 @@ const VERIFIER_CONTEXT_PROFILE: [u64; 14] = [
     16,
     PI_CCS_V1_1_MATRIX_COUNT as u64,
     PI_CCS_V1_1_ROUND_COUNT as u64,
-    9,
+    (PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT - 1) as u64,
     54,
     22,
 ];
@@ -40,7 +42,7 @@ const VERIFIER_CONTEXT_SCHEDULE: [u64; 10] = [
     1,
     1,
     PI_CCS_V1_1_ROUND_COUNT as u64,
-    10,
+    PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT as u64,
     17,
     PI_CCS_V1_1_MATRIX_COUNT as u64,
     54,
@@ -55,22 +57,22 @@ const VERIFICATION_KEY_DOMAIN: &[u8] = b"Nightstream/FPrime/verifier-key/v1";
 const FORMULA_LIBRARY_DOMAIN: &[u8] = b"Nightstream/FPrime/formulas/v1";
 
 pub const POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER: [u64; 4] = [
-    6_140_047_365_154_428_978,
-    15_014_356_542_662_835_441,
-    8_837_665_427_653_281_796,
-    16_105_464_800_666_874_060,
+    10_486_567_789_619_211_669,
+    11_687_118_196_307_825_759,
+    5_633_101_031_172_009_684,
+    6_149_262_711_956_404_475,
 ];
 pub const POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY: [u64; 4] = [
-    7_147_714_140_347_778_281,
-    2_702_919_217_022_180_743,
-    18_419_811_066_073_596_212,
-    17_282_503_508_119_195_553,
+    1_542_469_779_791_148_060,
+    8_597_849_084_761_527_141,
+    10_585_403_902_933_492_618,
+    5_634_536_311_740_117_718,
 ];
 pub const POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST: [u64; 4] = [
-    13_403_009_536_525_963_686,
-    8_093_998_191_745_443_646,
-    7_285_817_855_273_359_339,
-    11_691_738_023_119_990_703,
+    6_440_006_626_521_140_497,
+    11_367_969_945_792_140_899,
+    13_964_748_106_270_585_065,
+    16_959_349_855_816_716_292,
 ];
 
 /// Verifier-owned context derived from one identity-checked package and the

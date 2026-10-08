@@ -236,14 +236,13 @@ theorem equations_imply_rowsZero
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
-    (one : assignment (oneColumn geometry) = 1)
     (sboxes : ∀ current,
       PoseidonSboxPlan.SboxEquations
         (PoseidonSboxFamilyPlan.invocationInterface
           (interface geometry) current) assignment) :
     (plan geometry).RowsZero assignment := by
   apply PoseidonSboxFamilyPlan.equations_imply_planRowsZero
-    (interface geometry) familyRowCount_le assignment one
+    (interface geometry) familyRowCount_le assignment
   intro current
   refine ⟨sboxes current, ?_⟩
   exact PoseidonRetainedFamily.outputEquations

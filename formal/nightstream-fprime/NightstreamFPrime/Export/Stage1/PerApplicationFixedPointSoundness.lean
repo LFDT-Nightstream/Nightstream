@@ -185,8 +185,6 @@ private theorem representedSemantics_imply_stepHoldsFor
       (PerApplicationFixedPoint.logicalWidth application))
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
-    (one : assignment
-      (ApplicationRetainedGeometry.oneColumn (geometry application)) = 1)
     (encodes : DirectApplicationPrefixPlan.Encodes (geometry application)
       assignment base groupValue)
     (input : Input KeyDigest AppState AppWitness
@@ -253,7 +251,7 @@ private theorem representedSemantics_imply_stepHoldsFor
     simpa [commonEnv] using
       DirectAccumulatorCommonSemantics.semantics_imply_accumulatorHolds
         (relation application fits) ajtai vk
-        (prefixGeometry application) assignment base groupValue one
+        (prefixGeometry application) assignment base groupValue
         encodes.runningPrefix semantics.runningPrefix
         (PiRLCInputBounds.assumptions (relation application fits)
           (commonEnv application assignment base))
@@ -471,7 +469,7 @@ theorem rowsZero_implies_stepHoldsFor
     · rfl
   exact representedSemantics_imply_stepHoldsFor application fits ajtai
     (PerApplicationDecodedIO.contextKey raw) raw.assignment raw.base
-    raw.groupValue one encodes
+    raw.groupValue encodes
     (PerApplicationDecodedIO.input application fits raw)
     (PerApplicationDecodedIO.output application raw) represents semantics
 

@@ -42,43 +42,43 @@ def witnessPrivateStart : Nat := 2 * PilotProduction.stateHashWords
 def firstPublicStart : Nat := privateColumnCount + 1
 def secondPublicStart : Nat := firstPublicStart + PriorStateHash.publicWidth
 
-theorem sourceColumnCount_eq : SourceColumnCount = 6892396 := by
+theorem sourceColumnCount_eq : SourceColumnCount = 5935084 := by
   rfl
 
 theorem publicColumnCount_value : publicColumnCount = 274 := by
   rfl
 
-theorem privateColumnCount_value : privateColumnCount = 6892122 := by
+theorem privateColumnCount_value : privateColumnCount = 5934810 := by
   rfl
 
-theorem constantColumn_value : constantColumn = 6892122 := by
+theorem constantColumn_value : constantColumn = 5934810 := by
   rfl
 
-theorem spartanColumnCount_value : spartanColumnCount = 6892397 := by
+theorem spartanColumnCount_value : spartanColumnCount = 5935085 := by
   rfl
 
-theorem priorPublicStart_value : priorPublicStart = 37297 := by
+theorem priorPublicStart_value : priorPublicStart = 32113 := by
   rfl
 
-theorem outputPreimageStart_value : outputPreimageStart = 37567 := by
+theorem outputPreimageStart_value : outputPreimageStart = 32383 := by
   rfl
 
-theorem outputDigestStart_value : outputDigestStart = 74864 := by
+theorem outputDigestStart_value : outputDigestStart = 64496 := by
   rfl
 
-theorem witnessStart_value : witnessStart = 74868 := by
+theorem witnessStart_value : witnessStart = 64500 := by
   rfl
 
-theorem secondPrivateStart_value : secondPrivateStart = 37297 := by
+theorem secondPrivateStart_value : secondPrivateStart = 32113 := by
   rfl
 
-theorem witnessPrivateStart_value : witnessPrivateStart = 74594 := by
+theorem witnessPrivateStart_value : witnessPrivateStart = 64226 := by
   rfl
 
-theorem firstPublicStart_value : firstPublicStart = 6892123 := by
+theorem firstPublicStart_value : firstPublicStart = 5934811 := by
   rfl
 
-theorem secondPublicStart_value : secondPublicStart = 6892393 := by
+theorem secondPublicStart_value : secondPublicStart = 5935081 := by
   rfl
 
 /-- The materialized count is exactly the proved semantic pilot layout count. -/

@@ -2,7 +2,7 @@ import NightstreamFPrime.Export.Stage1.RunningTransitionMatrixProgramSubstitutio
 
 /-!
 Proves row-by-row equality between the compact running-transition matrix
-program and the canonical direct 7-matrix plan. The package row accessor is
+program and the canonical direct 4-matrix plan. The package row accessor is
 an explicit identity-checked premise.
 -/
 
@@ -29,11 +29,11 @@ theorem rowSchedule_index?
     rowSchedule.index? index.val =
       some (RunningTransitionArithmetic.rowStart + index.val) := by
   have count := RunningTransitionDirectSource.program_rowCount relation
-  have bound : index.val < 37263 := by
+  have bound : index.val < 32079 := by
     calc
       index.val < (RunningTransitionDirectSource.program relation).rowCount :=
         index.isLt
-      _ = 37263 := count
+      _ = 32079 := count
   simp [rowSchedule, bound]
 
 private theorem programRow_support
@@ -146,7 +146,7 @@ theorem matrixProgram_row?
         global) := by
   have blockBound : global.val <
       (MatrixProgram.Block.ordinary (ordinaryBlock geometry)).rowCount := by
-    change global.val < 37263
+    change global.val < 32079
     have bound := global.isLt
     have count := RunningTransitionDirectPlan.plan_rowCount relation geometry
     omega

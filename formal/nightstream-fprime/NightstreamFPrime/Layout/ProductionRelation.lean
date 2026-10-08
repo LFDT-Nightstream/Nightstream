@@ -1,8 +1,8 @@
 import NightstreamFPrime.Lifecycle.ProductionKey
 
 /-!
-Owns the exact matrix authority for the production selective relation. A plan
-stores the 7 sparse matrix-row forms in canonical numeric row order. The
+Owns the exact matrix authority for the production gate relation. A plan
+stores the 4 sparse matrix-row forms in canonical numeric row order. The
 derived matrices are the only values accepted by
 `ProductionKey.LogicalRelation`.
 
@@ -210,7 +210,7 @@ private theorem foldl_scale_terms {Index : Type}
 
 end SparseForm
 
-/-- Convert one of the 7 matrix slots to its selective-port index. -/
+/-- Convert one of the 4 matrix slots to its gate-port index. -/
 def meaningfulPort?
     (port : Fin Spec.ProductionRelation.matrixCount) :
     Option (Fin Spec.ProductionRelation.meaningfulPortCount) :=

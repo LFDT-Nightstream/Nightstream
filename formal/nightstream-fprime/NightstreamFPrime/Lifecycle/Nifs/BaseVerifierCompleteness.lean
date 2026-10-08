@@ -209,7 +209,7 @@ private theorem piDecCheck_of_sampled_parent
     (key : ProductionKey.KeyType relation)
     (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (proof : Proof 9) (challenges : Fin key.arity.total → RingF)
+    (proof : Proof 8) (challenges : Fin key.arity.total → RingF)
     (sampled : key.piRlcChallenges running fresh proof = some challenges)
     (accepted : PiDEC.PaperVerifier.Accepted key.piDecAlgebra
       key.piDecPublicInputSplit key.piDecEvaluationArity
@@ -224,7 +224,7 @@ private theorem verify_some_of_checks
     (key : ProductionKey.KeyType relation)
     (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (proof : Proof 9)
+    (proof : Proof 8)
     (cCheck : Nifs.PaperNonInteractive.piCcsCheck key running fresh proof = true)
     (dCheck : Nifs.PaperNonInteractive.piDecCheck key running fresh proof = true) :
     ∃ output, Nifs.PaperNonInteractive.verify key running fresh proof = some output := by

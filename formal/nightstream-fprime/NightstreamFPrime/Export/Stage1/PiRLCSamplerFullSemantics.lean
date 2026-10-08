@@ -32,7 +32,6 @@ theorem directSemantics_imply_samplerSpec
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
-    (one : assignment (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (piCcsEncoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry assignment
       (PiRLCRetainedPreservation.sourceAssignment program base groupValue))
     (endpointRows : (PiCCSTranscriptEndpointPlan.plan
@@ -58,7 +57,7 @@ theorem directSemantics_imply_samplerSpec
     (logicalWidth := relationLogicalWidth) (publicFits := relationPublicFits) source.val
   let target := PiRLCSamplerRetainedCustody.semanticEnv samplerGeometry assignment base
   have entered := PiRLCSamplerDirectSemantics.canonicalSemantics_imply_entry
-    relation ordinaryGeometry samplerGeometry assignment base groupValue one piCcsEncoding
+    relation ordinaryGeometry samplerGeometry assignment base groupValue piCcsEncoding
     endpointRows poseidonSemantics source
   have advanced := PiRLCSamplerDirectSemantics.canonicalSemantics_imply_advance
     (relationLogicalWidth := relationLogicalWidth) (relationPublicFits := relationPublicFits)
@@ -95,7 +94,6 @@ theorem directSemantics_imply_samplerChain
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
-    (one : assignment (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (piCcsEncoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry assignment
       (PiRLCRetainedPreservation.sourceAssignment program base groupValue))
     (endpointRows : (PiCCSTranscriptEndpointPlan.plan
@@ -119,7 +117,7 @@ theorem directSemantics_imply_samplerChain
   let directSource : Fin PiRLCSamplerPoseidonPlan.sourceCount :=
     ⟨source.val, by simpa [SamplerChain.sourceCount_eq, PiRLCSamplerPoseidonPlan.sourceCount] using source.isLt⟩
   exact directSemantics_imply_samplerSpec relation ordinaryGeometry samplerGeometry assignment
-    base groupValue one piCcsEncoding endpointRows ordinaryRows poseidonSemantics directSource
+    base groupValue piCcsEncoding endpointRows ordinaryRows poseidonSemantics directSource
     (SamplerChain.child_inputs _ _ source.val inputs)
 
 end NightstreamFPrime.Export.Stage1.PiRLCSamplerFullSemantics

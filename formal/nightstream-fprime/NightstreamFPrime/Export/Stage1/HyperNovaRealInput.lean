@@ -28,7 +28,7 @@ private def makeOutput
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (prior : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (proof : Lifecycle.Proof 9)
+    (proof : Lifecycle.Proof 8)
     (children : Stage1.Terminal.RunningWitness
       (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     NifsRealSuccess.RealOutput relation :=
@@ -45,7 +45,7 @@ private theorem success_of_relation_eq
     (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (prior : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (proof : Lifecycle.Proof 9)
+    (proof : Lifecycle.Proof 8)
     (children : Stage1.Terminal.RunningWitness
       (logicalWidth := logicalWidth) (publicFits := publicFits))
     (success : NifsRealSuccess.RealSuccess right ajtai context running fresh

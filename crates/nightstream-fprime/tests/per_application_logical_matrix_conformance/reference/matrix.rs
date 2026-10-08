@@ -5,8 +5,8 @@ use serde_json::Value;
 use super::affine::{AffineProgram, Coordinate};
 use super::source::{SourceCombination, SourcePackage, SourceRow};
 use super::{
-    array, checked_add, checked_mul, decode_form, decode_list, empty_row, exact_array, word, Entry, Field, Form,
-    Result, RetainedBlock, RowForms,
+    array, checked_add, checked_mul, decode_form, decode_list, empty_row, exact_array, word, Entry, Form, Result,
+    RetainedBlock, RowForms,
 };
 
 #[derive(Clone, Debug)]
@@ -427,14 +427,13 @@ impl OrdinaryBlock {
             .ok_or_else(|| "ordinary row ordinal is out of range".to_string())?;
         let source = self.projection.row(&sources.row(source_index)?)?;
         let mut row = empty_row();
-        row[1] = Form::singleton(self.one_column, Field::ONE);
-        row[2] = self
+        row[0] = self
             .substitution
             .compile(logical_width, self.one_column, &source.a)?;
-        row[3] = self
+        row[1] = self
             .substitution
             .compile(logical_width, self.one_column, &source.b)?;
-        row[4] = self
+        row[2] = self
             .substitution
             .compile(logical_width, self.one_column, &source.c)?;
         Ok(row)
@@ -443,18 +442,14 @@ impl OrdinaryBlock {
 
 #[derive(Clone, Debug)]
 struct PinBlock {
-    one_column: usize,
     values: Vec<Form>,
 }
 
 impl PinBlock {
     fn decode(value: &Value, logical_width: usize) -> Result<Self> {
-        let fields = exact_array(value, 2, "pin matrix block")?;
         let block = Self {
-            one_column: word(&fields[0], "pin one column")?,
-            values: decode_list(&fields[1], |value| decode_form(value, logical_width), "pin values")?,
+            values: decode_list(value, |value| decode_form(value, logical_width), "pin values")?,
         };
-        require_one_column(block.one_column, logical_width)?;
         for form in &block.values {
             form.validate(logical_width)?;
         }
@@ -462,9 +457,6 @@ impl PinBlock {
     }
 
     fn row(&self, logical_width: usize, ordinal: usize) -> Result<RowForms> {
-        if self.one_column >= logical_width {
-            return Err("pin one column is out of range".into());
-        }
         let value = self
             .values
             .get(ordinal)
@@ -472,8 +464,7 @@ impl PinBlock {
             .clone();
         value.validate(logical_width)?;
         let mut row = empty_row();
-        row[1] = Form::singleton(self.one_column, Field::ONE);
-        row[4] = value;
+        row[2] = value;
         Ok(row)
     }
 }
@@ -545,12 +536,11 @@ impl MultiplicationBlock {
         }
         let coordinate = self.shape.coordinate(ordinal)?;
         let mut row = empty_row();
-        row[1] = Form::singleton(self.one_column, Field::ONE);
-        row[2] = self.left.form(logical_width, self.one_column, coordinate)?;
-        row[3] = self
+        row[0] = self.left.form(logical_width, self.one_column, coordinate)?;
+        row[1] = self
             .right
             .form(logical_width, self.one_column, coordinate)?;
-        row[4] = self
+        row[2] = self
             .output
             .form(logical_width, self.one_column, coordinate)?;
         Ok(row)

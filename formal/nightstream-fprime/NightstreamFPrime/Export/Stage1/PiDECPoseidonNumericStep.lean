@@ -127,8 +127,7 @@ theorem stateStep_value {logicalWidth : Nat} (read : Fin logicalWidth → F)
 /-- Store one existing S-box row under the same arbitrary sparse read. -/
 def rowValues {logicalWidth : Nat} (read : Fin logicalWidth → F)
     (forms : SboxRow.Forms logicalWidth) : PortValues :=
-  RowSemantics.sbox (forms.selector.evalSparse read)
-    (forms.input.evalSparse read) (forms.output.evalSparse read)
+  RowSemantics.sbox (forms.input.evalSparse read) (forms.output.evalSparse read)
 
 /-- Every stored port equals the evaluation of its existing sparse form,
 including the empty ports. -/
@@ -138,15 +137,7 @@ theorem rowValues_get {logicalWidth : Nat} (read : Fin logicalWidth → F)
   simp only [rowValues, SparseForm.evalSparse_eq_eval]
   fin_cases port <;>
     simp [SboxRow.Forms.portForm, SboxRow.Forms.meaningfulForm,
-      meaningfulPort?, RowSemantics.sbox, RowSemantics.general,
-      RowSemantics.PortValues.get]
-
-private theorem selector_value {logicalWidth : Nat} (read : Fin logicalWidth → F)
-    (interface : PoseidonSboxPlan.Interface logicalWidth) :
-    (PoseidonSboxPlan.selector interface).evalSparse read =
-      read interface.oneColumn := by
-  simp only [PoseidonSboxPlan.selector, SparseForm.evalSparse_eq_eval,
-    SparseForm.singleton_eval, one_mul]
+      meaningfulPort?, RowSemantics.sbox, RowSemantics.PortValues.get]
 
 private theorem addConstant_value {logicalWidth : Nat}
     (read : Fin logicalWidth → F) (oneColumn : Fin logicalWidth)
@@ -161,10 +152,10 @@ private def fullRowValues {logicalWidth : Nat} (read : Fin logicalWidth → F)
     (interface : PoseidonSboxPlan.Interface logicalWidth)
     (constants : List (List Nat)) (round nextSbox : Nat)
     (state : Vector F 16) : List PortValues :=
-  let selector := read interface.oneColumn
+  let one := read interface.oneColumn
   List.ofFn fun lane : Fin 16 =>
-    RowSemantics.sbox selector
-      (state.get lane + Spec.Poseidon2.constantAt constants round lane.val * selector)
+    RowSemantics.sbox
+      (state.get lane + Spec.Poseidon2.constantAt constants round lane.val * one)
       (retainedValue read interface (nextSbox + lane.val))
 
 private theorem fullRowValues_value {logicalWidth : Nat}
@@ -178,7 +169,7 @@ private theorem fullRowValues_value {logicalWidth : Nat}
   rw [List.map_ofFn]
   apply congrArg List.ofFn
   funext lane
-  simp only [Function.comp_apply, rowValues, selector_value,
+  simp only [Function.comp_apply, rowValues,
     PoseidonSboxPlan.fullInput, addConstant_value, PoseidonSboxPlan.fullOutput,
     retainedValue, stateValues_get]
 
@@ -191,10 +182,10 @@ def rowsStep {logicalWidth : Nat} (read : Fin logicalWidth → F)
   | .initialFullRound round =>
       fullRowValues read interface Spec.Poseidon2.initialConstants round nextSbox state
   | .partialRound round =>
-      let selector := read interface.oneColumn
-      [RowSemantics.sbox selector
+      let one := read interface.oneColumn
+      [RowSemantics.sbox
         (state.get 0 + Spec.Poseidon2.ofNat
-          (Spec.Poseidon2.internalConstants.getD round 0) * selector)
+          (Spec.Poseidon2.internalConstants.getD round 0) * one)
         (retainedValue read interface nextSbox)]
   | .terminalFullRound round =>
       fullRowValues read interface Spec.Poseidon2.terminalConstants round nextSbox state
@@ -214,7 +205,7 @@ theorem rowsStep_value {logicalWidth : Nat} (read : Fin logicalWidth → F)
         round nextSbox state
   | partialRound round =>
       simp only [rowsStep, PoseidonSboxPlan.compileStep, PoseidonSboxPlan.partialRows,
-        List.map_cons, List.map_nil, rowValues, selector_value,
+        List.map_cons, List.map_nil, rowValues,
         PoseidonSboxPlan.partialInput, addConstant_value, PoseidonSboxPlan.partialOutput,
         retainedValue, stateValues_get]
   | terminalFullRound round =>
@@ -225,12 +216,12 @@ theorem rowsStep_value {logicalWidth : Nat} (read : Fin logicalWidth → F)
     (interface : PoseidonSboxPlan.Interface logicalWidth)
     (constants : List (List Nat)) (round nextSbox : Nat)
     (state : Vector F 16) : List PortValues × Vector F 16 :=
-  let selector := read interface.oneColumn
+  let one := read interface.oneColumn
   let outputs := Vector.ofFn fun lane : Fin 16 =>
     retainedValue read interface (nextSbox + lane.val)
   (List.ofFn fun lane : Fin 16 =>
-      RowSemantics.sbox selector
-        (state.get lane + Spec.Poseidon2.constantAt constants round lane.val * selector)
+      RowSemantics.sbox
+        (state.get lane + Spec.Poseidon2.constantAt constants round lane.val * one)
         (outputs.get lane),
     Vector.ofFn (Layer.externalF outputs.get))
 
@@ -253,20 +244,20 @@ row values and the stored next state. Missing retained indices still read zero. 
   | .initialFullRound round =>
       fullStepValues read interface Spec.Poseidon2.initialConstants round nextSbox state
   | .partialRound round =>
-      let selector := read interface.oneColumn
+      let one := read interface.oneColumn
       let output := retainedValue read interface nextSbox
       let replaced := Vector.ofFn fun lane : Fin 16 =>
         if lane.val = 0 then output else state.get lane
-      ([RowSemantics.sbox selector
+      ([RowSemantics.sbox
           (state.get 0 + Spec.Poseidon2.ofNat
-            (Spec.Poseidon2.internalConstants.getD round 0) * selector)
+            (Spec.Poseidon2.internalConstants.getD round 0) * one)
           output],
         Vector.ofFn (Layer.internalF replaced.get))
   | .terminalFullRound round =>
       fullStepValues read interface Spec.Poseidon2.terminalConstants round nextSbox state
 
 /-- Total equality for every numeric state, sparse read, round and retained
-index. No selector or row-satisfaction assumption is required. -/
+index. No one-column or row-satisfaction assumption is required. -/
 theorem stepValues_value {logicalWidth : Nat} (read : Fin logicalWidth → F)
     (interface : PoseidonSboxPlan.Interface logicalWidth) (nextSbox : Nat)
     (state : Vector F 16) (step : Permutation.Step) :

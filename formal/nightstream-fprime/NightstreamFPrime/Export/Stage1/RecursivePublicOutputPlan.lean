@@ -197,7 +197,6 @@ def interface
     {logicalWidth : Nat}
     (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
     PinFamilyPlan.Interface logicalWidth rowCount where
-  oneColumn := oneColumn geometry
   value := difference geometry
 
 theorem rowCount_le :
@@ -230,13 +229,10 @@ theorem rowsZero_iff_matches
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
-    (assignment : Assignment F logicalWidth)
-    (one : assignment (oneColumn geometry) = 1) :
+    (assignment : Assignment F logicalWidth) :
     (plan geometry).RowsZero assignment ↔ Matches geometry assignment := by
-  have one' : assignment (interface geometry).oneColumn = 1 := by
-    exact one
   rw [plan, PinFamilyPlan.planRowsZero_iff
-    (interface geometry) rowCount_le assignment one']
+    (interface geometry) rowCount_le assignment]
   constructor
   · intro zeros word
     have zero := zeros word

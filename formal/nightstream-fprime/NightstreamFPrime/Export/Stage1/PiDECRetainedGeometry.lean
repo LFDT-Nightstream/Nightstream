@@ -22,7 +22,7 @@ def parentPublicInputSlot : Nat := 17 * 22 * 54 + 16 * 5 * 54
 
 def parentEvalKSlot : Nat := 17 * (22 + 5) * 54 + 16 * 54 * 2
 
-def parentEvalASlot : Nat := 17 * (22 + 5 + 2) * 54 + 16 * 7 * 54 * 2
+def parentEvalASlot : Nat := 17 * (22 + 5 + 2) * 54 + 16 * 4 * 54 * 2
 
 def parentCommitmentStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
   PiRLCRetainedGeometry.productOutputStart program + parentCommitmentSlot * 41
@@ -100,7 +100,7 @@ theorem parentCommitmentFits {program : Lifecycle.Stage1.Application.Program}
         (PiDECRetainedBlocks.parentCommitmentBlock program).coordinateCount ≤
       logicalWidth := by
   have fits := PiRLCRetainedGeometry.productOutputFits (piRlcGeometry geometry)
-  change PiRLCRetainedGeometry.productOutputStart program + 39474 * 41 ≤
+  change PiRLCRetainedGeometry.productOutputStart program + 33966 * 41 ≤
     logicalWidth at fits
   change PiRLCRetainedGeometry.productOutputStart program + 19008 * 41 +
     1188 * 41 ≤ logicalWidth
@@ -112,7 +112,7 @@ theorem parentPublicInputFits {program : Lifecycle.Stage1.Application.Program}
         (PiDECRetainedBlocks.parentPublicInputBlock program).coordinateCount ≤
       logicalWidth := by
   have fits := PiRLCRetainedGeometry.productOutputFits (piRlcGeometry geometry)
-  change PiRLCRetainedGeometry.productOutputStart program + 39474 * 41 ≤
+  change PiRLCRetainedGeometry.productOutputStart program + 33966 * 41 ≤
     logicalWidth at fits
   change PiRLCRetainedGeometry.productOutputStart program + 24516 * 41 +
     270 * 41 ≤ logicalWidth
@@ -124,7 +124,7 @@ theorem parentEvalKFits {program : Lifecycle.Stage1.Application.Program}
         (PiDECRetainedBlocks.parentEvalKBlock program).coordinateCount ≤
       logicalWidth := by
   have fits := PiRLCRetainedGeometry.productOutputFits (piRlcGeometry geometry)
-  change PiRLCRetainedGeometry.productOutputStart program + 39474 * 41 ≤
+  change PiRLCRetainedGeometry.productOutputStart program + 33966 * 41 ≤
     logicalWidth at fits
   change PiRLCRetainedGeometry.productOutputStart program + 26514 * 41 +
     108 * 41 ≤ logicalWidth
@@ -136,10 +136,10 @@ theorem parentEvalAFits {program : Lifecycle.Stage1.Application.Program}
         (PiDECRetainedBlocks.parentEvalABlock program).coordinateCount ≤
       logicalWidth := by
   have fits := PiRLCRetainedGeometry.productOutputFits (piRlcGeometry geometry)
-  change PiRLCRetainedGeometry.productOutputStart program + 39474 * 41 ≤
+  change PiRLCRetainedGeometry.productOutputStart program + 33966 * 41 ≤
     logicalWidth at fits
-  change PiRLCRetainedGeometry.productOutputStart program + 38718 * 41 +
-    756 * 41 ≤ logicalWidth
+  change PiRLCRetainedGeometry.productOutputStart program + 33534 * 41 +
+    432 * 41 ≤ logicalWidth
   omega
 
 theorem proofFits {program : Lifecycle.Stage1.Application.Program}

@@ -13,14 +13,14 @@ const SEALED_SCHEMA: usize = 6;
 const INNER_SCHEMA: usize = 8;
 const TRANSPORT_SCHEMA: usize = 3;
 pub(super) const BLOCK_COUNT: usize = 26;
-const PHYSICAL_COLUMNS: usize = 14_767_211;
+const PHYSICAL_COLUMNS: usize = 12_448_701;
 const PHYSICAL_PUBLIC: usize = 278;
 const LOGICAL_PUBLIC: usize = 270;
-const LOGICAL_WIDTH: usize = 59_804_510;
-const CARRIER_WIDTH: usize = 59_804_514;
+const LOGICAL_WIDTH: usize = 49_707_850;
+const CARRIER_WIDTH: usize = 49_707_864;
 const FIELD_COORDINATES: usize = 41;
 const OUTPUT_DIGEST_WORDS: usize = 4;
-const PHI81_INVOCATIONS: usize = 39_474;
+const PHI81_INVOCATIONS: usize = 33_966;
 const PHI81_QUOTIENT_VALUES: usize = PHI81_INVOCATIONS;
 const CENTERED_HALF_MODULUS: u64 = (GOLDILOCKS_MODULUS - 1) / 2;
 
@@ -236,7 +236,7 @@ impl Phi81Plan {
         if constants != [54, 27, 81, 54] {
             return Err("unexpected Phi81 assignment constants".into());
         }
-        let expected_shapes = [[17, 22, 1], [17, 5, 1], [17, 1, 2], [17, 7, 2]];
+        let expected_shapes = [[17, 22, 1], [17, 5, 1], [17, 1, 2], [17, 4, 2]];
         let shape_values = exact_array(&fields[4], expected_shapes.len(), "Phi81 family shapes")?;
         let mut first_invocation = 0usize;
         let mut families = Vec::with_capacity(expected_shapes.len());
@@ -417,7 +417,7 @@ impl LogicalAssignment {
         let RawLayout(rows, private, constant, public, total, _, _) = layout;
         if usize::try_from(outer_schema).ok() != Some(SEALED_SCHEMA)
             || usize::try_from(inner_schema).ok() != Some(INNER_SCHEMA)
-            || usize::try_from(rows).ok() != Some(14_660_374)
+            || usize::try_from(rows).ok() != Some(12_357_472)
             || usize::try_from(total).ok() != Some(PHYSICAL_COLUMNS)
             || usize::try_from(public).ok() != Some(PHYSICAL_PUBLIC)
             || usize::try_from(logical_public).ok() != Some(LOGICAL_PUBLIC)
@@ -576,7 +576,7 @@ impl<'a> PartialLogicalAssignment<'a> {
         let RawLayout(rows, private, constant, public, total, _, _) = layout;
         if usize::try_from(outer_schema).ok() != Some(SEALED_SCHEMA)
             || usize::try_from(inner_schema).ok() != Some(INNER_SCHEMA)
-            || usize::try_from(rows).ok() != Some(14_660_374)
+            || usize::try_from(rows).ok() != Some(12_357_472)
             || usize::try_from(total).ok() != Some(PHYSICAL_COLUMNS)
             || usize::try_from(public).ok() != Some(PHYSICAL_PUBLIC)
             || usize::try_from(logical_public).ok() != Some(LOGICAL_PUBLIC)
@@ -642,11 +642,11 @@ impl<'a> PartialLogicalAssignment<'a> {
     /// Keep the sealed pilot's proof-input gap and non-pilot public context
     /// unavailable. This uses the same independent schema-6 transport.
     pub fn decode_pilot(sealed_bytes: &[u8], private_prefix: &'a [u64], public_values: &'a [u64]) -> Result<Self> {
-        if private_prefix.len() != 6_908_558 {
+        if private_prefix.len() != 5_945_682 {
             return Err("pilot physical-assignment prefix has the wrong length".into());
         }
         let mut assignment = Self::decode(sealed_bytes, private_prefix, public_values)?;
-        assignment.physical.unavailable_private = Some(74_594..91_030);
+        assignment.physical.unavailable_private = Some(64_226..75_098);
         assignment.physical.public = &public_values[..274];
         Ok(assignment)
     }

@@ -19,7 +19,7 @@ open NightstreamFPrime.Layout.ProductionRelation
 def sourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   PiRLCRetainedGeometry.sourceWidth program
 
-def piCcsInvocationCount : Nat := 1580
+def piCcsInvocationCount : Nat := 1121
 def samplerInvocationCount : Nat := 34
 
 def piCcsSlotCount : Nat :=
@@ -64,13 +64,13 @@ def samplerStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
 
 @[simp] theorem piCcsBlock_slotCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (piCcsBlock program).slotCount = 237000 := by
+    (piCcsBlock program).slotCount = 168150 := by
   calc
     (piCcsBlock program).slotCount = piCcsSlotCount :=
       LowNormBlock.Block.slice_slotCount
         (PiRLCRetainedGeometry.laterPoseidonBlock program)
         0 piCcsSlotCount (piCcsFits program)
-    _ = 237000 := by simp [piCcsSlotCount, piCcsInvocationCount, PoseidonRetainedSlots.rows_length]
+    _ = 168150 := by simp [piCcsSlotCount, piCcsInvocationCount, PoseidonRetainedSlots.rows_length]
 
 @[simp] theorem samplerBlock_slotCount
     (program : Lifecycle.Stage1.Application.Program) :
@@ -84,7 +84,7 @@ def samplerStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
 
 @[simp] theorem piCcsBlock_coordinateCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (piCcsBlock program).coordinateCount = 9717000 := by
+    (piCcsBlock program).coordinateCount = 6894150 := by
   calc
     (piCcsBlock program).coordinateCount =
         piCcsSlotCount *
@@ -92,7 +92,7 @@ def samplerStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
       LowNormBlock.Block.slice_coordinateCount
         (PiRLCRetainedGeometry.laterPoseidonBlock program)
         0 piCcsSlotCount (piCcsFits program)
-    _ = 9717000 := by
+    _ = 6894150 := by
       rw [PiRLCRetainedGeometry.laterPoseidonBlock_kind]
       simp [piCcsSlotCount, piCcsInvocationCount, PoseidonRetainedSlots.rows_length, LowNormSlot.Kind.width, BalancedTernary.width]
 
@@ -113,7 +113,7 @@ def samplerStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
 @[simp] theorem samplerStart_eq
     (program : Lifecycle.Stage1.Application.Program) :
     samplerStart program =
-      PiRLCRetainedGeometry.laterPoseidonStart program + 9717000 := by
+      PiRLCRetainedGeometry.laterPoseidonStart program + 6894150 := by
   unfold samplerStart piCcsStart
   rw [piCcsBlock_coordinateCount]
 

@@ -223,7 +223,7 @@ def bad (challenge : Challenge) (target : Point logicalWidth publicFits Degree) 
 noncomputable def error : Challenge → ℝ
   | .alpha _ => 1 / (goldilocksModulus ^ 2 : Nat)
   | .gamma => (productionShape.jointCoefficientCount - 1 : Nat) / (goldilocksModulus ^ 2 : Nat)
-  | .round _ => 9 / (goldilocksModulus ^ 2 : Nat)
+  | .round _ => 8 / (goldilocksModulus ^ 2 : Nat)
   | .rho _ => 0
 
 theorem error_nonnegative (challenge : Challenge) : 0 ≤ error challenge := by
@@ -592,7 +592,7 @@ theorem hits_error_le (event : Oracle → Prop) (hit : Challenge → Oracle → 
     (chance : ∀ challenge, 𝔼 oracle, (if hit challenge oracle then (1 : ℝ) else 0) ≤
       scale * error challenge) :
     𝔼 oracle, (if event oracle then (1 : ℝ) else 0) ≤
-      scale * IndependentExecution.testError productionShape 9 := by
+      scale * IndependentExecution.testError productionShape 8 := by
   have split (oracle : Oracle) :
       (if event oracle then (1 : ℝ) else 0) ≤
         (∑ index, if hit (.alpha index) oracle then (1 : ℝ) else 0) +
@@ -652,7 +652,7 @@ theorem test_error_le {Output : Type}
     (proof : Output → Proof (ProductionKey.degreeBound relation)) :
     𝔼 oracle, (if FalseAcceptance relation ajtai running witness oracle
         (fresh (adversary.run oracle)) (proof (adversary.run oracle)) then (1 : ℝ) else 0) ≤
-      (queries + 1) * IndependentExecution.testError productionShape 9 :=
+      (queries + 1) * IndependentExecution.testError productionShape 8 :=
   hits_error_le relation _
     (fun challenge oracle =>
       oracle (point (fresh (adversary.run oracle)) (proof (adversary.run oracle)) challenge) ∈

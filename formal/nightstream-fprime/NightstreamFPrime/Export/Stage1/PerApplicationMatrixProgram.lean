@@ -14,7 +14,7 @@ import NightstreamFPrime.Export.Stage1.RunningTransitionMatrixProgram
 import NightstreamFPrime.Layout.PiDEC.v1_1.Values
 
 /-!
-Owns the exact compact 7-matrix row program for one Lean-authored
+Owns the exact compact 4-matrix row program for one Lean-authored
 application. Its fourteen children use the same order and geometry projections
 as `PerApplicationProductionPlan.canonical`.
 
@@ -231,7 +231,7 @@ theorem matrixProgram_blocks (application : ApplicationProgram) :
 
 @[simp] theorem matrixProgram_rowCount (application : ApplicationProgram) :
     (matrixProgram application).rowCount =
-      1365527 + (PerApplicationPackage.applicationPlan application).rowCount +
+      1133957 + (PerApplicationPackage.applicationPlan application).rowCount +
         9 := by
   simp [matrixProgram, throughNextPreimageProgram, applicationCompleteProgram,
     runningCompleteProgram,

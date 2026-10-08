@@ -102,7 +102,7 @@ models and source program are unchanged. This probability statement does
 not assert a global work bound or discharge query applicability. -/
 theorem source_failure_probability_linear_le
     (initial : PMF (Statement × Envelope)) (depth : Nat)
-    (originalFirstPhase : Visit → InteractivePrefix.Prover State productionShape 9)
+    (originalFirstPhase : Visit → InteractivePrefix.Prover State productionShape 8)
     (abortTape : Tape) (g : Nat → ℝ → ℝ) (deltaFS : Nat → ℝ) (queries : Fin depth → Nat)
     (scalarSubClock : RingF → RingF → Nat) (inverseAdapterClock : RingF → Nat)
     (assignmentSubClock : PiRLCExtractionPrimitives.Assignment → PiRLCExtractionPrimitives.Assignment → Nat)
@@ -140,7 +140,7 @@ theorem source_failure_probability_linear_le
       ((visits j).toOuterMeasure {visit | goodActive visit}).toReal -
         g (queries j) ((visits j).toOuterMeasure {visit | goodActive visit}).toReal + deltaFS (queries j) +
         InteractiveComposition.weakLoss relation productionAjtaiKey +
-        IndependentExecution.testError productionShape 9 +
+        IndependentExecution.testError productionShape 8 +
         AdaptiveBindingProbability.successProbability relation productionAjtaiKey program running fresh
           firstPhase (SupportedExtraction.publicCheck running) (extended j)
           (fun visit => PiCCSStoredSourceProbability.sourceProgram (inputs visit)
@@ -181,7 +181,7 @@ global work and query applicability are separate explicit obligations. -/
 theorem history_probability_linear_bound
     (initial : PMF (Statement × Envelope)) (depth : Nat)
     (depthBound : ∀ input ∈ initial.support, input.1.iteration ≤ depth)
-    (originalFirstPhase : Visit → InteractivePrefix.Prover State productionShape 9)
+    (originalFirstPhase : Visit → InteractivePrefix.Prover State productionShape 8)
     (abortTape : Tape) (g : Nat → ℝ → ℝ) (deltaFS : Nat → ℝ) (queries : Fin depth → Nat)
     (scalarSubClock : RingF → RingF → Nat) (inverseAdapterClock : RingF → Nat)
     (assignmentSubClock : PiRLCExtractionPrimitives.Assignment → PiRLCExtractionPrimitives.Assignment → Nat)
@@ -224,7 +224,7 @@ theorem history_probability_linear_bound
             (((visits j).toOuterMeasure {visit | goodActive visit}).toReal -
               g (queries j) ((visits j).toOuterMeasure {visit | goodActive visit}).toReal +
               deltaFS (queries j) + InteractiveComposition.weakLoss relation productionAjtaiKey +
-              IndependentExecution.testError productionShape 9 +
+              IndependentExecution.testError productionShape 8 +
               AdaptiveBindingProbability.successProbability relation productionAjtaiKey program running fresh
                 firstPhase (SupportedExtraction.publicCheck running) (extended j)
                 (fun visit => PiCCSStoredSourceProbability.sourceProgram (inputs visit)

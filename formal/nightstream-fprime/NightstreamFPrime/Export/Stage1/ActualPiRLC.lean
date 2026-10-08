@@ -31,7 +31,6 @@ theorem initial_eq_decoded_state
     (ordinary : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (poseidon : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
-    (one : assignment (PiCCSOrdinaryRetainedGeometry.oneColumn ordinary) = 1)
     (rows : (PiCCSTranscriptEndpointPlan.plan poseidon ordinary).RowsZero assignment) :
     ActualPiRLCStates.initialState poseidon assignment =
       PiCCS.v1_1.StatementAbsorption.evalState
@@ -46,7 +45,7 @@ theorem initial_eq_decoded_state
     simp [endpointInvocation, outputFamily, PiCCSTranscriptDirectSemantics.outputLast,
       PiCCSPoseidonPlan.invocationCount_eq]
   have endpoint := PiCCSDecodedEndpoints.rowsZero_implies_endpointStates ordinary poseidon
-    assignment one rows outputFamily
+    assignment rows outputFamily
   rw [last] at endpoint
   change ActualPiRLCStates.initialState poseidon assignment = _ at endpoint
   rw [endpoint]
@@ -89,7 +88,7 @@ theorem prefixRowsZero_implies_batch
   have semantics := PiRLCSamplerPoseidonPreservation.rowsZero_implies_canonicalSemantics
     (PiRLCSamplerOrdinaryDirectPlan.poseidonGeometry geometry) assignment one samplerPrefix.2
   dsimp only
-  rw [← initial_eq_decoded_state relation _ _ assignment one piCcsRows.2]
+  rw [← initial_eq_decoded_state relation _ _ assignment piCcsRows.2]
   exact ActualPiRLCSampling.rowsZero_implies_batch relation geometry assignment one parts.2.1 semantics
 
 theorem productChallenge_eq

@@ -56,7 +56,7 @@ fn affine_constant(coefficient: u64) -> Value {
 fn encoded_program() -> Value {
     let one_column = 9_999;
     let ordinary = json!([0, [[0, [[0, 1]]], one_column, [[[0, 3, [0, 3, 0], 0]], []], [0]]]);
-    let pin = json!([1, [one_column, [[[90, 7]]]]]);
+    let pin = json!([1, [[[90, 7]]]]);
     let multiplication = json!([
         4,
         [
@@ -155,50 +155,62 @@ fn every_lean_matrix_opcode_decodes_exact_rows() {
     program.validate(1).expect("source schedule");
     assert_eq!(program.row_count().expect("row count"), 261);
 
-    assert_eq!(entries(&program, 0, 1), vec![(9_999, 1)]);
-    assert_eq!(entries(&program, 0, 2), vec![(0, 3), (9_999, 2)]);
-    assert_eq!(entries(&program, 0, 3), vec![(1, 4)]);
-    assert_eq!(entries(&program, 0, 4), vec![(2, 6), (9_999, 5)]);
+    assert_eq!(entries(&program, 0, 0), vec![(0, 3), (9_999, 2)]);
+    assert_eq!(entries(&program, 0, 1), vec![(1, 4)]);
+    assert_eq!(entries(&program, 0, 2), vec![(2, 6), (9_999, 5)]);
 
-    assert_eq!(entries(&program, 1, 1), vec![(9_999, 1)]);
-    assert_eq!(entries(&program, 1, 4), vec![(90, 7)]);
+    assert_eq!(entries(&program, 1, 2), vec![(90, 7)]);
 
-    assert_eq!(entries(&program, 2, 2), vec![(9_999, 5)]);
-    assert_eq!(entries(&program, 2, 3), vec![(9_999, 6)]);
-    assert_eq!(entries(&program, 2, 4), vec![(9_999, 30)]);
+    assert_eq!(entries(&program, 2, 0), vec![(9_999, 5)]);
+    assert_eq!(entries(&program, 2, 1), vec![(9_999, 6)]);
+    assert_eq!(entries(&program, 2, 2), vec![(9_999, 30)]);
 
     let poseidon_row = 3;
-    assert_eq!(entries(&program, poseidon_row, 1), vec![(9_999, 1)]);
     assert_eq!(
-        entries(&program, poseidon_row, 5),
+        entries(&program, poseidon_row, 3),
         vec![(9_999, FIRST_POSEIDON_CONSTANT)]
     );
-    let first_output = entries(&program, poseidon_row, 4);
+    let first_output = entries(&program, poseidon_row, 2);
     assert_eq!(first_output.len(), 41);
     assert_eq!(first_output[0], (100, 1));
     assert_eq!(first_output[1], (101, 3));
-    assert_eq!(entries(&program, poseidon_row + 32, 4)[0].0, 100 + 32 * 41);
-    assert_eq!(entries(&program, poseidon_row + 54, 4)[0].0, 100 + 54 * 41);
+    assert_eq!(entries(&program, poseidon_row + 32, 2)[0].0, 100 + 32 * 41);
+    assert_eq!(entries(&program, poseidon_row + 54, 2)[0].0, 100 + 54 * 41);
 
-    assert_eq!(entries(&program, poseidon_row + 149, 4)[0].0, 100 + 149 * 41);
+    assert_eq!(entries(&program, poseidon_row + 149, 2)[0].0, 100 + 149 * 41);
 
     let phi_row = poseidon_row + 150;
     assert_eq!(
         entries(&program, phi_row, 0),
         vec![(7_000, 1), (9_999, GOLDILOCKS_MODULUS - 2)]
     );
-    assert_eq!(entries(&program, phi_row, 2), vec![(7_054, 1)]);
-    assert_eq!(entries(&program, phi_row, 4), vec![(7_108, 1), (7_162, 1)]);
-    assert_eq!(entries(&program, phi_row, 6), vec![(9_999, 1)]);
+    assert_eq!(entries(&program, phi_row, 1), vec![(7_054, 1)]);
+    assert_eq!(entries(&program, phi_row, 2), vec![(7_108, 1), (7_162, 1)]);
 
-    let phi_at_one = entries(&program, phi_row + 1, 4);
+    let phi_at_one = entries(&program, phi_row + 1, 2);
     assert_eq!(phi_at_one.len(), 108);
     assert_eq!(phi_at_one[0], (7_108, 1));
     assert_eq!(phi_at_one[53], (7_108 + 53, 1));
     assert_eq!(phi_at_one[54], (7_162, 3));
     assert_eq!(phi_at_one[107], (7_162 + 53, 3));
 
-    assert_eq!(MEANINGFUL_PORTS, 7);
+    // No selector gates a row, so an entry in an unused port would change
+    // its constraint under `a * b - c + s^7`.
+    let unused_ports: [(usize, &[usize]); 6] = [
+        (0, &[3]),
+        (1, &[0, 1, 3]),
+        (2, &[3]),
+        (poseidon_row, &[0, 1]),
+        (phi_row, &[3]),
+        (phi_row + 1, &[3]),
+    ];
+    for (row, ports) in unused_ports {
+        for &port in ports {
+            assert!(entries(&program, row, port).is_empty(), "row {row}, port {port}");
+        }
+    }
+
+    assert_eq!(MEANINGFUL_PORTS, 4);
 }
 
 #[test]
@@ -230,7 +242,7 @@ fn malformed_matrix_programs_fail_closed() {
         Err(PackageError::Invalid("production matrix block tag"))
     ));
     assert!(matches!(
-        MatrixProgram::decode(&json!([[1, [0, [[[0, GOLDILOCKS_MODULUS]]]]]])),
+        MatrixProgram::decode(&json!([[1, [[[0, GOLDILOCKS_MODULUS]]]]])),
         Err(PackageError::NonCanonicalField { .. })
     ));
 
@@ -273,7 +285,7 @@ fn mapped_source_projection_recovers_the_lean_source_column() {
         .row(6_000, 0, &|_| source_row_at(101))
         .expect("projected ordinary row");
     assert_eq!(
-        row[2]
+        row[0]
             .entries()
             .iter()
             .map(|entry| (entry.column, entry.coefficient.as_canonical_u64()))

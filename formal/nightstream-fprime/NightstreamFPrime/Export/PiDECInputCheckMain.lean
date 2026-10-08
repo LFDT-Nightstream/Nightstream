@@ -57,7 +57,7 @@ private def decodeReplay (commitmentText evaluationText : String) :
       let pad ← PiCCSInputCheck.decodeVector 16
         (PiCCSInputCheck.decodeVector 54 decodeExtension) pad
       let matrix ← PiCCSInputCheck.decodeVector 16
-        (PiCCSInputCheck.decodeVector 7
+        (PiCCSInputCheck.decodeVector 4
           (PiCCSInputCheck.decodeVector 54 decodeExtension)) matrix
       return {
         point := point

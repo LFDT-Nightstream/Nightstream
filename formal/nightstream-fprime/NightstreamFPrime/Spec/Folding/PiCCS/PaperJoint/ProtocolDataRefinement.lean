@@ -4,7 +4,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConstraintPolynomialLift.
 
 /-! Provenance: adapted from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/ProtocolDataRefinement.lean`
 at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; split into the
-SuperNeo v1.1 Pad and 7-matrix evaluation families. -/
+SuperNeo v1.1 Pad and 4-matrix evaluation families. -/
 
 /-!
 Refinement from one authoritative `Pi_CCS` source family to the actual

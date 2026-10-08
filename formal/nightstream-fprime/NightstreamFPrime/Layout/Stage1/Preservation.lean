@@ -91,13 +91,13 @@ private theorem compactEnv_shiftedPiCcsLocal
     (program : Lifecycle.Stage1.Application.Program) (env : Env)
     (index : Nat)
     (support : SupportRange.Extend (fun _ => False)
-      PilotPiCCS.piCcsOffset (PilotPiCCS.piCcsOffset + 1776949) index) :
+      PilotPiCCS.piCcsOffset (PilotPiCCS.piCcsOffset + 1258207) index) :
     CompactPullback.compactEnv program env (index + piCcsDelta program) =
       sourceEnv program env index := by
   rcases support with impossible | ⟨lower, upper⟩
   · contradiction
   · let relative := index - PilotPiCCS.piCcsOffset
-    have relativeLt : relative < 1776949 := by
+    have relativeLt : relative < 1258207 := by
       dsimp only [relative]
       omega
     have sourceIndex : PilotPiCCS.piCcsOffset + relative = index := by
@@ -479,7 +479,7 @@ private theorem compactPiCcsOutputSupport
         (PilotPiCCS.interface (publicFits := publicFits))
         PilotPiCCS.piCcsOffset)
       (SupportRange.Extend (fun _ => False) PilotPiCCS.piCcsOffset
-        (PilotPiCCS.piCcsOffset + 1776949)) := by
+        (PilotPiCCS.piCcsOffset + 1258207)) := by
   intro lane
   unfold Lifecycle.PiCCS.v1_1.Formal.outputBindingFinalState
   rw [congrFun (PiCCSTranscriptRelocation.outputFinalState_direct
@@ -505,7 +505,7 @@ private theorem compactPiCcsOutputSupport
       Lifecycle.PiCCS.v1_1.Formal.initialClaimRowOffset
     omega
   · have finish :=
-      Lifecycle.PiCCS.v1_1.Formal.finalRowOffset_eq_add_of_degreeBound_eq_nine
+      Lifecycle.PiCCS.v1_1.Formal.finalRowOffset_eq_add_of_degreeBound_eq_eight
         (PilotPiCCS.interface (publicFits := publicFits))
         PilotPiCCS.piCcsOffset (ProductionKey.degreeBound_eq relation)
     unfold Lifecycle.PiCCS.v1_1.Formal.finalRowOffset at finish
@@ -544,7 +544,7 @@ private theorem compactPiCcsOutgoingState_eq
       (PilotPiCCS.interface (publicFits := publicFits))
       PilotPiCCS.piCcsOffset)
     (SupportRange.Extend (fun _ => False) PilotPiCCS.piCcsOffset
-      (PilotPiCCS.piCcsOffset + 1776949))
+      (PilotPiCCS.piCcsOffset + 1258207))
     (sourceEnv program env) (CompactPullback.compactEnv program env)
     (compactPiCcsOutputSupport relation)
     (compactEnv_shiftedPiCcsLocal program env) lane).symm
@@ -706,7 +706,7 @@ private theorem compactPilotOutputCanonical
   · intro index bounded
     apply CompactPullback.compactEnv_source
     rw [← PilotProduction.lifecycleOutputOffset_matches] at bounded
-    change index < 3483692 at bounded
+    change index < 2999852 at bounded
     rw [Spartan.sourceColumnCount_eq]
     omega
   · exact specification

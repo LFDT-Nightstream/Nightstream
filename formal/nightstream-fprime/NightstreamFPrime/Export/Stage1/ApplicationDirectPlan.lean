@@ -2,7 +2,7 @@ import NightstreamFPrime.Export.Stage1.ApplicationRetainedGeometry
 import NightstreamFPrime.Layout.ProductionRelation.OrdinarySourcePlan
 
 /-!
-Owns the executable source resolver and direct 7-matrix plan for one
+Owns the executable source resolver and direct 4-matrix plan for one
 verifier-selected Stage 1 application.
 -/
 
@@ -162,7 +162,7 @@ def classifySource (application : Lifecycle.Stage1.Application.Program)
       rw [Location.sourceColumn]
       unfold Layout.Stage1.ApplicationInputs.witnessColumn
       exact rangeIndex_source witness⟩
-  else if output : InRange 37332
+  else if output : InRange 32148
       Lifecycle.Stage1.Application.stateWordCount column then
     some ⟨.output (rangeIndex output), by
       rw [Location.sourceColumn,
@@ -227,7 +227,7 @@ theorem classifySource_complete
       simp only [Layout.Stage1.ApplicationInputs.witnessStart,
         Lifecycle.Stage1.Application.stateWordCount] at indexBound ⊢
       omega
-    have inside : InRange 37332 Lifecycle.Stage1.Application.stateWordCount
+    have inside : InRange 32148 Lifecycle.Stage1.Application.stateWordCount
         (Layout.Stage1.ApplicationInputs.outputColumn index) := by
       rw [Layout.Stage1.ApplicationInputs.outputColumn_value]
       exact ⟨by omega, by have := index.isLt; omega⟩
@@ -250,10 +250,10 @@ theorem classifySource_complete
       unfold InRange
       unfold Layout.Stage1.ApplicationInputs.localStart at localSupport
       omega
-    have notOutput : ¬ InRange 37332
+    have notOutput : ¬ InRange 32148
         Lifecycle.Stage1.Application.stateWordCount column := by
       unfold InRange Lifecycle.Stage1.Application.stateWordCount
-      have startLarge : 37336 ≤
+      have startLarge : 32152 ≤
           Layout.Stage1.ApplicationInputs.localStart application := by
         unfold Layout.Stage1.ApplicationInputs.localStart
           Layout.Stage1.ApplicationInputs.witnessStart

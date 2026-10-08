@@ -14,8 +14,8 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 /-- Existing source values read directly from the actual fresh commitment
-and the actual degree-nine NIFS proof. -/
-def ofProof (commitment : PaperAlgebra.Commitment) (actual : Proof 9) :
+and the actual degree-eight NIFS proof. -/
+def ofProof (commitment : PaperAlgebra.Commitment) (actual : Proof 8) :
     PiCCSProofInputs.ProofValues where
   freshCommitment := commitment
   roundCoefficient := fun round coefficient =>
@@ -27,7 +27,7 @@ def ofProof (commitment : PaperAlgebra.Commitment) (actual : Proof 9) :
   outputEval_A := actual.piCcsOutput.matrixCoordinate
 
 private theorem polynomial_ext
-    (left right : SumCheck.Finite.FixedPolynomial K 9)
+    (left right : SumCheck.Finite.FixedPolynomial K 8)
     (same : left.coefficients = right.coefficients) : left = right := by
   cases left
   cases right
@@ -39,7 +39,7 @@ variable {logicalWidth : Nat}
   (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
 
 /-- Source reconstruction returns the exact selected proof. The degree
-conversion uses the existing production degree-nine definition and
+conversion uses the existing production degree-eight definition and
 `ProductionKey.degreeBound_eq`; it adds no restriction on proof values. -/
 theorem relationProof_ofProof (commitment : PaperAlgebra.Commitment)
     (actual : Proof (ProductionKey.degreeBound relation)) :
@@ -48,7 +48,7 @@ theorem relationProof_ofProof (commitment : PaperAlgebra.Commitment)
       (ofProof commitment actual) actual).piCcsRounds = actual.piCcsRounds := by
     funext round
     apply polynomial_ext
-    change List.ofFn (fun coefficient : Fin (9 + 1) =>
+    change List.ofFn (fun coefficient : Fin (8 + 1) =>
       (actual.piCcsRounds round).coefficients.get
         ⟨coefficient.val, _⟩) = (actual.piCcsRounds round).coefficients
     apply List.ext_get
@@ -61,7 +61,7 @@ theorem relationProof_ofProof (commitment : PaperAlgebra.Commitment)
     piCcsRounds := messages
     piCcsOutput := actual.piCcsOutput
     piDecCommitments := actual.piDecCommitments
-    piDecEvaluations := actual.piDecEvaluations } : Proof 9)) rounds
+    piDecEvaluations := actual.piDecEvaluations } : Proof 8)) rounds
 
 /-- The unique fresh source is reconstructed with its exact commitment and
 public input, without a new fresh-instance representation. -/

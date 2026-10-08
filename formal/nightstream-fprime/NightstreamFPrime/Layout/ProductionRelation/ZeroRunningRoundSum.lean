@@ -111,7 +111,7 @@ def completionSum {logicalWidth : Nat} (plan : Plan logicalWidth)
     (alpha : CubePoint K cubeVariables) (gamma : K) : K :=
   let matrices := foldedMatrices plan assignment fixed
   let values := PrefixFold.foldPrefix extensionOps (freshPrefix assignment) fixed
-  SignedJointIdentity.gammaTerm extensionOps gamma 6912
+  SignedJointIdentity.gammaTerm extensionOps gamma 4320
     (extensionOps.add
       (NumericCompletionSum.numericSum extensionOps (foldedWidth plan.rowCount fixed)
         (matrixTerm fixed arity alpha matrices))
@@ -253,7 +253,7 @@ private theorem term_eq_polynomial (plan : Plan logicalWidth)
     (assignment : Fin logicalWidth → F) (fixed : List K) {arity : Nat}
     (dimension : arity + fixed.length = cubeVariables)
     (alpha : CubePoint K cubeVariables) (gamma : K) (vertex : BooleanVertex arity) :
-    SignedJointIdentity.gammaTerm extensionOps gamma 6912
+    SignedJointIdentity.gammaTerm extensionOps gamma 4320
         (extensionOps.add
           (matrixTerm fixed arity alpha (foldedMatrices plan assignment fixed)
             (NumericBooleanDomain.index vertex))
@@ -275,7 +275,7 @@ private theorem term_eq_polynomial (plan : Plan logicalWidth)
   dsimp only [ProtocolPolynomial.messageAt] at reduction
   change ProtocolPolynomial.qAtPoint extensionOps
       (protocol plan cubeFits ajtai fresh assignment) alpha gamma point =
-    SignedJointIdentity.gammaTerm extensionOps gamma 6912
+    SignedJointIdentity.gammaTerm extensionOps gamma 4320
       (extensionOps.mul (SumCheckTruthPath.pointEquality extensionOps point alpha)
         (extensionOps.add
           (CCSResidualTable.evaluatePolynomial extensionOps
@@ -338,7 +338,7 @@ theorem completionSum_eq_sumCompletions (plan : Plan logicalWidth)
   have normSum := NumericCompletionSum.numericSum_prefix_eq_vertexSum
     extensionOps extensionLaws arity values.size
     (normTerm fixed arity alpha values) valuesFit (normTerm_outside fixed arity alpha values)
-  change SignedJointIdentity.gammaTerm extensionOps gamma 6912
+  change SignedJointIdentity.gammaTerm extensionOps gamma 4320
     (extensionOps.add
       (NumericCompletionSum.numericSum extensionOps (foldedWidth plan.rowCount fixed)
         (matrixTerm fixed arity alpha matrices))

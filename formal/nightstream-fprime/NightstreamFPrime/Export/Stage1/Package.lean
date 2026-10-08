@@ -171,29 +171,29 @@ theorem circuitPackage_hash_chains :
   rfl
 
 theorem circuitPackage_permutation_invocations :
-    (Data.circuitPackage ()).permutationInvocations.length = 1614 := by
+    (Data.circuitPackage ()).permutationInvocations.length = 1155 := by
   rw [Data.circuitPackage_permutationInvocations,
     Data.components_permutationInvocations,
     Data.permutationInvocations_eq, List.length_append,
     PiCCSInvocations.invocations_length Data.logicalWidth Data.publicFits,
     PiRLCSamplerInvocations.invocations_length]
 
-theorem proofInputStart_eq : Data.proofInputStart = 74594 := by
+theorem proofInputStart_eq : Data.proofInputStart = 64226 := by
   rfl
 
-theorem witnessStart_eq : Data.witnessStart = 91030 := by
+theorem witnessStart_eq : Data.witnessStart = 75098 := by
   rfl
 
-theorem witnessLength_eq : Data.witnessLength = 14632994 := by
+theorem witnessLength_eq : Data.witnessLength = 12335600 := by
   rfl
 
 theorem circuitPackage_layout_values :
     let layout := (Data.circuitPackage ()).layout
-    layout.rowCount = 14654885 ∧
-      layout.privateColumnCount = 14761448 ∧
-      layout.constantColumn = 14761448 ∧
+    layout.rowCount = 12351983 ∧
+      layout.privateColumnCount = 12442938 ∧
+      layout.constantColumn = 12442938 ∧
       layout.publicColumnCount = 278 ∧
-      layout.totalColumnCount = 14761727 := by
+      layout.totalColumnCount = 12443217 := by
   rw [Data.circuitPackage_layout]
   dsimp [Data.physicalLayout]
   exact ⟨rfl, rfl, rfl, rfl, rfl⟩
@@ -210,11 +210,11 @@ theorem arithmetic_partition
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits) :
     (Rows.witnessInstructions (Data.arithmeticRows ())).length +
-      (Rows.assertionRows (Data.arithmeticRows ())).length = 107561 := by
+      (Rows.assertionRows (Data.arithmeticRows ())).length = 86375 := by
   calc
     _ = (Data.arithmeticRows ()).length :=
       Rows.witnessInstructions_length_add_assertionRows_length _
-    _ = 107561 := by
+    _ = 86375 := by
       rw [Data.arithmeticRows_eq, List.length_append, List.length_append,
         List.length_append,
         PiCCSArithmetic.arithmeticRows_length Data.logicalWidth
@@ -229,7 +229,7 @@ theorem circuitPackage_ordinary_rows
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits) :
     (Data.components ()).toCircuitPackage.witnessInstructions.length +
-      (Data.components ()).toCircuitPackage.assertionRows.length = 108247 := by
+      (Data.components ()).toCircuitPackage.assertionRows.length = 87061 := by
   calc
     _ = (PilotData.circuitPackage ()).witnessInstructions.length +
         (PilotData.circuitPackage ()).assertionRows.length +
@@ -238,7 +238,7 @@ theorem circuitPackage_ordinary_rows
     _ = 686 + (Data.arithmeticRows ()).length := by
       rw [NightstreamFPrime.Export.Pilot.ordinaryRows_length,
         Data.components_arithmeticRows]
-    _ = 686 + 107561 := by
+    _ = 686 + 86375 := by
       rw [Data.arithmeticRows_eq, List.length_append, List.length_append,
         List.length_append,
         PiCCSArithmetic.arithmeticRows_length Data.logicalWidth
@@ -248,7 +248,7 @@ theorem circuitPackage_ordinary_rows
         PiDECArithmetic.canonicalPlan_rowCount relation,
         RunningTransitionArithmetic.Plan.rows_length,
         RunningTransitionArithmetic.canonicalPlan_rowCount relation]
-    _ = 108247 := by norm_num
+    _ = 87061 := by norm_num
 
 /-- Construct all 7,604 PiCCS Poseidon2 invocations in their proved private
 intervals. Sampler invocations have a separate package completion owner. -/
@@ -621,7 +621,7 @@ theorem circuitPackage_piRlcCombinationTemplateSelection :
 
 theorem piRlcCombination_compactRowCount :
     compactRowCountFor PiRLCCombinationTemplates.templates
-      PiRLCCombinationInvocations.invocations = 5960574 := by
+      PiRLCCombinationInvocations.invocations = 5128866 := by
   exact PiRLCCombinationInvocations.invocationsCompactRowCountFor
     PiRLCCombinationTemplates.templates
     piRlcPackageTemplates_selectCombination
@@ -679,7 +679,7 @@ structure PiRLCCombinationRowsHold (env : Env) : Prop where
   eval_A : PiRLCCombinationConformance.FamilyInvocationRowsHold
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.evalALogicalStart
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.evalARowStart
-    NightstreamFPrime.Layout.Stage1.PiRLCStarts.evalAFreshStart 7 2 2
+    NightstreamFPrime.Layout.Stage1.PiRLCStarts.evalAFreshStart 4 2 2
     PiRLCCombinationInvocations.evalAValueSourceStart env
 
 /-- Canonical package satisfaction supplies all four exact combination-row
@@ -1193,8 +1193,8 @@ theorem circuitPackage_implies_piCcsPhaseHolds
 
 private theorem hashChain_rows :
     Data.priorChain.witnessLength + Data.outputChain.witnessLength =
-      6817120 := by
-  change 2 * NightstreamFPrime.Layout.PilotValues.hashWitnessCount = 6817120
+      5870176 := by
+  change 2 * NightstreamFPrime.Layout.PilotValues.hashWitnessCount = 5870176
   norm_num [NightstreamFPrime.Layout.PilotValues.hashWitnessCount,
     NightstreamFPrime.Layout.PilotValues.absorbCount,
     NightstreamFPrime.Layout.PilotValues.stateHashWords,
@@ -1204,7 +1204,7 @@ private theorem hashChain_rows :
     Spec.Poseidon2.rate]
 
 theorem circuitPackage_compactRowCount :
-    (Data.components ()).toCircuitPackage.compactRowCount = 5960574 := by
+    (Data.components ()).toCircuitPackage.compactRowCount = 5128866 := by
   unfold CircuitPackage.compactRowCount
   rw [Data.Components.toCircuitPackage_compactRowTemplates,
     Data.Components.toCircuitPackage_compactRowInvocations,

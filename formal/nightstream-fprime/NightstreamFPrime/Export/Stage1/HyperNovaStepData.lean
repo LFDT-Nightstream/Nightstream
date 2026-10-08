@@ -26,13 +26,13 @@ open Poseidon2HashChainV1Setup (productionSetup productionAjtaiKey)
 /-- The actual prior payload, selected application advice, and returned local
 proof are the existing augmented-function input fields. -/
 def input (statement : HyperNovaHistory.Statement) (payload : HyperNovaHistory.Payload)
-    (advice : AppWitness) (proof : Lifecycle.Proof 9) :
+    (advice : AppWitness) (proof : Lifecycle.Proof 8) :
     Input KeyDigest AppState AppWitness
       (Running (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
         (publicFits := PerApplicationFixedPoint.publicFits application))
       (Fresh (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
         (publicFits := PerApplicationFixedPoint.publicFits application))
-      (Lifecycle.Proof 9) slotCount where
+      (Lifecycle.Proof 8) slotCount where
   iteration := statement.iteration
   z0 := statement.z0
   zi := statement.zi
@@ -67,7 +67,7 @@ derived from terminal acceptance; next framing uses only counter nonwrap.
 Advice width belongs to later application witness wiring, not this result. -/
 theorem stepHolds_and_wellFormed
     (statement : HyperNovaHistory.Statement) (payload : HyperNovaHistory.Payload)
-    (advice : AppWitness) (proof : Lifecycle.Proof 9)
+    (advice : AppWitness) (proof : Lifecycle.Proof 8)
     (result : Running (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))
     (accepted : PerApplicationTerminal.Holds application fits productionSetup

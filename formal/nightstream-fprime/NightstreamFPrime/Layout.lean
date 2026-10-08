@@ -129,8 +129,6 @@ import NightstreamFPrime.Layout.ProductionRelation.SourceCompiler
 import NightstreamFPrime.Layout.ProductionRelation.OrdinarySourcePlan
 import NightstreamFPrime.Layout.ProductionRelation.SboxRow
 import NightstreamFPrime.Layout.ProductionRelation.PinRow
-import NightstreamFPrime.Layout.ProductionRelation.ProductSumRow
-import NightstreamFPrime.Layout.ProductionRelation.ProductSumPlan
 import NightstreamFPrime.Layout.ProductionRelation.Phi81ProductPlan
 import NightstreamFPrime.Layout.ProductionRelation.PlanComposition
 import NightstreamFPrime.Layout.ProductionRelation.Phi81ProductFamilyPlan

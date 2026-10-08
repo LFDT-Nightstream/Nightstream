@@ -304,7 +304,7 @@ private theorem rValues_eq_of_agree
       (PiRLCInputs.phaseOffset + PiRLC.v1_2.Formal.logicalPrivateCount) after before _ agrees
     apply Expr.VarsBelow.mono _ (PiRLC.v1_2.SamplerChain.outputChallenge_below _ _ _)
     rw [PiRLC.v1_2.SamplerChain.counts.1]
-    exact Nat.add_le_add_left (by decide : 72539 ≤ 112013) PiRLCInputs.phaseOffset
+    exact Nat.add_le_add_left (by decide : 72539 ≤ 106505) PiRLCInputs.phaseOffset
   · have pointEq : PiRLC.v1_2.InputBinding.evalPoint (interface.point PiRLCInputs.phaseOffset) before =
         PiRLC.v1_2.InputBinding.evalPoint (interface.point (PiRLCInputs.phaseOffset + 0)) after := by
       apply point_ext
@@ -457,7 +457,7 @@ variable
   (advertisedFixed : PilotProduction.FixedPreimage advertised)
   (digestFixed : digest.length = PilotProduction.digestWords)
   (values : PiCCSProofInputs.ProofValues) (context : VerifierContext.Digest4)
-  (template : Proof 9)
+  (template : Proof 8)
 
 /-- An actual accepted NIFS run constructs the canonical local C/R/D
 prefixes and their exact running output. C acceptance and the D parent bound

@@ -36,20 +36,20 @@ theorem EvalKRecomposition.physicalRowCount_value :
     EvalKRecomposition.physicalRowCount = 108 := by rfl
 
 theorem EvalARecomposition.physicalRowCount_value :
-    EvalARecomposition.physicalRowCount = 756 := by rfl
+    EvalARecomposition.physicalRowCount = 432 := by rfl
 
 theorem exactFreshDeltas_value :
     exactFreshDeltas = [0, 0, 0, 0, 0, 0] := by rfl
 
 theorem exactRowDeltas_value :
-    exactRowDeltas = [0, 4860, 1188, 108, 756, 0] := by rfl
+    exactRowDeltas = [0, 4860, 1188, 108, 432, 0] := by rfl
 
 theorem exactPhysicalColumnDeltas_value :
     exactPhysicalColumnDeltas = [0, 270, 0, 0, 0, 0] := by rfl
 
 theorem exactFreshCount_value : exactFreshCount = 0 := by rfl
 
-theorem exactRowCount_value : exactRowCount = 6912 := by rfl
+theorem exactRowCount_value : exactRowCount = 6588 := by rfl
 
 theorem exactPrivateCount_value :
     Formal.logicalPrivateCount + exactFreshCount = 270 := by
@@ -66,11 +66,11 @@ theorem cumulativeFootprints_eq
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat)
     (inputs : InputShapes relation interface offset) :
     cumulativePhysicalRows relation interface offset =
-        [0, 4860, 6048, 6156, 6912, 6912] ∧
+        [0, 4860, 6048, 6156, 6588, 6588] ∧
       cumulativePhysicalColumns relation interface offset =
         [0, 270, 270, 270, 270, 270] ∧
       cumulativeJointDomains relation interface offset =
-        [0, 4860, 6048, 6156, 6912, 6912] := by
+        [0, 4860, 6048, 6156, 6588, 6588] := by
   norm_num [cumulativePhysicalRows,
     physicalRowDeltas_eq relation interface offset inputs, exactRowDeltas_value,
     cumulativePhysicalColumns,

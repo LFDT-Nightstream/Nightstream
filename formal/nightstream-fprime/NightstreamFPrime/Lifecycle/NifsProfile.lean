@@ -49,7 +49,7 @@ theorem selected_matrix
 /-- Exact production dimensions and the whole-ring public/carrier widths. -/
 theorem selected_shape :
     productionShape.cubeVariables = 28 ∧
-    productionShape.matrixCount = 7 ∧
+    productionShape.matrixCount = 4 ∧
     productionShape.coefficientCount = 54 ∧
     productionShape.freshCount = 1 ∧
     productionShape.runningCount = 16 ∧
@@ -58,7 +58,7 @@ theorem selected_shape :
     (FullShape logicalWidth publicFits).carrierWidth =
       Phi81CarrierLayout.carrierWidth logicalWidth ∧
     productionProfile.commitmentWidth = 22 ∧
-    ProductionKey.degreeBound relation = 9 := by
+    ProductionKey.degreeBound relation = 8 := by
   exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 /-- Counts in the actual verifier key match the paper profile, including the

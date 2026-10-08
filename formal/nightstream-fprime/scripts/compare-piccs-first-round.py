@@ -22,15 +22,15 @@ def compare(public, lean, proof, trace, round_index=0):
         raise ValueError("Rust target uses different original public inputs")
     if trace[12] != proof[4] or trace[13] != proof[5]:
         raise ValueError("Rust proof and phase have different final evaluations")
-    if len(lean[4]) != 10 or len(proof[3][round_index]) != 10:
-        raise ValueError("each round must retain all ten K coefficients")
+    if len(lean[4]) != 9 or len(proof[3][round_index]) != 9:
+        raise ValueError("each round must retain all nine K coefficients")
     initial = trace[7] if round_index == 0 else trace[8][round_index - 1]
     before = trace[3] if round_index == 0 else trace[5][round_index - 1]
     fields = [
         ("alpha", lean[1], trace[1]),
         ("gamma", lean[2], trace[2]),
         ("pre-round state", lean[3], before),
-        *[(f"Q[{round_index}] coefficient {i}", lean[4][i], proof[3][round_index][i]) for i in range(10)],
+        *[(f"Q[{round_index}] coefficient {i}", lean[4][i], proof[3][round_index][i]) for i in range(9)],
         ("round challenge", lean[5], trace[4][round_index]),
         ("post-challenge state", lean[6], trace[5][round_index]),
         ("initial claim", lean[7], initial),

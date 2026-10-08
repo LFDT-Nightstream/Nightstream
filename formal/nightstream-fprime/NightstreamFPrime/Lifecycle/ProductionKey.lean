@@ -13,7 +13,7 @@ field is discharged by a concrete theorem (Goldilocks primality, the Φ₈₁
 carrier laws, the Ajtai commitment algebra); the transcript fields are the
 Poseidon2 sponge of `Lifecycle.Transcript`. The only inputs are the F′ logical
 matrix family, its cube capacity, and the verifier-owned Ajtai key. The CCS
-polynomial is the fixed production selective low-norm gate. Nothing is a
+polynomial is the fixed production low-norm gate. Nothing is a
 caller-supplied verifier predicate or polynomial.
 -/
 
@@ -27,7 +27,7 @@ open NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 
-/-- The F′ logical relation as the key consumes it: 7 verifier-key matrices
+/-- The F′ logical relation as the key consumes it: 4 verifier-key matrices
 and proof that the completed carrier fits the selected cube. The constraint
 polynomial is not a field of this record. SuperNeo v1.2 Pad comes from the
 verifier-owned `cubeLayout`; it is not a CCS matrix. -/
@@ -39,7 +39,7 @@ structure LogicalRelation (logicalWidth : Nat)
   cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth <= 2 ^ cubeVariables
 
 /-- Construct the sole production structure. Matrix data can vary with the
-verifier key; the selective constraint polynomial cannot. -/
+verifier key; the gate constraint polynomial cannot. -/
 def LogicalRelation.system
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns <=
@@ -66,12 +66,12 @@ variable {logicalWidth : Nat}
 
 /-- The one production SumCheck degree. The verifier-key law below proves
 that this fixed profile value equals `max(D_f + 1, 4)` for the relation-owned
-selective polynomial. -/
-def degreeBound (_relation : LogicalRelation logicalWidth publicFits) : Nat := 9
+gate polynomial. -/
+def degreeBound (_relation : LogicalRelation logicalWidth publicFits) : Nat := 8
 
 theorem degreeBound_eq
     (relation : LogicalRelation logicalWidth publicFits) :
-    degreeBound relation = 9 := by
+    degreeBound relation = 8 := by
   rfl
 
 /-- The fixed exposed degree is exactly the degree computed from the lifted
@@ -85,7 +85,7 @@ theorem derivedDegreeBound_eq
   unfold degreeBound matrixSource Phi81MatrixSource.source
   rw [ConstraintPolynomialLift.liftConstraintPolynomial_canonicalEqualityGatedDegreeBound]
   change Nat.max
-    ProductionRelation.polynomial.canonicalEqualityGatedDegreeBound 4 = 9
+    ProductionRelation.polynomial.canonicalEqualityGatedDegreeBound 4 = 8
   rw [ProductionRelation.polynomial_canonicalEqualityGatedDegreeBound]
   rfl
 

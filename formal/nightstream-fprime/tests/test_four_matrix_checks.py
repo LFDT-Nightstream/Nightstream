@@ -15,7 +15,7 @@ TESTS = Path(__file__).resolve().parent
 VECTORS = TESTS.parents[2] / "crates/nightstream/tests/fixtures/golden-v1.zip"
 
 
-class SevenMatrixChecks(unittest.TestCase):
+class FourMatrixChecks(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         with ZipFile(VECTORS) as vectors:
@@ -62,14 +62,14 @@ class SevenMatrixChecks(unittest.TestCase):
         path = self.write("evaluations.json", merged)
         args = (self.public, self.round_path, path, self.proof_path, self.phase_path)
         report = self.run_check("check_piccs_original_complete.py", *args)
-        self.assertEqual(report["matrix_K_values"], 6426)
-        self.assertEqual(report["compared_K_values"], 7344)
-        self.assertEqual(report["compared_field_words"], 14688)
-        self.assertEqual(report["fresh_source_nonconstant_K_values"], 424)
-        merged[3][16][6][53][1] = (merged[3][16][6][53][1] + 1) % (2**64 - 2**32 + 1)
+        self.assertEqual(report["matrix_K_values"], 3672)
+        self.assertEqual(report["compared_K_values"], 4590)
+        self.assertEqual(report["compared_field_words"], 9180)
+        self.assertEqual(report["fresh_source_nonconstant_K_values"], 265)
+        merged[3][16][3][53][1] = (merged[3][16][3][53][1] + 1) % (2**64 - 2**32 + 1)
         self.write(path.name, merged)
         self.run_check("check_piccs_original_complete.py", *args,
-                       error="matrix[16][6][53][1] differs")
+                       error="matrix[16][3][53][1] differs")
 
     def test_complete_evaluations_reject_a_missing_matrix_even_when_values_match(self):
         proof, phase = copy.deepcopy(self.proof), copy.deepcopy(self.phase)
@@ -80,9 +80,9 @@ class SevenMatrixChecks(unittest.TestCase):
         merged = self.write("evaluations.json", [1, phase[4], proof[4], proof[5]])
         self.run_check("check_piccs_original_complete.py", self.public, self.round_path,
                        merged, self.proof_path, self.phase_path,
-                       error="Lean matrix[16]: expected array length 7")
+                       error="Lean matrix[16]: expected array length 4")
 
-    def test_terminal_prefix_accepts_seven_matrices_and_checks_both_mutations(self):
+    def test_terminal_prefix_accepts_four_matrices_and_checks_both_mutations(self):
         def prefix(directory, kind, values):
             directory.mkdir(parents=True)
             (directory / "manifest.json").write_text(json.dumps(
@@ -96,10 +96,10 @@ class SevenMatrixChecks(unittest.TestCase):
             prefix(norm / f"source-{source}", 3 + source, [coefficients[0]])
         report = self.run_check("check_piccs_terminal_prefix.py", self.public, self.round_path,
                                 fresh, norm, self.proof_path, self.phase_path)
-        self.assertEqual(report["fresh_matrices"], 7)
-        self.assertEqual(report["compared_K_values"], 24)
-        self.assertEqual(report["compared_field_words"], 48)
-        self.assertEqual(report["canonical_field_bytes"], 384)
+        self.assertEqual(report["fresh_matrices"], 4)
+        self.assertEqual(report["compared_K_values"], 21)
+        self.assertEqual(report["compared_field_words"], 42)
+        self.assertEqual(report["canonical_field_bytes"], 336)
         self.assertEqual(report["norm_target_mutation"], "rejected")
         self.assertEqual(report["fresh_target_mutation"], "rejected")
 
@@ -109,7 +109,7 @@ class SevenMatrixChecks(unittest.TestCase):
             ("caller.json", self.caller),
         )]
         report = self.run_check("check_independent_nifs_bytes.py", *paths, *paths)
-        self.assertEqual(report["caller_private_words"], 128186)
+        self.assertEqual(report["caller_private_words"], 107070)
         self.assertEqual(report["changed_target"], "rejected")
         caller = copy.deepcopy(self.caller)
         caller[2].pop()

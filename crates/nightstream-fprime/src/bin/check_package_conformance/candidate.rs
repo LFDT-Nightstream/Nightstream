@@ -31,11 +31,11 @@ const PROFILE: [u64; 14] = [
     16,
     MATRIX_COUNT,
     28,
-    9,
+    8,
     54,
     22,
 ];
-const SCHEDULE: [u64; 10] = [1, 1, 1, 28, 10, 17, MATRIX_COUNT, 54, 4, 1];
+const SCHEDULE: [u64; 10] = [1, 1, 1, 28, 9, 17, MATRIX_COUNT, 54, 4, 1];
 const MATRIX_COUNT: u64 = nightstream_fprime::PI_CCS_V1_2_MATRIX_COUNT as u64;
 
 // Poseidon2HashChainV1BindingParity schema 1 and AjtaiSetupV1Parity schema 4.

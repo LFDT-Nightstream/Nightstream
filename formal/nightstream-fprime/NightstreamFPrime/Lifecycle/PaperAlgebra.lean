@@ -93,7 +93,7 @@ def matrixSource
     productionProfile.runningSources productionProfile.ccsMatrices logicalWidth
     system.matrices system.constraintPolynomial
 
-/-- Complete v1.2 source: canonical Pad layout plus all 7 CCS matrices. -/
+/-- Complete v1.2 source: canonical Pad layout plus all 4 CCS matrices. -/
 def relationSource
     (layout : ColumnLayout productionShape.cubeVariables
       (Phi81CarrierLayout.carrierWidth logicalWidth))

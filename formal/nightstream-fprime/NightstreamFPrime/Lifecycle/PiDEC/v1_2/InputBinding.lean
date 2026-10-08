@@ -14,7 +14,7 @@ child fresh.
 
 Inputs:
 - one parent commitment, public input, point, separate `Eval_K`, and separate
-  7-matrix `Eval_A` family;
+  4-matrix `Eval_A` family;
 - sixteen child commitment and evaluation messages.
 
 Outputs:

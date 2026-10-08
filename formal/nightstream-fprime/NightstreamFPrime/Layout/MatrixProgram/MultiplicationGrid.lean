@@ -71,13 +71,12 @@ def Block.rowCount (block : Block) : Nat := block.shape.rowCount
 /-- Decode one multiplication row without expanding any other row. -/
 def Block.row? (block : Block) (logicalWidth ordinal : Nat) :
     Option (OrdinaryRow.Forms logicalWidth) := do
-  if oneBound : block.oneColumn < logicalWidth then
+  if block.oneColumn < logicalWidth then
     let coordinate ← block.shape.coordinate? ordinal
     let left ← block.left.form? logicalWidth block.oneColumn coordinate
     let right ← block.right.form? logicalWidth block.oneColumn coordinate
     let output ← block.output.form? logicalWidth block.oneColumn coordinate
     pure {
-      selector := SparseForm.singleton ⟨block.oneColumn, oneBound⟩ 1
       a := left
       b := right
       c := output }
@@ -103,7 +102,6 @@ theorem Block.row?_of_results (block : Block) {logicalWidth : Nat}
     block.row? logicalWidth
         (Fin.encodeProd (major, Fin.encodeProd (middle, minor))).val =
       some {
-        selector := SparseForm.singleton oneColumn 1
         a := left
         b := right
         c := output } := by
@@ -120,7 +118,7 @@ theorem Block.row?_of_results (block : Block) {logicalWidth : Nat}
         some output := by
     simpa [oneEqual] using outputLoaded
   unfold Block.row?
-  rw [oneEqual, dif_pos oneColumn.isLt]
+  rw [oneEqual, if_pos oneColumn.isLt]
   rw [Shape.coordinate?_of_coordinates]
   change (do
     let loadedLeft ← block.left.form? logicalWidth oneColumn.val
@@ -130,7 +128,6 @@ theorem Block.row?_of_results (block : Block) {logicalWidth : Nat}
     let loadedOutput ← block.output.form? logicalWidth oneColumn.val
       { major := major.val, middle := middle.val, minor := minor.val }
     pure ({
-      selector := SparseForm.singleton oneColumn 1
       a := loadedLeft
       b := loadedRight
       c := loadedOutput } : OrdinaryRow.Forms logicalWidth)) = _

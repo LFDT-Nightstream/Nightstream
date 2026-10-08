@@ -64,7 +64,7 @@ Zero-mass contexts need no invalidity premise; all aborts remain in the law. -/
 theorem source_event_probability_eq_zero {Context State Endpoint : Type*}
     [Fintype Endpoint]
     (inputs : Context → PiCCSInputCheck.Input) (contexts : PMF Context)
-    (firstPhase : Context → InteractivePrefix.Prover State productionShape 9)
+    (firstPhase : Context → InteractivePrefix.Prover State productionShape 8)
     (suffixLaw : Context → PublicCoins K productionShape →
       FullOutputCoordinates.FullOutput K productionShape → State → PMF Endpoint)
     (consume : Context → PublicCoins K productionShape →
@@ -99,7 +99,7 @@ variable {Context State Tape : Type*}
   [Fintype (Challenge (ProductionKey.key relation productionAjtaiKey).piRlcAlgebra)]
   [Nonempty (Challenge (ProductionKey.key relation productionAjtaiKey).piRlcAlgebra)]
   (law : PMF (Context × Option (FiatShamirTransfer.RealOutput relation)))
-  (originalFirstPhase : Context → InteractivePrefix.Prover State productionShape 9)
+  (originalFirstPhase : Context → InteractivePrefix.Prover State productionShape 8)
   (abortTape : Tape)
   (provider : SupportedContinuation.Provider Tape relation productionAjtaiKey
     (fun context => PiCCSInputCheck.running (inputs context))
@@ -153,7 +153,7 @@ theorem real_success_bound_of_invalid_source
       (fun context => PiCCSInputCheck.running (inputs context))
       (fun context => PiCCSInputCheck.fresh (inputs context)) law) ≤
         deltaFS Q + InteractiveComposition.weakLoss relation productionAjtaiKey +
-          Real.sqrt (epsilonMSIS * 17 + IndependentExecution.testError productionShape 9) := by
+          Real.sqrt (epsilonMSIS * 17 + IndependentExecution.testError productionShape 8) := by
   have extracted := FiatShamirTransfer.returned_source_bound_of_msis
     relation productionAjtaiKey
     (fun context => PiCCSInputCheck.running (inputs context))

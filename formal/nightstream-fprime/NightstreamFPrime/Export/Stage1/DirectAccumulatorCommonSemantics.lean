@@ -38,8 +38,6 @@ theorem semantics_imply_accumulatorHolds
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
-    (one : assignment
-      (PiRLCSamplerOrdinaryRetainedGeometry.oneColumn geometry) = 1)
     (encodes : DirectPiRLCSamplerCompletePrefixPlan.Encodes geometry assignment
       base groupValue)
     (semantics : DirectPiRLCSamplerCompletePrefixPlan.Semantics relation
@@ -73,7 +71,7 @@ theorem semantics_imply_accumulatorHolds
       base groupValue semantics
   have piRlcPhase :=
     DirectPiRLCSamplerCompletePhaseSemantics.semantics_imply_piRlcPhaseHolds
-      relation ajtai geometry assignment base groupValue one encodes
+      relation ajtai geometry assignment base groupValue encodes
       semantics piRlcAssumptions
   have piDecAssumptions :
       Lifecycle.PiDEC.v1_2.Formal.Assumptions relation

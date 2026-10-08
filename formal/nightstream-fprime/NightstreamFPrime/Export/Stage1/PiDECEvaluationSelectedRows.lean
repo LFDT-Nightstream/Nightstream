@@ -60,7 +60,7 @@ private abbrev selectedShape :=
     (PerApplicationFixedPoint.logicalWidth Poseidon2HashChainV1Package.application)
     (PerApplicationFixedPoint.publicFits Poseidon2HashChainV1Package.application)
 
-/-- At each selected active row and all seven ports, the computed product
+/-- At each selected active row and all four ports, the computed product
 is exactly the corresponding block contribution of the key-facing system.
 All children retain their complete carrier block, including carried tail
 coordinates. No matrix-agreement, norm, opening or split premise is required. -/

@@ -33,7 +33,7 @@ private theorem coefficientExprs_supported (interface : Interface)
     rcases member with ⟨coordinate, _coordinateMember, rfl⟩
     exact evalASupport coordinate
 
-/-- Exact support propagation through the child-owned 6,912-coefficient
+/-- Exact support propagation through the child-owned 4,320-coefficient
 Horner program. -/
 theorem flatConstraints_varsSatisfy (interface : Interface) (offset : Nat)
     (allowed : Nat → Prop)

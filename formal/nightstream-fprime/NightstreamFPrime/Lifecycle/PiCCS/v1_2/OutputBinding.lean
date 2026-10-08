@@ -12,7 +12,7 @@ bind the verifier-owned outgoing transcript state.
 Inputs:
 - the verifier-derived final SumCheck point and transcript state;
 - all 17 separate Pad (`Eval_K`) output families;
-- all 17 × 7 CCS-matrix (`Eval_A`) output families.
+- all 17 × 4 CCS-matrix (`Eval_A`) output families.
 
 Outputs:
 - zero-copy reduced point, `Eval_K`, and `Eval_A` views;
@@ -143,7 +143,7 @@ private theorem padWords_length (output : OutputExpr)
 
 private theorem matrixWords_length (output : OutputExpr)
     (source : Fin productionShape.sourceCount) :
-    (matrixWords output source).length = 756 := by
+    (matrixWords output source).length = 432 := by
   have coefficientLength : ∀ matrix,
       ((List.finRange productionShape.coefficientCount).flatMap
         fun coefficient => StatementAbsorption.serializeKExpr
@@ -159,15 +159,15 @@ private theorem matrixWords_length (output : OutputExpr)
 
 private theorem sourceWords_length (output : OutputExpr)
     (source : Fin productionShape.sourceCount) :
-    (sourceWords output source).length = 864 := by
+    (sourceWords output source).length = 540 := by
   rw [sourceWords, List.length_append, padWords_length, matrixWords_length]
 
-/-- The complete output contains 14,688 base-field words: separate Pad and
-7-matrix coefficients for all 17 sources. -/
+/-- The complete output contains 9,180 base-field words: separate Pad and
+4-matrix coefficients for all 17 sources. -/
 theorem outputWords_length (interface : Interface) (offset : Nat) :
-    (outputWords interface offset).length = 14688 := by
+    (outputWords interface offset).length = 9180 := by
   unfold outputWords
-  rw [flatMap_length_constant _ _ 864 (sourceWords_length _)]
+  rw [flatMap_length_constant _ _ 540 (sourceWords_length _)]
   norm_num [productionShape, productionProfile,
     Phi81MatrixSource.phi81Shape, Shape.sourceCount]
 
@@ -275,17 +275,17 @@ private theorem blockExpr_length (words : List Expr) :
     (StatementAbsorption.blockExpr words).length = words.length + 1 := by
   simp [StatementAbsorption.blockExpr]
 
-/-- One 14,689-word length-prefixed block uses 1,225 Poseidon2 chunks and
-1,342,600 private recipe variables. -/
+/-- One 14,689-word length-prefixed block uses 766 Poseidon2 chunks and
+839,536 private recipe variables. -/
 theorem recipeCount_eq (interface : Interface) (offset : Nat) :
-    recipeCount interface offset = 1342600 := by
+    recipeCount interface offset = 839536 := by
   unfold recipeCount actions StatementAbsorption.absorbBlock
   simp only [Formal.recipeCount, List.map_cons, List.map_nil,
     List.sum_cons, List.sum_nil, Nat.add_zero, Formal.Action.recipeCount]
   rw [inputChunks_length, blockExpr_length, outputWords_length]
 
 theorem localLength_eq (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 1342600 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 839536 := by
   change localLength (Formal.Owned.opsAt (duplexInterface interface) offset) = _
   rw [Formal.Owned.opsAt_localLength]
   unfold Formal.Owned.program
@@ -303,12 +303,12 @@ theorem operations_length (interface : Interface) (offset : Nat) :
 /-- One row per recipe and no final-state row. -/
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      1342600 := by
+      839536 := by
   change (flatConstraints
     (Formal.Owned.opsAt (duplexInterface interface) offset)).length = _
   rw [Formal.Owned.flatConstraints_length]
   have recipes : Formal.recipeCount
-      ((duplexInterface interface).actions offset) = 1342600 := by
+      ((duplexInterface interface).actions offset) = 839536 := by
     simpa [duplexInterface, recipeCount] using recipeCount_eq interface offset
   rw [recipes]
   simp [duplexInterface, actions, StatementAbsorption.absorbBlock,

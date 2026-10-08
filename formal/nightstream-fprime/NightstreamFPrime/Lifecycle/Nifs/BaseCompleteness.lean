@@ -20,8 +20,8 @@ open ConcreteCarrier
 
 /-- Fixed-width zero C messages and zero D commitment/evaluation messages.
 The verifier still derives every challenge and child public input. -/
-def zeroProof : Proof 9 where
-  piCcsRounds := fun _ => SumCheck.Finite.FixedPolynomial.zero extensionOps.toOps 9
+def zeroProof : Proof 8 where
+  piCcsRounds := fun _ => SumCheck.Finite.FixedPolynomial.zero extensionOps.toOps 8
   piCcsOutput := {
     padCoordinate := fun _ _ => K.zero
     matrixCoordinate := fun _ _ _ => K.zero }
@@ -67,7 +67,7 @@ private theorem liftedPolynomial_zero :
 private theorem zero_chain (challenges : List K) :
     SumCheck.Finite.FixedPhase.Chain extensionOps.toOps K.zero
       (List.replicate challenges.length
-        (SumCheck.Finite.FixedPolynomial.zero extensionOps.toOps 9))
+        (SumCheck.Finite.FixedPolynomial.zero extensionOps.toOps 8))
       challenges K.zero := by
   induction challenges with
   | nil => rfl
@@ -170,13 +170,13 @@ theorem zeroProof_piCcsCheck :
     terminal_zero relation ajtai prior]
   change SumCheck.Finite.FixedPhase.Chain extensionOps.toOps K.zero
     (List.ofFn (fun _ : Fin productionShape.cubeVariables =>
-      SumCheck.Finite.FixedPolynomial.zero extensionOps.toOps 9))
+      SumCheck.Finite.FixedPolynomial.zero extensionOps.toOps 8))
     execution.coins.roundPoint.coordinates K.zero
   have roundsEqual :
       List.ofFn (fun _ : Fin productionShape.cubeVariables =>
-        SumCheck.Finite.FixedPolynomial.zero extensionOps.toOps 9) =
+        SumCheck.Finite.FixedPolynomial.zero extensionOps.toOps 8) =
       List.replicate execution.coins.roundPoint.coordinates.length
-        (SumCheck.Finite.FixedPolynomial.zero extensionOps.toOps 9) := by
+        (SumCheck.Finite.FixedPolynomial.zero extensionOps.toOps 8) := by
     rw [List.ofFn_const, execution.coins.roundPoint.dimension]
   rw [roundsEqual]
   exact zero_chain execution.coins.roundPoint.coordinates

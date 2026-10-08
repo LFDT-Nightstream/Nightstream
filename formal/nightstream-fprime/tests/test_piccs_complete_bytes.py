@@ -13,9 +13,9 @@ class PiCCSCompleteBytesTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         eval_k = [[[0, 0] for _ in range(54)] for _ in range(17)]
-        eval_a = [[[[0, 0] for _ in range(54)] for _ in range(7)] for _ in range(17)]
+        eval_a = [[[[0, 0] for _ in range(54)] for _ in range(4)] for _ in range(17)]
         value = [2, [0] * 1188, [0] * 270,
-                 [[[0, 0] for _ in range(10)] for _ in range(28)], eval_k, eval_a, []]
+                 [[[0, 0] for _ in range(9)] for _ in range(28)], eval_k, eval_a, []]
         phase = [1] + [0] * 11 + [eval_k, eval_a, [0] * 16]
         cls.input = checker.canonical(value)
         cls.phase = checker.canonical(phase) + b"\n"

@@ -42,7 +42,7 @@ noncomputable def statement (context : Context) :
 
 variable (contexts : PMF Context) (tapes : Context → PMF Tape)
   (prover : Context → Tape → CausalExecution.Prover productionShape
-    (Phi81CarrierLayout.carrierWidth logicalWidth) 9)
+    (Phi81CarrierLayout.carrierWidth logicalWidth) 8)
 
 /-- Probability-only form for the actual composed causal prover. A coupling
 law is permitted here, with no assertion that its whole table is executed. -/
@@ -52,7 +52,7 @@ theorem source_success_ge :
         (statement relation ajtai running fresh) -
       Real.sqrt (StrongProbability.globalDisagreementProbability contexts tapes prover
         (fun context => PaperAlgebra.openingMaps (ajtai context)) productionGlobalParams
-        (statement relation ajtai running fresh) + IndependentExecution.testError productionShape 9) ≤
+        (statement relation ajtai running fresh) + IndependentExecution.testError productionShape 8) ≤
       StrongProbability.globalSourceProbability contexts tapes prover
         (fun context => PaperAlgebra.openingMaps (ajtai context)) productionGlobalParams
         (statement relation ajtai running fresh) := by
@@ -66,7 +66,7 @@ theorem source_success_ge :
 variable (call : Context → OneRunExtraction.Call Tape productionShape (FullShape logicalWidth publicFits))
   (program : Context → CheckedWitnessExtraction.Program productionShape (FullShape logicalWidth publicFits))
   (callCorrect : ∀ context, OneRunExtraction.CallCorrect (call context) (prover context))
-  (correct : ∀ context, CheckedWitnessExtraction.Correct (width := 9) (program context)
+  (correct : ∀ context, CheckedWitnessExtraction.Correct (width := 8) (program context)
     (PaperAlgebra.openingMaps (ajtai context)).commit productionGlobalParams
     (statement relation ajtai running fresh context))
 
@@ -103,7 +103,7 @@ theorem probability_and_expected_work
         (statement relation ajtai running fresh) -
       Real.sqrt (StrongProbability.globalDisagreementProbability contexts tapes prover
         (fun context => PaperAlgebra.openingMaps (ajtai context)) productionGlobalParams
-        (statement relation ajtai running fresh) + IndependentExecution.testError productionShape 9) ≤
+        (statement relation ajtai running fresh) + IndependentExecution.testError productionShape 8) ≤
       _root_.NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongExtraction.successProbability contexts tapes call program
         (fun context => (PaperAlgebra.openingMaps (ajtai context)).commit) productionGlobalParams
         (statement relation ajtai running fresh)) ∧

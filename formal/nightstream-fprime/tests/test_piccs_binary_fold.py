@@ -36,7 +36,7 @@ def write_prefix(directory, depth, rows, ranges, coins):
 def write_round(path):
     pair = [0, 0]
     path.write_text(json.dumps(
-        [1, [pair] * 28, pair, [0], [pair] * 10, CHALLENGE, [0], pair, pair, pair]))
+        [1, [pair] * 28, pair, [0], [pair] * 9, CHALLENGE, [0], pair, pair, pair]))
 
 
 class BinaryFoldTests(unittest.TestCase):

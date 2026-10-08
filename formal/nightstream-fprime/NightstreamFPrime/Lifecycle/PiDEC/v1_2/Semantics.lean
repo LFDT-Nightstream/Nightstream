@@ -5,7 +5,7 @@ Owns the semantic closure of the logical PiDEC v1.2 assembler.
 
 The six child specifications imply the exact operational
 `PiDEC.PaperVerifier.OutputAccepted` predicate instantiated by
-`ProductionKey.key`. Pad `Eval_K` and the 7-matrix `Eval_A` family remain
+`ProductionKey.key`. Pad `Eval_K` and the 4-matrix `Eval_A` family remain
 separate until they are assembled into the one typed evaluation record.
 -/
 

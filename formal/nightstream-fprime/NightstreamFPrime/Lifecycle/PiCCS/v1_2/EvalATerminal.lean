@@ -128,7 +128,7 @@ theorem output_varsBelow (interface : Interface) (offset : Nat)
     cubeVariables_positive offset env assumptions
 
 theorem coefficientExprs_length (interface : Interface) (offset : Nat) :
-    (coefficientExprs interface offset).length = 6048 := by
+    (coefficientExprs interface offset).length = 3456 := by
   simp [coefficientExprs, canonicalMatrixCoordinates_length, productionShape,
     productionProfile, Phi81MatrixSource.phi81Shape,
     Shape.matrixEvaluationCount, ringDegree]
@@ -141,20 +141,20 @@ theorem pointLength_eq (interface : Interface) (offset : Nat) :
       (coreInterface interface) offset cubeVariables_positive
 
 theorem hornerLength_eq (interface : Interface) (offset : Nat) :
-    hornerLength interface offset = 18141 := by
+    hornerLength interface offset = 10365 := by
   unfold hornerLength
   rw [PointWeightedHorner.Owned.hornerLength_eq]
-  change 3 * ((coefficientExprs interface offset).length - 1) = 18141
+  change 3 * ((coefficientExprs interface offset).length - 1) = 10365
   rw [coefficientExprs_length]
 
-def privateCount : Nat := 18251
+def privateCount : Nat := 10475
 
 theorem localLength_eq (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 18251 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 10475 := by
   unfold circuit
   rw [PointWeightedHorner.Owned.localLength_eq]
   change (4 * productionShape.cubeVariables - 2) +
-    3 * ((coefficientExprs interface offset).length - 1) = 18251
+    3 * ((coefficientExprs interface offset).length - 1) = 10475
   rw [coefficientExprs_length]
   norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
 
@@ -165,11 +165,11 @@ theorem operations_length (interface : Interface) (offset : Nat) :
 
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      18251 := by
+      10475 := by
   unfold circuit
   rw [PointWeightedHorner.Owned.flatConstraints_length]
   change (4 * productionShape.cubeVariables - 2) +
-    3 * ((coefficientExprs interface offset).length - 1) = 18251
+    3 * ((coefficientExprs interface offset).length - 1) = 10475
   rw [coefficientExprs_length]
   norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
 

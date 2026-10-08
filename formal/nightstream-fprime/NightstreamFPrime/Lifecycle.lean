@@ -78,7 +78,6 @@ import NightstreamFPrime.Lifecycle.Stage1.RunningTransition
 import NightstreamFPrime.Lifecycle.Stage1.RunningTransitionSupport
 import NightstreamFPrime.Lifecycle.Stage1.Interface
 import NightstreamFPrime.Lifecycle.Stage1.Formal
-import NightstreamFPrime.Lifecycle.Nebula.MemoryBound
-import NightstreamFPrime.Lifecycle.Nebula.ProgramSoundness
+import NightstreamFPrime.Lifecycle.Nebula.EndToEnd
 
 /-! Lifecycle layer root. Lists the modules of this layer explicitly. -/

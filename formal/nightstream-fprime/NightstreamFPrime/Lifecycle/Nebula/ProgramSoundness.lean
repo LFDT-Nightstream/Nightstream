@@ -11,7 +11,7 @@ namespace NightstreamFPrime.Lifecycle.Nebula
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Nebula
-open scoped NightstreamFPrime.Spec.Nebula.GoldilocksFingerprint
+open scoped NightstreamFPrime.Spec.GoldilocksExtensionRing
 
 variable {p : Plan} {two : p.bOps = 2}
 
@@ -23,9 +23,9 @@ theorem MemoryApp.holds_of_valid {input witness output : List F}
 
 /-- Security note Lemma 6 for the memory program: a chain of states whose steps
 satisfy the program's step and validity predicate, with the spec §13 terminal
-checks, attests a machine execution, or gives a Poseidon2 transcript
-collision, or a segment whose challenges pass the product test with
-unbalanced multisets. -/
+checks, attests a machine execution, or gives a Poseidon2 transcript collision
+between two inputs of the run, or a segment whose challenges pass the product
+test with unbalanced multisets. -/
 theorem MemoryApp.chain_soundness (valid : p.Valid) {T : ℕ} {z : ℕ → List F}
     {witness : ℕ → List F} {initialApp finalApp : Fin 2 → F} {finalCarry : Fin 39 → F}
     {segments finalTs : ℕ} {finalRoot : Digest}
@@ -36,7 +36,8 @@ theorem MemoryApp.chain_soundness (valid : p.Valid) {T : ℕ} {z : ℕ → List 
     let run := runOf (fun i => MemoryApp.decode p (witness i)) T
     Attests (context p) (Machine.application p two)
         ⟨T, Machine.State.ofWords initialApp, Machine.State.ofWords finalApp, segments, finalTs,
-          finalRoot⟩ run ∨ AnyStateCollision ∨
+          finalRoot⟩ run ∨
+        RunStateCollision (fun i => MemoryApp.decode p (witness i)) initialApp finalApp finalCarry T ∨
       (∃ a ∈ runInputs (context p) run segments, ∃ b ∈ runInputs (context p) run segments,
         TranscriptCollision (blocks a) (blocks b)) ∨
       ∃ k < segments, BadChallenge (context p) (segmentView (context p) run k) :=

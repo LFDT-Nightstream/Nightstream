@@ -169,3 +169,9 @@ Deviations from the text above:
    2·matrices + 1 and 1. Correction 2 above does not apply.
 6. **Blocks.** The block variable count is at least one, so a one-block relation still
    has a block tree.
+7. **Keccak separator constants (owner approved, 2026-10-07).** Plonky3 0.8 seeds each
+   WHIR transcript phase with a domain separator that contains a Keccak-256 hash of a fixed
+   transcript-shape string (`p3-challenger` `InteractionPattern::pattern_hash`). The
+   Poseidon2 challenger absorbs these 32-byte constants. Keccak never sees prover data; all
+   proof data, Merkle trees and challenges are Poseidon2. M1 and M2 already did this. The
+   shrink circuit treats the separators as constants.

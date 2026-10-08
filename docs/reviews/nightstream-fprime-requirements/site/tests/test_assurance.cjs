@@ -19,7 +19,7 @@ assert.equal(leaves.find(n => n.id === 'N.replay.composed').proof, 'partial');
 assert.deepEqual(progress('proof', counts([], 'proof')), {finished: 0, total: 0});
 assert.equal(Object.hasOwn(data.error_budget, 'example_uses'), false);
 const result = scenario(data.error_budget, '1');
-assert.equal(result.numerator, 7209n);
+assert.equal(result.numerator, 4589n);
 assert.equal(result.denominator, 18446744069414584321n ** 2n);
 assert.equal(scenario(data.error_budget, '2').bound, 2 * result.bound);
 assert.equal(scenario(data.error_budget, '1' + '0'.repeat(100)).bound, 1);

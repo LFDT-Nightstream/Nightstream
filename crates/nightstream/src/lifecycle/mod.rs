@@ -27,8 +27,6 @@ mod verify;
 pub use complete::{CompleteStepError, Stage1Envelope};
 pub use encoding::ProofCodecError;
 pub use extend::ExtendError;
-#[cfg(test)]
-pub(crate) use finish::TERMINAL_PACKAGE_IDENTIFIER;
 pub use finish::{CompressionKey, CompressionSetup, FinalProof, FinishError};
 pub use inputs::{
     check_pi_ccs_v1_1_canonical_children, encode_pi_ccs_v1_1_public_input, pi_ccs_v1_1_prior_children,
@@ -36,6 +34,8 @@ pub use inputs::{
 };
 pub use prove::ProveError;
 pub use step_inputs::{Stage1State, Stage1StepInputs, StepInputError};
+#[cfg(test)]
+pub(crate) use terminal::TERMINAL_PACKAGE_IDENTIFIER;
 pub use verify::VerifyError;
 
 pub struct PreparedLifecycle {

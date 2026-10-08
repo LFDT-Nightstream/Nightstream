@@ -323,19 +323,24 @@ openings.
 `Prover::finish_with_spartan` compresses an active proof. It runs PiCCS and
 PiRLC once more and stops before PiDEC (SuperNeo Lemma 1). The `neo-spartan`
 crate then proves the folded CE(B) claim with sum-checks and WHIR (layer 1).
-Last, a shrink layer proves that the final verifier accepts both: that
-verifier is written once over `neo_spartan::Backend`, and the shrink layer
-proves its constraint system with SuperSpartan and one WHIR commitment. The
-final proof carries no witness. Compression needs a one-time setup per
+Last, a shrink layer proves that the final verifier accepts both, with
+SuperSpartan and one WHIR commitment. The final verifier's PiCCS, PiRLC and
+prior-state hash are the F′ rows themselves: `formal/compression-lean` takes
+them from the F′ Stage 1 package without change and proves what they imply.
+The crate embeds that artifact and pins its identifier. The rest of the final
+verifier (statement, layer 1) is written once over `neo_spartan::Backend`.
+The final proof carries no witness. Compression needs a one-time setup per
 circuit: `Prover::compression_setup` writes the setup files (27 GB for the
-production package) and returns the setup, whose `CompressionKey` is 2,112
+production package) and returns the setup, whose `CompressionKey` is 1,988
 bytes. `CompressionKey::verify` (or `Verifier::verify_final`) checks a final
-proof with that key alone: no package, no files, no commitment key, no matrix
-rows. Take the key from `Verifier::compression_key` (about 53 s, no files) or
-from a copy you pinned; never from a prover. In the production test, one fold
-gives an 86,221-byte final proof (`FinalProof::to_bytes`), against
-221,738,816 bytes for the accumulator proof; finishing takes about 60 s and
-verification 269 ms on CPU, with a 37.3 GB peak RSS.
+proof with that key and the embedded terminal package: no files, no
+commitment key, no matrix rows. The first verification in a process loads
+the package (about 6 s). Take the key from `Verifier::compression_key` (about
+60 s, no files) or from a copy you pinned; never from a prover. In the
+production test, one fold gives a 97,994-byte final proof
+(`FinalProof::to_bytes`), against 221,738,816 bytes for the accumulator
+proof; finishing takes about 100 s and verification 333 ms on CPU, with a
+41 GB peak RSS.
 
 The independent Rust Poseidon2 application supplies the first comparison with
 the existing Lean package. Exact comparisons are implementation evidence, not

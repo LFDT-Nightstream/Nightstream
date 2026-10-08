@@ -9,9 +9,9 @@ circuits without change.
   parent is the key's parent, the prior state hashes to the fresh input, and
   the sampler state is the transcript state after PiRLC.
 - `Terminal/Outputs.lean`: the columns of the parent and of that state.
-- `artifacts/compression-terminal-v1.json`: the emitted artifact. Rust pins
-  its identifier (`TERMINAL_PACKAGE_IDENTIFIER` in
-  `crates/nightstream/src/lifecycle/finish.rs`).
+- `artifacts/compression-terminal-v1.json`: the emitted artifact. The
+  `nightstream` crate embeds it and pins its identifier (`IDENTIFIER` in
+  `crates/nightstream/src/lifecycle/terminal/package.rs`).
 
 Build and emit (each Lean command under the 1,500 s cap). Copy the F′ build
 cache into `.lake` first (`cp -cR ../nightstream-fprime/.lake/packages .lake/`)

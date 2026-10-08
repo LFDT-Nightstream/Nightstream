@@ -9,34 +9,30 @@
 //! shrink argument or the final program. Nothing carried in a proof is
 //! authority: the key is, and the caller must trust it.
 
-use neo_ccs::SparsePoly;
 use neo_math::{D, F};
 use neo_spartan::shrink::{self, Shape, Shrink, ShrinkProof};
 use neo_spartan::Relation;
 use nightstream_fprime::{
-    PackageError, PiCcsV1_1PackageInputs, PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_1_ROUND_COUNT,
-    PI_CCS_V1_1_SOURCE_COUNT,
+    PackageError, PiCcsV1_1EncodedInputs, PiCcsV1_1PackageInputs, PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS,
+    PI_CCS_V1_1_ROUND_COUNT, PI_CCS_V1_1_SOURCE_COUNT,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use serde::{Deserialize, Serialize};
 
-use super::terminal::FinalProgram;
+use super::terminal::{self, FinalProgram, Package};
 use super::{
     encode_pi_ccs_v1_1_public_input, extend::prepare_running, pi_ccs_v1_1_prior_children, PiCcsV1_1ProofInputs,
     PreparedLifecycle, ProofCodecError, ProveError, Stage1Envelope, Stage1State, StepInputError, VerifyError,
 };
 use crate::folding::{
-    self as nifs, ajtai_dec_mixer, pi_ccs, pi_rlc, transcript::Transcript, CcsClaim, CeClaim, RunningInstance,
+    self as nifs, ajtai_dec_mixer, pi_ccs, pi_rlc, transcript::Transcript, CcsClaim, RunningInstance,
 };
 
-/// The terminal proof the shrink layer proves: the layer-0 messages and the
-/// layer-1 argument for one state. About 1.6 MB; it never leaves the prover.
+/// The terminal proof the shrink layer proves: the inputs of the terminal
+/// package and the layer-1 argument for one state. It never leaves the
+/// prover.
 pub(crate) struct TerminalProof {
-    /// The 16 semantic running claims of the state-hash preimage.
-    pub(crate) running: Vec<CeClaim>,
-    /// The latest fresh claim: commitment and public input.
-    pub(crate) fresh: CcsClaim,
-    pub(crate) pi_ccs: pi_ccs::Proof,
+    pub(crate) inputs: PiCcsV1_1EncodedInputs,
     pub(crate) layer1: neo_spartan::Proof,
 }
 
@@ -105,12 +101,8 @@ pub struct CompressionKey {
     layer1: neo_spartan::Key,
     /// The circuit's verifier context digest.
     context: [u64; 4],
-    /// The CCS polynomial: arity, then (coefficient, exponents) per term.
-    arity: usize,
-    terms: Vec<(u64, Vec<u32>)>,
-    /// The decomposition base `b`, and PiRLC's guard bound
-    /// `sources · T · (b - 1)`, which every honest parent obeys.
-    base: u32,
+    /// PiRLC's guard bound `sources · T · (b - 1)`, which every honest
+    /// parent obeys.
     bound: u32,
     /// `-log2` of the error each compression layer (layer 1, shrink) may add.
     layer_bits: f64,
@@ -142,8 +134,8 @@ impl CompressionKey {
             ));
         }
         let relation = self.relation().map_err(VerifyError::Final)?;
-        let f = self.polynomial();
-        let program = self.program(&relation, &f, expected_state, None);
+        let package = terminal::package().map_err(VerifyError::Final)?;
+        let program = self.program(&relation, package, expected_state, None);
         let shrink = Shrink::new(self.shape, self.layer_bits).map_err(VerifyError::Final)?;
         shrink::verify(&shrink, &program, &proof.shrink).map_err(VerifyError::Final)
     }
@@ -159,29 +151,16 @@ impl CompressionKey {
         )
     }
 
-    fn polynomial(&self) -> SparsePoly<F> {
-        let terms = self
-            .terms
-            .iter()
-            .map(|(coeff, exps)| neo_ccs::poly::Term {
-                coeff: F::from_u64(*coeff),
-                exps: exps.clone(),
-            })
-            .collect();
-        SparsePoly::new(self.arity, terms)
-    }
-
     fn program<'a>(
         &'a self,
         relation: &'a Relation<'a>,
-        f: &'a SparsePoly<F>,
+        package: &'a Package,
         state: &'a Stage1State,
         proof: Option<&'a TerminalProof>,
     ) -> FinalProgram<'a> {
         FinalProgram {
             context: self.context,
-            f,
-            base: self.base,
+            package,
             relation,
             state,
             proof,
@@ -219,16 +198,6 @@ pub enum FinishError {
     Compression(#[from] neo_spartan::Error),
 }
 
-/// The identifier of the Lean terminal artifact
-/// (`formal/compression-lean/artifacts/compression-terminal-v1.json`).
-#[cfg_attr(not(test), allow(dead_code))]
-pub(crate) const TERMINAL_PACKAGE_IDENTIFIER: [u64; 4] = [
-    16_428_539_504_810_015_812,
-    301_456_988_600_151_838,
-    13_020_544_018_908_642_000,
-    4_459_281_972_164_541_863,
-];
-
 /// The last fold of an active proof, stopped before Π_DEC.
 pub(crate) struct LastFold {
     pub(crate) state: Stage1State,
@@ -250,6 +219,10 @@ impl PreparedLifecycle {
         setup: &CompressionSetup,
     ) -> Result<FinalProof, FinishError> {
         let last = self.last_fold(envelope)?;
+        let package = terminal::package()?;
+        let inputs = package
+            .loaded()
+            .encode_terminal_inputs(&self.terminal_inputs(&last)?)?;
         let key = &setup.key;
         let relation = key.relation()?;
         let layer1 = neo_spartan::prove(
@@ -259,14 +232,8 @@ impl PreparedLifecycle {
             &last.parent.claim,
             &last.parent.witness,
         )?;
-        let terminal = TerminalProof {
-            running: last.running.claims,
-            fresh: last.fresh,
-            pi_ccs: last.pi_ccs,
-            layer1,
-        };
-        let f = key.polynomial();
-        let program = key.program(&relation, &f, &last.state, Some(&terminal));
+        let terminal = TerminalProof { inputs, layer1 };
+        let program = key.program(&relation, package, &last.state, Some(&terminal));
         let shrink = shrink::prove(&Shrink::new(key.shape, key.layer_bits)?, &program)?;
         Ok(FinalProof {
             state: last.state,
@@ -316,7 +283,6 @@ impl PreparedLifecycle {
     /// The caller inputs of the Lean terminal package for `last`. The package
     /// has no output state: the prior preimage fills its output-preimage
     /// segment, so the canonical and context rows of PiCCS hold for it too.
-    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn terminal_inputs(&self, last: &LastFold) -> Result<PiCcsV1_1PackageInputs, StepInputError> {
         let (prior_preimage, prior_digest) = self.checked_prior_state(&last.state, &last.running, &last.fresh)?;
         let prior_children = pi_ccs_v1_1_prior_children(&last.running.claims)?;
@@ -342,17 +308,15 @@ impl PreparedLifecycle {
             .ok_or(neo_spartan::Error::Setup(
                 "the fold error leaves no room under the security minimum",
             ))?;
-        let f = &self.structure.f;
+        let package = terminal::package()?;
+        if !package.checks(&self.structure.f) {
+            return Err(neo_spartan::Error::Setup(
+                "the terminal package checks another CCS polynomial",
+            ));
+        }
         let mut key = CompressionKey {
             layer1,
             context: self.binding.verifier_context().digest(),
-            arity: f.arity(),
-            terms: f
-                .terms()
-                .iter()
-                .map(|term| (term.coeff.as_canonical_u64(), term.exps.clone()))
-                .collect(),
-            base: self.params.b(),
             bound: PI_CCS_V1_1_SOURCE_COUNT as u32 * self.params.T() * (self.params.b() - 1),
             // Layer 1 and the shrink layer each take half of the remainder.
             layer_bits: bits + 1.0,
@@ -360,9 +324,8 @@ impl PreparedLifecycle {
         };
         let shape = {
             let relation = key.relation()?;
-            let f = key.polynomial();
             let state = Stage1State::new(1, [F::ZERO; 4], [F::ZERO; 4]);
-            Shape::derive(&key.program(&relation, &f, &state, None))?
+            Shape::derive(&key.program(&relation, package, &state, None))?
         };
         key.shape = shape;
         Ok(key)

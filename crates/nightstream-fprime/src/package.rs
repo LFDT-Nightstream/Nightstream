@@ -368,6 +368,22 @@ impl LoadedPackage {
             .sum()
     }
 
+    /// The position of `column` in the private inputs of `execute_witness`,
+    /// or `None` when no caller input segment holds it.
+    pub fn private_input_index(&self, column: usize) -> Option<usize> {
+        let mut offset = 0;
+        for segment in &self.layout.private_segments {
+            if v1_1::is_witness_role(segment.role) {
+                continue;
+            }
+            if segment.start <= column && column < segment.start + segment.length {
+                return Some(offset + column - segment.start);
+            }
+            offset += segment.length;
+        }
+        None
+    }
+
     pub fn public_column_count(&self) -> usize {
         self.layout.public_column_count
     }

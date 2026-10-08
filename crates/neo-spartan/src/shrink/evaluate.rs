@@ -2,10 +2,12 @@
 //! the program emits its rows. No row is stored.
 
 use p3_field_v08::PrimeCharacteristicRing;
+use rayon::prelude::*;
 
 use super::layout::Layout;
 use crate::circuit::block::{Kind, C, KINDS, MATRICES};
-use crate::circuit::record::{Sink, Term};
+use crate::circuit::r1cs::{R1cs, Side};
+use crate::circuit::record::{Form, Sink, Term};
 use crate::field::{eq_table, Ext, Gl};
 
 /// `eq(point, i)` from a low and a high table.
@@ -88,6 +90,33 @@ impl Sink for Evaluate<'_> {
     fn public(&mut self, value: Gl) {
         self.publics.push(value);
     }
+
+    /// One `eq` per column, then the rows in parallel.
+    fn r1cs(&mut self, system: &R1cs, columns: &[Form]) {
+        let at: Vec<Ext> = columns
+            .par_iter()
+            .map(|form| form.evaluate(|wire| self.columns.at(self.layout.column(wire))))
+            .collect();
+        let side = |(columns, coefficients): Side<'_>| -> Ext {
+            columns
+                .iter()
+                .zip(coefficients)
+                .map(|(&column, &coefficient)| at[column as usize] * coefficient)
+                .sum()
+        };
+        let start = self.glue_rows;
+        let total: Ext = (0..system.rows())
+            .into_par_iter()
+            .map(|row| {
+                let [a, b, c] = system.sides(row);
+                let sum = self.rho[1] * side(a) + self.rho[2] * side(b) + self.rho[C] * side(c);
+                self.rows.at(self.layout.glue_row(start + row)) * sum
+            })
+            .sum();
+        self.total += total;
+        self.glue_rows += system.rows();
+    }
+
     fn values(&self) -> bool {
         false
     }

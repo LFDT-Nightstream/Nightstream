@@ -20,14 +20,14 @@ pub(crate) mod block;
 pub(crate) mod fold;
 pub(crate) mod hash;
 pub(crate) mod poseidon2;
+pub(crate) mod r1cs;
 pub(crate) mod record;
-pub(crate) mod ring_mul;
 
 use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
-use neo_math::D;
 use p3_field_v08::{BasedVectorSpace, Field, PrimeCharacteristicRing, PrimeField64};
 use p3_symmetric_v08::Permutation;
 
+use self::r1cs::R1cs;
 use crate::field::{Ext, Gl};
 use crate::Error;
 
@@ -69,11 +69,11 @@ pub trait Backend {
     fn select(&mut self, bit: Self::F, zero: Self::F, one: Self::F) -> Self::F;
     /// The workspace Poseidon2 permutation (width 16).
     fn permute(&mut self, state: [Self::F; WIDTH]) -> [Self::F; WIDTH];
-    /// `a·b mod Φ81` for two ring elements in coefficient form.
-    fn ring_mul(&mut self, a: &[Self::F; D], b: &[Self::F; D]) -> [Self::F; D];
     /// `len` private words computed from the values of `inputs`. A shape run
     /// passes zeros. The caller must constrain every output.
     fn hint(&mut self, inputs: &[Self::F], len: usize, compute: &dyn Fn(&[u64]) -> Vec<u64>) -> Vec<Self::F>;
+    /// Every row of `system`, with `columns[k]` as its column `k`.
+    fn r1cs(&mut self, system: &R1cs, columns: &[Self::F], what: &'static str) -> Result<(), Error>;
 
     fn assert_ext_zero(&mut self, a: Self::E, what: &'static str) -> Result<(), Error> {
         for coordinate in self.coordinates(a) {
@@ -190,14 +190,19 @@ impl Backend for Native {
         crate::hash::permutation().permute(state)
     }
 
-    fn ring_mul(&mut self, a: &[Gl; D], b: &[Gl; D]) -> [Gl; D] {
-        ring_mul::multiply(a, b)
-    }
-
     fn hint(&mut self, inputs: &[Gl], len: usize, compute: &dyn Fn(&[u64]) -> Vec<u64>) -> Vec<Gl> {
         let inputs: Vec<u64> = inputs.iter().map(Gl::as_canonical_u64).collect();
         let mut values: Vec<Gl> = compute(&inputs).into_iter().map(Gl::from_u64).collect();
         values.resize(len, Gl::ZERO);
         values
+    }
+
+    fn r1cs(&mut self, system: &R1cs, columns: &[Gl], what: &'static str) -> Result<(), Error> {
+        assert_eq!(columns.len(), system.columns(), "one wire per R1CS column");
+        if r1cs::fails(system, columns) {
+            Err(Error::Rejected(what))
+        } else {
+            Ok(())
+        }
     }
 }

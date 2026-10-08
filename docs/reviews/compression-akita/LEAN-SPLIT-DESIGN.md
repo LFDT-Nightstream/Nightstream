@@ -230,15 +230,45 @@ is 629 × 8,154 = 5,128,866 rows. The layer-0 rows are about 8.83M (prior chain
 2.54M, 982 permutations 1.08M, compact 5.13M, ordinary rows about 0.09M).
 With layer 1 the shrink still fits 2^24 by count, with a small margin.
 
-Next:
+Integration (second commit):
 
-1. `neo-spartan`: a fixed R1CS block over caller wires (`Backend` method);
-   `Recorder` places its rows as glue and evaluates them in parallel in the
-   verifier's shape run.
-2. `nightstream`: the final program feeds the package inputs (proof words,
-   statement-bound preimage words, the context as constants), takes the
-   produced columns as one hint, applies the rows, and starts layer 1 from the
-   output columns; delete `terminal/{state,pi_ccs,pi_rlc,k}.rs`.
-3. Measure rows, cells, proof size, prover time and verify time at
-   production. If verify passes 400 ms, give the F′ permutation a block kind
-   with a closed form, then the compact lane templates.
+1. `neo-spartan`: `R1cs`, a fixed R1CS system over caller columns, and
+   `Backend::r1cs`. `Native` checks every row; `Recorder` emits one glue row
+   per row; the verifier's sink computes one `eq` value per column and sums
+   the rows in parallel. The ring-product block is gone (no program uses it).
+2. `nightstream`: the final program embeds the artifact (`include_bytes!`),
+   pins its identifier and loads it once per process. The package rows are
+   one `R1cs` block over the 8,838,240 columns they name. The constant column
+   is one; the domain, context and statement words of the prior preimage and
+   the public context words are constants or statement words; every other
+   input is a proof word; the 8.75M computed columns are one hint, which the
+   rows constrain. Layer 1 reads its claim and its transcript state from the
+   output columns. The key derivation checks that the package's CCS
+   polynomial is the circuit's. `TerminalProof` carries only the package
+   inputs and the layer-1 proof; `CompressionKey` lost `arity`, `terms` and
+   `base` (1,988 bytes). The Rust layer 0 (`terminal/{k,state,pi_ccs,pi_rlc,
+   words}.rs`) is deleted.
+3. Production (CPU, one fold; other sessions loaded the machine, load
+   average 17-34 on 18 cores):
+
+   | Measure | M3 (Rust layer 0) | Lean layer 0 |
+   | --- | --- | --- |
+   | Shape | 2^23 | 2^24 rows and cells: 29,830 permutation blocks, 10,080,981 glue rows (8,800,800 from the package), 9,792,161 glue cells |
+   | Final proof | 85,677-86,221 B | 97,866-98,378 B |
+   | Verification (median of 5) | 269 ms | 333 ms (323-345 ms); the first call also loads the package (6.2 s) |
+   | `finish_with_spartan` | 54-62 s | 101-133 s (shrink: commit 11 s, WHIR open 34 s) |
+   | Finish-test peak RSS | 37.3 GB | 40.8-47.2 GB |
+   | Setup test peak RSS | 20.6 GB | 39-51 GB |
+   | Key | 2,112 B | 1,988 B |
+
+Open items:
+
+- The WHIR rate 1/64 at 2^24 makes the shrink commit and opening the largest
+  prover cost (45 s) and memory. A rate of 1/16 cuts both by about 4× and
+  adds proof bytes; the owner's size target decides.
+- The emitter streams the artifact; no Lean theorem states that the streamed
+  bytes equal `envelope ()`. Rust checks the bytes are canonical and pins
+  their identifier.
+- The link "the running claims PiCCS accepts are the ones the prior state
+  hash commits to" comes from F′'s state binding; the terminal theorem states
+  both facts over the same columns but does not restate that link.

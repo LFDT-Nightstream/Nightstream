@@ -243,7 +243,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       apply RunningTransitionDirectPlan.transitionEnv_of_outside program base _ (Location.priorInput index).sourceColumn_lt
       have indexBound : index.val < 27819 := index.isLt
       left
-      norm_num [sourceColumn, PilotProduction.priorPreimageStart, PiCCSInputs.phaseOffset_eq] <;> omega
+      norm_num [sourceColumn, PilotProduction.priorPreimageStart, PiCCSStarts.statementWitnessStart_eq] <;> omega
   | freshPublicInput index =>
       rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.freshPublicInput]
       have sourceEq : (freshPublicInputBlock program).source index =
@@ -256,7 +256,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       apply RunningTransitionDirectPlan.transitionEnv_of_outside program base _ (Location.freshPublicInput index).sourceColumn_lt
       have indexBound : index.val < 270 := index.isLt
       left
-      norm_num [sourceColumn, PilotProduction.priorPublicInputStart, PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq, PiCCSInputs.phaseOffset_eq] <;> omega
+      norm_num [sourceColumn, PilotProduction.priorPublicInputStart, PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq, PiCCSStarts.statementWitnessStart_eq] <;> omega
   | outputInput index =>
       rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.outputInput]
       have sourceEq : (outputInputBlock program).source index =
@@ -269,7 +269,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       apply RunningTransitionDirectPlan.transitionEnv_of_outside program base _ (Location.outputInput index).sourceColumn_lt
       have indexBound : index.val < 27819 := index.isLt
       left
-      norm_num [sourceColumn, PilotProduction.outputPreimageStart, PilotProduction.priorPublicInputStart, PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq, Lifecycle.PriorStateHash.publicWidth, Lifecycle.PaperAlgebra.publicRingColumns, Spec.ringDegree, PiCCSInputs.phaseOffset_eq] <;> omega
+      norm_num [sourceColumn, PilotProduction.outputPreimageStart, PilotProduction.priorPublicInputStart, PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq, Lifecycle.PriorStateHash.publicWidth, Lifecycle.PaperAlgebra.publicRingColumns, Spec.ringDegree, PiCCSStarts.statementWitnessStart_eq] <;> omega
   | expectedContext index =>
       rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.expectedContext]
       have sourceEq : (expectedContextBlock program).source index =
@@ -283,7 +283,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       have indexBound := index.isLt
       left
       norm_num [sourceColumn, PiCCSInputs.expectedContextStart_eq,
-        PiCCSInputs.expectedContextWords, PiCCSInputs.phaseOffset_eq] at indexBound ⊢
+        PiCCSInputs.expectedContextWords, PiCCSStarts.statementWitnessStart_eq] at indexBound ⊢
       omega
   | fresh index =>
       rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.fresh]
@@ -301,7 +301,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
         PiCCSStarts.challengeFreshStart PiCCSStarts.statementAbsorptionFreshStart
         PiCCSStarts.statementBindingFreshStart PiCCSStarts.logicalFreshBase
       rw [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
-      norm_num [PiCCSInputs.phaseOffset_eq] <;> omega
+      norm_num [PiCCSInputs.phaseOffset_eq, PiCCSStarts.statementWitnessStart_eq] <;> omega
   | proofLogical index =>
       by_cases proof : index.val < proofInputCount
       · rw [form, dif_pos proof,
@@ -316,7 +316,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
         have indexBound : index.val < 15462 := by
           simpa only [proofInputCount_eq] using proof
         rw [proofLogicalSource, dif_pos proof]
-        rw [PiCCSInputs.priorChildrenStart_eq, PiCCSInputs.phaseOffset_eq]
+        rw [PiCCSInputs.priorChildrenStart_eq, PiCCSStarts.statementWitnessStart_eq]
         omega
       · by_cases transcript : index.val < proofInputCount + transcriptOutputCount
         · let slot : Fin transcriptOutputCount := ⟨index.val - proofInputCount, by omega⟩
@@ -332,7 +332,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
               PiCCSTranscriptOutputForms.transcriptSource decoded.1 decoded.2 := by
             unfold transcriptOutputSource PiCCSTranscriptOutputForms.transcriptSource
               PiCCSTranscriptOutputForms.transcriptSourceStart
-            change PiCCSInputs.phaseOffset + decoded.1.val * 1096 + 1080 + decoded.2.val = _
+            change PiCCSStarts.statementWitnessStart + decoded.1.val * 1096 + 1080 + decoded.2.val = _
             omega
           rw [sourceEq]
           exact PiCCSTranscriptOutputForms.transcriptForm_eval (poseidonGeometry geometry)
@@ -349,7 +349,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
           rw [proofLogicalSource, dif_neg proof, dif_neg transcript,
             PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
           unfold PiCCSStarts.initialClaimLogicalStart
-          rw [PiCCSInputs.phaseOffset_eq, PiCCSStarts.roundTranscriptWitnessStart_eq]
+          rw [PiCCSStarts.statementWitnessStart_eq, PiCCSStarts.roundTranscriptWitnessStart_eq]
           omega
 
 end Location
@@ -384,7 +384,7 @@ def proofInputLocated {column : Nat}
     rw [Location.sourceColumn, proofLogicalSource_proofInput,
       rangeIndex_source inside]⟩
 
-def transcriptColumnStart : Nat := PiCCSInputs.phaseOffset + 1080
+def transcriptColumnStart : Nat := PiCCSStarts.statementWitnessStart + 1080
 
 def transcriptOffset (column : Nat) : Nat := column - transcriptColumnStart
 
@@ -440,8 +440,8 @@ theorem decodeTranscript_complete {column : Nat}
   have invocationBound := invocation.isLt
   have laneBound := lane.isLt
   have regroup :
-      PiCCSInputs.phaseOffset + invocation.val * 1096 + 1080 + lane.val =
-        (PiCCSInputs.phaseOffset + 1080) +
+      PiCCSStarts.statementWitnessStart + invocation.val * 1096 + 1080 + lane.val =
+        (PiCCSStarts.statementWitnessStart + 1080) +
           (invocation.val * 1096 + lane.val) := by
     omega
   have lower : transcriptColumnStart ≤ column := by
@@ -523,10 +523,25 @@ def classifySource (column : Nat) : Option (Located column) :=
 
 private theorem externalProof_in_proofInput {column : Nat}
     (inside : PiCCSOrdinarySourceSupport.InRange PiCCSInputs.priorChildrenStart
-      PiCCSOrdinarySourceSupport.proofInputCount column) :
+      PiCCSOrdinarySourceSupport.callerInputCount column) :
     PiCCSOrdinarySourceSupport.InRange PiCCSInputs.priorChildrenStart
       proofInputCount column := by
-  exact inside
+  unfold PiCCSOrdinarySourceSupport.InRange at inside ⊢
+  rw [PiCCSOrdinarySourceSupport.callerInputCount_eq,
+    PiCCSInputs.priorChildrenStart_eq] at inside
+  rw [proofInputCount_eq, PiCCSInputs.priorChildrenStart_eq]
+  omega
+
+private theorem statementSign_in_proofInput {column : Nat}
+    (inside : PiCCSOrdinarySourceSupport.StatementSign column) :
+    PiCCSOrdinarySourceSupport.InRange PiCCSInputs.priorChildrenStart
+      proofInputCount column := by
+  unfold PiCCSOrdinarySourceSupport.StatementSign PiCCSOrdinarySourceSupport.InRange
+    PiCCSStarts.statementBindingLogicalStart at inside
+  unfold PiCCSOrdinarySourceSupport.InRange
+  rw [PiCCSInputs.phaseOffset_eq] at inside
+  rw [proofInputCount_eq, PiCCSInputs.priorChildrenStart_eq]
+  omega
 
 private theorem sourceFresh_inRange {column : Nat}
     (inside : PiCCSStarts.initialClaimFreshStart ≤ column ∧
@@ -601,7 +616,8 @@ theorem classifySource_complete {column : Nat}
         · exact output outputSupport
         · exact context contextSupport
         · exact proofInput (externalProof_in_proofInput proofSupport)
-      · rcases transcriptOrOrdinary with transcriptSupport | ordinarySupport
+      · rcases transcriptOrOrdinary with signSupport | transcriptSupport | ordinarySupport
+        · exact proofInput (statementSign_in_proofInput signSupport)
         · have complete := decodeTranscript_complete transcriptSupport
           simp [decodedEq] at complete
         · exact ordinary ordinarySupport

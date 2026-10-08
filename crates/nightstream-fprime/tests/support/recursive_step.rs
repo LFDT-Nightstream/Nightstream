@@ -127,7 +127,7 @@ pub fn check_fixture(fixture: &[u8], base: &[u8], input: &[u8], children: &[u8],
     let private = words(&fixture[2]);
     let public = words(&fixture[3]);
     let base_private = words(&base[2]);
-    assert_eq!(private.len(), 103_072);
+    assert_eq!(private.len(), 102_802);
     assert_eq!(public.len(), 278);
     let prior = &private[..STATE_PREIMAGE_WORDS];
     let output = &private[STATE_PREIMAGE_WORDS..2 * STATE_PREIMAGE_WORDS];

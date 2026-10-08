@@ -29,7 +29,7 @@ private theorem output_not_source (lane : Fin laneCount) :
     (PiCCSStarts.logicalFreshBase - 16 + lane.val) at support
   unfold PiCCSStarts.logicalFreshBase at support
   rw [PiCCSInputs.phaseOffset_eq] at support
-  rcases support with (external | transcript | ordinary) | fresh
+  rcases support with (external | sign | transcript | ordinary) | fresh
   · norm_num [PiCCSOrdinarySourceSupport.External,
       PiCCSOrdinarySourceSupport.InRange,
       PilotProduction.priorPreimageStart, PilotProduction.priorPublicInputStart,
@@ -37,15 +37,19 @@ private theorem output_not_source (lane : Fin laneCount) :
       Lifecycle.PriorStateHash.publicWidth,
       Lifecycle.PaperAlgebra.publicRingColumns, ringDegree,
       PiCCSInputs.expectedContextStart_eq, PiCCSInputs.expectedContextWords,
-      PiCCSInputs.priorChildrenStart_eq, PiCCSOrdinarySourceSupport.proofInputCount_eq,
+      PiCCSInputs.priorChildrenStart_eq, PiCCSOrdinarySourceSupport.callerInputCount_eq,
       PiCCSInputs.phaseOffset_eq] at external
+    omega
+  · unfold PiCCSOrdinarySourceSupport.StatementSign PiCCSOrdinarySourceSupport.InRange
+      PiCCSStarts.statementBindingLogicalStart at sign
+    rw [PiCCSInputs.phaseOffset_eq] at sign
     omega
   · rcases transcript with ⟨invocation, outputLane, equality⟩
     have invocationBound : invocation.val < 355 := by
       simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
         using invocation.isLt
     have outputLaneBound : outputLane.val < 16 := outputLane.isLt
-    rw [PiCCSInputs.phaseOffset_eq] at equality
+    rw [PiCCSStarts.statementWitnessStart_eq] at equality
     omega
   · unfold PiCCSOrdinarySourceSupport.OrdinaryLogical
       PiCCSOrdinarySourceSupport.InRange PiCCSStarts.initialClaimLogicalStart at ordinary

@@ -20,12 +20,14 @@ const MAGIC: &[u8; 8] = b"NSFPREP1";
 // The unchanged maximum key permits floor((MAX_CARRIER_WIDTH - fixedWidth)/41)
 // application fields. W=maximum-1, L=1 attains the largest envelope.
 // Derivation: nightstream/tests/evidence/prepared-fixed-source-bound.md.
-const NATIVE_REFERENCE_NODES: usize = 12_710_275;
+const NATIVE_REFERENCE_NODES: usize = 12_760_057;
 const MAX_APPLICATION_FIELDS: usize = (neo_ajtai::nightstream_fprime_setup::MAX_CARRIER_WIDTH - 44_915_688) / 41;
-const MAX_FIXED_SOURCE_NODES: usize = NATIVE_REFERENCE_NODES - 12 + MAX_APPLICATION_FIELDS + 7;
+/// Node cap of a prepared fixed source: the largest envelope the unchanged
+/// maximum key admits. The compiler test checks it against that envelope.
+pub const PREPARED_FIXED_SOURCE_NODE_LIMIT: usize = NATIVE_REFERENCE_NODES - 12 + MAX_APPLICATION_FIELDS + 7;
 // Compact numeric-array JSON needs at most 20 decimal digits and one separator
 // per node; array delimiters fit this bound as well.
-const MAX_FIXED_SOURCE_BYTES: u64 = 21 * MAX_FIXED_SOURCE_NODES as u64;
+const MAX_FIXED_SOURCE_BYTES: u64 = 21 * PREPARED_FIXED_SOURCE_NODE_LIMIT as u64;
 
 fn check_source_bytes(length: u64) -> Result<(), PackageError> {
     if length > MAX_FIXED_SOURCE_BYTES {
@@ -37,7 +39,7 @@ fn check_source_bytes(length: u64) -> Result<(), PackageError> {
 }
 
 pub(super) fn snapshot(fixed: &Value) -> Result<PrivateSnapshot, PackageError> {
-    value::validate(fixed, MAX_FIXED_SOURCE_NODES)?;
+    value::validate(fixed, PREPARED_FIXED_SOURCE_NODE_LIMIT)?;
     let source = PrivateSnapshot::create(|output| {
         serde_json::to_writer(output, fixed)?;
         Ok(())
@@ -114,7 +116,7 @@ pub fn load_compiled_application_package(mut input: impl Read) -> Result<LoadedP
         }
         Ok(())
     })?;
-    let fixed = source.with_reader(|input| value::decode(input, MAX_FIXED_SOURCE_NODES))?;
+    let fixed = source.with_reader(|input| value::decode(input, PREPARED_FIXED_SOURCE_NODE_LIMIT))?;
     let (rows, recipes) = prepared_record_counts(&fixed)?;
     let records = Arc::new(ApplicationRecords::read_from(&mut input, rows, recipes)?);
     let mut trailing = [0];

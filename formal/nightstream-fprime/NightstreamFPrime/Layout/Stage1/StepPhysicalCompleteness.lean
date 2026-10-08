@@ -108,7 +108,7 @@ private theorem external_before_c (index : Nat)
     unfold PiCCSInputs.phaseOffset PiCCSInputs.proofInputStart PiCCSInputs.priorChildrenStart
     omega
   · have upper := proofRange.2
-    rw [PiCCSOrdinarySourceSupport.proofInputCount_eq, PiCCSInputs.priorChildrenStart_eq] at upper
+    rw [PiCCSOrdinarySourceSupport.callerInputCount_eq, PiCCSInputs.priorChildrenStart_eq] at upper
     rw [PiCCSInputs.phaseOffset_eq]
     omega
 

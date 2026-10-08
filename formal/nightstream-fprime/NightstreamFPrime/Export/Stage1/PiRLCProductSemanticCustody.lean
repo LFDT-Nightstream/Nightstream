@@ -490,7 +490,8 @@ theorem semanticEnv_valueColumn_eq_baseEnv
   rw [PiRLCSamplerRetainedCustody.semanticEnv_source_eq_transitionEnv_of_beforeSampler
     geometry assignment base before]
   exact (PiRLCSamplerRetainedCustody.baseEnv_eq_transitionEnv program base _
-    privateBound (Or.inl beforeTranscript)).symm
+    privateBound (Or.inl (Nat.lt_of_lt_of_le beforeTranscript
+      PiCCSStarts.phaseOffset_le_statementWitnessStart))).symm
 
 /-- Every direct product output lies in the unclaimed product interval and
 therefore has the same canonical transition value in both environments. -/
@@ -516,7 +517,7 @@ theorem semanticEnv_outputColumn_eq_baseEnv
       right
       have lower := interval.1
       rw [commitmentLogicalStart_eq] at lower
-      rw [PiCCSInputs.phaseOffset_eq,
+      rw [PiCCSStarts.statementWitnessStart_eq,
         PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
       omega)).symm
 
@@ -545,7 +546,7 @@ theorem semanticEnv_priorColumn_eq_baseEnv
       right
       have lower := interval.1
       rw [commitmentLogicalStart_eq] at lower
-      rw [PiCCSInputs.phaseOffset_eq,
+      rw [PiCCSStarts.statementWitnessStart_eq,
         PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
       omega)).symm
 

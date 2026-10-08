@@ -730,7 +730,7 @@ private theorem canonicalWitnessStarts_transcript_getD
     (index : Nat) (bound : index < 355) :
     (canonicalWitnessStarts ()).getD index 0 =
       NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
-        (NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset +
+        (NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart +
           index * 1096) := by
   rw [canonicalWitnessStarts, List.getD_append _ _ _ _ (by
     rw [piCcsWitnessStarts_length]
@@ -738,10 +738,8 @@ private theorem canonicalWitnessStarts_transcript_getD
   rw [piCcsWitnessStarts_transcriptPrefix, List.getD_append _ _ _ _ (by
     rw [sequentialWitnessStarts_length]
     exact bound)]
-  simpa only [PiCCSInvocations.statementWitnessStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart] using
-      sequentialWitnessStarts_getD PiCCSInvocations.statementWitnessStart
-        355 index bound
+  exact sequentialWitnessStarts_getD PiCCSInvocations.statementWitnessStart
+    355 index bound
 
 /-- The selected pre-ordinary PiCCS invocation has its exact affine source
 address. The proof uses the structural schedule and does not expand it. -/
@@ -750,7 +748,7 @@ theorem canonicalInvocation_witnessStart_of_transcript
     (bound : index.val < 355) :
     ((Data.permutationInvocations ()).get index).witnessStart =
       NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
-        (NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset +
+        (NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart +
           index.val * 1096) := by
   have selected := canonicalWitnessStarts_transcript_getD index.val bound
   rw [canonicalWitnessStarts_materializes] at selected

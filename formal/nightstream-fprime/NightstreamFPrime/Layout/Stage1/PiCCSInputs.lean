@@ -58,13 +58,11 @@ def expectedContextStart : Nat := 5141760
 
 def expectedContextWords : Nat := 4
 
-/-- The prior child region: 4,320 child digits, child-major, then one sign
-bit for each of the 270 parent coordinates. -/
+/-- The prior child region: the 4,320 child digits, child-major. The
+statement-binding leaf owns the sign of each parent coordinate. -/
 def priorChildrenStart : Nat := expectedContextStart + expectedContextWords
 
-def priorSignStart : Nat := priorChildrenStart + 4320
-
-def priorChildrenWords : Nat := 4590
+def priorChildrenWords : Nat := 4320
 
 def runningPublicStart (source : Nat) : Nat :=
   priorChildrenStart + source * runningPublicWords
@@ -87,7 +85,7 @@ theorem expectedContextWords_eq : expectedContextWords = 4 := by
 theorem priorChildrenStart_eq : priorChildrenStart = 5141764 := by
   rfl
 
-theorem proofInputStart_eq : proofInputStart = 5146354 := by
+theorem proofInputStart_eq : proofInputStart = 5146084 := by
   rfl
 
 /-- New proof-input intervals. -/
@@ -123,7 +121,7 @@ theorem outputEvaluationWords_eq :
 theorem proofInputColumnCount_eq : proofInputColumnCount = 10872 := by
   rfl
 
-theorem phaseOffset_eq : phaseOffset = 5157226 := by
+theorem phaseOffset_eq : phaseOffset = 5156956 := by
   rfl
 
 /-! ## Symbolic inputs -/
@@ -164,10 +162,6 @@ def runningEval_A
     (matrix : Fin productionShape.matrixCount)
     (coefficient : Fin productionShape.coefficientCount) : KExpr :=
   pairAt (runningEvalAStart source.val + matrix.val * 108 + coefficient.val * 2)
-
-/-- Sign bit of parent coordinate `3 · word + lane`. -/
-def priorSign (word : Fin packedParentWords) (lane : Fin 3) : Expr :=
-  Expr.var (priorSignStart + (3 * word.val + lane.val))
 
 def runningExpr
     (logicalWidth : Nat)
@@ -249,7 +243,6 @@ def interface
   priorState := fun _ => priorStateWord
   outputState := fun _ => outputStateWord
   expectedContext := fun _ => expectedContext
-  priorSign := fun _ => priorSign
   running := fun _ => runningExpr logicalWidth publicFits
   fresh := fun _ => freshExpr logicalWidth publicFits
   round := fun _ => roundMessage
@@ -373,14 +366,6 @@ theorem externalInputsBelow
     norm_num [StateBinding.packedWordStart, PilotProduction.priorPreimageStart,
       packedParentWords] at bound ⊢
     omega
-  · intro word lane
-    change (Expr.var (priorSignStart + (3 * word.val + lane.val))).VarsBelow phaseOffset
-    simp only [Expr.VarsBelow]
-    have wordBound : word.val < 90 := word.isLt
-    have laneBound := lane.isLt
-    rw [phaseOffset_eq]
-    unfold priorSignStart priorChildrenStart expectedContextStart expectedContextWords
-    omega
   · intro coordinate
     change (pairAt (runningPointStart + coordinate.val * 2)).VarsBelow
       phaseOffset
@@ -494,7 +479,6 @@ def externalInputsLinear
   runningPoint := fun _ => pairAt_linear _
   runningCommitment := fun _ _ _ => R1CS.isAffine_var _
   runningPublicInput := fun _ _ => ⟨R1CS.isAffine_var _, fun _ equal => by cases equal⟩
-  priorSign := fun _ _ => ⟨R1CS.isAffine_var _, fun _ equal => by cases equal⟩
   runningEval_K := fun _ _ => pairAt_linear _
   runningEval_A := fun _ _ _ => pairAt_linear _
   freshCommitment := fun _ _ _ => R1CS.isAffine_var _

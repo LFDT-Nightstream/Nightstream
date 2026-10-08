@@ -151,8 +151,10 @@ theorem contextDigest_identifies_authority_or_collision
 
 /-- Equal state digests identify one complete well-formed statement unless
 the state hash collides. The encoding-injectivity theorem covers the context,
-iteration, application state, program counter, point, commitments, public
-inputs, separate `Eval_K`, and every separate `Eval_A` value. -/
+iteration, application state, point, commitments, parent public input,
+separate `Eval_K`, and every separate `Eval_A` value. Well-formedness fixes
+`pc = 1` and makes the child public inputs the canonical split of the
+parent. -/
 theorem stateHash_identifies_statement_or_collision
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

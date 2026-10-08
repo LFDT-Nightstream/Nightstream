@@ -31,7 +31,6 @@ theorem externalInputsSupported
     outputStateContext := ?_
     expectedContext := ?_
     priorStatePacked := ?_
-    priorSign := ?_
     runningPoint := ?_
     runningCommitment := ?_
     runningPublicInput := ?_
@@ -99,15 +98,6 @@ theorem externalInputsSupported
     norm_num [StateBinding.packedWordStart, PilotProduction.priorPreimageStart,
       PilotProduction.stateHashWords_eq]
     omega
-  · intro word lane
-    simp only [PiCCSInputs.interface, PiCCSInputs.priorSign, Expr.VarsSatisfy]
-    apply external_proof
-    have wordBound : word.val < 90 := word.isLt
-    have laneBound := lane.isLt
-    unfold InRange
-    rw [proofInputCount_eq]
-    unfold PiCCSInputs.priorSignStart
-    omega
   · intro coordinate
     change External (PiCCSInputs.runningPointStart + coordinate.val * 2) ∧
       External (PiCCSInputs.runningPointStart + coordinate.val * 2 + 1)
@@ -141,7 +131,7 @@ theorem externalInputsSupported
     have sourceBound : source.val < 16 := source.isLt
     have columnBound : column.val < 270 := column.isLt
     unfold InRange
-    rw [proofInputCount_eq]
+    rw [callerInputCount_eq]
     unfold PiCCSInputs.runningPublicStart PiCCSInputs.runningPublicWords
     omega
   · intro source coefficient
@@ -190,7 +180,7 @@ theorem externalInputsSupported
     norm_num [productionProfile] at rowBound
     norm_num [ringDegree] at coefficientBound
     unfold InRange
-    rw [proofInputCount_eq]
+    rw [callerInputCount_eq]
     norm_num [PiCCSInputs.freshCommitmentStart,
       PiCCSInputs.proofInputStart, PiCCSInputs.priorChildrenStart,
         PiCCSInputs.priorChildrenWords, PiCCSInputs.expectedContextStart,
@@ -217,7 +207,7 @@ theorem externalInputsSupported
       Phi81MatrixSource.phi81Shape] at roundBound
     norm_num at coefficientBound
     constructor <;> apply external_proof <;> unfold InRange <;>
-      rw [proofInputCount_eq] <;>
+      rw [callerInputCount_eq] <;>
       norm_num [PiCCSInputs.roundMessageStart,
         PiCCSInputs.freshCommitmentStart, PiCCSInputs.proofInputStart, PiCCSInputs.priorChildrenStart,
         PiCCSInputs.priorChildrenWords,
@@ -236,7 +226,7 @@ theorem externalInputsSupported
     norm_num [productionShape, Phi81MatrixSource.phi81Shape,
       ringDegree] at coefficientBound
     constructor <;> apply external_proof <;> unfold InRange <;>
-      rw [proofInputCount_eq] <;>
+      rw [callerInputCount_eq] <;>
       norm_num [PiCCSInputs.outputEvaluationStart,
         PiCCSInputs.roundMessageStart, PiCCSInputs.freshCommitmentStart,
         PiCCSInputs.proofInputStart, PiCCSInputs.priorChildrenStart,
@@ -259,7 +249,7 @@ theorem externalInputsSupported
     norm_num [productionShape, Phi81MatrixSource.phi81Shape,
       ringDegree] at coefficientBound
     constructor <;> apply external_proof <;> unfold InRange <;>
-      rw [proofInputCount_eq] <;>
+      rw [callerInputCount_eq] <;>
       norm_num [PiCCSInputs.outputEvaluationStart,
         PiCCSInputs.roundMessageStart, PiCCSInputs.freshCommitmentStart,
         PiCCSInputs.proofInputStart, PiCCSInputs.priorChildrenStart,

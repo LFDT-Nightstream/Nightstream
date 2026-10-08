@@ -144,22 +144,6 @@ private theorem childrenSplit_environment
     PiCCSProofInputs.loadExpectedContext_agreesOutside
       (PiCCSProofInputs.protocolEnv prior priorPublic output digest priorFixed outputFixed
         digestFixed values) context index outside
-  have signSame (word : Fin packedParentWords) (lane : Fin 3) :
-      StateBinding.priorSignValue
-          (Formal.statementBindingInterface
-            (Formal.atOffset (relationInterface relation) phaseOffset)).state
-          phaseOffset
-          (environment prior priorPublic output digest priorFixed outputFixed digestFixed
-            values context) word lane =
-        StateBinding.priorSignValue
-          (Formal.statementBindingInterface
-            (Formal.atOffset (PiCCSInputs.interface logicalWidth publicFits) phaseOffset)).state
-          phaseOffset
-          (PiCCSProofInputs.protocolEnv prior priorPublic output digest priorFixed outputFixed
-            digestFixed values) word lane :=
-    same _ (Or.inr (by
-      unfold PiCCSInputs.priorSignStart PiCCSInputs.priorChildrenStart
-      omega))
   have digitsSame (word : Fin packedParentWords) (lane : Fin 3) :
       StateBinding.priorDigits
           (Formal.statementBindingInterface
@@ -176,13 +160,10 @@ private theorem childrenSplit_environment
     funext fun _ => same _ (Or.inr (by
       unfold PiCCSInputs.runningPublicStart PiCCSInputs.priorChildrenStart
       omega))
-  refine ⟨?_, ?_, ?_⟩
+  refine ⟨?_, ?_⟩
   · intro word lane
-    rw [signSame]
-    exact base.sign word lane
-  · intro word lane child
-    rw [digitsSame, signSame]
-    exact base.digit word lane child
+    rw [digitsSame]
+    exact base.digits word lane
   · intro word
     have wordBound : word.val < 90 := word.isLt
     rw [digitsSame, digitsSame, digitsSame]

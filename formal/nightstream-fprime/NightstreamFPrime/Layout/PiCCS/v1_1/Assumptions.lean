@@ -126,7 +126,7 @@ theorem transcript
   let frozen := Formal.atOffset interface parentOffset
   have stateAssumption : StateBinding.Assumptions
       (Formal.statementBindingInterface frozen).state parentOffset env := by
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
     · intro word member
       simpa [frozen, Formal.atOffset, Formal.statementBindingInterface] using
         external.below.priorStateFixed word member
@@ -149,33 +149,40 @@ theorem transcript
       simpa [frozen, Formal.atOffset, Formal.statementBindingInterface] using
         external.below.runningPublicInput
           (Fin.cast runningCount_eq_radixChildCount.symm child) (packedColumn word lane)
-    · intro word lane
-      simpa [frozen, Formal.atOffset, Formal.statementBindingInterface] using
-        external.below.priorSign word lane
+  -- Statement absorption starts after the statement-binding sign columns.
   have statementInputs :
       Leaves.StatementAbsorption.InputsBelow
-        (Formal.statementAbsorptionInterface frozen) parentOffset := by
+        (Formal.statementAbsorptionInterface frozen)
+        (parentOffset + StateBinding.signCount) := by
     refine ⟨?_, ?_⟩
     · intro source row coefficient
-      simpa [frozen, Formal.atOffset, Formal.statementAbsorptionInterface] using
-        external.below.freshCommitment source row coefficient
+      exact Expr.VarsBelow.mono _ (lower := parentOffset)
+        (by simpa [frozen, Formal.atOffset, Formal.statementAbsorptionInterface] using
+          external.below.freshCommitment source row coefficient)
+        (Nat.le_add_right _ _)
     · intro source column
-      simpa [frozen, Formal.atOffset, Formal.statementAbsorptionInterface] using
-        external.below.freshPublicInput source column
+      exact Expr.VarsBelow.mono _ (lower := parentOffset)
+        (by simpa [frozen, Formal.atOffset, Formal.statementAbsorptionInterface] using
+          external.below.freshPublicInput source column)
+        (Nat.le_add_right _ _)
   have statementAssumption : StatementAbsorption.Assumptions
-      (Formal.statementAbsorptionInterface frozen) parentOffset env :=
+      (Formal.statementAbsorptionInterface frozen)
+      (parentOffset + StateBinding.signCount) env :=
     Leaves.StatementAbsorption.assumptions_of_inputsBelow
-      (Formal.statementAbsorptionInterface frozen) parentOffset statementInputs
-      env
+      (Formal.statementAbsorptionInterface frozen)
+      (parentOffset + StateBinding.signCount) statementInputs env
   have challengeAssumption : ChallengeDerivation.Assumptions
       (Formal.challengeInterface frozen parentOffset)
       (Formal.challengeOffset interface parentOffset) env := by
     intro lane
     have below := Leaves.StatementAbsorption.finalState_varsBelow
-      (Formal.statementAbsorptionInterface frozen) parentOffset statementInputs
-      lane
-    simpa [Formal.challengeInterface, Formal.statementFinalState, frozen,
-      Formal.challengeOffset_eq] using! below
+      (Formal.statementAbsorptionInterface frozen)
+      (parentOffset + StateBinding.signCount) statementInputs lane
+    rw [Formal.challengeOffset_eq]
+    simp only [Formal.challengeInterface, Formal.statementFinalState, frozen]
+    exact Expr.VarsBelow.mono _ below (by
+      simp only [StateBinding.signCount_eq, StatementAbsorption.program_recipes_length]
+      omega)
   have roundAssumption : RoundTranscript.Assumptions
       (Formal.roundTranscriptInterface frozen)
       (Formal.roundTranscriptOffset interface parentOffset) env := by

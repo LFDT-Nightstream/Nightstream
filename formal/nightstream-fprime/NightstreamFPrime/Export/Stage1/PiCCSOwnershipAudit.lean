@@ -268,11 +268,11 @@ def columnOrder : List ColumnFamily :=
     .r1csIntermediate]
 
 def columnCounts : List Nat :=
-  [5157226, 0, 140288, 95352, 153440, 12957, 672, 2699, 10475, 23,
+  [5156956, 270, 140288, 95352, 153440, 12957, 672, 2699, 10475, 23,
     48, 2717, 839536, 2956]
 
-/-- The 14 global physical column spans. The two zero-count child families
-remain in the ordered vocabulary. -/
+/-- The 14 global physical column spans, in the ordered vocabulary. The
+statement-binding family owns the 270 hinted sign columns. -/
 def columnSpans : List (Span ColumnFamily) :=
   spansFrom 0 columnOrder columnCounts
 
@@ -306,8 +306,8 @@ theorem columnCounts_eq_layout :
 
 theorem columnSpans_exact :
     columnSpans =
-      [⟨.external, 0, 5157226⟩,
-       ⟨.statementBinding, 5157226, 0⟩,
+      [⟨.external, 0, 5156956⟩,
+       ⟨.statementBinding, 5156956, 270⟩,
        ⟨.statementAbsorption, 5157226, 140288⟩,
        ⟨.challengeDerivation, 5297514, 95352⟩,
        ⟨.roundTranscript, 5392866, 153440⟩,
@@ -393,7 +393,7 @@ private theorem statementAbsorptionOffset_eq :
         logicalWidth publicFits)
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 5157226 := by
   rw [Formal.statementAbsorptionOffset_eq,
-    NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
+    NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq, StateBinding.signCount_eq]
 
 private theorem challengeOffset_eq :
     Formal.challengeOffset
@@ -536,7 +536,7 @@ private theorem logicalColumnCount_eq :
 private theorem logicalColumnCount_literal_eq :
     NightstreamFPrime.Layout.PiCCS.v1_1.logicalColumnCount relation
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.interface
-        logicalWidth publicFits) 5157226 = 6415433 := by
+        logicalWidth publicFits) 5156956 = 6415433 := by
   simpa only [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq] using
     logicalColumnCount_eq
 

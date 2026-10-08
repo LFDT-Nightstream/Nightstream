@@ -33,7 +33,7 @@ def interface : Formal.Interface logicalWidth 8 publicFits :=
 /-- PiCCS starts after the completed pilot and all parent-owned proof inputs. -/
 def piCcsOffset : Nat := PiCCSInputs.phaseOffset
 
-theorem piCcsOffset_eq : piCcsOffset = 5157226 := by
+theorem piCcsOffset_eq : piCcsOffset = 5156956 := by
   exact PiCCSInputs.phaseOffset_eq
 
 /-- Exact physical row order of the current Stage 1 prefix. -/
@@ -146,7 +146,7 @@ theorem cumulativeFootprints_eq
           23, 800, 3593, 839536] ∧
       NightstreamFPrime.Layout.PiCCS.v1_1.physicalColumnDeltas relation
         (interface (publicFits := publicFits)) piCcsOffset =
-        [0, 140288, 95352, 153440, 12957, 672, 3364, 11140,
+        [270, 140288, 95352, 153440, 12957, 672, 3364, 11140,
           23, 800, 3591, 839536] ∧
       cumulativePhysicalRows relation =
         [5090838, 5231126, 5326478, 5479918, 5492875, 5493603,

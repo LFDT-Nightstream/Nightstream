@@ -442,8 +442,8 @@ theorem transitionEnv_of_outside
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (column : Nat) (bound : column < Spartan.SourceColumnCount)
-    (outside : column < PiCCSInputs.phaseOffset ∨
-      PiCCSInputs.phaseOffset + PiCCSOrdinarySourceSupport.transcriptInvocationCount * 1096 ≤
+    (outside : column < PiCCSStarts.statementWitnessStart ∨
+      PiCCSStarts.statementWitnessStart + PiCCSOrdinarySourceSupport.transcriptInvocationCount * 1096 ≤
         column) :
     transitionEnv program base (Spartan.sourceToSpartan column) =
       packageEnv program base (Spartan.sourceToSpartan column) := by
@@ -496,7 +496,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       have address : 27810 + index.val =
           5157226 + invocation.val * 1096 + 1080 + lane.val := by
         simpa only [sourceColumn, RunningTransitionSourceSupport.stateStart_eq,
-          PiCCSInputs.phaseOffset_eq] using same
+          PiCCSStarts.statementWitnessStart_eq] using same
       omega
   | output index =>
       rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.output]
@@ -517,7 +517,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       have address : 28089 + index.val =
           5157226 + invocation.val * 1096 + 1080 + lane.val := by
         simpa only [sourceColumn, RunningTransitionSourceSupport.outputStart_eq,
-          PiCCSInputs.phaseOffset_eq] using same
+          PiCCSStarts.statementWitnessStart_eq] using same
       omega
   | piDec index =>
       rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.piDec]
@@ -538,7 +538,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       have address : 11622242 + index.val =
           5157226 + invocation.val * 1096 + 1080 + lane.val := by
         simpa only [sourceColumn, RunningTransitionSourceSupport.piDecStart_eq,
-          PiCCSInputs.phaseOffset_eq] using same
+          PiCCSStarts.statementWitnessStart_eq] using same
       omega
   | fresh index =>
       rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.fresh]
@@ -551,10 +551,10 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       apply Eq.symm
       apply transitionEnv_of_outside program base _ (Location.fresh index).sourceColumn_lt
       apply Or.inr
-      change PiCCSInputs.phaseOffset +
+      change PiCCSStarts.statementWitnessStart +
           PiCCSOrdinarySourceSupport.transcriptInvocationCount * 1096 ≤
         RunningTransitionInputs.phaseOffset + index.val
-      exact Nat.le_trans (show PiCCSInputs.phaseOffset +
+      exact Nat.le_trans (show PiCCSStarts.statementWitnessStart +
           PiCCSOrdinarySourceSupport.transcriptInvocationCount * 1096 ≤
             PiDECInputs.phaseOffset by decide)
         (Nat.le_trans RunningTransitionInputs.piDecPhaseOffset_le

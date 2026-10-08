@@ -245,7 +245,7 @@ def Block.interface? (block : Block) (logicalWidth : Nat)
   let output ← block.outputState? logicalWidth descriptor
   let left : Phi81ProductPlan.State logicalWidth := fun lane =>
     SparseForm.add (challenge lane) (SparseForm.singleton oneColumn (-2))
-  pure { oneColumn, left, right := input, quotient, prior, output }
+  pure { left, right := input, quotient, prior, output }
 
 /-- Ring-major order, then every fixed evaluation point in increasing order. -/
 def Block.row? (block : Block) (logicalWidth ordinal : Nat) :

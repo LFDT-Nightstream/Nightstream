@@ -75,7 +75,7 @@ fn public_pi_ccs_verifier_handles_documented_unpadded_v1_2_evaluations() {
     let output = claim.clone();
     let proof = PiCcsProof::new(Vec::new());
     let result = catch_unwind(AssertUnwindSafe(|| {
-        let mut transcript = Poseidon2Transcript::new(b"redteam/unpadded-v1_1-evaluations");
+        let mut transcript = Poseidon2Transcript::new(b"redteam/unpadded-v1_2-evaluations");
         neo_reductions::pi_ccs_verify(
             &mut transcript,
             &params,

@@ -47,6 +47,7 @@ const VERIFIER_CONTEXT_SCHEDULE: [u64; 10] = [
     4,
     1,
 ];
+// These three `v1_1` tags are frozen protocol bytes. They are not paper citations.
 const VERIFIER_CONTEXT_COMPONENT_DOMAIN: &[u8] = b"Nightstream/FPrime/context/v1_1";
 const VERIFIER_CONTEXT_DOMAIN: &[u8] = b"Nightstream/FPrime/verifier-context/v1_1";
 const NIFS_KEY_DOMAIN: &[u8] = b"Nightstream/FPrime/nifs-key/v1_1";

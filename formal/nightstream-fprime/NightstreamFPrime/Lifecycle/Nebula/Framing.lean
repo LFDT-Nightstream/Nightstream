@@ -261,7 +261,7 @@ theorem blocks_injective {p : Plan} (valid : p.Valid) {x y : HashInput Digest}
       rw [chainTag_injective tag, natWord_injective (hj.trans indices) (hj'.trans indices) index,
         List.ofFn_injective digest, packed_injective hP hP' packed]
 
-open scoped NightstreamFPrime.Spec.Nebula.GoldilocksFingerprint
+open scoped NightstreamFPrime.Spec.GoldilocksExtensionRing
 
 /-- Ob3 for two input lists: if every input is canonical, a collision of the
 Poseidon2 chains between the lists is a Poseidon2 transcript collision. -/

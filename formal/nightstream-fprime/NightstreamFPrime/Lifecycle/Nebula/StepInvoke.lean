@@ -10,7 +10,7 @@ namespace NightstreamFPrime.Lifecycle.Nebula
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Nebula
-open scoped NightstreamFPrime.Spec.Nebula.GoldilocksFingerprint
+open scoped NightstreamFPrime.Spec.GoldilocksExtensionRing
 open Fin.CommRing
 
 /-- A chain row over field bits is the model's chain hash over their packing. -/
@@ -214,8 +214,8 @@ theorem RowsHold.finished (valid : p.Valid) (rows : w.RowsHold zIn)
       · have row := rows.closeProducts
         have embedOne : embed 1 = (1 : K) := rfl
         rw [close, embedOne] at row
-        simp only [← GoldilocksFingerprint.mul_eq, ← GoldilocksFingerprint.sub_eq,
-          ← GoldilocksFingerprint.zero_eq, one_mul, sub_eq_zero] at row
+        simp only [← GoldilocksExtensionRing.mul_eq, ← GoldilocksExtensionRing.sub_eq,
+          ← GoldilocksExtensionRing.zero_eq, one_mul, sub_eq_zero] at row
         exact row
     rw [if_pos closed, closeSegment, if_pos checks]
     congr 1

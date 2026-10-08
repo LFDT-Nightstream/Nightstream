@@ -3,6 +3,7 @@ import NightstreamFPrime.Spec.Nebula
 import NightstreamFPrime.Lifecycle.Nebula.Framing
 import NightstreamFPrime.Lifecycle.Nebula.MemoryBound
 import NightstreamFPrime.Lifecycle.Nebula.StepInvoke
+import NightstreamFPrime.Lifecycle.Nebula.MachineRefinement
 
 /-! Axiom audits for the Nebula memory-phase model (`Spec/Nebula`) and its
 memory application layer (`Lifecycle/Nebula`): framing, carry, step rows, and
@@ -161,7 +162,7 @@ their refinement to the model. -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.RowsHold.padTail
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.RowsHold.slotRows
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.mem_activeOps_exists
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.natWord_zero
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.natWord_zero
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.records_ops
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.RowsHold.cntBefore_eq
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.RowsHold.activeFresh
@@ -207,3 +208,14 @@ their refinement to the model. -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.RowsHold.finished
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.RowsHold.reachOut
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.RowsHold.invoke
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.val_add_one
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.toBool_zero
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.toBool_one
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Plan.two_pow_mu_lt
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Plan.mu_le
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.bitsNat_split
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.OpSlotBits.port_pad
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.OpSlotBits.port_active
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.records_ops_two
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.RowsHold.argument_val
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.RowsHold.machineStep

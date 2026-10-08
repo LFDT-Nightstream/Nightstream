@@ -86,5 +86,6 @@ import NightstreamFPrime.Lifecycle.Nebula.StepRefinement
 import NightstreamFPrime.Lifecycle.Nebula.StepInvoke
 import NightstreamFPrime.Lifecycle.Nebula.MachineRefinement
 import NightstreamFPrime.Lifecycle.Nebula.RunLink
+import NightstreamFPrime.Lifecycle.Nebula.RowMeaning
 
 /-! Lifecycle layer root. Lists the modules of this layer explicitly. -/

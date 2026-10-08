@@ -13,7 +13,8 @@ Inputs:
 
 Outputs:
 - a 10,872-word canonical proof-input encoding;
-- the 4,590-word prior child region: child digits, then sign bits;
+- the 4,320-word prior child region: the child digits, child-major (the
+  statement-binding leaf computes the signs);
 - one environment that preserves the pilot prefix and loads both.
 
 Parent coverage:

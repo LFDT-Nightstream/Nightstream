@@ -475,8 +475,9 @@ pub fn check_caller_assignment(
 
 /// Mutate child caller columns only after a valid physical witness exists.
 /// The raw evaluator sees each changed assignment without witness execution.
-/// The prior-child digit case changes the first role-19 word: the state
-/// binding must reject a digit that no longer recomposes the hashed parent.
+/// The prior-child digit case changes the first role-19 word. Some row must
+/// reject it; PiRLC also reads that word. `statement_binding_rows.rs` shows
+/// that the statement-binding rows alone reject a second split.
 pub fn check_caller_mutations(
     package: LoadedPerApplicationPackage,
     sealed: Vec<u8>,

@@ -151,7 +151,7 @@ and recorded identity use schema 5; the Rust package gates are therefore red.
   productionShape, phase order), `PaperAlgebra` (Ajtai-commitment semantics
   and algebras),
   `Transcript` (Poseidon2 Fiat–Shamir and strong-set ρ sampler, membership
-  proved), `XOut` (length-prefixed preimage, `stateHash`, `encHash`,
+  proved), `XOut` (packed-parent preimage, `stateHash`, `encHash`,
   `defaultRunning`), `ProductionKey` (`LogicalRelation`, `key`: the one
   concrete NIFS key, all law fields discharged), `Relation` (`setup`,
   `machine`, `StepHolds := FixedAugmentedTransition`, `TerminalHolds`).

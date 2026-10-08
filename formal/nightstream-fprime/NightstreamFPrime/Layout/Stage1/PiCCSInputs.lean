@@ -9,9 +9,10 @@ circuit.
 
 The running commitments, `Eval_K`, `Eval_A`, and point are zero-copy reads of
 the prior state block. The block stores only the packed parent public input,
-so the sixteen child public inputs and their sign bits occupy one
-prover-supplied region after the expected context. The PiCCS state-binding
-rows check that region against the packed prior words. The fresh public input
+so the sixteen child public inputs (4,320 digits) occupy one prover-supplied
+region after the expected context. The statement-binding leaf computes one
+sign per lane as a hinted column, and its rows check the digits against the
+packed prior words. The fresh public input
 reuses the pilot public-input columns. The fresh commitment, 28 degree-eight
 SumCheck messages, and separate output `Eval_K`/`Eval_A` families follow.
 

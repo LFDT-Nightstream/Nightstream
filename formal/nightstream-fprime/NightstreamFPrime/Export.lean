@@ -109,6 +109,7 @@ import NightstreamFPrime.Export.Stage1.Stage1LoweringBridge
 import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPackage
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
 import NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package
+import NightstreamFPrime.Export.Stage1.NebulaMemoryN1Package
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows
 import NightstreamFPrime.Export.Stage1.PiCCSOwnershipAudit
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Parity

@@ -62,12 +62,90 @@ fn native_run_closes_every_segment_and_passes_the_terminal() {
     );
 }
 
-fn memory_package() -> Vec<u8> {
+fn package(name: &str) -> Vec<u8> {
     std::fs::read(
         std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("artifacts/nightstream-fprime-stage2-nebula-memory-v1.json"),
+            .join("artifacts")
+            .join(name),
     )
     .expect("saved Lean memory package")
+}
+
+fn memory_package() -> Vec<u8> {
+    package("nightstream-fprime-stage2-nebula-memory-v1.json")
+}
+
+fn n1_run() -> Run {
+    Run::new(
+        Context::new(Plan::second()).expect("second plan"),
+        MachineState::default(),
+    )
+}
+
+/// The second plan (`N = 1`): every invocation opens and closes a segment,
+/// every step uses both ports, and `S_max` segments end at the largest
+/// reachable timestamp `S_max · N · B_ops`.
+#[test]
+fn n1_native_run_reaches_every_counter_maximum() {
+    let mut run = n1_run();
+    let plan = run.context().plan().clone();
+    for _ in 0..plan.s_max {
+        assert_eq!(run.segment(&[Step::Execute]).unwrap().len(), 1);
+        assert_eq!(run.carry().idx, 1, "every invocation closes its segment");
+    }
+    let statement = run.statement();
+    assert_eq!(statement.segments, plan.s_max as u64);
+    assert_eq!(statement.final_ts, (plan.s_max * plan.n * plan.b_ops) as u64);
+    assert_eq!(statement.final_, MachineState { pc: 4, acc: 7 });
+    let (initial, _) = run
+        .context()
+        .terminal_states(&statement, run.carry())
+        .expect("terminal checks pass");
+    assert_eq!(initial, run.initial_state());
+}
+
+/// The spec §14 accept cases of the second plan through `Context::verify`:
+/// `N = 1`, and `S = S_max` with every counter at its largest value.
+fn n1_accept(engine: nightstream::Engine) {
+    use nightstream::{Circuit, Verifier};
+    let circuit = Circuit::load_package(
+        &package("nightstream-fprime-stage2-nebula-memory-n1.json"),
+        nightstream::nebula::N1_PACKAGE_STRUCTURAL_IDENTIFIER,
+    )
+    .expect("pinned memory package");
+    let prover = circuit.prover(engine, 114).unwrap();
+    let verifier = Verifier::from_package(&circuit, engine, 114).unwrap();
+    let mut run = n1_run();
+    let z0 = run.initial_state();
+    let mut proof: Option<nightstream::Proof> = None;
+    for _ in 0..run.context().plan().s_max {
+        let invocation = run.segment(&[Step::Execute]).unwrap().remove(0);
+        proof = Some(match &proof {
+            None => prover
+                .prove_with_output(z0, &invocation.words, invocation.output)
+                .unwrap(),
+            Some(proof) => prover
+                .extend_with_output(proof, &invocation.words, invocation.output)
+                .unwrap(),
+        });
+    }
+    let statement = run.statement();
+    run.context()
+        .verify(&verifier, &statement, run.carry(), proof.as_ref().unwrap())
+        .unwrap();
+}
+
+#[test]
+#[ignore = "Full production-profile memory proofs; run separately under the 300-second cap."]
+fn n1_accept_on_cpu() {
+    n1_accept(nightstream::Engine::Optimized);
+}
+
+#[cfg(feature = "metal")]
+#[test]
+#[ignore = "Full production-profile memory proofs on Metal; run separately under the 300-second cap."]
+fn n1_accept_on_metal() {
+    n1_accept(nightstream::Engine::Metal);
 }
 
 /// The spec §14 accept cases that the first plan reaches, and the rejections
@@ -192,9 +270,14 @@ fn memory_conformance_on_metal() {
 }
 
 #[test]
-#[ignore = "Prints the saved memory package's structural identifier for pinning."]
+#[ignore = "Prints the saved memory packages' structural identifiers for pinning."]
 fn print_memory_package_identifier() {
-    let value: serde_json::Value = serde_json::from_slice(&memory_package()).unwrap();
-    let package = nightstream_fprime::load_prepared_application_value(value).unwrap();
-    println!("structural_identifier={:?}", package.structural_identifier());
+    for name in [
+        "nightstream-fprime-stage2-nebula-memory-v1.json",
+        "nightstream-fprime-stage2-nebula-memory-n1.json",
+    ] {
+        let value: serde_json::Value = serde_json::from_slice(&package(name)).unwrap();
+        let package = nightstream_fprime::load_prepared_application_value(value).unwrap();
+        println!("{name} structural_identifier={:?}", package.structural_identifier());
+    }
 }

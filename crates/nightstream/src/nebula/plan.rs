@@ -1,5 +1,6 @@
 //! The verifier-owned memory plan of spec §4 and its derived widths.
-//! Mirrors `Spec/Nebula/Plan.lean`; `FirstPlan.lean` owns the first package plan.
+//! Mirrors `Spec/Nebula/Plan.lean`; `FirstPlan.lean` and `SecondPlan.lean` own the
+//! package plans.
 
 /// Spec §4.1 `NebulaPlan`. Images hold 32-bit words.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -31,6 +32,26 @@ impl Plan {
             s_max: 4,
             rom: vec![23, 2, 1, 0],
             ram: vec![0; 4],
+        }
+    }
+
+    /// The second package plan (`SecondPlan.lean`), for the spec §14 cases
+    /// that the first plan cannot reach: ROM of four words and RAM of eight
+    /// (`r < μ`), segments of one step, at most four segments, 4-bit
+    /// timestamps, and the ROM program `load 0; store 1; load 1; store 0`.
+    pub fn second() -> Self {
+        let mut ram = vec![0; 8];
+        ram[0] = 7;
+        Self {
+            r: 2,
+            mu: 3,
+            w_ts: 4,
+            b_ops: 2,
+            b_scan: 12,
+            n: 1,
+            s_max: 4,
+            rom: vec![1, 6, 5, 2],
+            ram,
         }
     }
 

@@ -7,6 +7,7 @@ import NightstreamFPrime.Export.Stage1.PerApplicationCachedBlocks
 import NightstreamFPrime.Export.Stage1.PerApplicationCachedShift
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
 import NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package
+import NightstreamFPrime.Export.Stage1.NebulaMemoryN1Package
 import NightstreamFPrime.Export.Stage1.PiCCSPackets
 import NightstreamFPrime.Export.TypedWriter
 import NightstreamFPrime.Export.MatrixProgram.Program
@@ -691,11 +692,10 @@ def emitExpanded (path : System.FilePath) : IO Unit :=
   emitPerApplicationExpanded Stage1.Poseidon2HashChainV1Package.application
     Stage1.Poseidon2HashChainV1Package.fits path
 
-/-- Write the memory package's named assertion row ranges as
+/-- Write a memory package's named assertion row ranges as
 `[[name, first, end], ...]`, counted from the application's first row. -/
-def emitNebulaMemoryRows (path : System.FilePath) : IO Unit := do
-  let entries := Stage1.NebulaMemoryV1Package.namedRowRanges.map fun (name, first, stop) =>
-    s!"[\"{name}\",{first},{stop}]"
+def emitNebulaMemoryRows (ranges : List (String × ℕ × ℕ)) (path : System.FilePath) : IO Unit := do
+  let entries := ranges.map fun (name, first, stop) => s!"[\"{name}\",{first},{stop}]"
   IO.FS.writeFile path ("[" ++ ",".intercalate entries ++ "]\n")
   IO.println s!"emitted_application_rows={path}"
 
@@ -714,11 +714,21 @@ def run (arguments : List String) : IO UInt32 := do
       pure 0
   | ["--application-rows", "nebula-memory-v1", path]
   | ["--", "--application-rows", "nebula-memory-v1", path] =>
-      emitNebulaMemoryRows ⟨path⟩
+      emitNebulaMemoryRows Stage1.NebulaMemoryV1Package.namedRowRanges ⟨path⟩
+      pure 0
+  | ["--application", "nebula-memory-n1", path]
+  | ["--", "--application", "nebula-memory-n1", path] =>
+      emitPerApplication Stage1.NebulaMemoryN1Package.application
+        Stage1.NebulaMemoryN1Package.fits ⟨path⟩
+      pure 0
+  | ["--application-rows", "nebula-memory-n1", path]
+  | ["--", "--application-rows", "nebula-memory-n1", path] =>
+      emitNebulaMemoryRows Stage1.NebulaMemoryN1Package.namedRowRanges ⟨path⟩
       pure 0
   | _ =>
       IO.eprintln
-        "usage: lake exe emit -- [--expanded | --application[-rows] nebula-memory-v1] <output-path>"
+        ("usage: lake exe emit -- [--expanded | --application[-rows] " ++
+          "(nebula-memory-v1 | nebula-memory-n1)] <output-path>")
       pure 2
 
 end NightstreamFPrime.Export.Main

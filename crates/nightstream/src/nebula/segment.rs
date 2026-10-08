@@ -139,6 +139,7 @@ fn fingerprint(eta: (K, K), t: u64, g: u64, v: u64) -> K {
 }
 
 /// The native result of one step: its records and its states.
+#[derive(Clone)]
 struct Executed {
     idle: bool,
     state_in: MachineState,
@@ -235,6 +236,28 @@ fn execute(
     })
 }
 
+/// Execute the steps of one segment from `memory`; return the step records,
+/// the memory after the segment, and the machine state after it.
+fn execute_steps(
+    plan: &Plan,
+    state: MachineState,
+    memory: &[Cell],
+    ts: u64,
+    steps: &[Step],
+) -> Result<(Vec<Executed>, Vec<Cell>, MachineState), SegmentError> {
+    let mut memory = memory.to_vec();
+    let mut executed = Vec::with_capacity(steps.len());
+    let mut machine = state;
+    let mut ts = ts;
+    for step in steps {
+        let result = execute(plan, machine, &mut memory, ts, *step)?;
+        machine = result.state_out;
+        ts += result.active;
+        executed.push(result);
+    }
+    Ok((executed, memory, machine))
+}
+
 fn set_bits(words: &mut [F], index: impl Fn(usize) -> usize, value: u64, width: usize) {
     for bit in 0..width {
         words[index(bit)] = F::from_u64((value >> bit) & 1);
@@ -258,67 +281,79 @@ impl Context {
         steps: &[Step],
     ) -> Result<Segment, SegmentError> {
         let plan = &self.plan;
-        let n = plan.n;
-        if steps.len() != n {
+        if steps.len() != plan.n {
             return Err(SegmentError::StepCount);
         }
-        if carry.idx != n as u64 || carry.seg_idx >= plan.s_max as u64 {
+        if carry.idx != plan.n as u64 || carry.seg_idx >= plan.s_max as u64 {
             return Err(SegmentError::Carry);
         }
-        let start_memory = memory.to_vec();
-        let mut memory = memory.to_vec();
-        let mut executed = Vec::with_capacity(n);
-        let mut machine = state;
-        let mut ts = carry.ts;
-        for step in steps {
-            let result = execute(plan, machine, &mut memory, ts, *step)?;
-            machine = result.state_out;
-            ts += result.active;
-            executed.push(result);
-        }
-        let ops_packed: Vec<Vec<F>> = executed
-            .iter()
-            .map(|step| pack(&ops_lane(plan, &step.ops)))
-            .collect();
-        let initial_packed = memory_lanes(plan, &start_memory);
-        let final_packed = memory_lanes(plan, &memory);
-        if chain_root(Lane::Mem, &self.plan_digest, &initial_packed) != carry.mem_root {
+        if chain_root(Lane::Mem, &self.plan_digest, &memory_lanes(plan, memory)) != carry.mem_root {
             return Err(SegmentError::MemoryRoot);
         }
-        let proposal = (
-            chain_root(Lane::Ops, &self.plan_digest, &ops_packed),
-            chain_root(Lane::Mem, &self.plan_digest, &final_packed),
-        );
-        let mut invocations = Vec::with_capacity(n);
-        let mut current = carry;
-        for (k, step) in executed.iter().enumerate() {
-            let initial = scan_of(plan, &start_memory, k);
-            let final_ = scan_of(plan, &memory, k);
-            let (words, next) = self.invocation(
-                &current,
-                proposal,
-                step,
-                &initial,
-                &final_,
-                [&ops_packed[k], &initial_packed[k], &final_packed[k]],
-            );
-            if next.idx == n as u64 && next.seg_idx == current.seg_idx {
-                return Err(SegmentError::Close);
-            }
-            let output = state_words(&app_words(step.state_out), &next.words());
-            invocations.push(Invocation {
-                words,
-                output,
-                carry: next,
-            });
-            current = next;
+        let (executed, final_memory, machine) = execute_steps(plan, state, memory, carry.ts, steps)?;
+        let proposal = self.proposal(&executed, &final_memory);
+        let invocations = self.invocations(carry, proposal, &executed, memory, &final_memory);
+        let last = invocations.last().ok_or(SegmentError::StepCount)?.carry;
+        if last.seg_idx == carry.seg_idx {
+            return Err(SegmentError::Close);
         }
         Ok(Segment {
             invocations,
-            carry: current,
+            carry: last,
             state: machine,
-            memory,
+            memory: final_memory,
         })
+    }
+
+    /// Spec §11.2 `open` proposals: the ops and FS roots of an executed
+    /// segment.
+    fn proposal(&self, executed: &[Executed], final_memory: &[Cell]) -> (Digest, Digest) {
+        let ops: Vec<Vec<F>> = executed
+            .iter()
+            .map(|step| pack(&ops_lane(&self.plan, &step.ops)))
+            .collect();
+        (
+            chain_root(Lane::Ops, &self.plan_digest, &ops),
+            chain_root(Lane::Mem, &self.plan_digest, &memory_lanes(&self.plan, final_memory)),
+        )
+    }
+
+    /// The invocations of an executed segment from `carry`, with `proposal` as
+    /// the `open` proposals. It runs no host check, so a conformance test can
+    /// build the invocations of a dishonest segment.
+    fn invocations(
+        &self,
+        carry: Carry,
+        proposal: (Digest, Digest),
+        executed: &[Executed],
+        start_memory: &[Cell],
+        final_memory: &[Cell],
+    ) -> Vec<Invocation> {
+        let plan = &self.plan;
+        let initial_packed = memory_lanes(plan, start_memory);
+        let final_packed = memory_lanes(plan, final_memory);
+        let mut current = carry;
+        executed
+            .iter()
+            .enumerate()
+            .map(|(k, step)| {
+                let ops = pack(&ops_lane(plan, &step.ops));
+                let (words, next) = self.invocation(
+                    &current,
+                    proposal,
+                    step,
+                    &scan_of(plan, start_memory, k),
+                    &scan_of(plan, final_memory, k),
+                    [&ops, &initial_packed[k], &final_packed[k]],
+                );
+                current = next;
+                Invocation {
+                    words,
+                    output: state_words(&app_words(step.state_out), &next.words()),
+                    carry: next,
+                }
+            })
+            .collect()
     }
 
     /// The witness words of one invocation and its output carry.
@@ -371,7 +406,14 @@ impl Context {
             set_bits(&mut w, |k| base(layout.op_rt(k)), slot.rt, plan.w_ts);
             if !slot.pad {
                 let wt = step.write_stamps[j];
-                set_bits(&mut w, |k| base(layout.op_diff(k)), wt - slot.rt - 1, plan.w_ts);
+                // A dishonest record with `rt ≥ wt` has no `W_ts`-bit word
+                // here; O4 rejects it.
+                set_bits(
+                    &mut w,
+                    |k| base(layout.op_diff(k)),
+                    wt.wrapping_sub(slot.rt + 1),
+                    plan.w_ts,
+                );
                 let access = PortAccess {
                     is_write: slot.is_write,
                     is_ram: slot.is_ram,
@@ -463,3 +505,7 @@ impl Context {
         (w, output)
     }
 }
+
+#[cfg(test)]
+#[path = "../../tests/nebula/conformance.rs"]
+mod conformance;

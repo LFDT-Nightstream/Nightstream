@@ -159,6 +159,14 @@ fn memory_conformance(engine: nightstream::Engine) {
         Err(VerifyError::Terminal(TerminalError::SegmentRange))
     ));
 
+    // A fold with more than one fresh claim: the proof format has one fresh
+    // slot, so the decoder rejects any further payload.
+    let bytes = prover.encode_proof(&proof).unwrap();
+    assert!(verifier.decode_proof(&bytes).is_ok());
+    let mut two = bytes.clone();
+    two.extend_from_slice(&bytes[bytes.len() / 2..]);
+    assert!(verifier.decode_proof(&two).is_err());
+
     // An envelope carry that does not open the final state: reject at the
     // Stage 1 state link.
     let mut carry = *run.carry();

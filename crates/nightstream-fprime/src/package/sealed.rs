@@ -419,7 +419,23 @@ impl LoadedPerApplicationPackage {
             encoded.private_values(),
             encoded.public_values(),
             Some(application_values),
+            true,
         )
+    }
+
+    /// Conformance tests only: `execute_stage1_v1_1_witness` without the
+    /// assertion check, so that a test can give an invalid witness to the
+    /// verifier. A prover never calls it.
+    #[doc(hidden)]
+    pub fn execute_stage1_v1_1_witness_unchecked(
+        &self,
+        pi_ccs: &PiCcsV1_1PackageInputs,
+        pi_dec: &PiDecV1_1PackageInputs,
+        application_witness: &[u64],
+    ) -> Result<WitnessAssignment, PackageError> {
+        let encoded = self.encode_stage1_v1_1_inputs(pi_ccs, pi_dec, application_witness)?;
+        self.circuit
+            .execute_witness_unchecked(encoded.private_values(), encoded.public_values())
     }
 
     /// Decode the PiCCS output segments through this verifier-owned package.

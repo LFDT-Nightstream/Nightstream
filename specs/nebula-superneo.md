@@ -23,7 +23,7 @@ This specification adds one Nebula memory phase to the Stage 1 F′ system, as
 - public ROM and RAM in one flat address space;
 - fixed application memory ports;
 - segmented offline memory checking with public-coin fingerprints;
-- a memory carry in the F′ state;
+- a memory carry in the application state;
 - terminal memory acceptance and a final memory root.
 
 An accepting proof attests one execution of the verifier-selected application
@@ -45,7 +45,9 @@ Three layers keep their own protocols:
 - **SuperNeo** folds the F′ claims exactly as in Stage 1. The memory phase adds
   no commitment component, no claim, and no evaluation (§7).
 - **HyperNova Construction 2** links each invocation to the next through the
-  hash of the F′ state. The memory carry (§11) is a new block of that state.
+  hash of the F′ state. The memory carry (§11) is part of the application
+  state: the four Stage 1 application-state words are a digest of the
+  application words and the carry. The F′ state layout does not change.
 - **Nebula** checks memory with fingerprints of four multisets (§8). Each step
   adds its own records to three Poseidon2 chains (§9.2), as in the hash-chain
   commitment of Nebula §3.1. Each segment closes with the checks of Nebula's
@@ -56,9 +58,9 @@ The layers meet at four joints:
 | Joint | Mechanism | Spec |
 |---|---|---|
 | J1 | Each step packs its own records and adds them to three Poseidon2 chains. | §6.3, §9.1, §9.2, §11.2 |
-| J2 | The memory rows read `η`, `h`, `ts`, and `idx` from the authenticated carry and write the new values back. | §8, §11.1 |
+| J2 | The memory rows open the authenticated application state to the carry, read `η`, `h`, `ts`, and `idx`, and write the new carry into the next state. | §8, §11.1 |
 | J3 | The proposed roots and `D_mem` enter the `η` transcript. The close checks that the chains equal them. | §9.3, §11.2 |
-| J4 | The Stage 1 terminal checks the last claim and its state link. The verifier then requires a closed carry. | §12, §13 |
+| J4 | The Stage 1 terminal checks the last claim and its state link. The verifier opens the final state to the final carry and requires a closed carry. | §12, §13 |
 
 One segment runs in four stages:
 
@@ -83,7 +85,7 @@ flowchart TB
     CLOSE["close when idx = N (§11.2)"]
   end
   subgraph HN["HyperNova Construction 2 state link"]
-    CARRY["MemoryCarry in the F′ state (§11.1)"]
+    CARRY["MemoryCarry in the application-state digest (§11.1)"]
   end
   subgraph SN["SuperNeo folding, unchanged from Stage 1"]
     FOLD["PiCCS, PiRLC, PiDEC on F′ claims"]
@@ -337,17 +339,23 @@ memory content after the challenge.
 
 ## 7. Interface with Stage 1
 
-The memory phase adds rows to the F′ step relation (§8, §9.2) and one block to
-the F′ state (§11.1). It adds no commitment component, no claim, and no
-evaluation. SuperNeo runs with the Stage 1 commitment map. PiCCS, PiRLC, PiDEC,
-the rules of `decisions/piccs-prior-state-digest.md`, and the Stage 1 terminal
-openings do not change.
+The memory phase is part of the application relation. A memory application is
+one Stage 1 application whose circuit contains the memory rows (§8), the record
+chains (§9.2), the carry actions (§11.2), and the application's own step,
+joined through the ports (§10). The memory phase adds no commitment component,
+no claim, no evaluation, and no field to the F′ state. SuperNeo runs with the
+Stage 1 commitment map. PiCCS, PiRLC, PiDEC, the rules of
+`decisions/piccs-prior-state-digest.md`, the state preimage, and the Stage 1
+terminal openings do not change.
 
-The new state block changes the state preimage, in every invocation and at the
-terminal. The proof envelope MUST carry the final carry, so that the terminal
-can recompute the state hash (§12). So the extended system needs the new
-composition, fixed-point, and domain theorems that
-`FPRIME_LEAN_ARCHITECTURE_SPEC.md` §6 requires.
+The four Stage 1 application-state words are the state digest of §11.1. So the
+F′ relation, its layout, and its composition, fixed-point, and domain theorems
+are the Stage 1 ones for the memory application's package. The application
+interface has one addition: a validity predicate. The memory rows reject an
+invalid step, so the circuit holds exactly for valid steps.
+
+A Nightstream F′ package without a memory application is a Stage 1 package and
+does not change.
 
 ## 8. Per-step memory relation
 
@@ -500,7 +508,7 @@ count `T` includes them.
 
 ### 11.1 MemoryCarry
 
-The F′ state holds one memory carry:
+The application state holds one memory carry:
 
 ```text
 MemoryCarry {
@@ -519,16 +527,26 @@ Between invocations, `1 ≤ idx ≤ N`. The value `idx = N` means that the segme
 is closed: the step that set `idx = N` also ran `close`. Otherwise the segment
 is open, and `D_seen` covers its first `idx` steps.
 
-The carry is a new component of the F′ state. Its encoding is one block of the
-state preimage: the fields in the order above, each integer as one field
+The carry words are the fields in the order above, each integer as one field
 element, each `𝕂` element as `(c0, c1)`, and each digest as four field
-elements. The block is in the state-output digest and in the prior-state
-digest of `decisions/piccs-prior-state-digest.md`. There is no separate carry
-digest. Lean fixes the position of the block.
+elements: 39 words. The four Stage 1 application-state words are
 
-Chain start: the base invocation starts from `seg_idx = 0`, `ts = 0`, and
-`D_mem = D_init`, with `D_init` read as the package constant of §4.3. It sets
-the other fields with `open`.
+```text
+state_digest = Digest("Nightstream/Nebula/v3/state", app_words, carry_words)
+```
+
+where `app_words` are the words of the application's own state. Each step
+receives the preimage of its input state as witness, and the relation checks
+that its digest is the input state. The relation computes the output state as
+the digest of the new application words and the new carry. There is no other
+carry digest.
+
+Chain start: the start carry is `seg_idx = 0`, `idx = N`, `ts = 0`,
+`η1 = η2 = 0`, `h` all `1_𝕂`, `D_pre = (D_init, D_init)`,
+`D_seen = (D_init, D_init, D_init)`, and `D_mem = D_init`, with `D_init` read
+as the package constant of §4.3. It is a closed carry, so the first invocation
+reopens it (§12). The statement's initial state is the state digest of the
+initial application words and the start carry.
 
 ### 11.2 Actions
 
@@ -570,31 +588,35 @@ implementation MUST reject any other fold arity for a Nebula verifier key.
 Let `S` be the public segment count, `1 ≤ S ≤ S_max`, and `T = S · N`. The
 proof has `T` fresh claims `u_0 … u_{T−1}` and `T` invocations
 `A[0] … A[T−1]`. Invocation `A[i]` runs step `i` and produces `u_i`. Each
-invocation selects exactly one arm from its authenticated input carry `c`:
+invocation selects exactly one memory arm from its authenticated input carry
+`c`:
 
 | Arm | Selected when | Actions |
 |---|---|---|
-| base | `i = 0` | start the carry; `open`; `step`; `close` if `idx = N` |
-| continue | `i ≥ 1` and `c.idx < N` | fold `u_{i−1}`; `step`; `close` if `idx = N` |
-| reopen | `i ≥ 1` and `c.idx = N` | fold `u_{i−1}`; `open`; `step`; `close` if `idx = N` |
+| continue | `c.idx < N` | `step`; `close` if `idx = N` |
+| reopen | `c.idx = N` | `open`; `step`; `close` if `idx = N` |
 
-The prover cannot choose the arm, because `c.idx` comes from the authenticated
-input state. "`close` if `idx = N`" is not optional: §11.2 requires it.
+Invocation `A[0]` is the Stage 1 base branch (no fold). Its input carry is the
+start carry of §11.1, which is closed, so it reopens. Every later invocation
+folds `u_{i−1}` as in Stage 1. The prover cannot choose the arm, because
+`c.idx` comes from the authenticated input state. "`close` if `idx = N`" is not
+optional: §11.2 requires it.
 
 **Terminal.** The verifier keeps the Stage 1 terminal check
 (`crates/nightstream/src/lifecycle/verify.rs`). It does no extra fold. It opens
 the 16 running children and `u_{T−1}` directly and checks the state link of
-`u_{T−1}`. The state preimage now holds the carry block, so the proof envelope
-carries the final carry, and the verifier recomputes the state hash over it.
-Only that hash authenticates the carry fields that are not statement fields.
-The final carry is the one that `A[T−1]` wrote after its own `step` and
-`close`. The verifier MUST then require `idx = N` in the final carry. A proof
-that ends inside a segment fails here.
+`u_{T−1}`. The proof envelope carries the final carry. The verifier computes
+the final Stage 1 state as the state digest of the statement's final
+application words and that carry. Only the state link authenticates the carry
+fields that are not statement fields. The final carry is the one that
+`A[T−1]` wrote after its own `step` and `close`. The verifier MUST then
+require `idx = N` in the final carry. A proof that ends inside a segment fails
+here.
 
 ## 13. Public statement and terminal acceptance
 
-The public statement is the Stage 1 statement (iteration count `T`, initial
-application state, final application state) plus three memory fields:
+The public statement is the iteration count `T`, the initial and final
+application words, and three memory fields:
 
 ```text
 segment_count       S
@@ -609,8 +631,10 @@ envelope (`T = 0`). A proof has at least one segment.
 
 The terminal check MUST:
 
-1. run the Stage 1 terminal check, with the final carry from the envelope in
-   the state preimage;
+1. compute the initial state as the state digest of the initial application
+   words and the start carry, and the final state as the state digest of the
+   final application words and the envelope's final carry; then run the
+   Stage 1 terminal check with these states;
 2. require `idx = N` in the final carry;
 3. require `1 ≤ S ≤ S_max`, `T = S · N`, and `seg_idx = S`;
 4. require every statement field to equal the value in the final state.
@@ -636,6 +660,8 @@ verifier and cover at least these cases:
 | Fresh memory at a segment boundary | reject at `D_seen.is = D_mem` |
 | Segment-0 IS records that differ from the plan images | reject at `D_seen.is = D_mem` |
 | A base arm that reads `D_init` or `plan_digest` from the witness | rejected: the relation reads both as package constants (§4.3) |
+| An input carry or application words that do not open the input state | reject at the state digest check (§11.1) |
+| An envelope carry that does not open the final state | reject at the Stage 1 state link |
 | Read value differs from the last write | reject at the product equation |
 | `rt ≥ wt`; write to ROM; ROM address out of range; nonzero pad | reject at O4; O5; O6; O7 |
 | Change one record of a step after its segment opened | reject at a close equality |
@@ -658,6 +684,7 @@ Each rejection test MUST fail at the named check, not at a host replay.
 | The incremental commitment is the §3.1 hash chain over packed records, computed inside F′ by the generic construction at the start of §3.2 | Nebula Constructions 1 and 2 chain commitments to a split-committed witness. §3.2 notes that the generic construction costs in-circuit work linear in the size of the carried data `ω`. | Here `ω` is only the memory records, and this design pays that cost: about 360–370 Poseidon2 permutations per fold at the example geometry. SuperNeo claims and the terminal openings stay unchanged. Separate lane commitments at lane rank 2 would cost about 955 permutations, because all 16 running children would carry them in both state hashes. |
 | Fixed segment length `N`, with idle steps (§10) | Nebula §4.3: a segment has as many steps as the proof runs, and the scan has that many chunks | One uniform F′ circuit needs a fixed scan width `B_scan = (R + M)/N`. Idle steps let an execution of any length fill the last segment. |
 | ROM and RAM in one flat address space, with O5 (no ROM write) and O6 (ROM address range) | Nebula §4.2: one memory | The scope includes public ROM. The checker runs unchanged over all cells. O5 and O6 only restrict which operations are valid. |
+| The carry is in the application-state digest (§11.1) | Nebula Construction 2 hashes the carried commitment `C` as its own field of the state hash | The Stage 1 F′ relation, state preimage, layout, and fixed-point and domain theorems stay unchanged. The digest uses the same Poseidon2 collision assumption (security note A3). The owner chose this design on 2026-10-07. |
 
 No other protocol change is made to Nebula, SuperNeo, or HyperNova. The
 `F_ops` checks (`rt < ts` and `wt = ts`) appear as O4 and the write-timestamp

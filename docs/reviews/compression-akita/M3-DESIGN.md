@@ -128,7 +128,7 @@ the same Poseidon2 (the standard recursion heuristic).
    and break under mutation; the row stream of a zero input equals that of an honest input.
 2. **Generic WHIR verifier** (`neo-spartan/src/whir/`). Tests: accepts and rejects exactly what
    p3 `verify_at` does on several plans, rates, PoW values and schedules.
-3. **Generic layer 1** (`verify.rs` and the verifier halves). Tests: every existing test passes
+3. **Generic layer 1** (`verifier.rs` and the verifier halves). Tests: every existing test passes
    on `Native`; toy circuits are satisfiable on honest proofs and not on mutated ones.
 4. **Generic final verifier** (nightstream: statement, state hash, PiDEC parent, PiCCS replay,
    exact PiRLC, handoff, `FoldKey`, `CompressionKey`). Tests: trace parity with neo-reductions;
@@ -152,3 +152,18 @@ the same Poseidon2 (the standard recursion heuristic).
   round; folding 4.
 - **Full-path permutations in the circuit:** P1 ≈ 10.6k, P0 ≈ 11.8k, setup leaves 5.25k, other
   layer-1 parts ≈ 1.5k, layer 0 ≈ 3.3k (est.): **≈ 32.4k**, which agrees with candidate C.
+
+## Slices 1–3 result (2026-10-08)
+
+- The layer-1 verifier is one function over `Backend` (`neo-spartan/src/verifier.rs`).
+  `neo_spartan::verify` is that function on `Native`; the Plonky3 `verify_at` path is now a
+  test-only reference.
+- Native behaviour changes, each stricter or equal: every WHIR and setup query has a full Merkle
+  path; a WHIR query sample of p − 1 rejects; the norm sum rejects when `β` is a table value
+  (probability `(2H + 1)/|Ext|`, also for zero counts).
+- All 37 crate tests pass, and the two nightstream finish tests pass. The recorded verifier holds
+  on a true toy proof, notes a failure for each of 31 tampered inputs (fold transcript, 7 claim
+  parts, 23 proof parts), and records the same rows with no proof.
+- Toy size (4 blocks, 6 rows, 4 matrices, H = 3672, 100 bits): 399,076 rows, 329,842 glue cells,
+  7,390 permutations.
+- Open: the production finish test on the new verifier (bytes, verify time) is not yet run.

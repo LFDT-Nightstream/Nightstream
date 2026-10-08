@@ -22,8 +22,11 @@ use p3_field_v08::{Field, PrimeCharacteristicRing, PrimeField64, TwoAdicField};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
+use crate::circuit::algebra;
+use crate::circuit::hash::{hash_leaf, merkle_root};
+use crate::circuit::Backend;
 use crate::field::{eq_table, Ext, Gl};
-use crate::hash::{absorb, compress, hash_leaf, squeeze};
+use crate::hash::{absorb, compress, squeeze};
 use crate::Error;
 
 /// Variables folded per proof; a leaf holds `2^FOLD` values per oracle.
@@ -193,85 +196,104 @@ impl Store {
     }
 }
 
-/// The fold point of leaf `index` as the power point `(q, q^2, q^4, ...)` of
-/// the folded oracle (`variables - FOLD` coordinates), `q = y^8`.
-pub(crate) fn query_point(variables: usize, index: usize) -> Vec<Ext> {
-    let mut q = leaf_root(variables, index).exp_u64(LEAF as u64);
+/// The fold point of the leaf with little-endian index `bits` as the power
+/// point `(q, q^2, q^4, ...)` of the folded oracle (`variables - FOLD`
+/// coordinates): `q = y^8 = g^8·ω_{2^{n-2}}^index`.
+pub(crate) fn query_point<B: Backend>(b: &mut B, variables: usize, bits: &[B::F]) -> Vec<B::E> {
+    let rotation = algebra::power_from_bits(b, Gl::two_adic_generator(variables + 1 - FOLD), bits);
+    let mut q = b.scale(rotation, Gl::GENERATOR.exp_u64(LEAF as u64));
     (0..variables - FOLD)
         .map(|_| {
-            let value = Ext::from(q);
-            q = q.square();
+            let value = algebra::lift(b, q);
+            q = b.mul(q, q);
             value
         })
         .collect()
 }
 
-fn leaf_root(variables: usize, index: usize) -> Gl {
-    Gl::GENERATOR * Gl::two_adic_generator(variables + 1).exp_u64(index as u64)
+/// One queried leaf as backend words, or zeros of its shape.
+pub(crate) struct LeafView<B: Backend> {
+    values: Vec<B::F>,
+    path: Vec<[B::F; 4]>,
 }
 
-/// Check `leaf` at the verifier's `index` against `root`. For each group of
-/// per-oracle weights, return the folded value `Σ_u α^[u]·Ô_u(q)` of the
-/// combined oracle: the value at `q` of its fold by `alpha`.
-pub(crate) fn check(
-    root: &Digest,
+impl<B: Backend> LeafView<B> {
+    pub(crate) fn read(b: &mut B, leaf: Option<&Leaf>, oracles: usize, variables: usize) -> Result<Self, Error> {
+        let depth = variables + 1 - FOLD;
+        if leaf.is_some_and(|leaf| leaf.values.len() != oracles * LEAF || leaf.path.len() != depth) {
+            return Err(Error::Rejected("setup leaf shape"));
+        }
+        let values = (0..oracles * LEAF)
+            .map(|i| b.private(leaf.map_or(Gl::ZERO, |leaf| leaf.values[i])))
+            .collect();
+        let path = (0..depth)
+            .map(|level| std::array::from_fn(|lane| b.private(leaf.map_or(Gl::ZERO, |leaf| leaf.path[level][lane]))))
+            .collect();
+        Ok(Self { values, path })
+    }
+}
+
+/// Check `leaf` at the index with little-endian `bits` against `root`. The
+/// groups of per-oracle weights cover the oracles in order. For each group,
+/// return the folded value `Σ_u α^[u]·Ô_u(q)` of the combined oracle: the
+/// value at `q` of its fold by `alpha`.
+pub(crate) fn check<B: Backend>(
+    b: &mut B,
+    root: [B::F; 4],
     variables: usize,
-    index: usize,
-    leaf: &Leaf,
-    groups: &[Vec<Ext>],
-    alpha: &[Ext; FOLD],
-) -> Result<Vec<Ext>, Error> {
-    let count = leaf.values.len() / LEAF;
-    if !leaf.values.len().is_multiple_of(LEAF)
-        || leaf.path.len() != variables + 1 - FOLD
-        || groups.iter().any(|weights| weights.len() != count)
-    {
-        return Err(Error::Rejected("setup leaf shape"));
-    }
-    let mut node = hash_leaf(&leaf.values);
-    for (level, sibling) in leaf.path.iter().enumerate() {
-        node = if (index >> level) & 1 == 0 {
-            compress(node, *sibling)
-        } else {
-            compress(*sibling, node)
-        };
-    }
-    if node != *root {
-        return Err(Error::Rejected("setup leaf path"));
+    bits: &[B::F],
+    leaf: &LeafView<B>,
+    groups: &[Vec<B::E>],
+    alpha: &[B::E; FOLD],
+) -> Result<Vec<B::E>, Error> {
+    assert_eq!(LEAF * groups.iter().map(Vec::len).sum::<usize>(), leaf.values.len());
+    let digest = hash_leaf(b, &leaf.values);
+    let computed = merkle_root(b, digest, bits, &leaf.path);
+    for (computed, root) in computed.into_iter().zip(root) {
+        b.assert_equal(computed, root, "setup leaf path")?;
     }
     // Ô_u(q) = 8^{-1}·y^{-u}·Σ_v ω_8^{-uv}·Ô(y·ω_8^v), so the folded value is
     // Σ_v weight[v]·Ô(y·ω_8^v) with weight[v] = Σ_u α^[u]·8^{-1}·y^{-u}·ω_8^{-uv}.
-    let y_inverse = leaf_root(variables, index).inverse();
+    // y^{-1} = g^{-1}·ω^{-index}, with ω of order 2^{n+1}.
+    let rotation = algebra::power_from_bits(b, Gl::two_adic_generator(variables + 1).inverse(), bits);
+    let y_inverse = b.scale(rotation, Gl::GENERATOR.inverse());
+    let mut monomials = vec![algebra::ext_one(b)];
+    for &a in alpha {
+        let scaled: Vec<B::E> = monomials.iter().map(|&m| b.ext_mul(m, a)).collect();
+        monomials.extend(scaled);
+    }
+    let mut scale = b.constant(Gl::from_usize(LEAF).inverse());
+    let mut coefficients = Vec::with_capacity(LEAF);
+    for &monomial in &monomials {
+        coefficients.push(b.ext_scale(monomial, scale));
+        scale = b.mul(scale, y_inverse);
+    }
     let omega = Gl::two_adic_generator(FOLD);
-    let eighth = Gl::from_usize(LEAF).inverse();
-    let weight: [Ext; LEAF] = std::array::from_fn(|v| {
-        (0..LEAF)
-            .map(|u| {
-                let monomial: Ext = (0..FOLD)
-                    .filter(|t| (u >> t) & 1 == 1)
-                    .map(|t| alpha[t])
-                    .product();
-                let root = omega.exp_u64(((LEAF - u) * v % LEAF) as u64);
-                monomial * (eighth * y_inverse.exp_u64(u as u64) * root)
-            })
-            .sum()
-    });
-    Ok(groups
-        .iter()
-        .map(|weights| {
-            weights
-                .iter()
-                .zip(leaf.values.chunks_exact(LEAF))
-                .map(|(&w, values)| {
-                    w * weight
-                        .iter()
-                        .zip(values)
-                        .map(|(&x, &value)| x * value)
-                        .sum::<Ext>()
-                })
-                .sum()
+    let weight: Vec<B::E> = (0..LEAF)
+        .map(|v| {
+            let mut total = algebra::ext_zero(b);
+            for (u, &coefficient) in coefficients.iter().enumerate() {
+                let term = algebra::ext_scale_constant(b, coefficient, omega.exp_u64(((LEAF - u) * v % LEAF) as u64));
+                total = b.ext_add(total, term);
+            }
+            total
         })
-        .collect())
+        .collect();
+    let mut oracles = leaf.values.chunks_exact(LEAF);
+    let mut folded = Vec::with_capacity(groups.len());
+    for weights in groups {
+        // Σ_k w_k·Ô_k(y·ω_8^v) per v, then the weights above.
+        let mut combined = vec![algebra::ext_zero(b); LEAF];
+        for &w in weights {
+            let values = oracles.next().expect("the groups cover the oracles");
+            for (total, &value) in combined.iter_mut().zip(values) {
+                let term = b.ext_scale(w, value);
+                *total = b.ext_add(*total, term);
+            }
+        }
+        folded.push(algebra::dot(b, &weight, &combined));
+    }
+    Ok(folded)
 }
 
 /// `w_u = T~(u, rest)` for `u < 2^FOLD`, with `T` low bit first.

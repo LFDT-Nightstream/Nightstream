@@ -10,7 +10,7 @@ use p3_sumcheck_v08::OpeningBatch;
 use p3_symmetric_v08::Permutation;
 
 use crate::field::{gl, Ext, Gl};
-use crate::hash::{challenger, permutation};
+use crate::hash::{challenger, permutation, seed};
 use crate::matrix::Structure;
 use crate::pcs::{Pcs, TablePlan};
 use crate::{Key, Relation};
@@ -97,12 +97,12 @@ fn whir_opens_two_tables_through_the_seeded_challenger() {
     let pcs = Pcs::new(plans, 100.0, &|_| Vec::new()).unwrap();
     assert!(pcs.security_bits() >= 100.0);
 
-    let mut prover = challenger(fold_transcript(1));
+    let mut prover = challenger(seed(fold_transcript(1)));
     let (commitment, data) = pcs.commit(vec![large, small.concat()], &mut prover);
     let opening = pcs.open(data, &points, &mut prover);
 
     let verify = |transcript: Poseidon2Transcript, points: &[Vec<Ext>], opening| {
-        let mut verifier = challenger(transcript);
+        let mut verifier = challenger(seed(transcript));
         pcs.observe(&commitment, &mut verifier);
         pcs.verify(&commitment, opening, points, &mut verifier)
     };

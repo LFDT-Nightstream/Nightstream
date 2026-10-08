@@ -21,6 +21,9 @@
 //!   the slot blocks and the row counts. P1 (late) commits the two folded
 //!   setup groups and the block weights `Ω^A`.
 //!
+//! - The verifier (`verifier.rs`) is written once over `circuit::Backend`:
+//!   `verify` reads it on plain values, the shrink layer as rows.
+//!
 //! Invariants: all hashing is the workspace Poseidon2 permutation; no
 //! Plonky3 0.8 type appears in the public API; the verifier reads only the
 //! key, never the setup files or the matrices.
@@ -36,6 +39,7 @@ mod pcs;
 mod ring;
 mod setup;
 mod sumcheck;
+mod verifier;
 mod whir;
 
 #[cfg(test)]
@@ -59,14 +63,15 @@ use p3_security_v08::{ErrorBits, SecurityTerm};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::field::{coordinates, eq_table, from_coordinates, gl, re_im, Ext, Gl};
-use crate::gkr::{GkrProof, Tree, TreeShape};
+use crate::circuit::{algebra, Backend, Native};
+use crate::field::{coordinates, eq_table, gl, re_im, Ext, Gl};
+use crate::gkr::{GkrProof, Tree};
 use crate::hash::Challenger;
 use crate::matrix::{EarlyChallenges, EarlyValues, Structure, Tables};
-use crate::mle::scaled_eq_point;
 use crate::pcs::{Pcs, TablePlan};
 use crate::ring::Mixing;
 use crate::setup::{Leaf, Store, FOLD};
+use crate::verifier::ProofView;
 
 /// The claim this crate proves.
 pub type Claim = neo_ccs::CeClaim<Commitment, F, K>;
@@ -328,15 +333,22 @@ impl<'k> Relation<'k> {
         -error.log2()
     }
 
-    /// Hand the fold transcript over to layer 1 and bind the relation, the
-    /// key and the statement before the first layer-1 challenge.
-    fn start(&self, transcript: Poseidon2Transcript, statement: &Statement) -> Challenger {
-        let mut challenger = hash::challenger(transcript);
-        challenger.observe_slice(&self.shape.words());
-        challenger.observe_slice(&self.key.words());
-        challenger.observe_slice(&self.p0.profile_words());
-        challenger.observe_slice(&self.p1.profile_words());
-        challenger.observe(Gl::from_usize(self.queries));
+    /// The relation as transcript words: the shape, the key, both WHIR
+    /// profiles and the setup query count.
+    fn words(&self) -> Vec<Gl> {
+        let mut words = self.shape.words();
+        words.extend(self.key.words());
+        words.extend(self.p0.profile_words());
+        words.extend(self.p1.profile_words());
+        words.push(Gl::from_usize(self.queries));
+        words
+    }
+
+    /// Bind the relation and the statement after the layer-1 seed, before
+    /// the first layer-1 challenge.
+    fn start(&self, seed: [Gl; 4], statement: &Statement<Gl>) -> Challenger {
+        let mut challenger = hash::challenger(seed);
+        challenger.observe_slice(&self.words());
         challenger.observe_slice(&statement.words());
         challenger
     }
@@ -418,7 +430,7 @@ pub struct Proof {
     p0: pcs::Commitment,
     histogram: Vec<u32>,
     early: GkrProof,
-    early_values: EarlyValues,
+    early_values: EarlyValues<Ext>,
     quotient: Vec<Ext>,
     linear: Vec<Vec<Ext>>,
     /// `A_λ~` at the key point, `Ω^A~(s_b)`, `z~(s)`.
@@ -464,9 +476,9 @@ pub fn prove(
     let statement = Statement::new(shape, claim)?;
     let z = witness_table(shape, witness)?;
     let histogram = norm::histogram(&z, shape.norm_bound)?;
-    let early = tables.early(&statement.point);
+    let early = tables.early(&claim.r);
 
-    let mut challenger = relation.start(transcript, &statement);
+    let mut challenger = relation.start(hash::seed(transcript), &statement);
     let slot_columns: Vec<Gl> = early
         .u
         .iter()
@@ -488,18 +500,18 @@ pub fn prove(
         factors: Vec::new(),
         denominator: z.par_iter().map(|&value| beta - value).collect(),
     }];
-    trees.extend(tables.early_trees(&early, &statement.point, challenges));
+    trees.extend(tables.early_trees(&early, &claim.r, challenges));
     let (early_proof, claims) = gkr::prove(trees, &mut challenger);
     let early_values = tables.early_values(&early, &claims[1..]);
     observe_early(&early_values, &mut challenger);
 
-    let mixing = Mixing::new(challenger.sample_algebra_element(), shape);
+    let mixing = Mixing::new(&mut Native, challenger.sample_algebra_element(), shape);
     let ubar = tables.slot_weights(&early, &mixing.eval_a());
     let key_weights = ring::key_weights(shape, &mixing);
     let eval_a = tables.column_weights(&ubar, shape.blocks);
-    let weights = ring::block_weights(shape, &statement, &mixing, &eval_a, &key_weights);
+    let weights = ring::block_weights(shape, &claim.r, &mixing, &eval_a, &key_weights);
     drop(eval_a);
-    let (quotient, _) = ring::divide(&weights, &z, LANES, &ring::targets(&statement, &mixing));
+    let (quotient, _) = ring::divide(&weights, &z, LANES, &ring::targets(&mut Native, &statement, &mixing));
     challenger.observe_algebra_slice(&quotient);
     let zeta: Ext = challenger.sample_algebra_element();
     let omega = padded(ring::evaluate(&weights, zeta), shape.block_variables);
@@ -507,13 +519,13 @@ pub fn prove(
     let (linear, linear_point, z_at_point) = prove_linear(omega, zeta, &z, &mut challenger);
     let block_point = &linear_point[LANE_VARIABLES..];
 
-    let (_, lane_point) =
-        scaled_eq_point(zeta, LANE_VARIABLES).ok_or(Error::Witness("ζ is a pole of the lane weights"))?;
+    let (_, lane_point) = mle::scaled_eq_point(&mut Native, zeta, LANE_VARIABLES)
+        .map_err(|_| Error::Witness("ζ is a pole of the lane weights"))?;
     let variables = key.setup_variables();
-    let key_point = setup_point(&[lane_point.as_slice(), block_point].concat(), variables);
+    let key_point = setup_point(&mut Native, &[lane_point.as_slice(), block_point].concat(), variables);
     let key_table = key_table(&key_weights, variables);
     drop(key_weights);
-    let lanes = structure.lane_tables(&ring::tau(zeta));
+    let lanes = structure.lane_tables(&mut Native, &ring::tau(&mut Native, zeta));
     let omega_a = tables.block_weights(&ubar, &lanes, shape.block_variables);
     let finals = [
         sumcheck::evaluate(&key_table, &key_point),
@@ -523,7 +535,7 @@ pub fn prove(
     challenger.observe_algebra_slice(&finals);
 
     let mu: Ext = challenger.sample_algebra_element();
-    let run_point = setup_point(&claims[1].point, variables);
+    let run_point = setup_point(&mut Native, &claims[1].point, variables);
     let run_table = run_table(tables, mu, variables);
     let partials = [
         setup::partials(&key_table, &key_point[FOLD..]),
@@ -554,7 +566,16 @@ pub fn prove(
     let late_values = tables.slot_values(&early, &eq_table(&slots(&late[0].point)));
     observe_pairs(&late_values, &mut challenger);
 
-    let p1_points = p1_points(&key_point, &run_point, &indices, block_point, &late[1].point, variables);
+    let query_points = indices
+        .iter()
+        .map(|&index| {
+            let bits: Vec<Gl> = (0..variables + 1 - FOLD)
+                .map(|t| Gl::from_usize((index >> t) & 1))
+                .collect();
+            setup::query_point(&mut Native, variables, &bits)
+        })
+        .collect();
+    let p1_points = p1_points(&key_point, &run_point, query_points, block_point, &late[1].point);
     let p1_opening = relation.p1.open(p1_data, &p1_points, &mut challenger);
     let p0_points = vec![
         claims[0].point.clone(),
@@ -591,185 +612,20 @@ pub fn verify(
     claim: &Claim,
     proof: &Proof,
 ) -> Result<(), Error> {
-    let (key, shape) = (relation.key, &relation.shape);
-    let structure = &key.structure;
-    let statement = Statement::new(shape, claim)?;
-    let quotient: [Ext; D - 1] = proof
-        .quotient
-        .clone()
-        .try_into()
-        .map_err(|_| Error::Rejected("quotient length"))?;
-    if proof.linear.len() != shape.cube_variables()
-        || proof.histogram.len() != 2 * shape.norm_bound as usize + 1
-        || proof.leaves.len() != relation.queries
-        || proof.late_values.len() != structure.matrices
-    {
-        return Err(Error::Rejected("proof shape"));
-    }
-
-    let mut challenger = relation.start(transcript, &statement);
-    relation.p0.observe(&proof.p0, &mut challenger);
-    challenger.observe_slice(&norm::words(&proof.histogram));
-    let beta: Ext = challenger.sample_algebra_element();
-    let challenges = early_challenges(&mut challenger);
-    let total = norm::table_sum(&proof.histogram, shape.norm_bound, beta)?;
-    let mut shapes = vec![TreeShape {
-        depth: shape.cube_variables(),
-        factors: 0,
-    }];
-    shapes.extend(structure.early_shapes());
-    let claims = gkr::verify(&proof.early, &shapes, &mut challenger)?;
-    let [p, q] = claims[0].root;
-    if q == Ext::ZERO || p != q * total {
-        return Err(Error::Rejected("GKR root against the histogram"));
-    }
-    let z_leaf = beta - claims[0].values[0];
-    let early = structure.check_early(&statement.point, challenges, &claims[1..], &proof.early_values)?;
-    observe_early(&proof.early_values, &mut challenger);
-
-    let mixing = Mixing::new(challenger.sample_algebra_element(), shape);
-    challenger.observe_algebra_slice(&quotient);
-    let zeta: Ext = challenger.sample_algebra_element();
-    let value = ring::lifted_target(&ring::targets(&statement, &mixing), &quotient, zeta);
-    let (point, last) = sumcheck::verify(&proof.linear, 2, value, &mut challenger)?;
-    // The linear sum-check binds the block bits first, then the lane bits.
-    let (block_point, lane_part) = point.split_at(shape.block_variables);
-    let linear_point = [lane_part, block_point].concat();
-    let [key_value, omega_value, z_value] = proof.finals;
-    challenger.observe_algebra_slice(&proof.finals);
-
-    // Ω~(s_b) = κ_ζ·A_λ~(x_ζ, s_b) + Eval_K + Ω^A~(s_b) + public.
-    let (scale, lane_point) =
-        scaled_eq_point(zeta, LANE_VARIABLES).ok_or(Error::Rejected("ζ is a pole of the lane weights"))?;
-    let tau = ring::tau(zeta);
-    let eval_k = mle::eval_k(&statement.point, block_point, &tau, shape.blocks);
-    let [k_re, k_im] = mixing.eval_k();
-    let public: Ext = (0..shape.public_blocks)
-        .map(|block| eq_at(block_point, block) * mixing.public(block))
-        .sum();
-    let omega = scale * key_value + k_re * eval_k.re + k_im * eval_k.im + omega_value + public;
-    if last != omega * sumcheck::evaluate(&lane_weights(zeta), lane_part) * z_value {
-        return Err(Error::Rejected("linear claim"));
-    }
-
-    let mu: Ext = challenger.sample_algebra_element();
-    for values in &proof.partials {
-        challenger.observe_algebra_slice(values);
-    }
-    let alpha: [Ext; FOLD] = std::array::from_fn(|_| challenger.sample_algebra_element());
-    let variables = key.setup_variables();
-    let key_point = setup_point(&[lane_point.as_slice(), block_point].concat(), variables);
-    let run_point = setup_point(&early.run_point, variables);
-    let [row, slot, coefficient] = early.setup;
-    let embedded: Ext = proof.early_values.block
-        * early.run_point[structure.slot_variables..]
-            .iter()
-            .map(|&x| Ext::ONE - x)
-            .product::<Ext>();
-    let run_value = row + mu * (slot + mu * (coefficient + mu * embedded));
-    let combine = |partials: &[Ext; 1 << FOLD], point: &[Ext]| -> Ext {
-        eq_table(point)
-            .iter()
-            .zip(partials)
-            .map(|(&e, &w)| e * w)
-            .sum()
-    };
-    if combine(&proof.partials[0], &key_point[..FOLD]) != key_value
-        || combine(&proof.partials[1], &run_point[..FOLD]) != run_value
-    {
-        return Err(Error::Rejected("honest-fold partials"));
-    }
-
-    relation.p1.observe(&proof.p1, &mut challenger);
-    let indices = relation.query_indices(&mut challenger);
-    let mut groups = vec![vec![Ext::ZERO; kappa() + RUN_ORACLES]; 2];
-    for row in 0..kappa() {
-        groups[0][row] = mixing.commitment(row);
-    }
-    let mut power = Ext::ONE;
-    for weight in &mut groups[1][kappa()..] {
-        *weight = power;
-        power *= mu;
-    }
-    let root = key.root();
-    let queried = indices
-        .iter()
-        .zip(&proof.leaves)
-        .map(|(&index, leaf)| setup::check(&root, variables, index, leaf, &groups, &alpha))
-        .collect::<Result<Vec<_>, _>>()?;
-
-    let beta: Ext = challenger.sample_algebra_element();
-    let late_claims = gkr::verify(
-        &proof.late,
-        &structure.late_shapes(shape.block_variables),
-        &mut challenger,
-    )?;
-    let lanes = structure.lane_tables(&tau);
-    let late = structure.check_late(beta, &mixing.eval_a(), &lanes, &late_claims, &proof.late_values)?;
-    observe_pairs(&proof.late_values, &mut challenger);
-
-    let p1_points = p1_points(
-        &key_point,
-        &run_point,
-        &indices,
-        block_point,
-        &late.block_point,
-        variables,
-    );
-    let opened = relation
-        .p1
-        .verify(&proof.p1, &proof.p1_opening, &p1_points, &mut challenger)?;
-    let mut expected = vec![combine(&proof.partials[0], &alpha), combine(&proof.partials[1], &alpha)];
-    expected.extend(queried.into_iter().flatten());
-    expected.extend([omega_value, late.omega]);
-    let values: Vec<Ext> = opened
-        .iter()
-        .flat_map(|batch| batch.chunks(3).map(from_coordinates))
-        .collect();
-    if values != expected {
-        return Err(Error::Rejected("P1 openings"));
-    }
-
-    let slots = |point: &[Ext]| point[..structure.slot_variables].to_vec();
-    let p0_points = vec![
-        claims[0].point.clone(),
-        linear_point,
-        early.run_point.clone(),
-        early.pair_point.clone(),
-        slots(&early.run_point),
-        late.pair_point.clone(),
-        early.row_point.clone(),
-    ];
-    let opened = relation
-        .p0
-        .verify(&proof.p0, &proof.p0_opening, &p0_points, &mut challenger)?;
-    let flat = |pairs: &[[Ext; 2]]| pairs.iter().flatten().copied().collect::<Vec<Ext>>();
-    let [e_re, e_im, _] = proof.early_values.runs;
-    let mut late_slots = flat(&proof.late_values);
-    late_slots.push(late.block);
-    let expected = vec![
-        vec![z_leaf],
-        vec![z_value],
-        vec![e_re, e_im],
-        flat(&proof.early_values.pairs),
-        vec![proof.early_values.block],
-        late_slots,
-        vec![early.mult],
-    ];
-    if opened != expected {
-        return Err(Error::Rejected("P0 openings"));
-    }
-    Ok(())
+    let statement = Statement::new(&relation.shape, claim)?;
+    let b = &mut Native;
+    let view = ProofView::read(b, relation, Some(proof))?;
+    verifier::verify(b, relation, hash::seed(transcript), &statement, &view)
 }
 
-fn early_challenges(challenger: &mut Challenger) -> EarlyChallenges {
+fn early_challenges(challenger: &mut Challenger) -> EarlyChallenges<Ext> {
     EarlyChallenges {
         lookup: [challenger.sample_algebra_element(), challenger.sample_algebra_element()],
         scatter: [challenger.sample_algebra_element(), challenger.sample_algebra_element()],
     }
 }
 
-fn observe_early(values: &EarlyValues, challenger: &mut Challenger) {
+fn observe_early(values: &EarlyValues<Ext>, challenger: &mut Challenger) {
     challenger.observe_algebra_slice(&values.runs);
     observe_pairs(&values.pairs, challenger);
     challenger.observe_algebra_element(values.block);
@@ -781,20 +637,11 @@ fn observe_pairs(pairs: &[[Ext; 2]], challenger: &mut Challenger) {
     }
 }
 
-/// `eq(point, b)` for the bits of `b`.
-fn eq_at(point: &[Ext], b: usize) -> Ext {
-    point
-        .iter()
-        .enumerate()
-        .map(|(t, &x)| if (b >> t) & 1 == 1 { x } else { Ext::ONE - x })
-        .product()
-}
-
 /// A point on fewer variables, extended by zeros: an oracle embedded in the
 /// low variables of a setup oracle has the same value there.
-fn setup_point(point: &[Ext], variables: usize) -> Vec<Ext> {
+fn setup_point<B: Backend>(b: &mut B, point: &[B::E], variables: usize) -> Vec<B::E> {
     let mut point = point.to_vec();
-    point.resize(variables, Ext::ZERO);
+    point.resize(variables, algebra::ext_zero(b));
     point
 }
 
@@ -823,35 +670,32 @@ fn run_table(tables: &Tables, mu: Ext, variables: usize) -> Vec<Ext> {
     table
 }
 
-/// P1 points in plan order.
-fn p1_points(
-    key_point: &[Ext],
-    run_point: &[Ext],
-    indices: &[usize],
-    block_point: &[Ext],
-    late_block_point: &[Ext],
-    variables: usize,
-) -> Vec<Vec<Ext>> {
+/// P1 points in plan order: the two fold claims, the setup query points,
+/// the linear and the late block points.
+fn p1_points<E: Clone>(
+    key_point: &[E],
+    run_point: &[E],
+    query_points: Vec<Vec<E>>,
+    block_point: &[E],
+    late_block_point: &[E],
+) -> Vec<Vec<E>> {
     let mut points = vec![key_point[FOLD..].to_vec(), run_point[FOLD..].to_vec()];
-    points.extend(
-        indices
-            .iter()
-            .map(|&index| setup::query_point(variables, index)),
-    );
+    points.extend(query_points);
     points.extend([block_point.to_vec(), late_block_point.to_vec()]);
     points
 }
 
-/// The validated public part of a CE(B) claim, in layer-1 field types.
-pub(crate) struct Statement {
-    pub(crate) commitment: Vec<[Gl; D]>,
-    pub(crate) public: Vec<[Gl; D]>,
-    pub(crate) point: Vec<K>,
-    pub(crate) eval_k: [K; D],
-    pub(crate) eval_a: Vec<[K; D]>,
+/// The validated public part of a CE(B) claim as words; a `K` value is
+/// `[re, im]`. `F` is `Gl` for the prover, a backend word for the verifier.
+pub(crate) struct Statement<F> {
+    pub(crate) commitment: Vec<[F; D]>,
+    pub(crate) public: Vec<[F; D]>,
+    pub(crate) point: Vec<[F; 2]>,
+    pub(crate) eval_k: [[F; 2]; D],
+    pub(crate) eval_a: Vec<[[F; 2]; D]>,
 }
 
-impl Statement {
+impl Statement<Gl> {
     fn new(shape: &Shape, claim: &Claim) -> Result<Self, Error> {
         let c = &claim.c;
         if c.d != D || c.kappa != shape.kappa || c.data.len() != D * shape.kappa {
@@ -863,11 +707,11 @@ impl Statement {
         if claim.r.len() != shape.point_variables || claim.eval_a.len() != shape.matrices || claim.adv.is_some() {
             return Err(Error::Shape("evaluation claim"));
         }
-        let ring = |values: &[K]| -> Result<[K; D], Error> {
+        let ring = |values: &[K]| -> Result<[[Gl; 2]; D], Error> {
             if values.len() < D || values[D..].iter().any(|&value| value != K::ZERO) {
                 return Err(Error::Shape("ring evaluation"));
             }
-            Ok(std::array::from_fn(|lane| values[lane]))
+            Ok(std::array::from_fn(|lane| re_im(values[lane])))
         };
         Ok(Self {
             commitment: (0..shape.kappa)
@@ -876,7 +720,7 @@ impl Statement {
             public: (0..shape.public_blocks)
                 .map(|block| std::array::from_fn(|lane| gl(claim.X[(lane, block)])))
                 .collect(),
-            point: claim.r.clone(),
+            point: claim.r.iter().map(|&value| re_im(value)).collect(),
             eval_k: ring(&claim.eval_k)?,
             eval_a: claim
                 .eval_a
@@ -885,21 +729,18 @@ impl Statement {
                 .collect::<Result<_, _>>()?,
         })
     }
+}
 
-    fn words(&self) -> Vec<Gl> {
-        let rings = self
-            .commitment
-            .iter()
-            .chain(&self.public)
-            .flatten()
-            .copied();
+impl<F: Copy> Statement<F> {
+    fn words(&self) -> Vec<F> {
+        let rings = self.commitment.iter().chain(&self.public).flatten();
         let field = self
             .point
             .iter()
             .chain(&self.eval_k)
             .chain(self.eval_a.iter().flatten())
-            .flat_map(|&value| re_im(value));
-        rings.chain(field).collect()
+            .flatten();
+        rings.chain(field).copied().collect()
     }
 }
 
@@ -1005,7 +846,7 @@ fn outer_terms(shape: &Shape, structure: &Structure, extra_log2: f64) -> Vec<Sec
         term("row lookup", 3.0 * (size(runs) + size(rows))),
         term("slot scatter", size(runs) + size(pairs) + 1.0),
         term("early GKR", gkr(&[cube, runs, rows, runs, pairs])),
-        term("ring-row batching", (Mixing::rows(shape) - 1) as f64),
+        term("ring-row batching", (ring::row_count(shape) - 1) as f64),
         term("quotient at zeta", (2 * D - 2) as f64),
         term("linear sum-check", 2.0 * cube as f64),
         term("run group", (RUN_ORACLES - 1) as f64),

@@ -4,9 +4,11 @@
 use p3_field_v08::{BasedVectorSpace, Field, PrimeCharacteristicRing, TwoAdicField};
 
 use super::{word, Scratch};
-use crate::field::{eq_eval, eq_table, Ext, Gl};
+use crate::circuit::algebra::eq_eval;
+use crate::circuit::Native;
+use crate::field::{eq_table, Ext, Gl};
 use crate::hash::{compress, hash_leaf};
-use crate::setup::{build, check, fold, partials, query_point, Store, FOLD};
+use crate::setup::{build, check, fold, partials, query_point, Leaf, LeafView, Store, FOLD};
 use crate::sumcheck::evaluate;
 use crate::Error;
 
@@ -21,6 +23,29 @@ fn table(k: usize) -> Vec<Gl> {
 
 fn ext(seed: u64) -> Ext {
     Ext::from_basis_coefficients_fn(|i| Gl::from_u64(word(seed, i as u64)))
+}
+
+fn bits(index: usize) -> Vec<Gl> {
+    (0..VARIABLES + 1 - FOLD)
+        .map(|t| Gl::from_usize((index >> t) & 1))
+        .collect()
+}
+
+fn point_of(index: usize) -> Vec<Ext> {
+    query_point(&mut Native, VARIABLES, &bits(index))
+}
+
+/// The leaf check on plain values.
+fn run_check(
+    root: &[Gl; 4],
+    index: usize,
+    leaf: &Leaf,
+    groups: &[Vec<Ext>],
+    alpha: &[Ext; FOLD],
+) -> Result<Vec<Ext>, Error> {
+    let b = &mut Native;
+    let view = LeafView::read(b, Some(leaf), COUNT, VARIABLES)?;
+    check(b, *root, VARIABLES, &bits(index), &view, groups, alpha)
 }
 
 fn lift(values: &[Gl]) -> Vec<Ext> {
@@ -93,13 +118,20 @@ fn honest_fold_accepts_and_tampering_rejects() {
     ));
     let store = Store::open(&scratch.0, n, COUNT, &root).unwrap();
 
-    // Two groups over the three oracles; the second skips oracle 1.
-    let groups = vec![vec![ext(1), ext(2), ext(3)], vec![ext(4), Ext::ZERO, ext(5)]];
-    let combined: Vec<Vec<Ext>> = groups
-        .iter()
-        .map(|weights| {
+    // Two groups: oracles 0 and 1, then oracle 2.
+    let groups = vec![vec![ext(1), ext(2)], vec![ext(5)]];
+    let combined: Vec<Vec<Ext>> = [0..2, 2..COUNT]
+        .into_iter()
+        .zip(&groups)
+        .map(|(oracles, weights)| {
             (0..1 << n)
-                .map(|x| (0..COUNT).map(|k| weights[k] * table(k)[x]).sum())
+                .map(|x| {
+                    oracles
+                        .clone()
+                        .zip(weights)
+                        .map(|(k, &w)| w * table(k)[x])
+                        .sum()
+                })
                 .collect()
         })
         .collect();
@@ -123,7 +155,10 @@ fn honest_fold_accepts_and_tampering_rejects() {
             .zip(&wrong)
             .map(|(&e, &w)| e * w)
             .sum();
-        assert_eq!(moved - expected, eq_eval(&alpha, &[Ext::ONE, Ext::ZERO, Ext::ONE]));
+        assert_eq!(
+            moved - expected,
+            eq_eval(&mut Native, &alpha, &[Ext::ONE, Ext::ZERO, Ext::ONE])
+        );
     }
 
     // Verifier: every leaf gives the fold's value at its query point.
@@ -131,8 +166,8 @@ fn honest_fold_accepts_and_tampering_rejects() {
     let leaves = 1 << (n + 1 - FOLD);
     for index in 0..leaves {
         let leaf = store.read(index).unwrap();
-        let values = check(&root, n, index, &leaf, &groups, &alpha).unwrap();
-        let q = query_point(n, index);
+        let values = run_check(&root, index, &leaf, &groups, &alpha).unwrap();
+        let q = point_of(index);
         for (value, folded) in values.iter().zip(&folds) {
             assert_eq!(*value, evaluate(folded, &q), "leaf {index}");
         }
@@ -144,8 +179,8 @@ fn honest_fold_accepts_and_tampering_rejects() {
     let caught = (0..leaves)
         .filter(|&index| {
             let leaf = store.read(index).unwrap();
-            let values = check(&root, n, index, &leaf, &groups, &alpha).unwrap();
-            values[0] != evaluate(&forged, &query_point(n, index))
+            let values = run_check(&root, index, &leaf, &groups, &alpha).unwrap();
+            values[0] != evaluate(&forged, &point_of(index))
         })
         .count();
     assert!(2 * caught > leaves, "caught {caught} of {leaves}");
@@ -153,9 +188,7 @@ fn honest_fold_accepts_and_tampering_rejects() {
     // Tampered leaves, paths, roots and shapes are rejected.
     let index = 5;
     let leaf = store.read(index).unwrap();
-    let reject = |leaf: &crate::setup::Leaf, root: &[Gl; 4], index: usize| {
-        check(root, n, index, leaf, &groups, &alpha).unwrap_err()
-    };
+    let reject = |leaf: &Leaf, root: &[Gl; 4], index: usize| run_check(root, index, leaf, &groups, &alpha).unwrap_err();
     for position in [0, 9, leaf.values.len() - 1] {
         let mut tampered = leaf.clone();
         tampered.values[position] += Gl::ONE;

@@ -14,14 +14,14 @@
 pub(crate) mod paths;
 pub(crate) mod seeds;
 
-use p3_field_v08::{BasedVectorSpace, PrimeCharacteristicRing, TwoAdicField};
+use p3_field_v08::{PrimeCharacteristicRing, TwoAdicField};
 use p3_sumcheck_v08::layout::plan_stacked_layout;
 use p3_whir::pcs::proof::QueryOpenings;
 use p3_whir::transcript::WhirShape;
 
 use crate::circuit::hash::{hash_leaf, merkle_root, Duplex};
-use crate::circuit::Backend;
-use crate::field::{Ext, Gl};
+use crate::circuit::{algebra, Backend};
+use crate::field::{ext_words, Ext, Gl};
 use crate::pcs::{Opening, Pcs};
 use crate::Error;
 
@@ -51,23 +51,13 @@ pub(crate) struct OpeningView<'p, B: Backend> {
     final_sumcheck: Vec<[B::E; 2]>,
 }
 
-fn ext_words(value: Ext) -> [Gl; 3] {
-    let slice = <Ext as BasedVectorSpace<Gl>>::as_basis_coefficients_slice(&value);
-    [slice[0], slice[1], slice[2]]
-}
-
-fn private_ext<B: Backend>(b: &mut B, value: Ext) -> B::E {
-    let words = ext_words(value).map(|word| b.private(word));
-    b.ext(words)
-}
-
 /// Read `count` extension values from `values` (zeros when `None`).
 fn exts<B: Backend>(b: &mut B, values: Option<&[Ext]>, count: usize) -> Result<Vec<B::E>, Error> {
     if values.is_some_and(|values| values.len() != count) {
         return Err(Error::Rejected("WHIR proof shape"));
     }
     Ok((0..count)
-        .map(|i| private_ext(b, values.map_or(Ext::ZERO, |values| values[i])))
+        .map(|i| algebra::private_ext(b, values.map_or(Ext::ZERO, |values| values[i])))
         .collect())
 }
 
@@ -78,7 +68,7 @@ fn rounds<B: Backend>(b: &mut B, values: Option<&[[Ext; 2]]>, count: usize) -> R
     Ok((0..count)
         .map(|i| {
             let [a, c] = values.map_or([Ext::ZERO; 2], |values| values[i]);
-            [private_ext(b, a), private_ext(b, c)]
+            [algebra::private_ext(b, a), algebra::private_ext(b, c)]
         })
         .collect())
 }
@@ -425,20 +415,6 @@ fn query_index<B: Backend>(b: &mut B, duplex: &mut Duplex<B>, width: usize) -> R
     Ok((bits, index))
 }
 
-/// `generator^index` from the index bits.
-fn power_from_bits<B: Backend>(b: &mut B, generator: Gl, bits: &[B::F]) -> B::F {
-    let mut total = b.constant(Gl::ONE);
-    let mut base = generator;
-    for &bit in bits {
-        let one = b.constant(Gl::ONE);
-        let factor_minus = b.scale(bit, base - Gl::ONE);
-        let factor = b.add(one, factor_minus);
-        total = b.mul(total, factor);
-        base = base.square();
-    }
-    total
-}
-
 /// The STIR checks of one query set against `root`: indices, full paths,
 /// folds at `folding` (low bit first). Returns the select statements.
 #[allow(clippy::too_many_arguments)]
@@ -519,7 +495,7 @@ fn stir<B: Backend>(
             row.chunks(3).map(|c| b.ext([c[0], c[1], c[2]])).collect()
         };
         let fold = mle(b, &values, folding);
-        let var = power_from_bits(b, generator, bits);
+        let var = algebra::power_from_bits(b, generator, bits);
         statements.push((var, fold));
     }
     Ok(statements)

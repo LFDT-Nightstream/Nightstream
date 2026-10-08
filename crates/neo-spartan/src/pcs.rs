@@ -161,7 +161,8 @@ impl Pcs {
             .expect("the configuration fixes the witness size")
     }
 
-    /// Bind a received root at the same transcript position as `commit`.
+    /// Plonky3's own root binding: the reference for `whir::observe_root`.
+    #[cfg(test)]
     pub(crate) fn observe(&self, commitment: &Commitment, challenger: &mut Challenger) {
         self.whir.observe_commitment(commitment, challenger);
     }
@@ -175,7 +176,9 @@ impl Pcs {
             .expect("the plan fixes the claims")
     }
 
-    /// The opened columns' values per batch, if the opening verifies.
+    /// Plonky3's own verifier, the reference for `whir::verify`: the opened
+    /// columns' values per batch, if the opening verifies.
+    #[cfg(test)]
     pub(crate) fn verify(
         &self,
         commitment: &Commitment,

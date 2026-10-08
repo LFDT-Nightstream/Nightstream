@@ -13,8 +13,12 @@
 //! - `Native` returns the first failed check as `Err`. `Recorder` notes it and
 //!   continues, so the rows it records never depend on the values.
 
+pub(crate) mod algebra;
 pub(crate) mod hash;
+// Until the shrink prover (M3 slice 6) records the verifier, only tests do.
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) mod poseidon2;
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) mod record;
 
 use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
@@ -34,6 +38,7 @@ pub(crate) trait Backend {
     /// A proof word.
     fn private(&mut self, value: Gl) -> Self::F;
     /// The next statement word.
+    #[cfg_attr(not(test), allow(dead_code))]
     fn public(&mut self, value: Gl) -> Self::F;
 
     fn add(&mut self, a: Self::F, b: Self::F) -> Self::F;

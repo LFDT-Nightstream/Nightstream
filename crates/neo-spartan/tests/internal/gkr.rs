@@ -1,13 +1,12 @@
 //! The batched fraction-sum GKR and the histogram side of logUp.
 
-use neo_transcript::Poseidon2Transcript;
 use p3_field_v08::{BasedVectorSpace, Field, PrimeCharacteristicRing};
 
-use super::word;
+use super::{fresh, gkr_verify, word};
+use crate::circuit::Native;
 use crate::field::{signed, Ext, Gl};
-use crate::gkr::{prove, verify, GkrProof, Tree, TreeClaim, TreeShape};
-use crate::hash::challenger;
-use crate::norm::{histogram, table_sum};
+use crate::gkr::{prove, GkrProof, Tree, TreeClaim, TreeShape};
+use crate::norm::{histogram, words};
 use crate::sumcheck::evaluate;
 
 const BOUND: u32 = 5;
@@ -33,8 +32,12 @@ fn norm_tree(z: &[Gl], beta: Ext) -> Tree {
     }
 }
 
-fn run_verify(proof: &GkrProof, shapes: &[TreeShape]) -> Option<Vec<TreeClaim>> {
-    verify(proof, shapes, &mut challenger(Poseidon2Transcript::new_v1_1())).ok()
+fn run_verify(proof: &GkrProof, shapes: &[TreeShape]) -> Option<Vec<TreeClaim<Ext>>> {
+    gkr_verify(proof, shapes).ok()
+}
+
+fn table_sum(counts: &[u32], beta: Ext) -> Ext {
+    crate::norm::table_sum(&mut Native, &words(counts), BOUND, beta).unwrap()
 }
 
 #[test]
@@ -42,11 +45,8 @@ fn leaf_claim_matches_the_witness_and_the_root_matches_the_histogram() {
     for variables in [1, 2, 7] {
         let z = witness(variables);
         let beta = beta();
-        let (proof, prover) = prove(
-            vec![norm_tree(&z, beta)],
-            &mut challenger(Poseidon2Transcript::new_v1_1()),
-        );
-        let total = table_sum(&histogram(&z, BOUND).unwrap(), BOUND, beta).unwrap();
+        let (proof, prover) = prove(vec![norm_tree(&z, beta)], &mut fresh());
+        let total = table_sum(&histogram(&z, BOUND).unwrap(), beta);
         let direct: Ext = z.iter().map(|&value| (beta - value).inverse()).sum();
         assert_eq!(total, direct);
 
@@ -67,21 +67,18 @@ fn leaf_claim_matches_the_witness_and_the_root_matches_the_histogram() {
 fn forged_histograms_reject() {
     let z = witness(7);
     let beta = beta();
-    let (proof, _) = prove(
-        vec![norm_tree(&z, beta)],
-        &mut challenger(Poseidon2Transcript::new_v1_1()),
-    );
+    let (proof, _) = prove(vec![norm_tree(&z, beta)], &mut fresh());
     let claims = run_verify(&proof, &[TreeShape { depth: 7, factors: 0 }]).unwrap();
     let [p, q] = claims[0].root;
     let counts = histogram(&z, BOUND).unwrap();
-    assert_eq!(p, q * table_sum(&counts, BOUND, beta).unwrap());
+    assert_eq!(p, q * table_sum(&counts, beta));
     // One witness value claimed as another table value.
     let mut forged = counts.clone();
     let from = forged.iter().position(|&count| count > 0).unwrap();
     forged[from] -= 1;
     let next = (from + 1) % forged.len();
     forged[next] += 1;
-    assert_ne!(p, q * table_sum(&forged, BOUND, beta).unwrap());
+    assert_ne!(p, q * table_sum(&forged, beta));
 }
 
 /// Depths 8, 8, 6, 5 with 0, 2, 1, 2 numerator factors.
@@ -124,7 +121,7 @@ fn trees(parts: &[Vec<Vec<Ext>>]) -> Vec<Tree> {
 #[test]
 fn batched_trees_match_direct_sums_and_leaf_values() {
     let (shapes, parts) = batch();
-    let (proof, prover) = prove(trees(&parts), &mut challenger(Poseidon2Transcript::new_v1_1()));
+    let (proof, prover) = prove(trees(&parts), &mut fresh());
     let claims = run_verify(&proof, &shapes).unwrap();
     assert_eq!(claims, prover);
     for (claim, parts) in claims.iter().zip(&parts) {
@@ -151,7 +148,7 @@ fn batched_trees_match_direct_sums_and_leaf_values() {
 #[test]
 fn every_tampered_message_rejects_or_moves_a_claim() {
     let (shapes, parts) = batch();
-    let (proof, honest) = prove(trees(&parts), &mut challenger(Poseidon2Transcript::new_v1_1()));
+    let (proof, honest) = prove(trees(&parts), &mut fresh());
     // A tampered message must fail, or change a root or leaf claim the caller checks.
     let caught = |proof: &GkrProof| run_verify(proof, &shapes).is_none_or(|claims| claims != honest);
     for tree in 0..shapes.len() {

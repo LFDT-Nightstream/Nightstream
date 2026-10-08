@@ -46,7 +46,7 @@ fn zero_opening_allocation(blocks: usize) -> usize {
     LARGEST.store(0, Ordering::Relaxed);
     RECORD.store(true, Ordering::Relaxed);
     let result = std::hint::black_box(&cache)
-        .eval_real_v1_1_openings(
+        .eval_real_v1_2_openings(
             std::hint::black_box(&point),
             std::slice::from_ref(std::hint::black_box(&zero)),
         )
@@ -56,10 +56,10 @@ fn zero_opening_allocation(blocks: usize) -> usize {
     assert_eq!(result[0].eval_k, vec![K::ZERO; D]);
     assert_eq!(result[0].eval_a, vec![vec![K::ZERO; D]]);
     assert!(cache
-        .eval_real_v1_1_openings(&point[1..], std::slice::from_ref(&zero))
+        .eval_real_v1_2_openings(&point[1..], std::slice::from_ref(&zero))
         .is_err());
     assert!(cache
-        .eval_real_v1_1_openings(&point, &[SuperneoZBlocks::with_block_len(blocks + 1)])
+        .eval_real_v1_2_openings(&point, &[SuperneoZBlocks::with_block_len(blocks + 1)])
         .is_err());
     allocated
 }

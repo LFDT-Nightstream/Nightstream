@@ -286,12 +286,12 @@ private theorem evaluationFamily_matrix {logicalWidth : Nat}
     (assignment : Phi81Relation.Assignment (PaperAlgebra.FullShape logicalWidth publicFits))
     (point : PaperAlgebra.Point) (port : Fin productionShape.matrixCount) :
     (PaperAlgebra.evaluationFamily
-      (Lifecycle.PiRLC.v1_1.InputBinding.relationSource relation) assignment point).matrix port =
+      (Lifecycle.PiRLC.v1_2.InputBinding.relationSource relation) assignment point).matrix port =
       fun output => (BooleanTable.tabulate (fun vertex =>
         K.embed (PiRLC.rowRing relation.system assignment port vertex output))).evaluate extensionOps point := by
   exact congrArg (fun family : PaperAlgebra.Evaluation => family.matrix port)
     (PaperAlgebra.evaluationFamily_eq_paper
-      (Lifecycle.PiRLC.v1_1.InputBinding.relationSource relation).cubeLayout relation.system assignment point)
+      (Lifecycle.PiRLC.v1_2.InputBinding.relationSource relation).cubeLayout relation.system assignment point)
 
 /-- The complete reference range equals the passed matrix-family reference.
 The selected row bound and all omitted zero rows are derived here. No caller

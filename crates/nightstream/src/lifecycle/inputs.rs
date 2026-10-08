@@ -1,4 +1,4 @@
-//! PiCCS proof-message bridge to the Lean-emitted v1_1 package.
+//! PiCCS proof-message bridge to the Lean-emitted v1_2 package.
 //!
 //! Owns only the field-for-field conversion from native prover messages to
 //! the package input types, canonical lifecycle serialization, and the
@@ -8,10 +8,10 @@
 use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
 use neo_math::{KExtensions, F, K};
 use nightstream_fprime::{
-    PackageError, PiCcsV1_1OutputEvaluations, PiCcsV1_1PackageInputs, PiCcsV1_1VerifierContext,
-    PI_CCS_V1_1_COEFFICIENT_COUNT, PI_CCS_V1_1_FRESH_COMMITMENT_WORDS, PI_CCS_V1_1_MATRIX_COUNT,
-    PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT, PI_CCS_V1_1_ROUND_COUNT,
-    PI_CCS_V1_1_SOURCE_COUNT, PI_CCS_V1_1_STATE_PREIMAGE_WORDS,
+    PackageError, PiCcsV1_2OutputEvaluations, PiCcsV1_2PackageInputs, PiCcsV1_2VerifierContext,
+    PI_CCS_V1_2_COEFFICIENT_COUNT, PI_CCS_V1_2_FRESH_COMMITMENT_WORDS, PI_CCS_V1_2_MATRIX_COUNT,
+    PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT, PI_CCS_V1_2_ROUND_COUNT,
+    PI_CCS_V1_2_SOURCE_COUNT, PI_CCS_V1_2_STATE_PREIMAGE_WORDS,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use thiserror::Error;
@@ -22,11 +22,11 @@ use crate::folding::{CcsClaim, CeClaim};
 const STATE_DOMAIN_TAG: [u64; 23] = [
     72, 121, 112, 101, 114, 78, 111, 118, 97, 47, 78, 73, 86, 67, 47, 115, 116, 97, 116, 101, 47, 118, 49,
 ];
-const COMMITMENT_WIDTH: usize = PI_CCS_V1_1_FRESH_COMMITMENT_WORDS / PI_CCS_V1_1_COEFFICIENT_COUNT;
+const COMMITMENT_WIDTH: usize = PI_CCS_V1_2_FRESH_COMMITMENT_WORDS / PI_CCS_V1_2_COEFFICIENT_COUNT;
 
 #[derive(Debug, Error)]
-pub enum PiCcsV1_1PackageBridgeError {
-    #[error("PiCCS v1_1 package bridge: {0}")]
+pub enum PiCcsV1_2PackageBridgeError {
+    #[error("PiCCS v1_2 package bridge: {0}")]
     Shape(&'static str),
     #[error(transparent)]
     Package(#[from] PackageError),
@@ -34,35 +34,35 @@ pub enum PiCcsV1_1PackageBridgeError {
 
 /// Exact PiCCS-owned part of one Lean package assignment.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PiCcsV1_1ProofInputs {
+pub struct PiCcsV1_2ProofInputs {
     fresh_commitment: Vec<u64>,
     round_messages: Vec<Vec<[u64; 2]>>,
-    output_evaluations: PiCcsV1_1OutputEvaluations,
+    output_evaluations: PiCcsV1_2OutputEvaluations,
 }
 
-impl PiCcsV1_1ProofInputs {
-    /// Convert one native v1_1 PiCCS proof without changing its order.
-    pub fn from_proof(fresh: &[CcsClaim], proof: &pi_ccs::Proof) -> Result<Self, PiCcsV1_1PackageBridgeError> {
+impl PiCcsV1_2ProofInputs {
+    /// Convert one native v1_2 PiCCS proof without changing its order.
+    pub fn from_proof(fresh: &[CcsClaim], proof: &pi_ccs::Proof) -> Result<Self, PiCcsV1_2PackageBridgeError> {
         if fresh.len() != 1 {
-            return Err(PiCcsV1_1PackageBridgeError::Shape("fresh source count"));
+            return Err(PiCcsV1_2PackageBridgeError::Shape("fresh source count"));
         }
-        if fresh[0].c.d != PI_CCS_V1_1_COEFFICIENT_COUNT
+        if fresh[0].c.d != PI_CCS_V1_2_COEFFICIENT_COUNT
             || fresh[0].c.kappa != COMMITMENT_WIDTH
-            || fresh[0].c.data.len() != PI_CCS_V1_1_FRESH_COMMITMENT_WORDS
+            || fresh[0].c.data.len() != PI_CCS_V1_2_FRESH_COMMITMENT_WORDS
         {
-            return Err(PiCcsV1_1PackageBridgeError::Shape("fresh commitment width"));
+            return Err(PiCcsV1_2PackageBridgeError::Shape("fresh commitment width"));
         }
-        if proof.sumcheck.sumcheck_rounds.len() != PI_CCS_V1_1_ROUND_COUNT
+        if proof.sumcheck.sumcheck_rounds.len() != PI_CCS_V1_2_ROUND_COUNT
             || proof
                 .sumcheck
                 .sumcheck_rounds
                 .iter()
-                .any(|round| round.len() != PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT)
+                .any(|round| round.len() != PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT)
         {
-            return Err(PiCcsV1_1PackageBridgeError::Shape("round messages"));
+            return Err(PiCcsV1_2PackageBridgeError::Shape("round messages"));
         }
-        if proof.outputs.len() != PI_CCS_V1_1_SOURCE_COUNT {
-            return Err(PiCcsV1_1PackageBridgeError::Shape("output source count"));
+        if proof.outputs.len() != PI_CCS_V1_2_SOURCE_COUNT {
+            return Err(PiCcsV1_2PackageBridgeError::Shape("output source count"));
         }
 
         let fresh_commitment = fresh[0]
@@ -78,23 +78,23 @@ impl PiCcsV1_1ProofInputs {
             .map(|round| round.iter().copied().map(extension_words).collect())
             .collect();
 
-        let mut eval_k = Vec::with_capacity(PI_CCS_V1_1_SOURCE_COUNT);
-        let mut eval_a = Vec::with_capacity(PI_CCS_V1_1_SOURCE_COUNT);
+        let mut eval_k = Vec::with_capacity(PI_CCS_V1_2_SOURCE_COUNT);
+        let mut eval_a = Vec::with_capacity(PI_CCS_V1_2_SOURCE_COUNT);
         for output in &proof.outputs {
             validate_family(&output.eval_k)?;
-            if output.eval_a.len() != PI_CCS_V1_1_MATRIX_COUNT {
-                return Err(PiCcsV1_1PackageBridgeError::Shape("Eval_A matrix count"));
+            if output.eval_a.len() != PI_CCS_V1_2_MATRIX_COUNT {
+                return Err(PiCcsV1_2PackageBridgeError::Shape("Eval_A matrix count"));
             }
-            let source_eval_k = output.eval_k[..PI_CCS_V1_1_COEFFICIENT_COUNT]
+            let source_eval_k = output.eval_k[..PI_CCS_V1_2_COEFFICIENT_COUNT]
                 .iter()
                 .copied()
                 .map(extension_words)
                 .collect();
-            let mut source_eval_a = Vec::with_capacity(PI_CCS_V1_1_MATRIX_COUNT);
+            let mut source_eval_a = Vec::with_capacity(PI_CCS_V1_2_MATRIX_COUNT);
             for matrix in &output.eval_a {
                 validate_family(matrix)?;
                 source_eval_a.push(
-                    matrix[..PI_CCS_V1_1_COEFFICIENT_COUNT]
+                    matrix[..PI_CCS_V1_2_COEFFICIENT_COUNT]
                         .iter()
                         .copied()
                         .map(extension_words)
@@ -108,7 +108,7 @@ impl PiCcsV1_1ProofInputs {
         Ok(Self {
             fresh_commitment,
             round_messages,
-            output_evaluations: PiCcsV1_1OutputEvaluations::new(eval_k, eval_a)?,
+            output_evaluations: PiCcsV1_2OutputEvaluations::new(eval_k, eval_a)?,
         })
     }
 
@@ -120,9 +120,9 @@ impl PiCcsV1_1ProofInputs {
         output_preimage: Vec<u64>,
         prior_public_input: Vec<u64>,
         output_digest: [u64; 4],
-        verifier_context: PiCcsV1_1VerifierContext,
-    ) -> Result<PiCcsV1_1PackageInputs, PiCcsV1_1PackageBridgeError> {
-        Ok(PiCcsV1_1PackageInputs::new(
+        verifier_context: PiCcsV1_2VerifierContext,
+    ) -> Result<PiCcsV1_2PackageInputs, PiCcsV1_2PackageBridgeError> {
+        Ok(PiCcsV1_2PackageInputs::new(
             prior_preimage,
             output_preimage,
             self.fresh_commitment,
@@ -135,34 +135,34 @@ impl PiCcsV1_1ProofInputs {
     }
 }
 
-/// Serialize the exact Lean `HashPreimage` for the fixed v1_1 profile.
+/// Serialize the exact Lean `HashPreimage` for the fixed v1_2 profile.
 #[allow(clippy::too_many_arguments)]
-pub fn serialize_pi_ccs_v1_1_state_preimage(
+pub fn serialize_pi_ccs_v1_2_state_preimage(
     verifier_context_digest: [F; 4],
     iteration: u64,
     z0: [F; 4],
     current: [F; 4],
     running: &[CeClaim],
     pc: u64,
-) -> Result<Vec<u64>, PiCcsV1_1PackageBridgeError> {
+) -> Result<Vec<u64>, PiCcsV1_2PackageBridgeError> {
     if iteration >= F::ORDER_U64 || pc >= F::ORDER_U64 {
-        return Err(PiCcsV1_1PackageBridgeError::Shape(
+        return Err(PiCcsV1_2PackageBridgeError::Shape(
             "iteration or program counter is not canonical",
         ));
     }
     if running.len() != 16 {
-        return Err(PiCcsV1_1PackageBridgeError::Shape("running source count"));
+        return Err(PiCcsV1_2PackageBridgeError::Shape("running source count"));
     }
     let point = &running[0].r;
-    if point.len() != PI_CCS_V1_1_ROUND_COUNT
+    if point.len() != PI_CCS_V1_2_ROUND_COUNT
         || running
             .iter()
             .any(|claim| claim.r.as_slice() != point.as_slice())
     {
-        return Err(PiCcsV1_1PackageBridgeError::Shape("shared running point"));
+        return Err(PiCcsV1_2PackageBridgeError::Shape("shared running point"));
     }
 
-    let mut words = Vec::with_capacity(PI_CCS_V1_1_STATE_PREIMAGE_WORDS);
+    let mut words = Vec::with_capacity(PI_CCS_V1_2_STATE_PREIMAGE_WORDS);
     words.extend_from_slice(&STATE_DOMAIN_TAG);
     push_block(
         &mut words,
@@ -172,18 +172,18 @@ pub fn serialize_pi_ccs_v1_1_state_preimage(
     push_block(&mut words, &z0.map(|value| value.as_canonical_u64()));
     push_block(&mut words, &current.map(|value| value.as_canonical_u64()));
 
-    let mut point_words = Vec::with_capacity(2 * PI_CCS_V1_1_ROUND_COUNT);
+    let mut point_words = Vec::with_capacity(2 * PI_CCS_V1_2_ROUND_COUNT);
     for value in point {
         point_words.extend_from_slice(&extension_words(*value));
     }
     push_block(&mut words, &point_words);
 
     for claim in running {
-        if claim.c.d != PI_CCS_V1_1_COEFFICIENT_COUNT
+        if claim.c.d != PI_CCS_V1_2_COEFFICIENT_COUNT
             || claim.c.kappa != COMMITMENT_WIDTH
-            || claim.c.data.len() != PI_CCS_V1_1_FRESH_COMMITMENT_WORDS
+            || claim.c.data.len() != PI_CCS_V1_2_FRESH_COMMITMENT_WORDS
         {
-            return Err(PiCcsV1_1PackageBridgeError::Shape("running commitment"));
+            return Err(PiCcsV1_2PackageBridgeError::Shape("running commitment"));
         }
         let commitment: Vec<_> = claim
             .c
@@ -193,17 +193,17 @@ pub fn serialize_pi_ccs_v1_1_state_preimage(
             .collect();
         push_block(&mut words, &commitment);
 
-        if claim.m_in != PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS
-            || claim.X.rows() != PI_CCS_V1_1_COEFFICIENT_COUNT
-            || claim.X.cols() != PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS / PI_CCS_V1_1_COEFFICIENT_COUNT
+        if claim.m_in != PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS
+            || claim.X.rows() != PI_CCS_V1_2_COEFFICIENT_COUNT
+            || claim.X.cols() != PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS / PI_CCS_V1_2_COEFFICIENT_COUNT
         {
-            return Err(PiCcsV1_1PackageBridgeError::Shape("running public input"));
+            return Err(PiCcsV1_2PackageBridgeError::Shape("running public input"));
         }
-        let public_input: Vec<_> = (0..PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS)
+        let public_input: Vec<_> = (0..PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS)
             .map(|index| {
                 claim.X[(
-                    index % PI_CCS_V1_1_COEFFICIENT_COUNT,
-                    index / PI_CCS_V1_1_COEFFICIENT_COUNT,
+                    index % PI_CCS_V1_2_COEFFICIENT_COUNT,
+                    index / PI_CCS_V1_2_COEFFICIENT_COUNT,
                 )]
                     .as_canonical_u64()
             })
@@ -211,43 +211,43 @@ pub fn serialize_pi_ccs_v1_1_state_preimage(
         push_block(&mut words, &public_input);
 
         validate_family(&claim.eval_k)?;
-        if claim.eval_a.len() != PI_CCS_V1_1_MATRIX_COUNT {
-            return Err(PiCcsV1_1PackageBridgeError::Shape("running Eval_A matrix count"));
+        if claim.eval_a.len() != PI_CCS_V1_2_MATRIX_COUNT {
+            return Err(PiCcsV1_2PackageBridgeError::Shape("running Eval_A matrix count"));
         }
-        let mut evaluations = Vec::with_capacity((PI_CCS_V1_1_MATRIX_COUNT + 1) * PI_CCS_V1_1_COEFFICIENT_COUNT * 2);
-        for value in &claim.eval_k[..PI_CCS_V1_1_COEFFICIENT_COUNT] {
+        let mut evaluations = Vec::with_capacity((PI_CCS_V1_2_MATRIX_COUNT + 1) * PI_CCS_V1_2_COEFFICIENT_COUNT * 2);
+        for value in &claim.eval_k[..PI_CCS_V1_2_COEFFICIENT_COUNT] {
             evaluations.extend_from_slice(&extension_words(*value));
         }
         for matrix in &claim.eval_a {
             validate_family(matrix)?;
-            for value in &matrix[..PI_CCS_V1_1_COEFFICIENT_COUNT] {
+            for value in &matrix[..PI_CCS_V1_2_COEFFICIENT_COUNT] {
                 evaluations.extend_from_slice(&extension_words(*value));
             }
         }
         push_block(&mut words, &evaluations);
     }
     words.push(pc);
-    if words.len() != PI_CCS_V1_1_STATE_PREIMAGE_WORDS {
-        return Err(PiCcsV1_1PackageBridgeError::Shape("serialized state preimage length"));
+    if words.len() != PI_CCS_V1_2_STATE_PREIMAGE_WORDS {
+        return Err(PiCcsV1_2PackageBridgeError::Shape("serialized state preimage length"));
     }
     Ok(words)
 }
 
 /// Recompute the Lean `stateHash` from its canonical serialized preimage.
-pub fn pi_ccs_v1_1_state_hash(preimage: &[u64]) -> Result<[u64; 4], PiCcsV1_1PackageBridgeError> {
-    if preimage.len() != PI_CCS_V1_1_STATE_PREIMAGE_WORDS || preimage.iter().any(|word| *word >= F::ORDER_U64) {
-        return Err(PiCcsV1_1PackageBridgeError::Shape("state preimage words"));
+pub fn pi_ccs_v1_2_state_hash(preimage: &[u64]) -> Result<[u64; 4], PiCcsV1_2PackageBridgeError> {
+    if preimage.len() != PI_CCS_V1_2_STATE_PREIMAGE_WORDS || preimage.iter().any(|word| *word >= F::ORDER_U64) {
+        return Err(PiCcsV1_2PackageBridgeError::Shape("state preimage words"));
     }
     let fields: Vec<_> = preimage.iter().map(|word| F::from_u64(*word)).collect();
     Ok(poseidon2_hash(&fields).map(|value| value.as_canonical_u64()))
 }
 
 /// Exact Lean `encHash`: marker, 256 little-endian digest bits, then zero padding.
-pub fn encode_pi_ccs_v1_1_public_input(digest: [u64; 4]) -> Result<Vec<u64>, PiCcsV1_1PackageBridgeError> {
+pub fn encode_pi_ccs_v1_2_public_input(digest: [u64; 4]) -> Result<Vec<u64>, PiCcsV1_2PackageBridgeError> {
     if digest.iter().any(|word| *word >= F::ORDER_U64) {
-        return Err(PiCcsV1_1PackageBridgeError::Shape("state digest words"));
+        return Err(PiCcsV1_2PackageBridgeError::Shape("state digest words"));
     }
-    let mut output = vec![0; PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS];
+    let mut output = vec![0; PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS];
     output[0] = 1;
     for (word, value) in digest.into_iter().enumerate() {
         for bit in 0..64 {
@@ -262,13 +262,13 @@ fn push_block(output: &mut Vec<u64>, block: &[u64]) {
     output.extend_from_slice(block);
 }
 
-fn validate_family(values: &[K]) -> Result<(), PiCcsV1_1PackageBridgeError> {
-    if values.len() < PI_CCS_V1_1_COEFFICIENT_COUNT
-        || values[PI_CCS_V1_1_COEFFICIENT_COUNT..]
+fn validate_family(values: &[K]) -> Result<(), PiCcsV1_2PackageBridgeError> {
+    if values.len() < PI_CCS_V1_2_COEFFICIENT_COUNT
+        || values[PI_CCS_V1_2_COEFFICIENT_COUNT..]
             .iter()
             .any(|value| *value != K::ZERO)
     {
-        return Err(PiCcsV1_1PackageBridgeError::Shape("evaluation family width or padding"));
+        return Err(PiCcsV1_2PackageBridgeError::Shape("evaluation family width or padding"));
     }
     Ok(())
 }

@@ -220,7 +220,7 @@ theorem selectedRowsAndPublic_imply_outputHash
   have rows := (DirectApplicationPrefixPlan.rowsZero_iff relation
     fits.package geometry assignment).mp selected
   have matching := (RecursivePublicOutputPlan.rowsZero_iff_matches
-    geometry assignment one).mp rows.2
+    geometry assignment).mp rows.2
   have digestEq : outputDigest (DirectApplicationPrefixPlan.pilotOrdinaryGeometry geometry)
       assignment = digest :=
     (outputDigest_eq_forms geometry assignment).trans

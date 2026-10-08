@@ -11,7 +11,7 @@ use super::pi_ccs_prefix_assignment_tests::{
     artifact_path, conformance_support, execute_pilot_prefix, inner_raw_package_bytes, logical_reference,
     PrefixExecutionCounts,
 };
-use crate::{load_poseidon2_hash_chain_v1_package, WitnessAssignment, PI_CCS_V1_1_STATE_PREIMAGE_WORDS};
+use crate::{load_poseidon2_hash_chain_v1_package, WitnessAssignment, PI_CCS_V1_2_STATE_PREIMAGE_WORDS};
 
 // PilotProduction.physicalRowCountValue_eq gives 14,623,730 rows.
 // The sealed Stage1 source map places its witness end at 14,751,526.
@@ -44,7 +44,7 @@ struct RawPilotResult(Vec<u64>, Vec<u64>, Vec<u64>, Vec<[u64; 3]>, Vec<u64>);
 struct RawPilotParity(u64, RawPilotInput, RawPilotResult);
 
 fn check_pilot_preimage(words: &[u64], context: [u64; 4]) {
-    assert_eq!(words.len(), PI_CCS_V1_1_STATE_PREIMAGE_WORDS);
+    assert_eq!(words.len(), PI_CCS_V1_2_STATE_PREIMAGE_WORDS);
     let domain: Vec<u64> = b"HyperNova/NIVC/state/v1"
         .iter()
         .copied()
@@ -57,7 +57,7 @@ fn check_pilot_preimage(words: &[u64], context: [u64; 4]) {
     // The Lean PilotZeroRunning theorem supplies the bounded zero openings.
     // Check that this serialized input carries those exact running claims.
     let mut cursor = 39;
-    for length in std::iter::once(56).chain((0..16).flat_map(|_| [1_188, 270, 864])) {
+    for length in std::iter::once(56).chain((0..16).flat_map(|_| [1_188, 270, 540])) {
         assert_eq!(words[cursor], length as u64, "pilot running-field length");
         cursor += 1;
         assert!(
@@ -145,13 +145,13 @@ fn pilot_checkers_read_generated_witness_columns() {
     let sealed_bytes = fs::read(artifact_path("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"))
         .expect("sealed canonical Stage 1 package");
     let raw_bytes = inner_raw_package_bytes(&sealed_bytes);
-    let mut private_values = vec![0; 6_908_558];
+    let mut private_values = vec![0; 5_945_682];
     let public_values = vec![0; 278];
     // A zero assignment fails a constraint; reading its generated columns must not panic.
     assert!(conformance_support::evaluate_pilot_assignment(&raw_bytes, &private_values, &public_values).is_err());
 
     // The first retained S-box output is the first logical private field.
-    private_values[91_049] = 1;
+    private_values[75_117] = 1;
     let assignment = logical_reference::assignment::PartialLogicalAssignment::decode_pilot(
         &sealed_bytes,
         &private_values,

@@ -6,7 +6,7 @@ use neo_ccs::CcsStructure;
 use neo_reductions::common::split_b_matrix_k_with_nonzero_flags;
 
 const CHILDREN: usize = 16;
-const MATRICES: usize = 7;
+const MATRICES: usize = 4;
 const PUBLIC: usize = 270;
 const MODULUS: u64 = F::ORDER_U64;
 const BOUND: u64 = 1 << CHILDREN;

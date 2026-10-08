@@ -324,7 +324,7 @@ impl Block {
                     .form(logical_width, checked_add(slot_base, next, "Poseidon2 retained slot")?)?;
                 if (local_start..local_end).contains(&next) {
                     let row_input = add_constant(state[lane].clone(), self.one_column, round[lane])?;
-                    visit(next, sbox_ports(self.one_column, row_input, output.clone()))?;
+                    visit(next, sbox_ports(row_input, output.clone()))?;
                 }
                 outputs[lane] = output;
                 next += 1;
@@ -338,7 +338,7 @@ impl Block {
                 .form(logical_width, checked_add(slot_base, next, "Poseidon2 retained slot")?)?;
             if (local_start..local_end).contains(&next) {
                 let row_input = add_constant(state[0].clone(), self.one_column, constant)?;
-                visit(next, sbox_ports(self.one_column, row_input, output.clone()))?;
+                visit(next, sbox_ports(row_input, output.clone()))?;
             }
             state[0] = output;
             state = internal_layer(&state)?;
@@ -353,7 +353,7 @@ impl Block {
                     .form(logical_width, checked_add(slot_base, next, "Poseidon2 retained slot")?)?;
                 if (local_start..local_end).contains(&next) {
                     let row_input = add_constant(state[lane].clone(), self.one_column, round[lane])?;
-                    visit(next, sbox_ports(self.one_column, row_input, output.clone()))?;
+                    visit(next, sbox_ports(row_input, output.clone()))?;
                 }
                 outputs[lane] = output;
                 next += 1;
@@ -380,7 +380,7 @@ impl Block {
                     .retained
                     .form(logical_width, checked_add(slot_base, next, "Poseidon2 retained slot")?)?;
                 if next == target {
-                    return Ok(sbox_ports(self.one_column, row_input, output));
+                    return Ok(sbox_ports(row_input, output));
                 }
                 outputs[lane] = output;
                 next += 1;
@@ -394,7 +394,7 @@ impl Block {
                 .retained
                 .form(logical_width, checked_add(slot_base, next, "Poseidon2 retained slot")?)?;
             if next == target {
-                return Ok(sbox_ports(self.one_column, row_input, output));
+                return Ok(sbox_ports(row_input, output));
             }
             state[0] = output;
             state = internal_layer(&state)?;
@@ -409,7 +409,7 @@ impl Block {
                     .retained
                     .form(logical_width, checked_add(slot_base, next, "Poseidon2 retained slot")?)?;
                 if next == target {
-                    return Ok(sbox_ports(self.one_column, row_input, output));
+                    return Ok(sbox_ports(row_input, output));
                 }
                 outputs[lane] = output;
                 next += 1;
@@ -452,10 +452,9 @@ fn internal_layer(state: &[Form; WIDTH]) -> Result<[Form; WIDTH]> {
         .expect("internal layer returns sixteen forms"))
 }
 
-fn sbox_ports(one_column: usize, input: Form, output: Form) -> RowForms {
+fn sbox_ports(input: Form, output: Form) -> RowForms {
     let mut row = empty_row();
-    row[1] = Form::singleton(one_column, Field::ONE);
-    row[4] = output;
-    row[5] = input;
+    row[2] = output;
+    row[3] = input;
     row
 }

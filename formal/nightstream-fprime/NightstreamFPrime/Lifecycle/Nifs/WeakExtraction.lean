@@ -92,9 +92,9 @@ theorem continuation_success_range {coins : PublicCoins K productionShape}
 private theorem relaxedSuccess_map_iff
     (probe : Probe K productionShape)
     (accepted : probe.FixedWidthAccepted extensionOps K.embed
-      ((ProductionKey.key relation ajtai).statement running fresh) 9)
+      ((ProductionKey.key relation ajtai).statement running fresh) 8)
     (outcome : Option (OutputWitness productionShape (Phi81CarrierLayout.carrierWidth logicalWidth))) :
-    StrongProbability.RelaxedSuccess (width := 9) (PaperAlgebra.openingMaps ajtai) productionGlobalParams
+    StrongProbability.RelaxedSuccess (width := 8) (PaperAlgebra.openingMaps ajtai) productionGlobalParams
       ((ProductionKey.key relation ajtai).statement running fresh) (outcome.map (fun witness => (probe, witness))) ↔
       ∃ witness, outcome = some witness ∧
         AmbientOutputHolds extensionOps K.embed (PaperAlgebra.openingMaps ajtai) productionGlobalParams
@@ -130,12 +130,12 @@ theorem weak_relaxed_success_bound
     (bounds : PrimitiveBounds) (bounded : Bounded laws.ring program bounds)
     (probe : Probe K productionShape)
     (accepted : probe.FixedWidthAccepted extensionOps K.embed
-      ((ProductionKey.key relation ajtai).statement running fresh) 9)
+      ((ProductionKey.key relation ajtai).statement running fresh) 8)
     (continuation : Continuation Tape relation ajtai running fresh probe.coins probe.response.fullOutput) :
     continuation.successProbability - ((ProductionKey.key relation ajtai).arity.total : ℝ) /
         Fintype.card (Challenge (ProductionKey.key relation ajtai).piRlcAlgebra) ≤
       ∑ endpoint, (endpointLaw relation ajtai running fresh continuation endpoint).toReal *
-        (if StrongProbability.RelaxedSuccess (width := 9) (PaperAlgebra.openingMaps ajtai)
+        (if StrongProbability.RelaxedSuccess (width := 8) (PaperAlgebra.openingMaps ajtai)
           productionGlobalParams ((ProductionKey.key relation ajtai).statement running fresh)
           ((consume relation ajtai program endpoint).map (fun witness => (probe, witness)))
           then (1 : ℝ) else 0) := by

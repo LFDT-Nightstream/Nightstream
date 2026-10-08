@@ -18,7 +18,7 @@ def main():
     directory.mkdir()
     formal = Path(__file__).resolve().parents[1]
     validator = formal / "scripts" / "validate.sh"
-    header = [1, 54, 17, 1107491]
+    header = [1, 54, 17, 920516]
     cases = {
         "zero": [],
         "last-source": [[0, [[16, 2 ** 54 - 1, 0]]]],
@@ -86,7 +86,7 @@ def main():
         run(name, source, error=error)
     print(json.dumps({"event": "original_source_support_checks_passed",
                       "byte_matched_cases": matched, "ranges_per_case": 3,
-                      "field_words_compared": len(matched) * 3 * 17 * 7 * 54 * 2,
+                      "field_words_compared": len(matched) * 3 * 17 * 4 * 54 * 2,
                       "rejections": [name for name, _, _ in invalid],
                       "scope": "synthetic source-selection regression; not production proof evidence"}))
 

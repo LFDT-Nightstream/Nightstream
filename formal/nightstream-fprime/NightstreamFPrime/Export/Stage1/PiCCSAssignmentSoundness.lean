@@ -1,5 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram
-import NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions
+import NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions
 
 /-!
 Owns the PiCCS arithmetic environment decoded from an arbitrary logical
@@ -108,7 +108,7 @@ theorem rowsZero_implies_arithmeticSpecs
   have packets := PiCCSArithmetic.arithmeticRows_imply_packetHolds
     relationLogicalWidth relationPublicFits (decodedEnv geometry assignment)
     (rowsZero_implies_sourceRows relation geometry assignment one rows)
-  have assumptions := NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions.production
+  have assumptions := NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions.production
     relation (PiCCSInvocations.parentInterface relationLogicalWidth relationPublicFits)
     PiCCSInputs.phaseOffset
     (PiCCSInputs.externalInputsLinear relationLogicalWidth relationPublicFits)

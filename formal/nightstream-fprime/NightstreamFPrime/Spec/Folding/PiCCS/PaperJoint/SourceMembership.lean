@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongReduction
 
 /-!
-Paper authority: SuperNeo v1.1, Section 7.3, source CCS/CE relations.
+Paper authority: SuperNeo v1.2, Section 7.3, source CCS/CE relations.
 Owns the exact source-membership meaning of the existing extraction conclusion.
 The statement supplies one structure, fresh-then-running order, one prior
 point, and the complete separate Pad and matrix evaluation families. The

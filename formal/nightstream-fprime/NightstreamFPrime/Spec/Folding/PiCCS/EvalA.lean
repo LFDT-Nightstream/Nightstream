@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.UnifiedSources
 
 /-!
-Paper authority: SuperNeo v1.1, Section 7.3 `Eval_A`; Appendix B.2,
+Paper authority: SuperNeo v1.2, Section 7.3 `Eval_A`; Appendix B.2,
 Equation (10) and Item 4.
 Obligation: Every carried CCS-matrix coefficient equals the multilinear
 evaluation of that genuine matrix image at the prior point.

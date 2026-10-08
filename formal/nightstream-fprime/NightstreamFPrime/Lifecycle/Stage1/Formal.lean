@@ -41,21 +41,21 @@ noncomputable def piCcsChild
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (program : Application.Program) (interface : Interface relation program)
     (template : Proof (ProductionKey.degreeBound relation)) : FormalCircuit :=
-  PiCCS.v1_1.Formal.circuit relation ajtai interface.piCcs template
+  PiCCS.v1_2.Formal.circuit relation ajtai interface.piCcs template
 
 noncomputable def piRlcChild
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (program : Application.Program) (interface : Interface relation program) :
     FormalCircuit :=
-  PiRLC.v1_1.Formal.circuit relation ajtai interface.piRlc
+  PiRLC.v1_2.Formal.circuit relation ajtai interface.piRlc
 
 noncomputable def piDecChild
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (program : Application.Program) (interface : Interface relation program) :
     FormalCircuit :=
-  PiDEC.v1_1.Formal.circuit relation ajtai interface.piDec
+  PiDEC.v1_2.Formal.circuit relation ajtai interface.piDec
 
 def runningChild
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -165,13 +165,13 @@ noncomputable def opsAt
       (priorOffset offset),
     childOp "stage1.output_hash" (outputHashChild relation program interface)
       (outputHashOffset relation program interface offset),
-    childOp "stage1.piccs.v1_1"
+    childOp "stage1.piccs.v1_2"
       (piCcsChild relation ajtai program interface template)
       (piCcsOffset relation program interface offset),
-    childOp "stage1.pirlc.v1_1"
+    childOp "stage1.pirlc.v1_2"
       (piRlcChild relation ajtai program interface)
       (piRlcOffset relation ajtai program interface template offset),
-    childOp "stage1.pidec.v1_1"
+    childOp "stage1.pidec.v1_2"
       (piDecChild relation ajtai program interface)
       (piDecOffset relation ajtai program interface template offset),
     childOp "stage1.running_transition"
@@ -343,11 +343,11 @@ theorem soundness
       (by simp [opsAt]) assumptions.prior
     outputHash := childSpec_of_rows "stage1.output_hash" _ _ env _ rows
       (by simp [opsAt]) assumptions.outputHash
-    piCcs := childSpec_of_rows "stage1.piccs.v1_1" _ _ env _ rows
+    piCcs := childSpec_of_rows "stage1.piccs.v1_2" _ _ env _ rows
       (by simp [opsAt]) assumptions.piCcs
-    piRlc := childSpec_of_rows "stage1.pirlc.v1_1" _ _ env _ rows
+    piRlc := childSpec_of_rows "stage1.pirlc.v1_2" _ _ env _ rows
       (by simp [opsAt]) assumptions.piRlc
-    piDec := childSpec_of_rows "stage1.pidec.v1_1" _ _ env _ rows
+    piDec := childSpec_of_rows "stage1.pidec.v1_2" _ _ env _ rows
       (by simp [opsAt]) assumptions.piDec
     running := childSpec_of_rows "stage1.running_transition" _ _ env _ rows
       (by simp [opsAt]) assumptions.running

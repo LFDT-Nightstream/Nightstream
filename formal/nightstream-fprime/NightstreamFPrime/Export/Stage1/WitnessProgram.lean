@@ -25,7 +25,7 @@ open NightstreamFPrime.Export.Stage1
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
@@ -149,7 +149,7 @@ def piRlcSourceBatches
         (logicalWidth := logicalWidth) (publicFits := publicFits) source)).main
     (Layout.Stage1.PiRLCStarts.rangeLogicalStart source) ++
   childBatches
-    (PiRLC.v1_1.SamplerWords.circuit (Layout.Stage1.PiRLCStarts.rangeLogicalStart source)).main
+    (PiRLC.v1_2.SamplerWords.circuit (Layout.Stage1.PiRLCStarts.rangeLogicalStart source)).main
     (Layout.Stage1.PiRLCStarts.challengeWordStart source)
 
 theorem piRlcSourceBatches_eq_fromCircuit
@@ -157,13 +157,13 @@ theorem piRlcSourceBatches_eq_fromCircuit
     (publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth)
     (source : Nat) :
     piRlcSourceBatches logicalWidth publicFits source =
-      childBatches (PiRLC.v1_1.Sampler.rangeCircuit
+      childBatches (PiRLC.v1_2.Sampler.rangeCircuit
         (PiRLCSamplerInvocations.sourceInterface (logicalWidth := logicalWidth)
           (publicFits := publicFits) source) source
         (PiRLCSamplerInvocations.sourceLogicalStart source)).main
         (Layout.Stage1.PiRLCStarts.rangeLogicalStart source) ++
       childBatches
-        (PiRLC.v1_1.SamplerWords.circuit (Layout.Stage1.PiRLCStarts.rangeLogicalStart source)).main
+        (PiRLC.v1_2.SamplerWords.circuit (Layout.Stage1.PiRLCStarts.rangeLogicalStart source)).main
         (Layout.Stage1.PiRLCStarts.challengeWordStart source) := by
   unfold piRlcSourceBatches
   rw [PiRLCSamplerOrdinaryRows.rangeInterface_eq]
@@ -192,11 +192,11 @@ def piDecBatches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
-  let shared := NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal.atOffset
+  let shared := NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.atOffset
     (PiDECArithmetic.phaseInterface logicalWidth publicFits)
     NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset
   childBatches
-    (NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal.publicInputCircuit
+    (NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.publicInputCircuit
       shared).main
     NightstreamFPrime.Layout.Stage1.PiDECStarts.publicInputLogicalStart
 

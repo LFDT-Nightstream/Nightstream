@@ -20,34 +20,34 @@ namespace NightstreamFPrime.Layout.Stage1.Spartan
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 /-- Fixed completed pilot source interval. -/
-def pilotSourceColumnCount : Nat := 6892396
+def pilotSourceColumnCount : Nat := 5935084
 
 /-- Fixed completed pilot private interval. -/
-def pilotPrivateColumnCount : Nat := 6892122
+def pilotPrivateColumnCount : Nat := 5934810
 
 /-- Caller-supplied pilot private inputs precede all generated witnesses. -/
-def pilotInputPrivateColumnCount : Nat := 74594
+def pilotInputPrivateColumnCount : Nat := 64226
 
 /-- Caller-supplied PiCCS proof inputs. -/
-def proofInputColumnCount : Nat := 16436
+def proofInputColumnCount : Nat := 10872
 
 /-- Verifier-owned context words that follow the pilot source interval. -/
 def expectedContextColumnCount : Nat := 4
 
 /-- Source boundary between public context and private PiCCS proof inputs. -/
-def proofInputSourceStart : Nat := 6892400
+def proofInputSourceStart : Nat := 5935088
 
 /-- Source boundary between proof inputs and PiCCS local witnesses. -/
-def piCcsPhaseOffset : Nat := 6908836
+def piCcsPhaseOffset : Nat := 5945960
 
 /-- Target boundary after proof inputs and shifted pilot witnesses. -/
-def piCcsLocalStart : Nat := 6908558
+def piCcsLocalStart : Nat := 5945682
 
 /-- All source columns before Spartan inserts its constant column. -/
 def SourceColumnCount : Nat := RunningTransitionLayout.physicalEnd
@@ -635,7 +635,7 @@ theorem spartanToSource_sourceToSpartan (column : Nat)
           have positive : 0 < mapped - pilotPrivateColumnCount :=
             Nat.sub_pos_of_lt mappedAbove
           omega
-        have mappedBoundNumeric : mapped < 6892397 := by
+        have mappedBoundNumeric : mapped < 5935085 := by
           rw [PilotSpartan.spartanColumnCount_eq,
             PilotSpartan.sourceColumnCount_eq] at mappedBound
           norm_num at mappedBound

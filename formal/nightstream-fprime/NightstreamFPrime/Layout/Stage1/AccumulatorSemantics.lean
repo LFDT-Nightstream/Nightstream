@@ -1,5 +1,5 @@
 import NightstreamFPrime.Layout.Stage1.AccumulatorInputs
-import NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics
+import NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics
 
 /-!
 Owns the deterministic cross-phase semantics of the Stage 1 accumulator.
@@ -22,7 +22,7 @@ private theorem inputInstance_ext
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
-    (left right : NightstreamFPrime.Lifecycle.PiRLC.v1_1.InputBinding.InputInstance
+    (left right : NightstreamFPrime.Lifecycle.PiRLC.v1_2.InputBinding.InputInstance
       logicalWidth publicFits)
     (constraintSystem : left.constraintSystem = right.constraintSystem)
     (commitment : left.commitment = right.commitment)
@@ -55,7 +55,7 @@ private theorem piDecAttempt_ext
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
-    (left right : NightstreamFPrime.Lifecycle.PiDEC.v1_1.InputBinding.Attempt
+    (left right : NightstreamFPrime.Lifecycle.PiDEC.v1_2.InputBinding.Attempt
       logicalWidth publicFits)
     (parent : left.parent = right.parent)
     (messages : left.messages = right.messages) : left = right := by
@@ -133,39 +133,39 @@ private theorem piCcsCheck_eq_true_of_phase
       (logicalWidth := logicalWidth) (publicFits := publicFits))
     (env : Env)
     (interface :
-      NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.Interface logicalWidth
+      NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.Interface logicalWidth
         (ProductionKey.degreeBound relation) publicFits)
     (offset : Nat)
     (template proof : Proof (ProductionKey.degreeBound relation))
-    (phase : NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.PhaseHolds
+    (phase : NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.PhaseHolds
       relation ajtai interface offset env template)
     (checkEq :
       Nifs.PaperNonInteractive.piCcsCheck (ProductionKey.key relation ajtai)
-          (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalRunning
+          (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalRunning
             interface offset env)
-          (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalFresh
+          (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalFresh
             interface offset env)
-          (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalProof relation
+          (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalProof relation
             interface offset env template) =
         Nifs.PaperNonInteractive.piCcsCheck
           (ProductionKey.key relation ajtai)
-          (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalRunning
+          (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalRunning
             interface offset env)
-          (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalFresh
+          (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalFresh
             interface offset env)
           proof) :
     NightstreamFPrime.Spec.Folding.PiCCS.Accepted
       (ProductionKey.key relation ajtai)
-      (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalRunning
+      (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalRunning
         interface offset env)
-      (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalFresh
+      (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalFresh
         interface offset env)
       proof := by
   change Nifs.PaperNonInteractive.piCcsCheck
     (ProductionKey.key relation ajtai)
-      (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalRunning
+      (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalRunning
         interface offset env)
-      (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalFresh
+      (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalFresh
         interface offset env) proof = true
   rw [← checkEq]
   exact phase.accepted
@@ -175,37 +175,37 @@ private theorem piRlcPoint_eq_roundTranscript
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (env : Env) :
-    NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.evalPoint
-        (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.roundPoint
+    NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption.evalPoint
+        (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.roundPoint
           (AccumulatorInputs.piCcsInterface logicalWidth publicFits)
           PiCCSInputs.phaseOffset) env =
-      NightstreamFPrime.Lifecycle.PiCCS.v1_1.RoundTranscript.evalRoundPoint
-        (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.roundTranscriptInterface
-          (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.atOffset
+      NightstreamFPrime.Lifecycle.PiCCS.v1_2.RoundTranscript.evalRoundPoint
+        (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.roundTranscriptInterface
+          (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.atOffset
             (AccumulatorInputs.piCcsInterface logicalWidth publicFits)
             PiCCSInputs.phaseOffset))
-        (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.roundTranscriptOffset
+        (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.roundTranscriptOffset
           (AccumulatorInputs.piCcsInterface logicalWidth publicFits)
           PiCCSInputs.phaseOffset) env := by
   have interfaceEq :
-      NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.atOffset
+      NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.atOffset
           (AccumulatorInputs.piCcsInterface logicalWidth publicFits)
           PiCCSInputs.phaseOffset =
         AccumulatorInputs.piCcsInterface logicalWidth publicFits := by
     rfl
   have startEq :
-      NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.roundTranscriptOffset
+      NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.roundTranscriptOffset
           (AccumulatorInputs.piCcsInterface logicalWidth publicFits)
           PiCCSInputs.phaseOffset =
-        NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.roundTranscriptStart
+        NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.roundTranscriptStart
           (AccumulatorInputs.piCcsInterface logicalWidth publicFits) := by
-    rw [← NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.roundTranscriptStart_atOffset
+    rw [← NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.roundTranscriptStart_atOffset
       (AccumulatorInputs.piCcsInterface logicalWidth publicFits)
       PiCCSInputs.phaseOffset, interfaceEq]
   apply cubePoint_ext
-  unfold NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.evalPoint
-    NightstreamFPrime.Lifecycle.PiCCS.v1_1.RoundTranscript.evalRoundPoint
-    NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.roundPoint
+  unfold NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption.evalPoint
+    NightstreamFPrime.Lifecycle.PiCCS.v1_2.RoundTranscript.evalRoundPoint
+    NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.roundPoint
   rw [interfaceEq, startEq]
   simp [canonicalFinIndices]
 
@@ -240,17 +240,17 @@ theorem piRlcInputsAtPoint_eq_keyOutputs
     (point : Fin productionShape.cubeVariables →
       NightstreamFPrime.Circuit.Quadratic.KExpr)
     (pointEq :
-      NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.evalPoint
+      NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption.evalPoint
           point env =
         ((ProductionKey.key relation ajtai).piCcsExecution
           (AccumulatorInputs.running logicalWidth publicFits env)
           (AccumulatorInputs.fresh logicalWidth publicFits env)
           (AccumulatorInputs.proof relation env)).coins.roundPoint) :
     (fun source =>
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.InputBinding.evalInput relation
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.InputBinding.evalInput relation
         (PiRLCInputs.sourceInput
           (logicalWidth := logicalWidth) (publicFits := publicFits)
-          (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.sourceIndex source))
+          (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.sourceIndex source))
         point env) =
       (ProductionKey.key relation ajtai).piCcsOutputs
         (AccumulatorInputs.running logicalWidth publicFits env)
@@ -260,7 +260,7 @@ theorem piRlcInputsAtPoint_eq_keyOutputs
   let joint : Fin productionShape.sourceCount :=
     Fin.cast (ProductionKey.key relation ajtai).total_eq_sourceCount source
   have sourceEq :
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.sourceIndex source =
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.sourceIndex source =
         joint := by
     apply Fin.ext
     rfl
@@ -270,7 +270,7 @@ theorem piRlcInputsAtPoint_eq_keyOutputs
       (fun row coefficient =>
         ((PiRLCInputs.sourceInput
           (logicalWidth := logicalWidth) (publicFits := publicFits)
-          (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.sourceIndex source)
+          (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.sourceIndex source)
         ).commitment row coefficient).eval env) =
       Fin.addCases
         (AccumulatorInputs.fresh logicalWidth publicFits env).commitments
@@ -281,18 +281,18 @@ theorem piRlcInputsAtPoint_eq_keyOutputs
     · funext row coefficient
       simp [PiRLCInputs.canonicalSourceInput, AccumulatorInputs.fresh,
         AccumulatorInputs.piCcsInterface, PiRLCInputs.piCcsInterface,
-        NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalFresh,
-        NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.evalFresh]
+        NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalFresh,
+        NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption.evalFresh]
     · funext row coefficient
       simp [PiRLCInputs.canonicalSourceInput, AccumulatorInputs.running,
         AccumulatorInputs.piCcsInterface, PiRLCInputs.piCcsInterface,
-        NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalRunning,
-        NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.evalRunning]
+        NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalRunning,
+        NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption.evalRunning]
   · change
       (fun column =>
         ((PiRLCInputs.sourceInput
           (logicalWidth := logicalWidth) (publicFits := publicFits)
-          (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.sourceIndex source)
+          (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.sourceIndex source)
         ).publicInput column).eval env) =
       Fin.addCases
         (AccumulatorInputs.fresh logicalWidth publicFits env).publicInputs
@@ -303,20 +303,20 @@ theorem piRlcInputsAtPoint_eq_keyOutputs
     · funext column
       simp [PiRLCInputs.canonicalSourceInput, AccumulatorInputs.fresh,
         AccumulatorInputs.piCcsInterface, PiRLCInputs.piCcsInterface,
-        NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalFresh,
-        NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.evalFresh]
+        NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalFresh,
+        NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption.evalFresh]
     · funext column
       simp [PiRLCInputs.canonicalSourceInput, AccumulatorInputs.running,
         AccumulatorInputs.piCcsInterface, PiRLCInputs.piCcsInterface,
-        NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalRunning,
-        NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.evalRunning]
+        NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalRunning,
+        NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption.evalRunning]
   · rw [piCcsOutput_point relation ajtai env source]
     exact pointEq
   · change
-      #[NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.evalEvaluation
+      #[NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption.evalEvaluation
         (PiRLCInputs.sourceInput
           (logicalWidth := logicalWidth) (publicFits := publicFits)
-          (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.sourceIndex source)
+          (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.sourceIndex source)
         ).evaluation env] =
       #[{
         pad := (AccumulatorInputs.proof relation env).piCcsOutput.padCoordinate
@@ -336,14 +336,14 @@ theorem piRlcInputsAtPoint_eq_keyOutputs
       apply evaluationFamily_ext
       · funext coefficient
         simp [PiRLCInputs.canonicalSourceInput,
-          NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.evalEvaluation,
-          NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalOutput,
+          NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption.evalEvaluation,
+          NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalOutput,
           AccumulatorInputs.proof, PiRLCInputs.piCcsInterface,
           AccumulatorInputs.piCcsInterface, injectionEq]
       · funext matrix coefficient
         simp [PiRLCInputs.canonicalSourceInput,
-          NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.evalEvaluation,
-          NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalOutput,
+          NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption.evalEvaluation,
+          NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalOutput,
           AccumulatorInputs.proof, PiRLCInputs.piCcsInterface,
           AccumulatorInputs.piCcsInterface, injectionEq]
     · have injectionEq : UnifiedSources.runningSourceIndex running =
@@ -356,14 +356,14 @@ theorem piRlcInputsAtPoint_eq_keyOutputs
       apply evaluationFamily_ext
       · funext coefficient
         simp [PiRLCInputs.canonicalSourceInput,
-          NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.evalEvaluation,
-          NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalOutput,
+          NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption.evalEvaluation,
+          NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalOutput,
           AccumulatorInputs.proof, PiRLCInputs.piCcsInterface,
           AccumulatorInputs.piCcsInterface, injectionEq]
       · funext matrix coefficient
         simp [PiRLCInputs.canonicalSourceInput,
-          NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.evalEvaluation,
-          NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalOutput,
+          NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption.evalEvaluation,
+          NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalOutput,
           AccumulatorInputs.proof, PiRLCInputs.piCcsInterface,
           AccumulatorInputs.piCcsInterface, injectionEq]
   · rfl
@@ -378,10 +378,10 @@ theorem piRlcInputs_eq_keyOutputs
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
     (env : Env)
-    (piCcsPhase : NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.PhaseHolds
+    (piCcsPhase : NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.PhaseHolds
       relation ajtai (AccumulatorInputs.piCcsInterface logicalWidth publicFits)
       PiCCSInputs.phaseOffset env (AccumulatorInputs.proof relation env)) :
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.evalInputs relation
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.evalInputs relation
         (PiRLCInputs.interface
           (logicalWidth := logicalWidth) (publicFits := publicFits))
         PiRLCInputs.phaseOffset env =
@@ -411,45 +411,45 @@ theorem piRlcOutput_eq_keyParentForChallenges_of_inputs
     (fresh : Fresh
       (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Proof (ProductionKey.degreeBound relation))
-    (interface : NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.Interface
+    (interface : NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.Interface
       logicalWidth publicFits)
     (offset : Nat)
-    (phase : NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.PhaseHolds
+    (phase : NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.PhaseHolds
       relation ajtai interface offset env)
     (inputsEq :
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.evalInputs relation
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.evalInputs relation
           interface offset env =
         (ProductionKey.key relation ajtai).piCcsOutputs running fresh proof) :
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.evalOutput relation
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.evalOutput relation
         interface offset env =
       (ProductionKey.key relation ajtai).parentForChallenges running fresh proof
-        (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.evalChallenges
+        (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.evalChallenges
           interface offset env) := by
   let first : Fin Nifs.PaperProfile.arity.total := ⟨0, by decide⟩
   have inputStructureEq := congrArg
     (fun inputs => (inputs first).constraintSystem) inputsEq
   have inputPointEq := congrArg (fun inputs => (inputs first).point) inputsEq
   change
-    (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.evalInputs relation
+    (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.evalInputs relation
       interface offset env first).constraintSystem =
     (ProductionKey.key relation ajtai).relationSource at inputStructureEq
   change
-    (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.evalInputs relation
+    (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.evalInputs relation
       interface offset env first).point =
     ((ProductionKey.key relation ajtai).piCcsExecution running fresh proof
       ).coins.roundPoint at inputPointEq
   have outputStructureEq :
-      (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.evalOutput relation
+      (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.evalOutput relation
         interface offset env).constraintSystem =
       (ProductionKey.key relation ajtai).relationSource := by
     exact (phase.accepted.sameStructure first).symm.trans inputStructureEq
   have outputPointEq :
-      (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.evalOutput relation
+      (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.evalOutput relation
         interface offset env).point =
       ((ProductionKey.key relation ajtai).piCcsExecution running fresh proof
         ).coins.roundPoint := by
     exact (phase.accepted.samePoint first).symm.trans inputPointEq
-  rw [NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.output_eq_combinedOutput
+  rw [NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.output_eq_combinedOutput
     relation ajtai interface offset env phase]
   unfold Nifs.PaperNonInteractive.Key.parentForChallenges
   rw [inputsEq, outputStructureEq, outputPointEq,
@@ -471,22 +471,22 @@ theorem piRlcChallenges_eq_key_of_initialState
     (fresh : Fresh
       (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Proof (ProductionKey.degreeBound relation))
-    (interface : NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.Interface
+    (interface : NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.Interface
       logicalWidth publicFits)
     (offset : Nat)
-    (phase : NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.PhaseHolds
+    (phase : NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.PhaseHolds
       relation ajtai interface offset env)
     (initialStateEq :
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerChain.evalInitialState
-          (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerInterface
-            (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.atOffset
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.SamplerChain.evalInitialState
+          (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.samplerInterface
+            (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.atOffset
               interface offset))
-          (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerOffset offset)
+          (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.samplerOffset offset)
           env =
         ((ProductionKey.key relation ajtai).piCcsExecution running fresh proof
           ).outgoingState) :
     (ProductionKey.key relation ajtai).piRlcChallenges running fresh proof =
-      some (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.evalChallenges
+      some (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.evalChallenges
         interface offset env) := by
   change (ProductionKey.key relation ajtai).piRlcResponse
       ((ProductionKey.key relation ajtai).piCcsExecution running fresh proof
@@ -510,39 +510,39 @@ theorem keyPiDecAttempt_eq_some_of_wiring
       (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Proof (ProductionKey.degreeBound relation))
     (piRlcInterface :
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.Interface logicalWidth
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.Interface logicalWidth
         publicFits)
     (piRlcOffset : Nat)
     (piDecInterface :
-      NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal.Interface logicalWidth
+      NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.Interface logicalWidth
         publicFits)
     (piDecOffset : Nat)
     (challengesEq :
       (ProductionKey.key relation ajtai).piRlcChallenges running fresh proof =
-        some (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.evalChallenges
+        some (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.evalChallenges
           piRlcInterface piRlcOffset env))
     (parentEq :
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.evalOutput relation
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.evalOutput relation
           piRlcInterface piRlcOffset env =
         (ProductionKey.key relation ajtai).parentForChallenges running fresh
           proof
-          (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.evalChallenges
+          (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.evalChallenges
             piRlcInterface piRlcOffset env))
     (attemptEq :
-      NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.inputAttempt relation
+      NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.inputAttempt relation
           piDecInterface piDecOffset env =
         (ProductionKey.key relation ajtai).piDecAttemptForParent proof
-          (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.evalOutput
+          (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.evalOutput
             relation piRlcInterface piRlcOffset env)) :
     (ProductionKey.key relation ajtai).piDecAttempt running fresh proof =
-      some (NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.inputAttempt
+      some (NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.inputAttempt
         relation piDecInterface piDecOffset env) := by
   unfold Nifs.PaperNonInteractive.Key.piDecAttempt
     Nifs.PaperNonInteractive.Key.parent
   rw [challengesEq]
   change some ((ProductionKey.key relation ajtai).piDecAttemptForParent proof
     ((ProductionKey.key relation ajtai).parentForChallenges running fresh proof
-      (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.evalChallenges
+      (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.evalChallenges
         piRlcInterface piRlcOffset env))) = some _
   rw [← parentEq, ← attemptEq]
 
@@ -561,22 +561,22 @@ theorem piDecCheck_eq_true_of_attempt
     (fresh : Fresh
       (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Proof (ProductionKey.degreeBound relation))
-    (interface : NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal.Interface
+    (interface : NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.Interface
       logicalWidth publicFits)
     (offset : Nat)
-    (phase : NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.PhaseHolds
+    (phase : NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.PhaseHolds
       relation ajtai interface offset env)
     (attemptEq :
       (ProductionKey.key relation ajtai).piDecAttempt running fresh proof =
-        some (NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.inputAttempt
+        some (NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.inputAttempt
           relation interface offset env)) :
     Nifs.PaperNonInteractive.piDecCheck (ProductionKey.key relation ajtai)
       running fresh proof = true := by
   have specification :=
-    NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.phaseHolds_implies_spec
+    NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.phaseHolds_implies_spec
       relation ajtai interface offset env phase
   have accepted :=
-    NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.accepted relation ajtai
+    NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.accepted relation ajtai
       interface offset env specification
   exact (Nifs.PaperNonInteractive.piDecCheck_eq_true_iff
     (ProductionKey.key relation ajtai) running fresh proof).mpr
@@ -597,36 +597,36 @@ theorem keyOutput_eq_some_of_attempt
     (fresh : Fresh
       (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Proof (ProductionKey.degreeBound relation))
-    (interface : NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal.Interface
+    (interface : NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.Interface
       logicalWidth publicFits)
     (offset : Nat)
     (output : Running
       (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (phase : NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.PhaseHolds
+    (phase : NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.PhaseHolds
       relation ajtai interface offset env)
     (attemptEq :
       (ProductionKey.key relation ajtai).piDecAttempt running fresh proof =
-        some (NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.inputAttempt
+        some (NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.inputAttempt
           relation interface offset env))
     (outputEq :
       (ProductionKey.key relation ajtai).outputForAttempt proof
-          (NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.inputAttempt
+          (NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.inputAttempt
             relation interface offset env)
           ((ProductionKey.key relation ajtai).piDecPublicInputSplit.split
-            (NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.inputAttempt
+            (NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.inputAttempt
               relation interface offset env).parent.publicInput) =
         output) :
     (ProductionKey.key relation ajtai).output running fresh proof =
       some output := by
   have specification :=
-    NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.phaseHolds_implies_spec
+    NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.phaseHolds_implies_spec
       relation ajtai interface offset env phase
   have accepted :=
-    NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.accepted relation ajtai
+    NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.accepted relation ajtai
       interface offset env specification
   have result := (ProductionKey.key relation ajtai
     ).output_eq_some_of_parentBounded running fresh proof
-      (NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.inputAttempt relation
+      (NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.inputAttempt relation
         interface offset env) attemptEq accepted.parentBounded
   rw [outputEq] at result
   exact result
@@ -641,10 +641,10 @@ theorem piRlcChallenges_eq_key
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
     (env : Env)
-    (piCcsPhase : NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.PhaseHolds
+    (piCcsPhase : NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.PhaseHolds
       relation ajtai (AccumulatorInputs.piCcsInterface logicalWidth publicFits)
       PiCCSInputs.phaseOffset env (AccumulatorInputs.proof relation env))
-    (piRlcPhase : NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.PhaseHolds
+    (piRlcPhase : NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.PhaseHolds
       relation ajtai
       (PiRLCInputs.interface
         (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -653,31 +653,31 @@ theorem piRlcChallenges_eq_key
         (AccumulatorInputs.running logicalWidth publicFits env)
         (AccumulatorInputs.fresh logicalWidth publicFits env)
         (AccumulatorInputs.proof relation env) =
-      some (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.evalChallenges
+      some (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.evalChallenges
         (PiRLCInputs.interface
           (logicalWidth := logicalWidth) (publicFits := publicFits))
         PiRLCInputs.phaseOffset env) := by
   have stateEq :
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerChain.evalInitialState
-          (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerInterface
-            (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.atOffset
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.SamplerChain.evalInitialState
+          (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.samplerInterface
+            (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.atOffset
               (PiRLCInputs.interface
                 (logicalWidth := logicalWidth) (publicFits := publicFits))
               PiRLCInputs.phaseOffset))
-          (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerOffset
+          (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.samplerOffset
             PiRLCInputs.phaseOffset) env =
         ((ProductionKey.key relation ajtai).piCcsExecution
           (AccumulatorInputs.running logicalWidth publicFits env)
           (AccumulatorInputs.fresh logicalWidth publicFits env)
           (AccumulatorInputs.proof relation env)).outgoingState := by
     calc
-      _ = NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.evalState
+      _ = NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption.evalState
           env (PiRLCInputs.piCcsOutputState
             (logicalWidth := logicalWidth) (publicFits := publicFits)) := by
             rfl
-      _ = NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.evalState
+      _ = NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption.evalState
           env
-          (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.outputBindingFinalState
+          (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.outputBindingFinalState
             relation (AccumulatorInputs.piCcsInterface logicalWidth publicFits)
             PiCCSInputs.phaseOffset) := by
             rw [PiRLCInputs.piCcsOutputState_eq_parent relation]
@@ -701,15 +701,15 @@ theorem piRlcOutput_eq_keyParentForChallenges
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
     (env : Env)
-    (piCcsPhase : NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.PhaseHolds
+    (piCcsPhase : NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.PhaseHolds
       relation ajtai (AccumulatorInputs.piCcsInterface logicalWidth publicFits)
       PiCCSInputs.phaseOffset env (AccumulatorInputs.proof relation env))
-    (piRlcPhase : NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.PhaseHolds
+    (piRlcPhase : NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.PhaseHolds
       relation ajtai
       (PiRLCInputs.interface
         (logicalWidth := logicalWidth) (publicFits := publicFits))
       PiRLCInputs.phaseOffset env) :
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.evalOutput relation
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.evalOutput relation
         (PiRLCInputs.interface
           (logicalWidth := logicalWidth) (publicFits := publicFits))
         PiRLCInputs.phaseOffset env =
@@ -717,7 +717,7 @@ theorem piRlcOutput_eq_keyParentForChallenges
         (AccumulatorInputs.running logicalWidth publicFits env)
         (AccumulatorInputs.fresh logicalWidth publicFits env)
         (AccumulatorInputs.proof relation env)
-        (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.evalChallenges
+        (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.evalChallenges
           (PiRLCInputs.interface
             (logicalWidth := logicalWidth) (publicFits := publicFits))
           PiRLCInputs.phaseOffset env) := by
@@ -725,7 +725,7 @@ theorem piRlcOutput_eq_keyParentForChallenges
   let first : Fin Nifs.PaperProfile.arity.total := ⟨0, by decide⟩
   have inputPointEq := congrArg (fun inputs => (inputs first).point) inputsEq
   change
-    (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.evalInputs relation
+    (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.evalInputs relation
       (PiRLCInputs.interface
         (logicalWidth := logicalWidth) (publicFits := publicFits))
       PiRLCInputs.phaseOffset env first).point =
@@ -735,7 +735,7 @@ theorem piRlcOutput_eq_keyParentForChallenges
       (AccumulatorInputs.proof relation env) first).point at inputPointEq
   rw [piCcsOutput_point relation ajtai env first] at inputPointEq
   have outputPointEq :
-      (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.evalOutput relation
+      (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.evalOutput relation
         (PiRLCInputs.interface
           (logicalWidth := logicalWidth) (publicFits := publicFits))
         PiRLCInputs.phaseOffset env).point =
@@ -744,7 +744,7 @@ theorem piRlcOutput_eq_keyParentForChallenges
         (AccumulatorInputs.fresh logicalWidth publicFits env)
         (AccumulatorInputs.proof relation env)).coins.roundPoint := by
     exact inputPointEq
-  rw [NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.output_eq_combinedOutput
+  rw [NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.output_eq_combinedOutput
     relation ajtai
     (PiRLCInputs.interface
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -760,10 +760,10 @@ theorem piDecParent_eq_piRlcOutput
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (env : Env) :
-    (NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.inputAttempt relation
+    (NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.inputAttempt relation
       (PiDECInputs.interface logicalWidth publicFits) PiDECInputs.phaseOffset
       env).parent =
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.evalOutput relation
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.evalOutput relation
         (PiRLCInputs.interface
           (logicalWidth := logicalWidth) (publicFits := publicFits))
         PiRLCInputs.phaseOffset env := by
@@ -779,12 +779,12 @@ theorem piDecAttempt_eq_keyAttemptForParent
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
     (env : Env) :
-    NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.inputAttempt relation
+    NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.inputAttempt relation
         (PiDECInputs.interface logicalWidth publicFits) PiDECInputs.phaseOffset
         env =
       (ProductionKey.key relation ajtai).piDecAttemptForParent
         (AccumulatorInputs.proof relation env)
-        (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.evalOutput relation
+        (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.evalOutput relation
           (PiRLCInputs.interface
             (logicalWidth := logicalWidth) (publicFits := publicFits))
           PiRLCInputs.phaseOffset env) := by
@@ -798,36 +798,36 @@ theorem piDecAttempt_eq_keyAttemptForParent
       rfl
     apply piDecChildMessage_ext
     · funext row coefficient
-      simp [NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.inputAttempt,
-        NightstreamFPrime.Lifecycle.PiDEC.v1_1.InputBinding.evalAttempt,
-        NightstreamFPrime.Lifecycle.PiDEC.v1_1.InputBinding.evalMessage,
-        NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal.inputBindingInterface,
-        NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal.atOffset,
+      simp [NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.inputAttempt,
+        NightstreamFPrime.Lifecycle.PiDEC.v1_2.InputBinding.evalAttempt,
+        NightstreamFPrime.Lifecycle.PiDEC.v1_2.InputBinding.evalMessage,
+        NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.inputBindingInterface,
+        NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.atOffset,
         PiDECInputs.interface, PiDECInputs.message,
         Nifs.PaperNonInteractive.Key.piDecAttemptForParent,
         AccumulatorInputs.proof,
         RunningTransitionInputs.piDecRunningOutput,
         RunningTransitionInputs.piDecInterface, childEq, running,
-        NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.output,
-        NightstreamFPrime.Lifecycle.PiDEC.v1_1.OutputBinding.evalOutput,
-        NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal.outputBindingInterface,
-        NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal.outputBindingOffset,
-        NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal.recompositionOffset]
-    · simp [NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.inputAttempt,
-        NightstreamFPrime.Lifecycle.PiDEC.v1_1.InputBinding.evalAttempt,
-        NightstreamFPrime.Lifecycle.PiDEC.v1_1.InputBinding.evalMessage,
-        NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal.inputBindingInterface,
-        NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal.atOffset,
+        NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.output,
+        NightstreamFPrime.Lifecycle.PiDEC.v1_2.OutputBinding.evalOutput,
+        NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.outputBindingInterface,
+        NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.outputBindingOffset,
+        NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.recompositionOffset]
+    · simp [NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.inputAttempt,
+        NightstreamFPrime.Lifecycle.PiDEC.v1_2.InputBinding.evalAttempt,
+        NightstreamFPrime.Lifecycle.PiDEC.v1_2.InputBinding.evalMessage,
+        NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.inputBindingInterface,
+        NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.atOffset,
         PiDECInputs.interface, PiDECInputs.message,
         Nifs.PaperNonInteractive.Key.piDecAttemptForParent,
         AccumulatorInputs.proof,
         RunningTransitionInputs.piDecRunningOutput,
         RunningTransitionInputs.piDecInterface, childEq, running,
-        NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.output,
-        NightstreamFPrime.Lifecycle.PiDEC.v1_1.OutputBinding.evalOutput,
-        NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal.outputBindingInterface,
-        NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal.outputBindingOffset,
-        NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal.recompositionOffset]
+        NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.output,
+        NightstreamFPrime.Lifecycle.PiDEC.v1_2.OutputBinding.evalOutput,
+        NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.outputBindingInterface,
+        NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.outputBindingOffset,
+        NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.recompositionOffset]
 
 /-- Successful PiRLC sampling makes the key's optional PiDEC attempt exactly
 the constrained PiDEC input attempt. -/
@@ -839,10 +839,10 @@ theorem keyPiDecAttempt_eq_some
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
     (env : Env)
-    (piCcsPhase : NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.PhaseHolds
+    (piCcsPhase : NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.PhaseHolds
       relation ajtai (AccumulatorInputs.piCcsInterface logicalWidth publicFits)
       PiCCSInputs.phaseOffset env (AccumulatorInputs.proof relation env))
-    (piRlcPhase : NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.PhaseHolds
+    (piRlcPhase : NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.PhaseHolds
       relation ajtai
       (PiRLCInputs.interface
         (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -851,7 +851,7 @@ theorem keyPiDecAttempt_eq_some
         (AccumulatorInputs.running logicalWidth publicFits env)
         (AccumulatorInputs.fresh logicalWidth publicFits env)
         (AccumulatorInputs.proof relation env) =
-      some (NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.inputAttempt
+      some (NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.inputAttempt
         relation (PiDECInputs.interface logicalWidth publicFits)
         PiDECInputs.phaseOffset env) := by
   have challengesEq := piRlcChallenges_eq_key relation ajtai env
@@ -868,7 +868,7 @@ theorem keyPiDecAttempt_eq_some
       (AccumulatorInputs.running logicalWidth publicFits env)
       (AccumulatorInputs.fresh logicalWidth publicFits env)
       (AccumulatorInputs.proof relation env)
-      (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.evalChallenges
+      (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.evalChallenges
         (PiRLCInputs.interface
           (logicalWidth := logicalWidth) (publicFits := publicFits))
         PiRLCInputs.phaseOffset env))) = some _
@@ -884,15 +884,15 @@ theorem piDecCheck_eq_true
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
     (env : Env)
-    (piCcsPhase : NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.PhaseHolds
+    (piCcsPhase : NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.PhaseHolds
       relation ajtai (AccumulatorInputs.piCcsInterface logicalWidth publicFits)
       PiCCSInputs.phaseOffset env (AccumulatorInputs.proof relation env))
-    (piRlcPhase : NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.PhaseHolds
+    (piRlcPhase : NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.PhaseHolds
       relation ajtai
       (PiRLCInputs.interface
         (logicalWidth := logicalWidth) (publicFits := publicFits))
       PiRLCInputs.phaseOffset env)
-    (piDecPhase : NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.PhaseHolds
+    (piDecPhase : NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.PhaseHolds
       relation ajtai (PiDECInputs.interface logicalWidth publicFits)
       PiDECInputs.phaseOffset env) :
     Nifs.PaperNonInteractive.piDecCheck
@@ -903,10 +903,10 @@ theorem piDecCheck_eq_true
   have attemptEq := keyPiDecAttempt_eq_some relation ajtai env piCcsPhase
     piRlcPhase
   have piDecSpec :=
-    NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.phaseHolds_implies_spec
+    NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.phaseHolds_implies_spec
       relation ajtai (PiDECInputs.interface logicalWidth publicFits)
       PiDECInputs.phaseOffset env piDecPhase
-  have accepted := NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.accepted
+  have accepted := NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.accepted
     relation ajtai (PiDECInputs.interface logicalWidth publicFits)
     PiDECInputs.phaseOffset env piDecSpec
   exact (Nifs.PaperNonInteractive.piDecCheck_eq_true_iff
@@ -926,16 +926,16 @@ theorem outputForAttempt_eq_accumulatorOutput
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
     (env : Env)
-    (piDecPhase : NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.PhaseHolds
+    (piDecPhase : NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.PhaseHolds
       relation ajtai (PiDECInputs.interface logicalWidth publicFits)
       PiDECInputs.phaseOffset env) :
     (ProductionKey.key relation ajtai).outputForAttempt
         (AccumulatorInputs.proof relation env)
-        (NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.inputAttempt relation
+        (NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.inputAttempt relation
           (PiDECInputs.interface logicalWidth publicFits)
           PiDECInputs.phaseOffset env)
         ((ProductionKey.key relation ajtai).piDecPublicInputSplit.split
-          (NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.inputAttempt relation
+          (NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.inputAttempt relation
             (PiDECInputs.interface logicalWidth publicFits)
             PiDECInputs.phaseOffset env).parent.publicInput) =
       AccumulatorInputs.output relation env := by
@@ -949,10 +949,10 @@ theorem outputForAttempt_eq_accumulatorOutput
       apply Fin.ext
       rfl
     change
-      ((NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.inputAttempt relation
+      ((NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.inputAttempt relation
         (PiDECInputs.interface logicalWidth publicFits) PiDECInputs.phaseOffset
         env).messages child).commitment row coefficient =
-      (NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.output relation
+      (NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.output relation
         (PiDECInputs.interface logicalWidth publicFits) PiDECInputs.phaseOffset
         env (RunningTransitionInputs.childOfRunning runningIndex)).commitment
         row coefficient
@@ -969,10 +969,10 @@ theorem outputForAttempt_eq_accumulatorOutput
       piDecPhase child
     change
       (PaperAlgebra.publicInputSplit ajtai).split
-          (NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.inputAttempt relation
+          (NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.inputAttempt relation
             (PiDECInputs.interface logicalWidth publicFits)
             PiDECInputs.phaseOffset env).parent.publicInput child column =
-        (NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.output relation
+        (NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.output relation
           (PiDECInputs.interface logicalWidth publicFits) PiDECInputs.phaseOffset
           env (RunningTransitionInputs.childOfRunning runningIndex)).publicInput
           column
@@ -990,15 +990,15 @@ theorem keyOutput_eq_some
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
     (env : Env)
-    (piCcsPhase : NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.PhaseHolds
+    (piCcsPhase : NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.PhaseHolds
       relation ajtai (AccumulatorInputs.piCcsInterface logicalWidth publicFits)
       PiCCSInputs.phaseOffset env (AccumulatorInputs.proof relation env))
-    (piRlcPhase : NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.PhaseHolds
+    (piRlcPhase : NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.PhaseHolds
       relation ajtai
       (PiRLCInputs.interface
         (logicalWidth := logicalWidth) (publicFits := publicFits))
       PiRLCInputs.phaseOffset env)
-    (piDecPhase : NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.PhaseHolds
+    (piDecPhase : NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.PhaseHolds
       relation ajtai (PiDECInputs.interface logicalWidth publicFits)
       PiDECInputs.phaseOffset env) :
     (ProductionKey.key relation ajtai).output
@@ -1009,17 +1009,17 @@ theorem keyOutput_eq_some
   have attemptEq := keyPiDecAttempt_eq_some relation ajtai env piCcsPhase
     piRlcPhase
   have piDecSpec :=
-    NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.phaseHolds_implies_spec
+    NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.phaseHolds_implies_spec
       relation ajtai (PiDECInputs.interface logicalWidth publicFits)
       PiDECInputs.phaseOffset env piDecPhase
-  have accepted := NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.accepted
+  have accepted := NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.accepted
     relation ajtai (PiDECInputs.interface logicalWidth publicFits)
     PiDECInputs.phaseOffset env piDecSpec
   have result := (ProductionKey.key relation ajtai).output_eq_some_of_parentBounded
     (AccumulatorInputs.running logicalWidth publicFits env)
     (AccumulatorInputs.fresh logicalWidth publicFits env)
     (AccumulatorInputs.proof relation env)
-    (NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.inputAttempt relation
+    (NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.inputAttempt relation
       (PiDECInputs.interface logicalWidth publicFits) PiDECInputs.phaseOffset env)
     attemptEq accepted.parentBounded
   rw [outputForAttempt_eq_accumulatorOutput relation ajtai env piDecPhase]
@@ -1037,60 +1037,60 @@ structure PhaseWiring
       (logicalWidth := logicalWidth) (publicFits := publicFits))
     (env : Env)
     (piCcsInterface :
-      NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.Interface logicalWidth
+      NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.Interface logicalWidth
         (ProductionKey.degreeBound relation) publicFits)
     (piCcsOffset : Nat)
     (template proof : Proof (ProductionKey.degreeBound relation))
     (piRlcInterface :
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.Interface logicalWidth
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.Interface logicalWidth
         publicFits)
     (piRlcOffset : Nat)
     (piDecInterface :
-      NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal.Interface logicalWidth
+      NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.Interface logicalWidth
         publicFits)
     (piDecOffset : Nat)
     (computedOutput : Running
       (logicalWidth := logicalWidth) (publicFits := publicFits)) : Prop where
   proofView :
     let evaluated :=
-      NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalProof relation
+      NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalProof relation
         piCcsInterface piCcsOffset env template
     evaluated.piCcsRounds = proof.piCcsRounds ∧
       evaluated.piCcsOutput = proof.piCcsOutput
   inputs :
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.evalInputs relation
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.evalInputs relation
         piRlcInterface piRlcOffset env =
       (ProductionKey.key relation ajtai).piCcsOutputs
-        (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalRunning
+        (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalRunning
           piCcsInterface piCcsOffset env)
-        (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalFresh
+        (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalFresh
           piCcsInterface piCcsOffset env)
         proof
   initialState :
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerChain.evalInitialState
-        (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerInterface
-          (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.atOffset
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.SamplerChain.evalInitialState
+        (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.samplerInterface
+          (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.atOffset
             piRlcInterface piRlcOffset))
-        (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerOffset
+        (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.samplerOffset
           piRlcOffset) env =
       ((ProductionKey.key relation ajtai).piCcsExecution
-        (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalRunning
+        (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalRunning
           piCcsInterface piCcsOffset env)
-        (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalFresh
+        (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalFresh
           piCcsInterface piCcsOffset env)
         proof).outgoingState
   attempt :
-    NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.inputAttempt relation
+    NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.inputAttempt relation
         piDecInterface piDecOffset env =
       (ProductionKey.key relation ajtai).piDecAttemptForParent proof
-        (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.evalOutput relation
+        (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.evalOutput relation
           piRlcInterface piRlcOffset env)
   output :
     (ProductionKey.key relation ajtai).outputForAttempt proof
-        (NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.inputAttempt relation
+        (NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.inputAttempt relation
           piDecInterface piDecOffset env)
         ((ProductionKey.key relation ajtai).piDecPublicInputSplit.split
-          (NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.inputAttempt
+          (NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.inputAttempt
             relation piDecInterface piDecOffset env).parent.publicInput) =
       computedOutput
 
@@ -1105,84 +1105,84 @@ theorem phases_imply_holds_of_wiring
       (logicalWidth := logicalWidth) (publicFits := publicFits))
     (vk : KeyDigest) (env : Env)
     (piCcsInterface :
-      NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.Interface logicalWidth
+      NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.Interface logicalWidth
         (ProductionKey.degreeBound relation) publicFits)
     (piCcsOffset : Nat)
     (template proof : Proof (ProductionKey.degreeBound relation))
     (piRlcInterface :
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.Interface logicalWidth
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.Interface logicalWidth
         publicFits)
     (piRlcOffset : Nat)
     (piDecInterface :
-      NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal.Interface logicalWidth
+      NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.Interface logicalWidth
         publicFits)
     (piDecOffset : Nat)
     (computedOutput : Running
       (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (piCcsPhase : NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.PhaseHolds
+    (piCcsPhase : NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.PhaseHolds
       relation ajtai piCcsInterface piCcsOffset env template)
-    (piRlcPhase : NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.PhaseHolds
+    (piRlcPhase : NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.PhaseHolds
       relation ajtai piRlcInterface piRlcOffset env)
-    (piDecPhase : NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.PhaseHolds
+    (piDecPhase : NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.PhaseHolds
       relation ajtai piDecInterface piDecOffset env)
     (wiring : PhaseWiring relation ajtai env piCcsInterface piCcsOffset
       template proof piRlcInterface piRlcOffset piDecInterface piDecOffset
       computedOutput) :
     NightstreamFPrime.Lifecycle.Stage1.Accumulator.Holds relation ajtai vk
-      (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalRunning
+      (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalRunning
         piCcsInterface piCcsOffset env)
-      (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalFresh
+      (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalFresh
         piCcsInterface piCcsOffset env)
       proof computedOutput := by
   have challengesEq := piRlcChallenges_eq_key_of_initialState relation ajtai
     env
-    (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalRunning
+    (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalRunning
       piCcsInterface piCcsOffset env)
-    (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalFresh
+    (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalFresh
       piCcsInterface piCcsOffset env)
     proof piRlcInterface piRlcOffset piRlcPhase wiring.initialState
   have parentEq := piRlcOutput_eq_keyParentForChallenges_of_inputs relation
     ajtai env
-    (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalRunning
+    (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalRunning
       piCcsInterface piCcsOffset env)
-    (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalFresh
+    (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalFresh
       piCcsInterface piCcsOffset env)
     proof piRlcInterface piRlcOffset piRlcPhase wiring.inputs
   have attemptEq := keyPiDecAttempt_eq_some_of_wiring relation ajtai env
-    (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalRunning
+    (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalRunning
       piCcsInterface piCcsOffset env)
-    (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalFresh
+    (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalFresh
       piCcsInterface piCcsOffset env)
     proof piRlcInterface piRlcOffset piDecInterface piDecOffset challengesEq
     parentEq wiring.attempt
   have checkEq := piCcsCheck_eq_of_proof_fields relation ajtai
-    (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalRunning
+    (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalRunning
       piCcsInterface piCcsOffset env)
-    (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalFresh
+    (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalFresh
       piCcsInterface piCcsOffset env)
-    (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalProof relation
+    (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalProof relation
       piCcsInterface piCcsOffset env template)
     proof wiring.proofView.1 wiring.proofView.2
   have piCcsCheck := piCcsCheck_eq_true_of_phase relation ajtai env
     piCcsInterface piCcsOffset template proof piCcsPhase checkEq
   have piDecCheck := piDecCheck_eq_true_of_attempt relation ajtai env
-    (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalRunning
+    (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalRunning
       piCcsInterface piCcsOffset env)
-    (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalFresh
+    (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalFresh
       piCcsInterface piCcsOffset env)
     proof piDecInterface piDecOffset piDecPhase attemptEq
   have keyOutput := keyOutput_eq_some_of_attempt relation ajtai env
-    (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalRunning
+    (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalRunning
       piCcsInterface piCcsOffset env)
-    (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalFresh
+    (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalFresh
       piCcsInterface piCcsOffset env)
     proof piDecInterface piDecOffset computedOutput piDecPhase attemptEq
     wiring.output
   exact (NightstreamFPrime.Lifecycle.Stage1.Accumulator.holds_iff_checks
     relation ajtai vk
-    (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalRunning
+    (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalRunning
       piCcsInterface piCcsOffset env)
-    (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalFresh
+    (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalFresh
       piCcsInterface piCcsOffset env)
     proof computedOutput).mpr ⟨piCcsCheck, piDecCheck, keyOutput⟩
 
@@ -1196,15 +1196,15 @@ theorem phases_imply_holds
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
     (vk : KeyDigest) (env : Env)
-    (piCcsPhase : NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.PhaseHolds
+    (piCcsPhase : NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.PhaseHolds
       relation ajtai (AccumulatorInputs.piCcsInterface logicalWidth publicFits)
       PiCCSInputs.phaseOffset env (AccumulatorInputs.proof relation env))
-    (piRlcPhase : NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.PhaseHolds
+    (piRlcPhase : NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.PhaseHolds
       relation ajtai
       (PiRLCInputs.interface
         (logicalWidth := logicalWidth) (publicFits := publicFits))
       PiRLCInputs.phaseOffset env)
-    (piDecPhase : NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.PhaseHolds
+    (piDecPhase : NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.PhaseHolds
       relation ajtai (PiDECInputs.interface logicalWidth publicFits)
       PiDECInputs.phaseOffset env) :
     NightstreamFPrime.Lifecycle.Stage1.Accumulator.Holds relation ajtai vk

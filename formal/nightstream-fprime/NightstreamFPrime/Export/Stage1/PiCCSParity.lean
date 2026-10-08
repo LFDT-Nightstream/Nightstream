@@ -2,7 +2,7 @@ import NightstreamFPrime.Export.Codec
 import NightstreamFPrime.Export.Stage1.PiCCSNonzero
 
 /-!
-Paper authority: SuperNeo v1.1, Section 7.3, steps 1--5.
+Paper authority: SuperNeo v1.2, Section 7.3, steps 1--5.
 Obligation: Emit the complete synthetic PiCCS input, proof, and verifier
 result for Lean--Rust result comparison. This fixture does not establish
 valid bounded openings. Lean uses the production transcript schedule and
@@ -39,7 +39,7 @@ def stateValue (state : Transcript.State) : Value :=
 
 def roundMessagesValue (computed : Computed) : Value :=
   .array ((List.finRange productionShape.cubeVariables).map fun roundIndex =>
-    .array ((List.finRange (9 + 1)).map fun coefficient =>
+    .array ((List.finRange (8 + 1)).map fun coefficient =>
       extensionValue
         (computed.roundTrace.roundCoefficient roundIndex coefficient)))
 

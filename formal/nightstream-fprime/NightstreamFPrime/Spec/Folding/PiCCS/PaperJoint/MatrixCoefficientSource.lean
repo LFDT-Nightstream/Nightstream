@@ -2,13 +2,13 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.UnifiedSources
 
 /-! Provenance: adapted from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/MatrixCoefficientSource.lean`
 at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; split into the
-SuperNeo v1.1 canonical Pad and 7-matrix coefficient sources. -/
+SuperNeo v1.2 canonical Pad and 4-matrix coefficient sources. -/
 
 /-!
 One authoritative source for the canonical Pad and every CCS ring-matrix
 coefficient family.
 
-Protocol: SuperNeo v1.1 coefficient embedding (Section 5) and `Pi_CCS`
+Protocol: SuperNeo v1.2 coefficient embedding (Section 5) and `Pi_CCS`
 (Section 7.3 / Appendix B.2).
 Phase: structure ownership before CCS, Pad, and matrix-evaluation residuals.
 Constraint family: field-matrix to coefficient-expanded matrix images.
@@ -151,7 +151,7 @@ structure CoefficientKernel (Base : Type uBase) (coefficientCount : Nat) where
   weight : Fin coefficientCount -> Fin coefficientCount ->
     Fin coefficientCount -> Base
 
-/-- Paper Theorem 3 / Theorem 4 obligation: the constant coefficient of the
+/-- SuperNeo v1.2 Theorem 8 / Theorem 9 obligation: the constant coefficient of the
 transformed ring product is the ordinary field inner product. -/
 structure ConstantTermLaw
     {Base : Type uBase}

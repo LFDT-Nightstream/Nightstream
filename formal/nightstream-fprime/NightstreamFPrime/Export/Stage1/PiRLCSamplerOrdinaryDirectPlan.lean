@@ -14,7 +14,7 @@ open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Gadgets.Sampling
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
@@ -453,7 +453,7 @@ def rowForms
       (logicalWidth := relationLogicalWidth)
       (publicFits := relationPublicFits) index)
 
-/-- Canonical direct 7-matrix rows for every sampler ordinary constraint. -/
+/-- Canonical direct 4-matrix rows for every sampler ordinary constraint. -/
 def plan
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (_relation : ProductionKey.LogicalRelation relationLogicalWidth

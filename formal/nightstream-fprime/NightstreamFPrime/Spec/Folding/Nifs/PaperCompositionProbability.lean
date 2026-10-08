@@ -1,7 +1,10 @@
 import NightstreamFPrime.Spec.Folding.Nifs.InteractiveDistribution
 
 /-!
-SuperNeo B.1's strong-extractor loss for the sequential returned-value law.
+SuperNeo v1.2 Appendix B.1 strong-extractor loss for the sequential
+returned-value law: `source_success_ge_retry` and
+`source_success_ge_retry_from_weak`. `source_success_ge` and
+`source_success_ge_from_weak` keep the superseded square-root loss.
 The suffix kernel is analyzed through a proved causal coupling; the source
 and relaxed probabilities below measure the original sequential experiment.
 The weak suffix's concrete success loss is supplied by PaperWeakExtraction.

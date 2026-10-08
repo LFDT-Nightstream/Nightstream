@@ -15,7 +15,7 @@ namespace NightstreamFPrime.Export.Stage1.PiRLCProductSchedule
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Export.Package
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Export.Stage1.PiRLCCombinationInvocations
 
@@ -33,7 +33,7 @@ def blockCount : Family → Nat
   | .commitment => 22
   | .publicInput => 5
   | .evalK => 1
-  | .evalA => 7
+  | .evalA => 4
 
 def cellCount : Family → Nat
   | .commitment => 1
@@ -73,7 +73,7 @@ def invocationCount (family : Family) : Nat :=
   norm_num [invocationCount, privateCount, blockCount, cellCount,
     CombinationStep.privateCount, sourceCount, ringDegree]
 
-@[simp] theorem evalA_invocationCount : invocationCount .evalA = 12852 := by
+@[simp] theorem evalA_invocationCount : invocationCount .evalA = 7344 := by
   norm_num [invocationCount, privateCount, blockCount, cellCount,
     CombinationStep.privateCount, sourceCount, ringDegree]
 
@@ -217,7 +217,7 @@ def sourceConstraint (descriptor : Descriptor) :
           evalKValueSourceStart lane
   | ⟨.evalA, source, block, lane, cell⟩ =>
       PiRLCCombinationInvocations.sourceConstraint
-        PiRLCStarts.evalALogicalStart 7 2 2 source.val block.val cell.val
+        PiRLCStarts.evalALogicalStart 4 2 2 source.val block.val cell.val
           evalAValueSourceStart lane
 
 /-- The direct descriptor expressions are definitionally the current
@@ -274,7 +274,7 @@ def Descriptor.compactInvocation (descriptor : Descriptor) :
   | ⟨.evalA, source, block, lane, cell⟩ =>
       invocation PiRLCStarts.evalALogicalStart PiRLCStarts.evalARowStart
         PiRLCStarts.evalAFreshStart
-          7 2 2 source.val block.val lane.val cell.val
+          4 2 2 source.val block.val lane.val cell.val
             evalAValueSourceStart
 
 def familyCompactInvocation (family : Family) :
@@ -377,11 +377,11 @@ theorem evalACompactInvocations_eq :
   simp only [familyDescriptor, Descriptor.compactInvocation]
   simpa only using!
     (ofFn_decodeProd_eq_range_flatMap sourceCount
-      (CombinationStep.privateCount 7 2)
+      (CombinationStep.privateCount 4 2)
       (fun source index =>
         let coordinates := CombinationStep.coordinates index
         invocation PiRLCStarts.evalALogicalStart PiRLCStarts.evalARowStart
-          PiRLCStarts.evalAFreshStart 7 2 2 source coordinates.1.val
+          PiRLCStarts.evalAFreshStart 4 2 2 source coordinates.1.val
             coordinates.2.1.val coordinates.2.2.val evalAValueSourceStart))
 
 /-- Total count expressed as the exact four-family sum. -/
@@ -390,7 +390,7 @@ def invocationCount : Nat :=
     (Family.invocationCount .publicInput +
       (Family.invocationCount .evalK + Family.invocationCount .evalA))
 
-@[simp] theorem invocationCount_eq : invocationCount = 39474 := by
+@[simp] theorem invocationCount_eq : invocationCount = 33966 := by
   norm_num [invocationCount]
 
 /-- Constant-time semantic descriptor selector in exact family order. -/

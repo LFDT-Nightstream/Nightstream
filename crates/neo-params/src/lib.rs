@@ -9,7 +9,8 @@
 //!
 //! Symbols match the paper: q, η, d=φ(η), κ (kappa), m, b, k, B, T, s.
 //!
-//! References: Sec. 3–4 (Ajtai, strong set, Π_RLC bound); Appendix B.2 (Goldilocks preset).
+//! References: SuperNeo v1.2 Section 4 (Ajtai, strong set), Section 7.4 and
+//! Definition 22 (Π_RLC bound), Section 8.2 (Goldilocks preset).
 //!
 //! NOTE: The per-instance (ℓ, d_sc) used in the sum-check live in neo-fold.
 //!       Use `extension_check()` *there* with the preset's q, s, λ.
@@ -54,13 +55,13 @@ pub struct NeoParams {
     pub s: u32,
     /// Statistical target λ bound into the protocol header.
     ///
-    /// The Appendix B.2 reference value is not, by itself, an end-to-end
+    /// The Section 8.2 reference value is not, by itself, an end-to-end
     /// security claim. Executable padded-row profiles select this value from
     /// the combined field and coordinate-fork census for their concrete shape.
     pub lambda: u32,
 }
 
-/// Single source of truth for the SuperNeo Appendix B.2 Goldilocks profile.
+/// Single source of truth for the SuperNeo v1.2 Section 8.2 Goldilocks profile.
 pub mod goldilocks_paper_b2 {
     pub const Q: u64 = 0xFFFF_FFFF_0000_0001;
     pub const ETA: usize = 81;
@@ -225,7 +226,7 @@ impl NeoParams {
         })
     }
 
-    /// Goldilocks, Appendix B.2: η=81, d=54, κ=18, m=2^30, b=2, k_rho=14, B=2^14, T=216, s=2.
+    /// Goldilocks, Section 8.2: η=81, d=54, κ=18, m=2^30, b=2, k_rho=14, B=2^14, T=216, s=2.
     /// With Goldilocks q = 2^64 - 2^32 + 1, log₂(q) ≈ 63.999999999966 < 64, so q² < 2^128.
     /// We set λ=125 to stay within the paper's |C|≈2^125 challenge-set size.
     /// Guard: (k_rho+1)T(b−1)=15·216·1=3240 < 16384 ✓
@@ -300,7 +301,7 @@ impl NeoParams {
             && self.s == goldilocks_paper_b2::EXTENSION_DEGREE
     }
 
-    /// Select the strongest Appendix B.2 lambda supported by a square
+    /// Select the strongest Section 8.2 lambda supported by a square
     /// R1CS-derived CCS shape.
     ///
     /// Production callers that know distinct row and column counts must use
@@ -310,13 +311,13 @@ impl NeoParams {
         Self::goldilocks_auto_rectangular_r1cs_ccs(n_rows, n_rows)
     }
 
-    /// Select the strongest Appendix B.2 lambda supported by a rectangular
+    /// Select the strongest Section 8.2 lambda supported by a rectangular
     /// R1CS-derived CCS shape.
     pub fn goldilocks_auto_rectangular_r1cs_ccs(row_count: usize, column_count: usize) -> Result<Self, ParamsError> {
         Self::goldilocks_auto_rectangular_ccs(row_count, column_count, 3, 2)
     }
 
-    /// Select the strongest Appendix B.2 lambda supported by a concrete CCS
+    /// Select the strongest Section 8.2 lambda supported by a concrete CCS
     /// shape. The exact census is evidence, not a caller-independent policy
     /// floor.
     pub fn goldilocks_auto_rectangular_ccs(
@@ -370,7 +371,7 @@ impl NeoParams {
         )
     }
 
-    /// Auto-pick Appendix B.2 parameters for the implemented rectangular
+    /// Auto-pick Section 8.2 parameters for the implemented rectangular
     /// R1CS specialization (`t = 3`, `u = 2`).
     pub fn goldilocks_auto_rectangular_r1cs_ccs_with(
         row_count: usize,
@@ -381,14 +382,14 @@ impl NeoParams {
         Self::goldilocks_auto_rectangular_ccs_with(row_count, column_count, 3, 2, min_lambda, safety_margin)
     }
 
-    /// Auto-pick Appendix B.2 core parameters for the one-joint padded-row
+    /// Auto-pick Section 8.2 core parameters for the one-joint padded-row
     /// protocol on a rectangular CCS shape.
     ///
     /// The selected `lambda` charges the exact sum of:
     ///
     /// - the one joint SumCheck degree budget;
     /// - the paper's total gamma and alpha mixing degree; and
-    /// - Appendix D.5's conservative coordinate-fork loss over `5^54`.
+    /// - SuperNeo v1.2 Appendix B.3's conservative coordinate-fork loss over `5^54`.
     pub fn goldilocks_auto_rectangular_ccs_with(
         row_count: usize,
         column_count: usize,
@@ -615,7 +616,7 @@ impl NeoParams {
         Ok(field_factor)
     }
 
-    /// Maximum fresh CCS inputs K allowed by Definition 14's RLC guard:
+    /// Maximum fresh CCS inputs K allowed by Definition 22's RLC guard:
     /// `(K + k)·T·(b - 1) < B`.
     pub fn max_fresh_count_from_rlc_guard(&self) -> Result<u32, ParamsError> {
         let denom = (self.T as u128)
@@ -702,8 +703,8 @@ impl NeoParams {
 
 /// Field numerator of the one-joint PiCCS test error for explicit counts, as
 /// `(sum-check part, mixing part)`. The error is their sum over `q^s`.
-/// The mixing part is the total gamma and alpha degree of SuperNeo v1.2
-/// equation (16): `k·d·(t+1) + 2K + k - 1 + log m`.
+/// The mixing part is the total gamma and alpha degree of `ε_SZ` in SuperNeo
+/// v1.2 Appendix B.2 equation (14): `k·d·(t+1) + 2K + k - 1 + log m`.
 pub fn pi_ccs_padded_row_field_numerator(
     cube_variables: u32,
     verifier_degree: u32,

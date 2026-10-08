@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CheckedWitnessExtraction
 
 /-!
-SuperNeo v1.1, Definition 20 and Appendix B.2, extractor step 3.
+SuperNeo v1.2, Definition 21 and Appendix B.2, extractor step 3.
 Checks the public fixed-width response and the complete ambient relation on
 the same stored arrays. Commitment, public prefix, strict ambient norm, Pad,
 and every matrix coefficient are checked against verifier-owned inputs.

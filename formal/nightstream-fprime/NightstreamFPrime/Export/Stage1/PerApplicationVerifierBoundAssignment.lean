@@ -80,7 +80,7 @@ private theorem expectedContextTargetBound (lane : Fin 4) :
       PiRLCProductPlan.basePackage.layout.totalColumnCount := by
   have bound := lane.isLt
   have total : PiRLCProductPlan.basePackage.layout.totalColumnCount =
-      14761727 :=
+      12443217 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
   rw [total]
   norm_num [Spartan.expectedContextPublicStart] at bound ⊢
@@ -96,7 +96,7 @@ private theorem shiftedExpectedContext
   have lower : ¬ Spartan.expectedContextPublicStart + lane.val <
       PerApplicationPackage.basePackage.layout.constantColumn := by
     have constant : PerApplicationPackage.basePackage.layout.constantColumn =
-        14761448 :=
+        12442938 :=
       NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
     rw [constant]
     norm_num [Spartan.expectedContextPublicStart] at laneBound ⊢
@@ -104,7 +104,7 @@ private theorem shiftedExpectedContext
   have startLower : ¬ Spartan.expectedContextPublicStart <
       PerApplicationPackage.basePackage.layout.constantColumn := by
     have constant : PerApplicationPackage.basePackage.layout.constantColumn =
-        14761448 :=
+        12442938 :=
       NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
     rw [constant]
     norm_num [Spartan.expectedContextPublicStart]
@@ -200,22 +200,22 @@ theorem semantics_imply_contextKey
     have expected := transitionExpectedContext fits commitmentSetup raw lane
     rw [← custody] at expected
     have stateValue : PerApplicationDecodedIO.priorState bound
-        (Lifecycle.PiCCS.v1_1.StateBinding.contextWordStart + lane.val) =
+        (Lifecycle.PiCCS.v1_2.StateBinding.contextWordStart + lane.val) =
       (verifierContextDigest fits commitmentSetup).getD lane.val 0 := by
       calc
         PerApplicationDecodedIO.priorState bound
-            (Lifecycle.PiCCS.v1_1.StateBinding.contextWordStart + lane.val) =
+            (Lifecycle.PiCCS.v1_2.StateBinding.contextWordStart + lane.val) =
           PerApplicationDecodedIO.commonEnv bound
             (PilotProduction.priorPreimageStart +
-              (Lifecycle.PiCCS.v1_1.StateBinding.contextWordStart + lane.val)) :=
+              (Lifecycle.PiCCS.v1_2.StateBinding.contextWordStart + lane.val)) :=
           rfl
         _ = PerApplicationDecodedIO.commonEnv bound
             (PiCCSInputs.expectedContextStart + lane.val) := by
           simpa [PiCCSInvocations.parentInterface, PiCCSInputs.interface,
-            Lifecycle.PiCCS.v1_1.Formal.statementBindingInterface,
-            Lifecycle.PiCCS.v1_1.Formal.atOffset,
+            Lifecycle.PiCCS.v1_2.Formal.statementBindingInterface,
+            Lifecycle.PiCCS.v1_2.Formal.atOffset,
             PiCCSInputs.priorStateWord,
-            Lifecycle.PiCCS.v1_1.StateBinding.contextWordStart,
+            Lifecycle.PiCCS.v1_2.StateBinding.contextWordStart,
             PiCCSInputs.expectedContext] using! row
         _ = (verifierContextDigest fits commitmentSetup).getD lane.val 0 :=
           expected

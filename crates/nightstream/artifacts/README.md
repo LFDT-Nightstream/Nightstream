@@ -38,10 +38,10 @@ rows. Application state has four input words and four output words. The manifest
 exports the existing source-row, source-column, and retained-carrier conditions
 for the `2^28` Nightstream Goldilocks profile with `k_rho = 16`.
 
-The current selected application has 59,804,510 logical coordinates and
-59,804,514 padded coordinates, using 1,107,491 columns of the unchanged fixed
+The current selected application has 49,707,850 logical coordinates and
+49,707,864 padded coordinates, using 920,516 columns of the unchanged fixed
 key. The approved maximum is 4,708,530 columns. With logical width
-`59579666 + 41 * (witness_words + local_words)`, that maximum permits 4,748,315
+`49483006 + 41 * (witness_words + local_words)`, that maximum permits 4,994,575
 application witness and local fields together. Source rows, source columns,
 and the padded carrier must also fit the declared domain.
 
@@ -54,6 +54,7 @@ bash scripts/validate.sh build checkSharedVerifier
 bash scripts/validate.sh file tests/SharedVerifier.lean
 bash scripts/validate.sh lean-executable .lake/build/bin/checkSharedVerifier
 bash scripts/validate.sh lean-executable .lake/build/bin/emitSharedVerifier ../../crates/nightstream/artifacts/shared-verifier-v1.json
+python3 -B scripts/check_artifacts.py --write
 ```
 
 The native check compares the manifest with both existing Lean applications.

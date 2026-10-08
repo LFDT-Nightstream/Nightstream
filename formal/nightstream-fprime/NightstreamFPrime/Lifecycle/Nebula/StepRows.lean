@@ -14,6 +14,31 @@ namespace NightstreamFPrime.Lifecycle.Nebula
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Nebula
 
+/-- The bits of one operation slot (spec §6.1), and the O4 auxiliary word. -/
+structure OpSlotBits (p : Plan) where
+  pad : F
+  isWrite : F
+  isRam : F
+  addr : Fin p.μ → F
+  vr : Fin 32 → F
+  vw : Fin 32 → F
+  rt : Fin p.wTs → F
+  diff : Fin p.wTs → F
+
+/-- The bits of one scan slot (spec §6.2). -/
+structure ScanSlotBits (p : Plan) where
+  value : Fin 32 → F
+  stamp : Fin p.wTs → F
+
+/-- The lane bits of an operation slot in field order (spec §6.3). -/
+def OpSlotBits.lane {p : Plan} (slot : OpSlotBits p) : List F :=
+  [slot.pad, slot.isWrite, slot.isRam] ++ List.ofFn slot.addr ++ List.ofFn slot.vr ++
+    List.ofFn slot.vw ++ List.ofFn slot.rt
+
+/-- The lane bits of a scan slot. -/
+def ScanSlotBits.lane {p : Plan} (slot : ScanSlotBits p) : List F :=
+  List.ofFn slot.value ++ List.ofFn slot.stamp
+
 /-- The witness of one invocation. Bit fields are field words that the rows
 force into `{0, 1}`. -/
 structure StepWitness (p : Plan) where
@@ -31,10 +56,9 @@ structure StepWitness (p : Plan) where
   eta1Square : Fin 2 → F
   seenPrev : Fin 12 → F
   idxEff : F
-  opsBits : Fin p.bOps → Fin p.opWidth → F
-  initialBits : Fin p.bScan → Fin p.scanWidth → F
-  finalBits : Fin p.bScan → Fin p.scanWidth → F
-  diffBits : Fin p.bOps → Fin p.wTs → F
+  ops : Fin p.bOps → OpSlotBits p
+  initial : Fin p.bScan → ScanSlotBits p
+  final : Fin p.bScan → ScanSlotBits p
   tsBits : Fin p.wTs → F
   segBits : Fin p.segWidth → F
   opsProducts : Fin p.bOps → Fin 4 → F
@@ -43,9 +67,13 @@ structure StepWitness (p : Plan) where
 /-- A field word is a bit. -/
 def IsBit (x : F) : Prop := x = 0 ∨ x = 1
 
-/-- The little-endian value of `width` bits from `start`, in the field. -/
-def bitsWord {n : ℕ} (bits : Fin n → F) (start width : ℕ) : F :=
-  ∑ k : Fin width, if h : start + k < n then (2 : F) ^ (k : ℕ) * bits ⟨start + k, h⟩ else 0
+/-- Little-endian value of a list of field bits. -/
+def chunkWord : List F → F
+  | [] => 0
+  | b :: bs => b + 2 * chunkWord bs
+
+/-- The little-endian value of a bit vector, in the field. -/
+def bitsWord {n : ℕ} (bits : Fin n → F) : F := chunkWord (List.ofFn bits)
 
 /-- A `K` element from two words. -/
 def kOf (c0 c1 : F) : K := ⟨c0, c1⟩
@@ -95,31 +123,23 @@ def previousDigest (start : ℕ) : Digest := fun i =>
 
 /-! ### Slot fields -/
 
-/-- Bit `k` of operation slot `j`, or `0` beyond its width. -/
-def opBit (j : Fin p.bOps) (k : ℕ) : F := if h : k < p.opWidth then w.opsBits j ⟨k, h⟩ else 0
-
-def pad (j : Fin p.bOps) : F := w.opBit j 0
-def isWrite (j : Fin p.bOps) : F := w.opBit j 1
-def isRam (j : Fin p.bOps) : F := w.opBit j 2
-def addr (j : Fin p.bOps) : F := bitsWord (w.opsBits j) 3 p.μ
-def vr (j : Fin p.bOps) : F := bitsWord (w.opsBits j) (3 + p.μ) 32
-def vw (j : Fin p.bOps) : F := bitsWord (w.opsBits j) (35 + p.μ) 32
-def rt (j : Fin p.bOps) : F := bitsWord (w.opsBits j) (67 + p.μ) p.wTs
-def diff (j : Fin p.bOps) : F := bitsWord (w.diffBits j) 0 p.wTs
+def pad (j : Fin p.bOps) : F := (w.ops j).pad
+def isWrite (j : Fin p.bOps) : F := (w.ops j).isWrite
+def isRam (j : Fin p.bOps) : F := (w.ops j).isRam
+def addr (j : Fin p.bOps) : F := bitsWord (w.ops j).addr
+def vr (j : Fin p.bOps) : F := bitsWord (w.ops j).vr
+def vw (j : Fin p.bOps) : F := bitsWord (w.ops j).vw
+def rt (j : Fin p.bOps) : F := bitsWord (w.ops j).rt
+def diff (j : Fin p.bOps) : F := bitsWord (w.ops j).diff
 
 /-- The active count of the slots before `k` (row O2): `cnt_{k−1}`. -/
-def cntBefore (k : ℕ) : F := ∑ i : Fin p.bOps, if i.val < k then 1 - w.pad i else 0
+def cntBefore (k : ℕ) : F := ((List.ofFn fun j => 1 - w.pad j).take k).sum
 
 /-- `wt_j = ts + cnt_j`. -/
 def wt (j : Fin p.bOps) : F := w.cIn 2 + w.cntBefore (j.val + 1)
 
 /-- `g_j = addr_j + is_ram_j · R`. -/
 def globalIndex (j : Fin p.bOps) : F := w.addr j + w.isRam j * natWord p.romSize
-
-def scanValue (bits : Fin p.bScan → Fin p.scanWidth → F) (j : Fin p.bScan) : F :=
-  bitsWord (bits j) 0 32
-def scanStamp (bits : Fin p.bScan → Fin p.scanWidth → F) (j : Fin p.bScan) : F :=
-  bitsWord (bits j) 32 p.wTs
 
 /-- The structural index `idx · B_scan + j` of scan slot `j`. -/
 def scanIndex (j : Fin p.bScan) : F := w.idxEff * natWord p.bScan + natWord j
@@ -150,16 +170,14 @@ def scanProductAfter (pair : ℕ) (k : ℕ) : K :=
 
 /-! ### Lanes -/
 
-/-- The bits of lane `bits`, slot-major (spec §6.3). -/
-def laneBits {slots width : ℕ} (bits : Fin slots → Fin width → F) : List F :=
-  (List.ofFn fun j => List.ofFn (bits j)).flatten
+/-- The ops lane, slot-major. -/
+def opsLaneBits : List F := (List.ofFn fun j => (w.ops j).lane).flatten
+
+/-- An IS or FS lane, slot-major. -/
+def scanLaneBits (slots : Fin p.bScan → ScanSlotBits p) : List F :=
+  (List.ofFn fun j => (slots j).lane).flatten
 
 end StepWitness
-
-/-- Little-endian value of a chunk of field bits. -/
-def chunkWord : List F → F
-  | [] => 0
-  | b :: bs => b + 2 * chunkWord bs
 
 /-- Spec §9.1 packing of field bits: chunks of 63, each read little-endian. -/
 def packWords (bits : List F) : List F :=
@@ -191,10 +209,10 @@ checks, except the output state, which is the step function. `zIn` is the
 input state. Indices follow spec §11.1 carry word order. -/
 structure StepWitness.RowsHold {p : Plan} (w : StepWitness p) (zIn : List F) : Prop where
   -- O1, S1, and the auxiliary bits
-  opsBits : ∀ j k, IsBit (w.opsBits j k)
-  initialBits : ∀ j k, IsBit (w.initialBits j k)
-  finalBits : ∀ j k, IsBit (w.finalBits j k)
-  diffBits : ∀ j k, IsBit (w.diffBits j k)
+  opsBits : ∀ j, ∀ x ∈ (w.ops j).lane, IsBit x
+  diffBits : ∀ j k, IsBit ((w.ops j).diff k)
+  initialBits : ∀ j, ∀ x ∈ (w.initial j).lane, IsBit x
+  finalBits : ∀ j, ∀ x ∈ (w.final j).lane, IsBit x
   tsBits : ∀ k, IsBit (w.tsBits k)
   segBits : ∀ k, IsBit (w.segBits k)
   idleBit : IsBit w.idle
@@ -204,7 +222,7 @@ structure StepWitness.RowsHold {p : Plan} (w : StepWitness p) (zIn : List F) : P
   openZero : (w.cIn 1 - natWord p.n) * w.isOpen = 0
   openTest : (w.cIn 1 - natWord p.n) * w.openInverse = 1 - w.isOpen
   -- §11.2 open: S_max, then reset to the proposals, fresh challenges, headers
-  segRange : w.isOpen * (natWord (p.sMax - 1) - w.cIn 0 - bitsWord w.segBits 0 p.segWidth) = 0
+  segRange : w.isOpen * (natWord (p.sMax - 1) - w.cIn 0 - bitsWord w.segBits) = 0
   idxEff : w.idxEff = (1 - w.isOpen) * w.cIn 1
   seenPrev : ∀ i : Fin 12,
     w.seenPrev i = w.isOpen * headerWords p i + (1 - w.isOpen) * w.cIn (23 + i)
@@ -215,22 +233,22 @@ structure StepWitness.RowsHold {p : Plan} (w : StepWitness p) (zIn : List F) : P
   readKeeps : ∀ j, (1 - w.isWrite j) * (w.vw j - w.vr j) = 0
   fresh : ∀ j, (1 - w.pad j) * (w.wt j - w.rt j - 1 - w.diff j) = 0
   noRomWrite : ∀ j, w.isWrite j * (1 - w.isRam j) = 0
-  romRange : ∀ j k, p.r ≤ k → k < p.μ → (1 - w.isRam j) * w.opBit j (3 + k) = 0
-  padZero : ∀ j k, 1 ≤ k → k < p.opWidth → w.pad j * w.opBit j k = 0
+  romRange : ∀ j (k : Fin p.μ), p.r ≤ k.val → (1 - w.isRam j) * (w.ops j).addr k = 0
+  padZero : ∀ j, ∀ x ∈ ((w.ops j).lane).tail, w.pad j * x = 0
   readProduct : ∀ j, w.opsProductAfter 0 (j.val + 1) = K.mul (w.opsProductAfter 0 j.val)
     (gatedK (w.pad j) (fingerprintK w.eta1 w.eta2 w.eta1Sq (w.rt j) (w.globalIndex j) (w.vr j)))
   writeProduct : ∀ j, w.opsProductAfter 1 (j.val + 1) = K.mul (w.opsProductAfter 1 j.val)
     (gatedK (w.pad j) (fingerprintK w.eta1 w.eta2 w.eta1Sq (w.wt j) (w.globalIndex j) (w.vw j)))
   -- §8.3 scan rows
   initialProduct : ∀ j, w.scanProductAfter 0 (j.val + 1) = K.mul (w.scanProductAfter 0 j.val)
-    (fingerprintK w.eta1 w.eta2 w.eta1Sq (StepWitness.scanStamp w.initialBits j) (w.scanIndex j)
-      (StepWitness.scanValue w.initialBits j))
+    (fingerprintK w.eta1 w.eta2 w.eta1Sq (bitsWord (w.initial j).stamp) (w.scanIndex j)
+      (bitsWord (w.initial j).value))
   finalProduct : ∀ j, w.scanProductAfter 1 (j.val + 1) = K.mul (w.scanProductAfter 1 j.val)
-    (fingerprintK w.eta1 w.eta2 w.eta1Sq (StepWitness.scanStamp w.finalBits j) (w.scanIndex j)
-      (StepWitness.scanValue w.finalBits j))
+    (fingerprintK w.eta1 w.eta2 w.eta1Sq (bitsWord (w.final j).stamp) (w.scanIndex j)
+      (bitsWord (w.final j).value))
   -- §8.4 boundary rows
   tsOut : w.cOut 2 = w.cIn 2 + w.cntBefore p.bOps
-  tsRange : w.cOut 2 = bitsWord w.tsBits 0 p.wTs
+  tsRange : w.cOut 2 = bitsWord w.tsBits
   idxOut : w.cOut 1 = w.idxEff + 1
   productsOut : kOf (w.cOut 7) (w.cOut 8) = w.opsProductAfter 0 p.bOps ∧
     kOf (w.cOut 9) (w.cOut 10) = w.opsProductAfter 1 p.bOps ∧
@@ -250,11 +268,11 @@ structure StepWitness.RowsHold {p : Plan} (w : StepWitness p) (zIn : List F) : P
     w.cOut (35 + i) = w.isClose * w.cOut (19 + i) + (1 - w.isClose) * w.cIn (35 + i)
   -- §9.2 chains and §9.3 challenges
   chainOps : StepWitness.carryDigest w.carryOut 23 =
-    chainLink .ops w.idxEff (w.previousDigest 0) (packWords (StepWitness.laneBits w.opsBits))
+    chainLink .ops w.idxEff (w.previousDigest 0) (packWords w.opsLaneBits)
   chainInitial : StepWitness.carryDigest w.carryOut 27 =
-    chainLink .mem w.idxEff (w.previousDigest 4) (packWords (StepWitness.laneBits w.initialBits))
+    chainLink .mem w.idxEff (w.previousDigest 4) (packWords (StepWitness.scanLaneBits w.initial))
   chainFinal : StepWitness.carryDigest w.carryOut 31 =
-    chainLink .mem w.idxEff (w.previousDigest 8) (packWords (StepWitness.laneBits w.finalBits))
+    chainLink .mem w.idxEff (w.previousDigest 8) (packWords (StepWitness.scanLaneBits w.final))
   freshEta : etaChallenges ⟨planDigest p, (w.cIn 2).val, w.proposalDigest 0,
     StepWitness.carryDigest w.carryIn 35, w.proposalDigest 4⟩ = w.freshEta
   -- §11.1 input state
@@ -270,14 +288,14 @@ def fetchSlot : Fin p.bOps := ⟨0, by omega⟩
 def dataSlot : Fin p.bOps := ⟨1, by omega⟩
 
 /-- Bit `k` of the fetched instruction word. -/
-def instructionBit (k : ℕ) : F := w.opBit (fetchSlot two) (3 + p.μ + k)
+def instructionBit (k : Fin 32) : F := (w.ops (fetchSlot two)).vr k
 
 def isLoad : F := w.instructionBit two 0 * (1 - w.instructionBit two 1)
 def isStore : F := (1 - w.instructionBit two 0) * w.instructionBit two 1
 def isLoadi : F := w.instructionBit two 0 * w.instructionBit two 1
 
 /-- The instruction argument `v / 4`: bits 2–31 of the fetched word. -/
-def argument : F := bitsWord (w.opsBits (fetchSlot two)) (3 + p.μ + 2) 30
+def argument : F := chunkWord ((List.ofFn (w.ops (fetchSlot two)).vr).drop 2)
 
 /-- The machine's port rows (spec §10, Ob7) and its next state. -/
 structure MachineRows : Prop where

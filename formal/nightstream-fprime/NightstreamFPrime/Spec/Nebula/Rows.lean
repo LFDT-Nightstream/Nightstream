@@ -98,6 +98,66 @@ theorem activeOps_length (ts : ℕ) (z : StepRecords) :
     (activeOps ts z.ops).length = activeCount z :=
   activeOps_length_eq ts z.ops
 
+/-- The number of active slots of a list. -/
+def activeLength (ops : List OpSlot) : ℕ := (ops.filterMap OpSlot.port).length
+
+theorem activeLength_append (l : List OpSlot) (s : OpSlot) :
+    activeLength (l ++ [s]) = activeLength l + if s.pad then 0 else 1 := by
+  unfold activeLength
+  rw [List.filterMap_append, List.length_append]
+  cases h : s.pad <;> simp [OpSlot.port, h]
+
+/-- One more slot at the end of a step's slot list. -/
+theorem activeOps_append (ts : ℕ) (l : List OpSlot) (s : OpSlot) :
+    activeOps ts (l ++ [s]) = activeOps ts l ++
+      match s.port with
+      | none => []
+      | some a => [⟨a, s.rt, ts + activeLength l + 1⟩] := by
+  induction l generalizing ts with
+  | nil => cases h : s.port <;> simp [activeOps, activeLength, h]
+  | cons t l ih =>
+    cases ht : t.port with
+    | none =>
+      simp only [List.cons_append, activeOps, ht, ih, activeLength, List.filterMap_cons]
+    | some a =>
+      simp only [List.cons_append, activeOps, ht, ih, List.cons_append, List.cons.injEq, true_and]
+      cases hs : s.port <;> simp [activeLength, ht, Nat.add_assoc, Nat.add_comm 1]
+
+variable {E : Type} [CommRing E] in
+/-- One more slot at the end: rows O8 and O9 multiply by its gated factors. -/
+theorem opsFactors_append (p : Plan) (η : E × E) (ts : ℕ) (l : List OpSlot) (s : OpSlot) :
+    opsFactors p η ts (l ++ [s]) =
+      ((opsFactors p η ts l).1 *
+          (if s.pad then 1 else fingerprint η (s.rt,
+            (PortAccess.mk s.isWrite s.isRam s.addr s.vr s.vw).globalIndex p, s.vr)),
+        (opsFactors p η ts l).2 *
+          (if s.pad then 1 else fingerprint η (ts + activeLength l + 1,
+            (PortAccess.mk s.isWrite s.isRam s.addr s.vr s.vw).globalIndex p, s.vw))) := by
+  induction l generalizing ts with
+  | nil => cases h : s.pad <;> simp [opsFactors, activeLength, OpSlot.port, h]
+  | cons t l ih =>
+    cases ht : t.pad
+    · have length : activeLength (t :: l) = activeLength l + 1 := by
+        simp [activeLength, OpSlot.port, ht]
+      rw [length, show ts + (activeLength l + 1) + 1 = ts + 1 + activeLength l + 1 by omega]
+      simp only [List.cons_append, opsFactors, ht, ih, Bool.false_eq_true, ite_false]
+      simp only [Prod.mk.injEq, mul_assoc, and_self]
+    · have length : activeLength (t :: l) = activeLength l := by
+        simp [activeLength, OpSlot.port, ht]
+      rw [length]
+      simp only [List.cons_append, opsFactors, ht, ih, ite_true]
+
+variable {E : Type} [CommRing E] in
+/-- One more scan slot at the end: rows S2 and S3 multiply by its factor. -/
+theorem scanFactor_append (η : E × E) (base : ℕ) (l : List ScanSlot) (c : ScanSlot) :
+    scanFactor η base (l ++ [c]) =
+      scanFactor η base l * fingerprint η (c.stamp, base + l.length, c.value) := by
+  induction l generalizing base with
+  | nil => simp [scanFactor]
+  | cons d l ih =>
+    rw [List.length_cons, show base + (l.length + 1) = base + 1 + l.length by omega]
+    simp only [List.cons_append, scanFactor, ih, mul_assoc]
+
 /-- All tuples of the four multisets of a step. -/
 def Multisets.all (m : Multisets) : Multiset Tuple := m.read + m.write + m.initial + m.final
 

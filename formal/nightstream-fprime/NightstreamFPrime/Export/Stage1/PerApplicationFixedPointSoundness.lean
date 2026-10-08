@@ -497,11 +497,13 @@ theorem rowsZero_implies_stepHoldsFor_and_publicOutput
       PerApplicationCanonicalAssignment.projectPublicInput_completeAssignment raw
 
 /-- Rows that hold on `bind raw` force the augmented step under the canonical
-verifier-context digest. `bind` overwrites four private context words of one
-canonical raw packet; no SuperNeo public-input, NIFS, or terminal check sets
-them. For an arbitrary accepted witness, use
-`ActualPiDECOutput.selectedRowsAndPublic_imply_step`: it gives the step under
-the decoded context, and the terminal state-hash check binds that context. -/
+verifier-context digest. `bind` overwrites the four verifier-context columns
+of one canonical raw packet. These columns are not part of the SuperNeo
+public input `x`, and no NIFS or terminal check sets them. For an arbitrary
+accepted witness, use
+`ActualContextSecurity.selectedRowsAndCheckedPublic_imply_stepOrCollision`:
+with the terminal public-input check, it gives the step under the canonical
+verifier context or a named state-hash collision. -/
 theorem verifierBoundRowsZero_implies_stepHoldsFor
     (application : Program) (fits : FitsTwoPow28 application)
     (commitmentSetup : CommitmentSetup application)

@@ -1,6 +1,7 @@
 import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPackage
 import NightstreamFPrime.Layout.Poseidon2
 import NightstreamFPrime.Lifecycle.Nebula.FirstPlan
+import NightstreamFPrime.Lifecycle.Nebula.RowNames
 
 /-!
 Owns the package geometry and recursive fixed point for the first Nebula memory
@@ -503,5 +504,20 @@ theorem matrixProgram_exact :
       (PerApplicationFixedPoint.structuralPlan application fits)
       (PerApplicationCanonicalPackage.sourceRow application fits) :=
   PerApplicationCanonicalPackage.matrixProgram_exact application fits
+
+/-- The row range `[first, end)` of each named assertion group
+(`MemoryApp.assertionNames`), counted from the application's first package
+row. The assertions are the last constraints of the circuit
+(`MemoryApp.assertionNames_count`), and each constraint lowers to
+`R1CS.constraintRowCount` consecutive rows. Conformance tests read it. -/
+def namedRowRanges : List (String × ℕ × ℕ) :=
+  let rows := (ApplicationPackage.constraints application
+    (ApplicationPackage.productionColumns application) start).map R1CS.constraintRowCount
+  let names := MemoryApp.assertionNames plan
+  let children := rows.length - (names.map Prod.snd).sum
+  let step := fun (state : Array (String × ℕ × ℕ) × ℕ × List ℕ) (group : String × ℕ) =>
+    let span := (state.2.2.take group.2).sum
+    (state.1.push (group.1, state.2.1, state.2.1 + span), state.2.1 + span, state.2.2.drop group.2)
+  (names.foldl step (#[], (rows.take children).sum, rows.drop children)).1.toList
 
 end NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package

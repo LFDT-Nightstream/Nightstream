@@ -221,7 +221,7 @@ def outputEvaluationTargetStart : Nat :=
     NightstreamFPrime.Layout.Stage1.PiCCSInputs.freshCommitmentWords +
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.roundMessageWords
 
-/-- One exact v1_1 Pad-evaluation segment for one PiCCS output source. -/
+/-- One exact v1_2 Pad-evaluation segment for one PiCCS output source. -/
 def outputEval_KSegment
     (source : Fin productionShape.sourceCount) : Segment :=
   ⟨Role.piCcsOutputEval_K,
@@ -229,7 +229,7 @@ def outputEval_KSegment
       source.val * outputEvaluationWordsPerSource,
     outputEval_KWords⟩
 
-/-- One exact v1_1 CCS-matrix-evaluation segment for one PiCCS output source. -/
+/-- One exact v1_2 CCS-matrix-evaluation segment for one PiCCS output source. -/
 def outputEval_ASegment
     (source : Fin productionShape.sourceCount) : Segment :=
   ⟨Role.piCcsOutputEval_A,

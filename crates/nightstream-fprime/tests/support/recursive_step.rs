@@ -6,7 +6,7 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 use serde_json::{json, Value};
 
-const PI_CCS_V1_1_ROUND_COUNT: usize = 28;
+const PI_CCS_V1_2_ROUND_COUNT: usize = 28;
 const STATE_PREIMAGE_WORDS: usize = 32_113;
 const PUBLIC: usize = 270;
 const MODULUS: u64 = 0xffff_ffff_0000_0001;
@@ -196,6 +196,6 @@ pub fn check_fixture(fixture: &[u8], base: &[u8], input: &[u8], children: &[u8],
         "recursive_caller_binding=passed prior_iteration={} output_iteration={} children=16 matrix_families={}",
         prior[28],
         next[28],
-        nightstream_fprime::PI_CCS_V1_1_MATRIX_COUNT
+        nightstream_fprime::PI_CCS_V1_2_MATRIX_COUNT
     );
 }

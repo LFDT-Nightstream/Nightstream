@@ -7,7 +7,7 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 /-!
 Concrete carrier algebra for paper joint `Pi_CCS`.
 
-Protocol: SuperNeo `Pi_CCS` (Section 7.3 / Appendix D.4).
+Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
 Phase: base/extension arithmetic and algebraic carrier placement.
 Constraint family: mathematical field/ring operations only; this file emits
 no rows.

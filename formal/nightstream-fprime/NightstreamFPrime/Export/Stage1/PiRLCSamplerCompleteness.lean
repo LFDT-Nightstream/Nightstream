@@ -2,7 +2,7 @@ import NightstreamFPrime.Export.Stage1.PiRLCPackageCompleteness
 import NightstreamFPrime.Export.Stage1.PermutationCompilerTransport
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerInvocations
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRows
-import NightstreamFPrime.Layout.PiRLC.v1_1.SamplerSegments
+import NightstreamFPrime.Layout.PiRLC.v1_2.SamplerSegments
 
 /-!
 Owns the constructive bridge from the exact PiRLC sampler physical packet to
@@ -15,14 +15,14 @@ namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerCompleteness
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Export.Package
 open NightstreamFPrime.Layout
-open NightstreamFPrime.Layout.PiRLC.v1_1
-open NightstreamFPrime.Layout.PiRLC.v1_1.Leaves
+open NightstreamFPrime.Layout.PiRLC.v1_2
+open NightstreamFPrime.Layout.PiRLC.v1_2.Leaves
 open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Lifecycle
 
 def chainInterface : SamplerChain.Logical.Interface :=
-  NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerInterface
-    (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.atOffset
+  NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.samplerInterface
+    (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.atOffset
       PiRLCPackageCompleteness.phaseInterface PiRLCInputs.phaseOffset)
 
 private theorem chainConstraints_eq_sourceConstraintLists :
@@ -128,8 +128,8 @@ theorem remappedPacket_implies_sourceChildren (env : Env)
     (remappedPacket_implies_sourceRows env packets source)
 
 def entryWords (source : Nat) : List Expr :=
-  NightstreamFPrime.Lifecycle.PiRLC.v1_1.TranscriptAbsorption.constantWords
-    (NightstreamFPrime.Lifecycle.PiRLC.v1_1.TranscriptAbsorption.frameWords
+  NightstreamFPrime.Lifecycle.PiRLC.v1_2.TranscriptAbsorption.constantWords
+    (NightstreamFPrime.Lifecycle.PiRLC.v1_2.TranscriptAbsorption.frameWords
       source)
 
 def entryPermutationState (source : Nat) :
@@ -145,8 +145,8 @@ private theorem entryInputChunks_eq (source : Nat) :
         (entryWords source) =
       [entryWords source] := by
   unfold entryWords
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.TranscriptAbsorption.constantWords
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.TranscriptAbsorption.frameWords
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.TranscriptAbsorption.constantWords
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.TranscriptAbsorption.frameWords
     NightstreamFPrime.Gadgets.Poseidon2.Hash.inputChunks
   norm_num [NightstreamFPrime.Spec.Poseidon2.rate]
 
@@ -163,7 +163,7 @@ theorem entryInvocations_eq_singleton (source : Nat) :
         (entryPermutationState source)] := by
   unfold PiRLCSamplerInvocations.entryInvocations
     PiRLCSamplerInvocations.entryTrace
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.TranscriptAbsorption.actions
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.TranscriptAbsorption.actions
   rw [PiRLCSamplerInvocations.fastEntryState_eq_entryState]
   change
     (NightstreamFPrime.Export.Stage1.Invocations.compileActions
@@ -186,27 +186,27 @@ theorem entryInvocations_eq_singleton (source : Nat) :
     List.append_nil]
 
 private theorem entryConstraints_eq_recipeConstraints (source : Nat) :
-    (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Sampler.entryOp
+    (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Sampler.entryOp
       (sourceInterface source) source (sourceOffset source)).flatConstraints =
       recipeConstraints (PiRLCSamplerInvocations.sourceLogicalStart source)
         (NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal.Owned.program
-          (NightstreamFPrime.Lifecycle.PiRLC.v1_1.TranscriptAbsorption.ownedInterface
+          (NightstreamFPrime.Lifecycle.PiRLC.v1_2.TranscriptAbsorption.ownedInterface
             (sourceInterface source) source)
           (PiRLCSamplerInvocations.sourceLogicalStart source)).recipes := by
-  rw [NightstreamFPrime.Lifecycle.PiRLC.v1_1.Sampler.entryOp, Sampler.child_constraints,
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.Sampler.entry, FormalCircuit.withConstantFootprint_main]
+  rw [NightstreamFPrime.Lifecycle.PiRLC.v1_2.Sampler.entryOp, Sampler.child_constraints,
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.Sampler.entry, FormalCircuit.withConstantFootprint_main]
   change flatConstraints (NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal.Owned.opsAt
-    (NightstreamFPrime.Lifecycle.PiRLC.v1_1.TranscriptAbsorption.ownedInterface
+    (NightstreamFPrime.Lifecycle.PiRLC.v1_2.TranscriptAbsorption.ownedInterface
       (sourceInterface source) source) (PiRLCSamplerInvocations.sourceLogicalStart source)) = _
   rw [NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal.Owned.flatConstraints_opsAt]
   have noAssertions : NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal.Owned.allAssertions
-      (NightstreamFPrime.Lifecycle.PiRLC.v1_1.TranscriptAbsorption.ownedInterface
+      (NightstreamFPrime.Lifecycle.PiRLC.v1_2.TranscriptAbsorption.ownedInterface
         (sourceInterface source) source) (PiRLCSamplerInvocations.sourceLogicalStart source) = [] := rfl
   rw [noAssertions, List.append_nil]
 
 private theorem entryProgramRecipes_eq (source : Nat) :
     (NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal.Owned.program
-      (NightstreamFPrime.Lifecycle.PiRLC.v1_1.TranscriptAbsorption.ownedInterface
+      (NightstreamFPrime.Lifecycle.PiRLC.v1_2.TranscriptAbsorption.ownedInterface
         (sourceInterface source) source)
       (PiRLCSamplerInvocations.sourceLogicalStart source)).recipes =
     (NightstreamFPrime.Gadgets.Poseidon2.Permutation.compile
@@ -214,8 +214,8 @@ private theorem entryProgramRecipes_eq (source : Nat) :
       (entryPermutationState source)
       NightstreamFPrime.Gadgets.Poseidon2.Permutation.schedule).recipes := by
   unfold NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal.Owned.program
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.TranscriptAbsorption.ownedInterface
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.TranscriptAbsorption.actions
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.TranscriptAbsorption.ownedInterface
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.TranscriptAbsorption.actions
   change
     (NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal.compile
       (PiRLCSamplerInvocations.sourceLogicalStart source)
@@ -240,9 +240,9 @@ private theorem entryWitnessLocal (source : Nat) :
       PiRLCSamplerInvocations.sourceLogicalStart source := by
   unfold PiRLCSamplerInvocations.sourceLogicalStart
     PiRLCStarts.samplerSourceLogicalStart PiRLCStarts.samplerLogicalStart
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerOffset
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.samplerOffset
     PiRLCStarts.phaseLogicalStart PiRLCInputs.phaseOffset
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerChain.sourceOffset
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.SamplerChain.sourceOffset
   norm_num [Spartan.piCcsPhaseOffset]
   omega
 
@@ -250,7 +250,7 @@ private theorem entryWords_affine (source : Nat) :
     NightstreamFPrime.Layout.Poseidon2.ListAffine (entryWords source) := by
   intro expression member
   unfold entryWords
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.TranscriptAbsorption.constantWords
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.TranscriptAbsorption.constantWords
       at member
   rcases List.mem_map.mp member with ⟨word, _, rfl⟩
   exact R1CS.isAffine_const word
@@ -293,10 +293,10 @@ theorem remappedPacket_implies_advancePermutation (env : Env)
         (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits) source.val) env := by
   have rows := (remappedPacket_implies_sourceChildren env packets source).advance
   have sourceHolds := R1CS.lowerConstraints_sound (Spartan.pullback env) _ _ rows
-  rw [NightstreamFPrime.Lifecycle.PiRLC.v1_1.Sampler.advanceOp, Sampler.child_constraints] at sourceHolds
+  rw [NightstreamFPrime.Lifecycle.PiRLC.v1_2.Sampler.advanceOp, Sampler.child_constraints] at sourceHolds
   change ConstraintsHold (Spartan.pullback env)
     (flatConstraints (NightstreamFPrime.Gadgets.Poseidon2.Permutation.Owned.operations
-      (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Sampler.advanceInterface
+      (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Sampler.advanceInterface
         (sourceInterface source.val) source.val (sourceOffset source.val))
       (PiRLCStarts.advanceLogicalStart source.val))) at sourceHolds
   rw [NightstreamFPrime.Gadgets.Poseidon2.Permutation.Owned.flatConstraints_operations] at sourceHolds
@@ -306,9 +306,9 @@ theorem remappedPacket_implies_advancePermutation (env : Env)
   · have earlier := entryWitnessLocal source.val
     apply Nat.le_trans earlier
     change sourceOffset source.val ≤
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.Sampler.advanceOffset (sourceOffset source.val)
-    unfold NightstreamFPrime.Lifecycle.PiRLC.v1_1.Sampler.advanceOffset
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.Sampler.rangeOffset
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.Sampler.advanceOffset (sourceOffset source.val)
+    unfold NightstreamFPrime.Lifecycle.PiRLC.v1_2.Sampler.advanceOffset
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.Sampler.rangeOffset
     omega
   · exact PiRLCSamplerInvocations.advanceState_affine source.val
   · exact sourceHolds
@@ -324,7 +324,7 @@ theorem remappedPacket_implies_permutationInvocations (env : Env)
   have sourceLt := List.mem_range.mp sourceMember
   let sourceFin : Fin SamplerChain.Logical.sourceCount := ⟨source, by
     simpa only [PiRLCSamplerInvocations.sourceCount,
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerChain.sourceCount_eq] using sourceLt⟩
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.SamplerChain.sourceCount_eq] using sourceLt⟩
   rcases List.mem_append.mp sourceInvocationMember with entryMember | advanceMember
   · exact remappedPacket_implies_entryPermutations env packets sourceFin current entryMember
   · have same := List.mem_singleton.mp advanceMember
@@ -360,7 +360,7 @@ theorem remappedPacket_implies_ordinaryRows (env : Env)
   have sourceLt := List.mem_range.mp sourceMember
   let sourceFin : Fin SamplerChain.Logical.sourceCount := ⟨source, by
     simpa only [PiRLCSamplerInvocations.sourceCount,
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerChain.sourceCount_eq] using sourceLt⟩
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.SamplerChain.sourceCount_eq] using sourceLt⟩
   rcases List.mem_append.mp sourceRowMember with rangeMember | wordMember
   · exact remappedPacket_implies_rangeRows env packets sourceFin _
       (List.mem_map.mpr ⟨compiled, rangeMember, rfl⟩)

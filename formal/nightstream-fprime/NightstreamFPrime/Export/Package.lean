@@ -145,7 +145,7 @@ def PhysicalLayout.format : Format PhysicalLayout where
     simp [Format.decode_encode] <;> rfl
 
 /-- The physical R1CS matrix selected for one logical CCS matrix slot. Pad is
-not a source: SuperNeo v1_1 carries its evaluations in `Eval_K`. -/
+not a source: SuperNeo v1.2 carries its evaluations in `Eval_K`. -/
 inductive CcsMatrixSource where
   | a
   | b

@@ -54,7 +54,7 @@ theorem verifierInputs
 
 /-- D proof sources begin after the complete logical R witness interval. -/
 theorem rEnd_before_dInputs :
-    PiRLCInputs.phaseOffset + PiRLC.v1_1.Formal.logicalPrivateCount ≤ PiDECInputs.proofInputStart := by
+    PiRLCInputs.phaseOffset + PiRLC.v1_2.Formal.logicalPrivateCount ≤ PiDECInputs.proofInputStart := by
   change PiRLCStarts.phaseFreshStart ≤ PiRLCStarts.outputFreshStart
   unfold PiRLCStarts.outputFreshStart PiRLCStarts.evalAFreshStart PiRLCStarts.evalKFreshStart
     PiRLCStarts.publicInputFreshStart PiRLCStarts.commitmentFreshStart PiRLCStarts.samplerFreshStart
@@ -84,17 +84,17 @@ private theorem point_ext (left right : PaperAlgebra.Point)
 
 private theorem parent_preserved (env : Env) (proof : Proof (ProductionKey.degreeBound relation))
     (parentPublic : PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits)) :
-    PiRLC.v1_1.Semantics.evalOutput relation
+    PiRLC.v1_2.Semantics.evalOutput relation
       (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
       PiRLCInputs.phaseOffset (PiDECProofInputs.load env proof parentPublic) =
-    PiRLC.v1_1.Semantics.evalOutput relation
+    PiRLC.v1_2.Semantics.evalOutput relation
       (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
       PiRLCInputs.phaseOffset env := by
   let interface := PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)
   let loaded := PiDECProofInputs.load env proof parentPublic
   have preserves := PiDECProofInputs.load_agreesOutside env proof parentPublic
-  have pointEq : PiRLC.v1_1.InputBinding.evalPoint (interface.point PiRLCInputs.phaseOffset) env =
-      PiRLC.v1_1.InputBinding.evalPoint (interface.point (PiRLCInputs.phaseOffset + 0)) loaded := by
+  have pointEq : PiRLC.v1_2.InputBinding.evalPoint (interface.point PiRLCInputs.phaseOffset) env =
+      PiRLC.v1_2.InputBinding.evalPoint (interface.point (PiRLCInputs.phaseOffset + 0)) loaded := by
     apply point_ext
     change (List.ofFn fun coordinate => (interface.point PiRLCInputs.phaseOffset coordinate).eval env) =
       List.ofFn fun coordinate => (interface.point PiRLCInputs.phaseOffset coordinate).eval loaded
@@ -127,7 +127,7 @@ private theorem message_ext (left right : PiDEC.PaperVerifier.ChildMessage
 private theorem loaded_message (env : Env) (proof : Proof (ProductionKey.degreeBound relation))
     (parentPublic : PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
     (child : Phi81Relation.PiDECAlgebra.Radix.ChildIndex) :
-    PiDEC.v1_1.InputBinding.evalMessage (PiDECInputs.message child)
+    PiDEC.v1_2.InputBinding.evalMessage (PiDECInputs.message child)
       (PiDECProofInputs.load env proof parentPublic) =
       { commitment := proof.piDecCommitments child, evaluations := #[proof.piDecEvaluations child] } := by
   apply message_ext
@@ -141,7 +141,7 @@ private theorem loaded_message (env : Env) (proof : Proof (ProductionKey.degreeB
       exact PiDECProofInputs.eval_childEvalA env proof parentPublic child matrix coefficient
 
 private theorem attempt_ext
-    (left right : PiDEC.v1_1.InputBinding.Attempt logicalWidth publicFits)
+    (left right : PiDEC.v1_2.InputBinding.Attempt logicalWidth publicFits)
     (parent : left.parent = right.parent) (messages : left.messages = right.messages) : left = right := by
   cases left
   cases right
@@ -149,10 +149,10 @@ private theorem attempt_ext
 
 private theorem loaded_attempt (env : Env) (proof : Proof (ProductionKey.degreeBound relation))
     (parentPublic : PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits)) :
-    PiDEC.v1_1.Semantics.inputAttempt relation (PiDECInputs.interface logicalWidth publicFits)
+    PiDEC.v1_2.Semantics.inputAttempt relation (PiDECInputs.interface logicalWidth publicFits)
       PiDECInputs.phaseOffset (PiDECProofInputs.load env proof parentPublic) =
       (ProductionKey.key relation ajtai).piDecAttemptForParent proof
-        (PiRLC.v1_1.Semantics.evalOutput relation
+        (PiRLC.v1_2.Semantics.evalOutput relation
           (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
           PiRLCInputs.phaseOffset env) := by
   apply attempt_ext
@@ -162,7 +162,7 @@ private theorem loaded_attempt (env : Env) (proof : Proof (ProductionKey.degreeB
     exact loaded_message relation env proof parentPublic child
 
 private theorem instance_ext
-    (left right : PiDEC.v1_1.OutputBinding.Output logicalWidth publicFits)
+    (left right : PiDEC.v1_2.OutputBinding.Output logicalWidth publicFits)
     (system : left.constraintSystem = right.constraintSystem)
     (commitment : left.commitment = right.commitment)
     (publicInput : left.publicInput = right.publicInput)
@@ -174,15 +174,15 @@ private theorem instance_ext
   simp_all
 
 private theorem loaded_output (env : Env) (proof : Proof (ProductionKey.degreeBound relation)) :
-    let parent := PiRLC.v1_1.Semantics.evalOutput relation
+    let parent := PiRLC.v1_2.Semantics.evalOutput relation
       (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
       PiRLCInputs.phaseOffset env
-    PiDEC.v1_1.Semantics.output relation (PiDECInputs.interface logicalWidth publicFits)
+    PiDEC.v1_2.Semantics.output relation (PiDECInputs.interface logicalWidth publicFits)
       PiDECInputs.phaseOffset (PiDECProofInputs.load env proof parent.publicInput) =
       PiDEC.PaperVerifier.children (PaperAlgebra.publicInputSplit ajtai)
         ((ProductionKey.key relation ajtai).piDecAttemptForParent proof parent) := by
   dsimp only
-  let parent := PiRLC.v1_1.Semantics.evalOutput relation
+  let parent := PiRLC.v1_2.Semantics.evalOutput relation
     (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
     PiRLCInputs.phaseOffset env
   funext child
@@ -198,7 +198,7 @@ private theorem loaded_output (env : Env) (proof : Proof (ProductionKey.degreeBo
   · rfl
 
 private theorem children_outputAccepted
-    (attempt : PiDEC.v1_1.InputBinding.Attempt logicalWidth publicFits)
+    (attempt : PiDEC.v1_2.InputBinding.Attempt logicalWidth publicFits)
     (checks : PiDEC.PaperVerifier.Accepted (PaperAlgebra.piDecAlgebra ajtai)
       (PaperAlgebra.publicInputSplit ajtai) (PaperAlgebra.evaluationArity ajtai) attempt) :
     PiDEC.PaperVerifier.OutputAccepted (PaperAlgebra.piDecAlgebra ajtai)
@@ -215,15 +215,15 @@ private theorem loaded_phase (env : Env) (proof : Proof (ProductionKey.degreeBou
       (ProductionKey.key relation ajtai).piDecPublicInputSplit
       (ProductionKey.key relation ajtai).piDecEvaluationArity
       ((ProductionKey.key relation ajtai).piDecAttemptForParent proof
-        (PiRLC.v1_1.Semantics.evalOutput relation
+        (PiRLC.v1_2.Semantics.evalOutput relation
           (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
           PiRLCInputs.phaseOffset env))) :
-    PiDEC.v1_1.Semantics.PhaseHolds relation ajtai (PiDECInputs.interface logicalWidth publicFits)
+    PiDEC.v1_2.Semantics.PhaseHolds relation ajtai (PiDECInputs.interface logicalWidth publicFits)
       PiDECInputs.phaseOffset (PiDECProofInputs.load env proof
-        (PiRLC.v1_1.Semantics.evalOutput relation
+        (PiRLC.v1_2.Semantics.evalOutput relation
           (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
           PiRLCInputs.phaseOffset env).publicInput) := by
-  unfold PiDEC.v1_1.Semantics.PhaseHolds
+  unfold PiDEC.v1_2.Semantics.PhaseHolds
   rw [loaded_attempt relation ajtai, loaded_output relation ajtai]
   exact children_outputAccepted ajtai _ checks
 
@@ -263,8 +263,8 @@ private theorem running_ext
   simp_all
 
 private theorem running_of_children (env : Env) (proof : Proof (ProductionKey.degreeBound relation))
-    (parent : PiDEC.v1_1.OutputBinding.Output logicalWidth publicFits)
-    (outputs : PiDEC.v1_1.Semantics.output relation (PiDECInputs.interface logicalWidth publicFits)
+    (parent : PiDEC.v1_2.OutputBinding.Output logicalWidth publicFits)
+    (outputs : PiDEC.v1_2.Semantics.output relation (PiDECInputs.interface logicalWidth publicFits)
       PiDECInputs.phaseOffset env = PiDEC.PaperVerifier.children (PaperAlgebra.publicInputSplit ajtai)
         ((ProductionKey.key relation ajtai).piDecAttemptForParent proof parent)) :
     RunningTransitionInputs.piDecRunningOutput relation env =
@@ -283,37 +283,37 @@ private theorem running_of_children (env : Env) (proof : Proof (ProductionKey.de
 
 private theorem rValues_eq_of_agree
     (before after : Env)
-    (agrees : ∀ index, index < PiRLCInputs.phaseOffset + PiRLC.v1_1.Formal.logicalPrivateCount →
+    (agrees : ∀ index, index < PiRLCInputs.phaseOffset + PiRLC.v1_2.Formal.logicalPrivateCount →
       after index = before index) :
-    PiRLC.v1_1.Semantics.evalChallenges
+    PiRLC.v1_2.Semantics.evalChallenges
       (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)) PiRLCInputs.phaseOffset after =
-      PiRLC.v1_1.Semantics.evalChallenges
+      PiRLC.v1_2.Semantics.evalChallenges
       (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)) PiRLCInputs.phaseOffset before ∧
-    PiRLC.v1_1.Semantics.evalOutput relation PiRLCInputs.interface PiRLCInputs.phaseOffset after =
-      PiRLC.v1_1.Semantics.evalOutput relation PiRLCInputs.interface PiRLCInputs.phaseOffset before := by
+    PiRLC.v1_2.Semantics.evalOutput relation PiRLCInputs.interface PiRLCInputs.phaseOffset after =
+      PiRLC.v1_2.Semantics.evalOutput relation PiRLCInputs.interface PiRLCInputs.phaseOffset before := by
   let interface := PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)
   constructor
   · funext source lane
-    change (PiRLC.v1_1.SamplerChain.outputChallenge
-        (PiRLC.v1_1.Formal.samplerOffset PiRLCInputs.phaseOffset)
-        (PiRLC.v1_1.Semantics.sourceIndex source) lane).eval after =
-      (PiRLC.v1_1.SamplerChain.outputChallenge
-        (PiRLC.v1_1.Formal.samplerOffset PiRLCInputs.phaseOffset)
-        (PiRLC.v1_1.Semantics.sourceIndex source) lane).eval before
+    change (PiRLC.v1_2.SamplerChain.outputChallenge
+        (PiRLC.v1_2.Formal.samplerOffset PiRLCInputs.phaseOffset)
+        (PiRLC.v1_2.Semantics.sourceIndex source) lane).eval after =
+      (PiRLC.v1_2.SamplerChain.outputChallenge
+        (PiRLC.v1_2.Formal.samplerOffset PiRLCInputs.phaseOffset)
+        (PiRLC.v1_2.Semantics.sourceIndex source) lane).eval before
     apply Expr.eval_eq_of_agree_below _
-      (PiRLCInputs.phaseOffset + PiRLC.v1_1.Formal.logicalPrivateCount) after before _ agrees
-    apply Expr.VarsBelow.mono _ (PiRLC.v1_1.SamplerChain.outputChallenge_below _ _ _)
-    rw [PiRLC.v1_1.SamplerChain.counts.1]
+      (PiRLCInputs.phaseOffset + PiRLC.v1_2.Formal.logicalPrivateCount) after before _ agrees
+    apply Expr.VarsBelow.mono _ (PiRLC.v1_2.SamplerChain.outputChallenge_below _ _ _)
+    rw [PiRLC.v1_2.SamplerChain.counts.1]
     exact Nat.add_le_add_left (by decide : 72539 ≤ 106505) PiRLCInputs.phaseOffset
-  · have pointEq : PiRLC.v1_1.InputBinding.evalPoint (interface.point PiRLCInputs.phaseOffset) before =
-        PiRLC.v1_1.InputBinding.evalPoint (interface.point (PiRLCInputs.phaseOffset + 0)) after := by
+  · have pointEq : PiRLC.v1_2.InputBinding.evalPoint (interface.point PiRLCInputs.phaseOffset) before =
+        PiRLC.v1_2.InputBinding.evalPoint (interface.point (PiRLCInputs.phaseOffset + 0)) after := by
       apply point_ext
       change (List.ofFn fun coordinate => (interface.point PiRLCInputs.phaseOffset coordinate).eval before) =
         List.ofFn fun coordinate => (interface.point PiRLCInputs.phaseOffset coordinate).eval after
       apply congrArg List.ofFn
       funext coordinate
       apply Quadratic.KExpr.eval_eq_of_agree_below _
-        (PiRLCInputs.phaseOffset + PiRLC.v1_1.Formal.logicalPrivateCount) before after
+        (PiRLCInputs.phaseOffset + PiRLC.v1_2.Formal.logicalPrivateCount) before after
         _ (fun index below => (agrees index below).symm)
       change ((PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)).point
         PiRLCInputs.phaseOffset coordinate).VarsBelow _
@@ -325,7 +325,7 @@ private theorem rValues_eq_of_agree
       rw [pointSource, PiCCSStarts.roundTranscriptWitnessStart_eq]
       have coordinateBound : coordinate.val < 28 := coordinate.isLt
       simp only [RunningTransitionInputs.directRoundPoint, Quadratic.KExpr.VarsBelow, Expr.VarsBelow]
-      norm_num [PiRLCInputs.phaseOffset, PiRLC.v1_1.Formal.logicalPrivateCount,
+      norm_num [PiRLCInputs.phaseOffset, PiRLC.v1_2.Formal.logicalPrivateCount,
         RunningTransitionInputs.roundStride, RunningTransitionInputs.roundSampleC0Offset,
         RunningTransitionInputs.roundSampleC1Offset]
       omega
@@ -349,48 +349,48 @@ theorem completePrefix_after_r
     (accepted : Nifs.PaperNonInteractive.verify (ProductionKey.key relation ajtai)
       running fresh proof = some result)
     (initial : Env) (r : Sequence.Prefix initial PiRLCInputs.phaseOffset)
-    (rOperations : r.operations = PiRLC.v1_1.Formal.opsAt relation PiRLCInputs.interface PiRLCInputs.phaseOffset)
+    (rOperations : r.operations = PiRLC.v1_2.Formal.opsAt relation PiRLCInputs.interface PiRLCInputs.phaseOffset)
     (rSampled : (ProductionKey.key relation ajtai).piRlcChallenges running fresh proof =
-      some (PiRLC.v1_1.Semantics.evalChallenges
+      some (PiRLC.v1_2.Semantics.evalChallenges
       (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)) PiRLCInputs.phaseOffset r.current))
-    (rParent : PiRLC.v1_1.Semantics.evalOutput relation PiRLCInputs.interface PiRLCInputs.phaseOffset r.current =
+    (rParent : PiRLC.v1_2.Semantics.evalOutput relation PiRLCInputs.interface PiRLCInputs.phaseOffset r.current =
       (ProductionKey.key relation ajtai).parentForChallenges running fresh proof
-        (PiRLC.v1_1.Semantics.evalChallenges
+        (PiRLC.v1_2.Semantics.evalChallenges
       (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)) PiRLCInputs.phaseOffset r.current))
     (afterR : Env)
     (preserved : ∀ index, index < PiRLCInputs.phaseOffset + localLength r.operations →
       afterR index = r.current index) :
     ∃ d : Sequence.Prefix
         (PiDECProofInputs.load afterR proof
-          (PiRLC.v1_1.Semantics.evalOutput relation PiRLCInputs.interface PiRLCInputs.phaseOffset afterR).publicInput)
+          (PiRLC.v1_2.Semantics.evalOutput relation PiRLCInputs.interface PiRLCInputs.phaseOffset afterR).publicInput)
         PiDECInputs.phaseOffset,
-      d.operations = PiDEC.v1_1.Formal.opsAt relation (PiDECInputs.interface logicalWidth publicFits) PiDECInputs.phaseOffset ∧
+      d.operations = PiDEC.v1_2.Formal.opsAt relation (PiDECInputs.interface logicalWidth publicFits) PiDECInputs.phaseOffset ∧
       holdsFlat d.current r.operations ∧
-      PiDEC.v1_1.Semantics.PhaseHolds relation ajtai (PiDECInputs.interface logicalWidth publicFits)
+      PiDEC.v1_2.Semantics.PhaseHolds relation ajtai (PiDECInputs.interface logicalWidth publicFits)
         PiDECInputs.phaseOffset d.current ∧
       RunningTransitionInputs.piDecRunningOutput relation d.current = result := by
   have currentValues := rValues_eq_of_agree relation r.current afterR (by
     intro index below
     apply preserved index
-    rw [rOperations, ← PiRLC.v1_1.Formal.main_ops, PiRLC.v1_1.Formal.localLength_eq]
+    rw [rOperations, ← PiRLC.v1_2.Formal.main_ops, PiRLC.v1_2.Formal.localLength_eq]
     exact below)
   have afterSampled : (ProductionKey.key relation ajtai).piRlcChallenges running fresh proof =
-      some (PiRLC.v1_1.Semantics.evalChallenges
+      some (PiRLC.v1_2.Semantics.evalChallenges
       (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)) PiRLCInputs.phaseOffset afterR) := by
     rw [currentValues.1]
     exact rSampled
-  have afterParent : PiRLC.v1_1.Semantics.evalOutput relation PiRLCInputs.interface PiRLCInputs.phaseOffset afterR =
+  have afterParent : PiRLC.v1_2.Semantics.evalOutput relation PiRLCInputs.interface PiRLCInputs.phaseOffset afterR =
       (ProductionKey.key relation ajtai).parentForChallenges running fresh proof
-        (PiRLC.v1_1.Semantics.evalChallenges
+        (PiRLC.v1_2.Semantics.evalChallenges
       (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)) PiRLCInputs.phaseOffset afterR) := by
     rw [currentValues.1, currentValues.2]
     exact rParent
   obtain ⟨_, challenges, sampled, checks⟩ := verifierInputs relation ajtai running fresh proof result accepted
-  have challengeEq : PiRLC.v1_1.Semantics.evalChallenges
+  have challengeEq : PiRLC.v1_2.Semantics.evalChallenges
       (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
       PiRLCInputs.phaseOffset afterR = challenges := Option.some.inj (afterSampled.symm.trans sampled)
   rw [challengeEq] at afterParent
-  let parent := PiRLC.v1_1.Semantics.evalOutput relation
+  let parent := PiRLC.v1_2.Semantics.evalOutput relation
     (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
     PiRLCInputs.phaseOffset afterR
   let loaded := PiDECProofInputs.load afterR proof parent.publicInput
@@ -400,24 +400,24 @@ theorem completePrefix_after_r
       ((ProductionKey.key relation ajtai).piDecAttemptForParent proof parent) := by
     change PiDEC.PaperVerifier.Accepted _ _ _
       ((ProductionKey.key relation ajtai).piDecAttemptForParent proof
-        (PiRLC.v1_1.Semantics.evalOutput relation
+        (PiRLC.v1_2.Semantics.evalOutput relation
           (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
           PiRLCInputs.phaseOffset afterR))
     rw [afterParent]
     exact checks
   have loadedPhase := loaded_phase relation ajtai afterR proof parentChecks
-  obtain ⟨d, dOperations⟩ := PiDEC.v1_1.Formal.completePrefix relation ajtai
+  obtain ⟨d, dOperations⟩ := PiDEC.v1_2.Formal.completePrefix relation ajtai
     (PiDECInputs.interface logicalWidth publicFits) loaded PiDECInputs.phaseOffset
     (PiDECInputs.assumptions relation loaded) loadedPhase
   have dRows : holds d.current (Circuit.ops
-      (PiDEC.v1_1.Formal.main relation (PiDECInputs.interface logicalWidth publicFits)) PiDECInputs.phaseOffset) := by
-    change holds d.current (PiDEC.v1_1.Formal.opsAt relation
+      (PiDEC.v1_2.Formal.main relation (PiDECInputs.interface logicalWidth publicFits)) PiDECInputs.phaseOffset) := by
+    change holds d.current (PiDEC.v1_2.Formal.opsAt relation
       (PiDECInputs.interface logicalWidth publicFits) PiDECInputs.phaseOffset)
     rw [← dOperations]
     exact holdsFlat_implies_holds d.current d.operations d.rows
-  have dPhase := PiDEC.v1_1.Semantics.spec_implies_phaseHolds relation ajtai
+  have dPhase := PiDEC.v1_2.Semantics.spec_implies_phaseHolds relation ajtai
     (PiDECInputs.interface logicalWidth publicFits) PiDECInputs.phaseOffset d.current
-    (PiDEC.v1_1.Formal.soundness relation (PiDECInputs.interface logicalWidth publicFits)
+    (PiDEC.v1_2.Formal.soundness relation (PiDECInputs.interface logicalWidth publicFits)
       PiDECInputs.phaseOffset d.current (PiDECInputs.assumptions relation d.current) dRows)
   have beforeInputs : ∀ index, index < PiDECInputs.proofInputStart → d.current index = afterR index := by
     intro index below
@@ -426,7 +426,7 @@ theorem completePrefix_after_r
     exact (d.agrees index (Or.inl beforeD)).trans
       (PiDECProofInputs.load_agreesOutside afterR proof parent.publicInput index (Or.inl below))
   have rEnd : PiRLCInputs.phaseOffset + localLength r.operations ≤ PiDECInputs.proofInputStart := by
-    rw [rOperations, ← PiRLC.v1_1.Formal.main_ops, PiRLC.v1_1.Formal.localLength_eq]
+    rw [rOperations, ← PiRLC.v1_2.Formal.main_ops, PiRLC.v1_2.Formal.localLength_eq]
     exact rEnd_before_dInputs
   have rRows : holdsFlat d.current r.operations := by
     intro expression member
@@ -435,7 +435,7 @@ theorem completePrefix_after_r
       (r.scope expression member) (fun index below =>
         (beforeInputs index (Nat.lt_of_lt_of_le below rEnd)).trans (preserved index below))
     exact same.trans (r.rows expression member)
-  have outputPreserved := PiDEC.v1_1.Semantics.output_eq_of_agree relation
+  have outputPreserved := PiDEC.v1_2.Semantics.output_eq_of_agree relation
     (PiDECInputs.interface logicalWidth publicFits) PiDECInputs.phaseOffset loaded d.current
     (PiDECInputs.assumptions relation loaded) (fun index below => (d.agrees index (Or.inl below)).symm)
   have family := outputPreserved.symm.trans (loaded_output relation ajtai afterR proof)
@@ -481,18 +481,18 @@ theorem completePrefix_from
       ∃ r : Sequence.Prefix c.current PiRLCInputs.phaseOffset,
         ∃ d : Sequence.Prefix
             (PiDECProofInputs.load r.current (PiCCSProofInputs.relationProof relation values template)
-              (PiRLC.v1_1.Semantics.evalOutput relation
+              (PiRLC.v1_2.Semantics.evalOutput relation
                 (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
                 PiRLCInputs.phaseOffset r.current).publicInput) PiDECInputs.phaseOffset,
-          c.operations = PiCCS.v1_1.Formal.opsAt relation (PiCCSProofInputs.relationInterface relation)
+          c.operations = PiCCS.v1_2.Formal.opsAt relation (PiCCSProofInputs.relationInterface relation)
             PiCCSInputs.phaseOffset ∧
-          r.operations = PiRLC.v1_1.Formal.opsAt relation
+          r.operations = PiRLC.v1_2.Formal.opsAt relation
             (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
             PiRLCInputs.phaseOffset ∧
-          d.operations = PiDEC.v1_1.Formal.opsAt relation (PiDECInputs.interface logicalWidth publicFits)
+          d.operations = PiDEC.v1_2.Formal.opsAt relation (PiDECInputs.interface logicalWidth publicFits)
             PiDECInputs.phaseOffset ∧
           holdsFlat d.current c.operations ∧ holdsFlat d.current r.operations ∧
-          PiDEC.v1_1.Semantics.PhaseHolds relation ajtai (PiDECInputs.interface logicalWidth publicFits)
+          PiDEC.v1_2.Semantics.PhaseHolds relation ajtai (PiDECInputs.interface logicalWidth publicFits)
             PiDECInputs.phaseOffset d.current ∧
           RunningTransitionInputs.piDecRunningOutput relation d.current = result := by
   let proof := PiCCSProofInputs.relationProof relation values template
@@ -513,8 +513,8 @@ theorem completePrefix_from
     exact (d.agrees index (Or.inl beforeD)).trans
       (PiDECProofInputs.load_agreesOutside r.current proof _ index (Or.inl below))
   have cEnd : PiCCSInputs.phaseOffset + localLength c.operations ≤ PiDECInputs.proofInputStart := by
-    rw [cOperations, ← PiCCS.v1_1.Formal.main_ops, PiCCS.v1_1.Formal.localLength_eq]
-    change NightstreamFPrime.Layout.PiCCS.v1_1.logicalColumnCount relation
+    rw [cOperations, ← PiCCS.v1_2.Formal.main_ops, PiCCS.v1_2.Formal.localLength_eq]
+    change NightstreamFPrime.Layout.PiCCS.v1_2.logicalColumnCount relation
       (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset ≤ _
     rw [← PiCCSStarts.logicalFreshBase_eq_layout relation]
     exact Nat.le_trans PiRLCInputs.piCcsLogicalFreshBase_le_phaseOffset
@@ -548,18 +548,18 @@ theorem completePrefix
       ∃ r : Sequence.Prefix c.current PiRLCInputs.phaseOffset,
         ∃ d : Sequence.Prefix
             (PiDECProofInputs.load r.current (PiCCSProofInputs.relationProof relation values template)
-              (PiRLC.v1_1.Semantics.evalOutput relation
+              (PiRLC.v1_2.Semantics.evalOutput relation
                 (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
                 PiRLCInputs.phaseOffset r.current).publicInput) PiDECInputs.phaseOffset,
-          c.operations = PiCCS.v1_1.Formal.opsAt relation (PiCCSProofInputs.relationInterface relation)
+          c.operations = PiCCS.v1_2.Formal.opsAt relation (PiCCSProofInputs.relationInterface relation)
             PiCCSInputs.phaseOffset ∧
-          r.operations = PiRLC.v1_1.Formal.opsAt relation
+          r.operations = PiRLC.v1_2.Formal.opsAt relation
             (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
             PiRLCInputs.phaseOffset ∧
-          d.operations = PiDEC.v1_1.Formal.opsAt relation (PiDECInputs.interface logicalWidth publicFits)
+          d.operations = PiDEC.v1_2.Formal.opsAt relation (PiDECInputs.interface logicalWidth publicFits)
             PiDECInputs.phaseOffset ∧
           holdsFlat d.current c.operations ∧ holdsFlat d.current r.operations ∧
-          PiDEC.v1_1.Semantics.PhaseHolds relation ajtai (PiDECInputs.interface logicalWidth publicFits)
+          PiDEC.v1_2.Semantics.PhaseHolds relation ajtai (PiDECInputs.interface logicalWidth publicFits)
             PiDECInputs.phaseOffset d.current ∧
           RunningTransitionInputs.piDecRunningOutput relation d.current = result := by
   exact completePrefix_from relation ajtai prior priorPublic advertised digest priorFixed advertisedFixed

@@ -192,8 +192,8 @@ fn application_plan_decodes_exact_lean_owned_ranges() {
 
 #[test]
 fn application_message_is_input_and_application_local_is_generated() {
-    assert!(!crate::package::v1_1::is_witness_role(APPLICATION_WITNESS_ROLE));
-    assert!(crate::package::v1_1::is_witness_role(APPLICATION_LOCAL_ROLE));
+    assert!(!crate::package::v1_2::is_witness_role(APPLICATION_WITNESS_ROLE));
+    assert!(crate::package::v1_2::is_witness_role(APPLICATION_LOCAL_ROLE));
 }
 
 #[test]

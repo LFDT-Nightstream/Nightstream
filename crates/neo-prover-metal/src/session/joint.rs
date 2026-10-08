@@ -4,7 +4,7 @@ use std::mem::size_of;
 #[cfg(test)]
 use std::sync::Arc;
 
-use neo_ccs::{CcsStructure, Mat, V1_1Evaluations};
+use neo_ccs::{CcsStructure, Mat, V1_2Evaluations};
 use neo_math::{KExtensions, D, F, K};
 use neo_reductions::optimized_engine::{PaperJointOracleInput, PaperJointRoundOracle};
 use neo_reductions::superneo_eval::{weighted_projection_basis_forms, MatrixRows, SuperneoEvalCache, SuperneoZBlocks};
@@ -124,7 +124,7 @@ impl MetalSession {
         witnesses: &[Mat<F>],
         point: &[K],
         assignment_width: usize,
-    ) -> Result<Option<Vec<V1_1Evaluations<K>>>, MetalError> {
+    ) -> Result<Option<Vec<V1_2Evaluations<K>>>, MetalError> {
         let variables = (usize::BITS
             - plan
                 .rows
@@ -145,7 +145,7 @@ impl MetalSession {
             return Ok(Some(
                 witnesses
                     .iter()
-                    .map(|_| V1_1Evaluations {
+                    .map(|_| V1_2Evaluations {
                         eval_k: vec![K::ZERO; D],
                         eval_a: vec![vec![K::ZERO; D]; plan.matrix_count],
                     })
@@ -927,7 +927,7 @@ impl PaperJointRoundOracle for MetalPaperJointOracle<'_> {
         self.fold_tables(challenge).map_err(oracle_error)
     }
 
-    fn output_openings(&mut self, point: &[K]) -> Result<Option<Vec<V1_1Evaluations<K>>>, neo_reductions::PiCcsError> {
+    fn output_openings(&mut self, point: &[K]) -> Result<Option<Vec<V1_2Evaluations<K>>>, neo_reductions::PiCcsError> {
         self.application = None;
         self.assignments = None;
         self.common = None;

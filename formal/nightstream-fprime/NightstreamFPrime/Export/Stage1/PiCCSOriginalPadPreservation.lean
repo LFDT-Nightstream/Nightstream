@@ -319,7 +319,7 @@ theorem complete_eq_evaluationFamily (point : PaperAlgebra.Point)
     (masks : Array (Array (Nat × Nat))) (source : Fin productionShape.sourceCount) :
     ((range 0 PiCCSSourceImages.blockCount point masks).get source).toRing =
       (PaperAlgebra.evaluationFamily
-        (Lifecycle.PiRLC.v1_1.InputBinding.relationSource PiDECInputCheck.relation)
+        (Lifecycle.PiRLC.v1_2.InputBinding.relationSource PiDECInputCheck.relation)
         (PiCCSOriginalReads.assignment masks source) point).pad := by
   calc
     _ = ((PiDECEvaluationBatch.accumulate PiCCSSourceImages.shape.carrierWidth point
@@ -340,7 +340,7 @@ theorem complete_eq_evaluationFamily (point : PaperAlgebra.Point)
     _ = _ := by
       rw [PiDECEvaluationHonestMessages.family_eq_evaluationFamily]
       change (PaperAlgebra.evaluationFamily
-        (Lifecycle.PiRLC.v1_1.InputBinding.relationSource PiDECInputCheck.relation)
+        (Lifecycle.PiRLC.v1_2.InputBinding.relationSource PiDECInputCheck.relation)
         ((referenceAssignments masks source).get referenceSlot).get point).pad = _
       rw [referenceAssignments_get]
 

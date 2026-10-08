@@ -8,7 +8,7 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 Phi81 single-matrix source over the complete coefficient carrier.
 
 Protocol: SuperNeo coefficient embedding (Section 5) and `Pi_CCS`
-(Section 7.3 / Appendix D.4).
+(SuperNeo v1.2 Section 7.3 / Appendix B.2).
 Phase: original CCS matrix to all carried CE coefficient matrices.
 Constraint family: logical matrix prefix / completed matrix suffix / Phi81
 coefficient image.

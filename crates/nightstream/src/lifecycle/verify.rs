@@ -10,12 +10,12 @@ use neo_reductions::{
     superneo_eval::{evaluate_terminal_rows, SuperneoCachedRelationError, SuperneoZBlocks},
     PiCcsError,
 };
-use nightstream_fprime::{PackageError, PI_CCS_V1_1_ROUND_COUNT, PI_DEC_V1_1_CHILD_COUNT};
+use nightstream_fprime::{PackageError, PI_CCS_V1_2_ROUND_COUNT, PI_DEC_V1_2_CHILD_COUNT};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use super::{
-    encode_pi_ccs_v1_1_public_input, pi_ccs_v1_1_state_hash, serialize_pi_ccs_v1_1_state_preimage,
-    PiCcsV1_1PackageBridgeError, PreparedLifecycle, Stage1Envelope, Stage1State,
+    encode_pi_ccs_v1_2_public_input, pi_ccs_v1_2_state_hash, serialize_pi_ccs_v1_2_state_preimage,
+    PiCcsV1_2PackageBridgeError, PreparedLifecycle, Stage1Envelope, Stage1State,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -31,7 +31,7 @@ pub enum VerifyError {
     #[error("selected terminal fresh opening: {0}")]
     Fresh(&'static str),
     #[error("selected terminal state hash: {0}")]
-    StateHash(#[from] PiCcsV1_1PackageBridgeError),
+    StateHash(#[from] PiCcsV1_2PackageBridgeError),
     #[error("selected terminal package: {0}")]
     Package(#[from] PackageError),
     #[error("selected terminal running opening computation: {0}")]
@@ -70,7 +70,7 @@ impl PreparedLifecycle {
         let fresh = envelope
             .fresh()
             .ok_or(VerifyError::Statement("missing fresh payload"))?;
-        if running.claims.len() != PI_DEC_V1_1_CHILD_COUNT || running.witnesses.len() != PI_DEC_V1_1_CHILD_COUNT {
+        if running.claims.len() != PI_DEC_V1_2_CHILD_COUNT || running.witnesses.len() != PI_DEC_V1_2_CHILD_COUNT {
             return Err(VerifyError::Statement(
                 "running claim or witness count differs from the selected profile",
             ));
@@ -90,7 +90,7 @@ impl PreparedLifecycle {
                     reason: "commitment or public-input shape",
                 });
             }
-            if claim.r.len() != PI_CCS_V1_1_ROUND_COUNT || claim.r.as_slice() != point.as_slice() {
+            if claim.r.len() != PI_CCS_V1_2_ROUND_COUNT || claim.r.as_slice() != point.as_slice() {
                 return Err(VerifyError::Running {
                     index,
                     reason: "running claims must share the selected evaluation point",
@@ -133,7 +133,7 @@ impl PreparedLifecycle {
 
         // The formal terminal preimage contains the semantic running claims,
         // not parent_authority or fold_digest. The single selected pc is one.
-        let preimage = serialize_pi_ccs_v1_1_state_preimage(
+        let preimage = serialize_pi_ccs_v1_2_state_preimage(
             self.binding.verifier_context().digest().map(F::from_u64),
             expected_state.iteration(),
             expected_state.z0(),
@@ -141,7 +141,7 @@ impl PreparedLifecycle {
             &running.claims,
             1,
         )?;
-        let public = encode_pi_ccs_v1_1_public_input(pi_ccs_v1_1_state_hash(&preimage)?)?;
+        let public = encode_pi_ccs_v1_2_public_input(pi_ccs_v1_2_state_hash(&preimage)?)?;
         if fresh
             .claim
             .x

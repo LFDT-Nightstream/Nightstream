@@ -15,7 +15,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 
-/-- Fixed SuperNeo v1.1 `Eval_A` arity. -/
+/-- Fixed SuperNeo v1.2 `Eval_A` arity. -/
 def matrixCount : Nat := GatePolynomial.matrixCount
 
 /-- Number of matrix slots used by the gate compiler. -/

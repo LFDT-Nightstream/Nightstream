@@ -78,7 +78,7 @@ private theorem success_of_verified_output
     ⟨attempt, attemptEq, _attemptAccepted⟩
   refine ⟨result, attempt, verified, attemptEq, ?_⟩
   intro child
-  rw [Lifecycle.PiDEC.v1_1.OutputWitnessConsumer.runningStatement_eq
+  rw [Lifecycle.PiDEC.v1_2.OutputWitnessConsumer.runningStatement_eq
     relation ajtai result child]
   exact valid child
 

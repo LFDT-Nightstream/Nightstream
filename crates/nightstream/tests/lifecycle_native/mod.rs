@@ -4,7 +4,7 @@ use crate::folding::{self, pi_ccs, pi_dec, pi_rlc, CcsClaim, CeClaim, NifsProof,
 use neo_ajtai::Commitment;
 use neo_ccs::{LaneCommitments, Mat};
 use neo_math::{from_complex, D, F, K};
-use nightstream_fprime::{load_poseidon2_hash_chain_v1_package, PI_CCS_V1_1_STATE_PREIMAGE_WORDS};
+use nightstream_fprime::{load_poseidon2_hash_chain_v1_package, PI_CCS_V1_2_STATE_PREIMAGE_WORDS};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use serde_json::{json, Value};
 use std::{fs, path::PathBuf};
@@ -276,7 +276,7 @@ fn actual_nifs_builds_the_checked_successor_assignment() {
         )
         .unwrap();
     let encoded = loaded
-        .encode_stage1_v1_1_inputs(packet.pi_ccs(), packet.pi_dec(), packet.application_witness())
+        .encode_stage1_v1_2_inputs(packet.pi_ccs(), packet.pi_dec(), packet.application_witness())
         .unwrap();
     let private: Vec<u64> = serde_json::from_value(expected[2].clone()).unwrap();
     let public: Vec<u64> = serde_json::from_value(expected[3].clone()).unwrap();
@@ -288,7 +288,7 @@ fn actual_nifs_builds_the_checked_successor_assignment() {
         .position(|(a, b)| a != b);
     assert_eq!(first_difference, None, "first differing caller-private input word");
     assert_eq!(encoded.public_values(), public, "every caller-public input word");
-    let state_width = PI_CCS_V1_1_STATE_PREIMAGE_WORDS;
+    let state_width = PI_CCS_V1_2_STATE_PREIMAGE_WORDS;
     assert_eq!(packet.output_preimage(), &private[state_width..2 * state_width]);
     assert_eq!(json!(packet.output_digest()), expected[4][1]);
     assert_eq!(json!(packet.next_public_input()), expected[4][2]);

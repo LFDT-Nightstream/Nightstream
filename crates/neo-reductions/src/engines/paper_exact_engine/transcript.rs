@@ -1,6 +1,6 @@
 //! Independent PaperExact Fiat--Shamir and SumCheck schedule.
 //!
-//! This is a direct Rust transcription of the Lean-owned v1_1 schedule. It
+//! This is a direct Rust transcription of the Lean-owned v1_2 schedule. It
 //! does not call the optimized transcript or proof-assembly implementation.
 //! The canonical statement serializer is shared because it is protocol input,
 //! not an alternative prover computation.
@@ -39,12 +39,12 @@ fn k_fields(output: &mut Vec<F>, value: K) {
 }
 
 fn append(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, fields: Vec<F>) {
-    transcript.absorb_v1_1(&fields);
+    transcript.absorb_v1_2(&fields);
     trace.events.push(TraceEvent::Absorb(fields));
 }
 
 fn append_block(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, fields: Vec<F>) {
-    transcript.absorb_block_v1_1(&fields);
+    transcript.absorb_block_v1_2(&fields);
     let mut framed = Vec::with_capacity(fields.len() + 1);
     framed.push(F::from_u64(fields.len() as u64));
     framed.extend(fields);
@@ -53,14 +53,14 @@ fn append_block(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace,
 
 fn prior_digest_fields(running: &[CeClaim<Cmt, F, K>]) -> Result<Vec<F>, PiCcsError> {
     let first = running.first().ok_or_else(|| {
-        PiCcsError::InvalidInput("PaperExact v1_1 digest-only statement requires a running claim".into())
+        PiCcsError::InvalidInput("PaperExact v1_2 digest-only statement requires a running claim".into())
     })?;
     if running
         .iter()
         .any(|claim| claim.fold_digest != first.fold_digest)
     {
         return Err(PiCcsError::InvalidInput(
-            "PaperExact v1_1 running claims do not share the prior digest".into(),
+            "PaperExact v1_2 running claims do not share the prior digest".into(),
         ));
     }
     first
@@ -70,7 +70,7 @@ fn prior_digest_fields(running: &[CeClaim<Cmt, F, K>]) -> Result<Vec<F>, PiCcsEr
             let word = u64::from_le_bytes(chunk.try_into().expect("digest lane width"));
             if word >= F::ORDER_U64 {
                 return Err(PiCcsError::InvalidInput(
-                    "PaperExact v1_1 prior digest has a noncanonical field word".into(),
+                    "PaperExact v1_2 prior digest has a noncanonical field word".into(),
                 ));
             }
             Ok(F::from_u64(word))
@@ -84,7 +84,7 @@ fn squeeze(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, labe
         None => vec![F::from_u64(label)],
     };
     append(transcript, trace, fields);
-    let sampled = transcript.squeeze_extension_v1_1();
+    let sampled = transcript.squeeze_extension_v1_2();
     let value = neo_math::from_complex(sampled[0], sampled[1]);
     trace
         .events
@@ -96,7 +96,7 @@ fn check_commitment(commitment: &Cmt) -> Result<(), PiCcsError> {
     let kappa = neo_params::nightstream_goldilocks_k16::KAPPA as usize;
     if commitment.d != D || commitment.kappa != kappa || commitment.data.len() != D * kappa {
         return Err(PiCcsError::InvalidInput(
-            "PaperExact v1_1 commitment does not have the fixed Ajtai shape".into(),
+            "PaperExact v1_2 commitment does not have the fixed Ajtai shape".into(),
         ));
     }
     Ok(())
@@ -164,7 +164,7 @@ pub(super) fn bind_and_sample(
 ) -> Result<Challenges, PiCcsError> {
     if fresh.is_empty() {
         return Err(PiCcsError::InvalidInput(
-            "PaperExact v1_1 digest-only statement requires a fresh claim".into(),
+            "PaperExact v1_2 digest-only statement requires a fresh claim".into(),
         ));
     }
     for claim in running {
@@ -172,7 +172,7 @@ pub(super) fn bind_and_sample(
     }
     if fresh.iter().any(|claim| claim.adv.is_some()) || running.iter().any(|claim| claim.adv.is_some()) {
         return Err(PiCcsError::InvalidInput(
-            "PaperExact v1_1 does not bind auxiliary lane commitments".into(),
+            "PaperExact v1_2 does not bind auxiliary lane commitments".into(),
         ));
     }
     let prior_point = running
@@ -180,11 +180,11 @@ pub(super) fn bind_and_sample(
         .map_or_else(|| vec![K::ZERO; dims.variables], |claim| claim.r.clone());
     if prior_point.len() != dims.variables || running.iter().any(|claim| claim.r != prior_point) {
         return Err(PiCcsError::InvalidInput(
-            "PaperExact v1_1 running claims must share the complete prior point".into(),
+            "PaperExact v1_2 running claims must share the complete prior point".into(),
         ));
     }
 
-    transcript.reset_v1_1();
+    transcript.reset_v1_2();
     append(
         transcript,
         trace,
@@ -306,7 +306,7 @@ pub(super) fn absorb_outputs(
     for output in outputs {
         if output.eval_k.len() < neo_math::D || output.eval_a.len() != dims.matrix_count {
             return Err(PiCcsError::InvalidInput(
-                "PaperExact output v1_1 families are incomplete".into(),
+                "PaperExact output v1_2 families are incomplete".into(),
             ));
         }
         for coefficient in 0..neo_math::D {
@@ -325,7 +325,7 @@ pub(super) fn absorb_outputs(
     }
     append_block(transcript, trace, fields);
     trace.outgoing_state = transcript.state();
-    let digest = transcript.state_prefix_v1_1();
+    let digest = transcript.state_prefix_v1_2();
     trace.final_digest = digest;
     Ok(digest)
 }

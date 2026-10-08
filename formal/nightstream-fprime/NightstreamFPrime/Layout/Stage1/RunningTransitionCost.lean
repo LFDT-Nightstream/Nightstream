@@ -13,7 +13,7 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Circuit.Quadratic
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Lifecycle.Stage1
 open NightstreamFPrime.Layout.Polynomial.Horner
 open NightstreamFPrime.Layout.Stage1.RunningTransitionInputs

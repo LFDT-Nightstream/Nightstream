@@ -332,7 +332,10 @@ and the key's construction and coverage proofs would be duplicated.
 5. **Assumption 1 as in the paper (2026-10-08).** State Assumption 1 as
    Definition 7: an extractor for each admitted adversary, which reads that
    adversary's tape. Prove Lemma 17's composition: the reverse extractor
-   applies Assumption 1 to its own stages. Done in
+   applies Assumption 1 to its own stages. Admission applies to whole stages
+   (`StageAdmitted`), and an admitted stage gives an admitted NIFS adversary,
+   because a stage's NIFS projection can hide data that the next stage reads.
+   Done in
    `Export.Stage1.HyperNovaVisitedSecurity.Assumption1` and
    `Export.Stage1.HyperNovaVisitedSecurity.reverseStages`.
 

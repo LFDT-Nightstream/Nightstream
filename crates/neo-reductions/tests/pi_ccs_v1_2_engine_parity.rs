@@ -472,7 +472,7 @@ fn v1_2_transcript_matches_the_independent_reference() {
     let log = committer(&params, D + 1);
     let (claim, witness) = source(&log, D + 1, 6);
     let (running, running_witnesses) = zero_running::zero_running(&params, &structure, 1, claim.m_in);
-    let label = b"pi-ccs/v1_1/crosscheck";
+    let label = b"pi-ccs/v1_2/crosscheck";
     let binding = TranscriptBinding::digest_only();
     let (outputs, proof) = crosscheck_prove_with_binding(
         &(),

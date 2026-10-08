@@ -109,7 +109,6 @@ def bindingInterface {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (payload : Payload logicalWidth)
     (geometry : Geometry program logicalWidth) :
     PinFamilyPlan.Interface logicalWidth bindingRowCount where
-  oneColumn := oneColumn geometry
   value := fun row =>
     let decoded : Fin invocationCount × Fin 2 := Fin.decodeProd row
     bindingForm payload geometry decoded.1 decoded.2
@@ -156,21 +155,20 @@ def plan {program : Lifecycle.Stage1.Application.Program}
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (payload : Payload logicalWidth)
     (geometry : Geometry program logicalWidth) :
-    (plan payload geometry).rowCount = 240160 := by
-  change invocationCount * 150 + bindingRowCount = 240160
+    (plan payload geometry).rowCount = 170392 := by
+  change invocationCount * 150 + bindingRowCount = 170392
   rw [bindingRowCount, invocationCount_eq]
 
 theorem bindingRowsZero_iff
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (payload : Payload logicalWidth)
     (geometry : Geometry program logicalWidth)
-    (assignment : Assignment F logicalWidth)
-    (one : assignment (oneColumn geometry) = 1) :
+    (assignment : Assignment F logicalWidth) :
     (bindingPlan payload geometry).RowsZero assignment ↔
       ∀ invocation component,
         (bindingForm payload geometry invocation component).eval assignment = 0 := by
   rw [bindingPlan, PinFamilyPlan.planRowsZero_iff
-    (bindingInterface payload geometry) bindingRowCount_le assignment one]
+    (bindingInterface payload geometry) bindingRowCount_le assignment]
   constructor
   · intro rows invocation component
     simpa [bindingInterface] using
@@ -184,8 +182,7 @@ theorem rowsZero_iff
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (payload : Payload logicalWidth)
     (geometry : Geometry program logicalWidth)
-    (assignment : Assignment F logicalWidth)
-    (one : assignment (oneColumn geometry) = 1) :
+    (assignment : Assignment F logicalWidth) :
     (plan payload geometry).RowsZero assignment ↔
       (∀ invocation, PoseidonSboxPlan.RowsZero
         (PoseidonSboxFamilyPlan.invocationInterface
@@ -194,7 +191,7 @@ theorem rowsZero_iff
         (bindingForm payload geometry invocation component).eval assignment = 0) := by
   rw [plan, ProductionRelation.Plan.append_rowsZero_iff]
   rw [sboxPlan, PoseidonSboxFamilyPlan.planRowsZero_iff]
-  rw [bindingRowsZero_iff payload geometry assignment one]
+  rw [bindingRowsZero_iff payload geometry assignment]
 
 structure Semantics {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (payload : Payload logicalWidth)
@@ -217,7 +214,7 @@ theorem rowsZero_implies_semantics
     (one : assignment (oneColumn geometry) = 1)
     (rowsZero : (plan payload geometry).RowsZero assignment) :
     Semantics payload geometry assignment := by
-  have children := (rowsZero_iff payload geometry assignment one).mp rowsZero
+  have children := (rowsZero_iff payload geometry assignment).mp rowsZero
   refine ⟨?_, children.2⟩
   intro invocation
   have sboxRows := (PoseidonSboxFamilyPlan.planRowsZero_iff
@@ -232,7 +229,6 @@ theorem equations_imply_rowsZero
     (payload : Payload logicalWidth)
     (geometry : Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
-    (one : assignment (oneColumn geometry) = 1)
     (sboxes : ∀ invocation,
       PoseidonSboxPlan.SboxEquations
         (PoseidonSboxFamilyPlan.invocationInterface
@@ -240,12 +236,12 @@ theorem equations_imply_rowsZero
     (bindings : ∀ invocation component,
       (bindingForm payload geometry invocation component).eval assignment = 0) :
     (plan payload geometry).RowsZero assignment := by
-  apply (rowsZero_iff payload geometry assignment one).mpr
+  apply (rowsZero_iff payload geometry assignment).mpr
   constructor
   · intro invocation
     apply PoseidonSboxPlan.rowsZero_of_equations
       (PoseidonSboxFamilyPlan.invocationInterface
-        (interface payload geometry) invocation) assignment one
+        (interface payload geometry) invocation) assignment
       (sboxes invocation)
     exact PoseidonRetainedFamily.outputEquations
       (schedule program) (retainedStart program) (retainedFits geometry)

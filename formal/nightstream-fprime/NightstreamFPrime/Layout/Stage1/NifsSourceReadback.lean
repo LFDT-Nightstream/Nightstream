@@ -30,7 +30,7 @@ variable {logicalWidth : Nat}
 
 private theorem agrees_below_pilot
     {initial : Env}
-    (proof : Proof 9)
+    (proof : Proof 8)
     (parentPublic : PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
     (p : Sequence.Prefix initial PilotProduction.witnessOffset)
     (c : Sequence.Prefix p.current PiCCSInputs.phaseOffset)
@@ -60,7 +60,7 @@ theorem words_of_prefixes
     (advertisedFixed : PilotProduction.FixedPreimage advertised)
     (digestFixed : digest.length = PilotProduction.digestWords)
     (values : PiCCSProofInputs.ProofValues) (context : VerifierContext.Digest4)
-    (proof : Proof 9)
+    (proof : Proof 8)
     (parentPublic : PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
     (p : Sequence.Prefix
       (PiCCSProtocolCompleteness.environment prior priorPublic advertised digest

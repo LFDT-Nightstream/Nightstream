@@ -6,7 +6,7 @@ import NightstreamFPrime.Layout.MatrixProgram.CoefficientWork
 /-!
 Counted coefficient entries for the selected PiDEC commitment row packet.
 All 14 matrix ports and 54 coefficient lanes reach the actual selected
-matrix source. The packet starts at global logical row 1326212.
+matrix source. The packet starts at global logical row 1100150.
 SuperNeo v1.1 Section 7.3 and Appendix B.2 own the coefficient-matrix check;
 Section 7.5 and Appendix B.4 own these commitment recomposition rows.
 
@@ -40,7 +40,7 @@ abbrev selectedPlan : ProductionRelation.Plan PiDECInputCheck.logicalWidth :=
   PerApplicationFixedPoint.structuralPlan Poseidon2HashChainV1Package.application
     Poseidon2HashChainV1Package.fits
 
-private theorem width_eq : PiDECInputCheck.logicalWidth = 59804510 :=
+private theorem width_eq : PiDECInputCheck.logicalWidth = 49707850 :=
   Poseidon2HashChainV1Package.logicalWidth
 
 attribute [local irreducible] PerApplicationFixedPoint.logicalWidth PiDECInputCheck.relation
@@ -84,7 +84,7 @@ private def fullRow (row : Fin 1188) :
     (DirectApplicationPrefixPlan.publicOutputPlan geometry).rowCount next
 
 private theorem fullRow_val (row : Fin 1188) :
-    (fullRow relation fits geometry row).val = 1326212 + row.val := by
+    (fullRow relation fits geometry row).val = 1100150 + row.val := by
   simp only [fullRow, ProductionRelation.Plan.leftIndex_val, ProductionRelation.Plan.rightIndex_val,
     PiDECDirectPlan.publicPlan_rowCount,
     DirectPiRLCSamplerCompletePrefixPlan.piRlcCompletePlan_rowCount,
@@ -120,12 +120,12 @@ private theorem plan_port_transport {columns : Nat} (left right : ProductionRela
 /-- The constant offset is checked against the exact append tree below.
 This coordinate is a semantic reference; entry does not execute this map. -/
 def globalRow (row : Fin 1188) : Fin selectedPlan.rowCount :=
-  ⟨1326212 + row.val, by
+  ⟨1100150 + row.val, by
     have bound := row.isLt
     rw [Poseidon2HashChainV1Package.structuralRowCount]
     omega⟩
 
-theorem globalRow_val (row : Fin 1188) : (globalRow row).val = 1326212 + row.val := rfl
+theorem globalRow_val (row : Fin 1188) : (globalRow row).val = 1100150 + row.val := rfl
 
 private theorem globalRow_port (row : Fin 1188) (matrix : Fin Spec.ProductionRelation.matrixCount) :
     selectedPlan.portForm (globalRow row) matrix =
@@ -151,13 +151,12 @@ Unit/call/value/Result (4), plus the actual empty-form constructor work. -/
 private def selectPort {columns : Nat} (forms : OrdinaryRow.Forms columns)
     (matrix : Fin Spec.ProductionRelation.matrixCount) : Result (SparseForm columns) :=
   let slot := matrix.val
-  if slot = 1 then ⟨forms.selector, 6⟩
-  else if slot = 2 then ⟨forms.a, 9⟩
-  else if slot = 3 then ⟨forms.b, 12⟩
-  else if slot = 4 then ⟨forms.c, 15⟩
+  if slot = 0 then ⟨forms.a, 6⟩
+  else if slot = 1 then ⟨forms.b, 9⟩
+  else if slot = 2 then ⟨forms.c, 12⟩
   else
     let empty := SparseWork.empty ()
-    ⟨empty.value, empty.work + 17⟩
+    ⟨empty.value, empty.work + 14⟩
 
 private theorem selectPort_value {columns : Nat} (forms : OrdinaryRow.Forms columns)
     (matrix : Fin Spec.ProductionRelation.matrixCount) :
@@ -165,23 +164,23 @@ private theorem selectPort_value {columns : Nat} (forms : OrdinaryRow.Forms colu
   fin_cases matrix <;>
     simp [selectPort, OrdinaryRow.Forms.portForm, OrdinaryRow.Forms.meaningfulForm,
       Layout.ProductionRelation.meaningfulPort?, Spec.ProductionRelation.meaningfulPortCount,
-      Spec.ProductionRelation.SelectivePolynomial.meaningfulPortCount,
+      Spec.ProductionRelation.GatePolynomial.meaningfulPortCount,
       SparseWork.empty_value]
 
 private theorem selectPort_work_le {columns : Nat} (forms : OrdinaryRow.Forms columns)
     (matrix : Fin Spec.ProductionRelation.matrixCount) :
-    (selectPort forms matrix).work ≤ 20 := by
+    (selectPort forms matrix).work ≤ 17 := by
   dsimp only [selectPort]
   split_ifs <;> dsimp only [SparseWork.empty] <;> omega
 
 private theorem selectPort_length_le {columns : Nat} (forms : OrdinaryRow.Forms columns)
     (matrix : Fin Spec.ProductionRelation.matrixCount)
-    (lengths : forms.selector.entries.length = 1 ∧ forms.a.entries.length = 657 ∧
+    (lengths : forms.a.entries.length = 657 ∧
       forms.b.entries.length = 1 ∧ forms.c.entries.length = 42) :
     (selectPort forms matrix).value.entries.length ≤ 657 := by
-  rcases lengths with ⟨selector, a, b, c⟩
+  rcases lengths with ⟨a, b, c⟩
   dsimp only [selectPort]
-  split_ifs <;> simp only [SparseWork.empty, selector, a, b, c, List.length_nil] <;> omega
+  split_ifs <;> simp only [SparseWork.empty, a, b, c, List.length_nil] <;> omega
 
 private theorem kernel_work_eq : StoredWitnessCheckEntries.kernelWork = 5208 := by rfl
 
@@ -238,14 +237,14 @@ def entry (matrix : Fin productionShape.matrixCount)
     (column : Fin carrier.carrierWidth) : Result F :=
   let forms := PiDECCommitmentMatrixWork.commitmentForms row
   let selected := selectPort forms.value matrix
-  let result := CoefficientWork.coefficient (logicalWidth := 59804510)
+  let result := CoefficientWork.coefficient (logicalWidth := 49707850)
     (width_eq ▸ selected.value) coefficient
     (congrArg Phi81CarrierLayout.carrierWidth width_eq ▸ column)
   ⟨result.value, forms.work + selected.work + result.work + 8⟩
 
 /-- Bound for the composed declared clocks of this typed local-row call.
 The selected kernel's declared bound 5208 is included in coefficient expansion. -/
-def entryWork : Nat := 254729 + 20 + 637643 + 8
+def entryWork : Nat := 254724 + 17 + 637643 + 8
 
 theorem entry_value (matrix : Fin productionShape.matrixCount)
     (coefficient : Fin productionShape.coefficientCount) (row : Fin 1188)
@@ -253,7 +252,7 @@ theorem entry_value (matrix : Fin productionShape.matrixCount)
     (entry matrix coefficient row column).value =
       (Lifecycle.PiRLC.v1_1.InputBinding.relationSource PiDECInputCheck.relation).matrixSource.coefficientMatrix
         baseOps matrix coefficient (selectedPlan.rowLayout.toVertex (globalRow row)) column := by
-  change (CoefficientWork.coefficient (logicalWidth := 59804510)
+  change (CoefficientWork.coefficient (logicalWidth := 49707850)
     (width_eq ▸ (selectPort (PiDECCommitmentMatrixWork.commitmentForms row).value matrix).value)
     coefficient (congrArg Phi81CarrierLayout.carrierWidth width_eq ▸ column)).value = _
   rw [coefficient_cast]
@@ -268,8 +267,8 @@ theorem entry_work_le (matrix : Fin productionShape.matrixCount)
     (entry matrix coefficient row column).work ≤ entryWork := by
   let forms := PiDECCommitmentMatrixWork.commitmentForms row
   let selected := selectPort forms.value matrix
-  have formsWork : forms.work ≤ 254729 := PiDECCommitmentMatrixWork.commitmentForms_work_le row
-  have portWork : selected.work ≤ 20 := selectPort_work_le forms.value matrix
+  have formsWork : forms.work ≤ 254724 := PiDECCommitmentMatrixWork.commitmentForms_work_le row
+  have portWork : selected.work ≤ 17 := selectPort_work_le forms.value matrix
   have length : selected.value.entries.length ≤ 657 := selectPort_length_le forms.value matrix
     (PiDECCommitmentMatrixWork.commitmentForms_lengths row)
   have coefficientWork := CoefficientWork.coefficient_work_le selected.value coefficient column

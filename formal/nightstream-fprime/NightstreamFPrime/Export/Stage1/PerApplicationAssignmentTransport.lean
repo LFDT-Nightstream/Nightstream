@@ -3,7 +3,7 @@ import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentBlocks
 import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPreservation
 
 /-!
-Owns the sealed executable transport for the final 7-matrix assignment.
+Owns the sealed executable transport for the final 4-matrix assignment.
 The 26 retained block plans supply their source values. Compact recipes
 derive the Phi81 quotient coefficients and the four constrained output-digest words.
 
@@ -47,7 +47,7 @@ def Phi81FamilyShape.format : Format Phi81FamilyShape where
     cases shape
     rfl
 
-/-- Exact quotient recipe for the 39,474 retained Phi81 coefficients.
+/-- Exact quotient recipe for the 33,966 retained Phi81 coefficients.
 The final coefficient of each ring quotient is zero. -/
 structure Phi81QuotientRecipe where
   ringDegree : Nat
@@ -101,7 +101,7 @@ def phi81FamilyShapes : List Phi81FamilyShape :=
   [ ⟨17, 22, 1⟩
   , ⟨17, 5, 1⟩
   , ⟨17, 1, 2⟩
-  , ⟨17, 7, 2⟩ ]
+  , ⟨17, 4, 2⟩ ]
 
 /-- Physical source columns used to construct the shared PiRLC operand values. -/
 def phi81ValueSources (program : Program) : List AffineRuns.Run :=

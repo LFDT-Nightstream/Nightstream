@@ -23,7 +23,7 @@ from check_lean_fold import Check, compare_caller, compare_source, package_pin
 from project_replay_sources import BLOCKS, LOGICAL, read, require
 from lean_graph.policy import CAPS
 
-ROWS, CARRIER = 1371020, BLOCKS * 54
+ROWS, CARRIER = 1139450, BLOCKS * 54
 TOOLCHAIN = "nightstream-lean-4.32.2-3019a32c"
 ARTIFACT = FORMAL / "artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"
 
@@ -83,7 +83,7 @@ def matrix_geometry(package):
             require(kind in (0, 1), "unknown ordinary row schedule")
             count = sum(length for start, length in schedule) if kind == 0 else len(schedule)
         elif tag == 1:
-            count = len(block[1])
+            count = len(block)
         elif tag == 2:
             alignment = 150
             count = block[0] * alignment
@@ -573,7 +573,7 @@ class Replay:
                     caller, physical, self.out("physical-rejections"), outputs=[self.out("physical-rejections")])
         prior, generated = read(request), read(caller)
         private, result = generated[2], generated[4]
-        offset = 37297  # StateMessage's fixed current-schema field width, checked against both producers.
+        offset = 32113  # StateMessage's fixed current-schema field width, checked against both producers.
         require(private[28] == prior[0] and private[30:34] == prior[1] and private[35:39] == prior[2]
                 and private[-4:] == prior[3] and private[offset + 28] == prior[0] + 1
                 and private[offset + 30:offset + 34] == prior[1]

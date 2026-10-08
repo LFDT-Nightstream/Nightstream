@@ -56,13 +56,13 @@ theorem proofInputStart_matches_piRlc
   rw [PilotPiCCSPiRLC.physicalColumnCount_eq]
   rfl
 
-theorem proofInputColumnCount_eq : proofInputColumnCount = 37152 := by
+theorem proofInputColumnCount_eq : proofInputColumnCount = 31968 := by
   rfl
 
 theorem inputStarts_eq :
     [commitmentInputStart, evalKInputStart, evalAInputStart, publicInputStart,
       phaseOffset] =
-    [14724302, 14743310, 14745038, 14757134, 14761454] := by
+    [12410976, 12429984, 12431712, 12438624, 12442944] := by
   rfl
 
 def childCommitmentStart (child : Radix.ChildIndex) : Nat :=

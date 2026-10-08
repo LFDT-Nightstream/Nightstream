@@ -196,7 +196,7 @@ fn check_positive_opening(sources: OpeningSources) {
             let matrix: usize = paths
                 .family
                 .strip_prefix('A')
-                .expect("family K or A0..A6")
+                .expect("family K or A0..A3")
                 .parse()
                 .expect("matrix index");
             assert!(matrix < MATRIX_COUNT);

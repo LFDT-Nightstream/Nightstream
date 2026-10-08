@@ -24,7 +24,7 @@ private theorem framedChunks_nonempty (words : List Expr) :
 
 /-- Every exposed lane of the output-binding endpoint is allocated at or
 after the PiCCS output-binding offset. The result does not depend on the
-14,688 output word contents. -/
+9,180 output word contents. -/
 theorem finalState_supported_from_offset (interface : Interface)
     (offset : Nat) :
     Formal.StateSupported (finalState interface offset)

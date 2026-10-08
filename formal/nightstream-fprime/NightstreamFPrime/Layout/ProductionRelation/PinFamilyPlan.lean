@@ -15,14 +15,12 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
 structure Interface (logicalWidth rowCount : Nat) where
-  oneColumn : Fin logicalWidth
   value : Fin rowCount → SparseForm logicalWidth
 
 def forms {logicalWidth rowCount : Nat}
     (interface : Interface logicalWidth rowCount) (row : Fin rowCount) :
     PinRow.Forms logicalWidth :=
-  { selector := SparseForm.singleton interface.oneColumn 1
-    value := interface.value row }
+  { value := interface.value row }
 
 def plan {logicalWidth rowCount : Nat}
     (interface : Interface logicalWidth rowCount)
@@ -64,8 +62,7 @@ theorem plan_residual_at {logicalWidth rowCount : Nat}
 theorem planRowsZero_iff {logicalWidth rowCount : Nat}
     (interface : Interface logicalWidth rowCount)
     (rowCount_le : rowCount ≤ 2 ^ NightstreamFPrime.Lifecycle.cubeVariables)
-    (assignment : Assignment F logicalWidth)
-    (one : assignment interface.oneColumn = 1) :
+    (assignment : Assignment F logicalWidth) :
     (plan interface rowCount_le).RowsZero assignment ↔
       ∀ row, (interface.value row).eval assignment = 0 := by
   constructor
@@ -73,9 +70,9 @@ theorem planRowsZero_iff {logicalWidth rowCount : Nat}
     have zero := rowsZero row
     rw [plan_residual_at, PinRow.Forms.residual_eq] at zero
     have negated := congrArg Neg.neg zero
-    simpa [forms, one] using negated
+    simpa [forms] using negated
   · intro equations row
     rw [plan_residual_at, PinRow.Forms.residual_eq]
-    simp [forms, one, equations row]
+    simp [forms, equations row]
 
 end NightstreamFPrime.Layout.ProductionRelation.PinFamilyPlan

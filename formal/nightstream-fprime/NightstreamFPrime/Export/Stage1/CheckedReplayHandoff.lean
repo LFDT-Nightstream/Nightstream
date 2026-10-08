@@ -22,7 +22,7 @@ theorem prior_eq_payload
     (children : Stage1.Terminal.RunningWitness
       (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))
-    (raw : RawValues application) (nextProof : Lifecycle.Proof 9) :
+    (raw : RawValues application) (nextProof : Lifecycle.Proof 8) :
     CheckedReplayStep.prior
       (HyperNovaInput.ofClaims result (CheckedReplaySuccessor.payload result children raw).fresh
         nextProof) children raw.completeAssignment =

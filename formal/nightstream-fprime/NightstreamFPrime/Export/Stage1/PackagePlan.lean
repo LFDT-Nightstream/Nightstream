@@ -136,7 +136,7 @@ def canonicalCombinationBlock : CombinationInvocationBlock where
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.evalALogicalStart,
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.evalARowStart,
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.evalAFreshStart,
-    7, 2, 2⟩
+    4, 2, 2⟩
 
 theorem canonicalCombinationBlock_expand :
     canonicalCombinationBlock.expand =

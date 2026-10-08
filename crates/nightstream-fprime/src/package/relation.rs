@@ -13,13 +13,10 @@ struct RawPolynomialTerm(u64, Vec<u64>);
 /// Physical matrix selected by one Lean-owned logical CCS slot.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CcsMatrixSource {
-    Bit,
-    GeneralSelector,
     A,
     B,
     C,
     SboxInput,
-    EvalSelector,
 }
 
 /// One sparse term of the Lean-owned CCS constraint polynomial.
@@ -104,16 +101,25 @@ pub(super) fn validate(raw: RawCcsRelation) -> Result<PackageCcsRelation, Packag
     let matrix_sources = matrix_sources
         .into_iter()
         .map(|source| match source {
-            0 => Ok(CcsMatrixSource::Bit),
-            1 => Ok(CcsMatrixSource::GeneralSelector),
-            2 => Ok(CcsMatrixSource::A),
-            3 => Ok(CcsMatrixSource::B),
-            4 => Ok(CcsMatrixSource::C),
-            5 => Ok(CcsMatrixSource::SboxInput),
-            6 => Ok(CcsMatrixSource::EvalSelector),
+            0 => Ok(CcsMatrixSource::A),
+            1 => Ok(CcsMatrixSource::B),
+            2 => Ok(CcsMatrixSource::C),
+            3 => Ok(CcsMatrixSource::SboxInput),
             _ => Err(PackageError::Invalid("CCS relation matrix source")),
         })
         .collect::<Result<Vec<_>, _>>()?;
+    // The matrix program writes ports by slot index, so the tags must name
+    // exactly that slot order.
+    if matrix_sources
+        != [
+            CcsMatrixSource::A,
+            CcsMatrixSource::B,
+            CcsMatrixSource::C,
+            CcsMatrixSource::SboxInput,
+        ]
+    {
+        return Err(PackageError::Invalid("CCS relation matrix order"));
+    }
 
     let terms = terms
         .into_iter()

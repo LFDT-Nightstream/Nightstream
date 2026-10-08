@@ -6,9 +6,8 @@ import Mathlib.Data.ZMod.Defs
 
 /-!
 Column weights of Poseidon S-box invocations. Every port of an S-box row is a
-linear function of the column reads: the selector reads the one column, the
-output reads a retained S-box output, and the input is a state lane plus a round
-constant times the one column, where the state is the image of earlier retained
+linear function of the column reads: the output reads a retained S-box output,
+and the input is a state lane plus a round constant times the one column, where the state is the image of earlier retained
 outputs (or of the input state) under the linear layers. The weighted sum of the
 rows of an invocation is therefore `Σ_j W_j read_j`, and one reverse pass through
 the transposed layers gives the column weights `W` of the input port. The
@@ -91,17 +90,16 @@ private def steps : List Permutation.Step → Nat → Nat → List (Permutation.
   | [], _, _ => []
   | step :: rest, next, row => (step, next, row) :: steps rest (nextIndex next step) (row + rowCount step)
 
-/-- The weights of the selector, output and input ports of one column. -/
-abbrev Weights := K × K × K
+/-- The weights of the output and input ports of one column. -/
+abbrev Weights := K × K
 
-/-- Add `weight` to one port: `0` selector, `1` output, `2` input. -/
-def Weights.bump (weights : Weights) (port : Fin 3) (weight : K) : Weights :=
+/-- Add `weight` to one port: `0` output, `1` input. -/
+def Weights.bump (weights : Weights) (port : Fin 2) (weight : K) : Weights :=
   match port with
   | 0 => (K.add weights.1 weight, weights.2)
-  | 1 => (weights.1, K.add weights.2.1 weight, weights.2.2)
-  | 2 => (weights.1, weights.2.1, K.add weights.2.2 weight)
+  | 1 => (weights.1, K.add weights.2 weight)
 
-/-- Column weights of all three ports: the distinct columns in order of first
+/-- Column weights of both ports: the distinct columns in order of first
 use. `slots` only suggests where a column is; an update checks the slot, and
 otherwise appends the column, so the weights never depend on the map. -/
 structure Merged (columns : Nat) where
@@ -109,16 +107,16 @@ structure Merged (columns : Nat) where
   weights : Array Weights
   slots : Std.HashMap Nat Nat
 
-def Merged.push {columns : Nat} (merged : Merged columns) (port : Fin 3) (column : Fin columns)
+def Merged.push {columns : Nat} (merged : Merged columns) (port : Fin 2) (column : Fin columns)
     (weight : K) : Merged columns :=
   -- The slot is read before the push, so that both arrays stay unshared and grow in place.
   let slot := merged.keys.size
   { keys := merged.keys.push column
-    weights := merged.weights.push (Weights.bump (zeroK, zeroK, zeroK) port weight)
+    weights := merged.weights.push (Weights.bump (zeroK, zeroK) port weight)
     slots := merged.slots.insert column.val slot }
 
 /-- Add `weight` to the weight of `column` in `port`. -/
-def Merged.add {columns : Nat} (merged : Merged columns) (port : Fin 3) (column : Fin columns)
+def Merged.add {columns : Nat} (merged : Merged columns) (port : Fin 2) (column : Fin columns)
     (weight : K) : Merged columns :=
   match merged.slots[column.val]? with
   | some slot =>
@@ -129,20 +127,19 @@ def Merged.add {columns : Nat} (merged : Merged columns) (port : Fin 3) (column 
       else merged.push port column weight
   | none => merged.push port column weight
 
-private def addForm {columns : Nat} (merged : Merged columns) (port : Fin 3)
+private def addForm {columns : Nat} (merged : Merged columns) (port : Fin 2)
     (form : SparseForm columns) (weight : K) : Merged columns :=
   form.entries.foldl (fun merged entry =>
     merged.add port entry.column (scale weight entry.coefficient)) merged
 
-/-- The weights of one lane of a full round: the selector and output of its
-row, and the input port through the retained output and the round constant. -/
+/-- The weights of one lane of a full round: the output of its row, and the
+input port through the retained output and the round constant. -/
 private def fullLane {columns : Nat} (interface : PoseidonSboxPlan.Interface columns)
     (weight outputAdjoint : K) (constant : F) (form : SparseForm columns)
     (merged : Merged columns) : Merged columns :=
-  let merged := merged.add 0 interface.oneColumn weight
-  let merged := addForm merged 1 form weight
-  let merged := addForm merged 2 form outputAdjoint
-  merged.add 2 interface.oneColumn (scale weight constant)
+  let merged := addForm merged 0 form weight
+  let merged := addForm merged 1 form outputAdjoint
+  merged.add 1 interface.oneColumn (scale weight constant)
 
 /-- The rows of one full round, and the adjoint of the state before it. -/
 private def fullRound {columns arity : Nat} (interface : PoseidonSboxPlan.Interface columns)
@@ -182,7 +179,7 @@ def addInvocation {columns arity : Nat} (point : CubePoint K arity) (start : Nat
   let reversed := (steps Permutation.schedule 0 0).foldr
     (reverseStep interface point start) (Vector.replicate 16 zeroK, merged)
   (List.finRange 16).foldl (fun merged lane =>
-    addForm merged 2 (interface.input lane) (reversed.1.get lane)) reversed.2
+    addForm merged 1 (interface.input lane) (reversed.1.get lane)) reversed.2
 
 /-- The merged column weights of consecutive invocations. -/
 def mergedOf {columns arity count : Nat} (firstRow : Nat) (point : CubePoint K arity)
@@ -191,82 +188,76 @@ def mergedOf {columns arity count : Nat} (firstRow : Nat) (point : CubePoint K a
       addInvocation point (firstRow + 150 * index) (interfaces.get ⟨index, live⟩) merged)
     ⟨#[], #[], {}⟩
 
-/-- One entry per merged column with the weights of its three ports. -/
+/-- One entry per merged column with the weights of its two ports. -/
 def entriesOf {columns : Nat} (keys : List (Fin columns)) (weights : List Weights) :
-    List (Fin columns × (F × F) × (F × F) × (F × F)) :=
+    List (Fin columns × (F × F) × (F × F)) :=
   List.zipWith (fun column (weights : Weights) =>
-      (column, (weights.1.c0, weights.1.c1), (weights.2.1.c0, weights.2.1.c1),
-        (weights.2.2.c0, weights.2.2.c1)))
+      (column, (weights.1.c0, weights.1.c1), (weights.2.c0, weights.2.c1)))
     keys weights
 
-/-- The column weights of consecutive invocations with all three ports per column. -/
+/-- The column weights of consecutive invocations with both ports per column. -/
 def prepare {columns arity count : Nat} (firstRow : Nat) (point : CubePoint K arity)
     (interfaces : Vector (PoseidonSboxPlan.Interface columns) count) :
-    List (Fin columns × (F × F) × (F × F) × (F × F)) :=
+    List (Fin columns × (F × F) × (F × F)) :=
   let merged := mergedOf firstRow point interfaces
   entriesOf merged.keys.toList merged.weights.toList
 
-/-- The selector, output and input ports of a matrix port, if it is one of them. -/
-def portIndex? (port : Fin matrixCount) : Option (Fin 3) :=
+/-- The output and input ports of a matrix port, if it is one of them. -/
+def portIndex? (port : Fin matrixCount) : Option (Fin 2) :=
   match port.val with
-  | 1 => some 0
-  | 4 => some 1
-  | 5 => some 2
+  | 2 => some 0
+  | 3 => some 1
   | _ => none
 
 /-- The two coordinates of one port of an entry. -/
-def entryPair {columns : Nat} (entry : Fin columns × (F × F) × (F × F) × (F × F)) :
-    Fin 3 → F × F
+def entryPair {columns : Nat} (entry : Fin columns × (F × F) × (F × F)) :
+    Fin 2 → F × F
   | 0 => entry.2.1
-  | 1 => entry.2.2.1
-  | 2 => entry.2.2.2
+  | 1 => entry.2.2
 
 /-- The range sum of one read from prepared column weights, reading each column
-once per lane for the three ports. -/
+once per lane for both ports. -/
 @[specialize] def evaluate {columns : Nat}
-    (prepared : List (Fin columns × (F × F) × (F × F) × (F × F)))
+    (prepared : List (Fin columns × (F × F) × (F × F)))
     (read : Fin ringDegree → Fin columns → F) : Vector MaterializedRingK matrixCount :=
   let lanes := Vector.ofFn fun output : Fin ringDegree =>
-    PiDECNativeSparseEvaluation.nativeEvalTriple prepared (read output)
+    PiDECNativeSparseEvaluation.nativeEvalTwoPairs prepared (read output)
   Vector.ofFn fun port : Fin matrixCount =>
     match portIndex? port with
     | some 0 => MaterializedRingK.ofRing fun output =>
         ⟨(lanes.get output).1.1, (lanes.get output).1.2⟩
     | some 1 => MaterializedRingK.ofRing fun output =>
-        ⟨(lanes.get output).2.1.1, (lanes.get output).2.1.2⟩
-    | some 2 => MaterializedRingK.ofRing fun output =>
-        ⟨(lanes.get output).2.2.1, (lanes.get output).2.2.2⟩
+        ⟨(lanes.get output).2.1, (lanes.get output).2.2⟩
     | none => MaterializedRingK.ofRing fun _ => zeroK
 
 /-! ### Values of merged weights -/
 
 /-- One port of the weights of a column. -/
-def Weights.get (weights : Weights) : Fin 3 → K
+def Weights.get (weights : Weights) : Fin 2 → K
   | 0 => weights.1
-  | 1 => weights.2.1
-  | 2 => weights.2.2
+  | 1 => weights.2
 
-private theorem bump_get (weights : Weights) (port target : Fin 3) (weight : K) :
+private theorem bump_get (weights : Weights) (port target : Fin 2) (weight : K) :
     (weights.bump port weight).get target =
       if target = port then extensionOps.add (weights.get target) weight
       else weights.get target := by
   fin_cases port <;> fin_cases target <;> rfl
 
-private theorem zero_get (target : Fin 3) :
-    Weights.get (zeroK, zeroK, zeroK) target = extensionOps.zero := by
+private theorem zero_get (target : Fin 2) :
+    Weights.get (zeroK, zeroK) target = extensionOps.zero := by
   fin_cases target <;> rfl
 
 /-- The weighted sum of the values of the merged columns in one port. -/
-def Merged.value {columns : Nat} (merged : Merged columns) (port : Fin 3)
+def Merged.value {columns : Nat} (merged : Merged columns) (port : Fin 2)
     (values : Fin columns → K) : K :=
   PiDECMatrixWeightedRange.dot (merged.weights.toList.map (·.get port))
     (merged.keys.toList.map values)
 
 /-- The change of one port when `weight` is added to `column` in `port`. -/
-private def change (port target : Fin 3) (weight value : K) (total : K) : K :=
+private def change (port target : Fin 2) (weight value : K) (total : K) : K :=
   if target = port then extensionOps.add total (extensionOps.mul weight value) else total
 
-private theorem push_value {columns : Nat} (merged : Merged columns) (port : Fin 3)
+private theorem push_value {columns : Nat} (merged : Merged columns) (port : Fin 2)
     (column : Fin columns) (weight : K) (values : Fin columns → K)
     (sizes : merged.keys.size = merged.weights.size) :
     (merged.push port column weight).keys.size = (merged.push port column weight).weights.size ∧
@@ -282,7 +273,7 @@ private theorem push_value {columns : Nat} (merged : Merged columns) (port : Fin
   · rw [show extensionOps.mul extensionOps.zero (values column) = extensionOps.zero by
       rw [extensionLaws.mul_comm, extensionLaws.mul_zero], extensionLaws.add_zero]
 
-private theorem add_value {columns : Nat} (merged : Merged columns) (port : Fin 3)
+private theorem add_value {columns : Nat} (merged : Merged columns) (port : Fin 2)
     (column : Fin columns) (weight : K) (values : Fin columns → K)
     (sizes : merged.keys.size = merged.weights.size) :
     (merged.add port column weight).keys.size = (merged.add port column weight).weights.size ∧
@@ -349,7 +340,7 @@ private def sizes {columns : Nat} (merged : Merged columns) : Prop :=
   merged.keys.size = merged.weights.size
 
 /-- Adding the weighted entries of a form adds the weighted form in one port. -/
-private theorem addForm_value {columns : Nat} (port : Fin 3) (weight : K)
+private theorem addForm_value {columns : Nat} (port : Fin 2) (weight : K)
     (read : Fin columns → F) :
     ∀ (entries : List (SparseEntry columns)) (merged : Merged columns), sizes merged →
       sizes (addForm merged port ⟨entries⟩ weight) ∧
@@ -394,23 +385,21 @@ private theorem fullLane_value {columns : Nat} (interface : PoseidonSboxPlan.Int
           (fun column => K.embed (read column)) =
         extensionOps.add (merged.value target fun column => K.embed (read column))
           (match target with
-            | 0 => extensionOps.mul weight (K.embed (read interface.oneColumn))
-            | 1 => extensionOps.mul weight (K.embed (form.evalSparse read))
-            | 2 => extensionOps.add (extensionOps.mul outputAdjoint (K.embed (form.evalSparse read)))
+            | 0 => extensionOps.mul weight (K.embed (form.evalSparse read))
+            | 1 => extensionOps.add (extensionOps.mul outputAdjoint (K.embed (form.evalSparse read)))
                 (extensionOps.mul (scale weight constant) (K.embed (read interface.oneColumn)))) := by
   let values := fun column => K.embed (read column)
-  have first := add_value merged 0 interface.oneColumn weight values fits
-  have second := addForm_value 1 weight read form.entries _ first.1
-  have third := addForm_value 2 outputAdjoint read form.entries _ second.1
-  have fourth := add_value _ 2 interface.oneColumn (scale weight constant) values third.1
-  refine ⟨fourth.1, fun target => ?_⟩
+  have first := addForm_value 0 weight read form.entries merged fits
+  have second := addForm_value 1 outputAdjoint read form.entries _ first.1
+  have third := add_value _ 1 interface.oneColumn (scale weight constant) values second.1
+  refine ⟨third.1, fun target => ?_⟩
   unfold fullLane
-  rw [fourth.2 target, third.2 target, second.2 target, first.2 target]
+  rw [third.2 target, second.2 target, first.2 target]
   fin_cases target <;> simp [change, extensionLaws.add_assoc] <;> rfl
 
 /-- Each lane adds its contribution to every port. -/
 private theorem foldl_lanes {columns : Nat} (update : Fin 16 → Merged columns → Merged columns)
-    (values : Fin columns → K) (delta : Fin 3 → Fin 16 → K)
+    (values : Fin columns → K) (delta : Fin 2 → Fin 16 → K)
     (step : ∀ lane merged, sizes merged → sizes (update lane merged) ∧
       ∀ target, (update lane merged).value target values =
         extensionOps.add (merged.value target values) (delta target lane)) :
@@ -429,19 +418,18 @@ private theorem foldl_lanes {columns : Nat} (update : Fin 16 → Merged columns 
 
 /-! ### Rows and the forward pass -/
 
-/-- The selector, output and input of a row, by port. -/
-def portOf (values : PortValues) : Fin 3 → F
-  | 0 => values.generalSelector
-  | 1 => values.c
-  | 2 => values.sboxInput
+/-- The output and input of a row, by port. -/
+def portOf (values : PortValues) : Fin 2 → F
+  | 0 => values.c
+  | 1 => values.sboxInput
 
 /-- The weighted rows from `row` on, in one port. -/
-def rowTotal (weight : Nat → K) (port : Fin 3) : List PortValues → Nat → K
+def rowTotal (weight : Nat → K) (port : Fin 2) : List PortValues → Nat → K
   | [], _ => K.zero
   | values :: rows, row => extensionOps.add (extensionOps.mul (weight row)
       (K.embed (portOf values port))) (rowTotal weight port rows (row + 1))
 
-private theorem rowTotal_append (weight : Nat → K) (port : Fin 3) :
+private theorem rowTotal_append (weight : Nat → K) (port : Fin 2) :
     ∀ (first second : List PortValues) (row : Nat),
       rowTotal weight port (first ++ second) row =
         extensionOps.add (rowTotal weight port first row)
@@ -486,12 +474,12 @@ private theorem stepRows_length {columns : Nat} (read : Fin columns → F)
 private def fullForward {columns : Nat} (read : Fin columns → F)
     (interface : PoseidonSboxPlan.Interface columns) (constants : List (List Nat))
     (round next : Nat) (state : Vector F 16) : List PortValues × Vector F 16 :=
-  let selector := read interface.oneColumn
+  let one := read interface.oneColumn
   let outputs := Vector.ofFn fun lane : Fin 16 =>
     PiDECPoseidonNumericStep.retainedValue read interface (next + lane.val)
   (List.ofFn fun lane : Fin 16 =>
-      RowSemantics.sbox selector
-        (state.get lane + Spec.Poseidon2.constantAt constants round lane.val * selector)
+      RowSemantics.sbox
+        (state.get lane + Spec.Poseidon2.constantAt constants round lane.val * one)
         (outputs.get lane),
     Vector.ofFn (Layer.externalF outputs.get))
 
@@ -517,13 +505,13 @@ private def StepValue {columns arity : Nat} (point : CubePoint K arity) (start :
     (forward : List PortValues × Vector F 16) (after : Adjoint) (merged : Merged columns)
     (result : Adjoint × Merged columns) : Prop :=
   sizes result.2 ∧
-    (∀ target : Fin 3, target ≠ 2 → result.2.value target (fun column => K.embed (read column)) =
+    (∀ target : Fin 2, target ≠ 1 → result.2.value target (fun column => K.embed (read column)) =
       extensionOps.add (merged.value target (fun column => K.embed (read column)))
         (rowTotal (rowWeight point start) target forward.1 row)) ∧
-    extensionOps.add (result.2.value 2 (fun column => K.embed (read column))) (dotState result.1 state) =
-      extensionOps.add (extensionOps.add (merged.value 2 (fun column => K.embed (read column)))
+    extensionOps.add (result.2.value 1 (fun column => K.embed (read column))) (dotState result.1 state) =
+      extensionOps.add (extensionOps.add (merged.value 1 (fun column => K.embed (read column)))
           (dotState after forward.2))
-        (rowTotal (rowWeight point start) 2 forward.1 row)
+        (rowTotal (rowWeight point start) 1 forward.1 row)
 
 private theorem initialLayer_value {columns arity : Nat} (point : CubePoint K arity)
     (start : Nat) (read : Fin columns → F) (row : Nat) (state : Vector F 16) (after : Adjoint)
@@ -542,13 +530,12 @@ private theorem initialLayer_value {columns arity : Nat} (point : CubePoint K ar
 private def fullDelta {columns arity : Nat} (interface : PoseidonSboxPlan.Interface columns)
     (point : CubePoint K arity) (start : Nat) (read : Fin columns → F)
     (constants : List (List Nat)) (round next row : Nat) (after : Adjoint)
-    (target : Fin 3) (lane : Fin 16) : K :=
+    (target : Fin 2) (lane : Fin 16) : K :=
   let weight := PiDECEvaluationWeights.weight point (start + row + lane.val)
   let form := PoseidonSboxPlan.sboxOutputAt interface (next + lane.val)
   match target with
-  | 0 => extensionOps.mul weight (K.embed (read interface.oneColumn))
-  | 1 => extensionOps.mul weight (K.embed (form.evalSparse read))
-  | 2 => extensionOps.add (extensionOps.mul ((Vector.ofFn (externalT after.get)).get lane)
+  | 0 => extensionOps.mul weight (K.embed (form.evalSparse read))
+  | 1 => extensionOps.add (extensionOps.mul ((Vector.ofFn (externalT after.get)).get lane)
         (K.embed (form.evalSparse read)))
       (extensionOps.mul (scale weight (Spec.Poseidon2.constantAt constants round lane.val))
         (K.embed (read interface.oneColumn)))
@@ -599,17 +586,13 @@ private theorem fullRound_value {columns arity : Nat}
     rw [lanes.2 target]
     fin_cases target
     · simp [fullDelta, fullForward, rowTotal, List.finRange, List.ofFn_succ, portOf,
-        RowSemantics.sbox, RowSemantics.general, PiDECPoseidonNumericStep.retainedValue,
-        vget, Vector.getElem_ofFn, extensionOps, K.add, K.mul, K.embed, K.zero, Nat.add_assoc]
-      constructor <;> ring
-    · simp [fullDelta, fullForward, rowTotal, List.finRange, List.ofFn_succ, portOf,
-        RowSemantics.sbox, RowSemantics.general, PiDECPoseidonNumericStep.retainedValue,
+        RowSemantics.sbox, PiDECPoseidonNumericStep.retainedValue,
         vget, Vector.getElem_ofFn, extensionOps, K.add, K.mul, K.embed, K.zero, Nat.add_assoc]
       constructor <;> ring
     · exact absurd rfl other
-  · rw [lanes.2 2, transposed]
+  · rw [lanes.2 1, transposed]
     simp [fullDelta, fullForward, rowTotal, dotState, sum16, List.finRange, outputs,
-      List.ofFn_succ, portOf, RowSemantics.sbox, RowSemantics.general, vget,
+      List.ofFn_succ, portOf, RowSemantics.sbox, vget,
       Vector.getElem_ofFn, PiDECPoseidonNumericStep.retainedValue, scale, extensionOps, K.add,
       K.mul, K.embed, K.zero, Nat.add_assoc]
     constructor <;> ring
@@ -618,13 +601,13 @@ private theorem fullRound_value {columns arity : Nat}
 private def partialForward {columns : Nat} (read : Fin columns → F)
     (interface : PoseidonSboxPlan.Interface columns) (round next : Nat) (state : Vector F 16) :
     List PortValues × Vector F 16 :=
-  let selector := read interface.oneColumn
+  let one := read interface.oneColumn
   let output := PiDECPoseidonNumericStep.retainedValue read interface next
   let replaced := Vector.ofFn fun lane : Fin 16 =>
     if lane.val = 0 then output else state.get lane
-  ([RowSemantics.sbox selector
+  ([RowSemantics.sbox
       (state.get 0 + Spec.Poseidon2.ofNat
-        (Spec.Poseidon2.internalConstants.getD round 0) * selector)
+        (Spec.Poseidon2.internalConstants.getD round 0) * one)
       output],
     Vector.ofFn (Layer.internalF replaced.get))
 
@@ -665,15 +648,13 @@ private theorem partialRound_value {columns arity : Nat}
   · intro target other
     rw [lane.2 target]
     fin_cases target
-    · simp [partialForward, rowTotal, portOf, RowSemantics.sbox, RowSemantics.general,
-        extensionOps, K.add, K.mul, K.embed, K.zero, weight]
-    · simp [partialForward, rowTotal, portOf, RowSemantics.sbox, RowSemantics.general,
+    · simp [partialForward, rowTotal, portOf, RowSemantics.sbox,
         PiDECPoseidonNumericStep.retainedValue, form, extensionOps, K.add, K.mul,
         K.embed, K.zero, weight]
     · exact absurd rfl other
-  · rw [lane.2 2, transposed]
+  · rw [lane.2 1, transposed]
     simp [partialForward, rowTotal, dotState, sum16, List.finRange, portOf, replaced, mixed,
-      RowSemantics.sbox, RowSemantics.general, vget, Vector.getElem_ofFn,
+      RowSemantics.sbox, vget, Vector.getElem_ofFn,
       PiDECPoseidonNumericStep.retainedValue, form, constant, weight, scale,
       extensionOps, K.add, K.mul, K.embed, K.zero]
     constructor <;> ring
@@ -786,22 +767,22 @@ private theorem addInvocation_value {columns arity : Nat} (point : CubePoint K a
     (reverseStep interface point start) (Vector.replicate 16 zeroK, merged) = reversed at suffix
   have result : addInvocation point start interface merged =
       (List.finRange 16).foldl (fun merged lane =>
-        addForm merged 2 (interface.input lane) (reversed.1.get lane)) reversed.2 := by
+        addForm merged 1 (interface.input lane) (reversed.1.get lane)) reversed.2 := by
     rw [← hReversed]
     rfl
   have lanes := foldl_lanes (fun lane merged =>
-      addForm merged 2 (interface.input lane) (reversed.1.get lane))
+      addForm merged 1 (interface.input lane) (reversed.1.get lane))
     (fun column => K.embed (read column))
-    (fun target lane => if target = 2 then extensionOps.mul (reversed.1.get lane)
+    (fun target lane => if target = 1 then extensionOps.mul (reversed.1.get lane)
         (K.embed ((interface.input lane).evalSparse read)) else extensionOps.zero)
     (fun lane merged fits => by
-      have form := addForm_value 2 (reversed.1.get lane) read (interface.input lane).entries
+      have form := addForm_value 1 (reversed.1.get lane) read (interface.input lane).entries
         merged fits
       refine ⟨form.1, fun target => ?_⟩
-      rw [show addForm merged 2 (interface.input lane) (reversed.1.get lane) =
-        addForm merged 2 ⟨(interface.input lane).entries⟩ (reversed.1.get lane) from rfl,
+      rw [show addForm merged 1 (interface.input lane) (reversed.1.get lane) =
+        addForm merged 1 ⟨(interface.input lane).entries⟩ (reversed.1.get lane) from rfl,
         form.2 target]
-      by_cases same : target = 2
+      by_cases same : target = 1
       · subst same
         simp [change]
       · simp only [change, same, if_false]
@@ -811,12 +792,12 @@ private theorem addInvocation_value {columns arity : Nat} (point : CubePoint K a
   refine ⟨lanes.1, fun target => ?_⟩
   rw [lanes.2 target, values_eq]
   rw [foldl_add_start]
-  by_cases input : target = 2
+  by_cases input : target = 1
   · subst input
     have total := suffix.2.2
     rw [show dotState (Vector.replicate 16 zeroK) _ = K.zero from dotState_zero _] at total
     have inputs : (List.finRange 16).foldl (fun total lane => extensionOps.add total
-        (if (2 : Fin 3) = 2 then extensionOps.mul (reversed.1.get lane)
+        (if (1 : Fin 2) = 1 then extensionOps.mul (reversed.1.get lane)
           (K.embed ((interface.input lane).evalSparse read)) else extensionOps.zero))
         extensionOps.zero = dotState reversed.1 state := by
       simp only [if_true, PiDECMatrixWeightedRange.mul_embed, dotState, sum16, state,
@@ -824,7 +805,7 @@ private theorem addInvocation_value {columns arity : Nat} (point : CubePoint K a
       rfl
     rw [inputs, total, show K.zero = extensionOps.zero from rfl, extensionLaws.add_zero]
   · have zeros : (List.finRange 16).foldl (fun total lane => extensionOps.add total
-        (if target = 2 then extensionOps.mul (reversed.1.get lane)
+        (if target = 1 then extensionOps.mul (reversed.1.get lane)
           (K.embed ((interface.input lane).evalSparse read)) else extensionOps.zero))
         extensionOps.zero = extensionOps.zero := by
       simp only [input, if_false, extensionLaws.add_zero]
@@ -835,7 +816,7 @@ private theorem addInvocation_value {columns arity : Nat} (point : CubePoint K a
 
 private theorem fold_value {columns : Nat} (values : Fin columns → K) :
     ∀ (count : Nat) (update : (index : Nat) → index < count → Merged columns → Merged columns)
-      (delta : Fin 3 → Nat → K),
+      (delta : Fin 2 → Nat → K),
       (∀ index live merged, sizes merged → sizes (update index live merged) ∧
         ∀ target, (update index live merged).value target values =
           extensionOps.add (merged.value target values) (delta target index)) →
@@ -867,7 +848,7 @@ private theorem numericSum_shift (term : Nat → K) :
         PiDECMatrixWeightedRange.numericSum_succ, extensionLaws.add_assoc]
 
 /-- The weighted rows from `row` on as an indexed sum. -/
-private theorem rowTotal_eq (weight : Nat → K) (port : Fin 3) :
+private theorem rowTotal_eq (weight : Nat → K) (port : Fin 2) :
     ∀ (rows : List PortValues) (row : Nat),
       rowTotal weight port rows row =
         NumericCompletionSum.numericSum extensionOps rows.length (fun index =>
@@ -882,7 +863,7 @@ private theorem rowTotal_eq (weight : Nat → K) (port : Fin 3) :
 
 open Fin.CommRing in
 /-- The entries of each port evaluate as the dot product of its weights. -/
-private theorem entries_eval {columns : Nat} (read : Fin columns → F) (target : Fin 3) :
+private theorem entries_eval {columns : Nat} (read : Fin columns → F) (target : Fin 2) :
     ∀ (keys : List (Fin columns)) (weights : List Weights), keys.length = weights.length →
       (⟨(SparseForm.mk ((entriesOf keys weights).map fun entry =>
             ⟨entry.1, (entryPair entry target).1⟩)).evalSparse read,
@@ -906,7 +887,7 @@ private theorem rows_sbox {columns : Nat} (read : Fin columns → F)
     (interface : PoseidonSboxPlan.Interface columns) :
     ∀ (stepList : List Permutation.Step) (next : Nat) (state : Vector F 16),
       ∀ values ∈ (PiDECPoseidonNumericRows.rowsWithState read interface next state stepList).1,
-        ∃ selector input output, values = RowSemantics.sbox selector input output
+        ∃ input output, values = RowSemantics.sbox input output
   | [], _, _ => by
       intro values member
       simp [PiDECPoseidonNumericRows.rowsWithState] at member
@@ -920,24 +901,24 @@ private theorem rows_sbox {columns : Nat} (read : Fin columns → F)
             rw [stepValues_initialFull] at now
             simp only [fullForward, List.mem_ofFn] at now
             obtain ⟨lane, same⟩ := now
-            exact ⟨_, _, _, same.symm⟩
+            exact ⟨_, _, same.symm⟩
         | partialRound round =>
             rw [stepValues_partial] at now
             simp only [partialForward, List.mem_singleton] at now
-            exact ⟨_, _, _, now⟩
+            exact ⟨_, _, now⟩
         | terminalFullRound round =>
             rw [stepValues_terminalFull] at now
             simp only [fullForward, List.mem_ofFn] at now
             obtain ⟨lane, same⟩ := now
-            exact ⟨_, _, _, same.symm⟩
+            exact ⟨_, _, same.symm⟩
       · exact rows_sbox read interface rest _ _ values later
 
-private theorem get_port (values : PortValues) (port : Fin matrixCount) (target : Fin 3)
+private theorem get_port (values : PortValues) (port : Fin matrixCount) (target : Fin 2)
     (index : portIndex? port = some target) : values.get port = portOf values target := by
   fin_cases port <;> simp_all [portIndex?] <;> subst index <;> rfl
 
-private theorem sbox_other (selector input output : F) (port : Fin matrixCount)
-    (index : portIndex? port = none) : (RowSemantics.sbox selector input output).get port = 0 := by
+private theorem sbox_other (input output : F) (port : Fin matrixCount)
+    (index : portIndex? port = none) : (RowSemantics.sbox input output).get port = 0 := by
   fin_cases port <;> simp_all [portIndex?] <;> rfl
 
 private theorem numericSum_congr (count : Nat) (first second : Nat → K)
@@ -971,7 +952,7 @@ private theorem prepared_get {columns : Nat} (read : Fin ringDegree → Fin colu
 /-- The existing invocation sum of one port and lane is the weighted row total. -/
 private theorem invocation_value {columns arity : Nat} (start : Nat) (point : CubePoint K arity)
     (read : Fin ringDegree → Fin columns → F) (interface : PoseidonSboxPlan.Interface columns)
-    (port : Fin matrixCount) (target : Fin 3) (index : portIndex? port = some target)
+    (port : Fin matrixCount) (target : Fin 2) (index : portIndex? port = some target)
     (output : Fin ringDegree) :
     ((PiDECMatrixInvocation.sum start point (PiDECMatrixInvocation.prepare read interface)).get
         port).toRing output =
@@ -983,7 +964,7 @@ private theorem invocation_value {columns arity : Nat} (start : Nat) (point : Cu
   rw [dif_pos bound, prepared_get read interface output row bound, get_port _ port target index,
     Nat.zero_add]
 
-/-- Ports outside the selector, output and input have zero sums. -/
+/-- Ports outside the output and input have zero sums. -/
 private theorem invocation_other {columns arity : Nat} (start : Nat) (point : CubePoint K arity)
     (read : Fin ringDegree → Fin columns → F) (interface : PoseidonSboxPlan.Interface columns)
     (port : Fin matrixCount) (index : portIndex? port = none) (output : Fin ringDegree) :
@@ -996,16 +977,16 @@ private theorem invocation_other {columns arity : Nat} (start : Nat) (point : Cu
     List.getD_eq_getElem _ _ (by omega)]
   have member := List.getElem_mem (l := PiDECPoseidonNumericRows.values (read output) interface)
     (n := row) (by omega)
-  obtain ⟨selector, input, value, same⟩ := rows_sbox (read output) interface
+  obtain ⟨input, value, same⟩ := rows_sbox (read output) interface
     Permutation.schedule 0 (PiDECPoseidonNumericStep.stateValues (read output) interface.input) _
     member
-  rw [same, sbox_other selector input value port index]
+  rw [same, sbox_other input value port index]
   change extensionOps.mul _ extensionOps.zero = _
   rw [extensionLaws.mul_zero]
 
 /-- Each prepared port evaluates to the merged value of that port. -/
 private theorem evaluate_get {columns : Nat} (merged : Merged columns) (fits : sizes merged)
-    (read : Fin ringDegree → Fin columns → F) (port : Fin matrixCount) (target : Fin 3)
+    (read : Fin ringDegree → Fin columns → F) (port : Fin matrixCount) (target : Fin 2)
     (index : portIndex? port = some target) (output : Fin ringDegree) :
     ((evaluate (entriesOf merged.keys.toList merged.weights.toList) read).get port).toRing output =
       merged.value target fun column => K.embed (read output column) := by
@@ -1016,7 +997,7 @@ private theorem evaluate_get {columns : Nat} (merged : Merged columns) (fits : s
     length
   fin_cases target <;>
     simp only [evaluate, vget, Vector.getElem_ofFn, index, MaterializedRingK.toRing_ofRing,
-      PiDECNativeSparseEvaluation.nativeEvalTriple_eq_spec] <;>
+      PiDECNativeSparseEvaluation.nativeEvalTwoPairs_eq_spec] <;>
     simp only [entryPair] at entries <;>
     exact entries
 

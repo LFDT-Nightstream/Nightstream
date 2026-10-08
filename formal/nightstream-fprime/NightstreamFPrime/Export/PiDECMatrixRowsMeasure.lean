@@ -78,7 +78,7 @@ private def measureRow (output : IO.FS.Handle) (program : MatrixProgram.Program)
         let some interface := interface | throw (IO.userError "product interface rejected")
         IO.wait (Task.spawn fun _ =>
           (PiDECProductRow.row? interface (localRow % 108)).map
-            Layout.ProductionRelation.ProductSumPlan.Row.meaningfulForm)
+            Layout.ProductionRelation.OrdinaryRow.Forms.meaningfulForm)
     | _ => IO.wait (Task.spawn fun _ => program.row? logicalWidth sourceRow ordinal)
   let afterLookup ← IO.monoNanosNow
   let some forms := result | do

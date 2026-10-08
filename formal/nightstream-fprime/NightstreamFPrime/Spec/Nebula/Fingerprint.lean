@@ -7,7 +7,7 @@ import NightstreamFPrime.Spec.Nebula.Records
 /-! Owns the fingerprint of spec §8.2 and security note Lemma 3 part 1: for
 fixed multisets `A ≠ B` of small tuples, at most `2·m·|E|` challenge pairs make
 the two fingerprint products equal. The carrier `E` is any finite domain of
-characteristic `q`; the Goldilocks instance is in `GoldilocksFingerprint`.
+characteristic `q`; the Goldilocks instance is in `GoldilocksExtensionRing`.
 It does not own how the multisets arise (Lemma 4) or the retry argument. -/
 
 namespace NightstreamFPrime.Spec.Nebula

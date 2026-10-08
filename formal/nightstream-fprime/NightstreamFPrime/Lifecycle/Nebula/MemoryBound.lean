@@ -10,7 +10,7 @@ namespace NightstreamFPrime.Lifecycle.Nebula
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Nebula
-open scoped NightstreamFPrime.Spec.Nebula.GoldilocksFingerprint
+open scoped NightstreamFPrime.Spec.GoldilocksExtensionRing
 
 variable {p : Plan} {σ Coins : Type} [Fintype Coins] (app : Application p σ)
   (g : Game K Digest σ Coins p.sMax)
@@ -28,7 +28,7 @@ theorem memory_bound (valid : p.Valid) :
       ≤ freq (g.Collides (context p) app) +
           p.sMax * (2 * (p.maxTuples : ℚ≥0) / Fintype.card K) +
           ∑ k, g.retryTerm (context p) app k := g.fails_frequency (context p) app valid
-    _ = _ := by rw [GoldilocksFingerprint.card_K]
+    _ = _ := by rw [GoldilocksExtensionRing.card_K]
 
 /-- A run collision of an accepted outcome is a Poseidon2 transcript
 collision. -/

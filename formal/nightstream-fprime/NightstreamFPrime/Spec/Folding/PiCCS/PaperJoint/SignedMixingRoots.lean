@@ -15,34 +15,8 @@ namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingRoots
 
 open scoped BigOperators
 open NightstreamFPrime.Spec SumCheck.Finite
+open scoped NightstreamFPrime.Spec.GoldilocksExtensionRing
 
-private def carrierEquiv : K ≃ QuadraticAlgebra (ZMod goldilocksModulus) 7 0 where
-  toFun value := ⟨value.c0, value.c1⟩
-  invFun value := ⟨value.re, value.im⟩
-  left_inv _ := rfl
-  right_inv _ := rfl
-
-local instance : CommRing K := carrierEquiv.commRing
-
-private theorem zero_eq : (0 : K) = K.zero := rfl
-private theorem add_eq (left right : K) : left + right = K.add left right := rfl
-private theorem mul_eq (left right : K) : left * right = K.mul left right := by
-  change K.mk _ (left.c0 * right.c1 + left.c1 * right.c0 + 0 * left.c1 * right.c1) = _
-  simp only [Fin.zero_mul, Fin.add_zero]
-  rfl
-
-local instance : Nontrivial K := ⟨⟨K.zero, K.one, by
-  intro same
-  have : (0 : F) = 1 := congrArg K.c0 same
-  exact (by decide : (0 : F) ≠ 1) this⟩⟩
-
-local instance : NoZeroDivisors K where
-  eq_zero_or_eq_zero_of_mul_eq_zero := by
-    intro left right productZero
-    exact GoldilocksExtension.extensionNoZeroDivisors left right
-      (by simpa only [mul_eq, zero_eq] using productZero)
-
-local instance : IsDomain K := NoZeroDivisors.to_isDomain K
 
 private noncomputable def polynomial : List K → Polynomial K
   | [] => 0
@@ -52,10 +26,11 @@ private theorem polynomial_eval (coefficients : List K) (point : K) :
     (polynomial coefficients).eval point =
       Message.evaluateCoefficients GoldilocksRoots.ops point coefficients := by
   induction coefficients with
-  | nil => simp only [polynomial, Polynomial.eval_zero, zero_eq]; rfl
+  | nil => simp only [polynomial, Polynomial.eval_zero, GoldilocksExtensionRing.zero_eq]; rfl
   | cons coefficient rest ih =>
       simp only [polynomial, Polynomial.eval_add, Polynomial.eval_C,
-        Polynomial.eval_mul, Polynomial.eval_X, ih, add_eq, mul_eq]
+        Polynomial.eval_mul, Polynomial.eval_X, ih, GoldilocksExtensionRing.add_eq,
+        GoldilocksExtensionRing.mul_eq]
       rfl
 
 private theorem polynomial_degree (coefficients : List K) :
@@ -89,7 +64,7 @@ private theorem coefficients_zero_of_polynomial_zero (coefficients : List K)
         exact (mul_eq_zero.mp product).resolve_left Polynomial.X_ne_zero
       intro value member
       rcases List.mem_cons.mp member with same | inside
-      · simpa only [same, zero_eq] using head
+      · simpa only [same, GoldilocksExtensionRing.zero_eq] using head
       · exact ih tail value inside
 
 /-- A nonzero actual coefficient list has at most its list-derived degree
@@ -109,7 +84,7 @@ theorem coefficient_root_count_le (coefficients : List K) (samples : Finset K)
   intro gamma member
   apply (Polynomial.mem_roots notZero).mpr
   change (polynomial coefficients).eval gamma = 0
-  rw [polynomial_eval, zero_eq]
+  rw [polynomial_eval, GoldilocksExtensionRing.zero_eq]
   exact (Finset.mem_filter.mp member).2
 
 /-- Uniform gamma is sampled after the signed list is fixed. -/

@@ -10,7 +10,7 @@ namespace NightstreamFPrime.Lifecycle.Nebula
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Nebula
-open scoped NightstreamFPrime.Spec.Nebula.GoldilocksFingerprint
+open scoped NightstreamFPrime.Spec.GoldilocksExtensionRing
 open Fin.CommRing
 
 /-- The invariant of every carry between invocations: counters in range, and
@@ -357,7 +357,7 @@ theorem readDigest_eq (v : Fin 39 → F) (start : ℕ) (fits : start + 3 < 39) :
   simp [readDigest, carryDigest, carryWord, show start + i < 39 by omega]
 
 private theorem startProduct_open (word : ℕ) (opens : w.isOpen = 1) : w.startProduct word = 1 := by
-  rw [GoldilocksFingerprint.one_eq]
+  rw [GoldilocksExtensionRing.one_eq]
   simp [startProduct, opens, embed, K.add, K.mul, K.one]
 
 private theorem startProduct_continue (word : ℕ) (continues : w.isOpen = 0) :
@@ -498,15 +498,15 @@ end StepWitness
 /-! ### `K` values -/
 
 theorem embed_eq (x : F) : embed x = ((x.val : ℕ) : K) := by
-  rw [GoldilocksFingerprint.natCast_eq]
+  rw [GoldilocksExtensionRing.natCast_eq]
   simp only [embed, K.mk.injEq, and_true]
   exact Fin.ext (by simp [Nat.mod_eq_of_lt x.isLt])
 
 /-- The circuit fingerprint is the model fingerprint of the field values. -/
 theorem fingerprintK_eq (η1 η2 η1sq : K) (square : η1sq = η1 * η1) (t g v : F) :
     fingerprintK η1 η2 η1sq t g v = fingerprint (η1, η2) (t.val, g.val, v.val) := by
-  simp only [fingerprintK, fingerprint, ← GoldilocksFingerprint.add_eq,
-    ← GoldilocksFingerprint.mul_eq, ← GoldilocksFingerprint.sub_eq, embed_eq, square, pow_two]
+  simp only [fingerprintK, fingerprint, ← GoldilocksExtensionRing.add_eq,
+    ← GoldilocksExtensionRing.mul_eq, ← GoldilocksExtensionRing.sub_eq, embed_eq, square, pow_two]
 
 /-- The O8 and O9 gate on a bit. -/
 theorem gatedK_bit {pad : F} (bit : IsBit pad) (f : K) :
@@ -515,7 +515,7 @@ theorem gatedK_bit {pad : F} (bit : IsBit pad) (f : K) :
   · have : toBool (0 : F) = false := by simp [toBool, StepWitness.modulus_ne_one]
     rw [this, if_neg (by simp)]
     simp [gatedK, embed, K.add, K.mul]
-  · rw [show toBool (1 : F) = true from by simp [toBool], if_pos rfl, GoldilocksFingerprint.one_eq]
+  · rw [show toBool (1 : F) = true from by simp [toBool], if_pos rfl, GoldilocksExtensionRing.one_eq]
     simp [gatedK, embed, K.add, K.mul, K.one]
 
 namespace StepWitness
@@ -573,7 +573,7 @@ theorem RowsHold.globalIndex_val (valid : p.Valid) (rows : w.RowsHold zIn) (j : 
     omega
 
 theorem RowsHold.squareEq (rows : w.RowsHold zIn) : w.eta1Sq = w.eta1 * w.eta1 := by
-  rw [rows.square, GoldilocksFingerprint.mul_eq]
+  rw [rows.square, GoldilocksExtensionRing.mul_eq]
 
 /-- The write stamp of an active slot (rows O2 and §6.1). -/
 theorem RowsHold.wt_val (valid : p.Valid) (rows : w.RowsHold zIn) (j : Fin p.bOps)
@@ -624,7 +624,7 @@ theorem RowsHold.readProducts (valid : p.Valid) (rows : w.RowsHold zIn) :
     have split : w.records.ops.take (k + 1) =
         w.records.ops.take k ++ [(w.ops ⟨k, hk'⟩).decode] := by
       rw [records_ops, take_succ_ofFn _ hk']
-    rw [rows.readProduct ⟨k, hk'⟩, previous, ← GoldilocksFingerprint.mul_eq, split,
+    rw [rows.readProduct ⟨k, hk'⟩, previous, ← GoldilocksExtensionRing.mul_eq, split,
       opsFactors_append, mul_assoc]
     congr 2
     rw [StepWitness.pad, gatedK_bit (rows.slotBits w ⟨k, hk'⟩).1,
@@ -644,7 +644,7 @@ theorem RowsHold.writeProducts (valid : p.Valid) (rows : w.RowsHold zIn)
     have split : w.records.ops.take (k + 1) =
         w.records.ops.take k ++ [(w.ops ⟨k, hk'⟩).decode] := by
       rw [records_ops, take_succ_ofFn _ hk']
-    rw [rows.writeProduct ⟨k, hk'⟩, previous, ← GoldilocksFingerprint.mul_eq, split,
+    rw [rows.writeProduct ⟨k, hk'⟩, previous, ← GoldilocksExtensionRing.mul_eq, split,
       opsFactors_append, mul_assoc]
     congr 2
     rw [StepWitness.pad, gatedK_bit (rows.slotBits w ⟨k, hk'⟩).1]
@@ -705,7 +705,7 @@ theorem RowsHold.initialProducts (valid : p.Valid) (rows : w.RowsHold zIn)
     have hk' : k < p.bScan := hk
     have previous := RowsHold.initialProducts valid rows reach k (by omega)
     have all := rows.initialBits ⟨k, hk'⟩
-    rw [rows.initialProduct ⟨k, hk'⟩, previous, ← GoldilocksFingerprint.mul_eq]
+    rw [rows.initialProduct ⟨k, hk'⟩, previous, ← GoldilocksExtensionRing.mul_eq]
     simp only [records]
     rw [take_scans _ hk', scanFactor_append, take_scans_length _ (by omega), mul_assoc,
       fingerprintK_eq _ _ _ rows.squareEq, scanStamp_val valid all, scanValue_val all,
@@ -721,7 +721,7 @@ theorem RowsHold.finalProducts (valid : p.Valid) (rows : w.RowsHold zIn)
     have hk' : k < p.bScan := hk
     have previous := RowsHold.finalProducts valid rows reach k (by omega)
     have all := rows.finalBits ⟨k, hk'⟩
-    rw [rows.finalProduct ⟨k, hk'⟩, previous, ← GoldilocksFingerprint.mul_eq]
+    rw [rows.finalProduct ⟨k, hk'⟩, previous, ← GoldilocksExtensionRing.mul_eq]
     simp only [records]
     rw [take_scans _ hk', scanFactor_append, take_scans_length _ (by omega), mul_assoc,
       fingerprintK_eq _ _ _ rows.squareEq, scanStamp_val valid all, scanValue_val all,

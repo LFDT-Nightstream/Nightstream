@@ -42,7 +42,7 @@ def prepare {Context : Type*} (clock : Context → Nat) (context : Context) : Re
 /-- Execute the given checked causal prefix, retaining its exact receipt.
 The supplied clock covers this whole call in the declared experiment. -/
 def prefixCall {Context State : Type*}
-    (firstPhase : Context → InteractivePrefix.Prover State productionShape 9)
+    (firstPhase : Context → InteractivePrefix.Prover State productionShape 8)
     (clock : Context → CubePoint K productionShape.cubeVariables → K →
       CubePoint K productionShape.cubeVariables → Nat)
     (context : Context) (alpha : CubePoint K productionShape.cubeVariables)
@@ -57,7 +57,7 @@ variable {Context State Tape : Type*}
   [Fintype (Challenge (ProductionKey.key relation productionAjtaiKey).piRlcAlgebra)]
   [Nonempty (Challenge (ProductionKey.key relation productionAjtaiKey).piRlcAlgebra)]
   (law : PMF (Context × Option (FiatShamirTransfer.RealOutput relation)))
-  (originalFirstPhase : Context → InteractivePrefix.Prover State productionShape 9)
+  (originalFirstPhase : Context → InteractivePrefix.Prover State productionShape 8)
   (abortTape : Tape)
   (tapes : ∀ context coins output state,
     SupportedContinuation.Supported (FiatShamirTransfer.contextLaw relation law)
@@ -144,7 +144,7 @@ theorem source_probability_linear_bound :
         tapes rawCall suffixCheckClock storageClock parentClock storageBound storageBounded suffixSummable)
     g Q (FiatShamirTransfer.realSuccessProbability relation productionAjtaiKey running fresh law) - deltaFS Q -
       InteractiveComposition.weakLoss relation productionAjtaiKey -
-      IndependentExecution.testError productionShape 9 -
+      IndependentExecution.testError productionShape 8 -
       AdaptiveBindingProbability.successProbability relation productionAjtaiKey program running fresh
         originalFirstPhase (SupportedExtraction.publicCheck running) continuation sourceProgram contexts *
           PaperProfile.arity.total ≤
@@ -224,7 +224,7 @@ theorem source_probability_linear_bound_with_sampler {OracleState : Type*}
     g Q (FiatShamirTransfer.realSuccessProbability relation productionAjtaiKey running fresh law) - deltaFS Q -
       sampleQueries Q * NonInteractive.PiRlcSampler.distance -
       InteractiveComposition.weakLoss relation productionAjtaiKey -
-      IndependentExecution.testError productionShape 9 -
+      IndependentExecution.testError productionShape 8 -
       AdaptiveBindingProbability.successProbability relation productionAjtaiKey program running fresh
         originalFirstPhase (SupportedExtraction.publicCheck running) continuation sourceProgram contexts *
           PaperProfile.arity.total ≤
@@ -303,7 +303,7 @@ theorem finishValue_probability_and_expected_work
       Real.sqrt ((∑' context, (contexts context).toReal * BindingProbability.localSuccessProbability
         productionAjtaiKey program (sourceProgram context).access relation running fresh
         originalFirstPhase (SupportedExtraction.publicCheck running) continuation context) *
-          PaperProfile.arity.total + IndependentExecution.testError productionShape 9) ≤
+          PaperProfile.arity.total + IndependentExecution.testError productionShape 8) ≤
       ((HyperNovaSourceLaw.law inputs contexts originalFirstPhase continuation program).toOuterMeasure
         {sample | SourceReturned PiCCSStoredWitnessCheck.commit productionGlobalParams
           (PiCCSStoredWitnessCheck.statement (inputs sample.1)) sample.2}).toReal) ∧

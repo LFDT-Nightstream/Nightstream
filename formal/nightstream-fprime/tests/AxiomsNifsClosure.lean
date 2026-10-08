@@ -26,7 +26,7 @@ import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInv
 import NightstreamFPrime.Spec.AjtaiSetupV1.Work
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFFrobenius
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingArithmetic
-import NightstreamFPrime.Spec.ProductionRelation.SelectivePolynomial
+import NightstreamFPrime.Spec.ProductionRelation.GatePolynomial
 import tests.AxiomAudit
 import NightstreamFPrime.Lifecycle.NifsProfile
 import NightstreamFPrime.Lifecycle.Nifs.StrongExtraction
@@ -96,9 +96,9 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries
 
 
 
-#audit_axioms NightstreamFPrime.Spec.ProductionRelation.SelectivePolynomial.termData_length
+#audit_axioms NightstreamFPrime.Spec.ProductionRelation.GatePolynomial.termData_length
 
-#audit_axioms NightstreamFPrime.Spec.ProductionRelation.SelectivePolynomial.termData_toMonomial
+#audit_axioms NightstreamFPrime.Spec.ProductionRelation.GatePolynomial.termData_toMonomial
 
 
 

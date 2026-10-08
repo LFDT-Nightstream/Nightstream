@@ -100,7 +100,7 @@ theorem prior_word (index : Fin PilotProduction.stateHashWords) :
   rw [pilot_word prior priorPublic output digest priorFixed outputFixed digestFixed values context]
   · rw [PilotProduction.protocolEnv, pilot_prior_word]
     exact fixedList_word _ (PilotProduction.serializePreimage_length_fixed prior priorFixed) index
-  · have indexBound : index.val < 37297 := by
+  · have indexBound : index.val < 32113 := by
       simpa only [PilotProduction.stateHashWords_eq] using index.isLt
     rw [PilotProduction.externalColumnCount_eq]
     simp only [PilotProduction.priorPreimageStart]
@@ -116,7 +116,7 @@ theorem output_word (index : Fin PilotProduction.stateHashWords) :
   rw [pilot_word prior priorPublic output digest priorFixed outputFixed digestFixed values context]
   · rw [PilotProduction.protocolEnv, pilot_output_word]
     exact fixedList_word _ (PilotProduction.serializePreimage_length_fixed output outputFixed) index
-  · have indexBound : index.val < 37297 := by
+  · have indexBound : index.val < 32113 := by
       simpa only [PilotProduction.stateHashWords_eq] using index.isLt
     rw [PilotProduction.externalColumnCount_eq]
     norm_num [PilotProduction.outputPreimageStart, PilotProduction.priorPublicInputStart,
@@ -187,7 +187,7 @@ theorem stateBinding
 same typed running instance, fresh instance, and proof. Generated pilot cells
 are not part of that source agreement. -/
 theorem inputs_eq_of_external
-    (template : Proof 9) (initial : Env)
+    (template : Proof 8) (initial : Env)
     (source : ∀ index, PiCCSOrdinarySourceSupport.External index → initial index =
       environment prior priorPublic output digest priorFixed outputFixed digestFixed values context index) :
     Formal.evalRunning (relationInterface relation) phaseOffset initial = prior.running functionIndex ∧
@@ -219,7 +219,7 @@ with the same external source values. Existing sibling witnesses are retained
 outside this phase, and generated phase outputs are derived from its rows. -/
 theorem completePrefix_from
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (template : Proof 9)
+    (template : Proof 8)
     (priorPc : prior.pc = 1) (outputPc : output.pc = 1)
     (priorContext : prior.verifierKeys functionIndex = context.toList)
     (outputContext : output.verifierKeys functionIndex = context.toList)
@@ -265,7 +265,7 @@ bounds come from the existing interface, and generated phase outputs are
 proved rather than supplied. -/
 theorem completePrefix
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (template : Proof 9)
+    (template : Proof 8)
     (priorPc : prior.pc = 1) (outputPc : output.pc = 1)
     (priorContext : prior.verifierKeys functionIndex = context.toList)
     (outputContext : output.verifierKeys functionIndex = context.toList)

@@ -21,36 +21,36 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 abbrev Program := Lifecycle.Stage1.Application.Program
 
 def previousRule {sourceWidth : Nat}
-    (schedule : PoseidonRetainedFamily.Schedule sourceWidth 3110)
+    (schedule : PoseidonRetainedFamily.Schedule sourceWidth 2678)
     (retainedStart : Nat) : PoseidonInput.Rule where
-  region := ⟨1, 3109, 0, 16⟩
+  region := ⟨1, 2677, 0, 16⟩
   term := .external
     (RetainedBlock.ofSemantic schedule.block retainedStart) 134 150
 
 def previousProgram {sourceWidth : Nat}
-    (schedule : PoseidonRetainedFamily.Schedule sourceWidth 3110)
+    (schedule : PoseidonRetainedFamily.Schedule sourceWidth 2678)
     (retainedStart : Nat) : PoseidonInput.Program where
   rules := [previousRule schedule retainedStart]
 
 def fullInputRule {sourceWidth : Nat}
     (inputBlock : LowNormBlock.Block sourceWidth) (inputStart : Nat) :
     PoseidonInput.Rule where
-  region := ⟨0, 3108, 0, 12⟩
+  region := ⟨0, 2676, 0, 12⟩
   term := .retained (RetainedBlock.ofSemantic inputBlock inputStart) 0 12 1
 
 def tailInputRule {sourceWidth : Nat}
     (inputBlock : LowNormBlock.Block sourceWidth) (inputStart : Nat) :
     PoseidonInput.Rule where
-  region := ⟨3108, 1, 0, 1⟩
+  region := ⟨2676, 1, 0, 1⟩
   term := .retained (RetainedBlock.ofSemantic inputBlock inputStart)
-    37296 0 1
+    32112 0 1
 
 def paddingRule : PoseidonInput.Rule where
-  region := ⟨3109, 1, 0, 1⟩
+  region := ⟨2677, 1, 0, 1⟩
   term := .constant 1
 
 def chainInputProgram {poseidonSourceWidth inputSourceWidth : Nat}
-    (schedule : PoseidonRetainedFamily.Schedule poseidonSourceWidth 3110)
+    (schedule : PoseidonRetainedFamily.Schedule poseidonSourceWidth 2678)
     (retainedStart : Nat) (inputBlock : LowNormBlock.Block inputSourceWidth)
     (inputStart : Nat) : PoseidonInput.Program where
   rules := [previousRule schedule retainedStart,
@@ -86,26 +86,26 @@ def outputBlock {program : Program} {logicalWidth : Nat}
 @[simp] theorem priorBlock_rowCount
     {program : Program} {logicalWidth : Nat}
     (geometry : PiRLCPoseidonGeometry.Geometry program logicalWidth) :
-    (priorBlock geometry).rowCount = 466500 := by
+    (priorBlock geometry).rowCount = 401700 := by
   calc
-    (priorBlock geometry).rowCount = 3110 * 150 := by
+    (priorBlock geometry).rowCount = 2678 * 150 := by
       exact Poseidon.Block.ofSemantic_rowCount
         (PilotPoseidonPlan.priorSchedule program)
         (PiRLCRetainedGeometry.priorPoseidonStart program)
         (PiRLCPoseidonGeometry.oneColumn geometry) (priorInputProgram program)
-    _ = 466500 := by norm_num
+    _ = 401700 := by norm_num
 
 @[simp] theorem outputBlock_rowCount
     {program : Program} {logicalWidth : Nat}
     (geometry : PiRLCPoseidonGeometry.Geometry program logicalWidth) :
-    (outputBlock geometry).rowCount = 466500 := by
+    (outputBlock geometry).rowCount = 401700 := by
   calc
-    (outputBlock geometry).rowCount = 3110 * 150 := by
+    (outputBlock geometry).rowCount = 2678 * 150 := by
       exact Poseidon.Block.ofSemantic_rowCount
         (PilotPoseidonPlan.outputSchedule program)
         (PiRLCRetainedGeometry.outputPoseidonStart program)
         (PiRLCPoseidonGeometry.oneColumn geometry) (outputInputProgram program)
-    _ = 466500 := by norm_num
+    _ = 401700 := by norm_num
 
 /-- The exact Pilot Poseidon row order: prior-state hash, then output-state
 hash. -/
@@ -118,7 +118,7 @@ def matrixProgram {program : Program} {logicalWidth : Nat}
 @[simp] theorem matrixProgram_rowCount
     {program : Program} {logicalWidth : Nat}
     (geometry : PiRLCPoseidonGeometry.Geometry program logicalWidth) :
-    (matrixProgram geometry).rowCount = 933000 := by
+    (matrixProgram geometry).rowCount = 803400 := by
   rw [matrixProgram, MatrixProgram.Program.append_rowCount]
   simp only [MatrixProgram.Program.singleton_rowCount]
   change (priorBlock geometry).rowCount + (outputBlock geometry).rowCount = _

@@ -453,7 +453,7 @@ def rowForms
       (logicalWidth := relationLogicalWidth)
       (publicFits := relationPublicFits) index)
 
-/-- Canonical direct 7-matrix rows for every sampler ordinary constraint. -/
+/-- Canonical direct 4-matrix rows for every sampler ordinary constraint. -/
 def plan
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (_relation : ProductionKey.LogicalRelation relationLogicalWidth

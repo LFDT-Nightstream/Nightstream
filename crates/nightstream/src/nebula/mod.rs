@@ -22,10 +22,10 @@ pub use transcript::{state_words, Digest};
 /// package (`artifacts/nightstream-fprime-stage2-nebula-memory-v1.json`).
 /// A verifier loads the package only with this identifier.
 pub const PACKAGE_STRUCTURAL_IDENTIFIER: [u64; 4] = [
-    10342336043565199591,
-    1872342027700850836,
-    3599315665291335150,
-    1252945164886860768,
+    14802976229900588367,
+    17868216444329475912,
+    15715525866008245071,
+    6369654844452736898,
 ];
 
 /// The spec §13 public statement of a memory proof.

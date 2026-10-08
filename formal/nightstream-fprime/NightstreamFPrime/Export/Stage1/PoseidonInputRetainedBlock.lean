@@ -63,12 +63,12 @@ def outputBlock : LowNormBlock.Block basePackage.layout.constantColumn :=
 @[simp] theorem outputBlock_kind : outputBlock.kind = .field := by
   rfl
 
-@[simp] theorem priorBlock_slotCount : priorBlock.slotCount = 37297 := by
+@[simp] theorem priorBlock_slotCount : priorBlock.slotCount = 32113 := by
   norm_num [priorBlock, block, Data.priorChain, Data.liftPilotChain,
     PilotData.priorChain, PilotValues.stateHashWords,
     PilotValues.stateHashBaseWords]
 
-@[simp] theorem outputBlock_slotCount : outputBlock.slotCount = 37297 := by
+@[simp] theorem outputBlock_slotCount : outputBlock.slotCount = 32113 := by
   norm_num [outputBlock, block, Data.outputChain, Data.liftPilotChain,
     PilotData.outputChain, PilotValues.stateHashWords,
     PilotValues.stateHashBaseWords]
@@ -92,14 +92,14 @@ theorem outputBlock_source (slot : Fin Data.outputChain.inputLength) :
   rfl
 
 @[simp] theorem priorBlock_coordinateCount :
-    priorBlock.coordinateCount = 1529177 := by
+    priorBlock.coordinateCount = 1316633 := by
   norm_num [priorBlock, block, LowNormBlock.Block.coordinateCount,
     LowNormSlot.Kind.width, BalancedTernary.width, Data.priorChain,
     Data.liftPilotChain, PilotData.priorChain, PilotValues.stateHashWords,
     PilotValues.stateHashBaseWords]
 
 @[simp] theorem outputBlock_coordinateCount :
-    outputBlock.coordinateCount = 1529177 := by
+    outputBlock.coordinateCount = 1316633 := by
   norm_num [outputBlock, block, LowNormBlock.Block.coordinateCount,
     LowNormSlot.Kind.width, BalancedTernary.width, Data.outputChain,
     Data.liftPilotChain, PilotData.outputChain, PilotValues.stateHashWords,
@@ -109,7 +109,7 @@ def retainedCoordinateCount : Nat :=
   priorBlock.coordinateCount + outputBlock.coordinateCount
 
 @[simp] theorem retainedCoordinateCount_eq :
-    retainedCoordinateCount = 3058354 := by
+    retainedCoordinateCount = 2633266 := by
   simp [retainedCoordinateCount]
 
 end NightstreamFPrime.Export.Stage1.PoseidonInputRetainedBlock

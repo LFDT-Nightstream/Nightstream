@@ -115,7 +115,7 @@ variable {State Tape : Type*}
   [Fintype (Challenge (ProductionKey.key relation ajtai).piRlcAlgebra)]
   [Nonempty (Challenge (ProductionKey.key relation ajtai).piRlcAlgebra)]
   (law : PMF (Context × Option (RealOutput relation)))
-  (originalFirstPhase : Context → InteractivePrefix.Prover State productionShape 9)
+  (originalFirstPhase : Context → InteractivePrefix.Prover State productionShape 8)
   (abortTape : Tape)
   (provider : SupportedContinuation.Provider Tape relation ajtai running fresh (contextLaw relation law)
     (InteractiveComposition.firstPhase originalFirstPhase (SupportedExtraction.publicCheck running)))
@@ -198,7 +198,7 @@ variable
     (PaperExtractionAlgebra.extractionAlgebra ajtai).assignmentModule program)
   (bounds : PrimitiveBounds)
   (bounded : Bounded (PaperExtractionAlgebra.extractionAlgebra ajtai).ring program bounds)
-  (sourceCorrect : ∀ context, CheckedWitnessExtraction.Correct (width := 9)
+  (sourceCorrect : ∀ context, CheckedWitnessExtraction.Correct (width := 8)
     (sourceProgram context) (PaperAlgebra.openingMaps ajtai).commit productionGlobalParams
     ((ProductionKey.key relation ajtai).statement (running context) (fresh context)))
 
@@ -213,7 +213,7 @@ theorem returned_source_bound_with_binding :
       InteractiveComposition.weakLoss relation ajtai -
       Real.sqrt (InteractiveAgreement.bindingProbability relation ajtai running fresh
         originalFirstPhase (SupportedExtraction.publicCheck running) continuation program
-        (contextLaw relation law) + IndependentExecution.testError productionShape 9) ≤
+        (contextLaw relation law) + IndependentExecution.testError productionShape 8) ≤
       InteractiveOutput.returnedSourceProbability relation ajtai running fresh originalFirstPhase
         (SupportedExtraction.publicCheck running) continuation program sourceProgram (contextLaw relation law) := by
   dsimp only
@@ -236,7 +236,7 @@ theorem returned_source_bound_with_msis :
       Real.sqrt (BindingProbability.successProbability ajtai program relation running fresh
         originalFirstPhase (SupportedExtraction.publicCheck running) continuation
         (fun context => (sourceProgram context).access) (contextLaw relation law) * PaperProfile.arity.total +
-        IndependentExecution.testError productionShape 9) ≤
+        IndependentExecution.testError productionShape 8) ≤
       InteractiveOutput.returnedSourceProbability relation ajtai running fresh originalFirstPhase
         (SupportedExtraction.publicCheck running) continuation program sourceProgram (contextLaw relation law) := by
   dsimp only
@@ -256,7 +256,7 @@ theorem returned_source_bound_with_adaptive_msis :
       (InteractiveComposition.firstPhase originalFirstPhase (SupportedExtraction.publicCheck running))
       abortTape provider
     g Q (realSuccessProbability relation ajtai running fresh law) - deltaFS Q -
-      InteractiveComposition.weakLoss relation ajtai - IndependentExecution.testError productionShape 9 -
+      InteractiveComposition.weakLoss relation ajtai - IndependentExecution.testError productionShape 8 -
       AdaptiveBindingProbability.successProbability relation ajtai program running fresh
         originalFirstPhase (SupportedExtraction.publicCheck running) continuation sourceProgram
         (contextLaw relation law) * PaperProfile.arity.total ≤
@@ -287,7 +287,7 @@ theorem returned_source_bound_of_msis
       abortTape provider
     g Q (realSuccessProbability relation ajtai running fresh law) - deltaFS Q -
       InteractiveComposition.weakLoss relation ajtai -
-      Real.sqrt (epsilonMSIS * PaperProfile.arity.total + IndependentExecution.testError productionShape 9) ≤
+      Real.sqrt (epsilonMSIS * PaperProfile.arity.total + IndependentExecution.testError productionShape 8) ≤
       InteractiveOutput.returnedSourceProbability relation ajtai running fresh originalFirstPhase
         (SupportedExtraction.publicCheck running) continuation program sourceProgram (contextLaw relation law) := by
   dsimp only at msisBound ⊢
@@ -296,7 +296,7 @@ theorem returned_source_bound_of_msis
     bounded sourceCorrect
   have errorBound := Real.sqrt_le_sqrt (_root_.add_le_add
     (mul_le_mul_of_nonneg_right msisBound (Nat.cast_nonneg PaperProfile.arity.total))
-    (le_refl (IndependentExecution.testError productionShape 9)))
+    (le_refl (IndependentExecution.testError productionShape 8)))
   exact (sub_le_sub_left errorBound _).trans extracted
 
 include model correct bounded sourceCorrect in
@@ -347,7 +347,7 @@ theorem prepared_probability_and_expected_work {SetupTape : Type*}
       Real.sqrt ((∑' tape, (setupTapes tape).toReal * BindingProbability.localSuccessProbability ajtai program
         (sourceProgram (prepare tape).value).access relation running fresh originalFirstPhase
         (SupportedExtraction.publicCheck running) continuation (prepare tape).value) * PaperProfile.arity.total +
-          IndependentExecution.testError productionShape 9) ≤
+          IndependentExecution.testError productionShape 8) ≤
       InteractiveOutput.returnedSourceProbability relation ajtai running fresh originalFirstPhase
         (SupportedExtraction.publicCheck running) continuation program sourceProgram (contextLaw relation law)) ∧
     Summable (fun tape => (setupTapes tape).toReal * total tape) ∧

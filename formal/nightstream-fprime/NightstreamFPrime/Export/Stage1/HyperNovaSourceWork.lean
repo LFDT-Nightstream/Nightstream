@@ -40,7 +40,7 @@ attribute [local instance] Classical.propDecidable
 terminal data, public input, witness, or transcript. -/
 def callContext (visit : Visit) : Visit := (visit.1, true)
 
-private def abortPrefix {State : Type*} : InteractivePrefix.Prover State productionShape 9 where
+private def abortPrefix {State : Type*} : InteractivePrefix.Prover State productionShape 8 where
   rounds := fun _ _ _ => none
   output := fun _ _ _ => none
 
@@ -210,7 +210,7 @@ private theorem expectedAt_mean_eq_visitedSum
       omega
 
 variable {State Tape : Type*}
-  (originalFirstPhase : Visit → InteractivePrefix.Prover State productionShape 9)
+  (originalFirstPhase : Visit → InteractivePrefix.Prover State productionShape 8)
   (continuation : ∀ visit (coins : PublicCoins K productionShape)
     (output : FullOutputCoordinates.FullOutput K productionShape), State →
       WeakExtraction.Continuation Tape relation productionAjtaiKey
@@ -219,7 +219,7 @@ variable {State Tape : Type*}
 /-- Call the fixed causal prefix at the actual operational source context.
 Inactive visits supply an explicit abort before the checker or suffix. -/
 noncomputable def operationalPrefix (visit : Visit) :
-    InteractivePrefix.Prover State productionShape 9 :=
+    InteractivePrefix.Prover State productionShape 8 :=
   if ready visit then originalFirstPhase (callContext visit) else abortPrefix
 
 /-- The same fixed continuation supplies every operational call. Resetting

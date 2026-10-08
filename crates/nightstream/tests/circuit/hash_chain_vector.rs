@@ -92,7 +92,7 @@ fn two_link_hash_chain_base_step_verifies_and_rejects_changes() {
     // Change one application coordinate to another signed unit. The old
     // commitment no longer opens, and a recomputed commitment opens to a
     // witness that violates the CCS rows.
-    let application = &circuit.compiled.application;
+    let application = circuit.compiled.application.as_ref().unwrap();
     let manifest: serde_json::Value =
         serde_json::from_slice(include_bytes!("../../artifacts/shared-verifier-v1.json")).unwrap();
     let local = manifest["ports"]

@@ -4,6 +4,7 @@ Library users need these saved artifacts:
 | --- | --- |
 | `shared-verifier-v1.json` | Included by the `nightstream` Rust build. Declares mandatory components, application ports, dimensions, and relocation rules. |
 | `nightstream-fprime-stage1-poseidon2-hash-chain-v1.json` | Included in this package. Pass these bytes to `Circuit::compile` as verifier configuration. |
+| `nightstream-fprime-stage2-nebula-memory-v1.json` | Included in this package. The first Nebula memory application (`specs/nebula-superneo.md`). Pass these bytes and `nebula::PACKAGE_STRUCTURAL_IDENTIFIER` to `Circuit::load_package`. |
 | `shared-formulas-v1.json` | Included by the `nightstream-fprime` dependency's Rust build. Supplies the shared Poseidon2 and Phi81 formulas. |
 
 Application preparation, proving, verification, and Rust builds do not run
@@ -67,6 +68,14 @@ the existing production emitter from the same directory:
 
 ```sh
 bash scripts/validate.sh emit /tmp/nightstream-reference.json
+```
+
+The memory package comes from the same emitter. Build `emit`, then run it
+from the same directory (about 150 seconds):
+
+```sh
+bash scripts/validate.sh build emit
+bash scripts/validate.sh lean-executable .lake/build/bin/emit --application nebula-memory-v1 artifacts/nightstream-fprime-stage2-nebula-memory-v1.json
 ```
 
 Check emitted candidates before installing matching local blueprint and pins.

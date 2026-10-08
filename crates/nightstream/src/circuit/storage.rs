@@ -15,7 +15,7 @@ use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
 
 use nightstream_fprime::{load_compiled_application_package, PackageError};
 
-use super::{ApplicationCircuit, CompiledCircuit, Error};
+use super::{ApplicationCircuit, ApplicationError, CompiledCircuit, Error};
 
 const MAGIC: &[u8; 8] = b"NSCIR\0\0\x01";
 static NEXT_FILE: AtomicU64 = AtomicU64::new(0);
@@ -67,7 +67,11 @@ pub(super) fn write(path: &Path, circuit: &CompiledCircuit) -> Result<(), Error>
     let (pending, file) = PendingFile::create(parent)?;
     let mut output = BufWriter::new(file);
     output.write_all(MAGIC)?;
-    output.write_all(&circuit.application.prepared_output_forms()?)?;
+    let application = circuit
+        .application
+        .as_ref()
+        .ok_or(ApplicationError::NoApplication)?;
+    output.write_all(&application.prepared_output_forms()?)?;
     circuit.package.write_prepared(&mut output)?;
     output.flush()?;
     output.get_ref().sync_all()?;
@@ -98,7 +102,7 @@ pub(super) fn read(path: &Path) -> Result<CompiledCircuit, Error> {
     )?;
     let application = ApplicationCircuit::from_prepared(&package, output_forms)?;
     Ok(CompiledCircuit {
-        application,
+        application: Some(application),
         package: Arc::new(package),
         binding,
         matrix_window: Arc::default(),

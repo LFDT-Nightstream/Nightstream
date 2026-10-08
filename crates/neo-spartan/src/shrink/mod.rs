@@ -26,7 +26,8 @@ pub use self::layout::Shape;
 use self::evaluate::Evaluate;
 use self::layout::Layout;
 use crate::circuit::block::{Kind, C, KINDS, MATRICES, X};
-use crate::circuit::record::{Recorder, Sink, Term, Trace, Wire};
+use crate::circuit::r1cs::R1cs;
+use crate::circuit::record::{Form, Recorder, Sink, Term, Trace, Wire};
 use crate::circuit::{algebra, Backend, Native};
 use crate::field::{eq_table, fold_low, gl, Ext, Gl};
 use crate::hash::{permutation, Challenger};
@@ -66,6 +67,9 @@ impl Sink for Count {
 
     fn public(&mut self, _: Gl) {
         self.0.publics += 1;
+    }
+    fn r1cs(&mut self, system: &R1cs, _: &[Form]) {
+        self.0.glue_rows += system.rows();
     }
     fn values(&self) -> bool {
         false

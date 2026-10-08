@@ -75,6 +75,7 @@ use crate::setup::{Leaf, Store, FOLD};
 use crate::verifier::ProofView;
 
 pub use crate::circuit::fold::FoldTranscript;
+pub use crate::circuit::r1cs::R1cs;
 pub use crate::circuit::{Backend, Native};
 
 /// The claim this crate proves.

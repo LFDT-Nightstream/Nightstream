@@ -4,18 +4,18 @@
 //! rows, the permutation blocks, and the first failed check. Does not own
 //! where rows and cells sit in the shrink cube.
 //!
-//! A glue row is `Σ_{i<3} (A_i·z)·(B_i·z) − C·z = 0`. A permutation or a
-//! ring product is one block (`block.rs`) whose rows its template fixes; its
-//! inputs are tied to the caller's forms by one linear glue row each. The
-//! value of every row is computed when it is emitted, so the first failed
-//! check is known without stopping: the rows never depend on the values.
+//! A glue row is `Σ_{i<3} (A_i·z)·(B_i·z) − C·z = 0`. A permutation is one
+//! block (`block.rs`) whose rows its template fixes; its inputs are tied to
+//! the caller's forms by one linear glue row each. A fixed R1CS system
+//! (`r1cs.rs`) is one glue row per row. The value of every row is computed
+//! when it is emitted, so the first failed check is known without stopping:
+//! the rows never depend on the values.
 
 use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
 use p3_field_v08::{BasedVectorSpace, Field, PrimeCharacteristicRing, PrimeField64};
 
-use neo_math::D;
-
 use super::block::{Kind, KINDS};
+use super::r1cs::{self, R1cs, Side};
 use super::Backend;
 use crate::field::{Ext, Gl};
 use crate::Error;
@@ -74,6 +74,18 @@ impl Form {
         &self.terms[..self.len as usize]
     }
 
+    /// `Σ coefficient·at(wire)`, the constant on the one column.
+    pub(crate) fn evaluate(&self, at: impl Fn(Wire) -> Ext) -> Ext {
+        let constant = if self.constant == Gl::ZERO {
+            Ext::ZERO
+        } else {
+            at(ONE) * self.constant
+        };
+        self.terms()
+            .iter()
+            .fold(constant, |sum, &(wire, coefficient)| sum + at(wire) * coefficient)
+    }
+
     /// The terms with the constant as a term on the one column.
     fn row_terms(&self) -> Vec<Term> {
         let mut terms = self.terms().to_vec();
@@ -102,6 +114,24 @@ fn combine(parts: &[(Form, Gl)]) -> (Vec<Term>, Gl, Gl) {
     (terms, constant, value)
 }
 
+/// `Σ coefficient·columns[column]` as row terms, the constants on the one
+/// column. Repeated wires stay separate terms; a row sums them.
+pub(crate) fn expand(side: Side<'_>, columns: &[Form]) -> Vec<Term> {
+    let mut terms = Vec::new();
+    for (&column, &coefficient) in side.0.iter().zip(side.1) {
+        let form = &columns[column as usize];
+        terms.extend(
+            form.terms()
+                .iter()
+                .map(|&(wire, c)| (wire, c * coefficient)),
+        );
+        if form.constant != Gl::ZERO {
+            terms.push((ONE, form.constant * coefficient));
+        }
+    }
+    terms
+}
+
 /// Where recorded rows, cells and blocks go.
 pub(crate) trait Sink {
     /// One glue row: `Σ (Σ a)·(Σ b) − Σ c`, with each side's terms.
@@ -111,6 +141,14 @@ pub(crate) trait Sink {
     /// takes no values).
     fn block(&mut self, kind: Kind, cells: &[Gl]);
     fn public(&mut self, value: Gl);
+    /// The rows of `system` as glue rows, in order, with `columns[k]` as its
+    /// column `k`.
+    fn r1cs(&mut self, system: &R1cs, columns: &[Form]) {
+        for row in 0..system.rows() {
+            let [a, b, c] = system.sides(row).map(|side| expand(side, columns));
+            self.row(&[(a, b)], &c);
+        }
+    }
     /// Whether the sink reads block cell values. A shape run that only
     /// counts or evaluates rows does not, so blocks are not computed.
     fn values(&self) -> bool {
@@ -413,9 +451,16 @@ impl<S: Sink> Backend for Recorder<S> {
         std::array::from_fn(|lane| outputs[lane])
     }
 
-    fn ring_mul(&mut self, a: &[Form; D], b: &[Form; D]) -> [Form; D] {
-        let outputs = self.block(Kind::RingProduct, &[a.as_slice(), b.as_slice()].concat());
-        std::array::from_fn(|i| outputs[i])
+    fn r1cs(&mut self, system: &R1cs, columns: &[Form], what: &'static str) -> Result<(), Error> {
+        assert_eq!(columns.len(), system.columns(), "one wire per R1CS column");
+        if self.sink.values() {
+            let values: Vec<Gl> = columns.iter().map(Form::value).collect();
+            if r1cs::fails(system, &values) {
+                self.fail(what);
+            }
+        }
+        self.sink.r1cs(system, columns);
+        Ok(())
     }
 
     fn hint(&mut self, inputs: &[Form], len: usize, compute: &dyn Fn(&[u64]) -> Vec<u64>) -> Vec<Form> {

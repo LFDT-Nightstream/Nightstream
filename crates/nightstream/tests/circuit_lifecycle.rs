@@ -92,15 +92,17 @@ fn poseidon_compression_setup_matches_the_derived_key() {
     let building = Instant::now();
     let setup = prover.compression_setup(&dir).unwrap();
     eprintln!("compression setup elapsed={:?}", building.elapsed());
-    let key = setup.key().to_bytes();
-    fs::write(dir.join("key.bin"), &key).unwrap();
+    let key = setup.key().clone();
+    fs::write(dir.join("key.bin"), key.to_bytes()).unwrap();
+    // Free the setup before the derivation, so the two peaks do not add.
+    drop((setup, prover));
     let deriving = Instant::now();
     let verifier = Verifier::from_package(&circuit, Engine::Optimized, 114).unwrap();
-    assert!(verifier.compression_key().unwrap() == *setup.key());
+    assert!(verifier.compression_key().unwrap() == key);
     eprintln!(
         "key derivation elapsed={:?}, key bytes={}",
         deriving.elapsed(),
-        key.len()
+        key.to_bytes().len()
     );
 }
 
@@ -133,6 +135,7 @@ fn poseidon_finish_with_spartan_verifies() {
         bytes.len(),
         prover.encode_proof(&proof).unwrap().len()
     );
+    fs::write(compression_dir().join("final-proof.bin"), &bytes).unwrap();
     let decoded = FinalProof::from_bytes(&bytes).unwrap();
     let verifying = Instant::now();
     verifier
@@ -156,6 +159,33 @@ fn poseidon_finish_with_spartan_verifies() {
     assert!(verifier
         .verify_final(proof.state(), &other, &decoded)
         .is_err());
+}
+
+/// Verification time of the final proof saved by
+/// `poseidon_finish_with_spartan_verifies`: the median of five runs after
+/// one warm-up run that loads the terminal package.
+#[test]
+#[ignore = "Needs the saved final proof; run this test separately under the 300-second cap."]
+fn poseidon_final_verification_time() {
+    let circuit = Circuit::compile(&selected_reference(), poseidon2_hash_chain_v1().unwrap()).unwrap();
+    let verifier = Verifier::from_package(&circuit, Engine::Optimized, 114).unwrap();
+    let key = CompressionKey::from_bytes(&fs::read(compression_dir().join("key.bin")).unwrap()).unwrap();
+    let proof = FinalProof::from_bytes(&fs::read(compression_dir().join("final-proof.bin")).unwrap()).unwrap();
+    let warming = Instant::now();
+    verifier.verify_final(proof.state(), &key, &proof).unwrap();
+    eprintln!(
+        "first verification (with the package load) elapsed={:?}",
+        warming.elapsed()
+    );
+    let mut times: Vec<_> = (0..5)
+        .map(|_| {
+            let started = Instant::now();
+            verifier.verify_final(proof.state(), &key, &proof).unwrap();
+            started.elapsed()
+        })
+        .collect();
+    times.sort();
+    eprintln!("final verification median={:?} runs={times:?}", times[2]);
 }
 
 fn poseidon_lifecycle(engine: Engine, recursive: bool) {

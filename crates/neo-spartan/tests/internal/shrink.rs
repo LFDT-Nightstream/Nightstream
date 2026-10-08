@@ -11,13 +11,14 @@ use super::layer1::{relation_of, setup_toy, transcript};
 use super::verifier::statement_input;
 use super::word;
 use crate::circuit::block::{KINDS, MATRICES};
+use crate::circuit::record::{Recorder, Trace};
 use crate::circuit::{algebra, Backend};
 use crate::field::{eq_table, Ext, Gl};
 use crate::hash::{permutation, seed};
 use crate::shrink::layout::{diagonal, Layout, Shape};
 use crate::shrink::{prove, verify, Program, Shrink, ShrinkProof};
 use crate::verifier::ProofView;
-use crate::{Claim, ClaimWords, Proof, Relation};
+use crate::{Claim, ClaimWords, Proof, R1cs, Relation};
 
 const BITS: f64 = 100.0;
 
@@ -56,7 +57,7 @@ fn diagonal_matches_brute_force() {
 #[test]
 fn block_part_matches_every_entry() {
     let shape = Shape {
-        blocks: [3, 2],
+        blocks: [3],
         glue_rows: 70,
         glue_cells: 90,
         publics: 5,
@@ -80,7 +81,7 @@ fn block_part_matches_every_entry() {
     assert_eq!(layout.block_part(&rx, &ry, &rho), direct);
     // Control: one block fewer on the same cubes.
     let fewer = Layout::new(Shape {
-        blocks: [2, 2],
+        blocks: [2],
         glue_rows: shape.glue_rows + 192,
         glue_cells: shape.glue_cells + 192,
         ..shape
@@ -93,7 +94,7 @@ fn block_part_matches_every_entry() {
 }
 
 /// Knowledge of `secret` with `P(P(secret, s1, 0, ...))[0] = s0`, plus some
-/// products, an extension inverse and a bit split.
+/// products, an extension inverse, a bit split and a fixed R1CS system.
 struct Toy {
     statement: Vec<Gl>,
     secret: Option<Gl>,
@@ -148,9 +149,48 @@ impl Program for Toy {
         let value = b.ext_mul(value, value);
         b.ext_inverse(value, "a nonzero value")?;
         b.bits(state[3], 64, "bits")?;
-        let ring: [B::F; neo_math::D] = std::array::from_fn(|i| state[i % WIDTH]);
-        b.ring_mul(&ring, &ring);
+        let cube = b.mul(square, secret);
+        let one = b.constant(1);
+        b.r1cs(&cubes(), &[secret, square, cube, one, words[1]], "toy system")?;
         Ok(())
+    }
+}
+
+/// Over `[s, s², s³, 1, t]`: `s·s = s²`, `s²·s = s³`, `(s + 3)·1 = s + 3`,
+/// and `(s + t − t + t)·1 = s + t` (one column three times in one side).
+fn cubes() -> R1cs {
+    let minus = |c: u64| Gl::ORDER_U64 - c;
+    let mut system = R1cs::new(5);
+    system.push(&[(0, 1)], &[(0, 1)], &[(1, 1)]);
+    system.push(&[(1, 1)], &[(0, 1)], &[(2, 1)]);
+    system.push(&[(0, 1), (3, 3)], &[(3, 1)], &[(0, 1), (3, 3)]);
+    system.push(&[(0, 1), (4, 1), (4, minus(1)), (4, 1)], &[(3, 1)], &[(0, 1), (4, 1)]);
+    system
+}
+
+#[test]
+fn native_r1cs_accepts_its_rows_and_rejects_a_changed_column() {
+    let s = Gl::from_u64(5);
+    let columns = [s, s * s, s * s * s, Gl::ONE, Gl::from_u64(9)];
+    assert!(crate::Native.r1cs(&cubes(), &columns, "rows").is_ok());
+    // `t` is free: it enters only the identity row.
+    for column in 0..4 {
+        let mut changed = columns;
+        changed[column] += Gl::ONE;
+        assert!(
+            crate::Native.r1cs(&cubes(), &changed, "rows").is_err(),
+            "column {column}"
+        );
+        // The constraint reading notes the failure and records every row.
+        let mut recorder = Recorder::new(Trace::default());
+        let forms: Vec<_> = changed
+            .iter()
+            .map(|value| recorder.private(value.as_canonical_u64()))
+            .collect();
+        recorder.r1cs(&cubes(), &forms, "rows").unwrap();
+        let (trace, failure) = recorder.finish();
+        assert_eq!(failure, Some("rows"));
+        assert_eq!(trace.rows.len(), cubes().rows());
     }
 }
 

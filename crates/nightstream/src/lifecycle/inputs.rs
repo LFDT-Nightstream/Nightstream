@@ -147,6 +147,16 @@ impl PiCcsV1_1ProofInputs {
 /// domain chunk, the running commitments, `Eval_K`, `Eval_A` and point, the
 /// packed parent public input, then `vk, i, z0, zi`. The children's public
 /// inputs enter only through their parent.
+/// The domain words that open every state preimage.
+pub(crate) fn state_domain_words() -> [u64; STATE_DOMAIN_WORDS] {
+    std::array::from_fn(|chunk| {
+        let bytes = STATE_DOMAIN_TAG.get(8 * chunk..).unwrap_or_default();
+        let mut word = [0; 8];
+        word[..bytes.len().min(8)].copy_from_slice(&bytes[..bytes.len().min(8)]);
+        u64::from_le_bytes(word)
+    })
+}
+
 pub fn serialize_pi_ccs_v1_1_state_preimage(
     verifier_context_digest: [F; 4],
     iteration: u64,
@@ -159,12 +169,7 @@ pub fn serialize_pi_ccs_v1_1_state_preimage(
     }
     let point = checked_running_point(running)?;
     let mut words = Vec::with_capacity(PI_CCS_V1_1_STATE_PREIMAGE_WORDS);
-    for chunk in 0..STATE_DOMAIN_WORDS {
-        let bytes = STATE_DOMAIN_TAG.get(8 * chunk..).unwrap_or_default();
-        let mut word = [0; 8];
-        word[..bytes.len().min(8)].copy_from_slice(&bytes[..bytes.len().min(8)]);
-        words.push(u64::from_le_bytes(word));
-    }
+    words.extend(state_domain_words());
     for claim in running {
         if claim.c.d != PI_CCS_V1_1_COEFFICIENT_COUNT
             || claim.c.kappa != COMMITMENT_WIDTH

@@ -1,14 +1,5 @@
 import Mathlib.Analysis.SpecificLimits.Basic
-import Mathlib.Tactic.FieldSimp
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Positivity
-import Mathlib.Tactic.Ring
-import Mathlib.Algebra.BigOperators.Field
-import Mathlib.Algebra.Order.BigOperators.Expect
-import Mathlib.Logic.Equiv.Prod
-import Mathlib.Data.Fintype.Option
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtraction
-import Mathlib.Logic.Function.Basic
 
 /-!
 Connects the response-trace probability law to the actual typed PiRLC search.

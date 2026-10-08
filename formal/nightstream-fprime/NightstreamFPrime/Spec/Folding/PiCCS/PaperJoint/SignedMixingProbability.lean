@@ -1,6 +1,4 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedCoefficientObject
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingRoots
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanEvaluation
 import NightstreamFPrime.Spec.SumCheck.GoldilocksCausal
 
 /-!

@@ -1,5 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingProbability
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingRoots
 
 /-!
 Owns the round-by-round split of a false PiCCS acceptance: one bad set for

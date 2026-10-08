@@ -59,12 +59,15 @@ at `Q = 2^64` is about `2^-51.2`. The proof is in
    is the success of the binding reduction: two different witnesses for one
    running statement. The paper turns this into a binding collision; Lean does
    not prove that step. Lean proves the steps after it for the production
-   key: a binding collision gives a short kernel vector at the approved MSIS
+   key: a binding collision gives a short kernel vector at the `8TB` MSIS
    norm (`Export.Stage1.Poseidon2HashChainV1Setup.productionBindingCollision_to_shortKernel`),
-   which solves the approved public-seed instance
-   (`Export.Stage1.Poseidon2HashChainV1Setup.productionShortKernel_to_approvedMsis`);
-   for a uniform matrix, a binding collision gives an MSIS solution in the
-   ideal model of the SHAKE128 expansion
+   which extends to the fixed-seed instance with the earlier approved
+   dimensions
+   (`Export.Stage1.Poseidon2HashChainV1Setup.productionShortKernel_to_approvedMsis`).
+   The 2026-09-08 public-seed MSIS approval covered the ChaCha20 matrix only.
+   For the current SHAKE128 matrix, the premises are SHAKE128 as a random
+   oracle and MSIS for a uniform matrix: a binding collision gives an MSIS
+   solution in the ideal model of the SHAKE128 expansion
    (`Export.Stage1.Poseidon2HashChainV1Setup.production_binding_lt_solver`).
    `Lifecycle.RandomOracleExtraction.mismatchChance` and
    `Lifecycle.RandomOracleUniqueness.runningChance` are retries that change

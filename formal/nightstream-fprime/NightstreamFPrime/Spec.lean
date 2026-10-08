@@ -14,21 +14,5 @@ import NightstreamFPrime.Spec.AjtaiSetupV1.ReductionBias
 import NightstreamFPrime.Spec.AjtaiSetupV1.Programming
 import NightstreamFPrime.Spec.AjtaiSetupV1.Prefix
 import NightstreamFPrime.Spec.Phi81StrongSet.Cardinality
-import Mathlib.SetTheory.Cardinal.Finite
-import Mathlib.Probability.ProbabilityMassFunction.Constructions
-import Mathlib.Topology.Algebra.InfiniteSum.Real
-import Mathlib.Analysis.Normed.Group.InfiniteSum
-import Mathlib.Analysis.Real.Sqrt
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Ring
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.IndependentExecution
-import Mathlib.Data.ENNReal.BigOperators
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CausalExecution
-import Mathlib.Algebra.BigOperators.Ring.Finset
-import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
-import Mathlib.Analysis.SpecificLimits.Basic
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Binding
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Product
-import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFLaws
 
 /-! Spec layer root. Lists the modules of this layer explicitly. -/

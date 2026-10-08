@@ -63,7 +63,7 @@ queries (Ironwood's `OracleComp` with `QueryBound Q`). It outputs a context
 (prior preimage, running and fresh statement), a NIFS proof and 16 child
 witnesses. The statement is adaptive: `A` may choose it after any queries.
 
-**Real success** is the approved event `FiatShamirTransfer.RealSuccess`: the
+**Real success** is the event `NifsRealSuccess.RealSuccess`: the
 output prior preimage satisfies `PriorLink` for the running statement and the
 verifier context digest, the verifier accepts, and the 16 child witnesses
 open the verifier-computed children.

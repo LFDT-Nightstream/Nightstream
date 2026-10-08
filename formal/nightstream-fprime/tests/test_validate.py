@@ -46,7 +46,8 @@ class ValidateTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         requested = [line for line in result.stdout.splitlines() if line.startswith("requested:")]
         self.assertEqual(requested, [
-            "requested:build", "requested:Production", "requested:FirstAudit", "requested:SecondAudit"
+            "requested:build", "requested:--wfail", "requested:Production", "requested:FirstAudit",
+            "requested:SecondAudit"
         ])
 
     def test_failure_in_later_target_fails_validation(self):

@@ -38,7 +38,9 @@ pub enum Error {
 }
 
 struct CompiledCircuit {
-    application: ApplicationCircuit,
+    /// The Rust application, or `None` for a Lean-emitted package whose own
+    /// witness program fills the application's local variables.
+    application: Option<ApplicationCircuit>,
     package: Arc<LoadedPerApplicationPackage>,
     binding: Stage1VerifierBinding,
     /// The package's complete matrix window, shared by every lifecycle.
@@ -72,7 +74,29 @@ impl Circuit {
         )?;
         Ok(Self {
             compiled: Arc::new(CompiledCircuit {
-                application,
+                application: Some(application),
+                package: Arc::new(package),
+                binding,
+                matrix_window: Arc::default(),
+            }),
+        })
+    }
+
+    /// Load a Lean-emitted sealed per-application package and require its
+    /// structural identifier. The caller pins the identifier; the package's
+    /// own witness program computes the application's local variables, so a
+    /// prover supplies the witness words and the output state
+    /// (`Prover::extend_with_output`).
+    pub fn load_package(bytes: &[u8], expected_structural_identifier: [u64; 4]) -> Result<Self, Error> {
+        let package = nightstream_fprime::load_per_application_package(bytes, expected_structural_identifier)?;
+        let binding = package.production_verifier_binding()?;
+        crate::lifecycle::validate_key_prefix(
+            package.logical_column_count(),
+            binding.verifier_context().commitment_key_words(),
+        )?;
+        Ok(Self {
+            compiled: Arc::new(CompiledCircuit {
+                application: None,
                 package: Arc::new(package),
                 binding,
                 matrix_window: Arc::default(),
@@ -142,6 +166,8 @@ impl Prover {
         let witness = self
             .compiled
             .application
+            .as_ref()
+            .ok_or(ApplicationError::NoApplication)?
             .execute(proof.state().current(), private_inputs)?;
         let words: Vec<_> = private_inputs
             .iter()
@@ -153,6 +179,34 @@ impl Prover {
             witness.output_state(),
             Some(witness.values()),
         )?)
+    }
+
+    /// The first proof for a Lean-emitted package (`extend_with_output`).
+    pub fn prove_with_output(
+        &self,
+        initial_state: [F; 4],
+        private_inputs: &[F],
+        output: [F; 4],
+    ) -> Result<Stage1Envelope, Error> {
+        self.extend_with_output(&Stage1Envelope::initial(initial_state), private_inputs, output)
+    }
+
+    /// Construct the next proof for a Lean-emitted package: the caller supplies
+    /// the application's witness words and output state; the package's own
+    /// witness program fills every application-local variable.
+    pub fn extend_with_output(
+        &self,
+        proof: &Stage1Envelope,
+        private_inputs: &[F],
+        output: [F; 4],
+    ) -> Result<Stage1Envelope, Error> {
+        let words: Vec<_> = private_inputs
+            .iter()
+            .map(PrimeField64::as_canonical_u64)
+            .collect();
+        Ok(self
+            .lifecycle
+            .extend_with_output(proof.snapshot(), &words, output, None)?)
     }
 
     /// The circuit's strict byte encoding of `proof`, for `Verifier::decode_proof`.

@@ -139,18 +139,28 @@ fn assert_same_data(expected: &Circuit, actual: &Circuit) {
     let expected_witness = expected
         .compiled
         .application
+        .as_ref()
+        .unwrap()
         .execute(input, &private)
         .unwrap();
     let actual_witness = actual
         .compiled
         .application
+        .as_ref()
+        .unwrap()
         .execute(input, &private)
         .unwrap();
     assert_eq!(expected_witness.output_state(), [169, 4, 5, 17].map(F::from_u64));
     assert_eq!(actual_witness.values(), expected_witness.values());
     assert_eq!(actual_witness.output_state(), expected_witness.output_state());
     assert_eq!(
-        actual.compiled.application.prepared_output_forms().unwrap(),
+        actual
+            .compiled
+            .application
+            .as_ref()
+            .unwrap()
+            .prepared_output_forms()
+            .unwrap(),
         [2, 0, 2, 0]
     );
 
@@ -254,6 +264,8 @@ fn compiled_load_rejects_identity_unbound_output_form_substitution() {
             changed
                 .compiled
                 .application
+                .as_ref()
+                .unwrap()
                 .prepared_output_forms()
                 .unwrap(),
             [0, 0, 2, 0]
@@ -264,11 +276,15 @@ fn compiled_load_rejects_identity_unbound_output_form_substitution() {
         assert!(original
             .compiled
             .application
+            .as_ref()
+            .unwrap()
             .execute(input, &private)
             .is_ok());
         assert!(changed
             .compiled
             .application
+            .as_ref()
+            .unwrap()
             .execute(input, &private)
             .is_err());
     }
@@ -384,13 +400,20 @@ fn metal_verifier_rejects_changed_constraint_with_original_cached_identity_and_s
     );
     let initial = [2, 3, 5, 7].map(F::from_u64);
     assert!(matches!(
-        original.compiled.application.execute(initial, &[F::ONE]),
+        original
+            .compiled
+            .application
+            .as_ref()
+            .unwrap()
+            .execute(initial, &[F::ONE]),
         Err(ApplicationError::UnsatisfiedRow(0))
     ));
     assert_eq!(
         changed
             .compiled
             .application
+            .as_ref()
+            .unwrap()
             .execute(initial, &[F::ONE])
             .unwrap()
             .output_state(),

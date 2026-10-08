@@ -18,6 +18,7 @@ pub enum ApplicationError {
     WitnessLength { expected: usize, actual: usize },
     UnsatisfiedRow(usize),
     Records(PackageError),
+    NoApplication,
 }
 
 impl fmt::Display for ApplicationError {
@@ -35,6 +36,7 @@ impl fmt::Display for ApplicationError {
             }
             Self::UnsatisfiedRow(index) => write!(f, "application row {index} is not satisfied"),
             Self::Records(error) => write!(f, "application records: {error}"),
+            Self::NoApplication => write!(f, "a loaded package has no Rust application"),
         }
     }
 }

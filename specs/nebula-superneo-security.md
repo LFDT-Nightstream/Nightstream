@@ -494,6 +494,12 @@ generated relation MUST supply the exact census.
      gives Lemma 6's three results, or a collision in a state digest. The
      relation reads `plan_digest` and the chain headers as constants, and the
      terminal computes the initial state from the start carry and `D_init`.
+   - the first memory package (`Export/Stage1/NebulaMemoryV1Package.lean`)
+     for the test plan `FirstPlan` (ROM and RAM of four words, `N = 2`,
+     `S_max = 4`). Its row, column, and carrier bounds give the Stage 1 fixed
+     point and the `2^28` domain (`plan_fixedPoint`,
+     `jointDomain_le_twoPow28`). The Rust crate loads the emitted package
+     with a pinned structural identifier.
 
    Still open:
    - the A6 transfer from the real verifier to this game, as a premise in the
@@ -506,8 +512,7 @@ generated relation MUST supply the exact census.
    - completeness of the relation (Ob5 for the relation): an honest model
      step has a witness that satisfies the program's predicate, with the
      counter widths `W_step`, `W_seg`, `W_cnt` and the O4 words `diff_j`;
-   - the memory application's package, with its Stage 1 fixed-point and
-     domain theorems for a selected plan;
+   - a package for a production plan;
    - the Stage 1 extraction that turns an accepted proof over that package
      into the chain of states that `MemoryApp.chain_soundness` reads (A1–A4).
 6. **Shared with Stage 1:** useful values of `g_d` and `delta_d` (A6), the

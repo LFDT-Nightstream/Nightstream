@@ -1,8 +1,10 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.OneRunExtraction
 
 /-!
-SuperNeo B.2's probability and expected-time conclusions for the same checked
-one-call extractor. Setup contexts and private tapes keep their stated PMFs;
+Probability and expected-time conclusions for the same checked one-call
+extractor, with the square-root success loss. SuperNeo v1.2 Appendix B.2
+replaces that loss with the retry bound
+`StrongProbability.source_success_ge_retry`. Setup contexts and private tapes keep their stated PMFs;
 only interactive verifier coins have the proved uniform law. The returned
 source relation is the existing CCS/CE product through the concrete Phi81
 public prefix. Fiat–Shamir transfer and setup hardness are separate claims.
@@ -76,7 +78,7 @@ theorem successProbability_eq :
     (prover context) (callCorrect context) (commit context) params (statement context) (correct context)]
 
 include callCorrect correct in
-/-- One bound states both the paper success loss and expected polynomial work
+/-- One bound states both the square-root success loss and expected polynomial work
 for the same program. Primitive correctness and their actual polynomial work
 bounds are the explicit paper EPT/PPT premises. No source-success premise is
 assumed, and the fresh public-prefix condition is already discharged. -/

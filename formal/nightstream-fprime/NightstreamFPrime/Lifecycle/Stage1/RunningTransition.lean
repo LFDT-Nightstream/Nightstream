@@ -1,5 +1,5 @@
 import NightstreamFPrime.Circuit.StraightLine
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption
 import NightstreamFPrime.Spec.GoldilocksPrime
 
 /-!
@@ -23,7 +23,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Circuit.Quadratic
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 
 def exactWordCount : Nat := 32073
 def stateWordCount : Nat := 4

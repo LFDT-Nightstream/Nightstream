@@ -12,7 +12,7 @@ mark the NIFS goal complete or approve its proposed cryptographic model.
 
 Give physical compilation one owner in Layout. Export consumes proved
 package interfaces and owns encoding, emission and parity. Preserve the
-logical circuit framework, SuperNeo v1.1 semantics, theorem assumptions,
+logical circuit framework, SuperNeo v1.2 semantics, theorem assumptions,
 executable operations and the production profile: Goldilocks, `b = 2`,
 `k_rho = 16`, 17 ordered sources, 16 children, 4 matrices, 28 rounds and
 Poseidon2 binding.

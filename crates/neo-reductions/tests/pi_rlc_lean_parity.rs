@@ -46,8 +46,10 @@ fn field(word: u64) -> F {
 }
 
 fn fixture() -> Fixture {
-    let fixture: Fixture =
-        serde_json::from_str(include_str!("fixtures/pi-rlc-lean.json")).expect("Lean whole-vector sampler fixture");
+    let fixture: Fixture = serde_json::from_str(include_str!(
+        "../../../formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-pi-rlc-sampler-v1.json"
+    ))
+    .expect("Lean whole-vector sampler fixture");
     assert_eq!((fixture.schema, fixture.modulus, fixture.degree), (1, MODULUS, D));
     fixture
 }
@@ -69,9 +71,9 @@ fn one_window_schedule_matches_lean_transcript_states() {
         let mut transcript = Poseidon2Transcript::from_state_and_absorbed(case.initial.map(field), 0);
         for (index, step) in case.steps.into_iter().enumerate() {
             assert_eq!(step.source, index as u64);
-            transcript.absorb_v1_1(&[F::from_u64(4), F::from_u64(step.source)]);
+            transcript.absorb_v1_2(&[F::from_u64(4), F::from_u64(step.source)]);
             assert_eq!(transcript.state().map(|value| value.as_canonical_u64()), step.entered);
-            let draw = transcript.squeeze_digest_v1_1();
+            let draw = transcript.squeeze_digest_v1_2();
             assert_eq!(draw.map(|value| value.as_canonical_u64()), step.draw);
             assert_eq!(decode_pi_rlc_coefficients(&draw).as_slice(), step.coefficients);
             assert_eq!(transcript.state().map(|value| value.as_canonical_u64()), step.outgoing);

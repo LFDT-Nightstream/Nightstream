@@ -267,7 +267,7 @@ theorem evaluateAtSample_eq_zero_of_coefficientTruth
 
 /-- Exact deterministic bad event for this assembled coefficient object: a
 nonzero polynomial in `(A, C)` vanishes at the verifier's sampled
-`(alpha, gamma)`. Relating this event to Appendix D.4 still requires concrete
+`(alpha, gamma)`. Relating this event to SuperNeo v1.2 Appendix B.2 still requires concrete
 residual construction and the signed joint identity; this definition makes no
 claim about that bridge or about how likely the event is. -/
 structure MixingRoot

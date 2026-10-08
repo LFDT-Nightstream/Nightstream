@@ -32,8 +32,8 @@ fold's challenges with Poseidon2, so a recursive argument uses the concrete
 hash, which no random-oracle model covers.
 `Lifecycle.RandomOracleKnowledge.knowledge_error_le` proves a random-oracle
 analogue for one fold and motivates `error_j = knowledgeError(Q_j)`: linear in
-the query count, about `(Q_j + 74) · 2^-115.84` plus the named MSIS and
-state-hash events. No Lean statement derives `error_j` from it; the success
+the query count, about `(Q_j + 74) · 2^-115.84 + 17 (Q_j + 17) · 2^-125.4`
+plus the named MSIS and state-hash events. No Lean statement derives `error_j` from it; the success
 event, the extractor and the efficiency condition differ
 (`formal/nightstream-fprime/TRUST_BOUNDARY.md`). Definition 7 also requires an
 expected polynomial-time extractor. `NifsKnowledgeSound` does not state that

@@ -105,8 +105,11 @@ reduction takes `Q + 74` expected reruns
    `Export.Stage1.HyperNovaVisitedSecurity.history_probability_bound` takes
    `Export.Stage1.HyperNovaVisitedSecurity.NifsKnowledgeSound`: at each visited
    step, the given source extractor fails after a real acceptance with
-   probability at most `error j`. A real acceptance is the `goodActive` mark of
-   the visit (`Export.Stage1.HyperNovaVisitedAcceptance.realSuccess_iff_goodActive`).
+   probability at most `error j`. The bound is on the joint event (a
+   `goodActive` visit and no returned source) under the unconditioned visited
+   law. A `goodActive` visit is a real acceptance
+   (`Export.Stage1.HyperNovaVisitedAcceptance.realSuccess_iff_goodActive`);
+   the visited law stops marking visits after the first failure.
    This is the paper's plain-model premise, not a theorem. The step circuit
    recomputes the challenges of the previous fold with Poseidon2, so a
    recursive argument uses the concrete hash, which no random-oracle model
@@ -122,15 +125,24 @@ reduction takes `Q + 74` expected reruns
      `Export.Stage1.PiCCSStoredWitnessCheck.statement`, which is the key's
      statement (`Export.Stage1.PiCCSStoredWitnessCheck.statement_eq_key`).
      This difference is closed.
-   - *Extractor.* `NifsKnowledgeSound` takes any source kernel. The ROM
-     extractor reruns the adversary on a changed oracle, which a plain-model
-     kernel cannot do.
+   - *Extractor.* `NifsKnowledgeSound` takes one memoryless source kernel of
+     the visited statement and payload, the same at every visit. HyperNova
+     Definition 7 gives an extractor for each adversary, with the prover's
+     state, and that extractor may rewind; the ROM extractor reruns the
+     adversary on a changed oracle. No Lean statement shows that Assumption 1
+     gives a kernel of the Lean form.
    - *Efficiency.* `NifsKnowledgeSound` has no running-time condition;
      HyperNova Definition 7 asks for an expected polynomial-time extractor.
      Lean bounds the history's extractor calls by the iteration count
      (`Export.Stage1.HyperNovaHistoryWork.source_calls_le_iteration`), and the
      ROM extractor's retries by `17 (Q + 17)`. It counts calls, not machine
-     work.
+     work. The marked hash term `h_j` comes from the chain that the same
+     kernel builds, so an external Poseidon2 collision bound applies to it only
+     when that kernel is efficient.
+   - *Valid history.* An application witness is a field list of any length
+     (`AppWitness`), and the step hash takes any length. A returned history may
+     therefore use witness lengths that the circuit cannot carry. Such a
+     history needs a Poseidon2 output to agree across input lengths.
 4. **Rust and Lean agree on recorded inputs only.** The golden conformance runs
    and the native evidence of the assurance surface cover their recorded
    inputs. No theorem covers arbitrary Rust execution.

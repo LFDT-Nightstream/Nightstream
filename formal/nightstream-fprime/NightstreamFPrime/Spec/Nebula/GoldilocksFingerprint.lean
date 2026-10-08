@@ -21,12 +21,34 @@ def carrierEquiv : K ≃ QuadraticAlgebra (ZMod goldilocksModulus) 7 0 where
 
 scoped instance : CommRing K := carrierEquiv.commRing
 
-private theorem zero_eq : (0 : K) = K.zero := rfl
+theorem zero_eq : (0 : K) = K.zero := rfl
 
-private theorem mul_eq (left right : K) : left * right = K.mul left right := by
+theorem one_eq : (1 : K) = K.one := rfl
+
+theorem add_eq (left right : K) : left + right = K.add left right := rfl
+
+theorem mul_eq (left right : K) : left * right = K.mul left right := by
   change K.mk _ (left.c0 * right.c1 + left.c1 * right.c0 + 0 * left.c1 * right.c1) = _
   simp only [Fin.zero_mul, Fin.add_zero]
   rfl
+
+theorem neg_eq (value : K) : -value = ⟨-value.c0, -value.c1⟩ := rfl
+
+theorem sub_eq (left right : K) : left - right = K.sub left right := by
+  change K.mk _ _ = K.mk _ _
+  simp only [sub_eq_add_neg]
+  rfl
+
+/-- A natural number in `K` is its residue in the first coordinate. -/
+theorem natCast_eq (n : ℕ) :
+    (n : K) = ⟨⟨n % goldilocksModulus, Nat.mod_lt _ (by decide)⟩, 0⟩ := by
+  induction n with
+  | zero => rfl
+  | succ n ih =>
+    rw [Nat.cast_succ, ih, add_eq, one_eq]
+    simp only [K.add, K.one, K.mk.injEq, add_zero, and_true]
+    apply Fin.ext
+    simp [Fin.val_add, Nat.add_mod]
 
 scoped instance : Nontrivial K := ⟨⟨K.zero, K.one, by
   intro same

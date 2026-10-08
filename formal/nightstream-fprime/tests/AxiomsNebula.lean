@@ -2,6 +2,7 @@ import tests.AxiomAudit
 import NightstreamFPrime.Spec.Nebula
 import NightstreamFPrime.Lifecycle.Nebula.Framing
 import NightstreamFPrime.Lifecycle.Nebula.MemoryBound
+import NightstreamFPrime.Lifecycle.Nebula.StepRows
 
 /-! Axiom audits for the Nebula memory-phase model (`Spec/Nebula`) and its
 Poseidon2 framing (`Lifecycle/Nebula`). -/
@@ -110,3 +111,13 @@ Poseidon2 framing (`Lifecycle/Nebula`). -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.memory_bound
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.collides_transcript
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.closing_collision_transcript
+#audit_axioms NightstreamFPrime.Spec.Nebula.GoldilocksFingerprint.add_eq
+#audit_axioms NightstreamFPrime.Spec.Nebula.GoldilocksFingerprint.sub_eq
+#audit_axioms NightstreamFPrime.Spec.Nebula.GoldilocksFingerprint.mul_eq
+#audit_axioms NightstreamFPrime.Spec.Nebula.GoldilocksFingerprint.natCast_eq
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.decodeCarry_carryVector
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.carryVector_decodeCarry
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.carryVector_injective
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.decodeCarry_canonical
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.stateWords_length
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.stateWords_eq_or_collision

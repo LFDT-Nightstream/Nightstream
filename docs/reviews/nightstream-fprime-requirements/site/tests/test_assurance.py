@@ -54,7 +54,7 @@ class AssuranceTests(unittest.TestCase):
         budget = DATA['error_budget']
         one = error_scenario(budget, '1')
         twice = error_scenario(budget, '2')
-        self.assertEqual(one['numerator'], '13257')
+        self.assertEqual(one['numerator'], '7209')
         self.assertEqual(one['denominator'], str(18446744069414584321 ** 2))
         self.assertEqual(twice['bound'], 2 * one['bound'])
         self.assertEqual(error_scenario(budget, str(10 ** 100))['bound'], 1)

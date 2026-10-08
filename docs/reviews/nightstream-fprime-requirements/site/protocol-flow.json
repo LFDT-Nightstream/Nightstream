@@ -188,7 +188,7 @@
         "C.replay.transcript"
       ],
       "short": "Commitments enter the transcript before challenges.",
-      "detail": "The verifier replays the input absorption and derives the exact challenge coordinates. Nightstream uses Poseidon2; transfer from interactive coins has an explicit Fiat–Shamir assumption.",
+      "detail": "The verifier replays the input absorption and derives the exact challenge coordinates. Nightstream uses Poseidon2; the knowledge proof models each challenge read as a random oracle of its exact call list.",
       "actor": "Verifier",
       "uses": [
         "T",
@@ -305,7 +305,7 @@
         "R.connection.native"
       ],
       "short": "Poseidon2 challenges after the full PiCCS messages.",
-      "detail": "Poseidon2 supplies canonical candidates. The sampler rejects 65535, reduces accepted symbols modulo 5, selects the first 54 per ring element, and rejects a shortfall. Lean connects arbitrary accepted rows to the exact verifier challenges.",
+      "detail": "Poseidon2 supplies one four-lane block per ring element. The sampler reads it as one integer below q^4, reduces it modulo 5^54 and takes the 54 base-five digits minus two; it has no rejection or shortfall. Lean connects arbitrary accepted rows to the exact verifier challenges.",
       "except": [
         "R.sampler.seed"
       ],
@@ -468,7 +468,7 @@
         "H.replay.state"
       ],
       "short": "Bind i + 1, the next state and the same 16 child claims.",
-      "detail": "The outgoing public digest binds the verifier context, initial state, next application state, next counter and exact running output. Counter encoding and non-wrap conditions remain explicit. The circuit ends here; the outer prover encodes and commits this execution afterward. The independently derived iteration 2-to-3 caller now matches all private and public words and its point/transcript links. The completion record closes the selected local iteration 2-to-3 replay under the accepted-prior-state, sampler-success and canonical-counter premises.",
+      "detail": "The outgoing public digest binds the verifier context, initial state, next application state, next counter and exact running output. Counter encoding and non-wrap conditions remain explicit. The circuit ends here; the outer prover encodes and commits this execution afterward. The independently derived iteration 2-to-3 caller now matches all private and public words and its point/transcript links. The completion record closes the selected local iteration 2-to-3 replay under the accepted-prior-state and canonical-counter premises; the sampler is now total.",
       "actor": "Circuit",
       "uses": [
         "T",
@@ -543,7 +543,7 @@
         "F"
       ],
       "short": "Goldilocks · b = 2 · kρ = 16 · B = 65,536.",
-      "detail": "The selected Nightstream Goldilocks profile fixes one fresh source and 16 running sources, signed-binary decomposition, ring arithmetic and the exact verifier-bound setup. The original approved hardness assumption concerns a specific fixed public-seed matrix; this is not inherited from the paper’s uniform-matrix security estimate.",
+      "detail": "The selected Nightstream Goldilocks profile fixes one fresh source and 16 running sources, signed-binary decomposition, ring arithmetic and the exact verifier-bound setup. The setup expands its matrix with SHAKE128. Its hardness premises are SHAKE128 as a random oracle and MSIS for a uniform matrix; the earlier fixed-matrix approval covered the ChaCha20 matrix only.",
       "except": [
         "F.packing",
         "F.commitment",
@@ -1005,13 +1005,13 @@
   "conditions": [
     {
       "id": "fixed_matrix_msis",
-      "label": "Fixed public-seed MSIS",
-      "detail": "Hardness for the selected fixed matrix, not the paper’s uniform-matrix estimate."
+      "label": "Setup MSIS",
+      "detail": "SHAKE128 as a random oracle and MSIS for a uniform matrix of the selected dimensions."
     },
     {
       "id": "fiat_shamir",
-      "label": "Selected Fiat–Shamir transfer",
-      "detail": "Approved parametric Poseidon2 assumption; concrete query applicability remains explicit."
+      "label": "Random-oracle model",
+      "detail": "Each challenge read is a random function of its exact call list; the query budget stays explicit."
     },
     {
       "id": "poseidon2",
@@ -1019,9 +1019,9 @@
       "detail": "Named state-hash collision events stay in the security bound."
     },
     {
-      "id": "low_norm_invertibility",
-      "label": "Low-norm invertibility",
-      "detail": "An external mathematical premise used by weak extraction."
+      "id": "nifs_knowledge",
+      "label": "Assumption 1 at each visit",
+      "detail": "HyperNova errata Assumption 1, plain-model part, for the recursive history."
     }
   ],
   "feedback_note": "NEXT ITERATION · Carry 16 running claims and the new fresh claim, with their witnesses."

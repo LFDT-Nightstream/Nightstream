@@ -102,18 +102,34 @@ reduction takes `Q + 74` expected reruns
      terms by the collision events.
    - Lean bounds none of these events numerically.
 3. **The history: HyperNova errata Assumption 1.**
-   `Export.Stage1.HyperNovaVisitedSecurity.Assumption1` states Assumption 1 as
-   HyperNova Definition 7 knowledge soundness of the Poseidon2 NIFS: for every
+   `Export.Stage1.HyperNovaVisitedSecurity.Assumption1` states Assumption 1 in
+   the form of HyperNova Definition 7 knowledge soundness of the Poseidon2
+   NIFS: for every
    admitted NIFS adversary (a random tape, and the NIFS input and real output
    it computes) there is an efficient extractor that reads the adversary's
    tape and its own coins, so it may rerun the adversary, and that fails after
    a real success (`NifsRealSuccess.RealSuccess`, with the prior-state link)
-   with probability at most `error` of that adversary.
-   `Export.Stage1.HyperNovaVisitedSecurity.Closed` states that one reverse step
-   of an admitted algorithm with an efficient extractor is again admitted.
-   `Admitted` and `Efficient` are abstract; their intended meaning is expected
-   polynomial time. Lean has no running-time model, so it states no false
-   claim about running time, and the closure property is a premise.
+   with probability at most `error` of that adversary. Three differences from
+   Definition 7:
+   - This joint form implies Definition 7's difference form
+     `Pr[success] − Pr[extraction] ≤ error`. The converse needs an adversary
+     that stops when its own success check fails.
+   - The public parameters are the fixed production key and setup, not
+     sampled by the generator. With a fixed hash and a fixed key, an efficient
+     algorithm that contains a collision exists. So the premise can hold only
+     for algorithms that a person can write without such knowledge
+     (Rogaway's human-ignorance reading).
+   - `error` replaces `negl(λ)`.
+
+   `Export.Stage1.HyperNovaVisitedSecurity.Closed` is the composition premise.
+   A second class, `StageAdmitted`, holds whole stages: the reverse extractor
+   so far, as one algorithm. An admitted stage gives an admitted NIFS
+   adversary, and one reverse step of an admitted stage with an efficient
+   extractor is again an admitted stage. The IVC adversary is the start stage,
+   which must be admitted. `Admitted`, `StageAdmitted` and `Efficient` are
+   abstract; their intended meaning is expected polynomial time. Lean has no
+   running-time model, so it states no false claim about running time, and
+   the closure property is a premise.
    `Export.Stage1.HyperNovaVisitedSecurity.reverseStages` is the reverse
    extractor of HyperNova Lemma 17 (Appendix H.3): stage `j + 1` runs stage
    `j` and then the extractor that Assumption 1 gives for stage `j`'s NIFS
@@ -141,12 +157,15 @@ reduction takes `Q + 74` expected reruns
    - *Extractor.* The ROM extractor reruns the adversary on a changed oracle;
      the plain-model extractor of Assumption 1 is any efficient algorithm that
      reads the adversary's tape. Neither is derived from the other.
-   - *Efficiency.* Lean proves that every stage stays in the admitted class
-     under `Closed`. The meaning of "admitted" (expected polynomial time for a
+   - *Efficiency.* Lean proves that every stage stays in `StageAdmitted`
+     under `Closed`. The meaning of that class (expected polynomial time for a
      constant depth, as in Lemma 17) is a premise outside Lean. The hash term
-     `h_j` is the collision mass of stage `j`, an admitted algorithm, so an
-     external Poseidon2 collision bound applies to it; the paper's truncation
-     argument for expected-time stages is outside Lean.
+     `h_j` is the probability that stage `j`, an admitted stage, followed by
+     the computation of its current visit, outputs a state-hash collision. So
+     an external Poseidon2 collision bound applies to it; the paper's
+     truncation argument for expected-time stages is outside Lean. Lean
+     chooses the stages with `Classical.choose`, so a numerical bound on `h_j`
+     and on `error` must hold for the whole class.
    - *Valid history.* An application witness is a field list of any length
      (`AppWitness`), and the step hash takes any length, but a history that the
      reverse run returns has the circuit's witness length. So

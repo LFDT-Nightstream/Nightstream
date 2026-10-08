@@ -23,8 +23,9 @@ Pr[accepted terminal] ≤ Pr[the reverse extractor returns history advice]
 ```
 
 for every class of admitted NIFS adversaries and efficient extractors with
-`Assumption1 Admitted Efficient error` and `Closed Admitted Efficient`, and
-every admitted IVC adversary whose advertised iteration is at most `depth`.
+`Assumption1 Admitted Efficient error`, every class of admitted stages with
+`Closed Admitted StageAdmitted Efficient`, and every IVC adversary whose start
+stage is admitted and whose advertised iteration is at most `depth`.
 Stage `0` is the IVC adversary. Stage `j + 1` runs stage `j` and then the
 extractor that Assumption 1 gives for stage `j`'s NIFS adversary; its tape is
 stage `j`'s tape and that extractor's coins. `hashCollision_j` is the marked
@@ -34,10 +35,11 @@ Assumption 1 error of stage `j`'s NIFS adversary. Every stage is admitted.
 Assumption 1 is the paper's plain-model knowledge-soundness premise for the
 Poseidon2 NIFS. It is not a theorem: the step circuit recomputes the previous
 fold's challenges with Poseidon2, so a recursive argument uses the concrete
-hash, which no random-oracle model covers. `Admitted` and `Efficient` are
-abstract; their intended meaning is expected polynomial time, and `Closed`
-states that one reverse step stays admitted, as in Lemma 17 for a constant
-depth. Lean has no running-time model.
+hash, which no random-oracle model covers. `Admitted`, `StageAdmitted` and
+`Efficient` are abstract; their intended meaning is expected polynomial time.
+`Closed` states that an admitted stage, as one algorithm, gives an admitted
+NIFS adversary and that one reverse step keeps a stage admitted, as in
+Lemma 17 for a constant depth. Lean has no running-time model.
 `Lifecycle.RandomOracleKnowledge.knowledge_error_le` proves a random-oracle
 analogue for one fold and motivates the value of `error`: linear in the query
 count, about `(Q + 74) · 2^-115.84 + 17 (Q + 17) · 2^-125.4` plus the named
@@ -48,8 +50,9 @@ Required premises:
 
 - The advertised iteration of the IVC adversary is at most symbolic `depth`
   on its support.
-- Assumption 1 and its closure under one reverse step, for one class of
-  admitted adversaries that contains the IVC adversary.
+- Assumption 1 for one class of admitted NIFS adversaries, and `Closed` for
+  one class of admitted stages that contains the IVC adversary's start
+  stage.
 
 Dependencies, with namespace prefix `NightstreamFPrime`:
 

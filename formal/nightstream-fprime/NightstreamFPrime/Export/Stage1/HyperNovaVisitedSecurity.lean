@@ -2,7 +2,7 @@ import NightstreamFPrime.Export.Stage1.HyperNovaFirstFailure
 
 /-!
 Owns the history security bound of the selected HyperNova IVC under HyperNova
-errata Assumption 1, stated as Definition 7 knowledge soundness of the
+errata Assumption 1, in the form of Definition 7 knowledge soundness of the
 Poseidon2 NIFS, and the reverse extractor of HyperNova Lemma 17 (Appendix H.3).
 
 Inputs:
@@ -10,9 +10,12 @@ Inputs:
   there is an efficient extractor that reads the adversary's tape and its own
   coins (so it may rerun the adversary), and fails after a real NIFS success
   with probability at most `error` of that adversary;
-- `Closed Admitted Efficient`: one reverse step of an admitted algorithm with
-  an efficient extractor is again admitted;
-- an admitted IVC adversary and a bound on its advertised iteration.
+- `Closed Admitted StageAdmitted Efficient`: an admitted stage (the reverse
+  extractor so far, as one algorithm) gives an admitted NIFS adversary, and one
+  reverse step of an admitted stage with an efficient extractor is again an
+  admitted stage;
+- an IVC adversary whose start stage is admitted, and a bound on its
+  advertised iteration.
 
 Outputs:
 - `reverseStages`: stage `j + 1` is stage `j` followed by the extractor that
@@ -21,8 +24,8 @@ Outputs:
   reverse extractor's returned-history mass plus, at each stage, the marked
   hash-collision mass of that stage and the Assumption 1 error of that stage.
 
-`Admitted` and `Efficient` are abstract. Their intended meaning is expected
-polynomial time; Lean states no running-time model. Assumption 1 is not a
+`Admitted`, `StageAdmitted` and `Efficient` are abstract. Their intended
+meaning is expected polynomial time; Lean states no running-time model. Assumption 1 is not a
 theorem here. `Lifecycle.RandomOracleKnowledge` proves a random-oracle
 analogue for one fold, which motivates the value of `error`; the step circuit
 recomputes the previous challenges with Poseidon2, so no random-oracle model
@@ -90,9 +93,12 @@ def ExtractionFails (adversary : NifsAdversary) (extractor : NifsExtractor adver
     ¬ CheckedWitnessExtraction.SourceReturned PiCCSStoredWitnessCheck.commit productionGlobalParams
       (PiCCSStoredWitnessCheck.statement (adversary.run draw.1).1) (extractor.run draw.1 draw.2)
 
-/-- HyperNova errata Assumption 1, as Definition 7 knowledge soundness of the
-non-interactive NIFS: every admitted adversary has an efficient extractor
-whose failure after a real success is at most `error` of that adversary. -/
+/-- HyperNova errata Assumption 1, in the form of Definition 7 knowledge
+soundness of the non-interactive NIFS: every admitted adversary has an
+efficient extractor whose failure after a real success is at most `error` of
+that adversary. This joint form implies Definition 7's difference form
+`Pr[success] - Pr[extraction] ≤ error`. The public parameters are the fixed
+production key and setup, not sampled, and `error` replaces `negl(λ)`. -/
 def Assumption1 (Admitted : NifsAdversary → Prop)
     (Efficient : (adversary : NifsAdversary) → NifsExtractor adversary → Prop)
     (error : NifsAdversary → ℝ) : Prop :=
@@ -174,40 +180,45 @@ theorem next_marginal (stage : Stage) (extractor : NifsExtractor stage.nifs) (co
 
 end Stage
 
-/-- One reverse step of an admitted algorithm with an efficient extractor is
-again admitted. For a constant number of steps this is the paper's expected
-polynomial-time composition. -/
-def Closed (Admitted : NifsAdversary → Prop)
-    (Efficient : (adversary : NifsAdversary) → NifsExtractor adversary → Prop) : Prop :=
-  ∀ (stage : Stage) (extractor : NifsExtractor stage.nifs),
-    Admitted stage.nifs → Efficient stage.nifs extractor → Admitted (stage.next extractor).nifs
+/-- The composition premise of Lemma 17. `StageAdmitted` is a class of whole
+stages: the reverse extractor so far, as one algorithm. An admitted stage gives
+an admitted NIFS adversary, which computes its current visit from the stage's
+output, and one reverse step of an admitted stage with an efficient extractor
+is again an admitted stage. For a constant number of steps and expected
+polynomial time this is the paper's composition. -/
+structure Closed (Admitted : NifsAdversary → Prop) (StageAdmitted : Stage → Prop)
+    (Efficient : (adversary : NifsAdversary) → NifsExtractor adversary → Prop) : Prop where
+  nifs : ∀ stage, StageAdmitted stage → Admitted stage.nifs
+  next : ∀ (stage : Stage) (extractor : NifsExtractor stage.nifs),
+    StageAdmitted stage → Efficient stage.nifs extractor → StageAdmitted (stage.next extractor)
 
-variable {Admitted : NifsAdversary → Prop}
+variable {Admitted : NifsAdversary → Prop} {StageAdmitted : Stage → Prop}
   {Efficient : (adversary : NifsAdversary) → NifsExtractor adversary → Prop}
   {error : NifsAdversary → ℝ}
-  (assumption : Assumption1 Admitted Efficient error) (closed : Closed Admitted Efficient)
-  (adversary : IvcAdversary) (admitted : Admitted (Stage.start adversary).nifs)
+  (assumption : Assumption1 Admitted Efficient error) (closed : Closed Admitted StageAdmitted Efficient)
+  (adversary : IvcAdversary) (admitted : StageAdmitted (Stage.start adversary))
 
 /-- HyperNova Lemma 17: stage `j + 1` runs stage `j` and then the extractor
 that Assumption 1 gives for stage `j`'s NIFS adversary. -/
-noncomputable def reverseStages : Nat → {stage : Stage // Admitted stage.nifs}
+noncomputable def reverseStages : Nat → {stage : Stage // StageAdmitted stage}
   | 0 => ⟨Stage.start adversary, admitted⟩
   | steps + 1 =>
       ⟨(reverseStages steps).1.next
-          (Classical.choose (assumption _ (reverseStages steps).2)),
-        closed _ _ (reverseStages steps).2
-          (Classical.choose_spec (assumption _ (reverseStages steps).2)).1⟩
+          (Classical.choose (assumption _ (closed.nifs _ (reverseStages steps).2))),
+        closed.next _ _ (reverseStages steps).2
+          (Classical.choose_spec (assumption _ (closed.nifs _ (reverseStages steps).2))).1⟩
 
 /-- The extractor that Assumption 1 gives for one stage. -/
 noncomputable def reverseExtractor (steps : Nat) :
     NifsExtractor (reverseStages assumption closed adversary admitted steps).1.nifs :=
-  Classical.choose (assumption _ (reverseStages assumption closed adversary admitted steps).2)
+  Classical.choose (assumption _ (closed.nifs _ (reverseStages assumption closed adversary admitted steps).2))
 
 theorem reverseExtractor_error (steps : Nat) :
     ((reverseExtractor assumption closed adversary admitted steps).law.toOuterMeasure
         {draw | ExtractionFails _ (reverseExtractor assumption closed adversary admitted steps) draw}).toReal ≤
       error (reverseStages assumption closed adversary admitted steps).1.nifs :=
-  (Classical.choose_spec (assumption _ (reverseStages assumption closed adversary admitted steps).2)).2
+  (Classical.choose_spec
+    (assumption _ (closed.nifs _ (reverseStages assumption closed adversary admitted steps).2))).2
 
 local notation "stages" => reverseStages assumption closed adversary admitted
 local notation "extractors" => reverseExtractor assumption closed adversary admitted

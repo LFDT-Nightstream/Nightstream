@@ -236,22 +236,24 @@ open scoped BigOperators ENNReal
 open HyperNovaVisitedSecurity (NifsAdversary NifsExtractor Assumption1 Closed IvcAdversary Stage
   reverseStages)
 
-/-- Exact final history criterion under HyperNova errata Assumption 1, as
-Definition 7 knowledge soundness of the NIFS (HyperNova Lemma 17): for every
-class of admitted adversaries with efficient extractors that Assumption 1
-covers and one reverse step preserves, and every admitted IVC adversary with
-a bounded advertised iteration, the accepted terminal mass is at most the
+/-- Exact final history criterion under HyperNova errata Assumption 1, in the
+form of Definition 7 knowledge soundness of the NIFS (HyperNova Lemma 17): for
+every class of admitted NIFS adversaries with efficient extractors that
+Assumption 1 covers, every class of admitted stages that gives admitted NIFS
+adversaries and that one reverse step preserves, and every IVC adversary whose
+start stage is admitted and whose advertised iteration is bounded, the
+accepted terminal mass is at most the
 reverse extractor's returned-history mass plus, at each stage, that stage's
 marked hash-collision mass and its Assumption 1 error. The random-oracle
 theorem `RandomOracleKnowledge.knowledge_error_le` motivates the value of
 `error`; it does not prove Assumption 1 for Poseidon2, and no Lean statement
 derives `error` from it. -/
 def HyperNovaLinearSecurity : Prop :=
-  ∀ (Admitted : NifsAdversary → Prop)
+  ∀ (Admitted : NifsAdversary → Prop) (StageAdmitted : Stage → Prop)
     (Efficient : (adversary : NifsAdversary) → NifsExtractor adversary → Prop)
     (error : NifsAdversary → ℝ) (assumption : Assumption1 Admitted Efficient error)
-    (closed : Closed Admitted Efficient) (adversary : IvcAdversary)
-    (admitted : Admitted (Stage.start adversary).nifs) (depth : Nat)
+    (closed : Closed Admitted StageAdmitted Efficient) (adversary : IvcAdversary)
+    (admitted : StageAdmitted (Stage.start adversary)) (depth : Nat)
     (_depthBound : ∀ tape ∈ adversary.tape.support, (adversary.output tape).1.iteration ≤ depth),
     (adversary.tape.toOuterMeasure {tape |
       PerApplicationTerminal.Holds Poseidon2HashChainV1Package.application
@@ -267,7 +269,7 @@ def HyperNovaLinearSecurity : Prop :=
 
 /-- The final selected history theorem discharges the registered criterion. -/
 theorem hyperNovaLinearSecurity : HyperNovaLinearSecurity :=
-  fun _ _ _ assumption closed adversary admitted depth depthBound =>
+  fun _ _ _ _ assumption closed adversary admitted depth depthBound =>
     HyperNovaVisitedSecurity.history_probability_bound assumption closed adversary admitted depth
       depthBound
 
@@ -276,11 +278,11 @@ theorem hyperNovaLinearSecurity : HyperNovaLinearSecurity :=
 /-- The selected terminal false-acceptance event and its loss under
 Assumption 1, on the IVC adversary's original mixed law (HyperNova Lemma 17). -/
 def HyperNovaTerminalFalseAcceptance : Prop :=
-  ∀ (Admitted : NifsAdversary → Prop)
+  ∀ (Admitted : NifsAdversary → Prop) (StageAdmitted : Stage → Prop)
     (Efficient : (adversary : NifsAdversary) → NifsExtractor adversary → Prop)
     (error : NifsAdversary → ℝ) (assumption : Assumption1 Admitted Efficient error)
-    (closed : Closed Admitted Efficient) (adversary : IvcAdversary)
-    (admitted : Admitted (Stage.start adversary).nifs) (depth : Nat)
+    (closed : Closed Admitted StageAdmitted Efficient) (adversary : IvcAdversary)
+    (admitted : StageAdmitted (Stage.start adversary)) (depth : Nat)
     (_depthBound : ∀ tape ∈ adversary.tape.support, (adversary.output tape).1.iteration ≤ depth),
     (adversary.tape.toOuterMeasure
         {tape | HyperNovaFalseAcceptance.FalseAcceptance (adversary.output tape)}).toReal ≤
@@ -292,7 +294,7 @@ def HyperNovaTerminalFalseAcceptance : Prop :=
 
 /-- The original mixed-law event bridge discharges the registered criterion. -/
 theorem hyperNovaTerminalFalseAcceptance : HyperNovaTerminalFalseAcceptance :=
-  fun _ _ _ assumption closed adversary admitted depth depthBound =>
+  fun _ _ _ _ assumption closed adversary admitted depth depthBound =>
     HyperNovaFalseAcceptance.probability_bound assumption closed adversary admitted depth depthBound
 
 #audit_axioms hyperNovaTerminalFalseAcceptance

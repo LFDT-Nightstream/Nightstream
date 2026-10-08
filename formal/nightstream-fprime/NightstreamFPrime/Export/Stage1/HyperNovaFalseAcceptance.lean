@@ -119,11 +119,11 @@ theorem false_acceptance_mass_le_first_failures
       rw [marked_hash_mass] at unionBound
       exact unionBound
 
-variable {Admitted : NifsAdversary → Prop}
+variable {Admitted : NifsAdversary → Prop} {StageAdmitted : Stage → Prop}
   {Efficient : (adversary : NifsAdversary) → NifsExtractor adversary → Prop}
   {error : NifsAdversary → ℝ}
-  (assumption : Assumption1 Admitted Efficient error) (closed : Closed Admitted Efficient)
-  (adversary : IvcAdversary) (admitted : Admitted (Stage.start adversary).nifs)
+  (assumption : Assumption1 Admitted Efficient error) (closed : Closed Admitted StageAdmitted Efficient)
+  (adversary : IvcAdversary) (admitted : StageAdmitted (Stage.start adversary))
 
 local notation "stages" => reverseStages assumption closed adversary admitted
 local notation "extractors" => reverseExtractor assumption closed adversary admitted

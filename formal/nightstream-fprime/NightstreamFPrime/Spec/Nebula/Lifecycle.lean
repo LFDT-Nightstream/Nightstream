@@ -141,12 +141,12 @@ noncomputable def finishStep (ctx : Context E Digest) (c : Carry E Digest) :
     Option (Carry E Digest) :=
   if c.idx = ctx.plan.n then closeSegment ctx c else some c
 
-/-- Spec §12: the input carry selects the arm. An open segment continues; a
-closed one reopens. -/
+/-- Spec §12: the input carry selects the arm. A closed carry (`idx = N`)
+reopens; any other carry continues. -/
 noncomputable def invoke (ctx : Context E Digest) (c : Carry E Digest)
     (inv : Invocation σ Digest) : Option (Carry E Digest) :=
   let opened : Option (Carry E Digest) :=
-    if c.idx < ctx.plan.n then some c else openSegment ctx c inv.proposal
+    if c.idx = ctx.plan.n then openSegment ctx c inv.proposal else some c
   (opened.bind fun c => stepSegment ctx c inv.records).bind (finishStep ctx)
 
 /-- The invocations of a run from carry `c`. -/
@@ -388,7 +388,7 @@ private theorem continueRun_cons_open {ctx : Context E Digest} {d : Carry E Dige
     continueRun ctx d (inv :: rest) =
       ((stepSegment ctx d inv.records).bind (finishStep ctx)).bind
         fun d' => continueRun ctx d' rest := by
-  simp only [continueRun, List.foldlM_cons, Option.bind_eq_bind, invoke, if_pos isOpen,
+  simp only [continueRun, List.foldlM_cons, Option.bind_eq_bind, invoke, if_neg isOpen.ne,
     Option.bind_some]
 
 private theorem continueRun_reopen {ctx : Context E Digest} {c c' : Carry E Digest}
@@ -397,13 +397,13 @@ private theorem continueRun_reopen {ctx : Context E Digest} {c c' : Carry E Dige
     continueRun ctx c (inv :: rest) = some c' ↔ c.segIdx < ctx.plan.sMax ∧
       (((stepSegment ctx (openedCarry ctx c inv.proposal) inv.records).bind
         (finishStep ctx)).bind fun d => continueRun ctx d rest) = some c' := by
-  have reopen : ¬ c.idx < ctx.plan.n := by omega
+  have reopen : c.idx = ctx.plan.n := closed
   have opens : openSegment ctx c inv.proposal =
       if c.segIdx < ctx.plan.sMax then some (openedCarry ctx c inv.proposal) else none := rfl
   by_cases fits : c.segIdx < ctx.plan.sMax
-  · simp only [continueRun, List.foldlM_cons, Option.bind_eq_bind, invoke, if_neg reopen, opens,
+  · simp only [continueRun, List.foldlM_cons, Option.bind_eq_bind, invoke, if_pos reopen, opens,
       fits, if_true, Option.bind_some, true_and]
-  · simp only [continueRun, List.foldlM_cons, Option.bind_eq_bind, invoke, if_neg reopen, opens,
+  · simp only [continueRun, List.foldlM_cons, Option.bind_eq_bind, invoke, if_pos reopen, opens,
       fits, if_false, Option.bind_none, false_and, reduceCtorEq]
 
 /-- An opened segment with `rest.length + 1` steps left runs its steps and

@@ -593,8 +593,10 @@ invocation selects exactly one memory arm from its authenticated input carry
 
 | Arm | Selected when | Actions |
 |---|---|---|
-| continue | `c.idx < N` | `step`; `close` if `idx = N` |
+| continue | `c.idx ≠ N` | `step`; `close` if `idx = N` |
 | reopen | `c.idx = N` | `open`; `step`; `close` if `idx = N` |
+
+Between invocations `1 ≤ idx ≤ N` (§11.1), so `c.idx ≠ N` means `c.idx < N`.
 
 Invocation `A[0]` is the Stage 1 base branch (no fold). Its input carry is the
 start carry of §11.1, which is closed, so it reopens. Every later invocation

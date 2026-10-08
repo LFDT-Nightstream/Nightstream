@@ -37,6 +37,9 @@ def opWidth (p : Plan) : ℕ := 3 + p.μ + 64 + p.wTs
 /-- Bits of one scan slot (spec §6.2). -/
 def scanWidth (p : Plan) : ℕ := 32 + p.wTs
 
+/-- `W_seg` of spec §4.2: enough bits for every value below `S_max`. -/
+def segWidth (p : Plan) : ℕ := p.sMax.log2 + 1
+
 /-- Upper bound `m_mem` on the size of each side of one segment's check. -/
 def maxTuples (p : Plan) : ℕ := p.cells + p.n * p.bOps
 

@@ -34,9 +34,9 @@ def pilotPrivateColumnCount : Nat := 5141486
 /-- Caller-supplied pilot private inputs precede all generated witnesses. -/
 def pilotInputPrivateColumnCount : Nat := 55638
 
-/-- Caller-supplied PiCCS inputs: the 4,590-word prior child region, then the
+/-- Caller-supplied PiCCS inputs: the 4,320-word prior child region, then the
 10,872 proof-input words. -/
-def proofInputColumnCount : Nat := 15462
+def proofInputColumnCount : Nat := 15192
 
 /-- Verifier-owned context words that follow the pilot source interval. -/
 def expectedContextColumnCount : Nat := 4
@@ -45,10 +45,10 @@ def expectedContextColumnCount : Nat := 4
 def proofInputSourceStart : Nat := 5141764
 
 /-- Source boundary between proof inputs and PiCCS local witnesses. -/
-def piCcsPhaseOffset : Nat := 5157226
+def piCcsPhaseOffset : Nat := 5156956
 
 /-- Target boundary after proof inputs and shifted pilot witnesses. -/
-def piCcsLocalStart : Nat := 5156948
+def piCcsLocalStart : Nat := 5156678
 
 /-- All source columns before Spartan inserts its constant column. -/
 def SourceColumnCount : Nat := RunningTransitionLayout.physicalEnd

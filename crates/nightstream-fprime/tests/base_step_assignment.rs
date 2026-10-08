@@ -23,11 +23,11 @@ mod conformance_support;
 mod logical_reference;
 
 // Exact current package and BaseStepFixture schema dimensions.
-const PRIVATE_INPUTS: usize = 103_072;
+const PRIVATE_INPUTS: usize = 102_802;
 const PUBLIC_INPUTS: usize = 278;
 const STATE_WORDS: usize = 27_819;
-const PI_CCS_INPUT_END: usize = 71_100;
-const CHILD_PUBLIC_START: usize = 98_748;
+const PI_CCS_INPUT_END: usize = 70_830;
+const CHILD_PUBLIC_START: usize = 98_478;
 const DOMAIN_WORDS: usize = 12;
 /// `vk, i, z0, zi` close the state preimage.
 const TAIL_START: usize = STATE_WORDS - 13;
@@ -475,6 +475,8 @@ pub fn check_caller_assignment(
 
 /// Mutate child caller columns only after a valid physical witness exists.
 /// The raw evaluator sees each changed assignment without witness execution.
+/// The prior-child digit case changes the first role-19 word: the state
+/// binding must reject a digit that no longer recomposes the hashed parent.
 pub fn check_caller_mutations(
     package: LoadedPerApplicationPackage,
     sealed: Vec<u8>,
@@ -509,6 +511,9 @@ pub fn check_caller_mutations(
         if matches!(role, 3 | 15 | 16 | 18) {
             continue;
         }
+        if role == 19 {
+            columns.push(("prior child digit", start));
+        }
         for &(label, caller) in &fields {
             if (cursor..cursor + length).contains(&caller) {
                 columns.push((label, start + caller - cursor));
@@ -519,8 +524,8 @@ pub fn check_caller_mutations(
     assert_eq!(cursor, private.len());
     assert_eq!(
         columns.len(),
-        fields.len(),
-        "one physical owner per selected child field"
+        fields.len() + 1,
+        "one physical owner per selected child field and one prior-child digit"
     );
     let mut raw = physical.private_values().to_vec();
     for (label, column) in columns {
@@ -532,7 +537,10 @@ pub fn check_caller_mutations(
         raw[column] = original;
         println!("independent_child_assignment_mutation={label} column={column} rejected_row={row}");
     }
-    println!("independent_child_assignment_mutations=passed cases={}", fields.len());
+    println!(
+        "independent_child_assignment_mutations=passed cases={}",
+        fields.len() + 1
+    );
 }
 
 fn check_assignment(package: LoadedPerApplicationPackage, sealed: Vec<u8>, fixture: Fixture, expanded: Vec<u8>) {

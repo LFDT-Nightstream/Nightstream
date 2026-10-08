@@ -83,6 +83,7 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.RoundTranscript
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.StateBinding
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption
+import NightstreamFPrime.Lifecycle.PiCCS.v1_1.RunningWords
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementBinding
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.VerifierView
@@ -282,8 +283,8 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.RoundTranscript.program_recipes_length
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.StateBinding.SpecHolds.contextPreserved
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.StateBinding.flatConstraints_opsAt
-#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.serializeRunningExpr_length
-#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.serializeRunningExpr_eval
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.RunningWords.serializeRunningExpr_length
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.RunningWords.serializeRunningExpr_eval
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.assertionCount_eq
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.main_ops
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.opsAt_localLength

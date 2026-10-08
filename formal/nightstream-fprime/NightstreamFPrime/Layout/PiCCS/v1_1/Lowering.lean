@@ -143,7 +143,7 @@ theorem logicalColumnCount_eq_of_degreeBound_eq_eight
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
     (offset : Nat) (degreeEq : degreeBound = 8) :
-    logicalColumnCount relation interface offset = offset + 1258207 := by
+    logicalColumnCount relation interface offset = offset + 1258477 := by
   unfold logicalColumnCount
   rw [Formal.privateCount_eq_of_degreeBound_eq_eight degreeBound degreeEq]
 

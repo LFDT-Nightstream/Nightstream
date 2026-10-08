@@ -6,9 +6,10 @@ Obligation: Show that the honest protocol environment presents the exact prior
 running instance to PiCCS.
 
 The prior block supplies the running fields in place. The child region holds
-the canonical child digits and the honest sign bits, so every prior child-split
-row holds, and the state decoder returns the prior running instance. This
-module owns value identities only; it adds no row or column.
+the canonical child digits, so every prior lane is a common-sign digit vector
+of its parent and the state decoder returns the prior running instance. The
+statement-binding leaf fills its own sign columns. This module owns value
+identities only; it adds no row or column.
 -/
 
 namespace NightstreamFPrime.Layout.Stage1.PiCCSPriorRunning
@@ -81,30 +82,7 @@ theorem protocolEnv_priorDigit (source : Fin productionShape.runningCount)
     unfold runningPublicStart runningPublicWords
     omega]
   rw [eval_childWord _ _ (by unfold priorChildrenWords; omega)]
-  change (serializeChildPublicInputs (publicFits := publicFits)
-      (prior.running functionIndex) ++ _).getD _ 0 = _
-  rw [List.getD_append _ _ _ _ (by
-    rw [serializeChildPublicInputs_length]
-    omega)]
   exact serializeChildPublicInputs_getD _ source column
-
-/-- Each loaded region sign is the honest sign bit of the prior parent. -/
-theorem protocolEnv_priorSign
-    (column : Fin (FullShape logicalWidth publicFits).publicWidth) :
-    protocolEnv prior priorPublic outputPreimage digest priorFixed outputFixed
-        digestFixed proofValues (priorSignStart + column.val) =
-      signWord (parentPublic (prior.running functionIndex) column) := by
-  have columnBound : column.val < 270 := column.isLt
-  unfold protocolEnv
-  rw [show priorSignStart + column.val = priorChildrenStart + (4320 + column.val) by
-    unfold priorSignStart
-    omega]
-  rw [eval_childWord _ _ (by unfold priorChildrenWords; omega)]
-  change (serializeChildPublicInputs (publicFits := publicFits)
-      (prior.running functionIndex) ++ _).getD _ 0 = _
-  rw [List.getD_append_right _ _ _ _ (by rw [serializeChildPublicInputs_length]; omega),
-    serializeChildPublicInputs_length, Nat.add_sub_cancel_left]
-  exact finRange_map_getD _ column
 
 /-- The honest region satisfies every prior child-split row. -/
 theorem childrenSplit_protocolEnv
@@ -116,16 +94,6 @@ theorem childrenSplit_protocolEnv
       (protocolEnv prior priorPublic outputPreimage digest priorFixed outputFixed
         digestFixed proofValues) := by
   let running := prior.running functionIndex
-  have signValue (word : Fin packedParentWords) (lane : Fin 3) :
-      StateBinding.priorSignValue
-          (Formal.statementBindingInterface
-            (Formal.atOffset (PiCCSInputs.interface logicalWidth publicFits) phaseOffset)).state
-          phaseOffset
-          (protocolEnv prior priorPublic outputPreimage digest priorFixed outputFixed
-            digestFixed proofValues) word lane =
-        signWord (parentPublic running (packedColumn word lane)) :=
-    protocolEnv_priorSign prior priorPublic outputPreimage digest priorFixed outputFixed
-      digestFixed proofValues (packedColumn word lane)
   have digitsValue (word : Fin packedParentWords) (lane : Fin 3) :
       StateBinding.priorDigits
           (Formal.statementBindingInterface
@@ -136,27 +104,14 @@ theorem childrenSplit_protocolEnv
         Lifecycle.childDigits running (packedColumn word lane) :=
     funext fun child => protocolEnv_priorDigit prior priorPublic outputPreimage digest
       priorFixed outputFixed digestFixed proofValues _ (packedColumn word lane)
-  refine ⟨?_, ?_, ?_⟩
+  refine ⟨?_, ?_⟩
   · intro word lane
-    rw [signValue]
-    unfold signWord
-    split_ifs
-    · exact Or.inl rfl
-    · exact Or.inr rfl
-  · intro word lane child
-    rw [digitsValue, signValue, canonical.childDigits_eq]
+    rw [digitsValue, canonical.childDigits_eq]
     have bounded : centeredMagnitude (parentPublic running (packedColumn word lane)) <
         Radix.combinedBound := by
       rw [Radix.production_parameters.2.2]
       simpa using canonical.parentBounded (packedColumn word lane)
-    have honest := (Radix.UniformSignedDigits.honest_complete _ bounded).constraint.2 child
-    have signEq : Radix.UniformSignedDigits.honestSign
-        (parentPublic running (packedColumn word lane)) =
-          1 - 2 * signWord (parentPublic running (packedColumn word lane)) := by
-      unfold Radix.UniformSignedDigits.honestSign signWord
-      split_ifs <;> decide
-    rw [← signEq]
-    exact honest
+    exact ⟨_, (Radix.UniformSignedDigits.honest_complete _ bounded).constraint⟩
   · intro word
     rw [digitsValue, digitsValue, digitsValue]
     change protocolEnv prior priorPublic outputPreimage digest priorFixed outputFixed

@@ -4,8 +4,9 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Support
 Owns variable-support propagation for the PiCCS statement-binding leaf.
 
 The assertions read fixed prior/output state words, the four
-verifier-context words, the packed prior words, and the prior child digits and
-signs. This module changes no circuit and selects no layout.
+verifier-context words, the packed prior words, the prior child digits, and the
+leaf's own hinted sign columns. This module changes no circuit and selects no
+layout.
 -/
 
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal
@@ -55,7 +56,8 @@ theorem statementBindingConstraints_varsSatisfy
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (parentOffset childOffset : Nat) (allowed : Nat → Prop)
-    (support : ExternalInputsSupported interface parentOffset allowed) :
+    (support : ExternalInputsSupported interface parentOffset allowed)
+    (signs : ∀ word lane, allowed (childOffset + (StateBinding.signIndex word lane).val)) :
     ∀ expression ∈ flatConstraints (Circuit.ops
         (statementBindingCircuit (atOffset interface parentOffset)).main
           childOffset),
@@ -76,8 +78,7 @@ theorem statementBindingConstraints_varsSatisfy
       simpa [statementBindingInterface, atOffset] using
         support.runningPublicInput
           (Fin.cast runningCount_eq_radixChildCount.symm child) (packedColumn word lane)
-    · intro word lane
-      simpa [statementBindingInterface, atOffset] using support.priorSign word lane
+    · exact signs
   rw [StateBinding.stateWordAssertions, List.mem_append] at member
   rcases member with priorMember | remainingMember
   · apply stateAssertions_varsSatisfy _ allowed _ expression priorMember

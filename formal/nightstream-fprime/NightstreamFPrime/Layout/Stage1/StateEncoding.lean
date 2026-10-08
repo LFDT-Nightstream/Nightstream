@@ -295,18 +295,6 @@ private theorem ofNat_val (value : F) : Poseidon2.ofNat value.val = value := by
   apply Fin.ext
   simp [Poseidon2.ofNat, Nat.mod_eq_of_lt value.isLt]
 
-private theorem ofNat_add (left right : Nat) :
-    Poseidon2.ofNat left + Poseidon2.ofNat right =
-      Poseidon2.ofNat (left + right) := by
-  apply Fin.ext
-  simp [Poseidon2.ofNat, Fin.val_add, Nat.add_mod]
-
-private theorem ofNat_mul (left right : Nat) :
-    Poseidon2.ofNat left * Poseidon2.ofNat right =
-      Poseidon2.ofNat (left * right) := by
-  apply Fin.ext
-  simp [Poseidon2.ofNat, Fin.val_mul, Nat.mul_mod]
-
 /-- A coordinate of centered magnitude below `2^16`, shifted by `2^16`, is a
 natural number below `2^17`. -/
 private theorem shifted_val_lt {value : F}
@@ -537,20 +525,12 @@ theorem serializePreimage_injective
   rcases List.append_inj afterDomain
       (by simp only [serializeRunning_length]) with
     ⟨runningEqual, tailEqual⟩
-  unfold serializeRunning at runningEqual
-  rcases List.append_inj runningEqual
-      (by simp only [serializeRunningFields_length]) with
-    ⟨fieldsEqual, parentEqual⟩
-  rcases serializeRunningFields_injective fieldsEqual with
-    ⟨pointEqual, commitmentsEqual, evaluationsEqual⟩
   rcases serializeTail_injective leftFixed rightFixed tailEqual with
     ⟨keyEqual, iterationWord, z0Equal, currentEqual⟩
   exact preimage_ext keyEqual
     (natWord_injective_below_modulus leftIteration rightIteration iterationWord)
     z0Equal currentEqual
-    (running_ext pointEqual commitmentsEqual
-      (serializeParentPublic_injective leftCanonical rightCanonical parentEqual)
-      evaluationsEqual)
+    (serializeRunning_injective leftCanonical rightCanonical runningEqual)
     (by rw [leftPc, rightPc])
 
 /-- No canonical preimage is another canonical preimage followed by a

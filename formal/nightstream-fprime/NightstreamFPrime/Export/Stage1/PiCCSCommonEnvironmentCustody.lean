@@ -46,9 +46,14 @@ private theorem source_beforeSampler {source : Nat}
         norm_num [PiCCSInputs.expectedContextWords])
     · exact Nat.lt_of_lt_of_le proofRange.2 (by
         rw [show PiRLCStarts.samplerLogicalStart = 6418389 by rfl,
-          PiCCSOrdinarySourceSupport.proofInputCount_eq, PiCCSInputs.priorChildrenStart_eq]
+          PiCCSOrdinarySourceSupport.callerInputCount_eq, PiCCSInputs.priorChildrenStart_eq]
         norm_num)
-  · rcases logicalRange with transcript | ordinary
+  · rcases logicalRange with sign | transcript | ordinary
+    · unfold PiCCSOrdinarySourceSupport.StatementSign PiCCSOrdinarySourceSupport.InRange
+        PiCCSStarts.statementBindingLogicalStart at sign
+      rw [show PiRLCStarts.samplerLogicalStart = 6418389 by rfl]
+      rw [PiCCSInputs.phaseOffset_eq] at sign
+      omega
     · rcases transcript with ⟨invocation, lane, rfl⟩
       have invocationBound : invocation.val < 355 := by
         simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
@@ -56,7 +61,7 @@ private theorem source_beforeSampler {source : Nat}
       have laneBound : lane.val < 16 := by
         simpa only [Spec.Poseidon2.width] using lane.isLt
       rw [show PiRLCStarts.samplerLogicalStart = 6418389 by rfl,
-        PiCCSInputs.phaseOffset_eq]
+        PiCCSStarts.statementWitnessStart_eq]
       omega
     · unfold PiCCSOrdinarySourceSupport.OrdinaryLogical
         PiCCSOrdinarySourceSupport.InRange at ordinary

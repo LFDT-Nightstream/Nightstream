@@ -162,16 +162,16 @@ def proofLogicalCount : Nat :=
 def transcriptOutputSource (index : Fin transcriptOutputCount) : Nat :=
   let decoded : Fin transcriptInvocationCount × Fin Spec.Poseidon2.width :=
     Fin.decodeProd index
-  PiCCSInputs.phaseOffset + decoded.1.val * 1096 + 1080 + decoded.2.val
+  PiCCSStarts.statementWitnessStart + decoded.1.val * 1096 + 1080 + decoded.2.val
 
 @[simp] theorem transcriptOutputSource_encodeProd
     (invocation : Fin transcriptInvocationCount)
     (lane : Fin Spec.Poseidon2.width) :
     transcriptOutputSource (Fin.encodeProd (invocation, lane)) =
-      PiCCSInputs.phaseOffset + invocation.val * 1096 + 1080 + lane.val := by
+      PiCCSStarts.statementWitnessStart + invocation.val * 1096 + 1080 + lane.val := by
   let decoded : Fin transcriptInvocationCount × Fin Spec.Poseidon2.width :=
     Fin.decodeProd (Fin.encodeProd (invocation, lane))
-  change PiCCSInputs.phaseOffset + decoded.1.val * 1096 + 1080 + decoded.2.val = _
+  change PiCCSStarts.statementWitnessStart + decoded.1.val * 1096 + 1080 + decoded.2.val = _
   have decodedEq : decoded = (invocation, lane) := by
     exact Fin.decodeProd_encodeProd (invocation, lane)
   rw [decodedEq]
@@ -203,13 +203,19 @@ theorem proofLogicalSource_support (index : Fin proofLogicalCount) :
   unfold proofLogicalSource
   split
   · rename_i proof
-    apply PiCCSOrdinarySourceSupport.external_source
-    apply PiCCSOrdinarySourceSupport.external_proof
-    unfold PiCCSOrdinarySourceSupport.InRange
     have proofBound : index.val < 15462 := by
       simpa only [proofInputCount_eq] using proof
-    rw [PiCCSOrdinarySourceSupport.proofInputCount_eq]
-    constructor <;> omega
+    by_cases caller : index.val < 15192
+    · apply PiCCSOrdinarySourceSupport.external_source
+      apply PiCCSOrdinarySourceSupport.external_proof
+      unfold PiCCSOrdinarySourceSupport.InRange
+      rw [PiCCSOrdinarySourceSupport.callerInputCount_eq]
+      constructor <;> omega
+    · apply PiCCSOrdinarySourceSupport.statement_sign_source
+      unfold PiCCSOrdinarySourceSupport.StatementSign PiCCSOrdinarySourceSupport.InRange
+        PiCCSStarts.statementBindingLogicalStart
+      rw [PiCCSInputs.phaseOffset_eq, PiCCSInputs.priorChildrenStart_eq]
+      constructor <;> omega
   · split
     · exact transcriptOutputSource_support _
     · rename_i notProof notTranscript

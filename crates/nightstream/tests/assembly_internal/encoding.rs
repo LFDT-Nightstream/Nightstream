@@ -166,7 +166,7 @@ fn assembled_fixed_source_reaches_the_compiler_node_bound() {
         .unwrap();
     let maximum_fields = (key_width - fixed_width) / 41;
     assert_eq!(maximum_fields, 5_105_973);
-    for (witness, has_local, expected_nodes) in [(maximum_fields - 1, true, 17_821_173), (0, false, 12_715_193)] {
+    for (witness, has_local, expected_nodes) in [(maximum_fields - 1, true, 17_866_025), (0, false, 12_760_045)] {
         let mut builder = ApplicationBuilder::new(witness).unwrap();
         if has_local {
             builder.affine(Affine::constant(Goldilocks::ZERO)).unwrap();
@@ -198,6 +198,10 @@ fn assembled_fixed_source_reaches_the_compiler_node_bound() {
             "W={witness}, L={}",
             usize::from(has_local)
         );
+        if has_local {
+            // The prepared-package decoder must admit exactly this envelope.
+            assert_eq!(nodes(&fixed), nightstream_fprime::PREPARED_FIXED_SOURCE_NODE_LIMIT);
+        }
     }
 }
 

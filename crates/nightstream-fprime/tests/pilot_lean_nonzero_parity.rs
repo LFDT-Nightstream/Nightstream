@@ -142,21 +142,26 @@ fn lean_result(raw: RawResult) -> PilotResult {
 
 /// `Lifecycle.XOut.stateDomainChunk`: the tag, eight little-endian bytes per
 /// word, then zero words up to one sponge rate.
-fn domain_chunk() -> Vec<u64> {
-    let tag = b"HyperNova/NIVC/state/v2";
-    (0..DOMAIN_WORDS)
-        .map(|chunk| {
-            let bytes = tag.get(8 * chunk..).unwrap_or_default();
-            let mut word = [0; 8];
-            word[..bytes.len().min(8)].copy_from_slice(&bytes[..bytes.len().min(8)]);
-            u64::from_le_bytes(word)
-        })
-        .collect()
-}
+/// Lean `stateDomainChunk`: "HyperNova/NIVC/state/v2" as zero-padded
+/// little-endian words, written out here as an independent check.
+const DOMAIN_CHUNK: [u64; DOMAIN_WORDS] = [
+    0x766f_4e72_6570_7948,
+    0x732f_4356_494e_2f61,
+    0x0032_762f_6574_6174,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+];
 
 fn fixture_mutation_indices(words: &[u64]) -> Vec<(String, usize)> {
     assert_eq!(words.len(), STATE_PREIMAGE_WORDS);
-    assert_eq!(&words[..DOMAIN_WORDS], domain_chunk());
+    assert_eq!(words[..DOMAIN_WORDS], DOMAIN_CHUNK);
 
     let mut indices: Vec<(String, usize)> = (0..DOMAIN_WORDS)
         .map(|index| (format!("domain chunk word {index}"), index))

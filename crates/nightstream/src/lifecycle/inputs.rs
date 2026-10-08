@@ -25,6 +25,17 @@ use crate::folding::{CcsClaim, CeClaim};
 /// words up to one full sponge rate.
 const STATE_DOMAIN_TAG: &[u8; 23] = b"HyperNova/NIVC/state/v2";
 const STATE_DOMAIN_WORDS: usize = 12;
+/// Lean `stateDomainChunk`: the tag bytes, little-endian, zero-padded to one
+/// full sponge rate.
+const STATE_DOMAIN_CHUNK: [u64; STATE_DOMAIN_WORDS] = {
+    let mut words = [0; STATE_DOMAIN_WORDS];
+    let mut index = 0;
+    while index < STATE_DOMAIN_TAG.len() {
+        words[index / 8] |= (STATE_DOMAIN_TAG[index] as u64) << (8 * (index % 8));
+        index += 1;
+    }
+    words
+};
 const COMMITMENT_WIDTH: usize = PI_CCS_V1_1_FRESH_COMMITMENT_WORDS / PI_CCS_V1_1_COEFFICIENT_COUNT;
 /// Three parent coordinates share one state word in radix `2^17`.
 const PACK_RADIX: u64 = 1 << 17;
@@ -34,6 +45,8 @@ const PUBLIC_COLUMNS: usize = PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS / PI_CCS_V1_1
 pub enum PiCcsV1_1PackageBridgeError {
     #[error("PiCCS v1_1 package bridge: {0}")]
     Shape(&'static str),
+    #[error("PiCCS v1_1 package bridge: running children are not the canonical split of their parent")]
+    NonCanonicalChildren,
     #[error(transparent)]
     Package(#[from] PackageError),
 }
@@ -146,7 +159,9 @@ impl PiCcsV1_1ProofInputs {
 /// Serialize the exact Lean `HashPreimage` for the fixed v1_1 profile: the
 /// domain chunk, the running commitments, `Eval_K`, `Eval_A` and point, the
 /// packed parent public input, then `vk, i, z0, zi`. The children's public
-/// inputs enter only through their parent.
+/// inputs enter only through their parent, so this rejects any running
+/// instance whose children are not the canonical split of that parent
+/// (SuperNeo Π_DEC verifier step 2); a second split cannot reuse the hash.
 pub fn serialize_pi_ccs_v1_1_state_preimage(
     verifier_context_digest: [F; 4],
     iteration: u64,
@@ -157,14 +172,10 @@ pub fn serialize_pi_ccs_v1_1_state_preimage(
     if iteration >= F::ORDER_U64 {
         return Err(PiCcsV1_1PackageBridgeError::Shape("iteration is not canonical"));
     }
-    let point = checked_running_point(running)?;
+    let parent = canonical_parent(running)?;
+    let point = &running[0].r;
     let mut words = Vec::with_capacity(PI_CCS_V1_1_STATE_PREIMAGE_WORDS);
-    for chunk in 0..STATE_DOMAIN_WORDS {
-        let bytes = STATE_DOMAIN_TAG.get(8 * chunk..).unwrap_or_default();
-        let mut word = [0; 8];
-        word[..bytes.len().min(8)].copy_from_slice(&bytes[..bytes.len().min(8)]);
-        words.push(u64::from_le_bytes(word));
-    }
+    words.extend_from_slice(&STATE_DOMAIN_CHUNK);
     for claim in running {
         if claim.c.d != PI_CCS_V1_1_COEFFICIENT_COUNT
             || claim.c.kappa != COMMITMENT_WIDTH
@@ -194,7 +205,6 @@ pub fn serialize_pi_ccs_v1_1_state_preimage(
     for value in point {
         words.extend_from_slice(&extension_words(*value));
     }
-    let parent = parent_public_input(running)?;
     let radix = F::from_u64(PACK_RADIX);
     for lanes in parent.chunks_exact(3) {
         words.push((lanes[0] + radix * lanes[1] + radix * radix * lanes[2]).as_canonical_u64());
@@ -209,29 +219,20 @@ pub fn serialize_pi_ccs_v1_1_state_preimage(
     Ok(words)
 }
 
-/// The PiCCS prior child region: the sixteen child public inputs, child-major,
-/// then one sign bit per parent coordinate, one when the parent is negative.
-/// The children must be the canonical split of their parent.
+/// The PiCCS prior child region: the sixteen child public inputs, child-major.
+/// The children must be the canonical split of their parent; the circuit
+/// derives each lane's sign from its own digits.
 pub fn pi_ccs_v1_1_prior_children(running: &[CeClaim]) -> Result<Vec<u64>, PiCcsV1_1PackageBridgeError> {
-    let parent = canonical_parent(running)?;
+    canonical_parent(running)?;
     let mut words = Vec::with_capacity(PI_CCS_V1_1_PRIOR_CHILDREN_WORDS);
     for claim in running {
         words.extend((0..PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS).map(|column| public_input(claim, column)));
     }
-    words.extend(
-        parent
-            .iter()
-            .map(|value| u64::from(value.as_canonical_u64() > F::ORDER_U64 / 2)),
-    );
     Ok(words)
 }
 
-/// The state hash binds only the parent public input, so every running child
-/// must be its canonical split (SuperNeo Π_DEC verifier step 2).
-pub fn check_pi_ccs_v1_1_canonical_children(running: &[CeClaim]) -> Result<(), PiCcsV1_1PackageBridgeError> {
-    canonical_parent(running).map(|_| ())
-}
-
+/// The parent public input of a running instance with the shared point,
+/// after checking that its children are the parent's canonical split.
 fn canonical_parent(running: &[CeClaim]) -> Result<Vec<F>, PiCcsV1_1PackageBridgeError> {
     checked_running_point(running)?;
     let parent = parent_public_input(running)?;
@@ -242,16 +243,16 @@ fn canonical_parent(running: &[CeClaim]) -> Result<Vec<F>, PiCcsV1_1PackageBridg
             column / PI_CCS_V1_1_COEFFICIENT_COUNT,
         )] = *value;
     }
-    let split = split_b_matrix_k(&matrix, running.len(), 2)
-        .map_err(|_| PiCcsV1_1PackageBridgeError::Shape("running parent public input exceeds the split bound"))?;
+    // Canonical digits always recompose below the split bound, so a parent
+    // past the bound also means non-canonical children.
+    let split =
+        split_b_matrix_k(&matrix, running.len(), 2).map_err(|_| PiCcsV1_1PackageBridgeError::NonCanonicalChildren)?;
     if split
         .iter()
         .zip(running)
         .any(|(digits, claim)| *digits != claim.X)
     {
-        return Err(PiCcsV1_1PackageBridgeError::Shape(
-            "running children are not the canonical split of their parent",
-        ));
+        return Err(PiCcsV1_1PackageBridgeError::NonCanonicalChildren);
     }
     Ok(parent)
 }

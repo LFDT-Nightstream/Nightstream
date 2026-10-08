@@ -33,7 +33,7 @@ pub(super) mod logical_reference;
 #[path = "../support/pi_ccs_parent.rs"]
 mod pi_ccs_parent;
 
-const PI_CCS_CALLER_INPUT_COUNT: usize = 71_100;
+const PI_CCS_CALLER_INPUT_COUNT: usize = 70_830;
 const PI_CCS_ROW_START: usize = 14_623_730;
 const PI_CCS_ROW_END: usize = 19_936_967;
 // Stage1.sourceToSpartan maps the source boundary 20_064_823 here.

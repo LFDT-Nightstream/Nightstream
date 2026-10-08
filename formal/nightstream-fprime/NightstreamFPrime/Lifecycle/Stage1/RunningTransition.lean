@@ -1,5 +1,5 @@
 import NightstreamFPrime.Circuit.StraightLine
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption
+import NightstreamFPrime.Lifecycle.PiCCS.v1_1.RunningWords
 import NightstreamFPrime.Spec.GoldilocksPrime
 
 /-!
@@ -54,7 +54,7 @@ def runningWord {logicalWidth : Nat}
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (running : StatementAbsorption.RunningExpr logicalWidth publicFits)
     (index : WordIndex) : Expr :=
-  (StatementAbsorption.serializeRunningExpr running).getD index.val 0
+  (RunningWords.serializeRunningExpr running).getD index.val 0
 
 def defaultWord {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -210,14 +210,8 @@ def muxConstraintsFast {logicalWidth : Nat}
     (serializeRunning (logicalWidth := logicalWidth) (publicFits := publicFits)
       (defaultRunning (logicalWidth := logicalWidth)
         (publicFits := publicFits)))
-    (StatementAbsorption.serializeRunningExpr (interface.recursive offset))
+    (RunningWords.serializeRunningExpr (interface.recursive offset))
     (List.ofFn (interface.output offset))
-
-private theorem ofFn_getD {Alpha : Type} {count : Nat} (values : Fin count → Alpha)
-    (fallback : Alpha) (index : Fin count) :
-    (List.ofFn values).getD index.val fallback = values index := by
-  rw [List.getD_eq_getElem _ _ (by rw [List.length_ofFn]; exact index.isLt),
-    List.getElem_ofFn]
 
 theorem muxConstraintsFast_eq_muxConstraints {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -228,11 +222,12 @@ theorem muxConstraintsFast_eq_muxConstraints {logicalWidth : Nat}
   rw [zipWith3_eq_ofFn_getD _ (0 : F) (0 : Expr) (0 : Expr)
     exactWordCount]
   · refine congrArg List.ofFn (funext fun index => ?_)
-    rw [ofFn_getD]
+    rw [List.getD_eq_getElem _ _ (by rw [List.length_ofFn]; exact index.isLt),
+      List.getElem_ofFn]
     rfl
   · rw [serializeRunning_length]
     rfl
-  · rw [StatementAbsorption.serializeRunningExpr_length]
+  · rw [RunningWords.serializeRunningExpr_length]
     rfl
   · exact List.length_ofFn
 
@@ -340,17 +335,17 @@ theorem serializeRunningExpr_varsBelow {logicalWidth : Nat}
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (running : StatementAbsorption.RunningExpr logicalWidth publicFits)
     (bound : Nat) (below : RunningBelow running bound) :
-    ∀ expression ∈ StatementAbsorption.serializeRunningExpr running,
+    ∀ expression ∈ RunningWords.serializeRunningExpr running,
       expression.VarsBelow bound := by
   intro expression member
-  rcases StatementAbsorption.serializeRunningExpr_mem member with
+  rcases RunningWords.serializeRunningExpr_mem member with
     ⟨source, row, coefficient, rfl⟩ | ⟨source, coefficient, evalK⟩ |
       ⟨source, matrix, coefficient, evalA⟩ | ⟨coordinate, point⟩ | ⟨word, rfl⟩
   · exact below.commitment source row coefficient
   · exact serializeKExpr_varsBelow _ bound (below.eval_K source coefficient) _ evalK
   · exact serializeKExpr_varsBelow _ bound (below.eval_A source matrix coefficient) _ evalA
   · exact serializeKExpr_varsBelow _ bound (below.point coordinate) _ point
-  · exact StatementAbsorption.packWordExpr_parent_closed
+  · exact RunningWords.packWordExpr_parent_closed
       (fun expression => expression.VarsBelow bound) (fun _ => trivial)
       (fun left right => Expr.VarsBelow.add left right bound)
       (fun weight value valueBelow =>
@@ -364,8 +359,8 @@ theorem runningWord_varsBelow {logicalWidth : Nat}
     (bound : Nat) (below : RunningBelow running bound) (index : WordIndex) :
     (runningWord running index).VarsBelow bound := by
   have indexBound : index.val <
-      (StatementAbsorption.serializeRunningExpr running).length := by
-    rw [StatementAbsorption.serializeRunningExpr_length]
+      (RunningWords.serializeRunningExpr running).length := by
+    rw [RunningWords.serializeRunningExpr_length]
     exact index.isLt
   rw [runningWord, List.getD_eq_get _ _ ⟨index.val, indexBound⟩]
   exact serializeRunningExpr_varsBelow running bound below _
@@ -1008,13 +1003,13 @@ theorem runningWord_eval {logicalWidth : Nat}
     (runningWord running index).eval env =
       (serializeRunning (publicFits := publicFits)
         (StatementAbsorption.evalRunning running env)).getD index.val 0 := by
-  rw [← StatementAbsorption.serializeRunningExpr_eval running env]
-  change ((StatementAbsorption.serializeRunningExpr running).getD
+  rw [← RunningWords.serializeRunningExpr_eval running env]
+  change ((RunningWords.serializeRunningExpr running).getD
       index.val 0).eval env =
-    ((StatementAbsorption.serializeRunningExpr running).map
+    ((RunningWords.serializeRunningExpr running).map
       (Expr.eval env)).getD index.val 0
   exact (List.getD_map
-    (n := index.val) (StatementAbsorption.serializeRunningExpr running)
+    (n := index.val) (RunningWords.serializeRunningExpr running)
     (0 : Expr) (Expr.eval env)).symm
 
 /-- Running-transition semantics transport across two interfaces when every

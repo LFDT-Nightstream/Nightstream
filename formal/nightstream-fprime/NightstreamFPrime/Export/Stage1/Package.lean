@@ -182,10 +182,10 @@ theorem circuitPackage_permutation_invocations :
 theorem proofInputStart_eq : Data.proofInputStart = 55638 := by
   rfl
 
-theorem witnessStart_eq : Data.witnessStart = 71100 := by
+theorem witnessStart_eq : Data.witnessStart = 70830 := by
   rfl
 
-theorem witnessLength_eq : Data.witnessLength = 11550864 := by
+theorem witnessLength_eq : Data.witnessLength = 11551134 := by
   rfl
 
 theorem circuitPackage_layout_values :

@@ -29,8 +29,8 @@ pub const PI_CCS_V1_1_ROUND_COUNT: usize = 28;
 pub const PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT: usize = 9;
 pub const PI_CCS_V1_1_STATE_PREIMAGE_WORDS: usize = 27_819;
 pub const PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS: usize = 270;
-/// Sixteen child public inputs, child-major, then one sign bit per parent coordinate.
-pub const PI_CCS_V1_1_PRIOR_CHILDREN_WORDS: usize = 17 * PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS;
+/// The sixteen child public inputs, child-major. The circuit owns their signs.
+pub const PI_CCS_V1_1_PRIOR_CHILDREN_WORDS: usize = PI_DEC_V1_1_CHILD_COUNT * PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS;
 pub const PI_CCS_V1_1_FRESH_COMMITMENT_WORDS: usize = 1_188;
 pub const PI_CCS_V1_1_VERIFIER_CONTEXT_WORDS: usize = 4;
 pub const PI_DEC_V1_1_CHILD_COUNT: usize = 16;
@@ -52,29 +52,34 @@ const PI_DEC_WITNESS_WORDS: usize = 270;
 const RUNNING_TRANSITION_WITNESS_WORDS: usize = 2;
 /// Two preimages, prior children, fresh commitment and round messages precede
 /// the PiCCS output segments.
-const OUTPUT_SEGMENT_START: usize = 5;
+const INPUT_SEGMENT_ROLES: [u64; 5] = [
+    PRIOR_PREIMAGE_ROLE,
+    OUTPUT_PREIMAGE_ROLE,
+    PRIOR_CHILDREN_ROLE,
+    FRESH_COMMITMENT_ROLE,
+    ROUND_MESSAGES_ROLE,
+];
+const OUTPUT_SEGMENT_START: usize = INPUT_SEGMENT_ROLES.len();
+/// The application witness, then the PiDEC and running-transition segments,
+/// follow the PiCCS output segments.
+const SUFFIX_SEGMENT_ROLES: [u64; 7] = [
+    WITNESS_ROLE,
+    PI_DEC_COMMITMENTS_ROLE,
+    PI_DEC_EVAL_K_ROLE,
+    PI_DEC_EVAL_A_ROLE,
+    PI_DEC_CHILD_PUBLIC_INPUT_ROLE,
+    PI_DEC_WITNESS_ROLE,
+    RUNNING_TRANSITION_WITNESS_ROLE,
+];
 
 pub(super) fn private_segment_roles() -> Vec<u64> {
-    let mut roles = Vec::with_capacity(11 + 2 * PI_CCS_V1_1_SOURCE_COUNT);
-    roles.extend([
-        PRIOR_PREIMAGE_ROLE,
-        OUTPUT_PREIMAGE_ROLE,
-        PRIOR_CHILDREN_ROLE,
-        FRESH_COMMITMENT_ROLE,
-        ROUND_MESSAGES_ROLE,
-    ]);
+    let mut roles =
+        Vec::with_capacity(INPUT_SEGMENT_ROLES.len() + 2 * PI_CCS_V1_1_SOURCE_COUNT + SUFFIX_SEGMENT_ROLES.len());
+    roles.extend(INPUT_SEGMENT_ROLES);
     for _ in 0..PI_CCS_V1_1_SOURCE_COUNT {
         roles.extend([OUTPUT_EVAL_K_ROLE, OUTPUT_EVAL_A_ROLE]);
     }
-    roles.push(WITNESS_ROLE);
-    roles.extend([
-        PI_DEC_COMMITMENTS_ROLE,
-        PI_DEC_EVAL_K_ROLE,
-        PI_DEC_EVAL_A_ROLE,
-        PI_DEC_CHILD_PUBLIC_INPUT_ROLE,
-        PI_DEC_WITNESS_ROLE,
-        RUNNING_TRANSITION_WITNESS_ROLE,
-    ]);
+    roles.extend(SUFFIX_SEGMENT_ROLES);
     roles
 }
 
@@ -86,11 +91,17 @@ pub(super) fn is_witness_role(role: u64) -> bool {
 }
 
 pub(super) fn validate_private_segments(segments: &[Segment]) -> Result<(), PackageError> {
-    if segments[0].length != PI_CCS_V1_1_STATE_PREIMAGE_WORDS
-        || segments[1].length != PI_CCS_V1_1_STATE_PREIMAGE_WORDS
-        || segments[2].length != PI_CCS_V1_1_PRIOR_CHILDREN_WORDS
-        || segments[3].length != PI_CCS_V1_1_FRESH_COMMITMENT_WORDS
-        || segments[4].length != ROUND_MESSAGE_WORDS
+    let input_lengths: [usize; OUTPUT_SEGMENT_START] = [
+        PI_CCS_V1_1_STATE_PREIMAGE_WORDS,
+        PI_CCS_V1_1_STATE_PREIMAGE_WORDS,
+        PI_CCS_V1_1_PRIOR_CHILDREN_WORDS,
+        PI_CCS_V1_1_FRESH_COMMITMENT_WORDS,
+        ROUND_MESSAGE_WORDS,
+    ];
+    if segments[..OUTPUT_SEGMENT_START]
+        .iter()
+        .zip(input_lengths)
+        .any(|(segment, length)| segment.length != length)
     {
         return Err(PackageError::Invalid("PiCCS v1_1 input segments"));
     }

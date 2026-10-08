@@ -244,6 +244,7 @@ import NightstreamFPrime.Export.Stage1.PiDECPoseidonColumnWeights
 #audit_axioms NightstreamFPrime.Lifecycle.PiDEC.v1_1.SignedSplitScalar.flatConstraints_length_eq
 #audit_axioms NightstreamFPrime.Lifecycle.PiDEC.v1_1.SignedSplitScalar.flatConstraints_varsBelow
 #audit_axioms NightstreamFPrime.Lifecycle.PiDEC.v1_1.SignedSplitScalar.soundness
+#audit_axioms NightstreamFPrime.Lifecycle.PiDEC.v1_1.SignedSplitScalar.signedDigitRows_of_constraint
 #audit_axioms NightstreamFPrime.Lifecycle.PiDEC.v1_1.SignedSplitScalar.completeness
 #audit_axioms NightstreamFPrime.Lifecycle.PiDEC.v1_1.SignedSplitScalar.spec_parentBounded
 #audit_axioms NightstreamFPrime.Lifecycle.PiDEC.v1_1.SignedSplitScalar.spec_digits_eq_splitScalar

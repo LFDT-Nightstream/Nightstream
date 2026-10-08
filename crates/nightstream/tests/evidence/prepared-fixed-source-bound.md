@@ -1,12 +1,12 @@
 # Prepared fixed-source bound
 
-The single current verifier has 12,715,193 fixed array/u64 nodes before
+The single current verifier has 12,760,045 fixed array/u64 nodes before
 application metadata. The compiler's exact count is
 
-`N(W,L,R) = 12,715,193 + W + 4*[W>0] + 4*[L>0]`.
+`N(W,L,R) = 12,760,045 + W + 4*[W>0] + 4*[L>0]`.
 
 `W` counts application witness fields and `L` counts generated locals. The
-reference application has `W=4`, `L=5,480`, hence 12,715,205 nodes. Application
+reference application has `W=4`, `L=5,480`, hence 12,760,057 nodes. Application
 rows and recipe payloads are stored separately from this fixed envelope.
 
 The selected manifest has logical width `44,915,688 + 41*(W+L)`. The approved
@@ -15,7 +15,7 @@ Thus `W+L <= floor((254,260,620 - 44,915,688)/41) = 5,105,973`. Ring padding doe
 not change that inequality because the maximum capacity is divisible by 54.
 
 The largest variable metadata uses `W=5,105,972`, `L=1`: both nonempty source
-segments add four nodes, giving **17,821,173 nodes**. The compiler regression
+segments add four nodes, giving **17,866,025 nodes**. The compiler regression
 counts the complete assembled envelope for this case and for `W=L=0`.
 It also checks that one additional field exceeds the maximum key.
 
@@ -27,7 +27,7 @@ Application records are external to this count. Shifted Phi81 runs retain
 their nonoverlapping source ranges.
 
 Compact numeric-array JSON needs at most 21 bytes per node, so the byte
-preflight is **374,244,633 bytes**. The decoder also counts nodes before each
+preflight is **375,186,525 bytes**. The decoder also counts nodes before each
 allocation and retains its normal nesting check. This is a format-derived
 bound, not a process RSS bound or authority for saved package identities.
 

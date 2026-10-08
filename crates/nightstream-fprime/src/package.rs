@@ -23,7 +23,7 @@ pub use matrix_program::MatrixRun;
 pub(crate) mod native_application;
 use native_application::PreparedApplication;
 mod prepared;
-pub use prepared::load_compiled_application_package;
+pub use prepared::{load_compiled_application_package, PREPARED_FIXED_SOURCE_NODE_LIMIT};
 mod v1_1;
 pub use v1_1::{
     PiCcsV1_1EncodedInputs, PiCcsV1_1OutputEvaluations, PiCcsV1_1PackageInputs, PiDecV1_1PackageInputs,

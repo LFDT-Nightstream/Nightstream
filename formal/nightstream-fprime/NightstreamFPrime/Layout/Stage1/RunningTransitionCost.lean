@@ -61,10 +61,10 @@ private theorem serializeRunningExpr_affine {logicalWidth : Nat}
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (running : StatementAbsorption.RunningExpr logicalWidth publicFits)
     (linear : RunningMulFree running) :
-    ∀ expression ∈ StatementAbsorption.serializeRunningExpr running,
+    ∀ expression ∈ RunningWords.serializeRunningExpr running,
       R1CS.IsAffine expression := by
   intro expression member
-  rcases StatementAbsorption.serializeRunningExpr_mem member with
+  rcases RunningWords.serializeRunningExpr_mem member with
     ⟨source, row, coefficient, rfl⟩ | ⟨source, coefficient, kMember⟩ |
       ⟨source, matrix, coefficient, kMember⟩ | ⟨coordinate, kMember⟩ | ⟨word, rfl⟩
   · exact isAffine_of_mulCount_zero _ (linear.commitment source row coefficient)
@@ -74,7 +74,7 @@ private theorem serializeRunningExpr_affine {logicalWidth : Nat}
       (serializeKExpr_mulFree _ (linear.eval_A source matrix coefficient) _ kMember)
   · exact isAffine_of_mulCount_zero _
       (serializeKExpr_mulFree _ (linear.point coordinate) _ kMember)
-  · exact StatementAbsorption.packWordExpr_parent_closed R1CS.IsAffine
+  · exact RunningWords.packWordExpr_parent_closed R1CS.IsAffine
       R1CS.isAffine_const (fun _ _ => R1CS.IsAffine.add)
       (fun weight _ => R1CS.IsAffine.const_mul weight) running
       (fun source column =>
@@ -87,8 +87,8 @@ theorem runningWord_isAffine {logicalWidth : Nat}
     (linear : RunningMulFree running) (index : RunningTransition.WordIndex) :
     R1CS.IsAffine (RunningTransition.runningWord running index) := by
   have indexBound : index.val <
-      (StatementAbsorption.serializeRunningExpr running).length := by
-    rw [StatementAbsorption.serializeRunningExpr_length]
+      (RunningWords.serializeRunningExpr running).length := by
+    rw [RunningWords.serializeRunningExpr_length]
     exact index.isLt
   rw [RunningTransition.runningWord,
     List.getD_eq_get _ _ ⟨index.val, indexBound⟩]

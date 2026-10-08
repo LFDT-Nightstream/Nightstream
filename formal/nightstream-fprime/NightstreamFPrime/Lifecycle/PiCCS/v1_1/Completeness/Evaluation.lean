@@ -487,8 +487,10 @@ private theorem transcriptSpecs_preserved
       (assumptionsAt assumptions before.current).statementAbsorption
       (fun index below => agreement index (by
         have beforeChallenge : index < challengeOffset interface offset := by
-          simpa only [StatementAbsorption.program_recipes_length,
-            statementAbsorptionOffset_eq, challengeOffset_eq] using below
+          simp only [StatementAbsorption.program_recipes_length,
+            statementAbsorptionOffset_eq, challengeOffset_eq,
+            StateBinding.signCount_eq] at below ⊢
+          omega
         exact lt_of_lt_of_le beforeChallenge
           (challengeOffset_le_initialClaimOffset interface offset)))
       statementSpec

@@ -295,7 +295,7 @@ private theorem select_checked {columns : Nat}
         simpa only [PiDECMatrixNumericRows.row?.select, if_neg selected] using
           inductionHypothesis restChecked (row - block.rowCount) (by omega)
 
-/-- Missing active rows reject. All seven returned matrix values feed the exact
+/-- Missing active rows reject. All returned matrix values feed the exact
 production polynomial. -/
 theorem rowsZero_of_blockChecks {columns : Nat}
     (program : MatrixProgram.Program) (plan : ProductionRelation.Plan columns)

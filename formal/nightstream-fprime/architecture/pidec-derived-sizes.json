@@ -56,7 +56,7 @@
       "NightstreamFPrime.Export.Stage1.PiDECMatrixProgramSubstitution": 89,
       "NightstreamFPrime.Gadgets.Range.CanonicalU64": 414,
       "NightstreamFPrime.Layout.Stage1.PiDECStarts": 348,
-      "NightstreamFPrime.Lifecycle.PiDEC.v1_2.SignedSplitScalar": 368
+      "NightstreamFPrime.Lifecycle.PiDEC.v1_1.SignedSplitScalar": 368
     },
     "conclusion": "No source import-radius reduction."
   },

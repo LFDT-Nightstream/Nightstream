@@ -193,11 +193,13 @@ import NightstreamFPrime.Export.Stage1.HyperNovaCompleteness
 import NightstreamFPrime.Export.Stage1.HyperNovaAcceptedNext
 import NightstreamFPrime.Export.Stage1.HyperNovaStepData
 import NightstreamFPrime.Export.Stage1.HyperNovaHistoryLaw
+import NightstreamFPrime.Export.Stage1.HyperNovaHistoryWork
 import NightstreamFPrime.Export.Stage1.HyperNovaVisitedLaw
 import NightstreamFPrime.Export.Stage1.HyperNovaGuardedSourceLaw
 import NightstreamFPrime.Export.Stage1.HyperNovaVisitedAcceptance
 import NightstreamFPrime.Export.Stage1.HyperNovaFirstFailure
 import NightstreamFPrime.Export.Stage1.HyperNovaVisitedSecurity
+import NightstreamFPrime.Export.Stage1.RandomOracleLink
 import NightstreamFPrime.Export.Stage1.HyperNovaFalseAcceptance
 import NightstreamFPrime.Export.Stage1.ActualPiDEC
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectSource

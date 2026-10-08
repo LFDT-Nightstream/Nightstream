@@ -4,11 +4,9 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 import NightstreamFPrime.Spec.GoldilocksPrime
 
 /-!
-The paper's exact fixed-width PiCCS failure event on a causal message path.
-Source assignments are fixed before the independent second execution. After
-alpha and gamma are drawn, its semantic q is fixed before all round challenges.
-An output witness can depend on the complete second execution; agreement with
-the first witness is an event, not a condition on the challenge distribution.
+Owns the round representability of the paper PiCCS polynomial at the
+verifier's selected width: after `α` and `γ`, every round polynomial of every
+prefix fits in that width. `RoundByRound` consumes it.
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
@@ -16,8 +14,6 @@ namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
 open NightstreamFPrime.Spec
 open SumCheck.Finite
 open ConcreteCarrier StrongReduction
-open _root_.NightstreamFPrime.Spec.SumCheck.Finite.GoldilocksCausal (Strategy)
-open _root_.NightstreamFPrime.Spec.SumCheck.Finite.GoldilocksCausalTrace (issued)
 
 universe uCommitment uPublicInput
 

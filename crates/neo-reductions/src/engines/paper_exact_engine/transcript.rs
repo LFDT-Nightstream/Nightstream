@@ -44,6 +44,9 @@ fn append_block(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace,
 /// Lean `decodeHashWord` for each of the four digest words, read from the
 /// bit cells after the marker of the first fresh public input. A cell past a
 /// shorter input reads as zero; the input itself is absorbed in full next.
+/// The reference engine keeps its own decoder on purpose: it shares no
+/// decoding code with `neo_transcript::prior_digest_v1_1`, which the optimized
+/// engine uses.
 fn prior_digest_fields(fresh: &CcsClaim<Cmt, F>) -> Vec<F> {
     let mut words = vec![F::ZERO; 4];
     for (word, value) in words.iter_mut().enumerate() {

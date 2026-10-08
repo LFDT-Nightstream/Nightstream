@@ -13,8 +13,10 @@ Outputs:
 - `source_error_le`: the extracted witness fails the source relation with
   probability at most `(Q + 74) * testError`, plus the chance that the
   binding reduction finds a different witness for the same running statement
-  (`collisionChance`, an MSIS break) or a different running statement
-  (`runningChance`, a state-hash collision at the Export layer);
+  (`collisionChance`; `RandomOracleBinding.rerun_shortKernel` turns it into a
+  short kernel vector of the Ajtai key) or a different running statement
+  (`runningChance`; `Export.Stage1.RandomOracleLink.runningChance_le` bounds
+  it by a state-hash collision when the claim carries `PriorLink`);
 - `expected_reruns_le`: the binding reduction takes at most `Q + 74`
   expected reruns.
 
@@ -58,6 +60,12 @@ def challenges : List Challenge :=
 
 theorem mem_challenges (challenge : Challenge) : challenge ∈ challenges := by
   cases challenge <;> simp [challenges]
+
+/-- The `74` of `Q + 74`: 28 `α` coordinates, `γ`, 28 rounds and 17 `Π_RLC`
+scalars. -/
+theorem challenges_length : challenges.length = 74 := by
+  simp [challenges]
+  rfl
 
 /-- An item where `value` is largest. -/
 private noncomputable def best {Item : Type} [Fintype Item] [Nonempty Item] (value : Item → ℝ) :
@@ -265,8 +273,8 @@ def Moves (oracle other : Oracle) (_ : Retries) : Prop :=
   (claimed relation adversary claim other).running ≠ (claimed relation adversary claim oracle).running
 
 /-- The binding reduction: the base run extracts, and its retry from the same
-context collides. With two different witnesses for one statement this is an
-MSIS break. -/
+context collides. Two different witnesses for one statement give a short
+kernel vector of the Ajtai key (`RandomOracleBinding.rerun_shortKernel`). -/
 noncomputable def collisionChance : ℝ :=
   𝔼 oracle, ∑ retries, weight relation ajtai adversary claim oracle retries *
     (if Valid relation ajtai adversary claim oracle retries then
@@ -275,7 +283,8 @@ noncomputable def collisionChance : ℝ :=
     else 0)
 
 /-- The same reduction, when the retry changes the running statement. With the
-prior link this is a state-hash collision. -/
+prior link this is a state-hash collision
+(`Export.Stage1.RandomOracleLink.runningChance_le`). -/
 noncomputable def runningChance : ℝ :=
   𝔼 oracle, ∑ retries, weight relation ajtai adversary claim oracle retries *
     (if Valid relation ajtai adversary claim oracle retries then
@@ -634,7 +643,7 @@ theorem falseFor_of_agree {oracle other : Oracle} {retries otherRetries : Retrie
     rw [dif_pos valid, dif_pos baseValid] at sameWitness
     exact Option.some.inj sameWitness
   refine ⟨baseValid, ?_, ?_, ?_⟩
-  · have accepted := valid.1.1
+  · have accepted := valid.1.1.1
     rw [sameRunning] at accepted
     exact accepted
   · have ambient := extracted_ambient relation ajtai adversary claim other otherRetries valid.1 valid.2

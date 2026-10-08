@@ -10,6 +10,8 @@ import NightstreamFPrime.Lifecycle.RandomOracleTest
 import NightstreamFPrime.Lifecycle.RandomOracleExtraction
 import NightstreamFPrime.Lifecycle.RandomOracleUniqueness
 import NightstreamFPrime.Lifecycle.RandomOracleKnowledge
+import NightstreamFPrime.Lifecycle.RandomOracleBinding
+import NightstreamFPrime.Lifecycle.RandomOracleFidelity
 import NightstreamFPrime.Lifecycle.NifsProfile
 import NightstreamFPrime.Lifecycle.Nifs.InteractiveCompleteness
 import NightstreamFPrime.Lifecycle.Nifs.BaseCompleteness

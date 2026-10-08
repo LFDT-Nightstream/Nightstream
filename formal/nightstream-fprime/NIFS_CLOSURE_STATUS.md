@@ -8,8 +8,19 @@ event moved to `NifsRealSuccess`. The history bound
 Assumption 1 at each visit (see `TRUST_BOUNDARY.md`). The interactive
 extraction chain that only the retired history used (adaptive binding,
 supported extraction, weak suffix, stored checker programs and their work
-bounds) is deleted as well. The record below describes the retired chain at
-its checked commits.
+bounds) is deleted as well.
+
+The current NIFS security results are
+`Lifecycle.RandomOracleKnowledge.knowledge_error_le`, its form with the
+prior-state link `Export.Stage1.RandomOracleLink.knowledge_error_le_linked`,
+the binding step `Lifecycle.RandomOracleBinding.rerun_shortKernel` and the
+verifier fidelity `Lifecycle.RandomOracleFidelity.accepts_iff_verify`.
+`TRUST_BOUNDARY.md` states their premises.
+
+**Everything below is a retired record.** It describes the deleted chain at
+its checked commits, in the tense of that time. None of its `NifsClosure`,
+`NifsFiatShamir`, `NifsInvalidSource`, `NifsExtractionProvider` or
+`FiatShamirTransfer` declarations exist now.
 
 The selected v1.2 linear-security extension is checked at
 `1ad23f557b73e0564a27b62e20fe9d01a688f6b0`.

@@ -101,7 +101,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SourceMembership.sourceHolds_iff_memberships
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SourceMembership.fixedWidthAcceptedProbe_implies_memberships_or_badEvent
 
-#audit_axioms NightstreamFPrime.Spec.SumCheck.Finite.GoldilocksCausalTrace.aborted_not_events
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal.sequentialRoundRepresentable
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingRoots.coefficient_root_count_le
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingRoots.coefficient_root_probability_le

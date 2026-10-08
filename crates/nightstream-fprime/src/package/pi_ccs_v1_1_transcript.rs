@@ -71,7 +71,7 @@ pub fn derive_pi_ccs_v1_1_transcript(
     let public_input = canonical_words(fresh_public_input)?;
     let mut transcript = Poseidon2Transcript::new_v1_1();
     transcript.absorb_v1_1(&canonical_words(DOMAIN_TAG)?);
-    transcript.absorb_block_v1_1(&prior_digest(&public_input));
+    transcript.absorb_block_v1_1(&neo_transcript::prior_digest_v1_1(&public_input));
     transcript.absorb_block_v1_1(&canonical_words(fresh_commitment)?);
     transcript.absorb_block_v1_1(&public_input);
 
@@ -102,18 +102,6 @@ pub fn derive_pi_ccs_v1_1_transcript(
         round_point,
         outgoing_state: transcript.state().map(|value| value.as_canonical_u64()),
     })
-}
-
-/// Lean `decodeHash`: digest word `w` is `sum over bit < 64 of
-/// 2^bit * input[1 + 64 w + bit]`, computed in the field.
-fn prior_digest(public_input: &[Goldilocks]) -> Vec<Goldilocks> {
-    (0..4)
-        .map(|word| {
-            (0..64).fold(Goldilocks::ZERO, |value, bit| {
-                value + Goldilocks::from_u64(1 << bit) * public_input[1 + 64 * word + bit]
-            })
-        })
-        .collect()
 }
 
 fn validate_shapes(

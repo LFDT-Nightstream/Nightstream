@@ -27,11 +27,6 @@ structure SourceWitness (shape : Shape) (carrier : Phi81Relation.Shape) where
   fresh : List.Vector (List.Vector F (privateWidth carrier)) shape.freshCount
   running : List.Vector (List.Vector F carrier.carrierWidth) shape.runningCount
 
-/-- The exact number of field reads, vector constructors, and result return. -/
-def projectionWork (shape : Shape) (carrier : Phi81Relation.Shape) : Nat :=
-  shape.freshCount * (privateWidth carrier * 2 + 2) +
-    shape.runningCount * (carrier.carrierWidth * 2 + 2) + 3
-
 /-- Reattach only the verifier-owned public prefix to a fresh private tail. -/
 def joinFresh {carrier : Phi81Relation.Shape} (publicInput : Phi81Relation.PublicInput carrier)
     (tail : List.Vector F (privateWidth carrier)) : Phi81Relation.Assignment carrier :=

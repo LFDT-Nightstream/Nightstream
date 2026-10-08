@@ -24,6 +24,7 @@ open HyperNovaHistory (Statement Envelope Payload SourceResult)
 open HyperNovaHistoryProbability (Sample Accepted AdviceReturned)
 open HyperNovaVisitedLaw (Visit goodActive visitedLaw guardedDraw observedDraw)
 open HyperNovaFirstFailure (MarkedHashCollision MarkedSourceFailure)
+open HyperNovaVisitedSecurity (event_ne_top)
 open Poseidon2HashChainV1Package (application fits)
 open Poseidon2HashChainV1Setup (productionSetup)
 
@@ -114,11 +115,6 @@ private theorem false_acceptance_mass_le_first_failures
         {draw | MarkedHashCollision draw.1} {draw | MarkedSourceFailure draw}
       rw [marked_hash_mass] at unionBound
       exact unionBound
-
-private theorem event_ne_top {Sample : Type*} (distribution : PMF Sample) (event : Set Sample) :
-    distribution.toOuterMeasure event ≠ ∞ := by
-  rw [PMF.toOuterMeasure_apply]
-  exact distribution.tsum_coe_indicator_ne_top event
 
 /-- The actual false-acceptance mass is bounded by the first marked failures
 under the same mixed law. Only the advertised iteration bound is assumed;

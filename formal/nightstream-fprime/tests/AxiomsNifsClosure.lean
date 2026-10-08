@@ -6,9 +6,7 @@ import NightstreamFPrime.Export.Stage1.PiDECOrdinarySourceWork
 import NightstreamFPrime.Layout.MatrixProgram.RetainedWork
 import NightstreamFPrime.Layout.MatrixProgram.CoefficientWork
 import NightstreamFPrime.Layout.MatrixProgram.SparseWork
-import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingPowerInverse
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverseWork
-import NightstreamFPrime.Spec.AjtaiSetupV1.Work
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingArithmetic
 import NightstreamFPrime.Spec.ProductionRelation.GatePolynomial
 import tests.AxiomAudit
@@ -64,8 +62,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries.kernelWeight_value
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries.kernelWeight_work_le
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries.padEntry_value
-#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries.padEntry_work_le
-#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSStoredWitnessCheck.padEntry_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSStoredWitnessCheck.statement_eq_key
 
 #audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverse.encode_coeff
 #audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverse.candidate_coeff
@@ -76,9 +73,6 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries
 #audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverseCorrect.modulus_degree
 #audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverseCorrect.candidatePolynomial_degree_lt
 #audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverseCorrect.candidatePolynomial_mul_mod
-#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSStoredWitnessCheck.publicInputRead_value
-#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSStoredWitnessCheck.publicInputRead_work
-#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSStoredWitnessCheck.publicInputRead_work_le
 
 
 
@@ -117,10 +111,6 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries
 #audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverseWork.trim_work_le
 #audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverseWork.encode_value
 #audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverseWork.encode_work_le
-#audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.Work.elementLanes_value
-#audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.Work.elementLanes_work_le
-#audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.Work.laneCoefficient_value
-#audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.Work.laneCoefficient_work_le
 #audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial.degree_modulus
 #audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial.root_pow_mod
 #audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial.image_mul

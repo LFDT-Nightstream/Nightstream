@@ -56,8 +56,8 @@ keep every statement true; the `rfl` pins in `tests/TranscriptCoverageChecks.lea
 fix each of these values and that the key absorbs them, so such an edit must
 also change that file.
 
-Does not own: Poseidon2 security, the Fiat–Shamir transfer (an approved
-external assumption), or the circuit refinement of this schedule. The running
+Does not own: Poseidon2 security, the random-oracle model of the reads
+(`RandomOracleTest`), or the circuit refinement of this schedule. The running
 statement enters only through the prior digest. The `Π_DEC` child messages
 follow the last challenge; the next state hash binds them.
 -/
@@ -575,7 +575,7 @@ private theorem outgoingState_eq_run :
     ProductionKey.key_absorbPiCcsOutput, ProductionKey.absorbFullOutput, absorbBlock_eq_run,
     roundsState_eq_run, ← run_append, outputCalls]
 
-private theorem rho_seal :
+theorem rho_seal :
     (ProductionKey.key relation ajtai).piRlcChallenges running fresh proof =
       some fun index => readRho (run Transcript.initialState
         (outputCalls fresh proof ++ fixedCalls (.rho index))) := by

@@ -30,12 +30,18 @@ Assumption 1 is the paper's plain-model knowledge-soundness premise for the
 Poseidon2 NIFS. It is not a theorem: the step circuit recomputes the previous
 fold's challenges with Poseidon2, so a recursive argument uses the concrete
 hash, which no random-oracle model covers.
-`Lifecycle.RandomOracleKnowledge.knowledge_error_le` proves the random-oracle
-form for one fold and justifies `error_j = knowledgeError(Q_j)`: linear in the
-query count, about `(Q_j + 74) · 2^-115.2` plus the named MSIS and state-hash
-events. Definition 7 also requires an expected polynomial-time extractor;
-that requirement is part of Assumption 1. The random-oracle extractor takes
-`17 (Q + 17)` expected retries.
+`Lifecycle.RandomOracleKnowledge.knowledge_error_le` proves a random-oracle
+analogue for one fold and motivates `error_j = knowledgeError(Q_j)`: linear in
+the query count, about `(Q_j + 74) · 2^-115.84` plus the named MSIS and
+state-hash events. No Lean statement derives `error_j` from it; the success
+event, the extractor and the efficiency condition differ
+(`formal/nightstream-fprime/TRUST_BOUNDARY.md`). Definition 7 also requires an
+expected polynomial-time extractor. `NifsKnowledgeSound` does not state that
+requirement, so the criterion is weaker than Assumption 1 there. Lean counts
+the history's extractor calls
+(`Export.Stage1.HyperNovaHistoryWork.source_calls_le_iteration`), and the
+random-oracle extractor takes `17 (Q + 17)` expected retries; neither is a
+machine-time bound.
 
 Required premises:
 
@@ -49,7 +55,6 @@ Dependencies, with namespace prefix `NightstreamFPrime`:
 | `Export.Stage1.HyperNovaFirstFailure.accepted_probability_le_first_failures` | Bound the accepted mass by the first marked failures at the actual visits. |
 | `Export.Stage1.HyperNovaVisitedSecurity.NifsKnowledgeSound` | State Assumption 1 at the actual visited laws. |
 | `Export.Stage1.HyperNovaVisitedSecurity.history_probability_bound` | Compose the first-failure bound with Assumption 1. |
-| `Lifecycle.RandomOracleKnowledge.knowledge_error_le` | Justify the per-visit error in the random-oracle model. |
 
 `hypernova-terminal-false-acceptance` uses the same premise through
 `Export.Stage1.HyperNovaFalseAcceptance.probability_bound`.

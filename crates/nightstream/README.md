@@ -323,11 +323,16 @@ openings.
 `Prover::finish_with_spartan` compresses an active proof. It runs PiCCS and
 PiRLC once more and stops before PiDEC (SuperNeo Lemma 1). The `neo-spartan`
 crate then proves the folded CE(B) claim with sum-checks and WHIR, so the final
-proof carries no witness. `Verifier::verify` accepts the result. In the
-production test, one fold gives a 918,934-byte final proof, against 221,738,816
-bytes for the accumulator proof. The verifier still reads the commitment key
-and the matrix rows (9.8 s on CPU). Setup commitments and a smaller recursive
-proof are later milestones.
+proof carries no witness. Compression needs a one-time setup per circuit:
+`Prover::compression_setup` writes the setup files (27 GB for the production
+package) and returns the setup, whose `CompressionKey` is 1,912 bytes.
+`Verifier::verify_final` checks a final proof with that key and never reads the
+commitment key or the matrix rows. Take the key from
+`Verifier::compression_key` (about 50 s, no files) or from a copy you pinned;
+never from a prover. In the production test, one fold gives a 1,600,157-byte
+final proof, against 221,738,816 bytes for the accumulator proof; finishing
+takes 39.7 s and verification 32 ms on CPU, with a 37.3 GB peak RSS. A
+smaller recursive proof is a later milestone.
 
 The independent Rust Poseidon2 application supplies the first comparison with
 the existing Lean package. Exact comparisons are implementation evidence, not

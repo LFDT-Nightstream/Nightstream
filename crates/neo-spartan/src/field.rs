@@ -8,7 +8,7 @@
 use neo_math::{KExtensions, F, K};
 use p3_field::PrimeField64;
 use p3_field_v08::extension::CubicTrinomialExtensionField;
-use p3_field_v08::PrimeCharacteristicRing;
+use p3_field_v08::{BasedVectorSpace, PrimeCharacteristicRing};
 use p3_multilinear_util_v08::point::Point;
 
 /// Goldilocks in Plonky3 0.8 types.
@@ -33,6 +33,79 @@ pub(crate) fn re_im(value: K) -> [Gl; 2] {
 pub(crate) fn project(value: K, weights: [Ext; 2]) -> Ext {
     let [re, im] = re_im(value);
     weights[0] * re + weights[1] * im
+}
+
+/// `K ⊗ Ext = Ext[u] / (u^2 - 7)`, where `K` values meet `Ext` points. Seven
+/// is a non-square in Goldilocks and the cubic extension has odd degree, so
+/// this is a field. `re` and `im` are the coordinates in the basis `(1, u)`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Kx {
+    pub(crate) re: Ext,
+    pub(crate) im: Ext,
+}
+
+impl Kx {
+    pub(crate) const ZERO: Self = Self {
+        re: Ext::ZERO,
+        im: Ext::ZERO,
+    };
+    pub(crate) const ONE: Self = Self {
+        re: Ext::ONE,
+        im: Ext::ZERO,
+    };
+
+    pub(crate) fn from_k(value: K) -> Self {
+        let [re, im] = re_im(value);
+        Self {
+            re: re.into(),
+            im: im.into(),
+        }
+    }
+
+    pub(crate) fn mul(self, other: Self) -> Self {
+        let seven = Gl::from_u8(7);
+        Self {
+            re: self.re * other.re + self.im * other.im * seven,
+            im: self.re * other.im + self.im * other.re,
+        }
+    }
+
+    pub(crate) fn add(self, other: Self) -> Self {
+        Self {
+            re: self.re + other.re,
+            im: self.im + other.im,
+        }
+    }
+
+    pub(crate) fn scale(self, factor: Ext) -> Self {
+        Self {
+            re: self.re * factor,
+            im: self.im * factor,
+        }
+    }
+}
+
+/// The base-field coordinates of an `Ext` table, one column per basis element.
+pub(crate) fn coordinates(table: &[Ext]) -> Vec<Gl> {
+    let mut columns = vec![Gl::ZERO; 3 * table.len()];
+    for (index, value) in table.iter().enumerate() {
+        for (c, &coefficient) in <Ext as BasedVectorSpace<Gl>>::as_basis_coefficients_slice(value)
+            .iter()
+            .enumerate()
+        {
+            columns[c * table.len() + index] = coefficient;
+        }
+    }
+    columns
+}
+
+/// The `Ext` value whose coordinate columns evaluate to `values` at one point.
+pub(crate) fn from_coordinates(values: &[Ext]) -> Ext {
+    values
+        .iter()
+        .enumerate()
+        .map(|(c, &value)| <Ext as BasedVectorSpace<Gl>>::ith_basis_element(c).expect("three coordinates") * value)
+        .sum()
 }
 
 /// The signed integer `value` as a field element.

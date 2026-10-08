@@ -9,22 +9,19 @@
 //! - Commitment row `i`: `g_b = a_{i,b}` (Ajtai key element), `y = c_i`.
 //! - Eval_K (Pad) and Eval_A_j: `g_b = bar(w_b)`, with `w = χ_r` over the
 //!   carrier or `w = M_jᵀ χ_r`; the Re and Im coordinates are separate rows.
+//!   The Eval_A part of `w` comes from `matrix.rs`.
 //! - Public block `j`: `g_b = [b = j]`, `y = X_j`.
 
-use std::ops::ControlFlow;
 use std::sync::OnceLock;
 
 use neo_ajtai::nightstream_fprime_setup::{coefficient_block, PRODUCTION_SEED};
-use neo_ccs::GeometricRowRun;
 use neo_math::{ring::superneo_bar_matrix, D, F, K};
-use neo_reductions::superneo_eval::{MatrixRowSink, MatrixRows};
-use neo_reductions::PiCcsError;
 use p3_field::PrimeCharacteristicRing as _;
 use p3_field_v08::PrimeCharacteristicRing;
 use rayon::prelude::*;
 
 use crate::field::{gl, project, Ext, Gl};
-use crate::{Error, Shape, Statement};
+use crate::{Shape, Statement};
 
 /// Coefficients of `Σ_b ω_b ⋆ z_b` before reduction: degree below `2D - 1`.
 const PRODUCT: usize = 2 * D - 1;
@@ -56,65 +53,36 @@ impl Mixing {
         shape.kappa + 2 + 2 * shape.matrices + shape.public_blocks
     }
 
-    fn commitment(&self, row: usize) -> Ext {
+    pub(crate) fn commitment(&self, row: usize) -> Ext {
         self.powers[row]
     }
 
-    fn eval_k(&self) -> [Ext; 2] {
+    pub(crate) fn eval_k(&self) -> [Ext; 2] {
         [self.powers[self.kappa], self.powers[self.kappa + 1]]
     }
 
-    fn eval_a(&self, matrix: usize) -> [Ext; 2] {
-        let first = self.kappa + 2 + 2 * matrix;
-        [self.powers[first], self.powers[first + 1]]
+    /// The Eval_A projection weights of every matrix.
+    pub(crate) fn eval_a(&self) -> Vec<[Ext; 2]> {
+        (0..self.matrices)
+            .map(|matrix| {
+                let first = self.kappa + 2 + 2 * matrix;
+                [self.powers[first], self.powers[first + 1]]
+            })
+            .collect()
     }
 
-    fn public(&self, block: usize) -> Ext {
+    pub(crate) fn public(&self, block: usize) -> Ext {
         self.powers[self.kappa + 2 + 2 * self.matrices + block]
     }
 }
 
-/// `ω_b` for every block `b < shape.blocks`.
-pub(crate) fn block_weights(
-    matrices: &dyn MatrixRows,
-    shape: &Shape,
-    statement: &Statement,
-    mixing: &Mixing,
-) -> Result<Vec<[Ext; D]>, Error> {
-    let chi = Chi::new(&statement.point);
-    let eval_k = mixing.eval_k();
-    let mut weights: Vec<[Ext; D]> = (0..shape.blocks)
+/// `A_λ(b) = Σ_i λ^i·a_{i,b}` for every block: the commitment rows' part of
+/// `ω_b`, one pass over the key.
+pub(crate) fn key_weights(shape: &Shape, mixing: &Mixing) -> Vec<[Ext; D]> {
+    (0..shape.blocks)
         .into_par_iter()
-        .map(|block| std::array::from_fn(|lane| project(chi.at(D * block + lane), eval_k)))
-        .collect();
-
-    let row_weights: Vec<Ext> = (0..shape.rows)
-        .into_par_iter()
-        .flat_map_iter(|row| {
-            let value = chi.at(row);
-            (0..shape.matrices).map(move |matrix| project(value, mixing.eval_a(matrix)))
-        })
-        .collect();
-    let mut scatter = Scatter {
-        weights: &mut weights,
-        row_weights: &row_weights,
-        matrices: shape.matrices,
-    };
-    matrices
-        .visit_rows(0..shape.rows, &mut scatter)
-        .map_err(|_| Error::Shape("matrix rows"))?;
-
-    let bar = bar_rows();
-    weights
-        .par_iter_mut()
-        .enumerate()
-        .for_each(|(block, weight)| {
+        .map(|block| {
             let mut out = [Ext::ZERO; D];
-            for (row, terms) in bar.iter().enumerate() {
-                for &(column, sign) in terms {
-                    out[row] += weight[column] * sign;
-                }
-            }
             for key_row in 0..shape.kappa {
                 let power = mixing.commitment(key_row);
                 let key = coefficient_block(&PRODUCTION_SEED, key_row as u32, block as u64);
@@ -122,24 +90,66 @@ pub(crate) fn block_weights(
                     *out += power * Gl::new(coefficient);
                 }
             }
+            out
+        })
+        .collect()
+}
+
+/// `ω_b` for every block `b < shape.blocks`, from the Eval_A weight of every
+/// coordinate (`eval_a`) and the key part (`key_weights`).
+pub(crate) fn block_weights(
+    shape: &Shape,
+    statement: &Statement,
+    mixing: &Mixing,
+    eval_a: &[[Ext; D]],
+    key: &[[Ext; D]],
+) -> Vec<[Ext; D]> {
+    let chi = Chi::new(&statement.point);
+    let eval_k = mixing.eval_k();
+    let bar = bar_rows();
+    (0..shape.blocks)
+        .into_par_iter()
+        .map(|block| {
+            let weight: [Ext; D] =
+                std::array::from_fn(|lane| project(chi.at(D * block + lane), eval_k) + eval_a[block][lane]);
+            let mut out = key[block];
+            for (row, terms) in bar.iter().enumerate() {
+                for &(column, sign) in terms {
+                    out[row] += weight[column] * sign;
+                }
+            }
             if block < shape.public_blocks {
                 out[0] += mixing.public(block);
             }
-            *weight = out;
-        });
-    Ok(weights)
+            out
+        })
+        .collect()
+}
+
+/// `τ_l = Σ_p bar[p][l]·ζ^p`, so that `<bar(w), (ζ^p)_p> = Σ_l τ_l·w_l`.
+pub(crate) fn tau(zeta: Ext) -> [Ext; D] {
+    let mut tau = [Ext::ZERO; D];
+    let mut power = Ext::ONE;
+    for terms in bar_rows() {
+        for &(column, sign) in terms {
+            tau[column] += power * sign;
+        }
+        power *= zeta;
+    }
+    tau
 }
 
 /// `Ȳ = Σ_rows λ^row · y_row`, as a ring element.
 pub(crate) fn targets(statement: &Statement, mixing: &Mixing) -> [Ext; D] {
+    let eval_a = mixing.eval_a();
     std::array::from_fn(|lane| {
         let mut total = Ext::ZERO;
         for (row, coefficients) in statement.commitment.iter().enumerate() {
             total += mixing.commitment(row) * coefficients[lane];
         }
         total += project(statement.eval_k[lane], mixing.eval_k());
-        for (matrix, values) in statement.eval_a.iter().enumerate() {
-            total += project(values[lane], mixing.eval_a(matrix));
+        for (values, &weights) in statement.eval_a.iter().zip(&eval_a) {
+            total += project(values[lane], weights);
         }
         for (block, values) in statement.public.iter().enumerate() {
             total += mixing.public(block) * values[lane];
@@ -237,29 +247,5 @@ impl Chi {
 
     fn at(&self, index: usize) -> K {
         self.low[index & ((1 << self.split) - 1)] * self.high[index >> self.split]
-    }
-}
-
-/// Adds `M_j[row, c] · π_j(χ_r(row))` into the lane weight of column `c`.
-struct Scatter<'a> {
-    weights: &'a mut [[Ext; D]],
-    row_weights: &'a [Ext],
-    matrices: usize,
-}
-
-impl MatrixRowSink for Scatter<'_> {
-    fn push_run(&mut self, row: usize, matrix: usize, run: GeometricRowRun<F>) -> Result<(), PiCcsError> {
-        let weight = self.row_weights[row * self.matrices + matrix];
-        let ratio = gl(*run.ratio());
-        let mut coefficient = gl(*run.initial());
-        for column in run.column_start()..run.column_start() + run.len() {
-            self.weights[column / D][column % D] += weight * coefficient;
-            coefficient *= ratio;
-        }
-        Ok(())
-    }
-
-    fn finish_matrix_row(&mut self, _row: usize, _matrix: usize) -> Result<ControlFlow<()>, PiCcsError> {
-        Ok(ControlFlow::Continue(()))
     }
 }

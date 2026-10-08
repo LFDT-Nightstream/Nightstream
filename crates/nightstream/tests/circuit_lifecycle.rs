@@ -4,7 +4,7 @@ use std::{fs, path::PathBuf, time::Instant};
 
 use nightstream::{
     application::{poseidon2_hash_chain_v1, Affine, ApplicationBuilder},
-    Circuit, Engine, State, Verifier,
+    Circuit, CompressionKey, Engine, State, Verifier,
 };
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks as F;
@@ -70,15 +70,54 @@ fn poseidon_metal_proofs_equal_cpu_proofs() {
     );
 }
 
-/// Compression after one fold: the final proof carries no witness, verifies
-/// after a byte round trip, and rejects a wrong state or a changed byte.
+/// The production compression setup, written once by
+/// `poseidon_compression_setup_matches_the_derived_key` and reused by
+/// `poseidon_finish_with_spartan_verifies`.
+fn compression_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/compression-setup")
+}
+
+/// Writes the production setup files (about 29 GB) and its key, and checks
+/// that the key equals the one a verifier derives without files.
 #[test]
-#[ignore = "Full production compression; run this test separately under the 300-second cap."]
+#[ignore = "Writes about 29 GB under target/compression-setup; run this test separately under the 300-second cap."]
+fn poseidon_compression_setup_matches_the_derived_key() {
+    let started = Instant::now();
+    let circuit = Circuit::compile(&selected_reference(), poseidon2_hash_chain_v1().unwrap()).unwrap();
+    eprintln!("compile elapsed={:?}", started.elapsed());
+    let dir = compression_dir();
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let prover = circuit.prover(Engine::Optimized, 114).unwrap();
+    let building = Instant::now();
+    let setup = prover.compression_setup(&dir).unwrap();
+    eprintln!("compression setup elapsed={:?}", building.elapsed());
+    let key = setup.key().to_bytes();
+    fs::write(dir.join("key.bin"), &key).unwrap();
+    let deriving = Instant::now();
+    let verifier = Verifier::from_package(&circuit, Engine::Optimized, 114).unwrap();
+    assert!(verifier.compression_key().unwrap() == *setup.key());
+    eprintln!(
+        "key derivation elapsed={:?}, key bytes={}",
+        deriving.elapsed(),
+        key.len()
+    );
+}
+
+/// Compression after one fold with the stored setup: the final proof carries
+/// no witness, verifies with only the key after a byte round trip, and
+/// rejects a wrong state, a changed byte or the key of another setup root.
+#[test]
+#[ignore = "Full production compression; needs the stored setup; run this test separately under the 300-second cap."]
 fn poseidon_finish_with_spartan_verifies() {
     let started = Instant::now();
     let circuit = Circuit::compile(&selected_reference(), poseidon2_hash_chain_v1().unwrap()).unwrap();
     let prover = circuit.prover(Engine::Optimized, 114).unwrap();
     let verifier = Verifier::from_package(&circuit, Engine::Optimized, 114).unwrap();
+    let key = CompressionKey::from_bytes(&fs::read(compression_dir().join("key.bin")).unwrap()).unwrap();
+    let setup = prover
+        .open_compression_setup(compression_dir(), &key)
+        .unwrap();
     let initial = [202, 203, 204, 205].map(F::from_u64);
     let message = [7, 11, 13, 17].map(F::from_u64);
     let proof = prover.prove(initial, &message).unwrap();
@@ -86,7 +125,7 @@ fn poseidon_finish_with_spartan_verifies() {
     eprintln!("compile, base step and one fold elapsed={:?}", started.elapsed());
 
     let finishing = Instant::now();
-    let finished = prover.finish_with_spartan(&proof).unwrap();
+    let finished = prover.finish_with_spartan(&proof, &setup).unwrap();
     eprintln!("finish_with_spartan elapsed={:?}", finishing.elapsed());
     let bytes = prover.encode_final_proof(&finished).unwrap();
     eprintln!(
@@ -96,19 +135,29 @@ fn poseidon_finish_with_spartan_verifies() {
     );
     let decoded = verifier.decode_final_proof(&bytes).unwrap();
     let verifying = Instant::now();
-    verifier.verify(proof.state(), &decoded).unwrap();
+    verifier
+        .verify_final(proof.state(), &key, &decoded)
+        .unwrap();
     eprintln!("final verification elapsed={:?}", verifying.elapsed());
 
     let mut changed = proof.state().current();
     changed[0] += F::ONE;
     let wrong = State::new(proof.state().iteration(), initial, changed);
-    assert!(verifier.verify(&wrong, &decoded).is_err());
+    assert!(verifier.verify_final(&wrong, &key, &decoded).is_err());
     let mut flipped = bytes.clone();
     let index = bytes.len() - 100;
     flipped[index] ^= 1;
     assert!(verifier
         .decode_final_proof(&flipped)
-        .map_or(true, |changed| verifier.verify(proof.state(), &changed).is_err()));
+        .map_or(true, |changed| verifier
+            .verify_final(proof.state(), &key, &changed)
+            .is_err()));
+    let mut other = key.to_bytes();
+    other[0] ^= 1;
+    let other = CompressionKey::from_bytes(&other).unwrap();
+    assert!(verifier
+        .verify_final(proof.state(), &other, &decoded)
+        .is_err());
 }
 
 fn poseidon_lifecycle(engine: Engine, recursive: bool) {

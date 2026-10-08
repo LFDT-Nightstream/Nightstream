@@ -39,6 +39,8 @@ pub enum Error {
     ProofBytes(#[from] ProofCodecError),
     #[error(transparent)]
     Parameters(#[from] neo_params::ParamsError),
+    #[error(transparent)]
+    Compression(#[from] neo_spartan::Error),
 }
 
 struct CompiledCircuit {
@@ -168,11 +170,27 @@ impl Prover {
         Ok(self.lifecycle.encode_proof(proof)?)
     }
 
+    /// Write this circuit's compression setup files into the existing
+    /// directory `dir` (about 29 GB at the production size) and return the
+    /// setup. Its key is what verifiers need.
+    pub fn compression_setup(&self, dir: impl AsRef<Path>) -> Result<CompressionSetup, Error> {
+        Ok(self.lifecycle.compression_setup(dir.as_ref())?)
+    }
+
+    /// Reopen setup files written for `key`. The files gain no authority.
+    pub fn open_compression_setup(
+        &self,
+        dir: impl AsRef<Path>,
+        key: &CompressionKey,
+    ) -> Result<CompressionSetup, Error> {
+        Ok(self.lifecycle.open_compression_setup(dir.as_ref(), key)?)
+    }
+
     /// Compress `proof`: one more PiCCS + PiRLC fold without PiDEC, then a
     /// sum-check and WHIR argument for the folded claim. The result carries
     /// no witness and cannot be extended; `proof` does not change.
-    pub fn finish_with_spartan(&self, proof: &Stage1Envelope) -> Result<FinalProof, Error> {
-        Ok(self.lifecycle.finish_with_spartan(proof)?)
+    pub fn finish_with_spartan(&self, proof: &Stage1Envelope, setup: &CompressionSetup) -> Result<FinalProof, Error> {
+        Ok(self.lifecycle.finish_with_spartan(proof, setup)?)
     }
 
     /// The circuit's byte encoding of `proof`, for `Verifier::decode_final_proof`.
@@ -222,43 +240,41 @@ impl Verifier {
         Ok(self.lifecycle.decode_proof(bytes)?)
     }
 
-    /// Decode untrusted finished-proof bytes. Acceptance still needs `verify`.
+    /// Decode untrusted finished-proof bytes. Acceptance still needs `verify_final`.
     pub fn decode_final_proof(&self, bytes: &[u8]) -> Result<FinalProof, Error> {
         Ok(self.lifecycle.decode_final_proof(bytes)?)
     }
 
-    /// Check `proof` against the configured circuit and the expected state.
-    /// A `Proof` is checked with its witnesses; a `FinalProof` through its
-    /// layer-0 replay and layer-1 argument.
-    pub fn verify<P: Verifiable>(&self, expected_state: &Stage1State, proof: &P) -> Result<(), Error> {
-        proof.verify_in(&self.lifecycle, expected_state)
+    /// Check `proof` against the configured circuit and the expected state,
+    /// with its witnesses.
+    pub fn verify(&self, expected_state: &Stage1State, proof: &Stage1Envelope) -> Result<(), Error> {
+        Ok(self.lifecycle.verify(expected_state, proof)?)
+    }
+
+    /// Derive the compression key from the configured circuit, without files.
+    /// This key, or a copy of it you pinned, is the authority for
+    /// `verify_final`. Never take a key from a prover.
+    pub fn compression_key(&self) -> Result<CompressionKey, Error> {
+        Ok(self.lifecycle.compression_key()?)
+    }
+
+    /// Check a finished proof against the configured circuit, the expected
+    /// state and a trusted compression key: the layer-0 replay, then the
+    /// layer-1 argument, which reads only the key.
+    pub fn verify_final(
+        &self,
+        expected_state: &Stage1State,
+        key: &CompressionKey,
+        proof: &FinalProof,
+    ) -> Result<(), Error> {
+        Ok(self.lifecycle.verify_final(expected_state, key, proof)?)
     }
 }
 
-/// A proof that `Verifier::verify` accepts: `Proof` or `FinalProof`.
-pub trait Verifiable: sealed::Verify {}
-impl Verifiable for Stage1Envelope {}
-impl Verifiable for FinalProof {}
-
-mod sealed {
-    use super::{Error, FinalProof, PreparedLifecycle, Stage1Envelope, Stage1State};
-
-    pub trait Verify {
-        fn verify_in(&self, lifecycle: &PreparedLifecycle, expected_state: &Stage1State) -> Result<(), Error>;
-    }
-
-    impl Verify for Stage1Envelope {
-        fn verify_in(&self, lifecycle: &PreparedLifecycle, expected_state: &Stage1State) -> Result<(), Error> {
-            Ok(lifecycle.verify(expected_state, self)?)
-        }
-    }
-
-    impl Verify for FinalProof {
-        fn verify_in(&self, lifecycle: &PreparedLifecycle, expected_state: &Stage1State) -> Result<(), Error> {
-            Ok(lifecycle.verify_final(expected_state, self)?)
-        }
-    }
-}
+/// The verifier's trusted constants of one circuit's compression.
+pub type CompressionKey = neo_spartan::Key;
+/// The prover's compression setup: the key and the setup files.
+pub type CompressionSetup = neo_spartan::Setup;
 
 #[cfg(test)]
 #[path = "../tests/circuit/compiled_circuit.rs"]

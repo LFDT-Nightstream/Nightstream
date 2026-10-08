@@ -14,17 +14,20 @@ use neo_math::{D, F};
 use neo_spartan::shrink::{self, Shape, Shrink, ShrinkProof};
 use neo_spartan::Relation;
 use nightstream_fprime::{
-    PackageError, PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_1_ROUND_COUNT, PI_CCS_V1_1_SOURCE_COUNT,
+    PackageError, PiCcsV1_1PackageInputs, PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_1_ROUND_COUNT,
+    PI_CCS_V1_1_SOURCE_COUNT,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use serde::{Deserialize, Serialize};
 
 use super::terminal::FinalProgram;
 use super::{
-    extend::prepare_running, PreparedLifecycle, ProofCodecError, ProveError, Stage1Envelope, Stage1State,
-    StepInputError, VerifyError,
+    encode_pi_ccs_v1_1_public_input, extend::prepare_running, pi_ccs_v1_1_prior_children, PiCcsV1_1ProofInputs,
+    PreparedLifecycle, ProofCodecError, ProveError, Stage1Envelope, Stage1State, StepInputError, VerifyError,
 };
-use crate::folding::{self as nifs, ajtai_dec_mixer, pi_ccs, transcript::Transcript, CcsClaim, CeClaim};
+use crate::folding::{
+    self as nifs, ajtai_dec_mixer, pi_ccs, pi_rlc, transcript::Transcript, CcsClaim, CeClaim, RunningInstance,
+};
 
 /// The terminal proof the shrink layer proves: the layer-0 messages and the
 /// layer-1 argument for one state. About 1.6 MB; it never leaves the prover.
@@ -216,6 +219,28 @@ pub enum FinishError {
     Compression(#[from] neo_spartan::Error),
 }
 
+/// The identifier of the Lean terminal artifact
+/// (`formal/compression-lean/artifacts/compression-terminal-v1.json`).
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) const TERMINAL_PACKAGE_IDENTIFIER: [u64; 4] = [
+    16_428_539_504_810_015_812,
+    301_456_988_600_151_838,
+    13_020_544_018_908_642_000,
+    4_459_281_972_164_541_863,
+];
+
+/// The last fold of an active proof, stopped before Π_DEC.
+pub(crate) struct LastFold {
+    pub(crate) state: Stage1State,
+    /// The running instance as the state hash reads it.
+    pub(crate) running: RunningInstance,
+    pub(crate) fresh: CcsClaim,
+    pub(crate) pi_ccs: pi_ccs::Proof,
+    pub(crate) parent: pi_rlc::Output,
+    /// The fold transcript after PiRLC.
+    pub(crate) transcript: Transcript,
+}
+
 impl PreparedLifecycle {
     /// Prove the final accumulator of `envelope` without its witnesses.
     /// `envelope` does not change and can still be extended.
@@ -224,13 +249,40 @@ impl PreparedLifecycle {
         envelope: &Stage1Envelope,
         setup: &CompressionSetup,
     ) -> Result<FinalProof, FinishError> {
+        let last = self.last_fold(envelope)?;
+        let key = &setup.key;
+        let relation = key.relation()?;
+        let layer1 = neo_spartan::prove(
+            &relation,
+            &setup.layer1,
+            last.transcript.into_inner(),
+            &last.parent.claim,
+            &last.parent.witness,
+        )?;
+        let terminal = TerminalProof {
+            running: last.running.claims,
+            fresh: last.fresh,
+            pi_ccs: last.pi_ccs,
+            layer1,
+        };
+        let f = key.polynomial();
+        let program = key.program(&relation, &f, &last.state, Some(&terminal));
+        let shrink = shrink::prove(&Shrink::new(key.shape, key.layer_bits)?, &program)?;
+        Ok(FinalProof {
+            state: last.state,
+            shrink,
+        })
+    }
+
+    /// Run PiCCS and PiRLC on the running and fresh claims of `envelope`.
+    pub(crate) fn last_fold(&self, envelope: &Stage1Envelope) -> Result<LastFold, FinishError> {
         let state = envelope.state().clone();
-        let (mut running, mut fresh) = match (envelope.running(), envelope.fresh()) {
+        let (semantic, mut fresh) = match (envelope.running(), envelope.fresh()) {
             (Some(running), Some(fresh)) => (running.clone(), fresh.clone()),
             _ => return Err(FinishError::Input("an initial proof has no fold to finish")),
         };
-        let semantic = running.claims.clone();
-        let (_, digest) = self.checked_prior_state(&state, &running, &fresh.claim)?;
+        let (_, digest) = self.checked_prior_state(&state, &semantic, &fresh.claim)?;
+        let mut running = semantic.clone();
         prepare_running(&mut running, &self.params, digest);
         nifs::validate_running_parent_authority(&self.params, &self.structure, ajtai_dec_mixer, &running)
             .map_err(FinishError::PriorFamily)?;
@@ -251,25 +303,34 @@ impl PreparedLifecycle {
             vec![fresh],
             running,
         )?;
-        let key = &setup.key;
-        let relation = key.relation()?;
-        let layer1 = neo_spartan::prove(
-            &relation,
-            &setup.layer1,
-            transcript.into_inner(),
-            &parent.claim,
-            &parent.witness,
-        )?;
-        let terminal = TerminalProof {
+        Ok(LastFold {
+            state,
             running: semantic,
             fresh: fresh_claim,
             pi_ccs,
-            layer1,
-        };
-        let f = key.polynomial();
-        let program = key.program(&relation, &f, &state, Some(&terminal));
-        let shrink = shrink::prove(&Shrink::new(key.shape, key.layer_bits)?, &program)?;
-        Ok(FinalProof { state, shrink })
+            parent,
+            transcript,
+        })
+    }
+
+    /// The caller inputs of the Lean terminal package for `last`. The package
+    /// has no output state: the prior preimage fills its output-preimage
+    /// segment, so the canonical and context rows of PiCCS hold for it too.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(crate) fn terminal_inputs(&self, last: &LastFold) -> Result<PiCcsV1_1PackageInputs, StepInputError> {
+        let (prior_preimage, prior_digest) = self.checked_prior_state(&last.state, &last.running, &last.fresh)?;
+        let prior_children = pi_ccs_v1_1_prior_children(&last.running.claims)?;
+        let prior_public_input = encode_pi_ccs_v1_1_public_input(prior_digest)?;
+        Ok(
+            PiCcsV1_1ProofInputs::from_proof(std::slice::from_ref(&last.fresh), &last.pi_ccs)?.into_package_inputs(
+                prior_preimage.clone(),
+                prior_preimage,
+                prior_children,
+                prior_public_input,
+                [0; 4],
+                self.binding.verifier_context().clone(),
+            )?,
+        )
     }
 
     /// The key of this circuit for the layer-1 key `layer1`: the final

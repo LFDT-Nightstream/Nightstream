@@ -268,3 +268,7 @@ mod compiled_circuit;
 #[cfg(test)]
 #[path = "../tests/circuit/hash_chain_vector.rs"]
 mod hash_chain_vector;
+
+#[cfg(test)]
+#[path = "../tests/circuit/terminal_package.rs"]
+mod terminal_package;

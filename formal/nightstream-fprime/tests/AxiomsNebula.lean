@@ -422,3 +422,6 @@ their refinement to the model, and the first memory package's bounds. -/
 #audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.plan_fixedPoint
 #audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.jointDomain_le_twoPow28
 #audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.matrixProgram_exact
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Rows.sum_flatMap_range
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Rows.names_count
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.assertionNames_count

@@ -74,3 +74,14 @@ See [the workflow](../../../../scripts/GOLDEN_CONFORMANCE.md) and
 The selected verifier blueprint has one package copy under `artifacts`, shared
 by assembly and lifecycle tests. These test-only saved outputs are never read
 by `Circuit::compile`, `load`, `prove`, `extend`, or `verify`.
+
+`nebula-memory-v1-rows.json` names the assertion rows of the first Nebula
+memory package as `[name, first, end]`, counted from the application's first
+package row. The names follow spec §8–§11 (`Lifecycle/Nebula/RowNames.lean`).
+The spec §14 rejection tests (`tests/nebula/conformance.rs`) use it to name the
+check that a faulty step fails. Regenerate it with the memory package, from
+`formal/nightstream-fprime`:
+
+```sh
+bash scripts/validate.sh lean-executable .lake/build/bin/emit --application-rows nebula-memory-v1 ../../crates/nightstream/tests/fixtures/nebula-memory-v1-rows.json
+```

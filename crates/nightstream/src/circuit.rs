@@ -119,6 +119,13 @@ impl Circuit {
         })
     }
 
+    /// The package rows of the application, for conformance tests that name
+    /// the check a rejected step fails.
+    #[cfg(test)]
+    pub(crate) fn application_rows(&self) -> std::ops::Range<usize> {
+        self.compiled.package.application().row_range()
+    }
+
     /// Return the package's claimed circuit identifier.
     /// Compilation computes it from the circuit. Loading preserves the saved
     /// value without recomputing it, so equality does not authenticate a loaded

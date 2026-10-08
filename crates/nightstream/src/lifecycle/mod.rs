@@ -95,9 +95,31 @@ impl PreparedLifecycle {
         d: &PiDecV1_1PackageInputs,
         application_witness: &[u64],
     ) -> Result<WitnessAssignment, PackageError> {
+        #[cfg(test)]
+        if UNCHECKED_WITNESS.get() {
+            if let Err(PackageError::UnsatisfiedAssertionRow { row }) =
+                self.package
+                    .execute_stage1_v1_1_witness(c, d, application_witness)
+            {
+                FAILED_ASSERTION_ROW.set(Some(row));
+            }
+            return self
+                .package
+                .execute_stage1_v1_1_witness_unchecked(c, d, application_witness);
+        }
         self.package
             .execute_stage1_v1_1_witness(c, d, application_witness)
     }
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Conformance tests: while set, the prover builds each witness without
+    /// the package's assertion check, so that a test can give an invalid
+    /// fresh instance to the verifier.
+    pub(crate) static UNCHECKED_WITNESS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// The first assertion row that such a witness fails.
+    pub(crate) static FAILED_ASSERTION_ROW: std::cell::Cell<Option<usize>> = const { std::cell::Cell::new(None) };
 }
 /// The package binds its exact prefix dimensions; the selected seed and rows are fixed.
 pub(crate) fn validate_key_prefix(logical_width: usize, commitment_key_words: &[u64]) -> Result<(), PackageError> {

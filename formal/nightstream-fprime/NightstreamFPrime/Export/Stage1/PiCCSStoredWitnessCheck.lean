@@ -31,8 +31,8 @@ def statement (input : PiCCSInputCheck.Input) :
     Statement K PaperAlgebra.Commitment (Phi81Relation.PublicInput carrier)
       productionShape carrier.carrierWidth
       (Phi81ColumnLayout.blockCount carrier.carrierWidth) baseOps where
-  cubeLayout := (Lifecycle.PiRLC.v1_1.InputBinding.relationSource PiDECInputCheck.relation).cubeLayout
-  matrixSource := (Lifecycle.PiRLC.v1_1.InputBinding.relationSource PiDECInputCheck.relation).matrixSource
+  cubeLayout := (Lifecycle.PiRLC.v1_2.InputBinding.relationSource PiDECInputCheck.relation).cubeLayout
+  matrixSource := (Lifecycle.PiRLC.v1_2.InputBinding.relationSource PiDECInputCheck.relation).matrixSource
   commitments := PiCCSInputCheck.outputCommitments input
   publicInputs := PiCCSInputCheck.outputPublicInputs input
   priorPoint := (PiCCSInputCheck.running input).point

@@ -15,7 +15,7 @@ namespace NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram
 open NightstreamFPrime.Export
 open NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Layout
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 

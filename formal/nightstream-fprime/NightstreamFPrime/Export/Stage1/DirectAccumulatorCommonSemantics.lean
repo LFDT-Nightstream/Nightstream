@@ -43,7 +43,7 @@ theorem semantics_imply_accumulatorHolds
     (semantics : DirectPiRLCSamplerCompletePrefixPlan.Semantics relation
       geometry assignment base groupValue)
     (piRlcAssumptions :
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.Assumptions relation
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.Assumptions relation
         (PiRLCInputs.interface
           (logicalWidth := relationLogicalWidth)
           (publicFits := relationPublicFits))
@@ -74,7 +74,7 @@ theorem semantics_imply_accumulatorHolds
       relation ajtai geometry assignment base groupValue encodes
       semantics piRlcAssumptions
   have piDecAssumptions :
-      Lifecycle.PiDEC.v1_1.Formal.Assumptions relation
+      Lifecycle.PiDEC.v1_2.Formal.Assumptions relation
         (PiDECArithmetic.phaseInterface relationLogicalWidth
           relationPublicFits)
         PiDECInputs.phaseOffset commonEnv := by

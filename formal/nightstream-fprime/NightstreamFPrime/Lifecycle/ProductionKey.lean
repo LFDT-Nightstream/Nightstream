@@ -29,7 +29,7 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 
 /-- The F′ logical relation as the key consumes it: 4 verifier-key matrices
 and proof that the completed carrier fits the selected cube. The constraint
-polynomial is not a field of this record. SuperNeo v1_1 Pad comes from the
+polynomial is not a field of this record. SuperNeo v1.2 Pad comes from the
 verifier-owned `cubeLayout`; it is not a CCS matrix. -/
 structure LogicalRelation (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns <=

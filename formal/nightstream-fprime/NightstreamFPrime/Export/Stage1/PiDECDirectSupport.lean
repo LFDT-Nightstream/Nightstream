@@ -2,7 +2,7 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupportData
 import NightstreamFPrime.Export.Stage1.PiDECArithmetic
 import NightstreamFPrime.Layout.R1CS.Support
 import NightstreamFPrime.Layout.Stage1.PiDECSourceSupportData
-import NightstreamFPrime.Lifecycle.PiDEC.v1_1.Support.VariableSupport
+import NightstreamFPrime.Lifecycle.PiDEC.v1_2.Support.VariableSupport
 
 /-!
 Owns exact retained-source support for the canonical PiDEC ordinary rows.
@@ -19,31 +19,31 @@ open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Layout.Stage1.PiDECSourceSupport
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiDEC.v1_1
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiDEC.v1_2
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 private theorem combinationOutput_varsSatisfy
     {blockCount cellCount : Nat} [NeZero cellCount]
-    (interface : PiRLC.v1_1.CombinationFamily.Interface blockCount cellCount)
+    (interface : PiRLC.v1_2.CombinationFamily.Interface blockCount cellCount)
     (offset : Nat) (block : Fin blockCount) (lane : Fin ringDegree)
     (cell : Fin cellCount)
     (includes : ∀ column,
       InRange
-        (PiRLC.v1_1.CombinationFamily.stepOffset offset
-          PiRLC.v1_1.CombinationFamily.finalSource.val blockCount cellCount)
-        (PiRLC.v1_1.CombinationStep.privateCount blockCount cellCount) column →
+        (PiRLC.v1_2.CombinationFamily.stepOffset offset
+          PiRLC.v1_2.CombinationFamily.finalSource.val blockCount cellCount)
+        (PiRLC.v1_2.CombinationStep.privateCount blockCount cellCount) column →
       Source column) :
-    (PiRLC.v1_1.CombinationFamily.output interface offset block lane cell
+    (PiRLC.v1_2.CombinationFamily.output interface offset block lane cell
       ).VarsSatisfy Source := by
-  simp only [PiRLC.v1_1.CombinationFamily.output,
-    PiRLC.v1_1.CombinationStep.output, Expr.VarsSatisfy]
+  simp only [PiRLC.v1_2.CombinationFamily.output,
+    PiRLC.v1_2.CombinationStep.output, Expr.VarsSatisfy]
   apply includes
   constructor
   · omega
   · have bound :=
-      (PiRLC.v1_1.CombinationStep.indexOf block lane cell).isLt
+      (PiRLC.v1_2.CombinationStep.indexOf block lane cell).isLt
     omega
 
 theorem parentCommitment_supported
@@ -53,11 +53,11 @@ theorem parentCommitment_supported
     (row : Fin productionProfile.commitmentWidth) (lane : Fin ringDegree) :
     (((PiDECInputs.interface logicalWidth publicFits).parent
       PiDECInputs.phaseOffset).commitment row lane).VarsSatisfy Source := by
-  change (PiRLC.v1_1.CommitmentCombination.output
-    (PiRLC.v1_1.Formal.commitmentInterface
+  change (PiRLC.v1_2.CommitmentCombination.output
+    (PiRLC.v1_2.Formal.commitmentInterface
       (PiDECInputs.piRlcSharedInterface logicalWidth publicFits))
     PiRLCStarts.commitmentLogicalStart row lane).VarsSatisfy Source
-  unfold PiRLC.v1_1.CommitmentCombination.output
+  unfold PiRLC.v1_2.CommitmentCombination.output
   apply combinationOutput_varsSatisfy
   intro column inside
   exact parent_source column (parentCommitment column inside)
@@ -69,11 +69,11 @@ theorem parentPublicInput_supported
     (column : Fin (FullShape logicalWidth publicFits).publicWidth) :
     (((PiDECInputs.interface logicalWidth publicFits).parent
       PiDECInputs.phaseOffset).publicInput column).VarsSatisfy Source := by
-  change (PiRLC.v1_1.PublicInputCombination.output
-    (PiRLC.v1_1.Formal.publicInputInterface
+  change (PiRLC.v1_2.PublicInputCombination.output
+    (PiRLC.v1_2.Formal.publicInputInterface
       (PiDECInputs.piRlcSharedInterface logicalWidth publicFits))
     PiRLCStarts.publicInputLogicalStart column).VarsSatisfy Source
-  unfold PiRLC.v1_1.PublicInputCombination.output
+  unfold PiRLC.v1_2.PublicInputCombination.output
   apply combinationOutput_varsSatisfy
   intro source inside
   exact parent_source source (parentPublicInput source inside)
@@ -87,25 +87,25 @@ theorem parentEvalK_supported
       (((PiDECInputs.interface logicalWidth publicFits).parent
         PiDECInputs.phaseOffset).evaluation.eval_K coefficient) := by
   constructor
-  · change (PiRLC.v1_1.CombinationFamily.output
-      (PiRLC.v1_1.RingKCombination.familyInterface
-        (PiRLC.v1_1.EvalKCombination.ringInterface
-          (PiRLC.v1_1.Formal.evalKInterface
+  · change (PiRLC.v1_2.CombinationFamily.output
+      (PiRLC.v1_2.RingKCombination.familyInterface
+        (PiRLC.v1_2.EvalKCombination.ringInterface
+          (PiRLC.v1_2.Formal.evalKInterface
             (PiDECInputs.piRlcSharedInterface logicalWidth publicFits))))
-      PiRLCStarts.evalKLogicalStart PiRLC.v1_1.EvalKCombination.block
-      (Fin.cast PiRLC.v1_1.EvalKCombination.coefficientCount_eq coefficient)
-      PiRLC.v1_1.RingKCombination.c0Cell).VarsSatisfy Source
+      PiRLCStarts.evalKLogicalStart PiRLC.v1_2.EvalKCombination.block
+      (Fin.cast PiRLC.v1_2.EvalKCombination.coefficientCount_eq coefficient)
+      PiRLC.v1_2.RingKCombination.c0Cell).VarsSatisfy Source
     apply combinationOutput_varsSatisfy
     intro source inside
     exact parent_source source (parentEvalK source inside)
-  · change (PiRLC.v1_1.CombinationFamily.output
-      (PiRLC.v1_1.RingKCombination.familyInterface
-        (PiRLC.v1_1.EvalKCombination.ringInterface
-          (PiRLC.v1_1.Formal.evalKInterface
+  · change (PiRLC.v1_2.CombinationFamily.output
+      (PiRLC.v1_2.RingKCombination.familyInterface
+        (PiRLC.v1_2.EvalKCombination.ringInterface
+          (PiRLC.v1_2.Formal.evalKInterface
             (PiDECInputs.piRlcSharedInterface logicalWidth publicFits))))
-      PiRLCStarts.evalKLogicalStart PiRLC.v1_1.EvalKCombination.block
-      (Fin.cast PiRLC.v1_1.EvalKCombination.coefficientCount_eq coefficient)
-      PiRLC.v1_1.RingKCombination.c1Cell).VarsSatisfy Source
+      PiRLCStarts.evalKLogicalStart PiRLC.v1_2.EvalKCombination.block
+      (Fin.cast PiRLC.v1_2.EvalKCombination.coefficientCount_eq coefficient)
+      PiRLC.v1_2.RingKCombination.c1Cell).VarsSatisfy Source
     apply combinationOutput_varsSatisfy
     intro source inside
     exact parent_source source (parentEvalK source inside)
@@ -120,25 +120,25 @@ theorem parentEvalA_supported
       (((PiDECInputs.interface logicalWidth publicFits).parent
         PiDECInputs.phaseOffset).evaluation.eval_A matrix coefficient) := by
   constructor
-  · change (PiRLC.v1_1.CombinationFamily.output
-      (PiRLC.v1_1.RingKCombination.familyInterface
-        (PiRLC.v1_1.EvalACombination.ringInterface
-          (PiRLC.v1_1.Formal.evalAInterface
+  · change (PiRLC.v1_2.CombinationFamily.output
+      (PiRLC.v1_2.RingKCombination.familyInterface
+        (PiRLC.v1_2.EvalACombination.ringInterface
+          (PiRLC.v1_2.Formal.evalAInterface
             (PiDECInputs.piRlcSharedInterface logicalWidth publicFits))))
       PiRLCStarts.evalALogicalStart matrix
-      (Fin.cast PiRLC.v1_1.EvalKCombination.coefficientCount_eq coefficient)
-      PiRLC.v1_1.RingKCombination.c0Cell).VarsSatisfy Source
+      (Fin.cast PiRLC.v1_2.EvalKCombination.coefficientCount_eq coefficient)
+      PiRLC.v1_2.RingKCombination.c0Cell).VarsSatisfy Source
     apply combinationOutput_varsSatisfy
     intro source inside
     exact parent_source source (parentEvalA source inside)
-  · change (PiRLC.v1_1.CombinationFamily.output
-      (PiRLC.v1_1.RingKCombination.familyInterface
-        (PiRLC.v1_1.EvalACombination.ringInterface
-          (PiRLC.v1_1.Formal.evalAInterface
+  · change (PiRLC.v1_2.CombinationFamily.output
+      (PiRLC.v1_2.RingKCombination.familyInterface
+        (PiRLC.v1_2.EvalACombination.ringInterface
+          (PiRLC.v1_2.Formal.evalAInterface
             (PiDECInputs.piRlcSharedInterface logicalWidth publicFits))))
       PiRLCStarts.evalALogicalStart matrix
-      (Fin.cast PiRLC.v1_1.EvalKCombination.coefficientCount_eq coefficient)
-      PiRLC.v1_1.RingKCombination.c1Cell).VarsSatisfy Source
+      (Fin.cast PiRLC.v1_2.EvalKCombination.coefficientCount_eq coefficient)
+      PiRLC.v1_2.RingKCombination.c1Cell).VarsSatisfy Source
     apply combinationOutput_varsSatisfy
     intro source inside
     exact parent_source source (parentEvalA source inside)
@@ -186,7 +186,7 @@ theorem digit_supported
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (child : Spec.Phi81Relation.PiDECAlgebra.Radix.ChildIndex)
     (coordinate : Fin
-      (PiDEC.v1_1.PublicInputSplit.coordinateCount logicalWidth publicFits)) :
+      (PiDEC.v1_2.PublicInputSplit.coordinateCount logicalWidth publicFits)) :
     ((PiDECInputs.interface logicalWidth publicFits).digit PiDECInputs.phaseOffset
       child coordinate).VarsSatisfy Source := by
   simp only [PiDECInputs.interface, PiDECInputs.childPublicInput,
@@ -208,12 +208,12 @@ theorem publicConstraints_varsSatisfy
       (PiDECArithmetic.publicInputConstraints logicalWidth publicFits) := by
   constructor
   change ∀ expression ∈ flatConstraints (Circuit.ops
-    (PiDEC.v1_1.PublicInputSplit.circuit
-      (PiDEC.v1_1.Formal.publicInputInterface
-        (PiDEC.v1_1.Formal.atOffset
+    (PiDEC.v1_2.PublicInputSplit.circuit
+      (PiDEC.v1_2.Formal.publicInputInterface
+        (PiDEC.v1_2.Formal.atOffset
           (PiDECInputs.interface logicalWidth publicFits)
           PiDECInputs.phaseOffset))).main PiDECInputs.phaseOffset), _
-  apply PiDEC.v1_1.PublicInputSplit.flatConstraints_varsSatisfy Source
+  apply PiDEC.v1_2.PublicInputSplit.flatConstraints_varsSatisfy Source
   · intro coordinate
     exact parentPublicInput_supported coordinate
   · intro child coordinate
@@ -223,7 +223,7 @@ theorem publicConstraints_varsSatisfy
     unfold InRange
     constructor
     · simpa [PiDECStarts.phaseLogicalStart] using lower
-    · rw [PiDEC.v1_1.PublicInputSplit.logicalPrivateCount_eq] at upper
+    · rw [PiDEC.v1_2.PublicInputSplit.logicalPrivateCount_eq] at upper
       simpa [PiDECStarts.phaseLogicalStart] using! upper
 
 theorem commitmentConstraints_varsSatisfy
@@ -234,23 +234,23 @@ theorem commitmentConstraints_varsSatisfy
       (PiDECArithmetic.commitmentConstraints logicalWidth publicFits) := by
   constructor
   change ∀ expression ∈ flatConstraints (Circuit.ops
-    (PiDEC.v1_1.CommitmentRecomposition.circuit
-      (PiDEC.v1_1.Formal.commitmentInterface
-        (PiDEC.v1_1.Formal.atOffset
+    (PiDEC.v1_2.CommitmentRecomposition.circuit
+      (PiDEC.v1_2.Formal.commitmentInterface
+        (PiDEC.v1_2.Formal.atOffset
           (PiDECInputs.interface logicalWidth publicFits)
           PiDECInputs.phaseOffset))).main
-      (PiDEC.v1_1.Formal.commitmentOffset PiDECInputs.phaseOffset)), _
-  rw [PiDEC.v1_1.RadixRecomposition.circuit_ops]
-  apply PiDEC.v1_1.RadixRecomposition.flatConstraints_varsSatisfy Source
+      (PiDEC.v1_2.Formal.commitmentOffset PiDECInputs.phaseOffset)), _
+  rw [PiDEC.v1_2.RadixRecomposition.circuit_ops]
+  apply PiDEC.v1_2.RadixRecomposition.flatConstraints_varsSatisfy Source
   · intro coordinate
     exact parentCommitment_supported
       (logicalWidth := logicalWidth) (publicFits := publicFits)
-      (PiDEC.v1_1.CommitmentRecomposition.coordinates coordinate).1
-      (PiDEC.v1_1.CommitmentRecomposition.coordinates coordinate).2
+      (PiDEC.v1_2.CommitmentRecomposition.coordinates coordinate).1
+      (PiDEC.v1_2.CommitmentRecomposition.coordinates coordinate).2
   · intro child coordinate
     exact messageCommitment_supported child
-      (PiDEC.v1_1.CommitmentRecomposition.coordinates coordinate).1
-      (PiDEC.v1_1.CommitmentRecomposition.coordinates coordinate).2
+      (PiDEC.v1_2.CommitmentRecomposition.coordinates coordinate).1
+      (PiDEC.v1_2.CommitmentRecomposition.coordinates coordinate).2
 
 theorem evalKConstraints_varsSatisfy
     {logicalWidth : Nat}
@@ -260,20 +260,20 @@ theorem evalKConstraints_varsSatisfy
       (PiDECArithmetic.evalKConstraints logicalWidth publicFits) := by
   constructor
   change ∀ expression ∈ flatConstraints (Circuit.ops
-    (PiDEC.v1_1.RingKRecomposition.circuit
-      (PiDEC.v1_1.EvalKRecomposition.ringInterface
-        (PiDEC.v1_1.Formal.evalKInterface
-          (PiDEC.v1_1.Formal.atOffset
+    (PiDEC.v1_2.RingKRecomposition.circuit
+      (PiDEC.v1_2.EvalKRecomposition.ringInterface
+        (PiDEC.v1_2.Formal.evalKInterface
+          (PiDEC.v1_2.Formal.atOffset
             (PiDECInputs.interface logicalWidth publicFits)
             PiDECInputs.phaseOffset)))).main
-      (PiDEC.v1_1.Formal.evalKOffset PiDECInputs.phaseOffset)), _
-  apply PiDEC.v1_1.RingKRecomposition.flatConstraints_varsSatisfy Source
+      (PiDEC.v1_2.Formal.evalKOffset PiDECInputs.phaseOffset)), _
+  apply PiDEC.v1_2.RingKRecomposition.flatConstraints_varsSatisfy Source
   · intro _block lane
     exact parentEvalK_supported
-      (PiDEC.v1_1.EvalKRecomposition.coefficient lane)
+      (PiDEC.v1_2.EvalKRecomposition.coefficient lane)
   · intro child _block lane
     exact messageEvalK_supported child
-      (PiDEC.v1_1.EvalKRecomposition.coefficient lane)
+      (PiDEC.v1_2.EvalKRecomposition.coefficient lane)
 
 theorem evalAConstraints_varsSatisfy
     {logicalWidth : Nat}
@@ -283,20 +283,20 @@ theorem evalAConstraints_varsSatisfy
       (PiDECArithmetic.evalAConstraints logicalWidth publicFits) := by
   constructor
   change ∀ expression ∈ flatConstraints (Circuit.ops
-    (PiDEC.v1_1.RingKRecomposition.circuit
-      (PiDEC.v1_1.EvalARecomposition.ringInterface
-        (PiDEC.v1_1.Formal.evalAInterface
-          (PiDEC.v1_1.Formal.atOffset
+    (PiDEC.v1_2.RingKRecomposition.circuit
+      (PiDEC.v1_2.EvalARecomposition.ringInterface
+        (PiDEC.v1_2.Formal.evalAInterface
+          (PiDEC.v1_2.Formal.atOffset
             (PiDECInputs.interface logicalWidth publicFits)
             PiDECInputs.phaseOffset)))).main
-      (PiDEC.v1_1.Formal.evalAOffset PiDECInputs.phaseOffset)), _
-  apply PiDEC.v1_1.RingKRecomposition.flatConstraints_varsSatisfy Source
+      (PiDEC.v1_2.Formal.evalAOffset PiDECInputs.phaseOffset)), _
+  apply PiDEC.v1_2.RingKRecomposition.flatConstraints_varsSatisfy Source
   · intro matrix lane
     exact parentEvalA_supported matrix
-      (PiDEC.v1_1.EvalKRecomposition.coefficient lane)
+      (PiDEC.v1_2.EvalKRecomposition.coefficient lane)
   · intro child matrix lane
     exact messageEvalA_supported child matrix
-      (PiDEC.v1_1.EvalKRecomposition.coefficient lane)
+      (PiDEC.v1_2.EvalKRecomposition.coefficient lane)
 
 theorem productionPublicConstraints_supported
     {logicalWidth : Nat}

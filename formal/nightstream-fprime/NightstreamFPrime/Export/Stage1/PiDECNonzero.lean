@@ -3,7 +3,7 @@ import NightstreamFPrime.Export.Stage1.PiRLCPartialTrace
 import NightstreamFPrime.Spec.Folding.PiDEC.PaperVerifier
 
 /-!
-Owns one deterministic nonzero PiDEC v1.1 conformance fixture. It consumes
+Owns one deterministic nonzero PiDEC v1.2 conformance fixture. It consumes
 the exact accepted PiRLC output, computes the verifier-owned signed public
 digits, and solves child zero after choosing nonzero prover messages for
 children one through fifteen. No transcript state is changed by PiDEC.
@@ -71,7 +71,7 @@ def parent (fixture : Fixture) : CE.Instance
       (publicFits := PhaseReference.publicFits))
     PaperAlgebra.Point PaperAlgebra.Evaluation PaperAlgebra.Commitment where
   constraintSystem :=
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.InputBinding.relationSource
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.InputBinding.relationSource
       fixtureRelation
   commitment := fixture.commitment.toCommitment
   publicInput := fixture.publicInput.toPublicInput

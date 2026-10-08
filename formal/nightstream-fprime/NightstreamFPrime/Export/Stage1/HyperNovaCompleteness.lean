@@ -1,5 +1,5 @@
 import NightstreamFPrime.Export.Stage1.HyperNovaHistory
-import NightstreamFPrime.Lifecycle.PiDEC.v1_1.OutputWitnessConsumer
+import NightstreamFPrime.Lifecycle.PiDEC.v1_2.OutputWitnessConsumer
 import NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Completeness
 
 /-!
@@ -199,7 +199,7 @@ theorem recursive_nifs
   refine ⟨proof, result, children, roundsEq, outputEq, sampleEq, verified, ?_⟩
   intro child
   have member := childValid child
-  rw [Lifecycle.PiDEC.v1_1.OutputWitnessConsumer.runningStatement_eq
+  rw [Lifecycle.PiDEC.v1_2.OutputWitnessConsumer.runningStatement_eq
     relation productionAjtaiKey result child] at member
   exact member
 

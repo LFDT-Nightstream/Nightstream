@@ -200,7 +200,7 @@ Every point, commitment, public input, and evaluation uses the same forms. -/
 theorem selectedOutputRunning_eq_running
     (application : Lifecycle.Stage1.Application.Program)
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application)) :
-    PiCCS.v1_1.StatementAbsorption.evalRunning
+    PiCCS.v1_2.StatementAbsorption.evalRunning
         (RunningTransitionInputs.outputRunningExpr
           (PerApplicationFixedPoint.logicalWidth application)
           (PerApplicationFixedPoint.publicFits application))

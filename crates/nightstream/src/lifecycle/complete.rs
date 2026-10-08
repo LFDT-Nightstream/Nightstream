@@ -7,7 +7,7 @@ use neo_ajtai::{nightstream_fprime_setup::MAX_MESSAGE_COLUMNS, Commitment};
 use neo_ccs::Mat;
 use neo_math::{D, F};
 use neo_reductions::common::project_x_from_witness_mat;
-use nightstream_fprime::{PackageError, PI_DEC_V1_1_CHILD_COUNT};
+use nightstream_fprime::{PackageError, PI_DEC_V1_2_CHILD_COUNT};
 use p3_field::PrimeCharacteristicRing;
 
 use super::ProofState;
@@ -117,11 +117,11 @@ impl PreparedLifecycle {
         proved_commitments: Option<Vec<Commitment>>,
         application_values: Option<&[F]>,
     ) -> Result<Stage1Envelope, CompleteStepError> {
-        if child_witnesses.len() != PI_DEC_V1_1_CHILD_COUNT
-            || inputs.next_running().claims.len() != PI_DEC_V1_1_CHILD_COUNT
+        if child_witnesses.len() != PI_DEC_V1_2_CHILD_COUNT
+            || inputs.next_running().claims.len() != PI_DEC_V1_2_CHILD_COUNT
             || proved_commitments
                 .as_ref()
-                .is_some_and(|commitments| commitments.len() != PI_DEC_V1_1_CHILD_COUNT)
+                .is_some_and(|commitments| commitments.len() != PI_DEC_V1_2_CHILD_COUNT)
         {
             return Err(CompleteStepError::Input(
                 "child witness count differs from the selected profile",
@@ -152,7 +152,7 @@ impl PreparedLifecycle {
         let physical = match application_values {
             Some(values) => self
                 .package
-                .execute_stage1_v1_1_witness_with_application_values(
+                .execute_stage1_v1_2_witness_with_application_values(
                     inputs.pi_ccs(),
                     inputs.pi_dec(),
                     inputs.application_witness(),

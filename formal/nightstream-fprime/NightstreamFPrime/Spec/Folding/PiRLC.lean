@@ -4,7 +4,7 @@ import NightstreamFPrime.Spec.Folding.BatchArity
 at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
 
 /-!
-Model-level Π_RLC reduction (SuperNeo Lemma 4).
+Model-level Π_RLC reduction (SuperNeo v1.2 Lemma 8).
 
 This file separates three claims which must not be conflated:
 
@@ -55,7 +55,8 @@ structure Algebra
     semantics.evaluations system (combineAssignment challenges assignments) point =
       combineEvaluations challenges
         (fun i => semantics.evaluations system (assignments i) point)
-  /-- Definition 14's verifier-owned arity cap and strong challenge set imply
+  /-- SuperNeo v1.2 Definition 22's verifier-owned arity cap
+  and strong challenge set imply
   that combining fresh witnesses lands strictly below `B = b^k`. -/
   norm_growth : ∀ {n : Nat}
       (_totalBound : n ≤ params.maxFresh + params.k)
@@ -329,7 +330,8 @@ theorem complete
       inputs challenges assignments inputFresh sameStructure samePoint
       challengesValid inputValid pointValid
 
-/-- The scalar and assignment actions of Definition 4's relaxed-binding game. -/
+/-- The scalar and assignment actions of the relaxed-binding game of SuperNeo
+v1.2 Definition 7. -/
 structure RelaxedBindingOps
     (Assignment : Type uAssignment)
     (Commitment : Type uCommitment)
@@ -338,7 +340,7 @@ structure RelaxedBindingOps
   scaleCommitment : Scalar → Commitment → Commitment
   differenceChallenge : Scalar → Prop
 
-/-- A literal `(2B, C)`-relaxed binding collision from Definition 4. -/
+/-- A literal `(2B, C)`-relaxed binding collision from SuperNeo v1.2 Definition 7. -/
 structure RelaxedBindingCollision
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}

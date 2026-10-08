@@ -43,7 +43,7 @@ pub struct PiCcsCanonicalStatement {
     /// Exact sixteen-lane transcript state before the PiCCS public input.
     pub transcript_state: [u64; WIDTH],
     pub transcript_absorbed: usize,
-    /// Every v1_1 transcript absorption in exact execution order. Framed
+    /// Every v1_2 transcript absorption in exact execution order. Framed
     /// blocks include their length word.
     pub transcript_absorptions: Vec<Vec<u64>>,
     /// Shared running-claim point in coordinate order.
@@ -90,7 +90,7 @@ fn transcript_absorptions(trace: &[TraceEvent]) -> Result<Vec<Vec<u64>>, PiCcsEr
         .collect();
     if absorptions.is_empty() {
         return Err(PiCcsError::ProtocolError(
-            "Pi_CCS receipt trace has no v1_1 absorptions".into(),
+            "Pi_CCS receipt trace has no v1_2 absorptions".into(),
         ));
     }
     Ok(absorptions)

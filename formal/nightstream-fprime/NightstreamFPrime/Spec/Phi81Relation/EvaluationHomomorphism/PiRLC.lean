@@ -4,12 +4,12 @@ import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFLaws
 
 /-! Provenance: adapted from `formal/nightstream-lean/Nightstream/SuperNeo/Concrete/Phi81Relation/EvaluationHomomorphism/PiRLC.lean`
 at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces were renamed and
-the v1.1 explicit-matrix evaluation section was added for canonical Pad. -/
+the v1.2 explicit-matrix evaluation section was added for canonical Pad. -/
 
 /-!
 Orchestration of the typed Phi81 `Pi_RLC` evaluation map.
 
-Protocol: SuperNeo Theorem 5, evaluation-homomorphism branch of `Pi_RLC`.
+Protocol: SuperNeo v1.2 Theorem 11, evaluation-homomorphism branch of `Pi_RLC`.
 Phase: one complete-carrier action through matrix rows, Boolean MLE, and every
 canonical matrix.
 Constraint family: semantic evaluation only; this file emits no rows.
@@ -963,7 +963,7 @@ theorem matrixEvaluation_act
 
 /-! ## Explicit completed-matrix action
 
-SuperNeo v1.1 owns `Pad` separately from the CCS matrix family. These
+SuperNeo v1.2 owns `Pad` separately from the CCS matrix family. These
 definitions generalize the stored-matrix proof above to one explicit
 completed matrix while retaining the canonical Phi81 source, kernel, and
 carrier layout. -/

@@ -1,5 +1,5 @@
 import NightstreamFPrime.Export.Stage1.CompactRows
-import NightstreamFPrime.Layout.PiRLC.v1_1.CombinationCost
+import NightstreamFPrime.Layout.PiRLC.v1_2.CombinationCost
 import NightstreamFPrime.Layout.Stage1.PiRLCStarts
 
 /-!
@@ -16,9 +16,9 @@ namespace NightstreamFPrime.Export.Stage1.PiRLCCombinationTemplates
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Export.Package
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Layout
-open NightstreamFPrime.Layout.PiRLC.v1_1
+open NightstreamFPrime.Layout.PiRLC.v1_2
 
 def inputCount : Nat := 110
 def challengeInputStart : Nat := 0

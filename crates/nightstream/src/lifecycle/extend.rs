@@ -9,7 +9,7 @@ use p3_field::PrimeField64;
 
 use super::ProofState;
 use super::{
-    CompleteStepError, PiCcsV1_1PackageBridgeError, PreparedLifecycle, ProveError, Stage1Envelope, Stage1State,
+    CompleteStepError, PiCcsV1_2PackageBridgeError, PreparedLifecycle, ProveError, Stage1Envelope, Stage1State,
     StepInputError,
 };
 use crate::folding::{self as nifs, CcsClaim, CcsInstance, RunningInstance};
@@ -19,7 +19,7 @@ pub enum ExtendError {
     #[error("selected extension input: {0}")]
     Input(&'static str),
     #[error(transparent)]
-    Bridge(#[from] PiCcsV1_1PackageBridgeError),
+    Bridge(#[from] PiCcsV1_2PackageBridgeError),
     #[error(transparent)]
     Package(#[from] PackageError),
     #[error("selected base sampler: {0}")]

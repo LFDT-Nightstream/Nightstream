@@ -6,7 +6,7 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 /-!
 Whole-ring public-input homomorphism for the typed Phi81 `Pi_RLC` action.
 
-Protocol: SuperNeo Theorem 5, public-input branch of `Pi_RLC`.
+Protocol: SuperNeo v1.2 Theorem 11, public-input branch of `Pi_RLC`.
 Phase: complete assignment action to the verifier-owned aligned public prefix.
 Constraint family: semantic public-input combination only; this file emits no
 rows.

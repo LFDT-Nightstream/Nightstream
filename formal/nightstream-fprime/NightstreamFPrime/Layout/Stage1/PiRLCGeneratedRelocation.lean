@@ -1,5 +1,5 @@
 import NightstreamFPrime.Gadgets.Poseidon2.Duplex.WiringShift
-import NightstreamFPrime.Lifecycle.PiRLC.v1_1.GeneratedSupport
+import NightstreamFPrime.Lifecycle.PiRLC.v1_2.GeneratedSupport
 
 /-!
 Owns uniform offset relocation for PiRLC sampler-generated expressions.
@@ -13,7 +13,7 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Gadgets.Poseidon2
 open NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal.WiringShift
 open NightstreamFPrime.Gadgets.Sampling
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 

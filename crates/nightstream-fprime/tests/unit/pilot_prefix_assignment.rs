@@ -11,7 +11,7 @@ use super::pi_ccs_prefix_assignment_tests::{
     artifact_path, conformance_support, execute_pilot_prefix, inner_raw_package_bytes, logical_reference,
     PrefixExecutionCounts,
 };
-use crate::{load_poseidon2_hash_chain_v1_package, WitnessAssignment, PI_CCS_V1_1_STATE_PREIMAGE_WORDS};
+use crate::{load_poseidon2_hash_chain_v1_package, WitnessAssignment, PI_CCS_V1_2_STATE_PREIMAGE_WORDS};
 
 // PilotProduction.physicalRowCountValue_eq gives 14,623,730 rows.
 // The sealed Stage1 source map places its witness end at 14,751,526.
@@ -44,7 +44,7 @@ struct RawPilotResult(Vec<u64>, Vec<u64>, Vec<u64>, Vec<[u64; 3]>, Vec<u64>);
 struct RawPilotParity(u64, RawPilotInput, RawPilotResult);
 
 fn check_pilot_preimage(words: &[u64], context: [u64; 4]) {
-    assert_eq!(words.len(), PI_CCS_V1_1_STATE_PREIMAGE_WORDS);
+    assert_eq!(words.len(), PI_CCS_V1_2_STATE_PREIMAGE_WORDS);
     let domain: Vec<u64> = b"HyperNova/NIVC/state/v1"
         .iter()
         .copied()

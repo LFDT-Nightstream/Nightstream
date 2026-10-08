@@ -69,7 +69,7 @@ def PiCCSAssignment : Prop :=
     assignment (ApplicationRetainedGeometry.oneColumn
       (Export.Stage1.PerApplicationFixedPoint.geometry application)) = 1 →
     (Export.Stage1.PerApplicationFixedPoint.structuralPlan application fits).RowsZero assignment →
-    Lifecycle.PiCCS.v1_1.Formal.PhaseHolds
+    Lifecycle.PiCCS.v1_2.Formal.PhaseHolds
       (Export.Stage1.PerApplicationFixedPoint.relation application fits) ajtai
       (PiCCSInvocations.parentInterface
         (Export.Stage1.PerApplicationFixedPoint.logicalWidth application)
@@ -117,11 +117,11 @@ def PiCCSPublicAssignment : Prop :=
         (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry geometry) assignment)
       (ActualPreimageFraming.outputState
         (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry geometry) assignment)
-    PiCCS.v1_1.Formal.PhaseHolds relation ajtai interface
+    PiCCS.v1_2.Formal.PhaseHolds relation ajtai interface
         PiCCSInputs.phaseOffset env template ∧
-      PiCCS.v1_1.Formal.evalRunning interface PiCCSInputs.phaseOffset env =
+      PiCCS.v1_2.Formal.evalRunning interface PiCCSInputs.phaseOffset env =
         prior.running functionIndex ∧
-      (∀ source, (PiCCS.v1_1.Formal.evalFresh interface
+      (∀ source, (PiCCS.v1_2.Formal.evalFresh interface
           PiCCSInputs.phaseOffset env).publicInputs source =
         encHash (publicFits := PerApplicationFixedPoint.publicFits application)
           (stateHash (publicFits := PerApplicationFixedPoint.publicFits application) prior)) ∧
@@ -428,7 +428,7 @@ def PiCCSOriginalImages : Prop :=
       (PerApplicationMatrixProgram.matrixProgram Poseidon2HashChainV1Package.application)
       (fun row => (PiDECCanonicalSourceCache.stored Poseidon2HashChainV1Package.application)[row]?)
       (PiDECParentSparseRead.prepare ())
-      (PiRLC.v1_1.InputBinding.relationSource relation).cubeLayout witness.assignments vertex =
+      (PiRLC.v1_2.InputBinding.relationSource relation).cubeLayout witness.assignments vertex =
         some (ProtocolPolynomial.vertexMessage
           (((ProductionKey.key relation Poseidon2HashChainV1Setup.productionAjtaiKey).statement
             (PiCCSPublicReplay.running input) (PiCCSPublicReplay.fresh input)).sourceProtocolData
@@ -501,7 +501,7 @@ def PiCCSAggregatedEndpoints : Prop :=
     PiCCSAggregatedImages.endpoint?
       (PerApplicationMatrixProgram.matrixProgram Poseidon2HashChainV1Package.application)
       (fun row => (PiDECCanonicalSourceCache.stored Poseidon2HashChainV1Package.application)[row]?)
-      (PiRLC.v1_1.InputBinding.relationSource relation).cubeLayout witness.assignments
+      (PiRLC.v1_2.InputBinding.relationSource relation).cubeLayout witness.assignments
       prepared.1 prepared.2 (PiCCSAggregatedImages.combinedBlock powers witness.assignments)
       powers vertex = some (
         { message with padImage := fun _ => K.zero, matrixImage := fun _ => K.zero },
@@ -742,7 +742,7 @@ def PiCCSOriginalEvaluationKernel : Prop :=
       (source : Fin productionShape.sourceCount),
     ((PiCCSOriginalPad.range 0 PiCCSSourceImages.blockCount point masks).get source).toRing =
       (PaperAlgebra.evaluationFamily
-        (Lifecycle.PiRLC.v1_1.InputBinding.relationSource PiDECInputCheck.relation)
+        (Lifecycle.PiRLC.v1_2.InputBinding.relationSource PiDECInputCheck.relation)
         (PiCCSOriginalReads.assignment masks source) point).pad) ∧
   (∀ (masks : Array (Array (Nat × Nat))) (point : PaperAlgebra.Point)
       (source : Fin productionShape.sourceCount) (port : Fin Spec.ProductionRelation.matrixCount),
@@ -750,7 +750,7 @@ def PiCCSOriginalEvaluationKernel : Prop :=
       (PerApplicationMatrixProgram.matrixProgram Poseidon2HashChainV1Package.application).rowCount
         source).get port).toRing =
       (PaperAlgebra.evaluationFamily
-        (Lifecycle.PiRLC.v1_1.InputBinding.relationSource
+        (Lifecycle.PiRLC.v1_2.InputBinding.relationSource
           (PerApplicationFixedPoint.relation
             Poseidon2HashChainV1Package.application Poseidon2HashChainV1Package.fits))
         (PiCCSOriginalReads.assignment masks source) point).matrix port) ∧

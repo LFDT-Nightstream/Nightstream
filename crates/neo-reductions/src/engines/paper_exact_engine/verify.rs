@@ -36,7 +36,7 @@ fn validate_outputs(
             || output.eval_a.len() != dims.matrix_count
         {
             return Err(PiCcsError::InvalidInput(format!(
-                "PaperExact output {index} does not have the canonical v1_1 shape"
+                "PaperExact output {index} does not have the canonical v1_2 shape"
             )));
         }
         if output.eval_k.iter().skip(D).any(|&value| value != K::ZERO) {

@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomial
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedCoefficientPolynomial
 
 /-!
-Paper authority: SuperNeo v1.1, Section 7.3, Steps 2 and 4.
+Paper authority: SuperNeo v1.2, Section 7.3, Steps 2 and 4.
 Obligation: Use the exact joint identity
 `Eval_K + γ^(k*d) Eval_A + γ^(k*d*(t+1)) eq(F + γ^K NC)`.
 
@@ -275,7 +275,7 @@ theorem matrixAtMessage_eq_pointEquality_mul_horner
   unfold ProtocolPolynomial.matrixAtMessage
   rw [evaluateOutputMatrixCoefficients_eq_sum ops laws]
 
-/-- The exact v1.1 terminal formula has distinct `Eval_K` and `Eval_A` terms.
+/-- The exact v1.2 terminal formula has distinct `Eval_K` and `Eval_A` terms.
 The matrix term starts only after all `k*d` Pad coefficients. -/
 theorem terminal_eq_eval_K_add_shifted_eval_A_add_constraints
     {Field : Type uField}

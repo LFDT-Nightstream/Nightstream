@@ -1,13 +1,13 @@
-import NightstreamFPrime.Layout.PiDEC.v1_1.Values
+import NightstreamFPrime.Layout.PiDEC.v1_2.Values
 import NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixWork
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows
 import NightstreamFPrime.Layout.MatrixProgram.CoefficientWork
 
 /-!
 Counted coefficient entries for the selected PiDEC commitment row packet.
-All 14 matrix ports and 54 coefficient lanes reach the actual selected
+All matrix ports and 54 coefficient lanes reach the actual selected
 matrix source. The packet starts at global logical row 1100150.
-SuperNeo v1.1 Section 7.3 and Appendix B.2 own the coefficient-matrix check;
+SuperNeo v1.2 Section 7.3 and Appendix B.2 own the coefficient-matrix check;
 Section 7.5 and Appendix B.4 own these commitment recomposition rows.
 
 The caller supplies a typed local row. This program constructs its forms
@@ -88,7 +88,7 @@ private theorem fullRow_val (row : Fin 1188) :
   simp only [fullRow, ProductionRelation.Plan.leftIndex_val, ProductionRelation.Plan.rightIndex_val,
     PiDECDirectPlan.publicPlan_rowCount,
     DirectPiRLCSamplerCompletePrefixPlan.piRlcCompletePlan_rowCount,
-    Layout.PiDEC.v1_1.PublicInputSplit.physicalRowCount_value]
+    Layout.PiDEC.v1_2.PublicInputSplit.physicalRowCount_value]
   omega
 
 private theorem fullRow_port (row : Fin 1188) (matrix : Fin Spec.ProductionRelation.matrixCount) :
@@ -213,7 +213,7 @@ private theorem coefficient_for_relation {columns : Nat}
     (coefficient : Fin productionShape.coefficientCount)
     (column : Fin (Phi81CarrierLayout.carrierWidth columns)) :
     (CoefficientWork.coefficient form coefficient column).value =
-      (Lifecycle.PiRLC.v1_1.InputBinding.relationSource relation).matrixSource.coefficientMatrix
+      (Lifecycle.PiRLC.v1_2.InputBinding.relationSource relation).matrixSource.coefficientMatrix
         baseOps matrix coefficient vertex column :=
   CoefficientWork.coefficient_value cubeVariables productionProfile.freshSources
     productionProfile.runningSources productionProfile.ccsMatrices columns relation.matrices
@@ -250,7 +250,7 @@ theorem entry_value (matrix : Fin productionShape.matrixCount)
     (coefficient : Fin productionShape.coefficientCount) (row : Fin 1188)
     (column : Fin carrier.carrierWidth) :
     (entry matrix coefficient row column).value =
-      (Lifecycle.PiRLC.v1_1.InputBinding.relationSource PiDECInputCheck.relation).matrixSource.coefficientMatrix
+      (Lifecycle.PiRLC.v1_2.InputBinding.relationSource PiDECInputCheck.relation).matrixSource.coefficientMatrix
         baseOps matrix coefficient (selectedPlan.rowLayout.toVertex (globalRow row)) column := by
   change (CoefficientWork.coefficient (logicalWidth := 49707850)
     (width_eq ▸ (selectPort (PiDECCommitmentMatrixWork.commitmentForms row).value matrix).value)

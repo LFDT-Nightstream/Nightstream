@@ -208,7 +208,7 @@ PaperExact is a reference evaluator with exponential work in the joint-domain
 dimension. Both `PaperExact` and `Crosscheck` are for small correctness checks;
 neither is practical for the selected production circuit.
 The engine name does not change the Nightstream Goldilocks profile or make that
-profile an exact copy of SuperNeo Appendix B.2.
+profile an exact copy of SuperNeo v1.2 Section 8.2.
 
 ## Stored Lean Poseidon2 checks
 

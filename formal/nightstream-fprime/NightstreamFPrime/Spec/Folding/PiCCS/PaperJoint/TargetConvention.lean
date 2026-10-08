@@ -4,7 +4,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Coefficients
 at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
 
 /-!
-Owns the exact SuperNeo v1.1 target exponent convention. Pad coefficients use
+Owns the exact SuperNeo v1.2 target exponent convention. Pad coefficients use
 `I_K`; matrix coefficients use `k*d + I_A`. There is no selectable v1.0
 layout.
 -/
@@ -17,7 +17,7 @@ inductive EvaluationResidualOrientation where
   | evaluationMinusTarget
 deriving Repr, DecidableEq
 
-/-- The v1.1 residual orientation from Appendix B.2. -/
+/-- The v1.2 residual orientation from Appendix B.2. -/
 def selectedEvaluationResidualOrientation : EvaluationResidualOrientation :=
   .targetMinusEvaluation
 

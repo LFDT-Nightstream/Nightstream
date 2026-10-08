@@ -24,7 +24,7 @@ use crate::circuit::algebra;
 use crate::circuit::Backend;
 use crate::circuit::Native;
 use crate::field::{gl, re_im, Ext, Gl};
-use crate::{Shape, Statement};
+use crate::{ClaimWords, Shape};
 
 /// Coefficients of `Σ_b ω_b ⋆ z_b` before reduction: degree below `2D - 1`.
 const PRODUCT: usize = 2 * D - 1;
@@ -147,7 +147,7 @@ pub(crate) fn tau<B: Backend>(b: &mut B, zeta: B::E) -> [B::E; D] {
 }
 
 /// `Ȳ = Σ_rows λ^row · y_row`, as a ring element.
-pub(crate) fn targets<B: Backend>(b: &mut B, statement: &Statement<B::F>, mixing: &Mixing<B::E>) -> [B::E; D] {
+pub(crate) fn targets<B: Backend>(b: &mut B, statement: &ClaimWords<B::F>, mixing: &Mixing<B::E>) -> [B::E; D] {
     let eval_a = mixing.eval_a();
     std::array::from_fn(|lane| {
         let mut total = algebra::ext_zero(b);

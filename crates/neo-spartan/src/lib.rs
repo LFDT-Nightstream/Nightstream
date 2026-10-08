@@ -38,9 +38,7 @@ mod norm;
 mod pcs;
 mod ring;
 mod setup;
-// Until nightstream proves its final program (M3 slice 7), only tests do.
-#[cfg_attr(not(test), allow(dead_code))]
-mod shrink;
+pub mod shrink;
 mod sumcheck;
 mod verifier;
 mod whir;
@@ -76,6 +74,7 @@ use crate::ring::Mixing;
 use crate::setup::{Leaf, Store, FOLD};
 use crate::verifier::ProofView;
 
+pub use crate::circuit::fold::FoldTranscript;
 pub use crate::circuit::{Backend, Native};
 
 /// The claim this crate proves.
@@ -355,7 +354,7 @@ impl<'k> Relation<'k> {
 
     /// Bind the relation and the statement after the layer-1 seed, before
     /// the first layer-1 challenge.
-    fn start(&self, seed: [Gl; 4], statement: &Statement<Gl>) -> Challenger {
+    fn start(&self, seed: [Gl; 4], statement: &ClaimWords<Gl>) -> Challenger {
         let mut challenger = hash::challenger(seed);
         challenger.observe_slice(&self.words());
         challenger.observe_slice(&statement.words());
@@ -482,7 +481,7 @@ pub fn prove(
         return Err(Error::Setup("the setup belongs to another key"));
     }
     let (shape, structure, tables) = (&relation.shape, &key.structure, &setup.tables);
-    let statement = Statement::new(shape, claim)?;
+    let statement = ClaimWords::new(shape, claim)?;
     let z = witness_table(shape, witness)?;
     let histogram = norm::histogram(&z, shape.norm_bound)?;
     let early = tables.early(&claim.r);
@@ -621,10 +620,27 @@ pub fn verify(
     claim: &Claim,
     proof: &Proof,
 ) -> Result<(), Error> {
-    let statement = Statement::new(&relation.shape, claim)?;
-    let b = &mut Native;
-    let view = ProofView::read(b, relation, Some(proof))?;
-    verifier::verify(b, relation, hash::seed(transcript), &statement, &view)
+    if transcript.absorbed() != 0 {
+        return Err(Error::Shape("the fold transcript holds a partial chunk"));
+    }
+    let claim = ClaimWords::new(&relation.shape, claim)?;
+    let transcript = FoldTranscript::from_state(transcript.state().map(gl));
+    verify_with(&mut Native, relation, transcript, &claim, Some(proof))
+}
+
+/// Verify `proof` for `claim` over any backend, continuing the fold
+/// `transcript`. With `None` the proof reads as zeros: a shape run.
+pub fn verify_with<B: Backend>(
+    b: &mut B,
+    relation: &Relation<'_>,
+    transcript: FoldTranscript<B>,
+    claim: &ClaimWords<B::F>,
+    proof: Option<&Proof>,
+) -> Result<(), Error> {
+    claim.check_shape(&relation.shape)?;
+    let seed = transcript.handoff(b);
+    let view = ProofView::read(b, relation, proof)?;
+    verifier::verify(b, relation, seed, claim, &view)
 }
 
 fn early_challenges(challenger: &mut Challenger) -> EarlyChallenges<Ext> {
@@ -694,17 +710,21 @@ fn p1_points<E: Clone>(
     points
 }
 
-/// The validated public part of a CE(B) claim as words; a `K` value is
-/// `[re, im]`. `F` is `Gl` for the prover, a backend word for the verifier.
-pub(crate) struct Statement<F> {
-    pub(crate) commitment: Vec<[F; D]>,
-    pub(crate) public: Vec<[F; D]>,
-    pub(crate) point: Vec<[F; 2]>,
-    pub(crate) eval_k: [[F; 2]; D],
-    pub(crate) eval_a: Vec<[[F; 2]; D]>,
+/// The public part of a CE(B) claim as words; a `K` value is `[re, im]`.
+/// `F` is a layer-1 value for the prover and a backend word for a verifier.
+/// The words have no authority: the caller computes them or `new` checks
+/// them.
+pub struct ClaimWords<F> {
+    /// The `κ` commitment rows, coefficient form.
+    pub commitment: Vec<[F; D]>,
+    /// The public input, one ring element per block.
+    pub public: Vec<[F; D]>,
+    pub point: Vec<[F; 2]>,
+    pub eval_k: [[F; 2]; D],
+    pub eval_a: Vec<[[F; 2]; D]>,
 }
 
-impl Statement<Gl> {
+impl ClaimWords<Gl> {
     fn new(shape: &Shape, claim: &Claim) -> Result<Self, Error> {
         let c = &claim.c;
         if c.d != D || c.kappa != shape.kappa || c.data.len() != D * shape.kappa {
@@ -740,7 +760,18 @@ impl Statement<Gl> {
     }
 }
 
-impl<F: Copy> Statement<F> {
+impl<F: Copy> ClaimWords<F> {
+    fn check_shape(&self, shape: &Shape) -> Result<(), Error> {
+        if self.commitment.len() != shape.kappa
+            || self.public.len() != shape.public_blocks
+            || self.point.len() != shape.point_variables
+            || self.eval_a.len() != shape.matrices
+        {
+            return Err(Error::Shape("claim words"));
+        }
+        Ok(())
+    }
+
     fn words(&self) -> Vec<F> {
         let rings = self.commitment.iter().chain(&self.public).flatten();
         let field = self
@@ -753,7 +784,6 @@ impl<F: Copy> Statement<F> {
     }
 }
 
-/// `z` on the cube: `z[64·block + lane] = Z[lane, block]`, zero elsewhere.
 /// `z` on the cube: `z[64·block + lane] = Z[lane, block]`, zero elsewhere.
 fn witness_table(shape: &Shape, witness: &Mat<F>) -> Result<Vec<Gl>, Error> {
     if witness.rows() != D || witness.cols() != shape.blocks {

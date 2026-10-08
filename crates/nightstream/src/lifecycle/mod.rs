@@ -22,6 +22,7 @@ mod finish;
 mod inputs;
 mod prove;
 mod step_inputs;
+mod terminal;
 mod verify;
 pub use complete::{CompleteStepError, Stage1Envelope};
 pub use encoding::ProofCodecError;

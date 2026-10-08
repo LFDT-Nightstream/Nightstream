@@ -17,7 +17,7 @@ use crate::hash::{permutation, seed};
 use crate::shrink::layout::{diagonal, Layout, Shape};
 use crate::shrink::{prove, verify, Program, Shrink, ShrinkProof};
 use crate::verifier::ProofView;
-use crate::{Claim, Proof, Relation, Statement};
+use crate::{Claim, ClaimWords, Proof, Relation};
 
 const BITS: f64 = 100.0;
 
@@ -125,8 +125,8 @@ impl Toy {
 }
 
 impl Program for Toy {
-    fn statement(&self) -> Vec<Gl> {
-        self.statement.clone()
+    fn statement(&self) -> Vec<u64> {
+        self.statement.iter().map(Gl::as_canonical_u64).collect()
     }
 
     fn run<B: Backend>(&self, b: &mut B) -> Result<(), crate::Error> {
@@ -216,7 +216,7 @@ fn toy_program_proves_verifies_and_rejects_mutations() {
 struct Layer1<'a> {
     relation: &'a Relation<'a>,
     seed: [Gl; 4],
-    statement: Statement<Gl>,
+    statement: ClaimWords<Gl>,
     proof: Option<&'a Proof>,
 }
 
@@ -225,17 +225,17 @@ impl<'a> Layer1<'a> {
         Self {
             relation,
             seed,
-            statement: Statement::new(&relation.shape, claim).unwrap(),
+            statement: ClaimWords::new(&relation.shape, claim).unwrap(),
             proof,
         }
     }
 }
 
 impl Program for Layer1<'_> {
-    fn statement(&self) -> Vec<Gl> {
+    fn statement(&self) -> Vec<u64> {
         let mut words = self.seed.to_vec();
         words.extend(self.statement.words());
-        words
+        words.iter().map(Gl::as_canonical_u64).collect()
     }
 
     fn run<B: Backend>(&self, b: &mut B) -> Result<(), crate::Error> {

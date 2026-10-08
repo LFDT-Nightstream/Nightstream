@@ -21,8 +21,10 @@ use p3_security_v08::{ErrorBits, SecurityTerm};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
+pub use self::layout::Shape;
+
 use self::evaluate::Evaluate;
-use self::layout::{Layout, Shape};
+use self::layout::Layout;
 use crate::circuit::block::{Kind, C, KINDS, MATRICES, X};
 use crate::circuit::record::{Recorder, Sink, Term, Trace, Wire};
 use crate::circuit::{algebra, Backend, Native};
@@ -37,9 +39,10 @@ const DOMAIN: &[u8] = b"Nightstream/SuperNeo/shrink/v1";
 const DEGREE: usize = 8;
 
 /// A verifier written once over `Backend`.
-pub(crate) trait Program {
-    /// The statement words; `run` emits exactly these as `public`, first.
-    fn statement(&self) -> Vec<Gl>;
+pub trait Program {
+    /// The statement words, canonical; `run` emits exactly these as
+    /// `public`, first.
+    fn statement(&self) -> Vec<u64>;
     /// Run the checks. A shape run reads its proof as zeros.
     fn run<B: Backend>(&self, b: &mut B) -> Result<(), Error>;
 }
@@ -68,7 +71,7 @@ impl Sink for Count {
 
 impl Shape {
     /// The counts of one run of `program`.
-    pub(crate) fn derive(program: &impl Program) -> Result<Self, Error> {
+    pub fn derive(program: &impl Program) -> Result<Self, Error> {
         let mut recorder = Recorder::new(Count::default());
         program.run(&mut recorder)?;
         Ok(recorder.finish().0 .0)
@@ -76,14 +79,14 @@ impl Shape {
 }
 
 /// The shrink relation of one shape: the layout and the WHIR configuration.
-pub(crate) struct Shrink {
+pub struct Shrink {
     layout: Layout,
     pcs: Pcs,
 }
 
 impl Shrink {
     /// `security_bits` is `-log2` of the soundness error this layer may add.
-    pub(crate) fn new(shape: Shape, security_bits: f64) -> Result<Self, Error> {
+    pub fn new(shape: Shape, security_bits: f64) -> Result<Self, Error> {
         let layout = Layout::new(shape);
         let plans = vec![TablePlan {
             variables: layout.cell_variables,
@@ -95,7 +98,7 @@ impl Shrink {
         Ok(Self { layout, pcs })
     }
 
-    pub(crate) fn security_bits(&self) -> f64 {
+    pub fn security_bits(&self) -> f64 {
         self.pcs.security_bits()
     }
 
@@ -124,7 +127,7 @@ fn terms(layout: &Layout) -> Vec<SecurityTerm> {
 
 /// A shrink proof. It contains no witness cell.
 #[derive(Clone, Serialize, Deserialize)]
-pub(crate) struct ShrinkProof {
+pub struct ShrinkProof {
     pub(crate) commitment: pcs::Commitment,
     pub(crate) outer: Vec<Vec<Ext>>,
     /// `M̃_j·z` at the outer point, in matrix order.
@@ -133,10 +136,37 @@ pub(crate) struct ShrinkProof {
     pub(crate) opening: pcs::Opening,
 }
 
+impl ShrinkProof {
+    pub fn to_bytes(&self) -> Vec<u8> {
+        bincode::serialize(self).expect("an in-memory proof always encodes")
+    }
+
+    /// Strict: the bytes must be the canonical encoding of the decoded proof.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
+        let proof: Self = bincode::deserialize(bytes).map_err(|_| Error::Codec("shrink proof"))?;
+        if proof.to_bytes() != bytes {
+            return Err(Error::Codec("non-canonical shrink proof"));
+        }
+        Ok(proof)
+    }
+}
+
+/// The statement words as layer-1 field values; they must be canonical.
+fn statement_of(program: &impl Program) -> Result<Vec<Gl>, Error> {
+    let words = program.statement();
+    if words
+        .iter()
+        .any(|&word| word >= <Gl as p3_field_v08::PrimeField64>::ORDER_U64)
+    {
+        return Err(Error::Shape("statement words must be canonical"));
+    }
+    Ok(words.into_iter().map(Gl::new).collect())
+}
+
 /// Prove that `program` accepts its statement.
-pub(crate) fn prove(shrink: &Shrink, program: &impl Program) -> Result<ShrinkProof, Error> {
+pub fn prove(shrink: &Shrink, program: &impl Program) -> Result<ShrinkProof, Error> {
     let layout = &shrink.layout;
-    let statement = program.statement();
+    let statement = statement_of(program)?;
     let mut recorder = Recorder::new(Trace::default());
     program.run(&mut recorder)?;
     let (trace, failure) = recorder.finish();
@@ -180,7 +210,7 @@ pub(crate) fn prove(shrink: &Shrink, program: &impl Program) -> Result<ShrinkPro
 }
 
 /// Verify that `program` accepts its statement.
-pub(crate) fn verify(shrink: &Shrink, program: &impl Program, proof: &ShrinkProof) -> Result<(), Error> {
+pub fn verify(shrink: &Shrink, program: &impl Program, proof: &ShrinkProof) -> Result<(), Error> {
     let layout = &shrink.layout;
     let (m, n) = (layout.row_variables, layout.cell_variables);
     if proof.outer.len() != m
@@ -190,7 +220,7 @@ pub(crate) fn verify(shrink: &Shrink, program: &impl Program, proof: &ShrinkProo
     {
         return Err(Error::Rejected("shrink proof shape"));
     }
-    let statement = program.statement();
+    let statement = statement_of(program)?;
     let mut challenger = shrink.start(&statement);
     shrink.pcs.observe(&proof.commitment, &mut challenger);
     let tau: Vec<Ext> = (0..m)

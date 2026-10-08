@@ -17,11 +17,9 @@
 
 pub(crate) mod algebra;
 pub(crate) mod block;
+pub(crate) mod fold;
 pub(crate) mod hash;
-// Until the shrink prover (M3 slice 6) records the verifier, only tests do.
-#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) mod poseidon2;
-#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) mod record;
 pub(crate) mod ring_mul;
 

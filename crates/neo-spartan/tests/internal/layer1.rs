@@ -15,7 +15,7 @@ use super::{commit, word, Scratch, Toy};
 use crate::circuit::Native;
 use crate::field::{Ext, Gl};
 use crate::ring::{self, Mixing};
-use crate::{prove, verify, witness_table, Claim, Key, Proof, Relation, Setup, Statement, LANES};
+use crate::{prove, verify, witness_table, Claim, ClaimWords, Key, Proof, Relation, Setup, LANES};
 
 /// The honest parent bound for 17 folded sources: 17 · T · (b - 1) = 17 · 216.
 pub(super) const BOUND: u32 = 3672;
@@ -41,7 +41,7 @@ pub(super) fn relation_of<'k>(toy: &Toy, key: &'k Key) -> Relation<'k> {
 
 fn holds(setup: &Setup, relation: &Relation<'_>, claim: &Claim, witness: &Mat<F>) -> bool {
     let shape = &relation.shape;
-    let statement = Statement::new(shape, claim).unwrap();
+    let statement = ClaimWords::new(shape, claim).unwrap();
     let lambda = Ext::from_basis_coefficients_fn(|i| Gl::from_u64(word(77, i as u64)));
     let mixing = Mixing::new(&mut Native, lambda, shape);
     let early = setup.tables.early(&claim.r);

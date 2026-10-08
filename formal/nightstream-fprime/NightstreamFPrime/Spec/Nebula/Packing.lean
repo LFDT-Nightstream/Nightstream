@@ -23,14 +23,14 @@ decreasing_by
   simp only [List.length_drop]
   omega
 
-private theorem pack_nil : pack [] = [] := by
+theorem pack_nil : pack [] = [] := by
   rw [pack.eq_1, dif_pos rfl]
 
-private theorem pack_of_ne_nil {bits : List Bool} (nonempty : bits ≠ []) :
+theorem pack_of_ne_nil {bits : List Bool} (nonempty : bits ≠ []) :
     pack bits = chunkValue (bits.take 63) :: pack (bits.drop 63) := by
   rw [pack.eq_1, dif_neg nonempty]
 
-private theorem chunkValue_lt (bs : List Bool) : chunkValue bs < 2 ^ bs.length := by
+theorem chunkValue_lt (bs : List Bool) : chunkValue bs < 2 ^ bs.length := by
   induction bs with
   | nil => simp [chunkValue]
   | cons b bs ih =>

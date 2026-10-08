@@ -46,8 +46,10 @@ fn field(word: u64) -> F {
 }
 
 fn fixture() -> Fixture {
-    let fixture: Fixture =
-        serde_json::from_str(include_str!("fixtures/pi-rlc-lean.json")).expect("Lean whole-vector sampler fixture");
+    let fixture: Fixture = serde_json::from_str(include_str!(
+        "../../../formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-pi-rlc-sampler-v1.json"
+    ))
+    .expect("Lean whole-vector sampler fixture");
     assert_eq!((fixture.schema, fixture.modulus, fixture.degree), (1, MODULUS, D));
     fixture
 }

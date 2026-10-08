@@ -54,6 +54,7 @@ bash scripts/validate.sh build checkSharedVerifier
 bash scripts/validate.sh file tests/SharedVerifier.lean
 bash scripts/validate.sh lean-executable .lake/build/bin/checkSharedVerifier
 bash scripts/validate.sh lean-executable .lake/build/bin/emitSharedVerifier ../../crates/nightstream/artifacts/shared-verifier-v1.json
+python3 -B scripts/check_artifacts.py --write
 ```
 
 The native check compares the manifest with both existing Lean applications.

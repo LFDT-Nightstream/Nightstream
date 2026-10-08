@@ -78,10 +78,12 @@ tests      axiom gate (explicit imports, `#audit_axioms` per theorem)
   `Quot.sound`.
 - Lean commands only through `scripts/validate.sh` (`static`, `build
   [target]`, `axioms`, `file <path>`, `all`, and the other phases in its
-  header), each under the 1,500 s cap. The script needs Bash 4 or later; on
-  macOS run `PATH=/opt/homebrew/bin:$PATH /opt/homebrew/bin/bash
+  header), each under the 1,500 s cap. The script needs GNU `timeout` on
+  `PATH`; on macOS run `PATH=/opt/homebrew/bin:$PATH bash
   scripts/validate.sh <phase>`.
   One Lean or Rust build process at a time per worktree.
+- After an artifact regeneration, run `python3 -B scripts/check_artifacts.py
+  --write` and commit the changed `SHA256SUMS` files with the artifacts.
 - Before each command or edit: one active acceptance criterion and its
   closing evidence. Five rounds without closure: stop and report.
 

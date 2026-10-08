@@ -81,10 +81,10 @@ fixed constant iteration bound. Its premises are:
   this as Assumption 1 for its own scheme. For F′, it is SuperNeo folding
   under A1 and A6.
 
-Here the bound is `S_max · N`. Stage 2 adds the carry block to the state
-preimage. The claims do not change. So Stage 2 must prove Property 6 and the
-fixed-point and domain theorems again for the larger state
-(`FPRIME_LEAN_ARCHITECTURE_SPEC.md` §6). Definition 12 is stated for arity
+Here the bound is `S_max · N`. Stage 2 adds no field to the state preimage:
+the carry is in the application-state digest (spec §11.1). So the Stage 1
+Property 6, fixed-point, and domain theorems apply to the memory
+application's package. Definition 12 is stated for arity
 `(1, 1)`, and F′ folds one fresh claim with 16 running children. So Stage 1
 must also adapt the lemma to that arity. The lemma gives no concrete extractor
 time. That bound is also open for Stage 1.
@@ -123,7 +123,7 @@ These obligations have no probability term. A failure is a defect.
 
 | # | Obligation |
 |---|---|
-| Ob1 | Canonical decoding of statements, claims, and the carry block; no alias of a noncanonical field element |
+| Ob1 | Canonical decoding of statements, claims, and the carry words; no alias of a noncanonical field element |
 | Ob2 | Packing layout: the generated relation packs every lane exactly as spec §9.1 states, with at most 63 bits per element and lengths fixed by the plan |
 | Ob3 | Transcript framing of the chains and of the `η` transcript exactly as spec §9.2–§9.3 |
 | Ob4 | Every satisfying assignment of the generated relation refines to the actions of spec §8–§12 |
@@ -140,7 +140,7 @@ this note, and each proof needs an independent review (§7).
 | Joint | Argument | Status |
 |---|---|---|
 | J1: records into chains | Lemmas 1 and 2; Ob2, Ob3, Ob6 | Proof in this note, deterministic |
-| J2: carry thread | A3, A4; Ob8 | Assumed. The arity adaptation and Property 6 are open |
+| J2: carry thread | A3, A4; Ob8 | Assumed. The arity adaptation is open; Property 6 is the Stage 1 one |
 | J3: commit, then test | Lemmas 2–5 | Proof in this note, in the translated game of A6 |
 | J4: segment joins and terminal | Lemma 6 | Proof in this note |
 
@@ -324,7 +324,9 @@ these properties:
    witness that satisfies the F′ relation. The Stage 1 terminal opens the 16
    children and `u_{T−1}` directly.
 2. **Carry thread.** The state link of Construction 2 (A3) makes the input
-   carry of `A[i]` equal to the output carry of `A[i−1]`. The arm follows from
+   state of `A[i]` equal to the output state of `A[i−1]`. Both are state
+   digests (spec §11.1), so the input carry of `A[i]` equals the output carry
+   of `A[i−1]`, except with a collision (A3). The arm follows from
    that carry (Ob8). So the steps run in order, each step hashes its own lanes
    once, and a segment closes exactly when `idx` reaches `N`.
 3. **One segment.** At each close, Lemma 4 turns the rows into the four
@@ -425,7 +427,9 @@ Stage 2 adds these prescribed oracle calls to the Stage 1 census:
 - per fold: the three record chains of `step`. At the example geometry with
   `W_ts = 32`, they absorb 1,987 + 1,106 + 1,106 packed elements plus tags
   and framing, about 360–370 permutations;
-- per segment: one challenge transcript with two extension squeezes.
+- per segment: one challenge transcript with two extension squeezes;
+- per fold: two state digests (spec §11.1), for the input and the output
+  state.
 
 The query unit and the total belong to A6. When the trunk fixes them, the
 generated relation MUST supply the exact census.
@@ -489,8 +493,9 @@ generated relation MUST supply the exact census.
      counter widths `W_step`, `W_seg`, `W_cnt` and the O4 words `diff_j`);
    - the link from the package constants `plan_digest` and `D_init` to the
      relation (spec §4.3);
-   - the extended composition, Property 6, fixed-point, and domain theorems
-     for the larger state (A4; `FPRIME_LEAN_ARCHITECTURE_SPEC.md` §6).
+   - the memory application's package with its Stage 1 fixed-point and
+     domain theorems, and the link from the Stage 1 relation over that
+     application to the model.
 6. **Shared with Stage 1:** useful values of `g_d` and `delta_d` (A6), the
    concrete extractor time (A4), the arity adaptation of HyperNova Lemma 4, the
    terminal decider, encoding, and implementation terms, and an approved F′

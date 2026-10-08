@@ -5,9 +5,10 @@ Owns two fail-closed checks over the checked-out tree:
 1. In each artifact directory below, `SHA256SUMS` lists every regular
    (not symbolically linked) `*.json` file exactly once, and every listed
    SHA-256 digest matches its file.
-2. Outside `formal/nightstream-fprime/artifacts`, every tracked file that has
-   the name or the bytes of an artifact there is a symbolic link to that
-   artifact. A regular copy can drift, so it is rejected.
+2. Outside its own directory, every tracked file that has the name or the
+   bytes of one of these artifacts is a symbolic link to that artifact. A
+   regular copy can drift, so it is rejected. Bytes are compared with the
+   checked-out content, so Git LFS artifacts are covered too.
 
 It does not regenerate an artifact or decide whether a digest change is
 valid. After a regeneration, run it with `--write` and commit the changed
@@ -15,6 +16,7 @@ valid. After a regeneration, run it with `--write` and commit the changed
 """
 
 import hashlib
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -22,13 +24,11 @@ import sys
 ROOT = Path(subprocess.run(['git', 'rev-parse', '--show-toplevel'],
                            cwd=Path(__file__).resolve().parent, check=True,
                            capture_output=True, text=True).stdout.strip())
-LEAN_ARTIFACTS = ROOT / 'formal/nightstream-fprime/artifacts'
 ARTIFACT_DIRECTORIES = [
-    LEAN_ARTIFACTS,
+    ROOT / 'formal/nightstream-fprime/artifacts',
     ROOT / 'crates/nightstream/artifacts',
     ROOT / 'crates/nightstream-fprime/artifacts',
 ]
-SYMLINK_MODE = '120000'
 
 
 def digest(path):
@@ -59,51 +59,49 @@ def read_manifest(path):
 
 
 def check_directory(directory, errors):
-    """Return the number of checked digests in `directory`."""
+    """Return the SHA-256 digest of each regular artifact in `directory`."""
     label = directory.relative_to(ROOT)
     expected = read_manifest(directory / 'SHA256SUMS')
-    present = set(regular_artifacts(directory))
-    for name in sorted(present - expected.keys()):
+    actual = {name: digest(directory / name) for name in regular_artifacts(directory)}
+    for name in sorted(actual.keys() - expected.keys()):
         errors.append(f'{label}/{name}: not listed in SHA256SUMS')
-    for name in sorted(expected.keys() - present):
+    for name in sorted(expected.keys() - actual.keys()):
         problem = 'is a symbolic link; list only regular files' if (directory / name).is_symlink() else 'is missing'
         errors.append(f'{label}/{name}: listed in SHA256SUMS but {problem}')
-    checked = sorted(present & expected.keys())
-    for name in checked:
-        value = digest(directory / name)
-        if value != expected[name]:
-            errors.append(f'{label}/{name}: digest {value} does not match SHA256SUMS')
-    return len(checked)
+    for name in sorted(actual.keys() & expected.keys()):
+        if actual[name] != expected[name]:
+            errors.append(f'{label}/{name}: digest {actual[name]} does not match SHA256SUMS')
+    return {directory / name: value for name, value in actual.items()}
 
 
-def tracked_entries():
-    """Yield `(mode, blob, relative path)` for every tracked file."""
-    output = subprocess.run(['git', 'ls-files', '-s', '-z'], cwd=ROOT, check=True,
+def tracked_paths():
+    output = subprocess.run(['git', 'ls-files', '-z'], cwd=ROOT, check=True,
                             capture_output=True).stdout.decode()
-    for record in filter(None, output.split('\0')):
-        metadata, relative = record.split('\t', 1)
-        mode, blob, _ = metadata.split()
-        yield mode, blob, relative
+    return [ROOT / relative for relative in output.split('\0') if relative]
 
 
-def check_reuses(errors):
-    """Return the number of links that resolve to their Lean artifact."""
-    entries = list(tracked_entries())
-    lean_blobs = {blob: Path(relative).name for mode, blob, relative in entries
-                  if mode != SYMLINK_MODE and relative.endswith('.json')
-                  and (ROOT / relative).parent == LEAN_ARTIFACTS}
-    lean_names = set(lean_blobs.values())
+def check_reuses(artifacts, errors):
+    """Return the number of links that resolve to their artifact.
+
+    A name or a content belongs to the first directory in
+    `ARTIFACT_DIRECTORIES` that holds it, so a same-name file in a later
+    artifact directory is a reuse too."""
+    by_name, by_content = {}, {}
+    for path, value in artifacts.items():
+        by_name.setdefault(path.name, path)
+        by_content.setdefault((path.stat().st_size, value), path)
+    sizes = {size for size, _ in by_content}
     links = 0
-    for mode, blob, relative in entries:
-        path = ROOT / relative
-        if path.parent == LEAN_ARTIFACTS:
+    for path in tracked_paths():
+        if not os.path.lexists(path):
             continue
-        name = path.name if path.name in lean_names else lean_blobs.get(blob)
-        if name is None:
+        target = by_name.get(path.name)
+        if target is None and not path.is_symlink() and path.stat().st_size in sizes:
+            target = by_content.get((path.stat().st_size, digest(path)))
+        if target is None or target == path:
             continue
-        target = LEAN_ARTIFACTS / name
-        if mode != SYMLINK_MODE or path.resolve() != target.resolve():
-            errors.append(f'{relative}: must be a symbolic link to {target.relative_to(ROOT)}')
+        if not path.is_symlink() or path.resolve() != target.resolve():
+            errors.append(f'{path.relative_to(ROOT)}: must be a symbolic link to {target.relative_to(ROOT)}')
         else:
             links += 1
     return links
@@ -118,13 +116,15 @@ def main():
             write_manifest(directory)
 
     errors = []
-    count = sum(check_directory(directory, errors) for directory in ARTIFACT_DIRECTORIES)
-    links = check_reuses(errors)
+    artifacts = {}
+    for directory in ARTIFACT_DIRECTORIES:
+        artifacts.update(check_directory(directory, errors))
+    links = check_reuses(artifacts, errors)
     for error in errors:
         print(f'[artifacts] {error}', file=sys.stderr)
     if errors:
         return 1
-    print(f'[artifacts] {count} digests match; {links} links resolve to their Lean artifacts')
+    print(f'[artifacts] {len(artifacts)} digests match; {links} links resolve to their artifacts')
     return 0
 
 

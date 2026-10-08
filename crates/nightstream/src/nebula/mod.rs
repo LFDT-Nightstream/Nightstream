@@ -28,6 +28,15 @@ pub const PACKAGE_STRUCTURAL_IDENTIFIER: [u64; 4] = [
     6369654844452736898,
 ];
 
+/// The structural identifier of the second memory-application package
+/// (`artifacts/nightstream-fprime-stage2-nebula-memory-n1.json`, `Plan::second`).
+pub const N1_PACKAGE_STRUCTURAL_IDENTIFIER: [u64; 4] = [
+    15746991313935317013,
+    18319332356530865731,
+    17739652021909225243,
+    4698447363217335700,
+];
+
 /// The spec §13 public statement of a memory proof.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Statement {

@@ -4,17 +4,39 @@
 //! assertion check. Two results are required: the verifier rejects the proof
 //! at the fresh CCS relation, and the first assertion row that the witness
 //! fails is in the named check. The names come from Lean
-//! (`tests/fixtures/nebula-memory-v1-rows.json`).
+//! (`tests/fixtures/nebula-memory-*-rows.json`).
 
 use std::ops::Range;
 
 use super::*;
 use crate::lifecycle::{VerifyError, FAILED_ASSERTION_ROW, UNCHECKED_WITNESS};
-use crate::nebula::PACKAGE_STRUCTURAL_IDENTIFIER;
+use crate::nebula::{N1_PACKAGE_STRUCTURAL_IDENTIFIER, PACKAGE_STRUCTURAL_IDENTIFIER};
 use crate::{Circuit, Engine, Error, Proof, Prover, Verifier};
 
 /// `loadi 5; store 0`, then `load 0; halt`.
 const EXECUTE: [Step; 2] = [Step::Execute, Step::Execute];
+
+/// A saved memory package, its pinned identifier, its plan, and its row names.
+struct Package {
+    artifact: &'static str,
+    identifier: [u64; 4],
+    plan: fn() -> Plan,
+    rows: &'static [u8],
+}
+
+const FIRST: Package = Package {
+    artifact: "nightstream-fprime-stage2-nebula-memory-v1.json",
+    identifier: PACKAGE_STRUCTURAL_IDENTIFIER,
+    plan: Plan::first,
+    rows: include_bytes!("../fixtures/nebula-memory-v1-rows.json"),
+};
+
+const N1: Package = Package {
+    artifact: "nightstream-fprime-stage2-nebula-memory-n1.json",
+    identifier: N1_PACKAGE_STRUCTURAL_IDENTIFIER,
+    plan: Plan::second,
+    rows: include_bytes!("../fixtures/nebula-memory-n1-rows.json"),
+};
 
 struct Harness {
     context: Context,
@@ -24,23 +46,23 @@ struct Harness {
 }
 
 impl Harness {
-    fn new(engine: Engine) -> Self {
-        let bytes = std::fs::read(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/artifacts/nightstream-fprime-stage2-nebula-memory-v1.json"
-        ))
+    fn new(engine: Engine, package: &Package) -> Self {
+        let bytes = std::fs::read(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("artifacts")
+                .join(package.artifact),
+        )
         .expect("saved Lean memory package");
-        let circuit = Circuit::load_package(&bytes, PACKAGE_STRUCTURAL_IDENTIFIER).unwrap();
+        let circuit = Circuit::load_package(&bytes, package.identifier).unwrap();
         let rows = circuit.application_rows();
-        let named: Vec<(String, usize, usize)> =
-            serde_json::from_slice(include_bytes!("../fixtures/nebula-memory-v1-rows.json")).unwrap();
+        let named: Vec<(String, usize, usize)> = serde_json::from_slice(package.rows).unwrap();
         assert_eq!(
             named.last().map(|check| check.2),
             Some(rows.len()),
             "names cover the rows"
         );
         Self {
-            context: Context::new(Plan::first()).unwrap(),
+            context: Context::new((package.plan)()).unwrap(),
             prover: circuit.prover(engine, 114).unwrap(),
             verifier: Verifier::from_package(&circuit, engine, 114).unwrap(),
             checks: named
@@ -106,8 +128,9 @@ impl Harness {
             final_: Vec::new(),
         };
         fault(&mut segment);
+        let steps = vec![Step::Execute; plan.n];
         let (executed, final_memory, _) =
-            execute_steps(plan, MachineState::default(), &segment.execution, 0, &EXECUTE).unwrap();
+            execute_steps(plan, MachineState::default(), &segment.execution, 0, &steps).unwrap();
         segment.executed = executed;
         segment.final_ = final_memory;
         fault(&mut segment);
@@ -139,7 +162,7 @@ struct FirstSegment {
 }
 
 fn conformance(engine: Engine) {
-    let h = Harness::new(engine);
+    let h = Harness::new(engine, &FIRST);
     let plan = h.context.plan();
     let ram = plan.rom_size();
     let memory = initial_memory(plan);
@@ -285,4 +308,30 @@ fn packing_puts_at_most_63_bits_in_one_element() {
         assert_eq!(packed.len(), length.div_ceil(63));
         assert!(packed.iter().all(|word| word.as_canonical_u64() < 1 << 63));
     }
+}
+
+/// The case that the first plan cannot reach: its ROM fills its address
+/// space, so it has no O6 rows. The second plan has `r < μ`.
+fn n1_conformance(engine: Engine) {
+    let h = Harness::new(engine, &N1);
+    // A ROM address with a bit at or above `r`: O6.
+    let invocations = h.first_segment(|s| {
+        if let Some(step) = s.executed.first_mut() {
+            step.ops[0].addr = 1 << h.context.plan().r;
+        }
+    });
+    h.reject(None, &invocations[0], "O6 slot 0");
+}
+
+#[test]
+#[ignore = "Production-profile memory proofs; run separately under the 300-second cap."]
+fn n1_rejections_on_cpu() {
+    n1_conformance(Engine::Optimized);
+}
+
+#[cfg(feature = "metal")]
+#[test]
+#[ignore = "Production-profile memory proofs on Metal; run separately under the 300-second cap."]
+fn n1_rejections_on_metal() {
+    n1_conformance(Engine::Metal);
 }

@@ -537,7 +537,7 @@
       ],
       "kind": "assumption",
       "record": "H.security.nifs_assumption",
-      "role": "HyperNova errata Assumption 1, plain-model part, as Definition 7: an efficient extractor for each admitted NIFS adversary, which reads that adversary's tape. The step circuit recomputes the previous challenges with the concrete Poseidon2, so no random-oracle model covers the history.",
+      "role": "HyperNova errata Assumption 1, plain-model part, in the form of Definition 7: an efficient extractor for each admitted NIFS adversary, which reads that adversary's tape. The step circuit recomputes the previous challenges with the concrete Poseidon2, so no random-oracle model covers the history.",
       "refs": [],
       "assumption": "nifs_knowledge",
       "summary": "HyperNova errata Assumption 1 (Definition 7), applied to each stage of the reverse extractor. Not proved; the one-fold random-oracle theorem motivates its error value."

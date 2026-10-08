@@ -202,7 +202,7 @@ theorem zeroProof_parentBounded
     (Phi81Relation.PiRLCAlgebra.PublicInput.combinePublicInputs challenges
       (fun source => ((ProductionKey.key relation ajtai).piCcsOutputs defaultRunning
         (baseFresh prior) zeroProof source).publicInput) column) < 65536
-  have numeric : 17 * 216 < 65536 := by simpa using production_rlc_bound_one_fresh
+  have numeric : 17 * 216 < 65536 := by simp
   exact Nat.lt_of_le_of_lt bound numeric
 
 private theorem piDecCheck_of_sampled_parent

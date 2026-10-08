@@ -24,7 +24,7 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-def piCcsExternalSupport
+theorem piCcsExternalSupport
     (program : Lifecycle.Stage1.Application.Program) :
     PiCCS.v1_1.Formal.ExternalInputsSupported
       (AssemblerInputs.piCcsInterface

@@ -37,7 +37,7 @@ theorem rowsHold_implies_childRows (interface : Logical.Interface) (coordinate o
   rw [logicalConstraints_eq_ordered, R1CS.rowsHold_flatten_iff] at rows
   simp only [childConstraintLists, R1CS.SegmentsHold,
     entry_fresh interface coordinate offset (fun current => (inputs current).initialState),
-    range_fresh, advance_fresh, words_fresh, Nat.add_zero] at rows
+    range_fresh, advance_fresh, Nat.add_zero] at rows
   exact ⟨rows.1, rows.2.1, rows.2.2.1, rows.2.2.2.1⟩
 
 end NightstreamFPrime.Layout.PiRLC.v1_1.Sampler

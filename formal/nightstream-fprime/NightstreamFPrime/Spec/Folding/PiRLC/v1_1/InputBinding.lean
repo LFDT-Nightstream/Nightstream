@@ -32,7 +32,7 @@ structure Holds
 
 /-- Mechanical parent coverage: this leaf supplies exactly the first three
 fields of `PiRLC.Equations`; later leaves supply the four output equations. -/
-def Holds.toEquations
+theorem Holds.toEquations
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
     {PublicInput : Type uPublicInput}

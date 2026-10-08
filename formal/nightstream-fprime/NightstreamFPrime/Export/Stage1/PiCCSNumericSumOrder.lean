@@ -84,8 +84,8 @@ theorem numericSum_parity (ops : InterpolationOps Field)
         have bound := bit.isLt
         omega
       rcases bitCases with low | high
-      · simp [low, even, odd, laws.add_zero, laws.zero_add]
-      · simp [high, even, odd, laws.add_zero, laws.zero_add]
+      · simp [low, even, odd, laws.add_zero]
+      · simp [high, even, odd, laws.add_zero]
 
 /-- A parity-restricted active prefix is the complete endpoint sum when
 all omitted in-domain rows are zero. The last odd prefix row is retained. -/

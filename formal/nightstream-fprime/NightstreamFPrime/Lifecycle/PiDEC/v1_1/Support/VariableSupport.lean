@@ -60,21 +60,21 @@ theorem flatConstraints_varsSatisfy
   rw [constraints] at member
   rcases List.mem_cons.mp member with signMember | tailMember
   · subst expression
-    simp only [signConstraint, signBitExpr, Expr.sub, Expr.neg,
+    simp only [signConstraint, signBitExpr, 
       Expr.VarsSatisfy]
     exact ⟨localCell, ⟨localCell, ⟨trivial, trivial⟩⟩⟩
   · rcases List.mem_append.mp tailMember with digitMember | recompositionMember
     · rcases List.mem_ofFn.mp digitMember with ⟨index, rfl⟩
       have signSupported : (signExpr offset).VarsSatisfy allowed := by
-        simp only [signExpr, signBitExpr, Expr.sub, Expr.neg,
-          Expr.VarsSatisfy]
+        simp only [signExpr, signBitExpr
+          ]
         exact ⟨trivial, ⟨trivial, ⟨trivial, localCell⟩⟩⟩
-      simp only [digitConstraint, Expr.sub, Expr.neg, Expr.VarsSatisfy]
+      simp only [digitConstraint, Expr.VarsSatisfy]
       exact ⟨digits index, ⟨digits index, ⟨trivial, signSupported⟩⟩⟩
     · rw [List.mem_singleton] at recompositionMember
       subst expression
-      simp only [recompositionConstraint, Expr.sub, Expr.neg,
-        Expr.VarsSatisfy]
+      simp only [recompositionConstraint
+        ]
       exact ⟨recomposeExpr_varsSatisfy allowed interface offset digits,
         trivial, parent⟩
 
@@ -106,7 +106,7 @@ theorem flatConstraints_varsSatisfy {coordinateCount : Nat}
   rw [flatConstraints_operations]
   intro expression member
   rcases List.mem_ofFn.mp member with ⟨coordinate, rfl⟩
-  simp only [constraint, Expr.sub, Expr.neg, Expr.VarsSatisfy]
+  simp only [constraint]
   exact ⟨parent coordinate, trivial,
     recomposeExpr_varsSatisfy allowed interface offset coordinate
       (fun child => children child coordinate)⟩

@@ -140,11 +140,11 @@ deriving Repr, DecidableEq
 /-- Every physical column has exactly one owner. -/
 def columnOwner (interface : Interface) (offset : Nat)
     (column : Fin (physicalColumnCount interface offset)) : ColumnOwner :=
-  if beforePrior : column.val < offset then
+  if _beforePrior : column.val < offset then
     .external column.val
-  else if beforeOutput : column.val < outputOffset interface offset then
+  else if _beforeOutput : column.val < outputOffset interface offset then
     .priorWitness (column.val - offset)
-  else if beforeMultiplication : column.val < logicalColumnCount interface offset then
+  else if _beforeMultiplication : column.val < logicalColumnCount interface offset then
     .outputWitness (column.val - outputOffset interface offset)
   else
     .multiplication (column.val - logicalColumnCount interface offset)

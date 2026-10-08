@@ -188,7 +188,7 @@ def childOfRunning
     (source : Fin productionShape.runningCount) : Radix.ChildIndex :=
   Fin.cast runningCount_eq_childCount source
 
-def publicWidth_eq_coordinateCount :
+theorem publicWidth_eq_coordinateCount :
     (FullShape logicalWidth publicFits).publicWidth =
       Lifecycle.PiDEC.v1_1.PublicInputSplit.coordinateCount
         logicalWidth publicFits := by

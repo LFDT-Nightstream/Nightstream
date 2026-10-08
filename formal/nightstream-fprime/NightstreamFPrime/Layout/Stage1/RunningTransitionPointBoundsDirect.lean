@@ -52,7 +52,7 @@ private theorem listMap_injective {Alpha Beta : Type}
 private def fixedLogicalWidth : Nat :=
   phaseOffset + RunningTransition.exactPrivateCount
 
-private def fixedPublicFits : ringDegree * publicRingColumns ≤
+private theorem fixedPublicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth fixedLogicalWidth := by
   apply Nat.le_trans (m := fixedLogicalWidth)
   · have phaseLower := piDecPhaseOffset_le

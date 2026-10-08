@@ -67,7 +67,7 @@ private theorem toPolynomial_basis (degree : Nat) (inside : degree < ringDegree)
       simp only [RingFLaws.basis, ringFMonomial, coeff_X_pow, ↓reduceIte]
       rfl
     · simp only [RingFLaws.basis, ringFMonomial, coeff_X_pow, same,
-        Ne.symm same, ↓reduceIte]
+        ↓reduceIte]
       rfl
   · rw [coeff_toPolynomial_of_ge _ index (Nat.le_of_not_gt indexInside)]
     symm

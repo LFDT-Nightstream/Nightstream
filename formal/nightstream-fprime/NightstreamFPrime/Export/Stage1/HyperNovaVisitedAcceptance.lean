@@ -130,7 +130,7 @@ theorem marked_accepted
       PerApplicationTerminal.Holds application fits productionSetup statement proof := by
   have accepted := supported_accepted source initial steps visit supported marked
   cases current : visit.1 with
-  | none => exact False.elim (by simpa only [current] using accepted)
+  | none => exact False.elim (by simp only [current] at accepted)
   | some input =>
       exact ⟨input.1, input.2, rfl, by simpa only [current] using accepted⟩
 

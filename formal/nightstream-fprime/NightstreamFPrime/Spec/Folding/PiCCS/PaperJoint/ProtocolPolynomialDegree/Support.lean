@@ -45,7 +45,7 @@ def Represents
     polynomial.evaluate ops.toOps point = function point
 
 /-- The paper interpolation laws imply the generic fixed-polynomial laws. -/
-def polynomialLaws
+theorem polynomialLaws
     {Field : Type uField}
     {ops : InterpolationOps Field}
     (laws : InterpolationEvaluationLaws ops) :

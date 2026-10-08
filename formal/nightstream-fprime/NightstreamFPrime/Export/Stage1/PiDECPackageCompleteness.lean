@@ -314,7 +314,7 @@ private theorem pullback_agreesBelow_runningTransition
     rw [runningTransitionTargetEnd_eq]
     exact mappedPublic.le
 
-private def recursiveRunningBelowPiDec
+private theorem recursiveRunningBelowPiDec
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
     (env : Env)
     (assumptions :
@@ -360,7 +360,7 @@ private def recursiveRunningBelowPiDec
       assumptions.inputs.messageEval_A
         (RunningTransitionInputs.childOfRunning source) matrix coefficient
 
-private def outputRunningBelowPiDec :
+private theorem outputRunningBelowPiDec :
     NightstreamFPrime.Lifecycle.Stage1.RunningTransition.RunningBelow
       (RunningTransitionInputs.outputRunningExpr
         Data.logicalWidth Data.publicFits)

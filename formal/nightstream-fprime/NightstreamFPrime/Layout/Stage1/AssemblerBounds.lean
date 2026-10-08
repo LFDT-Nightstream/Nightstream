@@ -38,7 +38,7 @@ private theorem piCcsPhaseOffset_le
 
 /-- The unchanged caller-owned PiCCS expressions remain below the later
 compact parent offset. -/
-def piCcsExternalInputsLinear
+theorem piCcsExternalInputsLinear
     (program : Lifecycle.Stage1.Application.Program) :
     NightstreamFPrime.Layout.PiCCS.v1_1.ProductionInputs.ExternalInputsLinear
       (AssemblerInputs.piCcsInterface
@@ -99,7 +99,7 @@ def piCcsExternalInputsLinear
 
 /-- The compact PiCCS child has every causal assumption required by its sole
 `FormalCircuit`. -/
-def piCcsAssumptions
+theorem piCcsAssumptions
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
     PiCCS.v1_1.Formal.Assumptions relation
@@ -286,7 +286,7 @@ private theorem sourceEvalABelow
 
 /-- The compact PiRLC child has every causal assumption required by its sole
 `FormalCircuit`. -/
-def piRlcAssumptions
+theorem piRlcAssumptions
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
     PiRLC.v1_1.Formal.Assumptions relation
@@ -595,7 +595,7 @@ private theorem below_of_interval (expression : Expr) {start finish : Nat}
   exact supported.mono expression (fun _ support => support.elim False.elim And.right)
 
 /-- Every compact PiDEC input is owned before its phase allocation. -/
-def piDecInputsBelow
+theorem piDecInputsBelow
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) :
     PiDEC.v1_1.Formal.InputsBelow
@@ -655,7 +655,7 @@ def piDecInputsBelow
 
 /-- The compact PiDEC child has every causal assumption required by its sole
 `FormalCircuit`. -/
-def piDecAssumptions
+theorem piDecAssumptions
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
     PiDEC.v1_1.Formal.Assumptions relation
@@ -680,7 +680,7 @@ private theorem sourceRunning_le_running
     AssemblerInputs.outputHashOffset AssemblerInputs.priorOffset
   omega
 
-private def recursiveRunningBelow
+private theorem recursiveRunningBelow
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) :
     Lifecycle.Stage1.RunningTransition.RunningBelow
@@ -733,7 +733,7 @@ private def recursiveRunningBelow
 
 /-- The compact running-transition child has every causal assumption required
 by its sole `FormalCircuit`. -/
-def runningAssumptions
+theorem runningAssumptions
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
     Lifecycle.Stage1.RunningTransition.Assumptions
@@ -768,7 +768,7 @@ def runningAssumptions
 
 /-- Every verifier-owned application input precedes all compact logical
 children. -/
-def applicationInputsBelowRoot
+theorem applicationInputsBelowRoot
     (program : Lifecycle.Stage1.Application.Program) :
     Lifecycle.Stage1.Application.InputsBelow
       (AssemblerInputs.applicationInterface program)
@@ -816,13 +816,12 @@ def applicationInputsBelowRoot
 
 /-- Every verifier-owned application input precedes the exact compact
 application child start. -/
-def applicationInputsBelow
+theorem applicationInputsBelow
     (program : Lifecycle.Stage1.Application.Program) :
     Lifecycle.Stage1.Application.InputsBelow
       (AssemblerInputs.applicationInterface program)
       (AssemblerInputs.applicationOffset program) := by
-  have source := applicationInputsBelowRoot
-    (logicalWidth := logicalWidth) program
+  have source := applicationInputsBelowRoot program
   have le : AssemblerInputs.rootOffset program ≤
       AssemblerInputs.applicationOffset program := by
     unfold AssemblerInputs.applicationOffset AssemblerInputs.runningOffset
@@ -837,21 +836,20 @@ def applicationInputsBelow
 
 /-- The compact application child receives the exact assumptions of the
 verifier-selected Lean program. -/
-def applicationAssumptions
+theorem applicationAssumptions
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
     (program.circuit (AssemblerInputs.applicationInterface program)
       ).assumptions (AssemblerInputs.applicationOffset program) env :=
   program.assumptions (AssemblerInputs.applicationInterface program)
     (AssemblerInputs.applicationOffset program) env
-    (applicationInputsBelow
-      (logicalWidth := logicalWidth) program)
+    (applicationInputsBelow program)
 
 theorem nextPreimageSourceOffset_le_root
     (program : Lifecycle.Stage1.Application.Program) :
     RunningTransitionInputs.phaseOffset ≤ AssemblerInputs.rootOffset program :=
   sourceRunning_le_root program
 
-def nextPreimageAssumptions
+theorem nextPreimageAssumptions
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -876,7 +874,7 @@ def nextPreimageAssumptions
 
 /-- The exact eight child assumptions for the compact Stage 1 parent at its
 production root. -/
-def stage1Assumptions
+theorem stage1Assumptions
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -909,7 +907,6 @@ def stage1Assumptions
     exact runningAssumptions relation program env
   · rw [AssemblerInputs.parent_applicationOffset_eq relation ajtai program
       template]
-    exact applicationAssumptions
-      (logicalWidth := logicalWidth) program env
+    exact applicationAssumptions program env
 
 end NightstreamFPrime.Layout.Stage1.AssemblerBounds

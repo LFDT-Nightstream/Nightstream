@@ -500,10 +500,10 @@ theorem lowerGenericConstraint_rows_varsBelow (expression : Expr)
     · simpa [lowered] using
         lowerExpression_value_varsBelow expression start scope
     · intro term termMember
-      simp [assertion, LinearCombination.VarsBelow, LinearCombination.one]
+      simp [assertion, LinearCombination.one]
         at termMember
     · intro term termMember
-      simp [assertion, LinearCombination.VarsBelow, LinearCombination.zero]
+      simp [assertion, LinearCombination.zero]
         at termMember
 
 private theorem affineConstraint_row_varsBelow (expression : Expr)
@@ -757,7 +757,7 @@ theorem lowerConstraint_rows_varsBelow (expression : Expr) (start : Nat)
         lowerGenericConstraint_rows_varsBelow expression start scope
   | some result =>
       intro row member
-      simp only [lowerConstraint, constraintFreshCount, resultEq,
+      simp only [lowerConstraint, resultEq,
         List.mem_singleton] at member
       subst row
       have freshZero : constraintFreshCount expression = 0 := by

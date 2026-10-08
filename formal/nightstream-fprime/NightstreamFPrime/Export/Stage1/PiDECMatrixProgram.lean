@@ -209,6 +209,6 @@ def matrixProgram {program : ApplicationProgram} {logicalWidth : Nat}
     ordinaryBlock, MatrixProgram.Block.rowCount, Ordinary.Block.rowCount,
     publicSchedule, commitmentSchedule, evalKSchedule, evalASchedule,
     IndexSchedule.count, Layout.PiDEC.v1_1.exactRowCount,
-    Layout.PiDEC.v1_1.exactRowDeltas, Nat.add_assoc]
+    Layout.PiDEC.v1_1.exactRowDeltas]
 
 end NightstreamFPrime.Export.Stage1.PiDECMatrixProgram

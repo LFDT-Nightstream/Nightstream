@@ -94,10 +94,12 @@ private theorem kExpr_eval_eq_of_support
 def relation (application : Program) (fits : FitsTwoPow28 application) :=
   PerApplicationFixedPoint.relation application fits
 
-def geometry (application : Program) :=
+theorem geometry (application : Program) :
+    NightstreamFPrime.Export.Stage1.ApplicationRetainedGeometry.Geometry application (NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint.logicalWidth application) :=
   PerApplicationFixedPoint.geometry application
 
-def prefixGeometry (application : Program) :=
+theorem prefixGeometry (application : Program) :
+    NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRetainedGeometry.Geometry application (NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint.logicalWidth application) :=
   DirectApplicationPrefixPlan.prefixGeometry (geometry application)
 
 def transitionEnv {application : Program} (raw : RawValues application) : Env :=
@@ -474,7 +476,7 @@ theorem semantics_imply_contextKeys
   intro lane
   let contextLane : Fin 4 := ⟨lane.val, by
     have bound := lane.isLt
-    simpa [PilotProduction.digestWords, PilotValues.digestWords] using bound⟩
+    simp [PilotProduction.digestWords, PilotValues.digestWords]⟩
   have word := preserved contextLane
   let outputWord : Fin PilotProduction.stateHashWords :=
     ⟨Lifecycle.PiCCS.v1_1.StateBinding.contextWordStart + contextLane.val, by
@@ -903,8 +905,8 @@ theorem semantics_imply_nextInitialState
   apply StateDecoder.slice_congr
   intro lane
   let stateLane : Lifecycle.Stage1.RunningTransition.StateIndex :=
-    ⟨lane.val, by simpa [Lifecycle.Stage1.Application.stateWordCount,
-      Lifecycle.Stage1.RunningTransition.stateWordCount] using lane.isLt⟩
+    ⟨lane.val, by simp [Lifecycle.Stage1.Application.stateWordCount,
+      Lifecycle.Stage1.RunningTransition.stateWordCount]⟩
   let word : Fin PilotProduction.stateHashWords :=
     ⟨RunningTransitionInputs.initialStateWordStart + stateLane.val, by
       have bound := stateLane.isLt

@@ -384,7 +384,7 @@ def priorForm {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (inputs : Inputs program logicalWidth)
     (invocation : Fin PiRLCProductSchedule.invocationCount) : SparseForm logicalWidth :=
   let descriptor := PiRLCProductSchedule.descriptor invocation
-  if first : descriptor.source.val = 0 then
+  if _first : descriptor.source.val = 0 then
     .empty
   else
     inputs.prior invocation

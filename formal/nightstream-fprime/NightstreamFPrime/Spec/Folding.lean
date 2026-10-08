@@ -29,7 +29,7 @@ import Mathlib.Algebra.Polynomial.Eval.Defs
 import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongInterface
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CausalExecution
 import Mathlib.Probability.ProbabilityMassFunction.Constructions
-import Mathlib.Data.Real.Sqrt
+import Mathlib.Analysis.Real.Sqrt
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.IndependentExecution
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CheckedWitnessExtraction

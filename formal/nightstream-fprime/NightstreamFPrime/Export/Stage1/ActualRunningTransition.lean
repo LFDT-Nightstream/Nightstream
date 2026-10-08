@@ -136,7 +136,7 @@ theorem outputWord_eq_form
   have bound := index.isLt
   omega
 
-def selectedGeometry (application : Lifecycle.Stage1.Application.Program) :
+theorem selectedGeometry (application : Lifecycle.Stage1.Application.Program) :
     RunningTransitionRetainedGeometry.Geometry application
       (PerApplicationFixedPoint.logicalWidth application) :=
   DirectPiDECPrefixPlan.runningGeometry

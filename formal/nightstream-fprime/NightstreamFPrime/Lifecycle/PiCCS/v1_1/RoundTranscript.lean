@@ -180,8 +180,7 @@ def challenge {degreeBound : Nat} (interface : Interface degreeBound)
   (layoutProgram interface offset).samples.get ⟨roundIndex.val, by
     have samplesLength := layoutProgram_samples_length interface offset
     rw [samplesLength]
-    simpa [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables] using
-      roundIndex.isLt⟩
+    simp [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]⟩
 
 /-- Executable verifier-derived round challenge from the recipe-free wiring. -/
 def challengeFast {degreeBound : Nat} (interface : Interface degreeBound)
@@ -196,8 +195,7 @@ theorem challenge_eq_challengeFast_pointwise {degreeBound : Nat}
   have roundBound : roundIndex.val <
       (layoutProgram interface offset).samples.length := by
     rw [layoutProgram_samples_length]
-    simpa [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables] using
-      roundIndex.isLt
+    simp [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
   calc
     challenge interface offset roundIndex =
         (layoutProgram interface offset).samples.get

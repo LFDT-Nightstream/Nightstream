@@ -168,7 +168,7 @@ theorem runningWord_mulCount {logicalWidth : Nat}
   exact serializeRunningExpr_mulFree running linear _
     (List.get_mem _ ⟨index.val, indexBound⟩)
 
-def outputMulFree
+theorem outputMulFree
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
@@ -193,7 +193,7 @@ def outputMulFree
     refine ⟨rfl, rfl, ?_, ?_⟩ <;>
       simp [outputRunningExpr, outputEval_A, outputPairAt, Nonconstant]
 
-def recursiveMulFree
+theorem recursiveMulFree
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}

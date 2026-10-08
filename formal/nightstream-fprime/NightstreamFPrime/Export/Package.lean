@@ -142,7 +142,7 @@ def PhysicalLayout.format : Format PhysicalLayout where
   decode_encode := by
     intro value
     cases value
-    simp [Format.decode_encode] <;> rfl
+    simp [Format.decode_encode]; rfl
 
 /-- The physical R1CS matrix selected for one logical CCS matrix slot. Pad is
 not a source: SuperNeo v1_1 carries its evaluations in `Eval_K`. -/
@@ -196,7 +196,7 @@ def CcsPolynomialTerm.format : Format CcsPolynomialTerm where
   decode_encode := by
     intro value
     cases value
-    simp [Format.decode_encode] <;> rfl
+    simp [Format.decode_encode]
 
 /-- Logical CCS relation carried by the package beside its physical row
 program. Rust decodes this record; it does not choose matrix slots or the
@@ -228,7 +228,7 @@ def CcsRelation.format : Format CcsRelation where
   decode_encode := by
     intro value
     cases value
-    simp [Format.decode_encode] <;> rfl
+    simp [Format.decode_encode]; rfl
 
 /-- Exact selective matrix-slot order. Pad remains outside this list. -/
 def productionMatrixSources : List CcsMatrixSource :=
@@ -309,7 +309,7 @@ def TemplateTerm.format : Format TemplateTerm where
   decode_encode := by
     intro value
     cases value
-    simp [ColumnRef.format.decode_encode] <;> rfl
+    simp [ColumnRef.format.decode_encode]
 
 structure TemplateCombination where
   constant : Nat
@@ -326,7 +326,7 @@ def TemplateCombination.format : Format TemplateCombination where
   decode_encode := by
     intro value
     cases value
-    simp [Format.decode_encode] <;> rfl
+    simp [Format.decode_encode]
 
 /-- One sparse template equation. `outputLocal` is the witness instruction:
 the interpreter writes `A · B` there, and the same row checks the result. -/
@@ -353,7 +353,7 @@ def TemplateRow.format : Format TemplateRow where
   decode_encode := by
     intro value
     cases value
-    simp [TemplateCombination.format.decode_encode] <;> rfl
+    simp [TemplateCombination.format.decode_encode]; rfl
 
 /-- Sparse matrix data for one Poseidon2 permutation. -/
 structure PermutationTemplate where
@@ -378,7 +378,7 @@ def PermutationTemplate.format : Format PermutationTemplate where
   decode_encode := by
     intro value
     cases value
-    simp [Format.decode_encode] <;> rfl
+    simp [Format.decode_encode]
 
 /-- One exact instantiation chain. Absorb permutations precede the one final
 padding permutation. `digestLength` records how many caller-owned digest
@@ -451,7 +451,7 @@ def SparseCombination.format : Format SparseCombination where
   decode_encode := by
     intro value
     cases value
-    simp [Format.decode_encode] <;> rfl
+    simp [Format.decode_encode]
 
 /-- One explicit use of the canonical Poseidon2 permutation template.
 `inputs` contains one absolute sparse combination for each of the eight input
@@ -477,7 +477,7 @@ def PermutationInvocation.format : Format PermutationInvocation where
   decode_encode := by
     intro value
     cases value
-    simp [Format.decode_encode] <;> rfl
+    simp [Format.decode_encode]
 
 /-- One row in a generic compact template. A witness row names the local
 column that receives `A * B`. An assertion row has no output target and only
@@ -519,8 +519,8 @@ def CompactTemplateRow.format : Format CompactTemplateRow where
     intro value
     cases value
     simp [decodeOptionalNat_encode,
-      TemplateCombination.format.decode_encode,
-      Format.decode_encode] <;> rfl
+      TemplateCombination.format.decode_encode
+      ]; rfl
 
 /-- One Lean-authored generic row template. `outputRecipe` computes the one
 logical output column selected by `outputInput`. The rows then compute the
@@ -583,7 +583,7 @@ def CompactRowInvocation.format : Format CompactRowInvocation where
   decode_encode := by
     intro value
     cases value
-    simp [Format.decode_encode] <;> rfl
+    simp [Format.decode_encode]
 
 /-- One generic straight-line witness instruction and its authoritative row.
 The interpreter writes `a * b` to `target`; the same package row checks that
@@ -610,7 +610,7 @@ def WitnessInstruction.format : Format WitnessInstruction where
   decode_encode := by
     intro value
     cases value
-    simp [SparseCombination.format.decode_encode] <;> rfl
+    simp [SparseCombination.format.decode_encode]; rfl
 
 /-- An assertion-only absolute sparse row. Witness rows live in the template. -/
 structure SparseRow where
@@ -635,7 +635,7 @@ def SparseRow.format : Format SparseRow where
   decode_encode := by
     intro value
     cases value
-    simp [SparseCombination.format.decode_encode] <;> rfl
+    simp [SparseCombination.format.decode_encode]; rfl
 
 /-- Terminal metadata becomes present when the terminal phase is added to the
 same package path. -/
@@ -715,7 +715,7 @@ def CompactRowTemplate.format : Format CompactRowTemplate where
   decode_encode := by
     intro value
     cases value
-    simp [exprFormat.decode_encode, Format.decode_encode] <;> rfl
+    simp [exprFormat.decode_encode, Format.decode_encode]; rfl
 
 /-- Lossless wire encoding of non-authoritative witness hints. -/
 def encodeHint : Hint → Value
@@ -758,7 +758,7 @@ def WitnessBatch.format : Format WitnessBatch where
   decode_encode := by
     intro value
     cases value
-    simp [Format.decode_encode] <;> rfl
+    simp [Format.decode_encode]; rfl
 
 /-- The only circuit-package type accepted by the Stage 1 Rust loader. -/
 structure CircuitPackage where
@@ -820,7 +820,7 @@ def CircuitPackage.format : Format CircuitPackage where
     simp [Profile.format.decode_encode, PoseidonSchedule.format.decode_encode,
       PhysicalLayout.format.decode_encode,
       CcsRelation.format.decode_encode,
-      PermutationTemplate.format.decode_encode, Format.decode_encode] <;> rfl
+      PermutationTemplate.format.decode_encode, Format.decode_encode]; rfl
 
 theorem decode_encode (value : CircuitPackage) :
     CircuitPackage.format.decode (CircuitPackage.format.encode value) =
@@ -899,7 +899,7 @@ def Artifact.format : Format Artifact where
   decode_encode := by
     intro value
     cases value
-    simp [CircuitPackage.format.decode_encode] <;> rfl
+    simp [CircuitPackage.format.decode_encode]
 
 def sealPackage (value : CircuitPackage) : Artifact where
   package := value

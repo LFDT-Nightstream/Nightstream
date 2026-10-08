@@ -181,7 +181,7 @@ theorem previousState_tail (initial : State) {count : Nat}
     simp
   exact left.trans right.symm
 
-def IndexedSemantics.tail {env : Env} {count : Nat} {initial : State}
+theorem IndexedSemantics.tail {env : Env} {count : Nat} {initial : State}
     {kindAt : Fin (count + 1) → PoseidonActionSchedule.Kind}
     {output : Fin (count + 1) → State}
     (semantics : IndexedSemantics env initial kindAt output) :
@@ -237,7 +237,7 @@ theorem previousState_slice {total : Nat} (initial : State)
     simp only [sliceIndex]
     omega
 
-def IndexedSemantics.slice {env : Env} {total : Nat} {initial : State}
+theorem IndexedSemantics.slice {env : Env} {total : Nat} {initial : State}
     {kindAt : Fin total → PoseidonActionSchedule.Kind}
     {output : Fin total → State}
     (semantics : IndexedSemantics env initial kindAt output)

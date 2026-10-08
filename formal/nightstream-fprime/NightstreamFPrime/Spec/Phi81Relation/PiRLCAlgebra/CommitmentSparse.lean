@@ -105,7 +105,7 @@ theorem singleBlock_monomial_coordinate {shape : Shape}
       if column = Phi81CarrierLayout.carrierColumn (logicalWidth := shape.logicalWidth) selected lane then scalar else 0 := by
   by_cases same : column = Phi81CarrierLayout.carrierColumn (logicalWidth := shape.logicalWidth) selected lane
   · subst column
-    simp only [if_pos rfl]
+    simp only []
     change CarrierAction.assignmentBlock
       (singleBlock selected (ringFMonomial lane.val scalar)) selected lane = scalar
     rw [assignmentBlock_singleBlock, if_pos rfl]

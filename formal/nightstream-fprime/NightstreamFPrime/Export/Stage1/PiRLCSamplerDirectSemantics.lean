@@ -224,7 +224,7 @@ theorem retainedStateExpr_entry
   unfold retainedStateExpr PiRLCSamplerRetainedCustody.StateLocation.sourceColumn
     NightstreamFPrime.Gadgets.Poseidon2.Permutation.scheduleOutput
     NightstreamFPrime.Gadgets.Poseidon2.Permutation.freshState
-  simp only [PiRLCSamplerRetainedCustody.stateOutputOffset, Fin.val_zero, Nat.zero_mul,
+  simp only [PiRLCSamplerRetainedCustody.stateOutputOffset, Nat.zero_mul,
     Nat.add_zero, PiRLCStarts.samplerSourceLogicalStart, SamplerChain.sourceOffset]
 
 /-- Step one is the single advance permutation and the scalar's final state. -/
@@ -389,7 +389,7 @@ theorem enterScalar_ofFn
   unfold NightstreamFPrime.Lifecycle.Transcript.PiRlcSampler.enterScalar
     NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.enter
     Spec.Poseidon2.absorbBlock
-  simp [Spec.Poseidon2.rate, Spec.Poseidon2.width,
+  simp [Spec.Poseidon2.width,
     PiRLCSamplerPoseidonPlan.entryWord, List.ofFn_succ]
   apply congrArg Spec.Poseidon2.permute
   norm_num [List.range, List.range.loop, List.getD, Spec.Poseidon2.ofNat, natWord]

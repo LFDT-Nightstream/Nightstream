@@ -69,7 +69,7 @@ structure Geometry (program : Lifecycle.Stage1.Application.Program)
     (logicalWidth : Nat) : Prop where
   completeFits : completeLogicalWidth program ≤ logicalWidth
 
-def pilotOrdinaryGeometry {program : Lifecycle.Stage1.Application.Program}
+theorem pilotOrdinaryGeometry {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     PilotOrdinaryRetainedGeometry.Geometry program logicalWidth where
   completeFits := by
@@ -77,7 +77,7 @@ def pilotOrdinaryGeometry {program : Lifecycle.Stage1.Application.Program}
     unfold completeLogicalWidth freshStart logicalStart prefixLogicalWidth
     omega
 
-def prefixGeometry {program : Lifecycle.Stage1.Application.Program}
+theorem prefixGeometry {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth :=
   PilotOrdinaryRetainedGeometry.prefixGeometry
@@ -88,13 +88,13 @@ def oneColumn {program : Lifecycle.Stage1.Application.Program}
     Fin logicalWidth :=
   PiCCSOrdinaryRetainedGeometry.oneColumn (prefixGeometry geometry)
 
-def piRlcGeometry {program : Lifecycle.Stage1.Application.Program}
+theorem piRlcGeometry {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     PiRLCRetainedGeometry.Geometry program logicalWidth :=
   PiCCSPoseidonPlan.prefixGeometry <|
     PiCCSOrdinaryRetainedGeometry.poseidonGeometry (prefixGeometry geometry)
 
-def parentCommitmentFits {program : Lifecycle.Stage1.Application.Program}
+theorem parentCommitmentFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     parentCommitmentStart program +
         (PiDECRetainedBlocks.parentCommitmentBlock program).coordinateCount ≤
@@ -106,7 +106,7 @@ def parentCommitmentFits {program : Lifecycle.Stage1.Application.Program}
     1188 * 41 ≤ logicalWidth
   omega
 
-def parentPublicInputFits {program : Lifecycle.Stage1.Application.Program}
+theorem parentPublicInputFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     parentPublicInputStart program +
         (PiDECRetainedBlocks.parentPublicInputBlock program).coordinateCount ≤
@@ -118,7 +118,7 @@ def parentPublicInputFits {program : Lifecycle.Stage1.Application.Program}
     270 * 41 ≤ logicalWidth
   omega
 
-def parentEvalKFits {program : Lifecycle.Stage1.Application.Program}
+theorem parentEvalKFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     parentEvalKStart program +
         (PiDECRetainedBlocks.parentEvalKBlock program).coordinateCount ≤
@@ -130,7 +130,7 @@ def parentEvalKFits {program : Lifecycle.Stage1.Application.Program}
     108 * 41 ≤ logicalWidth
   omega
 
-def parentEvalAFits {program : Lifecycle.Stage1.Application.Program}
+theorem parentEvalAFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     parentEvalAStart program +
         (PiDECRetainedBlocks.parentEvalABlock program).coordinateCount ≤
@@ -142,14 +142,14 @@ def parentEvalAFits {program : Lifecycle.Stage1.Application.Program}
     756 * 41 ≤ logicalWidth
   omega
 
-def proofFits {program : Lifecycle.Stage1.Application.Program}
+theorem proofFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     proofStart program + (PiDECRetainedBlocks.proofBlock program).coordinateCount ≤
       logicalWidth := by
   exact RunningTransitionRetainedGeometry.piDecFits
     (PiCCSOrdinaryRetainedGeometry.prefixGeometry (prefixGeometry geometry))
 
-def logicalFits {program : Lifecycle.Stage1.Application.Program}
+theorem logicalFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     logicalStart program +
         (PiDECRetainedBlocks.logicalBlock program).coordinateCount ≤
@@ -158,7 +158,7 @@ def logicalFits {program : Lifecycle.Stage1.Application.Program}
   unfold completeLogicalWidth freshStart logicalStart
   omega
 
-def freshFits {program : Lifecycle.Stage1.Application.Program}
+theorem freshFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     freshStart program + (PiDECRetainedBlocks.freshBlock program).coordinateCount ≤
       logicalWidth :=

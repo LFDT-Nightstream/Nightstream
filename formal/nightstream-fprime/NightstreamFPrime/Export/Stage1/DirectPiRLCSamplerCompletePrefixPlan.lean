@@ -39,7 +39,7 @@ private theorem append_eq_of_eq
   cases rightEq
   rfl
 
-def piDecGeometry {application : Lifecycle.Stage1.Application.Program}
+theorem piDecGeometry {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry application
       logicalWidth) : PiDECRetainedGeometry.Geometry application logicalWidth :=

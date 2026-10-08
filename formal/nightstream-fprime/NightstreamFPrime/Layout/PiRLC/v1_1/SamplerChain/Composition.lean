@@ -60,7 +60,7 @@ structure InputsAffine (interface : Logical.Interface) (offset : Nat) : Prop whe
 
 /-- Every scalar child receives affine state. The first state is external;
 each successor is the preceding sampler's output state. -/
-def childInputs (interface : Logical.Interface) (offset : Nat)
+theorem childInputs (interface : Logical.Interface) (offset : Nat)
     (inputs : InputsAffine interface offset) (source : Nat) :
     ∀ current,
       Sampler.InputsAffine (Logical.childInterface interface offset source)

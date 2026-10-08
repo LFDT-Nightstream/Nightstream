@@ -54,7 +54,7 @@ private theorem sum_value (term : Nat → Result F) (count : Nat) :
     (sum term count).value = sumRange baseOps count (fun index => (term index).value) := by
   induction count with
   | zero => rfl
-  | succ count ih => simpa only [sum, sumRange, ih, baseOps]
+  | succ count ih => simp only [sum, sumRange, ih, baseOps]
 
 private theorem sum_work_le (term : Nat → Result F) (count bound : Nat)
     (bounded : ∀ index, index < count → (term index).work ≤ bound) :

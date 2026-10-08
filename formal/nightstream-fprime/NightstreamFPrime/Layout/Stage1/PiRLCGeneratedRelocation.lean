@@ -110,8 +110,7 @@ theorem combinationOutput_supported
     omega
   · let step := CombinationFamily.stepSize blockCount cellCount
     have indexLt : (CombinationStep.indexOf block lane cell).val < step := by
-      simpa [step, CombinationFamily.stepSize] using
-        (CombinationStep.indexOf block lane cell).isLt
+      simp [step, CombinationFamily.stepSize]
     have sourceLt := CombinationFamily.finalSource.isLt
     have beforeNext :
         CombinationFamily.finalSource.val * step +

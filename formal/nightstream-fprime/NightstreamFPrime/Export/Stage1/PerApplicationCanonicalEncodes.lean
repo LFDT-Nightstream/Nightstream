@@ -113,7 +113,8 @@ def next {application : Program} {raw : RawValues application}
 
 end Position
 
-def retainedGeometry (application : Program) :=
+theorem retainedGeometry (application : Program) :
+    NightstreamFPrime.Export.Stage1.PiRLCRetainedGeometry.Geometry application (NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint.logicalWidth application) :=
   DirectPrefixPlan.prefixGeometry <|
     DirectRunningPrefixPlan.prefixGeometry <|
       DirectPiDECPrefixPlan.runningGeometry <|
@@ -253,13 +254,15 @@ private def position9 {application : Program} (raw : RawValues application) :
     simp [Position.next, Cursor.next, position8, tail, RawValues.schedule,
       Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
 
-def runningGeometry (application : Program) :=
+theorem runningGeometry (application : Program) :
+    NightstreamFPrime.Export.Stage1.RunningTransitionRetainedGeometry.Geometry application (NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint.logicalWidth application) :=
   DirectPiDECPrefixPlan.runningGeometry <|
     DirectPiRLCSamplerCompletePrefixPlan.piDecGeometry <|
       DirectApplicationPrefixPlan.prefixGeometry <|
         PerApplicationFixedPoint.geometry application
 
-def poseidonGeometry (application : Program) :=
+theorem poseidonGeometry (application : Program) :
+    NightstreamFPrime.Export.Stage1.PiCCSPoseidonPlan.Geometry application (NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint.logicalWidth application) :=
   DirectRunningPrefixPlan.prefixGeometry (runningGeometry application)
 
 /-- The prior preimage source view selects the same physical package word as
@@ -561,18 +564,22 @@ private def position23 {application : Program} (raw : RawValues application) :
     simp [Position.next, Cursor.next, position22, tail, RawValues.schedule,
       Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
 
-def samplerGeometry (application : Program) :=
+theorem samplerGeometry (application : Program) :
+    NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRetainedGeometry.Geometry application (NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint.logicalWidth application) :=
   DirectApplicationPrefixPlan.prefixGeometry <|
     PerApplicationFixedPoint.geometry application
 
-def piDecGeometry (application : Program) :=
+theorem piDecGeometry (application : Program) :
+    NightstreamFPrime.Export.Stage1.PiDECRetainedGeometry.Geometry application (NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint.logicalWidth application) :=
   DirectPiRLCSamplerCompletePrefixPlan.piDecGeometry
     (samplerGeometry application)
 
-def pilotOrdinaryGeometry (application : Program) :=
+theorem pilotOrdinaryGeometry (application : Program) :
+    NightstreamFPrime.Export.Stage1.PilotOrdinaryRetainedGeometry.Geometry application (NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint.logicalWidth application) :=
   DirectPiDECPrefixPlan.pilotOrdinaryGeometry (piDecGeometry application)
 
-def piCcsOrdinaryGeometry (application : Program) :=
+theorem piCcsOrdinaryGeometry (application : Program) :
+    NightstreamFPrime.Export.Stage1.PiCCSOrdinaryRetainedGeometry.Geometry application (NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint.logicalWidth application) :=
   PilotOrdinaryDirectPlan.piCcsGeometry (pilotOrdinaryGeometry application)
 
 private theorem piCcsOrdinaryEncodes {application : Program}
@@ -755,7 +762,8 @@ private def position25 {application : Program} (raw : RawValues application) :
     simp [Position.next, Cursor.next, position24, tail, RawValues.schedule,
       Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
 
-def applicationGeometry (application : Program) :=
+theorem applicationGeometry (application : Program) :
+    NightstreamFPrime.Export.Stage1.ApplicationRetainedGeometry.Geometry application (NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint.logicalWidth application) :=
   PerApplicationFixedPoint.geometry application
 
 private def applicationBaseColumn {application : Program}

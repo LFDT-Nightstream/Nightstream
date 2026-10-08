@@ -43,7 +43,7 @@ def slots : List (LowNormAssignment.Slot SourceWidth) :=
     simp [slots, Function.comp_def, LowNormAssignment.Slot.width,
       List.map_const']
     rfl
-  simp [LowNormAssignment.logicalWidth, widths, rows_length, List.sum_replicate]
+  simp [LowNormAssignment.logicalWidth, widths, rows_length]
 
 /-- The final terminal full round owns retained rows 134 through 149. -/
 def finalRow (lane : Fin 16) : Fin rows.length :=

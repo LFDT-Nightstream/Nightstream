@@ -4,7 +4,7 @@ import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 import Mathlib.Probability.ProbabilityMassFunction.Constructions
 import Mathlib.Topology.Algebra.InfiniteSum.Real
 import Mathlib.Analysis.Normed.Group.InfiniteSum
-import Mathlib.Data.Real.Sqrt
+import Mathlib.Analysis.Real.Sqrt
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.IndependentExecution

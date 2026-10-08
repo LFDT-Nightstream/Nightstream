@@ -98,7 +98,7 @@ private theorem previousRule_result
     (invocation : Fin 3110) (lane : Fin 16) :
     (previousRule schedule retainedStart).form? logicalWidth oneColumn
         invocation.val lane.val =
-      some (if first : invocation.val = 0 then none else
+      some (if _first : invocation.val = 0 then none else
         some (PilotPoseidonPlan.previousOutput schedule retainedStart fits
           invocation lane)) := by
   by_cases first : invocation.val = 0
@@ -168,7 +168,7 @@ private theorem tailInputRule_result
     (invocation : Fin 3110) (lane : Fin 16) :
     (tailInputRule inputBlock inputStart).form? logicalWidth oneColumn
         invocation.val lane.val =
-      some (if selected : invocation.val = 3108 ∧ lane.val = 0 then
+      some (if _selected : invocation.val = 3108 ∧ lane.val = 0 then
         some (inputBlock.form inputStart fits ⟨37296, by
           rw [slotCount]
           omega⟩)
@@ -191,7 +191,7 @@ private theorem tailInputRule_result
 private theorem paddingRule_result {logicalWidth : Nat}
     (oneColumn : Fin logicalWidth) (invocation : Fin 3110) (lane : Fin 16) :
     paddingRule.form? logicalWidth oneColumn.val invocation.val lane.val =
-      some (if selected : invocation.val = 3109 ∧ lane.val = 0 then
+      some (if _selected : invocation.val = 3109 ∧ lane.val = 0 then
         some (SparseForm.singleton oneColumn 1)
       else none) := by
   by_cases selected : invocation.val = 3109 ∧ lane.val = 0

@@ -40,7 +40,7 @@ theorem preOutputIntervalEnd_eq :
     unfold PiCCSInvocations.statementWitnessStart
     rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart_eq]
     unfold NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
-    rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq] <;> norm_num
+    rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]; norm_num
   have mapped :=
     (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_lt_of_piCcsLocal
       PiCCSInvocations.statementWitnessStart
@@ -586,24 +586,24 @@ theorem pilotHashInvocationInput_varsBelow
       · have inputBelow : chain.inputStart + lane.val < bound := by
           omega
         simp [invocationInput, PilotData.circuitPackage,
-          PilotData.poseidonSchedule, PilotData.permutationTemplate,
+          PilotData.poseidonSchedule, 
           Spec.Poseidon2.rate,
           absorbing, inputPresent, R1CS.LinearCombination.VarsBelow,
           R1CS.LinearCombination.zero, R1CS.LinearCombination.ofVar,
           R1CS.LinearCombination.add, inputBelow]
       · simp [invocationInput, PilotData.circuitPackage,
-          PilotData.poseidonSchedule, PilotData.permutationTemplate,
+          PilotData.poseidonSchedule, 
           Spec.Poseidon2.rate,
           absorbing, inputPresent, R1CS.LinearCombination.VarsBelow,
           R1CS.LinearCombination.zero]
     · by_cases zeroLane : lane.val = 0
-      · simp [invocationInput, PilotData.circuitPackage,
-          PilotData.poseidonSchedule, PilotData.permutationTemplate,
+      · simp [invocationInput, 
+          
           absorbing, zeroLane, R1CS.LinearCombination.VarsBelow,
           R1CS.LinearCombination.zero, R1CS.LinearCombination.one,
           R1CS.LinearCombination.add]
-      · simp [invocationInput, PilotData.circuitPackage,
-          PilotData.poseidonSchedule, PilotData.permutationTemplate,
+      · simp [invocationInput, 
+          
           absorbing, zeroLane, R1CS.LinearCombination.VarsBelow,
           R1CS.LinearCombination.zero]
   · have previousBelow :
@@ -1319,7 +1319,7 @@ theorem complete_piCcsRows
             unfold PiCCSInvocations.statementWitnessStart
             rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart_eq]
             unfold NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
-            rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq] <;> norm_num)).le
+            rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]; norm_num)).le
     · rw [piCcsPrivateEnd_eq]
       exact physicalEnd
   have totalBroad := agreesOutside_trans

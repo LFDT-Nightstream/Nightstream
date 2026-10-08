@@ -25,7 +25,7 @@ import Mathlib.Algebra.BigOperators.Ring.Finset
 import NightstreamFPrime.Spec.Folding.PiRLC.CoordinateForkLaw
 import Mathlib.Algebra.Polynomial.Eval.Defs
 import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongInterface
-import Mathlib.Data.Real.Sqrt
+import Mathlib.Analysis.Real.Sqrt
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.IndependentExecution
 import NightstreamFPrime.Lifecycle.PaperExtractionAlgebra
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CausalExecution

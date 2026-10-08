@@ -146,7 +146,7 @@ namespace Equations
 
 /-- Assemble complete Π_RLC acceptance once challenge membership has been
 derived by the owning authority boundary. -/
-def withChallengesValid
+theorem withChallengesValid
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
     {PublicInput : Type uPublicInput}

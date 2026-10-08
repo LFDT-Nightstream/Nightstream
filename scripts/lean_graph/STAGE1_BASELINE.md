@@ -53,7 +53,7 @@ The complete local PiDEC message replay now passes. Lean computes all
 19,008 commitment field words from the same private digits. It also computes
 all 1,728 Pad words and all 24,192 matrix-evaluation words. The 53 disjoint
 matrix ranges cover every selected row in [0,6,377,559); Lean checks the
-complete range coverage and adds the results. All 8,640 evaluation words
+complete range coverage and adds the results. All 25,920 evaluation words
 and all 56 common-point words match Rust. The final changed matrix
 coefficient rejects at child 15, matrix 13, lane 53, imaginary component.
 The earlier complete child comparison also checks all 4,320 verifier-derived
@@ -262,7 +262,7 @@ speedup claim. All measured runs were sequential with agents idle; shared
 initialization is recorded separately.
 
 `PICCS_ORIGINAL_EVALUATIONS_REPLAY.json` records the source cut and evidence.
-Synthetic merge checks cover 9,180 field sums and nine rejection cases;
+Synthetic merge checks cover 27,540 field sums and nine rejection cases;
 they are assembly tests, not prover evidence. The complete original matrix
 scan and PiCCS output encoding now pass as recorded below. Full NIFS encoding
 and HyperNova remain open.
@@ -297,7 +297,7 @@ time from 252.19 to 148.66 seconds and command time from 278.56 to 174.01 second
 On 80,750 product rows, the final six annotations reduce unprofiled calculation
 time from 241.09 to 75.52 seconds and command time from 262.89 to 97.37 seconds,
 compared with the saved 11-annotation executable. Each larger comparison
-checks all 7,344 field words and complete file bytes, and rejects a changed
+checks all 25,704 field words and complete file bytes, and rejects a changed
 target. Peak memory is about 2.4 GiB and 2.9 GiB respectively. The three
 retained cases also remain byte equal. All measured runs use the same host
 with agents idle, and record initialization separately.
@@ -313,7 +313,7 @@ selected source-to-whole-polynomial proof remains open.
 
 The complete matrix pass now covers all 6,377,559 active rows in 53 ordered
 ranges. Lean combines these with the complete original Pad family. All
-4,590 K values (9,180 field words), the complete point and changed-target
+13,770 K values (27,540 field words), the complete point and changed-target
 rejections pass against the two Rust comparison copies. This includes all
 795 fresh nonconstant Pad/matrix values, all zero sources and the final row.
 
@@ -321,7 +321,7 @@ rejections pass against the two Rust comparison copies. This includes all
 `PiCCSInputCheck.execute` and `PiCCSProofInputs.serializeProofInputs`. The
 complete 657,063-byte PiCCS input and 450,952-byte phase result match Rust
 byte for byte, including all terminal fields and the outgoing eight-word
-transcript state. The existing package encoder emits exactly 10,872 words;
+transcript state. The existing package encoder emits exactly 29,288 words;
 all words and their order match an independent flattening of those fields.
 A consistent changed output target and a changed final proof word reject.
 

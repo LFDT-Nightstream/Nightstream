@@ -378,3 +378,44 @@ fn loader_rejects_a_missing_sampler_coefficient_witness_batch() {
         "{error:?}"
     );
 }
+
+#[test]
+fn loader_rejects_a_rehashed_matrix_slot_permutation() {
+    let mut value: Value = serde_json::from_slice(&sealed_artifact_bytes()).expect("sealed production package");
+    let sources = &mut value[1][4][3];
+    assert_eq!(*sources, json!([0, 1, 2, 3]));
+    *sources = json!([1, 0, 2, 3]);
+    let changed = canonical_bytes(&value);
+    let identity = match load_per_application_package(&changed, [0; 4]) {
+        Err(PackageError::ExpectedIdentityMismatch { computed, .. }) => computed,
+        _ => panic!("the mutation must change the structural identity"),
+    };
+    let error = load_per_application_package(&changed, identity)
+        .err()
+        .expect("a rehashed matrix permutation must be rejected");
+    assert!(
+        matches!(error, PackageError::Invalid("CCS relation matrix order")),
+        "{error:?}"
+    );
+}
+
+#[test]
+fn lean_test_error_counts_match_the_sealed_relation() {
+    // VerifierErrorBudget exports the selected test error for these counts.
+    // They must come from the relation the verifier loads, not from the artifact.
+    let bytes = fs::read(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-piccs-test-error-v1.json"),
+    )
+    .expect("Lean PiCCS test-error artifact");
+    let [schema, cube_variables, width, _, _, _, matrices, _]: [u64; 8] =
+        serde_json::from_slice(&bytes).expect("schema-1 Lean PiCCS test-error artifact");
+    let package =
+        load_poseidon2_hash_chain_v1_package(&sealed_artifact_bytes()).expect("verifier-owned production package");
+    let relation = package.ccs_relation();
+
+    assert_eq!(schema, 1);
+    assert_eq!(cube_variables as usize, relation.cube_variables());
+    assert_eq!(width as usize, relation.degree_bound());
+    assert_eq!(matrices as usize, relation.matrix_sources().len());
+}

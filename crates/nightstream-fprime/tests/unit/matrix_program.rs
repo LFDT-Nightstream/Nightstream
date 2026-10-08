@@ -194,6 +194,22 @@ fn every_lean_matrix_opcode_decodes_exact_rows() {
     assert_eq!(phi_at_one[54], (7_162, 3));
     assert_eq!(phi_at_one[107], (7_162 + 53, 3));
 
+    // No selector gates a row, so an entry in an unused port would change
+    // its constraint under `a * b - c + s^7`.
+    let unused_ports: [(usize, &[usize]); 6] = [
+        (0, &[3]),
+        (1, &[0, 1, 3]),
+        (2, &[3]),
+        (poseidon_row, &[0, 1]),
+        (phi_row, &[3]),
+        (phi_row + 1, &[3]),
+    ];
+    for (row, ports) in unused_ports {
+        for &port in ports {
+            assert!(entries(&program, row, port).is_empty(), "row {row}, port {port}");
+        }
+    }
+
     assert_eq!(MEANINGFUL_PORTS, 4);
 }
 

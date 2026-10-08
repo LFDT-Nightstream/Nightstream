@@ -108,6 +108,18 @@ pub(super) fn validate(raw: RawCcsRelation) -> Result<PackageCcsRelation, Packag
             _ => Err(PackageError::Invalid("CCS relation matrix source")),
         })
         .collect::<Result<Vec<_>, _>>()?;
+    // The matrix program writes ports by slot index, so the tags must name
+    // exactly that slot order.
+    if matrix_sources
+        != [
+            CcsMatrixSource::A,
+            CcsMatrixSource::B,
+            CcsMatrixSource::C,
+            CcsMatrixSource::SboxInput,
+        ]
+    {
+        return Err(PackageError::Invalid("CCS relation matrix order"));
+    }
 
     let terms = terms
         .into_iter()

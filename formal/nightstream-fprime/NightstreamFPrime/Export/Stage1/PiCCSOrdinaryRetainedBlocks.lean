@@ -137,7 +137,8 @@ def transcriptOutputCount : Nat :=
 def ordinaryLogicalCount : Nat :=
   PiCCSOrdinarySourceSupport.ordinaryLogicalCount
 
-/-- Exact compact slot count: the prior child region and proof inputs,
+/-- Exact compact slot count: the prior child digits, the proof inputs and
+the 270 hinted statement-binding signs (`proofInputCount`), then the
 transcript output lanes, then the non-transcript PiCCS logical suffix. -/
 def proofLogicalCount : Nat :=
   proofInputCount + transcriptOutputCount + ordinaryLogicalCount

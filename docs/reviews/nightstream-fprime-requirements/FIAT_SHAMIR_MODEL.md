@@ -5,7 +5,7 @@ causal interactive game has no useful `g`: guessing which oracle query carries
 each SumCheck message loses about `(Q+1)^29`. `FiatShamirModel` and every
 declaration that only it used are deleted. The history bound now takes
 HyperNova errata Assumption 1, plain-model part, at each visit
-(`Export.Stage1.HyperNovaVisitedSecurity.NifsKnowledgeSound`). The
+(`Export.Stage1.HyperNovaVisitedSecurity.Assumption1`). The
 random-oracle theorem `Lifecycle.RandomOracleKnowledge.knowledge_error_le`
 motivates its per-visit error but does not prove it; see
 [ROM_KNOWLEDGE_SOUNDNESS.md](ROM_KNOWLEDGE_SOUNDNESS.md) and

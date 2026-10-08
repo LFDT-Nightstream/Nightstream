@@ -130,11 +130,13 @@ interactive analysis does not show it.
 The history theorem cannot be a pure ROM theorem: the step circuit
 recomputes the previous fold's challenges with Poseidon2, so a recursive
 argument uses the concrete hash. It takes HyperNova errata Assumption 1,
-plain-model part, at each visit
-(`Export.Stage1.HyperNovaVisitedSecurity.NifsKnowledgeSound`), with the
-visited-law composition proved. This theorem motivates the per-visit error
-`knowledgeError(Q_j)`, but no Lean statement derives one from the other;
-`formal/nightstream-fprime/TRUST_BOUNDARY.md` lists the differences.
+plain-model part, as Definition 7 knowledge soundness of the NIFS
+(`Export.Stage1.HyperNovaVisitedSecurity.Assumption1`), and Lean proves the
+paper's reverse-extractor composition (Lemma 17,
+`Export.Stage1.HyperNovaVisitedSecurity.history_probability_bound`). This
+theorem motivates the error of Assumption 1, but no Lean statement derives one
+from the other; `formal/nightstream-fprime/TRUST_BOUNDARY.md` lists the
+differences.
 
 ## 4. Proof outline
 
@@ -326,6 +328,13 @@ and the key's construction and coverage proofs would be duplicated.
    code that only `FiatShamirModel` uses. Done in
    `Export.Stage1.HyperNovaVisitedSecurity.history_probability_bound` and
    `Export.Stage1.HyperNovaFalseAcceptance.probability_bound`.
+
+5. **Assumption 1 as in the paper (2026-10-08).** State Assumption 1 as
+   Definition 7: an extractor for each admitted adversary, which reads that
+   adversary's tape. Prove Lemma 17's composition: the reverse extractor
+   applies Assumption 1 to its own stages. Done in
+   `Export.Stage1.HyperNovaVisitedSecurity.Assumption1` and
+   `Export.Stage1.HyperNovaVisitedSecurity.reverseStages`.
 
 References: Attema, Fehr, Klooß, Resch, ePrint 2023/1945; Attema, Fehr,
 Resch, ePrint 2023/818; Attema, Fehr, Klooß, *Fiat–Shamir Transformation of

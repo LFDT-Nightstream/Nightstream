@@ -102,44 +102,51 @@ reduction takes `Q + 74` expected reruns
      terms by the collision events.
    - Lean bounds none of these events numerically.
 3. **The history: HyperNova errata Assumption 1.**
-   `Export.Stage1.HyperNovaVisitedSecurity.history_probability_bound` takes
-   `Export.Stage1.HyperNovaVisitedSecurity.NifsKnowledgeSound`: at each visited
-   step, the given source extractor fails after a real acceptance with
-   probability at most `error j`. The bound is on the joint event (a
-   `goodActive` visit and no checked source witness) under the unconditioned
-   visited law. The history bound adds, at each visit `j`, the marked
-   state-hash collision mass `h_j` and `error j`. A `goodActive` visit is a real acceptance
-   (`Export.Stage1.HyperNovaVisitedAcceptance.realSuccess_iff_goodActive`);
-   the visited law stops marking visits after the first failure.
-   This is the paper's plain-model premise, not a theorem. The step circuit
-   recomputes the challenges of the previous fold with Poseidon2, so a
+   `Export.Stage1.HyperNovaVisitedSecurity.Assumption1` states Assumption 1 as
+   HyperNova Definition 7 knowledge soundness of the Poseidon2 NIFS: for every
+   admitted NIFS adversary (a random tape, and the NIFS input and real output
+   it computes) there is an efficient extractor that reads the adversary's
+   tape and its own coins, so it may rerun the adversary, and that fails after
+   a real success (`NifsRealSuccess.RealSuccess`, with the prior-state link)
+   with probability at most `error` of that adversary.
+   `Export.Stage1.HyperNovaVisitedSecurity.Closed` states that one reverse step
+   of an admitted algorithm with an efficient extractor is again admitted.
+   `Admitted` and `Efficient` are abstract; their intended meaning is expected
+   polynomial time. Lean has no running-time model, so it states no false
+   claim about running time, and the closure property is a premise.
+   `Export.Stage1.HyperNovaVisitedSecurity.reverseStages` is the reverse
+   extractor of HyperNova Lemma 17 (Appendix H.3): stage `j + 1` runs stage
+   `j` and then the extractor that Assumption 1 gives for stage `j`'s NIFS
+   adversary. Every stage is admitted.
+   `Export.Stage1.HyperNovaVisitedSecurity.history_probability_bound` bounds
+   the accepted terminal mass by the reverse extractor's returned-history mass
+   plus, at each stage `j`, its marked state-hash collision mass `h_j` and the
+   Assumption 1 error of stage `j`;
+   `Export.Stage1.HyperNovaFalseAcceptance.probability_bound` is the
+   false-acceptance form. A `goodActive` visit is a real acceptance
+   (`Export.Stage1.HyperNovaVisitedSecurity.realSuccess_of_goodActive`).
+   Assumption 1 is the paper's plain-model premise, not a theorem. The step
+   circuit recomputes the challenges of the previous fold with Poseidon2, so a
    recursive argument uses the concrete hash, which no random-oracle model
-   covers. `Export.Stage1.HyperNovaFalseAcceptance.probability_bound` is the
-   false-acceptance form. The one-fold endpoint motivates the value
-   `error j = knowledgeError(Q_j)`, but no Lean statement derives one from the
-   other:
-   - *Success event.* The history uses `goodActive` under the visited law, a
-     plain-model distribution. The ROM event equals
-     `NifsRealSuccess.RealSuccess` only at the sponge reads
+   covers. The one-fold endpoint motivates the value of `error`, but no Lean
+   statement derives one from the other:
+   - *Success event.* Assumption 1 uses `NifsRealSuccess.RealSuccess` under
+     the stage's own law, a plain-model distribution. The ROM event equals it
+     only at the sponge reads
      (`Export.Stage1.RandomOracleLink.succeeds_iff_realSuccess`).
    - *Relation instance.* The history checks the statement of
      `Export.Stage1.PiCCSStoredWitnessCheck.statement`, which is the key's
      statement (`Export.Stage1.PiCCSStoredWitnessCheck.statement_eq_key`).
      This difference is closed.
-   - *Extractor.* `NifsKnowledgeSound` takes one memoryless source kernel of
-     the visited statement and payload, the same at every visit. HyperNova
-     Definition 7 gives an extractor for each adversary, with the prover's
-     state, and that extractor may rewind; the ROM extractor reruns the
-     adversary on a changed oracle. No Lean statement shows that Assumption 1
-     gives a kernel of the Lean form.
-   - *Efficiency.* `NifsKnowledgeSound` has no running-time condition;
-     HyperNova Definition 7 asks for an expected polynomial-time extractor.
-     Lean bounds the history's extractor calls by the iteration count
-     (`Export.Stage1.HyperNovaHistoryWork.source_calls_le_iteration`), and the
-     ROM extractor's retries by `17 (Q + 17)`. It counts calls, not machine
-     work. The hash term `h_j` comes from the chain that the same
-     kernel builds, so an external Poseidon2 collision bound applies to it only
-     when that kernel is efficient.
+   - *Extractor.* The ROM extractor reruns the adversary on a changed oracle;
+     the plain-model extractor of Assumption 1 is any efficient algorithm that
+     reads the adversary's tape. Neither is derived from the other.
+   - *Efficiency.* Lean proves that every stage stays in the admitted class
+     under `Closed`. The meaning of "admitted" (expected polynomial time for a
+     constant depth, as in Lemma 17) is a premise outside Lean. The hash term
+     `h_j` is the collision mass of stage `j`, an admitted algorithm, so an
+     external Poseidon2 collision bound applies to it; the paper's truncation
+     argument for expected-time stages is outside Lean.
    - *Valid history.* An application witness is a field list of any length
      (`AppWitness`), and the step hash takes any length, but a history that the
      reverse run returns has the circuit's witness length. So

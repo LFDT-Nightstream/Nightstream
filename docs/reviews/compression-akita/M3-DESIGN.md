@@ -139,3 +139,16 @@ the same Poseidon2 (the standard recursion heuristic).
    and verify; every mutation rejects.
 7. **nightstream integration.** API above; toy end-to-end; ignored production test with bytes,
    times, verifier time and peak RSS.
+
+## Slice 0 result (measured 2026-10-07, this Mac, CPU)
+
+- **WHIR at 2^23, rate 1/64, PoW 20, one point, 118-bit target:**
+  - `Constant(4)`: 91,986 bytes, prove 50.9 s, peak RSS 14.6 GB (5 folds; round-0 queries 35).
+  - `ConstantFromSecondRound(5, 4)`: **81,725 bytes, prove 32.8 s, peak RSS 13.2 GB** (4 folds;
+    queries 35, 21, 16, terminal 13). Chosen. With about 6 KB of sum-check messages the shrink
+    proof is about 88 KB.
+- **Production M2 WHIR schedules** (from p3's `WhirConfig`): P1 (26 variables) queries 280, 63,
+  35, 25, terminal 19; P0 (28 variables) 280, 63, 35, 25, 19, terminal 16; one OOD sample per
+  round; folding 4.
+- **Full-path permutations in the circuit:** P1 ≈ 10.6k, P0 ≈ 11.8k, setup leaves 5.25k, other
+  layer-1 parts ≈ 1.5k, layer 0 ≈ 3.3k (est.): **≈ 32.4k**, which agrees with candidate C.

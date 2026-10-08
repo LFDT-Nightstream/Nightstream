@@ -1,11 +1,14 @@
 # HyperNova linear-security milestone
 
 This registration records the history-security criterion. Since 2026-10-07
-(owner decision) it takes HyperNova errata Assumption 1, plain-model part, at
-each visited step instead of the retired `FiatShamirModel`. The existing
-lean-graph schema and review process are unchanged. The target's meaning
-changed, so its recorded target-meaning and decomposition reviews must be
-renewed.
+(owner decision) it takes HyperNova errata Assumption 1, plain-model part,
+instead of the retired `FiatShamirModel`. Since 2026-10-08 (owner decision)
+Assumption 1 has the paper's form: Definition 7 knowledge soundness of the
+NIFS, with an extractor for each admitted adversary that reads that
+adversary's tape, composed by the reverse extractor of HyperNova Lemma 17
+(Appendix H.3). The existing lean-graph schema and review process are
+unchanged. The target's meaning changed, so its target-meaning and
+decomposition reviews must be renewed.
 
 The final declaration is
 `NightstreamFPrime.Export.Stage1.HyperNovaVisitedSecurity.history_probability_bound`.
@@ -15,48 +18,51 @@ The literal criterion is `LeanGraph.Targets.HyperNovaLinearSecurity` in
 The required conclusion is
 
 ```
-Pr[accepted terminal] ≤ Pr[returned history advice]
-  + Σ j < depth, (hashCollision_j + error_j)
+Pr[accepted terminal] ≤ Pr[the reverse extractor returns history advice]
+  + Σ j < depth, (hashCollision_j + error(stage_j))
 ```
 
-for every source extractor that satisfies
-`HyperNovaVisitedSecurity.NifsKnowledgeSound source initial depth error`: after
-a real NIFS acceptance at visit `j` (`goodActive`), the extractor returns no
-checked source witness with probability at most `error_j`. The visited laws,
-the marked hash-collision events and the source-failure event
-(`HyperNovaFirstFailure.MarkedSourceFailure`) are the existing ones.
+for every class of admitted NIFS adversaries and efficient extractors with
+`Assumption1 Admitted Efficient error` and `Closed Admitted Efficient`, and
+every admitted IVC adversary whose advertised iteration is at most `depth`.
+Stage `0` is the IVC adversary. Stage `j + 1` runs stage `j` and then the
+extractor that Assumption 1 gives for stage `j`'s NIFS adversary; its tape is
+stage `j`'s tape and that extractor's coins. `hashCollision_j` is the marked
+state-hash collision mass of stage `j`, and `error(stage_j)` is the
+Assumption 1 error of stage `j`'s NIFS adversary. Every stage is admitted.
 
 Assumption 1 is the paper's plain-model knowledge-soundness premise for the
 Poseidon2 NIFS. It is not a theorem: the step circuit recomputes the previous
 fold's challenges with Poseidon2, so a recursive argument uses the concrete
-hash, which no random-oracle model covers.
+hash, which no random-oracle model covers. `Admitted` and `Efficient` are
+abstract; their intended meaning is expected polynomial time, and `Closed`
+states that one reverse step stays admitted, as in Lemma 17 for a constant
+depth. Lean has no running-time model.
 `Lifecycle.RandomOracleKnowledge.knowledge_error_le` proves a random-oracle
-analogue for one fold and motivates `error_j = knowledgeError(Q_j)`: linear in
-the query count, about `(Q_j + 74) · 2^-115.84 + 17 (Q_j + 17) · 2^-125.4`
-plus the named MSIS and state-hash events. No Lean statement derives `error_j` from it; the success
-event, the extractor and the efficiency condition differ
-(`formal/nightstream-fprime/TRUST_BOUNDARY.md`). Definition 7 also requires an
-expected polynomial-time extractor. `NifsKnowledgeSound` does not state that
-requirement, so the criterion is weaker than Assumption 1 there. Lean counts
-the history's extractor calls
-(`Export.Stage1.HyperNovaHistoryWork.source_calls_le_iteration`), and the
-random-oracle extractor takes `17 (Q + 17)` expected retries; neither is a
-machine-time bound.
+analogue for one fold and motivates the value of `error`: linear in the query
+count, about `(Q + 74) · 2^-115.84 + 17 (Q + 17) · 2^-125.4` plus the named
+MSIS and state-hash events. No Lean statement derives `error` from it
+(`formal/nightstream-fprime/TRUST_BOUNDARY.md`).
 
 Required premises:
 
-- The initial counter is at most symbolic `depth` on its support.
-- Assumption 1 at every visit of the same history law.
+- The advertised iteration of the IVC adversary is at most symbolic `depth`
+  on its support.
+- Assumption 1 and its closure under one reverse step, for one class of
+  admitted adversaries that contains the IVC adversary.
 
 Dependencies, with namespace prefix `NightstreamFPrime`:
 
 | Declaration | Required use |
 | --- | --- |
-| `Export.Stage1.HyperNovaFirstFailure.accepted_probability_le_first_failures` | Bound the accepted mass by the first marked failures at the actual visits. |
-| `Export.Stage1.HyperNovaVisitedSecurity.NifsKnowledgeSound` | State Assumption 1 at the actual visited laws. |
-| `Export.Stage1.HyperNovaVisitedSecurity.history_probability_bound` | Compose the first-failure bound with Assumption 1. |
+| `Export.Stage1.HyperNovaFirstFailure.accepted_probability_le_first_failures` | Bound each tape's acceptance by its first marked failures. |
+| `Export.Stage1.HyperNovaVisitedLaw.visitedLaw_listSource` | Read each tape's deterministic reverse path from its extractor results. |
+| `Export.Stage1.HyperNovaVisitedSecurity.Assumption1` | State Assumption 1 as Definition 7. |
+| `Export.Stage1.HyperNovaVisitedSecurity.reverseStages` | Build the reverse extractor of Lemma 17. |
+| `Export.Stage1.HyperNovaVisitedSecurity.failure_term_le` | Bound each stage's source failure by its Assumption 1 failure. |
+| `Export.Stage1.HyperNovaVisitedSecurity.history_probability_bound` | Average the per-tape bound over the reverse extractor's tape. |
 
-`hypernova-terminal-false-acceptance` uses the same premise through
+`hypernova-terminal-false-acceptance` uses the same premises through
 `Export.Stage1.HyperNovaFalseAcceptance.probability_bound`.
 
 Use `explain hypernova-linear-security` for remaining validation and review.

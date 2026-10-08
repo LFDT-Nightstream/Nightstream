@@ -499,10 +499,11 @@ This registration does not change lean-graph's schema or acceptance rules.
 
 The symbolic terminal false-acceptance target and six-record reconciliation
 passed at `8084c256` and `5222c1d5` under the retired `FiatShamirModel`
-meaning. Since 2026-10-07 the target bounds false acceptance by the marked
-hash-collision mass and the HyperNova errata Assumption 1 error at each visit
-(`HyperNovaFalseAcceptance.probability_bound`); its target-meaning and
-decomposition reviews are renewed for that meaning. The current staged nonzero C/R/D result,
+meaning. Since 2026-10-08 the target bounds false acceptance by the marked
+hash-collision mass and the HyperNova errata Assumption 1 error (Definition 7,
+an extractor for each admitted adversary) at each stage of the Lemma 17
+reverse extractor (`HyperNovaFalseAcceptance.probability_bound`); its
+target-meaning and decomposition reviews must be renewed for that meaning. The current staged nonzero C/R/D result,
 complete proof bytes and mutations pass; see `NONZERO_NIFS_GATES.json` and
 `NONZERO_NIFS_REVIEW.json` in `docs/reviews/nightstream-fprime-requirements`.
 The complete later assignment and terminal checks also pass; see
@@ -556,7 +557,7 @@ These are closure decisions and required evidence, not premature status changes.
 
 | Record | Disposition | Required result or condition |
 | --- | --- | --- |
-| `N.security.error_budget` | Close the symbolic selected-terminal bound; numerical deployment choices are out of scope. | Connect terminal acceptance with no valid application history to the existing first-failure bound and HyperNova errata Assumption 1 at each visit. Keep depth, the marked hash collisions and the per-visit Assumption 1 error explicit; query budgets, MSIS and Poseidon2 advantages enter only through that error and the hash mass. Do not substitute an extraction-success bound for false acceptance. |
+| `N.security.error_budget` | Close the symbolic selected-terminal bound; numerical deployment choices are out of scope. | Connect terminal acceptance with no valid application history to the existing first-failure bound and HyperNova errata Assumption 1 at each stage of the Lemma 17 reverse extractor. Keep depth, the marked hash collisions and the per-stage Assumption 1 error explicit; query budgets, MSIS and Poseidon2 advantages enter only through that error and the hash mass. Do not substitute an extraction-success bound for false acceptance. |
 | `L.language.expressions` | Close as a definition. | `Circuit.Basic.Expr` and `Env` supply the required evaluation semantics. Its `definition` status is accurate; no additional theorem is required by this record. |
 | `L.language.contract` | Close as a definition. | `FormalCircuit` requires specification, footprint, soundness and completeness fields. Concrete production instances and their compiler gates remain the separate implementation evidence. |
 | `L.encoding.actual` | Close the stale technical link. | `ActualPiDECOutput.selectedRowsAndPublic_imply_step`, the literal `Stage1Assignment` target and the terminal context/collision target cover arbitrary assignments. |

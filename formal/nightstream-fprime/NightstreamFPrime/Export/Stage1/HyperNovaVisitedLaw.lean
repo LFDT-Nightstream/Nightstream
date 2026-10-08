@@ -9,6 +9,10 @@ module claims no efficient sampler or adversary translation.
 Operationally active states draw their actual source kernel even when the
 mark is false. Only the reported guarded draw is masked. A stopped state is
 reported once and then becomes the absorbing `none` state.
+
+`listSource` reads a fixed result list. With it, the visited law is the single
+context on that list's path (`visitedLaw_listSource`); the reverse extractor
+of `HyperNovaVisitedSecurity` uses this once for each of its tapes.
 -/
 
 set_option autoImplicit false
@@ -240,5 +244,139 @@ theorem visitedDraw_marginal (initial : PMF (Statement × Envelope)) (steps : Na
   funext input
   rw [PMF.map_comp]
   exact readDraw_marginal source steps (initialVisit input)
+
+private theorem after_succ (steps : Nat) (visit : Visit) :
+    after source (steps + 1) visit = (after source steps visit).bind (transition source) := by
+  induction steps generalizing visit with
+  | zero => simp only [after, PMF.bind_pure, PMF.pure_bind]
+  | succ steps induction =>
+      calc after source (steps + 1 + 1) visit
+          = (transition source visit).bind (after source (steps + 1)) := rfl
+        _ = (transition source visit).bind
+              (fun next => (after source steps next).bind (transition source)) := by
+            congr 1
+            funext next
+            exact induction next
+        _ = ((transition source visit).bind (after source steps)).bind (transition source) :=
+            (PMF.bind_bind _ _ _).symm
+        _ = (after source (steps + 1) visit).bind (transition source) := rfl
+
+/-- One more observation index applies one more actual transition. -/
+theorem visitedLaw_succ (initial : PMF (Statement × Envelope)) (steps : Nat) :
+    visitedLaw source initial (steps + 1) =
+      (visitedLaw source initial steps).bind (transition source) := by
+  simp only [visitedLaw, after_succ, PMF.bind_bind]
+
+/-! ## A source that reads a fixed result list -/
+
+/-- The context after advancing through the first `steps` entries of a fixed
+result list from the initial visit. -/
+noncomputable def pathVisit (input : Statement × Envelope) (results : List SourceResult)
+    (steps : Nat) : Visit :=
+  (results.take steps).foldl advance (initialVisit input)
+
+/-- The deterministic source that reads a fixed result list: a statement `j`
+iterations below `top` reads entry `j`. Along the reverse path from an
+initial statement at iteration `top`, visit `j` reads entry `j`. -/
+noncomputable def listSource (top : Nat) (results : List SourceResult) :
+    Statement → Payload → PMF SourceResult :=
+  fun statement _ => PMF.pure (results.getD (top - statement.iteration) none)
+
+private theorem pathVisit_succ (input : Statement × Envelope) (results : List SourceResult)
+    (steps : Nat) (within : steps < results.length) :
+    pathVisit input results (steps + 1) =
+      advance (pathVisit input results steps) (results.getD steps none) := by
+  simp only [pathVisit, List.take_add_one, List.getElem?_eq_getElem within, Option.toList_some,
+    List.foldl_append, List.foldl_cons, List.foldl_nil, List.getD_eq_getElem _ _ within]
+
+private theorem ready_cases (visit : Visit) (active : ready visit) :
+    ∃ statement payload, visit.1 = some (statement, .recursive payload) := by
+  rcases visit with ⟨current, mark⟩
+  cases current with
+  | none => exact False.elim active
+  | some input =>
+      rcases input with ⟨statement, proof⟩
+      cases proof with
+      | bottom => exact False.elim active
+      | recursive payload => exact ⟨statement, payload, rfl⟩
+
+/-- Every present context on the path is exactly `steps` iterations below
+the initial statement. -/
+private theorem pathVisit_iteration (input : Statement × Envelope) (results : List SourceResult)
+    (steps : Nat) (within : steps ≤ results.length) (statement : Statement) (proof : Envelope)
+    (current : (pathVisit input results steps).1 = some (statement, proof)) :
+    statement.iteration + steps = input.1.iteration := by
+  induction steps generalizing statement proof with
+  | zero =>
+      have same : some input = some (statement, proof) := current
+      cases Option.some.inj same
+      rfl
+  | succ steps induction =>
+      rw [pathVisit_succ input results steps within] at current
+      by_cases active : ready (pathVisit input results steps)
+      · obtain ⟨previous, payload, previousCurrent⟩ := ready_cases _ active
+        have conditions := active
+        simp only [ready, previousCurrent] at conditions
+        have previousIteration := induction (Nat.le_of_succ_le within) previous (.recursive payload)
+          previousCurrent
+        cases result : results.getD steps none with
+        | none =>
+            simp only [advance, if_pos active, previousCurrent, result, stopped] at current
+            cases current
+        | some values =>
+            simp only [advance, if_pos active, previousCurrent, result, Option.some.injEq,
+              Prod.mk.injEq] at current
+            rw [← current.1]
+            simp only [predecessorStatement]
+            omega
+      · simp only [advance, if_neg active, stopped] at current
+        cases current
+
+private theorem draw_listSource (input : Statement × Envelope) (results : List SourceResult)
+    (steps : Nat) (within : steps < results.length) (active : ready (pathVisit input results steps)) :
+    draw (listSource input.1.iteration results) (pathVisit input results steps) =
+      PMF.pure (results.getD steps none) := by
+  obtain ⟨statement, payload, current⟩ := ready_cases _ active
+  have iteration := pathVisit_iteration input results steps within.le statement
+    (.recursive payload) current
+  have conditions := active
+  simp only [ready, current] at conditions
+  have index : input.1.iteration - statement.iteration = steps := by omega
+  simp only [draw, if_pos active, current, listSource, index]
+
+/-- Along the fixed list, each actual transition reads the next entry. -/
+private theorem transition_listSource (input : Statement × Envelope) (results : List SourceResult)
+    (steps : Nat) (within : steps < results.length) :
+    transition (listSource input.1.iteration results) (pathVisit input results steps) =
+      PMF.pure (pathVisit input results (steps + 1)) := by
+  rw [pathVisit_succ input results steps within]
+  by_cases active : ready (pathVisit input results steps)
+  · rw [transition, draw_listSource input results steps within active, PMF.pure_map]
+  · rw [transition_inactive _ _ active]
+    simp only [advance, if_neg active]
+
+/-- With the fixed-list source, the visited law at every index inside the
+list is the single context on the list's path. -/
+theorem visitedLaw_listSource (input : Statement × Envelope) (results : List SourceResult)
+    (steps : Nat) (within : steps ≤ results.length) :
+    visitedLaw (listSource input.1.iteration results) (PMF.pure input) steps =
+      PMF.pure (pathVisit input results steps) := by
+  induction steps with
+  | zero => simp only [visitedLaw, after, PMF.pure_bind, pathVisit, List.take_zero, List.foldl_nil]
+  | succ steps induction =>
+      rw [visitedLaw_succ, induction (Nat.le_of_succ_le within), PMF.pure_bind,
+        transition_listSource input results steps within]
+
+/-- With the fixed-list source, the reported draw at a list index is that
+entry on the good active branch and absent otherwise. -/
+theorem guardedDraw_listSource (input : Statement × Envelope) (results : List SourceResult)
+    (steps : Nat) (within : steps < results.length) :
+    guardedDraw (listSource input.1.iteration results) (pathVisit input results steps) =
+      PMF.pure (pathVisit input results steps,
+        if goodActive (pathVisit input results steps) then results.getD steps none else none) := by
+  by_cases good : goodActive (pathVisit input results steps)
+  · rw [guardedDraw, if_pos good, draw_listSource input results steps within good.2.1, PMF.pure_map,
+      if_pos good]
+  · rw [guardedDraw, if_neg good, if_neg good]
 
 end NightstreamFPrime.Export.Stage1.HyperNovaVisitedLaw

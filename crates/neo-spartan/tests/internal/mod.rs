@@ -6,6 +6,7 @@ mod layer1;
 mod matrix;
 mod mle;
 mod setup;
+mod shrink;
 mod verifier;
 mod whir;
 mod whir_verify;

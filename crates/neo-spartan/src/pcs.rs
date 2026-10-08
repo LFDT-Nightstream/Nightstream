@@ -1,10 +1,9 @@
 //! WHIR for the per-proof tables.
 //!
 //! Owns: the WHIR configuration, the commitment to a list of base-field
-//! tables, and openings at points the layer-1 protocol fixes. The required
-//! security comes from the caller; the settings below are performance
-//! choices, not security parameters. Plonky3 0.8 PCS types do not leave this
-//! file.
+//! tables, and openings at points the caller fixes. The required security
+//! comes from the caller; a `Profile` holds performance choices, not
+//! security parameters. Plonky3 0.8 PCS types do not leave this file.
 
 use p3_commit_v08::MultilinearPcs;
 use p3_dft_v08::Radix2DFTSmallBatch;
@@ -29,12 +28,44 @@ pub(crate) type ProverData = <Whir as MultilinearPcs<Ext, Challenger>>::ProverDa
 pub(crate) type Opening = <Whir as MultilinearPcs<Ext, Challenger>>::Proof;
 pub(crate) type MultiProof = <Mmcs as p3_commit_v08::Mmcs<Gl>>::MultiProof;
 
-/// Initial code rate 1/2: the smallest codeword, so the fastest commitment.
-const LOG_INV_RATE: usize = 1;
-/// Variables folded per WHIR round, as in the WHIR paper's benchmarks (§6).
-const FOLDING: usize = 4;
-/// No proof-of-work grinding until the owner sets a value.
-const POW_BITS: usize = 0;
+/// The code rate, the folding schedule and the grinding of one WHIR use.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Profile {
+    log_inv_rate: usize,
+    first_folding: usize,
+    folding: usize,
+    pow_bits: usize,
+}
+
+/// Layer 1: initial rate 1/2 (the smallest codeword, so the fastest
+/// commitment), four variables per round as in the WHIR paper's benchmarks
+/// (§6), no grinding.
+pub(crate) const LAYER1: Profile = Profile {
+    log_inv_rate: 1,
+    first_folding: 4,
+    folding: 4,
+    pow_bits: 0,
+};
+
+/// The shrink layer: rate 1/64, a first fold of five variables, 20 bits of
+/// grinding (owner limit, 2026-10-07). Measured as the smallest proof at
+/// 2^23 in M3 slice 0.
+pub(crate) const SHRINK: Profile = Profile {
+    log_inv_rate: 6,
+    first_folding: 5,
+    folding: 4,
+    pow_bits: 20,
+};
+
+impl Profile {
+    fn folding_factor(&self) -> FoldingFactor {
+        if self.first_folding == self.folding {
+            FoldingFactor::Constant(self.folding)
+        } else {
+            FoldingFactor::ConstantFromSecondRound(self.first_folding, self.folding)
+        }
+    }
+}
 
 /// One committed table: `width` columns of `2^variables` base-field values,
 /// and the columns opened at each of its points, in transcript order.
@@ -48,6 +79,7 @@ pub(crate) struct TablePlan {
 /// WHIR over a fixed list of tables, opened at caller-fixed points.
 pub(crate) struct Pcs {
     whir: Whir,
+    profile: Profile,
     config: Config,
     protocol: OpeningProtocol,
     plans: Vec<TablePlan>,
@@ -62,6 +94,7 @@ impl Pcs {
     /// `2^-required_bits`, under the proven Johnson-bound assumption. `outer`
     /// receives `log2` of the candidate count, for terms that depend on it.
     pub(crate) fn new(
+        profile: Profile,
         plans: Vec<TablePlan>,
         required_bits: f64,
         outer: &dyn Fn(f64) -> Vec<SecurityTerm>,
@@ -80,13 +113,13 @@ impl Pcs {
                 })
                 .collect(),
         )
-        .pad_to_min_num_variables(FOLDING);
+        .pad_to_min_num_variables(profile.first_folding);
         let (num_variables, _) = plan_stacked_layout(&protocol.table_shapes());
         // Each step raises every per-round level by one bit; the field size
         // bounds what any configuration can reach.
         let first = required_bits.ceil() as usize;
         for level in first..=<Ext as p3_field_v08::Field>::bits() {
-            let config = WhirConfig::new(num_variables, parameters(num_variables, level)?)
+            let config = WhirConfig::new(num_variables, parameters(&profile, num_variables, level)?)
                 .map_err(|_| Error::Setup("WHIR configuration"))?;
             if !config.check_pow_bits() {
                 return Err(Error::Setup("WHIR configuration needs proof-of-work grinding"));
@@ -103,6 +136,7 @@ impl Pcs {
             if security_bits >= required_bits {
                 return Ok(Self {
                     whir,
+                    profile,
                     config,
                     protocol,
                     plans,
@@ -135,10 +169,12 @@ impl Pcs {
         self.log2_candidates
     }
 
-    /// The configuration as transcript words: per-round level, rate, folding,
-    /// grinding and the soundness assumption (1 = Johnson bound).
+    /// The configuration as transcript words: per-round level, rate, first
+    /// and later folding, grinding and the soundness assumption (1 = Johnson
+    /// bound).
     pub(crate) fn profile_words(&self) -> Vec<Gl> {
-        [self.level, LOG_INV_RATE, FOLDING, POW_BITS, 1]
+        let p = &self.profile;
+        [self.level, p.log_inv_rate, p.first_folding, p.folding, p.pow_bits, 1]
             .map(Gl::from_usize)
             .to_vec()
     }
@@ -155,14 +191,14 @@ impl Pcs {
                 Table::new(RowMajorMatrix::new(values, 1 << plan.variables))
             })
             .collect();
-        let witness = Layout::new_witness(tables, FOLDING);
+        let witness = Layout::new_witness(tables, self.profile.first_folding);
         self.whir
             .commit(witness, challenger)
             .expect("the configuration fixes the witness size")
     }
 
-    /// Plonky3's own root binding: the reference for `whir::observe_root`.
-    #[cfg(test)]
+    /// Plonky3's own root binding: the shrink layer's, and the reference for
+    /// `whir::observe_root`.
     pub(crate) fn observe(&self, commitment: &Commitment, challenger: &mut Challenger) {
         self.whir.observe_commitment(commitment, challenger);
     }
@@ -176,9 +212,9 @@ impl Pcs {
             .expect("the plan fixes the claims")
     }
 
-    /// Plonky3's own verifier, the reference for `whir::verify`: the opened
-    /// columns' values per batch, if the opening verifies.
-    #[cfg(test)]
+    /// Plonky3's own verifier, the opened columns' values per batch if the
+    /// opening verifies. The shrink layer uses it (it is never recursed, and
+    /// it grinds); it is also the reference for `whir::verify`.
     pub(crate) fn verify(
         &self,
         commitment: &Commitment,
@@ -214,12 +250,12 @@ impl Pcs {
     }
 }
 
-fn parameters(num_variables: usize, security_level: usize) -> Result<ProtocolParameters, Error> {
-    let folding_factor = FoldingFactor::Constant(FOLDING);
+fn parameters(profile: &Profile, num_variables: usize, security_level: usize) -> Result<ProtocolParameters, Error> {
+    let folding_factor = profile.folding_factor();
     let schedule = folding_factor
         .compute_folding_schedule(num_variables)
         .map_err(|_| Error::Setup("WHIR folding schedule"))?;
-    let mut rate = LOG_INV_RATE;
+    let mut rate = profile.log_inv_rate;
     let round_log_inv_rates = schedule[..schedule.len() - 1]
         .iter()
         .map(|folding| {
@@ -229,10 +265,10 @@ fn parameters(num_variables: usize, security_level: usize) -> Result<ProtocolPar
         .collect();
     Ok(ProtocolParameters {
         security_level,
-        pow_bits: POW_BITS,
+        pow_bits: profile.pow_bits,
         folding_factor,
         soundness_type: SecurityAssumption::JohnsonBound,
-        starting_log_inv_rate: LOG_INV_RATE,
+        starting_log_inv_rate: profile.log_inv_rate,
         round_log_inv_rates,
     })
 }

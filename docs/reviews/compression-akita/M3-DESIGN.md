@@ -167,3 +167,23 @@ the same Poseidon2 (the standard recursion heuristic).
 - Toy size (4 blocks, 6 rows, 4 matrices, H = 3672, 100 bits): 399,076 rows, 329,842 glue cells,
   7,390 permutations.
 - Open: the production finish test on the new verifier (bytes, verify time) is not yet run.
+
+## Slices 5–6 result (2026-10-08)
+
+- Order changed: slices 5 and 6 came before slice 4. They carry the design risk (layout, closed
+  forms, verifier time), and they do not depend on the layer-0 port. The test program is the
+  layer-1 verifier with the seed and the claim as statement words.
+- `neo-spartan/src/shrink/`: `layout.rs` (block rows and cells in two aligned regions of 128 and
+  64 per block, glue after them; the block part by a carry walk over the block index),
+  `evaluate.rs` (the glue part summed during a shape run; no row stored), `mod.rs` (`Program`,
+  `Shape::derive`, `Shrink`, `prove`, `verify`). WHIR uses a new `pcs::SHRINK` profile (rate
+  1/64, folds 5 then 4, 20 bits of grinding) and Plonky3's own verifier, since the shrink layer
+  is never recursed.
+- Tests: the carry walk and the block part equal brute force (with controls); a toy program
+  proves, verifies, and rejects 13 proof mutations, another statement and a false statement.
+- **Measured on the toy layer-1 verifier** (7,390 permutations, 399,076 glue rows, 329,842 glue
+  cells, 1,804 statement words; 2^21 rows and cells; 100 bits): prove 4.9 s, **verify 122 ms,
+  proof 66,405 bytes**.
+- Open: production size and verifier time need the layer-0 program (slice 4) and the
+  production layer-1 proof.
+

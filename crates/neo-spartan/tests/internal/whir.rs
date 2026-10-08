@@ -94,7 +94,7 @@ fn whir_opens_two_tables_through_the_seeded_challenger() {
         vec![mle(&large, &points[1])],
         vec![mle(&small[0], &points[2]), mle(&small[2], &points[2])],
     ];
-    let pcs = Pcs::new(plans, 100.0, &|_| Vec::new()).unwrap();
+    let pcs = Pcs::new(crate::pcs::LAYER1, plans, 100.0, &|_| Vec::new()).unwrap();
     assert!(pcs.security_bits() >= 100.0);
 
     let mut prover = challenger(seed(fold_transcript(1)));

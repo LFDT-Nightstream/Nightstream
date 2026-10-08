@@ -11,6 +11,40 @@ use crate::field::Gl;
 use crate::hash::seed;
 use crate::verifier::{verify, ProofView};
 use crate::{prove, Claim, Proof, Relation, Statement};
+use neo_math::D;
+
+/// `statement` as statement words, in `Statement::words` order.
+pub(super) fn statement_input<B: Backend>(b: &mut B, statement: &Statement<Gl>) -> Statement<B::F> {
+    let mut rings = |values: &[[Gl; D]]| -> Vec<[B::F; D]> {
+        values
+            .iter()
+            .map(|ring| ring.map(|word| b.public(word)))
+            .collect()
+    };
+    let commitment = rings(&statement.commitment);
+    let public = rings(&statement.public);
+    let mut pairs = |values: &[[Gl; 2]]| -> Vec<[B::F; 2]> {
+        values
+            .iter()
+            .map(|pair| pair.map(|word| b.public(word)))
+            .collect()
+    };
+    let point = pairs(&statement.point);
+    let array = |words: Vec<[B::F; 2]>| -> [[B::F; 2]; D] { std::array::from_fn(|lane| words[lane]) };
+    let eval_k = array(pairs(&statement.eval_k));
+    let eval_a = statement
+        .eval_a
+        .iter()
+        .map(|values| array(pairs(values)))
+        .collect();
+    Statement {
+        commitment,
+        public,
+        point,
+        eval_k,
+        eval_a,
+    }
+}
 
 /// Record the verifier with the seed and the statement as statement words.
 fn record(
@@ -23,32 +57,7 @@ fn record(
     let mut recorder = Recorder::new(Trace::default());
     let b = &mut recorder;
     let seed = seed.map(|word| b.public(word));
-    let mut words = |values: &[[Gl; 2]]| -> Vec<[<Recorder<Trace> as Backend>::F; 2]> {
-        values
-            .iter()
-            .map(|pair| pair.map(|word| b.public(word)))
-            .collect()
-    };
-    let point = words(&statement.point);
-    let eval_k = words(&statement.eval_k).try_into().unwrap();
-    let eval_a = statement
-        .eval_a
-        .iter()
-        .map(|values| words(values).try_into().unwrap())
-        .collect();
-    let mut rings = |values: &[[Gl; neo_math::D]]| -> Vec<[<Recorder<Trace> as Backend>::F; neo_math::D]> {
-        values
-            .iter()
-            .map(|ring| ring.map(|word| b.public(word)))
-            .collect()
-    };
-    let statement = Statement {
-        commitment: rings(&statement.commitment),
-        public: rings(&statement.public),
-        point,
-        eval_k,
-        eval_a,
-    };
+    let statement = statement_input(b, &statement);
     let view = ProofView::read(b, relation, proof).unwrap();
     verify(b, relation, seed, &statement, &view).unwrap();
     recorder.finish()

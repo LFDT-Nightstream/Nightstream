@@ -254,7 +254,7 @@
       ],
       "kind": "theorem",
       "record": "N.security.composition",
-      "role": "RandomOracleKnowledge.knowledge_error_le combines Lemmas 5 and 6 for one fold in the random-oracle model. contract restates it as a KnowledgeContract. The history uses it only to justify the per-visit error of Assumption 1.",
+      "role": "RandomOracleKnowledge.knowledge_error_le combines Lemmas 5 and 6 for one fold in the random-oracle model. contract restates it as a KnowledgeContract. The history uses it only to motivate the per-visit error of Assumption 1; no Lean statement derives one from the other.",
       "refs": [
         {
           "record": "N.security.composition",
@@ -351,7 +351,7 @@
       ],
       "kind": "theorem",
       "record": "H.security.history",
-      "role": "The history bound adds, at each visit, the marked hash-collision mass and the per-visit error of Assumption 1. Assumption 1 is a premise; the random-oracle theorem justifies its value.",
+      "role": "The history bound adds, at each visit, the marked hash-collision mass and the per-visit error of Assumption 1. Assumption 1 is a premise; the random-oracle theorem motivates its value.",
       "refs": [
         {
           "record": "H.security.history",
@@ -540,7 +540,7 @@
       "role": "HyperNova errata Assumption 1, plain-model part, at each visited step. The step circuit recomputes the previous challenges with the concrete Poseidon2, so no random-oracle model covers the history.",
       "refs": [],
       "assumption": "nifs_knowledge",
-      "summary": "HyperNova errata Assumption 1, plain-model part, at each visit. Not proved; the one-fold random-oracle theorem justifies its error value."
+      "summary": "HyperNova errata Assumption 1, plain-model part, at each visit. Not proved; the one-fold random-oracle theorem motivates its error value."
     }
   ],
   "edges": [
@@ -891,7 +891,7 @@
       "source": "extraction",
       "target": "probability",
       "kind": "requires",
-      "note": "The one-fold theorem justifies the value of the per-visit error. It does not prove Assumption 1 for the concrete Poseidon2 transcript.",
+      "note": "The one-fold theorem motivates the value of the per-visit error. It does not prove Assumption 1 for the concrete Poseidon2 transcript.",
       "refs": [],
       "overview": false
     },

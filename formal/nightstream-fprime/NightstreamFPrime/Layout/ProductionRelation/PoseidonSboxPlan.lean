@@ -549,7 +549,7 @@ theorem rowsZero_implies_permute {logicalWidth : Nat}
     (rows interface).length = 166 := by
   simp [rows]
 
-/-- Exact 7-matrix template plan, built by the common
+/-- Exact 4-matrix template plan, built by the common
 `ProductionRelation.Plan` constructor. -/
 def plan {logicalWidth : Nat} (interface : Interface logicalWidth) :
     ProductionRelation.Plan logicalWidth where

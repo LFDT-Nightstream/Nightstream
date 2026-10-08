@@ -78,15 +78,7 @@ import NightstreamFPrime.Lifecycle.Stage1.RunningTransition
 import NightstreamFPrime.Lifecycle.Stage1.RunningTransitionSupport
 import NightstreamFPrime.Lifecycle.Stage1.Interface
 import NightstreamFPrime.Lifecycle.Stage1.Formal
-import NightstreamFPrime.Lifecycle.Nebula.Framing
 import NightstreamFPrime.Lifecycle.Nebula.MemoryBound
-import NightstreamFPrime.Lifecycle.Nebula.StepRows
-import NightstreamFPrime.Lifecycle.Nebula.StepDecode
-import NightstreamFPrime.Lifecycle.Nebula.StepRefinement
-import NightstreamFPrime.Lifecycle.Nebula.StepInvoke
-import NightstreamFPrime.Lifecycle.Nebula.MachineRefinement
-import NightstreamFPrime.Lifecycle.Nebula.RunLink
-import NightstreamFPrime.Lifecycle.Nebula.RowMeaning
-import NightstreamFPrime.Lifecycle.Nebula.MemoryProgram
+import NightstreamFPrime.Lifecycle.Nebula.ProgramSoundness
 
 /-! Lifecycle layer root. Lists the modules of this layer explicitly. -/

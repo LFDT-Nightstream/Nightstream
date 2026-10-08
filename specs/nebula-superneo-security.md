@@ -477,7 +477,23 @@ generated relation MUST supply the exact census.
      at most the frequency of a run collision, plus `S_max · 2·m_mem/q²`, plus
      one retry term per segment. Both collision terms are Poseidon2 transcript
      collisions. The retry adversary makes at most 2 calls in expectation
-     (`t_1 ≤ 2·t_E`, counted in calls).
+     (`t_1 ≤ 2·t_E`, counted in calls);
+   - the first memory application as a Stage 1 application program
+     (`Lifecycle/Nebula/MemoryProgram.lean`) for a plan with two ports. Its
+     circuit holds exactly when the output state is the state digest of the
+     output words and the decoded witness satisfies the memory rows and the
+     machine rows, and every row reads only supported variables;
+   - the soundness refinement of that relation: canonical carry decoding
+     (Ob1), the field-bit packing of the lanes (Ob2), one invocation's rows to
+     the model's `invoke` with a reachable output carry (Ob4, and Ob6 because
+     the chains and the products read the same decoded records), the port rows
+     to one machine step (Ob7), and the arm, `close`, and terminal rules (Ob8
+     for the relation);
+   - the run-level join (`MemoryApp.chain_soundness`): a chain of states whose
+     steps satisfy the program's predicate, with the spec §13 terminal checks,
+     gives Lemma 6's three results, or a collision in a state digest. The
+     relation reads `plan_digest` and the chain headers as constants, and the
+     terminal computes the initial state from the start carry and `D_init`.
 
    Still open:
    - the A6 transfer from the real verifier to this game, as a premise in the
@@ -487,15 +503,13 @@ generated relation MUST supply the exact census.
      committed ones is an extraction failure. A1 and A4 must bound it; the
      game theorem does not;
    - `ε_coll` as a probability needs a stated adversary time (A3);
-   - the refinement of the generated relation to the typed rows, ports, and
-     carry, in both directions: soundness (Ob1, Ob2, Ob4, Ob6, Ob7, and Ob8
-     for the relation) and completeness (Ob5 for the relation, with the
-     counter widths `W_step`, `W_seg`, `W_cnt` and the O4 words `diff_j`);
-   - the link from the package constants `plan_digest` and `D_init` to the
-     relation (spec §4.3);
-   - the memory application's package with its Stage 1 fixed-point and
-     domain theorems, and the link from the Stage 1 relation over that
-     application to the model.
+   - completeness of the relation (Ob5 for the relation): an honest model
+     step has a witness that satisfies the program's predicate, with the
+     counter widths `W_step`, `W_seg`, `W_cnt` and the O4 words `diff_j`;
+   - the memory application's package, with its Stage 1 fixed-point and
+     domain theorems for a selected plan;
+   - the Stage 1 extraction that turns an accepted proof over that package
+     into the chain of states that `MemoryApp.chain_soundness` reads (A1–A4).
 6. **Shared with Stage 1:** useful values of `g_d` and `delta_d` (A6), the
    concrete extractor time (A4), the arity adaptation of HyperNova Lemma 4, the
    terminal decider, encoding, and implementation terms, and an approved F′

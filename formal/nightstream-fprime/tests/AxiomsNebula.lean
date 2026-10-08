@@ -4,7 +4,7 @@ import NightstreamFPrime.Lifecycle.Nebula.Framing
 import NightstreamFPrime.Lifecycle.Nebula.MemoryBound
 import NightstreamFPrime.Lifecycle.Nebula.RunLink
 import NightstreamFPrime.Lifecycle.Nebula.RowMeaning
-import NightstreamFPrime.Lifecycle.Nebula.MemoryProgram
+import NightstreamFPrime.Lifecycle.Nebula.ProgramSoundness
 
 /-! Axiom audits for the Nebula memory-phase model (`Spec/Nebula`) and its
 memory application layer (`Lifecycle/Nebula`): framing, carry, step rows, and
@@ -357,3 +357,5 @@ their refinement to the model. -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.child_ends
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.localLength_opsAt
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.supported
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.holds_of_valid
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.chain_soundness

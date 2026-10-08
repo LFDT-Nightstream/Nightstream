@@ -3,7 +3,7 @@ import NightstreamFPrime.Lifecycle.PiRLC.v1_2.InputBinding
 /-!
 Paper authority: SuperNeo v1.2, Section 7.4, PiRLC output.
 Obligation: package the verifier-computed commitment, public input, separate
-Pad evaluation, and 7 matrix evaluations as one `CE(B)` claim at stage
+Pad evaluation, and the matrix evaluations as one `CE(B)` claim at stage
 `.combined` for the shared relation source and point.
 
 This leaf reuses the computed expressions directly. It adds no witness cell,

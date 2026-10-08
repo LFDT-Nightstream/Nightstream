@@ -134,7 +134,7 @@ theorem projectPublicInput_act
       publicAct challenge (projectPublicInput assignment) := by
   funext column
   unfold projectPublicInput CarrierAction.act publicAct
-  simp only [decode_publicColumn, assignmentBlock_projectPublicInput]
+  simp only []
   rfl
 
 /-- Projection commutes with pointwise assignment addition. -/

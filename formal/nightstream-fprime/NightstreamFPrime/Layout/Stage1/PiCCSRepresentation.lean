@@ -73,7 +73,7 @@ private theorem finRange_map_getD
       encode position := by
   rw [List.getD_eq_get _ _ ⟨position.val, by simp⟩]
   simp only [List.get_eq_getElem, List.getElem_map,
-    List.getElem_finRange, Fin.eta]
+    List.getElem_finRange]
   apply congrArg encode
   exact Fin.ext rfl
 

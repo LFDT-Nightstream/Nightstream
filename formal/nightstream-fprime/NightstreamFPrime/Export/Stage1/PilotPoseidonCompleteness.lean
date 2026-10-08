@@ -385,10 +385,10 @@ private theorem prior_input
       R1CS.LinearCombination.one
     else (if invocation.val = 0 then R1CS.LinearCombination.zero else R1CS.LinearCombination.ofVar
       (invocationLocalStart (PilotData.circuitPackage ()) Data.priorChain (invocation.val - 1) + 1080 + lane.val))).eval target
-  split_ifs <;> simp_all only [and_true, true_and, and_false, false_and, not_true_eq_false,
+  split_ifs <;> simp_all only [true_and, false_and, not_true_eq_false,
     ite_true, ite_false, dite_true, dite_false,
-    SparseForm.add_eval, SparseForm.singleton_eval, one,
-    mul_one, one_mul, previous,
+    SparseForm.add_eval, SparseForm.singleton_eval, 
+    mul_one, 
     (priorInput_form application target applicationPrivate raw baseEq),
     R1CS.LinearCombination.eval_add, R1CS.LinearCombination.eval_ofVar,
     R1CS.LinearCombination.eval_zero, R1CS.LinearCombination.eval_one, Nat.add_assoc]
@@ -426,10 +426,10 @@ private theorem output_input
       R1CS.LinearCombination.one
     else (if invocation.val = 0 then R1CS.LinearCombination.zero else R1CS.LinearCombination.ofVar
       (invocationLocalStart (PilotData.circuitPackage ()) Data.outputChain (invocation.val - 1) + 1080 + lane.val))).eval target
-  split_ifs <;> simp_all only [and_true, true_and, and_false, false_and, not_true_eq_false,
+  split_ifs <;> simp_all only [true_and, false_and, not_true_eq_false,
     ite_true, ite_false, dite_true, dite_false,
-    SparseForm.add_eval, SparseForm.singleton_eval, one,
-    mul_one, one_mul, previous,
+    SparseForm.add_eval, SparseForm.singleton_eval, 
+    mul_one, 
     (outputInput_form application target applicationPrivate raw baseEq),
     R1CS.LinearCombination.eval_add, R1CS.LinearCombination.eval_ofVar,
     R1CS.LinearCombination.eval_zero, R1CS.LinearCombination.eval_one, Nat.add_assoc]

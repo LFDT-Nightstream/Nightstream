@@ -88,13 +88,16 @@ inductive Program where
   | append (left right : Program)
 deriving Repr, DecidableEq
 
-def applicationGeometry (application : ProgramApplication) :=
+theorem applicationGeometry (application : ProgramApplication) :
+    NightstreamFPrime.Export.Stage1.ApplicationRetainedGeometry.Geometry application (NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint.logicalWidth application) :=
   PerApplicationFixedPoint.geometry application
 
-def samplerGeometry (application : ProgramApplication) :=
+theorem samplerGeometry (application : ProgramApplication) :
+    NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRetainedGeometry.Geometry application (NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint.logicalWidth application) :=
   DirectApplicationPrefixPlan.prefixGeometry (applicationGeometry application)
 
-def piDecGeometry (application : ProgramApplication) :=
+theorem piDecGeometry (application : ProgramApplication) :
+    NightstreamFPrime.Export.Stage1.PiDECRetainedGeometry.Geometry application (NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint.logicalWidth application) :=
   DirectPiRLCSamplerCompletePrefixPlan.piDecGeometry
     (samplerGeometry application)
 

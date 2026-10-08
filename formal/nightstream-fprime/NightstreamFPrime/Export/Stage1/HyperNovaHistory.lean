@@ -281,7 +281,7 @@ private theorem walk_correct (statement : Statement) (proof : Envelope)
         | nil =>
             rw [SuccessfulSources.eq_def] at sources
             have impossible : False := by
-              simpa only [if_neg notZero, if_pos counter, if_neg zero, resultsEq] using sources
+              simp only [if_neg notZero, if_pos counter, if_neg zero, resultsEq] at sources
             exact False.elim impossible
         | cons result tail =>
             have sourceAndTail : SourceSucceeded payload result ∧
@@ -322,7 +322,6 @@ private theorem walk_correct (statement : Statement) (proof : Envelope)
                     reached).trans transition.symm
 termination_by results.length
 decreasing_by
-  simp_wf
   rw [resultsEq]
   exact Nat.lt_succ_self _
 

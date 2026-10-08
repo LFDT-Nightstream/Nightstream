@@ -23,7 +23,7 @@ import Mathlib.Algebra.BigOperators.Ring.Finset
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CausalExecution
 import Mathlib.Topology.Algebra.InfiniteSum.Real
 import Mathlib.Analysis.Normed.Group.InfiniteSum
-import Mathlib.Data.Real.Sqrt
+import Mathlib.Analysis.Real.Sqrt
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.IndependentExecution
 import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongInterface
 import NightstreamFPrime.Spec.Folding.PiRLC.CoordinateForkLaw

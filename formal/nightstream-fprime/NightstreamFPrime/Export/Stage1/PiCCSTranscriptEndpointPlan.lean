@@ -532,7 +532,7 @@ theorem sourceForm_eval
         unfold endpointColumn endpointStart outputFamily
           PiCCSStarts.logicalFreshBase
         rw [PiCCSInputs.phaseOffset_eq]
-        norm_num [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq] <;> omega)).symm
+        norm_num [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]; omega)).symm
   · rw [sourceForm, dif_neg output,
       PiCCSOrdinaryDirectPlan.Location.form_eval geometry assignment base
         groupValue encoding]
@@ -559,7 +559,7 @@ def interface {program : Lifecycle.Stage1.Application.Program}
   oneColumn := PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry
   value := bindingForm poseidonGeometry ordinaryGeometry
 
-def rowCount_le : rowCount ≤ 2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by
+theorem rowCount_le : rowCount ≤ 2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by
   rw [rowCount_eq]
   norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
 

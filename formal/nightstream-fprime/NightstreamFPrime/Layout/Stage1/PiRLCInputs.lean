@@ -208,7 +208,7 @@ def interface :
   input := fun _ => sourceInput (logicalWidth := logicalWidth)
     (publicFits := publicFits)
 
-def samplerInputs :
+theorem samplerInputs :
     NightstreamFPrime.Layout.PiRLC.v1_1.SamplerChain.InputsAffine
       (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerInterface
         (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.atOffset
@@ -286,7 +286,7 @@ private theorem sourceEvalAComponentVariable
   rw [sourceEvalAEqOutput]
   fin_cases cell <;> exact ⟨_, rfl⟩
 
-def commitmentProductionInputs :
+theorem commitmentProductionInputs :
     NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.ProductionInputs
       (NightstreamFPrime.Lifecycle.PiRLC.v1_1.CommitmentCombination.familyInterface
         (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.commitmentInterface
@@ -301,7 +301,7 @@ def commitmentProductionInputs :
   · intro source block lane cell
     exact sourceCommitmentVariable source block lane
 
-def publicInputProductionInputs :
+theorem publicInputProductionInputs :
     NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.ProductionInputs
       (NightstreamFPrime.Lifecycle.PiRLC.v1_1.PublicInputCombination.familyInterface
         (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.publicInputInterface
@@ -318,7 +318,7 @@ def publicInputProductionInputs :
       (NightstreamFPrime.Lifecycle.PiRLC.v1_1.PublicInputCombination.publicColumn
         block lane)
 
-def evalKProductionInputs :
+theorem evalKProductionInputs :
     NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.ProductionInputs
       (NightstreamFPrime.Lifecycle.PiRLC.v1_1.RingKCombination.familyInterface
         (NightstreamFPrime.Lifecycle.PiRLC.v1_1.EvalKCombination.ringInterface
@@ -335,7 +335,7 @@ def evalKProductionInputs :
       (NightstreamFPrime.Lifecycle.PiRLC.v1_1.EvalKCombination.coefficient lane)
       cell
 
-def evalAProductionInputs :
+theorem evalAProductionInputs :
     NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.ProductionInputs
       (NightstreamFPrime.Lifecycle.PiRLC.v1_1.RingKCombination.familyInterface
         (NightstreamFPrime.Lifecycle.PiRLC.v1_1.EvalACombination.ringInterface
@@ -352,7 +352,7 @@ def evalAProductionInputs :
       (NightstreamFPrime.Lifecycle.PiRLC.v1_1.EvalKCombination.coefficient lane)
       cell
 
-def inputShapes
+theorem inputShapes
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     NightstreamFPrime.Layout.PiRLC.v1_1.InputShapes relation
       (interface (logicalWidth := logicalWidth) (publicFits := publicFits))

@@ -69,7 +69,7 @@ def schedule (program : Lifecycle.Stage1.Application.Program) :
 def retainedStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
   LaterPoseidonRetainedBlocks.samplerStart program
 
-def retainedFits {program : Lifecycle.Stage1.Application.Program}
+theorem retainedFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
     retainedStart program + (retainedBlock program).coordinateCount ≤

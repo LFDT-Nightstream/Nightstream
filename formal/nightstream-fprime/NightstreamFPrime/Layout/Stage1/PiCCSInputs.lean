@@ -1083,7 +1083,7 @@ theorem externalInputsBelow
 
 /-- Every concrete external value is affine; every extension pair is a
 nonconstant direct variable pair. -/
-def externalInputsLinear
+theorem externalInputsLinear
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :

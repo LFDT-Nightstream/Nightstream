@@ -89,7 +89,7 @@ private theorem chain_input
       ((if invocation = 0 then Hash.zeroE else
         Permutation.freshState (start + (invocation - 1) * 1096 + 1080)) lane).eval source := by
     by_cases first : invocation = 0
-    · simp [first, Hash.zeroE, R1CS.LinearCombination.eval_zero, Expr.eval]
+    · simp [first, Hash.zeroE, R1CS.LinearCombination.eval_zero]
     · have localBound : (invocation - 1) * 1096 + 1080 + lane.val <
           (chain.absorbCount + 1) * 1096 := by
         have laneBound := lane.isLt
@@ -153,7 +153,6 @@ private theorem hashChain_of_sourceRows
       exact chain_input chain target source start input inputLength count
         inputValues localValues invocation bound lane
     · intro index indexBound
-      change Pilot.canonicalTemplateEnv _ (16 + index) = _
       rw [canonical_local, instantiateColumn, R1CS.LinearCombination.eval_ofVar]
       change target (chain.witnessStart + invocation * 1096 + index) =
         source (start + invocation * 1096 + index)

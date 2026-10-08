@@ -148,7 +148,7 @@ private theorem varsBelow_mul_right {left right : Expr} {bound : Nat}
 
 /-- Renaming inputs does not change allocation; shifting the first fresh
 column shifts the final fresh boundary by the same amount. -/
-theorem lowerExpression_next_rename (inputCount start shift : Nat)
+theorem lowerExpression_next_rename (_inputCount start shift : Nat)
     (inputColumn : Nat → Nat) (expression : Expr) :
     (R1CS.lowerExpression (renameExpr inputColumn expression)
         (start + shift)).next =
@@ -246,7 +246,7 @@ theorem lowerExpression_rows_rename (inputCount start shift : Nat)
         lowerExpression_next_rename inputCount
           (R1CS.lowerExpression left start).next shift inputColumn right,
         List.map_append, List.map_singleton]
-      simp [renameRow, R1CS.mapRowColumns, renameCombination_ofVar]
+      simp [renameRow, R1CS.mapRowColumns]
       rw [relocate_local inputCount shift inputColumn
         (start + R1CS.mulCount left + R1CS.mulCount right) (by omega)]
 

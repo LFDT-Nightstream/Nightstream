@@ -146,12 +146,12 @@ private theorem source_failure_probability_le_at (remaining : Nat)
       | recursive payload =>
         by_cases nonzero : statement.iteration = 0
         · rw [resultsAt, sourceFailureBoundAt]
-          simp only [if_pos nonzero, PMF.toOuterMeasure_pure_apply, Set.mem_setOf_eq,
+          simp only [PMF.toOuterMeasure_pure_apply, Set.mem_setOf_eq,
             SuccessfulSources, if_pos nonzero, not_true_eq_false, if_false, le_refl]
         · by_cases counter : (decodedInput payload).iteration + 1 = statement.iteration
           · by_cases positive : (decodedInput payload).iteration = 0
             · rw [resultsAt, sourceFailureBoundAt]
-              simp only [if_neg nonzero, if_pos counter, if_pos positive,
+              simp only [
                 PMF.toOuterMeasure_pure_apply, Set.mem_setOf_eq, SuccessfulSources,
                 if_neg nonzero, if_pos counter, if_pos positive, not_true_eq_false, if_false, le_refl]
             · rw [resultsAt, sourceFailureBoundAt]
@@ -166,7 +166,7 @@ private theorem source_failure_probability_le_at (remaining : Nat)
                   source statement payload result * (if SourceSucceeded payload result then 0 else 1) := by
                 by_cases good : SourceSucceeded payload result <;> simp [good]
               rw [head, ← mul_add]
-              apply mul_le_mul_left'
+              apply mul_le_mul_right
               cases result with
               | none =>
                   simp only [PMF.toOuterMeasure_pure_apply, Set.mem_setOf_eq,
@@ -189,7 +189,7 @@ private theorem source_failure_probability_le_at (remaining : Nat)
                   dsimp only [predecessorStatement]
                   omega
           · rw [resultsAt, sourceFailureBoundAt]
-            simp only [if_neg nonzero, if_neg counter, PMF.toOuterMeasure_pure_apply,
+            simp only [PMF.toOuterMeasure_pure_apply,
               Set.mem_setOf_eq, SuccessfulSources, if_neg nonzero, if_neg counter,
               not_true_eq_false, if_false, le_refl]
 
@@ -229,7 +229,7 @@ private theorem source_failure_mass_le (initial : PMF (Statement × Envelope)) :
   rw [law, PMF.toOuterMeasure_bind_apply]
   apply ENNReal.tsum_le_tsum
   intro input
-  apply mul_le_mul_left'
+  apply mul_le_mul_right
   by_cases accepted : PerApplicationTerminal.Holds Poseidon2HashChainV1Package.application
         Poseidon2HashChainV1Package.fits Poseidon2HashChainV1Setup.productionSetup input.1 input.2
   · rw [if_pos accepted, PMF.toOuterMeasure_map_apply]

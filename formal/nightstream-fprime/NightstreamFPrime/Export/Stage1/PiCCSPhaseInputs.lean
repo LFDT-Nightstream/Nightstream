@@ -124,7 +124,7 @@ theorem statement_initial :
     List.ofFn (Layer.evalState (Spartan.pullback target) Hash.zeroE) =
       PoseidonActionSemantics.sliceInitial Spec.Poseidon2.zeroState
         (valueState geometry (raw).assignment) statementOffset statementOffsetBound := by
-  simp only [PoseidonActionSemantics.sliceInitial, statementOffset, dif_pos rfl]
+  simp only [PoseidonActionSemantics.sliceInitial, statementOffset]
   rfl
 
 include relation physical in

@@ -50,7 +50,7 @@ structure Geometry (program : Lifecycle.Stage1.Application.Program)
     (logicalWidth : Nat) : Prop where
   completeFits : completeLogicalWidth program ≤ logicalWidth
 
-def prefixGeometry {program : Lifecycle.Stage1.Application.Program}
+theorem prefixGeometry {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth where
   completeFits := by
@@ -64,7 +64,7 @@ def oneColumn {program : Lifecycle.Stage1.Application.Program}
     Fin logicalWidth :=
   PiCCSOrdinaryRetainedGeometry.oneColumn (prefixGeometry geometry)
 
-def canonicalLocalFits {program : Lifecycle.Stage1.Application.Program}
+theorem canonicalLocalFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     canonicalLocalStart program +
         (PilotOrdinaryRetainedBlocks.canonicalLocalBlock program).coordinateCount ≤
@@ -73,7 +73,7 @@ def canonicalLocalFits {program : Lifecycle.Stage1.Application.Program}
   unfold completeLogicalWidth outputDigestStart canonicalFreshStart
   omega
 
-def canonicalFreshFits {program : Lifecycle.Stage1.Application.Program}
+theorem canonicalFreshFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     canonicalFreshStart program +
         (PilotOrdinaryRetainedBlocks.canonicalFreshBlock program).coordinateCount ≤
@@ -82,7 +82,7 @@ def canonicalFreshFits {program : Lifecycle.Stage1.Application.Program}
   unfold completeLogicalWidth outputDigestStart
   omega
 
-def outputDigestFits {program : Lifecycle.Stage1.Application.Program}
+theorem outputDigestFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     outputDigestStart program +
         (PilotOrdinaryRetainedBlocks.outputDigestBlock program).coordinateCount ≤

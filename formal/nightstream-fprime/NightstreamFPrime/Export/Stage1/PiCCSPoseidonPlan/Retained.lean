@@ -23,7 +23,7 @@ def invocationCount : Nat := PiCCSActionPayloadBlock.invocationCount
 def sourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   PiCCSActionPayloadBlock.sourceWidth program
 
-def prefixSourceFits (program : Lifecycle.Stage1.Application.Program) :
+theorem prefixSourceFits (program : Lifecycle.Stage1.Application.Program) :
     PiRLCRetainedGeometry.sourceWidth program ≤ sourceWidth program := by
   unfold sourceWidth PiCCSActionPayloadBlock.sourceWidth
     PiCCSActionPayloadBlock.prefixSourceWidth FieldSuffixBlock.sourceWidth
@@ -57,12 +57,12 @@ structure Geometry (program : Lifecycle.Stage1.Application.Program)
     (logicalWidth : Nat) : Prop where
   pilotFits : PiRLCPoseidonGeometry.pilotLogicalWidth program ≤ logicalWidth
 
-def pilotGeometry {program : Lifecycle.Stage1.Application.Program}
+theorem pilotGeometry {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     PiRLCPoseidonGeometry.Geometry program logicalWidth where
   pilotFits := geometry.pilotFits
 
-def prefixGeometry {program : Lifecycle.Stage1.Application.Program}
+theorem prefixGeometry {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     PiRLCRetainedGeometry.Geometry program logicalWidth :=
   PiRLCPoseidonGeometry.prefixGeometry (pilotGeometry geometry)
@@ -75,7 +75,7 @@ def oneColumn {program : Lifecycle.Stage1.Application.Program}
 def retainedStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
   LaterPoseidonRetainedBlocks.piCcsStart program
 
-def retainedFits {program : Lifecycle.Stage1.Application.Program}
+theorem retainedFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     retainedStart program + (retainedBlock program).coordinateCount ≤
       logicalWidth := by

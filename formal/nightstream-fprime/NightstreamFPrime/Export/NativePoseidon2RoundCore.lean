@@ -523,7 +523,7 @@ private theorem lowBit64_eq_zero_iff (value : UInt64) :
     simpa [lowBit64_toNat] using natural
   · intro equality
     apply UInt64.toNat_inj.1
-    simpa [lowBit64_toNat, equality]
+    simp [equality]
 
 private theorem halfAdd64_toNat (value : UInt64) :
     ((value >>> 1) + half64).toNat = value.toNat / 2 + half64.toNat := by
@@ -666,7 +666,7 @@ private theorem scale14_canonical (value : Word)
   sub64_canonical _ _ (by decide)
     (mulHalf64_canonical _ (mulHalf64_canonical _ (mulHalf64_canonical _ (mulHalf64_canonical _ (mulHalf64_canonical value h)))))
 private theorem scale15_canonical (value : Word)
-    (h : value.toNat < goldilocksModulus) :
+    (_h : value.toNat < goldilocksModulus) :
     (scale15 value).toNat < goldilocksModulus :=
   mul64_canonical _ _
 
@@ -683,7 +683,7 @@ private theorem scale0_denote (value : Word)
   ring
 
 private theorem scale1_denote (value : Word)
-    (h : value.toNat < goldilocksModulus) :
+    (_h : value.toNat < goldilocksModulus) :
     (scale1 value).denote =
       Poseidon2.ofNat (Poseidon2.internalDiagonal.getD 1 0) * value.denote := by
   have coefficient : Poseidon2.ofNat (Poseidon2.internalDiagonal.getD 1 0) = 1 := by

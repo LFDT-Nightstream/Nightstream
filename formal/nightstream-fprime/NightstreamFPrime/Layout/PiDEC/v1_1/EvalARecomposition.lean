@@ -45,7 +45,7 @@ structure InputsLinear (interface : Logical.Interface) (offset : Nat) : Prop whe
     PiDEC.v1_1.RingKRecomposition.ValueLinear
       (interface.child offset child matrix coefficient)
 
-def ringInputs (interface : Logical.Interface)
+theorem ringInputs (interface : Logical.Interface)
     (inputs : ∀ offset, InputsLinear interface offset) :
     ∀ offset,
       PiDEC.v1_1.RingKRecomposition.InputsLinear

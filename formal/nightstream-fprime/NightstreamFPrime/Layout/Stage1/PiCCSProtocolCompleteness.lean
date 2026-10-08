@@ -121,7 +121,7 @@ theorem output_word (index : Fin PilotProduction.stateHashWords) :
     rw [PilotProduction.externalColumnCount_eq]
     norm_num [PilotProduction.outputPreimageStart, PilotProduction.priorPublicInputStart,
       PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq,
-      PriorStateHash.publicWidth, ringDegree, publicRingColumns] <;> omega
+      PriorStateHash.publicWidth, ringDegree, publicRingColumns]; omega
 
 variable (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
 

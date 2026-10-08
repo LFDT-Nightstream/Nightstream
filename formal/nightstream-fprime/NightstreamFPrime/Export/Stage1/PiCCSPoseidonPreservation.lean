@@ -315,7 +315,7 @@ theorem previousState_eq_previousValue
     apply Fin.ext
     rfl
 
-def indexedSemantics
+theorem indexedSemantics
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)

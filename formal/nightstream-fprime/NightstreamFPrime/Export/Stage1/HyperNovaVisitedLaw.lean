@@ -127,7 +127,7 @@ private theorem stopped_not_ready : ¬ ready stopped := by
 
 private theorem transition_inactive (visit : Visit) (inactive : ¬ ready visit) :
     transition source visit = PMF.pure stopped := by
-  simp only [transition, draw, if_neg inactive, PMF.pure_map, advance, if_neg inactive]
+  simp only [transition, draw, PMF.pure_map, advance, if_neg inactive]
 
 private theorem after_stopped (steps : Nat) : after source steps stopped = PMF.pure stopped := by
   induction steps with

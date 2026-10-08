@@ -174,7 +174,7 @@ def CompactInvocationBlock.format : Format CompactInvocationBlock where
     | _ => .error "invalid compact invocation block"
   decode_encode := by
     intro value
-    cases value <;> simp [Format.decode_encode]
+    cases value; simp [Format.decode_encode]
 
 /-- Schema 8 transports the exact package as static fields plus generative
 invocation blocks. `expand` is the semantic interpretation. -/

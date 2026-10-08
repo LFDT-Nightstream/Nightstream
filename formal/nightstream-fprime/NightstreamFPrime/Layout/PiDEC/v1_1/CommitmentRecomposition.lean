@@ -42,7 +42,7 @@ structure InputsLinear (interface : Logical.Interface) (offset : Nat) : Prop whe
   child_mulCount : ∀ child row lane,
     R1CS.mulCount (interface.child offset child row lane) = 0
 
-def scalarInputs (interface : Logical.Interface)
+theorem scalarInputs (interface : Logical.Interface)
     (inputs : ∀ offset, InputsLinear interface offset) :
     ∀ offset,
       PiDEC.v1_1.RadixRecomposition.InputsLinear

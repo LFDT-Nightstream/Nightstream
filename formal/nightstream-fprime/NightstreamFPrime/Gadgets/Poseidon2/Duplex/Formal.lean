@@ -403,7 +403,7 @@ theorem compile_shape_eq (start : Nat) (state : EState)
             have tailResult := inductionHypothesis
               (start := start + squeezed.recipes.length)
               (state := squeezed.output) rightActions tailSame
-            simpa [compile, squeezed, tailResult.1, tailResult.2.1,
+            simp [compile, squeezed, tailResult.1, tailResult.2.1,
               tailResult.2.2]
 
 /-- Assertion rows bind exactly the ordered expected values to the ordered

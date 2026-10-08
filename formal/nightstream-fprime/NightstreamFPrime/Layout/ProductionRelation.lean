@@ -141,7 +141,7 @@ private theorem foldl_scaled_entries {columns : Nat}
   | nil => rfl
   | cons column rest inductionHypothesis =>
       rw [List.foldl_cons]
-      simpa [baseOps] using inductionHypothesis
+      simp [baseOps]
 
 private theorem foldl_add_terms {Index : Type}
     (indices : List Index) (left right : Index → F)

@@ -13,7 +13,8 @@ and `Quot.sound`.
   the CompPoly revision that `lakefile.toml` pins. Final validation uses the
   official toolchain. The lean4-optimized fork is used only to iterate.
 - `scripts/validate.sh static`, `build` and `axioms` run on the developer Mac.
-  CI runs no Lean (owner decision of 2026-09-26).
+  The `build` and `axioms` gates use `lake build --wfail`, so any warning
+  fails them. CI runs no Lean (owner decision of 2026-09-26).
 - Every audited theorem uses the three axioms above. The audit fails closed:
   `sorryAx` or a new axiom stops the build.
 

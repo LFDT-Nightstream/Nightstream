@@ -27,7 +27,7 @@ variable {relationLogicalWidth : Nat}
   {relationPublicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth relationLogicalWidth}
 
-def prefixGeometry {application : Lifecycle.Stage1.Application.Program}
+theorem prefixGeometry {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
     PiRLCSamplerOrdinaryRetainedGeometry.Geometry application logicalWidth :=
@@ -50,21 +50,21 @@ def applicationPlan
     ProductionRelation.Plan logicalWidth :=
   ApplicationDirectPlan.plan fits geometry
 
-def piDecGeometry
+theorem piDecGeometry
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
     PiDECRetainedGeometry.Geometry application logicalWidth :=
   DirectPiRLCSamplerCompletePrefixPlan.piDecGeometry (prefixGeometry geometry)
 
-def pilotOrdinaryGeometry
+theorem pilotOrdinaryGeometry
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
     PilotOrdinaryRetainedGeometry.Geometry application logicalWidth :=
   DirectPiDECPrefixPlan.pilotOrdinaryGeometry (piDecGeometry geometry)
 
-def piCcsOrdinaryGeometry
+theorem piCcsOrdinaryGeometry
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :

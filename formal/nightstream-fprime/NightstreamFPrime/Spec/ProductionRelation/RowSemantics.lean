@@ -62,7 +62,7 @@ theorem evaluate_general
           (left * right - output) + seventhPower sboxValue) := by
   simp [polynomial, SelectivePolynomial.polynomial,
     SelectivePolynomial.terms, SelectivePolynomial.termData,
-    SelectivePolynomial.sboxTerm, SelectivePolynomial.monomial,
+    SelectivePolynomial.monomial,
     SelectivePolynomial.Term.toMonomial, SelectivePolynomial.sboxTermData,
     SelectivePolynomial.powers, SelectivePolynomial.PortExponents.get,
     evaluatePolynomial, evaluateMonomial, canonicalFinIndices, List.foldl,
@@ -142,12 +142,12 @@ theorem evaluate_productSum (selector : F) (left right : Fin 2 → F)
       selector * (productTotal left right - output) := by
   simp [polynomial, SelectivePolynomial.polynomial,
     SelectivePolynomial.terms, SelectivePolynomial.termData,
-    SelectivePolynomial.sboxTerm, SelectivePolynomial.monomial,
+    SelectivePolynomial.monomial,
     SelectivePolynomial.Term.toMonomial, SelectivePolynomial.sboxTermData,
     SelectivePolynomial.powers, SelectivePolynomial.PortExponents.get,
     evaluatePolynomial, evaluateMonomial, canonicalFinIndices, List.foldl,
     Fin.val_cast, pow, productSum, productTotal, PortValues.get, baseOps]
-  simp only [mul_add, mul_neg, sub_eq_add_neg, mul_comm, mul_left_comm]
+  simp only [mul_add, mul_neg, sub_eq_add_neg, mul_comm]
   abel
 
 theorem productSum_zero_of_equal (selector : F) (left right : Fin 2 → F)

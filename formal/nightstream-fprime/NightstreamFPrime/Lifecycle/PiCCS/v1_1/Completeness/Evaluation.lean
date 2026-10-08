@@ -240,7 +240,7 @@ private theorem appendSumcheckChain
     intro roundIndex _
     have startEq : roundTranscriptStart shared =
         roundTranscriptOffset interface offset := by
-      simpa [shared] using roundTranscriptStart_atOffset interface offset
+      simp [shared]
     change (RoundTranscript.challenge (roundTranscriptInterface shared)
       (roundTranscriptStart shared) roundIndex).eval before.current =
         (RoundTranscript.challenge (roundTranscriptInterface shared)
@@ -261,7 +261,7 @@ private theorem appendSumcheckChain
       (initialClaimStart shared)).eval before.current = _
     have startEq : initialClaimStart shared =
         initialClaimOffset interface offset := by
-      simpa [shared] using initialClaimStart_atOffset interface offset
+      simp [shared]
     rw [startEq]
     exact initialEq
   have roundPointAt := sumcheckRoundPointEq.trans roundCoverage.1
@@ -1028,7 +1028,7 @@ theorem completeEvaluationPrefix
         (evalKCircuit (atOffset interface offset))
           (evalKOffset interface offset)) (by
             rw [o8, o7, o6, o5]
-            simp [evaluationPrefixOps])
+            simp [])
     change (evalKCircuit (atOffset interface offset)).assumptions
         (evalKOffset interface offset) p8.current →
       (evalKCircuit (atOffset interface offset)).spec

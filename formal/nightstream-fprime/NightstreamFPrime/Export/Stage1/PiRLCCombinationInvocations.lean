@@ -87,7 +87,7 @@ theorem commitmentValueSource_affine (source block cell offset : Nat)
           (commitmentValueSourceStart source block cell) + offset := by
   by_cases first : source = 0
   · subst source
-    simp only [commitmentValueSourceStart, if_pos rfl]
+    simp only [commitmentValueSourceStart]
     apply Spartan.sourceToSpartan_add_of_proofInput
     · norm_num [PiCCSInputs.freshCommitmentStart,
         PiCCSInputs.proofInputStart, PiCCSInputs.expectedContextStart,
@@ -461,7 +461,7 @@ theorem indexOf_val {blockCount cellCount : Nat}
     (block : Fin blockCount) (lane : Fin ringDegree) (cell : Fin cellCount) :
     (CombinationStep.indexOf block lane cell).val =
       logicalIndex cellCount block.val lane.val cell.val := by
-  simp [CombinationStep.indexOf, finProdFinEquiv, logicalIndex] <;> ring
+  simp [CombinationStep.indexOf, finProdFinEquiv, logicalIndex]; ring
 
 theorem indexOf_coordinates {blockCount cellCount : Nat}
     (index : Fin (CombinationStep.privateCount blockCount cellCount)) :
@@ -755,11 +755,11 @@ theorem renamedConstraint_eq_sourceConstraint
       sourceChallenge source := by
     funext current
     have currentBound : current.val < 54 := by
-      simpa [ringDegree] using current.isLt
+      simp [ringDegree]
     simp [CompactRows.renameExpr, PiRLCCombinationTemplates.challenge,
       sourceChallenge,
       sourceInputColumn, PiRLCCombinationTemplates.challengeInputStart,
-      PiRLCCombinationTemplates.valueInputStart, currentBound] <;> congr 3
+      PiRLCCombinationTemplates.valueInputStart, currentBound]; congr 3
   have valueEq :
       (fun current => CompactRows.renameExpr
         (sourceInputColumn logicalStart blockCount cellCount valueStride source
@@ -768,7 +768,7 @@ theorem renamedConstraint_eq_sourceConstraint
       sourceValue valueStride source block cell valueSourceStart := by
     funext current
     have currentBound : current.val < 54 := by
-      simpa [ringDegree] using current.isLt
+      simp [ringDegree]
     have notChallenge : ¬ 54 + current.val < 54 := by omega
     have beforePrior : 54 + current.val < 108 := by omega
     simp [CompactRows.renameExpr, PiRLCCombinationTemplates.value, sourceValue,
@@ -783,13 +783,13 @@ theorem renamedConstraint_eq_sourceConstraint
       sourceConstraint, sourceOutput, sourcePrior, sourceInputColumn,
       PiRLCCombinationTemplates.outputInput,
       PiRLCCombinationTemplates.priorInput,
-      PiRLCCombinationTemplates.valueInputStart] <;> congr 3
+      PiRLCCombinationTemplates.valueInputStart]; congr 3
   · simp [CompactRows.renameExpr, firstSource, first,
       PiRLCCombinationTemplates.prior,
       sourceConstraint, sourceOutput, sourcePrior, sourceInputColumn,
       PiRLCCombinationTemplates.outputInput,
       PiRLCCombinationTemplates.priorInput,
-      PiRLCCombinationTemplates.valueInputStart] <;> congr 3
+      PiRLCCombinationTemplates.valueInputStart]; congr 3
 
 theorem renamedOutputRecipe_eq_sourceRecipe
     (logicalStart blockCount cellCount valueStride source block cell : Nat)
@@ -852,8 +852,8 @@ theorem inputColumnOfRanges_eq (logicalStart blockCount cellCount valueStride
   by_cases challenge : input < 54
   · simp [PiRLCCombinationTemplates.challengeInputStart,
       PiRLCCombinationTemplates.valueInputStart,
-      PiRLCCombinationTemplates.priorInput,
-      PiRLCCombinationTemplates.outputInput, ringDegree, challenge,
+      
+      ringDegree, challenge,
       challengeAffine]
   · by_cases value : input < 108
     · have valueStart : 54 ≤ input := by omega

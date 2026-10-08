@@ -178,7 +178,7 @@ theorem eval_childCommitment {degree : Nat} (env : Env) (proof : Proof degree)
     (childCommitment child row lane).eval (load env proof parent) = proof.piDecCommitments child row lane := by
   have word := load_commitmentWord env proof parent child (CommitmentRecomposition.indexOf row lane)
   simp only [commitmentWord, CommitmentRecomposition.coordinates_indexOf] at word
-  convert word using 1 <;> simp only [childCommitment, childCommitmentStart, Expr.eval,
+  convert word using 1; simp only [childCommitment, childCommitmentStart, Expr.eval,
     CommitmentRecomposition.indexOf, finProdFinEquiv, Equiv.coe_fn_mk, Nat.add_assoc, Nat.add_comm, Nat.add_left_comm, Nat.mul_comm]
 
 private theorem productIndex_val {count width : Nat} (child : Fin count) (coordinate : Fin width) :
@@ -248,7 +248,7 @@ theorem eval_childPublicInput {degree : Nat} (env : Env) (proof : Proof degree)
     (childPublicInput child coordinate).eval (load env proof parent) =
       Phi81Relation.PiDECAlgebra.PublicInput.splitPublicInput parent child coordinate := by
   have word := load_publicWord env proof parent child coordinate
-  convert word using 1 <;> simp only [childPublicInput, childPublicInputStart, Expr.eval,
-    finProdFinEquiv, Equiv.coe_fn_mk, Nat.add_assoc, Nat.add_comm, Nat.add_left_comm, Nat.mul_comm]
+  convert word using 1; simp only [childPublicInput, childPublicInputStart, Expr.eval,
+    finProdFinEquiv, Equiv.coe_fn_mk, Nat.add_comm, Nat.add_left_comm, Nat.mul_comm]
 
 end NightstreamFPrime.Layout.Stage1.PiDECProofInputs

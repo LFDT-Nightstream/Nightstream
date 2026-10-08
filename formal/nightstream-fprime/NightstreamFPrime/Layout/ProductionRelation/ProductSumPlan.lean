@@ -82,14 +82,13 @@ theorem groupTotal_eq_sum {logicalWidth : Nat}
     groupTotal assignment group = (group.map (Term.eval assignment)).sum := by
   rcases group with _ | ⟨a, rest⟩
   · simp [groupTotal, termAt,
-      Spec.ProductionRelation.RowSemantics.productTotal, Term.eval, Term.zero]
+      Spec.ProductionRelation.RowSemantics.productTotal, Term.zero]
   rcases rest with _ | ⟨b, rest⟩
   · simp [groupTotal, termAt,
       Spec.ProductionRelation.RowSemantics.productTotal, Term.eval, Term.zero]
   rcases rest with _ | ⟨c, rest⟩
   · simp [groupTotal, termAt,
       Spec.ProductionRelation.RowSemantics.productTotal, Term.eval, Term.zero]
-    <;> try abel
   · simp only [List.length_cons] at bound
     omega
 

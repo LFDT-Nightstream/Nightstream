@@ -95,7 +95,7 @@ theorem laterWitnessStart_sampler
           · rename_i outside
             exfalso
             apply outside
-            simpa [PermutationPlan.samplerStepsPerSource] using current.isLt
+            simp [PermutationPlan.samplerStepsPerSource]
     let leftIndex : Fin
         (PiRLCSamplerInvocations.invocations
           (logicalWidth := Data.logicalWidth)
@@ -557,7 +557,7 @@ theorem semanticEnv_state
     have sourceEq : location.sourceColumn =
         (PiRLCSamplerOrdinaryDirectPlan.Location.poseidon location.source lane).sourceColumn := by
       rw [PiRLCSamplerOrdinaryDirectPlan.poseidonColumn]
-      simp only [StateLocation.sourceColumn, stepZero, Fin.val_zero, Nat.zero_mul,
+      simp only [StateLocation.sourceColumn, stepZero, Nat.zero_mul,
         Nat.add_zero, stateOutputOffset, Sampler.counts.1]
       dsimp only [lane]
       omega

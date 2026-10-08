@@ -269,7 +269,7 @@ def normRowOffset
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
-    (interface : Interface logicalWidth degreeBound publicFits)
+    (_interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) : Nat :=
   ccsRowOffset degreeBound offset + CcsTerminal.privateCount
 

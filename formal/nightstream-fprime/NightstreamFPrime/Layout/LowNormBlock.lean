@@ -49,7 +49,7 @@ def lift {sourceWidth largerWidth : Nat} (block : Block sourceWidth)
 @[simp] theorem lift_source_val {sourceWidth largerWidth : Nat}
     (block : Block sourceWidth) (fits : sourceWidth ≤ largerWidth)
     (slot : Fin block.slotCount) :
-    ((block.lift fits).source ⟨slot.val, by simpa using slot.isLt⟩).val =
+    ((block.lift fits).source ⟨slot.val, by simp⟩).val =
       (block.source slot).val := by
   rfl
 
@@ -88,7 +88,7 @@ private theorem sum_ofFn_const (count value : Nat) :
   induction count with
   | zero => simp
   | succ count inductionHypothesis =>
-      simp [List.ofFn_succ, inductionHypothesis, Nat.succ_mul, Nat.add_comm]
+      simp [List.ofFn_succ, Nat.succ_mul, Nat.add_comm]
 
 /-- Exact number of low-norm coordinates owned by the block. -/
 def coordinateCount {sourceWidth : Nat} (block : Block sourceWidth) : Nat :=
@@ -301,7 +301,7 @@ theorem expanded_kind {sourceWidth : Nat} (block : Block sourceWidth)
 the compact block. -/
 theorem expanded_source {sourceWidth : Nat} (block : Block sourceWidth)
     (slot : Fin block.slotCount) :
-    (block.expanded.get ⟨slot.val, by simpa using slot.isLt⟩).source =
+    (block.expanded.get ⟨slot.val, by simp⟩).source =
       block.source slot := by
   simp [expanded]
 

@@ -189,7 +189,7 @@ theorem sourceToSpartan_lt (column : Nat) (bound : column < SourceColumnCount) :
     publicColumnCount_value, priorPublicStart_value,
     outputPreimageStart_value, outputDigestStart_value, witnessStart_value,
     secondPrivateStart_value, witnessPrivateStart_value,
-    firstPublicStart_value, secondPublicStart_value] at * <;> omega
+    firstPublicStart_value, secondPublicStart_value] at *; omega
 
 theorem spartanToSource_sourceToSpartan (column : Nat)
     (bound : column < SourceColumnCount) :
@@ -225,7 +225,7 @@ theorem sourceToSpartan_ne_constant (column : Nat)
   all_goals norm_num [privateColumnCount_value, priorPublicStart_value,
     outputPreimageStart_value, outputDigestStart_value, witnessStart_value,
     secondPrivateStart_value, witnessPrivateStart_value,
-    firstPublicStart_value, secondPublicStart_value] at * <;> omega
+    firstPublicStart_value, secondPublicStart_value] at *; omega
 
 theorem sourceToSpartan_injective {left right : Nat}
     (leftBound : left < SourceColumnCount)

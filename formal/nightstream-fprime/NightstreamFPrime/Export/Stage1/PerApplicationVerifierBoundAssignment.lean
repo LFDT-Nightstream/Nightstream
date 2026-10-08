@@ -125,18 +125,9 @@ private theorem boundBase_expectedContext
   rw [dif_pos]
   · apply congrArg (fun index =>
       (verifierContextDigest fits commitmentSetup).getD index 0)
-    change PerApplicationPackage.shiftColumn application
-        (Spartan.expectedContextPublicStart + lane.val) -
-          contextTargetStart application = lane.val
     rw [shifted]
     omega
-  · change contextTargetStart application ≤
-        PerApplicationPackage.shiftColumn application
-          (Spartan.expectedContextPublicStart + lane.val) ∧
-      PerApplicationPackage.shiftColumn application
-          (Spartan.expectedContextPublicStart + lane.val) <
-        contextTargetStart application + 4
-    rw [shifted]
+  · rw [shifted]
     exact ⟨by omega, by have bound := lane.isLt; omega⟩
 
 theorem transitionExpectedContext
@@ -184,12 +175,9 @@ theorem semantics_imply_contextKey
   unfold PerApplicationDecodedIO.contextKey StateDecoder.keyDigest
     StateDecoder.slice
   apply List.ext_get
-  · simpa [PilotProduction.digestWords, PilotValues.digestWords,
+  · simp [PilotProduction.digestWords, PilotValues.digestWords,
       verifierContextDigest,
-      PerApplicationCanonicalPackage.verifierContextDigest] using
-      (Lifecycle.VerifierContext.Digest4.toList_length
-        (PerApplicationCanonicalPackage.verifierContextDescriptor fits
-          commitmentSetup)).symm
+      PerApplicationCanonicalPackage.verifierContextDigest]
   · intro index leftBound rightBound
     let lane : Fin 4 := ⟨index, by simpa using! leftBound⟩
     have row := context lane

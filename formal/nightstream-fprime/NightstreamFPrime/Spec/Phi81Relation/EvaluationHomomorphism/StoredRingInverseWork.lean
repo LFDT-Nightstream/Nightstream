@@ -121,7 +121,7 @@ private theorem copyPrefix_value (values : Raw) (count : Nat) (bounded : count â
     (copyPrefix values count).value = values.extract 0 count := by
   change (copyLoop values count count 0 (Array.emptyWithCapacity count)).value = _
   rw [copyLoop_value]
-  simp only [Array.extract, Nat.min_eq_left bounded, Nat.sub_zero]
+  simp only [Array.extract, Nat.min_eq_left bounded]
   rfl
 
 private theorem copyPrefix_work_le (values : Raw) (count : Nat) :

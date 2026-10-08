@@ -148,7 +148,7 @@ def oneColumn {program : Lifecycle.Stage1.Application.Program}
     simpa [NightstreamFPrime.Lifecycle.encHashMarkerIndex] using
       Nat.lt_of_lt_of_le prefixPositive this⟩
 
-def priorPoseidonFits {program : Lifecycle.Stage1.Application.Program}
+theorem priorPoseidonFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     priorPoseidonStart program + (priorPoseidonBlock program).coordinateCount ≤
       logicalWidth := by
@@ -158,7 +158,7 @@ def priorPoseidonFits {program : Lifecycle.Stage1.Application.Program}
     productGroupStart laterPoseidonStart outputPoseidonStart
   omega
 
-def outputPoseidonFits {program : Lifecycle.Stage1.Application.Program}
+theorem outputPoseidonFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     outputPoseidonStart program +
         (outputPoseidonBlock program).coordinateCount ≤ logicalWidth := by
@@ -168,7 +168,7 @@ def outputPoseidonFits {program : Lifecycle.Stage1.Application.Program}
     productGroupStart laterPoseidonStart
   omega
 
-def laterPoseidonFits {program : Lifecycle.Stage1.Application.Program}
+theorem laterPoseidonFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     laterPoseidonStart program + (laterPoseidonBlock program).coordinateCount ≤
       logicalWidth := by
@@ -178,7 +178,7 @@ def laterPoseidonFits {program : Lifecycle.Stage1.Application.Program}
     productGroupStart
   omega
 
-def productGroupFits {program : Lifecycle.Stage1.Application.Program}
+theorem productGroupFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     productGroupStart program + (productGroupBlock program).coordinateCount ≤
       logicalWidth := by
@@ -187,14 +187,14 @@ def productGroupFits {program : Lifecycle.Stage1.Application.Program}
     challengeStart
   omega
 
-def challengeFits {program : Lifecycle.Stage1.Application.Program}
+theorem challengeFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     challengeStart program + (challengeBlock program).coordinateCount ≤ logicalWidth := by
   apply Nat.le_trans _ geometry.prefixFits
   unfold prefixLogicalWidth productOutputStart
   omega
 
-def productOutputFits {program : Lifecycle.Stage1.Application.Program}
+theorem productOutputFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     productOutputStart program +
         (productOutputBlock program).coordinateCount ≤ logicalWidth := by

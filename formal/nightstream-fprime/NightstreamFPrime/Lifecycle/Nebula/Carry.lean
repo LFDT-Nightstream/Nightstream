@@ -62,6 +62,10 @@ theorem natWord_of_val (x : F) : natWord x.val = x := by
   apply Fin.ext
   simp [natWord, Poseidon2.ofNat, Nat.mod_eq_of_lt x.isLt]
 
+theorem natWord_zero : natWord 0 = 0 := rfl
+
+theorem natWord_one : natWord 1 = 1 := rfl
+
 private theorem digest_ext {d : Digest} (start : ℕ) (fits : start + 3 < 39)
     (v : Fin 39 → F) (at0 : v ⟨start, by omega⟩ = d 0) (at1 : v ⟨start + 1, by omega⟩ = d 1)
     (at2 : v ⟨start + 2, by omega⟩ = d 2) (at3 : v ⟨start + 3, by omega⟩ = d 3) :

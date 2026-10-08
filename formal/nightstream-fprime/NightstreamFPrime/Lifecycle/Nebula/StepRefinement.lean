@@ -226,8 +226,6 @@ theorem mem_activeOps_exists : ∀ {ts : ℕ} {l : List OpSlot} {o : MemOp},
           List.length_cons] at wt ⊢
         omega
 
-theorem natWord_zero : natWord 0 = 0 := rfl
-
 private theorem take_succ_ofFn {α : Type} {n : ℕ} (f : Fin n → α) {k : ℕ} (hk : k < n) :
     (List.ofFn f).take (k + 1) = (List.ofFn f).take k ++ [f ⟨k, hk⟩] := by
   rw [List.take_add_one, List.getElem?_ofFn]

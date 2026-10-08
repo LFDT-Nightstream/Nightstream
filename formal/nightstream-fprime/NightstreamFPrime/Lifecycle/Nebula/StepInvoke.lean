@@ -13,8 +13,6 @@ open NightstreamFPrime.Spec.Nebula
 open scoped NightstreamFPrime.Spec.Nebula.GoldilocksFingerprint
 open Fin.CommRing
 
-theorem natWord_one : natWord 1 = 1 := rfl
-
 /-- A chain row over field bits is the model's chain hash over their packing. -/
 theorem chainLink_eq (lane : Lane) (index : F) (previous : Digest) {bits : List F}
     (allBits : ∀ x ∈ bits, IsBit x) :

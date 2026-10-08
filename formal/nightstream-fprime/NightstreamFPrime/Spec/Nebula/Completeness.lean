@@ -607,7 +607,7 @@ theorem completeness {ctx : Context E Digest} {app : Application ctx.plan σ}
   have hlen : (honestRun ctx (machineAt ctx.plan (initialMachine ctx.plan) steps) st steps).length =
       segments * ctx.plan.n := by
     rw [honestRun_length, count]
-  obtain ⟨c, hc⟩ := (finalCarry_isSome_iff valid hlen range.1).2
+  obtain ⟨c, hc⟩ := (finalCarry_isSome_iff valid hlen).2
     ⟨range.2, fun k hk => honest_closes valid width count bound tr hk _⟩
   obtain ⟨hidx, hseg, hts, hroot⟩ := finalCarry_fields valid hlen range.1 hc
   have hlast : (segments - 1) * ctx.plan.n < steps.length := by

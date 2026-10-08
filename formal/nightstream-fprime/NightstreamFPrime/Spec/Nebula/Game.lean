@@ -199,7 +199,7 @@ theorem play_closes (valid : ctx.plan.Valid) (k : Fin ctx.plan.sMax) (c : Coins)
   have count := accepted.steps.trans accepted.stepCount
   obtain ⟨final, finalEq, -⟩ := accepted.terminal
   have closes := ((finalCarry_isSome_iff (ctx := ctx.withChallenges (splice k e x.1 x.2))
-    valid count accepted.segmentsRange.1).1 ⟨final, finalEq⟩).2 k hk
+    valid count).1 ⟨final, finalEq⟩).2 k hk
   have challenge : (segmentView (ctx.withChallenges (splice k e x.1 x.2))
       (g.run c (splice k e x.1 x.2)) k).eta (ctx.withChallenges (splice k e x.1 x.2)) = x.1 := by
     simp [SegmentView.eta, Context.withChallenges, challengeAt, segmentView, splice]

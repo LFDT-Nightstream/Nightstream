@@ -1,10 +1,11 @@
 import NightstreamFPrime.Spec.Nebula.Rows
 import NightstreamFPrime.Spec.Nebula.Reference
 
-/-! Owns the memory carry of spec §11, the three lifecycle arms of §12, and the
+/-! Owns the memory carry of spec §11, the two memory arms of §12, and the
 public statement and terminal checks of §13, over an extracted run: one
 invocation per step, each with its proposal, its records, and its next
 application state. The input carry selects the arm; no invocation field does.
+The run starts from the closed start carry, so the first invocation reopens.
 It also owns the segment views that the security proofs read, and the
 lifecycle theorem (Ob8): the trace closes every segment exactly when each
 segment view passes the close checks with its own challenges.
@@ -87,10 +88,10 @@ def header (ctx : Context E Digest) (lane : Lane) : Digest :=
 
 end Context
 
-/-- Chain start (spec §11.1): `seg_idx = 0`, `ts = 0`, `D_mem = D_init`.
-`open` sets every other field. -/
+/-- The start carry of spec §11.1: `seg_idx = 0`, `ts = 0`, `D_mem = D_init`,
+and closed (`idx = N`), so the first invocation reopens it. -/
 def startCarry (ctx : Context E Digest) : Carry E Digest :=
-  ⟨0, 0, 0, (0, 0), ⟨1, 1, 1, 1⟩, (ctx.initRoot, ctx.initRoot),
+  ⟨0, ctx.plan.n, 0, (0, 0), ⟨1, 1, 1, 1⟩, (ctx.initRoot, ctx.initRoot),
     ⟨ctx.initRoot, ctx.initRoot, ctx.initRoot⟩, ctx.initRoot⟩
 
 /-- The carry that spec §11.2 `open` writes. -/
@@ -140,27 +141,25 @@ noncomputable def finishStep (ctx : Context E Digest) (c : Carry E Digest) :
     Option (Carry E Digest) :=
   if c.idx = ctx.plan.n then closeSegment ctx c else some c
 
-/-- Spec §12: the input carry selects the arm. `none` is the base arm; an
-open segment continues; a closed one reopens. -/
-noncomputable def invoke (ctx : Context E Digest) (input : Option (Carry E Digest))
+/-- Spec §12: the input carry selects the arm. An open segment continues; a
+closed one reopens. -/
+noncomputable def invoke (ctx : Context E Digest) (c : Carry E Digest)
     (inv : Invocation σ Digest) : Option (Carry E Digest) :=
   let opened : Option (Carry E Digest) :=
-    match input with
-    | none => openSegment ctx (startCarry ctx) inv.proposal
-    | some c => if c.idx < ctx.plan.n then some c else openSegment ctx c inv.proposal
+    if c.idx < ctx.plan.n then some c else openSegment ctx c inv.proposal
   (opened.bind fun c => stepSegment ctx c inv.records).bind (finishStep ctx)
 
-/-- The invocations after the base invocation. -/
+/-- The invocations of a run from carry `c`. -/
 noncomputable def continueRun (ctx : Context E Digest) (c : Carry E Digest)
     (run : List (Invocation σ Digest)) : Option (Carry E Digest) :=
-  run.foldlM (fun c inv => invoke ctx (some c) inv) c
+  run.foldlM (fun c inv => invoke ctx c inv) c
 
-/-- The final carry of a run. An empty run has none (spec §13 rejects
+/-- The final carry of a run, from the start carry. An empty run ends at the
+start carry, whose `seg_idx = 0` fails the terminal check (spec §13 rejects
 `T = 0`). -/
-noncomputable def finalCarry (ctx : Context E Digest) :
-    List (Invocation σ Digest) → Option (Carry E Digest)
-  | [] => none
-  | inv :: rest => (invoke ctx none inv).bind fun c => continueRun ctx c rest
+noncomputable def finalCarry (ctx : Context E Digest) (run : List (Invocation σ Digest)) :
+    Option (Carry E Digest) :=
+  continueRun ctx (startCarry ctx) run
 
 /-- Each invocation is one application step on its own ports. -/
 def AppThread {p : Plan} (app : Application p σ) : σ → List (Invocation σ Digest) → σ → Prop
@@ -272,10 +271,6 @@ end SegmentView
 
 /-! ### Lifecycle theorem (Ob8) -/
 
-/-- The start carry marked closed. The base arm is the reopen arm on it. -/
-private def closedStart (ctx : Context E Digest) : Carry E Digest :=
-  { startCarry ctx with idx := ctx.plan.n }
-
 /-- `advance` over consecutive steps. -/
 private def runSteps (ctx : Context E Digest) (c : Carry E Digest) (zs : List StepRecords) :
     Carry E Digest :=
@@ -386,14 +381,6 @@ private theorem closeSegment_eq_some {ctx : Context E Digest} {r c' : Carry E Di
   split_ifs with checks
   · exact ⟨fun h => ⟨checks, Option.some.inj h⟩, fun h => congrArg some h.2⟩
   · exact ⟨fun h => (by cases h), fun h => absurd h.1 checks⟩
-
-private theorem finalCarry_cons (ctx : Context E Digest) (inv : Invocation σ Digest)
-    (rest : List (Invocation σ Digest)) :
-    finalCarry ctx (inv :: rest) = continueRun ctx (closedStart ctx) (inv :: rest) := by
-  have reopen : ¬ (closedStart ctx).idx < ctx.plan.n := lt_irrefl ctx.plan.n
-  simp only [finalCarry, continueRun, List.foldlM_cons, Option.bind_eq_bind, invoke,
-    if_neg reopen]
-  rfl
 
 private theorem continueRun_cons_open {ctx : Context E Digest} {d : Carry E Digest}
     (isOpen : d.idx < ctx.plan.n) (inv : Invocation σ Digest)
@@ -520,16 +507,16 @@ private theorem continueRun_segment {ctx : Context E Digest} {c : Carry E Digest
 /-- The first `k` segments of a run of `S · N` invocations. -/
 private theorem prefix_run {ctx : Context E Digest} {run : List (Invocation σ Digest)} {S : ℕ}
     (valid : ctx.plan.Valid) (count : run.length = S * ctx.plan.n) (k : ℕ) (hk : k ≤ S) :
-    ((∃ c, continueRun ctx (closedStart ctx) (run.take (k * ctx.plan.n)) = some c) ↔
+    ((∃ c, continueRun ctx (startCarry ctx) (run.take (k * ctx.plan.n)) = some c) ↔
         k ≤ ctx.plan.sMax ∧
           ∀ j < k, (segmentView ctx run j).ClosesAt ctx ((segmentView ctx run j).eta ctx)) ∧
-      ∀ c, continueRun ctx (closedStart ctx) (run.take (k * ctx.plan.n)) = some c →
+      ∀ c, continueRun ctx (startCarry ctx) (run.take (k * ctx.plan.n)) = some c →
         c.idx = ctx.plan.n ∧ c.segIdx = k ∧ c.ts = tsBefore run (k * ctx.plan.n) ∧
           c.memRoot = (segmentView ctx run k).memIn := by
   induction k with
   | zero =>
-    have start : continueRun ctx (closedStart ctx) (run.take (0 * ctx.plan.n)) =
-        some (closedStart ctx) := by
+    have start : continueRun ctx (startCarry ctx) (run.take (0 * ctx.plan.n)) =
+        some (startCarry ctx) := by
       rw [Nat.zero_mul, List.take_zero]
       rfl
     rw [start]
@@ -537,7 +524,7 @@ private theorem prefix_run {ctx : Context E Digest} {run : List (Invocation σ D
       fun _ => ⟨_, rfl⟩⟩, fun c hc => ?_⟩
     obtain rfl := Option.some.inj hc
     refine ⟨rfl, rfl, ?_, rfl⟩
-    simp [tsBefore, closedStart, startCarry]
+    simp [tsBefore, startCarry]
   | succ k ih =>
     obtain ⟨ihIff, ihFields⟩ := ih (by omega)
     have segLen : (segmentRun ctx.plan run k).length = ctx.plan.n := by
@@ -566,13 +553,13 @@ private theorem prefix_run {ctx : Context E Digest} {run : List (Invocation σ D
         (((inv :: rest).map Invocation.records).map activeCount).sum := by
       rw [tsBefore, split, List.map_append, List.sum_append, List.map_map]
       rfl
-    have runEq : continueRun ctx (closedStart ctx) (run.take ((k + 1) * ctx.plan.n)) =
-        (continueRun ctx (closedStart ctx) (run.take (k * ctx.plan.n))).bind
+    have runEq : continueRun ctx (startCarry ctx) (run.take ((k + 1) * ctx.plan.n)) =
+        (continueRun ctx (startCarry ctx) (run.take (k * ctx.plan.n))).bind
           fun c => continueRun ctx c (inv :: rest) := by
       rw [split]
       simp only [continueRun, List.foldlM_append, Option.bind_eq_bind]
     rw [runEq]
-    cases hprev : continueRun ctx (closedStart ctx) (run.take (k * ctx.plan.n)) with
+    cases hprev : continueRun ctx (startCarry ctx) (run.take (k * ctx.plan.n)) with
     | none =>
       refine ⟨⟨fun ⟨c, hc⟩ => (by cases hc), fun ⟨fits, closes⟩ => ?_⟩,
         fun c hc => by cases hc⟩
@@ -607,21 +594,20 @@ private theorem prefix_run {ctx : Context E Digest} {run : List (Invocation σ D
 /-- A run of `S · N ≥ 1` invocations is its `S`-segment prefix, run from the
 closed start carry. -/
 private theorem finalCarry_eq_prefix {ctx : Context E Digest} {run : List (Invocation σ Digest)}
-    {S : ℕ} (valid : ctx.plan.Valid) (count : run.length = S * ctx.plan.n) (pos : 1 ≤ S) :
-    finalCarry ctx run = continueRun ctx (closedStart ctx) (run.take (S * ctx.plan.n)) := by
-  obtain ⟨inv, rest, rfl⟩ := List.exists_cons_of_length_pos
-    (count ▸ Nat.mul_pos pos valid.positive.2.2.1 : 0 < run.length)
-  rw [← count, List.take_length, finalCarry_cons]
+    {S : ℕ} (count : run.length = S * ctx.plan.n) :
+    finalCarry ctx run = continueRun ctx (startCarry ctx) (run.take (S * ctx.plan.n)) := by
+  rw [← count, List.take_length]
+  rfl
 
 /-- The trace of a run of `S · N` invocations succeeds exactly when there are
 at most `S_max` segments and every segment view passes the close checks with
 its own challenges. -/
 theorem finalCarry_isSome_iff {ctx : Context E Digest} {run : List (Invocation σ Digest)} {S : ℕ}
-    (valid : ctx.plan.Valid) (count : run.length = S * ctx.plan.n) (pos : 1 ≤ S) :
+    (valid : ctx.plan.Valid) (count : run.length = S * ctx.plan.n) :
     (∃ c, finalCarry ctx run = some c) ↔
       S ≤ ctx.plan.sMax ∧
         ∀ k < S, (segmentView ctx run k).ClosesAt ctx ((segmentView ctx run k).eta ctx) := by
-  rw [finalCarry_eq_prefix valid count pos]
+  rw [finalCarry_eq_prefix count]
   exact (prefix_run valid count S le_rfl).1
 
 /-- The fields of the final carry of a successful trace. -/
@@ -630,7 +616,7 @@ theorem finalCarry_fields {ctx : Context E Digest} {run : List (Invocation σ Di
     (pos : 1 ≤ S) (final : finalCarry ctx run = some c) :
     c.idx = ctx.plan.n ∧ c.segIdx = S ∧ c.ts = tsBefore run run.length ∧
       c.memRoot = (proposalAt ctx run (S - 1)).2 := by
-  rw [finalCarry_eq_prefix valid count pos] at final
+  rw [finalCarry_eq_prefix count] at final
   obtain ⟨hIdx, hSeg, hTs, hMem⟩ := (prefix_run valid count S le_rfl).2 c final
   refine ⟨hIdx, hSeg, by rw [hTs, count], ?_⟩
   obtain ⟨S', rfl⟩ : ∃ S', S = S' + 1 := ⟨S - 1, by omega⟩

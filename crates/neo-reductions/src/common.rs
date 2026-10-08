@@ -32,7 +32,7 @@ pub use pi_rlc_sampler::decode_pi_rlc_coefficients;
 
 /// Helper: returns (r, q) with r in the SuperNeo digit range `|r| < b`.
 ///
-/// Matches the Ajtai decomp_b balanced style (Definition 11):
+/// Matches the signed `split_b` decomposition (SuperNeo v1.2 Section 4):
 /// digits are signed, but the norm bound is the full `{-(b-1), ..., +(b-1)}`
 /// alphabet required by `split_b`.
 ///
@@ -414,7 +414,7 @@ pub fn split_b_matrix_k(Z: &Mat<F>, k: usize, b: u32) -> Result<Vec<Mat<F>>, PiC
 // RLC Sampling - Rotation Matrices (Paper-Compliant)
 // ---------------------------------------------------------------------------
 
-/// Ring metadata for ΠRLC rotation-matrix challenges (Section 3.4, Definition 14).
+/// Ring metadata for ΠRLC rotation-matrix challenges (SuperNeo v1.2 Definition 6, Section 7.4).
 ///
 /// Specifies the cyclotomic polynomial Φ_η and the coefficient alphabet A
 /// used to construct the strong sampling set C = {rot(a) : a ∈ C_R}.
@@ -428,13 +428,13 @@ pub struct RotRing {
     /// The strong sampling set is C_R = {polynomials with coeffs in A}.
     pub alphabet: &'static [i8],
 
-    /// Optional: lower bound on b_inv from Theorem 1 (invertibility threshold).
+    /// Optional: lower bound on b_inv from SuperNeo v1.2 Theorem 4 (invertibility threshold).
     /// If provided, enforces Δ_A < b_inv where Δ_A = max(A) - min(A).
     pub binv_floor: Option<u64>,
 }
 
 impl RotRing {
-    /// Goldilocks Appendix B.2 profile, sourced from `neo_params::goldilocks_paper_b2`.
+    /// Goldilocks SuperNeo v1.2 Section 8.2 profile, sourced from `neo_params::goldilocks_paper_b2`.
     pub const fn goldilocks() -> Self {
         Self {
             phi_coeffs: &goldilocks_paper_b2::PHI_COEFFS,
@@ -444,7 +444,7 @@ impl RotRing {
     }
 }
 
-/// Compute expansion factor T per Theorem 3: T ≤ 2·φ(η)·max|coeff|.
+/// Compute expansion factor T per SuperNeo v1.2 Theorem 5: T ≤ 2·φ(η)·max|coeff|.
 /// For prime-power cyclotomics, φ(η) = d (the degree).
 #[inline]
 fn expansion_factor_T(alphabet: &[i8]) -> u128 {
@@ -474,7 +474,7 @@ fn f_from_i64(x: i64) -> F {
 
 /// Build rotation matrix rot(a) given coefficients of a and Φ_η coefficients.
 ///
-/// Uses the shift recurrence (Definition 7, Remark 1):
+/// Uses the shift recurrence:
 ///   col_0 = cf(a)
 ///   col_{j+1} = F_shift · col_j
 /// where F_shift implements the reduction X·a ≡ (X·a) mod Φ_η.
@@ -728,8 +728,8 @@ fn validate_rho_is_in_selected_strong_set(params: &NeoParams, rho: &Mat<F>, labe
 /// - If this fails, you need to increase `k_rho` or reduce `count` (e.g., hierarchical merging)
 ///
 /// ## Properties
-/// - Strong sampling set: differences (ρ_i - ρ_j) are invertible for distinct i,j (Theorem 1)
-/// - Expansion factor T: Computed from ring/alphabet via Theorem 3: T ≤ 2·φ(η)·max|coeff|
+/// - Strong sampling set: differences (ρ_i - ρ_j) are invertible for distinct i,j (SuperNeo v1.2 Theorem 4)
+/// - Expansion factor T: Computed from ring/alphabet via SuperNeo v1.2 Theorem 5: T ≤ 2·φ(η)·max|coeff|
 ///
 /// # Arguments
 /// * `tr` - Fiat-Shamir transcript for deterministic randomness
@@ -763,14 +763,14 @@ fn sample_rot_rhos_n(
         ));
     }
 
-    // ---- Strong sampling set check (Definition 14 + Theorem 1) ----
+    // ---- Strong sampling set check (SuperNeo v1.2 Definition 6 + Theorem 4) ----
     if let Some(binv) = ring.binv_floor {
         let min = *ring.alphabet.iter().min().unwrap() as i64;
         let max = *ring.alphabet.iter().max().unwrap() as i64;
         let delta_a = (max - min).unsigned_abs();
         if delta_a >= binv {
             return Err(PiCcsError::InvalidInput(format!(
-                "Strong-set check failed: Δ_A = {} must be < b_inv = {} (Theorem 1)",
+                "Strong-set check failed: Δ_A = {} must be < b_inv = {} (SuperNeo v1.2 Theorem 4)",
                 delta_a, binv
             )));
         }
@@ -798,7 +798,7 @@ fn sample_rot_rhos_n(
              count={} is the number of ME claims being RLC'd\n\
              k_rho={} controls the norm bound B = b^k_rho = {}\n\
              minimum required k_rho for this count is {}\n\
-             T={} is the expansion factor (Theorem 3)\n\
+             T={} is the expansion factor (SuperNeo v1.2 Theorem 5)\n\
              \n\
              Solutions:\n\
              1. Increase k_rho to allow more claims (increases accumulator size)\n\
@@ -855,7 +855,7 @@ pub fn sample_rot_rhos_n_typed(
 ///
 /// Finds the smallest `k` such that:
 /// `count · T · (b - 1) < b^k`
-/// where `T` is derived from the strong-set alphabet (Theorem 3).
+/// where `T` is derived from the strong-set alphabet (SuperNeo v1.2 Theorem 5).
 pub fn min_k_rho_for_rlc_count(params: &NeoParams, ring: &RotRing, count: usize) -> Result<u32, PiCcsError> {
     if count == 0 {
         return Err(PiCcsError::InvalidInput("count must be > 0".into()));

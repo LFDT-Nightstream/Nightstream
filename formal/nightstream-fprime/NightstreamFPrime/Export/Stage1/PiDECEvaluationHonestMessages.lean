@@ -4,7 +4,7 @@ import NightstreamFPrime.Export.Stage1.PiDECStoredSplitHonestWitness
 import NightstreamFPrime.Export.Stage1.PiDECInputCheck
 
 /-!
-Compute the selected child Pad and fourteen matrix evaluation families from
+Compute the selected child Pad and seven matrix evaluation families from
 the same stored assignments and parent point, then connect them to the honest
 PiDEC messages. The prefix bounds and zero suffixes are derived here. No
 expected evaluation, matrix agreement, opening or runtime premise is supplied.
@@ -77,7 +77,7 @@ private theorem evaluationFamily_rows {logicalWidth : Nat}
 
 /-- The executed prefixes produce the complete selected semantic family.
 Both prefix bounds and all omitted zero rows are proved from their owners;
-all carried tail coefficients and all fourteen matrix slots are retained. -/
+all carried tail coefficients and all seven matrix slots are retained. -/
 theorem family_eq_evaluationFamily
     (assignments : Vector (StoredAssignment selectedShape.carrierWidth)
       productionGlobalParams.k)

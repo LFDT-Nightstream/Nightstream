@@ -23,7 +23,7 @@ The code is a fresh implementation. The headers of `Circuit/Basic.lean` and
 
 Prove the soundness and completeness of the concrete checks, exact transcript
 and public-input binding, parameter bounds, and the links consumed by the
-selected verifier. Keep Pad and the 14 matrix-evaluation families separate.
+selected verifier. Keep Pad and the 7 matrix-evaluation families separate.
 The selected profile is Goldilocks, `b = 2`, `k_rho = 16`, `B = 65536`,
 17 ordered sources and 16 children. Protocol binding uses Poseidon2.
 

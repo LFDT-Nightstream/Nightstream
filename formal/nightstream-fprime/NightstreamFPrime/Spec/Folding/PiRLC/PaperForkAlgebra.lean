@@ -26,7 +26,7 @@ namespace NightstreamFPrime.Spec.Folding.PiRLC.PaperForkAlgebra
 
 universe uScalar uValue
 
-/-- Operations of the commutative scalar ring used by v1.2 Definition 12.  An
+/-- Operations of the commutative scalar ring used by v1.2 Definition 4.  An
 inverse is deliberately not a total operation: Appendix B.3 receives a unit
 witness only for a forked challenge difference. -/
 structure CommutativeRingOps (Scalar : Type uScalar) where

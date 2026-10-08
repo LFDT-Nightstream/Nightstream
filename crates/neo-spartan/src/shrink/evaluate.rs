@@ -88,4 +88,7 @@ impl Sink for Evaluate<'_> {
     fn public(&mut self, value: Gl) {
         self.publics.push(value);
     }
+    fn values(&self) -> bool {
+        false
+    }
 }

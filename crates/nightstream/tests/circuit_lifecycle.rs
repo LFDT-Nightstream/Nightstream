@@ -4,7 +4,7 @@ use std::{fs, path::PathBuf, time::Instant};
 
 use nightstream::{
     application::{poseidon2_hash_chain_v1, Affine, ApplicationBuilder},
-    Circuit, CompressionKey, Engine, State, Verifier,
+    Circuit, CompressionKey, Engine, FinalProof, State, Verifier,
 };
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks as F;
@@ -127,13 +127,13 @@ fn poseidon_finish_with_spartan_verifies() {
     let finishing = Instant::now();
     let finished = prover.finish_with_spartan(&proof, &setup).unwrap();
     eprintln!("finish_with_spartan elapsed={:?}", finishing.elapsed());
-    let bytes = prover.encode_final_proof(&finished).unwrap();
+    let bytes = finished.to_bytes();
     eprintln!(
         "final proof bytes={} (accumulator proof bytes={})",
         bytes.len(),
         prover.encode_proof(&proof).unwrap().len()
     );
-    let decoded = verifier.decode_final_proof(&bytes).unwrap();
+    let decoded = FinalProof::from_bytes(&bytes).unwrap();
     let verifying = Instant::now();
     verifier
         .verify_final(proof.state(), &key, &decoded)
@@ -147,11 +147,9 @@ fn poseidon_finish_with_spartan_verifies() {
     let mut flipped = bytes.clone();
     let index = bytes.len() - 100;
     flipped[index] ^= 1;
-    assert!(verifier
-        .decode_final_proof(&flipped)
-        .map_or(true, |changed| verifier
-            .verify_final(proof.state(), &key, &changed)
-            .is_err()));
+    assert!(FinalProof::from_bytes(&flipped).map_or(true, |changed| verifier
+        .verify_final(proof.state(), &key, &changed)
+        .is_err()));
     let mut other = key.to_bytes();
     other[0] ^= 1;
     let other = CompressionKey::from_bytes(&other).unwrap();

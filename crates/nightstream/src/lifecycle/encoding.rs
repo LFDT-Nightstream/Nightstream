@@ -13,16 +13,13 @@ use neo_ajtai::nightstream_fprime_setup::{signed_unit_prefix_blocks, PRODUCTION_
 use neo_ajtai::Commitment;
 use neo_ccs::Mat;
 use neo_math::{KExtensions, D, F, K};
-use nightstream_fprime::{
-    PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT, PI_CCS_V1_1_ROUND_COUNT, PI_CCS_V1_1_SOURCE_COUNT, PI_DEC_V1_1_CHILD_COUNT,
-};
+use nightstream_fprime::{PI_CCS_V1_1_ROUND_COUNT, PI_DEC_V1_1_CHILD_COUNT};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
-use super::{FinalProof, PreparedLifecycle, Stage1Envelope, Stage1State};
-use crate::folding::{pi_ccs, pi_rlc, CcsClaim, CcsInstance, CcsWitness, CeClaim, RunningInstance};
+use super::{PreparedLifecycle, Stage1Envelope, Stage1State};
+use crate::folding::{CcsClaim, CcsInstance, CcsWitness, CeClaim, RunningInstance};
 
 const MAGIC: &[u8; 16] = b"NS-STAGE1-PROOF1";
-const FINAL_MAGIC: &[u8; 16] = b"NS-FINAL-PROOF01";
 const INITIAL: u64 = 0;
 const ACTIVE: u64 = 1;
 const KAPPA: usize = PRODUCTION_VERIFIER_ROWS as usize;
@@ -31,7 +28,7 @@ const WORD: usize = 8;
 
 #[derive(Debug, thiserror::Error)]
 #[error("selected proof bytes: {0}")]
-pub struct ProofCodecError(&'static str);
+pub struct ProofCodecError(pub(super) &'static str);
 
 /// Sizes that the prepared circuit fixes.
 struct Shape {
@@ -186,100 +183,6 @@ impl PreparedLifecycle {
             RunningInstance::new(claims, witnesses, parent),
             fresh,
         ))
-    }
-}
-
-impl PreparedLifecycle {
-    /// Encode a finished proof: state, the 16 running claims, the fresh
-    /// commitment and public input, the PiCCS rounds and outputs, the PiRLC
-    /// parent, then the length-prefixed layer-1 proof.
-    pub(crate) fn encode_final_proof(&self, proof: &FinalProof) -> Result<Vec<u8>, ProofCodecError> {
-        let shape = self.proof_shape()?;
-        let mut output = Writer(Vec::new());
-        output.0.extend_from_slice(FINAL_MAGIC);
-        output.word(proof.state.iteration());
-        output.fields(&proof.state.z0());
-        output.fields(&proof.state.current());
-        if proof.running.len() != PI_DEC_V1_1_CHILD_COUNT {
-            return Err(ProofCodecError("running claim count"));
-        }
-        for claim in &proof.running {
-            output.claim(claim, &shape)?;
-        }
-        let fresh = &proof.fresh;
-        if fresh.m_in != shape.public_width || fresh.x.len() != shape.public_width || fresh.adv.is_some() {
-            return Err(ProofCodecError("fresh public input shape"));
-        }
-        output.commitment(&fresh.c)?;
-        output.fields(&fresh.x);
-        let rounds = &proof.pi_ccs.sumcheck.sumcheck_rounds;
-        if rounds.len() != PI_CCS_V1_1_ROUND_COUNT
-            || rounds
-                .iter()
-                .any(|round| round.len() != PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT)
-        {
-            return Err(ProofCodecError("PiCCS round shape"));
-        }
-        for value in rounds.iter().flatten() {
-            output.fields(&value.as_coeffs());
-        }
-        if proof.pi_ccs.outputs.len() != PI_CCS_V1_1_SOURCE_COUNT {
-            return Err(ProofCodecError("PiCCS output count"));
-        }
-        for claim in proof.pi_ccs.outputs.iter().chain([&proof.pi_rlc.combined]) {
-            output.claim(claim, &shape)?;
-        }
-        let layer1 = proof.layer1.to_bytes();
-        output.word(layer1.len() as u64);
-        output.0.extend_from_slice(&layer1);
-        Ok(output.0)
-    }
-
-    /// Decode untrusted finished-proof bytes for this circuit. Acceptance
-    /// still needs `verify_final`.
-    pub(crate) fn decode_final_proof(&self, bytes: &[u8]) -> Result<FinalProof, ProofCodecError> {
-        let shape = self.proof_shape()?;
-        let mut input = Reader(bytes);
-        if input.take(FINAL_MAGIC.len())? != FINAL_MAGIC {
-            return Err(ProofCodecError("format tag"));
-        }
-        let state = Stage1State::new(input.word()?, input.four()?, input.four()?);
-        let running = (0..PI_DEC_V1_1_CHILD_COUNT)
-            .map(|_| input.claim(&shape))
-            .collect::<Result<Vec<_>, _>>()?;
-        let fresh = CcsClaim {
-            c: input.commitment()?,
-            x: input.fields(shape.public_width)?,
-            m_in: shape.public_width,
-            adv: None,
-        };
-        let rounds = (0..PI_CCS_V1_1_ROUND_COUNT)
-            .map(|_| {
-                (0..PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT)
-                    .map(|_| input.extension())
-                    .collect::<Result<Vec<_>, _>>()
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let outputs = (0..PI_CCS_V1_1_SOURCE_COUNT)
-            .map(|_| input.claim(&shape))
-            .collect::<Result<Vec<_>, _>>()?;
-        let combined = input.claim(&shape)?;
-        let length = input.word()?;
-        if input.0.len() as u64 != length {
-            return Err(ProofCodecError("layer-1 length differs from the remaining bytes"));
-        }
-        let layer1 = neo_spartan::Proof::from_bytes(input.0).map_err(|_| ProofCodecError("layer-1 proof"))?;
-        Ok(FinalProof {
-            state,
-            running,
-            fresh,
-            pi_ccs: pi_ccs::Proof {
-                sumcheck: pi_ccs::SumcheckProof::new(rounds),
-                outputs,
-            },
-            pi_rlc: pi_rlc::Proof { combined },
-            layer1,
-        })
     }
 }
 

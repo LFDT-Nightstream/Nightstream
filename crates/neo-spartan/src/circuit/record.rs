@@ -107,9 +107,15 @@ pub(crate) trait Sink {
     /// One glue row: `Σ (Σ a)·(Σ b) − Σ c`, with each side's terms.
     fn row(&mut self, products: &[(Vec<Term>, Vec<Term>)], linear: &[Term]);
     fn cell(&mut self, value: Gl);
-    /// The cells of one block, in template order.
+    /// The cells of one block, in template order (empty when the sink
+    /// takes no values).
     fn block(&mut self, kind: Kind, cells: &[Gl]);
     fn public(&mut self, value: Gl);
+    /// Whether the sink reads block cell values. A shape run that only
+    /// counts or evaluates rows does not, so blocks are not computed.
+    fn values(&self) -> bool {
+        true
+    }
 }
 
 /// The constraint reading of a verifier run.
@@ -183,8 +189,12 @@ impl<S: Sink> Recorder<S> {
     fn block(&mut self, kind: Kind, inputs: &[Form]) -> Vec<Form> {
         let block = self.blocks[kind.index()];
         self.blocks[kind.index()] += 1;
-        let values: Vec<Gl> = inputs.iter().map(Form::value).collect();
-        let cells = kind.trace(&values);
+        let cells = if self.sink.values() {
+            let values: Vec<Gl> = inputs.iter().map(Form::value).collect();
+            kind.trace(&values)
+        } else {
+            Vec::new()
+        };
         self.sink.block(kind, &cells);
         for (cell, form) in inputs.iter().enumerate() {
             let mut linear = vec![(Wire::Block(kind, block, cell as u16), Gl::ONE)];
@@ -192,7 +202,10 @@ impl<S: Sink> Recorder<S> {
             self.row(&[], &linear, Gl::ZERO, "block input");
         }
         kind.outputs()
-            .map(|cell| Form::wire(Wire::Block(kind, block, cell as u16), cells[cell]))
+            .map(|cell| {
+                let value = cells.get(cell).copied().unwrap_or(Gl::ZERO);
+                Form::wire(Wire::Block(kind, block, cell as u16), value)
+            })
             .collect()
     }
 

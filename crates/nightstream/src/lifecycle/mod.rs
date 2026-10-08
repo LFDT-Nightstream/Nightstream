@@ -27,7 +27,7 @@ mod verify;
 pub use complete::{CompleteStepError, Stage1Envelope};
 pub use encoding::ProofCodecError;
 pub use extend::ExtendError;
-pub use finish::{FinalProof, FinishError};
+pub use finish::{CompressionKey, CompressionSetup, FinalProof, FinishError};
 pub use inputs::{
     check_pi_ccs_v1_1_canonical_children, encode_pi_ccs_v1_1_public_input, pi_ccs_v1_1_prior_children,
     pi_ccs_v1_1_state_hash, serialize_pi_ccs_v1_1_state_preimage, PiCcsV1_1PackageBridgeError, PiCcsV1_1ProofInputs,

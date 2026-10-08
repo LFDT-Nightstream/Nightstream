@@ -112,7 +112,7 @@
       ],
       "kind": "premise",
       "record": "H.terminal.running_openings",
-      "role": "Required by Assumption 1 at each visit. These are openings of the exact verifier-returned children, not merely 16 arbitrary claims. The terminal connection supplies this premise.",
+      "role": "Required by Assumption 1 at each stage of the reverse extractor. These are openings of the exact verifier-returned children, not merely 16 arbitrary claims. The terminal connection supplies this premise.",
       "refs": [
         {
           "record": "H.security.nifs_assumption",
@@ -254,7 +254,7 @@
       ],
       "kind": "theorem",
       "record": "N.security.composition",
-      "role": "RandomOracleKnowledge.knowledge_error_le combines Lemmas 5 and 6 for one fold in the random-oracle model. contract restates it as a KnowledgeContract. The history uses it only to motivate the per-visit error of Assumption 1; no Lean statement derives one from the other.",
+      "role": "RandomOracleKnowledge.knowledge_error_le combines Lemmas 5 and 6 for one fold in the random-oracle model. contract restates it as a KnowledgeContract. The history uses it only to motivate the error of Assumption 1; no Lean statement derives one from the other.",
       "refs": [
         {
           "record": "N.security.composition",
@@ -302,7 +302,7 @@
         }
       ],
       "assumption": "constant_depth",
-      "summary": "The history bound keeps a symbolic depth D; each visit keeps its own query budget."
+      "summary": "The history bound keeps a symbolic depth D; each stage keeps its own adversary and error."
     },
     {
       "id": "history",
@@ -351,7 +351,7 @@
       ],
       "kind": "theorem",
       "record": "H.security.history",
-      "role": "The history bound adds, at each visit, the marked hash-collision mass and the per-visit error of Assumption 1. Assumption 1 is a premise; the random-oracle theorem motivates its value.",
+      "role": "The history bound adds, at each stage of the reverse extractor (HyperNova Lemma 17), the marked hash-collision mass and the Assumption 1 error of that stage's NIFS adversary. Assumption 1 is a premise, stated as Definition 7; the random-oracle theorem motivates its value.",
       "refs": [
         {
           "record": "H.security.history",
@@ -361,10 +361,10 @@
         {
           "record": "H.security.history",
           "file": "HyperNovaVisitedSecurity.lean",
-          "symbol": "NifsKnowledgeSound"
+          "symbol": "Assumption1"
         }
       ],
-      "summary": "At each visit in the reverse history, the source failure is at most the error of HyperNova errata Assumption 1."
+      "summary": "At each stage of the reverse extractor, the source failure is at most the Assumption 1 error of that stage's NIFS adversary."
     },
     {
       "id": "work",
@@ -396,7 +396,7 @@
       ],
       "kind": "theorem",
       "record": "N.security.error_budget",
-      "role": "Selected full-opening terminal acceptance without an advertised-length forward history is bounded on the original mixed law by the marked hash mass plus the per-visit errors of Assumption 1. Depth and query budgets stay explicit; useful cryptographic bounds and production approval remain external.",
+      "role": "Selected full-opening terminal acceptance without an advertised-length forward history is bounded on the original mixed law by the marked hash mass plus the per-stage errors of Assumption 1. Depth and query budgets stay explicit; useful cryptographic bounds and production approval remain external.",
       "refs": [
         {
           "record": "N.security.error_budget",
@@ -537,10 +537,10 @@
       ],
       "kind": "assumption",
       "record": "H.security.nifs_assumption",
-      "role": "HyperNova errata Assumption 1, plain-model part, at each visited step. The step circuit recomputes the previous challenges with the concrete Poseidon2, so no random-oracle model covers the history.",
+      "role": "HyperNova errata Assumption 1, plain-model part, as Definition 7: an efficient extractor for each admitted NIFS adversary, which reads that adversary's tape. The step circuit recomputes the previous challenges with the concrete Poseidon2, so no random-oracle model covers the history.",
       "refs": [],
       "assumption": "nifs_knowledge",
-      "summary": "HyperNova errata Assumption 1, plain-model part, at each visit. Not proved; the one-fold random-oracle theorem motivates its error value."
+      "summary": "HyperNova errata Assumption 1 (Definition 7), applied to each stage of the reverse extractor. Not proved; the one-fold random-oracle theorem motivates its error value."
     }
   ],
   "edges": [
@@ -891,7 +891,7 @@
       "source": "extraction",
       "target": "probability",
       "kind": "requires",
-      "note": "The one-fold theorem motivates the value of the per-visit error. It does not prove Assumption 1 for the concrete Poseidon2 transcript.",
+      "note": "The one-fold theorem motivates the value of the Assumption 1 error. It does not prove Assumption 1 for the concrete Poseidon2 transcript.",
       "refs": [],
       "overview": false
     },
@@ -899,7 +899,7 @@
       "source": "bounds",
       "target": "probability",
       "kind": "requires",
-      "note": "Use the declared symbolic depth and the query budget of each visit. No numerical deployment budget is selected.",
+      "note": "Use the declared symbolic depth and the adversary and error of each stage. No numerical deployment budget is selected.",
       "overview": false
     },
     {
@@ -942,7 +942,7 @@
       "source": "probability",
       "target": "deployed",
       "kind": "uses",
-      "note": "The event-to-first-failures bridge applies the per-visit Assumption 1 error at the same actual visited laws.",
+      "note": "The event-to-first-failures bridge applies to each tape of the reverse extractor; each stage's source failure is its Assumption 1 failure.",
       "overview": true,
       "refs": [
         {
@@ -1044,7 +1044,7 @@
       "target": "probability",
       "kind": "requires",
       "refs": [],
-      "note": "The history bound takes Assumption 1 at each visit as a hypothesis."
+      "note": "The history bound takes Assumption 1 (Definition 7) for each stage of the reverse extractor as a hypothesis."
     }
   ],
   "layers": [

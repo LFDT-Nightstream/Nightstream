@@ -20,9 +20,11 @@ import NightstreamFPrime.Layout.R1CS.ColumnMap
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.Application.inputState_length
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.Application.witnessValue_length
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.Application.outputState_length
+#audit_axioms NightstreamFPrime.Lifecycle.Stage1.Application.Program.soundness_valid
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.Application.Program.soundness
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.Application.Program.completeness
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.Application.Program.holds_of_agree_below
+#audit_axioms NightstreamFPrime.Lifecycle.Stage1.Application.Program.valid_of_values_eq
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.Application.Program.step_output_length
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.Application.Program.assumptions
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.Application.Program.support

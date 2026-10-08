@@ -732,8 +732,8 @@ private theorem application_eq
   have applicationHolds :
       Application.Holds program.step interface.application
         applicationOffsetValue env :=
-    (program.spec_iff interface.application applicationOffsetValue env).mp
-      applicationSpec
+    ((program.spec_iff interface.application applicationOffsetValue env).mp
+      applicationSpec).1
   unfold Application.Holds at applicationHolds
   calc
     output.zNext = Application.outputState interface.application

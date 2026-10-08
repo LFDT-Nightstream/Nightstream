@@ -50,7 +50,7 @@ jobs:
       with:
         python-version: '3.12'
 
-    - name: Check Lean artifact digests and Rust copies
+    - name: Check Lean artifact digests and links
       run: timeout --signal=KILL 300 python3 -B formal/nightstream-fprime/scripts/check_artifacts.py
 
     - name: Install Rust

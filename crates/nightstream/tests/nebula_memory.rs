@@ -1,6 +1,6 @@
 //! The first Nebula memory application: native segment runs and spec §13
-//! terminal checks, and (ignored, production profile) proofs over the
-//! Lean-emitted package.
+//! terminal checks, and (ignored, production profile) spec §14 conformance
+//! proofs over the Lean-emitted package.
 
 use nightstream::nebula::{state_words, Context, MachineState, Plan, Run, Step, TerminalError};
 use p3_goldilocks::Goldilocks as F;
@@ -70,10 +70,13 @@ fn memory_package() -> Vec<u8> {
     .expect("saved Lean memory package")
 }
 
-/// One complete memory proof: one segment of two invocations, then the spec
-/// §13 terminal checks and the Stage 1 terminal verification.
-fn one_segment_proof(engine: nightstream::Engine) {
-    use nightstream::{Circuit, State, Verifier};
+/// The spec §14 accept cases that the first plan reaches, and the rejections
+/// that need no invalid witness, through `Context::verify`. One run of four
+/// segments (`S = S_max`) has continue arms (`N = 2`), writes RAM in the first
+/// segment and reads it in the second, and ends with an idle segment.
+fn memory_conformance(engine: nightstream::Engine) {
+    use nightstream::nebula::VerifyError;
+    use nightstream::{Circuit, Verifier};
     let started = std::time::Instant::now();
     let circuit = Circuit::load_package(&memory_package(), nightstream::nebula::PACKAGE_STRUCTURAL_IDENTIFIER)
         .expect("pinned memory package");
@@ -83,42 +86,101 @@ fn one_segment_proof(engine: nightstream::Engine) {
 
     let mut run = program_run();
     let z0 = run.initial_state();
-    let invocations = run.segment(&[Step::Execute, Step::Execute]).unwrap();
+    let mut invocations = Vec::new();
+    for steps in [
+        [Step::Execute, Step::Execute],
+        [Step::Execute, Step::Execute],
+        [Step::Idle, Step::Idle],
+        [Step::Idle, Step::Idle],
+    ] {
+        invocations.extend(run.segment(&steps).unwrap());
+    }
     let proving = std::time::Instant::now();
-    let mut proof = prover
+    let first = prover
         .prove_with_output(z0, &invocations[0].words, invocations[0].output)
         .unwrap();
-    eprintln!("memory base proving elapsed={:?}", proving.elapsed());
-    for invocation in &invocations[1..] {
-        let proving = std::time::Instant::now();
+    let mut proof = prover
+        .extend_with_output(&first, &invocations[1].words, invocations[1].output)
+        .unwrap();
+    let segment_proof = prover
+        .extend_with_output(&first, &invocations[1].words, invocations[1].output)
+        .unwrap();
+    for invocation in &invocations[2..] {
         proof = prover
             .extend_with_output(&proof, &invocation.words, invocation.output)
             .unwrap();
-        eprintln!("memory fold proving elapsed={:?}", proving.elapsed());
     }
+    eprintln!(
+        "memory proving elapsed={:?} invocations={}",
+        proving.elapsed(),
+        invocations.len()
+    );
+
+    let context = run.context();
     let statement = run.statement();
-    let (initial, last) = run
-        .context()
-        .terminal_states(&statement, run.carry())
-        .unwrap();
-    let expected = State::new(statement.steps, initial, last);
-    assert_eq!(proof.state(), &expected);
+    assert_eq!(statement.segments, context.plan().s_max as u64, "S = S_max");
+    assert_eq!(
+        statement.final_.acc, 5,
+        "the second segment reads the first segment's write"
+    );
     let verifying = std::time::Instant::now();
-    verifier.verify(&expected, &proof).unwrap();
+    context
+        .verify(&verifier, &statement, run.carry(), &proof)
+        .unwrap();
     eprintln!("memory verification elapsed={:?}", verifying.elapsed());
+
+    // One closed segment is a complete proof of its own.
+    let mut one = statement.clone();
+    one.steps = 2;
+    one.segments = 1;
+    one.final_ = MachineState { pc: 2, acc: 5 };
+    one.final_ts = invocations[1].carry.ts;
+    one.final_root = invocations[1].carry.mem_root;
+    context
+        .verify(&verifier, &one, &invocations[1].carry, &segment_proof)
+        .unwrap();
+
+    // End inside a segment: reject at the terminal `idx = N` check.
+    let mut open = one.clone();
+    open.steps = 1;
+    open.final_ = MachineState { pc: 1, acc: 5 };
+    open.final_ts = invocations[0].carry.ts;
+    assert!(matches!(
+        context.verify(&verifier, &open, &invocations[0].carry, &first),
+        Err(VerifyError::Terminal(TerminalError::OpenCarry))
+    ));
+
+    // The Stage 1 initial envelope (`T = 0`): reject (spec §13).
+    let mut empty = statement.clone();
+    empty.steps = 0;
+    empty.segments = 0;
+    assert!(matches!(
+        context.verify(&verifier, &empty, run.carry(), &proof),
+        Err(VerifyError::Terminal(TerminalError::SegmentRange))
+    ));
+
+    // An envelope carry that does not open the final state: reject at the
+    // Stage 1 state link.
+    let mut carry = *run.carry();
+    carry.seen.swap(0, 1);
+    assert_ne!(carry, *run.carry());
+    assert!(matches!(
+        context.verify(&verifier, &statement, &carry, &proof),
+        Err(VerifyError::Proof(_))
+    ));
 }
 
 #[test]
-#[ignore = "Full production-profile memory proof; run separately under the 300-second cap."]
-fn memory_segment_proves_and_verifies() {
-    one_segment_proof(nightstream::Engine::Optimized);
+#[ignore = "Full production-profile memory proofs; run separately under the 300-second cap."]
+fn memory_conformance_on_cpu() {
+    memory_conformance(nightstream::Engine::Optimized);
 }
 
 #[cfg(feature = "metal")]
 #[test]
-#[ignore = "Full production-profile memory proof on Metal; run separately under the 300-second cap."]
-fn memory_segment_proves_and_verifies_on_metal() {
-    one_segment_proof(nightstream::Engine::Metal);
+#[ignore = "Full production-profile memory proofs on Metal; run separately under the 300-second cap."]
+fn memory_conformance_on_metal() {
+    memory_conformance(nightstream::Engine::Metal);
 }
 
 #[test]

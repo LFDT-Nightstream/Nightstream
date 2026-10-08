@@ -38,7 +38,7 @@ fn params_reject_lambda_above_strong_set_entropy() {
 #[test]
 fn guard_rejects_tight_or_overflowing_profiles() {
     // Tight inequality: lhs == B should be rejected.
-    // Start from Appendix B.2 and pick T so (k+1)T(b-1)>B.
+    // Start from Section 8.2 and pick T so (k+1)T(b-1)>B.
     let (b, k, d, eta, kappa, m, s, lambda) = (
         goldilocks_paper_b2::B_BASE,
         goldilocks_paper_b2::K_RHO,

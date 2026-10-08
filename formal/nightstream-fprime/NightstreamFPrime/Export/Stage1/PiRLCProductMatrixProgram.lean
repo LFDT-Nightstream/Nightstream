@@ -15,7 +15,7 @@ namespace NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram
 open NightstreamFPrime.Export
 open NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Layout
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
@@ -38,7 +38,7 @@ def families : List ProductFamily :=
   [commitmentFamily, publicInputFamily, evalKFamily, evalAFamily]
 
 @[simp] theorem families_invocationCount :
-    MatrixProgram.Phi81Product.invocationCount families = 39474 := by
+    MatrixProgram.Phi81Product.invocationCount families = 33966 := by
   norm_num [families, MatrixProgram.Phi81Product.invocationCount,
     commitmentFamily, publicInputFamily, evalKFamily, evalAFamily,
     MatrixProgram.Phi81Product.Family.invocationCount,
@@ -46,7 +46,7 @@ def families : List ProductFamily :=
     CombinationStep.privateCount, ringDegree, productionProfile]
 
 @[simp] theorem families_ringCount :
-    MatrixProgram.Phi81Product.ringCount families = 731 := by
+    MatrixProgram.Phi81Product.ringCount families = 629 := by
   norm_num [families, MatrixProgram.Phi81Product.ringCount,
     MatrixProgram.Phi81Product.Family.ringCount,
     commitmentFamily, publicInputFamily, evalKFamily, evalAFamily, productionProfile]
@@ -95,7 +95,7 @@ def block {program : Lifecycle.Stage1.Application.Program}
 @[simp] theorem block_rowCount
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
-    (block geometry).rowCount = 78948 := by
+    (block geometry).rowCount = 67932 := by
   norm_num [block, MatrixProgram.Phi81Product.Block.rowCount]
 
 def matrixProgram {program : Lifecycle.Stage1.Application.Program}
@@ -107,7 +107,7 @@ def matrixProgram {program : Lifecycle.Stage1.Application.Program}
 @[simp] theorem matrixProgram_rowCount
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
-    (matrixProgram geometry).rowCount = 78948 := by
+    (matrixProgram geometry).rowCount = 67932 := by
   rw [show matrixProgram geometry =
       MatrixProgram.Program.mk [.phi81Product (block geometry)] by rfl]
   rw [MatrixProgram.Program.singleton_rowCount]

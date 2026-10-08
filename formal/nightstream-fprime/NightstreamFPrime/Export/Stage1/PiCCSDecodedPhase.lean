@@ -36,7 +36,7 @@ theorem rowsZero_implies_specHolds
       poseidon).RowsZero assignment)
     (endpointRows : (PiCCSTranscriptEndpointPlan.plan poseidon ordinary).RowsZero
       assignment) :
-    Lifecycle.PiCCS.v1_1.Formal.SpecHolds relation
+    Lifecycle.PiCCS.v1_2.Formal.SpecHolds relation
       (PiCCSInvocations.parentInterface relationLogicalWidth relationPublicFits)
       PiCCSInputs.phaseOffset
       (Spartan.pullback (PiCCSAssignmentSoundness.decodedEnv ordinary assignment)) := by
@@ -76,7 +76,7 @@ theorem selectedRowsZero_implies_phaseHolds
       (PerApplicationFixedPoint.geometry application)) = 1)
     (accepted : (PerApplicationFixedPoint.structuralPlan application fits).RowsZero
       assignment) :
-    Lifecycle.PiCCS.v1_1.Formal.PhaseHolds
+    Lifecycle.PiCCS.v1_2.Formal.PhaseHolds
       (PerApplicationFixedPoint.relation application fits) ajtai
       (PiCCSInvocations.parentInterface
         (PerApplicationFixedPoint.logicalWidth application)
@@ -107,7 +107,7 @@ theorem selectedRowsZero_implies_phaseHolds
   rcases samplerPrefixRows with
     ⟨⟨⟨⟨⟨⟨_pilot, transcriptRows⟩, ordinaryRows⟩, _pilotOrdinary⟩,
       _pilotBinding⟩, endpointRows⟩, _sampler⟩
-  apply Lifecycle.PiCCS.v1_1.Formal.spec_implies_phaseHolds
+  apply Lifecycle.PiCCS.v1_2.Formal.spec_implies_phaseHolds
   exact rowsZero_implies_specHolds relation
     (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry geometry)
     (DirectPiDECPrefixPlan.poseidonGeometry

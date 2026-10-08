@@ -115,30 +115,30 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
 
 private theorem c_end_before_r (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (NightstreamFPrime.Layout.PiCCS.v1_1.plan relation
+    (NightstreamFPrime.Layout.PiCCS.v1_2.plan relation
       (PiCCSProofInputs.relationInterface relation) PiCCSInputs.phaseOffset).next ≤ PiRLCInputs.phaseOffset := by
   have bound := Nat.le_max_right
     (Pilot.physicalColumnCount PilotProduction.interface PilotProduction.witnessOffset)
-    (NightstreamFPrime.Layout.PiCCS.v1_1.physicalColumnCount relation
+    (NightstreamFPrime.Layout.PiCCS.v1_2.physicalColumnCount relation
       (PilotPiCCS.interface (publicFits := publicFits)) PilotPiCCS.piCcsOffset)
   change _ ≤ PilotPiCCS.physicalColumnCount relation at bound
   rw [PilotPiCCS.physicalColumnCount_eq relation] at bound
   exact bound
 
 private theorem r_end_before_d (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (NightstreamFPrime.Layout.PiRLC.v1_1.plan relation PiRLCInputs.interface PiRLCInputs.phaseOffset).next ≤
+    (NightstreamFPrime.Layout.PiRLC.v1_2.plan relation PiRLCInputs.interface PiRLCInputs.phaseOffset).next ≤
       PiDECInputs.proofInputStart := by
   have bound := Nat.le_max_right (PilotPiCCS.physicalColumnCount relation)
-    (NightstreamFPrime.Layout.PiRLC.v1_1.physicalColumnCount relation PiRLCInputs.interface PilotPiCCSPiRLC.piRlcOffset)
+    (NightstreamFPrime.Layout.PiRLC.v1_2.physicalColumnCount relation PiRLCInputs.interface PilotPiCCSPiRLC.piRlcOffset)
   change _ ≤ PilotPiCCSPiRLC.physicalColumnCount relation at bound
   rw [PilotPiCCSPiRLC.physicalColumnCount_eq relation] at bound
   exact bound
 
 private theorem d_end_before_running (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (NightstreamFPrime.Layout.PiDEC.v1_1.plan relation (PiDECInputs.interface logicalWidth publicFits)
+    (NightstreamFPrime.Layout.PiDEC.v1_2.plan relation (PiDECInputs.interface logicalWidth publicFits)
       PiDECInputs.phaseOffset).next ≤ RunningTransitionInputs.phaseOffset := by
   have bound := Nat.le_max_right PiDECInputs.phaseOffset
-    (NightstreamFPrime.Layout.PiDEC.v1_1.physicalColumnCount relation
+    (NightstreamFPrime.Layout.PiDEC.v1_2.physicalColumnCount relation
       (PiDECInputs.interface logicalWidth publicFits) PilotPiCCSPiRLCPiDEC.piDecOffset)
   change _ ≤ PilotPiCCSPiRLCPiDEC.physicalColumnCount relation at bound
   rw [PilotPiCCSPiRLCPiDEC.physicalColumnCount_eq relation] at bound
@@ -157,7 +157,7 @@ private theorem nifs_complete
     (advertisedFixed : PilotProduction.FixedPreimage advertised)
     (digestFixed : digest.length = PilotProduction.digestWords)
     (values : PiCCSProofInputs.ProofValues) (context : VerifierContext.Digest4)
-    (template : Proof 9)
+    (template : Proof 8)
     (result : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (priorPc : prior.pc = 1) (advertisedPc : advertised.pc = 1)
     (priorContext : prior.verifierKeys functionIndex = context.toList)
@@ -208,14 +208,14 @@ private theorem nifs_complete
   obtain ⟨c, cOperations, _⟩ := PiCCSProtocolCompleteness.completePrefix_from prior (encHash (stateHash prior))
     advertised digest priorFixed advertisedFixed digestFixed values context relation ajtai template
     priorPc advertisedPc priorContext advertisedContext cAccepted pPhysical (fun index support => pAgrees index (Or.inr support))
-  let cPlan := NightstreamFPrime.Layout.PiCCS.v1_1.plan relation
+  let cPlan := NightstreamFPrime.Layout.PiCCS.v1_2.plan relation
     (PiCCSProofInputs.relationInterface relation) PiCCSInputs.phaseOffset
   have cConstraints : cPlan.constraints = flatConstraints c.operations := by
     rw [cOperations]
     rfl
   have cFirst : cPlan.firstFresh = PiCCSInputs.phaseOffset + localLength c.operations := by
-    rw [cOperations, ← PiCCS.v1_1.Formal.main_ops]
-    exact NightstreamFPrime.Layout.PiCCS.v1_1.logicalColumnCount_eq relation _ _
+    rw [cOperations, ← PiCCS.v1_2.Formal.main_ops]
+    exact NightstreamFPrime.Layout.PiCCS.v1_2.logicalColumnCount_eq relation _ _
   obtain ⟨cPhysical, cLower, cRows, cScope⟩ := lower_prefix c cPlan cConstraints cFirst
   have cAfter : ∀ index, index < cPlan.firstFresh → cPhysical index = c.current index :=
     fun index below => cLower index (Or.inl below)
@@ -226,13 +226,13 @@ private theorem nifs_complete
     relation ajtai prior (encHash (stateHash prior)) advertised digest priorFixed advertisedFixed digestFixed
     values context template pPhysical (fun index support => pAgrees index (Or.inr support))
     c cOperations cPhysical (by simpa only [cFirst] using cAfter)
-  let rPlan := NightstreamFPrime.Layout.PiRLC.v1_1.plan relation PiRLCInputs.interface PiRLCInputs.phaseOffset
+  let rPlan := NightstreamFPrime.Layout.PiRLC.v1_2.plan relation PiRLCInputs.interface PiRLCInputs.phaseOffset
   have rConstraints : rPlan.constraints = flatConstraints r.operations := by
     rw [rOperations]
     rfl
   have rFirst : rPlan.firstFresh = PiRLCInputs.phaseOffset + localLength r.operations := by
-    rw [rOperations, ← PiRLC.v1_1.Formal.main_ops]
-    exact NightstreamFPrime.Layout.PiRLC.v1_1.logicalColumnCount_eq relation _ _
+    rw [rOperations, ← PiRLC.v1_2.Formal.main_ops]
+    exact NightstreamFPrime.Layout.PiRLC.v1_2.logicalColumnCount_eq relation _ _
   obtain ⟨rPhysical, rLower, rRows, rScope⟩ := lower_prefix r rPlan rConstraints rFirst
   have rAfter : ∀ index, index < rPlan.firstFresh → rPhysical index = r.current index :=
     fun index below => rLower index (Or.inl below)
@@ -242,14 +242,14 @@ private theorem nifs_complete
   obtain ⟨d, dOperations, _, _, dOutput⟩ := PiDECProtocolCompleteness.completePrefix_after_r
     relation ajtai (prior.running functionIndex) fresh proof result accepted cPhysical r rOperations
     rSampled rParent rPhysical (by simpa only [rFirst] using rAfter)
-  let dPlan := NightstreamFPrime.Layout.PiDEC.v1_1.plan relation (PiDECInputs.interface logicalWidth publicFits)
+  let dPlan := NightstreamFPrime.Layout.PiDEC.v1_2.plan relation (PiDECInputs.interface logicalWidth publicFits)
     PiDECInputs.phaseOffset
   have dConstraints : dPlan.constraints = flatConstraints d.operations := by
     rw [dOperations]
     rfl
   have dFirst : dPlan.firstFresh = PiDECInputs.phaseOffset + localLength d.operations := by
-    rw [dOperations, ← PiDEC.v1_1.Formal.main_ops]
-    exact NightstreamFPrime.Layout.PiDEC.v1_1.logicalColumnCount_eq relation _ _
+    rw [dOperations, ← PiDEC.v1_2.Formal.main_ops]
+    exact NightstreamFPrime.Layout.PiDEC.v1_2.logicalColumnCount_eq relation _ _
   obtain ⟨dPhysical, dLower, dRows, dScope⟩ := lower_prefix d dPlan dConstraints dFirst
   have dAfter : ∀ index, index < PiDECInputs.phaseOffset → dPhysical index = d.current index := by
     intro index below

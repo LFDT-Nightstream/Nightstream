@@ -29,7 +29,7 @@ variable (Tape : Type*) {Context State : Type*} {logicalWidth : Nat}
   (running : Context → Lifecycle.Running (logicalWidth := logicalWidth) (publicFits := publicFits))
   (fresh : Context → Lifecycle.Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
   (contexts : PMF Context)
-  (firstPhase : Context → InteractivePrefix.Prover State productionShape 9)
+  (firstPhase : Context → InteractivePrefix.Prover State productionShape 8)
 
 /-- This is the checked prefix used by both probability and work. The public
 coins, full output and captured state must be those of one actual receipt. -/

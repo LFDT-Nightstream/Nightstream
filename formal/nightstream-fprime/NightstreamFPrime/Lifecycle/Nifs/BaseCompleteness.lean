@@ -1,6 +1,6 @@
 import NightstreamFPrime.Lifecycle.ProductionKey
 import NightstreamFPrime.Lifecycle.XOut
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.ZeroRunningPolynomial
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.ZeroRunningPolynomial
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomialDegree.Support
 
 /-!
@@ -20,8 +20,8 @@ open ConcreteCarrier
 
 /-- Fixed-width zero C messages and zero D commitment/evaluation messages.
 The verifier still derives every challenge and child public input. -/
-def zeroProof : Proof 9 where
-  piCcsRounds := fun _ => SumCheck.Finite.FixedPolynomial.zero extensionOps.toOps 9
+def zeroProof : Proof 8 where
+  piCcsRounds := fun _ => SumCheck.Finite.FixedPolynomial.zero extensionOps.toOps 8
   piCcsOutput := {
     padCoordinate := fun _ _ => K.zero
     matrixCoordinate := fun _ _ _ => K.zero }
@@ -67,7 +67,7 @@ private theorem liftedPolynomial_zero :
 private theorem zero_chain (challenges : List K) :
     SumCheck.Finite.FixedPhase.Chain extensionOps.toOps K.zero
       (List.replicate challenges.length
-        (SumCheck.Finite.FixedPolynomial.zero extensionOps.toOps 9))
+        (SumCheck.Finite.FixedPolynomial.zero extensionOps.toOps 8))
       challenges K.zero := by
   induction challenges with
   | nil => rfl
@@ -92,7 +92,7 @@ private theorem initial_zero (gamma : K) :
   let statement := (ProductionKey.key relation ajtai).statement defaultRunning (baseFresh prior)
   -- The reused initial-claim lemma ignores these auxiliary assignment values;
   -- it uses only public zero coefficients and assumes no opening validity.
-  exact PiCCS.v1_1.ZeroRunningPolynomial.initial_zero
+  exact PiCCS.v1_2.ZeroRunningPolynomial.initial_zero
     (statement.sourceConnectedInputs ⟨fun _ _ => 0⟩)
     (fun _ => rfl) (fun _ => rfl) gamma
 
@@ -170,13 +170,13 @@ theorem zeroProof_piCcsCheck :
     terminal_zero relation ajtai prior]
   change SumCheck.Finite.FixedPhase.Chain extensionOps.toOps K.zero
     (List.ofFn (fun _ : Fin productionShape.cubeVariables =>
-      SumCheck.Finite.FixedPolynomial.zero extensionOps.toOps 9))
+      SumCheck.Finite.FixedPolynomial.zero extensionOps.toOps 8))
     execution.coins.roundPoint.coordinates K.zero
   have roundsEqual :
       List.ofFn (fun _ : Fin productionShape.cubeVariables =>
-        SumCheck.Finite.FixedPolynomial.zero extensionOps.toOps 9) =
+        SumCheck.Finite.FixedPolynomial.zero extensionOps.toOps 8) =
       List.replicate execution.coins.roundPoint.coordinates.length
-        (SumCheck.Finite.FixedPolynomial.zero extensionOps.toOps 9) := by
+        (SumCheck.Finite.FixedPolynomial.zero extensionOps.toOps 8) := by
     rw [List.ofFn_const, execution.coins.roundPoint.dimension]
   rw [roundsEqual]
   exact zero_chain execution.coins.roundPoint.coordinates

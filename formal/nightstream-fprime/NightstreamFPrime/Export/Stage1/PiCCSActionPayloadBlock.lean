@@ -22,7 +22,7 @@ open NightstreamFPrime.Gadgets.Poseidon2
 open NightstreamFPrime.Gadgets.Poseidon2.Duplex
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec
 
 def statementActions (_delay : Unit := ()) : List Formal.Action :=
@@ -74,7 +74,7 @@ def roundKindAt : Fin 140 → PoseidonActionSchedule.Kind :=
   fun index => PoseidonActionSchedule.kindAt roundActions <|
     Fin.cast roundInvocationCount_eq.symm index
 
-def outputKindAt : Fin 1225 → PoseidonActionSchedule.Kind :=
+def outputKindAt : Fin 766 → PoseidonActionSchedule.Kind :=
   fun index => PoseidonActionSchedule.kindAt outputActions <|
     Fin.cast (PiCCSInvocations.outputInvocationCount_eq
       Data.logicalWidth Data.publicFits).symm index
@@ -125,14 +125,14 @@ theorem outputKindAt_materializes :
     _ = PoseidonActionSchedule.kinds outputActions :=
       PoseidonActionSchedule.kindAt_materializes outputActions
 
-def invocationCount : Nat := 1580
+def invocationCount : Nat := 1121
 
-@[simp] theorem invocationCount_eq : invocationCount = 1580 := by
+@[simp] theorem invocationCount_eq : invocationCount = 1121 := by
   rfl
 
 def payloadCount : Nat := invocationCount * Spec.Poseidon2.rate
 
-@[simp] theorem payloadCount_eq : payloadCount = 18960 := by
+@[simp] theorem payloadCount_eq : payloadCount = 13452 := by
   rw [payloadCount, invocationCount_eq]
   rfl
 

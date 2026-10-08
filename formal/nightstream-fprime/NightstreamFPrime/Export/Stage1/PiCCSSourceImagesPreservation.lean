@@ -31,7 +31,7 @@ private abbrev selectedProgram := PerApplicationMatrixProgram.matrixProgram
 private abbrev selectedSource := PerApplicationCanonicalPackage.sourceRow
   Poseidon2HashChainV1Package.application Poseidon2HashChainV1Package.fits
 private abbrev selectedLayout :=
-  (Lifecycle.PiRLC.v1_1.InputBinding.relationSource selectedRelation).cubeLayout
+  (Lifecycle.PiRLC.v1_2.InputBinding.relationSource selectedRelation).cubeLayout
 private noncomputable abbrev statementFor
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (input : PiCCSPublicReplay.Input) :=
@@ -126,7 +126,7 @@ private theorem canonical_numericRow
     (PerApplicationCanonicalPackage.sourceRow application fits) read row matrix
     (PerApplicationCanonicalPackage.matrixProgram_row? application fits row)
 
-/-- All selected rows and all seven ports, including the complete zero
+/-- All selected rows and all four ports, including the complete zero
 suffix. Matrix/source correspondence is discharged by the selected theorem. -/
 theorem matrixImage_value (assignment : Phi81Relation.Assignment shape)
     (output : Fin ringDegree) (vertex : BooleanVertex Lifecycle.cubeVariables)
@@ -193,8 +193,8 @@ private theorem padImage_eq_form
 private theorem padMatrix_eq {width : Nat}
     {fits : ringDegree * PaperAlgebra.publicRingColumns ≤ Phi81CarrierLayout.carrierWidth width}
     (relation : ProductionKey.LogicalRelation width fits) :
-    PaperAlgebra.padMatrix (Lifecycle.PiRLC.v1_1.InputBinding.relationSource relation) =
-      (Lifecycle.PiRLC.v1_1.InputBinding.relationSource relation).cubeLayout.paddedIdentityEntry
+    PaperAlgebra.padMatrix (Lifecycle.PiRLC.v1_2.InputBinding.relationSource relation) =
+      (Lifecycle.PiRLC.v1_2.InputBinding.relationSource relation).cubeLayout.paddedIdentityEntry
         (0 : F) 1 := rfl
 
 theorem padImage_value (assignment : Phi81Relation.Assignment shape)
@@ -202,7 +202,7 @@ theorem padImage_value (assignment : Phi81Relation.Assignment shape)
     padImage selectedLayout assignment output vertex =
       PiRLC.ExplicitMatrix.rowRing selectedRelation.system
         (PaperAlgebra.padMatrix
-          (Lifecycle.PiRLC.v1_1.InputBinding.relationSource selectedRelation))
+          (Lifecycle.PiRLC.v1_2.InputBinding.relationSource selectedRelation))
         assignment vertex output := by
   rw [padImage_eq_form, eval_kernelRead_eq_row, padMatrix_eq]
   have reference := congrFun (PiDECEvaluationRows.padRow_value
@@ -389,7 +389,7 @@ private theorem statementFor_cubeLayout
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (input : PiCCSPublicReplay.Input) :
     (statementFor relation input).cubeLayout =
-      (Lifecycle.PiRLC.v1_1.InputBinding.relationSource relation).cubeLayout := rfl
+      (Lifecycle.PiRLC.v1_2.InputBinding.relationSource relation).cubeLayout := rfl
 
 private theorem matrix_endpoint_for
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -413,7 +413,7 @@ private theorem pad_endpoint_for
     (vertex : BooleanVertex Lifecycle.cubeVariables) :
     (((statementFor relation input).sourceProtocolData K.embed witness).padImages coordinate).valueAt vertex =
       K.embed (PiRLC.ExplicitMatrix.rowRing relation.system
-        (PaperAlgebra.padMatrix (Lifecycle.PiRLC.v1_1.InputBinding.relationSource relation))
+        (PaperAlgebra.padMatrix (Lifecycle.PiRLC.v1_2.InputBinding.relationSource relation))
         (witness.assignments (runningSourceIndex coordinate.running)) vertex coordinate.coefficient) := by
   erw [statement_pad_endpoint (statementFor relation input) witness coordinate vertex,
     statementFor_matrixSource, statementFor_cubeLayout,
@@ -441,10 +441,10 @@ private theorem assignment_endpoint_for
     (source : Fin productionShape.sourceCount)
     (vertex : BooleanVertex Lifecycle.cubeVariables) :
     (((statementFor relation input).sourceProtocolData K.embed witness).sourceAssignments source).valueAt vertex =
-      K.embed (assignmentValue (Lifecycle.PiRLC.v1_1.InputBinding.relationSource relation).cubeLayout
+      K.embed (assignmentValue (Lifecycle.PiRLC.v1_2.InputBinding.relationSource relation).cubeLayout
         (witness.assignments source) vertex) := by
   change (BooleanTable.tabulate (fun current => K.embed
-    ((Lifecycle.PiRLC.v1_1.InputBinding.relationSource relation).cubeLayout.paddedValue
+    ((Lifecycle.PiRLC.v1_2.InputBinding.relationSource relation).cubeLayout.paddedValue
       0 (witness.assignments source) current))).valueAt vertex = _
   exact BooleanTable.valueAt_tabulate _ _
 

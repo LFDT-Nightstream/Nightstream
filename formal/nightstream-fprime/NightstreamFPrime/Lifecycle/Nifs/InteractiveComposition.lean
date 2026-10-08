@@ -3,6 +3,9 @@ import NightstreamFPrime.Lifecycle.PaperExtractionAlgebra
 import NightstreamFPrime.Spec.Folding.Nifs.PaperCompositionProbability
 
 /-!
+Paper authority: SuperNeo v1.2 Theorem 12 (strong–weak composition) and
+Appendix B.1, applied to strong `Pi_CCS` and weak `Pi_RLC`/`Pi_DEC`.
+
 Interactive NIFS extraction for the selected Nightstream key. The public
 PiCCS check runs before the captured PiRLC/PiDEC continuation. Each weak
 query obtains its own final child witnesses. The exact returned endpoint
@@ -42,7 +45,7 @@ abbrev Endpoint := PaperWeakLaw.Endpoint
   (PaperAlgebra.Assignment (logicalWidth := logicalWidth) (publicFits := publicFits))
 
 variable
-  (originalFirstPhase : Context → InteractivePrefix.Prover State productionShape 9)
+  (originalFirstPhase : Context → InteractivePrefix.Prover State productionShape 8)
   (publicCheck : Context → Probe K productionShape → Bool)
   (continuation : ∀ context (coins : PublicCoins K productionShape)
     (output : FullOutputCoordinates.FullOutput K productionShape), State →
@@ -81,7 +84,7 @@ noncomputable def weakLoss : ℝ :=
 variable
   (checkCorrect : ∀ context probe, publicCheck context probe = true ↔
     probe.FixedWidthAccepted extensionOps K.embed
-      ((ProductionKey.key relation ajtai).statement (running context) (fresh context)) 9)
+      ((ProductionKey.key relation ajtai).statement (running context) (fresh context)) 8)
   (laws : ExtractionAlgebra (ProductionKey.key relation ajtai).piRlcSemantics
     (ProductionKey.key relation ajtai).params (ProductionKey.key relation ajtai).piRlcAlgebra)
   (strongSet : StrongSetUnits laws.ring (ProductionKey.key relation ajtai).piRlcAlgebra.challengeValid)
@@ -98,7 +101,7 @@ theorem local_weak_bound (context : Context)
       (firstPhase originalFirstPhase publicCheck context)
       (suffixLaw relation ajtai running fresh continuation context)
       (consume relation ajtai program context)
-      (fun outcome => if StrongProbability.RelaxedSuccess (width := 9)
+      (fun outcome => if StrongProbability.RelaxedSuccess (width := 8)
         (PaperAlgebra.openingMaps ajtai) productionGlobalParams
         ((ProductionKey.key relation ajtai).statement (running context) (fresh context)) outcome
         then (1 : ℝ) else 0) alpha gamma point := by
@@ -132,7 +135,7 @@ theorem source_success_bound (contexts : PMF Context) :
         (suffixLaw relation ajtai running fresh continuation) (consume relation ajtai program)
         (fun _ => PaperAlgebra.openingMaps ajtai) productionGlobalParams
         (fun context => (ProductionKey.key relation ajtai).statement (running context) (fresh context)) +
-          IndependentExecution.testError productionShape 9) ≤
+          IndependentExecution.testError productionShape 8) ≤
       PaperCompositionProbability.sourceProbability contexts
         (firstPhase originalFirstPhase publicCheck)
         (suffixLaw relation ajtai running fresh continuation) (consume relation ajtai program)
@@ -168,7 +171,7 @@ its computed success and resource bounds. -/
 theorem source_success_retry_bound (contexts : PMF Context) :
     StrongProbability.clockMean contexts
       (originalSuccess relation ajtai running fresh originalFirstPhase publicCheck continuation) -
-      weakLoss relation ajtai - IndependentExecution.testError productionShape 9 -
+      weakLoss relation ajtai - IndependentExecution.testError productionShape 8 -
       PaperCompositionProbability.retryDisagreementProbability contexts
         (firstPhase originalFirstPhase publicCheck) (none : Endpoint relation ajtai)
         (suffixLaw relation ajtai running fresh continuation) (consume relation ajtai program)

@@ -7,12 +7,12 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 /-!
 Table-level residual construction for the paper-level `Pi_CCS` model.
 
-Owns: canonically indexed Pad, matrix, CCS, and norm residuals, their v1.1
+Owns: canonically indexed Pad, matrix, CCS, and norm residuals, their v1.2
 serialization, independent leafwise obligations, and the resulting boundary.
 
 Does not own: concrete CCS formulas, the norm range polynomial or field
 no-wrap proof, carried target/evaluation formulas, the signed joint identity,
-literal Lemma 7, SumCheck truth, transcript semantics, relation refinement,
+literal SuperNeo v1.2 Lemma 9, SumCheck truth, transcript semantics, relation refinement,
 Rust, R1CS, constraint removal, or production approval.
 
 Emits constraints: no.
@@ -209,7 +209,7 @@ theorem residualizationBoundary
 
 /-- Joint coefficient truth is equivalent to the explicit table obligations,
 without any caller-supplied evaluator, basis, degree, or per-leaf iff. This is
-still a table-level theorem, not concrete Lemma 7. -/
+still a table-level theorem, not concrete Lemma 9. -/
 theorem coefficientTruth_iff_tableObligations
     {Field : Type uField}
     {shape : Shape}

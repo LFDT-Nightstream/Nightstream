@@ -57,8 +57,8 @@ def statement (input : PiCCSInputCheck.Input) :
     Statement K PaperAlgebra.Commitment (Phi81Relation.PublicInput carrier)
       productionShape carrier.carrierWidth
       (Phi81ColumnLayout.blockCount carrier.carrierWidth) baseOps where
-  cubeLayout := (Lifecycle.PiRLC.v1_1.InputBinding.relationSource PiDECInputCheck.relation).cubeLayout
-  matrixSource := (Lifecycle.PiRLC.v1_1.InputBinding.relationSource PiDECInputCheck.relation).matrixSource
+  cubeLayout := (Lifecycle.PiRLC.v1_2.InputBinding.relationSource PiDECInputCheck.relation).cubeLayout
+  matrixSource := (Lifecycle.PiRLC.v1_2.InputBinding.relationSource PiDECInputCheck.relation).matrixSource
   commitments := PiCCSInputCheck.outputCommitments input
   publicInputs := PiCCSInputCheck.outputPublicInputs input
   priorPoint := (PiCCSInputCheck.running input).point
@@ -292,8 +292,8 @@ private theorem padEntry_of_relation {logicalWidth : Nat}
     (vertex : BooleanVertex productionShape.cubeVariables)
     (column : Fin (Phi81CarrierLayout.carrierWidth logicalWidth)) :
     (StoredWitnessCheckEntries.padEntry coefficient vertex column).value =
-      (Lifecycle.PiRLC.v1_1.InputBinding.relationSource relation).matrixSource.coefficientMatrixOf baseOps
-        (fun row column => (Lifecycle.PiRLC.v1_1.InputBinding.relationSource relation).cubeLayout.paddedIdentityEntry
+      (Lifecycle.PiRLC.v1_2.InputBinding.relationSource relation).matrixSource.coefficientMatrixOf baseOps
+        (fun row column => (Lifecycle.PiRLC.v1_2.InputBinding.relationSource relation).cubeLayout.paddedIdentityEntry
           baseOps.zero baseOps.one row column) coefficient vertex column :=
   StoredWitnessCheckEntries.padEntry_value cubeVariables
     productionProfile.freshSources productionProfile.runningSources productionProfile.ccsMatrices
@@ -315,7 +315,7 @@ private theorem kernelConstant_of_relation {logicalWidth : Nat}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (Lifecycle.PiRLC.v1_1.InputBinding.relationSource relation).matrixSource.kernel.constant =
+    (Lifecycle.PiRLC.v1_2.InputBinding.relationSource relation).matrixSource.kernel.constant =
       Phi81CoefficientKernel.constant := by
   rfl
 

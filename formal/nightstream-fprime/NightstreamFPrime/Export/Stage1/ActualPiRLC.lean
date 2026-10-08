@@ -31,12 +31,11 @@ theorem initial_eq_decoded_state
     (ordinary : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (poseidon : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
-    (one : assignment (PiCCSOrdinaryRetainedGeometry.oneColumn ordinary) = 1)
     (rows : (PiCCSTranscriptEndpointPlan.plan poseidon ordinary).RowsZero assignment) :
     ActualPiRLCStates.initialState poseidon assignment =
-      PiCCS.v1_1.StatementAbsorption.evalState
+      PiCCS.v1_2.StatementAbsorption.evalState
         (Spartan.pullback (PiCCSAssignmentSoundness.decodedEnv ordinary assignment))
-        (PiCCS.v1_1.Formal.outputBindingFinalState relation
+        (PiCCS.v1_2.Formal.outputBindingFinalState relation
           (PiCCSInvocations.parentInterface relationLogicalWidth relationPublicFits)
           PiCCSInputs.phaseOffset) := by
   have last : endpointInvocation outputFamily =
@@ -46,15 +45,15 @@ theorem initial_eq_decoded_state
     simp [endpointInvocation, outputFamily, PiCCSTranscriptDirectSemantics.outputLast,
       PiCCSPoseidonPlan.invocationCount_eq]
   have endpoint := PiCCSDecodedEndpoints.rowsZero_implies_endpointStates ordinary poseidon
-    assignment one rows outputFamily
+    assignment rows outputFamily
   rw [last] at endpoint
   change ActualPiRLCStates.initialState poseidon assignment = _ at endpoint
   rw [endpoint]
   apply congrArg List.ofFn
   funext lane
-  unfold PiCCS.v1_1.Formal.outputBindingFinalState
+  unfold PiCCS.v1_2.Formal.outputBindingFinalState
   rw [← PiCCSInvocations.outputWitnessStart_matches relationLogicalWidth relationPublicFits relation]
-  change _ = (PiCCS.v1_1.OutputBinding.finalState
+  change _ = (PiCCS.v1_2.OutputBinding.finalState
     (PiCCSInvocations.outputInterface relationLogicalWidth relationPublicFits)
     PiCCSInvocations.outputWitnessStart lane).eval
       (Spartan.pullback (PiCCSAssignmentSoundness.decodedEnv ordinary assignment))
@@ -71,9 +70,9 @@ theorem prefixRowsZero_implies_batch
     let ordinary := DirectPiDECPrefixPlan.piCcsOrdinaryGeometry
       (DirectPiRLCSamplerCompletePrefixPlan.piDecGeometry geometry)
     Transcript.PiRlcSampler.piRlcChallengesWithState
-        (PiCCS.v1_1.StatementAbsorption.evalState
+        (PiCCS.v1_2.StatementAbsorption.evalState
           (Spartan.pullback (PiCCSAssignmentSoundness.decodedEnv ordinary assignment))
-          (PiCCS.v1_1.Formal.outputBindingFinalState relation
+          (PiCCS.v1_2.Formal.outputBindingFinalState relation
             (PiCCSInvocations.parentInterface relationLogicalWidth relationPublicFits)
             PiCCSInputs.phaseOffset)) PiRLCSamplerPoseidonPlan.sourceCount =
       ⟨ActualPiRLCSampling.challenge geometry assignment,
@@ -89,7 +88,7 @@ theorem prefixRowsZero_implies_batch
   have semantics := PiRLCSamplerPoseidonPreservation.rowsZero_implies_canonicalSemantics
     (PiRLCSamplerOrdinaryDirectPlan.poseidonGeometry geometry) assignment one samplerPrefix.2
   dsimp only
-  rw [← initial_eq_decoded_state relation _ _ assignment one piCcsRows.2]
+  rw [← initial_eq_decoded_state relation _ _ assignment piCcsRows.2]
   exact ActualPiRLCSampling.rowsZero_implies_batch relation geometry assignment one parts.2.1 semantics
 
 theorem productChallenge_eq
@@ -127,9 +126,9 @@ theorem selectedRowsAndPublic_imply_batch
       (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry geometry) assignment)
     Transcript.PiRlcSampler.piRlcChallengesWithState
         ((ProductionKey.key relation ajtai).piCcsExecution
-          (PiCCS.v1_1.Formal.evalRunning interface PiCCSInputs.phaseOffset env)
-          (PiCCS.v1_1.Formal.evalFresh interface PiCCSInputs.phaseOffset env)
-          (PiCCS.v1_1.Formal.evalProof relation interface PiCCSInputs.phaseOffset env template)).outgoingState
+          (PiCCS.v1_2.Formal.evalRunning interface PiCCSInputs.phaseOffset env)
+          (PiCCS.v1_2.Formal.evalFresh interface PiCCSInputs.phaseOffset env)
+          (PiCCS.v1_2.Formal.evalProof relation interface PiCCSInputs.phaseOffset env template)).outgoingState
         PiRLCSamplerPoseidonPlan.sourceCount =
       ⟨ActualPiRLCSampling.challenge (DirectApplicationPrefixPlan.prefixGeometry geometry) assignment,
         ActualPiRLCStates.state (PiRLCSamplerOrdinaryDirectPlan.poseidonGeometry
@@ -175,9 +174,9 @@ theorem selectedRowsAndPublic_imply_keyChallenges
     let env := Spartan.pullback (PiCCSAssignmentSoundness.decodedEnv
       (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry geometry) assignment)
     (ProductionKey.key relation ajtai).piRlcChallenges
-        (PiCCS.v1_1.Formal.evalRunning interface PiCCSInputs.phaseOffset env)
-        (PiCCS.v1_1.Formal.evalFresh interface PiCCSInputs.phaseOffset env)
-        (PiCCS.v1_1.Formal.evalProof relation interface PiCCSInputs.phaseOffset env template) =
+        (PiCCS.v1_2.Formal.evalRunning interface PiCCSInputs.phaseOffset env)
+        (PiCCS.v1_2.Formal.evalFresh interface PiCCSInputs.phaseOffset env)
+        (PiCCS.v1_2.Formal.evalProof relation interface PiCCSInputs.phaseOffset env template) =
       some (ActualPiRLCSampling.challenge (DirectApplicationPrefixPlan.prefixGeometry geometry) assignment) := by
   have batch := selectedRowsAndPublic_imply_batch application fits ajtai template assignment digest
     publicEqual accepted

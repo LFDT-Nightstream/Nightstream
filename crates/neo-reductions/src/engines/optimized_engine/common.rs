@@ -1,11 +1,11 @@
-//! Optimized PiDEC claim construction for the SuperNeo v1.1 relation.
+//! Optimized PiDEC claim construction for the SuperNeo v1.2 relation.
 //!
 //! This file owns child evaluation and radix recomposition. It does not own
 //! commitments, transcript messages, or PaperExact computations.
 
 #![allow(non_snake_case)]
 
-use crate::engines::pi_ccs_joint_protocol::V1_1OutputOpening;
+use crate::engines::pi_ccs_joint_protocol::V1_2OutputOpening;
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsStructure, CeClaim, Mat};
 use neo_math::{D, K};
@@ -15,7 +15,7 @@ use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 use rayon::prelude::*;
 
 fn extension_block(values: &[K]) -> [K; D] {
-    assert_eq!(values.len(), D, "v1_1 opening must contain exactly D coefficients");
+    assert_eq!(values.len(), D, "v1_2 opening must contain exactly D coefficients");
     core::array::from_fn(|coefficient| values[coefficient])
 }
 
@@ -57,7 +57,7 @@ pub fn dec_reduction_optimized_with_digit_flags<Ff>(
     ell_d: usize,
     cache: Option<&crate::superneo_eval::SuperneoEvalCache>,
     ring_linear_forms: Option<&[crate::superneo_eval::SuperneoRingLinearForm]>,
-    precomputed_openings: Option<&[V1_1OutputOpening]>,
+    precomputed_openings: Option<&[V1_2OutputOpening]>,
 ) -> (Vec<CeClaim<Cmt, Ff, K>>, bool, bool)
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
@@ -90,7 +90,7 @@ fn dec_reduction_optimized_inner<Ff>(
     cache: Option<&crate::superneo_eval::SuperneoEvalCache>,
     digit_nonzero: Option<&[bool]>,
     ring_linear_forms: Option<&[crate::superneo_eval::SuperneoRingLinearForm]>,
-    precomputed_openings: Option<&[V1_1OutputOpening]>,
+    precomputed_openings: Option<&[V1_2OutputOpening]>,
 ) -> (Vec<CeClaim<Cmt, Ff, K>>, bool, bool)
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
@@ -111,7 +111,7 @@ where
             openings
                 .iter()
                 .all(|child| child.eval_k.len() == D && child.eval_a.len() == matrix_count),
-            "PiDEC precomputed v1_1 shape mismatch"
+            "PiDEC precomputed v1_2 shape mismatch"
         );
     }
     assert!(
@@ -229,7 +229,7 @@ fn streamed_application_rows<Ff>(
     Z_split: &[Mat<Ff>],
     digit_nonzero: Option<&[bool]>,
     ring_linear_forms: Option<&[crate::superneo_eval::SuperneoRingLinearForm]>,
-    precomputed_openings: Option<&[V1_1OutputOpening]>,
+    precomputed_openings: Option<&[V1_2OutputOpening]>,
 ) -> Vec<Vec<[K; D]>>
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
@@ -268,7 +268,7 @@ fn witness_openings<Ff>(
     point: &[K],
     cache: Option<&crate::superneo_eval::SuperneoEvalCache>,
     digit_nonzero: Option<&[bool]>,
-) -> Vec<V1_1OutputOpening>
+) -> Vec<V1_2OutputOpening>
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
     K: From<Ff>,
@@ -307,10 +307,10 @@ where
         })
         .collect();
     let evaluated = cache
-        .eval_real_v1_1_openings(point, &blocks)
+        .eval_real_v1_2_openings(point, &blocks)
         .unwrap_or_else(|error| panic!("PiDEC witness openings failed: {error}"));
     let mut rows = (0..Z_split.len())
-        .map(|_| V1_1OutputOpening {
+        .map(|_| V1_2OutputOpening {
             eval_k: vec![K::ZERO; D],
             eval_a: vec![vec![K::ZERO; D]; s.t()],
         })

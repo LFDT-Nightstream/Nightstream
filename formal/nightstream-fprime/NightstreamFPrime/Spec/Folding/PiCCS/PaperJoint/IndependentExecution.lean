@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CausalExecution
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingProbability
 
 /-!
-SuperNeo v1.1 Appendix B.2, equation (16). Fix the first execution's witness
+SuperNeo v1.2 Appendix B.2, equation (14). Fix the first execution's witness
 and one second prover's private tape. The second alpha, gamma, and round
 challenges are independent uniform K samples. Success and witness agreement
 are tested inside that unchanged distribution, including every aborted run.
@@ -144,7 +144,7 @@ theorem roundAgreementProbability_le (alpha : CubePoint K shape.cubeVariables) (
       (GoldilocksCausal.sequentialRoundRepresentable data alpha gamma width dataCovers)
       [] shape.cubeVariables (by simp)
 
-/-- B.2 equation (16), on the unconditioned second execution's verifier coins.
+/-- B.2 equation (14), on the unconditioned second execution's verifier coins.
 This bound is uniform in the prover's fixed private tape. -/
 theorem agreementProbability_le :
     agreementProbability openingMaps params statement firstWitness prover ≤ testError shape width := by

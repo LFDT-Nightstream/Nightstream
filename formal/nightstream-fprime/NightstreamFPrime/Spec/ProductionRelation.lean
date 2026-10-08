@@ -1,12 +1,12 @@
-import NightstreamFPrime.Spec.ProductionRelation.SelectivePolynomial
+import NightstreamFPrime.Spec.ProductionRelation.GatePolynomial
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier.Algebra
 
 /-!
 Owns the one production CCS polynomial for the Nightstream F-prime relation.
 
-The relation uses the Lean-owned selective low-norm compiler gate. Its 7
-matrix slots are named selective ports. SuperNeo v1.1 Pad is not a CCS matrix and remains the separate `Eval_K`
-family.
+The relation uses the Lean-owned low-norm gate `a * b - c + sboxInput ^ 7`.
+Its 4 matrix slots are the gate ports. SuperNeo Pad is not a CCS matrix and
+remains the separate `Eval_K` family.
 -/
 
 namespace NightstreamFPrime.Spec.ProductionRelation
@@ -15,32 +15,32 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 
-/-- Fixed SuperNeo v1.1 `Eval_A` arity. -/
-def matrixCount : Nat := SelectivePolynomial.matrixCount
+/-- Fixed SuperNeo v1.2 `Eval_A` arity. -/
+def matrixCount : Nat := GatePolynomial.matrixCount
 
-/-- Number of matrix slots used by the selective compiler. -/
-def meaningfulPortCount : Nat := SelectivePolynomial.meaningfulPortCount
+/-- Number of matrix slots used by the gate compiler. -/
+def meaningfulPortCount : Nat := GatePolynomial.meaningfulPortCount
 
 /-- The sole production CCS polynomial. -/
 def polynomial : ConstraintPolynomial F matrixCount :=
-  SelectivePolynomial.polynomial
+  GatePolynomial.polynomial
 
-@[simp] theorem matrixCount_eq : matrixCount = 7 := by
+@[simp] theorem matrixCount_eq : matrixCount = 4 := by
   rfl
 
-@[simp] theorem meaningfulPortCount_eq : meaningfulPortCount = 7 := by
+@[simp] theorem meaningfulPortCount_eq : meaningfulPortCount = 4 := by
   rfl
 
 @[simp] theorem polynomial_terms :
-    polynomial.terms = SelectivePolynomial.terms := by
+    polynomial.terms = GatePolynomial.terms := by
   rfl
 
-@[simp] theorem polynomial_degreeBound : polynomial.degreeBound = 9 := by
+@[simp] theorem polynomial_degreeBound : polynomial.degreeBound = 8 := by
   rfl
 
 theorem polynomial_canonicalEqualityGatedDegreeBound :
-    polynomial.canonicalEqualityGatedDegreeBound = 9 :=
-  SelectivePolynomial.polynomial_canonicalEqualityGatedDegreeBound
+    polynomial.canonicalEqualityGatedDegreeBound = 8 :=
+  GatePolynomial.polynomial_canonicalEqualityGatedDegreeBound
 
 private theorem exists_pos_of_sum_pos :
     ∀ values : List Nat, 0 < values.sum →
@@ -125,16 +125,16 @@ private theorem foldl_add_eq_zero_of_all_zero
       exact allZero current (by simp [member])
 
 /-- Canonical padding rows are valid: with every matrix image zero, the fixed
-selective polynomial has value zero. -/
+gate polynomial has value zero. -/
 theorem polynomial_zeroImages :
     evaluatePolynomial baseOps polynomial (fun _ => 0) = 0 := by
-  unfold evaluatePolynomial polynomial SelectivePolynomial.polynomial
-  change SelectivePolynomial.terms.foldl
+  unfold evaluatePolynomial polynomial GatePolynomial.polynomial
+  change GatePolynomial.terms.foldl
       (fun total monomial =>
         total + evaluateMonomial baseOps monomial (fun _ => 0)) 0 = 0
   apply foldl_add_eq_zero_of_all_zero
   intro monomial member
   exact evaluateMonomial_zero_of_totalDegree_pos monomial
-    (SelectivePolynomial.term_totalDegree_pos monomial member)
+    (GatePolynomial.term_totalDegree_pos monomial member)
 
 end NightstreamFPrime.Spec.ProductionRelation

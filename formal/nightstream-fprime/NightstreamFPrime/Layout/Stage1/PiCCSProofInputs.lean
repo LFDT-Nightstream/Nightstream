@@ -2,22 +2,22 @@ import NightstreamFPrime.Layout.Stage1.PiCCSRepresentation
 import NightstreamFPrime.Lifecycle.VerifierContext
 
 /-!
-Paper authority: SuperNeo v1_1, section 7.3, PiCCS prover messages.
+Paper authority: SuperNeo v1.2, section 7.3, PiCCS prover messages.
 Obligation: Give the concrete caller-owned PiCCS columns one typed value
 source and one canonical encoding.
 
 Inputs:
 - one fresh Ajtai commitment;
-- 28 degree-nine SumCheck coefficient vectors;
+- 28 degree-eight SumCheck coefficient vectors;
 - separate output `Eval_K` and `Eval_A` families.
 
 Outputs:
-- a 16,436-word canonical proof-input encoding;
+- a 10,872-word canonical proof-input encoding;
 - one environment that preserves the pilot prefix and loads that encoding.
 
 Parent coverage:
-- `Lifecycle.PiCCS.v1_1.Formal.evalFresh`;
-- `Lifecycle.PiCCS.v1_1.Formal.evalProof`.
+- `Lifecycle.PiCCS.v1_2.Formal.evalFresh`;
+- `Lifecycle.PiCCS.v1_2.Formal.evalProof`.
 
 This module owns external values only. It adds no constraint row and does not
 derive a verifier challenge from witness data.
@@ -29,7 +29,7 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Layout.Stage1.PiCCSInputs
 open NightstreamFPrime.Layout.Stage1.PiCCSRepresentation
@@ -37,7 +37,7 @@ open NightstreamFPrime.Layout.Stage1.PiCCSRepresentation
 /-- Exactly the prover-owned PiCCS values on the production interface. -/
 structure ProofValues where
   freshCommitment : PaperAlgebra.Commitment
-  roundCoefficient : Fin productionShape.cubeVariables → Fin (9 + 1) → K
+  roundCoefficient : Fin productionShape.cubeVariables → Fin (8 + 1) → K
   outputEval_K : Fin productionShape.sourceCount →
     Fin productionShape.coefficientCount → K
   outputEval_A : Fin productionShape.sourceCount →
@@ -47,11 +47,11 @@ structure ProofValues where
 /-- The semantic fixed polynomial carried by one round message. -/
 def roundPolynomial (values : ProofValues)
     (roundIndex : Fin productionShape.cubeVariables) :
-    NightstreamFPrime.Spec.SumCheck.Finite.FixedPolynomial K 9 where
+    NightstreamFPrime.Spec.SumCheck.Finite.FixedPolynomial K 8 where
   coefficients := List.ofFn (values.roundCoefficient roundIndex)
   coefficients_length := by simp
 
-/-- The semantic v1_1 output with Pad and CCS matrix families kept separate. -/
+/-- The semantic v1_2 output with Pad and CCS matrix families kept separate. -/
 def output (values : ProofValues) :
     FullOutputCoordinates.FullOutput K productionShape where
   padCoordinate := values.outputEval_K
@@ -65,7 +65,7 @@ def outputEvaluation (values : ProofValues)
 
 def serializeRounds (values : ProofValues) : List F :=
   (List.finRange productionShape.cubeVariables).flatMap fun roundIndex =>
-    (List.finRange (9 + 1)).flatMap fun coefficient =>
+    (List.finRange (8 + 1)).flatMap fun coefficient =>
       serializeK (values.roundCoefficient roundIndex coefficient)
 
 def serializeOutput (values : ProofValues) : List F :=
@@ -309,35 +309,35 @@ theorem evalFresh_eq
 
 private theorem serializeRound_length (values : ProofValues)
     (roundIndex : Fin productionShape.cubeVariables) :
-    ((List.finRange (9 + 1)).flatMap fun coefficient =>
+    ((List.finRange (8 + 1)).flatMap fun coefficient =>
       serializeK (values.roundCoefficient roundIndex coefficient)).length =
-        20 := by
+        18 := by
   simp
 
 private theorem serializeRounds_getD
     (values : ProofValues)
     (roundIndex : Fin productionShape.cubeVariables)
-    (coefficient : Fin (9 + 1))
+    (coefficient : Fin (8 + 1))
     (component : Fin 2) :
     (serializeRounds values).getD
-        (roundIndex.val * 20 + coefficient.val * 2 + component.val) 0 =
+        (roundIndex.val * 18 + coefficient.val * 2 + component.val) 0 =
       (serializeK
         (values.roundCoefficient roundIndex coefficient)).getD
           component.val 0 := by
   unfold serializeRounds
   have coefficientBound := coefficient.isLt
   have componentBound := component.isLt
-  have innerBound : coefficient.val * 2 + component.val < 20 := by
+  have innerBound : coefficient.val * 2 + component.val < 18 := by
     norm_num at coefficientBound componentBound
     omega
   calc
-    _ = ((List.finRange (9 + 1)).flatMap fun index =>
+    _ = ((List.finRange (8 + 1)).flatMap fun index =>
         serializeK (values.roundCoefficient roundIndex index)).getD
           (coefficient.val * 2 + component.val) 0 := by
       simpa [Nat.add_assoc] using
         (finRange_flatMap_getD
           (fun index =>
-            (List.finRange (9 + 1)).flatMap fun coefficient =>
+            (List.finRange (8 + 1)).flatMap fun coefficient =>
               serializeK (values.roundCoefficient index coefficient))
           (serializeRound_length values) roundIndex
           (coefficient.val * 2 + component.val) innerBound)
@@ -352,10 +352,10 @@ private theorem serializeRounds_getD
 private theorem serializeProofInputs_round_getD
     (values : ProofValues)
     (roundIndex : Fin productionShape.cubeVariables)
-    (coefficient : Fin (9 + 1))
+    (coefficient : Fin (8 + 1))
     (component : Fin 2) :
     (serializeProofInputs values).getD
-        (freshCommitmentWords + roundIndex.val * 20 +
+        (freshCommitmentWords + roundIndex.val * 18 +
           coefficient.val * 2 + component.val) 0 =
       (serializeK
         (values.roundCoefficient roundIndex coefficient)).getD
@@ -365,10 +365,10 @@ private theorem serializeProofInputs_round_getD
   · rw [List.getD_append_right]
     · rw [serializeCommitment_length]
       have shifted :
-          freshCommitmentWords + roundIndex.val * 20 +
+          freshCommitmentWords + roundIndex.val * 18 +
                 coefficient.val * 2 + component.val -
               productionProfile.commitmentWidth * ringDegree =
-            roundIndex.val * 20 + coefficient.val * 2 + component.val := by
+            roundIndex.val * 18 + coefficient.val * 2 + component.val := by
         norm_num [freshCommitmentWords, productionProfile, ringDegree]
         omega
       rw [shifted]
@@ -391,9 +391,9 @@ private theorem serializeProofInputs_round_getD
 
 private def roundProofWordIndex
     (roundIndex : Fin productionShape.cubeVariables)
-    (coefficient : Fin (9 + 1))
+    (coefficient : Fin (8 + 1))
     (component : Fin 2) : Fin proofInputColumnCount :=
-  ⟨freshCommitmentWords + roundIndex.val * 20 +
+  ⟨freshCommitmentWords + roundIndex.val * 18 +
       coefficient.val * 2 + component.val, by
     have roundBound := roundIndex.isLt
     have coefficientBound := coefficient.isLt
@@ -408,33 +408,33 @@ private def roundProofWordIndex
 private theorem eval_roundComponent
     (values : ExternalValues)
     (roundIndex : Fin productionShape.cubeVariables)
-    (coefficient : Fin (9 + 1))
+    (coefficient : Fin (8 + 1))
     (component : Fin 2) :
     loadExternal values
-        (roundMessageStart + roundIndex.val * 20 +
+        (roundMessageStart + roundIndex.val * 18 +
           coefficient.val * 2 + component.val) =
       (serializeK
         (values.proof.roundCoefficient roundIndex coefficient)).getD
           component.val 0 := by
   rw [show roundMessageStart = proofInputStart + freshCommitmentWords by rfl]
   rw [show proofInputStart + freshCommitmentWords +
-      roundIndex.val * 20 + coefficient.val * 2 + component.val =
+      roundIndex.val * 18 + coefficient.val * 2 + component.val =
     proofInputStart +
-      (freshCommitmentWords + roundIndex.val * 20 +
+      (freshCommitmentWords + roundIndex.val * 18 +
         coefficient.val * 2 + component.val) by omega]
-  rw [show freshCommitmentWords + roundIndex.val * 20 +
+  rw [show freshCommitmentWords + roundIndex.val * 18 +
       coefficient.val * 2 + component.val =
     (roundProofWordIndex roundIndex coefficient component).val by rfl]
   rw [eval_proofWord]
   exact serializeProofInputs_round_getD
     values.proof roundIndex coefficient component
 
-/-- One degree-nine round coefficient evaluates from the canonical round
+/-- One degree-eight round coefficient evaluates from the canonical round
 segment. -/
 theorem eval_roundCoefficient
     (values : ExternalValues)
     (roundIndex : Fin productionShape.cubeVariables)
-    (coefficient : Fin (9 + 1)) :
+    (coefficient : Fin (8 + 1)) :
     (roundCoefficient roundIndex coefficient).eval (loadExternal values) =
       values.proof.roundCoefficient roundIndex coefficient := by
   apply congrArg₂ K.mk
@@ -454,7 +454,7 @@ private theorem fixedPolynomial_ext {degree : Nat}
   simp_all
 
 /-- One symbolic round message evaluates to its constant-first semantic
-degree-nine polynomial. -/
+degree-eight polynomial. -/
 theorem eval_roundMessage
     (values : ExternalValues)
     (roundIndex : Fin productionShape.cubeVariables) :
@@ -462,7 +462,7 @@ theorem eval_roundMessage
       roundPolynomial values.proof roundIndex := by
   apply fixedPolynomial_ext
   change
-    (List.ofFn fun coefficient : Fin (9 + 1) =>
+    (List.ofFn fun coefficient : Fin (8 + 1) =>
       (roundCoefficient roundIndex coefficient).eval
         (loadExternal values)) =
       List.ofFn (values.proof.roundCoefficient roundIndex)
@@ -762,7 +762,7 @@ private theorem fullOutput_ext
   cases right
   simp_all
 
-/-- The concrete symbolic output evaluates to the exact separate v1_1 output
+/-- The concrete symbolic output evaluates to the exact separate v1_2 output
 families. -/
 theorem evalOutput_eq (values : ExternalValues) :
     ∀ {logicalWidth : Nat}
@@ -779,7 +779,7 @@ theorem evalOutput_eq (values : ExternalValues) :
     exact eval_outputEval_A values source matrix coefficient
 
 /-- Replace only the PiCCS-owned fields of the one semantic proof. -/
-def proof (values : ProofValues) (template : Proof 9) : Proof 9 where
+def proof (values : ProofValues) (template : Proof 8) : Proof 8 where
   piCcsRounds := roundPolynomial values
   piCcsOutput := output values
   piDecCommitments := template.piDecCommitments
@@ -790,7 +790,7 @@ private def relationCoefficientIndex
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (index : Fin (ProductionKey.degreeBound relation + 1)) : Fin (9 + 1) :=
+    (index : Fin (ProductionKey.degreeBound relation + 1)) : Fin (8 + 1) :=
   ⟨index.val, by
     exact index.isLt⟩
 
@@ -799,7 +799,7 @@ private def relationMessage
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (value : RoundTranscript.Message 9) :
+    (value : RoundTranscript.Message 8) :
     RoundTranscript.Message (ProductionKey.degreeBound relation) where
   coefficient := fun index =>
     value.coefficient (relationCoefficientIndex relation index)
@@ -844,7 +844,7 @@ def relationProof
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (values : ProofValues) (template : Proof 9) :
+    (values : ProofValues) (template : Proof 8) :
     Proof (ProductionKey.degreeBound relation) where
   piCcsRounds := relationRoundPolynomial relation values
   piCcsOutput := output values
@@ -892,7 +892,7 @@ private theorem evalProof_round_apply
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (values : ExternalValues) (template : Proof 9)
+    (values : ExternalValues) (template : Proof 8)
     (roundIndex : Fin productionShape.cubeVariables) :
     (Formal.evalProof relation (relationInterface relation) phaseOffset
       (loadExternal values)
@@ -906,7 +906,7 @@ private theorem evalProof_output
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (values : ExternalValues) (template : Proof 9) :
+    (values : ExternalValues) (template : Proof 8) :
     (Formal.evalProof relation (relationInterface relation) phaseOffset
       (loadExternal values)
       (relationProof relation values.proof template)).piCcsOutput =
@@ -942,7 +942,7 @@ theorem evalProof_eq
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (values : ExternalValues)
-    (template : Proof 9) :
+    (template : Proof 8) :
     Formal.evalProof relation (relationInterface relation) phaseOffset
         (loadExternal values)
         (relationProof relation values.proof template) =
@@ -1250,7 +1250,7 @@ theorem formalEvalProof_protocolEnv_eq
     (outputFixed : PilotProduction.FixedPreimage outputPreimage)
     (digestFixed : digest.length = PilotProduction.digestWords)
     (proofValues : ProofValues)
-    (template : Proof 9) :
+    (template : Proof 8) :
     Formal.evalProof relation (relationInterface relation) phaseOffset
         (protocolEnv prior priorPublic outputPreimage digest
           priorFixed outputFixed digestFixed proofValues)
@@ -1278,7 +1278,7 @@ theorem protocolInputs_eq
     (outputFixed : PilotProduction.FixedPreimage outputPreimage)
     (digestFixed : digest.length = PilotProduction.digestWords)
     (proofValues : ProofValues)
-    (template : Proof 9) :
+    (template : Proof 8) :
     Formal.evalRunning (relationInterface relation) phaseOffset
         (protocolEnv prior priorPublic outputPreimage digest
           priorFixed outputFixed digestFixed proofValues) =

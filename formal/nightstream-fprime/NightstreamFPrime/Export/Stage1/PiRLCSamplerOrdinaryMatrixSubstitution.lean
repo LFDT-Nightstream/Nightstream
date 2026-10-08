@@ -10,7 +10,7 @@ namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryMatrixSubstitution
 open NightstreamFPrime.Layout.MatrixProgram NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Lifecycle NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1 NightstreamFPrime.Spec
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2 NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open PiRLCSamplerOrdinaryRetainedBlocks PiRLCSamplerOrdinaryRetainedGeometry
 open PiRLCSamplerOrdinaryDirectPlan (Location)
@@ -232,8 +232,8 @@ private theorem frameGrid_none (grid : SourceGrid) (logicalWidth start offset : 
     rw [address] at checked
     exact checked
 
-private theorem freshSourceStart_eq : freshSourceStart = frameSourceStart + 112013 := by
-  change Spartan.sourceToSpartan (PiRLCStarts.samplerLogicalStart + 112013) = _
+private theorem freshSourceStart_eq : freshSourceStart = frameSourceStart + 106505 := by
+  change Spartan.sourceToSpartan (PiRLCStarts.samplerLogicalStart + 106505) = _
   rw [Spartan.sourceToSpartan_add_of_piCcsLocal _ _ samplerLogical_after_piCcs]
   rfl
 

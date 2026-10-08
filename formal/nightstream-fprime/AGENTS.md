@@ -6,7 +6,7 @@ contract is `/FPRIME_LEAN_ARCHITECTURE_SPEC.md`; the goal is
 
 ## Purpose and proof scope
 
-Prove SuperNeo v1.1 and its implementation links so that Lean can support
+Prove SuperNeo v1.2 and its implementation links so that Lean can support
 constraint reduction and validation of the complete Rust implementation.
 The authority path is the protocol relation, logical circuit, physical
 layout, emitted package and Rust consumer.
@@ -56,8 +56,12 @@ tests      axiom gate (explicit imports, `#audit_axioms` per theorem)
 
 ## Rules
 
-- No import from `formal/nightstream-lean`. Copy the smallest audited
-  definition and put a provenance comment (source path, commit) at the top.
+- Cite SuperNeo only by its v1.2 numbers (`docs/superneo-paper-v1_2`). The
+  byte tags that spell `v1_1` (`PiCCS/digest-only/v1_1`, `nifs-key/v1_1`,
+  `verifier-context/v1_1`, `context/v1_1`) are frozen protocol bytes; do not
+  change them.
+- `formal/nightstream-lean` was deleted. Do not restore or import it;
+  provenance comments that name it record history only.
 - No generated modules, no embedded artifact data, no `native_decide`, no
   `sorry`/`admit`/`axiom`/`unsafe`, no file at or above 1,500 lines, no glob
   in `lakefile.toml`, one profile (`b = 2`, `k_rho = 16`).
@@ -69,12 +73,17 @@ tests      axiom gate (explicit imports, `#audit_axioms` per theorem)
 - Subcircuits are opaque to parents: a parent proof that unfolds a child's
   operations is a bug. Proof cost must not grow with rows, columns, or
   schedule length.
-- Every exported theorem is listed in `tests/Axioms.lean` with
+- Every exported theorem is listed in a `tests/Axioms*.lean` file with
   `#audit_axioms`. Allowed axioms: `propext`, `Classical.choice`,
   `Quot.sound`.
 - Lean commands only through `scripts/validate.sh` (`static`, `build
-  [target]`, `axioms`, `file <path>`, `all`), each under the 1,500 s cap.
+  [target]`, `axioms`, `file <path>`, `all`, and the other phases in its
+  header), each under the 1,500 s cap. The script needs GNU `timeout` on
+  `PATH`; on macOS run `PATH=/opt/homebrew/bin:$PATH bash
+  scripts/validate.sh <phase>`.
   One Lean or Rust build process at a time per worktree.
+- After an artifact regeneration, run `python3 -B scripts/check_artifacts.py
+  --write` and commit the changed `SHA256SUMS` files with the artifacts.
 - Before each command or edit: one active acceptance criterion and its
   closing evidence. Five rounds without closure: stop and report.
 

@@ -38,14 +38,12 @@ theorem semantics_imply_accumulatorHolds
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
-    (one : assignment
-      (PiRLCSamplerOrdinaryRetainedGeometry.oneColumn geometry) = 1)
     (encodes : DirectPiRLCSamplerCompletePrefixPlan.Encodes geometry assignment
       base groupValue)
     (semantics : DirectPiRLCSamplerCompletePrefixPlan.Semantics relation
       geometry assignment base groupValue)
     (piRlcAssumptions :
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.Assumptions relation
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.Assumptions relation
         (PiRLCInputs.interface
           (logicalWidth := relationLogicalWidth)
           (publicFits := relationPublicFits))
@@ -73,10 +71,10 @@ theorem semantics_imply_accumulatorHolds
       base groupValue semantics
   have piRlcPhase :=
     DirectPiRLCSamplerCompletePhaseSemantics.semantics_imply_piRlcPhaseHolds
-      relation ajtai geometry assignment base groupValue one encodes
+      relation ajtai geometry assignment base groupValue encodes
       semantics piRlcAssumptions
   have piDecAssumptions :
-      Lifecycle.PiDEC.v1_1.Formal.Assumptions relation
+      Lifecycle.PiDEC.v1_2.Formal.Assumptions relation
         (PiDECArithmetic.phaseInterface relationLogicalWidth
           relationPublicFits)
         PiDECInputs.phaseOffset commonEnv := by

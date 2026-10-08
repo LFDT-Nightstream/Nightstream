@@ -4,7 +4,10 @@ import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongInterface
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongExtraction
 
 /-!
-Definition 17 for the selected NIFS PiCCS prefix. Every statement, opening
+Strong extraction for the selected NIFS PiCCS prefix with the square-root
+success loss. This is not the SuperNeo v1.2 Definition 18 loss: v1.2
+Appendix B.2 replaces the square root with the retry bound
+`StrongProbability.source_success_ge_retry`. Every statement, opening
 map, field law, and degree comes from ProductionKey. The probability-only
 entry supports a mathematical suffix coupling. The costed entry charges an
 actual one-call implementation; it does not charge sampling a coupling table.
@@ -39,7 +42,7 @@ noncomputable def statement (context : Context) :
 
 variable (contexts : PMF Context) (tapes : Context → PMF Tape)
   (prover : Context → Tape → CausalExecution.Prover productionShape
-    (Phi81CarrierLayout.carrierWidth logicalWidth) 9)
+    (Phi81CarrierLayout.carrierWidth logicalWidth) 8)
 
 /-- Probability-only form for the actual composed causal prover. A coupling
 law is permitted here, with no assertion that its whole table is executed. -/
@@ -49,7 +52,7 @@ theorem source_success_ge :
         (statement relation ajtai running fresh) -
       Real.sqrt (StrongProbability.globalDisagreementProbability contexts tapes prover
         (fun context => PaperAlgebra.openingMaps (ajtai context)) productionGlobalParams
-        (statement relation ajtai running fresh) + IndependentExecution.testError productionShape 9) ≤
+        (statement relation ajtai running fresh) + IndependentExecution.testError productionShape 8) ≤
       StrongProbability.globalSourceProbability contexts tapes prover
         (fun context => PaperAlgebra.openingMaps (ajtai context)) productionGlobalParams
         (statement relation ajtai running fresh) := by
@@ -63,7 +66,7 @@ theorem source_success_ge :
 variable (call : Context → OneRunExtraction.Call Tape productionShape (FullShape logicalWidth publicFits))
   (program : Context → CheckedWitnessExtraction.Program productionShape (FullShape logicalWidth publicFits))
   (callCorrect : ∀ context, OneRunExtraction.CallCorrect (call context) (prover context))
-  (correct : ∀ context, CheckedWitnessExtraction.Correct (width := 9) (program context)
+  (correct : ∀ context, CheckedWitnessExtraction.Correct (width := 8) (program context)
     (PaperAlgebra.openingMaps (ajtai context)).commit productionGlobalParams
     (statement relation ajtai running fresh context))
 
@@ -82,7 +85,7 @@ theorem successProbability_eq :
     (statement relation ajtai running fresh) callCorrect correct
 
 include callCorrect correct in
-/-- The selected strong extractor has the paper loss and expected polynomial
+/-- The selected strong extractor has the square-root loss and expected polynomial
 work under the actual global call/check and access implementation premises. -/
 theorem probability_and_expected_work
     (accessBound : Nat)
@@ -100,7 +103,7 @@ theorem probability_and_expected_work
         (statement relation ajtai running fresh) -
       Real.sqrt (StrongProbability.globalDisagreementProbability contexts tapes prover
         (fun context => PaperAlgebra.openingMaps (ajtai context)) productionGlobalParams
-        (statement relation ajtai running fresh) + IndependentExecution.testError productionShape 9) ≤
+        (statement relation ajtai running fresh) + IndependentExecution.testError productionShape 8) ≤
       _root_.NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongExtraction.successProbability contexts tapes call program
         (fun context => (PaperAlgebra.openingMaps (ajtai context)).commit) productionGlobalParams
         (statement relation ajtai running fresh)) ∧

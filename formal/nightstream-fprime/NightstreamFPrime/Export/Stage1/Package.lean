@@ -3,9 +3,9 @@ import NightstreamFPrime.Export.Stage1.Data
 import NightstreamFPrime.Export.Stage1.PiCCSInvocationSchedule
 import NightstreamFPrime.Export.Stage1.PiRLCCombinationCounts
 import NightstreamFPrime.Export.Stage1.PiRLCCombinationConformance
-import NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions
-import NightstreamFPrime.Layout.PiDEC.v1_1.Preservation
-import NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics
+import NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions
+import NightstreamFPrime.Layout.PiDEC.v1_2.Preservation
+import NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics
 import NightstreamFPrime.Lifecycle.VerifierContext
 
 /-!
@@ -25,7 +25,7 @@ open NightstreamFPrime.Gadgets.Poseidon2
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.HyperNova.Construction2.Paper
@@ -171,29 +171,29 @@ theorem circuitPackage_hash_chains :
   rfl
 
 theorem circuitPackage_permutation_invocations :
-    (Data.circuitPackage ()).permutationInvocations.length = 1614 := by
+    (Data.circuitPackage ()).permutationInvocations.length = 1155 := by
   rw [Data.circuitPackage_permutationInvocations,
     Data.components_permutationInvocations,
     Data.permutationInvocations_eq, List.length_append,
     PiCCSInvocations.invocations_length Data.logicalWidth Data.publicFits,
     PiRLCSamplerInvocations.invocations_length]
 
-theorem proofInputStart_eq : Data.proofInputStart = 74594 := by
+theorem proofInputStart_eq : Data.proofInputStart = 64226 := by
   rfl
 
-theorem witnessStart_eq : Data.witnessStart = 91030 := by
+theorem witnessStart_eq : Data.witnessStart = 75098 := by
   rfl
 
-theorem witnessLength_eq : Data.witnessLength = 14632994 := by
+theorem witnessLength_eq : Data.witnessLength = 12335600 := by
   rfl
 
 theorem circuitPackage_layout_values :
     let layout := (Data.circuitPackage ()).layout
-    layout.rowCount = 14654885 ∧
-      layout.privateColumnCount = 14761448 ∧
-      layout.constantColumn = 14761448 ∧
+    layout.rowCount = 12351983 ∧
+      layout.privateColumnCount = 12442938 ∧
+      layout.constantColumn = 12442938 ∧
       layout.publicColumnCount = 278 ∧
-      layout.totalColumnCount = 14761727 := by
+      layout.totalColumnCount = 12443217 := by
   rw [Data.circuitPackage_layout]
   dsimp [Data.physicalLayout]
   exact ⟨rfl, rfl, rfl, rfl, rfl⟩
@@ -210,11 +210,11 @@ theorem arithmetic_partition
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits) :
     (Rows.witnessInstructions (Data.arithmeticRows ())).length +
-      (Rows.assertionRows (Data.arithmeticRows ())).length = 107561 := by
+      (Rows.assertionRows (Data.arithmeticRows ())).length = 86375 := by
   calc
     _ = (Data.arithmeticRows ()).length :=
       Rows.witnessInstructions_length_add_assertionRows_length _
-    _ = 107561 := by
+    _ = 86375 := by
       rw [Data.arithmeticRows_eq, List.length_append, List.length_append,
         List.length_append,
         PiCCSArithmetic.arithmeticRows_length Data.logicalWidth
@@ -229,7 +229,7 @@ theorem circuitPackage_ordinary_rows
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits) :
     (Data.components ()).toCircuitPackage.witnessInstructions.length +
-      (Data.components ()).toCircuitPackage.assertionRows.length = 108247 := by
+      (Data.components ()).toCircuitPackage.assertionRows.length = 87061 := by
   calc
     _ = (PilotData.circuitPackage ()).witnessInstructions.length +
         (PilotData.circuitPackage ()).assertionRows.length +
@@ -238,7 +238,7 @@ theorem circuitPackage_ordinary_rows
     _ = 686 + (Data.arithmeticRows ()).length := by
       rw [NightstreamFPrime.Export.Pilot.ordinaryRows_length,
         Data.components_arithmeticRows]
-    _ = 686 + 107561 := by
+    _ = 686 + 86375 := by
       rw [Data.arithmeticRows_eq, List.length_append, List.length_append,
         List.length_append,
         PiCCSArithmetic.arithmeticRows_length Data.logicalWidth
@@ -248,7 +248,7 @@ theorem circuitPackage_ordinary_rows
         PiDECArithmetic.canonicalPlan_rowCount relation,
         RunningTransitionArithmetic.Plan.rows_length,
         RunningTransitionArithmetic.canonicalPlan_rowCount relation]
-    _ = 108247 := by norm_num
+    _ = 87061 := by norm_num
 
 /-- Construct all 7,604 PiCCS Poseidon2 invocations in their proved private
 intervals. Sampler invocations have a separate package completion owner. -/
@@ -436,11 +436,11 @@ theorem circuitPackage_implies_piDecPhaseHolds
     (env : Env)
     (holds : (Data.circuitPackage ()).RowsHold env)
     (assumptions :
-      NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal.Assumptions relation
+      NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.Assumptions relation
         (PiDECArithmetic.phaseInterface Data.logicalWidth Data.publicFits)
         NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset
         (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)) :
-    NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.PhaseHolds
+    NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.PhaseHolds
       relation ajtai
       (PiDECArithmetic.phaseInterface Data.logicalWidth Data.publicFits)
       NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset
@@ -454,7 +454,7 @@ theorem circuitPackage_implies_piDecPhaseHolds
   have physical :=
     (NightstreamFPrime.Layout.Stage1.Spartan.remapRows_hold env _).mp
       packageRows
-  exact NightstreamFPrime.Layout.PiDEC.v1_1.physical_implies_phaseHolds
+  exact NightstreamFPrime.Layout.PiDEC.v1_2.physical_implies_phaseHolds
     relation ajtai
     (PiDECArithmetic.phaseInterface Data.logicalWidth Data.publicFits)
     NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset
@@ -621,7 +621,7 @@ theorem circuitPackage_piRlcCombinationTemplateSelection :
 
 theorem piRlcCombination_compactRowCount :
     compactRowCountFor PiRLCCombinationTemplates.templates
-      PiRLCCombinationInvocations.invocations = 5960574 := by
+      PiRLCCombinationInvocations.invocations = 5128866 := by
   exact PiRLCCombinationInvocations.invocationsCompactRowCountFor
     PiRLCCombinationTemplates.templates
     piRlcPackageTemplates_selectCombination
@@ -679,7 +679,7 @@ structure PiRLCCombinationRowsHold (env : Env) : Prop where
   eval_A : PiRLCCombinationConformance.FamilyInvocationRowsHold
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.evalALogicalStart
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.evalARowStart
-    NightstreamFPrime.Layout.Stage1.PiRLCStarts.evalAFreshStart 7 2 2
+    NightstreamFPrime.Layout.Stage1.PiRLCStarts.evalAFreshStart 4 2 2
     PiRLCCombinationInvocations.evalAValueSourceStart env
 
 /-- Canonical package satisfaction supplies all four exact combination-row
@@ -1067,13 +1067,13 @@ theorem circuitPackage_implies_piCcsSpecHolds
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
     (env : Env)
     (holds : (Data.circuitPackage ()).RowsHold env) :
-    NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.SpecHolds relation
+    NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.SpecHolds relation
       (PiCCSInvocations.parentInterface Data.logicalWidth Data.publicFits)
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset
       (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
   let parent := PiCCSInvocations.parentInterface Data.logicalWidth Data.publicFits
   have assumptions :=
-    NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions.production relation parent
+    NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions.production relation parent
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.externalInputsLinear
         Data.logicalWidth Data.publicFits)
@@ -1131,13 +1131,13 @@ theorem circuitPackage_implies_selectedVerifierContext
     (holds : (Data.circuitPackage ()).RowsHold env) :
     (∀ lane : Fin 4,
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.priorStateWord
-        (NightstreamFPrime.Lifecycle.PiCCS.v1_1.StateBinding.contextWordStart +
+        (NightstreamFPrime.Lifecycle.PiCCS.v1_2.StateBinding.contextWordStart +
           lane.val)).eval
           (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) =
         (VerifierContext.digest authority).getD lane.val 0) ∧
     (∀ lane : Fin 4,
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.outputStateWord
-        (NightstreamFPrime.Lifecycle.PiCCS.v1_1.StateBinding.contextWordStart +
+        (NightstreamFPrime.Lifecycle.PiCCS.v1_2.StateBinding.contextWordStart +
           lane.val)).eval
           (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) =
         (VerifierContext.digest authority).getD lane.val 0) := by
@@ -1147,7 +1147,7 @@ theorem circuitPackage_implies_selectedVerifierContext
     have context := specification.statementBinding.state.priorContext lane
     change
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.priorStateWord
-        (NightstreamFPrime.Lifecycle.PiCCS.v1_1.StateBinding.contextWordStart +
+        (NightstreamFPrime.Lifecycle.PiCCS.v1_2.StateBinding.contextWordStart +
           lane.val)).eval
           (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) =
         (NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContext lane).eval
@@ -1162,7 +1162,7 @@ theorem circuitPackage_implies_selectedVerifierContext
     have context := specification.statementBinding.state.outputContext lane
     change
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.outputStateWord
-        (NightstreamFPrime.Lifecycle.PiCCS.v1_1.StateBinding.contextWordStart +
+        (NightstreamFPrime.Lifecycle.PiCCS.v1_2.StateBinding.contextWordStart +
           lane.val)).eval
           (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) =
         (NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContext lane).eval
@@ -1174,7 +1174,7 @@ theorem circuitPackage_implies_selectedVerifierContext
     rw [NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_expectedContext]
     exact selected lane
 
-/-- Authoritative emitted-package soundness edge for the exact SuperNeo v1_1
+/-- Authoritative emitted-package soundness edge for the exact SuperNeo v1.2
 PiCCS phase. -/
 theorem circuitPackage_implies_piCcsPhaseHolds
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
@@ -1183,18 +1183,18 @@ theorem circuitPackage_implies_piCcsPhaseHolds
     (template : Proof (ProductionKey.degreeBound relation))
     (env : Env)
     (holds : (Data.circuitPackage ()).RowsHold env) :
-    NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.PhaseHolds relation ajtai
+    NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.PhaseHolds relation ajtai
       (PiCCSInvocations.parentInterface Data.logicalWidth Data.publicFits)
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset
       (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) template := by
-  apply NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.spec_implies_phaseHolds
+  apply NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.spec_implies_phaseHolds
     relation ajtai
   exact circuitPackage_implies_piCcsSpecHolds relation env holds
 
 private theorem hashChain_rows :
     Data.priorChain.witnessLength + Data.outputChain.witnessLength =
-      6817120 := by
-  change 2 * NightstreamFPrime.Layout.PilotValues.hashWitnessCount = 6817120
+      5870176 := by
+  change 2 * NightstreamFPrime.Layout.PilotValues.hashWitnessCount = 5870176
   norm_num [NightstreamFPrime.Layout.PilotValues.hashWitnessCount,
     NightstreamFPrime.Layout.PilotValues.absorbCount,
     NightstreamFPrime.Layout.PilotValues.stateHashWords,
@@ -1204,7 +1204,7 @@ private theorem hashChain_rows :
     Spec.Poseidon2.rate]
 
 theorem circuitPackage_compactRowCount :
-    (Data.components ()).toCircuitPackage.compactRowCount = 5960574 := by
+    (Data.components ()).toCircuitPackage.compactRowCount = 5128866 := by
   unfold CircuitPackage.compactRowCount
   rw [Data.Components.toCircuitPackage_compactRowTemplates,
     Data.Components.toCircuitPackage_compactRowInvocations,

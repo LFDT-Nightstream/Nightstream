@@ -59,10 +59,10 @@ theorem physicalEndpoint_column (family : Fin familyCount) (lane : Fin laneCount
     unfold sourceStart
     split
     · rw [PiCCSInputs.phaseOffset_eq]
-      change 6908836 ≤ 6908836 + index.val * 1096
+      change 5945960 ≤ 5945960 + index.val * 1096
       omega
     · rw [PiCCSInvocations.outputWitnessStart, PiCCSStarts.outputBindingWitnessStart_eq]
-      change 6908836 ≤ 7343185 + (index.val - 355) * 1096
+      change 5945960 ≤ 6364631 + (index.val - 355) * 1096
       omega
   have endpointEq : sourceStart + 1080 + lane.val = endpointColumn family lane := by
     unfold sourceStart index endpointInvocation endpointColumn endpointStart
@@ -90,7 +90,7 @@ theorem endpointValue_of_completed
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (target : Env)
     (suffix : Fin (PerApplicationPackage.addedPrivateColumnCount application) → F)
-    (physical : NightstreamFPrime.Layout.PiCCS.v1_1.PhysicalHolds relation
+    (physical : NightstreamFPrime.Layout.PiCCS.v1_2.PhysicalHolds relation
       (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset (Spartan.pullback target))
     (family : Fin familyCount) (lane : Fin laneCount) :
     let raw := canonicalRawValues application (PerApplicationSourceAssignment.ofCompleted application target suffix)
@@ -110,14 +110,13 @@ theorem rowsZero_of_completed
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (target : Env)
     (suffix : Fin (PerApplicationPackage.addedPrivateColumnCount application) → F)
-    (physical : NightstreamFPrime.Layout.PiCCS.v1_1.PhysicalHolds relation
+    (physical : NightstreamFPrime.Layout.PiCCS.v1_2.PhysicalHolds relation
       (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset (Spartan.pullback target)) :
     let raw := canonicalRawValues application (PerApplicationSourceAssignment.ofCompleted application target suffix)
     (PiCCSTranscriptEndpointPlan.plan (PerApplicationCanonicalEncodes.poseidonGeometry application)
       (PerApplicationCanonicalEncodes.piCcsOrdinaryGeometry application)).RowsZero raw.assignment := by
   intro raw
-  apply (PiCCSTranscriptEndpointPlan.rowsZero_iff _ _ raw.assignment
-    (PerApplicationCanonicalAssignment.assignment_one raw)).mpr
+  apply (PiCCSTranscriptEndpointPlan.rowsZero_iff _ _ raw.assignment).mpr
   intro rowIndex
   let selected := descriptor rowIndex
   have direct := endpointValue_of_completed application relation target suffix physical selected.1 selected.2

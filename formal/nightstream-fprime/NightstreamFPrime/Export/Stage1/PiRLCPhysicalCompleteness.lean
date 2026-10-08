@@ -1,5 +1,5 @@
 import NightstreamFPrime.Export.Stage1.Package
-import NightstreamFPrime.Layout.PiRLC.v1_1.Preservation
+import NightstreamFPrime.Layout.PiRLC.v1_2.Preservation
 
 /-!
 Owns the constructive bridge from the semantic PiRLC phase to its exact
@@ -23,13 +23,13 @@ theorem completePhysicalRows
       (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
     (env : Env)
     (assumptions :
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.Assumptions relation
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.Assumptions relation
         (NightstreamFPrime.Layout.Stage1.PiRLCInputs.interface
           (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
         NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
         (NightstreamFPrime.Layout.Stage1.Spartan.pullback env))
     (phase :
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.PhaseHolds relation ajtai
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.PhaseHolds relation ajtai
         (NightstreamFPrime.Layout.Stage1.PiRLCInputs.interface
           (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
         NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
@@ -38,15 +38,15 @@ theorem completePhysicalRows
       AgreesOutside env completed
           (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
             NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset)
-          6035561 ∧
+          5203853 ∧
         R1CS.RowsHold completed
           (NightstreamFPrime.Layout.Stage1.Spartan.remapRows
-            (NightstreamFPrime.Layout.PiRLC.v1_1.physicalRows relation
+            (NightstreamFPrime.Layout.PiRLC.v1_2.physicalRows relation
               (NightstreamFPrime.Layout.Stage1.PiRLCInputs.interface
                 (logicalWidth := Data.logicalWidth)
                 (publicFits := Data.publicFits))
               NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset)) := by
-  rcases NightstreamFPrime.Layout.PiRLC.v1_1.physical_complete_production
+  rcases NightstreamFPrime.Layout.PiRLC.v1_2.physical_complete_production
       relation ajtai
       (NightstreamFPrime.Layout.Stage1.PiRLCInputs.interface
         (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
@@ -57,11 +57,11 @@ theorem completePhysicalRows
     ⟨source, sourceAgrees, sourceRows⟩
   let completed :=
     NightstreamFPrime.Layout.Stage1.Spartan.copyMappedInterval env source
-      NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset 6035561
+      NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset 5203853
   refine ⟨completed,
     NightstreamFPrime.Layout.Stage1.Spartan.copyMappedInterval_agreesOutside
       env source NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
-        6035561,
+        5203853,
     ?_⟩
   apply NightstreamFPrime.Layout.Stage1.Spartan.remapRows_hold_copyMappedInterval
   · norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset,

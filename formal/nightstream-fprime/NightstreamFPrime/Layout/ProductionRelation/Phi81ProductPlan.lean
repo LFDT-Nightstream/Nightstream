@@ -1,4 +1,4 @@
-import NightstreamFPrime.Layout.ProductionRelation.ProductSumPlan
+import NightstreamFPrime.Layout.ProductionRelation.OrdinaryRow
 import NightstreamFPrime.Spec.Phi81Relation.QuotientProduct
 
 /-!
@@ -22,10 +22,25 @@ def evalState {logicalWidth : Nat} (assignment : Assignment F logicalWidth)
     (state : State logicalWidth) : RingF :=
   fun lane => (state lane).eval assignment
 
+/-- Right-nested sum of sparse forms. -/
+def sumForms {logicalWidth : Nat} :
+    List (SparseForm logicalWidth) → SparseForm logicalWidth
+  | [] => .empty
+  | form :: rest => SparseForm.add form (sumForms rest)
+
+@[simp] theorem sumForms_eval {logicalWidth : Nat}
+    (assignment : Assignment F logicalWidth) :
+    ∀ forms : List (SparseForm logicalWidth),
+      (sumForms forms).eval assignment =
+        (forms.map fun form => form.eval assignment).sum
+  | [] => by simp [sumForms]
+  | form :: rest => by
+      simp [sumForms, sumForms_eval assignment rest]
+
 /-- Sparse polynomial evaluation, without additional witness coordinates. -/
 def evaluateForm {logicalWidth : Nat} (state : State logicalWidth) (point : F) :
     SparseForm logicalWidth :=
-  ProductSumPlan.sumForms (List.ofFn fun lane : Fin ringDegree =>
+  sumForms (List.ofFn fun lane : Fin ringDegree =>
     SparseForm.scale (point ^ lane.val) (state lane))
 
 theorem evaluateForm_eval {logicalWidth : Nat}
@@ -33,13 +48,12 @@ theorem evaluateForm_eval {logicalWidth : Nat}
     (assignment : Assignment F logicalWidth) :
     (evaluateForm state point).eval assignment =
       Phi81Relation.QuotientProduct.evaluate (evalState assignment state) point := by
-  simp only [evaluateForm, ProductSumPlan.sumForms_eval, List.map_ofFn,
+  simp only [evaluateForm, sumForms_eval, List.map_ofFn,
     Function.comp_def, SparseForm.scale_eval,
     Phi81Relation.QuotientProduct.evaluate, evalState, mul_comm]
 
 /-- Forms for one complete ring product and its running sum. -/
 structure Interface (logicalWidth : Nat) where
-  oneColumn : Fin logicalWidth
   left : State logicalWidth
   right : State logicalWidth
   quotient : State logicalWidth
@@ -54,22 +68,16 @@ def outputForm {logicalWidth : Nat} (interface : Interface logicalWidth)
     (SparseForm.scale (Phi81Relation.QuotientProduct.modulusValue point)
       (evaluateForm interface.quotient point))
 
-def productRow {logicalWidth : Nat} (interface : Interface logicalWidth)
-    (row : Fin 108) : ProductSumRow.Forms logicalWidth :=
-  let point := Phi81Relation.QuotientProduct.node row
-  { selector := SparseForm.singleton interface.oneColumn 1
-    left := fun lane => if lane.val = 0 then evaluateForm interface.left point
-      else .empty
-    right := fun lane => if lane.val = 0 then evaluateForm interface.right point
-      else .empty
-    output := outputForm interface point }
-
+/-- One rank-one row `left(point) * right(point) = output(point)`. -/
 def rowAt {logicalWidth : Nat} (interface : Interface logicalWidth)
-    (row : Fin 108) : ProductSumPlan.Row logicalWidth :=
-  .product (productRow interface row)
+    (row : Fin 108) : OrdinaryRow.Forms logicalWidth :=
+  let point := Phi81Relation.QuotientProduct.node row
+  { a := evaluateForm interface.left point
+    b := evaluateForm interface.right point
+    c := outputForm interface point }
 
 def rows {logicalWidth : Nat} (interface : Interface logicalWidth) :
-    List (ProductSumPlan.Row logicalWidth) :=
+    List (OrdinaryRow.Forms logicalWidth) :=
   List.ofFn (rowAt interface)
 
 @[simp] theorem rows_length {logicalWidth : Nat}
@@ -101,8 +109,7 @@ def RowsZero {logicalWidth : Nat} (interface : Interface logicalWidth)
   ∀ row : Fin 108, (rowAt interface row).residual assignment = 0
 
 theorem row_zero_iff {logicalWidth : Nat} (interface : Interface logicalWidth)
-    (assignment : Assignment F logicalWidth)
-    (one : assignment interface.oneColumn = 1) (row : Fin 108) :
+    (assignment : Assignment F logicalWidth) (row : Fin 108) :
     (rowAt interface row).residual assignment = 0 ↔
       Equation interface assignment row := by
   let point := Phi81Relation.QuotientProduct.node row
@@ -118,26 +125,22 @@ theorem row_zero_iff {logicalWidth : Nat} (interface : Interface logicalWidth)
           Phi81Relation.QuotientProduct.modulusValue point *
             Phi81Relation.QuotientProduct.evaluate
               (evalState assignment interface.quotient) point) := by
-    change (productRow interface row).residual assignment = _
-    rw [ProductSumRow.Forms.residual_eq]
-    simp [productRow, Spec.ProductionRelation.RowSemantics.productTotal, outputForm,
-      evaluateForm_eval, one, point, sub_eq_add_neg]
+    rw [OrdinaryRow.Forms.residual_eq]
+    simp [rowAt, outputForm, evaluateForm_eval, point, sub_eq_add_neg]
   rw [residual]
   exact Lean.Grind.AddCommGroup.sub_eq_zero_iff
 
 theorem rowsZero_iff_equations {logicalWidth : Nat}
     (interface : Interface logicalWidth)
-    (assignment : Assignment F logicalWidth)
-    (one : assignment interface.oneColumn = 1) :
+    (assignment : Assignment F logicalWidth) :
     RowsZero interface assignment ↔ Equations interface assignment := by
   unfold RowsZero Equations
-  exact forall_congr' (fun row => row_zero_iff interface assignment one row)
+  exact forall_congr' (fun row => row_zero_iff interface assignment row)
 
 /-- All fixed-point equations force the unchanged Phi81 multiplication. -/
 theorem rowsZero_implies_ringProduct {logicalWidth : Nat}
     (interface : Interface logicalWidth)
     (assignment : Assignment F logicalWidth)
-    (one : assignment interface.oneColumn = 1)
     (rowsZero : RowsZero interface assignment) :
     evalState assignment interface.output =
       ringFAdd (evalState assignment interface.prior)
@@ -147,6 +150,6 @@ theorem rowsZero_implies_ringProduct {logicalWidth : Nat}
     (evalState assignment interface.left) (evalState assignment interface.right)
     (evalState assignment interface.prior) (evalState assignment interface.output)
     (evalState assignment interface.quotient)
-    ((rowsZero_iff_equations interface assignment one).mp rowsZero)
+    ((rowsZero_iff_equations interface assignment).mp rowsZero)
 
 end NightstreamFPrime.Layout.ProductionRelation.Phi81ProductPlan

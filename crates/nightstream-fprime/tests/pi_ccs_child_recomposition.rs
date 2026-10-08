@@ -20,7 +20,7 @@ use opening::{Extension, Ring, DEGREE};
 use reference::Field;
 
 const CHILDREN: usize = 16;
-const MATRICES: usize = 7;
+const MATRICES: usize = 4;
 
 #[derive(Deserialize)]
 struct Inputs {
@@ -106,7 +106,7 @@ fn all_child_evaluations_recompose_to_the_preceding_pi_ccs_output() {
         assert_eq!(
             phase[13][source]
                 .as_array()
-                .expect("7 matrix families")
+                .expect("4 matrix families")
                 .len(),
             MATRICES
         );

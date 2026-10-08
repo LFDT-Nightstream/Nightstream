@@ -13,14 +13,14 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use super::super::{
-    checked_end, compact, scheduled_assignments, v1_1, LoadedPackage, ScheduledAssignment, ScheduledInvocation,
+    checked_end, compact, scheduled_assignments, v1_2, LoadedPackage, ScheduledAssignment, ScheduledInvocation,
 };
 use crate::sparse::eval_sparse_combination;
 use crate::witness::execute_witness_batch;
 use crate::{
     load_per_application_package, load_poseidon2_hash_chain_v1_package, LoadedPerApplicationPackage, PackageError,
-    PiCcsV1_1OutputEvaluations, PiCcsV1_1PackageInputs, Stage1VerifierBinding, WitnessAssignment,
-    PI_CCS_V1_1_ROUND_COUNT, PI_CCS_V1_1_STATE_PREIMAGE_WORDS as STATE_PREIMAGE_WORDS,
+    PiCcsV1_2OutputEvaluations, PiCcsV1_2PackageInputs, Stage1VerifierBinding, WitnessAssignment,
+    PI_CCS_V1_2_ROUND_COUNT, PI_CCS_V1_2_STATE_PREIMAGE_WORDS as STATE_PREIMAGE_WORDS,
 };
 
 #[allow(dead_code, unused_imports)]
@@ -33,7 +33,7 @@ pub(super) mod logical_reference;
 #[path = "../support/pi_ccs_parent.rs"]
 mod pi_ccs_parent;
 
-const PI_CCS_CALLER_INPUT_COUNT: usize = 91_030;
+const PI_CCS_CALLER_INPUT_COUNT: usize = 75_098;
 const PI_CCS_ROW_START: usize = 14_623_730;
 const PI_CCS_ROW_END: usize = 19_936_967;
 // Stage1.sourceToSpartan maps the source boundary 20_064_823 here.
@@ -119,7 +119,7 @@ fn extension_values(value: &Value) -> Vec<[u64; 2]> {
         .collect()
 }
 
-fn pi_ccs_inputs(bytes: &[u8], binding: &Stage1VerifierBinding) -> PiCcsV1_1PackageInputs {
+fn pi_ccs_inputs(bytes: &[u8], binding: &Stage1VerifierBinding) -> PiCcsV1_2PackageInputs {
     let parity: Value = serde_json::from_slice(bytes).expect("current PiCCS parity JSON");
     let parity = parity.as_array().expect("current PiCCS parity tuple");
     assert_eq!(parity.len(), 3, "current PiCCS parity tuple length");
@@ -164,9 +164,9 @@ fn pi_ccs_inputs(bytes: &[u8], binding: &Stage1VerifierBinding) -> PiCcsV1_1Pack
                 .collect()
         })
         .collect();
-    let output_evaluations = PiCcsV1_1OutputEvaluations::new(eval_k, eval_a).expect("current PiCCS output evaluations");
+    let output_evaluations = PiCcsV1_2OutputEvaluations::new(eval_k, eval_a).expect("current PiCCS output evaluations");
 
-    PiCcsV1_1PackageInputs::new(
+    PiCcsV1_2PackageInputs::new(
         canonical_words(&input[0]),
         canonical_words(&input[1]),
         canonical_words(&input[5]),
@@ -298,7 +298,7 @@ fn seed_assignment(
     let mut assignment = vec![Goldilocks::ZERO; circuit.layout.total_column_count];
     let mut input_cursor = 0;
     for segment in &circuit.layout.private_segments {
-        if v1_1::is_witness_role(segment.role) {
+        if v1_2::is_witness_role(segment.role) {
             continue;
         }
         let input_end = checked_end(input_cursor, segment.length)?;
@@ -330,9 +330,9 @@ fn seed_assignment(
 
 fn execute_pi_ccs_prefix(
     package: &LoadedPerApplicationPackage,
-    inputs: &PiCcsV1_1PackageInputs,
+    inputs: &PiCcsV1_2PackageInputs,
 ) -> Result<RawPrefixAssignment, PackageError> {
-    let encoded = package.encode_pi_ccs_v1_1_inputs(inputs)?;
+    let encoded = package.encode_pi_ccs_v1_2_inputs(inputs)?;
     execute_prefix(
         &package.circuit,
         encoded.private_values(),
@@ -359,7 +359,7 @@ pub(super) fn execute_pilot_prefix(
         private_values,
         public_values,
         PrefixBoundary {
-            caller_input_count: 74_594,
+            caller_input_count: 64_226,
             row_end: PI_CCS_ROW_START,
             private_end: PI_CCS_FIRST_GENERATED_COLUMN,
             next_phase: 3,
@@ -500,7 +500,7 @@ fn external_positive_pi_ccs_prefix() {
         "fresh public projection of the checked base opening"
     );
     let base_private = canonical_words(&base[2]);
-    let state_words = crate::PI_CCS_V1_1_STATE_PREIMAGE_WORDS;
+    let state_words = crate::PI_CCS_V1_2_STATE_PREIMAGE_WORDS;
     let output = base_private[state_words..2 * state_words].to_vec();
     // The prior hash must bind exactly the running statement checked by
     // PiCCS. The output hash retains the base output for this prefix test;
@@ -531,12 +531,12 @@ fn external_positive_pi_ccs_prefix() {
                 .collect()
         })
         .collect();
-    let inputs = PiCcsV1_1PackageInputs::new(
+    let inputs = PiCcsV1_2PackageInputs::new(
         prior,
         output,
         canonical_words(&input[1]),
         rounds,
-        PiCcsV1_1OutputEvaluations::new(eval_k, eval_a).expect("complete positive output families"),
+        PiCcsV1_2OutputEvaluations::new(eval_k, eval_a).expect("complete positive output families"),
         canonical_words(&input[2]),
         canonical_words(&base[4][1])
             .try_into()
@@ -553,7 +553,7 @@ fn check_pi_ccs_prefix(
     package: LoadedPerApplicationPackage,
     sealed_bytes: Vec<u8>,
     ownership_bytes: Vec<u8>,
-    inputs: PiCcsV1_1PackageInputs,
+    inputs: PiCcsV1_2PackageInputs,
     started: Instant,
 ) {
     println!("PiCCS prefix package and input decode: {:?}", started.elapsed());

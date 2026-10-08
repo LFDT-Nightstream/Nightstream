@@ -13,7 +13,7 @@ namespace NightstreamFPrime.Layout.Stage1.Spartan
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
@@ -49,7 +49,7 @@ theorem sourceColumnCount_matches
 
 theorem sourceRowCount_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (sourceRows relation).length = 14654885 := by
+    (sourceRows relation).length = 12351983 := by
   exact PilotPiCCSPiRLCPiDECRunningTransition.physicalRowCount_eq relation
 
 theorem sourceRowCount_bounds

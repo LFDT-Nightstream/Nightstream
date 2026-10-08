@@ -71,7 +71,7 @@ pub use rlc::{
     rlc_combine_claims, rlc_mix_witnesses, rlc_reduction_optimized, rlc_reduction_optimized_with_commit_mix,
     rlc_reduction_optimized_with_mixers,
 };
-// The normal optimized interface implements SuperNeo v1.1 PiCCS.
+// The normal optimized interface implements SuperNeo v1.2 PiCCS.
 pub use prove::optimized_prove as pi_ccs_prove;
 pub use prove::optimized_prove_with_cache;
 pub use prove::optimized_prove_with_cache_and_perf;

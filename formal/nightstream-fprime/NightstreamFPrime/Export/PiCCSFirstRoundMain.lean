@@ -154,7 +154,7 @@ private def replay (publicPath sourcePath outputPath : System.FilePath)
     PiDECCanonicalSourceCache.stored Poseidon2HashChainV1Package.application)
   report [("event", .str "matrix_basis_ready"),
     ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - preparationStarted))]
-  let mut total : FixedPolynomial K 9 := FixedPolynomial.zero extensionOps.toOps 9
+  let mut total : FixedPolynomial K 8 := FixedPolynomial.zero extensionOps.toOps 8
   let mut cached : Option CachedInvocation := none
   for index in [first:finish] do
     if within : index < 2 ^ 27 then
@@ -176,7 +176,7 @@ private def replay (publicPath sourcePath outputPath : System.FilePath)
           (PiCCSCachedSelector.equalitySelector extensionOps suffix verifierInput.priorPoint priorWeights)
           low.1 high.1 low.2.1 high.2.1 low.2.2 high.2.2
           (PiCCSNormCache.sourceNorm normTable power low.1 high.1))
-      let term : FixedPolynomial K 9 :=
+      let term : FixedPolynomial K 8 :=
         PiCCSPublicReplay.degree_eq statementInput ▸ constructed
       total := FixedPolynomial.add extensionOps.toOps total term
       report [("event", .str "pair_complete"), ("pair", Lean.toJson index),
@@ -308,8 +308,8 @@ private def replayFresh (publicPath sourcePath outputPath : System.FilePath)
     ("rows", Lean.toJson program.rowCount),
     ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
   let computeStarted ← IO.monoNanosNow
-  let computeRange (first finish : Nat) : IO (FixedPolynomial K 9) := do
-    let mut total : FixedPolynomial K 9 := FixedPolynomial.zero extensionOps.toOps 9
+  let computeRange (first finish : Nat) : IO (FixedPolynomial K 8) := do
+    let mut total : FixedPolynomial K 8 := FixedPolynomial.zero extensionOps.toOps 8
     let mut cached := none
     for index in [first:finish] do
       if within : index < 2 ^ 27 then
@@ -332,7 +332,7 @@ private def replayFresh (publicPath sourcePath outputPath : System.FilePath)
                   (PiCCSCachedSelector.equalitySelector extensionOps suffix coins.alpha weights)
                   (PiCCSAggregatedImages.nonlinearMessage layout assignments lowVertex low)
                   (PiCCSAggregatedImages.nonlinearMessage layout assignments highVertex high)))
-        let term : FixedPolynomial K 9 := PiCCSPublicReplay.degree_eq statementInput ▸ value
+        let term : FixedPolynomial K 8 := PiCCSPublicReplay.degree_eq statementInput ▸ value
         total := FixedPolynomial.add extensionOps.toOps total term
       else throw (IO.userError "fresh pair exceeds the selected domain")
     return total
@@ -340,7 +340,7 @@ private def replayFresh (publicPath sourcePath outputPath : System.FilePath)
   let parts := (finish - first + freshChunkPairs - 1) / freshChunkPairs
   let tasks ← ParallelChunks.start workers parts fun part =>
     computeRange (first + part * freshChunkPairs) (min finish (first + (part + 1) * freshChunkPairs))
-  let mut total := FixedPolynomial.zero extensionOps.toOps 9
+  let mut total := FixedPolynomial.zero extensionOps.toOps 8
   let mut part := 0
   for task in tasks do
     let (values, rangeStarted, rangeFinished) ← match ← IO.wait task with
@@ -582,13 +582,13 @@ private def composeRead (path : System.FilePath) : IO Lean.Json := do
   checked (Lean.Json.parse (← IO.FS.readFile path))
 
 private def composeFresh (expectedEnd : Nat) (value : Lean.Json) :
-    Except String (FixedPolynomial K 9) := do
+    Except String (FixedPolynomial K 8) := do
   match (← value.getArr?).toList with
   | [schema, first, finish, coefficients] =>
       unless (← schema.getNat?) == 1 && (← first.getNat?) == 0 &&
           (← finish.getNat?) == expectedEnd do
         throw "fresh contribution must cover the complete active pair prefix"
-      composePolynomial 9 coefficients
+      composePolynomial 8 coefficients
   | _ => throw "expected four fresh contribution fields"
 
 private def composeNorm (expectedEnd : Nat) (expectedAlpha : List K)
@@ -652,13 +652,13 @@ private def composeRound (publicPath freshPath normPath outputPath : System.File
   let power := PiCCSGammaPowers.lookup extensionOps.toOps coins.gamma powers
   let alphaHead := PiCCSCarriedMoments.headSelector extensionOps coins.alpha
   let priorHead := PiCCSCarriedMoments.headSelector extensionOps input.priorPoint
-  let normTerm : FixedPolynomial K 9 :=
+  let normTerm : FixedPolynomial K 8 :=
     FixedPolynomial.scale extensionOps.toOps (power productionShape.constraintOffset)
       (FixedPolynomial.scale extensionOps.toOps (power productionShape.freshCount)
-        (FixedPolynomial.widen extensionOps.toOps (by decide : 4 ≤ 9)
+        (FixedPolynomial.widen extensionOps.toOps (by decide : 4 ≤ 8)
           (FixedPolynomial.mul extensionOps.toOps alphaHead norm)))
-  let carried : FixedPolynomial K 9 :=
-    PiCCSCarriedMoments.carriedPair extensionOps (by decide : 2 ≤ 9) priorHead
+  let carried : FixedPolynomial K 8 :=
+    PiCCSCarriedMoments.carriedPair extensionOps (by decide : 2 ≤ 8) priorHead
       (power productionShape.matrixEvaluationOffset) pad.1 pad.2 matrix.1 matrix.2
   let polynomial := FixedPolynomial.add extensionOps.toOps carried
     (FixedPolynomial.add extensionOps.toOps fresh normTerm)
@@ -690,7 +690,7 @@ private def savedFirstChallenge
   let saved ← checked ((← composeRead roundPath).getArr?)
   unless saved.size == 10 do throw (IO.userError "expected complete Lean round-zero result")
   let some encoded ← pure saved[4]? | throw (IO.userError "missing Lean polynomial")
-  let polynomial ← checked (composePolynomial 9 encoded)
+  let polynomial ← checked (composePolynomial 8 encoded)
   let (challenge, _) := PiCCSPublicReplay.firstRound coins.state polynomial
   let some encodedChallenge ← pure saved[5]? | throw (IO.userError "missing saved challenge")
   let savedChallenge ← checked (composeExtension encodedChallenge)
@@ -957,7 +957,7 @@ private def freshAfterFirst (publicPath roundPath directory outputPath : System.
   let weights := PiCCSTensorWeights.prepare extensionOps
     (PiCCSPrefixSelector.dropPoint coins.alpha challenges.length).coordinates.tail
   let contribution (index : Nat) (low high : Vector K Spec.ProductionRelation.matrixCount) :
-      IO (FixedPolynomial K 9) := do
+      IO (FixedPolynomial K 8) := do
     if inside : index < 2 ^ 26 then
       let value := PiCCSFreshPrefixPolynomial.contribution (PiCCSPublicReplay.verifierInput input)
         coins.alpha challenges (NumericBooleanDomain.vertex 26 ⟨index, inside⟩) power weights low high
@@ -965,9 +965,9 @@ private def freshAfterFirst (publicPath roundPath directory outputPath : System.
     else throw (IO.userError "fresh prefix pair exceeds the second-round domain")
   let workers := max 1 (((← IO.getEnv "LEAN_NUM_THREADS").bind String.toNat?).getD 1)
   let computeStarted ← IO.monoNanosNow
-  let mut total := FixedPolynomial.zero extensionOps.toOps 9
+  let mut total := FixedPolynomial.zero extensionOps.toOps 8
   for batch in [:(chunks.size + workers - 1) / workers] do
-    let mut tasks : Array (Task (Except IO.Error (FixedPolynomial K 9 × Nat))) := #[]
+    let mut tasks : Array (Task (Except IO.Error (FixedPolynomial K 8 × Nat))) := #[]
     for part in [batch * workers:min chunks.size ((batch + 1) * workers)] do
       if found : part < chunks.size then
         let chunk := chunks[part]'found
@@ -977,7 +977,7 @@ private def freshAfterFirst (publicPath roundPath directory outputPath : System.
           let stream ← IO.FS.Handle.mk chunk.path .read
           let _ ← stream.getLine
           let mut previous := none
-          let mut subtotal := FixedPolynomial.zero extensionOps.toOps 9
+          let mut subtotal := FixedPolynomial.zero extensionOps.toOps 8
           for index in [chunk.first:chunk.finish] do
             let values ← checked (prefixRow (← checked (Lean.Json.parse (← stream.getLine))) index)
             if index == chunk.first then
@@ -1063,12 +1063,12 @@ private def composeSecond (publicPath roundPath freshPath normPath outputPath : 
   let coins ← IO.wait (Task.spawn fun _ => PiCCSPublicReplay.pre publicInput)
   let challenge ← savedFirstChallenge coins roundPath
   let saved ← checked ((← composeRead roundPath).getArr?)
-  let previous ← checked (composePolynomial 9 (saved[4]?.getD .null))
+  let previous ← checked (composePolynomial 8 (saved[4]?.getD .null))
   let (_, state) := PiCCSPublicReplay.firstRound coins.state previous
   let input := PiCCSPublicReplay.verifierInput publicInput
   let rows := (PerApplicationMatrixProgram.matrixProgram
     Poseidon2HashChainV1Package.application).rowCount
-  let fresh ← prefixPolynomial freshPath 9 (((rows + 1) / 2 + 1) / 2) challenge
+  let fresh ← prefixPolynomial freshPath 8 (((rows + 1) / 2 + 1) / 2) challenge
   let norm ← prefixPolynomial normPath 3 ((PiCCSSourceImages.shape.carrierWidth + 3) / 4) challenge
   let matrix ← prefixMoments matrixPaths 1 ((rows + 1) / 2) challenge
   let pad ← prefixMoments padPaths 0 (27 * PiCCSSourceImages.blockCount) challenge
@@ -1079,13 +1079,13 @@ private def composeSecond (publicPath roundPath freshPath normPath outputPath : 
     FixedPolynomial.scale extensionOps.toOps
       (PiCCSPrefixSelector.consumedFactor extensionOps [challenge] target)
       (PiCCSCarriedMoments.headSelector extensionOps (PiCCSPrefixSelector.dropPoint target 1))
-  let normTerm : FixedPolynomial K 9 :=
+  let normTerm : FixedPolynomial K 8 :=
     FixedPolynomial.scale extensionOps.toOps (power productionShape.constraintOffset)
       (FixedPolynomial.scale extensionOps.toOps (power productionShape.freshCount)
-        (FixedPolynomial.widen extensionOps.toOps (by decide : 4 ≤ 9)
+        (FixedPolynomial.widen extensionOps.toOps (by decide : 4 ≤ 8)
           (FixedPolynomial.mul extensionOps.toOps (head coins.alpha) norm)))
-  let carried : FixedPolynomial K 9 :=
-    PiCCSCarriedMoments.carriedPair extensionOps (by decide : 2 ≤ 9) (head input.priorPoint)
+  let carried : FixedPolynomial K 8 :=
+    PiCCSCarriedMoments.carriedPair extensionOps (by decide : 2 ≤ 8) (head input.priorPoint)
       (power productionShape.matrixEvaluationOffset) pad.1 pad.2 matrix.1 matrix.2
   let polynomial := FixedPolynomial.add extensionOps.toOps carried
     (FixedPolynomial.add extensionOps.toOps fresh normTerm)
@@ -1102,7 +1102,7 @@ private def composeSecond (publicPath roundPath freshPath normPath outputPath : 
     stateValue state, .array (polynomial.coefficients.map extensionValue),
     extensionValue nextChallenge, stateValue nextState, extensionValue initial,
     extensionValue endpoints, extensionValue (polynomial.evaluate extensionOps.toOps nextChallenge)]).render ++ "\n")
-  report [("event", .str "second_round_composed"), ("coefficients", .num 10),
+  report [("event", .str "second_round_composed"), ("coefficients", .num 9),
     ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
   return 0
 

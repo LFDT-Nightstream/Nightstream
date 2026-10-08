@@ -2,7 +2,7 @@ import NightstreamFPrime.Export.Stage1.ApplicationMatrixProgramSubstitution
 
 /-!
 Proves row-by-row equality between the compact application matrix program and
-the canonical direct 7-matrix plan for the selected Lean application. The
+the canonical direct 4-matrix plan for the selected Lean application. The
 package row accessor remains an explicit identity-checked premise.
 -/
 

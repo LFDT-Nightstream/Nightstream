@@ -59,7 +59,7 @@ class ConformanceRegistrationTests(unittest.TestCase):
             with self.assertRaises(EvidenceError):
                 completion(passed.replace('"round": 1,', f'"round": {wrong_round},'),
                            positive["completion"])
-        rejected = "piccs_round_mutation=rejected round=1 coefficient=9 component=0"
+        rejected = "piccs_round_mutation=rejected round=1 coefficient=8 component=0"
         completion(rejected, negative["completion"])
         with self.assertRaises(EvidenceError):
             completion(rejected.replace("round=1", "round=0"), negative["completion"])
@@ -259,16 +259,16 @@ class ConformanceRegistrationTests(unittest.TestCase):
                   "RoundTranscript", "InitialClaim", "SumcheckChain", "EvalKTerminal",
                   "EvalATerminal", "CcsTerminal", "NormTerminal", "FinalIdentity", "OutputBinding")
         for leaf in leaves:
-            prefix = f"NightstreamFPrime.Lifecycle.PiCCS.v1_1.{leaf}."
+            prefix = f"NightstreamFPrime.Lifecycle.PiCCS.v1_2.{leaf}."
             for item in ("SpecHolds", "circuit", "soundness", "completeness"):
                 self.assertIn(prefix + item, names)
             self.assertTrue(any(name.startswith(prefix + "spec_implies_key") for name in names))
             for item in ("freshColumnCount_eq", "physicalRowCount_eq"):
-                self.assertIn(f"NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.{leaf}.{item}", names)
+                self.assertIn(f"NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.{leaf}.{item}", names)
         for item in ("Spec.Folding.PiCCS.accepted_iff_coverage",
-                     "Layout.PiCCS.v1_1.physical_implies_phaseHolds",
-                     "Layout.PiCCS.v1_1.physical_complete",
-                     "Layout.PiCCS.v1_1.cumulativeFootprints_eq_production",
+                     "Layout.PiCCS.v1_2.physical_implies_phaseHolds",
+                     "Layout.PiCCS.v1_2.physical_complete",
+                     "Layout.PiCCS.v1_2.cumulativeFootprints_eq_production",
                      "Export.Stage1.PackageCompleteness.complete_piCcsRows",
                      "Export.Stage1.PiCCSDecodedPhase.selectedRowsZero_implies_phaseHolds"):
             self.assertIn("NightstreamFPrime." + item, names)
@@ -298,7 +298,7 @@ class ConformanceRegistrationTests(unittest.TestCase):
 
     def test_partial_base_mutation_counts_cannot_satisfy_completion(self):
         for name, label, count in (
-            ("proof", "proof_mutations", 2 + 28 * 10 * 2),
+            ("proof", "proof_mutations", 2 + 28 * 9 * 2),
             ("statement", "statement-mutations", 4 + 4 + self.child_count * (3 + self.matrix_count) + 2),
             ("output", "output-mutations", self.source_count * (3 + self.matrix_count + 28 + 4) + 10),
         ):

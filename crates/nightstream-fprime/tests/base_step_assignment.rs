@@ -9,7 +9,7 @@ use std::{fs, path::PathBuf, time::Instant};
 use neo_ajtai::nightstream_fprime_setup::commit_production_signed_unit_prefix_matrix;
 use neo_ccs::{crypto::poseidon2_goldilocks::poseidon2_hash, Mat};
 use nightstream_fprime::{
-    derive_pi_ccs_v1_1_transcript, load_poseidon2_hash_chain_v1_package, LoadedPerApplicationPackage, WitnessAssignment,
+    derive_pi_ccs_v1_2_transcript, load_poseidon2_hash_chain_v1_package, LoadedPerApplicationPackage, WitnessAssignment,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
@@ -23,11 +23,11 @@ mod conformance_support;
 mod logical_reference;
 
 // Exact current package and BaseStepFixture schema dimensions.
-const PRIVATE_INPUTS: usize = 128_186;
+const PRIVATE_INPUTS: usize = 107_070;
 const PUBLIC_INPUTS: usize = 278;
-const STATE_WORDS: usize = 37_297;
-const PI_CCS_INPUT_END: usize = 91_030;
-const CHILD_PUBLIC_START: usize = 123_862;
+const STATE_WORDS: usize = 32_113;
+const PI_CCS_INPUT_END: usize = 75_098;
+const CHILD_PUBLIC_START: usize = 102_746;
 const CHILD_COUNT: usize = 16;
 const PUBLIC_WORDS: usize = 270;
 const INITIAL_STATE: [u64; 4] = [202, 203, 204, 205];
@@ -124,7 +124,7 @@ fn check_preimage(words: &[u64], context: [u64; 4], iteration: u64, current: [u6
     assert_eq!(words[34], 4);
     assert_eq!(&words[35..39], current);
     let mut cursor = 39;
-    for length in std::iter::once(56).chain((0..CHILD_COUNT).flat_map(|_| [1_188, PUBLIC_WORDS, 864])) {
+    for length in std::iter::once(56).chain((0..CHILD_COUNT).flat_map(|_| [1_188, PUBLIC_WORDS, 540])) {
         assert_eq!(words[cursor], length as u64);
         cursor += 1;
         assert!(
@@ -158,7 +158,7 @@ fn check_caller_layout(bytes: &[u8], private: &[u64], public: &[u64], assignment
     assert_eq!((outer, inner, logical_public), (6, 8, PUBLIC_WORDS));
     assert_eq!(
         (layout.0, layout.1, layout.2, layout.3, layout.4),
-        (14_660_374, 14_766_932, 14_766_932, PUBLIC_INPUTS, 14_767_211)
+        (12_357_472, 12_448_422, 12_448_422, PUBLIC_INPUTS, 12_448_701)
     );
     assert_eq!(assignment.private_values().len(), layout.1);
     assert_eq!(assignment.public_values(), public);
@@ -386,8 +386,8 @@ fn checked_caller_fixture(package: &LoadedPerApplicationPackage, bytes: &[u8]) -
         (package.private_input_count(), package.public_input_count()),
         (private.len(), public.len())
     );
-    assert_eq!(package.total_column_count(), 14_767_211);
-    assert_eq!(package.physical_row_count(), 14_660_374);
+    assert_eq!(package.total_column_count(), 12_448_701);
+    assert_eq!(package.physical_row_count(), 12_357_472);
     assert_eq!(package.row_count(), logical_reference::evaluation::ACTIVE_ROWS);
     assert_eq!(
         package.logical_column_count(),
@@ -445,11 +445,11 @@ fn checked_base_fixture(package: &LoadedPerApplicationPackage, bytes: &[u8]) -> 
             "checked child recombination at public column {column}"
         );
     }
-    let transcript = derive_pi_ccs_v1_1_transcript(
+    let transcript = derive_pi_ccs_v1_2_transcript(
         &[hash(prior).to_vec(), vec![0; 1_188], public[..PUBLIC_WORDS].to_vec()],
-        &[vec![0; 28 * 2], vec![0; 16 * 864]],
-        &vec![vec![[0; 2]; 10]; 28],
-        &vec![0; 17 * 864],
+        &[vec![0; 28 * 2], vec![0; 16 * 540]],
+        &vec![vec![[0; 2]; 9]; 28],
+        &vec![0; 17 * 540],
     )
     .expect("base placeholder transcript replay");
     assert_eq!(transcript.round_point(), expected.3);
@@ -619,7 +619,7 @@ fn check_assignment(package: LoadedPerApplicationPackage, sealed: Vec<u8>, fixtu
         assert_eq!(actual, expected, "caller logical transport coordinate {column}");
     }
     let alignment = logical_reference::evaluation::CARRIER_WIDTH - production.len();
-    assert_eq!(alignment, 4);
+    assert_eq!(alignment, 14);
     // The public transport returns logical coordinates. The paper carrier
     // extends them with these alignment zeros; no backend allocator is used.
     for column in production.len()..logical_reference::evaluation::CARRIER_WIDTH {

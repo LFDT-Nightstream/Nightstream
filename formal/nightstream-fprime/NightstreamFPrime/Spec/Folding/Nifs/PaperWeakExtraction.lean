@@ -3,6 +3,9 @@ import NightstreamFPrime.Spec.Folding.Nifs.PaperWeakLaw
 import NightstreamFPrime.Spec.Folding.PiRLC.CoordinateExtraction
 
 /-!
+Paper authority: SuperNeo v1.2 Definition 17, the weak reduction class of
+Lemma 8, and its Appendix B.3 extractor.
+
 The weak NIFS extractor resumes the actual PiRLC/PiDEC suffix at each queried
 challenge vector. Its base success event is the original accepted final
 output with that invocation's own child witnesses. The uniform interactive

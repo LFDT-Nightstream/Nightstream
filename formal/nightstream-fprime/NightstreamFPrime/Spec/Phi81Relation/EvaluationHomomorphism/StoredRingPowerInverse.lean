@@ -1,9 +1,5 @@
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingArithmetic
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ForkStrongSet
-import Mathlib.Algebra.CharP.Algebra
-import Mathlib.Algebra.CharP.Frobenius
-import Mathlib.FieldTheory.Finite.Basic
-import NightstreamFPrime.Spec.GoldilocksPrime
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial
 
 /-!

@@ -95,15 +95,6 @@ import NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.SumcheckChain
 import NightstreamFPrime.Layout.PiCCS.v1_1.ProductionInputs
 import NightstreamFPrime.Export.Stage1.PiCCSOwnershipAudit
 import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
-import Mathlib.Probability.ProbabilityMassFunction.Constructions
-import Mathlib.Topology.Algebra.InfiniteSum.Real
-import Mathlib.Analysis.Normed.Group.InfiniteSum
-import Mathlib.Analysis.Real.Sqrt
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Ring
-import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
-import Mathlib.Analysis.SpecificLimits.Basic
-import Mathlib.Algebra.Polynomial.Eval.Defs
 
 /-! Fail-closed axiom coverage for the complete PiCCS compiler closure. -/
 

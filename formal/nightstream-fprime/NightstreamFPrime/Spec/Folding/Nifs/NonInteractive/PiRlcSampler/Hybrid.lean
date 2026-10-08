@@ -5,12 +5,6 @@ import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
 import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Law
-import Mathlib.Analysis.SpecificLimits.Basic
-import Mathlib.Tactic.FieldSimp
-import Mathlib.Algebra.BigOperators.Field
-import Mathlib.Algebra.Order.BigOperators.Expect
-import Mathlib.Logic.Equiv.Prod
-import Mathlib.Data.Fintype.Option
 
 /-!
 Owns the hybrid argument for the whole-vector PiRLC sampler.

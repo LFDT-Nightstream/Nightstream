@@ -1,33 +1,5 @@
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
 import NightstreamFPrime.Spec.AjtaiSetupV1.Prefix
-import NightstreamFPrime.Lifecycle.ProductionKey
-import NightstreamFPrime.Lifecycle.PaperExtractionAlgebra
-import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtraction
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.WitnessProjection
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Binding
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Product
-import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFLaws
-import NightstreamFPrime.Spec.Profile
-import Mathlib.Analysis.SpecificLimits.Basic
-import Mathlib.Tactic.FieldSimp
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Positivity
-import Mathlib.Tactic.Ring
-import Mathlib.Algebra.BigOperators.Field
-import Mathlib.Algebra.Order.BigOperators.Expect
-import Mathlib.Logic.Equiv.Prod
-import Mathlib.Data.Fintype.Option
-import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
-import Mathlib.Probability.ProbabilityMassFunction.Constructions
-import Mathlib.Algebra.BigOperators.Ring.Finset
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CausalExecution
-import Mathlib.Topology.Algebra.InfiniteSum.Real
-import Mathlib.Analysis.Normed.Group.InfiniteSum
-import Mathlib.Analysis.Real.Sqrt
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.IndependentExecution
-import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongInterface
-import NightstreamFPrime.Spec.Folding.PiRLC.CoordinateForkLaw
-import Mathlib.Algebra.Polynomial.Eval.Defs
 
 /-! The two binding reductions instantiated at the verifier's exact public
 seed, matrix dimensions and `8TB` MSIS norm. This is a deterministic link;

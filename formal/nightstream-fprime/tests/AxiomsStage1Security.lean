@@ -52,46 +52,6 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_1.PhaseTransport
 import NightstreamFPrime.Spec.Folding.PiRLC.CoordinateForkLaw
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
-import Mathlib.Probability.ProbabilityMassFunction.Constructions
-import Mathlib.Topology.Algebra.InfiniteSum.Real
-import Mathlib.Analysis.Normed.Group.InfiniteSum
-import Mathlib.Analysis.Real.Sqrt
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Ring
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.IndependentExecution
-import Mathlib.Data.ENNReal.BigOperators
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CausalExecution
-import Mathlib.Algebra.BigOperators.Ring.Finset
-import NightstreamFPrime.Export.Stage1.PiCCSStoredWitnessCheck
-import Mathlib.Analysis.SpecificLimits.Basic
-import Mathlib.Tactic.FieldSimp
-import Mathlib.Tactic.Positivity
-import Mathlib.Algebra.BigOperators.Field
-import Mathlib.Algebra.Order.BigOperators.Expect
-import Mathlib.Logic.Equiv.Prod
-import Mathlib.Data.Fintype.Option
-import Mathlib.Algebra.Polynomial.Eval.Defs
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CheckedWitnessExtraction
-import NightstreamFPrime.Lifecycle.ProductionKey
-import NightstreamFPrime.Lifecycle.PaperExtractionAlgebra
-import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtraction
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.WitnessProjection
-import NightstreamFPrime.Lifecycle.XOut
-import NightstreamFPrime.Spec.Folding.Nifs.PaperWeakSuffix
-import Mathlib.Probability.ProbabilityMassFunction.Basic
-import Mathlib.Topology.Algebra.InfiniteSum.Constructions
-import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongInterface
-import Mathlib.Analysis.Normed.Group.Tannery
-import NightstreamFPrime.Spec.Phi81StrongSet.LowNormInvertibility
-import NightstreamFPrime.Lifecycle.PaperAlgebra
-import NightstreamFPrime.Spec.Folding.Nifs.StoredAssignmentArithmetic
-import NightstreamFPrime.Export.Stage1.PiDECInputCheck
-import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingPowerInverse
-import Mathlib.Logic.Function.Basic
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Binding
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Product
-import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFLaws
-import NightstreamFPrime.Spec.Profile
 
 /-! Axiom audits for deterministic Stage 1 binding and replay security. -/
 

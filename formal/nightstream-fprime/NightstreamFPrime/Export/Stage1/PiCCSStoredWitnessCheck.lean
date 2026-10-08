@@ -1,8 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiDECInputCheck
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CheckedWitnessExtraction
-import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
-import Mathlib.Tactic.SplitIfs
 
 /-!
 Owns the selected PiCCS source statement for the actual application matrix

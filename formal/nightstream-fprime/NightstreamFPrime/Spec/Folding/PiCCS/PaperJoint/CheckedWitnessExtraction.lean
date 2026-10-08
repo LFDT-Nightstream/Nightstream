@@ -1,13 +1,4 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.WitnessProjection
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongReduction
-import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
-import Mathlib.Probability.ProbabilityMassFunction.Constructions
-import Mathlib.Topology.Algebra.InfiniteSum.Real
-import Mathlib.Analysis.Normed.Group.InfiniteSum
-import Mathlib.Analysis.Real.Sqrt
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Ring
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.IndependentExecution
 
 /-!
 Owns the source-return event: a returned source witness satisfies the source

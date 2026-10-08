@@ -16,37 +16,6 @@ import NightstreamFPrime.Lifecycle
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.OutputWitnessConsumer
 import NightstreamFPrime.Layout
 import NightstreamFPrime.Export
-import Mathlib.Analysis.SpecificLimits.Basic
-import Mathlib.Tactic.FieldSimp
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Positivity
-import Mathlib.Tactic.Ring
-import Mathlib.Algebra.BigOperators.Field
-import Mathlib.Algebra.Order.BigOperators.Expect
-import Mathlib.Logic.Equiv.Prod
-import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtraction
-import Mathlib.Logic.Function.Basic
-import Mathlib.Data.Fintype.Option
-import Mathlib.Algebra.Polynomial.Eval.Defs
-import Mathlib.Probability.ProbabilityMassFunction.Constructions
-import Mathlib.Topology.Algebra.InfiniteSum.Real
-import Mathlib.Analysis.Normed.Group.InfiniteSum
-import Mathlib.Analysis.Real.Sqrt
-import Mathlib.Data.ENNReal.BigOperators
-import NightstreamFPrime.Lifecycle.XOut
-import NightstreamFPrime.Lifecycle.ProductionKey
-import NightstreamFPrime.Spec.Folding.Nifs.PaperWeakSuffix
-import Mathlib.Probability.ProbabilityMassFunction.Basic
-import Mathlib.Topology.Algebra.InfiniteSum.Constructions
-import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongInterface
-import NightstreamFPrime.Lifecycle.PaperExtractionAlgebra
-import Mathlib.Analysis.Normed.Group.Tannery
-import Mathlib.Algebra.BigOperators.Ring.Finset
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Binding
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Product
-import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFLaws
-import NightstreamFPrime.Spec.Profile
-import Mathlib.Topology.Order.MonotoneConvergence
 
 /-! Curated root of the Nightstream F′ package. Every module on the proof
 path is listed here explicitly; there is no glob. -/

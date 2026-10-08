@@ -54,6 +54,13 @@ theorem Plan.sMax_small {p : Plan} (valid : p.Valid) : p.sMax < 2 ^ 62 := by
         · exact positive.1
   exact lt_of_le_of_lt this (lt_of_lt_of_le range (Plan.wTs_small valid))
 
+theorem Plan.bOps_small {p : Plan} (valid : p.Valid) : p.bOps < 2 ^ 62 := by
+  have range := valid.timestampRange
+  have positive := valid.positive
+  have : p.bOps ≤ p.sMax * p.n * p.bOps := Nat.le_mul_of_pos_left _
+    (Nat.mul_pos positive.2.2.2 positive.2.2.1)
+  exact lt_of_le_of_lt this (lt_of_lt_of_le range (Plan.wTs_small valid))
+
 namespace StepWitness
 
 variable {p : Plan} (w : StepWitness p)
@@ -221,13 +228,9 @@ theorem mem_activeOps_exists : ∀ {ts : ℕ} {l : List OpSlot} {o : MemOp},
 
 theorem natWord_zero : natWord 0 = 0 := rfl
 
-theorem natWord_of_val (x : F) : natWord x.val = x := by
-  apply Fin.ext
-  simp [natWord, Poseidon2.ofNat, Nat.mod_eq_of_lt x.isLt]
-
 private theorem take_succ_ofFn {α : Type} {n : ℕ} (f : Fin n → α) {k : ℕ} (hk : k < n) :
     (List.ofFn f).take (k + 1) = (List.ofFn f).take k ++ [f ⟨k, hk⟩] := by
-  rw [List.take_succ, List.getElem?_ofFn]
+  rw [List.take_add_one, List.getElem?_ofFn]
   simp [hk]
 
 theorem records_ops : w.records.ops = List.ofFn fun j => (w.ops j).decode := rfl
@@ -246,13 +249,6 @@ theorem RowsHold.cntBefore_eq (rows : w.RowsHold zIn) :
     rcases padBit with zero | one
     · simp [StepWitness.pad, OpSlotBits.decode, zero, toBool, modulus_ne_one]; rfl
     · simp [StepWitness.pad, OpSlotBits.decode, one, toBool]; rfl
-
-theorem Plan.bOps_small {p : Plan} (valid : p.Valid) : p.bOps < 2 ^ 62 := by
-  have range := valid.timestampRange
-  have positive := valid.positive
-  have : p.bOps ≤ p.sMax * p.n * p.bOps := Nat.le_mul_of_pos_left _
-    (Nat.mul_pos positive.2.2.2 positive.2.2.1)
-  exact lt_of_le_of_lt this (lt_of_lt_of_le range (Plan.wTs_small valid))
 
 private theorem activeLength_le (l : List OpSlot) : activeLength l ≤ l.length :=
   List.length_filterMap_le _ _
@@ -378,6 +374,30 @@ theorem carry_ext {E D : Type} {c c' : Carry E D} (segIdx : c.segIdx = c'.segIdx
   cases c'
   simp_all
 
+/-- The step's segment is below `S_max`: by the S_max row on a reopen, by the
+reach invariant on a continue. -/
+theorem RowsHold.segBelow (valid : p.Valid) (rows : w.RowsHold zIn)
+    (reach : Reach p w.inCarry) : w.inCarry.segIdx < p.sMax := by
+  rcases rows.arm valid with ⟨opens, -⟩ | ⟨-, notClosed⟩
+  · have row := rows.segRange
+    rw [opens, one_mul, sub_sub, sub_eq_zero] at row
+    have segBits := bitsWord_eq rows.segBits
+    rw [segBits, show w.cIn 0 = natWord w.inCarry.segIdx by
+      rw [cIn_eq w (by decide)]; exact (natWord_of_val _).symm, ← natWord_add] at row
+    have sMaxSmall := Plan.sMax_small valid
+    have positive : 0 < p.sMax := valid.positive.2.2.2
+    have widthSmall : p.segWidth ≤ 62 := by
+      have := (Nat.log2_lt positive.ne').mpr sMaxSmall
+      unfold Plan.segWidth
+      omega
+    have bitsSmall := lt_of_lt_of_le (bitsNat_lt w.segBits)
+      (Nat.pow_le_pow_right (by norm_num) widthSmall)
+    have segLe : w.inCarry.segIdx ≤ p.sMax := reach.seg
+    have equal := natWord_injective (by unfold goldilocksModulus; omega)
+      (by unfold goldilocksModulus; omega) row
+    omega
+  · exact reach.openSeg notClosed
+
 /-- The arm's open (spec §11.2) gives the step-start carry. -/
 theorem RowsHold.opened (valid : p.Valid) (rows : w.RowsHold zIn)
     (reach : Reach p w.inCarry) :
@@ -385,24 +405,7 @@ theorem RowsHold.opened (valid : p.Valid) (rows : w.RowsHold zIn)
       else some w.inCarry) = some w.stepStart := by
   rcases rows.arm valid with ⟨opens, closed⟩ | ⟨continues, notClosed⟩
   · rw [if_pos closed]
-    have segBelow : w.inCarry.segIdx < p.sMax := by
-      have row := rows.segRange
-      rw [opens, one_mul, sub_sub, sub_eq_zero] at row
-      have segBits := bitsWord_eq rows.segBits
-      rw [segBits, show w.cIn 0 = natWord w.inCarry.segIdx by
-        rw [cIn_eq w (by decide)]; exact (natWord_of_val _).symm, ← natWord_add] at row
-      have sMaxSmall := Plan.sMax_small valid
-      have positive : 0 < p.sMax := valid.positive.2.2.2
-      have widthSmall : p.segWidth ≤ 62 := by
-        have := (Nat.log2_lt positive.ne').mpr sMaxSmall
-        unfold Plan.segWidth
-        omega
-      have bitsSmall := lt_of_lt_of_le (bitsNat_lt w.segBits)
-        (Nat.pow_le_pow_right (by norm_num) widthSmall)
-      have segLe : w.inCarry.segIdx ≤ p.sMax := reach.seg
-      have equal := natWord_injective (by unfold goldilocksModulus; omega)
-        (by unfold goldilocksModulus; omega) row
-      omega
+    have segBelow := rows.segBelow w valid reach
     rw [Spec.Nebula.openSegment,
       if_pos (show w.inCarry.segIdx < (context p).plan.sMax from segBelow)]
     congr 1
@@ -434,14 +437,14 @@ theorem RowsHold.opened (valid : p.Valid) (rows : w.RowsHold zIn)
       · rw [dif_pos (by omega), ← proposedOut]
         simp
       · rw [dif_pos (by omega), ← proposedOut]
-        simp only [Fin.val_mk]
+        simp only
         congr 1
         omega
     · show (⟨hash (.header .ops (planDigest p)), hash (.header .mem (planDigest p)),
           hash (.header .mem (planDigest p))⟩ : Roots Digest) =
         ⟨w.previousDigest 0, w.previousDigest 4, w.previousDigest 8⟩
       congr 1 <;> funext i <;> simp only [previousDigest] <;>
-        rw [dif_pos (by omega), seenStart] <;> simp only [headerWords, Fin.val_mk]
+        rw [dif_pos (by omega), seenStart] <;> simp only [headerWords]
       · rw [if_pos (by omega)]
         congr 1
         exact Fin.ext (by simp; omega)
@@ -483,14 +486,248 @@ theorem RowsHold.opened (valid : p.Valid) (rows : w.RowsHold zIn)
       congr 1 <;> funext i <;> simp only [carryDigest]
       · exact (proposedOut ⟨i, by omega⟩).symm
       · have := proposedOut ⟨4 + i, by omega⟩
-        simp only [Fin.val_mk, show 15 + (4 + (i : ℕ)) = 19 + i by omega] at this
+        simp only [show 15 + (4 + (i : ℕ)) = 19 + i by omega] at this
         exact this.symm
     · show (⟨readDigest w.carryIn 23 _, readDigest w.carryIn 27 _, readDigest w.carryIn 31 _⟩ :
           Roots Digest) = ⟨w.previousDigest 0, w.previousDigest 4, w.previousDigest 8⟩
       rw [readDigest_eq, readDigest_eq, readDigest_eq]
       congr 1 <;> funext i <;> simp only [carryDigest, previousDigest] <;>
-        rw [dif_pos (by omega), seenStart] <;> simp only [Fin.val_mk] <;> congr 1 <;> omega
+        rw [dif_pos (by omega), seenStart] <;> simp only <;> congr 1 <;> omega
     · rfl
+
+end StepWitness
+
+/-! ### `K` values -/
+
+theorem embed_eq (x : F) : embed x = ((x.val : ℕ) : K) := by
+  rw [GoldilocksFingerprint.natCast_eq]
+  simp only [embed, K.mk.injEq, and_true]
+  exact Fin.ext (by simp [Nat.mod_eq_of_lt x.isLt])
+
+/-- The circuit fingerprint is the model fingerprint of the field values. -/
+theorem fingerprintK_eq (η1 η2 η1sq : K) (square : η1sq = η1 * η1) (t g v : F) :
+    fingerprintK η1 η2 η1sq t g v = fingerprint (η1, η2) (t.val, g.val, v.val) := by
+  simp only [fingerprintK, fingerprint, ← GoldilocksFingerprint.add_eq,
+    ← GoldilocksFingerprint.mul_eq, ← GoldilocksFingerprint.sub_eq, embed_eq, square, pow_two]
+
+/-- The O8 and O9 gate on a bit. -/
+theorem gatedK_bit {pad : F} (bit : IsBit pad) (f : K) :
+    gatedK pad f = if toBool pad then 1 else f := by
+  rcases bit with rfl | rfl
+  · have : toBool (0 : F) = false := by simp [toBool, StepWitness.modulus_ne_one]
+    rw [this, if_neg (by simp)]
+    simp [gatedK, embed, K.add, K.mul]
+  · rw [show toBool (1 : F) = true from by simp [toBool], if_pos rfl, GoldilocksFingerprint.one_eq]
+    simp [gatedK, embed, K.add, K.mul, K.one]
+
+namespace StepWitness
+
+variable {p : Plan} (w : StepWitness p) {zIn : List F}
+
+/-! ### Field values of a slot -/
+
+theorem bitsWord_val {n : ℕ} {bits : Fin n → F} (allBits : ∀ k, IsBit (bits k)) (small : n ≤ 63) :
+    (bitsWord bits).val = bitsNat bits := by
+  rw [bitsWord_eq allBits, natWord_val (lt_trans (bitsNat_lt bits) (two_pow_lt_modulus small))]
+
+theorem RowsHold.rt_val (valid : p.Valid) (rows : w.RowsHold zIn) (j : Fin p.bOps) :
+    (w.rt j).val = (w.ops j).decode.rt :=
+  bitsWord_val (rows.slotBits w j).2.2.2.2.2.2 (by have := valid.fieldEncoding; omega)
+
+theorem RowsHold.vr_val (rows : w.RowsHold zIn) (j : Fin p.bOps) :
+    (w.vr j).val = (w.ops j).decode.vr :=
+  bitsWord_val (rows.slotBits w j).2.2.2.2.1 (by norm_num)
+
+theorem RowsHold.vw_val (rows : w.RowsHold zIn) (j : Fin p.bOps) :
+    (w.vw j).val = (w.ops j).decode.vw :=
+  bitsWord_val (rows.slotBits w j).2.2.2.2.2.1 (by norm_num)
+
+/-- The model's global index of a decoded slot. -/
+def slotIndex (j : Fin p.bOps) : ℕ :=
+  PortAccess.globalIndex p ⟨(w.ops j).decode.isWrite, (w.ops j).decode.isRam,
+    (w.ops j).decode.addr, (w.ops j).decode.vr, (w.ops j).decode.vw⟩
+
+theorem RowsHold.globalIndex_val (valid : p.Valid) (rows : w.RowsHold zIn) (j : Fin p.bOps) :
+    (w.globalIndex j).val = w.slotIndex j := by
+  obtain ⟨-, -, ramBit, addrBits, -⟩ := rows.slotBits w j
+  have μSmall : p.μ ≤ 63 := by
+    have below := valid.belowModulus
+    have ram : 2 ^ p.μ ≤ p.cells := Nat.le_add_left _ _
+    by_contra large
+    have : 2 ^ 64 ≤ 2 ^ p.μ := Nat.pow_le_pow_right (by norm_num) (by omega)
+    have : (2 : ℕ) ^ 64 > goldilocksModulus := by decide
+    omega
+  have addr : w.addr j = natWord (bitsNat (w.ops j).addr) := bitsWord_eq addrBits
+  have addrSmall := bitsNat_lt (w.ops j).addr
+  have cells := valid.belowModulus
+  unfold Plan.cells Plan.ramSize at cells
+  rcases ramBit with zero | one
+  · have decodeRam : (w.ops j).decode.isRam = false := by
+      simp [OpSlotBits.decode, zero, toBool, modulus_ne_one]
+    simp only [globalIndex, isRam, zero, zero_mul, add_zero, addr, slotIndex, PortAccess.globalIndex,
+      decodeRam]
+    exact natWord_val (by unfold goldilocksModulus at *; omega)
+  · have decodeRam : (w.ops j).decode.isRam = true := by simp [OpSlotBits.decode, one, toBool]
+    simp only [globalIndex, isRam, one, one_mul, addr, slotIndex, PortAccess.globalIndex,
+      decodeRam, if_true, ← natWord_add]
+    rw [natWord_val (by unfold goldilocksModulus at *; omega)]
+    simp only [OpSlotBits.decode]
+    omega
+
+theorem RowsHold.squareEq (rows : w.RowsHold zIn) : w.eta1Sq = w.eta1 * w.eta1 := by
+  rw [rows.square, GoldilocksFingerprint.mul_eq]
+
+/-- The write stamp of an active slot (rows O2 and §6.1). -/
+theorem RowsHold.wt_val (valid : p.Valid) (rows : w.RowsHold zIn) (j : Fin p.bOps)
+    (active : (w.ops j).pad = 0) (tsRange : (w.cIn 2).val < 2 ^ p.wTs) :
+    (w.wt j).val = (w.cIn 2).val + activeLength (w.records.ops.take j.val) + 1 := by
+  have count := rows.cntBefore_eq w (j.val + 1) j.isLt
+  have split : w.records.ops.take (j.val + 1) = w.records.ops.take j.val ++ [(w.ops j).decode] := by
+    rw [records_ops, take_succ_ofFn _ j.isLt]
+  rw [split, activeLength_append] at count
+  have inactive : (w.ops j).decode.pad = false := by
+    simp [OpSlotBits.decode, active, toBool, modulus_ne_one]
+  rw [inactive, if_neg (by simp)] at count
+  have length : w.records.ops.length = p.bOps := by simp [records]
+  have prefixSmall : activeLength (w.records.ops.take j.val) ≤ p.bOps := by
+    have := activeLength_le (w.records.ops.take j.val)
+    simp only [List.length_take] at this
+    omega
+  have small62 := Plan.wTs_small valid
+  have opsSmall := Plan.bOps_small valid
+  have sumSmall : (w.cIn 2).val + activeLength (w.records.ops.take j.val) + 1 <
+      goldilocksModulus := by
+    have tsSmall := lt_of_lt_of_le tsRange small62
+    unfold goldilocksModulus
+    omega
+  rw [StepWitness.wt, count, show w.cIn 2 + natWord (activeLength (w.records.ops.take j.val) + 1) =
+      natWord ((w.cIn 2).val + activeLength (w.records.ops.take j.val) + 1) by
+    rw [Nat.add_assoc, natWord_add (w.cIn 2).val, natWord_of_val]]
+  exact natWord_val sumSmall
+
+theorem RowsHold.idxEff_lt (valid : p.Valid) (rows : w.RowsHold zIn) (reach : Reach p w.inCarry) :
+    w.idxEff.val < p.n := by
+  have positive := valid.positive.2.2.1
+  rcases rows.arm valid with ⟨opens, -⟩ | ⟨continues, notClosed⟩
+  · rw [rows.idxEff, opens, sub_self, zero_mul]
+    exact positive
+  · have idx : w.inCarry.idx = (w.cIn 1).val := by rw [cIn_eq w (by decide)]; rfl
+    rw [rows.idxEff, continues, sub_zero, one_mul, ← idx]
+    exact lt_of_le_of_ne reach.idx notClosed
+
+/-- Rows O8: the running read product after the first `k` slots. -/
+theorem RowsHold.readProducts (valid : p.Valid) (rows : w.RowsHold zIn) :
+    ∀ k ≤ p.bOps, w.opsProductAfter 0 k = w.startProduct 7 *
+      (opsFactors p (w.eta1, w.eta2) (w.cIn 2).val (w.records.ops.take k)).1
+  | 0, _ => by simp [opsProductAfter, opsFactors]
+  | k + 1, hk => by
+    have hk' : k < p.bOps := hk
+    have previous := RowsHold.readProducts valid rows k (by omega)
+    have split : w.records.ops.take (k + 1) =
+        w.records.ops.take k ++ [(w.ops ⟨k, hk'⟩).decode] := by
+      rw [records_ops, take_succ_ofFn _ hk']
+    rw [rows.readProduct ⟨k, hk'⟩, previous, ← GoldilocksFingerprint.mul_eq, split,
+      opsFactors_append, mul_assoc]
+    congr 2
+    rw [StepWitness.pad, gatedK_bit (rows.slotBits w ⟨k, hk'⟩).1,
+      fingerprintK_eq _ _ _ rows.squareEq, rows.rt_val w valid, rows.globalIndex_val w valid,
+      rows.vr_val w]
+    rfl
+
+/-- Rows O9: the running write product after the first `k` slots. -/
+theorem RowsHold.writeProducts (valid : p.Valid) (rows : w.RowsHold zIn)
+    (tsRange : (w.cIn 2).val < 2 ^ p.wTs) :
+    ∀ k ≤ p.bOps, w.opsProductAfter 1 k = w.startProduct 9 *
+      (opsFactors p (w.eta1, w.eta2) (w.cIn 2).val (w.records.ops.take k)).2
+  | 0, _ => by simp [opsProductAfter, opsFactors]
+  | k + 1, hk => by
+    have hk' : k < p.bOps := hk
+    have previous := RowsHold.writeProducts valid rows tsRange k (by omega)
+    have split : w.records.ops.take (k + 1) =
+        w.records.ops.take k ++ [(w.ops ⟨k, hk'⟩).decode] := by
+      rw [records_ops, take_succ_ofFn _ hk']
+    rw [rows.writeProduct ⟨k, hk'⟩, previous, ← GoldilocksFingerprint.mul_eq, split,
+      opsFactors_append, mul_assoc]
+    congr 2
+    rw [StepWitness.pad, gatedK_bit (rows.slotBits w ⟨k, hk'⟩).1]
+    rcases (rows.slotBits w ⟨k, hk'⟩).1 with zero | one
+    · have inactive : toBool (w.ops ⟨k, hk'⟩).pad = false := by
+        simp [zero, toBool, modulus_ne_one]
+      simp only [inactive, OpSlotBits.decode, Bool.false_eq_true, ite_false]
+      rw [fingerprintK_eq _ _ _ rows.squareEq, rows.wt_val w valid ⟨k, hk'⟩ zero tsRange,
+        rows.globalIndex_val w valid, rows.vw_val w]
+      rfl
+    · have padTrue : toBool (w.ops ⟨k, hk'⟩).pad = true := by simp [one, toBool]
+      simp only [padTrue, OpSlotBits.decode, if_true]
+
+theorem scanBits {slot : ScanSlotBits p} (all : ∀ x ∈ slot.lane, IsBit x) :
+    (∀ k, IsBit (slot.value k)) ∧ (∀ k, IsBit (slot.stamp k)) := by
+  simp only [ScanSlotBits.lane, List.mem_append, List.mem_ofFn] at all
+  exact ⟨fun k => all _ (Or.inl ⟨k, rfl⟩), fun k => all _ (Or.inr ⟨k, rfl⟩)⟩
+
+theorem scanValue_val {slot : ScanSlotBits p} (all : ∀ x ∈ slot.lane, IsBit x) :
+    (bitsWord slot.value).val = slot.decode.value :=
+  bitsWord_val (scanBits all).1 (by norm_num)
+
+theorem scanStamp_val (valid : p.Valid) {slot : ScanSlotBits p} (all : ∀ x ∈ slot.lane, IsBit x) :
+    (bitsWord slot.stamp).val = slot.decode.stamp :=
+  bitsWord_val (scanBits all).2 (by have := valid.fieldEncoding; omega)
+
+theorem RowsHold.scanIndex_val (valid : p.Valid) (rows : w.RowsHold zIn)
+    (reach : Reach p w.inCarry) (j : Fin p.bScan) :
+    (w.scanIndex j).val = w.idxEff.val * p.bScan + j := by
+  have idxLt := rows.idxEff_lt w valid reach
+  have cover := valid.exactCover
+  have below := valid.belowModulus
+  have bound : w.idxEff.val * p.bScan + j < goldilocksModulus := by
+    have : w.idxEff.val * p.bScan + j < p.n * p.bScan := by
+      calc w.idxEff.val * p.bScan + j < w.idxEff.val * p.bScan + p.bScan := by omega
+        _ = (w.idxEff.val + 1) * p.bScan := by ring
+        _ ≤ p.n * p.bScan := Nat.mul_le_mul_right _ idxLt
+    omega
+  rw [scanIndex, ← natWord_of_val w.idxEff, ← natWord_mul, ← natWord_add, natWord_val bound,
+    natWord_of_val]
+
+private theorem take_scans (slots : Fin p.bScan → ScanSlotBits p) {k : ℕ} (hk : k < p.bScan) :
+    (List.ofFn fun j => (slots j).decode).take (k + 1) =
+      (List.ofFn fun j => (slots j).decode).take k ++ [(slots ⟨k, hk⟩).decode] :=
+  take_succ_ofFn _ hk
+
+private theorem take_scans_length (slots : Fin p.bScan → ScanSlotBits p) {k : ℕ}
+    (hk : k ≤ p.bScan) : ((List.ofFn fun j => (slots j).decode).take k).length = k := by
+  simp [hk]
+
+/-- Row S2: the running IS product after the first `k` scan slots. -/
+theorem RowsHold.initialProducts (valid : p.Valid) (rows : w.RowsHold zIn)
+    (reach : Reach p w.inCarry) :
+    ∀ k ≤ p.bScan, w.scanProductAfter 0 k = w.startProduct 11 *
+      scanFactor (w.eta1, w.eta2) (w.idxEff.val * p.bScan) (w.records.initialScan.take k)
+  | 0, _ => by simp [scanProductAfter, scanFactor]
+  | k + 1, hk => by
+    have hk' : k < p.bScan := hk
+    have previous := RowsHold.initialProducts valid rows reach k (by omega)
+    have all := rows.initialBits ⟨k, hk'⟩
+    rw [rows.initialProduct ⟨k, hk'⟩, previous, ← GoldilocksFingerprint.mul_eq]
+    simp only [records]
+    rw [take_scans _ hk', scanFactor_append, take_scans_length _ (by omega), mul_assoc,
+      fingerprintK_eq _ _ _ rows.squareEq, scanStamp_val valid all, scanValue_val all,
+      rows.scanIndex_val w valid reach]
+
+/-- Row S3: the running FS product after the first `k` scan slots. -/
+theorem RowsHold.finalProducts (valid : p.Valid) (rows : w.RowsHold zIn)
+    (reach : Reach p w.inCarry) :
+    ∀ k ≤ p.bScan, w.scanProductAfter 1 k = w.startProduct 13 *
+      scanFactor (w.eta1, w.eta2) (w.idxEff.val * p.bScan) (w.records.finalScan.take k)
+  | 0, _ => by simp [scanProductAfter, scanFactor]
+  | k + 1, hk => by
+    have hk' : k < p.bScan := hk
+    have previous := RowsHold.finalProducts valid rows reach k (by omega)
+    have all := rows.finalBits ⟨k, hk'⟩
+    rw [rows.finalProduct ⟨k, hk'⟩, previous, ← GoldilocksFingerprint.mul_eq]
+    simp only [records]
+    rw [take_scans _ hk', scanFactor_append, take_scans_length _ (by omega), mul_assoc,
+      fingerprintK_eq _ _ _ rows.squareEq, scanStamp_val valid all, scanValue_val all,
+      rows.scanIndex_val w valid reach]
 
 end StepWitness
 

@@ -70,10 +70,6 @@ theorem bitsLE_bitsNat {n : ℕ} (bits : Fin n → F) :
   have := bitsLE_chunkValue ((List.ofFn bits).map toBool)
   rwa [List.length_map, List.length_ofFn] at this
 
-/-- A natural value below `q` is its field word's value. -/
-theorem natWord_val {n : ℕ} (small : n < goldilocksModulus) : (natWord n).val = n := by
-  simp [natWord, Poseidon2.ofNat, Nat.mod_eq_of_lt small]
-
 theorem natWord_injective {a b : ℕ} (ha : a < goldilocksModulus) (hb : b < goldilocksModulus)
     (same : natWord a = natWord b) : a = b := by
   rw [← natWord_val ha, ← natWord_val hb, same]

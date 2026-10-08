@@ -83,5 +83,6 @@ import NightstreamFPrime.Lifecycle.Nebula.MemoryBound
 import NightstreamFPrime.Lifecycle.Nebula.StepRows
 import NightstreamFPrime.Lifecycle.Nebula.StepDecode
 import NightstreamFPrime.Lifecycle.Nebula.StepRefinement
+import NightstreamFPrime.Lifecycle.Nebula.StepInvoke
 
 /-! Lifecycle layer root. Lists the modules of this layer explicitly. -/

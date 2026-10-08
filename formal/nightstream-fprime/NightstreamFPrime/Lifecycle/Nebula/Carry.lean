@@ -54,10 +54,11 @@ def decodeCarry (v : Fin 39 → F) : MemoryCarry where
 def MemoryCarry.Canonical (c : MemoryCarry) : Prop :=
   c.segIdx < goldilocksModulus ∧ c.idx < goldilocksModulus ∧ c.ts < goldilocksModulus
 
-private theorem natWord_val {n : ℕ} (small : n < goldilocksModulus) : (natWord n).val = n := by
+/-- A natural value below `q` is its field word's value. -/
+theorem natWord_val {n : ℕ} (small : n < goldilocksModulus) : (natWord n).val = n := by
   simp [natWord, Poseidon2.ofNat, Nat.mod_eq_of_lt small]
 
-private theorem natWord_of_val (x : F) : natWord x.val = x := by
+theorem natWord_of_val (x : F) : natWord x.val = x := by
   apply Fin.ext
   simp [natWord, Poseidon2.ofNat, Nat.mod_eq_of_lt x.isLt]
 

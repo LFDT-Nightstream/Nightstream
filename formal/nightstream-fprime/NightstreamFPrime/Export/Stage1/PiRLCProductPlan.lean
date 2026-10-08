@@ -405,8 +405,7 @@ def interface {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (inputs : Inputs program logicalWidth) :
     Phi81ProductFamilyPlan.Interface logicalWidth
       PiRLCProductRingSchedule.invocationCount :=
-  { oneColumn := inputs.oneColumn
-    left := fun ring => challengeState inputs
+  { left := fun ring => challengeState inputs
       (PiRLCProductRingSchedule.laneInvocation ring PiRLCProductRingSchedule.zeroLane)
     right := fun ring => valueState inputs
       (PiRLCProductRingSchedule.laneInvocation ring PiRLCProductRingSchedule.zeroLane)

@@ -9,13 +9,13 @@ at `γ` and expose the verifier-owned initial SumCheck claim.
 Inputs:
 - verifier-derived `γ`;
 - 864 `Eval_K` coefficients;
-- 12,096 `Eval_A` coefficients.
+- 3,456 `Eval_A` coefficients.
 
 Outputs:
 - the child-owned initial SumCheck claim.
 
 Constraint groups:
-- one reusable quadratic-extension Horner chain over 6,912 coefficients;
+- one reusable quadratic-extension Horner chain over 4,320 coefficients;
 - no expected-output or boundary-copy row.
 
 Parent coverage:
@@ -170,7 +170,7 @@ private theorem program_totalRowCount
     _ = 12957 := by
       rw [coefficientExprs_length]
 
-/-- Exact parent-facing physical footprint for the complete 6,912-term
+/-- Exact parent-facing physical footprint for the complete 4,320-term
 initial-claim Horner chain. -/
 def footprint
     (interface : Formal.Interface logicalWidth degreeBound publicFits)

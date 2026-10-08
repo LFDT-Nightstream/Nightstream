@@ -147,8 +147,7 @@ private def phi81Interface : Phi81ProductPlan.Interface 271 :=
     SparseForm.add (SparseForm.singleton
       ⟨1 + index.val, by have bound : index.val < 54 := index.isLt; omega⟩ 1)
       (SparseForm.singleton oneColumn (-2))
-  { oneColumn
-    left := challenge
+  { left := challenge
     right := fun index => SparseForm.singleton
       ⟨55 + index.val, by have bound : index.val < 54 := index.isLt; omega⟩ 1
     quotient := fun index => SparseForm.singleton

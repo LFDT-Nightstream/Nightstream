@@ -10,15 +10,17 @@
 //! Layer 1 takes its constants from a compression key the caller trusts.
 
 use neo_math::D;
-use nightstream_fprime::{PackageError, PI_CCS_V1_1_SOURCE_COUNT};
+use neo_math::F;
+use nightstream_fprime::{
+    PackageError, PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_1_ROUND_COUNT, PI_CCS_V1_1_SOURCE_COUNT,
+};
+use p3_field::PrimeField64;
 
+use super::terminal::FinalProgram;
 use super::{
     extend::prepare_running, PreparedLifecycle, ProveError, Stage1Envelope, Stage1State, StepInputError, VerifyError,
 };
-use crate::folding::{
-    self as nifs, ajtai_dec_mixer, ajtai_rlc_mixer, pi_ccs, pi_rlc, transcript::Transcript, CcsClaim, CeClaim,
-    RunningInstance,
-};
+use crate::folding::{self as nifs, ajtai_dec_mixer, pi_ccs, pi_rlc, transcript::Transcript, CcsClaim, CeClaim};
 
 /// A finished proof: the statement, the layer-0 messages and the layer-1
 /// argument. A finished proof cannot be extended.
@@ -93,7 +95,7 @@ impl PreparedLifecycle {
             vec![fresh],
             running,
         )?;
-        let relation = self.compression_relation(setup.key(), &parent.claim)?;
+        let relation = self.compression_relation(setup.key())?;
         let layer1 = neo_spartan::prove(
             &relation,
             setup,
@@ -111,7 +113,8 @@ impl PreparedLifecycle {
         })
     }
 
-    /// Check a finished proof against the caller's expected state and key.
+    /// Check a finished proof against the caller's expected state and key,
+    /// by the final program on plain values.
     pub(crate) fn verify_final(
         &self,
         expected_state: &Stage1State,
@@ -121,26 +124,32 @@ impl PreparedLifecycle {
         if proof.state != *expected_state {
             return Err(VerifyError::Statement("final proof differs from the external state"));
         }
-        let digest = self.check_statement(expected_state, &proof.running, &proof.fresh)?;
-        let mut running = RunningInstance::new(proof.running.clone(), Vec::new(), None);
-        prepare_running(&mut running, &self.params, digest);
-        let mut transcript = Transcript::session();
-        let parent = nifs::verify_parent(
-            &mut transcript,
-            &self.params,
-            &self.structure,
-            ajtai_rlc_mixer,
-            ajtai_dec_mixer,
-            std::slice::from_ref(&proof.fresh),
-            &running,
-            &proof.pi_ccs,
-            &proof.pi_rlc,
-        )
-        .map_err(VerifyError::Layer0)?;
-        let relation = self
-            .compression_relation(key, &parent)
-            .map_err(VerifyError::Layer1)?;
-        neo_spartan::verify(&relation, transcript.into_inner(), &parent, &proof.layer1).map_err(VerifyError::Layer1)
+        if expected_state.iteration() == 0 || expected_state.iteration() >= F::ORDER_U64 {
+            return Err(VerifyError::Statement(
+                "an active proof requires a positive canonical iteration",
+            ));
+        }
+        let relation = self.compression_relation(key).map_err(VerifyError::Final)?;
+        self.final_program(&relation, expected_state, Some(proof))
+            .run(&mut neo_spartan::Native)
+            .map_err(VerifyError::Final)
+    }
+
+    /// The final verifier of this circuit for `state`.
+    pub(crate) fn final_program<'a>(
+        &'a self,
+        relation: &'a neo_spartan::Relation<'a>,
+        state: &'a Stage1State,
+        proof: Option<&'a FinalProof>,
+    ) -> FinalProgram<'a> {
+        FinalProgram {
+            context: self.binding.verifier_context().digest(),
+            f: &self.structure.f,
+            base: self.params.b(),
+            relation,
+            state,
+            proof,
+        }
     }
 
     /// The layer-1 relation for this circuit. Every PiRLC source is a
@@ -150,7 +159,6 @@ impl PreparedLifecycle {
     fn compression_relation<'k>(
         &self,
         key: &'k neo_spartan::Key,
-        parent: &CeClaim,
     ) -> Result<neo_spartan::Relation<'k>, neo_spartan::Error> {
         let bits = self
             .params
@@ -159,7 +167,13 @@ impl PreparedLifecycle {
                 "the fold error leaves no room under the security minimum",
             ))?;
         let bound = PI_CCS_V1_1_SOURCE_COUNT as u32 * self.params.T() * (self.params.b() - 1);
-        neo_spartan::Relation::new(key, parent.m_in / D, parent.r.len(), bound, bits)
+        neo_spartan::Relation::new(
+            key,
+            PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS / D,
+            PI_CCS_V1_1_ROUND_COUNT,
+            bound,
+            bits,
+        )
     }
 
     /// Write the compression setup files of this circuit into `dir`.

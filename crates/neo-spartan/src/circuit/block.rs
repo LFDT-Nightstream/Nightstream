@@ -9,8 +9,6 @@
 use std::ops::Range;
 use std::sync::OnceLock;
 
-use p3_field_v08::PrimeCharacteristicRing;
-
 use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
 
 use super::{poseidon2, ring_mul};
@@ -88,7 +86,9 @@ impl Kind {
     }
 
     /// The first row of `cells` that fails, if any.
+    #[cfg(test)]
     pub(crate) fn failure(self, cells: &[Gl]) -> Option<usize> {
+        use p3_field_v08::PrimeCharacteristicRing;
         let mut sides = vec![[Gl::ZERO; MATRICES]; self.rows()];
         for entry in self.entries() {
             let value = entry.cell.map_or(Gl::ONE, |cell| cells[cell]);

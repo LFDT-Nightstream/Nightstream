@@ -11,11 +11,11 @@ use crate::circuit::Backend;
 use crate::field::Gl;
 use crate::hash::seed;
 use crate::verifier::{verify, ProofView};
-use crate::{prove, Claim, Proof, Relation, Statement};
+use crate::{prove, Claim, ClaimWords, Proof, Relation};
 use neo_math::D;
 
-/// `statement` as statement words, in `Statement::words` order.
-pub(super) fn statement_input<B: Backend>(b: &mut B, statement: &Statement<Gl>) -> Statement<B::F> {
+/// `statement` as statement words, in `ClaimWords::words` order.
+pub(super) fn statement_input<B: Backend>(b: &mut B, statement: &ClaimWords<Gl>) -> ClaimWords<B::F> {
     let mut rings = |values: &[[Gl; D]]| -> Vec<[B::F; D]> {
         values
             .iter()
@@ -38,7 +38,7 @@ pub(super) fn statement_input<B: Backend>(b: &mut B, statement: &Statement<Gl>) 
         .iter()
         .map(|values| array(pairs(values)))
         .collect();
-    Statement {
+    ClaimWords {
         commitment,
         public,
         point,
@@ -54,7 +54,7 @@ fn record(
     claim: &Claim,
     proof: Option<&Proof>,
 ) -> (Trace, Option<&'static str>) {
-    let statement = Statement::new(&relation.shape, claim).unwrap();
+    let statement = ClaimWords::new(&relation.shape, claim).unwrap();
     let mut recorder = Recorder::new(Trace::default());
     let b = &mut recorder;
     let seed = seed.map(|word| b.public(word.as_canonical_u64()));

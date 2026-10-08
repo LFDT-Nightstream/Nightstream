@@ -17,7 +17,7 @@ use crate::matrix::{EarlyChallenges, EarlyValues};
 use crate::ring::{self, Mixing};
 use crate::setup::{self, LeafView, FOLD};
 use crate::whir::{self, OpeningView};
-use crate::{kappa, mle, p1_points, setup_point, sumcheck, Error, Proof, Relation, Statement};
+use crate::{kappa, mle, p1_points, setup_point, sumcheck, ClaimWords, Error, Proof, Relation};
 use crate::{LANE_VARIABLES, RUN_ORACLES};
 
 /// A layer-1 proof as backend words, or zeros of its shape.
@@ -137,7 +137,7 @@ pub(crate) fn verify<B: Backend>(
     b: &mut B,
     relation: &Relation<'_>,
     seed: [B::F; 4],
-    statement: &Statement<B::F>,
+    statement: &ClaimWords<B::F>,
     proof: &ProofView<'_, B>,
 ) -> Result<(), Error> {
     let (key, shape) = (relation.key, &relation.shape);

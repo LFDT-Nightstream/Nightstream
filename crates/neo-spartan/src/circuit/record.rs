@@ -426,7 +426,7 @@ pub(crate) struct Trace {
     pub(crate) glue: Vec<Gl>,
     /// Block cell values per kind, `kind.cells()` per block.
     pub(crate) blocks: [Vec<Gl>; KINDS.len()],
-    /// Statement words (index 1 and up; index 0 is the constant one).
+    /// ClaimWords words (index 1 and up; index 0 is the constant one).
     pub(crate) public: Vec<Gl>,
     /// Row entries; `rows[r]` holds the start of each of the seven sides
     /// `A0, B0, A1, B1, A2, B2, C` and the end.
@@ -466,6 +466,7 @@ impl Sink for Trace {
 }
 
 impl Trace {
+    #[cfg(test)]
     pub(crate) fn value(&self, wire: Wire) -> Gl {
         match wire {
             Wire::Glue(cell) => self.glue[cell as usize],
@@ -476,6 +477,7 @@ impl Trace {
     }
 
     /// The value of glue row `r` (zero when it holds).
+    #[cfg(test)]
     pub(crate) fn row_value(&self, r: usize) -> Gl {
         let offsets = self.rows[r];
         let side = |s: usize| {
@@ -492,6 +494,7 @@ impl Trace {
     }
 
     /// The first block, of any kind, with a failing row.
+    #[cfg(test)]
     pub(crate) fn failing_block(&self) -> Option<(Kind, usize)> {
         KINDS.into_iter().find_map(|kind| {
             (0..self.count(kind))
@@ -501,6 +504,7 @@ impl Trace {
     }
 
     /// The first row of block `block` of `kind` that fails, if any.
+    #[cfg(test)]
     pub(crate) fn block_failure(&self, kind: Kind, block: usize) -> Option<usize> {
         let cells = kind.cells();
         kind.failure(&self.blocks[kind.index()][block * cells..(block + 1) * cells])

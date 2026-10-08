@@ -39,10 +39,8 @@ pub enum VerifyError {
     RunningOpenings(#[source] PiCcsError),
     #[error("selected terminal fresh CCS relation: {0}")]
     FreshRelation(#[source] SuperneoCachedRelationError),
-    #[error("final proof layer 0: {0}")]
-    Layer0(#[source] crate::folding::Error),
-    #[error("final proof layer 1: {0}")]
-    Layer1(#[source] neo_spartan::Error),
+    #[error("final proof: {0}")]
+    Final(#[source] neo_spartan::Error),
 }
 
 impl PreparedLifecycle {
@@ -283,12 +281,12 @@ fn device_lock_error() -> VerifyError {
     })
 }
 
-fn commitment_has_selected_shape(commitment: &Commitment) -> bool {
+pub(super) fn commitment_has_selected_shape(commitment: &Commitment) -> bool {
     let rows = PRODUCTION_VERIFIER_ROWS as usize;
     commitment.d == D && commitment.kappa == rows && commitment.data.len() == D * rows
 }
 
-fn evaluation_has_selected_shape(values: &[K]) -> bool {
+pub(super) fn evaluation_has_selected_shape(values: &[K]) -> bool {
     values.len() >= D && values[D..].iter().all(|value| *value == K::ZERO)
 }
 

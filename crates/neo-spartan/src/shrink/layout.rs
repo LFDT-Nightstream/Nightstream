@@ -25,12 +25,12 @@ use p3_field_v08::PrimeCharacteristicRing;
 /// program by a shape run; the rows of a run depend only on these and the
 /// program.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct Shape {
+pub struct Shape {
     /// Blocks per kind, in `KINDS` order.
     pub(crate) blocks: [usize; KINDS.len()],
     pub(crate) glue_rows: usize,
     pub(crate) glue_cells: usize,
-    /// Statement words, the constant one excluded.
+    /// ClaimWords words, the constant one excluded.
     pub(crate) publics: usize,
 }
 

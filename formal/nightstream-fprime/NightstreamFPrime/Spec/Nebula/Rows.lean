@@ -141,7 +141,7 @@ theorem opsFactors_append (p : Plan) (η : E × E) (ts : ℕ) (l : List OpSlot) 
         simp [activeLength, OpSlot.port, ht]
       rw [length, show ts + (activeLength l + 1) + 1 = ts + 1 + activeLength l + 1 by omega]
       simp only [List.cons_append, opsFactors, ht, ih, Bool.false_eq_true, ite_false]
-      simp only [Prod.mk.injEq, mul_assoc, and_self]
+      simp only [mul_assoc]
     · have length : activeLength (t :: l) = activeLength l := by
         simp [activeLength, OpSlot.port, ht]
       rw [length]

@@ -34,7 +34,7 @@ def completeLogicalWidth
 theorem completeLogicalWidth_eq
     (application : Lifecycle.Stage1.Application.Program) :
     completeLogicalWidth application =
-      59579666 + retainedCoordinateCount application := by
+      49483006 + retainedCoordinateCount application := by
   unfold completeLogicalWidth localStart witnessStart
   rw [PiRLCSamplerOrdinaryRetainedGeometry.completeLogicalWidth_eq]
   unfold retainedCoordinateCount
@@ -46,7 +46,7 @@ application input/output words already belong to that prefix. -/
 theorem completeLogicalWidth_eq_applicationCounts
     (application : Lifecycle.Stage1.Application.Program) :
     completeLogicalWidth application =
-      59579666 +
+      49483006 +
         (application.witnessWordCount + localCount application) * 41 := by
   rw [completeLogicalWidth_eq, retainedCoordinateCount_eq,
     retainedSlotCount_eq]
@@ -57,7 +57,7 @@ theorem completeLogicalWidth_le_twoPow28_iff
     (application : Lifecycle.Stage1.Application.Program) :
     completeLogicalWidth application ≤
         2 ^ NightstreamFPrime.Lifecycle.cubeVariables ↔
-      application.witnessWordCount + localCount application ≤ 5094043 := by
+      application.witnessWordCount + localCount application ≤ 5340303 := by
   rw [completeLogicalWidth_eq_applicationCounts]
   norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
   omega
@@ -69,7 +69,7 @@ theorem carrierWidth_le_twoPow28_iff
     NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
           (completeLogicalWidth application) ≤
         2 ^ NightstreamFPrime.Lifecycle.cubeVariables ↔
-      application.witnessWordCount + localCount application ≤ 5094042 := by
+      application.witnessWordCount + localCount application ≤ 5340302 := by
   rw [completeLogicalWidth_eq_applicationCounts]
   simp [NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth,
     NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81ColumnLayout.blockCount,
@@ -88,7 +88,7 @@ structure FitsTwoPow28
 word budget. -/
 theorem fitsTwoPow28OfApplicationCounts
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : application.witnessWordCount + localCount application ≤ 5094043) :
+    (fits : application.witnessWordCount + localCount application ≤ 5340303) :
     FitsTwoPow28 application where
   complete :=
     (completeLogicalWidth_le_twoPow28_iff application).2 fits
@@ -134,7 +134,7 @@ theorem inputFits {application : Lifecycle.Stage1.Application.Program}
       logicalWidth := by
   have pilot := PiRLCPoseidonGeometry.priorInputFits (pilotGeometry geometry)
   have full : (PiRLCPoseidonGeometry.priorInputBlock application).coordinateCount =
-      1529177 := by simp [PiRLCPoseidonGeometry.priorInputBlock]
+      1316633 := by simp [PiRLCPoseidonGeometry.priorInputBlock]
   rw [full] at pilot
   change PiRLCPoseidonGeometry.priorInputStart application + 35 * 41 + 4 * 41 ≤
     logicalWidth
@@ -154,7 +154,7 @@ theorem outputFits {application : Lifecycle.Stage1.Application.Program}
       logicalWidth := by
   have pilot := PiRLCPoseidonGeometry.outputInputFits (pilotGeometry geometry)
   have full : (PiRLCPoseidonGeometry.outputInputBlock application).coordinateCount =
-      1529177 := by simp [PiRLCPoseidonGeometry.outputInputBlock]
+      1316633 := by simp [PiRLCPoseidonGeometry.outputInputBlock]
   rw [full] at pilot
   change PiRLCPoseidonGeometry.outputInputStart application + 35 * 41 + 4 * 41 ≤
     logicalWidth

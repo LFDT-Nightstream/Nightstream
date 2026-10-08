@@ -23,7 +23,7 @@ use opening::{EqualityTensor, Extension, Ring, DEGREE};
 use reference::{matrix::MatrixProgram, source::SourcePackage};
 
 const CHILDREN: usize = 16;
-const MATRICES: usize = 7;
+const MATRICES: usize = 4;
 const PUBLIC: usize = 270;
 type Values = [Ring; CHILDREN];
 

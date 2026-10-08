@@ -4,12 +4,12 @@ use p3_goldilocks::Goldilocks;
 use serde_json::{json, Value};
 
 fn library() -> Value {
-    let mut row = vec![json!([]); 7];
+    let mut row = vec![json!([]); 4];
     row[0] = json!([[2, 1]]);
     json!({
         "format": "nightstream.matrix-templates",
         "version": 1,
-        "profile": [18446744069414584321u64, 2, 16, 65536, 54, 28, 7, 7],
+        "profile": [18446744069414584321u64, 2, 16, 65536, 54, 28, 4, 4],
         "components": [{
             "id": "linear-example", "input_count": 2,
             "ports": [

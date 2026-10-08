@@ -18,13 +18,12 @@ open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Export.Stage1.PiRLCPartialTrace
 open NightstreamFPrime.Export.Stage1.PiCCSCarriedReadCache
 
-/-- Columns of the five product states and of the selector column. -/
+/-- Columns of the five product states. -/
 def stateColumnKeys {columns : Nat} (interface : Phi81ProductPlan.Interface columns) :
     List Nat :=
-  interface.oneColumn.val ::
-    ([interface.left, interface.right, interface.output, interface.prior,
-      interface.quotient].flatMap fun state =>
-      (List.ofFn state).flatMap fun form => form.entries.map fun entry => entry.column.val)
+  [interface.left, interface.right, interface.output, interface.prior,
+    interface.quotient].flatMap fun state =>
+    (List.ofFn state).flatMap fun form => form.entries.map fun entry => entry.column.val
 
 /-- The carried value of every coefficient of one state. -/
 def stateValues {columns : Nat} (state : Phi81ProductPlan.State columns)
@@ -46,8 +45,8 @@ def outputAt (output prior quotient : Vector K ringDegree) (point : F) : K :=
       -1 * Phi81Relation.QuotientProduct.evaluate (fun lane => (prior.get lane).c1) point) +
       modulus * Phi81Relation.QuotientProduct.evaluate (fun lane => (quotient.get lane).c1) point⟩
 
-/-- The seven carried port values of one product row from its state values. -/
-def rowValues (left right output prior quotient : Vector K ringDegree) (selector : K)
+/-- The four carried port values of one product row from its state values. -/
+def rowValues (left right output prior quotient : Vector K ringDegree)
     (row : Fin 108) : Vector K Spec.ProductionRelation.matrixCount :=
   let point := Phi81Relation.QuotientProduct.node row
   Vector.ofFn fun port =>
@@ -55,9 +54,8 @@ def rowValues (left right output prior quotient : Vector K ringDegree) (selector
     | some meaningful =>
         match meaningful.val with
         | 0 => evaluateAt left point
-        | 2 => evaluateAt right point
-        | 4 => outputAt output prior quotient point
-        | 6 => selector
+        | 1 => evaluateAt right point
+        | 2 => outputAt output prior quotient point
         | _ => ⟨0, 0⟩
     | none => ⟨0, 0⟩
 
@@ -74,8 +72,7 @@ def invocation {columns : Nat}
   let output := stateValues interface.output read
   let prior := stateValues interface.prior read
   let quotient := stateValues interface.quotient read
-  let selector := PiCCSSparseEvaluation.evaluateK (SparseForm.singleton interface.oneColumn 1) read
-  Vector.ofFn fun row => some (rowValues left right output prior quotient selector row)
+  Vector.ofFn fun row => some (rowValues left right output prior quotient row)
 
 private theorem get_ofFn {Alpha : Type} {size : Nat}
     (values : Fin size → Alpha) (index : Fin size) :
@@ -106,8 +103,7 @@ private theorem rowValues_eq {columns : Nat} (interface : Phi81ProductPlan.Inter
     (read : Fin columns → K) (row : Fin 108) :
     rowValues (stateValues interface.left read) (stateValues interface.right read)
         (stateValues interface.output read) (stateValues interface.prior read)
-        (stateValues interface.quotient read)
-        (PiCCSSparseEvaluation.evaluateK (SparseForm.singleton interface.oneColumn 1) read) row =
+        (stateValues interface.quotient read) row =
       Vector.ofFn fun port : Fin Spec.ProductionRelation.matrixCount =>
         PiCCSSparseEvaluation.evaluateK ((Phi81ProductPlan.rowAt interface row).portForm port)
           read := by
@@ -116,10 +112,10 @@ private theorem rowValues_eq {columns : Nat} (interface : Phi81ProductPlan.Inter
   simp only [rowValues, Vector.getElem_ofFn]
   match index, bounded with
   | 0, _ => exact (evaluateK_evaluateForm _ _ _).symm
-  | 2, _ => exact (evaluateK_evaluateForm _ _ _).symm
-  | 4, _ => exact (evaluateK_outputForm _ _ _).symm
-  | 1, _ | 3, _ | 5, _ | 6, _ => rfl
-  | _ + 7, bounded => exact absurd bounded (by change ¬ _ < 7; omega)
+  | 1, _ => exact (evaluateK_evaluateForm _ _ _).symm
+  | 2, _ => exact (evaluateK_outputForm _ _ _).symm
+  | 3, _ => rfl
+  | _ + 4, bounded => exact absurd bounded (by change ¬ _ < 4; omega)
 
 /-- Every row and port equals the existing direct product row under the original
 carried read. No cache, interface or row premise is used. -/

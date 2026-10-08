@@ -55,7 +55,7 @@ private structure Trace where
   state : Transcript.State
   claim : K
   challenges : List K
-  rounds : List (Vector K 10)
+  rounds : List (Vector K 9)
 
 /-- Replay saved Lean rounds causally from the original public statement.
 Every trace field is checked; a supplied state or challenge is never trusted. -/
@@ -71,8 +71,8 @@ private def readTrace (publicPath : System.FilePath) (roundPaths : List String) 
     let alpha ← checked (PiCCSInputCheck.decodeVector cubeVariables decodeExtension saved[1]!)
     let gamma ← checked (decodeExtension saved[2]!)
     let before ← checked (decodeState saved[3]!)
-    let round ← checked (PiCCSInputCheck.decodeVector 10 decodeExtension saved[4]!)
-    let polynomial : FixedPolynomial K 9 := ⟨round.toList, Vector.length_toList⟩
+    let round ← checked (PiCCSInputCheck.decodeVector 9 decodeExtension saved[4]!)
+    let polynomial : FixedPolynomial K 8 := ⟨round.toList, Vector.length_toList⟩
     let claimedChallenge ← checked (decodeExtension saved[5]!)
     let after ← checked (decodeState saved[6]!)
     let initial ← checked (decodeExtension saved[7]!)
@@ -392,7 +392,7 @@ private def freshFromPrefix (publicPath directory outputPath : System.FilePath)
   let power := PiCCSGammaPowers.lookup extensionOps.toOps trace.coins.gamma powers
   let weights := PiCCSTensorWeights.prepare extensionOps (trace.coins.alpha.coordinates.drop (consumed + 1))
   let contribution (index : Nat) (low high : Vector K Spec.ProductionRelation.matrixCount) :
-      IO (FixedPolynomial K 9) := do
+      IO (FixedPolynomial K 8) := do
     if first ≤ index && index < finish then
       if inside : index < 2 ^ (cubeVariables - consumed - 1) then
         let polynomial := PiCCSFreshPrefixPolynomial.contribution
@@ -401,11 +401,11 @@ private def freshFromPrefix (publicPath directory outputPath : System.FilePath)
           power weights low high
         return PiCCSPublicReplay.degree_eq trace.input ▸ polynomial
       else throw (IO.userError "fresh pair exceeds the remaining Boolean domain")
-    else return FixedPolynomial.zero extensionOps.toOps 9
+    else return FixedPolynomial.zero extensionOps.toOps 8
   let workers := max 1 (((← IO.getEnv "LEAN_NUM_THREADS").bind String.toNat?).getD 1)
-  let mut total := FixedPolynomial.zero extensionOps.toOps 9
+  let mut total := FixedPolynomial.zero extensionOps.toOps 8
   for batch in [:(chunks.size + workers - 1) / workers] do
-    let mut tasks : Array (Task (Except IO.Error (FixedPolynomial K 9))) := #[]
+    let mut tasks : Array (Task (Except IO.Error (FixedPolynomial K 8))) := #[]
     for part in [batch * workers:min chunks.size ((batch + 1) * workers)] do
       if bound : part < chunks.size then
         let chunk := chunks[part]'bound
@@ -413,7 +413,7 @@ private def freshFromPrefix (publicPath directory outputPath : System.FilePath)
         tasks := tasks.push (← IO.asTask (prio := Task.Priority.dedicated) do
           let input ← IO.FS.Handle.mk chunk.path .read
           let mut previous : Option (Vector K Spec.ProductionRelation.matrixCount) := none
-          let mut subtotal := FixedPolynomial.zero extensionOps.toOps 9
+          let mut subtotal := FixedPolynomial.zero extensionOps.toOps 8
           for index in [chunk.first:chunk.finish] do
             let values ← binaryRow input Spec.ProductionRelation.matrixCount
             if index == chunk.first then
@@ -525,7 +525,7 @@ private def composePrefix (publicPath freshPath normPath matrixPath padPath outp
   let trace ← readTrace publicPath roundPaths
   checkDepth trace
   let consumed := trace.challenges.length
-  let fresh ← prefixPolynomial trace 9 (foldedCount (matrixRows ()) (consumed + 1)) freshPath
+  let fresh ← prefixPolynomial trace 8 (foldedCount (matrixRows ()) (consumed + 1)) freshPath
   let norm ← prefixPolynomial trace 3
     (foldedCount PiCCSSourceImages.shape.carrierWidth (consumed + 1)) normPath
   let matrix ← prefixMoment trace 1 (foldedCount (matrixRows ()) consumed) matrixPath
@@ -537,13 +537,13 @@ private def composePrefix (publicPath freshPath normPath matrixPath padPath outp
     FixedPolynomial.scale extensionOps.toOps
       (PiCCSPrefixSelector.consumedFactor extensionOps trace.challenges target)
       (PiCCSCarriedMoments.headSelector extensionOps (PiCCSPrefixSelector.dropPoint target consumed))
-  let normTerm : FixedPolynomial K 9 :=
+  let normTerm : FixedPolynomial K 8 :=
     FixedPolynomial.scale extensionOps.toOps (power productionShape.constraintOffset)
       (FixedPolynomial.scale extensionOps.toOps (power productionShape.freshCount)
-        (FixedPolynomial.widen extensionOps.toOps (by decide : 4 ≤ 9)
+        (FixedPolynomial.widen extensionOps.toOps (by decide : 4 ≤ 8)
           (FixedPolynomial.mul extensionOps.toOps (head trace.coins.alpha) norm)))
-  let carried : FixedPolynomial K 9 :=
-    PiCCSCarriedMoments.carriedPair extensionOps (by decide : 2 ≤ 9)
+  let carried : FixedPolynomial K 8 :=
+    PiCCSCarriedMoments.carriedPair extensionOps (by decide : 2 ≤ 8)
       (head (PiCCSPublicReplay.verifierInput trace.input).priorPoint)
       (power productionShape.matrixEvaluationOffset) pad.1 pad.2 matrix.1 matrix.2
   let polynomial := FixedPolynomial.add extensionOps.toOps carried
@@ -811,7 +811,7 @@ private def finishOriginal (publicPath evaluationsPath inputPath phasePath words
           let pad ← checked (PiCCSInputCheck.decodeVector 17
             (PiCCSInputCheck.decodeVector 54 decodeExtension) pad)
           let matrix ← checked (PiCCSInputCheck.decodeVector 17
-            (PiCCSInputCheck.decodeVector 7
+            (PiCCSInputCheck.decodeVector 4
               (PiCCSInputCheck.decodeVector 54 decodeExtension)) matrix)
           pure ({
             commitment := trace.input.commitment

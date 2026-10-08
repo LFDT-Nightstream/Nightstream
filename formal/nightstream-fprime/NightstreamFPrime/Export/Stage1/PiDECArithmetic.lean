@@ -8,7 +8,7 @@ Owns the ordinary-row encoding of the exact PiDEC v1_1 phase.
 The relation-parameterized input and output binding children have no rows.
 The exported list therefore contains, in parent order, only the public split,
 commitment recomposition, separate `Eval_K` recomposition, and separate
-7-matrix `Eval_A` recomposition constraints. The equality theorem below ties
+4-matrix `Eval_A` recomposition constraints. The equality theorem below ties
 that relation-independent executable list to the canonical Lean lowering for
 every verifier-owned logical relation.
 -/
@@ -178,8 +178,8 @@ theorem Plan.rows_length (plan : Plan) :
 theorem canonicalPlan_rowCount
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalRowCount (canonicalPlan logicalWidth publicFits).constraints =
-      6912 := by
-  change R1CS.totalRowCount (constraints logicalWidth publicFits) = 6912
+      6588 := by
+  change R1CS.totalRowCount (constraints logicalWidth publicFits) = 6588
   rw [constraints_eq_logical relation]
   exact NightstreamFPrime.Layout.PiDEC.v1_1.totalRowCount_eq relation
     (phaseInterface logicalWidth publicFits)

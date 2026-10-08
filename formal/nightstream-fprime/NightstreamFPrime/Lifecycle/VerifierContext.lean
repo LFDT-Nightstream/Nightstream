@@ -93,14 +93,14 @@ def descriptor (authority : Authority) : Descriptor where
 `b = 2`, `k_rho = 16`, `B = 2^16`, and every Stage 1 PiCCS dimension. -/
 def profileWords : List F :=
   ([4294967295, 1, 2, 16, 65536, 1, 16, 17, 16, productionProfile.ccsMatrices,
-      cubeVariables, 9, 54, productionProfile.commitmentWidth] :
+      cubeVariables, 8, 54, productionProfile.commitmentWidth] :
     List Nat).map Poseidon2.ofNat
 
 /-- Fixed digest-only PiCCS schedule descriptor: state digest, fresh source,
 all causal rounds, complete output, then total PiRLC sampling. The last two
 words bind four canonical field draws and one permutation advance per scalar. -/
 def scheduleWords : List F :=
-  ([1, 1, 1, cubeVariables, 10, 17, productionProfile.ccsMatrices, 54, 4, 1] :
+  ([1, 1, 1, cubeVariables, 9, 17, productionProfile.ccsMatrices, 54, 4, 1] :
       List Nat).map
     Poseidon2.ofNat
 

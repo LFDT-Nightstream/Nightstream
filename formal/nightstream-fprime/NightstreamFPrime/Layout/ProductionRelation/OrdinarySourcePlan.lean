@@ -97,8 +97,7 @@ theorem compileRow_preserves_local {sourceWidth logicalWidth : Nat}
       bounded) :
     (SourceCompiler.compileRow sourceMap oneColumn row bounded).Preserves
       assignment source row := by
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · simp [SourceCompiler.compileRow, one]
+  refine ⟨?_, ?_, ?_⟩
   · exact compileCombination_eval_local sourceMap oneColumn row.a bounded.1
       assignment source one preserves.1
   · exact compileCombination_eval_local sourceMap oneColumn row.b bounded.2.1
@@ -127,7 +126,7 @@ def Holds {sourceWidth : Nat} (program : Program sourceWidth)
     (source : Circuit.Env) : Prop :=
   ∀ index, (program.row index).Holds source
 
-/-- Compile every indexed source row into the sole 7-matrix row relation. -/
+/-- Compile every indexed source row into the sole 4-matrix row relation. -/
 def compile {sourceWidth logicalWidth : Nat} (program : Program sourceWidth)
     (inputs : program.Inputs logicalWidth) : OrdinaryRow.Program logicalWidth where
   rowCount := program.rowCount
@@ -167,7 +166,7 @@ theorem compile_preserves {sourceWidth logicalWidth : Nat}
     (program.row index) (program.bounded index) assignment source one
     (preserves index)
 
-/-- The final 7-matrix plan accepts exactly the indexed source R1CS rows. -/
+/-- The final 4-matrix plan accepts exactly the indexed source R1CS rows. -/
 theorem rowsZero_iff {sourceWidth logicalWidth : Nat}
     (program : Program sourceWidth) (inputs : program.Inputs logicalWidth)
     (assignment : Assignment F logicalWidth) (source : Circuit.Env)

@@ -44,7 +44,7 @@ class LeanMutationGenerationTests(unittest.TestCase):
             "public_child_public": (2, 0, 0),
             "public_shared_point": (0, 0, 0),
             "public_child_eval_K": (3, 0, 0, 0),
-            **{f"public_child_eval_A{matrix}": (4, 0, matrix, 0, 0) for matrix in range(7)},
+            **{f"public_child_eval_A{matrix}": (4, 0, matrix, 0, 0) for matrix in range(mutations.MATRICES)},
             "public_child_digit_range": (2, 0, 0),
         }
         for case in manifest["cases"][:-1]:
@@ -97,7 +97,7 @@ class LeanMutationGenerationTests(unittest.TestCase):
         children[4][0].pop()
         self.children.write_text(mutations.numeric_json(children))
         output = self.directory / "invalid"
-        with self.assertRaisesRegex(ValueError, "expected vector width 7"):
+        with self.assertRaisesRegex(ValueError, "expected vector width 4"):
             mutations.generate(self.ccs, self.children, output)
         self.assertFalse(output.exists())
 

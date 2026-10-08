@@ -232,8 +232,8 @@ private theorem frameGrid_none (grid : SourceGrid) (logicalWidth start offset : 
     rw [address] at checked
     exact checked
 
-private theorem freshSourceStart_eq : freshSourceStart = frameSourceStart + 112013 := by
-  change Spartan.sourceToSpartan (PiRLCStarts.samplerLogicalStart + 112013) = _
+private theorem freshSourceStart_eq : freshSourceStart = frameSourceStart + 106505 := by
+  change Spartan.sourceToSpartan (PiRLCStarts.samplerLogicalStart + 106505) = _
   rw [Spartan.sourceToSpartan_add_of_piCcsLocal _ _ samplerLogical_after_piCcs]
   rfl
 

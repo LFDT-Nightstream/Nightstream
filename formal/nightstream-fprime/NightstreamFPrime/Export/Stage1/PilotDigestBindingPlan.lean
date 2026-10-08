@@ -41,7 +41,7 @@ def oneColumn {program : Lifecycle.Stage1.Application.Program}
   PilotOrdinaryRetainedGeometry.oneColumn geometry
 
 def lastInvocation : Fin PilotPoseidonPlan.invocationCount :=
-  ⟨3109, by
+  ⟨2677, by
     rw [PilotPoseidonPlan.invocationCount_eq]
     omega⟩
 
@@ -168,7 +168,6 @@ def interface {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth) :
     PinFamilyPlan.Interface logicalWidth rowCount where
-  oneColumn := oneColumn geometry
   value := difference geometry
 
 theorem rowCount_le : rowCount ≤
@@ -199,11 +198,10 @@ def Matches {program : Lifecycle.Stage1.Application.Program}
 theorem rowsZero_iff_matches
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth)
-    (assignment : Assignment F logicalWidth)
-    (one : assignment (oneColumn geometry) = 1) :
+    (assignment : Assignment F logicalWidth) :
     (plan geometry).RowsZero assignment ↔ Matches geometry assignment := by
   rw [plan, PinFamilyPlan.planRowsZero_iff
-    (interface geometry) rowCount_le assignment one]
+    (interface geometry) rowCount_le assignment]
   constructor
   · intro zeros row
     have zero := zeros row

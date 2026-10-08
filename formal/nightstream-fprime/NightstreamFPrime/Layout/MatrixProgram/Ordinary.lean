@@ -3,7 +3,7 @@ import NightstreamFPrime.Layout.ProductionRelation.OrdinarySourcePlan
 
 /-!
 Owns the generic executable interpreter for ordinary source R1CS rows in a
-compact sparse 7-matrix program. Source rows come from the package's existing
+compact sparse 4-matrix program. Source rows come from the package's existing
 canonical row stream. The interpreter only applies the package-carried sparse
 source substitution and places the result in the fixed ordinary matrix ports.
 
@@ -42,7 +42,6 @@ def compileRow? (substitution : SourceSubstitution) (logicalWidth oneColumn : Na
     let b ← compileCombination? substitution ⟨oneColumn, oneBound⟩ row.b
     let c ← compileCombination? substitution ⟨oneColumn, oneBound⟩ row.c
     pure {
-      selector := SparseForm.singleton ⟨oneColumn, oneBound⟩ 1
       a := a
       b := b
       c := c }

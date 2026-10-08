@@ -167,7 +167,7 @@ private theorem challengeActions_positive :
   exact labelledActions_positive _ _
 
 private theorem roundActionsWithExpected_positive
-    (interface : RoundTranscript.Interface 9) (offset : Nat)
+    (interface : RoundTranscript.Interface 8) (offset : Nat)
     (roundIndex : Fin
       NightstreamFPrime.Lifecycle.productionShape.cubeVariables)
     (expected : NightstreamFPrime.Circuit.Quadratic.KExpr) :
@@ -380,7 +380,7 @@ private theorem outputTrace_state_endpoint (lane : Fin laneCount) :
           (Invocations.invocationCount PiCCSActionPayloadBlock.outputActions - 1) *
             1096) at compiled
   have count : Invocations.invocationCount
-      PiCCSActionPayloadBlock.outputActions = 1225 := by
+      PiCCSActionPayloadBlock.outputActions = 766 := by
     exact PiCCSInvocations.outputInvocationCount_eq
       Data.logicalWidth Data.publicFits
   have endEq := PiCCSInvocations.outputEnd_eq_logicalFreshBase
@@ -388,7 +388,7 @@ private theorem outputTrace_state_endpoint (lane : Fin laneCount) :
   rw [count] at compiled
   rw [PiCCSInvocations.outputInvocationCount_eq] at endEq
   have startEq :
-      PiCCSInvocations.outputWitnessStart + (1225 - 1) * 1096 + 1080 =
+      PiCCSInvocations.outputWitnessStart + (766 - 1) * 1096 + 1080 =
         PiCCSStarts.logicalFreshBase - 16 := by
     rw [← endEq]
     generalize PiCCSInvocations.outputWitnessStart = start
@@ -556,7 +556,6 @@ def interface {program : Lifecycle.Stage1.Application.Program}
     (ordinaryGeometry :
       PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
     PinFamilyPlan.Interface logicalWidth rowCount where
-  oneColumn := PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry
   value := bindingForm poseidonGeometry ordinaryGeometry
 
 theorem rowCount_le : rowCount ≤ 2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by
@@ -584,15 +583,13 @@ theorem rowsZero_iff
     (poseidonGeometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (ordinaryGeometry :
       PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
-    (assignment : Assignment F logicalWidth)
-    (one : assignment
-      (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1) :
+    (assignment : Assignment F logicalWidth) :
     (plan poseidonGeometry ordinaryGeometry).RowsZero assignment ↔
       ∀ rowIndex,
         (bindingForm poseidonGeometry ordinaryGeometry rowIndex).eval
           assignment = 0 := by
   exact PinFamilyPlan.planRowsZero_iff
-    (interface poseidonGeometry ordinaryGeometry) rowCount_le assignment one
+    (interface poseidonGeometry ordinaryGeometry) rowCount_le assignment
 
 theorem rowsZero_implies_endpointValue
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
@@ -602,8 +599,6 @@ theorem rowsZero_implies_endpointValue
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
-    (one : assignment
-      (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
       assignment (PiRLCRetainedPreservation.sourceAssignment
         program base groupValue))
@@ -614,8 +609,8 @@ theorem rowsZero_implies_endpointValue
       PiCCSActionPayloadBlock.packageEnv program
         (PiRLCRetainedPreservation.sourceAssignment
           program base groupValue) (endpointColumn family lane) := by
-  have rowZero := (rowsZero_iff poseidonGeometry ordinaryGeometry assignment
-    one).mp rowsZero (row family lane)
+  have rowZero := (rowsZero_iff poseidonGeometry ordinaryGeometry
+    assignment).mp rowsZero (row family lane)
   rw [bindingForm, descriptor_row, SparseForm.add_eval,
     SparseForm.scale_eval] at rowZero
   have formsEq :
@@ -740,8 +735,6 @@ theorem rowsZero_implies_endpointState
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
-    (one : assignment
-      (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
       assignment (PiRLCRetainedPreservation.sourceAssignment
         program base groupValue))
@@ -757,7 +750,7 @@ theorem rowsZero_implies_endpointState
   apply congrArg List.ofFn
   funext lane
   exact rowsZero_implies_endpointValue poseidonGeometry ordinaryGeometry
-    assignment base groupValue one encoding rowsZero family lane
+    assignment base groupValue encoding rowsZero family lane
 
 private theorem endpointState_eq_finalEval
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
@@ -767,8 +760,6 @@ private theorem endpointState_eq_finalEval
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
-    (one : assignment
-      (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
       assignment (PiRLCRetainedPreservation.sourceAssignment
         program base groupValue))
@@ -783,7 +774,7 @@ private theorem endpointState_eq_finalEval
           (PiRLCRetainedPreservation.sourceAssignment
             program base groupValue)) finalState) := by
   rw [rowsZero_implies_endpointState poseidonGeometry ordinaryGeometry
-    assignment base groupValue one encoding rowsZero family]
+    assignment base groupValue encoding rowsZero family]
   apply congrArg List.ofFn
   funext lane
   unfold Layer.evalState
@@ -798,8 +789,6 @@ private theorem statementEndpoint_eq_finalEval
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
-    (one : assignment
-      (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
       assignment (PiRLCRetainedPreservation.sourceAssignment
         program base groupValue))
@@ -815,7 +804,7 @@ private theorem statementEndpoint_eq_finalEval
             Data.publicFits) PiCCSInvocations.statementWitnessStart)) := by
   simpa [endpointInvocation, statementFamily] using
     endpointState_eq_finalEval poseidonGeometry ordinaryGeometry assignment
-      base groupValue one encoding rowsZero statementFamily
+      base groupValue encoding rowsZero statementFamily
       (StatementAbsorption.finalState
         (PiCCSInvocations.statementInterface Data.logicalWidth Data.publicFits)
         PiCCSInvocations.statementWitnessStart) statementFinalState_endpoint
@@ -828,8 +817,6 @@ private theorem challengeEndpoint_eq_finalEval
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
-    (one : assignment
-      (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
       assignment (PiRLCRetainedPreservation.sourceAssignment
         program base groupValue))
@@ -845,7 +832,7 @@ private theorem challengeEndpoint_eq_finalEval
             Data.publicFits) PiCCSInvocations.challengeWitnessStart)) := by
   simpa [endpointInvocation, challengeFamily] using
     endpointState_eq_finalEval poseidonGeometry ordinaryGeometry assignment
-      base groupValue one encoding rowsZero challengeFamily
+      base groupValue encoding rowsZero challengeFamily
       (ChallengeDerivation.finalState
         (PiCCSInvocations.challengeInterface Data.logicalWidth Data.publicFits)
         PiCCSInvocations.challengeWitnessStart) challengeFinalState_endpoint
@@ -858,8 +845,6 @@ private theorem roundEndpoint_eq_finalEval
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
-    (one : assignment
-      (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
       assignment (PiRLCRetainedPreservation.sourceAssignment
         program base groupValue))
@@ -875,7 +860,7 @@ private theorem roundEndpoint_eq_finalEval
           PiCCSInvocations.roundWitnessStart)) := by
   simpa [endpointInvocation, roundFamily] using
     endpointState_eq_finalEval poseidonGeometry ordinaryGeometry assignment
-      base groupValue one encoding rowsZero roundFamily
+      base groupValue encoding rowsZero roundFamily
       (RoundTranscript.finalState
         (PiCCSInvocations.roundInterface Data.logicalWidth Data.publicFits)
         PiCCSInvocations.roundWitnessStart) roundFinalState_endpoint
@@ -890,8 +875,6 @@ theorem outputEndpoint_eq_finalEval
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
-    (one : assignment
-      (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
       assignment (PiRLCRetainedPreservation.sourceAssignment
         program base groupValue))
@@ -907,7 +890,7 @@ theorem outputEndpoint_eq_finalEval
           PiCCSInvocations.outputWitnessStart)) := by
   simpa [endpointInvocation, outputFamily] using
     endpointState_eq_finalEval poseidonGeometry ordinaryGeometry assignment
-      base groupValue one encoding rowsZero outputFamily
+      base groupValue encoding rowsZero outputFamily
       (OutputBinding.finalState
         (PiCCSInvocations.outputInterface Data.logicalWidth Data.publicFits)
         PiCCSInvocations.outputWitnessStart) outputFinalState_endpoint
@@ -1241,7 +1224,7 @@ private theorem outputTrace_state_endpoint_of_shape
     relationLogicalWidth relationPublicFits
   rw [count] at compiled endEq
   have startEq :
-      PiCCSInvocations.outputWitnessStart + (1225 - 1) * 1096 + 1080 =
+      PiCCSInvocations.outputWitnessStart + (766 - 1) * 1096 + 1080 =
         PiCCSStarts.logicalFreshBase - 16 := by
     rw [← endEq]
     generalize PiCCSInvocations.outputWitnessStart = start

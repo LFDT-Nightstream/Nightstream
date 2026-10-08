@@ -2,7 +2,7 @@
 
 Only carrier extent and logical width are reduced. The fixture keeps all five
 public blocks and one partial final block, with the production alignment tail.
-It retains 54 lanes, 16 children, 270 public words and 7 matrices.
+It retains 54 lanes, 16 children, 270 public words and 4 matrices.
 """
 import contextlib
 import copy
@@ -63,7 +63,7 @@ class ProjectionTests(unittest.TestCase):
             [[0, 0] for _ in range(28)],
             [[0] * 1188 for _ in range(16)], self.publics,
             [[[0, 0] for _ in range(54)] for _ in range(16)],
-            [[[[0, 0] for _ in range(54)] for _ in range(7)] for _ in range(16)]]
+            [[[[0, 0] for _ in range(54)] for _ in range(4)] for _ in range(16)]]
         self.claim = {"c": {"d": 54, "kappa": 22, "data": [wrapped(0) for _ in range(1188)]},
                       "x": [wrapped(value) for value in self.x], "m_in": 270, "adv": None}
         positive, negative = [0] * BLOCKS, [0] * BLOCKS
@@ -81,7 +81,7 @@ class ProjectionTests(unittest.TestCase):
                 "constant_hint": None, "packed_signed_unit": None},
                 "m_in": 270, "adv": None, "r": [extension([0, 0]) for _ in range(28)],
                 "eval_k": [extension([0, 0]) for _ in range(64)],
-                "eval_a": [[extension([0, 0]) for _ in range(64)] for _ in range(7)]})
+                "eval_a": [[extension([0, 0]) for _ in range(64)] for _ in range(4)]})
             pos, neg = [0] * BLOCKS, [0] * BLOCKS
             if child == 0:
                 neg[1], pos[-1] = 1 << 53, 1 << 53

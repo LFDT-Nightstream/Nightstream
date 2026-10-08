@@ -75,7 +75,7 @@ chances (Lemma 6). -/
 noncomputable def knowledgeError (queries : Nat) : ℝ :=
   ((Nifs.PaperProfile.arity).total *
       (((queries + (Nifs.PaperProfile.arity).total : Nat) : ℝ) * sampleError) +
-    ((queries + challenges.length : Nat) : ℝ) * IndependentExecution.testError productionShape 9) +
+    ((queries + challenges.length : Nat) : ℝ) * IndependentExecution.testError productionShape 8) +
   (𝔼 oracle, (if Succeeds relation ajtai adversary claim oracle then
       ∑ index, mismatchChance relation ajtai adversary claim index oracle else 0) +
     collisionChance relation ajtai adversary claim + runningChance relation ajtai adversary claim)

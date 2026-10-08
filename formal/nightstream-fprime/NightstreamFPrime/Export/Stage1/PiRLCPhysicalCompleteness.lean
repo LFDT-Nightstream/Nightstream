@@ -38,7 +38,7 @@ theorem completePhysicalRows
       AgreesOutside env completed
           (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
             NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset)
-          6035561 ∧
+          5203853 ∧
         R1CS.RowsHold completed
           (NightstreamFPrime.Layout.Stage1.Spartan.remapRows
             (NightstreamFPrime.Layout.PiRLC.v1_1.physicalRows relation
@@ -57,11 +57,11 @@ theorem completePhysicalRows
     ⟨source, sourceAgrees, sourceRows⟩
   let completed :=
     NightstreamFPrime.Layout.Stage1.Spartan.copyMappedInterval env source
-      NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset 6035561
+      NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset 5203853
   refine ⟨completed,
     NightstreamFPrime.Layout.Stage1.Spartan.copyMappedInterval_agreesOutside
       env source NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
-        6035561,
+        5203853,
     ?_⟩
   apply NightstreamFPrime.Layout.Stage1.Spartan.remapRows_hold_copyMappedInterval
   · norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset,

@@ -4,7 +4,7 @@ import NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedRows
 /-!
 Owns an invocation-major family of fixed 150-row Poseidon2 plans. One shared
 constant-one column and one indexed set of input, retained S-box, and output
-forms produce one actual 7-matrix plan.
+forms produce one actual 4-matrix plan.
 
 This module does not select a concrete invocation schedule.
 -/
@@ -205,7 +205,6 @@ theorem equations_imply_planRowsZero {logicalWidth invocationCount : Nat}
     (rowCount_le : invocationCount * 150 ≤
       2 ^ NightstreamFPrime.Lifecycle.cubeVariables)
     (assignment : Assignment F logicalWidth)
-    (one : assignment interface.oneColumn = 1)
     (equations : ∀ invocation,
       PoseidonSboxPlan.SboxEquations
           (invocationInterface interface invocation) assignment ∧
@@ -215,7 +214,7 @@ theorem equations_imply_planRowsZero {logicalWidth invocationCount : Nat}
   apply (planRowsZero_iff interface rowCount_le assignment).mpr
   intro invocation
   exact PoseidonSboxPlan.rowsZero_of_equations
-    (invocationInterface interface invocation) assignment one
+    (invocationInterface interface invocation) assignment
       (equations invocation).1 (equations invocation).2
 
 end NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxFamilyPlan

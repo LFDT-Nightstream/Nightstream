@@ -59,7 +59,7 @@ class ConformanceRegistrationTests(unittest.TestCase):
             with self.assertRaises(EvidenceError):
                 completion(passed.replace('"round": 1,', f'"round": {wrong_round},'),
                            positive["completion"])
-        rejected = "piccs_round_mutation=rejected round=1 coefficient=9 component=0"
+        rejected = "piccs_round_mutation=rejected round=1 coefficient=8 component=0"
         completion(rejected, negative["completion"])
         with self.assertRaises(EvidenceError):
             completion(rejected.replace("round=1", "round=0"), negative["completion"])
@@ -298,7 +298,7 @@ class ConformanceRegistrationTests(unittest.TestCase):
 
     def test_partial_base_mutation_counts_cannot_satisfy_completion(self):
         for name, label, count in (
-            ("proof", "proof_mutations", 2 + 28 * 10 * 2),
+            ("proof", "proof_mutations", 2 + 28 * 9 * 2),
             ("statement", "statement-mutations", 3 + self.child_count * (3 + self.matrix_count) + 2),
             ("output", "output-mutations", self.source_count * (3 + self.matrix_count + 28 + 4) + 10),
         ):

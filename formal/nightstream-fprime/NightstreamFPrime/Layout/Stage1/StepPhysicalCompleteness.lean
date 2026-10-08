@@ -157,7 +157,7 @@ private theorem nifs_complete
     (advertisedFixed : PilotProduction.FixedPreimage advertised)
     (digestFixed : digest.length = PilotProduction.digestWords)
     (values : PiCCSProofInputs.ProofValues) (context : VerifierContext.Digest4)
-    (template : Proof 9)
+    (template : Proof 8)
     (result : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (priorPc : prior.pc = 1) (advertisedPc : advertised.pc = 1)
     (priorContext : prior.verifierKeys functionIndex = context.toList)

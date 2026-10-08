@@ -5,8 +5,8 @@ import NightstreamFPrime.Layout.MatrixProgram.Pin
 import NightstreamFPrime.Layout.MatrixProgram.Poseidon
 
 /-!
-Owns the generic ordered interpreter for a compact sparse 7-matrix program.
-Each decoded row returns the 7 sparse ports.
+Owns the generic ordered interpreter for a compact sparse 4-matrix program.
+Each decoded row returns the 4 sparse ports.
 
 The interpreter does not select Stage 1 phases, row order, or source rows.
 -/

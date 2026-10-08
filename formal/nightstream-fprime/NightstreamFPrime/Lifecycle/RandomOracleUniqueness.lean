@@ -573,7 +573,7 @@ theorem worst_error_le {queries : Nat} (bounded : adversary.QueryBound queries) 
     𝔼 oracle, (if FalseFor relation ajtai adversary claim
         (worst relation ajtai adversary claim (forkIndex relation adversary claim oracle) oracle) oracle
       then (1 : ℝ) else 0) ≤
-      ((queries + challenges.length : Nat) : ℝ) * IndependentExecution.testError productionShape 9 := by
+      ((queries + challenges.length : Nat) : ℝ) * IndependentExecution.testError productionShape 8 := by
   refine hits_error_le relation _ (fun challenge oracle =>
       oracle (point (claimed relation adversary claim oracle).fresh
           (claimed relation adversary claim oracle).proof challenge) ∈
@@ -802,7 +802,7 @@ statement (`collisionChance`) or a changed running statement
 theorem source_error_le {queries : Nat} (bounded : adversary.QueryBound queries) :
     𝔼 oracle, ∑ retries, weight relation ajtai adversary claim oracle retries *
         (if SourceFails relation ajtai adversary claim oracle retries then 1 else 0) ≤
-      ((queries + challenges.length : Nat) : ℝ) * IndependentExecution.testError productionShape 9 +
+      ((queries + challenges.length : Nat) : ℝ) * IndependentExecution.testError productionShape 8 +
         collisionChance relation ajtai adversary claim + runningChance relation ajtai adversary claim := by
   have pointwise (oracle : Oracle) (retries : Retries) :
       weight relation ajtai adversary claim oracle retries *
@@ -871,7 +871,7 @@ theorem source_error_le {queries : Nat} (bounded : adversary.QueryBound queries)
       𝔼 oracle, retryMass relation ajtai adversary claim oracle
             (Valid relation ajtai adversary claim oracle) *
           agreeChance relation ajtai adversary claim oracle ≤
-        ((queries + challenges.length : Nat) : ℝ) * IndependentExecution.testError productionShape 9 := by
+        ((queries + challenges.length : Nat) : ℝ) * IndependentExecution.testError productionShape 8 := by
     simp only [agreeChance, ← mul_div_assoc, sum_success relation ajtai adversary claim bounded
       (fun index oracle => testChance relation ajtai adversary claim index oracle
         (worst relation ajtai adversary claim index oracle))]

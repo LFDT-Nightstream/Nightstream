@@ -173,8 +173,7 @@ def compileRow {sourceWidth logicalWidth : Nat}
     (sourceMap : SourceMap sourceWidth logicalWidth)
     (oneColumn : Fin logicalWidth) (row : R1CS.Row)
     (bounded : RowBounded sourceWidth row) : OrdinaryRow.Forms logicalWidth :=
-  { selector := SparseForm.singleton oneColumn 1
-    a := compileCombination sourceMap oneColumn row.a bounded.1
+  { a := compileCombination sourceMap oneColumn row.a bounded.1
     b := compileCombination sourceMap oneColumn row.b bounded.2.1
     c := compileCombination sourceMap oneColumn row.c bounded.2.2 }
 
@@ -202,8 +201,7 @@ theorem compileRow_preserves {sourceWidth logicalWidth : Nat}
     (preserves : sourceMap.Preserves assignment source) :
     (compileRow sourceMap oneColumn row bounded).Preserves
       assignment source row := by
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · simp [compileRow, one]
+  refine ⟨?_, ?_, ?_⟩
   · exact compileCombination_eval sourceMap oneColumn row.a bounded.1
       assignment source one preserves
   · exact compileCombination_eval sourceMap oneColumn row.b bounded.2.1

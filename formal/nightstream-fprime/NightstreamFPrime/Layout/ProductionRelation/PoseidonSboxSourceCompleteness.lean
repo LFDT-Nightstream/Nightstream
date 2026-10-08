@@ -122,8 +122,7 @@ private theorem step_equations
   | partialRound round =>
       intro forms member
       have formsEq : forms =
-          { selector := selector interface
-            input := partialInput interface round state
+          { input := partialInput interface round state
             output := partialOutput interface nextSbox } := by
         simpa only [compileStep, partialRows, List.mem_singleton] using member
       subst forms
@@ -154,7 +153,7 @@ private theorem step_rowsZero
       Spec.Folding.PiCCS.PaperJoint.CCSResidualTable.pow,
       Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier.baseOps,
       Layer.sboxF, Poseidon2.sbox, mul_assoc]
-  rw [power, sub_self, mul_zero]
+  rw [power, sub_self]
 
 private theorem step_nextSbox
     {logicalWidth : Nat} (interface : Interface logicalWidth)

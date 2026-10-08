@@ -444,7 +444,7 @@ private theorem rowsZero_of_hashRows
     (PilotPoseidonPlan.plan pilotGeometry).RowsZero raw.assignment := by
   have one : raw.assignment (PiRLCPoseidonGeometry.oneColumn pilotGeometry) = 1 :=
     PerApplicationCanonicalAssignment.assignment_one raw
-  apply PilotPoseidonPlan.equations_imply_rowsZero pilotGeometry raw.assignment one
+  apply PilotPoseidonPlan.equations_imply_rowsZero pilotGeometry raw.assignment
   · intro invocation
     refine PoseidonSboxSourceCompleteness.equations_of_sourceRows
       (PoseidonSboxFamilyPlan.invocationInterface

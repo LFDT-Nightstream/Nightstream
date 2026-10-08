@@ -35,8 +35,6 @@ theorem semantics_imply_piRlcPhaseHolds
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
-    (one : assignment
-      (PiRLCSamplerOrdinaryRetainedGeometry.oneColumn geometry) = 1)
     (encodes : DirectPiRLCSamplerCompletePrefixPlan.Encodes geometry assignment
       base groupValue)
     (semantics : DirectPiRLCSamplerCompletePrefixPlan.Semantics relation
@@ -59,7 +57,6 @@ theorem semantics_imply_piRlcPhaseHolds
     DirectPiDECPrefixPlan.piCcsOrdinaryGeometry piDecGeometry
   apply PiRLCDirectPhaseSemantics.directSampler_imply_phaseHolds_of_productSemantics
     relation ajtai ordinaryGeometry geometry assignment base groupValue
-  · exact one
   · exact encodes.prior.pilotOrdinary.prior
   · exact encodes.prior.running.prior.retained
   · simpa [ordinaryGeometry, piDecGeometry,
@@ -109,6 +106,6 @@ theorem rowsZero_implies_piRlcPhaseHolds
     DirectPiRLCSamplerCompletePrefixPlan.rowsZero_implies_semantics relation
       geometry assignment base groupValue one encodes rowsZero
   exact semantics_imply_piRlcPhaseHolds relation ajtai geometry assignment base
-    groupValue one encodes semantics assumptions
+    groupValue encodes semantics assumptions
 
 end NightstreamFPrime.Export.Stage1.DirectPiRLCSamplerCompletePhaseSemantics

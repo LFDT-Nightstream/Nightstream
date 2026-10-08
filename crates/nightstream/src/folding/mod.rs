@@ -13,7 +13,9 @@ pub(crate) mod transcript;
 
 pub(crate) use claims::{ajtai_dec_mixer, ajtai_rlc_mixer, superneo_has_canonical_x_shape};
 pub use claims::{CcsInstance, RunningInstance};
-pub(crate) use compose::{prove_owned_with_rows, validate_running_parent_authority, verify};
+#[cfg(test)]
+pub(crate) use compose::verify_parent;
+pub(crate) use compose::{prove_owned_with_rows, prove_parent_with_rows, validate_running_parent_authority, verify};
 use neo_ajtai::Commitment;
 pub(crate) use neo_ccs::superneo_public_x_cols;
 use neo_math::{F, K};

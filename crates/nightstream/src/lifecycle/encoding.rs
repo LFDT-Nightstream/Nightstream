@@ -28,7 +28,7 @@ const WORD: usize = 8;
 
 #[derive(Debug, thiserror::Error)]
 #[error("selected proof bytes: {0}")]
-pub struct ProofCodecError(&'static str);
+pub struct ProofCodecError(pub(super) &'static str);
 
 /// Sizes that the prepared circuit fixes.
 struct Shape {

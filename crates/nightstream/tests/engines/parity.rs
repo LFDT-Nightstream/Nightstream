@@ -510,3 +510,6 @@ fn metal_matches_cuda() {
         run(Engine::Cuda, &fixture).unwrap(),
     );
 }
+
+#[path = "finish.rs"]
+mod finish;

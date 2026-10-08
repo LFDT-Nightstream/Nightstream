@@ -27,7 +27,8 @@ use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 use self::pi_rlc::Source;
 use self::state::State;
 use self::words::FinalWords;
-use super::{FinalProof, Stage1State};
+use super::finish::TerminalProof;
+use super::Stage1State;
 
 /// The final verifier of one circuit for one expected state. With no proof
 /// it reads zeros: a shape run.
@@ -40,19 +41,19 @@ pub(crate) struct FinalProgram<'a> {
     pub(crate) base: u32,
     pub(crate) relation: &'a Relation<'a>,
     pub(crate) state: &'a Stage1State,
-    pub(crate) proof: Option<&'a FinalProof>,
+    pub(crate) proof: Option<&'a TerminalProof>,
 }
 
-impl FinalProgram<'_> {
+impl neo_spartan::shrink::Program for FinalProgram<'_> {
     /// The statement words: the iteration, `z0` and the current state.
-    pub(crate) fn statement(&self) -> Vec<u64> {
+    fn statement(&self) -> Vec<u64> {
         let mut words = vec![self.state.iteration()];
         words.extend(self.state.z0().map(|word| word.as_canonical_u64()));
         words.extend(self.state.current().map(|word| word.as_canonical_u64()));
         words
     }
 
-    pub(crate) fn run<B: Backend>(&self, b: &mut B) -> Result<(), Error> {
+    fn run<B: Backend>(&self, b: &mut B) -> Result<(), Error> {
         let statement: Vec<B::F> = self
             .statement()
             .into_iter()

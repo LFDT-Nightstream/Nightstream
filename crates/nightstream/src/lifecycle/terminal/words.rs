@@ -14,8 +14,8 @@ use p3_field::PrimeField64;
 
 use super::k::Kw;
 use crate::folding::{CcsClaim, CeClaim};
+use crate::lifecycle::finish::TerminalProof;
 use crate::lifecycle::verify::{commitment_has_selected_shape, evaluation_has_selected_shape};
-use crate::lifecycle::FinalProof;
 
 /// The commitment rows of one claim.
 pub(super) const ROWS: usize = neo_ajtai::nightstream_fprime_setup::PRODUCTION_VERIFIER_ROWS as usize;
@@ -61,7 +61,7 @@ fn evaluations_shape(claim: &CeClaim) -> bool {
         && claim.adv.is_none()
 }
 
-fn check(proof: &FinalProof) -> Result<(), Error> {
+fn check(proof: &TerminalProof) -> Result<(), Error> {
     let running = &proof.running;
     shape(running.len() == PI_DEC_V1_1_CHILD_COUNT, "running claim count")?;
     let point = &running[0].r;
@@ -101,7 +101,7 @@ fn check(proof: &FinalProof) -> Result<(), Error> {
 }
 
 impl<B: Backend> FinalWords<B> {
-    pub(super) fn read(b: &mut B, proof: Option<&FinalProof>) -> Result<Self, Error> {
+    pub(super) fn read(b: &mut B, proof: Option<&TerminalProof>) -> Result<Self, Error> {
         if let Some(proof) = proof {
             check(proof)?;
         }

@@ -187,3 +187,28 @@ the same Poseidon2 (the standard recursion heuristic).
 - Open: production size and verifier time need the layer-0 program (slice 4) and the
   production layer-1 proof.
 
+## Slices 4 and 7 result (2026-10-08)
+
+- **Slice 4.** `Backend` and `Native` are public (every value enters as a `u64`, so no Plonky3
+  0.8 type crosses). New: `FoldTranscript` (the v1.1 fold transcript), `verify_with` (layer 1
+  from claim words), and ring-product blocks (`circuit/ring_mul.rs`: 107 evaluation rows and 54
+  output rows; the layout places a wide and a narrow part per block kind). nightstream's
+  `lifecycle/terminal/` is the final program: statement and state hash, canonical child split,
+  PiCCS replay in K, PiRLC draws (base-5 digits checked as integers in 16-bit limbs) and the
+  exact parent by ring products, then layer 1. Parity: the decoder and the statement part equal
+  the native functions; the full program on `Native` accepted the production terminal proof and
+  rejected a wrong state, a flipped byte and another key.
+- **Slice 7.** `finish_with_spartan` returns `FinalProof` (state + shrink proof, strict bytes).
+  The 1.6 MB layer-0 + layer-1 proof is internal (`TerminalProof`). `CompressionKey` (2,112 bytes)
+  holds the layer-1 key, the final program's constants (verifier context, CCS polynomial, base,
+  PiRLC guard bound), the security share and the shrink shape; `CompressionKey::verify` needs
+  nothing else. Layer 1 and the shrink layer each get half of what the fold error leaves.
+- **Measured (production, one fold, CPU, this Mac):** shape 33,132 permutations, 629 ring
+  products, 1,480,723 glue rows, 1,070,913 glue cells, 9 statement words; 2^23 rows and cells.
+  **Final proof 86,221 bytes** (85,677 to 86,221 over runs). **Verification 269 ms** with the
+  key alone (shape run about 250 ms, sum-checks and WHIR about 2 ms, block part 0.3 ms).
+  Finishing about 55 to 62 s (layer 0 and layer 1 about 43 s, shrink about 12 s). Peak RSS 37.3
+  GB (from layer 1). Setup 71.6 s, key derivation 52.8 s.
+- Two verifier cuts made the target: shape runs skip block values (`Sink::values`), and the
+  statement words' eq values are computed directly (no 2^23 table).
+

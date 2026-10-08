@@ -11,6 +11,7 @@ use p3_field::PrimeField64;
 use crate::application::{ApplicationCircuit, ApplicationError};
 use crate::assembly::{self, AssemblyError};
 use crate::engine::{Backend, Engine, EngineError};
+pub use crate::lifecycle::{CompressionKey, CompressionSetup};
 use crate::lifecycle::{
     ExtendError, FinalProof, FinishError, PreparedLifecycle, ProofCodecError, Stage1Envelope, Stage1State, VerifyError,
 };
@@ -192,11 +193,6 @@ impl Prover {
     pub fn finish_with_spartan(&self, proof: &Stage1Envelope, setup: &CompressionSetup) -> Result<FinalProof, Error> {
         Ok(self.lifecycle.finish_with_spartan(proof, setup)?)
     }
-
-    /// The circuit's byte encoding of `proof`, for `Verifier::decode_final_proof`.
-    pub fn encode_final_proof(&self, proof: &FinalProof) -> Result<Vec<u8>, Error> {
-        Ok(self.lifecycle.encode_final_proof(proof)?)
-    }
 }
 
 /// Terminal verification against a circuit chosen independently of the proof.
@@ -240,11 +236,6 @@ impl Verifier {
         Ok(self.lifecycle.decode_proof(bytes)?)
     }
 
-    /// Decode untrusted finished-proof bytes. Acceptance still needs `verify_final`.
-    pub fn decode_final_proof(&self, bytes: &[u8]) -> Result<FinalProof, Error> {
-        Ok(self.lifecycle.decode_final_proof(bytes)?)
-    }
-
     /// Check `proof` against the configured circuit and the expected state,
     /// with its witnesses.
     pub fn verify(&self, expected_state: &Stage1State, proof: &Stage1Envelope) -> Result<(), Error> {
@@ -258,23 +249,17 @@ impl Verifier {
         Ok(self.lifecycle.compression_key()?)
     }
 
-    /// Check a finished proof against the configured circuit, the expected
-    /// state and a trusted compression key: the layer-0 replay, then the
-    /// layer-1 argument, which reads only the key.
+    /// Check a finished proof against the expected state and a trusted
+    /// compression key. The key alone decides: see `CompressionKey::verify`.
     pub fn verify_final(
         &self,
         expected_state: &Stage1State,
         key: &CompressionKey,
         proof: &FinalProof,
     ) -> Result<(), Error> {
-        Ok(self.lifecycle.verify_final(expected_state, key, proof)?)
+        Ok(key.verify(expected_state, proof)?)
     }
 }
-
-/// The verifier's trusted constants of one circuit's compression.
-pub type CompressionKey = neo_spartan::Key;
-/// The prover's compression setup: the key and the setup files.
-pub type CompressionSetup = neo_spartan::Setup;
 
 #[cfg(test)]
 #[path = "../tests/circuit/compiled_circuit.rs"]

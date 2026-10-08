@@ -922,6 +922,7 @@ dependencies = [
 name = "nightstream"
 version = "0.1.0"
 dependencies = [
+ "bincode",
  "neo-ajtai",
  "neo-ccs",
  "neo-math",

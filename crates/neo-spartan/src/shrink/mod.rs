@@ -67,6 +67,9 @@ impl Sink for Count {
     fn public(&mut self, _: Gl) {
         self.0.publics += 1;
     }
+    fn values(&self) -> bool {
+        false
+    }
 }
 
 impl Shape {
@@ -256,11 +259,10 @@ pub fn verify(shrink: &Shrink, program: &impl Program, proof: &ShrinkProof) -> R
     let matrices = sink.total + layout.block_part(&rx, &ry, &rho);
     let mut public = vec![Gl::ONE];
     public.extend(&statement);
-    let public_eq = eq_table(&ry[..n]);
     let x: Ext = public
         .iter()
-        .zip(&public_eq)
-        .map(|(&value, &weight)| weight * value)
+        .enumerate()
+        .map(|(index, &value)| eq_at(&ry[..n], index) * value)
         .sum();
     let z = (Ext::ONE - ry[n]) * w + ry[n] * x;
     if last != matrices * z {
@@ -277,6 +279,15 @@ fn powers(rho: Ext) -> [Ext; MATRICES] {
         power *= rho;
         value
     })
+}
+
+/// `eq(point, index)` for one index.
+fn eq_at(point: &[Ext], index: usize) -> Ext {
+    point
+        .iter()
+        .enumerate()
+        .map(|(t, &x)| if (index >> t) & 1 == 1 { x } else { Ext::ONE - x })
+        .product()
 }
 
 fn eq(a: &[Ext], b: &[Ext]) -> Ext {

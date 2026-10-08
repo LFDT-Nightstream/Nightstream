@@ -51,7 +51,32 @@ pub enum TerminalError {
     Field,
 }
 
+/// Why a memory proof does not verify.
+#[derive(Debug, thiserror::Error)]
+pub enum VerifyError {
+    #[error(transparent)]
+    Terminal(#[from] TerminalError),
+    #[error(transparent)]
+    Proof(#[from] crate::Error),
+}
+
 impl Context {
+    /// Verify a memory proof (spec §13): the terminal checks on the final
+    /// carry, then the Stage 1 verification of `proof` with the initial and
+    /// final states that the statement and the carry open. `verifier` must
+    /// come from the package with `PACKAGE_STRUCTURAL_IDENTIFIER`.
+    pub fn verify(
+        &self,
+        verifier: &crate::Verifier,
+        statement: &Statement,
+        final_carry: &Carry,
+        proof: &crate::Proof,
+    ) -> Result<(), VerifyError> {
+        let (initial, last) = self.terminal_states(statement, final_carry)?;
+        verifier.verify(&crate::State::new(statement.steps, initial, last), proof)?;
+        Ok(())
+    }
+
     /// Spec §13: check the final carry against the statement and return the
     /// initial and final Stage 1 states for the Stage 1 terminal check.
     pub fn terminal_states(

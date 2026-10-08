@@ -148,11 +148,12 @@ struct Executed {
     active: u64,
 }
 
-/// One invocation's witness words and its output state.
+/// One invocation's witness words, its output state, and its output carry.
 #[derive(Clone, Debug)]
 pub struct Invocation {
     pub words: Vec<F>,
     pub output: Digest,
+    pub carry: Carry,
 }
 
 /// A proved-ready segment: its invocations and the values after it.
@@ -305,7 +306,11 @@ impl Context {
                 return Err(SegmentError::Close);
             }
             let output = state_words(&app_words(step.state_out), &next.words());
-            invocations.push(Invocation { words, output });
+            invocations.push(Invocation {
+                words,
+                output,
+                carry: next,
+            });
             current = next;
         }
         Ok(Segment {

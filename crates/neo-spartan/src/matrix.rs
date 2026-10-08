@@ -322,7 +322,7 @@ impl Structure {
     /// `j~` over runs: matrix `j` on its run range, zero on padding runs.
     fn matrix_step<B: Backend>(&self, b: &mut B, point: &[B::E]) -> B::E {
         let values: Vec<B::E> = (0..self.matrices)
-            .map(|j| b.ext_constant(Ext::from(Gl::from_usize(j))))
+            .map(|j| algebra::ext_constant(b, Ext::from(Gl::from_usize(j))))
             .collect();
         step(
             b,

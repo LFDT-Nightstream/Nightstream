@@ -4,16 +4,17 @@
 use std::time::Instant;
 
 use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
-use p3_field_v08::{BasedVectorSpace, PrimeCharacteristicRing};
+use p3_field_v08::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
 use p3_symmetric_v08::Permutation;
 
 use super::layer1::{relation_of, setup_toy, transcript};
 use super::verifier::statement_input;
 use super::word;
-use crate::circuit::Backend;
+use crate::circuit::block::{KINDS, MATRICES};
+use crate::circuit::{algebra, Backend};
 use crate::field::{eq_table, Ext, Gl};
 use crate::hash::{permutation, seed};
-use crate::shrink::layout::{diagonal, entries, Layout, Shape, MATRICES};
+use crate::shrink::layout::{diagonal, Layout, Shape};
 use crate::shrink::{prove, verify, Program, Shrink, ShrinkProof};
 use crate::verifier::ProofView;
 use crate::{Claim, Proof, Relation, Statement};
@@ -55,7 +56,7 @@ fn diagonal_matches_brute_force() {
 #[test]
 fn block_part_matches_every_entry() {
     let shape = Shape {
-        blocks: 3,
+        blocks: [3, 2],
         glue_rows: 70,
         glue_cells: 90,
         publics: 5,
@@ -66,18 +67,20 @@ fn block_part_matches_every_entry() {
     let rho: [Ext; MATRICES] = std::array::from_fn(|j| ext(5, j as u64));
     let (rows, columns) = (eq_table(&rx), eq_table(&ry));
     let mut direct = Ext::ZERO;
-    for block in 0..shape.blocks {
-        for entry in entries() {
-            direct += rho[entry.matrix]
-                * rows[layout.block_index(block, entry.row)]
-                * columns[layout.entry_column(block, entry.cell)]
-                * entry.coefficient;
+    for kind in KINDS {
+        for block in 0..shape.blocks[kind.index()] {
+            for entry in kind.entries() {
+                direct += rho[entry.matrix]
+                    * rows[layout.block_row(kind, block, entry.row)]
+                    * columns[layout.entry_column(kind, block, entry.cell)]
+                    * entry.coefficient;
+            }
         }
     }
     assert_eq!(layout.block_part(&rx, &ry, &rho), direct);
     // Control: one block fewer on the same cubes.
     let fewer = Layout::new(Shape {
-        blocks: 2,
+        blocks: [2, 2],
         glue_rows: shape.glue_rows + 192,
         glue_cells: shape.glue_cells + 192,
         ..shape
@@ -127,9 +130,13 @@ impl Program for Toy {
     }
 
     fn run<B: Backend>(&self, b: &mut B) -> Result<(), crate::Error> {
-        let words: Vec<B::F> = self.statement.iter().map(|&word| b.public(word)).collect();
-        let secret = b.private(self.secret.unwrap_or(Gl::ZERO));
-        let zero = b.constant(Gl::ZERO);
+        let words: Vec<B::F> = self
+            .statement
+            .iter()
+            .map(|word| b.public(word.as_canonical_u64()))
+            .collect();
+        let secret = algebra::private(b, self.secret.unwrap_or(Gl::ZERO));
+        let zero = b.constant(0);
         let mut state = [zero; WIDTH];
         state[0] = secret;
         state[1] = words[1];
@@ -141,6 +148,8 @@ impl Program for Toy {
         let value = b.ext_mul(value, value);
         b.ext_inverse(value, "a nonzero value")?;
         b.bits(state[3], 64, "bits")?;
+        let ring: [B::F; neo_math::D] = std::array::from_fn(|i| state[i % WIDTH]);
+        b.ring_mul(&ring, &ring);
         Ok(())
     }
 }
@@ -230,7 +239,7 @@ impl Program for Layer1<'_> {
     }
 
     fn run<B: Backend>(&self, b: &mut B) -> Result<(), crate::Error> {
-        let seed = self.seed.map(|word| b.public(word));
+        let seed = self.seed.map(|word| b.public(word.as_canonical_u64()));
         let statement = statement_input(b, &self.statement);
         let view = ProofView::read(b, self.relation, self.proof)?;
         crate::verifier::verify(b, self.relation, seed, &statement, &view)

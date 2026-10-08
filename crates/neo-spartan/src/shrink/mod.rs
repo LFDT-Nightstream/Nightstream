@@ -22,8 +22,8 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use self::evaluate::Evaluate;
-use self::layout::{entries, Layout, Shape, C, MATRICES, X};
-use crate::circuit::poseidon2::CELLS;
+use self::layout::{Layout, Shape};
+use crate::circuit::block::{Kind, C, KINDS, MATRICES, X};
 use crate::circuit::record::{Recorder, Sink, Term, Trace, Wire};
 use crate::circuit::{algebra, Backend, Native};
 use crate::field::{eq_table, fold_low, gl, Ext, Gl};
@@ -57,8 +57,8 @@ impl Sink for Count {
         self.0.glue_cells += 1;
     }
 
-    fn block(&mut self, _: &[Gl]) {
-        self.0.blocks += 1;
+    fn block(&mut self, kind: Kind, _: &[Gl]) {
+        self.0.blocks[kind.index()] += 1;
     }
 
     fn public(&mut self, _: Gl) {
@@ -144,7 +144,7 @@ pub(crate) fn prove(shrink: &Shrink, program: &impl Program) -> Result<ShrinkPro
         return Err(Error::Witness(what));
     }
     let counts = Shape {
-        blocks: trace.blocks.len() / CELLS,
+        blocks: KINDS.map(|kind| trace.count(kind)),
         glue_rows: trace.rows.len(),
         glue_cells: trace.glue.len(),
         publics: trace.public.len(),
@@ -276,13 +276,19 @@ fn z_table(layout: &Layout, trace: &Trace) -> Vec<Gl> {
     for (cell, &value) in trace.glue.iter().enumerate() {
         z[layout.column(Wire::Glue(cell as u32))] = value;
     }
-    for (block, cells) in trace.blocks.chunks_exact(CELLS).enumerate() {
-        for (cell, &value) in cells.iter().enumerate() {
-            z[layout.block_index(block, cell)] = value;
+    for kind in KINDS {
+        for (block, cells) in trace.blocks[kind.index()]
+            .chunks_exact(kind.cells())
+            .enumerate()
+        {
+            for (cell, &value) in cells.iter().enumerate() {
+                z[layout.block_cell(kind, block, cell)] = value;
+            }
         }
     }
-    z[1 << n] = Gl::ONE;
-    z[(1 << n) + 1..(1 << n) + 1 + trace.public.len()].copy_from_slice(&trace.public);
+    let one = layout.one();
+    z[one] = Gl::ONE;
+    z[one + 1..one + 1 + trace.public.len()].copy_from_slice(&trace.public);
     z
 }
 
@@ -290,10 +296,12 @@ fn z_table(layout: &Layout, trace: &Trace) -> Vec<Gl> {
 fn products(layout: &Layout, trace: &Trace, z: &[Gl]) -> Vec<Vec<Ext>> {
     let rows = 1usize << layout.row_variables;
     let mut tables = vec![vec![Gl::ZERO; rows]; MATRICES];
-    for block in 0..layout.shape.blocks {
-        for entry in entries() {
-            tables[entry.matrix][layout.block_index(block, entry.row)] +=
-                entry.coefficient * z[layout.entry_column(block, entry.cell)];
+    for kind in KINDS {
+        for block in 0..layout.shape.blocks[kind.index()] {
+            for entry in kind.entries() {
+                tables[entry.matrix][layout.block_row(kind, block, entry.row)] +=
+                    entry.coefficient * z[layout.entry_column(kind, block, entry.cell)];
+            }
         }
     }
     for (g, offsets) in trace.rows.iter().enumerate() {
@@ -317,10 +325,12 @@ fn products(layout: &Layout, trace: &Trace, z: &[Gl]) -> Vec<Vec<Ext>> {
 fn weights(layout: &Layout, trace: &Trace, rx: &[Ext], rho: &[Ext; MATRICES]) -> Vec<Ext> {
     let eq_rows = eq_table(rx);
     let mut weights = vec![Ext::ZERO; 2 << layout.cell_variables];
-    for block in 0..layout.shape.blocks {
-        for entry in entries() {
-            weights[layout.entry_column(block, entry.cell)] +=
-                rho[entry.matrix] * eq_rows[layout.block_index(block, entry.row)] * entry.coefficient;
+    for kind in KINDS {
+        for block in 0..layout.shape.blocks[kind.index()] {
+            for entry in kind.entries() {
+                weights[layout.entry_column(kind, block, entry.cell)] +=
+                    rho[entry.matrix] * eq_rows[layout.block_row(kind, block, entry.row)] * entry.coefficient;
+            }
         }
     }
     for (g, offsets) in trace.rows.iter().enumerate() {

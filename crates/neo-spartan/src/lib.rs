@@ -38,6 +38,9 @@ mod norm;
 mod pcs;
 mod ring;
 mod setup;
+// Until nightstream proves its final program (M3 slice 7), only tests do.
+#[cfg_attr(not(test), allow(dead_code))]
+mod shrink;
 mod sumcheck;
 mod verifier;
 mod whir;
@@ -310,14 +313,18 @@ impl<'k> Relation<'k> {
             norm_bound,
         };
         let target = security_bits + 1.0;
-        let probe = Pcs::new(p1_plans(key, 0), target, &|_| Vec::new())?;
+        let probe = Pcs::new(pcs::LAYER1, p1_plans(key, 0), target, &|_| Vec::new())?;
         let queries = query_count(target, probe.log2_candidates());
-        let p1 = Pcs::new(p1_plans(key, queries), target, &|_| vec![query_term(queries)])?;
+        let p1 = Pcs::new(pcs::LAYER1, p1_plans(key, queries), target, &|_| {
+            vec![query_term(queries)]
+        })?;
         if p1.log2_candidates() != probe.log2_candidates() {
             return Err(Error::Setup("P1 candidate count"));
         }
         let terms = outer_terms(&shape, &key.structure, p1.log2_candidates());
-        let p0 = Pcs::new(p0_plans(&shape, &key.structure), target, &|_| terms.clone())?;
+        let p0 = Pcs::new(pcs::LAYER1, p0_plans(&shape, &key.structure), target, &|_| {
+            terms.clone()
+        })?;
         Ok(Self {
             key,
             shape,

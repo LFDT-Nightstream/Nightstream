@@ -254,7 +254,7 @@
       ],
       "kind": "theorem",
       "record": "N.security.composition",
-      "role": "RandomOracleKnowledge.knowledge_error_le combines Lemmas 5 and 6 for one fold in the random-oracle model. contract restates it as a KnowledgeContract. The history uses it only to motivate the error of Assumption 1; no Lean statement derives one from the other.",
+      "role": "RandomOracleKnowledge.knowledge_error_le combines Lemmas 5 and 6 for one fold and one key. RandomOracleSetup.production_knowledge_error_lt draws the key inside the game and replaces the binding term by an MSIS solver's success; contract restates it as a KnowledgeContract. The history uses the one-fold bound only to motivate the error of Assumption 1; no Lean statement derives one from the other.",
       "refs": [
         {
           "record": "N.security.composition",
@@ -263,11 +263,16 @@
         },
         {
           "record": "N.security.composition",
-          "file": "RandomOracleKnowledge.lean",
+          "file": "RandomOracleSetup.lean",
+          "symbol": "production_knowledge_error_lt"
+        },
+        {
+          "record": "N.security.composition",
+          "file": "RandomOracleSetup.lean",
           "symbol": "contract"
         }
       ],
-      "summary": "In the random-oracle model, Pr[accept] ≤ Pr[extract] + knowledgeError(Q) for one fold."
+      "summary": "In the random-oracle model with the key in the game, for one fold: Pr[accept] < Pr[extract] + statistical error + state-hash collisions + MSIS solver success + 2^-190."
     },
     {
       "id": "predecessor",

@@ -38,20 +38,19 @@ private theorem serializePreimage_current_slice
       currentWordStart).take Lifecycle.Stage1.Application.stateWordCount =
         preimage.current := by
   rcases fixed with ⟨keyLength, z0Length, currentLength⟩
-  let headWords : List F := stateDomainTag ++
-    block (preimage.verifierKeys functionIndex) ++
-    [natWord preimage.iteration] ++ block preimage.z0 ++
-    [natWord preimage.current.length]
-  let tailWords : List F := serializeRunning (publicFits := publicFits)
-    (preimage.running functionIndex) ++ [natWord preimage.pc]
+  let headWords : List F := stateDomainChunk ++
+    serializeRunning (publicFits := publicFits) (preimage.running functionIndex) ++
+    preimage.verifierKeys functionIndex ++ [natWord preimage.iteration] ++ preimage.z0
   have decomposition :
       serializePreimage (publicFits := publicFits) preimage =
-        headWords ++ preimage.current ++ tailWords := by
-    simp [serializePreimage, block, headWords, tailWords, List.append_assoc]
+        headWords ++ preimage.current := by
+    simp only [serializePreimage, serializeTail, headWords, List.append_assoc]
   have headLength : headWords.length = currentWordStart := by
-    simp [headWords, block, stateDomainTag_length, keyLength, z0Length,
+    simp only [headWords, List.length_append, stateDomainChunk_length,
+      serializeRunning_length, List.length_singleton]
+    rw [keyLength, z0Length]
+    norm_num [PilotProduction.digestWords, PilotValues.digestWords,
       currentWordStart]
-    norm_num [PilotProduction.digestWords, PilotValues.digestWords]
   rw [decomposition, ← headLength]
   have currentLengthFour : preimage.current.length = 4 := by
     simpa [PilotProduction.digestWords, PilotValues.digestWords] using

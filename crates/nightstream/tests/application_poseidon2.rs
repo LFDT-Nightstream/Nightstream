@@ -145,11 +145,11 @@ fn poseidon2_computation_matches_stored_lean_base_and_recursive_steps() {
         let saved: Value = serde_json::from_slice(bytes).unwrap();
         assert_eq!(saved[0], 1, "{name} fixture version");
         let private = saved[2].as_array().unwrap();
-        assert_eq!(index(&private[28]), step, "{name} prior iteration");
-        assert_eq!(private[34], 4, "{name} current-state length");
-        // The saved caller preimage puts the current state at words 35..39.
-        // Its final private words are the application's message.
-        let input = std::array::from_fn(|lane| field(&private[35 + lane]));
+        // The saved caller preimage ends with `vk, i, z0, zi`: the counter at
+        // word 27,810 and the current state at words 27,815..27,819. Its final
+        // private words are the application's message.
+        assert_eq!(index(&private[27_810]), step, "{name} prior iteration");
+        let input = std::array::from_fn(|lane| field(&private[27_815 + lane]));
         let message: Vec<_> = private[private.len() - circuit.private_input_count()..]
             .iter()
             .map(field)

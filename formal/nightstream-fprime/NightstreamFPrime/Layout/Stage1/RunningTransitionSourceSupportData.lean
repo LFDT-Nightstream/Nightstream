@@ -21,7 +21,7 @@ def InRange (start count column : Nat) : Prop :=
 def stateStart : Nat :=
   PilotProduction.priorPreimageStart + iterationWordIndex
 
-def stateCount : Nat := 11
+def stateCount : Nat := 9
 
 def outputStart : Nat := PilotProduction.outputPreimageStart
 
@@ -74,16 +74,16 @@ def Source (column : Nat) : Prop :=
 def Target (column : Nat) : Prop :=
   ∃ source, Source source ∧ column = Spartan.sourceToSpartan source
 
-@[simp] theorem stateStart_eq : stateStart = 28 := by
+@[simp] theorem stateStart_eq : stateStart = 27810 := by
   rfl
 
-@[simp] theorem outputStart_eq : outputStart = 32383 := by
+@[simp] theorem outputStart_eq : outputStart = 28089 := by
   rfl
 
-@[simp] theorem outputCount_eq : outputCount = 32113 := by
+@[simp] theorem outputCount_eq : outputCount = 27819 := by
   exact PilotProduction.stateHashWords_eq
 
-@[simp] theorem piDecStart_eq : piDecStart = 12410976 := by
+@[simp] theorem piDecStart_eq : piDecStart = 11622242 := by
   rfl
 
 @[simp] theorem piDecCount_eq : piDecCount = 31968 := by
@@ -102,8 +102,8 @@ theorem piDecField_inRange {column : Nat} (field : PiDecField column) :
     change source.val < 16 at sourceBound
     change row.val < 22 at rowBound
     change coefficient.val < 54 at coefficientBound
-    change InRange 12410976 31968
-      (12410976 + source.val * 1188 + row.val * 54 + coefficient.val)
+    change InRange 11622242 31968
+      (11622242 + source.val * 1188 + row.val * 54 + coefficient.val)
     unfold InRange
     omega
   · rcases publicInput with ⟨source, coordinate, rfl⟩
@@ -111,8 +111,8 @@ theorem piDecField_inRange {column : Nat} (field : PiDecField column) :
     have coordinateBound := coordinate.isLt
     change source.val < 16 at sourceBound
     change coordinate.val < 270 at coordinateBound
-    change InRange 12410976 31968
-      (12438624 + source.val * 270 + coordinate.val)
+    change InRange 11622242 31968
+      (11649890 + source.val * 270 + coordinate.val)
     unfold InRange
     omega
   · rcases evalK with ⟨source, coefficient, low | high⟩
@@ -123,12 +123,12 @@ theorem piDecField_inRange {column : Nat} (field : PiDecField column) :
       change source.val < 16 at sourceBound
       change coefficient.val < 54 at coefficientBound
       first
-      | change InRange 12410976 31968
-          (12429984 + source.val * 108 + coefficient.val * 2)
+      | change InRange 11622242 31968
+          (11641250 + source.val * 108 + coefficient.val * 2)
         unfold InRange
         omega
-      | change InRange 12410976 31968
-          (12429984 + source.val * 108 + coefficient.val * 2 + 1)
+      | change InRange 11622242 31968
+          (11641250 + source.val * 108 + coefficient.val * 2 + 1)
         unfold InRange
         omega
   · rcases evalA with ⟨source, matrix, coefficient, low | high⟩
@@ -141,13 +141,13 @@ theorem piDecField_inRange {column : Nat} (field : PiDecField column) :
       change matrix.val < 4 at matrixBound
       change coefficient.val < 54 at coefficientBound
       first
-      | change InRange 12410976 31968
-          (12431712 + source.val * 432 + matrix.val * 108 +
+      | change InRange 11622242 31968
+          (11642978 + source.val * 432 + matrix.val * 108 +
             coefficient.val * 2)
         unfold InRange
         omega
-      | change InRange 12410976 31968
-          (12431712 + source.val * 432 + matrix.val * 108 +
+      | change InRange 11622242 31968
+          (11642978 + source.val * 432 + matrix.val * 108 +
             coefficient.val * 2 + 1)
         unfold InRange
         omega

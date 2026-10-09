@@ -360,14 +360,11 @@ private theorem recursiveRunningBelowPiDec
       assumptions.inputs.messageEval_A
         (RunningTransitionInputs.childOfRunning source) matrix coefficient
 
-private theorem outputRunningBelowPiDec :
-    NightstreamFPrime.Lifecycle.Stage1.RunningTransition.RunningBelow
-      (RunningTransitionInputs.outputRunningExpr
-        Data.logicalWidth Data.publicFits)
-      PiDECInputs.phaseOffset := by
-  apply
-    (RunningTransitionInputs.outputRunningBelowOutputDigestStart
-      Data.logicalWidth Data.publicFits).mono
+private theorem outputWordBelowPiDec
+    (index : NightstreamFPrime.Lifecycle.Stage1.RunningTransition.WordIndex) :
+    (RunningTransitionInputs.outputWord index).VarsBelow PiDECInputs.phaseOffset := by
+  apply Expr.VarsBelow.mono _
+    (RunningTransitionInputs.outputWordBelowOutputDigestStart index)
   apply Nat.le_trans ?_ piDecStartLocal
   norm_num [PilotProduction.outputDigestStart, PilotProduction.outputPreimageStart,
     PilotProduction.priorPublicInputStart, PilotProduction.priorPreimageStart,
@@ -469,22 +466,13 @@ private theorem transitionSpec_of_piDecAgreesOutside
             PiDECInputs.phaseOffset recursiveBelow index
     · exact sourceAgrees
   have outputEq : ∀ index,
-      (NightstreamFPrime.Lifecycle.Stage1.RunningTransition.runningWord
-          (runningTransitionInterface.output
-            RunningTransitionInputs.phaseOffset) index).eval sourceAfter =
-        (NightstreamFPrime.Lifecycle.Stage1.RunningTransition.runningWord
-          (runningTransitionInterface.output
-            RunningTransitionInputs.phaseOffset) index).eval sourceBefore := by
+      (runningTransitionInterface.output
+          RunningTransitionInputs.phaseOffset index).eval sourceAfter =
+        (runningTransitionInterface.output
+          RunningTransitionInputs.phaseOffset index).eval sourceBefore := by
     intro index
-    apply Expr.eval_eq_of_agree_below _ PiDECInputs.phaseOffset
-      sourceAfter sourceBefore
-    · simpa [runningTransitionInterface, RunningTransitionInputs.interface]
-        using
-          NightstreamFPrime.Lifecycle.Stage1.RunningTransition.runningWord_varsBelow
-            (RunningTransitionInputs.outputRunningExpr
-              Data.logicalWidth Data.publicFits)
-            PiDECInputs.phaseOffset outputRunningBelowPiDec index
-    · exact sourceAgrees
+    exact Expr.eval_eq_of_agree_below _ PiDECInputs.phaseOffset
+      sourceAfter sourceBefore (outputWordBelowPiDec index) sourceAgrees
   refine { initialState := ?_, base := ?_, recursive := ?_ }
   · intro iterationZero index
     have beforeZero :

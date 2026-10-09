@@ -11,8 +11,8 @@ use nightstream_fprime::{
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use super::{
-    encode_pi_ccs_v1_2_public_input, pi_ccs_v1_2_state_hash, serialize_pi_ccs_v1_2_state_preimage,
-    PiCcsV1_2PackageBridgeError, PiCcsV1_2ProofInputs, PreparedLifecycle,
+    encode_pi_ccs_v1_2_public_input, pi_ccs_v1_2_prior_children, pi_ccs_v1_2_state_hash,
+    serialize_pi_ccs_v1_2_state_preimage, PiCcsV1_2PackageBridgeError, PiCcsV1_2ProofInputs, PreparedLifecycle,
 };
 use crate::folding::transcript::Transcript;
 use crate::folding::{self as nifs, ajtai_dec_mixer, ajtai_rlc_mixer, CcsClaim, RunningInstance};
@@ -114,7 +114,7 @@ impl Stage1StepInputs {
 
 impl PreparedLifecycle {
     /// Replay the native NIFS verifier and construct the exact recursive
-    /// caller packet. The package owns the context, parameters and fixed pc.
+    /// caller packet. The package owns the context and parameters.
     /// `execute_step_witness` executes the selected relation on this data.
     pub fn step_inputs(
         &self,
@@ -126,6 +126,7 @@ impl PreparedLifecycle {
         output: [F; 4],
     ) -> Result<Stage1StepInputs, StepInputError> {
         let (prior_preimage, prior_digest) = self.checked_prior_state(state, running, fresh)?;
+        let prior_children = pi_ccs_v1_2_prior_children(&running.claims)?;
         let context = self.binding.verifier_context().digest().map(F::from_u64);
         let prior_public_input = encode_pi_ccs_v1_2_public_input(prior_digest)?;
         let params = &self.params;
@@ -146,14 +147,8 @@ impl PreparedLifecycle {
             ));
         }
 
-        let output_preimage = serialize_pi_ccs_v1_2_state_preimage(
-            context,
-            state.iteration + 1,
-            state.z0,
-            output,
-            &next_running.claims,
-            1,
-        )?;
+        let output_preimage =
+            serialize_pi_ccs_v1_2_state_preimage(context, state.iteration + 1, state.z0, output, &next_running.claims)?;
         let output_digest = pi_ccs_v1_2_state_hash(&output_preimage)?;
         let next_public_input = encode_pi_ccs_v1_2_public_input(output_digest)?;
 
@@ -214,6 +209,7 @@ impl PreparedLifecycle {
         let pi_ccs = PiCcsV1_2ProofInputs::from_proof(fresh, &proof.pi_ccs)?.into_package_inputs(
             prior_preimage,
             output_preimage,
+            prior_children,
             prior_public_input,
             output_digest,
             self.binding.verifier_context().clone(),
@@ -257,7 +253,6 @@ impl PreparedLifecycle {
             state.z0,
             state.current,
             &running.claims,
-            1,
         )?;
         let digest = pi_ccs_v1_2_state_hash(&preimage)?;
         let public = encode_pi_ccs_v1_2_public_input(digest)?;

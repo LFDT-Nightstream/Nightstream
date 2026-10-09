@@ -69,6 +69,14 @@ prefixes (`Lifecycle.TranscriptCoverage.challengeCalls_injective`), so their
 oracle answers are independent and uniform. The proof uses the prefix
 lengths.
 
+**Setup.** The Ajtai key is drawn inside the game: its coefficients are the
+residues of uniform 256-bit setup chunks (SHAKE128 as a random oracle;
+`Export.Stage1.RandomOracleSetup.setupKey`). The adversary is a function of
+the chunks, chosen before them, so it may read the key but cannot contain a
+kernel vector of it. Lemmas 1–6 hold for every fixed key;
+`Export.Stage1.RandomOracleSetup.knowledge_error_le_setup` averages them over
+the chunks.
+
 **Adversary.** `A^H` is a classical oracle algorithm with at most `Q` oracle
 queries (Ironwood's `OracleComp` with `QueryBound Q`). It outputs a claim
 (running and fresh statement, a NIFS proof and 16 child witnesses) and a
@@ -80,7 +88,11 @@ verifier accepts, the 16 child witnesses open the verifier-computed children,
 and the claim passes its `linked` check. In production the check is
 `PriorLink` (`Export.Stage1.RandomOracleLink.linkedClaim`): the output prior
 preimage links the running statement and the verifier context digest to the
-absorbed digest. At the sponge reads, this event is
+absorbed digest. The preimage must also be well formed
+(`Layout.Stage1.StateEncoding.WellFormed`), which includes that the running
+children are the canonical split of the parent that the state hash stores
+(`Lifecycle.ChildrenCanonical`). The deployed verifier rejects every other
+split. At the sponge reads, this event is
 `NifsRealSuccess.RealSuccess`
 (`Export.Stage1.RandomOracleLink.succeeds_iff_realSuccess`).
 
@@ -266,8 +278,9 @@ Pr[running]`. *Status:* proved as
   history bound takes Assumption 1 with a per-visit error instead.
 - The PriorLink, coverage and identify results of this PR are inputs
   (Lemma 1), not replaced.
-- The MSIS assumption, the state-hash collision event and the
-  low-norm-invertibility facts are unchanged.
+- The state-hash collision event and the low-norm-invertibility facts keep
+  their roles. MSIS enters only through `msisAdvantage`, the success of an
+  explicit solver on a uniform matrix; it is not a premise of the theorem.
 - The model remains an idealization: a concrete attack on Poseidon2 as a
   random oracle, or on the additive duplex, is outside it, as BLAKE2b is
   outside Ironwood's theorem.

@@ -13,11 +13,11 @@ const SEALED_SCHEMA: usize = 6;
 const INNER_SCHEMA: usize = 8;
 const TRANSPORT_SCHEMA: usize = 3;
 pub(super) const BLOCK_COUNT: usize = 26;
-const PHYSICAL_COLUMNS: usize = 12_448_701;
+const PHYSICAL_COLUMNS: usize = 11_659_967;
 const PHYSICAL_PUBLIC: usize = 278;
 const LOGICAL_PUBLIC: usize = 270;
-const LOGICAL_WIDTH: usize = 49_707_850;
-const CARRIER_WIDTH: usize = 49_707_864;
+const LOGICAL_WIDTH: usize = 45_140_532;
+const CARRIER_WIDTH: usize = 45_140_544;
 const FIELD_COORDINATES: usize = 41;
 const OUTPUT_DIGEST_WORDS: usize = 4;
 const PHI81_INVOCATIONS: usize = 33_966;
@@ -417,7 +417,7 @@ impl LogicalAssignment {
         let RawLayout(rows, private, constant, public, total, _, _) = layout;
         if usize::try_from(outer_schema).ok() != Some(SEALED_SCHEMA)
             || usize::try_from(inner_schema).ok() != Some(INNER_SCHEMA)
-            || usize::try_from(rows).ok() != Some(12_357_472)
+            || usize::try_from(rows).ok() != Some(11_573_009)
             || usize::try_from(total).ok() != Some(PHYSICAL_COLUMNS)
             || usize::try_from(public).ok() != Some(PHYSICAL_PUBLIC)
             || usize::try_from(logical_public).ok() != Some(LOGICAL_PUBLIC)
@@ -576,7 +576,7 @@ impl<'a> PartialLogicalAssignment<'a> {
         let RawLayout(rows, private, constant, public, total, _, _) = layout;
         if usize::try_from(outer_schema).ok() != Some(SEALED_SCHEMA)
             || usize::try_from(inner_schema).ok() != Some(INNER_SCHEMA)
-            || usize::try_from(rows).ok() != Some(12_357_472)
+            || usize::try_from(rows).ok() != Some(11_573_009)
             || usize::try_from(total).ok() != Some(PHYSICAL_COLUMNS)
             || usize::try_from(public).ok() != Some(PHYSICAL_PUBLIC)
             || usize::try_from(logical_public).ok() != Some(LOGICAL_PUBLIC)
@@ -642,11 +642,11 @@ impl<'a> PartialLogicalAssignment<'a> {
     /// Keep the sealed pilot's proof-input gap and non-pilot public context
     /// unavailable. This uses the same independent schema-6 transport.
     pub fn decode_pilot(sealed_bytes: &[u8], private_prefix: &'a [u64], public_values: &'a [u64]) -> Result<Self> {
-        if private_prefix.len() != 5_945_682 {
+        if private_prefix.len() != 5_156_678 {
             return Err("pilot physical-assignment prefix has the wrong length".into());
         }
         let mut assignment = Self::decode(sealed_bytes, private_prefix, public_values)?;
-        assignment.physical.unavailable_private = Some(64_226..75_098);
+        assignment.physical.unavailable_private = Some(55_638..70_830);
         assignment.physical.public = &public_values[..274];
         Ok(assignment)
     }

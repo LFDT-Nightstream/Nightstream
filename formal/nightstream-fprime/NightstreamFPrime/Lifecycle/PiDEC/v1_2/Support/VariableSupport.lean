@@ -60,21 +60,18 @@ theorem flatConstraints_varsSatisfy
   rw [constraints] at member
   rcases List.mem_cons.mp member with signMember | tailMember
   · subst expression
-    simp only [signConstraint, signBitExpr, 
-      Expr.VarsSatisfy]
+    simp only [signConstraint, signBitExpr]
     exact ⟨localCell, ⟨localCell, ⟨trivial, trivial⟩⟩⟩
   · rcases List.mem_append.mp tailMember with digitMember | recompositionMember
     · rcases List.mem_ofFn.mp digitMember with ⟨index, rfl⟩
       have signSupported : (signExpr offset).VarsSatisfy allowed := by
-        simp only [signExpr, signBitExpr
-          ]
+        simp only [signExpr, signBitExpr]
         exact ⟨trivial, ⟨trivial, ⟨trivial, localCell⟩⟩⟩
-      simp only [digitConstraint, Expr.VarsSatisfy]
+      simp only [digitConstraint]
       exact ⟨digits index, ⟨digits index, ⟨trivial, signSupported⟩⟩⟩
     · rw [List.mem_singleton] at recompositionMember
       subst expression
-      simp only [recompositionConstraint
-        ]
+      simp only [recompositionConstraint]
       exact ⟨recomposeExpr_varsSatisfy allowed interface offset digits,
         trivial, parent⟩
 

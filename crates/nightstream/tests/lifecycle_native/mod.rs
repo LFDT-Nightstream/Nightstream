@@ -465,7 +465,6 @@ fn state_and_proof_bridges_require_the_padded_evaluation_width() {
             fixture.state.z0(),
             fixture.state.current(),
             &running.claims,
-            1,
         )
         .map(|_| ())
     };
@@ -541,6 +540,7 @@ mod base;
 mod key_prefix;
 mod matrix_workspace;
 mod recursive;
+mod state_encoding;
 
 mod staged;
 mod terminal_sweep;

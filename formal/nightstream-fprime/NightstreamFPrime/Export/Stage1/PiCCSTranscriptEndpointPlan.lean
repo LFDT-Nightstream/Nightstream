@@ -415,7 +415,7 @@ theorem endpointColumn_lt_source (family : Fin familyCount)
   all_goals try unfold PiCCSStarts.logicalFreshBase
   all_goals
     norm_num [PiCCSTranscriptDirectSemantics.roundCount,
-      PiCCSInputs.phaseOffset_eq] at *
+      PiCCSInputs.phaseOffset_eq, PiCCSStarts.statementWitnessStart_eq] at *
   all_goals omega
 
 def endpointTranscriptInvocation (family : Fin familyCount) :
@@ -461,7 +461,7 @@ def proofLogicalIndex (family : Fin familyCount) (_notOutput : family.val ≠ 3)
   all_goals try unfold PiCCSStarts.logicalFreshBase
   all_goals
     norm_num [PiCCSTranscriptDirectSemantics.roundCount,
-      PiCCSInputs.phaseOffset_eq] at *
+      PiCCSInputs.phaseOffset_eq, PiCCSStarts.statementWitnessStart_eq] at *
   all_goals omega
 
 private theorem packageSourceColumn_congr
@@ -532,7 +532,9 @@ theorem sourceForm_eval
         unfold endpointColumn endpointStart outputFamily
           PiCCSStarts.logicalFreshBase
         rw [PiCCSInputs.phaseOffset_eq]
-        norm_num [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]; omega)).symm
+        norm_num [PiCCSStarts.statementWitnessStart_eq,
+          PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
+        omega)).symm
   · rw [sourceForm, dif_neg output,
       PiCCSOrdinaryDirectPlan.Location.form_eval geometry assignment base
         groupValue encoding]

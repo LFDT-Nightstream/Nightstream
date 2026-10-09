@@ -81,7 +81,7 @@ most `Q` Fiat–Shamir oracle queries it states:
 | 3. What does extraction return? | The Π_CCS output witness of the complete Π_RLC fork, or nothing. | `Lifecycle.RandomOracleKnowledge.extract` |
 | 4. What does a returned witness certify? | `SourceHolds` for the chunks' key and the running and fresh statements that the adversary selected. | `Lifecycle.RandomOracleKnowledge.extract_holds` |
 | 5. What is the failure event? | The verifier accepts, and extraction returns nothing. | `Lifecycle.RandomOracleKnowledge.failure_eq` |
-| 6. What is the error? | The statistical error, the expected state-hash collision chances, `msisAdvantage`, and the programming error. | `Export.Stage1.RandomOracleSetup.knowledge_error_le_setup` |
+| 6. What is the error? | The statistical error, the expected state-hash collision chances, `msisAdvantage`, and the programming error `card(SetupIndex) · 2r/2^256`, which is below `2^-190` at the production size. | `Export.Stage1.RandomOracleSetup.knowledge_error_le_setup`, `Export.Stage1.RandomOracleSetup.production_knowledge_error_lt` |
 
 The record states no running time. The extractor takes `17 (Q + 17)` expected
 retries (`Lifecycle.RandomOracleExtraction.expected_retries_le`). The binding
@@ -122,14 +122,15 @@ it states no time bound for the MSIS solver. The proof is in
    `Spec.AjtaiSetupV1.Setup.authorityWords`), so it does not depend on the
    chunks.
 3. **Two hardness terms.**
-   - `msisAdvantage` is small only if MSIS is hard for a uniform matrix of
-     `22 × 920516` elements of `F_p[X]/Φ₈₁` (degree 54) at norm `8TB`, at the
-     solver's work. The
-     solver runs the adversary an expected number of times that grows with
-     `Q` (above). The 2026-09-08 public-seed MSIS approval covered the
+   - If MSIS is hard for a uniform matrix of `22 × 835936` elements of
+     `F_p[X]/Φ₈₁` (degree 54) at norm `8TB`, at the solver's work, then
+     `msisAdvantage` is small. The solver runs the adversary an expected
+     number of times that grows with `Q` (above); Lean does not bound its
+     work, so this step also needs the paper argument that the work is
+     polynomial. The 2026-09-08 public-seed MSIS approval covered the
      ChaCha20 matrix only.
-   - `hashCollisions` is small only if Poseidon2 state-hash collisions are
-     hard to find. The state hash is fixed and has no key, so an efficient
+   - If Poseidon2 state-hash collisions are hard to find, then
+     `hashCollisions` is small. The state hash is fixed and has no key, so an efficient
      algorithm that contains a collision exists. A bound therefore needs the
      human-ignorance reading (Rogaway): it applies to algorithms that a person
      can write without such knowledge.
@@ -146,11 +147,16 @@ it states no time bound for the MSIS solver. The proof is in
    Definition 7:
    - The success event adds the prior-state link (`PriorLink`): the prior
      preimage that the adversary outputs must hash to the digest in the fresh
-     public input. The bare NIFS verifier does not check this, so without the
+     public input and be well formed. Well formed includes that the running
+     children are the canonical split of the parent that the state hash
+     stores (`Lifecycle.ChildrenCanonical`). The bare NIFS verifier does not check this, so without the
      link a prover could choose the running statement after `γ`. The deployed
-     fold verifier checks it (`checked_prior_state` in
-     `crates/nightstream/src/lifecycle/step_inputs.rs`). So Assumption 1 is
-     Definition 7 for the NIFS verifier together with this check.
+     system checks it: the terminal verifier recomputes the state hash of the
+     running claims, which rejects a split that is not canonical, and
+     compares it with the fresh public input
+     (`crates/nightstream/src/lifecycle/verify.rs`), and for an inner fold the
+     step circuit recomputes it. So Assumption 1 is Definition 7 for the NIFS
+     verifier together with this check.
    - This joint form implies Definition 7's difference form
      `Pr[success] − Pr[extraction] ≤ error`. The converse needs an adversary
      that stops when its own success check fails.

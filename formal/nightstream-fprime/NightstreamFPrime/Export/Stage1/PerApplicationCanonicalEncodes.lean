@@ -272,15 +272,15 @@ private theorem priorInputSource_eq (application : Program)
     (PiRLCPoseidonGeometry.priorInputBlock application).source slot =
       (PiCCSOrdinaryRetainedBlocks.priorInputBlock application).source slot := by
   have slotBound := slot.isLt
-  change slot.val < 32113 at slotBound
+  change slot.val < 27819 at slotBound
   have mapped : Layout.Stage1.Spartan.sourceToSpartan (0 + slot.val) =
       0 + slot.val := by
     have zero : Layout.Stage1.Spartan.sourceToSpartan 0 = 0 := by rfl
     simpa only [zero] using
       Layout.Stage1.Spartan.sourceToSpartan_add_of_pilotPriorPrivate
-        0 slot.val (by change 0 + slot.val < 32113; omega)
+        0 slot.val (by change 0 + slot.val < 27819; omega)
   have constant : PerApplicationPackage.basePackage.layout.constantColumn =
-      12442938 :=
+      11654204 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
   apply Fin.ext
   change 0 + slot.val = PerApplicationPackage.shiftColumn application
@@ -296,29 +296,29 @@ private theorem outputInputSource_eq (application : Program)
     (PiRLCPoseidonGeometry.outputInputBlock application).source slot =
       (PiCCSOrdinaryRetainedBlocks.outputInputBlock application).source slot := by
   have slotBound := slot.isLt
-  change slot.val < 32113 at slotBound
-  have mapped : Layout.Stage1.Spartan.sourceToSpartan (32383 + slot.val) =
-      32113 + slot.val := by
+  change slot.val < 27819 at slotBound
+  have mapped : Layout.Stage1.Spartan.sourceToSpartan (28089 + slot.val) =
+      27819 + slot.val := by
     unfold Layout.Stage1.Spartan.sourceToSpartan
-    rw [if_pos (by change 32383 + slot.val < 5935084; omega)]
+    rw [if_pos (by change 28089 + slot.val < 5141760; omega)]
     unfold Layout.PilotSpartan.sourceToSpartan
-    rw [if_neg (by change ¬ (32383 + slot.val < 32113); omega),
-      if_neg (by change ¬ (32383 + slot.val < 32383); omega),
-      if_pos (by change 32383 + slot.val < 64496; omega)]
-    have offset : 32383 + slot.val - Layout.PilotSpartan.outputPreimageStart =
+    rw [if_neg (by change ¬ (28089 + slot.val < 27819); omega),
+      if_neg (by change ¬ (28089 + slot.val < 28089); omega),
+      if_pos (by change 28089 + slot.val < 55908; omega)]
+    have offset : 28089 + slot.val - Layout.PilotSpartan.outputPreimageStart =
         slot.val := by
-      change 32383 + slot.val - 32383 = slot.val
+      change 28089 + slot.val - 28089 = slot.val
       omega
     rw [offset]
     unfold Layout.Stage1.Spartan.liftPilotColumn
-    rw [if_pos (by change 32113 + slot.val < 64226; omega)]
+    rw [if_pos (by change 27819 + slot.val < 55638; omega)]
     rw [Layout.PilotSpartan.secondPrivateStart_value]
   have constant : PerApplicationPackage.basePackage.layout.constantColumn =
-      12442938 :=
+      11654204 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
   apply Fin.ext
-  change 32113 + slot.val = PerApplicationPackage.shiftColumn application
-    (Layout.Stage1.Spartan.sourceToSpartan (32383 + slot.val))
+  change 27819 + slot.val = PerApplicationPackage.shiftColumn application
+    (Layout.Stage1.Spartan.sourceToSpartan (28089 + slot.val))
   rw [mapped, PerApplicationPackage.shiftColumn_private application _ (by
     rw [constant]
     omega)]
@@ -330,13 +330,13 @@ private theorem transitionStateEncodes {application : Program}
       (RunningTransitionRetainedGeometry.stateFits (runningGeometry application))
       raw.assignment raw.retainedSource := by
   let parent := PiRLCPoseidonGeometry.priorInputBlock application
-  have slots : 28 + 11 ≤ parent.slotCount := by
+  have slots : 27810 + 9 ≤ parent.slotCount := by
     simp [parent, PiRLCPoseidonGeometry.priorInputBlock]
   have fits : PiRLCPoseidonGeometry.priorInputStart application +
-      28 * parent.kind.width + (parent.slice 28 11 slots).coordinateCount ≤
+      27810 * parent.kind.width + (parent.slice 27810 9 slots).coordinateCount ≤
         PerApplicationFixedPoint.logicalWidth application :=
     RunningTransitionRetainedGeometry.stateFits (runningGeometry application)
-  have view := parent.encodesAt_slice 28 11 slots
+  have view := parent.encodesAt_slice 27810 9 slots
     (PiRLCPoseidonGeometry.priorInputStart application)
     (PiRLCPoseidonGeometry.priorInputFits
       (RunningTransitionRetainedGeometry.pilotGeometry (runningGeometry application)))
@@ -350,9 +350,9 @@ private theorem transitionStateEncodes {application : Program}
     apply Fin.ext
     have selected := congrArg Fin.val (priorInputSource_eq application
       (RunningTransitionDirectPlan.Location.statePreimageWord slot))
-    change 0 + (28 + slot.val) = PerApplicationPackage.shiftColumn application
-      (Layout.Stage1.Spartan.sourceToSpartan (0 + (28 + slot.val))) at selected
-    change 0 + (28 + slot.val) = PerApplicationPackage.shiftColumn application
+    change 0 + (27810 + slot.val) = PerApplicationPackage.shiftColumn application
+      (Layout.Stage1.Spartan.sourceToSpartan (0 + (27810 + slot.val))) at selected
+    change 0 + (27810 + slot.val) = PerApplicationPackage.shiftColumn application
       (Layout.Stage1.Spartan.sourceToSpartan
         (Layout.Stage1.RunningTransitionSourceSupport.stateStart + slot.val))
     rw [Layout.Stage1.RunningTransitionSourceSupport.stateStart_eq]
@@ -788,13 +788,13 @@ private theorem applicationInputEncodes {application : Program}
       (ApplicationRetainedGeometry.inputFits (applicationGeometry application))
       raw.assignment raw.applicationSource := by
   let parent := PiRLCPoseidonGeometry.priorInputBlock application
-  have slots : 35 + 4 ≤ parent.slotCount := by
+  have slots : 27815 + 4 ≤ parent.slotCount := by
     simp [parent, PiRLCPoseidonGeometry.priorInputBlock]
   have fits : PiRLCPoseidonGeometry.priorInputStart application +
-      35 * parent.kind.width + (parent.slice 35 4 slots).coordinateCount ≤
+      27815 * parent.kind.width + (parent.slice 27815 4 slots).coordinateCount ≤
         PerApplicationFixedPoint.logicalWidth application :=
     ApplicationRetainedGeometry.inputFits (applicationGeometry application)
-  have view := parent.encodesAt_slice 35 4 slots
+  have view := parent.encodesAt_slice 27815 4 slots
     (PiRLCPoseidonGeometry.priorInputStart application)
     (PiRLCPoseidonGeometry.priorInputFits
       (ApplicationRetainedGeometry.pilotGeometry (applicationGeometry application)))
@@ -807,7 +807,7 @@ private theorem applicationInputEncodes {application : Program}
         (applicationBaseColumn ((ApplicationRetainedBlocks.inputBlock application).source
           slot)) := by
     apply Fin.ext
-    change 0 + (35 + slot.val) = Layout.Stage1.ApplicationInputs.inputColumn slot
+    change 0 + (27815 + slot.val) = Layout.Stage1.ApplicationInputs.inputColumn slot
     rw [Nat.zero_add]
     exact (Layout.Stage1.ApplicationInputs.inputColumn_value slot).symm
   have value := view slot coordinate
@@ -829,13 +829,13 @@ private theorem applicationOutputEncodes {application : Program}
       (ApplicationRetainedGeometry.outputFits (applicationGeometry application))
       raw.assignment raw.applicationSource := by
   let parent := PiRLCPoseidonGeometry.outputInputBlock application
-  have slots : 35 + 4 ≤ parent.slotCount := by
+  have slots : 27815 + 4 ≤ parent.slotCount := by
     simp [parent, PiRLCPoseidonGeometry.outputInputBlock]
   have fits : PiRLCPoseidonGeometry.outputInputStart application +
-      35 * parent.kind.width + (parent.slice 35 4 slots).coordinateCount ≤
+      27815 * parent.kind.width + (parent.slice 27815 4 slots).coordinateCount ≤
         PerApplicationFixedPoint.logicalWidth application :=
     ApplicationRetainedGeometry.outputFits (applicationGeometry application)
-  have view := parent.encodesAt_slice 35 4 slots
+  have view := parent.encodesAt_slice 27815 4 slots
     (PiRLCPoseidonGeometry.outputInputStart application)
     (PiRLCPoseidonGeometry.outputInputFits
       (ApplicationRetainedGeometry.pilotGeometry (applicationGeometry application)))
@@ -848,7 +848,7 @@ private theorem applicationOutputEncodes {application : Program}
         (applicationBaseColumn ((ApplicationRetainedBlocks.outputBlock application).source
           slot)) := by
     apply Fin.ext
-    change 32113 + (35 + slot.val) = Layout.Stage1.ApplicationInputs.outputColumn slot
+    change 27819 + (27815 + slot.val) = Layout.Stage1.ApplicationInputs.outputColumn slot
     rw [Layout.Stage1.ApplicationInputs.outputColumn_value]
     omega
   have value := view slot coordinate

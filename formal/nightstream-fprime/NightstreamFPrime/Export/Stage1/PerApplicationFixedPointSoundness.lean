@@ -165,10 +165,9 @@ private structure Represents
       (commonEnv application assignment base) =
     AccumulatorInputs.output (relation application fits)
       (transitionEnv application base)
-  runningOutput : PiCCS.v1_2.StatementAbsorption.evalRunning
-    (RunningTransitionInputs.outputRunningExpr
-      (PerApplicationFixedPoint.logicalWidth application)
-      (PerApplicationFixedPoint.publicFits application))
+  runningOutput : RunningTransitionInputs.outputRunning
+    (PerApplicationFixedPoint.logicalWidth application)
+    (PerApplicationFixedPoint.publicFits application)
     (transitionEnv application base) = output.runningNext functionIndex
   priorPc : input.priorPc = 1
   pcNext : output.pcNext = functionIndex
@@ -304,10 +303,9 @@ private theorem representedSemantics_imply_stepHoldsFor
         subst slot
         calc
           output.runningNext functionIndex =
-              PiCCS.v1_2.StatementAbsorption.evalRunning
-                (RunningTransitionInputs.outputRunningExpr
-                  (PerApplicationFixedPoint.logicalWidth application)
-                  (PerApplicationFixedPoint.publicFits application))
+              RunningTransitionInputs.outputRunning
+                (PerApplicationFixedPoint.logicalWidth application)
+                (PerApplicationFixedPoint.publicFits application)
                 (transitionEnv application base) :=
             represents.runningOutput.symm
           _ = defaultRunning
@@ -327,19 +325,22 @@ private theorem representedSemantics_imply_stepHoldsFor
           0 := by
         intro fieldZero
         exact iterationNonzero (represents.iterationZero.mp fieldZero)
+      have outputCanonical := StateEncoding.output_canonical
+        (relation application fits) ajtai
+        ((Nifs.PaperNonInteractive.verify_eq_some_iff _ _ _ _ _).mp accumulator).2.2
+      rw [represents.accumulatorOutputEnv] at outputCanonical
       have runningRecursive :=
         RunningTransitionLayout.physical_implies_typed_recursive
           (relation application fits) (transitionEnv application base)
-          runningPhysical fieldNonzero
+          runningPhysical fieldNonzero outputCanonical
       have transitionOutput : output.runningNext functionIndex =
           RunningTransitionInputs.piDecRunningOutput
             (relation application fits) (transitionEnv application base) := by
         calc
           output.runningNext functionIndex =
-              PiCCS.v1_2.StatementAbsorption.evalRunning
-                (RunningTransitionInputs.outputRunningExpr
-                  (PerApplicationFixedPoint.logicalWidth application)
-                  (PerApplicationFixedPoint.publicFits application))
+              RunningTransitionInputs.outputRunning
+                (PerApplicationFixedPoint.logicalWidth application)
+                (PerApplicationFixedPoint.publicFits application)
                 (transitionEnv application base) :=
             represents.runningOutput.symm
           _ = RunningTransitionInputs.piDecRunningOutput
@@ -457,6 +458,7 @@ theorem rowsZero_implies_stepHoldsFor
         PerApplicationDecodedIO.currentStateRepresents application fits raw
     · simpa [commonEnv, PerApplicationDecodedIO.commonEnv] using
         PerApplicationDecodedIO.runningInputRepresents application fits raw
+          semantics
     · rfl
     · rfl
     · simpa [commonEnv, transitionEnv, PerApplicationDecodedIO.commonEnv,

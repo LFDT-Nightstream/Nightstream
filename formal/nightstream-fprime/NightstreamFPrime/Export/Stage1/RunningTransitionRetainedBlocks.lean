@@ -29,7 +29,7 @@ private theorem target_lt_basePackage (source : Nat)
       PiRLCProductPlan.basePackage.layout.totalColumnCount := by
   have mapped := Spartan.sourceToSpartan_lt source bound
   have total : PiRLCProductPlan.basePackage.layout.totalColumnCount =
-      12443217 :=
+      11654483 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
   rw [total]
   simpa [Spartan.spartanColumnCount] using mapped
@@ -57,10 +57,10 @@ def stateBlock (program : Lifecycle.Stage1.Application.Program) :
     (fun index => RunningTransitionSourceSupport.stateStart + index.val) (by
       intro index
       have indexBound := index.isLt
-      change index.val < 11 at indexBound
+      change index.val < 9 at indexBound
       rw [RunningTransitionSourceSupport.stateStart_eq,
         Spartan.sourceColumnCount_eq]
-      change 28 + index.val < 12443216
+      change 27810 + index.val < 11654482
       omega)
 
 def outputBlock (program : Lifecycle.Stage1.Application.Program) :
@@ -69,10 +69,10 @@ def outputBlock (program : Lifecycle.Stage1.Application.Program) :
     (fun index => RunningTransitionSourceSupport.outputStart + index.val) (by
       intro index
       have indexBound := index.isLt
-      change index.val < 32113 at indexBound
+      change index.val < 27819 at indexBound
       rw [RunningTransitionSourceSupport.outputStart_eq,
         Spartan.sourceColumnCount_eq]
-      change 32383 + index.val < 12443216
+      change 28089 + index.val < 11654482
       omega)
 
 def piDecBlock (program : Lifecycle.Stage1.Application.Program) :
@@ -84,7 +84,7 @@ def piDecBlock (program : Lifecycle.Stage1.Application.Program) :
       change index.val < 31968 at indexBound
       rw [RunningTransitionSourceSupport.piDecStart_eq,
         Spartan.sourceColumnCount_eq]
-      change 12410976 + index.val < 12443216
+      change 11622242 + index.val < 11654482
       omega)
 
 def freshCount : Nat := RunningTransitionSourceSupport.physicalEnd -
@@ -103,12 +103,12 @@ def freshBlock (program : Lifecycle.Stage1.Application.Program) :
 
 @[simp] theorem stateBlock_slotCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (stateBlock program).slotCount = 11 := by
+    (stateBlock program).slotCount = 9 := by
   rfl
 
 @[simp] theorem outputBlock_slotCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (outputBlock program).slotCount = 32113 := by
+    (outputBlock program).slotCount = 27819 := by
   rw [outputBlock]
   exact RunningTransitionSourceSupport.outputCount_eq
 

@@ -124,6 +124,7 @@ def valueIO (context : VerifierContext.Digest4) : IO Value := do
     (productionGlobalParams.k * productionShape.matrixCount *
       productionShape.coefficientCount * 2) (0 : F)
   let privateInputs := priorWords ++ outputWords ++
+    PiCCSProofInputs.priorChildWords (prior.running functionIndex) ++
     PiCCSProofInputs.serializeProofInputs zeroProof ++
     childCommitmentWords ++ childEvalKWords ++ childEvalAWords ++
     childPublicWords ++ applicationMessage

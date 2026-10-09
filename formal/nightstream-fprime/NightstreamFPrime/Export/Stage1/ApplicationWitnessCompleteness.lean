@@ -296,7 +296,8 @@ private theorem outputDigest_of_completed
       _ = PerApplicationDecodedIO.transitionEnv raw index :=
         PerApplicationDecodedIO.pilotEnv_eq_transitionEnv_of_lt raw index pilotBound
       _ = RunningTransitionDirectPlan.packageEnv application raw.base (Spartan.sourceToSpartan index) :=
-        RunningTransitionDirectPlan.transitionEnv_of_outside application raw.base index sourceBound (Or.inl beforeC)
+        RunningTransitionDirectPlan.transitionEnv_of_outside application raw.base index sourceBound
+          (Or.inl (Nat.lt_of_lt_of_le beforeC PiCCSStarts.phaseOffset_le_statementWitnessStart))
       _ = _ := PerApplicationSourceAssignment.source_ofCompleted application target suffix index sourceBound
   have represented := PilotProduction.protocolEnv_represents_of_agreesBelow prior (encHash (stateHash prior))
     next digest priorFixed nextFixed digestFixed (PerApplicationDecodedIO.pilotEnv raw) (by

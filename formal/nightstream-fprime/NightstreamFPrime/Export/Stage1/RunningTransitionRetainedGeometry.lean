@@ -17,7 +17,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 open RunningTransitionRetainedBlocks
 
 def stateStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  PiRLCPoseidonGeometry.priorInputStart program + 28 * 41
+  PiRLCPoseidonGeometry.priorInputStart program + 27810 * 41
 
 theorem retainedPrefix_le_stateStart
     (program : Lifecycle.Stage1.Application.Program) :
@@ -40,7 +40,7 @@ def completeLogicalWidth
 
 @[simp] theorem completeLogicalWidth_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    completeLogicalWidth program = 46809806 := by
+    completeLogicalWidth program = 42054298 := by
   have retained := retainedCoordinateCount_eq program
   simp only [retainedCoordinateCount] at retained
   unfold completeLogicalWidth freshStart piDecStart
@@ -91,9 +91,9 @@ theorem stateFits {program : Lifecycle.Stage1.Application.Program}
     stateStart program + (stateBlock program).coordinateCount ≤ logicalWidth := by
   have parent := PiRLCPoseidonGeometry.priorInputFits (pilotGeometry geometry)
   have width : (PiRLCPoseidonGeometry.priorInputBlock program).coordinateCount =
-      1316633 := by simp [PiRLCPoseidonGeometry.priorInputBlock]
+      1140579 := by simp [PiRLCPoseidonGeometry.priorInputBlock]
   rw [width] at parent
-  change PiRLCPoseidonGeometry.priorInputStart program + 28 * 41 + 11 * 41 ≤
+  change PiRLCPoseidonGeometry.priorInputStart program + 27810 * 41 + 9 * 41 ≤
     logicalWidth
   omega
 

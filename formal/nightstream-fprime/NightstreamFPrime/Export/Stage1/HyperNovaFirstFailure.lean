@@ -61,7 +61,7 @@ private theorem checks_of_no_first_failure (depth : Nat)
           exact ⟨trivial, trivial⟩
       | recursive payload =>
           have positive := (PerApplicationTerminal.holds_recursive_iff
-            application fits productionSetup statement payload).mp accepted |>.2.2.1
+            application fits productionSetup statement payload).mp accepted |>.2.2.2.1
           omega
   | succ depth induction =>
       cases proof with
@@ -70,7 +70,7 @@ private theorem checks_of_no_first_failure (depth : Nat)
           exact ⟨trivial, trivial⟩
       | recursive payload =>
           have positive := (PerApplicationTerminal.holds_recursive_iff
-            application fits productionSetup statement payload).mp accepted |>.2.2.1
+            application fits productionSetup statement payload).mp accepted |>.2.2.2.1
           have nonzero : statement.iteration ≠ 0 := Nat.ne_of_gt positive
           have safe : ¬ Collision statement payload := by
             intro collision

@@ -142,26 +142,6 @@ private theorem serializePublicInputExpr_affine
   rcases member with ⟨column, _, rfl⟩
   exact affine column
 
-private theorem serializeEvaluationExpr_affine
-    (evaluation : EvaluationExpr)
-    (padAffine : ∀ coefficient,
-      KExprAffine (evaluation.eval_K coefficient))
-    (matrixAffine : ∀ matrix coefficient,
-      KExprAffine (evaluation.eval_A matrix coefficient)) :
-    ListAffine (serializeEvaluationExpr evaluation) := by
-  intro expression member
-  rw [serializeEvaluationExpr, List.mem_append] at member
-  rcases member with member | member
-  · rw [List.mem_flatMap] at member
-    rcases member with ⟨coefficient, _, member⟩
-    exact serializeKExpr_affine _ (padAffine coefficient) expression member
-  · rw [List.mem_flatMap] at member
-    rcases member with ⟨matrix, _, member⟩
-    rw [List.mem_flatMap] at member
-    rcases member with ⟨coefficient, _, member⟩
-    exact serializeKExpr_affine _ (matrixAffine matrix coefficient)
-      expression member
-
 private theorem constantWords_affine (words : List F) :
     ListAffine (constantWords words) := by
   intro expression member
@@ -322,27 +302,6 @@ private theorem serializePublicInputExpr_below (bound : Nat)
   rw [serializePublicInputExpr, List.mem_map] at member
   rcases member with ⟨column, _, rfl⟩
   exact below column
-
-private theorem serializeEvaluationExpr_below (bound : Nat)
-    (evaluation : EvaluationExpr)
-    (padBelow : ∀ coefficient,
-      (evaluation.eval_K coefficient).VarsBelow bound)
-    (matrixBelow : ∀ matrix coefficient,
-      (evaluation.eval_A matrix coefficient).VarsBelow bound) :
-    ListBelow bound (serializeEvaluationExpr evaluation) := by
-  intro expression member
-  rw [serializeEvaluationExpr, List.mem_append] at member
-  rcases member with member | member
-  · rw [List.mem_flatMap] at member
-    rcases member with ⟨coefficient, _, expressionMember⟩
-    exact serializeKExpr_below bound _ (padBelow coefficient) expression
-      expressionMember
-  · rw [List.mem_flatMap] at member
-    rcases member with ⟨matrix, _, member⟩
-    rw [List.mem_flatMap] at member
-    rcases member with ⟨coefficient, _, expressionMember⟩
-    exact serializeKExpr_below bound _ (matrixBelow matrix coefficient)
-      expression expressionMember
 
 private theorem constantWords_below (bound : Nat) (words : List F) :
     ListBelow bound (constantWords words) := by

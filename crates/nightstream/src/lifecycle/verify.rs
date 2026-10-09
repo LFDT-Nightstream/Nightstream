@@ -123,14 +123,15 @@ impl PreparedLifecycle {
         }
 
         // The formal terminal preimage contains the semantic running claims,
-        // not their fold_digest frames. The single selected pc is one.
+        // not their fold_digest frames. It binds only the parent public input,
+        // so serialization rejects children that are not its canonical split
+        // (`Terminal.ProofCanonical`).
         let preimage = serialize_pi_ccs_v1_2_state_preimage(
             self.binding.verifier_context().digest().map(F::from_u64),
             expected_state.iteration(),
             expected_state.z0(),
             expected_state.current(),
             &running.claims,
-            1,
         )?;
         let public = encode_pi_ccs_v1_2_public_input(pi_ccs_v1_2_state_hash(&preimage)?)?;
         if fresh

@@ -46,7 +46,8 @@ structure ExternalInputsLinear
       ((interface.running parentOffset).commitment source row coefficient)
   runningPublicInput : ∀ source column,
     R1CS.IsAffine
-      ((interface.running parentOffset).publicInput source column)
+      ((interface.running parentOffset).publicInput source column) ∧
+    Nonconstant ((interface.running parentOffset).publicInput source column)
   runningEval_K : ∀ source coefficient,
     KExprLinear
       (((interface.running parentOffset).evaluation source).eval_K coefficient)
@@ -94,12 +95,16 @@ theorem inputShapes
       simpa [frozen, Formal.atOffset] using external.outputState index
     · intro lane
       simpa [frozen, Formal.atOffset] using external.expectedContext lane
+    · intro word lane child
+      simpa [frozen, Formal.atOffset] using
+        external.runningPublicInput
+          (Fin.cast runningCount_eq_radixChildCount.symm child) (packedColumn word lane)
 
   have statementFresh : StateFresh
       (Formal.statementFinalState interface parentOffset) := by
     unfold Formal.statementFinalState
     exact Leaves.StatementAbsorption.finalState_fresh
-      (Formal.statementAbsorptionInterface frozen) parentOffset
+      (Formal.statementAbsorptionInterface frozen) (parentOffset + StateBinding.signCount)
 
   have challengeInitialFresh (childOffset : Nat) :
       StateFresh (challengeInterface.initialState childOffset) := by
@@ -329,7 +334,7 @@ theorem physicalRowCount_eq
     (interface : Formal.Interface logicalWidth 8 publicFits)
     (parentOffset : Nat)
     (external : ExternalInputsLinear interface parentOffset) :
-    physicalRowCount relation interface parentOffset = 1261381 :=
+    physicalRowCount relation interface parentOffset = 1265933 :=
   physicalRowCount_eq_production relation interface parentOffset
     (inputShapes relation interface parentOffset external)
 
@@ -339,7 +344,7 @@ theorem physicalColumnCount_eq
     (parentOffset : Nat)
     (external : ExternalInputsLinear interface parentOffset) :
     physicalColumnCount relation interface parentOffset =
-      parentOffset + 1261163 :=
+      parentOffset + 1261433 :=
   physicalColumnCount_eq_production relation interface parentOffset
     (inputShapes relation interface parentOffset external)
 
@@ -347,7 +352,7 @@ theorem jointDomain_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth 8 publicFits)
     (external : ExternalInputsLinear interface 0) :
-    jointDomain relation interface = 1261381 :=
+    jointDomain relation interface = 1265933 :=
   jointDomain_eq_production relation interface
     (inputShapes relation interface 0 external)
 

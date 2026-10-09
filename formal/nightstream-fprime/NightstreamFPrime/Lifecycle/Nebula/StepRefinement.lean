@@ -226,7 +226,7 @@ theorem mem_activeOps_exists : ∀ {ts : ℕ} {l : List OpSlot} {o : MemOp},
           List.length_cons] at wt ⊢
         omega
 
-private theorem take_succ_ofFn {α : Type} {n : ℕ} (f : Fin n → α) {k : ℕ} (hk : k < n) :
+theorem take_succ_ofFn {α : Type} {n : ℕ} (f : Fin n → α) {k : ℕ} (hk : k < n) :
     (List.ofFn f).take (k + 1) = (List.ofFn f).take k ++ [f ⟨k, hk⟩] := by
   rw [List.take_add_one, List.getElem?_ofFn]
   simp [hk]
@@ -248,7 +248,7 @@ theorem RowsHold.cntBefore_eq (rows : w.RowsHold zIn) :
     · simp [StepWitness.pad, OpSlotBits.decode, zero, toBool, modulus_ne_one]; rfl
     · simp [StepWitness.pad, OpSlotBits.decode, one, toBool]; rfl
 
-private theorem activeLength_le (l : List OpSlot) : activeLength l ≤ l.length :=
+theorem activeLength_le (l : List OpSlot) : activeLength l ≤ l.length :=
   List.length_filterMap_le _ _
 
 /-- Row O4: every active operation reads a stamp below its write stamp. -/
@@ -356,11 +356,11 @@ theorem readDigest_eq (v : Fin 39 → F) (start : ℕ) (fits : start + 3 < 39) :
   funext i
   simp [readDigest, carryDigest, carryWord, show start + i < 39 by omega]
 
-private theorem startProduct_open (word : ℕ) (opens : w.isOpen = 1) : w.startProduct word = 1 := by
+theorem startProduct_open (word : ℕ) (opens : w.isOpen = 1) : w.startProduct word = 1 := by
   rw [GoldilocksExtensionRing.one_eq]
   simp [startProduct, opens, embed, K.add, K.mul, K.one]
 
-private theorem startProduct_continue (word : ℕ) (continues : w.isOpen = 0) :
+theorem startProduct_continue (word : ℕ) (continues : w.isOpen = 0) :
     w.startProduct word = kOf (w.cIn word) (w.cIn (word + 1)) := by
   simp [startProduct, continues, embed, K.add, K.mul, kOf]
 

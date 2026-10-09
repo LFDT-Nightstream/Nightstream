@@ -123,7 +123,7 @@ theorem ScanSlot.bits_length (p : Plan) (c : ScanSlot) : (c.bits p).length = p.s
   simp only [ScanSlot.bits, bitsLE, Plan.scanWidth, List.length_append, List.length_map,
     List.length_range]
 
-private theorem bitsLE_injective {w x y : ℕ} (hx : x < 2 ^ w) (hy : y < 2 ^ w)
+theorem bitsLE_injective {w x y : ℕ} (hx : x < 2 ^ w) (hy : y < 2 ^ w)
     (same : bitsLE w x = bitsLE w y) : x = y := by
   apply Nat.eq_of_testBit_eq
   intro i

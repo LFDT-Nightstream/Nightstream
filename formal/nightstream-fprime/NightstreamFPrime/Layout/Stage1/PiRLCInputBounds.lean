@@ -1,4 +1,4 @@
-import NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions
+import NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions
 import NightstreamFPrime.Layout.Stage1.PiRLCInputs
 import NightstreamFPrime.Layout.Stage1.PiRLCStarts
 
@@ -25,9 +25,9 @@ variable {logicalWidth : Nat}
 
 private theorem phase_le_commitment :
     PiRLCInputs.phaseOffset ≤
-      PiRLC.v1_1.Formal.commitmentOffset PiRLCInputs.phaseOffset := by
-  unfold PiRLC.v1_1.Formal.commitmentOffset
-    PiRLC.v1_1.Formal.samplerOffset
+      PiRLC.v1_2.Formal.commitmentOffset PiRLCInputs.phaseOffset := by
+  unfold PiRLC.v1_2.Formal.commitmentOffset
+    PiRLC.v1_2.Formal.samplerOffset
   omega
 
 private theorem piCcsPhase_le_piRlcPhase :
@@ -35,21 +35,21 @@ private theorem piCcsPhase_le_piRlcPhase :
   norm_num [PiCCSInputs.phaseOffset_eq, PiRLCInputs.phaseOffset]
 
 private theorem commitment_le_publicInput :
-    PiRLC.v1_1.Formal.commitmentOffset PiRLCInputs.phaseOffset ≤
-      PiRLC.v1_1.Formal.publicInputOffset PiRLCInputs.phaseOffset := by
-  unfold PiRLC.v1_1.Formal.publicInputOffset
+    PiRLC.v1_2.Formal.commitmentOffset PiRLCInputs.phaseOffset ≤
+      PiRLC.v1_2.Formal.publicInputOffset PiRLCInputs.phaseOffset := by
+  unfold PiRLC.v1_2.Formal.publicInputOffset
   omega
 
 private theorem publicInput_le_evalK :
-    PiRLC.v1_1.Formal.publicInputOffset PiRLCInputs.phaseOffset ≤
-      PiRLC.v1_1.Formal.evalKOffset PiRLCInputs.phaseOffset := by
-  unfold PiRLC.v1_1.Formal.evalKOffset
+    PiRLC.v1_2.Formal.publicInputOffset PiRLCInputs.phaseOffset ≤
+      PiRLC.v1_2.Formal.evalKOffset PiRLCInputs.phaseOffset := by
+  unfold PiRLC.v1_2.Formal.evalKOffset
   omega
 
 private theorem evalK_le_evalA :
-    PiRLC.v1_1.Formal.evalKOffset PiRLCInputs.phaseOffset ≤
-      PiRLC.v1_1.Formal.evalAOffset PiRLCInputs.phaseOffset := by
-  unfold PiRLC.v1_1.Formal.evalAOffset
+    PiRLC.v1_2.Formal.evalKOffset PiRLCInputs.phaseOffset ≤
+      PiRLC.v1_2.Formal.evalAOffset PiRLCInputs.phaseOffset := by
+  unfold PiRLC.v1_2.Formal.evalAOffset
   omega
 
 private theorem samplerInitialBelow
@@ -59,29 +59,29 @@ private theorem samplerInitialBelow
       (logicalWidth := logicalWidth) (publicFits := publicFits) lane).VarsBelow
         PiRLCInputs.phaseOffset := by
   let interface := PiCCSInputs.interface logicalWidth publicFits
-  let outputAt := PiCCS.v1_1.Formal.outputBindingOffset relation interface
+  let outputAt := PiCCS.v1_2.Formal.outputBindingOffset relation interface
     PiCCSInputs.phaseOffset
   have outputAssumptions :=
-    NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions.outputBinding relation
+    NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions.outputBinding relation
       interface PiCCSInputs.phaseOffset
       (PiCCSInputs.externalInputsLinear logicalWidth publicFits) env
-  have bound := PiCCS.v1_1.OutputBinding.finalState_varsBelow
-    (PiCCS.v1_1.Formal.outputBindingInterface
-      (PiCCS.v1_1.Formal.atOffset interface PiCCSInputs.phaseOffset))
+  have bound := PiCCS.v1_2.OutputBinding.finalState_varsBelow
+    (PiCCS.v1_2.Formal.outputBindingInterface
+      (PiCCS.v1_2.Formal.atOffset interface PiCCSInputs.phaseOffset))
     outputAt env outputAssumptions lane
   rw [PiRLCInputs.piCcsOutputState_eq_parent relation]
   apply Expr.VarsBelow.mono _ bound
   unfold outputAt
   rw [← PiCCSStarts.outputBindingWitnessStart_matches relation]
-  rw [PiCCS.v1_1.OutputBinding.localLength_eq]
+  rw [PiCCS.v1_2.OutputBinding.localLength_eq]
   norm_num [PiCCSStarts.outputBindingWitnessStart_eq,
     PiRLCInputs.phaseOffset]
 
 private theorem samplerChallengeBelow
     (source : Fin productionShape.sourceCount) (lane : Fin ringDegree) :
-    (PiRLC.v1_1.SamplerChain.outputChallenge PiRLCInputs.phaseOffset source lane).VarsBelow
-      (PiRLC.v1_1.Formal.commitmentOffset PiRLCInputs.phaseOffset) :=
-  PiRLC.v1_1.SamplerChain.outputChallenge_below PiRLCInputs.phaseOffset source lane
+    (PiRLC.v1_2.SamplerChain.outputChallenge PiRLCInputs.phaseOffset source lane).VarsBelow
+      (PiRLC.v1_2.Formal.commitmentOffset PiRLCInputs.phaseOffset) :=
+  PiRLC.v1_2.SamplerChain.outputChallenge_below PiRLCInputs.phaseOffset source lane
 
 private theorem sourceCommitmentBelow
     (source : Fin productionShape.sourceCount)
@@ -154,7 +154,7 @@ private theorem sourceEvalABelow
       (below.outputEval_A source matrix coefficient) piCcsPhase_le_piRlcPhase
 
 private theorem inputInstance_ext
-    (left right : PiRLC.v1_1.InputBinding.InputInstance logicalWidth publicFits)
+    (left right : PiRLC.v1_2.InputBinding.InputInstance logicalWidth publicFits)
     (constraintSystem : left.constraintSystem = right.constraintSystem)
     (commitment : left.commitment = right.commitment)
     (publicInput : left.publicInput = right.publicInput)
@@ -179,15 +179,15 @@ theorem sourceInput_eval_eq_of_point_and_agree_below
     (source : Fin productionShape.sourceCount)
     (leftPoint rightPoint : Fin productionShape.cubeVariables → KExpr)
     (left right : Env)
-    (pointEq : PiRLC.v1_1.InputBinding.evalPoint leftPoint left =
-      PiRLC.v1_1.InputBinding.evalPoint rightPoint right)
+    (pointEq : PiRLC.v1_2.InputBinding.evalPoint leftPoint left =
+      PiRLC.v1_2.InputBinding.evalPoint rightPoint right)
     (agrees : ∀ index, index < PiRLCInputs.phaseOffset →
       left index = right index) :
-    PiRLC.v1_1.InputBinding.evalInput relation
+    PiRLC.v1_2.InputBinding.evalInput relation
         (PiRLCInputs.sourceInput
           (logicalWidth := logicalWidth) (publicFits := publicFits) source)
         leftPoint left =
-      PiRLC.v1_1.InputBinding.evalInput relation
+      PiRLC.v1_2.InputBinding.evalInput relation
         (PiRLCInputs.sourceInput
           (logicalWidth := logicalWidth) (publicFits := publicFits) source)
         rightPoint right := by
@@ -214,10 +214,10 @@ theorem sourceInput_eval_eq_of_point_and_agree_below
 theorem assumptions
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (env : Env) :
-    PiRLC.v1_1.Formal.Assumptions relation
+    PiRLC.v1_2.Formal.Assumptions relation
       (PiRLCInputs.interface (logicalWidth := logicalWidth)
         (publicFits := publicFits)) PiRLCInputs.phaseOffset env := by
-  let shared := PiRLC.v1_1.Formal.atOffset
+  let shared := PiRLC.v1_2.Formal.atOffset
     (PiRLCInputs.interface (logicalWidth := logicalWidth)
       (publicFits := publicFits)) PiRLCInputs.phaseOffset
   refine {
@@ -227,15 +227,15 @@ theorem assumptions
     eval_K := ?_
     eval_A := ?_ }
   · intro lane
-    simpa [shared, PiRLC.v1_1.Formal.samplerInterface,
-      PiRLC.v1_1.Formal.atOffset, PiRLCInputs.interface] using!
+    simpa [shared, PiRLC.v1_2.Formal.samplerInterface,
+      PiRLC.v1_2.Formal.atOffset, PiRLCInputs.interface] using!
         samplerInitialBelow relation env lane
   · refine {
       challengeBelow := ?_
       inputBelow := ?_ }
     · intro source lane
-      simpa [shared, PiRLC.v1_1.Formal.commitmentInterface,
-        PiRLC.v1_1.CommitmentCombination.familyInterface] using!
+      simpa [shared, PiRLC.v1_2.Formal.commitmentInterface,
+        PiRLC.v1_2.CommitmentCombination.familyInterface] using!
           samplerChallengeBelow source lane
     · intro source row lane cell
       apply Expr.VarsBelow.mono _
@@ -253,7 +253,7 @@ theorem assumptions
       apply Expr.VarsBelow.mono _
         (sourcePublicInputBelow (logicalWidth := logicalWidth)
           (publicFits := publicFits) source
-          (PiRLC.v1_1.PublicInputCombination.publicColumn block lane))
+          (PiRLC.v1_2.PublicInputCombination.publicColumn block lane))
       exact Nat.le_trans phase_le_commitment commitment_le_publicInput
   · refine {
       challengeBelow := ?_
@@ -263,13 +263,13 @@ theorem assumptions
         (samplerChallengeBelow source lane)
       exact Nat.le_trans commitment_le_publicInput publicInput_le_evalK
     · intro source block lane cell
-      change (PiRLC.v1_1.RingKCombination.expressionCell cell
+      change (PiRLC.v1_2.RingKCombination.expressionCell cell
         ((PiRLCInputs.sourceInput (logicalWidth := logicalWidth)
           (publicFits := publicFits) source).evaluation.eval_K
-            (PiRLC.v1_1.EvalKCombination.coefficient lane))).VarsBelow _
+            (PiRLC.v1_2.EvalKCombination.coefficient lane))).VarsBelow _
       have below := sourceEvalKBelow (logicalWidth := logicalWidth)
         (publicFits := publicFits) source
-        (PiRLC.v1_1.EvalKCombination.coefficient lane)
+        (PiRLC.v1_2.EvalKCombination.coefficient lane)
       have bound := Nat.le_trans
         (Nat.le_trans phase_le_commitment commitment_le_publicInput)
         publicInput_le_evalK
@@ -286,13 +286,13 @@ theorem assumptions
         (Nat.le_trans commitment_le_publicInput publicInput_le_evalK)
         evalK_le_evalA
     · intro source matrix lane cell
-      change (PiRLC.v1_1.RingKCombination.expressionCell cell
+      change (PiRLC.v1_2.RingKCombination.expressionCell cell
         ((PiRLCInputs.sourceInput (logicalWidth := logicalWidth)
           (publicFits := publicFits) source).evaluation.eval_A matrix
-            (PiRLC.v1_1.EvalKCombination.coefficient lane))).VarsBelow _
+            (PiRLC.v1_2.EvalKCombination.coefficient lane))).VarsBelow _
       have below := sourceEvalABelow (logicalWidth := logicalWidth)
         (publicFits := publicFits) source matrix
-        (PiRLC.v1_1.EvalKCombination.coefficient lane)
+        (PiRLC.v1_2.EvalKCombination.coefficient lane)
       have bound := Nat.le_trans
         (Nat.le_trans
           (Nat.le_trans phase_le_commitment commitment_le_publicInput)

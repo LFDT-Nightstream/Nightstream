@@ -12,7 +12,7 @@ namespace NightstreamFPrime.Export.Stage1.PiRLCCompactRecipeScope
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open PiRLCCombinationTemplates
 
 theorem combination_outputRecipe (firstSource : Bool) (lane : Fin ringDegree) :

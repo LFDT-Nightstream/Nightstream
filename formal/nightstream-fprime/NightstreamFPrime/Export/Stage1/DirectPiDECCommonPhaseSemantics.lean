@@ -67,12 +67,12 @@ theorem semantics_imply_piDecPhaseHolds
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (semantics : DirectPiRLCSamplerCompletePrefixPlan.Semantics relation
       geometry assignment base groupValue)
-    (assumptions : Lifecycle.PiDEC.v1_1.Formal.Assumptions relation
+    (assumptions : Lifecycle.PiDEC.v1_2.Formal.Assumptions relation
       (PiDECArithmetic.phaseInterface relationLogicalWidth relationPublicFits)
       PiDECInputs.phaseOffset
       (Spartan.pullback
         (PiRLCSamplerRetainedCustody.semanticEnv geometry assignment base))) :
-    Lifecycle.PiDEC.v1_1.Semantics.PhaseHolds relation ajtai
+    Lifecycle.PiDEC.v1_2.Semantics.PhaseHolds relation ajtai
       (PiDECArithmetic.phaseInterface relationLogicalWidth relationPublicFits)
       PiDECInputs.phaseOffset
       (Spartan.pullback
@@ -109,7 +109,7 @@ theorem semantics_imply_piDecPhaseHolds
       (PiDECArithmetic.canonicalLayoutPlan relation).rows :=
     (Spartan.remapRows_hold semanticEnv
       (PiDECArithmetic.canonicalLayoutPlan relation).rows).mp remappedRows
-  exact Layout.PiDEC.v1_1.physical_implies_phaseHolds relation ajtai
+  exact Layout.PiDEC.v1_2.physical_implies_phaseHolds relation ajtai
     (PiDECArithmetic.phaseInterface relationLogicalWidth relationPublicFits)
     PiDECInputs.phaseOffset (Spartan.pullback semanticEnv) assumptions
     physicalRows

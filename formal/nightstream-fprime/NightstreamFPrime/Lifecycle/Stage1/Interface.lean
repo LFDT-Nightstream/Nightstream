@@ -1,7 +1,7 @@
 import NightstreamFPrime.Lifecycle.Pilot
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Completeness
-import NightstreamFPrime.Lifecycle.PiRLC.v1_1.Completeness
-import NightstreamFPrime.Lifecycle.PiDEC.v1_1.Completeness
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Completeness
+import NightstreamFPrime.Lifecycle.PiRLC.v1_2.Completeness
+import NightstreamFPrime.Lifecycle.PiDEC.v1_2.Completeness
 import NightstreamFPrime.Lifecycle.Stage1.Application
 import NightstreamFPrime.Lifecycle.Stage1.RunningTransition
 import NightstreamFPrime.Lifecycle.Stage1.NextPreimage
@@ -29,10 +29,10 @@ structure Interface
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Application.Program) where
   pilot : Pilot.Interface
-  piCcs : PiCCS.v1_1.Formal.Interface logicalWidth
+  piCcs : PiCCS.v1_2.Formal.Interface logicalWidth
     (ProductionKey.degreeBound relation) publicFits
-  piRlc : PiRLC.v1_1.Formal.Interface logicalWidth publicFits
-  piDec : PiDEC.v1_1.Formal.Interface logicalWidth publicFits
+  piRlc : PiRLC.v1_2.Formal.Interface logicalWidth publicFits
+  piDec : PiDEC.v1_2.Formal.Interface logicalWidth publicFits
   running : RunningTransition.Interface logicalWidth publicFits
   application : Application.Interface program.witnessWordCount
   nextPreimage : NextPreimage.Interface

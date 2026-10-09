@@ -1,4 +1,4 @@
-//! Direct PiCCS evaluator from SuperNeo v1.1 Section 7.3.
+//! Direct PiCCS evaluator from SuperNeo v1.2 Section 7.3.
 //!
 //! `Eval_K` is the paper's separate Pad family. `Eval_A` contains only the
 //! genuine CCS matrices. This file uses explicit loops and owns its formula
@@ -106,7 +106,7 @@ where
             || claim.eval_a.len() != matrix_count
         {
             return Err(PiCcsError::InvalidInput(format!(
-                "PaperExact running claim {index} does not have the v1_1 CE shape"
+                "PaperExact running claim {index} does not have the v1_2 CE shape"
             )));
         }
         if claim.eval_k.iter().skip(D).any(|&value| value != K::ZERO) {

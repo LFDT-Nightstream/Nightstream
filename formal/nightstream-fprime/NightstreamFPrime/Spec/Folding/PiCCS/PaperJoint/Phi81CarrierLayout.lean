@@ -6,7 +6,7 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 /-!
 Two-width Phi81 carrier layout for the SuperNeo coefficient embedding.
 
-Protocol: SuperNeo coefficient embedding (Section 5, Definitions 7 and 8).
+Protocol: SuperNeo coefficient embedding (v1.2 Section 5, Definitions 13 and 14).
 Phase: original CCS width to exact `n_F = 54 * n_R` carrier completion.
 Constraint family: logical column / complete ring block / carried tail lane.
 

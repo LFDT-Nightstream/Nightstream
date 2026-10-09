@@ -90,7 +90,7 @@ theorem endpointValue_of_completed
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (target : Env)
     (suffix : Fin (PerApplicationPackage.addedPrivateColumnCount application) → F)
-    (physical : NightstreamFPrime.Layout.PiCCS.v1_1.PhysicalHolds relation
+    (physical : NightstreamFPrime.Layout.PiCCS.v1_2.PhysicalHolds relation
       (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset (Spartan.pullback target))
     (family : Fin familyCount) (lane : Fin laneCount) :
     let raw := canonicalRawValues application (PerApplicationSourceAssignment.ofCompleted application target suffix)
@@ -110,7 +110,7 @@ theorem rowsZero_of_completed
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (target : Env)
     (suffix : Fin (PerApplicationPackage.addedPrivateColumnCount application) → F)
-    (physical : NightstreamFPrime.Layout.PiCCS.v1_1.PhysicalHolds relation
+    (physical : NightstreamFPrime.Layout.PiCCS.v1_2.PhysicalHolds relation
       (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset (Spartan.pullback target)) :
     let raw := canonicalRawValues application (PerApplicationSourceAssignment.ofCompleted application target suffix)
     (PiCCSTranscriptEndpointPlan.plan (PerApplicationCanonicalEncodes.poseidonGeometry application)

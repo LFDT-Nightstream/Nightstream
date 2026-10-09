@@ -15,6 +15,7 @@ The outer 1,500-second cap follows that project's `AGENTS.md`.
 timeout --signal=KILL 1500 bash scripts/validate.sh build emitSharedFormulas
 timeout --signal=KILL 1500 bash scripts/validate.sh file tests/SharedFormulas.lean
 timeout --signal=KILL 1500 bash scripts/validate.sh lean-executable .lake/build/bin/emitSharedFormulas ../../crates/nightstream-fprime/artifacts/shared-formulas-v1.json
+python3 -B scripts/check_artifacts.py --write
 ```
 
 The export contains local sparse formulas, named ports and references to their

@@ -21,7 +21,7 @@ open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
@@ -279,24 +279,24 @@ private theorem kindAt_affine
   unfold selectedBlock
   rcases member with statement | challenge | round | output
   · exact selectedBlock_affine statementActions
-      (NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.StatementAbsorption.actions_affine
+      (NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.StatementAbsorption.actions_affine
         (PiCCSInvocations.statementInterface Data.logicalWidth Data.publicFits)
         PiCCSInvocations.statementWitnessStart
         (shapes.statementAbsorption PiCCSInvocations.statementWitnessStart)) _
       statement
   · exact selectedBlock_affine challengeActions
-      (NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.ChallengeDerivation.actions_affine
+      (NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.ChallengeDerivation.actions_affine
         (PiCCSInvocations.challengeInterface Data.logicalWidth Data.publicFits)
         PiCCSInvocations.challengeWitnessStart
         (shapes.challengeDerivation PiCCSInvocations.challengeWitnessStart)) _
       challenge
   · exact selectedBlock_affine roundActions
-      (NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.RoundTranscript.actions_affine
+      (NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.RoundTranscript.actions_affine
         (PiCCSInvocations.roundInterface Data.logicalWidth Data.publicFits)
         PiCCSInvocations.roundWitnessStart
         (shapes.roundTranscript PiCCSInvocations.roundWitnessStart)) _ round
   · exact selectedBlock_affine outputActions
-      (NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.OutputBinding.actions_affine
+      (NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.OutputBinding.actions_affine
         (PiCCSInvocations.outputInterface Data.logicalWidth Data.publicFits)
         PiCCSInvocations.outputWitnessStart
         (shapes.outputBinding PiCCSInvocations.outputWitnessStart)) _ output

@@ -17,7 +17,7 @@ pass.
 
 Parent coverage:
 - `ProductionRelation.polynomial`;
-- the `F` term in SuperNeo PiCCS;
+- the `F` term in SuperNeo v1.2 PiCCS;
 - the production CCS matrix family, without Pad-as-matrix-zero compression.
 -/
 

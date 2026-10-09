@@ -4,8 +4,8 @@ use std::{fs, path::PathBuf};
 
 use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
 use nightstream_fprime::{
-    load_per_application_package, load_poseidon2_hash_chain_v1_package, PI_CCS_V1_1_ROUND_COUNT,
-    PI_CCS_V1_1_STATE_PREIMAGE_WORDS as STATE_PREIMAGE_WORDS,
+    load_per_application_package, load_poseidon2_hash_chain_v1_package, PI_CCS_V1_2_ROUND_COUNT,
+    PI_CCS_V1_2_STATE_PREIMAGE_WORDS as STATE_PREIMAGE_WORDS,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
@@ -21,7 +21,7 @@ const DIGEST_WORDS: usize = 4;
 const PUBLIC_WORDS: usize = PRIOR_PUBLIC_WORDS + DIGEST_WORDS;
 const RUNNING_COUNT: usize = 16;
 const MATRIX_COUNT: usize = 4;
-const RUNNING_POINT_WORDS: usize = 2 * PI_CCS_V1_1_ROUND_COUNT;
+const RUNNING_POINT_WORDS: usize = 2 * PI_CCS_V1_2_ROUND_COUNT;
 const DOMAIN_WORDS: usize = 12;
 const PACKED_PARENT_WORDS: usize = 90;
 /// `Lifecycle.XOut.serializeTail`: `vk, i, z0, zi` close the preimage.

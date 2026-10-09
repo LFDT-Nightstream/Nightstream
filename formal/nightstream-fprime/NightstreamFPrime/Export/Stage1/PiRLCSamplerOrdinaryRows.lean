@@ -8,7 +8,7 @@ namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRows
 
 open NightstreamFPrime.Spec NightstreamFPrime.Circuit
 open NightstreamFPrime.Layout NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Gadgets.Sampling
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open PiRLCSamplerInvocations (sourceInterface sourceLogicalStart)
@@ -82,13 +82,13 @@ theorem wordRows_toR1CS (source : Nat) :
   unfold rangeConstraints
   rw [rangeInterface_eq, WideReduction.Program.constraints_eq]
   exact (Layout.Sampling.WideReduction.counts _ _ _ (fun lane =>
-    Layout.PiRLC.v1_1.Sampler.entered_affine
+    Layout.PiRLC.v1_2.Sampler.entered_affine
       (sourceInterface (logicalWidth := logicalWidth) (publicFits := publicFits) source)
       source (sourceLogicalStart source) (Sampler.rateLane lane))).2
 
 @[simp] theorem wordRows_length (source : Nat) : (wordRows source).length = 54 := by
   rw [wordRows, PiCCSArithmetic.compilePacket_length, R1CS.totalRowCount_eq_fresh_add_length]
-  have fresh := Layout.PiRLC.v1_1.Sampler.words_fresh (sourceLogicalStart source)
+  have fresh := Layout.PiRLC.v1_2.Sampler.words_fresh (sourceLogicalStart source)
   change R1CS.totalFreshCount (wordConstraints source) = 0 at fresh
   rw [fresh]
   change 0 + (flatConstraints (SamplerWords.operations _ _)).length = 54

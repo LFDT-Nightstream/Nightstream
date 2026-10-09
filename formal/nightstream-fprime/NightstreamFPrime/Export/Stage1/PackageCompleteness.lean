@@ -6,7 +6,7 @@ import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns the package-level constructive assemblers for the exact production
-PiCCS, PiRLC, PiDEC v1_1, and running-transition rows. It adds no row or
+PiCCS, PiRLC, PiDEC v1_2, and running-transition rows. It adds no row or
 alternate verifier path.
 -/
 
@@ -17,7 +17,7 @@ open NightstreamFPrime.Export.Package
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open PiCCSCompleteness
@@ -167,7 +167,7 @@ theorem piCcsEmittedConstraints_varsBelow
       expression.VarsBelow PiCCSArithmetic.initialClaimFreshStart := by
   let parent := PiCCSInvocations.parentInterface logicalWidth publicFits
   let assumptions :=
-    NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions.production relation parent
+    NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions.production relation parent
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.externalInputsLinear
         logicalWidth publicFits) env
@@ -231,7 +231,7 @@ theorem piCcsEmittedConstraints_varsBelow
     rcases packetMember with initialMember | sumcheckMember | evalKMember |
         evalAMember | ccsMember | normMember | finalMember
     · have childMember : expression ∈
-          NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints
+          NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints
             (Formal.initialClaimCircuit (Formal.atOffset parent
               NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset))
             (Formal.initialClaimOffset parent
@@ -244,13 +244,13 @@ theorem piCcsEmittedConstraints_varsBelow
         (Formal.initialClaimOffset parent
           NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset)
         env assumptions.initialClaim expression (by
-          simpa [NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints,
+          simpa [NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints,
             Formal.initialClaimCircuit] using childMember)
       rw [InitialClaim.localLength_eq, ← initialStartEq] at below
       exact Expr.VarsBelow.mono expression below
         piCcsArithmeticLogicalEnds.2.1
     · have childMember : expression ∈
-          NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints
+          NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints
             (Formal.sumcheckCircuit (Formal.atOffset parent
               NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset))
             (Formal.sumcheckOffset parent
@@ -270,13 +270,13 @@ theorem piCcsEmittedConstraints_varsBelow
         (Formal.sumcheckOffset parent
           NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset)
         childAssumptions expression (by
-          simpa [NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints,
+          simpa [NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints,
             Formal.sumcheckCircuit] using childMember)
       rw [← sumcheckStartEq] at below
       exact Expr.VarsBelow.mono expression below
         piCcsArithmeticLogicalEnds.2.2.1
     · have childMember : expression ∈
-          NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints
+          NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints
             (Formal.evalKCircuit (Formal.atOffset parent
               NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset))
             (Formal.evalKOffset parent
@@ -289,13 +289,13 @@ theorem piCcsEmittedConstraints_varsBelow
         (Formal.evalKOffset parent
           NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset)
         env assumptions.eval_K expression (by
-          simpa [NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints,
+          simpa [NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints,
             Formal.evalKCircuit] using childMember)
       rw [EvalKTerminal.localLength_eq, ← evalKStartEq] at below
       exact Expr.VarsBelow.mono expression below
         piCcsArithmeticLogicalEnds.2.2.2.1
     · have childMember : expression ∈
-          NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints
+          NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints
             (Formal.evalACircuit (Formal.atOffset parent
               NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset))
             (Formal.evalAOffset parent
@@ -308,13 +308,13 @@ theorem piCcsEmittedConstraints_varsBelow
         (Formal.evalAOffset parent
           NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset)
         env assumptions.eval_A expression (by
-          simpa [NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints,
+          simpa [NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints,
             Formal.evalACircuit] using childMember)
       rw [EvalATerminal.localLength_eq, ← evalAStartEq] at below
       exact Expr.VarsBelow.mono expression below
         piCcsArithmeticLogicalEnds.2.2.2.2.1
     · have childMember : expression ∈
-          NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints
+          NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints
             (Formal.ccsCircuit relation (Formal.atOffset parent
               NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset))
             (Formal.ccsOffset parent
@@ -334,14 +334,14 @@ theorem piCcsEmittedConstraints_varsBelow
         (Formal.ccsOffset parent
           NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset)
         childAssumptions expression (by
-          simpa [NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints,
+          simpa [NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints,
             Formal.ccsCircuit] using childMember)
       norm_num [CcsTerminal.privateCount] at below
       rw [← ccsStartEq] at below
       exact Expr.VarsBelow.mono expression below
         piCcsArithmeticLogicalEnds.2.2.2.2.2.1
     · have childMember : expression ∈
-          NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints
+          NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints
             (Formal.normCircuit relation (Formal.atOffset parent
               NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset))
             (Formal.normOffset relation parent
@@ -354,7 +354,7 @@ theorem piCcsEmittedConstraints_varsBelow
         (Formal.normOffset relation parent
           NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset)
         env assumptions.norm expression (by
-          simpa [NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints,
+          simpa [NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints,
             Formal.normCircuit] using childMember)
       rw [NormTerminal.localLength_eq,
         Formal.normOffset_eq_normRowOffset,
@@ -362,7 +362,7 @@ theorem piCcsEmittedConstraints_varsBelow
       exact Expr.VarsBelow.mono expression below
         piCcsArithmeticLogicalEnds.2.2.2.2.2.2.1
     · have childMember : expression ∈
-          NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints
+          NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints
             (Formal.finalIdentityCircuit relation (Formal.atOffset parent
               NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset))
             (Formal.finalIdentityOffset relation parent
@@ -375,7 +375,7 @@ theorem piCcsEmittedConstraints_varsBelow
         (Formal.finalIdentityOffset relation parent
           NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset)
         env assumptions.finalIdentity expression (by
-          simpa [NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints,
+          simpa [NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints,
             Formal.finalIdentityCircuit] using childMember)
       rw [FinalIdentity.localLength_eq,
         Formal.finalIdentityOffset_eq_finalIdentityRowOffset,
@@ -971,11 +971,11 @@ theorem complete_piRlcRows
       (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
     (env : Env)
     (assumptions :
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.Assumptions relation
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.Assumptions relation
         PiRLCPackageCompleteness.phaseInterface
         NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
         (NightstreamFPrime.Layout.Stage1.Spartan.pullback env))
-    (phase : NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.PhaseHolds
+    (phase : NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.PhaseHolds
       relation ajtai PiRLCPackageCompleteness.phaseInterface
         NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
         (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)) :
@@ -1091,7 +1091,7 @@ theorem complete_piCcsRows
     Data.publicFits relation afterPre preHolds
   let parent := PiCCSInvocations.parentInterface Data.logicalWidth Data.publicFits
   let initialAssumptions :=
-    NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions.production relation parent
+    NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions.production relation parent
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.externalInputsLinear
         Data.logicalWidth Data.publicFits)

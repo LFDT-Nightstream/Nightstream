@@ -21,7 +21,7 @@ open NightstreamFPrime.Gadgets.Poseidon2.Duplex
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.Poseidon2
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
@@ -125,7 +125,7 @@ theorem entryState_affine (source : Nat) :
       (entryState (logicalWidth := logicalWidth) (publicFits := publicFits)
         source) := by
   have child :=
-    NightstreamFPrime.Layout.PiRLC.v1_1.SamplerChain.childInputs
+    NightstreamFPrime.Layout.PiRLC.v1_2.SamplerChain.childInputs
       (chainInterface (logicalWidth := logicalWidth) (publicFits := publicFits))
       NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerLogicalStart
       (NightstreamFPrime.Layout.Stage1.PiRLCInputs.samplerInputs
@@ -172,7 +172,7 @@ theorem entryTrace_implies_spec (source : Nat) (env : Env)
       NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerSourceLogicalStart
       NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerLogicalStart
       SamplerChain.sourceOffset
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerOffset
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.samplerOffset
       NightstreamFPrime.Layout.Stage1.PiRLCStarts.phaseLogicalStart
       NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
     norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset]
@@ -185,7 +185,7 @@ theorem entryTrace_implies_spec (source : Nat) (env : Env)
     (TranscriptAbsorption.actions source) env witnessLocal
     (entryState_affine (logicalWidth := logicalWidth)
       (publicFits := publicFits) source)
-    (NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.TranscriptAbsorption.actions_affine
+    (NightstreamFPrime.Layout.PiRLC.v1_2.Leaves.TranscriptAbsorption.actions_affine
       source)
     (expectedSamples_eq_samples_of_assertionCount_zero
       (sourceLogicalStart source)
@@ -207,7 +207,7 @@ theorem entryTrace_implies_spec (source : Nat) (env : Env)
 
 theorem advanceState_affine (source : Nat) :
     StateAffine (advanceState (logicalWidth := logicalWidth) (publicFits := publicFits) source) :=
-  NightstreamFPrime.Layout.PiRLC.v1_1.Sampler.entered_affine _ _ _
+  NightstreamFPrime.Layout.PiRLC.v1_2.Sampler.entered_affine _ _ _
 
 /-- The held advance invocation is the permutation selected by the scalar circuit. -/
 theorem advanceInvocation_implies_spec (source : Nat) (env : Env)
@@ -224,7 +224,7 @@ theorem advanceInvocation_implies_spec (source : Nat) (env : Env)
     unfold NightstreamFPrime.Layout.Stage1.PiRLCStarts.advanceLogicalStart
       NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerSourceLogicalStart
       NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerLogicalStart
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerOffset
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.samplerOffset
       NightstreamFPrime.Layout.Stage1.PiRLCStarts.phaseLogicalStart
       NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
       Sampler.advanceOffset Sampler.rangeOffset SamplerChain.sourceOffset

@@ -1,6 +1,6 @@
 import NightstreamFPrime.Gadgets.Poseidon2.Duplex.WiringShift
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.FormalRows
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.FormalRows
 
 /-!
 Owns offset relocation for the symbolic PiCCS transcript outputs used by the
@@ -18,7 +18,7 @@ open NightstreamFPrime.Circuit.SupportRange
 open NightstreamFPrime.Gadgets.Poseidon2
 open NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal.WiringShift
 open NightstreamFPrime.Lifecycle
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 

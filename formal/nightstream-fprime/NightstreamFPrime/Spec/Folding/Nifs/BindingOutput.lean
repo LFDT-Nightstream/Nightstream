@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Folding.Nifs.PaperWeakLaw
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkBinding
 
 /-!
-Compute the cross-difference used by SuperNeo v1.1 B.3 from two actual weak
+Compute the cross-difference used by SuperNeo v1.2 B.3 from two actual weak
 endpoints. The program takes raw returned data, not a selected collision proof.
 Its clock includes the seven primitive calls and the presence checks.
 -/

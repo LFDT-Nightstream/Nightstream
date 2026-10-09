@@ -13,7 +13,7 @@ open NightstreamFPrime.Layout.MatrixProgram.Phi81Product
 open NightstreamFPrime.Gadgets.Sampling
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 

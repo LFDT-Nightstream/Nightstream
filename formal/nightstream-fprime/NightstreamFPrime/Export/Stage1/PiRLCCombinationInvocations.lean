@@ -20,14 +20,14 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Export.Package
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Layout.Stage1
 
 def phase : Nat := 7
 def sourceCount : Nat := 17
 
 def laneFreshCosts : List Nat :=
-  List.ofFn NightstreamFPrime.Layout.PiRLC.v1_1.CombinationStep.laneFreshCount
+  List.ofFn NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep.laneFreshCount
 
 def laneRowCosts : List Nat := laneFreshCosts.map (fun count => count + 1)
 
@@ -531,7 +531,7 @@ theorem stepFlatConstraints_eq_assertions
   rw [CombinationStep.flatConstraints_operations]
   change recipeConstraints offset
       (List.ofFn (CombinationStep.recipe interface offset)) = _
-  exact NightstreamFPrime.Layout.PiRLC.v1_1.CombinationStep.recipeConstraintsOfFn
+  exact NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep.recipeConstraintsOfFn
     offset (CombinationStep.recipe interface offset)
 
 def sourceConstraint (logicalStart blockCount cellCount valueStride source block

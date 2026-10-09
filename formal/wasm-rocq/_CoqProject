@@ -1,0 +1,22 @@
+-Q . ""
+R1CS.v
+Columns.v
+FullRelation.v
+MemoryTrace.v
+MemoryCatalog.v
+OpcodeCatalog.v
+Wasm2.v
+WasmIntegers.v
+Range.v
+Selectors.v
+ZeroTest.v
+Add.v
+Sub.v
+Eqz.v
+Locals.v
+TraceRefinement.v
+ProgramBinding.v
+StackBindings.v
+ArithmeticSpec.v
+ArithmeticRefinement.v
+LocalSimulation.v

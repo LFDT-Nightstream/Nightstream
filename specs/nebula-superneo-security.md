@@ -498,6 +498,16 @@ generated relation MUST supply the exact census.
      always exists, so that form said nothing. It is fixed.) The relation
      reads `plan_digest` and the chain headers as constants, and the terminal
      computes the initial state from the start carry and `D_init`.
+   - completeness of the relation (Ob5 for the relation,
+     `Lifecycle/Nebula/HonestStep.lean`, `MemoryApp.complete`): for a
+     reachable carry, an invocation that `invoke` accepts, and one machine
+     step on its ports, the honest witness words satisfy the program's
+     validity predicate, and the step function gives the state digest of the
+     output state and the output carry. The witness writes the segment bits,
+     the timestamp bits, and the O4 words `diff_j`, and `MemoryApp.decode`
+     reads the words back as the same witness (`WitnessEncoding`). The
+     theorem holds for every reachable carry, so it includes `S = S_max`, the
+     largest counter values, and idle steps.
    - the end-to-end statement over two named premises
      (`Lifecycle/Nebula/EndToEnd.lean`, owner decision 2026-10-08).
      `Stage1Extraction` says what Stage 1 must deliver: an accepted sample's
@@ -528,9 +538,6 @@ generated relation MUST supply the exact census.
      committed ones is an extraction failure. A1 and A4 must bound it; the
      game theorem does not;
    - `ε_coll` as a probability needs a stated adversary time (A3);
-   - completeness of the relation (Ob5 for the relation): an honest model
-     step has a witness that satisfies the program's predicate, with the
-     counter widths `W_step`, `W_seg`, `W_cnt` and the O4 words `diff_j`;
    - a package for a production plan;
    - concrete values for the Stage 1 failure and collision terms (A1–A4).
 6. **Shared with Stage 1:** useful values of `g_d` and `delta_d` (A6), the

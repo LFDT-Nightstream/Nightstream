@@ -21,10 +21,10 @@ mod conformance_support;
 mod logical_reference;
 
 const GOLDILOCKS_MODULUS: u64 = 0xffff_ffff_0000_0001;
-const PRIVATE_INPUT_COUNT: usize = 103_072;
+const PRIVATE_INPUT_COUNT: usize = 102_802;
 const PUBLIC_INPUT_COUNT: usize = 278;
 const TOTAL_COLUMN_COUNT: usize = 11_470_359;
-const FIRST_GENERATED_COLUMN: usize = 71_100;
+const FIRST_GENERATED_COLUMN: usize = 70_830;
 const STATE_PREIMAGE_WORDS: usize = 27_819;
 const OUTPUT_DIGEST_PUBLIC_START: usize = 270;
 // The preimage tail `vk, i, z0, zi`.

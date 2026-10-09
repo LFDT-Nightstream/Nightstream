@@ -180,6 +180,7 @@ private theorem processEncodedItemsWith_header_eq_processValueWith
 /-! ## Proof-only flattened package views -/
 
 def piCcsPacketBatches (_ : Unit) : List WitnessBatch :=
+  WitnessProgram.statementBindingBatches Data.logicalWidth Data.publicFits ++
   (PiCCSPackets.initialClaim Data.logicalWidth Data.publicFits).batches ++
     ((PiCCSPackets.sumcheck Data.logicalWidth Data.publicFits).batches ++
     ((PiCCSPackets.evalK Data.logicalWidth Data.publicFits).batches ++
@@ -478,6 +479,8 @@ theorem directAssertionRows_eq
 
 def directWitnessBatchCount (application : ApplicationPackage.Plan) : Nat :=
   (PilotData.priorWordBatches ()).length +
+    (WitnessProgram.statementBindingBatches
+      Data.logicalWidth Data.publicFits).length +
     (PiCCSPackets.initialClaim Data.logicalWidth Data.publicFits).batches.length +
     (PiCCSPackets.sumcheck Data.logicalWidth Data.publicFits).batches.length +
     (PiCCSPackets.evalK Data.logicalWidth Data.publicFits).batches.length +
@@ -508,6 +511,9 @@ theorem directWitnessBatchCount_eq
   let state := processMappedEncodedItemsWith push state WitnessBatch.format
     (fun batch => PerApplicationCachedShift.shiftBatch context
       (Data.liftPilotBatch batch)) (PilotData.priorWordBatches ())
+  let state := processMappedEncodedItemsWith push state WitnessBatch.format
+    (PerApplicationCachedShift.shiftBatch context)
+    (WitnessProgram.statementBindingBatches Data.logicalWidth Data.publicFits)
   let state := processMappedEncodedItemsWith push state WitnessBatch.format
     (PerApplicationCachedShift.shiftBatch context)
     (PiCCSPackets.initialClaim Data.logicalWidth Data.publicFits).batches
@@ -554,6 +560,7 @@ theorem processWitnessBatchesWith_eq_processValueWith {State : Type}
     processMappedEncodedItemsWith_eq_items,
     processMappedEncodedItemsWith_eq_items,
     processMappedEncodedItemsWith_eq_items,
+    processMappedEncodedItemsWith_eq_items,
     processMappedFlatMapItemsWith_eq_items]
   rw [← StreamingIdentity.processEncodedItemsWith_append,
     ← StreamingIdentity.processEncodedItemsWith_append,
@@ -563,12 +570,17 @@ theorem processWitnessBatchesWith_eq_processValueWith {State : Type}
     ← StreamingIdentity.processEncodedItemsWith_append,
     ← StreamingIdentity.processEncodedItemsWith_append,
     ← StreamingIdentity.processEncodedItemsWith_append,
+    ← StreamingIdentity.processEncodedItemsWith_append,
     ← StreamingIdentity.processEncodedItemsWith_append]
-  change StreamingIdentity.processEncodedItemsWith push
-      (push state ⟨1, (directWitnessBatches context application).length⟩)
-      WitnessBatch.format (directWitnessBatches context application) = _
-  exact StreamingIdentity.processEncodedListWith_eq_processValueWith
-    push state WitnessBatch.format (directWitnessBatches context application)
+  refine Eq.trans (congrArg (fun batches =>
+      StreamingIdentity.processEncodedItemsWith push
+        (push state ⟨1, (directWitnessBatches context application).length⟩)
+        WitnessBatch.format batches) ?_)
+    (StreamingIdentity.processEncodedListWith_eq_processValueWith
+      push state WitnessBatch.format (directWitnessBatches context application))
+  simp only [directWitnessBatches, directBaseWitnessBatches, piCcsPacketBatches,
+    Data.liftPilotBatches, List.map_append, List.map_map, List.append_assoc,
+    Function.comp_def]
 
 def directWitnessInstructionCount
     (application : ApplicationPackage.Plan) : Nat :=

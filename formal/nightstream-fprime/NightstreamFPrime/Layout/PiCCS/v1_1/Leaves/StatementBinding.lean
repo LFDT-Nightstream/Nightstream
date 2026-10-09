@@ -16,7 +16,8 @@ Constraint groups:
 - four prior-context and four output-context equalities to the expected
   verifier-owned public value;
 - for each of the 90 packed prior words: three lanes of one sign row and
-  sixteen rank-one digit rows, then one affine packing row.
+  sixteen rank-one digit rows over one hinted sign column, then one affine
+  packing row.
 
 Parent coverage:
 - `Formal.opsAt`, child `piccs.v1_1.statement_binding`.
@@ -49,9 +50,6 @@ structure InputsAffine
         (Fin.cast runningCount_eq_radixChildCount.symm child) (packedColumn word lane)) ∧
       Layout.Polynomial.Horner.Nonconstant ((interface.running offset).publicInput
         (Fin.cast runningCount_eq_radixChildCount.symm child) (packedColumn word lane))
-  priorSign : ∀ word lane,
-    R1CS.IsAffine (interface.priorSign offset word lane) ∧
-      Layout.Polynomial.Horner.Nonconstant (interface.priorSign offset word lane)
 
 private theorem sub_affine {left right : Expr}
     (leftAffine : R1CS.IsAffine left)
@@ -150,25 +148,28 @@ private theorem constraint_direct
   · rcases StateBinding.childRow_cases childMember with
       ⟨word, ⟨lane, signRow | ⟨child, digitRow⟩⟩ | packedRow⟩
     · subst expression
-      have sign := inputs.priorSign word lane
-      exact ofProduct _ _ sign.1 (sub_affine sign.1 (R1CS.isAffine_const _)) sign.2
-        (subNonconstant _ _)
+      have sign : R1CS.IsAffine (StateBinding.signBit offset word lane) :=
+        R1CS.isAffine_var _
+      exact ofProduct _ _ sign (sub_affine sign (R1CS.isAffine_const _))
+        (fun _ equal => by cases equal) (subNonconstant _ _)
     · subst expression
       have digit := inputs.priorDigit word lane child
-      have sign := inputs.priorSign word lane
+      have sign : R1CS.IsAffine (StateBinding.signBit offset word lane) :=
+        R1CS.isAffine_var _
       exact ofProduct _ _ digit.1
         (sub_affine digit.1 (sub_affine (R1CS.isAffine_const _)
-          (R1CS.IsAffine.const_mul _ sign.1)))
+          (R1CS.IsAffine.const_mul _ sign)))
         digit.2 (subNonconstant _ _)
     · subst expression
       apply ofAffine
       have recomposed (lane : Fin 3) :
-          R1CS.IsAffine (StateBinding.recomposeExpr fun child =>
+          R1CS.IsAffine (PiDEC.v1_1.SignedSplitScalar.recomposeDigits fun child =>
             (interface.running offset).publicInput
               (Fin.cast runningCount_eq_radixChildCount.symm child)
               (packedColumn word lane)) :=
-        StateBinding.recomposeExpr_closed R1CS.IsAffine R1CS.isAffine_const
-          (fun _ _ => R1CS.IsAffine.add) (fun weight _ => R1CS.IsAffine.const_mul weight)
+        PiDEC.v1_1.SignedSplitScalar.recomposeDigits_closed R1CS.IsAffine
+          R1CS.isAffine_const (fun _ _ => R1CS.IsAffine.add)
+          (fun weight _ => R1CS.IsAffine.const_mul weight)
           _ fun child => (inputs.priorDigit word lane child).1
       exact sub_affine (inputs.priorState _)
         (StateBinding.packWordExpr_closed R1CS.IsAffine (fun _ _ => R1CS.IsAffine.add)

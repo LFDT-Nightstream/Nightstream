@@ -48,9 +48,6 @@ structure ExternalInputsLinear
     R1CS.IsAffine
       ((interface.running parentOffset).publicInput source column) ∧
     Nonconstant ((interface.running parentOffset).publicInput source column)
-  priorSign : ∀ word lane,
-    R1CS.IsAffine (interface.priorSign parentOffset word lane) ∧
-      Nonconstant (interface.priorSign parentOffset word lane)
   runningEval_K : ∀ source coefficient,
     KExprLinear
       (((interface.running parentOffset).evaluation source).eval_K coefficient)
@@ -102,14 +99,12 @@ theorem inputShapes
       simpa [frozen, Formal.atOffset] using
         external.runningPublicInput
           (Fin.cast runningCount_eq_radixChildCount.symm child) (packedColumn word lane)
-    · intro word lane
-      simpa [frozen, Formal.atOffset] using external.priorSign word lane
 
   have statementFresh : StateFresh
       (Formal.statementFinalState interface parentOffset) := by
     unfold Formal.statementFinalState
     exact Leaves.StatementAbsorption.finalState_fresh
-      (Formal.statementAbsorptionInterface frozen) parentOffset
+      (Formal.statementAbsorptionInterface frozen) (parentOffset + StateBinding.signCount)
 
   have challengeInitialFresh (childOffset : Nat) :
       StateFresh (challengeInterface.initialState childOffset) := by
@@ -349,7 +344,7 @@ theorem physicalColumnCount_eq
     (parentOffset : Nat)
     (external : ExternalInputsLinear interface parentOffset) :
     physicalColumnCount relation interface parentOffset =
-      parentOffset + 1071555 :=
+      parentOffset + 1071825 :=
   physicalColumnCount_eq_production relation interface parentOffset
     (inputShapes relation interface parentOffset external)
 

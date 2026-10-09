@@ -1,7 +1,7 @@
 import NightstreamFPrime.Circuit.Quadratic
+import NightstreamFPrime.Lifecycle.PiDEC.v1_1.SignedSplitScalar
 import NightstreamFPrime.Lifecycle.XOut
 import NightstreamFPrime.Spec.GoldilocksPrime
-import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix.UniformSignedDigits
 
 /-!
 Owns the canonical state-word checks used by the PiCCS statement boundary.
@@ -9,10 +9,12 @@ Owns the canonical state-word checks used by the PiCCS statement boundary.
 The pilot hashes fixed-width word arrays. These rows pin the constant domain
 chunk of each array and bind the four verifier-context words in both states to
 one verifier-owned public value. They also split every packed prior parent
-word into the sixteen child digits that the PiCCS running statement reads:
-each lane has one Boolean sign and sixteen digits that are zero or
-`1 - 2 · sign`, and the three recomposed lanes pack into the hashed word. The
-other running values stay in their existing zero-copy columns.
+word into the sixteen child digits that the PiCCS running statement reads.
+Each lane owns one hinted sign column. The shared Π_DEC rows
+(`PiDEC.v1_1.SignedSplitScalar`) check that the sign is Boolean and every
+digit is zero or `1 - 2 · sign`, and the three recomposed lanes pack into the
+hashed word. The hint is not authority; the rows bind it. The other running
+values stay in their existing zero-copy columns.
 -/
 
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_1.StateBinding
@@ -53,65 +55,8 @@ theorem fixedWord_index_lt (word : FixedWord) (member : word ∈ fixedWords) :
   change index.val < 27819
   omega
 
-/-- `Σ_j 2^j · digit_j` with the production radix weights. -/
-def recomposeExpr (digits : Radix.ChildIndex → Expr) : Expr :=
-  ((List.ofFn digits).zip
-      (List.ofFn Phi81Relation.EvaluationHomomorphism.PiDEC.radixWeight)).foldr
-    (fun pair suffix => Expr.const pair.2 * pair.1 + suffix) 0
-
 def packWordExpr (low middle high : Expr) : Expr :=
   low + Expr.const packRadix * middle + Expr.const (packRadix * packRadix) * high
-
-/-- A property closed under constants, sums and constant scaling holds on
-every recomposition of digits that satisfy it. -/
-theorem recomposeExpr_closed (Holds : Expr → Prop)
-    (constant : ∀ value, Holds (Expr.const value))
-    (add : ∀ left right, Holds left → Holds right → Holds (left + right))
-    (scale : ∀ weight value, Holds value → Holds (Expr.const weight * value))
-    (digits : Radix.ChildIndex → Expr) (digitHolds : ∀ child, Holds (digits child)) :
-    Holds (recomposeExpr digits) := by
-  unfold recomposeExpr
-  generalize (List.ofFn Phi81Relation.EvaluationHomomorphism.PiDEC.radixWeight) = weights
-  have values : ∀ value ∈ List.ofFn digits, Holds value := by
-    intro value member
-    rw [List.mem_ofFn'] at member
-    rcases member with ⟨child, rfl⟩
-    exact digitHolds child
-  generalize List.ofFn digits = items at values
-  induction items generalizing weights with
-  | nil => exact constant _
-  | cons item rest inductionHypothesis =>
-      cases weights with
-      | nil => exact constant _
-      | cons weight weights =>
-          exact add _ _ (scale weight item (values item (by simp)))
-            (inductionHypothesis weights fun value member =>
-              values value (by simp [member]))
-
-private theorem weightedFold_eval (env : Env) :
-    ∀ (values : List Expr) (weights : List F),
-      ((values.zip weights).foldr
-          (fun pair suffix => Expr.const pair.2 * pair.1 + suffix) 0).eval env =
-        ((values.map fun value => value.eval env).zip weights).foldr
-          (fun pair suffix => pair.2 * pair.1 + suffix) 0
-  | [], _ => Fin.ext rfl
-  | _ :: _, [] => Fin.ext rfl
-  | value :: values, weight :: weights => by
-      change weight * value.eval env +
-          ((values.zip weights).foldr
-            (fun pair suffix => Expr.const pair.2 * pair.1 + suffix) 0).eval env =
-        weight * value.eval env +
-          (((values.map fun item => item.eval env).zip weights).foldr
-            (fun pair suffix => pair.2 * pair.1 + suffix) 0)
-      rw [weightedFold_eval env values weights]
-
-theorem recomposeExpr_eval (digits : Radix.ChildIndex → Expr) (env : Env) :
-    (recomposeExpr digits).eval env =
-      Radix.recomposeScalar fun child => (digits child).eval env := by
-  unfold recomposeExpr
-  rw [weightedFold_eval, List.map_ofFn,
-    ← Radix.recomposeScalarList_eq]
-  rfl
 
 theorem packWordExpr_eval (low middle high : Expr) (env : Env) :
     (packWordExpr low middle high).eval env =
@@ -126,14 +71,78 @@ theorem packWordExpr_closed (Holds : Expr → Prop)
     Holds (packWordExpr low middle high) :=
   add _ _ (add _ _ lowHolds (scale _ _ middleHolds)) (scale _ _ highHolds)
 
+/-! ## Hinted sign columns -/
+
+/-- One hinted sign column per packed parent coordinate, word-major. -/
+def signCount : Nat := 3 * packedParentWords
+
+@[simp] theorem signCount_eq : signCount = 270 := by
+  rfl
+
+/-- Local column of the sign of parent coordinate `3 · word + lane`. -/
+def signIndex (word : Fin packedParentWords) (lane : Fin 3) : Fin signCount :=
+  ⟨3 * word.val + lane.val, by
+    have wordBound := word.isLt
+    have laneBound := lane.isLt
+    unfold signCount
+    omega⟩
+
+def signWordOf (index : Fin signCount) : Fin packedParentWords :=
+  ⟨index.val / 3, by
+    have bound := index.isLt
+    unfold signCount at bound
+    omega⟩
+
+def signLaneOf (index : Fin signCount) : Fin 3 :=
+  ⟨index.val % 3, Nat.mod_lt _ (by decide)⟩
+
+@[simp] theorem signWordOf_signIndex (word : Fin packedParentWords) (lane : Fin 3) :
+    signWordOf (signIndex word lane) = word := by
+  apply Fin.ext
+  have laneBound := lane.isLt
+  simp only [signWordOf, signIndex]
+  omega
+
+@[simp] theorem signLaneOf_signIndex (word : Fin packedParentWords) (lane : Fin 3) :
+    signLaneOf (signIndex word lane) = lane := by
+  apply Fin.ext
+  have laneBound := lane.isLt
+  simp only [signLaneOf, signIndex]
+  omega
+
+/-- The sign bit of parent coordinate `3 · word + lane`; the digit sign is
+`1 - 2 · bit`. -/
+def signBit (offset : Nat) (word : Fin packedParentWords) (lane : Fin 3) : Expr :=
+  Expr.var (offset + (signIndex word lane).val)
+
 structure Interface where
   priorState : Nat → Nat → Expr
   outputState : Nat → Nat → Expr
   expectedContext : Nat → Fin 4 → Expr
   /-- Child digit of parent coordinate `3 · word + lane`. -/
   priorDigit : Nat → Fin packedParentWords → Fin 3 → Radix.ChildIndex → Expr
-  /-- Boolean sign of that coordinate; the digit sign is `1 - 2 · bit`. -/
-  priorSign : Nat → Fin packedParentWords → Fin 3 → Expr
+
+/-- The non-authoritative sign of one lane: the centered sign of its own
+recomposed digits. -/
+def signHint (interface : Interface) (offset : Nat)
+    (word : Fin packedParentWords) (lane : Fin 3) : Hint :=
+  PiDEC.v1_1.SignedSplitScalar.bitHint (PiDEC.v1_1.SignedSplitScalar.recomposeDigits (interface.priorDigit offset word lane))
+
+def signHints (interface : Interface) (offset : Nat) : List Hint :=
+  List.ofFn fun index : Fin signCount =>
+    signHint interface offset (signWordOf index) (signLaneOf index)
+
+@[simp] theorem signHints_length (interface : Interface) (offset : Nat) :
+    (signHints interface offset).length = signCount := by
+  rw [signHints, List.length_ofFn]
+
+theorem signHints_get (interface : Interface) (offset : Nat) (index : Fin signCount)
+    (bound : index.val < (signHints interface offset).length) :
+    (signHints interface offset).get ⟨index.val, bound⟩ =
+      signHint interface offset (signWordOf index) (signLaneOf index) := by
+  unfold signHints
+  rw [List.get_ofFn]
+  rfl
 
 def stateAssertions (state : Nat → Expr) : List Expr :=
   fixedWords.map fun word => state word.index - Expr.const word.value
@@ -143,26 +152,22 @@ def contextAssertions (state : Nat → Expr)
   (List.finRange 4).map fun lane =>
     state (contextWordStart + lane.val) - expected lane
 
-def signedUnit (sign : Expr) : Expr :=
-  Expr.const 1 - Expr.const 2 * sign
-
 /-- The sign row, then one row per digit: zero or `1 - 2 · sign`. -/
 def laneAssertions (sign : Expr) (digits : Radix.ChildIndex → Expr) : List Expr :=
-  sign * (sign - Expr.const 1) ::
-    List.ofFn fun child => digits child * (digits child - signedUnit sign)
+  PiDEC.v1_1.SignedSplitScalar.signRow sign :: List.ofFn fun child => PiDEC.v1_1.SignedSplitScalar.digitRow sign (digits child)
 
 def packedAssertion (interface : Interface) (offset : Nat)
     (word : Fin packedParentWords) : Expr :=
   interface.priorState offset (packedWordStart + word.val) -
-    packWordExpr (recomposeExpr (interface.priorDigit offset word 0))
-      (recomposeExpr (interface.priorDigit offset word 1))
-      (recomposeExpr (interface.priorDigit offset word 2))
+    packWordExpr (PiDEC.v1_1.SignedSplitScalar.recomposeDigits (interface.priorDigit offset word 0))
+      (PiDEC.v1_1.SignedSplitScalar.recomposeDigits (interface.priorDigit offset word 1))
+      (PiDEC.v1_1.SignedSplitScalar.recomposeDigits (interface.priorDigit offset word 2))
 
 /-- Three lanes of sign and digit rows, then the packing row. -/
 def wordAssertions (interface : Interface) (offset : Nat)
     (word : Fin packedParentWords) : List Expr :=
   (List.finRange 3).flatMap (fun lane =>
-      laneAssertions (interface.priorSign offset word lane)
+      laneAssertions (signBit offset word lane)
         (interface.priorDigit offset word lane)) ++
     [packedAssertion interface offset word]
 
@@ -194,79 +199,22 @@ def ContextBound (state : Nat → Expr) (expected : Fin 4 → Expr)
     (state (contextWordStart + lane.val)).eval env =
       (expected lane).eval env
 
-def priorSignValue (interface : Interface) (offset : Nat) (env : Env)
-    (word : Fin packedParentWords) (lane : Fin 3) : F :=
-  (interface.priorSign offset word lane).eval env
-
 def priorDigits (interface : Interface) (offset : Nat) (env : Env)
     (word : Fin packedParentWords) (lane : Fin 3) : Radix.ChildIndex → F :=
   fun child => (interface.priorDigit offset word lane child).eval env
 
-/-- Every prior lane carries one Boolean sign and common-sign digits, and the
-three recomposed lanes pack into the hashed prior word. -/
+/-- Every prior lane is a common-sign digit vector, and the three recomposed
+lanes pack into the hashed prior word. The sign is a witness of the rows, not
+part of the statement. -/
 structure ChildrenSplit (interface : Interface) (offset : Nat) (env : Env) : Prop where
-  sign : ∀ word lane, priorSignValue interface offset env word lane = 0 ∨
-    priorSignValue interface offset env word lane = 1
-  digit : ∀ word lane child,
-    priorDigits interface offset env word lane child = 0 ∨
-      priorDigits interface offset env word lane child =
-        1 - 2 * priorSignValue interface offset env word lane
+  digits : ∀ word lane, ∃ sign,
+    Radix.UniformSignedDigits.ConstraintPredicate sign
+      (priorDigits interface offset env word lane)
   packed : ∀ word,
     (interface.priorState offset (packedWordStart + word.val)).eval env =
       packWord (Radix.recomposeScalar (priorDigits interface offset env word 0))
         (Radix.recomposeScalar (priorDigits interface offset env word 1))
         (Radix.recomposeScalar (priorDigits interface offset env word 2))
-
-/-- Every checked lane is in the Π_DEC accepted digit language. -/
-theorem ChildrenSplit.constraint {interface : Interface} {offset : Nat} {env : Env}
-    (split : ChildrenSplit interface offset env)
-    (word : Fin packedParentWords) (lane : Fin 3) :
-    Radix.UniformSignedDigits.ConstraintPredicate
-      (1 - 2 * priorSignValue interface offset env word lane)
-      (priorDigits interface offset env word lane) := by
-  refine ⟨?_, split.digit word lane⟩
-  rcases split.sign word lane with zero | one
-  · right
-    left
-    rw [zero]
-    decide
-  · right
-    right
-    rw [one]
-    decide
-
-/-- The child-split predicate depends only on the values of the packed
-words, digits, and signs that it reads. -/
-theorem ChildrenSplit.congr {left right : Interface} {leftOffset rightOffset : Nat}
-    {env : Env} (split : ChildrenSplit left leftOffset env)
-    (packed : ∀ word : Fin packedParentWords,
-      (left.priorState leftOffset (packedWordStart + word.val)).eval env =
-        (right.priorState rightOffset (packedWordStart + word.val)).eval env)
-    (digit : ∀ word lane child,
-      (left.priorDigit leftOffset word lane child).eval env =
-        (right.priorDigit rightOffset word lane child).eval env)
-    (sign : ∀ word lane,
-      (left.priorSign leftOffset word lane).eval env =
-        (right.priorSign rightOffset word lane).eval env) :
-    ChildrenSplit right rightOffset env := by
-  have signSame (word : Fin packedParentWords) (lane : Fin 3) :
-      priorSignValue right rightOffset env word lane =
-        priorSignValue left leftOffset env word lane :=
-    (sign word lane).symm
-  have digitsSame (word : Fin packedParentWords) (lane : Fin 3) :
-      priorDigits right rightOffset env word lane =
-        priorDigits left leftOffset env word lane :=
-    funext fun child => (digit word lane child).symm
-  refine ⟨?_, ?_, ?_⟩
-  · intro word lane
-    rw [signSame]
-    exact split.sign word lane
-  · intro word lane child
-    rw [digitsSame, signSame]
-    exact split.digit word lane child
-  · intro word
-    rw [← packed word, digitsSame, digitsSame, digitsSame]
-    exact split.packed word
 
 structure SpecHolds (interface : Interface) (offset : Nat) (env : Env) : Prop where
   priorCanonical : StateCanonical (interface.priorState offset) env
@@ -277,6 +225,28 @@ structure SpecHolds (interface : Interface) (offset : Nat) (env : Env) : Prop wh
     (interface.expectedContext offset) env
   priorChildren : ChildrenSplit interface offset env
 
+/-- The split facts depend only on the evaluated packed words and digits. -/
+theorem ChildrenSplit.congr {left right : Interface} {leftOffset rightOffset : Nat}
+    {env : Env} (split : ChildrenSplit left leftOffset env)
+    (packed : ∀ word : Fin packedParentWords,
+      (left.priorState leftOffset (packedWordStart + word.val)).eval env =
+        (right.priorState rightOffset (packedWordStart + word.val)).eval env)
+    (digit : ∀ word lane child,
+      (left.priorDigit leftOffset word lane child).eval env =
+        (right.priorDigit rightOffset word lane child).eval env) :
+    ChildrenSplit right rightOffset env := by
+  have digitsSame (word : Fin packedParentWords) (lane : Fin 3) :
+      priorDigits right rightOffset env word lane =
+        priorDigits left leftOffset env word lane :=
+    funext fun child => (digit word lane child).symm
+  refine ⟨?_, ?_⟩
+  · intro word lane
+    rw [digitsSame]
+    exact split.digits word lane
+  · intro word
+    rw [← packed word, digitsSame, digitsSame, digitsSame]
+    exact split.packed word
+
 theorem SpecHolds.contextPreserved
     {interface : Interface} {offset : Nat} {env : Env}
     (specification : SpecHolds interface offset env) :
@@ -286,10 +256,11 @@ theorem SpecHolds.contextPreserved
   rw [specification.outputContext lane, specification.priorContext lane]
 
 def opsAt (interface : Interface) (offset : Nat) : List Op :=
-  (assertions interface offset).map Op.assertZero
+  .witness (WitnessBatch.hinted offset (signHints interface offset)) ::
+    (assertions interface offset).map Op.assertZero
 
 def main (interface : Interface) : Circuit Unit := fun offset =>
-  ((), offset, opsAt interface offset)
+  ((), offset + signCount, opsAt interface offset)
 
 @[simp] theorem main_ops (interface : Interface) (offset : Nat) :
     Circuit.ops (main interface) offset = opsAt interface offset := by
@@ -315,22 +286,25 @@ private theorem flatConstraints_assertions (expressions : List Expr) :
 
 @[simp] theorem flatConstraints_opsAt (interface : Interface) (offset : Nat) :
     flatConstraints (opsAt interface offset) = assertions interface offset := by
-  exact flatConstraints_assertions _
+  change recipeConstraints offset [] ++
+      flatConstraints ((assertions interface offset).map Op.assertZero) = _
+  rw [flatConstraints_assertions]
+  rfl
 
 /-! ## Child-row membership -/
 
 private theorem signRow_mem (sign : Expr) (digits : Radix.ChildIndex → Expr) :
-    sign * (sign - Expr.const 1) ∈ laneAssertions sign digits :=
+    PiDEC.v1_1.SignedSplitScalar.signRow sign ∈ laneAssertions sign digits :=
   List.mem_cons.mpr (Or.inl rfl)
 
 private theorem digitRow_mem (sign : Expr) (digits : Radix.ChildIndex → Expr)
     (child : Radix.ChildIndex) :
-    digits child * (digits child - signedUnit sign) ∈ laneAssertions sign digits :=
+    PiDEC.v1_1.SignedSplitScalar.digitRow sign (digits child) ∈ laneAssertions sign digits :=
   List.mem_cons_of_mem _ (List.mem_ofFn.mpr ⟨child, rfl⟩)
 
 private theorem laneRow_mem {interface : Interface} {offset : Nat}
     {expression : Expr} (word : Fin packedParentWords) (lane : Fin 3)
-    (member : expression ∈ laneAssertions (interface.priorSign offset word lane)
+    (member : expression ∈ laneAssertions (signBit offset word lane)
       (interface.priorDigit offset word lane)) :
     expression ∈ childAssertions interface offset :=
   List.mem_flatMap.mpr ⟨word, List.mem_finRange word,
@@ -345,13 +319,9 @@ private theorem packedRow_mem (interface : Interface) (offset : Nat)
 theorem childRow_cases {interface : Interface} {offset : Nat}
     {expression : Expr} (member : expression ∈ childAssertions interface offset) :
     ∃ word,
-      (∃ lane, expression =
-          interface.priorSign offset word lane *
-            (interface.priorSign offset word lane - Expr.const 1) ∨
-        ∃ child, expression =
-          interface.priorDigit offset word lane child *
-            (interface.priorDigit offset word lane child -
-              signedUnit (interface.priorSign offset word lane))) ∨
+      (∃ lane, expression = PiDEC.v1_1.SignedSplitScalar.signRow (signBit offset word lane) ∨
+        ∃ child, expression = PiDEC.v1_1.SignedSplitScalar.digitRow (signBit offset word lane)
+          (interface.priorDigit offset word lane child)) ∨
         expression = packedAssertion interface offset word := by
   rcases List.mem_flatMap.mp member with ⟨word, _, wordMember⟩
   refine ⟨word, ?_⟩
@@ -367,15 +337,6 @@ theorem childRow_cases {interface : Interface} {offset : Nat}
 
 /-! ## Child-row values -/
 
-private theorem signRow_eval (sign : Expr) (env : Env) :
-    (sign * (sign - Expr.const 1)).eval env = sign.eval env * (sign.eval env - 1) := by
-  simp only [Expr.eval_hmul, Expr.eval_sub, Expr.eval_const]
-
-private theorem digitRow_eval (sign digit : Expr) (env : Env) :
-    (digit * (digit - signedUnit sign)).eval env =
-      digit.eval env * (digit.eval env - (1 - 2 * sign.eval env)) := by
-  simp only [signedUnit, Expr.eval_hmul, Expr.eval_sub, Expr.eval_const]
-
 private theorem packedRow_eval (interface : Interface) (offset : Nat) (env : Env)
     (word : Fin packedParentWords) :
     (packedAssertion interface offset word).eval env = 0 ↔
@@ -384,52 +345,90 @@ private theorem packedRow_eval (interface : Interface) (offset : Nat) (env : Env
           (Radix.recomposeScalar (priorDigits interface offset env word 1))
           (Radix.recomposeScalar (priorDigits interface offset env word 2)) := by
   unfold packedAssertion
-  rw [assertion_holds_iff, packWordExpr_eval, recomposeExpr_eval, recomposeExpr_eval,
-    recomposeExpr_eval]
+  rw [assertion_holds_iff, packWordExpr_eval, PiDEC.v1_1.SignedSplitScalar.recomposeDigits_eval,
+    PiDEC.v1_1.SignedSplitScalar.recomposeDigits_eval, PiDEC.v1_1.SignedSplitScalar.recomposeDigits_eval]
   rfl
 
 private theorem childrenSplit_of_rows (interface : Interface) (offset : Nat) (env : Env)
     (rows : ∀ expression ∈ childAssertions interface offset, expression.eval env = 0) :
     ChildrenSplit interface offset env := by
-  refine ⟨?_, ?_, ?_⟩
+  refine ⟨?_, ?_⟩
   · intro word lane
-    have row := rows _ (laneRow_mem word lane (signRow_mem _ _))
-    rw [signRow_eval] at row
-    rcases GoldilocksPrime.baseFieldNoZeroDivisors _ _ row with zero | one
-    · exact Or.inl zero
-    · exact Or.inr (sub_eq_zero.mp one)
-  · intro word lane child
-    have row := rows _ (laneRow_mem word lane (digitRow_mem _ _ child))
-    rw [digitRow_eval] at row
-    rcases GoldilocksPrime.baseFieldNoZeroDivisors _ _ row with zero | signed
-    · exact Or.inl zero
-    · exact Or.inr (sub_eq_zero.mp signed)
+    have signRow := rows _ (laneRow_mem word lane (signRow_mem _ _))
+    rw [PiDEC.v1_1.SignedSplitScalar.signRow_eval] at signRow
+    refine ⟨1 - 2 * (signBit offset word lane).eval env, ?_, ?_⟩
+    · rcases GoldilocksPrime.baseFieldNoZeroDivisors _ _ signRow with zero | one
+      · right
+        left
+        rw [zero]
+        decide
+      · right
+        right
+        rw [sub_eq_zero.mp one]
+        decide
+    · intro child
+      have row := rows _ (laneRow_mem word lane (digitRow_mem _ _ child))
+      rw [PiDEC.v1_1.SignedSplitScalar.digitRow_eval] at row
+      rcases GoldilocksPrime.baseFieldNoZeroDivisors _ _ row with zero | signed
+      · exact Or.inl zero
+      · exact Or.inr (sub_eq_zero.mp signed)
   · intro word
     exact (packedRow_eval interface offset env word).mp
       (rows _ (packedRow_mem interface offset word))
 
+/-- The child rows hold whenever the split holds and every sign column holds
+the hinted sign of its own lane. -/
 private theorem childRows_of_split (interface : Interface) (offset : Nat) (env : Env)
-    (split : ChildrenSplit interface offset env) :
+    (split : ChildrenSplit interface offset env)
+    (signs : ∀ word lane, (signBit offset word lane).eval env =
+      (signHint interface offset word lane).eval env) :
     ∀ expression ∈ childAssertions interface offset, expression.eval env = 0 := by
   intro expression member
   rcases childRow_cases member with ⟨word, ⟨lane, signRow | ⟨child, digitRow⟩⟩ | packedRow⟩
-  · subst expression
-    rw [signRow_eval]
-    rcases split.sign word lane with zero | one
-    · rw [show (interface.priorSign offset word lane).eval env = 0 from zero]
-      exact zero_mul _
-    · rw [show (interface.priorSign offset word lane).eval env = 1 from one, sub_self]
-      exact mul_zero _
-  · subst expression
-    rw [digitRow_eval]
-    rcases split.digit word lane child with zero | signed
-    · rw [show (interface.priorDigit offset word lane child).eval env = 0 from zero]
-      exact zero_mul _
-    · rw [show (interface.priorDigit offset word lane child).eval env =
-          1 - 2 * (interface.priorSign offset word lane).eval env from signed, sub_self]
-      exact mul_zero _
+  · obtain ⟨_, constraint⟩ := split.digits word lane
+    subst expression
+    rw [PiDEC.v1_1.SignedSplitScalar.signRow_eval, signs word lane]
+    exact (PiDEC.v1_1.SignedSplitScalar.signedDigitRows_of_constraint _ env constraint).1
+  · obtain ⟨_, constraint⟩ := split.digits word lane
+    subst expression
+    rw [PiDEC.v1_1.SignedSplitScalar.digitRow_eval, signs word lane]
+    exact (PiDEC.v1_1.SignedSplitScalar.signedDigitRows_of_constraint _ env constraint).2 child
   · subst expression
     exact (packedRow_eval interface offset env word).mpr (split.packed word)
+
+/-- Every row holds whenever the semantic state predicate holds and every sign
+column holds its hinted value. -/
+theorem constraintsHold_of_signs (interface : Interface) (env : Env)
+    (offset : Nat) (specification : SpecHolds interface offset env)
+    (signs : ∀ word lane, (signBit offset word lane).eval env =
+      (signHint interface offset word lane).eval env) :
+    ConstraintsHold env (assertions interface offset) := by
+  intro expression member
+  rcases List.mem_append.mp member with stateMember | childMember
+  · rw [stateWordAssertions, List.mem_append] at stateMember
+    rcases stateMember with priorMember | remainingMember
+    · rw [stateAssertions, List.mem_map] at priorMember
+      rcases priorMember with ⟨word, wordMember, rfl⟩
+      apply (assertion_holds_iff _ _ env).mpr
+      exact specification.priorCanonical word wordMember
+    · rw [List.mem_append] at remainingMember
+      rcases remainingMember with middleMember | outputContextMember
+      · rw [List.mem_append] at middleMember
+        rcases middleMember with outputMember | priorContextMember
+        · rw [stateAssertions, List.mem_map] at outputMember
+          rcases outputMember with ⟨word, wordMember, rfl⟩
+          apply (assertion_holds_iff _ _ env).mpr
+          exact specification.outputCanonical word wordMember
+        · rw [contextAssertions, List.mem_map] at priorContextMember
+          rcases priorContextMember with ⟨lane, _laneMember, rfl⟩
+          apply (assertion_holds_iff _ _ env).mpr
+          exact specification.priorContext lane
+      · rw [contextAssertions, List.mem_map] at outputContextMember
+        rcases outputContextMember with ⟨lane, _laneMember, rfl⟩
+        apply (assertion_holds_iff _ _ env).mpr
+        exact specification.outputContext lane
+  · exact childRows_of_split interface offset env specification.priorChildren signs
+      expression childMember
 
 /-! ## Circuit contract -/
 
@@ -441,8 +440,8 @@ theorem soundness (interface : Interface) (env : Env) (offset : Nat)
       expression.eval env = 0 := by
     intro expression member
     exact rows (Op.assertZero expression) (by
-      rw [opsAt, List.mem_map]
-      exact ⟨expression, member, rfl⟩)
+      rw [opsAt]
+      exact List.mem_cons_of_mem _ (List.mem_map.mpr ⟨expression, member, rfl⟩))
   have stateRow : ∀ expression ∈ stateWordAssertions interface offset,
       expression.eval env = 0 := fun expression member =>
     rowOfMember expression (List.mem_append_left _ member)
@@ -484,45 +483,6 @@ theorem soundness (interface : Interface) (env : Env) (offset : Nat)
   · exact childrenSplit_of_rows interface offset env fun expression member =>
       rowOfMember expression (List.mem_append_right _ member)
 
-theorem completeness (interface : Interface) (env : Env) (offset : Nat)
-    (specification : SpecHolds interface offset env) :
-    ∃ completed,
-      AgreesOutside env completed offset
-        (localLength (Circuit.ops (main interface) offset)) ∧
-      holdsFlat completed (Circuit.ops (main interface) offset) := by
-  refine ⟨env, ?_, ?_⟩
-  · intro _ _
-    rfl
-  · rw [main_ops]
-    change ConstraintsHold env (flatConstraints (opsAt interface offset))
-    rw [flatConstraints_opsAt]
-    intro expression member
-    rcases List.mem_append.mp member with stateMember | childMember
-    · rw [stateWordAssertions, List.mem_append] at stateMember
-      rcases stateMember with priorMember | remainingMember
-      · rw [stateAssertions, List.mem_map] at priorMember
-        rcases priorMember with ⟨word, wordMember, rfl⟩
-        apply (assertion_holds_iff _ _ env).mpr
-        exact specification.priorCanonical word wordMember
-      · rw [List.mem_append] at remainingMember
-        rcases remainingMember with middleMember | outputContextMember
-        · rw [List.mem_append] at middleMember
-          rcases middleMember with outputMember | priorContextMember
-          · rw [stateAssertions, List.mem_map] at outputMember
-            rcases outputMember with ⟨word, wordMember, rfl⟩
-            apply (assertion_holds_iff _ _ env).mpr
-            exact specification.outputCanonical word wordMember
-          · rw [contextAssertions, List.mem_map] at priorContextMember
-            rcases priorContextMember with ⟨lane, _laneMember, rfl⟩
-            apply (assertion_holds_iff _ _ env).mpr
-            exact specification.priorContext lane
-        · rw [contextAssertions, List.mem_map] at outputContextMember
-          rcases outputContextMember with ⟨lane, _laneMember, rfl⟩
-          apply (assertion_holds_iff _ _ env).mpr
-          exact specification.outputContext lane
-    · exact childRows_of_split interface offset env specification.priorChildren
-        expression childMember
-
 structure Assumptions (interface : Interface) (offset : Nat)
     (_env : Env) : Prop where
   priorFixed : ∀ word ∈ fixedWords,
@@ -541,7 +501,6 @@ structure Assumptions (interface : Interface) (offset : Nat)
     (interface.priorState offset (packedWordStart + word.val)).VarsBelow offset
   priorDigit : ∀ word lane child,
     (interface.priorDigit offset word lane child).VarsBelow offset
-  priorSign : ∀ word lane, (interface.priorSign offset word lane).VarsBelow offset
 
 /-- A property closed under constants, sums and products holds on every
 child-split row whose packed word, digits and signs satisfy it. -/
@@ -553,35 +512,47 @@ theorem childAssertions_closed (Holds : Expr → Prop)
     (packedHolds : ∀ word : Fin packedParentWords,
       Holds (interface.priorState offset (packedWordStart + word.val)))
     (digitHolds : ∀ word lane child, Holds (interface.priorDigit offset word lane child))
-    (signHolds : ∀ word lane, Holds (interface.priorSign offset word lane)) :
+    (signHolds : ∀ word lane, Holds (signBit offset word lane)) :
     ∀ expression ∈ childAssertions interface offset, Holds expression := by
   have sub : ∀ left right, Holds left → Holds right → Holds (left - right) :=
     fun left right leftHolds rightHolds =>
       add _ _ leftHolds (mul _ _ (constant _) rightHolds)
   have scale : ∀ weight value, Holds value → Holds (Expr.const weight * value) :=
     fun weight value valueHolds => mul _ _ (constant weight) valueHolds
+  have one : Holds 1 := constant _
+  have two : Holds 2 := constant _
   intro expression member
   rcases childRow_cases member with ⟨word, ⟨lane, signRow | ⟨child, digitRow⟩⟩ | packedRow⟩
   · subst expression
-    exact mul _ _ (signHolds word lane) (sub _ _ (signHolds word lane) (constant _))
+    exact mul _ _ (signHolds word lane) (sub _ _ (signHolds word lane) one)
   · subst expression
     exact mul _ _ (digitHolds word lane child) (sub _ _ (digitHolds word lane child)
-      (sub _ _ (constant _) (scale _ _ (signHolds word lane))))
+      (sub _ _ one (mul _ _ two (signHolds word lane))))
   · subst expression
     have recomposed (lane : Fin 3) :
-        Holds (recomposeExpr (interface.priorDigit offset word lane)) :=
-      recomposeExpr_closed Holds constant add scale _ (digitHolds word lane)
+        Holds (PiDEC.v1_1.SignedSplitScalar.recomposeDigits (interface.priorDigit offset word lane)) :=
+      PiDEC.v1_1.SignedSplitScalar.recomposeDigits_closed Holds constant add scale _ (digitHolds word lane)
     exact sub _ _ (packedHolds word)
       (packWordExpr_closed Holds add scale (recomposed 0) (recomposed 1) (recomposed 2))
+
+private theorem signBit_varsBelow (offset : Nat) (word : Fin packedParentWords)
+    (lane : Fin 3) : (signBit offset word lane).VarsBelow (offset + signCount) := by
+  have bound := (signIndex word lane).isLt
+  simp only [signBit, Expr.VarsBelow]
+  omega
 
 theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
     (env : Env) (assumptions : Assumptions interface offset env) :
     ∀ expression ∈ flatConstraints (Circuit.ops (main interface) offset),
-      expression.VarsBelow offset := by
+      expression.VarsBelow (offset + signCount) := by
+  have mono : ∀ expression : Expr, expression.VarsBelow offset →
+      expression.VarsBelow (offset + signCount) := fun expression below =>
+    Expr.VarsBelow.mono expression below (by omega)
   intro expression member
   rw [main_ops, flatConstraints_opsAt] at member
   rcases List.mem_append.mp member with member | childMember
-  · rw [stateWordAssertions, List.mem_append] at member
+  · apply mono
+    rw [stateWordAssertions, List.mem_append] at member
     rcases member with priorMember | remainingMember
     · rw [stateAssertions, List.mem_map] at priorMember
       rcases priorMember with ⟨word, _wordMember, rfl⟩
@@ -603,11 +574,12 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
         rcases outputContextMember with ⟨lane, _laneMember, rfl⟩
         exact Expr.VarsBelow.sub _ _ _
           (assumptions.outputContext lane) (assumptions.expectedContext lane)
-  · exact childAssertions_closed (fun expression => expression.VarsBelow offset)
-      (fun _ => trivial) (fun left right => Expr.VarsBelow.add left right offset)
-      (fun left right => Expr.VarsBelow.mul left right offset) interface offset
-      assumptions.priorPacked assumptions.priorDigit assumptions.priorSign
-      expression childMember
+  · exact childAssertions_closed (fun expression => expression.VarsBelow (offset + signCount))
+      (fun _ => trivial) (fun left right => Expr.VarsBelow.add left right _)
+      (fun left right => Expr.VarsBelow.mul left right _) interface offset
+      (fun word => mono _ (assumptions.priorPacked word))
+      (fun word lane child => mono _ (assumptions.priorDigit word lane child))
+      (signBit_varsBelow offset) expression childMember
 
 theorem specHolds_of_agree_below (interface : Interface) (offset : Nat)
     (before after : Env) (assumptions : Assumptions interface offset before)
@@ -617,10 +589,6 @@ theorem specHolds_of_agree_below (interface : Interface) (offset : Nat)
   have same : ∀ expression : Expr, expression.VarsBelow offset →
       expression.eval after = expression.eval before := fun expression below =>
     Expr.eval_eq_of_agree_below expression offset after before below agrees
-  have signSame (word : Fin packedParentWords) (lane : Fin 3) :
-      priorSignValue interface offset after word lane =
-        priorSignValue interface offset before word lane :=
-    same _ (assumptions.priorSign word lane)
   have digitsSame (word : Fin packedParentWords) (lane : Fin 3) :
       priorDigits interface offset after word lane =
         priorDigits interface offset before word lane :=
@@ -638,43 +606,95 @@ theorem specHolds_of_agree_below (interface : Interface) (offset : Nat)
   · intro lane
     rw [same _ (assumptions.outputContext lane), same _ (assumptions.expectedContext lane)]
     exact specification.outputContext lane
-  · refine ⟨?_, ?_, ?_⟩
+  · refine ⟨?_, ?_⟩
     · intro word lane
-      rw [signSame]
-      exact specification.priorChildren.sign word lane
-    · intro word lane child
-      rw [digitsSame, signSame]
-      exact specification.priorChildren.digit word lane child
+      rw [digitsSame]
+      exact specification.priorChildren.digits word lane
     · intro word
       rw [same _ (assumptions.priorPacked word), digitsSame, digitsSame, digitsSame]
       exact specification.priorChildren.packed word
 
-private theorem localLength_assertions (expressions : List Expr) :
-    localLength (expressions.map Op.assertZero) = 0 := by
-  induction expressions with
-  | nil => rfl
-  | cons _ rest inductionHypothesis =>
-      change 0 + localLength (rest.map Op.assertZero) = 0
-      simpa using inductionHypothesis
+/-! ## Hinted completion -/
+
+/-- Every sign hint reads only prior digits, below the leaf offset. -/
+theorem signHints_readBelow (interface : Interface) (offset : Nat) {env : Env}
+    (assumptions : Assumptions interface offset env) :
+    HintsReadBelow offset (signHints interface offset) := by
+  intro hint member
+  rw [signHints, List.mem_ofFn] at member
+  rcases member with ⟨index, rfl⟩
+  exact PiDEC.v1_1.SignedSplitScalar.recomposeDigits_closed (fun expression => expression.VarsBelow offset)
+    (fun _ => trivial) (fun left right => Expr.VarsBelow.add left right offset)
+    (fun weight value below => Expr.VarsBelow.mul _ value offset trivial below) _
+    (assumptions.priorDigit _ _)
+
+/-- Each lane's hint keeps its value when the environment changes only at or
+above the leaf offset. -/
+theorem signHint_eval_of_agree_below (interface : Interface) (offset : Nat)
+    (before after : Env) (assumptions : Assumptions interface offset before)
+    (agrees : ∀ index, index < offset → after index = before index)
+    (word : Fin packedParentWords) (lane : Fin 3) :
+    (signHint interface offset word lane).eval after =
+      (signHint interface offset word lane).eval before := by
+  apply Hint.eval_eq_of_agree_below _ offset after before _ agrees
+  have member : signHint interface offset word lane ∈ signHints interface offset := by
+    rw [signHints, List.mem_ofFn]
+    exact ⟨signIndex word lane, by simp⟩
+  exact signHints_readBelow interface offset assumptions _ member
+
+def completeEnv (interface : Interface) (env : Env) (offset : Nat) : Env :=
+  executeHints env offset (signHints interface offset)
+
+theorem completeEnv_agrees_below (interface : Interface) (env : Env) (offset : Nat) :
+    ∀ index, index < offset → completeEnv interface env offset index = env index :=
+  executeHints_agrees_below env offset (signHints interface offset)
+
+theorem completeEnv_sign (interface : Interface) (env : Env) (offset : Nat)
+    (assumptions : Assumptions interface offset env)
+    (word : Fin packedParentWords) (lane : Fin 3) :
+    (signBit offset word lane).eval (completeEnv interface env offset) =
+      (signHint interface offset word lane).eval env := by
+  have value := executeHints_value_of_readBelow env offset (signHints interface offset)
+    (signHints_readBelow interface offset assumptions) (signIndex word lane).val
+    (by rw [signHints_length]; exact (signIndex word lane).isLt)
+  rw [signBit, Expr.eval_var, completeEnv, value, signHints_get, signWordOf_signIndex,
+    signLaneOf_signIndex]
 
 theorem localLength_eq (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (main interface) offset) = 0 := by
-  rw [main_ops, opsAt, localLength_assertions]
+    localLength (Circuit.ops (main interface) offset) = signCount := by
+  rw [main_ops, opsAt]
+  change (WitnessBatch.hinted offset (signHints interface offset)).outputLength +
+      localLength ((assertions interface offset).map Op.assertZero) = signCount
+  have assertions : localLength ((assertions interface offset).map Op.assertZero) = 0 := by
+    generalize assertions interface offset = expressions
+    induction expressions with
+    | nil => rfl
+    | cons _ rest inductionHypothesis =>
+        change 0 + localLength (rest.map Op.assertZero) = 0
+        simpa using inductionHypothesis
+  rw [assertions, WitnessBatch.hinted_outputLength, signHints_length, Nat.add_zero]
 
-/-- The semantic state predicate satisfies the exact direct constraint list
-without allocating or changing any value. -/
-theorem constraintsHold_of_spec (interface : Interface) (env : Env)
-    (offset : Nat) (specification : SpecHolds interface offset env) :
-    ConstraintsHold env
-      (flatConstraints (Circuit.ops (main interface) offset)) := by
-  rcases completeness interface env offset specification with
-    ⟨completed, agrees, rows⟩
-  have completedEq : completed = env := by
-    funext index
-    apply agrees index
-    rw [localLength_eq]
-    omega
-  simpa only [completedEq] using! rows
+theorem completeness (interface : Interface) (env : Env) (offset : Nat)
+    (assumptions : Assumptions interface offset env)
+    (specification : SpecHolds interface offset env) :
+    ∃ completed,
+      AgreesOutside env completed offset
+        (localLength (Circuit.ops (main interface) offset)) ∧
+      holdsFlat completed (Circuit.ops (main interface) offset) := by
+  let completed := completeEnv interface env offset
+  have agrees := completeEnv_agrees_below interface env offset
+  refine ⟨completed, ?_, ?_⟩
+  · rw [localLength_eq]
+    simpa [completed, completeEnv] using
+      executeHints_agreesOutside env offset (signHints interface offset)
+  · unfold holdsFlat
+    rw [main_ops, flatConstraints_opsAt]
+    apply constraintsHold_of_signs interface completed offset
+      (specHolds_of_agree_below interface offset env completed assumptions agrees
+        specification)
+    intro word lane
+    rw [completeEnv_sign interface env offset assumptions word lane,
+      signHint_eval_of_agree_below interface offset env completed assumptions agrees]
 
 private theorem wordAssertions_length (interface : Interface) (offset : Nat)
     (word : Fin packedParentWords) :
@@ -689,10 +709,6 @@ theorem assertions_length (interface : Interface) (offset : Nat) :
   simp [assertions, stateWordAssertions, stateAssertions, contextAssertions,
     fixedWords_length, children]
 
-theorem operations_length (interface : Interface) (offset : Nat) :
-    (Circuit.ops (main interface) offset).length = 4712 := by
-  rw [main_ops, opsAt, List.length_map, assertions_length]
-
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (main interface) offset)).length = 4712 := by
   rw [main_ops, flatConstraints_opsAt, assertions_length]
@@ -706,7 +722,7 @@ def circuit (interface : Interface) : FormalCircuit where
     intro env offset _assumptions rows
     exact soundness interface env offset rows
   completeness := by
-    intro env offset _assumptions specification
-    exact completeness interface env offset specification
+    intro env offset assumptions specification
+    exact completeness interface env offset assumptions specification
 
 end NightstreamFPrime.Lifecycle.PiCCS.v1_1.StateBinding

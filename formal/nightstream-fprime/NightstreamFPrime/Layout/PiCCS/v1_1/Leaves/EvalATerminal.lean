@@ -9,14 +9,14 @@ Obligation: Lower
 Inputs:
 - the 28-coordinate verifier-derived point `r'` and prior point `r`;
 - verifier-derived `gamma`;
-- 6,048 CCS-matrix-family coefficients, with no Pad coefficient.
+- 3,456 CCS-matrix-family coefficients, with no Pad coefficient.
 
 Outputs:
 - the child-owned exact unshifted `Eval_A` terminal term.
 
 Constraint groups:
 - point equality: 110 logical columns, 665 fresh columns, 775 rows;
-- 6,048-term Horner: 10,365 logical columns, no fresh column,
+- 3,456-term Horner: 10,365 logical columns, no fresh column,
   10,365 rows;
 - parent wiring: zero columns and zero rows.
 - total leaf footprint: 10,475 logical columns, 665 fresh columns,

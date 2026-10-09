@@ -415,7 +415,8 @@ import NightstreamFPrime.Layout.MatrixProgram.SourceProjection
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram.freshPublicInputRange_form?
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram.outputInputRange_form?
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram.freshRange_form?
-#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram.proofInputRange_form?
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram.callerInputRange_form?
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram.statementSignRange_form?
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram.transcriptOutputGrid_form?
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram.ordinaryLogicalRange_form?
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram.substitution_priorInput_form?

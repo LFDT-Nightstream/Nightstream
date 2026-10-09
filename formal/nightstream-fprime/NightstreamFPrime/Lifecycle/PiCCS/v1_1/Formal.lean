@@ -50,8 +50,6 @@ structure Interface (logicalWidth degreeBound : Nat)
   priorState : Nat → Nat → Expr
   outputState : Nat → Nat → Expr
   expectedContext : Nat → Fin 4 → Expr
-  /-- Sign bit of each prior parent coordinate; see `StateBinding`. -/
-  priorSign : Nat → Fin packedParentWords → Fin 3 → Expr
   running : Nat → StatementAbsorption.RunningExpr logicalWidth publicFits
   fresh : Nat → StatementAbsorption.FreshExpr logicalWidth publicFits
   round : Nat → Fin productionShape.cubeVariables →
@@ -69,7 +67,6 @@ def atOffset {logicalWidth degreeBound : Nat}
   priorState := fun _ => interface.priorState parentOffset
   outputState := fun _ => interface.outputState parentOffset
   expectedContext := fun _ => interface.expectedContext parentOffset
-  priorSign := fun _ => interface.priorSign parentOffset
   running := fun _ => interface.running parentOffset
   fresh := fun _ => interface.fresh parentOffset
   round := fun _ => interface.round parentOffset
@@ -98,7 +95,6 @@ structure ExternalInputsBelow
   priorStatePacked : ∀ word : Fin packedParentWords,
     (interface.priorState offset
       (StateBinding.packedWordStart + word.val)).VarsBelow offset
-  priorSign : ∀ word lane, (interface.priorSign offset word lane).VarsBelow offset
   runningPoint : ∀ coordinate,
     ((interface.running offset).point coordinate).VarsBelow offset
   runningCommitment : ∀ source row coefficient,
@@ -183,7 +179,6 @@ def statementBindingInterface {logicalWidth degreeBound : Nat}
     priorDigit := fun offset word lane child =>
       (interface.running offset).publicInput
         (Fin.cast runningCount_eq_radixChildCount.symm child) (packedColumn word lane)
-    priorSign := interface.priorSign
   }
   priorPoint := fun offset => (interface.running offset).point
   eval_K := fun offset coordinate =>
@@ -201,8 +196,8 @@ def statementAbsorptionInterface {logicalWidth degreeBound : Nat}
   running := interface.running
   fresh := interface.fresh
 
-/-- The first transcript child owns this state. Statement binding has zero
-local length, so statement absorption starts at the parent offset. -/
+/-- The first transcript child owns this state. Statement absorption starts
+after the statement-binding sign columns. -/
 def statementFinalState {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -210,7 +205,7 @@ def statementFinalState {logicalWidth degreeBound : Nat}
     (parentOffset : Nat) : Layer.EState :=
   StatementAbsorption.finalState
     (statementAbsorptionInterface (atOffset interface parentOffset))
-    parentOffset
+    (parentOffset + StateBinding.signCount)
 
 def challengeInterface {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -229,14 +224,15 @@ theorem challengeInterface_initialState {logicalWidth degreeBound : Nat}
     (parentOffset childOffset : Nat) :
     (challengeInterface interface parentOffset).initialState childOffset =
       statementFinalState interface parentOffset := by
-  rfl
+  simp only [challengeInterface]
 
-/-- Fixed start of the owned challenge child in a frozen phase view. -/
+/-- Fixed start of the owned challenge child in a frozen phase view: after
+the 270 statement-binding sign columns and the 134,808 absorption columns. -/
 def challengeStart {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : Nat :=
-  interface.baseOffset + 134808
+  interface.baseOffset + 135078
 
 def challengeAlpha {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -277,7 +273,7 @@ def roundTranscriptStart {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : Nat :=
-  interface.baseOffset + 134808 + 4384
+  interface.baseOffset + 135078 + 4384
 
 def roundTranscriptRound {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -596,7 +592,8 @@ def statementBindingCircuit {logicalWidth degreeBound : Nat}
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
-    (StatementBinding.circuit (statementBindingInterface interface)) 0 4712
+    (StatementBinding.circuit (statementBindingInterface interface))
+    StateBinding.signCount 4712
     (StatementBinding.localLength_eq (statementBindingInterface interface))
     (StatementBinding.flatConstraints_length (statementBindingInterface interface))
 
@@ -748,12 +745,12 @@ def statementAbsorptionOffset {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
-    (offset : Nat) : statementAbsorptionOffset interface offset = offset := by
+    (offset : Nat) :
+    statementAbsorptionOffset interface offset = offset + StateBinding.signCount := by
   unfold statementAbsorptionOffset nextOffset childLength
     statementBindingCircuit
   rw [FormalCircuit.withConstantFootprint_main,
     StatementBinding.localLength_eq]
-  omega
 
 def challengeOffset {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -768,10 +765,12 @@ def challengeOffset {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
-    (offset : Nat) : challengeOffset interface offset = offset + 134808 := by
+    (offset : Nat) : challengeOffset interface offset = offset + 135078 := by
   unfold challengeOffset nextOffset childLength statementAbsorptionCircuit
   rw [statementAbsorptionOffset_eq, FormalCircuit.withConstantFootprint_main,
     StatementAbsorption.localLength_eq]
+  unfold StateBinding.signCount packedParentWords
+  omega
 
 @[simp] theorem challengeStart_atOffset
     {logicalWidth degreeBound : Nat}

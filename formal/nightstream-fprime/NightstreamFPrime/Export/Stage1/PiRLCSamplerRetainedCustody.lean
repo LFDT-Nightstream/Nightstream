@@ -626,9 +626,9 @@ theorem baseEnv_eq_transitionEnv
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → Spec.F)
     (column : Nat)
     (bound : column < PiRLCProductPlan.basePackage.layout.constantColumn)
-    (outside : column < PiCCSInputs.phaseOffset ∨
-      PiCCSInputs.phaseOffset + PiCCSOrdinarySourceSupport.transcriptInvocationCount * 1096 ≤
-        column) :
+    (outside : column < PiCCSStarts.statementWitnessStart ∨
+      PiCCSStarts.statementWitnessStart +
+          PiCCSOrdinarySourceSupport.transcriptInvocationCount * 1096 ≤ column) :
     PiRLCProductPlan.baseEnv program base column =
       RunningTransitionDirectPlan.transitionEnv program base
         (Spartan.sourceToSpartan column) := by

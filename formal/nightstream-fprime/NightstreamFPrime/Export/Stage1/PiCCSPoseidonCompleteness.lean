@@ -248,7 +248,8 @@ private theorem invocation_values (index : InvocationIndex) (lane : Fin 16) :
       PiCCSTranscriptDirectSemantics.statementFits PiCCSTranscriptDirectSemantics.statementOffsetBound
       (by
         rw [PiCCSInvocations.statementWitnessStart, PiCCSStarts.statementWitnessStart_eq]
-        exact Nat.le_refl _) affine.1 affine.2
+        unfold Spartan.piCcsPhaseOffset
+        omega) affine.1 affine.2
       PiCCSInvocationSlices.statement_invocation
       PiCCSTranscriptDirectSemantics.statementKindAt_eq
       (PiCCSPhaseInputs.statement_initial application target suffix)

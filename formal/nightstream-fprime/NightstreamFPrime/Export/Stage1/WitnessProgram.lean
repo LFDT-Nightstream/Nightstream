@@ -6,9 +6,9 @@ import NightstreamFPrime.Export.Stage1.RunningTransitionArithmetic
 /-!
 Owns the canonical logical witness-program IR through the running transition.
 
-The seven arithmetic children already export `WitnessBatch` recipes through
-their opaque `FormalCircuit` interfaces. This module gathers those batches in
-protocol order, remaps their symbolic variables through the proved Stage 1
+The statement-binding leaf exports its 270 sign-hint batch, and the seven
+arithmetic children export `WitnessBatch` recipes, through their opaque
+`FormalCircuit` interfaces. This module gathers those batches in protocol order, remaps their symbolic variables through the proved Stage 1
 Spartan permutation, and balances expression sums without changing execution. PiCCS Poseidon2 children remain represented
 by compact permutation invocations. PiRLC batches come from the checked
 wide-reduction and coefficient-word circuits. Permutation invocations execute
@@ -74,6 +74,15 @@ def remapBatch (batch : WitnessBatch) : WitnessBatch := WitnessEncoding.batch {
 
 def childBatches (main : Circuit Unit) (offset : Nat) : List WitnessBatch :=
   (witnesses (Circuit.ops main offset)).map remapBatch
+
+def statementBindingBatches
+    (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
+  childBatches
+    (Formal.statementBindingCircuit
+      (PiCCSArithmetic.sharedInterface logicalWidth publicFits)).main
+    PiCCSArithmetic.statementBindingLogicalStart
 
 def initialClaimBatches
     (logicalWidth : Nat)
@@ -180,7 +189,8 @@ def piCcsBatches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
-  initialClaimBatches logicalWidth publicFits ++
+  statementBindingBatches logicalWidth publicFits ++
+    initialClaimBatches logicalWidth publicFits ++
     sumcheckBatches logicalWidth publicFits ++
     evalKBatches logicalWidth publicFits ++
     evalABatches logicalWidth publicFits ++

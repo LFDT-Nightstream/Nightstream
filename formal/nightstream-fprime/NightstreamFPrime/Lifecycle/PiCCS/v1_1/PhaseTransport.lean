@@ -237,13 +237,7 @@ theorem stateBinding_of_agree_satisfy
     outputContext := ?_
     priorChildren := ?_ }
   rotate_left 4
-  · have signSame (word : Fin packedParentWords) (lane : Fin 3) :
-        StateBinding.priorSignValue (statementBindingInterface (atOffset interface offset)).state
-            offset right word lane =
-          StateBinding.priorSignValue (statementBindingInterface (atOffset interface offset)).state
-            offset left word lane :=
-      same _ (by simpa [statementBindingInterface, atOffset] using support.priorSign word lane)
-    have digitsSame (word : Fin packedParentWords) (lane : Fin 3) :
+  · have digitsSame (word : Fin packedParentWords) (lane : Fin 3) :
         StateBinding.priorDigits (statementBindingInterface (atOffset interface offset)).state
             offset right word lane =
           StateBinding.priorDigits (statementBindingInterface (atOffset interface offset)).state
@@ -252,13 +246,10 @@ theorem stateBinding_of_agree_satisfy
         simpa [statementBindingInterface, atOffset] using
           support.runningPublicInput
             (Fin.cast runningCount_eq_radixChildCount.symm child) (packedColumn word lane))
-    refine ⟨?_, ?_, ?_⟩
+    refine ⟨?_, ?_⟩
     · intro word lane
-      rw [signSame]
-      exact specification.priorChildren.sign word lane
-    · intro word lane child
-      rw [digitsSame, signSame]
-      exact specification.priorChildren.digit word lane child
+      rw [digitsSame]
+      exact specification.priorChildren.digits word lane
     · intro word
       rw [same _ (by simpa [statementBindingInterface, atOffset] using
           support.priorStatePacked word),

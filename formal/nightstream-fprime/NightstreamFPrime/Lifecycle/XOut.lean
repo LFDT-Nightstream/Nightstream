@@ -6,7 +6,7 @@ import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix.UniformSignedDigi
 
 /-!
 Owns the Stage 1 public-state binding: the Construction-2 hash preimage
-`(vk, i, z0, zi, U, pc)` as field words, the state hash
+`(vk, i, z0, zi, U)` as field words, the state hash
 `XOut = Poseidon2(preimage)`, the fixed public-instance encoding of a digest,
 and the paper default running instance. Every function is computable (Rust
 parity surface, spec §11).
@@ -20,6 +20,11 @@ fixes `pc = 1`. The children's public inputs are the verifier-computed split of
 the parent (SuperNeo Π_DEC verifier step 2), so the packed parent determines
 them on every canonical state (`StateEncoding.serializePreimage_injective`).
 The committed state columns are exactly these words.
+
+The sponge `Poseidon2.hash` does not absorb its input length, so two word
+lists that differ only by trailing zeros collide. Injectivity therefore holds
+only on preimages of the fixed production width
+(`PilotProduction.FixedPreimage`).
 -/
 
 namespace NightstreamFPrime.Lifecycle
@@ -593,13 +598,13 @@ private theorem reconstructBits_eq_mod (value : Nat) :
         Nat.mod_pow_succ]
       simp [digestBitNat]
 
-private theorem ofNat_add (left right : Nat) :
+theorem ofNat_add (left right : Nat) :
     Poseidon2.ofNat left + Poseidon2.ofNat right =
       Poseidon2.ofNat (left + right) := by
   apply Fin.eq_of_val_eq
   simp [Poseidon2.ofNat, Fin.val_add, Nat.add_mod]
 
-private theorem ofNat_mul (left right : Nat) :
+theorem ofNat_mul (left right : Nat) :
     Poseidon2.ofNat left * Poseidon2.ofNat right =
       Poseidon2.ofNat (left * right) := by
   apply Fin.eq_of_val_eq

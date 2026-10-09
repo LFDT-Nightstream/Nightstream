@@ -628,18 +628,14 @@ theorem evalRunning_eq_running (env : Env)
         (Formal.atOffset (PiCCSInputs.interface logicalWidth publicFits)
           PiCCSInputs.phaseOffset)).state
       PiCCSInputs.phaseOffset env word
-    have accepted (lane : Fin 3) : Radix.UniformSignedDigits.Accepted
-        (Radix.recomposeScalar (digits lane))
-        (1 - 2 * StateBinding.priorSignValue
-          (Formal.statementBindingInterface
-            (Formal.atOffset (PiCCSInputs.interface logicalWidth publicFits)
-              PiCCSInputs.phaseOffset)).state
-          PiCCSInputs.phaseOffset env word lane)
-        (digits lane) :=
-      ⟨split.constraint word lane, rfl⟩
+    have accepted (lane : Fin 3) : ∃ sign, Radix.UniformSignedDigits.Accepted
+        (Radix.recomposeScalar (digits lane)) sign (digits lane) := by
+      obtain ⟨sign, constraint⟩ := split.digits word lane
+      exact ⟨sign, constraint, rfl⟩
     have bounded (lane : Fin 3) :
         centeredMagnitude (Radix.recomposeScalar (digits lane)) < 2 ^ 16 := by
-      have parentBound := (accepted lane).parentBounded
+      obtain ⟨_, accepted⟩ := accepted lane
+      have parentBound := accepted.parentBounded
       rw [Radix.production_parameters.2.2] at parentBound
       exact parentBound
     rcases StateEncoding.unpackWord_packWord (bounded 0) (bounded 1) (bounded 2) with
@@ -659,7 +655,8 @@ theorem evalRunning_eq_running (env : Env)
           (packedWords (fun word => env (PilotProduction.priorPreimageStart + word)))
           (packedColumn word lane))
         (Fin.cast runningCount_eq_radixChildCount source)
-    rw [unpackParent_packedColumn, unpacked, ← (accepted lane).digits_eq_splitScalar]
+    obtain ⟨_, acceptedLane⟩ := accepted lane
+    rw [unpackParent_packedColumn, unpacked, ← acceptedLane.digits_eq_splitScalar]
     rfl
   · funext source
     apply evaluationFamily_ext
@@ -688,7 +685,7 @@ theorem running_canonical (env : Env)
   rw [← evalRunning_eq_running env split]
   intro column
   rcases StateEncoding.packedColumn_cover column with ⟨word, lane, rfl⟩
-  exact ⟨_, split.constraint word lane⟩
+  exact split.digits word lane
 
 /-- The running-transition output words are the output block's running words. -/
 theorem outputWords_eq_slice (env : Env) :

@@ -248,7 +248,7 @@ theorem endpointColumn_lt_source (family : Fin familyCount)
   all_goals try unfold PiCCSStarts.logicalFreshBase
   all_goals
     norm_num [PiCCSTranscriptDirectSemantics.roundCount,
-      PiCCSInputs.phaseOffset_eq] at *
+      PiCCSInputs.phaseOffset_eq, PiCCSStarts.statementWitnessStart_eq] at *
   all_goals omega
 
 def endpointTranscriptInvocation (family : Fin familyCount) :
@@ -294,7 +294,7 @@ def proofLogicalIndex (family : Fin familyCount) (_notOutput : family.val ≠ 3)
   all_goals try unfold PiCCSStarts.logicalFreshBase
   all_goals
     norm_num [PiCCSTranscriptDirectSemantics.roundCount,
-      PiCCSInputs.phaseOffset_eq] at *
+      PiCCSInputs.phaseOffset_eq, PiCCSStarts.statementWitnessStart_eq] at *
   all_goals omega
 
 private theorem packageSourceColumn_congr
@@ -365,7 +365,8 @@ theorem sourceForm_eval
         unfold endpointColumn endpointStart outputFamily
           PiCCSStarts.logicalFreshBase
         rw [PiCCSInputs.phaseOffset_eq]
-        norm_num [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq] <;> omega)).symm
+        norm_num [PiCCSStarts.statementWitnessStart_eq,
+          PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq] <;> omega)).symm
   · rw [sourceForm, dif_neg output,
       PiCCSOrdinaryDirectPlan.Location.form_eval geometry assignment base
         groupValue encoding]
@@ -1153,7 +1154,7 @@ def TranscriptOutputs {program : Lifecycle.Stage1.Application.Program}
   ∀ (index : Nat)
     (bound : index < PiCCSOrdinarySourceSupport.transcriptInvocationCount),
     List.ofFn (Layer.evalState env
-        (Invocations.permutationOutput (PiCCSInputs.phaseOffset + index * 1096))) =
+        (Invocations.permutationOutput (PiCCSStarts.statementWitnessStart + index * 1096))) =
       PiCCSPoseidonPreservation.valueState geometry assignment
         ⟨index, transcriptIndex_bound index bound⟩
 
@@ -1202,7 +1203,7 @@ theorem transcriptOutputs_of_forms
     simp only [Fin.decodeProd, Fin.modNat, slot]
     norm_num [Spec.Poseidon2.width]
   have sourceEq : PiCCSOrdinaryRetainedBlocks.transcriptOutputSource slot =
-      PiCCSInputs.phaseOffset + index * 1096 + 1080 + lane.val := by
+      PiCCSStarts.statementWitnessStart + index * 1096 + 1080 + lane.val := by
     unfold PiCCSOrdinaryRetainedBlocks.transcriptOutputSource
     simp only [Fin.decodeProd, Fin.divNat, Fin.modNat, slot]
     norm_num [Spec.Poseidon2.width]
@@ -1219,7 +1220,7 @@ theorem transcriptOutputs_of_forms
     · exact Fin.ext firstVal
     · exact Fin.ext secondVal
   exact calc
-    env (PiCCSInputs.phaseOffset + index * 1096 + 1080 + lane.val) =
+    env (PiCCSStarts.statementWitnessStart + index * 1096 + 1080 + lane.val) =
         env (PiCCSOrdinaryRetainedBlocks.transcriptOutputSource slot) := by
       rw [sourceEq]
     _ = ((PiCCSOrdinaryDirectPlan.Location.proofLogical
@@ -1274,7 +1275,7 @@ theorem reads_of_outputs {program : Lifecycle.Stage1.Application.Program}
     PiCCSTranscriptDirectSemantics.Reads geometry assignment env where
   challenge := by
     have challengeStart := PiCCSStarts.challengeWitnessStart_eq
-    have phaseStart := PiCCSInputs.phaseOffset_eq
+    have phaseStart := PiCCSStarts.statementWitnessStart_eq
     apply PoseidonActionSemantics.readsAt_of_outputs env _
       PiCCSActionPayloadBlock.challengeActions
       PiCCSInvocations.challengeWitnessStart 0
@@ -1284,7 +1285,7 @@ theorem reads_of_outputs {program : Lifecycle.Stage1.Application.Program}
       have state : StatementAbsorption.finalState
           (PiCCSInvocations.statementInterface Data.logicalWidth Data.publicFits)
           PiCCSInvocations.statementWitnessStart =
-            Invocations.permutationOutput (PiCCSInputs.phaseOffset + 122 * 1096) := by
+            Invocations.permutationOutput (PiCCSStarts.statementWitnessStart + 122 * 1096) := by
         rw [← endpoint_permutationOutput statementFamily _ (by
           change PiCCSStarts.challengeWitnessStart - 16 = _
           omega)]
@@ -1299,7 +1300,7 @@ theorem reads_of_outputs {program : Lifecycle.Stage1.Application.Program}
     · intro index bound
       rw [PiCCSActionPayloadBlock.challengeInvocationCount_eq] at bound
       have position : PiCCSInvocations.challengeWitnessStart + index * 1096 =
-          PiCCSInputs.phaseOffset + (123 + index) * 1096 := by
+          PiCCSStarts.statementWitnessStart + (123 + index) * 1096 := by
         change PiCCSStarts.challengeWitnessStart + index * 1096 = _
         omega
       rw [position, outputs (123 + index) (by
@@ -1312,7 +1313,7 @@ theorem reads_of_outputs {program : Lifecycle.Stage1.Application.Program}
     · exact ChallengeDerivation.expectedSamples_eq_samples _ _
   rounds := by
     have roundStart := PiCCSStarts.roundTranscriptWitnessStart_eq
-    have phaseStart := PiCCSInputs.phaseOffset_eq
+    have phaseStart := PiCCSStarts.statementWitnessStart_eq
     apply PoseidonActionSemantics.readsAt_of_outputs env _
       PiCCSActionPayloadBlock.roundActions
       PiCCSInvocations.roundWitnessStart 0
@@ -1322,7 +1323,7 @@ theorem reads_of_outputs {program : Lifecycle.Stage1.Application.Program}
       have state : ChallengeDerivation.finalState
           (PiCCSInvocations.challengeInterface Data.logicalWidth Data.publicFits)
           PiCCSInvocations.challengeWitnessStart =
-            Invocations.permutationOutput (PiCCSInputs.phaseOffset + 126 * 1096) := by
+            Invocations.permutationOutput (PiCCSStarts.statementWitnessStart + 126 * 1096) := by
         rw [← endpoint_permutationOutput challengeFamily _ (by
           change PiCCSStarts.roundTranscriptWitnessStart - 16 = _
           omega)]
@@ -1337,7 +1338,7 @@ theorem reads_of_outputs {program : Lifecycle.Stage1.Application.Program}
     · intro index bound
       rw [PiCCSActionPayloadBlock.roundInvocationCount_eq] at bound
       have position : PiCCSInvocations.roundWitnessStart + index * 1096 =
-          PiCCSInputs.phaseOffset + (127 + index) * 1096 := by
+          PiCCSStarts.statementWitnessStart + (127 + index) * 1096 := by
         change PiCCSStarts.roundTranscriptWitnessStart + index * 1096 = _
         omega
       rw [position, outputs (127 + index) (by

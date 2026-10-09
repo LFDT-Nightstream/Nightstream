@@ -217,7 +217,7 @@ def outputEval_AWords : Nat :=
 def outputEvaluationWordsPerSource : Nat :=
   outputEval_KWords + outputEval_AWords
 
-/-- The prior child digits and signs open the proof-input interval. -/
+/-- The prior child digits open the proof-input interval. -/
 def freshCommitmentTargetStart : Nat :=
   proofInputStart + NightstreamFPrime.Layout.Stage1.PiCCSInputs.priorChildrenWords
 

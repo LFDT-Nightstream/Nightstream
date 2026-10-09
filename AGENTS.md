@@ -87,6 +87,7 @@ Never invent a limit. A cap, threshold, quota, budget, timeout, retry or round c
 State the authority or derivation whenever proposing or applying a limit. If no authority exists, omit the limit and use the MSW necessity test. Metrics may be reported as evidence, but they must not become gates, defaults, targets, or recommendations through agent intuition. Examples and representative proportions never become defaults. If a necessary limit is an unresolved owner choice, ask; do not manufacture a value.
 
 ## Security
+- **Public API boundary.** Users call only the `nightstream` crate. Future WASM, iOS, or Android binding crates may also become public. All other workspace crates (`neo-*`, `nightstream-fprime`, and the prover backends) are internal, even when their items are `pub`. A security or review finding counts only if an input from a public crate can reach it. Do not report direct calls into an internal crate as a trust-boundary issue.
 - Digests are fine as compression, but never as authority.
 - Across trust boundaries, every carried digest must be either recomputed from authoritative inputs, replayed into a verifier-driven transcript or proof, or explicitly treated as non-authoritative structure.
 - Do not rely on self-consistent digest chains as evidence of soundness. If an attacker can mutate data and re-digest upward, the verifier must still fail.

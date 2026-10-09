@@ -13,7 +13,8 @@ Inputs:
 
 Outputs:
 - a 10,872-word canonical proof-input encoding;
-- the 4,590-word prior child region: child digits, then sign bits;
+- the 4,320-word prior child region: the child digits, child-major (the
+  statement-binding leaf computes the signs);
 - one environment that preserves the pilot prefix and loads both.
 
 Parent coverage:
@@ -178,22 +179,14 @@ private theorem serializeEvaluations_evalA_getD
         (fun index => serializeK_length (evaluations.matrix matrix index))
         coefficient component.val component.isLt
 
-/-- The sign bit of one prior parent coordinate: one on the negative branch,
-so the common digit sign is `1 - 2 · bit`. -/
-def signWord (parent : F) : F :=
-  if Spec.Phi81Relation.PiDECAlgebra.Radix.isNonnegative parent then 0 else 1
-
-/-- The prior child region: the sixteen child public inputs, child-major,
-then one sign bit per parent coordinate. -/
+/-- The prior child region: the sixteen child public inputs, child-major. -/
 def priorChildWords
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     List F :=
-  serializeChildPublicInputs (publicFits := publicFits) running ++
-    (List.finRange (FullShape logicalWidth publicFits).publicWidth).map fun column =>
-      signWord (parentPublic running column)
+  serializeChildPublicInputs (publicFits := publicFits) running
 
 /-- One combined source for the pilot columns, the prior child region, and
 the new PiCCS proof-input columns. -/
@@ -943,7 +936,6 @@ def relationInterface
   priorState := (interface logicalWidth publicFits).priorState
   outputState := (interface logicalWidth publicFits).outputState
   expectedContext := (interface logicalWidth publicFits).expectedContext
-  priorSign := (interface logicalWidth publicFits).priorSign
   running := (interface logicalWidth publicFits).running
   fresh := (interface logicalWidth publicFits).fresh
   round := fun offset roundIndex => relationMessage relation

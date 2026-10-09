@@ -274,7 +274,8 @@ theorem completeTranscriptPrefix
     intro index below
     apply p2to4.values index
     rw [n2]
-    simpa using below
+    simp at below ⊢
+    omega
   have statementSpecP4 := StatementAbsorption.specHolds_of_agree_below
     (statementAbsorptionInterface (atOffset interface offset))
       (statementAbsorptionOffset interface offset) p2.current p4.current

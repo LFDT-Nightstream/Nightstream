@@ -110,6 +110,8 @@ def writeWitnessBatches (program : Program) (handle : IO.FS.Handle)
   writeByte handle 91
   let first ← writeArrayItemsWith handle (writeShiftedBatch program handle)
     true (Data.liftPilotBatches (PilotData.priorWordBatches ()))
+  let first ← writeArrayItemsWith handle (writeShiftedBatch program handle)
+    first (WitnessProgram.statementBindingBatches Data.logicalWidth Data.publicFits)
   let first ← writePreparedGroups handle (writeShiftedBatch program handle)
     Main.PreparedWitnessGroup.batches first (orderedWitnessTasks tasks)
   let first ← writeWitnessBlocks program handle first

@@ -811,7 +811,7 @@ import NightstreamFPrime.Export.Stage1.ActualNextPreimage
 #audit_axioms NightstreamFPrime.Export.PermutationOutput.Readout.rewriteExpr_eval
 #audit_axioms NightstreamFPrime.Export.PermutationOutput.Readout.sboxColumn_lt_end
 #audit_axioms NightstreamFPrime.Export.PermutationOutput.Readout.env_congr_at
-#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSTranscriptReadout.phaseStart_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSTranscriptReadout.transcriptStart_eq
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSTranscriptReadout.sboxColumn_lt_spartanColumnCount
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPoseidonPreservation.retainedPrefix_baseEnv
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPoseidonPreservation.readout_sourceAssignment

@@ -159,7 +159,7 @@ private theorem roundC0Source
     omega
   · norm_num [Spec.Poseidon2.width]
   · rw [PiCCSStarts.roundTranscriptWitnessStart_eq,
-      PiCCSInputs.phaseOffset_eq]
+      PiCCSStarts.statementWitnessStart_eq]
     norm_num [RunningTransitionInputs.roundStride,
       RunningTransitionInputs.roundSampleC0Offset]
     omega
@@ -178,7 +178,7 @@ private theorem roundC1Source
     omega
   · norm_num [Spec.Poseidon2.width]
   · rw [PiCCSStarts.roundTranscriptWitnessStart_eq,
-      PiCCSInputs.phaseOffset_eq]
+      PiCCSStarts.statementWitnessStart_eq]
     norm_num [RunningTransitionInputs.roundStride,
       RunningTransitionInputs.roundSampleC1Offset]
     omega
@@ -222,7 +222,7 @@ private theorem applicationInputEnv_eq_transition
     apply PermutationOutput.Readout.env_of_decode_none
     unfold PermutationOutput.Readout.decode
     rw [dif_neg (by
-      rw [PiCCSTranscriptReadout.phaseStart_eq, ApplicationInputs.inputColumn_value]
+      rw [PiCCSTranscriptReadout.transcriptStart_eq, ApplicationInputs.inputColumn_value]
       have indexBound := index.isLt
       norm_num [ApplicationInputs.currentWordStart,
         Lifecycle.Stage1.Application.stateWordCount] at indexBound ⊢
@@ -262,7 +262,7 @@ private theorem applicationOutputEnv_eq_transition
     apply PermutationOutput.Readout.env_of_decode_none
     unfold PermutationOutput.Readout.decode
     rw [dif_neg (by
-      rw [PiCCSTranscriptReadout.phaseStart_eq, ApplicationInputs.outputColumn_value]
+      rw [PiCCSTranscriptReadout.transcriptStart_eq, ApplicationInputs.outputColumn_value]
       have indexBound := index.isLt
       norm_num [ApplicationInputs.currentWordStart,
         Lifecycle.Stage1.Application.stateWordCount] at indexBound ⊢

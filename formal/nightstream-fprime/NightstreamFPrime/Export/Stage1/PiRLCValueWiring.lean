@@ -238,7 +238,8 @@ theorem form_eval_source
         assignment) column.val = _
   rw [SourceCompiler.sourceEnv_at, direct]
   rw [RunningTransitionDirectPlan.transitionEnv_of_outside program base source
-    bounded (Or.inl (valueSource_beforePhase descriptor))]
+    bounded (Or.inl (Nat.lt_of_lt_of_le (valueSource_beforePhase descriptor)
+      PiCCSStarts.phaseOffset_le_statementWitnessStart))]
   rfl
 
 end NightstreamFPrime.Export.Stage1.PiRLCValueWiring

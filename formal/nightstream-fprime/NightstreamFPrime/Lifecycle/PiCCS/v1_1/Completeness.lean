@@ -58,7 +58,7 @@ theorem specHolds_implies_holds
 
 /-- Exact private symbolic-variable count of the complete PiCCS assembler. -/
 def privateCount (degreeBound : Nat) : Nat :=
-  1006551 + productionShape.cubeVariables *
+  1006821 + productionShape.cubeVariables *
     RoundTranscript.perRoundRecipeCount degreeBound +
       SumcheckChain.privateCount degreeBound
 
@@ -75,13 +75,13 @@ private theorem transcriptPrefix_localLength_eq
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
     localLength (transcriptPrefixOps interface offset) =
-      139192 + productionShape.cubeVariables *
+      139462 + productionShape.cubeVariables *
         RoundTranscript.perRoundRecipeCount degreeBound := by
   simp only [transcriptPrefixOps, localLength, List.map_cons, List.map_nil,
     List.sum_cons, List.sum_nil, Nat.add_zero, childOp_privateCount]
   unfold statementBindingCircuit statementAbsorptionCircuit
     challengeCircuit roundTranscriptCircuit
-  simp only [FormalCircuit.withConstantFootprint_privateCount]
+  simp only [FormalCircuit.withConstantFootprint_privateCount, StateBinding.signCount_eq]
   omega
 
 private theorem evaluationPrefix_localLength_eq
@@ -214,7 +214,7 @@ theorem flatConstraints_length_eq
   omega
 
 theorem privateCount_eq_of_degreeBound_eq_eight (degreeBound : Nat)
-    (degreeEq : degreeBound = 8) : privateCount degreeBound = 1068599 := by
+    (degreeEq : degreeBound = 8) : privateCount degreeBound = 1068869 := by
   rw [degreeEq]
   norm_num [privateCount, RoundTranscript.perRoundRecipeCount,
     SumcheckChain.privateCount, FixedChain.Owned.privateCount,

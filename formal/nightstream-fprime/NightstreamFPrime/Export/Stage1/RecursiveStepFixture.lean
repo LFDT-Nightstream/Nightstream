@@ -33,6 +33,20 @@ private def extensionWords (value : K) : List F := [value.c0, value.c1]
 private def pointValue (point : List K) : Value :=
   .array (point.map fun value => wordsValue (extensionWords value))
 
+/-- The child public inputs are the checked Π_DEC split of their own parent.
+This is the Rust `canonical_parent` rule and Lean `ChildrenCanonical`: the
+parent is in the split range and every child is its production digit. -/
+private def childrenCanonical
+    (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) :
+    Bool :=
+  match Folding.PiDEC.PaperVerifier.PublicInputSplit.checked
+      (PaperAlgebra.publicInputSplit Poseidon2HashChainV1Setup.productionAjtaiKey)
+      (parentPublic running) with
+  | none => false
+  | some childPublic => decide ((List.finRange productionGlobalParams.k).flatMap
+      (fun child => List.ofFn (childPublic child)) =
+      serializeChildPublicInputs (publicFits := publicFits) running)
+
 private def valueFromPriorIO (context : VerifierContext.Digest4)
     (prior : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits))
     (message : AppWitness)
@@ -47,9 +61,14 @@ private def valueFromPriorIO (context : VerifierContext.Digest4)
   let priorPublic : PublicInput := encHash (publicFits := publicFits) priorDigest
   unless decide (input.publicInput.toList = List.ofFn priorPublic) do
     throw (IO.userError "recursive fixture: fresh public input differs from the actual prior hash")
-  unless decide (serializeRunning (PiCCSInputCheck.running input) =
-      serializeRunning (prior.running functionIndex)) do
+  let priorRunning := prior.running functionIndex
+  unless decide (serializeRunningFields (PiCCSInputCheck.running input) =
+        serializeRunningFields (publicFits := publicFits) priorRunning ∧
+      serializeChildPublicInputs (PiCCSInputCheck.running input) =
+        serializeChildPublicInputs (publicFits := publicFits) priorRunning) do
     throw (IO.userError "recursive fixture: PiCCS running input differs from the actual prior")
+  unless childrenCanonical priorRunning do
+    throw (IO.userError "recursive fixture: prior children are not the canonical split of their parent")
   let phase := PiCCSInputCheck.execute input
   unless phase.accepted do
     throw (IO.userError "recursive fixture: PiCCS proof rejected")

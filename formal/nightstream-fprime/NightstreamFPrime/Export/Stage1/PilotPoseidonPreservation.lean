@@ -63,7 +63,7 @@ private theorem sourceAssignment_privatePhysical
     (sourceEq : source.val = column)
     (privateBound : column <
       PiRLCProductPlan.basePackage.layout.constantColumn)
-    (beforeTranscript : column < PiCCSTranscriptReadout.phaseStart + 1080) :
+    (beforeTranscript : column < PiCCSTranscriptReadout.transcriptStart + 1080) :
     sourceAssignment program base groupValue source =
       RunningTransitionDirectPlan.transitionEnv program base column := by
   have totalBound : column <
@@ -150,8 +150,8 @@ theorem priorInputForm_eval
     _ (Data.priorChain.inputStart + index.val) (by rfl)
     (priorInputPrivate index) (by
       have bound : index.val < 27819 := index.isLt
-      change 0 + index.val < PiCCSTranscriptReadout.phaseStart + 1080
-      rw [PiCCSTranscriptReadout.phaseStart_eq]
+      change 0 + index.val < PiCCSTranscriptReadout.transcriptStart + 1080
+      rw [PiCCSTranscriptReadout.transcriptStart_eq]
       omega)]
   unfold PilotOrdinaryDirectPlan.pilotEnv
   rw [priorInputLift index]
@@ -175,8 +175,8 @@ theorem outputInputForm_eval
     _ (Data.outputChain.inputStart + index.val) (by rfl)
     (outputInputPrivate index) (by
       have bound : index.val < 27819 := index.isLt
-      change 27819 + index.val < PiCCSTranscriptReadout.phaseStart + 1080
-      rw [PiCCSTranscriptReadout.phaseStart_eq]
+      change 27819 + index.val < PiCCSTranscriptReadout.transcriptStart + 1080
+      rw [PiCCSTranscriptReadout.transcriptStart_eq]
       omega)]
   unfold PilotOrdinaryDirectPlan.pilotEnv
   rw [outputInputLift index]

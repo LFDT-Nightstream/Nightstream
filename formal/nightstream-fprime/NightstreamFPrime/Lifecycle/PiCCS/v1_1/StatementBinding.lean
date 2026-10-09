@@ -17,8 +17,10 @@ Outputs:
 - the same wires, viewed as the production verifier input.
 
 Constraint groups:
-- C1: none; the interface makes the source and verifier views definitionally
-  identical, so no copy row or private variable is required.
+- C1: none for the statement; the interface makes the source and verifier
+  views definitionally identical, so no copy row is required. The canonical
+  state rows (`StateBinding`) own the only private values: one hinted sign
+  column per packed prior parent coordinate.
 
 Parent coverage:
 - `v1_1.Coverage.input_eval_K`;
@@ -79,7 +81,7 @@ def circuit (interface : Interface) : FormalCircuit where
       fun _ => rfl, fun _ => rfl, fun _ => rfl⟩
   completeness := by
     intro env offset assumptions specification
-    exact StateBinding.completeness interface.state env offset
+    exact StateBinding.completeness interface.state env offset assumptions
       specification.state
 
 theorem soundness (interface : Interface) (env : Env) (offset : Nat)
@@ -97,23 +99,25 @@ theorem completeness (interface : Interface) (env : Env) (offset : Nat)
       holdsFlat completed (Circuit.ops (circuit interface).main offset) :=
   (circuit interface).completeness env offset assumptions specification
 
-theorem constraintsHold_of_spec (interface : Interface) (env : Env)
-    (offset : Nat) (specification : SpecHolds interface offset env) :
+/-- Every row holds whenever the statement holds and every sign column holds
+its hinted value. -/
+theorem constraintsHold_of_signs (interface : Interface) (env : Env)
+    (offset : Nat) (specification : SpecHolds interface offset env)
+    (signs : ∀ word lane, (StateBinding.signBit offset word lane).eval env =
+      (StateBinding.signHint interface.state offset word lane).eval env) :
     ConstraintsHold env
       (flatConstraints (Circuit.ops (circuit interface).main offset)) := by
-  exact StateBinding.constraintsHold_of_spec interface.state env offset
-    specification.state
+  change ConstraintsHold env
+    (flatConstraints (Circuit.ops (StateBinding.main interface.state) offset))
+  rw [StateBinding.main_ops, StateBinding.flatConstraints_opsAt]
+  exact StateBinding.constraintsHold_of_signs interface.state env offset
+    specification.state signs
 
-/-- This boundary allocates no private value. -/
+/-- This boundary allocates exactly the hinted sign columns. -/
 theorem localLength_eq (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 0 := by
+    localLength (Circuit.ops (circuit interface).main offset) =
+      StateBinding.signCount := by
   exact StateBinding.localLength_eq interface.state offset
-
-/-- This boundary emits the 32 domain-chunk and context assertions and the
-4,680 prior child-split assertions. -/
-theorem operations_length (interface : Interface) (offset : Nat) :
-    (Circuit.ops (circuit interface).main offset).length = 4712 := by
-  exact StateBinding.operations_length interface.state offset
 
 /-- Each state-binding assertion lowers to one direct row. -/
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
@@ -139,7 +143,7 @@ theorem specHolds_of_agree_below (interface : Interface) (offset : Nat)
       before after assumptions agrees specification.state,
     fun _ => rfl, fun _ => rfl, fun _ => rfl⟩
 
-/-- Every state-binding row uses only parent-owned wires. -/
+/-- Every state-binding row uses parent-owned wires and its own sign columns. -/
 theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
     (env : Env) :
     StateBinding.Assumptions interface.state offset env →
@@ -148,7 +152,7 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
       expression.VarsBelow
         (offset + localLength (Circuit.ops (circuit interface).main offset)) := by
   intro assumptions expression member
-  rw [localLength_eq, Nat.add_zero]
+  rw [localLength_eq]
   exact StateBinding.flatConstraints_varsBelow interface.state offset
     env assumptions expression member
 

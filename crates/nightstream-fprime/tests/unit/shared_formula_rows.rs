@@ -155,7 +155,7 @@ fn phi81_quotient_rows_accept_product_and_reject_omitted_node_attack() {
                             sum + entry.coefficient * values[entry.column]
                         })
                 };
-                evaluate(0) * evaluate(1) - evaluate(2)
+                evaluate(0) * evaluate(1) - evaluate(2) + evaluate(3).exp_u64(7)
             })
             .collect::<Vec<_>>()
     };

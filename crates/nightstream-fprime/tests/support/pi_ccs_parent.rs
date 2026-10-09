@@ -74,7 +74,7 @@ pub fn with_running(base: &[u64], running: &serde_json::Value) -> Vec<u64> {
     words.extend(running.eval_a.iter().flatten().flatten().flatten().copied());
     words.extend(running.point.iter().flatten().copied());
     for lanes in parent(&running).chunks_exact(3) {
-        let packed = (lanes[0] as u128 + ((lanes[1] as u128) << 17) + ((lanes[2] as u128) << 34) % MODULUS) % MODULUS;
+        let packed = (lanes[0] as u128 + ((lanes[1] as u128) << 17) + ((lanes[2] as u128) << 34)) % MODULUS;
         words.push(packed as u64);
     }
     words.extend_from_slice(&base[STATE_PREIMAGE_WORDS - TAIL_WORDS..]);
@@ -82,15 +82,7 @@ pub fn with_running(base: &[u64], running: &serde_json::Value) -> Vec<u64> {
     words
 }
 
-/// The PiCCS prior child region: the child public inputs, child-major, then
-/// one sign bit per parent coordinate, one when the parent is negative.
+/// The PiCCS prior child region: the child public inputs, child-major.
 pub fn prior_children(running: &serde_json::Value) -> Vec<u64> {
-    let running = parse(running);
-    let mut words: Vec<u64> = running.public.iter().flatten().copied().collect();
-    words.extend(
-        parent(&running)
-            .into_iter()
-            .map(|value| u64::from(value as u128 > MODULUS / 2)),
-    );
-    words
+    parse(running).public.iter().flatten().copied().collect()
 }

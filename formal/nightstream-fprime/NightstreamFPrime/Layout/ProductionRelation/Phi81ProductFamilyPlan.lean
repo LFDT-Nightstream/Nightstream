@@ -20,7 +20,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
 /-- Sparse forms for an ordered family of complete ring products. -/
 structure Interface (logicalWidth invocationCount : Nat) where
-  oneColumn : Fin logicalWidth
   left : Fin invocationCount → Phi81ProductPlan.State logicalWidth
   right : Fin invocationCount → Phi81ProductPlan.State logicalWidth
   quotient : Fin invocationCount → Phi81ProductPlan.State logicalWidth
@@ -30,8 +29,7 @@ structure Interface (logicalWidth invocationCount : Nat) where
 def ringInterface {logicalWidth invocationCount : Nat}
     (interface : Interface logicalWidth invocationCount)
     (invocation : Fin invocationCount) : Phi81ProductPlan.Interface logicalWidth :=
-  { oneColumn := interface.oneColumn
-    left := interface.left invocation
+  { left := interface.left invocation
     right := interface.right invocation
     quotient := interface.quotient invocation
     prior := interface.prior invocation

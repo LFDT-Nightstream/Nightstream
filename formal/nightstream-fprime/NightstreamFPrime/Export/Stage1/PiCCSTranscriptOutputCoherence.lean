@@ -131,11 +131,12 @@ theorem physicalTranscript_source
   rw [same, PermutationPlan.canonicalInvocation_witnessStart_of_transcript
     selected bound]
   change Layout.Stage1.Spartan.sourceToSpartan
-      (Layout.Stage1.PiCCSInputs.phaseOffset + index.val * 1096) + 1080 + lane.val = _
+      (Layout.Stage1.PiCCSStarts.statementWitnessStart + index.val * 1096) + 1080 + lane.val = _
   have shifted := Layout.Stage1.Spartan.sourceToSpartan_add_of_piCcsLocal
-    (Layout.Stage1.PiCCSInputs.phaseOffset + index.val * 1096) (1080 + lane.val) (by
-      norm_num [Layout.Stage1.PiCCSInputs.phaseOffset_eq,
-        Layout.Stage1.Spartan.piCcsPhaseOffset])
+    (Layout.Stage1.PiCCSStarts.statementWitnessStart + index.val * 1096) (1080 + lane.val) (by
+      rw [Layout.Stage1.PiCCSStarts.statementWitnessStart_eq]
+      unfold Layout.Stage1.Spartan.piCcsPhaseOffset
+      omega)
   rw [Nat.add_assoc, ← shifted]
   apply congrArg Layout.Stage1.Spartan.sourceToSpartan
   unfold PiCCSTranscriptOutputForms.transcriptSource

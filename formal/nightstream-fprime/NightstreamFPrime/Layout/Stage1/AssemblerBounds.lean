@@ -64,8 +64,6 @@ def piCcsExternalInputsLinear
         (source.expectedContext lane) le
       priorStatePacked := fun word => Expr.VarsBelow.mono _
         (source.priorStatePacked word) le
-      priorSign := fun word lane => Expr.VarsBelow.mono _
-        (source.priorSign word lane) le
       runningPoint := fun coordinate => ⟨
         Expr.VarsBelow.mono _ (source.runningPoint coordinate).1 le,
         Expr.VarsBelow.mono _ (source.runningPoint coordinate).2 le⟩

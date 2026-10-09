@@ -151,7 +151,7 @@ and recorded identity use schema 5; the Rust package gates are therefore red.
   productionShape, phase order), `PaperAlgebra` (Ajtai-commitment semantics
   and algebras),
   `Transcript` (Poseidon2 Fiat–Shamir and strong-set ρ sampler, membership
-  proved), `XOut` (length-prefixed preimage, `stateHash`, `encHash`,
+  proved), `XOut` (packed-parent preimage, `stateHash`, `encHash`,
   `defaultRunning`), `ProductionKey` (`LogicalRelation`, `key`: the one
   concrete NIFS key, all law fields discharged), `Relation` (`setup`,
   `machine`, `StepHolds := FixedAugmentedTransition`, `TerminalHolds`).
@@ -171,10 +171,9 @@ and recorded identity use schema 5; the Rust package gates are therefore red.
   constructs all canonical PiCCS package rows from `PhaseHolds`.
 - The current pilot + PiCCS source package carries the Lean-owned gate
   relation with 4 matrix tags, 3 terms, degree bound 8, and 28 rounds. Its
-  proved layout has 27,893,668 rows, 28,007,520 private columns, 58 public
-  columns, 28,007,579 total columns, and joint domain 28,007,578. Re-check
-  and update these values from the proved layout on every identity-changing
-  source cut.
+  proved layout (`Layout/Stage1/PilotPiCCS.lean`) has 6,162,451 rows and
+  joint domain 6,228,781. Re-check and update these values from the proved
+  layout on every identity-changing source cut.
 - Rust `paper_exact` implements the direct SuperNeo v1.1 formulas. Rust
   `optimized` keeps the same separate `Eval_K` and `Eval_A` values and is
   byte-equivalent on the tested Rust-to-Rust surface. This is useful

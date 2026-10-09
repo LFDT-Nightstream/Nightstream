@@ -115,7 +115,8 @@ private def assemble (sources : PreparedPhysicalInputs.Inputs)
   let shift := selectedShift
   let application := PerApplicationPackage.directApplicationPlan selectedApplication
   let groups := sources.groups
-  let batchGroups := [groups.initialClaim.batches, groups.sumcheck.batches,
+  let batchGroups := [WitnessProgram.statementBindingBatches Data.logicalWidth
+      Data.publicFits, groups.initialClaim.batches, groups.sumcheck.batches,
     groups.evalK.batches, groups.evalA.batches, groups.ccs.batches,
     groups.norm.batches, groups.finalIdentity.batches]
   let events := [Data.priorChain, Data.outputChain].foldl (fun events chain =>

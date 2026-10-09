@@ -19,6 +19,7 @@ import NightstreamFPrime.Lifecycle.OutputHash
 import NightstreamFPrime.Lifecycle.Pilot
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementBinding
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption
+import NightstreamFPrime.Lifecycle.PiCCS.v1_1.RunningWords
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.RoundTranscript
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.InitialClaim

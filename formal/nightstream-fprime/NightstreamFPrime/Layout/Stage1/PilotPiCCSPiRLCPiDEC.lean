@@ -4,7 +4,7 @@ import NightstreamFPrime.Layout.Stage1.PiDECStarts
 Owns the Stage 1 prefix through the exact PiDEC v1_1 phase.
 
 The 31,968-word PiDEC input ABI follows the completed PiRLC physical endpoint.
-The PiDEC packet then adds 6,912 rows and 18,090 logical-plus-R1CS private
+The PiDEC packet then adds 6,588 rows and 270 logical-plus-R1CS private
 columns. No public column, copy row, or boundary row is added.
 -/
 

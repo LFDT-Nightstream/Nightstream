@@ -116,7 +116,7 @@ private theorem pointWord_eq_piCcs
     rw [PiCCSTranscriptOutputForms.pointSource_eq_transcriptSource]
     unfold PiCCSTranscriptOutputForms.transcriptSource
       PiCCSTranscriptOutputForms.transcriptSourceStart
-    rw [PiCCSInputs.phaseOffset_eq]
+    rw [PiCCSStarts.statementWitnessStart_eq]
     norm_num [Poseidon2.width] at laneBound
     norm_num [PiRLCInputs.phaseOffset]
     omega

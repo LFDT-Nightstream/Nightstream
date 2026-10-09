@@ -151,7 +151,7 @@ theorem transitionExpectedContext
     (bind fits commitmentSetup raw).base _
     (PiCCSOrdinarySourceSupport.source_lt_sourceColumnCount
       (expectedContextSource lane)) (Or.inl (by
-        rw [PiCCSInputs.expectedContextStart_eq, PiCCSInputs.phaseOffset_eq]
+        rw [PiCCSInputs.expectedContextStart_eq, PiCCSStarts.statementWitnessStart_eq]
         have bound := lane.isLt
         omega)), Spartan.sourceToSpartan_expectedContext lane]
   unfold RunningTransitionDirectPlan.packageEnv PerApplicationPackage.baseEnv

@@ -4,9 +4,9 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable
 at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
 
 /-!
-Verifier-visible carriers for canonical SuperNeo v1.1 `Pi_CCS` acceptance.
+Verifier-visible carriers for canonical SuperNeo v1.2 `Pi_CCS` acceptance.
 
-Protocol: SuperNeo v1.1 `Pi_CCS` (Section 7.3 / Appendix B.2).
+Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
 Phase: public verifier input and raw post-SumCheck output message.
 Constraint family: typed authority boundaries only; this file emits no rows.
 
@@ -57,7 +57,7 @@ def sumcheckDegreeBound
   Nat.max
     input.constraintPolynomial.canonicalEqualityGatedDegreeBound 4
 
-/-- Corrected Appendix D.4 per-round degree ceiling
+/-- Corrected SuperNeo v1.2 Appendix B.2 per-round degree ceiling
 `max(D_f + 1, 2b, 2)`. The first entry is computed from the explicit sparse
 syntax. For an empty zero polynomial it is zero; the final `2` still gives the
 same paper bound. Declared degree metadata is not verifier authority. -/
@@ -70,7 +70,7 @@ def paperRoundDegreeCeiling
     (Nat.max (2 * b) 2)
 
 /-- For the frozen strict-`b = 2` specialization, the verifier ceiling is no
-larger than the corrected Appendix D.4 ceiling. -/
+larger than the corrected SuperNeo v1.2 Appendix B.2 ceiling. -/
 theorem sumcheckDegreeBound_le_paperRoundDegreeCeiling_of_b_eq_two
     {Field : Type uField}
     {shape : Shape}

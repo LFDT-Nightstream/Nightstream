@@ -259,16 +259,16 @@ class ConformanceRegistrationTests(unittest.TestCase):
                   "RoundTranscript", "InitialClaim", "SumcheckChain", "EvalKTerminal",
                   "EvalATerminal", "CcsTerminal", "NormTerminal", "FinalIdentity", "OutputBinding")
         for leaf in leaves:
-            prefix = f"NightstreamFPrime.Lifecycle.PiCCS.v1_1.{leaf}."
+            prefix = f"NightstreamFPrime.Lifecycle.PiCCS.v1_2.{leaf}."
             for item in ("SpecHolds", "circuit", "soundness", "completeness"):
                 self.assertIn(prefix + item, names)
             self.assertTrue(any(name.startswith(prefix + "spec_implies_key") for name in names))
             for item in ("freshColumnCount_eq", "physicalRowCount_eq"):
-                self.assertIn(f"NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.{leaf}.{item}", names)
+                self.assertIn(f"NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.{leaf}.{item}", names)
         for item in ("Spec.Folding.PiCCS.accepted_iff_coverage",
-                     "Layout.PiCCS.v1_1.physical_implies_phaseHolds",
-                     "Layout.PiCCS.v1_1.physical_complete",
-                     "Layout.PiCCS.v1_1.cumulativeFootprints_eq_production",
+                     "Layout.PiCCS.v1_2.physical_implies_phaseHolds",
+                     "Layout.PiCCS.v1_2.physical_complete",
+                     "Layout.PiCCS.v1_2.cumulativeFootprints_eq_production",
                      "Export.Stage1.PackageCompleteness.complete_piCcsRows",
                      "Export.Stage1.PiCCSDecodedPhase.selectedRowsZero_implies_phaseHolds"):
             self.assertIn("NightstreamFPrime." + item, names)

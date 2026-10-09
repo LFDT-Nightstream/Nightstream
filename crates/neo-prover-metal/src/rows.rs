@@ -1,6 +1,6 @@
 //! Device evaluation of circuit-owned rows, without a lifecycle-crate dependency.
 
-use neo_ccs::{CcsStructure, Mat, V1_1Evaluations};
+use neo_ccs::{CcsStructure, Mat, V1_2Evaluations};
 use neo_math::{F, K};
 use neo_reductions::{
     optimized_engine::{PaperJointOracleBackend, PaperJointOracleInput, PaperJointRoundOracle},
@@ -80,7 +80,7 @@ impl MetalRowProver {
         witnesses: &[Mat<F>],
         point: &[K],
         assignment_width: usize,
-    ) -> Result<Vec<V1_1Evaluations<K>>, PiCcsError> {
+    ) -> Result<Vec<V1_2Evaluations<K>>, PiCcsError> {
         #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
         {
             let plan = self

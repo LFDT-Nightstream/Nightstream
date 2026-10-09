@@ -71,22 +71,23 @@ schedule, recursive-size claim, or exported theorem.
 
 ### SuperNeo — PiCCS, PiRLC, PiDEC, composition, parameters
 
-- `docs/superneo-paper-v1_1/04_preliminaries.md`
-- `docs/superneo-paper-v1_1/05_embeddings_and_evaluation_homomorphism.md`
-- `docs/superneo-paper-v1_1/06_strong_and_weak_interactive_reductions.md`
-- `docs/superneo-paper-v1_1/07_superneo_folding_scheme_for_ccs.md`
-- `docs/superneo-paper-v1_1/08_concrete_parameters.md`
-- `docs/superneo-paper-v1_1/11_appendix_B_deferred_theorems_and_proofs.md`:
+- `docs/superneo-paper-v1_2/04_preliminaries.md`
+- `docs/superneo-paper-v1_2/05_embeddings_and_evaluation_homomorphism.md`
+- `docs/superneo-paper-v1_2/06_strong_and_weak_interactive_reductions.md`
+- `docs/superneo-paper-v1_2/07_superneo_folding_scheme_for_ccs.md`
+- `docs/superneo-paper-v1_2/08_concrete_parameters.md`
+- `docs/superneo-paper-v1_2/11_appendix_B_deferred_theorems_and_proofs.md`:
   - B.1 Proof of Composition Theorem
   - B.2 Proofs for PiCCS
   - B.3 Proofs for PiRLC
   - B.4 PiDEC is a Reduction of Knowledge
 
-The Appendix B.2 parameters `k_rho = 14`, `B = 2^14` are reference values
+The Section 8.2 parameters `k_rho = 14`, `B = 2^14` are reference values
 only. The Nightstream profile is `k_rho = 16`; do not describe it as paper
 exact.
 
-SuperNeo v1.1 is the normative folding protocol. The v1.0 and v1.0-errata
+SuperNeo v1.2 (ePrint 2026/242, 4 September 2026) is the normative folding
+protocol and security reference. Cite only its numbers. The v1.0 and v1.0-errata
 PiCCS layouts are reference material only and must not remain on the
 production Lean or Rust path.
 
@@ -144,7 +145,7 @@ latest reviewed cut, the Lean source uses schema 6 while the stored artifact
 and recorded identity use schema 5; the Rust package gates are therefore red.
 
 - `Spec/`: Goldilocks/Φ₈₁ algebra, profile, Poseidon2 reference, sumcheck,
-  exact v1.1 PiCCS with separate Pad and 4-matrix evaluation families,
+  exact v1.2 PiCCS with separate Pad and 4-matrix evaluation families,
   PiRLC/PiDEC verifiers, composed NIFS `Key`/`verify`, Φ₈₁ PiRLC/PiDEC
   algebras, HyperNova Construction 2, and Goldilocks primality.
 - `Lifecycle/`: `Types` (slotCount 1, cubeVariables 28,
@@ -165,7 +166,7 @@ and recorded identity use schema 5; the Rust package gates are therefore red.
   pilot-only layout is
   12,574,138 rows, 12,659,030 private columns, 58 public columns, 12,659,089
   total columns, and joint domain 12,659,088.
-- PiCCS v1.1 has twelve audit leaves, one phase assembler, logical
+- PiCCS v1.2 has twelve audit leaves, one phase assembler, logical
   soundness and completeness, physical preservation, package soundness,
   and package completeness. `PackageCompleteness.complete_piCcsRows`
   constructs all canonical PiCCS package rows from `PhaseHolds`.
@@ -174,7 +175,7 @@ and recorded identity use schema 5; the Rust package gates are therefore red.
   proved layout (`Layout/Stage1/PilotPiCCS.lean`) has 6,162,451 rows and
   joint domain 6,228,781. Re-check and update these values from the proved
   layout on every identity-changing source cut.
-- Rust `paper_exact` implements the direct SuperNeo v1.1 formulas. Rust
+- Rust `paper_exact` implements the direct SuperNeo v1.2 formulas. Rust
   `optimized` keeps the same separate `Eval_K` and `Eval_A` values and is
   byte-equivalent on the tested Rust-to-Rust surface. This is useful
   differential evidence. It is not Lean-to-Rust parity.
@@ -192,12 +193,12 @@ Known debts, to close and not to hide:
    `Decidable (PiDEC.PaperVerifier.Accepted …)`.
 2. The scoped fixed-size proof overrides for ring degree 54 remain candidates
    for structural proofs. Do not hide them with artifact-sized evaluation.
-3. The PiDEC verifier must add the v1.1 public-input `B`-norm rejection before
+3. The PiDEC verifier must add the v1.2 public-input `B`-norm rejection before
    the canonical 16-child split. An out-of-range split must fail. No accepted
    verifier path may silently use `fallbackDigit`.
 4. The production Rust lifecycle does not yet consume the complete Lean
    package. Its native PiCCS circuit still uses `y_ring`/`ct` wires and a
-   24-variable application relation. The v1.1 engines are migrated, but the
+   24-variable application relation. The v1.2 engines are migrated, but the
    application must load the verifier-owned package, build its assignment
    from a real fold, and retire the superseded native PiCCS circuit authority
    in the same integration slice.
@@ -319,7 +320,7 @@ subcircuit boundary is forbidden.
 
 Each leaf must provide one compact audit packet:
 
-- the exact SuperNeo v1.1 section, definition, or equation that owns it;
+- the exact SuperNeo v1.2 section, definition, or equation that owns it;
 - a named Lean semantic predicate and the exact parent-relation conjunct that
   it discharges;
 - explicit symbolic inputs and outputs, including their representations;
@@ -351,25 +352,25 @@ PiCCS
 ├── final evaluation
 │   ├── Eval_K: the separate Pad family
 │   ├── Eval_A: the separate 4-matrix family
-│   └── the v1.1 final joint identity
+│   └── the v1.2 final joint identity
 ├── output reduced claims
 └── the complete PiCCS FormalCircuit
 ```
 
 The v1.0 compression is forbidden at every level of this tree. Do not place
 Pad at matrix zero, combine `Eval_K` and `Eval_A` into one `Eval`, or use an
-unproved equivalence to the compressed relation. Preserve the v1.1 split in
+unproved equivalence to the compressed relation. Preserve the v1.2 split in
 the semantic predicate, transcript, builder, layout, package, and Rust parity
 interface.
 
 Replace the v1.0 authority in place. Do not create a sibling
-`Spec/Folding/PiCCS/v1_1/` relation or keep an old verifier behind an adapter.
-In the same slice that installs each v1.1 authority path, remove the
-superseded v1.0-only modules, fields, and imports that no longer have a v1.1
+`Spec/Folding/PiCCS/v1_2/` relation or keep an old verifier behind an adapter.
+In the same slice that installs each v1.2 authority path, remove the
+superseded v1.0-only modules, fields, and imports that no longer have a v1.2
 paper obligation. This includes the Pad-as-matrix-zero `PrefixLayout` and
 `identityFirstEntry` authority surfaces. The NIFS `Key`,
 `ProductionKey.key`, `nifsVerifier`, and `StepHolds` must all consume the same
-exact v1.1 `Accepted` predicate that the gadget proves. A v1.1 gadget beside a
+exact v1.2 `Accepted` predicate that the gadget proves. A v1.2 gadget beside a
 v1.0 lifecycle verifier is a forbidden second relation.
 
 Apply the same ownership rule to PiRLC and PiDEC. PiRLC must visibly separate
@@ -377,9 +378,9 @@ input binding, transcript and strong-set sampling, the 17-input combination,
 commitment and evaluation combinations, and output binding. PiDEC must
 visibly separate the public-input `B`-norm rejection, `split_b`, digit or
 low-norm checks, recombination, the 16 output children, and output binding.
-Derive the final leaves from the v1.1 formulas, not from the old Rust code.
+Derive the final leaves from the v1.2 formulas, not from the old Rust code.
 
-The exact v1.1 `Accepted` predicates on the Rust parity surface must be
+The exact v1.2 `Accepted` predicates on the Rust parity surface must be
 computably decidable. Before PiDEC or composed-NIFS parity can close, replace
 `Classical.propDecidable` with a computable decision procedure and prove that
 it agrees with the semantic predicate. The circuit and Rust verifier must not
@@ -411,7 +412,7 @@ not substitute an unproved sum or invent a per-leaf quota. Include transcript
 rows when the transcript leaf closes so a late transcript expansion cannot
 hide until final composition.
 
-At the start of each v1.1 phase, report the Rust migration surface that the
+At the start of each v1.2 phase, report the Rust migration surface that the
 phase will replace. For PiCCS this includes the joint proof-message and
 polynomial layout, sumcheck witness construction, folded-instance encoding,
 transcript schedule, and fixtures that still follow v1.0. Exact Rust file
@@ -463,7 +464,7 @@ active phase is conformance-closed.
 
 A phase is conformance-closed only when:
 
-1. An independent review artifact maps every exact SuperNeo `v1_1` verifier
+1. An independent review artifact maps every exact SuperNeo `v1_2` verifier
    conjunct to its Lean predicate, circuit, and theorem. It confirms that no
    `v1_0` Pad-as-matrix-zero compression remains. The report names the
    reviewer and reviewed source cut.
@@ -592,12 +593,12 @@ package. Do not rewrite, clean up, or delete the existing Rust F′ emitters
 until a phase's rows come from the Lean package; then remove only that phase's
 superseded emitter surface.
 
-The production Rust folding path must implement SuperNeo v1.1. Update any
+The production Rust folding path must implement SuperNeo v1.2. Update any
 v1.0 PiCCS layout, folded-instance representation, transcript schedule, or
-test fixture when the corresponding Lean v1.1 phase reaches the package.
+test fixture when the corresponding Lean v1.2 phase reaches the package.
 
 Both Rust folding engines must migrate to this authority. The `paper_exact`
-engine must implement the SuperNeo v1.1 formulas directly, with separate
+engine must implement the SuperNeo v1.2 formulas directly, with separate
 `Eval_K` and `Eval_A` families and the paper's stated transcript and reduction
 order. It must not retain the v1.0 Pad-as-matrix-zero compression behind an
 adapter. The `optimized` engine may use a different internal algorithm, but
@@ -688,7 +689,7 @@ one production F′ circuit.
 
 ### SuperNeo version authority
 
-Implement exact SuperNeo v1.1 semantics before implementing more PiCCS circuit
+Implement exact SuperNeo v1.2 semantics before implementing more PiCCS circuit
 gadgets.
 
 The old compressed v1.0 relation is not acceptable. In particular:
@@ -697,17 +698,19 @@ The old compressed v1.0 relation is not acceptable. In particular:
 - Keep `Eval_A`, for the CCS matrix evaluation family, separate.
 - Do not treat Pad as matrix zero.
 - Do not replace both families with one carried `Eval` value.
-- Do not assume that the old compressed relation is equivalent to v1.1 without
+- Do not assume that the old compressed relation is equivalent to v1.2 without
   a proved equivalence theorem.
-- Carry the v1.1 distinction through the semantic relation, transcript,
+- Carry the v1.2 distinction through the semantic relation, transcript,
   circuit inputs, constraints, output claims, exported package, and Rust
   parity interface.
 
-Lean is the semantic authority. Rust must later conform to the exact v1.1 Lean
+Lean is the semantic authority. Rust must later conform to the exact v1.2 Lean
 relation.
 
-For notation in new Lean namespaces and file names, prefer `v1_1` over `V11`
-or other forms. Do not move or rename closed work only to apply this notation.
+For notation in Lean namespaces and file names, use `v1_2`, not `V12` or
+other forms. Protocol byte tags that spell `v1_1` (`PiCCS/digest-only/v1_1`,
+`nifs-key/v1_1`, `verifier-context/v1_1`, `context/v1_1`) are frozen
+transcript and identity bytes; do not change them.
 
 ### Decomposition rule
 
@@ -732,7 +735,7 @@ The source tree shows the mathematical structure, but remains compact.
 
 Each leaf gadget contains or directly references:
 
-- the exact SuperNeo v1.1 section, definition, or equation that it implements;
+- the exact SuperNeo v1.2 section, definition, or equation that it implements;
 - a named Lean semantic predicate;
 - explicit symbolic input and output types;
 - the circuit constraints;
@@ -747,7 +750,7 @@ Use a short module comment similar to this:
 
 ```lean
 /-!
-Paper authority: SuperNeo v1.1, section/equation ...
+Paper authority: SuperNeo v1.2, section/equation ...
 Obligation: A short statement of the mathematical check.
 
 Inputs:
@@ -786,7 +789,7 @@ PiCCS
 ├── Final evaluation
 │   ├── Eval_K / Pad evaluation
 │   ├── Eval_A / CCS matrix evaluations
-│   └── v1.1 final joint identity
+│   └── v1.2 final joint identity
 ├── Output reduced claims
 └── Complete PiCCS FormalCircuit
 ```
@@ -794,7 +797,7 @@ PiCCS
 A possible file organization is:
 
 ```text
-Spec/Folding/PiCCS/v1_1/
+Spec/Folding/PiCCS/v1_2/
   Statement.lean
   Transcript.lean
   SumcheckRound.lean
@@ -850,7 +853,7 @@ The PiDEC tree visibly separates:
 - the indexed construction of 16 output components;
 - output-claim binding.
 
-Derive the final leaf boundaries from the exact v1.1 paper formulas. Do not
+Derive the final leaf boundaries from the exact v1.2 paper formulas. Do not
 derive them from the old Rust implementation.
 
 ### Parent and child boundaries
@@ -889,14 +892,14 @@ leaf FormalCircuits
 → one emitted Stage 1 package
 ```
 
-Protocol-specific leaves live under `Lifecycle/<phase>/v1_1/`. Reusable
+Protocol-specific leaves live under `Lifecycle/<phase>/v1_2/`. Reusable
 arithmetic and transcript circuits remain under `Gadgets/`. Each phase has
 exactly one assembler:
 
 ```text
-Lifecycle/PiCCS/v1_1/Formal.lean
-Lifecycle/PiRLC/v1_1/Formal.lean
-Lifecycle/PiDEC/v1_1/Formal.lean
+Lifecycle/PiCCS/v1_2/Formal.lean
+Lifecycle/PiRLC/v1_2/Formal.lean
+Lifecycle/PiDEC/v1_2/Formal.lean
 ```
 
 Each phase assembler exports one `FormalCircuit`, its soundness and
@@ -928,9 +931,9 @@ order, verifier-owned challenges, public binding, separate `Eval_K` and
 The physical hierarchy mirrors the logical hierarchy:
 
 ```text
-Layout/PiCCS/v1_1/{Lowering,Preservation}.lean
-Layout/PiRLC/v1_1/{Lowering,Preservation}.lean
-Layout/PiDEC/v1_1/{Lowering,Preservation}.lean
+Layout/PiCCS/v1_2/{Lowering,Preservation}.lean
+Layout/PiRLC/v1_2/{Lowering,Preservation}.lean
+Layout/PiDEC/v1_2/{Lowering,Preservation}.lean
 Layout/Stage1/{Lowering,Ownership,Preservation}.lean
 ```
 
@@ -984,7 +987,7 @@ Work on one leaf at a time:
 10. Only then start the next leaf.
 
 Do not report PiCCS complete until a composition theorem proves that the
-complete PiCCS `FormalCircuit` is sound and complete for the exact v1.1
+complete PiCCS `FormalCircuit` is sound and complete for the exact v1.2
 `Accepted` predicate.
 
 ### Phase completion evidence

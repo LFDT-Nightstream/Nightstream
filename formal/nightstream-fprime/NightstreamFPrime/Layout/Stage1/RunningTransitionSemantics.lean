@@ -10,7 +10,7 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.Stage1
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 /-- The typed running value carried by the output state block. -/
@@ -64,11 +64,11 @@ theorem recursive_canonical
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (env : Env)
-    (split : NightstreamFPrime.Lifecycle.PiDEC.v1_1.PublicInputSplit.RelationHolds
-      (NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal.publicInputInterface
-        (NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal.atOffset
+    (split : NightstreamFPrime.Lifecycle.PiDEC.v1_2.PublicInputSplit.RelationHolds
+      (NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.publicInputInterface
+        (NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.atOffset
           (piDecInterface logicalWidth publicFits) PiDECInputs.phaseOffset))
-      (NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal.publicInputOffset
+      (NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.publicInputOffset
         PiDECInputs.phaseOffset) env) :
     Lifecycle.ChildrenCanonical
       (StatementAbsorption.evalRunning (recursiveRunningExpr logicalWidth publicFits) env) := by
@@ -90,7 +90,7 @@ def piDecRunningOutput
         (logicalWidth := logicalWidth) (publicFits := publicFits))
       productionShape :=
   let piDec := piDecInterface logicalWidth publicFits
-  let outputs := NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.output
+  let outputs := NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.output
     relation piDec PiDECInputs.phaseOffset env
   { point := StatementAbsorption.evalPoint
       (piDec.point PiDECInputs.phaseOffset) env

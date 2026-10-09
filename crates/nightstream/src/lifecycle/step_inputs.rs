@@ -5,14 +5,14 @@
 
 use neo_math::{KExtensions, F};
 use nightstream_fprime::{
-    PackageError, PiCcsV1_1PackageInputs, PiDecV1_1PackageInputs, PI_CCS_V1_1_COEFFICIENT_COUNT,
-    PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS, PI_DEC_V1_1_PUBLIC_INPUT_WORDS_PER_CHILD,
+    PackageError, PiCcsV1_2PackageInputs, PiDecV1_2PackageInputs, PI_CCS_V1_2_COEFFICIENT_COUNT,
+    PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS, PI_DEC_V1_2_PUBLIC_INPUT_WORDS_PER_CHILD,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use super::{
-    encode_pi_ccs_v1_1_public_input, pi_ccs_v1_1_prior_children, pi_ccs_v1_1_state_hash,
-    serialize_pi_ccs_v1_1_state_preimage, PiCcsV1_1PackageBridgeError, PiCcsV1_1ProofInputs, PreparedLifecycle,
+    encode_pi_ccs_v1_2_public_input, pi_ccs_v1_2_prior_children, pi_ccs_v1_2_state_hash,
+    serialize_pi_ccs_v1_2_state_preimage, PiCcsV1_2PackageBridgeError, PiCcsV1_2ProofInputs, PreparedLifecycle,
 };
 use crate::folding::transcript::Transcript;
 use crate::folding::{self as nifs, ajtai_dec_mixer, ajtai_rlc_mixer, CcsClaim, RunningInstance};
@@ -50,7 +50,7 @@ pub enum StepInputError {
     #[error(transparent)]
     Nifs(#[from] nifs::Error),
     #[error(transparent)]
-    Bridge(#[from] PiCcsV1_1PackageBridgeError),
+    Bridge(#[from] PiCcsV1_2PackageBridgeError),
     #[error(transparent)]
     Package(#[from] PackageError),
 }
@@ -59,8 +59,8 @@ pub enum StepInputError {
 /// an accepted envelope; `next_running` contains no prover witnesses.
 #[derive(Debug)]
 pub struct Stage1StepInputs {
-    pub(super) pi_ccs: PiCcsV1_1PackageInputs,
-    pub(super) pi_dec: PiDecV1_1PackageInputs,
+    pub(super) pi_ccs: PiCcsV1_2PackageInputs,
+    pub(super) pi_dec: PiDecV1_2PackageInputs,
     pub(super) application_witness: Vec<u64>,
     #[cfg(test)]
     pub(super) output_preimage: Vec<u64>,
@@ -72,11 +72,11 @@ pub struct Stage1StepInputs {
 }
 
 impl Stage1StepInputs {
-    pub fn pi_ccs(&self) -> &PiCcsV1_1PackageInputs {
+    pub fn pi_ccs(&self) -> &PiCcsV1_2PackageInputs {
         &self.pi_ccs
     }
 
-    pub fn pi_dec(&self) -> &PiDecV1_1PackageInputs {
+    pub fn pi_dec(&self) -> &PiDecV1_2PackageInputs {
         &self.pi_dec
     }
 
@@ -127,7 +127,7 @@ impl PreparedLifecycle {
         output: [F; 4],
     ) -> Result<Stage1StepInputs, StepInputError> {
         let (prior_preimage, prior_digest) = self.checked_prior_state(state, running, fresh)?;
-        let prior_children = pi_ccs_v1_1_prior_children(&running.claims)?;
+        let prior_children = pi_ccs_v1_2_prior_children(&running.claims)?;
         if running
             .parent_authority
             .iter()
@@ -138,7 +138,7 @@ impl PreparedLifecycle {
             ));
         }
         let context = self.binding.verifier_context().digest().map(F::from_u64);
-        let prior_public_input = encode_pi_ccs_v1_1_public_input(prior_digest)?;
+        let prior_public_input = encode_pi_ccs_v1_2_public_input(prior_digest)?;
         let prior_frame = digest_bytes(prior_digest);
         if running
             .claims
@@ -174,14 +174,14 @@ impl PreparedLifecycle {
         }
 
         let output_preimage =
-            serialize_pi_ccs_v1_1_state_preimage(context, state.iteration + 1, state.z0, output, &next_running.claims)?;
-        let output_digest = pi_ccs_v1_1_state_hash(&output_preimage)?;
-        let next_public_input = encode_pi_ccs_v1_1_public_input(output_digest)?;
+            serialize_pi_ccs_v1_2_state_preimage(context, state.iteration + 1, state.z0, output, &next_running.claims)?;
+        let output_digest = pi_ccs_v1_2_state_hash(&output_preimage)?;
+        let next_public_input = encode_pi_ccs_v1_2_public_input(output_digest)?;
 
         // The checked output serializer has validated all child shapes and
         // zero padding before these exact coefficient prefixes are read.
-        let coefficients = PI_CCS_V1_1_COEFFICIENT_COUNT;
-        let pi_dec = PiDecV1_1PackageInputs::new(
+        let coefficients = PI_CCS_V1_2_COEFFICIENT_COUNT;
+        let pi_dec = PiDecV1_2PackageInputs::new(
             next_running
                 .claims
                 .iter()
@@ -224,7 +224,7 @@ impl PreparedLifecycle {
                 .claims
                 .iter()
                 .map(|child| {
-                    (0..PI_DEC_V1_1_PUBLIC_INPUT_WORDS_PER_CHILD)
+                    (0..PI_DEC_V1_2_PUBLIC_INPUT_WORDS_PER_CHILD)
                         .map(|column| child.X[(column % coefficients, column / coefficients)].as_canonical_u64())
                         .collect()
                 })
@@ -232,7 +232,7 @@ impl PreparedLifecycle {
         )?;
         #[cfg(test)]
         let recorded_output_preimage = output_preimage.clone();
-        let pi_ccs = PiCcsV1_1ProofInputs::from_proof(std::slice::from_ref(fresh), &proof.pi_ccs)?
+        let pi_ccs = PiCcsV1_2ProofInputs::from_proof(std::slice::from_ref(fresh), &proof.pi_ccs)?
             .into_package_inputs(
                 prior_preimage,
                 output_preimage,
@@ -284,16 +284,16 @@ impl PreparedLifecycle {
                 "selected plain claims cannot carry auxiliary commitments",
             ));
         }
-        let preimage = serialize_pi_ccs_v1_1_state_preimage(
+        let preimage = serialize_pi_ccs_v1_2_state_preimage(
             self.binding.verifier_context().digest().map(F::from_u64),
             state.iteration,
             state.z0,
             state.current,
             &running.claims,
         )?;
-        let digest = pi_ccs_v1_1_state_hash(&preimage)?;
-        let public = encode_pi_ccs_v1_1_public_input(digest)?;
-        if fresh.m_in != PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS
+        let digest = pi_ccs_v1_2_state_hash(&preimage)?;
+        let public = encode_pi_ccs_v1_2_public_input(digest)?;
+        if fresh.m_in != PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS
             || fresh.x.len() != public.len()
             || fresh
                 .x

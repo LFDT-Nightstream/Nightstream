@@ -13,7 +13,7 @@ use crate::engines::pi_ccs_joint::{
     equality, eval_a_gamma_exponent, eval_k_gamma_exponent, gamma_power, range_product, JointDims, ProtocolTrace,
     TerminalComponents,
 };
-use crate::engines::pi_ccs_joint_protocol::{self, PaperJointRoundOracle, TranscriptBinding, V1_1OutputOpening};
+use crate::engines::pi_ccs_joint_protocol::{self, PaperJointRoundOracle, TranscriptBinding, V1_2OutputOpening};
 use crate::engines::pi_ccs_protocol::{Challenges, PiCcsProof};
 use crate::error::PiCcsError;
 use crate::superneo_eval::{CachedMatrixRows, MatrixRows, MatrixWindow, SuperneoEvalCache};
@@ -218,7 +218,7 @@ pub trait PaperJointOracleBackend {
         input: PaperJointOracleInput<'a>,
     ) -> Result<Box<dyn PaperJointRoundOracle + 'a>, PiCcsError>;
 
-    /// Evaluate separate v1_1 PiDEC child openings with the same static
+    /// Evaluate separate v1_2 PiDEC child openings with the same static
     /// matrix plan. The canonical PiDEC prover checks their radix
     /// recomposition before it returns a proof.
     fn dec_openings(
@@ -227,7 +227,7 @@ pub trait PaperJointOracleBackend {
         _witnesses: &[Mat<F>],
         _point: &[K],
         _assignment_width: usize,
-    ) -> Result<Option<Vec<V1_1OutputOpening>>, PiCcsError> {
+    ) -> Result<Option<Vec<V1_2OutputOpening>>, PiCcsError> {
         Ok(None)
     }
 }
@@ -258,7 +258,7 @@ fn build_outputs(
     point: &[K],
     dims: JointDims,
     cache: Option<&OptimizedStructureCache>,
-    precomputed_openings: Option<&[V1_1OutputOpening]>,
+    precomputed_openings: Option<&[V1_2OutputOpening]>,
 ) -> Result<Vec<CeClaim<Cmt, F, K>>, PiCcsError> {
     if precomputed_openings.is_none() && cache.is_none() {
         return Err(PiCcsError::ProtocolError(
@@ -275,7 +275,7 @@ fn build_outputs(
             "optimized opening backend returned the wrong source count".into(),
         ));
     }
-    let openings = |source: usize, witness: &Mat<F>| -> Result<V1_1OutputOpening, PiCcsError> {
+    let openings = |source: usize, witness: &Mat<F>| -> Result<V1_2OutputOpening, PiCcsError> {
         if let Some(precomputed) = precomputed_openings {
             let opening = precomputed
                 .get(source)
@@ -285,7 +285,7 @@ fn build_outputs(
                 || opening.eval_a.iter().any(|row| row.len() != D)
             {
                 return Err(PiCcsError::ProtocolError(
-                    "optimized opening backend returned a non-canonical v1_1 evaluation".into(),
+                    "optimized opening backend returned a non-canonical v1_2 evaluation".into(),
                 ));
             }
             let mut eval_k = opening.eval_k.clone();
@@ -299,7 +299,7 @@ fn build_outputs(
                     padded
                 })
                 .collect::<Vec<_>>();
-            return Ok(V1_1OutputOpening { eval_k, eval_a });
+            return Ok(V1_2OutputOpening { eval_k, eval_a });
         }
         let weights = weights
             .as_deref()
@@ -317,7 +317,7 @@ fn build_outputs(
                     row
                 })
                 .collect();
-        Ok(V1_1OutputOpening { eval_k, eval_a })
+        Ok(V1_2OutputOpening { eval_k, eval_a })
     };
 
     let mut outputs = Vec::with_capacity(fresh_claims.len() + running_claims.len());

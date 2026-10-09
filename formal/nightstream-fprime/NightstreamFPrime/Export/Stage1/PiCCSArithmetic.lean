@@ -1,26 +1,26 @@
 import NightstreamFPrime.Export.Stage1.PiCCSInvocations
 import NightstreamFPrime.Export.Stage1.Rows
-import NightstreamFPrime.Layout.PiCCS.v1_1.ProductionInputs
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.FormalRows
+import NightstreamFPrime.Layout.PiCCS.v1_2.ProductionInputs
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.FormalRows
 
 /-!
 Owns the compact ordinary-row packet for the eight non-permutation PiCCS
 leaves.
 
 The canonical PiCCS phase assembler remains
-`Lifecycle.PiCCS.v1_1.Formal`. This module only lowers its arithmetic children
+`Lifecycle.PiCCS.v1_2.Formal`. This module only lowers its arithmetic children
 at their proved offsets, applies the Stage 1 Spartan column permutation, and
 encodes each physical row as one witness instruction or sparse assertion.
 
 Parent coverage:
-- `PiCCS.v1_1.Formal.statementBindingCircuit`
-- `PiCCS.v1_1.Formal.initialClaimCircuit`
-- `PiCCS.v1_1.Formal.sumcheckCircuit`
-- `PiCCS.v1_1.Formal.evalKCircuit`
-- `PiCCS.v1_1.Formal.evalACircuit`
-- `PiCCS.v1_1.Formal.ccsCircuit`
-- `PiCCS.v1_1.Formal.normCircuit`
-- `PiCCS.v1_1.Formal.finalIdentityCircuit`
+- `PiCCS.v1_2.Formal.statementBindingCircuit`
+- `PiCCS.v1_2.Formal.initialClaimCircuit`
+- `PiCCS.v1_2.Formal.sumcheckCircuit`
+- `PiCCS.v1_2.Formal.evalKCircuit`
+- `PiCCS.v1_2.Formal.evalACircuit`
+- `PiCCS.v1_2.Formal.ccsCircuit`
+- `PiCCS.v1_2.Formal.normCircuit`
+- `PiCCS.v1_2.Formal.finalIdentityCircuit`
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSArithmetic
@@ -30,7 +30,7 @@ open NightstreamFPrime.Export.Stage1
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
@@ -297,7 +297,7 @@ def statementBindingConstraints
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) : List Expr :=
-  NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints
+  NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints
     (Formal.statementBindingCircuit (sharedInterface logicalWidth publicFits))
     statementBindingLogicalStart
 
@@ -305,7 +305,7 @@ def initialClaimConstraints
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) : List Expr :=
-  NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints
+  NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints
     (Formal.initialClaimCircuit (sharedInterface logicalWidth publicFits))
     initialClaimLogicalStart
 
@@ -313,7 +313,7 @@ def sumcheckConstraints
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) : List Expr :=
-  NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints
+  NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints
     (Formal.sumcheckCircuit (sharedInterface logicalWidth publicFits))
     sumcheckLogicalStart
 
@@ -321,7 +321,7 @@ def evalKConstraints
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) : List Expr :=
-  NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints
+  NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints
     (Formal.evalKCircuit (sharedInterface logicalWidth publicFits))
     evalKLogicalStart
 
@@ -329,7 +329,7 @@ def evalAConstraints
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) : List Expr :=
-  NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints
+  NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints
     (Formal.evalACircuit (sharedInterface logicalWidth publicFits))
     evalALogicalStart
 
@@ -789,10 +789,10 @@ def inputShapes
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    NightstreamFPrime.Layout.PiCCS.v1_1.InputShapes relation
+    NightstreamFPrime.Layout.PiCCS.v1_2.InputShapes relation
       (parentInterface logicalWidth publicFits)
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset :=
-  NightstreamFPrime.Layout.PiCCS.v1_1.ProductionInputs.inputShapes relation
+  NightstreamFPrime.Layout.PiCCS.v1_2.ProductionInputs.inputShapes relation
     (parentInterface logicalWidth publicFits)
     NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset
     (NightstreamFPrime.Layout.Stage1.PiCCSInputs.externalInputsLinear
@@ -807,7 +807,7 @@ theorem statementBindingRows_length
   rw [statementBindingRows, compilePacket_length]
   unfold statementBindingConstraints
   exact
-    NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.StatementBinding.physicalRowCount_eq
+    NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.StatementBinding.physicalRowCount_eq
       (sharedInterface logicalWidth publicFits)
       (fun childOffset => by
         simpa [sharedInterface, PiCCSInvocations.sharedInterface,
@@ -825,7 +825,7 @@ theorem initialClaimRows_length
   rw [initialClaimRows, compilePacket_length]
   unfold initialClaimConstraints
   rw [initialClaimLogicalStart_matches logicalWidth publicFits]
-  exact NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.InitialClaim.physicalRowCount_eq
+  exact NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.InitialClaim.physicalRowCount_eq
     (sharedInterface logicalWidth publicFits)
     (inputShapes logicalWidth publicFits relation).initialClaim
     (Formal.initialClaimOffset (parentInterface logicalWidth publicFits)
@@ -840,7 +840,7 @@ theorem sumcheckRows_length
   rw [sumcheckRows, compilePacket_length]
   unfold sumcheckConstraints
   rw [sumcheckLogicalStart_matches logicalWidth publicFits]
-  exact NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.SumcheckChain.physicalRowCount_eq
+  exact NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.SumcheckChain.physicalRowCount_eq
     (sharedInterface logicalWidth publicFits)
     (inputShapes logicalWidth publicFits relation).sumcheck
     (Formal.sumcheckOffset (parentInterface logicalWidth publicFits)
@@ -855,7 +855,7 @@ theorem evalKRows_length
   rw [evalKRows, compilePacket_length]
   unfold evalKConstraints
   rw [evalKLogicalStart_matches logicalWidth publicFits]
-  exact NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.EvalKTerminal.physicalRowCount_eq
+  exact NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.EvalKTerminal.physicalRowCount_eq
     (sharedInterface logicalWidth publicFits)
     (inputShapes logicalWidth publicFits relation).eval_K
     (Formal.evalKOffset (parentInterface logicalWidth publicFits)
@@ -870,7 +870,7 @@ theorem evalARows_length
   rw [evalARows, compilePacket_length]
   unfold evalAConstraints
   rw [evalALogicalStart_matches logicalWidth publicFits]
-  exact NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.EvalATerminal.physicalRowCount_eq
+  exact NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.EvalATerminal.physicalRowCount_eq
     (sharedInterface logicalWidth publicFits)
     (inputShapes logicalWidth publicFits relation).eval_A
     (Formal.evalAOffset (parentInterface logicalWidth publicFits)
@@ -887,7 +887,7 @@ theorem ccsRows_length
   rw [ccsLogicalStart_matches logicalWidth publicFits]
   rw [← Formal.ccsCircuit_main_eq_rowMain relation
     (sharedInterface logicalWidth publicFits)]
-  exact NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.CcsTerminal.physicalRowCount_eq relation
+  exact NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.CcsTerminal.physicalRowCount_eq relation
     (sharedInterface logicalWidth publicFits)
     (inputShapes logicalWidth publicFits relation).ccs
     (Formal.ccsOffset (parentInterface logicalWidth publicFits)
@@ -907,7 +907,7 @@ theorem normRows_length
     ← Formal.normOffset_eq_normRowOffset relation
       (parentInterface logicalWidth publicFits)
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset]
-  exact NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.NormTerminal.physicalRowCount_eq relation
+  exact NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.NormTerminal.physicalRowCount_eq relation
     (sharedInterface logicalWidth publicFits)
     (inputShapes logicalWidth publicFits relation).norm
     (Formal.normOffset relation (parentInterface logicalWidth publicFits)
@@ -928,24 +928,24 @@ theorem finalIdentityRows_length
       (parentInterface logicalWidth publicFits)
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset]
   have footprint :=
-    NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.FinalIdentity.physicalRowCount_eq relation
+    NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.FinalIdentity.physicalRowCount_eq relation
     (sharedInterface logicalWidth publicFits)
     (inputShapes logicalWidth publicFits relation).finalIdentity
     (Formal.finalIdentityOffset relation
       (parentInterface logicalWidth publicFits)
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset)
-  have terminal := NightstreamFPrime.Layout.PiCCS.v1_1.terminalRowCost_eq
+  have terminal := NightstreamFPrime.Layout.PiCCS.v1_2.terminalRowCost_eq
     relation (parentInterface logicalWidth publicFits)
     NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset
     (inputShapes logicalWidth publicFits relation)
   have terminalPhysical :
-      NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.FinalIdentity.terminalPhysicalRowCount
+      NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.FinalIdentity.terminalPhysicalRowCount
           (Formal.finalIdentityInterface relation
             (sharedInterface logicalWidth publicFits))
           (Formal.finalIdentityOffset relation
             (parentInterface logicalWidth publicFits)
             NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset) = 211 := by
-    simpa [NightstreamFPrime.Layout.PiCCS.v1_1.terminalRowCost,
+    simpa [NightstreamFPrime.Layout.PiCCS.v1_2.terminalRowCost,
       sharedInterface, parentInterface,
       PiCCSInvocations.sharedInterface] using terminal
   rw [footprint, terminalPhysical]

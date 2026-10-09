@@ -8,10 +8,10 @@ use p3_symmetric::Permutation;
 const APP_DOMAIN: &[u8] = b"neo/transcript/v1|poseidon2-goldilocks-w8-r4";
 const FOLD_DOMAIN: &[u8] = b"Nightstream/SuperNeo/fold/v2";
 
-/// The constant first chunk of the v1.1 fold transcript:
+/// The constant first chunk of the v1.2 fold transcript:
 /// `Nightstream/SuperNeo/fold/v2`, eight little-endian bytes per word, then
 /// zero words up to one rate chunk.
-pub fn fold_domain_chunk_v1_1() -> [F; p2::RATE] {
+pub fn fold_domain_chunk_v1_2() -> [F; p2::RATE] {
     std::array::from_fn(|word| {
         let bytes = FOLD_DOMAIN.get(8 * word..).unwrap_or_default();
         let mut packed = [0u8; 8];
@@ -39,21 +39,21 @@ pub struct Poseidon2Transcript {
 }
 
 impl Poseidon2Transcript {
-    /// Construct the zero-state transcript used by the Lean v1_1 relation.
-    pub fn new_v1_1() -> Self {
+    /// Construct the zero-state transcript used by the Lean v1_2 relation.
+    pub fn new_v1_2() -> Self {
         Self::empty()
     }
 
-    /// Reset to the Lean-defined SuperNeo v1.1 transcript state.
-    pub fn reset_v1_1(&mut self) {
+    /// Reset to the Lean-defined SuperNeo v1.2 transcript state.
+    pub fn reset_v1_2(&mut self) {
         self.st = [Goldilocks::ZERO; p2::WIDTH];
         self.absorbed = 0;
     }
 
     /// Add each word into the rate lanes and permute after every complete or
-    /// partial chunk. This is the exact Lean v1.1 absorb operation.
-    pub fn absorb_v1_1(&mut self, fields: &[F]) {
-        assert_eq!(self.absorbed, 0, "v1_1 transcript cannot inherit an absorb cursor");
+    /// partial chunk. This is the exact Lean v1.2 absorb operation.
+    pub fn absorb_v1_2(&mut self, fields: &[F]) {
+        assert_eq!(self.absorbed, 0, "v1_2 transcript cannot inherit an absorb cursor");
         for chunk in fields.chunks(p2::RATE) {
             for (lane, &value) in chunk.iter().enumerate() {
                 self.st[lane] += value;
@@ -65,25 +65,25 @@ impl Poseidon2Transcript {
     /// Read one quadratic-extension value from rate lanes `2 * pair` and
     /// `2 * pair + 1`. The state does not change; the caller absorbs a zero
     /// chunk after the last pair of a state.
-    pub fn read_pair_v1_1(&self, pair: usize) -> [F; 2] {
-        assert_eq!(self.absorbed, 0, "v1_1 transcript cannot inherit an absorb cursor");
-        assert!(pair < p2::RATE / 2, "v1_1 read pair is outside the rate lanes");
+    pub fn read_pair_v1_2(&self, pair: usize) -> [F; 2] {
+        assert_eq!(self.absorbed, 0, "v1_2 transcript cannot inherit an absorb cursor");
+        assert!(pair < p2::RATE / 2, "v1_2 read pair is outside the rate lanes");
         [self.st[2 * pair], self.st[2 * pair + 1]]
     }
 
     /// Return the first four lanes, then apply one permutation.
     /// This is the exact fixed-window digest step used by the Lean PiRLC
     /// sampler. It does not add a query tag or change the absorb schedule.
-    pub fn squeeze_digest_v1_1(&mut self) -> [F; p2::DIGEST_LEN] {
-        assert_eq!(self.absorbed, 0, "v1_1 transcript cannot inherit an absorb cursor");
+    pub fn squeeze_digest_v1_2(&mut self) -> [F; p2::DIGEST_LEN] {
+        assert_eq!(self.absorbed, 0, "v1_2 transcript cannot inherit an absorb cursor");
         let digest = std::array::from_fn(|lane| F::from_u64(self.st[lane].as_canonical_u64()));
         self.permute();
         digest
     }
 
     /// Non-mutating four-lane compression for legacy receipt fields. The
-    /// authoritative v1.1 handoff remains the complete sixteen-lane state.
-    pub fn state_prefix_v1_1(&self) -> [u8; 32] {
+    /// authoritative v1.2 handoff remains the complete sixteen-lane state.
+    pub fn state_prefix_v1_2(&self) -> [u8; 32] {
         let mut output = [0u8; 32];
         for lane in 0..4 {
             output[lane * 8..(lane + 1) * 8].copy_from_slice(&self.st[lane].as_canonical_u64().to_le_bytes());

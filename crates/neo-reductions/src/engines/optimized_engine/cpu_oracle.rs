@@ -11,7 +11,7 @@ mod application;
 
 use super::prefix::{self, Assignment};
 use crate::engines::pi_ccs_joint::{gamma_power, range_product, JointDims};
-use crate::engines::pi_ccs_joint_protocol::{PaperJointRoundOracle, V1_1OutputOpening};
+use crate::engines::pi_ccs_joint_protocol::{PaperJointRoundOracle, V1_2OutputOpening};
 use crate::engines::pi_ccs_protocol::Challenges;
 use crate::superneo_eval::{fill_combined_projection, EqualityWeights, MatrixRows, SuperneoZBlocks};
 use crate::PiCcsError;
@@ -266,7 +266,7 @@ impl PaperJointRoundOracle for OptimizedPaperJointOracle<'_> {
         Ok(())
     }
 
-    fn output_openings(&mut self, point: &[K]) -> Result<Option<Vec<V1_1OutputOpening>>, PiCcsError> {
+    fn output_openings(&mut self, point: &[K]) -> Result<Option<Vec<V1_2OutputOpening>>, PiCcsError> {
         if self.point.len() != self.dims.variables || point != self.point {
             return Err(PiCcsError::InvalidInput(
                 "optimized CPU opening point is not the completed point".into(),
@@ -278,7 +278,7 @@ impl PaperJointRoundOracle for OptimizedPaperJointOracle<'_> {
         let complete = self.fresh_tables.take_complete_window();
         self.fresh_tables.clear();
         let storage = core::mem::take(&mut self.evaluation_table);
-        crate::superneo_eval::eval_real_v1_1_openings_from_rows_reusing(
+        crate::superneo_eval::eval_real_v1_2_openings_from_rows_reusing(
             self.source,
             point,
             &self.witness_blocks,

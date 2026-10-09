@@ -4,7 +4,7 @@
 use super::*;
 use crate::folding::{CcsInstance, CcsWitness};
 use crate::lifecycle::{
-    pi_ccs_v1_1_prior_children, serialize_pi_ccs_v1_1_state_preimage, PiCcsV1_1PackageBridgeError, Stage1Envelope,
+    pi_ccs_v1_2_prior_children, serialize_pi_ccs_v1_2_state_preimage, PiCcsV1_2PackageBridgeError, Stage1Envelope,
     VerifyError,
 };
 
@@ -24,8 +24,8 @@ fn zero_running() -> Vec<CeClaim> {
     vec![claim; 16]
 }
 
-fn preimage(running: &[CeClaim]) -> Result<Vec<u64>, PiCcsV1_1PackageBridgeError> {
-    serialize_pi_ccs_v1_1_state_preimage([F::ONE; 4], 1, [F::ZERO; 4], [F::ZERO; 4], running)
+fn preimage(running: &[CeClaim]) -> Result<Vec<u64>, PiCcsV1_2PackageBridgeError> {
+    serialize_pi_ccs_v1_2_state_preimage([F::ONE; 4], 1, [F::ZERO; 4], [F::ZERO; 4], running)
 }
 
 #[test]
@@ -40,11 +40,11 @@ fn the_state_hash_rejects_a_second_split_of_the_same_parent() {
     preimage(&canonical).unwrap();
     assert!(matches!(
         preimage(&other),
-        Err(PiCcsV1_1PackageBridgeError::NonCanonicalChildren)
+        Err(PiCcsV1_2PackageBridgeError::NonCanonicalChildren)
     ));
     assert!(matches!(
-        pi_ccs_v1_1_prior_children(&other),
-        Err(PiCcsV1_1PackageBridgeError::NonCanonicalChildren)
+        pi_ccs_v1_2_prior_children(&other),
+        Err(PiCcsV1_2PackageBridgeError::NonCanonicalChildren)
     ));
 }
 
@@ -54,7 +54,7 @@ fn the_state_hash_rejects_a_child_outside_the_digit_set() {
     running[0].X[(0, 0)] = F::from_u64(2);
     assert!(matches!(
         preimage(&running),
-        Err(PiCcsV1_1PackageBridgeError::NonCanonicalChildren)
+        Err(PiCcsV1_2PackageBridgeError::NonCanonicalChildren)
     ));
 }
 
@@ -127,7 +127,7 @@ fn verify_rejects_a_second_split_of_the_running_parent() {
         matches!(
             second,
             Err(VerifyError::StateHash(
-                PiCcsV1_1PackageBridgeError::NonCanonicalChildren
+                PiCcsV1_2PackageBridgeError::NonCanonicalChildren
             ))
         ),
         "{second:?}"
@@ -141,7 +141,7 @@ fn prior_children_are_child_major_digits() {
     running[0].X[(0, 1)] = F::NEG_ONE;
     running[2].X[(0, 1)] = F::NEG_ONE;
     running[3].X[(1, 0)] = F::ONE;
-    let words = pi_ccs_v1_1_prior_children(&running).unwrap();
+    let words = pi_ccs_v1_2_prior_children(&running).unwrap();
     assert_eq!(words.len(), 16 * PARENT_COORDINATES);
     assert_eq!(words[54], F::NEG_ONE.as_canonical_u64());
     assert_eq!(words[2 * PARENT_COORDINATES + 54], F::NEG_ONE.as_canonical_u64());

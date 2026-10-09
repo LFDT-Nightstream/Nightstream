@@ -1,4 +1,4 @@
-//! Optimized-side protocol flow for SuperNeo v1.1 PiCCS.
+//! Optimized-side protocol flow for SuperNeo v1.2 PiCCS.
 //!
 //! This file independently implements the Lean-owned transcript schedule. It
 //! does not call the PaperExact transcript, SumCheck driver, or proof assembly.
@@ -7,7 +7,7 @@ use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsStructure, CeClaim};
 use neo_math::{KExtensions, D, F, K};
 use neo_params::NeoParams;
-use neo_transcript::{fold_domain_chunk_v1_1, Poseidon2Transcript};
+use neo_transcript::{fold_domain_chunk_v1_2, Poseidon2Transcript};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::engines::pi_ccs_joint::{
@@ -19,9 +19,9 @@ use crate::error::PiCcsError;
 const RATE: usize = neo_ccs::crypto::poseidon2_goldilocks::RATE;
 const COINS_PER_CHUNK: usize = RATE / 2;
 
-/// One SuperNeo v1.1 output opening. Pad (`Eval_K`) is separate from the
+/// One SuperNeo v1.2 output opening. Pad (`Eval_K`) is separate from the
 /// genuine CCS-matrix family (`Eval_A`).
-pub type V1_1OutputOpening = neo_ccs::V1_1Evaluations<K>;
+pub type V1_2OutputOpening = neo_ccs::V1_2Evaluations<K>;
 
 /// Fallible evaluator boundary for the selected one-joint SumCheck.
 ///
@@ -38,7 +38,7 @@ pub trait PaperJointRoundOracle {
     /// the evaluator can produce them without rebuilding its private state.
     /// The outer prover still validates the terminal claim and owns every
     /// transcript action. `None` selects the canonical host computation.
-    fn output_openings(&mut self, _point: &[K]) -> Result<Option<Vec<V1_1OutputOpening>>, PiCcsError> {
+    fn output_openings(&mut self, _point: &[K]) -> Result<Option<Vec<V1_2OutputOpening>>, PiCcsError> {
         Ok(None)
     }
 }
@@ -58,20 +58,20 @@ fn k_fields(output: &mut Vec<F>, value: K) {
 }
 
 fn append(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, fields: Vec<F>) {
-    transcript.absorb_v1_1(&fields);
+    transcript.absorb_v1_2(&fields);
     trace.events.push(TraceEvent::Absorb(fields));
 }
 
 fn prior_digest_fields(running: &[CeClaim<Cmt, F, K>]) -> Result<Vec<F>, PiCcsError> {
     let first = running.first().ok_or_else(|| {
-        PiCcsError::InvalidInput("optimized v1_1 digest-only statement requires a running claim".into())
+        PiCcsError::InvalidInput("optimized v1_2 digest-only statement requires a running claim".into())
     })?;
     if running
         .iter()
         .any(|claim| claim.fold_digest != first.fold_digest)
     {
         return Err(PiCcsError::InvalidInput(
-            "optimized v1_1 running claims do not share the prior digest".into(),
+            "optimized v1_2 running claims do not share the prior digest".into(),
         ));
     }
     first
@@ -81,7 +81,7 @@ fn prior_digest_fields(running: &[CeClaim<Cmt, F, K>]) -> Result<Vec<F>, PiCcsEr
             let word = u64::from_le_bytes(chunk.try_into().expect("digest lane width"));
             if word >= F::ORDER_U64 {
                 return Err(PiCcsError::InvalidInput(
-                    "optimized v1_1 prior digest has a noncanonical field word".into(),
+                    "optimized v1_2 prior digest has a noncanonical field word".into(),
                 ));
             }
             Ok(F::from_u64(word))
@@ -100,7 +100,7 @@ fn read_coin(
     position: usize,
 ) -> K {
     let pair = position % COINS_PER_CHUNK;
-    let sampled = transcript.read_pair_v1_1(pair);
+    let sampled = transcript.read_pair_v1_2(pair);
     let value = neo_math::from_complex(sampled[0], sampled[1]);
     trace
         .events
@@ -117,7 +117,7 @@ fn check_commitment(commitment: &Cmt, params: &NeoParams) -> Result<(), PiCcsErr
         || commitment.data.len() != D * params.kappa as usize
     {
         return Err(PiCcsError::InvalidInput(
-            "PiCCS v1_1 commitment does not have the fixed Ajtai shape".into(),
+            "PiCCS v1_2 commitment does not have the fixed Ajtai shape".into(),
         ));
     }
     Ok(())
@@ -190,12 +190,12 @@ pub(crate) fn bind_and_sample_with_trace(
     }
     if fresh.iter().any(|claim| claim.adv.is_some()) || running.iter().any(|claim| claim.adv.is_some()) {
         return Err(PiCcsError::InvalidInput(
-            "PiCCS v1_1 does not bind auxiliary lane commitments".into(),
+            "PiCCS v1_2 does not bind auxiliary lane commitments".into(),
         ));
     }
     if fresh.is_empty() {
         return Err(PiCcsError::InvalidInput(
-            "PiCCS v1_1 digest-only statement requires a fresh claim".into(),
+            "PiCCS v1_2 digest-only statement requires a fresh claim".into(),
         ));
     }
     let prior_point = running
@@ -203,12 +203,12 @@ pub(crate) fn bind_and_sample_with_trace(
         .map_or_else(|| vec![K::ZERO; dims.variables], |claim| claim.r.clone());
     if prior_point.len() != dims.variables || running.iter().any(|claim| claim.r != prior_point) {
         return Err(PiCcsError::InvalidInput(
-            "PiCCS v1_1 running claims must share the complete prior point".into(),
+            "PiCCS v1_2 running claims must share the complete prior point".into(),
         ));
     }
 
-    transcript.reset_v1_1();
-    append(transcript, trace, fold_domain_chunk_v1_1().to_vec());
+    transcript.reset_v1_2();
+    append(transcript, trace, fold_domain_chunk_v1_2().to_vec());
 
     let mut statement = prior_digest_fields(running)?;
     for claim in fresh {
@@ -315,7 +315,7 @@ pub fn output_message_fields(outputs: &[CeClaim<Cmt, F, K>], dims: JointDims) ->
     for output in outputs {
         if output.eval_k.len() < D || output.eval_a.len() != dims.matrix_count {
             return Err(PiCcsError::InvalidInput(
-                "optimized output v1_1 families are incomplete".into(),
+                "optimized output v1_2 families are incomplete".into(),
             ));
         }
         for coefficient in 0..D {
@@ -346,7 +346,7 @@ pub fn absorb_outputs(
     let fields = output_message_fields(outputs, dims)?;
     append(transcript, trace, fields);
     trace.outgoing_state = transcript.state();
-    let digest = transcript.state_prefix_v1_1();
+    let digest = transcript.state_prefix_v1_2();
     trace.final_digest = digest;
     Ok(digest)
 }

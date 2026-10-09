@@ -41,7 +41,7 @@ variable (application : Lifecycle.Stage1.Application.Program)
   (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
   (target : Env)
   (suffix : Fin (PerApplicationPackage.addedPrivateColumnCount application) → F)
-  (physical : NightstreamFPrime.Layout.PiCCS.v1_1.PhysicalHolds relation
+  (physical : NightstreamFPrime.Layout.PiCCS.v1_2.PhysicalHolds relation
     (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset (Spartan.pullback target))
 
 local notation "raw" => canonicalRawValues application

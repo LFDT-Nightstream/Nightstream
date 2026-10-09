@@ -10,7 +10,7 @@ namespace NightstreamFPrime.Export.Stage1.ActualPiRLCSampling
 open NightstreamFPrime.Circuit NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.Stage1 NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Lifecycle NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1 NightstreamFPrime.Gadgets.Sampling
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2 NightstreamFPrime.Gadgets.Sampling
 open NightstreamFPrime.Spec NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 open PiRLCSamplerOrdinaryDirectPlan (Location resolvedEnv poseidonGeometry)

@@ -2,7 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSPhysicalPackets
 import NightstreamFPrime.Export.Stage1.PiCCSInvocationSchedule
 import NightstreamFPrime.Export.Stage1.PerApplicationSourceAssignment
 import NightstreamFPrime.Export.Stage1.PiCCSTranscriptEndpointPlan
-import NightstreamFPrime.Export.Stage1.PiCCSTranscriptOutputCoherence
 
 /-!
 Owns the source agreement derived from completed PiCCS permutation rows.
@@ -96,7 +95,7 @@ completed C rows. Width erasure is derived from the existing action owners. -/
 theorem invocation_holds
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (target : Env)
-    (physical : NightstreamFPrime.Layout.PiCCS.v1_1.PhysicalHolds relation
+    (physical : NightstreamFPrime.Layout.PiCCS.v1_2.PhysicalHolds relation
       (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset (Spartan.pullback target))
     (index : InvocationIndex) :
     PermutationInvocationHolds (PilotData.circuitPackage ()) (physicalInvocation index) target :=
@@ -106,7 +105,7 @@ theorem invocation_holds
 private theorem readout_eq_target
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (target : Env)
-    (physical : NightstreamFPrime.Layout.PiCCS.v1_1.PhysicalHolds relation
+    (physical : NightstreamFPrime.Layout.PiCCS.v1_2.PhysicalHolds relation
       (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset (Spartan.pullback target)) :
     PiCCSTranscriptReadout.env target = target := by
   apply PiCCSTranscriptReadout.env_eq_of_invocations target
@@ -126,7 +125,7 @@ theorem transitionEnv_of_completed
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (target : Env)
     (suffix : Fin (PerApplicationPackage.addedPrivateColumnCount application) → F)
-    (physical : NightstreamFPrime.Layout.PiCCS.v1_1.PhysicalHolds relation
+    (physical : NightstreamFPrime.Layout.PiCCS.v1_2.PhysicalHolds relation
       (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset (Spartan.pullback target))
     (source : Nat) (bounded : source < Spartan.SourceColumnCount) :
     Spartan.pullback (RunningTransitionDirectPlan.transitionEnv application
@@ -154,7 +153,7 @@ theorem outputValue_of_completed
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (target : Env)
     (suffix : Fin (PerApplicationPackage.addedPrivateColumnCount application) → F)
-    (physical : NightstreamFPrime.Layout.PiCCS.v1_1.PhysicalHolds relation
+    (physical : NightstreamFPrime.Layout.PiCCS.v1_2.PhysicalHolds relation
       (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset (Spartan.pullback target))
     (index : InvocationIndex) :
     let raw := canonicalRawValues application (PerApplicationSourceAssignment.ofCompleted application target suffix)

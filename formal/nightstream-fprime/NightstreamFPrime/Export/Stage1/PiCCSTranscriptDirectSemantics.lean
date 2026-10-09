@@ -282,8 +282,8 @@ theorem indexedSemantics_implies_traces
     PiCCSActionPayloadBlock.statementActions statementKindAt_materializes
     statementSemantics (by
       simp only [PiCCSActionPayloadBlock.statementActions,
-        PiCCSInvocations.statementActions, Lifecycle.PiCCS.v1_1.StatementAbsorption.actions,
-        Lifecycle.PiCCS.v1_1.StatementAbsorption.publicInputActions,
+        PiCCSInvocations.statementActions, Lifecycle.PiCCS.v1_2.StatementAbsorption.actions,
+        Lifecycle.PiCCS.v1_2.StatementAbsorption.publicInputActions,
         PoseidonActionSemantics.ReadsAt])
   have challengeTrace := PoseidonActionSemantics.indexed_traceHolds
     challengeCount env
@@ -313,7 +313,7 @@ theorem indexedSemantics_implies_traces
     PiCCSActionPayloadBlock.outputActions outputKindAt_materializes
     outputSemantics (by
       simp only [PiCCSActionPayloadBlock.outputActions,
-        PiCCSInvocations.outputActions, Lifecycle.PiCCS.v1_1.OutputBinding.actions,
+        PiCCSInvocations.outputActions, Lifecycle.PiCCS.v1_2.OutputBinding.actions,
         PoseidonActionSemantics.ReadsAt])
   refine ⟨?_, ?_, ?_, ?_⟩
   · simpa [globalOutput, statementCount, statementOffset, statementLast,

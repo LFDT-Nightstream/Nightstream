@@ -14,7 +14,7 @@ open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
@@ -31,7 +31,7 @@ private theorem statementEnd_beforeSampler
   norm_num [PiCCSInvocations.statementWitnessStart,
     PiCCSStarts.statementWitnessStart_eq, PiRLCStarts.samplerLogicalStart,
     PiRLCStarts.phaseLogicalStart, PiRLCInputs.phaseOffset,
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerOffset_eq]
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.samplerOffset_eq]
 
 private theorem challengeEnd_beforeSampler
     (logicalWidth : Nat)
@@ -46,7 +46,7 @@ private theorem challengeEnd_beforeSampler
   norm_num [PiCCSInvocations.challengeWitnessStart,
     PiCCSStarts.challengeWitnessStart_eq, PiRLCStarts.samplerLogicalStart,
     PiRLCStarts.phaseLogicalStart, PiRLCInputs.phaseOffset,
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerOffset_eq]
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.samplerOffset_eq]
 
 private theorem roundEnd_beforeSampler
     (logicalWidth : Nat)
@@ -64,7 +64,7 @@ private theorem roundEnd_beforeSampler
     PiCCSStarts.roundTranscriptWitnessStart_eq,
     PiRLCStarts.samplerLogicalStart, PiRLCStarts.phaseLogicalStart,
     PiRLCInputs.phaseOffset,
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerOffset_eq]
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.samplerOffset_eq]
 
 private theorem outputEnd_beforeSampler
     (logicalWidth : Nat)
@@ -88,7 +88,7 @@ private theorem outputEnd_beforeSampler
     PiCCSStarts.outputBindingWitnessStart_eq,
     PiRLCStarts.samplerLogicalStart, PiRLCStarts.phaseLogicalStart,
     PiRLCInputs.phaseOffset,
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerOffset_eq]
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.samplerOffset_eq]
 
 /-- The four transcript leaves proved in the retained transcript environment
 also hold in the one complete PiRLC sampler environment. -/
@@ -124,7 +124,7 @@ theorem transcriptSpecs_to_common
     exact (PiCCSCommonEnvironmentCustody.transcriptEnv_eq_semanticEnv_of_beforeSampler
       geometry assignment base groupValue before).symm
   have assumptions :=
-    NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions.production relation
+    NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions.production relation
       (PiCCSInvocations.parentInterface relationLogicalWidth
         relationPublicFits)
       PiCCSInputs.phaseOffset

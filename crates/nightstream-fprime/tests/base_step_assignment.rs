@@ -9,7 +9,7 @@ use std::{fs, path::PathBuf, time::Instant};
 use neo_ajtai::nightstream_fprime_setup::commit_production_signed_unit_prefix_matrix;
 use neo_ccs::{crypto::poseidon2_goldilocks::poseidon2_hash, Mat};
 use nightstream_fprime::{
-    derive_pi_ccs_v1_1_transcript, load_poseidon2_hash_chain_v1_package, LoadedPerApplicationPackage, WitnessAssignment,
+    derive_pi_ccs_v1_2_transcript, load_poseidon2_hash_chain_v1_package, LoadedPerApplicationPackage, WitnessAssignment,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
@@ -442,7 +442,7 @@ fn checked_base_fixture(package: &LoadedPerApplicationPackage, bytes: &[u8]) -> 
             "checked child recombination at public column {column}"
         );
     }
-    let transcript = derive_pi_ccs_v1_1_transcript(
+    let transcript = derive_pi_ccs_v1_2_transcript(
         &[hash(prior).to_vec(), vec![0; 1_188], public[..PUBLIC_WORDS].to_vec()],
         &[vec![0; 28 * 2], vec![0; 16 * 540]],
         &vec![vec![[0; 2]; 9]; 28],

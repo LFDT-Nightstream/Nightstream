@@ -20,8 +20,8 @@ open NightstreamFPrime.Export.Codec
 open NightstreamFPrime.Export.Package
 open NightstreamFPrime.Gadgets.Poseidon2
 open NightstreamFPrime.Gadgets.Poseidon2.Duplex
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 
 abbrev EState := Invocations.EState
 abbrev ActionShape := Formal.ActionShape

@@ -1,7 +1,7 @@
 import NightstreamFPrime.Export.Stage1.PiDECOrdinaryDirectSource
 import NightstreamFPrime.Export.Stage1.PiDECRetainedGeometry
 import NightstreamFPrime.Export.Stage1.RunningTransitionDirectPlan
-import NightstreamFPrime.Layout.PiDEC.v1_1.Preservation
+import NightstreamFPrime.Layout.PiDEC.v1_2.Preservation
 
 /-!
 Owns the executable retained-source resolver and direct 4-matrix plan for the
@@ -466,7 +466,7 @@ def publicSource
       relationPublicFits) :
     SupportedProgram (PiDECOrdinaryDirectSource.publicRows
       relationLogicalWidth relationPublicFits) where
-  rowCount := Layout.PiDEC.v1_1.PublicInputSplit.physicalRowCount
+  rowCount := Layout.PiDEC.v1_2.PublicInputSplit.physicalRowCount
   rowCount_le := by decide
   row := PiDECOrdinaryDirectSource.publicProgramRow relation
   exactRows := PiDECOrdinaryDirectSource.publicProgramRows_eq relation
@@ -477,7 +477,7 @@ def commitmentSource
       relationPublicFits) :
     SupportedProgram (PiDECOrdinaryDirectSource.commitmentRows
       relationLogicalWidth relationPublicFits) where
-  rowCount := Layout.PiDEC.v1_1.CommitmentRecomposition.physicalRowCount
+  rowCount := Layout.PiDEC.v1_2.CommitmentRecomposition.physicalRowCount
   rowCount_le := by decide
   row := PiDECOrdinaryDirectSource.commitmentProgramRow relation
   exactRows := PiDECOrdinaryDirectSource.commitmentProgramRows_eq relation
@@ -488,7 +488,7 @@ def evalKSource
       relationPublicFits) :
     SupportedProgram (PiDECOrdinaryDirectSource.evalKRows
       relationLogicalWidth relationPublicFits) where
-  rowCount := Layout.PiDEC.v1_1.EvalKRecomposition.physicalRowCount
+  rowCount := Layout.PiDEC.v1_2.EvalKRecomposition.physicalRowCount
   rowCount_le := by decide
   row := PiDECOrdinaryDirectSource.evalKProgramRow relation
   exactRows := PiDECOrdinaryDirectSource.evalKProgramRows_eq relation
@@ -499,7 +499,7 @@ def evalASource
       relationPublicFits) :
     SupportedProgram (PiDECOrdinaryDirectSource.evalARows
       relationLogicalWidth relationPublicFits) where
-  rowCount := Layout.PiDEC.v1_1.EvalARecomposition.physicalRowCount
+  rowCount := Layout.PiDEC.v1_2.EvalARecomposition.physicalRowCount
   rowCount_le := by decide
   row := PiDECOrdinaryDirectSource.evalAProgramRow relation
   exactRows := PiDECOrdinaryDirectSource.evalAProgramRows_eq relation
@@ -542,7 +542,7 @@ def evalAPlan {application : Lifecycle.Stage1.Application.Program}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry application logicalWidth) :
-    (publicPlan relation geometry).rowCount = Layout.PiDEC.v1_1.PublicInputSplit.physicalRowCount := by
+    (publicPlan relation geometry).rowCount = Layout.PiDEC.v1_2.PublicInputSplit.physicalRowCount := by
   rfl
 
 @[simp] theorem commitmentPlan_rowCount
@@ -550,7 +550,7 @@ def evalAPlan {application : Lifecycle.Stage1.Application.Program}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry application logicalWidth) :
-    (commitmentPlan relation geometry).rowCount = Layout.PiDEC.v1_1.CommitmentRecomposition.physicalRowCount := by
+    (commitmentPlan relation geometry).rowCount = Layout.PiDEC.v1_2.CommitmentRecomposition.physicalRowCount := by
   rfl
 
 @[simp] theorem evalKPlan_rowCount
@@ -558,7 +558,7 @@ def evalAPlan {application : Lifecycle.Stage1.Application.Program}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry application logicalWidth) :
-    (evalKPlan relation geometry).rowCount = Layout.PiDEC.v1_1.EvalKRecomposition.physicalRowCount := by
+    (evalKPlan relation geometry).rowCount = Layout.PiDEC.v1_2.EvalKRecomposition.physicalRowCount := by
   rfl
 
 @[simp] theorem evalAPlan_rowCount
@@ -566,7 +566,7 @@ def evalAPlan {application : Lifecycle.Stage1.Application.Program}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry application logicalWidth) :
-    (evalAPlan relation geometry).rowCount = Layout.PiDEC.v1_1.EvalARecomposition.physicalRowCount := by
+    (evalAPlan relation geometry).rowCount = Layout.PiDEC.v1_2.EvalARecomposition.physicalRowCount := by
   rfl
 
 private theorem evalPlans_fit
@@ -593,8 +593,8 @@ def evaluationPlan {application : Lifecycle.Stage1.Application.Program}
       relationPublicFits)
     (geometry : Geometry application logicalWidth) :
     (evaluationPlan relation geometry).rowCount =
-      Layout.PiDEC.v1_1.EvalKRecomposition.physicalRowCount +
-        Layout.PiDEC.v1_1.EvalARecomposition.physicalRowCount := by
+      Layout.PiDEC.v1_2.EvalKRecomposition.physicalRowCount +
+        Layout.PiDEC.v1_2.EvalARecomposition.physicalRowCount := by
   simp [evaluationPlan]
 
 private theorem recompositionPlans_fit
@@ -622,9 +622,9 @@ def recompositionPlan {application : Lifecycle.Stage1.Application.Program}
       relationPublicFits)
     (geometry : Geometry application logicalWidth) :
     (recompositionPlan relation geometry).rowCount =
-      Layout.PiDEC.v1_1.CommitmentRecomposition.physicalRowCount +
-        (Layout.PiDEC.v1_1.EvalKRecomposition.physicalRowCount +
-          Layout.PiDEC.v1_1.EvalARecomposition.physicalRowCount) := by
+      Layout.PiDEC.v1_2.CommitmentRecomposition.physicalRowCount +
+        (Layout.PiDEC.v1_2.EvalKRecomposition.physicalRowCount +
+          Layout.PiDEC.v1_2.EvalARecomposition.physicalRowCount) := by
   simp [recompositionPlan]
 
 private theorem allPlans_fit
@@ -650,9 +650,9 @@ def plan {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Na
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry application logicalWidth) :
-    (plan relation geometry).rowCount = Layout.PiDEC.v1_1.exactRowCount := by
-  simp [plan, Layout.PiDEC.v1_1.exactRowCount,
-    Layout.PiDEC.v1_1.exactRowDeltas, Nat.add_assoc]
+    (plan relation geometry).rowCount = Layout.PiDEC.v1_2.exactRowCount := by
+  simp [plan, Layout.PiDEC.v1_2.exactRowCount,
+    Layout.PiDEC.v1_2.exactRowDeltas, Nat.add_assoc]
 
 /-- The PiDEC matrix plan depends on relation shape only. The logical
 relation value supplies proof certificates but does not select any row. -/
@@ -888,14 +888,14 @@ theorem rowsZero_implies_phaseHolds
     (encodes : Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment application base groupValue))
     (assumptions :
-      Lifecycle.PiDEC.v1_1.Formal.Assumptions relation
+      Lifecycle.PiDEC.v1_2.Formal.Assumptions relation
         (PiDECArithmetic.phaseInterface relationLogicalWidth
           relationPublicFits)
         PiDECInputs.phaseOffset
         (Spartan.pullback
           (RunningTransitionDirectPlan.transitionEnv application base)))
     (accepted : (plan relation geometry).RowsZero assignment) :
-    Lifecycle.PiDEC.v1_1.Semantics.PhaseHolds relation ajtai
+    Lifecycle.PiDEC.v1_2.Semantics.PhaseHolds relation ajtai
       (PiDECArithmetic.phaseInterface relationLogicalWidth relationPublicFits)
       PiDECInputs.phaseOffset
         (Spartan.pullback
@@ -919,7 +919,7 @@ theorem rowsZero_implies_phaseHolds
     (Spartan.remapRows_hold
       (RunningTransitionDirectPlan.transitionEnv application base)
       (PiDECArithmetic.canonicalLayoutPlan relation).rows).mp remappedRows
-  exact Layout.PiDEC.v1_1.physical_implies_phaseHolds relation ajtai
+  exact Layout.PiDEC.v1_2.physical_implies_phaseHolds relation ajtai
     (PiDECArithmetic.phaseInterface relationLogicalWidth relationPublicFits)
     PiDECInputs.phaseOffset
     (Spartan.pullback

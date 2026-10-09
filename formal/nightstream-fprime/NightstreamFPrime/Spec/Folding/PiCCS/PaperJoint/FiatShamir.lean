@@ -6,7 +6,7 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 /-!
 Verifier-owned Fiat--Shamir authority for paper-level joint `Pi_CCS`.
 
-Protocol: SuperNeo `Pi_CCS` (Section 7.3 / Appendix D.4).
+Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
 Phase: pre-SumCheck alpha/gamma sampling and interleaved SumCheck rounds.
 Constraint family: transcript ownership and challenge schedule only.
 

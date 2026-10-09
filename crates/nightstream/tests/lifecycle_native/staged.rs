@@ -14,7 +14,7 @@ use neo_ajtai::{
     },
     Commitment,
 };
-use neo_ccs::{Mat, V1_1Evaluations};
+use neo_ccs::{Mat, V1_2Evaluations};
 use neo_math::{D, F, K};
 use neo_reductions::common::{project_x_from_witness_mat, validate_fresh_witness_tail_zero};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};

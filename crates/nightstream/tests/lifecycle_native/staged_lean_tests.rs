@@ -115,7 +115,7 @@ fn retained_pi_ccs_mutations_cover_the_current_matrix_families() {
     )
     .unwrap();
     let (accepted, _) = optimized_verify_with_trace(
-        &mut Poseidon2Transcript::new_v1_1(),
+        &mut Poseidon2Transcript::new_v1_2(),
         params.inner(),
         &structure,
         std::slice::from_ref(&fresh),

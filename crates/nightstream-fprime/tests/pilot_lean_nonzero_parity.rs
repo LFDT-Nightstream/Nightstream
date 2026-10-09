@@ -11,6 +11,7 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 use serde::Deserialize;
 
+#[allow(dead_code)]
 #[path = "support/pi_ccs_parent.rs"]
 mod pi_ccs_parent;
 
@@ -20,8 +21,11 @@ const DIGEST_WORDS: usize = 4;
 const PUBLIC_WORDS: usize = PRIOR_PUBLIC_WORDS + DIGEST_WORDS;
 const RUNNING_COUNT: usize = 16;
 const MATRIX_COUNT: usize = 4;
-const RUNNING_GROUP_WORDS: usize = 2_001;
 const RUNNING_POINT_WORDS: usize = 2 * PI_CCS_V1_2_ROUND_COUNT;
+const DOMAIN_WORDS: usize = 12;
+const PACKED_PARENT_WORDS: usize = 90;
+/// `Lifecycle.XOut.serializeTail`: `vk, i, z0, zi` close the preimage.
+const TAIL_START: usize = STATE_PREIMAGE_WORDS - 13;
 
 #[derive(Clone, Deserialize)]
 struct RawInput(Vec<u64>, Vec<u64>, Vec<u64>, Vec<u64>);
@@ -136,94 +140,79 @@ fn lean_result(raw: RawResult) -> PilotResult {
     }
 }
 
-fn expect_prefix(words: &[u64], cursor: &mut usize, expected: usize, label: &str) {
-    assert_eq!(words[*cursor], expected as u64, "{label} length prefix");
-    *cursor += 1;
-}
+/// `Lifecycle.XOut.stateDomainChunk`: the tag, eight little-endian bytes per
+/// word, then zero words up to one sponge rate.
+/// Lean `stateDomainChunk`: "HyperNova/NIVC/state/v2" as zero-padded
+/// little-endian words, written out here as an independent check.
+const DOMAIN_CHUNK: [u64; DOMAIN_WORDS] = [
+    0x766f_4e72_6570_7948,
+    0x732f_4356_494e_2f61,
+    0x0032_762f_6574_6174,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+];
 
 fn fixture_mutation_indices(words: &[u64]) -> Vec<(String, usize)> {
     assert_eq!(words.len(), STATE_PREIMAGE_WORDS);
-    let domain_tag: Vec<u64> = b"HyperNova/NIVC/state/v1"
-        .iter()
-        .copied()
-        .map(u64::from)
+    assert_eq!(words[..DOMAIN_WORDS], DOMAIN_CHUNK);
+
+    let mut indices: Vec<(String, usize)> = (0..DOMAIN_WORDS)
+        .map(|index| (format!("domain chunk word {index}"), index))
         .collect();
-    assert_eq!(&words[..domain_tag.len()], domain_tag);
-
-    let mut indices = Vec::new();
-    indices.extend((0..domain_tag.len()).map(|index| (format!("domain tag word {index}"), index)));
-
-    let mut cursor = domain_tag.len();
-    indices.push(("verifier-key length prefix".into(), cursor));
-    expect_prefix(words, &mut cursor, 4, "verifier key");
-    for lane in 0..4 {
-        indices.push((format!("verifier-key lane {lane}"), cursor + lane));
-    }
-    cursor += 4;
-
-    indices.push(("iteration".into(), cursor));
-    cursor += 1;
-
-    indices.push(("initial-state length prefix".into(), cursor));
-    expect_prefix(words, &mut cursor, 4, "initial state");
-    for lane in 0..4 {
-        indices.push((format!("initial-state lane {lane}"), cursor + lane));
-    }
-    cursor += 4;
-
-    indices.push(("current-state length prefix".into(), cursor));
-    expect_prefix(words, &mut cursor, 4, "current state");
-    for lane in 0..4 {
-        indices.push((format!("current-state lane {lane}"), cursor + lane));
-    }
-    cursor += 4;
-
-    assert_eq!(cursor, 39, "running-state start");
-    indices.push(("running-point length prefix".into(), cursor));
-    expect_prefix(words, &mut cursor, RUNNING_POINT_WORDS, "running point");
-    for component in 0..RUNNING_POINT_WORDS {
-        indices.push((format!("running-point component {component}"), cursor + component));
-    }
-    cursor += RUNNING_POINT_WORDS;
-
+    let mut cursor = DOMAIN_WORDS;
     for source in 0..RUNNING_COUNT {
-        let group_start = cursor;
-
-        indices.push((format!("source {source} commitment length prefix"), cursor));
-        expect_prefix(words, &mut cursor, 1_188, "running commitment");
         indices.push((format!("source {source} commitment first word"), cursor));
         indices.push((format!("source {source} commitment last word"), cursor + 1_187));
         cursor += 1_188;
-
-        indices.push((format!("source {source} public-input length prefix"), cursor));
-        expect_prefix(words, &mut cursor, 270, "running public input");
-        indices.push((format!("source {source} public-input first word"), cursor));
-        indices.push((format!("source {source} public-input last word"), cursor + 269));
-        cursor += 270;
-
-        indices.push((format!("source {source} evaluation length prefix"), cursor));
-        expect_prefix(words, &mut cursor, 540, "running evaluation");
+    }
+    for source in 0..RUNNING_COUNT {
         indices.push((format!("source {source} Eval_K first word"), cursor));
         indices.push((format!("source {source} Eval_K last word"), cursor + 107));
         cursor += 108;
+    }
+    for source in 0..RUNNING_COUNT {
         for matrix in 0..MATRIX_COUNT {
             indices.push((format!("source {source} Eval_A matrix {matrix}"), cursor + matrix * 108));
         }
         cursor += MATRIX_COUNT * 108;
-
-        assert_eq!(cursor - group_start, RUNNING_GROUP_WORDS);
     }
+    for component in 0..RUNNING_POINT_WORDS {
+        indices.push((format!("running-point component {component}"), cursor + component));
+    }
+    cursor += RUNNING_POINT_WORDS;
+    for word in 0..PACKED_PARENT_WORDS {
+        indices.push((format!("packed parent word {word}"), cursor + word));
+    }
+    cursor += PACKED_PARENT_WORDS;
+    assert_eq!(cursor, TAIL_START, "running-state end");
 
-    indices.push(("program counter".into(), cursor));
+    for lane in 0..4 {
+        indices.push((format!("verifier-key lane {lane}"), cursor + lane));
+    }
+    cursor += 4;
+    indices.push(("iteration".into(), cursor));
     cursor += 1;
+    for lane in 0..4 {
+        indices.push((format!("initial-state lane {lane}"), cursor + lane));
+    }
+    cursor += 4;
+    for lane in 0..4 {
+        indices.push((format!("current-state lane {lane}"), cursor + lane));
+    }
+    cursor += 4;
     assert_eq!(cursor, STATE_PREIMAGE_WORDS, "complete preimage parse");
     indices
 }
 
 fn verifier_context_digest(words: &[u64]) -> [u64; DIGEST_WORDS] {
-    let domain_length = b"HyperNova/NIVC/state/v1".len();
-    assert_eq!(words[domain_length], DIGEST_WORDS as u64);
-    words[domain_length + 1..domain_length + 1 + DIGEST_WORDS]
+    words[TAIL_START..TAIL_START + DIGEST_WORDS]
         .try_into()
         .expect("four verifier-context digest words")
 }
@@ -250,29 +239,13 @@ fn pilot_fixture_has_valid_zero_running_openings() {
 
 fn check_zero_running_openings(input: &RawInput) {
     for words in [&input.0, &input.2] {
-        let mut cursor = 39;
-        expect_prefix(words, &mut cursor, RUNNING_POINT_WORDS, "running point");
-        assert!(words[cursor..cursor + RUNNING_POINT_WORDS]
-            .iter()
-            .all(|word| *word == 0));
-        cursor += RUNNING_POINT_WORDS;
-
         // The zero carrier has norm below b = 2. Its linear commitment,
-        // public projection, and separate Pad/matrix evaluations are zero.
-        for source in 0..RUNNING_COUNT {
-            for (family, length) in [("commitment", 1_188), ("public input", 270), ("evaluations", 540)] {
-                expect_prefix(words, &mut cursor, length, family);
-                assert!(
-                    words[cursor..cursor + length].iter().all(|word| *word == 0),
-                    "source {source} {family} must match the zero opening",
-                );
-                cursor += length;
-            }
-        }
-        assert_eq!(
-            cursor + 1,
-            words.len(),
-            "only the program counter follows the running claims"
+        // separate Pad/matrix evaluations, point and parent are zero.
+        assert!(
+            words[DOMAIN_WORDS..TAIL_START]
+                .iter()
+                .all(|word| *word == 0),
+            "the running state must match the zero opening",
         );
     }
 }

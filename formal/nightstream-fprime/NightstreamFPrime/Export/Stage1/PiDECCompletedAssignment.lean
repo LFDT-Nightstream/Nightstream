@@ -50,10 +50,10 @@ private theorem copied_source
       (PerApplicationSourceAssignment.ofCompleted application target suffix) column = target column := by
   obtain ⟨source, support, rfl⟩ := supported
   have bounded := PiDECSourceSupport.source_lt_sourceColumnCount support
-  have afterTranscript : PiCCSInputs.phaseOffset +
+  have afterTranscript : PiCCSStarts.statementWitnessStart +
       PiCCSOrdinarySourceSupport.transcriptInvocationCount * 1096 ≤ source := by
     apply Nat.le_trans _ (PiDECSourceSupport.parentStart_le_source support)
-    rw [PiCCSInputs.phaseOffset_eq, PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq,
+    rw [PiCCSStarts.statementWitnessStart_eq, PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq,
       PiDECSourceSupport.parentCommitmentStart_eq]
     decide
   rw [RunningTransitionDirectPlan.transitionEnv_of_outside application _ source bounded

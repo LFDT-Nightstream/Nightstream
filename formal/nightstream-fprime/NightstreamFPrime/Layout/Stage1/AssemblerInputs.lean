@@ -56,13 +56,13 @@ def priorOffset (program : Lifecycle.Stage1.Application.Program) : Nat :=
   rootOffset program
 
 def outputHashOffset (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  priorOffset program + 2935352
+  priorOffset program + 2542984
 
 def piCcsOffset (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  outputHashOffset program + 2935088
+  outputHashOffset program + 2542720
 
 def piRlcOffset (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  piCcsOffset program + 1258207
+  piCcsOffset program + 1258477
 
 def piDecOffset (program : Lifecycle.Stage1.Application.Program) : Nat :=
   piRlcOffset program + PiRLC.v1_2.Formal.logicalPrivateCount
@@ -225,8 +225,7 @@ def runningInterface
   initialState := fun _ => RunningTransitionInputs.initialStateExpr
   currentState := fun _ => RunningTransitionInputs.currentStateExpr
   recursive := fun _ => recursiveRunningExpr relation program
-  output := fun _ =>
-    RunningTransitionInputs.outputRunningExpr logicalWidth publicFits
+  output := fun _ => RunningTransitionInputs.outputWord
 
 /-- The exact production child interfaces for the compact logical parent. -/
 def interface
@@ -300,9 +299,9 @@ private theorem priorPrivateCount_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) :
     (Lifecycle.Stage1.priorChild relation program (interface relation program)
-      ).privateCount (priorOffset program) = 2935352 := by
+      ).privateCount (priorOffset program) = 2542984 := by
   change Lifecycle.PriorStateHash.logicalPrivateCount
-    PilotProduction.priorInterface (priorOffset program) = 2935352
+    PilotProduction.priorInterface (priorOffset program) = 2542984
   unfold Lifecycle.PriorStateHash.logicalPrivateCount
   rw [Lifecycle.PriorStateHash.hashLength_eq,
     PilotProduction.priorInterface_preimage_apply,
@@ -336,9 +335,9 @@ private theorem outputHashPrivateCount_eq
     (program : Lifecycle.Stage1.Application.Program) :
     (Lifecycle.Stage1.outputHashChild relation program
       (interface relation program)).privateCount (outputHashOffset program) =
-      2935088 := by
+      2542720 := by
   change Lifecycle.OutputHash.hashLength PilotProduction.outputInterface
-    (outputHashOffset program) = 2935088
+    (outputHashOffset program) = 2542720
   unfold Lifecycle.OutputHash.hashLength
   rw [PilotProduction.outputInterface_preimage_apply,
     PilotProduction.outputPreimage_chunkCount]
@@ -361,9 +360,9 @@ private theorem piCcsPrivateCount_eq
     (template : Proof (ProductionKey.degreeBound relation)) :
     (Lifecycle.Stage1.piCcsChild relation ajtai program
       (interface relation program) template).privateCount (piCcsOffset program) =
-      1258207 := by
+      1258477 := by
   change Lifecycle.PiCCS.v1_2.Formal.privateCount
-    (ProductionKey.degreeBound relation) = 1258207
+    (ProductionKey.degreeBound relation) = 1258477
   exact Lifecycle.PiCCS.v1_2.Formal.privateCount_eq_of_degreeBound_eq_eight
     _ (ProductionKey.degreeBound_eq relation)
 

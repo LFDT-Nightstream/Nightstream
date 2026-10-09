@@ -136,8 +136,17 @@ theorem base_completePrefix
     change input.iteration + 1 < goldilocksModulus
     rw [zero]
     norm_num [goldilocksModulus]
-  have priorWellFormed : StateEncoding.WellFormed prior := ⟨priorFixed, valid.1, rfl⟩
-  have nextWellFormed : StateEncoding.WellFormed next := ⟨nextFixed, successor, nextPc⟩
+  have nextCanonical : Lifecycle.ChildrenCanonical (next.running functionIndex) := by
+    rcases step.2.2.2 with base | recursive
+    · change Lifecycle.ChildrenCanonical (output.runningNext functionIndex)
+      rw [congrFun base.2.2 functionIndex]
+      exact StateEncoding.defaultRunning_canonical
+    · rcases recursive with ⟨_, positive, _⟩
+      exact False.elim ((Nat.ne_of_gt positive) zero)
+  have priorWellFormed : StateEncoding.WellFormed prior :=
+    ⟨priorFixed, valid.1, rfl, StateEncoding.defaultRunning_canonical⟩
+  have nextWellFormed : StateEncoding.WellFormed next :=
+    ⟨nextFixed, successor, nextPc, nextCanonical⟩
   obtain ⟨result, accepted⟩ := Nifs.BaseCompleteness.zeroProof_verify relation ajtai prior
   refine ⟨normalizedStep, priorWellFormed, nextWellFormed, result, accepted, ?_⟩
   apply StepWitnessPrefix.completePrefix relation ajtai context normalized output result

@@ -134,8 +134,9 @@ theorem accepted_of_checked_rows
     PerApplicationTerminal.Holds application fits productionSetup
       (nextStatement statement advice)
       (.recursive (payload (PiCCSInputCheck.runningFromInput messages) children raw)) := by
-  have selectedStep := (CheckedReplayStep.checked_step statement input batch parent messages
-    runningWitness freshWitness advice sampled returned checked accepted nonwrap).1
+  have checkedStep := CheckedReplayStep.checked_step statement input batch parent messages
+    runningWitness freshWitness advice sampled returned checked accepted nonwrap
+  have selectedStep := checkedStep.1
   have rawStep := PerApplicationFixedPointSoundness.rowsZero_implies_stepHoldsFor
     application fits productionAjtaiKey raw rows
   rw [inputCustody, contextCustody] at rawStep
@@ -157,7 +158,7 @@ theorem accepted_of_checked_rows
     ⟨nonwrap, priorValid.2.1, Stage1.Poseidon2HashChainV1.step_output_length statement.zi advice⟩
   exact HyperNovaAcceptedNext.terminal_of_memberships application fits productionSetup
     (nextStatement statement advice) (PiCCSInputCheck.runningFromInput messages) children raw
-    valid (Nat.zero_lt_succ _) digest childOpenings
+    valid (Nat.zero_lt_succ _) digest checkedStep.2.2.1.2.2.2 childOpenings
     (HyperNovaAcceptedNext.freshHolds_of_rows application fits productionAjtaiKey raw rows bounded)
 
 end NightstreamFPrime.Export.Stage1.CheckedReplaySuccessor

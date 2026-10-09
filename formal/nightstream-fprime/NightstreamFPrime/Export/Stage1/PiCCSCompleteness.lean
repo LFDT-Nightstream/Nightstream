@@ -379,6 +379,7 @@ theorem complete_arithmeticLogical
       NightstreamFPrime.Layout.Stage1.PiCCSStarts.roundTranscriptWitnessStart
       NightstreamFPrime.Layout.Stage1.PiCCSStarts.challengeWitnessStart
       NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart
+      NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementBindingLogicalStart
     omega
   have initialStart : PiCCSArithmetic.initialClaimLogicalStart +
       localLength p0.operations =
@@ -431,6 +432,7 @@ private theorem arithmeticStartLocal :
     NightstreamFPrime.Layout.Stage1.PiCCSStarts.roundTranscriptWitnessStart
     NightstreamFPrime.Layout.Stage1.PiCCSStarts.challengeWitnessStart
     NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart
+    NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementBindingLogicalStart
   rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
   norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset]
 
@@ -715,7 +717,14 @@ theorem statementBindingConstraints_hold
     (specification : StateBinding.SpecHolds
       (Formal.statementBindingInterface
         (PiCCSArithmetic.sharedInterface logicalWidth publicFits)).state
-      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset env) :
+      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset env)
+    (signs : ∀ word lane,
+      (StateBinding.signBit NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset
+        word lane).eval env =
+      (StateBinding.signHint
+        (Formal.statementBindingInterface
+          (PiCCSArithmetic.sharedInterface logicalWidth publicFits)).state
+        NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset word lane).eval env) :
     ConstraintsHold env
       (PiCCSArithmetic.statementBindingConstraints logicalWidth
         publicFits) := by
@@ -724,11 +733,11 @@ theorem statementBindingConstraints_hold
     NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints
     Formal.statementBindingCircuit
   rw [FormalCircuit.withConstantFootprint_main]
-  exact StatementBinding.constraintsHold_of_spec
+  exact StatementBinding.constraintsHold_of_signs
     (Formal.statementBindingInterface
       (PiCCSArithmetic.sharedInterface logicalWidth publicFits))
     env NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset
-    ⟨specification, fun _ => rfl, fun _ => rfl, fun _ => rfl⟩
+    ⟨specification, fun _ => rfl, fun _ => rfl, fun _ => rfl⟩ signs
 
 theorem statementBindingConstraints_varsBelow
     {logicalWidth : Nat}
@@ -742,7 +751,8 @@ theorem statementBindingConstraints_varsBelow
     ∀ expression ∈
       PiCCSArithmetic.statementBindingConstraints logicalWidth publicFits,
       expression.VarsBelow
-        NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset := by
+        (NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset +
+          StateBinding.signCount) := by
   intro expression member
   have scope := StatementBinding.flatConstraints_varsBelow
     (Formal.statementBindingInterface
@@ -753,7 +763,7 @@ theorem statementBindingConstraints_varsBelow
       PiCCSArithmetic.statementBindingLogicalStart,
       NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints,
       Formal.statementBindingCircuit] using member)
-  rw [StatementBinding.localLength_eq, Nat.add_zero] at below
+  rw [StatementBinding.localLength_eq] at below
   exact below
 
 private theorem childOp_flatConstraints (name : String)

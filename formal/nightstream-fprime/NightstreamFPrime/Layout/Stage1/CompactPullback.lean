@@ -161,7 +161,7 @@ def compactEnv (program : Lifecycle.Stage1.Application.Program)
 
 @[simp] theorem compactEnv_priorLocal
     (program : Lifecycle.Stage1.Application.Program) (env : Env)
-    (index : Nat) (bound : index < 2935352) :
+    (index : Nat) (bound : index < 2542984) :
     compactEnv program env (AssemblerInputs.priorOffset program + index) =
       sourceEnv program env (PilotProduction.witnessOffset + index) := by
   have notRoot : ¬ AssemblerInputs.priorOffset program + index <
@@ -179,7 +179,7 @@ def compactEnv (program : Lifecycle.Stage1.Application.Program)
 
 @[simp] theorem compactEnv_outputHashLocal
     (program : Lifecycle.Stage1.Application.Program) (env : Env)
-    (index : Nat) (bound : index < 2935088) :
+    (index : Nat) (bound : index < 2542720) :
     compactEnv program env (AssemblerInputs.outputHashOffset program + index) =
       sourceEnv program env
         (Lifecycle.Pilot.outputOffset PilotProduction.interface
@@ -201,7 +201,7 @@ def compactEnv (program : Lifecycle.Stage1.Application.Program)
 
 @[simp] theorem compactEnv_piCcsLocal
     (program : Lifecycle.Stage1.Application.Program) (env : Env)
-    (index : Nat) (bound : index < 1258207) :
+    (index : Nat) (bound : index < 1258477) :
     compactEnv program env (AssemblerInputs.piCcsOffset program + index) =
       sourceEnv program env (PilotPiCCS.piCcsOffset + index) := by
   have notRoot : ¬ AssemblerInputs.piCcsOffset program + index <

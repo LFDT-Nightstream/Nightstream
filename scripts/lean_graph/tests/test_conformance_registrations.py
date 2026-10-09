@@ -152,7 +152,7 @@ class ConformanceRegistrationTests(unittest.TestCase):
         for mode in ("recursive", "recursive-mutations"):
             check = self.gates[f"candidate-{mode}"]["commands"][0]["completion"]
             completion(report + f"candidate_{mode}_conformance=passed elapsed=1s\n"
-                       "independent_child_assignment_mutations=passed cases=3\n", check)
+                       "independent_child_assignment_mutations=passed cases=4\n", check)
 
     def test_recursive_phase_does_not_reuse_the_base_result(self):
         order = self.selected("piccs-conformance")

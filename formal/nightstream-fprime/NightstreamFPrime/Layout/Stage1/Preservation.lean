@@ -91,13 +91,13 @@ private theorem compactEnv_shiftedPiCcsLocal
     (program : Lifecycle.Stage1.Application.Program) (env : Env)
     (index : Nat)
     (support : SupportRange.Extend (fun _ => False)
-      PilotPiCCS.piCcsOffset (PilotPiCCS.piCcsOffset + 1258207) index) :
+      PilotPiCCS.piCcsOffset (PilotPiCCS.piCcsOffset + 1258477) index) :
     CompactPullback.compactEnv program env (index + piCcsDelta program) =
       sourceEnv program env index := by
   rcases support with impossible | ⟨lower, upper⟩
   · contradiction
   · let relative := index - PilotPiCCS.piCcsOffset
-    have relativeLt : relative < 1258207 := by
+    have relativeLt : relative < 1258477 := by
       dsimp only [relative]
       omega
     have sourceIndex : PilotPiCCS.piCcsOffset + relative = index := by
@@ -149,8 +149,9 @@ private theorem compactPiCcsStateBinding
       (PiCCSOrdinarySourceSupport.externalInputsSupported logicalWidth publicFits)
       (compactPiCcsExternalAgreement program env) baseBinding
   rcases transported with
-    ⟨priorCanonical, outputCanonical, priorContext, outputContext⟩
-  exact ⟨priorCanonical, outputCanonical, priorContext, outputContext⟩
+    ⟨priorCanonical, outputCanonical, priorContext, outputContext, priorChildren⟩
+  exact ⟨priorCanonical, outputCanonical, priorContext, outputContext,
+    priorChildren.congr (fun _ => rfl) (fun _ _ _ => rfl)⟩
 
 private theorem compactCubePoint_ext
     {Field : Type} {variableCount : Nat}
@@ -479,7 +480,7 @@ private theorem compactPiCcsOutputSupport
         (PilotPiCCS.interface (publicFits := publicFits))
         PilotPiCCS.piCcsOffset)
       (SupportRange.Extend (fun _ => False) PilotPiCCS.piCcsOffset
-        (PilotPiCCS.piCcsOffset + 1258207)) := by
+        (PilotPiCCS.piCcsOffset + 1258477)) := by
   intro lane
   unfold Lifecycle.PiCCS.v1_2.Formal.outputBindingFinalState
   rw [congrFun (PiCCSTranscriptRelocation.outputFinalState_direct
@@ -544,7 +545,7 @@ private theorem compactPiCcsOutgoingState_eq
       (PilotPiCCS.interface (publicFits := publicFits))
       PilotPiCCS.piCcsOffset)
     (SupportRange.Extend (fun _ => False) PilotPiCCS.piCcsOffset
-      (PilotPiCCS.piCcsOffset + 1258207))
+      (PilotPiCCS.piCcsOffset + 1258477))
     (sourceEnv program env) (CompactPullback.compactEnv program env)
     (compactPiCcsOutputSupport relation)
     (compactEnv_shiftedPiCcsLocal program env) lane).symm
@@ -706,7 +707,7 @@ private theorem compactPilotOutputCanonical
   · intro index bounded
     apply CompactPullback.compactEnv_source
     rw [← PilotProduction.lifecycleOutputOffset_matches] at bounded
-    change index < 2999852 at bounded
+    change index < 2598896 at bounded
     rw [Spartan.sourceColumnCount_eq]
     omega
   · exact specification

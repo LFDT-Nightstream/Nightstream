@@ -29,7 +29,7 @@ def prefixStarts : Nat → List Nat → List Nat
   | base, delta :: deltas => base :: prefixStarts (base + delta) deltas
 
 /-- The completed pilot owns the physical row prefix. -/
-def rowBase : Nat := 5870862
+def rowBase : Nat := 5086126
 
 theorem rowBase_eq_layout :
     rowBase = Pilot.physicalRowCount PilotProduction.interface
@@ -37,7 +37,7 @@ theorem rowBase_eq_layout :
   rw [rowBase, PilotProduction.physicalRowCount_eq]
 
 def statementBindingRowStart : Nat := rowBase
-def statementAbsorptionRowStart : Nat := statementBindingRowStart + 160
+def statementAbsorptionRowStart : Nat := statementBindingRowStart + 4712
 def challengeRowStart : Nat := statementAbsorptionRowStart + 140288
 def roundTranscriptRowStart : Nat := challengeRowStart + 95352
 def initialClaimRowStart : Nat := roundTranscriptRowStart + 153440
@@ -57,8 +57,10 @@ def rowStarts : List Nat :=
     finalIdentityRowStart, outputBindingRowStart]
 
 /-- The logical child starts are also the witness starts for the four
-Poseidon2 invocation packets. -/
-def statementWitnessStart : Nat := PiCCSInputs.phaseOffset
+Poseidon2 invocation packets. The statement-binding leaf owns the first 270
+columns: one hinted sign per packed parent coordinate. -/
+def statementBindingLogicalStart : Nat := PiCCSInputs.phaseOffset
+def statementWitnessStart : Nat := statementBindingLogicalStart + 270
 def challengeWitnessStart : Nat := statementWitnessStart + 140288
 def roundTranscriptWitnessStart : Nat := challengeWitnessStart + 95352
 def initialClaimLogicalStart : Nat := roundTranscriptWitnessStart + 153440
@@ -70,21 +72,25 @@ def normLogicalStart : Nat := ccsLogicalStart + 23
 def finalIdentityLogicalStart : Nat := normLogicalStart + 48
 def outputBindingWitnessStart : Nat := finalIdentityLogicalStart + 2717
 
-theorem statementWitnessStart_eq : statementWitnessStart = 5945960 := by
-  unfold statementWitnessStart
-  exact PiCCSInputs.phaseOffset_eq
+theorem phaseOffset_le_statementWitnessStart :
+    PiCCSInputs.phaseOffset ≤ statementWitnessStart :=
+  Nat.le_add_right _ _
 
-theorem challengeWitnessStart_eq : challengeWitnessStart = 6086248 := by
+theorem statementWitnessStart_eq : statementWitnessStart = 5157226 := by
+  unfold statementWitnessStart statementBindingLogicalStart
+  rw [PiCCSInputs.phaseOffset_eq]
+
+theorem challengeWitnessStart_eq : challengeWitnessStart = 5297514 := by
   unfold challengeWitnessStart
   rw [statementWitnessStart_eq]
 
 theorem roundTranscriptWitnessStart_eq :
-    roundTranscriptWitnessStart = 6181600 := by
+    roundTranscriptWitnessStart = 5392866 := by
   unfold roundTranscriptWitnessStart
   rw [challengeWitnessStart_eq]
 
 theorem outputBindingWitnessStart_eq :
-    outputBindingWitnessStart = 6364631 := by
+    outputBindingWitnessStart = 5575897 := by
   unfold outputBindingWitnessStart finalIdentityLogicalStart
     normLogicalStart ccsLogicalStart evalALogicalStart evalKLogicalStart
     sumcheckLogicalStart initialClaimLogicalStart
@@ -107,7 +113,7 @@ theorem outputBindingWitnessStart_matches
 
 /-- Generic R1CS multiplication columns begin after all PiCCS logical
 variables. -/
-def logicalFreshBase : Nat := PiCCSInputs.phaseOffset + 1258207
+def logicalFreshBase : Nat := PiCCSInputs.phaseOffset + 1258477
 
 theorem logicalFreshBase_eq_layout
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :

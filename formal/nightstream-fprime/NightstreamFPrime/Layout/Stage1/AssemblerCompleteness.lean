@@ -39,6 +39,7 @@ def piCcsExternalSupport
     priorStateContext := ?_
     outputStateContext := ?_
     expectedContext := ?_
+    priorStatePacked := ?_
     runningPoint := ?_
     runningCommitment := ?_
     runningPublicInput := ?_
@@ -64,6 +65,9 @@ def piCcsExternalSupport
   · intro lane
     simpa [AssemblerInputs.piCcsInterface, PiCCSInputs.interface] using
       source.expectedContext lane
+  · intro word
+    simpa [AssemblerInputs.piCcsInterface, PiCCSInputs.interface] using
+      source.priorStatePacked word
   · intro coordinate
     simpa [AssemblerInputs.piCcsInterface, PiCCSInputs.interface] using
       source.runningPoint coordinate

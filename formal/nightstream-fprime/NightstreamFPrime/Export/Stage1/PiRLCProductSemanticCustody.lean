@@ -23,27 +23,27 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
 private theorem samplerLogicalStart_eq :
-    PiRLCStarts.samplerLogicalStart = 7207123 := by
+    PiRLCStarts.samplerLogicalStart = 6418389 := by
   rfl
 
 private theorem commitmentLogicalStart_eq :
-    PiRLCStarts.commitmentLogicalStart = 7279662 := by
+    PiRLCStarts.commitmentLogicalStart = 6490928 := by
   rfl
 
 private theorem phaseFreshStart_eq :
-    PiRLCStarts.phaseFreshStart = 7313628 := by
+    PiRLCStarts.phaseFreshStart = 6524894 := by
   exact PiRLCStarts.phaseFreshStart_eq
 
 private theorem publicInputLogicalStart_eq :
-    PiRLCStarts.publicInputLogicalStart = 7299858 := by
+    PiRLCStarts.publicInputLogicalStart = 6511124 := by
   rfl
 
 private theorem evalKLogicalStart_eq :
-    PiRLCStarts.evalKLogicalStart = 7304448 := by
+    PiRLCStarts.evalKLogicalStart = 6515714 := by
   rfl
 
 private theorem evalALogicalStart_eq :
-    PiRLCStarts.evalALogicalStart = 7306284 := by
+    PiRLCStarts.evalALogicalStart = 6517550 := by
   rfl
 
 private theorem commitmentValue_beforeTranscript
@@ -69,12 +69,14 @@ private theorem commitmentValue_beforeTranscript
   change lane.val < 54 at laneBound
   split
   · norm_num [PiCCSInputs.freshCommitmentStart,
-      PiCCSInputs.proofInputStart, PiCCSInputs.expectedContextStart,
+      PiCCSInputs.proofInputStart, PiCCSInputs.priorChildrenStart,
+        PiCCSInputs.priorChildrenWords, PiCCSInputs.expectedContextStart,
       PiCCSInputs.expectedContextWords, ringDegree]
     omega
   · norm_num [PiCCSInputs.runningCommitmentStart,
-      PiCCSInputs.runningGroupStart, PiCCSInputs.runningGroupsStart,
-      PiCCSInputs.priorRunningStart, PiCCSInputs.runningGroupWords,
+      PiCCSInputs.priorRunningStart, PiCCSInputs.runningCommitmentWords, PiCCSInputs.runningPublicWords,
+        PiCCSInputs.runningEvalKWords, PiCCSInputs.runningEvalAWords, PiCCSInputs.priorChildrenStart,
+        PiCCSInputs.expectedContextStart, PiCCSInputs.expectedContextWords,
       PilotProduction.priorPublicInputStart,
       PilotProduction.priorPreimageStart,
       PilotProduction.stateHashWords_eq, ringDegree]
@@ -107,8 +109,9 @@ private theorem publicInputValue_beforeTranscript
       PilotProduction.stateHashWords_eq, ringDegree]
     omega
   · norm_num [PiCCSInputs.runningPublicStart,
-      PiCCSInputs.runningGroupStart, PiCCSInputs.runningGroupsStart,
-      PiCCSInputs.priorRunningStart, PiCCSInputs.runningGroupWords,
+      PiCCSInputs.priorRunningStart, PiCCSInputs.runningCommitmentWords, PiCCSInputs.runningPublicWords,
+        PiCCSInputs.runningEvalKWords, PiCCSInputs.runningEvalAWords, PiCCSInputs.priorChildrenStart,
+        PiCCSInputs.expectedContextStart, PiCCSInputs.expectedContextWords,
       PilotProduction.priorPublicInputStart,
       PilotProduction.priorPreimageStart,
       PilotProduction.stateHashWords_eq, ringDegree]
@@ -135,7 +138,8 @@ private theorem evalKValue_beforeTranscript
   change lane.val < 54 at laneBound
   norm_num [PiRLCCombinationInvocations.evalKValueSourceStart,
     PiCCSInputs.outputEvaluationStart, PiCCSInputs.roundMessageStart,
-    PiCCSInputs.freshCommitmentStart, PiCCSInputs.proofInputStart,
+    PiCCSInputs.freshCommitmentStart, PiCCSInputs.proofInputStart, PiCCSInputs.priorChildrenStart,
+        PiCCSInputs.priorChildrenWords,
     PiCCSInputs.expectedContextStart, PiCCSInputs.expectedContextWords,
     PiCCSInputs.freshCommitmentWords, PiCCSInputs.roundMessageWords,
     ringDegree]
@@ -164,7 +168,8 @@ private theorem evalAValue_beforeTranscript
   change lane.val < 54 at laneBound
   norm_num [PiRLCCombinationInvocations.evalAValueSourceStart,
     PiCCSInputs.outputEvaluationStart, PiCCSInputs.roundMessageStart,
-    PiCCSInputs.freshCommitmentStart, PiCCSInputs.proofInputStart,
+    PiCCSInputs.freshCommitmentStart, PiCCSInputs.proofInputStart, PiCCSInputs.priorChildrenStart,
+        PiCCSInputs.priorChildrenWords,
     PiCCSInputs.expectedContextStart, PiCCSInputs.expectedContextWords,
     PiCCSInputs.freshCommitmentWords, PiCCSInputs.roundMessageWords,
     ringDegree]
@@ -408,7 +413,7 @@ private theorem samplerLogicalStart_lt_baseConstant :
     PiRLCStarts.samplerLogicalStart <
       PiRLCProductPlan.basePackage.layout.constantColumn := by
   have constant : PiRLCProductPlan.basePackage.layout.constantColumn =
-      12442938 := by
+      11654204 := by
     exact NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
   rw [samplerLogicalStart_eq, constant]
   norm_num
@@ -417,7 +422,7 @@ private theorem phaseFreshStart_lt_baseConstant :
     PiRLCStarts.phaseFreshStart <
       PiRLCProductPlan.basePackage.layout.constantColumn := by
   have constant : PiRLCProductPlan.basePackage.layout.constantColumn =
-      12442938 := by
+      11654204 := by
     exact NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
   rw [phaseFreshStart_eq, constant]
   norm_num
@@ -485,7 +490,8 @@ theorem semanticEnv_valueColumn_eq_baseEnv
   rw [PiRLCSamplerRetainedCustody.semanticEnv_source_eq_transitionEnv_of_beforeSampler
     geometry assignment base before]
   exact (PiRLCSamplerRetainedCustody.baseEnv_eq_transitionEnv program base _
-    privateBound (Or.inl beforeTranscript)).symm
+    privateBound (Or.inl (Nat.lt_of_lt_of_le beforeTranscript
+      PiCCSStarts.phaseOffset_le_statementWitnessStart))).symm
 
 /-- Every direct product output lies in the unclaimed product interval and
 therefore has the same canonical transition value in both environments. -/
@@ -511,7 +517,7 @@ theorem semanticEnv_outputColumn_eq_baseEnv
       right
       have lower := interval.1
       rw [commitmentLogicalStart_eq] at lower
-      rw [PiCCSInputs.phaseOffset_eq,
+      rw [PiCCSStarts.statementWitnessStart_eq,
         PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
       omega)).symm
 
@@ -540,7 +546,7 @@ theorem semanticEnv_priorColumn_eq_baseEnv
       right
       have lower := interval.1
       rw [commitmentLogicalStart_eq] at lower
-      rw [PiCCSInputs.phaseOffset_eq,
+      rw [PiCCSStarts.statementWitnessStart_eq,
         PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
       omega)).symm
 

@@ -91,11 +91,19 @@ theorem specs_of_step
   have nextIteration : (env (PilotProduction.outputPreimageStart +
       RunningTransitionInputs.iterationWordIndex)).val = input.iteration + 1 :=
     congrArg (fun preimage => preimage.iteration) nextDecoded
-  have outputRunning : StatementAbsorption.evalRunning
-      (RunningTransitionInputs.outputRunningExpr logicalWidth publicFits) env =
-      output.runningNext functionIndex :=
-    (StateDecoder.evalOutputRunning_eq_running logicalWidth publicFits env).trans
-      (congrArg (fun preimage => preimage.running functionIndex) nextDecoded)
+  have outputWordValue (index : Lifecycle.Stage1.RunningTransition.WordIndex) :
+      (RunningTransitionInputs.outputWord index).eval env =
+        (serializeRunning (publicFits := publicFits)
+          (output.runningNext functionIndex)).getD index.val 0 := by
+    have indexBound : index.val < 27794 := index.isLt
+    calc
+      (RunningTransitionInputs.outputWord index).eval env =
+          env (PilotProduction.outputPreimageStart + (12 + index.val)) := by
+        simp [RunningTransitionInputs.outputWord, RunningTransitionInputs.outputBase,
+          PiCCSInputs.priorRunningStart, Nat.add_assoc]
+      _ = (serializePreimage (publicFits := publicFits) next).getD (12 + index.val) 0 :=
+        nextWords ⟨12 + index.val, by rw [PilotProduction.stateHashWords_eq]; omega⟩
+      _ = _ := StateEncodingCanonical.serializePreimage_running_word next index.val indexBound
   have initial (index : Lifecycle.Stage1.RunningTransition.StateIndex) :
       (RunningTransitionInputs.initialStateExpr index).eval env = input.z0.getD index.val 0 := by
     simpa only [RunningTransitionInputs.initialStateExpr, Expr.eval_var, Nat.add_assoc] using!
@@ -111,15 +119,13 @@ theorem specs_of_step
         apply Fin.ext
         change (env (PilotProduction.priorPreimageStart + RunningTransitionInputs.iterationWordIndex)).val = 0
         exact priorIteration.trans base.1
-      have outputDefault := outputRunning.trans (congrFun base.2.2 functionIndex)
       constructor
       · intro _ index
         exact (initial index).trans ((congrArg (fun words => words.getD index.val 0) base.2.1).trans
           (current index).symm)
       · intro _ index
-        change (Lifecycle.Stage1.RunningTransition.runningWord
-          (RunningTransitionInputs.outputRunningExpr logicalWidth publicFits) index).eval env = _
-        rw [Lifecycle.Stage1.RunningTransition.runningWord_eval, outputDefault]
+        change (RunningTransitionInputs.outputWord index).eval env = _
+        rw [outputWordValue, congrFun base.2.2 functionIndex]
         rfl
       · intro nonzero
         exact False.elim (nonzero fieldZero)
@@ -139,12 +145,11 @@ theorem specs_of_step
       · intro zero
         exact False.elim (fieldNonzero zero)
       · intro _ index
-        change (Lifecycle.Stage1.RunningTransition.runningWord
-          (RunningTransitionInputs.outputRunningExpr logicalWidth publicFits) index).eval env =
+        change (RunningTransitionInputs.outputWord index).eval env =
           (Lifecycle.Stage1.RunningTransition.runningWord
             (RunningTransitionInputs.recursiveRunningExpr logicalWidth publicFits) index).eval env
-        rw [Lifecycle.Stage1.RunningTransition.runningWord_eval,
-          Lifecycle.Stage1.RunningTransition.runningWord_eval, outputRunning, recursiveRunning]
+        rw [outputWordValue, Lifecycle.Stage1.RunningTransition.runningWord_eval,
+          recursiveRunning]
   · constructor
     · have words := congrArg natWord nextIteration
       rw [StateDecoder.natWord_val, ← priorIteration, StateDecoder.natWord_val_add_one] at words

@@ -7,6 +7,7 @@ import NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions
 import NightstreamFPrime.Layout.PiDEC.v1_2.Preservation
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics
 import NightstreamFPrime.Lifecycle.VerifierContext
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.FormalPhase
 
 /-!
 Owns structural proofs for the one Stage 1 pilot + PiCCS + PiRLC + PiDEC +
@@ -178,22 +179,22 @@ theorem circuitPackage_permutation_invocations :
     PiCCSInvocations.invocations_length Data.logicalWidth Data.publicFits,
     PiRLCSamplerInvocations.invocations_length]
 
-theorem proofInputStart_eq : Data.proofInputStart = 64226 := by
+theorem proofInputStart_eq : Data.proofInputStart = 55638 := by
   rfl
 
-theorem witnessStart_eq : Data.witnessStart = 75098 := by
+theorem witnessStart_eq : Data.witnessStart = 70830 := by
   rfl
 
-theorem witnessLength_eq : Data.witnessLength = 12335600 := by
+theorem witnessLength_eq : Data.witnessLength = 11551134 := by
   rfl
 
 theorem circuitPackage_layout_values :
     let layout := (Data.circuitPackage ()).layout
-    layout.rowCount = 12351983 ∧
-      layout.privateColumnCount = 12442938 ∧
-      layout.constantColumn = 12442938 ∧
+    layout.rowCount = 11567520 ∧
+      layout.privateColumnCount = 11654204 ∧
+      layout.constantColumn = 11654204 ∧
       layout.publicColumnCount = 278 ∧
-      layout.totalColumnCount = 12443217 := by
+      layout.totalColumnCount = 11654483 := by
   rw [Data.circuitPackage_layout]
   dsimp [Data.physicalLayout]
   exact ⟨rfl, rfl, rfl, rfl, rfl⟩
@@ -210,11 +211,11 @@ theorem arithmetic_partition
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits) :
     (Rows.witnessInstructions (Data.arithmeticRows ())).length +
-      (Rows.assertionRows (Data.arithmeticRows ())).length = 86375 := by
+      (Rows.assertionRows (Data.arithmeticRows ())).length = 86648 := by
   calc
     _ = (Data.arithmeticRows ()).length :=
       Rows.witnessInstructions_length_add_assertionRows_length _
-    _ = 86375 := by
+    _ = 86648 := by
       rw [Data.arithmeticRows_eq, List.length_append, List.length_append,
         List.length_append,
         PiCCSArithmetic.arithmeticRows_length Data.logicalWidth
@@ -229,7 +230,7 @@ theorem circuitPackage_ordinary_rows
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits) :
     (Data.components ()).toCircuitPackage.witnessInstructions.length +
-      (Data.components ()).toCircuitPackage.assertionRows.length = 87061 := by
+      (Data.components ()).toCircuitPackage.assertionRows.length = 87334 := by
   calc
     _ = (PilotData.circuitPackage ()).witnessInstructions.length +
         (PilotData.circuitPackage ()).assertionRows.length +
@@ -238,7 +239,7 @@ theorem circuitPackage_ordinary_rows
     _ = 686 + (Data.arithmeticRows ()).length := by
       rw [NightstreamFPrime.Export.Pilot.ordinaryRows_length,
         Data.components_arithmeticRows]
-    _ = 686 + 86375 := by
+    _ = 686 + 86648 := by
       rw [Data.arithmeticRows_eq, List.length_append, List.length_append,
         List.length_append,
         PiCCSArithmetic.arithmeticRows_length Data.logicalWidth
@@ -248,7 +249,7 @@ theorem circuitPackage_ordinary_rows
         PiDECArithmetic.canonicalPlan_rowCount relation,
         RunningTransitionArithmetic.Plan.rows_length,
         RunningTransitionArithmetic.canonicalPlan_rowCount relation]
-    _ = 87061 := by norm_num
+    _ = 87334 := by norm_num
 
 /-- Construct all 7,604 PiCCS Poseidon2 invocations in their proved private
 intervals. Sampler invocations have a separate package completion owner. -/
@@ -1193,8 +1194,8 @@ theorem circuitPackage_implies_piCcsPhaseHolds
 
 private theorem hashChain_rows :
     Data.priorChain.witnessLength + Data.outputChain.witnessLength =
-      5870176 := by
-  change 2 * NightstreamFPrime.Layout.PilotValues.hashWitnessCount = 5870176
+      5085440 := by
+  change 2 * NightstreamFPrime.Layout.PilotValues.hashWitnessCount = 5085440
   norm_num [NightstreamFPrime.Layout.PilotValues.hashWitnessCount,
     NightstreamFPrime.Layout.PilotValues.absorbCount,
     NightstreamFPrime.Layout.PilotValues.stateHashWords,

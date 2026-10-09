@@ -428,6 +428,18 @@ pub fn evaluate_canonical_assignment(
     private_values: &[u64],
     public_values: &[u64],
 ) -> Result<usize, usize> {
+    evaluate_canonical_rows(bytes, private_values, public_values, 0..usize::MAX)
+}
+
+/// Check only the physical rows in `rows`, after the same complete schedule
+/// checks. `Ok` contains the number of checked rows; `Err` contains one
+/// unsatisfied row.
+pub fn evaluate_canonical_rows(
+    bytes: &[u8],
+    private_values: &[u64],
+    public_values: &[u64],
+    rows: Range<usize>,
+) -> Result<usize, usize> {
     let raw: RawPackage = serde_json::from_slice(bytes).expect("canonical raw-package decode");
     assert_eq!(raw.0, 8, "canonical raw-package schema");
     assert_eq!(raw.3 .1, raw.3 .2, "canonical private/constant boundary");
@@ -465,10 +477,13 @@ pub fn evaluate_canonical_assignment(
         row_cursor += event_row_count(event, &raw);
     }
     assert_eq!(row_cursor, word(raw.3 .0), "canonical raw row coverage");
+    let rows = rows.start.min(row_cursor)..rows.end.min(row_cursor);
 
     schedule.par_iter().try_for_each(|&event| {
-        for ordinal in 0..event_row_count(event, &raw) {
-            let row = event.row_start() + ordinal;
+        let start = event.row_start();
+        let end = start + event_row_count(event, &raw);
+        for row in start.max(rows.start)..end.min(rows.end) {
+            let ordinal = row - start;
             let [a, b, c] = [Side::A, Side::B, Side::C].map(|side| {
                 event_value(
                     event,
@@ -488,7 +503,7 @@ pub fn evaluate_canonical_assignment(
         Ok(())
     })?;
 
-    Ok(row_cursor)
+    Ok(rows.len())
 }
 
 /// Check exactly the Pilot and PiCCS row prefix in one canonical schema-8
@@ -726,8 +741,8 @@ pub fn evaluate_pilot_assignment(
 ) -> Result<PilotAssignmentReport, usize> {
     // PilotProduction.physicalRowCountValue_eq and PilotValues fix the
     // rows. Stage1.sourceToSpartan relocates the pilot private boundary.
-    const PILOT_ROW_END: usize = 5_870_862;
-    const PILOT_PRIVATE_END: usize = 5_945_682;
+    const PILOT_ROW_END: usize = 5_086_126;
+    const PILOT_PRIVATE_END: usize = 5_156_678;
     const PILOT_PUBLIC_COUNT: usize = 274;
     let raw: RawPackage = serde_json::from_slice(bytes).expect("canonical pilot raw-package decode");
     assert_eq!(raw.0, 8, "canonical pilot raw-package schema");
@@ -745,8 +760,8 @@ pub fn evaluate_pilot_assignment(
     assert_eq!(raw.6.len(), 2, "pilot hash-owner count");
     let prior = &raw.6[0];
     let output = &raw.6[1];
-    assert_eq!((prior.0, prior.1, prior.3, prior.4, prior.5), (1, 0, 0, 32_113, 75_098));
-    assert_eq!((output.0, output.1, output.3, output.4), (2, 2_935_770, 32_113, 32_113));
+    assert_eq!((prior.0, prior.1, prior.3, prior.4, prior.5), (1, 0, 0, 27_819, 70_830));
+    assert_eq!((output.0, output.1, output.3, output.4), (2, 2_543_402, 27_819, 27_819));
     assert_eq!(word(output.1 + output.2), PILOT_ROW_END);
     let binding_rows = [
         word(prior.1 + prior.6)..word(output.1),

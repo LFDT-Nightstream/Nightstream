@@ -25,11 +25,13 @@ Outputs:
   expected number of bad retries is the sum of the per-coordinate chances.
 
 Invariant: a bad set is `Local`. It may read the oracle anywhere except at its
-own point, so the bad set of a later challenge may read earlier challenges.
+own point, so the bad set of one challenge may read the answers of the others.
 
-The structure follows Ironwood's `OracleComp` and `xEscAtPoint_measure_le`
-(zcash/ironwood 86e3c7026db8, Apache-2.0 or MIT), restated with finite
-averages. Ironwood's bad sets do not read the oracle.
+`escape_le` restates Ironwood's `escapesDuringC_measure_le'`, whose escape sets
+read the table and are blind at their own point, as `Local` sets are here;
+`pinned_le` is its `xEscAtPoint_measure_le` for such sets (zcash/ironwood
+86e3c7026db8, Apache-2.0 or MIT). Both are restated with finite averages. The
+rewinding lemmas have no Ironwood counterpart: its extractor does not rewind.
 
 Does not own: which points a protocol queries, a claim that a concrete hash
 behaves as this oracle, or quantum queries.

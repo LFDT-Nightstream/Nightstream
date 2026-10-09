@@ -14,5 +14,6 @@ Run through validate.sh after building the library and tests.EvidenceTargets.
 -- The final history target.
 #evidence_export LeanGraph.Targets.hyperNovaLinearSecurity
 #evidence_export LeanGraph.Targets.hyperNovaTerminalFalseAcceptance
+#evidence_export LeanGraph.Targets.romKnowledgeSoundness
 #evidence_export LeanGraph.Targets.piRLCWitnessReplay
 #evidence_export NightstreamFPrime.Export.Stage1.PiRLCWitnessHonestResponse.preparedWitnessBlockPartials_honestResponse

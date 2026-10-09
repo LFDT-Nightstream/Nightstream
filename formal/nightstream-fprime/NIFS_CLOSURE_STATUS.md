@@ -13,8 +13,10 @@ bounds) is deleted as well.
 The current NIFS security results are
 `Lifecycle.RandomOracleKnowledge.knowledge_error_le`, its form with the
 prior-state link `Export.Stage1.RandomOracleLink.knowledge_error_le_linked`,
-the binding step `Lifecycle.RandomOracleBinding.rerun_shortKernel` and the
-verifier fidelity `Lifecycle.RandomOracleFidelity.accepts_iff_verify`.
+the production form with the key drawn inside the game
+`Export.Stage1.RandomOracleSetup.production_knowledge_error_lt`, the binding
+reduction `Lifecycle.RandomOracleBinding.rerunKernel` and the verifier
+fidelity `Lifecycle.RandomOracleFidelity.accepts_iff_verify`.
 `TRUST_BOUNDARY.md` states their premises.
 
 **Everything below is a retired record.** It describes the deleted chain at

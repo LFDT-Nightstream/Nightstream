@@ -96,9 +96,11 @@ def ExtractionFails (adversary : NifsAdversary) (extractor : NifsExtractor adver
 /-- HyperNova errata Assumption 1, in the form of Definition 7 knowledge
 soundness of the non-interactive NIFS: every admitted adversary has an
 efficient extractor whose failure after a real success is at most `error` of
-that adversary. This joint form implies Definition 7's difference form
-`Pr[success] - Pr[extraction] ≤ error`. The public parameters are the fixed
-production key and setup, not sampled, and `error` replaces `negl(λ)`. -/
+that adversary. The success event adds the prior-state link, which the bare
+NIFS verifier does not check. This joint form implies Definition 7's
+difference form `Pr[success] - Pr[extraction] ≤ error`. The public parameters
+are the fixed production key and setup, not sampled, and `error` replaces
+`negl(λ)`. -/
 def Assumption1 (Admitted : NifsAdversary → Prop)
     (Efficient : (adversary : NifsAdversary) → NifsExtractor adversary → Prop)
     (error : NifsAdversary → ℝ) : Prop :=

@@ -3,7 +3,7 @@
 //! the PiCCS prior child region; the hash and canonical rows must separately
 //! validate that data.
 
-use super::{PI_CCS_V1_1_ROUND_COUNT, STATE_PREIMAGE_WORDS};
+use super::{PI_CCS_V1_2_ROUND_COUNT, STATE_PREIMAGE_WORDS};
 
 const RUNNING_COUNT: usize = 16;
 const MATRIX_COUNT: usize = 4;
@@ -30,7 +30,7 @@ fn parse(running: &serde_json::Value) -> Running {
         eval_k: serde_json::from_value(fields[3].clone()).expect("running Eval_K"),
         eval_a: serde_json::from_value(fields[4].clone()).expect("running Eval_A"),
     };
-    assert_eq!(running.point.len(), PI_CCS_V1_1_ROUND_COUNT);
+    assert_eq!(running.point.len(), PI_CCS_V1_2_ROUND_COUNT);
     for count in [
         running.commitments.len(),
         running.public.len(),

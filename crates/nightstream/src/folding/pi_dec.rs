@@ -8,7 +8,7 @@ use neo_ajtai::nightstream_fprime_setup::{
 };
 use neo_ccs::Mat;
 use neo_math::{balanced::within_nc_bound, D, F, K};
-use neo_reductions::superneo_eval::{eval_real_v1_1_openings_from_rows, MatrixRows, MatrixShape, SuperneoZBlocks};
+use neo_reductions::superneo_eval::{eval_real_v1_2_openings_from_rows, MatrixRows, MatrixShape, SuperneoZBlocks};
 use p3_field::PrimeField64;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -89,7 +89,7 @@ pub(crate) fn prove_with_production_key(
         .collect::<Result<Vec<_>, _>>()
         .map_err(engine::Error::from)?;
     let openings =
-        eval_real_v1_1_openings_from_rows(rows, &parent.r, &blocks, workspace_bytes).map_err(engine::Error::from)?;
+        eval_real_v1_2_openings_from_rows(rows, &parent.r, &blocks, workspace_bytes).map_err(engine::Error::from)?;
     drop(blocks);
     let (children, ok_y, ok_x, ok_c) =
         neo_reductions::api::dec_children_with_commit_superneo_cached_from_trusted_split_digits(

@@ -29,7 +29,7 @@ private theorem combination_family_index_lt (sourceCount : Nat)
   unfold expandCombinationFamily at member
   rcases List.mem_flatMap.mp member with ⟨source, _sourceMember, indexedMember⟩
   rcases List.mem_ofFn.mp indexedMember with ⟨index, rfl⟩
-  let coordinates := NightstreamFPrime.Lifecycle.PiRLC.v1_1.CombinationStep.coordinates index
+  let coordinates := NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationStep.coordinates index
   change PiRLCCombinationTemplates.templateIndex source coordinates.2.1.val <
     (Data.compactRowTemplates ()).length
   rcases List.getElem?_eq_some_iff.mp (combination_selection source coordinates.2.1) with

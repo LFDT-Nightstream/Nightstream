@@ -1,6 +1,6 @@
 import NightstreamFPrime.Export.Stage1.DirectPiDECPrefixPlan
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryDirectPlanSemantics
-import NightstreamFPrime.Layout.PiDEC.v1_1.Values
+import NightstreamFPrime.Layout.PiDEC.v1_2.Values
 
 /-!
 Owns the first direct 4-matrix prefix that includes every PiRLC sampler row.
@@ -179,7 +179,7 @@ private theorem piDecCompleteRowCount_le
       2 ^ Lifecycle.cubeVariables := by
   rw [piRlcCompletePlan_rowCount]
   rw [piDecPlan, DirectPiDECPrefixPlan.piDecPlan,
-    PiDECDirectPlan.plan_rowCount, Layout.PiDEC.v1_1.exactRowCount_value]
+    PiDECDirectPlan.plan_rowCount, Layout.PiDEC.v1_2.exactRowCount_value]
   norm_num [Lifecycle.cubeVariables]
 
 def piDecCompletePlan
@@ -199,7 +199,7 @@ def piDecCompletePlan
       logicalWidth) :
     (piDecCompletePlan relation geometry).rowCount = 999030 := by
   simp [piDecCompletePlan, piDecPlan, DirectPiDECPrefixPlan.piDecPlan,
-    Layout.PiDEC.v1_1.exactRowCount_value]
+    Layout.PiDEC.v1_2.exactRowCount_value]
 
 private theorem totalRowCount_le
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}

@@ -37,7 +37,7 @@ def recursiveRunningBelow
     have coefficientBound := coefficient.isLt
     norm_num [PiDECInputs.childCommitmentStart,
       PiDECInputs.commitmentInputStart, PiDECInputs.commitmentWordsPerChild,
-      PiDEC.v1_1.CommitmentRecomposition.coordinateCount_eq, productionShape,
+      PiDEC.v1_2.CommitmentRecomposition.coordinateCount_eq, productionShape,
       productionProfile, Phi81MatrixSource.phi81Shape, ringDegree] at sourceBound rowBound coefficientBound ⊢
     omega
   · intro source column
@@ -51,10 +51,10 @@ def recursiveRunningBelow
       PiDECInputs.childCount, productionGlobalParams,
       PiDECInputs.commitmentWordsPerChild, PiDECInputs.evalKWordsPerChild,
       PiDECInputs.evalAWordsPerChild, PiDECInputs.publicInputWordsPerChild,
-      PiDEC.v1_1.CommitmentRecomposition.coordinateCount_eq,
-      PiDEC.v1_1.EvalKRecomposition.coordinateCount_eq,
-      PiDEC.v1_1.EvalARecomposition.coordinateCount_eq,
-      PiDEC.v1_1.PublicInputSplit.exactCoordinateCount,
+      PiDEC.v1_2.CommitmentRecomposition.coordinateCount_eq,
+      PiDEC.v1_2.EvalKRecomposition.coordinateCount_eq,
+      PiDEC.v1_2.EvalARecomposition.coordinateCount_eq,
+      PiDEC.v1_2.PublicInputSplit.exactCoordinateCount,
       productionShape, productionProfile, Phi81MatrixSource.phi81Shape,
       FullShape, fullShape, Phi81Relation.Shape.publicWidth,
       publicRingColumns, ringDegree] at sourceBound columnBound ⊢
@@ -69,8 +69,8 @@ def recursiveRunningBelow
       PiDECInputs.evalKInputStart, PiDECInputs.commitmentInputStart,
       PiDECInputs.childCount, productionGlobalParams,
       PiDECInputs.commitmentWordsPerChild, PiDECInputs.evalKWordsPerChild,
-      PiDEC.v1_1.CommitmentRecomposition.coordinateCount_eq,
-      PiDEC.v1_1.EvalKRecomposition.coordinateCount_eq,
+      PiDEC.v1_2.CommitmentRecomposition.coordinateCount_eq,
+      PiDEC.v1_2.EvalKRecomposition.coordinateCount_eq,
       productionShape, productionProfile, Phi81MatrixSource.phi81Shape,
       ringDegree] at sourceBound coefficientBound ⊢
     omega
@@ -86,9 +86,9 @@ def recursiveRunningBelow
       PiDECInputs.commitmentInputStart,
       PiDECInputs.childCount, productionGlobalParams, PiDECInputs.commitmentWordsPerChild,
       PiDECInputs.evalKWordsPerChild, PiDECInputs.evalAWordsPerChild,
-      PiDEC.v1_1.CommitmentRecomposition.coordinateCount_eq,
-      PiDEC.v1_1.EvalKRecomposition.coordinateCount_eq,
-      PiDEC.v1_1.EvalARecomposition.coordinateCount_eq,
+      PiDEC.v1_2.CommitmentRecomposition.coordinateCount_eq,
+      PiDEC.v1_2.EvalKRecomposition.coordinateCount_eq,
+      PiDEC.v1_2.EvalARecomposition.coordinateCount_eq,
       productionShape, productionProfile, Phi81MatrixSource.phi81Shape,
       ringDegree] at sourceBound matrixBound coefficientBound ⊢
     omega

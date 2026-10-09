@@ -150,7 +150,7 @@ pub(super) fn check(package_path: &Path, identity: [u64; 4], input_path: &Path, 
         "complete verifier evaluation blocks"
     );
     let (accepted, trace) = optimized_verify_with_trace(
-        &mut Poseidon2Transcript::new_v1_1(),
+        &mut Poseidon2Transcript::new_v1_2(),
         params.inner(),
         &structure,
         std::slice::from_ref(&fresh),

@@ -5,7 +5,7 @@ import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
 
 /-!
-One interactive coordinate retry in SuperNeo v1.1 Appendix B.3.
+One interactive coordinate retry in SuperNeo v1.2 Appendix B.3.
 
 Fix all other coordinates. A call samples this coordinate uniformly and uses
 fresh oracle coins. After an accepted base call, retry until the first accepted

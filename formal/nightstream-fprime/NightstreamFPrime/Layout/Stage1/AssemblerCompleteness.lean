@@ -2,8 +2,8 @@ import NightstreamFPrime.Layout.Stage1.AssemblerBounds
 import NightstreamFPrime.Layout.Stage1.AssemblerPilotBounds
 import NightstreamFPrime.Layout.Stage1.PiCCSInputSupport
 import NightstreamFPrime.Layout.Stage1.PiCCSTranscriptSupport
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBindingSupport
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.PhaseTransport
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBindingSupport
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.PhaseTransport
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
@@ -26,7 +26,7 @@ variable {logicalWidth : Nat}
 
 def piCcsExternalSupport
     (program : Lifecycle.Stage1.Application.Program) :
-    PiCCS.v1_1.Formal.ExternalInputsSupported
+    PiCCS.v1_2.Formal.ExternalInputsSupported
       (AssemblerInputs.piCcsInterface
         (logicalWidth := logicalWidth) (publicFits := publicFits) program)
       (AssemblerInputs.piCcsOffset program)
@@ -129,8 +129,8 @@ private theorem piCcsSupport_agrees
 private theorem roundFinalState_supported
     (program : Lifecycle.Stage1.Application.Program) :
     NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal.StateSupported
-      (PiCCS.v1_1.Formal.roundTranscriptFinalState
-        (PiCCS.v1_1.Formal.atOffset
+      (PiCCS.v1_2.Formal.roundTranscriptFinalState
+        (PiCCS.v1_2.Formal.atOffset
           (AssemblerInputs.piCcsInterface
             (logicalWidth := logicalWidth) (publicFits := publicFits) program)
           (AssemblerInputs.piCcsOffset program))
@@ -152,18 +152,18 @@ private theorem piCcsOffset_le_outputBindingOffset
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) :
     AssemblerInputs.piCcsOffset program ≤
-      PiCCS.v1_1.Formal.outputBindingOffset relation
+      PiCCS.v1_2.Formal.outputBindingOffset relation
         (AssemblerInputs.piCcsInterface program)
         (AssemblerInputs.piCcsOffset program) := by
-  unfold PiCCS.v1_1.Formal.outputBindingOffset
-    PiCCS.v1_1.Formal.finalIdentityOffset PiCCS.v1_1.Formal.normOffset
-    PiCCS.v1_1.Formal.ccsOffset PiCCS.v1_1.Formal.evalAOffset
-    PiCCS.v1_1.Formal.evalKOffset PiCCS.v1_1.Formal.sumcheckOffset
-    PiCCS.v1_1.Formal.initialClaimOffset
-    PiCCS.v1_1.Formal.roundTranscriptOffset
-    PiCCS.v1_1.Formal.challengeOffset
-    PiCCS.v1_1.Formal.statementAbsorptionOffset
-    PiCCS.v1_1.Formal.nextOffset
+  unfold PiCCS.v1_2.Formal.outputBindingOffset
+    PiCCS.v1_2.Formal.finalIdentityOffset PiCCS.v1_2.Formal.normOffset
+    PiCCS.v1_2.Formal.ccsOffset PiCCS.v1_2.Formal.evalAOffset
+    PiCCS.v1_2.Formal.evalKOffset PiCCS.v1_2.Formal.sumcheckOffset
+    PiCCS.v1_2.Formal.initialClaimOffset
+    PiCCS.v1_2.Formal.roundTranscriptOffset
+    PiCCS.v1_2.Formal.challengeOffset
+    PiCCS.v1_2.Formal.statementAbsorptionOffset
+    PiCCS.v1_2.Formal.nextOffset
   omega
 
 private theorem piCcsOutputState_supported
@@ -174,16 +174,16 @@ private theorem piCcsOutputState_supported
       (PiCcsSupport program) := by
   let interface := AssemblerInputs.piCcsInterface
     (logicalWidth := logicalWidth) (publicFits := publicFits) program
-  let outputOffset := PiCCS.v1_1.Formal.outputBindingOffset relation interface
+  let outputOffset := PiCCS.v1_2.Formal.outputBindingOffset relation interface
     (AssemblerInputs.piCcsOffset program)
-  have support := PiCCS.v1_1.OutputBinding.finalState_supported_from_offset
-    (PiCCS.v1_1.Formal.outputBindingInterface
-      (PiCCS.v1_1.Formal.atOffset interface
+  have support := PiCCS.v1_2.OutputBinding.finalState_supported_from_offset
+    (PiCCS.v1_2.Formal.outputBindingInterface
+      (PiCCS.v1_2.Formal.atOffset interface
         (AssemblerInputs.piCcsOffset program))) outputOffset
   change NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal.StateSupported
-    (PiCCS.v1_1.OutputBinding.finalState
-      (PiCCS.v1_1.Formal.outputBindingInterface
-        (PiCCS.v1_1.Formal.atOffset interface
+    (PiCCS.v1_2.OutputBinding.finalState
+      (PiCCS.v1_2.Formal.outputBindingInterface
+        (PiCCS.v1_2.Formal.atOffset interface
           (AssemblerInputs.piCcsOffset program))) outputOffset)
     (PiCcsSupport program)
   apply support.mono
@@ -196,23 +196,23 @@ private theorem piCcsRoundPoint_eval_eq
     (completed : Sequence.Prefix env (AssemblerInputs.rootOffset program))
     (endEq : AssemblerInputs.rootOffset program +
         localLength completed.operations = AssemblerInputs.piCcsOffset program) :
-    PiCCS.v1_1.RoundTranscript.evalRoundPoint
-        (PiCCS.v1_1.Formal.roundTranscriptInterface
-          (PiCCS.v1_1.Formal.atOffset
+    PiCCS.v1_2.RoundTranscript.evalRoundPoint
+        (PiCCS.v1_2.Formal.roundTranscriptInterface
+          (PiCCS.v1_2.Formal.atOffset
             (AssemblerInputs.piCcsInterface
               (logicalWidth := logicalWidth) (publicFits := publicFits) program)
             (AssemblerInputs.piCcsOffset program)))
-        (PiCCS.v1_1.Formal.roundTranscriptOffset
+        (PiCCS.v1_2.Formal.roundTranscriptOffset
           (AssemblerInputs.piCcsInterface
             (logicalWidth := logicalWidth) (publicFits := publicFits) program)
           (AssemblerInputs.piCcsOffset program)) env =
-      PiCCS.v1_1.RoundTranscript.evalRoundPoint
-        (PiCCS.v1_1.Formal.roundTranscriptInterface
-          (PiCCS.v1_1.Formal.atOffset
+      PiCCS.v1_2.RoundTranscript.evalRoundPoint
+        (PiCCS.v1_2.Formal.roundTranscriptInterface
+          (PiCCS.v1_2.Formal.atOffset
             (AssemblerInputs.piCcsInterface
               (logicalWidth := logicalWidth) (publicFits := publicFits) program)
             (AssemblerInputs.piCcsOffset program)))
-        (PiCCS.v1_1.Formal.roundTranscriptOffset
+        (PiCCS.v1_2.Formal.roundTranscriptOffset
           (AssemblerInputs.piCcsInterface
             (logicalWidth := logicalWidth) (publicFits := publicFits) program)
           (AssemblerInputs.piCcsOffset program)) completed.current := by
@@ -233,11 +233,11 @@ private theorem piCcsOutputState_eval_eq
     (completed : Sequence.Prefix env (AssemblerInputs.rootOffset program))
     (endEq : AssemblerInputs.rootOffset program +
         localLength completed.operations = AssemblerInputs.piCcsOffset program) :
-    PiCCS.v1_1.StatementAbsorption.evalState env
+    PiCCS.v1_2.StatementAbsorption.evalState env
         (AssemblerInputs.piCcsOutputState relation program) =
-      PiCCS.v1_1.StatementAbsorption.evalState completed.current
+      PiCCS.v1_2.StatementAbsorption.evalState completed.current
         (AssemblerInputs.piCcsOutputState relation program) := by
-  unfold PiCCS.v1_1.StatementAbsorption.evalState
+  unfold PiCCS.v1_2.StatementAbsorption.evalState
     NightstreamFPrime.Gadgets.Poseidon2.Layer.evalState
   apply congrArg List.ofFn
   funext lane
@@ -260,17 +260,17 @@ private theorem piCcsPhase_after_pilot
     (completed : Sequence.Prefix env (AssemblerInputs.rootOffset program))
     (endEq : AssemblerInputs.rootOffset program +
         localLength completed.operations = AssemblerInputs.piCcsOffset program) :
-    PiCCS.v1_1.Formal.PhaseHolds relation ajtai
+    PiCCS.v1_2.Formal.PhaseHolds relation ajtai
       (AssemblerInputs.piCcsInterface program)
       (AssemblerInputs.piCcsOffset program) completed.current template := by
   have phase := specification.piCcs
-  change PiCCS.v1_1.Formal.PhaseHolds relation ajtai
+  change PiCCS.v1_2.Formal.PhaseHolds relation ajtai
     (AssemblerInputs.piCcsInterface program)
     (Lifecycle.Stage1.piCcsOffset relation program
       (AssemblerInputs.interface relation program)
       (AssemblerInputs.rootOffset program)) env template at phase
   rw [AssemblerInputs.parent_piCcsOffset_eq relation program] at phase
-  apply PiCCS.v1_1.Formal.PhaseTransport.phaseHolds_of_agree_satisfy
+  apply PiCCS.v1_2.Formal.PhaseTransport.phaseHolds_of_agree_satisfy
     relation ajtai (AssemblerInputs.piCcsInterface program)
     (AssemblerInputs.piCcsOffset program) (PiCcsSupport program)
     env completed.current template
@@ -411,7 +411,7 @@ theorem completePiCcsPrefix
           (Lifecycle.Stage1.outputHashChild relation program
             (AssemblerInputs.interface relation program))
           (AssemblerInputs.outputHashOffset program),
-        Lifecycle.Stage1.childOp "stage1.piccs.v1_1"
+        Lifecycle.Stage1.childOp "stage1.piccs.v1_2"
           (Lifecycle.Stage1.piCcsChild relation ajtai program
             (AssemblerInputs.interface relation program) template)
           (AssemblerInputs.piCcsOffset program)] ∧
@@ -423,18 +423,18 @@ theorem completePiCcsPrefix
   have phase := piCcsPhase_after_pilot relation ajtai program template env
     specification p2 p2End
   have assumptions := AssemblerBounds.piCcsAssumptions relation program p2.current
-  rcases PiCCS.v1_1.Formal.completePrefix relation ajtai
+  rcases PiCCS.v1_2.Formal.completePrefix relation ajtai
       (AssemblerInputs.piCcsInterface program) template p2.current
       (AssemblerInputs.piCcsOffset program) assumptions phase with
     ⟨built, builtOperations⟩
   let child := Lifecycle.Stage1.piCcsChild relation ajtai program
     (AssemblerInputs.interface relation program) template
-  have childMain : child.main = PiCCS.v1_1.Formal.main relation
+  have childMain : child.main = PiCCS.v1_2.Formal.main relation
       (AssemblerInputs.piCcsInterface program) := by
     rfl
   have childOperations : built.operations = Circuit.ops child.main
       (AssemblerInputs.piCcsOffset program) := by
-    rw [childMain, PiCCS.v1_1.Formal.main_ops]
+    rw [childMain, PiCCS.v1_2.Formal.main_ops]
     exact builtOperations
   have childScope : ∀ expression ∈ flatConstraints
       (Circuit.ops child.main (AssemblerInputs.piCcsOffset program)),
@@ -453,7 +453,7 @@ theorem completePiCcsPrefix
       (Circuit.ops child.main (AssemblerInputs.piCcsOffset program)) := by
     rw [← childOperations]
     exact built.rows
-  rcases Sequence.appendBuiltAt p2 "stage1.piccs.v1_1" child
+  rcases Sequence.appendBuiltAt p2 "stage1.piccs.v1_2" child
       (AssemblerInputs.piCcsOffset program) p2End childScope built.current
       childAgrees childRows with
     ⟨p3, p3Operations, p3End, _p2to3, _piCcsRows⟩

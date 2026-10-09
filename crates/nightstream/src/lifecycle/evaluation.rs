@@ -74,7 +74,7 @@ impl PreparedLifecycle {
     pub(crate) fn matrix_workspace_bytes(&self) -> Result<usize, PackageError> {
         let width = self.structure.m.div_ceil(D) as u128 * D as u128;
         let rows = self.structure.n as u128;
-        let sources = nightstream_fprime::PI_CCS_V1_1_SOURCE_COUNT as u128;
+        let sources = nightstream_fprime::PI_CCS_V1_2_SOURCE_COUNT as u128;
         let blocks = width / D as u128;
         let masks = sources * blocks * (4 * size_of::<u64>() + size_of::<bool>()) as u128;
         let common = width.max(rows) * size_of::<neo_math::K>() as u128;

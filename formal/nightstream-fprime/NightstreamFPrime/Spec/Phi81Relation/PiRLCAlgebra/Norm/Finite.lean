@@ -8,7 +8,7 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 /-!
 Finite-batch production norm growth for the typed Phi81 `PiRLC.Algebra`.
 
-Protocol: SuperNeo Definition 14 and `Pi_RLC`.
+Protocol: SuperNeo v1.2 Definition 22 and `Pi_RLC`.
 Phase: valid challenge actions followed by the canonical finite assignment
 combination.
 Constraint family: semantic norm only; this file emits no rows.
@@ -103,7 +103,7 @@ theorem combineAssignments_le
           have added := Nat.add_le_add headBound tailBound
           omega)
 
-/-- Definition 14 specialized to any total arity below the production cap. -/
+/-- Definition 22 specialized to any total arity below the production cap. -/
 theorem production_total_bound {count : Nat}
     (totalBound : count <=
       productionGlobalParams.maxFresh + productionGlobalParams.k) :

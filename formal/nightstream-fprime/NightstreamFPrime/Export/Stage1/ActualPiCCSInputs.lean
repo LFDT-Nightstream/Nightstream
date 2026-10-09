@@ -29,20 +29,20 @@ split of each packed parent word. -/
 theorem evalRunning_eq_priorRunning
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
-    (split : PiCCS.v1_1.StateBinding.ChildrenSplit
-      (PiCCS.v1_1.Formal.statementBindingInterface
-        (PiCCS.v1_1.Formal.atOffset
+    (split : PiCCS.v1_2.StateBinding.ChildrenSplit
+      (PiCCS.v1_2.Formal.statementBindingInterface
+        (PiCCS.v1_2.Formal.atOffset
           (PiCCSInvocations.parentInterface relationLogicalWidth relationPublicFits)
           PiCCSInputs.phaseOffset)).state
       PiCCSInputs.phaseOffset
       (Spartan.pullback (PiCCSAssignmentSoundness.decodedEnv geometry assignment))) :
-    PiCCS.v1_1.Formal.evalRunning
+    PiCCS.v1_2.Formal.evalRunning
         (PiCCSInvocations.parentInterface relationLogicalWidth relationPublicFits)
         PiCCSInputs.phaseOffset
         (Spartan.pullback (PiCCSAssignmentSoundness.decodedEnv geometry assignment)) =
       (StateDecoder.preimage relationLogicalWidth relationPublicFits
         (ActualPreimageFraming.priorState geometry assignment)).running functionIndex := by
-  change PiCCS.v1_1.StatementAbsorption.evalRunning
+  change PiCCS.v1_2.StatementAbsorption.evalRunning
       (PiCCSInputs.runningExpr relationLogicalWidth relationPublicFits)
       (Spartan.pullback (PiCCSAssignmentSoundness.decodedEnv geometry assignment)) =
     StateDecoder.running relationLogicalWidth relationPublicFits
@@ -52,7 +52,7 @@ theorem evalRunning_eq_priorRunning
   intro word bound
   have stateBound : word < PilotProduction.stateHashWords := by
     rw [PilotProduction.stateHashWords_eq]
-    unfold PiCCS.v1_1.StateBinding.contextWordStart at bound
+    unfold PiCCS.v1_2.StateBinding.contextWordStart at bound
     omega
   exact ActualPreimageFraming.priorWord_eq geometry assignment ⟨word, stateBound⟩
 
@@ -66,9 +66,9 @@ theorem selectedRowsZero_implies_priorSplit
       (PerApplicationFixedPoint.geometry application)) = 1)
     (accepted : (PerApplicationFixedPoint.structuralPlan application fits).RowsZero
       assignment) :
-    PiCCS.v1_1.StateBinding.ChildrenSplit
-      (PiCCS.v1_1.Formal.statementBindingInterface
-        (PiCCS.v1_1.Formal.atOffset
+    PiCCS.v1_2.StateBinding.ChildrenSplit
+      (PiCCS.v1_2.Formal.statementBindingInterface
+        (PiCCS.v1_2.Formal.atOffset
           (PiCCSInvocations.parentInterface
             (PerApplicationFixedPoint.logicalWidth application)
             (PerApplicationFixedPoint.publicFits application))
@@ -100,7 +100,7 @@ theorem selectedRowsZero_implies_priorCanonical
   have split := selectedRowsZero_implies_priorSplit application fits assignment one accepted
   have canonical := StateDecoder.running_canonical _ split
   rw [← StateDecoder.evalRunning_eq_running _ split] at canonical
-  change ChildrenCanonical (PiCCS.v1_1.Formal.evalRunning
+  change ChildrenCanonical (PiCCS.v1_2.Formal.evalRunning
     (PiCCSInvocations.parentInterface (PerApplicationFixedPoint.logicalWidth application)
       (PerApplicationFixedPoint.publicFits application))
     PiCCSInputs.phaseOffset
@@ -114,15 +114,15 @@ theorem evalFreshPublic_eq_priorPublic
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (source : Fin productionShape.freshCount) :
-    (PiCCS.v1_1.Formal.evalFresh
+    (PiCCS.v1_2.Formal.evalFresh
       (PiCCSInvocations.parentInterface relationLogicalWidth relationPublicFits)
       PiCCSInputs.phaseOffset
       (Spartan.pullback (PiCCSAssignmentSoundness.decodedEnv
         (PilotOrdinaryDirectPlan.piCcsGeometry geometry) assignment))).publicInputs source =
       ActualHashSlots.publicInput geometry assignment := by
   funext column
-  simpa only [PiCCS.v1_1.Formal.evalFresh, PiCCSInvocations.parentInterface,
-    PiCCSInputs.interface, PiCCS.v1_1.StatementAbsorption.evalFresh,
+  simpa only [PiCCS.v1_2.Formal.evalFresh, PiCCSInvocations.parentInterface,
+    PiCCSInputs.interface, PiCCS.v1_2.StatementAbsorption.evalFresh,
     PiCCSInputs.freshExpr, PiCCSInputs.freshPublicInput,
     ActualHashSlots.publicInput, PilotProduction.priorInterface, Expr.eval_var]
     using! (PilotDecodedEnvironment.priorPublic_agrees geometry assignment column).symm
@@ -138,7 +138,7 @@ theorem selectedRowsZero_implies_freshPublicHash
     (accepted : (PerApplicationFixedPoint.structuralPlan application fits).RowsZero
       assignment)
     (source : Fin productionShape.freshCount) :
-    (PiCCS.v1_1.Formal.evalFresh
+    (PiCCS.v1_2.Formal.evalFresh
       (PiCCSInvocations.parentInterface (PerApplicationFixedPoint.logicalWidth application)
         (PerApplicationFixedPoint.publicFits application))
       PiCCSInputs.phaseOffset
@@ -194,11 +194,11 @@ theorem selectedRowsAndPublic_imply_phaseAndHashes
         (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry geometry) assignment)
       (ActualPreimageFraming.outputState
         (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry geometry) assignment)
-    PiCCS.v1_1.Formal.PhaseHolds relation ajtai interface
+    PiCCS.v1_2.Formal.PhaseHolds relation ajtai interface
         PiCCSInputs.phaseOffset env template ∧
-      PiCCS.v1_1.Formal.evalRunning interface PiCCSInputs.phaseOffset env =
+      PiCCS.v1_2.Formal.evalRunning interface PiCCSInputs.phaseOffset env =
         prior.running functionIndex ∧
-      (∀ source, (PiCCS.v1_1.Formal.evalFresh interface
+      (∀ source, (PiCCS.v1_2.Formal.evalFresh interface
           PiCCSInputs.phaseOffset env).publicInputs source =
         encHash (publicFits := PerApplicationFixedPoint.publicFits application)
           (stateHash (publicFits := PerApplicationFixedPoint.publicFits application) prior)) ∧

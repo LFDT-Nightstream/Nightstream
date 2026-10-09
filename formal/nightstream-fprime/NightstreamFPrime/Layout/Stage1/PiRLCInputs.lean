@@ -1,5 +1,5 @@
-import NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.OutputBinding
-import NightstreamFPrime.Layout.PiRLC.v1_1.Composition
+import NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.OutputBinding
+import NightstreamFPrime.Layout.PiRLC.v1_2.Composition
 import NightstreamFPrime.Layout.Stage1.PiCCSStarts
 
 /-!
@@ -46,40 +46,40 @@ theorem phaseOffset_matches_piCcs
   rfl
 
 def piCcsInterface :
-    NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.Interface
+    NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.Interface
       logicalWidth 8 publicFits :=
   PiCCSInputs.interface logicalWidth publicFits
 
 def piCcsSharedInterface :
-    NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.Interface
+    NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.Interface
       logicalWidth 8 publicFits :=
-  NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.atOffset
+  NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.atOffset
     (piCcsInterface (logicalWidth := logicalWidth)
       (publicFits := publicFits)) PiCCSInputs.phaseOffset
 
 def piCcsOutputInterface :
-    NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.Interface :=
-  NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.outputBindingInterface
+    NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBinding.Interface :=
+  NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.outputBindingInterface
     (piCcsSharedInterface (logicalWidth := logicalWidth)
       (publicFits := publicFits))
 
 /-- Exact circuit-owned post-PiCCS transcript state. -/
 def piCcsOutputState :
     NightstreamFPrime.Gadgets.Poseidon2.Layer.EState :=
-  NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.finalState
+  NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBinding.finalState
     (piCcsOutputInterface (logicalWidth := logicalWidth)
       (publicFits := publicFits)) PiCCSStarts.outputBindingWitnessStart
 
 theorem piCcsOutputState_eq_parent
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     piCcsOutputState (logicalWidth := logicalWidth) (publicFits := publicFits) =
-      NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.outputBindingFinalState
+      NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.outputBindingFinalState
         relation
         (piCcsInterface (logicalWidth := logicalWidth)
           (publicFits := publicFits)) PiCCSInputs.phaseOffset := by
   unfold piCcsOutputState
     piCcsOutputInterface piCcsSharedInterface piCcsInterface
-    NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.outputBindingFinalState
+    NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.outputBindingFinalState
   rw [← PiCCSStarts.outputBindingWitnessStart_matches relation]
 
 /-- The output absorption is nonempty, so its final eight lanes are fresh
@@ -89,17 +89,17 @@ theorem piCcsOutputState_fresh :
       (piCcsOutputState (logicalWidth := logicalWidth)
         (publicFits := publicFits)) := by
   unfold piCcsOutputState
-    NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.finalState
-    NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.duplexInterface
+    NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBinding.finalState
+    NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBinding.duplexInterface
     NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal.Owned.output
     NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal.Owned.program
-    NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.actions
-    NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.absorbBlock
+    NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBinding.actions
+    NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption.absorbBlock
   apply compile_output_fresh_of_head_absorb
   intro empty
   have lengthZero := congrArg List.length empty
   simp [NightstreamFPrime.Gadgets.Poseidon2.Hash.inputChunks,
-    NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.blockExpr,
+    NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption.blockExpr,
     Spec.Poseidon2.rate] at lengthZero
 
 private def runningIndex (source : Fin productionShape.sourceCount)
@@ -114,13 +114,13 @@ private def runningIndex (source : Fin productionShape.sourceCount)
 sources are running. The evaluation family always comes from the PiCCS
 reduced output at the same unified source index. -/
 def sourceInput (source : Fin productionShape.sourceCount) :
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.InputBinding.InputExpr
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.InputBinding.InputExpr
       logicalWidth publicFits :=
   let parent := piCcsInterface (logicalWidth := logicalWidth)
     (publicFits := publicFits)
   let output := parent.output PiCCSInputs.phaseOffset
   let evaluation :
-      NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.EvaluationExpr :=
+      NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption.EvaluationExpr :=
     { eval_K := output.padCoordinate source
       eval_A := output.matrixCoordinate source }
   if isFresh : source.val < productionShape.freshCount then
@@ -138,7 +138,7 @@ def sourceInput (source : Fin productionShape.sourceCount) :
 This form is used by cross-phase proofs; the production layout continues to
 use `sourceInput`. -/
 def canonicalSourceInput (source : Fin productionShape.sourceCount) :
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.InputBinding.InputExpr
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.InputBinding.InputExpr
       logicalWidth publicFits :=
   let parent := piCcsInterface (logicalWidth := logicalWidth)
     (publicFits := publicFits)
@@ -196,30 +196,30 @@ theorem sourceInput_eq_canonical
 
 /-- The sole production PiRLC parent interface in cumulative source order. -/
 def interface :
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.Interface
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.Interface
       logicalWidth publicFits where
   baseOffset := phaseOffset
   initialState := fun _ =>
     piCcsOutputState (logicalWidth := logicalWidth) (publicFits := publicFits)
   point := fun _ =>
-    NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.roundPoint
+    NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.roundPoint
       (piCcsInterface (logicalWidth := logicalWidth) (publicFits := publicFits))
       PiCCSInputs.phaseOffset
   input := fun _ => sourceInput (logicalWidth := logicalWidth)
     (publicFits := publicFits)
 
 def samplerInputs :
-    NightstreamFPrime.Layout.PiRLC.v1_1.SamplerChain.InputsAffine
-      (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerInterface
-        (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.atOffset
+    NightstreamFPrime.Layout.PiRLC.v1_2.SamplerChain.InputsAffine
+      (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.samplerInterface
+        (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.atOffset
           (interface (logicalWidth := logicalWidth) (publicFits := publicFits))
           phaseOffset))
-      (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerOffset
+      (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.samplerOffset
         phaseOffset) :=
   ⟨by
     simpa [interface,
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerInterface,
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.atOffset] using
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.samplerInterface,
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.atOffset] using
         (piCcsOutputState_fresh
           (logicalWidth := logicalWidth) (publicFits := publicFits)).affine⟩
 
@@ -263,9 +263,9 @@ private theorem sourceEvalKComponentVariable
     (source : Fin productionShape.sourceCount)
     (coefficient : Fin productionShape.coefficientCount)
     (cell : Fin
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.RingKCombination.cellCount) :
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.RingKCombination.cellCount) :
     ∃ index,
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.RingKCombination.expressionCell
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.RingKCombination.expressionCell
         cell ((sourceInput (logicalWidth := logicalWidth)
           (publicFits := publicFits) source).evaluation.eval_K coefficient) =
         Expr.var index := by
@@ -277,9 +277,9 @@ private theorem sourceEvalAComponentVariable
     (matrix : Fin productionShape.matrixCount)
     (coefficient : Fin productionShape.coefficientCount)
     (cell : Fin
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.RingKCombination.cellCount) :
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.RingKCombination.cellCount) :
     ∃ index,
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.RingKCombination.expressionCell
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.RingKCombination.expressionCell
         cell ((sourceInput (logicalWidth := logicalWidth)
           (publicFits := publicFits) source).evaluation.eval_A matrix
             coefficient) = Expr.var index := by
@@ -287,13 +287,13 @@ private theorem sourceEvalAComponentVariable
   fin_cases cell <;> exact ⟨_, rfl⟩
 
 def commitmentProductionInputs :
-    NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.ProductionInputs
-      (NightstreamFPrime.Lifecycle.PiRLC.v1_1.CommitmentCombination.familyInterface
-        (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.commitmentInterface
-          (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.atOffset
+    NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.ProductionInputs
+      (NightstreamFPrime.Lifecycle.PiRLC.v1_2.CommitmentCombination.familyInterface
+        (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.commitmentInterface
+          (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.atOffset
             (interface (logicalWidth := logicalWidth) (publicFits := publicFits))
             phaseOffset)))
-      (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.commitmentOffset
+      (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.commitmentOffset
         phaseOffset) := by
   constructor
   · intro source lane
@@ -302,133 +302,133 @@ def commitmentProductionInputs :
     exact sourceCommitmentVariable source block lane
 
 def publicInputProductionInputs :
-    NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.ProductionInputs
-      (NightstreamFPrime.Lifecycle.PiRLC.v1_1.PublicInputCombination.familyInterface
-        (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.publicInputInterface
-          (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.atOffset
+    NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.ProductionInputs
+      (NightstreamFPrime.Lifecycle.PiRLC.v1_2.PublicInputCombination.familyInterface
+        (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.publicInputInterface
+          (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.atOffset
             (interface (logicalWidth := logicalWidth) (publicFits := publicFits))
             phaseOffset)))
-      (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.publicInputOffset
+      (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.publicInputOffset
         phaseOffset) := by
   constructor
   · intro source lane
     exact ⟨_, rfl⟩
   · intro source block lane cell
     exact sourcePublicInputVariable source
-      (NightstreamFPrime.Lifecycle.PiRLC.v1_1.PublicInputCombination.publicColumn
+      (NightstreamFPrime.Lifecycle.PiRLC.v1_2.PublicInputCombination.publicColumn
         block lane)
 
 def evalKProductionInputs :
-    NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.ProductionInputs
-      (NightstreamFPrime.Lifecycle.PiRLC.v1_1.RingKCombination.familyInterface
-        (NightstreamFPrime.Lifecycle.PiRLC.v1_1.EvalKCombination.ringInterface
-          (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.evalKInterface
-            (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.atOffset
+    NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.ProductionInputs
+      (NightstreamFPrime.Lifecycle.PiRLC.v1_2.RingKCombination.familyInterface
+        (NightstreamFPrime.Lifecycle.PiRLC.v1_2.EvalKCombination.ringInterface
+          (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.evalKInterface
+            (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.atOffset
               (interface (logicalWidth := logicalWidth)
                 (publicFits := publicFits)) phaseOffset))))
-      (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.evalKOffset phaseOffset) := by
+      (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.evalKOffset phaseOffset) := by
   constructor
   · intro source lane
     exact ⟨_, rfl⟩
   · intro source block lane cell
     exact sourceEvalKComponentVariable source
-      (NightstreamFPrime.Lifecycle.PiRLC.v1_1.EvalKCombination.coefficient lane)
+      (NightstreamFPrime.Lifecycle.PiRLC.v1_2.EvalKCombination.coefficient lane)
       cell
 
 def evalAProductionInputs :
-    NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.ProductionInputs
-      (NightstreamFPrime.Lifecycle.PiRLC.v1_1.RingKCombination.familyInterface
-        (NightstreamFPrime.Lifecycle.PiRLC.v1_1.EvalACombination.ringInterface
-          (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.evalAInterface
-            (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.atOffset
+    NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.ProductionInputs
+      (NightstreamFPrime.Lifecycle.PiRLC.v1_2.RingKCombination.familyInterface
+        (NightstreamFPrime.Lifecycle.PiRLC.v1_2.EvalACombination.ringInterface
+          (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.evalAInterface
+            (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.atOffset
               (interface (logicalWidth := logicalWidth)
                 (publicFits := publicFits)) phaseOffset))))
-      (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.evalAOffset phaseOffset) := by
+      (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.evalAOffset phaseOffset) := by
   constructor
   · intro source lane
     exact ⟨_, rfl⟩
   · intro source matrix lane cell
     exact sourceEvalAComponentVariable source matrix
-      (NightstreamFPrime.Lifecycle.PiRLC.v1_1.EvalKCombination.coefficient lane)
+      (NightstreamFPrime.Lifecycle.PiRLC.v1_2.EvalKCombination.coefficient lane)
       cell
 
 def inputShapes
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    NightstreamFPrime.Layout.PiRLC.v1_1.InputShapes relation
+    NightstreamFPrime.Layout.PiRLC.v1_2.InputShapes relation
       (interface (logicalWidth := logicalWidth) (publicFits := publicFits))
       phaseOffset where
   sampler := samplerInputs (logicalWidth := logicalWidth) (publicFits := publicFits)
   commitmentFresh := by
-    change NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.physicalFreshColumnCount
+    change NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.physicalFreshColumnCount
       _ _ = 3029400
-    rw [NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.physicalFreshColumnCountEqProduction
+    rw [NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.physicalFreshColumnCountEqProduction
       _ _ (commitmentProductionInputs (logicalWidth := logicalWidth)
         (publicFits := publicFits))]
-    change NightstreamFPrime.Lifecycle.PiRLC.v1_1.CombinationFamily.logicalPrivateCount
+    change NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationFamily.logicalPrivateCount
       _ _ * 150 = 3029400
-    rw [NightstreamFPrime.Lifecycle.PiRLC.v1_1.CommitmentCombination.logicalPrivateCount_eq]
+    rw [NightstreamFPrime.Lifecycle.PiRLC.v1_2.CommitmentCombination.logicalPrivateCount_eq]
   commitmentRows := by
-    change NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.physicalRowCount
+    change NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.physicalRowCount
       _ _ = 3049596
-    rw [NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.physicalRowCountEqProduction
+    rw [NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.physicalRowCountEqProduction
       _ _ (commitmentProductionInputs (logicalWidth := logicalWidth)
         (publicFits := publicFits))]
-    change NightstreamFPrime.Lifecycle.PiRLC.v1_1.CombinationFamily.logicalPrivateCount
+    change NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationFamily.logicalPrivateCount
       _ _ * 151 = 3049596
-    rw [NightstreamFPrime.Lifecycle.PiRLC.v1_1.CommitmentCombination.logicalPrivateCount_eq]
+    rw [NightstreamFPrime.Lifecycle.PiRLC.v1_2.CommitmentCombination.logicalPrivateCount_eq]
   publicInputFresh := by
-    change NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.physicalFreshColumnCount
+    change NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.physicalFreshColumnCount
       _ _ = 688500
-    rw [NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.physicalFreshColumnCountEqProduction
+    rw [NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.physicalFreshColumnCountEqProduction
       _ _ (publicInputProductionInputs (logicalWidth := logicalWidth)
         (publicFits := publicFits))]
-    change NightstreamFPrime.Lifecycle.PiRLC.v1_1.CombinationFamily.logicalPrivateCount
+    change NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationFamily.logicalPrivateCount
       _ _ * 150 = 688500
-    rw [NightstreamFPrime.Lifecycle.PiRLC.v1_1.PublicInputCombination.logicalPrivateCount_eq]
+    rw [NightstreamFPrime.Lifecycle.PiRLC.v1_2.PublicInputCombination.logicalPrivateCount_eq]
   publicInputRows := by
-    change NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.physicalRowCount
+    change NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.physicalRowCount
       _ _ = 693090
-    rw [NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.physicalRowCountEqProduction
+    rw [NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.physicalRowCountEqProduction
       _ _ (publicInputProductionInputs (logicalWidth := logicalWidth)
         (publicFits := publicFits))]
-    change NightstreamFPrime.Lifecycle.PiRLC.v1_1.CombinationFamily.logicalPrivateCount
+    change NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationFamily.logicalPrivateCount
       _ _ * 151 = 693090
-    rw [NightstreamFPrime.Lifecycle.PiRLC.v1_1.PublicInputCombination.logicalPrivateCount_eq]
+    rw [NightstreamFPrime.Lifecycle.PiRLC.v1_2.PublicInputCombination.logicalPrivateCount_eq]
   evalKFresh := by
-    change NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.physicalFreshColumnCount
+    change NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.physicalFreshColumnCount
       _ _ = 275400
-    rw [NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.physicalFreshColumnCountEqProduction
+    rw [NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.physicalFreshColumnCountEqProduction
       _ _ (evalKProductionInputs (logicalWidth := logicalWidth)
         (publicFits := publicFits))]
-    change NightstreamFPrime.Lifecycle.PiRLC.v1_1.CombinationFamily.logicalPrivateCount
+    change NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationFamily.logicalPrivateCount
       _ _ * 150 = 275400
-    rw [NightstreamFPrime.Lifecycle.PiRLC.v1_1.EvalKCombination.logicalPrivateCount_eq]
+    rw [NightstreamFPrime.Lifecycle.PiRLC.v1_2.EvalKCombination.logicalPrivateCount_eq]
   evalKRows := by
-    change NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.physicalRowCount
+    change NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.physicalRowCount
       _ _ = 277236
-    rw [NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.physicalRowCountEqProduction
+    rw [NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.physicalRowCountEqProduction
       _ _ (evalKProductionInputs (logicalWidth := logicalWidth)
         (publicFits := publicFits))]
-    change NightstreamFPrime.Lifecycle.PiRLC.v1_1.CombinationFamily.logicalPrivateCount
+    change NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationFamily.logicalPrivateCount
       _ _ * 151 = 277236
-    rw [NightstreamFPrime.Lifecycle.PiRLC.v1_1.EvalKCombination.logicalPrivateCount_eq]
+    rw [NightstreamFPrime.Lifecycle.PiRLC.v1_2.EvalKCombination.logicalPrivateCount_eq]
   evalAFresh := by
-    change NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.physicalFreshColumnCount
+    change NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.physicalFreshColumnCount
       _ _ = 1101600
-    rw [NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.physicalFreshColumnCountEqProduction
+    rw [NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.physicalFreshColumnCountEqProduction
       _ _ (evalAProductionInputs (logicalWidth := logicalWidth)
         (publicFits := publicFits))]
-    change NightstreamFPrime.Lifecycle.PiRLC.v1_1.CombinationFamily.logicalPrivateCount
+    change NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationFamily.logicalPrivateCount
       _ _ * 150 = 1101600
-    rw [NightstreamFPrime.Lifecycle.PiRLC.v1_1.EvalACombination.logicalPrivateCount_eq]
+    rw [NightstreamFPrime.Lifecycle.PiRLC.v1_2.EvalACombination.logicalPrivateCount_eq]
   evalARows := by
-    change NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.physicalRowCount
+    change NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.physicalRowCount
       _ _ = 1108944
-    rw [NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.physicalRowCountEqProduction
+    rw [NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.physicalRowCountEqProduction
       _ _ (evalAProductionInputs (logicalWidth := logicalWidth)
         (publicFits := publicFits))]
-    change NightstreamFPrime.Lifecycle.PiRLC.v1_1.CombinationFamily.logicalPrivateCount
+    change NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationFamily.logicalPrivateCount
       _ _ * 151 = 1108944
-    rw [NightstreamFPrime.Lifecycle.PiRLC.v1_1.EvalACombination.logicalPrivateCount_eq]
+    rw [NightstreamFPrime.Lifecycle.PiRLC.v1_2.EvalACombination.logicalPrivateCount_eq]
 
 end NightstreamFPrime.Layout.Stage1.PiRLCInputs

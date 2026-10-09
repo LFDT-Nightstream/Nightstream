@@ -1,8 +1,8 @@
 import NightstreamFPrime.Layout.Stage1.PilotPiCCS
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.FormalRows
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.FormalRows
 
 /-!
-Paper authority: SuperNeo v1_1, section 7.3, PiCCS Steps 1--5.
+Paper authority: SuperNeo v1.2, section 7.3, PiCCS Steps 1--5.
 Obligation: Own the cumulative physical starts of the twelve PiCCS leaves in
 the same order as the logical parent and physical lowering.
 
@@ -15,7 +15,7 @@ namespace NightstreamFPrime.Layout.Stage1.PiCCSStarts
 
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
@@ -118,10 +118,10 @@ def logicalFreshBase : Nat := PiCCSInputs.phaseOffset + 1258477
 theorem logicalFreshBase_eq_layout
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     logicalFreshBase =
-      NightstreamFPrime.Layout.PiCCS.v1_1.logicalColumnCount relation
+      NightstreamFPrime.Layout.PiCCS.v1_2.logicalColumnCount relation
         (PiCCSInputs.interface logicalWidth publicFits)
         PiCCSInputs.phaseOffset := by
-  rw [NightstreamFPrime.Layout.PiCCS.v1_1.logicalColumnCount_eq_of_degreeBound_eq_eight
+  rw [NightstreamFPrime.Layout.PiCCS.v1_2.logicalColumnCount_eq_of_degreeBound_eq_eight
     relation (PiCCSInputs.interface logicalWidth publicFits)
       PiCCSInputs.phaseOffset rfl]
   rfl
@@ -151,17 +151,17 @@ row deltas. -/
 theorem rowStarts_eq_layout
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     rowStarts = prefixStarts rowBase
-      (NightstreamFPrime.Layout.PiCCS.v1_1.physicalRowDeltas relation
+      (NightstreamFPrime.Layout.PiCCS.v1_2.physicalRowDeltas relation
         (PiCCSInputs.interface logicalWidth publicFits)
         PiCCSInputs.phaseOffset) := by
   let inputs :=
-    NightstreamFPrime.Layout.PiCCS.v1_1.ProductionInputs.inputShapes relation
+    NightstreamFPrime.Layout.PiCCS.v1_2.ProductionInputs.inputShapes relation
       (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
       (PiCCSInputs.externalInputsLinear logicalWidth publicFits)
-  rw [NightstreamFPrime.Layout.PiCCS.v1_1.physicalRowDeltas_eq relation
+  rw [NightstreamFPrime.Layout.PiCCS.v1_2.physicalRowDeltas_eq relation
     (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
       inputs]
-  rw [NightstreamFPrime.Layout.PiCCS.v1_1.terminalRowCost_eq relation
+  rw [NightstreamFPrime.Layout.PiCCS.v1_2.terminalRowCost_eq relation
     (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
       inputs]
   rfl
@@ -171,17 +171,17 @@ fresh-column deltas. -/
 theorem freshStarts_eq_layout
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     freshStarts = prefixStarts logicalFreshBase
-      (NightstreamFPrime.Layout.PiCCS.v1_1.physicalFreshDeltas relation
+      (NightstreamFPrime.Layout.PiCCS.v1_2.physicalFreshDeltas relation
         (PiCCSInputs.interface logicalWidth publicFits)
         PiCCSInputs.phaseOffset) := by
   let inputs :=
-    NightstreamFPrime.Layout.PiCCS.v1_1.ProductionInputs.inputShapes relation
+    NightstreamFPrime.Layout.PiCCS.v1_2.ProductionInputs.inputShapes relation
       (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
       (PiCCSInputs.externalInputsLinear logicalWidth publicFits)
-  rw [NightstreamFPrime.Layout.PiCCS.v1_1.physicalFreshDeltas_eq relation
+  rw [NightstreamFPrime.Layout.PiCCS.v1_2.physicalFreshDeltas_eq relation
     (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
       inputs]
-  rw [NightstreamFPrime.Layout.PiCCS.v1_1.terminalFreshCost_eq relation
+  rw [NightstreamFPrime.Layout.PiCCS.v1_2.terminalFreshCost_eq relation
     (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
       inputs]
   rfl

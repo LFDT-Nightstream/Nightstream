@@ -162,8 +162,10 @@ reduction takes `Q + 74` expected reruns
      constant depth, as in Lemma 17) is a premise outside Lean. The hash term
      `h_j` is the probability that stage `j`, an admitted stage, followed by
      the computation of its current visit, outputs a state-hash collision. So
-     an external Poseidon2 collision bound applies to it; the paper's
-     truncation argument for expected-time stages is outside Lean. Lean
+     an external Poseidon2 collision bound applies to it, under the same
+     human-ignorance reading, because the state hash is fixed and has no key.
+     The paper's truncation argument for expected-time stages is outside
+     Lean. Lean
      chooses the stages with `Classical.choose`, so a numerical bound on `h_j`
      and on `error` must hold for the whole class.
    - *Valid history.* An application witness is a field list of any length

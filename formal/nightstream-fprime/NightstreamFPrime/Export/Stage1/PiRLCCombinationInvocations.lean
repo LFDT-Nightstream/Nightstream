@@ -90,18 +90,20 @@ theorem commitmentValueSource_affine (source block cell offset : Nat)
     simp only [commitmentValueSourceStart]
     apply Spartan.sourceToSpartan_add_of_proofInput
     · norm_num [PiCCSInputs.freshCommitmentStart,
-        PiCCSInputs.proofInputStart, PiCCSInputs.expectedContextStart,
+        PiCCSInputs.proofInputStart, PiCCSInputs.priorChildrenStart,
+        PiCCSInputs.priorChildrenWords, PiCCSInputs.expectedContextStart,
         PiCCSInputs.expectedContextWords, Spartan.proofInputSourceStart]
+      omega
     · norm_num [PiCCSInputs.freshCommitmentStart,
-        PiCCSInputs.proofInputStart, PiCCSInputs.expectedContextStart,
+        PiCCSInputs.proofInputStart, PiCCSInputs.priorChildrenStart,
+        PiCCSInputs.priorChildrenWords, PiCCSInputs.expectedContextStart,
         PiCCSInputs.expectedContextWords, Spartan.piCcsPhaseOffset,
         ringDegree] at blockLt offsetLt ⊢
       omega
   · simp only [commitmentValueSourceStart, if_neg first]
     apply Spartan.sourceToSpartan_add_of_pilotPriorPrivate
     norm_num [PiCCSInputs.runningCommitmentStart,
-      PiCCSInputs.runningGroupStart, PiCCSInputs.runningGroupsStart,
-      PiCCSInputs.priorRunningStart, PiCCSInputs.runningGroupWords,
+      PiCCSInputs.priorRunningStart, PiCCSInputs.runningCommitmentWords,
       PilotProduction.priorPublicInputStart,
       PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq,
       sourceCount, ringDegree] at sourceLt blockLt offsetLt ⊢
@@ -126,14 +128,16 @@ theorem publicInputValueSource_affine (source block cell offset : Nat)
         ringDegree] at blockLt offsetLt ⊢
       omega
   · simp only [publicInputValueSourceStart, if_neg first]
-    apply Spartan.sourceToSpartan_add_of_pilotPriorPrivate
-    norm_num [PiCCSInputs.runningPublicStart,
-      PiCCSInputs.runningGroupStart, PiCCSInputs.runningGroupsStart,
-      PiCCSInputs.priorRunningStart, PiCCSInputs.runningGroupWords,
-      PilotProduction.priorPublicInputStart,
-      PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq,
-      sourceCount, ringDegree] at sourceLt blockLt offsetLt ⊢
-    omega
+    apply Spartan.sourceToSpartan_add_of_proofInput
+    · norm_num [PiCCSInputs.runningPublicStart, PiCCSInputs.priorChildrenStart,
+        PiCCSInputs.expectedContextStart, PiCCSInputs.expectedContextWords,
+        Spartan.proofInputSourceStart]
+      omega
+    · norm_num [PiCCSInputs.runningPublicStart, PiCCSInputs.priorChildrenStart,
+        PiCCSInputs.expectedContextStart, PiCCSInputs.expectedContextWords,
+        PiCCSInputs.runningPublicWords, Spartan.piCcsPhaseOffset,
+        sourceCount, ringDegree] at sourceLt blockLt offsetLt ⊢
+      omega
 
 theorem evalKValueSource_affine (source block cell offset : Nat)
     (sourceLt : source < sourceCount) (cellLt : cell < 2)
@@ -145,13 +149,15 @@ theorem evalKValueSource_affine (source block cell offset : Nat)
   apply Spartan.sourceToSpartan_add_of_proofInput
   · norm_num [evalKValueSourceStart, PiCCSInputs.outputEvaluationStart,
       PiCCSInputs.roundMessageStart, PiCCSInputs.freshCommitmentStart,
-      PiCCSInputs.proofInputStart, PiCCSInputs.expectedContextStart,
+      PiCCSInputs.proofInputStart, PiCCSInputs.priorChildrenStart,
+        PiCCSInputs.priorChildrenWords, PiCCSInputs.expectedContextStart,
       PiCCSInputs.expectedContextWords, PiCCSInputs.freshCommitmentWords,
       PiCCSInputs.roundMessageWords, Spartan.proofInputSourceStart]
     omega
   · norm_num [evalKValueSourceStart, PiCCSInputs.outputEvaluationStart,
       PiCCSInputs.roundMessageStart, PiCCSInputs.freshCommitmentStart,
-      PiCCSInputs.proofInputStart, PiCCSInputs.expectedContextStart,
+      PiCCSInputs.proofInputStart, PiCCSInputs.priorChildrenStart,
+        PiCCSInputs.priorChildrenWords, PiCCSInputs.expectedContextStart,
       PiCCSInputs.expectedContextWords, PiCCSInputs.freshCommitmentWords,
       PiCCSInputs.roundMessageWords, Spartan.piCcsPhaseOffset, sourceCount,
       ringDegree] at sourceLt cellLt offsetLt ⊢
@@ -167,13 +173,15 @@ theorem evalAValueSource_affine (source block cell offset : Nat)
   apply Spartan.sourceToSpartan_add_of_proofInput
   · norm_num [evalAValueSourceStart, PiCCSInputs.outputEvaluationStart,
       PiCCSInputs.roundMessageStart, PiCCSInputs.freshCommitmentStart,
-      PiCCSInputs.proofInputStart, PiCCSInputs.expectedContextStart,
+      PiCCSInputs.proofInputStart, PiCCSInputs.priorChildrenStart,
+        PiCCSInputs.priorChildrenWords, PiCCSInputs.expectedContextStart,
       PiCCSInputs.expectedContextWords, PiCCSInputs.freshCommitmentWords,
       PiCCSInputs.roundMessageWords, Spartan.proofInputSourceStart]
     omega
   · norm_num [evalAValueSourceStart, PiCCSInputs.outputEvaluationStart,
       PiCCSInputs.roundMessageStart, PiCCSInputs.freshCommitmentStart,
-      PiCCSInputs.proofInputStart, PiCCSInputs.expectedContextStart,
+      PiCCSInputs.proofInputStart, PiCCSInputs.priorChildrenStart,
+        PiCCSInputs.priorChildrenWords, PiCCSInputs.expectedContextStart,
       PiCCSInputs.expectedContextWords, PiCCSInputs.freshCommitmentWords,
       PiCCSInputs.roundMessageWords, Spartan.piCcsPhaseOffset, sourceCount,
       ringDegree] at sourceLt blockLt cellLt offsetLt ⊢

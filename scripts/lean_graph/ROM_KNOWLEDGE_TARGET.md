@@ -33,7 +33,9 @@ The game:
 - The adversary is chosen before the chunks and may read all of them. So it
   cannot contain a kernel vector of the key.
 - The claim is linked: the verifier also checks that the prior preimage
-  hashes to the digest in the fresh public input (`PriorLink`).
+  hashes to the digest in the fresh public input and is well formed
+  (`PriorLink`). Well formed includes that the running children are the
+  canonical split of the parent that the state hash stores.
 
 The terms:
 

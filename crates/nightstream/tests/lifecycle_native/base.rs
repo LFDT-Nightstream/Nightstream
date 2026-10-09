@@ -19,7 +19,8 @@ fn base_extension_matches_full_lean_assignment_and_terminal() {
     assert_eq!(reference[0], 1);
     let private: Vec<u64> = serde_json::from_value(reference[2].clone()).unwrap();
     let public: Vec<u64> = serde_json::from_value(reference[3].clone()).unwrap();
-    let z0 = private[30..34]
+    // `z0` sits in the prior preimage tail `vk, i, z0, zi`.
+    let z0 = private[27_811..27_815]
         .try_into()
         .map(|words: [u64; 4]| words.map(F::from_u64))
         .unwrap();

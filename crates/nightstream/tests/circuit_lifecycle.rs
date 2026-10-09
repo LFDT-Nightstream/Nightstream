@@ -54,7 +54,8 @@ fn poseidon_lifecycle(engine: Engine, recursive: bool) {
     assert_eq!(reference[0], 1);
     let private: Vec<u64> = serde_json::from_value(reference[2].clone()).unwrap();
     // These are the state and application-advice fields of the saved caller packet.
-    let initial: [u64; 4] = private[30..34].try_into().unwrap();
+    // `z0` sits in the prior preimage tail `vk, i, z0, zi`.
+    let initial: [u64; 4] = private[27_811..27_815].try_into().unwrap();
     let message: [u64; 4] = private[private.len() - 4..].try_into().unwrap();
     let recorded_output: [u64; 4] = serde_json::from_value(reference[4][0].clone()).unwrap();
     let initial = initial.map(F::from_u64);

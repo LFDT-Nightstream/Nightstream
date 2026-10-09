@@ -114,7 +114,7 @@ def assuranceValue (computed : Computed) : Value :=
 Order: prior preimage, output preimage, prior public input, output digest,
 verifier-context digest, fresh commitment, round messages, output `Eval_K`, output
 `Eval_A`, complete digest-only transcript blocks, semantic verifier-input
-blocks. The production verifier recomputes the key digest from the canonical
+blocks, prior child digits. The production verifier recomputes the key digest from the canonical
 sealed package and fixed setup; the fixture does not duplicate that authority. -/
 def inputValue (computed : Computed) : Value :=
   .array [fieldWordsValue computed.statement.preimageWords,
@@ -128,7 +128,8 @@ def inputValue (computed : Computed) : Value :=
     outputEval_AValue computed,
     fieldBlocksValue
       (ProductionKey.publicInputBlocks computed.statement.freshValue),
-    fieldBlocksValue (Transcript.verifierInputBlocks verifierInput)]
+    fieldBlocksValue (Transcript.verifierInputBlocks verifierInput),
+    fieldWordsValue (Layout.Stage1.PiCCSProofInputs.priorChildWords running)]
 
 /-- Complete verifier result tuple.
 

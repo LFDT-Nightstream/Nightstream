@@ -48,8 +48,6 @@ theorem assumptions
     exact RunningTransition.runningWord_varsBelow _ phaseOffset
       (recursiveRunningBelow logicalWidth publicFits
         (recursivePointBelow relation)) index
-  · intro index
-    exact RunningTransition.runningWord_varsBelow _ phaseOffset
-      (outputRunningBelow logicalWidth publicFits) index
+  · exact outputWordBelow
 
 end NightstreamFPrime.Layout.Stage1.RunningTransitionInputs

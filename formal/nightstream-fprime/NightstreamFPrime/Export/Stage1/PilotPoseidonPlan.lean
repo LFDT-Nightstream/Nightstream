@@ -22,7 +22,7 @@ open PiRLCPoseidonGeometry
 
 def invocationCount : Nat := PoseidonRetainedBlock.priorInvocationCount
 
-@[simp] theorem invocationCount_eq : invocationCount = 2678 := by
+@[simp] theorem invocationCount_eq : invocationCount = 2320 := by
   exact PoseidonRetainedBlock.priorInvocationCount_eq
 
 def priorSchedule (program : Lifecycle.Stage1.Application.Program) :
@@ -166,7 +166,7 @@ def plan {program : Lifecycle.Stage1.Application.Program}
 
 @[simp] theorem plan_rowCount {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
-    (plan geometry).rowCount = 803400 := by
+    (plan geometry).rowCount = 696000 := by
   simp [plan, priorPlan, outputPlan, invocationCount_eq]
 
 theorem rowsZero_iff {program : Lifecycle.Stage1.Application.Program}

@@ -42,7 +42,7 @@ private theorem lower_prefix {initial : Env} {offset : Nat}
 private theorem pilot_end_before_c :
     Pilot.physicalColumnCount PilotProduction.interface PilotProduction.witnessOffset ≤ PiCCSInputs.phaseOffset := by
   rw [← PiCCSInputs.expectedContextStart_matches_pilot]
-  unfold PiCCSInputs.phaseOffset PiCCSInputs.proofInputStart
+  unfold PiCCSInputs.phaseOffset PiCCSInputs.proofInputStart PiCCSInputs.priorChildrenStart
   omega
 
 private theorem pilot_start_le_end :
@@ -80,7 +80,7 @@ private theorem external_outside_pilot_physical (index : Nat)
   · apply Or.inr
     rw [← PiCCSInputs.expectedContextStart_matches_pilot]
     have lower := proofRange.1
-    unfold PiCCSInputs.proofInputStart at lower
+    unfold PiCCSInputs.priorChildrenStart at lower
     omega
 
 
@@ -105,11 +105,12 @@ private theorem external_before_c (index : Nat)
     unfold PilotProduction.witnessOffset PilotProduction.externalColumnCount PilotProduction.outputDigestStart
     omega
   · have upper := contextRange.2
-    unfold PiCCSInputs.phaseOffset PiCCSInputs.proofInputStart
+    unfold PiCCSInputs.phaseOffset PiCCSInputs.proofInputStart PiCCSInputs.priorChildrenStart
     omega
   · have upper := proofRange.2
-    have before : PiCCSInputs.proofInputStart ≤ PiCCSInputs.phaseOffset := Nat.le_add_right _ _
-    simpa only [Nat.add_sub_of_le before] using upper
+    rw [PiCCSOrdinarySourceSupport.callerInputCount_eq, PiCCSInputs.priorChildrenStart_eq] at upper
+    rw [PiCCSInputs.phaseOffset_eq]
+    omega
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -159,7 +160,7 @@ private theorem nifs_complete
     (values : PiCCSProofInputs.ProofValues) (context : VerifierContext.Digest4)
     (template : Proof 8)
     (result : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (priorPc : prior.pc = 1) (advertisedPc : advertised.pc = 1)
+    (priorCanonical : Lifecycle.ChildrenCanonical (prior.running functionIndex))
     (priorContext : prior.verifierKeys functionIndex = context.toList)
     (advertisedContext : advertised.verifierKeys functionIndex = context.toList)
     (outputHash : digest = stateHash advertised)
@@ -207,7 +208,7 @@ private theorem nifs_complete
         exact pilot_logical_le_physical.trans h)))
   obtain ⟨c, cOperations, _⟩ := PiCCSProtocolCompleteness.completePrefix_from prior (encHash (stateHash prior))
     advertised digest priorFixed advertisedFixed digestFixed values context relation ajtai template
-    priorPc advertisedPc priorContext advertisedContext cAccepted pPhysical (fun index support => pAgrees index (Or.inr support))
+    priorCanonical priorContext advertisedContext cAccepted pPhysical (fun index support => pAgrees index (Or.inr support))
   let cPlan := NightstreamFPrime.Layout.PiCCS.v1_2.plan relation
     (PiCCSProofInputs.relationInterface relation) PiCCSInputs.phaseOffset
   have cConstraints : cPlan.constraints = flatConstraints c.operations := by
@@ -224,7 +225,8 @@ private theorem nifs_complete
     exact (cAfter index (by rw [cFirst]; omega)).trans (c.agrees index (Or.inl below))
   obtain ⟨r, rOperations, _, _, rSampled, rParent⟩ := PiRLCProtocolCompleteness.completePrefix_after_c
     relation ajtai prior (encHash (stateHash prior)) advertised digest priorFixed advertisedFixed digestFixed
-    values context template pPhysical (fun index support => pAgrees index (Or.inr support))
+    values context template priorCanonical pPhysical
+    (fun index support => pAgrees index (Or.inr support))
     c cOperations cPhysical (by simpa only [cFirst] using cAfter)
   let rPlan := NightstreamFPrime.Layout.PiRLC.v1_2.plan relation PiRLCInputs.interface PiRLCInputs.phaseOffset
   have rConstraints : rPlan.constraints = flatConstraints r.operations := by
@@ -406,7 +408,7 @@ theorem complete
     exact accepted
   obtain ⟨nifs, nifsRows, nifsScope, nifsOutput, sourceReadback⟩ := nifs_complete relation ajtai prior next output.x
     priorWellFormed.1 nextWellFormed.1 digestFixed values context input.nifsProof result
-    priorWellFormed.2.2 nextWellFormed.2.2 rfl rfl outputHash acceptedSource
+    priorWellFormed.2.2.2 rfl rfl outputHash acceptedSource
   have priorWords : ∀ index : Fin PilotProduction.stateHashWords,
       nifs (PilotProduction.priorPreimageStart + index.val) =
         (serializePreimage (publicFits := publicFits) prior).getD index.val 0 := by

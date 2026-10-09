@@ -161,7 +161,7 @@ private theorem roundC0Source
     omega
   · norm_num [Spec.Poseidon2.width]
   · rw [PiCCSStarts.roundTranscriptWitnessStart_eq,
-      PiCCSInputs.phaseOffset_eq]
+      PiCCSStarts.statementWitnessStart_eq]
     norm_num [RunningTransitionInputs.roundStride,
       RunningTransitionInputs.roundSampleC0Offset]
     omega
@@ -180,7 +180,7 @@ private theorem roundC1Source
     omega
   · norm_num [Spec.Poseidon2.width]
   · rw [PiCCSStarts.roundTranscriptWitnessStart_eq,
-      PiCCSInputs.phaseOffset_eq]
+      PiCCSStarts.statementWitnessStart_eq]
     norm_num [RunningTransitionInputs.roundStride,
       RunningTransitionInputs.roundSampleC1Offset]
     omega
@@ -205,7 +205,7 @@ private theorem applicationInputEnv_eq_transition
       PiRLCProductPlan.basePackage.layout.constantColumn := by
     have indexBound := index.isLt
     have constant : PiRLCProductPlan.basePackage.layout.constantColumn =
-        12442938 :=
+        11654204 :=
       NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
     rw [constant, ApplicationInputs.inputColumn_value]
     norm_num [ApplicationInputs.currentWordStart,
@@ -224,7 +224,7 @@ private theorem applicationInputEnv_eq_transition
     apply PermutationOutput.Readout.env_of_decode_none
     unfold PermutationOutput.Readout.decode
     rw [dif_neg (by
-      rw [PiCCSTranscriptReadout.phaseStart_eq, ApplicationInputs.inputColumn_value]
+      rw [PiCCSTranscriptReadout.transcriptStart_eq, ApplicationInputs.inputColumn_value]
       have indexBound := index.isLt
       norm_num [ApplicationInputs.currentWordStart,
         Lifecycle.Stage1.Application.stateWordCount] at indexBound ⊢
@@ -246,7 +246,7 @@ private theorem applicationOutputEnv_eq_transition
       PiRLCProductPlan.basePackage.layout.constantColumn := by
     have indexBound := index.isLt
     have constant : PiRLCProductPlan.basePackage.layout.constantColumn =
-        12442938 :=
+        11654204 :=
       NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
     rw [constant, ApplicationInputs.outputColumn_value]
     norm_num [Lifecycle.Stage1.Application.stateWordCount] at indexBound ⊢
@@ -264,7 +264,7 @@ private theorem applicationOutputEnv_eq_transition
     apply PermutationOutput.Readout.env_of_decode_none
     unfold PermutationOutput.Readout.decode
     rw [dif_neg (by
-      rw [PiCCSTranscriptReadout.phaseStart_eq, ApplicationInputs.outputColumn_value]
+      rw [PiCCSTranscriptReadout.transcriptStart_eq, ApplicationInputs.outputColumn_value]
       have indexBound := index.isLt
       norm_num [ApplicationInputs.currentWordStart,
         Lifecycle.Stage1.Application.stateWordCount] at indexBound ⊢
@@ -565,41 +565,31 @@ theorem priorPublicInputRepresents
 
 theorem runningInputRepresents
     (application : Program) (fits : FitsTwoPow28 application)
-    (raw : RawValues application) :
+    (raw : RawValues application)
+    (semantics : DirectApplicationPrefixPlan.Semantics
+      (relation application fits) (geometry application) raw.assignment
+      raw.base raw.groupValue) :
     AccumulatorInputs.running
         (PerApplicationFixedPoint.logicalWidth application)
         (PerApplicationFixedPoint.publicFits application) (commonEnv raw) =
       (input application fits raw).running functionIndex := by
-  change PiCCS.v1_2.StatementAbsorption.evalRunning
-      (PiCCSInputs.runningExpr
-        (PerApplicationFixedPoint.logicalWidth application)
-        (PerApplicationFixedPoint.publicFits application)) (commonEnv raw) =
-    StateDecoder.running
-      (PerApplicationFixedPoint.logicalWidth application)
-      (PerApplicationFixedPoint.publicFits application) (priorState raw)
-  simpa [priorState] using! StateDecoder.evalRunning_eq_running
-    (PerApplicationFixedPoint.logicalWidth application)
-    (PerApplicationFixedPoint.publicFits application) (commonEnv raw)
+  have piCcs :=
+    DirectPiCCSCommonPhaseSemantics.semantics_imply_piCcsSpecHolds
+      (relation application fits) (prefixGeometry application) raw.assignment
+      raw.base raw.groupValue semantics.runningPrefix
+  exact StateDecoder.evalRunning_eq_running
+    (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
+    (publicFits := PerApplicationFixedPoint.publicFits application) (commonEnv raw)
+    piCcs.statementBinding.state.priorChildren
 
 theorem runningOutputRepresents
     (application : Program) (raw : RawValues application) :
-    PiCCS.v1_2.StatementAbsorption.evalRunning
-        (RunningTransitionInputs.outputRunningExpr
-          (PerApplicationFixedPoint.logicalWidth application)
-          (PerApplicationFixedPoint.publicFits application))
+    RunningTransitionInputs.outputRunning
+        (PerApplicationFixedPoint.logicalWidth application)
+        (PerApplicationFixedPoint.publicFits application)
         (transitionEnv raw) =
       (output application raw).runningNext functionIndex := by
-  change PiCCS.v1_2.StatementAbsorption.evalRunning
-      (RunningTransitionInputs.outputRunningExpr
-        (PerApplicationFixedPoint.logicalWidth application)
-        (PerApplicationFixedPoint.publicFits application))
-      (transitionEnv raw) =
-    StateDecoder.running
-      (PerApplicationFixedPoint.logicalWidth application)
-      (PerApplicationFixedPoint.publicFits application) (outputState raw)
-  simpa [outputState] using! StateDecoder.evalOutputRunning_eq_running
-    (PerApplicationFixedPoint.logicalWidth application)
-    (PerApplicationFixedPoint.publicFits application) (transitionEnv raw)
+  rfl
 
 theorem iterationZeroRepresents
     (application : Program) (fits : FitsTwoPow28 application)
@@ -950,22 +940,19 @@ theorem semantics_imply_nextSerialization
   have context := semantics_imply_contextKeys application fits raw semantics
   have iteration := semantics_imply_nextIterationWord application fits raw semantics
   have initial := semantics_imply_nextInitialState application fits raw semantics
-  unfold serializePreimage nextHashPreimage setup StateDecoder.preimage
-  change stateDomainTag ++ block (contextKey raw) ++
-      [natWord ((input application fits raw).iteration + 1)] ++
-      block (input application fits raw).z0 ++
-      block (output application raw).zNext ++
-      serializeRunning
-        ((output application raw).runningNext functionIndex) ++
-      [natWord (oneBased (output application raw).pcNext)] =
-    stateDomainTag ++ block (StateDecoder.keyDigest (outputState raw)) ++
-      [natWord (StateDecoder.iteration (outputState raw))] ++
-      block (StateDecoder.initialState (outputState raw)) ++
-      block (StateDecoder.currentState (outputState raw)) ++
+  unfold serializePreimage serializeTail nextHashPreimage setup StateDecoder.preimage
+  change stateDomainChunk ++
+      serializeRunning ((output application raw).runningNext functionIndex) ++
+      (contextKey raw ++ [natWord ((input application fits raw).iteration + 1)] ++
+        (input application fits raw).z0 ++ (output application raw).zNext) =
+    stateDomainChunk ++
       serializeRunning (StateDecoder.running
         (PerApplicationFixedPoint.logicalWidth application)
         (PerApplicationFixedPoint.publicFits application) (outputState raw)) ++
-      [natWord 1]
+      (StateDecoder.keyDigest (outputState raw) ++
+        [natWord (StateDecoder.iteration (outputState raw))] ++
+        StateDecoder.initialState (outputState raw) ++
+        StateDecoder.currentState (outputState raw))
   rw [show (input application fits raw).z0 =
     StateDecoder.initialState (priorState raw) by rfl]
   rw [show (output application raw).zNext =
@@ -974,7 +961,6 @@ theorem semantics_imply_nextSerialization
     StateDecoder.running
       (PerApplicationFixedPoint.logicalWidth application)
       (PerApplicationFixedPoint.publicFits application) (outputState raw) by rfl]
-  rw [show oneBased (output application raw).pcNext = 1 by rfl]
   rw [← context, iteration, ← initial]
 
 theorem priorHashPreimageRepresents

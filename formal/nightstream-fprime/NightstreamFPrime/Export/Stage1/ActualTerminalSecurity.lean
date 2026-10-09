@@ -95,7 +95,9 @@ theorem terminal_implies_nifsOrBaseOrCollision
         show StateEncoding.WellFormed
           (priorHashPreimage (Lifecycle.setup relation ajtai context) input)
         rw [← contextEqual, ActualStep.priorHashPreimage_eq_prior]
-        exact StateDecoder.preimage_wellFormed _ _ _
+        exact ⟨StateDecoder.preimage_fixed _ _ _, StateDecoder.iteration_lt _, rfl,
+          terminal_implies_priorCanonical application fits commitmentSetup statement payload
+            terminal⟩
       have checked : Nifs.PaperNonInteractive.verify (ProductionKey.key relation ajtai)
           (input.running functionIndex) input.fresh input.nifsProof =
             some (output.runningNext functionIndex) := by
@@ -211,7 +213,7 @@ theorem terminal_implies_parentOrBaseOrCollision
     rcases (Stage1.Terminal.holdsFor_recursive_iff relation ajtai
       (PerApplicationCanonicalPackage.verifierContextDigest fits commitmentSetup)
       application statement payload).mp terminal with
-      ⟨_valid, _pcValid, _positive, _publicLink, runningValid, freshValid⟩
+      ⟨_valid, _canonical, _pcValid, _positive, _publicLink, runningValid, freshValid⟩
     exact Or.inr (Or.inl ⟨positive, attempt, attemptEq,
       PiDEC.v1_2.OutputWitnessConsumer.terminalHolds_extracts_parent relation ajtai
         (input.running functionIndex) input.fresh input.nifsProof

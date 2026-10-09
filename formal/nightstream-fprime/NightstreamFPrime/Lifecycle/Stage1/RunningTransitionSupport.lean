@@ -52,7 +52,7 @@ structure InputsSupported {logicalWidth : Nat}
   currentState : ∀ index,
     (interface.currentState offset index).VarsSatisfy allowed
   recursive : RunningSupported (interface.recursive offset) allowed
-  output : RunningSupported (interface.output offset) allowed
+  output : ∀ index, (interface.output offset index).VarsSatisfy allowed
 
 private theorem serializeKExpr_varsSatisfy (value : KExpr)
     (allowed : Nat → Prop)
@@ -67,120 +67,28 @@ private theorem serializeKExpr_varsSatisfy (value : KExpr)
   · exact support.1
   · exact support.2
 
-private theorem serializePointExpr_varsSatisfy
-    (point : Fin productionShape.cubeVariables → KExpr)
-    (allowed : Nat → Prop)
-    (support : ∀ coordinate,
-      (point coordinate).c0.VarsSatisfy allowed ∧
-        (point coordinate).c1.VarsSatisfy allowed) :
-    ∀ expression ∈ StatementAbsorption.serializePointExpr point,
-      expression.VarsSatisfy allowed := by
-  intro expression member
-  rw [StatementAbsorption.serializePointExpr, List.mem_flatMap] at member
-  rcases member with ⟨coordinate, _coordinateMember, expressionMember⟩
-  exact serializeKExpr_varsSatisfy (point coordinate) allowed
-    (support coordinate) expression expressionMember
-
-private theorem serializeCommitmentExpr_varsSatisfy
-    (commitment : Fin productionProfile.commitmentWidth →
-      Fin ringDegree → Expr) (allowed : Nat → Prop)
-    (support : ∀ row coefficient,
-      (commitment row coefficient).VarsSatisfy allowed) :
-    ∀ expression ∈ StatementAbsorption.serializeCommitmentExpr commitment,
-      expression.VarsSatisfy allowed := by
-  intro expression member
-  rw [StatementAbsorption.serializeCommitmentExpr, List.mem_flatMap] at member
-  rcases member with ⟨row, _rowMember, expressionMember⟩
-  rw [List.mem_map] at expressionMember
-  rcases expressionMember with
-    ⟨coefficient, _coefficientMember, rfl⟩
-  exact support row coefficient
-
-private theorem serializePublicInputExpr_varsSatisfy
-    {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
-    (input : Fin (FullShape logicalWidth publicFits).publicWidth → Expr)
-    (allowed : Nat → Prop)
-    (support : ∀ column, (input column).VarsSatisfy allowed) :
-    ∀ expression ∈ StatementAbsorption.serializePublicInputExpr input,
-      expression.VarsSatisfy allowed := by
-  intro expression member
-  rw [StatementAbsorption.serializePublicInputExpr, List.mem_map] at member
-  rcases member with ⟨column, _columnMember, rfl⟩
-  exact support column
-
-private theorem serializeEvaluationExpr_varsSatisfy
-    (evaluation : StatementAbsorption.EvaluationExpr)
-    (allowed : Nat → Prop)
-    (eval_K : ∀ coefficient,
-      (evaluation.eval_K coefficient).c0.VarsSatisfy allowed ∧
-        (evaluation.eval_K coefficient).c1.VarsSatisfy allowed)
-    (eval_A : ∀ matrix coefficient,
-      (evaluation.eval_A matrix coefficient).c0.VarsSatisfy allowed ∧
-        (evaluation.eval_A matrix coefficient).c1.VarsSatisfy allowed) :
-    ∀ expression ∈ StatementAbsorption.serializeEvaluationExpr evaluation,
-      expression.VarsSatisfy allowed := by
-  intro expression member
-  rw [StatementAbsorption.serializeEvaluationExpr, List.mem_append] at member
-  rcases member with padMember | matrixMember
-  · rw [List.mem_flatMap] at padMember
-    rcases padMember with
-      ⟨coefficient, _coefficientMember, expressionMember⟩
-    exact serializeKExpr_varsSatisfy (evaluation.eval_K coefficient) allowed
-      (eval_K coefficient) expression expressionMember
-  · rw [List.mem_flatMap] at matrixMember
-    rcases matrixMember with
-      ⟨matrix, _matrixMember, coefficientMember⟩
-    rw [List.mem_flatMap] at coefficientMember
-    rcases coefficientMember with
-      ⟨coefficient, _coefficientMember, expressionMember⟩
-    exact serializeKExpr_varsSatisfy
-      (evaluation.eval_A matrix coefficient) allowed
-      (eval_A matrix coefficient) expression expressionMember
-
-private theorem blockExpr_varsSatisfy (words : List Expr)
-    (allowed : Nat → Prop)
-    (support : ∀ expression ∈ words,
-      expression.VarsSatisfy allowed) :
-    ∀ expression ∈ StatementAbsorption.blockExpr words,
-      expression.VarsSatisfy allowed := by
-  intro expression member
-  simp only [StatementAbsorption.blockExpr, List.mem_cons] at member
-  rcases member with rfl | wordMember
-  · trivial
-  · exact support expression wordMember
-
 theorem serializeRunningExpr_varsSatisfy {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (running : StatementAbsorption.RunningExpr logicalWidth publicFits)
     (allowed : Nat → Prop) (support : RunningSupported running allowed) :
-    ∀ expression ∈ StatementAbsorption.serializeRunningExpr running,
+    ∀ expression ∈ RunningWords.serializeRunningExpr running,
       expression.VarsSatisfy allowed := by
   intro expression member
-  rw [StatementAbsorption.serializeRunningExpr, List.mem_append] at member
-  rcases member with pointMember | groupMember
-  · exact blockExpr_varsSatisfy _ allowed
-      (serializePointExpr_varsSatisfy running.point allowed support.point)
-      expression pointMember
-  · rw [List.mem_flatMap] at groupMember
-    rcases groupMember with ⟨source, _sourceMember, expressionMember⟩
-    simp only [List.mem_append] at expressionMember
-    rcases expressionMember with (commitmentMember | publicMember) |
-      evaluationMember
-    · exact blockExpr_varsSatisfy _ allowed
-        (serializeCommitmentExpr_varsSatisfy
-          (running.commitment source) allowed (support.commitment source))
-        expression commitmentMember
-    · exact blockExpr_varsSatisfy _ allowed
-        (serializePublicInputExpr_varsSatisfy
-          (running.publicInput source) allowed (support.publicInput source))
-        expression publicMember
-    · exact blockExpr_varsSatisfy _ allowed
-        (serializeEvaluationExpr_varsSatisfy (running.evaluation source)
-          allowed (support.eval_K source) (support.eval_A source))
-        expression evaluationMember
+  rcases RunningWords.serializeRunningExpr_mem member with
+    ⟨source, row, coefficient, rfl⟩ | ⟨source, coefficient, evalK⟩ |
+      ⟨source, matrix, coefficient, evalA⟩ | ⟨coordinate, point⟩ | ⟨word, rfl⟩
+  · exact support.commitment source row coefficient
+  · exact serializeKExpr_varsSatisfy _ allowed (support.eval_K source coefficient) _ evalK
+  · exact serializeKExpr_varsSatisfy _ allowed
+      (support.eval_A source matrix coefficient) _ evalA
+  · exact serializeKExpr_varsSatisfy _ allowed (support.point coordinate) _ point
+  · exact RunningWords.packWordExpr_parent_closed
+      (fun expression => expression.VarsSatisfy allowed) (fun _ => trivial)
+      (fun left right => Expr.VarsSatisfy.add left right allowed)
+      (fun weight value valueSupport =>
+        Expr.VarsSatisfy.mul (Expr.const weight) value allowed trivial valueSupport)
+      running support.publicInput word
 
 theorem runningWord_varsSatisfy {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -190,8 +98,8 @@ theorem runningWord_varsSatisfy {logicalWidth : Nat}
     (index : WordIndex) :
     (runningWord running index).VarsSatisfy allowed := by
   have indexBound : index.val <
-      (StatementAbsorption.serializeRunningExpr running).length := by
-    rw [StatementAbsorption.serializeRunningExpr_length]
+      (RunningWords.serializeRunningExpr running).length := by
+    rw [RunningWords.serializeRunningExpr_length]
     exact index.isLt
   rw [runningWord, List.getD_eq_get _ _ ⟨index.val, indexBound⟩]
   exact serializeRunningExpr_varsSatisfy running allowed support _
@@ -238,8 +146,7 @@ theorem flatConstraints_varsSatisfy {logicalWidth : Nat}
   · rcases List.mem_ofFn.mp muxMember with ⟨index, rfl⟩
     exact Expr.VarsSatisfy.sub _ _ allowed
       (Expr.VarsSatisfy.sub _ _ allowed
-        (runningWord_varsSatisfy (interface.output offset) allowed
-          support.output index) trivial)
+        (support.output index) trivial)
       (Expr.VarsSatisfy.mul _ _ allowed support.flag
         (Expr.VarsSatisfy.sub _ _ allowed
           (runningWord_varsSatisfy (interface.recursive offset) allowed

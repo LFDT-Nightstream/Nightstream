@@ -10,6 +10,10 @@ One non-authoritative bit hint selects the centered sign. Eighteen rows prove
 that this bit is Boolean, every digit is zero or the selected common sign, and
 the exact production radix recomposition equals the parent.
 
+The sign hint, the sign row, the digit rows and the recomposition are shared:
+the PiCCS re-split of each packed prior parent coordinate
+(`PiCCS.v1_2.StateBinding`) uses them without the parent row.
+
 This module does not own assignment-coordinate enumeration, commitment or
 evaluation recomposition, child CE checks, package layout, or Rust execution.
 -/
@@ -29,6 +33,27 @@ def exactRowCount : Nat := 18
 theorem exactPrivateCount_pos : 0 < exactPrivateCount := by
   decide
 
+/-! ## Shared signed-digit rows -/
+
+/-- `Σ_j 2^j · digit_j` with the production radix weights. -/
+def recomposeDigits (digits : Radix.ChildIndex → Expr) : Expr :=
+  ((List.ofFn digits).zip
+      (List.ofFn fun index : Radix.ChildIndex =>
+        EvaluationHomomorphism.PiDEC.radixWeight index)).foldr
+    (fun pair suffix => Expr.const pair.2 * pair.1 + suffix) 0
+
+/-- The non-authoritative centered-sign bit of one source value. -/
+def bitHint (source : Expr) : Hint :=
+  .bit source signBitIndex
+
+/-- The sign bit is Boolean. -/
+def signRow (bit : Expr) : Expr :=
+  bit * (bit - 1)
+
+/-- One digit is zero or the common sign `1 - 2 · bit`. -/
+def digitRow (bit digit : Expr) : Expr :=
+  digit * (digit - (1 - 2 * bit))
+
 structure Interface where
   parent : Nat → Expr
   digit : Nat → Radix.ChildIndex → Expr
@@ -47,25 +72,21 @@ def signExpr (offset : Nat) : Expr :=
   1 - 2 * signBitExpr offset
 
 def signHint (interface : Interface) (offset : Nat) : Hint :=
-  .bit (interface.parent offset) signBitIndex
+  bitHint (interface.parent offset)
 
 def signConstraint (offset : Nat) : Expr :=
-  signBitExpr offset * (signBitExpr offset - 1)
+  signRow (signBitExpr offset)
 
 def digitConstraint (interface : Interface) (offset : Nat)
     (index : Radix.ChildIndex) : Expr :=
-  interface.digit offset index *
-    (interface.digit offset index - signExpr offset)
+  digitRow (signBitExpr offset) (interface.digit offset index)
 
 def digitConstraints (interface : Interface) (offset : Nat) : List Expr :=
   List.ofFn fun index : Radix.ChildIndex =>
     digitConstraint interface offset index
 
 def recomposeExpr (interface : Interface) (offset : Nat) : Expr :=
-  ((List.ofFn fun index : Radix.ChildIndex => interface.digit offset index).zip
-      (List.ofFn fun index : Radix.ChildIndex =>
-        EvaluationHomomorphism.PiDEC.radixWeight index)).foldr
-    (fun pair suffix => Expr.const pair.2 * pair.1 + suffix) 0
+  recomposeDigits (interface.digit offset)
 
 def recompositionConstraint (interface : Interface) (offset : Nat) : Expr :=
   recomposeExpr interface offset - interface.parent offset
@@ -108,13 +129,45 @@ private theorem weightedFold_eval (env : Env) :
             (fun pair suffix => pair.2 * pair.1 + suffix) 0)
       rw [weightedFold_eval env values weights]
 
-theorem recomposeExpr_eval (interface : Interface) (offset : Nat) (env : Env) :
-    (recomposeExpr interface offset).eval env =
-      Radix.recomposeScalar (digitValues interface offset env) := by
-  unfold recomposeExpr
+theorem recomposeDigits_eval (digits : Radix.ChildIndex → Expr) (env : Env) :
+    (recomposeDigits digits).eval env =
+      Radix.recomposeScalar fun index => (digits index).eval env := by
+  unfold recomposeDigits
   rw [weightedFold_eval]
   rw [List.map_ofFn]
-  exact Radix.recomposeScalarList_eq (digitValues interface offset env)
+  exact Radix.recomposeScalarList_eq fun index => (digits index).eval env
+
+theorem recomposeExpr_eval (interface : Interface) (offset : Nat) (env : Env) :
+    (recomposeExpr interface offset).eval env =
+      Radix.recomposeScalar (digitValues interface offset env) :=
+  recomposeDigits_eval (interface.digit offset) env
+
+/-- A property closed under constants, sums and constant scaling holds on
+every recomposition of digits that satisfy it. -/
+theorem recomposeDigits_closed (Holds : Expr → Prop)
+    (constant : ∀ value, Holds (Expr.const value))
+    (add : ∀ left right, Holds left → Holds right → Holds (left + right))
+    (scale : ∀ weight value, Holds value → Holds (Expr.const weight * value))
+    (digits : Radix.ChildIndex → Expr) (digitHolds : ∀ child, Holds (digits child)) :
+    Holds (recomposeDigits digits) := by
+  unfold recomposeDigits
+  generalize (List.ofFn fun index : Radix.ChildIndex =>
+    EvaluationHomomorphism.PiDEC.radixWeight index) = weights
+  have values : ∀ value ∈ List.ofFn digits, Holds value := by
+    intro value member
+    rw [List.mem_ofFn'] at member
+    rcases member with ⟨child, rfl⟩
+    exact digitHolds child
+  generalize List.ofFn digits = items at values
+  induction items generalizing weights with
+  | nil => exact constant _
+  | cons item rest inductionHypothesis =>
+      cases weights with
+      | nil => exact constant _
+      | cons weight weights =>
+          exact add _ _ (scale weight item (values item (by simp)))
+            (inductionHypothesis weights fun value member =>
+              values value (by simp [member]))
 
 private theorem flatConstraints_assertions (items : List Expr) :
     flatConstraints (items.map .assertZero) = items := by
@@ -182,7 +235,7 @@ theorem recomposeExpr_varsBelow
     (assumptions : Assumptions interface offset env) :
     (recomposeExpr interface offset).VarsBelow
       (offset + exactPrivateCount) := by
-  unfold recomposeExpr
+  unfold recomposeExpr recomposeDigits
   apply weightedFold_varsBelow
   intro expression member
   rcases List.mem_ofFn.mp member with ⟨index, rfl⟩
@@ -235,6 +288,15 @@ private theorem constraintsHold_of_holds
   change Radix.fieldOfNat 2 = (2 : F)
   rfl
 
+theorem signRow_eval (bit : Expr) (env : Env) :
+    (signRow bit).eval env = bit.eval env * (bit.eval env - 1) := by
+  simp only [signRow, Expr.eval_hmul, Expr.eval_sub, exprOne_eval]
+
+theorem digitRow_eval (bit digit : Expr) (env : Env) :
+    (digitRow bit digit).eval env =
+      digit.eval env * (digit.eval env - (1 - 2 * bit.eval env)) := by
+  simp only [digitRow, Expr.eval_hmul, Expr.eval_sub, exprOne_eval, exprTwo_eval]
+
 private theorem signExpr_eval (env : Env) (offset : Nat) :
     (signExpr offset).eval env = (1 : F) - 2 * env offset := by
   simp only [signExpr, signBitExpr, Expr.eval_sub, Expr.eval_hmul,
@@ -243,7 +305,7 @@ private theorem signExpr_eval (env : Env) (offset : Nat) :
 private theorem signConstraint_eval (env : Env) (offset : Nat) :
     (signConstraint offset).eval env =
       env offset * (env offset - 1) := by
-  simp only [signConstraint, signBitExpr, Expr.eval_hmul, Expr.eval_sub,
+  simp only [signConstraint, signRow, signBitExpr, Expr.eval_hmul, Expr.eval_sub,
     Expr.eval_var, exprOne_eval]
 
 private theorem digitConstraint_eval
@@ -253,7 +315,8 @@ private theorem digitConstraint_eval
       digitValues interface offset env index *
         (digitValues interface offset env index -
           (signExpr offset).eval env) := by
-  simp only [digitConstraint, digitValues, Expr.eval_hmul, Expr.eval_sub]
+  simp only [digitConstraint, digitRow, signExpr, digitValues, Expr.eval_hmul,
+    Expr.eval_sub]
 
 private theorem recompositionConstraint_eval
     (interface : Interface) (offset : Nat) (env : Env) :
@@ -273,7 +336,7 @@ private theorem sign_root
     (signExpr offset).eval env = 1 ∨ (signExpr offset).eval env = -1 := by
   have zero := rows (signConstraint offset) (by simp [constraints])
   have product : env offset * (env offset - 1) = 0 := by
-    simpa [signConstraint, signBitExpr] using zero
+    simpa [signConstraint, signRow, signBitExpr] using zero
   rcases baseFieldNoZeroDivisors _ _ product with bitZero | bitOne
   · left
     rw [signExpr_eval, bitZero]
@@ -299,7 +362,7 @@ private theorem digit_root
       digitValues interface offset env index *
         (digitValues interface offset env index -
           (signExpr offset).eval env) = 0 := by
-    simpa [digitConstraint, digitValues] using zero
+    simpa [digitConstraint, digitRow, signExpr, digitValues] using zero
   rcases baseFieldNoZeroDivisors _ _ product with inactive | active
   · exact Or.inl inactive
   · exact Or.inr (sub_eq_zero.mp active)
@@ -326,24 +389,22 @@ theorem soundness
       simpa [recompositionConstraint] using zero
     simpa [parentValue, digitValues, recomposeExpr_eval] using equation
 
-private theorem hintValue_val
-    (interface : Interface) (env : Env) (offset : Nat) :
-    (Hint.eval env (signHint interface offset)).val =
-      ((parentValue interface offset env).val / 2 ^ signBitIndex) % 2 := by
-  change (((((interface.parent offset).eval env).val >>> signBitIndex) &&& 1) %
+theorem bitHintValue_val (source : Expr) (env : Env) :
+    (Hint.eval env (bitHint source)).val =
+      ((source.eval env).val / 2 ^ signBitIndex) % 2 := by
+  change ((((source.eval env).val >>> signBitIndex) &&& 1) %
       goldilocksModulus) = _
   rw [Nat.and_one_is_mod, Nat.shiftRight_eq_div_pow]
   apply Nat.mod_eq_of_lt
   exact lt_trans (Nat.mod_lt _ (by decide : 0 < 2)) (by
     norm_num [goldilocksModulus])
 
-private theorem signHint_eq_branchBit
-    (interface : Interface) (env : Env) (offset : Nat)
-    (bounded : centeredMagnitude (parentValue interface offset env) <
-      Radix.combinedBound) :
-    Hint.eval env (signHint interface offset) =
-      if Radix.isNonnegative (parentValue interface offset env) then 0 else 1 := by
-  let parent := parentValue interface offset env
+/-- The bit hint of a bounded centered value is its sign branch. -/
+theorem bitHint_eq_branchBit (source : Expr) (env : Env)
+    (bounded : centeredMagnitude (source.eval env) < Radix.combinedBound) :
+    Hint.eval env (bitHint source) =
+      if Radix.isNonnegative (source.eval env) then 0 else 1 := by
+  let parent := source.eval env
   by_cases nonnegative : Radix.isNonnegative parent
   · have magnitude : centeredMagnitude parent = parent.val := by
       rw [NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Centered.centeredMagnitude_eq_distance]
@@ -354,9 +415,9 @@ private theorem signHint_eq_branchBit
       norm_num [Radix.combinedBound, productionGlobalParams,
         GlobalParams.bigB, signBitIndex] at bounded ⊢
       omega
-    have hintZero : Hint.eval env (signHint interface offset) = 0 := by
+    have hintZero : Hint.eval env (bitHint source) = 0 := by
       apply Fin.ext
-      rw [hintValue_val]
+      rw [bitHintValue_val]
       change parent.val / 2 ^ signBitIndex % 2 = 0
       rw [Nat.div_eq_of_lt parentLt]
     simpa [parent, nonnegative] using hintZero
@@ -378,13 +439,75 @@ private theorem signHint_eq_branchBit
     have quotient : parent.val / 2 ^ signBitIndex = 1 := by
       norm_num [signBitIndex] at parentLower parentUpper ⊢
       omega
-    have hintOne : Hint.eval env (signHint interface offset) = 1 := by
+    have hintOne : Hint.eval env (bitHint source) = 1 := by
       apply Fin.ext
-      rw [hintValue_val]
+      rw [bitHintValue_val]
       change parent.val / 2 ^ signBitIndex % 2 = (1 : F).val
       rw [quotient]
       rfl
     simpa [parent, nonnegative] using hintOne
+
+private theorem hintValue_val
+    (interface : Interface) (env : Env) (offset : Nat) :
+    (Hint.eval env (signHint interface offset)).val =
+      ((parentValue interface offset env).val / 2 ^ signBitIndex) % 2 :=
+  bitHintValue_val (interface.parent offset) env
+
+private theorem signHint_eq_branchBit
+    (interface : Interface) (env : Env) (offset : Nat)
+    (bounded : centeredMagnitude (parentValue interface offset env) <
+      Radix.combinedBound) :
+    Hint.eval env (signHint interface offset) =
+      if Radix.isNonnegative (parentValue interface offset env) then 0 else 1 :=
+  bitHint_eq_branchBit (interface.parent offset) env bounded
+
+/-- Uniform-sign digits satisfy the Boolean row and every digit row under the
+hinted sign bit of their own recomposition. -/
+theorem signedDigitRows_of_constraint
+    (digits : Radix.ChildIndex → Expr) (env : Env) {sign : F}
+    (constraint : Radix.UniformSignedDigits.ConstraintPredicate sign
+      fun index => (digits index).eval env) :
+    Hint.eval env (bitHint (recomposeDigits digits)) *
+        (Hint.eval env (bitHint (recomposeDigits digits)) - 1) = 0 ∧
+      ∀ index, (digits index).eval env *
+        ((digits index).eval env -
+          (1 - 2 * Hint.eval env (bitHint (recomposeDigits digits)))) = 0 := by
+  let values : Radix.ChildIndex → F := fun index => (digits index).eval env
+  let parent := Radix.recomposeScalar values
+  have accepted : Radix.UniformSignedDigits.Accepted parent sign values :=
+    ⟨constraint, rfl⟩
+  have bounded := accepted.parentBounded
+  have exactDigits := accepted.digits_eq_splitScalar
+  have honest := Radix.UniformSignedDigits.honest_complete parent bounded
+  have source : (recomposeDigits digits).eval env = parent :=
+    recomposeDigits_eval digits env
+  have branch : Hint.eval env (bitHint (recomposeDigits digits)) =
+      if Radix.isNonnegative parent then 0 else 1 := by
+    rw [bitHint_eq_branchBit (recomposeDigits digits) env (by rw [source]; exact bounded),
+      source]
+  have unit : (1 : F) - 2 * Hint.eval env (bitHint (recomposeDigits digits)) =
+      Radix.UniformSignedDigits.honestSign parent := by
+    rw [branch]
+    by_cases nonnegative : Radix.isNonnegative parent
+    · simp [Radix.UniformSignedDigits.honestSign, nonnegative]
+    · simp [Radix.UniformSignedDigits.honestSign, nonnegative]
+  refine ⟨?_, ?_⟩
+  · rw [branch]
+    by_cases nonnegative : Radix.isNonnegative parent
+    · simp [nonnegative]
+    · simp [nonnegative]
+  · intro index
+    rw [unit]
+    have digit : values index = 0 ∨
+        values index = Radix.UniformSignedDigits.honestSign parent := by
+      rw [congrFun exactDigits index]
+      exact honest.constraint.2 index
+    change values index * (values index - _) = 0
+    rcases digit with inactive | active
+    · rw [inactive]
+      exact zero_mul _
+    · rw [active, sub_self]
+      exact mul_zero _
 
 private theorem signHint_eq_honestSign
     (interface : Interface) (env : Env) (offset : Nat)

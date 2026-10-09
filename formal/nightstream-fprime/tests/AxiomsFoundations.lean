@@ -7,7 +7,6 @@ import NightstreamFPrime.Spec.Phi81StrongSet.LowNormInvertibility
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperCorrections
 import NightstreamFPrime.Lifecycle.ProductionKey
 import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
-import NightstreamFPrime.Layout.Stage1.PiCCSRepresentation
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix
 import NightstreamFPrime.Spec.Folding.PiDEC
 import NightstreamFPrime.Spec.Folding.PiDEC.BindingCollision
@@ -36,7 +35,6 @@ import NightstreamFPrime.Export.Stage1.SetupSecurity
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSInputCheck.decodeField_rejects_noncanonical
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSInputCheck.decodeExtension_ordered_pair
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSInputCheck.decodeExtension_rejects_wrong_length
-#audit_axioms NightstreamFPrime.Layout.Stage1.PiCCSRepresentation.serializeRingF_getD
 #audit_axioms NightstreamFPrime.Spec.production_parameter_values
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier.embed_zero
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier.embed_one

@@ -1,4 +1,4 @@
-use super::super::{MAX_FIXED_SOURCE_NODES, NATIVE_REFERENCE_NODES};
+use super::super::{NATIVE_REFERENCE_NODES, PREPARED_FIXED_SOURCE_NODE_LIMIT};
 use super::*;
 use serde_json::json;
 
@@ -40,7 +40,7 @@ fn duplicate_zero_template_terms_consume_the_real_reference_headroom() {
     let mut combination = json!([0, [[[0, 0], 1]]]);
     let base_nodes = 8;
     assert_bound(&combination, base_nodes);
-    let headroom = MAX_FIXED_SOURCE_NODES - NATIVE_REFERENCE_NODES;
+    let headroom = PREPARED_FIXED_SOURCE_NODE_LIMIT - NATIVE_REFERENCE_NODES;
     let copies = headroom / 5 + 1;
     let terms = combination[1].as_array_mut().unwrap();
     for _ in 0..copies {
@@ -61,7 +61,7 @@ fn unused_compact_templates_consume_the_real_reference_headroom() {
     let mut templates = json!([template]);
     let base_nodes = 1 + 20;
     assert_bound(&templates, base_nodes);
-    let headroom = MAX_FIXED_SOURCE_NODES - NATIVE_REFERENCE_NODES;
+    let headroom = PREPARED_FIXED_SOURCE_NODE_LIMIT - NATIVE_REFERENCE_NODES;
     let copies = headroom / 20 + 1;
     for _ in 0..copies {
         templates.as_array_mut().unwrap().push(template.clone());

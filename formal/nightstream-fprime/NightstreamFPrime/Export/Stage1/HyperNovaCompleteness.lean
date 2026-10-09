@@ -175,7 +175,7 @@ theorem recursive_nifs
             (Lifecycle.runningStatement relation result child) (children child) := by
   let relation := PerApplicationFixedPoint.relation application fits
   let key := ProductionKey.key relation productionAjtaiKey
-  obtain ⟨_statementValid, _pcValid, _positive, _public, runningMember, freshMember⟩ :=
+  obtain ⟨_statementValid, _canonical, _pcValid, _positive, _public, runningMember, freshMember⟩ :=
     (PerApplicationTerminal.holds_recursive_iff application fits productionSetup statement payload).mp accepted
   have memberships : Lifecycle.TerminalHolds relation productionAjtaiKey
       (payload.running functionIndex) (payload.runningWitness functionIndex)

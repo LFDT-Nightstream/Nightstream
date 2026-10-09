@@ -39,7 +39,8 @@ theorem valueSource_support
         have blockBound := block.isLt
         have laneBound := lane.isLt
         norm_num [PiCCSInputs.freshCommitmentStart,
-          PiCCSInputs.proofInputStart, PiCCSOrdinaryRetainedBlocks.proofInputCount,
+          PiCCSInputs.proofInputStart, PiCCSInputs.priorChildrenStart,
+        PiCCSInputs.priorChildrenWords, PiCCSOrdinaryRetainedBlocks.proofInputCount,
           PiCCSOrdinarySourceSupport.proofInputCount, PiCCSInputs.phaseOffset,
           PiCCSInputs.proofInputColumnCount, PiCCSInputs.freshCommitmentWords,
           PiCCSInputs.roundMessageWords, PiCCSInputs.outputEvaluationWords,
@@ -56,8 +57,9 @@ theorem valueSource_support
         have blockBound := block.isLt
         have laneBound := lane.isLt
         norm_num [PiCCSInputs.runningCommitmentStart,
-          PiCCSInputs.runningGroupStart, PiCCSInputs.runningGroupsStart,
-          PiCCSInputs.priorRunningStart, PiCCSInputs.runningGroupWords,
+          PiCCSInputs.priorRunningStart, PiCCSInputs.runningCommitmentWords, PiCCSInputs.runningPublicWords,
+        PiCCSInputs.runningEvalKWords, PiCCSInputs.runningEvalAWords, PiCCSInputs.priorChildrenStart,
+        PiCCSInputs.expectedContextStart, PiCCSInputs.expectedContextWords,
           PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq,
           PiRLCCombinationInvocations.sourceCount,
           PiRLCProductSchedule.Family.blockCount,
@@ -78,7 +80,7 @@ theorem valueSource_support
           PiRLCProductSchedule.Family.blockCount,
           ringDegree] at blockBound laneBound ⊢
         omega
-      · left; left; left
+      · left; left; right; right; right; right
         unfold PiCCSOrdinarySourceSupport.InRange
         simp only [PiRLCProductSchedule.Descriptor.valueColumn,
           PiRLCCombinationInvocations.publicInputValueSourceStart, first
@@ -86,11 +88,13 @@ theorem valueSource_support
         have sourceBound := source.isLt
         have blockBound := block.isLt
         have laneBound := lane.isLt
-        norm_num [PiCCSInputs.runningPublicStart,
-          PiCCSInputs.runningGroupStart, PiCCSInputs.runningGroupsStart,
-          PiCCSInputs.priorRunningStart, PiCCSInputs.runningGroupWords,
-          PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq,
-          PiRLCCombinationInvocations.sourceCount,
+        norm_num [PiCCSInputs.runningPublicStart, PiCCSInputs.runningPublicWords,
+          PiCCSInputs.priorChildrenStart, PiCCSInputs.expectedContextStart,
+          PiCCSInputs.expectedContextWords, PiCCSOrdinarySourceSupport.proofInputCount,
+          PiCCSInputs.phaseOffset, PiCCSInputs.proofInputStart,
+          PiCCSInputs.priorChildrenWords, PiCCSInputs.proofInputColumnCount,
+          PiCCSInputs.freshCommitmentWords, PiCCSInputs.roundMessageWords,
+          PiCCSInputs.outputEvaluationWords, PiRLCCombinationInvocations.sourceCount,
           PiRLCProductSchedule.Family.blockCount,
           ringDegree] at sourceBound blockBound laneBound ⊢
         omega
@@ -104,7 +108,8 @@ theorem valueSource_support
       have laneBound := lane.isLt
       norm_num [PiCCSInputs.outputEvaluationStart,
         PiCCSInputs.roundMessageStart, PiCCSInputs.freshCommitmentStart,
-        PiCCSInputs.proofInputStart, PiCCSOrdinaryRetainedBlocks.proofInputCount,
+        PiCCSInputs.proofInputStart, PiCCSInputs.priorChildrenStart,
+        PiCCSInputs.priorChildrenWords, PiCCSOrdinaryRetainedBlocks.proofInputCount,
         PiCCSOrdinarySourceSupport.proofInputCount, PiCCSInputs.phaseOffset,
         PiCCSInputs.proofInputColumnCount, PiCCSInputs.freshCommitmentWords,
         PiCCSInputs.roundMessageWords, PiCCSInputs.outputEvaluationWords,
@@ -124,7 +129,8 @@ theorem valueSource_support
       have laneBound := lane.isLt
       norm_num [PiCCSInputs.outputEvaluationStart,
         PiCCSInputs.roundMessageStart, PiCCSInputs.freshCommitmentStart,
-        PiCCSInputs.proofInputStart, PiCCSOrdinaryRetainedBlocks.proofInputCount,
+        PiCCSInputs.proofInputStart, PiCCSInputs.priorChildrenStart,
+        PiCCSInputs.priorChildrenWords, PiCCSOrdinaryRetainedBlocks.proofInputCount,
         PiCCSOrdinarySourceSupport.proofInputCount, PiCCSInputs.phaseOffset,
         PiCCSInputs.proofInputColumnCount, PiCCSInputs.freshCommitmentWords,
         PiCCSInputs.roundMessageWords, PiCCSInputs.outputEvaluationWords,
@@ -153,11 +159,13 @@ theorem valueSource_beforePhase
       PiRLCCombinationInvocations.evalKValueSourceStart,
       PiRLCCombinationInvocations.evalAValueSourceStart,
       PiCCSInputs.freshCommitmentStart, PiCCSInputs.runningCommitmentStart,
-      PiCCSInputs.runningPublicStart, PiCCSInputs.runningGroupStart,
-      PiCCSInputs.runningGroupsStart, PiCCSInputs.priorRunningStart,
-      PiCCSInputs.runningGroupWords, PiCCSInputs.outputEvaluationStart,
+      PiCCSInputs.runningPublicStart, PiCCSInputs.priorRunningStart,
+      PiCCSInputs.runningCommitmentWords, PiCCSInputs.runningPublicWords,
+        PiCCSInputs.runningEvalKWords, PiCCSInputs.runningEvalAWords, PiCCSInputs.priorChildrenStart,
+        PiCCSInputs.expectedContextStart, PiCCSInputs.expectedContextWords, PiCCSInputs.outputEvaluationStart,
       PiCCSInputs.roundMessageStart, PiCCSInputs.freshCommitmentWords,
-      PiCCSInputs.proofInputStart, PiCCSInputs.expectedContextStart,
+      PiCCSInputs.proofInputStart, PiCCSInputs.priorChildrenStart,
+        PiCCSInputs.priorChildrenWords, PiCCSInputs.expectedContextStart,
       PiCCSInputs.expectedContextWords, PiCCSInputs.roundMessageWords,
       PiCCSInputs.phaseOffset, PiCCSInputs.proofInputColumnCount,
       PiCCSInputs.outputEvaluationWords, PilotProduction.priorPublicInputStart,
@@ -230,7 +238,8 @@ theorem form_eval_source
         assignment) column.val = _
   rw [SourceCompiler.sourceEnv_at, direct]
   rw [RunningTransitionDirectPlan.transitionEnv_of_outside program base source
-    bounded (Or.inl (valueSource_beforePhase descriptor))]
+    bounded (Or.inl (Nat.lt_of_lt_of_le (valueSource_beforePhase descriptor)
+      PiCCSStarts.phaseOffset_le_statementWitnessStart))]
   rfl
 
 end NightstreamFPrime.Export.Stage1.PiRLCValueWiring

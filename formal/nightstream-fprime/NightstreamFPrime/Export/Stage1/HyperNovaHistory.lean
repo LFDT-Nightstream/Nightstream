@@ -256,7 +256,7 @@ private theorem walk_correct (statement : Statement) (proof : Envelope)
   | recursive payload =>
       have terminalChecks := (PerApplicationTerminal.holds_recursive_iff
         application fits productionSetup statement payload).mp accepted
-      rcases terminalChecks with ⟨_valid, _pcValid, positive, _public, _running, _fresh⟩
+      rcases terminalChecks with ⟨_valid, _canonical, _pcValid, positive, _public, _running, _fresh⟩
       have notZero : statement.iteration ≠ 0 := Nat.ne_of_gt positive
       have currentSafe : ¬ Collision statement payload := by
         have unfolded := safe

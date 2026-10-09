@@ -59,6 +59,7 @@ private theorem externalInputsSource
     priorStateContext := ?_
     outputStateContext := ?_
     expectedContext := ?_
+    priorStatePacked := ?_
     runningPoint := ?_
     runningCommitment := ?_
     runningPublicInput := ?_
@@ -79,6 +80,8 @@ private theorem externalInputsSource
     exact expression_external_source (support.outputStateContext lane)
   · intro lane
     exact expression_external_source (support.expectedContext lane)
+  · intro word
+    exact expression_external_source (support.priorStatePacked word)
   · intro coordinate
     exact k_external_source (support.runningPoint coordinate)
   · intro source row coefficient
@@ -567,7 +570,13 @@ theorem emittedConstraints_varsSatisfy
       (PiCCSArithmetic.parentInterface logicalWidth publicFits)
       PiCCSInputs.phaseOffset PiCCSArithmetic.statementBindingLogicalStart
       Source (externalInputsSource (logicalWidth := logicalWidth)
-        (publicFits := publicFits)) expression
+        (publicFits := publicFits))
+      (fun word lane => statement_sign_source _ (by
+        have bound := (StateBinding.signIndex word lane).isLt
+        simp only [StateBinding.signCount_eq] at bound
+        unfold StatementSign InRange PiCCSArithmetic.statementBindingLogicalStart
+          PiCCSStarts.statementBindingLogicalStart
+        omega)) expression
     simpa [PiCCSArithmetic.statementBindingConstraints,
       NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints] using!
       statementMember

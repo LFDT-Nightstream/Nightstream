@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Folding.Nifs.PaperSecurityComposition
 
 /-!
-SuperNeo v1.1, Theorem 13 and Appendix B.4: consume the valid output witness
+SuperNeo v1.2, Theorem 13 and Appendix B.4: consume the valid output witness
 of the reduction experiment. The exact returned running product supplies all
 child openings, and their radix recomposition opens the accepted parent.
 

@@ -12,7 +12,7 @@ namespace NightstreamFPrime.Export.Stage1.PiRLCValueMatrixProgram
 open NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.Stage1
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Spec
 open PiCCSOrdinaryRetainedBlocks
 open PiCCSOrdinaryRetainedGeometry

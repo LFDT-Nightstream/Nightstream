@@ -5,8 +5,8 @@ import NightstreamFPrime.Export.Stage1.PiCCSPayloadWiring
 import NightstreamFPrime.Export.Stage1.PiCCSTranscriptEndpointPlan
 import NightstreamFPrime.Export.Stage1.PiDECDirectPlan
 import NightstreamFPrime.Export.Stage1.PilotDirectSemantics
-import NightstreamFPrime.Layout.PiDEC.v1_1.Values
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.FormalPhase
+import NightstreamFPrime.Layout.PiDEC.v1_2.Values
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.FormalPhase
 
 /-!
 Owns the first complete ordered direct 4-matrix prefix through PiDEC and the
@@ -398,7 +398,7 @@ private theorem piDecPrefixRowCount_le
       2 ^ Lifecycle.cubeVariables := by
   rw [piRlcPrefixPlan_rowCount]
   rw [piDecPlan, PiDECDirectPlan.plan_rowCount,
-    Layout.PiDEC.v1_1.exactRowCount_value]
+    Layout.PiDEC.v1_2.exactRowCount_value]
   norm_num [Lifecycle.cubeVariables]
 
 def piDecPrefixPlan
@@ -416,7 +416,7 @@ def piDecPrefixPlan
       relationPublicFits)
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
     (piDecPrefixPlan relation geometry).rowCount = 984087 := by
-  simp [piDecPrefixPlan, piDecPlan, Layout.PiDEC.v1_1.exactRowCount_value]
+  simp [piDecPrefixPlan, piDecPlan, Layout.PiDEC.v1_2.exactRowCount_value]
 
 private theorem totalRowCount_le
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
@@ -660,7 +660,7 @@ theorem rowsZero_implies_piCcsSpecHolds
     (one : assignment (PiDECRetainedGeometry.oneColumn geometry) = 1)
     (encodes : Encodes geometry assignment base groupValue)
     (rowsZero : (plan relation geometry).RowsZero assignment) :
-    Lifecycle.PiCCS.v1_1.Formal.SpecHolds relation
+    Lifecycle.PiCCS.v1_2.Formal.SpecHolds relation
       (PiCCSInvocations.parentInterface relationLogicalWidth
         relationPublicFits)
       PiCCSInputs.phaseOffset
@@ -687,7 +687,7 @@ theorem rowsZero_implies_piCcsSpecHolds
     relationLogicalWidth relationPublicFits
     (PiCCSTranscriptEndpointPlan.transcriptEnv application base groupValue) ordinaryAtTranscript
   have assumptions :=
-    NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions.production relation
+    NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions.production relation
       (PiCCSInvocations.parentInterface relationLogicalWidth
         relationPublicFits)
       PiCCSInputs.phaseOffset
@@ -728,13 +728,13 @@ theorem rowsZero_implies_piCcsPhaseHolds
     (one : assignment (PiDECRetainedGeometry.oneColumn geometry) = 1)
     (encodes : Encodes geometry assignment base groupValue)
     (rowsZero : (plan relation geometry).RowsZero assignment) :
-    Lifecycle.PiCCS.v1_1.Formal.PhaseHolds relation ajtai
+    Lifecycle.PiCCS.v1_2.Formal.PhaseHolds relation ajtai
       (PiCCSInvocations.parentInterface relationLogicalWidth
         relationPublicFits)
       PiCCSInputs.phaseOffset
       (Spartan.pullback
         (PiCCSTranscriptEndpointPlan.transcriptEnv application base groupValue)) template := by
-  apply Lifecycle.PiCCS.v1_1.Formal.spec_implies_phaseHolds relation ajtai
+  apply Lifecycle.PiCCS.v1_2.Formal.spec_implies_phaseHolds relation ajtai
   exact rowsZero_implies_piCcsSpecHolds relation geometry assignment base
     groupValue one encodes rowsZero
 
@@ -751,14 +751,14 @@ theorem rowsZero_implies_piDecPhaseHolds
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (one : assignment (PiDECRetainedGeometry.oneColumn geometry) = 1)
     (encodes : Encodes geometry assignment base groupValue)
-    (assumptions : Lifecycle.PiDEC.v1_1.Formal.Assumptions relation
+    (assumptions : Lifecycle.PiDEC.v1_2.Formal.Assumptions relation
       (PiDECArithmetic.phaseInterface relationLogicalWidth
         relationPublicFits)
       PiDECInputs.phaseOffset
       (Spartan.pullback
         (RunningTransitionDirectPlan.transitionEnv application base)))
     (rowsZero : (plan relation geometry).RowsZero assignment) :
-    Lifecycle.PiDEC.v1_1.Semantics.PhaseHolds relation ajtai
+    Lifecycle.PiDEC.v1_2.Semantics.PhaseHolds relation ajtai
       (PiDECArithmetic.phaseInterface relationLogicalWidth relationPublicFits)
       PiDECInputs.phaseOffset
       (Spartan.pullback

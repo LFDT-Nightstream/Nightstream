@@ -223,7 +223,7 @@ slots, at the start of the PiCCS-local Spartan interval. -/
 def statementSignRange (program : Program) : SourceRange :=
   SourceRange.ofSemantic (proofLogicalBlock program) (proofLogicalStart program)
     (Spartan.sourceToSpartan PiCCSInputs.phaseOffset)
-    Lifecycle.PiCCS.v1_1.StateBinding.signCount PiCCSOrdinarySourceSupport.callerInputCount
+    Lifecycle.PiCCS.v1_2.StateBinding.signCount PiCCSOrdinarySourceSupport.callerInputCount
 
 private theorem phaseOffset_piCcsLocal :
     Spartan.piCcsPhaseOffset ≤ PiCCSInputs.phaseOffset :=
@@ -287,20 +287,20 @@ theorem statementSignRange_form?
     simpa only [proofInputRangeCount, proofInputCount_eq] using index.isLt
   have signLower : 15192 ≤ index.val := by
     rwa [PiCCSOrdinarySourceSupport.callerInputCount_eq] at sign
-  have offsetBound : index.val - 15192 < Lifecycle.PiCCS.v1_1.StateBinding.signCount := by
-    rw [Lifecycle.PiCCS.v1_1.StateBinding.signCount_eq]
+  have offsetBound : index.val - 15192 < Lifecycle.PiCCS.v1_2.StateBinding.signCount := by
+    rw [Lifecycle.PiCCS.v1_2.StateBinding.signCount_eq]
     omega
   rw [signSource_eq index sign, Spartan.sourceToSpartan_add_of_piCcsLocal
     PiCCSInputs.phaseOffset (index.val - 15192) phaseOffset_piCcsLocal]
   rw [proofInputIndex, PiCCSOrdinaryDirectPlan.Location.form_proofInput]
   have selected := SourceRange.form?_ofSemantic (proofLogicalBlock program)
     (proofLogicalStart program)
-    (Spartan.sourceToSpartan PiCCSInputs.phaseOffset) Lifecycle.PiCCS.v1_1.StateBinding.signCount
+    (Spartan.sourceToSpartan PiCCSInputs.phaseOffset) Lifecycle.PiCCS.v1_2.StateBinding.signCount
     PiCCSOrdinarySourceSupport.callerInputCount (proofLogicalFits geometry)
     (by
-      change PiCCSOrdinarySourceSupport.callerInputCount + Lifecycle.PiCCS.v1_1.StateBinding.signCount ≤ proofLogicalCount
+      change PiCCSOrdinarySourceSupport.callerInputCount + Lifecycle.PiCCS.v1_2.StateBinding.signCount ≤ proofLogicalCount
       norm_num [PiCCSOrdinarySourceSupport.callerInputCount_eq,
-        Lifecycle.PiCCS.v1_1.StateBinding.signCount_eq, proofLogicalCount_eq])
+        Lifecycle.PiCCS.v1_2.StateBinding.signCount_eq, proofLogicalCount_eq])
     ⟨index.val - 15192, offsetBound⟩
   have slotEq : proofInputSlot index =
       ⟨PiCCSOrdinarySourceSupport.callerInputCount + (index.val - 15192), by
@@ -428,7 +428,7 @@ private theorem rangeValues (program : Program) :
     PiCCSStarts.logicalFreshBase PiCCSStarts.initialClaimLogicalStart
   rw [PiCCSInputs.phaseOffset_eq, PiCCSStarts.roundTranscriptWitnessStart_eq]
   norm_num [PiCCSOrdinarySourceSupport.callerInputCount_eq,
-    Lifecycle.PiCCS.v1_1.StateBinding.signCount_eq,
+    Lifecycle.PiCCS.v1_2.StateBinding.signCount_eq,
     ordinaryLogicalRangeCount,
     ordinaryLogicalCount_eq,
     PilotProduction.stateHashWords_eq,

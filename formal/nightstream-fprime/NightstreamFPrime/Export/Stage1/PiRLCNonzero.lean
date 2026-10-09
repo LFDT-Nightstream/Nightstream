@@ -1,5 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiCCSNonzero
-import NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics
+import NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics
 
 /-!
 Owns one deterministic nonzero PiRLC value fixture that starts at the exact
@@ -89,11 +89,11 @@ def inputInstance
     (relation : ProductionKey.LogicalRelation
       PhaseReference.logicalWidth PhaseReference.publicFits)
     (source : Fin SourceCount) :
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.InputBinding.InputInstance
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.InputBinding.InputInstance
       PhaseReference.logicalWidth
         PhaseReference.publicFits where
   constraintSystem :=
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.InputBinding.relationSource relation
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.InputBinding.relationSource relation
   commitment := inputCommitment source
   publicInput := inputPublicInput source
   point := point ()
@@ -116,7 +116,7 @@ def attempt
   challenges := challenges
   output := {
     constraintSystem :=
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.InputBinding.relationSource relation
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.InputBinding.relationSource relation
     commitment := combinedCommitment challenges
     publicInput := combinedPublicInput challenges
     point := point ()

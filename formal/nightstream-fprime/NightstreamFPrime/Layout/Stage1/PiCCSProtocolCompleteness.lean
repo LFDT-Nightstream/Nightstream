@@ -1,8 +1,8 @@
 import NightstreamFPrime.Layout.Stage1.PiCCSPriorRunning
 import NightstreamFPrime.Layout.Stage1.StateEncodingCanonical
-import NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions
+import NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions
 import NightstreamFPrime.Layout.Stage1.PiCCSInputSupport
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.PhaseTransport
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.PhaseTransport
 
 /-!
 Owns PiCCS witness construction from the existing typed protocol input.
@@ -19,7 +19,7 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open PiCCSInputs (phaseOffset)
 open PiCCSProofInputs (relationInterface relationProof)
@@ -288,10 +288,10 @@ theorem completePrefix_from
       completed.operations = Formal.opsAt relation (relationInterface relation) phaseOffset ∧
         Formal.PhaseHolds relation ajtai (relationInterface relation) phaseOffset completed.current
           (relationProof relation values template) := by
-  have external : NightstreamFPrime.Layout.PiCCS.v1_1.ProductionInputs.ExternalInputsLinear
+  have external : NightstreamFPrime.Layout.PiCCS.v1_2.ProductionInputs.ExternalInputsLinear
       (relationInterface relation) phaseOffset :=
     PiCCSInputs.externalInputsLinear logicalWidth publicFits
-  have assumptions := NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions.production
+  have assumptions := NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions.production
     relation (relationInterface relation) phaseOffset external initial
   have inputs := inputs_eq_of_external prior priorPublic output digest priorFixed outputFixed
     digestFixed values context relation template initial priorCanonical source

@@ -25,7 +25,7 @@ open _root_.NightstreamFPrime.Circuit
 open _root_.NightstreamFPrime.Layout
 open _root_.NightstreamFPrime.Layout.Stage1
 open _root_.NightstreamFPrime.Lifecycle
-open _root_.NightstreamFPrime.Lifecycle.PiDEC.v1_1
+open _root_.NightstreamFPrime.Lifecycle.PiDEC.v1_2
 open _root_.NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork (Result)
 
 attribute [local irreducible] R1CS.lowerConstraints PiDECOrdinaryDirectSource.commitmentProgramRow
@@ -113,13 +113,13 @@ private theorem parent_expr {logicalWidth : Nat}
     (scalarInterface logicalWidth publicFits).parent
       (Formal.commitmentOffset PiDECInputs.phaseOffset) coordinate =
         Expr.var (PiDECSourceSupport.parentCommitmentStart + coordinate.val) := by
-  change (PiRLC.v1_1.CommitmentCombination.output
-    (PiRLC.v1_1.Formal.commitmentInterface (PiDECInputs.piRlcSharedInterface logicalWidth publicFits))
+  change (PiRLC.v1_2.CommitmentCombination.output
+    (PiRLC.v1_2.Formal.commitmentInterface (PiDECInputs.piRlcSharedInterface logicalWidth publicFits))
     PiRLCStarts.commitmentLogicalStart (CommitmentRecomposition.coordinates coordinate).1
       (CommitmentRecomposition.coordinates coordinate).2) = _
-  simp only [PiRLC.v1_1.CommitmentCombination.output, PiRLC.v1_1.CombinationFamily.output,
-    PiRLC.v1_1.CombinationStep.output, PiRLC.v1_1.CombinationStep.indexOf,
-    PiRLC.v1_1.CommitmentCombination.cell, finProdFinEquiv]
+  simp only [PiRLC.v1_2.CommitmentCombination.output, PiRLC.v1_2.CombinationFamily.output,
+    PiRLC.v1_2.CombinationStep.output, PiRLC.v1_2.CombinationStep.indexOf,
+    PiRLC.v1_2.CommitmentCombination.cell, finProdFinEquiv]
   congr 1
   change PiDECSourceSupport.parentCommitmentStart +
       (0 + 1 * (CommitmentRecomposition.coordinates coordinate).2.val +

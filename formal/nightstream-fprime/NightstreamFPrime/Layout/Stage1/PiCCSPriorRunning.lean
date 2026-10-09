@@ -1,7 +1,7 @@
 import NightstreamFPrime.Layout.Stage1.PiCCSProofInputs
 
 /-!
-Paper authority: SuperNeo v1_1, section 7.3, PiCCS running input.
+Paper authority: SuperNeo v1.2, section 7.3, PiCCS running input.
 Obligation: Show that the honest protocol environment presents the exact prior
 running instance to PiCCS.
 
@@ -18,7 +18,7 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
 open NightstreamFPrime.Layout.Stage1.PiCCSInputs

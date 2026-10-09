@@ -4,7 +4,7 @@ import NightstreamFPrime.Export.Stage1.PiRLCNonzero
 import NightstreamFPrime.Export.Stage1.PiRLCPartialTrace
 
 /-!
-Paper authority: SuperNeo v1.1, Section 7.4, steps 1--3.
+Paper authority: SuperNeo v1.2, Section 7.4, steps 1--3.
 Obligation: emit one complete nonzero PiRLC input and verifier-computed result
 for Lean--Rust conformance. The result ends at the paper PiRLC output. It does
 not include Rust's separate projection-proof transcript plumbing.

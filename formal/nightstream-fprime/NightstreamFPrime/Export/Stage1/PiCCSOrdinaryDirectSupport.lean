@@ -4,14 +4,14 @@ import NightstreamFPrime.Gadgets.Polynomial.SparseSupport
 import NightstreamFPrime.Layout.R1CS.Support
 import NightstreamFPrime.Layout.Stage1.PiCCSInputSupport
 import NightstreamFPrime.Layout.Stage1.PiCCSTranscriptSupport
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Support.CcsTerminal
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Support.EvalATerminal
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Support.EvalKTerminal
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Support.FinalIdentity
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Support.InitialClaim
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Support.NormTerminal
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Support.StatementBinding
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Support.SumcheckChain
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.CcsTerminal
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.EvalATerminal
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.EvalKTerminal
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.FinalIdentity
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.InitialClaim
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.NormTerminal
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.StatementBinding
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.SumcheckChain
 
 /-!
 Owns retained-source support for the complete canonical PiCCS ordinary-row
@@ -30,7 +30,7 @@ open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupport
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
@@ -578,7 +578,7 @@ theorem emittedConstraints_varsSatisfy
           PiCCSStarts.statementBindingLogicalStart
         omega)) expression
     simpa [PiCCSArithmetic.statementBindingConstraints,
-      NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints] using!
+      NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints] using!
       statementMember
   · rw [PiCCSCompleteness.packetConstraints] at packetMember
     simp only [List.mem_append] at packetMember
@@ -586,19 +586,19 @@ theorem emittedConstraints_varsSatisfy
         evalAMember | ccsMember | normMember | finalMember
     · exact initialRows expression (by
         simpa [PiCCSArithmetic.initialClaimConstraints,
-          NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints,
+          NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints,
           Formal.initialClaimCircuit] using initialMember)
     · exact sumcheckRows expression (by
         simpa [PiCCSArithmetic.sumcheckConstraints,
-          NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints,
+          NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints,
           Formal.sumcheckCircuit] using sumcheckMember)
     · exact evalKRows expression (by
         simpa [PiCCSArithmetic.evalKConstraints,
-          NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints,
+          NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints,
           Formal.evalKCircuit] using evalKMember)
     · exact evalARows expression (by
         simpa [PiCCSArithmetic.evalAConstraints,
-          NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints,
+          NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints,
           Formal.evalACircuit] using evalAMember)
     · exact ccsRows expression (by
         simpa [PiCCSArithmetic.ccsConstraints, PiCCSArithmetic.mainConstraints,

@@ -45,45 +45,45 @@ private theorem sourceEnv_eq_compactEnv_belowRunning
     PiDECStarts.evalAFreshStart, PiDECStarts.evalKFreshStart,
     PiDECStarts.commitmentFreshStart, PiDECStarts.publicInputFreshStart,
     PiDECStarts.inputFreshStart, PiDECSourceSupport.freshCount,
-    PiDEC.v1_1.exactFreshCount, PiDEC.v1_1.exactFreshDeltas,
-    PiDEC.v1_1.CommitmentRecomposition.freshColumnCount,
-    PiDEC.v1_1.EvalKRecomposition.freshColumnCount,
-    PiDEC.v1_1.EvalARecomposition.freshColumnCount,
+    PiDEC.v1_2.exactFreshCount, PiDEC.v1_2.exactFreshDeltas,
+    PiDEC.v1_2.CommitmentRecomposition.freshColumnCount,
+    PiDEC.v1_2.EvalKRecomposition.freshColumnCount,
+    PiDEC.v1_2.EvalARecomposition.freshColumnCount,
     List.sum_cons, List.sum_nil, Nat.zero_add, Nat.add_zero] using
       PiDECSourceSupport.fresh_end_le_sourceColumnCount
 
 private theorem compactRecursiveRunning_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
-    PiCCS.v1_1.StatementAbsorption.evalRunning
+    PiCCS.v1_2.StatementAbsorption.evalRunning
         (RunningTransitionInputs.recursiveRunningExpr logicalWidth publicFits)
         (CompactPullback.sourceEnv program env) =
-      PiCCS.v1_1.StatementAbsorption.evalRunning
+      PiCCS.v1_2.StatementAbsorption.evalRunning
         (AssemblerInputs.recursiveRunningExpr relation program)
         (CompactPullback.compactEnv program env) := by
   have outputsEq := Preservation.compactPiDecOutput_eq relation program env
-  apply Lifecycle.PiCCS.v1_1.Formal.PhaseTransport.running_ext
+  apply Lifecycle.PiCCS.v1_2.Formal.PhaseTransport.running_ext
   · let child : Spec.Phi81Relation.PiDECAlgebra.Radix.ChildIndex :=
       ⟨0, by decide⟩
     have childEq := congrFun outputsEq child
     have pointEq := congrArg (fun value => value.point) childEq
-    simpa [PiCCS.v1_1.StatementAbsorption.evalRunning,
+    simpa [PiCCS.v1_2.StatementAbsorption.evalRunning,
       RunningTransitionInputs.recursiveRunningExpr,
       AssemblerInputs.recursiveRunningExpr,
-      PiDEC.v1_1.Semantics.output, PiDEC.v1_1.OutputBinding.evalOutput,
-      PiDEC.v1_1.Formal.outputBindingInterface,
-      PiDEC.v1_1.Formal.atOffset] using! pointEq
+      PiDEC.v1_2.Semantics.output, PiDEC.v1_2.OutputBinding.evalOutput,
+      PiDEC.v1_2.Formal.outputBindingInterface,
+      PiDEC.v1_2.Formal.atOffset] using! pointEq
   · funext source row coefficient
     have childEq := congrFun outputsEq
       (RunningTransitionInputs.childOfRunning source)
     have commitmentEq := congrArg (fun value => value.commitment) childEq
     have coordinateEq := congrFun (congrFun commitmentEq row) coefficient
-    simpa [PiCCS.v1_1.StatementAbsorption.evalRunning,
+    simpa [PiCCS.v1_2.StatementAbsorption.evalRunning,
       RunningTransitionInputs.recursiveRunningExpr,
       AssemblerInputs.recursiveRunningExpr,
-      PiDEC.v1_1.Semantics.output, PiDEC.v1_1.OutputBinding.evalOutput,
-      PiDEC.v1_1.Formal.outputBindingInterface,
-      PiDEC.v1_1.Formal.atOffset,
+      PiDEC.v1_2.Semantics.output, PiDEC.v1_2.OutputBinding.evalOutput,
+      PiDEC.v1_2.Formal.outputBindingInterface,
+      PiDEC.v1_2.Formal.atOffset,
       AssemblerInputs.childOfRunning] using! coordinateEq
   · funext source column
     have childEq := congrFun outputsEq
@@ -91,12 +91,12 @@ private theorem compactRecursiveRunning_eq
     have publicEq := congrArg (fun value => value.publicInput) childEq
     have coordinateEq := congrFun publicEq
       (RunningTransitionInputs.digitCoordinate column)
-    simpa [PiCCS.v1_1.StatementAbsorption.evalRunning,
+    simpa [PiCCS.v1_2.StatementAbsorption.evalRunning,
       RunningTransitionInputs.recursiveRunningExpr,
       AssemblerInputs.recursiveRunningExpr,
-      PiDEC.v1_1.Semantics.output, PiDEC.v1_1.OutputBinding.evalOutput,
-      PiDEC.v1_1.Formal.outputBindingInterface,
-      PiDEC.v1_1.Formal.atOffset,
+      PiDEC.v1_2.Semantics.output, PiDEC.v1_2.OutputBinding.evalOutput,
+      PiDEC.v1_2.Formal.outputBindingInterface,
+      PiDEC.v1_2.Formal.atOffset,
       AssemblerInputs.childOfRunning,
       AssemblerInputs.digitCoordinate] using! coordinateEq
   · funext source
@@ -105,12 +105,12 @@ private theorem compactRecursiveRunning_eq
     have evaluationEq := congrArg
       (fun value => value.evaluations.getD 0 PaperAlgebra.evaluationZero)
       childEq
-    simpa [PiCCS.v1_1.StatementAbsorption.evalRunning,
+    simpa [PiCCS.v1_2.StatementAbsorption.evalRunning,
       RunningTransitionInputs.recursiveRunningExpr,
       AssemblerInputs.recursiveRunningExpr,
-      PiDEC.v1_1.Semantics.output, PiDEC.v1_1.OutputBinding.evalOutput,
-      PiDEC.v1_1.Formal.outputBindingInterface,
-      PiDEC.v1_1.Formal.atOffset,
+      PiDEC.v1_2.Semantics.output, PiDEC.v1_2.OutputBinding.evalOutput,
+      PiDEC.v1_2.Formal.outputBindingInterface,
+      PiDEC.v1_2.Formal.atOffset,
       AssemblerInputs.childOfRunning] using! evaluationEq
 
 /-- The source running-transition specification relocates to the exact

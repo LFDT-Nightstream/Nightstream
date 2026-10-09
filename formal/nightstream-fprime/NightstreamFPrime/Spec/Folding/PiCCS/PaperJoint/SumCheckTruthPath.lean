@@ -8,7 +8,7 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 /-!
 Canonical SumCheck truth path for the explicit paper-level joint polynomial.
 
-Protocol: SuperNeo `Pi_CCS` (Section 7.3 / Appendix D.4).
+Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
 Phase: joint-polynomial evaluation, Boolean initial sum, and SumCheck terminal.
 Constraint family: semantic truth-path owner; this file emits no constraints.
 

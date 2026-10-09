@@ -1,6 +1,6 @@
 # Nightstream F′ Lean package
 
-This package defines SuperNeo v1.1 and the Nightstream F′ implementation.
+This package defines SuperNeo v1.2 and the Nightstream F′ implementation.
 The goal is to prove SuperNeo's protocol rules and implementation links,
 validate the complete Rust implementation against them, and support later
 protocol optimization and reductions in constraint count, including candidates
@@ -23,7 +23,7 @@ The code is a fresh implementation. The headers of `Circuit/Basic.lean` and
 
 Prove the soundness and completeness of the concrete checks, exact transcript
 and public-input binding, parameter bounds, and the links consumed by the
-selected verifier. Keep Pad and the 14 matrix-evaluation families separate.
+selected verifier. Keep Pad and the matrix-evaluation families separate.
 The selected profile is Goldilocks, `b = 2`, `k_rho = 16`, `B = 65536`,
 17 ordered sources and 16 children. Protocol binding uses Poseidon2.
 

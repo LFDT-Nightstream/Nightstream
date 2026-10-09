@@ -213,7 +213,7 @@ theorem selectedOutputRunning_eq_running
   intro word bound
   have stateBound : word < PilotProduction.stateHashWords := by
     rw [PilotProduction.stateHashWords_eq]
-    unfold PiCCS.v1_1.StateBinding.contextWordStart at bound
+    unfold PiCCS.v1_2.StateBinding.contextWordStart at bound
     omega
   exact selectedOutputWord_eq_next application assignment ⟨word, stateBound⟩
 

@@ -1,4 +1,4 @@
-//! Neutral contract data for the SuperNeo v1.1 PiCCS protocol.
+//! Neutral contract data for the SuperNeo v1.2 PiCCS protocol.
 //!
 //! This module owns dimensions, tags, and audit-trace types. It does not own
 //! transcript execution, polynomial evaluation, SumCheck, or proof assembly.
@@ -145,7 +145,7 @@ pub enum TraceEvent {
     },
 }
 
-/// Complete verifier-computed SuperNeo v1.1 terminal components.
+/// Complete verifier-computed SuperNeo v1.2 terminal components.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct TerminalComponents {
     pub eval_k: K,
@@ -198,12 +198,12 @@ pub fn equality(point: &[K], target: &[K]) -> K {
         })
 }
 
-/// Zero-based SuperNeo v1.1 `I_K(i, l) = i + k*l`.
+/// Zero-based SuperNeo v1.2 `I_K(i, l) = i + k*l`.
 pub fn eval_k_gamma_exponent(running_count: usize, running: usize, coefficient: usize) -> usize {
     running + running_count * coefficient
 }
 
-/// Zero-based SuperNeo v1.1 `I_A(i, j, l) = i + k*j + k*t*l`.
+/// Zero-based SuperNeo v1.2 `I_A(i, j, l) = i + k*j + k*t*l`.
 pub fn eval_a_gamma_exponent(
     running_count: usize,
     matrix_count: usize,

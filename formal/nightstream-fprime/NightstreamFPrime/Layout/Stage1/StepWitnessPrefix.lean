@@ -39,7 +39,7 @@ private theorem r_before_d : PiRLCInputs.phaseOffset ≤ PiDECInputs.phaseOffset
     (Nat.le_add_right _ _)
 
 private theorem d_end_before_running :
-    PiDECInputs.phaseOffset + PiDEC.v1_1.Formal.logicalPrivateCount ≤ RunningTransitionInputs.phaseOffset := by
+    PiDECInputs.phaseOffset + PiDEC.v1_2.Formal.logicalPrivateCount ≤ RunningTransitionInputs.phaseOffset := by
   change PiDECStarts.phaseFreshStart ≤ PiDECStarts.outputFreshStart
   unfold PiDECStarts.outputFreshStart PiDECStarts.evalAFreshStart PiDECStarts.evalKFreshStart
     PiDECStarts.commitmentFreshStart PiDECStarts.publicInputFreshStart PiDECStarts.inputFreshStart
@@ -62,7 +62,7 @@ theorem piDecOutput_eq_of_agree
     (agrees : ∀ index, index < PiDECInputs.phaseOffset → before index = after index) :
     RunningTransitionInputs.piDecRunningOutput relation before =
       RunningTransitionInputs.piDecRunningOutput relation after := by
-  have outputs := PiDEC.v1_1.Semantics.output_eq_of_agree relation
+  have outputs := PiDEC.v1_2.Semantics.output_eq_of_agree relation
     (PiDECInputs.interface logicalWidth publicFits) PiDECInputs.phaseOffset before after
     (PiDECInputs.assumptions relation before) agrees
   unfold RunningTransitionInputs.piDecRunningOutput
@@ -126,14 +126,14 @@ theorem completePrefix
           ∃ r : Sequence.Prefix c.current PiRLCInputs.phaseOffset,
             ∃ d : Sequence.Prefix
                 (PiDECProofInputs.load r.current input.nifsProof
-                  (PiRLC.v1_1.Semantics.evalOutput relation
+                  (PiRLC.v1_2.Semantics.evalOutput relation
                     (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
                     PiRLCInputs.phaseOffset r.current).publicInput) PiDECInputs.phaseOffset,
               ∃ t : Sequence.Prefix d.current RunningTransitionInputs.phaseOffset,
                 flatConstraints p.operations = Pilot.logicalConstraints PilotProduction.interface PilotProduction.witnessOffset ∧
-                c.operations = PiCCS.v1_1.Formal.opsAt relation (PiCCSProofInputs.relationInterface relation) PiCCSInputs.phaseOffset ∧
-                r.operations = PiRLC.v1_1.Formal.opsAt relation PiRLCInputs.interface PiRLCInputs.phaseOffset ∧
-                d.operations = PiDEC.v1_1.Formal.opsAt relation (PiDECInputs.interface logicalWidth publicFits) PiDECInputs.phaseOffset ∧
+                c.operations = PiCCS.v1_2.Formal.opsAt relation (PiCCSProofInputs.relationInterface relation) PiCCSInputs.phaseOffset ∧
+                r.operations = PiRLC.v1_2.Formal.opsAt relation PiRLCInputs.interface PiRLCInputs.phaseOffset ∧
+                d.operations = PiDEC.v1_2.Formal.opsAt relation (PiDECInputs.interface logicalWidth publicFits) PiDECInputs.phaseOffset ∧
                 t.operations = Lifecycle.Stage1.RunningTransition.operations
                   (RunningTransitionInputs.interface logicalWidth publicFits) RunningTransitionInputs.phaseOffset ∧
                 holdsFlat t.current p.operations ∧ holdsFlat t.current c.operations ∧
@@ -141,7 +141,7 @@ theorem completePrefix
                 holdsFlat t.current (Lifecycle.Stage1.NextPreimage.opsAt NextPreimageInputs.sourceInterface
                   RunningTransitionInputs.phaseOffset) ∧
                 Lifecycle.Pilot.SpecHolds PilotProduction.interface PilotProduction.witnessOffset t.current ∧
-                PiDEC.v1_1.Semantics.PhaseHolds relation ajtai (PiDECInputs.interface logicalWidth publicFits)
+                PiDEC.v1_2.Semantics.PhaseHolds relation ajtai (PiDECInputs.interface logicalWidth publicFits)
                   PiDECInputs.phaseOffset t.current ∧
                 Lifecycle.Stage1.RunningTransition.SpecHolds (RunningTransitionInputs.interface logicalWidth publicFits)
                   RunningTransitionInputs.phaseOffset t.current ∧
@@ -200,18 +200,18 @@ theorem completePrefix
     exact Nat.le_trans pilot_before_c (Nat.le_trans c_before_r
       (Nat.le_trans r_before_d RunningTransitionInputs.piDecPhaseOffset_le))
   have cBound : PiCCSInputs.phaseOffset + localLength c.operations ≤ RunningTransitionInputs.phaseOffset := by
-    rw [cOperations, ← PiCCS.v1_1.Formal.main_ops, PiCCS.v1_1.Formal.localLength_eq]
-    change NightstreamFPrime.Layout.PiCCS.v1_1.logicalColumnCount relation
+    rw [cOperations, ← PiCCS.v1_2.Formal.main_ops, PiCCS.v1_2.Formal.localLength_eq]
+    change NightstreamFPrime.Layout.PiCCS.v1_2.logicalColumnCount relation
       (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset ≤ _
     rw [← PiCCSStarts.logicalFreshBase_eq_layout relation]
     exact Nat.le_trans PiRLCInputs.piCcsLogicalFreshBase_le_phaseOffset
       (Nat.le_trans r_before_d RunningTransitionInputs.piDecPhaseOffset_le)
   have rBound : PiRLCInputs.phaseOffset + localLength r.operations ≤ RunningTransitionInputs.phaseOffset := by
-    rw [rOperations, ← PiRLC.v1_1.Formal.main_ops, PiRLC.v1_1.Formal.localLength_eq]
+    rw [rOperations, ← PiRLC.v1_2.Formal.main_ops, PiRLC.v1_2.Formal.localLength_eq]
     exact Nat.le_trans PiDECProtocolCompleteness.rEnd_before_dInputs
       (Nat.le_trans (Nat.le_add_right _ _) RunningTransitionInputs.piDecPhaseOffset_le)
   have dBound : PiDECInputs.phaseOffset + localLength d.operations ≤ RunningTransitionInputs.phaseOffset := by
-    rw [dOperations, ← PiDEC.v1_1.Formal.main_ops, PiDEC.v1_1.Formal.localLength_eq]
+    rw [dOperations, ← PiDEC.v1_2.Formal.main_ops, PiDEC.v1_2.Formal.localLength_eq]
     exact d_end_before_running
   have preserve (operations : List Op) (bound : Nat)
       (scope : ∀ expression ∈ flatConstraints operations, expression.VarsBelow bound)
@@ -263,11 +263,11 @@ theorem completePrefix
   have pilotPhase := Lifecycle.Pilot.phase_soundness PilotProduction.interface PilotProduction.witnessOffset
     t.current (PilotProduction.assumptions t.current)
     (holdsFlat_implies_holds _ _ priorRows) (holdsFlat_implies_holds _ _ outputRows)
-  have dPhase := PiDEC.v1_1.Semantics.spec_implies_phaseHolds relation ajtai
+  have dPhase := PiDEC.v1_2.Semantics.spec_implies_phaseHolds relation ajtai
     (PiDECInputs.interface logicalWidth publicFits) PiDECInputs.phaseOffset t.current
-    (PiDEC.v1_1.Formal.soundness relation (PiDECInputs.interface logicalWidth publicFits)
+    (PiDEC.v1_2.Formal.soundness relation (PiDECInputs.interface logicalWidth publicFits)
       PiDECInputs.phaseOffset t.current (PiDECInputs.assumptions relation t.current) (by
-        change holds t.current (PiDEC.v1_1.Formal.opsAt relation
+        change holds t.current (PiDEC.v1_2.Formal.opsAt relation
           (PiDECInputs.interface logicalWidth publicFits) PiDECInputs.phaseOffset)
         rw [← dOperations]
         exact holdsFlat_implies_holds _ _ dFinal))

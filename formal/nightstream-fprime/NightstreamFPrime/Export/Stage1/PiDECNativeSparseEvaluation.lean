@@ -183,4 +183,40 @@ theorem nativeEvalTwoPairs_eq_spec {columns : Nat}
   simp only [nativeEvalTwoPairs, SparseForm.evalSparse, List.foldl_map, value.1, value.2.1,
     value.2.2.1, value.2.2.2]
 
+/-- An entry of `nativeEvalTwoPairs` whose four coefficients are canonical words. Converting
+the entries once lets every read of the same entries skip the conversions and the nested pairs. -/
+structure TwoPairEntry (columns : Nat) where
+  column : Fin columns
+  firstLow : { word : UInt64 // word.toNat < goldilocksModulus }
+  firstHigh : { word : UInt64 // word.toNat < goldilocksModulus }
+  secondLow : { word : UInt64 // word.toNat < goldilocksModulus }
+  secondHigh : { word : UInt64 // word.toNat < goldilocksModulus }
+
+/-- The words of one entry of `nativeEvalTwoPairs`. -/
+def TwoPairEntry.ofEntry {columns : Nat} (entry : Fin columns × (F × F) × (F × F)) :
+    TwoPairEntry columns :=
+  ⟨entry.1, fromF entry.2.1.1, fromF entry.2.1.2, fromF entry.2.2.1, fromF entry.2.2.2⟩
+
+/-- `nativeEvalTwoPairs` of entries converted by `TwoPairEntry.ofEntry`. -/
+@[specialize] def nativeEvalTwoPairsWords {columns : Nat} (entries : Array (TwoPairEntry columns))
+    (read : Fin columns → F) : (F × F) × (F × F) :=
+  let zero := fromF 0
+  let result := entries.foldl (fun (state : TwoPairWords) entry =>
+    let value := fromF (read entry.column)
+    ⟨addWord state.firstLow (mulWord entry.firstLow value),
+      addWord state.firstHigh (mulWord entry.firstHigh value),
+      addWord state.secondLow (mulWord entry.secondLow value),
+      addWord state.secondHigh (mulWord entry.secondHigh value)⟩)
+    ⟨zero, zero, zero, zero⟩
+  ((toF result.firstLow, toF result.firstHigh),
+    (toF result.secondLow, toF result.secondHigh))
+
+/-- Converting the entries first does not change the evaluation. -/
+theorem nativeEvalTwoPairsWords_ofEntry {columns : Nat}
+    (entries : List (Fin columns × (F × F) × (F × F))) (read : Fin columns → F) :
+    nativeEvalTwoPairsWords (entries.map TwoPairEntry.ofEntry).toArray read =
+      nativeEvalTwoPairs entries read := by
+  simp only [nativeEvalTwoPairsWords, nativeEvalTwoPairs, accumulateTwoPairs,
+    List.foldl_toArray', List.foldl_map, TwoPairEntry.ofEntry]
+
 end NightstreamFPrime.Export.Stage1.PiDECNativeSparseEvaluation

@@ -81,7 +81,7 @@ private theorem source_sbox (index : InvocationIndex) (row : Fin PoseidonRetaine
     PoseidonRetainedBlock.basePackage.layout.constantColumn at before
   have localBound := (PoseidonRetainedSlots.localOutput row).isLt
   change (PoseidonRetainedSlots.localOutput row).val < 1096 at localBound
-  have constant : PoseidonRetainedBlock.basePackage.layout.constantColumn = 12442938 :=
+  have constant : PoseidonRetainedBlock.basePackage.layout.constantColumn = 11654204 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
   rw [constant] at before
   change (physicalInvocation index).witnessStart +
@@ -350,7 +350,8 @@ private theorem invocation_values (index : InvocationIndex) :
       PiCCSTranscriptDirectSemantics.statementFits PiCCSTranscriptDirectSemantics.statementOffsetBound
       (by
         rw [PiCCSInvocations.statementWitnessStart, PiCCSStarts.statementWitnessStart_eq]
-        exact Nat.le_refl _) affine.1 affine.2
+        unfold Spartan.piCcsPhaseOffset
+        omega) affine.1 affine.2
       PiCCSInvocationSlices.statement_invocation
       PiCCSTranscriptDirectSemantics.statementKindAt_eq
       (PiCCSPhaseInputs.statement_initial application target suffix)

@@ -169,7 +169,7 @@ theorem parent_opening
         some (CarrierAction.assignmentBlock (view parentWitness) block)) :
     CE.Holds (semantics productionAjtaiKey) productionGlobalParams
       (PiDECInputCheck.parent parent) (view parentWitness) := by
-  obtain ⟨_, _, _, _, runningValid, freshValid⟩ :=
+  obtain ⟨_, _, _, _, _, runningValid, freshValid⟩ :=
     (PerApplicationTerminal.holds_recursive_iff application fits productionSetup statement
       (CheckedReplayStep.prior input runningWitness freshWitness)).mp accepted
   have old := opening_family productionAjtaiKey (PiCCSInputCheck.running input)

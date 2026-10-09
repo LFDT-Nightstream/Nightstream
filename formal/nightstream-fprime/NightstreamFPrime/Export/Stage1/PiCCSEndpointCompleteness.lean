@@ -42,12 +42,12 @@ theorem physicalEndpoint_column (family : Fin familyCount) (lane : Fin laneCount
       Spartan.sourceToSpartan (endpointColumn family lane) := by
   let index := endpointInvocation family
   let sourceStart := if index.val < 355 then
-      PiCCSInputs.phaseOffset + index.val * 1096
+      PiCCSStarts.statementWitnessStart + index.val * 1096
     else PiCCSInvocations.outputWitnessStart + (index.val - 355) * 1096
   have startEq : (physicalInvocation index).witnessStart = Spartan.sourceToSpartan sourceStart := by
     rw [physicalInvocation_data]
     by_cases beforeOutput : index.val < 355
-    · rw [show sourceStart = PiCCSInputs.phaseOffset + index.val * 1096 from if_pos beforeOutput]
+    · rw [show sourceStart = PiCCSStarts.statementWitnessStart + index.val * 1096 from if_pos beforeOutput]
       exact PermutationPlan.canonicalInvocation_witnessStart_of_transcript _ beforeOutput
     · rw [show sourceStart = PiCCSInvocations.outputWitnessStart + (index.val - 355) * 1096 from if_neg beforeOutput]
       apply PermutationPlan.canonicalInvocation_witnessStart_of_output
@@ -58,11 +58,11 @@ theorem physicalEndpoint_column (family : Fin familyCount) (lane : Fin laneCount
   have sourceLocal : Spartan.piCcsPhaseOffset ≤ sourceStart := by
     unfold sourceStart
     split
-    · rw [PiCCSInputs.phaseOffset_eq]
-      change 5945960 ≤ 5945960 + index.val * 1096
+    · rw [PiCCSStarts.statementWitnessStart_eq]
+      change 5156956 ≤ 5157226 + index.val * 1096
       omega
     · rw [PiCCSInvocations.outputWitnessStart, PiCCSStarts.outputBindingWitnessStart_eq]
-      change 5945960 ≤ 6364631 + (index.val - 355) * 1096
+      change 5156956 ≤ 5575897 + (index.val - 355) * 1096
       omega
   have endpointEq : sourceStart + 1080 + lane.val = endpointColumn family lane := by
     unfold sourceStart index endpointInvocation endpointColumn endpointStart
@@ -73,7 +73,7 @@ theorem physicalEndpoint_column (family : Fin familyCount) (lane : Fin laneCount
         PiCCSTranscriptDirectSemantics.challengeLast,
         PiCCSTranscriptDirectSemantics.roundLast, PiCCSTranscriptDirectSemantics.outputLast,
         PiCCSTranscriptDirectSemantics.roundCount, PiCCSInputs.phaseOffset_eq,
-        PiCCSStarts.challengeWitnessStart_eq, PiCCSStarts.roundTranscriptWitnessStart_eq,
+        PiCCSStarts.statementWitnessStart_eq, PiCCSStarts.challengeWitnessStart_eq, PiCCSStarts.roundTranscriptWitnessStart_eq,
         PiCCSStarts.outputBindingWitnessStart_eq]
   calc
     (physicalInvocation (endpointInvocation family)).witnessStart + 1080 + lane.val =

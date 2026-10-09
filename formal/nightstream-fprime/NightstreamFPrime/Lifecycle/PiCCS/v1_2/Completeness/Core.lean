@@ -214,7 +214,7 @@ def stateBindingAssumptionsAt
     StateBinding.Assumptions interface offset current :=
   ⟨assumptions.priorFixed, assumptions.outputFixed,
     assumptions.priorContext, assumptions.outputContext,
-    assumptions.expectedContext⟩
+    assumptions.expectedContext, assumptions.priorPacked, assumptions.priorDigit⟩
 
 /-- Child assumptions contain only syntactic range facts and do not depend
 on environment values. -/

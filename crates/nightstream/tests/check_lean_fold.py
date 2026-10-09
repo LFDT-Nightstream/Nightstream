@@ -293,7 +293,8 @@ class Check:
                                 "package.json")
         folder = self.fold_inputs(self.step)
         if self.step == 1:
-            request = [1, base[2][30:34], base[4][0], base[2][-4:]]
+            # z0 sits at words 27,811..27,814 of the prior preimage tail `vk, i, z0, zi`.
+            request = [1, base[2][27811:27815], base[4][0], base[2][-4:]]
         else:
             request = request2
         compare_source(load(folder / "pi_ccs_input.json"), load(self.output / f"inputs/step-{self.step}/envelope.json"),

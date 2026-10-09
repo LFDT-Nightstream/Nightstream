@@ -20,14 +20,17 @@ const PI_DEC_EVAL_A_ROLE: u64 = 13;
 const PI_DEC_CHILD_PUBLIC_INPUT_ROLE: u64 = 14;
 const PI_DEC_WITNESS_ROLE: u64 = 15;
 const RUNNING_TRANSITION_WITNESS_ROLE: u64 = 16;
+const PRIOR_CHILDREN_ROLE: u64 = 19;
 
 pub const PI_CCS_V1_2_SOURCE_COUNT: usize = 17;
 pub const PI_CCS_V1_2_COEFFICIENT_COUNT: usize = 54;
 pub const PI_CCS_V1_2_MATRIX_COUNT: usize = 4;
 pub const PI_CCS_V1_2_ROUND_COUNT: usize = 28;
 pub const PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT: usize = 9;
-pub const PI_CCS_V1_2_STATE_PREIMAGE_WORDS: usize = 32_113;
+pub const PI_CCS_V1_2_STATE_PREIMAGE_WORDS: usize = 27_819;
 pub const PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS: usize = 270;
+/// The sixteen child public inputs, child-major. The circuit owns their signs.
+pub const PI_CCS_V1_2_PRIOR_CHILDREN_WORDS: usize = PI_DEC_V1_2_CHILD_COUNT * PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS;
 pub const PI_CCS_V1_2_FRESH_COMMITMENT_WORDS: usize = 1_188;
 pub const PI_CCS_V1_2_VERIFIER_CONTEXT_WORDS: usize = 4;
 pub const PI_DEC_V1_2_CHILD_COUNT: usize = 16;
@@ -47,27 +50,36 @@ const PI_DEC_EVAL_A_WORDS: usize =
 const PI_DEC_CHILD_PUBLIC_INPUT_WORDS: usize = PI_DEC_V1_2_CHILD_COUNT * PI_DEC_V1_2_PUBLIC_INPUT_WORDS_PER_CHILD;
 const PI_DEC_WITNESS_WORDS: usize = 270;
 const RUNNING_TRANSITION_WITNESS_WORDS: usize = 2;
+/// Two preimages, prior children, fresh commitment and round messages precede
+/// the PiCCS output segments.
+const INPUT_SEGMENT_ROLES: [u64; 5] = [
+    PRIOR_PREIMAGE_ROLE,
+    OUTPUT_PREIMAGE_ROLE,
+    PRIOR_CHILDREN_ROLE,
+    FRESH_COMMITMENT_ROLE,
+    ROUND_MESSAGES_ROLE,
+];
+const OUTPUT_SEGMENT_START: usize = INPUT_SEGMENT_ROLES.len();
+/// The application witness, then the PiDEC and running-transition segments,
+/// follow the PiCCS output segments.
+const SUFFIX_SEGMENT_ROLES: [u64; 7] = [
+    WITNESS_ROLE,
+    PI_DEC_COMMITMENTS_ROLE,
+    PI_DEC_EVAL_K_ROLE,
+    PI_DEC_EVAL_A_ROLE,
+    PI_DEC_CHILD_PUBLIC_INPUT_ROLE,
+    PI_DEC_WITNESS_ROLE,
+    RUNNING_TRANSITION_WITNESS_ROLE,
+];
 
 pub(super) fn private_segment_roles() -> Vec<u64> {
-    let mut roles = Vec::with_capacity(10 + 2 * PI_CCS_V1_2_SOURCE_COUNT);
-    roles.extend([
-        PRIOR_PREIMAGE_ROLE,
-        OUTPUT_PREIMAGE_ROLE,
-        FRESH_COMMITMENT_ROLE,
-        ROUND_MESSAGES_ROLE,
-    ]);
+    let mut roles =
+        Vec::with_capacity(INPUT_SEGMENT_ROLES.len() + 2 * PI_CCS_V1_2_SOURCE_COUNT + SUFFIX_SEGMENT_ROLES.len());
+    roles.extend(INPUT_SEGMENT_ROLES);
     for _ in 0..PI_CCS_V1_2_SOURCE_COUNT {
         roles.extend([OUTPUT_EVAL_K_ROLE, OUTPUT_EVAL_A_ROLE]);
     }
-    roles.push(WITNESS_ROLE);
-    roles.extend([
-        PI_DEC_COMMITMENTS_ROLE,
-        PI_DEC_EVAL_K_ROLE,
-        PI_DEC_EVAL_A_ROLE,
-        PI_DEC_CHILD_PUBLIC_INPUT_ROLE,
-        PI_DEC_WITNESS_ROLE,
-        RUNNING_TRANSITION_WITNESS_ROLE,
-    ]);
+    roles.extend(SUFFIX_SEGMENT_ROLES);
     roles
 }
 
@@ -79,20 +91,27 @@ pub(super) fn is_witness_role(role: u64) -> bool {
 }
 
 pub(super) fn validate_private_segments(segments: &[Segment]) -> Result<(), PackageError> {
-    if segments[0].length != PI_CCS_V1_2_STATE_PREIMAGE_WORDS
-        || segments[1].length != PI_CCS_V1_2_STATE_PREIMAGE_WORDS
-        || segments[2].length != PI_CCS_V1_2_FRESH_COMMITMENT_WORDS
-        || segments[3].length != ROUND_MESSAGE_WORDS
+    let input_lengths: [usize; OUTPUT_SEGMENT_START] = [
+        PI_CCS_V1_2_STATE_PREIMAGE_WORDS,
+        PI_CCS_V1_2_STATE_PREIMAGE_WORDS,
+        PI_CCS_V1_2_PRIOR_CHILDREN_WORDS,
+        PI_CCS_V1_2_FRESH_COMMITMENT_WORDS,
+        ROUND_MESSAGE_WORDS,
+    ];
+    if segments[..OUTPUT_SEGMENT_START]
+        .iter()
+        .zip(input_lengths)
+        .any(|(segment, length)| segment.length != length)
     {
         return Err(PackageError::Invalid("PiCCS v1_2 input segments"));
     }
-    let output = &segments[4..4 + 2 * PI_CCS_V1_2_SOURCE_COUNT];
+    let output = &segments[OUTPUT_SEGMENT_START..OUTPUT_SEGMENT_START + 2 * PI_CCS_V1_2_SOURCE_COUNT];
     for pair in output.chunks_exact(2) {
         if pair[0].length != EVAL_K_WORDS || pair[1].length != EVAL_A_WORDS {
             return Err(PackageError::Invalid("PiCCS v1_2 output segments"));
         }
     }
-    let suffix = &segments[4 + 2 * PI_CCS_V1_2_SOURCE_COUNT..];
+    let suffix = &segments[OUTPUT_SEGMENT_START + 2 * PI_CCS_V1_2_SOURCE_COUNT..];
     if suffix[1].length != PI_DEC_COMMITMENT_WORDS
         || suffix[2].length != PI_DEC_EVAL_K_WORDS
         || suffix[3].length != PI_DEC_EVAL_A_WORDS
@@ -172,6 +191,7 @@ impl PiCcsV1_2OutputEvaluations {
 pub struct PiCcsV1_2PackageInputs {
     prior_preimage: Vec<u64>,
     output_preimage: Vec<u64>,
+    prior_children: Vec<u64>,
     fresh_commitment: Vec<u64>,
     round_messages: Vec<Vec<[u64; EXTENSION_WORDS]>>,
     output_evaluations: PiCcsV1_2OutputEvaluations,
@@ -185,6 +205,7 @@ impl PiCcsV1_2PackageInputs {
     pub fn new(
         prior_preimage: Vec<u64>,
         output_preimage: Vec<u64>,
+        prior_children: Vec<u64>,
         fresh_commitment: Vec<u64>,
         round_messages: Vec<Vec<[u64; EXTENSION_WORDS]>>,
         output_evaluations: PiCcsV1_2OutputEvaluations,
@@ -196,6 +217,9 @@ impl PiCcsV1_2PackageInputs {
             || output_preimage.len() != PI_CCS_V1_2_STATE_PREIMAGE_WORDS
         {
             return Err(PackageError::Invalid("PiCCS v1_2 state preimage shape"));
+        }
+        if prior_children.len() != PI_CCS_V1_2_PRIOR_CHILDREN_WORDS {
+            return Err(PackageError::Invalid("PiCCS v1_2 prior children shape"));
         }
         if fresh_commitment.len() != PI_CCS_V1_2_FRESH_COMMITMENT_WORDS {
             return Err(PackageError::Invalid("PiCCS v1_2 fresh commitment shape"));
@@ -212,6 +236,7 @@ impl PiCcsV1_2PackageInputs {
         }
         validate_words(&prior_preimage, "PiCCS v1_2 prior preimage")?;
         validate_words(&output_preimage, "PiCCS v1_2 output preimage")?;
+        validate_words(&prior_children, "PiCCS v1_2 prior children")?;
         validate_words(&fresh_commitment, "PiCCS v1_2 fresh commitment")?;
         for round in &round_messages {
             for value in round {
@@ -224,6 +249,7 @@ impl PiCcsV1_2PackageInputs {
         Ok(Self {
             prior_preimage,
             output_preimage,
+            prior_children,
             fresh_commitment,
             round_messages,
             output_evaluations,
@@ -381,6 +407,7 @@ impl LoadedPackage {
         let mut private_values = Vec::with_capacity(pi_ccs_input_count);
         private_values.extend_from_slice(&inputs.prior_preimage);
         private_values.extend_from_slice(&inputs.output_preimage);
+        private_values.extend_from_slice(&inputs.prior_children);
         private_values.extend_from_slice(&inputs.fresh_commitment);
         for round in &inputs.round_messages {
             for value in round {
@@ -454,7 +481,8 @@ impl LoadedPackage {
 
         let mut eval_k = Vec::with_capacity(PI_CCS_V1_2_SOURCE_COUNT);
         let mut eval_a = Vec::with_capacity(PI_CCS_V1_2_SOURCE_COUNT);
-        let output = &self.layout.private_segments[4..4 + 2 * PI_CCS_V1_2_SOURCE_COUNT];
+        let output =
+            &self.layout.private_segments[OUTPUT_SEGMENT_START..OUTPUT_SEGMENT_START + 2 * PI_CCS_V1_2_SOURCE_COUNT];
         for pair in output.chunks_exact(2) {
             let k_words = segment_words(private_inputs, pair[0])?;
             eval_k.push(

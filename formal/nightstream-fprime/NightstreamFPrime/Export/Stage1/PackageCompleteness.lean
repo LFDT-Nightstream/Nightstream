@@ -64,16 +64,12 @@ theorem pullback_after_preOutput_agreesBelow
       (PiCCSInvocations.invocationCeiling -
         NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
           PiCCSInvocations.statementWitnessStart)) :
-    ∀ column, column < NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset →
+    ∀ column, column < PiCCSInvocations.statementWitnessStart →
       NightstreamFPrime.Layout.Stage1.Spartan.pullback after column =
         NightstreamFPrime.Layout.Stage1.Spartan.pullback before column := by
-  intro column below
+  intro column belowStatement
   unfold NightstreamFPrime.Layout.Stage1.Spartan.pullback
   apply agrees
-  have belowStatement : column < PiCCSInvocations.statementWitnessStart := by
-    simpa [PiCCSInvocations.statementWitnessStart,
-      NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart] using
-      below
   rcases
       NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_before_piCcsLocal
         column PiCCSInvocations.statementWitnessStart (by
@@ -117,7 +113,7 @@ structure RunningTransitionRowsHold (env : Env) : Prop where
       Data.logicalWidth Data.publicFits).rows.map Rows.CompiledRow.toR1CS)
 
 private theorem piCcsArithmeticLogicalEnds :
-    NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset ≤
+    NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset + StateBinding.signCount ≤
         PiCCSArithmetic.initialClaimFreshStart ∧
       PiCCSArithmetic.initialClaimLogicalStart + 12957 ≤
         PiCCSArithmetic.initialClaimFreshStart ∧
@@ -155,7 +151,7 @@ private theorem piCcsArithmeticLogicalEnds :
     NightstreamFPrime.Layout.Stage1.PiCCSStarts.sumcheckLogicalStart
     NightstreamFPrime.Layout.Stage1.PiCCSStarts.initialClaimLogicalStart
   rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.roundTranscriptWitnessStart_eq,
-    NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
+    NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq, StateBinding.signCount_eq]
   norm_num
 
 /-- Every source row lowered into the ordinary PiCCS packet reads only the
@@ -1036,8 +1032,60 @@ theorem complete_piCcsRows
           (NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount -
             NightstreamFPrime.Layout.Stage1.Spartan.piCcsLocalStart) ∧
         PiCCSRowsHold completed := by
+  -- The statement-binding leaf owns the first 270 PiCCS columns: fill its
+  -- hinted signs first. Every later step writes only above them.
+  let signedSource := StateBinding.completeEnv (Formal.statementBindingInterface
+        (PiCCSArithmetic.sharedInterface Data.logicalWidth Data.publicFits)).state
+    (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+    NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset
+  let signed := NightstreamFPrime.Layout.Stage1.Spartan.copyMappedInterval env
+    signedSource NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset
+    StateBinding.signCount
+  have signedStart :
+      NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+          NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset =
+        NightstreamFPrime.Layout.Stage1.Spartan.piCcsLocalStart := by
+    rfl
+  have signedEnd :
+      NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+          NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset +
+        StateBinding.signCount ≤
+        NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount := by
+    rw [signedStart, StateBinding.signCount_eq,
+      NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount_eq]
+    norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsLocalStart]
+  have signedPullback :
+      NightstreamFPrime.Layout.Stage1.Spartan.pullback signed = signedSource := by
+    apply NightstreamFPrime.Layout.Stage1.Spartan.pullback_copyMappedInterval_eq env
+      signedSource NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset
+      StateBinding.signCount (by
+        rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
+        norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset])
+      signedEnd
+    have agrees := executeHints_agreesOutside
+      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset
+      (StateBinding.signHints (Formal.statementBindingInterface
+        (PiCCSArithmetic.sharedInterface Data.logicalWidth Data.publicFits)).state
+        NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset)
+    rw [StateBinding.signHints_length] at agrees
+    exact agrees
+  have signedBelow : ∀ index,
+      index < NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset →
+        NightstreamFPrime.Layout.Stage1.Spartan.pullback signed index =
+          NightstreamFPrime.Layout.Stage1.Spartan.pullback env index := by
+    intro index below
+    rw [signedPullback]
+    exact StateBinding.completeEnv_agrees_below _ _ _ index below
+  have phaseBeforeStatement :
+      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset +
+          StateBinding.signCount ≤
+        PiCCSInvocations.statementWitnessStart := by
+    apply Nat.le_of_eq
+    rw [StateBinding.signCount_eq]
+    rfl
   rcases complete_preOutputInvocations Data.logicalWidth Data.publicFits
-      relation env with
+      relation signed with
     ⟨afterPre, preAgrees, _preExact, preHolds⟩
   have transcripts := preOutputInvocations_imply_specs Data.logicalWidth
     Data.publicFits relation afterPre preHolds
@@ -1054,8 +1102,8 @@ theorem complete_piCcsRows
     (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
     (NightstreamFPrime.Layout.Stage1.Spartan.pullback afterPre) template
     initialAssumptions.external (fun index below =>
-      (pullback_after_preOutput_agreesBelow env afterPre preAgrees index
-        below).symm) phase.accepted
+      ((pullback_after_preOutput_agreesBelow signed afterPre preAgrees index
+        (by omega)).trans (signedBelow index below)).symm) phase.accepted
   rcases complete_arithmeticLogical relation ajtai template afterPre
       acceptedAfterPre transcripts with
     ⟨logical, logicalOperations, logicalEnd⟩
@@ -1075,37 +1123,42 @@ theorem complete_piCcsRows
     afterOutput outputAgrees preHoldsAfterLogical
   have logicalHolds := arithmeticLogicalHolds_after_output relation afterLogical
     afterOutput logical logicalOperations logicalEnd logicalPullback outputAgrees
-  have phaseBeforeInitial :
-      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset ≤
-        PiCCSArithmetic.initialClaimLogicalStart := by
-    unfold PiCCSArithmetic.initialClaimLogicalStart
+  have statementBeforeInitial : PiCCSInvocations.statementWitnessStart ≤
+      PiCCSArithmetic.initialClaimLogicalStart := by
+    unfold PiCCSInvocations.statementWitnessStart
+      PiCCSArithmetic.initialClaimLogicalStart
       NightstreamFPrime.Layout.Stage1.PiCCSStarts.initialClaimLogicalStart
       NightstreamFPrime.Layout.Stage1.PiCCSStarts.roundTranscriptWitnessStart
       NightstreamFPrime.Layout.Stage1.PiCCSStarts.challengeWitnessStart
-      NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart
     omega
-  have phaseBeforeOutput :
-      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset ≤
-        PiCCSInvocations.outputWitnessStart := by
-    exact Nat.le_trans phaseBeforeInitial (by
+  have statementBeforeOutput : PiCCSInvocations.statementWitnessStart ≤
+      PiCCSInvocations.outputWitnessStart := by
+    exact Nat.le_trans statementBeforeInitial (by
       rw [← arithmeticLogicalEnd_eq]
       omega)
-  have stateAgrees : ∀ index,
-      index < NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset →
+  have signedAgrees : ∀ index,
+      index < PiCCSInvocations.statementWitnessStart →
         NightstreamFPrime.Layout.Stage1.Spartan.pullback afterOutput index =
-          NightstreamFPrime.Layout.Stage1.Spartan.pullback env index := by
+          NightstreamFPrime.Layout.Stage1.Spartan.pullback signed index := by
     intro index below
     calc
       NightstreamFPrime.Layout.Stage1.Spartan.pullback afterOutput index =
           NightstreamFPrime.Layout.Stage1.Spartan.pullback afterLogical index :=
         pullback_after_output_agreesBelow afterLogical afterOutput outputAgrees
-          index (lt_of_lt_of_le below phaseBeforeOutput)
+          index (lt_of_lt_of_le below statementBeforeOutput)
       _ = logical.current index := congrFun logicalPullback index
       _ = NightstreamFPrime.Layout.Stage1.Spartan.pullback afterPre index :=
         logical.agrees index (Or.inl
-          (lt_of_lt_of_le below phaseBeforeInitial))
-      _ = NightstreamFPrime.Layout.Stage1.Spartan.pullback env index :=
-        pullback_after_preOutput_agreesBelow env afterPre preAgrees index below
+          (lt_of_lt_of_le below statementBeforeInitial))
+      _ = NightstreamFPrime.Layout.Stage1.Spartan.pullback signed index :=
+        pullback_after_preOutput_agreesBelow signed afterPre preAgrees index below
+  have stateAgrees : ∀ index,
+      index < NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset →
+        NightstreamFPrime.Layout.Stage1.Spartan.pullback afterOutput index =
+          NightstreamFPrime.Layout.Stage1.Spartan.pullback env index := by
+    intro index below
+    rw [signedAgrees index (by omega)]
+    exact signedBelow index below
   have initialStateAssumptions : StateBinding.Assumptions
       (Formal.statementBindingInterface
         (PiCCSArithmetic.sharedInterface Data.logicalWidth
@@ -1134,13 +1187,27 @@ theorem complete_piCcsRows
       (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
       (NightstreamFPrime.Layout.Stage1.Spartan.pullback afterOutput)
       initialStateAssumptions stateAgrees initialStateSpec
+  have signsAtOutput : ∀ word lane,
+      (StateBinding.signBit NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset
+        word lane).eval (NightstreamFPrime.Layout.Stage1.Spartan.pullback afterOutput) =
+      (StateBinding.signHint (Formal.statementBindingInterface
+        (PiCCSArithmetic.sharedInterface Data.logicalWidth Data.publicFits)).state
+        NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset word lane).eval
+        (NightstreamFPrime.Layout.Stage1.Spartan.pullback afterOutput) := by
+    intro word lane
+    have bound := (StateBinding.signIndex word lane).isLt
+    rw [StateBinding.signHint_eval_of_agree_below _ _ _ _ initialStateAssumptions
+        stateAgrees,
+      ← StateBinding.completeEnv_sign _ _ _ initialStateAssumptions word lane]
+    simp only [StateBinding.signBit, Expr.eval_var]
+    rw [signedAgrees _ (by omega), signedPullback]
   have stateLogicalHolds : ConstraintsHold
       (NightstreamFPrime.Layout.Stage1.Spartan.pullback afterOutput)
       (PiCCSArithmetic.statementBindingConstraints Data.logicalWidth
         Data.publicFits) :=
     statementBindingConstraints_hold
       (NightstreamFPrime.Layout.Stage1.Spartan.pullback afterOutput)
-      stateAtOutput
+      stateAtOutput signsAtOutput
   have outputLeFresh : PiCCSInvocations.outputWitnessStart ≤
       PiCCSArithmetic.initialClaimFreshStart := by
     unfold PiCCSArithmetic.initialClaimFreshStart
@@ -1178,9 +1245,11 @@ theorem complete_piCcsRows
     (NightstreamFPrime.Layout.Stage1.Spartan.pullback afterOutput)
     stateAssumptionsAtOutput
   have phaseLeFresh :
-      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset ≤
+      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset +
+          StateBinding.signCount ≤
         PiCCSArithmetic.initialClaimFreshStart :=
-    Nat.le_trans phaseBeforeOutput outputLeFresh
+    Nat.le_trans phaseBeforeStatement
+      (Nat.le_trans statementBeforeOutput outputLeFresh)
   have emittedScope : ∀ expression ∈
       emittedConstraints Data.logicalWidth Data.publicFits,
       expression.VarsBelow PiCCSArithmetic.initialClaimFreshStart := by
@@ -1241,16 +1310,30 @@ theorem complete_piCcsRows
     · exact physicalAgrees
     · exact allHoldsBefore invocation member
   have broadStart :
-      NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
-          PiCCSInvocations.statementWitnessStart =
-        NightstreamFPrime.Layout.Stage1.Spartan.piCcsLocalStart := by
-    rfl
-  have preBroad : AgreesOutside env afterPre
+      NightstreamFPrime.Layout.Stage1.Spartan.piCcsLocalStart ≤
+        NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+          PiCCSInvocations.statementWitnessStart := by
+    apply NightstreamFPrime.Layout.Stage1.Spartan.piCcsLocalStart_le_sourceToSpartan
+    unfold PiCCSInvocations.statementWitnessStart
+    rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart_eq]
+    norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset]
+  have signedBroad : AgreesOutside env signed
+      NightstreamFPrime.Layout.Stage1.Spartan.piCcsLocalStart
+      (NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount -
+        NightstreamFPrime.Layout.Stage1.Spartan.piCcsLocalStart) := by
+    apply agreesOutside_widen
+      (NightstreamFPrime.Layout.Stage1.Spartan.copyMappedInterval_agreesOutside env
+        signedSource NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset
+        StateBinding.signCount)
+    · rw [signedStart]
+    · rw [piCcsPrivateEnd_eq]
+      exact signedEnd
+  have preBroad : AgreesOutside signed afterPre
       NightstreamFPrime.Layout.Stage1.Spartan.piCcsLocalStart
       (NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount -
         NightstreamFPrime.Layout.Stage1.Spartan.piCcsLocalStart) := by
     apply agreesOutside_widen preAgrees
-    · rw [broadStart]
+    · exact broadStart
     · rw [preOutputIntervalEnd_eq, piCcsPrivateEnd_eq]
       exact PiCCSInvocations.invocationCeiling_le_private
   have logicalAgrees :=
@@ -1262,7 +1345,7 @@ theorem complete_piCcsRows
       (NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount -
         NightstreamFPrime.Layout.Stage1.Spartan.piCcsLocalStart) := by
     apply agreesOutside_widen logicalAgrees
-    · rw [← broadStart]
+    · apply Nat.le_trans broadStart
       exact
         (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_lt_of_piCcsLocal
           PiCCSInvocations.statementWitnessStart
@@ -1286,7 +1369,7 @@ theorem complete_piCcsRows
       (NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount -
         NightstreamFPrime.Layout.Stage1.Spartan.piCcsLocalStart) := by
     apply agreesOutside_widen outputAgrees
-    · rw [← broadStart]
+    · apply Nat.le_trans broadStart
       exact
         (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_lt_of_piCcsLocal
           PiCCSInvocations.statementWitnessStart
@@ -1307,7 +1390,7 @@ theorem complete_piCcsRows
       (NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount -
         NightstreamFPrime.Layout.Stage1.Spartan.piCcsLocalStart) := by
     apply agreesOutside_widen physicalAgrees
-    · rw [← broadStart]
+    · apply Nat.le_trans broadStart
       exact
         (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_lt_of_piCcsLocal
           PiCCSInvocations.statementWitnessStart
@@ -1323,7 +1406,8 @@ theorem complete_piCcsRows
     · rw [piCcsPrivateEnd_eq]
       exact physicalEnd
   have totalBroad := agreesOutside_trans
-    (agreesOutside_trans (agreesOutside_trans preBroad logicalBroad)
+    (agreesOutside_trans (agreesOutside_trans
+      (agreesOutside_trans signedBroad preBroad) logicalBroad)
       outputBroad) physicalBroad
   refine ⟨completed, totalBroad, ⟨?_, ?_⟩⟩
   · intro invocation member

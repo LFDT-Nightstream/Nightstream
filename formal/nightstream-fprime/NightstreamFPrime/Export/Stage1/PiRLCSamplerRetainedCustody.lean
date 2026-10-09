@@ -626,14 +626,14 @@ theorem baseEnv_eq_transitionEnv
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → Spec.F)
     (column : Nat)
     (bound : column < PiRLCProductPlan.basePackage.layout.constantColumn)
-    (outside : column < PiCCSInputs.phaseOffset ∨
-      PiCCSInputs.phaseOffset + PiCCSOrdinarySourceSupport.transcriptInvocationCount * 1096 ≤
-        column) :
+    (outside : column < PiCCSStarts.statementWitnessStart ∨
+      PiCCSStarts.statementWitnessStart +
+          PiCCSOrdinarySourceSupport.transcriptInvocationCount * 1096 ≤ column) :
     PiRLCProductPlan.baseEnv program base column =
       RunningTransitionDirectPlan.transitionEnv program base
         (Spartan.sourceToSpartan column) := by
   have sourceBound : column < Spartan.SourceColumnCount := by
-    have constant : PiRLCProductPlan.basePackage.layout.constantColumn = 12442938 :=
+    have constant : PiRLCProductPlan.basePackage.layout.constantColumn = 11654204 :=
       Package.circuitPackage_layout_values.2.2.1
     rw [constant] at bound
     rw [Spartan.sourceColumnCount_eq]

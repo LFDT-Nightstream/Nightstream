@@ -339,25 +339,15 @@ theorem completePiDecPrefix
     rw [Lifecycle.Stage1.RunningTransition.runningWord_eval,
       Lifecycle.Stage1.RunningTransition.runningWord_eval, recursiveValueEq]
   have outputWordEq : ∀ index,
-      (Lifecycle.Stage1.RunningTransition.runningWord
-        ((AssemblerInputs.runningInterface relation program).output
-          (AssemblerInputs.runningOffset program)) index).eval env =
-      (Lifecycle.Stage1.RunningTransition.runningWord
-        ((AssemblerInputs.runningInterface relation program).output
-          (AssemblerInputs.runningOffset program)) index).eval p5.current := by
+      ((AssemblerInputs.runningInterface relation program).output
+          (AssemblerInputs.runningOffset program) index).eval env =
+      ((AssemblerInputs.runningInterface relation program).output
+          (AssemblerInputs.runningOffset program) index).eval p5.current := by
     intro index
-    change (Lifecycle.Stage1.RunningTransition.runningWord
-        (RunningTransitionInputs.outputRunningExpr logicalWidth publicFits)
-        index).eval env =
-      (Lifecycle.Stage1.RunningTransition.runningWord
-        (RunningTransitionInputs.outputRunningExpr logicalWidth publicFits)
-        index).eval p5.current
+    change (RunningTransitionInputs.outputWord index).eval env =
+      (RunningTransitionInputs.outputWord index).eval p5.current
     exact Expr.eval_eq_of_agree_below _ RunningTransitionInputs.phaseOffset
-      env p5.current
-      (Lifecycle.Stage1.RunningTransition.runningWord_varsBelow _
-        RunningTransitionInputs.phaseOffset
-        (RunningTransitionInputs.outputRunningBelow logicalWidth publicFits)
-        index)
+      env p5.current (RunningTransitionInputs.outputWordBelow index)
       sourceAgrees
   have runningInitial := specification.running
   change Lifecycle.Stage1.RunningTransition.SpecHolds

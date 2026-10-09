@@ -34,7 +34,7 @@ theorem sourceRows_length
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (sourceRows logicalWidth publicFits).length = 32765 := by
+    (sourceRows logicalWidth publicFits).length = 37317 := by
   rw [sourceRows, List.length_map,
     PiCCSArithmetic.arithmeticRows_length logicalWidth publicFits relation]
 
@@ -86,7 +86,7 @@ def sourceListIndex
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (index : Fin 32765) : Fin (sourceRows logicalWidth publicFits).length :=
+    (index : Fin 37317) : Fin (sourceRows logicalWidth publicFits).length :=
   Fin.cast (sourceRows_length relation).symm index
 
 def programRow
@@ -94,7 +94,7 @@ def programRow
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (index : Fin 32765) : R1CS.Row :=
+    (index : Fin 37317) : R1CS.Row :=
   (sourceRows logicalWidth publicFits).get (sourceListIndex relation index)
 
 /-- Indexed PiCCS source rows remain below the exact Spartan source width.
@@ -105,7 +105,7 @@ theorem programRow_bounded
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (index : Fin 32765) :
+    (index : Fin 37317) :
     (programRow relation index).VarsBelow Spartan.spartanColumnCount := by
   exact sourceRows_varsBelow relation _
     (List.get_mem _ (sourceListIndex relation index))
@@ -156,7 +156,7 @@ def supportedProgram
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     SupportedProgram (sourceRows logicalWidth publicFits) where
-  rowCount := 32765
+  rowCount := 37317
   rowCount_le := by norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
   row := programRow relation
   exactRows := programRows_eq relation
@@ -176,7 +176,7 @@ def program
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (program relation).rowCount = 32765 := by
+    (program relation).rowCount = 37317 := by
   rfl
 
 /-- Program construction depends on the relation shape, not its matrix
@@ -211,7 +211,7 @@ theorem programRows_hold_iff_rowsHold
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (env : Env) :
-    (∀ index : Fin 32765, (programRow relation index).Holds env) ↔
+    (∀ index : Fin 37317, (programRow relation index).Holds env) ↔
       R1CS.RowsHold env (sourceRows logicalWidth publicFits) := by
   exact (holds_iff_rowsHold_ofFn (programRow relation) env).trans
     (predicate_iff_of_eq (R1CS.RowsHold env) (programRows_eq relation))

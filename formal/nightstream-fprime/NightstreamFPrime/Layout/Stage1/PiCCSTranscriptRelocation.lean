@@ -392,11 +392,14 @@ theorem formalStatementFinalState_shift
     (leftOffset delta : Nat) :
     Formal.statementFinalState right (leftOffset + delta) =
       state delta (Formal.statementFinalState left leftOffset) := by
+  unfold Formal.statementFinalState
+  rw [show leftOffset + delta + StateBinding.signCount =
+      leftOffset + StateBinding.signCount + delta by omega]
   exact statementFinalState_shift
     (Formal.statementAbsorptionInterface (Formal.atOffset left leftOffset))
     (Formal.statementAbsorptionInterface
       (Formal.atOffset right (leftOffset + delta)))
-    leftOffset delta
+    (leftOffset + StateBinding.signCount) delta
 
 /-- Through statement absorption, challenge derivation, and all indexed round
 absorptions, every parent-facing PiCCS transcript output moves by the exact
@@ -438,6 +441,7 @@ theorem formalRoundOutputs_shift
         state delta
           ((Formal.challengeInterface leftShared leftOffset).initialState
             (Formal.challengeStart leftShared)) := by
+    simp only [Formal.challengeInterface]
     exact statementShift
   have challengeShiftRaw := challengeFinalState_shift
     (Formal.challengeInterface leftShared leftOffset)
@@ -538,9 +542,16 @@ theorem formalRoundOutputs_exactLocalSupport
           (Formal.atOffset interface offset) offset)
         (Extend (fun _ => False) offset (formalRoundEnd interface offset)) := by
   let shared := Formal.atOffset interface offset
-  have statementSupport := statementFinalState_localSupport
-    (Formal.statementAbsorptionInterface (Formal.atOffset shared offset)) offset
-  have challengeStartEq : Formal.challengeStart shared = offset + 140288 := by
+  have statementSupport : Duplex.Formal.StateSupported
+      (Formal.statementFinalState shared offset)
+      (Extend (fun _ => False) offset (offset + 140558)) := by
+    apply Duplex.Formal.StateSupported.mono (statementFinalState_localSupport
+      (Formal.statementAbsorptionInterface (Formal.atOffset shared offset))
+      (offset + StateBinding.signCount))
+    intro index inside
+    simp only [Extend, StateBinding.signCount_eq, false_or] at inside ⊢
+    omega
+  have challengeStartEq : Formal.challengeStart shared = offset + 140558 := by
     simp [shared, Formal.challengeStart, Formal.atOffset]
   have challengeInitialSupport : Duplex.Formal.StateSupported
       ((Formal.challengeInterface shared offset).initialState
@@ -576,15 +587,15 @@ theorem formalRoundOutputs_localSupport
     (∀ coordinate,
       Duplex.Formal.KSupported
         (Formal.roundPoint (Formal.atOffset interface offset) offset coordinate)
-        (Extend (fun _ => False) offset (offset + 1258207))) ∧
+        (Extend (fun _ => False) offset (offset + 1258477))) ∧
       Duplex.Formal.StateSupported
         (Formal.roundTranscriptFinalState
           (Formal.atOffset interface offset) offset)
-        (Extend (fun _ => False) offset (offset + 1258207)) := by
+        (Extend (fun _ => False) offset (offset + 1258477)) := by
   let shared := Formal.atOffset interface offset
   have roundSupport := formalRoundOutputs_exactLocalSupport interface offset
   have finishLe : formalRoundEnd interface offset ≤
-      offset + 1258207 := by
+      offset + 1258477 := by
     simp [formalRoundEnd, Formal.roundTranscriptStart, Formal.atOffset]
   constructor
   · intro coordinate
@@ -595,7 +606,7 @@ theorem formalRoundOutputs_localSupport
   · change Duplex.Formal.StateSupported
       (RoundTranscript.finalState (Formal.roundTranscriptInterface shared)
         (Formal.roundTranscriptStart shared))
-      (Extend (fun _ => False) offset (offset + 1258207))
+      (Extend (fun _ => False) offset (offset + 1258477))
     intro lane
     have support := roundSupport.2 lane
     exact Expr.VarsSatisfy.mono _ support
@@ -617,7 +628,7 @@ theorem evalRoundPoint_eq_of_shift_agreement
     (left right : Formal.Interface logicalWidth 8 publicFits)
     (leftOffset delta : Nat) (leftEnv rightEnv : Env)
     (agrees : ∀ index,
-      Extend (fun _ => False) leftOffset (leftOffset + 1258207) index →
+      Extend (fun _ => False) leftOffset (leftOffset + 1258477) index →
         rightEnv (index + delta) = leftEnv index) :
     RoundTranscript.evalRoundPoint
         (Formal.roundTranscriptInterface
@@ -643,7 +654,7 @@ theorem evalRoundPoint_eq_of_shift_agreement
   exact quadratic_eval_eq_of_shift_agreement delta
     (Formal.roundPoint (Formal.atOffset left leftOffset)
       leftOffset coordinate)
-    (Extend (fun _ => False) leftOffset (leftOffset + 1258207))
+    (Extend (fun _ => False) leftOffset (leftOffset + 1258477))
     leftEnv rightEnv
     ((formalRoundOutputs_localSupport left leftOffset).1 coordinate) agrees
 

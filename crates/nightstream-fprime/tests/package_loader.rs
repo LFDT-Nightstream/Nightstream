@@ -4,8 +4,8 @@ use nightstream_fprime::{
     derive_pi_ccs_v1_2_transcript, load_per_application_package, load_poseidon2_hash_chain_v1_package, CcsMatrixSource,
     PackageError, PiCcsV1_2OutputEvaluations, PiCcsV1_2PackageInputs, PiDecV1_2PackageInputs,
     PI_CCS_V1_2_COEFFICIENT_COUNT, PI_CCS_V1_2_FRESH_COMMITMENT_WORDS, PI_CCS_V1_2_MATRIX_COUNT,
-    PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT, PI_CCS_V1_2_ROUND_COUNT,
-    PI_CCS_V1_2_SOURCE_COUNT, PI_CCS_V1_2_STATE_PREIMAGE_WORDS, PI_DEC_V1_2_CHILD_COUNT,
+    PI_CCS_V1_2_PRIOR_CHILDREN_WORDS, PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT,
+    PI_CCS_V1_2_ROUND_COUNT, PI_CCS_V1_2_SOURCE_COUNT, PI_CCS_V1_2_STATE_PREIMAGE_WORDS, PI_DEC_V1_2_CHILD_COUNT,
     PI_DEC_V1_2_COMMITMENT_WORDS_PER_CHILD, PI_DEC_V1_2_EVAL_A_MATRICES_PER_CHILD, PI_DEC_V1_2_EVAL_K_VALUES_PER_CHILD,
     PI_DEC_V1_2_PUBLIC_INPUT_WORDS_PER_CHILD,
 };
@@ -45,13 +45,13 @@ fn sealed_package_builds_the_package_owned_logical_relation_header() {
         .ccs_structure_header()
         .expect("Lean-owned logical CCS header");
 
-    assert_eq!(package.physical_row_count(), 12_357_472);
-    assert_eq!(package.total_column_count(), 12_448_701);
-    assert_eq!(package.private_input_count(), 107_070);
+    assert_eq!(package.physical_row_count(), 11_573_009);
+    assert_eq!(package.total_column_count(), 11_659_967);
+    assert_eq!(package.private_input_count(), 102_802);
     assert_eq!(package.public_input_count(), 278);
-    assert_eq!(relation.row_count(), 1_139_450);
+    assert_eq!(relation.row_count(), 1_032_323);
     // Poseidon2HashChainV1Package.logicalWidth, after shared-value wiring.
-    assert_eq!(relation.column_count(), 49_707_850);
+    assert_eq!(relation.column_count(), 45_140_532);
     assert_eq!(relation.cube_variables(), PI_CCS_V1_2_ROUND_COUNT);
     assert_eq!(
         relation.matrix_sources(),
@@ -121,6 +121,7 @@ fn sealed_stage1_encoder_appends_the_exact_application_witness() {
     let pi_ccs = PiCcsV1_2PackageInputs::new(
         vec![0; PI_CCS_V1_2_STATE_PREIMAGE_WORDS],
         vec![0; PI_CCS_V1_2_STATE_PREIMAGE_WORDS],
+        vec![0; PI_CCS_V1_2_PRIOR_CHILDREN_WORDS],
         vec![0; PI_CCS_V1_2_FRESH_COMMITMENT_WORDS],
         vec![vec![[0, 0]; PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT]; PI_CCS_V1_2_ROUND_COUNT],
         output_evaluations,
@@ -207,6 +208,7 @@ fn lean_emitted_v1_2_pi_ccs_output_keeps_eval_k_and_eval_a_separate() {
     let inputs = PiCcsV1_2PackageInputs::new(
         vec![0; PI_CCS_V1_2_STATE_PREIMAGE_WORDS],
         vec![0; PI_CCS_V1_2_STATE_PREIMAGE_WORDS],
+        vec![0; PI_CCS_V1_2_PRIOR_CHILDREN_WORDS],
         vec![0; PI_CCS_V1_2_FRESH_COMMITMENT_WORDS],
         vec![vec![[0, 0]; PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT]; PI_CCS_V1_2_ROUND_COUNT],
         output,
@@ -284,6 +286,7 @@ fn rust_v1_2_pi_ccs_transcript_matches_lean_emitted_vector() {
     let inputs = PiCcsV1_2PackageInputs::new(
         state_preimage,
         output_preimage,
+        vec![0; PI_CCS_V1_2_PRIOR_CHILDREN_WORDS],
         fresh_commitment,
         rounds,
         output_evaluations,

@@ -80,7 +80,7 @@ private theorem expectedContextTargetBound (lane : Fin 4) :
       PiRLCProductPlan.basePackage.layout.totalColumnCount := by
   have bound := lane.isLt
   have total : PiRLCProductPlan.basePackage.layout.totalColumnCount =
-      12443217 :=
+      11654483 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
   rw [total]
   norm_num [Spartan.expectedContextPublicStart] at bound ⊢
@@ -96,7 +96,7 @@ private theorem shiftedExpectedContext
   have lower : ¬ Spartan.expectedContextPublicStart + lane.val <
       PerApplicationPackage.basePackage.layout.constantColumn := by
     have constant : PerApplicationPackage.basePackage.layout.constantColumn =
-        12442938 :=
+        11654204 :=
       NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
     rw [constant]
     norm_num [Spartan.expectedContextPublicStart] at laneBound ⊢
@@ -104,7 +104,7 @@ private theorem shiftedExpectedContext
   have startLower : ¬ Spartan.expectedContextPublicStart <
       PerApplicationPackage.basePackage.layout.constantColumn := by
     have constant : PerApplicationPackage.basePackage.layout.constantColumn =
-        12442938 :=
+        11654204 :=
       NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
     rw [constant]
     norm_num [Spartan.expectedContextPublicStart]
@@ -151,7 +151,7 @@ theorem transitionExpectedContext
     (bind fits commitmentSetup raw).base _
     (PiCCSOrdinarySourceSupport.source_lt_sourceColumnCount
       (expectedContextSource lane)) (Or.inl (by
-        rw [PiCCSInputs.expectedContextStart_eq, PiCCSInputs.phaseOffset_eq]
+        rw [PiCCSInputs.expectedContextStart_eq, PiCCSStarts.statementWitnessStart_eq]
         have bound := lane.isLt
         omega)), Spartan.sourceToSpartan_expectedContext lane]
   unfold RunningTransitionDirectPlan.packageEnv PerApplicationPackage.baseEnv

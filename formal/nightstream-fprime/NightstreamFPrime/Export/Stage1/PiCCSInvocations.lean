@@ -119,9 +119,8 @@ theorem statementWitnessStart_matches
     statementWitnessStart =
       Formal.statementAbsorptionOffset
         (parentInterface logicalWidth publicFits) phaseOffset := by
-  rw [Formal.statementAbsorptionOffset_eq]
-  exact (NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq).trans
-    rfl
+  rw [Formal.statementAbsorptionOffset_eq, StateBinding.signCount_eq]
+  rfl
 
 theorem challengeWitnessStart_matches
     (logicalWidth : Nat)
@@ -340,9 +339,13 @@ theorem challengeInitialState_eq_statementFinalState
   have interfaceEq : targetInterface =
       statementInterface logicalWidth publicFits := by
     rfl
-  have offsetEq : phaseOffset = statementWitnessStart := by
-    simpa [statementWitnessStart] using!
-      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq
+  have offsetEq : phaseOffset +
+      NightstreamFPrime.Lifecycle.PiCCS.v1_2.StateBinding.signCount =
+        statementWitnessStart := by
+    unfold statementWitnessStart
+      NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart
+      NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementBindingLogicalStart
+    rw [NightstreamFPrime.Lifecycle.PiCCS.v1_2.StateBinding.signCount_eq]
   have finalStateEq :
       NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.statementFinalState
           parent phaseOffset =
@@ -351,7 +354,8 @@ theorem challengeInitialState_eq_statementFinalState
           statementWitnessStart := by
     unfold NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.statementFinalState
     exact (congrArg
-      (fun current => StatementAbsorption.finalState current phaseOffset)
+      (fun current => StatementAbsorption.finalState current
+        (phaseOffset + NightstreamFPrime.Lifecycle.PiCCS.v1_2.StateBinding.signCount))
       interfaceEq).trans (congrArg
         (StatementAbsorption.finalState
           (statementInterface logicalWidth publicFits)) offsetEq)
@@ -928,7 +932,7 @@ mapped start of the generic R1CS-fresh region, not a new layout owner. -/
 def invocationCeiling : Nat :=
   NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
     NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
-theorem invocationCeiling_eq : invocationCeiling = 7203889 := by
+theorem invocationCeiling_eq : invocationCeiling = 6415155 := by
   unfold invocationCeiling NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
   rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
   norm_num [NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan,

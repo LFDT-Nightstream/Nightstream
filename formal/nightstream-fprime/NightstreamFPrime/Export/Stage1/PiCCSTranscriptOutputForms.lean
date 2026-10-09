@@ -73,7 +73,7 @@ theorem pointForm_eq_outputState
         (invocation (pointInvocation coordinate component)) 0 := by
   rfl
 
-def transcriptSourceStart : Nat := PiCCSInputs.phaseOffset + 1080
+def transcriptSourceStart : Nat := PiCCSStarts.statementWitnessStart + 1080
 
 def transcriptSource (index : TranscriptIndex) (lane : Fin Poseidon2.width) : Nat :=
   transcriptSourceStart + index.val * 1096 + lane.val
@@ -93,7 +93,7 @@ theorem pointSource_eq_transcriptSource
       transcriptSource (pointInvocation coordinate component)
         ⟨0, by norm_num [Poseidon2.width]⟩ := by
   unfold pointSource pointSourceStart transcriptSource transcriptSourceStart pointInvocation
-  rw [PiCCSStarts.roundTranscriptWitnessStart_eq, PiCCSInputs.phaseOffset_eq]
+  rw [PiCCSStarts.roundTranscriptWitnessStart_eq, PiCCSStarts.statementWitnessStart_eq]
   norm_num [RunningTransitionInputs.roundSampleC0Offset,
     RunningTransitionInputs.roundStride]
   omega
@@ -154,7 +154,7 @@ theorem transcriptGrid_form?
     rw [Nat.add_assoc, Spartan.sourceToSpartan_add_of_piCcsLocal]
     · omega
     · unfold transcriptSourceStart
-      rw [PiCCSInputs.phaseOffset_eq]
+      rw [PiCCSStarts.statementWitnessStart_eq]
       norm_num [Spartan.piCcsPhaseOffset]
   let minor : Fin 1 := ⟨0, by omega⟩
   have direct := SourceGrid.form?_externalOfSemantic
@@ -271,17 +271,17 @@ theorem pointGrid_form?
 
 /-- The logical transcript source and the physical readout use one address. -/
 theorem transcriptSource_column (index : TranscriptIndex) (lane : Fin 16) :
-    PermutationOutput.Readout.outputColumn PiCCSTranscriptReadout.phaseStart
+    PermutationOutput.Readout.outputColumn PiCCSTranscriptReadout.transcriptStart
         index lane = Spartan.sourceToSpartan (transcriptSource index lane) := by
   have sourceEq : transcriptSource index lane =
-      PiCCSInputs.phaseOffset + (index.val * 1096 + 1080 + lane.val) := by
+      PiCCSStarts.statementWitnessStart + (index.val * 1096 + 1080 + lane.val) := by
     unfold transcriptSource transcriptSourceStart
     omega
   rw [sourceEq, Spartan.sourceToSpartan_add_of_piCcsLocal
-    PiCCSInputs.phaseOffset (index.val * 1096 + 1080 + lane.val) (by
-      norm_num [PiCCSInputs.phaseOffset_eq, Spartan.piCcsPhaseOffset])]
+    PiCCSStarts.statementWitnessStart (index.val * 1096 + 1080 + lane.val) (by
+      norm_num [PiCCSStarts.statementWitnessStart_eq, Spartan.piCcsPhaseOffset])]
   unfold PermutationOutput.Readout.outputColumn
-    PermutationOutput.Readout.witnessStart PiCCSTranscriptReadout.phaseStart
+    PermutationOutput.Readout.witnessStart PiCCSTranscriptReadout.transcriptStart
   omega
 
 /-- Retained S-box encoding is enough to evaluate the shared transcript form.
@@ -304,16 +304,16 @@ theorem transcriptForm_eval
         (PerApplicationPackage.baseEnv program (SourceCompiler.sourceEnv base))
         (Spartan.sourceToSpartan (transcriptSource index lane)) := by
   rw [← transcriptSource_column]
-  change _ = PermutationOutput.Readout.env PiCCSTranscriptReadout.phaseStart
+  change _ = PermutationOutput.Readout.env PiCCSTranscriptReadout.transcriptStart
     PiCCSOrdinarySourceSupport.transcriptInvocationCount
     (PerApplicationPackage.baseEnv program (SourceCompiler.sourceEnv base))
-    (PermutationOutput.Readout.outputColumn PiCCSTranscriptReadout.phaseStart index lane)
+    (PermutationOutput.Readout.outputColumn PiCCSTranscriptReadout.transcriptStart index lane)
   rw [PermutationOutput.Readout.env_outputColumn]
   have values := congrFun (PiCCSPoseidonPreservation.outputState_baseEnv geometry
     assignment base groupValue sboxes (invocation index)) lane
   have startEq :
       (PiCCSPoseidonPreservation.physicalInvocation (invocation index)).witnessStart =
-        PermutationOutput.Readout.witnessStart PiCCSTranscriptReadout.phaseStart index :=
+        PermutationOutput.Readout.witnessStart PiCCSTranscriptReadout.transcriptStart index :=
     PiCCSTranscriptReadout.invocation_witnessStart index
   rw [startEq] at values
   exact values

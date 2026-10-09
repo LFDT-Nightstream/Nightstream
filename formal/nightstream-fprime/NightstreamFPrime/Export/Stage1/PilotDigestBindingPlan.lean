@@ -41,7 +41,7 @@ def oneColumn {program : Lifecycle.Stage1.Application.Program}
   PilotOrdinaryRetainedGeometry.oneColumn geometry
 
 def lastInvocation : Fin PilotPoseidonPlan.invocationCount :=
-  ⟨2677, by
+  ⟨2319, by
     rw [PilotPoseidonPlan.invocationCount_eq]
     omega⟩
 

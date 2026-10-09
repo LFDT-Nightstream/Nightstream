@@ -62,6 +62,8 @@ def piCcsExternalInputsLinear
         (source.outputStateContext lane) le
       expectedContext := fun lane => Expr.VarsBelow.mono _
         (source.expectedContext lane) le
+      priorStatePacked := fun word => Expr.VarsBelow.mono _
+        (source.priorStatePacked word) le
       runningPoint := fun coordinate => ⟨
         Expr.VarsBelow.mono _ (source.runningPoint coordinate).1 le,
         Expr.VarsBelow.mono _ (source.runningPoint coordinate).2 le⟩
@@ -761,10 +763,7 @@ def runningAssumptions
       (AssemblerInputs.runningOffset program)
       (recursiveRunningBelow relation program) index
   · intro index
-    exact Lifecycle.Stage1.RunningTransition.runningWord_varsBelow _
-      (AssemblerInputs.runningOffset program)
-      ((RunningTransitionInputs.outputRunningBelow logicalWidth publicFits).mono
-        sourceLe) index
+    exact Expr.VarsBelow.mono _ (RunningTransitionInputs.outputWordBelow index) sourceLe
 
 /-- Every verifier-owned application input precedes all compact logical
 children. -/

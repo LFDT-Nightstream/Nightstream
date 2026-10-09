@@ -27,7 +27,7 @@ def inputsSupported
     initialState := ?_
     currentState := ?_
     recursive := recursiveSupported logicalWidth publicFits
-    output := outputSupported logicalWidth publicFits }
+    output := outputSupported }
   · simp only [interface, iterationExpr, Expr.VarsSatisfy]
     apply logical_state
     rw [stateStart_eq]

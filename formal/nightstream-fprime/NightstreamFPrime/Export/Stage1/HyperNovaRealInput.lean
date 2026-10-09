@@ -111,7 +111,7 @@ theorem realSuccess_of_terminal
   · rcases recursive with ⟨_positive, _priorPublic, _priorDigest, verified⟩
     rcases (PerApplicationTerminal.holds_recursive_iff application fits
       productionSetup statement payload).mp accepted with
-      ⟨_statementValid, _pcValid, _iteration, _publicLink, runningValid, _freshValid⟩
+      ⟨_statementValid, _canonical, _pcValid, _iteration, _publicLink, runningValid, _freshValid⟩
     have success := success_of_verified_output
       (PerApplicationFixedPoint.relation application fits)
       (PerApplicationCanonicalPackage.commitmentKey productionSetup)

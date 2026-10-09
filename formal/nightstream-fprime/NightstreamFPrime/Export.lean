@@ -200,6 +200,7 @@ import NightstreamFPrime.Export.Stage1.HyperNovaVisitedAcceptance
 import NightstreamFPrime.Export.Stage1.HyperNovaFirstFailure
 import NightstreamFPrime.Export.Stage1.HyperNovaVisitedSecurity
 import NightstreamFPrime.Export.Stage1.RandomOracleLink
+import NightstreamFPrime.Export.Stage1.RandomOracleSetup
 import NightstreamFPrime.Export.Stage1.HyperNovaFalseAcceptance
 import NightstreamFPrime.Export.Stage1.ActualPiDEC
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectSource

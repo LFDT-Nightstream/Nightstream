@@ -127,22 +127,4 @@ def collisionAt (samePhi : phi leftBatch.inputs = phi rightBatch.inputs)
     exact inverse_cross_eq laws _ _ (left.coordinateUnit laws strongSet coordinate)
       (right.coordinateUnit laws strongSet coordinate) _ _ cross
 
-include compatible in
-/-- Unequal extracted vectors expose a collision at one of their actual
-coordinates. The collision constructor uses no intermediate opening premise. -/
-theorem two_forks_unique_or_collision (samePhi : phi leftBatch.inputs = phi rightBatch.inputs) :
-    extractedAssignment laws strongSet left = extractedAssignment laws strongSet right ∨
-      ∃ coordinate, Nonempty (RelaxedBindingCollision semantics params ops
-        (leftBatch.inputs coordinate).commitment) := by
-  classical
-  by_cases equal : extractedAssignment laws strongSet left = extractedAssignment laws strongSet right
-  · exact Or.inl equal
-  · have different : ∃ coordinate, extractedAssignment laws strongSet left coordinate ≠
-        extractedAssignment laws strongSet right coordinate :=
-      Classical.byContradiction fun noDifference => equal (funext fun coordinate =>
-        Classical.byContradiction fun different => noDifference ⟨coordinate, different⟩)
-    obtain ⟨coordinate, different⟩ := different
-    exact Or.inr ⟨coordinate, ⟨collisionAt laws ops compatible strongSet leftBatch rightBatch
-      left right samePhi coordinate different⟩⟩
-
 end NightstreamFPrime.Spec.Folding.PiRLC.PaperForkBinding

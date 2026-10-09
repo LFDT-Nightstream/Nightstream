@@ -3,11 +3,14 @@
 This registration records the history-security criterion. Since 2026-10-07
 (owner decision) it takes HyperNova errata Assumption 1, plain-model part,
 instead of the retired `FiatShamirModel`. Since 2026-10-08 (owner decision)
-Assumption 1 has the paper's form: Definition 7 knowledge soundness of the
-NIFS, with an extractor for each admitted adversary that reads that
+Assumption 1 has the form of the paper's Definition 7 knowledge soundness of
+the NIFS, with an extractor for each admitted adversary that reads that
 adversary's tape, composed by the reverse extractor of HyperNova Lemma 17
-(Appendix H.3). The existing lean-graph schema and review process are
-unchanged. The target's meaning changed, so its target-meaning and
+(Appendix H.3). It differs from Definition 7 in four stated ways: the
+success event adds the prior-state link, the bound is the joint form, the
+public parameters are the fixed production key and setup, and `error`
+replaces `negl(λ)` (`formal/nightstream-fprime/TRUST_BOUNDARY.md`). The
+existing lean-graph schema and review process are unchanged. The target's meaning changed, so its target-meaning and
 decomposition reviews must be renewed.
 
 The final declaration is
@@ -60,7 +63,7 @@ Dependencies, with namespace prefix `NightstreamFPrime`:
 | --- | --- |
 | `Export.Stage1.HyperNovaFirstFailure.accepted_probability_le_first_failures` | Bound each tape's acceptance by its first marked failures. |
 | `Export.Stage1.HyperNovaVisitedLaw.visitedLaw_listSource` | Read each tape's deterministic reverse path from its extractor results. |
-| `Export.Stage1.HyperNovaVisitedSecurity.Assumption1` | State Assumption 1 as Definition 7. |
+| `Export.Stage1.HyperNovaVisitedSecurity.Assumption1` | State Assumption 1 in the form of Definition 7. |
 | `Export.Stage1.HyperNovaVisitedSecurity.reverseStages` | Build the reverse extractor of Lemma 17. |
 | `Export.Stage1.HyperNovaVisitedSecurity.failure_term_le` | Bound each stage's source failure by its Assumption 1 failure. |
 | `Export.Stage1.HyperNovaVisitedSecurity.history_probability_bound` | Average the per-tape bound over the reverse extractor's tape. |

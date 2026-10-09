@@ -23,6 +23,7 @@ import NightstreamFPrime.Export.Stage1.ActualContextSecurity
 import NightstreamFPrime.Export.Stage1.ActualTerminalSecurity
 import NightstreamFPrime.Export.Stage1.HyperNovaVisitedSecurity
 import NightstreamFPrime.Export.Stage1.HyperNovaFalseAcceptance
+import NightstreamFPrime.Export.Stage1.RandomOracleSetup
 import NightstreamFPrime.Export.Stage1.PiRLCWitnessHonestResponse
 import NightstreamFPrime.Export.Stage1.PiDECStoredSplitHonestWitness
 import NightstreamFPrime.Export.Stage1.PiDECCommitmentHonestMessages
@@ -300,6 +301,56 @@ theorem hyperNovaTerminalFalseAcceptance : HyperNovaTerminalFalseAcceptance :=
 #audit_axioms hyperNovaTerminalFalseAcceptance
 
 end HyperNovaSecurity
+
+section RomKnowledge
+
+open scoped BigOperators
+open Lifecycle.RandomOracleTest (Point Answer)
+open Lifecycle.RandomOracleExtraction (Claim Succeeds)
+open Export.Stage1.RandomOracleSetup (SetupIndex setupKey extraction hashCollisions msisAdvantage)
+
+attribute [local instance low] Classical.propDecidable
+
+/-- Exact one-fold knowledge criterion of the production NIFS in the
+random-oracle model, with the prior-state link and the Ajtai key drawn inside
+the game. For every adversary that may read the uniform setup chunks and makes
+at most `queries` Fiat–Shamir oracle queries, the probability that the
+verifier accepts its linked claim is less than the extractor's success
+probability, plus the state-hash collision chances, the statistical error, the
+success of the explicit MSIS solver on a uniform matrix
+(`RandomOracleSetup.msisAdvantage`, built from `RandomOracleBinding.rerunKernel`),
+and `2 ^ -190`. SHAKE128 and the Fiat–Shamir hash are random oracles in this
+statement; MSIS and state-hash hardness are not assumed. -/
+def RomKnowledgeSoundness : Prop :=
+  ∀ {Output : Type}
+    (adversary : (SetupIndex PiDECInputCheck.logicalWidth PiDECInputCheck.publicFits →
+        Spec.AjtaiSetupV1.Programming.Chunk) →
+      Spec.RandomOracle.OracleComp (Point PiDECInputCheck.logicalWidth PiDECInputCheck.publicFits
+        (Lifecycle.ProductionKey.degreeBound PiDECInputCheck.relation)) Answer Output)
+    (claim : Output → Claim PiDECInputCheck.relation)
+    (prior : Output → Lifecycle.HashPreimage (logicalWidth := PiDECInputCheck.logicalWidth)
+      (publicFits := PiDECInputCheck.publicFits))
+    (contextDigest : Lifecycle.KeyDigest) (queries : Nat),
+    (∀ chunks, (adversary chunks).QueryBound queries) →
+    𝔼 chunks : SetupIndex PiDECInputCheck.logicalWidth PiDECInputCheck.publicFits →
+        Spec.AjtaiSetupV1.Programming.Chunk, 𝔼 oracle,
+        (if Succeeds PiDECInputCheck.relation (setupKey chunks) (adversary chunks)
+            (Export.Stage1.RandomOracleLink.linkedClaim PiDECInputCheck.relation claim prior contextDigest)
+            oracle then (1 : ℝ) else 0) <
+      𝔼 chunks, (extraction PiDECInputCheck.relation adversary claim prior contextDigest chunks +
+          hashCollisions PiDECInputCheck.relation adversary claim prior contextDigest chunks) +
+        Lifecycle.RandomOracleKnowledge.statisticalError queries +
+        msisAdvantage PiDECInputCheck.relation adversary claim prior contextDigest + 1 / 2 ^ 190
+
+/-- The setup-game theorem at the production key discharges the criterion. -/
+theorem romKnowledgeSoundness : RomKnowledgeSoundness :=
+  fun adversary claim prior contextDigest _ bounded =>
+    Export.Stage1.RandomOracleSetup.production_knowledge_error_lt adversary claim prior contextDigest
+      bounded
+
+#audit_axioms romKnowledgeSoundness
+
+end RomKnowledge
 
 /-- The prepared executable computes every full-carrier block of the existing
 PiRLC assignment combination. Challenges and all 17 source assignments are inputs;

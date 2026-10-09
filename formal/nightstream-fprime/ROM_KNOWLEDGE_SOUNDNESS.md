@@ -7,10 +7,13 @@ challenge's exact absorbed prefix. Lemmas 1–6, the one-fold knowledge
 theorem, the binding step of Lemma 6 and the fidelity of the oracle verifier
 are proved in Lean (Section 6). `FiatShamirModel` is retired: the history
 bound takes HyperNova errata Assumption 1 at each visit (Section 7,
-decision 4). No Rust change depends on this note.
+decision 4). Since 2026-10-09 the binding step is an explicit reduction and
+the key is drawn inside the game (decision 6). No Rust change depends on this
+note.
 
 Lean names below omit the common `NightstreamFPrime` namespace.
-`tests/EndpointCensus.lean` checks that every full name in this note exists.
+`tests/EndpointCensus.lean` checks that every name in this note that starts
+with `Export.`, `Layout.`, `Lifecycle.` or `Spec.` exists.
 
 Neither paper supplies this proof. SuperNeo is stated for the interactive
 protocol only. The published HyperNova asserts a Fiat–Shamir lemma for
@@ -53,9 +56,13 @@ random function `H : T → B`:
   is within `distance < 2^-132` of uniform on the strong set
   (`Spec.Folding.Nifs.NonInteractive.PiRlcSampler.distance_lt`).
 
-This is the same idealization as Ironwood's abstract `squeeze`. It is a
-modelling assumption, not a theorem about Poseidon2. Unlike Ironwood, the
-argument of `H` is the proved concrete call list, not a typed abstraction.
+This is a modelling assumption, not a theorem about Poseidon2. Ironwood
+idealizes one hash call on a typed transcript; here the argument of `H` is
+the proved concrete call list, but the idealized map is a duplex read, and
+reads after nearby call lists are related in the real sponge (an extension
+challenge reads two permutation outputs; `Lifecycle.TranscriptCoverage.readK`).
+The standard justification is duplex-sponge Fiat–Shamir in the
+ideal-permutation model, which Lean does not prove.
 
 **Distinct prefixes.** For one execution, distinct challenges have distinct
 prefixes (`Lifecycle.TranscriptCoverage.challengeCalls_injective`), so their
@@ -113,12 +120,21 @@ The three named events:
   `Export.Stage1.RandomOracleLink.moves_collision`).
   `Export.Stage1.RandomOracleLink.knowledge_error_le_linked` is the theorem
   with these two terms replaced by the collision events.
-- *Collision.* Every counted rerun gives a `(2B, C)`-relaxed binding
-  collision on one input commitment, and then a nonzero kernel vector of the
-  Ajtai key with every coordinate below `8TB`
-  (`Lifecycle.RandomOracleBinding.rerun_shortKernel`). The binding reduction
+- *Collision.* The binding reduction `Lifecycle.RandomOracleBinding.rerunKernel`
+  is a function of the base run and the rerun. For every counted rerun it
+  returns the `(2B, C)`-relaxed binding collision of the two forks at the
+  first coordinate where their extracted assignments differ, as a nonzero
+  kernel vector of the Ajtai key with every coordinate below `8TB`
+  (`Lifecycle.RandomOracleBinding.rerunKernel_isSome`).
+  `Lifecycle.RandomOracleBinding.collisionChance_le_kernelChance` bounds the
+  collision term by the chance that it returns a vector. The binding reduction
   takes `Q + 74` expected reruns
   (`Lifecycle.RandomOracleUniqueness.expected_reruns_le`).
+
+With the key drawn inside the game, the collision term becomes the success of
+an MSIS solver on a uniform matrix:
+`Export.Stage1.RandomOracleSetup.production_knowledge_error_lt` (Section 7,
+decision 6).
 
 Numerically (4 CCS matrices, `J = 4338`), `ε_test = 4589/p² ≈ 2^-115.84`
 (`Lifecycle.Nifs.VerifierErrorBudget.test_error_eq`), and its γ term
@@ -130,7 +146,7 @@ interactive analysis does not show it.
 The history theorem cannot be a pure ROM theorem: the step circuit
 recomputes the previous fold's challenges with Poseidon2, so a recursive
 argument uses the concrete hash. It takes HyperNova errata Assumption 1,
-plain-model part, as Definition 7 knowledge soundness of the NIFS
+plain-model part, in the form of Definition 7 knowledge soundness of the NIFS
 (`Export.Stage1.HyperNovaVisitedSecurity.Assumption1`), and Lean proves the
 paper's reverse-extractor composition (Lemma 17,
 `Export.Stage1.HyperNovaVisitedSecurity.history_probability_bound`). This
@@ -157,9 +173,10 @@ prefixes (`Lifecycle.TranscriptCoverage.challengeCalls_injective`).
 `Pr_H[H(xpt(A^H)) ∈ bad(xpt(A^H), H)] ≤ (Q+1)·ε`. *Proof:* at the first
 query of a point, its answer is independent of the adversary's view and of
 `H` elsewhere. *Status:* proved as `Spec.RandomOracle.pinned_le`
-(`Spec.RandomOracle.escape_le` for every queried point). Ironwood proves the
-case where `bad` does not read `H`; the local form is needed because a
-round's bad set reads the earlier challenges.
+(`Spec.RandomOracle.escape_le` for every queried point). This restates
+Ironwood's `escapesDuringC_measure_le'`, whose escape sets also read the
+table and are blind at their own point; locality is needed because a
+challenge's bad set reads the answers of other challenges.
 
 **Lemma 3 (per-challenge test bound).** `ε_test` splits into point-indexed
 round-by-round bounds. Fix a statement and a witness `w`. For each challenge
@@ -223,10 +240,10 @@ the same fresh statement, because the query at `J` fixes it. The rerun then
 changes the running statement (a state-hash collision under `PriorLink`),
 extracts another witness for the same statement, or extracts the same
 witness. In the second case the two complete Π_RLC forks give a relaxed
-binding collision (SuperNeo v1.2 Appendix B,
-`Spec.Folding.PiRLC.PaperForkBinding.two_forks_unique_or_collision`), and so
-a short kernel vector of the key
-(`Lifecycle.RandomOracleBinding.collides_relaxedBindingCollision`). The
+binding collision at a coordinate where their extracted assignments differ
+(SuperNeo v1.2 Appendix B, `Spec.Folding.PiRLC.PaperForkBinding.collisionAt`),
+and so a short kernel vector of the key
+(`Lifecycle.RandomOracleBinding.rerunKernel`). The
 extracted witnesses satisfy only the corrected ambient relation, so the step
 needs relaxed binding, not ordinary binding. In the last case the rerun is a
 false acceptance of the first run's witness. That witness depends on answers
@@ -292,9 +309,11 @@ and the key's construction and coverage proofs would be duplicated.
 | `Lifecycle/RandomOracleExtraction.lean` | Lemma 5: oracle verifier `Accepts`, the `linked` check, coordinate retries, `completeFork`, `extractedWitness`, `fork_failure_le`, `expected_retries_le` |
 | `Lifecycle/RandomOracleFidelity.lean` | `Deployed`, `accepts_iff_verify`: the oracle verifier at the sponge reads is `PaperNonInteractive.verify` |
 | `Lifecycle/RandomOracleUniqueness.lean` | Lemma 6: fork index and context, worst witness, local bad sets, `source_error_le`, `expected_reruns_le` |
-| `Lifecycle/RandomOracleBinding.lean` | the binding step of Lemma 6: a counted rerun gives a relaxed binding collision and a short kernel vector |
-| `Lifecycle/RandomOracleKnowledge.lean` | `knowledge_error_le`: Lemmas 5 and 6 together; `contract`, the `Spec.KnowledgeContract` instance (Ironwood's six questions) |
+| `Lifecycle/RandomOracleBinding.lean` | the binding reduction of Lemma 6: `rerunKernel`, a short kernel vector computed from the two runs; `kernelChance` bounds the collision term |
+| `Lifecycle/RandomOracleKnowledge.lean` | `knowledge_error_le`: Lemmas 5 and 6 together; `statisticalError`; the extractor's output, the run law and `failure_eq` |
 | `Export/Stage1/RandomOracleLink.lean` | `PriorLink` as the `linked` check; the two running events as state-hash collisions; `succeeds_iff_realSuccess`; `knowledge_error_le_linked` |
+| `Spec/AjtaiSetupV1/Programming.lean` | `expect_le_programmed`: an average over reduced setup chunks is close to the average over a uniform matrix |
+| `Export/Stage1/RandomOracleSetup.lean` | the key drawn inside the game: `msisAdvantage`, `knowledge_error_le_setup`, `production_knowledge_error_lt`; `contract`, the `Spec.KnowledgeContract` instance (Ironwood's six questions) |
 
 `tests/AxiomsStage1Security.lean` audits every theorem above for axioms.
 
@@ -315,11 +334,13 @@ and the key's construction and coverage proofs would be duplicated.
    proof:* the reduction reruns from the fork context until a rerun succeeds
    at the fork index, not exactly twice; it takes at most `Q + 74` expected
    reruns (`Lifecycle.RandomOracleUniqueness.expected_reruns_le`).
-3. **Deployment margin.** `(Q+1)·ε_test` is linear in `Q`, so the cost per
-   unit of success stays `2^115.8`: about 115-bit security, equal to the
-   interactive bound, and tight against a grinding attack. Accept it for this
-   work. Reaching 128 bits is a separate parameter decision (a larger field
-   for `γ`).
+3. **Deployment margin.** The proved statistical term `(Q + 74)·ε_test` is
+   linear in `Q`, so its cost per unit of success stays about `2^115.8`:
+   about 115-bit statistical security, equal to the interactive bound, and
+   tight against a grinding attack. This is the statistical part only; the
+   MSIS and state-hash terms depend on those problems at the reduction's work,
+   which grows with `Q`. Accept it for this work. Reaching 128 bits is a
+   separate parameter decision (a larger field for `γ`).
 
 4. **History step (2026-10-07).** Replace `FiatShamirModel` in the history
    bound by HyperNova errata Assumption 1, plain-model part, at each visited
@@ -338,6 +359,17 @@ and the key's construction and coverage proofs would be duplicated.
    Done in
    `Export.Stage1.HyperNovaVisitedSecurity.Assumption1` and
    `Export.Stage1.HyperNovaVisitedSecurity.reverseStages`.
+
+6. **Lean as the source of trust (2026-10-09).** A review found that the old
+   binding step stated only that a short kernel vector exists, which is true
+   for any compressing key, and that the key was fixed before the adversary,
+   so an adversary could contain a kernel vector. Now the binding reduction
+   returns its vector (`Lifecycle.RandomOracleBinding.rerunKernel`), the key
+   is drawn from uniform setup chunks inside the game, as Ironwood draws its
+   generators, and the collision term is the success of an explicit MSIS
+   solver on a uniform matrix
+   (`Export.Stage1.RandomOracleSetup.knowledge_error_le_setup`). The
+   lean-graph target `rom-knowledge-soundness` pins the production statement.
 
 References: Attema, Fehr, Klooß, Resch, ePrint 2023/1945; Attema, Fehr,
 Resch, ePrint 2023/818; Attema, Fehr, Klooß, *Fiat–Shamir Transformation of

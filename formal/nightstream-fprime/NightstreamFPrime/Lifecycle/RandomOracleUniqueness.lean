@@ -13,8 +13,9 @@ Outputs:
 - `source_error_le`: the extracted witness fails the source relation with
   probability at most `(Q + 74) * testError`, plus the chance that the
   binding reduction finds a different witness for the same running statement
-  (`collisionChance`; `RandomOracleBinding.rerun_shortKernel` turns it into a
-  short kernel vector of the Ajtai key) or a different running statement
+  (`collisionChance`; `RandomOracleBinding.collisionChance_le_kernelChance`
+  bounds it by the chance that the binding reduction returns a short kernel
+  vector of the Ajtai key) or a different running statement
   (`runningChance`; `Export.Stage1.RandomOracleLink.runningChance_le` bounds
   it by a state-hash collision when the claim carries `PriorLink`);
 - `expected_reruns_le`: the binding reduction takes at most `Q + 74`
@@ -274,7 +275,7 @@ def Moves (oracle other : Oracle) (_ : Retries) : Prop :=
 
 /-- The binding reduction: the base run extracts, and its retry from the same
 context collides. Two different witnesses for one statement give a short
-kernel vector of the Ajtai key (`RandomOracleBinding.rerun_shortKernel`). -/
+kernel vector of the Ajtai key (`RandomOracleBinding.rerunKernel_isSome`). -/
 noncomputable def collisionChance : ℝ :=
   𝔼 oracle, ∑ retries, weight relation ajtai adversary claim oracle retries *
     (if Valid relation ajtai adversary claim oracle retries then
@@ -398,6 +399,44 @@ theorem retryChance_nonnegative (index : Nat) (oracle : Oracle) (outcome : Oracl
     0 ≤ retryChance relation ajtai adversary claim index oracle outcome :=
   div_nonneg (Finset.expect_nonneg fun _ _ => retryMass_nonnegative relation ajtai adversary claim
     _ _) (resampledSuccess_nonnegative relation ajtai adversary claim index oracle)
+
+/-- A larger event has at least the same mass. -/
+theorem retryMass_mono (oracle : Oracle) {event event' : Retries → Prop}
+    (implies : ∀ retries, event retries → event' retries) :
+    retryMass relation ajtai adversary claim oracle event ≤
+      retryMass relation ajtai adversary claim oracle event' :=
+  Finset.sum_le_sum fun retries _ => mul_le_mul_of_nonneg_left
+    (by by_cases happens : event retries
+        · rw [if_pos happens, if_pos (implies retries happens)]
+        · rw [if_neg happens]
+          split <;> norm_num)
+    (weight_nonnegative relation ajtai adversary claim oracle retries)
+
+/-- An outcome that is larger on every valid rerun from the context of
+`index` has at least the same rerun chance. -/
+theorem retryChance_mono (index : Nat) (oracle : Oracle) {outcome outcome' : Oracle → Retries → Prop}
+    (implies : ∀ fresh retries,
+      forkIndex relation adversary claim (overlay (context relation adversary claim index oracle) oracle fresh) =
+        index →
+      Valid relation ajtai adversary claim (overlay (context relation adversary claim index oracle) oracle fresh)
+        retries →
+      outcome (overlay (context relation adversary claim index oracle) oracle fresh) retries →
+      outcome' (overlay (context relation adversary claim index oracle) oracle fresh) retries) :
+    retryChance relation ajtai adversary claim index oracle outcome ≤
+      retryChance relation ajtai adversary claim index oracle outcome' :=
+  div_le_div_of_nonneg_right
+    (Finset.expect_le_expect fun fresh _ => retryMass_mono relation ajtai adversary claim _
+      fun retries holds => ⟨holds.1, holds.2.1, implies fresh retries holds.1 holds.2.1 holds.2.2⟩)
+    (resampledSuccess_nonnegative relation ajtai adversary claim index oracle)
+
+/-- A rerun chance is a conditional probability: at most one. -/
+theorem retryChance_le_one (index : Nat) (oracle : Oracle) (outcome : Oracle → Retries → Prop) :
+    retryChance relation ajtai adversary claim index oracle outcome ≤ 1 :=
+  div_le_one_of_le₀
+    (Finset.expect_le_expect fun _ _ => by
+      rw [success_eq]
+      exact retryMass_mono relation ajtai adversary claim _ fun _ holds => ⟨holds.1, holds.2.1⟩)
+    (resampledSuccess_nonnegative relation ajtai adversary claim index oracle)
 
 /-- After a valid run, the resampled runs from its fork context succeed with
 positive probability: the run itself is one of them. -/

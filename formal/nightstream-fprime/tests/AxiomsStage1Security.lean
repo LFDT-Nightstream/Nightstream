@@ -28,6 +28,7 @@ import NightstreamFPrime.Layout.Stage1.StepSourceSpecs
 import NightstreamFPrime.Layout.Stage1.NifsSourceReadback
 import NightstreamFPrime.Lifecycle.RandomOracleKnowledge
 import NightstreamFPrime.Export.Stage1.RandomOracleLink
+import NightstreamFPrime.Export.Stage1.RandomOracleSetup
 import NightstreamFPrime.Lifecycle.RandomOracleFidelity
 import NightstreamFPrime.Layout.Stage1.StepWitnessPrefix
 import NightstreamFPrime.Layout.Stage1.StepPhysicalCompleteness
@@ -116,11 +117,15 @@ import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracleFidelity.deployedOracle_deployed
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracleFidelity.attempt_eq
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracleFidelity.accepts_iff_verify
-#audit_axioms NightstreamFPrime.Spec.Folding.PiRLC.PaperForkBinding.two_forks_unique_or_collision
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.BindingBridge.compatible
-#audit_axioms NightstreamFPrime.Lifecycle.RandomOracleBinding.collides_relaxedBindingCollision
-#audit_axioms NightstreamFPrime.Lifecycle.RandomOracleBinding.collides_shortKernel
-#audit_axioms NightstreamFPrime.Lifecycle.RandomOracleBinding.rerun_shortKernel
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracleUniqueness.retryChance_mono
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracleUniqueness.retryChance_le_one
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracleBinding.rerunKernel
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracleBinding.rerunKernel_isSome
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracleBinding.collisionChance_le_kernelChance
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracleBinding.kernelChance_le_one
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracleKnowledge.failure_eq
+#audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.Programming.expect_le_programmed
 #audit_axioms NightstreamFPrime.Export.Stage1.RandomOracleLink.succeeds_iff_realSuccess
 #audit_axioms NightstreamFPrime.Export.Stage1.RandomOracleLink.link_collision
 #audit_axioms NightstreamFPrime.Export.Stage1.RandomOracleLink.mismatch_collision
@@ -128,6 +133,9 @@ import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
 #audit_axioms NightstreamFPrime.Export.Stage1.RandomOracleLink.mismatchChance_le
 #audit_axioms NightstreamFPrime.Export.Stage1.RandomOracleLink.runningChance_le
 #audit_axioms NightstreamFPrime.Export.Stage1.RandomOracleLink.knowledge_error_le_linked
+#audit_axioms NightstreamFPrime.Export.Stage1.RandomOracleSetup.knowledge_error_le_setup
+#audit_axioms NightstreamFPrime.Export.Stage1.RandomOracleSetup.production_knowledge_error_lt
+#audit_axioms NightstreamFPrime.Export.Stage1.RandomOracleSetup.contract
 #audit_axioms NightstreamFPrime.Spec.flatMap_eq_of_lengths
 #audit_axioms NightstreamFPrime.Spec.flatMap_length_eq
 #audit_axioms NightstreamFPrime.Spec.flatMap_length_constant

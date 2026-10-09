@@ -3,10 +3,11 @@
 This page states what a reader must trust to accept the Nightstream F′
 security results, and which Lean declaration states each result. Names omit
 the common `NightstreamFPrime` namespace. `tests/EndpointCensus.lean` checks
-that every full name on this page, on [the assurance surface](ASSURANCE_SURFACE.md)
-and in [the ROM note](ROM_KNOWLEDGE_SOUNDNESS.md)
-exists, and that every cited theorem uses only `propext`, `Classical.choice`
-and `Quot.sound`.
+that every name on this page, on [the assurance surface](ASSURANCE_SURFACE.md)
+and in [the ROM note](ROM_KNOWLEDGE_SOUNDNESS.md) that starts with `Export.`,
+`Layout.`, `Lifecycle.` or `Spec.` exists, and that every cited theorem uses
+only `propext`, `Classical.choice` and `Quot.sound`. Shorter names are not
+checked.
 
 ## What Lean checks
 
@@ -26,34 +27,68 @@ and `Quot.sound`.
 
 ## The one-fold knowledge endpoint
 
-`Lifecycle.RandomOracleKnowledge.knowledge_error_le` is knowledge soundness of
-one production NIFS fold in the random-oracle model. The extractor succeeds
-with probability at least the acceptance probability minus
-`Lifecycle.RandomOracleKnowledge.knowledgeError`.
-`Export.Stage1.RandomOracleLink.knowledge_error_le_linked` is the same theorem
-when the verifier also checks the prior-state link (`PriorLink`); then two of
-the three named events are state-hash collisions (below).
-`Lifecycle.RandomOracleKnowledge.contract` states the result as a
+`Export.Stage1.RandomOracleSetup.production_knowledge_error_lt` is knowledge
+soundness of one production NIFS fold in the random-oracle model. The
+lean-graph target `rom-knowledge-soundness` pins its exact statement
+(`scripts/lean_graph/ROM_KNOWLEDGE_TARGET.md`). For every adversary with at
+most `Q` Fiat–Shamir oracle queries it states:
+
+```
+𝔼 chunks, Pr_H[the verifier accepts the linked claim]
+  < 𝔼 chunks, (Pr[extraction returns a source-valid witness] + hashCollisions)
+    + 17 (Q + 17) ε_sample + (Q + 74) ε_test + msisAdvantage + 2^-190
+```
+
+- *The game.* The Ajtai key is drawn inside the game: its coefficients are
+  uniform 256-bit setup chunks reduced modulo `p`
+  (`Export.Stage1.RandomOracleSetup.setupKey`; trust item 2). The adversary is
+  a function of the chunks, chosen before them, so it may read the key but
+  cannot contain a kernel vector of it. The Fiat–Shamir reads are a uniform
+  random function `H` (trust item 1). The verifier also checks the prior-state
+  link (`Export.Stage1.RandomOracleLink.linkedClaim`).
+- *The binding term.* `Export.Stage1.RandomOracleSetup.msisAdvantage` is the
+  success of an explicit MSIS solver on a uniform matrix. It draws chunks
+  uniformly among the matrix's preimages, runs the adversary for those chunks,
+  and returns the output of the binding reduction
+  `Lifecycle.RandomOracleBinding.rerunKernel`. That output is a nonzero integer
+  kernel vector of the matrix's key with every coordinate below `8TB`,
+  computed from the two runs' `Π_RLC` forks
+  (`Spec.Folding.PiRLC.PaperForkBinding.collisionAt`, then
+  `Spec.Phi81Relation.PiRLCAlgebra.Binding.relaxedBindingCollision_to_shortKernel`).
+  For each key, `Lifecycle.RandomOracleBinding.collisionChance_le_kernelChance`
+  bounds the binding term of the knowledge error by the reduction's success,
+  and `Spec.AjtaiSetupV1.Programming.expect_le_programmed` moves it from
+  reduced chunks to a uniform matrix at a cost below `2^-190`.
+- *The hash term.* `Export.Stage1.RandomOracleSetup.hashCollisions` is the
+  chance that a retry or a rerun gives two different prior preimages of the
+  adversary with one state hash
+  (`Export.Stage1.RandomOracleLink.mismatch_collision`,
+  `Export.Stage1.RandomOracleLink.moves_collision`).
+- *The statistical term.* `Lifecycle.RandomOracleKnowledge.statisticalError`.
+  With `ε_test = 4589/p² ≈ 2^-115.84`
+  (`Lifecycle.Nifs.VerifierErrorBudget.test_error_eq`) and
+  `ε_sample ≈ 2^-125.4`, it is about `2^-51.84` at `Q = 2^64`. The `74` is
+  the number of challenges of one execution
+  (`Lifecycle.RandomOracleUniqueness.challenges_length`).
+
+`Export.Stage1.RandomOracleSetup.contract` states the theorem as a
 `Spec.KnowledgeContract`, after Ironwood's record:
 
 | Question | Answer | Lean |
 |---|---|---|
-| 1. What is a run? | A uniform random function on bounded call lists, then the extractor's retries. The adversary has at most `Q` queries and selects its statement. | `Lifecycle.RandomOracleKnowledge.runWeight` |
-| 2. When does the verifier accept? | The production NIFS verifier accepts with every coin read from the oracle, the adversary's witnesses open the 16 returned children, and the claim passes its `linked` check. At the sponge reads this is `PaperNonInteractive.verify`, and with `PriorLink` it is `NifsRealSuccess.RealSuccess`. | `Lifecycle.RandomOracleExtraction.Succeeds`, `Lifecycle.RandomOracleFidelity.accepts_iff_verify`, `Export.Stage1.RandomOracleLink.succeeds_iff_realSuccess` |
+| 1. What is a run? | The setup chunks, a uniform random function on bounded call lists, and the extractor's retries. The adversary is a function of the chunks with at most `Q` queries, and selects its statement. | `Export.Stage1.RandomOracleSetup.contract`, `Lifecycle.RandomOracleKnowledge.runWeight` |
+| 2. When does the verifier accept? | The production NIFS verifier accepts with every coin read from the oracle, the adversary's witnesses open the 16 returned children, and the prior preimage links the claim. At the sponge reads this is `NifsRealSuccess.RealSuccess`. | `Lifecycle.RandomOracleExtraction.Succeeds`, `Lifecycle.RandomOracleFidelity.accepts_iff_verify`, `Export.Stage1.RandomOracleLink.succeeds_iff_realSuccess` |
 | 3. What does extraction return? | The Π_CCS output witness of the complete Π_RLC fork, or nothing. | `Lifecycle.RandomOracleKnowledge.extract` |
-| 4. What does a returned witness certify? | `SourceHolds` for the running and fresh statements that the adversary selected. | `Spec.KnowledgeContract` |
-| 5. What is the failure event? | The verifier accepts, and extraction returns nothing. | `Spec.KnowledgeContract` |
-| 6. What is the error? | `17 (Q + 17) ε_sample + (Q + 74) ε_test`, plus three named events (below). | `Lifecycle.RandomOracleKnowledge.knowledgeError` |
+| 4. What does a returned witness certify? | `SourceHolds` for the chunks' key and the running and fresh statements that the adversary selected. | `Lifecycle.RandomOracleKnowledge.extract_holds` |
+| 5. What is the failure event? | The verifier accepts, and extraction returns nothing. | `Lifecycle.RandomOracleKnowledge.failure_eq` |
+| 6. What is the error? | The statistical error, the expected state-hash collision chances, `msisAdvantage`, and the programming error. | `Export.Stage1.RandomOracleSetup.knowledge_error_le_setup` |
 
-The extractor takes `17 (Q + 17)` expected retries
-(`Lifecycle.RandomOracleExtraction.expected_retries_le`). The binding
-reduction takes `Q + 74` expected reruns
-(`Lifecycle.RandomOracleUniqueness.expected_reruns_le`;
-`Lifecycle.RandomOracleUniqueness.challenges_length` pins the 74). With
-`ε_test = 4589/p² ≈ 2^-115.84`
-(`Lifecycle.Nifs.VerifierErrorBudget.test_error_eq`) and
-`ε_sample ≈ 2^-125.4`, the statistical part at `Q = 2^64` is about
-`2^-51.84`. The proof is in
+The record states no running time. The extractor takes `17 (Q + 17)` expected
+retries (`Lifecycle.RandomOracleExtraction.expected_retries_le`). The binding
+reduction takes `Q + 74` expected reruns until one extracts
+(`Lifecycle.RandomOracleUniqueness.expected_reruns_le`); Lean does not bound
+the retries of that second extraction. Lean counts runs, not machine work, and
+it states no time bound for the MSIS solver. The proof is in
 [the ROM note](ROM_KNOWLEDGE_SOUNDNESS.md).
 
 ## What you trust
@@ -64,44 +99,42 @@ reduction takes `Q + 74` expected reruns
    and `Lifecycle.TranscriptCoverage.rho_seal` prove that the coins are one
    read of each call list. The model replaces that read by a uniform random
    function of the call list (`Lifecycle.RandomOracleTest.coins`). This is a
-   modelling assumption, as Ironwood's abstract squeeze is. It is not a
-   theorem about Poseidon2 or the additive duplex. Nothing else in the
-   verifier changes: at an oracle that answers the 74 challenge points of one
-   execution as the sponge does, the oracle verifier is
+   modelling assumption, and a stronger one than Ironwood's. Ironwood
+   idealizes one hash call on the whole transcript. A duplex read is related
+   to the reads after nearby call lists: an extension challenge reads two
+   permutation outputs, and the second is the first word of the next read
+   (`Lifecycle.TranscriptCoverage.readK`). The standard justification would be
+   duplex-sponge Fiat–Shamir in the ideal-permutation model; Lean does not
+   prove it. The same sponge also computes the state hash, which the theorem
+   treats as a concrete function. The two uses absorb different first words
+   (their domain tags), but no Lean statement separates them. Nothing else in
+   the verifier changes: at an oracle that answers the 74 challenge points of
+   one execution as the sponge does, the oracle verifier is
    `PaperNonInteractive.verify` plus the child openings
    (`Lifecycle.RandomOracleFidelity.accepts_iff_verify`), and every execution
    has such an oracle (`Lifecycle.RandomOracleFidelity.deployedOracle_deployed`).
-2. **Three named events.**
-   - `Lifecycle.RandomOracleUniqueness.collisionChance` is the success of the
-     binding reduction: two different witnesses for one running and fresh
-     statement. Lean turns every such rerun into a `(2B, C)`-relaxed binding
-     collision on one input commitment (SuperNeo v1.2 Appendix B), and then
-     into a nonzero kernel vector of the same Ajtai key with every coordinate
-     below `8TB`
-     (`Lifecycle.RandomOracleBinding.collides_relaxedBindingCollision`,
-     `Lifecycle.RandomOracleBinding.rerun_shortKernel`). For the production
-     key this is
-     `Export.Stage1.Poseidon2HashChainV1Setup.productionRelaxedBindingCollision_to_shortKernel`,
-     which extends to the fixed-seed instance with the earlier approved
-     dimensions
-     (`Export.Stage1.Poseidon2HashChainV1Setup.productionShortKernel_to_approvedMsis`).
-     The premise is MSIS for that public-seed matrix. The 2026-09-08
-     public-seed MSIS approval covered the ChaCha20 matrix only. For the
-     current SHAKE128 matrix, Lean reduces ordinary binding collisions to MSIS
-     for a uniform matrix, with SHAKE128 as a random oracle
-     (`Export.Stage1.Poseidon2HashChainV1Setup.production_binding_lt_solver`).
-     It has no such statement for the kernel vectors of relaxed collisions.
-   - `Lifecycle.RandomOracleExtraction.mismatchChance` and
-     `Lifecycle.RandomOracleUniqueness.runningChance` count retries and
-     reruns that change the running statement. When the claim carries
-     `PriorLink` (`Export.Stage1.RandomOracleLink.linkedClaim`), each of them
-     is a state-hash collision
-     (`Export.Stage1.RandomOracleLink.mismatch_collision`,
-     `Export.Stage1.RandomOracleLink.moves_collision`), and
-     `Export.Stage1.RandomOracleLink.knowledge_error_le_linked` bounds the two
-     terms by the collision events.
-   - Lean bounds none of these events numerically.
-3. **The history: HyperNova errata Assumption 1.**
+2. **SHAKE128 as a random oracle (premise P1).** Each key coefficient is one
+   SHAKE128 output chunk reduced modulo `p`
+   (`Export.Stage1.Poseidon2HashChainV1Setup.productionKey_eq_chunks`). The
+   game draws the chunks uniformly and independently of the Fiat–Shamir
+   oracle. The context digest is computed from the public setup authority
+   (setup identifier, dimensions and seed;
+   `Spec.AjtaiSetupV1.Setup.authorityWords`), so it does not depend on the
+   chunks.
+3. **Two hardness terms.**
+   - `msisAdvantage` is small only if MSIS is hard for a uniform matrix of
+     `22 × 920516` elements of `F_p[X]/Φ₈₁` (degree 54) at norm `8TB`, at the
+     solver's work. The
+     solver runs the adversary an expected number of times that grows with
+     `Q` (above). The 2026-09-08 public-seed MSIS approval covered the
+     ChaCha20 matrix only.
+   - `hashCollisions` is small only if Poseidon2 state-hash collisions are
+     hard to find. The state hash is fixed and has no key, so an efficient
+     algorithm that contains a collision exists. A bound therefore needs the
+     human-ignorance reading (Rogaway): it applies to algorithms that a person
+     can write without such knowledge.
+   - Lean bounds neither term numerically.
+4. **The history: HyperNova errata Assumption 1.**
    `Export.Stage1.HyperNovaVisitedSecurity.Assumption1` states Assumption 1 in
    the form of HyperNova Definition 7 knowledge soundness of the Poseidon2
    NIFS: for every
@@ -192,15 +225,15 @@ reduction takes `Q + 74` expected reruns
      `FalseAcceptance` does not count an accepted statement that is valid only
      through witnesses of other lengths. Such a statement needs a Poseidon2
      output to agree across input lengths.
-4. **Rust and Lean agree on recorded inputs only.** The golden conformance runs
+5. **Rust and Lean agree on recorded inputs only.** The golden conformance runs
    and the native evidence of the assurance surface cover their recorded
    inputs. No theorem covers arbitrary Rust execution.
-5. **Runtime checks.** The verifier's identity and setup checks stay necessary.
+6. **Runtime checks.** The verifier's identity and setup checks stay necessary.
 
 ## What this page does not say
 
 - Completeness does not follow. A contract bounds the adversary; it is not
   evidence that an honest prover's proof is accepted.
 - The error is not one security level. The statistical part costs about
-  `2^115.8` work for each unit of success, linear in `Q`. The named events
-  depend on the MSIS and Poseidon2 parameters.
+  `2^115.8` work for each unit of success, linear in `Q`. The other terms
+  depend on MSIS at the solver's work and on Poseidon2 collisions.

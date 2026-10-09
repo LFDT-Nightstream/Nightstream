@@ -24,8 +24,9 @@ Outputs:
   gives such a collision;
 - `knowledge_error_le_linked`: the knowledge theorem with those two error
   terms replaced by state-hash collision events (`hashMismatchChance`,
-  `hashRunningChance`). The third named term, `collisionChance`, gives a
-  short kernel vector of the key (`RandomOracleBinding.rerun_shortKernel`).
+  `hashRunningChance`). The third named term, `collisionChance`, is at most
+  the chance that the binding reduction returns a short kernel vector of the
+  key (`RandomOracleBinding.collisionChance_le_kernelChance`).
 
 Does not own: the hardness of the state hash or of MSIS.
 -/
@@ -198,40 +199,23 @@ theorem mismatchChance_le {oracle : Oracle} (succeeds : Succeeds relation ajtai 
   rintro answer ⟨retry, moved⟩
   exact ⟨retry, mismatch_collision relation ajtai adversary claim prior contextDigest succeeds retry moved⟩
 
-private theorem retryMass_mono (oracle : Oracle) {event event' : Retries → Prop}
-    (implies : ∀ retries, event retries → event' retries) :
-    retryMass relation ajtai adversary Linked oracle event ≤
-      retryMass relation ajtai adversary Linked oracle event' := by
-  unfold retryMass
-  refine Finset.sum_le_sum fun retries _ => mul_le_mul_of_nonneg_left ?_
-    (weight_nonnegative relation ajtai adversary Linked oracle retries)
-  by_cases holds : event retries
-  · simp [holds, implies retries holds]
-  · simp only [holds, if_false]
-    split <;> norm_num
-
 theorem runningChance_le :
     runningChance relation ajtai adversary Linked ≤
       hashRunningChance relation ajtai adversary claim prior contextDigest := by
   unfold runningChance hashRunningChance
   refine Finset.expect_le_expect fun oracle _ => Finset.sum_le_sum fun retries _ =>
     mul_le_mul_of_nonneg_left ?_ (weight_nonnegative relation ajtai adversary Linked oracle retries)
-  by_cases valid : Valid relation ajtai adversary Linked oracle retries
-  · simp only [if_pos valid]
-    unfold retryChance
-    apply div_le_div_of_nonneg_right _ (resampledSuccess_nonnegative relation ajtai adversary Linked _ _)
-    refine Finset.expect_le_expect fun fresh _ => retryMass_mono relation ajtai adversary claim prior
-      contextDigest _ fun otherRetries ⟨forked, otherValid, moved⟩ => ⟨forked, otherValid, ?_⟩
-    exact moves_collision relation ajtai adversary claim prior contextDigest fresh valid forked otherValid moved
-  · simp only [if_neg valid, le_refl]
+  split_ifs with valid
+  · exact retryChance_mono relation ajtai adversary Linked _ oracle
+      fun fresh _ forked otherValid moved =>
+        moves_collision relation ajtai adversary claim prior contextDigest fresh valid forked otherValid moved
+  · exact le_rfl
 
 /-- The knowledge error with the prior-state link: the statistical part, the
 state-hash collision chances of the retries and reruns, and the binding
 reduction's collision chance. -/
 noncomputable def linkedKnowledgeError (queries : Nat) : ℝ :=
-  ((Nifs.PaperProfile.arity).total *
-      (((queries + (Nifs.PaperProfile.arity).total : Nat) : ℝ) * sampleError) +
-    ((queries + challenges.length : Nat) : ℝ) * IndependentExecution.testError productionShape 8) +
+  statisticalError queries +
   (𝔼 oracle, (if Succeeds relation ajtai adversary Linked oracle then
       ∑ index, hashMismatchChance relation ajtai adversary claim prior contextDigest index oracle else 0) +
     collisionChance relation ajtai adversary Linked +

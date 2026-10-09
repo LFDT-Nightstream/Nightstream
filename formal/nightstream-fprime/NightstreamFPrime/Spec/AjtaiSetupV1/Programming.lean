@@ -2,6 +2,9 @@ import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Algebra.Order.BigOperators.Ring.Finset
+import Mathlib.Algebra.Order.BigOperators.Expect
+import Mathlib.Data.Rat.BigOperators
+import Mathlib.Data.Real.Basic
 import Mathlib.Data.Fintype.BigOperators
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
@@ -424,6 +427,94 @@ theorem real_sub_programmed_le (event : (ι → Chunk) × Extra → Prop) [Decid
         mul_le_mul_of_nonneg_left reducedWeight_difference_le (Nat.cast_nonneg _)
 
 end Games
+
+/-! ## Averages of functions of the chunks -/
+
+open scoped BigOperators in
+/-- The bound of `real_sub_programmed_le` for the average of any function of
+the chunks with values in `[0, 1]`: its average over uniform chunks is at most
+its average over a uniform matrix and uniform preimage chunks, plus
+`2 * coefficients * r / 2 ^ 256`. -/
+theorem expect_le_programmed {ι : Type} [Fintype ι] [DecidableEq ι] (value : (ι → Chunk) → ℝ)
+    (nonnegative : ∀ chunks, 0 ≤ value chunks) (le_one : ∀ chunks, value chunks ≤ 1) :
+    𝔼 chunks, value chunks ≤
+      (𝔼 matrix : ι → F, 𝔼 chunks ∈ preimages matrix, value chunks) +
+        Fintype.card ι * (2 * 4294967295 / 2 ^ 256 : ℝ) := by
+  set average : (ι → F) → ℝ := fun matrix => 𝔼 chunks ∈ preimages matrix, value chunks
+  have average_nonnegative (matrix : ι → F) : 0 ≤ average matrix :=
+    Finset.expect_nonneg fun chunks _ => nonnegative chunks
+  have average_le_one (matrix : ι → F) : average matrix ≤ 1 := by
+    have nonempty : (preimages matrix).Nonempty := by
+      unfold preimages
+      exact Fintype.piFinset_nonempty.mpr fun index => fiber_nonempty (matrix index)
+    calc average matrix ≤ 𝔼 _chunks ∈ preimages matrix, (1 : ℝ) :=
+          Finset.expect_le_expect fun chunks _ => le_one chunks
+      _ = 1 := Finset.expect_const nonempty 1
+  have preimagesCard (matrix : ι → F) :
+      ((preimages matrix).card : ℝ) = ∏ index, ((fiber (matrix index)).card : ℝ) := by
+    unfold preimages
+    rw [Fintype.card_piFinset]
+    push_cast
+    rfl
+  -- The real average splits over the residue matrix of the chunks.
+  have real : 𝔼 chunks, value chunks =
+      ∑ matrix : ι → F, (∏ index, (reducedWeight (matrix index) : ℝ)) * average matrix := by
+    rw [Finset.expect_eq_sum_div_card, ← Finset.sum_fiberwise Finset.univ residues value,
+      Finset.sum_div]
+    apply Finset.sum_congr rfl
+    intro matrix _
+    have fiberEq : Finset.univ.filter (fun chunks : ι → Chunk => residues chunks = matrix) =
+        preimages matrix := by
+      ext chunks
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and, mem_preimages]
+    have nonempty : (preimages matrix).Nonempty := by
+      unfold preimages
+      exact Fintype.piFinset_nonempty.mpr fun index => fiber_nonempty (matrix index)
+    have positive : (0 : ℝ) < (preimages matrix).card := by exact_mod_cast nonempty.card_pos
+    rw [fiberEq]
+    change (∑ chunks ∈ preimages matrix, value chunks) / _ = _ * (𝔼 chunks ∈ preimages matrix, value chunks)
+    rw [Finset.expect_eq_sum_div_card, Finset.card_univ, Fintype.card_fun, Fintype.card_fin]
+    simp only [reducedWeight]
+    push_cast
+    have productPositive : (0 : ℝ) < ∏ index, ((fiber (matrix index)).card : ℝ) := by
+      rw [← preimagesCard]
+      exact positive
+    rw [preimagesCard, Finset.prod_div_distrib, Finset.prod_const, Finset.card_univ,
+      div_mul_div_comm, mul_comm (∏ index, ((fiber (matrix index)).card : ℝ)),
+      mul_div_mul_right _ _ productPositive.ne']
+  -- The programmed average gives each matrix weight `(1 / q) ^ coefficients`.
+  have programmed : 𝔼 matrix : ι → F, average matrix =
+      ∑ matrix : ι → F, (∏ _index : ι, (1 / goldilocksModulus : ℝ)) * average matrix := by
+    rw [Finset.expect_eq_sum_div_card, Finset.sum_div]
+    apply Finset.sum_congr rfl
+    intro matrix _
+    simp only [Finset.prod_const, Finset.card_univ, Fintype.card_fun, Fintype.card_fin]
+    push_cast
+    rw [one_div, inv_pow, div_eq_mul_inv, mul_comm]
+  -- The two weight families differ in total by at most the coordinate bound.
+  have weights : ∑ matrix : ι → F, |∏ index, (reducedWeight (matrix index) : ℝ) -
+      ∏ _index : ι, (1 / goldilocksModulus : ℝ)| ≤
+        Fintype.card ι * (2 * 4294967295 / 2 ^ 256 : ℝ) := by
+    have rational := (product_difference_le (ι := ι) reducedWeight
+      (fun _ => (1 / goldilocksModulus : ℚ)) reducedWeight_nonneg (fun _ => by positivity)
+      reducedWeight_sum (by
+        rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
+        exact mul_one_div_cancel (Nat.cast_ne_zero.mpr (by decide)))).trans
+      (mul_le_mul_of_nonneg_left reducedWeight_difference_le (Nat.cast_nonneg _))
+    have cast := (Rat.cast_le (K := ℝ)).mpr rational
+    push_cast at cast
+    exact cast
+  rw [real, programmed, ← sub_le_iff_le_add', ← Finset.sum_sub_distrib]
+  calc ∑ matrix : ι → F, ((∏ index, (reducedWeight (matrix index) : ℝ)) * average matrix -
+        (∏ _index : ι, (1 / goldilocksModulus : ℝ)) * average matrix)
+      ≤ ∑ matrix : ι → F, |∏ index, (reducedWeight (matrix index) : ℝ) -
+          ∏ _index : ι, (1 / goldilocksModulus : ℝ)| := by
+        refine Finset.sum_le_sum fun matrix _ => ?_
+        rw [← sub_mul]
+        exact (le_abs_self _).trans (by
+          rw [abs_mul, abs_of_nonneg (average_nonnegative matrix)]
+          exact mul_le_of_le_one_right (abs_nonneg _) (average_le_one matrix))
+    _ ≤ _ := weights
 
 /-! ## The setup chunks and binding -/
 

@@ -109,8 +109,15 @@ reduction takes `Q + 74` expected reruns
    it computes) there is an efficient extractor that reads the adversary's
    tape and its own coins, so it may rerun the adversary, and that fails after
    a real success (`NifsRealSuccess.RealSuccess`, with the prior-state link)
-   with probability at most `error` of that adversary. Three differences from
+   with probability at most `error` of that adversary. Four differences from
    Definition 7:
+   - The success event adds the prior-state link (`PriorLink`): the prior
+     preimage that the adversary outputs must hash to the digest in the fresh
+     public input. The bare NIFS verifier does not check this, so without the
+     link a prover could choose the running statement after `γ`. The deployed
+     fold verifier checks it (`checked_prior_state` in
+     `crates/nightstream/src/lifecycle/step_inputs.rs`). So Assumption 1 is
+     Definition 7 for the NIFS verifier together with this check.
    - This joint form implies Definition 7's difference form
      `Pr[success] − Pr[extraction] ≤ error`. The converse needs an adversary
      that stops when its own success check fails.
@@ -168,6 +175,17 @@ reduction takes `Q + 74` expected reruns
      Lean. Lean
      chooses the stages with `Classical.choose`, so a numerical bound on `h_j`
      and on `error` must hold for the whole class.
+   - *Concrete depth.* The sum has one Assumption 1 error for each stage, and
+     stage `j + 1` runs the extractor of stage `j`, which may rerun stage `j`.
+     So the query count `Q_j` of stage `j` includes every earlier rerun. If
+     the plain-model extractor reruns its adversary as the random-oracle
+     extractor does (about `17 (Q + 17)` times), then `Q_{j+1} ≈ 17 Q_j²`.
+     With the error that the one-fold endpoint motivates, `(Q_j + 74) ε_test`
+     is then above 1 at `j = 1` when `Q_0 = 2^64`, and at `j = 2` when
+     `Q_0 = 2^30`. So, with these values, the bound is useful only for a depth
+     of one or two folds, and it gives no concrete security for long chains.
+     This is the constant-depth limit of Lemma 17; the Lean statement is
+     correct for every depth.
    - *Valid history.* An application witness is a field list of any length
      (`AppWitness`), and the step hash takes any length, but a history that the
      reverse run returns has the circuit's witness length. So

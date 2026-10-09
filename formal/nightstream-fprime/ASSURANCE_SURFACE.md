@@ -24,6 +24,7 @@ link, and the fresh commitment and complete CCS relation. Rehashed and
 recommitted Pad/matrix mutations reject at their specific opening checks;
 a recommitted private unit mutation fails a CCS row. Initial/counter/state
 checks pass, and non-authoritative parent/frame/scalar caches are ignored.
+PR #155 later removed the parent cache from the envelope.
 All four full-profile cases pass within the native cap. See
 [the terminal evidence](../../docs/reviews/nightstream-fprime-requirements/NATIVE_TERMINAL_EVIDENCE.md).
 This closes the recorded initial/base/actual-C-R-D/successor/terminal trace.

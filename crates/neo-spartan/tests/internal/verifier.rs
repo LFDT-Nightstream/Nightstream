@@ -8,6 +8,7 @@ use super::layer1::{claim_mutations, proof_mutations, relation_of, setup_toy, tr
 use crate::circuit::block::Kind;
 use crate::circuit::record::{Recorder, Trace};
 use crate::circuit::Backend;
+use crate::device::Accelerator;
 use crate::field::Gl;
 use crate::hash::seed;
 use crate::verifier::{verify, ProofView};
@@ -68,7 +69,15 @@ fn record(
 fn recorded_layer1_verifier_holds_rejects_and_keeps_its_shape() {
     let (toy, setup, _scratch) = setup_toy(8, 4, 6);
     let relation = relation_of(&toy, setup.key());
-    let proof = prove(&relation, &setup, transcript(1), &toy.claim, &toy.witness).unwrap();
+    let proof = prove(
+        &relation,
+        &setup,
+        &Accelerator::cpu(),
+        transcript(1),
+        &toy.claim,
+        &toy.witness,
+    )
+    .unwrap();
     let honest_seed = seed(transcript(1));
 
     let (honest, failure) = record(&relation, honest_seed, &toy.claim, Some(&proof));

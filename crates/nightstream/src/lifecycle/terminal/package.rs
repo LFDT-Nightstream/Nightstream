@@ -65,6 +65,14 @@ pub(crate) struct Package {
     outputs: TerminalOutputs,
 }
 
+/// Start loading the package on another thread (about 5 s, once per
+/// process). A later `package()` waits for it.
+pub(crate) fn preload() {
+    std::thread::spawn(|| {
+        let _ = package();
+    });
+}
+
 /// The embedded package, loaded once.
 pub(crate) fn package() -> Result<&'static Package, Error> {
     static PACKAGE: OnceLock<Result<Package, String>> = OnceLock::new();

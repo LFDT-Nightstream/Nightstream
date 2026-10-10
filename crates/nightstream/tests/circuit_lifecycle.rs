@@ -112,9 +112,20 @@ fn poseidon_compression_setup_matches_the_derived_key() {
 #[test]
 #[ignore = "Full production compression; needs the stored setup; run this test separately under the 300-second cap."]
 fn poseidon_finish_with_spartan_verifies() {
+    finish_with_spartan_verifies(Engine::Optimized);
+}
+
+#[cfg(feature = "metal")]
+#[test]
+#[ignore = "Full production compression on Metal; needs the stored setup; run this test separately under the 300-second cap."]
+fn poseidon_metal_finish_with_spartan_verifies() {
+    finish_with_spartan_verifies(Engine::Metal);
+}
+
+fn finish_with_spartan_verifies(engine: Engine) {
     let started = Instant::now();
     let circuit = Circuit::compile(&selected_reference(), poseidon2_hash_chain_v1().unwrap()).unwrap();
-    let prover = circuit.prover(Engine::Optimized, 114).unwrap();
+    let prover = circuit.prover(engine, 114).unwrap();
     let verifier = Verifier::from_package(&circuit, Engine::Optimized, 114).unwrap();
     let key = CompressionKey::from_bytes(&fs::read(compression_dir().join("key.bin")).unwrap()).unwrap();
     let setup = prover

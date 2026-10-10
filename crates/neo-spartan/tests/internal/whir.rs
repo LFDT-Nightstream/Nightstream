@@ -9,6 +9,7 @@ use p3_field_v08::{BasedVectorSpace, PrimeCharacteristicRing as _, PrimeField64 
 use p3_sumcheck_v08::OpeningBatch;
 use p3_symmetric_v08::Permutation;
 
+use crate::device::Accelerator;
 use crate::field::{gl, Ext, Gl};
 use crate::hash::{challenger, permutation, seed};
 use crate::matrix::Structure;
@@ -98,8 +99,8 @@ fn whir_opens_two_tables_through_the_seeded_challenger() {
     assert!(pcs.security_bits() >= 100.0);
 
     let mut prover = challenger(seed(fold_transcript(1)));
-    let (commitment, data) = pcs.commit(vec![large, small.concat()], &mut prover);
-    let opening = pcs.open(data, &points, &mut prover);
+    let (commitment, data) = pcs.commit(vec![large, small.concat()], &mut prover, &Accelerator::cpu());
+    let opening = pcs.open(data, &points, &mut prover, &Accelerator::cpu());
 
     let verify = |transcript: Poseidon2Transcript, points: &[Vec<Ext>], opening| {
         let mut verifier = challenger(seed(transcript));

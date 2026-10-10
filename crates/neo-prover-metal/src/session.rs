@@ -67,6 +67,7 @@ pub struct MetalSession {
     poseidon2_hash_simd: Pipeline,
     poseidon2_hash_uniform: Pipeline,
     poseidon2_hash_uniform_simd: Pipeline,
+    poseidon2_hash_rows_overwrite: Pipeline,
     poseidon2_constants: Buffer,
     // Ajtai commitment pipelines.
     ajtai_mat_vec: Pipeline,
@@ -108,6 +109,13 @@ pub struct MetalSession {
     production_key: Option<Mutex<production_commitment::ResidentKeyRows>>,
     activity: ActivityCounters,
 }
+
+// SAFETY: the session owns a device, command queues, pipelines and buffers,
+// which Apple documents as safe to retain, release and use from any thread;
+// its other state is atomics and a mutex. Every command buffer and encoder
+// is created, used and dropped inside one call. So the session may move
+// between threads; callers that share it still serialize calls (a mutex).
+unsafe impl Send for MetalSession {}
 
 /// Resident Ajtai matrix and reduction scratch reused across commitments.
 pub struct MetalAjtaiLowNormPlan {
@@ -155,6 +163,7 @@ impl MetalSession {
         let poseidon2_hash_simd = pipeline(&device, &library, "poseidon2_hash_fields_simd")?;
         let poseidon2_hash_uniform = pipeline(&device, &library, "poseidon2_hash_uniform")?;
         let poseidon2_hash_uniform_simd = pipeline(&device, &library, "poseidon2_hash_uniform_simd")?;
+        let poseidon2_hash_rows_overwrite = pipeline(&device, &library, "poseidon2_hash_rows_overwrite")?;
         let poseidon2_constants = buffer_from_slice(&device, &poseidon2_round_constants())?;
         let ajtai_mat_vec = pipeline(&device, &library, "ajtai_mat_vec")?;
         let ajtai_low_norm_products = pipeline(&device, &library, "ajtai_low_norm_products")?;
@@ -203,6 +212,7 @@ impl MetalSession {
             poseidon2_hash_simd,
             poseidon2_hash_uniform,
             poseidon2_hash_uniform_simd,
+            poseidon2_hash_rows_overwrite,
             poseidon2_constants,
             ajtai_mat_vec,
             ajtai_low_norm_products,
@@ -529,6 +539,42 @@ impl MetalSession {
         encoder.endEncoding();
         self.finish(&command)?;
         let output = self.read_buffer::<u64>(&plan.output, plan.hashes * 4);
+        Ok(output
+            .chunks_exact(4)
+            .map(|words| words.try_into().expect("chunks_exact has width 4"))
+            .collect())
+    }
+
+    /// Merkle leaf digests of the rows of `width` words in `fields`:
+    /// Plonky3's overwrite sponge (`PaddingFreeSponge`, width 16, rate 12,
+    /// four outputs). Words may be non-canonical; digests are canonical.
+    pub fn poseidon2_hash_rows_overwrite(
+        &self,
+        fields: &[u64],
+        width: usize,
+    ) -> Result<Vec<PoseidonDigest>, MetalError> {
+        if width == 0 || fields.is_empty() || !fields.len().is_multiple_of(width) {
+            return Err(MetalError::Shape(
+                "a row batch must hold a positive whole number of rows",
+            ));
+        }
+        let rows = fields.len() / width;
+        let input = self.buffer_from_slice(fields)?;
+        let output = self.buffer(rows * 4 * size_of::<u64>())?;
+        let shape = self.buffer_from_slice(&[width as u64])?;
+        let command = self.command_buffer("nightstream.poseidon2.hash_rows_overwrite")?;
+        let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
+        encoder.setComputePipelineState(&self.poseidon2_hash_rows_overwrite);
+        unsafe {
+            encoder.setBuffer_offset_atIndex(Some(&input), 0, 0);
+            encoder.setBuffer_offset_atIndex(Some(&output), 0, 1);
+            encoder.setBuffer_offset_atIndex(Some(&self.poseidon2_constants), 0, 2);
+            encoder.setBuffer_offset_atIndex(Some(&shape), 0, 3);
+        }
+        self.dispatch(&encoder, &self.poseidon2_hash_rows_overwrite, rows);
+        encoder.endEncoding();
+        self.finish(&command)?;
+        let output = self.read_buffer::<u64>(&output, rows * 4);
         Ok(output
             .chunks_exact(4)
             .map(|words| words.try_into().expect("chunks_exact has width 4"))

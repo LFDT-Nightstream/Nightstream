@@ -29,6 +29,7 @@
 //! key, never the setup files or the matrices.
 
 mod circuit;
+mod device;
 mod field;
 mod gkr;
 mod hash;
@@ -77,6 +78,7 @@ use crate::verifier::ProofView;
 pub use crate::circuit::fold::FoldTranscript;
 pub use crate::circuit::r1cs::R1cs;
 pub use crate::circuit::{Backend, Native};
+pub use crate::device::{Accelerator, Device};
 
 /// The claim this crate proves.
 pub type Claim = neo_ccs::CeClaim<Commitment, F, K>;
@@ -469,10 +471,12 @@ impl Proof {
     }
 }
 
-/// Prove `claim` for `witness` (54 × blocks), continuing `transcript`.
+/// Prove `claim` for `witness` (54 × blocks), continuing `transcript`. The
+/// Merkle leaves hash on `accelerator`.
 pub fn prove(
     relation: &Relation<'_>,
     setup: &Setup,
+    accelerator: &Accelerator,
     transcript: Poseidon2Transcript,
     claim: &Claim,
     witness: &Mat<F>,
@@ -501,7 +505,7 @@ pub fn prove(
         slot_columns,
         early.mult.clone(),
     ];
-    let (p0, p0_data) = relation.p0.commit(p0_tables, &mut challenger);
+    let (p0, p0_data) = relation.p0.commit(p0_tables, &mut challenger, accelerator);
     challenger.observe_slice(&norm::words(&histogram));
     let beta: Ext = challenger.sample_algebra_element();
     let challenges = early_challenges(&mut challenger);
@@ -562,7 +566,7 @@ pub fn prove(
     drop((key_table, run_table));
     let (p1, p1_data) = relation
         .p1
-        .commit(vec![fold_columns, coordinates(&omega_a)], &mut challenger);
+        .commit(vec![fold_columns, coordinates(&omega_a)], &mut challenger, accelerator);
     let indices = relation.query_indices(&mut challenger);
     let leaves = indices
         .iter()
@@ -585,7 +589,9 @@ pub fn prove(
         })
         .collect();
     let p1_points = p1_points(&key_point, &run_point, query_points, block_point, &late[1].point);
-    let p1_opening = relation.p1.open(p1_data, &p1_points, &mut challenger);
+    let p1_opening = relation
+        .p1
+        .open(p1_data, &p1_points, &mut challenger, accelerator);
     let p0_points = vec![
         claims[0].point.clone(),
         linear_point.clone(),
@@ -595,7 +601,9 @@ pub fn prove(
         slots(&late[0].point),
         claims[2].point.clone(),
     ];
-    let p0_opening = relation.p0.open(p0_data, &p0_points, &mut challenger);
+    let p0_opening = relation
+        .p0
+        .open(p0_data, &p0_points, &mut challenger, accelerator);
     Ok(Proof {
         p0,
         histogram,

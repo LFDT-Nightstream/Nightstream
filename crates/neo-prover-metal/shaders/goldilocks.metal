@@ -597,6 +597,41 @@ kernel void poseidon2_hash_uniform_simd(
     }
 }
 
+// Merkle leaf digests of rows: Plonky3's overwrite sponge (PaddingFreeSponge).
+// Each row starts from the zero state; each block of up to POSEIDON_RATE words
+// overwrites the first lanes and is followed by one permutation.
+kernel void poseidon2_hash_rows_overwrite(
+    device const ulong *fields [[buffer(0)]],
+    device ulong *output [[buffer(1)]],
+    constant const ulong *round_constants [[buffer(2)]],
+    device const ulong *shape [[buffer(3)]],
+    uint index [[thread_position_in_grid]]) {
+    PoseidonState state = PoseidonState{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    ulong width = shape[0];
+    ulong offset = index * width;
+    for (ulong position = 0; position < width; position += POSEIDON_RATE) {
+        ulong take = min((ulong)POSEIDON_RATE, width - position);
+        if (take > 0) state.s0 = gl_from_word(fields[offset + position]);
+        if (take > 1) state.s1 = gl_from_word(fields[offset + position + 1]);
+        if (take > 2) state.s2 = gl_from_word(fields[offset + position + 2]);
+        if (take > 3) state.s3 = gl_from_word(fields[offset + position + 3]);
+        if (take > 4) state.s4 = gl_from_word(fields[offset + position + 4]);
+        if (take > 5) state.s5 = gl_from_word(fields[offset + position + 5]);
+        if (take > 6) state.s6 = gl_from_word(fields[offset + position + 6]);
+        if (take > 7) state.s7 = gl_from_word(fields[offset + position + 7]);
+        if (take > 8) state.s8 = gl_from_word(fields[offset + position + 8]);
+        if (take > 9) state.s9 = gl_from_word(fields[offset + position + 9]);
+        if (take > 10) state.s10 = gl_from_word(fields[offset + position + 10]);
+        if (take > 11) state.s11 = gl_from_word(fields[offset + position + 11]);
+        state = poseidon_permute(state, round_constants);
+    }
+    uint base = POSEIDON_DIGEST * index;
+    output[base] = state.s0;
+    output[base + 1] = state.s1;
+    output[base + 2] = state.s2;
+    output[base + 3] = state.s3;
+}
+
 kernel void transcript_absorb_challenge2(
     device ulong *transcript_state [[buffer(0)]],
     device const ulong *fields [[buffer(1)]],

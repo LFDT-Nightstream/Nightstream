@@ -29,6 +29,7 @@ use crate::circuit::block::{Kind, C, KINDS, MATRICES, X};
 use crate::circuit::r1cs::R1cs;
 use crate::circuit::record::{Form, Recorder, Sink, Term, Trace, Wire};
 use crate::circuit::{algebra, Backend, Native};
+use crate::device::Accelerator;
 use crate::field::{eq_table, fold_low, gl, Ext, Gl};
 use crate::hash::{permutation, Challenger};
 use crate::pcs::{self, Pcs, TablePlan};
@@ -170,8 +171,9 @@ fn statement_of(program: &impl Program) -> Result<Vec<Gl>, Error> {
     Ok(words.into_iter().map(Gl::new).collect())
 }
 
-/// Prove that `program` accepts its statement.
-pub fn prove(shrink: &Shrink, program: &impl Program) -> Result<ShrinkProof, Error> {
+/// Prove that `program` accepts its statement. The Merkle leaves hash on
+/// `accelerator`.
+pub fn prove(shrink: &Shrink, program: &impl Program, accelerator: &Accelerator) -> Result<ShrinkProof, Error> {
     let layout = &shrink.layout;
     let statement = statement_of(program)?;
     let mut recorder = Recorder::new(Trace::default());
@@ -196,7 +198,7 @@ pub fn prove(shrink: &Shrink, program: &impl Program) -> Result<ShrinkProof, Err
     let n = layout.cell_variables;
     let (commitment, data) = shrink
         .pcs
-        .commit(vec![z[..1 << n].to_vec()], &mut challenger);
+        .commit(vec![z[..1 << n].to_vec()], &mut challenger, accelerator);
     let tau: Vec<Ext> = (0..layout.row_variables)
         .map(|_| challenger.sample_algebra_element())
         .collect();
@@ -206,7 +208,9 @@ pub fn prove(shrink: &Shrink, program: &impl Program) -> Result<ShrinkProof, Err
     let weights = weights(layout, &trace, &rx, &rho);
     let z: Vec<Ext> = z.into_par_iter().map(Ext::from).collect();
     let (inner, ry, _) = sumcheck::prove_product(weights, z, &mut challenger);
-    let opening = shrink.pcs.open(data, &[ry[..n].to_vec()], &mut challenger);
+    let opening = shrink
+        .pcs
+        .open(data, &[ry[..n].to_vec()], &mut challenger, accelerator);
     Ok(ShrinkProof {
         commitment,
         outer,

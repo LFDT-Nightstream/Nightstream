@@ -43,7 +43,7 @@ pub enum EngineError {
 
 pub(crate) enum Backend {
     #[cfg(feature = "metal")]
-    Metal(Box<std::sync::Mutex<neo_prover_metal::MetalRowProver>>),
+    Metal(std::sync::Arc<std::sync::Mutex<neo_prover_metal::MetalRowProver>>),
     PaperExact,
     Optimized,
     Crosscheck,
@@ -110,7 +110,7 @@ impl Backend {
         device: Result<neo_prover_metal::MetalRowProver, neo_prover_metal::MetalError>,
     ) -> Result<Self, EngineError> {
         device
-            .map(|device| Self::Metal(Box::new(std::sync::Mutex::new(device))))
+            .map(|device| Self::Metal(std::sync::Arc::new(std::sync::Mutex::new(device))))
             .map_err(|error| match error {
                 neo_prover_metal::MetalError::Unavailable => EngineError::Unavailable {
                     engine,
@@ -136,6 +136,18 @@ impl Backend {
                 let _ = columns;
                 0
             }
+        }
+    }
+
+    /// Where the compression prover's batch loops run. Only Metal has a
+    /// device; every other engine runs them on the CPU.
+    pub(crate) fn accelerator(&self) -> neo_spartan::Accelerator {
+        match self {
+            #[cfg(feature = "metal")]
+            Self::Metal(device) => neo_spartan::Accelerator::new(std::sync::Arc::new(metal::CompressionDevice::new(
+                std::sync::Arc::clone(device),
+            ))),
+            _ => neo_spartan::Accelerator::cpu(),
         }
     }
 

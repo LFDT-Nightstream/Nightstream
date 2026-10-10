@@ -13,6 +13,7 @@ use p3_sumcheck_v08::OpeningBatch;
 
 use super::{commit, word, Scratch, Toy};
 use crate::circuit::Native;
+use crate::device::Accelerator;
 use crate::field::{Ext, Gl};
 use crate::ring::{self, Mixing};
 use crate::{prove, verify, witness_table, Claim, ClaimWords, Key, Proof, Relation, Setup, LANES};
@@ -181,7 +182,15 @@ fn true_claims_verify_and_every_tampered_part_rejects() {
     let (toy, setup, _scratch) = setup_toy(2, 4, 6);
     let relation = relation_of(&toy, setup.key());
     assert!(relation.security_bits() >= BITS);
-    let proof = prove(&relation, &setup, transcript(1), &toy.claim, &toy.witness).unwrap();
+    let proof = prove(
+        &relation,
+        &setup,
+        &Accelerator::cpu(),
+        transcript(1),
+        &toy.claim,
+        &toy.witness,
+    )
+    .unwrap();
     let accepts = |claim: &Claim, proof: &Proof, extra: u64| verify(&relation, transcript(extra), claim, proof).is_ok();
     assert!(accepts(&toy.claim, &proof, 1));
     let decoded = Proof::from_bytes(&proof.to_bytes()).unwrap();
@@ -218,7 +227,15 @@ fn a_false_witness_gives_a_proof_that_rejects() {
     for (block, lane) in [(0, 0), (2, 17), (3, 53)] {
         let mut witness = toy.witness.clone();
         witness[(lane, block)] += F::ONE;
-        let proof = prove(&relation, &setup, transcript(1), &toy.claim, &witness).unwrap();
+        let proof = prove(
+            &relation,
+            &setup,
+            &Accelerator::cpu(),
+            transcript(1),
+            &toy.claim,
+            &witness,
+        )
+        .unwrap();
         assert!(
             verify(&relation, transcript(1), &toy.claim, &proof).is_err(),
             "block {block} lane {lane}"
@@ -227,7 +244,15 @@ fn a_false_witness_gives_a_proof_that_rejects() {
     let mut witness = toy.witness.clone();
     witness[(1, 1)] = F::from_u64(u64::from(BOUND) + 1);
     assert!(
-        prove(&relation, &setup, transcript(1), &toy.claim, &witness).is_err(),
+        prove(
+            &relation,
+            &setup,
+            &Accelerator::cpu(),
+            transcript(1),
+            &toy.claim,
+            &witness
+        )
+        .is_err(),
         "norm bound"
     );
 }
@@ -239,7 +264,15 @@ fn larger_relation_round_trips() {
     let built = start.elapsed();
     let relation = relation_of(&toy, setup.key());
     let start = Instant::now();
-    let proof = prove(&relation, &setup, transcript(1), &toy.claim, &toy.witness).unwrap();
+    let proof = prove(
+        &relation,
+        &setup,
+        &Accelerator::cpu(),
+        transcript(1),
+        &toy.claim,
+        &toy.witness,
+    )
+    .unwrap();
     let proved = start.elapsed();
     let start = Instant::now();
     verify(&relation, transcript(1), &toy.claim, &proof).unwrap();

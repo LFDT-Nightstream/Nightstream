@@ -13,7 +13,7 @@ mod package;
 
 #[cfg(test)]
 pub(crate) use package::IDENTIFIER as TERMINAL_PACKAGE_IDENTIFIER;
-pub(crate) use package::{package, Package};
+pub(crate) use package::{package, preload, Package};
 
 use neo_math::F;
 use neo_spartan::{Backend, Error, Relation};

@@ -4,6 +4,7 @@ mod circuit;
 mod gkr;
 mod layer1;
 mod matrix;
+mod merkle;
 mod mle;
 mod setup;
 mod shrink;

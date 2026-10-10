@@ -3,8 +3,8 @@
 //! generates the fixed key and computes child commitments.
 
 use crate::folding::{
-    self, ajtai_dec_mixer, ajtai_rlc_mixer, pi_ccs, pi_dec, pi_rlc, transcript::Transcript, CcsInstance, NifsProof,
-    Params, RunningInstance, Structure,
+    self, ajtai_dec_mixer, ajtai_rlc_mixer, pi_ccs, pi_dec, pi_rlc, transcript::Transcript, CcsClaim, CcsInstance,
+    CcsWitness, NifsProof, Params, RunningInstance, Structure,
 };
 use neo_ajtai::{scale_commitment_add_inplace, Commitment};
 use neo_math::{D, F};
@@ -26,21 +26,17 @@ pub(crate) fn prove(
         .into_iter()
         .map(|source| (source.claim, source.witness))
         .unzip();
-    let (outputs, sumcheck, _, _) = optimized_prove_with_matrix_rows(
-        transcript.inner_mut(),
-        params.inner(),
+    let c = prove_pi_ccs(
+        device,
+        transcript,
+        params,
         structure,
-        &claims,
-        &witnesses,
-        &running.claims,
-        &running.witnesses,
         rows,
         workspace_bytes,
-        Some(device),
-    )
-    .map_err(folding::kernels::Error::from)
-    .map_err(pi_ccs::Error::from)?;
-    let c = pi_ccs::Proof { outputs, sumcheck };
+        &claims,
+        &witnesses,
+        &running,
+    )?;
     let sources: Vec<_> = witnesses
         .iter()
         .map(|witness| &witness.Z)
@@ -104,6 +100,74 @@ pub(crate) fn prove(
             pi_dec: d,
         },
     ))
+}
+
+/// One fold up to its parent, for compression: PiCCS with its round oracle
+/// on the device, then PiRLC on the host, which returns the parent witness.
+/// The same outputs as `folding::prove_parent_with_rows`.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn prove_parent(
+    device: &mut MetalRowProver,
+    transcript: &mut Transcript,
+    params: &Params,
+    structure: &Structure,
+    rows: &dyn MatrixRows,
+    workspace_bytes: usize,
+    fresh: Vec<CcsInstance>,
+    running: RunningInstance,
+) -> Result<(pi_ccs::Proof, pi_rlc::Output, pi_rlc::Proof), folding::Error> {
+    let (claims, witnesses): (Vec<_>, Vec<_>) = fresh
+        .into_iter()
+        .map(|source| (source.claim, source.witness))
+        .unzip();
+    let c = prove_pi_ccs(
+        device,
+        transcript,
+        params,
+        structure,
+        rows,
+        workspace_bytes,
+        &claims,
+        &witnesses,
+        &running,
+    )?;
+    let sources: Vec<_> = witnesses
+        .iter()
+        .map(|witness| &witness.Z)
+        .chain(running.witnesses.iter())
+        .collect();
+    let (parent, r) = pi_rlc::prove_refs(transcript, params, structure, ajtai_rlc_mixer, &c.outputs, &sources)?;
+    Ok((c, parent, r))
+}
+
+/// PiCCS with its round oracle on the device.
+#[allow(clippy::too_many_arguments)]
+fn prove_pi_ccs(
+    device: &mut MetalRowProver,
+    transcript: &mut Transcript,
+    params: &Params,
+    structure: &Structure,
+    rows: &dyn MatrixRows,
+    workspace_bytes: usize,
+    claims: &[CcsClaim],
+    witnesses: &[CcsWitness],
+    running: &RunningInstance,
+) -> Result<pi_ccs::Proof, folding::Error> {
+    let (outputs, sumcheck, _, _) = optimized_prove_with_matrix_rows(
+        transcript.inner_mut(),
+        params.inner(),
+        structure,
+        claims,
+        witnesses,
+        &running.claims,
+        &running.witnesses,
+        rows,
+        workspace_bytes,
+        Some(device),
+    )
+    .map_err(folding::kernels::Error::from)
+    .map_err(pi_ccs::Error::from)?;
+    Ok(pi_ccs::Proof { outputs, sumcheck })
 }
 
 /// Child 0's commitment from the parent's and children 1.. . The split gives

@@ -25,7 +25,7 @@ pub use self::layout::Shape;
 
 use self::evaluate::Evaluate;
 use self::layout::Layout;
-use crate::circuit::block::{Kind, C, KINDS, MATRICES, X};
+use crate::circuit::block::{Entry, Kind, C, KINDS, MATRICES, X};
 use crate::circuit::r1cs::R1cs;
 use crate::circuit::record::{Form, Recorder, Sink, Term, Trace, Wire};
 use crate::circuit::{algebra, Backend, Native};
@@ -345,24 +345,40 @@ fn z_table(layout: &Layout, trace: &Trace) -> Vec<Gl> {
 fn products(layout: &Layout, trace: &Trace, z: &[Gl]) -> Vec<Vec<Ext>> {
     let rows = 1usize << layout.row_variables;
     let mut tables = vec![vec![Gl::ZERO; rows]; MATRICES];
-    for kind in KINDS {
-        for block in 0..layout.shape.blocks[kind.index()] {
-            for entry in kind.entries() {
-                tables[entry.matrix][layout.block_row(kind, block, entry.row)] +=
-                    entry.coefficient * z[layout.entry_column(kind, block, entry.cell)];
+    for (matrix, table) in tables.iter_mut().enumerate() {
+        for kind in KINDS {
+            let mut by_row = vec![Vec::new(); kind.rows()];
+            for entry in kind.entries().iter().filter(|entry| entry.matrix == matrix) {
+                by_row[entry.row].push(entry);
+            }
+            // Every block owns its row slots, so the blocks fill them in parallel.
+            for (start, stride, first) in layout.row_parts(kind) {
+                table[start..start + stride * layout.shape.blocks[kind.index()]]
+                    .par_chunks_mut(stride)
+                    .enumerate()
+                    .for_each(|(block, slot)| {
+                        for (value, entries) in slot.iter_mut().zip(by_row.iter().skip(first)) {
+                            for entry in entries {
+                                *value += entry.coefficient * z[layout.entry_column(kind, block, entry.cell)];
+                            }
+                        }
+                    });
             }
         }
-    }
-    for (g, offsets) in trace.rows.iter().enumerate() {
-        let row = layout.glue_row(g);
-        for side in 0..7 {
-            let matrix = if side == 6 { C } else { 1 + side };
-            let terms = &trace.entries[offsets[side] as usize..offsets[side + 1] as usize];
-            tables[matrix][row] = terms
-                .iter()
-                .map(|&(wire, coefficient)| coefficient * z[layout.column(wire)])
-                .sum();
+        if matrix == X {
+            continue;
         }
+        let side = if matrix == C { 6 } else { matrix - 1 };
+        let start = layout.glue_row(0);
+        table[start..start + trace.rows.len()]
+            .par_iter_mut()
+            .zip(&trace.rows)
+            .for_each(|(value, offsets)| {
+                *value = trace.entries[offsets[side] as usize..offsets[side + 1] as usize]
+                    .iter()
+                    .map(|&(wire, coefficient)| coefficient * z[layout.column(wire)])
+                    .sum();
+            });
     }
     tables
         .into_par_iter()
@@ -375,12 +391,35 @@ fn weights(layout: &Layout, trace: &Trace, rx: &[Ext], rho: &[Ext; MATRICES]) ->
     let eq_rows = eq_table(rx);
     let mut weights = vec![Ext::ZERO; 2 << layout.cell_variables];
     for kind in KINDS {
-        for block in 0..layout.shape.blocks[kind.index()] {
-            for entry in kind.entries() {
-                weights[layout.entry_column(kind, block, entry.cell)] +=
-                    rho[entry.matrix] * eq_rows[layout.block_row(kind, block, entry.row)] * entry.coefficient;
+        let blocks = layout.shape.blocks[kind.index()];
+        let mut by_cell = vec![Vec::new(); kind.cells()];
+        let mut constant = Vec::new();
+        for entry in kind.entries() {
+            match entry.cell {
+                Some(cell) => by_cell[cell].push(entry),
+                None => constant.push(entry),
             }
         }
+        let term = |block: usize, entry: &Entry| {
+            rho[entry.matrix] * eq_rows[layout.block_row(kind, block, entry.row)] * entry.coefficient
+        };
+        // Every block owns its cell slots, so the blocks fill them in parallel.
+        for (start, stride, first) in layout.cell_parts(kind) {
+            weights[start..start + stride * blocks]
+                .par_chunks_mut(stride)
+                .enumerate()
+                .for_each(|(block, slot)| {
+                    for (weight, entries) in slot.iter_mut().zip(by_cell.iter().skip(first)) {
+                        for entry in entries {
+                            *weight += term(block, entry);
+                        }
+                    }
+                });
+        }
+        weights[layout.one()] += (0..blocks)
+            .into_par_iter()
+            .map(|block| constant.iter().map(|entry| term(block, entry)).sum::<Ext>())
+            .sum::<Ext>();
     }
     for (g, offsets) in trace.rows.iter().enumerate() {
         let weight = eq_rows[layout.glue_row(g)];

@@ -5,6 +5,7 @@
 
 use p3_challenger_v08::FieldChallenger;
 use p3_field_v08::PrimeCharacteristicRing;
+use rayon::prelude::*;
 
 use crate::circuit::algebra;
 use crate::circuit::hash::Duplex;
@@ -53,12 +54,11 @@ pub(crate) fn prove_product(
     let mut rounds = Vec::new();
     let mut point = Vec::new();
     while a.len() > 1 {
-        let (mut at_zero, mut at_two) = (Ext::ZERO, Ext::ZERO);
-        for k in 0..a.len() / 2 {
-            let (a0, a1, b0, b1) = (a[2 * k], a[2 * k + 1], b[2 * k], b[2 * k + 1]);
-            at_zero += a0 * b0;
-            at_two += (a1.double() - a0) * (b1.double() - b0);
-        }
+        let (at_zero, at_two) = a
+            .par_chunks_exact(2)
+            .zip(b.par_chunks_exact(2))
+            .map(|(a, b)| (a[0] * b[0], (a[1].double() - a[0]) * (b[1].double() - b[0])))
+            .reduce(|| (Ext::ZERO, Ext::ZERO), |x, y| (x.0 + y.0, x.1 + y.1));
         let message = vec![at_zero, at_two];
         let r = send(&message, challenger);
         fold_low(&mut a, r);
@@ -73,7 +73,7 @@ pub(crate) fn prove_product(
 pub(crate) fn evaluate(table: &[Ext], point: &[Ext]) -> Ext {
     assert_eq!(table.len(), 1 << point.len());
     eq_table(point)
-        .iter()
+        .par_iter()
         .zip(table)
         .map(|(&w, &v)| w * v)
         .sum()

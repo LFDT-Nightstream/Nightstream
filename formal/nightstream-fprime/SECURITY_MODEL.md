@@ -149,13 +149,14 @@ collision.
   points of one execution as the sponge does, the two agree
   (`Lifecycle.RandomOracleFidelity.accepts_iff_verify`), and every execution
   has such an oracle (`Lifecycle.RandomOracleFidelity.deployedOracle_deployed`).
-  The deployed system runs this verifier with Poseidon2: the Rust terminal
-  verifier checks the last fold, and the step circuit of `F′` checks each
-  inner fold. Under trust item 1, this result applies to the last fold's
-  reads. It does not reach the inner folds: the circuit evaluates the hash,
-  and no random-oracle model covers a hash inside a circuit. For the history,
-  it only motivates the value of `error` in Assumption 1 (adversary 4). `Export.Stage1.RandomOracleSetup.contract` states the result
-  as Ironwood's six-question `Spec.KnowledgeContract`.
+  The deployed system checks every fold only inside the step circuit of
+  `F′`, with Poseidon2. The Rust terminal verifier checks the final openings
+  and the state-hash link, and runs no fold
+  (`crates/nightstream/src/lifecycle/verify.rs`). No random-oracle model
+  covers a hash inside a circuit, so this result bounds no deployed verifier
+  check. For the history, it only motivates the value of `error` in
+  Assumption 1 (adversary 4). `Export.Stage1.RandomOracleSetup.contract`
+  states the result as Ironwood's six-question `Spec.KnowledgeContract`.
 - **Model limits:** the extractor and the binding reduction rerun the
   adversary with a changed oracle, so the oracle is programmable. The game
   draws the chunks after the adversary is fixed, but the deployed seed is
@@ -208,9 +209,11 @@ fresh verifier coin by an oracle read. Each module header states its part:
 
 ## What you trust
 
-1. **The random-oracle model of the challenge reads.** The deployed verifier
+1. **The random-oracle model of the challenge reads.** The NIFS verifier
    reads each challenge from the Poseidon2 sponge state after the exact call
-   list of that challenge. `Lifecycle.TranscriptCoverage.piCcsProbe_coins`
+   list of that challenge. The deployed system makes these reads only inside
+   the step circuit, so this model applies to adversary 3's game, not to a
+   deployed check. `Lifecycle.TranscriptCoverage.piCcsProbe_coins`
    and `Lifecycle.TranscriptCoverage.rho_seal` prove that the coins are one
    read of each call list. The model replaces that read by a uniform random
    function of the call list (`Lifecycle.RandomOracleTest.coins`). This is a

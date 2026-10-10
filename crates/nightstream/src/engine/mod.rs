@@ -78,18 +78,7 @@ impl Backend {
             Engine::PaperExact => Ok(Self::PaperExact),
             Engine::Crosscheck => Ok(Self::Crosscheck),
             #[cfg(feature = "metal")]
-            Engine::Metal => neo_prover_metal::MetalRowProver::new()
-                .map(|device| Self::Metal(Box::new(std::sync::Mutex::new(device))))
-                .map_err(|error| match error {
-                    neo_prover_metal::MetalError::Unavailable => EngineError::Unavailable {
-                        engine,
-                        reason: "Metal requires an Apple device and compiled shaders",
-                    },
-                    error => EngineError::Failure {
-                        engine,
-                        reason: error.to_string(),
-                    },
-                }),
+            Engine::Metal => Self::metal(engine, neo_prover_metal::MetalRowProver::new()),
             #[cfg(not(feature = "metal"))]
             Engine::Metal => Err(EngineError::Unavailable {
                 engine,
@@ -102,6 +91,51 @@ impl Backend {
                 #[cfg(not(feature = "cuda"))]
                 reason: "build nightstream with the cuda feature; its canonical kernel is not implemented",
             }),
+        }
+    }
+
+    /// The prover's backend. Metal keeps the commitment key rows on the device,
+    /// because a prover commits at every step; a verifier commits once.
+    pub(crate) fn new_prover(engine: Engine) -> Result<Self, EngineError> {
+        match engine {
+            #[cfg(feature = "metal")]
+            Engine::Metal => Self::metal(engine, neo_prover_metal::MetalRowProver::with_resident_commitment_key()),
+            engine => Self::new(engine),
+        }
+    }
+
+    #[cfg(feature = "metal")]
+    fn metal(
+        engine: Engine,
+        device: Result<neo_prover_metal::MetalRowProver, neo_prover_metal::MetalError>,
+    ) -> Result<Self, EngineError> {
+        device
+            .map(|device| Self::Metal(Box::new(std::sync::Mutex::new(device))))
+            .map_err(|error| match error {
+                neo_prover_metal::MetalError::Unavailable => EngineError::Unavailable {
+                    engine,
+                    reason: "Metal requires an Apple device and compiled shaders",
+                },
+                error => EngineError::Failure {
+                    engine,
+                    reason: error.to_string(),
+                },
+            })
+    }
+
+    /// Device bytes the backend keeps for commitments over `columns` columns.
+    /// Only a Metal prover keeps its commitment key.
+    pub(crate) fn kept_commitment_key_bytes(&self, columns: usize) -> usize {
+        match self {
+            #[cfg(feature = "metal")]
+            Self::Metal(device) => device
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .kept_commitment_key_bytes(columns),
+            _ => {
+                let _ = columns;
+                0
+            }
         }
     }
 

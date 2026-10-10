@@ -1,7 +1,9 @@
 //! Fixed production-key commitments. Validate on the host, generate key rows
-//! and sum signed ring products on the device. No complete key is stored.
+//! and sum signed ring products on the device. A streaming session expands the
+//! rows it needs in every call; a prover session keeps the complete key rows
+//! after their first use.
 
-use std::borrow::Borrow;
+use std::{borrow::Borrow, sync::MutexGuard};
 
 use neo_ajtai::{
     nightstream_fprime_setup::{
@@ -15,7 +17,7 @@ use objc2_foundation::NSString;
 use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder, MTLComputeCommandEncoder, MTLComputePipelineState, MTLDevice};
 use p3_field::PrimeCharacteristicRing;
 
-use super::MetalSession;
+use super::{Buffer, MetalSession};
 use crate::MetalError;
 
 /// Columns that one accumulation threadgroup walks before it writes a partial.
@@ -23,7 +25,88 @@ use crate::MetalError;
 /// 512 and 2,048 columns took 5.01 s, 4.91 s and 5.12 s.
 const COLUMNS_PER_GROUP: usize = 512;
 
+/// The production key rows over columns `0..columns`, kept on the device by a
+/// prover across its commitments. A wider witness regenerates them.
+#[derive(Default)]
+pub(super) struct ResidentKeyRows {
+    columns: usize,
+    rows: Vec<Buffer>,
+}
+
+/// Where one commitment call reads its key rows.
+enum KeyRows<'a> {
+    /// A prover's kept rows, read through the occupied column indices.
+    Kept(MutexGuard<'a, ResidentKeyRows>),
+    /// One row at a time over the occupied columns, read in position order.
+    Streamed { prefix: Buffer, slab: Buffer },
+}
+
 impl MetalSession {
+    /// Device bytes of the kept production key over `columns` commitment
+    /// columns; zero for a session that streams key rows.
+    pub(crate) fn kept_production_key_bytes(&self, columns: usize) -> usize {
+        match self.production_key {
+            Some(_) => PRODUCTION_VERIFIER_ROWS as usize * columns * D * size_of::<u64>(),
+            None => 0,
+        }
+    }
+
+    /// SHAKE128 input bytes 0..69 (setup ID and seed) as nine little-endian
+    /// lanes; the kernel adds each row and column.
+    fn production_key_prefix(&self) -> Result<Buffer, MetalError> {
+        let fixed = SETUP_ID.len() + PRODUCTION_SEED.len();
+        let input = element_input(&PRODUCTION_SEED, 0, 0);
+        let prefix: [u64; 9] = std::array::from_fn(|lane| {
+            u64::from_le_bytes(std::array::from_fn(|byte| {
+                let position = 8 * lane + byte;
+                if position < fixed {
+                    input[position]
+                } else {
+                    0
+                }
+            }))
+        });
+        self.buffer_from_slice(&prefix)
+    }
+
+    /// Expand every key row over columns `0..columns` unless the kept rows
+    /// already cover them. The old rows are released first.
+    fn cover_production_key(&self, key: &mut ResidentKeyRows, columns: usize) -> Result<(), MetalError> {
+        if key.columns >= columns {
+            return Ok(());
+        }
+        *key = ResidentKeyRows::default();
+        let row_words = columns
+            .checked_mul(D)
+            .ok_or(MetalError::Shape("resident production key row overflows"))?;
+        let rows = (0..PRODUCTION_VERIFIER_ROWS)
+            .map(|_| self.buffer(row_words * size_of::<u64>()))
+            .collect::<Result<Vec<_>, _>>()?;
+        let prefix = self.production_key_prefix()?;
+        let all_columns = self.buffer_from_slice(&(0..columns as u32).collect::<Vec<_>>())?;
+        let shape_words: Vec<u64> = (0..PRODUCTION_VERIFIER_ROWS)
+            .flat_map(|row| [columns as u64, 0, 0, 0, row, 0])
+            .collect();
+        let shapes = self.buffer_from_slice(&shape_words)?;
+        let command = self.command_buffer("nightstream.production_key")?;
+        for (row, slab) in rows.iter().enumerate() {
+            let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
+            encoder.setLabel(Some(&NSString::from_str("production_key_row")));
+            encoder.setComputePipelineState(&self.production_key_row);
+            unsafe {
+                encoder.setBuffer_offset_atIndex(Some(&prefix), 0, 0);
+                encoder.setBuffer_offset_atIndex(Some(&all_columns), 0, 1);
+                encoder.setBuffer_offset_atIndex(Some(&shapes), row * 6 * size_of::<u64>(), 2);
+                encoder.setBuffer_offset_atIndex(Some(slab), 0, 3);
+            }
+            self.dispatch(&encoder, &self.production_key_row, columns);
+            encoder.endEncoding();
+        }
+        self.finish(&command)?;
+        *key = ResidentKeyRows { columns, rows };
+        Ok(())
+    }
+
     pub(crate) fn commit_production_prefixes<W: Borrow<Mat<F>>>(
         &self,
         witnesses: &[W],
@@ -77,21 +160,6 @@ impl MetalSession {
         let device_masks = self.buffer_from_slice(&masks)?;
         let device_columns = self.buffer_from_slice(&columns)?;
         drop((masks, columns));
-        // SHAKE128 input bytes 0..69 (setup ID and seed) as nine little-endian
-        // lanes; the kernel adds each row and column.
-        let fixed = SETUP_ID.len() + PRODUCTION_SEED.len();
-        let input = element_input(&PRODUCTION_SEED, 0, 0);
-        let prefix: [u64; 9] = std::array::from_fn(|lane| {
-            u64::from_le_bytes(std::array::from_fn(|byte| {
-                let position = 8 * lane + byte;
-                if position < fixed {
-                    input[position]
-                } else {
-                    0
-                }
-            }))
-        });
-        let prefix = self.buffer_from_slice(&prefix)?;
 
         // A threadgroup serves as many witnesses as fit, 64 lanes each.
         let key_row = &self.production_key_row;
@@ -117,7 +185,24 @@ impl MetalSession {
             .ok_or(MetalError::Shape("production commitment partial dimensions overflow"))?;
         let rows = PRODUCTION_VERIFIER_ROWS as usize;
         let output_words = rows * active.len() * D;
-        let slab = self.buffer(slab_words * size_of::<u64>())?;
+        // Kept rows are indexed by column. A streamed row holds the occupied
+        // columns in order, so its column table is the identity.
+        let (keys, key_columns) = match &self.production_key {
+            Some(kept) => {
+                let mut kept = kept
+                    .lock()
+                    .map_err(|_| MetalError::Execution("production key lock was poisoned".into()))?;
+                self.cover_production_key(&mut kept, width)?;
+                (KeyRows::Kept(kept), device_columns.clone())
+            }
+            None => (
+                KeyRows::Streamed {
+                    prefix: self.production_key_prefix()?,
+                    slab: self.buffer(slab_words * size_of::<u64>())?,
+                },
+                self.buffer_from_slice(&(0..count as u32).collect::<Vec<_>>())?,
+            ),
+        };
         let partials = self.buffer(partial_words * size_of::<u64>())?;
         let sums = self.buffer(output_words * size_of::<u64>())?;
         let shape_words: Vec<u64> = (0..PRODUCTION_VERIFIER_ROWS)
@@ -139,26 +224,33 @@ impl MetalSession {
         let command = self.command_buffer("nightstream.production_commitment")?;
         for row in 0..rows {
             let shape_offset = row * 6 * size_of::<u64>();
-            let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-            encoder.setLabel(Some(&NSString::from_str("production_key_row")));
-            encoder.setComputePipelineState(key_row);
-            unsafe {
-                encoder.setBuffer_offset_atIndex(Some(&prefix), 0, 0);
-                encoder.setBuffer_offset_atIndex(Some(&device_columns), 0, 1);
-                encoder.setBuffer_offset_atIndex(Some(&shapes), shape_offset, 2);
-                encoder.setBuffer_offset_atIndex(Some(&slab), 0, 3);
-            }
-            self.dispatch(&encoder, key_row, count);
-            encoder.endEncoding();
+            let key = match &keys {
+                KeyRows::Kept(kept) => &kept.rows[row],
+                KeyRows::Streamed { prefix, slab } => {
+                    let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
+                    encoder.setLabel(Some(&NSString::from_str("production_key_row")));
+                    encoder.setComputePipelineState(key_row);
+                    unsafe {
+                        encoder.setBuffer_offset_atIndex(Some(prefix), 0, 0);
+                        encoder.setBuffer_offset_atIndex(Some(&device_columns), 0, 1);
+                        encoder.setBuffer_offset_atIndex(Some(&shapes), shape_offset, 2);
+                        encoder.setBuffer_offset_atIndex(Some(slab), 0, 3);
+                    }
+                    self.dispatch(&encoder, key_row, count);
+                    encoder.endEncoding();
+                    slab
+                }
+            };
 
             let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
             encoder.setLabel(Some(&NSString::from_str("production_ajtai_accumulate")));
             encoder.setComputePipelineState(accumulate);
             unsafe {
-                encoder.setBuffer_offset_atIndex(Some(&slab), 0, 0);
+                encoder.setBuffer_offset_atIndex(Some(key), 0, 0);
                 encoder.setBuffer_offset_atIndex(Some(&device_masks), 0, 1);
                 encoder.setBuffer_offset_atIndex(Some(&shapes), shape_offset, 2);
                 encoder.setBuffer_offset_atIndex(Some(&partials), 0, 3);
+                encoder.setBuffer_offset_atIndex(Some(&key_columns), 0, 4);
                 encoder.setThreadgroupMemoryLength_atIndex(scratch_bytes, 0);
             }
             self.dispatch_threadgroups(&encoder, accumulate, groups * witness_blocks, 64 * witnesses_per_group);

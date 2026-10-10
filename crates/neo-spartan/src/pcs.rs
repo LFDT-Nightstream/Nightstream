@@ -15,6 +15,7 @@ use p3_sumcheck_v08::{OpeningBatch, OpeningProtocol, PrescribedPointPcs, TableSh
 use p3_whir::parameters::{FoldingFactor, ProtocolParameters, SecurityAssumption, WhirConfig};
 use p3_whir::pcs::prover::WhirProver;
 
+use crate::device::Accelerator;
 use crate::field::{p3_point, Ext, Gl};
 use crate::hash::{mmcs, Challenger, Mmcs};
 use crate::Error;
@@ -79,7 +80,10 @@ pub(crate) struct TablePlan {
 
 /// WHIR over a fixed list of tables, opened at caller-fixed points.
 pub(crate) struct Pcs {
+    /// The CPU instance: binds and verifies roots.
     whir: Whir,
+    /// Shares its twiddle cache with every prover instance.
+    dft: Dft,
     profile: Profile,
     config: Config,
     protocol: OpeningProtocol,
@@ -125,7 +129,8 @@ impl Pcs {
             if !config.check_pow_bits() {
                 return Err(Error::Setup("WHIR configuration needs proof-of-work grinding"));
             }
-            let whir = Whir::new(config.clone(), Dft::default(), mmcs());
+            let dft = Dft::default();
+            let whir = Whir::new(config.clone(), dft.clone(), mmcs(&Accelerator::cpu()));
             let mut report = whir
                 .prescribed_security(&protocol)
                 .ok_or(Error::Setup("WHIR security report"))?;
@@ -137,6 +142,7 @@ impl Pcs {
             if security_bits >= required_bits {
                 return Ok(Self {
                     whir,
+                    dft,
                     profile,
                     config,
                     protocol,
@@ -180,9 +186,19 @@ impl Pcs {
             .to_vec()
     }
 
+    /// The prover instance whose Merkle leaves hash on `accelerator`.
+    fn prover(&self, accelerator: &Accelerator) -> Whir {
+        Whir::new(self.config.clone(), self.dft.clone(), mmcs(accelerator))
+    }
+
     /// Commit to `tables` (each its columns one after another, low index bit
     /// first) and bind the root in `challenger`.
-    pub(crate) fn commit(&self, tables: Vec<Vec<Gl>>, challenger: &mut Challenger) -> (Commitment, ProverData) {
+    pub(crate) fn commit(
+        &self,
+        tables: Vec<Vec<Gl>>,
+        challenger: &mut Challenger,
+        accelerator: &Accelerator,
+    ) -> (Commitment, ProverData) {
         assert_eq!(tables.len(), self.plans.len());
         let tables = tables
             .into_iter()
@@ -193,7 +209,7 @@ impl Pcs {
             })
             .collect();
         let witness = Layout::new_witness(tables, self.profile.first_folding);
-        self.whir
+        self.prover(accelerator)
             .commit(witness, challenger)
             .expect("the configuration fixes the witness size")
     }
@@ -206,9 +222,15 @@ impl Pcs {
 
     /// Open every planned batch at its point (low index bit first), in plan
     /// order: tables in order, then each table's points.
-    pub(crate) fn open(&self, data: ProverData, points: &[Vec<Ext>], challenger: &mut Challenger) -> Opening {
+    pub(crate) fn open(
+        &self,
+        data: ProverData,
+        points: &[Vec<Ext>],
+        challenger: &mut Challenger,
+        accelerator: &Accelerator,
+    ) -> Opening {
         let points = self.p3_points(points);
-        self.whir
+        self.prover(accelerator)
             .open_at(data, &self.protocol, &points, challenger)
             .expect("the plan fixes the claims")
     }

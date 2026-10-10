@@ -54,7 +54,12 @@ fn relation<'k>(
 
 /// Layer 0, then layer 1. `extra` is absorbed between them to model a layer-1
 /// proof made for a different layer-0 transcript.
-fn finish(fixture: &Fixture, setup: &neo_spartan::Setup, extra: Option<F>) -> Finished {
+fn finish(
+    fixture: &Fixture,
+    setup: &neo_spartan::Setup,
+    extra: Option<F>,
+    accelerator: &neo_spartan::Accelerator,
+) -> Finished {
     let rows = CachedMatrixRows::new(&fixture.cache).unwrap();
     let mut transcript = Transcript::session();
     let (pi_ccs, parent, pi_rlc) = folding::prove_parent_with_rows(
@@ -74,6 +79,7 @@ fn finish(fixture: &Fixture, setup: &neo_spartan::Setup, extra: Option<F>) -> Fi
     let layer1 = neo_spartan::prove(
         &relation,
         setup,
+        accelerator,
         transcript.into_inner(),
         &parent.claim,
         &parent.witness,
@@ -110,7 +116,8 @@ fn accepts(
 fn check(fixture: Fixture, other: Fixture, name: &str) {
     let compression = Compression::new(&fixture, name);
     let key = compression.setup.key();
-    let proof = finish(&fixture, &compression.setup, None);
+    let cpu = neo_spartan::Accelerator::cpu();
+    let proof = finish(&fixture, &compression.setup, None, &cpu);
     let fresh = &fixture.fresh.claim;
     let running = fixture.running.claims_only();
     assert!(accepts(&fixture, key, fresh, &running, &proof));
@@ -139,7 +146,7 @@ fn check(fixture: Fixture, other: Fixture, name: &str) {
     changed.pi_rlc.combined.eval_k[5] += K::ONE;
     assert!(!accepts(&fixture, key, fresh, &running, &changed), "PiRLC parent");
     let another = Finished {
-        layer1: finish(&fixture, &compression.setup, Some(F::ONE)).layer1,
+        layer1: finish(&fixture, &compression.setup, Some(F::ONE), &cpu).layer1,
         ..proof.clone()
     };
     assert!(
@@ -161,4 +168,24 @@ fn bit_fixture_finishes_and_verifies() {
 #[test]
 fn selected_polynomial_finishes_and_verifies() {
     check(Fixture::selected_polynomial(), Fixture::bit(), "selected");
+}
+
+/// A device changes no proof byte: the layer-1 proof with Metal leaf hashing
+/// equals the CPU one.
+#[cfg(feature = "metal")]
+#[test]
+fn metal_layer1_proof_equals_cpu() {
+    let fixture = Fixture::selected_polynomial();
+    let compression = Compression::new(&fixture, "metal");
+    let backend = crate::engine::Backend::new(crate::Engine::Metal).unwrap();
+    let crate::engine::Backend::Metal(device) = &backend else {
+        unreachable!("the Metal engine has a Metal backend")
+    };
+    let cpu = finish(&fixture, &compression.setup, None, &neo_spartan::Accelerator::cpu());
+    let metal = finish(&fixture, &compression.setup, None, &backend.accelerator());
+    assert!(
+        device.lock().unwrap().activity().dispatches > 0,
+        "the Metal proof requires real device work"
+    );
+    assert!(metal.layer1.to_bytes() == cpu.layer1.to_bytes());
 }

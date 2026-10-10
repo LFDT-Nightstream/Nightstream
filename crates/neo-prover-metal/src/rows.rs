@@ -33,6 +33,12 @@ impl MetalRowProver {
         Ok(Self { session })
     }
 
+    /// Merkle leaf digests of rows (Plonky3's overwrite sponge); see
+    /// `MetalSession::poseidon2_hash_rows_overwrite`.
+    pub fn hash_rows_overwrite(&self, fields: &[u64], width: usize) -> Result<Vec<[u64; 4]>, MetalError> {
+        self.session.poseidon2_hash_rows_overwrite(fields, width)
+    }
+
     /// Device bytes the kept commitment key holds over `columns` commitment
     /// columns; zero for a session that streams key rows.
     pub fn kept_commitment_key_bytes(&self, columns: usize) -> usize {

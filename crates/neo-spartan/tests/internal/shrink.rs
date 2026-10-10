@@ -13,6 +13,7 @@ use super::word;
 use crate::circuit::block::{KINDS, MATRICES};
 use crate::circuit::record::{Recorder, Trace};
 use crate::circuit::{algebra, Backend};
+use crate::device::Accelerator;
 use crate::field::{eq_table, Ext, Gl};
 use crate::hash::{permutation, seed};
 use crate::shrink::layout::{diagonal, Layout, Shape};
@@ -227,7 +228,7 @@ fn toy_program_proves_verifies_and_rejects_mutations() {
     assert_eq!(Shape::derive(&prover).unwrap(), Shape::derive(&verifier).unwrap());
     assert!(shrink.security_bits() >= BITS);
     let started = Instant::now();
-    let proof = prove(&shrink, &prover).unwrap();
+    let proof = prove(&shrink, &prover, &Accelerator::cpu()).unwrap();
     let proved = started.elapsed();
     let started = Instant::now();
     verify(&shrink, &verifier, &proof).unwrap();
@@ -247,7 +248,7 @@ fn toy_program_proves_verifies_and_rejects_mutations() {
         secret: Some(Gl::from_u64(17)),
     };
     assert!(matches!(
-        prove(&shrink, &false_statement),
+        prove(&shrink, &false_statement, &Accelerator::cpu()),
         Err(crate::Error::Witness("digest"))
     ));
 }
@@ -290,14 +291,22 @@ impl Program for Layer1<'_> {
 fn layer1_verifier_shrinks() {
     let (toy, setup, _scratch) = setup_toy(8, 4, 6);
     let relation = relation_of(&toy, setup.key());
-    let inner = crate::prove(&relation, &setup, transcript(1), &toy.claim, &toy.witness).unwrap();
+    let inner = crate::prove(
+        &relation,
+        &setup,
+        &Accelerator::cpu(),
+        transcript(1),
+        &toy.claim,
+        &toy.witness,
+    )
+    .unwrap();
     let honest = seed(transcript(1));
     let prover = Layer1::new(&relation, honest, &toy.claim, Some(&inner));
     let verifier = Layer1::new(&relation, honest, &toy.claim, None);
     let shape = Shape::derive(&verifier).unwrap();
     let shrink = Shrink::new(shape, BITS).unwrap();
     let started = Instant::now();
-    let proof = prove(&shrink, &prover).unwrap();
+    let proof = prove(&shrink, &prover, &Accelerator::cpu()).unwrap();
     let proved = started.elapsed();
     let started = Instant::now();
     verify(&shrink, &verifier, &proof).unwrap();

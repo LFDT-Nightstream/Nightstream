@@ -150,6 +150,28 @@ fn metal_goldilocks_and_extension_arithmetic_match_cpu() {
         assert_eq!(reused, direct);
     }
 
+    // Merkle leaf rows: the overwrite sponge, with partial last blocks and
+    // non-canonical words.
+    for width in [1, 5, 12, 13, 16, 24, 48] {
+        let fields = (0..257 * width)
+            .map(|_| rng.random::<u64>())
+            .collect::<Vec<_>>();
+        let actual = session
+            .poseidon2_hash_rows_overwrite(&fields, width)
+            .expect("Poseidon2 Metal row hashes");
+        for (row, actual) in fields.chunks_exact(width).zip(actual) {
+            let mut state = [F::ZERO; p2::WIDTH];
+            for block in row.chunks(p2::RATE) {
+                for (lane, &word) in state.iter_mut().zip(block) {
+                    *lane = F::from_u64(word);
+                }
+                state = p2::permute_state(state);
+            }
+            let expected: [u64; 4] = std::array::from_fn(|lane| state[lane].as_canonical_u64());
+            assert_eq!(actual, expected, "width {width}");
+        }
+    }
+
     let rows = 3;
     let cols = 5;
     let matrix = (0..rows * cols * D)

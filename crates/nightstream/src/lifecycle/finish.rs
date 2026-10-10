@@ -218,23 +218,26 @@ impl PreparedLifecycle {
         envelope: &Stage1Envelope,
         setup: &CompressionSetup,
     ) -> Result<FinalProof, FinishError> {
+        // The package loads while the last fold and layer 1 run.
+        terminal::preload();
         let last = self.last_fold(envelope)?;
-        let package = terminal::package()?;
-        let inputs = package
-            .loaded()
-            .encode_terminal_inputs(&self.terminal_inputs(&last)?)?;
+        let terminal_inputs = self.terminal_inputs(&last)?;
         let key = &setup.key;
         let relation = key.relation()?;
+        let accelerator = self.backend.accelerator();
         let layer1 = neo_spartan::prove(
             &relation,
             &setup.layer1,
+            &accelerator,
             last.transcript.into_inner(),
             &last.parent.claim,
             &last.parent.witness,
         )?;
+        let package = terminal::package()?;
+        let inputs = package.loaded().encode_terminal_inputs(&terminal_inputs)?;
         let terminal = TerminalProof { inputs, layer1 };
         let program = key.program(&relation, package, &last.state, Some(&terminal));
-        let shrink = shrink::prove(&Shrink::new(key.shape, key.layer_bits)?, &program)?;
+        let shrink = shrink::prove(&Shrink::new(key.shape, key.layer_bits)?, &program, &accelerator)?;
         Ok(FinalProof {
             state: last.state,
             shrink,

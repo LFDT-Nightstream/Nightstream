@@ -93,6 +93,14 @@ impl MetalSession {
         Err(MetalError::Unavailable)
     }
 
+    pub fn poseidon2_hash_rows_overwrite(
+        &self,
+        _fields: &[u64],
+        _width: usize,
+    ) -> Result<Vec<PoseidonDigest>, MetalError> {
+        Err(MetalError::Unavailable)
+    }
+
     pub fn prepare_poseidon2_uniform(
         &self,
         _fields: &[u64],

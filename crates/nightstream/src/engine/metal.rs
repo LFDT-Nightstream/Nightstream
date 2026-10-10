@@ -124,3 +124,22 @@ fn lowest_child_commitment(parent: &Commitment, higher: &[Commitment], b: u32) -
 #[cfg(test)]
 #[path = "../../tests/engine_internal/dec_children.rs"]
 mod dec_children_tests;
+
+/// The Metal device of the compression prover: the backend's own device.
+pub(crate) struct CompressionDevice(std::sync::Arc<std::sync::Mutex<MetalRowProver>>);
+
+impl CompressionDevice {
+    pub(crate) fn new(device: std::sync::Arc<std::sync::Mutex<MetalRowProver>>) -> Self {
+        Self(device)
+    }
+}
+
+impl neo_spartan::Device for CompressionDevice {
+    fn hash_rows(&self, words: &[u64], width: usize) -> Option<Vec<[u64; 4]>> {
+        let device = self
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        device.hash_rows_overwrite(words, width).ok()
+    }
+}

@@ -33,6 +33,20 @@ impl MetalRowProver {
         Ok(Self { session })
     }
 
+    /// The key weights `Σ_i λ_i·a_i` over the kept commitment key rows; see
+    /// `MetalSession::production_key_weights`.
+    pub fn production_key_weights(&self, powers: &[[u64; 3]], columns: usize) -> Result<Vec<[u64; 3]>, MetalError> {
+        #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
+        {
+            self.session.production_key_weights(powers, columns)
+        }
+        #[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
+        {
+            let _ = (powers, columns);
+            Err(MetalError::Unavailable)
+        }
+    }
+
     /// Every digest layer of a Merkle tree; see
     /// `MetalSession::poseidon2_merkle_layers`.
     pub fn merkle_layers(

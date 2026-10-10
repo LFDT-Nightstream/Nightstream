@@ -415,3 +415,33 @@ fn metal_resident_kx_throughput_snapshot() {
         );
     }
 }
+
+#[test]
+fn metal_key_weights_match_cpu_key_rows() {
+    use neo_ajtai::nightstream_fprime_setup::{coefficient_block, PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS};
+    let prover = neo_prover_metal::MetalRowProver::with_resident_commitment_key().expect("Metal prover");
+    let mut rng = rand::rngs::StdRng::seed_from_u64(91);
+    let rows = PRODUCTION_VERIFIER_ROWS as usize;
+    let columns = 5;
+    let powers: Vec<[u64; 3]> = (0..rows)
+        .map(|_| std::array::from_fn(|_| rng.random::<u64>() % GOLDILOCKS_MODULUS))
+        .collect();
+    let actual = prover
+        .production_key_weights(&powers, columns)
+        .expect("Metal key weights");
+    assert_eq!(actual.len(), columns * D);
+    for column in 0..columns {
+        let keys: Vec<[u64; D]> = (0..rows)
+            .map(|row| coefficient_block(&PRODUCTION_SEED, row as u32, column as u64))
+            .collect();
+        for lane in 0..D {
+            let expected: [u64; 3] = std::array::from_fn(|c| {
+                (0..rows)
+                    .map(|row| F::from_u64(powers[row][c]) * F::from_u64(keys[row][lane]))
+                    .sum::<F>()
+                    .as_canonical_u64()
+            });
+            assert_eq!(actual[column * D + lane], expected, "column {column} lane {lane}");
+        }
+    }
+}

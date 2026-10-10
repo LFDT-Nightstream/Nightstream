@@ -74,6 +74,7 @@ pub struct MetalSession {
     ajtai_low_norm_products: Pipeline,
     ajtai_reduce_columns: Pipeline,
     production_key_row: Pipeline,
+    production_key_weights: Pipeline,
     production_ajtai_accumulate: Pipeline,
     production_ajtai_sum_groups: Pipeline,
     fold_k_table: Pipeline,
@@ -169,6 +170,7 @@ impl MetalSession {
         let ajtai_low_norm_products = pipeline(&device, &library, "ajtai_low_norm_products")?;
         let ajtai_reduce_columns = pipeline(&device, &library, "ajtai_reduce_columns")?;
         let production_key_row = pipeline(&device, &library, "production_key_row")?;
+        let production_key_weights = pipeline(&device, &library, "production_key_weights")?;
         let production_ajtai_accumulate = pipeline(&device, &library, "production_ajtai_accumulate")?;
         let production_ajtai_sum_groups = pipeline(&device, &library, "production_ajtai_sum_groups")?;
         let fold_k_table = pipeline(&device, &library, "fold_k_table")?;
@@ -218,6 +220,7 @@ impl MetalSession {
             ajtai_low_norm_products,
             ajtai_reduce_columns,
             production_key_row,
+            production_key_weights,
             production_ajtai_accumulate,
             production_ajtai_sum_groups,
             fold_k_table,

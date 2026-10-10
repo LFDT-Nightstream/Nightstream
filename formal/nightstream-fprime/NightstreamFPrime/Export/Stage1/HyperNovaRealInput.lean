@@ -35,27 +35,6 @@ private def makeOutput
     NifsRealSuccess.RealOutput relation :=
   ⟨prior, proof, children⟩
 
-private theorem success_of_relation_eq
-    {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
-    (left right : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (same : left = right)
-    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (context : KeyDigest)
-    (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (prior : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (proof : Lifecycle.Proof 8)
-    (children : Stage1.Terminal.RunningWitness
-      (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (success : NifsRealSuccess.RealSuccess right ajtai context running fresh
-      (some (makeOutput right prior proof children))) :
-    NifsRealSuccess.RealSuccess left ajtai context running fresh
-      (some (makeOutput left prior proof children)) := by
-  cases same
-  exact success
-
 private theorem success_of_verified_output
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -138,15 +117,8 @@ theorem realSuccess_of_terminal
       (HyperNovaHistory.decodedInput application fits payload).nifsProof
       (payload.running functionIndex) (payload.runningWitness functionIndex)
       link verified (runningValid functionIndex)
-    have selected := success_of_relation_eq (PerApplicationFixedPoint.relation application fits)
-      (PerApplicationFixedPoint.relation application fits) rfl
-      (PerApplicationCanonicalPackage.commitmentKey setup) (PerApplicationCanonicalPackage.verifierContextDigest fits setup)
-      ((HyperNovaHistory.decodedInput application fits payload).running functionIndex)
-      (HyperNovaHistory.decodedInput application fits payload).fresh (prior application fits setup payload)
-      (HyperNovaHistory.decodedInput application fits payload).nifsProof
-      (payload.runningWitness functionIndex) success
     simpa only [output, HyperNovaHistory.sourceInput,
-      HyperNovaInput.running_ofClaims, HyperNovaInput.fresh_ofClaims] using selected
+      HyperNovaInput.running_ofClaims, HyperNovaInput.fresh_ofClaims] using success
   · exact False.elim (safe collision)
 
 end NightstreamFPrime.Export.Stage1.HyperNovaRealInput

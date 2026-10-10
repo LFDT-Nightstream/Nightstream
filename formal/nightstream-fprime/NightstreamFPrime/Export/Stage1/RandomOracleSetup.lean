@@ -1,5 +1,4 @@
 import NightstreamFPrime.Export.Stage1.RandomOracleLink
-import NightstreamFPrime.Export.Stage1.SetupDistribution
 import NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint
 import NightstreamFPrime.Spec.KnowledgeContract
 

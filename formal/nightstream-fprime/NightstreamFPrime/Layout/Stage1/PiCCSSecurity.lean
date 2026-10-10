@@ -1,5 +1,4 @@
 import NightstreamFPrime.Layout.Stage1.StateEncoding
-import NightstreamFPrime.Lifecycle.TranscriptCoverage
 import NightstreamFPrime.Lifecycle.VerifierContext
 import NightstreamFPrime.Spec.Folding.PiCCS.TranscriptReplay
 
@@ -389,39 +388,5 @@ structure PriorLink
   context_eq : prior.verifierKeys functionIndex = context
   running_eq : prior.running functionIndex = running
   wellFormed : StateEncoding.WellFormed prior
-
-/-- The transcript coverage contract with the prior-state link. If two
-executions present equal prover-dependent calls before a challenge, they agree
-on the prior preimage, the verifier context, the NIFS running statement, the
-fresh statement, and every earlier prover message, unless the state hash
-collides. `contextDigest_identifies_authority_or_collision` then identifies
-the verifier authority behind equal contexts. -/
-theorem calls_identify_view_or_collision
-    {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
-    {degree : Nat} (challenge : TranscriptCoverage.Challenge)
-    {prior prior' : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits)}
-    {running running' : Running (logicalWidth := logicalWidth) (publicFits := publicFits)}
-    {fresh fresh' : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)}
-    {context context' : KeyDigest}
-    {proof proof' : Proof degree}
-    (link : PriorLink prior running fresh context)
-    (link' : PriorLink prior' running' fresh' context')
-    (same : TranscriptCoverage.proverCalls fresh proof challenge =
-      TranscriptCoverage.proverCalls fresh' proof' challenge) :
-    (prior = prior' ∧ context = context' ∧ running = running' ∧
-        TranscriptCoverage.AgreeOnAbsorbed fresh fresh' proof proof' challenge) ∨
-      StateHashCollision prior prior' := by
-  have agree := TranscriptCoverage.proverCalls_identify challenge same
-  have digestEqual : stateHash (publicFits := publicFits) prior =
-      stateHash (publicFits := publicFits) prior' := by
-    rw [← link.digest, ← link'.digest, agree.fresh_eq]
-  rcases stateHash_identifies_statement_or_collision prior prior'
-      link.wellFormed link'.wellFormed digestEqual with priorEqual | collision
-  · refine Or.inl ⟨priorEqual, ?_, ?_, agree⟩
-    · rw [← link.context_eq, ← link'.context_eq, priorEqual]
-    · rw [← link.running_eq, ← link'.running_eq, priorEqual]
-  · exact Or.inr collision
 
 end NightstreamFPrime.Layout.Stage1.PiCCSSecurity

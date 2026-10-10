@@ -10,8 +10,9 @@ use p3_symmetric_v08::Permutation;
 use super::layer1::{relation_of, setup_toy, transcript};
 use super::verifier::statement_input;
 use super::word;
+use crate::circuit::block::Kind;
 use crate::circuit::block::{KINDS, MATRICES};
-use crate::circuit::record::{Recorder, Trace};
+use crate::circuit::record::{Recorder, Sink, Term, Trace};
 use crate::circuit::{algebra, Backend};
 use crate::device::Accelerator;
 use crate::field::{eq_table, Ext, Gl};
@@ -193,6 +194,55 @@ fn native_r1cs_accepts_its_rows_and_rejects_a_changed_column() {
         assert_eq!(failure, Some("rows"));
         assert_eq!(trace.rows.len(), cubes().rows());
     }
+}
+
+/// A trace that records R1CS rows one at a time, by the `Sink` default.
+struct RowByRow(Trace);
+
+impl Sink for RowByRow {
+    fn row(&mut self, products: &[(Vec<Term>, Vec<Term>)], linear: &[Term]) {
+        self.0.row(products, linear);
+    }
+    fn cell(&mut self, value: Gl) {
+        self.0.cell(value);
+    }
+    fn block(&mut self, kind: Kind, cells: &[Gl]) {
+        self.0.block(kind, cells);
+    }
+    fn public(&mut self, value: Gl) {
+        self.0.public(value);
+    }
+}
+
+/// The trace builds R1CS rows in parallel; the rows equal the row-by-row
+/// default, for columns of several terms and with constants.
+#[test]
+fn parallel_r1cs_rows_equal_the_default() {
+    fn record<S: Sink>(sink: S) -> S {
+        let mut b = Recorder::new(sink);
+        let s = b.private(5);
+        let square = b.private(25);
+        let shifted = b.add(s, square);
+        let shifted = b.sub(shifted, square);
+        let cube = b.private(125);
+        let one = b.constant(1);
+        let t = b.private(9);
+        let t = b.scale(t, 1);
+        // `t` is free (it enters only the identity row), so `t + 3` holds.
+        let three = b.constant(3);
+        let t = b.add(t, three);
+        b.r1cs(&cubes(), &[shifted, square, cube, one, t], "rows")
+            .unwrap();
+        b.r1cs(&cubes(), &[s, square, cube, one, t], "rows")
+            .unwrap();
+        let (sink, failure) = b.finish();
+        assert_eq!(failure, None);
+        sink
+    }
+    let parallel = record(Trace::default());
+    assert_eq!(parallel.rows.len(), 2 * cubes().rows());
+    assert!(parallel.entries.iter().any(|&(wire, _)| wire == crate::circuit::record::ONE));
+    assert_eq!(parallel, record(RowByRow(Trace::default())).0);
 }
 
 fn shrink_of(program: &impl Program) -> Shrink {

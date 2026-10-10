@@ -13,6 +13,7 @@
 
 use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
 use p3_field_v08::{BasedVectorSpace, Field, PrimeCharacteristicRing, PrimeField64};
+use rayon::prelude::*;
 
 use super::block::{Kind, KINDS};
 use super::r1cs::{self, R1cs, Side};
@@ -520,6 +521,59 @@ impl Sink for Trace {
 
     fn public(&mut self, value: Gl) {
         self.public.push(value);
+    }
+
+    /// The default's rows and entries, built in parallel: every row's entries
+    /// depend only on `system` and `columns`, so the rows are sized, placed
+    /// in order, then filled.
+    fn r1cs(&mut self, system: &R1cs, columns: &[Form]) {
+        let size = |(side, _): Side<'_>| -> usize {
+            side.iter()
+                .map(|&column| {
+                    let form = &columns[column as usize];
+                    form.terms().len() + usize::from(form.constant != Gl::ZERO)
+                })
+                .sum()
+        };
+        let sizes: Vec<[usize; 3]> = (0..system.rows())
+            .into_par_iter()
+            .map(|row| system.sides(row).map(size))
+            .collect();
+        let start = self.entries.len();
+        let mut at = start;
+        self.rows.reserve(sizes.len());
+        for [a, b, c] in &sizes {
+            // A0 = a, B0 = b, the other products empty, then C = c.
+            let ends = [
+                at,
+                at + a,
+                at + a + b,
+                at + a + b,
+                at + a + b,
+                at + a + b,
+                at + a + b,
+                at + a + b + c,
+            ];
+            self.rows.push(ends.map(|end| end as u32));
+            at += a + b + c;
+        }
+        self.entries.resize(at, (ONE, Gl::ZERO));
+        let mut rest = &mut self.entries[start..];
+        let mut slices = Vec::with_capacity(sizes.len());
+        for [a, b, c] in &sizes {
+            let (row, tail) = rest.split_at_mut(a + b + c);
+            slices.push(row);
+            rest = tail;
+        }
+        slices.into_par_iter().enumerate().for_each(|(row, out)| {
+            let terms = system
+                .sides(row)
+                .into_iter()
+                .flat_map(|side| expand(side, columns));
+            for (slot, term) in out.iter_mut().zip(terms) {
+                *slot = term;
+            }
+        });
     }
 }
 

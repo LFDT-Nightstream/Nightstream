@@ -599,7 +599,7 @@ impl MetalSession {
         Ok(layers
             .iter()
             .zip(&sizes)
-            .map(|(layer, &n)| self.read_buffer::<PoseidonDigest>(layer, n))
+            .map(|(layer, &n)| self.read_buffer_parallel::<PoseidonDigest>(layer, n))
             .collect())
     }
 
@@ -1050,6 +1050,20 @@ impl MetalSession {
     fn finish(&self, command: &ProtocolObject<dyn MTLCommandBuffer>) -> Result<(), MetalError> {
         self.activity.host_waits.fetch_add(1, Ordering::Relaxed);
         finish(command)
+    }
+
+    /// `read_buffer` with the copy split over the CPU cores.
+    fn read_buffer_parallel<T: Copy + Send + Sync>(
+        &self,
+        buffer: &ProtocolObject<dyn MTLBuffer>,
+        len: usize,
+    ) -> Vec<T> {
+        use rayon::prelude::*;
+        self.activity
+            .downloaded_bytes
+            .fetch_add((len * size_of::<T>()) as u64, Ordering::Relaxed);
+        let source = unsafe { std::slice::from_raw_parts(buffer.contents().as_ptr().cast::<T>(), len) };
+        source.par_iter().copied().collect()
     }
 
     fn read_buffer<T: Copy>(&self, buffer: &ProtocolObject<dyn MTLBuffer>, len: usize) -> Vec<T> {

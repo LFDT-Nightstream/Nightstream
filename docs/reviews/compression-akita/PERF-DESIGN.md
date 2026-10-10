@@ -136,6 +136,11 @@ Same binary, Metal then CPU, under the same load (load average 8-20):
 | Shrink | 8.9 s | 8.4 s | 7.0 s |
 | `finish_with_spartan` | 50.3 s | 45.0 s | 35.6 s |
 
+After slice 4, two alternating runs each (load average 8-33):
+`finish_with_spartan` 43.3 s and 46.1 s on CPU, 32.4 s and 33.6 s on
+Metal; peak RSS 35.2-35.7 GB (CPU) and 36.8 GB (Metal); final proofs of
+128-130 KB; final verification median 313 ms.
+
 "CPU before" is slices 0-2 without slice 3. Before slice 0 the finish also
 waited about 5 s for the package (M3: about 54 s). Final proofs verify on
 CPU in about 320-360 ms on both engines.

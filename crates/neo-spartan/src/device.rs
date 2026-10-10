@@ -29,6 +29,15 @@ pub trait Device: Send + Sync {
         width: usize,
         fill: &(dyn Fn(&mut [u64]) + Sync),
     ) -> Option<Vec<Vec<[u64; DIGEST_LEN]>>>;
+
+    /// `Σ_i powers[i]·a_{i,b}` for every block `b < blocks`, with `a_{i,b}`
+    /// the `D` coefficients of row `i` of the production commitment key
+    /// (`neo_ajtai::nightstream_fprime_setup::coefficient_block(&PRODUCTION_SEED, i, b)`)
+    /// and `i < powers.len()`: `D` values per block, block by block. Powers
+    /// and values are cubic-extension elements as their three base
+    /// coordinates. `None` when the device cannot compute them: the caller
+    /// computes them on the CPU, with the same values.
+    fn key_weights(&self, powers: &[[u64; 3]], blocks: usize) -> Option<Vec<[u64; 3]>>;
 }
 
 /// The prover's device, or none: the CPU.

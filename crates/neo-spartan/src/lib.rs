@@ -521,7 +521,7 @@ pub fn prove(
 
     let mixing = Mixing::new(&mut Native, challenger.sample_algebra_element(), shape);
     let ubar = tables.slot_weights(&early, &mixing.eval_a());
-    let key_weights = ring::key_weights(shape, &mixing);
+    let key_weights = ring::key_weights(shape, &mixing, accelerator);
     let eval_a = tables.column_weights(&ubar, shape.blocks);
     let weights = ring::block_weights(shape, &claim.r, &mixing, &eval_a, &key_weights);
     drop(eval_a);

@@ -17,13 +17,14 @@ use std::sync::OnceLock;
 use neo_ajtai::nightstream_fprime_setup::{coefficient_block, PRODUCTION_SEED};
 use neo_math::{ring::superneo_bar_matrix, D, F, K};
 use p3_field::PrimeCharacteristicRing as _;
-use p3_field_v08::PrimeCharacteristicRing;
+use p3_field_v08::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
 use rayon::prelude::*;
 
 use crate::circuit::algebra;
 use crate::circuit::Backend;
 use crate::circuit::Native;
-use crate::field::{gl, re_im, Ext, Gl};
+use crate::device::Accelerator;
+use crate::field::{ext_words, gl, re_im, Ext, Gl};
 use crate::{ClaimWords, Shape};
 
 /// Coefficients of `Σ_b ω_b ⋆ z_b` before reduction: degree below `2D - 1`.
@@ -81,8 +82,21 @@ impl<E: Copy> Mixing<E> {
 }
 
 /// `A_λ(b) = Σ_i λ^i·a_{i,b}` for every block: the commitment rows' part of
-/// `ω_b`, one pass over the key.
-pub(crate) fn key_weights(shape: &Shape, mixing: &Mixing<Ext>) -> Vec<[Ext; D]> {
+/// `ω_b`, one pass over the key, on the accelerator's device when it can.
+pub(crate) fn key_weights(shape: &Shape, mixing: &Mixing<Ext>, accelerator: &Accelerator) -> Vec<[Ext; D]> {
+    let powers: Vec<[u64; 3]> = (0..shape.kappa)
+        .map(|key_row| ext_words(mixing.commitment(key_row)).map(|word| word.as_canonical_u64()))
+        .collect();
+    if let Some(values) = accelerator
+        .device()
+        .and_then(|device| device.key_weights(&powers, shape.blocks))
+    {
+        assert_eq!(values.len(), shape.blocks * D, "the device weighed another key size");
+        return values
+            .par_chunks_exact(D)
+            .map(|lanes| std::array::from_fn(|lane| Ext::from_basis_coefficients_fn(|c| Gl::new(lanes[lane][c]))))
+            .collect();
+    }
     (0..shape.blocks)
         .into_par_iter()
         .map(|block| {

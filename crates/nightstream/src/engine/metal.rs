@@ -211,4 +211,12 @@ impl neo_spartan::Device for CompressionDevice {
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         device.merkle_layers(rows, width, fill).ok()
     }
+
+    fn key_weights(&self, powers: &[[u64; 3]], blocks: usize) -> Option<Vec<[u64; 3]>> {
+        let device = self
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        device.production_key_weights(powers, blocks).ok()
+    }
 }

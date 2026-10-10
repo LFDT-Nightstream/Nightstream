@@ -107,6 +107,58 @@ impl MetalSession {
         Ok(())
     }
 
+    /// `Σ_i λ_i·a_{i,e}` over the kept key rows `i < powers.len()` for every
+    /// key coefficient `e < columns·D` (column-major, `D` per column), with
+    /// each `λ_i` and result a cubic-extension value as three base words.
+    /// The rows are expanded first unless they already cover `columns`.
+    pub(crate) fn production_key_weights(
+        &self,
+        powers: &[[u64; 3]],
+        columns: usize,
+    ) -> Result<Vec<[u64; 3]>, MetalError> {
+        let kept = self
+            .production_key
+            .as_ref()
+            .ok_or(MetalError::Shape("key weights need the kept production key"))?;
+        let mut kept = kept
+            .lock()
+            .map_err(|_| MetalError::Execution("production key lock was poisoned".into()))?;
+        if powers.is_empty() || powers.len() > PRODUCTION_VERIFIER_ROWS as usize {
+            return Err(MetalError::Shape("key weights take one power per key row"));
+        }
+        self.cover_production_key(&mut kept, columns)?;
+        let elements = columns
+            .checked_mul(D)
+            .ok_or(MetalError::Shape("key weights overflow"))?;
+        let out = self.buffer(elements * 3 * size_of::<u64>())?;
+        let inputs = powers
+            .iter()
+            .enumerate()
+            .map(|(row, power)| {
+                Ok((
+                    self.buffer_from_slice(power)?,
+                    self.buffer_from_slice(&[elements as u64, u64::from(row == 0)])?,
+                ))
+            })
+            .collect::<Result<Vec<_>, MetalError>>()?;
+        let command = self.command_buffer("nightstream.production_key_weights")?;
+        let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
+        encoder.setComputePipelineState(&self.production_key_weights);
+        // Serial dispatches: each row adds to the sum the one before wrote.
+        for (row, (power, shape)) in kept.rows.iter().zip(&inputs) {
+            unsafe {
+                encoder.setBuffer_offset_atIndex(Some(row), 0, 0);
+                encoder.setBuffer_offset_atIndex(Some(&out), 0, 1);
+                encoder.setBuffer_offset_atIndex(Some(power), 0, 2);
+                encoder.setBuffer_offset_atIndex(Some(shape), 0, 3);
+            }
+            self.dispatch(&encoder, &self.production_key_weights, elements);
+        }
+        encoder.endEncoding();
+        self.finish(&command)?;
+        Ok(self.read_buffer::<[u64; 3]>(&out, elements))
+    }
+
     pub(crate) fn commit_production_prefixes<W: Borrow<Mat<F>>>(
         &self,
         witnesses: &[W],

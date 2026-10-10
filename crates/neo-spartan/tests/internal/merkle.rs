@@ -47,6 +47,10 @@ impl Device for Reference {
                 .collect(),
         )
     }
+
+    fn key_weights(&self, _powers: &[[u64; 3]], _blocks: usize) -> Option<Vec<[u64; 3]>> {
+        None
+    }
 }
 
 fn matrix(seed: u64, height: usize, width: usize) -> RowMajorMatrix<Gl> {

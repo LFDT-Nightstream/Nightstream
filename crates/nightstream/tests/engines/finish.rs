@@ -177,7 +177,8 @@ fn selected_polynomial_finishes_and_verifies() {
 fn metal_layer1_proof_equals_cpu() {
     let fixture = Fixture::selected_polynomial();
     let compression = Compression::new(&fixture, "metal");
-    let backend = crate::engine::Backend::new(crate::Engine::Metal).unwrap();
+    // A prover backend keeps the commitment key that the key weights read.
+    let backend = crate::engine::Backend::new_prover(crate::Engine::Metal).unwrap();
     let crate::engine::Backend::Metal(device) = &backend else {
         unreachable!("the Metal engine has a Metal backend")
     };
@@ -186,6 +187,12 @@ fn metal_layer1_proof_equals_cpu() {
     assert!(
         device.lock().unwrap().activity().dispatches > 0,
         "the Metal proof requires real device work"
+    );
+    let powers = [[1, 2, 3]; neo_ajtai::nightstream_fprime_setup::PRODUCTION_VERIFIER_ROWS as usize];
+    assert!(
+        neo_spartan::Device::key_weights(&super::super::metal::CompressionDevice::new(device.clone()), &powers, 2)
+            .is_some(),
+        "the key weights run on the device"
     );
     assert!(metal.layer1.to_bytes() == cpu.layer1.to_bytes());
 }
@@ -230,7 +237,10 @@ fn metal_parent_equals_cpu() {
     .unwrap();
     assert!(device.activity().dispatches > before, "PiCCS requires real device work");
     assert!(metal.0 == cpu.0, "PiCCS proof");
-    assert!(metal.1.claim == cpu.1.claim && metal.1.witness == cpu.1.witness, "parent");
+    assert!(
+        metal.1.claim == cpu.1.claim && metal.1.witness == cpu.1.witness,
+        "parent"
+    );
     assert!(metal.2 == cpu.2, "PiRLC proof");
     assert_eq!(
         metal_transcript.into_inner().squeeze_digest_v1_1(),

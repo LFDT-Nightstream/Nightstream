@@ -48,7 +48,13 @@ fn holds(setup: &Setup, relation: &Relation<'_>, claim: &Claim, witness: &Mat<F>
     let early = setup.tables.early(&claim.r);
     let ubar = setup.tables.slot_weights(&early, &mixing.eval_a());
     let eval_a = setup.tables.column_weights(&ubar, shape.blocks);
-    let weights = ring::block_weights(shape, &claim.r, &mixing, &eval_a, &ring::key_weights(shape, &mixing));
+    let weights = ring::block_weights(
+        shape,
+        &claim.r,
+        &mixing,
+        &eval_a,
+        &ring::key_weights(shape, &mixing, &crate::device::Accelerator::cpu()),
+    );
     let z = witness_table(shape, witness).unwrap();
     let (_, remainder) = ring::divide(&weights, &z, LANES, &ring::targets(&mut Native, &statement, &mixing));
     remainder.iter().all(|&value| value == Ext::ZERO)

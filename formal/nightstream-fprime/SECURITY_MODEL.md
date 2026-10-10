@@ -110,8 +110,9 @@ are not checked.
 - **Work:** the extractor takes `17 (Q + 17)` expected retries
   (`Lifecycle.RandomOracleExtraction.expected_retries_le`), and the binding
   reduction takes `Q + 74` expected reruns
-  (`Lifecycle.RandomOracleUniqueness.expected_reruns_le`). Lean counts runs,
-  not machine work.
+  (`Lifecycle.RandomOracleUniqueness.expected_reruns_le`). Lean does not bound
+  the retries of the second extraction in the binding reduction. Lean counts
+  runs, not machine work.
 - **Deployed verifier:** at an oracle that answers the 74 challenge points of
   one execution as the sponge does, the oracle verifier is the deployed
   verifier plus the child openings
@@ -126,7 +127,7 @@ fresh verifier coin by an oracle read. Each module header states its part:
 | Lemma | Step | Lean |
 |---|---|---|
 | 1 | Each challenge reads its exact call list; distinct challenges have distinct call lists. | `Lifecycle.TranscriptCoverage.challenge_seal`, `Lifecycle.TranscriptCoverage.challengeCalls_injective` |
-| 2 | Pinned-squeeze bound `(Q + 1) ε` for bad sets that do not read their own point (after Ironwood `escapesDuringC_measure_le'`). | `Spec.RandomOracle.pinned_le` |
+| 2 | Bad-set bounds for bad sets that do not read their own point: `Q ε` at the queried points (Ironwood `escapesDuringC_measure_le'`) and the pinned-squeeze `(Q + 1) ε` at an output point (Ironwood `xEscAtPoint_measure_le`). | `Spec.RandomOracle.escape_le`, `Spec.RandomOracle.pinned_le` |
 | 3 | A false PiCCS acceptance has one bad coin. | `Spec.Folding.PiCCS.PaperJoint.RoundByRound.falseAcceptance_splits` |
 | 4 | Test error in the oracle model. | `Lifecycle.RandomOracleTest.test_error_le` |
 | 5 | Π_RLC coordinate fork extraction. | `Lifecycle.RandomOracleExtraction.fork_failure_le` |
@@ -140,18 +141,25 @@ fresh verifier coin by an oracle read. Each module header states its part:
 - **Controls:** a random tape and, from it, a terminal statement and proof
   after any number of folds, up to a symbolic depth. The adversary must be
   admitted (trust item 4).
-- **Wins:** the terminal is accepted, and the reverse extractor returns no
-  history: no application witnesses that take `z0` to `zi` in `iteration`
-  steps.
+- **Wins:** the terminal is accepted, and no valid history exists: no
+  application witnesses take `z0` to `zi` in `iteration` steps
+  (`Export.Stage1.HyperNovaFalseAcceptance.FalseAcceptance`).
 - **Result:** under Assumption 1 and the closure premise,
+  `Pr[FalseAcceptance] ≤ Σ_j (h_j + error(stage j))` on the IVC adversary's
+  own law, with no conditioning
+  (`Export.Stage1.HyperNovaFalseAcceptance.probability_bound`, lean-graph
+  target `hypernova-terminal-false-acceptance`). `h_j` is stage `j`'s marked
+  state-hash collision mass.
+- **Extraction form:** under the same premises,
   `Pr[accept] ≤ Pr[the reverse extractor returns a history] + Σ_j (h_j + error(stage j))`
   (`Export.Stage1.HyperNovaVisitedSecurity.history_probability_bound`,
-  lean-graph target `hypernova-linear-security`). `h_j` is stage `j`'s marked
-  state-hash collision mass. The reverse extractor is HyperNova Lemma 17
-  (`Export.Stage1.HyperNovaVisitedSecurity.reverseStages`).
-  `Export.Stage1.HyperNovaFalseAcceptance.probability_bound` (target
-  `hypernova-terminal-false-acceptance`) bounds false acceptance in the same
-  way.
+  lean-graph target `hypernova-linear-security`). The reverse extractor is
+  HyperNova Lemma 17
+  (`Export.Stage1.HyperNovaVisitedSecurity.reverseStages`). This is a
+  difference bound. It does not bound the event "accepted, and no history
+  returned" by itself, because a returned history does not imply acceptance:
+  for an iteration-zero bottom envelope with `zi = z0`, the reverse walk
+  returns the empty history without a check of acceptance.
 
 ## What you trust
 

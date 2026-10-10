@@ -29,10 +29,21 @@ const QUERY_BYTES: u64 = 0x102;
 const QUERY_NONZERO_FIELD: u64 = 0x103;
 const QUERY_DIGEST32: u64 = 0x104;
 
+/// One coin of the v1.2 fold transcript.
+pub struct FoldCoin {
+    /// The quadratic-extension value: two adjacent rate lanes.
+    pub value: [F; 2],
+    /// The read was the sixth from its state, so the transcript then absorbed
+    /// one zero chunk. A caller that records absorptions records this one.
+    pub refreshed: bool,
+}
+
 #[derive(Clone)]
 pub struct Poseidon2Transcript {
     st: [Goldilocks; p2::WIDTH],
     absorbed: usize,
+    /// Fold coins read from the current state. Every permutation resets it.
+    coins_read: usize,
     perm: &'static Poseidon2Goldilocks<{ p2::WIDTH }>,
     #[cfg(feature = "debug-log")]
     log: Vec<crate::debug::Event>,
@@ -48,6 +59,7 @@ impl Poseidon2Transcript {
     pub fn reset_v1_2(&mut self) {
         self.st = [Goldilocks::ZERO; p2::WIDTH];
         self.absorbed = 0;
+        self.coins_read = 0;
     }
 
     /// Add each word into the rate lanes and permute after every complete or
@@ -62,13 +74,20 @@ impl Poseidon2Transcript {
         }
     }
 
-    /// Read one quadratic-extension value from rate lanes `2 * pair` and
-    /// `2 * pair + 1`. The state does not change; the caller absorbs a zero
-    /// chunk after the last pair of a state.
-    pub fn read_pair_v1_2(&self, pair: usize) -> [F; 2] {
+    /// Read the next coin of the v1.2 fold transcript. The `n`-th coin read
+    /// from one state is the quadratic-extension value in rate lanes `2n` and
+    /// `2n + 1`. After the sixth coin, absorb one zero chunk, so the next coin
+    /// comes from a new state. This is the Lean `squeezeAt` schedule.
+    pub fn read_coin_v1_2(&mut self) -> FoldCoin {
         assert_eq!(self.absorbed, 0, "v1_2 transcript cannot inherit an absorb cursor");
-        assert!(pair < p2::RATE / 2, "v1_2 read pair is outside the rate lanes");
-        [self.st[2 * pair], self.st[2 * pair + 1]]
+        let pair = self.coins_read;
+        let value = [self.st[2 * pair], self.st[2 * pair + 1]];
+        self.coins_read += 1;
+        let refreshed = self.coins_read == p2::RATE / 2;
+        if refreshed {
+            self.absorb_v1_2(&[F::ZERO; p2::RATE]);
+        }
+        FoldCoin { value, refreshed }
     }
 
     /// Return the first four lanes, then apply one permutation.
@@ -96,6 +115,7 @@ impl Poseidon2Transcript {
         Self {
             st: [Goldilocks::ZERO; p2::WIDTH],
             absorbed: 0,
+            coins_read: 0,
             perm: p2::permutation(),
             #[cfg(feature = "debug-log")]
             log: Vec::new(),
@@ -206,6 +226,7 @@ impl Poseidon2Transcript {
     fn permute(&mut self) {
         self.st = self.perm.permute(self.st);
         self.absorbed = 0;
+        self.coins_read = 0;
     }
 
     #[inline]
@@ -229,6 +250,7 @@ impl Poseidon2Transcript {
         Self {
             st: state,
             absorbed,
+            coins_read: 0,
             perm: p2::permutation(),
             #[cfg(feature = "debug-log")]
             log: Vec::new(),

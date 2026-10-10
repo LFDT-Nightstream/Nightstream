@@ -19,7 +19,7 @@ class ProofMapTests(unittest.TestCase):
                 self.assertTrue(all(ref['path'].endswith('.lean') for ref in edge['code']))
         text = export_map(result, DATA)
         self.assertIn('proof-map:deployed', text)
-        self.assertIn('history_probability_bound', text)
+        self.assertIn('history_failure_le', text)
         self.assertNotIn('history_probability_linear_bound', text)
         self.assertEqual(sum(line.startswith('| ') for line in text.splitlines()), len(result['edges']) + 2)
         nodes = {n['id']: n for n in result['nodes']}

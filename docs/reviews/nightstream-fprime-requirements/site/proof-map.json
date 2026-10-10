@@ -303,7 +303,7 @@
         {
           "record": "H.security.constant_step_scope",
           "file": "HyperNovaVisitedSecurity.lean",
-          "symbol": "history_probability_bound"
+          "symbol": "history_failure_le"
         }
       ],
       "assumption": "constant_depth",
@@ -361,7 +361,7 @@
         {
           "record": "H.security.history",
           "file": "HyperNovaVisitedSecurity.lean",
-          "symbol": "history_probability_bound"
+          "symbol": "history_failure_le"
         },
         {
           "record": "H.security.history",
@@ -873,7 +873,7 @@
         {
           "record": "H.security.history",
           "file": "HyperNovaVisitedSecurity.lean",
-          "symbol": "history_probability_bound"
+          "symbol": "history_failure_le"
         }
       ],
       "overview": true
@@ -887,7 +887,7 @@
         {
           "record": "H.security.history",
           "file": "HyperNovaVisitedSecurity.lean",
-          "symbol": "history_probability_bound"
+          "symbol": "history_failure_le"
         }
       ],
       "overview": true

@@ -3,8 +3,9 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Completeness
 
 /-!
 Paper authority: SuperNeo v1.2, section 7.3, indexed PiCCS SumCheck rounds.
-Obligation: Absorb each prover polynomial, absorb its round label, and derive
-the corresponding verifier challenge in exact round order.
+Obligation: Absorb each prover polynomial and read the corresponding verifier
+challenge from rate lanes 0 and 1 of the state after that absorb, in exact
+round order.
 
 Inputs:
 - the prior child-owned transcript state;
@@ -16,7 +17,7 @@ Outputs:
 
 Constraint groups:
 - one generic message-absorption action group;
-- one generic labelled squeeze action group;
+- one read per round, which adds no row;
 - indexed composition over the fixed 28-round chain.
 
 Parent coverage:

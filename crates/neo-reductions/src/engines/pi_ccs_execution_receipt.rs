@@ -44,8 +44,8 @@ pub struct PiCcsCanonicalStatement {
     /// Exact sixteen-lane transcript state before the PiCCS public input.
     pub transcript_state: [u64; WIDTH],
     pub transcript_absorbed: usize,
-    /// Every v1_2 transcript absorption in exact execution order. Framed
-    /// blocks include their length word.
+    /// Every v1_2 transcript absorption in exact execution order. No
+    /// absorption has a length word.
     pub transcript_absorptions: Vec<Vec<u64>>,
     /// Shared running-claim point in coordinate order.
     pub prior_point: Vec<PiCcsReceiptK>,

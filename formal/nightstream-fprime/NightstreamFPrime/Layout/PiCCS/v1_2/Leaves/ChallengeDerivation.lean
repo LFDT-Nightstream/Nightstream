@@ -3,8 +3,8 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Completeness
 
 /-!
 Paper authority: SuperNeo v1.2, section 7.3, PiCCS Fiat–Shamir challenges.
-Obligation: Derive all 28 `α` coordinates and `γ` from the exact labelled
-Poseidon2 transcript schedule.
+Obligation: Derive all 28 `α` coordinates and `γ` from the fixed Poseidon2
+fold transcript pattern.
 
 Inputs:
 - the child-owned state produced by Statement absorption.
@@ -15,8 +15,8 @@ Outputs:
 - the child-owned outgoing transcript state.
 
 Constraint groups:
-- labelled constant absorptions;
-- two Poseidon2 permutations for each extension-field squeeze;
+- each value is read from rate lane pair `position mod 6` and adds no row;
+- one zero-chunk absorption (one Poseidon2 permutation) after each sixth read;
 - no expected-sample or state-copy rows.
 
 Parent coverage:

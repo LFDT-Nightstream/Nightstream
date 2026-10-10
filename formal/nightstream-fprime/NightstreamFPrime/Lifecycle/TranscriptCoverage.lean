@@ -20,22 +20,12 @@ Outputs:
 - `proverCalls_identify`: equal prover-dependent calls give equal fresh
   statements and equal earlier prover messages; before `Π_RLC` they give equal
   proofs up to the `Π_DEC` child messages, so a new proof field breaks it;
-- `statementState_identifies_fresh_or_collision`, `messages_injective`: equal
-  replay authority (the state after the statement calls and the round
-  messages) identifies the fresh statement and every round polynomial, unless
-  the statement calls collide (`RunCollision`).
-  `PerApplicationSecurity.replayInput_authority_identifies_or_collision` uses
-  them to link the committed-statement reductions to this contract.
 - `coinsFrom`, `piCcsProbe_coins`: the key's PiCCS probe coins are one read of
   each challenge's calls (`challengeCalls`). `RandomOracleTest` replaces that
   read by a random oracle and changes nothing else;
 - `challengeCalls_injective`, `challengeCalls_length_eq`: distinct challenges
   of one execution read after distinct call lists, whose lengths the shape
   fixes.
-
-`PiCCSSecurity.calls_identify_view_or_collision` adds the prior-state link and
-identifies the prior preimage and the NIFS running statement, unless the state
-hash collides.
 
 `AgreeOnAbsorbed` is the dependency specification; a change to it is a
 protocol change. `tests/TranscriptCoverageChecks.lean` pins it by `Iff.rfl`,
@@ -1021,29 +1011,6 @@ theorem proverCalls_identify {degree : Nat}
   | gamma => exact statementCalls_identify_fresh same
   | round => exact roundPrefixCalls_identify same
   | rho => exact outputCalls_identify same
-
-/-- Two different call lists that reach one transcript state: a named
-Poseidon2 sponge collision. -/
-def RunCollision (left right : List Call) : Prop :=
-  left ≠ right ∧ run Transcript.initialState left = run Transcript.initialState right
-
-/-- Equal states after the statement calls identify the fresh statement, unless
-the two call lists collide. -/
-theorem statementState_identifies_fresh_or_collision
-    {fresh fresh' : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)}
-    (same : run Transcript.initialState (statementCalls fresh) =
-      run Transcript.initialState (statementCalls fresh')) :
-    fresh = fresh' ∨ RunCollision (statementCalls fresh) (statementCalls fresh') := by
-  classical
-  by_cases equal : statementCalls fresh = statementCalls fresh'
-  · exact Or.inl (statementCalls_identify_fresh equal)
-  · exact Or.inr ⟨equal, same⟩
-
-/-- Equal SumCheck messages identify the round polynomials. -/
-theorem messages_injective {degree : Nat} {left right : Proof degree}
-    (same : messages left = messages right) : left.piCcsRounds = right.piCcsRounds :=
-  funext fun round => SumCheck.Finite.FixedPolynomial.eq_of_coefficients
-    (congrArg SumCheck.Finite.Message.coefficients (congrFun same round))
 
 end Contract
 

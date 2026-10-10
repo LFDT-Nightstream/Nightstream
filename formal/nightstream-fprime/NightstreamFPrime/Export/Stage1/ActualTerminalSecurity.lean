@@ -108,64 +108,6 @@ theorem terminal_implies_nifsOrBaseOrCollision
         checked.trans (congrArg some outputSame)⟩
   · exact Or.inr collision
 
-/-- Transcript coverage for accepted terminals. If two accepted recursive
-terminals present equal prover-dependent transcript inputs before a challenge,
-they have the same prior preimage, the same NIFS running input, and agree on
-everything the transcript absorbs directly. Otherwise one of them is the base
-step or a state hash collides. Acceptance supplies the prior-state link. -/
-theorem terminal_calls_identify_view_or_collision
-    (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
-    (commitmentSetup : PerApplicationCanonicalPackage.CommitmentSetup application)
-    (statement statement' : TerminalStatement AppState)
-    (payload payload' : TerminalPayload application)
-    (terminal : Stage1.Terminal.HoldsFor (PerApplicationFixedPoint.relation application fits)
-      (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
-      (PerApplicationCanonicalPackage.verifierContextDigest fits commitmentSetup)
-      application statement (.recursive payload))
-    (terminal' : Stage1.Terminal.HoldsFor (PerApplicationFixedPoint.relation application fits)
-      (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
-      (PerApplicationCanonicalPackage.verifierContextDigest fits commitmentSetup)
-      application statement' (.recursive payload'))
-    (challenge : TranscriptCoverage.Challenge) :
-    let assignment := ProductionRelation.Plan.logicalAssignment payload.freshWitness
-    let assignment' := ProductionRelation.Plan.logicalAssignment payload'.freshWitness
-    let input := ActualStep.input application fits assignment
-      (ActualStep.decodedFresh application assignment)
-      (ActualPiDECMessages.proof application fits assignment)
-    let input' := ActualStep.input application fits assignment'
-      (ActualStep.decodedFresh application assignment')
-      (ActualPiDECMessages.proof application fits assignment')
-    let relation := PerApplicationFixedPoint.relation application fits
-    let ajtai := PerApplicationCanonicalPackage.commitmentKey commitmentSetup
-    let context := PerApplicationCanonicalPackage.verifierContextDigest fits commitmentSetup
-    let prior := priorHashPreimage (Lifecycle.setup relation ajtai context) input
-    let prior' := priorHashPreimage (Lifecycle.setup relation ajtai context) input'
-    TranscriptCoverage.proverCalls input.fresh input.nifsProof challenge =
-        TranscriptCoverage.proverCalls input'.fresh input'.nifsProof challenge →
-      input.iteration = 0 ∨ input'.iteration = 0 ∨
-        (prior = prior' ∧ input.running functionIndex = input'.running functionIndex ∧
-          TranscriptCoverage.AgreeOnAbsorbed input.fresh input'.fresh
-            input.nifsProof input'.nifsProof challenge) ∨
-        PiCCSSecurity.StateHashCollision prior prior' ∨
-        PiCCSSecurity.StateHashCollision (decodedNext application assignment)
-          (terminalPreimage application fits commitmentSetup statement payload) ∨
-        PiCCSSecurity.StateHashCollision (decodedNext application assignment')
-          (terminalPreimage application fits commitmentSetup statement' payload') := by
-  intro assignment assignment' input input' relation ajtai context prior prior' same
-  rcases terminal_implies_nifsOrBaseOrCollision application fits commitmentSetup
-    statement payload terminal with ⟨_, base | ⟨_, _, link, _⟩⟩ | collision
-  · exact Or.inl base
-  · rcases terminal_implies_nifsOrBaseOrCollision application fits commitmentSetup
-      statement' payload' terminal' with ⟨_, base' | ⟨_, _, link', _⟩⟩ | collision'
-    · exact Or.inr (Or.inl base')
-    · rcases PiCCSSecurity.calls_identify_view_or_collision challenge link link' same with
-        ⟨priorEqual, _, runningEqual, agree⟩ | collision
-      · exact Or.inr (Or.inr (Or.inl ⟨priorEqual, runningEqual, agree⟩))
-      · exact Or.inr (Or.inr (Or.inr (Or.inl collision)))
-    · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr collision'))))
-  · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inl collision))))
-
 /-- Actual terminal acceptance either comes from the base step, supplies the
 valid recomposed PiDEC parent of the decoded recursive proof, or exhibits the
 named state-hash collision. No output-match or child-opening premise is added. -/

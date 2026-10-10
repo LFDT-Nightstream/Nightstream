@@ -29,11 +29,13 @@ variable (application : Lifecycle.Stage1.Application.Program)
   (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
   (setup : PerApplicationCanonicalPackage.CommitmentSetup application)
 
-/-- Acceptance with no history meeting the existing exact length and forward
-evaluation contract. The initial law may mix valid and invalid statements. -/
+/-- Acceptance with no history of circuit witnesses (each of the
+application's witness length) that has the advertised length and reaches the
+advertised final state. The initial law may mix valid and invalid statements. -/
 def FalseAcceptance (input : Statement × Envelope application) : Prop :=
   PerApplicationTerminal.Holds application fits setup input.1 input.2 ∧
     ¬ ∃ advice : List AppWitness,
+      (∀ witness ∈ advice, witness.length = application.witnessWordCount) ∧
       advice.length = input.1.iteration ∧
       advice.foldl application.step input.1.z0 = input.1.zi
 
@@ -42,8 +44,9 @@ uses the event definitions only, with no output-soundness premise. -/
 theorem falseAcceptance_not_adviceReturned (sample : Sample application)
     (invalid : FalseAcceptance application fits setup (sample.1, sample.2.1)) :
     ¬ AdviceReturned application fits sample := by
-  rintro ⟨advice, _unused, _returned, length, evaluated⟩
-  exact invalid.2 ⟨advice, length, evaluated⟩
+  rintro ⟨advice, _unused, returned, length, evaluated⟩
+  exact invalid.2 ⟨advice, HyperNovaHistory.run_witness_length application fits _ _ _ returned,
+    length, evaluated⟩
 
 variable {Admitted : NifsAdversary application fits setup → Prop} {StageAdmitted : Stage application fits setup → Prop}
   {Efficient : (adversary : NifsAdversary application fits setup) → NifsExtractor adversary → Prop}

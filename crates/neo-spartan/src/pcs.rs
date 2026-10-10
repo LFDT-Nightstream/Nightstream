@@ -47,11 +47,12 @@ pub(crate) const LAYER1: Profile = Profile {
     pow_bits: 0,
 };
 
-/// The shrink layer: rate 1/64, a first fold of five variables, 20 bits of
-/// grinding (owner limit, 2026-10-07). Measured as the smallest proof at
-/// 2^23 in M3 slice 0.
+/// The shrink layer: rate 1/8, a first fold of five variables, 20 bits of
+/// grinding (owner limit, 2026-10-07). Owner choice (2026-10-09) after a
+/// production sweep at 2^24: 1/8 gives a 129.5 KB final proof and an 8 s
+/// shrink; 1/64 gives 97.6 KB and 36 s; lower rates save under 3 s more.
 pub(crate) const SHRINK: Profile = Profile {
-    log_inv_rate: 6,
+    log_inv_rate: 3,
     first_folding: 5,
     folding: 4,
     pow_bits: 20,

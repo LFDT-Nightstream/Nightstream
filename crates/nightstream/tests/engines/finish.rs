@@ -189,3 +189,51 @@ fn metal_layer1_proof_equals_cpu() {
     );
     assert!(metal.layer1.to_bytes() == cpu.layer1.to_bytes());
 }
+
+/// The last fold of compression on Metal (PiCCS oracle on the device, PiRLC
+/// on the host) gives the CPU's proofs, parent and transcript.
+#[cfg(feature = "metal")]
+#[test]
+fn metal_parent_equals_cpu() {
+    let fixture = Fixture::selected_polynomial();
+    let rows = CachedMatrixRows::new(&fixture.cache).unwrap();
+    let workspace = fixture.workspace_bytes(&rows);
+    let fresh = || vec![fixture.fresh.clone()];
+    let mut cpu_transcript = Transcript::session();
+    let cpu = folding::prove_parent_with_rows(
+        &mut cpu_transcript,
+        &fixture.params,
+        &fixture.structure,
+        &rows,
+        workspace,
+        fresh(),
+        fixture.running.clone(),
+    )
+    .unwrap();
+    let backend = crate::engine::Backend::new(crate::Engine::Metal).unwrap();
+    let crate::engine::Backend::Metal(device) = &backend else {
+        unreachable!("the Metal engine has a Metal backend")
+    };
+    let mut device = device.lock().unwrap();
+    let before = device.activity().dispatches;
+    let mut metal_transcript = Transcript::session();
+    let metal = crate::engine::metal::prove_parent(
+        &mut device,
+        &mut metal_transcript,
+        &fixture.params,
+        &fixture.structure,
+        &rows,
+        workspace,
+        fresh(),
+        fixture.running.clone(),
+    )
+    .unwrap();
+    assert!(device.activity().dispatches > before, "PiCCS requires real device work");
+    assert!(metal.0 == cpu.0, "PiCCS proof");
+    assert!(metal.1.claim == cpu.1.claim && metal.1.witness == cpu.1.witness, "parent");
+    assert!(metal.2 == cpu.2, "PiRLC proof");
+    assert_eq!(
+        metal_transcript.into_inner().squeeze_digest_v1_1(),
+        cpu_transcript.into_inner().squeeze_digest_v1_1()
+    );
+}

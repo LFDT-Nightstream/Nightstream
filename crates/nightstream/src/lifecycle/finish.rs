@@ -264,15 +264,36 @@ impl PreparedLifecycle {
         let rows = self.matrix_rows();
         let workspace_bytes = self.matrix_workspace_bytes()?;
         let mut transcript = Transcript::session();
-        let (pi_ccs, parent, _) = nifs::prove_parent_with_rows(
-            &mut transcript,
-            &self.params,
-            &self.structure,
-            &rows,
-            workspace_bytes,
-            vec![fresh],
-            running,
-        )?;
+        let (pi_ccs, parent, _) = match &self.backend {
+            #[cfg(feature = "metal")]
+            crate::engine::Backend::Metal(device) => {
+                let mut device = device.lock().map_err(|_| {
+                    ProveError::from(crate::EngineError::Failure {
+                        engine: crate::Engine::Metal,
+                        reason: "device session lock was poisoned".into(),
+                    })
+                })?;
+                crate::engine::metal::prove_parent(
+                    &mut device,
+                    &mut transcript,
+                    &self.params,
+                    &self.structure,
+                    &rows,
+                    workspace_bytes,
+                    vec![fresh],
+                    running,
+                )?
+            }
+            _ => nifs::prove_parent_with_rows(
+                &mut transcript,
+                &self.params,
+                &self.structure,
+                &rows,
+                workspace_bytes,
+                vec![fresh],
+                running,
+            )?,
+        };
         Ok(LastFold {
             state,
             running: semantic,

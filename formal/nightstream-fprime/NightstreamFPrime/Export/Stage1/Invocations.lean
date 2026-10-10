@@ -139,13 +139,6 @@ theorem permutationOutput_affine (witnessStart : Nat) :
   intro lane
   simp [permutationOutput, Permutation.freshState]
 
-theorem permutationOutput_varsBelow (witnessStart : Nat) :
-    ∀ lane, (permutationOutput witnessStart lane).VarsBelow
-      (witnessStart + 1096) := by
-  intro lane
-  simpa [permutationOutput, Nat.add_assoc] using
-    Permutation.freshState_varsBelow (witnessStart + 1080) lane
-
 /-- The compact output slice is exactly the output of the authoritative
 Poseidon2 circuit compiler. -/
 theorem permutationOutput_eq_compile (witnessStart : Nat) (state : EState) :
@@ -288,13 +281,8 @@ def compileActions (phase : Nat) : Nat → Nat → EState →
         absorbed.state actions
       ⟨tail.rowNext, tail.witnessNext, tail.state,
         absorbed.invocations ++ tail.invocations⟩
-  | rowStart, witnessStart, state, .squeezeK _expected :: actions =>
-      let tail := compileActions phase (rowStart + 2192)
-        (witnessStart + 2192) (permutationOutput (witnessStart + 1096)) actions
-      ⟨tail.rowNext, tail.witnessNext, tail.state,
-        invocation phase rowStart witnessStart state ::
-        invocation phase (rowStart + 1096) (witnessStart + 1096)
-            (permutationOutput witnessStart) :: tail.invocations⟩
+  | rowStart, witnessStart, state, .readK _pair _expected :: actions =>
+      compileActions phase rowStart witnessStart state actions
 
 theorem compileBlocks_witnessNext
     (phase rowStart witnessStart : Nat) (state : EState)
@@ -320,83 +308,6 @@ theorem compileBlocks_state_eq
       simp only [compileBlocks, Hash.compileAbsorptions]
       rw [inductionHypothesis]
       rw [permutationOutput_eq_compile]
-
-theorem squeezeOutput_eq_compile (witnessStart : Nat) (state : EState) :
-    permutationOutput (witnessStart + 1096) =
-      (Squeeze.compile witnessStart state).output := by
-  funext lane
-  rw [Squeeze.compile_output_apply]
-  unfold Squeeze.secondPermutation
-  rw [Squeeze.first_recipes_length]
-  exact congrFun
-    (permutationOutput_eq_compile (witnessStart + 1096)
-      (Squeeze.firstPermutation witnessStart state).output) lane
-
-/-- Two held compact invocations implement one exact quadratic-extension
-squeeze, including its sampled value and outgoing state. -/
-theorem squeeze_sound (phase rowStart witnessStart : Nat)
-    (state : EState) (expected : KExpr) (env : Env)
-    (witnessLocal : Spartan.piCcsPhaseOffset ≤ witnessStart)
-    (stateAffine : Poseidon2.StateAffine state)
-    (expectedEq : expected = (Squeeze.compile witnessStart state).sample)
-    (firstHolds : PermutationInvocationHolds (PilotData.circuitPackage ())
-      (invocation phase rowStart witnessStart state) env)
-    (secondHolds : PermutationInvocationHolds (PilotData.circuitPackage ())
-      (invocation phase (rowStart + 1096) (witnessStart + 1096)
-        (permutationOutput witnessStart)) env) :
-    expected.eval (Spartan.pullback env) =
-        Squeeze.referenceSample
-          (List.ofFn (Layer.evalState (Spartan.pullback env) state)) ∧
-      List.ofFn (Layer.evalState (Spartan.pullback env)
-        (permutationOutput (witnessStart + 1096))) =
-        Squeeze.referenceState
-          (List.ofFn (Layer.evalState (Spartan.pullback env) state)) := by
-  have firstSound := invocation_sound phase rowStart witnessStart state env
-    witnessLocal stateAffine firstHolds
-  have firstAffine : Poseidon2.StateAffine
-      (permutationOutput witnessStart) := by
-    intro lane
-    simp [permutationOutput, Permutation.freshState]
-  have secondSound := invocation_sound phase (rowStart + 1096)
-    (witnessStart + 1096) (permutationOutput witnessStart) env (by omega)
-    firstAffine secondHolds
-  have firstList :
-      List.ofFn (Layer.evalState (Spartan.pullback env)
-        (permutationOutput witnessStart)) =
-        Spec.Poseidon2.permute
-          (List.ofFn (Layer.evalState (Spartan.pullback env) state)) := by
-    calc
-      _ = List.ofFn (Permutation.runF Permutation.schedule
-          (Layer.evalState (Spartan.pullback env) state)) :=
-        congrArg List.ofFn firstSound
-      _ = _ := by
-        rw [Permutation.runF_eq_reference,
-          Permutation.runReference_schedule]
-  have secondList :
-      List.ofFn (Layer.evalState (Spartan.pullback env)
-        (permutationOutput (witnessStart + 1096))) =
-        Spec.Poseidon2.permute
-          (List.ofFn (Layer.evalState (Spartan.pullback env)
-            (permutationOutput witnessStart))) := by
-    calc
-      _ = List.ofFn (Permutation.runF Permutation.schedule
-          (Layer.evalState (Spartan.pullback env)
-            (permutationOutput witnessStart))) :=
-        congrArg List.ofFn secondSound
-      _ = _ := by
-        rw [Permutation.runF_eq_reference,
-          Permutation.runReference_schedule]
-  constructor
-  · rw [expectedEq, Squeeze.compile_sample_eq]
-    have firstLane := congrArg (fun values : List F => values.getD 0 0)
-      firstList
-    unfold KExpr.eval Squeeze.referenceSample
-    apply congrArg₂ K.mk
-    · simp [Layer.evalState, List.ofFn_succ]
-    · rw [← permutationOutput_eq_compile witnessStart state]
-      simpa [Layer.evalState, List.ofFn_succ] using firstLane
-  · unfold Squeeze.referenceState
-    rw [secondList, firstList]
 
 /-- Compact package tracing and the authoritative Duplex compiler finish in
 the same symbolic state. The proof is structural in the action list. -/
@@ -425,14 +336,7 @@ theorem compileActions_state_eq (phase rowStart witnessStart : Nat)
             compileBlocks_state_eq phase rowStart witnessStart state blocks
           rw [witnessNext, stateNext]
           exact inductionHypothesis _ _ _
-      | squeezeK expected =>
-          let squeezed := Squeeze.compile witnessStart state
-          change
-            (compileActions phase (rowStart + 2192) (witnessStart + 2192)
-              (permutationOutput (witnessStart + 1096)) actions).state =
-              (Formal.compile (witnessStart + squeezed.recipes.length)
-                squeezed.output actions).output
-          rw [Squeeze.compile_recipes_length, squeezeOutput_eq_compile]
+      | readK pair expected =>
           exact inductionHypothesis _ _ _
 
 theorem expectedSamples_eq_samples_of_assertionCount_zero
@@ -452,11 +356,11 @@ theorem expectedSamples_eq_samples_of_assertionCount_zero
                 (Hash.inputChunks input)).recipes.length)
               (Hash.compileAbsorptions start state
                 (Hash.inputChunks input)).output tailNone
-      | squeezeK expected =>
+      | readK pair expected =>
           simp [Formal.assertionCount, Formal.Action.assertionCount] at none
 
 /-- Held compact invocations imply the exact Duplex trace semantics when the
-leaf wires every expected squeeze value to the compiler-owned sample list. -/
+leaf wires every expected read value to the compiler-owned sample list. -/
 theorem compileActions_traceHolds (phase rowStart witnessStart : Nat)
     (state : EState) (actions : List Action) (env : Env)
     (witnessLocal : Spartan.piCcsPhaseOffset ≤ witnessStart)
@@ -554,55 +458,20 @@ theorem compileActions_traceHolds (phase rowStart witnessStart : Nat)
           simp only [List.map_cons, Formal.Action.eval, Formal.TraceHolds]
           rw [← absorbedReference]
           exact tailSound
-      | squeezeK expected =>
-          let squeezed := Squeeze.compile witnessStart state
-          have expectedParts : expected = squeezed.sample ∧
+      | readK pair expected =>
+          have expectedParts : expected = Read.sample state pair ∧
               Formal.expectedSamples actions =
-                (Formal.compile (witnessStart + squeezed.recipes.length)
-                  squeezed.output actions).samples := by
-            simpa [Formal.expectedSamples, Formal.compile, squeezed]
+                (Formal.compile witnessStart state actions).samples := by
+            simpa [Formal.expectedSamples, Formal.compile]
               using List.cons.inj expectedSamples
-          have firstHolds : PermutationInvocationHolds
-              (PilotData.circuitPackage ())
-              (invocation phase rowStart witnessStart state) env :=
-            holds _ (by simp [compileActions])
-          have secondHolds : PermutationInvocationHolds
-              (PilotData.circuitPackage ())
-              (invocation phase (rowStart + 1096) (witnessStart + 1096)
-                (permutationOutput witnessStart)) env :=
-            holds _ (by simp [compileActions])
-          have squeezedSound := squeeze_sound phase rowStart witnessStart
-            state expected env witnessLocal stateAffine expectedParts.1
-            firstHolds secondHolds
-          have outputAffine : Poseidon2.StateAffine
-              (permutationOutput (witnessStart + 1096)) := by
-            intro lane
-            simp [permutationOutput, Permutation.freshState]
-          have outputEq : permutationOutput (witnessStart + 1096) =
-              squeezed.output := squeezeOutput_eq_compile witnessStart state
-          have tailExpected : Formal.expectedSamples actions =
-              (Formal.compile (witnessStart + 2192)
-                (permutationOutput (witnessStart + 1096)) actions).samples := by
-            rw [outputEq, ← Squeeze.compile_recipes_length witnessStart state]
-            exact expectedParts.2
-          have tailHolds : ∀ current ∈
-              (compileActions phase (rowStart + 2192)
-                (witnessStart + 2192)
-                (permutationOutput (witnessStart + 1096)) actions).invocations,
-              PermutationInvocationHolds (PilotData.circuitPackage ())
-                current env := by
-            intro current member
-            exact holds current (by simp [compileActions, member])
-          have tailSound := inductionHypothesis (rowStart + 2192)
-            (witnessStart + 2192)
-            (permutationOutput (witnessStart + 1096)) (by omega) outputAffine
-            tailAffine tailExpected tailHolds
+          have tailSound := inductionHypothesis rowStart witnessStart state
+            witnessLocal stateAffine tailAffine expectedParts.2 holds
           simp only [List.map_cons, Formal.Action.eval, Formal.TraceHolds]
-          refine ⟨squeezedSound.1, ?_⟩
-          rw [← squeezedSound.2]
-          exact tailSound
+          refine ⟨?_, tailSound⟩
+          rw [expectedParts.1]
+          exact Read.sample_eval _ state pair
 
-/-- Squeeze expectations own assertion rows only. Equal action shapes produce
+/-- Read expectations own assertion rows only. Equal action shapes produce
 the same compact permutation trace. -/
 theorem compileActions_eq_of_shapes (phase rowStart witnessStart : Nat)
     (state : EState) (left right : List Action)
@@ -628,24 +497,24 @@ theorem compileActions_eq_of_shapes (phase rowStart witnessStart : Nat)
             subst rightInput
             simp only [compileActions]
             rw [inductionHypothesis _ _ _ _ tailSame]
-          case absorb.squeezeK => simp [Formal.Action.shape] at headSame
-          case squeezeK.absorb => simp [Formal.Action.shape] at headSame
-          case squeezeK.squeezeK leftExpected rightExpected =>
+          case absorb.readK => simp [Formal.Action.shape] at headSame
+          case readK.absorb => simp [Formal.Action.shape] at headSame
+          case readK.readK leftPair leftExpected rightPair rightExpected =>
             simp only [compileActions]
             rw [inductionHypothesis _ _ _ _ tailSame]
 
 def Action.invocationCount : Action → Nat
   | .absorb input => (Hash.inputChunks input).length
-  | .squeezeK _ => 2
+  | .readK _ _ => 0
 
 def invocationCount (actions : List Action) : Nat :=
   (actions.map Action.invocationCount).sum
 
-/-- Exact affine premise read by the compact invocation compiler. Squeeze
+/-- Exact affine premise read by the compact invocation compiler. Read
 expectations are assertion data and do not occur in permutation inputs. -/
 def actionShapeInputsAffine : Formal.ActionShape → Prop
   | .absorb input => Poseidon2.ListAffine input
-  | .squeezeK => True
+  | .readK _ => True
 
 def ActionsInvocationInputsAffine (actions : List Action) : Prop :=
   ∀ shape ∈ actions.map Formal.Action.shape,
@@ -655,7 +524,7 @@ def ActionsInvocationInputsAffine (actions : List Action) : Prop :=
 def actionShapeInputsBelow
     (bound : Nat) : Formal.ActionShape → Prop
   | .absorb input => ∀ expression ∈ input, expression.VarsBelow bound
-  | .squeezeK => True
+  | .readK _ => True
 
 def ActionsInvocationInputsBelow (bound : Nat)
     (actions : List Action) : Prop :=
@@ -672,7 +541,7 @@ theorem actionsInvocationInputsAffine_of_actionsAffine
   rcases member with ⟨action, actionMember, rfl⟩
   cases action with
   | absorb input => exact strong (.absorb input) actionMember
-  | squeezeK expected => trivial
+  | readK pair expected => trivial
 
 theorem actionsInvocationInputsBelow_of_actionsBelow
     (bound : Nat) (actions : List Action)
@@ -683,7 +552,7 @@ theorem actionsInvocationInputsBelow_of_actionsBelow
   rcases member with ⟨action, actionMember, rfl⟩
   cases action with
   | absorb input => exact strong (.absorb input) actionMember
-  | squeezeK expected => trivial
+  | readK pair expected => trivial
 
 theorem actionsInvocationInputsAffine_of_shapes
     (left right : List Action)
@@ -730,10 +599,9 @@ theorem compileActions_invocations_length
           simp [compileActions, invocationCount,
             Action.invocationCount, compileBlocks_invocations_length,
             inductionHypothesis]
-      | squeezeK expected =>
+      | readK pair expected =>
           simp [compileActions, invocationCount, Action.invocationCount,
             inductionHypothesis]
-          omega
 
 theorem invocationCount_eq_of_shapes (left right : List Action)
     (same : left.map Formal.Action.shape =
@@ -754,7 +622,7 @@ theorem recipeCount_eq_invocationCount_mul (actions : List Action) :
       cases action with
       | absorb input =>
           simp only [Formal.Action.recipeCount, Action.invocationCount]
-      | squeezeK expected =>
+      | readK pair expected =>
           norm_num [Formal.Action.recipeCount, Action.invocationCount]
 
 theorem compileActions_witnessNext
@@ -772,7 +640,7 @@ theorem compileActions_witnessNext
           simp only [invocationCount, Action.invocationCount, List.map_cons,
             List.sum_cons]
           omega
-      | squeezeK expected =>
+      | readK pair expected =>
           simp only [compileActions]
           rw [inductionHypothesis]
           simp only [invocationCount, Action.invocationCount, List.map_cons,
@@ -810,12 +678,8 @@ theorem compileActions_invocation_inputs
           rcases member with member | member
           · exact compileBlocks_invocation_inputs _ _ _ _ _ _ member
           · exact inductionHypothesis _ _ _ member
-      | squeezeK expected =>
-          simp only [compileActions, List.mem_cons] at member
-          rcases member with rfl | rfl | member
-          · exact invocationInputs_length _
-          · exact invocationInputs_length _
-          · exact inductionHypothesis _ _ _ member
+      | readK pair expected =>
+          exact inductionHypothesis _ _ _ member
 
 /-! ## Constructive package invocation execution -/
 
@@ -1093,7 +957,7 @@ theorem compileActions_scheduleWithin
             intro shape member
             have below := tailBelow shape member
             cases shape with
-            | squeezeK => trivial
+            | readK _ => trivial
             | absorb input =>
                 intro expression expressionMember
                 exact Expr.VarsBelow.mono expression
@@ -1151,204 +1015,14 @@ theorem compileActions_scheduleWithin
                       invocationCount actions * 1096) :=
                   tailBefore current tailMember
                 _ = _ := mappedTotalEq
-      | squeezeK expected =>
-          let firstInvocation := invocation phase rowStart witnessStart state
-          let secondInvocation := invocation phase (rowStart + 1096)
-            (witnessStart + 1096) (permutationOutput witnessStart)
-          let tail := compileActions phase (rowStart + 2192)
-            (witnessStart + 2192)
-            (permutationOutput (witnessStart + 1096)) actions
-          have totalSourceEq : witnessStart + 2192 +
-              invocationCount actions * 1096 =
-              witnessStart +
-                invocationCount (.squeezeK expected :: actions) * 1096 := by
-            simp only [invocationCount, Action.invocationCount,
-              List.map_cons, List.sum_cons]
-            omega
-          have tailEndWithin : Spartan.sourceToSpartan
-              (witnessStart + 2192 + invocationCount actions * 1096) ≤
-                ceiling := by
-            rw [totalSourceEq]
-            exact endWithin
-          have tailStateAffine := permutationOutput_affine
-            (witnessStart + 1096)
-          have tailStateBelow := permutationOutput_varsBelow
-            (witnessStart + 1096)
-          have widenedTailBelow : ActionsInvocationInputsBelow
-              (witnessStart + 2192) actions := by
-            intro shape member
-            have below := tailBelow shape member
-            cases shape with
-            | squeezeK => trivial
-            | absorb input =>
-                intro expression expressionMember
-                exact Expr.VarsBelow.mono expression
-                  (below expression expressionMember) (by omega)
-          rcases inductionHypothesis (rowStart := rowStart + 2192)
-              (witnessStart := witnessStart + 2192)
-              (state := permutationOutput (witnessStart + 1096)) (by omega)
-              tailEndWithin tailStateAffine (by simpa [Nat.add_assoc] using
-                tailStateBelow) tailAffine widenedTailBelow with
-            ⟨tailSchedule, tailBefore⟩
-          have firstInputs : InvocationInputsOutside ceiling firstInvocation := by
-            dsimp [firstInvocation]
-            exact invocation_inputsOutside phase rowStart witnessStart ceiling
-              state witnessLocal ceilingPrivate stateAffine stateBelow
-          have firstStableInputs : InvocationInputsOutside
-              Spartan.privateColumnCount firstInvocation := by
-            dsimp [firstInvocation]
-            exact invocation_inputsOutside phase rowStart witnessStart
-              Spartan.privateColumnCount state witnessLocal (by exact le_rfl)
-              stateAffine stateBelow
-          have secondInputs :
-              InvocationInputsOutside ceiling secondInvocation := by
-            dsimp [secondInvocation]
-            exact invocation_inputsOutside phase (rowStart + 1096)
-              (witnessStart + 1096) ceiling (permutationOutput witnessStart)
-              (by omega) ceilingPrivate (permutationOutput_affine witnessStart)
-              (permutationOutput_varsBelow witnessStart)
-          have secondStableInputs : InvocationInputsOutside
-              Spartan.privateColumnCount secondInvocation := by
-            dsimp [secondInvocation]
-            exact invocation_inputsOutside phase (rowStart + 1096)
-              (witnessStart + 1096) Spartan.privateColumnCount
-              (permutationOutput witnessStart) (by omega) (by exact le_rfl)
-              (permutationOutput_affine witnessStart)
-              (permutationOutput_varsBelow witnessStart)
-          have mapFirst := Spartan.sourceToSpartan_add_of_piCcsLocal
-            witnessStart 1096 witnessLocal
-          have mapSecond := Spartan.sourceToSpartan_add_of_piCcsLocal
-            (witnessStart + 1096) 1096 (by omega)
-          have mapTail := Spartan.sourceToSpartan_add_of_piCcsLocal
-            (witnessStart + 2192) (invocationCount actions * 1096) (by omega)
-          have tailStartEq : (witnessStart + 1096) + 1096 =
-              witnessStart + 2192 := by omega
-          have mappedTotalEq := congrArg Spartan.sourceToSpartan totalSourceEq
-          have firstEndWithin : Spartan.sourceToSpartan witnessStart + 1096 ≤
-              ceiling := by
-            calc
-              _ = Spartan.sourceToSpartan (witnessStart + 1096) :=
-                mapFirst.symm
-              _ ≤ Spartan.sourceToSpartan (witnessStart + 2192) :=
-                Spartan.sourceToSpartan_lt_of_piCcsLocal
-                  (witnessStart + 1096) (witnessStart + 2192) (by omega)
-                  (by omega) |>.le
-              _ ≤ Spartan.sourceToSpartan
-                  (witnessStart + 2192 +
-                    invocationCount actions * 1096) := by
-                rw [mapTail]
-                omega
-              _ ≤ ceiling := tailEndWithin
-          have secondEndWithin :
-              Spartan.sourceToSpartan (witnessStart + 1096) + 1096 ≤
-                ceiling := by
-            calc
-              _ = Spartan.sourceToSpartan ((witnessStart + 1096) + 1096) :=
-                mapSecond.symm
-              _ = Spartan.sourceToSpartan (witnessStart + 2192) := by
-                rw [tailStartEq]
-              _ ≤ Spartan.sourceToSpartan
-                  (witnessStart + 2192 +
-                    invocationCount actions * 1096) := by
-                rw [mapTail]
-                omega
-              _ ≤ ceiling := tailEndWithin
-          have firstStarts : Spartan.sourceToSpartan witnessStart ≤
-              firstInvocation.witnessStart := by
-            simp only [firstInvocation, invocation_witnessStart]
-            exact le_rfl
-          have firstEnds : firstInvocation.witnessStart + 1096 ≤ ceiling := by
-            simpa only [firstInvocation, invocation_witnessStart] using
-              firstEndWithin
-          have secondEnds : secondInvocation.witnessStart + 1096 ≤
-              ceiling := by
-            simpa only [secondInvocation, invocation_witnessStart] using
-              secondEndWithin
-          have secondStarts :
-              firstInvocation.witnessStart + 1096 ≤
-                secondInvocation.witnessStart := by
-            simpa only [firstInvocation, secondInvocation,
-              invocation_witnessStart] using
-              Nat.le_of_eq mapFirst.symm
-          have tailStarts :
-              secondInvocation.witnessStart + 1096 =
-                Spartan.sourceToSpartan (witnessStart + 2192) := by
-            simpa only [secondInvocation, invocation_witnessStart] using
-              (calc
-                Spartan.sourceToSpartan (witnessStart + 1096) + 1096 =
-                    Spartan.sourceToSpartan ((witnessStart + 1096) + 1096) :=
-                  mapSecond.symm
-                _ = Spartan.sourceToSpartan (witnessStart + 2192) := by
-                  rw [tailStartEq])
-          have firstBeforeFinal :
-              firstInvocation.witnessStart + 1096 ≤
-                Spartan.sourceToSpartan
-                  (witnessStart +
-                    invocationCount (.squeezeK expected :: actions) * 1096) := by
-            simpa only [firstInvocation, invocation_witnessStart] using
-              (calc
-                Spartan.sourceToSpartan witnessStart + 1096 =
-                    Spartan.sourceToSpartan (witnessStart + 1096) :=
-                  mapFirst.symm
-                _ ≤ Spartan.sourceToSpartan
-                    (witnessStart + 2192 +
-                      invocationCount actions * 1096) := by
-                  rw [mapTail]
-                  have localMap :=
-                    Spartan.sourceToSpartan_add_of_piCcsLocal
-                      (witnessStart + 1096) 1096 (by omega)
-                  rw [localMap]
-                  omega
-                _ = _ := mappedTotalEq)
-          have secondBeforeFinal :
-              secondInvocation.witnessStart + 1096 ≤
-                Spartan.sourceToSpartan
-                  (witnessStart +
-                    invocationCount (.squeezeK expected :: actions) * 1096) := by
-            simpa only [secondInvocation, invocation_witnessStart] using
-              (calc
-                Spartan.sourceToSpartan (witnessStart + 1096) + 1096 ≤
-                    Spartan.sourceToSpartan
-                      (witnessStart + 2192 +
-                        invocationCount actions * 1096) := by
-                  rw [← mapSecond, tailStartEq, mapTail]
-                  omega
-                _ = _ := mappedTotalEq)
-          have secondSchedule : ScheduleWithin
-              (firstInvocation.witnessStart + 1096) ceiling
-              (secondInvocation :: tail.invocations) := by
-            have tailScheduleAt : ScheduleWithin
-                (secondInvocation.witnessStart + 1096)
-                ceiling tail.invocations := by
-              rw [tailStarts]
-              exact tailSchedule
-            exact ScheduleWithin.cons
-              (invocation := secondInvocation)
-              (rest := tail.invocations) secondStarts secondEnds
-              secondInputs secondStableInputs tailScheduleAt
-          change ScheduleWithin (Spartan.sourceToSpartan witnessStart) ceiling
-              (firstInvocation :: secondInvocation :: tail.invocations) ∧
-            InvocationsBefore (Spartan.sourceToSpartan
-              (witnessStart +
-                invocationCount (.squeezeK expected :: actions) * 1096))
-              (firstInvocation :: secondInvocation :: tail.invocations)
-          constructor
-          · exact ScheduleWithin.cons (invocation := firstInvocation)
-              (rest := secondInvocation :: tail.invocations) firstStarts
-              firstEnds firstInputs firstStableInputs secondSchedule
-          · intro current member
-            rcases List.mem_cons.mp member with firstMember | member
-            · rw [firstMember]
-              exact firstBeforeFinal
-            · rcases List.mem_cons.mp member with secondMember | member
-              · rw [secondMember]
-                exact secondBeforeFinal
-              · calc
-                  current.witnessStart + 1096 ≤ Spartan.sourceToSpartan
-                      (witnessStart + 2192 +
-                        invocationCount actions * 1096) :=
-                    tailBefore current member
-                  _ = _ := mappedTotalEq
+      | readK pair expected =>
+          have countEq : invocationCount (.readK pair expected :: actions) =
+              invocationCount actions := by
+            simp [invocationCount, Action.invocationCount]
+          rw [countEq] at endWithin ⊢
+          exact inductionHypothesis (rowStart := rowStart)
+            (witnessStart := witnessStart) (state := state) witnessLocal
+            endWithin stateAffine stateBelow tailAffine tailBelow
 
 /-- Two environments agree at every column not owned by an invocation in the
 given list. -/

@@ -4,7 +4,7 @@ import NightstreamFPrime.Layout.Stage1.PiCCSTranscriptSupport
 
 /-!
 Owns affine recognition and exact source support for the PiCCS action payload
-expressions, including their verifier-derived squeeze expectations.
+expressions. A read carries no payload.
 PiCCSPayloadWiring owns compilation through the parent's source map.
 -/
 
@@ -35,20 +35,13 @@ private def ListSupported (expressions : List Expr) : Prop :=
 
 private def ActionSupported : Formal.Action → Prop
   | .absorb input => ListSupported input
-  | .squeezeK expected => Supported expected.c0 ∧ Supported expected.c1
+  | .readK _ _ => True
 
 private theorem constants_supported (words : List F) :
     ListSupported (words.map Expr.const) := by
   intro expression member
   rcases List.mem_map.mp member with ⟨word, _, rfl⟩
   trivial
-
-private theorem block_supported (words : List Expr) (supported : ListSupported words) :
-    ListSupported (StatementAbsorption.blockExpr words) := by
-  intro expression member
-  rcases List.mem_cons.mp member with rfl | member
-  · trivial
-  · exact supported expression member
 
 private theorem serializeK_supported (value : KExpr)
     (supported : Supported value.c0 ∧ Supported value.c1) :
@@ -125,16 +118,17 @@ private theorem statementActions_supported : ∀ action ∈ statementActions,
   intro action member
   change action ∈ StatementAbsorption.publicInputActions interface
     PiCCSInvocations.statementWitnessStart at member
-  simp only [StatementAbsorption.publicInputActions, List.mem_append,
-    List.mem_singleton, List.mem_map] at member
-  rcases member with rfl | ⟨block, member, rfl⟩
+  simp only [StatementAbsorption.publicInputActions, List.mem_cons,
+    List.not_mem_nil, or_false] at member
+  rcases member with rfl | rfl
   · exact constants_supported _
-  · exact block_supported block (blocks block member)
+  · intro expression member
+    rcases List.mem_flatten.mp member with ⟨block, blockMember, member⟩
+    exact blocks block blockMember expression member
 
 private theorem labelledActions_supported
     (labels : List (FiatShamir.ChallengeLabel productionShape))
-    (samples : List KExpr)
-    (supported : ∀ sample ∈ samples, Supported sample.c0 ∧ Supported sample.c1) :
+    (samples : List KExpr) :
     ∀ action ∈ ChallengeDerivation.labelledActions labels samples,
       ActionSupported action := by
   induction labels generalizing samples with
@@ -145,32 +139,27 @@ private theorem labelledActions_supported
       | cons sample samples =>
           intro action member
           simp only [ChallengeDerivation.labelledActions, List.mem_append,
-            ChallengeDerivation.labelActions, List.mem_cons, List.not_mem_nil,
-            or_false] at member
-          rcases member with (rfl | rfl) | member
-          · exact constants_supported _
-          · exact supported sample (by simp)
-          · exact inductionHypothesis samples
-              (fun value member => supported value (List.mem_cons_of_mem _ member))
-              action member
+            ChallengeDerivation.labelActions, List.mem_cons] at member
+          rcases member with (rfl | member) | member
+          · trivial
+          · unfold ChallengeDerivation.refreshActions at member
+            split at member
+            · rw [List.mem_singleton] at member
+              subst member
+              exact constants_supported _
+            · cases member
+          · exact inductionHypothesis samples action member
 
 private theorem challengeActions_supported : ∀ action ∈ challengeActions,
     ActionSupported action := by
   unfold challengeActions
   rw [ChallengeDerivation.actions_eq_labelled]
-  apply labelledActions_supported
-  intro sample member
-  rw [← ChallengeDerivation.layoutWiring_samples_eq] at member
-  have supported := PiCCSOrdinarySourceSupport.challengeWiring_supported
-    Data.logicalWidth Data.publicFits
-  exact supported sample member
+  exact labelledActions_supported _ _
 
 private theorem roundActions_supported : ∀ action ∈ roundActions,
     ActionSupported action := by
   have caller := (PiCCSOrdinarySourceSupport.externalInputsSupported
     Data.logicalWidth Data.publicFits).mono PiCCSOrdinarySourceSupport.external_source
-  have transcript := PiCCSOrdinarySourceSupport.transcriptValuesSupported
-    Data.logicalWidth Data.publicFits
   let interface := PiCCSInvocations.roundInterface Data.logicalWidth Data.publicFits
   have coefficients : ∀ roundIndex,
       ListSupported (RoundTranscript.serializeRoundExpr
@@ -189,14 +178,9 @@ private theorem roundActions_supported : ∀ action ∈ roundActions,
   rcases member with ⟨roundIndex, _, member⟩
   simp only [RoundTranscript.roundActions, RoundTranscript.roundActionsWithExpected,
     List.mem_cons, List.not_mem_nil, or_false] at member
-  rcases member with rfl | rfl | rfl
-  · apply block_supported
-    intro expression member
-    rcases List.mem_cons.mp member with rfl | member
-    · trivial
-    · exact coefficients roundIndex expression member
-  · exact constants_supported _
-  · exact transcript.roundPoint roundIndex
+  rcases member with rfl | rfl
+  · exact coefficients roundIndex
+  · trivial
 
 private theorem outputActions_supported : ∀ action ∈ outputActions,
     ActionSupported action := by
@@ -206,7 +190,6 @@ private theorem outputActions_supported : ∀ action ∈ outputActions,
   simp only [outputActions, PiCCSInvocations.outputActions, OutputBinding.actions,
     List.mem_singleton] at member
   subst action
-  apply block_supported
   intro expression member
   rw [OutputBinding.outputWords, List.mem_flatMap] at member
   rcases member with ⟨source, _, member⟩
@@ -238,15 +221,11 @@ private theorem selectedBlock_supported (actions : List Formal.Action)
       intro expression expressionMember
       exact actionProperty expression
         (List.mem_of_mem_drop (List.mem_of_mem_take expressionMember))
-  | squeezeK expected =>
-      simp only [PoseidonActionSchedule.actionKinds, List.mem_cons,
-        List.not_mem_nil, or_false] at kindMember
-      rcases kindMember with rfl | rfl
-      · exact serializeK_supported expected actionProperty
-      · intro expression member; cases member
+  | readK pair expected =>
+      simp [PoseidonActionSchedule.actionKinds] at kindMember
 
-/-- All actual absorb words and squeeze expectations use the exact declared
-PiCCS source families. No intermediate unowned permutation recipe is read. -/
+/-- All actual absorb words use the exact declared PiCCS source families. No
+intermediate unowned permutation recipe is read. -/
 theorem payloadExpression_supported (index : Fin payloadCount) :
     (payloadExpression index).VarsSatisfy PiCCSOrdinarySourceSupport.Source := by
   let decoded : Fin invocationCount × Fin Spec.Poseidon2.rate := Fin.decodeProd index
@@ -284,18 +263,8 @@ private theorem selectedBlock_affine (actions : List Formal.Action)
       intro expression expressionMember
       exact actionProperty expression
         (List.mem_of_mem_drop (List.mem_of_mem_take expressionMember))
-  | squeezeK expected =>
-      simp only [PoseidonActionSchedule.actionKinds, List.mem_cons,
-        List.not_mem_nil, or_false] at kindMember
-      rcases kindMember with rfl | rfl
-      · intro expression expressionMember
-        simp only [selectedBlockForKind, List.mem_cons,
-          List.not_mem_nil, or_false] at expressionMember
-        rcases expressionMember with rfl | rfl
-        · exact actionProperty.1
-        · exact actionProperty.2
-      · intro expression expressionMember
-        cases expressionMember
+  | readK pair expected =>
+      simp [PoseidonActionSchedule.actionKinds] at kindMember
 
 private theorem kindAt_affine
     (current : Fin invocationCount) :
@@ -333,7 +302,7 @@ private theorem kindAt_affine
         (shapes.outputBinding PiCCSInvocations.outputWitnessStart)) _ output
 
 /-- Every emitted payload expression is recognized by the existing affine
-lowerer, including the actual squeeze expectations and zero padding. -/
+lowerer, including zero padding. -/
 theorem payloadExpression_affine
     (index : Fin payloadCount) : R1CS.IsAffine (payloadExpression index) := by
   let decoded : Fin invocationCount × Fin Spec.Poseidon2.rate := Fin.decodeProd index

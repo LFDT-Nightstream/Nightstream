@@ -201,7 +201,7 @@ def compactEnv (program : Lifecycle.Stage1.Application.Program)
 
 @[simp] theorem compactEnv_piCcsLocal
     (program : Lifecycle.Stage1.Application.Program) (env : Env)
-    (index : Nat) (bound : index < 1258477) :
+    (index : Nat) (bound : index < 1068869) :
     compactEnv program env (AssemblerInputs.piCcsOffset program + index) =
       sourceEnv program env (PilotPiCCS.piCcsOffset + index) := by
   have notRoot : ¬ AssemblerInputs.piCcsOffset program + index <

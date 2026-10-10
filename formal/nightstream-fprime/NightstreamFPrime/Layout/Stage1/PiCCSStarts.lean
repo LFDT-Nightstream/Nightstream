@@ -38,9 +38,9 @@ theorem rowBase_eq_layout :
 
 def statementBindingRowStart : Nat := rowBase
 def statementAbsorptionRowStart : Nat := statementBindingRowStart + 4712
-def challengeRowStart : Nat := statementAbsorptionRowStart + 140288
-def roundTranscriptRowStart : Nat := challengeRowStart + 95352
-def initialClaimRowStart : Nat := roundTranscriptRowStart + 153440
+def challengeRowStart : Nat := statementAbsorptionRowStart + 134808
+def roundTranscriptRowStart : Nat := challengeRowStart + 4384
+def initialClaimRowStart : Nat := roundTranscriptRowStart + 61376
 def sumcheckRowStart : Nat := initialClaimRowStart + 12957
 def evalKRowStart : Nat := sumcheckRowStart + 728
 def evalARowStart : Nat := evalKRowStart + 3364
@@ -61,9 +61,9 @@ Poseidon2 invocation packets. The statement-binding leaf owns the first 270
 columns: one hinted sign per packed parent coordinate. -/
 def statementBindingLogicalStart : Nat := PiCCSInputs.phaseOffset
 def statementWitnessStart : Nat := statementBindingLogicalStart + 270
-def challengeWitnessStart : Nat := statementWitnessStart + 140288
-def roundTranscriptWitnessStart : Nat := challengeWitnessStart + 95352
-def initialClaimLogicalStart : Nat := roundTranscriptWitnessStart + 153440
+def challengeWitnessStart : Nat := statementWitnessStart + 134808
+def roundTranscriptWitnessStart : Nat := challengeWitnessStart + 4384
+def initialClaimLogicalStart : Nat := roundTranscriptWitnessStart + 61376
 def sumcheckLogicalStart : Nat := initialClaimLogicalStart + 12957
 def evalKLogicalStart : Nat := sumcheckLogicalStart + 672
 def evalALogicalStart : Nat := evalKLogicalStart + 2699
@@ -80,17 +80,17 @@ theorem statementWitnessStart_eq : statementWitnessStart = 5157226 := by
   unfold statementWitnessStart statementBindingLogicalStart
   rw [PiCCSInputs.phaseOffset_eq]
 
-theorem challengeWitnessStart_eq : challengeWitnessStart = 5297514 := by
+theorem challengeWitnessStart_eq : challengeWitnessStart = 5292034 := by
   unfold challengeWitnessStart
   rw [statementWitnessStart_eq]
 
 theorem roundTranscriptWitnessStart_eq :
-    roundTranscriptWitnessStart = 5392866 := by
+    roundTranscriptWitnessStart = 5296418 := by
   unfold roundTranscriptWitnessStart
   rw [challengeWitnessStart_eq]
 
 theorem outputBindingWitnessStart_eq :
-    outputBindingWitnessStart = 5575897 := by
+    outputBindingWitnessStart = 5387385 := by
   unfold outputBindingWitnessStart finalIdentityLogicalStart
     normLogicalStart ccsLogicalStart evalALogicalStart evalKLogicalStart
     sumcheckLogicalStart initialClaimLogicalStart
@@ -113,7 +113,7 @@ theorem outputBindingWitnessStart_matches
 
 /-- Generic R1CS multiplication columns begin after all PiCCS logical
 variables. -/
-def logicalFreshBase : Nat := PiCCSInputs.phaseOffset + 1258477
+def logicalFreshBase : Nat := PiCCSInputs.phaseOffset + 1068869
 
 theorem logicalFreshBase_eq_layout
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :

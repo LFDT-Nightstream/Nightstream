@@ -277,7 +277,7 @@ private theorem priorInputSource_eq (application : Program)
       Layout.Stage1.Spartan.sourceToSpartan_add_of_pilotPriorPrivate
         0 slot.val (by change 0 + slot.val < 27819; omega)
   have constant : PerApplicationPackage.basePackage.layout.constantColumn =
-      11654204 :=
+      11464596 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
   apply Fin.ext
   change 0 + slot.val = PerApplicationPackage.shiftColumn application
@@ -311,7 +311,7 @@ private theorem outputInputSource_eq (application : Program)
     rw [if_pos (by change 27819 + slot.val < 55638; omega)]
     rw [Layout.PilotSpartan.secondPrivateStart_value]
   have constant : PerApplicationPackage.basePackage.layout.constantColumn =
-      11654204 :=
+      11464596 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
   apply Fin.ext
   change 27819 + slot.val = PerApplicationPackage.shiftColumn application

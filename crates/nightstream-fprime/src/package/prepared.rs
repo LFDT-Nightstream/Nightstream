@@ -20,8 +20,8 @@ const MAGIC: &[u8; 8] = b"NSFPREP1";
 // The unchanged maximum key permits floor((MAX_CARRIER_WIDTH - fixedWidth)/41)
 // application fields. W=maximum-1, L=1 attains the largest envelope.
 // Derivation: nightstream/tests/evidence/prepared-fixed-source-bound.md.
-const NATIVE_REFERENCE_NODES: usize = 12_760_057;
-const MAX_APPLICATION_FIELDS: usize = (neo_ajtai::nightstream_fprime_setup::MAX_CARRIER_WIDTH - 44_915_688) / 41;
+const NATIVE_REFERENCE_NODES: usize = 12_164_493;
+const MAX_APPLICATION_FIELDS: usize = (neo_ajtai::nightstream_fprime_setup::MAX_CARRIER_WIDTH - 43_738_906) / 41;
 /// Node cap of a prepared fixed source: the largest envelope the unchanged
 /// maximum key admits. The compiler test checks it against that envelope.
 pub const PREPARED_FIXED_SOURCE_NODE_LIMIT: usize = NATIVE_REFERENCE_NODES - 12 + MAX_APPLICATION_FIELDS + 7;

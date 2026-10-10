@@ -3,13 +3,15 @@ import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcrip
 
 /-!
 Owns the Stage 1 Fiat–Shamir transcript over the Poseidon2 sponge: duplex
-absorb and squeeze, the Π_CCS oracle (statement absorb, one absorb per
-sum-check round, labelled `α`/`γ`/`r′` squeezes), absorption of the complete
-Π_CCS output, and the total Π_RLC challenge sampler into the strong set
-`𝓒 = {coefficients in {−2,…,2}}`. Each scalar uses one four-field Poseidon2
-window, interpreted in base Goldilocks and reduced modulo `5^54`. The absorb order is the paper's
-(SuperNeo B.1): every challenge is squeezed only after the data it must depend
-on has been absorbed. All parity-surface definitions are computable.
+absorb, the Π_CCS oracle (a constant fold-domain chunk, the statement absorb,
+one absorb per sum-check round, and coins read from consecutive rate lane
+pairs), absorption of the complete Π_CCS output, and the total Π_RLC
+challenge sampler into the strong set `𝓒 = {coefficients in {−2,…,2}}`. The
+fixed pattern has no labels and no length prefixes; the domain chunk binds it. Each scalar uses one four-field Poseidon2
+window, interpreted in base Goldilocks and reduced modulo `5^54`. The absorb
+order is the public-coin order of SuperNeo v1.2, Section 7.3: every coin is
+read only after the data it must depend on has been absorbed. All
+parity-surface definitions are computable.
 -/
 
 namespace NightstreamFPrime.Lifecycle.Transcript
@@ -25,35 +27,6 @@ def absorb (s : State) (xs : List F) : State :=
   let chunks := (List.range ((xs.length + Poseidon2.rate - 1) / Poseidon2.rate)).map
     (fun c => (xs.drop (c * Poseidon2.rate)).take Poseidon2.rate)
   chunks.foldl Poseidon2.absorbBlock s
-
-/-- Absorb a self-delimiting block: length prefix, then the words. -/
-def absorbBlock (s : State) (xs : List F) : State := absorb s (block xs)
-
-/-- Fold a typed list of self-delimiting blocks through the transcript. -/
-def absorbBlocks (state : State) (blocks : List (List F)) : State :=
-  blocks.foldl absorbBlock state
-
-@[simp] theorem absorbBlocks_append (state : State)
-    (left right : List (List F)) :
-    absorbBlocks state (left ++ right) =
-      absorbBlocks (absorbBlocks state left) right := by
-  simp [absorbBlocks, List.foldl_append]
-
-/-- Squeeze one field word (lane 0), then permute. -/
-def squeezeF (s : State) : F × State := (s.getD 0 0, Poseidon2.permute s)
-
-/-- Squeeze one extension element from two successive words. -/
-def squeezeK (s : State) : K × State :=
-  let (c0, s) := squeezeF s
-  let (c1, s) := squeezeF s
-  (⟨c0, c1⟩, s)
-
-def squeezeKs : Nat → State → List K × State
-  | 0, s => ([], s)
-  | n + 1, s =>
-    let (k, s) := squeezeK s
-    let (ks, s) := squeezeKs n s
-    (k :: ks, s)
 
 /-! ## Π_CCS oracle -/
 
@@ -71,21 +44,22 @@ def domainTag : List F := domainTagBytes.map Poseidon2.ofNat
 @[simp] theorem domainTag_length : domainTag.length = 28 := by
   simp [domainTag, domainTagBytes]
 
-/-- ASCII bytes of `Nightstream/SuperNeo/PiCCS/digest-only/v1_1`. This tag
-selects the owner-approved committed-statement schedule. -/
-def piCcsDigestDomainTagBytes : List Nat :=
+/-- ASCII bytes of `Nightstream/SuperNeo/fold/v2`. -/
+def foldDomainBytes : List Nat :=
   [78, 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47,
-    83, 117, 112, 101, 114, 78, 101, 111, 47, 80, 105, 67, 67, 83, 47,
-    100, 105, 103, 101, 115, 116, 45, 111, 110, 108, 121, 47, 118, 49,
-    95, 49]
+    83, 117, 112, 101, 114, 78, 101, 111, 47, 102, 111, 108, 100, 47, 118, 50]
 
-/-- Domain tag for the sole digest-only PiCCS statement schedule. -/
-def piCcsDigestDomainTag : List F :=
-  piCcsDigestDomainTagBytes.map Poseidon2.ofNat
+/-- The first PiCCS sponge chunk: the fold-pattern tag, eight bytes per word,
+then zero words up to one rate chunk. Every word is a constant. -/
+def foldDomainChunk : List F :=
+  (List.range Poseidon2.rate).map fun word =>
+    packBytes ((foldDomainBytes.drop (8 * word)).take 8)
 
-@[simp] theorem piCcsDigestDomainTag_length :
-    piCcsDigestDomainTag.length = 43 := by
-  simp [piCcsDigestDomainTag, piCcsDigestDomainTagBytes]
+@[simp] theorem foldDomainChunk_length : foldDomainChunk.length = 12 := by
+  simp [foldDomainChunk, Poseidon2.rate]
+
+/-- The state after the domain chunk. It is a constant. -/
+def foldInitialState : State := absorb initialState foldDomainChunk
 
 def serializeMessage (m : SumCheck.Finite.Message K) : List F :=
   m.coefficients.flatMap serializeK
@@ -101,26 +75,36 @@ def verifierInputBlocks
       (canonicalMatrixCoordinates productionShape).flatMap
         (fun coordinate => serializeK (input.claimedMatrixCoefficient coordinate))]
 
-/-- Absorb the verifier input from its one canonical block list. The
-constraint polynomial is key data bound through the verifier-key digest. -/
-def absorbVerifierInput (state : State)
-    (input : ProtocolPolynomial.VerifierInput K productionShape) : State :=
-  absorbBlocks state (verifierInputBlocks input)
+/-- Six extension values fill one rate chunk. -/
+abbrev coinsPerChunk : Nat := Poseidon2.rate / 2
 
-/-- Label words keep `α`, `γ`, and round squeezes in distinct domains. -/
-def labelWord : FiatShamir.ChallengeLabel productionShape → List F
-  | .alpha c => [natWord 1, natWord c.val]
-  | .gamma => [natWord 2]
-  | .sumcheck r => [natWord 3, natWord r.val]
+@[simp] theorem coinsPerChunk_eq : coinsPerChunk = 6 := rfl
+
+/-- Read position of a verifier coin. `α` then `γ` take consecutive
+positions; each round coin is the first read after its round absorb. -/
+def coinPosition : FiatShamir.ChallengeLabel productionShape → Nat
+  | .alpha coordinate => coordinate.val
+  | .gamma => productionShape.cubeVariables
+  | .sumcheck _ => 0
+
+/-- One zero chunk: the permutation between two read chunks. -/
+def zeroChunk : List F := List.replicate Poseidon2.rate 0
+
+/-- Read the coin at `position` from lanes `2·(position mod 6)` and
+`2·(position mod 6) + 1`. After the sixth value of a state, absorb one zero
+chunk. -/
+def squeezeAt (s : State) (position : Nat) : K × State :=
+  (⟨s.getD (2 * (position % coinsPerChunk)) 0,
+      s.getD (2 * (position % coinsPerChunk) + 1) 0⟩,
+    if position % coinsPerChunk = coinsPerChunk - 1 then absorb s zeroChunk else s)
 
 def piCcsOracle :
     NightstreamFPrime.Spec.Folding.PiCCS.TranscriptReplay.Oracle
       K State productionShape where
   transcript :=
     { initialState := fun statement => statement.priorState
-      absorbRound := fun s round m =>
-        absorbBlock s (natWord round.val :: serializeMessage m)
-      squeeze := fun s label => squeezeK (absorb s (labelWord label)) }
+      absorbRound := fun s _round m => absorb s (serializeMessage m)
+      squeeze := fun s label => squeezeAt s (coinPosition label) }
   initialState_is_prior := by
     intro statement
     rfl

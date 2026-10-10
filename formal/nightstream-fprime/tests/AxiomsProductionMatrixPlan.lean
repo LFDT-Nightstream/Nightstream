@@ -235,7 +235,7 @@ import NightstreamFPrime.Export.Stage1.ActualNextPreimage
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSAssignmentSoundness.decodedEnv_location
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSAssignmentSoundness.rowsZero_implies_arithmeticSpecs
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSDecodedTranscript.rowsZero_implies_indexedSemantics
-#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSDecodedTranscript.rowsZero_implies_traces
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSDecodedEndpoints.decoded_transcriptOutputs
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSDecodedEndpoints.sourceForm_eval
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSDecodedEndpoints.rowsZero_implies_endpointStates
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSDecodedEndpoints.rowsZero_implies_transcriptSpecs
@@ -828,8 +828,7 @@ import NightstreamFPrime.Export.Stage1.ActualNextPreimage
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.Affine.Form.semantic?_ofSemantic
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.Affine.Table.combination?_ofSemantic
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.Affine.Table.compile?_ofSemantic
-#audit_axioms NightstreamFPrime.Layout.MatrixProgram.PoseidonInput.Term.taggedAffine_form?_of_eq
-#audit_axioms NightstreamFPrime.Layout.MatrixProgram.PoseidonInput.Term.taggedAffine_form?_of_ne
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.PoseidonInput.Term.affine_form?_ofSemantic
 
 -- Shared-value repair obligations; a failed build leaves this audit open.
 #audit_axioms NightstreamFPrime.Export.AffineRuns.sourceAt_eq_expand_getD

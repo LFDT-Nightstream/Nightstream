@@ -8,24 +8,6 @@ use super::{
     array, checked_add, checked_mul, decode_list, exact_array, field, word, Entry, Field, Form, Result, RetainedBlock,
 };
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum InvocationTag {
-    Absorb,
-    SqueezeFirst,
-    SqueezeSecond,
-}
-
-impl InvocationTag {
-    fn decode(value: &Value) -> Result<Self> {
-        match word(value, "Poseidon2 invocation tag")? {
-            0 => Ok(Self::Absorb),
-            1 => Ok(Self::SqueezeFirst),
-            2 => Ok(Self::SqueezeSecond),
-            _ => Err("unknown Poseidon2 invocation tag".into()),
-        }
-    }
-}
-
 #[derive(Clone, Copy, Debug)]
 struct Region {
     invocation_start: usize,
@@ -66,23 +48,13 @@ enum Term {
         slot_base: usize,
         invocation_stride: usize,
     },
-    TaggedRetained {
-        block: RetainedBlock,
-        tags: Vec<InvocationTag>,
-        required: InvocationTag,
-        slot_base: usize,
-        invocation_stride: usize,
-        lane_stride: usize,
-    },
     OptionalConstant {
         values: Vec<Option<Field>>,
         lane_count: usize,
     },
-    TaggedAffine {
+    Affine {
         values: Vec<SourceCombination>,
         substitution: SourceSubstitution,
-        tags: Vec<InvocationTag>,
-        required: InvocationTag,
         lane_count: usize,
     },
 }
@@ -111,28 +83,14 @@ impl Term {
                     invocation_stride: word(&fields[3], "Poseidon2 external invocation stride")?,
                 })
             }
-            Some(3) if fields.len() == 7 => {
-                let block = RetainedBlock::decode(&fields[1])?;
-                block.validate(logical_width)?;
-                Ok(Self::TaggedRetained {
-                    block,
-                    tags: decode_list(&fields[2], InvocationTag::decode, "Poseidon2 invocation tags")?,
-                    required: InvocationTag::decode(&fields[3])?,
-                    slot_base: word(&fields[4], "Poseidon2 tagged slot base")?,
-                    invocation_stride: word(&fields[5], "Poseidon2 tagged invocation stride")?,
-                    lane_stride: word(&fields[6], "Poseidon2 tagged lane stride")?,
-                })
-            }
             Some(4) if fields.len() == 3 => Ok(Self::OptionalConstant {
                 values: decode_optional_constants(&fields[1])?,
                 lane_count: word(&fields[2], "Poseidon2 optional lane count")?,
             }),
-            Some(5) if fields.len() == 6 => Ok(Self::TaggedAffine {
+            Some(5) if fields.len() == 4 => Ok(Self::Affine {
                 values: decode_list(&fields[1], decode_affine_word, "affine source words")?,
                 substitution: SourceSubstitution::decode(&fields[2], logical_width)?,
-                tags: decode_list(&fields[3], InvocationTag::decode, "affine invocation tags")?,
-                required: InvocationTag::decode(&fields[4])?,
-                lane_count: word(&fields[5], "affine lane count")?,
+                lane_count: word(&fields[3], "affine lane count")?,
             }),
             _ => Err("unknown Poseidon2 input term opcode".into()),
         }
@@ -163,26 +121,6 @@ impl Term {
                 )?,
                 lane,
             ),
-            Self::TaggedRetained {
-                block,
-                tags,
-                required,
-                slot_base,
-                invocation_stride,
-                lane_stride,
-            } => {
-                let actual = tags
-                    .get(invocation)
-                    .ok_or_else(|| "Poseidon2 invocation tag is out of range".to_string())?;
-                if actual == required {
-                    block.form(
-                        logical_width,
-                        affine_index(*slot_base, invocation, *invocation_stride, lane, *lane_stride)?,
-                    )
-                } else {
-                    Ok(Form::default())
-                }
-            }
             Self::OptionalConstant { values, lane_count } => {
                 let index = checked_add(
                     checked_mul(invocation, *lane_count, "Poseidon2 optional constant")?,
@@ -197,19 +135,11 @@ impl Term {
                     None => Ok(Form::default()),
                 }
             }
-            Self::TaggedAffine {
+            Self::Affine {
                 values,
                 substitution,
-                tags,
-                required,
                 lane_count,
             } => {
-                let actual = tags
-                    .get(invocation)
-                    .ok_or_else(|| "affine invocation tag is out of range".to_string())?;
-                if actual != required {
-                    return Ok(Form::default());
-                }
                 let position = checked_add(
                     checked_mul(invocation, *lane_count, "affine word position")?,
                     lane,

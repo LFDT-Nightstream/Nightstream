@@ -416,9 +416,9 @@ private theorem priorFinalColumn_bound (lane : Fin 4) :
       PerApplicationPackage.basePackage.layout.totalColumnCount := by
   have laneBound := (finalSlot lane).isLt
   have total : PerApplicationPackage.basePackage.layout.totalColumnCount =
-      11654483 := Package.circuitPackage_layout_values.2.2.2.2
+      11464875 := Package.circuitPackage_layout_values.2.2.2.2
   rw [priorLastWitnessStart_eq, total]
-  change 2612454 + (1080 + lane.val) < 11654483
+  change 2612454 + (1080 + lane.val) < 11464875
   omega
 
 private theorem outputFinalColumn_bound (lane : Fin 4) :
@@ -428,9 +428,9 @@ private theorem outputFinalColumn_bound (lane : Fin 4) :
       PerApplicationPackage.basePackage.layout.totalColumnCount := by
   have laneBound := (finalSlot lane).isLt
   have total : PerApplicationPackage.basePackage.layout.totalColumnCount =
-      11654483 := Package.circuitPackage_layout_values.2.2.2.2
+      11464875 := Package.circuitPackage_layout_values.2.2.2.2
   rw [outputLastWitnessStart_eq, total]
-  change 5155438 + (1080 + lane.val) < 11654483
+  change 5155438 + (1080 + lane.val) < 11464875
   omega
 
 private theorem priorLastBlock_source

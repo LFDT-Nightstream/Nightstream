@@ -9,7 +9,7 @@ use std::{fs, ops::Range, path::PathBuf};
 mod conformance_support;
 
 const MODULUS: u64 = 0xffff_ffff_0000_0001;
-const PRIVATE_COLUMNS: usize = 11_659_688;
+const PRIVATE_COLUMNS: usize = 11_470_080;
 const PUBLIC_COLUMNS: usize = 278;
 /// Lean `PilotPiCCS.cumulativeFootprints_eq`: the pilot ends at row 5,086,126,
 /// and the leaf's 32 state-word rows come before its 4,680 child rows.

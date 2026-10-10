@@ -19,14 +19,14 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
 def statementOffset : Nat := 0
-def challengeOffset : Nat := 128
-def roundOffset : Nat := 215
-def outputOffset : Nat := 355
+def challengeOffset : Nat := 123
+def roundOffset : Nat := 127
+def outputOffset : Nat := 183
 
-def statementCount : Nat := 128
-def challengeCount : Nat := 87
-def roundCount : Nat := 140
-def outputCount : Nat := 766
+def statementCount : Nat := 123
+def challengeCount : Nat := 4
+def roundCount : Nat := 56
+def outputCount : Nat := 765
 
 def statementFits : statementOffset + statementCount ≤
     PiCCSActionPayloadBlock.invocationCount := by
@@ -90,8 +90,8 @@ theorem statementKindAt_eq (current : Fin statementCount) :
     statementOffset statementCount PiCCSActionPayloadBlock.kindAt
     PiCCSActionPayloadBlock.invocationCount
   rw [show
-      (⟨0 + current.val, by omega⟩ : Fin 1121) =
-        Fin.castAdd (87 + (140 + 766)) current by
+      (⟨0 + current.val, by omega⟩ : Fin 948) =
+        Fin.castAdd (4 + (56 + 765)) current by
     apply Fin.ext
     change 0 + current.val = current.val
     omega]
@@ -105,10 +105,10 @@ theorem challengeKindAt_eq (current : Fin challengeCount) :
     challengeCount PiCCSActionPayloadBlock.kindAt
     PiCCSActionPayloadBlock.invocationCount
   rw [show
-      (⟨128 + current.val, by omega⟩ : Fin 1121) =
-        Fin.natAdd 128 (Fin.castAdd (140 + 766) current) by
+      (⟨123 + current.val, by omega⟩ : Fin 948) =
+        Fin.natAdd 123 (Fin.castAdd (56 + 765) current) by
     apply Fin.ext
-    change 128 + current.val = 128 + current.val
+    change 123 + current.val = 123 + current.val
     rfl]
   simp [statementCount, challengeCount, roundCount, outputCount]
 
@@ -119,11 +119,11 @@ theorem roundKindAt_eq (current : Fin roundCount) :
   unfold roundKindAt PoseidonActionSemantics.sliceIndex roundOffset roundCount
     PiCCSActionPayloadBlock.kindAt PiCCSActionPayloadBlock.invocationCount
   rw [show
-      (⟨215 + current.val, by omega⟩ : Fin 1121) =
-        Fin.natAdd 128
-          (Fin.natAdd 87 (Fin.castAdd 766 current)) by
+      (⟨127 + current.val, by omega⟩ : Fin 948) =
+        Fin.natAdd 123
+          (Fin.natAdd 4 (Fin.castAdd 765 current)) by
     apply Fin.ext
-    change 215 + current.val = 128 + (87 + current.val)
+    change 127 + current.val = 123 + (4 + current.val)
     omega]
   simp [statementCount, challengeCount, roundCount, outputCount]
 
@@ -134,10 +134,10 @@ theorem outputKindAt_eq (current : Fin outputCount) :
   unfold outputKindAt PoseidonActionSemantics.sliceIndex outputOffset outputCount
     PiCCSActionPayloadBlock.kindAt PiCCSActionPayloadBlock.invocationCount
   rw [show
-      (⟨355 + current.val, by omega⟩ : Fin 1121) =
-        Fin.natAdd 128 (Fin.natAdd 87 (Fin.natAdd 140 current)) by
+      (⟨183 + current.val, by omega⟩ : Fin 948) =
+        Fin.natAdd 123 (Fin.natAdd 4 (Fin.natAdd 56 current)) by
     apply Fin.ext
-    change 355 + current.val = 128 + (87 + (140 + current.val))
+    change 183 + current.val = 123 + (4 + (56 + current.val))
     omega]
   simp [statementCount, challengeCount, roundCount, outputCount]
 
@@ -185,17 +185,47 @@ theorem outputKindAt_materializes :
       exact outputKindAt_eq current
     _ = _ := PiCCSActionPayloadBlock.outputKindAt_materializes
 
-def statementLast : Fin PiCCSActionPayloadBlock.invocationCount := ⟨127, by
+def statementLast : Fin PiCCSActionPayloadBlock.invocationCount := ⟨122, by
   norm_num [PiCCSActionPayloadBlock.invocationCount]⟩
 
-def challengeLast : Fin PiCCSActionPayloadBlock.invocationCount := ⟨214, by
+def challengeLast : Fin PiCCSActionPayloadBlock.invocationCount := ⟨126, by
   norm_num [PiCCSActionPayloadBlock.invocationCount]⟩
 
-def roundLast : Fin PiCCSActionPayloadBlock.invocationCount := ⟨354, by
+def roundLast : Fin PiCCSActionPayloadBlock.invocationCount := ⟨182, by
   norm_num [PiCCSActionPayloadBlock.invocationCount]⟩
 
-def outputLast : Fin PiCCSActionPayloadBlock.invocationCount := ⟨1120, by
+def outputLast : Fin PiCCSActionPayloadBlock.invocationCount := ⟨947, by
   norm_num [PiCCSActionPayloadBlock.invocationCount]⟩
+
+/-- The value state after `index` invocations of one transcript slice. -/
+def sliceState {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
+    (assignment : Assignment F logicalWidth) (offset count : Nat)
+    (fits : offset + count ≤ PiCCSActionPayloadBlock.invocationCount)
+    (offsetBound : offset < PiCCSActionPayloadBlock.invocationCount) :
+    Nat → Spec.Poseidon2.State :=
+  PoseidonActionSemantics.stateAfter
+    (PoseidonActionSemantics.sliceInitial Spec.Poseidon2.zeroState
+      (PiCCSPoseidonPreservation.valueState geometry assignment) offset
+      offsetBound)
+    (PoseidonActionSemantics.sliceOutput
+      (PiCCSPoseidonPreservation.valueState geometry assignment) offset count
+      fits)
+
+/-- Every challenge and round read sees the value state at its position. -/
+structure Reads {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (env : Circuit.Env) : Prop where
+  challenge : PoseidonActionSemantics.ReadsAt env
+    (sliceState geometry assignment challengeOffset challengeCount
+      challengeFits challengeOffsetBound) 0
+    PiCCSActionPayloadBlock.challengeActions
+  rounds : PoseidonActionSemantics.ReadsAt env
+    (sliceState geometry assignment roundOffset roundCount roundFits
+      roundOffsetBound) 0 PiCCSActionPayloadBlock.roundActions
 
 structure Traces {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
@@ -229,7 +259,8 @@ theorem indexedSemantics_implies_traces
     (env : Circuit.Env)
     (semantics : PoseidonActionSemantics.IndexedSemantics env
       Spec.Poseidon2.zeroState PiCCSActionPayloadBlock.kindAt
-      (PiCCSPoseidonPreservation.valueState geometry assignment)) :
+      (PiCCSPoseidonPreservation.valueState geometry assignment))
+    (reads : Reads geometry assignment env) :
     Traces geometry assignment env := by
   let globalOutput := PiCCSPoseidonPreservation.valueState geometry assignment
   have global := semantics
@@ -249,7 +280,11 @@ theorem indexedSemantics_implies_traces
     (PoseidonActionSemantics.sliceOutput globalOutput statementOffset
       statementCount statementFits)
     PiCCSActionPayloadBlock.statementActions statementKindAt_materializes
-    statementSemantics
+    statementSemantics (by
+      simp only [PiCCSActionPayloadBlock.statementActions,
+        PiCCSInvocations.statementActions, Lifecycle.PiCCS.v1_2.StatementAbsorption.actions,
+        Lifecycle.PiCCS.v1_2.StatementAbsorption.publicInputActions,
+        PoseidonActionSemantics.ReadsAt])
   have challengeTrace := PoseidonActionSemantics.indexed_traceHolds
     challengeCount env
     (PoseidonActionSemantics.sliceInitial Spec.Poseidon2.zeroState globalOutput
@@ -258,7 +293,7 @@ theorem indexedSemantics_implies_traces
     (PoseidonActionSemantics.sliceOutput globalOutput challengeOffset
       challengeCount challengeFits)
     PiCCSActionPayloadBlock.challengeActions challengeKindAt_materializes
-    challengeSemantics
+    challengeSemantics reads.challenge
   have roundTrace := PoseidonActionSemantics.indexed_traceHolds
     roundCount env
     (PoseidonActionSemantics.sliceInitial Spec.Poseidon2.zeroState globalOutput
@@ -267,6 +302,7 @@ theorem indexedSemantics_implies_traces
     (PoseidonActionSemantics.sliceOutput globalOutput roundOffset roundCount
       roundFits)
     PiCCSActionPayloadBlock.roundActions roundKindAt_materializes roundSemantics
+    reads.rounds
   have outputTrace := PoseidonActionSemantics.indexed_traceHolds
     outputCount env
     (PoseidonActionSemantics.sliceInitial Spec.Poseidon2.zeroState globalOutput
@@ -275,23 +311,30 @@ theorem indexedSemantics_implies_traces
     (PoseidonActionSemantics.sliceOutput globalOutput outputOffset outputCount
       outputFits)
     PiCCSActionPayloadBlock.outputActions outputKindAt_materializes
-    outputSemantics
+    outputSemantics (by
+      simp only [PiCCSActionPayloadBlock.outputActions,
+        PiCCSInvocations.outputActions, Lifecycle.PiCCS.v1_2.OutputBinding.actions,
+        PoseidonActionSemantics.ReadsAt])
   refine ⟨?_, ?_, ?_, ?_⟩
   · simpa [globalOutput, statementCount, statementOffset, statementLast,
       PoseidonActionSemantics.sliceInitial,
       PoseidonActionSemantics.sliceOutput,
-      PoseidonActionSemantics.sliceIndex] using statementTrace
+      PoseidonActionSemantics.sliceIndex, PoseidonActionSemantics.stateAfter]
+      using statementTrace
   · simpa [globalOutput, challengeCount, challengeOffset, statementLast,
       challengeLast, PoseidonActionSemantics.sliceInitial,
       PoseidonActionSemantics.sliceOutput,
-      PoseidonActionSemantics.sliceIndex] using challengeTrace
+      PoseidonActionSemantics.sliceIndex, PoseidonActionSemantics.stateAfter]
+      using challengeTrace
   · simpa [globalOutput, roundCount, roundOffset, challengeLast,
       roundLast, PoseidonActionSemantics.sliceInitial,
       PoseidonActionSemantics.sliceOutput,
-      PoseidonActionSemantics.sliceIndex] using roundTrace
+      PoseidonActionSemantics.sliceIndex, PoseidonActionSemantics.stateAfter]
+      using roundTrace
   · simpa [globalOutput, outputCount, outputOffset, roundLast, outputLast,
       PoseidonActionSemantics.sliceInitial,
       PoseidonActionSemantics.sliceOutput,
-      PoseidonActionSemantics.sliceIndex] using outputTrace
+      PoseidonActionSemantics.sliceIndex, PoseidonActionSemantics.stateAfter]
+      using outputTrace
 
 end NightstreamFPrime.Export.Stage1.PiCCSTranscriptDirectSemantics

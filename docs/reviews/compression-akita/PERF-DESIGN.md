@@ -93,9 +93,31 @@ verifies.
    nodes 0, 2, 3, 4 by adding the line's slope, no products by one, and
    parallel `fold_low` and `eq_table`. Same messages (exact field
    arithmetic); the early GKR goes from 10.2 s to 3.7 s.
-4. Next by measured share (Metal): the P0 opening, the P0 commitment, the
-   ring division, the shrink's sum-checks, the leaf batches (the device is
-   busy 6.4 s at 39 M permutations/s, against 71 M/s for large batches).
+4. Shrink and sum-check on every engine: the shrink weights and products
+   fill each block's own row and cell slots in parallel (the constant-one
+   column and the glue rows as before); `prove_product` and `evaluate`
+   run in parallel. A run that compared both with the serial code on the
+   production program found them equal. Weights 1.38 s to 0.62 s, inner
+   sum-check 0.48 s to 0.10 s.
+
+Measured and rejected:
+
+- One Plonky3 lane (its own packed path) against 2^16 lanes on CPU, same
+  load: 48.5 s and 49.1 s; P0 commitment 7.84 s for both. Batching does not
+  slow the CPU.
+- A lock-free Metal session for leaf batches (many batches in flight): no
+  gain. The row kernel is GPU-bound at about 30-44 M permutations/s for
+  width-48 batches of 2^16 rows, serial, locked or concurrent.
+
+Next by measured share (Metal): in the P0 opening each rayon thread waits
+about 28% on the device, copies rows into Plonky3's batch buffer 25%,
+compresses Merkle nodes 27% and runs the DFT 10%. Levers: a faster row
+kernel (coalesced loads), Merkle node compression on the device (needs an
+MMCS of our own: `MerkleTree` fields are crate-private in Plonky3 0.8), the
+ring key weights from the commitment key that a Metal prover keeps on the
+device (now SHAKE128 expansion on the CPU, about 2 s), the last fold on the
+Metal NIFS prover (2.8 s), and Gruen's eq factoring in the GKR (about 25%
+of its message work).
 
 ## Results (production fold, rate 1/8, other jobs on the machine)
 

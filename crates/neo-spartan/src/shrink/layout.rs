@@ -119,6 +119,23 @@ impl Layout {
         part.start + b * part.stride + local
     }
 
+    /// The row slots of `kind` per part: the part's start, its stride (one
+    /// slot per block) and the template row at the start of a slot.
+    pub(crate) fn row_parts(&self, kind: Kind) -> impl Iterator<Item = (usize, usize, usize)> {
+        Self::slots(&self.rows[kind.index()])
+    }
+
+    /// The cell slots of `kind` per part, as `row_parts`.
+    pub(crate) fn cell_parts(&self, kind: Kind) -> impl Iterator<Item = (usize, usize, usize)> {
+        Self::slots(&self.cells[kind.index()])
+    }
+
+    fn slots(&[wide, narrow]: &[Part; 2]) -> impl Iterator<Item = (usize, usize, usize)> {
+        [(wide.start, wide.stride, 0), (narrow.start, narrow.stride, wide.stride)]
+            .into_iter()
+            .filter(|&(_, stride, _)| stride > 0)
+    }
+
     /// The row of template row `k` of block `b` of `kind`.
     pub(crate) fn block_row(&self, kind: Kind, b: usize, k: usize) -> usize {
         Self::index(&self.rows[kind.index()], b, k)

@@ -26,10 +26,14 @@ open PiRLCNonzero PiRLCPartialTrace
 abbrev Input := PiCCSInputCheck.Input
 
 def commitments (input : Input) (source : Fin SourceCount) : PaperAlgebra.Commitment :=
-  PiCCSInputCheck.outputCommitments input (sourceIndex source)
+  PiCCSInputCheck.outputCommitments (logicalWidth := PerApplicationFixedPoint.logicalWidth Poseidon2HashChainV1Package.application)
+    (publicFits := PerApplicationFixedPoint.publicFits Poseidon2HashChainV1Package.application) input
+    (sourceIndex source)
 
 def publicInputs (input : Input) (source : Fin SourceCount) : Fin 270 → F :=
-  PiCCSInputCheck.outputPublicInputs input (sourceIndex source)
+  PiCCSInputCheck.outputPublicInputs (logicalWidth := PerApplicationFixedPoint.logicalWidth Poseidon2HashChainV1Package.application)
+    (publicFits := PerApplicationFixedPoint.publicFits Poseidon2HashChainV1Package.application) input
+    (sourceIndex source)
 
 def evaluations (input : Input) (source : Fin SourceCount) : PaperAlgebra.Evaluation where
   pad := (input.evalK.get source).get

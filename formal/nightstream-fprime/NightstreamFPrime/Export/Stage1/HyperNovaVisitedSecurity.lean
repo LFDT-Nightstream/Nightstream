@@ -6,6 +6,8 @@ errata Assumption 1, in the form of Definition 7 knowledge soundness of the
 Poseidon2 NIFS, and the reverse extractor of HyperNova Lemma 17 (Appendix H.3).
 
 Inputs:
+- an application that fits the `2^28` profile and a commitment setup, fixed
+  before the adversary runs;
 - `Assumption1 Admitted Efficient error`: for every admitted NIFS adversary
   there is an efficient extractor that reads the adversary's tape and its own
   coins (so it may rerun the adversary), and fails after a real NIFS success
@@ -20,9 +22,11 @@ Inputs:
 Outputs:
 - `reverseStages`: stage `j + 1` is stage `j` followed by the extractor that
   Assumption 1 gives for stage `j`, as in Lemma 17. Every stage is admitted;
-- `history_probability_bound`: the accepted terminal mass is at most the
-  reverse extractor's returned-history mass plus, at each stage, the marked
-  hash-collision mass of that stage and the Assumption 1 error of that stage.
+- `reverse_input_event`: the reverse law keeps the IVC adversary's output law;
+- `history_failure_le`: the reverse law's mass where the terminal verifier
+  accepts and the reverse extractor returns no valid history is at most, at
+  each stage, the marked hash-collision mass of that stage and the
+  Assumption 1 error of that stage.
 
 `Admitted`, `StageAdmitted` and `Efficient` are abstract. Their intended
 meaning is expected polynomial time; Lean states no running-time model. Assumption 1 is not a
@@ -44,14 +48,17 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Lifecycle
 open HyperNovaHistory (Statement Envelope Payload SourceResult)
-open HyperNovaHistoryProbability (Sample AdviceReturned)
+open HyperNovaHistoryProbability (Sample Accepted AdviceReturned)
 open HyperNovaVisitedLaw (Visit visitedLaw guardedDraw goodActive pathVisit listSource)
 open HyperNovaFirstFailure (MarkedHashCollision MarkedSourceFailure)
 open HyperNovaGuardedSourceLaw (inputs realOutput)
-open Poseidon2HashChainV1Package (application fits)
-open Poseidon2HashChainV1Setup (productionSetup productionAjtaiKey)
+variable {application : Lifecycle.Stage1.Application.Program}
+  {fits : PerApplicationFixedPoint.FitsTwoPow28 application}
+  {setup : PerApplicationCanonicalPackage.CommitmentSetup application}
 
 attribute [local instance] Classical.propDecidable
+-- The adversary types do not read the application width; keep it opaque.
+attribute [local irreducible] PerApplicationFixedPoint.logicalWidth
 
 /-- Every event of a PMF has finite mass. -/
 theorem event_ne_top {Sample : Type*} (distribution : PMF Sample) (event : Set Sample) :
@@ -64,34 +71,36 @@ theorem event_ne_top {Sample : Type*} (distribution : PMF Sample) (event : Set S
 /-- A plain-model adversary against the production NIFS (HyperNova
 Definition 7): its random tape, and the NIFS source input and real output
 (prior preimage, proof and child witnesses) that it computes from the tape. -/
-structure NifsAdversary where
+structure NifsAdversary (application : Lifecycle.Stage1.Application.Program)
+    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (setup : PerApplicationCanonicalPackage.CommitmentSetup application) where
   Tape : Type
   tape : PMF Tape
-  run : Tape → PiCCSInputCheck.Input × Option (NifsRealSuccess.RealOutput PiDECInputCheck.relation)
+  run : Tape → PiCCSInputCheck.Input × Option (NifsRealSuccess.RealOutput (PerApplicationFixedPoint.relation application fits))
 
 /-- An extractor for one adversary: its own coins, and a source result
 computed from the adversary's tape and those coins. It is chosen for the
 adversary, so it may rerun it on its tape. -/
-structure NifsExtractor (adversary : NifsAdversary) where
+structure NifsExtractor (adversary : NifsAdversary application fits setup) where
   Coins : Type
   coins : PMF Coins
-  run : adversary.Tape → Coins → SourceResult
+  run : adversary.Tape → Coins → SourceResult application
 
 /-- The adversary's tape and the extractor's independent coins. -/
-noncomputable def NifsExtractor.law {adversary : NifsAdversary} (extractor : NifsExtractor adversary) :
+noncomputable def NifsExtractor.law {adversary : NifsAdversary application fits setup} (extractor : NifsExtractor adversary) :
     PMF (adversary.Tape × extractor.Coins) :=
   adversary.tape.bind fun tape => extractor.coins.map (tape, ·)
 
 /-- The NIFS really succeeds (`NifsRealSuccess.RealSuccess`, with the
 prior-state link), and the extractor returns no checked source witness. -/
-def ExtractionFails (adversary : NifsAdversary) (extractor : NifsExtractor adversary)
+def ExtractionFails (adversary : NifsAdversary application fits setup) (extractor : NifsExtractor adversary)
     (draw : adversary.Tape × extractor.Coins) : Prop :=
-  NifsRealSuccess.RealSuccess PiDECInputCheck.relation productionAjtaiKey
-      (PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup)
+  NifsRealSuccess.RealSuccess (PerApplicationFixedPoint.relation application fits) (PerApplicationCanonicalPackage.commitmentKey setup)
+      (PerApplicationCanonicalPackage.verifierContextDigest fits setup)
       (PiCCSInputCheck.running (adversary.run draw.1).1) (PiCCSInputCheck.fresh (adversary.run draw.1).1)
       (adversary.run draw.1).2 ∧
-    ¬ CheckedWitnessExtraction.SourceReturned PiCCSStoredWitnessCheck.commit productionGlobalParams
-      (PiCCSStoredWitnessCheck.statement (adversary.run draw.1).1) (extractor.run draw.1 draw.2)
+    ¬ CheckedWitnessExtraction.SourceReturned (PiCCSStoredWitnessCheck.commit application setup) productionGlobalParams
+      (PiCCSStoredWitnessCheck.statement application fits (adversary.run draw.1).1) (extractor.run draw.1 draw.2)
 
 /-- HyperNova errata Assumption 1, in the form of Definition 7 knowledge
 soundness of the non-interactive NIFS: every admitted adversary has an
@@ -101,9 +110,9 @@ NIFS verifier does not check. This joint form implies Definition 7's
 difference form `Pr[success] - Pr[extraction] ≤ error`. The public parameters
 are the fixed production key and setup, not sampled, and `error` replaces
 `negl(λ)`. -/
-def Assumption1 (Admitted : NifsAdversary → Prop)
-    (Efficient : (adversary : NifsAdversary) → NifsExtractor adversary → Prop)
-    (error : NifsAdversary → ℝ) : Prop :=
+def Assumption1 (Admitted : NifsAdversary application fits setup → Prop)
+    (Efficient : (adversary : NifsAdversary application fits setup) → NifsExtractor adversary → Prop)
+    (error : NifsAdversary application fits setup → ℝ) : Prop :=
   ∀ adversary, Admitted adversary → ∃ extractor : NifsExtractor adversary,
     Efficient adversary extractor ∧
       (extractor.law.toOuterMeasure {draw | ExtractionFails adversary extractor draw}).toReal ≤
@@ -113,35 +122,39 @@ def Assumption1 (Admitted : NifsAdversary → Prop)
 
 /-- A plain-model adversary against the selected IVC: its random tape, and
 the terminal statement and proof envelope that it outputs. -/
-structure IvcAdversary where
+structure IvcAdversary (application : Lifecycle.Stage1.Application.Program)
+    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (setup : PerApplicationCanonicalPackage.CommitmentSetup application) where
   Tape : Type
   tape : PMF Tape
-  output : Tape → Statement × Envelope
+  output : Tape → Statement × Envelope application
 
 /-- The reverse extractor after some steps, as one algorithm with an explicit
 tape: the IVC adversary's tape, then the coins of each NIFS extractor. It
 computes the terminal input and the source results returned so far. -/
-structure Stage where
+structure Stage (application : Lifecycle.Stage1.Application.Program)
+    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (setup : PerApplicationCanonicalPackage.CommitmentSetup application) where
   Tape : Type
   tape : PMF Tape
-  input : Tape → Statement × Envelope
-  results : Tape → List SourceResult
+  input : Tape → Statement × Envelope application
+  results : Tape → List (SourceResult application)
 
 namespace Stage
 
 /-- The current visited context: the terminal, advanced by each result. -/
-noncomputable def visit (stage : Stage) (tape : stage.Tape) : Visit :=
-  pathVisit (stage.input tape) (stage.results tape) (stage.results tape).length
+noncomputable def visit (stage : Stage application fits setup) (tape : stage.Tape) : Visit application :=
+  pathVisit application fits setup (stage.input tape) (stage.results tape) (stage.results tape).length
 
 /-- The NIFS adversary of a stage: it outputs the decoded NIFS input and the
 real output of its current context. -/
-noncomputable def nifs (stage : Stage) : NifsAdversary where
+noncomputable def nifs (stage : Stage application fits setup) : NifsAdversary application fits setup where
   Tape := stage.Tape
   tape := stage.tape
-  run tape := (inputs (stage.visit tape), realOutput (stage.visit tape))
+  run tape := (inputs application fits (stage.visit tape), realOutput application fits setup (stage.visit tape))
 
 /-- Before any extraction: the IVC adversary itself. -/
-def start (adversary : IvcAdversary) : Stage where
+def start (adversary : IvcAdversary application fits setup) : Stage application fits setup where
   Tape := adversary.Tape
   tape := adversary.tape
   input := adversary.output
@@ -149,20 +162,20 @@ def start (adversary : IvcAdversary) : Stage where
 
 /-- One reverse step: run the stage, then the extractor for its NIFS
 adversary on its tape and fresh coins. -/
-noncomputable def next (stage : Stage) (extractor : NifsExtractor stage.nifs) : Stage where
+noncomputable def next (stage : Stage application fits setup) (extractor : NifsExtractor stage.nifs) : Stage application fits setup where
   Tape := stage.Tape × extractor.Coins
   tape := extractor.law
   input draw := stage.input draw.1
   results draw := stage.results draw.1 ++ [extractor.run draw.1 draw.2]
 
 /-- The reverse program's law when it reads the stage's results. -/
-noncomputable def reverseLaw (stage : Stage) : PMF Sample :=
+noncomputable def reverseLaw (stage : Stage application fits setup) : PMF (Sample application) :=
   stage.tape.bind fun tape =>
-    HyperNovaHistoryLaw.law (listSource (stage.input tape).1.iteration (stage.results tape))
+    HyperNovaHistoryLaw.law application fits (listSource application (stage.input tape).1.iteration (stage.results tape))
       (PMF.pure (stage.input tape))
 
 /-- One reverse step keeps the input and every earlier result. -/
-theorem next_marginal (stage : Stage) (extractor : NifsExtractor stage.nifs) (count : Nat)
+theorem next_marginal (stage : Stage application fits setup) (extractor : NifsExtractor stage.nifs) (count : Nat)
     (within : ∀ tape, count ≤ (stage.results tape).length) :
     (stage.next extractor).tape.map
         (fun draw => ((stage.next extractor).input draw, ((stage.next extractor).results draw).take count)) =
@@ -188,21 +201,21 @@ an admitted NIFS adversary, which computes its current visit from the stage's
 output, and one reverse step of an admitted stage with an efficient extractor
 is again an admitted stage. For a constant number of steps and expected
 polynomial time this is the paper's composition. -/
-structure Closed (Admitted : NifsAdversary → Prop) (StageAdmitted : Stage → Prop)
-    (Efficient : (adversary : NifsAdversary) → NifsExtractor adversary → Prop) : Prop where
+structure Closed (Admitted : NifsAdversary application fits setup → Prop) (StageAdmitted : Stage application fits setup → Prop)
+    (Efficient : (adversary : NifsAdversary application fits setup) → NifsExtractor adversary → Prop) : Prop where
   nifs : ∀ stage, StageAdmitted stage → Admitted stage.nifs
-  next : ∀ (stage : Stage) (extractor : NifsExtractor stage.nifs),
+  next : ∀ (stage : Stage application fits setup) (extractor : NifsExtractor stage.nifs),
     StageAdmitted stage → Efficient stage.nifs extractor → StageAdmitted (stage.next extractor)
 
-variable {Admitted : NifsAdversary → Prop} {StageAdmitted : Stage → Prop}
-  {Efficient : (adversary : NifsAdversary) → NifsExtractor adversary → Prop}
-  {error : NifsAdversary → ℝ}
+variable {Admitted : NifsAdversary application fits setup → Prop} {StageAdmitted : Stage application fits setup → Prop}
+  {Efficient : (adversary : NifsAdversary application fits setup) → NifsExtractor adversary → Prop}
+  {error : NifsAdversary application fits setup → ℝ}
   (assumption : Assumption1 Admitted Efficient error) (closed : Closed Admitted StageAdmitted Efficient)
-  (adversary : IvcAdversary) (admitted : StageAdmitted (Stage.start adversary))
+  (adversary : IvcAdversary application fits setup) (admitted : StageAdmitted (Stage.start adversary))
 
 /-- HyperNova Lemma 17: stage `j + 1` runs stage `j` and then the extractor
 that Assumption 1 gives for stage `j`'s NIFS adversary. -/
-noncomputable def reverseStages : Nat → {stage : Stage // StageAdmitted stage}
+noncomputable def reverseStages : Nat → {stage : Stage application fits setup // StageAdmitted stage}
   | 0 => ⟨Stage.start adversary, admitted⟩
   | steps + 1 =>
       ⟨(reverseStages steps).1.next
@@ -256,7 +269,7 @@ theorem reverseStages_marginal (steps extra : Nat) :
 
 /-- An event of the input and the first `steps` results has the same mass at
 every later stage. -/
-theorem stage_event (steps extra : Nat) (event : Set ((Statement × Envelope) × List SourceResult)) :
+theorem stage_event (steps extra : Nat) (event : Set ((Statement × Envelope application) × List (SourceResult application))) :
     (stages (steps + extra)).1.tape.toOuterMeasure
         {tape | ((stages (steps + extra)).1.input tape,
           ((stages (steps + extra)).1.results tape).take steps) ∈ event} =
@@ -298,55 +311,55 @@ theorem input_bound (depth : Nat)
 stage, is the marked hash-collision mass of stage `steps`. -/
 theorem hash_term (steps extra : Nat) :
     ∑' tape, (stages (steps + extra)).1.tape tape *
-        (PMF.pure (pathVisit ((stages (steps + extra)).1.input tape)
+        (PMF.pure (pathVisit application fits setup ((stages (steps + extra)).1.input tape)
           ((stages (steps + extra)).1.results tape) steps)).toOuterMeasure
-          {visit | MarkedHashCollision visit} =
-      (stages steps).1.tape.toOuterMeasure {tape | MarkedHashCollision ((stages steps).1.visit tape)} := by
+          {visit | MarkedHashCollision application fits setup visit} =
+      (stages steps).1.tape.toOuterMeasure {tape | MarkedHashCollision application fits setup ((stages steps).1.visit tape)} := by
   rw [sum_pure]
   have event := stage_event assumption closed adversary admitted steps extra
-    {pair | MarkedHashCollision (pathVisit pair.1 pair.2 steps)}
+    {pair | MarkedHashCollision application fits setup (pathVisit application fits setup pair.1 pair.2 steps)}
   have visitEq (tape : (stages steps).1.Tape) :
-      (stages steps).1.visit tape = pathVisit ((stages steps).1.input tape) ((stages steps).1.results tape) steps := by
+      (stages steps).1.visit tape = pathVisit application fits setup ((stages steps).1.input tape) ((stages steps).1.results tape) steps := by
     simp only [Stage.visit, results_length]
   simp only [Set.mem_setOf_eq, pathVisit, List.take_take, min_self] at event ⊢
   simpa only [visitEq, pathVisit] using event
 
 /-- At a stage's own context, a good active visit is a real NIFS success. -/
-theorem realSuccess_of_goodActive (stage : Stage) (tape : stage.Tape)
-    (good : goodActive (stage.visit tape)) :
-    NifsRealSuccess.RealSuccess PiDECInputCheck.relation productionAjtaiKey
-      (PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup)
-      (PiCCSInputCheck.running (inputs (stage.visit tape))) (PiCCSInputCheck.fresh (inputs (stage.visit tape)))
-      (realOutput (stage.visit tape)) := by
+theorem realSuccess_of_goodActive (stage : Stage application fits setup) (tape : stage.Tape)
+    (good : goodActive application fits setup (stage.visit tape)) :
+    NifsRealSuccess.RealSuccess (PerApplicationFixedPoint.relation application fits) (PerApplicationCanonicalPackage.commitmentKey setup)
+      (PerApplicationCanonicalPackage.verifierContextDigest fits setup)
+      (PiCCSInputCheck.running (inputs application fits (stage.visit tape))) (PiCCSInputCheck.fresh (inputs application fits (stage.visit tape)))
+      (realOutput application fits setup (stage.visit tape)) := by
   have supported : stage.visit tape ∈
-      (visitedLaw (listSource (stage.input tape).1.iteration (stage.results tape))
+      (visitedLaw application fits setup (listSource application (stage.input tape).1.iteration (stage.results tape))
         (PMF.pure (stage.input tape)) (stage.results tape).length).support := by
-    rw [HyperNovaVisitedLaw.visitedLaw_listSource _ _ _ le_rfl, PMF.support_pure]
+    rw [HyperNovaVisitedLaw.visitedLaw_listSource application fits setup _ _ _ le_rfl, PMF.support_pure]
     rfl
-  exact (HyperNovaVisitedAcceptance.realSuccess_iff_goodActive _ _ _ _ supported).mpr good
+  exact (HyperNovaVisitedAcceptance.realSuccess_iff_goodActive application fits setup _ _ _ _ supported).mpr good
 
 /-- The source-failure term of the per-tape first-failure bound, averaged over
 the last stage, is at most the Assumption 1 failure mass of stage `steps`. -/
 theorem failure_term_le (steps extra : Nat) :
     ∑' tape, (stages (steps + 1 + extra)).1.tape tape *
-        (PMF.pure (pathVisit ((stages (steps + 1 + extra)).1.input tape)
+        (PMF.pure (pathVisit application fits setup ((stages (steps + 1 + extra)).1.input tape)
             ((stages (steps + 1 + extra)).1.results tape) steps,
-          if goodActive (pathVisit ((stages (steps + 1 + extra)).1.input tape)
+          if (goodActive application fits setup) (pathVisit application fits setup ((stages (steps + 1 + extra)).1.input tape)
               ((stages (steps + 1 + extra)).1.results tape) steps)
           then ((stages (steps + 1 + extra)).1.results tape).getD steps none else none)).toOuterMeasure
-          {draw | MarkedSourceFailure draw} ≤
+          {draw | MarkedSourceFailure application fits setup draw} ≤
       (extractors steps).law.toOuterMeasure
         {draw | ExtractionFails _ (extractors steps) draw} := by
   rw [sum_pure]
-  let event : Set ((Statement × Envelope) × List SourceResult) :=
-    {pair | goodActive (pathVisit pair.1 pair.2 steps) ∧
-      ¬ CheckedWitnessExtraction.SourceReturned PiCCSStoredWitnessCheck.commit productionGlobalParams
-        (PiCCSStoredWitnessCheck.statement (inputs (pathVisit pair.1 pair.2 steps)))
+  let event : Set ((Statement × Envelope application) × List (SourceResult application)) :=
+    {pair | goodActive application fits setup (pathVisit application fits setup pair.1 pair.2 steps) ∧
+      ¬ CheckedWitnessExtraction.SourceReturned (PiCCSStoredWitnessCheck.commit application setup) productionGlobalParams
+        (PiCCSStoredWitnessCheck.statement application fits (inputs application fits (pathVisit application fits setup pair.1 pair.2 steps)))
         (pair.2.getD steps none)}
-  have restrict (input : Statement × Envelope) (results : List SourceResult) :
-      pathVisit input (results.take (steps + 1)) steps = pathVisit input results steps := by
+  have restrict (input : Statement × Envelope application) (results : List (SourceResult application)) :
+      pathVisit application fits setup input (results.take (steps + 1)) steps = pathVisit application fits setup input results steps := by
     simp only [pathVisit, List.take_take, Nat.min_eq_left (Nat.le_succ steps)]
-  have entry (results : List SourceResult) :
+  have entry (results : List (SourceResult application)) :
       (results.take (steps + 1)).getD steps none = results.getD steps none := by
     simp only [List.getD_eq_getElem?_getD, List.getElem?_take, Nat.lt_succ_self, if_true]
   have equal := stage_event assumption closed adversary admitted (steps + 1) extra event
@@ -369,9 +382,9 @@ theorem failure_term_le (steps extra : Nat) :
         apply PMF.toOuterMeasure_mono
         intro draw member
         obtain ⟨⟨good, failed⟩, _⟩ := member
-        have current : pathVisit ((stages (steps + 1)).1.input draw)
+        have current : pathVisit application fits setup ((stages (steps + 1)).1.input draw)
             ((stages (steps + 1)).1.results draw) steps = (stages steps).1.visit draw.1 := by
-          change pathVisit ((stages steps).1.input draw.1)
+          change (pathVisit application fits setup) ((stages steps).1.input draw.1)
             ((stages steps).1.results draw.1 ++ [(extractors steps).run draw.1 draw.2]) steps = _
           have length := results_length assumption closed adversary admitted steps draw.1
           simp only [Stage.visit, pathVisit, length,
@@ -389,24 +402,24 @@ theorem failure_term_le (steps extra : Nat) :
 
 theorem hash_term_total (steps total : Nat) (within : steps ≤ total) :
     ∑' tape, (stages total).1.tape tape *
-        (PMF.pure (pathVisit ((stages total).1.input tape) ((stages total).1.results tape) steps)).toOuterMeasure
-          {visit | MarkedHashCollision visit} =
-      (stages steps).1.tape.toOuterMeasure {tape | MarkedHashCollision ((stages steps).1.visit tape)} := by
+        (PMF.pure (pathVisit application fits setup ((stages total).1.input tape) ((stages total).1.results tape) steps)).toOuterMeasure
+          {visit | MarkedHashCollision application fits setup visit} =
+      (stages steps).1.tape.toOuterMeasure {tape | MarkedHashCollision application fits setup ((stages steps).1.visit tape)} := by
   obtain ⟨extra, rfl⟩ := Nat.exists_eq_add_of_le within
   exact hash_term assumption closed adversary admitted steps extra
 
 theorem failure_term_total (steps total : Nat) (within : steps < total) :
     ∑' tape, (stages total).1.tape tape *
-        (PMF.pure (pathVisit ((stages total).1.input tape) ((stages total).1.results tape) steps,
-          if goodActive (pathVisit ((stages total).1.input tape) ((stages total).1.results tape) steps)
+        (PMF.pure (pathVisit application fits setup ((stages total).1.input tape) ((stages total).1.results tape) steps,
+          if (goodActive application fits setup) (pathVisit application fits setup ((stages total).1.input tape) ((stages total).1.results tape) steps)
           then ((stages total).1.results tape).getD steps none else none)).toOuterMeasure
-          {draw | MarkedSourceFailure draw} ≤
+          {draw | MarkedSourceFailure application fits setup draw} ≤
       (extractors steps).law.toOuterMeasure {draw | ExtractionFails _ (extractors steps) draw} := by
   obtain ⟨extra, rfl⟩ := Nat.exists_eq_add_of_le (Nat.succ_le_of_lt within)
   exact failure_term_le assumption closed adversary admitted steps extra
 
 /-- The terminal law as an event of the last stage's input. -/
-theorem start_event (total : Nat) (event : Set (Statement × Envelope)) :
+theorem start_event (total : Nat) (event : Set (Statement × Envelope application)) :
     adversary.tape.toOuterMeasure {tape | adversary.output tape ∈ event} =
       ∑' tape, (stages total).1.tape tape *
         (PMF.pure ((stages total).1.input tape)).toOuterMeasure event := by
@@ -415,103 +428,107 @@ theorem start_event (total : Nat) (event : Set (Statement × Envelope)) :
   rw [Nat.zero_add] at moved
   exact moved.symm
 
+/-- The reverse law keeps the IVC adversary's output law. -/
+theorem reverse_input_event (depth : Nat) (event : Set (Statement × Envelope application)) :
+    adversary.tape.toOuterMeasure {tape | adversary.output tape ∈ event} =
+      (stages depth).1.reverseLaw.toOuterMeasure {sample | (sample.1, sample.2.1) ∈ event} := by
+  rw [start_event assumption closed adversary admitted depth event, Stage.reverseLaw,
+    PMF.toOuterMeasure_bind_apply]
+  refine tsum_congr fun tape => congrArg _ ?_
+  have marginal := HyperNovaHistoryLaw.initial_marginal application fits
+    (listSource application ((stages depth).1.input tape).1.iteration ((stages depth).1.results tape))
+    (PMF.pure ((stages depth).1.input tape))
+  calc
+    _ = (((HyperNovaHistoryLaw.law application fits (listSource application
+          ((stages depth).1.input tape).1.iteration ((stages depth).1.results tape))
+          (PMF.pure ((stages depth).1.input tape))).map
+          (fun sample => (sample.1, sample.2.1))).toOuterMeasure event) := by rw [marginal]
+    _ = _ := PMF.toOuterMeasure_map_apply _ _ _
+
 /-- The per-tape first-failure bound of `HyperNovaFirstFailure`, read along
 the deterministic path of one tape of the last stage. -/
 theorem per_tape (depth : Nat)
     (depthBound : ∀ tape ∈ adversary.tape.support, (adversary.output tape).1.iteration ≤ depth)
     (tape : (stages depth).1.Tape) (supported : tape ∈ (stages depth).1.tape.support) :
-    (PMF.pure ((stages depth).1.input tape)).toOuterMeasure {input |
-        PerApplicationTerminal.Holds application fits productionSetup input.1 input.2} ≤
-      (HyperNovaHistoryLaw.law (listSource ((stages depth).1.input tape).1.iteration
-          ((stages depth).1.results tape)) (PMF.pure ((stages depth).1.input tape))).toOuterMeasure
-          {sample | AdviceReturned sample} +
-        ∑ j : Fin depth,
-          ((PMF.pure (pathVisit ((stages depth).1.input tape) ((stages depth).1.results tape) j.val)).toOuterMeasure
-              {visit | MarkedHashCollision visit} +
-            (PMF.pure (pathVisit ((stages depth).1.input tape) ((stages depth).1.results tape) j.val,
-              if goodActive (pathVisit ((stages depth).1.input tape) ((stages depth).1.results tape) j.val)
-              then ((stages depth).1.results tape).getD j.val none else none)).toOuterMeasure
-              {draw | MarkedSourceFailure draw}) := by
+    (HyperNovaHistoryLaw.law application fits (listSource application ((stages depth).1.input tape).1.iteration
+        ((stages depth).1.results tape)) (PMF.pure ((stages depth).1.input tape))).toOuterMeasure
+        {sample | Accepted application fits setup sample ∧ ¬ AdviceReturned application fits sample} ≤
+      ∑ j : Fin depth,
+        ((PMF.pure (pathVisit application fits setup ((stages depth).1.input tape) ((stages depth).1.results tape) j.val)).toOuterMeasure
+            {visit | MarkedHashCollision application fits setup visit} +
+          (PMF.pure (pathVisit application fits setup ((stages depth).1.input tape) ((stages depth).1.results tape) j.val,
+            if (goodActive application fits setup) (pathVisit application fits setup ((stages depth).1.input tape) ((stages depth).1.results tape) j.val)
+            then ((stages depth).1.results tape).getD j.val none else none)).toOuterMeasure
+            {draw | MarkedSourceFailure application fits setup draw}) := by
   have length := results_length assumption closed adversary admitted depth tape
-  have first := HyperNovaFirstFailure.accepted_probability_le_first_failures
-    (listSource ((stages depth).1.input tape).1.iteration ((stages depth).1.results tape))
+  have first := HyperNovaFirstFailure.unreturned_acceptance_le_first_failures application fits setup
+    (listSource application ((stages depth).1.input tape).1.iteration ((stages depth).1.results tape))
     (PMF.pure ((stages depth).1.input tape)) depth (by
       intro input member
       rw [PMF.mem_support_pure_iff] at member
       rw [member]
       exact input_bound assumption closed adversary admitted depth depthBound depth tape supported)
   refine first.trans (le_of_eq ?_)
-  congr 1
   refine Finset.sum_congr rfl fun j _ => ?_
-  rw [HyperNovaVisitedLaw.visitedLaw_listSource _ _ _ (by omega), PMF.pure_bind,
-    HyperNovaVisitedLaw.guardedDraw_listSource _ _ _ (by omega)]
+  rw [HyperNovaVisitedLaw.visitedLaw_listSource application fits setup _ _ _ (by omega), PMF.pure_bind,
+    HyperNovaVisitedLaw.guardedDraw_listSource application fits setup _ _ _ (by omega)]
 
-/-- History security under Assumption 1 (HyperNova Lemma 17). The accepted
-terminal mass is at most the reverse extractor's returned-history mass plus,
-at each stage, the marked hash-collision mass and the Assumption 1 error of
-that stage's NIFS adversary. Every stage is admitted (`reverseStages`). -/
-theorem history_probability_bound (depth : Nat)
+/-- History knowledge soundness under Assumption 1 (HyperNova Definition 7
+and Lemma 17). On the reverse law, the mass where the terminal verifier
+accepts and the reverse extractor returns no valid history is at most, at
+each stage, the marked hash-collision mass and the Assumption 1 error of that
+stage's NIFS adversary. Every stage is admitted (`reverseStages`). -/
+theorem history_failure_le (depth : Nat)
     (depthBound : ∀ tape ∈ adversary.tape.support, (adversary.output tape).1.iteration ≤ depth) :
-    (adversary.tape.toOuterMeasure {tape |
-      PerApplicationTerminal.Holds application fits productionSetup
-        (adversary.output tape).1 (adversary.output tape).2}).toReal ≤
-      ((stages depth).1.reverseLaw.toOuterMeasure {sample | AdviceReturned sample}).toReal +
-        ∑ j : Fin depth,
-          (((stages j.val).1.tape.toOuterMeasure
-              {tape | MarkedHashCollision ((stages j.val).1.visit tape)}).toReal +
-            error (stages j.val).1.nifs) := by
+    ((stages depth).1.reverseLaw.toOuterMeasure
+        {sample | Accepted application fits setup sample ∧ ¬ AdviceReturned application fits sample}).toReal ≤
+      ∑ j : Fin depth,
+        (((stages j.val).1.tape.toOuterMeasure
+            {tape | MarkedHashCollision application fits setup ((stages j.val).1.visit tape)}).toReal +
+          error (stages j.val).1.nifs) := by
   let law := (stages depth).1.tape
-  let advice : (stages depth).1.Tape → ℝ≥0∞ := fun tape =>
-    (HyperNovaHistoryLaw.law (listSource ((stages depth).1.input tape).1.iteration
-      ((stages depth).1.results tape)) (PMF.pure ((stages depth).1.input tape))).toOuterMeasure
-      {sample | AdviceReturned sample}
   let hash : Fin depth → (stages depth).1.Tape → ℝ≥0∞ := fun j tape =>
-    (PMF.pure (pathVisit ((stages depth).1.input tape) ((stages depth).1.results tape) j.val)).toOuterMeasure
-      {visit | MarkedHashCollision visit}
+    (PMF.pure (pathVisit application fits setup ((stages depth).1.input tape) ((stages depth).1.results tape) j.val)).toOuterMeasure
+      {visit | MarkedHashCollision application fits setup visit}
   let failure : Fin depth → (stages depth).1.Tape → ℝ≥0∞ := fun j tape =>
-    (PMF.pure (pathVisit ((stages depth).1.input tape) ((stages depth).1.results tape) j.val,
-      if goodActive (pathVisit ((stages depth).1.input tape) ((stages depth).1.results tape) j.val)
+    (PMF.pure (pathVisit application fits setup ((stages depth).1.input tape) ((stages depth).1.results tape) j.val,
+      if (goodActive application fits setup) (pathVisit application fits setup ((stages depth).1.input tape) ((stages depth).1.results tape) j.val)
       then ((stages depth).1.results tape).getD j.val none else none)).toOuterMeasure
-      {draw | MarkedSourceFailure draw}
-  have bound : adversary.tape.toOuterMeasure {tape |
-      PerApplicationTerminal.Holds application fits productionSetup
-        (adversary.output tape).1 (adversary.output tape).2} ≤
-      (stages depth).1.reverseLaw.toOuterMeasure {sample | AdviceReturned sample} +
-        ∑ j : Fin depth,
-          ((stages j.val).1.tape.toOuterMeasure {tape | MarkedHashCollision ((stages j.val).1.visit tape)} +
-            (extractors j.val).law.toOuterMeasure {draw | ExtractionFails _ (extractors j.val) draw}) := by
+      {draw | MarkedSourceFailure application fits setup draw}
+  have bound : (stages depth).1.reverseLaw.toOuterMeasure
+        {sample | Accepted application fits setup sample ∧ ¬ AdviceReturned application fits sample} ≤
+      ∑ j : Fin depth,
+        ((stages j.val).1.tape.toOuterMeasure {tape | MarkedHashCollision application fits setup ((stages j.val).1.visit tape)} +
+          (extractors j.val).law.toOuterMeasure {draw | ExtractionFails _ (extractors j.val) draw}) := by
     calc
-      _ = ∑' tape, law tape * (PMF.pure ((stages depth).1.input tape)).toOuterMeasure
-            {input | PerApplicationTerminal.Holds application fits productionSetup input.1 input.2} :=
-          start_event assumption closed adversary admitted depth
-            {input | PerApplicationTerminal.Holds application fits productionSetup input.1 input.2}
-      _ ≤ ∑' tape, law tape * (advice tape + ∑ j : Fin depth, (hash j tape + failure j tape)) := by
+      _ = ∑' tape, law tape *
+            (HyperNovaHistoryLaw.law application fits (listSource application ((stages depth).1.input tape).1.iteration
+              ((stages depth).1.results tape)) (PMF.pure ((stages depth).1.input tape))).toOuterMeasure
+              {sample | Accepted application fits setup sample ∧ ¬ AdviceReturned application fits sample} :=
+          PMF.toOuterMeasure_bind_apply _ _ _
+      _ ≤ ∑' tape, law tape * ∑ j : Fin depth, (hash j tape + failure j tape) := by
           apply ENNReal.tsum_le_tsum
           intro tape
           by_cases zero : law tape = 0
           · simp only [zero, zero_mul, le_refl]
           · exact mul_le_mul_right (per_tape assumption closed adversary admitted depth depthBound tape
               ((PMF.mem_support_iff _ _).mpr zero)) _
-      _ = ∑' tape, law tape * advice tape +
-            ∑ j : Fin depth, (∑' tape, law tape * hash j tape + ∑' tape, law tape * failure j tape) := by
+      _ = ∑ j : Fin depth, (∑' tape, law tape * hash j tape + ∑' tape, law tape * failure j tape) := by
           simp only [mul_add, Finset.mul_sum]
-          rw [ENNReal.tsum_add, Summable.tsum_finsetSum (fun _ _ => ENNReal.summable)]
-          congr 1
+          rw [Summable.tsum_finsetSum (fun _ _ => ENNReal.summable)]
           exact Finset.sum_congr rfl fun j _ => ENNReal.tsum_add
       _ ≤ _ := by
-          refine add_le_add (le_of_eq ?_) (Finset.sum_le_sum fun j _ => add_le_add (le_of_eq ?_) ?_)
-          · exact (PMF.toOuterMeasure_bind_apply _ _ _).symm
+          refine Finset.sum_le_sum fun j _ => add_le_add (le_of_eq ?_) ?_
           · exact hash_term_total assumption closed adversary admitted j.val depth j.isLt.le
           · exact failure_term_total assumption closed adversary admitted j.val depth j.isLt
   have finiteTerm (j : Fin depth) :
-      (stages j.val).1.tape.toOuterMeasure {tape | MarkedHashCollision ((stages j.val).1.visit tape)} +
+      (stages j.val).1.tape.toOuterMeasure {tape | MarkedHashCollision application fits setup ((stages j.val).1.visit tape)} +
         (extractors j.val).law.toOuterMeasure {draw | ExtractionFails _ (extractors j.val) draw} ≠ ∞ :=
     ENNReal.add_ne_top.mpr ⟨event_ne_top _ _, event_ne_top _ _⟩
   have finiteSum := ENNReal.sum_ne_top.mpr (fun j (_ : j ∈ Finset.univ) => finiteTerm j)
-  have realBound := ENNReal.toReal_mono (ENNReal.add_ne_top.mpr ⟨event_ne_top _ _, finiteSum⟩) bound
-  rw [ENNReal.toReal_add (event_ne_top _ _) finiteSum,
-    ENNReal.toReal_sum (fun j (_ : j ∈ Finset.univ) => finiteTerm j)] at realBound
-  refine realBound.trans (add_le_add le_rfl (Finset.sum_le_sum fun j _ => ?_))
+  have realBound := ENNReal.toReal_mono finiteSum bound
+  rw [ENNReal.toReal_sum (fun j (_ : j ∈ Finset.univ) => finiteTerm j)] at realBound
+  refine realBound.trans (Finset.sum_le_sum fun j _ => ?_)
   rw [ENNReal.toReal_add (event_ne_top _ _) (event_ne_top _ _)]
   exact add_le_add le_rfl (reverseExtractor_error assumption closed adversary admitted j.val)
 

@@ -5,24 +5,29 @@ This registration records the history-security criterion, adversary 4 of
 Assumption 1, plain-model part, in the form of the paper's Definition 7
 knowledge soundness of the NIFS, with an extractor for each admitted
 adversary that reads that adversary's tape, composed by the reverse extractor
-of HyperNova Lemma 17 (Appendix H.3). It differs from Definition 7 in four
-stated ways: the success event adds the prior-state link, the bound is the
-joint form, the public parameters are the fixed production key and setup, and
+of HyperNova Lemma 17 (Appendix H.3). It differs from Definition 7 in six
+stated ways: the success event adds the prior-state link, the transcript is not
+the one of Construction 3, the premise is the joint form, the public parameters
+are a fixed commitment setup, the structure is a fixed application, and
 `error` replaces `negl(λ)` (trust item 4 of the security model).
 
-The final declaration is
-`NightstreamFPrime.Export.Stage1.HyperNovaVisitedSecurity.history_probability_bound`.
+The final declarations are
+`NightstreamFPrime.Export.Stage1.HyperNovaVisitedSecurity.history_failure_le`
+and `NightstreamFPrime.Export.Stage1.HyperNovaVisitedSecurity.reverse_input_event`.
 The literal criterion is `LeanGraph.Targets.HyperNovaLinearSecurity` in
 `tests/EvidenceTargets.lean`; `hyperNovaLinearSecurity` proves that criterion.
 
-The required conclusion is
+The required conclusion is, on the joint law of the IVC adversary and the
+reverse extractor,
 
 ```
-Pr[accepted terminal] ≤ Pr[the reverse extractor returns history advice]
-  + Σ j < depth, (hashCollision_j + error(stage_j))
+Pr[accepted terminal ∧ no valid history returned]
+  ≤ Σ j < depth, (hashCollision_j + error(stage_j))
 ```
 
-for every class of admitted NIFS adversaries and efficient extractors with
+and that law has the IVC adversary's output law. This holds for every
+application that fits the `2^28` profile, every commitment setup, every class
+of admitted NIFS adversaries and efficient extractors with
 `Assumption1 Admitted Efficient error`, every class of admitted stages with
 `Closed Admitted StageAdmitted Efficient`, and every IVC adversary whose start
 stage is admitted and whose advertised iteration is at most `depth`.
@@ -58,15 +63,17 @@ Dependencies, with namespace prefix `NightstreamFPrime`:
 
 | Declaration | Required use |
 | --- | --- |
-| `Export.Stage1.HyperNovaFirstFailure.accepted_probability_le_first_failures` | Bound each tape's acceptance by its first marked failures. |
+| `Export.Stage1.HyperNovaFirstFailure.unreturned_acceptance_le_first_failures` | Bound each tape's acceptance with no returned history by its first marked failures. |
 | `Export.Stage1.HyperNovaVisitedLaw.visitedLaw_listSource` | Read each tape's deterministic reverse path from its extractor results. |
 | `Export.Stage1.HyperNovaVisitedSecurity.Assumption1` | State Assumption 1 in the form of Definition 7. |
 | `Export.Stage1.HyperNovaVisitedSecurity.reverseStages` | Build the reverse extractor of Lemma 17. |
 | `Export.Stage1.HyperNovaVisitedSecurity.failure_term_le` | Bound each stage's source failure by its Assumption 1 failure. |
-| `Export.Stage1.HyperNovaVisitedSecurity.history_probability_bound` | Average the per-tape bound over the reverse extractor's tape. |
+| `Export.Stage1.HyperNovaVisitedSecurity.history_failure_le` | Average the per-tape bound over the reverse extractor's tape. |
+| `Export.Stage1.HyperNovaVisitedSecurity.reverse_input_event` | Keep the IVC adversary's output law in the joint law. |
 
 `hypernova-terminal-false-acceptance` uses the same premises through
-`Export.Stage1.HyperNovaFalseAcceptance.probability_bound`.
+`Export.Stage1.HyperNovaFalseAcceptance.probability_bound`, which follows from
+`history_failure_le`.
 
 Use `explain hypernova-linear-security` for remaining validation and review.
 The registered gate runs static, build, axioms, the exact target check and

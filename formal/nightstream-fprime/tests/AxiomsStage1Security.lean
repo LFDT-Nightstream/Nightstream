@@ -135,6 +135,7 @@ import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
 #audit_axioms NightstreamFPrime.Export.Stage1.RandomOracleLink.runningChance_le
 #audit_axioms NightstreamFPrime.Export.Stage1.RandomOracleLink.knowledge_error_le_linked
 #audit_axioms NightstreamFPrime.Export.Stage1.RandomOracleSetup.knowledge_error_le_setup
+#audit_axioms NightstreamFPrime.Export.Stage1.RandomOracleSetup.programmingError_lt_of_fits
 #audit_axioms NightstreamFPrime.Export.Stage1.RandomOracleSetup.production_knowledge_error_lt
 #audit_axioms NightstreamFPrime.Export.Stage1.RandomOracleSetup.contract
 #audit_axioms NightstreamFPrime.Spec.flatMap_eq_of_lengths
@@ -181,7 +182,7 @@ import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaVisitedAcceptance.marked_accepted
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaVisitedAcceptance.realSuccess_iff_goodActive
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaFirstFailure.accepted_failure_exists_first
-#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaFirstFailure.accepted_probability_le_first_failures
+#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaFirstFailure.unreturned_acceptance_le_first_failures
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaVisitedLaw.visitedLaw_succ
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaVisitedLaw.visitedLaw_listSource
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaVisitedLaw.guardedDraw_listSource
@@ -198,7 +199,8 @@ import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaVisitedSecurity.failure_term_total
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaVisitedSecurity.start_event
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaVisitedSecurity.per_tape
-#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaVisitedSecurity.history_probability_bound
+#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaVisitedSecurity.history_failure_le
+#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaVisitedSecurity.reverse_input_event
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaInitial.initial_accepted
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaEnvelopeSize.accepted_wordCount_le
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiRLCProtocolCompleteness.completePrefix
@@ -312,5 +314,4 @@ import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSTranscriptEndpointPlan.outputInitialState_eq_roundFinalState_of_shape
 
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaFalseAcceptance.falseAcceptance_not_adviceReturned
-#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaFalseAcceptance.false_acceptance_mass_le_first_failures
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaFalseAcceptance.probability_bound

@@ -22,10 +22,12 @@ Outputs:
   reduction returns a vector, under the law of `collisionChance`, bounds
   `collisionChance`.
 
-The vector is computed from the two runs; no step chooses it from a proof that
-one exists. The extracted witnesses satisfy only the corrected ambient
-relation, so the step uses relaxed binding, not ordinary binding. Does not
-own: the hardness of the resulting MSIS instance or the running time of the
+The vector is a function of the two runs. The definition is `noncomputable`:
+it decides the run conditions classically and takes each strong-set inverse,
+which is unique, with `Classical.choose` (`ForkStrongSet.strongSetUnits`).
+The extracted witnesses satisfy only the corrected ambient relation, so the
+step uses relaxed binding, not ordinary binding. Does not own: the hardness of
+the resulting MSIS instance or an algorithm and running time for the
 reduction.
 -/
 

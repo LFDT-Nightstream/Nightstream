@@ -31,6 +31,27 @@ are not checked.
   (`Spec.Phi81StrongSet.lowNormInvertibility`), so no security result takes it
   as a premise.
 
+## Applications and setups
+
+An application is a step program (`Lifecycle.Stage1.Application.Program`).
+Every adversary result below holds for every application that fits the
+`2^28` profile (`Export.Stage1.PerApplicationFixedPoint.FitsTwoPow28`), at its
+own relation (`Export.Stage1.PerApplicationFixedPoint.relation`). Adversary 1
+holds for
+every Ajtai key, adversaries 2 and 4 for every commitment setup
+(`Export.Stage1.PerApplicationCanonicalPackage.CommitmentSetup`, with key
+`Export.Stage1.PerApplicationCanonicalPackage.commitmentKey`), and adversary 3
+draws the key inside its game. `Poseidon2HashChainV1` is the reference
+application of the golden runs and the executables.
+
+No adversary chooses the application or the setup: the verifier's package
+fixes both before the adversary runs. The verifier-context digest hashes the
+relation, the application, the NIFS key and the commitment key
+(`Export.Stage1.PerApplicationCanonicalPackage.verifierContextDescriptor`),
+and every state hash carries it. So when one application's verifier accepts a
+proof, adversary 2's result gives that application's context or a state-hash
+collision.
+
 ## Adversaries
 
 ### 1. Malicious step assignment
@@ -73,11 +94,15 @@ are not checked.
   so it may read the whole Ajtai key, and that makes at most `Q` queries to
   the oracle `H`. It may choose the running and fresh statements after any
   query. It outputs a claim (the statements, a NIFS proof and 16 child
-  witnesses) and a prior preimage.
-- **Does not control:** the setup chunks, which are uniform 256-bit values
-  (trust item 2), and `H`, a uniform random function of each challenge's
-  exact call list (trust item 1). The adversary is chosen before the chunks,
-  so it cannot contain a kernel vector of the key.
+  witnesses) and a prior preimage. The algorithm is deterministic
+  (`Spec.RandomOracle.OracleComp` has no coins). A randomized adversary is
+  covered for each fixed value of its coins; the average over the coins is an
+  argument outside Lean. Each query is a call list no longer than a fixed
+  bound (`Lifecycle.RandomOracleTest.Point`).
+- **Does not control:** the application, the setup chunks, which are uniform
+  256-bit values (trust item 2), and `H`, a uniform random function of each
+  challenge's exact call list (trust item 1). The adversary is chosen before
+  the chunks, so it cannot contain a kernel vector of the key.
 - **Wins:** the oracle verifier accepts the claim, the child witnesses open
   the returned children, the prior preimage links the claim, and extraction
   returns no source-valid witness. The link
@@ -87,7 +112,8 @@ are not checked.
   running children are the canonical split of the parent that the state hash
   stores (`Lifecycle.ChildrenCanonical`); the deployed verifier rejects every
   other split.
-- **Result:** `Export.Stage1.RandomOracleSetup.production_knowledge_error_lt`
+- **Result:** for every application that fits,
+  `Export.Stage1.RandomOracleSetup.production_knowledge_error_lt`
   (lean-graph target `rom-knowledge-soundness`):
 
   ```
@@ -101,25 +127,38 @@ are not checked.
   - `Lifecycle.RandomOracleKnowledge.statisticalError`: the two statistical
     terms. `ε_test = 4589/p² ≈ 2^-115.84`
     (`Lifecycle.Nifs.VerifierErrorBudget.test_error_eq`) and
-    `ε_sample ≈ 2^-125.4`; at `Q = 2^64` their sum is about `2^-51.84`.
+    `ε_sample ≈ 2^-125.4`; at `Q = 2^64` their sum is about `2^-51.84`. These
+    two approximations are computed outside Lean.
   - `Export.Stage1.RandomOracleSetup.msisAdvantage`: the success of an
     explicit MSIS solver on a uniform matrix. It runs the binding reduction
     `Lifecycle.RandomOracleBinding.rerunKernel`, which computes a nonzero
     kernel vector of the key with every coordinate below `8TB` from two runs.
-  - `2^-190` bounds the cost of a uniform matrix in place of reduced chunks.
+  - `2^-190` bounds the cost of a uniform matrix in place of reduced chunks
+    for every application that fits
+    (`Export.Stage1.RandomOracleSetup.programmingError_lt_of_fits`).
 - **Work:** the extractor takes `17 (Q + 17)` expected retries
   (`Lifecycle.RandomOracleExtraction.expected_retries_le`), and the binding
   reduction takes `Q + 74` expected reruns
   (`Lifecycle.RandomOracleUniqueness.expected_reruns_le`). Lean does not bound
   the retries of the second extraction in the binding reduction. Lean counts
   runs, not machine work.
-- **Deployed verifier:** at an oracle that answers the 74 challenge points of
-  one execution as the sponge does, the oracle verifier is the deployed
-  verifier plus the child openings
+- **What it covers:** the oracle verifier is the Lean NIFS verifier
+  `Spec.Folding.Nifs.PaperNonInteractive.verify`, with its coins read from
+  `H`, plus the child openings. At an oracle that answers the 74 challenge
+  points of one execution as the sponge does, the two agree
   (`Lifecycle.RandomOracleFidelity.accepts_iff_verify`), and every execution
   has such an oracle (`Lifecycle.RandomOracleFidelity.deployedOracle_deployed`).
-  `Export.Stage1.RandomOracleSetup.contract` states the result as Ironwood's
-  six-question `Spec.KnowledgeContract`.
+  The deployed system runs this verifier only with Poseidon2: in the step
+  circuit of `F′` for an inner fold, and in the Rust terminal verifier. No
+  random-oracle model covers those runs, so this result alone bounds no
+  deployed attack. It motivates the value of `error` in Assumption 1
+  (adversary 4). `Export.Stage1.RandomOracleSetup.contract` states the result
+  as Ironwood's six-question `Spec.KnowledgeContract`.
+- **Model limits:** the extractor and the binding reduction rerun the
+  adversary with a changed oracle, so the oracle is programmable. The game
+  draws the chunks after the adversary is fixed, but the deployed seed is
+  fixed and public. An adversary that is precomputed for that seed, or an
+  application that is chosen after it, is outside the model.
 
 The proof follows the interactive SuperNeo v1.2 extraction and replaces each
 fresh verifier coin by an oracle read. Each module header states its part:
@@ -139,8 +178,8 @@ fresh verifier coin by an oracle read. Each module header states its part:
 ### 4. Recursive-history adversary
 
 - **Controls:** a random tape and, from it, a terminal statement and proof
-  after any number of folds, up to a symbolic depth. The adversary must be
-  admitted (trust item 4).
+  after any number of folds, up to a symbolic depth, for a fixed application
+  and commitment setup. The adversary must be admitted (trust item 4).
 - **Wins:** the terminal is accepted, and no valid history exists: no
   application witnesses take `z0` to `zi` in `iteration` steps
   (`Export.Stage1.HyperNovaFalseAcceptance.FalseAcceptance`).
@@ -150,16 +189,17 @@ fresh verifier coin by an oracle read. Each module header states its part:
   (`Export.Stage1.HyperNovaFalseAcceptance.probability_bound`, lean-graph
   target `hypernova-terminal-false-acceptance`). `h_j` is stage `j`'s marked
   state-hash collision mass.
-- **Extraction form:** under the same premises,
-  `Pr[accept] ≤ Pr[the reverse extractor returns a history] + Σ_j (h_j + error(stage j))`
-  (`Export.Stage1.HyperNovaVisitedSecurity.history_probability_bound`,
-  lean-graph target `hypernova-linear-security`). The reverse extractor is
-  HyperNova Lemma 17
-  (`Export.Stage1.HyperNovaVisitedSecurity.reverseStages`). This is a
-  difference bound. It does not bound the event "accepted, and no history
-  returned" by itself, because a returned history does not imply acceptance:
-  for an iteration-zero bottom envelope with `zi = z0`, the reverse walk
-  returns the empty history without a check of acceptance.
+- **Extraction form:** under the same premises, on the joint law of the
+  adversary and the reverse extractor of HyperNova Lemma 17
+  (`Export.Stage1.HyperNovaVisitedSecurity.reverseStages`),
+  `Pr[accept ∧ no valid history returned] ≤ Σ_j (h_j + error(stage j))`
+  (`Export.Stage1.HyperNovaVisitedSecurity.history_failure_le`, lean-graph
+  target `hypernova-linear-security`). This is the failure event of
+  Definition 7. The joint law has the adversary's output law
+  (`Export.Stage1.HyperNovaVisitedSecurity.reverse_input_event`), and the
+  false-acceptance bound above follows from this one.
+- **Depth:** with the error that adversary 3 motivates, the bound is useful
+  only for one or two folds (trust item 4, *Concrete depth*).
 
 ## What you trust
 
@@ -181,22 +221,26 @@ fresh verifier coin by an oracle read. Each module header states its part:
    scalar is the existing sampler applied to an oracle answer; its law is
    within `2^-132` of uniform on the strong set
    (`Spec.Folding.Nifs.NonInteractive.PiRlcSampler.distance_lt`).
-2. **SHAKE128 as a random oracle (premise P1).** Each key coefficient is one
-   SHAKE128 output chunk reduced modulo `p`
-   (`Export.Stage1.Poseidon2HashChainV1Setup.productionKey_eq_chunks`). The
+2. **SHAKE128 as a random oracle (premise P1).** For every setup, each key
+   coefficient is one SHAKE128 output chunk reduced modulo `p`
+   (`Spec.AjtaiSetupV1.Programming.verifierKey_eq`). The
    game draws the chunks uniformly and independently of the Fiat–Shamir
    oracle. The context digest is computed from the public setup authority
    (setup identifier, dimensions and seed;
    `Spec.AjtaiSetupV1.Setup.authorityWords`), so it does not depend on the
    chunks.
 3. **Two hardness terms.**
-   - If MSIS is hard for a uniform matrix of `22 × 835936` elements of
+   - If MSIS is hard for a uniform matrix of `22 × blockCount` elements of
      `F_p[X]/Φ₈₁` (degree 54) at norm `8TB`, at the solver's work, then
-     `msisAdvantage` is small. The solver runs the adversary an expected
-     number of times that grows with `Q`; Lean does not bound its work, so
-     this step also needs the paper argument that the work is polynomial. The
+     `msisAdvantage` is small. `blockCount` is at most 4,971,027 for every
+     application that fits, and 835,936 for `Poseidon2HashChainV1`. The
+     solver runs the adversary an expected number of times that grows with
+     `Q`, and Lean does not bound its work. MSIS hardness is stated for
+     solvers with a strict time bound, so this step also needs a Markov
+     truncation of the expected work, whose loss Lean does not count. The
      2026-09-08 public-seed MSIS approval covered the ChaCha20 matrix only.
-     For ordinary binding collisions under the SHAKE128 matrix,
+     For ordinary binding collisions under the SHAKE128 matrix of the
+     reference application,
      `Export.Stage1.Poseidon2HashChainV1Setup.production_binding_lt_solver` gives an
      MSIS solution for a uniform matrix, with error below `2^-190`.
    - If Poseidon2 state-hash collisions are hard to find, then
@@ -212,7 +256,7 @@ fresh verifier coin by an oracle read. Each module header states its part:
    and real output it computes) there is an efficient extractor that reads
    the adversary's tape and its own coins, so it may rerun the adversary, and
    that fails after a real success (`NifsRealSuccess.RealSuccess`, with the
-   prior-state link) with probability at most `error` of that adversary. Four
+   prior-state link) with probability at most `error` of that adversary. Six
    differences from Definition 7:
    - The success event adds the prior-state link (`PriorLink`): the prior
      preimage that the adversary outputs must hash to the digest in the fresh
@@ -224,14 +268,31 @@ fresh verifier coin by an oracle read. Each module header states its part:
      fresh public input (`crates/nightstream/src/lifecycle/verify.rs`), and
      for an inner fold the step circuit recomputes it. So Assumption 1 is
      Definition 7 for the NIFS verifier together with this check.
+   - The transcript is not the one of HyperNova Construction 3, which absorbs
+     `sid` (the structure and the public parameters) and the running instance
+     before the first challenge. The Nightstream transcript absorbs a domain
+     tag, the fresh statement and the prover messages
+     (`Lifecycle.TranscriptCoverage.statementCalls`,
+     `Lifecycle.TranscriptCoverage.AgreeOnAbsorbed`). The structure, the keys
+     and the running instance enter only through the prior digest in the
+     fresh public input, a Poseidon2 state hash that carries the
+     verifier-context digest. This is the cause of the difference above. So
+     `Assumption1` is a premise about the Nightstream transcript, not the
+     paper's premise about Construction 3.
    - This joint form implies Definition 7's difference form
      `Pr[success] − Pr[extraction] ≤ error`. The converse needs an adversary
      that stops when its own success check fails.
-   - The public parameters are the fixed production key and setup, not
-     sampled by the generator. With a fixed hash and a fixed key, an efficient
-     algorithm that contains a collision exists. So the premise can hold only
-     for algorithms that a person can write without such knowledge
-     (Rogaway's human-ignorance reading).
+   - The public parameters are a fixed commitment setup, not sampled by the
+     generator. With a fixed hash and a fixed key, an efficient algorithm that
+     contains a collision exists. So the premise can hold only for algorithms
+     that a person can write without such knowledge (Rogaway's
+     human-ignorance reading).
+   - The structure is a fixed application. Definition 7 lets the adversary
+     choose the structure after the public parameters, and Definition 11 lets
+     the IVC prover choose `F` from the public parameters and its coins. With
+     fixed public parameters, a choice that depends only on them is one fixed
+     application, which the result covers for every application that fits. A
+     choice that depends on the adversary's coins is not covered.
    - `error` replaces `negl(λ)`.
 
    `Export.Stage1.HyperNovaVisitedSecurity.Closed` is the composition premise.
@@ -267,7 +328,10 @@ fresh verifier coin by an oracle read. Each module header states its part:
      term `h_j` is the probability that stage `j`, an admitted stage, followed
      by the computation of its current visit, outputs a state-hash collision.
      So an external Poseidon2 collision bound applies to it, under the same
-     human-ignorance reading. The paper's truncation argument for
+     human-ignorance reading. `Efficient` and `StageAdmitted` must have that
+     reading too: under the plain expected-polynomial-time reading, the class
+     contains an extractor that outputs a known collision, and then `h_j` has
+     no useful bound. The paper's truncation argument for
      expected-time stages is outside Lean. Lean chooses the stages with
      `Classical.choose`, so a numerical bound on `h_j` and on `error` must
      hold for the whole class.
@@ -303,7 +367,8 @@ fresh verifier coin by an oracle read. Each module header states its part:
   `Export.Stage1.HyperNovaAcceptedNext.recursive_extend` and
   `Lifecycle.Nifs.BaseCompleteness.zeroProof_verify`.
 - The error is not one security level. The statistical part costs about
-  `2^115.8` work for each unit of success, linear in `Q`. The other terms
+  `2^115.8` work for each unit of success, linear in `Q` (computed outside
+  Lean). The other terms
   depend on MSIS at the solver's work and on Poseidon2 collisions. 128-bit
   security needs a larger challenge field for `γ`.
 - Concrete attacks on Poseidon2 as a random oracle, or on the additive duplex,
@@ -311,5 +376,10 @@ fresh verifier coin by an oracle read. Each module header states its part:
   are outside every random-oracle model; the verifier's package key fixes the
   relation.
 - The adversary is a classical algorithm. Quantum adversaries are not modelled.
+- No adversary chooses the application or the setup (Applications and
+  setups). An application chosen from the adversary's coins, or after the
+  setup chunks, is outside the results for adversaries 3 and 4.
+- Concrete security for long recursive chains: the history bound is useful
+  only for one or two folds (trust item 4, *Concrete depth*).
 - Lean states no machine running time and no Rust execution result beyond the
   recorded inputs.

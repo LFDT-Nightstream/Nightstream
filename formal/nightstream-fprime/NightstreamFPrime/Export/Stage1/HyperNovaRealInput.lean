@@ -19,8 +19,9 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Layout.Stage1
-open Poseidon2HashChainV1Package (application fits)
-open Poseidon2HashChainV1Setup (productionSetup productionAjtaiKey)
+variable (application : Lifecycle.Stage1.Application.Program)
+  (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+  (setup : PerApplicationCanonicalPackage.CommitmentSetup application)
 
 private def makeOutput
     {logicalWidth : Nat}
@@ -89,60 +90,60 @@ private theorem success_of_verified_output
 
 /-- The prior preimage that the decoded local step names under the package's
 verifier context: the preimage whose hash the terminal checks. -/
-noncomputable def prior (payload : HyperNovaHistory.Payload) :=
+noncomputable def prior (payload : HyperNovaHistory.Payload application) :=
   HyperNova.Construction2.Paper.priorHashPreimage
     (Lifecycle.setup (PerApplicationFixedPoint.relation application fits)
-      (PerApplicationCanonicalPackage.commitmentKey productionSetup)
-      (PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup))
-    (HyperNovaHistory.decodedInput payload)
+      (PerApplicationCanonicalPackage.commitmentKey setup)
+      (PerApplicationCanonicalPackage.verifierContextDigest fits setup))
+    (HyperNovaHistory.decodedInput application fits payload)
 
 /-- The decoded prior preimage and local proof with the terminal's existing
 ordered sixteen child witnesses. No claimed output or source witness is added. -/
-noncomputable def output (payload : HyperNovaHistory.Payload) :
-    NifsRealSuccess.RealOutput PiDECInputCheck.relation :=
-  makeOutput PiDECInputCheck.relation (prior payload)
-    (HyperNovaHistory.decodedInput payload).nifsProof (payload.runningWitness functionIndex)
+noncomputable def output (payload : HyperNovaHistory.Payload application) :
+    NifsRealSuccess.RealOutput (PerApplicationFixedPoint.relation application fits) :=
+  makeOutput (PerApplicationFixedPoint.relation application fits) (prior application fits setup payload)
+    (HyperNovaHistory.decodedInput application fits payload).nifsProof (payload.runningWitness functionIndex)
 
 /-- A non-base accepted terminal opening supplies the actual NIFS real-success
 event for the same prior input used by the reverse history. The prior-state
 link, child correctness and verifier-output equality are derived from
 acceptance, not assumed. -/
 theorem realSuccess_of_terminal
-    (statement : HyperNovaHistory.Statement) (payload : HyperNovaHistory.Payload)
-    (accepted : PerApplicationTerminal.Holds application fits productionSetup
+    (statement : HyperNovaHistory.Statement) (payload : HyperNovaHistory.Payload application)
+    (accepted : PerApplicationTerminal.Holds application fits setup
       statement (.recursive payload))
-    (safe : ¬ HyperNovaHistory.Collision statement payload)
-    (positive : 0 < (HyperNovaHistory.decodedInput payload).iteration) :
-    NifsRealSuccess.RealSuccess PiDECInputCheck.relation productionAjtaiKey
-      (PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup)
-      (PiCCSInputCheck.running (HyperNovaHistory.sourceInput payload))
-      (PiCCSInputCheck.fresh (HyperNovaHistory.sourceInput payload))
-      (some (output payload)) := by
+    (safe : ¬ HyperNovaHistory.Collision application fits setup statement payload)
+    (positive : 0 < (HyperNovaHistory.decodedInput application fits payload).iteration) :
+    NifsRealSuccess.RealSuccess (PerApplicationFixedPoint.relation application fits) (PerApplicationCanonicalPackage.commitmentKey setup)
+      (PerApplicationCanonicalPackage.verifierContextDigest fits setup)
+      (PiCCSInputCheck.running (HyperNovaHistory.sourceInput application fits payload))
+      (PiCCSInputCheck.fresh (HyperNovaHistory.sourceInput application fits payload))
+      (some (output application fits setup payload)) := by
   dsimp only [HyperNovaHistory.decodedInput] at positive
   dsimp only [HyperNovaHistory.Collision] at safe
   rcases ActualTerminalSecurity.terminal_implies_nifsOrBaseOrCollision
-      application fits productionSetup statement payload accepted with
+      application fits setup statement payload accepted with
     ⟨_context, base | recursive⟩ | collision
   · exact False.elim ((Nat.ne_of_gt positive) base)
   · rcases recursive with ⟨_positive, _priorPublic, link, verified⟩
     rcases (PerApplicationTerminal.holds_recursive_iff application fits
-      productionSetup statement payload).mp accepted with
+      setup statement payload).mp accepted with
       ⟨_statementValid, _canonical, _pcValid, _iteration, _publicLink, runningValid, _freshValid⟩
     have success := success_of_verified_output
       (PerApplicationFixedPoint.relation application fits)
-      (PerApplicationCanonicalPackage.commitmentKey productionSetup)
-      (PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup)
-      ((HyperNovaHistory.decodedInput payload).running functionIndex)
-      (HyperNovaHistory.decodedInput payload).fresh (prior payload)
-      (HyperNovaHistory.decodedInput payload).nifsProof
+      (PerApplicationCanonicalPackage.commitmentKey setup)
+      (PerApplicationCanonicalPackage.verifierContextDigest fits setup)
+      ((HyperNovaHistory.decodedInput application fits payload).running functionIndex)
+      (HyperNovaHistory.decodedInput application fits payload).fresh (prior application fits setup payload)
+      (HyperNovaHistory.decodedInput application fits payload).nifsProof
       (payload.running functionIndex) (payload.runningWitness functionIndex)
       link verified (runningValid functionIndex)
-    have selected := success_of_relation_eq PiDECInputCheck.relation
-      (PerApplicationFixedPoint.relation application fits) PiDECInputCheck.relation_eq_selected
-      productionAjtaiKey (PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup)
-      ((HyperNovaHistory.decodedInput payload).running functionIndex)
-      (HyperNovaHistory.decodedInput payload).fresh (prior payload)
-      (HyperNovaHistory.decodedInput payload).nifsProof
+    have selected := success_of_relation_eq (PerApplicationFixedPoint.relation application fits)
+      (PerApplicationFixedPoint.relation application fits) rfl
+      (PerApplicationCanonicalPackage.commitmentKey setup) (PerApplicationCanonicalPackage.verifierContextDigest fits setup)
+      ((HyperNovaHistory.decodedInput application fits payload).running functionIndex)
+      (HyperNovaHistory.decodedInput application fits payload).fresh (prior application fits setup payload)
+      (HyperNovaHistory.decodedInput application fits payload).nifsProof
       (payload.runningWitness functionIndex) success
     simpa only [output, HyperNovaHistory.sourceInput,
       HyperNovaInput.running_ofClaims, HyperNovaInput.fresh_ofClaims] using selected

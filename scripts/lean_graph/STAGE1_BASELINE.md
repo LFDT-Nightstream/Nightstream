@@ -262,7 +262,8 @@ This registration does not change lean-graph's schema or acceptance rules.
 
 The terminal false-acceptance target bounds false acceptance by the marked
 hash-collision mass and the HyperNova errata Assumption 1 error at each stage
-of the Lemma 17 reverse extractor (`HyperNovaFalseAcceptance.probability_bound`;
+of the Lemma 17 reverse extractor, for every application that fits the `2^28`
+profile and every commitment setup (`HyperNovaFalseAcceptance.probability_bound`;
 adversary 4 of `formal/nightstream-fprime/SECURITY_MODEL.md`).
 
 ## Checkpoint requirements

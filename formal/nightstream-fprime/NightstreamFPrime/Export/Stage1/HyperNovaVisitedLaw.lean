@@ -20,61 +20,62 @@ set_option autoImplicit false
 namespace NightstreamFPrime.Export.Stage1.HyperNovaVisitedLaw
 
 open HyperNovaHistory
-open Poseidon2HashChainV1Package (application fits)
-open Poseidon2HashChainV1Setup (productionSetup)
+variable (application : Lifecycle.Stage1.Application.Program)
+  (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+  (setup : PerApplicationCanonicalPackage.CommitmentSetup application)
 
 attribute [local instance] Classical.propDecidable
 
 /-- The current existing terminal pair and its analytical good-prefix mark.
 There is no protocol message or additional witness representation. -/
-abbrev Visit := Option (Statement × Envelope) × Bool
+abbrev Visit := Option (Statement × Envelope application) × Bool
 
 /-- Every stopped or aborted visit reaches this absorbing state. -/
-def stopped : Visit := (none, false)
+def stopped : Visit application := (none, false)
 
 /-- The initial mark is the actual selected terminal-acceptance predicate. -/
-noncomputable def initialVisit (input : Statement × Envelope) : Visit :=
-  (some input, decide (PerApplicationTerminal.Holds application fits productionSetup input.1 input.2))
+noncomputable def initialVisit (input : Statement × Envelope application) : Visit application :=
+  (some input, decide (PerApplicationTerminal.Holds application fits setup input.1 input.2))
 
 /-- Exactly the source-call guard in the selected reverse program. -/
-def ready (visit : Visit) : Prop :=
+def ready (visit : Visit application) : Prop :=
   match visit.1 with
   | some (statement, .recursive payload) =>
       statement.iteration ≠ 0 ∧
-        (decodedInput payload).iteration + 1 = statement.iteration ∧
-        (decodedInput payload).iteration ≠ 0
+        (decodedInput application fits payload).iteration + 1 = statement.iteration ∧
+        (decodedInput application fits payload).iteration ≠ 0
   | _ => False
 
-private def collisionAt (visit : Visit) : Prop :=
+private def collisionAt (visit : Visit application) : Prop :=
   match visit.1 with
-  | some (statement, .recursive payload) => Collision statement payload
+  | some (statement, .recursive payload) => Collision application fits setup statement payload
   | _ => False
 
 /-- The first-failure source event is observed only before any prior failure
 and when this visit has no current state-hash collision. -/
-def goodActive (visit : Visit) : Prop :=
-  visit.2 = true ∧ ready visit ∧ ¬ collisionAt visit
+def goodActive (visit : Visit application) : Prop :=
+  visit.2 = true ∧ ready application fits visit ∧ ¬ collisionAt application fits setup visit
 
 /-- Advance using the actual source value regardless of the prior mark.
 Only the analytical mark tests source membership and the current collision. -/
-noncomputable def advance (visit : Visit) (result : SourceResult) : Visit :=
-  if ready visit then
+noncomputable def advance (visit : Visit application) (result : SourceResult application) : Visit application :=
+  if (ready application fits) visit then
     match visit.1 with
     | some (statement, .recursive payload) =>
         match result with
-        | none => stopped
+        | none => stopped application
         | some values =>
-            (some (predecessorStatement payload, .recursive (predecessorPayload payload values)),
-              visit.2 && decide (¬ Collision statement payload ∧ SourceSucceeded payload result))
-    | _ => stopped
-  else stopped
+            (some (predecessorStatement application fits payload, .recursive (predecessorPayload application fits payload values)),
+              visit.2 && decide (¬ Collision application fits setup statement payload ∧ SourceSucceeded application fits setup payload result))
+    | _ => stopped application
+  else (stopped application)
 
-variable (source : Statement → Payload → PMF SourceResult)
+variable (source : Statement → Payload application → PMF (SourceResult application))
 
 /-- The actual source draw, including draws on false-mark paths. Inactive
 states make no source call and have the unique absent result. -/
-noncomputable def draw (visit : Visit) : PMF SourceResult :=
-  if ready visit then
+noncomputable def draw (visit : Visit application) : PMF (SourceResult application) :=
+  if (ready application fits) visit then
     match visit.1 with
     | some (statement, .recursive payload) => source statement payload
     | _ => PMF.pure none
@@ -82,73 +83,73 @@ noncomputable def draw (visit : Visit) : PMF SourceResult :=
 
 /-- One transition of the actual visited-state law. It does not filter by
 source validity, terminal acceptance, or collision resistance. -/
-noncomputable def transition (visit : Visit) : PMF Visit :=
-  (draw source visit).map (advance visit)
+noncomputable def transition (visit : Visit application) : PMF (Visit application) :=
+  (draw application fits source visit).map (advance application fits setup visit)
 
-private noncomputable def after : Nat → Visit → PMF Visit
+private noncomputable def after : Nat → Visit application → PMF (Visit application)
   | 0, visit => PMF.pure visit
-  | steps + 1, visit => (transition source visit).bind (after steps)
+  | steps + 1, visit => (transition application fits setup source visit).bind (after steps)
 
 /-- The normalized law after the given number of visited transitions.
 Stopped and abort mass is retained; `steps` is an observation index. -/
-noncomputable def visitedLaw (initial : PMF (Statement × Envelope)) (steps : Nat) : PMF Visit :=
-  initial.bind fun input => after source steps (initialVisit input)
+noncomputable def visitedLaw (initial : PMF (Statement × Envelope application)) (steps : Nat) : PMF (Visit application) :=
+  initial.bind fun input => after application fits setup source steps (initialVisit application fits setup input)
 
 /-- Mask only the draw reported to the marked NIFS experiment. This does not
 change the actual transition or remove stopped contexts from the law. -/
-noncomputable def guardedDraw (visit : Visit) : PMF (Visit × SourceResult) :=
-  if goodActive visit then (draw source visit).map (fun result => (visit, result))
+noncomputable def guardedDraw (visit : Visit application) : PMF (Visit application × SourceResult application) :=
+  if (goodActive application fits setup) visit then (draw application fits source visit).map (fun result => (visit, result))
   else PMF.pure (visit, none)
 
 /-- Read a visited context from the existing actual result list. Every head
 is used for advancement before the next observation, even on false-mark
 paths. An inactive visit leaves the source list unread and then stops. -/
-noncomputable def readDraw : Nat → Visit → List SourceResult → Visit × SourceResult
-  | 0, visit, results => (visit, if goodActive visit then results.headD none else none)
+noncomputable def readDraw : Nat → Visit application → List (SourceResult application) → Visit application × SourceResult application
+  | 0, visit, results => (visit, if (goodActive application fits setup) visit then results.headD none else none)
   | steps + 1, visit, results =>
-      if ready visit then
+      if (ready application fits) visit then
         match results with
-        | [] => readDraw steps stopped []
-        | result :: tail => readDraw steps (advance visit result) tail
-      else readDraw steps stopped results
+        | [] => readDraw steps (stopped application) []
+        | result :: tail => readDraw steps (advance application fits setup visit result) tail
+      else readDraw steps (stopped application) results
 
 /-- The observed guarded draw is a direct map of the already-generated
 history sample. No successful witness or conditional sample is selected. -/
-noncomputable def observedDraw (steps : Nat) (sample : HyperNovaHistoryProbability.Sample) :
-    Visit × SourceResult :=
-  readDraw steps (initialVisit (sample.1, sample.2.1)) sample.2.2
+noncomputable def observedDraw (steps : Nat) (sample : HyperNovaHistoryProbability.Sample application) :
+    Visit application × SourceResult application :=
+  readDraw application fits setup steps (initialVisit application fits setup (sample.1, sample.2.1)) sample.2.2
 
-private noncomputable def resultLaw (visit : Visit) : PMF (List SourceResult) :=
+private noncomputable def resultLaw (visit : Visit application) : PMF (List (SourceResult application)) :=
   match visit.1 with
   | none => PMF.pure []
-  | some (statement, proof) => HyperNovaHistoryLaw.results source statement proof
+  | some (statement, proof) => HyperNovaHistoryLaw.results application fits source statement proof
 
-private theorem not_good_of_not_ready (visit : Visit) (inactive : ¬ ready visit) :
-    ¬ goodActive visit := fun good => inactive good.2.1
+private theorem not_good_of_not_ready (visit : Visit application) (inactive : ¬ ready application fits visit) :
+    ¬ goodActive application fits setup visit := fun good => inactive good.2.1
 
-private theorem stopped_not_ready : ¬ ready stopped := by
+private theorem stopped_not_ready : ¬ ready application fits (stopped application) := by
   exact id
 
-private theorem transition_inactive (visit : Visit) (inactive : ¬ ready visit) :
-    transition source visit = PMF.pure stopped := by
+private theorem transition_inactive (visit : Visit application) (inactive : ¬ ready application fits visit) :
+    transition application fits setup source visit = PMF.pure (stopped application) := by
   simp only [transition, draw, PMF.pure_map, advance, if_neg inactive]
 
-private theorem after_stopped (steps : Nat) : after source steps stopped = PMF.pure stopped := by
+private theorem after_stopped (steps : Nat) : after application fits setup source steps (stopped application) = PMF.pure (stopped application) := by
   induction steps with
   | zero => rfl
   | succ steps induction =>
-      rw [after, transition_inactive source stopped stopped_not_ready, PMF.pure_bind, induction]
+      rw [after, transition_inactive application fits setup source (stopped application) (stopped_not_ready application fits), PMF.pure_bind, induction]
 
-private theorem readDraw_stopped (steps : Nat) (results : List SourceResult) :
-    readDraw steps stopped results = (stopped, none) := by
+private theorem readDraw_stopped (steps : Nat) (results : List (SourceResult application)) :
+    readDraw application fits setup steps (stopped application) results = (stopped application, none) := by
   induction steps with
   | zero =>
-      simp only [readDraw, if_neg (not_good_of_not_ready stopped stopped_not_ready)]
+      simp only [readDraw, if_neg (not_good_of_not_ready application fits setup (stopped application) (stopped_not_ready application fits))]
   | succ steps induction =>
-      simp only [readDraw, if_neg stopped_not_ready, induction]
+      simp only [readDraw, if_neg (stopped_not_ready application fits), induction]
 
-private theorem resultLaw_inactive (visit : Visit) (inactive : ¬ ready visit) :
-    resultLaw source visit = PMF.pure [] := by
+private theorem resultLaw_inactive (visit : Visit application) (inactive : ¬ ready application fits visit) :
+    resultLaw application fits source visit = PMF.pure [] := by
   rcases visit with ⟨current, mark⟩
   cases current with
   | none => rfl
@@ -156,22 +157,22 @@ private theorem resultLaw_inactive (visit : Visit) (inactive : ¬ ready visit) :
       rcases input with ⟨statement, proof⟩
       cases proof with
       | bottom =>
-          exact HyperNovaHistoryLaw.results_eq source statement .bottom
+          exact (HyperNovaHistoryLaw.results_eq application fits) source statement .bottom
       | recursive payload =>
-          change HyperNovaHistoryLaw.results source statement (.recursive payload) = PMF.pure []
+          change (HyperNovaHistoryLaw.results application fits) source statement (.recursive payload) = PMF.pure []
           rw [HyperNovaHistoryLaw.results_eq]
           by_cases zero : statement.iteration = 0
           · simp only [if_pos zero]
-          · by_cases counter : (decodedInput payload).iteration + 1 = statement.iteration
-            · by_cases base : (decodedInput payload).iteration = 0
+          · by_cases counter : (decodedInput application fits payload).iteration + 1 = statement.iteration
+            · by_cases base : (decodedInput application fits payload).iteration = 0
               · simp only [if_neg zero, if_pos counter, if_pos base]
               · exact False.elim (inactive ⟨zero, counter, base⟩)
             · simp only [if_neg zero, if_neg counter]
 
-private theorem resultLaw_active (visit : Visit) (active : ready visit) :
-    resultLaw source visit =
-      (draw source visit).bind fun result =>
-        (resultLaw source (advance visit result)).map (result :: ·) := by
+private theorem resultLaw_active (visit : Visit application) (active : ready application fits visit) :
+    resultLaw application fits source visit =
+      (draw application fits source visit).bind fun result =>
+        (resultLaw application fits source (advance application fits setup visit result)).map (result :: ·) := by
   rcases visit with ⟨current, mark⟩
   cases current with
   | none => exact False.elim active
@@ -182,7 +183,7 @@ private theorem resultLaw_active (visit : Visit) (active : ready visit) :
       | recursive payload =>
           have conditions := active
           rcases conditions with ⟨nonzero, counter, positive⟩
-          change HyperNovaHistoryLaw.results source statement (.recursive payload) = _
+          change (HyperNovaHistoryLaw.results application fits) source statement (.recursive payload) = _
           rw [HyperNovaHistoryLaw.results_eq]
           simp only [if_neg nonzero, if_pos counter, if_neg positive, draw, if_pos active]
           apply congrArg (PMF.bind (source statement payload))
@@ -191,105 +192,105 @@ private theorem resultLaw_active (visit : Visit) (active : ready visit) :
           | none => simp only [advance, if_pos active, resultLaw, stopped, PMF.pure_map]
           | some values => simp only [advance, if_pos active, resultLaw]
 
-private theorem readDraw_marginal (steps : Nat) (visit : Visit) :
-    (resultLaw source visit).map (readDraw steps visit) =
-      (after source steps visit).bind (guardedDraw source) := by
+private theorem readDraw_marginal (steps : Nat) (visit : Visit application) :
+    (resultLaw application fits source visit).map (readDraw application fits setup steps visit) =
+      (after application fits setup source steps visit).bind (guardedDraw application fits setup source) := by
   induction steps generalizing visit with
   | zero =>
       simp only [after, PMF.pure_bind]
-      by_cases active : ready visit
-      · rw [resultLaw_active source visit active, PMF.map_bind]
-        have head (result : SourceResult) :
-            ((resultLaw source (advance visit result)).map (result :: ·)).map (readDraw 0 visit) =
-              PMF.pure (visit, if goodActive visit then result else none) := by
+      by_cases active : ready application fits visit
+      · rw [resultLaw_active application fits setup source visit active, PMF.map_bind]
+        have head (result : SourceResult application) :
+            ((resultLaw application fits source (advance application fits setup visit result)).map (result :: ·)).map (readDraw application fits setup 0 visit) =
+              PMF.pure (visit, if (goodActive application fits setup) visit then result else none) := by
           rw [PMF.map_comp]
           simpa only [Function.comp_def, readDraw, List.headD_cons, Function.const] using!
-            (PMF.map_const (resultLaw source (advance visit result))
-              (visit, if goodActive visit then result else none))
+            (PMF.map_const (resultLaw application fits source (advance application fits setup visit result))
+              (visit, if (goodActive application fits setup) visit then result else none))
         simp only [head]
-        by_cases good : goodActive visit
+        by_cases good : goodActive application fits setup visit
         · simp only [guardedDraw, if_pos good]
           rfl
         · simp only [guardedDraw, if_neg good, PMF.bind_const]
-      · rw [resultLaw_inactive source visit active, PMF.pure_map]
-        simp only [readDraw, guardedDraw, if_neg (not_good_of_not_ready visit active)]
+      · rw [resultLaw_inactive application fits source visit active, PMF.pure_map]
+        simp only [readDraw, guardedDraw, if_neg (not_good_of_not_ready application fits setup visit active)]
   | succ steps induction =>
-      by_cases active : ready visit
-      · rw [resultLaw_active source visit active, PMF.map_bind]
+      by_cases active : ready application fits visit
+      · rw [resultLaw_active application fits setup source visit active, PMF.map_bind]
         conv_rhs => rw [after, transition, PMF.bind_map, PMF.bind_bind]
-        apply congrArg (PMF.bind (draw source visit))
+        apply congrArg (PMF.bind (draw application fits source visit))
         funext result
         rw [PMF.map_comp]
-        have reader : readDraw (steps + 1) visit ∘ (result :: ·) =
-            readDraw steps (advance visit result) := by
+        have reader : readDraw application fits setup (steps + 1) visit ∘ (result :: ·) =
+            readDraw application fits setup steps (advance application fits setup visit result) := by
           funext tail
           simp only [Function.comp_def, readDraw, if_pos active]
         rw [reader]
-        exact induction (advance visit result)
-      · rw [resultLaw_inactive source visit active, PMF.pure_map]
-        rw [after, transition_inactive source visit active, PMF.pure_bind,
-          after_stopped source steps, PMF.pure_bind]
+        exact induction (advance application fits setup visit result)
+      · rw [resultLaw_inactive application fits source visit active, PMF.pure_map]
+        rw [after, transition_inactive application fits setup source visit active, PMF.pure_bind,
+          after_stopped application fits setup source steps, PMF.pure_bind]
         simp only [readDraw, if_neg active, readDraw_stopped, guardedDraw,
-          if_neg (not_good_of_not_ready stopped stopped_not_ready)]
+          if_neg (not_good_of_not_ready application fits setup (stopped application) (stopped_not_ready application fits))]
 
 /-- The guarded draw at every observation index has exactly the joint law
 obtained from the actual visited contexts. False-mark paths still generate
 their actual source returns, while stopped and abort mass remains present.
 There is no acceptance, source-success, model, or event-equality premise. -/
-theorem visitedDraw_marginal (initial : PMF (Statement × Envelope)) (steps : Nat) :
-    (HyperNovaHistoryLaw.law source initial).map (observedDraw steps) =
-      (visitedLaw source initial steps).bind (guardedDraw source) := by
+theorem visitedDraw_marginal (initial : PMF (Statement × Envelope application)) (steps : Nat) :
+    (HyperNovaHistoryLaw.law application fits source initial).map (observedDraw application fits setup steps) =
+      (visitedLaw application fits setup source initial steps).bind (guardedDraw application fits setup source) := by
   rw [HyperNovaHistoryLaw.law, PMF.map_bind, visitedLaw, PMF.bind_bind]
   apply congrArg (PMF.bind initial)
   funext input
   rw [PMF.map_comp]
-  exact readDraw_marginal source steps (initialVisit input)
+  exact (readDraw_marginal application fits setup) source steps (initialVisit application fits setup input)
 
-private theorem after_succ (steps : Nat) (visit : Visit) :
-    after source (steps + 1) visit = (after source steps visit).bind (transition source) := by
+private theorem after_succ (steps : Nat) (visit : Visit application) :
+    after application fits setup source (steps + 1) visit = (after application fits setup source steps visit).bind (transition application fits setup source) := by
   induction steps generalizing visit with
   | zero => simp only [after, PMF.bind_pure, PMF.pure_bind]
   | succ steps induction =>
-      calc after source (steps + 1 + 1) visit
-          = (transition source visit).bind (after source (steps + 1)) := rfl
-        _ = (transition source visit).bind
-              (fun next => (after source steps next).bind (transition source)) := by
+      calc (after application fits setup) source (steps + 1 + 1) visit
+          = (transition application fits setup source visit).bind (after application fits setup source (steps + 1)) := rfl
+        _ = (transition application fits setup source visit).bind
+              (fun next => (after application fits setup source steps next).bind (transition application fits setup source)) := by
             congr 1
             funext next
             exact induction next
-        _ = ((transition source visit).bind (after source steps)).bind (transition source) :=
+        _ = ((transition application fits setup source visit).bind (after application fits setup source steps)).bind (transition application fits setup source) :=
             (PMF.bind_bind _ _ _).symm
-        _ = (after source (steps + 1) visit).bind (transition source) := rfl
+        _ = (after application fits setup source (steps + 1) visit).bind (transition application fits setup source) := rfl
 
 /-- One more observation index applies one more actual transition. -/
-theorem visitedLaw_succ (initial : PMF (Statement × Envelope)) (steps : Nat) :
-    visitedLaw source initial (steps + 1) =
-      (visitedLaw source initial steps).bind (transition source) := by
+theorem visitedLaw_succ (initial : PMF (Statement × Envelope application)) (steps : Nat) :
+    visitedLaw application fits setup source initial (steps + 1) =
+      (visitedLaw application fits setup source initial steps).bind (transition application fits setup source) := by
   simp only [visitedLaw, after_succ, PMF.bind_bind]
 
 /-! ## A source that reads a fixed result list -/
 
 /-- The context after advancing through the first `steps` entries of a fixed
 result list from the initial visit. -/
-noncomputable def pathVisit (input : Statement × Envelope) (results : List SourceResult)
-    (steps : Nat) : Visit :=
-  (results.take steps).foldl advance (initialVisit input)
+noncomputable def pathVisit (input : Statement × Envelope application) (results : List (SourceResult application))
+    (steps : Nat) : Visit application :=
+  (results.take steps).foldl (advance application fits setup) (initialVisit application fits setup input)
 
 /-- The deterministic source that reads a fixed result list: a statement `j`
 iterations below `top` reads entry `j`. Along the reverse path from an
 initial statement at iteration `top`, visit `j` reads entry `j`. -/
-noncomputable def listSource (top : Nat) (results : List SourceResult) :
-    Statement → Payload → PMF SourceResult :=
+noncomputable def listSource (top : Nat) (results : List (SourceResult application)) :
+    Statement → Payload application → PMF (SourceResult application) :=
   fun statement _ => PMF.pure (results.getD (top - statement.iteration) none)
 
-private theorem pathVisit_succ (input : Statement × Envelope) (results : List SourceResult)
+private theorem pathVisit_succ (input : Statement × Envelope application) (results : List (SourceResult application))
     (steps : Nat) (within : steps < results.length) :
-    pathVisit input results (steps + 1) =
-      advance (pathVisit input results steps) (results.getD steps none) := by
+    pathVisit application fits setup input results (steps + 1) =
+      advance application fits setup (pathVisit application fits setup input results steps) (results.getD steps none) := by
   simp only [pathVisit, List.take_add_one, List.getElem?_eq_getElem within, Option.toList_some,
     List.foldl_append, List.foldl_cons, List.foldl_nil, List.getD_eq_getElem _ _ within]
 
-private theorem ready_cases (visit : Visit) (active : ready visit) :
+private theorem ready_cases (visit : Visit application) (active : ready application fits visit) :
     ∃ statement payload, visit.1 = some (statement, .recursive payload) := by
   rcases visit with ⟨current, mark⟩
   cases current with
@@ -302,9 +303,9 @@ private theorem ready_cases (visit : Visit) (active : ready visit) :
 
 /-- Every present context on the path is exactly `steps` iterations below
 the initial statement. -/
-private theorem pathVisit_iteration (input : Statement × Envelope) (results : List SourceResult)
-    (steps : Nat) (within : steps ≤ results.length) (statement : Statement) (proof : Envelope)
-    (current : (pathVisit input results steps).1 = some (statement, proof)) :
+private theorem pathVisit_iteration (input : Statement × Envelope application) (results : List (SourceResult application))
+    (steps : Nat) (within : steps ≤ results.length) (statement : Statement) (proof : Envelope application)
+    (current : (pathVisit application fits setup input results steps).1 = some (statement, proof)) :
     statement.iteration + steps = input.1.iteration := by
   induction steps generalizing statement proof with
   | zero =>
@@ -312,9 +313,9 @@ private theorem pathVisit_iteration (input : Statement × Envelope) (results : L
       cases Option.some.inj same
       rfl
   | succ steps induction =>
-      rw [pathVisit_succ input results steps within] at current
-      by_cases active : ready (pathVisit input results steps)
-      · obtain ⟨previous, payload, previousCurrent⟩ := ready_cases _ active
+      rw [pathVisit_succ application fits setup input results steps within] at current
+      by_cases active : ready application fits (pathVisit application fits setup input results steps)
+      · obtain ⟨previous, payload, previousCurrent⟩ := ready_cases application fits _ active
         have conditions := active
         simp only [ready, previousCurrent] at conditions
         have previousIteration := induction (Nat.le_of_succ_le within) previous (.recursive payload)
@@ -332,12 +333,12 @@ private theorem pathVisit_iteration (input : Statement × Envelope) (results : L
       · simp only [advance, if_neg active, stopped] at current
         cases current
 
-private theorem draw_listSource (input : Statement × Envelope) (results : List SourceResult)
-    (steps : Nat) (within : steps < results.length) (active : ready (pathVisit input results steps)) :
-    draw (listSource input.1.iteration results) (pathVisit input results steps) =
+private theorem draw_listSource (input : Statement × Envelope application) (results : List (SourceResult application))
+    (steps : Nat) (within : steps < results.length) (active : ready application fits (pathVisit application fits setup input results steps)) :
+    draw application fits (listSource application input.1.iteration results) (pathVisit application fits setup input results steps) =
       PMF.pure (results.getD steps none) := by
-  obtain ⟨statement, payload, current⟩ := ready_cases _ active
-  have iteration := pathVisit_iteration input results steps within.le statement
+  obtain ⟨statement, payload, current⟩ := ready_cases application fits _ active
+  have iteration := pathVisit_iteration application fits setup input results steps within.le statement
     (.recursive payload) current
   have conditions := active
   simp only [ready, current] at conditions
@@ -345,37 +346,37 @@ private theorem draw_listSource (input : Statement × Envelope) (results : List 
   simp only [draw, if_pos active, current, listSource, index]
 
 /-- Along the fixed list, each actual transition reads the next entry. -/
-private theorem transition_listSource (input : Statement × Envelope) (results : List SourceResult)
+private theorem transition_listSource (input : Statement × Envelope application) (results : List (SourceResult application))
     (steps : Nat) (within : steps < results.length) :
-    transition (listSource input.1.iteration results) (pathVisit input results steps) =
-      PMF.pure (pathVisit input results (steps + 1)) := by
-  rw [pathVisit_succ input results steps within]
-  by_cases active : ready (pathVisit input results steps)
-  · rw [transition, draw_listSource input results steps within active, PMF.pure_map]
-  · rw [transition_inactive _ _ active]
+    transition application fits setup (listSource application input.1.iteration results) (pathVisit application fits setup input results steps) =
+      PMF.pure (pathVisit application fits setup input results (steps + 1)) := by
+  rw [pathVisit_succ application fits setup input results steps within]
+  by_cases active : ready application fits (pathVisit application fits setup input results steps)
+  · rw [transition, draw_listSource application fits setup input results steps within active, PMF.pure_map]
+  · rw [transition_inactive application fits setup _ _ active]
     simp only [advance, if_neg active]
 
 /-- With the fixed-list source, the visited law at every index inside the
 list is the single context on the list's path. -/
-theorem visitedLaw_listSource (input : Statement × Envelope) (results : List SourceResult)
+theorem visitedLaw_listSource (input : Statement × Envelope application) (results : List (SourceResult application))
     (steps : Nat) (within : steps ≤ results.length) :
-    visitedLaw (listSource input.1.iteration results) (PMF.pure input) steps =
-      PMF.pure (pathVisit input results steps) := by
+    visitedLaw application fits setup (listSource application input.1.iteration results) (PMF.pure input) steps =
+      PMF.pure (pathVisit application fits setup input results steps) := by
   induction steps with
   | zero => simp only [visitedLaw, after, PMF.pure_bind, pathVisit, List.take_zero, List.foldl_nil]
   | succ steps induction =>
       rw [visitedLaw_succ, induction (Nat.le_of_succ_le within), PMF.pure_bind,
-        transition_listSource input results steps within]
+        transition_listSource application fits setup input results steps within]
 
 /-- With the fixed-list source, the reported draw at a list index is that
 entry on the good active branch and absent otherwise. -/
-theorem guardedDraw_listSource (input : Statement × Envelope) (results : List SourceResult)
+theorem guardedDraw_listSource (input : Statement × Envelope application) (results : List (SourceResult application))
     (steps : Nat) (within : steps < results.length) :
-    guardedDraw (listSource input.1.iteration results) (pathVisit input results steps) =
-      PMF.pure (pathVisit input results steps,
-        if goodActive (pathVisit input results steps) then results.getD steps none else none) := by
-  by_cases good : goodActive (pathVisit input results steps)
-  · rw [guardedDraw, if_pos good, draw_listSource input results steps within good.2.1, PMF.pure_map,
+    guardedDraw application fits setup (listSource application input.1.iteration results) (pathVisit application fits setup input results steps) =
+      PMF.pure (pathVisit application fits setup input results steps,
+        if (goodActive application fits setup) (pathVisit application fits setup input results steps) then results.getD steps none else none) := by
+  by_cases good : goodActive application fits setup (pathVisit application fits setup input results steps)
+  · rw [guardedDraw, if_pos good, draw_listSource application fits setup input results steps within good.2.1, PMF.pure_map,
       if_pos good]
   · rw [guardedDraw, if_neg good, if_neg good]
 

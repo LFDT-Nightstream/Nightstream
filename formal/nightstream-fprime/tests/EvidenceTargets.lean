@@ -238,65 +238,78 @@ open HyperNovaVisitedSecurity (NifsAdversary NifsExtractor Assumption1 Closed Iv
   reverseStages)
 
 /-- Exact final history criterion under HyperNova errata Assumption 1, in the
-form of Definition 7 knowledge soundness of the NIFS (HyperNova Lemma 17): for
-every class of admitted NIFS adversaries with efficient extractors that
-Assumption 1 covers, every class of admitted stages that gives admitted NIFS
-adversaries and that one reverse step preserves, and every IVC adversary whose
-start stage is admitted and whose advertised iteration is bounded, the
-accepted terminal mass is at most the
-reverse extractor's returned-history mass plus, at each stage, that stage's
-marked hash-collision mass and its Assumption 1 error. The random-oracle
-theorem `RandomOracleKnowledge.knowledge_error_le` motivates the value of
-`error`; it does not prove Assumption 1 for Poseidon2, and no Lean statement
-derives `error` from it. -/
+form of Definition 7 knowledge soundness (HyperNova Lemma 17): for every
+application that fits the `2^28` profile, every commitment setup, every class
+of admitted NIFS adversaries with efficient extractors that Assumption 1
+covers, every class of admitted stages that gives admitted NIFS adversaries
+and that one reverse step preserves, and every IVC adversary whose start stage
+is admitted and whose advertised iteration is bounded, the reverse law has the
+adversary's output law, and its mass where the terminal verifier accepts and
+the reverse extractor returns no valid history is at most, at each stage, that
+stage's marked hash-collision mass and its Assumption 1 error. The
+random-oracle theorem `RandomOracleKnowledge.knowledge_error_le` motivates the
+value of `error`; it does not prove Assumption 1 for Poseidon2, and no Lean
+statement derives `error` from it. -/
 def HyperNovaLinearSecurity : Prop :=
-  ∀ (Admitted : NifsAdversary → Prop) (StageAdmitted : Stage → Prop)
-    (Efficient : (adversary : NifsAdversary) → NifsExtractor adversary → Prop)
-    (error : NifsAdversary → ℝ) (assumption : Assumption1 Admitted Efficient error)
-    (closed : Closed Admitted StageAdmitted Efficient) (adversary : IvcAdversary)
+  ∀ (application : Lifecycle.Stage1.Application.Program)
+    (fits : Export.Stage1.PerApplicationFixedPoint.FitsTwoPow28 application)
+    (setup : Export.Stage1.PerApplicationCanonicalPackage.CommitmentSetup application)
+    (Admitted : NifsAdversary application fits setup → Prop)
+    (StageAdmitted : Stage application fits setup → Prop)
+    (Efficient : (adversary : NifsAdversary application fits setup) → NifsExtractor adversary → Prop)
+    (error : NifsAdversary application fits setup → ℝ) (assumption : Assumption1 Admitted Efficient error)
+    (closed : Closed Admitted StageAdmitted Efficient) (adversary : IvcAdversary application fits setup)
     (admitted : StageAdmitted (Stage.start adversary)) (depth : Nat)
     (_depthBound : ∀ tape ∈ adversary.tape.support, (adversary.output tape).1.iteration ≤ depth),
-    (adversary.tape.toOuterMeasure {tape |
-      PerApplicationTerminal.Holds Poseidon2HashChainV1Package.application
-        Poseidon2HashChainV1Package.fits Poseidon2HashChainV1Setup.productionSetup
-        (adversary.output tape).1 (adversary.output tape).2}).toReal ≤
-      ((reverseStages assumption closed adversary admitted depth).1.reverseLaw.toOuterMeasure
-          {sample | HyperNovaHistoryProbability.AdviceReturned sample}).toReal +
-        ∑ j : Fin depth,
-          (((reverseStages assumption closed adversary admitted j.val).1.tape.toOuterMeasure
-              {tape | HyperNovaFirstFailure.MarkedHashCollision
-                ((reverseStages assumption closed adversary admitted j.val).1.visit tape)}).toReal +
-            error (reverseStages assumption closed adversary admitted j.val).1.nifs)
+    (∀ event : Set (HyperNovaHistory.Statement × HyperNovaHistory.Envelope application),
+      adversary.tape.toOuterMeasure {tape | adversary.output tape ∈ event} =
+        (reverseStages assumption closed adversary admitted depth).1.reverseLaw.toOuterMeasure
+          {sample | (sample.1, sample.2.1) ∈ event}) ∧
+    ((reverseStages assumption closed adversary admitted depth).1.reverseLaw.toOuterMeasure
+        {sample | HyperNovaHistoryProbability.Accepted application fits setup sample ∧
+          ¬ HyperNovaHistoryProbability.AdviceReturned application fits sample}).toReal ≤
+      ∑ j : Fin depth,
+        (((reverseStages assumption closed adversary admitted j.val).1.tape.toOuterMeasure
+            {tape | HyperNovaFirstFailure.MarkedHashCollision application fits setup
+              ((reverseStages assumption closed adversary admitted j.val).1.visit tape)}).toReal +
+          error (reverseStages assumption closed adversary admitted j.val).1.nifs)
 
-/-- The final selected history theorem discharges the registered criterion. -/
+/-- The final history theorem discharges the registered criterion. -/
 theorem hyperNovaLinearSecurity : HyperNovaLinearSecurity :=
-  fun _ _ _ _ assumption closed adversary admitted depth depthBound =>
-    HyperNovaVisitedSecurity.history_probability_bound assumption closed adversary admitted depth
-      depthBound
+  fun _ _ _ _ _ _ _ assumption closed adversary admitted depth depthBound =>
+    ⟨HyperNovaVisitedSecurity.reverse_input_event assumption closed adversary admitted depth,
+      HyperNovaVisitedSecurity.history_failure_le assumption closed adversary admitted depth
+        depthBound⟩
 
 #audit_axioms hyperNovaLinearSecurity
 
-/-- The selected terminal false-acceptance event and its loss under
-Assumption 1, on the IVC adversary's original mixed law (HyperNova Lemma 17). -/
+/-- The terminal false-acceptance event and its loss under Assumption 1, on
+the IVC adversary's original mixed law (HyperNova Lemma 17), for every
+application that fits the `2^28` profile and every commitment setup. -/
 def HyperNovaTerminalFalseAcceptance : Prop :=
-  ∀ (Admitted : NifsAdversary → Prop) (StageAdmitted : Stage → Prop)
-    (Efficient : (adversary : NifsAdversary) → NifsExtractor adversary → Prop)
-    (error : NifsAdversary → ℝ) (assumption : Assumption1 Admitted Efficient error)
-    (closed : Closed Admitted StageAdmitted Efficient) (adversary : IvcAdversary)
+  ∀ (application : Lifecycle.Stage1.Application.Program)
+    (fits : Export.Stage1.PerApplicationFixedPoint.FitsTwoPow28 application)
+    (setup : Export.Stage1.PerApplicationCanonicalPackage.CommitmentSetup application)
+    (Admitted : NifsAdversary application fits setup → Prop)
+    (StageAdmitted : Stage application fits setup → Prop)
+    (Efficient : (adversary : NifsAdversary application fits setup) → NifsExtractor adversary → Prop)
+    (error : NifsAdversary application fits setup → ℝ) (assumption : Assumption1 Admitted Efficient error)
+    (closed : Closed Admitted StageAdmitted Efficient) (adversary : IvcAdversary application fits setup)
     (admitted : StageAdmitted (Stage.start adversary)) (depth : Nat)
     (_depthBound : ∀ tape ∈ adversary.tape.support, (adversary.output tape).1.iteration ≤ depth),
     (adversary.tape.toOuterMeasure
-        {tape | HyperNovaFalseAcceptance.FalseAcceptance (adversary.output tape)}).toReal ≤
+        {tape | HyperNovaFalseAcceptance.FalseAcceptance application fits setup (adversary.output tape)}).toReal ≤
       ∑ j : Fin depth,
         (((reverseStages assumption closed adversary admitted j.val).1.tape.toOuterMeasure
-            {tape | HyperNovaFirstFailure.MarkedHashCollision
+            {tape | HyperNovaFirstFailure.MarkedHashCollision application fits setup
               ((reverseStages assumption closed adversary admitted j.val).1.visit tape)}).toReal +
           error (reverseStages assumption closed adversary admitted j.val).1.nifs)
 
 /-- The original mixed-law event bridge discharges the registered criterion. -/
 theorem hyperNovaTerminalFalseAcceptance : HyperNovaTerminalFalseAcceptance :=
-  fun _ _ _ _ assumption closed adversary admitted depth depthBound =>
-    HyperNovaFalseAcceptance.probability_bound assumption closed adversary admitted depth depthBound
+  fun application fits setup _ _ _ _ assumption closed adversary admitted depth depthBound =>
+    HyperNovaFalseAcceptance.probability_bound application fits setup assumption closed adversary
+      admitted depth depthBound
 
 #audit_axioms hyperNovaTerminalFalseAcceptance
 
@@ -312,41 +325,49 @@ open Export.Stage1.RandomOracleSetup (SetupIndex setupKey extraction hashCollisi
 attribute [local instance low] Classical.propDecidable
 
 /-- Exact one-fold knowledge criterion of the production NIFS in the
-random-oracle model, with the prior-state link and the Ajtai key drawn inside
-the game. For every adversary that may read the uniform setup chunks and makes
-at most `queries` Fiat–Shamir oracle queries, the probability that the
-verifier accepts its linked claim is less than the extractor's success
-probability, plus the state-hash collision chances, the statistical error, the
-success of the explicit MSIS solver on a uniform matrix
+random-oracle model, for every application that fits the `2 ^ 28` profile, at
+its own relation and key size, with the prior-state link and the Ajtai key
+drawn inside the game. For every adversary that may read the uniform setup
+chunks and makes at most `queries` Fiat–Shamir oracle queries, the probability
+that the verifier accepts its linked claim is less than the extractor's
+success probability, plus the state-hash collision chances, the statistical
+error, the success of the explicit MSIS solver on a uniform matrix
 (`RandomOracleSetup.msisAdvantage`, built from `RandomOracleBinding.rerunKernel`),
 and `2 ^ -190`. SHAKE128 and the Fiat–Shamir hash are random oracles in this
 statement; MSIS and state-hash hardness are not assumed. -/
 def RomKnowledgeSoundness : Prop :=
-  ∀ {Output : Type}
-    (adversary : (SetupIndex PiDECInputCheck.logicalWidth PiDECInputCheck.publicFits →
+  ∀ (application : Lifecycle.Stage1.Application.Program)
+    (fits : Export.Stage1.PerApplicationFixedPoint.FitsTwoPow28 application) {Output : Type}
+    (adversary : (SetupIndex (Export.Stage1.PerApplicationFixedPoint.logicalWidth application)
+        (Export.Stage1.PerApplicationFixedPoint.publicFits application) →
         Spec.AjtaiSetupV1.Programming.Chunk) →
-      Spec.RandomOracle.OracleComp (Point PiDECInputCheck.logicalWidth PiDECInputCheck.publicFits
-        (Lifecycle.ProductionKey.degreeBound PiDECInputCheck.relation)) Answer Output)
-    (claim : Output → Claim PiDECInputCheck.relation)
-    (prior : Output → Lifecycle.HashPreimage (logicalWidth := PiDECInputCheck.logicalWidth)
-      (publicFits := PiDECInputCheck.publicFits))
+      Spec.RandomOracle.OracleComp (Point (Export.Stage1.PerApplicationFixedPoint.logicalWidth application)
+        (Export.Stage1.PerApplicationFixedPoint.publicFits application)
+        (Lifecycle.ProductionKey.degreeBound
+          (Export.Stage1.PerApplicationFixedPoint.relation application fits))) Answer Output)
+    (claim : Output → Claim (Export.Stage1.PerApplicationFixedPoint.relation application fits))
+    (prior : Output → Lifecycle.HashPreimage
+      (logicalWidth := Export.Stage1.PerApplicationFixedPoint.logicalWidth application)
+      (publicFits := Export.Stage1.PerApplicationFixedPoint.publicFits application))
     (contextDigest : Lifecycle.KeyDigest) (queries : Nat),
     (∀ chunks, (adversary chunks).QueryBound queries) →
-    𝔼 chunks : SetupIndex PiDECInputCheck.logicalWidth PiDECInputCheck.publicFits →
+    let relation := Export.Stage1.PerApplicationFixedPoint.relation application fits
+    𝔼 chunks : SetupIndex (Export.Stage1.PerApplicationFixedPoint.logicalWidth application)
+        (Export.Stage1.PerApplicationFixedPoint.publicFits application) →
         Spec.AjtaiSetupV1.Programming.Chunk, 𝔼 oracle,
-        (if Succeeds PiDECInputCheck.relation (setupKey chunks) (adversary chunks)
-            (Export.Stage1.RandomOracleLink.linkedClaim PiDECInputCheck.relation claim prior contextDigest)
+        (if Succeeds relation (setupKey chunks) (adversary chunks)
+            (Export.Stage1.RandomOracleLink.linkedClaim relation claim prior contextDigest)
             oracle then (1 : ℝ) else 0) <
-      𝔼 chunks, (extraction PiDECInputCheck.relation adversary claim prior contextDigest chunks +
-          hashCollisions PiDECInputCheck.relation adversary claim prior contextDigest chunks) +
+      𝔼 chunks, (extraction relation adversary claim prior contextDigest chunks +
+          hashCollisions relation adversary claim prior contextDigest chunks) +
         Lifecycle.RandomOracleKnowledge.statisticalError queries +
-        msisAdvantage PiDECInputCheck.relation adversary claim prior contextDigest + 1 / 2 ^ 190
+        msisAdvantage relation adversary claim prior contextDigest + 1 / 2 ^ 190
 
-/-- The setup-game theorem at the production key discharges the criterion. -/
+/-- The setup-game theorem for every application discharges the criterion. -/
 theorem romKnowledgeSoundness : RomKnowledgeSoundness :=
-  fun adversary claim prior contextDigest _ bounded =>
-    Export.Stage1.RandomOracleSetup.production_knowledge_error_lt adversary claim prior contextDigest
-      bounded
+  fun application fits _ adversary claim prior contextDigest _ bounded =>
+    Export.Stage1.RandomOracleSetup.production_knowledge_error_lt application fits adversary claim
+      prior contextDigest bounded
 
 #audit_axioms romKnowledgeSoundness
 

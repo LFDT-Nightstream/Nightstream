@@ -159,7 +159,7 @@ theorem pre_fromCheckInput (input : PiCCSInputCheck.Input) :
       Transcript.piCcsOracle.transcript
       (ProductionKey.absorbPublicInput
         (Transcript.absorb Transcript.initialState Transcript.piCcsDigestDomainTag)
-        (PiCCSInputCheck.running input) (PiCCSInputCheck.fresh input)) := rfl
+        (PiCCSInputCheck.selectedRunning input) (PiCCSInputCheck.selectedFresh input)) := rfl
 
 theorem initialClaim_value (input : Input) (gamma : K) :
     initialClaim input gamma = (verifierInput input).initial extensionOps gamma :=

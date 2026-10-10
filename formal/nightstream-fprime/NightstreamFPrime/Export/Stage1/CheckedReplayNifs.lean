@@ -30,14 +30,14 @@ def proof (input : PiCCSInputCheck.Input) (messages : PiDECInputCheck.Messages) 
     Lifecycle.Proof 8 where
   piCcsRounds := PiCCSProofInputs.roundPolynomial (PiCCSInputCheck.proofValues input)
   piCcsOutput := PiCCSProofInputs.output (PiCCSInputCheck.proofValues input)
-  piDecCommitments := (PiCCSInputCheck.runningFromInput messages).commitments
-  piDecEvaluations := (PiCCSInputCheck.runningFromInput messages).evaluations
+  piDecCommitments := (PiCCSInputCheck.selectedRunningFromInput messages).commitments
+  piDecEvaluations := (PiCCSInputCheck.selectedRunningFromInput messages).evaluations
 
 private abbrev pre (input : PiCCSInputCheck.Input) :=
   PiCCS.Transcript.deriveFromState Transcript.piCcsOracle.transcript
     (ProductionKey.absorbPublicInput
       (Transcript.absorb Transcript.initialState Transcript.piCcsDigestDomainTag)
-      (PiCCSInputCheck.running input) (PiCCSInputCheck.fresh input))
+      (PiCCSInputCheck.selectedRunning input) (PiCCSInputCheck.selectedFresh input))
 
 private theorem point_ext {arity : Nat} (left right : CubePoint K arity)
     (same : left.coordinates = right.coordinates) : left = right := by
@@ -48,7 +48,7 @@ private theorem point_ext {arity : Nat} (left right : CubePoint K arity)
 
 private theorem execution_point (input : PiCCSInputCheck.Input)
     (messages : PiDECInputCheck.Messages) :
-    (selectedKey.piCcsExecution (PiCCSInputCheck.running input) (PiCCSInputCheck.fresh input)
+    (selectedKey.piCcsExecution (PiCCSInputCheck.selectedRunning input) (PiCCSInputCheck.selectedFresh input)
       (proof input messages)).coins.roundPoint = (PiCCSInputCheck.execute input).point := by
   rw [Key.piCcsExecution_coins_eq_derive]
   apply point_ext
@@ -115,7 +115,7 @@ private theorem execute_outgoing (input : PiCCSInputCheck.Input) :
 
 private theorem execution_outgoing (input : PiCCSInputCheck.Input)
     (messages : PiDECInputCheck.Messages) :
-    (selectedKey.piCcsExecution (PiCCSInputCheck.running input) (PiCCSInputCheck.fresh input)
+    (selectedKey.piCcsExecution (PiCCSInputCheck.selectedRunning input) (PiCCSInputCheck.selectedFresh input)
       (proof input messages)).outgoingState = (PiCCSInputCheck.execute input).outgoing := by
   rw [Key.piCcsExecution_outgoingState_eq_absorbPiCcsOutput,
     ProductionKey.key_absorbPiCcsOutput, execute_outgoing]
@@ -128,10 +128,10 @@ private theorem execution_outgoing (input : PiCCSInputCheck.Input)
 
 private theorem probe_eq (input : PiCCSInputCheck.Input)
     (messages : PiDECInputCheck.Messages) :
-    selectedKey.piCcsProbe (PiCCSInputCheck.running input) (PiCCSInputCheck.fresh input)
+    selectedKey.piCcsProbe (PiCCSInputCheck.selectedRunning input) (PiCCSInputCheck.selectedFresh input)
       (proof input messages) = PiCCSInputCheck.probe input := by
   have raw :
-      (selectedKey.piCcsCertificate (PiCCSInputCheck.running input) (PiCCSInputCheck.fresh input)
+      (selectedKey.piCcsCertificate (PiCCSInputCheck.selectedRunning input) (PiCCSInputCheck.selectedFresh input)
         (proof input messages)).toFinite =
       SumCheck.Finite.FixedPhase.RawCertificate.encode {
         rounds := List.ofFn (PiCCSProofInputs.roundPolynomial (PiCCSInputCheck.proofValues input)) } := by
@@ -146,7 +146,7 @@ private theorem parent_eq (input : PiCCSInputCheck.Input)
     (batch : PiRLCParent.Batch) (parent : PiRLCParent.Values)
     (messages : PiDECInputCheck.Messages)
     (returned : PiRLCParent.computedParent input batch = some parent) :
-    selectedKey.parentForChallenges (PiCCSInputCheck.running input) (PiCCSInputCheck.fresh input)
+    selectedKey.parentForChallenges (PiCCSInputCheck.selectedRunning input) (PiCCSInputCheck.selectedFresh input)
         (proof input messages) batch.challenges = PiDECInputCheck.parent parent := by
   have combined := PiRLCParent.computedParent_eq_combined input batch parent returned
   rw [PiRLCParent.inputBatch_eq_probe] at combined
@@ -159,15 +159,15 @@ private theorem attempt_eq (input : PiCCSInputCheck.Input)
     (messages : PiDECInputCheck.Messages)
     (sampled : PiRLCInputCheck.sampled input = some batch)
     (returned : PiRLCParent.computedParent input batch = some parent) :
-    selectedKey.piDecAttempt (PiCCSInputCheck.running input) (PiCCSInputCheck.fresh input)
+    selectedKey.piDecAttempt (PiCCSInputCheck.selectedRunning input) (PiCCSInputCheck.selectedFresh input)
       (proof input messages) = some (PiDECInputCheck.attempt parent messages) := by
   have sampledKey :
-      selectedKey.piRlcChallenges (PiCCSInputCheck.running input) (PiCCSInputCheck.fresh input)
+      selectedKey.piRlcChallenges (PiCCSInputCheck.selectedRunning input) (PiCCSInputCheck.selectedFresh input)
         (proof input messages) = some batch.challenges := by
     rw [Key.piRlcChallenges, execution_outgoing]
     exact (PiRLCInputCheck.sampled_response input batch sampled).2
   have sampledAttempt := attempt_of_sample selectedKey
-    (PiCCSInputCheck.running input) (PiCCSInputCheck.fresh input)
+    (PiCCSInputCheck.selectedRunning input) (PiCCSInputCheck.selectedFresh input)
     (proof input messages) batch.challenges sampledKey
   have sameParent := parent_eq input batch parent messages returned
   have sameAttempt :
@@ -196,7 +196,7 @@ private theorem output_eq (input : PiCCSInputCheck.Input)
     (checked : PiDECInputCheck.accepted parent messages = true) :
     selectedKey.outputForAttempt (proof input messages) (PiDECInputCheck.attempt parent messages)
         (selectedKey.piDecPublicInputSplit.split (PiDECInputCheck.parent parent).publicInput) =
-      PiCCSInputCheck.runningFromInput messages := by
+      PiCCSInputCheck.selectedRunningFromInput messages := by
   have matchResult := PiDECInputCheck.accepted_implies_outputMatches parent messages checked
   simp only [PiDECInputCheck.outputMatches, Bool.and_eq_true] at matchResult
   have pointWords : messages.point.toList = parent.point.coordinates := of_decide_eq_true matchResult.1
@@ -232,13 +232,13 @@ theorem checked_verifies (input : PiCCSInputCheck.Input)
     (returned : PiRLCParent.computedParent input batch = some parent)
     (checked : PiDECInputCheck.accepted parent messages = true) :
     Nifs.PaperNonInteractive.verify selectedKey
-      (PiCCSInputCheck.running input) (PiCCSInputCheck.fresh input) (proof input messages) =
-      some (PiCCSInputCheck.runningFromInput messages) := by
+      (PiCCSInputCheck.selectedRunning input) (PiCCSInputCheck.selectedFresh input) (proof input messages) =
+      some (PiCCSInputCheck.selectedRunningFromInput messages) := by
   have attempt := attempt_eq input batch parent messages sampled returned
   have accepted := PiDECInputCheck.accepted_implies_paper parent messages checked
   apply (Nifs.PaperNonInteractive.verify_eq_some_iff selectedKey
-    (PiCCSInputCheck.running input) (PiCCSInputCheck.fresh input)
-    (proof input messages) (PiCCSInputCheck.runningFromInput messages)).mpr
+    (PiCCSInputCheck.selectedRunning input) (PiCCSInputCheck.selectedFresh input)
+    (proof input messages) (PiCCSInputCheck.selectedRunningFromInput messages)).mpr
   refine ⟨?_, ?_, ?_⟩
   · apply (Nifs.PaperNonInteractive.piCcsCheck_eq_true_iff_fixedWidthAccepted
       selectedKey _ _ _).mpr
@@ -248,7 +248,7 @@ theorem checked_verifies (input : PiCCSInputCheck.Input)
   · exact (Nifs.PaperNonInteractive.piDecCheck_eq_true_iff selectedKey _ _ _).mpr
       ⟨PiDECInputCheck.attempt parent messages, attempt, accepted⟩
   · exact (Key.output_eq_some_of_parentBounded selectedKey
-      (PiCCSInputCheck.running input) (PiCCSInputCheck.fresh input)
+      (PiCCSInputCheck.selectedRunning input) (PiCCSInputCheck.selectedFresh input)
       (proof input messages) (PiDECInputCheck.attempt parent messages) attempt accepted.parentBounded).trans
         (congrArg some (output_eq input parent messages checked))
 
@@ -263,8 +263,8 @@ theorem checked_verifies_selected (input : PiCCSInputCheck.Input)
       (ProductionKey.key
         (PerApplicationFixedPoint.relation Poseidon2HashChainV1Package.application
           Poseidon2HashChainV1Package.fits) productionAjtaiKey)
-      (PiCCSInputCheck.running input) (PiCCSInputCheck.fresh input) (proof input messages) =
-      some (PiCCSInputCheck.runningFromInput messages) := by
+      (PiCCSInputCheck.selectedRunning input) (PiCCSInputCheck.selectedFresh input) (proof input messages) =
+      some (PiCCSInputCheck.selectedRunningFromInput messages) := by
   have selected := checked_verifies input batch parent messages sampled returned checked
   change Nifs.PaperNonInteractive.verify (ProductionKey.key PiDECInputCheck.relation productionAjtaiKey)
     _ _ _ = _ at selected

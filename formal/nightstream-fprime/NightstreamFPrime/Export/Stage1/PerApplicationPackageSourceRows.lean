@@ -812,7 +812,7 @@ private theorem indexedPackageStoredRow?_eq_some
     rw [List.getD_map,
       List.getD_eq_getElem rows target indexBound] at selected
     have referenceBound : index.val < (List.ofFn programRow).length := by
-      simpa using index.isLt
+      simp
     rw [List.getD_eq_getElem _ _ referenceBound] at selected
     simpa [target, rowFin] using selected
   have selected := recovered target (List.get_mem rows rowFin)
@@ -848,7 +848,7 @@ theorem indexedPackageSourceRow?_eq_some
     rw [List.getD_map,
       List.getD_eq_getElem rows target indexBound] at selected
     have rangeBound : index.val < (List.range' rowStart count).length := by
-      simpa using index.isLt
+      simp
     rw [List.getD_eq_getElem _ _ rangeBound,
       List.getElem_range'_1] at selected
     simpa [target, rowFin] using selected
@@ -1148,14 +1148,14 @@ private theorem ofFn_cast_get {Alpha : Type} (rows : List Alpha) {count : Nat}
     List.ofFn (fun index : Fin count =>
       rows.get (Fin.cast lengthEq.symm index)) = rows := by
   subst count
-  simpa using List.ofFn_get rows
+  simp
 
 def piDecProgramRow
     {logicalWidth : Nat}
     {publicFits : Spec.ringDegree * Lifecycle.PaperAlgebra.publicRingColumns ≤
       Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
         logicalWidth}
-    (relation : Lifecycle.ProductionKey.LogicalRelation logicalWidth
+    (_relation : Lifecycle.ProductionKey.LogicalRelation logicalWidth
       publicFits) (index : Fin PiDEC.v1_2.exactRowCount) : R1CS.Row :=
   (PiDECOrdinaryDirectSource.sourceRows logicalWidth publicFits).getD
     index.val Spartan.zeroRow

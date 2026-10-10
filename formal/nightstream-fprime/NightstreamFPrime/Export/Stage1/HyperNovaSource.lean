@@ -245,17 +245,4 @@ theorem sourceReturned_iff_terminalHolds (input : PiCCSInputCheck.Input)
         PiDECInputCheck.relation productionAjtaiKey
         (PiCCSInputCheck.running input) index (runningWitness values index)).mpr (running index)
 
-/-- The actual checked NIFS source return identifies the complete source
-CCS and CE memberships consumed by terminal verification. -/
-theorem finishValue_source_iff_terminalHolds (input : PiCCSInputCheck.Input)
-    (outcome : CheckedWitnessExtraction.StoredOutcome productionShape carrier) :
-    CheckedWitnessExtraction.SourceReturned PiCCSStoredWitnessCheck.commit
-        productionGlobalParams (PiCCSStoredWitnessCheck.statement input)
-        (PiCCSStoredWitnessCheck.finishValue input outcome) ↔
-      ∃ values, PiCCSStoredWitnessCheck.finishValue input outcome = some values ∧
-        Lifecycle.TerminalHolds PiDECInputCheck.relation productionAjtaiKey
-          (PiCCSInputCheck.running input) (runningWitness values)
-          (PiCCSInputCheck.fresh input) (freshWitness input values) :=
-  sourceReturned_iff_terminalHolds input (PiCCSStoredWitnessCheck.finishValue input outcome)
-
 end NightstreamFPrime.Export.Stage1.HyperNovaSource

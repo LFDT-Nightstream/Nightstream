@@ -42,10 +42,12 @@ abbrev CommitmentSetup (application : Program) :=
 def relation (application : Program) (fits : FitsTwoPow28 application) :=
   PerApplicationFixedPoint.relation application fits
 
-def geometry (application : Program) :=
+theorem geometry (application : Program) :
+    NightstreamFPrime.Export.Stage1.ApplicationRetainedGeometry.Geometry application (NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint.logicalWidth application) :=
   PerApplicationFixedPoint.geometry application
 
-def prefixGeometry (application : Program) :=
+theorem prefixGeometry (application : Program) :
+    NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRetainedGeometry.Geometry application (NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint.logicalWidth application) :=
   DirectApplicationPrefixPlan.prefixGeometry (geometry application)
 
 def transitionEnv (application : Program)

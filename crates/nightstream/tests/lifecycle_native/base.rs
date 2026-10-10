@@ -49,7 +49,7 @@ fn base_extension_matches_full_lean_assignment_and_terminal() {
     assert_eq!(envelope.state(), &expected);
     println!("public_base_constructed elapsed={:?}", started.elapsed());
 
-    let running = envelope.running().unwrap();
+    let (running, fresh) = envelope.active_parts().unwrap();
     assert_eq!(running.claims.len(), 16);
     assert_eq!(running.witnesses.len(), 16);
     for (claim, witness) in running.claims.iter().zip(&running.witnesses) {
@@ -61,7 +61,6 @@ fn base_extension_matches_full_lean_assignment_and_terminal() {
         assert_eq!(witness.virtual_constant_value(), Some(&F::ZERO));
     }
 
-    let fresh = envelope.fresh().unwrap();
     assert!(fresh.witness.w.is_empty());
     assert_eq!(fresh.claim.x, fields(&reference[4][2]));
     let physical = loaded.execute_witness(&private, &public).unwrap();

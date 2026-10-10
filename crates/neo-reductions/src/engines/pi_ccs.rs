@@ -39,17 +39,17 @@ pub trait PiCcsEngine {
     ///
     /// # Caller contract
     ///
-    /// The caller must authenticate the complete supplied running claims
-    /// against their shared fold digest. Recompute this binding from
-    /// authoritative inputs or establish it through verifier-driven proof
-    /// replay that binds those claims. Comparing the digest to a trusted value
-    /// alone is insufficient.
+    /// The transcript absorbs the prior digest that the first fresh public
+    /// input encodes, not the running claims. The caller must authenticate
+    /// that this digest names the complete supplied running claims. Recompute
+    /// it from authoritative inputs or establish it through verifier-driven
+    /// proof replay that binds those claims. Comparing the digest to a trusted
+    /// value alone is insufficient.
     ///
     /// The caller must also fix the verifier context, including the CCS
     /// structure, protocol parameters, and commitment key, independently of
-    /// the proof. The transcript absorbs the prior digest but does not
-    /// establish these caller obligations. The lifecycle enforces them through
-    /// its state hash and verifier context.
+    /// the proof. The lifecycle enforces both obligations through its state
+    /// hash and verifier context.
     fn verify(
         &self,
         tr: &mut Poseidon2Transcript,

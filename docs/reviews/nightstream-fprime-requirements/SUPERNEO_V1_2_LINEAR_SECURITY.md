@@ -1,5 +1,11 @@
 # Selected SuperNeo v1.2 linear-security milestone
 
+**Retired 2026-10-07.** This chain depended on `FiatShamirModel` and was
+deleted with it. The current history bound is
+`HyperNovaVisitedSecurity.history_probability_bound` under HyperNova errata
+Assumption 1 (`formal/nightstream-fprime/TRUST_BOUNDARY.md`). The record below
+keeps the milestone as checked at its commit.
+
 Validated code: `1ad23f557b73e0564a27b62e20fe9d01a688f6b0` on
 `nico/f-prime-constraints-cuda-formal`. The committed Lean and graph source
 matches snapshot `be5c5cebc5ce537c9735b200f99c7737a8a1051d1ef3049f176ddc19ea01b1d3`.

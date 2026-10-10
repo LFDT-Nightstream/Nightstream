@@ -147,7 +147,7 @@ namespace Equations
 
 /-- Assemble complete Π_RLC acceptance once challenge membership has been
 derived by the owning authority boundary. -/
-def withChallengesValid
+theorem withChallengesValid
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
     {PublicInput : Type uPublicInput}
@@ -330,81 +330,8 @@ theorem complete
       inputs challenges assignments inputFresh sameStructure samePoint
       challengesValid inputValid pointValid
 
-/-- Interpret an extracted Π_RLC input witness in `CE(⌊q/2⌋+1)`. -/
-def ambientInput
-    {Structure : Type uStructure}
-    {PublicInput : Type uPublicInput}
-    {Point : Type uPoint}
-    {Evaluation : Type uEvaluation}
-    {Commitment : Type uCommitment}
-    (statement : CE.Instance Structure PublicInput Point Evaluation Commitment) :
-    CE.Instance Structure PublicInput Point Evaluation Commitment :=
-  { statement with stage := .ambient }
-
-/-- The weak extractor's successful postcondition, not fresh relation membership. -/
-def AmbientOpenings
-    {Structure : Type uStructure}
-    {Assignment : Type uAssignment}
-    {PublicInput : Type uPublicInput}
-    {Point : Type uPoint}
-    {Evaluation : Type uEvaluation}
-    {Commitment : Type uCommitment}
-    (semantics : RelationSemantics
-      Structure Assignment PublicInput Point Evaluation Commitment)
-    (params : GlobalParams)
-    {n : Nat}
-    (inputs : Fin n → CE.Instance Structure PublicInput Point Evaluation Commitment)
-    (assignments : Fin n → Assignment) : Prop :=
-  ∀ i, CE.Holds semantics params (ambientInput (inputs i)) (assignments i)
-
-/-- The `(K+k)+1` singular/repeated challenge events in SuperNeo v1.2 Appendix B.3. -/
-inductive SamplingFailure (n : Nat) where
-  | baseFork
-  | coordinateFork (index : Fin n)
-deriving Repr
-
-def samplingErrorNumerator (n : Nat) : Nat := n + 1
-
-/-- A concrete extractor supplies the actual failure predicate for its fixed
-sampling schedule. Keeping it as a proposition prevents the named reason type
-from making the bad event vacuously inhabited. -/
-structure SamplingBoundary (n : Nat) where
-  Failure : Prop
-  classify : Failure → SamplingFailure n
-
-structure ExtractedAmbient
-    {Structure : Type uStructure}
-    {Assignment : Type uAssignment}
-    {PublicInput : Type uPublicInput}
-    {Point : Type uPoint}
-    {Evaluation : Type uEvaluation}
-    {Commitment : Type uCommitment}
-    (semantics : RelationSemantics
-      Structure Assignment PublicInput Point Evaluation Commitment)
-    (params : GlobalParams)
-    {n : Nat}
-    (inputs : Fin n → CE.Instance Structure PublicInput Point Evaluation Commitment) where
-  assignments : Fin n → Assignment
-  valid : AmbientOpenings semantics params inputs assignments
-
-/-- Honest statement of the Π_RLC extraction boundary. -/
-inductive ExtractionOutcome
-    {Structure : Type uStructure}
-    {Assignment : Type uAssignment}
-    {PublicInput : Type uPublicInput}
-    {Point : Type uPoint}
-    {Evaluation : Type uEvaluation}
-    {Commitment : Type uCommitment}
-    (semantics : RelationSemantics
-      Structure Assignment PublicInput Point Evaluation Commitment)
-    (params : GlobalParams)
-    {n : Nat}
-    (inputs : Fin n → CE.Instance Structure PublicInput Point Evaluation Commitment)
-    (sampling : SamplingBoundary n) where
-  | extracted (result : ExtractedAmbient semantics params inputs)
-  | failed (evidence : sampling.Failure)
-
-/-- Exact algebra needed to state the relaxed-binding game of SuperNeo v1.2 Definition 7. -/
+/-- The scalar and assignment actions of the relaxed-binding game of SuperNeo
+v1.2 Definition 7. -/
 structure RelaxedBindingOps
     (Assignment : Type uAssignment)
     (Commitment : Type uCommitment)
@@ -440,33 +367,6 @@ structure RelaxedBindingCollision
   crossDifferent :
     ops.scaleAssignment delta₁ opening₂ ≠ ops.scaleAssignment delta₂ opening₁
 
-/-- The SuperNeo v1.2 Appendix B.3 rewinding/algebra bridge, isolated from
-deterministic verifier logic. -/
-structure UniquenessBridge
-    {Structure : Type uStructure}
-    {Assignment : Type uAssignment}
-    {PublicInput : Type uPublicInput}
-    {Point : Type uPoint}
-    {Evaluation : Type uEvaluation}
-    {Commitment : Type uCommitment}
-    {Scalar : Type uScalar}
-    (semantics : RelationSemantics
-      Structure Assignment PublicInput Point Evaluation Commitment)
-    (params : GlobalParams)
-    (ops : RelaxedBindingOps Assignment Commitment Scalar)
-    {n : Nat} where
-  disagreement_to_collision :
-    ∀ (leftInputs rightInputs : Fin n →
-        CE.Instance Structure PublicInput Point Evaluation Commitment)
-      (leftAssignments rightAssignments : Fin n → Assignment),
-      (fun i => (leftInputs i).commitment) =
-        (fun i => (rightInputs i).commitment) →
-      AmbientOpenings semantics params leftInputs leftAssignments →
-      AmbientOpenings semantics params rightInputs rightAssignments →
-      leftAssignments ≠ rightAssignments →
-      ∃ i, Nonempty
-        (RelaxedBindingCollision semantics params ops (leftInputs i).commitment)
-
 /-- The weak reduction's `φ`: the uncombined vector of input commitments. -/
 def phi
     {Structure : Type uStructure}
@@ -478,34 +378,5 @@ def phi
     (inputs : Fin n → CE.Instance Structure PublicInput Point Evaluation Commitment) :
     Fin n → Commitment :=
   fun i => (inputs i).commitment
-
-/-- Two successful weak extractions at the same `φ` are unique or break relaxed binding. -/
-theorem same_phi_extractions_unique_or_collision
-    {Structure : Type uStructure}
-    {Assignment : Type uAssignment}
-    {PublicInput : Type uPublicInput}
-    {Point : Type uPoint}
-    {Evaluation : Type uEvaluation}
-    {Commitment : Type uCommitment}
-    {Scalar : Type uScalar}
-    (semantics : RelationSemantics
-      Structure Assignment PublicInput Point Evaluation Commitment)
-    (params : GlobalParams)
-    (ops : RelaxedBindingOps Assignment Commitment Scalar)
-    {n : Nat}
-    (bridge : UniquenessBridge semantics params ops (n := n))
-    (leftInputs rightInputs : Fin n →
-      CE.Instance Structure PublicInput Point Evaluation Commitment)
-    (leftAssignments rightAssignments : Fin n → Assignment)
-    (samePhi : phi leftInputs = phi rightInputs)
-    (leftValid : AmbientOpenings semantics params leftInputs leftAssignments)
-    (rightValid : AmbientOpenings semantics params rightInputs rightAssignments) :
-    leftAssignments = rightAssignments ∨
-      ∃ i, Nonempty
-        (RelaxedBindingCollision semantics params ops (leftInputs i).commitment) := by
-  by_cases sameAssignments : leftAssignments = rightAssignments
-  · exact Or.inl sameAssignments
-  · exact Or.inr (bridge.disagreement_to_collision leftInputs rightInputs
-      leftAssignments rightAssignments samePhi leftValid rightValid sameAssignments)
 
 end NightstreamFPrime.Spec.Folding.PiRLC

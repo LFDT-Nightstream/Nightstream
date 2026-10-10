@@ -184,7 +184,7 @@ namespace WeightProductLaws
 /-- Project the three laws used by the numeric-weight bridge from the existing
 full interpolation law package. This keeps concrete arithmetic ownership with
 its existing provider while avoiding a stronger assumption in the bridge. -/
-def ofInterpolationEvaluationLaws
+theorem ofInterpolationEvaluationLaws
     {Field : Type uField}
     {ops : InterpolationOps Field}
     (laws : InterpolationEvaluationLaws ops) : WeightProductLaws ops where

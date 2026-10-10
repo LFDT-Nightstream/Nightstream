@@ -108,9 +108,8 @@ def priorDigest
 /-- Digest-only PiCCS public statement in canonical block order: the
 pilot-recomputed prior digest, then the one fresh commitment and public
 input. The complete running statement is bound through the constrained state
-digest and is not absorbed again. -/
+digest and is not absorbed again, so it is not an argument. -/
 def publicInputBlocks
-    (_running : Nifs.PaperNonInteractive.Running K PaperAlgebra.Commitment (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits)) productionShape)
     (fresh : Nifs.PaperNonInteractive.Fresh PaperAlgebra.Commitment (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits)) productionShape) :
     List (List F) :=
   [priorDigest fresh] ++
@@ -120,20 +119,21 @@ def publicInputBlocks
 
 /-- Absorb the digest-only PiCCS statement from its canonical block list. -/
 def absorbPublicInput (state : Transcript.State)
-    (running : Nifs.PaperNonInteractive.Running K PaperAlgebra.Commitment (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits)) productionShape)
+    (_running : Nifs.PaperNonInteractive.Running K PaperAlgebra.Commitment (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits)) productionShape)
     (fresh : Nifs.PaperNonInteractive.Fresh PaperAlgebra.Commitment (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits)) productionShape) :
     Transcript.State :=
-  Transcript.absorbBlocks state (publicInputBlocks running fresh)
+  Transcript.absorbBlocks state (publicInputBlocks fresh)
+
+/-- The complete paper `y′` family: one evaluation family per source, in the
+same encoding as the running statement. -/
+def fullOutputWords (out : FullOutputCoordinates.FullOutput K productionShape) : List F :=
+  (List.finRange productionShape.sourceCount).flatMap fun source =>
+    serializeEvaluations ⟨out.padCoordinate source, out.matrixCoordinate source⟩
 
 /-- Absorb the complete paper `y′` family after the sum-check. -/
 def absorbFullOutput (s : Transcript.State)
     (out : FullOutputCoordinates.FullOutput K productionShape) : Transcript.State :=
-  Transcript.absorbBlock s ((List.finRange productionShape.sourceCount).flatMap fun i =>
-    ((List.finRange productionShape.coefficientCount).flatMap fun l =>
-      serializeK (out.padCoordinate i l)) ++
-    ((List.finRange productionShape.matrixCount).flatMap fun j =>
-      (List.finRange productionShape.coefficientCount).flatMap fun l =>
-        serializeK (out.matrixCoordinate i j l)))
+  Transcript.absorbBlock s (fullOutputWords out)
 
 /-- The exact 17-value `ρ` batch; the production sampler is total. The
 optional result is the generic NIFS key interface, not a sampler failure mode. -/
@@ -260,7 +260,7 @@ theorem key_publicInputState_eq
       Transcript.absorbBlocks
         (Transcript.absorb Transcript.initialState
           Transcript.piCcsDigestDomainTag)
-        (publicInputBlocks running fresh) := by
+        (publicInputBlocks fresh) := by
   rfl
 
 /-- The verifier input is bound through the pilot digest and the

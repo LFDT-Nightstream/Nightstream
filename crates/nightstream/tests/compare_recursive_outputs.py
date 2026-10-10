@@ -13,12 +13,13 @@ import sys
 ROOT = Path(__file__).resolve().parents[3]
 GOLDILOCKS_MODULUS = 18446744069414584321
 ENVELOPE_FIELDS = {
-    "schema", "iteration", "z0", "current", "child_witness_count",
-    "running_claims", "running_parent",
+    "schema", "iteration", "z0", "current", "child_witness_count", "running_claims",
 }
-# These old record fields describe file locations and the evidence scope.
+# These old record fields describe file locations and the evidence scope. The
+# old `running_parent` was a cache that no check reads; it is not compared.
 REFERENCE_METADATA = {
     "child_witness_directory", "fresh_claim_file", "fresh_witness_file", "scope",
+    "running_parent",
 }
 
 
@@ -76,14 +77,24 @@ def compare_json(actual, reference, scope):
     return file_record(actual, reference, scope, mode)
 
 
+def semantic_envelope(envelope):
+    """The compared envelope fields. A running claim's `fold_digest` is a frame
+    that no check reads; older provers stored other values in it."""
+    fields = {key: envelope[key] for key in ENVELOPE_FIELDS}
+    fields["running_claims"] = [
+        {key: value for key, value in claim.items() if key != "fold_digest"}
+        for claim in envelope["running_claims"]
+    ]
+    return fields
+
+
 def compare_envelope(run, fold, reference, parent):
     actual_path = run / f"step-{fold + 1}" / "envelope.json"
     reference_path = reference / "envelope.json"
     actual, expected = load(actual_path), load(reference_path)
     equal(set(actual), ENVELOPE_FIELDS | {"package_identity"}, "new envelope fields")
     equal(set(expected), ENVELOPE_FIELDS | REFERENCE_METADATA, "reference envelope fields")
-    equal({key: actual[key] for key in ENVELOPE_FIELDS},
-          {key: expected[key] for key in ENVELOPE_FIELDS}, "semantic envelope")
+    equal(semantic_envelope(actual), semantic_envelope(expected), "semantic envelope")
     equal(actual["iteration"], fold + 1, "successor iteration")
     equal(actual["child_witness_count"], 16, "successor child count")
     equal(len(actual["running_claims"]), 16, "successor claim count")
@@ -91,7 +102,8 @@ def compare_envelope(run, fold, reference, parent):
     equal(actual["package_identity"], source["package_identity"], "source package identity")
     equal(actual["package_identity"], parent["package_identity"], "fold package identity")
     record = file_record(actual_path, reference_path, sorted(ENVELOPE_FIELDS),
-                         "complete typed semantic fields; canonical Goldilocks representatives")
+                         "complete typed semantic fields except running frames; "
+                         "canonical Goldilocks representatives")
     record["reference_metadata_excluded"] = sorted(REFERENCE_METADATA)
     record["new_package_identity_checked_against"] = [
         str(run / f"step-{fold}" / "envelope.json"), str(run / f"fold-{fold}" / "nifs.json"),

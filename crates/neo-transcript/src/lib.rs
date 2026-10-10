@@ -9,6 +9,7 @@ mod poseidon2;
 mod rng;
 
 use neo_math::F;
+use p3_field::PrimeCharacteristicRing;
 
 /// Minimal, byte-first API + typed helpers (Merlin-inspired).
 pub trait Transcript {
@@ -36,4 +37,21 @@ pub trait TranscriptProtocol {
 }
 
 pub use poseidon2::Poseidon2Transcript;
+
+/// Lean `ProductionKey.priorDigest` (`decodeHash`) of a v1.2 fresh public
+/// input: digest word `w` is `sum over bit < 64 of 2^bit * input[1 + 64 w + bit]`,
+/// computed in the field. Cells past a shorter input read as zero; the PiCCS
+/// transcript absorbs the complete input next, so this adds no binding of its
+/// own.
+pub fn prior_digest_v1_2(public_input: &[F]) -> [F; 4] {
+    core::array::from_fn(|word| {
+        (0..64).fold(F::ZERO, |value, bit| {
+            let cell = public_input
+                .get(1 + 64 * word + bit)
+                .copied()
+                .unwrap_or(F::ZERO);
+            value + F::from_u64(1 << bit) * cell
+        })
+    })
+}
 pub use rng::{TranscriptRng, TranscriptRngBuilder};

@@ -122,6 +122,40 @@ theorem replayInput_statement_input {program : Program}
           (canonicalKey fits commitmentSetup).lift := by
   rfl
 
+private theorem replayInput_authority_eq_coverage {program : Program}
+    (fits : FitsTwoPow28 program)
+    (commitmentSetup : CommitmentSetup program)
+    (input : StepInput program fits) :
+    (replayInput fits commitmentSetup input).authority =
+      { priorState := TranscriptCoverage.run Transcript.initialState
+          (TranscriptCoverage.statementCalls input.fresh)
+        rounds := { rounds := TranscriptCoverage.messages input.nifsProof } } := by
+  simp only [replayInput, Spec.Folding.PiCCS.TranscriptReplay.ReplayInput.authority]
+  rw [TranscriptCoverage.publicInputState_eq_run]
+  rfl
+
+/-- Link to the transcript coverage contract. The committed-statement
+reductions conclude equal replay authority. Equal authority identifies the
+fresh statement and every SumCheck round polynomial, unless the two statement
+call lists reach one transcript state. -/
+theorem replayInput_authority_identifies_or_collision {program : Program}
+    (fits : FitsTwoPow28 program)
+    (commitmentSetup : CommitmentSetup program)
+    (input input' : StepInput program fits)
+    (same : (replayInput fits commitmentSetup input).authority =
+      (replayInput fits commitmentSetup input').authority) :
+    (input.fresh = input'.fresh ∧ input.nifsProof.piCcsRounds = input'.nifsProof.piCcsRounds) ∨
+      TranscriptCoverage.RunCollision (TranscriptCoverage.statementCalls input.fresh)
+        (TranscriptCoverage.statementCalls input'.fresh) := by
+  rw [replayInput_authority_eq_coverage, replayInput_authority_eq_coverage] at same
+  obtain ⟨state, certificate⟩ :=
+    Spec.Folding.PiCCS.TranscriptReplay.ReplayAuthority.mk.inj same
+  rcases TranscriptCoverage.statementState_identifies_fresh_or_collision state with
+    freshEqual | collision
+  · exact Or.inl ⟨freshEqual,
+      TranscriptCoverage.messages_injective (FiatShamir.Certificate.mk.inj certificate)⟩
+  · exact Or.inr collision
+
 /-- The replay view derives exactly the coins used by the production NIFS
 key. -/
 theorem replayInput_derive_eq_piCcsExecution {program : Program}

@@ -86,7 +86,7 @@ structure FitsTwoPow28
 
 /-- Construct the retained carrier proof from the small application-only
 word budget. -/
-def fitsTwoPow28OfApplicationCounts
+theorem fitsTwoPow28OfApplicationCounts
     (application : Lifecycle.Stage1.Application.Program)
     (fits : application.witnessWordCount + localCount application ≤ 5451701) :
     FitsTwoPow28 application where
@@ -104,7 +104,7 @@ structure Geometry (application : Lifecycle.Stage1.Application.Program)
     (logicalWidth : Nat) : Prop where
   completeFits : completeLogicalWidth application ≤ logicalWidth
 
-def prefixGeometry {application : Lifecycle.Stage1.Application.Program}
+theorem prefixGeometry {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry application logicalWidth) :
     PiRLCSamplerOrdinaryRetainedGeometry.Geometry application logicalWidth where
   completeFits := by
@@ -119,7 +119,7 @@ def oneColumn {application : Lifecycle.Stage1.Application.Program}
 
 /-- The selected application reads the preimage geometry used by the actual
 pilot Poseidon2 chains. This projection adds no coordinates. -/
-def pilotGeometry {application : Lifecycle.Stage1.Application.Program}
+theorem pilotGeometry {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry application logicalWidth) :
     PiRLCPoseidonGeometry.Geometry application logicalWidth where
   pilotFits := by
@@ -128,7 +128,7 @@ def pilotGeometry {application : Lifecycle.Stage1.Application.Program}
     rw [PiRLCPoseidonGeometry.pilotLogicalWidth_eq]
     omega
 
-def inputFits {application : Lifecycle.Stage1.Application.Program}
+theorem inputFits {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry application logicalWidth) :
     inputStart application + (inputBlock application).coordinateCount ≤
       logicalWidth := by
@@ -140,7 +140,7 @@ def inputFits {application : Lifecycle.Stage1.Application.Program}
     logicalWidth
   omega
 
-def witnessFits {application : Lifecycle.Stage1.Application.Program}
+theorem witnessFits {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry application logicalWidth) :
     witnessStart application + (witnessBlock application).coordinateCount ≤
       logicalWidth := by
@@ -148,7 +148,7 @@ def witnessFits {application : Lifecycle.Stage1.Application.Program}
   unfold completeLogicalWidth localStart
   omega
 
-def outputFits {application : Lifecycle.Stage1.Application.Program}
+theorem outputFits {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry application logicalWidth) :
     outputStart application + (outputBlock application).coordinateCount ≤
       logicalWidth := by
@@ -160,7 +160,7 @@ def outputFits {application : Lifecycle.Stage1.Application.Program}
     logicalWidth
   omega
 
-def localFits {application : Lifecycle.Stage1.Application.Program}
+theorem localFits {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry application logicalWidth) :
     localStart application + (localBlock application).coordinateCount ≤
       logicalWidth :=

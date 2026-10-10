@@ -28,39 +28,39 @@ def challengeCount : Nat := 87
 def roundCount : Nat := 140
 def outputCount : Nat := 766
 
-def statementFits : statementOffset + statementCount ≤
+theorem statementFits : statementOffset + statementCount ≤
     PiCCSActionPayloadBlock.invocationCount := by
   norm_num [statementOffset, statementCount,
     PiCCSActionPayloadBlock.invocationCount]
 
-def challengeFits : challengeOffset + challengeCount ≤
+theorem challengeFits : challengeOffset + challengeCount ≤
     PiCCSActionPayloadBlock.invocationCount := by
   norm_num [challengeOffset, challengeCount,
     PiCCSActionPayloadBlock.invocationCount]
 
-def roundFits : roundOffset + roundCount ≤
+theorem roundFits : roundOffset + roundCount ≤
     PiCCSActionPayloadBlock.invocationCount := by
   norm_num [roundOffset, roundCount,
     PiCCSActionPayloadBlock.invocationCount]
 
-def outputFits : outputOffset + outputCount ≤
+theorem outputFits : outputOffset + outputCount ≤
     PiCCSActionPayloadBlock.invocationCount := by
   norm_num [outputOffset, outputCount,
     PiCCSActionPayloadBlock.invocationCount]
 
-def statementOffsetBound : statementOffset <
+theorem statementOffsetBound : statementOffset <
     PiCCSActionPayloadBlock.invocationCount := by
   norm_num [statementOffset, PiCCSActionPayloadBlock.invocationCount]
 
-def challengeOffsetBound : challengeOffset <
+theorem challengeOffsetBound : challengeOffset <
     PiCCSActionPayloadBlock.invocationCount := by
   norm_num [challengeOffset, PiCCSActionPayloadBlock.invocationCount]
 
-def roundOffsetBound : roundOffset <
+theorem roundOffsetBound : roundOffset <
     PiCCSActionPayloadBlock.invocationCount := by
   norm_num [roundOffset, PiCCSActionPayloadBlock.invocationCount]
 
-def outputOffsetBound : outputOffset <
+theorem outputOffsetBound : outputOffset <
     PiCCSActionPayloadBlock.invocationCount := by
   norm_num [outputOffset, PiCCSActionPayloadBlock.invocationCount]
 
@@ -95,7 +95,7 @@ theorem statementKindAt_eq (current : Fin statementCount) :
     apply Fin.ext
     change 0 + current.val = current.val
     omega]
-  simp [statementCount, challengeCount, roundCount, outputCount]
+  simp [statementCount]
 
 theorem challengeKindAt_eq (current : Fin challengeCount) :
     challengeKindAt current = PiCCSActionPayloadBlock.challengeKindAt current := by
@@ -110,7 +110,7 @@ theorem challengeKindAt_eq (current : Fin challengeCount) :
     apply Fin.ext
     change 128 + current.val = 128 + current.val
     rfl]
-  simp [statementCount, challengeCount, roundCount, outputCount]
+  simp [challengeCount]
 
 theorem roundKindAt_eq (current : Fin roundCount) :
     roundKindAt current = PiCCSActionPayloadBlock.roundKindAt current := by
@@ -125,7 +125,7 @@ theorem roundKindAt_eq (current : Fin roundCount) :
     apply Fin.ext
     change 215 + current.val = 128 + (87 + current.val)
     omega]
-  simp [statementCount, challengeCount, roundCount, outputCount]
+  simp [roundCount]
 
 theorem outputKindAt_eq (current : Fin outputCount) :
     outputKindAt current = PiCCSActionPayloadBlock.outputKindAt current := by
@@ -139,7 +139,7 @@ theorem outputKindAt_eq (current : Fin outputCount) :
     apply Fin.ext
     change 355 + current.val = 128 + (87 + (140 + current.val))
     omega]
-  simp [statementCount, challengeCount, roundCount, outputCount]
+  simp [outputCount]
 
 theorem statementKindAt_materializes :
     List.ofFn statementKindAt =

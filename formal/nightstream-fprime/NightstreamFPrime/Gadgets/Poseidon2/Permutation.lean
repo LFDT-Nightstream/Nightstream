@@ -169,8 +169,7 @@ def freshState (start : Nat) : EState :=
 
 theorem freshState_varsBelow (start : Nat) (lane : Fin 16) :
     (freshState start lane).VarsBelow (start + 16) := by
-  simpa [freshState, Expr.VarsBelow] using
-    Nat.add_lt_add_left lane.isLt start
+  simp [freshState, Expr.VarsBelow]
 
 theorem recipeConstraints_append (start : Nat) (first second : List Expr) :
     recipeConstraints start (first ++ second) =
@@ -210,7 +209,7 @@ theorem recipesCausal_append_causal (start : Nat) (first second : List Expr)
       constructor
       · exact hfirst.1
       · apply ih (start := start + 1) hfirst.2
-        convert hsecond using 1 <;> simp only [List.length_cons] <;> omega
+        convert hsecond using 1; simp only [List.length_cons]; omega
 
 /-- Four shared multiplication recipes for `x⁷`: `x²`, `x⁴`, `x⁶`,
 then `x⁷`. -/
@@ -318,9 +317,9 @@ theorem compileSboxes_outputs_below (start : Nat) (values : List Expr)
       · simp [sboxOutput, Expr.VarsBelow]
         omega
       · have tail := ih (start + 4) member
-        convert tail using 1 <;>
+        convert tail using 1;
           simp only [compileSboxes, List.length_append, sboxRecipes_length,
-            compileSboxes_recipes_length] <;> omega
+            compileSboxes_recipes_length]; omega
 
 theorem compileSboxes_sound (env : Env) (start : Nat) (values : List Expr)
     (rows : ConstraintsHold env
@@ -398,7 +397,7 @@ def stepOutput (start : Nat) : Step → EState
 
 @[simp] theorem stepRecipes_length (start : Nat) (step : Step) (state : EState) :
     (stepRecipes start step state).length = stepSize step := by
-  cases step <;> simp [stepRecipes, stepSize, fullInputs] <;> omega
+  cases step <;> simp [stepRecipes, stepSize, fullInputs]
 
 def compile (start : Nat) (state : EState) : List Step → Program
   | [] => ⟨[], state⟩
@@ -436,7 +435,7 @@ theorem stateRows_sound (env : Env) (start : Nat) (recipes : EState)
       Expr.var (start + lane.val) - recipes lane ∈
         recipeConstraints start (List.ofFn recipes) := by
     fin_cases lane <;>
-      simp [recipeConstraints, List.ofFn_succ, Spec.Poseidon2.width]
+      simp [recipeConstraints, List.ofFn_succ]
   funext lane
   have equation := rows _ (rowMember lane)
   change env (start + lane.val) = (recipes lane).eval env
@@ -488,7 +487,7 @@ theorem stepRecipes_causal (start : Nat) (step : Step) (state : EState)
         unfold fullInputs
         rw [List.forall_mem_ofFn_iff]
         intro lane
-        simp [fullInputs, Expr.VarsBelow, hstate]
+        simp [Expr.VarsBelow, hstate]
       have sboxes := compileSboxes_causal start _ inputsBelow
       apply recipesCausal_append
       · exact sboxes
@@ -509,7 +508,7 @@ theorem stepRecipes_causal (start : Nat) (step : Step) (state : EState)
         unfold fullInputs
         rw [List.forall_mem_ofFn_iff]
         intro lane
-        simp [fullInputs, Expr.VarsBelow, hstate]
+        simp [Expr.VarsBelow, hstate]
       have sboxes := compileSboxes_causal start _ inputsBelow
       apply recipesCausal_append
       · exact sboxes
@@ -576,7 +575,7 @@ theorem compile_output_varsBelow (start : Nat) (state : EState)
       have tail := ih (start + stepSize step) (stepOutput start step) hnext
       convert tail using 1 <;>
         simp only [compile, List.length_append, stepRecipes_length,
-          compile_recipes_length] <;> omega
+          compile_recipes_length]; omega
 
 theorem stepRows_sound (env : Env) (start : Nat) (step : Step)
     (state : EState)

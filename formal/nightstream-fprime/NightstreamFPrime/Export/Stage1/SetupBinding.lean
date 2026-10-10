@@ -1,6 +1,5 @@
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.RelaxedBinding
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
-import NightstreamFPrime.Lifecycle.Nifs.BindingReduction
 import NightstreamFPrime.Spec.AjtaiSetupV1.Prefix
 
 /-! The two binding reductions instantiated at the verifier's exact public
@@ -38,25 +37,6 @@ def productionRelaxedBindingCollision_to_shortKernel
       productionGlobalParams Binding.relaxedOps commitment) :
     Binding.ShortKernelVector productionAjtaiKey productionGlobalParams.msisNormBound :=
   Binding.relaxedBindingCollision_to_shortKernel productionAjtaiKey commitment collision
-
-/-- A successful emitted NIFS vector solves the selected public-seed
-instance: 45140544 integer coordinates and strict norm 113246208. The
-kernel is for `productionAjtaiKey`; no setup average or numerical hardness
-estimate is introduced by this deterministic identification. -/
-theorem productionNifsOutput_is_msis (output : List Int)
-    (success : Lifecycle.Nifs.BindingReduction.Succeeds productionAjtaiKey (some output)) :
-    ∃ witness : Binding.ShortKernelVector productionAjtaiKey 113246208,
-      output = List.ofFn witness.vector ∧ output.length = 45140544 := by
-  obtain ⟨witness, returned⟩ := success
-  have same := Option.some.inj returned
-  refine ⟨{
-    vector := witness.vector
-    nonzero := witness.nonzero
-    bounded := fun column => by
-      simpa only [production_msis_norm_bound] using witness.bounded column
-    kernel := witness.kernel }, same, ?_⟩
-  rw [same, List.length_ofFn]
-  exact carrierWidth_eq
 
 /-- Shape of the larger fixed-seed instance named in the approved
 `PUBLIC_SEED_MSIS_ASSUMPTION.md`, before unused allocation removal. -/

@@ -133,119 +133,6 @@ artifact-sized kernel evaluation, explicit build targets, one profile. Read
 `scripts/validate.sh` phases (`static`, `build`, `axioms`, `file <path>`,
 `all`).
 
-## Current state
-
-Items 1–3 of the order of work below are closed. The pilot and PiCCS Lean
-compiler paths exist, but their implementation-conformance gates are open.
-Do not describe either path as integrated or production-closed.
-
-The current source, emitted artifact, verifier identity, and Rust tests must
-come from one unchanged cut before any green package claim is made. At the
-latest reviewed cut, the Lean source uses schema 6 while the stored artifact
-and recorded identity use schema 5; the Rust package gates are therefore red.
-
-- `Spec/`: Goldilocks/Φ₈₁ algebra, profile, Poseidon2 reference, sumcheck,
-  exact v1.2 PiCCS with separate Pad and 4-matrix evaluation families,
-  PiRLC/PiDEC verifiers, composed NIFS `Key`/`verify`, Φ₈₁ PiRLC/PiDEC
-  algebras, HyperNova Construction 2, and Goldilocks primality.
-- `Lifecycle/`: `Types` (slotCount 1, cubeVariables 28,
-  productionShape, phase order), `PaperAlgebra` (Ajtai-commitment semantics
-  and algebras),
-  `Transcript` (Poseidon2 Fiat–Shamir and strong-set ρ sampler, membership
-  proved), `XOut` (packed-parent preimage, `stateHash`, `encHash`,
-  `defaultRunning`), `ProductionKey` (`LogicalRelation`, `key`: the one
-  concrete NIFS key, all law fields discharged), `Relation` (`setup`,
-  `machine`, `StepHolds := FixedAugmentedTransition`, `TerminalHolds`).
-- The pilot has one proved Lean path through `Circuit/`, Poseidon2 gadgets,
-  lifecycle builders, physical lowering, and the Lean emitter. Its main
-  evidence is `Pilot.phase_soundness`,
-  `Pilot.builders_imply_hash_slots`,
-  `Export.Stage1.Package.circuitPackage_implies_pilotSpec`, and
-  `circuitPackage_implies_recursive_hash_slots`. Exact Rust matrix
-  conformance and independent raw-assignment evaluation remain open. The
-  pilot-only layout is
-  12,574,138 rows, 12,659,030 private columns, 58 public columns, 12,659,089
-  total columns, and joint domain 12,659,088.
-- PiCCS v1.2 has twelve audit leaves, one phase assembler, logical
-  soundness and completeness, physical preservation, package soundness,
-  and package completeness. `PackageCompleteness.complete_piCcsRows`
-  constructs all canonical PiCCS package rows from `PhaseHolds`.
-- The current pilot + PiCCS source package carries the Lean-owned gate
-  relation with 4 matrix tags, 3 terms, degree bound 8, and 28 rounds. Its
-  proved layout (`Layout/Stage1/PilotPiCCS.lean`) has 6,352,059 rows and
-  joint domain 6,418,389. Re-check and update these values from the proved
-  layout on every identity-changing source cut.
-- Rust `paper_exact` implements the direct SuperNeo v1.2 formulas. Rust
-  `optimized` keeps the same separate `Eval_K` and `Eval_A` values and is
-  byte-equivalent on the tested Rust-to-Rust surface. This is useful
-  differential evidence. It is not Lean-to-Rust parity.
-- The package runtime is currently a test bridge. The production lifecycle
-  does not consume it. The current Lean parity vector uses zero PiCCS proof
-  messages and zero `Eval_K`/`Eval_A`; it does not close nonzero PiCCS
-  conformance.
-- The production relation uses a 25-variable row cube and therefore 25 PiCCS
-  rounds. The same `2^28` profile bounds the Stage 1 physical joint domain.
-
-Known debts, to close and not to hide:
-
-1. `ProductionKey.key` uses `piDecDecision := Classical.propDecidable`, so the
-   verifier is noncomputable. The parity surface needs a computable
-   `Decidable (PiDEC.PaperVerifier.Accepted …)`.
-2. The scoped fixed-size proof overrides for ring degree 54 remain candidates
-   for structural proofs. Do not hide them with artifact-sized evaluation.
-3. The PiDEC verifier must add the v1.2 public-input `B`-norm rejection before
-   the canonical 16-child split. An out-of-range split must fail. No accepted
-   verifier path may silently use `fallbackDigit`.
-4. The production Rust lifecycle does not yet consume the complete Lean
-   package. Its native PiCCS circuit still uses `y_ring`/`ct` wires and a
-   24-variable application relation. The v1.2 engines are migrated, but the
-   application must load the verifier-owned package, build its assignment
-   from a real fold, and retire the superseded native PiCCS circuit authority
-   in the same integration slice.
-5. Rust's final expanded `A/B/C` matrices have not been compared
-   entry-for-entry with Lean's canonical physical rows.
-6. No independent evaluator checks a raw Rust assignment directly against
-   the canonical Lean rows without using witness generation or Rust's row
-   expander.
-7. No valid nonzero PiCCS proof has complete three-way parity between
-   executable Lean, Rust `paper_exact`, and Rust `optimized`.
-8. Rust `sample_rot_rhos_n` still uses 3-bit candidates and pads sampler
-   shortfall. Before PiRLC conformance, replace it with the exact Lean 16-bit,
-   bounded, fail-closed schedule.
-
-Lessons recorded: keep executable specs materialized; do not use
-tuple-pattern `let (a, b) := e` in definitions that later need `rfl`; check
-every new file with `validate.sh file`, which passes
-`-DautoImplicit=false`.
-
-## Reuse from the frozen package
-
-Three different things are needed for each of PiCCS, PiRLC, and PiDEC, and
-they are in different states in `formal/nightstream-lean`:
-
-1. **Verifier semantics** (what the verifier computes and checks). Exists,
-   model-level, paper-shaped, no `sorry`, no axioms. Candidates for
-   copy-and-audit: `Nightstream/SuperNeo/Folding/{PiCCS,PiRLC,PiDEC,Nifs}`,
-   `SuperNeo/SumCheck`, `SuperNeo/InteractiveReduction`, `SuperNeo/Concrete`
-   (ring, profile, decomposition algebra), `HyperNova/Construction2`,
-   `Protocol/FPrime`. Copy only the definitions the new relation references.
-   `Folding/PiCCS` is 29k lines for one verifier; audit it down, do not copy
-   it whole. Remove radix-four and every reference to the streaming or
-   artifact layers. Instantiate oracles the old relation left abstract
-   (PiRLC response, opening maps). Fix the profile to `k_rho = 16`.
-2. **Circuit builders** (gadgets that enforce those checks in CCS rows).
-   Do not exist in any reusable form. All new work: sumcheck round, PiCCS
-   final evaluation check, PiRLC ring combination over 17 inputs with
-   challenges from the sampling set, PiDEC `split_b` recomputation and
-   recombination, Poseidon2 transcript, norm check, selectors and state
-   binding.
-3. **Security reductions** (B.1–B.4 as reductions of knowledge). Partially
-   present in `SuperNeo/InteractiveReduction` and `Folding`. Needed only for
-   the security composition theorem. Copy what exists; state the rest as the
-   explicit SuperNeo soundness assumption.
-
-`Protocol/Nebula` is not copied in Stage 1.
-
 ## Package structure
 
 The closest existing design is Verified-zkEVM `clean`. Use its shape; avoid
@@ -562,10 +449,9 @@ item to avoid finishing the current one.
 4. Reopen the pilot at the conformance boundary. Implement exact final-matrix
    comparison, the independent raw-assignment evaluator, nonzero pilot parity,
    and mutation coverage. Report pilot conformance closure.
-5. Stop and request the owner's decision on the PiCCS statement-absorption
-   schedule in `OPEN_ISSUES_LEAN_REFACTOR.md`. Do not pin a nonzero PiCCS
-   fixture or relation identity before this decision. This goal does not
-   authorize the implementation agent to choose the schedule.
+5. PiCCS statement absorption uses the owner's digest-only schedule
+   ([decision](decisions/piccs-prior-state-digest.md); Lean leaf
+   `Layout/PiCCS/v1_2/Leaves/StatementAbsorption.lean`).
 6. Close complete nonzero PiCCS three-way parity, exact PiCCS matrix equality,
    independent PiCCS row evaluation, and PiCCS mutation coverage. Report
    PiCCS conformance closure before starting PiRLC.
@@ -954,10 +840,10 @@ Rust loads this one package. There is no separate pilot, phase-only, or
 Rust-native production relation after the corresponding Stage 1 surface
 closes.
 
-Maintain `formal/nightstream-fprime/CONSTRAINT_TREE.md` as the concise audit
-index. It shows the multi-level file tree, marks present and required files,
-and maps each leaf and assembler to its mathematical constraint obligation.
-Update it when a leaf or assembly level closes.
+Maintain the phase map in `formal/nightstream-fprime/README.md`. It maps each
+child of the Stage 1 circuit to its paper rule and Lean module. Row and column
+counts come from Lean theorems, not from a document. Update the map when a
+child or an assembly level changes.
 
 ### Layout and efficiency
 

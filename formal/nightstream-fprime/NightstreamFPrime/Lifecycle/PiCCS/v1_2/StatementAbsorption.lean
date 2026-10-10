@@ -274,20 +274,6 @@ def verifierClaimWords {logicalWidth : Nat}
       serializeKExpr ((running.evaluation coordinate.running).eval_A
         coordinate.matrix coordinate.coefficient)
 
-private theorem flatMap_length_constant
-    {Index Value : Type}
-    (indices : List Index)
-    (values : Index → List Value)
-    (count : Nat)
-    (each : ∀ index, (values index).length = count) :
-    (indices.flatMap values).length = indices.length * count := by
-  induction indices with
-  | nil => simp
-  | cons head tail inductionHypothesis =>
-      rw [List.flatMap_cons, List.length_append, each,
-        inductionHypothesis]
-      simp [Nat.succ_mul, Nat.add_comm]
-
 private theorem verifierClaimWords_length {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -320,7 +306,9 @@ private theorem verifierClaimWords_length {logicalWidth : Nat}
     Phi81MatrixSource.phi81Shape, Shape.padEvaluationCount,
     Shape.matrixEvaluationCount, ringDegree]
 
-/-- The two verifier-owned blocks: prior point, then `Eval_K ++ Eval_A`. -/
+/-- The two verifier-owned blocks: prior point, then `Eval_K ++ Eval_A`.
+The statement transcript does not absorb them; `verifierInputBlocks_eval`
+only relates them to the key's verifier input. -/
 def verifierInputBlocks {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -328,23 +316,6 @@ def verifierInputBlocks {logicalWidth : Nat}
     (offset : Nat) : List (List Expr) :=
   [serializePointExpr (interface.running offset).point,
     verifierClaimWords interface offset]
-
-/-- The public verifier input is absorbed after the key-owned public prefix. -/
-def verifierInputActions {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
-    (interface : Interface logicalWidth publicFits)
-    (offset : Nat) : List Formal.Action :=
-  (verifierInputBlocks interface offset).map absorbBlock
-
-private theorem verifierInputActions_eq {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
-    (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    verifierInputActions interface offset =
-      [absorbBlock (serializePointExpr (interface.running offset).point),
-        absorbBlock (verifierClaimWords interface offset)] := by
-  rfl
 
 theorem map_flatMap_congr
     {Index Left Right : Type}
@@ -484,7 +455,6 @@ theorem publicInputBlocks_eval {logicalWidth : Nat}
     (interface : Interface logicalWidth publicFits) (offset : Nat) (env : Env) :
     (publicInputBlocks interface offset).map (Hash.evalList env) =
       ProductionKey.publicInputBlocks
-        (evalRunning (interface.running offset) env)
         (evalFresh (interface.fresh offset) env) := by
   unfold publicInputBlocks ProductionKey.publicInputBlocks
   dsimp only
@@ -562,11 +532,8 @@ theorem absorbedBlocks_eval
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) (env : Env) :
     (absorbedBlocks interface offset).map (Hash.evalList env) =
-      let running := evalRunning (interface.running offset) env
-      let fresh := evalFresh (interface.fresh offset) env
-      ProductionKey.publicInputBlocks running fresh := by
-  dsimp only
-  exact publicInputBlocks_eval interface offset env
+      ProductionKey.publicInputBlocks (evalFresh (interface.fresh offset) env) :=
+  publicInputBlocks_eval interface offset env
 
 private theorem constantWords_eval (env : Env) (words : List F) :
     Hash.evalList env (constantWords words) = words := by
@@ -719,14 +686,6 @@ private theorem publicInputActions_recipeCount {logicalWidth : Nat}
   rw [freshCost]
   simp [Formal.recipeCount, productionShape, productionProfile,
     Phi81MatrixSource.phi81Shape]
-
-private theorem verifierInputActions_recipeCount {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
-    (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    Formal.recipeCount (verifierInputActions interface offset) = 795696 := by
-  rw [verifierInputActions_eq]
-  simp [Formal.recipeCount]
 
 def actions {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -1182,7 +1141,7 @@ theorem spec_implies_keyInitialState
           (NightstreamFPrime.Lifecycle.Transcript.absorb
             NightstreamFPrime.Lifecycle.Transcript.initialState
             NightstreamFPrime.Lifecycle.Transcript.piCcsDigestDomainTag)
-          (ProductionKey.publicInputBlocks running fresh) :=
+          (ProductionKey.publicInputBlocks fresh) :=
       folded.symm
     _ = key.publicInputState running fresh := publicStateEq.symm
     _ = key.oracle.transcript.initialState context := oracleStateEq.symm

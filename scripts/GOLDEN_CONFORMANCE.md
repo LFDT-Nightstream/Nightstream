@@ -75,6 +75,5 @@ Metal compatibility and independent review are separate acceptance checks.
 
 The graph registers this workflow as `golden-conformance`. Its bounded
 `golden-coordinator-contract` gate checks the coordinator regressions; the full
-source-bound run and its review remain separate requirements. The six retained
-replay-kernel proofs and the missing complete independent-generation coverage
-are mapped in [REPLAY_COVERAGE.md](lean_graph/REPLAY_COVERAGE.md).
+source-bound run and its review remain separate requirements. Use
+`explain golden-conformance` for what remains.

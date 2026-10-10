@@ -1002,8 +1002,6 @@ private theorem transcriptOutputGrid_form?_none_at_ordinary
         (Spartan.sourceToSpartan
           (PiCCSStarts.initialClaimLogicalStart + index.val)) = none := by
   rw [ordinaryLogicalTarget_eq program index]
-  change (transcriptOutputGrid program).form? logicalWidth
-    (5546028 + index.val) = none
   rcases transcriptGridValues program with
     ⟨gridStart, gridCount, gridStride, minorCount, minorStride⟩
   have indexBound := index.isLt

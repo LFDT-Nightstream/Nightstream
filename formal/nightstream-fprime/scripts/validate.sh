@@ -3,9 +3,10 @@
 #   validate.sh static            boundary checks only (no Lean)
 #   validate.sh build [target...] lake build (default: the production library)
 #   validate.sh axioms            lake build NightstreamFPrimeTests
+#   validate.sh executables       lake build of every lean_exe target
 #   validate.sh identity          recompute canonical binding and compare pins
 #   validate.sh stage1-axioms     focused Stage 1 and matrix axiom audits
-#   validate.sh file <path.lean>  lake env lean <path>
+#   validate.sh file <path.lean>  lake env lean <path>, warnings fail
 #   validate.sh emit <path>       lake exe emit -- <path>
 #   validate.sh emit-expanded <path>
 #   validate.sh pilot-parity <vk0> <vk1> <vk2> <vk3> <path>
@@ -46,7 +47,7 @@
 #   validate.sh poseidon2-hash-chain-v1-binding-parity <id[4]> <relation[4]> <application[4]> <nifs[4]> <commitment[4]> <path>
 #   validate.sh per-application-reference <path>
 #   validate.sh per-application-streamed <path>
-#   validate.sh all
+#   validate.sh all               static, both libraries, executables and census
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -73,7 +74,13 @@ capped() {
 
 lean_file() {
   capped lake env lean "-j${LEAN_NUM_THREADS}" \
-    -DautoImplicit=false -DrelaxedAutoImplicit=false "$1"
+    -DautoImplicit=false -DrelaxedAutoImplicit=false -DwarningAsError=true "$1"
+}
+
+# Every [[lean_exe]] target name in the lakefile. No name contains a space.
+executables() {
+  awk '/^\[\[lean_exe\]\]/ { exe = 1; next } /^\[\[/ { exe = 0 }
+    exe && /^name *=/ { gsub(/"/, "", $3); print $3 }' lakefile.toml
 }
 
 phase="${1:-all}"
@@ -87,9 +94,16 @@ case "$phase" in
   build)
     shift
     if (( $# == 0 )); then set -- NightstreamFPrime; fi
-    capped lake build "$@"
+    capped lake build --wfail "$@"
     ;;
-  axioms) capped lake build NightstreamFPrimeTests ;;
+  axioms)
+    # Lake does not track the documents that the census reads; rerun it.
+    capped lake build --wfail NightstreamFPrimeTests && lean_file tests/EndpointCensus.lean
+    ;;
+  executables)
+    # The names are split on purpose: one lake call builds every executable.
+    capped lake build --wfail $(executables)
+    ;;
   pi-ccs-first-round)
     if (( $# != 6 )); then echo "usage: validate.sh pi-ccs-first-round <public-input> <original-sources> <output> <first-pair> <end-pair>" >&2; exit 2; fi
     shift
@@ -338,8 +352,9 @@ case "$phase" in
     ;;
   all)
     bash scripts/check-boundaries.sh
-    capped lake build NightstreamFPrime
-    capped lake build NightstreamFPrimeTests
+    capped lake build --wfail NightstreamFPrime NightstreamFPrimeTests
+    capped lake build --wfail $(executables)
+    lean_file tests/EndpointCensus.lean
     ;;
   *) echo "unknown phase: $phase" >&2; exit 2 ;;
 esac

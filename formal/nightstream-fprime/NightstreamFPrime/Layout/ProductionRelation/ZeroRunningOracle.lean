@@ -65,10 +65,10 @@ private theorem embeddedPrefix_getD {arity count : Nat}
       K.embed ((CanonicalRowLayout.layout arity count covered).paddedValue
         0 values vertex) := by
   by_cases live : NumericBooleanDomain.index vertex < count
-  · simp only [Array.getD_eq_getD_getElem?, Array.getElem?_ofFn, dif_pos live,
+  · simp only [Array.getD_eq_getD_getElem?, Array.getElem?_ofFn, 
       Option.getD_some, ColumnLayout.paddedValue, CanonicalRowLayout.layout,
       dif_pos live]
-  · simp only [Array.getD_eq_getD_getElem?, Array.getElem?_ofFn, dif_neg live,
+  · simp only [Array.getD_eq_getD_getElem?, Array.getElem?_ofFn, 
       Option.getD_none, ColumnLayout.paddedValue, CanonicalRowLayout.layout,
       dif_neg live]
     exact embed_literal_zero.symm

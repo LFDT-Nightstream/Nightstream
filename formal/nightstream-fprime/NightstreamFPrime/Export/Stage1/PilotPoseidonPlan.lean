@@ -74,7 +74,7 @@ def priorInputState {program : Lifecycle.Stage1.Application.Program}
       (PiRLCRetainedGeometry.priorPoseidonFits (prefixGeometry geometry))
       invocation lane
     if invocation.val < Data.priorChain.absorbCount then
-      if rateLane : lane.val < Spec.Poseidon2.rate then
+      if _rateLane : lane.val < Spec.Poseidon2.rate then
         let offset := invocation.val * Spec.Poseidon2.rate + lane.val
         if present : offset < Data.priorChain.inputLength then
           SparseForm.add previous <|
@@ -101,7 +101,7 @@ def outputInputState {program : Lifecycle.Stage1.Application.Program}
       (PiRLCRetainedGeometry.outputPoseidonFits (prefixGeometry geometry))
       invocation lane
     if invocation.val < Data.outputChain.absorbCount then
-      if rateLane : lane.val < Spec.Poseidon2.rate then
+      if _rateLane : lane.val < Spec.Poseidon2.rate then
         let offset := invocation.val * Spec.Poseidon2.rate + lane.val
         if present : offset < Data.outputChain.inputLength then
           SparseForm.add previous <|

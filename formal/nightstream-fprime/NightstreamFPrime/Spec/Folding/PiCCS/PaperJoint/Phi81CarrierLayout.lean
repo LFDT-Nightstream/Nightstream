@@ -187,7 +187,7 @@ theorem flatIndex_lt_carrierWidth
       block.val < blockCount (carrierWidth logicalWidth) := block.isLt
       _ = blockCount logicalWidth := blockCount_carrierWidth logicalWidth
   have coefficientBound : coefficient.val < 54 := by
-    simpa [ringDegree] using coefficient.isLt
+    simp [ringDegree]
   change block.val * 54 + coefficient.val < blockCount logicalWidth * 54
   omega
 

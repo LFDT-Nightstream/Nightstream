@@ -15,8 +15,7 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use super::{
     encode_pi_ccs_v1_2_public_input, pi_ccs_v1_2_prior_children, pi_ccs_v1_2_state_hash,
-    serialize_pi_ccs_v1_2_state_preimage, step_inputs::digest_bytes, ExtendError, PreparedLifecycle, Stage1State,
-    Stage1StepInputs,
+    serialize_pi_ccs_v1_2_state_preimage, ExtendError, PreparedLifecycle, Stage1State, Stage1StepInputs,
 };
 use crate::folding::{ajtai_rlc_mixer, kernels as optimized, Params, RunningInstance};
 
@@ -38,15 +37,8 @@ impl PreparedLifecycle {
         let rounds = vec![vec![[0; 2]; PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT]; PI_CCS_V1_2_ROUND_COUNT];
         let evaluation_words = (PI_CCS_V1_2_MATRIX_COUNT + 1) * D * 2;
         let transcript = derive_pi_ccs_v1_2_transcript(
-            &[
-                prior_digest.to_vec(),
-                vec![0; PI_CCS_V1_2_FRESH_COMMITMENT_WORDS],
-                prior_public.clone(),
-            ],
-            &[
-                vec![0; PI_CCS_V1_2_ROUND_COUNT * 2],
-                vec![0; PI_DEC_V1_2_CHILD_COUNT * evaluation_words],
-            ],
+            &[0; PI_CCS_V1_2_FRESH_COMMITMENT_WORDS],
+            &prior_public,
             &rounds,
             &vec![0; PI_CCS_V1_2_SOURCE_COUNT * evaluation_words],
         )?;
@@ -63,7 +55,6 @@ impl PreparedLifecycle {
         let mut sources = vec![running.claims[0].clone(); PI_CCS_V1_2_SOURCE_COUNT];
         for source in &mut sources {
             source.r = point.clone();
-            source.fold_digest = digest_bytes(prior_digest);
         }
         for (column, value) in prior_public.iter().copied().enumerate() {
             sources[0].X[(column % D, column / D)] = F::from_u64(value);
@@ -112,14 +103,6 @@ impl PreparedLifecycle {
             output_digest,
             self.binding.verifier_context().clone(),
         )?;
-        let frame = digest_bytes(output_digest);
-        for claim in running
-            .claims
-            .iter_mut()
-            .chain(running.parent_authority.iter_mut())
-        {
-            claim.fold_digest = frame;
-        }
         let witnesses = std::mem::take(&mut running.witnesses);
         Ok((
             Stage1StepInputs {

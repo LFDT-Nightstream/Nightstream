@@ -483,7 +483,9 @@ pub struct CeClaim<C, F, K> {
     pub eval_a: Vec<Vec<K>>,
     /// m_in
     pub m_in: usize,
-    /// **SECURITY**: Transcript-derived digest binding this ME to the folding proof
+    /// Transcript digest of the fold that produced this claim. PiCCS sets it on
+    /// its outputs, and PiRLC and PiDEC check that it is consistent within one
+    /// fold. It is not authority: no check reads the frame of a running claim.
     pub fold_digest: [u8; 32],
     /// Nebula lane-commitment tuple; `None` for non-Nebula claims.
     /// Mixed by the same public ρ/`b`-power arithmetic as `c` through

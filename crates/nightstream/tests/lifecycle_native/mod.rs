@@ -1,6 +1,11 @@
 //! Native migration checks. Saved Lean inputs are test data, never producer input.
-use super::{PreparedLifecycle, Stage1State, Stage1StepInputs, StepInputError};
-use crate::folding::{self, pi_ccs, pi_dec, pi_rlc, CcsClaim, CeClaim, NifsProof, Params, RunningInstance};
+use super::{
+    serialize_pi_ccs_v1_2_state_preimage, PiCcsV1_2PackageBridgeError, PiCcsV1_2ProofInputs, PreparedLifecycle,
+    Stage1State, Stage1StepInputs, StepInputError,
+};
+use crate::folding::{
+    self, pi_ccs, pi_dec, pi_rlc, CcsClaim, CeClaim, NifsProof, Params, RunningInstance, EVALUATION_WIDTH,
+};
 use neo_ajtai::Commitment;
 use neo_ccs::{LaneCommitments, Mat};
 use neo_math::{from_complex, D, F, K};
@@ -158,16 +163,10 @@ fn check_next_metadata(packet: &Stage1StepInputs, original: &NifsProof) {
         next.witnesses.is_empty(),
         "this packet does not construct child openings"
     );
-    assert_eq!(next.claims.len(), 16);
-    let digest = frame(packet.output_digest());
-    for (actual, original) in next.claims.iter().zip(&original.pi_dec.children) {
-        let mut expected = original.clone();
-        expected.fold_digest = digest;
-        assert_eq!(*actual, expected, "only the next-state frame metadata changes");
-    }
-    let mut parent = original.pi_rlc.combined.clone();
-    parent.fold_digest = digest;
-    assert_eq!(next.parent_authority.as_ref(), Some(&parent));
+    assert_eq!(
+        next.claims, original.pi_dec.children,
+        "the verified children, unchanged"
+    );
 }
 struct Fixture {
     package: PreparedLifecycle,
@@ -209,11 +208,12 @@ impl Fixture {
         let mut running = RunningInstance::canonical_zero(&params, package.structure(), 270)
             .unwrap()
             .claims_only();
-        let prior_digest: [u64; 4] = serde_json::from_value(base[4][1].clone()).unwrap();
-        for child in &mut running.claims {
-            child.fold_digest = frame(prior_digest);
+        // Running frames are caches that no check reads. Distinct, noncanonical
+        // values per child show that the honest fold does not depend on them.
+        for (index, child) in running.claims.iter_mut().enumerate() {
+            child.fold_digest = [0xff; 32];
+            child.fold_digest[0] = index as u8;
         }
-        running.parent_authority.as_mut().unwrap().fold_digest = frame(prior_digest);
         let fresh = CcsClaim {
             c: commitment(&actual["pi_ccs_input"][1]),
             x: fields(&actual["pi_ccs_input"][2]),
@@ -352,34 +352,25 @@ fn actual_nifs_builds_the_checked_successor_assignment() {
             output(current, message)
         )
         .is_err());
+    // The prior digest names the running claims only through the state hash:
+    // a changed running opening must fail that recomputation before any fold.
     let mut detached_running = running.clone();
-    detached_running.claims[0].fold_digest[0] ^= 1;
-    assert!(package
+    detached_running.claims[0].eval_k[0] += K::ONE;
+    let error = package
         .step_inputs(
             &state,
             &detached_running,
             &fresh,
             &proof,
             &message.map(|f| f.as_canonical_u64()),
-            output(current, message)
+            output(current, message),
         )
-        .is_err());
-    let mut detached_parent = running.clone();
-    detached_parent
-        .parent_authority
-        .as_mut()
-        .unwrap()
-        .fold_digest[0] ^= 1;
-    assert!(package
-        .step_inputs(
-            &state,
-            &detached_parent,
-            &fresh,
-            &proof,
-            &message.map(|f| f.as_canonical_u64()),
-            output(current, message)
-        )
-        .is_err());
+        .unwrap_err();
+    assert!(
+        matches!(&error, StepInputError::Input(message)
+            if *message == "fresh public input differs from the recomputed prior state hash"),
+        "{error}"
+    );
     let mut detached_fresh = fresh.clone();
     detached_fresh.x[1] += F::ONE;
     assert!(package
@@ -454,14 +445,50 @@ fn selected_plain_step_rejects_auxiliary_commitments() {
         reject(&fixture.running, &fresh, "fresh claim");
 
         let mut running = fixture.running.claims_only();
-        running.claims.last_mut().unwrap().adv = Some(auxiliary.clone());
+        running.claims.last_mut().unwrap().adv = Some(auxiliary);
         reject(&running, &fixture.fresh, "running claim");
-
-        let mut running = fixture.running.claims_only();
-        running.parent_authority.as_mut().unwrap().adv = Some(auxiliary);
-        reject(&running, &fixture.fresh, "supplied parent claim");
     }
 }
+#[test]
+fn state_and_proof_bridges_require_the_padded_evaluation_width() {
+    let fixture = Fixture::load();
+    let context = fixture
+        .package
+        .binding
+        .verifier_context()
+        .digest()
+        .map(F::from_u64);
+    let serialize = |running: &RunningInstance| {
+        serialize_pi_ccs_v1_2_state_preimage(
+            context,
+            fixture.state.iteration(),
+            fixture.state.z0(),
+            fixture.state.current(),
+            &running.claims,
+        )
+        .map(|_| ())
+    };
+    let width_error = |result: Result<(), PiCcsV1_2PackageBridgeError>| {
+        matches!(
+            result,
+            Err(PiCcsV1_2PackageBridgeError::Shape("evaluation family width or padding"))
+        )
+    };
+    assert!(serialize(&fixture.running).is_ok());
+    assert!(PiCcsV1_2ProofInputs::from_proof(&fixture.fresh, &fixture.proof.pi_ccs).is_ok());
+    for width in [D, EVALUATION_WIDTH + 1] {
+        let mut running = fixture.running.claims_only();
+        running.claims[0].eval_k.resize(width, K::ZERO);
+        assert!(width_error(serialize(&running)), "state preimage, width {width}");
+        let mut proof = fixture.proof.pi_ccs.clone();
+        proof.outputs[0].eval_a[0].resize(width, K::ZERO);
+        assert!(
+            width_error(PiCcsV1_2ProofInputs::from_proof(&fixture.fresh, &proof).map(|_| ())),
+            "proof outputs, width {width}"
+        );
+    }
+}
+
 #[test]
 fn saved_proof_and_transcript_match_lean() {
     let fixture = Fixture::load();
@@ -480,7 +507,7 @@ fn saved_proof_and_transcript_match_lean() {
         &fixture.package.structure,
         folding::ajtai_rlc_mixer,
         folding::ajtai_dec_mixer,
-        std::slice::from_ref(&fixture.fresh),
+        &fixture.fresh,
         &fixture.running,
         &fixture.proof,
     )
@@ -501,7 +528,7 @@ fn saved_proof_and_transcript_match_lean() {
         &fixture.package.structure,
         folding::ajtai_rlc_mixer,
         folding::ajtai_dec_mixer,
-        std::slice::from_ref(&fixture.fresh),
+        &fixture.fresh,
         &fixture.running,
         &invalid
     )
@@ -516,3 +543,4 @@ mod recursive;
 mod state_encoding;
 
 mod staged;
+mod terminal_sweep;

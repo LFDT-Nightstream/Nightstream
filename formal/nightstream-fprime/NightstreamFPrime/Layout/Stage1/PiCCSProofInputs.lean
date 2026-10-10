@@ -219,7 +219,7 @@ theorem loadExpectedContext_read (env : Env) (context : VerifierContext.Digest4)
     (expectedContext lane).eval (loadExpectedContext env context) =
       context.toList.getD lane.val 0 := by
   fin_cases lane <;>
-    simp [loadExpectedContext, expectedContext, Expr.eval, Env.set,
+    simp [loadExpectedContext, expectedContext, Env.set,
       VerifierContext.Digest4.toList]
 
 /-- Loading context preserves every other source coordinate, including the

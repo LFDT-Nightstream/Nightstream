@@ -76,7 +76,7 @@ structure Geometry (program : Lifecycle.Stage1.Application.Program)
     (logicalWidth : Nat) : Prop where
   completeFits : completeLogicalWidth program ≤ logicalWidth
 
-def prefixGeometry {program : Lifecycle.Stage1.Application.Program}
+theorem prefixGeometry {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     RunningTransitionRetainedGeometry.Geometry program logicalWidth where
   completeFits := by
@@ -91,17 +91,17 @@ def oneColumn {program : Lifecycle.Stage1.Application.Program}
     Fin logicalWidth :=
   RunningTransitionRetainedGeometry.oneColumn (prefixGeometry geometry)
 
-def poseidonGeometry {program : Lifecycle.Stage1.Application.Program}
+theorem poseidonGeometry {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     PiCCSPoseidonPlan.Geometry program logicalWidth :=
   RunningTransitionRetainedGeometry.poseidonGeometry (prefixGeometry geometry)
 
-def pilotGeometry {program : Lifecycle.Stage1.Application.Program}
+theorem pilotGeometry {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     PiRLCPoseidonGeometry.Geometry program logicalWidth :=
   RunningTransitionRetainedGeometry.pilotGeometry (prefixGeometry geometry)
 
-def priorInputFits {program : Lifecycle.Stage1.Application.Program}
+theorem priorInputFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     priorInputStart program +
         (PiCCSOrdinaryRetainedBlocks.priorInputBlock program).coordinateCount ≤
@@ -117,7 +117,7 @@ def priorInputFits {program : Lifecycle.Stage1.Application.Program}
       BalancedTernary.width, PilotProduction.stateHashWords_eq]
   simpa only [priorInputStart, viewCount] using pilot
 
-def outputInputFits {program : Lifecycle.Stage1.Application.Program}
+theorem outputInputFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     outputInputStart program +
         (PiCCSOrdinaryRetainedBlocks.outputInputBlock program).coordinateCount ≤
@@ -133,7 +133,7 @@ def outputInputFits {program : Lifecycle.Stage1.Application.Program}
       BalancedTernary.width, PilotProduction.stateHashWords_eq]
   simpa only [outputInputStart, viewCount] using pilot
 
-def priorLastFits {program : Lifecycle.Stage1.Application.Program}
+theorem priorLastFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     priorLastStart program +
         (PiCCSOrdinaryRetainedBlocks.priorLastBlock program).coordinateCount ≤
@@ -145,7 +145,7 @@ def priorLastFits {program : Lifecycle.Stage1.Application.Program}
     freshPublicInputStart]
   omega
 
-def outputLastFits {program : Lifecycle.Stage1.Application.Program}
+theorem outputLastFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     outputLastStart program +
         (PiCCSOrdinaryRetainedBlocks.outputLastBlock program).coordinateCount ≤
@@ -156,7 +156,7 @@ def outputLastFits {program : Lifecycle.Stage1.Application.Program}
     expectedContextStart, outputLastStart]
   omega
 
-def freshPublicInputFits {program : Lifecycle.Stage1.Application.Program}
+theorem freshPublicInputFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     freshPublicInputStart program +
         (PiCCSOrdinaryRetainedBlocks.freshPublicInputBlock program).coordinateCount ≤
@@ -168,7 +168,7 @@ def freshPublicInputFits {program : Lifecycle.Stage1.Application.Program}
     freshPublicInputStart]
   omega
 
-def expectedContextFits {program : Lifecycle.Stage1.Application.Program}
+theorem expectedContextFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     expectedContextStart program +
         (PiCCSOrdinaryRetainedBlocks.expectedContextBlock program).coordinateCount ≤
@@ -179,7 +179,7 @@ def expectedContextFits {program : Lifecycle.Stage1.Application.Program}
     expectedContextStart]
   omega
 
-def proofLogicalFits {program : Lifecycle.Stage1.Application.Program}
+theorem proofLogicalFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     proofLogicalStart program +
         (PiCCSOrdinaryRetainedBlocks.proofLogicalBlock program).coordinateCount ≤
@@ -189,7 +189,7 @@ def proofLogicalFits {program : Lifecycle.Stage1.Application.Program}
     proofLogicalStart]
   omega
 
-def outputEndpointFits {program : Lifecycle.Stage1.Application.Program}
+theorem outputEndpointFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     outputEndpointStart program +
         (PiCCSOrdinaryRetainedBlocks.outputEndpointBlock program).coordinateCount ≤
@@ -198,7 +198,7 @@ def outputEndpointFits {program : Lifecycle.Stage1.Application.Program}
   simp only [completeLogicalWidth, freshStart, outputEndpointStart]
   omega
 
-def freshFits {program : Lifecycle.Stage1.Application.Program}
+theorem freshFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     freshStart program +
         (PiCCSOrdinaryRetainedBlocks.freshBlock program).coordinateCount ≤

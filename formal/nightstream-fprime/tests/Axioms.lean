@@ -1224,7 +1224,6 @@ import tests.AxiomsFoundations
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_2.Leaves.TranscriptAbsorption.physical_implies_spec
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_2.Leaves.TranscriptAbsorption.physical_complete
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.verify_eq_none_of_piRlcFailure
-#audit_axioms NightstreamFPrime.Lifecycle.Transcript.domainTag_length
 #audit_axioms NightstreamFPrime.Lifecycle.Transcript.absorbBlocks
 #audit_axioms NightstreamFPrime.Lifecycle.Transcript.absorbBlocks_append
 #audit_axioms NightstreamFPrime.Lifecycle.Transcript.verifierInputBlocks

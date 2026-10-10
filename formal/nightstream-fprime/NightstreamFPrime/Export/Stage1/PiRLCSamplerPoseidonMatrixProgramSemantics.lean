@@ -158,7 +158,7 @@ private theorem entryRule_entry
   have found : constantAt index = some
       (PiRLCSamplerPoseidonPlan.entryWord
         (PiRLCSamplerPoseidonPlan.descriptor current).1 lane) := by
-    simpa [index, entry] using constantAt_encode current lane
+    simp [index, entry]
   simpa [entryRule, constants] using
     PoseidonInput.Rule.optionalConstant_form?_ofSemantic_of_some
       (region := PoseidonInput.Region.mk 0 34 0 16) current lane
@@ -178,7 +178,7 @@ private theorem entryRule_nonentry
   have indexEq : current.val * 16 + lane.val = index.val := by
     simp [index, Fin.encodeProd, Nat.mul_comm]
   have found : constantAt index = none := by
-    simpa [index, notEntry] using constantAt_encode current lane
+    simp [index, notEntry]
   simpa [entryRule, constants] using
     PoseidonInput.Rule.optionalConstant_form?_ofSemantic_of_none
       (region := PoseidonInput.Region.mk 0 34 0 16) current lane

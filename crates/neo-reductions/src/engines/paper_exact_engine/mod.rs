@@ -23,5 +23,4 @@ pub use rlc_dec::{
 pub use paper_rows::PaperMatrixRows;
 pub use prove::{paper_exact_prove, paper_exact_prove_with_rows};
 pub use transcript::encode_proof;
-pub(crate) use transcript::PaperTranscriptBinding;
 pub use verify::{paper_exact_verify, paper_exact_verify_with_trace};

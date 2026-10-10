@@ -122,7 +122,7 @@ theorem outputWitnessStart_bound (invocation : Fin outputInvocationCount) :
 /-- Exact source-local start of one explicit PiCCS or PiRLC invocation. -/
 def laterWitnessStart (invocation : Fin laterInvocationCount) : Nat :=
   let index : Fin basePackage.permutationInvocations.length :=
-    ⟨invocation.val, by simpa [laterInvocationCount] using invocation.isLt⟩
+    ⟨invocation.val, by simp [laterInvocationCount]⟩
   (basePackage.permutationInvocations.get index).witnessStart
 
 /-- Delayed random-access view of the canonical later witness-start schedule. -/
@@ -152,7 +152,7 @@ theorem directLaterWitnessStart_eq_laterWitnessStart
         data_permutationInvocations_length]
       exact invocation.isLt)) =
     (basePackage.permutationInvocations[invocation.val]'(by
-      simpa [laterInvocationCount] using invocation.isLt)).witnessStart
+      simp [laterInvocationCount])).witnessStart
   simp only [List.getElem_toArray,
     PermutationPlan.canonicalWitnessStarts_materializes, List.getElem_map,
     basePackage_permutationInvocations_eq]
@@ -167,7 +167,7 @@ theorem laterWitnessStart_bound (invocation : Fin laterInvocationCount) :
     laterWitnessStart invocation + PoseidonScheduleTrace.localColumnCount ≤
       basePackage.layout.constantColumn := by
   let index : Fin basePackage.permutationInvocations.length :=
-    ⟨invocation.val, by simpa [laterInvocationCount] using invocation.isLt⟩
+    ⟨invocation.val, by simp [laterInvocationCount]⟩
   change
     (basePackage.permutationInvocations.get index).witnessStart + 1096 ≤
       basePackage.layout.constantColumn

@@ -6,11 +6,11 @@ the verifier accepts but no advice list has the advertised length and forward
 application result. This is exactly the history conclusion in AdviceReturned.
 It is distinct from bare NIFS Boolean acceptance and from extractor failure.
 
-The same original mixed terminal law and its actual visited laws are retained.
-No conditioning on invalid inputs or new cryptographic premise is used. The
-linear bound keeps the guarded FS models, symbolic depth/queries, declared
-clock bounds and moments, hash-collision mass and the actual adaptive MSIS
-probability explicit. Honest rejection is separate.
+The bound is on the IVC adversary's original mixed law; no conditioning on
+invalid inputs is used. It runs the reverse extractor of HyperNova Lemma 17
+(`HyperNovaVisitedSecurity.reverseStages`) under HyperNova errata Assumption 1
+(`HyperNovaVisitedSecurity.Assumption1`) and keeps each stage's
+hash-collision mass explicit. Honest rejection is separate.
 -/
 
 set_option autoImplicit false
@@ -19,21 +19,15 @@ namespace NightstreamFPrime.Export.Stage1.HyperNovaFalseAcceptance
 
 open scoped BigOperators ENNReal
 open NightstreamFPrime.Spec
-open NightstreamFPrime.Spec.Folding
-open NightstreamFPrime.Spec.Folding.Nifs
-open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
-open StrongReduction
 open NightstreamFPrime.Lifecycle
-open NightstreamFPrime.Lifecycle.Nifs
-open PiRLC.CoordinateForkLaw (Challenge)
 open HyperNovaHistory (Statement Envelope Payload SourceResult)
 open HyperNovaHistoryProbability (Sample Accepted AdviceReturned)
-open HyperNovaVisitedLaw (Visit goodActive visitedLaw guardedDraw observedDraw)
-open HyperNovaGuardedSourceLaw (inputs realLaw guardedPrefix)
+open HyperNovaVisitedLaw (Visit goodActive visitedLaw guardedDraw observedDraw pathVisit listSource)
 open HyperNovaFirstFailure (MarkedHashCollision MarkedSourceFailure)
+open HyperNovaVisitedSecurity (event_ne_top NifsAdversary NifsExtractor Assumption1 Closed IvcAdversary
+  Stage ExtractionFails reverseStages reverseExtractor)
 open Poseidon2HashChainV1Package (application fits)
-open Poseidon2HashChainV1Setup (productionSetup productionAjtaiKey)
-open PiDECInputCheck (relation)
+open Poseidon2HashChainV1Setup (productionSetup)
 
 attribute [local instance] Classical.propDecidable
 
@@ -74,7 +68,9 @@ private theorem marked_hash_mass
       (fun distribution => distribution.toOuterMeasure {visit | MarkedHashCollision visit})
       marginal
 
-private theorem false_acceptance_mass_le_first_failures
+/-- False-acceptance mass is bounded by the first marked failures at the
+visited contexts of any source law. -/
+theorem false_acceptance_mass_le_first_failures
     (source : Statement → Payload → PMF SourceResult)
     (initial : PMF (Statement × Envelope)) (depth : Nat)
     (bounded : ∀ input ∈ initial.support, input.1.iteration ≤ depth) :
@@ -123,137 +119,97 @@ private theorem false_acceptance_mass_le_first_failures
       rw [marked_hash_mass] at unionBound
       exact unionBound
 
-private theorem event_ne_top {Sample : Type*} (distribution : PMF Sample) (event : Set Sample) :
-    distribution.toOuterMeasure event ≠ ∞ := by
-  rw [PMF.toOuterMeasure_apply]
-  exact distribution.tsum_coe_indicator_ne_top event
+variable {Admitted : NifsAdversary → Prop} {StageAdmitted : Stage → Prop}
+  {Efficient : (adversary : NifsAdversary) → NifsExtractor adversary → Prop}
+  {error : NifsAdversary → ℝ}
+  (assumption : Assumption1 Admitted Efficient error) (closed : Closed Admitted StageAdmitted Efficient)
+  (adversary : IvcAdversary) (admitted : StageAdmitted (Stage.start adversary))
 
-/-- The actual false-acceptance mass is bounded by the first marked failures
-under the same mixed law. Only the advertised iteration bound is assumed;
-all finite-measure facts follow from the PMFs. No valid-source premise is used. -/
-theorem probability_le_first_failures
-    (source : Statement → Payload → PMF SourceResult)
-    (initial : PMF (Statement × Envelope)) (depth : Nat)
-    (bounded : ∀ input ∈ initial.support, input.1.iteration ≤ depth) :
-    (initial.toOuterMeasure {input | FalseAcceptance input}).toReal ≤
+local notation "stages" => reverseStages assumption closed adversary admitted
+local notation "extractors" => reverseExtractor assumption closed adversary admitted
+
+private theorem per_tape (depth : Nat)
+    (depthBound : ∀ tape ∈ adversary.tape.support, (adversary.output tape).1.iteration ≤ depth)
+    (tape : (stages depth).1.Tape) (supported : tape ∈ (stages depth).1.tape.support) :
+    (PMF.pure ((stages depth).1.input tape)).toOuterMeasure {input | FalseAcceptance input} ≤
       ∑ j : Fin depth,
-        (((visitedLaw source initial j.val).toOuterMeasure {visit | MarkedHashCollision visit}).toReal +
-          (((visitedLaw source initial j.val).bind (guardedDraw source)).toOuterMeasure
-            {draw | MarkedSourceFailure draw}).toReal) := by
-  have bound := false_acceptance_mass_le_first_failures source initial depth bounded
+        ((PMF.pure (pathVisit ((stages depth).1.input tape) ((stages depth).1.results tape) j.val)).toOuterMeasure
+            {visit | MarkedHashCollision visit} +
+          (PMF.pure (pathVisit ((stages depth).1.input tape) ((stages depth).1.results tape) j.val,
+            if goodActive (pathVisit ((stages depth).1.input tape) ((stages depth).1.results tape) j.val)
+            then ((stages depth).1.results tape).getD j.val none else none)).toOuterMeasure
+            {draw | MarkedSourceFailure draw}) := by
+  have length := HyperNovaVisitedSecurity.results_length assumption closed adversary admitted depth tape
+  have first := false_acceptance_mass_le_first_failures
+    (listSource ((stages depth).1.input tape).1.iteration ((stages depth).1.results tape))
+    (PMF.pure ((stages depth).1.input tape)) depth (by
+      intro input member
+      rw [PMF.mem_support_pure_iff] at member
+      rw [member]
+      exact HyperNovaVisitedSecurity.input_bound assumption closed adversary admitted depth depthBound
+        depth tape supported)
+  refine first.trans (le_of_eq ?_)
+  refine Finset.sum_congr rfl fun j _ => ?_
+  rw [HyperNovaVisitedLaw.visitedLaw_listSource _ _ _ (by omega), PMF.pure_bind,
+    HyperNovaVisitedLaw.guardedDraw_listSource _ _ _ (by omega)]
+
+/-- False-acceptance bound for the selected terminal verifier on the IVC
+adversary's original mixed law under Assumption 1 (HyperNova Lemma 17). Each
+stage of the reverse extractor contributes its marked hash-collision mass and
+the Assumption 1 error of its NIFS adversary. This is not a bound on bare NIFS
+Boolean acceptance. -/
+theorem probability_bound (depth : Nat)
+    (depthBound : ∀ tape ∈ adversary.tape.support, (adversary.output tape).1.iteration ≤ depth) :
+    (adversary.tape.toOuterMeasure {tape | FalseAcceptance (adversary.output tape)}).toReal ≤
+      ∑ j : Fin depth,
+        (((stages j.val).1.tape.toOuterMeasure
+            {tape | MarkedHashCollision ((stages j.val).1.visit tape)}).toReal +
+          error (stages j.val).1.nifs) := by
+  let law := (stages depth).1.tape
+  let hash : Fin depth → (stages depth).1.Tape → ℝ≥0∞ := fun j tape =>
+    (PMF.pure (pathVisit ((stages depth).1.input tape) ((stages depth).1.results tape) j.val)).toOuterMeasure
+      {visit | MarkedHashCollision visit}
+  let failure : Fin depth → (stages depth).1.Tape → ℝ≥0∞ := fun j tape =>
+    (PMF.pure (pathVisit ((stages depth).1.input tape) ((stages depth).1.results tape) j.val,
+      if goodActive (pathVisit ((stages depth).1.input tape) ((stages depth).1.results tape) j.val)
+      then ((stages depth).1.results tape).getD j.val none else none)).toOuterMeasure
+      {draw | MarkedSourceFailure draw}
+  have bound : adversary.tape.toOuterMeasure {tape | FalseAcceptance (adversary.output tape)} ≤
+      ∑ j : Fin depth,
+        ((stages j.val).1.tape.toOuterMeasure {tape | MarkedHashCollision ((stages j.val).1.visit tape)} +
+          (extractors j.val).law.toOuterMeasure {draw | ExtractionFails _ (extractors j.val) draw}) := by
+    calc
+      _ = ∑' tape, law tape * (PMF.pure ((stages depth).1.input tape)).toOuterMeasure
+            {input | FalseAcceptance input} :=
+          HyperNovaVisitedSecurity.start_event assumption closed adversary admitted depth
+            {input | FalseAcceptance input}
+      _ ≤ ∑' tape, law tape * ∑ j : Fin depth, (hash j tape + failure j tape) := by
+          apply ENNReal.tsum_le_tsum
+          intro tape
+          by_cases zero : law tape = 0
+          · simp only [zero, zero_mul, le_refl]
+          · exact mul_le_mul_right (per_tape assumption closed adversary admitted depth depthBound tape
+              ((PMF.mem_support_iff _ _).mpr zero)) _
+      _ = ∑ j : Fin depth, (∑' tape, law tape * hash j tape + ∑' tape, law tape * failure j tape) := by
+          simp only [mul_add, Finset.mul_sum]
+          rw [Summable.tsum_finsetSum (fun _ _ => ENNReal.summable)]
+          exact Finset.sum_congr rfl fun j _ => ENNReal.tsum_add
+      _ ≤ _ := by
+          refine Finset.sum_le_sum fun j _ => add_le_add (le_of_eq ?_) ?_
+          · exact HyperNovaVisitedSecurity.hash_term_total assumption closed adversary admitted j.val depth
+              j.isLt.le
+          · exact HyperNovaVisitedSecurity.failure_term_total assumption closed adversary admitted j.val
+              depth j.isLt
   have finiteTerm (j : Fin depth) :
-      (visitedLaw source initial j.val).toOuterMeasure {visit | MarkedHashCollision visit} +
-        ((visitedLaw source initial j.val).bind (guardedDraw source)).toOuterMeasure
-          {draw | MarkedSourceFailure draw} ≠ ∞ :=
+      (stages j.val).1.tape.toOuterMeasure {tape | MarkedHashCollision ((stages j.val).1.visit tape)} +
+        (extractors j.val).law.toOuterMeasure {draw | ExtractionFails _ (extractors j.val) draw} ≠ ∞ :=
     ENNReal.add_ne_top.mpr ⟨event_ne_top _ _, event_ne_top _ _⟩
   have finiteSum := ENNReal.sum_ne_top.mpr (fun j (_ : j ∈ Finset.univ) => finiteTerm j)
   have realBound := ENNReal.toReal_mono finiteSum bound
   rw [ENNReal.toReal_sum (fun j (_ : j ∈ Finset.univ) => finiteTerm j)] at realBound
-  have realTerm (j : Fin depth) := ENNReal.toReal_add
-    (event_ne_top (visitedLaw source initial j.val) {visit | MarkedHashCollision visit})
-    (event_ne_top ((visitedLaw source initial j.val).bind (guardedDraw source))
-      {draw | MarkedSourceFailure draw})
-  simpa only [realTerm] using realBound
-
-variable {State Tape : Type*}
-  (tapes : Visit → PublicCoins K productionShape →
-    FullOutputCoordinates.FullOutput K productionShape → State → PMF Tape)
-  (rawCall : Visit → PublicCoins K productionShape →
-    FullOutputCoordinates.FullOutput K productionShape → State →
-      PaperWeakOracle.Call (Tape := Tape) (arity := PaperProfile.arity) NifsExtractionProvider.rlc)
-  (checkClock : Visit → PublicCoins K productionShape →
-    FullOutputCoordinates.FullOutput K productionShape → State → NifsExtractionProvider.CheckClock)
-  (storageClock : Visit → PublicCoins K productionShape →
-    FullOutputCoordinates.FullOutput K productionShape → State → NifsExtractionProvider.StorageClock)
-  (parentClock : Visit → PublicCoins K productionShape →
-    FullOutputCoordinates.FullOutput K productionShape → State → NifsExtractionProvider.ParentClock)
-  (storageBound : Visit → PublicCoins K productionShape →
-    FullOutputCoordinates.FullOutput K productionShape → State → Nat)
-  (storageBounded : ∀ visit coins output state assignments,
-    storageClock visit coins output state assignments ≤ storageBound visit coins output state)
-  (baseSummable : ∀ visit coins output state vector, Summable fun tape =>
-    (tapes visit coins output state tape).toReal *
-      (PaperWeakOracle.baseWork NifsExtractionProvider.rlc
-        (NifsExtractionProvider.suffixProgram (NifsExtractionProvider.batchAt inputs visit coins output)
-          (checkClock visit coins output state) (storageClock visit coins output state))
-        (rawCall visit coins output state) vector tape : ℝ))
-  [DecidableEq RingF]
-  [Fintype (Challenge (ProductionKey.key relation productionAjtaiKey).piRlcAlgebra)]
-  [Nonempty (Challenge (ProductionKey.key relation productionAjtaiKey).piRlcAlgebra)]
-
-/-- Symbolic false-acceptance bound for the selected terminal verifier, on
-the original mixed law. Each actual visit contributes its marked hash mass,
-good-active mass minus the shared FS transfer, FS error, weak reduction loss,
-independent verifier test error and the actual adaptive MSIS probability.
-
-The hypotheses are the support depth bound; the exact guarded FS models with
-shared g/deltaFS and symbolic query counts; the existing raw-call/tape laws,
-storage bound and base-work moments; and the declared primitive bounds. No invalid-source support, conditional experiment, honest
-sampler success, output-soundness premise or numerical advantage is supplied.
-Fixed-seed hardness, useful transfer bounds and total-query applicability
-remain external. This is not a bound on bare NIFS Boolean acceptance. -/
-theorem probability_linear_bound
-    (initial : PMF (Statement × Envelope)) (depth : Nat)
-    (depthBound : ∀ input ∈ initial.support, input.1.iteration ≤ depth)
-    (originalFirstPhase : Visit → InteractivePrefix.Prover State productionShape 8)
-    (abortTape : Tape) (g : Nat → ℝ → ℝ) (deltaFS : Nat → ℝ) (queries : Fin depth → Nat)
-    (scalarSubClock : RingF → RingF → Nat) (inverseAdapterClock : RingF → Nat)
-    (assignmentSubClock : PiRLCExtractionPrimitives.Assignment → PiRLCExtractionPrimitives.Assignment → Nat)
-    (scalarActionClock : RingF → PiRLCExtractionPrimitives.Assignment → Nat)
-    (sourceCheckClock : Visit → PiCCSStoredSourceProbability.CheckClock)
-    (accessClock : Visit → PiCCSStoredSourceProbability.AccessClock)
-    (bounds : PiRLC.PaperForkExtractionWork.PrimitiveBounds)
-    (bounded : PiRLC.PaperForkExtractionWork.Bounded
-      (PaperExtractionAlgebra.extractionAlgebra productionAjtaiKey).ring
-      (PiRLCExtractionPrimitives.program scalarSubClock inverseAdapterClock
-        assignmentSubClock scalarActionClock) bounds) :
-    let continuation := NifsProviderLaw.continuation inputs tapes rawCall checkClock storageClock parentClock
-      storageBound storageBounded baseSummable
-    let program := PiRLCExtractionPrimitives.program scalarSubClock inverseAdapterClock
-      assignmentSubClock scalarActionClock
-    let source := HyperNovaGuardedSourceLaw.source originalFirstPhase continuation program
-    let visits := fun j : Fin depth => visitedLaw source initial j.val
-    let running := fun visit => PiCCSInputCheck.running (inputs visit)
-    let fresh := fun visit => PiCCSInputCheck.fresh (inputs visit)
-    let firstPhase := guardedPrefix originalFirstPhase
-    let checked := InteractiveComposition.firstPhase firstPhase (SupportedExtraction.publicCheck running)
-    let contexts := fun j : Fin depth => FiatShamirTransfer.contextLaw relation (realLaw (visits j))
-    let provider := fun j : Fin depth =>
-      NifsProviderLaw.supportedProvider inputs tapes rawCall checkClock storageClock parentClock
-        storageBound storageBounded baseSummable (contexts j) checked
-    let extended := fun j : Fin depth =>
-      SupportedContinuation.extension relation productionAjtaiKey running fresh (contexts j) checked
-        abortTape (provider j)
-    (∀ j : Fin depth,
-      FiatShamirTransfer.FiatShamirModel relation productionAjtaiKey running fresh
-        (realLaw (visits j)) firstPhase abortTape (provider j) g deltaFS (queries j)) →
-    (initial.toOuterMeasure {input | FalseAcceptance input}).toReal ≤
-      ∑ j : Fin depth,
-          (((visits j).toOuterMeasure
-              {visit | HyperNovaFirstFailure.MarkedHashCollision visit}).toReal +
-            (((visits j).toOuterMeasure {visit | goodActive visit}).toReal -
-              g (queries j) ((visits j).toOuterMeasure {visit | goodActive visit}).toReal +
-              deltaFS (queries j) + InteractiveComposition.weakLoss relation productionAjtaiKey +
-              IndependentExecution.testError productionShape 8 +
-              AdaptiveBindingProbability.successProbability relation productionAjtaiKey program running fresh
-                firstPhase (SupportedExtraction.publicCheck running) (extended j)
-                (fun visit => PiCCSStoredSourceProbability.sourceProgram (inputs visit)
-                  (sourceCheckClock visit) (accessClock visit)) (contexts j) * PaperProfile.arity.total)) := by
-  dsimp only
-  intro models
-  let continuation := NifsProviderLaw.continuation inputs tapes rawCall checkClock storageClock parentClock
-    storageBound storageBounded baseSummable
-  let program := PiRLCExtractionPrimitives.program scalarSubClock inverseAdapterClock
-    assignmentSubClock scalarActionClock
-  let source := HyperNovaGuardedSourceLaw.source originalFirstPhase continuation program
-  have first := probability_le_first_failures source initial depth depthBound
-  have each := HyperNovaVisitedSecurity.source_failure_probability_linear_le tapes rawCall checkClock storageClock parentClock
-    storageBound storageBounded baseSummable initial depth originalFirstPhase abortTape g deltaFS queries
-    scalarSubClock inverseAdapterClock assignmentSubClock scalarActionClock sourceCheckClock accessClock
-    bounds bounded models
-  apply first.trans
-  apply Finset.sum_le_sum
-  intro j _member
-  exact add_le_add (le_refl _) (each j)
+  refine realBound.trans (Finset.sum_le_sum fun j _ => ?_)
+  rw [ENNReal.toReal_add (event_ne_top _ _) (event_ne_top _ _)]
+  exact add_le_add le_rfl
+    (HyperNovaVisitedSecurity.reverseExtractor_error assumption closed adversary admitted j.val)
 
 end NightstreamFPrime.Export.Stage1.HyperNovaFalseAcceptance

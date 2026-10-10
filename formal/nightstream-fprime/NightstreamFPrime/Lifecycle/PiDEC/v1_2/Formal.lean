@@ -243,7 +243,7 @@ structure Assumptions
     (offset : Nat) (_env : Env) : Prop where
   inputs : InputsBelow interface offset
 
-def publicInputAssumptions
+theorem publicInputAssumptions
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -257,7 +257,7 @@ def publicInputAssumptions
   parentBelow := assumptions.inputs.parentPublicInput
   digitBelow := assumptions.inputs.digit
 
-def commitmentAssumptions
+theorem commitmentAssumptions
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -281,7 +281,7 @@ def commitmentAssumptions
         (CommitmentRecomposition.coordinates coordinate).2)
     simp [commitmentOffset, recompositionOffset]
 
-def evalKAssumptions
+theorem evalKAssumptions
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -306,7 +306,7 @@ def evalKAssumptions
           (RingKRecomposition.coordinates coordinate).2.1))
     simp [evalKOffset, recompositionOffset]
 
-def evalAAssumptions
+theorem evalAAssumptions
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}

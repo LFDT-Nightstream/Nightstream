@@ -317,7 +317,7 @@ private theorem gammaEq_of_evidence
         (challengeOffset interface offset) env := by
     have challengeStartEq : challengeStart shared =
         challengeOffset interface offset := by
-      simpa [shared] using challengeStart_atOffset interface offset
+      simp [shared]
     rw [ChallengeDerivation.evalGamma_eq]
     change (ChallengeDerivation.gamma
       (challengeInterface shared shared.baseOffset)
@@ -359,7 +359,7 @@ private theorem evalKEq_of_evidence
   change (EvalKTerminal.output (evalKInterface shared)
     (evalKStart shared)).eval env = _
   have startEq : evalKStart shared = evalKOffset interface offset := by
-    simpa [shared] using evalKStart_atOffset interface offset
+    simp [shared]
   rw [startEq]
   exact evidence.eval_K
 
@@ -394,7 +394,7 @@ private theorem evalAEq_of_evidence
   change (EvalATerminal.output (evalAInterface shared)
     (evalAStart shared)).eval env = _
   have startEq : evalAStart shared = evalAOffset interface offset := by
-    simpa [shared] using evalAStart_atOffset interface offset
+    simp [shared]
   rw [startEq]
   exact evidence.eval_A
 
@@ -433,7 +433,7 @@ private theorem ccsEq_of_specification
   change (CcsTerminal.output relation (ccsInterface relation shared)
     (ccsStart shared)).eval env = _
   have startEq : ccsStart shared = ccsOffset interface offset := by
-    simpa [shared] using ccsStart_atOffset interface offset
+    simp [shared]
   rw [startEq]
   exact valueEq
 
@@ -525,7 +525,7 @@ private theorem terminalEq_of_evidence
         (evalProof relation interface offset env template)).output := by
   let shared := atOffset interface offset
   have startEq : sumcheckStart shared = sumcheckOffset interface offset := by
-    simpa [shared] using sumcheckStart_atOffset interface offset
+    simp [shared]
   have wiring := congrArg (fun expression : KExpr => expression.eval env)
     (finalIdentityTerminal_eq_sumcheckOutput relation shared
       (finalIdentityOffset relation interface offset)

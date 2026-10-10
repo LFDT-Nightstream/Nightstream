@@ -5,33 +5,46 @@ use neo_math::ring::{cf_inv, Rq};
 use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
 
+/// Evaluation vectors use the padded ring degree; the lanes from `D` on are zero.
+pub(crate) const EVALUATION_WIDTH: usize = D.next_power_of_two();
+
+/// The one canonical encoding of an `Eval_K` vector or an `Eval_A` row.
+pub(crate) fn is_canonical_evaluation(values: &[K]) -> bool {
+    values.len() == EVALUATION_WIDTH && values[D..].iter().all(|lane| *lane == K::ZERO)
+}
+
+/// The canonical evaluation families of one claim: `Eval_K` and `matrices`
+/// rows of `Eval_A`, each a canonical evaluation.
+pub(crate) fn has_canonical_evaluations(claim: &CeClaim, matrices: usize) -> bool {
+    claim.eval_a.len() == matrices
+        && is_canonical_evaluation(&claim.eval_k)
+        && claim.eval_a.iter().all(|row| is_canonical_evaluation(row))
+}
+
 #[derive(Clone, Debug)]
 pub struct CcsInstance {
     pub claim: CcsClaim,
     pub witness: CcsWitness,
 }
+/// The running PiDEC children and, for the prover, their openings. No check
+/// reads a running claim's `fold_digest` frame.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct RunningInstance {
     pub claims: Vec<CeClaim>,
     pub witnesses: Vec<Mat<F>>,
-    pub parent_authority: Option<CeClaim>,
 }
 impl RunningInstance {
-    pub fn new(claims: Vec<CeClaim>, witnesses: Vec<Mat<F>>, parent_authority: Option<CeClaim>) -> Self {
-        Self {
-            claims,
-            witnesses,
-            parent_authority,
-        }
+    pub fn new(claims: Vec<CeClaim>, witnesses: Vec<Mat<F>>) -> Self {
+        Self { claims, witnesses }
     }
     pub fn claims_only(&self) -> Self {
-        Self::new(self.claims.clone(), Vec::new(), self.parent_authority.clone())
+        Self::new(self.claims.clone(), Vec::new())
     }
     pub(crate) fn is_empty(&self) -> bool {
-        self.claims.is_empty() && self.witnesses.is_empty() && self.parent_authority.is_none()
+        self.claims.is_empty() && self.witnesses.is_empty()
     }
     pub(crate) fn prover_shape_is_valid(&self) -> bool {
-        self.claims.len() == self.witnesses.len() && self.claims.is_empty() == self.parent_authority.is_none()
+        self.claims.len() == self.witnesses.len()
     }
     pub(crate) fn canonical_zero(pp: &Params, s: &Structure, m_in: usize) -> Result<Self, &'static str> {
         if m_in > s.m || m_in % D != 0 {
@@ -47,16 +60,15 @@ impl RunningInstance {
             c: Commitment::zeros(D, pp.kappa() as usize),
             X: Mat::virtual_constant(D, superneo_public_x_cols(m_in), F::ZERO),
             r: vec![K::ZERO; ell],
-            eval_k: vec![K::ZERO; D.next_power_of_two()],
-            eval_a: vec![vec![K::ZERO; D.next_power_of_two()]; s.t()],
+            eval_k: vec![K::ZERO; EVALUATION_WIDTH],
+            eval_a: vec![vec![K::ZERO; EVALUATION_WIDTH]; s.t()],
             m_in,
             fold_digest: [0; 32],
             adv: None,
         };
         Ok(Self::new(
-            vec![claim.clone(); pp.k_rho() as usize],
+            vec![claim; pp.k_rho() as usize],
             vec![Mat::virtual_constant(D, s.m.div_ceil(D), F::ZERO); pp.k_rho() as usize],
-            Some(claim),
         ))
     }
 }

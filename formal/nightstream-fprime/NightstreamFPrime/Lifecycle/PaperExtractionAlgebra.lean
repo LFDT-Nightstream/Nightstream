@@ -823,7 +823,7 @@ private theorem mapNegOfMapZeroAdd
     _ = target.add (target.neg (map value)) target.zero := by rw [inverse]
     _ = target.neg (map value) := targetLaws.add_zero _
 
-private def linearMapLawsOfZeroAddSmul
+private theorem linearMapLawsOfZeroAddSmul
     {Source Target : Type}
     (source : ModuleOps RingF Source) (target : ModuleOps RingF Target)
     (sourceLaws : ModuleLaws ScalarRing source)
@@ -928,7 +928,7 @@ private theorem semantic_getD
     source assignment point].getD index evaluationModule.zero = _
   exact singleton_getD _ _ index
 
-private def semanticEvaluationMapLaws
+private theorem semanticEvaluationMapLaws
     {logicalWidth : Nat}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns <=
       Phi81CarrierLayout.carrierWidth logicalWidth}

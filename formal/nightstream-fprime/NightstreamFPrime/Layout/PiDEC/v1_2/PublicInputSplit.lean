@@ -73,7 +73,7 @@ structure InputsLinear
     Nonconstant (interface.digit offset child coordinate)
 
 /-- Every coordinate child receives the same parent-owned affine wires. -/
-def childInputs
+theorem childInputs
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}

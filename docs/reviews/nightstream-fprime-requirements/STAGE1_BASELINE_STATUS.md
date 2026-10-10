@@ -10,7 +10,7 @@ and scope are in `scripts/lean_graph/STAGE1_BASELINE.md`.
 | Result | Evidence | State |
 | --- | --- | --- |
 | Complete arbitrary-assignment and terminal context targets | `ActualPiDECOutput.selectedRowsAndPublic_imply_step`, literal `Stage1Assignment`, `Stage1TerminalAssignment` and `Stage1TerminalParent` targets | Checked; exact targets and axiom gates pass. |
-| Symbolic selected-terminal false-acceptance bound | `HyperNovaFalseAcceptance.probability_linear_bound`, literal `HyperNovaTerminalFalseAcceptance`; `FALSE_ACCEPTANCE_GATES.json` | Checked at `8084c256`, with its explicit premises and independent review. |
+| Symbolic selected-terminal false-acceptance bound | `HyperNovaFalseAcceptance.probability_bound` under HyperNova errata Assumption 1, literal `HyperNovaTerminalFalseAcceptance` | The earlier `probability_linear_bound` was checked at `8084c256` (`FALSE_ACCEPTANCE_GATES.json`); the Assumption 1 form replaced it on 2026-10-07 and awaits a target-meaning review. |
 | Public initial/base lifecycle | `Stage1Envelope::initial`, `package.extend`, `package.verify`; `STAGE1_PUBLIC_BASE_EVIDENCE.zip` | Full base assignment/reference commitment and terminal checks pass at `48f06fab`. |
 | Actual nonzero-running C/R/D | `NONZERO_NIFS_GATES.json`, `NONZERO_NIFS_REVIEW.json` | Passed at `854327d9`: original witnesses, complete Lean phase results, all 945983 proof bytes and required mutations. |
 | Complete nonzero 2-to-3 successor and terminal | `NONZERO_SUCCESSOR_GATES.json`, `NONZERO_SUCCESSOR_REVIEW.json` | Passed at `7310cf24`: complete assignment, all physical/logical rows, terminal acceptance and three rejection cases. |

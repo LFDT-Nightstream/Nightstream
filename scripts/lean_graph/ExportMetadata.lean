@@ -1,5 +1,4 @@
 import tests.EvidenceTargets
-import NightstreamFPrime.Lifecycle.Nifs.AdaptiveBindingWork
 
 /-! Standalone inspection driver. Each witness graph includes its exact target.
 Run through validate.sh after building the library and tests.EvidenceTargets.
@@ -12,16 +11,9 @@ Run through validate.sh after building the library and tests.EvidenceTargets.
 #evidence_export LeanGraph.Targets.stage1TerminalAssignment
 #evidence_export LeanGraph.Targets.stage1TerminalParent
 
--- The final target and its separate probability/clock correspondence obligations.
+-- The final history target.
 #evidence_export LeanGraph.Targets.hyperNovaLinearSecurity
-#evidence_export NightstreamFPrime.Lifecycle.Nifs.AdaptiveBindingProbability.successProbability_tendsto
-#evidence_export NightstreamFPrime.Lifecycle.Nifs.AdaptiveBindingWork.driverMean_tendsto
-#evidence_export NightstreamFPrime.Lifecycle.Nifs.AdaptiveBindingWork.entered_exhaustion_tendsto
-#evidence_export NightstreamFPrime.Lifecycle.Nifs.AdaptiveBindingWork.retryMean_zero_eq_runWork
-#evidence_export NightstreamFPrime.Lifecycle.Nifs.AdaptiveBindingWork.retryMean_succ_eq_runWork
-#evidence_export NightstreamFPrime.Lifecycle.Nifs.AdaptiveBindingWork.driverMean_eq_runWork
-#evidence_export NightstreamFPrime.Lifecycle.Nifs.AdaptiveBindingWork.prepared_expected_work_polynomial_bound
-
 #evidence_export LeanGraph.Targets.hyperNovaTerminalFalseAcceptance
+#evidence_export LeanGraph.Targets.romKnowledgeSoundness
 #evidence_export LeanGraph.Targets.piRLCWitnessReplay
 #evidence_export NightstreamFPrime.Export.Stage1.PiRLCWitnessHonestResponse.preparedWitnessBlockPartials_honestResponse

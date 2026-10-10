@@ -5,7 +5,7 @@ Status: **historical specification record; current implementation correspondence
 This package preserves the earlier selected contract and its review records.
 Its fixed geometry and bounded sampler describe that historical revision,
 not the current wide-sampler implementation. The maintained production proof
-authority is [Nightstream F′](../formal/nightstream-fprime/ASSURANCE_SURFACE.md).
+authority is [Nightstream F′](../formal/nightstream-fprime/SECURITY_MODEL.md).
 No compatibility path implements this historical sampler. The old review
 records do not certify the current Lean model, Rust verifier, or circuit.
 

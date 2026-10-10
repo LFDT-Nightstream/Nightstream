@@ -94,7 +94,7 @@ impl SavedNifs {
             &package.structure,
             ajtai_rlc_mixer,
             ajtai_dec_mixer,
-            std::slice::from_ref(&fresh),
+            &fresh,
             &running,
             &proof,
         )
@@ -117,17 +117,9 @@ fn replay_ccs(
     proof: &pi_ccs::Proof,
 ) -> (Transcript, Vec<CeClaim>) {
     let params = params(package);
-    folding::validate_running_parent_authority(&params, &package.structure, ajtai_dec_mixer, running).unwrap();
+    folding::validate_running_children(&params, &package.structure, running).unwrap();
     let mut transcript = Transcript::session();
-    let outputs = pi_ccs::verify(
-        &mut transcript,
-        &params,
-        &package.structure,
-        std::slice::from_ref(fresh),
-        running,
-        proof,
-    )
-    .unwrap();
+    let outputs = pi_ccs::verify(&mut transcript, &params, &package.structure, fresh, running, proof).unwrap();
     (transcript, outputs)
 }
 fn read_parent(package: &PreparedLifecycle, root: &Path, step: u64) -> SavedParent {
@@ -251,8 +243,8 @@ pub(super) fn ccs(root: &Path, step: u64, engine: EvaluationEngine, cpu_referenc
             &package.structure,
             &rows,
             workspace_bytes,
-            std::slice::from_ref(&source.fresh.claim),
-            std::slice::from_ref(&source.fresh.witness),
+            &source.fresh.claim,
+            &source.fresh.witness,
             &source.running,
         )
         .unwrap(),
@@ -376,7 +368,7 @@ pub(super) fn prove(root: &Path, step: u64, engine: EvaluationEngine, reference_
     let fresh = source.fresh.claim.clone();
     let running = source.running.claims_only();
     let started = Instant::now();
-    let (next, proof) = package.prove(vec![source.fresh], source.running).unwrap();
+    let (next, proof) = package.prove(source.fresh, source.running).unwrap();
     eprintln!("complete C/R/D engine={engine:?} elapsed={:?}", started.elapsed());
     let wire = proof.canonical_bytes();
     assert!(
@@ -390,13 +382,12 @@ pub(super) fn prove(root: &Path, step: u64, engine: EvaluationEngine, reference_
         &package.structure,
         ajtai_rlc_mixer,
         ajtai_dec_mixer,
-        std::slice::from_ref(&fresh),
+        &fresh,
         &running,
         &proof,
     )
     .unwrap();
     assert_eq!(next.claims, verified.claims);
-    assert_eq!(next.parent_authority, verified.parent_authority);
     lean::export(
         &directory,
         &package,

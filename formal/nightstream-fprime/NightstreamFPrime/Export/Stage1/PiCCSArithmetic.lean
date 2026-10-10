@@ -784,7 +784,7 @@ theorem packetHolds_imply_arithmeticSpecs
           (sharedInterface logicalWidth publicFits)])
       finalIdentityAssumptions packets.finalIdentity }
 
-def inputShapes
+theorem inputShapes
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth)

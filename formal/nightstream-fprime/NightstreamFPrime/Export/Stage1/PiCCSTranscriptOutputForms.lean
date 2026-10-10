@@ -221,7 +221,7 @@ theorem pointGrid_form?
       omega
     rw [grouped, Spartan.sourceToSpartan_add_of_piCcsLocal]
     norm_num [pointSourceStart, PiCCSStarts.roundTranscriptWitnessStart_eq,
-      RunningTransitionInputs.roundSampleC0Offset, Spartan.piCcsPhaseOffset] <;> omega
+      RunningTransitionInputs.roundSampleC0Offset, Spartan.piCcsPhaseOffset]; omega
   let offset : Fin 1 := ⟨0, by omega⟩
   have direct := SourceGrid.form?_externalOfSemantic
     (PiCCSPoseidonPlan.retainedBlock program)
@@ -232,7 +232,7 @@ theorem pointGrid_form?
     (PiCCSPoseidonPlan.retainedFits geometry)
     (by norm_num [RunningTransitionInputs.roundStride]) (by omega)
     coordinate offset offset
-    (by norm_num [RunningTransitionInputs.roundStride] <;> omega)
+    (by norm_num [RunningTransitionInputs.roundStride])
     (by omega) (by omega) (by
       intro selected
       have selectedBound := selected.isLt

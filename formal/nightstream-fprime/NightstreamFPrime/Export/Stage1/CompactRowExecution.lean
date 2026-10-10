@@ -58,7 +58,7 @@ private theorem run_append (inputColumn : Nat → Nat) (localStart : Nat)
   | cons row rest inductionHypothesis =>
       simp only [List.cons_append, run]
       cases first : step inputColumn localStart env row with
-      | none => simp [first]
+      | none => simp []
       | some after => simpa [first] using inductionHypothesis after
 
 /-- Existing abstraction/instantiation is lossless in normalized coordinates. -/
@@ -132,7 +132,7 @@ theorem run_lowerExpression (inputCount : Nat) (env : Env)
       simp only [Option.bind_some, run]
       rw [step_product inputCount
         (start + R1CS.mulCount left + R1CS.mulCount right)
-        _ _ _ (by omega)] <;> rfl
+        _ _ _ (by omega)]; rfl
 
 /-- The final generic assertion checks zero in the completed environment.
 Both logical zero and variable scope are necessary premises. The existing
@@ -157,6 +157,6 @@ theorem run_lowerGenericConstraint (inputCount : Nat) (env : Env)
   rw [run_append, run_lowerExpression inputCount env expression start startBound]
   simp only [Option.bind_some, run]
   rw [step_assertion inputCount completed
-    (R1CS.lowerExpression expression start).value valueZero] <;> rfl
+    (R1CS.lowerExpression expression start).value valueZero]; rfl
 
 end NightstreamFPrime.Export.Stage1.CompactRowExecution

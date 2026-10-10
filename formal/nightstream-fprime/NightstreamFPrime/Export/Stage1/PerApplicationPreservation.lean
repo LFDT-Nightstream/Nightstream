@@ -541,7 +541,7 @@ private theorem shiftedHashInvocationInput
     baseRate, finalRate]
   by_cases isFirst : invocation = 0
   · subst invocation
-    simp only [if_pos rfl]
+    simp only []
     by_cases absorbing : 0 < chain.absorbCount
     · simp only [absorbing, if_pos]
       by_cases present : lane < 12 ∧ 0 * 12 + lane < chain.inputLength
@@ -555,7 +555,7 @@ private theorem shiftedHashInvocationInput
           intro both
           exact (Nat.not_lt.mpr (present both.1)) both.2
         simp [absent]
-    · simp only [absorbing, if_neg]
+    · simp only [absorbing]
       by_cases zeroLane : lane = 0
       · simp [zeroLane]
       · simp [zeroLane]
@@ -592,7 +592,7 @@ private theorem shiftedHashInvocationInput
           (invocation * 12 + lane) (by omega)
         simp [present, previousShift, inputShift]
       · simp [present, previousShift]
-    · simp only [absorbing, if_neg]
+    · simp only [absorbing]
       by_cases zeroLane : lane = 0
       · subst lane
         simp at previousShift
@@ -836,8 +836,7 @@ theorem packageRows_imply_basePackage
         basePackage.compactRowTemplates[
           invocation.templateIndex]? with
     | none =>
-        simpa [shiftCompactRowInvocation, templateEquation]
-          using finalRows
+        simp [shiftCompactRowInvocation, templateEquation] at finalRows
     | some template =>
         simp only
         unfold Layout.R1CS.RowsHold

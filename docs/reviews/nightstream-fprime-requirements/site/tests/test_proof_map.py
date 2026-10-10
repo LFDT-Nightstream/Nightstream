@@ -19,8 +19,8 @@ class ProofMapTests(unittest.TestCase):
                 self.assertTrue(all(ref['path'].endswith('.lean') for ref in edge['code']))
         text = export_map(result, DATA)
         self.assertIn('proof-map:deployed', text)
-        self.assertIn('history_probability_linear_bound', text)
-        self.assertNotIn('history_probability_bound', text)
+        self.assertIn('history_probability_bound', text)
+        self.assertNotIn('history_probability_linear_bound', text)
         self.assertEqual(sum(line.startswith('| ') for line in text.splitlines()), len(result['edges']) + 2)
         nodes = {n['id']: n for n in result['nodes']}
         self.assertEqual(nodes['uniform']['kind'], 'premise')
@@ -31,7 +31,7 @@ class ProofMapTests(unittest.TestCase):
         self.assertEqual(nodes['deployed']['kind'], 'theorem')
         self.assertEqual(nodes['deployed']['statuses']['connection'], 'connected')
         self.assertTrue(any(ref['path'].endswith('/HyperNovaFalseAcceptance.lean')
-                            and ref['symbol'] == 'probability_linear_bound'
+                            and ref['symbol'] == 'probability_bound'
                             for ref in nodes['deployed']['code']))
 
     def test_missing_or_misnamed_evidence_fails(self):

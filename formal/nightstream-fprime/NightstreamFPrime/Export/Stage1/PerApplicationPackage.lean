@@ -835,7 +835,7 @@ structure FitsTwoPow28 (program : Lifecycle.Stage1.Application.Program) : Prop w
 
 /-- Construct the physical package fit from application-only row and private
 column bounds. -/
-def fitsTwoPow28OfApplicationBounds
+theorem fitsTwoPow28OfApplicationBounds
     (program : Lifecycle.Stage1.Application.Program)
     (rows : (applicationPlan program).rowCount ≤ 256867931)
     (columns : addedPrivateColumnCount program ≤ 256780973) :

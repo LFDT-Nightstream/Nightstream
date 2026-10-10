@@ -24,7 +24,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 def logicalWidth (application : Lifecycle.Stage1.Application.Program) : Nat :=
   ApplicationRetainedGeometry.completeLogicalWidth application
 
-def publicFits (application : Lifecycle.Stage1.Application.Program) :
+theorem publicFits (application : Lifecycle.Stage1.Application.Program) :
     ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth (logicalWidth application) := by
   apply Nat.le_trans (m := logicalWidth application)
@@ -43,7 +43,7 @@ structure FitsTwoPow28
 
 /-- Construct every final domain obligation from the three small numerical
 bounds owned by one concrete application. -/
-def fitsTwoPow28OfApplicationBounds
+theorem fitsTwoPow28OfApplicationBounds
     (application : Lifecycle.Stage1.Application.Program)
     (rows : (PerApplicationPackage.applicationPlan application).rowCount ≤
       256867931)
@@ -59,7 +59,7 @@ def fitsTwoPow28OfApplicationBounds
       application).2
     exact carrierWords
 
-def geometry (application : Lifecycle.Stage1.Application.Program) :
+theorem geometry (application : Lifecycle.Stage1.Application.Program) :
     ApplicationRetainedGeometry.Geometry application
       (logicalWidth application) where
   completeFits := Nat.le_refl _

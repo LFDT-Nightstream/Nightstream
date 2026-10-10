@@ -15,9 +15,8 @@ namespace NightstreamFPrime.Export.Stage1.HyperNovaVisitedAcceptance
 open scoped BigOperators ENNReal
 open HyperNovaHistory
 open HyperNovaVisitedLaw
-open HyperNovaGuardedSourceLaw (inputs realOutput realLaw)
+open HyperNovaGuardedSourceLaw (inputs realOutput)
 open NightstreamFPrime.Lifecycle
-open NightstreamFPrime.Lifecycle.Nifs
 open Poseidon2HashChainV1Package (application fits)
 open Poseidon2HashChainV1Setup (productionSetup productionAjtaiKey)
 
@@ -131,9 +130,39 @@ theorem marked_accepted
       PerApplicationTerminal.Holds application fits productionSetup statement proof := by
   have accepted := supported_accepted source initial steps visit supported marked
   cases current : visit.1 with
-  | none => exact False.elim (by simpa only [current] using accepted)
+  | none => exact False.elim (by simp only [current] at accepted)
   | some input =>
       exact ⟨input.1, input.2, rfl, by simpa only [current] using accepted⟩
+
+/-- A good active supported visit holds an accepted, collision-free, non-base
+recursive terminal. -/
+private theorem good_terminal
+    (source : Statement → Payload → PMF SourceResult)
+    (initial : PMF (Statement × Envelope)) (steps : Nat) (visit : Visit)
+    (supported : visit ∈ (visitedLaw source initial steps).support)
+    (good : goodActive visit) :
+    ∃ statement payload, visit.1 = some (statement, .recursive payload) ∧
+      PerApplicationTerminal.Holds application fits productionSetup statement
+        (.recursive payload) ∧
+      ¬ Collision statement payload ∧ 0 < (decodedInput payload).iteration := by
+  rcases marked_accepted source initial steps visit supported good.1 with
+    ⟨statement, proof, current, accepted⟩
+  cases proof with
+  | bottom =>
+      have impossible := good.2.1
+      simp only [ready, current] at impossible
+  | recursive payload =>
+      have active : statement.iteration ≠ 0 ∧
+          (decodedInput payload).iteration + 1 = statement.iteration ∧
+          (decodedInput payload).iteration ≠ 0 := by
+        simpa only [ready, current] using good.2.1
+      have safe : ¬ Collision statement payload := by
+        have safe := good.2.2
+        change ¬ (match visit.1 with
+          | some (statement, .recursive payload) => Collision statement payload
+          | _ => False) at safe
+        simpa only [current] using safe
+      exact ⟨statement, payload, current, accepted, safe, Nat.pos_of_ne_zero active.2.2⟩
 
 /-- At every supported visited context, the guarded real verifier event is
 exactly the good active mark. This includes the original stopped and abort
@@ -142,80 +171,20 @@ theorem realSuccess_iff_goodActive
     (source : Statement → Payload → PMF SourceResult)
     (initial : PMF (Statement × Envelope)) (steps : Nat) (visit : Visit)
     (supported : visit ∈ (visitedLaw source initial steps).support) :
-    FiatShamirTransfer.RealSuccess PiDECInputCheck.relation productionAjtaiKey
+    NifsRealSuccess.RealSuccess PiDECInputCheck.relation productionAjtaiKey
+      (PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup)
       (PiCCSInputCheck.running (inputs visit)) (PiCCSInputCheck.fresh (inputs visit))
       (realOutput visit) ↔ goodActive visit := by
   by_cases good : goodActive visit
   · refine ⟨fun _ => good, fun _ => ?_⟩
-    rcases marked_accepted source initial steps visit supported good.1 with
-      ⟨statement, proof, current, accepted⟩
-    cases proof with
-    | bottom =>
-        have impossible := good.2.1
-        simp only [ready, current] at impossible
-    | recursive payload =>
-        have active : statement.iteration ≠ 0 ∧
-            (decodedInput payload).iteration + 1 = statement.iteration ∧
-            (decodedInput payload).iteration ≠ 0 := by
-          simpa only [ready, current] using good.2.1
-        have safe : ¬ Collision statement payload := by
-          have safe := good.2.2
-          change ¬ (match visit.1 with
-            | some (statement, .recursive payload) => Collision statement payload
-            | _ => False) at safe
-          simpa only [current] using safe
-        have outputEq : realOutput visit = some (HyperNovaRealInput.output payload) := by
-          simp only [realOutput, if_pos good, current]
-        rw [outputEq]
-        simpa only [inputs, current] using
-          HyperNovaRealInput.realSuccess_of_terminal statement payload accepted safe
-            (Nat.pos_of_ne_zero active.2.2)
+    rcases good_terminal source initial steps visit supported good with
+      ⟨statement, payload, current, accepted, safe, positive⟩
+    have outputEq : realOutput visit = some (HyperNovaRealInput.output payload) := by
+      simp only [realOutput, if_pos good, current]
+    rw [outputEq]
+    simpa only [inputs, current] using
+      HyperNovaRealInput.realSuccess_of_terminal statement payload accepted safe positive
   · rw [HyperNovaGuardedSourceLaw.realOutput_off visit good]
     exact iff_of_false id good
-
-private theorem realSuccessProbability_eq_event
-    (distribution : PMF (Visit × Option (FiatShamirTransfer.RealOutput PiDECInputCheck.relation))) :
-    FiatShamirTransfer.realSuccessProbability PiDECInputCheck.relation productionAjtaiKey
-      (fun visit => PiCCSInputCheck.running (inputs visit))
-      (fun visit => PiCCSInputCheck.fresh (inputs visit)) distribution =
-      (distribution.toOuterMeasure {sample |
-        FiatShamirTransfer.RealSuccess PiDECInputCheck.relation productionAjtaiKey
-          (PiCCSInputCheck.running (inputs sample.1)) (PiCCSInputCheck.fresh (inputs sample.1))
-          sample.2}).toReal := by
-  unfold FiatShamirTransfer.realSuccessProbability
-  rw [PMF.toOuterMeasure_apply, ENNReal.tsum_toReal_eq (fun sample => by
-    by_cases success : FiatShamirTransfer.RealSuccess PiDECInputCheck.relation productionAjtaiKey
-        (PiCCSInputCheck.running (inputs sample.1)) (PiCCSInputCheck.fresh (inputs sample.1)) sample.2
-    · simpa only [Set.indicator, Set.mem_setOf_eq, if_pos success] using
-        distribution.apply_ne_top sample
-    · simp only [Set.indicator, Set.mem_setOf_eq, if_neg success]
-      exact ENNReal.zero_ne_top)]
-  apply tsum_congr
-  intro sample
-  by_cases success : FiatShamirTransfer.RealSuccess PiDECInputCheck.relation productionAjtaiKey
-      (PiCCSInputCheck.running (inputs sample.1)) (PiCCSInputCheck.fresh (inputs sample.1)) sample.2
-  · simp only [Set.indicator, Set.mem_setOf_eq, if_pos success]
-  · simp only [Set.indicator, Set.mem_setOf_eq, if_neg success, ENNReal.toReal_zero]
-
-/-- The real success probability used by the approved FS transfer is the exact
-mass of good active visits in this actual history law. The source kernel is
-arbitrary; success of its earlier returns is checked by the analytical mark. -/
-theorem realSuccessProbability_eq_goodActive
-    (source : Statement → Payload → PMF SourceResult)
-    (initial : PMF (Statement × Envelope)) (steps : Nat) :
-    FiatShamirTransfer.realSuccessProbability PiDECInputCheck.relation productionAjtaiKey
-      (fun visit => PiCCSInputCheck.running (inputs visit))
-      (fun visit => PiCCSInputCheck.fresh (inputs visit))
-      (realLaw (visitedLaw source initial steps)) =
-      ((visitedLaw source initial steps).toOuterMeasure {visit | goodActive visit}).toReal := by
-  rw [realSuccessProbability_eq_event, realLaw, PMF.toOuterMeasure_map_apply]
-  apply congrArg ENNReal.toReal
-  apply PMF.toOuterMeasure_apply_eq_of_inter_support_eq
-  ext visit
-  constructor
-  · rintro ⟨success, supported⟩
-    exact ⟨(realSuccess_iff_goodActive source initial steps visit supported).mp success, supported⟩
-  · rintro ⟨good, supported⟩
-    exact ⟨(realSuccess_iff_goodActive source initial steps visit supported).mpr good, supported⟩
 
 end NightstreamFPrime.Export.Stage1.HyperNovaVisitedAcceptance

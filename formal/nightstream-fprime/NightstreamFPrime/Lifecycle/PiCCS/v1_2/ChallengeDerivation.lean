@@ -270,8 +270,7 @@ def alpha (interface : Interface) (offset : Nat)
     have valuesLength : values.length = 28 := by
       simp [values, productionCubeVariables_eq]
     rw [valuesLength]
-    simpa [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables] using
-      coordinate.isLt⟩
+    simp [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]⟩
 
 /-- Derived `γ` sample follows the 28 `α` coordinates. -/
 def gamma (interface : Interface) (offset : Nat) : KExpr :=
@@ -302,8 +301,7 @@ theorem alpha_eq_alphaFast_pointwise (interface : Interface) (offset : Nat)
     have valuesLength : values.length = 28 := by
       simp [values, productionCubeVariables_eq]
     rw [valuesLength]
-    simpa [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables] using
-      coordinate.isLt
+    simp [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
   calc
     alpha interface offset coordinate = values.get ⟨coordinate.val,
         coordinateBound⟩ := by
@@ -641,8 +639,8 @@ theorem alphaSchedule_values (interface : Interface) (offset : Nat) :
         have valuesLength : values.length = 28 := by
           simp [values, productionCubeVariables_eq]
         rw [valuesLength]
-        simpa [productionShape, Phi81MatrixSource.phi81Shape,
-          cubeVariables] using coordinate.isLt⟩)
+        simp [productionShape, Phi81MatrixSource.phi81Shape,
+          cubeVariables]⟩)
     simpa [values, alpha, productionShape, Phi81MatrixSource.phi81Shape,
       cubeVariables] using (List.ofFn_get values).symm
   · rw [List.length_take, layoutProgram_samples_length]

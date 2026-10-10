@@ -11,7 +11,7 @@ struct OpeningRequest {
 }
 
 #[derive(Clone, Copy)]
-enum Opening {
+pub(in crate::lifecycle::tests) enum Opening {
     K,
     A,
 }
@@ -25,14 +25,14 @@ fn request(phase: &str) -> (PathBuf, u64) {
     (request.directory, step)
 }
 
-fn labels(opening: Opening) -> (&'static str, &'static str) {
+pub(in crate::lifecycle::tests) fn labels(opening: Opening) -> (&'static str, &'static str) {
     match opening {
         Opening::K => ("opening-k", "Eval_K differs from the complete witness opening"),
         Opening::A => ("opening-a", "Eval_A differs from the complete witness openings"),
     }
 }
 
-fn change_openings(children: &mut [CeClaim], opening: Opening, radix: K) {
+pub(in crate::lifecycle::tests) fn change_openings(children: &mut [CeClaim], opening: Opening, radix: K) {
     // The two changes preserve sum_i b^i * eval_i.
     match opening {
         Opening::K => {
@@ -94,8 +94,9 @@ fn reject_balanced_opening(opening: Opening) {
     );
     let envelope = load_envelope(&package, &root.join(phase), step);
     for (actual, mut expected) in envelope
-        .running()
+        .active_parts()
         .unwrap()
+        .0
         .claims
         .iter()
         .zip(proof.pi_dec.children)

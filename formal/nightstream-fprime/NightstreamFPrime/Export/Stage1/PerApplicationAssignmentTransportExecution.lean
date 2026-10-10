@@ -109,7 +109,7 @@ private theorem canonical_domain_source (program : Program)
       (kind.expand raw).source
         ((kind.expand raw).block.source ⟨slot, rawBound⟩) := by
   cases kind <;>
-    simp [domainValue, expressionValue,
+    simp [domainValue, 
       PerApplicationAssignmentBlocks.sourceDomainOf,
       PerApplicationAssignmentBlocks.sourceIndex,
       PerApplicationAssignmentBlocks.entry,
@@ -118,8 +118,8 @@ private theorem canonical_domain_source (program : Program)
       PerApplicationAssignmentPlan.BlockKind.template,
       PerApplicationCanonicalAssignment.Canonical.ofBlock,
       CanonicalBlockAssignment.ofBlock,
-      PerApplicationCanonicalAssignment.RawValues.applicationSource,
-      PiCCSPoseidonPreservation.sourceAssignment]
+      PerApplicationCanonicalAssignment.RawValues.applicationSource
+      ]
 
 /-- One serialized block slot. Invalid run coverage fails closed. -/
 private def blockSlotValue (program : Program)

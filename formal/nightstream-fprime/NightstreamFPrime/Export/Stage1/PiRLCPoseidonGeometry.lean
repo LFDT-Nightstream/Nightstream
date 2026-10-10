@@ -54,7 +54,7 @@ structure Geometry (program : Lifecycle.Stage1.Application.Program)
     (logicalWidth : Nat) : Prop where
   pilotFits : pilotLogicalWidth program ≤ logicalWidth
 
-def prefixGeometry {program : Lifecycle.Stage1.Application.Program}
+theorem prefixGeometry {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     PiRLCRetainedGeometry.Geometry program logicalWidth where
   prefixFits := by
@@ -67,7 +67,7 @@ def oneColumn {program : Lifecycle.Stage1.Application.Program}
     Fin logicalWidth :=
   PiRLCRetainedGeometry.oneColumn (prefixGeometry geometry)
 
-def priorInputFits {program : Lifecycle.Stage1.Application.Program}
+theorem priorInputFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     priorInputStart program + (priorInputBlock program).coordinateCount ≤
       logicalWidth := by
@@ -75,7 +75,7 @@ def priorInputFits {program : Lifecycle.Stage1.Application.Program}
   unfold pilotLogicalWidth outputInputStart
   omega
 
-def outputInputFits {program : Lifecycle.Stage1.Application.Program}
+theorem outputInputFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     outputInputStart program + (outputInputBlock program).coordinateCount ≤
       logicalWidth :=

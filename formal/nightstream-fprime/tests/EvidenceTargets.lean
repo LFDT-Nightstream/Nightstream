@@ -23,6 +23,7 @@ import NightstreamFPrime.Export.Stage1.ActualContextSecurity
 import NightstreamFPrime.Export.Stage1.ActualTerminalSecurity
 import NightstreamFPrime.Export.Stage1.HyperNovaVisitedSecurity
 import NightstreamFPrime.Export.Stage1.HyperNovaFalseAcceptance
+import NightstreamFPrime.Export.Stage1.RandomOracleSetup
 import NightstreamFPrime.Export.Stage1.PiRLCWitnessHonestResponse
 import NightstreamFPrime.Export.Stage1.PiDECStoredSplitHonestWitness
 import NightstreamFPrime.Export.Stage1.PiDECCommitmentHonestMessages
@@ -233,210 +234,123 @@ theorem stage1TerminalParent : Stage1TerminalParent :=
 section HyperNovaSecurity
 
 open scoped BigOperators ENNReal
-open Spec.Folding Spec.Folding.Nifs Lifecycle.Nifs
-open StrongReduction
-open PiRLC.CoordinateForkLaw (Challenge)
-open HyperNovaHistory (Statement Envelope)
-open HyperNovaVisitedLaw (Visit goodActive visitedLaw guardedDraw)
-open HyperNovaGuardedSourceLaw (inputs realLaw guardedPrefix)
-open Poseidon2HashChainV1Setup (productionAjtaiKey)
-open PiDECInputCheck (relation)
+open HyperNovaVisitedSecurity (NifsAdversary NifsExtractor Assumption1 Closed IvcAdversary Stage
+  reverseStages)
 
-/-- Exact final linear history criterion for ordinary state and tape types.
-All source, FS, depth and primitive-clock premises are stated here. The
-sampler contribution is explicit per visit. `FiatShamirModel.of_blockOracle`
-constructs the combined transfer from a specified raw/balanced experiment;
-concrete Poseidon2 applicability and query inflation remain external. This
-criterion does not assert hardness or an efficient FS translation. -/
+/-- Exact final history criterion under HyperNova errata Assumption 1, in the
+form of Definition 7 knowledge soundness of the NIFS (HyperNova Lemma 17): for
+every class of admitted NIFS adversaries with efficient extractors that
+Assumption 1 covers, every class of admitted stages that gives admitted NIFS
+adversaries and that one reverse step preserves, and every IVC adversary whose
+start stage is admitted and whose advertised iteration is bounded, the
+accepted terminal mass is at most the
+reverse extractor's returned-history mass plus, at each stage, that stage's
+marked hash-collision mass and its Assumption 1 error. The random-oracle
+theorem `RandomOracleKnowledge.knowledge_error_le` motivates the value of
+`error`; it does not prove Assumption 1 for Poseidon2, and no Lean statement
+derives `error` from it. -/
 def HyperNovaLinearSecurity : Prop :=
-  ∀ (State Tape : Type)
-  (tapes : Visit → PublicCoins K productionShape →
-    FullOutputCoordinates.FullOutput K productionShape → State → PMF Tape)
-  (rawCall : Visit → PublicCoins K productionShape →
-    FullOutputCoordinates.FullOutput K productionShape → State →
-      PaperWeakOracle.Call (Tape := Tape) (arity := PaperProfile.arity) NifsExtractionProvider.rlc)
-  (checkClock : Visit → PublicCoins K productionShape →
-    FullOutputCoordinates.FullOutput K productionShape → State → NifsExtractionProvider.CheckClock)
-  (storageClock : Visit → PublicCoins K productionShape →
-    FullOutputCoordinates.FullOutput K productionShape → State → NifsExtractionProvider.StorageClock)
-  (parentClock : Visit → PublicCoins K productionShape →
-    FullOutputCoordinates.FullOutput K productionShape → State → NifsExtractionProvider.ParentClock)
-  (storageBound : Visit → PublicCoins K productionShape →
-    FullOutputCoordinates.FullOutput K productionShape → State → Nat)
-  (storageBounded : ∀ visit coins output state assignments,
-    storageClock visit coins output state assignments ≤ storageBound visit coins output state)
-  (baseSummable : ∀ visit coins output state vector, Summable fun tape =>
-    (tapes visit coins output state tape).toReal *
-      (PaperWeakOracle.baseWork NifsExtractionProvider.rlc
-        (NifsExtractionProvider.suffixProgram (NifsExtractionProvider.batchAt inputs visit coins output)
-          (checkClock visit coins output state) (storageClock visit coins output state))
-        (rawCall visit coins output state) vector tape : ℝ))
-  [DecidableEq RingF]
-  [Fintype (Challenge (ProductionKey.key relation productionAjtaiKey).piRlcAlgebra)]
-  [Nonempty (Challenge (ProductionKey.key relation productionAjtaiKey).piRlcAlgebra)]
-    (initial : PMF (Statement × Envelope)) (depth : Nat)
-    (_depthBound : ∀ input ∈ initial.support, input.1.iteration ≤ depth)
-    (originalFirstPhase : Visit → InteractivePrefix.Prover State productionShape 8)
-    (abortTape : Tape) (g : Nat → ℝ → ℝ) (deltaFS : Nat → ℝ) (sampleQueries : Nat → Nat) (queries : Fin depth → Nat)
-    (scalarSubClock : RingF → RingF → Nat) (inverseAdapterClock : RingF → Nat)
-    (assignmentSubClock : PiRLCExtractionPrimitives.Assignment → PiRLCExtractionPrimitives.Assignment → Nat)
-    (scalarActionClock : RingF → PiRLCExtractionPrimitives.Assignment → Nat)
-    (sourceCheckClock : Visit → PiCCSStoredSourceProbability.CheckClock)
-    (accessClock : Visit → PiCCSStoredSourceProbability.AccessClock)
-    (bounds : PiRLC.PaperForkExtractionWork.PrimitiveBounds)
-    (_bounded : PiRLC.PaperForkExtractionWork.Bounded
-      (PaperExtractionAlgebra.extractionAlgebra productionAjtaiKey).ring
-      (PiRLCExtractionPrimitives.program scalarSubClock inverseAdapterClock
-        assignmentSubClock scalarActionClock) bounds),
-    let continuation := NifsProviderLaw.continuation inputs tapes rawCall checkClock storageClock parentClock
-      storageBound storageBounded baseSummable
-    let program := PiRLCExtractionPrimitives.program scalarSubClock inverseAdapterClock
-      assignmentSubClock scalarActionClock
-    let source := HyperNovaGuardedSourceLaw.source originalFirstPhase continuation program
-    let visits := fun j : Fin depth => visitedLaw source initial j.val
-    let running := fun visit => PiCCSInputCheck.running (inputs visit)
-    let fresh := fun visit => PiCCSInputCheck.fresh (inputs visit)
-    let firstPhase := guardedPrefix originalFirstPhase
-    let checked := InteractiveComposition.firstPhase firstPhase (SupportedExtraction.publicCheck running)
-    let contexts := fun j : Fin depth => FiatShamirTransfer.contextLaw relation (realLaw (visits j))
-    let provider := fun j : Fin depth =>
-      NifsProviderLaw.supportedProvider inputs tapes rawCall checkClock storageClock parentClock
-        storageBound storageBounded baseSummable (contexts j) checked
-    let extended := fun j : Fin depth =>
-      SupportedContinuation.extension relation productionAjtaiKey running fresh (contexts j) checked
-        abortTape (provider j)
-    (∀ j : Fin depth,
-      FiatShamirTransfer.FiatShamirModel relation productionAjtaiKey running fresh
-        (realLaw (visits j)) firstPhase abortTape (provider j) g
-          (FiatShamirTransfer.samplerTransferError deltaFS sampleQueries) (queries j)) →
-    (initial.toOuterMeasure {input |
+  ∀ (Admitted : NifsAdversary → Prop) (StageAdmitted : Stage → Prop)
+    (Efficient : (adversary : NifsAdversary) → NifsExtractor adversary → Prop)
+    (error : NifsAdversary → ℝ) (assumption : Assumption1 Admitted Efficient error)
+    (closed : Closed Admitted StageAdmitted Efficient) (adversary : IvcAdversary)
+    (admitted : StageAdmitted (Stage.start adversary)) (depth : Nat)
+    (_depthBound : ∀ tape ∈ adversary.tape.support, (adversary.output tape).1.iteration ≤ depth),
+    (adversary.tape.toOuterMeasure {tape |
       PerApplicationTerminal.Holds Poseidon2HashChainV1Package.application
-        Poseidon2HashChainV1Package.fits Poseidon2HashChainV1Setup.productionSetup input.1 input.2}).toReal ≤
-      ((HyperNovaHistoryLaw.law source initial).toOuterMeasure
-        {sample | HyperNovaHistoryProbability.AdviceReturned sample}).toReal +
+        Poseidon2HashChainV1Package.fits Poseidon2HashChainV1Setup.productionSetup
+        (adversary.output tape).1 (adversary.output tape).2}).toReal ≤
+      ((reverseStages assumption closed adversary admitted depth).1.reverseLaw.toOuterMeasure
+          {sample | HyperNovaHistoryProbability.AdviceReturned sample}).toReal +
         ∑ j : Fin depth,
-          (((visits j).toOuterMeasure
-              {visit | HyperNovaFirstFailure.MarkedHashCollision visit}).toReal +
-            (((visits j).toOuterMeasure {visit | goodActive visit}).toReal -
-              g (queries j) ((visits j).toOuterMeasure {visit | goodActive visit}).toReal +
-              deltaFS (queries j) +
-              sampleQueries (queries j) * NonInteractive.PiRlcSampler.distance +
-              InteractiveComposition.weakLoss relation productionAjtaiKey +
-              IndependentExecution.testError productionShape 8 +
-              AdaptiveBindingProbability.successProbability relation productionAjtaiKey program running fresh
-                firstPhase (SupportedExtraction.publicCheck running) (extended j)
-                (fun visit => PiCCSStoredSourceProbability.sourceProgram (inputs visit)
-                  (sourceCheckClock visit) (accessClock visit)) (contexts j) * PaperProfile.arity.total))
+          (((reverseStages assumption closed adversary admitted j.val).1.tape.toOuterMeasure
+              {tape | HyperNovaFirstFailure.MarkedHashCollision
+                ((reverseStages assumption closed adversary admitted j.val).1.visit tape)}).toReal +
+            error (reverseStages assumption closed adversary admitted j.val).1.nifs)
 
-/-- The final selected history theorem discharges the literal registered
-probability criterion, including its exact operational source and events. -/
-theorem hyperNovaLinearSecurity : HyperNovaLinearSecurity := by
-  intro State Tape tapes rawCall checkClock storageClock parentClock storageBound storageBounded
-    baseSummable decEq finite nonempty initial depth depthBound originalFirstPhase abortTape
-    g deltaFS sampleQueries queries scalarSubClock inverseAdapterClock assignmentSubClock
-    scalarActionClock sourceCheckClock accessClock bounds bounded
-  simpa only [FiatShamirTransfer.samplerTransferError, add_assoc] using
-    (HyperNovaVisitedSecurity.history_probability_linear_bound tapes rawCall checkClock storageClock parentClock
-      storageBound storageBounded baseSummable initial depth depthBound originalFirstPhase
-      abortTape g (FiatShamirTransfer.samplerTransferError deltaFS sampleQueries) queries
-      scalarSubClock inverseAdapterClock assignmentSubClock scalarActionClock sourceCheckClock
-      accessClock bounds bounded)
+/-- The final selected history theorem discharges the registered criterion. -/
+theorem hyperNovaLinearSecurity : HyperNovaLinearSecurity :=
+  fun _ _ _ _ assumption closed adversary admitted depth depthBound =>
+    HyperNovaVisitedSecurity.history_probability_bound assumption closed adversary admitted depth
+      depthBound
 
 #audit_axioms hyperNovaLinearSecurity
 
-/-- The selected terminal false-acceptance event and its exact symbolic loss. -/
+/-- The selected terminal false-acceptance event and its loss under
+Assumption 1, on the IVC adversary's original mixed law (HyperNova Lemma 17). -/
 def HyperNovaTerminalFalseAcceptance : Prop :=
-  ∀ (State Tape : Type)
-  (tapes : Visit → PublicCoins K productionShape →
-    FullOutputCoordinates.FullOutput K productionShape → State → PMF Tape)
-  (rawCall : Visit → PublicCoins K productionShape →
-    FullOutputCoordinates.FullOutput K productionShape → State →
-      PaperWeakOracle.Call (Tape := Tape) (arity := PaperProfile.arity) NifsExtractionProvider.rlc)
-  (checkClock : Visit → PublicCoins K productionShape →
-    FullOutputCoordinates.FullOutput K productionShape → State → NifsExtractionProvider.CheckClock)
-  (storageClock : Visit → PublicCoins K productionShape →
-    FullOutputCoordinates.FullOutput K productionShape → State → NifsExtractionProvider.StorageClock)
-  (parentClock : Visit → PublicCoins K productionShape →
-    FullOutputCoordinates.FullOutput K productionShape → State → NifsExtractionProvider.ParentClock)
-  (storageBound : Visit → PublicCoins K productionShape →
-    FullOutputCoordinates.FullOutput K productionShape → State → Nat)
-  (storageBounded : ∀ visit coins output state assignments,
-    storageClock visit coins output state assignments ≤ storageBound visit coins output state)
-  (baseSummable : ∀ visit coins output state vector, Summable fun tape =>
-    (tapes visit coins output state tape).toReal *
-      (PaperWeakOracle.baseWork NifsExtractionProvider.rlc
-        (NifsExtractionProvider.suffixProgram (NifsExtractionProvider.batchAt inputs visit coins output)
-          (checkClock visit coins output state) (storageClock visit coins output state))
-        (rawCall visit coins output state) vector tape : ℝ))
-  [DecidableEq RingF]
-  [Fintype (Challenge (ProductionKey.key relation productionAjtaiKey).piRlcAlgebra)]
-  [Nonempty (Challenge (ProductionKey.key relation productionAjtaiKey).piRlcAlgebra)]
-    (initial : PMF (Statement × Envelope)) (depth : Nat)
-    (_depthBound : ∀ input ∈ initial.support, input.1.iteration ≤ depth)
-    (originalFirstPhase : Visit → InteractivePrefix.Prover State productionShape 8)
-    (abortTape : Tape) (g : Nat → ℝ → ℝ) (deltaFS : Nat → ℝ) (sampleQueries : Nat → Nat) (queries : Fin depth → Nat)
-    (scalarSubClock : RingF → RingF → Nat) (inverseAdapterClock : RingF → Nat)
-    (assignmentSubClock : PiRLCExtractionPrimitives.Assignment → PiRLCExtractionPrimitives.Assignment → Nat)
-    (scalarActionClock : RingF → PiRLCExtractionPrimitives.Assignment → Nat)
-    (sourceCheckClock : Visit → PiCCSStoredSourceProbability.CheckClock)
-    (accessClock : Visit → PiCCSStoredSourceProbability.AccessClock)
-    (bounds : PiRLC.PaperForkExtractionWork.PrimitiveBounds)
-    (_bounded : PiRLC.PaperForkExtractionWork.Bounded
-      (PaperExtractionAlgebra.extractionAlgebra productionAjtaiKey).ring
-      (PiRLCExtractionPrimitives.program scalarSubClock inverseAdapterClock
-        assignmentSubClock scalarActionClock) bounds),
-    let continuation := NifsProviderLaw.continuation inputs tapes rawCall checkClock storageClock parentClock
-      storageBound storageBounded baseSummable
-    let program := PiRLCExtractionPrimitives.program scalarSubClock inverseAdapterClock
-      assignmentSubClock scalarActionClock
-    let source := HyperNovaGuardedSourceLaw.source originalFirstPhase continuation program
-    let visits := fun j : Fin depth => visitedLaw source initial j.val
-    let running := fun visit => PiCCSInputCheck.running (inputs visit)
-    let fresh := fun visit => PiCCSInputCheck.fresh (inputs visit)
-    let firstPhase := guardedPrefix originalFirstPhase
-    let checked := InteractiveComposition.firstPhase firstPhase (SupportedExtraction.publicCheck running)
-    let contexts := fun j : Fin depth => FiatShamirTransfer.contextLaw relation (realLaw (visits j))
-    let provider := fun j : Fin depth =>
-      NifsProviderLaw.supportedProvider inputs tapes rawCall checkClock storageClock parentClock
-        storageBound storageBounded baseSummable (contexts j) checked
-    let extended := fun j : Fin depth =>
-      SupportedContinuation.extension relation productionAjtaiKey running fresh (contexts j) checked
-        abortTape (provider j)
-    (∀ j : Fin depth,
-      FiatShamirTransfer.FiatShamirModel relation productionAjtaiKey running fresh
-        (realLaw (visits j)) firstPhase abortTape (provider j) g
-          (FiatShamirTransfer.samplerTransferError deltaFS sampleQueries) (queries j)) →
-    (initial.toOuterMeasure {input | HyperNovaFalseAcceptance.FalseAcceptance input}).toReal ≤
+  ∀ (Admitted : NifsAdversary → Prop) (StageAdmitted : Stage → Prop)
+    (Efficient : (adversary : NifsAdversary) → NifsExtractor adversary → Prop)
+    (error : NifsAdversary → ℝ) (assumption : Assumption1 Admitted Efficient error)
+    (closed : Closed Admitted StageAdmitted Efficient) (adversary : IvcAdversary)
+    (admitted : StageAdmitted (Stage.start adversary)) (depth : Nat)
+    (_depthBound : ∀ tape ∈ adversary.tape.support, (adversary.output tape).1.iteration ≤ depth),
+    (adversary.tape.toOuterMeasure
+        {tape | HyperNovaFalseAcceptance.FalseAcceptance (adversary.output tape)}).toReal ≤
       ∑ j : Fin depth,
-          (((visits j).toOuterMeasure
-              {visit | HyperNovaFirstFailure.MarkedHashCollision visit}).toReal +
-            (((visits j).toOuterMeasure {visit | goodActive visit}).toReal -
-              g (queries j) ((visits j).toOuterMeasure {visit | goodActive visit}).toReal +
-              deltaFS (queries j) +
-              sampleQueries (queries j) * NonInteractive.PiRlcSampler.distance +
-              InteractiveComposition.weakLoss relation productionAjtaiKey +
-              IndependentExecution.testError productionShape 8 +
-              AdaptiveBindingProbability.successProbability relation productionAjtaiKey program running fresh
-                firstPhase (SupportedExtraction.publicCheck running) (extended j)
-                (fun visit => PiCCSStoredSourceProbability.sourceProgram (inputs visit)
-                  (sourceCheckClock visit) (accessClock visit)) (contexts j) * PaperProfile.arity.total))
+        (((reverseStages assumption closed adversary admitted j.val).1.tape.toOuterMeasure
+            {tape | HyperNovaFirstFailure.MarkedHashCollision
+              ((reverseStages assumption closed adversary admitted j.val).1.visit tape)}).toReal +
+          error (reverseStages assumption closed adversary admitted j.val).1.nifs)
 
 /-- The original mixed-law event bridge discharges the registered criterion. -/
-theorem hyperNovaTerminalFalseAcceptance : HyperNovaTerminalFalseAcceptance := by
-  intro State Tape tapes rawCall checkClock storageClock parentClock storageBound storageBounded
-    baseSummable decEq finite nonempty initial depth depthBound originalFirstPhase abortTape
-    g deltaFS sampleQueries queries scalarSubClock inverseAdapterClock assignmentSubClock
-    scalarActionClock sourceCheckClock accessClock bounds bounded
-  simpa only [FiatShamirTransfer.samplerTransferError, add_assoc] using
-    (HyperNovaFalseAcceptance.probability_linear_bound tapes rawCall checkClock storageClock parentClock
-      storageBound storageBounded baseSummable initial depth depthBound originalFirstPhase
-      abortTape g (FiatShamirTransfer.samplerTransferError deltaFS sampleQueries) queries
-      scalarSubClock inverseAdapterClock assignmentSubClock scalarActionClock sourceCheckClock
-      accessClock bounds bounded)
+theorem hyperNovaTerminalFalseAcceptance : HyperNovaTerminalFalseAcceptance :=
+  fun _ _ _ _ assumption closed adversary admitted depth depthBound =>
+    HyperNovaFalseAcceptance.probability_bound assumption closed adversary admitted depth depthBound
 
 #audit_axioms hyperNovaTerminalFalseAcceptance
 
 end HyperNovaSecurity
+
+section RomKnowledge
+
+open scoped BigOperators
+open Lifecycle.RandomOracleTest (Point Answer)
+open Lifecycle.RandomOracleExtraction (Claim Succeeds)
+open Export.Stage1.RandomOracleSetup (SetupIndex setupKey extraction hashCollisions msisAdvantage)
+
+attribute [local instance low] Classical.propDecidable
+
+/-- Exact one-fold knowledge criterion of the production NIFS in the
+random-oracle model, with the prior-state link and the Ajtai key drawn inside
+the game. For every adversary that may read the uniform setup chunks and makes
+at most `queries` Fiat–Shamir oracle queries, the probability that the
+verifier accepts its linked claim is less than the extractor's success
+probability, plus the state-hash collision chances, the statistical error, the
+success of the explicit MSIS solver on a uniform matrix
+(`RandomOracleSetup.msisAdvantage`, built from `RandomOracleBinding.rerunKernel`),
+and `2 ^ -190`. SHAKE128 and the Fiat–Shamir hash are random oracles in this
+statement; MSIS and state-hash hardness are not assumed. -/
+def RomKnowledgeSoundness : Prop :=
+  ∀ {Output : Type}
+    (adversary : (SetupIndex PiDECInputCheck.logicalWidth PiDECInputCheck.publicFits →
+        Spec.AjtaiSetupV1.Programming.Chunk) →
+      Spec.RandomOracle.OracleComp (Point PiDECInputCheck.logicalWidth PiDECInputCheck.publicFits
+        (Lifecycle.ProductionKey.degreeBound PiDECInputCheck.relation)) Answer Output)
+    (claim : Output → Claim PiDECInputCheck.relation)
+    (prior : Output → Lifecycle.HashPreimage (logicalWidth := PiDECInputCheck.logicalWidth)
+      (publicFits := PiDECInputCheck.publicFits))
+    (contextDigest : Lifecycle.KeyDigest) (queries : Nat),
+    (∀ chunks, (adversary chunks).QueryBound queries) →
+    𝔼 chunks : SetupIndex PiDECInputCheck.logicalWidth PiDECInputCheck.publicFits →
+        Spec.AjtaiSetupV1.Programming.Chunk, 𝔼 oracle,
+        (if Succeeds PiDECInputCheck.relation (setupKey chunks) (adversary chunks)
+            (Export.Stage1.RandomOracleLink.linkedClaim PiDECInputCheck.relation claim prior contextDigest)
+            oracle then (1 : ℝ) else 0) <
+      𝔼 chunks, (extraction PiDECInputCheck.relation adversary claim prior contextDigest chunks +
+          hashCollisions PiDECInputCheck.relation adversary claim prior contextDigest chunks) +
+        Lifecycle.RandomOracleKnowledge.statisticalError queries +
+        msisAdvantage PiDECInputCheck.relation adversary claim prior contextDigest + 1 / 2 ^ 190
+
+/-- The setup-game theorem at the production key discharges the criterion. -/
+theorem romKnowledgeSoundness : RomKnowledgeSoundness :=
+  fun adversary claim prior contextDigest _ bounded =>
+    Export.Stage1.RandomOracleSetup.production_knowledge_error_lt adversary claim prior contextDigest
+      bounded
+
+#audit_axioms romKnowledgeSoundness
+
+end RomKnowledge
 
 /-- The prepared executable computes every full-carrier block of the existing
 PiRLC assignment combination. Challenges and all 17 source assignments are inputs;

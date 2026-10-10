@@ -180,8 +180,7 @@ def challenge {degreeBound : Nat} (interface : Interface degreeBound)
   (layoutProgram interface offset).samples.get ⟨roundIndex.val, by
     have samplesLength := layoutProgram_samples_length interface offset
     rw [samplesLength]
-    simpa [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables] using
-      roundIndex.isLt⟩
+    simp [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]⟩
 
 /-- Executable verifier-derived round challenge from the recipe-free wiring. -/
 def challengeFast {degreeBound : Nat} (interface : Interface degreeBound)
@@ -196,8 +195,7 @@ theorem challenge_eq_challengeFast_pointwise {degreeBound : Nat}
   have roundBound : roundIndex.val <
       (layoutProgram interface offset).samples.length := by
     rw [layoutProgram_samples_length]
-    simpa [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables] using
-      roundIndex.isLt
+    simp [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
   calc
     challenge interface offset roundIndex =
         (layoutProgram interface offset).samples.get
@@ -694,14 +692,6 @@ private theorem cubePoint_eq_of_coordinates_owned
   cases right
   simp_all
 
-private theorem fixedPolynomial_eq_of_coefficients
-    {Field : Type} {degree : Nat}
-    (left right : SumCheck.Finite.FixedPolynomial Field degree)
-    (coefficients : left.coefficients = right.coefficients) : left = right := by
-  cases left
-  cases right
-  simp_all
-
 theorem specHolds_of_agree_below {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat)
     (before after : Env) (assumptions : Assumptions interface offset before)
@@ -721,7 +711,7 @@ theorem specHolds_of_agree_below {degreeBound : Nat}
       semanticRounds interface offset before := by
     funext roundIndex
     apply congrArg SumCheck.Finite.FixedPolynomial.toMessage
-    apply fixedPolynomial_eq_of_coefficients
+    apply SumCheck.Finite.FixedPolynomial.eq_of_coefficients
     change (List.ofFn (interface.round offset roundIndex).coefficient).map
         (KExpr.eval after) =
       (List.ofFn (interface.round offset roundIndex).coefficient).map

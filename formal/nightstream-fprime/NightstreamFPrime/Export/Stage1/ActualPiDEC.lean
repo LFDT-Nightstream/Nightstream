@@ -263,7 +263,7 @@ theorem rowsZero_implies_phaseHolds
     (PiDECInputs.assumptions relation _)
     (rowsZero_implies_physical relation geometry assignment one rows)
 
-def selectedGeometry (application : Lifecycle.Stage1.Application.Program) :
+theorem selectedGeometry (application : Lifecycle.Stage1.Application.Program) :
     PiDECRetainedGeometry.Geometry application
       (PerApplicationFixedPoint.logicalWidth application) :=
   DirectApplicationPrefixPlan.piDecGeometry (PerApplicationFixedPoint.geometry application)

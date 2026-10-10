@@ -1,0 +1,1050 @@
+import NightstreamFPrime.Lifecycle.ProductionKey
+import NightstreamFPrime.Spec.Folding.PiCCS.Transcript
+import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.TranscriptHistory
+
+/-!
+Owns the Fiat–Shamir coverage contract of the production NIFS transcript.
+
+Every verifier challenge (`α`, `γ`, the SumCheck points, and the `Π_RLC`
+scalars) is a read of the Poseidon2 state after an explicit list of
+permutation inputs. One input is one zero-padded rate chunk, and a squeeze is
+the zero chunk, so a list of inputs is exactly what the permutation sees.
+
+Inputs: the production key, the fresh statement, and the NIFS proof.
+
+Outputs:
+- `challenge_seal`: each key challenge reads the state after
+  `proverCalls c ++ fixedCalls c`, and `fixedCalls` takes no prover data;
+- `coins_eq_reads`: the PiCCS coin record is exactly these reads, so a new
+  coin field breaks the statement;
+- `proverCalls_identify`: equal prover-dependent calls give equal fresh
+  statements and equal earlier prover messages; before `Π_RLC` they give equal
+  proofs up to the `Π_DEC` child messages, so a new proof field breaks it;
+- `statementState_identifies_fresh_or_collision`, `messages_injective`: equal
+  replay authority (the state after the statement calls and the round
+  messages) identifies the fresh statement and every round polynomial, unless
+  the statement calls collide (`RunCollision`).
+  `PerApplicationSecurity.replayInput_authority_identifies_or_collision` uses
+  them to link the committed-statement reductions to this contract.
+- `coinsFrom`, `piCcsProbe_coins`: the key's PiCCS probe coins are one read of
+  each challenge's calls (`challengeCalls`). `RandomOracleTest` replaces that
+  read by a random oracle and changes nothing else;
+- `challengeCalls_injective`, `challengeCalls_length_eq`: distinct challenges
+  of one execution read after distinct call lists, whose lengths the shape
+  fixes.
+
+`PiCCSSecurity.calls_identify_view_or_collision` adds the prior-state link and
+identifies the prior preimage and the NIFS running statement, unless the state
+hash collides.
+
+`AgreeOnAbsorbed` is the dependency specification; a change to it is a
+protocol change. `tests/TranscriptCoverageChecks.lean` pins it by `Iff.rfl`,
+pins the PiCCS tag, the challenge labels, the round index and the length
+prefix by `rfl`, and refutes the identify property for two schedules that drop
+an absorption.
+
+The `Π_RLC` read keys are `ScheduleLaw.queryAt []`; only the replay of these
+fixed suffix calls (`TranscriptHistory.queryAt_answer`) is reused. The sampler's
+ideal-oracle law does not cover the prover-dependent prefix.
+
+Invariant: for the prover data that `AgreeOnAbsorbed` names (the fresh
+statement and the earlier prover messages), removing its absorption, moving it
+after a challenge that depends on it, or making its encoding ambiguous breaks
+`challenge_seal` or a coverage proof. A matching edit of the key and of this
+schedule can still drop a tag, a label, a round index or a length prefix and
+keep every statement true; the `rfl` pins in `tests/TranscriptCoverageChecks.lean`
+fix each of these values and that the key absorbs them, so such an edit must
+also change that file.
+
+Does not own: Poseidon2 security, the random-oracle model of the reads
+(`RandomOracleTest`), or the circuit refinement of this schedule. The running
+statement enters only through the prior digest. The `Π_DEC` child messages
+follow the last challenge; the next state hash binds them.
+-/
+
+namespace NightstreamFPrime.Lifecycle.TranscriptCoverage
+
+open NightstreamFPrime.Spec
+open NightstreamFPrime.Lifecycle
+open NightstreamFPrime.Lifecycle.PaperAlgebra
+open NightstreamFPrime.Spec.Folding
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+
+/-! ## Permutation inputs -/
+
+/-- One permutation input: a zero-padded rate chunk added to the state. -/
+abbrev Call := Fin Poseidon2.rate → F
+
+/-- A squeeze adds nothing before the permutation. -/
+def squeeze : Call := fun _ => 0
+
+/-- Add one chunk to the state, then permute. -/
+def step (state : Transcript.State) (chunk : Call) : Transcript.State :=
+  Poseidon2.absorbBlock state (List.ofFn chunk)
+
+/-- Apply a list of permutation inputs in order. -/
+def run (state : Transcript.State) (calls : List Call) : Transcript.State :=
+  calls.foldl step state
+
+@[simp] private theorem run_nil (state : Transcript.State) : run state [] = state := rfl
+
+@[simp] private theorem run_cons (state : Transcript.State) (call : Call) (calls : List Call) :
+    run state (call :: calls) = run (step state call) calls := rfl
+
+private theorem run_append (state : Transcript.State) (left right : List Call) :
+    run state (left ++ right) = run (run state left) right := by
+  simp [run, List.foldl_append]
+
+private theorem run_length (state : Transcript.State) {calls : List Call}
+    (nonempty : calls ≠ []) : (run state calls).length = Poseidon2.width := by
+  induction calls generalizing state with
+  | nil => exact absurd rfl nonempty
+  | cons call calls inductionHypothesis =>
+      rw [run_cons]
+      by_cases empty : calls = []
+      · subst empty
+        rw [run_nil]
+        exact Poseidon2.absorbBlock_length _ _
+      · exact inductionHypothesis _ empty
+
+/-- On a full-width state, a squeeze is the plain permutation. -/
+private theorem step_squeeze (state : Transcript.State)
+    (fixed : state.length = Poseidon2.width) :
+    step state squeeze = Poseidon2.permute state :=
+  Poseidon2.absorbBlock_zero state fixed fun index => by
+    simp only [squeeze, List.getD_eq_getElem?_getD, List.getElem?_ofFn]
+    split <;> rfl
+
+/-- The rate chunk that the sponge adds for a short word list. -/
+def padChunk (words : List F) : Call :=
+  fun lane => words.getD lane.val 0
+
+/-- Additive absorption reads missing chunk words as zero. -/
+private theorem absorbBlock_padChunk (state : Transcript.State) {words : List F}
+    (short : words.length ≤ Poseidon2.rate) :
+    Poseidon2.absorbBlock state words =
+      Poseidon2.absorbBlock state (List.ofFn (padChunk words)) := by
+  unfold Poseidon2.absorbBlock
+  congr 1
+  apply List.map_congr_left
+  intro lane _
+  congr 1
+  by_cases inside : lane < Poseidon2.rate
+  · simp [padChunk, List.getD_eq_getElem?_getD, inside]
+  · have outside : Poseidon2.rate ≤ lane := Nat.le_of_not_lt inside
+    rw [List.getD_eq_default _ _ (Nat.le_trans short outside),
+      List.getD_eq_default _ _ (by simpa using outside)]
+
+/-- The calls of `Transcript.absorb`: one padded chunk per started rate block. -/
+def absorbCalls (words : List F) : List Call :=
+  (List.range ((words.length + Poseidon2.rate - 1) / Poseidon2.rate)).map fun chunk =>
+    padChunk ((words.drop (chunk * Poseidon2.rate)).take Poseidon2.rate)
+
+private theorem absorb_eq_run (state : Transcript.State) (words : List F) :
+    Transcript.absorb state words = run state (absorbCalls words) := by
+  unfold Transcript.absorb absorbCalls run
+  rw [List.foldl_map, List.foldl_map]
+  apply List.foldl_ext
+  intro current chunk _
+  exact absorbBlock_padChunk current (List.length_take_le _ _)
+
+@[simp] private theorem absorbCalls_length (words : List F) :
+    (absorbCalls words).length = (words.length + Poseidon2.rate - 1) / Poseidon2.rate := by
+  simp [absorbCalls]
+
+private theorem absorbCalls_ne_nil {words : List F} (nonempty : words ≠ []) :
+    absorbCalls words ≠ [] := by
+  intro empty
+  have length := congrArg List.length empty
+  have positive : 0 < words.length := List.length_pos_iff.mpr nonempty
+  simp only [absorbCalls_length, List.length_nil] at length
+  unfold Poseidon2.rate at length
+  omega
+
+/-- Equal-length word lists with equal padded chunks are equal: zero padding
+creates no ambiguity when the length is fixed. -/
+private theorem absorbCalls_injective {left right : List F}
+    (lengthEqual : left.length = right.length)
+    (same : absorbCalls left = absorbCalls right) : left = right := by
+  have chunks : ∀ chunk ∈ List.range ((left.length + Poseidon2.rate - 1) / Poseidon2.rate),
+      padChunk ((left.drop (chunk * Poseidon2.rate)).take Poseidon2.rate) =
+        padChunk ((right.drop (chunk * Poseidon2.rate)).take Poseidon2.rate) := by
+    unfold absorbCalls at same
+    rw [← lengthEqual] at same
+    exact List.map_inj_left.mp same
+  apply List.ext_getElem lengthEqual
+  intro position leftBound rightBound
+  have chunkBound : position / Poseidon2.rate <
+      (left.length + Poseidon2.rate - 1) / Poseidon2.rate := by
+    unfold Poseidon2.rate at *
+    omega
+  have lane := congrFun (chunks (position / Poseidon2.rate) (List.mem_range.mpr chunkBound))
+    ⟨position % Poseidon2.rate, Nat.mod_lt _ (by decide)⟩
+  have split : position / Poseidon2.rate * Poseidon2.rate +
+      position % Poseidon2.rate = position := by
+    rw [Nat.mul_comm]
+    exact Nat.div_add_mod position Poseidon2.rate
+  simp only [padChunk, List.getD_eq_getElem?_getD, List.getElem?_take,
+    Nat.mod_lt _ (show 0 < Poseidon2.rate by decide), if_true,
+    List.getElem?_drop, split] at lane
+  simpa [List.getElem?_eq_getElem leftBound, List.getElem?_eq_getElem rightBound]
+    using lane
+
+/-! ## Labelled squeezes and SumCheck rounds -/
+
+/-- The extension challenge that `Transcript.squeezeK` reads before its two
+squeezes. -/
+def readK (state : Transcript.State) : K :=
+  ⟨state.getD 0 0, (Poseidon2.permute state).getD 0 0⟩
+
+private theorem squeezeK_eq (state : Transcript.State)
+    (fixed : state.length = Poseidon2.width) :
+    Transcript.squeezeK state = (readK state, run state [squeeze, squeeze]) := by
+  simp only [Transcript.squeezeK, Transcript.squeezeF, readK, run_cons, run_nil]
+  rw [step_squeeze state fixed, step_squeeze _ (Poseidon2.permute_length state)]
+
+/-- One labelled PiCCS squeeze: absorb the label words, then squeeze twice. -/
+def labelCalls (label : FiatShamir.ChallengeLabel productionShape) : List Call :=
+  absorbCalls (Transcript.labelWord label) ++ [squeeze, squeeze]
+
+private theorem labelWord_ne_nil (label : FiatShamir.ChallengeLabel productionShape) :
+    Transcript.labelWord label ≠ [] := by
+  cases label <;> simp [Transcript.labelWord]
+
+private theorem oracle_squeeze_eq (state : Transcript.State)
+    (label : FiatShamir.ChallengeLabel productionShape) :
+    Transcript.piCcsOracle.transcript.squeeze state label =
+      (readK (run state (absorbCalls (Transcript.labelWord label))),
+        run state (labelCalls label)) := by
+  change Transcript.squeezeK (Transcript.absorb state (Transcript.labelWord label)) = _
+  rw [absorb_eq_run, squeezeK_eq _ (run_length _ (absorbCalls_ne_nil (labelWord_ne_nil label))),
+    labelCalls, run_append]
+
+/-- The calls of `Transcript.absorbBlock`: the length-prefixed block. -/
+private theorem absorbBlock_eq_run (state : Transcript.State) (words : List F) :
+    Transcript.absorbBlock state words = run state (absorbCalls (block words)) :=
+  absorb_eq_run state (block words)
+
+private theorem absorbBlocks_eq_run (state : Transcript.State) (blocks : List (List F)) :
+    Transcript.absorbBlocks state blocks =
+      run state (blocks.flatMap fun words => absorbCalls (block words)) := by
+  induction blocks generalizing state with
+  | nil => rfl
+  | cons words blocks inductionHypothesis =>
+      simp only [Transcript.absorbBlocks, List.foldl_cons, List.flatMap_cons, run_append]
+      rw [← absorbBlock_eq_run]
+      exact inductionHypothesis _
+
+private theorem squeezeMany_state (state : Transcript.State)
+    (labels : List (FiatShamir.ChallengeLabel productionShape)) :
+    (FiatShamir.squeezeMany Transcript.piCcsOracle.transcript state labels).2 =
+      run state (labels.flatMap labelCalls) := by
+  induction labels generalizing state with
+  | nil => rfl
+  | cons label labels inductionHypothesis =>
+      simp only [FiatShamir.squeezeMany, oracle_squeeze_eq, List.flatMap_cons, run_append]
+      exact inductionHypothesis _
+
+/-- Each labelled squeeze reads the state after every earlier labelled
+squeeze and its own label words. -/
+private theorem squeezeMany_getD (state : Transcript.State)
+    (labels : List (FiatShamir.ChallengeLabel productionShape))
+    (index : Nat) (bound : index < labels.length) :
+    (FiatShamir.squeezeMany Transcript.piCcsOracle.transcript state labels).1.getD
+        index K.zero =
+      readK (run state ((labels.take index).flatMap labelCalls ++
+        absorbCalls (Transcript.labelWord labels[index]))) := by
+  induction labels generalizing state index with
+  | nil => simp at bound
+  | cons label labels inductionHypothesis =>
+      cases index with
+      | zero => simp [FiatShamir.squeezeMany, oracle_squeeze_eq]
+      | succ index =>
+          simp only [FiatShamir.squeezeMany, oracle_squeeze_eq, List.getD_cons_succ,
+            List.take_succ_cons, List.flatMap_cons, List.getElem_cons_succ]
+          rw [inductionHypothesis _ index (by simpa using bound), ← run_append,
+            List.append_assoc]
+
+/-- The SumCheck messages carried by one NIFS proof. -/
+def messages {degree : Nat} (proof : Proof degree) :
+    Fin productionShape.cubeVariables → SumCheck.Finite.Message K :=
+  fun round => (proof.piCcsRounds round).toMessage
+
+/-- The absorbed block of one indexed SumCheck message. -/
+def messageCalls (rounds : Fin productionShape.cubeVariables → SumCheck.Finite.Message K)
+    (round : Fin productionShape.cubeVariables) : List Call :=
+  absorbCalls (block (natWord round.val :: Transcript.serializeMessage (rounds round)))
+
+/-- One SumCheck round: absorb the message, then squeeze its challenge. -/
+def roundCalls (rounds : Fin productionShape.cubeVariables → SumCheck.Finite.Message K)
+    (round : Fin productionShape.cubeVariables) : List Call :=
+  messageCalls rounds round ++ labelCalls (.sumcheck round)
+
+private theorem oracle_absorbRound_eq (state : Transcript.State)
+    (rounds : Fin productionShape.cubeVariables → SumCheck.Finite.Message K)
+    (round : Fin productionShape.cubeVariables) :
+    Transcript.piCcsOracle.transcript.absorbRound state round (rounds round) =
+      run state (messageCalls rounds round) :=
+  absorbBlock_eq_run state _
+
+private theorem deriveRoundsFrom_state
+    (rounds : Fin productionShape.cubeVariables → SumCheck.Finite.Message K)
+    (state : Transcript.State) (indices : List (Fin productionShape.cubeVariables)) :
+    (FiatShamir.deriveRoundsFrom Transcript.piCcsOracle.transcript rounds state indices).2 =
+      run state (indices.flatMap (roundCalls rounds)) := by
+  induction indices generalizing state with
+  | nil => rfl
+  | cons round indices inductionHypothesis =>
+      simp only [FiatShamir.deriveRoundsFrom, oracle_squeeze_eq, List.flatMap_cons,
+        roundCalls, run_append, oracle_absorbRound_eq]
+      rw [inductionHypothesis]
+
+private theorem deriveRoundsFrom_getD
+    (rounds : Fin productionShape.cubeVariables → SumCheck.Finite.Message K)
+    (state : Transcript.State) (indices : List (Fin productionShape.cubeVariables))
+    (index : Nat) (bound : index < indices.length) :
+    (FiatShamir.deriveRoundsFrom Transcript.piCcsOracle.transcript rounds state
+        indices).1.getD index K.zero =
+      readK (run state ((indices.take index).flatMap (roundCalls rounds) ++
+        messageCalls rounds indices[index] ++
+        absorbCalls (Transcript.labelWord (.sumcheck indices[index])))) := by
+  induction indices generalizing state index with
+  | nil => simp at bound
+  | cons round indices inductionHypothesis =>
+      cases index with
+      | zero =>
+          simp only [FiatShamir.deriveRoundsFrom, oracle_squeeze_eq, List.getD_cons_zero,
+            List.take_zero, List.flatMap_nil, List.nil_append, List.getElem_cons_zero,
+            run_append, oracle_absorbRound_eq]
+      | succ index =>
+          simp only [FiatShamir.deriveRoundsFrom, oracle_squeeze_eq, List.getD_cons_succ,
+            List.take_succ_cons, List.flatMap_cons, List.getElem_cons_succ]
+          rw [inductionHypothesis _ index (by simpa using bound)]
+          simp only [roundCalls, run_append, List.append_assoc, oracle_absorbRound_eq]
+
+/-! ## Production schedule -/
+
+section Schedule
+
+variable {logicalWidth : Nat}
+  {publicFits : ringDegree * publicRingColumns ≤
+    Phi81CarrierLayout.carrierWidth logicalWidth}
+
+/-- Calls before the first `α` label: the digest-only domain tag and the key's
+public-input blocks. The running statement is not an argument. -/
+def statementCalls
+    (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)) : List Call :=
+  absorbCalls Transcript.piCcsDigestDomainTag ++
+    (ProductionKey.publicInputBlocks fresh).flatMap fun words => absorbCalls (block words)
+
+/-- Calls before the first SumCheck message: the statement, then every
+labelled `α` squeeze and the `γ` squeeze. -/
+def preRoundCalls
+    (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)) : List Call :=
+  statementCalls fresh ++
+    (FiatShamir.alphaLabels productionShape).flatMap labelCalls ++ labelCalls .gamma
+
+/-- Prover-dependent calls before the round `round` challenge: every earlier
+round and the round's own message. -/
+def roundPrefixCalls {degree : Nat}
+    (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (proof : Proof degree) (round : Fin productionShape.cubeVariables) : List Call :=
+  preRoundCalls fresh ++
+    ((canonicalFinIndices productionShape.cubeVariables).take round.val).flatMap
+      (roundCalls (messages proof)) ++
+    messageCalls (messages proof) round
+
+/-- Calls before the first `Π_RLC` scalar: every round and the complete `y′`. -/
+def outputCalls {degree : Nat}
+    (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (proof : Proof degree) : List Call :=
+  preRoundCalls fresh ++
+    (canonicalFinIndices productionShape.cubeVariables).flatMap (roundCalls (messages proof)) ++
+    absorbCalls (block (ProductionKey.fullOutputWords proof.piCcsOutput))
+
+end Schedule
+
+/-- A four-lane oracle block of the `Π_RLC` sampler as a permutation input. -/
+def widen (draw : Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Draw) : Call := fun lane =>
+  if inside : lane.val < Spec.Folding.Nifs.NonInteractive.PiRlcSampler.drawWidth then
+    draw ⟨lane.val, inside⟩
+  else 0
+
+/-- The sampler's scalar index of one `Π_RLC` challenge. -/
+def rhoIndex (index : Fin (Nifs.PaperProfile.arity).total) : Fin 17 :=
+  ⟨index.val, index.isLt.trans_eq (by decide)⟩
+
+/-- The `Π_RLC` challenge that the sampler reads from four state lanes. -/
+def readRho (state : Transcript.State) : RingF :=
+  Phi81StrongSet.embedScalar
+    (Spec.Folding.Nifs.NonInteractive.PiRlcSampler.sample
+      (Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.block state))
+
+private theorem step_widen (state : Transcript.State)
+    (draw : Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Draw) :
+    step state (widen draw) = Poseidon2.absorbBlock state (List.ofFn draw) := by
+  unfold step Poseidon2.absorbBlock
+  -- The lanes past `drawWidth` are zero in both chunks; `congr` closes this by evaluation.
+  congr 1
+
+/-- The oracle model's replay is the same run of permutation inputs. -/
+private theorem run_map_widen (state : Transcript.State)
+    (history : List Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Draw) :
+    run state (history.map widen) =
+      Spec.Folding.Nifs.NonInteractive.PiRlcSampler.TranscriptHistory.replay state history := by
+  induction history generalizing state with
+  | nil => rfl
+  | cons draw history inductionHypothesis =>
+      show run (step state (widen draw)) (history.map widen) =
+        Spec.Folding.Nifs.NonInteractive.PiRlcSampler.TranscriptHistory.replay
+          (Poseidon2.absorbBlock state (List.ofFn draw)) history
+      rw [step_widen]
+      exact inductionHypothesis _
+
+/-! ## Seals -/
+
+/-- Every verifier challenge of one production NIFS execution. -/
+inductive Challenge where
+  | alpha (coordinate : Fin productionShape.cubeVariables)
+  | gamma
+  | round (index : Fin productionShape.cubeVariables)
+  | rho (index : Fin (Nifs.PaperProfile.arity).total)
+  deriving DecidableEq, Fintype
+
+/-- The value type of a challenge. -/
+abbrev Challenge.Value : Challenge → Type
+  | .alpha _ => K
+  | .gamma => K
+  | .round _ => K
+  | .rho _ => RingF
+
+/-- How a challenge reads the sponge state. -/
+def Challenge.read : (challenge : Challenge) → Transcript.State → challenge.Value
+  | .alpha _ => readK
+  | .gamma => readK
+  | .round _ => readK
+  | .rho _ => readRho
+
+/-- The calls between the prover-dependent calls and the read: labels,
+squeezes, and `Π_RLC` domain chunks. The signature admits no prover data. -/
+def fixedCalls : Challenge → List Call
+  | .alpha coordinate =>
+      ((FiatShamir.alphaLabels productionShape).take coordinate.val).flatMap labelCalls ++
+        absorbCalls (Transcript.labelWord (.alpha coordinate))
+  | .gamma =>
+      (FiatShamir.alphaLabels productionShape).flatMap labelCalls ++
+        absorbCalls (Transcript.labelWord .gamma)
+  | .round index => absorbCalls (Transcript.labelWord (.sumcheck index))
+  | .rho index =>
+      (Spec.Folding.Nifs.NonInteractive.PiRlcSampler.ScheduleLaw.queryAt []
+        (rhoIndex index)).val.map widen
+
+section Contract
+
+variable {logicalWidth : Nat}
+  {publicFits : ringDegree * publicRingColumns ≤
+    Phi81CarrierLayout.carrierWidth logicalWidth}
+
+/-- The prover-dependent calls before a challenge. -/
+def proverCalls {degree : Nat}
+    (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (proof : Proof degree) : Challenge → List Call
+  | .alpha _ => statementCalls fresh
+  | .gamma => statementCalls fresh
+  | .round index => roundPrefixCalls fresh proof index
+  | .rho _ => outputCalls fresh proof
+
+/-- The calls whose final state a challenge reads. -/
+def challengeCalls {degree : Nat}
+    (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (proof : Proof degree) (challenge : Challenge) : List Call :=
+  proverCalls fresh proof challenge ++ fixedCalls challenge
+
+/-- The PiCCS coins that one read of each challenge's calls gives. The key
+reads the sponge state (`piCcsProbe_coins`); the random-oracle model reads an
+oracle answer. -/
+def coinsFrom {degree : Nat} (read : List Call → K)
+    (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (proof : Proof degree) : StrongReduction.PublicCoins K productionShape where
+  alpha := ⟨List.ofFn fun coordinate => read (challengeCalls fresh proof (.alpha coordinate)),
+    List.length_ofFn⟩
+  gamma := read (challengeCalls fresh proof .gamma)
+  roundPoint := ⟨List.ofFn fun index => read (challengeCalls fresh proof (.round index)),
+    List.length_ofFn⟩
+
+section Seals
+
+variable (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+  (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+  (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
+  (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
+  (proof : Proof (ProductionKey.degreeBound relation))
+
+/-- The production key's value for one challenge. -/
+noncomputable def keyChallenge :
+    (challenge : Challenge) → Option challenge.Value
+  | .alpha coordinate =>
+      let alpha := ((ProductionKey.key relation ajtai).piCcsExecution running fresh
+        proof).coins.alpha
+      some (alpha.coordinates[coordinate.val]'(by rw [alpha.dimension]; exact coordinate.isLt))
+  | .gamma => some ((ProductionKey.key relation ajtai).piCcsExecution running fresh
+      proof).coins.gamma
+  | .round index =>
+      let point := ((ProductionKey.key relation ajtai).piCcsExecution running fresh
+        proof).coins.roundPoint
+      some (point.coordinates[index.val]'(by rw [point.dimension]; exact index.isLt))
+  | .rho index => ((ProductionKey.key relation ajtai).piRlcChallenges running fresh
+      proof).map fun challenges => challenges index
+
+/-- The state before `α` is the run of the statement calls. -/
+theorem publicInputState_eq_run :
+    (ProductionKey.key relation ajtai).publicInputState running fresh =
+      run Transcript.initialState (statementCalls fresh) := by
+  rw [ProductionKey.key_publicInputState_eq, absorbBlocks_eq_run, absorb_eq_run,
+    statementCalls, run_append]
+
+private theorem alpha_seal
+    (coordinate : Fin productionShape.cubeVariables) :
+    ((ProductionKey.key relation ajtai).piCcsExecution running fresh
+        proof).coins.alpha.coordinates.getD coordinate.val K.zero =
+      readK (run Transcript.initialState
+        (statementCalls fresh ++ fixedCalls (.alpha coordinate))) := by
+  rw [Nifs.PaperNonInteractive.Key.piCcsExecution_coins_eq_derive]
+  change (FiatShamir.squeezeMany Transcript.piCcsOracle.transcript
+      ((ProductionKey.key relation ajtai).publicInputState running fresh)
+      (FiatShamir.alphaLabels productionShape)).1.getD coordinate.val K.zero = _
+  rw [squeezeMany_getD _ _ _ (by simp [FiatShamir.alphaLabels_length]),
+    publicInputState_eq_run, ← run_append]
+  simp [fixedCalls, FiatShamir.alphaLabels, canonicalFinIndices]
+
+private theorem gamma_seal :
+    ((ProductionKey.key relation ajtai).piCcsExecution running fresh proof).coins.gamma =
+      readK (run Transcript.initialState (statementCalls fresh ++ fixedCalls .gamma)) := by
+  rw [Nifs.PaperNonInteractive.Key.piCcsExecution_coins_eq_derive]
+  change (Transcript.piCcsOracle.transcript.squeeze
+      (FiatShamir.squeezeMany Transcript.piCcsOracle.transcript
+        ((ProductionKey.key relation ajtai).publicInputState running fresh)
+        (FiatShamir.alphaLabels productionShape)).2 .gamma).1 = _
+  simp only [oracle_squeeze_eq, squeezeMany_state, publicInputState_eq_run, fixedCalls,
+    ← run_append, List.append_assoc]
+
+private theorem preRoundState_eq_run :
+    (Transcript.piCcsOracle.transcript.squeeze
+        (FiatShamir.squeezeMany Transcript.piCcsOracle.transcript
+          ((ProductionKey.key relation ajtai).publicInputState running fresh)
+          (FiatShamir.alphaLabels productionShape)).2 .gamma).2 =
+      run Transcript.initialState (preRoundCalls fresh) := by
+  simp only [oracle_squeeze_eq, squeezeMany_state, publicInputState_eq_run, preRoundCalls,
+    ← run_append, List.append_assoc]
+
+private theorem round_seal
+    (round : Fin productionShape.cubeVariables) :
+    ((ProductionKey.key relation ajtai).piCcsExecution running fresh
+        proof).coins.roundPoint.coordinates.getD round.val K.zero =
+      readK (run Transcript.initialState
+        (roundPrefixCalls fresh proof round ++ fixedCalls (.round round))) := by
+  rw [Nifs.PaperNonInteractive.Key.piCcsExecution_coins_eq_derive]
+  change (FiatShamir.deriveRoundsFrom Transcript.piCcsOracle.transcript (messages proof)
+      (Transcript.piCcsOracle.transcript.squeeze
+        (FiatShamir.squeezeMany Transcript.piCcsOracle.transcript
+          ((ProductionKey.key relation ajtai).publicInputState running fresh)
+          (FiatShamir.alphaLabels productionShape)).2 .gamma).2
+      (canonicalFinIndices productionShape.cubeVariables)).1.getD round.val K.zero = _
+  rw [deriveRoundsFrom_getD _ _ _ _ (by simp [canonicalFinIndices]),
+    preRoundState_eq_run, ← run_append, roundPrefixCalls, canonicalFinIndices_getElem]
+  simp only [fixedCalls, Fin.eta, List.append_assoc]
+
+private theorem roundsState_eq_run :
+    ((ProductionKey.key relation ajtai).piCcsExecution running fresh
+        proof).coins.finalState =
+      run Transcript.initialState (preRoundCalls fresh ++
+        (canonicalFinIndices productionShape.cubeVariables).flatMap
+          (roundCalls (messages proof))) := by
+  unfold messages
+  rewrite [Nifs.PaperNonInteractive.Key.piCcsExecution_coins_eq_derive,
+    (PiCCS.Transcript.derive_rounds_holds _ _ _).finalState_eq,
+    ← PiCCS.Transcript.deriveFromState_initialState,
+    ProductionKey.key_oracle_eq, Transcript.piCcsOracle.initialState_is_prior]
+  dsimp only [PiCCS.Transcript.deriveFromState]
+  rw [deriveRoundsFrom_state, preRoundState_eq_run, ← run_append]
+
+private theorem outgoingState_eq_run :
+    ((ProductionKey.key relation ajtai).piCcsExecution running fresh proof).outgoingState =
+      run Transcript.initialState (outputCalls fresh proof) := by
+  rw [Nifs.PaperNonInteractive.Key.piCcsExecution_outgoingState_eq_absorbPiCcsOutput,
+    ProductionKey.key_absorbPiCcsOutput, ProductionKey.absorbFullOutput, absorbBlock_eq_run,
+    roundsState_eq_run, ← run_append, outputCalls]
+
+theorem rho_seal :
+    (ProductionKey.key relation ajtai).piRlcChallenges running fresh proof =
+      some fun index => readRho (run Transcript.initialState
+        (outputCalls fresh proof ++ fixedCalls (.rho index))) := by
+  unfold Nifs.PaperNonInteractive.Key.piRlcChallenges
+  show ProductionKey.piRlcResponse
+      ((ProductionKey.key relation ajtai).piCcsExecution running fresh proof).outgoingState = _
+  rw [ProductionKey.piRlcResponse, Transcript.PiRlcSampler.piRlcChallenges,
+    Transcript.PiRlcSampler.piRlcChallengesWithState_challenges, outgoingState_eq_run]
+  refine congrArg some (funext fun index => ?_)
+  rw [fixedCalls, run_append, run_map_widen]
+  have read := Spec.Folding.Nifs.NonInteractive.PiRlcSampler.TranscriptHistory.queryAt_answer
+    (run Transcript.initialState (outputCalls fresh proof)) [] (rhoIndex index)
+  rewrite [Transcript.PiRlcSampler.sampleRingChallenge,
+    Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.challengeAt,
+    Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.scalarAt, readRho,
+    ← Spec.Folding.Nifs.NonInteractive.PiRlcSampler.TranscriptHistory.answer, read]
+  -- `rfl` would compare `Fin 17` with `Fin arity.total` and evaluate the arity.
+  simp only [Spec.Folding.Nifs.NonInteractive.PiRlcSampler.TranscriptHistory.replay,
+    List.foldl_nil, rhoIndex]
+
+/-- Seal: every key challenge reads the state after its prover-dependent
+calls followed by fixed calls, and `fixedCalls` admits no prover data. With
+`proverCalls_identify` against the dependency specification `AgreeOnAbsorbed`,
+a schedule change that moves prover data after a challenge that depends on it
+breaks a proof. -/
+theorem challenge_seal (challenge : Challenge) :
+    keyChallenge relation ajtai running fresh proof challenge =
+      some (challenge.read (run Transcript.initialState
+        (proverCalls fresh proof challenge ++ fixedCalls challenge))) := by
+  cases challenge with
+  | alpha coordinate =>
+      exact congrArg some ((List.getD_eq_getElem _ K.zero _).symm.trans
+        (alpha_seal relation ajtai running fresh proof coordinate))
+  | gamma => exact congrArg some (gamma_seal relation ajtai running fresh proof)
+  | round index =>
+      exact congrArg some ((List.getD_eq_getElem _ K.zero _).symm.trans
+        (round_seal relation ajtai running fresh proof index))
+  | rho index =>
+      simp only [keyChallenge, rho_seal relation ajtai running fresh proof]
+      rfl
+
+/-- Guard: the PiCCS coin record is exactly the reads of `challenge_seal`. A new
+coin field breaks this statement until it is covered. -/
+theorem coins_eq_reads :
+    ((ProductionKey.key relation ajtai).piCcsExecution running fresh proof).coins =
+      { alpha := ⟨List.ofFn fun coordinate => readK (run Transcript.initialState
+            (proverCalls fresh proof (.alpha coordinate) ++ fixedCalls (.alpha coordinate))),
+          by simp⟩
+        gamma := readK (run Transcript.initialState
+          (proverCalls fresh proof .gamma ++ fixedCalls .gamma))
+        roundPoint := ⟨List.ofFn fun index => readK (run Transcript.initialState
+            (proverCalls fresh proof (.round index) ++ fixedCalls (.round index))),
+          by simp⟩
+        finalState := run Transcript.initialState (preRoundCalls fresh ++
+          (canonicalFinIndices productionShape.cubeVariables).flatMap
+            (roundCalls (messages proof))) } := by
+  have alphaSeal := alpha_seal relation ajtai running fresh proof
+  have pointSeal := round_seal relation ajtai running fresh proof
+  have gammaSeal := gamma_seal relation ajtai running fresh proof
+  have finalSeal := roundsState_eq_run relation ajtai running fresh proof
+  revert alphaSeal pointSeal gammaSeal finalSeal
+  generalize ((ProductionKey.key relation ajtai).piCcsExecution running fresh proof).coins =
+    coins
+  rcases coins with ⟨⟨alpha, alphaLength⟩, gamma, ⟨point, pointLength⟩, finalState⟩
+  intro alphaSeal pointSeal gammaSeal finalSeal
+  simp only at alphaSeal pointSeal gammaSeal finalSeal
+  have alphaEqual : alpha = List.ofFn fun coordinate => readK (run Transcript.initialState
+      (proverCalls fresh proof (.alpha coordinate) ++ fixedCalls (.alpha coordinate))) :=
+    List.ext_getElem (by simp [alphaLength]) fun index inside _ =>
+      (List.getD_eq_getElem _ K.zero inside).symm.trans
+        ((alphaSeal ⟨index, alphaLength ▸ inside⟩).trans (by simp [proverCalls]))
+  have pointEqual : point = List.ofFn fun index => readK (run Transcript.initialState
+      (proverCalls fresh proof (.round index) ++ fixedCalls (.round index))) :=
+    List.ext_getElem (by simp [pointLength]) fun index inside _ =>
+      (List.getD_eq_getElem _ K.zero inside).symm.trans
+        ((pointSeal ⟨index, pointLength ▸ inside⟩).trans (by simp [proverCalls]))
+  subst alphaEqual pointEqual gammaSeal finalSeal
+  rfl
+
+/-- The key's PiCCS probe reads the sponge state after each challenge's calls. -/
+theorem piCcsProbe_coins :
+    ((ProductionKey.key relation ajtai).piCcsProbe running fresh proof).coins =
+      coinsFrom (fun calls => readK (run Transcript.initialState calls)) fresh proof := by
+  simp only [Nifs.PaperNonInteractive.Key.piCcsProbe, coins_eq_reads relation ajtai running fresh proof]
+  rfl
+
+end Seals
+
+/-! ## Coverage -/
+
+private theorem messageCalls_length {degree : Nat} (left right : Proof degree)
+    (round : Fin productionShape.cubeVariables) :
+    (messageCalls (messages left) round).length =
+      (messageCalls (messages right) round).length := by
+  simp [messageCalls, messages, block, Transcript.serializeMessage,
+    SumCheck.Finite.FixedPolynomial.toMessage, (left.piCcsRounds round).coefficients_length,
+    (right.piCcsRounds round).coefficients_length]
+
+private theorem messageCalls_injective {degree : Nat} {left right : Proof degree}
+    {round : Fin productionShape.cubeVariables}
+    (same : messageCalls (messages left) round = messageCalls (messages right) round) :
+    left.piCcsRounds round = right.piCcsRounds round := by
+  have words := block_injective (absorbCalls_injective (by
+    simp [block, Transcript.serializeMessage, messages,
+      SumCheck.Finite.FixedPolynomial.toMessage, (left.piCcsRounds round).coefficients_length,
+      (right.piCcsRounds round).coefficients_length]) same)
+  exact SumCheck.Finite.FixedPolynomial.eq_of_coefficients
+    (serializeKs_injective (List.cons.inj words).2)
+
+private theorem roundCalls_length {degree : Nat} (left right : Proof degree)
+    (round : Fin productionShape.cubeVariables) :
+    (roundCalls (messages left) round).length =
+      (roundCalls (messages right) round).length := by
+  simp only [roundCalls, List.length_append, messageCalls_length left right round]
+
+private theorem roundCalls_injective {degree : Nat} {left right : Proof degree}
+    {round : Fin productionShape.cubeVariables}
+    (same : roundCalls (messages left) round = roundCalls (messages right) round) :
+    left.piCcsRounds round = right.piCcsRounds round :=
+  messageCalls_injective (List.append_inj same (messageCalls_length left right round)).1
+
+private theorem roundsCalls_length {degree : Nat} (left right : Proof degree)
+    (indices : List (Fin productionShape.cubeVariables)) :
+    (indices.flatMap (roundCalls (messages left))).length =
+      (indices.flatMap (roundCalls (messages right))).length :=
+  flatMap_length_eq _ _ _ fun round _ => roundCalls_length left right round
+
+private theorem fullOutputWords_injective
+    {left right : FullOutputCoordinates.FullOutput K productionShape}
+    (same : ProductionKey.fullOutputWords left = ProductionKey.fullOutputWords right) :
+    left = right := by
+  have sources := fun source => serializeEvaluations_injective
+    (flatMap_eq_of_lengths _ _ _ (fun _ _ => by simp) same source (List.mem_finRange source))
+  have pad : left.padCoordinate = right.padCoordinate := funext fun source =>
+    congrArg StrongReduction.EvaluationFamily.pad (sources source)
+  have matrix : left.matrixCoordinate = right.matrixCoordinate := funext fun source =>
+    congrArg StrongReduction.EvaluationFamily.matrix (sources source)
+  cases left
+  cases right
+  simp only at pad matrix
+  rw [pad, matrix]
+
+/-- Every fresh statement absorbs the same number of calls. -/
+theorem statementCalls_length
+    (fresh fresh' : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)) :
+    (statementCalls fresh).length = (statementCalls fresh').length := by
+  simp only [statementCalls, ProductionKey.publicInputBlocks, List.flatMap_append,
+    List.flatMap_cons, List.flatMap_nil, List.append_nil, List.flatMap_assoc, List.length_append]
+  have digestLength : (absorbCalls (block (ProductionKey.priorDigest fresh))).length =
+      (absorbCalls (block (ProductionKey.priorDigest fresh'))).length := by
+    simp [ProductionKey.priorDigest, decodeHash]
+  rw [digestLength, flatMap_length_eq _ _
+    (fun index => absorbCalls (block (serializeCommitment (fresh'.commitments index))) ++
+      absorbCalls (block (serializePublicInput (fresh'.publicInputs index))))
+    (fun _ _ => by simp)]
+
+/-- The statement calls identify the fresh statement. -/
+theorem statementCalls_identify_fresh
+    {fresh fresh' : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)}
+    (same : statementCalls fresh = statementCalls fresh') : fresh = fresh' := by
+  have blocks := List.append_cancel_left same
+  simp only [ProductionKey.publicInputBlocks, List.flatMap_append, List.flatMap_cons,
+    List.flatMap_nil, List.append_nil, List.flatMap_assoc] at blocks
+  obtain ⟨_, perFresh⟩ := List.append_inj blocks
+    (by simp [ProductionKey.priorDigest, decodeHash])
+  have each := flatMap_eq_of_lengths _ _ _ (fun _ _ => by simp) perFresh
+  have parts := fun index => List.append_inj (each index (List.mem_finRange index))
+    (by simp)
+  have commitments : fresh.commitments = fresh'.commitments := by
+    funext index
+    exact serializeCommitment_injective
+      (block_injective (absorbCalls_injective (by simp) (parts index).1))
+  have publicInputs : fresh.publicInputs = fresh'.publicInputs := by
+    funext index
+    exact serializePublicInput_injective
+      (block_injective (absorbCalls_injective (by simp) (parts index).2))
+  cases fresh
+  cases fresh'
+  simp only at commitments publicInputs
+  rw [commitments, publicInputs]
+
+private theorem roundPrefixCalls_identify {degree : Nat}
+    {fresh fresh' : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)}
+    {proof proof' : Proof degree} {round : Fin productionShape.cubeVariables}
+    (same : roundPrefixCalls fresh proof round = roundPrefixCalls fresh' proof' round) :
+    fresh = fresh' ∧ ∀ earlier : Fin productionShape.cubeVariables,
+      earlier.val ≤ round.val → proof.piCcsRounds earlier = proof'.piCcsRounds earlier := by
+  simp only [roundPrefixCalls, preRoundCalls, List.append_assoc] at same
+  obtain ⟨statementEqual, afterStatement⟩ :=
+    List.append_inj same (statementCalls_length fresh fresh')
+  have afterLabels := List.append_cancel_left (List.append_cancel_left afterStatement)
+  obtain ⟨earlierEqual, ownEqual⟩ :=
+    List.append_inj afterLabels (roundsCalls_length proof proof' _)
+  refine ⟨statementCalls_identify_fresh statementEqual, fun earlier atMost => ?_⟩
+  rcases Nat.lt_or_eq_of_le atMost with before | equal
+  · exact roundCalls_injective (flatMap_eq_of_lengths _ _ _
+      (fun round _ => roundCalls_length proof proof' round) earlierEqual earlier
+      (mem_take_canonicalFinIndices earlier before))
+  · rw [Fin.ext equal]
+    exact messageCalls_injective ownEqual
+
+private theorem outputCalls_identify {degree : Nat}
+    {fresh fresh' : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)}
+    {proof proof' : Proof degree}
+    (same : outputCalls fresh proof = outputCalls fresh' proof') :
+    fresh = fresh' ∧
+      { proof with
+        piDecCommitments := proof'.piDecCommitments
+        piDecEvaluations := proof'.piDecEvaluations } = proof' := by
+  simp only [outputCalls, preRoundCalls, List.append_assoc] at same
+  obtain ⟨statementEqual, afterStatement⟩ :=
+    List.append_inj same (statementCalls_length fresh fresh')
+  have afterLabels := List.append_cancel_left (List.append_cancel_left afterStatement)
+  obtain ⟨roundsEqual, outputEqual⟩ :=
+    List.append_inj afterLabels (roundsCalls_length proof proof' _)
+  have rounds : proof.piCcsRounds = proof'.piCcsRounds := funext fun round =>
+    roundCalls_injective (flatMap_eq_of_lengths _ _ _
+      (fun round _ => roundCalls_length proof proof' round) roundsEqual round
+      (mem_canonicalFinIndices round))
+  have output : proof.piCcsOutput = proof'.piCcsOutput :=
+    fullOutputWords_injective (block_injective (absorbCalls_injective
+      (by simp [ProductionKey.fullOutputWords, List.length_flatMap]) outputEqual))
+  refine ⟨statementCalls_identify_fresh statementEqual, ?_⟩
+  cases proof
+  cases proof'
+  simp only at rounds output
+  subst rounds output
+  rfl
+
+/-! ## Distinct challenge calls -/
+
+private theorem cubeVariables_eq : productionShape.cubeVariables = 28 := rfl
+
+private theorem flatMap_length_const {Item : Type} (items : List Item) (calls : Item → List Call)
+    (count : Nat) (each : ∀ item ∈ items, (calls item).length = count) :
+    (items.flatMap calls).length = items.length * count := by
+  induction items with
+  | nil => simp
+  | cons item items inductionHypothesis =>
+      simp only [List.flatMap_cons, List.length_append, List.length_cons]
+      rw [each item List.mem_cons_self,
+        inductionHypothesis fun other inside => each other (List.mem_cons_of_mem _ inside)]
+      ring
+
+private theorem labelCalls_length (label : FiatShamir.ChallengeLabel productionShape) :
+    (labelCalls label).length = 3 := by
+  cases label <;> simp [labelCalls, Transcript.labelWord, Poseidon2.rate]
+
+private theorem labelWordCalls_length (label : FiatShamir.ChallengeLabel productionShape) :
+    (absorbCalls (Transcript.labelWord label)).length = 1 := by
+  cases label <;> simp [Transcript.labelWord, Poseidon2.rate]
+
+/-- One round message has the same number of calls in every round. -/
+private theorem messageCalls_length_eq {degree : Nat} (left right : Proof degree)
+    (round other : Fin productionShape.cubeVariables) :
+    (messageCalls (messages left) round).length =
+      (messageCalls (messages right) other).length := by
+  simp [messageCalls, messages, block, Transcript.serializeMessage,
+    SumCheck.Finite.FixedPolynomial.toMessage, (left.piCcsRounds round).coefficients_length,
+    (right.piCcsRounds other).coefficients_length]
+
+private theorem take_rounds_length {degree : Nat} (proof : Proof degree)
+    (round : Fin productionShape.cubeVariables) :
+    (((canonicalFinIndices productionShape.cubeVariables).take round.val).flatMap
+      (roundCalls (messages proof))).length =
+      round.val * ((messageCalls (messages proof) ⟨0, by decide⟩).length + 3) := by
+  rw [flatMap_length_const _ _ ((messageCalls (messages proof) ⟨0, by decide⟩).length + 3)]
+  · simp [canonicalFinIndices, cubeVariables_eq]
+  · intro other _
+    simp only [roundCalls, List.length_append, labelCalls_length,
+      messageCalls_length_eq proof proof other ⟨0, by decide⟩]
+
+private theorem alphaLabels_length :
+    ((FiatShamir.alphaLabels productionShape).flatMap labelCalls).length = 84 := by
+  rw [flatMap_length_const _ _ 3 fun label _ => labelCalls_length label]
+  simp [FiatShamir.alphaLabels, canonicalFinIndices, cubeVariables_eq]
+
+/-- Where a challenge's read falls after the statement calls. `count` is the
+call count of one round message, `output` that of the complete `y′`. -/
+private def offset (count output : Nat) : Challenge → Nat
+  | .alpha coordinate => 3 * coordinate.val + 1
+  | .gamma => 85
+  | .round index => 87 + index.val * (count + 3) + count + 1
+  | .rho index => 87 + 28 * (count + 3) + output + 2 * index.val + 1
+
+private theorem offset_injective (count output : Nat) :
+    Function.Injective (offset count output) := by
+  have cube : productionShape.cubeVariables = 28 := rfl
+  have product (round : Fin productionShape.cubeVariables) :
+      round.val * (count + 3) ≤ 27 * (count + 3) :=
+    Nat.mul_le_mul_right _ (by omega)
+  intro challenge other same
+  match challenge, other with
+  | .alpha coordinate, .alpha coordinate' =>
+      simp only [offset] at same
+      exact congrArg Challenge.alpha (Fin.ext (by omega))
+  | .alpha _, .gamma => simp only [offset] at same; omega
+  | .alpha _, .round index =>
+      simp only [offset] at same
+      generalize index.val * (count + 3) = steps at same
+      omega
+  | .alpha _, .rho _ => simp only [offset] at same; omega
+  | .gamma, .alpha _ => simp only [offset] at same; omega
+  | .gamma, .gamma => rfl
+  | .gamma, .round index =>
+      simp only [offset] at same
+      generalize index.val * (count + 3) = steps at same
+      omega
+  | .gamma, .rho _ => simp only [offset] at same; omega
+  | .round index, .alpha _ =>
+      simp only [offset] at same
+      generalize index.val * (count + 3) = steps at same
+      omega
+  | .round index, .gamma =>
+      simp only [offset] at same
+      generalize index.val * (count + 3) = steps at same
+      omega
+  | .round index, .round index' =>
+      simp only [offset] at same
+      have steps : index.val * (count + 3) = index'.val * (count + 3) := by omega
+      exact congrArg Challenge.round (Fin.ext (Nat.eq_of_mul_eq_mul_right (by omega) steps))
+  | .round index, .rho _ =>
+      simp only [offset] at same
+      have bound := product index
+      generalize index.val * (count + 3) = steps at same bound
+      omega
+  | .rho _, .alpha _ => simp only [offset] at same; omega
+  | .rho _, .gamma => simp only [offset] at same; omega
+  | .rho _, .round index' =>
+      simp only [offset] at same
+      have bound := product index'
+      generalize index'.val * (count + 3) = steps at same bound
+      omega
+  | .rho scalar, .rho scalar' =>
+      simp only [offset] at same
+      exact congrArg Challenge.rho (Fin.ext (by omega))
+
+/-- The length of a challenge's calls: the statement calls, then the
+challenge's offset in the schedule. -/
+private theorem challengeCalls_length {degree : Nat}
+    (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (proof : Proof degree) (challenge : Challenge) :
+    (challengeCalls fresh proof challenge).length = (statementCalls fresh).length +
+      offset (messageCalls (messages proof) ⟨0, by decide⟩).length
+        (absorbCalls (block (ProductionKey.fullOutputWords proof.piCcsOutput))).length
+        challenge := by
+  cases challenge with
+  | alpha coordinate =>
+      have below : coordinate.val < 28 := coordinate.isLt
+      rw [challengeCalls, proverCalls, fixedCalls, List.length_append, List.length_append,
+        labelWordCalls_length, flatMap_length_const _ _ 3 fun label _ => labelCalls_length label]
+      simp [offset, FiatShamir.alphaLabels, canonicalFinIndices, cubeVariables_eq]
+      omega
+  | gamma =>
+      simp only [challengeCalls, proverCalls, fixedCalls, List.length_append, alphaLabels_length,
+        labelWordCalls_length, offset]
+  | round index =>
+      simp only [challengeCalls, proverCalls, fixedCalls, roundPrefixCalls, preRoundCalls,
+        List.length_append, alphaLabels_length, labelCalls_length, labelWordCalls_length,
+        take_rounds_length, messageCalls_length_eq proof proof index ⟨0, by decide⟩, offset]
+      omega
+  | rho index =>
+      have rounds : ((canonicalFinIndices productionShape.cubeVariables).flatMap
+          (roundCalls (messages proof))).length =
+          28 * ((messageCalls (messages proof) ⟨0, by decide⟩).length + 3) := by
+        rw [flatMap_length_const _ _ ((messageCalls (messages proof) ⟨0, by decide⟩).length + 3)]
+        · simp [canonicalFinIndices, cubeVariables_eq]
+        · intro other _
+          simp only [roundCalls, List.length_append, labelCalls_length,
+            messageCalls_length_eq proof proof other ⟨0, by decide⟩]
+      have scalars : ((Spec.Folding.Nifs.NonInteractive.PiRlcSampler.ScheduleLaw.queryAt []
+          (rhoIndex index)).val.map widen).length = 2 * index.val + 1 := by
+        rw [List.length_map, Spec.Folding.Nifs.NonInteractive.PiRlcSampler.ScheduleLaw.queryAt_length]
+        simp [rhoIndex]
+      simp only [challengeCalls, proverCalls, fixedCalls, outputCalls, preRoundCalls,
+        List.length_append, alphaLabels_length, labelCalls_length, rounds, scalars, offset]
+      omega
+
+/-- Lengths of challenge calls do not depend on the statement or the proof. -/
+theorem challengeCalls_length_eq {degree : Nat}
+    (fresh fresh' : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (proof proof' : Proof degree) (challenge : Challenge) :
+    (challengeCalls fresh proof challenge).length =
+      (challengeCalls fresh' proof' challenge).length := by
+  have outputLength :
+      (absorbCalls (block (ProductionKey.fullOutputWords proof.piCcsOutput))).length =
+        (absorbCalls (block (ProductionKey.fullOutputWords proof'.piCcsOutput))).length := by
+    simp [block, ProductionKey.fullOutputWords, List.length_flatMap]
+  rw [challengeCalls_length, challengeCalls_length, statementCalls_length fresh fresh',
+    messageCalls_length_eq proof proof', outputLength]
+
+/-- Distinct challenges of one execution read after distinct call lists, so a
+random oracle answers them independently. -/
+theorem challengeCalls_injective {degree : Nat}
+    (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (proof : Proof degree) {challenge other : Challenge}
+    (same : challengeCalls fresh proof challenge = challengeCalls fresh proof other) :
+    challenge = other := by
+  have lengths := congrArg List.length same
+  rw [challengeCalls_length, challengeCalls_length] at lengths
+  exact offset_injective _ _ (Nat.add_left_cancel lengths)
+
+/-! ## Contract -/
+
+/-- The dependency specification: two executions agree on everything the
+transcript absorbs directly before a challenge, namely the fresh statement and
+the earlier prover messages in the SuperNeo §7.3–7.4 order. Before `Π_RLC` the
+proofs are equal except for the `Π_DEC` child messages, which follow the last
+challenge. This definition is normative: a change to it is a protocol change.
+The running statement enters only through the prior digest; see
+`PiCCSSecurity.PriorLink`. -/
+def AgreeOnAbsorbed {degree : Nat}
+    (fresh fresh' : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (proof proof' : Proof degree) : Challenge → Prop
+  | .alpha _ => fresh = fresh'
+  | .gamma => fresh = fresh'
+  | .round index => fresh = fresh' ∧ ∀ earlier : Fin productionShape.cubeVariables,
+      earlier.val ≤ index.val → proof.piCcsRounds earlier = proof'.piCcsRounds earlier
+  | .rho _ => fresh = fresh' ∧
+      { proof with
+        piDecCommitments := proof'.piDecCommitments
+        piDecEvaluations := proof'.piDecEvaluations } = proof'
+
+theorem AgreeOnAbsorbed.fresh_eq {degree : Nat}
+    {fresh fresh' : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)}
+    {proof proof' : Proof degree} {challenge : Challenge}
+    (agree : AgreeOnAbsorbed fresh fresh' proof proof' challenge) : fresh = fresh' := by
+  cases challenge with
+  | alpha => exact agree
+  | gamma => exact agree
+  | round => exact agree.1
+  | rho => exact agree.1
+
+/-- Equal prover-dependent calls before a challenge give agreement on
+everything the transcript absorbed directly. -/
+theorem proverCalls_identify {degree : Nat}
+    {fresh fresh' : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)}
+    {proof proof' : Proof degree} (challenge : Challenge)
+    (same : proverCalls fresh proof challenge = proverCalls fresh' proof' challenge) :
+    AgreeOnAbsorbed fresh fresh' proof proof' challenge := by
+  cases challenge with
+  | alpha => exact statementCalls_identify_fresh same
+  | gamma => exact statementCalls_identify_fresh same
+  | round => exact roundPrefixCalls_identify same
+  | rho => exact outputCalls_identify same
+
+/-- Two different call lists that reach one transcript state: a named
+Poseidon2 sponge collision. -/
+def RunCollision (left right : List Call) : Prop :=
+  left ≠ right ∧ run Transcript.initialState left = run Transcript.initialState right
+
+/-- Equal states after the statement calls identify the fresh statement, unless
+the two call lists collide. -/
+theorem statementState_identifies_fresh_or_collision
+    {fresh fresh' : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)}
+    (same : run Transcript.initialState (statementCalls fresh) =
+      run Transcript.initialState (statementCalls fresh')) :
+    fresh = fresh' ∨ RunCollision (statementCalls fresh) (statementCalls fresh') := by
+  classical
+  by_cases equal : statementCalls fresh = statementCalls fresh'
+  · exact Or.inl (statementCalls_identify_fresh equal)
+  · exact Or.inr ⟨equal, same⟩
+
+/-- Equal SumCheck messages identify the round polynomials. -/
+theorem messages_injective {degree : Nat} {left right : Proof degree}
+    (same : messages left = messages right) : left.piCcsRounds = right.piCcsRounds :=
+  funext fun round => SumCheck.Finite.FixedPolynomial.eq_of_coefficients
+    (congrArg SumCheck.Finite.Message.coefficients (congrFun same round))
+
+end Contract
+
+end NightstreamFPrime.Lifecycle.TranscriptCoverage

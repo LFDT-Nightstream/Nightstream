@@ -1,9 +1,12 @@
 import NightstreamFPrime.Layout.Stage1.StateEncoding
+import NightstreamFPrime.Lifecycle.TranscriptCoverage
 import NightstreamFPrime.Lifecycle.VerifierContext
 import NightstreamFPrime.Spec.Folding.PiCCS.TranscriptReplay
 
 /-!
-Owns the committed-statement reduction for digest-only PiCCS.
+Owns the committed-statement reduction for digest-only PiCCS, and the
+prior-state link that extends `Lifecycle.TranscriptCoverage` to the running
+statement.
 
 The deterministic result stops at explicit collision events. It assigns no
 probability to Poseidon2 and does not mix commitment binding, Fiat--Shamir
@@ -362,5 +365,63 @@ theorem committed_authority_statement_finalState_identify_or_failure
     · exact Or.inr (Or.inr (Or.inr (Or.inl stateFailure)))
   · exact Or.inr (Or.inl componentFailure)
   · exact Or.inr (Or.inr (Or.inl contextFailure))
+
+/-- The HyperNova prior-state link: the digest that the fresh public input
+decodes to is the hash of the well-formed prior preimage, the preimage names the
+verifier context, and
+the NIFS running statement is the preimage's running vector. The context is the
+`vk_fs` slot of HyperNova Construction 2's state hash. The key itself is fixed
+by the verifier, not by the transcript: unlike Construction 3's `hs = ρ(pp, s)`,
+the context does not seed the transcript, and the terminal verifier recomputes
+the digest with its own context. The link binds the running statement and the
+context digest; it charges no probability to a state-hash collision.
+`ActualTerminalSecurity.terminal_implies_nifsOrBaseOrCollision` supplies the
+link on the positive, collision-free branch of an accepted recursive terminal. -/
+structure PriorLink
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (prior : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (context : KeyDigest) : Prop where
+  digest : ProductionKey.priorDigest fresh = stateHash (publicFits := publicFits) prior
+  context_eq : prior.verifierKeys functionIndex = context
+  running_eq : prior.running functionIndex = running
+  wellFormed : StateEncoding.WellFormed prior
+
+/-- The transcript coverage contract with the prior-state link. If two
+executions present equal prover-dependent calls before a challenge, they agree
+on the prior preimage, the verifier context, the NIFS running statement, the
+fresh statement, and every earlier prover message, unless the state hash
+collides. `contextDigest_identifies_authority_or_collision` then identifies
+the verifier authority behind equal contexts. -/
+theorem calls_identify_view_or_collision
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    {degree : Nat} (challenge : TranscriptCoverage.Challenge)
+    {prior prior' : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits)}
+    {running running' : Running (logicalWidth := logicalWidth) (publicFits := publicFits)}
+    {fresh fresh' : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)}
+    {context context' : KeyDigest}
+    {proof proof' : Proof degree}
+    (link : PriorLink prior running fresh context)
+    (link' : PriorLink prior' running' fresh' context')
+    (same : TranscriptCoverage.proverCalls fresh proof challenge =
+      TranscriptCoverage.proverCalls fresh' proof' challenge) :
+    (prior = prior' ∧ context = context' ∧ running = running' ∧
+        TranscriptCoverage.AgreeOnAbsorbed fresh fresh' proof proof' challenge) ∨
+      StateHashCollision prior prior' := by
+  have agree := TranscriptCoverage.proverCalls_identify challenge same
+  have digestEqual : stateHash (publicFits := publicFits) prior =
+      stateHash (publicFits := publicFits) prior' := by
+    rw [← link.digest, ← link'.digest, agree.fresh_eq]
+  rcases stateHash_identifies_statement_or_collision prior prior'
+      link.wellFormed link'.wellFormed digestEqual with priorEqual | collision
+  · refine Or.inl ⟨priorEqual, ?_, ?_, agree⟩
+    · rw [← link.context_eq, ← link'.context_eq, priorEqual]
+    · rw [← link.running_eq, ← link'.running_eq, priorEqual]
+  · exact Or.inr collision
 
 end NightstreamFPrime.Layout.Stage1.PiCCSSecurity

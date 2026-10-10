@@ -137,7 +137,7 @@ theorem recipeConstraints_varsBelow_of_causal (start : Nat)
             omega)
       · have below := inductionHypothesis (start := start + 1)
           causal.2 expression member
-        convert below using 1 <;> simp only [List.length_cons] <;> omega
+        convert below using 1; simp only [List.length_cons]; omega
 
 /-- Satisfaction is stable when every referenced variable is unchanged. -/
 theorem constraintsHold_of_agree_below
@@ -167,7 +167,7 @@ theorem recipesCausal_append (start : Nat) (existing added : List Expr)
       · apply ih (start := start + 1) hexisting.2
         intro expression hmem
         have h := hadded expression hmem
-        convert h using 1 <;> simp only [List.length_cons] <;> omega
+        convert h using 1; simp only [List.length_cons]; omega
 
 /-- Recipe constraints split at the exact variable offset allocated by the
 first recipe list. -/

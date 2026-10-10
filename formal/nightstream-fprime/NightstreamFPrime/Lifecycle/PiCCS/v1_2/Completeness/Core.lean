@@ -178,7 +178,7 @@ theorem accepted_of_agree_below
       below agrees]
   exact accepted
 
-def pointWeightedAssumptionsAt
+theorem pointWeightedAssumptionsAt
     {variableCount : Nat}
     {interface : PointWeightedHorner.Interface variableCount}
     {offset : Nat} {env : Env}
@@ -187,7 +187,7 @@ def pointWeightedAssumptionsAt
     PointWeightedHorner.Assumptions interface offset current :=
   ⟨assumptions.point, assumptions.hornerExternal, assumptions.expectedBelow⟩
 
-def ownedPointWeightedAssumptionsAt
+theorem ownedPointWeightedAssumptionsAt
     {variableCount : Nat}
     {interface : PointWeightedHorner.Owned.Interface variableCount}
     {offset : Nat} {env : Env}
@@ -197,7 +197,7 @@ def ownedPointWeightedAssumptionsAt
     PointWeightedHorner.Owned.Assumptions interface offset current :=
   ⟨assumptions.point, assumptions.hornerExternal⟩
 
-def finalIdentityAssumptionsAt
+theorem finalIdentityAssumptionsAt
     {interface : FinalIdentity.Interface}
     {offset : Nat} {env : Env}
     (assumptions : FinalIdentity.Assumptions interface offset env)
@@ -206,7 +206,7 @@ def finalIdentityAssumptionsAt
     assumptions.eval_ABelow, assumptions.ccsBelow, assumptions.normBelow,
     assumptions.terminalBelow⟩
 
-def stateBindingAssumptionsAt
+theorem stateBindingAssumptionsAt
     {interface : StateBinding.Interface}
     {offset : Nat} {env : Env}
     (assumptions : StateBinding.Assumptions interface offset env)
@@ -218,7 +218,7 @@ def stateBindingAssumptionsAt
 
 /-- Child assumptions contain only syntactic range facts and do not depend
 on environment values. -/
-def assumptionsAt
+theorem assumptionsAt
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}

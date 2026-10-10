@@ -11,9 +11,9 @@ statement. Nightstream must decide whether PiCCS can absorb this constrained
 digest instead of absorbing the complete running statement again.
 
 This choice must not create weak Fiat--Shamir, make an ambiguous encoding
-authoritative, or let a prover select the digest or relation. The detailed
-implementation obligation is recorded in the
-[PiCCS schedule issue](../formal/nightstream-fprime/OPEN_ISSUES_LEAN_REFACTOR.md#1-remove-duplicate-piccs-statement-absorption).
+authoritative, or let a prover select the digest or relation. The
+digest-only schedule is implemented in
+`formal/nightstream-fprime/NightstreamFPrime/Layout/PiCCS/v1_2/Leaves/StatementAbsorption.lean`.
 
 ## SuperNeo
 

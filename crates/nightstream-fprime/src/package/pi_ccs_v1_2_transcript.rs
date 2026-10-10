@@ -11,8 +11,6 @@ use p3_goldilocks::Goldilocks;
 use super::{canonical_field, PackageError, PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT, PI_CCS_V1_2_ROUND_COUNT};
 
 const WIDTH: usize = neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
-const RATE: usize = neo_ccs::crypto::poseidon2_goldilocks::RATE;
-const COINS_PER_CHUNK: usize = RATE / 2;
 const CUBE_VARIABLES: usize = PI_CCS_V1_2_ROUND_COUNT;
 const RUNNING_SOURCES: usize = 16;
 const SOURCE_COUNT: usize = 17;
@@ -74,16 +72,16 @@ pub fn derive_pi_ccs_v1_2_transcript(
     transcript.absorb_v1_2(&canonical_words(&public_statement_blocks.concat())?);
 
     let mut alpha = Vec::with_capacity(CUBE_VARIABLES);
-    for position in 0..CUBE_VARIABLES {
-        alpha.push(read_coin(&mut transcript, position));
+    for _ in 0..CUBE_VARIABLES {
+        alpha.push(read_coin(&mut transcript));
     }
-    let gamma = read_coin(&mut transcript, CUBE_VARIABLES);
+    let gamma = read_coin(&mut transcript);
 
     let mut round_point = Vec::with_capacity(CUBE_VARIABLES);
     for message in rounds {
         let words: Vec<u64> = message.iter().flatten().copied().collect();
         transcript.absorb_v1_2(&canonical_words(&words)?);
-        round_point.push(read_coin(&mut transcript, 0));
+        round_point.push(read_coin(&mut transcript));
     }
     transcript.absorb_v1_2(&canonical_words(output_words)?);
 
@@ -129,15 +127,10 @@ fn canonical_words(words: &[u64]) -> Result<Vec<Goldilocks>, PackageError> {
         .collect()
 }
 
-/// Read the coin at `position` from rate-lane pair `position % 6`. After the
-/// sixth pair of a state, absorb one zero chunk.
-fn read_coin(transcript: &mut Poseidon2Transcript, position: usize) -> [u64; 2] {
-    let pair = position % COINS_PER_CHUNK;
-    let value = transcript
-        .read_pair_v1_2(pair)
-        .map(|coefficient| coefficient.as_canonical_u64());
-    if pair == COINS_PER_CHUNK - 1 {
-        transcript.absorb_v1_2(&[Goldilocks::ZERO; RATE]);
-    }
-    value
+/// Read the next fold-transcript coin as two canonical words.
+fn read_coin(transcript: &mut Poseidon2Transcript) -> [u64; 2] {
+    transcript
+        .read_coin_v1_2()
+        .value
+        .map(|coefficient| coefficient.as_canonical_u64())
 }

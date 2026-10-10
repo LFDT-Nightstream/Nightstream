@@ -71,8 +71,9 @@ def stateDomainChunk : List F :=
 
 def natWord (n : Nat) : F := Poseidon2.ofNat n
 
-/-- A length prefix makes one variable-length transcript block
-self-delimiting. The state layouts have fixed widths and use none. -/
+/-- A length prefix makes one variable-length block self-delimiting. The
+proof-envelope size count frames each fresh claim part with it; the state
+layouts and the PiCCS transcript use none. -/
 def block (xs : List F) : List F := natWord xs.length :: xs
 
 @[simp] theorem block_length (xs : List F) :

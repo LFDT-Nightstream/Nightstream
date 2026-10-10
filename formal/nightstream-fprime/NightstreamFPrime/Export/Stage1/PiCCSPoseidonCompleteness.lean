@@ -9,7 +9,7 @@ import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxSourceCompletenes
 /-!
 Owns the direct C permutation-plan proof from the actual completed C rows.
 Source input and retained S-box values are tied to the same compact compiler
-invocation. Squeeze pins use the actual compiler assertion meaning.
+invocation. Coins are permutation-output lanes, so the plan has no coin pins.
 -/
 
 set_option autoImplicit false

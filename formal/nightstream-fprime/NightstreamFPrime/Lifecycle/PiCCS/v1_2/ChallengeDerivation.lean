@@ -92,7 +92,7 @@ def layoutProgram (interface : Interface) (offset : Nat) : Formal.Program :=
   Formal.compile offset (interface.initialState offset) layoutActions
 
 /-- Recipe-free executable projection of the fixed challenge schedule. The
-incoming state remains delayed and is replaced by the first label absorb. -/
+first action reads the incoming state, so the lazy wiring forces it at once. -/
 def layoutWiring (interface : Interface) (offset : Nat) : Formal.Wiring :=
   Formal.compileWiringLazy offset (fun _ => interface.initialState offset)
     layoutActions

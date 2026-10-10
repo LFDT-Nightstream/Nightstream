@@ -9,7 +9,7 @@ Obligation: Absorb the pilot-bound prior-state digest and the fresh public
 claim before deriving `α`, `γ`, or any SumCheck challenge.
 
 Inputs:
-- the digest-only PiCCS domain tag;
+- the constant fold-domain chunk `Nightstream/SuperNeo/fold/v2`;
 - the four digest lanes projected from the pilot-bound fresh public input;
 - one fresh commitment and public input.
 
@@ -17,15 +17,17 @@ Outputs:
 - the Poseidon2 state after the complete statement absorption.
 
 Constraint groups:
-- C1: four ordered absorb actions through the generic Duplex circuit;
-- C2: eight final-state equality constraints.
+- C1: two absorb actions through the generic Duplex circuit: the domain
+  chunk, then the 1,462-word statement stream with no length prefixes;
+- C2: no assertion rows; the compiled final state goes directly to the
+  challenge leaf.
 
 Parent coverage:
 - `v1_2.Coverage.transcript` committed-statement prefix;
 - pilot-to-PiCCS prior-digest wiring;
 - the fresh statement.
 
-This leaf contains no squeeze and accepts no witness-supplied challenge. The
+This leaf reads no coin and accepts no witness-supplied challenge. The
 complete running statement remains available to the other PiCCS leaves, but
 this leaf does not absorb it again. The generic Duplex child owns all
 Poseidon2 operations; this leaf owns only typed serialization and wiring.
@@ -185,19 +187,9 @@ theorem serializeEvalAExpr_length (evaluation : EvaluationExpr) :
 
 def constantWords (words : List F) : List Expr := words.map Expr.const
 
-def blockExpr (words : List Expr) : List Expr :=
-  Expr.const (NightstreamFPrime.Lifecycle.natWord words.length) :: words
-
 private theorem constantWords_length (words : List F) :
     (constantWords words).length = words.length := by
   simp [constantWords]
-
-private theorem blockExpr_length (words : List Expr) :
-    (blockExpr words).length = words.length + 1 := by
-  simp [blockExpr]
-
-def absorbBlock (words : List Expr) : Formal.Action :=
-  .absorb (blockExpr words)
 
 /-- Reconstruct one digest word from its 64 canonical public bits. -/
 def decodeHashWordExpr {logicalWidth : Nat}
@@ -258,52 +250,6 @@ def verifierClaimWords {logicalWidth : Nat}
       serializeKExpr ((running.evaluation coordinate.running).eval_A
         coordinate.matrix coordinate.coefficient)
 
-private theorem flatMap_length_constant
-    {Index Value : Type}
-    (indices : List Index)
-    (values : Index → List Value)
-    (count : Nat)
-    (each : ∀ index, (values index).length = count) :
-    (indices.flatMap values).length = indices.length * count := by
-  induction indices with
-  | nil => simp
-  | cons head tail inductionHypothesis =>
-      rw [List.flatMap_cons, List.length_append, each,
-        inductionHypothesis]
-      simp [Nat.succ_mul, Nat.add_comm]
-
-private theorem verifierClaimWords_length {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
-    (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    (verifierClaimWords interface offset).length = 8640 := by
-  let running := interface.running offset
-  have padLength :
-      ((canonicalPadCoordinates productionShape).flatMap fun coordinate =>
-        serializeKExpr
-          ((running.evaluation coordinate.running).eval_K
-            coordinate.coefficient)).length =
-        (canonicalPadCoordinates productionShape).length * 2 := by
-    apply flatMap_length_constant
-    intro coordinate
-    exact serializeKExpr_length _
-  have matrixLength :
-      ((canonicalMatrixCoordinates productionShape).flatMap fun coordinate =>
-        serializeKExpr
-          ((running.evaluation coordinate.running).eval_A coordinate.matrix
-            coordinate.coefficient)).length =
-        (canonicalMatrixCoordinates productionShape).length * 2 := by
-    apply flatMap_length_constant
-    intro coordinate
-    exact serializeKExpr_length _
-  unfold verifierClaimWords
-  dsimp only
-  rw [List.length_append, padLength, matrixLength,
-    canonicalPadCoordinates_length, canonicalMatrixCoordinates_length]
-  norm_num [productionShape, productionProfile,
-    Phi81MatrixSource.phi81Shape, Shape.padEvaluationCount,
-    Shape.matrixEvaluationCount, ringDegree]
-
 /-- The two verifier-owned blocks: prior point, then `Eval_K ++ Eval_A`. -/
 def verifierInputBlocks {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -312,23 +258,6 @@ def verifierInputBlocks {logicalWidth : Nat}
     (offset : Nat) : List (List Expr) :=
   [serializePointExpr (interface.running offset).point,
     verifierClaimWords interface offset]
-
-/-- The public verifier input is absorbed after the key-owned public prefix. -/
-def verifierInputActions {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
-    (interface : Interface logicalWidth publicFits)
-    (offset : Nat) : List Formal.Action :=
-  (verifierInputBlocks interface offset).map absorbBlock
-
-private theorem verifierInputActions_eq {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
-    (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    verifierInputActions interface offset =
-      [absorbBlock (serializePointExpr (interface.running offset).point),
-        absorbBlock (verifierClaimWords interface offset)] := by
-  rfl
 
 theorem map_flatMap_congr
     {Index Left Right : Type}
@@ -593,40 +522,6 @@ theorem publicInputBlocks_flatten_length {logicalWidth : Nat}
     productionShape, productionProfile, Phi81MatrixSource.phi81Shape,
     List.finRange_succ]
 
-@[simp] private theorem point_recipeCount
-    (point : Fin productionShape.cubeVariables → KExpr) :
-    Formal.Action.recipeCount
-        (absorbBlock (serializePointExpr point)) = 5480 := by
-  unfold absorbBlock
-  rw [absorb_recipeCount, blockExpr_length, serializePointExpr_length]
-
-@[simp] private theorem commitment_recipeCount
-    (commitment : Fin productionProfile.commitmentWidth →
-      Fin ringDegree → Expr) :
-    Formal.Action.recipeCount
-        (absorbBlock (serializeCommitmentExpr commitment)) = 109600 := by
-  unfold absorbBlock
-  rw [absorb_recipeCount, blockExpr_length, serializeCommitmentExpr_length]
-
-@[simp] private theorem publicInput_recipeCount {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
-    (input : Fin (FullShape logicalWidth publicFits).publicWidth → Expr) :
-    Formal.Action.recipeCount
-        (absorbBlock (serializePublicInputExpr input)) = 25208 := by
-  unfold absorbBlock
-  rw [absorb_recipeCount, blockExpr_length, serializePublicInputExpr_length]
-
-@[simp] private theorem verifierClaims_recipeCount {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
-    (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    Formal.Action.recipeCount
-        (absorbBlock (verifierClaimWords interface offset)) = 790216 := by
-  unfold absorbBlock
-  rw [absorb_recipeCount, blockExpr_length,
-    verifierClaimWords_length]
-
 private theorem publicInputActions_recipeCount {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -637,14 +532,6 @@ private theorem publicInputActions_recipeCount {logicalWidth : Nat}
     List.sum_nil, domain_recipeCount]
   rw [absorb_recipeCount, publicInputBlocks_flatten_length]
   norm_num
-
-private theorem verifierInputActions_recipeCount {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
-    (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    Formal.recipeCount (verifierInputActions interface offset) = 795696 := by
-  rw [verifierInputActions_eq]
-  simp [Formal.recipeCount]
 
 def actions {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

@@ -17,7 +17,6 @@ use crate::engines::pi_ccs_protocol::{Challenges, PiCcsProof};
 use crate::error::PiCcsError;
 
 const RATE: usize = neo_ccs::crypto::poseidon2_goldilocks::RATE;
-const COINS_PER_CHUNK: usize = RATE / 2;
 
 /// One SuperNeo v1.2 output opening. Pad (`Eval_K`) is separate from the
 /// genuine CCS-matrix family (`Eval_A`).
@@ -89,24 +88,16 @@ fn prior_digest_fields(running: &[CeClaim<Cmt, F, K>]) -> Result<Vec<F>, PiCcsEr
         .collect()
 }
 
-/// Read the coin at `position` from rate-lane pair `position % 6`. The
-/// label is trace metadata only. After the sixth pair of a state, absorb one
-/// zero chunk.
-fn read_coin(
-    transcript: &mut Poseidon2Transcript,
-    trace: &mut ProtocolTrace,
-    label: u64,
-    index: Option<usize>,
-    position: usize,
-) -> K {
-    let pair = position % COINS_PER_CHUNK;
-    let sampled = transcript.read_pair_v1_2(pair);
-    let value = neo_math::from_complex(sampled[0], sampled[1]);
+/// Read the next fold-transcript coin and record it. The label is trace
+/// metadata only. A refresh absorb is recorded like any other absorb.
+fn read_coin(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, label: u64, index: Option<usize>) -> K {
+    let coin = transcript.read_coin_v1_2();
+    let value = neo_math::from_complex(coin.value[0], coin.value[1]);
     trace
         .events
         .push(TraceEvent::Challenge { label, index, value });
-    if pair == COINS_PER_CHUNK - 1 {
-        append(transcript, trace, vec![F::ZERO; RATE]);
+    if coin.refreshed {
+        trace.events.push(TraceEvent::Absorb(vec![F::ZERO; RATE]));
     }
     value
 }
@@ -218,9 +209,9 @@ pub(crate) fn bind_and_sample_with_trace(
     append(transcript, trace, statement);
 
     let alpha: Vec<K> = (0..dims.variables)
-        .map(|index| read_coin(transcript, trace, ALPHA_TAG, Some(index), index))
+        .map(|index| read_coin(transcript, trace, ALPHA_TAG, Some(index)))
         .collect();
-    let gamma = read_coin(transcript, trace, GAMMA_TAG, None, dims.variables);
+    let gamma = read_coin(transcript, trace, GAMMA_TAG, None);
     trace.alpha = alpha.clone();
     trace.gamma = gamma;
     trace.pre_sumcheck_state = transcript.state();
@@ -255,7 +246,7 @@ pub fn prove_phase<O: PaperJointRoundOracle + ?Sized>(
             k_fields(&mut fields, coefficient);
         }
         append(transcript, trace, fields);
-        let challenge = read_coin(transcript, trace, ROUND_CHALLENGE_TAG, Some(round), 0);
+        let challenge = read_coin(transcript, trace, ROUND_CHALLENGE_TAG, Some(round));
         claim = crate::sumcheck::poly_eval_k(&coefficients, challenge);
         oracle.fold(challenge)?;
         rounds.push(coefficients);
@@ -295,7 +286,7 @@ fn verify_phase(
             k_fields(&mut fields, coefficient);
         }
         append(transcript, trace, fields);
-        let challenge = read_coin(transcript, trace, ROUND_CHALLENGE_TAG, Some(round_index), 0);
+        let challenge = read_coin(transcript, trace, ROUND_CHALLENGE_TAG, Some(round_index));
         claim = crate::sumcheck::poly_eval_k(coefficients, challenge);
         challenges.push(challenge);
         trace.round_states.push(transcript.state());

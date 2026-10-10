@@ -10,6 +10,7 @@ use p3_field::PrimeField64;
 use p3_field_v08::extension::CubicTrinomialExtensionField;
 use p3_field_v08::{BasedVectorSpace, PrimeCharacteristicRing};
 use p3_multilinear_util_v08::point::Point;
+use rayon::prelude::*;
 
 /// Goldilocks in Plonky3 0.8 types.
 pub(crate) type Gl = p3_goldilocks_v08::Goldilocks;
@@ -62,9 +63,16 @@ pub(crate) fn signed(value: i64) -> Gl {
 pub(crate) fn eq_table(point: &[Ext]) -> Vec<Ext> {
     let mut table = vec![Ext::ONE];
     for &coordinate in point {
-        let mut next = Vec::with_capacity(2 * table.len());
-        next.extend(table.iter().map(|&value| value * (Ext::ONE - coordinate)));
-        next.extend(table.iter().map(|&value| value * coordinate));
+        let mut next = vec![Ext::ZERO; 2 * table.len()];
+        let (low, high) = next.split_at_mut(table.len());
+        low.par_iter_mut()
+            .zip(high.par_iter_mut())
+            .zip(table.par_iter())
+            .for_each(|((low, high), &value)| {
+                // value · (1 - c) = value - value · c.
+                *high = value * coordinate;
+                *low = value - *high;
+            });
         table = next;
     }
     table
@@ -72,11 +80,10 @@ pub(crate) fn eq_table(point: &[Ext]) -> Vec<Ext> {
 
 /// Bind the lowest index variable of `table` to `r`.
 pub(crate) fn fold_low(table: &mut Vec<Ext>, r: Ext) {
-    let half = table.len() / 2;
-    for k in 0..half {
-        table[k] = table[2 * k] + r * (table[2 * k + 1] - table[2 * k]);
-    }
-    table.truncate(half);
+    *table = table
+        .par_chunks_exact(2)
+        .map(|pair| pair[0] + r * (pair[1] - pair[0]))
+        .collect();
 }
 
 /// Plonky3 orders point coordinates from the most significant index bit;

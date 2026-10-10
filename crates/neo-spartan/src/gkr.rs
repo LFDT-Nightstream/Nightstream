@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 use crate::circuit::algebra;
 use crate::circuit::hash::Duplex;
 use crate::circuit::Backend;
-use crate::field::{eq_table, fold_low, Ext, Gl};
+use crate::field::{eq_table, fold_low, Ext};
 use crate::hash::Challenger;
 use crate::sumcheck;
 use crate::Error;
@@ -351,6 +351,27 @@ pub(crate) fn verify<B: Backend>(
 /// The batched sum-check of `Σ_y eq(point, y)·Σ_t ν^t·(P0·Q1 + P1·Q0 + μ·Q0·Q1)`
 /// over the trees' layer tables, whose halves are the two children. Returns
 /// the rounds and the point; the tables end with length 2.
+/// The most round nodes: `0, 2, 3, 4` at degree 4, two factors at a leaf.
+const NODES: usize = 4;
+/// The most parts of a tree: two factors and the denominator.
+const PARTS: usize = 3;
+
+/// Move the lines in `value` from node `j - 1` to node `j` of `0, 2, 3, ...`.
+fn step(value: &mut [[Ext; 2]], slope: &[[Ext; 2]], j: usize) {
+    let times = match j {
+        0 => return,
+        1 => 2,
+        _ => 1,
+    };
+    for (value, slope) in value.iter_mut().zip(slope) {
+        for b in 0..2 {
+            for _ in 0..times {
+                value[b] += slope[b];
+            }
+        }
+    }
+}
+
 fn prove_layer(
     mut eq: Vec<Ext>,
     tables: &mut [Tree],
@@ -362,37 +383,56 @@ fn prove_layer(
     let weights: Vec<Ext> = std::iter::successors(Some(Ext::ONE), |&w| Some(w * nu))
         .take(tables.len())
         .collect();
-    let nodes: Vec<Ext> = std::iter::once(0)
-        .chain(2..=degree)
-        .map(|x| Ext::from(Gl::from_usize(x)))
-        .collect();
+    // The nodes are 0, 2, ..., degree: `degree` of them.
+    assert!(degree <= NODES);
     let mut rounds = Vec::new();
     let mut point = Vec::new();
     while eq.len() > 1 {
         let tables_ref = &*tables;
-        let message = (0..eq.len() / 2)
+        let sums = (0..eq.len() / 2)
             .into_par_iter()
-            .map(|m| {
-                let at = |table: &[Ext], base: usize, x: Ext| table[base] + x * (table[base + 1] - table[base]);
-                nodes
-                    .iter()
-                    .map(|&x| {
-                        let mut total = Ext::ZERO;
-                        for (tree, &weight) in tables_ref.iter().zip(&weights) {
-                            let half = tree.denominator.len() / 2;
-                            let child = |table: &[Ext], b: usize| at(table, b * half + 2 * m, x);
-                            let p = |b: usize| tree.factors.iter().map(|f| child(f, b)).product::<Ext>();
-                            let (q0, q1) = (child(&tree.denominator, 0), child(&tree.denominator, 1));
-                            total += weight * (p(0) * q1 + p(1) * q0 + mu * q0 * q1);
+            .fold(
+                || [Ext::ZERO; NODES],
+                |mut sums, m| {
+                    let mut totals = [Ext::ZERO; NODES];
+                    for (tree, &weight) in tables_ref.iter().zip(&weights) {
+                        let half = tree.denominator.len() / 2;
+                        let f = tree.factors.len();
+                        // Each part's line through its two children, walked
+                        // over the nodes 0, 2, 3, ... by adding its slope.
+                        let mut value = [[Ext::ZERO; 2]; PARTS];
+                        let mut slope = [[Ext::ZERO; 2]; PARTS];
+                        for (k, table) in tree.parts().enumerate() {
+                            for b in 0..2 {
+                                let i = b * half + 2 * m;
+                                value[k][b] = table[i];
+                                slope[k][b] = table[i + 1] - table[i];
+                            }
                         }
-                        at(&eq, 2 * m, x) * total
-                    })
-                    .collect::<Vec<Ext>>()
-            })
-            .reduce(
-                || vec![Ext::ZERO; nodes.len()],
-                |a, b| a.iter().zip(&b).map(|(&x, &y)| x + y).collect(),
-            );
+                        for (j, total) in totals.iter_mut().enumerate().take(degree) {
+                            step(&mut value[..=f], &slope[..=f], j);
+                            let [q0, q1] = value[f];
+                            // p_b · q_{1-b} summed; a tree without factors has p = 1.
+                            let cross = match &value[..f] {
+                                [] => q0 + q1,
+                                [a] => a[0] * q1 + a[1] * q0,
+                                [a, c] => a[0] * c[0] * q1 + a[1] * c[1] * q0,
+                                _ => unreachable!("a tree has at most two factors"),
+                            };
+                            *total += weight * (cross + mu * q0 * q1);
+                        }
+                    }
+                    let mut e = [[eq[2 * m]; 2]];
+                    let de = [[eq[2 * m + 1] - eq[2 * m]; 2]];
+                    for (j, (sum, total)) in sums.iter_mut().zip(totals).enumerate().take(degree) {
+                        step(&mut e, &de, j);
+                        *sum += e[0][0] * total;
+                    }
+                    sums
+                },
+            )
+            .reduce(|| [Ext::ZERO; NODES], |a, b| std::array::from_fn(|j| a[j] + b[j]));
+        let message = sums[..degree].to_vec();
         let r = sumcheck::send(&message, challenger);
         fold_low(&mut eq, r);
         for tree in tables.iter_mut() {

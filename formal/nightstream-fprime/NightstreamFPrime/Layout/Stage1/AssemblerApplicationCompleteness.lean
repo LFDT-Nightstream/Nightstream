@@ -84,11 +84,12 @@ theorem completeStage1
       (AssemblerInputs.rootOffset program)) env at applicationInitialSpec
   rw [AssemblerInputs.parent_applicationOffset_eq relation ajtai program
     template] at applicationInitialSpec
-  have applicationInitial : Lifecycle.Stage1.Application.Holds program.step
-      appInterface appOffset env :=
+  have applicationInitial :=
     (program.spec_iff appInterface appOffset env).mp applicationInitialSpec
   have applicationCurrent := program.holds_of_values_eq appInterface appOffset
-    env p6.current inputEq witnessEq outputEq applicationInitial
+    env p6.current inputEq witnessEq outputEq applicationInitial.1
+  have applicationValid := program.valid_of_values_eq appInterface appOffset
+    env p6.current inputEq witnessEq applicationInitial.2
   let child := Lifecycle.Stage1.applicationChild relation program
     (AssemblerInputs.interface relation program)
   have assumptions := AssemblerBounds.applicationAssumptions
@@ -112,7 +113,7 @@ theorem completeStage1
       (AssemblerInputs.applicationOffset program) p6.current := by
     change (program.circuit appInterface).spec appOffset p6.current
     exact (program.spec_iff appInterface appOffset p6.current).mpr
-      applicationCurrent
+      ⟨applicationCurrent, applicationValid⟩
   rcases Sequence.appendAt p6 "stage1.application" child
       (AssemblerInputs.applicationOffset program) p6End childScope assumptions
       applicationSpec with

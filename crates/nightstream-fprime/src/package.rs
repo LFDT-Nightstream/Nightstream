@@ -417,7 +417,19 @@ impl LoadedPackage {
         private_inputs: &[u64],
         public_values: &[u64],
     ) -> Result<WitnessAssignment, PackageError> {
-        self.execute_witness_with_application(private_inputs, public_values, None)
+        self.execute_witness_with_application(private_inputs, public_values, None, true)
+    }
+
+    /// Conformance tests only: `execute_witness` without the final assertion
+    /// check, so that a test can give an invalid witness to the verifier. A
+    /// prover never calls it.
+    #[doc(hidden)]
+    pub fn execute_witness_unchecked(
+        &self,
+        private_inputs: &[u64],
+        public_values: &[u64],
+    ) -> Result<WitnessAssignment, PackageError> {
+        self.execute_witness_with_application(private_inputs, public_values, None, false)
     }
 
     fn execute_witness_with_application(
@@ -425,6 +437,7 @@ impl LoadedPackage {
         private_inputs: &[u64],
         public_values: &[u64],
         application_values: Option<&[Goldilocks]>,
+        check: bool,
     ) -> Result<WitnessAssignment, PackageError> {
         if application_values.is_some() && self.native_application.is_none() {
             return Err(PackageError::Invalid("precomputed values require a native application"));
@@ -497,7 +510,9 @@ impl LoadedPackage {
                 },
             }
         }
-        self.check_assertions(&assignment)?;
+        if check {
+            self.check_assertions(&assignment)?;
+        }
 
         Ok(WitnessAssignment {
             private_values: assignment[..self.layout.private_column_count]

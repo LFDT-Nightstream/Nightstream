@@ -228,7 +228,8 @@ private theorem complete_suffix
     exact step
   obtain ⟨built, agrees, logicalRows⟩ := application.completeness
     (ApplicationInputs.interface application) (ApplicationInputs.localStart application) loaded
-    (application.assumptions _ _ loaded (ApplicationInputs.externalBelow application)) applicationHolds
+    (application.assumptions _ _ loaded (ApplicationInputs.externalBelow application))
+    ⟨applicationHolds, trivial⟩
   have physicalRows : R1CS.RowsHold built (ApplicationDirectSource.sourceRows application) := by
     rw [ApplicationDirectSource.sourceRows, ApplicationPackage.ofProgram_compiledRows_toR1CS,
       Poseidon2HashChainV1Package.constraints_eq_hashConstraints]

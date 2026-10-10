@@ -1,9 +1,9 @@
 # Random-oracle knowledge-soundness target
 
 This registration records the one-fold knowledge criterion of the production
-NIFS in the random-oracle model. Its proof is in
-`formal/nightstream-fprime/ROM_KNOWLEDGE_SOUNDNESS.md`; what the criterion
-trusts is in `formal/nightstream-fprime/TRUST_BOUNDARY.md`.
+NIFS in the random-oracle model. It is adversary 3 of
+`formal/nightstream-fprime/SECURITY_MODEL.md`, which also maps the proof to
+its Lean modules and states what the criterion trusts.
 
 The final declaration is
 `NightstreamFPrime.Export.Stage1.RandomOracleSetup.production_knowledge_error_lt`.

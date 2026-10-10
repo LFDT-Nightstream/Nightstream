@@ -2,7 +2,7 @@ import NightstreamFPrime.Lifecycle.RandomOracleUniqueness
 import NightstreamFPrime.Lifecycle.Nifs.BindingBridge
 
 /-!
-Owns the binding reduction of Lemma 6 (ROM_KNOWLEDGE_SOUNDNESS.md): a
+Owns the binding reduction of Lemma 6 (SECURITY_MODEL.md): a
 function of the two runs that `RandomOracleUniqueness.collisionChance`
 compares, which returns a short kernel vector of the same Ajtai key.
 

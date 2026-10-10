@@ -17,6 +17,6 @@ accepted-successor construction for the current key. The wide sampler is
 total, so these results no longer require sampler success. Valid application
 advice, prior openings, and the iteration bound remain necessary premises.
 
-Soundness and completeness are distinct. The security theorems retain an
-explicit Fiat–Shamir transfer assumption and fixed-key MSIS boundary. See
-[the assurance surface](../../formal/nightstream-fprime/ASSURANCE_SURFACE.md).
+Soundness and completeness are distinct. The security results, their
+adversaries and their premises are in
+[the security model](../../formal/nightstream-fprime/SECURITY_MODEL.md).

@@ -2,7 +2,7 @@ import NightstreamFPrime.Lifecycle.RandomOracleUniqueness
 
 /-!
 Owns the knowledge error of the production NIFS key in the random-oracle
-model: Lemmas 5 and 6 of ROM_KNOWLEDGE_SOUNDNESS.md together.
+model: Lemmas 5 and 6 of SECURITY_MODEL.md together.
 
 Inputs: an adaptive oracle adversary with at most `Q` queries that outputs a
 claim (running and fresh statements, a NIFS proof, and child witnesses).

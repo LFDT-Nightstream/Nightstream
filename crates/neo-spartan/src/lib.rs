@@ -34,6 +34,7 @@ mod field;
 mod gkr;
 mod hash;
 mod matrix;
+mod merkle;
 mod mle;
 mod norm;
 mod pcs;

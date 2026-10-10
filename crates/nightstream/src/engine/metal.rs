@@ -135,11 +135,16 @@ impl CompressionDevice {
 }
 
 impl neo_spartan::Device for CompressionDevice {
-    fn hash_rows(&self, words: &[u64], width: usize) -> Option<Vec<[u64; 4]>> {
+    fn merkle_layers(
+        &self,
+        rows: usize,
+        width: usize,
+        fill: &(dyn Fn(&mut [u64]) + Sync),
+    ) -> Option<Vec<Vec<[u64; 4]>>> {
         let device = self
             .0
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        device.hash_rows_overwrite(words, width).ok()
+        device.merkle_layers(rows, width, fill).ok()
     }
 }

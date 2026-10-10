@@ -150,26 +150,43 @@ fn metal_goldilocks_and_extension_arithmetic_match_cpu() {
         assert_eq!(reused, direct);
     }
 
-    // Merkle leaf rows: the overwrite sponge, with partial last blocks and
-    // non-canonical words.
-    for width in [1, 5, 12, 13, 16, 24, 48] {
-        let fields = (0..257 * width)
+    // Merkle trees: leaves by the overwrite sponge (partial last blocks,
+    // non-canonical words), nodes by the same sponge over both children.
+    let sponge = |words: &[u64]| -> [u64; 4] {
+        let mut state = [F::ZERO; p2::WIDTH];
+        for block in words.chunks(p2::RATE) {
+            for (lane, &word) in state.iter_mut().zip(block) {
+                *lane = F::from_u64(word);
+            }
+            state = p2::permute_state(state);
+        }
+        std::array::from_fn(|lane| state[lane].as_canonical_u64())
+    };
+    for (rows, width) in [
+        (256, 1),
+        (256, 5),
+        (256, 12),
+        (256, 13),
+        (512, 16),
+        (128, 24),
+        (256, 48),
+        (1, 7),
+    ] {
+        let fields = (0..rows * width)
             .map(|_| rng.random::<u64>())
             .collect::<Vec<_>>();
-        let actual = session
-            .poseidon2_hash_rows_overwrite(&fields, width)
-            .expect("Poseidon2 Metal row hashes");
-        for (row, actual) in fields.chunks_exact(width).zip(actual) {
-            let mut state = [F::ZERO; p2::WIDTH];
-            for block in row.chunks(p2::RATE) {
-                for (lane, &word) in state.iter_mut().zip(block) {
-                    *lane = F::from_u64(word);
-                }
-                state = p2::permute_state(state);
-            }
-            let expected: [u64; 4] = std::array::from_fn(|lane| state[lane].as_canonical_u64());
-            assert_eq!(actual, expected, "width {width}");
+        let layers = session
+            .poseidon2_merkle_layers(rows, width, |words| words.copy_from_slice(&fields))
+            .expect("Poseidon2 Metal Merkle tree");
+        let mut expected: Vec<[u64; 4]> = fields.chunks_exact(width).map(sponge).collect();
+        for layer in &layers {
+            assert_eq!(layer, &expected, "rows {rows} width {width}");
+            expected = expected
+                .chunks_exact(2)
+                .map(|pair| sponge(&[pair[0], pair[1]].concat()))
+                .collect();
         }
+        assert_eq!(layers.last().map(Vec::len), Some(1), "rows {rows} width {width}");
     }
 
     let rows = 3;

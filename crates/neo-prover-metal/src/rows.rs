@@ -33,10 +33,15 @@ impl MetalRowProver {
         Ok(Self { session })
     }
 
-    /// Merkle leaf digests of rows (Plonky3's overwrite sponge); see
-    /// `MetalSession::poseidon2_hash_rows_overwrite`.
-    pub fn hash_rows_overwrite(&self, fields: &[u64], width: usize) -> Result<Vec<[u64; 4]>, MetalError> {
-        self.session.poseidon2_hash_rows_overwrite(fields, width)
+    /// Every digest layer of a Merkle tree; see
+    /// `MetalSession::poseidon2_merkle_layers`.
+    pub fn merkle_layers(
+        &self,
+        rows: usize,
+        width: usize,
+        fill: impl FnOnce(&mut [u64]),
+    ) -> Result<Vec<Vec<[u64; 4]>>, MetalError> {
+        self.session.poseidon2_merkle_layers(rows, width, fill)
     }
 
     /// Device bytes the kept commitment key holds over `columns` commitment

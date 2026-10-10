@@ -17,7 +17,8 @@ use p3_whir::pcs::prover::WhirProver;
 
 use crate::device::Accelerator;
 use crate::field::{p3_point, Ext, Gl};
-use crate::hash::{mmcs, Challenger, Mmcs};
+use crate::hash::Challenger;
+use crate::merkle::Mmcs;
 use crate::Error;
 
 type Dft = Radix2DFTSmallBatch<Gl>;
@@ -130,7 +131,7 @@ impl Pcs {
                 return Err(Error::Setup("WHIR configuration needs proof-of-work grinding"));
             }
             let dft = Dft::default();
-            let whir = Whir::new(config.clone(), dft.clone(), mmcs(&Accelerator::cpu()));
+            let whir = Whir::new(config.clone(), dft.clone(), Mmcs::new(&Accelerator::cpu()));
             let mut report = whir
                 .prescribed_security(&protocol)
                 .ok_or(Error::Setup("WHIR security report"))?;
@@ -188,7 +189,7 @@ impl Pcs {
 
     /// The prover instance whose Merkle leaves hash on `accelerator`.
     fn prover(&self, accelerator: &Accelerator) -> Whir {
-        Whir::new(self.config.clone(), self.dft.clone(), mmcs(accelerator))
+        Whir::new(self.config.clone(), self.dft.clone(), Mmcs::new(accelerator))
     }
 
     /// Commit to `tables` (each its columns one after another, low index bit

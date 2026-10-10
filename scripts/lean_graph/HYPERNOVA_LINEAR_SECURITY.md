@@ -1,17 +1,14 @@
 # HyperNova linear-security milestone
 
-This registration records the history-security criterion. Since 2026-10-07
-(owner decision) it takes HyperNova errata Assumption 1, plain-model part,
-instead of the retired `FiatShamirModel`. Since 2026-10-08 (owner decision)
-Assumption 1 has the form of the paper's Definition 7 knowledge soundness of
-the NIFS, with an extractor for each admitted adversary that reads that
-adversary's tape, composed by the reverse extractor of HyperNova Lemma 17
-(Appendix H.3). It differs from Definition 7 in four stated ways: the
-success event adds the prior-state link, the bound is the joint form, the
-public parameters are the fixed production key and setup, and `error`
-replaces `negl(λ)` (`formal/nightstream-fprime/TRUST_BOUNDARY.md`). The
-existing lean-graph schema and review process are unchanged. The target's meaning changed, so its target-meaning and
-decomposition reviews must be renewed.
+This registration records the history-security criterion, adversary 4 of
+`formal/nightstream-fprime/SECURITY_MODEL.md`. It takes HyperNova errata
+Assumption 1, plain-model part, in the form of the paper's Definition 7
+knowledge soundness of the NIFS, with an extractor for each admitted
+adversary that reads that adversary's tape, composed by the reverse extractor
+of HyperNova Lemma 17 (Appendix H.3). It differs from Definition 7 in four
+stated ways: the success event adds the prior-state link, the bound is the
+joint form, the public parameters are the fixed production key and setup, and
+`error` replaces `negl(λ)` (trust item 4 of the security model).
 
 The final declaration is
 `NightstreamFPrime.Export.Stage1.HyperNovaVisitedSecurity.history_probability_bound`.
@@ -47,7 +44,7 @@ Lemma 17 for a constant depth. Lean has no running-time model.
 analogue for one fold and motivates the value of `error`: linear in the query
 count, about `(Q + 74) · 2^-115.84 + 17 (Q + 17) · 2^-125.4` plus the named
 MSIS and state-hash events. No Lean statement derives `error` from it
-(`formal/nightstream-fprime/TRUST_BOUNDARY.md`).
+(trust item 4 of the security model).
 
 Required premises:
 
@@ -74,10 +71,8 @@ Dependencies, with namespace prefix `NightstreamFPrime`:
 Use `explain hypernova-linear-security` for remaining validation and review.
 The registered gate runs static, build, axioms, the exact target check and
 declaration export, in order. General build success cannot replace the exact
-target and correspondence checks. Reuse the existing evidence store and graph
-queries. Rust lifecycle conformance remains a separate required check. Sampler integration
-changes the selected artifacts, so old fixture receipts cannot validate it.
+target and correspondence checks. Rust lifecycle conformance remains a
+separate required check.
 
-Reference: `docs/superneo-paper-v1_2`, `SUPERNEO_V1_2_DELTA.md`,
-`FIAT_SHAMIR_MODEL.md` and `PUBLIC_SEED_MSIS_ASSUMPTION.md` under
-`docs/reviews/nightstream-fprime-requirements` for the latter three documents.
+Reference: `docs/superneo-paper-v1_2` and the HyperNova errata in
+`docs/hypernova-paper`.

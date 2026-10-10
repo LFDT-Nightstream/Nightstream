@@ -235,243 +235,6 @@ Retain one build queue, the owner's ten-attempt rule, this checkout and
 `nico/f-prime-constraints-cuda-formal` only. Replay gives evidence on tested
 inputs; it does not prove universal Rust correctness.
 
-## Original-source final evaluation checkpoint
-
-The complete original-source Pad family now passes independently. Lean derives
-the point from all 28 saved Lean rounds, validates all 17 original witnesses,
-evaluates all 4,685,394 carrier blocks, and adds the 64 ordered ranges in Lean.
-All 918 K coefficients (1,836 field words), all 56 point words, and the
-consistent changed-target rejection match the required comparison.
-Generation took 847.30 seconds with 1,359,656 KiB peak RSS on stock Lean
-4.30.0 on the original Linux host.
-
-The exact target is `LeanGraph.Targets.PiCCSOriginalEvaluationKernel`.
-It fixes original-mask reads and complete Pad/canonical-matrix evaluation
-against `PaperAlgebra.evaluationFamily` for every source and ring lane.
-Loaded sparse and numeric invocation ranges retain exact loader, selected
-block and bounds premises. Existing product and cached-row owners supply
-the loader links. No split, magnitude or expected-value premise is added.
-
-The three retained matrix cases keep all 77,112 field words byte equal.
-Direct mask reads and dedicated workers reduce calculation time from 27.50
-to 9.77 seconds, and command time from 48.60 to 31.51 seconds. The retained
-Pad range `74272..148544` keeps all 1,836 output words equal to the scalar
-reference: calculation time changes from 210.79 to 20.69 seconds and command
-time from 227.67 to 37.73 seconds. These are retained cases, not a full matrix
-speedup claim. All measured runs were sequential with agents idle; shared
-initialization is recorded separately.
-
-`PICCS_ORIGINAL_EVALUATIONS_REPLAY.json` records the source cut and evidence.
-Synthetic merge checks cover 27,540 field sums and nine rejection cases;
-they are assembly tests, not prover evidence. The complete original matrix
-scan and PiCCS output encoding now pass as recorded below. Full NIFS encoding
-and HyperNova remain open.
-The separate PiCCSCarriedSource check 11 still needs owner approval.
-
-The original matrix replay now checks all signed masks once and omits a
-source's arithmetic only when that complete check proves it is zero. All
-17 output positions remain present. The selected capture has seven active
-sources and ten zero sources; these indices are not built into the code.
-The sparse and numeric invocation guards are proved equal to the previous
-complete batches for every source, port and lane. The exact graph target
-includes both equalities.
-
-On the same three retained production ranges, calculation time falls from
-9.77 to 4.27 seconds (2.29 times faster), and command time from 31.51 to
-26.01 seconds. Shared initialization takes 16.93 seconds, including the
-0.50-second support check. All 77,112 field words and complete output bytes
-match the previous executable. Synthetic tests also keep source 16 active,
-check the last carrier block, compare nine complete ranges, and reject
-malformed input before writing any result. These are source-selection tests,
-not production proof evidence. `PICCS_ORIGINAL_MATRIX_SUPPORT.json` records
-the exact source and measurements. Full matrix execution remains open.
-
-The matrix replay now specializes its captured readers through both numeric
-invocations and sparse row accumulation. The source change is 15 bare
-`specialize` attributes and two `inline` attributes across eight files;
-definition bodies and theorem statements are unchanged. Generated C confirms
-direct reader calls in both hot sparse-entry loops.
-
-On 150,400 Poseidon rows, the first 11 annotations reduce profiled calculation
-time from 252.19 to 148.66 seconds and command time from 278.56 to 174.01 seconds.
-On 80,750 product rows, the final six annotations reduce unprofiled calculation
-time from 241.09 to 75.52 seconds and command time from 262.89 to 97.37 seconds,
-compared with the saved 11-annotation executable. Each larger comparison
-checks all 25,704 field words and complete file bytes, and rejects a changed
-target. Peak memory is about 2.4 GiB and 2.9 GiB respectively. The three
-retained cases also remain byte equal. All measured runs use the same host
-with agents idle, and record initialization separately.
-
-`PICCS_MATRIX_SPECIALIZATION.json` records the exact source cuts and scope.
-These measurements do not establish a complete-matrix speedup. An initial
-named-attribute experiment did not specialize the captured reader. A separate
-zero-row accumulator change preserved bytes but did not establish a production
-gain; that change was removed. Full matrix execution is recorded below; the
-selected source-to-whole-polynomial proof remains open.
-
-## Complete original PiCCS output execution
-
-The complete matrix pass now covers all 6,377,559 active rows in 53 ordered
-ranges. Lean combines these with the complete original Pad family. All
-13,770 K values (27,540 field words), the complete point and changed-target
-rejections pass against the two Rust comparison copies. This includes all
-795 fresh nonconstant Pad/matrix values, all zero sources and the final row.
-
-`finish-original` retains the causally validated 28 round vectors and uses
-`PiCCSInputCheck.execute` and `PiCCSProofInputs.serializeProofInputs`. The
-complete 657,063-byte PiCCS input and 450,952-byte phase result match Rust
-byte for byte, including all terminal fields and the outgoing eight-word
-transcript state. The existing package encoder emits exactly 29,288 words;
-all words and their order match an independent flattening of those fields.
-A consistent changed output target and a changed final proof word reject.
-
-`PICCS_COMPLETE_OUTPUT_REPLAY.json` binds the producer sources, original
-inputs, all saved ranges, merge, final encoding and comparison commands.
-Rust proof values enter only the comparison tools. Earlier range outputs
-are reused with their original source cuts and proved arithmetic equality;
-this mixed execution record does not establish a full-matrix speedup.
-
-The selected source-to-whole-polynomial theorem remains the unchanged
-`PICCS_SOURCE_BRIDGE_PENDING.patch`. Check 11 still needs owner approval.
-Full NIFS encoding, composed HyperNova next state/assignment/commitment and
-protected fresh-checkout release reproduction remain separate open work.
-This is complete local PiCCS output execution, not complete proof closure.
-
-## Independent fresh witness execution
-
-The standalone Lean replay now computes all 29,344,425 physical fields from
-the independently derived recursive caller. Its 1,419,747 write events have
-strictly increasing targets, and all 201,386 explicit assertions pass.
-Stored recipe, hint and permutation procedures have audited equality proofs
-against their existing Lean owners.
-
-The fresh logical assignment uses the same canonical 30-block schedule.
-Cached numeric widths and product metadata preserve the complete source
-packet and schedule by Lean equality. All 253,011,231 logical coefficients
-and 45 zero tail coefficients match the native successor witness. The
-complete 107,246,512-byte witness and 39,448-byte fresh claim also match.
-All 1,188 commitment coefficients use the unchanged production key.
-Native artifacts enter comparison checks only.
-
-The full command for all 30 blocks took 114.64 seconds: 17.12 seconds for
-preparation and 96.99 seconds for block computation and output. Every logical
-byte matched the earlier Lean output, and the complete carrier matched Rust
-again. Peak RSS was 1,691,212 KiB.
-
-The three fresh commitment commands took 281.32 seconds in total, with
-277.148 seconds of recorded computation and 608,048 KiB peak RSS. This is
-one fresh message; it is not a timing for the earlier sixteen-child PiDEC
-scan. The measured range 74272..148544 took 5.695 seconds to compute and
-7.12 seconds for its complete command. No other agents, builds or benchmarks
-ran during those measurements. Initial preparation and compilation are not
-charged to each block.
-
-`FRESH_WITNESS_REPLAY.json` records the complete coverage, source links,
-proof endpoints, command logs and 26 rejection cases. Large data stays
-outside Git. The existing graph now has the literal `FreshWitnessKernels`
-target and the `independent-fresh-witness` data flow, including caller
-derivation, complete byte comparisons and all range guards.
-
-The ordered compact-row lowering connection and whole selected physical
-completion proof remain open. Runtime assertions and byte equality do not
-supply those theorems. The existing PiCCS carried-source obligation still
-needs owner approval for check11, with its ten earlier attempts preserved.
-Protected source-bound reproduction and release delivery remain separate.
-
-## Stored compact-row completion proof
-
-The stored compact-row replay now uses the checked executor directly.
-Its guarded Array execution equals the functional row executor, including
-rejection, under the exact local-write bounds. The composed theorems connect
-both canonical template families to the existing expression and constraint
-completion functions after the physical output write. They retain explicit
-array bounds, input/local separation and output/input separation premises.
-All five PiRLC recipe families satisfy their output-scope bounds by structural
-proofs. Ordinary stored instructions also equal their existing executor.
-
-The full physical rerun preserves all 234,755,400 bytes from checkpoint
-20bd388897dad5989008923bcd9b5f71f3c5cd0e. It covers 29,344,425 fields,
-1,419,747 events and all 201,386 explicit assertions. The command took
-29.76 seconds, with 23.04 seconds for computation and 2,513,200 KiB peak RSS.
-Agents were idle. These are regression measurements, not a new speedup claim.
-All 26 existing rejection cases pass with the changed executable.
-
-The exact FreshWitnessKernels target includes both compact completion
-statements and the ordinary instruction refinement. Leaf audits also cover
-the five concrete recipe bounds. COMPACT_WITNESS_EXECUTION.json records the
-source cut, attempts, complete byte comparison and validation logs.
-The whole selected physical-plan connection remains open: actual invocation
-geometry and preservation of every canonical row still need proofs.
-The separate PiCCS source check11 remains pending with its prior budget intact.
-
-## Complete final physical row coverage
-
-The physical replay now checks every canonical row against the completed
-array before it writes the result. Typed source records retain the exact
-packet, block and permutation identities through task collection. The pure
-plan constructor keeps canonical row events for checking and sorts a shared
-copy for execution. The coverage proof therefore requires no sorting or
-write-order premise.
-
-StoredPhysicalPlan.ofSources_rowsHold proves that successful checks of the
-concrete constructed arrays imply the selected package's complete RowsHold.
-The FreshWitnessKernels target includes this theorem and exact strided-worker
-coverage. The exported dependency record contains the actual ofSources and
-assemble_sound definitions and the selected-package composition proof.
-The target retains only positive worker count and successful final-check
-premises; it assumes no new source identity, geometry or schedule property.
-
-The executed check covers 29,024,343 event rows and 201,386 explicit
-assertions: all 29,225,729 physical rows. Every one of the 234,755,400 output
-bytes matches the earlier Lean result. The complete logical witness and
-commitment comparisons are reused from that identical physical input.
-
-Profiling found that only two ordinary task-pool threads performed the
-integrated check. Dedicated tasks retain the hardware-derived worker count
-and the same proved immutable predicate. The final check takes 7.63 seconds;
-preparation takes 3.51 seconds, witness computation 24.81 seconds, assertions
-0.15 seconds and output 3.73 seconds. Total command time is 40.22 seconds,
-with 2,696,700 KiB peak RSS. All agents were idle during measured runs.
-A serial implementation of the added check took 55.12 seconds, or 84.64
-seconds for the complete command. These measurements concern physical row
-validation; they are not PiDEC commitment timings.
-
-The rotating-assignment experiment did not fix the thread-pool issue and was
-removed. The final code keeps the simpler proved stride partition.
-PHYSICAL_ROWS_REPLAY.json records the source cut, proofs, measurements,
-rejection checks, and the independent canonical-coverage review. Caller
-parsing and file-origin claims remain separate execution/custody evidence.
-The PiCCS source check11 and external release/reproduction conditions remain
-open. No change to protocol, package, production key, b=2 or k_rho=16 is made.
-
-## Independent C/R/D and recursive caller execution
-
-The complete independently generated C input now has exactly the bytes used
-by the checked R witness and D range calculations. Those original-source
-scans are retained. The new PiDEC `from-replay` mode loads only complete Lean
-commitments and evaluations, recomputes C/R, checks the derived point and
-bounded parent, derives child public inputs, and requires the existing D
-check before it writes either result.
-
-All 446,185 child bytes and all 4,722,709 complete C/R/D result bytes match
-the retained results. The native comparison checks all 945,983 proof bytes
-with its separate raw Lean-field encoder and passes 55 D mutation cases.
-The existing recursive caller generator consumes these independent results
-and the original iteration2 request. Its 1,446,131 bytes match, including
-177,326 private words,278 public words and the point/transcript links.
-
-`INDEPENDENT_NIFS_CALLER_REPLAY.json` records source and input custody,
-producer commands, comparisons and rejection checks. Both final-output
-commands resolve parent directories before checking distinct destinations;
-the alias case `file.json` versus `./file.json` rejects before writes.
-
-The caller packet is not the full fresh assignment. The earlier successor
-record executes Rust physical/logical witness generation and a reference
-commitment from Lean caller words. The next independent Lean step must
-complete physical values, then reuse the proved canonical logical executor
-and exact production-key commitment kernels. The selected-source Q proof
-still needs owner approval for check11. Release reproduction remains open.
-
 ## Earlier baseline and retained evidence
 
 Owner: the user's September 13 baseline goal. Work only on
@@ -497,27 +260,15 @@ boundaries. The public flow is `Stage1Envelope::initial(z0)`,
 Its open requirements remain until their actual tests and review exist.
 This registration does not change lean-graph's schema or acceptance rules.
 
-The symbolic terminal false-acceptance target and six-record reconciliation
-passed at `8084c256` and `5222c1d5` under the retired `FiatShamirModel`
-meaning. Since 2026-10-08 the target bounds false acceptance by the marked
-hash-collision mass and the HyperNova errata Assumption 1 error (Definition 7,
-an extractor for each admitted adversary) at each stage of the Lemma 17
-reverse extractor (`HyperNovaFalseAcceptance.probability_bound`); its
-target-meaning and decomposition reviews must be renewed for that meaning. The current staged nonzero C/R/D result,
-complete proof bytes and mutations pass; see `NONZERO_NIFS_GATES.json` and
-`NONZERO_NIFS_REVIEW.json` in `docs/reviews/nightstream-fprime-requirements`.
-The complete later assignment and terminal checks also pass; see
-`NONZERO_SUCCESSOR_GATES.json` and `NONZERO_SUCCESSOR_REVIEW.json`.
-The aggregate stays compiler-closed while the two public active-call checks
-await their specific execution allowance. Evidence delivery and external
-production approval remain separate.
+The terminal false-acceptance target bounds false acceptance by the marked
+hash-collision mass and the HyperNova errata Assumption 1 error at each stage
+of the Lemma 17 reverse extractor (`HyperNovaFalseAcceptance.probability_bound`;
+adversary 4 of `formal/nightstream-fprime/SECURITY_MODEL.md`).
 
 ## Checkpoint requirements
 
-The checkpoint must compile every `neo-fold-clean` test target with
-`cargo test -p neo-fold-clean --release --no-run`, including the fixture
-binary's test harness. Integration tests must stay in their integration
-target; removing a failing harness is not the repair.
+Integration tests must stay in their integration target; removing a failing
+harness is not the repair.
 
 Commit reports and SHA-256 manifests. Store new evidence archives outside
 Git; do not put generated witnesses or graph metadata in Git inside archives.
@@ -541,8 +292,8 @@ Only the coordinator runs Lean, Cargo and validation commands. Subagents
 may read, draft and review. Reused Ironwood code must retain its verified
 upstream license, authors and exact source commit. The reviewed snapshot is
 Apache-2.0 OR MIT, Copyright (c) 2026 Zcash Protocol Developers, commit
-`22dfee003b639eff660f68ea69a98a00409a9cb1`; preserve the notices described in
-`external/ironwood/PROVENANCE.md`. A review citation is not code reuse.
+`22dfee003b639eff660f68ea69a98a00409a9cb1`; reused code must keep its
+notices. A review citation is not code reuse.
 Publish the requirements map only from committed inputs.
 
 The public flow remains `Stage1Envelope::initial`, `package.extend` and

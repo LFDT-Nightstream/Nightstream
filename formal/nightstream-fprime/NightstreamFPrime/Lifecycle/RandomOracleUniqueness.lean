@@ -2,7 +2,7 @@ import NightstreamFPrime.Lifecycle.RandomOracleExtraction
 
 /-!
 Owns the uniqueness step of the production NIFS extraction in the
-random-oracle model (Lemma 6 of ROM_KNOWLEDGE_SOUNDNESS.md).
+random-oracle model (Lemma 6 of SECURITY_MODEL.md).
 
 Inputs: an adaptive oracle adversary and its claims, and the `Π_RLC`
 extraction of `RandomOracleExtraction`.

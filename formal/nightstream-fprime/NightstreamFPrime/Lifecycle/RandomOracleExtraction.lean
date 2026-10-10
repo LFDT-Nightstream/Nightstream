@@ -7,7 +7,7 @@ import NightstreamFPrime.Spec.Phi81StrongSet.LowNormInvertibility
 
 /-!
 Owns the `Π_RLC` extraction of the production NIFS key in the random-oracle
-model (Lemma 5 of ROM_KNOWLEDGE_SOUNDNESS.md).
+model (Lemma 5 of SECURITY_MODEL.md).
 
 Inputs: an adaptive oracle adversary that outputs a claim (running and fresh
 statements, a NIFS proof, and witnesses for the sixteen children), the

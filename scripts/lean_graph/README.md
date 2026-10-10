@@ -1,14 +1,10 @@
 # lean-graph — Lean dependencies and evidence
 
 lean-graph records proof obligations, exports Lean declaration dependencies,
-and checks validation evidence. Its current configuration covers the
-pilot/PiCCS assignment-proof chain, including the actual public-boundary and
-hash-observation target, and the Stage 1 terminal-opening target. The latter
-derives the exact decoded step and advertised preimage from the arbitrary
-accepted terminal opening, or a named state-hash collision. Full history and
-production conformance remain separate. The approved owner goal and phase order still
-apply. The graph contains existing Lean declarations; the tool does not write
-proofs or infer new owner criteria from the paper.
+and checks validation evidence. `obligations.json` lists the registered
+obligations; `explain <obligation>` reports what each one still needs. The
+graph contains existing Lean declarations; the tool does not write proofs or
+infer new owner criteria from the paper.
 
 The implementation uses Python 3.10 or later and POSIX process groups and
 file locks. It introduces no Python package dependency or Rust feature.
@@ -520,6 +516,13 @@ the final target, its allowed premises, checked dependencies and ordered
 validation gates. Run `explain hypernova-linear-security` for its current blockers.
 The literal target and its closure witness are in `tests/EvidenceTargets.lean`.
 Separate graph roots retain the probability and actual-clock correspondence.
+
+Registry schema 2 records a `tier` for each obligation: `Compiler`,
+`Conformance` or `Production`. A registration cannot declare a status. Reports
+derive `status: Open` whenever a required gate, review or other requirement is
+missing. Only accepted closure yields the owner-defined `Compiler-closed`,
+`Conformance-closed` or `Production-closed` status. Schema 1 and authored
+status claims are rejected.
 
 The [obligation map](obligations.json) is a reviewed expectation, not generated
 proof progress. Update its draft as the proof develops:

@@ -71,5 +71,5 @@ queries. Fresh runtime and Lean comparisons use the
 - [SuperNeo v1.2, September 4](docs/superneo-paper-v1_2/)
 - [HyperNova paper](https://eprint.iacr.org/2023/573)
 - [Wiki](wiki/index.md)
-- [Active Lean proof work](formal/nightstream-fprime/CONSTRAINT_TREE.md)
+- [Lean package and phase map](formal/nightstream-fprime/README.md#phase-map)
 - [Lean evidence workflow design](docs/trellis-nightstream-proposal.md)

@@ -17,6 +17,34 @@ each, and what you must trust. `tests/EvidenceTargets.lean` has the literal
 statements of the registered targets, and `tests/Axioms*.lean` lists every
 audited theorem.
 
+## Phase map
+
+The Stage 1 step circuit `F′` has eight children, in this order
+(`Lifecycle/Stage1/Formal.lean`). Each module header states what the module
+owns. Row and column counts are Lean theorems in
+`Export/Stage1/Poseidon2HashChainV1Package.lean`: `structuralRowCount`
+(logical rows), `logicalWidth` (logical coordinates), and
+`physicalPackageRowCount` and `physicalPackageTotalColumnCount` (physical
+package). Do not copy these numbers into a document.
+
+| Child | Paper | Lean module | Checks |
+|---|---|---|---|
+| Prior state hash | HyperNova Construction 2 | `Lifecycle/PriorStateHash.lean` | The prior state hash of the running instance. |
+| Output state hash | HyperNova Construction 2 | `Lifecycle/OutputHash.lean` | The public output digest of the next state. |
+| Π_CCS | SuperNeo v1.2 Section 7.3 | `Lifecycle/PiCCS/v1_2/Formal.lean` | The complete Π_CCS reduction in its exact transcript order. |
+| Π_RLC | SuperNeo v1.2 Section 7.4 | `Lifecycle/PiRLC/v1_2/Formal.lean` | The random linear combination of the sources. |
+| Π_DEC | SuperNeo v1.2 Section 7.5 | `Lifecycle/PiDEC/v1_2/Formal.lean` | The split of the parent into the children, with their commitments and evaluations. |
+| Running instance | HyperNova Construction 2 | `Lifecycle/Stage1/RunningTransition.lean` | The default running instance at the base step, else the Π_DEC output. |
+| Application | Nightstream | `Lifecycle/Stage1/Application.lean` | The step of the verifier-selected application. |
+| Next preimage | HyperNova Construction 2, step 5 | `Lifecycle/Stage1/NextPreimage.lean` | The next state-hash preimage keeps `z0` and increments `i`. |
+
+Outside `F′`, `Lifecycle/Stage1/Terminal.lean` owns the terminal relation and
+`Lifecycle/Stage1/VerificationKey.lean` the verification-key binding.
+`Layout/Stage1/AssemblerSoundness.lean` composes the children's semantics,
+`Layout/Stage1/PreservationClosure.lean` proves that the physical layout
+preserves it, and `Export/Stage1/PerApplicationSoundness.lean` proves that the
+emitted package rows imply the typed step.
+
 ## Credits
 
 The `Circuit/` DSL (operations, opaque subcircuits, the `FormalCircuit`

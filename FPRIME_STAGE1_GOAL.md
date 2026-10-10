@@ -840,10 +840,10 @@ Rust loads this one package. There is no separate pilot, phase-only, or
 Rust-native production relation after the corresponding Stage 1 surface
 closes.
 
-Maintain `formal/nightstream-fprime/CONSTRAINT_TREE.md` as the concise audit
-index. It shows the multi-level file tree, marks present and required files,
-and maps each leaf and assembler to its mathematical constraint obligation.
-Update it when a leaf or assembly level closes.
+Maintain the phase map in `formal/nightstream-fprime/README.md`. It maps each
+child of the Stage 1 circuit to its paper rule and Lean module. Row and column
+counts come from Lean theorems, not from a document. Update the map when a
+child or an assembly level changes.
 
 ### Layout and efficiency
 

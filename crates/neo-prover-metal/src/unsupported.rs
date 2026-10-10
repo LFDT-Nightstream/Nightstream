@@ -93,11 +93,12 @@ impl MetalSession {
         Err(MetalError::Unavailable)
     }
 
-    pub fn poseidon2_hash_rows_overwrite(
+    pub fn poseidon2_merkle_layers(
         &self,
-        _fields: &[u64],
+        _rows: usize,
         _width: usize,
-    ) -> Result<Vec<PoseidonDigest>, MetalError> {
+        _fill: impl FnOnce(&mut [u64]),
+    ) -> Result<Vec<Vec<PoseidonDigest>>, MetalError> {
         Err(MetalError::Unavailable)
     }
 

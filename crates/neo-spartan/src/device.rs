@@ -11,15 +11,24 @@ use neo_ccs::crypto::poseidon2_goldilocks::DIGEST_LEN;
 
 /// Batch operations that a GPU runs for the prover.
 pub trait Device: Send + Sync {
-    /// The Merkle leaf digests of the `words.len() / width` rows of `width`
-    /// words that sit back to back in `words`: Plonky3's overwrite sponge
-    /// (`PaddingFreeSponge`) over the workspace Poseidon2 (width 16, rate
-    /// 12, four outputs). Each row starts from the zero state; each block of
-    /// up to 12 words overwrites the first lanes and is followed by one
-    /// permutation. Input words may be non-canonical; digests are canonical.
-    /// `None` when the device cannot run the batch: the caller then hashes
-    /// it on the CPU, with the same digests.
-    fn hash_rows(&self, words: &[u64], width: usize) -> Option<Vec<[u64; DIGEST_LEN]>>;
+    /// Every digest layer of the binary Merkle tree over `rows` rows of
+    /// `width` words (`rows` a power of two), leaves first and the root
+    /// last. A leaf is Plonky3's overwrite sponge (`PaddingFreeSponge`) of
+    /// its row over the workspace Poseidon2 (width 16, rate 12, four
+    /// outputs): each block of up to 12 words overwrites the first lanes of
+    /// the zero state and is followed by one permutation. A node is the same
+    /// sponge of its two children's eight words, which is Plonky3's
+    /// `TruncatedPermutation` compression. `fill` writes the rows back to
+    /// back into a buffer of `rows * width` words; words may be
+    /// non-canonical, digests are canonical. `None` when the device cannot
+    /// build the tree: the caller builds it on the CPU, with the same
+    /// digests.
+    fn merkle_layers(
+        &self,
+        rows: usize,
+        width: usize,
+        fill: &(dyn Fn(&mut [u64]) + Sync),
+    ) -> Option<Vec<Vec<[u64; DIGEST_LEN]>>>;
 }
 
 /// The prover's device, or none: the CPU.

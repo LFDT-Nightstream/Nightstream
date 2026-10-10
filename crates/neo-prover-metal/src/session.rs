@@ -545,39 +545,58 @@ impl MetalSession {
             .collect())
     }
 
-    /// Merkle leaf digests of the rows of `width` words in `fields`:
-    /// Plonky3's overwrite sponge (`PaddingFreeSponge`, width 16, rate 12,
-    /// four outputs). Words may be non-canonical; digests are canonical.
-    pub fn poseidon2_hash_rows_overwrite(
+    /// Every digest layer of the binary Merkle tree over `rows` rows of
+    /// `width` words, leaves first and the root last. A leaf is Plonky3's
+    /// overwrite sponge (`PaddingFreeSponge`, width 16, rate 12, four
+    /// outputs) of its row; a node is the same sponge of its two children's
+    /// eight words, which is Plonky3's `TruncatedPermutation` compression.
+    /// `fill` writes the rows back to back into the device buffer; words
+    /// may be non-canonical, digests are canonical. One command buffer
+    /// builds all layers.
+    pub fn poseidon2_merkle_layers(
         &self,
-        fields: &[u64],
+        rows: usize,
         width: usize,
-    ) -> Result<Vec<PoseidonDigest>, MetalError> {
-        if width == 0 || fields.is_empty() || !fields.len().is_multiple_of(width) {
+        fill: impl FnOnce(&mut [u64]),
+    ) -> Result<Vec<Vec<PoseidonDigest>>, MetalError> {
+        if width == 0 || !rows.is_power_of_two() {
             return Err(MetalError::Shape(
-                "a row batch must hold a positive whole number of rows",
+                "a Merkle tree needs a positive width and a power-of-two height",
             ));
         }
-        let rows = fields.len() / width;
-        let input = self.buffer_from_slice(fields)?;
-        let output = self.buffer(rows * 4 * size_of::<u64>())?;
-        let shape = self.buffer_from_slice(&[width as u64])?;
-        let command = self.command_buffer("nightstream.poseidon2.hash_rows_overwrite")?;
+        let input = self.buffer(rows * width * size_of::<u64>())?;
+        fill(unsafe { std::slice::from_raw_parts_mut(input.contents().as_ptr().cast::<u64>(), rows * width) });
+        let sizes: Vec<usize> = std::iter::successors(Some(rows), |&n| (n > 1).then_some(n / 2)).collect();
+        let layers = sizes
+            .iter()
+            .map(|&n| self.buffer(n * poseidon2::DIGEST_LEN * size_of::<u64>()))
+            .collect::<Result<Vec<_>, _>>()?;
+        let leaf_width = self.buffer_from_slice(&[width as u64])?;
+        let node_width = self.buffer_from_slice(&[2 * poseidon2::DIGEST_LEN as u64])?;
+        let command = self.command_buffer("nightstream.poseidon2.merkle_layers")?;
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
         encoder.setComputePipelineState(&self.poseidon2_hash_rows_overwrite);
         unsafe {
-            encoder.setBuffer_offset_atIndex(Some(&input), 0, 0);
-            encoder.setBuffer_offset_atIndex(Some(&output), 0, 1);
             encoder.setBuffer_offset_atIndex(Some(&self.poseidon2_constants), 0, 2);
-            encoder.setBuffer_offset_atIndex(Some(&shape), 0, 3);
         }
-        self.dispatch(&encoder, &self.poseidon2_hash_rows_overwrite, rows);
+        // Serial dispatches: each layer reads the one written before it.
+        let mut source = (&input, &leaf_width);
+        for (layer, &n) in layers.iter().zip(&sizes) {
+            unsafe {
+                encoder.setBuffer_offset_atIndex(Some(source.0), 0, 0);
+                encoder.setBuffer_offset_atIndex(Some(layer), 0, 1);
+                encoder.setBuffer_offset_atIndex(Some(source.1), 0, 3);
+            }
+            self.dispatch(&encoder, &self.poseidon2_hash_rows_overwrite, n);
+            source = (layer, &node_width);
+        }
         encoder.endEncoding();
         self.finish(&command)?;
-        let output = self.read_buffer::<u64>(&output, rows * 4);
-        Ok(output
-            .chunks_exact(4)
-            .map(|words| words.try_into().expect("chunks_exact has width 4"))
+        drop(input);
+        Ok(layers
+            .iter()
+            .zip(&sizes)
+            .map(|(layer, &n)| self.read_buffer::<PoseidonDigest>(layer, n))
             .collect())
     }
 

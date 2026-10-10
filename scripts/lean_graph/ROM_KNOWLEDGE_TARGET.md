@@ -24,10 +24,10 @@ every adversary that is a function of the setup chunks, makes at most `Q`
 Fiat–Shamir oracle queries, and outputs a claim and a prior preimage, and for
 every context digest.
 
-The verifier is the Lean NIFS verifier with its coins read from `H`. Under
-the random-oracle model of the reads, the criterion applies to the Rust
-terminal verifier's last fold. It does not reach the inner folds that the
-step circuit checks; for the history it only motivates the error of
+The verifier is the Lean NIFS verifier with its coins read from `H`. The
+deployed system checks every fold only inside the step circuit, and no
+random-oracle model covers a hash inside a circuit. So the criterion bounds no
+deployed verifier check; for the history it only motivates the error of
 Assumption 1 (adversary 3 of the security model).
 
 The game:

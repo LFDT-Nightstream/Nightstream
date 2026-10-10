@@ -6,6 +6,20 @@ use p3_goldilocks::{Goldilocks, Poseidon2Goldilocks};
 use p3_symmetric::Permutation;
 
 const APP_DOMAIN: &[u8] = b"neo/transcript/v1|poseidon2-goldilocks-w8-r4";
+const FOLD_DOMAIN: &[u8] = b"Nightstream/SuperNeo/fold/v2";
+
+/// The constant first chunk of the v1.2 fold transcript:
+/// `Nightstream/SuperNeo/fold/v2`, eight little-endian bytes per word, then
+/// zero words up to one rate chunk.
+pub fn fold_domain_chunk_v1_2() -> [F; p2::RATE] {
+    std::array::from_fn(|word| {
+        let bytes = FOLD_DOMAIN.get(8 * word..).unwrap_or_default();
+        let mut packed = [0u8; 8];
+        let length = bytes.len().min(8);
+        packed[..length].copy_from_slice(&bytes[..length]);
+        F::from_u64(u64::from_le_bytes(packed))
+    })
+}
 
 const OP_APPEND_MESSAGE: u64 = 1;
 const OP_APPEND_FIELDS: u64 = 2;
@@ -48,21 +62,13 @@ impl Poseidon2Transcript {
         }
     }
 
-    /// Absorb one self-delimiting v1.2 block: its field-word length followed
-    /// by its words.
-    pub fn absorb_block_v1_2(&mut self, fields: &[F]) {
-        let mut framed = Vec::with_capacity(fields.len() + 1);
-        framed.push(F::from_u64(fields.len() as u64));
-        framed.extend_from_slice(fields);
-        self.absorb_v1_2(&framed);
-    }
-
-    /// Squeeze one Lean v1.2 field word from lane zero, then permute.
-    pub fn squeeze_field_v1_2(&mut self) -> F {
+    /// Read one quadratic-extension value from rate lanes `2 * pair` and
+    /// `2 * pair + 1`. The state does not change; the caller absorbs a zero
+    /// chunk after the last pair of a state.
+    pub fn read_pair_v1_2(&self, pair: usize) -> [F; 2] {
         assert_eq!(self.absorbed, 0, "v1_2 transcript cannot inherit an absorb cursor");
-        let value = F::from_u64(self.st[0].as_canonical_u64());
-        self.permute();
-        value
+        assert!(pair < p2::RATE / 2, "v1_2 read pair is outside the rate lanes");
+        [self.st[2 * pair], self.st[2 * pair + 1]]
     }
 
     /// Return the first four lanes, then apply one permutation.
@@ -73,11 +79,6 @@ impl Poseidon2Transcript {
         let digest = std::array::from_fn(|lane| F::from_u64(self.st[lane].as_canonical_u64()));
         self.permute();
         digest
-    }
-
-    /// Squeeze one quadratic-extension value as two successive field words.
-    pub fn squeeze_extension_v1_2(&mut self) -> [F; 2] {
-        [self.squeeze_field_v1_2(), self.squeeze_field_v1_2()]
     }
 
     /// Non-mutating four-lane compression for legacy receipt fields. The

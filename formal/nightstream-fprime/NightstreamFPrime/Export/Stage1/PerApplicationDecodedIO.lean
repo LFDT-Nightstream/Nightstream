@@ -152,7 +152,7 @@ private theorem roundC0Source
         coordinate.val * RunningTransitionInputs.roundStride +
         RunningTransitionInputs.roundSampleC0Offset) := by
   apply PiCCSOrdinarySourceSupport.transcript_output_source
-  refine ⟨⟨217 + coordinate.val * 5, ?_⟩, ⟨0, ?_⟩, ?_⟩
+  refine ⟨⟨128 + coordinate.val * 2, ?_⟩, ⟨0, ?_⟩, ?_⟩
   · have bound := coordinate.isLt
     change coordinate.val < 28 at bound
     rw [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
@@ -171,7 +171,7 @@ private theorem roundC1Source
         coordinate.val * RunningTransitionInputs.roundStride +
         RunningTransitionInputs.roundSampleC1Offset) := by
   apply PiCCSOrdinarySourceSupport.transcript_output_source
-  refine ⟨⟨218 + coordinate.val * 5, ?_⟩, ⟨0, ?_⟩, ?_⟩
+  refine ⟨⟨128 + coordinate.val * 2, ?_⟩, ⟨1, ?_⟩, ?_⟩
   · have bound := coordinate.isLt
     change coordinate.val < 28 at bound
     rw [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
@@ -203,7 +203,7 @@ private theorem applicationInputEnv_eq_transition
       PiRLCProductPlan.basePackage.layout.constantColumn := by
     have indexBound := index.isLt
     have constant : PiRLCProductPlan.basePackage.layout.constantColumn =
-        11654204 :=
+        11464596 :=
       NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
     rw [constant, ApplicationInputs.inputColumn_value]
     norm_num [ApplicationInputs.currentWordStart,
@@ -244,7 +244,7 @@ private theorem applicationOutputEnv_eq_transition
       PiRLCProductPlan.basePackage.layout.constantColumn := by
     have indexBound := index.isLt
     have constant : PiRLCProductPlan.basePackage.layout.constantColumn =
-        11654204 :=
+        11464596 :=
       NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
     rw [constant, ApplicationInputs.outputColumn_value]
     norm_num [Lifecycle.Stage1.Application.stateWordCount] at indexBound ⊢

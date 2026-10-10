@@ -70,8 +70,8 @@ def CoversFrom {Owner : Type} (start finish : Nat) : List (Span Owner) → Prop
       span.start = start ∧ CoversFrom span.endExclusive finish spans
 
 def rowCounts : List Nat :=
-  [4712, 140288, 95352, 153440, 12957, 728, 3364, 11140,
-    23, 800, 3593, 839536]
+  [4712, 134808, 4384, 61376, 12957, 728, 3364, 11140,
+    23, 800, 3593, 838440]
 
 /-- The 12 global physical row spans in the sole parent order. -/
 def rowSpans : List
@@ -92,12 +92,12 @@ theorem rowSpans_exact :
           4712⟩,
        ⟨.statementAbsorption,
           NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementAbsorptionRowStart,
-          140288⟩,
+          134808⟩,
        ⟨.challengeDerivation,
-          NightstreamFPrime.Layout.Stage1.PiCCSStarts.challengeRowStart, 95352⟩,
+          NightstreamFPrime.Layout.Stage1.PiCCSStarts.challengeRowStart, 4384⟩,
        ⟨.roundTranscript,
           NightstreamFPrime.Layout.Stage1.PiCCSStarts.roundTranscriptRowStart,
-          153440⟩,
+          61376⟩,
        ⟨.initialClaim,
           NightstreamFPrime.Layout.Stage1.PiCCSStarts.initialClaimRowStart,
           12957⟩,
@@ -116,7 +116,7 @@ theorem rowSpans_exact :
           3593⟩,
        ⟨.outputBinding,
           NightstreamFPrime.Layout.Stage1.PiCCSStarts.outputBindingRowStart,
-          839536⟩] := by
+          838440⟩] := by
   rfl
 
 theorem rowSpans_ownerOrder :
@@ -268,8 +268,8 @@ def columnOrder : List ColumnFamily :=
     .r1csIntermediate]
 
 def columnCounts : List Nat :=
-  [5156956, 270, 140288, 95352, 153440, 12957, 672, 2699, 10475, 23,
-    48, 2717, 839536, 2956]
+  [5156956, 270, 134808, 4384, 61376, 12957, 672, 2699, 10475, 23,
+    48, 2717, 838440, 2956]
 
 /-- The 14 global physical column spans, in the ordered vocabulary. The
 statement-binding family owns the 270 hinted sign columns. -/
@@ -308,18 +308,18 @@ theorem columnSpans_exact :
     columnSpans =
       [⟨.external, 0, 5156956⟩,
        ⟨.statementBinding, 5156956, 270⟩,
-       ⟨.statementAbsorption, 5157226, 140288⟩,
-       ⟨.challengeDerivation, 5297514, 95352⟩,
-       ⟨.roundTranscript, 5392866, 153440⟩,
-       ⟨.initialClaim, 5546306, 12957⟩,
-       ⟨.sumcheckChain, 5559263, 672⟩,
-       ⟨.eval_K, 5559935, 2699⟩,
-       ⟨.eval_A, 5562634, 10475⟩,
-       ⟨.ccsTerminal, 5573109, 23⟩,
-       ⟨.normTerminal, 5573132, 48⟩,
-       ⟨.finalIdentity, 5573180, 2717⟩,
-       ⟨.outputBinding, 5575897, 839536⟩,
-       ⟨.r1csIntermediate, 6415433, 2956⟩] := by
+       ⟨.statementAbsorption, 5157226, 134808⟩,
+       ⟨.challengeDerivation, 5292034, 4384⟩,
+       ⟨.roundTranscript, 5296418, 61376⟩,
+       ⟨.initialClaim, 5357794, 12957⟩,
+       ⟨.sumcheckChain, 5370751, 672⟩,
+       ⟨.eval_K, 5371423, 2699⟩,
+       ⟨.eval_A, 5374122, 10475⟩,
+       ⟨.ccsTerminal, 5384597, 23⟩,
+       ⟨.normTerminal, 5384620, 48⟩,
+       ⟨.finalIdentity, 5384668, 2717⟩,
+       ⟨.outputBinding, 5387385, 838440⟩,
+       ⟨.r1csIntermediate, 6225825, 2956⟩] := by
   rfl
 
 theorem columnSpans_ownerOrder :
@@ -399,7 +399,7 @@ private theorem challengeOffset_eq :
     Formal.challengeOffset
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.interface
         logicalWidth publicFits)
-      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 5297514 := by
+      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 5292034 := by
   rw [Formal.challengeOffset_eq,
     NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
 
@@ -407,14 +407,14 @@ private theorem roundTranscriptOffset_eq :
     Formal.roundTranscriptOffset
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.interface
         logicalWidth publicFits)
-      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 5392866 := by
+      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 5296418 := by
   rw [Formal.roundTranscriptOffset_eq, challengeOffset_eq]
 
 private theorem initialClaimOffset_eq :
     Formal.initialClaimOffset
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.interface
         logicalWidth publicFits)
-      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 5546306 := by
+      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 5357794 := by
   rw [Formal.initialClaimOffset_eq_initialClaimRowOffset,
     NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
   norm_num [Formal.initialClaimRowOffset, productionShape,
@@ -425,7 +425,7 @@ private theorem sumcheckOffset_eq :
     Formal.sumcheckOffset
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.interface
         logicalWidth publicFits)
-      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 5559263 := by
+      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 5370751 := by
   rw [Formal.sumcheckOffset_eq_sumcheckRowOffset,
     NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
   norm_num [Formal.sumcheckRowOffset, Formal.initialClaimRowOffset,
@@ -436,7 +436,7 @@ private theorem evalKOffset_eq :
     Formal.evalKOffset
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.interface
         logicalWidth publicFits)
-      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 5559935 := by
+      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 5371423 := by
   rw [Formal.evalKOffset_eq_evalKRowOffset,
     NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
   norm_num [Formal.evalKRowOffset, SumcheckChain.privateCount,
@@ -449,7 +449,7 @@ private theorem evalAOffset_eq :
     Formal.evalAOffset
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.interface
         logicalWidth publicFits)
-      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 5562634 := by
+      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 5374122 := by
   rw [Formal.evalAOffset_eq_evalARowOffset,
     NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
   norm_num [Formal.evalARowOffset, Formal.evalKRowOffset, SumcheckChain.privateCount,
@@ -463,7 +463,7 @@ private theorem ccsOffset_eq :
     Formal.ccsOffset
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.interface
         logicalWidth publicFits)
-      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 5573109 := by
+      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 5384597 := by
   rw [Formal.ccsOffset_eq_ccsRowOffset,
     NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
   norm_num [Formal.ccsRowOffset, Formal.evalARowOffset,
@@ -478,7 +478,7 @@ private theorem normOffset_eq :
     Formal.normOffset relation
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.interface
         logicalWidth publicFits)
-      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 5573132 := by
+      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 5384620 := by
   rw [Formal.normOffset_eq_normRowOffset,
     NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
   norm_num [Formal.normRowOffset, Formal.ccsRowOffset,
@@ -493,7 +493,7 @@ private theorem finalIdentityOffset_eq :
     Formal.finalIdentityOffset relation
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.interface
         logicalWidth publicFits)
-      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 5573180 := by
+      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 5384668 := by
   rw [Formal.finalIdentityOffset_eq_finalIdentityRowOffset,
     NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
   norm_num [Formal.finalIdentityRowOffset, Formal.normRowOffset,
@@ -509,7 +509,7 @@ private theorem outputBindingOffset_eq :
     Formal.outputBindingOffset relation
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.interface
         logicalWidth publicFits)
-      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 5575897 := by
+      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 5387385 := by
   rw [Formal.outputBindingOffset_eq_outputBindingRowOffset,
     NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
   norm_num [Formal.outputBindingRowOffset, Formal.finalIdentityRowOffset,
@@ -527,7 +527,7 @@ private theorem logicalColumnCount_eq :
     NightstreamFPrime.Layout.PiCCS.v1_2.logicalColumnCount relation
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.interface
         logicalWidth publicFits)
-      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 6415433 := by
+      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 6225825 := by
   rw [← NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase_eq_layout
     relation]
   unfold NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
@@ -536,7 +536,7 @@ private theorem logicalColumnCount_eq :
 private theorem logicalColumnCount_literal_eq :
     NightstreamFPrime.Layout.PiCCS.v1_2.logicalColumnCount relation
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.interface
-        logicalWidth publicFits) 5156956 = 6415433 := by
+        logicalWidth publicFits) 5156956 = 6225825 := by
   simpa only [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq] using
     logicalColumnCount_eq
 

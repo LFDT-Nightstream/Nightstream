@@ -29,7 +29,7 @@ variable {logicalWidth : Nat}
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
 /-- The exact completed pilot-plus-PiCCS source-column endpoint. -/
-def phaseOffset : Nat := 6418389
+def phaseOffset : Nat := 6228781
 
 /-- The completed PiCCS transcript state precedes the physical PiCCS endpoint
 that starts PiRLC. The intervening columns are the PiCCS lowering suffix. -/
@@ -94,12 +94,11 @@ theorem piCcsOutputState_fresh :
     NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal.Owned.output
     NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal.Owned.program
     NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBinding.actions
-    NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption.absorbBlock
   apply compile_output_fresh_of_head_absorb
   intro empty
   have lengthZero := congrArg List.length empty
   simp [NightstreamFPrime.Gadgets.Poseidon2.Hash.inputChunks,
-    NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption.blockExpr,
+    NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBinding.outputWords_length,
     Spec.Poseidon2.rate] at lengthZero
 
 private def runningIndex (source : Fin productionShape.sourceCount)

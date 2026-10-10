@@ -81,7 +81,7 @@ def verifierInput (input : Input) :
 existing lifecycle digest; this does not add another absorption. -/
 def statementState (input : Input) : Transcript.State :=
   ProductionKey.absorbPublicInput
-    (Transcript.absorb Transcript.initialState Transcript.piCcsDigestDomainTag)
+    Transcript.foldInitialState
     (running input) (fresh input)
 
 def context (input : Input) :
@@ -158,7 +158,7 @@ theorem pre_fromCheckInput (input : PiCCSInputCheck.Input) :
     pre (fromCheckInput input) = Folding.PiCCS.Transcript.deriveFromState
       Transcript.piCcsOracle.transcript
       (ProductionKey.absorbPublicInput
-        (Transcript.absorb Transcript.initialState Transcript.piCcsDigestDomainTag)
+        Transcript.foldInitialState
         (PiCCSInputCheck.running input) (PiCCSInputCheck.fresh input)) := rfl
 
 theorem initialClaim_value (input : Input) (gamma : K) :

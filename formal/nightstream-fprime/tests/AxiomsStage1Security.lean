@@ -37,7 +37,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSPhysicalPackets
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryPhysicalCompleteness
 import NightstreamFPrime.Export.Stage1.PiCCSCompletedReadout
 import NightstreamFPrime.Export.Stage1.InvocationInputLaw
-import NightstreamFPrime.Export.Stage1.PiCCSCompilerAssertions
 import NightstreamFPrime.Export.Stage1.PiCCSInvocationSlices
 import NightstreamFPrime.Export.Stage1.PiCCSPhaseInputs
 import NightstreamFPrime.Export.Stage1.PiCCSEndpointCompleteness
@@ -319,11 +318,6 @@ import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.PhaseTransport.phaseHolds_of_components_eq
 
 #audit_axioms NightstreamFPrime.Export.Stage1.InvocationInputLaw.compileActions_input_eval
-#audit_axioms NightstreamFPrime.Export.Stage1.InvocationInputLaw.compileActions_expected_eval
-#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCompilerAssertions.statement_assertions
-#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCompilerAssertions.challenge_assertions
-#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCompilerAssertions.round_assertions
-#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCompilerAssertions.output_assertions
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSInvocationSlices.statement_invocation
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSInvocationSlices.challenge_invocation
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSInvocationSlices.round_invocation

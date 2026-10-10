@@ -839,14 +839,14 @@ theorem statementInvocations_length
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    (statementTrace logicalWidth publicFits).invocations.length = 128 := by
+    (statementTrace logicalWidth publicFits).invocations.length = 123 := by
   rw [statementTrace, compileActions_invocations_length]
   have compiled := recipeCount_eq_invocationCount_mul
     (statementActions logicalWidth publicFits)
   have fixed := StatementAbsorption.recipeCount_eq
     (statementInterface logicalWidth publicFits) statementWitnessStart
   change Formal.recipeCount (statementActions logicalWidth publicFits) =
-    140288 at fixed
+    134808 at fixed
   rw [fixed] at compiled
   omega
 
@@ -854,7 +854,7 @@ theorem challengeInvocations_length
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    (challengeTrace logicalWidth publicFits).invocations.length = 87 := by
+    (challengeTrace logicalWidth publicFits).invocations.length = 4 := by
   rw [challengeTrace, compileActions_invocations_length]
   have sameCount := invocationCount_eq_of_shapes
     (ChallengeDerivation.actions (challengeInterface logicalWidth publicFits)
@@ -868,7 +868,7 @@ theorem challengeInvocations_length
     (challengeInterface logicalWidth publicFits) challengeWitnessStart
   change Formal.recipeCount
     (ChallengeDerivation.actions (challengeInterface logicalWidth publicFits)
-      challengeWitnessStart) = 95352 at fixed
+      challengeWitnessStart) = 4384 at fixed
   rw [fixed] at compiled
   rw [← sameCount]
   omega
@@ -877,7 +877,7 @@ theorem roundInvocations_length
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    (roundTrace logicalWidth publicFits).invocations.length = 140 := by
+    (roundTrace logicalWidth publicFits).invocations.length = 56 := by
   rw [roundTrace, compileActions_invocations_length]
   have sameCount := invocationCount_eq_of_shapes
     (RoundTranscript.actions (roundInterface logicalWidth publicFits)
@@ -904,14 +904,14 @@ theorem outputInvocations_length
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    (outputTrace logicalWidth publicFits).invocations.length = 766 := by
+    (outputTrace logicalWidth publicFits).invocations.length = 765 := by
   rw [outputTrace, compileActions_invocations_length]
   have compiled := recipeCount_eq_invocationCount_mul
     (outputActions logicalWidth publicFits)
   have fixed := OutputBinding.recipeCount_eq
     (outputInterface logicalWidth publicFits) outputWitnessStart
   change Formal.recipeCount (outputActions logicalWidth publicFits) =
-    839536 at fixed
+    838440 at fixed
   rw [fixed] at compiled
   omega
 
@@ -919,7 +919,7 @@ theorem invocations_length
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    (invocations logicalWidth publicFits).length = 1121 := by
+    (invocations logicalWidth publicFits).length = 948 := by
   unfold invocations
   rw [List.length_append, List.length_append, List.length_append,
     statementInvocations_length, challengeInvocations_length,
@@ -932,7 +932,7 @@ mapped start of the generic R1CS-fresh region, not a new layout owner. -/
 def invocationCeiling : Nat :=
   NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
     NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
-theorem invocationCeiling_eq : invocationCeiling = 6415155 := by
+theorem invocationCeiling_eq : invocationCeiling = 6225547 := by
   unfold invocationCeiling NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
   rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
   norm_num [NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan,
@@ -949,28 +949,28 @@ theorem invocationCeiling_le_private :
 theorem statementInvocationCount_eq (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    invocationCount (statementActions logicalWidth publicFits) = 128 := by
+    invocationCount (statementActions logicalWidth publicFits) = 123 := by
   have count := statementInvocations_length logicalWidth publicFits
   rw [statementTrace, compileActions_invocations_length] at count
   exact count
 theorem challengeInvocationCount_eq (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    invocationCount (challengeActions logicalWidth publicFits) = 87 := by
+    invocationCount (challengeActions logicalWidth publicFits) = 4 := by
   have count := challengeInvocations_length logicalWidth publicFits
   rw [challengeTrace, compileActions_invocations_length] at count
   exact count
 theorem roundInvocationCount_eq (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    invocationCount (roundActions logicalWidth publicFits) = 140 := by
+    invocationCount (roundActions logicalWidth publicFits) = 56 := by
   have count := roundInvocations_length logicalWidth publicFits
   rw [roundTrace, compileActions_invocations_length] at count
   exact count
 theorem outputInvocationCount_eq (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    invocationCount (outputActions logicalWidth publicFits) = 766 := by
+    invocationCount (outputActions logicalWidth publicFits) = 765 := by
   have count := outputInvocations_length logicalWidth publicFits
   rw [outputTrace, compileActions_invocations_length] at count
   exact count
@@ -1045,10 +1045,10 @@ theorem outputFinalState_varsBelow_samplerStart
   have startMatch := outputWitnessStart_matches logicalWidth publicFits relation
   rw [← startMatch] at finalBelow
   rw [OutputBinding.localLength_eq] at finalBelow
-  have endMatch : outputWitnessStart + 839536 =
+  have endMatch : outputWitnessStart + 838440 =
       NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase := by
     calc
-      outputWitnessStart + 839536 =
+      outputWitnessStart + 838440 =
           outputWitnessStart +
             invocationCount (outputActions logicalWidth publicFits) * 1096 := by
         rw [outputInvocationCount_eq]

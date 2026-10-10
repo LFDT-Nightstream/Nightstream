@@ -4,13 +4,15 @@
 //! does not select a circuit or accept a proof; it derives verifier-owned
 //! challenges and the post-output state from fixed-profile public messages.
 
-use neo_transcript::Poseidon2Transcript;
+use neo_transcript::{fold_domain_chunk_v1_2, Poseidon2Transcript};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 
 use super::{canonical_field, PackageError, PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT, PI_CCS_V1_2_ROUND_COUNT};
 
 const WIDTH: usize = neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
+const RATE: usize = neo_ccs::crypto::poseidon2_goldilocks::RATE;
+const COINS_PER_CHUNK: usize = RATE / 2;
 const CUBE_VARIABLES: usize = PI_CCS_V1_2_ROUND_COUNT;
 const RUNNING_SOURCES: usize = 16;
 const SOURCE_COUNT: usize = 17;
@@ -20,11 +22,6 @@ const COMMITMENT_WORDS: usize = 1_188;
 const PUBLIC_INPUT_WORDS: usize = 270;
 const EVALUATION_WORDS: usize = (MATRIX_COUNT + 1) * COEFFICIENT_COUNT * 2;
 const OUTPUT_WORDS: usize = SOURCE_COUNT * EVALUATION_WORDS;
-
-const DOMAIN_TAG: &[u64] = &[
-    78, 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47, 83, 117, 112, 101, 114, 78, 101, 111, 47, 80, 105, 67, 67,
-    83, 47, 100, 105, 103, 101, 115, 116, 45, 111, 110, 108, 121, 47, 118, 49, 95, 49,
-];
 
 /// Verifier-derived PiCCS values in exact Lean order.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -59,10 +56,12 @@ impl PiCcsV1_2Transcript {
 
 /// Derive the fixed-profile v1.2 PiCCS transcript.
 ///
-/// Public statement blocks are: the pilot-recomputed prior-state digest, the
-/// fresh commitment, and the fresh public input. The semantic verifier blocks
-/// are validated but are not absorbed again because the prior digest already
-/// binds them.
+/// After the constant domain chunk, the public statement blocks are absorbed
+/// as one stream: the pilot-recomputed prior-state digest, the fresh
+/// commitment, and the fresh public input. The semantic verifier blocks are
+/// validated but are not absorbed again because the prior digest already
+/// binds them. Coins are read from rate-lane pairs; nothing is labeled or
+/// length-prefixed.
 pub fn derive_pi_ccs_v1_2_transcript(
     public_statement_blocks: &[Vec<u64>],
     verifier_input_blocks: &[Vec<u64>],
@@ -71,31 +70,22 @@ pub fn derive_pi_ccs_v1_2_transcript(
 ) -> Result<PiCcsV1_2Transcript, PackageError> {
     validate_shapes(public_statement_blocks, verifier_input_blocks, rounds, output_words)?;
     let mut transcript = Poseidon2Transcript::new_v1_2();
-    transcript.absorb_v1_2(&canonical_words(DOMAIN_TAG)?);
-    for block in public_statement_blocks {
-        transcript.absorb_block_v1_2(&canonical_words(block)?);
-    }
+    transcript.absorb_v1_2(&fold_domain_chunk_v1_2());
+    transcript.absorb_v1_2(&canonical_words(&public_statement_blocks.concat())?);
 
     let mut alpha = Vec::with_capacity(CUBE_VARIABLES);
-    for coordinate in 0..CUBE_VARIABLES {
-        transcript.absorb_v1_2(&canonical_words(&[1, coordinate as u64])?);
-        alpha.push(extension_words(transcript.squeeze_extension_v1_2()));
+    for position in 0..CUBE_VARIABLES {
+        alpha.push(read_coin(&mut transcript, position));
     }
-    transcript.absorb_v1_2(&canonical_words(&[2])?);
-    let gamma = extension_words(transcript.squeeze_extension_v1_2());
+    let gamma = read_coin(&mut transcript, CUBE_VARIABLES);
 
     let mut round_point = Vec::with_capacity(CUBE_VARIABLES);
-    for (round_index, message) in rounds.iter().enumerate() {
-        let mut words = Vec::with_capacity(1 + PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT * 2);
-        words.push(round_index as u64);
-        for coefficient in message {
-            words.extend(coefficient);
-        }
-        transcript.absorb_block_v1_2(&canonical_words(&words)?);
-        transcript.absorb_v1_2(&canonical_words(&[3, round_index as u64])?);
-        round_point.push(extension_words(transcript.squeeze_extension_v1_2()));
+    for message in rounds {
+        let words: Vec<u64> = message.iter().flatten().copied().collect();
+        transcript.absorb_v1_2(&canonical_words(&words)?);
+        round_point.push(read_coin(&mut transcript, 0));
     }
-    transcript.absorb_block_v1_2(&canonical_words(output_words)?);
+    transcript.absorb_v1_2(&canonical_words(output_words)?);
 
     Ok(PiCcsV1_2Transcript {
         alpha,
@@ -139,6 +129,15 @@ fn canonical_words(words: &[u64]) -> Result<Vec<Goldilocks>, PackageError> {
         .collect()
 }
 
-fn extension_words(value: [Goldilocks; 2]) -> [u64; 2] {
-    value.map(|coefficient| coefficient.as_canonical_u64())
+/// Read the coin at `position` from rate-lane pair `position % 6`. After the
+/// sixth pair of a state, absorb one zero chunk.
+fn read_coin(transcript: &mut Poseidon2Transcript, position: usize) -> [u64; 2] {
+    let pair = position % COINS_PER_CHUNK;
+    let value = transcript
+        .read_pair_v1_2(pair)
+        .map(|coefficient| coefficient.as_canonical_u64());
+    if pair == COINS_PER_CHUNK - 1 {
+        transcript.absorb_v1_2(&[Goldilocks::ZERO; RATE]);
+    }
+    value
 }

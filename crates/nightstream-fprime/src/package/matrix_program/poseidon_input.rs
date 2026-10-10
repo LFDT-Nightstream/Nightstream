@@ -8,24 +8,6 @@ use super::{
     RetainedBlock, SourceCombination, SourceSubstitution, POSEIDON_WIDTH,
 };
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum InvocationTag {
-    Absorb,
-    SqueezeFirst,
-    SqueezeSecond,
-}
-
-impl InvocationTag {
-    fn decode(value: &Value) -> Result<Self, PackageError> {
-        match usize_atom(value, "Poseidon2 invocation tag")? {
-            0 => Ok(Self::Absorb),
-            1 => Ok(Self::SqueezeFirst),
-            2 => Ok(Self::SqueezeSecond),
-            _ => Err(PackageError::Invalid("Poseidon2 invocation tag")),
-        }
-    }
-}
-
 #[derive(Clone, Copy, Debug)]
 struct Region {
     invocation_start: usize,
@@ -67,23 +49,13 @@ enum Term {
         slot_base: usize,
         invocation_stride: usize,
     },
-    TaggedRetained {
-        block: RetainedBlock,
-        tags: Vec<InvocationTag>,
-        required: InvocationTag,
-        slot_base: usize,
-        invocation_stride: usize,
-        lane_stride: usize,
-    },
     OptionalConstant {
         values: Vec<Option<Goldilocks>>,
         lane_count: usize,
     },
-    TaggedAffine {
+    Affine {
         values: Vec<SourceCombination>,
         substitution: SourceSubstitution,
-        tags: Vec<InvocationTag>,
-        required: InvocationTag,
         lane_count: usize,
     },
 }
@@ -104,24 +76,14 @@ impl Term {
                 slot_base: usize_atom(&fields[2], "Poseidon2 external slot base")?,
                 invocation_stride: usize_atom(&fields[3], "Poseidon2 external invocation stride")?,
             }),
-            Some(3) if fields.len() == 7 => Ok(Self::TaggedRetained {
-                block: RetainedBlock::decode(&fields[1])?,
-                tags: decode_list(&fields[2], InvocationTag::decode)?,
-                required: InvocationTag::decode(&fields[3])?,
-                slot_base: usize_atom(&fields[4], "Poseidon2 tagged slot base")?,
-                invocation_stride: usize_atom(&fields[5], "Poseidon2 tagged invocation stride")?,
-                lane_stride: usize_atom(&fields[6], "Poseidon2 tagged lane stride")?,
-            }),
             Some(4) if fields.len() == 3 => Ok(Self::OptionalConstant {
                 values: decode_optional_constants(&fields[1])?,
                 lane_count: usize_atom(&fields[2], "Poseidon2 optional lane count")?,
             }),
-            Some(5) if fields.len() == 6 => Ok(Self::TaggedAffine {
+            Some(5) if fields.len() == 4 => Ok(Self::Affine {
                 values: decode_list(&fields[1], SourceCombination::decode)?,
                 substitution: SourceSubstitution::decode(&fields[2])?,
-                tags: decode_list(&fields[3], InvocationTag::decode)?,
-                required: InvocationTag::decode(&fields[4])?,
-                lane_count: usize_atom(&fields[5], "Poseidon2 affine lane count")?,
+                lane_count: usize_atom(&fields[3], "Poseidon2 affine lane count")?,
             }),
             _ => Err(PackageError::Invalid("Poseidon2 input term")),
         }
@@ -167,33 +129,6 @@ impl Term {
                 )?,
                 lane_offset,
             ),
-            Self::TaggedRetained {
-                block,
-                tags,
-                required,
-                slot_base,
-                invocation_stride,
-                lane_stride,
-            } => {
-                let actual = tags
-                    .get(invocation_offset)
-                    .ok_or(PackageError::Invalid("Poseidon2 invocation tag table"))?;
-                if actual == required {
-                    block.form(
-                        logical_width,
-                        affine_index(
-                            *slot_base,
-                            invocation_offset,
-                            *invocation_stride,
-                            lane_offset,
-                            *lane_stride,
-                            "Poseidon2 tagged retained slot",
-                        )?,
-                    )
-                } else {
-                    Ok(Form::default())
-                }
-            }
             Self::OptionalConstant { values, lane_count } => {
                 let index = checked_add(
                     checked_mul(invocation_offset, *lane_count, "Poseidon2 optional constant index")?,
@@ -208,19 +143,11 @@ impl Term {
                     Some(coefficient) => constant_form(logical_width, one_column, *coefficient, "Poseidon2 one column"),
                 }
             }
-            Self::TaggedAffine {
+            Self::Affine {
                 values,
                 substitution,
-                tags,
-                required,
                 lane_count,
             } => {
-                let actual = tags
-                    .get(invocation_offset)
-                    .ok_or(PackageError::Invalid("Poseidon2 affine invocation tag"))?;
-                if actual != required {
-                    return Ok(Form::default());
-                }
                 let index = checked_add(
                     checked_mul(invocation_offset, *lane_count, "Poseidon2 affine word index")?,
                     lane_offset,

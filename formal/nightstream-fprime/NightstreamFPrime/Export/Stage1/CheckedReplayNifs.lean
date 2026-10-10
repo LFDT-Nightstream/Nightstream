@@ -36,7 +36,7 @@ def proof (input : PiCCSInputCheck.Input) (messages : PiDECInputCheck.Messages) 
 private abbrev pre (input : PiCCSInputCheck.Input) :=
   PiCCS.Transcript.deriveFromState Transcript.piCcsOracle.transcript
     (ProductionKey.absorbPublicInput
-      (Transcript.absorb Transcript.initialState Transcript.piCcsDigestDomainTag)
+      Transcript.foldInitialState
       (PiCCSInputCheck.running input) (PiCCSInputCheck.fresh input))
 
 private theorem point_ext {arity : Nat} (left right : CubePoint K arity)

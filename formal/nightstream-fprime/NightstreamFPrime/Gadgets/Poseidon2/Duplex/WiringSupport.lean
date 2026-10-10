@@ -52,7 +52,7 @@ theorem outputPrefix_mono {allowed : Nat → Prop} {base prior later index : Nat
 /-- Number of Poseidon2 permutations executed by one Duplex action. -/
 def Action.permutationCount : Action → Nat
   | .absorb input => (Hash.inputChunks input).length
-  | .squeezeK _ => 2
+  | .readK _ _ => 0
 
 /-- Number of Poseidon2 permutations executed by a complete Duplex trace. -/
 def permutationCount (actions : List Action) : Nat :=
@@ -68,9 +68,9 @@ theorem recipeCount_eq_permutationCount_mul (actions : List Action) :
       | absorb input =>
           simp [Action.recipeCount,
             Action.permutationCount, inductionHypothesis, Nat.add_mul]
-      | squeezeK expected =>
+      | readK pair expected =>
           simp [Action.recipeCount,
-            Action.permutationCount, inductionHypothesis, Nat.add_mul]
+            Action.permutationCount, inductionHypothesis]
 
 private theorem scheduleOutput_outputPrefix_supported
     (allowed : Nat → Prop) (base count : Nat) :
@@ -172,37 +172,23 @@ theorem compileWiring_outputPrefix_supported
               Nat.add_assoc]
           rw [countEq]
           simpa [blocks] using tail
-      | squeezeK expected =>
-          have firstSupport :=
-            scheduleOutput_outputPrefix_supported allowed base prior
-          have secondSupport :=
-            scheduleOutput_outputPrefix_supported allowed base (prior + 1)
-          have tail := inductionHypothesis (prior := prior + 2)
-            (state := Permutation.scheduleOutput
-              (base + prior * 1096 + 1096)) (by
-                rw [show base + prior * 1096 + 1096 =
-                  base + (prior + 1) * 1096 by omega]
-                exact secondSupport)
+      | readK pair expected =>
+          have tail := inductionHypothesis (prior := prior) (state := state)
+            stateSupport
           have countEq :
-              prior + permutationCount (.squeezeK expected :: actions) =
-                prior + 2 + permutationCount actions := by
-            simp [permutationCount, Action.permutationCount, Nat.add_assoc]
-          have startEq : base + prior * 1096 + 2192 =
-              base + (prior + 2) * 1096 := by omega
+              prior + permutationCount (.readK pair expected :: actions) =
+                prior + permutationCount actions := by
+            simp [permutationCount, Action.permutationCount]
           rw [countEq]
           simp only [compileWiring]
-          rw [startEq]
           constructor
           · intro sample member
             simp only [List.mem_cons] at member
             rcases member with rfl | member
-            · constructor
-              · exact Expr.VarsSatisfy.mono (state 0) (stateSupport 0)
-                  (fun index support => outputPrefix_mono support (by omega))
-              · exact Expr.VarsSatisfy.mono
-                  (Permutation.scheduleOutput (base + prior * 1096) 0)
-                  (firstSupport 0)
-                  (fun index support => outputPrefix_mono support (by omega))
+            · exact ⟨Expr.VarsSatisfy.mono _ (stateSupport _)
+                  (fun index support => outputPrefix_mono support (by omega)),
+                Expr.VarsSatisfy.mono _ (stateSupport _)
+                  (fun index support => outputPrefix_mono support (by omega))⟩
             · exact tail.1 sample member
           · exact tail.2
 
@@ -291,49 +277,27 @@ theorem compileWiring_supported (allowed : Nat → Prop)
               Action.recipeCount, blocks]
             omega
           simpa only [compileWiring, blocks, absorbed, finishEq] using tail
-      | squeezeK expected =>
-          let tailStart := start + 2192
-          let tailState := Permutation.scheduleOutput (start + 1096)
-          have tailStateSupport : StateSupported tailState
-              (Extend allowed base tailStart) := by
-            have support := scheduleOutput_supported allowed base (start + 1096)
-              (by omega)
-            simpa [tailState, tailStart, Nat.add_assoc] using support
-          have tail := inductionHypothesis
-            (start := tailStart) (state := tailState) (by
-              unfold tailStart
-              omega) tailStateSupport
+      | readK pair expected =>
+          have tail := inductionHypothesis (start := start) (state := state)
+            baseLeStart stateSupport
           have finishEq :
-              tailStart + recipeCount actions =
-                start + recipeCount (.squeezeK expected :: actions) := by
-            simp [tailStart, recipeCount, Action.recipeCount, Nat.add_assoc]
-          have tailAtFinish :
-              (∀ sample ∈ (compileWiring tailStart tailState actions).samples,
-                  KSupported sample
-                    (Extend allowed base
-                      (start + recipeCount (.squeezeK expected :: actions)))) ∧
-                StateSupported (compileWiring tailStart tailState actions).output
-                  (Extend allowed base
-                    (start + recipeCount (.squeezeK expected :: actions))) := by
-            simpa only [finishEq] using tail
+              start + recipeCount actions =
+                start + recipeCount (.readK pair expected :: actions) := by
+            simp [recipeCount, Action.recipeCount]
+          rw [← finishEq]
+          simp only [compileWiring]
           constructor
           · intro sample member
-            simp only [compileWiring, List.mem_cons] at member
+            simp only [List.mem_cons] at member
             rcases member with rfl | member
             · constructor
-              · apply Expr.VarsSatisfy.mono (state 0) (stateSupport 0)
+              · apply Expr.VarsSatisfy.mono _ (stateSupport _)
                 intro index support
-                apply NightstreamFPrime.Circuit.SupportRange.mono_finish support
-                simp [recipeCount, Action.recipeCount]
-              · have firstSupport :
-                    (Permutation.scheduleOutput start 0).VarsSatisfy
-                      (Extend allowed base (start + 1096)) :=
-                    scheduleOutput_supported allowed base start baseLeStart 0
-                apply Expr.VarsSatisfy.mono _ firstSupport
+                exact NightstreamFPrime.Circuit.SupportRange.mono_finish support (by omega)
+              · apply Expr.VarsSatisfy.mono _ (stateSupport _)
                 intro index support
-                apply NightstreamFPrime.Circuit.SupportRange.mono_finish support
-                omega
-            · exact tailAtFinish.1 sample member
-          · exact tailAtFinish.2
+                exact NightstreamFPrime.Circuit.SupportRange.mono_finish support (by omega)
+            · exact tail.1 sample member
+          · exact tail.2
 
 end NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal

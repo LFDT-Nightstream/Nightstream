@@ -238,7 +238,8 @@ open HyperNovaVisitedSecurity (NifsAdversary NifsExtractor Assumption1 Closed Iv
   reverseStages)
 
 /-- Exact final history criterion under HyperNova errata Assumption 1, in the
-form of Definition 7 knowledge soundness (HyperNova Lemma 17): for every
+form of Definition 7 knowledge soundness of the NIFS, with the failure event
+of Definition 11 (ii) (HyperNova Lemma 17): for every
 application that fits the `2^28` profile, every commitment setup, every class
 of admitted NIFS adversaries with efficient extractors that Assumption 1
 covers, every class of admitted stages that gives admitted NIFS adversaries

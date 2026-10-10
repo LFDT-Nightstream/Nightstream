@@ -108,8 +108,8 @@ efficient extractor whose failure after a real success is at most `error` of
 that adversary. The success event adds the prior-state link, which the bare
 NIFS verifier does not check. This joint form implies Definition 7's
 difference form `Pr[success] - Pr[extraction] ≤ error`. The public parameters
-are the fixed production key and setup, not sampled, and `error` replaces
-`negl(λ)`. -/
+are a fixed commitment setup, not sampled, the structure is a fixed
+application, and `error` replaces `negl(λ)`. -/
 def Assumption1 (Admitted : NifsAdversary application fits setup → Prop)
     (Efficient : (adversary : NifsAdversary application fits setup) → NifsExtractor adversary → Prop)
     (error : NifsAdversary application fits setup → ℝ) : Prop :=
@@ -473,8 +473,8 @@ theorem per_tape (depth : Nat)
   rw [HyperNovaVisitedLaw.visitedLaw_listSource application fits setup _ _ _ (by omega), PMF.pure_bind,
     HyperNovaVisitedLaw.guardedDraw_listSource application fits setup _ _ _ (by omega)]
 
-/-- History knowledge soundness under Assumption 1 (HyperNova Definition 7
-and Lemma 17). On the reverse law, the mass where the terminal verifier
+/-- History knowledge soundness under Assumption 1 (HyperNova Definition 11
+(ii) and Lemma 17). On the reverse law, the mass where the terminal verifier
 accepts and the reverse extractor returns no valid history is at most, at
 each stage, the marked hash-collision mass and the Assumption 1 error of that
 stage's NIFS adversary. Every stage is admitted (`reverseStages`). -/

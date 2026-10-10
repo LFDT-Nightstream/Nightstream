@@ -46,7 +46,8 @@ application of the golden runs and the executables.
 
 No adversary chooses the application or the setup: the verifier's package
 fixes both before the adversary runs. The verifier-context digest hashes the
-relation, the application, the NIFS key and the commitment key
+relation, the application, the NIFS key and the setup authority (setup
+identifier, dimensions and seed)
 (`Export.Stage1.PerApplicationCanonicalPackage.verifierContextDescriptor`),
 and every state hash carries it. So when one application's verifier accepts a
 proof, adversary 2's result gives that application's context or a state-hash
@@ -148,11 +149,12 @@ collision.
   points of one execution as the sponge does, the two agree
   (`Lifecycle.RandomOracleFidelity.accepts_iff_verify`), and every execution
   has such an oracle (`Lifecycle.RandomOracleFidelity.deployedOracle_deployed`).
-  The deployed system runs this verifier only with Poseidon2: in the step
-  circuit of `F′` for an inner fold, and in the Rust terminal verifier. No
-  random-oracle model covers those runs, so this result alone bounds no
-  deployed attack. It motivates the value of `error` in Assumption 1
-  (adversary 4). `Export.Stage1.RandomOracleSetup.contract` states the result
+  The deployed system runs this verifier with Poseidon2: the Rust terminal
+  verifier checks the last fold, and the step circuit of `F′` checks each
+  inner fold. Under trust item 1, this result applies to the last fold's
+  reads. It does not reach the inner folds: the circuit evaluates the hash,
+  and no random-oracle model covers a hash inside a circuit. For the history,
+  it only motivates the value of `error` in Assumption 1 (adversary 4). `Export.Stage1.RandomOracleSetup.contract` states the result
   as Ironwood's six-question `Spec.KnowledgeContract`.
 - **Model limits:** the extractor and the binding reduction rerun the
   adversary with a changed oracle, so the oracle is programmable. The game
@@ -181,8 +183,10 @@ fresh verifier coin by an oracle read. Each module header states its part:
   after any number of folds, up to a symbolic depth, for a fixed application
   and commitment setup. The adversary must be admitted (trust item 4).
 - **Wins:** the terminal is accepted, and no valid history exists: no
-  application witnesses take `z0` to `zi` in `iteration` steps
-  (`Export.Stage1.HyperNovaFalseAcceptance.FalseAcceptance`).
+  application witnesses of the circuit's witness length take `z0` to `zi` in
+  `iteration` steps (`Export.Stage1.HyperNovaFalseAcceptance.FalseAcceptance`).
+  Every history that the reverse run returns has that length
+  (`Export.Stage1.HyperNovaHistory.run_witness_length`).
 - **Result:** under Assumption 1 and the closure premise,
   `Pr[FalseAcceptance] ≤ Σ_j (h_j + error(stage j))` on the IVC adversary's
   own law, with no conditioning
@@ -195,7 +199,8 @@ fresh verifier coin by an oracle read. Each module header states its part:
   `Pr[accept ∧ no valid history returned] ≤ Σ_j (h_j + error(stage j))`
   (`Export.Stage1.HyperNovaVisitedSecurity.history_failure_le`, lean-graph
   target `hypernova-linear-security`). This is the failure event of
-  Definition 7. The joint law has the adversary's output law
+  HyperNova Definition 11 (ii), constant-step knowledge soundness, and it
+  implies that definition's difference form. The joint law has the adversary's output law
   (`Export.Stage1.HyperNovaVisitedSecurity.reverse_input_event`), and the
   false-acceptance bound above follows from this one.
 - **Depth:** with the error that adversary 3 motivates, the bound is useful
@@ -346,12 +351,6 @@ fresh verifier coin by an oracle read. Each module header states its part:
      of one or two folds, and it gives no concrete security for long chains.
      This is the constant-depth limit of Lemma 17; the Lean statement is
      correct for every depth.
-   - *Valid history.* An application witness is a field list of any length
-     (`AppWitness`), and the step hash takes any length, but a history that
-     the reverse run returns has the circuit's witness length. So
-     `FalseAcceptance` does not count an accepted statement that is valid only
-     through witnesses of other lengths. Such a statement needs a Poseidon2
-     output to agree across input lengths.
 5. **Rust and Lean agree on recorded inputs only.** The golden conformance runs
    and the recorded native evidence cover their recorded inputs. No theorem
    covers arbitrary Rust execution.

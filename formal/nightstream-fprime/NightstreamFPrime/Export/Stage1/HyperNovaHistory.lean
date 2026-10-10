@@ -122,6 +122,53 @@ def run (statement : Statement) (proof : Envelope application) (results : List (
     Except Failure (List AppWitness × List (SourceResult application)) :=
   walk application fits statement proof results []
 
+/-- Every witness that the walk adds is a decoded circuit witness. -/
+private theorem walk_witness_length (statement : Statement) (proof : Envelope application)
+    (results : List (SourceResult application)) (suffix : List AppWitness)
+    (sized : ∀ witness ∈ suffix, witness.length = application.witnessWordCount)
+    {advice : List AppWitness} {unused : List (SourceResult application)}
+    (returned : walk application fits statement proof results suffix = .ok (advice, unused)) :
+    ∀ witness ∈ advice, witness.length = application.witnessWordCount := by
+  have extended (payload : Payload application) :
+      ∀ witness ∈ (decodedInput application fits payload).witness :: suffix,
+        witness.length = application.witnessWordCount := by
+    intro witness member
+    rcases List.mem_cons.mp member with rfl | member
+    · exact List.length_ofFn
+    · exact sized witness member
+  cases proof with
+  | bottom =>
+      rw [walk] at returned
+      split_ifs at returned
+      cases returned
+      exact sized
+  | recursive payload =>
+      rw [walk] at returned
+      dsimp only at returned
+      split_ifs at returned
+      · cases returned
+        exact extended payload
+      · cases resultsEq : results with
+        | nil => simp [resultsEq] at returned
+        | cons head tail =>
+            cases head with
+            | none => simp [resultsEq] at returned
+            | some values =>
+                simp only [resultsEq] at returned
+                exact walk_witness_length _ _ tail _ (extended payload) returned
+termination_by results.length
+decreasing_by
+  rw [resultsEq]
+  exact Nat.lt_succ_self _
+
+/-- Every witness that `run` returns has the circuit's witness length. -/
+theorem run_witness_length (statement : Statement) (proof : Envelope application)
+    (results : List (SourceResult application)) {advice : List AppWitness}
+    {unused : List (SourceResult application)}
+    (returned : run application fits statement proof results = .ok (advice, unused)) :
+    ∀ witness ∈ advice, witness.length = application.witnessWordCount :=
+  walk_witness_length application fits statement proof results [] (by simp) returned
+
 /-- Exact source-return success at every source read reached by `run`.
 The base branch and paths that stop before a source read add no source event.
 An absent required list entry fails this condition. -/

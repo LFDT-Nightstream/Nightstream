@@ -24,10 +24,11 @@ every adversary that is a function of the setup chunks, makes at most `Q`
 Fiat–Shamir oracle queries, and outputs a claim and a prior preimage, and for
 every context digest.
 
-The verifier is the Lean NIFS verifier with its coins read from `H`. The
-deployed system runs that verifier only with Poseidon2, so this criterion
-bounds no deployed attack by itself; it motivates the error of Assumption 1
-(adversary 3 of the security model).
+The verifier is the Lean NIFS verifier with its coins read from `H`. Under
+the random-oracle model of the reads, the criterion applies to the Rust
+terminal verifier's last fold. It does not reach the inner folds that the
+step circuit checks; for the history it only motivates the error of
+Assumption 1 (adversary 3 of the security model).
 
 The game:
 
@@ -71,6 +72,7 @@ Dependencies, with namespace prefix `NightstreamFPrime`:
 
 | Declaration | Required use |
 | --- | --- |
+| `Export.Stage1.RandomOracleSetup.programmingError_lt_of_fits` | Bound the programming error below `2^-190` for every application that fits. |
 | `Export.Stage1.RandomOracleSetup.knowledge_error_le_setup` | Average the linked bound over the chunks and replace the binding term. |
 | `Export.Stage1.RandomOracleLink.knowledge_error_le_linked` | The linked one-fold bound for one key. |
 | `Lifecycle.RandomOracleBinding.rerunKernel` | The binding reduction as a function of the two runs. |

@@ -1,6 +1,6 @@
 import NightstreamFPrime.Export.Stage1.RandomOracleLink
 import NightstreamFPrime.Export.Stage1.SetupDistribution
-import NightstreamFPrime.Export.Stage1.PiDECInputCheck
+import NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint
 import NightstreamFPrime.Spec.KnowledgeContract
 
 /-!
@@ -24,8 +24,9 @@ Outputs:
 - `knowledge_error_le_setup`: averaged over the chunks, the linked knowledge
   bound with the binding term replaced by `msisAdvantage` plus the programming
   error;
-- `production_knowledge_error_lt`: the same for the production relation and
-  key size, where the programming error is below `2 ^ -190`;
+- `production_knowledge_error_lt`: the same for every application that fits
+  the `2 ^ 28` profile, at its own relation and key size, where the
+  programming error is below `2 ^ -190` (`programmingError_lt_of_fits`);
 - `contract`: the theorem as a `Spec.KnowledgeContract`, whose runs are the
   chunks, the oracle and the extractor's retries.
 
@@ -231,33 +232,60 @@ noncomputable def contract {queries : Nat}
         rw [Finset.expect_sub_distrib]
         linarith
 
-/-- The same theorem for the production relation and key size, where the
-programming error is below `2 ^ -190` (`Poseidon2HashChainV1Setup.programmingError_lt`). -/
+/-! ## Every application of the profile -/
+
+section Production
+
+variable (application : Lifecycle.Stage1.Application.Program)
+  (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+
+local notation "Width" => PerApplicationFixedPoint.logicalWidth application
+local notation "Fits" => PerApplicationFixedPoint.publicFits application
+local notation "Selected" => PerApplicationFixedPoint.relation application fits
+
+/-- The `2 ^ 28` profile bounds every key by `22 · 54 · ⌈2 ^ 28 / 54⌉`
+coefficients, so its programming error is below `2 ^ -190`. The exponent is
+derived from that bound; it is not a target for cryptographic security. -/
+theorem programmingError_lt_of_fits (fits : PerApplicationFixedPoint.FitsTwoPow28 application) :
+    (Fintype.card (SetupIndex Width Fits) : ℝ) * (2 * 4294967295 / 2 ^ 256) < 1 / 2 ^ 190 := by
+  have blocks : Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth Width) ≤ 4971027 := by
+    have carrier := fits.carrier
+    unfold Phi81ColumnLayout.blockCount
+    calc _ ≤ (2 ^ Lifecycle.cubeVariables + ringDegree - 1) / ringDegree :=
+          Nat.div_le_div_right (by omega)
+      _ = 4971027 := by norm_num [Lifecycle.cubeVariables, ringDegree]
+  have card : (Fintype.card (SetupIndex Width Fits) : ℝ) ≤ 22 * (4971027 * 54) := by
+    show (Fintype.card (KeyIndex productionProfile.commitmentWidth
+      (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth Width))) : ℝ) ≤ _
+    rw [Fintype.card_prod, Fintype.card_prod, Fintype.card_fin, Fintype.card_fin, Fintype.card_fin]
+    have rows : productionProfile.commitmentWidth = 22 := rfl
+    rw [rows, show ringDegree = 54 from rfl]
+    exact_mod_cast Nat.mul_le_mul_left 22 (Nat.mul_le_mul_right 54 blocks)
+  calc _ ≤ (22 * (4971027 * 54) : ℝ) * (2 * 4294967295 / 2 ^ 256) :=
+        mul_le_mul_of_nonneg_right card (by positivity)
+    _ < 1 / 2 ^ 190 := by norm_num
+
+/-- The setup-game theorem for every application that fits the `2 ^ 28`
+profile, at its own relation and key size: the programming error is below
+`2 ^ -190` (`programmingError_lt_of_fits`). -/
 theorem production_knowledge_error_lt {Output : Type}
-    (adversary : (SetupIndex PiDECInputCheck.logicalWidth PiDECInputCheck.publicFits → Chunk) →
-      OracleComp (Point PiDECInputCheck.logicalWidth PiDECInputCheck.publicFits
-        (ProductionKey.degreeBound PiDECInputCheck.relation)) Answer Output)
-    (claim : Output → Claim PiDECInputCheck.relation)
-    (prior : Output → Lifecycle.HashPreimage (logicalWidth := PiDECInputCheck.logicalWidth)
-      (publicFits := PiDECInputCheck.publicFits))
+    (adversary : (SetupIndex Width Fits → Chunk) →
+      OracleComp (Point Width Fits (ProductionKey.degreeBound Selected)) Answer Output)
+    (claim : Output → Claim Selected)
+    (prior : Output → Lifecycle.HashPreimage (logicalWidth := Width) (publicFits := Fits))
     (contextDigest : KeyDigest) {queries : Nat}
     (bounded : ∀ chunks, (adversary chunks).QueryBound queries) :
-    𝔼 chunks : SetupIndex PiDECInputCheck.logicalWidth PiDECInputCheck.publicFits → Chunk, 𝔼 oracle,
-        (if Succeeds PiDECInputCheck.relation (setupKey chunks) (adversary chunks)
-            (linkedClaim PiDECInputCheck.relation claim prior contextDigest) oracle then (1 : ℝ) else 0) <
-      𝔼 chunks, (extraction PiDECInputCheck.relation adversary claim prior contextDigest chunks +
-          hashCollisions PiDECInputCheck.relation adversary claim prior contextDigest chunks) +
+    𝔼 chunks : SetupIndex Width Fits → Chunk, 𝔼 oracle,
+        (if Succeeds Selected (setupKey chunks) (adversary chunks)
+            (linkedClaim Selected claim prior contextDigest) oracle then (1 : ℝ) else 0) <
+      𝔼 chunks, (extraction Selected adversary claim prior contextDigest chunks +
+          hashCollisions Selected adversary claim prior contextDigest chunks) +
         statisticalError queries +
-        msisAdvantage PiDECInputCheck.relation adversary claim prior contextDigest + 1 / 2 ^ 190 := by
-  have bound := knowledge_error_le_setup PiDECInputCheck.relation adversary claim prior contextDigest
-    bounded
-  have small : (Fintype.card (SetupIndex PiDECInputCheck.logicalWidth PiDECInputCheck.publicFits) : ℝ) *
-      (2 * 4294967295 / 2 ^ 256) < 1 / 2 ^ 190 := by
-    show (Fintype.card (KeyIndex Poseidon2HashChainV1Setup.verifierRows
-        Poseidon2HashChainV1Setup.messageColumns) : ℝ) * (2 * 4294967295 / 2 ^ 256) < 1 / 2 ^ 190
-    have real := (Rat.cast_lt (K := ℝ)).mpr Poseidon2HashChainV1Setup.programmingError_lt
-    push_cast at real
-    exact real
+        msisAdvantage Selected adversary claim prior contextDigest + 1 / 2 ^ 190 := by
+  have bound := knowledge_error_le_setup Selected adversary claim prior contextDigest bounded
+  have small := programmingError_lt_of_fits application fits
   linarith
+
+end Production
 
 end NightstreamFPrime.Export.Stage1.RandomOracleSetup

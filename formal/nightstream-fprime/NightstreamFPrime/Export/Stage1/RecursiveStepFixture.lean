@@ -62,9 +62,9 @@ private def valueFromPriorIO (context : VerifierContext.Digest4)
   unless decide (input.publicInput.toList = List.ofFn priorPublic) do
     throw (IO.userError "recursive fixture: fresh public input differs from the actual prior hash")
   let priorRunning := prior.running functionIndex
-  unless decide (serializeRunningFields (PiCCSInputCheck.running input) =
+  unless decide (serializeRunningFields (PiCCSInputCheck.selectedRunning input) =
         serializeRunningFields (publicFits := publicFits) priorRunning ∧
-      serializeChildPublicInputs (PiCCSInputCheck.running input) =
+      serializeChildPublicInputs (PiCCSInputCheck.selectedRunning input) =
         serializeChildPublicInputs (publicFits := publicFits) priorRunning) do
     throw (IO.userError "recursive fixture: PiCCS running input differs from the actual prior")
   unless childrenCanonical priorRunning do

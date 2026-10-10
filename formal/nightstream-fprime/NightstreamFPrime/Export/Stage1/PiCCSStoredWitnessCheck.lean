@@ -1,9 +1,10 @@
 import NightstreamFPrime.Export.Stage1.PiDECInputCheck
+import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPackage
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CheckedWitnessExtraction
 
 /-!
-Owns the selected PiCCS source statement for the actual application matrix
-source and the frozen Ajtai setup. `statement` reads the existing typed
+Owns the PiCCS source statement of one application: its matrix source and the
+Ajtai key of its commitment setup. `statement` reads the existing typed
 fresh/running public fields and equals the statement that `ProductionKey.key`
 selects.
 -/
@@ -18,31 +19,44 @@ open StrongReduction ConcreteCarrier
 open NightstreamFPrime.Lifecycle
 open CheckedWitnessExtraction
 
+variable (application : Lifecycle.Stage1.Application.Program)
+  (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+  (setup : PerApplicationCanonicalPackage.CommitmentSetup application)
+
 abbrev carrier : Phi81Relation.Shape :=
-  PaperAlgebra.FullShape PiDECInputCheck.logicalWidth PiDECInputCheck.publicFits
+  PaperAlgebra.FullShape (PerApplicationFixedPoint.logicalWidth application)
+    (PerApplicationFixedPoint.publicFits application)
 
-/-- The sole selected commitment map, including the actual indexed key expansion. -/
-def commit : Phi81Relation.Assignment carrier → PaperAlgebra.Commitment :=
-  (PaperAlgebra.openingMaps Poseidon2HashChainV1Setup.productionAjtaiKey).commit
+/-- The commitment map of the application's setup, including the indexed key
+expansion. -/
+def commit : Phi81Relation.Assignment (carrier application) → PaperAlgebra.Commitment :=
+  (PaperAlgebra.openingMaps (PerApplicationCanonicalPackage.commitmentKey setup)).commit
 
-/-- Computable projection of the selected key's statement. Matrix entries
-remain behind the existing selected relation's access function. -/
+/-- Computable projection of the application key's statement. Matrix entries
+remain behind the application relation's access function. -/
 def statement (input : PiCCSInputCheck.Input) :
-    Statement K PaperAlgebra.Commitment (Phi81Relation.PublicInput carrier)
-      productionShape carrier.carrierWidth
-      (Phi81ColumnLayout.blockCount carrier.carrierWidth) baseOps where
-  cubeLayout := (Lifecycle.PiRLC.v1_2.InputBinding.relationSource PiDECInputCheck.relation).cubeLayout
-  matrixSource := (Lifecycle.PiRLC.v1_2.InputBinding.relationSource PiDECInputCheck.relation).matrixSource
-  commitments := PiCCSInputCheck.outputCommitments input
+    Statement K PaperAlgebra.Commitment (Phi81Relation.PublicInput (carrier application))
+      productionShape (carrier application).carrierWidth
+      (Phi81ColumnLayout.blockCount (carrier application).carrierWidth) baseOps where
+  cubeLayout := (Lifecycle.PiRLC.v1_2.InputBinding.relationSource
+    (PerApplicationFixedPoint.relation application fits)).cubeLayout
+  matrixSource := (Lifecycle.PiRLC.v1_2.InputBinding.relationSource
+    (PerApplicationFixedPoint.relation application fits)).matrixSource
+  commitments := PiCCSInputCheck.outputCommitments
+    (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
+    (publicFits := PerApplicationFixedPoint.publicFits application) input
   publicInputs := PiCCSInputCheck.outputPublicInputs input
-  priorPoint := (PiCCSInputCheck.running input).point
+  priorPoint := (PiCCSInputCheck.running
+    (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
+    (publicFits := PerApplicationFixedPoint.publicFits application) input).point
   claimedPadCoefficient := (PiCCSInputCheck.verifierInput input).claimedPadCoefficient
   claimedMatrixCoefficient := (PiCCSInputCheck.verifierInput input).claimedMatrixCoefficient
 
-/-- The executable statement is the literal selected NIFS statement. -/
+/-- The executable statement is the literal application NIFS statement. -/
 theorem statement_eq_key (input : PiCCSInputCheck.Input) :
-    statement input =
-      (ProductionKey.key PiDECInputCheck.relation Poseidon2HashChainV1Setup.productionAjtaiKey).statement
+    statement application fits input =
+      (ProductionKey.key (PerApplicationFixedPoint.relation application fits)
+        (PerApplicationCanonicalPackage.commitmentKey setup)).statement
         (PiCCSInputCheck.running input) (PiCCSInputCheck.fresh input) := by
   rfl
 

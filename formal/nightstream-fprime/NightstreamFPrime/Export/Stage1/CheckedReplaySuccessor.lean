@@ -85,7 +85,7 @@ noncomputable def payload
     (children : Stage1.Terminal.RunningWitness
       (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))
-    (raw : RawValues application) : HyperNovaHistory.Payload where
+    (raw : RawValues application) : HyperNovaHistory.Payload application where
   running := fun _ => result
   runningWitness := fun _ => children
   fresh := {
@@ -130,10 +130,10 @@ theorem accepted_of_checked_rows
     (childOpenings : ∀ child,
       CE.Holds (semantics productionAjtaiKey) productionGlobalParams
         (Lifecycle.runningStatement (PerApplicationFixedPoint.relation application fits)
-          (PiCCSInputCheck.runningFromInput messages) child) (children child)) :
+          (PiCCSInputCheck.selectedRunningFromInput messages) child) (children child)) :
     PerApplicationTerminal.Holds application fits productionSetup
       (nextStatement statement advice)
-      (.recursive (payload (PiCCSInputCheck.runningFromInput messages) children raw)) := by
+      (.recursive (payload (PiCCSInputCheck.selectedRunningFromInput messages) children raw)) := by
   have checkedStep := CheckedReplayStep.checked_step statement input batch parent messages
     runningWitness freshWitness advice sampled returned checked accepted nonwrap
   have selectedStep := checkedStep.1
@@ -147,17 +147,17 @@ theorem accepted_of_checked_rows
     (HyperNovaStepData.input statement (CheckedReplayStep.prior input runningWitness freshWitness)
       advice (CheckedReplayNifs.proof input messages))
     (PerApplicationDecodedIO.output application raw)
-    (HyperNovaStepData.output statement advice (PiCCSInputCheck.runningFromInput messages))
+    (HyperNovaStepData.output statement advice (PiCCSInputCheck.selectedRunningFromInput messages))
     rawStep selectedStep
   have digest : raw.outputDigest =
-      (HyperNovaStepData.output statement advice (PiCCSInputCheck.runningFromInput messages)).x :=
+      (HyperNovaStepData.output statement advice (PiCCSInputCheck.selectedRunningFromInput messages)).x :=
     congrArg (fun output => output.x) outputEq
   have priorValid := ((PerApplicationTerminal.holds_recursive_iff application fits productionSetup
     statement (CheckedReplayStep.prior input runningWitness freshWitness)).mp accepted).1
   have valid : Stage1.Terminal.StatementValid (nextStatement statement advice) :=
     ⟨nonwrap, priorValid.2.1, Stage1.Poseidon2HashChainV1.step_output_length statement.zi advice⟩
   exact HyperNovaAcceptedNext.terminal_of_memberships application fits productionSetup
-    (nextStatement statement advice) (PiCCSInputCheck.runningFromInput messages) children raw
+    (nextStatement statement advice) (PiCCSInputCheck.selectedRunningFromInput messages) children raw
     valid (Nat.zero_lt_succ _) digest checkedStep.2.2.1.2.2.2 childOpenings
     (HyperNovaAcceptedNext.freshHolds_of_rows application fits productionAjtaiKey raw rows bounded)
 

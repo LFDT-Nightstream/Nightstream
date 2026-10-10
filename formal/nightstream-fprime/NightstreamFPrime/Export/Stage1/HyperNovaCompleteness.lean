@@ -21,8 +21,9 @@ open ConcreteCarrier UnifiedSources
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 open _root_.NightstreamFPrime.Spec.SumCheck.Finite
-open Poseidon2HashChainV1Package (application fits)
-open Poseidon2HashChainV1Setup (productionSetup productionAjtaiKey)
+variable (application : Lifecycle.Stage1.Application.Program)
+  (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+  (setup : PerApplicationCanonicalPackage.CommitmentSetup application)
 
 private theorem addCases_fresh {shape : Shape} {Value : Type*}
     (fresh : Fin shape.freshCount → Value) (running : Fin shape.runningCount → Value)
@@ -147,11 +148,11 @@ valid openings for every returned child. The production sampler is total.
 No accepted local proof, intermediate output, or new witness validity is an
 input. This does not construct the next fresh application assignment. -/
 theorem recursive_nifs
-    (statement : HyperNovaHistory.Statement) (payload : HyperNovaHistory.Payload)
-    (accepted : PerApplicationTerminal.Holds application fits productionSetup
+    (statement : HyperNovaHistory.Statement) (payload : HyperNovaHistory.Payload application)
+    (accepted : PerApplicationTerminal.Holds application fits setup
       statement (.recursive payload)) :
     let relation := PerApplicationFixedPoint.relation application fits
-    let key := ProductionKey.key relation productionAjtaiKey
+    let key := ProductionKey.key relation (PerApplicationCanonicalPackage.commitmentKey setup)
     ∃ (messages : Fin productionShape.cubeVariables → FixedPolynomial K 8)
       (fullOutput : FullOutputCoordinates.FullOutput K productionShape),
       let coins := FiatShamir.derive key.oracle.transcript
@@ -171,17 +172,17 @@ theorem recursive_nifs
           proof.piCcsRounds = messages ∧ proof.piCcsOutput = fullOutput ∧
           key.piRlcChallenges (payload.running functionIndex) payload.fresh proof = some rho ∧
           Nifs.PaperNonInteractive.verify key (payload.running functionIndex) payload.fresh proof = some result ∧
-          ∀ child, CE.Holds (semantics productionAjtaiKey) productionGlobalParams
+          ∀ child, CE.Holds (semantics (PerApplicationCanonicalPackage.commitmentKey setup)) productionGlobalParams
             (Lifecycle.runningStatement relation result child) (children child) := by
   let relation := PerApplicationFixedPoint.relation application fits
-  let key := ProductionKey.key relation productionAjtaiKey
+  let key := ProductionKey.key relation (PerApplicationCanonicalPackage.commitmentKey setup)
   obtain ⟨_statementValid, _canonical, _pcValid, _positive, _public, runningMember, freshMember⟩ :=
-    (PerApplicationTerminal.holds_recursive_iff application fits productionSetup statement payload).mp accepted
-  have memberships : Lifecycle.TerminalHolds relation productionAjtaiKey
+    (PerApplicationTerminal.holds_recursive_iff application fits setup statement payload).mp accepted
+  have memberships : Lifecycle.TerminalHolds relation (PerApplicationCanonicalPackage.commitmentKey setup)
       (payload.running functionIndex) (payload.runningWitness functionIndex)
       payload.fresh payload.freshWitness :=
     ⟨runningMember functionIndex, freshMember⟩
-  have valid := sourceHolds_of_terminalHolds relation productionAjtaiKey
+  have valid := sourceHolds_of_terminalHolds relation (PerApplicationCanonicalPackage.commitmentKey setup)
     (payload.running functionIndex) payload.fresh
     (payload.runningWitness functionIndex) payload.freshWitness memberships
   obtain ⟨messages, fullOutput, _cAccepted, _cOpenings, continuation⟩ :=
@@ -200,7 +201,7 @@ theorem recursive_nifs
   intro child
   have member := childValid child
   rw [Lifecycle.PiDEC.v1_2.OutputWitnessConsumer.runningStatement_eq
-    relation productionAjtaiKey result child] at member
+    relation (PerApplicationCanonicalPackage.commitmentKey setup) result child] at member
   exact member
 
 end NightstreamFPrime.Export.Stage1.HyperNovaCompleteness

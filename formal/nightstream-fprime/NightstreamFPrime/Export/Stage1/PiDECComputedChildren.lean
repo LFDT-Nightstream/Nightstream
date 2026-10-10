@@ -166,7 +166,11 @@ private theorem child_openings_checkedRelation
     (PiDECEvaluationHonestMessages.family children parent.point) system rfl parentValid
     (computed_messages parent parentWitness children success)
   intro child
-  rw [messages, HyperNovaInput.runningFromInput_runningInput]
+  have decoded : PiCCSInputCheck.runningFromInput (logicalWidth := PiDECInputCheck.logicalWidth)
+      (publicFits := PiDECInputCheck.publicFits) (HyperNovaInput.runningInput (result parent children)) =
+        result parent children :=
+    HyperNovaInput.runningFromInput_runningInput (result parent children)
+  rw [messages, decoded]
   have witness := (PiDECStoredSplitHonestWitness.splitChecked_honestWitness
     (PiDECInputCheck.parent parent) parentWitness children success child).1
   change CE.Holds _ _ _ (view (children.get child))

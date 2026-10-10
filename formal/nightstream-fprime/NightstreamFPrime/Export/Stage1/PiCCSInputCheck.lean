@@ -224,6 +224,15 @@ def proofValues (input : Input) : PiCCSProofInputs.ProofValues where
   outputEval_A := fun source matrix coefficient =>
     ((input.evalA.get source).get matrix).get coefficient
 
+section Typed
+
+/-! The typed views read only profile-sized fields, so they exist at every
+application width. -/
+
+variable {logicalWidth : Nat}
+  {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
+    Phi81CarrierLayout.carrierWidth logicalWidth}
+
 def runningFromInput (input : RunningInput) :
     Running (logicalWidth := logicalWidth) (publicFits := publicFits) where
   point := {
@@ -252,16 +261,40 @@ def fresh (input : Input) :
   commitments := fun _ => (proofValues input).freshCommitment
   publicInputs := fun _ => input.publicInput.get
 
+def outputCommitments (input : Input) :
+    Fin productionShape.sourceCount → PaperAlgebra.Commitment :=
+  Fin.addCases (fresh (logicalWidth := logicalWidth) (publicFits := publicFits) input).commitments
+    (running (logicalWidth := logicalWidth) (publicFits := publicFits) input).commitments
+
+def outputPublicInputs (input : Input) :
+    Fin productionShape.sourceCount →
+      PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits) :=
+  Fin.addCases (fresh input).publicInputs (running input).publicInputs
+
+end Typed
+
+/-! The typed views at the selected application's width, for the executable
+checkers of that application. -/
+
+abbrev selectedRunningFromInput (input : RunningInput) :=
+  runningFromInput (logicalWidth := logicalWidth) (publicFits := publicFits) input
+
+abbrev selectedRunning (input : Input) :=
+  running (logicalWidth := logicalWidth) (publicFits := publicFits) input
+
+abbrev selectedFresh (input : Input) :=
+  fresh (logicalWidth := logicalWidth) (publicFits := publicFits) input
+
 def verifierInput (input : Input) :
     ProtocolPolynomial.VerifierInput K productionShape where
   constraintPolynomial :=
     ConstraintPolynomialLift.liftConstraintPolynomial K.embed
       Spec.ProductionRelation.polynomial
-  priorPoint := (running input).point
+  priorPoint := (selectedRunning input).point
   claimedPadCoefficient := fun coordinate =>
-    ((running input).evaluations coordinate.running).pad coordinate.coefficient
+    ((selectedRunning input).evaluations coordinate.running).pad coordinate.coefficient
   claimedMatrixCoefficient := fun coordinate =>
-    ((running input).evaluations coordinate.running).matrix coordinate.matrix
+    ((selectedRunning input).evaluations coordinate.running).matrix coordinate.matrix
       coordinate.coefficient
 
 def outputMessage (input : Input) :
@@ -445,16 +478,8 @@ private def postRoundClaims :
       let claim := polynomial.evaluate extensionOps.toOps challenge
       claim :: postRoundClaims rounds challenges
 
-def outputCommitments (input : Input) :
-    Fin productionShape.sourceCount → PaperAlgebra.Commitment :=
-  Fin.addCases (fresh input).commitments (running input).commitments
-
-def outputPublicInputs (input : Input) :
-    Fin productionShape.sourceCount → PublicInput :=
-  Fin.addCases (fresh input).publicInputs (running input).publicInputs
-
 private def runningValue (input : Input) : Value :=
-  let running := running input
+  let running := selectedRunning input
   .array [extensionsValue running.point.coordinates,
     .array ((List.finRange productionShape.runningCount).map fun source =>
       wordsValue (serializeCommitment (running.commitments source))),
@@ -475,11 +500,11 @@ structure Execution where
   encoded : Value
 
 def execute (input : Input) : Execution :=
-  let running := running input
+  let running := selectedRunning input
   let verifierInput := verifierInput input
   let statementState := ProductionKey.absorbPublicInput
     (Transcript.absorb Transcript.initialState Transcript.piCcsDigestDomainTag)
-    running (fresh input)
+    running (selectedFresh input)
   let pre := Folding.PiCCS.Transcript.deriveFromState
     Transcript.piCcsOracle.transcript statementState
   let indices := canonicalFinIndices productionShape.cubeVariables
@@ -513,9 +538,11 @@ def execute (input : Input) : Execution :=
       extensionValue initial, extensionsValue claims,
       extensionsValue [pad, matrix, ccs, norm, terminal, claims.getLastD initial],
       .array ((List.finRange productionShape.sourceCount).map fun source =>
-        wordsValue (serializeCommitment (outputCommitments input source))),
+        wordsValue (serializeCommitment (outputCommitments (logicalWidth := logicalWidth)
+          (publicFits := publicFits) input source))),
       .array ((List.finRange productionShape.sourceCount).map fun source =>
-        wordsValue (serializePublicInput (outputPublicInputs input source))),
+        wordsValue (serializePublicInput (outputPublicInputs (logicalWidth := logicalWidth)
+          (publicFits := publicFits) input source))),
       vectorValue (vectorValue extensionValue) input.evalK,
       vectorValue (vectorValue (vectorValue extensionValue)) input.evalA,
       wordsValue outgoing] }
@@ -525,7 +552,7 @@ output of this execution. This view asserts no distribution for its coins. -/
 def probe (input : Input) : StrongReduction.Probe K productionShape :=
   let statementState := ProductionKey.absorbPublicInput
     (Transcript.absorb Transcript.initialState Transcript.piCcsDigestDomainTag)
-    (running input) (fresh input)
+    (selectedRunning input) (selectedFresh input)
   let pre := Folding.PiCCS.Transcript.deriveFromState
     Transcript.piCcsOracle.transcript statementState
   { coins := {
@@ -559,7 +586,7 @@ initialClaim, postRoundClaims, terminal[6], commitments[17], public[17],
 Eval_K, Eval_A, outgoingState]]. The supplied execution checks the
 transcript-bound fixed-width chain; opening validity is a separate obligation. -/
 def checkFields (input : Input) (result : Execution) : List Value :=
-  let publicBlocks := ProductionKey.publicInputBlocks (fresh input)
+  let publicBlocks := ProductionKey.publicInputBlocks (selectedFresh input)
   [.atom 1, inputValue input, runningValue input,
     .array (publicBlocks.map wordsValue),
     .array ((Transcript.verifierInputBlocks (verifierInput input)).map wordsValue),

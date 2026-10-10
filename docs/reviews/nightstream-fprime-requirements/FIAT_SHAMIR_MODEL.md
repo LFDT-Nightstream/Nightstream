@@ -7,9 +7,10 @@ declaration that only it used are deleted. The history bound now takes
 HyperNova errata Assumption 1, plain-model part, at each visit
 (`Export.Stage1.HyperNovaVisitedSecurity.Assumption1`). The
 random-oracle theorem `Lifecycle.RandomOracleKnowledge.knowledge_error_le`
-motivates its per-visit error but does not prove it; see
-[ROM_KNOWLEDGE_SOUNDNESS.md](../../../formal/nightstream-fprime/ROM_KNOWLEDGE_SOUNDNESS.md) and
-`formal/nightstream-fprime/TRUST_BOUNDARY.md`. The real success event is now
+motivates its per-visit error but does not prove it; see adversaries 3 and 4
+and trust item 4 of
+[SECURITY_MODEL.md](../../../formal/nightstream-fprime/SECURITY_MODEL.md). The
+real success event is now
 `NifsRealSuccess.RealSuccess`. The text below records the retired boundary in
 the tense of its time. `FiatShamirModel`, `FiatShamirTransfer`, `NifsClosure`,
 `NifsFiatShamir`, `NifsInvalidSource` and `history_probability_linear_bound`
@@ -22,8 +23,9 @@ Approval selects no model instance or numerical security level. The
 conditional code was checked at `88d394fb4b24cfba21fd1a995bff16c3449312a8`;
 the concrete continuation was consumed by
 `NifsClosure.finishValue_probability_and_expected_work`. Its checked source
-and gate evidence at `01a8fd8ca68280c7f642451ab33bc714cee5bc98` are recorded in
-`formal/nightstream-fprime/NIFS_CLOSURE_STATUS.md`.
+and gate evidence at `01a8fd8ca68280c7f642451ab33bc714cee5bc98` were recorded in
+`formal/nightstream-fprime/NIFS_CLOSURE_STATUS.md`, which is now deleted (see
+git history).
 
 For the fixed Nightstream Goldilocks profile, assume an external classical
 FS/SuperNeo game transfer for the **actual additive Poseidon2 transcript**.

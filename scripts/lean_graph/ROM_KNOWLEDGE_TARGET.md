@@ -19,9 +19,15 @@ The required conclusion is
     + msisAdvantage + 2^-190
 ```
 
-for every adversary that is a function of the setup chunks, makes at most `Q`
+for every application that fits the `2^28` profile, at its own relation, for
+every adversary that is a function of the setup chunks, makes at most `Q`
 Fiat–Shamir oracle queries, and outputs a claim and a prior preimage, and for
 every context digest.
+
+The verifier is the Lean NIFS verifier with its coins read from `H`. The
+deployed system runs that verifier only with Poseidon2, so this criterion
+bounds no deployed attack by itself; it motivates the error of Assumption 1
+(adversary 3 of the security model).
 
 The game:
 
@@ -30,8 +36,11 @@ The game:
   premise P1, SHAKE128 as a random oracle (`Spec.AjtaiSetupV1.Programming`).
 - `H` is a uniform random function on the bounded challenge call lists, the
   random-oracle model of the Fiat–Shamir reads.
-- The adversary is chosen before the chunks and may read all of them. So it
-  cannot contain a kernel vector of the key.
+- The adversary is deterministic. It is chosen before the chunks and may read
+  all of them, so it cannot contain a kernel vector of the key. An adversary
+  precomputed for the fixed deployed seed is outside the game.
+- The extractor and the binding reduction rerun the adversary with a changed
+  `H`, so the oracle is programmable.
 - The claim is linked: the verifier also checks that the prior preimage
   hashes to the digest in the fresh public input and is well formed
   (`PriorLink`). Well formed includes that the running children are the
@@ -48,10 +57,11 @@ The terms:
   adversary for those chunks, and returns the output of the binding
   reduction `RandomOracleBinding.rerunKernel`. That output is a nonzero
   integer kernel vector of the matrix's key with every coordinate below `8TB`.
-  The vector is computed from the two runs, not chosen from a proof that one
-  exists.
+  The vector is a function of the two runs; the definition is
+  `noncomputable`.
 - `2^-190`: the error of drawing a uniform matrix instead of reduced chunks
-  (`Poseidon2HashChainV1Setup.programmingError_lt`).
+  for every application that fits
+  (`RandomOracleSetup.programmingError_lt_of_fits`).
 
 Required premises: the query bound only. MSIS hardness, the collision
 resistance of the state hash, and the running time of the solver are not

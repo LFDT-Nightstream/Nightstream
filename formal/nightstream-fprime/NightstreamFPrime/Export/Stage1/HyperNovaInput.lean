@@ -1,9 +1,10 @@
 import NightstreamFPrime.Export.Stage1.PiDECInputCheck
 
 /-!
-Connect decoded HyperNova claims to the existing selected NIFS checker input.
-The conversion preserves every claim and PiCCS message field. It introduces
-no alternate statement, transcript, matrix source, or witness representation.
+Connect decoded HyperNova claims to the existing NIFS checker input, at every
+application width. The conversion preserves every claim and PiCCS message
+field. It introduces no alternate statement, transcript, matrix source, or
+witness representation.
 -/
 
 set_option autoImplicit false
@@ -14,14 +15,6 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open StrongReduction
-
-abbrev Running := Lifecycle.Running
-  (logicalWidth := PiDECInputCheck.logicalWidth)
-  (publicFits := PiDECInputCheck.publicFits)
-
-abbrev Fresh := Lifecycle.Fresh
-  (logicalWidth := PiDECInputCheck.logicalWidth)
-  (publicFits := PiDECInputCheck.publicFits)
 
 private theorem vector_get_ofFn {α : Type} {n : Nat} (f : Fin n → α) (i : Fin n) :
     (Vector.ofFn f).get i = f i := Vector.getElem_ofFn i.isLt
@@ -53,6 +46,13 @@ private def commitmentWords (value : PaperAlgebra.Commitment) : Vector F 1188 :=
   Vector.ofFn fun index => value
     ⟨index.val / 54, by have bound := index.isLt; change index.val / 54 < 22; omega⟩
     ⟨index.val % 54, Nat.mod_lt _ (by decide)⟩
+
+variable {logicalWidth : Nat}
+  {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
+    Phi81CarrierLayout.carrierWidth logicalWidth}
+
+local notation "Running" => Lifecycle.Running (logicalWidth := logicalWidth) (publicFits := publicFits)
+local notation "Fresh" => Lifecycle.Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)
 
 /-- Serialize the existing typed running bundle into the checker's fixed arrays. -/
 def runningInput (value : Running) : PiCCSInputCheck.RunningInput where

@@ -136,7 +136,7 @@ abbrev BoundedCalls (logicalWidth : Nat)
 noncomputable instance (degree : Nat) : Fintype (BoundedCalls logicalWidth publicFits degree) :=
   (List.finite_length_le Call _).fintype
 
-/-- An oracle point: a bounded call list and a lane pair of the state after it. -/
+/-- An oracle point: a bounded call list and a slot of the state after it. -/
 abbrev Point (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth)
     (degree : Nat) :=

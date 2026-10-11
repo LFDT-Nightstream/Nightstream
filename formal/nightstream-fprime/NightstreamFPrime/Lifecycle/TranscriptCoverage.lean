@@ -16,8 +16,8 @@ state, so a challenge's address is its call list and its slot (`Slot`).
 Inputs: the production key, the fresh statement, and the NIFS proof.
 
 Outputs:
-- `challenge_seal`: each key challenge reads the lane pair `c.slot` of the
-  state after `proverCalls c ++ fixedCalls c`, and `fixedCalls` takes no
+- `challenge_seal`: each key challenge reads slot `c.slot` of the state
+  after `proverCalls c ++ fixedCalls c`, and `fixedCalls` takes no
   prover data;
 - `coins_eq_reads`: the PiCCS coin record is exactly these reads, so a new
   coin field breaks the statement;
@@ -163,16 +163,16 @@ private theorem absorbCalls_injective {left right : List F}
   simpa [List.getElem?_eq_getElem leftBound, List.getElem?_eq_getElem rightBound]
     using lane
 
-/-! ## Lane-pair reads and SumCheck rounds -/
+/-! ## Slot reads and SumCheck rounds -/
 
-/-- A lane pair of one sponge state: lanes `2·slot` and `2·slot + 1`. -/
+/-- A coin position in one sponge state: a coin at slot `s` reads lanes `2·s` and `2·s + 1`. -/
 abbrev Slot := Fin Transcript.coinsPerChunk
 
-/-- The lane pair of coin position `position` (`Transcript.squeezeAt`). -/
+/-- The slot of coin position `position` (`Transcript.squeezeAt`). -/
 def slotOf (position : Nat) : Slot :=
   ⟨position % Transcript.coinsPerChunk, Nat.mod_lt _ (by decide)⟩
 
-/-- The extension coin in lane pair `slot` of `state`. -/
+/-- The extension coin at `slot` of `state`: lanes `2·slot` and `2·slot + 1`. -/
 def readK (slot : Slot) (state : Transcript.State) : K :=
   ⟨state.getD (2 * slot.val) 0, state.getD (2 * slot.val + 1) 0⟩
 
@@ -410,7 +410,7 @@ abbrev Challenge.Value : Challenge → Type
   | .round _ => K
   | .rho _ => RingF
 
-/-- The lane pair that a challenge reads. `α` and `γ` take consecutive coin
+/-- The slot that a challenge reads. `α` and `γ` take consecutive coin
 positions; a round coin and a `Π_RLC` sampler block start at lane 0. -/
 def Challenge.slot : Challenge → Slot
   | .alpha coordinate => slotOf coordinate.val
@@ -457,7 +457,7 @@ def challengeCalls {degree : Nat}
     (proof : Proof degree) (challenge : Challenge) : List Call :=
   proverCalls fresh proof challenge ++ fixedCalls challenge
 
-/-- Where a challenge reads: its calls and its lane pair. -/
+/-- Where a challenge reads: its calls and its slot. -/
 def challengeAddress {degree : Nat}
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Proof degree) (challenge : Challenge) : List Call × Slot :=
@@ -623,7 +623,7 @@ theorem rho_seal :
   simp only [Spec.Folding.Nifs.NonInteractive.PiRlcSampler.TranscriptHistory.replay,
     List.foldl_nil, rhoIndex]
 
-/-- Seal: every key challenge reads its lane pair of the state after its
+/-- Seal: every key challenge reads its slot of the state after its
 prover-dependent calls followed by fixed calls, and `fixedCalls` admits no
 prover data. With `proverCalls_identify` against the dependency specification
 `AgreeOnAbsorbed`, a schedule change that moves prover data after a challenge
@@ -877,7 +877,7 @@ private def offset (count output : Nat) : Challenge → Nat
   | .round index => 4 + index.val * count + count
   | .rho index => 4 + 28 * count + output + 2 * index.val + 1
 
-/-- The offset and the lane pair together tell challenges apart once a round
+/-- The offset and the slot together tell challenges apart once a round
 message has at least one call. -/
 private theorem offset_slot_injective (count output : Nat) (positive : 0 < count)
     {challenge other : Challenge}

@@ -339,10 +339,11 @@ the package (about 6 s). Take the key from `Verifier::compression_key` (about
 60 s, no files) or from a copy you pinned; never from a prover. In the
 production test, one fold gives a 129,490-byte final proof
 (`FinalProof::to_bytes`), against 221,738,816 bytes for the accumulator
-proof; finishing takes about 43-46 s on CPU and 32-34 s on Metal (Metal
-hashes the WHIR Merkle leaves; the proof bytes do not depend on the engine
-before the shrink's proof-of-work), and verification about 313 ms, with a
-35-37 GB peak RSS. The shrink commitment uses WHIR at rate 1/8: a smaller
+proof; finishing takes about 43-45 s on CPU and 21-22 s on Metal, and
+verification about 305 ms, with a 37 GB peak RSS. On Metal the device
+builds the WHIR Merkle trees, runs the WHIR DFTs and the GKR rounds, weighs
+the kept commitment key and runs the last fold's PiCCS; the proof bytes do
+not depend on the engine before the shrink's proof-of-work. The shrink commitment uses WHIR at rate 1/8: a smaller
 proof (rate 1/64: 97.6 KB) costs about 30 s more to finish.
 
 The independent Rust Poseidon2 application supplies the first comparison with

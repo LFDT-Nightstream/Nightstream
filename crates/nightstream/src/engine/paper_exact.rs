@@ -131,8 +131,8 @@ fn sample_rhos(
     }
     let mut output = Vec::with_capacity(count);
     for source in 0..count {
-        transcript.absorb_v1_1(&[F::from_u64(4), F::from_usize(source)]);
-        let digest = transcript.squeeze_digest_v1_1();
+        transcript.absorb_v1_2(&[F::from_u64(4), F::from_usize(source)]);
+        let digest = transcript.squeeze_digest_v1_2();
         let symbols = decode_pi_rlc_coefficients(&digest);
         let mut column: Vec<F> = symbols.into_iter().map(|value| F::from_i8(value)).collect();
         let mut matrix = Mat::zero(D, D, F::ZERO);

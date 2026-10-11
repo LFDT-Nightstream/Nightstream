@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSDecodedEndpoints
 import NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.FormalPhase
 
 /-!
 Owns the emitted-row soundness connection to the existing PiCCS phase
@@ -36,7 +37,7 @@ theorem rowsZero_implies_specHolds
       poseidon).RowsZero assignment)
     (endpointRows : (PiCCSTranscriptEndpointPlan.plan poseidon ordinary).RowsZero
       assignment) :
-    Lifecycle.PiCCS.v1_1.Formal.SpecHolds relation
+    Lifecycle.PiCCS.v1_2.Formal.SpecHolds relation
       (PiCCSInvocations.parentInterface relationLogicalWidth relationPublicFits)
       PiCCSInputs.phaseOffset
       (Spartan.pullback (PiCCSAssignmentSoundness.decodedEnv ordinary assignment)) := by
@@ -60,32 +61,26 @@ theorem rowsZero_implies_specHolds
     finalIdentity := arithmetic.finalIdentity_parent
     outputBinding := transcripts.outputBinding_parent relation }
 
-/-- Acceptance of the selected complete Stage 1 row plan implies the exact
-PiCCS phase predicate in decoded values. The fixed-point theorem selects the
+/-- Acceptance of the selected complete Stage 1 row plan implies the PiCCS
+specification in decoded values. The fixed-point theorem selects the
 key-facing relation before the three PiCCS row families are projected. -/
-theorem selectedRowsZero_implies_phaseHolds
+theorem selectedRowsZero_implies_specHolds
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
-    (ajtai : AjtaiKey
-      (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
-      (publicFits := PerApplicationFixedPoint.publicFits application))
-    (template : Proof (ProductionKey.degreeBound
-      (PerApplicationFixedPoint.relation application fits)))
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))
     (one : assignment (ApplicationRetainedGeometry.oneColumn
       (PerApplicationFixedPoint.geometry application)) = 1)
     (accepted : (PerApplicationFixedPoint.structuralPlan application fits).RowsZero
       assignment) :
-    Lifecycle.PiCCS.v1_1.Formal.PhaseHolds
-      (PerApplicationFixedPoint.relation application fits) ajtai
+    Lifecycle.PiCCS.v1_2.Formal.SpecHolds
+      (PerApplicationFixedPoint.relation application fits)
       (PiCCSInvocations.parentInterface
         (PerApplicationFixedPoint.logicalWidth application)
         (PerApplicationFixedPoint.publicFits application))
       PiCCSInputs.phaseOffset
       (Spartan.pullback (PiCCSAssignmentSoundness.decodedEnv
         (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry
-          (PerApplicationFixedPoint.geometry application)) assignment))
-      template := by
+          (PerApplicationFixedPoint.geometry application)) assignment)) := by
   let relation := PerApplicationFixedPoint.relation application fits
   let geometry := PerApplicationFixedPoint.geometry application
   have selected : (DirectApplicationPrefixPlan.plan relation fits.package geometry
@@ -107,11 +102,38 @@ theorem selectedRowsZero_implies_phaseHolds
   rcases samplerPrefixRows with
     ⟨⟨⟨⟨⟨⟨_pilot, transcriptRows⟩, ordinaryRows⟩, _pilotOrdinary⟩,
       _pilotBinding⟩, endpointRows⟩, _sampler⟩
-  apply Lifecycle.PiCCS.v1_1.Formal.spec_implies_phaseHolds
   exact rowsZero_implies_specHolds relation
     (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry geometry)
     (DirectPiDECPrefixPlan.poseidonGeometry
       (DirectApplicationPrefixPlan.piDecGeometry geometry)) assignment one
     ordinaryRows transcriptRows endpointRows
+
+/-- Acceptance of the selected complete Stage 1 row plan implies the exact
+PiCCS phase predicate in decoded values. -/
+theorem selectedRowsZero_implies_phaseHolds
+    (application : Lifecycle.Stage1.Application.Program)
+    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (ajtai : AjtaiKey
+      (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
+      (publicFits := PerApplicationFixedPoint.publicFits application))
+    (template : Proof (ProductionKey.degreeBound
+      (PerApplicationFixedPoint.relation application fits)))
+    (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))
+    (one : assignment (ApplicationRetainedGeometry.oneColumn
+      (PerApplicationFixedPoint.geometry application)) = 1)
+    (accepted : (PerApplicationFixedPoint.structuralPlan application fits).RowsZero
+      assignment) :
+    Lifecycle.PiCCS.v1_2.Formal.PhaseHolds
+      (PerApplicationFixedPoint.relation application fits) ajtai
+      (PiCCSInvocations.parentInterface
+        (PerApplicationFixedPoint.logicalWidth application)
+        (PerApplicationFixedPoint.publicFits application))
+      PiCCSInputs.phaseOffset
+      (Spartan.pullback (PiCCSAssignmentSoundness.decodedEnv
+        (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry
+          (PerApplicationFixedPoint.geometry application)) assignment))
+      template :=
+  Lifecycle.PiCCS.v1_2.Formal.spec_implies_phaseHolds _ _ _ _ _ _
+    (selectedRowsZero_implies_specHolds application fits assignment one accepted)
 
 end NightstreamFPrime.Export.Stage1.PiCCSDecodedPhase

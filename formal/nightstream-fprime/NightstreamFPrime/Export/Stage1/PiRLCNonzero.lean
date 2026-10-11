@@ -1,5 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiCCSNonzero
-import NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics
+import NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics
 
 /-!
 Owns one deterministic nonzero PiRLC value fixture that starts at the exact
@@ -52,7 +52,7 @@ def inputPublicInput (source : Fin SourceCount) :
     PublicInput (logicalWidth := PhaseReference.logicalWidth)
       (publicFits := PhaseReference.publicFits) :=
   Fin.addCases (fun _ => candidateFreshPublicInput)
-    (fun runningSource column => field (runningSource.val + column.val))
+    (fun runningSource column => runningPublicDigit runningSource.val column.val)
     (sourceIndex source)
 
 def inputEvaluation (source : Fin SourceCount) : Evaluation where
@@ -77,7 +77,7 @@ def combinedPublicInput (challenges : Fin SourceCount → RingF) :
       (fun _ column =>
         encHash (publicFits := PhaseReference.publicFits)
           digest column)
-      (fun runningSource column => field (runningSource.val + column.val))
+      (fun runningSource column => runningPublicDigit runningSource.val column.val)
       (sourceIndex source)
   NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput.combinePublicInputs
     challenges inputs
@@ -89,11 +89,11 @@ def inputInstance
     (relation : ProductionKey.LogicalRelation
       PhaseReference.logicalWidth PhaseReference.publicFits)
     (source : Fin SourceCount) :
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.InputBinding.InputInstance
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.InputBinding.InputInstance
       PhaseReference.logicalWidth
         PhaseReference.publicFits where
   constraintSystem :=
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.InputBinding.relationSource relation
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.InputBinding.relationSource relation
   commitment := inputCommitment source
   publicInput := inputPublicInput source
   point := point ()
@@ -116,7 +116,7 @@ def attempt
   challenges := challenges
   output := {
     constraintSystem :=
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.InputBinding.relationSource relation
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.InputBinding.relationSource relation
     commitment := combinedCommitment challenges
     publicInput := combinedPublicInput challenges
     point := point ()

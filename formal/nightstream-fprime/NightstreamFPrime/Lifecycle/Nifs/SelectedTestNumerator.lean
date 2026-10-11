@@ -14,7 +14,7 @@ namespace NightstreamFPrime.Lifecycle.Nifs.SelectedTestNumerator
 /-- Selected sum-check message width, equal to `ProductionKey.degreeBound`. -/
 def width : Nat := 8
 
-/-- SuperNeo v1.2 equation (16): `log m · width` from the sum-check plus
+/-- SuperNeo v1.2 Appendix B.2 equation (14): `log m · width` from the sum-check plus
 `k·d·(t+1) + 2K + k - 1 + log m` from the joint gamma and alpha mixing. -/
 def numerator : Nat :=
   productionShape.cubeVariables * width +

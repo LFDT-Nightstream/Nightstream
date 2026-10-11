@@ -128,7 +128,7 @@ impl OptimizedRlcDec {
         combine_b_pows: Comb,
         superneo_cache: &crate::superneo_eval::SuperneoEvalCache,
         ring_linear_forms: Option<&[crate::superneo_eval::SuperneoRingLinearForm]>,
-        precomputed_openings: Option<&[neo_ccs::V1_1Evaluations<K>]>,
+        precomputed_openings: Option<&[neo_ccs::V1_2Evaluations<K>]>,
     ) -> (Vec<CeClaim<Cmt, F, K>>, bool, bool, bool)
     where
         Comb: Fn(&[Cmt], u32) -> Cmt,
@@ -174,7 +174,7 @@ impl OptimizedRlcDec {
         combine_b_pows: Comb,
         superneo_cache: Option<&crate::superneo_eval::SuperneoEvalCache>,
         ring_linear_forms: Option<&[crate::superneo_eval::SuperneoRingLinearForm]>,
-        precomputed_openings: Option<&[neo_ccs::V1_1Evaluations<K>]>,
+        precomputed_openings: Option<&[neo_ccs::V1_2Evaluations<K>]>,
     ) -> (Vec<CeClaim<Cmt, F, K>>, bool, bool, bool)
     where
         Comb: Fn(&[Cmt], u32) -> Cmt,

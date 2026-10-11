@@ -72,7 +72,7 @@ def computedParent (input : Input) (batch : Batch) : Option Values :=
       evaluationPartials batch.challenges fun source => (PiRLCInputCheck.evaluations input source).matrix matrix)
 
 def sourceClaim (input : Input) (source : Fin SourceCount) : PiDECInputCheck.Claim where
-  constraintSystem := Lifecycle.PiRLC.v1_1.InputBinding.relationSource PiDECInputCheck.relation
+  constraintSystem := Lifecycle.PiRLC.v1_2.InputBinding.relationSource PiDECInputCheck.relation
   commitment := PiRLCInputCheck.commitments input source
   publicInput := PiRLCInputCheck.publicInputs input source
   point := (PiCCSInputCheck.execute input).point
@@ -83,7 +83,7 @@ def inputBatch (input : Input) :
     PiRLC.PaperForkExtraction.InputBatch (PaperAlgebra.Structure PiDECInputCheck.logicalWidth)
       PiCCSInputCheck.PublicInput PaperAlgebra.Point PaperAlgebra.Evaluation
       PaperAlgebra.Commitment productionGlobalParams Nifs.PaperProfile.arity where
-  system := Lifecycle.PiRLC.v1_1.InputBinding.relationSource PiDECInputCheck.relation
+  system := Lifecycle.PiRLC.v1_2.InputBinding.relationSource PiDECInputCheck.relation
   point := (PiCCSInputCheck.execute input).point
   inputs := sourceClaim input
   sameSystem := fun _ => rfl

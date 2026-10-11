@@ -440,7 +440,7 @@ impl Phi81Recipe {
             [17, 22, 1],
             [17, 5, 1],
             [17, 1, 2],
-            [17, super::PI_CCS_V1_1_MATRIX_COUNT, 2],
+            [17, super::PI_CCS_V1_2_MATRIX_COUNT, 2],
         ];
         let shapes = exact_array(&fields[4], expected_shapes.len(), "Phi81 family shapes")?;
         let mut first_invocation = 0usize;

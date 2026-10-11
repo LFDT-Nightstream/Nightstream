@@ -214,7 +214,7 @@ rerun for this compiler equality change, and no phase status was promoted.
 
 ## Fixed profile and semantic authority
 
-Lean is the semantic authority for exact SuperNeo v1_1. The fixed Nightstream
+Lean is the semantic authority for exact SuperNeo v1.2. The fixed Nightstream
 Goldilocks profile is:
 
 | Parameter | Value |
@@ -269,9 +269,9 @@ These matrices are the relation in the current sealed package.
 
 ```text
 Lifecycle/Pilot.lean                         ✓ two hash children
-Lifecycle/PiCCS/v1_1/Formal.lean             ✓ twelve-child assembler
-Lifecycle/PiRLC/v1_1/Formal.lean             ✓ seven-child assembler
-Lifecycle/PiDEC/v1_1/Formal.lean             ✓ six-child assembler
+Lifecycle/PiCCS/v1_2/Formal.lean             ✓ twelve-child assembler
+Lifecycle/PiRLC/v1_2/Formal.lean             ✓ seven-child assembler
+Lifecycle/PiDEC/v1_2/Formal.lean             ✓ six-child assembler
 Lifecycle/Stage1/RunningTransition.lean      ✓ running-instance branch
 Lifecycle/Stage1/Accumulator.lean            ✓ exact NIFS verifier result
 Layout/Stage1/AccumulatorSemantics.lean      ✓ zero-copy phase composition
@@ -1246,7 +1246,7 @@ with `RUSTC_WRAPPER=""`, explicit external candidate paths on stdin, and one
   coordinates, and public projection to an opening with the actual key
   commitment. This generic CCS result does not prove the F′ lifecycle
   semantics of a faulty plan.
-- `Lifecycle.PiCCS.v1_1.ZeroRunningPolynomial` built in 4.322 seconds and
+- `Lifecycle.PiCCS.v1_2.ZeroRunningPolynomial` built in 4.322 seconds and
   `Export.Stage1.PiCCSInputCheck` in 5.266 seconds. The polynomial's current
   audit passes. The current positive executable result is recorded above.
 - `PrefixFold`, `SparseEvaluation`, `ZeroRunningOracle`, and
@@ -1394,7 +1394,7 @@ The older compressed emitter remains reference code. The native NIFS
 composition and its helper calls are test-only. The header guard regression
 checks its error and unchanged circuit/transcript; the normal
 `neo-fold-clean` and `neo-wasm` release checks pass. These focused checks do
-not grant a new complete Stage 1 conformance verdict. Current tests that serve the Stage 1 v1.1 contract use
+not grant a new complete Stage 1 conformance verdict. Current tests that serve the Stage 1 v1.2 contract use
 separate `Eval_K` / `Eval_A` and the canonical nonempty running accumulator.
 
 ## Open authority and assembly edges

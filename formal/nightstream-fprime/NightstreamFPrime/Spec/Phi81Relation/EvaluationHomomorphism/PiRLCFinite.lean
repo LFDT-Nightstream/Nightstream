@@ -4,13 +4,13 @@ import NightstreamFPrime.Spec.Folding.PiRLC
 
 /-! Provenance: adapted from `formal/nightstream-lean/Nightstream/SuperNeo/Concrete/Phi81Relation/EvaluationHomomorphism/PiRLCFinite.lean`
 at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed and the
-finite explicit-matrix theorem added for the separate SuperNeo v1.1 Pad
+finite explicit-matrix theorem added for the separate SuperNeo v1.2 Pad
 evaluation family. -/
 
 /-!
 Finite-batch evaluation homomorphism for the typed Phi81 `Pi_RLC` action.
 
-Protocol: SuperNeo Theorem 5, evaluation-homomorphism branch of `Pi_RLC`.
+Protocol: SuperNeo v1.2 Theorem 11, evaluation-homomorphism branch of `Pi_RLC`.
 Phase: canonical finite challenge combination after the one-source action law.
 Constraint family: semantic evaluation only; this file emits no rows.
 
@@ -181,7 +181,7 @@ theorem matrixEvaluation_combine
           rfl
 
 /-- One explicit completed-matrix evaluation commutes with the finite
-`RingF` challenge combination. This is the v1.1 Pad counterpart of
+`RingF` challenge combination. This is the v1.2 Pad counterpart of
 `matrixEvaluation_combine`; it does not select a CCS matrix index. -/
 theorem explicitMatrixEvaluation_combine
     {shape : Shape} {count : Nat}

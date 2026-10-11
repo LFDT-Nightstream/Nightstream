@@ -19,7 +19,7 @@ open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Gadgets.Sampling
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
@@ -30,7 +30,7 @@ theorem laterWitnessStart_sampler
     (current : Fin (PiRLCSamplerInvocations.sourceCount *
       PermutationPlan.samplerStepsPerSource)) :
     PoseidonRetainedBlock.laterWitnessStart
-        ⟨1121 + current.val, by
+        ⟨948 + current.val, by
           rw [PoseidonRetainedBlock.laterInvocationCount_eq]
           have currentLt := current.isLt
           norm_num [PiRLCSamplerInvocations.sourceCount,
@@ -44,10 +44,10 @@ theorem laterWitnessStart_sampler
   rw [List.getElem_append_right]
   · have prefixLength :
         (PiCCSInvocations.invocations Data.logicalWidth
-          Data.publicFits).length = 1121 :=
+          Data.publicFits).length = 948 :=
       PiCCSInvocations.invocations_length Data.logicalWidth Data.publicFits
     have offsetEq :
-        1121 + current.val -
+        948 + current.val -
             (PiCCSInvocations.invocations Data.logicalWidth
               Data.publicFits).length = current.val := by
       rw [prefixLength]
@@ -100,7 +100,7 @@ theorem laterWitnessStart_sampler
         (PiRLCSamplerInvocations.invocations
           (logicalWidth := Data.logicalWidth)
           (publicFits := Data.publicFits)).length :=
-      ⟨1121 + current.val -
+      ⟨948 + current.val -
           (PiCCSInvocations.invocations Data.logicalWidth
             Data.publicFits).length,
         by omega⟩
@@ -192,7 +192,7 @@ theorem sourceColumn_lt (location : StateLocation) :
     Sampler.counts.1, stateStepStride,
     PiRLCStarts.samplerLogicalStart, PiRLCStarts.phaseLogicalStart,
     PiRLCInputs.phaseOffset,
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerOffset] at sourceLt stepLt laneLt ⊢
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.samplerOffset] at sourceLt stepLt laneLt ⊢
   omega
 
 end StateLocation
@@ -428,7 +428,7 @@ private theorem samplerLogicalStart_lt_sourceColumnCount :
   rw [Spartan.sourceColumnCount_eq]
   norm_num [PiRLCStarts.samplerLogicalStart, PiRLCStarts.phaseLogicalStart,
     PiRLCInputs.phaseOffset,
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerOffset]
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.samplerOffset]
 
 private theorem ordinaryTarget_none_of_beforeSampler {column : Nat}
     (before : column < PiRLCStarts.samplerLogicalStart) :
@@ -626,14 +626,14 @@ theorem baseEnv_eq_transitionEnv
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → Spec.F)
     (column : Nat)
     (bound : column < PiRLCProductPlan.basePackage.layout.constantColumn)
-    (outside : column < PiCCSInputs.phaseOffset ∨
-      PiCCSInputs.phaseOffset + PiCCSOrdinarySourceSupport.transcriptInvocationCount * 1096 ≤
-        column) :
+    (outside : column < PiCCSStarts.statementWitnessStart ∨
+      PiCCSStarts.statementWitnessStart +
+          PiCCSOrdinarySourceSupport.transcriptInvocationCount * 1096 ≤ column) :
     PiRLCProductPlan.baseEnv program base column =
       RunningTransitionDirectPlan.transitionEnv program base
         (Spartan.sourceToSpartan column) := by
   have sourceBound : column < Spartan.SourceColumnCount := by
-    have constant : PiRLCProductPlan.basePackage.layout.constantColumn = 12442938 :=
+    have constant : PiRLCProductPlan.basePackage.layout.constantColumn = 11464596 :=
       Package.circuitPackage_layout_values.2.2.1
     rw [constant] at bound
     rw [Spartan.sourceColumnCount_eq]

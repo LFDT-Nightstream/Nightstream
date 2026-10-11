@@ -127,7 +127,7 @@ def rowColumnKeys {columns : Nat} (forms : RowForms columns) : List Nat :=
     form.entries.map fun entry => entry.column.val
 
 /-- Cache complete blocks and K column reads for one loaded sparse row.
-All fourteen port values use the existing sparse evaluator. -/
+Every port value uses the existing sparse evaluator. -/
 def sparseRow {columns : Nat}
     (basis : FixedArray (Vector K ringDegree) ringDegree)
     (blocks : Nat → Vector K ringDegree) (forms : RowForms columns) :
@@ -144,8 +144,8 @@ def sparseRow {columns : Nat}
         | none => SparseForm.empty)
       (fun column => cachedRead columnCache (columnValue read) column.val)
 
-/-- The caches preserve each original sparse port, including the empty
-fourteenth port. No assignment or requested-support premise is required. -/
+/-- The caches preserve each original sparse port. No assignment or
+requested-support premise is required. -/
 theorem sparseRow_value {columns : Nat}
     (basis : FixedArray (Vector K ringDegree) ringDegree)
     (blocks : Nat → Vector K ringDegree) (forms : RowForms columns)
@@ -178,7 +178,7 @@ def row? (program : MatrixProgram.Program) {columns : Nat}
 
 /-- Exact optional-output equality with both scalar passes of the existing
 linear row interpreter. The source accessor, row order, guards, and all
-fourteen K values are unchanged, for arbitrary programs and carried blocks. -/
+K values are unchanged, for arbitrary programs and carried blocks. -/
 theorem row?_eq (program : MatrixProgram.Program) {columns : Nat}
     (sourceRow : Nat → Option R1CS.Row)
     (basis : FixedArray (Vector K ringDegree) ringDegree)

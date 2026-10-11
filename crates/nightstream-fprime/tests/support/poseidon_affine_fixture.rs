@@ -4,7 +4,7 @@ const P: u64 = 0xffff_ffff_0000_0001;
 
 pub fn program() -> Value {
     json!([[
-        [0, 3, 0, 2],
+        [0, 2, 0, 2],
         [
             5,
             [
@@ -14,8 +14,6 @@ pub fn program() -> Value {
                 [17, [[100, 5]]]
             ],
             [[[100, 2, [0, 2, 4], 0]], []],
-            [0, 0, 1],
-            0,
             2
         ]
     ]])
@@ -35,8 +33,6 @@ pub fn malformed() -> Vec<(&'static str, Value)> {
     overlap[0][1][2][0].as_array_mut().unwrap().push(range);
     let mut missing_table = program();
     missing_table[0][1][1] = json!([]);
-    let mut missing_tag = program();
-    missing_tag[0][1][3] = json!([]);
     vec![
         ("noncanonical constant", constant),
         ("noncanonical coefficient", coefficient),
@@ -44,6 +40,5 @@ pub fn malformed() -> Vec<(&'static str, Value)> {
         ("missing source", missing_source),
         ("overlapping source", overlap),
         ("missing word", missing_table),
-        ("missing tag", missing_tag),
     ]
 }

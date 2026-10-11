@@ -7,7 +7,7 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 /-!
 Paper-polynomial verification over one verifier-owned SumCheck width.
 
-Source: SuperNeo Definition 6, Section 7.3, and Appendix D.4.  The paper bounds
+Source: SuperNeo v1.2 Definition 11, Section 7.3, and Appendix B.2.  The paper bounds
 each round polynomial's degree but does not impose a canonical
 variable-length coefficient serialization.
 

@@ -78,7 +78,7 @@ private theorem success_of_verified_output
     ⟨attempt, attemptEq, _attemptAccepted⟩
   refine ⟨result, attempt, verified, attemptEq, ?_⟩
   intro child
-  rw [Lifecycle.PiDEC.v1_1.OutputWitnessConsumer.runningStatement_eq
+  rw [Lifecycle.PiDEC.v1_2.OutputWitnessConsumer.runningStatement_eq
     relation ajtai result child]
   exact valid child
 
@@ -111,7 +111,7 @@ theorem realSuccess_of_terminal
   · rcases recursive with ⟨_positive, _priorPublic, _priorDigest, verified⟩
     rcases (PerApplicationTerminal.holds_recursive_iff application fits
       productionSetup statement payload).mp accepted with
-      ⟨_statementValid, _pcValid, _iteration, _publicLink, runningValid, _freshValid⟩
+      ⟨_statementValid, _canonical, _pcValid, _iteration, _publicLink, runningValid, _freshValid⟩
     have success := success_of_verified_output
       (PerApplicationFixedPoint.relation application fits)
       (PerApplicationCanonicalPackage.commitmentKey productionSetup)

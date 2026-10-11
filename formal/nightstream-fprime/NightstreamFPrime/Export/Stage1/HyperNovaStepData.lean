@@ -90,7 +90,7 @@ theorem stepHolds_and_wellFormed
   let context := (PerApplicationCanonicalPackage.verifierContextDescriptor fits productionSetup).digest4
   let before := input statement payload advice proof
   let after := output statement advice result
-  obtain ⟨valid, pcValid, positive, publicLink, _running, _fresh⟩ :=
+  obtain ⟨valid, canonical, pcValid, positive, publicLink, _running, _fresh⟩ :=
     (PerApplicationTerminal.holds_recursive_iff application fits productionSetup statement payload).mp accepted
   have pc : payload.pc = 1 := by
     change 1 ≤ payload.pc ∧ payload.pc ≤ 1 at pcValid
@@ -128,6 +128,9 @@ theorem stepHolds_and_wellFormed
   have nextFixed : NightstreamFPrime.Layout.PilotProduction.FixedPreimage
       (nextHashPreimage (setup relation productionAjtaiKey context.toList) before after) :=
     ⟨context.toList_length, valid.2.1, nextWidth⟩
-  exact ⟨step, ⟨priorFixed, valid.1, pc⟩, ⟨nextFixed, nonwrap, rfl⟩, link, rfl⟩
+  have nextCanonical := StateEncoding.output_canonical relation productionAjtaiKey
+    ((Nifs.PaperNonInteractive.verify_eq_some_iff _ _ _ _ _).mp verified).2.2
+  exact ⟨step, ⟨priorFixed, valid.1, pc, canonical functionIndex⟩,
+    ⟨nextFixed, nonwrap, rfl, nextCanonical⟩, link, rfl⟩
 
 end NightstreamFPrime.Export.Stage1.HyperNovaStepData

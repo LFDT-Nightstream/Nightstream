@@ -2,7 +2,7 @@
 use super::*;
 use neo_reductions::{
     common::{split_b_matrix_k_with_nonzero_flags, validate_superneo_witness_mat},
-    superneo_eval::{eval_real_v1_1_openings_from_rows, SuperneoZBlocks},
+    superneo_eval::{eval_real_v1_2_openings_from_rows, SuperneoZBlocks},
 };
 use std::io::{self, BufRead};
 
@@ -47,7 +47,7 @@ struct SavedChildOpening {
     child: usize,
     parent: CeClaim,
     commitment: Commitment,
-    opening: V1_1Evaluations<K>,
+    opening: V1_2Evaluations<K>,
     transcript_state: [F; 16],
     transcript_absorbed: usize,
 }
@@ -185,8 +185,8 @@ fn committed_split(
     );
     (digits, flags, commitments)
 }
-fn zero_opening(package: &PreparedLifecycle) -> V1_1Evaluations<K> {
-    V1_1Evaluations {
+fn zero_opening(package: &PreparedLifecycle) -> V1_2Evaluations<K> {
+    V1_2Evaluations {
         eval_k: vec![K::ZERO; D],
         eval_a: vec![vec![K::ZERO; D]; package.structure.t()],
     }
@@ -479,7 +479,7 @@ pub(super) fn openings(root: &Path, step: u64) {
         .collect::<Vec<_>>();
     drop(digits);
     let started = Instant::now();
-    let values = eval_real_v1_1_openings_from_rows(
+    let values = eval_real_v1_2_openings_from_rows(
         &package.matrix_rows(),
         &parent.rlc_parent.r,
         &blocks,
@@ -540,7 +540,7 @@ pub(super) fn child(root: &Path, step: u64, child: usize, engine: EvaluationEngi
         let mut openings = match engine {
             EvaluationEngine::Optimized => {
                 let blocks = SuperneoZBlocks::from_witness_mat(&digit, package.structure.m).unwrap();
-                eval_real_v1_1_openings_from_rows(
+                eval_real_v1_2_openings_from_rows(
                     &rows,
                     &parent.rlc_parent.r,
                     std::slice::from_ref(&blocks),

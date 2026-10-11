@@ -3,13 +3,13 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 
 /-! Provenance: adapted from `formal/nightstream-lean/Nightstream/SuperNeo/Concrete/Phi81Relation/EvaluationHomomorphism/BaseLinear.lean`
 at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed and the
-generic matrix-vector zero/add/scale lemmas exported for the separate v1.1
+generic matrix-vector zero/add/scale lemmas exported for the separate v1.2
 Pad evaluation family. -/
 
 /-!
 Base-field linearity of the typed Phi81 carried-evaluation map.
 
-Protocol: SuperNeo Theorem 5 restricted to constant-ring scalars, and the
+Protocol: SuperNeo v1.2 Theorem 11 restricted to constant-ring scalars, and the
 base-`b` recomposition used by `Pi_DEC`.
 Phase: complete-carrier assignment combination followed by one matrix/Phi81
 evaluation.

@@ -12,7 +12,7 @@ namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryDirectSource
 open NightstreamFPrime.Circuit NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Lifecycle NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1 NightstreamFPrime.Gadgets.Sampling
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2 NightstreamFPrime.Gadgets.Sampling
 open NightstreamFPrime.Spec NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 variable {logicalWidth : Nat}
@@ -139,7 +139,7 @@ private theorem wordLowered_supported (source : Nat) (sourceLt : source < 17) :
   have lowered := R1CS.lowerConstraints_rows_varsSatisfy _
     (PiRLCStarts.rangeFreshStart source + 144) Source
     (wordConstraints_supported source sourceLt)
-  have fresh := Layout.PiRLC.v1_1.Sampler.words_fresh
+  have fresh := Layout.PiRLC.v1_2.Sampler.words_fresh
     (PiRLCSamplerInvocations.sourceLogicalStart source)
   change R1CS.totalFreshCount (PiRLCSamplerOrdinaryRows.wordConstraints source) = 0 at fresh
   rw [fresh] at lowered

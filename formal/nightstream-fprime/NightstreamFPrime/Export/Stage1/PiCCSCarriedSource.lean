@@ -273,7 +273,7 @@ private theorem relationLayout_none {logicalWidth : Nat}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) (vertex : BooleanVertex cubeVariables)
     (beyond : Phi81CarrierLayout.carrierWidth logicalWidth ≤ NumericBooleanDomain.index vertex) :
-    (Lifecycle.PiRLC.v1_1.InputBinding.relationSource relation).cubeLayout.toColumn? vertex = none := by
+    (Lifecycle.PiRLC.v1_2.InputBinding.relationSource relation).cubeLayout.toColumn? vertex = none := by
   exact (Folding.PiCCS.CanonicalRowLayout.toColumn?_eq_none_iff cubeVariables
     (Phi81CarrierLayout.carrierWidth logicalWidth) relation.cubeFits vertex).2 beyond
 

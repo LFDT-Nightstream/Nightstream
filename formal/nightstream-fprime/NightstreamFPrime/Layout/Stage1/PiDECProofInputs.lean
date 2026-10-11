@@ -12,7 +12,7 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiDEC.v1_1
+open NightstreamFPrime.Lifecycle.PiDEC.v1_2
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open PiDECInputs
 

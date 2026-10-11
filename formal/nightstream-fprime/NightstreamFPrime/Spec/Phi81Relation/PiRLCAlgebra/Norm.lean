@@ -6,7 +6,7 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 /-!
 Curated production norm-growth surface for the typed Phi81 `PiRLC.Algebra`.
 
-Protocol: SuperNeo Definition 14 and `Pi_RLC`.
+Protocol: SuperNeo v1.2 Definition 22 and `Pi_RLC`.
 Phase: valid challenge action through the complete finite batch.
 Constraint family: semantic norm only; this parent emits no rows.
 

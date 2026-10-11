@@ -6,7 +6,7 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 /-!
 Challenge-validity predicate for the typed Phi81 `PiRLC.Algebra`.
 
-Protocol: SuperNeo Definition 17 and `Pi_RLC`.
+Protocol: SuperNeo v1.2 Definitions 6 and 22 and `Pi_RLC`.
 Phase: verifier challenge membership before witness combination.
 Constraint family: semantic predicate only; this file emits no rows.
 

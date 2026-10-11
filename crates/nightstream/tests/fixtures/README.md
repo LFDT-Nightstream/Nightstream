@@ -10,8 +10,8 @@ witness recipes. These dimensions belong to the selected application.
 
 `poseidon2-application-execution.json` contains `[prior_state, message, output]`
 from `formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1-parity.json`.
-The prior state is the current-state block at words 35 through 38 of the
-recorded prior preimage. The saved profile is the Nightstream Goldilocks
+The prior state is the current-state block at words 27,815 through 27,818
+of the recorded prior preimage. The saved profile is the Nightstream Goldilocks
 profile with `b = 2`, `k_rho = 16`, and `B = 2^16`.
 
 Run this extraction from the repository root after the separate maintainer
@@ -27,7 +27,7 @@ package = json.loads((source / "nightstream-fprime-stage1-poseidon2-hash-chain-v
 parity = json.loads((source / "nightstream-fprime-stage1-poseidon2-hash-chain-v1-parity.json").read_text())
 fixtures = {
     "poseidon2-application-reference.json": package[3],
-    "poseidon2-application-execution.json": [parity[1][1][35:39], parity[1][2], parity[2][0]],
+    "poseidon2-application-execution.json": [parity[1][1][27815:27819], parity[1][2], parity[2][0]],
 }
 for name, value in fixtures.items():
     (target / name).write_text(json.dumps(value, separators=(",", ":")) + "\n")

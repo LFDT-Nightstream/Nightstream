@@ -4,8 +4,9 @@ import NightstreamFPrime.Lifecycle.Relation
 Owns the concrete Stage 1 outer terminal relation.
 
 The base proof is the unique empty constructor. A recursive proof checks the
-prior public-state link, all 16 running CE openings inside the one uniform-IVC
-slot, and the selected fresh CCS opening. It performs no additional NIFS fold.
+canonical child split of the running instance, the prior public-state link,
+all 16 running CE openings inside the one uniform-IVC slot, and the selected
+fresh CCS opening. It performs no additional NIFS fold.
 
 Physical terminal circuits and package placement belong to later layers.
 -/
@@ -65,6 +66,14 @@ def StatementValid (statement : TerminalStatement AppState) : Prop :=
     statement.z0.length = Application.stateWordCount ∧
     statement.zi.length = Application.stateWordCount
 
+/-- The decider recomputes every running child public input as the split of
+its parent (SuperNeo Π_DEC verifier step 2). The state hash binds only the
+parent, so a recursive proof with any other split is rejected. -/
+def ProofCanonical :
+    ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits) → Prop
+  | .bottom => True
+  | .recursive payload => ∀ slot, ChildrenCanonical (payload.running slot)
+
 /-- The canonical public statement checks precede the Construction-2
 relation. The counter bound matches native `validate_state_authority`; the
 state widths are the selected application's fixed public ABI. -/
@@ -76,7 +85,7 @@ noncomputable def HoldsFor
     (statement : TerminalStatement AppState)
     (proof : ProofEnvelope
       (logicalWidth := logicalWidth) (publicFits := publicFits)) : Prop :=
-  StatementValid statement ∧
+  StatementValid statement ∧ ProofCanonical proof ∧
     OuterTerminalTransition (setup relation ajtai vk)
       (machineFor publicFits application) (relations relation ajtai)
       statement proof
@@ -88,8 +97,9 @@ theorem holdsFor_bottom_iff
     (vk : KeyDigest) (application : Application.Program)
     (statement : TerminalStatement AppState) :
     HoldsFor relation ajtai vk application statement .bottom ↔
-      StatementValid statement ∧ statement.iteration = 0 ∧ statement.zi = statement.z0 := by
-  rfl
+      StatementValid statement ∧ statement.iteration = 0 ∧ statement.zi = statement.z0 :=
+  ⟨fun accepted => ⟨accepted.1, accepted.2.2⟩,
+    fun accepted => ⟨accepted.1, trivial, accepted.2⟩⟩
 
 /-- Adding a field modulus to a counter cannot preserve terminal acceptance,
 even though the old and changed counters have the same field encoding. -/
@@ -162,9 +172,10 @@ theorem holdsFor_recursive_iff
       (FreshWitness (logicalWidth := logicalWidth) (publicFits := publicFits))
       slotCount) :
     HoldsFor relation ajtai vk application statement (.recursive payload) ↔
-      StatementValid statement ∧ RecursiveTerminalTransition (setup relation ajtai vk)
-        (machineFor publicFits application) (relations relation ajtai)
-        statement payload := by
+      StatementValid statement ∧ (∀ slot, ChildrenCanonical (payload.running slot)) ∧
+        RecursiveTerminalTransition (setup relation ajtai vk)
+          (machineFor publicFits application) (relations relation ajtai)
+          statement payload := by
   rfl
 
 end

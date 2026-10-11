@@ -19,18 +19,16 @@ open NightstreamFPrime.Gadgets.Poseidon2
 open NightstreamFPrime.Gadgets.Poseidon2.Duplex
 open NightstreamFPrime.Layout.ProductionRelation
 
+/-- Every Poseidon2 invocation absorbs one block. A read runs none. -/
 inductive Kind where
   | absorb (block : List Expr)
-  | squeezeFirst (expected : KExpr)
-  | squeezeSecond
 
 def Kind.WellFormed : Kind → Prop
   | .absorb block => block.length ≤ Spec.Poseidon2.rate
-  | .squeezeFirst _ | .squeezeSecond => True
 
 def actionKinds : Formal.Action → List Kind
   | .absorb input => (Hash.inputChunks input).map Kind.absorb
-  | .squeezeK expected => [.squeezeFirst expected, .squeezeSecond]
+  | .readK _ _ => []
 
 @[simp] theorem actionKinds_length (action : Formal.Action) :
     (actionKinds action).length =
@@ -50,9 +48,8 @@ theorem actionKinds_wellFormed (action : Formal.Action) :
       simp only [List.mem_map] at blockMember
       rcases blockMember with ⟨index, _, rfl⟩
       exact List.length_take_le _ _
-  | squeezeK expected =>
+  | readK pair expected =>
       simp [actionKinds] at member
-      rcases member with rfl | rfl <;> trivial
 
 def kinds (actions : List Formal.Action) : List Kind :=
   actions.flatMap actionKinds
@@ -77,8 +74,7 @@ def actionKindAt (action : Formal.Action) :
   match action with
   | .absorb input => fun index =>
       .absorb <| (Hash.inputChunks input).get index
-  | .squeezeK expected => fun index =>
-      Fin.cases (.squeezeFirst expected) (fun _ => .squeezeSecond) index
+  | .readK _ _ => fun index => Fin.elim0 index
 
 @[simp] theorem actionKindAt_materializes (action : Formal.Action) :
     List.ofFn (actionKindAt action) = actionKinds action := by
@@ -96,7 +92,7 @@ def actionKindAt (action : Formal.Action) :
             rfl
         _ = _ := congrArg (List.map Kind.absorb)
           (List.ofFn_get (Hash.inputChunks input))
-  | squeezeK expected => rfl
+  | readK pair expected => rfl
 
 /-- Random-access selector in exact action order. Its cost is proportional
 to the small action list, not to the expanded invocation count. -/
@@ -137,9 +133,8 @@ def previousState {logicalWidth invocationCount : Nat}
       have invocationBound := invocation.isLt
       omega⟩
 
-/-- Direct invocation input from one selected action kind. Absorptions add
-one caller-supplied block form; both squeeze permutations use the prior
-output unchanged. -/
+/-- Direct invocation input: the prior output plus one caller-supplied block
+form. -/
 def inputState {logicalWidth : Nat} (actions : List Formal.Action)
     (initial : PoseidonSboxPlan.State logicalWidth)
     (output : Fin (Invocations.invocationCount actions) →
@@ -151,7 +146,5 @@ def inputState {logicalWidth : Nat} (actions : List Formal.Action)
   match kindAt actions invocation with
   | .absorb block => fun lane =>
       SparseForm.add (previous lane) (blockForm block lane)
-  | .squeezeFirst _ => previous
-  | .squeezeSecond => previous
 
 end NightstreamFPrime.Export.Stage1.PoseidonActionSchedule

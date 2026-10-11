@@ -35,7 +35,7 @@ import NightstreamFPrime.Lifecycle.Nifs.InteractiveComposition
 import NightstreamFPrime.Lifecycle.Nifs.InteractiveCompleteness
 import NightstreamFPrime.Lifecycle.Nifs.BaseCompleteness
 import NightstreamFPrime.Lifecycle.Nifs.BaseVerifierCompleteness
-import NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerChain
+import NightstreamFPrime.Lifecycle.PiRLC.v1_2.SamplerChain
 import NightstreamFPrime.Lifecycle.Nifs.InteractiveWork
 import NightstreamFPrime.Lifecycle.Nifs.InteractiveOutput
 import NightstreamFPrime.Lifecycle.Nifs.SupportedContinuation

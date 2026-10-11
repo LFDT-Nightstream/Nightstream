@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtraction
 
 /-!
-Charged execution of SuperNeo v1.1 Appendix B.3 step 5. Each primitive returns
+Charged execution of SuperNeo v1.2 Appendix B.3 step 5. Each primitive returns
 its value and declared work from the same call. This module sums those clocks;
 it does not infer execution costs from the primitive definitions.
 

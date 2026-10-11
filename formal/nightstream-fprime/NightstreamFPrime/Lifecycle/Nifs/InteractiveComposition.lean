@@ -3,6 +3,9 @@ import NightstreamFPrime.Lifecycle.PaperExtractionAlgebra
 import NightstreamFPrime.Spec.Folding.Nifs.PaperCompositionProbability
 
 /-!
+Paper authority: SuperNeo v1.2 Theorem 12 (strong–weak composition) and
+Appendix B.1, applied to strong `Pi_CCS` and weak `Pi_RLC`/`Pi_DEC`.
+
 Interactive NIFS extraction for the selected Nightstream key. The public
 PiCCS check runs before the captured PiRLC/PiDEC continuation. Each weak
 query obtains its own final child witnesses. The exact returned endpoint

@@ -10,7 +10,7 @@ namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryMatrixSubstitution
 open NightstreamFPrime.Layout.MatrixProgram NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Lifecycle NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1 NightstreamFPrime.Spec
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2 NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open PiRLCSamplerOrdinaryRetainedBlocks PiRLCSamplerOrdinaryRetainedGeometry
 open PiRLCSamplerOrdinaryDirectPlan (Location)

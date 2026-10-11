@@ -1,6 +1,6 @@
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
 import NightstreamFPrime.Export.Stage1.PerApplicationStreamingIdentity
-import NightstreamFPrime.Layout.PiCCS.v1_1.Ownership
+import NightstreamFPrime.Layout.PiCCS.v1_2.Ownership
 import NightstreamFPrime.Layout.Stage1.PiCCSStarts
 
 /-!
@@ -19,7 +19,7 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
@@ -70,17 +70,17 @@ def CoversFrom {Owner : Type} (start finish : Nat) : List (Span Owner) → Prop
       span.start = start ∧ CoversFrom span.endExclusive finish spans
 
 def rowCounts : List Nat :=
-  [160, 140288, 95352, 153440, 12957, 728, 3364, 11140,
-    23, 800, 3593, 839536]
+  [4712, 134808, 4384, 61376, 12957, 728, 3364, 11140,
+    23, 800, 3593, 838440]
 
 /-- The 12 global physical row spans in the sole parent order. -/
 def rowSpans : List
-    (Span NightstreamFPrime.Layout.PiCCS.v1_1.Ownership.ChildOwner) :=
+    (Span NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.ChildOwner) :=
   spansFrom NightstreamFPrime.Layout.Stage1.PiCCSStarts.rowBase
-    NightstreamFPrime.Layout.PiCCS.v1_1.Ownership.childOrder rowCounts
+    NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.childOrder rowCounts
 
 theorem rowCounts_eq_layout :
-    rowCounts = NightstreamFPrime.Layout.PiCCS.v1_1.physicalRowDeltas
+    rowCounts = NightstreamFPrime.Layout.PiCCS.v1_2.physicalRowDeltas
       relation interface parentOffset := by
   exact (NightstreamFPrime.Layout.Stage1.PilotPiCCS.cumulativeFootprints_eq
     relation).1.symm
@@ -89,15 +89,15 @@ theorem rowSpans_exact :
     rowSpans =
       [⟨.statementBinding,
           NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementBindingRowStart,
-          160⟩,
+          4712⟩,
        ⟨.statementAbsorption,
           NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementAbsorptionRowStart,
-          140288⟩,
+          134808⟩,
        ⟨.challengeDerivation,
-          NightstreamFPrime.Layout.Stage1.PiCCSStarts.challengeRowStart, 95352⟩,
+          NightstreamFPrime.Layout.Stage1.PiCCSStarts.challengeRowStart, 4384⟩,
        ⟨.roundTranscript,
           NightstreamFPrime.Layout.Stage1.PiCCSStarts.roundTranscriptRowStart,
-          153440⟩,
+          61376⟩,
        ⟨.initialClaim,
           NightstreamFPrime.Layout.Stage1.PiCCSStarts.initialClaimRowStart,
           12957⟩,
@@ -116,12 +116,12 @@ theorem rowSpans_exact :
           3593⟩,
        ⟨.outputBinding,
           NightstreamFPrime.Layout.Stage1.PiCCSStarts.outputBindingRowStart,
-          839536⟩] := by
+          838440⟩] := by
   rfl
 
 theorem rowSpans_ownerOrder :
     rowSpans.map Span.owner =
-      NightstreamFPrime.Layout.PiCCS.v1_1.Ownership.childOrder := by
+      NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.childOrder := by
   rfl
 
 theorem rowSpans_length : rowSpans.length = 12 := by
@@ -174,9 +174,9 @@ private theorem map_const_eq_replicate {Source Owner : Type}
         inductionHypothesis]
 
 private theorem ownersFor_childProjection
-    (child : NightstreamFPrime.Layout.PiCCS.v1_1.Ownership.ChildOwner)
+    (child : NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.ChildOwner)
     (start : Nat) (constraints : List Expr) :
-    (NightstreamFPrime.Layout.PiCCS.v1_1.Ownership.ownersFor child start
+    (NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.ownersFor child start
       constraints).map
         (fun owner => owner.child) =
       List.replicate (R1CS.totalRowCount constraints) child := by
@@ -188,31 +188,31 @@ private theorem ownersFor_childProjection
           have multiplicationOwners :
               List.map
                   ((fun owner :
-                      NightstreamFPrime.Layout.PiCCS.v1_1.Ownership.RowOwner =>
+                      NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.RowOwner =>
                         owner.child) ∘
                     (fun ordinal =>
                       (⟨child, start, .multiplication ordinal⟩ :
-                        NightstreamFPrime.Layout.PiCCS.v1_1.Ownership.RowOwner)))
+                        NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.RowOwner)))
                   (List.range (R1CS.mulCount expression)) =
                 List.replicate (R1CS.mulCount expression) child := by
             simpa only [Function.comp_apply, List.length_range] using!
               (map_const_eq_replicate
                 (List.range (R1CS.mulCount expression)) child)
-          simp [NightstreamFPrime.Layout.PiCCS.v1_1.Ownership.ownersFor,
+          simp [NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.ownersFor,
             R1CS.totalRowCount,
             R1CS.constraintRowCount, result, inductionHypothesis,
             multiplicationOwners, List.replicate_add, Nat.add_assoc]
       | some direct =>
-          simp [NightstreamFPrime.Layout.PiCCS.v1_1.Ownership.ownersFor,
+          simp [NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.ownersFor,
             R1CS.totalRowCount,
             R1CS.constraintRowCount, result, inductionHypothesis,
             List.replicate_add]
 
 private theorem ownersForChildren_childProjection
     (children : List
-      NightstreamFPrime.Layout.PiCCS.v1_1.Ownership.ChildOwner)
+      NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.ChildOwner)
     (constraintLists : List (List Expr)) :
-    (NightstreamFPrime.Layout.PiCCS.v1_1.Ownership.ownersForChildren children
+    (NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.ownersForChildren children
       constraintLists).map
         (fun owner => owner.child) =
       repeatOwners children (constraintLists.map R1CS.totalRowCount) := by
@@ -223,7 +223,7 @@ private theorem ownersForChildren_childProjection
       | nil => rfl
       | cons constraints rest =>
           simp only [
-            NightstreamFPrime.Layout.PiCCS.v1_1.Ownership.ownersForChildren,
+            NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.ownersForChildren,
             List.map_append,
             ownersFor_childProjection, List.map_cons, repeatOwners]
           rw [inductionHypothesis rest]
@@ -232,15 +232,15 @@ private theorem ownersForChildren_childProjection
 The proof is structural and does not enumerate the concrete row list. -/
 theorem rowSpans_pointwise_ownerAgreement :
     expandSpans rowSpans =
-      (NightstreamFPrime.Layout.PiCCS.v1_1.Ownership.rowOwners relation
+      (NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.rowOwners relation
         interface parentOffset).map
         (fun owner => owner.child) := by
   rw [rowSpans, rowCounts_eq_layout, expandSpans_spansFrom]
-  unfold NightstreamFPrime.Layout.PiCCS.v1_1.physicalRowDeltas
-    NightstreamFPrime.Layout.PiCCS.v1_1.Ownership.rowOwners
+  unfold NightstreamFPrime.Layout.PiCCS.v1_2.physicalRowDeltas
+    NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.rowOwners
   exact (ownersForChildren_childProjection
-    NightstreamFPrime.Layout.PiCCS.v1_1.Ownership.childOrder
-    (NightstreamFPrime.Layout.PiCCS.v1_1.childConstraintLists relation
+    NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.childOrder
+    (NightstreamFPrime.Layout.PiCCS.v1_2.childConstraintLists relation
       interface parentOffset)).symm
 
 /-- Stable column-owner vocabulary. -/
@@ -268,32 +268,32 @@ def columnOrder : List ColumnFamily :=
     .r1csIntermediate]
 
 def columnCounts : List Nat :=
-  [5945960, 0, 140288, 95352, 153440, 12957, 672, 2699, 10475, 23,
-    48, 2717, 839536, 2956]
+  [5156956, 270, 134808, 4384, 61376, 12957, 672, 2699, 10475, 23,
+    48, 2717, 838440, 2956]
 
-/-- The 14 global physical column spans. The two zero-count child families
-remain in the ordered vocabulary. -/
+/-- The 14 global physical column spans, in the ordered vocabulary. The
+statement-binding family owns the 270 hinted sign columns. -/
 def columnSpans : List (Span ColumnFamily) :=
   spansFrom 0 columnOrder columnCounts
 
 theorem columnCounts_eq_layout :
     columnCounts =
       [parentOffset] ++
-        NightstreamFPrime.Layout.PiCCS.v1_1.logicalPrivateDeltas relation
+        NightstreamFPrime.Layout.PiCCS.v1_2.logicalPrivateDeltas relation
           interface parentOffset ++
-        [NightstreamFPrime.Layout.PiCCS.v1_1.physicalFreshColumnCount relation
+        [NightstreamFPrime.Layout.PiCCS.v1_2.physicalFreshColumnCount relation
           interface parentOffset] := by
   simp only [interface, parentOffset,
     NightstreamFPrime.Layout.Stage1.PilotPiCCS.interface,
     NightstreamFPrime.Layout.Stage1.PilotPiCCS.piCcsOffset]
   have logical :=
-    NightstreamFPrime.Layout.PiCCS.v1_1.logicalPrivateDeltas_eq_production
+    NightstreamFPrime.Layout.PiCCS.v1_2.logicalPrivateDeltas_eq_production
       relation
         (NightstreamFPrime.Layout.Stage1.PiCCSInputs.interface
           logicalWidth publicFits)
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset
   have fresh :=
-    NightstreamFPrime.Layout.PiCCS.v1_1.ProductionInputs.physicalFreshColumnCount_eq
+    NightstreamFPrime.Layout.PiCCS.v1_2.ProductionInputs.physicalFreshColumnCount_eq
       relation
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.interface
         logicalWidth publicFits)
@@ -306,20 +306,20 @@ theorem columnCounts_eq_layout :
 
 theorem columnSpans_exact :
     columnSpans =
-      [⟨.external, 0, 5945960⟩,
-       ⟨.statementBinding, 5945960, 0⟩,
-       ⟨.statementAbsorption, 5945960, 140288⟩,
-       ⟨.challengeDerivation, 6086248, 95352⟩,
-       ⟨.roundTranscript, 6181600, 153440⟩,
-       ⟨.initialClaim, 6335040, 12957⟩,
-       ⟨.sumcheckChain, 6347997, 672⟩,
-       ⟨.eval_K, 6348669, 2699⟩,
-       ⟨.eval_A, 6351368, 10475⟩,
-       ⟨.ccsTerminal, 6361843, 23⟩,
-       ⟨.normTerminal, 6361866, 48⟩,
-       ⟨.finalIdentity, 6361914, 2717⟩,
-       ⟨.outputBinding, 6364631, 839536⟩,
-       ⟨.r1csIntermediate, 7204167, 2956⟩] := by
+      [⟨.external, 0, 5156956⟩,
+       ⟨.statementBinding, 5156956, 270⟩,
+       ⟨.statementAbsorption, 5157226, 134808⟩,
+       ⟨.challengeDerivation, 5292034, 4384⟩,
+       ⟨.roundTranscript, 5296418, 61376⟩,
+       ⟨.initialClaim, 5357794, 12957⟩,
+       ⟨.sumcheckChain, 5370751, 672⟩,
+       ⟨.eval_K, 5371423, 2699⟩,
+       ⟨.eval_A, 5374122, 10475⟩,
+       ⟨.ccsTerminal, 5384597, 23⟩,
+       ⟨.normTerminal, 5384620, 48⟩,
+       ⟨.finalIdentity, 5384668, 2717⟩,
+       ⟨.outputBinding, 5387385, 838440⟩,
+       ⟨.r1csIntermediate, 6225825, 2956⟩] := by
   rfl
 
 theorem columnSpans_ownerOrder :
@@ -335,12 +335,12 @@ theorem columnSpans_adjacent : Adjacent columnSpans := by
 
 theorem columnSpans_cover_layout :
     CoversFrom 0
-      (NightstreamFPrime.Layout.PiCCS.v1_1.physicalColumnCount relation
+      (NightstreamFPrime.Layout.PiCCS.v1_2.physicalColumnCount relation
         interface parentOffset) columnSpans := by
   simp only [interface, parentOffset,
     NightstreamFPrime.Layout.Stage1.PilotPiCCS.interface,
     NightstreamFPrime.Layout.Stage1.PilotPiCCS.piCcsOffset]
-  rw [NightstreamFPrime.Layout.PiCCS.v1_1.ProductionInputs.physicalColumnCount_eq
+  rw [NightstreamFPrime.Layout.PiCCS.v1_2.ProductionInputs.physicalColumnCount_eq
     relation
     (NightstreamFPrime.Layout.Stage1.PiCCSInputs.interface
       logicalWidth publicFits)
@@ -353,7 +353,7 @@ theorem columnSpans_cover_layout :
 
 /-- Forget only the local index from the authoritative column owner. -/
 def columnFamily :
-    NightstreamFPrime.Layout.PiCCS.v1_1.Ownership.ColumnOwner → ColumnFamily
+    NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.ColumnOwner → ColumnFamily
   | .external _ => .external
   | .statementBinding _ => .statementBinding
   | .statementAbsorption _ => .statementAbsorption
@@ -372,7 +372,7 @@ def columnFamily :
 /-- Proof-side family classifier with the authoritative layout boundaries. -/
 noncomputable def exportedColumnFamily (column : Nat) : ColumnFamily :=
   columnFamily
-    (NightstreamFPrime.Layout.PiCCS.v1_1.Ownership.columnOwnerAt relation
+    (NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.columnOwnerAt relation
       interface parentOffset column)
 
 /-- Read an ordered, adjacent span ledger by its recorded exclusive ends. -/
@@ -391,15 +391,15 @@ private theorem statementAbsorptionOffset_eq :
     Formal.statementAbsorptionOffset
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.interface
         logicalWidth publicFits)
-      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 5945960 := by
+      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 5157226 := by
   rw [Formal.statementAbsorptionOffset_eq,
-    NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
+    NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq, StateBinding.signCount_eq]
 
 private theorem challengeOffset_eq :
     Formal.challengeOffset
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.interface
         logicalWidth publicFits)
-      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 6086248 := by
+      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 5292034 := by
   rw [Formal.challengeOffset_eq,
     NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
 
@@ -407,14 +407,14 @@ private theorem roundTranscriptOffset_eq :
     Formal.roundTranscriptOffset
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.interface
         logicalWidth publicFits)
-      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 6181600 := by
+      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 5296418 := by
   rw [Formal.roundTranscriptOffset_eq, challengeOffset_eq]
 
 private theorem initialClaimOffset_eq :
     Formal.initialClaimOffset
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.interface
         logicalWidth publicFits)
-      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 6335040 := by
+      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 5357794 := by
   rw [Formal.initialClaimOffset_eq_initialClaimRowOffset,
     NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
   norm_num [Formal.initialClaimRowOffset, productionShape,
@@ -425,7 +425,7 @@ private theorem sumcheckOffset_eq :
     Formal.sumcheckOffset
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.interface
         logicalWidth publicFits)
-      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 6347997 := by
+      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 5370751 := by
   rw [Formal.sumcheckOffset_eq_sumcheckRowOffset,
     NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
   norm_num [Formal.sumcheckRowOffset, Formal.initialClaimRowOffset,
@@ -436,7 +436,7 @@ private theorem evalKOffset_eq :
     Formal.evalKOffset
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.interface
         logicalWidth publicFits)
-      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 6348669 := by
+      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 5371423 := by
   rw [Formal.evalKOffset_eq_evalKRowOffset,
     NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
   norm_num [Formal.evalKRowOffset, SumcheckChain.privateCount,
@@ -449,7 +449,7 @@ private theorem evalAOffset_eq :
     Formal.evalAOffset
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.interface
         logicalWidth publicFits)
-      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 6351368 := by
+      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 5374122 := by
   rw [Formal.evalAOffset_eq_evalARowOffset,
     NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
   norm_num [Formal.evalARowOffset, Formal.evalKRowOffset, SumcheckChain.privateCount,
@@ -463,7 +463,7 @@ private theorem ccsOffset_eq :
     Formal.ccsOffset
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.interface
         logicalWidth publicFits)
-      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 6361843 := by
+      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 5384597 := by
   rw [Formal.ccsOffset_eq_ccsRowOffset,
     NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
   norm_num [Formal.ccsRowOffset, Formal.evalARowOffset,
@@ -478,7 +478,7 @@ private theorem normOffset_eq :
     Formal.normOffset relation
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.interface
         logicalWidth publicFits)
-      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 6361866 := by
+      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 5384620 := by
   rw [Formal.normOffset_eq_normRowOffset,
     NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
   norm_num [Formal.normRowOffset, Formal.ccsRowOffset,
@@ -493,7 +493,7 @@ private theorem finalIdentityOffset_eq :
     Formal.finalIdentityOffset relation
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.interface
         logicalWidth publicFits)
-      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 6361914 := by
+      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 5384668 := by
   rw [Formal.finalIdentityOffset_eq_finalIdentityRowOffset,
     NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
   norm_num [Formal.finalIdentityRowOffset, Formal.normRowOffset,
@@ -509,7 +509,7 @@ private theorem outputBindingOffset_eq :
     Formal.outputBindingOffset relation
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.interface
         logicalWidth publicFits)
-      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 6364631 := by
+      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 5387385 := by
   rw [Formal.outputBindingOffset_eq_outputBindingRowOffset,
     NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
   norm_num [Formal.outputBindingRowOffset, Formal.finalIdentityRowOffset,
@@ -524,26 +524,26 @@ private theorem outputBindingOffset_eq :
     RoundTranscript.perRoundRecipeCount]
 
 private theorem logicalColumnCount_eq :
-    NightstreamFPrime.Layout.PiCCS.v1_1.logicalColumnCount relation
+    NightstreamFPrime.Layout.PiCCS.v1_2.logicalColumnCount relation
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.interface
         logicalWidth publicFits)
-      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 7204167 := by
+      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 6225825 := by
   rw [← NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase_eq_layout
     relation]
   unfold NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
   rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
 
 private theorem logicalColumnCount_literal_eq :
-    NightstreamFPrime.Layout.PiCCS.v1_1.logicalColumnCount relation
+    NightstreamFPrime.Layout.PiCCS.v1_2.logicalColumnCount relation
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.interface
-        logicalWidth publicFits) 5945960 = 7204167 := by
+        logicalWidth publicFits) 5156956 = 6225825 := by
   simpa only [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq] using
     logicalColumnCount_eq
 
 private theorem columnSpanFamily_eq_exportedColumnFamily (column : Nat) :
     columnSpanFamily column = exportedColumnFamily column := by
   unfold exportedColumnFamily
-    NightstreamFPrime.Layout.PiCCS.v1_1.Ownership.columnOwnerAt
+    NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.columnOwnerAt
   simp only [interface, parentOffset,
     NightstreamFPrime.Layout.Stage1.PilotPiCCS.interface,
     NightstreamFPrime.Layout.Stage1.PilotPiCCS.piCcsOffset]
@@ -580,30 +580,30 @@ private theorem columnSpanFamily_eq_exportedColumnFamily (column : Nat) :
 /-- Every physical column receives the same family from the exported spans
 and from the authoritative PiCCS owner function. -/
 theorem columnSpans_pointwise_ownerAgreement
-    (column : Fin (NightstreamFPrime.Layout.PiCCS.v1_1.physicalColumnCount
+    (column : Fin (NightstreamFPrime.Layout.PiCCS.v1_2.physicalColumnCount
       relation interface parentOffset)) :
     columnFamily
-        (NightstreamFPrime.Layout.PiCCS.v1_1.Ownership.columnOwner relation
+        (NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.columnOwner relation
           interface parentOffset column) =
       exportedColumnFamily column.val := by
-  unfold NightstreamFPrime.Layout.PiCCS.v1_1.Ownership.columnOwner
+  unfold NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.columnOwner
     exportedColumnFamily
   rfl
 
 /-- Direct lookup in the exported span ledger agrees with the authoritative
 owner of every physical column. -/
 theorem columnSpans_lookup_ownerAgreement
-    (column : Fin (NightstreamFPrime.Layout.PiCCS.v1_1.physicalColumnCount
+    (column : Fin (NightstreamFPrime.Layout.PiCCS.v1_2.physicalColumnCount
       relation interface parentOffset)) :
     columnSpanFamily column.val =
       columnFamily
-        (NightstreamFPrime.Layout.PiCCS.v1_1.Ownership.columnOwner relation
+        (NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.columnOwner relation
           interface parentOffset column) := by
   rw [columnSpanFamily_eq_exportedColumnFamily,
     columnSpans_pointwise_ownerAgreement]
 
 def childOwnerTag :
-    NightstreamFPrime.Layout.PiCCS.v1_1.Ownership.ChildOwner → String
+    NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.ChildOwner → String
   | .statementBinding => "statement_binding"
   | .statementAbsorption => "statement_absorption"
   | .challengeDerivation => "challenge_derivation"

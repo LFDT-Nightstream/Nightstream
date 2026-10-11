@@ -1,6 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PermutationActionCompleteness
 import NightstreamFPrime.Export.Stage1.PiCCSInvocations
-import NightstreamFPrime.Layout.PiCCS.v1_1.Preservation
+import NightstreamFPrime.Layout.PiCCS.v1_2.Preservation
 
 /-!
 Owns the projection of actual PiCCS physical rows to the existing compact
@@ -17,7 +17,7 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Gadgets.Poseidon2
 open NightstreamFPrime.Gadgets.Poseidon2.Duplex
 open NightstreamFPrime.Layout
@@ -32,37 +32,37 @@ variable {logicalWidth : Nat}
 private theorem child_constraints
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (target : Env)
-    (physical : NightstreamFPrime.Layout.PiCCS.v1_1.PhysicalHolds relation
+    (physical : NightstreamFPrime.Layout.PiCCS.v1_2.PhysicalHolds relation
       (parentInterface logicalWidth publicFits) PiCCSInputs.phaseOffset (Spartan.pullback target))
     (child : FormalCircuit) (start : Nat)
-    (member : NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints child start ∈
-      NightstreamFPrime.Layout.PiCCS.v1_1.childConstraintLists relation
+    (member : NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints child start ∈
+      NightstreamFPrime.Layout.PiCCS.v1_2.childConstraintLists relation
         (parentInterface logicalWidth publicFits) PiCCSInputs.phaseOffset) :
     ConstraintsHold (Spartan.pullback target)
-      (NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints child start) := by
-  have logical := NightstreamFPrime.Layout.PiCCS.v1_1.physical_implies_holdsFlat
+      (NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints child start) := by
+  have logical := NightstreamFPrime.Layout.PiCCS.v1_2.physical_implies_holdsFlat
     relation (parentInterface logicalWidth publicFits) PiCCSInputs.phaseOffset
     (Spartan.pullback target) physical
   change ConstraintsHold (Spartan.pullback target)
-    (NightstreamFPrime.Layout.PiCCS.v1_1.logicalConstraints relation
+    (NightstreamFPrime.Layout.PiCCS.v1_2.logicalConstraints relation
       (parentInterface logicalWidth publicFits) PiCCSInputs.phaseOffset) at logical
-  rw [NightstreamFPrime.Layout.PiCCS.v1_1.logicalConstraints_eq_flatten] at logical
+  rw [NightstreamFPrime.Layout.PiCCS.v1_2.logicalConstraints_eq_flatten] at logical
   intro expression expressionMember
   exact logical expression (List.mem_flatten.mpr ⟨_, member, expressionMember⟩)
 
 private theorem statement_rows
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (target : Env)
-    (physical : NightstreamFPrime.Layout.PiCCS.v1_1.PhysicalHolds relation
+    (physical : NightstreamFPrime.Layout.PiCCS.v1_2.PhysicalHolds relation
       (parentInterface logicalWidth publicFits) PiCCSInputs.phaseOffset (Spartan.pullback target)) :
     ConstraintsHold (Spartan.pullback target)
       (recipeConstraints statementWitnessStart
         (StatementAbsorption.program (statementInterface logicalWidth publicFits)
           statementWitnessStart).recipes) := by
   have rows := child_constraints relation target physical
-    (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.statementAbsorptionCircuit
+    (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.statementAbsorptionCircuit
       (sharedInterface logicalWidth publicFits))
-    (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.statementAbsorptionOffset
+    (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.statementAbsorptionOffset
       (parentInterface logicalWidth publicFits) PiCCSInputs.phaseOffset) (by
         apply List.mem_cons_of_mem
         exact List.mem_cons_self)
@@ -77,16 +77,16 @@ private theorem statement_rows
 private theorem challenge_rows
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (target : Env)
-    (physical : NightstreamFPrime.Layout.PiCCS.v1_1.PhysicalHolds relation
+    (physical : NightstreamFPrime.Layout.PiCCS.v1_2.PhysicalHolds relation
       (parentInterface logicalWidth publicFits) PiCCSInputs.phaseOffset (Spartan.pullback target)) :
     ConstraintsHold (Spartan.pullback target)
       (recipeConstraints challengeWitnessStart
         (ChallengeDerivation.program (challengeInterface logicalWidth publicFits)
           challengeWitnessStart).recipes) := by
   have rows := child_constraints relation target physical
-    (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.challengeCircuit
+    (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.challengeCircuit
       (parentInterface logicalWidth publicFits) PiCCSInputs.phaseOffset)
-    (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.challengeOffset
+    (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.challengeOffset
       (parentInterface logicalWidth publicFits) PiCCSInputs.phaseOffset) (by
         apply List.mem_cons_of_mem
         apply List.mem_cons_of_mem
@@ -102,16 +102,16 @@ private theorem challenge_rows
 private theorem round_rows
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (target : Env)
-    (physical : NightstreamFPrime.Layout.PiCCS.v1_1.PhysicalHolds relation
+    (physical : NightstreamFPrime.Layout.PiCCS.v1_2.PhysicalHolds relation
       (parentInterface logicalWidth publicFits) PiCCSInputs.phaseOffset (Spartan.pullback target)) :
     ConstraintsHold (Spartan.pullback target)
       (recipeConstraints roundWitnessStart
         (RoundTranscript.program (roundInterface logicalWidth publicFits)
           roundWitnessStart).recipes) := by
   have rows := child_constraints relation target physical
-    (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.roundTranscriptCircuit
+    (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.roundTranscriptCircuit
       (sharedInterface logicalWidth publicFits))
-    (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.roundTranscriptOffset
+    (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.roundTranscriptOffset
       (parentInterface logicalWidth publicFits) PiCCSInputs.phaseOffset) (by
         apply List.mem_cons_of_mem
         apply List.mem_cons_of_mem
@@ -127,7 +127,7 @@ private theorem round_rows
 private theorem output_rows
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (target : Env)
-    (physical : NightstreamFPrime.Layout.PiCCS.v1_1.PhysicalHolds relation
+    (physical : NightstreamFPrime.Layout.PiCCS.v1_2.PhysicalHolds relation
       (parentInterface logicalWidth publicFits) PiCCSInputs.phaseOffset (Spartan.pullback target)) :
     ConstraintsHold (Spartan.pullback target)
       (recipeConstraints outputWitnessStart
@@ -135,9 +135,9 @@ private theorem output_rows
           ((outputInterface logicalWidth publicFits).initialState outputWitnessStart)
           (outputActions logicalWidth publicFits)).recipes) := by
   have rows := child_constraints relation target physical
-    (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.outputBindingCircuit
+    (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.outputBindingCircuit
       (sharedInterface logicalWidth publicFits))
-    (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.outputBindingOffset relation
+    (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.outputBindingOffset relation
       (parentInterface logicalWidth publicFits) PiCCSInputs.phaseOffset) (by
         apply List.mem_cons_of_mem
         apply List.mem_cons_of_mem
@@ -166,7 +166,7 @@ and affine input conditions are derived from their existing child owners. -/
 theorem permutations_of_physical
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (target : Env)
-    (physical : NightstreamFPrime.Layout.PiCCS.v1_1.PhysicalHolds relation
+    (physical : NightstreamFPrime.Layout.PiCCS.v1_2.PhysicalHolds relation
       (parentInterface logicalWidth publicFits) PiCCSInputs.phaseOffset (Spartan.pullback target)) :
     ∀ current ∈ PiCCSInvocations.invocations logicalWidth publicFits,
       PermutationInvocationHolds (PilotData.circuitPackage ()) current target := by
@@ -180,7 +180,7 @@ theorem permutations_of_physical
       norm_num [Spartan.piCcsPhaseOffset]
     · exact Poseidon2.zeroE_affine
     · apply actionsInvocationInputsAffine_of_actionsAffine
-      exact NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.StatementAbsorption.actions_affine
+      exact NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.StatementAbsorption.actions_affine
         (statementInterface logicalWidth publicFits) statementWitnessStart
         ((inputShapes logicalWidth publicFits relation).statementAbsorption statementWitnessStart)
     · exact statement_rows relation target physical
@@ -196,7 +196,7 @@ theorem permutations_of_physical
       norm_num [Spartan.piCcsPhaseOffset]
     · exact ((inputShapes logicalWidth publicFits relation).challengeDerivation challengeWitnessStart).initialState
     · apply actionsInvocationInputsAffine_of_actionsAffine
-      exact NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.ChallengeDerivation.actions_affine
+      exact NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.ChallengeDerivation.actions_affine
         (challengeInterface logicalWidth publicFits) challengeWitnessStart
         ((inputShapes logicalWidth publicFits relation).challengeDerivation challengeWitnessStart)
     · exact challenge_rows relation target physical
@@ -212,7 +212,7 @@ theorem permutations_of_physical
       norm_num [Spartan.piCcsPhaseOffset]
     · exact ((inputShapes logicalWidth publicFits relation).roundTranscript roundWitnessStart).initialState
     · apply actionsInvocationInputsAffine_of_actionsAffine
-      exact NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.RoundTranscript.actions_affine
+      exact NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.RoundTranscript.actions_affine
         (roundInterface logicalWidth publicFits) roundWitnessStart
         ((inputShapes logicalWidth publicFits relation).roundTranscript roundWitnessStart)
     · exact round_rows relation target physical
@@ -228,7 +228,7 @@ theorem permutations_of_physical
       norm_num [Spartan.piCcsPhaseOffset]
     · exact ((inputShapes logicalWidth publicFits relation).outputBinding outputWitnessStart).initialState
     · apply actionsInvocationInputsAffine_of_actionsAffine
-      exact NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.OutputBinding.actions_affine
+      exact NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.OutputBinding.actions_affine
         (outputInterface logicalWidth publicFits) outputWitnessStart
         ((inputShapes logicalWidth publicFits relation).outputBinding outputWitnessStart)
     · exact output_rows relation target physical

@@ -32,7 +32,7 @@ def running
       Phi81CarrierLayout.carrierWidth logicalWidth)
     (env : Env) :
     Running (logicalWidth := logicalWidth) (publicFits := publicFits) :=
-  NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalRunning
+  NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalRunning
     (piCcsInterface logicalWidth publicFits) PiCCSInputs.phaseOffset env
 
 def fresh
@@ -41,7 +41,7 @@ def fresh
       Phi81CarrierLayout.carrierWidth logicalWidth)
     (env : Env) :
     Fresh (logicalWidth := logicalWidth) (publicFits := publicFits) :=
-  NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalFresh
+  NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalFresh
     (piCcsInterface logicalWidth publicFits) PiCCSInputs.phaseOffset env
 
 /-- One complete NIFS proof projected from the canonical phase wires. -/
@@ -55,7 +55,7 @@ def proof
     ((piCcsInterface logicalWidth publicFits).round
       PiCCSInputs.phaseOffset roundIndex).semanticPolynomial env
   piCcsOutput :=
-    NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalOutput
+    NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalOutput
       (piCcsInterface logicalWidth publicFits) PiCCSInputs.phaseOffset env
   piDecCommitments :=
     (RunningTransitionInputs.piDecRunningOutput relation env).commitments
@@ -78,7 +78,7 @@ def output
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (env : Env) :
-    NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalProof relation
+    NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalProof relation
         (piCcsInterface logicalWidth publicFits) PiCCSInputs.phaseOffset env
         (proof relation env) =
       proof relation env := by

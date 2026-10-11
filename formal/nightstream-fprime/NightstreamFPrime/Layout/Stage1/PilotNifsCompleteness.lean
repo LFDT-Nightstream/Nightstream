@@ -137,7 +137,7 @@ private theorem pilot_end_before_c :
     Pilot.logicalColumnCount PilotProduction.interface PilotProduction.witnessOffset ≤
       PiCCSInputs.phaseOffset := by
   have bound := pilot_end_before_context
-  unfold PiCCSInputs.phaseOffset PiCCSInputs.proofInputStart
+  unfold PiCCSInputs.phaseOffset PiCCSInputs.proofInputStart PiCCSInputs.priorChildrenStart
   omega
 
 private theorem c_before_r : PiCCSInputs.phaseOffset ≤ PiRLCInputs.phaseOffset := by
@@ -168,7 +168,7 @@ private theorem external_outside_pilot (index : Nat)
   · exact Or.inr (Nat.le_trans pilot_end_before_context contextRange.1)
   · apply Or.inr
     have lower := proofRange.1
-    unfold PiCCSInputs.proofInputStart at lower
+    unfold PiCCSInputs.priorChildrenStart at lower
     exact Nat.le_trans pilot_end_before_context (by omega)
 
 variable
@@ -182,7 +182,7 @@ output remain exact. No generated pilot/NIFS phase, row, or output value is
 assumed. -/
 theorem completePrefix
     (result : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (priorPc : prior.pc = 1) (advertisedPc : advertised.pc = 1)
+    (priorCanonical : Lifecycle.ChildrenCanonical (prior.running functionIndex))
     (priorContext : prior.verifierKeys functionIndex = context.toList)
     (advertisedContext : advertised.verifierKeys functionIndex = context.toList)
     (outputHash : digest = stateHash advertised)
@@ -197,24 +197,24 @@ theorem completePrefix
         ∃ r : Sequence.Prefix c.current PiRLCInputs.phaseOffset,
           ∃ d : Sequence.Prefix
               (PiDECProofInputs.load r.current (PiCCSProofInputs.relationProof relation values template)
-                (PiRLC.v1_1.Semantics.evalOutput relation
+                (PiRLC.v1_2.Semantics.evalOutput relation
                   (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
                   PiRLCInputs.phaseOffset r.current).publicInput) PiDECInputs.phaseOffset,
             PilotProduction.witnessOffset + localLength p.operations =
               Pilot.logicalColumnCount PilotProduction.interface PilotProduction.witnessOffset ∧
             flatConstraints p.operations =
               Pilot.logicalConstraints PilotProduction.interface PilotProduction.witnessOffset ∧
-            c.operations = PiCCS.v1_1.Formal.opsAt relation (PiCCSProofInputs.relationInterface relation)
+            c.operations = PiCCS.v1_2.Formal.opsAt relation (PiCCSProofInputs.relationInterface relation)
               PiCCSInputs.phaseOffset ∧
-            r.operations = PiRLC.v1_1.Formal.opsAt relation
+            r.operations = PiRLC.v1_2.Formal.opsAt relation
               (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
               PiRLCInputs.phaseOffset ∧
-            d.operations = PiDEC.v1_1.Formal.opsAt relation (PiDECInputs.interface logicalWidth publicFits)
+            d.operations = PiDEC.v1_2.Formal.opsAt relation (PiDECInputs.interface logicalWidth publicFits)
               PiDECInputs.phaseOffset ∧
             holdsFlat d.current p.operations ∧ holdsFlat d.current c.operations ∧
             holdsFlat d.current r.operations ∧
             Lifecycle.Pilot.SpecHolds PilotProduction.interface PilotProduction.witnessOffset d.current ∧
-            PiDEC.v1_1.Semantics.PhaseHolds relation ajtai (PiDECInputs.interface logicalWidth publicFits)
+            PiDEC.v1_2.Semantics.PhaseHolds relation ajtai (PiDECInputs.interface logicalWidth publicFits)
               PiDECInputs.phaseOffset d.current ∧
             RunningTransitionInputs.piDecRunningOutput relation d.current = result := by
   obtain ⟨p, pilotEnd, pilotConstraints⟩ := pilot_prefix prior advertised digest priorFixed advertisedFixed
@@ -230,7 +230,7 @@ theorem completePrefix
   obtain ⟨c, r, d, cOperations, rOperations, dOperations, cRows, rRows, dPhase, dOutput⟩ :=
     PiDECProtocolCompleteness.completePrefix_from relation ajtai prior (encHash (stateHash prior))
       advertised digest priorFixed advertisedFixed digestFixed values context template result
-      priorPc advertisedPc priorContext advertisedContext accepted p.current source
+      priorCanonical priorContext advertisedContext accepted p.current source
   have preserved : ∀ index, index < Pilot.logicalColumnCount PilotProduction.interface
       PilotProduction.witnessOffset → d.current index = p.current index := by
     intro index below

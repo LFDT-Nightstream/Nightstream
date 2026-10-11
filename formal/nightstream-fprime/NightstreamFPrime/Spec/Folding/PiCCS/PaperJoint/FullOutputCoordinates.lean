@@ -3,13 +3,13 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolDataRefinement
 
 /-! Provenance: adapted from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/FullOutputCoordinates.lean`
 at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; split into the
-SuperNeo v1.1 Pad and 4-matrix output families. -/
+SuperNeo v1.2 Pad and 4-matrix output families. -/
 
 /-!
 The paper's complete `y'` family and its exact projection to the executable
 `Pi_CCS` output message.
 
-Protocol: SuperNeo v1.1 `Pi_CCS` (Section 7.3 / Appendix B.2).
+Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
 Phase: honest output construction at the verifier-derived point.
 Constraint family: semantic output coordinates only; this file emits no rows.
 
@@ -50,7 +50,7 @@ open UnifiedSources
 
 universe uExtension
 
-/-- The complete v1.1 output at one common point: every source and every
+/-- The complete v1.2 output at one common point: every source and every
 coefficient of both canonical Pad and all CCS matrix images. -/
 structure FullOutput (Extension : Type uExtension) (shape : Shape) where
   padCoordinate : Fin shape.sourceCount ->

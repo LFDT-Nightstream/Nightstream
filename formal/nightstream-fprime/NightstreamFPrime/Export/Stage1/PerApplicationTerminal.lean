@@ -77,17 +77,18 @@ theorem holds_recursive_iff
         (publicFits := PerApplicationFixedPoint.publicFits application))
       slotCount) :
     Holds application fits commitmentSetup statement (.recursive payload) ↔
-      Lifecycle.Stage1.Terminal.StatementValid statement ∧ RecursiveTerminalTransition
-        (setup (PerApplicationFixedPoint.relation application fits)
-          (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
-          (PerApplicationCanonicalPackage.verifierContextDigest fits
-            commitmentSetup))
-        (machineFor (PerApplicationFixedPoint.publicFits application)
-          application)
-        (Lifecycle.Stage1.Terminal.relations
-          (PerApplicationFixedPoint.relation application fits)
-          (PerApplicationCanonicalPackage.commitmentKey commitmentSetup))
-        statement payload := by
+      Lifecycle.Stage1.Terminal.StatementValid statement ∧
+        (∀ slot, ChildrenCanonical (payload.running slot)) ∧ RecursiveTerminalTransition
+          (setup (PerApplicationFixedPoint.relation application fits)
+            (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
+            (PerApplicationCanonicalPackage.verifierContextDigest fits
+              commitmentSetup))
+          (machineFor (PerApplicationFixedPoint.publicFits application)
+            application)
+          (Lifecycle.Stage1.Terminal.relations
+            (PerApplicationFixedPoint.relation application fits)
+            (PerApplicationCanonicalPackage.commitmentKey commitmentSetup))
+          statement payload := by
   exact Lifecycle.Stage1.Terminal.holdsFor_recursive_iff
     (PerApplicationFixedPoint.relation application fits)
     (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)

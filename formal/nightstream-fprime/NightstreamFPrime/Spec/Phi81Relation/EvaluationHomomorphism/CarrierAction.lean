@@ -6,7 +6,7 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 /-!
 Complete-carrier algebra behind the Phi81 `Pi_RLC` assignment action.
 
-Protocol: SuperNeo Theorem 5, assignment-side `RingF` action.
+Protocol: SuperNeo v1.2 Theorem 11, assignment-side `RingF` action.
 Phase: complete 54-lane carrier block to derived Phi81 coefficient image.
 Constraint family: semantic coefficient algebra only; this file emits no rows.
 

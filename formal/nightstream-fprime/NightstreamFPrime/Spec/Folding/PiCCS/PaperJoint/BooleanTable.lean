@@ -23,7 +23,7 @@ Authority boundary: protocol data supplies finite table entries; the algebraic
 environment separately supplies explicit operations and zero laws. The alpha
 basis, coefficient order, transform, and squarefree shape are derived. A later
 theorem must still prove Boolean-point evaluation semantics. This is a
-table-level zero-equivalence theorem, not Appendix D.4 Lemma 7.
+table-level zero-equivalence theorem, not SuperNeo v1.2 Appendix B.2 Lemma 9.
 
 | Object | Canonical representation | Proven property |
 |---|---|---|

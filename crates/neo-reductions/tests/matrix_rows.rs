@@ -11,7 +11,7 @@ use neo_ccs::{poly::Term, CcsMatrix, CcsStructure, CscMat, GeometricRowRun, Mat,
 use neo_math::{KExtensions, D, F, K};
 use neo_reductions::{
     superneo_eval::{
-        build_superneo_eval_cache, check_ccs_relation_zero_cached_with_blocks, eval_real_v1_1_openings_from_rows,
+        build_superneo_eval_cache, check_ccs_relation_zero_cached_with_blocks, eval_real_v1_2_openings_from_rows,
         first_unsatisfied_row_from_rows, CachedMatrixRows, MatrixRowSink, MatrixRows, MatrixShape, MatrixWindow,
         RetainedMatrixWindow, SuperneoCachedRelationError, SuperneoCompactRowOffsets, SuperneoEvalCache,
         SuperneoZBlocks,
@@ -35,7 +35,7 @@ fn terminal_checks_share_row_reads_and_still_reject_a_false_fresh_witness() {
             exps: vec![0, 0, 1],
         }],
     );
-    let expected = eval_real_v1_1_openings_from_rows(&source, &point, &running, usize::MAX).unwrap();
+    let expected = eval_real_v1_2_openings_from_rows(&source, &point, &running, usize::MAX).unwrap();
     assert_eq!(
         first_unsatisfied_row_from_rows(&source, &polynomial, &fresh, usize::MAX).unwrap(),
         None
@@ -416,7 +416,7 @@ fn streamed_complete_openings_match_resident_with_global_imaginary_weights() {
         })
         .chain(std::iter::once(SuperneoZBlocks::from_z(&vec![K::ZERO; columns])))
         .collect::<Vec<_>>();
-    let expected = cache.eval_real_v1_1_openings(&point, &witnesses).unwrap();
+    let expected = cache.eval_real_v1_2_openings(&point, &witnesses).unwrap();
     assert!(expected[0]
         .eval_a
         .iter()
@@ -424,7 +424,7 @@ fn streamed_complete_openings_match_resident_with_global_imaginary_weights() {
         .any(|value| value.as_coeffs()[1] != F::ZERO));
     let budget = MatrixWindow::required_workspace(&source, 0..2, 0).unwrap();
     source.visits.lock().unwrap().clear();
-    let actual = eval_real_v1_1_openings_from_rows(&source, &point, &witnesses, budget).unwrap();
+    let actual = eval_real_v1_2_openings_from_rows(&source, &point, &witnesses, budget).unwrap();
     assert_eq!(actual, expected);
     assert!(source
         .visits
@@ -445,14 +445,14 @@ fn zero_openings_skip_rows_only_after_point_and_witness_shape_checks() {
     let columns = source.shape().columns;
     let point = vec![K::from_coeffs([F::ONE, F::ONE]); columns.next_power_of_two().ilog2() as usize];
     let zero = SuperneoZBlocks::from_z(&vec![K::ZERO; columns]);
-    let result = eval_real_v1_1_openings_from_rows(&source, &point, &[zero], 0).unwrap();
+    let result = eval_real_v1_2_openings_from_rows(&source, &point, &[zero], 0).unwrap();
     assert_eq!(result.len(), 1);
     assert_eq!(result[0].eval_k, vec![K::ZERO; D]);
     assert_eq!(result[0].eval_a, vec![vec![K::ZERO; D]; source.shape().matrices]);
     let zero = SuperneoZBlocks::from_z(&vec![K::ZERO; columns]);
-    assert!(eval_real_v1_1_openings_from_rows(&source, &point[..point.len() - 1], &[zero], 0).is_err());
+    assert!(eval_real_v1_2_openings_from_rows(&source, &point[..point.len() - 1], &[zero], 0).is_err());
     let wrong_width = SuperneoZBlocks::from_z(&vec![K::ZERO; columns - D]);
-    assert!(eval_real_v1_1_openings_from_rows(&source, &point, &[wrong_width], 0).is_err());
+    assert!(eval_real_v1_2_openings_from_rows(&source, &point, &[wrong_width], 0).is_err());
     assert!(source.visits.lock().unwrap().is_empty());
 }
 
@@ -748,12 +748,12 @@ fn run_event_openings_match_expanded_rows_across_block_and_part_boundaries() {
                 .collect::<Vec<_>>(),
         ),
     ];
-    let expected = cache.eval_real_v1_1_openings(&point, &witnesses).unwrap();
+    let expected = cache.eval_real_v1_2_openings(&point, &witnesses).unwrap();
     assert!(expected.iter().all(|opening| opening
         .eval_a
         .iter()
         .all(|matrix| matrix.iter().any(|value| *value != K::ZERO))));
-    let actual = eval_real_v1_1_openings_from_rows(&source, &point, &witnesses, usize::MAX).unwrap();
+    let actual = eval_real_v1_2_openings_from_rows(&source, &point, &witnesses, usize::MAX).unwrap();
     assert_eq!(actual, expected);
 }
 

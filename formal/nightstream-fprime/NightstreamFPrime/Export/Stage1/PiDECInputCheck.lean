@@ -60,7 +60,7 @@ def evaluation (values : ParentValues) : PaperAlgebra.Evaluation where
   matrix := fun matrix => (values.evalA.get matrix).toRing
 
 def parent (values : ParentValues) : Claim where
-  constraintSystem := Lifecycle.PiRLC.v1_1.InputBinding.relationSource relation
+  constraintSystem := Lifecycle.PiRLC.v1_2.InputBinding.relationSource relation
   commitment := values.commitment.toCommitment
   publicInput := fun coordinate : Fin 270 => values.publicInput.get coordinate
   point := values.point
@@ -141,7 +141,7 @@ theorem child_point (values : ParentValues) (messages : Messages) (child : Fin 1
 
 theorem child_structure (values : ParentValues) (messages : Messages) (child : Fin 16) :
     (children values messages child).constraintSystem =
-      Lifecycle.PiRLC.v1_1.InputBinding.relationSource
+      Lifecycle.PiRLC.v1_2.InputBinding.relationSource
         (PerApplicationFixedPoint.relation Poseidon2HashChainV1Package.application
           Poseidon2HashChainV1Package.fits) := by
   rw [← relation_eq_selected]

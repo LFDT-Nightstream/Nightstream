@@ -95,7 +95,7 @@ fn compact_openings_match_cpu_across_parallel_and_tiled_lists() {
         .iter()
         .map(|witness| SuperneoZBlocks::from_witness_mat(witness, 2 * D).unwrap())
         .collect();
-    let expected = cache.eval_real_v1_1_openings(&point, &blocks).unwrap();
+    let expected = cache.eval_real_v1_2_openings(&point, &blocks).unwrap();
     let session = MetalSession::new().unwrap();
     let source = CachedMatrixRows::new(&cache).unwrap();
     let workspace = matrix_workspace(&source, 0..rows);
@@ -203,7 +203,7 @@ fn geometric_openings_group_spans_and_dispatch_each_layer_once() {
         .iter()
         .map(|witness| SuperneoZBlocks::from_witness_mat(witness, columns).unwrap())
         .collect();
-    let expected = scalar.eval_real_v1_1_openings(&point, &blocks).unwrap();
+    let expected = scalar.eval_real_v1_2_openings(&point, &blocks).unwrap();
     let session = MetalSession::new().unwrap();
     let source = CachedMatrixRows::new(&compact).unwrap();
     let workspace = matrix_workspace(&source, 0..rows);

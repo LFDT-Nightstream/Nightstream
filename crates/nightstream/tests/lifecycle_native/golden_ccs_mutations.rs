@@ -22,7 +22,7 @@ pub fn check_proof_mutations(
     proof: &PiCcsProof,
 ) {
     let rejects = |changed: &PiCcsProof, label: &str| {
-        let mut optimized_transcript = Poseidon2Transcript::new_v1_1();
+        let mut optimized_transcript = Poseidon2Transcript::new_v1_2();
         let optimized = optimized_verify_with_trace(
             &mut optimized_transcript,
             params,
@@ -95,7 +95,7 @@ pub fn check_claim_mutations(
                    running: &[CeClaim<Commitment, F, K>],
                    outputs: &[CeClaim<Commitment, F, K>],
                    label: &str| {
-        let mut optimized_transcript = Poseidon2Transcript::new_v1_1();
+        let mut optimized_transcript = Poseidon2Transcript::new_v1_2();
         let optimized = optimized_verify_with_trace(
             &mut optimized_transcript,
             params,

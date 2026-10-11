@@ -42,24 +42,24 @@ private theorem prefixStart_getD (start : Nat) (deltas : List Nat)
 private theorem child_rows
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (target : Env)
-    (physical : NightstreamFPrime.Layout.PiCCS.v1_1.PhysicalHolds relation
+    (physical : NightstreamFPrime.Layout.PiCCS.v1_2.PhysicalHolds relation
       (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset (Spartan.pullback target))
     (index : Fin 12) :
     R1CS.RowsHold (Spartan.pullback target)
       (R1CS.lowerConstraints
-        ((NightstreamFPrime.Layout.PiCCS.v1_1.childConstraintLists relation
+        ((NightstreamFPrime.Layout.PiCCS.v1_2.childConstraintLists relation
           (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset).getD index.val [])
         (PiCCSStarts.freshStarts.getD index.val 0)).rows := by
-  let children := NightstreamFPrime.Layout.PiCCS.v1_1.childConstraintLists relation
+  let children := NightstreamFPrime.Layout.PiCCS.v1_2.childConstraintLists relation
     (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
-  let first := NightstreamFPrime.Layout.PiCCS.v1_1.logicalColumnCount relation
+  let first := NightstreamFPrime.Layout.PiCCS.v1_2.logicalColumnCount relation
     (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
   have bounded : index.val < children.length := index.isLt
   have segments := R1CS.LoweringPlan.rowsHold_segments_of_constraints
-    (NightstreamFPrime.Layout.PiCCS.v1_1.plan relation
+    (NightstreamFPrime.Layout.PiCCS.v1_2.plan relation
       (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset)
     (Spartan.pullback target) children
-    (NightstreamFPrime.Layout.PiCCS.v1_1.logicalConstraints_eq_flatten relation
+    (NightstreamFPrime.Layout.PiCCS.v1_2.logicalConstraints_eq_flatten relation
       (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset) physical
   have selected := R1CS.segmentsHold_get (Spartan.pullback target) children first
     segments ⟨index.val, bounded⟩
@@ -82,10 +82,10 @@ private theorem child_rows
 private theorem packet_rows
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (target : Env)
-    (physical : NightstreamFPrime.Layout.PiCCS.v1_1.PhysicalHolds relation
+    (physical : NightstreamFPrime.Layout.PiCCS.v1_2.PhysicalHolds relation
       (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset (Spartan.pullback target))
     (index : Fin 12) (rowStart freshStart : Nat) (constraints : List Expr)
-    (source : (NightstreamFPrime.Layout.PiCCS.v1_1.childConstraintLists relation
+    (source : (NightstreamFPrime.Layout.PiCCS.v1_2.childConstraintLists relation
       (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset).getD index.val [] = constraints)
     (start : PiCCSStarts.freshStarts.getD index.val 0 = freshStart) :
     R1CS.RowsHold target
@@ -98,7 +98,7 @@ private theorem packet_rows
 private theorem packets_of_physical
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (target : Env)
-    (physical : NightstreamFPrime.Layout.PiCCS.v1_1.PhysicalHolds relation
+    (physical : NightstreamFPrime.Layout.PiCCS.v1_2.PhysicalHolds relation
       (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset (Spartan.pullback target)) :
     PacketHolds logicalWidth publicFits target := by
   constructor
@@ -108,7 +108,7 @@ private theorem packets_of_physical
   · apply packet_rows relation target physical (4 : Fin 12)
     · conv_lhs =>
         rw [show (4 : Fin 12).val = 4 from rfl]
-        simp only [NightstreamFPrime.Layout.PiCCS.v1_1.childConstraintLists,
+        simp only [NightstreamFPrime.Layout.PiCCS.v1_2.childConstraintLists,
           List.getD_cons_succ, List.getD_cons_zero]
       have source := PiCCSCompleteness.initialClaimConstraints_eq logicalWidth publicFits
       dsimp only [PiCCSInvocations.parentInterface] at source
@@ -117,7 +117,7 @@ private theorem packets_of_physical
   · apply packet_rows relation target physical (5 : Fin 12)
     · conv_lhs =>
         rw [show (5 : Fin 12).val = 5 from rfl]
-        simp only [NightstreamFPrime.Layout.PiCCS.v1_1.childConstraintLists,
+        simp only [NightstreamFPrime.Layout.PiCCS.v1_2.childConstraintLists,
           List.getD_cons_succ, List.getD_cons_zero]
       have source := PiCCSCompleteness.sumcheckConstraints_eq logicalWidth publicFits
       dsimp only [PiCCSInvocations.parentInterface] at source
@@ -126,7 +126,7 @@ private theorem packets_of_physical
   · apply packet_rows relation target physical (6 : Fin 12)
     · conv_lhs =>
         rw [show (6 : Fin 12).val = 6 from rfl]
-        simp only [NightstreamFPrime.Layout.PiCCS.v1_1.childConstraintLists,
+        simp only [NightstreamFPrime.Layout.PiCCS.v1_2.childConstraintLists,
           List.getD_cons_succ, List.getD_cons_zero]
       have source := PiCCSCompleteness.evalKConstraints_eq logicalWidth publicFits
       dsimp only [PiCCSInvocations.parentInterface] at source
@@ -135,7 +135,7 @@ private theorem packets_of_physical
   · apply packet_rows relation target physical (7 : Fin 12)
     · conv_lhs =>
         rw [show (7 : Fin 12).val = 7 from rfl]
-        simp only [NightstreamFPrime.Layout.PiCCS.v1_1.childConstraintLists,
+        simp only [NightstreamFPrime.Layout.PiCCS.v1_2.childConstraintLists,
           List.getD_cons_succ, List.getD_cons_zero]
       have source := PiCCSCompleteness.evalAConstraints_eq logicalWidth publicFits
       dsimp only [PiCCSInvocations.parentInterface] at source
@@ -144,7 +144,7 @@ private theorem packets_of_physical
   · apply packet_rows relation target physical (8 : Fin 12)
     · conv_lhs =>
         rw [show (8 : Fin 12).val = 8 from rfl]
-        simp only [NightstreamFPrime.Layout.PiCCS.v1_1.childConstraintLists,
+        simp only [NightstreamFPrime.Layout.PiCCS.v1_2.childConstraintLists,
           List.getD_cons_succ, List.getD_cons_zero]
       have source := PiCCSCompleteness.ccsConstraints_eq relation
       dsimp only [PiCCSInvocations.parentInterface] at source
@@ -153,7 +153,7 @@ private theorem packets_of_physical
   · apply packet_rows relation target physical (9 : Fin 12)
     · conv_lhs =>
         rw [show (9 : Fin 12).val = 9 from rfl]
-        simp only [NightstreamFPrime.Layout.PiCCS.v1_1.childConstraintLists,
+        simp only [NightstreamFPrime.Layout.PiCCS.v1_2.childConstraintLists,
           List.getD_cons_succ, List.getD_cons_zero]
       have source := PiCCSCompleteness.normConstraints_eq relation
       dsimp only [PiCCSInvocations.parentInterface] at source
@@ -162,7 +162,7 @@ private theorem packets_of_physical
   · apply packet_rows relation target physical (10 : Fin 12)
     · conv_lhs =>
         rw [show (10 : Fin 12).val = 10 from rfl]
-        simp only [NightstreamFPrime.Layout.PiCCS.v1_1.childConstraintLists,
+        simp only [NightstreamFPrime.Layout.PiCCS.v1_2.childConstraintLists,
           List.getD_cons_succ, List.getD_cons_zero]
       have source := PiCCSCompleteness.finalIdentityConstraints_eq relation
       dsimp only [PiCCSInvocations.parentInterface] at source
@@ -174,7 +174,7 @@ lowering at its owned fresh start. The completed target supplies all rows. -/
 theorem ordinaryRows_of_physical
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (target : Env)
-    (physical : NightstreamFPrime.Layout.PiCCS.v1_1.PhysicalHolds relation
+    (physical : NightstreamFPrime.Layout.PiCCS.v1_2.PhysicalHolds relation
       (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset (Spartan.pullback target)) :
     R1CS.RowsHold target
       ((arithmeticRows logicalWidth publicFits).map Rows.CompiledRow.toR1CS) := by

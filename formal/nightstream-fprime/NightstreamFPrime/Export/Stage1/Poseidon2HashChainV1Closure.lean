@@ -8,6 +8,11 @@ package identity, verifier-context digest, and full verification-key binding
 are fixed definitions. The deterministic Lean reduction uses no external
 premise; strong-set invertibility is proved by
 `Spec.Phi81StrongSet.lowNormInvertibility`.
+Every theorem here takes rows that hold on a `bind … raw` packet (`bound raw`
+for the fixed setup), and `bind` sets the four verifier-context columns. No
+theorem here covers an arbitrary accepted witness;
+for that, use
+`ActualContextSecurity.selectedRowsAndCheckedPublic_imply_stepOrCollision`.
 The final quantitative claim remains conditional on the owner-recorded
 Module-SIS, wide-reduction, Poseidon2, and Fiat--Shamir/forking analyses and
 on a SHAKE128 random-oracle analysis; this package has no adversary or
@@ -30,8 +35,8 @@ def bound (raw : RawValues) : RawValues :=
     Poseidon2HashChainV1Package.fits
     Poseidon2HashChainV1Setup.productionSetup raw
 
-/-- Accepted rows of the exact verifier-owned package imply its complete
-HyperNova step. No production relation or key is caller-selected. -/
+/-- Rows of the exact verifier-owned package that hold on `bound raw` imply its
+complete HyperNova step. No production relation or key is caller-selected. -/
 theorem rowsZero_implies_stepHoldsFor
     (raw : RawValues)
     (accepted : (PerApplicationFixedPoint.structuralPlan
@@ -57,8 +62,8 @@ theorem rowsZero_implies_stepHoldsFor
       Poseidon2HashChainV1Package.fits
       Poseidon2HashChainV1Setup.productionSetup raw accepted
 
-/-- Accepted rows of the exact verifier-owned package reach the complete
-base-or-recursive SuperNeo security outcome. The base branch performs no NIFS
+/-- Rows of the exact verifier-owned package that hold on `bound raw` reach the
+complete base-or-recursive SuperNeo security outcome. The base branch performs no NIFS
 extraction. The recursive branch uses the fixed package key. -/
 theorem rowsZero_implies_base_or_securityOutcome
     (raw : RawValues)
@@ -101,7 +106,9 @@ theorem rowsZero_implies_base_or_securityOutcome
 /-- The verifier fixes the hash-chain package and setup. A claimed package
 with the same verification-key binding must have the same complete package
 and authority, or exhibit one named Poseidon2 binding collision. Claimed
-values are adversarial inputs, not verifier choices. -/
+values are adversarial inputs, not verifier choices. The rows premise is on
+`bind claimedFits claimedSetup raw`, so this theorem does not cover an
+arbitrary accepted witness. -/
 theorem expectedBindingAndRowsZero_implies_securityOrCollision
     {claimedProgram : Lifecycle.Stage1.Application.Program}
     (claimedFits : PerApplicationFixedPoint.FitsTwoPow28 claimedProgram)

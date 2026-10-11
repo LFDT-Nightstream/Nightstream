@@ -50,7 +50,7 @@ fn raw_pi_ccs_verifier_rejects_malformed_ce_shape_without_panicking() {
 }
 
 #[test]
-fn public_pi_ccs_verifier_handles_documented_unpadded_v1_1_evaluations() {
+fn public_pi_ccs_verifier_handles_documented_unpadded_v1_2_evaluations() {
     let structure =
         CcsStructure::new(vec![Mat::identity(D)], SparsePoly::new(1, Vec::new())).expect("valid identity CCS");
     let params = NeoParams::goldilocks_auto_r1cs_ccs(D).expect("params");
@@ -75,7 +75,7 @@ fn public_pi_ccs_verifier_handles_documented_unpadded_v1_1_evaluations() {
     let output = claim.clone();
     let proof = PiCcsProof::new(Vec::new());
     let result = catch_unwind(AssertUnwindSafe(|| {
-        let mut transcript = Poseidon2Transcript::new(b"redteam/unpadded-v1_1-evaluations");
+        let mut transcript = Poseidon2Transcript::new(b"redteam/unpadded-v1_2-evaluations");
         neo_reductions::pi_ccs_verify(
             &mut transcript,
             &params,

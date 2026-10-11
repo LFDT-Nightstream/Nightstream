@@ -13,7 +13,7 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Lifecycle.Stage1
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
@@ -63,9 +63,8 @@ theorem circuitPackage_implies_typed_base
         Data.logicalWidth Data.publicFits)
       NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.phaseOffset
       (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) = 0) :
-    StatementAbsorption.evalRunning
-        (NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.outputRunningExpr
-          Data.logicalWidth Data.publicFits)
+    NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.outputRunning
+        Data.logicalWidth Data.publicFits
         (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) =
       defaultRunning (logicalWidth := Data.logicalWidth)
         (publicFits := Data.publicFits) := by
@@ -83,10 +82,14 @@ theorem circuitPackage_implies_typed_recursive
       (NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.interface
         Data.logicalWidth Data.publicFits)
       NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.phaseOffset
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) ≠ 0) :
-    StatementAbsorption.evalRunning
-        (NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.outputRunningExpr
+      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) ≠ 0)
+    (canonical : Lifecycle.ChildrenCanonical
+      (StatementAbsorption.evalRunning
+        (NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.recursiveRunningExpr
           Data.logicalWidth Data.publicFits)
+        (NightstreamFPrime.Layout.Stage1.Spartan.pullback env))) :
+    NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.outputRunning
+        Data.logicalWidth Data.publicFits
         (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) =
       NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.piDecRunningOutput
         relation
@@ -94,6 +97,6 @@ theorem circuitPackage_implies_typed_recursive
   exact
     NightstreamFPrime.Layout.Stage1.RunningTransitionLayout.physical_implies_typed_recursive
       relation _
-        (circuitPackage_implies_physicalHolds env holds) iterationNonzero
+        (circuitPackage_implies_physicalHolds env holds) iterationNonzero canonical
 
 end NightstreamFPrime.Export.Stage1.RunningTransitionPackage

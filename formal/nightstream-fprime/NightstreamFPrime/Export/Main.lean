@@ -146,7 +146,7 @@ def prepareWitnessGroups : IO PreparedWitnessTasks := do
 def permutationActionShapeNodeCount :
     Stage1.PermutationPlan.ActionShape → Nat
   | .absorb input => (input.map exprNodeCount).sum
-  | .squeezeK => 0
+  | .readK _ => 0
 
 def permutationBlockNodeCount : Stage1.PermutationPlan.Block → Nat
   | .actions block =>
@@ -327,6 +327,9 @@ def writePerApplicationWitnessBatches
   writeByte handle 91
   let first ← writeShiftedWitnessBatchItems shift handle true
     (Stage1.Data.liftPilotBatches (PilotData.priorWordBatches ()))
+  let first ← writeShiftedWitnessBatchItems shift handle first
+    (Stage1.WitnessProgram.statementBindingBatches Stage1.Data.logicalWidth
+      Stage1.Data.publicFits)
   let first ← writeShiftedPreparedWitnessGroups shift handle first tasks
   let first ← writeShiftedWitnessBlockItems shift handle first
     (Stage1.WitnessPlan.canonicalBlocks

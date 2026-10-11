@@ -14,7 +14,7 @@ open ApplicationRetainedBlocks
 open ApplicationRetainedGeometry
 
 private theorem outputEnd_le_witnessStart :
-    32152 ≤ ApplicationInputs.witnessStart := by
+    55638 ≤ ApplicationInputs.witnessStart := by
   norm_num [ApplicationInputs.witnessStart, Spartan.privateColumnCount]
 
 private theorem witnessStart_le_localStart (application : ApplicationProgram) :
@@ -69,7 +69,7 @@ theorem outputRange_form?
     (SourceRange.form?_ofSemantic
       (PiRLCPoseidonGeometry.outputInputBlock application)
       (PiRLCPoseidonGeometry.outputInputStart application)
-      32148 Lifecycle.Stage1.Application.stateWordCount
+      55634 Lifecycle.Stage1.Application.stateWordCount
       ApplicationInputs.currentWordStart
       (PiRLCPoseidonGeometry.outputInputFits (pilotGeometry geometry))
       (by norm_num [PiRLCPoseidonGeometry.outputInputBlock,
@@ -106,22 +106,22 @@ theorem substitution_location_form?
       have selected := inputRange_form? geometry index
       simp only [ApplicationDirectPlan.Location.sourceColumn]
       rw [ApplicationInputs.inputColumn_value]
-      change (substitution application).form? logicalWidth (35 + index.val) =
+      change (substitution application).form? logicalWidth (27815 + index.val) =
         some ((ApplicationDirectPlan.Location.input index).form geometry)
       rw [ApplicationInputs.inputColumn_value] at selected
-      change (inputRange application).form? logicalWidth (35 + index.val) =
+      change (inputRange application).form? logicalWidth (27815 + index.val) =
         some ((ApplicationDirectPlan.Location.input index).form geometry) at selected
       have outputNone := SourceRange.form?_eq_none_of_before
-        (outputRange application) logicalWidth (35 + index.val) (by
-          change 35 + index.val < 32148
+        (outputRange application) logicalWidth (27815 + index.val) (by
+          change 27815 + index.val < 55634
           omega)
       have witnessNone := SourceRange.form?_eq_none_of_before
-        (witnessRange application) logicalWidth (35 + index.val) (by
-          change 35 + index.val < ApplicationInputs.witnessStart
+        (witnessRange application) logicalWidth (27815 + index.val) (by
+          change 27815 + index.val < ApplicationInputs.witnessStart
           omega)
       have localNone := SourceRange.form?_eq_none_of_before
-        (localRange application) logicalWidth (35 + index.val) (by
-          change 35 + index.val < ApplicationInputs.localStart application
+        (localRange application) logicalWidth (27815 + index.val) (by
+          change 27815 + index.val < ApplicationInputs.localStart application
           have localAfter := witnessStart_le_localStart application
           omega)
       simp [substitution, SourceSubstitution.form?, selected, outputNone,
@@ -138,12 +138,12 @@ theorem substitution_location_form?
       have inputNone := SourceRange.form?_eq_none_of_after
         (inputRange application) logicalWidth
           (ApplicationInputs.witnessStart + index.val) (by
-            change 35 + 4 ≤ ApplicationInputs.witnessStart + index.val
+            change 27815 + 4 ≤ ApplicationInputs.witnessStart + index.val
             omega)
       have outputNone := SourceRange.form?_eq_none_of_after
         (outputRange application) logicalWidth
           (ApplicationInputs.witnessStart + index.val) (by
-            change 32148 + 4 ≤
+            change 55634 + 4 ≤
               ApplicationInputs.witnessStart + index.val
             omega)
       have localNone := SourceRange.form?_eq_none_of_before
@@ -163,16 +163,16 @@ theorem substitution_location_form?
       rw [ApplicationInputs.outputColumn_value]
       rw [ApplicationInputs.outputColumn_value] at selected
       have inputNone := SourceRange.form?_eq_none_of_after
-        (inputRange application) logicalWidth (32148 + index.val) (by
-          change 35 + 4 ≤ 32148 + index.val
+        (inputRange application) logicalWidth (55634 + index.val) (by
+          change 27815 + 4 ≤ 55634 + index.val
           omega)
       have witnessNone := SourceRange.form?_eq_none_of_before
-        (witnessRange application) logicalWidth (32148 + index.val) (by
-          change 32148 + index.val < ApplicationInputs.witnessStart
+        (witnessRange application) logicalWidth (55634 + index.val) (by
+          change 55634 + index.val < ApplicationInputs.witnessStart
           omega)
       have localNone := SourceRange.form?_eq_none_of_before
-        (localRange application) logicalWidth (32148 + index.val) (by
-          change 32148 + index.val < ApplicationInputs.localStart application
+        (localRange application) logicalWidth (55634 + index.val) (by
+          change 55634 + index.val < ApplicationInputs.localStart application
           have localAfter := witnessStart_le_localStart application
           omega)
       simp [substitution, SourceSubstitution.form?, inputNone, selected,
@@ -184,14 +184,14 @@ theorem substitution_location_form?
       have inputNone := SourceRange.form?_eq_none_of_after
         (inputRange application) logicalWidth
           (ApplicationInputs.localStart application + index.val) (by
-            change 35 + 4 ≤
+            change 27815 + 4 ≤
               ApplicationInputs.localStart application + index.val
             have localAfter := witnessStart_le_localStart application
             omega)
       have outputNone := SourceRange.form?_eq_none_of_after
         (outputRange application) logicalWidth
           (ApplicationInputs.localStart application + index.val) (by
-            change 32148 + 4 ≤
+            change 55634 + 4 ≤
               ApplicationInputs.localStart application + index.val
             have localAfter := witnessStart_le_localStart application
             omega)

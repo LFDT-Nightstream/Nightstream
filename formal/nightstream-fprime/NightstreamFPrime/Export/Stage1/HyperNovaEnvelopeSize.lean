@@ -3,8 +3,10 @@ import NightstreamFPrime.Export.Stage1.PerApplicationTerminal
 /-!
 Owns the iteration-independent size of the existing HyperNova proof envelope.
 The count includes the tag, one program-counter word, all running and fresh
-claims through their existing field serializers, and every coordinate of all
-running and fresh openings. The accepted program counter is proved to be one.
+claims, and every coordinate of all running and fresh openings. A running
+claim counts its shared fields and all sixteen child public inputs, not the
+hashed state encoding, which stores only the packed parent. The accepted
+program counter is proved to be one.
 
 Opening sizes count their complete finite coordinate domains without creating
 coordinate lists. This is a dense field-word count with the existing claim
@@ -42,7 +44,10 @@ def wordCount (application : Program)
   | .bottom => 1
   | .recursive payload =>
       2 + ((List.finRange slotCount).map fun slot =>
-        (serializeRunning
+        (serializeRunningFields
+          (publicFits := PerApplicationFixedPoint.publicFits application)
+          (payload.running slot)).length +
+        (serializeChildPublicInputs
           (publicFits := PerApplicationFixedPoint.publicFits application)
           (payload.running slot)).length +
         ((List.finRange productionShape.runningCount).map fun source =>
@@ -55,11 +60,13 @@ def wordCount (application : Program)
       assignmentWords application payload.freshWitness
 
 /-- The size bound depends only on the selected application and production
-dimensions. The running claim size comes from `serializeRunning_length`. -/
+dimensions. A running claim has 27,704 field words
+(`serializeRunningFields_length`) and 4,320 child public-input words
+(`serializeChildPublicInputs_length`). -/
 def fixedWordBound (application : Program) : Nat :=
   let width := Phi81CarrierLayout.carrierWidth
     (PerApplicationFixedPoint.logicalWidth application)
-  2 + slotCount * (32073 + productionShape.runningCount * width) +
+  2 + slotCount * (27704 + 4320 + productionShape.runningCount * width) +
     productionShape.freshCount *
       (productionProfile.commitmentWidth * ringDegree + 1 +
         ringDegree * publicRingColumns + 1) + width
@@ -74,8 +81,9 @@ private theorem wordCount_le (application : Program)
       omega
   | recursive payload =>
       apply Nat.le_of_eq
-      simp [wordCount, assignmentWords, fixedWordBound, serializeRunning_length,
-        fullShape, Phi81Relation.Shape.publicWidth, Nat.add_assoc]
+      simp [wordCount, assignmentWords, fixedWordBound, serializeRunningFields_length,
+        serializeChildPublicInputs_length, fullShape, Phi81Relation.Shape.publicWidth,
+        Nat.add_assoc]
 
 /-- Every accepted selected terminal proof has the fixed dense field-word
 bound and, if recursive, the constant program counter one. Neither conclusion
@@ -99,7 +107,7 @@ theorem accepted_wordCount_le
   | recursive payload =>
       obtain ⟨validPc, _⟩ :=
         ((PerApplicationTerminal.holds_recursive_iff application fits
-          commitmentSetup statement payload).mp accepted).2
+          commitmentSetup statement payload).mp accepted).2.2
       change 1 ≤ payload.pc ∧ payload.pc ≤ 1 at validPc
       exact Nat.le_antisymm validPc.2 validPc.1
 

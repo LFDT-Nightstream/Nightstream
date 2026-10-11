@@ -220,7 +220,7 @@ The checks after the CPU prefix change were:
 | Metal crate test targets without the legacy adapter | Release build passed; device execution blocked |
 | Nightstream all targets with `metal,cuda` | Release check passed |
 | Clippy inspection of Nightstream, Metal, and reductions | No warnings on changed lines; existing warnings remain |
-| Legacy `pi_ccs_v1_1_engine_parity` suite | Seven passed, eight failed at the unchanged missing-running-claim guard |
+| Legacy `pi_ccs_v1_2_engine_parity` suite | Seven passed, eight failed at the unchanged missing-running-claim guard |
 
 The legacy parity failures occur before the new prefix or matrix execution.
 The fixtures call the digest-only prover with no running claim, while the

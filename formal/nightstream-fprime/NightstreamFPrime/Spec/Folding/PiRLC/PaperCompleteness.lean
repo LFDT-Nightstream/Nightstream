@@ -6,7 +6,7 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 /-!
 Deterministic completeness and public coins for the paper `Pi_RLC` reduction.
 
-Source: SuperNeo Section 7.4 and Appendix D.5, Lemma 9.
+Source: SuperNeo v1.2 Section 7.4 and Appendix B.3, Lemma 11.
 
 Owns: perfect completeness for an arbitrary valid public `CE(b)` batch, the
 verifier's public challenge vector, the honest combined witness, and a

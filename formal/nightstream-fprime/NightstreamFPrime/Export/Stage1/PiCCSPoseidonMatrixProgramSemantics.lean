@@ -2,7 +2,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSPoseidonMatrixProgram
 
 /-!
 Proves that the compact PiCCS Poseidon2 matrix program reconstructs the exact
-action-driven input states and squeeze-binding rows.
+action-driven input states.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSPoseidonMatrixProgram
@@ -25,7 +25,7 @@ private theorem previousRule_zero
 private theorem previousRule_succ
     {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
-    (invocationOffset : Fin 1120) (lane : Fin 16) :
+    (invocationOffset : Fin 947) (lane : Fin 16) :
     (previousRule program).form? logicalWidth
         (PiCCSOrdinaryRetainedGeometry.oneColumn geometry).val
         (1 + invocationOffset.val) lane.val =
@@ -57,7 +57,7 @@ private theorem previousRule_succ
               slotBound selected⟩) lane)) by
     simpa [previousRule] using!
       PoseidonInput.Rule.external_form?_ofSemantic
-        (region := PoseidonInput.Region.mk 1 1120 0 16)
+        (region := PoseidonInput.Region.mk 1 947 0 16)
         invocationOffset lane lane.isLt
         (PiCCSPoseidonPlan.schedule program).block
         (PiCCSPoseidonPlan.retainedStart program)
@@ -95,9 +95,9 @@ private theorem previousRule_result
     rw [invocationEq]
     exact previousRule_zero geometry lane
   · rw [if_neg first]
-    let invocationOffset : Fin 1120 :=
+    let invocationOffset : Fin 947 :=
       ⟨invocation.val - 1, by
-        have bound : invocation.val < 1121 := by
+        have bound : invocation.val < 948 := by
           simpa only [PiCCSPoseidonPlan.invocationCount_eq] using
             invocation.isLt
         omega⟩
@@ -112,68 +112,37 @@ private theorem previousRule_result
     unfold PiCCSPoseidonPlan.previousOutput
     rw [dif_neg first]
 
-private theorem payloadRule_absorb
+private theorem payloadRule_lane
     {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
-    (invocation : Fin PiCCSPoseidonPlan.invocationCount) (lane : Fin 12)
-    (block : List NightstreamFPrime.Circuit.Expr)
-    (found : PiCCSActionPayloadBlock.kindAt invocation = .absorb block) :
+    (invocation : Fin PiCCSPoseidonPlan.invocationCount) (lane : Fin 12) :
     (payloadRule program).form? logicalWidth
         (PiCCSOrdinaryRetainedGeometry.oneColumn geometry).val invocation.val lane.val =
       some (some (PiCCSPoseidonPlan.payloadForm (PiCCSPayloadWiring.form geometry)
         invocation ⟨lane.val, by change lane.val < 16; omega⟩)) := by
-  have selected : tagAt invocation = .absorb := by
-    simp [tagAt, invocationTag, found]
   have exactTerm : (payloadRule program).term.form? logicalWidth
       (PiCCSOrdinaryRetainedGeometry.oneColumn geometry).val invocation.val lane.val =
       some (PiCCSPayloadWiring.form geometry (Fin.encodeProd (invocation, lane))) := by
-    change (PoseidonInput.Term.taggedAffine
+    change (PoseidonInput.Term.affine
       (PiCCSPayloadMatrix.table ())
-      (PiCCSOrdinaryMatrixProgram.substitution program)
-      (PoseidonInput.TagTable.ofSemantic tagAt) .absorb 12).form? logicalWidth
+      (PiCCSOrdinaryMatrixProgram.substitution program) 12).form? logicalWidth
         (PiCCSOrdinaryRetainedGeometry.oneColumn geometry).val invocation.val lane.val = _
     rw [PiCCSPayloadMatrix.table_eq_ofSemantic]
-    exact (PoseidonInput.Term.taggedAffine_form?_of_eq
+    exact (PoseidonInput.Term.affine_form?_ofSemantic
       (laneCount := 12)
       PiCCSPayloadMatrix.combination (PiCCSOrdinaryMatrixProgram.substitution program)
-      (PiCCSOrdinaryRetainedGeometry.oneColumn geometry) tagAt .absorb invocation lane selected).trans
+      (PiCCSOrdinaryRetainedGeometry.oneColumn geometry) invocation lane).trans
       (PiCCSPayloadMatrix.compileCombination_eq geometry (Fin.encodeProd (invocation, lane)))
   have offsets : (payloadRule program).region.offsets? invocation.val lane.val =
       some (invocation.val, lane.val) := by
     simpa only [payloadRule, Nat.zero_add] using
       (PoseidonInput.Region.offsets?_of_offsets
-        (PoseidonInput.Region.mk 0 1121 0 12) invocation lane)
+        (PoseidonInput.Region.mk 0 948 0 12) invocation lane)
   unfold PoseidonInput.Rule.form?
   rw [offsets]
   simp only
   rw [exactTerm]
   simp [PiCCSPoseidonPlan.payloadForm, Spec.Poseidon2.rate, lane.isLt]
-
-private theorem payloadRule_notAbsorb
-    {program : Program} {logicalWidth : Nat}
-    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
-    (invocation : Fin PiCCSPoseidonPlan.invocationCount) (lane : Fin 12)
-    (notSelected : tagAt invocation ≠ .absorb) :
-    (payloadRule program).form? logicalWidth
-        (PiCCSOrdinaryRetainedGeometry.oneColumn geometry).val invocation.val lane.val =
-      some (some .empty) := by
-  have exactTerm : (payloadRule program).term.form? logicalWidth
-      (PiCCSOrdinaryRetainedGeometry.oneColumn geometry).val invocation.val lane.val =
-      some .empty := by
-    exact PoseidonInput.Term.taggedAffine_form?_of_ne
-      (PiCCSPayloadMatrix.table ()) (PiCCSOrdinaryMatrixProgram.substitution program)
-      (PiCCSOrdinaryRetainedGeometry.oneColumn geometry).val 12 lane.val
-      tagAt .absorb invocation notSelected
-  have offsets : (payloadRule program).region.offsets? invocation.val lane.val =
-      some (invocation.val, lane.val) := by
-    simpa only [payloadRule, Nat.zero_add] using
-      (PoseidonInput.Region.offsets?_of_offsets
-        (PoseidonInput.Region.mk 0 1121 0 12) invocation lane)
-  unfold PoseidonInput.Rule.form?
-  rw [offsets]
-  simp only
-  rw [exactTerm]
-  rfl
 
 private theorem payloadRule_outside
     {program : Program} {logicalWidth : Nat}
@@ -206,7 +175,7 @@ theorem inputProgram_form?
               some (some (PiCCSPoseidonPlan.payloadForm (PiCCSPayloadWiring.form geometry) invocation
                 lane)) := by
           simpa [selectedLane] using
-            payloadRule_absorb geometry invocation selectedLane block kindFound
+            payloadRule_lane geometry invocation selectedLane
         have folded := PoseidonInput.Program.two_form?_of_results
           (previousRule program) (payloadRule program)
           (PiCCSOrdinaryRetainedGeometry.oneColumn geometry).val invocation.val lane.val
@@ -225,61 +194,6 @@ theorem inputProgram_form?
             PiCCSPoseidonPlan.previousOutput, PiCCSPoseidonPlan.payloadForm,
             Spec.Poseidon2.rate, rateLane, SparseForm.add,
             SparseForm.empty] using folded
-  | squeezeFirst expected =>
-      by_cases rateLane : lane.val < 12
-      · let selectedLane : Fin 12 := ⟨lane.val, rateLane⟩
-        have payload :
-            (payloadRule program).form? logicalWidth
-                (PiCCSOrdinaryRetainedGeometry.oneColumn geometry).val invocation.val
-                lane.val = some (some .empty) := by
-          simpa [selectedLane] using
-            payloadRule_notAbsorb geometry invocation selectedLane
-              (by simp [tagAt, invocationTag, kindFound])
-        have folded := PoseidonInput.Program.two_form?_of_results
-          (previousRule program) (payloadRule program)
-          (PiCCSOrdinaryRetainedGeometry.oneColumn geometry).val invocation.val lane.val
-          _ _ previous payload
-        by_cases first : invocation.val = 0 <;>
-          simpa [inputProgram, PiCCSPoseidonPlan.inputState, kindFound, first,
-            PiCCSPoseidonPlan.previousOutput, SparseForm.add,
-            SparseForm.empty] using folded
-      · have payload := payloadRule_outside geometry invocation lane (by omega)
-        have folded := PoseidonInput.Program.two_form?_of_results
-          (previousRule program) (payloadRule program)
-          (PiCCSOrdinaryRetainedGeometry.oneColumn geometry).val invocation.val lane.val
-          _ _ previous payload
-        by_cases first : invocation.val = 0 <;>
-          simpa [inputProgram, PiCCSPoseidonPlan.inputState, kindFound, first,
-            PiCCSPoseidonPlan.previousOutput, SparseForm.add,
-            SparseForm.empty] using folded
-  | squeezeSecond =>
-      by_cases rateLane : lane.val < 12
-      · let selectedLane : Fin 12 := ⟨lane.val, rateLane⟩
-        have payload :
-            (payloadRule program).form? logicalWidth
-                (PiCCSOrdinaryRetainedGeometry.oneColumn geometry).val invocation.val
-                lane.val = some (some .empty) := by
-          simpa [selectedLane] using
-            payloadRule_notAbsorb geometry invocation selectedLane
-              (by simp [tagAt, invocationTag, kindFound])
-        have folded := PoseidonInput.Program.two_form?_of_results
-          (previousRule program) (payloadRule program)
-          (PiCCSOrdinaryRetainedGeometry.oneColumn geometry).val invocation.val lane.val
-          _ _ previous payload
-        by_cases first : invocation.val = 0 <;>
-          simpa [inputProgram, PiCCSPoseidonPlan.inputState, kindFound, first,
-            PiCCSPoseidonPlan.previousOutput, SparseForm.add,
-            SparseForm.empty] using folded
-      · have payload := payloadRule_outside geometry invocation lane (by omega)
-        have folded := PoseidonInput.Program.two_form?_of_results
-          (previousRule program) (payloadRule program)
-          (PiCCSOrdinaryRetainedGeometry.oneColumn geometry).val invocation.val lane.val
-          _ _ previous payload
-        by_cases first : invocation.val = 0 <;>
-          simpa [inputProgram, PiCCSPoseidonPlan.inputState, kindFound, first,
-            PiCCSPoseidonPlan.previousOutput, SparseForm.add,
-            SparseForm.empty] using folded
-
 theorem inputProgram_state?
     {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
@@ -326,18 +240,6 @@ theorem poseidonBlock_row?
           (PiCCSOrdinaryRetainedGeometry.poseidonGeometry geometry))
       (inputProgram_state? geometry) global
 
-theorem bindingBlock_row?
-    {program : Program} {logicalWidth : Nat}
-    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
-    (row : Fin PiCCSPoseidonPlan.bindingRowCount) :
-    (bindingBlock geometry).row? logicalWidth row.val =
-      some (PinFamilyPlan.forms
-        (PiCCSPoseidonPlan.bindingInterface (PiCCSPayloadWiring.form geometry)
-          (PiCCSOrdinaryRetainedGeometry.poseidonGeometry geometry)) row) := by
-  exact Pin.Block.row?_ofSemantic
-    (PiCCSPoseidonPlan.bindingInterface (PiCCSPayloadWiring.form geometry)
-          (PiCCSOrdinaryRetainedGeometry.poseidonGeometry geometry)) row
-
 theorem matrixProgram_poseidon_row?
     {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
@@ -350,94 +252,15 @@ theorem matrixProgram_poseidon_row?
         (PiCCSPoseidonPlan.interface (PiCCSPayloadWiring.form geometry)
           (PiCCSOrdinaryRetainedGeometry.poseidonGeometry geometry)) decoded.1 decoded.2) := by
   rw [show matrixProgram geometry = MatrixProgram.Program.mk
-      [.poseidon (poseidonBlock geometry), .pin (bindingBlock geometry)] by
-    rfl]
-  rw [MatrixProgram.Program.two_first_row?
-    (.poseidon (poseidonBlock geometry)) (.pin (bindingBlock geometry))
-    logicalWidth sourceRow global.val (by exact global.isLt)]
+      [.poseidon (poseidonBlock geometry)] by rfl]
+  rw [MatrixProgram.Program.singleton_row?, if_pos (by
+    change global.val < (poseidonBlock geometry).rowCount
+    rw [poseidonBlock, Poseidon.Block.ofSemantic_rowCount]
+    exact global.isLt)]
   exact poseidonBlock_row? geometry global
 
-theorem matrixProgram_binding_row?
-    {program : Program} {logicalWidth : Nat}
-    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
-    (sourceRow : Nat → Option R1CS.Row)
-    (row : Fin PiCCSPoseidonPlan.bindingRowCount) :
-    (matrixProgram geometry).row? logicalWidth sourceRow
-        (PiCCSPoseidonPlan.invocationCount * 150 + row.val) =
-      some (PinFamilyPlan.forms
-        (PiCCSPoseidonPlan.bindingInterface (PiCCSPayloadWiring.form geometry)
-          (PiCCSOrdinaryRetainedGeometry.poseidonGeometry geometry)) row).meaningfulForm := by
-  let left : MatrixProgram.Block := .poseidon (poseidonBlock geometry)
-  let right : MatrixProgram.Block := .pin (bindingBlock geometry)
-  have leftCount : left.rowCount =
-      PiCCSPoseidonPlan.invocationCount * 150 := by
-    change (poseidonBlock geometry).rowCount = _
-    exact Poseidon.Block.ofSemantic_rowCount
-      (PiCCSPoseidonPlan.schedule program)
-      (PiCCSPoseidonPlan.retainedStart program)
-      (PiCCSOrdinaryRetainedGeometry.oneColumn geometry) (inputProgram program)
-  have rightCount : right.rowCount = PiCCSPoseidonPlan.bindingRowCount := by
-    change (bindingBlock geometry).rowCount = _
-    exact Pin.Block.ofSemantic_rowCount
-      (PiCCSPoseidonPlan.bindingInterface (PiCCSPayloadWiring.form geometry)
-          (PiCCSOrdinaryRetainedGeometry.poseidonGeometry geometry))
-  have leftBound : left.rowCount ≤
-      PiCCSPoseidonPlan.invocationCount * 150 + row.val := by
-    rw [leftCount]
-    omega
-  have rightBound :
-      PiCCSPoseidonPlan.invocationCount * 150 + row.val - left.rowCount <
-        right.rowCount := by
-    rw [leftCount, rightCount, Nat.add_sub_cancel_left]
-    exact row.isLt
-  have selected := MatrixProgram.Program.two_second_row? left right
-    logicalWidth sourceRow
-    (PiCCSPoseidonPlan.invocationCount * 150 + row.val)
-    leftBound rightBound
-  rw [leftCount, Nat.add_sub_cancel_left] at selected
-  have wrapped : right.row? logicalWidth sourceRow row.val =
-      some (PinFamilyPlan.forms
-        (PiCCSPoseidonPlan.bindingInterface (PiCCSPayloadWiring.form geometry)
-          (PiCCSOrdinaryRetainedGeometry.poseidonGeometry geometry)) row).meaningfulForm := by
-    change (do
-      let forms ← (bindingBlock geometry).row? logicalWidth row.val
-      pure forms.meaningfulForm) = _
-    rw [bindingBlock_row? geometry row]
-    rfl
-  rw [show matrixProgram geometry = MatrixProgram.Program.mk [left, right] by
-    rfl]
-  rw [selected, wrapped]
-
-theorem matrixProgram_sbox_plan_row?
-    {program : Program} {logicalWidth : Nat}
-    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
-    (sourceRow : Nat → Option R1CS.Row)
-    (global : Fin (PiCCSPoseidonPlan.sboxPlan (PiCCSPayloadWiring.form geometry)
-          (PiCCSOrdinaryRetainedGeometry.poseidonGeometry geometry)).rowCount) :
-    (matrixProgram geometry).row? logicalWidth sourceRow global.val =
-      some ((PiCCSPoseidonPlan.sboxPlan (PiCCSPayloadWiring.form geometry)
-          (PiCCSOrdinaryRetainedGeometry.poseidonGeometry geometry)).forms global) := by
-  simpa [PiCCSPoseidonPlan.sboxPlan, PoseidonSboxFamilyPlan.plan,
-    ProductionRelation.Plan.indexed] using
-      matrixProgram_poseidon_row? geometry sourceRow global
-
-theorem matrixProgram_binding_plan_row?
-    {program : Program} {logicalWidth : Nat}
-    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
-    (sourceRow : Nat → Option R1CS.Row)
-    (row : Fin (PiCCSPoseidonPlan.bindingPlan (PiCCSPayloadWiring.form geometry)
-          (PiCCSOrdinaryRetainedGeometry.poseidonGeometry geometry)).rowCount) :
-    (matrixProgram geometry).row? logicalWidth sourceRow
-        ((PiCCSPoseidonPlan.sboxPlan (PiCCSPayloadWiring.form geometry)
-          (PiCCSOrdinaryRetainedGeometry.poseidonGeometry geometry)).rowCount + row.val) =
-      some ((PiCCSPoseidonPlan.bindingPlan (PiCCSPayloadWiring.form geometry)
-          (PiCCSOrdinaryRetainedGeometry.poseidonGeometry geometry)).forms row) := by
-  simpa [PiCCSPoseidonPlan.sboxPlan, PiCCSPoseidonPlan.bindingPlan,
-    PinFamilyPlan.plan] using
-      matrixProgram_binding_row? geometry sourceRow row
-
 /-- Every compact PiCCS Poseidon row is the exact row of the canonical
-Poseidon-and-binding plan. -/
+Poseidon plan. -/
 theorem matrixProgram_row?
     {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
@@ -447,57 +270,8 @@ theorem matrixProgram_row?
     (matrixProgram geometry).row? logicalWidth sourceRow global.val =
       some ((PiCCSPoseidonPlan.plan (PiCCSPayloadWiring.form geometry)
           (PiCCSOrdinaryRetainedGeometry.poseidonGeometry geometry)).forms global) := by
-  let sboxPlan := PiCCSPoseidonPlan.sboxPlan (PiCCSPayloadWiring.form geometry)
-          (PiCCSOrdinaryRetainedGeometry.poseidonGeometry geometry)
-  let bindingPlan := PiCCSPoseidonPlan.bindingPlan (PiCCSPayloadWiring.form geometry)
-          (PiCCSOrdinaryRetainedGeometry.poseidonGeometry geometry)
-  cases selected : ProductionRelation.Plan.splitIndex
-      sboxPlan.rowCount bindingPlan.rowCount global with
-  | inl sboxRow =>
-      have globalEq := ProductionRelation.Plan.leftIndex_of_splitIndex_eq
-        sboxPlan.rowCount bindingPlan.rowCount global sboxRow selected
-      rw [← globalEq]
-      calc
-        (matrixProgram geometry).row? logicalWidth sourceRow
-            (ProductionRelation.Plan.leftIndex sboxPlan.rowCount
-              bindingPlan.rowCount sboxRow).val =
-            some (sboxPlan.forms sboxRow) := by
-              simpa only [ProductionRelation.Plan.leftIndex_val,
-                sboxPlan] using
-                  matrixProgram_sbox_plan_row? geometry sourceRow sboxRow
-        _ = some ((PiCCSPoseidonPlan.plan (PiCCSPayloadWiring.form geometry)
-          (PiCCSOrdinaryRetainedGeometry.poseidonGeometry geometry)).forms
-              (ProductionRelation.Plan.leftIndex sboxPlan.rowCount
-                bindingPlan.rowCount sboxRow)) := by
-              apply congrArg some
-              funext port
-              simpa [PiCCSPoseidonPlan.plan, sboxPlan, bindingPlan] using
-                (ProductionRelation.Plan.append_forms_left sboxPlan bindingPlan
-                  (PiCCSPoseidonPlan.combinedRowCount_le (PiCCSPayloadWiring.form geometry)
-          (PiCCSOrdinaryRetainedGeometry.poseidonGeometry geometry))
-                  sboxRow port).symm
-  | inr bindingRow =>
-      have globalEq := ProductionRelation.Plan.rightIndex_of_splitIndex_eq
-        sboxPlan.rowCount bindingPlan.rowCount global bindingRow selected
-      rw [← globalEq]
-      calc
-        (matrixProgram geometry).row? logicalWidth sourceRow
-            (ProductionRelation.Plan.rightIndex sboxPlan.rowCount
-              bindingPlan.rowCount bindingRow).val =
-            some (bindingPlan.forms bindingRow) := by
-              simpa only [ProductionRelation.Plan.rightIndex_val,
-                sboxPlan, bindingPlan] using
-                  matrixProgram_binding_plan_row? geometry sourceRow bindingRow
-        _ = some ((PiCCSPoseidonPlan.plan (PiCCSPayloadWiring.form geometry)
-          (PiCCSOrdinaryRetainedGeometry.poseidonGeometry geometry)).forms
-              (ProductionRelation.Plan.rightIndex sboxPlan.rowCount
-                bindingPlan.rowCount bindingRow)) := by
-              apply congrArg some
-              funext port
-              simpa [PiCCSPoseidonPlan.plan, sboxPlan, bindingPlan] using
-                (ProductionRelation.Plan.append_forms_right sboxPlan
-                  bindingPlan (PiCCSPoseidonPlan.combinedRowCount_le (PiCCSPayloadWiring.form geometry)
-          (PiCCSOrdinaryRetainedGeometry.poseidonGeometry geometry))
-                  bindingRow port).symm
+  simpa [PiCCSPoseidonPlan.plan, PoseidonSboxFamilyPlan.plan,
+    ProductionRelation.Plan.indexed] using
+      matrixProgram_poseidon_row? geometry sourceRow global
 
 end NightstreamFPrime.Export.Stage1.PiCCSPoseidonMatrixProgram

@@ -21,7 +21,7 @@ private abbrev selectedRelation := PerApplicationFixedPoint.relation
 private abbrev selectedProgram := PerApplicationMatrixProgram.matrixProgram
   Poseidon2HashChainV1Package.application
 private abbrev selectedLayout :=
-  (Lifecycle.PiRLC.v1_1.InputBinding.relationSource selectedRelation).cubeLayout
+  (Lifecycle.PiRLC.v1_2.InputBinding.relationSource selectedRelation).cubeLayout
 private noncomputable abbrev selectedStatement (input : PiCCSPublicReplay.Input) :=
   (ProductionKey.key selectedRelation Poseidon2HashChainV1Setup.productionAjtaiKey).statement
     (PiCCSPublicReplay.running input) (PiCCSPublicReplay.fresh input)

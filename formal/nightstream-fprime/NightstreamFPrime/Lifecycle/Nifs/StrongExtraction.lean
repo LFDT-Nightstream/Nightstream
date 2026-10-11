@@ -4,7 +4,10 @@ import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongInterface
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongExtraction
 
 /-!
-Definition 17 for the selected NIFS PiCCS prefix. Every statement, opening
+Strong extraction for the selected NIFS PiCCS prefix with the square-root
+success loss. This is not the SuperNeo v1.2 Definition 18 loss: v1.2
+Appendix B.2 replaces the square root with the retry bound
+`StrongProbability.source_success_ge_retry`. Every statement, opening
 map, field law, and degree comes from ProductionKey. The probability-only
 entry supports a mathematical suffix coupling. The costed entry charges an
 actual one-call implementation; it does not charge sampling a coupling table.
@@ -82,7 +85,7 @@ theorem successProbability_eq :
     (statement relation ajtai running fresh) callCorrect correct
 
 include callCorrect correct in
-/-- The selected strong extractor has the paper loss and expected polynomial
+/-- The selected strong extractor has the square-root loss and expected polynomial
 work under the actual global call/check and access implementation premises. -/
 theorem probability_and_expected_work
     (accessBound : Nat)

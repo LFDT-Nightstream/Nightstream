@@ -14,7 +14,7 @@ open NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal
 open NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal.WiringShift
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 

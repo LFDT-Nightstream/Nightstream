@@ -7,12 +7,14 @@ project cap and shared queue; the coordinator holds neither across commands.
 """
 
 import argparse
+from contextlib import closing
 import filecmp
 import hashlib
 import json
 import os
 from pathlib import Path
 import re
+import select
 import shutil
 import signal
 import subprocess
@@ -104,6 +106,40 @@ def mutation_rejections(manifest, log):
     return {**owners, "internal": ["unbounded_parent", "rejected_C_stops_D"]}
 
 
+# The process class, also while tests replace `subprocess.Popen`.
+POPEN = subprocess.Popen
+
+
+def wait_for_exit(process, timeout):
+    """`process.wait(timeout=timeout)`, woken by the exit of the process itself.
+
+    With a timeout, `Popen.wait` polls with sleeps of up to 50 ms, which added up to that much to
+    every command. A kqueue (macOS) or a pidfd (Linux) reports the exit. The final wait uses
+    the remaining time because the exit notification can arrive before the process is reapable.
+    """
+    if timeout is None or not isinstance(process, POPEN) or process.returncode is not None:
+        return process.wait(timeout=timeout)
+    deadline = time.monotonic() + timeout
+    try:
+        if hasattr(select, "kqueue"):
+            with closing(select.kqueue()) as queue:
+                queue.control([select.kevent(
+                    process.pid, filter=select.KQ_FILTER_PROC,
+                    flags=select.KQ_EV_ADD | select.KQ_EV_ONESHOT, fflags=select.KQ_NOTE_EXIT)],
+                    1, timeout)
+        elif hasattr(os, "pidfd_open"):
+            descriptor = os.pidfd_open(process.pid)
+            try:
+                select.select([descriptor], [], [], timeout)
+            finally:
+                os.close(descriptor)
+    except InterruptedError:
+        raise
+    except (OSError, ValueError):
+        pass
+    return process.wait(timeout=max(0, deadline - time.monotonic()))
+
+
 class Check:
     def __init__(self, directory, step, output, native_checker):
         self.directory, self.step, self.output = directory, step, output
@@ -163,7 +199,7 @@ class Check:
                         if remaining <= 0:
                             raise subprocess.TimeoutExpired(record["command"], cap)
                         try:
-                            code = process.wait(timeout=min(1, remaining))
+                            code = wait_for_exit(process, min(1, remaining))
                             break
                         except subprocess.TimeoutExpired:
                             continue
@@ -257,7 +293,8 @@ class Check:
                                 "package.json")
         folder = self.fold_inputs(self.step)
         if self.step == 1:
-            request = [1, base[2][30:34], base[4][0], base[2][-4:]]
+            # z0 sits at words 27,811..27,814 of the prior preimage tail `vk, i, z0, zi`.
+            request = [1, base[2][27811:27815], base[4][0], base[2][-4:]]
         else:
             request = request2
         compare_source(load(folder / "pi_ccs_input.json"), load(self.output / f"inputs/step-{self.step}/envelope.json"),

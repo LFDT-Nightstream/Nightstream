@@ -31,7 +31,7 @@ theorem circuitPackage_implies_accumulatorHolds
     (vk : KeyDigest) (env : Env)
     (holds : (Data.circuitPackage ()).RowsHold env)
     (piRlcAssumptions :
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.Assumptions relation
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.Assumptions relation
         (NightstreamFPrime.Layout.Stage1.PiRLCInputs.interface
           (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
         NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset

@@ -1,4 +1,4 @@
-import NightstreamFPrime.Layout.PiDEC.v1_1.Values
+import NightstreamFPrime.Layout.PiDEC.v1_2.Values
 import NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint
 
 /-!
@@ -139,9 +139,9 @@ def BlockKind.plan (application : ProgramApplication)
 
 /-- Direct wire-facing live-row count for one production block. -/
 def BlockKind.rowCount (application : ProgramApplication) : BlockKind → Nat
-  | .pilotPoseidon => 803400
-  | .piCcsPoseidon => 170392
-  | .piCcsOrdinary => 32765
+  | .pilotPoseidon => 696000
+  | .piCcsPoseidon => 142200
+  | .piCcsOrdinary => 37317
   | .pilotOrdinary => 686
   | .pilotDigestBinding => 8
   | .piCcsEndpoint => 64
@@ -149,7 +149,7 @@ def BlockKind.rowCount (application : ProgramApplication) : BlockKind → Nat
   | .samplerOrdinary => 14943
   | .piRlc => 67932
   | .piDec => 6588
-  | .runningTransition => 32079
+  | .runningTransition => 27800
   | .application => (PerApplicationPackage.applicationPlan application).rowCount
   | .nextPreimage => 5
   | .recursivePublicOutput => 4
@@ -169,7 +169,7 @@ theorem BlockKind.plan_rowCount (application : ProgramApplication)
       DirectPiDECPrefixPlan.transitionPlan,
       DirectApplicationPrefixPlan.applicationPlan,
       DirectApplicationPrefixPlan.nextPreimagePlan,
-      DirectApplicationPrefixPlan.publicOutputPlan, Layout.PiDEC.v1_1.exactRowCount_value]
+      DirectApplicationPrefixPlan.publicOutputPlan, Layout.PiDEC.v1_2.exactRowCount_value]
 
 /-- Interpreter for the compact tree. Every concatenation checks the final
 row bound before it constructs a plan. -/

@@ -6,9 +6,9 @@ import NightstreamFPrime.Export.Stage1.RunningTransitionArithmetic
 /-!
 Owns the canonical logical witness-program IR through the running transition.
 
-The seven arithmetic children already export `WitnessBatch` recipes through
-their opaque `FormalCircuit` interfaces. This module gathers those batches in
-protocol order, remaps their symbolic variables through the proved Stage 1
+The statement-binding leaf exports its 270 sign-hint batch, and the seven
+arithmetic children export `WitnessBatch` recipes, through their opaque
+`FormalCircuit` interfaces. This module gathers those batches in protocol order, remaps their symbolic variables through the proved Stage 1
 Spartan permutation, and balances expression sums without changing execution. PiCCS Poseidon2 children remain represented
 by compact permutation invocations. PiRLC batches come from the checked
 wide-reduction and coefficient-word circuits. Permutation invocations execute
@@ -25,7 +25,7 @@ open NightstreamFPrime.Export.Stage1
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
@@ -74,6 +74,15 @@ def remapBatch (batch : WitnessBatch) : WitnessBatch := WitnessEncoding.batch {
 
 def childBatches (main : Circuit Unit) (offset : Nat) : List WitnessBatch :=
   (witnesses (Circuit.ops main offset)).map remapBatch
+
+def statementBindingBatches
+    (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
+  childBatches
+    (Formal.statementBindingCircuit
+      (PiCCSArithmetic.sharedInterface logicalWidth publicFits)).main
+    PiCCSArithmetic.statementBindingLogicalStart
 
 def initialClaimBatches
     (logicalWidth : Nat)
@@ -149,7 +158,7 @@ def piRlcSourceBatches
         (logicalWidth := logicalWidth) (publicFits := publicFits) source)).main
     (Layout.Stage1.PiRLCStarts.rangeLogicalStart source) ++
   childBatches
-    (PiRLC.v1_1.SamplerWords.circuit (Layout.Stage1.PiRLCStarts.rangeLogicalStart source)).main
+    (PiRLC.v1_2.SamplerWords.circuit (Layout.Stage1.PiRLCStarts.rangeLogicalStart source)).main
     (Layout.Stage1.PiRLCStarts.challengeWordStart source)
 
 theorem piRlcSourceBatches_eq_fromCircuit
@@ -157,13 +166,13 @@ theorem piRlcSourceBatches_eq_fromCircuit
     (publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth)
     (source : Nat) :
     piRlcSourceBatches logicalWidth publicFits source =
-      childBatches (PiRLC.v1_1.Sampler.rangeCircuit
+      childBatches (PiRLC.v1_2.Sampler.rangeCircuit
         (PiRLCSamplerInvocations.sourceInterface (logicalWidth := logicalWidth)
           (publicFits := publicFits) source) source
         (PiRLCSamplerInvocations.sourceLogicalStart source)).main
         (Layout.Stage1.PiRLCStarts.rangeLogicalStart source) ++
       childBatches
-        (PiRLC.v1_1.SamplerWords.circuit (Layout.Stage1.PiRLCStarts.rangeLogicalStart source)).main
+        (PiRLC.v1_2.SamplerWords.circuit (Layout.Stage1.PiRLCStarts.rangeLogicalStart source)).main
         (Layout.Stage1.PiRLCStarts.challengeWordStart source) := by
   unfold piRlcSourceBatches
   rw [PiRLCSamplerOrdinaryRows.rangeInterface_eq]
@@ -180,7 +189,8 @@ def piCcsBatches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
-  initialClaimBatches logicalWidth publicFits ++
+  statementBindingBatches logicalWidth publicFits ++
+    initialClaimBatches logicalWidth publicFits ++
     sumcheckBatches logicalWidth publicFits ++
     evalKBatches logicalWidth publicFits ++
     evalABatches logicalWidth publicFits ++
@@ -192,11 +202,11 @@ def piDecBatches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
-  let shared := NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal.atOffset
+  let shared := NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.atOffset
     (PiDECArithmetic.phaseInterface logicalWidth publicFits)
     NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset
   childBatches
-    (NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal.publicInputCircuit
+    (NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.publicInputCircuit
       shared).main
     NightstreamFPrime.Layout.Stage1.PiDECStarts.publicInputLogicalStart
 

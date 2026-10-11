@@ -1,6 +1,6 @@
 import NightstreamFPrime.Layout.Stage1.AssemblerInputs
 import NightstreamFPrime.Layout.Stage1.AccumulatorSemantics
-import NightstreamFPrime.Layout.Stage1.PiCCSRepresentation
+import NightstreamFPrime.Layout.Stage1.StateDecoder
 import NightstreamFPrime.Lifecycle.Stage1.Accumulator
 
 /-!
@@ -53,17 +53,45 @@ def recursiveRunningValue
     (interface : Lifecycle.Stage1.Interface relation program)
     (offset : Nat) (env : Env) :
     Running (logicalWidth := logicalWidth) (publicFits := publicFits) :=
-  PiCCS.v1_1.StatementAbsorption.evalRunning
+  PiCCS.v1_2.StatementAbsorption.evalRunning
     (interface.running.recursive offset) env
 
+/-- The typed running value stored by the output words: the decode of the
+running block they fill. -/
 def outputRunningValue
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {program : Application.Program}
     (interface : Lifecycle.Stage1.Interface relation program)
     (offset : Nat) (env : Env) :
     Running (logicalWidth := logicalWidth) (publicFits := publicFits) :=
-  PiCCS.v1_1.StatementAbsorption.evalRunning
-    (interface.running.output offset) env
+  StateDecoder.running logicalWidth publicFits fun word =>
+    (RunningTransition.outputWords interface.running offset env).getD
+      (word - PiCCSInputs.priorRunningStart) 0
+
+/-- Output words that serialize a canonical running instance store it. -/
+theorem outputRunningValue_eq_of_serialized
+    {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
+    {program : Application.Program}
+    (interface : Lifecycle.Stage1.Interface relation program)
+    (offset : Nat) (env : Env)
+    {value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)}
+    (canonical : Lifecycle.ChildrenCanonical value)
+    (words : RunningTransition.outputWords interface.running offset env =
+      serializeRunning (publicFits := publicFits) value) :
+    outputRunningValue interface offset env = value := by
+  apply StateDecoder.running_eq_of_serialized canonical
+  rw [← words]
+  apply List.ext_getElem
+  · rw [StateDecoder.slice_length]
+    unfold RunningTransition.outputWords
+    rw [List.length_ofFn]
+  · intro index _leftBound rightBound
+    unfold StateDecoder.slice
+    rw [List.getElem_ofFn]
+    change (RunningTransition.outputWords interface.running offset env).getD
+        (PiCCSInputs.priorRunningStart + index - PiCCSInputs.priorRunningStart) 0 = _
+    rw [Nat.add_sub_cancel_left]
+    exact List.getD_eq_getElem _ _ rightBound
 
 /-- The one complete NIFS proof value carried by the Stage 1 parent. PiCCS
 owns the round and output fields; PiDEC owns the child message fields. -/
@@ -74,9 +102,9 @@ def nifsProofValue
     (template : Proof (ProductionKey.degreeBound relation))
     (piCcsOffset piDecOffset : Nat) (env : Env) :
     Proof (ProductionKey.degreeBound relation) :=
-  let piCcs := PiCCS.v1_1.Formal.evalProof relation interface.piCcs
+  let piCcs := PiCCS.v1_2.Formal.evalProof relation interface.piCcs
     piCcsOffset env template
-  let attempt := PiDEC.v1_1.Semantics.inputAttempt relation interface.piDec
+  let attempt := PiDEC.v1_2.Semantics.inputAttempt relation interface.piDec
     piDecOffset env
   { piCcsRounds := piCcs.piCcsRounds
     piCcsOutput := piCcs.piCcsOutput
@@ -88,7 +116,7 @@ def nifsProofValue
           PaperAlgebra.evaluationZero }
 
 private theorem inputInstance_ext
-    (left right : PiRLC.v1_1.InputBinding.InputInstance
+    (left right : PiRLC.v1_2.InputBinding.InputInstance
       logicalWidth publicFits)
     (constraintSystem : left.constraintSystem = right.constraintSystem)
     (commitment : left.commitment = right.commitment)
@@ -126,7 +154,7 @@ private theorem piDecChildMessage_ext
   simp_all
 
 private theorem piDecAttempt_ext
-    (left right : PiDEC.v1_1.InputBinding.Attempt logicalWidth publicFits)
+    (left right : PiDEC.v1_2.InputBinding.Attempt logicalWidth publicFits)
     (parent : left.parent = right.parent)
     (messages : left.messages = right.messages) : left = right := by
   cases left
@@ -146,22 +174,22 @@ private theorem running_ext
 
 theorem compactPoint_eq_roundTranscript
     (program : Application.Program) (env : Env) :
-    PiCCS.v1_1.StatementAbsorption.evalPoint
+    PiCCS.v1_2.StatementAbsorption.evalPoint
         (AssemblerInputs.piCcsRoundPoint
           (logicalWidth := logicalWidth) (publicFits := publicFits) program)
         env =
-      PiCCS.v1_1.RoundTranscript.evalRoundPoint
-        (PiCCS.v1_1.Formal.roundTranscriptInterface
-          (PiCCS.v1_1.Formal.atOffset
+      PiCCS.v1_2.RoundTranscript.evalRoundPoint
+        (PiCCS.v1_2.Formal.roundTranscriptInterface
+          (PiCCS.v1_2.Formal.atOffset
             (AssemblerInputs.piCcsInterface
               (logicalWidth := logicalWidth) (publicFits := publicFits) program)
             (AssemblerInputs.piCcsOffset program)))
-        (PiCCS.v1_1.Formal.roundTranscriptOffset
+        (PiCCS.v1_2.Formal.roundTranscriptOffset
           (AssemblerInputs.piCcsInterface
             (logicalWidth := logicalWidth) (publicFits := publicFits) program)
           (AssemblerInputs.piCcsOffset program)) env := by
   have interfaceEq :
-      PiCCS.v1_1.Formal.atOffset
+      PiCCS.v1_2.Formal.atOffset
           (AssemblerInputs.piCcsInterface
             (logicalWidth := logicalWidth) (publicFits := publicFits) program)
           (AssemblerInputs.piCcsOffset program) =
@@ -169,22 +197,22 @@ theorem compactPoint_eq_roundTranscript
           (logicalWidth := logicalWidth) (publicFits := publicFits) program := by
     rfl
   have startEq :
-      PiCCS.v1_1.Formal.roundTranscriptOffset
+      PiCCS.v1_2.Formal.roundTranscriptOffset
           (AssemblerInputs.piCcsInterface
             (logicalWidth := logicalWidth) (publicFits := publicFits) program)
           (AssemblerInputs.piCcsOffset program) =
-        PiCCS.v1_1.Formal.roundTranscriptStart
+        PiCCS.v1_2.Formal.roundTranscriptStart
           (AssemblerInputs.piCcsInterface
             (logicalWidth := logicalWidth) (publicFits := publicFits)
             program) := by
-    rw [← PiCCS.v1_1.Formal.roundTranscriptStart_atOffset
+    rw [← PiCCS.v1_2.Formal.roundTranscriptStart_atOffset
       (AssemblerInputs.piCcsInterface
         (logicalWidth := logicalWidth) (publicFits := publicFits) program)
       (AssemblerInputs.piCcsOffset program), interfaceEq]
   apply cubePoint_ext
-  unfold PiCCS.v1_1.StatementAbsorption.evalPoint
-    PiCCS.v1_1.RoundTranscript.evalRoundPoint
-    AssemblerInputs.piCcsRoundPoint PiCCS.v1_1.Formal.roundPoint
+  unfold PiCCS.v1_2.StatementAbsorption.evalPoint
+    PiCCS.v1_2.RoundTranscript.evalRoundPoint
+    AssemblerInputs.piCcsRoundPoint PiCCS.v1_2.Formal.roundPoint
   rw [interfaceEq, startEq]
   simp [canonicalFinIndices]
 
@@ -194,19 +222,19 @@ theorem compactPiRlcInputs_eq_keyOutputs
       (logicalWidth := logicalWidth) (publicFits := publicFits))
     (program : Application.Program) (env : Env)
     (template : Proof (ProductionKey.degreeBound relation))
-    (piCcsPhase : PiCCS.v1_1.Formal.PhaseHolds relation ajtai
+    (piCcsPhase : PiCCS.v1_2.Formal.PhaseHolds relation ajtai
       (AssemblerInputs.piCcsInterface
         (logicalWidth := logicalWidth) (publicFits := publicFits) program)
       (AssemblerInputs.piCcsOffset program) env template) :
-    PiRLC.v1_1.Semantics.evalInputs relation
+    PiRLC.v1_2.Semantics.evalInputs relation
         (AssemblerInputs.piRlcInterface relation program)
         (AssemblerInputs.piRlcOffset program) env =
       (ProductionKey.key relation ajtai).piCcsOutputs
-        (PiCCS.v1_1.Formal.evalRunning
+        (PiCCS.v1_2.Formal.evalRunning
           (AssemblerInputs.piCcsInterface
             (logicalWidth := logicalWidth) (publicFits := publicFits) program)
           (AssemblerInputs.piCcsOffset program) env)
-        (PiCCS.v1_1.Formal.evalFresh
+        (PiCCS.v1_2.Formal.evalFresh
           (AssemblerInputs.piCcsInterface
             (logicalWidth := logicalWidth) (publicFits := publicFits) program)
           (AssemblerInputs.piCcsOffset program) env)
@@ -214,23 +242,23 @@ theorem compactPiRlcInputs_eq_keyOutputs
           (AssemblerInputs.piCcsOffset program)
           (AssemblerInputs.piDecOffset program) env) := by
   have phasePoint :
-      PiCCS.v1_1.RoundTranscript.evalRoundPoint
-          (PiCCS.v1_1.Formal.roundTranscriptInterface
-            (PiCCS.v1_1.Formal.atOffset
+      PiCCS.v1_2.RoundTranscript.evalRoundPoint
+          (PiCCS.v1_2.Formal.roundTranscriptInterface
+            (PiCCS.v1_2.Formal.atOffset
               (AssemblerInputs.piCcsInterface
                 (logicalWidth := logicalWidth) (publicFits := publicFits)
                 program)
               (AssemblerInputs.piCcsOffset program)))
-          (PiCCS.v1_1.Formal.roundTranscriptOffset
+          (PiCCS.v1_2.Formal.roundTranscriptOffset
             (AssemblerInputs.piCcsInterface
               (logicalWidth := logicalWidth) (publicFits := publicFits) program)
             (AssemblerInputs.piCcsOffset program)) env =
         ((ProductionKey.key relation ajtai).piCcsExecution
-          (PiCCS.v1_1.Formal.evalRunning
+          (PiCCS.v1_2.Formal.evalRunning
             (AssemblerInputs.piCcsInterface
               (logicalWidth := logicalWidth) (publicFits := publicFits) program)
             (AssemblerInputs.piCcsOffset program) env)
-          (PiCCS.v1_1.Formal.evalFresh
+          (PiCCS.v1_2.Formal.evalFresh
             (AssemblerInputs.piCcsInterface
               (logicalWidth := logicalWidth) (publicFits := publicFits) program)
             (AssemblerInputs.piCcsOffset program) env)
@@ -240,17 +268,17 @@ theorem compactPiRlcInputs_eq_keyOutputs
     simpa [nifsProofValue] using! piCcsPhase.roundPoint
   have pointEq := (compactPoint_eq_roundTranscript program env).trans phasePoint
   change (fun source =>
-      PiRLC.v1_1.InputBinding.evalInput relation
+      PiRLC.v1_2.InputBinding.evalInput relation
         (PiRLCInputs.sourceInput
           (logicalWidth := logicalWidth) (publicFits := publicFits)
-          (PiRLC.v1_1.Semantics.sourceIndex source))
+          (PiRLC.v1_2.Semantics.sourceIndex source))
         (AssemblerInputs.piCcsRoundPoint
           (logicalWidth := logicalWidth) (publicFits := publicFits) program)
         env) = _
   funext source
   let joint : Fin productionShape.sourceCount :=
     Fin.cast (ProductionKey.key relation ajtai).total_eq_sourceCount source
-  have sourceEq : PiRLC.v1_1.Semantics.sourceIndex source = joint := by
+  have sourceEq : PiRLC.v1_2.Semantics.sourceIndex source = joint := by
     apply Fin.ext
     rfl
   apply inputInstance_ext
@@ -259,14 +287,14 @@ theorem compactPiRlcInputs_eq_keyOutputs
       (fun row coefficient =>
         ((PiRLCInputs.sourceInput
           (logicalWidth := logicalWidth) (publicFits := publicFits)
-          (PiRLC.v1_1.Semantics.sourceIndex source)).commitment row coefficient
+          (PiRLC.v1_2.Semantics.sourceIndex source)).commitment row coefficient
           ).eval env) =
       Fin.addCases
-        (PiCCS.v1_1.Formal.evalFresh
+        (PiCCS.v1_2.Formal.evalFresh
           (AssemblerInputs.piCcsInterface
             (logicalWidth := logicalWidth) (publicFits := publicFits) program)
           (AssemblerInputs.piCcsOffset program) env).commitments
-        (PiCCS.v1_1.Formal.evalRunning
+        (PiCCS.v1_2.Formal.evalRunning
           (AssemblerInputs.piCcsInterface
             (logicalWidth := logicalWidth) (publicFits := publicFits) program)
           (AssemblerInputs.piCcsOffset program) env).commitments joint
@@ -274,28 +302,28 @@ theorem compactPiRlcInputs_eq_keyOutputs
     refine Fin.addCases (fun fresh => ?_) (fun running => ?_) joint
     · funext row coefficient
       simp [PiRLCInputs.canonicalSourceInput,
-        PiCCS.v1_1.Formal.evalFresh,
-        PiCCS.v1_1.StatementAbsorption.evalFresh,
+        PiCCS.v1_2.Formal.evalFresh,
+        PiCCS.v1_2.StatementAbsorption.evalFresh,
         AssemblerInputs.piCcsInterface, PiRLCInputs.piCcsInterface,
         PiCCSInputs.interface]
     · funext row coefficient
       simp [PiRLCInputs.canonicalSourceInput,
-        PiCCS.v1_1.Formal.evalRunning,
-        PiCCS.v1_1.StatementAbsorption.evalRunning,
+        PiCCS.v1_2.Formal.evalRunning,
+        PiCCS.v1_2.StatementAbsorption.evalRunning,
         AssemblerInputs.piCcsInterface, PiRLCInputs.piCcsInterface,
         PiCCSInputs.interface]
   · change
       (fun column =>
         ((PiRLCInputs.sourceInput
           (logicalWidth := logicalWidth) (publicFits := publicFits)
-          (PiRLC.v1_1.Semantics.sourceIndex source)).publicInput column).eval
+          (PiRLC.v1_2.Semantics.sourceIndex source)).publicInput column).eval
           env) =
       Fin.addCases
-        (PiCCS.v1_1.Formal.evalFresh
+        (PiCCS.v1_2.Formal.evalFresh
           (AssemblerInputs.piCcsInterface
             (logicalWidth := logicalWidth) (publicFits := publicFits) program)
           (AssemblerInputs.piCcsOffset program) env).publicInputs
-        (PiCCS.v1_1.Formal.evalRunning
+        (PiCCS.v1_2.Formal.evalRunning
           (AssemblerInputs.piCcsInterface
             (logicalWidth := logicalWidth) (publicFits := publicFits) program)
           (AssemblerInputs.piCcsOffset program) env).publicInputs joint
@@ -303,27 +331,27 @@ theorem compactPiRlcInputs_eq_keyOutputs
     refine Fin.addCases (fun fresh => ?_) (fun running => ?_) joint
     · funext column
       simp [PiRLCInputs.canonicalSourceInput,
-        PiCCS.v1_1.Formal.evalFresh,
-        PiCCS.v1_1.StatementAbsorption.evalFresh,
+        PiCCS.v1_2.Formal.evalFresh,
+        PiCCS.v1_2.StatementAbsorption.evalFresh,
         AssemblerInputs.piCcsInterface, PiRLCInputs.piCcsInterface,
         PiCCSInputs.interface]
     · funext column
       simp [PiRLCInputs.canonicalSourceInput,
-        PiCCS.v1_1.Formal.evalRunning,
-        PiCCS.v1_1.StatementAbsorption.evalRunning,
+        PiCCS.v1_2.Formal.evalRunning,
+        PiCCS.v1_2.StatementAbsorption.evalRunning,
         AssemblerInputs.piCcsInterface, PiRLCInputs.piCcsInterface,
         PiCCSInputs.interface]
   · change
-      PiCCS.v1_1.StatementAbsorption.evalPoint
+      PiCCS.v1_2.StatementAbsorption.evalPoint
           (AssemblerInputs.piCcsRoundPoint
             (logicalWidth := logicalWidth) (publicFits := publicFits) program)
           env = _
     exact pointEq
   · change
-      #[PiCCS.v1_1.StatementAbsorption.evalEvaluation
+      #[PiCCS.v1_2.StatementAbsorption.evalEvaluation
         (PiRLCInputs.sourceInput
           (logicalWidth := logicalWidth) (publicFits := publicFits)
-          (PiRLC.v1_1.Semantics.sourceIndex source)).evaluation env] =
+          (PiRLC.v1_2.Semantics.sourceIndex source)).evaluation env] =
       #[{
         pad := (nifsProofValue (AssemblerInputs.interface relation program)
           template (AssemblerInputs.piCcsOffset program)
@@ -346,16 +374,16 @@ theorem compactPiRlcInputs_eq_keyOutputs
       apply evaluationFamily_ext
       · funext coefficient
         simp [PiRLCInputs.canonicalSourceInput,
-          PiCCS.v1_1.StatementAbsorption.evalEvaluation,
-          PiCCS.v1_1.Formal.evalProof, PiCCS.v1_1.Formal.evalOutput,
+          PiCCS.v1_2.StatementAbsorption.evalEvaluation,
+          PiCCS.v1_2.Formal.evalProof, PiCCS.v1_2.Formal.evalOutput,
           nifsProofValue,
           AssemblerInputs.interface, AssemblerInputs.piCcsInterface,
           PiRLCInputs.piCcsInterface,
           PiCCSInputs.interface, injectionEq]
       · funext matrix coefficient
         simp [PiRLCInputs.canonicalSourceInput,
-          PiCCS.v1_1.StatementAbsorption.evalEvaluation,
-          PiCCS.v1_1.Formal.evalProof, PiCCS.v1_1.Formal.evalOutput,
+          PiCCS.v1_2.StatementAbsorption.evalEvaluation,
+          PiCCS.v1_2.Formal.evalProof, PiCCS.v1_2.Formal.evalOutput,
           nifsProofValue,
           AssemblerInputs.interface, AssemblerInputs.piCcsInterface,
           PiRLCInputs.piCcsInterface,
@@ -371,16 +399,16 @@ theorem compactPiRlcInputs_eq_keyOutputs
       apply evaluationFamily_ext
       · funext coefficient
         simp [PiRLCInputs.canonicalSourceInput,
-          PiCCS.v1_1.StatementAbsorption.evalEvaluation,
-          PiCCS.v1_1.Formal.evalProof, PiCCS.v1_1.Formal.evalOutput,
+          PiCCS.v1_2.StatementAbsorption.evalEvaluation,
+          PiCCS.v1_2.Formal.evalProof, PiCCS.v1_2.Formal.evalOutput,
           nifsProofValue,
           AssemblerInputs.interface, AssemblerInputs.piCcsInterface,
           PiRLCInputs.piCcsInterface,
           PiCCSInputs.interface, injectionEq]
       · funext matrix coefficient
         simp [PiRLCInputs.canonicalSourceInput,
-          PiCCS.v1_1.StatementAbsorption.evalEvaluation,
-          PiCCS.v1_1.Formal.evalProof, PiCCS.v1_1.Formal.evalOutput,
+          PiCCS.v1_2.StatementAbsorption.evalEvaluation,
+          PiCCS.v1_2.Formal.evalProof, PiCCS.v1_2.Formal.evalOutput,
           nifsProofValue,
           AssemblerInputs.interface, AssemblerInputs.piCcsInterface,
           PiRLCInputs.piCcsInterface,
@@ -393,23 +421,23 @@ theorem compactPiRlcInitialState_eq_key
       (logicalWidth := logicalWidth) (publicFits := publicFits))
     (program : Application.Program) (env : Env)
     (template : Proof (ProductionKey.degreeBound relation))
-    (piCcsPhase : PiCCS.v1_1.Formal.PhaseHolds relation ajtai
+    (piCcsPhase : PiCCS.v1_2.Formal.PhaseHolds relation ajtai
       (AssemblerInputs.piCcsInterface
         (logicalWidth := logicalWidth) (publicFits := publicFits) program)
       (AssemblerInputs.piCcsOffset program) env template) :
-    PiRLC.v1_1.SamplerChain.evalInitialState
-        (PiRLC.v1_1.Formal.samplerInterface
-          (PiRLC.v1_1.Formal.atOffset
+    PiRLC.v1_2.SamplerChain.evalInitialState
+        (PiRLC.v1_2.Formal.samplerInterface
+          (PiRLC.v1_2.Formal.atOffset
             (AssemblerInputs.piRlcInterface relation program)
             (AssemblerInputs.piRlcOffset program)))
-        (PiRLC.v1_1.Formal.samplerOffset
+        (PiRLC.v1_2.Formal.samplerOffset
           (AssemblerInputs.piRlcOffset program)) env =
       ((ProductionKey.key relation ajtai).piCcsExecution
-        (PiCCS.v1_1.Formal.evalRunning
+        (PiCCS.v1_2.Formal.evalRunning
           (AssemblerInputs.piCcsInterface
             (logicalWidth := logicalWidth) (publicFits := publicFits) program)
           (AssemblerInputs.piCcsOffset program) env)
-        (PiCCS.v1_1.Formal.evalFresh
+        (PiCCS.v1_2.Formal.evalFresh
           (AssemblerInputs.piCcsInterface
             (logicalWidth := logicalWidth) (publicFits := publicFits) program)
           (AssemblerInputs.piCcsOffset program) env)
@@ -417,17 +445,17 @@ theorem compactPiRlcInitialState_eq_key
           (AssemblerInputs.piCcsOffset program)
           (AssemblerInputs.piDecOffset program) env)).outgoingState := by
   have outgoing := piCcsPhase.outgoingState
-  change PiCCS.v1_1.StatementAbsorption.evalState env
-      (PiCCS.v1_1.Formal.outputBindingFinalState relation
+  change PiCCS.v1_2.StatementAbsorption.evalState env
+      (PiCCS.v1_2.Formal.outputBindingFinalState relation
         (AssemblerInputs.piCcsInterface
           (logicalWidth := logicalWidth) (publicFits := publicFits) program)
         (AssemblerInputs.piCcsOffset program)) = _ at outgoing
-  simpa [PiRLC.v1_1.SamplerChain.evalInitialState,
-    PiRLC.v1_1.Sampler.evalState,
-    PiRLC.v1_1.Formal.samplerInterface, PiRLC.v1_1.Formal.atOffset,
-    PiRLC.v1_1.Formal.samplerOffset, AssemblerInputs.piRlcInterface,
+  simpa [PiRLC.v1_2.SamplerChain.evalInitialState,
+    PiRLC.v1_2.Sampler.evalState,
+    PiRLC.v1_2.Formal.samplerInterface, PiRLC.v1_2.Formal.atOffset,
+    PiRLC.v1_2.Formal.samplerOffset, AssemblerInputs.piRlcInterface,
     AssemblerInputs.piCcsOutputState, nifsProofValue,
-    PiCCS.v1_1.StatementAbsorption.evalState] using! outgoing
+    PiCCS.v1_2.StatementAbsorption.evalState] using! outgoing
 
 private theorem compactPiDecAttempt_eq_key
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -435,14 +463,14 @@ private theorem compactPiDecAttempt_eq_key
       (logicalWidth := logicalWidth) (publicFits := publicFits))
     (program : Application.Program) (env : Env)
     (template : Proof (ProductionKey.degreeBound relation)) :
-    PiDEC.v1_1.Semantics.inputAttempt relation
+    PiDEC.v1_2.Semantics.inputAttempt relation
         (AssemblerInputs.piDecInterface relation program)
         (AssemblerInputs.piDecOffset program) env =
       (ProductionKey.key relation ajtai).piDecAttemptForParent
         (nifsProofValue (AssemblerInputs.interface relation program) template
           (AssemblerInputs.piCcsOffset program)
           (AssemblerInputs.piDecOffset program) env)
-        (PiRLC.v1_1.Semantics.evalOutput relation
+        (PiRLC.v1_2.Semantics.evalOutput relation
           (AssemblerInputs.piRlcInterface relation program)
           (AssemblerInputs.piRlcOffset program) env) := by
   apply piDecAttempt_ext
@@ -455,15 +483,15 @@ private theorem compactPiDecAttempt_eq_key
       rfl
     apply piDecChildMessage_ext
     · funext row coefficient
-      simp [PiDEC.v1_1.Semantics.inputAttempt,
-        PiDEC.v1_1.InputBinding.evalAttempt,
-        PiDEC.v1_1.InputBinding.evalMessage,
+      simp [PiDEC.v1_2.Semantics.inputAttempt,
+        PiDEC.v1_2.InputBinding.evalAttempt,
+        PiDEC.v1_2.InputBinding.evalMessage,
         Nifs.PaperNonInteractive.Key.piDecAttemptForParent,
         nifsProofValue, AssemblerInputs.interface,
         AssemblerInputs.piDecInterface, childEq, running]
-    · simp [PiDEC.v1_1.Semantics.inputAttempt,
-        PiDEC.v1_1.InputBinding.evalAttempt,
-        PiDEC.v1_1.InputBinding.evalMessage,
+    · simp [PiDEC.v1_2.Semantics.inputAttempt,
+        PiDEC.v1_2.InputBinding.evalAttempt,
+        PiDEC.v1_2.InputBinding.evalMessage,
         Nifs.PaperNonInteractive.Key.piDecAttemptForParent,
         nifsProofValue, AssemblerInputs.interface,
         AssemblerInputs.piDecInterface, childEq, running]
@@ -474,18 +502,18 @@ private theorem compactOutputForAttempt_eq_recursive
       (logicalWidth := logicalWidth) (publicFits := publicFits))
     (program : Application.Program) (env : Env)
     (template : Proof (ProductionKey.degreeBound relation))
-    (piDecPhase : PiDEC.v1_1.Semantics.PhaseHolds relation ajtai
+    (piDecPhase : PiDEC.v1_2.Semantics.PhaseHolds relation ajtai
       (AssemblerInputs.piDecInterface relation program)
       (AssemblerInputs.piDecOffset program) env) :
     (ProductionKey.key relation ajtai).outputForAttempt
         (nifsProofValue (AssemblerInputs.interface relation program) template
           (AssemblerInputs.piCcsOffset program)
           (AssemblerInputs.piDecOffset program) env)
-        (PiDEC.v1_1.Semantics.inputAttempt relation
+        (PiDEC.v1_2.Semantics.inputAttempt relation
           (AssemblerInputs.piDecInterface relation program)
           (AssemblerInputs.piDecOffset program) env)
         ((ProductionKey.key relation ajtai).piDecPublicInputSplit.split
-          (PiDEC.v1_1.Semantics.inputAttempt relation
+          (PiDEC.v1_2.Semantics.inputAttempt relation
             (AssemblerInputs.piDecInterface relation program)
             (AssemblerInputs.piDecOffset program) env).parent.publicInput) =
       recursiveRunningValue (AssemblerInputs.interface relation program)
@@ -500,11 +528,11 @@ private theorem compactOutputForAttempt_eq_recursive
       piDecPhase child
     change
       (PaperAlgebra.publicInputSplit ajtai).split
-          (PiDEC.v1_1.Semantics.inputAttempt relation
+          (PiDEC.v1_2.Semantics.inputAttempt relation
             (AssemblerInputs.piDecInterface relation program)
             (AssemblerInputs.piDecOffset program) env).parent.publicInput
           child column =
-        (PiDEC.v1_1.Semantics.output relation
+        (PiDEC.v1_2.Semantics.output relation
           (AssemblerInputs.piDecInterface relation program)
           (AssemblerInputs.piDecOffset program) env child).publicInput column
     exact (congrFun publicEq column).symm
@@ -548,10 +576,10 @@ structure Represents
   applicationOutput : Application.outputState interface.application
     (Lifecycle.Stage1.applicationOffset relation ajtai program interface
       template offset) env = output.zNext
-  runningInput : PiCCS.v1_1.Formal.evalRunning interface.piCcs
+  runningInput : PiCCS.v1_2.Formal.evalRunning interface.piCcs
     (Lifecycle.Stage1.piCcsOffset relation program interface offset) env =
       input.running functionIndex
-  freshInput : PiCCS.v1_1.Formal.evalFresh interface.piCcs
+  freshInput : PiCCS.v1_2.Formal.evalFresh interface.piCcs
     (Lifecycle.Stage1.piCcsOffset relation program interface offset) env =
       input.fresh
   proofInput : nifsProofValue interface template
@@ -588,11 +616,11 @@ theorem spec_implies_compactAccumulator
       (AssemblerInputs.interface relation program) template
       (AssemblerInputs.rootOffset program) env) :
     Accumulator.Holds relation ajtai vk
-      (PiCCS.v1_1.Formal.evalRunning
+      (PiCCS.v1_2.Formal.evalRunning
         (AssemblerInputs.piCcsInterface
           (logicalWidth := logicalWidth) (publicFits := publicFits) program)
         (AssemblerInputs.piCcsOffset program) env)
-      (PiCCS.v1_1.Formal.evalFresh
+      (PiCCS.v1_2.Formal.evalFresh
         (AssemblerInputs.piCcsInterface
           (logicalWidth := logicalWidth) (publicFits := publicFits) program)
         (AssemblerInputs.piCcsOffset program) env)
@@ -601,12 +629,12 @@ theorem spec_implies_compactAccumulator
         (AssemblerInputs.piDecOffset program) env)
       (recursiveRunningValue (AssemblerInputs.interface relation program)
         (AssemblerInputs.runningOffset program) env) := by
-  have piCcsPhase : PiCCS.v1_1.Formal.PhaseHolds relation ajtai
+  have piCcsPhase : PiCCS.v1_2.Formal.PhaseHolds relation ajtai
       (AssemblerInputs.piCcsInterface
         (logicalWidth := logicalWidth) (publicFits := publicFits) program)
       (AssemblerInputs.piCcsOffset program) env template := by
     have phase := specification.piCcs
-    change PiCCS.v1_1.Formal.PhaseHolds relation ajtai
+    change PiCCS.v1_2.Formal.PhaseHolds relation ajtai
       (AssemblerInputs.piCcsInterface
         (logicalWidth := logicalWidth) (publicFits := publicFits) program)
       (Lifecycle.Stage1.piCcsOffset relation program
@@ -614,11 +642,11 @@ theorem spec_implies_compactAccumulator
         (AssemblerInputs.rootOffset program)) env template at phase
     rw [AssemblerInputs.parent_piCcsOffset_eq relation program] at phase
     exact phase
-  have piRlcPhase : PiRLC.v1_1.Semantics.PhaseHolds relation ajtai
+  have piRlcPhase : PiRLC.v1_2.Semantics.PhaseHolds relation ajtai
       (AssemblerInputs.piRlcInterface relation program)
       (AssemblerInputs.piRlcOffset program) env := by
     have phase := specification.piRlc
-    change PiRLC.v1_1.Semantics.PhaseHolds relation ajtai
+    change PiRLC.v1_2.Semantics.PhaseHolds relation ajtai
       (AssemblerInputs.piRlcInterface relation program)
       (Lifecycle.Stage1.piRlcOffset relation ajtai program
         (AssemblerInputs.interface relation program) template
@@ -626,11 +654,11 @@ theorem spec_implies_compactAccumulator
     rw [AssemblerInputs.parent_piRlcOffset_eq relation ajtai program template]
       at phase
     exact phase
-  have piDecPhase : PiDEC.v1_1.Semantics.PhaseHolds relation ajtai
+  have piDecPhase : PiDEC.v1_2.Semantics.PhaseHolds relation ajtai
       (AssemblerInputs.piDecInterface relation program)
       (AssemblerInputs.piDecOffset program) env := by
     have phase := specification.piDec
-    change PiDEC.v1_1.Semantics.PhaseHolds relation ajtai
+    change PiDEC.v1_2.Semantics.PhaseHolds relation ajtai
       (AssemblerInputs.piDecInterface relation program)
       (Lifecycle.Stage1.piDecOffset relation ajtai program
         (AssemblerInputs.interface relation program) template
@@ -775,6 +803,11 @@ theorem spec_implies_stepHoldsFor
         input.fresh input.nifsProof
         (recursiveRunningValue interface
           (Lifecycle.Stage1.runningOffset relation ajtai program interface
+            template offset) env))
+    (recursiveCanonical : input.iteration ≠ 0 →
+      Lifecycle.ChildrenCanonical
+        (recursiveRunningValue interface
+          (Lifecycle.Stage1.runningOffset relation ajtai program interface
             template offset) env)) :
     StepHoldsFor relation ajtai vk program input output := by
   let runningAt := Lifecycle.Stage1.runningOffset relation ajtai program
@@ -831,9 +864,10 @@ theorem spec_implies_stepHoldsFor
           _ = input.zi := represents.currentState
       have runningBase : outputRunningValue interface runningAt env =
           defaultRunning (logicalWidth := logicalWidth)
-            (publicFits := publicFits) := by
-        apply PiCCSRepresentation.serializeRunning_injective
-        exact RunningTransition.spec_serialized_base runningSpec fieldZero
+            (publicFits := publicFits) :=
+        outputRunningValue_eq_of_serialized interface runningAt env
+          StateEncoding.defaultRunning_canonical
+          (RunningTransition.spec_serialized_base runningSpec fieldZero)
       have defaultOutput : output.runningNext =
           fun _ => (setup relation ajtai vk).defaultRunning := by
         funext slot
@@ -854,10 +888,10 @@ theorem spec_implies_stepHoldsFor
         intro fieldZero
         exact iterationNonzero (represents.iterationZero.mp fieldZero)
       have runningRecursive : outputRunningValue interface runningAt env =
-          recursiveRunningValue interface runningAt env := by
-        apply PiCCSRepresentation.serializeRunning_injective
-        exact RunningTransition.spec_serialized_recursive runningSpec
-          fieldNonzero
+          recursiveRunningValue interface runningAt env :=
+        outputRunningValue_eq_of_serialized interface runningAt env
+          (recursiveCanonical iterationNonzero)
+          (RunningTransition.spec_serialized_recursive runningSpec fieldNonzero)
       have priorPcValid : InRange slotCount input.priorPc := by
         rw [represents.priorPc]
         norm_num [InRange, slotCount]
@@ -909,7 +943,7 @@ theorem compactSpec_implies_stepHoldsFor
   have accumulator := spec_implies_compactAccumulator relation ajtai vk
     program template env specification
   have runningInput := represents.runningInput
-  change PiCCS.v1_1.Formal.evalRunning
+  change PiCCS.v1_2.Formal.evalRunning
       (AssemblerInputs.piCcsInterface
         (logicalWidth := logicalWidth) (publicFits := publicFits) program)
       (Lifecycle.Stage1.piCcsOffset relation program
@@ -918,7 +952,7 @@ theorem compactSpec_implies_stepHoldsFor
     input.running functionIndex at runningInput
   rw [AssemblerInputs.parent_piCcsOffset_eq relation program] at runningInput
   have freshInput := represents.freshInput
-  change PiCCS.v1_1.Formal.evalFresh
+  change PiCCS.v1_2.Formal.evalFresh
       (AssemblerInputs.piCcsInterface
         (logicalWidth := logicalWidth) (publicFits := publicFits) program)
       (Lifecycle.Stage1.piCcsOffset relation program
@@ -947,9 +981,35 @@ theorem compactSpec_implies_stepHoldsFor
           (AssemblerInputs.rootOffset program)) env) := by
     rw [AssemblerInputs.parent_runningOffset_eq relation ajtai program template]
     exact accumulator
+  have recursiveCanonical : Lifecycle.ChildrenCanonical
+      (recursiveRunningValue (AssemblerInputs.interface relation program)
+        (Lifecycle.Stage1.runningOffset relation ajtai program
+          (AssemblerInputs.interface relation program) template
+          (AssemblerInputs.rootOffset program)) env) := by
+    have accepted := specification.piDec
+    intro column
+    let parentValue := (PiDEC.v1_2.Semantics.inputAttempt relation
+      (AssemblerInputs.interface relation program).piDec
+      (Lifecycle.Stage1.piDecOffset relation ajtai program
+        (AssemblerInputs.interface relation program) template
+        (AssemblerInputs.rootOffset program)) env).parent.publicInput column
+    have digitsEq : Lifecycle.childDigits
+        (recursiveRunningValue (AssemblerInputs.interface relation program)
+          (Lifecycle.Stage1.runningOffset relation ajtai program
+            (AssemblerInputs.interface relation program) template
+            (AssemblerInputs.rootOffset program)) env) column =
+        Spec.Phi81Relation.PiDECAlgebra.Radix.splitScalar parentValue := by
+      funext child
+      have selected := congrArg (fun output => (output child).publicInput column)
+        accepted.outputComputed
+      exact selected.symm
+    refine ⟨Spec.Phi81Relation.PiDECAlgebra.Radix.UniformSignedDigits.honestSign parentValue, ?_⟩
+    rw [digitsEq]
+    exact (Spec.Phi81Relation.PiDECAlgebra.Radix.UniformSignedDigits.honest_complete parentValue
+      (accepted.checks.parentBounded column)).constraint
   exact spec_implies_stepHoldsFor relation ajtai vk program
     (AssemblerInputs.interface relation program) template
     (AssemblerInputs.rootOffset program) env input output specification
-    represents (fun _ => accumulatorAtParent)
+    represents (fun _ => accumulatorAtParent) (fun _ => recursiveCanonical)
 
 end NightstreamFPrime.Layout.Stage1.AssemblerSoundness

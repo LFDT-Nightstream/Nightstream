@@ -14,7 +14,7 @@ namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerProjection
 
 open NightstreamFPrime.Gadgets.Poseidon2
 open NightstreamFPrime.Gadgets.Poseidon2.Duplex
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 
 def fastOwnedOutput (interface : Formal.Owned.Interface) (offset : Nat) :
     Layer.EState :=
@@ -106,16 +106,13 @@ theorem fastEntryOutputFromState_eq_scheduleOutput (state : Layer.EState)
       exact (Formal.compileWiring_matches offset state
         (TranscriptAbsorption.actions coordinate)).2
     _ = Permutation.scheduleOutput offset := by
-      have positive : InvocationLastOutput.ActionsPositive
+      have positive : 0 < Invocations.invocationCount
           (TranscriptAbsorption.actions coordinate) := by
-        intro action member
-        simp only [TranscriptAbsorption.actions, List.mem_singleton] at member
-        subst action
-        simp [Invocations.Action.invocationCount, chunkCount]
+        simp [TranscriptAbsorption.actions, Invocations.invocationCount,
+          Invocations.Action.invocationCount, chunkCount]
       have endpoint :=
         InvocationLastOutput.compileActions_state_scheduleOutput
-          0 0 offset state (TranscriptAbsorption.actions coordinate)
-          (by simp [TranscriptAbsorption.actions]) positive
+          0 0 offset state (TranscriptAbsorption.actions coordinate) positive
       rw [Invocations.compileActions_state_eq] at endpoint
       simpa [TranscriptAbsorption.actions, Invocations.invocationCount,
         Invocations.Action.invocationCount, chunkCount] using endpoint
@@ -177,7 +174,7 @@ theorem productionInitialState_eq :
     _ = (PiCCSInvocations.outputSemanticTrace logicalWidth publicFits).state :=
       congrArg Invocations.Trace.state
         (PiCCSInvocations.outputTrace_eq_semantic logicalWidth publicFits)
-    _ = NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.finalState
+    _ = NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBinding.finalState
           (PiCCSInvocations.outputInterface logicalWidth publicFits)
           PiCCSInvocations.outputWitnessStart :=
       PiCCSInvocations.outputSemanticTrace_state_matches logicalWidth publicFits

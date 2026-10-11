@@ -5,12 +5,12 @@
 use neo_ccs::Mat;
 use neo_math::{D, F, K};
 use neo_reductions::PiCcsError;
-use nightstream_fprime::{PackageError, PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS};
+use nightstream_fprime::{PackageError, PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use super::ProofState;
 use super::{
-    step_inputs::digest_bytes, CompleteStepError, PiCcsV1_1PackageBridgeError, PreparedLifecycle, ProveError,
+    step_inputs::digest_bytes, CompleteStepError, PiCcsV1_2PackageBridgeError, PreparedLifecycle, ProveError,
     Stage1Envelope, StepInputError,
 };
 use crate::folding::{self as nifs, ajtai_dec_mixer, CeClaim, Params, RunningInstance};
@@ -20,7 +20,7 @@ pub enum ExtendError {
     #[error("selected extension input: {0}")]
     Input(&'static str),
     #[error(transparent)]
-    Bridge(#[from] PiCcsV1_1PackageBridgeError),
+    Bridge(#[from] PiCcsV1_2PackageBridgeError),
     #[error(transparent)]
     Package(#[from] PackageError),
     #[error("selected base sampler: {0}")]
@@ -112,11 +112,11 @@ pub(super) fn prepare_running(running: &mut RunningInstance, params: &Params, di
         .collect::<Vec<_>>();
     let mut parent = CeClaim {
         c: ajtai_dec_mixer(&commitments, params.b()),
-        X: Mat::zero(D, PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS / D, F::ZERO),
+        X: Mat::zero(D, PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS / D, F::ZERO),
         r: running.claims[0].r.clone(),
         eval_k: vec![K::ZERO; padded],
         eval_a: vec![vec![K::ZERO; padded]; running.claims[0].eval_a.len()],
-        m_in: PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS,
+        m_in: PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS,
         fold_digest: frame,
         adv: None,
     };

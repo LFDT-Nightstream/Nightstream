@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SumCheckTruthPath
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier.Algebra
 
 /-!
-Paper authority: SuperNeo v1.1, Section 7.3, Step 4, `eq(r', r)`;
+Paper authority: SuperNeo v1.2, Section 7.3, Step 4, `eq(r', r)`;
 `SumCheckTruthPath.equalityFactor_eq_affine`.
 Obligation: Compute the multilinear point-equality polynomial in canonical
 coordinate order.

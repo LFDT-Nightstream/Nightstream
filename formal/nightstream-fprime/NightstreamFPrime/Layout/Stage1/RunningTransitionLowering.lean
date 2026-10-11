@@ -97,7 +97,7 @@ theorem physicalRowCount_eq
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    physicalRowCount logicalWidth publicFits = 32079 := by
+    physicalRowCount logicalWidth publicFits = 27800 := by
   rw [physicalRowCount]
   exact (R1CS.LoweringPlan.rowCount_eq _).trans (totalRowCount_eq relation)
 

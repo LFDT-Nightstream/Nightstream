@@ -9,7 +9,7 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 /-!
 Independent construction of the paper-level joint `Pi_CCS` data.
 
-Protocol: SuperNeo v1.1 `Pi_CCS` (Section 7.3 / Appendix B.2).
+Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
 Phase: semantic residual construction before alpha/gamma compression.
 Constraint family: CCS, strict norm, Pad evaluation, and matrix evaluation.
 
@@ -136,7 +136,7 @@ structure IndependentInputs
   claimedPadCoefficient : PadCoordinate shape -> Extension
   claimedMatrixCoefficient : MatrixCoordinate shape -> Extension
 
-/-- Exact v1.1 Pad evaluation view. Its point and assignments come from the
+/-- Exact v1.2 Pad evaluation view. Its point and assignments come from the
 single owners in `IndependentInputs`. -/
 def IndependentInputs.padData
     {Extension : Type uExtension}
@@ -149,7 +149,7 @@ def IndependentInputs.padData
   coefficientMatrices := data.padCoefficientMatrices
   claimedCoefficient := data.claimedPadCoefficient
 
-/-- Exact v1.1 CCS-matrix evaluation view. It shares the same point and
+/-- Exact v1.2 CCS-matrix evaluation view. It shares the same point and
 assignments as `padData` by construction. -/
 def IndependentInputs.matrixData
     {Extension : Type uExtension}

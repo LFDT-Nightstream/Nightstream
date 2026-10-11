@@ -27,16 +27,16 @@ theorem polyRows_length : (Rows.polyRows SecondPlan.plan).length ≤ 10000 := by
   decide
 
 theorem rows_le :
-    (PerApplicationPackage.applicationPlan (NebulaMemoryPackage.application SecondPlan.plan SecondPlan.two)).rowCount ≤ 256083468 :=
+    (PerApplicationPackage.applicationPlan (NebulaMemoryPackage.application SecondPlan.plan SecondPlan.two)).rowCount ≤ 257057539 :=
   NebulaMemoryPackage.rows_le SecondPlan.plan SecondPlan.two polyRows_mulCount polyRows_length (by decide +kernel)
 
 theorem columns_le :
-    PerApplicationPackage.addedPrivateColumnCount (NebulaMemoryPackage.application SecondPlan.plan SecondPlan.two) ≤ 255992239 :=
+    PerApplicationPackage.addedPrivateColumnCount (NebulaMemoryPackage.application SecondPlan.plan SecondPlan.two) ≤ 256970581 :=
   NebulaMemoryPackage.columns_le SecondPlan.plan SecondPlan.two polyRows_mulCount (by decide +kernel)
 
 theorem carrier_le :
     (NebulaMemoryPackage.application SecondPlan.plan SecondPlan.two).witnessWordCount +
-      ApplicationRetainedBlocks.localCount (NebulaMemoryPackage.application SecondPlan.plan SecondPlan.two) ≤ 5340302 :=
+      ApplicationRetainedBlocks.localCount (NebulaMemoryPackage.application SecondPlan.plan SecondPlan.two) ≤ 5480402 :=
   NebulaMemoryPackage.carrier_le SecondPlan.plan SecondPlan.two polyRows_mulCount (by decide +kernel)
 
 /-- All physical-package, retained-carrier, and recursive-plan bounds for the

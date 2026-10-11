@@ -33,7 +33,7 @@ fn shared_poseidon_templates_match_every_reference_row() {
     let external_input = json!([[[0, 1, 0, 16], [2, [2, 16, 19_000], 0, 0]]]);
     let blocks = [
         json!([1, 0, [2, 150, 100], []]),
-        json!([3, 0, [2, 3 * 150, 100], affine_fixture::program()]),
+        json!([2, 0, [2, 2 * 150, 100], affine_fixture::program()]),
         json!([1, 0, [2, 150, 100], external_input]),
     ];
     for encoded in blocks {

@@ -59,14 +59,14 @@ private theorem assembled_statement
       PaperAlgebra.Point PaperAlgebra.Evaluation PaperAlgebra.Commitment)
     (commitments : Fin productionGlobalParams.k → PaperAlgebra.Commitment)
     (evaluations : Fin productionGlobalParams.k → PaperAlgebra.Evaluation)
-    (system : parent.constraintSystem = Lifecycle.PiRLC.v1_1.InputBinding.relationSource relation)
+    (system : parent.constraintSystem = Lifecycle.PiRLC.v1_2.InputBinding.relationSource relation)
     (child : Fin productionGlobalParams.k) :
     Lifecycle.runningStatement relation (assemble ajtai parent commitments evaluations) child =
       PiDEC.PaperVerifier.children (publicInputSplit ajtai)
         ⟨parent, fieldMessages commitments evaluations⟩ child := by
   simp only [Lifecycle.runningStatement, assemble, fieldMessages,
     PiDEC.PaperVerifier.children, system, PaperAlgebra.relationSource,
-    Lifecycle.PiRLC.v1_1.InputBinding.relationSource]
+    Lifecycle.PiRLC.v1_2.InputBinding.relationSource]
 
 private theorem assembled_openings
     {logicalWidth : Nat}
@@ -79,7 +79,7 @@ private theorem assembled_openings
     (parentWitness : PaperAlgebra.Assignment (logicalWidth := logicalWidth) (publicFits := publicFits))
     (commitments : Fin productionGlobalParams.k → PaperAlgebra.Commitment)
     (evaluations : Fin productionGlobalParams.k → PaperAlgebra.Evaluation)
-    (system : parent.constraintSystem = Lifecycle.PiRLC.v1_1.InputBinding.relationSource relation)
+    (system : parent.constraintSystem = Lifecycle.PiRLC.v1_2.InputBinding.relationSource relation)
     (combined : parent.stage = .combined)
     (valid : CE.Holds (semantics ajtai) productionGlobalParams parent parentWitness)
     (messagesEq : fieldMessages commitments evaluations =
@@ -159,7 +159,7 @@ private theorem child_openings_checkedRelation
         (PiCCSInputCheck.runningFromInput (messages parent children)) child)
       (witnesses children child) := by
   have system : (PiDECInputCheck.parent parent).constraintSystem =
-      Lifecycle.PiRLC.v1_1.InputBinding.relationSource PiDECInputCheck.relation := by
+      Lifecycle.PiRLC.v1_2.InputBinding.relationSource PiDECInputCheck.relation := by
     simp only [PiDECInputCheck.parent]
   have opening := assembled_openings PiDECInputCheck.relation productionAjtaiKey
     (PiDECInputCheck.parent parent) (view parentWitness) (commitments children)

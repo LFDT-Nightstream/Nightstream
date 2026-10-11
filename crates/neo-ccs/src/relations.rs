@@ -443,17 +443,17 @@ impl<F: Copy> CcsWitness<F> {
     }
 }
 
-/// Separate SuperNeo v1.1 evaluation families.
+/// Separate SuperNeo v1.2 evaluation families.
 #[allow(non_camel_case_types)]
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
-pub struct V1_1Evaluations<K> {
+pub struct V1_2Evaluations<K> {
     /// Paper `Eval_K`: the Pad evaluation family.
     pub eval_k: Vec<K>,
     /// Paper `Eval_A`: one family for each genuine CCS matrix.
     pub eval_a: Vec<Vec<K>>,
 }
 
-/// SuperNeo v1.1 CE claim: `(c, X, r, Eval_K, Eval_A, aux_openings)`.
+/// SuperNeo v1.2 CE claim: `(c, X, r, Eval_K, Eval_A, aux_openings)`.
 ///
 /// `eval_k` is the Pad evaluation family. `eval_a` contains only the genuine
 /// CCS-matrix evaluation families. Pad is never stored as matrix zero.
@@ -498,7 +498,7 @@ impl<C, F, K> CeClaim<C, F, K> {
         std::iter::once(self.eval_k.as_slice()).chain(self.eval_a.iter().map(Vec::as_slice))
     }
 
-    /// Number of v1_1 evaluation families, including the separate Pad family.
+    /// Number of v1_2 evaluation families, including the separate Pad family.
     pub fn evaluation_family_count(&self) -> usize {
         1 + self.eval_a.len()
     }

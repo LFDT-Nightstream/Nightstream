@@ -47,6 +47,12 @@ impl MetalRowProver {
         }
     }
 
+    /// The DFT of every column of a row-major matrix; see
+    /// `MetalSession::dft_columns`.
+    pub fn dft_columns(&self, values: &mut [u64], width: usize, generator: u64) -> Result<(), MetalError> {
+        self.session.dft_columns(values, width, generator)
+    }
+
     /// Every digest layer of a Merkle tree; see
     /// `MetalSession::poseidon2_merkle_layers`.
     pub fn merkle_layers(

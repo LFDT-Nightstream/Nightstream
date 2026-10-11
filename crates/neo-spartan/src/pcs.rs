@@ -6,9 +6,10 @@
 //! security parameters. Plonky3 0.8 PCS types do not leave this file.
 
 use p3_commit_v08::MultilinearPcs;
-use p3_dft_v08::Radix2DFTSmallBatch;
-use p3_field_v08::PrimeCharacteristicRing;
+use p3_dft_v08::{Radix2DFTSmallBatch, TwoAdicSubgroupDft};
+use p3_field_v08::{PrimeCharacteristicRing, PrimeField64, TwoAdicField};
 use p3_matrix_v08::dense::RowMajorMatrix;
+use p3_matrix_v08::Matrix;
 use p3_security_v08::SecurityTerm;
 use p3_sumcheck_v08::layout::{plan_stacked_layout, Layout as _, SuffixProver, Table};
 use p3_sumcheck_v08::{OpeningBatch, OpeningProtocol, PrescribedPointPcs, TableShape, TableSpec};
@@ -21,7 +22,6 @@ use crate::hash::Challenger;
 use crate::merkle::Mmcs;
 use crate::Error;
 
-type Dft = Radix2DFTSmallBatch<Gl>;
 type Layout = SuffixProver<Gl, Ext>;
 type Whir = WhirProver<Ext, Gl, Dft, Mmcs, Challenger, Layout>;
 pub(crate) type Config = WhirConfig<Ext, Gl, Challenger>;
@@ -77,6 +77,44 @@ pub(crate) struct TablePlan {
     pub(crate) variables: usize,
     pub(crate) width: usize,
     pub(crate) points: Vec<Vec<usize>>,
+}
+
+/// The DFT of the WHIR provers: on the accelerator's device when it runs
+/// it, otherwise Plonky3's. Both give the same evaluations.
+#[derive(Clone, Default)]
+pub(crate) struct Dft {
+    /// Shares its twiddle cache with every clone.
+    cpu: Radix2DFTSmallBatch<Gl>,
+    accelerator: Accelerator,
+}
+
+impl Dft {
+    fn on(&self, accelerator: &Accelerator) -> Self {
+        Self {
+            cpu: self.cpu.clone(),
+            accelerator: accelerator.clone(),
+        }
+    }
+}
+
+impl TwoAdicSubgroupDft<Gl> for Dft {
+    type Evaluations = RowMajorMatrix<Gl>;
+
+    fn dft_batch(&self, mut matrix: RowMajorMatrix<Gl>) -> RowMajorMatrix<Gl> {
+        let (rows, width) = (matrix.height(), matrix.width());
+        if let Some(device) = self.accelerator.device().filter(|_| rows.is_power_of_two()) {
+            let generator = Gl::two_adic_generator(rows.trailing_zeros() as usize).as_canonical_u64();
+            // SAFETY: `Goldilocks` is `repr(transparent)` over `u64`; the
+            // device leaves canonical words.
+            let words = unsafe {
+                std::slice::from_raw_parts_mut(matrix.values.as_mut_ptr().cast::<u64>(), matrix.values.len())
+            };
+            if device.dft_columns(words, width, generator) {
+                return matrix;
+            }
+        }
+        self.cpu.dft_batch(matrix).to_row_major_matrix()
+    }
 }
 
 /// WHIR over a fixed list of tables, opened at caller-fixed points.
@@ -187,9 +225,9 @@ impl Pcs {
             .to_vec()
     }
 
-    /// The prover instance whose Merkle leaves hash on `accelerator`.
+    /// The prover instance whose DFTs and Merkle trees run on `accelerator`.
     fn prover(&self, accelerator: &Accelerator) -> Whir {
-        Whir::new(self.config.clone(), self.dft.clone(), Mmcs::new(accelerator))
+        Whir::new(self.config.clone(), self.dft.on(accelerator), Mmcs::new(accelerator))
     }
 
     /// Commit to `tables` (each its columns one after another, low index bit

@@ -38,6 +38,13 @@ pub trait Device: Send + Sync {
     /// coordinates. `None` when the device cannot compute them: the caller
     /// computes them on the CPU, with the same values.
     fn key_weights(&self, powers: &[[u64; 3]], blocks: usize) -> Option<Vec<[u64; 3]>>;
+
+    /// The DFT of every column of the row-major matrix `values` of `width`
+    /// columns, in place: row `k` becomes `Σ_i row_i·ω^{ik}` with `ω` =
+    /// `generator` of order the row count (a power of two). Inputs may be
+    /// non-canonical; outputs are canonical. `false` when the device did not
+    /// run it, with `values` unchanged: the caller runs it on the CPU.
+    fn dft_columns(&self, values: &mut [u64], width: usize, generator: u64) -> bool;
 }
 
 /// The prover's device, or none: the CPU.

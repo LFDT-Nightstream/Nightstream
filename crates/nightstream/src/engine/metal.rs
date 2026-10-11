@@ -219,4 +219,17 @@ impl neo_spartan::Device for CompressionDevice {
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         device.production_key_weights(powers, blocks).ok()
     }
+
+    fn dft_columns(&self, values: &mut [u64], width: usize, generator: u64) -> bool {
+        let device = self
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        match device.dft_columns(values, width, generator) {
+            Ok(()) => true,
+            // Rejected before any work: `values` is unchanged.
+            Err(neo_prover_metal::MetalError::Shape(_) | neo_prover_metal::MetalError::Unavailable) => false,
+            Err(error) => panic!("the Metal DFT failed after it started: {error}"),
+        }
+    }
 }

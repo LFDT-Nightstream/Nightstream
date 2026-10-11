@@ -93,6 +93,10 @@ impl MetalSession {
         Err(MetalError::Unavailable)
     }
 
+    pub fn dft_columns(&self, _values: &mut [u64], _width: usize, _generator: u64) -> Result<(), MetalError> {
+        Err(MetalError::Unavailable)
+    }
+
     pub fn poseidon2_merkle_layers(
         &self,
         _rows: usize,

@@ -1294,3 +1294,4 @@ kernel void fe_round_partials(
 #include "joint.metal"
 #include "relation.metal"
 #include "production_commitment.metal"
+#include "dft.metal"

@@ -141,7 +141,7 @@ theorem point_congr {degree : Nat}
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     {left right : Proof degree} (same : SameAbsorbed left right) (challenge : Challenge) :
     point fresh left challenge = point fresh right challenge :=
-  Subtype.ext (challengeCalls_congr fresh same challenge)
+  Prod.ext (Subtype.ext (challengeCalls_congr fresh same challenge)) rfl
 
 /-- Equal `Π_RLC` points identify the fresh statement and every absorbed
 message (`TranscriptCoverage.proverCalls_identify`). -/
@@ -151,7 +151,7 @@ theorem rhoPoint_identifies {degree : Nat}
     (same : point fresh proof (.rho index) = point fresh' proof' (.rho index)) :
     fresh = fresh' ∧ SameAbsorbed proof proof' := by
   have agree := proverCalls_identify (.rho index)
-    (List.append_cancel_right (congrArg Subtype.val same))
+    (List.append_cancel_right (congrArg (fun target => target.1.val) same))
   refine ⟨agree.1, ?_, ?_⟩
   · rw [← agree.2]
   · rw [← agree.2]
@@ -250,8 +250,7 @@ theorem update_ne {degree : Nat} (oracle : Point logicalWidth publicFits degree 
     (answer : Answer) :
     Function.update oracle (point fresh proof changed) answer (point fresh proof other) =
       oracle (point fresh proof other) :=
-  Function.update_of_ne (fun same => different
-    (challengeCalls_injective fresh proof (congrArg Subtype.val same))) _ _
+  Function.update_of_ne (fun same => different (point_injective fresh proof same)) _ _
 
 omit relation ajtai in
 /-- The `Π_CCS` coins ignore every `Π_RLC` answer. -/
@@ -271,7 +270,7 @@ theorem coins_update_rho {degree : Nat} (oracle : Point logicalWidth publicFits 
       Function.update oracle (point fresh proof (.rho index)) answer
           (point fresh proof (.round round)) = oracle (point fresh proof (.round round)) :=
     update_ne oracle fresh proof (by simp) answer
-  simp only [coins, coinsFrom, read_challengeCalls, alpha, gamma, round]
+  simp only [coins, coinsFrom, read_challengeAddress, alpha, gamma, round]
 
 omit relation ajtai in
 theorem rho_update {degree : Nat} (oracle : Point logicalWidth publicFits degree → Answer)
@@ -290,7 +289,7 @@ theorem coins_congr {degree : Nat} (oracle : Point logicalWidth publicFits degre
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     {left right : Proof degree} (same : SameAbsorbed left right) :
     coins oracle fresh left = coins oracle fresh right := by
-  simp only [coins, coinsFrom, challengeCalls_congr fresh same]
+  simp only [coins, coinsFrom, challengeAddress, challengeCalls_congr fresh same]
 
 omit relation ajtai in
 theorem rho_congr {degree : Nat} (oracle : Point logicalWidth publicFits degree → Answer)

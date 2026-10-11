@@ -13,14 +13,12 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Gadgets.Poseidon2
 open NightstreamFPrime.Gadgets.Poseidon2.Duplex
 
-private theorem framedChunks_nonempty (words : List Expr) :
-    Hash.inputChunks (StatementAbsorption.blockExpr words) ≠ [] := by
+private theorem outputChunks_nonempty (interface : Interface) (offset : Nat) :
+    Hash.inputChunks (outputWords interface offset) ≠ [] := by
   apply List.ne_nil_of_length_pos
   unfold Hash.inputChunks
-  simp only [List.length_map, List.length_range]
-  apply Nat.div_pos
-  · simp [StatementAbsorption.blockExpr, Spec.Poseidon2.rate]
-  · norm_num [Spec.Poseidon2.rate]
+  simp only [List.length_map, List.length_range, outputWords_length]
+  norm_num [Spec.Poseidon2.rate]
 
 /-- Every exposed lane of the output-binding endpoint is allocated at or
 after the PiCCS output-binding offset. The result does not depend on the
@@ -29,9 +27,9 @@ theorem finalState_supported_from_offset (interface : Interface)
     (offset : Nat) :
     Formal.StateSupported (finalState interface offset)
       (fun index => offset <= index) := by
-  let input := StatementAbsorption.blockExpr (outputWords interface offset)
-  have chunksNonempty : Hash.inputChunks input ≠ [] := by
-    simpa [input] using framedChunks_nonempty (outputWords interface offset)
+  let input := outputWords interface offset
+  have chunksNonempty : Hash.inputChunks input ≠ [] :=
+    outputChunks_nonempty interface offset
   rw [finalState_eq_compile]
   rw [← (Formal.compileWiring_matches offset (interface.initialState offset)
     (actions interface offset)).2]

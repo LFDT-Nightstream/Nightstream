@@ -30,8 +30,9 @@ Outputs:
 
 `Admitted`, `StageAdmitted` and `Efficient` are abstract. Their intended
 meaning is expected polynomial time; Lean states no running-time model. Assumption 1 is not a
-theorem here. `Lifecycle.RandomOracleKnowledge` proves a random-oracle
-analogue for one fold, which motivates the value of `error`; the step circuit
+theorem here. `RandomOracleSetup.production_knowledge_error_lt` proves a
+random-oracle analogue for one fold, with the same prior-state link, which
+motivates the value of `error`; the step circuit
 recomputes the previous challenges with Poseidon2, so no random-oracle model
 covers the history.
 

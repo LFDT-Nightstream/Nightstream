@@ -8,7 +8,7 @@
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsStructure, CeClaim};
 use neo_math::{KExtensions, D, F, K};
-use neo_transcript::Poseidon2Transcript;
+use neo_transcript::{fold_domain_chunk_v1_2, Poseidon2Transcript};
 use p3_field::PrimeCharacteristicRing;
 
 use crate::engines::pi_ccs_joint::{JointDims, ProtocolTrace, TraceEvent};
@@ -19,10 +19,7 @@ use crate::sumcheck::RoundOracle;
 const ALPHA_TAG: u64 = 1;
 const GAMMA_TAG: u64 = 2;
 const ROUND_CHALLENGE_TAG: u64 = 3;
-const DOMAIN_TAG: &[u64] = &[
-    78, 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47, 83, 117, 112, 101, 114, 78, 101, 111, 47, 80, 105, 67, 67,
-    83, 47, 100, 105, 103, 101, 115, 116, 45, 111, 110, 108, 121, 47, 118, 49, 95, 49,
-];
+const RATE: usize = neo_ccs::crypto::poseidon2_goldilocks::RATE;
 
 fn k_fields(output: &mut Vec<F>, value: K) {
     output.extend_from_slice(&value.as_coeffs());
@@ -33,17 +30,10 @@ fn append(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, field
     trace.events.push(TraceEvent::Absorb(fields));
 }
 
-fn append_block(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, fields: Vec<F>) {
-    transcript.absorb_block_v1_2(&fields);
-    let mut framed = Vec::with_capacity(fields.len() + 1);
-    framed.push(F::from_u64(fields.len() as u64));
-    framed.extend(fields);
-    trace.events.push(TraceEvent::Absorb(framed));
-}
-
 /// Lean `decodeHashWord` for each of the four digest words, read from the
 /// bit cells after the marker of the first fresh public input. A cell past a
-/// shorter input reads as zero; the input itself is absorbed in full next.
+/// shorter input reads as zero; the caller checks the input length, and the
+/// input is absorbed in full after the digest.
 /// The reference engine keeps its own decoder on purpose: it shares no
 /// decoding code with `neo_transcript::prior_digest_v1_2`, which the optimized
 /// engine uses.
@@ -61,17 +51,17 @@ fn prior_digest_fields(fresh: &CcsClaim<Cmt, F>) -> Vec<F> {
     words
 }
 
-fn squeeze(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, label: u64, index: Option<usize>) -> K {
-    let fields = match index {
-        Some(index) => vec![F::from_u64(label), F::from_u64(index as u64)],
-        None => vec![F::from_u64(label)],
-    };
-    append(transcript, trace, fields);
-    let sampled = transcript.squeeze_extension_v1_2();
-    let value = neo_math::from_complex(sampled[0], sampled[1]);
+/// Read the next fold-transcript coin and record it. The label is trace
+/// metadata only. A refresh absorb is recorded like any other absorb.
+fn read_coin(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, label: u64, index: Option<usize>) -> K {
+    let coin = transcript.read_coin_v1_2();
+    let value = neo_math::from_complex(coin.value[0], coin.value[1]);
     trace
         .events
         .push(TraceEvent::Challenge { label, index, value });
+    if coin.refreshed {
+        trace.events.push(TraceEvent::Absorb(vec![F::ZERO; RATE]));
+    }
     value
 }
 
@@ -167,22 +157,19 @@ pub(super) fn bind_and_sample(
     }
 
     transcript.reset_v1_2();
-    append(
-        transcript,
-        trace,
-        DOMAIN_TAG.iter().map(|&word| F::from_u64(word)).collect(),
-    );
+    append(transcript, trace, fold_domain_chunk_v1_2().to_vec());
 
-    append_block(transcript, trace, prior_digest_fields(&fresh[0]));
+    let mut statement = prior_digest_fields(&fresh[0]);
     for claim in fresh {
-        append_block(transcript, trace, commitment_fields(&claim.c)?);
-        append_block(transcript, trace, claim.x.clone());
+        statement.extend(commitment_fields(&claim.c)?);
+        statement.extend_from_slice(&claim.x);
     }
+    append(transcript, trace, statement);
 
     let alpha: Vec<K> = (0..dims.variables)
-        .map(|index| squeeze(transcript, trace, ALPHA_TAG, Some(index)))
+        .map(|index| read_coin(transcript, trace, ALPHA_TAG, Some(index)))
         .collect();
-    let gamma = squeeze(transcript, trace, GAMMA_TAG, None);
+    let gamma = read_coin(transcript, trace, GAMMA_TAG, None);
     trace.alpha = alpha.clone();
     trace.gamma = gamma;
     trace.pre_sumcheck_state = transcript.state();
@@ -211,12 +198,12 @@ pub(super) fn prove_sumcheck<O: RoundOracle>(
             )));
         }
         let coefficients = paper_interpolate(&points, &evaluations);
-        let mut fields = vec![F::from_u64(round as u64)];
+        let mut fields = Vec::with_capacity(coefficients.len() * 2);
         for &coefficient in &coefficients {
             k_fields(&mut fields, coefficient);
         }
-        append_block(transcript, trace, fields);
-        let challenge = squeeze(transcript, trace, ROUND_CHALLENGE_TAG, Some(round));
+        append(transcript, trace, fields);
+        let challenge = read_coin(transcript, trace, ROUND_CHALLENGE_TAG, Some(round));
         running_claim = paper_poly_eval(&coefficients, challenge);
         oracle.fold(challenge);
         rounds.push(coefficients);
@@ -251,12 +238,12 @@ pub(super) fn verify_sumcheck(
                 "PaperExact verifier rejected SumCheck round {round_index}"
             )));
         }
-        let mut fields = vec![F::from_u64(round_index as u64)];
+        let mut fields = Vec::with_capacity(coefficients.len() * 2);
         for &coefficient in coefficients {
             k_fields(&mut fields, coefficient);
         }
-        append_block(transcript, trace, fields);
-        let challenge = squeeze(transcript, trace, ROUND_CHALLENGE_TAG, Some(round_index));
+        append(transcript, trace, fields);
+        let challenge = read_coin(transcript, trace, ROUND_CHALLENGE_TAG, Some(round_index));
         claim = paper_poly_eval(coefficients, challenge);
         challenges.push(challenge);
         trace.round_states.push(transcript.state());
@@ -305,7 +292,7 @@ pub(super) fn absorb_outputs(
             }
         }
     }
-    append_block(transcript, trace, fields);
+    append(transcript, trace, fields);
     trace.outgoing_state = transcript.state();
     let digest = transcript.state_prefix_v1_2();
     trace.final_digest = digest;

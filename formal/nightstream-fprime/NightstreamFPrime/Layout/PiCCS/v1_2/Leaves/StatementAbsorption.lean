@@ -65,7 +65,7 @@ structure InputsBelow
   freshPublicInput : ∀ source column,
     ((interface.fresh offset).publicInput source column).VarsBelow offset
 
-/-- The first domain-tag absorb establishes one permutation-owned state block,
+/-- The first fold-domain absorb establishes one permutation-owned state block,
 which every later statement absorb preserves. -/
 theorem finalState_fresh
     (interface :
@@ -79,16 +79,11 @@ theorem finalState_fresh
     NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption.program
     NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption.actions
     NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption.publicInputActions
-  change StateFresh
-    (Formal.compile offset Hash.zeroE
-      (.absorb (constantWords
-        NightstreamFPrime.Lifecycle.Transcript.piCcsDigestDomainTag) ::
-        (publicInputBlocks interface offset).map absorbBlock)).output
   apply compile_output_fresh_of_head_absorb
   intro empty
   have lengthZero := congrArg List.length empty
   simp [Hash.inputChunks, constantWords,
-    NightstreamFPrime.Lifecycle.Transcript.piCcsDigestDomainTag_length,
+    NightstreamFPrime.Lifecycle.Transcript.foldDomainChunk_length,
     Spec.Poseidon2.rate] at lengthZero
 
 theorem finalState_affine
@@ -148,14 +143,6 @@ private theorem constantWords_affine (words : List F) :
   rw [constantWords, List.mem_map] at member
   rcases member with ⟨word, _, rfl⟩
   exact R1CS.isAffine_const word
-
-private theorem blockExpr_affine (words : List Expr)
-    (affine : ListAffine words) : ListAffine (blockExpr words) := by
-  intro expression member
-  simp only [blockExpr, List.mem_cons] at member
-  rcases member with rfl | member
-  · exact R1CS.isAffine_const _
-  · exact affine expression member
 
 private theorem BlocksAffine.append {first second : List (List Expr)}
     (firstAffine : BlocksAffine first)
@@ -234,14 +221,6 @@ private theorem publicInputBlocks_affine
     · exact serializePublicInputExpr_affine (fresh.publicInput index)
         (inputs.freshPublicInput index)
 
-private theorem mappedBlocks_affine (blocks : List (List Expr))
-    (blocksAffine : BlocksAffine blocks) :
-    ActionsAffine (blocks.map absorbBlock) := by
-  intro action member
-  rw [List.mem_map] at member
-  rcases member with ⟨block, blockMember, rfl⟩
-  exact blockExpr_affine block (blocksAffine block blockMember)
-
 theorem actions_affine
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption.Interface
@@ -249,13 +228,15 @@ theorem actions_affine
     (offset : Nat) (inputs : InputsAffine interface offset) :
     ActionsAffine (actions interface offset) := by
   unfold actions publicInputActions
-  apply ActionsAffine.append
+  apply ActionsAffine.cons
+  · exact constantWords_affine _
   · apply ActionsAffine.cons
-    · exact constantWords_affine _
+    · intro expression member
+      rcases List.mem_flatten.mp member with ⟨block, blockMember, member⟩
+      exact publicInputBlocks_affine interface offset inputs block blockMember
+        expression member
     · intro action member
       simp at member
-  · exact mappedBlocks_affine _
-      (publicInputBlocks_affine interface offset inputs)
 
 private def ListBelow (bound : Nat) (values : List Expr) : Prop :=
   ∀ expression ∈ values, expression.VarsBelow bound
@@ -309,14 +290,6 @@ private theorem constantWords_below (bound : Nat) (words : List F) :
   rw [constantWords, List.mem_map] at member
   rcases member with ⟨word, _, rfl⟩
   trivial
-
-private theorem blockExpr_below (bound : Nat) (words : List Expr)
-    (below : ListBelow bound words) : ListBelow bound (blockExpr words) := by
-  intro expression member
-  simp only [blockExpr, List.mem_cons] at member
-  rcases member with rfl | member
-  · trivial
-  · exact below expression member
 
 private theorem BlocksBelow.append {bound : Nat}
     {first second : List (List Expr)}
@@ -400,14 +373,6 @@ private theorem publicInputBlocks_below
     · exact serializePublicInputExpr_below offset (fresh.publicInput index)
         (inputs.freshPublicInput index)
 
-private theorem mappedBlocks_below (bound : Nat) (blocks : List (List Expr))
-    (blocksBelow : BlocksBelow bound blocks) :
-    Formal.ActionsBelow bound (blocks.map absorbBlock) := by
-  intro action member
-  rw [List.mem_map] at member
-  rcases member with ⟨block, blockMember, rfl⟩
-  exact blockExpr_below bound block (blocksBelow block blockMember)
-
 /-- The fixed statement serializer supplies the exact causal assumption of
 the statement-absorption child. -/
 theorem assumptions_of_inputsBelow
@@ -420,13 +385,13 @@ theorem assumptions_of_inputsBelow
   unfold NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption.Assumptions
     actions publicInputActions
   intro action member
-  rw [List.mem_append] at member
-  rcases member with member | member
-  · simp only [List.mem_singleton] at member
-    subst action
-    exact constantWords_below offset _
-  · exact mappedBlocks_below offset _
-      (publicInputBlocks_below interface offset inputs) action member
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at member
+  rcases member with rfl | rfl
+  · exact constantWords_below offset _
+  · intro expression member
+    rcases List.mem_flatten.mp member with ⟨block, blockMember, member⟩
+    exact publicInputBlocks_below interface offset inputs block blockMember
+      expression member
 
 /-- The compiler-owned statement state lies below the next child boundary. -/
 theorem finalState_varsBelow
@@ -455,7 +420,7 @@ def footprint
       InputsAffine (Formal.statementAbsorptionInterface interface) offset) :
     R1CS.CircuitFootprint (Formal.statementAbsorptionCircuit interface) where
   freshColumnCount := fun _ => 0
-  physicalRowCount := fun _ => 140288
+  physicalRowCount := fun _ => 134808
   freshColumnCount_eq := by
     intro offset
     unfold Formal.statementAbsorptionCircuit
@@ -474,7 +439,7 @@ def footprint
     rw [FormalCircuit.withConstantFootprint_main]
     change R1CS.totalRowCount (flatConstraints
       (opsAt (Formal.statementAbsorptionInterface interface) offset)) =
-        140288
+        134808
     rw [NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption.flatConstraints_opsAt]
     rw [R1CS.recipeConstraints_totalRowCount]
     exact NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption.program_recipes_length
@@ -500,7 +465,7 @@ theorem physicalRowCount_eq
     (offset : Nat) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
       (Formal.statementAbsorptionCircuit interface).main offset)) =
-        140288 :=
+        134808 :=
   (footprint interface inputs).physicalRowCount_eq offset
 
 end NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.StatementAbsorption

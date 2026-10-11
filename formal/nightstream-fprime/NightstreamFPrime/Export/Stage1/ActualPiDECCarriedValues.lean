@@ -110,8 +110,8 @@ theorem piCcsPointWord_eq_form
           (PiDECRetainedGeometry.prefixGeometry geometry)) coordinate component).eval assignment := by
   rw [PiCCSTranscriptOutputForms.pointSource_eq_transcriptSource]
   exact piCcsTranscriptWord_eq_form (PiDECRetainedGeometry.prefixGeometry geometry)
-    assignment (PiCCSTranscriptOutputForms.pointInvocation coordinate component)
-    ⟨0, by norm_num [Poseidon2.width]⟩
+    assignment (PiCCSTranscriptOutputForms.pointInvocation coordinate)
+    (PiCCSTranscriptOutputForms.pointLane component)
 
 /-- The running transition reads those same retained point components. -/
 theorem runningPointWord_eq_form

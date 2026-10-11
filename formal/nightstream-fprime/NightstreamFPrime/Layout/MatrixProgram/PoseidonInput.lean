@@ -55,32 +55,6 @@ theorem Region.offsets?_of_offsets (region : Region)
       laneOffset.val by omega]
   rw [if_pos laneOffset.isLt]
 
-inductive InvocationTag where
-  | absorb
-  | squeezeFirst
-  | squeezeSecond
-deriving Repr, DecidableEq
-
-/-- Canonical random-access invocation tags. The wire is a plain ordered
-array; the in-memory array gives constant-time lookup. -/
-structure TagTable where
-  tags : Array InvocationTag
-deriving Repr, DecidableEq
-
-def TagTable.tag? (table : TagTable) (invocation : Nat) :
-    Option InvocationTag :=
-  table.tags[invocation]?
-
-def TagTable.ofSemantic {invocationCount : Nat}
-    (tag : Fin invocationCount → InvocationTag) : TagTable where
-  tags := Array.ofFn tag
-
-@[simp] theorem TagTable.tag?_ofSemantic {invocationCount : Nat}
-    (tag : Fin invocationCount → InvocationTag)
-    (invocation : Fin invocationCount) :
-    (TagTable.ofSemantic tag).tag? invocation.val = some (tag invocation) := by
-  simp [TagTable.tag?, TagTable.ofSemantic]
-
 /-- Random-access optional constant words. An absent array cell is malformed;
 a stored `none` is the canonical instruction to add no form. -/
 structure OptionalConstantTable where
@@ -106,12 +80,9 @@ inductive Term where
   | retained (block : RetainedBlock) (slotBase invocationStride laneStride : Nat)
   | constant (coefficient : Nat)
   | external (block : RetainedBlock) (slotBase invocationStride : Nat)
-  | taggedRetained (block : RetainedBlock) (tags : TagTable)
-      (required : InvocationTag)
-      (slotBase invocationStride laneStride : Nat)
   | optionalConstant (values : OptionalConstantTable) (laneCount : Nat)
-  | taggedAffine (values : Affine.Table) (substitution : SourceSubstitution)
-      (tags : TagTable) (required : InvocationTag) (laneCount : Nat)
+  | affine (values : Affine.Table) (substitution : SourceSubstitution)
+      (laneCount : Nat)
 deriving Repr, DecidableEq
 
 def Term.form? (term : Term) (logicalWidth oneColumn : Nat)
@@ -131,14 +102,6 @@ def Term.form? (term : Term) (logicalWidth oneColumn : Nat)
   | .external block slotBase invocationStride => do
       block.externalForm? logicalWidth
         (slotBase + invocationOffset * invocationStride) laneOffset
-  | .taggedRetained block tags required slotBase invocationStride laneStride => do
-      let actual ← tags.tag? invocationOffset
-      if actual = required then
-        block.form? logicalWidth
-          (slotBase + invocationOffset * invocationStride +
-            laneOffset * laneStride)
-      else
-        some .empty
   | .optionalConstant values laneCount =>
       match values.value? (invocationOffset * laneCount + laneOffset) with
       | none => none
@@ -150,12 +113,9 @@ def Term.form? (term : Term) (logicalWidth oneColumn : Nat)
                 ⟨coefficient, coefficientBound⟩)
             else none
           else none
-  | .taggedAffine values substitution tags required laneCount => do
-      let actual ← tags.tag? invocationOffset
-      if actual = required then
-        values.compile? substitution logicalWidth oneColumn
-          (invocationOffset * laneCount + laneOffset)
-      else some .empty
+  | .affine values substitution laneCount =>
+      values.compile? substitution logicalWidth oneColumn
+        (invocationOffset * laneCount + laneOffset)
 
 theorem Term.retained_form?_ofSemantic
     {sourceWidth logicalWidth : Nat}
@@ -192,31 +152,18 @@ theorem Term.constant_form? {logicalWidth : Nat}
     else none) = _
   rw [dif_pos oneColumn.isLt, dif_pos coefficient.isLt]
 
-/-- A selected affine word is compiled by the existing source substitution. -/
-theorem Term.taggedAffine_form?_of_eq
+/-- An affine word is compiled by the existing source substitution. -/
+theorem Term.affine_form?_ofSemantic
     {logicalWidth invocationCount laneCount : Nat}
     (combinations : Fin (invocationCount * laneCount) → R1CS.LinearCombination)
     (substitution : SourceSubstitution) (oneColumn : Fin logicalWidth)
-    (tag : Fin invocationCount → InvocationTag) (required : InvocationTag)
-    (invocation : Fin invocationCount) (lane : Fin laneCount)
-    (selected : tag invocation = required) :
-    (Term.taggedAffine (Affine.Table.ofSemantic combinations) substitution
-      (TagTable.ofSemantic tag) required laneCount).form? logicalWidth
-        oneColumn.val invocation.val lane.val =
+    (invocation : Fin invocationCount) (lane : Fin laneCount) :
+    (Term.affine (Affine.Table.ofSemantic combinations) substitution
+      laneCount).form? logicalWidth oneColumn.val invocation.val lane.val =
       Ordinary.compileCombination? substitution oneColumn
         (combinations (Fin.encodeProd (invocation, lane))) := by
-  change (do
-    let actual ← (TagTable.ofSemantic tag).tag? invocation.val
-    if actual = required then
-      (Affine.Table.ofSemantic combinations).compile? substitution logicalWidth
-        oneColumn.val (invocation.val * laneCount + lane.val)
-    else some .empty) = _
-  rw [TagTable.tag?_ofSemantic]
-  change (if tag invocation = required then
-    (Affine.Table.ofSemantic combinations).compile? substitution logicalWidth
-      oneColumn.val (invocation.val * laneCount + lane.val)
-    else some .empty) = _
-  rw [if_pos selected]
+  change (Affine.Table.ofSemantic combinations).compile? substitution logicalWidth
+    oneColumn.val (invocation.val * laneCount + lane.val) = _
   have indexEq : invocation.val * laneCount + lane.val =
       (Fin.encodeProd (invocation, lane)).val := by
     change invocation.val * laneCount + lane.val = laneCount * invocation.val + lane.val
@@ -224,89 +171,6 @@ theorem Term.taggedAffine_form?_of_eq
   rw [indexEq]
   exact Affine.Table.compile?_ofSemantic combinations substitution oneColumn
     (Fin.encodeProd (invocation, lane))
-
-theorem Term.taggedAffine_form?_of_ne
-    {logicalWidth invocationCount : Nat}
-    (values : Affine.Table) (substitution : SourceSubstitution)
-    (oneColumn laneCount laneOffset : Nat)
-    (tag : Fin invocationCount → InvocationTag) (required : InvocationTag)
-    (invocation : Fin invocationCount) (notSelected : tag invocation ≠ required) :
-    (Term.taggedAffine values substitution (TagTable.ofSemantic tag) required laneCount).form?
-        logicalWidth oneColumn invocation.val laneOffset = some .empty := by
-  change (do
-    let actual ← (TagTable.ofSemantic tag).tag? invocation.val
-    if actual = required then
-      values.compile? substitution logicalWidth oneColumn
-        (invocation.val * laneCount + laneOffset)
-    else some .empty) = _
-  rw [TagTable.tag?_ofSemantic]
-  change (if tag invocation = required then
-    values.compile? substitution logicalWidth oneColumn
-      (invocation.val * laneCount + laneOffset)
-    else some .empty) = _
-  rw [if_neg notSelected]
-
-theorem Term.taggedRetained_form?_ofSemantic_of_eq
-    {sourceWidth logicalWidth invocationCount : Nat}
-    (block : LowNormBlock.Block sourceWidth) (retainedStart : Nat)
-    (fits : retainedStart + block.coordinateCount ≤ logicalWidth)
-    (oneColumn slotBase invocationStride laneStride : Nat)
-    (tag : Fin invocationCount → InvocationTag) (required : InvocationTag)
-    (invocation : Fin invocationCount) (laneOffset : Nat)
-    (slotBound : slotBase + invocation.val * invocationStride +
-      laneOffset * laneStride < block.slotCount)
-    (selected : tag invocation = required) :
-    (Term.taggedRetained (RetainedBlock.ofSemantic block retainedStart)
-      (TagTable.ofSemantic tag) required slotBase invocationStride
-      laneStride).form? logicalWidth oneColumn invocation.val laneOffset =
-      some (block.form retainedStart fits
-        ⟨slotBase + invocation.val * invocationStride +
-          laneOffset * laneStride, slotBound⟩) := by
-  change (do
-    let actual ← (TagTable.ofSemantic tag).tag? invocation.val
-    if actual = required then
-      (RetainedBlock.ofSemantic block retainedStart).form? logicalWidth
-        (slotBase + invocation.val * invocationStride +
-          laneOffset * laneStride)
-    else
-      some .empty) = _
-  rw [TagTable.tag?_ofSemantic]
-  change (if tag invocation = required then
-      (RetainedBlock.ofSemantic block retainedStart).form? logicalWidth
-        (slotBase + invocation.val * invocationStride +
-          laneOffset * laneStride)
-    else some .empty) = _
-  rw [if_pos selected]
-  exact RetainedBlock.form?_ofSemantic block retainedStart fits
-    ⟨slotBase + invocation.val * invocationStride +
-      laneOffset * laneStride, slotBound⟩
-
-theorem Term.taggedRetained_form?_ofSemantic_of_ne
-    {sourceWidth logicalWidth invocationCount : Nat}
-    (block : LowNormBlock.Block sourceWidth) (retainedStart : Nat)
-    (oneColumn slotBase invocationStride laneStride : Nat)
-    (tag : Fin invocationCount → InvocationTag) (required : InvocationTag)
-    (invocation : Fin invocationCount) (laneOffset : Nat)
-    (notSelected : tag invocation ≠ required) :
-    (Term.taggedRetained (RetainedBlock.ofSemantic block retainedStart)
-      (TagTable.ofSemantic tag) required slotBase invocationStride
-      laneStride).form? logicalWidth oneColumn invocation.val laneOffset =
-      some .empty := by
-  change (do
-    let actual ← (TagTable.ofSemantic tag).tag? invocation.val
-    if actual = required then
-      (RetainedBlock.ofSemantic block retainedStart).form? logicalWidth
-        (slotBase + invocation.val * invocationStride +
-          laneOffset * laneStride)
-    else
-      some .empty) = _
-  rw [TagTable.tag?_ofSemantic]
-  change (if tag invocation = required then
-      (RetainedBlock.ofSemantic block retainedStart).form? logicalWidth
-        (slotBase + invocation.val * invocationStride +
-          laneOffset * laneStride)
-    else some .empty) = _
-  rw [if_neg notSelected]
 
 theorem Term.optionalConstant_form?_ofSemantic_of_some
     {logicalWidth count : Nat} (oneColumn : Fin logicalWidth)
@@ -458,59 +322,6 @@ theorem Rule.external_form?_ofSemantic
   rw [Term.external_form?_ofSemantic block retainedStart fits oneColumn
     slotBase invocationStride invocationOffset.val slotBound
     ⟨laneOffset.val, laneBound⟩]
-  rfl
-
-theorem Rule.taggedRetained_form?_ofSemantic_of_eq
-    {sourceWidth logicalWidth : Nat}
-    (region : Region) (invocationOffset : Fin region.invocationCount)
-    (laneOffset : Fin region.laneCount)
-    (block : LowNormBlock.Block sourceWidth) (retainedStart : Nat)
-    (fits : retainedStart + block.coordinateCount ≤ logicalWidth)
-    (oneColumn slotBase invocationStride laneStride : Nat)
-    (tag : Fin region.invocationCount → InvocationTag)
-    (required : InvocationTag)
-    (slotBound : slotBase + invocationOffset.val * invocationStride +
-      laneOffset.val * laneStride < block.slotCount)
-    (selected : tag invocationOffset = required) :
-    (Rule.mk region (.taggedRetained
-      (RetainedBlock.ofSemantic block retainedStart)
-      (TagTable.ofSemantic tag) required slotBase invocationStride
-      laneStride)).form? logicalWidth oneColumn
-        (region.invocationStart + invocationOffset.val)
-        (region.laneStart + laneOffset.val) =
-      some (some (block.form retainedStart fits
-        ⟨slotBase + invocationOffset.val * invocationStride +
-          laneOffset.val * laneStride, slotBound⟩)) := by
-  unfold Rule.form?
-  rw [Region.offsets?_of_offsets region invocationOffset laneOffset]
-  simp only
-  rw [Term.taggedRetained_form?_ofSemantic_of_eq block retainedStart fits
-    oneColumn slotBase invocationStride laneStride tag required
-    invocationOffset laneOffset.val slotBound selected]
-  rfl
-
-theorem Rule.taggedRetained_form?_ofSemantic_of_ne
-    {sourceWidth logicalWidth : Nat}
-    (region : Region) (invocationOffset : Fin region.invocationCount)
-    (laneOffset : Fin region.laneCount)
-    (block : LowNormBlock.Block sourceWidth) (retainedStart : Nat)
-    (oneColumn slotBase invocationStride laneStride : Nat)
-    (tag : Fin region.invocationCount → InvocationTag)
-    (required : InvocationTag)
-    (notSelected : tag invocationOffset ≠ required) :
-    (Rule.mk region (.taggedRetained
-      (RetainedBlock.ofSemantic block retainedStart)
-      (TagTable.ofSemantic tag) required slotBase invocationStride
-      laneStride)).form? logicalWidth oneColumn
-        (region.invocationStart + invocationOffset.val)
-        (region.laneStart + laneOffset.val) =
-      some (some .empty) := by
-  unfold Rule.form?
-  rw [Region.offsets?_of_offsets region invocationOffset laneOffset]
-  simp only
-  rw [Term.taggedRetained_form?_ofSemantic_of_ne block retainedStart
-    oneColumn slotBase invocationStride laneStride tag required
-    invocationOffset laneOffset.val notSelected]
   rfl
 
 theorem Rule.optionalConstant_form?_ofSemantic_of_some

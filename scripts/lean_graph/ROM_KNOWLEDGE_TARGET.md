@@ -28,14 +28,14 @@ The verifier is the Lean NIFS verifier with its coins read from `H`. The
 deployed system checks every fold only inside the step circuit, and no
 random-oracle model covers a hash inside a circuit. So the criterion bounds no
 deployed verifier check; for the history it only motivates the error of
-Assumption 1 (adversary 3 of the security model).
+Assumption 1 (adversary 4 of the security model).
 
 The game:
 
 - `chunks` are uniform 256-bit setup chunks, one for each key coefficient. The
   coefficient is the chunk reduced modulo the Goldilocks prime. This is
   premise P1, SHAKE128 as a random oracle (`Spec.AjtaiSetupV1.Programming`).
-- `H` is a uniform random function on the bounded challenge call lists, the
+- `H` is a uniform random function on bounded call lists and lane pairs, the
   random-oracle model of the Fiat–Shamir reads.
 - The adversary is deterministic. It is chosen before the chunks and may read
   all of them, so it cannot contain a kernel vector of the key. An adversary

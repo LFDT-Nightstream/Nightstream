@@ -30,7 +30,7 @@ theorem laterWitnessStart_sampler
     (current : Fin (PiRLCSamplerInvocations.sourceCount *
       PermutationPlan.samplerStepsPerSource)) :
     PoseidonRetainedBlock.laterWitnessStart
-        ⟨1121 + current.val, by
+        ⟨948 + current.val, by
           rw [PoseidonRetainedBlock.laterInvocationCount_eq]
           have currentLt := current.isLt
           norm_num [PiRLCSamplerInvocations.sourceCount,
@@ -44,10 +44,10 @@ theorem laterWitnessStart_sampler
   rw [List.getElem_append_right]
   · have prefixLength :
         (PiCCSInvocations.invocations Data.logicalWidth
-          Data.publicFits).length = 1121 :=
+          Data.publicFits).length = 948 :=
       PiCCSInvocations.invocations_length Data.logicalWidth Data.publicFits
     have offsetEq :
-        1121 + current.val -
+        948 + current.val -
             (PiCCSInvocations.invocations Data.logicalWidth
               Data.publicFits).length = current.val := by
       rw [prefixLength]
@@ -100,7 +100,7 @@ theorem laterWitnessStart_sampler
         (PiRLCSamplerInvocations.invocations
           (logicalWidth := Data.logicalWidth)
           (publicFits := Data.publicFits)).length :=
-      ⟨1121 + current.val -
+      ⟨948 + current.val -
           (PiCCSInvocations.invocations Data.logicalWidth
             Data.publicFits).length,
         by omega⟩
@@ -633,7 +633,7 @@ theorem baseEnv_eq_transitionEnv
       RunningTransitionDirectPlan.transitionEnv program base
         (Spartan.sourceToSpartan column) := by
   have sourceBound : column < Spartan.SourceColumnCount := by
-    have constant : PiRLCProductPlan.basePackage.layout.constantColumn = 11654204 :=
+    have constant : PiRLCProductPlan.basePackage.layout.constantColumn = 11464596 :=
       Package.circuitPackage_layout_values.2.2.1
     rw [constant] at bound
     rw [Spartan.sourceColumnCount_eq]

@@ -26,7 +26,7 @@ mod reference;
 mod affine_fixture;
 
 #[test]
-fn affine_poseidon_reference_preserves_values_indices_and_tag_selection() {
+fn affine_poseidon_reference_preserves_values_and_indices() {
     let program = reference::poseidon_input::Program::decode(&affine_fixture::program(), 32)
         .expect("independent affine input decoder");
     let first = program.state(32, 31, 0).expect("first independent input");
@@ -46,11 +46,6 @@ fn affine_poseidon_reference_preserves_values_indices_and_tag_selection() {
     }
     assert!(first[2..].iter().all(|form| form.entries().is_empty()));
     assert!(second[2..].iter().all(|form| form.entries().is_empty()));
-    assert!(program
-        .state(32, 31, 2)
-        .expect("inactive tag")
-        .iter()
-        .all(|form| form.entries().is_empty()));
     assert!(program.state(32, 32, 0).is_err(), "independent constant-column bound");
 }
 
@@ -70,12 +65,12 @@ use reference::{
     RowForms, GOLDILOCKS_MODULUS,
 };
 
-const EXPECTED_ACTIVE_ROWS: usize = 1_032_323;
-const EXPECTED_LOGICAL_COLUMNS: usize = 45_140_532;
+const EXPECTED_ACTIVE_ROWS: usize = 1_004_131;
+const EXPECTED_LOGICAL_COLUMNS: usize = 43_963_750;
 const EXPECTED_CUBE_VARIABLES: usize = 28;
 const EXPECTED_PADDED_ROWS: usize = 268_435_456;
-const EXPECTED_PHYSICAL_ROWS: usize = 11_573_009;
-const EXPECTED_PHYSICAL_COLUMNS: usize = 11_659_967;
+const EXPECTED_PHYSICAL_ROWS: usize = 11_383_401;
+const EXPECTED_PHYSICAL_COLUMNS: usize = 11_470_359;
 const EXPECTED_PUBLIC_COLUMNS: usize = 278;
 const EXPECTED_LOGICAL_PUBLIC_INPUTS: usize = 270;
 const MAX_OPCODE_ROWS_PER_INVOCATION: usize = 108;
@@ -105,11 +100,11 @@ fn canonical_pin_entry(package: &mut Value) -> &mut Vec<Value> {
         .as_array_mut()
         .and_then(|sealed| sealed.get_mut(2))
         .and_then(Value::as_array_mut)
-        .and_then(|blocks| blocks.get_mut(3))
+        .and_then(|blocks| blocks.get_mut(6))
         .and_then(Value::as_array_mut)
         .and_then(|block| block.get_mut(1))
         .and_then(Value::as_array_mut)
-        .and_then(|rows| rows.get_mut(258))
+        .and_then(|rows| rows.first_mut())
         .and_then(Value::as_array_mut)
         .and_then(|row| {
             row.iter_mut().find(|entry| {
@@ -219,7 +214,10 @@ pub fn check_matrix_mutations(current: LoadedPerApplicationPackage, sealed_bytes
     let first_row = original
         .row(0, &artifact.sources)
         .expect("original first row");
-    let pin_ordinal = original.block_ends().nth(2).expect("start of fourth block") + 258;
+    let pin_ordinal = original
+        .block_ends()
+        .nth(5)
+        .expect("start of the endpoint pin block");
     let pin_row = original
         .row(pin_ordinal, &artifact.sources)
         .expect("original selected pin row");

@@ -18,7 +18,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 /-- Completed PiCCS boundaries. -/
 def phaseLogicalStart : Nat := PiRLCInputs.phaseOffset
-def phaseRowStart : Nat := 6352059
+def phaseRowStart : Nat := 6162451
 
 /-- The phase lowering starts after all seven logical child intervals. -/
 def phaseFreshStart : Nat :=
@@ -79,7 +79,7 @@ theorem challengeWordStart_eq (source : Nat) :
     Formal.samplerOffset SamplerChain.sourceOffset Sampler.wordsOffset Sampler.advanceOffset Sampler.rangeOffset
   rw [Sampler.counts.1, Gadgets.Sampling.WideReduction.Program.privateCount_eq]
 
-theorem phaseLogicalStart_eq : phaseLogicalStart = 6418389 := by
+theorem phaseLogicalStart_eq : phaseLogicalStart = 6228781 := by
   rfl
 
 theorem phaseRowStart_matches
@@ -91,41 +91,41 @@ theorem phaseRowStart_matches
   rw [PilotPiCCS.physicalRowCount_eq]
   rfl
 
-theorem phaseFreshStart_eq : phaseFreshStart = 6524894 := by
+theorem phaseFreshStart_eq : phaseFreshStart = 6335286 := by
   rfl
 
-theorem commitmentFreshStart_eq : commitmentFreshStart = 6527342 := by
+theorem commitmentFreshStart_eq : commitmentFreshStart = 6337734 := by
   rfl
 
-theorem publicInputFreshStart_eq : publicInputFreshStart = 9556742 := by
+theorem publicInputFreshStart_eq : publicInputFreshStart = 9367134 := by
   rfl
 
-theorem evalKFreshStart_eq : evalKFreshStart = 10245242 := by
+theorem evalKFreshStart_eq : evalKFreshStart = 10055634 := by
   rfl
 
-theorem evalAFreshStart_eq : evalAFreshStart = 10520642 := by
+theorem evalAFreshStart_eq : evalAFreshStart = 10331034 := by
   rfl
 
 theorem childLogicalStarts_eq :
     [samplerLogicalStart, commitmentLogicalStart, publicInputLogicalStart,
       evalKLogicalStart, evalALogicalStart, outputLogicalStart] =
-    [6418389, 6490928, 6511124, 6515714, 6517550, 6524894] := by
+    [6228781, 6301320, 6321516, 6326106, 6327942, 6335286] := by
   rfl
 
 theorem childRowStarts_eq :
     [samplerRowStart, commitmentRowStart, publicInputRowStart,
       evalKRowStart, evalARowStart, outputRowStart] =
-    [6352059, 6404266, 9453862, 10146952, 10424188, 11533132] := by
+    [6162451, 6214658, 9264254, 9957344, 10234580, 11343524] := by
   rfl
 
 theorem childFreshStarts_eq :
     [samplerFreshStart, commitmentFreshStart, publicInputFreshStart,
       evalKFreshStart, evalAFreshStart, outputFreshStart] =
-    [6524894, 6527342, 9556742, 10245242, 10520642, 11622242] := by
+    [6335286, 6337734, 9367134, 10055634, 10331034, 11432634] := by
   rfl
 
 theorem finalBoundaries_eq :
-    outputRowStart = 11533132 ∧ outputFreshStart = 11622242 := by
+    outputRowStart = 11343524 ∧ outputFreshStart = 11432634 := by
   exact ⟨rfl, rfl⟩
 
 end NightstreamFPrime.Layout.Stage1.PiRLCStarts

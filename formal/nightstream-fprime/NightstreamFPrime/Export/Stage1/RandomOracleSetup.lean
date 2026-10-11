@@ -152,6 +152,56 @@ theorem knowledge_error_le_setup {queries : Nat}
 
 local notation "Chunks" => SetupIndex logicalWidth publicFits → Chunk
 
+/-- The contract's run law sums to one: the chunks are uniform, and for each
+the oracle and retry law sums to one. -/
+private theorem contract_weight_sum :
+    ∑ run : Chunks × (Oracle × Retries),
+      runWeight relation (setupKey run.1) (adversary run.1) Linked run.2 /
+        Fintype.card Chunks = 1 := by
+  have positive : (0 : ℝ) < Fintype.card Chunks := by exact_mod_cast Fintype.card_pos
+  have each (chunks : Chunks) :
+      ∑ run : Oracle × Retries,
+          runWeight relation (setupKey chunks) (adversary chunks) Linked run / Fintype.card Chunks =
+        1 / Fintype.card Chunks := by
+    rw [← Finset.sum_div, runWeight_sum]
+  rw [Fintype.sum_prod_type]
+  simp only [each]
+  rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, mul_one_div_cancel positive.ne']
+
+/-- The contract's failure mass is the average over the chunks of the
+acceptance chance minus the extractor's success. -/
+private theorem contract_failure_sum :
+    ∑ run : Chunks × (Oracle × Retries),
+        runWeight relation (setupKey run.1) (adversary run.1) Linked run.2 / Fintype.card Chunks *
+          (if Succeeds relation (setupKey run.1) (adversary run.1) Linked run.2.1 ∧
+              extract relation (setupKey run.1) (adversary run.1) Linked run.2.1 run.2.2 = none
+            then 1 else 0) =
+      𝔼 chunks : Chunks, (𝔼 oracle, (if Succeeds relation (setupKey chunks) (adversary chunks)
+          Linked oracle then (1 : ℝ) else 0) -
+        extraction relation adversary claim prior contextDigest chunks) := by
+  have perChunks (chunks : Chunks) :
+      ∑ run : Oracle × Retries,
+        runWeight relation (setupKey chunks) (adversary chunks) Linked run / Fintype.card Chunks *
+          (if Succeeds relation (setupKey chunks) (adversary chunks) Linked run.1 ∧
+              extract relation (setupKey chunks) (adversary chunks) Linked run.1 run.2 = none
+            then 1 else 0) =
+        (𝔼 oracle, (if Succeeds relation (setupKey chunks) (adversary chunks) Linked oracle
+            then (1 : ℝ) else 0) -
+          extraction relation adversary claim prior contextDigest chunks) / Fintype.card Chunks := by
+    unfold extraction
+    rw [← failure_eq relation (setupKey chunks) (adversary chunks) Linked, Finset.sum_div]
+    refine Finset.sum_congr rfl fun run _ => ?_
+    ring
+  calc _ = ∑ chunks : Chunks, ∑ run : Oracle × Retries,
+          runWeight relation (setupKey chunks) (adversary chunks) Linked run / Fintype.card Chunks *
+            (if Succeeds relation (setupKey chunks) (adversary chunks) Linked run.1 ∧
+                extract relation (setupKey chunks) (adversary chunks) Linked run.1 run.2 = none
+              then 1 else 0) :=
+        Fintype.sum_prod_type _
+    _ = _ := by
+      rw [Finset.sum_congr rfl fun chunks _ => perChunks chunks, Finset.expect_eq_sum_div_card,
+        Finset.card_univ, Finset.sum_div]
+
 /-- The knowledge contract of the production NIFS in the random-oracle model,
 with the key drawn from the setup chunks and the prior-state link, for an
 adversary with at most `queries` oracle queries. A run is the chunks, the
@@ -164,20 +214,7 @@ noncomputable def contract {queries : Nat}
   weight_nonnegative run :=
     div_nonneg (runWeight_nonnegative relation (setupKey run.1) (adversary run.1) Linked run.2)
       (Nat.cast_nonneg _)
-  weight_sum := by
-    have positive : (0 : ℝ) < Fintype.card Chunks := by exact_mod_cast Fintype.card_pos
-    have each (chunks : Chunks) :
-        ∑ run : Oracle × Retries,
-            runWeight relation (setupKey chunks) (adversary chunks) Linked run / Fintype.card Chunks =
-          1 / Fintype.card Chunks := by
-      rw [← Finset.sum_div, runWeight_sum]
-    calc _ = ∑ chunks : Chunks, ∑ run : Oracle × Retries,
-            runWeight relation (setupKey chunks) (adversary chunks) Linked run / Fintype.card Chunks :=
-          Fintype.sum_prod_type _
-      _ = ∑ _chunks : Chunks, 1 / (Fintype.card Chunks : ℝ) := Finset.sum_congr rfl fun chunks _ => each chunks
-      _ = 1 := by
-        rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
-        field_simp
+  weight_sum := contract_weight_sum relation adversary claim prior contextDigest
   Statement := AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits) ×
     Running (logicalWidth := logicalWidth) (publicFits := publicFits) ×
     Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)
@@ -198,38 +235,9 @@ noncomputable def contract {queries : Nat}
     Fintype.card (SetupIndex logicalWidth publicFits) * (2 * 4294967295 / 2 ^ 256 : ℝ)
   knowledge_sound := by
     have setup := knowledge_error_le_setup relation adversary claim prior contextDigest bounded
-    have perChunks (chunks : Chunks) :
-        ∑ run : Oracle × Retries,
-          runWeight relation (setupKey chunks) (adversary chunks) Linked run / Fintype.card Chunks *
-            (if Succeeds relation (setupKey chunks) (adversary chunks) Linked run.1 ∧
-                extract relation (setupKey chunks) (adversary chunks) Linked run.1 run.2 = none
-              then 1 else 0) =
-          (𝔼 oracle, (if Succeeds relation (setupKey chunks) (adversary chunks) Linked oracle
-              then (1 : ℝ) else 0) -
-            extraction relation adversary claim prior contextDigest chunks) / Fintype.card Chunks := by
-      unfold extraction
-      rw [← failure_eq relation (setupKey chunks) (adversary chunks) Linked, Finset.sum_div]
-      refine Finset.sum_congr rfl fun run _ => ?_
-      ring
-    have average :
-        ∑ chunks : Chunks, (𝔼 oracle, (if Succeeds relation (setupKey chunks) (adversary chunks) Linked
-            oracle then (1 : ℝ) else 0) -
-          extraction relation adversary claim prior contextDigest chunks) / Fintype.card Chunks =
-        𝔼 chunks : Chunks, (𝔼 oracle, (if Succeeds relation (setupKey chunks) (adversary chunks)
-            Linked oracle then (1 : ℝ) else 0) -
-          extraction relation adversary claim prior contextDigest chunks) := by
-      rw [Finset.expect_eq_sum_div_card, Finset.card_univ, Finset.sum_div]
     rw [Finset.expect_add_distrib] at setup
-    calc _ = ∑ chunks : Chunks, ∑ run : Oracle × Retries,
-            runWeight relation (setupKey chunks) (adversary chunks) Linked run / Fintype.card Chunks *
-              (if Succeeds relation (setupKey chunks) (adversary chunks) Linked run.1 ∧
-                  extract relation (setupKey chunks) (adversary chunks) Linked run.1 run.2 = none
-                then 1 else 0) :=
-          Fintype.sum_prod_type _
-      _ = _ := (Finset.sum_congr rfl fun chunks _ => perChunks chunks).trans average
-      _ ≤ _ := by
-        rw [Finset.expect_sub_distrib]
-        linarith
+    rw [contract_failure_sum, Finset.expect_sub_distrib]
+    linarith
 
 /-! ## Every application of the profile -/
 

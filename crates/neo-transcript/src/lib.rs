@@ -36,12 +36,13 @@ pub trait TranscriptProtocol {
     fn absorb_public_fields(&mut self, label: &'static [u8], fs: &[F]);
 }
 
-pub use poseidon2::Poseidon2Transcript;
+pub use poseidon2::{fold_domain_chunk_v1_2, FoldCoin, Poseidon2Transcript};
 
 /// Lean `ProductionKey.priorDigest` (`decodeHash`) of a v1.2 fresh public
 /// input: digest word `w` is `sum over bit < 64 of 2^bit * input[1 + 64 w + bit]`,
-/// computed in the field. Cells past a shorter input read as zero; the PiCCS
-/// transcript absorbs the complete input next, so this adds no binding of its
+/// computed in the field. Cells past a shorter input read as zero. The caller
+/// checks that the input has its fixed length, and the PiCCS transcript absorbs
+/// the complete input after the digest, so the digest adds no binding of its
 /// own.
 pub fn prior_digest_v1_2(public_input: &[F]) -> [F; 4] {
     core::array::from_fn(|word| {

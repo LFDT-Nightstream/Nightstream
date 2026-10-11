@@ -503,7 +503,7 @@ def execute (input : Input) : Execution :=
   let running := selectedRunning input
   let verifierInput := verifierInput input
   let statementState := ProductionKey.absorbPublicInput
-    (Transcript.absorb Transcript.initialState Transcript.piCcsDigestDomainTag)
+    Transcript.foldInitialState
     running (selectedFresh input)
   let pre := Folding.PiCCS.Transcript.deriveFromState
     Transcript.piCcsOracle.transcript statementState
@@ -551,7 +551,7 @@ def execute (input : Input) : Execution :=
 output of this execution. This view asserts no distribution for its coins. -/
 def probe (input : Input) : StrongReduction.Probe K productionShape :=
   let statementState := ProductionKey.absorbPublicInput
-    (Transcript.absorb Transcript.initialState Transcript.piCcsDigestDomainTag)
+    Transcript.foldInitialState
     (selectedRunning input) (selectedFresh input)
   let pre := Folding.PiCCS.Transcript.deriveFromState
     Transcript.piCcsOracle.transcript statementState

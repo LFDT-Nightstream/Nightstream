@@ -408,7 +408,7 @@ private theorem mapped_lt_basePackage (source : Nat)
     Spartan.sourceToSpartan source <
       PiRLCProductPlan.basePackage.layout.totalColumnCount := by
   have mapped := Spartan.sourceToSpartan_lt source bound
-  have total : PiRLCProductPlan.basePackage.layout.totalColumnCount = 11654483 :=
+  have total : PiRLCProductPlan.basePackage.layout.totalColumnCount = 11464875 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
   rw [total]
   simpa [Spartan.spartanColumnCount] using mapped
@@ -489,7 +489,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       apply transitionEnv_of_notTranscript program base _ (Location.state index).sourceColumn_lt
       rintro ⟨invocation, lane, same⟩
       have indexBound : index.val < 9 := index.isLt
-      have invocationBound : invocation.val < 355 := by
+      have invocationBound : invocation.val < 183 := by
         simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
           using invocation.isLt
       have laneBound : lane.val < 16 := lane.isLt
@@ -510,7 +510,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       apply transitionEnv_of_notTranscript program base _ (Location.output index).sourceColumn_lt
       rintro ⟨invocation, lane, same⟩
       have indexBound : index.val < 27819 := index.isLt
-      have invocationBound : invocation.val < 355 := by
+      have invocationBound : invocation.val < 183 := by
         simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
           using invocation.isLt
       have laneBound : lane.val < 16 := lane.isLt
@@ -531,11 +531,11 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       apply transitionEnv_of_notTranscript program base _ (Location.piDec index).sourceColumn_lt
       rintro ⟨invocation, lane, same⟩
       have indexBound : index.val < 31968 := index.isLt
-      have invocationBound : invocation.val < 355 := by
+      have invocationBound : invocation.val < 183 := by
         simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
           using invocation.isLt
       have laneBound : lane.val < 16 := lane.isLt
-      have address : 11622242 + index.val =
+      have address : 11432634 + index.val =
           5157226 + invocation.val * 1096 + 1080 + lane.val := by
         simpa only [sourceColumn, RunningTransitionSourceSupport.piDecStart_eq,
           PiCCSStarts.statementWitnessStart_eq] using same

@@ -55,13 +55,13 @@ def laterPoseidonBlock (program : Lifecycle.Stage1.Application.Program) :
 
 @[simp] theorem laterPoseidonBlock_slotCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (laterPoseidonBlock program).slotCount = 173250 := by
+    (laterPoseidonBlock program).slotCount = 147300 := by
   rw [laterPoseidonBlock, LowNormBlock.Block.lift_slotCount,
     PoseidonRetainedBlock.laterBlock_slotCount]
 
 @[simp] theorem laterPoseidonBlock_coordinateCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (laterPoseidonBlock program).coordinateCount = 7103250 := by
+    (laterPoseidonBlock program).coordinateCount = 6039300 := by
   rw [laterPoseidonBlock, LowNormBlock.Block.lift_coordinateCount,
     PoseidonRetainedBlock.laterBlock_coordinateCount]
 
@@ -101,7 +101,7 @@ def prefixLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
 
 @[simp] theorem prefixLogicalWidth_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    prefixLogicalWidth program = 38462370 := by
+    prefixLogicalWidth program = 37398420 := by
   unfold prefixLogicalWidth productOutputStart
     challengeStart
     productGroupStart laterPoseidonStart outputPoseidonStart priorPoseidonStart
@@ -119,7 +119,7 @@ def prefixLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
 /-- The prefix owns a fixed number of coordinates. Reading its width does
 not need the selected application's source-domain size or circuit. -/
 def directPrefixLogicalWidth (_program : Lifecycle.Stage1.Application.Program) : Nat :=
-  38462370
+  37398420
 
 @[csimp] theorem prefixLogicalWidth_eq_directPrefixLogicalWidth :
     @prefixLogicalWidth = @directPrefixLogicalWidth := by

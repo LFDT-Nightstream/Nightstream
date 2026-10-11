@@ -4,10 +4,10 @@ import NightstreamFPrime.Lifecycle.TranscriptCoverage
 Checks for the transcript coverage contract.
 
 The pins restate the dependency specification `AgreeOnAbsorbed` by `Iff.rfl`.
-By `rfl` they also pin the PiCCS domain tag, the challenge labels `[1, c]`,
-`[2]`, `[3, r]`, `[4, i]`, the key's round index and the block length prefix,
-and that the key absorbs the tag before the statement blocks and each label
-before its squeeze. A change to any of them must also change this file. The two refutations take
+By `rfl` they also pin the fold domain chunk, the coin positions, the lane pair
+that a coin reads, the `Π_RLC` scalar domain `[4, i]`, the plain round absorb,
+and that the key absorbs the domain chunk before the statement stream. A
+change to any of them must also change this file. The two refutations take
 copies of the schedule, one without the fresh commitment and one with `y′`
 words without the matrix coordinates, and show that the identify property
 fails for them. They show only that the property is not vacuous;
@@ -57,19 +57,24 @@ end Pins
 
 section TagsAndLabels
 
-example : Transcript.piCcsDigestDomainTagBytes =
-    "Nightstream/SuperNeo/PiCCS/digest-only/v1_1".toList.map Char.toNat :=
+example : Transcript.foldDomainBytes =
+    "Nightstream/SuperNeo/fold/v2".toList.map Char.toNat :=
   rfl
 
 example (coordinate : Fin productionShape.cubeVariables) :
-    Transcript.labelWord (.alpha coordinate) = [natWord 1, natWord coordinate.val] :=
+    Transcript.coinPosition (.alpha coordinate) = coordinate.val :=
   rfl
 
-example : Transcript.labelWord .gamma = [natWord 2] :=
+example : Transcript.coinPosition .gamma = productionShape.cubeVariables :=
   rfl
 
 example (round : Fin productionShape.cubeVariables) :
-    Transcript.labelWord (.sumcheck round) = [natWord 3, natWord round.val] :=
+    Transcript.coinPosition (.sumcheck round) = 0 :=
+  rfl
+
+example (state : Transcript.State) (position : Nat) :
+    (Transcript.squeezeAt state position).1 =
+      ⟨state.getD (2 * (position % 6)) 0, state.getD (2 * (position % 6) + 1) 0⟩ :=
   rfl
 
 example (state : Transcript.State) (coordinate : Nat) :
@@ -80,9 +85,7 @@ example (state : Transcript.State) (coordinate : Nat) :
 example (state : Transcript.State) (round : Fin productionShape.cubeVariables)
     (message : SumCheck.Finite.Message K) :
     Transcript.piCcsOracle.transcript.absorbRound state round message =
-      Transcript.absorb state
-        (natWord (Transcript.serializeMessage message).length.succ ::
-          natWord round.val :: Transcript.serializeMessage message) :=
+      Transcript.absorb state (Transcript.serializeMessage message) :=
   rfl
 
 example {logicalWidth : Nat}
@@ -93,14 +96,13 @@ example {logicalWidth : Nat}
     (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     (ProductionKey.key relation ajtai).publicInputState running fresh =
-      Transcript.absorbBlocks
-        (Transcript.absorb Transcript.initialState Transcript.piCcsDigestDomainTag)
-        (ProductionKey.publicInputBlocks fresh) :=
+      Transcript.absorb (Transcript.absorb Transcript.initialState Transcript.foldDomainChunk)
+        (ProductionKey.publicInputBlocks fresh).flatten :=
   rfl
 
 example (state : Transcript.State) (label : FiatShamir.ChallengeLabel productionShape) :
     Transcript.piCcsOracle.transcript.squeeze state label =
-      Transcript.squeezeK (Transcript.absorb state (Transcript.labelWord label)) :=
+      Transcript.squeezeAt state (Transcript.coinPosition label) :=
   rfl
 
 end TagsAndLabels
@@ -114,11 +116,10 @@ variable {logicalWidth : Nat}
 /-- The key's statement calls with the fresh commitment removed. -/
 private def droppedCommitmentCalls
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)) : List Call :=
-  absorbCalls Transcript.piCcsDigestDomainTag ++
-    ([ProductionKey.priorDigest fresh] ++
+  absorbCalls Transcript.foldDomainChunk ++
+    absorbCalls (ProductionKey.priorDigest fresh ++
       (List.finRange productionShape.freshCount).flatMap fun index =>
-        [serializePublicInput (fresh.publicInputs index)]).flatMap fun words =>
-      absorbCalls (block words)
+        serializePublicInput (fresh.publicInputs index))
 
 private def freshWith (value : F) :
     Fresh (logicalWidth := logicalWidth) (publicFits := publicFits) :=

@@ -287,7 +287,7 @@ theorem assembleTerminalFast_eq_paper
 
 def publicStateFromFresh (freshValue : FixtureFresh) : Transcript.State :=
   ProductionKey.absorbPublicInput
-    (Transcript.absorb Transcript.initialState Transcript.piCcsDigestDomainTag)
+    Transcript.foldInitialState
     running freshValue
 
 def publicState (_ : Unit)

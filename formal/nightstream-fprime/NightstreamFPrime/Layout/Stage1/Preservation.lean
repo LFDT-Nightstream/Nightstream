@@ -91,13 +91,13 @@ private theorem compactEnv_shiftedPiCcsLocal
     (program : Lifecycle.Stage1.Application.Program) (env : Env)
     (index : Nat)
     (support : SupportRange.Extend (fun _ => False)
-      PilotPiCCS.piCcsOffset (PilotPiCCS.piCcsOffset + 1258477) index) :
+      PilotPiCCS.piCcsOffset (PilotPiCCS.piCcsOffset + 1068869) index) :
     CompactPullback.compactEnv program env (index + piCcsDelta program) =
       sourceEnv program env index := by
   rcases support with impossible | ⟨lower, upper⟩
   · contradiction
   · let relative := index - PilotPiCCS.piCcsOffset
-    have relativeLt : relative < 1258477 := by
+    have relativeLt : relative < 1068869 := by
       dsimp only [relative]
       omega
     have sourceIndex : PilotPiCCS.piCcsOffset + relative = index := by
@@ -480,7 +480,7 @@ private theorem compactPiCcsOutputSupport
         (PilotPiCCS.interface (publicFits := publicFits))
         PilotPiCCS.piCcsOffset)
       (SupportRange.Extend (fun _ => False) PilotPiCCS.piCcsOffset
-        (PilotPiCCS.piCcsOffset + 1258477)) := by
+        (PilotPiCCS.piCcsOffset + 1068869)) := by
   intro lane
   unfold Lifecycle.PiCCS.v1_2.Formal.outputBindingFinalState
   rw [congrFun (PiCCSTranscriptRelocation.outputFinalState_direct
@@ -545,7 +545,7 @@ private theorem compactPiCcsOutgoingState_eq
       (PilotPiCCS.interface (publicFits := publicFits))
       PilotPiCCS.piCcsOffset)
     (SupportRange.Extend (fun _ => False) PilotPiCCS.piCcsOffset
-      (PilotPiCCS.piCcsOffset + 1258477))
+      (PilotPiCCS.piCcsOffset + 1068869))
     (sourceEnv program env) (CompactPullback.compactEnv program env)
     (compactPiCcsOutputSupport relation)
     (compactEnv_shiftedPiCcsLocal program env) lane).symm

@@ -248,8 +248,8 @@ is admitted and whose advertised iteration is bounded, the reverse law has the
 adversary's output law, and its mass where the terminal verifier accepts and
 the reverse extractor returns no valid history is at most, at each stage, that
 stage's marked hash-collision mass and its Assumption 1 error. The
-random-oracle theorem `RandomOracleKnowledge.knowledge_error_le` motivates the
-value of `error`; it does not prove Assumption 1 for Poseidon2, and no Lean
+random-oracle theorem `RandomOracleSetup.production_knowledge_error_lt` motivates
+the value of `error`; it does not prove Assumption 1 for Poseidon2, and no Lean
 statement derives `error` from it. -/
 def HyperNovaLinearSecurity : Prop :=
   ∀ (application : Lifecycle.Stage1.Application.Program)

@@ -583,9 +583,10 @@ fn prior_digest_comes_from_the_fresh_public_input() {
     )
     .expect("prior-digest trace");
     assert!(accepted);
-    let mut block = vec![F::from_u64(4)];
-    block.extend(digest.map(F::from_u64));
-    assert_eq!(trace.events[1], TraceEvent::Absorb(block));
+    let TraceEvent::Absorb(statement) = &trace.events[1] else {
+        panic!("the statement absorb follows the domain chunk");
+    };
+    assert_eq!(statement[..4], digest.map(F::from_u64));
 }
 
 #[test]
@@ -629,9 +630,20 @@ fn accepting_v1_2_path_exports_receipt_and_rejects_mutations() {
     assert_eq!(
         receipt.statement.transcript_absorptions[0],
         vec![
-            78, 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47, 83, 117, 112, 101, 114, 78, 101, 111, 47, 80, 105,
-            67, 67, 83, 47, 100, 105, 103, 101, 115, 116, 45, 111, 110, 108, 121, 47, 118, 49, 95, 49,
-        ]
+            8_247_343_761_427_229_006,
+            7_309_471_195_360_747_877,
+            7_813_576_232_429_506_162,
+            846_606_180,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+        ],
+        "first absorb is the packed `Nightstream/SuperNeo/fold/v2` chunk"
     );
 
     let mut changed_proof = proof.clone();

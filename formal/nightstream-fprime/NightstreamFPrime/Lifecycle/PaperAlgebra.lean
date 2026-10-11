@@ -13,7 +13,7 @@ Provenance: adapted from
 at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`: the four-lane product commitment is replaced by the Ajtai
   commitment of `Spec.Phi81Relation.PiRLCAlgebra.Commitment`, the row domain is
   the Stage 1 `cubeVariables`, the public block is five ring columns, and the
-SuperNeo v1.1 Pad evaluation family is separate from all CCS matrices.
+SuperNeo v1.2 Pad evaluation family is separate from all CCS matrices.
 -/
 
 namespace NightstreamFPrime.Lifecycle.PaperAlgebra
@@ -93,7 +93,7 @@ def matrixSource
     productionProfile.runningSources productionProfile.ccsMatrices logicalWidth
     system.matrices system.constraintPolynomial
 
-/-- Complete v1.1 source: canonical Pad layout plus all 4 CCS matrices. -/
+/-- Complete v1.2 source: canonical Pad layout plus all 4 CCS matrices. -/
 def relationSource
     (layout : ColumnLayout productionShape.cubeVariables
       (Phi81CarrierLayout.carrierWidth logicalWidth))
@@ -126,7 +126,7 @@ theorem canonicalStructure_relationSource
           productionProfile.ccsMatrices logicalWidth matrices polynomial matrix vertex column
       · rfl
 
-/-- The completed Pad matrix owned by the v1.1 relation source. Pad is not a
+/-- The completed Pad matrix owned by the v1.2 relation source. Pad is not a
 member of the CCS matrix family. -/
 def padMatrix (source : Structure logicalWidth) :
     BooleanMatrix F productionShape.cubeVariables
@@ -135,7 +135,7 @@ def padMatrix (source : Structure logicalWidth) :
     source.cubeLayout.paddedIdentityEntry
       baseOps.zero baseOps.one vertex column
 
-/-- The independent v1.1 `Eval_K` family for Pad. -/
+/-- The independent v1.2 `Eval_K` family for Pad. -/
 def padEvaluation
     (source : Structure logicalWidth)
     (assignment : Assignment (logicalWidth := logicalWidth)
@@ -323,7 +323,7 @@ def combineEvaluations : {count : Nat} ->
         combineEvaluationFamily challenges fun source =>
           (items source).getD index.val evaluationZero
 
-/-- Combining singleton evaluation arrays preserves the v1.1 split and
+/-- Combining singleton evaluation arrays preserves the v1.2 split and
 produces exactly one combined Pad/matrix family. -/
 theorem combineEvaluations_singletons
     {count : Nat} (positive : 0 < count)

@@ -4,7 +4,7 @@ import NightstreamFPrime.Export.Stage1.PiDECStoredSplitHonestWitness
 import NightstreamFPrime.Export.Stage1.PiDECInputCheck
 
 /-!
-Compute the selected child Pad and fourteen matrix evaluation families from
+Compute the selected child Pad and matrix evaluation families from
 the same stored assignments and parent point, then connect them to the honest
 PiDEC messages. The prefix bounds and zero suffixes are derived here. No
 expected evaluation, matrix agreement, opening or runtime premise is supplied.
@@ -60,31 +60,31 @@ private theorem evaluationFamily_rows {logicalWidth : Nat}
       (PaperAlgebra.FullShape logicalWidth publicFits))
     (point : PaperAlgebra.Point) :
     PaperAlgebra.evaluationFamily
-        (Lifecycle.PiRLC.v1_1.InputBinding.relationSource relation) assignment point =
+        (Lifecycle.PiRLC.v1_2.InputBinding.relationSource relation) assignment point =
       ({ pad := fun lane =>
           (BooleanTable.tabulate (fun vertex => K.embed
             (PiRLC.ExplicitMatrix.rowRing relation.system
               (PaperAlgebra.padMatrix
-                (Lifecycle.PiRLC.v1_1.InputBinding.relationSource relation))
+                (Lifecycle.PiRLC.v1_2.InputBinding.relationSource relation))
               assignment vertex lane))).evaluate extensionOps point
          matrix := fun matrix lane =>
           (BooleanTable.tabulate (fun vertex => K.embed
             (PiRLC.rowRing relation.system assignment matrix vertex lane))).evaluate
             extensionOps point } : PaperAlgebra.Evaluation) := by
   exact PaperAlgebra.evaluationFamily_eq_paper
-    (Lifecycle.PiRLC.v1_1.InputBinding.relationSource relation).cubeLayout
+    (Lifecycle.PiRLC.v1_2.InputBinding.relationSource relation).cubeLayout
     relation.system assignment point
 
 /-- The executed prefixes produce the complete selected semantic family.
 Both prefix bounds and all omitted zero rows are proved from their owners;
-all carried tail coefficients and all fourteen matrix slots are retained. -/
+all carried tail coefficients and all matrix slots are retained. -/
 theorem family_eq_evaluationFamily
     (assignments : Vector (StoredAssignment selectedShape.carrierWidth)
       productionGlobalParams.k)
     (point : PaperAlgebra.Point) (child : Fin productionGlobalParams.k) :
     family assignments point child =
       PaperAlgebra.evaluationFamily
-        (Lifecycle.PiRLC.v1_1.InputBinding.relationSource PiDECInputCheck.relation)
+        (Lifecycle.PiRLC.v1_2.InputBinding.relationSource PiDECInputCheck.relation)
         (view (assignments.get child)) point := by
   rw [PiDECInputCheck.relation_eq_selected,
     evaluationFamily_rows selectedRelation (view (assignments.get child)) point]

@@ -108,7 +108,7 @@ impl Fixture {
         let mut running = RunningInstance::canonical_zero(&params, &structure, D).unwrap();
         let blocks = SuperneoZBlocks::from_witness_mat(&witness, structure.m).unwrap();
         let opening = cache
-            .eval_real_v1_1_openings(&running.claims[0].r, &[blocks])
+            .eval_real_v1_2_openings(&running.claims[0].r, &[blocks])
             .unwrap()
             .remove(0);
         let claim = &mut running.claims[0];

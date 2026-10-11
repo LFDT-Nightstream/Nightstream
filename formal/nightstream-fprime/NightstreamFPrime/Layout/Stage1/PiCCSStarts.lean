@@ -1,8 +1,8 @@
 import NightstreamFPrime.Layout.Stage1.PilotPiCCS
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.FormalRows
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.FormalRows
 
 /-!
-Paper authority: SuperNeo v1_1, section 7.3, PiCCS Steps 1--5.
+Paper authority: SuperNeo v1.2, section 7.3, PiCCS Steps 1--5.
 Obligation: Own the cumulative physical starts of the twelve PiCCS leaves in
 the same order as the logical parent and physical lowering.
 
@@ -15,7 +15,7 @@ namespace NightstreamFPrime.Layout.Stage1.PiCCSStarts
 
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
@@ -29,7 +29,7 @@ def prefixStarts : Nat → List Nat → List Nat
   | base, delta :: deltas => base :: prefixStarts (base + delta) deltas
 
 /-- The completed pilot owns the physical row prefix. -/
-def rowBase : Nat := 5870862
+def rowBase : Nat := 5086126
 
 theorem rowBase_eq_layout :
     rowBase = Pilot.physicalRowCount PilotProduction.interface
@@ -37,10 +37,10 @@ theorem rowBase_eq_layout :
   rw [rowBase, PilotProduction.physicalRowCount_eq]
 
 def statementBindingRowStart : Nat := rowBase
-def statementAbsorptionRowStart : Nat := statementBindingRowStart + 160
-def challengeRowStart : Nat := statementAbsorptionRowStart + 140288
-def roundTranscriptRowStart : Nat := challengeRowStart + 95352
-def initialClaimRowStart : Nat := roundTranscriptRowStart + 153440
+def statementAbsorptionRowStart : Nat := statementBindingRowStart + 4712
+def challengeRowStart : Nat := statementAbsorptionRowStart + 134808
+def roundTranscriptRowStart : Nat := challengeRowStart + 4384
+def initialClaimRowStart : Nat := roundTranscriptRowStart + 61376
 def sumcheckRowStart : Nat := initialClaimRowStart + 12957
 def evalKRowStart : Nat := sumcheckRowStart + 728
 def evalARowStart : Nat := evalKRowStart + 3364
@@ -57,11 +57,13 @@ def rowStarts : List Nat :=
     finalIdentityRowStart, outputBindingRowStart]
 
 /-- The logical child starts are also the witness starts for the four
-Poseidon2 invocation packets. -/
-def statementWitnessStart : Nat := PiCCSInputs.phaseOffset
-def challengeWitnessStart : Nat := statementWitnessStart + 140288
-def roundTranscriptWitnessStart : Nat := challengeWitnessStart + 95352
-def initialClaimLogicalStart : Nat := roundTranscriptWitnessStart + 153440
+Poseidon2 invocation packets. The statement-binding leaf owns the first 270
+columns: one hinted sign per packed parent coordinate. -/
+def statementBindingLogicalStart : Nat := PiCCSInputs.phaseOffset
+def statementWitnessStart : Nat := statementBindingLogicalStart + 270
+def challengeWitnessStart : Nat := statementWitnessStart + 134808
+def roundTranscriptWitnessStart : Nat := challengeWitnessStart + 4384
+def initialClaimLogicalStart : Nat := roundTranscriptWitnessStart + 61376
 def sumcheckLogicalStart : Nat := initialClaimLogicalStart + 12957
 def evalKLogicalStart : Nat := sumcheckLogicalStart + 672
 def evalALogicalStart : Nat := evalKLogicalStart + 2699
@@ -70,21 +72,25 @@ def normLogicalStart : Nat := ccsLogicalStart + 23
 def finalIdentityLogicalStart : Nat := normLogicalStart + 48
 def outputBindingWitnessStart : Nat := finalIdentityLogicalStart + 2717
 
-theorem statementWitnessStart_eq : statementWitnessStart = 5945960 := by
-  unfold statementWitnessStart
-  exact PiCCSInputs.phaseOffset_eq
+theorem phaseOffset_le_statementWitnessStart :
+    PiCCSInputs.phaseOffset ≤ statementWitnessStart :=
+  Nat.le_add_right _ _
 
-theorem challengeWitnessStart_eq : challengeWitnessStart = 6086248 := by
+theorem statementWitnessStart_eq : statementWitnessStart = 5157226 := by
+  unfold statementWitnessStart statementBindingLogicalStart
+  rw [PiCCSInputs.phaseOffset_eq]
+
+theorem challengeWitnessStart_eq : challengeWitnessStart = 5292034 := by
   unfold challengeWitnessStart
   rw [statementWitnessStart_eq]
 
 theorem roundTranscriptWitnessStart_eq :
-    roundTranscriptWitnessStart = 6181600 := by
+    roundTranscriptWitnessStart = 5296418 := by
   unfold roundTranscriptWitnessStart
   rw [challengeWitnessStart_eq]
 
 theorem outputBindingWitnessStart_eq :
-    outputBindingWitnessStart = 6364631 := by
+    outputBindingWitnessStart = 5387385 := by
   unfold outputBindingWitnessStart finalIdentityLogicalStart
     normLogicalStart ccsLogicalStart evalALogicalStart evalKLogicalStart
     sumcheckLogicalStart initialClaimLogicalStart
@@ -107,15 +113,15 @@ theorem outputBindingWitnessStart_matches
 
 /-- Generic R1CS multiplication columns begin after all PiCCS logical
 variables. -/
-def logicalFreshBase : Nat := PiCCSInputs.phaseOffset + 1258207
+def logicalFreshBase : Nat := PiCCSInputs.phaseOffset + 1068869
 
 theorem logicalFreshBase_eq_layout
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     logicalFreshBase =
-      NightstreamFPrime.Layout.PiCCS.v1_1.logicalColumnCount relation
+      NightstreamFPrime.Layout.PiCCS.v1_2.logicalColumnCount relation
         (PiCCSInputs.interface logicalWidth publicFits)
         PiCCSInputs.phaseOffset := by
-  rw [NightstreamFPrime.Layout.PiCCS.v1_1.logicalColumnCount_eq_of_degreeBound_eq_eight
+  rw [NightstreamFPrime.Layout.PiCCS.v1_2.logicalColumnCount_eq_of_degreeBound_eq_eight
     relation (PiCCSInputs.interface logicalWidth publicFits)
       PiCCSInputs.phaseOffset rfl]
   rfl
@@ -145,17 +151,17 @@ row deltas. -/
 theorem rowStarts_eq_layout
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     rowStarts = prefixStarts rowBase
-      (NightstreamFPrime.Layout.PiCCS.v1_1.physicalRowDeltas relation
+      (NightstreamFPrime.Layout.PiCCS.v1_2.physicalRowDeltas relation
         (PiCCSInputs.interface logicalWidth publicFits)
         PiCCSInputs.phaseOffset) := by
   let inputs :=
-    NightstreamFPrime.Layout.PiCCS.v1_1.ProductionInputs.inputShapes relation
+    NightstreamFPrime.Layout.PiCCS.v1_2.ProductionInputs.inputShapes relation
       (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
       (PiCCSInputs.externalInputsLinear logicalWidth publicFits)
-  rw [NightstreamFPrime.Layout.PiCCS.v1_1.physicalRowDeltas_eq relation
+  rw [NightstreamFPrime.Layout.PiCCS.v1_2.physicalRowDeltas_eq relation
     (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
       inputs]
-  rw [NightstreamFPrime.Layout.PiCCS.v1_1.terminalRowCost_eq relation
+  rw [NightstreamFPrime.Layout.PiCCS.v1_2.terminalRowCost_eq relation
     (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
       inputs]
   rfl
@@ -165,17 +171,17 @@ fresh-column deltas. -/
 theorem freshStarts_eq_layout
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     freshStarts = prefixStarts logicalFreshBase
-      (NightstreamFPrime.Layout.PiCCS.v1_1.physicalFreshDeltas relation
+      (NightstreamFPrime.Layout.PiCCS.v1_2.physicalFreshDeltas relation
         (PiCCSInputs.interface logicalWidth publicFits)
         PiCCSInputs.phaseOffset) := by
   let inputs :=
-    NightstreamFPrime.Layout.PiCCS.v1_1.ProductionInputs.inputShapes relation
+    NightstreamFPrime.Layout.PiCCS.v1_2.ProductionInputs.inputShapes relation
       (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
       (PiCCSInputs.externalInputsLinear logicalWidth publicFits)
-  rw [NightstreamFPrime.Layout.PiCCS.v1_1.physicalFreshDeltas_eq relation
+  rw [NightstreamFPrime.Layout.PiCCS.v1_2.physicalFreshDeltas_eq relation
     (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
       inputs]
-  rw [NightstreamFPrime.Layout.PiCCS.v1_1.terminalFreshCost_eq relation
+  rw [NightstreamFPrime.Layout.PiCCS.v1_2.terminalFreshCost_eq relation
     (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
       inputs]
   rfl

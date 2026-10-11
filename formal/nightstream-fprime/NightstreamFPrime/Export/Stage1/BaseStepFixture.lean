@@ -81,7 +81,7 @@ def valueIO (context : VerifierContext.Digest4) : IO Value := do
     commitments := fun _ => zeroProof.freshCommitment
     publicInputs := fun _ => priorPublic }
   let statementState := ProductionKey.absorbPublicInput
-    (Transcript.absorb Transcript.initialState Transcript.piCcsDigestDomainTag)
+    Transcript.foldInitialState
     (defaultRunning (logicalWidth := logicalWidth) (publicFits := publicFits))
     fresh
   let preSumcheck := Folding.PiCCS.Transcript.deriveFromState
@@ -124,6 +124,7 @@ def valueIO (context : VerifierContext.Digest4) : IO Value := do
     (productionGlobalParams.k * productionShape.matrixCount *
       productionShape.coefficientCount * 2) (0 : F)
   let privateInputs := priorWords ++ outputWords ++
+    PiCCSProofInputs.priorChildWords (prior.running functionIndex) ++
     PiCCSProofInputs.serializeProofInputs zeroProof ++
     childCommitmentWords ++ childEvalKWords ++ childEvalAWords ++
     childPublicWords ++ applicationMessage

@@ -15,7 +15,7 @@ open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Spec
 
 private theorem source_beforeSampler {source : Nat}
@@ -25,44 +25,49 @@ private theorem source_beforeSampler {source : Nat}
   · rcases external with priorRange | publicRange | outputRange |
       contextRange | proofRange
     · exact Nat.lt_of_lt_of_le priorRange.2 (by
-        rw [show PiRLCStarts.samplerLogicalStart = 7207123 by rfl]
+        rw [show PiRLCStarts.samplerLogicalStart = 6228781 by rfl]
         norm_num [PilotProduction.priorPreimageStart,
           PilotProduction.stateHashWords_eq])
     · exact Nat.lt_of_lt_of_le publicRange.2 (by
-        rw [show PiRLCStarts.samplerLogicalStart = 7207123 by rfl]
+        rw [show PiRLCStarts.samplerLogicalStart = 6228781 by rfl]
         norm_num [PilotProduction.priorPublicInputStart,
           PilotProduction.priorPreimageStart,
           PilotProduction.stateHashWords_eq])
     · exact Nat.lt_of_lt_of_le outputRange.2 (by
-        rw [show PiRLCStarts.samplerLogicalStart = 7207123 by rfl]
+        rw [show PiRLCStarts.samplerLogicalStart = 6228781 by rfl]
         norm_num [PilotProduction.outputPreimageStart,
           PilotProduction.priorPublicInputStart,
           PilotProduction.priorPreimageStart,
           PriorStateHash.publicWidth, PilotProduction.stateHashWords_eq,
           ringDegree, PaperAlgebra.publicRingColumns])
     · exact Nat.lt_of_lt_of_le contextRange.2 (by
-        rw [show PiRLCStarts.samplerLogicalStart = 7207123 by rfl,
+        rw [show PiRLCStarts.samplerLogicalStart = 6228781 by rfl,
           PiCCSInputs.expectedContextStart_eq]
         norm_num [PiCCSInputs.expectedContextWords])
     · exact Nat.lt_of_lt_of_le proofRange.2 (by
-        rw [show PiRLCStarts.samplerLogicalStart = 7207123 by rfl,
-          PiCCSInputs.phaseOffset_eq, PiCCSInputs.proofInputStart_eq]
+        rw [show PiRLCStarts.samplerLogicalStart = 6228781 by rfl,
+          PiCCSOrdinarySourceSupport.callerInputCount_eq, PiCCSInputs.priorChildrenStart_eq]
         norm_num)
-  · rcases logicalRange with transcript | ordinary
+  · rcases logicalRange with sign | transcript | ordinary
+    · unfold PiCCSOrdinarySourceSupport.StatementSign PiCCSOrdinarySourceSupport.InRange
+        PiCCSStarts.statementBindingLogicalStart at sign
+      rw [show PiRLCStarts.samplerLogicalStart = 6228781 by rfl]
+      rw [PiCCSInputs.phaseOffset_eq] at sign
+      omega
     · rcases transcript with ⟨invocation, lane, rfl⟩
-      have invocationBound : invocation.val < 355 := by
+      have invocationBound : invocation.val < 183 := by
         simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
           using invocation.isLt
       have laneBound : lane.val < 16 := by
         simpa only [Spec.Poseidon2.width] using lane.isLt
-      rw [show PiRLCStarts.samplerLogicalStart = 7207123 by rfl,
-        PiCCSInputs.phaseOffset_eq]
+      rw [show PiRLCStarts.samplerLogicalStart = 6228781 by rfl,
+        PiCCSStarts.statementWitnessStart_eq]
       omega
     · unfold PiCCSOrdinarySourceSupport.OrdinaryLogical
         PiCCSOrdinarySourceSupport.InRange at ordinary
       exact Nat.lt_of_lt_of_le ordinary.2 (by
         rw [PiCCSOrdinarySourceSupport.ordinaryLogicalCount_eq,
-          show PiRLCStarts.samplerLogicalStart = 7207123 by rfl]
+          show PiRLCStarts.samplerLogicalStart = 6228781 by rfl]
         unfold PiCCSStarts.initialClaimLogicalStart
         rw [PiCCSStarts.roundTranscriptWitnessStart_eq]
         norm_num)

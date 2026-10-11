@@ -1,11 +1,14 @@
 import contextlib
 import copy
+import errno
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -153,6 +156,90 @@ class LeanFoldCheckTests(unittest.TestCase):
         self.assertEqual(owners["internal"], ["unbounded_parent", "rejected_C_stops_D"])
         with self.assertRaisesRegex(ValueError, "incomplete Lean mutation result"):
             check.mutation_rejections(manifest, complete.replace("rejected_C_stops_D=1", "rejected_C_stops_D=0"))
+
+
+class WaitForExitTests(unittest.TestCase):
+    def child(self, code):
+        process = subprocess.Popen([sys.executable, "-c", code])
+        self.addCleanup(process.wait)
+        self.addCleanup(process.kill)
+        return process
+
+    def test_returns_the_exit_code_before_the_timeout(self):
+        process = self.child("import sys; sys.exit(3)")
+        started = time.monotonic()
+        self.assertEqual(check.wait_for_exit(process, 60), 3)
+        self.assertLess(time.monotonic() - started, 30)
+
+    def test_running_process_times_out_like_wait(self):
+        process = self.child("import time; time.sleep(60)")
+        with self.assertRaises(subprocess.TimeoutExpired):
+            check.wait_for_exit(process, 0.2)
+        self.assertIsNone(process.poll())
+
+    def test_exit_notification_uses_remaining_time_to_reap(self):
+        process = MagicMock(spec=check.POPEN, pid=123, returncode=None)
+
+        def reap(*, timeout):
+            if timeout == 0:
+                raise subprocess.TimeoutExpired(["child"], timeout)
+            return 3
+
+        process.wait.side_effect = reap
+        selector = MagicMock(KQ_EV_ERROR=0x4000)
+        selector.kqueue.return_value.control.return_value = [MagicMock(flags=0)]
+        with patch.object(check, "select", selector), \
+             patch.object(check.time, "monotonic", side_effect=[0, 0.25]):
+            self.assertEqual(check.wait_for_exit(process, 1), 3)
+        process.wait.assert_called_once_with(timeout=0.75)
+
+    def test_notification_timeout_does_not_restart_deadline(self):
+        for elapsed in (1, 1.25):
+            with self.subTest(elapsed=elapsed):
+                process = MagicMock(spec=check.POPEN, pid=123, returncode=None)
+                process.wait.side_effect = subprocess.TimeoutExpired(["child"], 0)
+                selector = MagicMock(KQ_EV_ERROR=0x4000)
+                selector.kqueue.return_value.control.return_value = []
+                with patch.object(check, "select", selector), \
+                     patch.object(check.time, "monotonic", side_effect=[0, elapsed]):
+                    with self.assertRaises(subprocess.TimeoutExpired):
+                        check.wait_for_exit(process, 1)
+                process.wait.assert_called_once_with(timeout=0)
+
+    def test_kqueue_registration_error_uses_timed_wait(self):
+        process = self.child("import time; time.sleep(60)")
+        selector = MagicMock(KQ_EV_ERROR=0x4000)
+        queue = selector.kqueue.return_value
+        queue.control.return_value = [MagicMock(flags=selector.KQ_EV_ERROR, data=errno.ENOMEM)]
+        with patch.object(check, "select", selector), \
+             patch.object(check.time, "monotonic", return_value=0):
+            with self.assertRaises(subprocess.TimeoutExpired) as expired:
+                check.wait_for_exit(process, 0.2)
+        self.assertEqual(expired.exception.timeout, 0.2)
+        self.assertIsNone(process.poll())
+        queue.close.assert_called_once_with()
+
+    def test_pidfd_select_rejection_uses_timed_wait_and_closes_descriptor(self):
+        process = self.child("import time; time.sleep(60)")
+        selector = MagicMock(spec=["select"])
+        selector.select.side_effect = ValueError("filedescriptor out of range in select()")
+        with patch.object(check, "select", selector), \
+             patch.object(check.time, "monotonic", return_value=0), \
+             patch.object(check.os, "pidfd_open", return_value=1024, create=True), \
+             patch.object(check.os, "close") as close:
+            with self.assertRaises(subprocess.TimeoutExpired) as expired:
+                check.wait_for_exit(process, 0.2)
+        self.assertEqual(expired.exception.timeout, 0.2)
+        self.assertIsNone(process.poll())
+        close.assert_called_once_with(1024)
+
+    @unittest.skipUnless(hasattr(os, "waitid"), "os.waitid requires Python 3.13+ on macOS")
+    def test_exited_unreaped_process_is_reaped(self):
+        process = self.child("pass")
+        # Wait for the exit without reaping, so that the process is a zombie.
+        os.waitid(os.P_PID, process.pid, os.WEXITED | os.WNOWAIT)
+        self.assertEqual(check.wait_for_exit(process, 60), 0)
+        self.assertEqual(process.returncode, 0)
 
 
 if __name__ == "__main__":

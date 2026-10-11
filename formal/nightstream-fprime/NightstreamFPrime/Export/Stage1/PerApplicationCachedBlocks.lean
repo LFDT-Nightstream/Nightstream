@@ -96,7 +96,7 @@ def cachedOutputDigestExpressions (program : Program) : List Circuit.Expr :=
   let context := PerApplicationCachedShift.Context.ofProgram program
   List.ofFn fun lane : Fin 4 =>
     PerApplicationCachedShift.shiftExpr context <|
-      PermutationOutput.Readout.rewriteExpr PiCCSTranscriptReadout.phaseStart
+      PermutationOutput.Readout.rewriteExpr PiCCSTranscriptReadout.transcriptStart
         PiCCSOrdinarySourceSupport.transcriptInvocationCount <|
           CompactRows.renameExpr Spartan.sourceToSpartan <|
             PilotProduction.outputInterface.digest

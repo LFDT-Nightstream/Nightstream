@@ -63,8 +63,8 @@ private theorem compileBlocks_complete_of_sourceConstraints
           (permutationOutput_affine witnessStart) restAffine tailRows current member
 
 /-- The actual source recipe rows of a Duplex action list supply every
-compact permutation invocation in that same list. Squeeze expectation checks
-remain in the source assertion rows; no expected-value equality is assumed. -/
+compact permutation invocation in that same list. Reads run no permutation;
+no expected-value equality is assumed. -/
 theorem compileActions_complete_of_sourceConstraints
     (phase rowStart witnessStart : Nat) (state : EState)
     (actions : List Action) (env : Env)
@@ -116,39 +116,8 @@ theorem compileActions_complete_of_sourceConstraints
               witnessLocal stateAffine blocksAffine separated.1 current member
           · exact induction traced.rowNext traced.witnessNext traced.state nextLocal nextAffine
               tailAffine tailRows current member
-      | squeezeK expected =>
-          let squeezed := Squeeze.compile witnessStart state
-          have separated := Formal.splitRecipeRows (Spartan.pullback env) witnessStart
-            squeezed.recipes
-            (Formal.compile (witnessStart + squeezed.recipes.length) squeezed.output actions).recipes rows
-          have splitSqueeze := Formal.splitRecipeRows (Spartan.pullback env) witnessStart
-            (Squeeze.firstPermutation witnessStart state).recipes
-            (Squeeze.secondPermutation witnessStart state).recipes separated.1
-          have firstRows : ConstraintsHold (Spartan.pullback env)
-              (recipeConstraints witnessStart
-                (Permutation.compile witnessStart state Permutation.schedule).recipes) := splitSqueeze.1
-          have secondRows : ConstraintsHold (Spartan.pullback env)
-              (recipeConstraints (witnessStart + 1096)
-                (Permutation.compile (witnessStart + 1096)
-                  (permutationOutput witnessStart) Permutation.schedule).recipes) := by
-            rw [permutationOutput_eq_compile]
-            simpa only [Squeeze.secondPermutation, Squeeze.first_recipes_length] using splitSqueeze.2
-          have tailRows : ConstraintsHold (Spartan.pullback env)
-              (recipeConstraints (witnessStart + 2192)
-                (Formal.compile (witnessStart + 2192)
-                  (permutationOutput (witnessStart + 1096)) actions).recipes) := by
-            rw [squeezeOutput_eq_compile]
-            simpa only [squeezed, Squeeze.compile_recipes_length] using separated.2
-          intro current member
-          simp only [compileActions, List.mem_cons] at member
-          rcases member with rfl | rfl | member
-          · exact invocation_complete_of_sourceConstraints phase rowStart witnessStart state env
-              witnessLocal stateAffine firstRows
-          · exact invocation_complete_of_sourceConstraints phase (rowStart + 1096) (witnessStart + 1096)
-              (permutationOutput witnessStart) env (by omega)
-              (permutationOutput_affine witnessStart) secondRows
-          · exact induction (rowStart + 2192) (witnessStart + 2192)
-              (permutationOutput (witnessStart + 1096)) (by omega)
-              (permutationOutput_affine (witnessStart + 1096)) tailAffine tailRows current member
+      | readK pair expected =>
+          exact induction rowStart witnessStart state witnessLocal stateAffine
+            tailAffine rows
 
 end NightstreamFPrime.Export.Stage1.PermutationCompilerTransport

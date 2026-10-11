@@ -9,7 +9,7 @@ mod affine_fixture;
 const FIRST_POSEIDON_CONSTANT: u64 = 15_504_881_536_434_223_753;
 
 #[test]
-fn affine_poseidon_inputs_preserve_values_indices_and_tag_selection() {
+fn affine_poseidon_inputs_preserve_values_and_indices() {
     let program = poseidon_input::Program::decode(&affine_fixture::program()).expect("affine input program");
     let first = program.state(32, 31, 0).expect("first affine input");
     let second = program.state(32, 31, 1).expect("second affine input");
@@ -29,11 +29,6 @@ fn affine_poseidon_inputs_preserve_values_indices_and_tag_selection() {
     }
     assert!(first[2..].iter().all(|form| form.entries().is_empty()));
     assert!(second[2..].iter().all(|form| form.entries().is_empty()));
-    assert!(program
-        .state(32, 31, 2)
-        .expect("inactive tag")
-        .iter()
-        .all(|form| form.entries().is_empty()));
     assert!(program.state(32, 32, 0).is_err(), "constant column must be in range");
 }
 

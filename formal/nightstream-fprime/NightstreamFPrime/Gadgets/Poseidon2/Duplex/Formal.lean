@@ -1,9 +1,9 @@
 import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Absorb
-import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Squeeze
+import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Read
 
 /-!
 Owns the proof-carrying Poseidon2 duplex trace. A trace contains only absorb
-blocks and quadratic-extension squeezes. Protocol labels and serialization
+blocks and quadratic-extension reads of one rate lane pair. Protocol labels and serialization
 remain lifecycle-owned data supplied as absorb expressions.
 -/
 
@@ -19,18 +19,17 @@ abbrev FState := Layer.FState
 
 inductive Action where
   | absorb (input : List Expr)
-  | squeezeK (expected : KExpr)
+  | readK (pair : Read.Pair) (expected : KExpr)
 
 inductive ValueAction where
   | absorb (input : List F)
-  | squeezeK (expected : K)
+  | readK (pair : Read.Pair) (expected : K)
 
 /-- Exact symbolic recipe cost of one duplex action. Each absorb chunk runs
-one 1096-recipe Poseidon2 permutation. A quadratic-extension squeeze runs two
-such permutations. -/
+one 1096-recipe Poseidon2 permutation. A read runs none. -/
 def Action.recipeCount : Action → Nat
   | .absorb input => (Hash.inputChunks input).length * 1096
-  | .squeezeK _ => 2192
+  | .readK _ _ => 0
 
 /-- Exact symbolic recipe cost of a complete duplex action trace. -/
 def recipeCount (actions : List Action) : Nat :=
@@ -39,7 +38,7 @@ def recipeCount (actions : List Action) : Nat :=
 /-- Exact number of non-final-state assertions contributed by one action. -/
 def Action.assertionCount : Action → Nat
   | .absorb _ => 0
-  | .squeezeK _ => 2
+  | .readK _ _ => 2
 
 /-- Exact number of non-final-state assertions in an action trace. -/
 def assertionCount (actions : List Action) : Nat :=
@@ -76,22 +75,22 @@ theorem recipeCount_flatMap_constant
 
 def Action.eval (env : Env) : Action → ValueAction
   | .absorb input => .absorb (Hash.evalList env input)
-  | .squeezeK expected => .squeezeK (expected.eval env)
+  | .readK pair expected => .readK pair (expected.eval env)
 
-/-- The operation schedule without caller-provided squeeze outputs. -/
+/-- The operation schedule without caller-provided read expectations. -/
 inductive ActionShape where
   | absorb (input : List Expr)
-  | squeezeK
+  | readK (pair : Read.Pair)
 deriving DecidableEq
 
 def Action.shape : Action → ActionShape
   | .absorb input => .absorb input
-  | .squeezeK _ => .squeezeK
+  | .readK pair _ => .readK pair
 
 def expectedSamples : List Action → List KExpr
   | [] => []
   | .absorb _ :: actions => expectedSamples actions
-  | .squeezeK expected :: actions => expected :: expectedSamples actions
+  | .readK _ expected :: actions => expected :: expectedSamples actions
 
 /-- Deterministic duplex trace semantics. -/
 def TraceHolds : Spec.Poseidon2.State → List ValueAction →
@@ -99,9 +98,9 @@ def TraceHolds : Spec.Poseidon2.State → List ValueAction →
   | state, [], final => state = final
   | state, .absorb input :: actions, final =>
       TraceHolds (Absorb.reference state input) actions final
-  | state, .squeezeK expected :: actions, final =>
-      expected = Squeeze.referenceSample state ∧
-        TraceHolds (Squeeze.referenceState state) actions final
+  | state, .readK pair expected :: actions, final =>
+      expected = Read.referenceSample state pair ∧
+        TraceHolds state actions final
 
 structure Program where
   recipes : List Expr
@@ -118,13 +117,11 @@ def compile : Nat → EState → List Action → Program
         absorbed.output actions
       ⟨absorbed.recipes ++ tail.recipes, tail.assertions, tail.samples,
         tail.output⟩
-  | start, state, .squeezeK expected :: actions =>
-      let squeezed := Squeeze.compile start state
-      let tail := compile (start + squeezed.recipes.length)
-        squeezed.output actions
-      ⟨squeezed.recipes ++ tail.recipes,
-        KExpr.equalities squeezed.sample expected ++ tail.assertions,
-        squeezed.sample :: tail.samples, tail.output⟩
+  | start, state, .readK pair expected :: actions =>
+      let tail := compile start state actions
+      ⟨tail.recipes,
+        KExpr.equalities (Read.sample state pair) expected ++ tail.assertions,
+        Read.sample state pair :: tail.samples, tail.output⟩
 
 /-- Recipe-free absorb projection used only to recover symbolic wiring. -/
 structure AbsorbWiring where
@@ -171,11 +168,9 @@ def compileWiring : Nat → EState → List Action → Wiring
       let absorbed := compileAbsorbWiring start state (Hash.inputChunks input)
       let tail := compileWiring absorbed.next absorbed.output actions
       ⟨tail.next, tail.samples, tail.output⟩
-  | start, state, .squeezeK _expected :: actions =>
-      let first := Permutation.scheduleOutput start
-      let tail := compileWiring (start + 2192)
-        (Permutation.scheduleOutput (start + 1096)) actions
-      ⟨tail.next, ⟨state 0, first 0⟩ :: tail.samples, tail.output⟩
+  | start, state, .readK pair _expected :: actions =>
+      let tail := compileWiring start state actions
+      ⟨tail.next, Read.sample state pair :: tail.samples, tail.output⟩
 
 theorem compileWiring_next (start : Nat) (state : EState)
     (actions : List Action) :
@@ -189,27 +184,10 @@ theorem compileWiring_next (start : Nat) (state : EState)
           rw [inductionHypothesis, compileAbsorbWiring_next]
           simp [recipeCount, Action.recipeCount]
           omega
-      | squeezeK expected =>
+      | readK pair expected =>
           simp only [compileWiring]
           rw [inductionHypothesis]
           simp [recipeCount, Action.recipeCount]
-          omega
-
-theorem wiringSample_eq_squeeze (start : Nat) (state : EState) :
-    (⟨state 0, Permutation.scheduleOutput start 0⟩ : KExpr) =
-      (Squeeze.compile start state).sample := by
-  rw [Squeeze.compile_sample_eq]
-  congr 1
-
-theorem wiringOutput_eq_squeeze (start : Nat) (state : EState) :
-    Permutation.scheduleOutput (start + 1096) =
-      (Squeeze.compile start state).output := by
-  funext lane
-  rw [Squeeze.compile_output_apply]
-  unfold Squeeze.secondPermutation
-  rw [Squeeze.first_recipes_length]
-  exact congrFun (Permutation.scheduleOutput_eq_compile (start + 1096)
-    (Squeeze.firstPermutation start state).output) lane
 
 /-- Wiring projection agrees with the full compiler on every externally used
 sample and on the final symbolic state. -/
@@ -242,31 +220,10 @@ theorem compileWiring_matches (start : Nat) (state : EState)
             compileAbsorbWiring_output start state blocks
           rw [nextEq, outputEq]
           exact inductionHypothesis _ _
-      | squeezeK expected =>
-          let squeezed := Squeeze.compile start state
-          change
-            (⟨state 0, Permutation.scheduleOutput start 0⟩ : KExpr) ::
-                  (compileWiring (start + 2192)
-                    (Permutation.scheduleOutput (start + 1096))
-                    actions).samples =
-                squeezed.sample ::
-                  (compile (start + squeezed.recipes.length)
-                    squeezed.output actions).samples ∧
-              (compileWiring (start + 2192)
-                    (Permutation.scheduleOutput (start + 1096))
-                    actions).output =
-                (compile (start + squeezed.recipes.length)
-                  squeezed.output actions).output
-          have tailMatches := inductionHypothesis (start + 2192)
-            squeezed.output
-          constructor
-          · rw [wiringSample_eq_squeeze start state,
-              wiringOutput_eq_squeeze start state,
-              Squeeze.compile_recipes_length start state]
-            exact congrArg (List.cons squeezed.sample) tailMatches.1
-          · rw [wiringOutput_eq_squeeze start state,
-              Squeeze.compile_recipes_length start state]
-            exact tailMatches.2
+      | readK pair expected =>
+          have tailMatches := inductionHypothesis start state
+          exact ⟨congrArg (List.cons (Read.sample state pair)) tailMatches.1,
+            tailMatches.2⟩
 
 /-- Lazy-state absorb projection. A nonempty absorb replaces the incoming
 state before it can be forced. -/
@@ -298,12 +255,10 @@ def compileWiringLazy : Nat → (Unit → EState) → List Action → Wiring
       let tail := compileWiringLazy absorbed.next
         (fun _ => absorbed.output) actions
       ⟨tail.next, tail.samples, tail.output⟩
-  | start, delayed, .squeezeK _expected :: actions =>
+  | start, delayed, .readK pair _expected :: actions =>
       let state := delayed ()
-      let first := Permutation.scheduleOutput start
-      let tail := compileWiringLazy (start + 2192)
-        (fun _ => Permutation.scheduleOutput (start + 1096)) actions
-      ⟨tail.next, ⟨state 0, first 0⟩ :: tail.samples, tail.output⟩
+      let tail := compileWiringLazy start (fun _ => state) actions
+      ⟨tail.next, Read.sample state pair :: tail.samples, tail.output⟩
 
 theorem compileWiringLazy_eq (start : Nat) (delayed : Unit → EState)
     (state : EState) (actions : List Action) (stateEq : delayed () = state) :
@@ -325,31 +280,29 @@ theorem compileWiringLazy_eq (start : Nat) (delayed : Unit → EState)
             (Hash.inputChunks input)
           rw [inductionHypothesis absorbed.next
             (fun _ => absorbed.output) absorbed.output rfl]
-      | squeezeK expected =>
+      | readK pair expected =>
           simp only [compileWiringLazy, compileWiring]
           rw [stateEq]
-          rw [inductionHypothesis (start + 2192)
-            (fun _ => Permutation.scheduleOutput (start + 1096))
-            (Permutation.scheduleOutput (start + 1096)) rfl]
+          rw [inductionHypothesis start (fun _ => state) state rfl]
 
 /-- Samples are exposed in action order. Absorptions add no sample and every
-quadratic squeeze adds exactly one. -/
+read adds exactly one. -/
 @[simp] theorem compile_samples_length (start : Nat) (state : EState)
     (actions : List Action) :
     (compile start state actions).samples.length =
       (actions.filterMap fun action => match action with
         | .absorb _ => none
-        | .squeezeK _ => some ()).length := by
+        | .readK _ _ => some ()).length := by
   induction actions generalizing start state with
   | nil => rfl
   | cons action actions inductionHypothesis =>
       cases action with
       | absorb input =>
           simp [compile, inductionHypothesis]
-      | squeezeK expected =>
+      | readK pair expected =>
           simp [compile, inductionHypothesis]
 
-/-- Expected squeeze values affect only assertion expressions. They cannot
+/-- Expected read values affect only assertion expressions. They cannot
 change witness recipes, computed samples, or the final state. -/
 theorem compile_shape_eq (start : Nat) (state : EState)
     (left right : List Action)
@@ -396,18 +349,17 @@ theorem compile_shape_eq (start : Nat) (state : EState)
                     absorbed.output rightActions).output
             exact ⟨congrArg (fun recipes => absorbed.recipes ++ recipes)
               tailResult.1, tailResult.2⟩
-          case absorb.squeezeK => simp [Action.shape] at headSame
-          case squeezeK.absorb => simp [Action.shape] at headSame
-          case squeezeK.squeezeK leftExpected rightExpected =>
-            let squeezed := Squeeze.compile start state
+          case absorb.readK => simp [Action.shape] at headSame
+          case readK.absorb => simp [Action.shape] at headSame
+          case readK.readK leftPair leftExpected rightPair rightExpected =>
+            simp only [Action.shape, ActionShape.readK.injEq] at headSame
+            subst rightPair
             have tailResult := inductionHypothesis
-              (start := start + squeezed.recipes.length)
-              (state := squeezed.output) rightActions tailSame
-            simpa [compile, squeezed, tailResult.1, tailResult.2.1,
-              tailResult.2.2]
+              (start := start) (state := state) rightActions tailSame
+            simp [compile, tailResult.1, tailResult.2.1, tailResult.2.2]
 
 /-- Assertion rows bind exactly the ordered expected values to the ordered
-computed squeeze samples. -/
+computed read samples. -/
 theorem compile_assertions_hold_iff (env : Env) (start : Nat)
     (state : EState) (actions : List Action) :
     ConstraintsHold env (compile start state actions).assertions ↔
@@ -425,21 +377,18 @@ theorem compile_assertions_hold_iff (env : Env) (start : Nat)
                   (Hash.inputChunks input)).recipes.length)
               (state := (Hash.compileAbsorptions start state
                 (Hash.inputChunks input)).output)
-      | squeezeK expected =>
-          let squeezed := Squeeze.compile start state
+      | readK pair expected =>
           rw [show (compile start state
-              (.squeezeK expected :: actions)).assertions =
-              KExpr.equalities squeezed.sample expected ++
-                (compile (start + squeezed.recipes.length)
-                  squeezed.output actions).assertions by rfl]
+              (.readK pair expected :: actions)).assertions =
+              KExpr.equalities (Read.sample state pair) expected ++
+                (compile start state actions).assertions by rfl]
           rw [Permutation.constraintsHold_append,
             KExpr.equalities_hold_iff,
-            inductionHypothesis (start := start + squeezed.recipes.length)
-              (state := squeezed.output)]
-          simp [compile, expectedSamples, squeezed]
+            inductionHypothesis (start := start) (state := state)]
+          simp [compile, expectedSamples]
 
-/-- Compilation emits exactly two assertions per quadratic squeeze and no
-assertions for absorbs. This proof is structural in the action list. -/
+/-- Compilation emits exactly two assertions per read and no assertions for
+absorbs. This proof is structural in the action list. -/
 @[simp] theorem compile_assertions_length (start : Nat) (state : EState)
     (actions : List Action) :
     (compile start state actions).assertions.length =
@@ -451,7 +400,7 @@ assertions for absorbs. This proof is structural in the action list. -/
       | absorb input =>
           simp [compile, assertionCount, Action.assertionCount,
             inductionHypothesis]
-      | squeezeK expected =>
+      | readK pair expected =>
           simp [compile, assertionCount, Action.assertionCount,
             KExpr.equalities, inductionHypothesis]
           omega
@@ -468,14 +417,14 @@ The proof depends on the action list, not on emitted rows or values. -/
       | absorb input =>
           simp [compile, recipeCount, Action.recipeCount,
             inductionHypothesis]
-      | squeezeK expected =>
+      | readK pair expected =>
           simp [compile, recipeCount, Action.recipeCount,
-            inductionHypothesis, Squeeze.compile_recipes_length]
+            inductionHypothesis]
 
 def Action.Below (bound : Nat) : Action → Prop
   | .absorb input =>
       ∀ expression ∈ input, expression.VarsBelow bound
-  | .squeezeK expected =>
+  | .readK _ expected =>
       expected.c0.VarsBelow bound ∧ expected.c1.VarsBelow bound
 
 def ActionsBelow (bound : Nat) (actions : List Action) : Prop :=
@@ -488,7 +437,7 @@ theorem Action.below_mono {lower upper : Nat} (action : Action)
   | absorb input =>
       intro expression member
       exact Expr.VarsBelow.mono expression (below expression member) le
-  | squeezeK expected =>
+  | readK pair expected =>
       exact ⟨Expr.VarsBelow.mono _ below.1 le,
         Expr.VarsBelow.mono _ below.2 le⟩
 
@@ -532,24 +481,9 @@ theorem compile_causal (start : Nat) (state : EState)
                 absorbed.output actions).recipes)
           exact Permutation.recipesCausal_append_causal start _ _
             headCausal tailCausal
-      | squeezeK expected =>
-          let squeezed := Squeeze.compile start state
-          have headCausal := Squeeze.compile_causal start state stateBelow
-          have outputBelow : ∀ lane,
-              (squeezed.output lane).VarsBelow
-                (start + squeezed.recipes.length) := by
-            intro lane
-            exact Squeeze.compile_output_below start state stateBelow lane
-          have tailCausal := inductionHypothesis
-            (start := start + squeezed.recipes.length)
-            (state := squeezed.output) outputBelow
-            (actionsBelow_mono tailBelow (by omega))
-          change RecipesCausal start
-            (squeezed.recipes ++
-              (compile (start + squeezed.recipes.length)
-                squeezed.output actions).recipes)
-          exact Permutation.recipesCausal_append_causal start _ _
-            headCausal tailCausal
+      | readK pair expected =>
+          exact inductionHypothesis (start := start) (state := state)
+            stateBelow tailBelow
 
 theorem splitRecipeRows (env : Env) (start : Nat)
     (first second : List Expr)
@@ -591,26 +525,17 @@ theorem compile_sound (env : Env) (start : Nat) (state : EState)
           simp only [List.map_cons, Action.eval, TraceHolds]
           rw [← absorbedSound]
           exact tailSound
-      | squeezeK expected =>
-          let squeezed := Squeeze.compile start state
-          let tail := compile (start + squeezed.recipes.length)
-            squeezed.output actions
-          have split := splitRecipeRows env start squeezed.recipes
-            tail.recipes (by simpa [compile, squeezed, tail] using recipeRows)
+      | readK pair expected =>
           have splitAssertions :=
             (Permutation.constraintsHold_append env _ _).mp (by
-              simpa [compile, squeezed, tail] using assertionRows)
-          have squeezedSound := Squeeze.compile_sound env start state split.1
+              simpa [compile] using assertionRows)
           have sampleEquals :=
-            (KExpr.equalities_hold_iff env squeezed.sample expected).mp
+            (KExpr.equalities_hold_iff env (Read.sample state pair) expected).mp
               splitAssertions.1
-          have tailSound := inductionHypothesis
-            (start := start + squeezed.recipes.length)
-            (state := squeezed.output) split.2 splitAssertions.2
+          have tailSound := inductionHypothesis (start := start) (state := state)
+            (by simpa [compile] using recipeRows) splitAssertions.2
           simp only [List.map_cons, Action.eval, TraceHolds]
-          refine ⟨sampleEquals.symm.trans squeezedSound.1, ?_⟩
-          rw [← squeezedSound.2]
-          exact tailSound
+          exact ⟨sampleEquals.symm.trans (Read.sample_eval env state pair), tailSound⟩
 
 theorem compile_complete (env : Env) (start : Nat) (state : EState)
     (actions : List Action) (final : Spec.Poseidon2.State)
@@ -643,32 +568,21 @@ theorem compile_complete (env : Env) (start : Nat) (state : EState)
             (start := start + absorbed.recipes.length)
             (state := absorbed.output) split.2 tailTrace
           simpa [compile, absorbed, tail] using tailComplete
-      | squeezeK expected =>
-          let squeezed := Squeeze.compile start state
-          let tail := compile (start + squeezed.recipes.length)
-            squeezed.output actions
-          have split := splitRecipeRows env start squeezed.recipes
-            tail.recipes (by simpa [compile, squeezed, tail] using recipeRows)
-          have squeezedSound := Squeeze.compile_sound env start state split.1
+      | readK pair expected =>
           have expectedReference : expected.eval env =
-              Squeeze.referenceSample
-                (List.ofFn (Layer.evalState env state)) := by
+              Read.referenceSample (List.ofFn (Layer.evalState env state)) pair := by
             simpa [Action.eval, TraceHolds] using trace.1
-          have sampleEquals : squeezed.sample.eval env = expected.eval env :=
-            squeezedSound.1.trans expectedReference.symm
           have tailTrace : TraceHolds
-              (List.ofFn (Layer.evalState env squeezed.output))
+              (List.ofFn (Layer.evalState env state))
               (actions.map (Action.eval env)) final := by
-            rw [squeezedSound.2]
             simpa [Action.eval, TraceHolds] using trace.2
-          have tailComplete := inductionHypothesis
-            (start := start + squeezed.recipes.length)
-            (state := squeezed.output) split.2 tailTrace
+          have tailComplete := inductionHypothesis (start := start) (state := state)
+            (by simpa [compile] using recipeRows) tailTrace
           constructor
           · apply (Permutation.constraintsHold_append env _ _).mpr
             exact ⟨
-              (KExpr.equalities_hold_iff env squeezed.sample expected).mpr
-                sampleEquals,
+              (KExpr.equalities_hold_iff env (Read.sample state pair) expected).mpr
+                ((Read.sample_eval env state pair).trans expectedReference.symm),
               tailComplete.1⟩
           · exact tailComplete.2
 
@@ -859,8 +773,8 @@ theorem action_eval_preserved (before after : Env) (bound : Nat)
       intro expression member
       exact expression.eval_eq_of_agree_below bound after before
         (below expression member) agrees
-  | squeezeK expected =>
-      apply congrArg ValueAction.squeezeK
+  | readK pair expected =>
+      apply congrArg (ValueAction.readK pair)
       exact congrArg₂ K.mk
         (expected.c0.eval_eq_of_agree_below bound after before below.1 agrees)
         (expected.c1.eval_eq_of_agree_below bound after before below.2 agrees)
@@ -932,55 +846,33 @@ theorem compile_scope (start : Nat) (state : EState) (actions : List Action)
             (actionsBelow_mono tailBelow (by omega))
           simpa [compile, absorbed, List.length_append, Nat.add_assoc] using
             tailScope
-      | squeezeK expected =>
-          let squeezed := Squeeze.compile start state
-          have outputBelow : ∀ lane,
-              (squeezed.output lane).VarsBelow
-                (start + squeezed.recipes.length) := by
-            intro lane
-            exact Squeeze.compile_output_below start state stateBelow lane
-          have tailScope := inductionHypothesis
-            (start := start + squeezed.recipes.length)
-            (state := squeezed.output) outputBelow
-            (actionsBelow_mono tailBelow (by omega))
+      | readK pair expected =>
+          have tailScope := inductionHypothesis (start := start) (state := state)
+            stateBelow tailBelow
           constructor
-          · simpa [compile, squeezed, List.length_append, Nat.add_assoc] using
-              tailScope.1
+          · simpa [compile] using tailScope.1
           · intro expression member
             change expression ∈
-                KExpr.equalities squeezed.sample expected ++
-                  (compile (start + squeezed.recipes.length)
-                    squeezed.output actions).assertions at member
+                KExpr.equalities (Read.sample state pair) expected ++
+                  (compile start state actions).assertions at member
             rcases List.mem_append.mp member with headMember | tailMember
-            · apply KExpr.equalities_varsBelow squeezed.sample expected
-                  (start +
-                    (squeezed.recipes ++
-                      (compile (start + squeezed.recipes.length)
-                        squeezed.output actions).recipes).length)
-              · have sampleBelow : squeezed.sample.VarsBelow
-                    (start + squeezed.recipes.length) := by
-                  simpa [squeezed] using!
-                    Squeeze.compile_sample_below start state stateBelow
-                constructor <;> apply Expr.VarsBelow.mono _
+            · have sampleBelow := Read.sample_below state pair start stateBelow
+              apply KExpr.equalities_varsBelow (Read.sample state pair) expected
+                  (start + (compile start state actions).recipes.length)
+              · constructor <;> apply Expr.VarsBelow.mono _
                 · exact sampleBelow.1
-                · simp only [List.length_append]
-                  omega
+                · omega
                 · exact sampleBelow.2
-                · simp only [List.length_append]
-                  omega
+                · omega
               · constructor <;> apply Expr.VarsBelow.mono _
                 · exact headBelow.1
-                · simp only [List.length_append]
-                  omega
+                · omega
                 · exact headBelow.2
-                · simp only [List.length_append]
-                  omega
+                · omega
               · exact headMember
-            · have below := tailScope.2 expression tailMember
-              simpa [compile, squeezed, List.length_append, Nat.add_assoc]
-                using below
+            · simpa [compile] using tailScope.2 expression tailMember
 
-/-- Every computed squeeze sample lies in the causal recipe interval. -/
+/-- Every computed read sample lies in the causal recipe interval. -/
 theorem compile_samples_scope (start : Nat) (state : EState)
     (actions : List Action)
     (stateBelow : ∀ lane, (state lane).VarsBelow start)
@@ -1010,31 +902,19 @@ theorem compile_samples_scope (start : Nat) (state : EState)
             (actionsBelow_mono tailBelow (by omega))
           simpa [compile, absorbed, List.length_append, Nat.add_assoc] using
             tailScope
-      | squeezeK expected =>
-          let squeezed := Squeeze.compile start state
-          have outputBelow : ∀ lane,
-              (squeezed.output lane).VarsBelow
-                (start + squeezed.recipes.length) := by
-            intro lane
-            exact Squeeze.compile_output_below start state stateBelow lane
-          have tailScope := inductionHypothesis
-            (start := start + squeezed.recipes.length)
-            (state := squeezed.output) outputBelow
-            (actionsBelow_mono tailBelow (by omega))
+      | readK pair expected =>
+          have tailScope := inductionHypothesis (start := start) (state := state)
+            stateBelow tailBelow
           intro sample member
-          change sample ∈ squeezed.sample ::
-            (compile (start + squeezed.recipes.length)
-              squeezed.output actions).samples at member
+          change sample ∈ Read.sample state pair ::
+            (compile start state actions).samples at member
           simp only [List.mem_cons] at member
           rcases member with rfl | member
-          · have sampleBelow :=
-              Squeeze.compile_sample_below start state stateBelow
-            exact KExpr.varsBelow_mono squeezed.sample sampleBelow (by
-              simp only [compile, List.length_append]
-              omega)
-          · have below := tailScope sample member
-            simpa [compile, squeezed, List.length_append, Nat.add_assoc]
-              using below
+          · exact KExpr.varsBelow_mono (Read.sample state pair)
+              (Read.sample_below state pair start stateBelow) (by
+                simp only [compile]
+                omega)
+          · simpa [compile] using tailScope sample member
 
 /-- Every flattened Duplex row is scoped to the call's completed local
 interval. -/
@@ -1153,8 +1033,9 @@ namespace Owned
 Obligation: execute one Duplex action schedule and expose its compiled final
 state directly to a parent circuit.
 
-The interface has no external final-state wire. Squeeze expectations remain
-authoritative action inputs and are still constrained by compiler assertions.
+The interface has no external final-state wire. Read expectations remain
+authoritative action inputs; each read adds two equality assertions against
+its two rate lanes.
 -/
 
 structure Interface where

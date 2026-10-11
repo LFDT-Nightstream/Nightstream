@@ -43,7 +43,7 @@ private theorem laneFreshPrefix_add_cost_le (lane : Nat) :
 
 private theorem laneFreshCost_eq (lane : Fin ringDegree) :
     PiRLCCombinationInvocations.laneFreshCost lane.val =
-      NightstreamFPrime.Layout.PiRLC.v1_1.CombinationStep.laneFreshCount lane := by
+      NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep.laneFreshCount lane := by
   unfold PiRLCCombinationInvocations.laneFreshCost
     PiRLCCombinationInvocations.laneFreshCosts
   rw [List.getD_eq_get _ _ ⟨lane.val, by simp⟩]
@@ -215,7 +215,7 @@ private theorem samplerColumn_private (column : Nat)
     (upper : column < PiRLCStarts.commitmentLogicalStart) :
     Spartan.sourceToSpartan column < basePackage.layout.constantColumn := by
   have sourceLocal : Spartan.piCcsPhaseOffset ≤ column := by
-    have lowerValue : 7207123 ≤ column := by
+    have lowerValue : 6228781 ≤ column := by
       simpa [PiRLCStarts.phaseLogicalStart,
         NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset] using lower
     norm_num [Spartan.piCcsPhaseOffset] at lowerValue ⊢
@@ -225,8 +225,8 @@ private theorem samplerColumn_private (column : Nat)
   · norm_num [basePackage, Data.circuitPackage_layout, Data.physicalLayout,
       Spartan.piCcsLocalStart, Spartan.piCcsPhaseOffset,
       Spartan.constantColumn] at sourceLocal ⊢
-    have upperValue : column < 7279662 := by
-      change column < 7279662 at upper
+    have upperValue : column < 6301320 := by
+      change column < 6301320 at upper
       exact upper
     omega
 
@@ -239,7 +239,7 @@ private theorem samplerRange_compatible
     CompactRangeCompatible program
       ⟨inputStart, inputCount, Spartan.sourceToSpartan sourceStart, stride⟩ := by
   have sourceLocal : Spartan.piCcsPhaseOffset ≤ sourceStart := by
-    have lowerValue : 7207123 ≤ sourceStart := by
+    have lowerValue : 6228781 ≤ sourceStart := by
       simpa [PiRLCStarts.phaseLogicalStart,
         NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset] using sourceLower
     norm_num [Spartan.piCcsPhaseOffset] at lowerValue ⊢
@@ -258,7 +258,7 @@ private theorem piRlcFreshInterval_private (sourceStart count : Nat)
     (sourceUpper : sourceStart + count ≤ PiRLCStarts.outputFreshStart) :
     Spartan.sourceToSpartan sourceStart + count ≤
       basePackage.layout.constantColumn := by
-  have outputValue : PiRLCStarts.outputFreshStart = 12410976 := by rfl
+  have outputValue : PiRLCStarts.outputFreshStart = 11432634 := by rfl
   rw [outputValue] at sourceUpper
   have affine := Spartan.sourceToSpartan_add_of_piCcsLocal sourceStart count
     sourceLocal
@@ -295,7 +295,7 @@ private theorem combination_layout
       (PiRLCCombinationInvocations.invocation logicalStart rowStart freshStart
         blockCount cellCount valueStride source.val block.val lane.val cell.val
         valueSourceStart)
-      (NightstreamFPrime.Layout.PiRLC.v1_1.CombinationStep.laneFreshCount
+      (NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep.laneFreshCount
         lane) := by
   constructor
   · rw [PiRLCCombinationInvocations.invocation_localStart]
@@ -316,7 +316,7 @@ private theorem combination_layout
               PiRLCCombinationInvocations.sourceFreshCount blockCount cellCount +
             PiRLCCombinationInvocations.coordinateFreshPrefix cellCount
               block.val lane.val cell.val +
-            NightstreamFPrime.Layout.PiRLC.v1_1.CombinationStep.laneFreshCount
+            NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep.laneFreshCount
               lane ≤
             freshStart + source.val *
               PiRLCCombinationInvocations.sourceFreshCount blockCount cellCount +
@@ -371,8 +371,8 @@ private theorem combination_layout
         unfold PiRLCCombinationInvocations.challengeSourceStart
         rw [PiRLCStarts.challengeWordStart_eq]
         have sourceLt := source.isLt
-        rw [show PiRLCStarts.phaseLogicalStart = 7207123 by rfl,
-          show PiRLCStarts.commitmentLogicalStart = 7279662 by rfl]
+        rw [show PiRLCStarts.phaseLogicalStart = 6228781 by rfl,
+          show PiRLCStarts.commitmentLogicalStart = 6301320 by rfl]
         norm_num [PiRLCCombinationInvocations.sourceCount, ringDegree]
           at sourceLt offsetLt ⊢
         omega
@@ -407,13 +407,15 @@ private theorem commitmentValueRange_compatible
       · norm_num [PiRLCCombinationInvocations.sourceCount,
           PiRLCCombinationTemplates.valueInputStart,
           NightstreamFPrime.Layout.Stage1.PiCCSInputs.freshCommitmentStart,
-          NightstreamFPrime.Layout.Stage1.PiCCSInputs.proofInputStart,
+          NightstreamFPrime.Layout.Stage1.PiCCSInputs.proofInputStart, PiCCSInputs.priorChildrenStart,
+        PiCCSInputs.priorChildrenWords,
           NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContextStart,
           NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContextWords,
           Spartan.proofInputSourceStart, ringDegree] at blockLt offsetLt ⊢
         omega
       · norm_num [NightstreamFPrime.Layout.Stage1.PiCCSInputs.freshCommitmentStart,
-          NightstreamFPrime.Layout.Stage1.PiCCSInputs.proofInputStart,
+          NightstreamFPrime.Layout.Stage1.PiCCSInputs.proofInputStart, PiCCSInputs.priorChildrenStart,
+        PiCCSInputs.priorChildrenWords,
           NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContextStart,
           NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContextWords,
           Spartan.piCcsPhaseOffset, ringDegree] at blockLt offsetLt ⊢
@@ -422,10 +424,10 @@ private theorem commitmentValueRange_compatible
       rw [if_neg first]
       apply pilotPriorPrivateColumn_private
       norm_num [NightstreamFPrime.Layout.Stage1.PiCCSInputs.runningCommitmentStart,
-        NightstreamFPrime.Layout.Stage1.PiCCSInputs.runningGroupStart,
-        NightstreamFPrime.Layout.Stage1.PiCCSInputs.runningGroupsStart,
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.priorRunningStart,
-        NightstreamFPrime.Layout.Stage1.PiCCSInputs.runningGroupWords,
+        NightstreamFPrime.Layout.Stage1.PiCCSInputs.runningCommitmentWords, NightstreamFPrime.Layout.Stage1.PiCCSInputs.runningPublicWords,
+        NightstreamFPrime.Layout.Stage1.PiCCSInputs.runningEvalKWords, NightstreamFPrime.Layout.Stage1.PiCCSInputs.runningEvalAWords, NightstreamFPrime.Layout.Stage1.PiCCSInputs.priorChildrenStart,
+        NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContextStart, NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContextWords,
         PilotProduction.priorPublicInputStart,
         PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq,
         PiRLCCombinationInvocations.sourceCount, ringDegree]
@@ -464,17 +466,21 @@ private theorem publicInputValueRange_compatible
     · intro offset offsetLt
       unfold PiRLCCombinationInvocations.publicInputValueSourceStart
       rw [if_neg first]
-      apply pilotPriorPrivateColumn_private
-      norm_num [NightstreamFPrime.Layout.Stage1.PiCCSInputs.runningPublicStart,
-        NightstreamFPrime.Layout.Stage1.PiCCSInputs.runningGroupStart,
-        NightstreamFPrime.Layout.Stage1.PiCCSInputs.runningGroupsStart,
-        NightstreamFPrime.Layout.Stage1.PiCCSInputs.priorRunningStart,
-        NightstreamFPrime.Layout.Stage1.PiCCSInputs.runningGroupWords,
-        PilotProduction.priorPublicInputStart,
-        PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq,
-        PiRLCCombinationInvocations.sourceCount, ringDegree]
-        at sourceLt blockLt offsetLt ⊢
-      omega
+      apply proofInputColumn_private
+      · norm_num [NightstreamFPrime.Layout.Stage1.PiCCSInputs.runningPublicStart,
+          NightstreamFPrime.Layout.Stage1.PiCCSInputs.priorChildrenStart,
+          NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContextStart,
+          NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContextWords,
+          Spartan.proofInputSourceStart]
+        omega
+      · norm_num [NightstreamFPrime.Layout.Stage1.PiCCSInputs.runningPublicStart,
+          NightstreamFPrime.Layout.Stage1.PiCCSInputs.priorChildrenStart,
+          NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContextStart,
+          NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContextWords,
+          NightstreamFPrime.Layout.Stage1.PiCCSInputs.runningPublicWords,
+          Spartan.piCcsPhaseOffset, PiRLCCombinationInvocations.sourceCount, ringDegree]
+          at sourceLt blockLt offsetLt ⊢
+        omega
 
 private theorem evalKValueRange_compatible
     (program : Lifecycle.Stage1.Application.Program)
@@ -499,7 +505,8 @@ private theorem evalKValueRange_compatible
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.outputEvaluationStart,
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.roundMessageStart,
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.freshCommitmentStart,
-        NightstreamFPrime.Layout.Stage1.PiCCSInputs.proofInputStart,
+        NightstreamFPrime.Layout.Stage1.PiCCSInputs.proofInputStart, PiCCSInputs.priorChildrenStart,
+        PiCCSInputs.priorChildrenWords,
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContextStart,
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContextWords,
         Spartan.proofInputSourceStart] at sourceLt cellLt offsetLt ⊢
@@ -508,7 +515,8 @@ private theorem evalKValueRange_compatible
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.outputEvaluationStart,
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.roundMessageStart,
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.freshCommitmentStart,
-        NightstreamFPrime.Layout.Stage1.PiCCSInputs.proofInputStart,
+        NightstreamFPrime.Layout.Stage1.PiCCSInputs.proofInputStart, PiCCSInputs.priorChildrenStart,
+        PiCCSInputs.priorChildrenWords,
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContextStart,
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContextWords,
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.freshCommitmentWords,
@@ -541,7 +549,8 @@ private theorem evalAValueRange_compatible
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.outputEvaluationStart,
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.roundMessageStart,
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.freshCommitmentStart,
-        NightstreamFPrime.Layout.Stage1.PiCCSInputs.proofInputStart,
+        NightstreamFPrime.Layout.Stage1.PiCCSInputs.proofInputStart, PiCCSInputs.priorChildrenStart,
+        PiCCSInputs.priorChildrenWords,
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContextStart,
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContextWords,
         Spartan.proofInputSourceStart] at sourceLt blockLt cellLt offsetLt ⊢
@@ -550,7 +559,8 @@ private theorem evalAValueRange_compatible
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.outputEvaluationStart,
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.roundMessageStart,
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.freshCommitmentStart,
-        NightstreamFPrime.Layout.Stage1.PiCCSInputs.proofInputStart,
+        NightstreamFPrime.Layout.Stage1.PiCCSInputs.proofInputStart, PiCCSInputs.priorChildrenStart,
+        PiCCSInputs.priorChildrenWords,
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContextStart,
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContextWords,
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.freshCommitmentWords,
@@ -568,11 +578,11 @@ private theorem commitment_layout
         PiRLCStarts.commitmentLogicalStart PiRLCStarts.commitmentRowStart
         PiRLCStarts.commitmentFreshStart 22 1 1 source.val block.val lane.val
         cell.val PiRLCCombinationInvocations.commitmentValueSourceStart)
-      (NightstreamFPrime.Layout.PiRLC.v1_1.CombinationStep.laneFreshCount
+      (NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep.laneFreshCount
         lane) := by
   apply combination_layout
   · exact PiRLCCombinationInvocations.commitmentFreshStart_local
-  · change 7316076 + 17 * (22 * 1 * 8100) ≤ 12410976
+  · change 6337734 + 17 * (22 * 1 * 8100) ≤ 11432634
     norm_num
   · exact commitmentValueRange_compatible program source block cell
 
@@ -585,11 +595,11 @@ private theorem publicInput_layout
         PiRLCStarts.publicInputLogicalStart PiRLCStarts.publicInputRowStart
         PiRLCStarts.publicInputFreshStart 5 1 1 source.val block.val lane.val
         cell.val PiRLCCombinationInvocations.publicInputValueSourceStart)
-      (NightstreamFPrime.Layout.PiRLC.v1_1.CombinationStep.laneFreshCount
+      (NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep.laneFreshCount
         lane) := by
   apply combination_layout
   · exact PiRLCCombinationInvocations.publicInputFreshStart_local
-  · change 10345476 + 17 * (5 * 1 * 8100) ≤ 12410976
+  · change 9367134 + 17 * (5 * 1 * 8100) ≤ 11432634
     norm_num
   · exact publicInputValueRange_compatible program source block cell
 
@@ -602,11 +612,11 @@ private theorem evalK_layout
         PiRLCStarts.evalKLogicalStart PiRLCStarts.evalKRowStart
         PiRLCStarts.evalKFreshStart 1 2 2 source.val block.val lane.val
         cell.val PiRLCCombinationInvocations.evalKValueSourceStart)
-      (NightstreamFPrime.Layout.PiRLC.v1_1.CombinationStep.laneFreshCount
+      (NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep.laneFreshCount
         lane) := by
   apply combination_layout
   · exact PiRLCCombinationInvocations.evalKFreshStart_local
-  · change 11033976 + 17 * (1 * 2 * 8100) ≤ 12410976
+  · change 10055634 + 17 * (1 * 2 * 8100) ≤ 11432634
     norm_num
   · exact evalKValueRange_compatible program source block cell
 
@@ -619,11 +629,11 @@ private theorem evalA_layout
         PiRLCStarts.evalALogicalStart PiRLCStarts.evalARowStart
         PiRLCStarts.evalAFreshStart 4 2 2 source.val block.val lane.val
         cell.val PiRLCCombinationInvocations.evalAValueSourceStart)
-      (NightstreamFPrime.Layout.PiRLC.v1_1.CombinationStep.laneFreshCount
+      (NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep.laneFreshCount
         lane) := by
   apply combination_layout
   · exact PiRLCCombinationInvocations.evalAFreshStart_local
-  · change 11309376 + 17 * (4 * 2 * 8100) ≤ 12410976
+  · change 10331034 + 17 * (4 * 2 * 8100) ≤ 11432634
     norm_num
   · exact evalAValueRange_compatible program source block cell
 
@@ -638,7 +648,7 @@ private theorem combination_row
       (PiRLCCombinationInvocations.invocation logicalStart rowStart freshStart
         blockCount cellCount valueStride source.val block.val lane.val cell.val
         valueSourceStart)
-      (NightstreamFPrime.Layout.PiRLC.v1_1.CombinationStep.laneFreshCount lane))
+      (NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep.laneFreshCount lane))
     (row : CompactTemplateRow)
     (rowMember : row ∈
       (PiRLCCombinationTemplates.template
@@ -669,7 +679,7 @@ private theorem combination_row
       (Expr.var PiRLCCombinationTemplates.outputInput -
         PiRLCCombinationTemplates.outputRecipe
           (PiRLCCombinationInvocations.firstSource source.val) lane) =
-      NightstreamFPrime.Layout.PiRLC.v1_1.CombinationStep.laneFreshCount lane := by
+      NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep.laneFreshCount lane := by
     simpa [PiRLCCombinationTemplates.template,
       CompactRows.compactTemplate] using
       (PiRLCCombinationTemplates.template_localColumnCount
@@ -684,13 +694,13 @@ private theorem combination_row
       blockCount cellCount valueStride source.val block.val lane.val cell.val
       valueSourceStart)
     (shiftColumn program) PiRLCCombinationTemplates.inputCount
-    (NightstreamFPrime.Layout.PiRLC.v1_1.CombinationStep.laneFreshCount lane)
+    (NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep.laneFreshCount lane)
     row within
     (shiftedCompactColumn program
       (PiRLCCombinationInvocations.invocation logicalStart rowStart freshStart
         blockCount cellCount valueStride source.val block.val lane.val cell.val
         valueSourceStart) PiRLCCombinationTemplates.inputCount
-      (NightstreamFPrime.Layout.PiRLC.v1_1.CombinationStep.laneFreshCount lane)
+      (NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep.laneFreshCount lane)
       layout)
 
 private theorem combinationTemplateSelection
@@ -715,7 +725,7 @@ private theorem combinationFamilyRows
             (PiRLCCombinationInvocations.invocation logicalStart rowStart
               freshStart blockCount cellCount valueStride source.val block.val
               lane.val cell.val valueSourceStart)
-            (NightstreamFPrime.Layout.PiRLC.v1_1.CombinationStep.laneFreshCount
+            (NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep.laneFreshCount
               lane))
     (invocation : CompactRowInvocation)
     (invocationMember : invocation ∈
@@ -736,7 +746,7 @@ private theorem combinationFamilyRows
     ⟨source, List.mem_range.mp sourceMember⟩
   rcases List.mem_ofFn.mp indexedMember with ⟨index, rfl⟩
   let coordinates :=
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.CombinationStep.coordinates index
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationStep.coordinates index
   have selected := combinationTemplateSelection sourceFin coordinates.2.1
   change basePackage.compactRowTemplates[
       PiRLCCombinationTemplates.templateIndex source coordinates.2.1.val]? =

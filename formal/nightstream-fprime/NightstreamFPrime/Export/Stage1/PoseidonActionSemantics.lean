@@ -1,3 +1,4 @@
+import NightstreamFPrime.Export.Stage1.InvocationLastOutput
 import NightstreamFPrime.Export.Stage1.PoseidonActionSchedule
 
 /-!
@@ -30,45 +31,10 @@ def previousState {count : Nat} (initial : State)
 def runKind (env : Env) (state : State) : PoseidonActionSchedule.Kind → State
   | .absorb block =>
       Spec.Poseidon2.absorbBlock state (Hash.evalList env block)
-  | .squeezeFirst _ | .squeezeSecond => Spec.Poseidon2.permute state
-
-def ExpectedAt (env : Env) (state : State) :
-    PoseidonActionSchedule.Kind → Prop
-  | .squeezeFirst expected =>
-      expected.eval env = Squeeze.referenceSample state
-  | .absorb _ | .squeezeSecond => True
 
 def runKinds (env : Env) : State → List PoseidonActionSchedule.Kind → State
   | state, [] => state
   | state, kind :: kinds => runKinds env (runKind env state kind) kinds
-
-def KindsHold (env : Env) : State → List PoseidonActionSchedule.Kind → Prop
-  | _state, [] => True
-  | state, kind :: kinds =>
-      ExpectedAt env state kind ∧
-        KindsHold env (runKind env state kind) kinds
-
-@[simp] theorem runKinds_append (env : Env) (state : State)
-    (left right : List PoseidonActionSchedule.Kind) :
-    runKinds env state (left ++ right) =
-      runKinds env (runKinds env state left) right := by
-  induction left generalizing state with
-  | nil => rfl
-  | cons kind kinds inductionHypothesis =>
-      simp only [List.cons_append, runKinds]
-      exact inductionHypothesis _
-
-theorem kindsHold_append_iff (env : Env) (state : State)
-    (left right : List PoseidonActionSchedule.Kind) :
-    KindsHold env state (left ++ right) ↔
-      KindsHold env state left ∧
-        KindsHold env (runKinds env state left) right := by
-  induction left generalizing state with
-  | nil => simp [KindsHold, runKinds]
-  | cons kind kinds inductionHypothesis =>
-      simp only [List.cons_append, KindsHold, runKinds]
-      rw [inductionHypothesis]
-      tauto
 
 theorem runKinds_absorbBlocks (env : Env) (state : State)
     (blocks : List (List Expr)) :
@@ -81,63 +47,108 @@ theorem runKinds_absorbBlocks (env : Env) (state : State)
       simp only [List.map_cons, runKinds, runKind, List.foldl_cons]
       exact inductionHypothesis _
 
-theorem actionKinds_traceHolds (env : Env) (state : State)
-    (action : Formal.Action)
-    (holds : KindsHold env state
-      (PoseidonActionSchedule.actionKinds action)) :
-    Formal.TraceHolds state [action.eval env]
-      (runKinds env state (PoseidonActionSchedule.actionKinds action)) := by
-  cases action with
-  | absorb input =>
-      simp only [Formal.Action.eval, Formal.TraceHolds]
-      unfold PoseidonActionSchedule.actionKinds
-      rw [runKinds_absorbBlocks]
-      unfold Absorb.reference
-      rw [Hash.inputChunks_eval]
-  | squeezeK expected =>
-      simpa [PoseidonActionSchedule.actionKinds, KindsHold, runKinds, runKind,
-        ExpectedAt, Formal.Action.eval, Formal.TraceHolds,
-        Squeeze.referenceState] using holds
+/-- Each read sees the value state after the invocations that precede it in
+the same action list. -/
+def ReadsAt (env : Env) (stateAt : Nat → State) :
+    Nat → List Formal.Action → Prop
+  | _, [] => True
+  | index, .absorb input :: actions =>
+      ReadsAt env stateAt (index + (Hash.inputChunks input).length) actions
+  | index, .readK pair expected :: actions =>
+      expected.eval env = Read.referenceSample (stateAt index) pair ∧
+        ReadsAt env stateAt index actions
 
-theorem traceHolds_append {initial middle final : State}
-    {left right : List Formal.ValueAction}
-    (leftHolds : Formal.TraceHolds initial left middle)
-    (rightHolds : Formal.TraceHolds middle right final) :
-    Formal.TraceHolds initial (left ++ right) final := by
-  induction left generalizing initial with
-  | nil =>
-      simp only [Formal.TraceHolds] at leftHolds
-      subst middle
-      exact rightHolds
+/-- The value state after `index` invocations of an indexed schedule. -/
+def stateAfter {count : Nat} (initial : State) (output : Fin count → State)
+    (index : Nat) : State :=
+  if index = 0 then
+    initial
+  else if bound : index - 1 < count then
+    output ⟨index - 1, bound⟩
+  else
+    initial
+
+/-- Default kind for a total list lookup. Every lookup below is bounded. -/
+private def noKind : PoseidonActionSchedule.Kind := .absorb []
+
+private theorem runKinds_of_steps (env : Env) (stateAt : Nat → State) :
+    ∀ (kinds : List PoseidonActionSchedule.Kind) (offset : Nat),
+      (∀ index, index < kinds.length →
+        stateAt (offset + index + 1) =
+          runKind env (stateAt (offset + index)) (kinds.getD index noKind)) →
+      runKinds env (stateAt offset) kinds = stateAt (offset + kinds.length) := by
+  intro kinds
+  induction kinds with
+  | nil => intro offset _; rfl
+  | cons kind kinds inductionHypothesis =>
+      intro offset steps
+      have head := steps 0 (by simp)
+      simp only [Nat.add_zero, List.getD_cons_zero] at head
+      simp only [runKinds]
+      rw [← head]
+      have tail := inductionHypothesis (offset + 1) (by
+        intro index bound
+        have step := steps (index + 1) (by simpa using bound)
+        simp only [List.getD_cons_succ] at step
+        simpa [Nat.add_assoc, Nat.add_comm 1 index] using step)
+      rw [tail, List.length_cons]
+      congr 1
+      omega
+
+private theorem traceHolds_of_steps (env : Env) (stateAt : Nat → State) :
+    ∀ (actions : List Formal.Action) (offset : Nat),
+      (∀ index, index < (PoseidonActionSchedule.kinds actions).length →
+        stateAt (offset + index + 1) =
+          runKind env (stateAt (offset + index))
+            ((PoseidonActionSchedule.kinds actions).getD index noKind)) →
+      ReadsAt env stateAt offset actions →
+      Formal.TraceHolds (stateAt offset)
+        (actions.map (Formal.Action.eval env))
+        (stateAt (offset + (PoseidonActionSchedule.kinds actions).length)) := by
+  intro actions
+  induction actions with
+  | nil => intro offset _ _; rfl
   | cons action actions inductionHypothesis =>
+      intro offset steps reads
       cases action with
       | absorb input =>
-          simp only [Formal.TraceHolds] at leftHolds ⊢
-          exact inductionHypothesis leftHolds
-      | squeezeK expected =>
-          simp only [Formal.TraceHolds] at leftHolds ⊢
-          exact ⟨leftHolds.1,
-            inductionHypothesis leftHolds.2⟩
-
-theorem kinds_traceHolds (env : Env) (state : State)
-    (actions : List Formal.Action)
-    (holds : KindsHold env state
-      (PoseidonActionSchedule.kinds actions)) :
-    Formal.TraceHolds state (actions.map (Formal.Action.eval env))
-      (runKinds env state (PoseidonActionSchedule.kinds actions)) := by
-  induction actions generalizing state with
-  | nil => rfl
-  | cons action actions inductionHypothesis =>
-      have split := (kindsHold_append_iff env state
-        (PoseidonActionSchedule.actionKinds action)
-        (PoseidonActionSchedule.kinds actions)).mp (by
-          simpa [PoseidonActionSchedule.kinds] using holds)
-      have head := actionKinds_traceHolds env state action split.1
-      have tail := inductionHypothesis
-        (runKinds env state (PoseidonActionSchedule.actionKinds action))
-        split.2
-      have combined := traceHolds_append head tail
-      simpa [PoseidonActionSchedule.kinds, runKinds_append] using combined
+          let blocks := Hash.inputChunks input
+          have kindsEq : PoseidonActionSchedule.kinds (.absorb input :: actions) =
+              blocks.map PoseidonActionSchedule.Kind.absorb ++
+                PoseidonActionSchedule.kinds actions := rfl
+          have absorbed : runKinds env (stateAt offset)
+              (blocks.map PoseidonActionSchedule.Kind.absorb) =
+                stateAt (offset + blocks.length) := by
+            have run := runKinds_of_steps env stateAt
+              (blocks.map PoseidonActionSchedule.Kind.absorb) offset (by
+                intro index bound
+                have step := steps index (by
+                  rw [kindsEq, List.length_append]
+                  omega)
+                rw [kindsEq, List.getD_append _ _ _ _ bound] at step
+                exact step)
+            simpa using run
+          have reference : Absorb.reference (stateAt offset)
+              (Hash.evalList env input) = stateAt (offset + blocks.length) := by
+            rw [← absorbed, runKinds_absorbBlocks]
+            unfold Absorb.reference
+            rw [Hash.inputChunks_eval]
+          have tail := inductionHypothesis (offset + blocks.length) (by
+              intro index bound
+              have step := steps (blocks.length + index) (by
+                rw [kindsEq, List.length_append, List.length_map]
+                omega)
+              rw [kindsEq, List.getD_append_right _ _ _ _ (by simp)] at step
+              simpa [Nat.add_assoc] using step)
+            reads
+          simp only [List.map_cons, Formal.Action.eval, Formal.TraceHolds]
+          rw [reference, kindsEq, List.length_append, List.length_map,
+            ← Nat.add_assoc]
+          exact tail
+      | readK pair expected =>
+          have tail := inductionHypothesis offset steps reads.2
+          simp only [List.map_cons, Formal.Action.eval, Formal.TraceHolds]
+          exact ⟨reads.1, tail⟩
 
 structure IndexedSemantics (env : Env) {count : Nat} (initial : State)
     (kindAt : Fin count → PoseidonActionSchedule.Kind)
@@ -145,10 +156,6 @@ structure IndexedSemantics (env : Env) {count : Nat} (initial : State)
   step : ∀ current,
     output current = runKind env
       (previousState initial output current) (kindAt current)
-  expected : ∀ current expected,
-    kindAt current = .squeezeFirst expected →
-      expected.eval env =
-        Squeeze.referenceSample (previousState initial output current)
 
 @[simp] theorem previousState_zero (initial : State)
     {count : Nat} (output : Fin (count + 1) → State) :
@@ -190,9 +197,6 @@ def IndexedSemantics.tail {env : Env} {count : Nat} {initial : State}
   step current := by
     rw [previousState_tail initial output current]
     exact semantics.step current.succ
-  expected current expected found := by
-    rw [previousState_tail initial output current]
-    exact semantics.expected current.succ expected found
 
 def sliceIndex {total : Nat} (offset count : Nat)
     (fits : offset + count ≤ total) (current : Fin count) : Fin total :=
@@ -249,69 +253,123 @@ def IndexedSemantics.slice {env : Env} {total : Nat} {initial : State}
   step current := by
     rw [previousState_slice initial output offset count fits offsetBound current]
     exact semantics.step (sliceIndex offset count fits current)
-  expected current expected found := by
-    rw [previousState_slice initial output offset count fits offsetBound current]
-    exact semantics.expected (sliceIndex offset count fits current) expected found
 
-theorem indexed_holds_and_final (count : Nat) (env : Env) (initial : State)
-    (kindAt : Fin count → PoseidonActionSchedule.Kind)
-    (output : Fin count → State)
-    (semantics : IndexedSemantics env initial kindAt output) :
-    KindsHold env initial (List.ofFn kindAt) ∧
-      runKinds env initial (List.ofFn kindAt) =
-        match count with
-        | 0 => initial
-        | count + 1 => output ⟨count, Nat.lt_succ_self count⟩ := by
-  induction count generalizing initial with
-  | zero => exact ⟨by trivial, rfl⟩
-  | succ count inductionHypothesis =>
-      let tailKind : Fin count → PoseidonActionSchedule.Kind :=
-        fun index => kindAt index.succ
-      let tailOutput : Fin count → State := fun index => output index.succ
-      have tailSemantics : IndexedSemantics env (output 0) tailKind tailOutput :=
-        semantics.tail
-      have tailResult := inductionHypothesis (output 0) tailKind tailOutput
-        tailSemantics
-      have headStep : output 0 = runKind env initial (kindAt 0) := by
-        simpa using semantics.step 0
-      have headExpected : ExpectedAt env initial (kindAt 0) := by
-        cases found : kindAt 0 with
-        | absorb block => trivial
-        | squeezeFirst expected =>
-            exact semantics.expected 0 expected found
-        | squeezeSecond => trivial
-      constructor
-      · rw [List.ofFn_succ]
-        change ExpectedAt env initial (kindAt 0) ∧
-          KindsHold env (runKind env initial (kindAt 0))
-            (List.ofFn tailKind)
-        rw [← headStep]
-        exact ⟨headExpected, tailResult.1⟩
-      · rw [List.ofFn_succ]
-        change runKinds env (runKind env initial (kindAt 0))
-          (List.ofFn tailKind) = _
-        rw [← headStep, tailResult.2]
-        cases count with
-        | zero => rfl
-        | succ count => rfl
-
+/-- Held invocations and reads of one indexed schedule imply the exact
+Duplex trace of its action list. -/
 theorem indexed_traceHolds (count : Nat) (env : Env) (initial : State)
     (kindAt : Fin count → PoseidonActionSchedule.Kind)
     (output : Fin count → State) (actions : List Formal.Action)
     (materializes : List.ofFn kindAt = PoseidonActionSchedule.kinds actions)
-    (semantics : IndexedSemantics env initial kindAt output) :
+    (semantics : IndexedSemantics env initial kindAt output)
+    (reads : ReadsAt env (stateAfter initial output) 0 actions) :
     Formal.TraceHolds initial (actions.map (Formal.Action.eval env))
-      (match count with
-       | 0 => initial
-       | count + 1 => output ⟨count, Nat.lt_succ_self count⟩) := by
-  have indexed := indexed_holds_and_final count env initial kindAt output
-    semantics
-  have holds : KindsHold env initial
-      (PoseidonActionSchedule.kinds actions) := by
-    rw [← materializes]
-    exact indexed.1
-  have trace := kinds_traceHolds env initial actions holds
-  rw [← materializes, indexed.2] at trace
-  cases count <;> simpa using trace
+      (stateAfter initial output count) := by
+  have lengthEq : (PoseidonActionSchedule.kinds actions).length = count := by
+    rw [← materializes, List.length_ofFn]
+  have trace := traceHolds_of_steps env (stateAfter initial output) actions 0
+    (by
+      intro index bound
+      have indexBound : index < count := by omega
+      have step := semantics.step ⟨index, indexBound⟩
+      have kindEq : (PoseidonActionSchedule.kinds actions).getD index noKind =
+          kindAt ⟨index, indexBound⟩ := by
+        rw [← materializes, List.getD_eq_getElem _ _ (by simpa using indexBound),
+          List.getElem_ofFn]
+      rw [kindEq]
+      have previousEq : previousState initial output ⟨index, indexBound⟩ =
+          stateAfter initial output (0 + index) := by
+        unfold previousState stateAfter
+        by_cases first : index = 0
+        · simp [first]
+        · rw [dif_neg first, Nat.zero_add, if_neg first,
+            dif_pos (by omega)]
+      have outputEq : output ⟨index, indexBound⟩ =
+          stateAfter initial output (0 + index + 1) := by
+        unfold stateAfter
+        rw [if_neg (by omega), dif_pos (by omega)]
+        apply congrArg output
+        apply Fin.ext
+        simp
+      rw [← previousEq, ← outputEq]
+      exact step)
+    reads
+  rw [lengthEq, Nat.zero_add] at trace
+  simpa [stateAfter] using trace
+
+/-- Reads are sound when every symbolic state of the compiled action list
+evaluates to the indexed value state at the same position. -/
+theorem readsAt_of_outputs (env : Env) (stateAt : Nat → State) :
+    ∀ (actions : List Formal.Action) (start offset : Nat)
+      (symbolic : Layer.EState),
+      List.ofFn (Layer.evalState env symbolic) = stateAt offset →
+      (∀ index, index < Invocations.invocationCount actions →
+        List.ofFn (Layer.evalState env
+          (Invocations.permutationOutput (start + index * 1096))) =
+            stateAt (offset + index + 1)) →
+      Formal.expectedSamples actions =
+        (Formal.compile start symbolic actions).samples →
+      ReadsAt env stateAt offset actions := by
+  intro actions
+  induction actions with
+  | nil => intro _ _ _ _ _ _; trivial
+  | cons action actions inductionHypothesis =>
+      intro start offset symbolic initialEq outputsEq samples
+      cases action with
+      | absorb input =>
+          let blocks := Hash.inputChunks input
+          let absorbed := Hash.compileAbsorptions start symbolic blocks
+          have countEq : Invocations.invocationCount (.absorb input :: actions) =
+              blocks.length + Invocations.invocationCount actions := by
+            simp [Invocations.invocationCount, Invocations.Action.invocationCount,
+              blocks]
+          have nextEq : List.ofFn (Layer.evalState env absorbed.output) =
+              stateAt (offset + blocks.length) := by
+            by_cases empty : blocks = []
+            · have outputEq : absorbed.output = symbolic := by
+                simp only [absorbed, empty]
+                rfl
+              rw [outputEq, initialEq, empty]
+              rfl
+            · have last := InvocationLastOutput.compileBlocks_state_last 0 0 start
+                symbolic blocks empty
+              rw [Invocations.compileBlocks_state_eq] at last
+              have positive : 0 < blocks.length := List.length_pos_of_ne_nil empty
+              rw [show absorbed.output = _ from last]
+              have output := outputsEq (blocks.length - 1) (by omega)
+              rw [output]
+              congr 1
+              omega
+          have tailSamples : Formal.expectedSamples actions =
+              (Formal.compile (start + absorbed.recipes.length) absorbed.output
+                actions).samples := by
+            simpa [Formal.expectedSamples, Formal.compile, absorbed, blocks]
+              using samples
+          rw [Hash.compileAbsorptions_recipes_length] at tailSamples
+          change ReadsAt env stateAt (offset + blocks.length) actions
+          exact inductionHypothesis (start + blocks.length * 1096)
+            (offset + blocks.length) absorbed.output nextEq (by
+              intro index bound
+              have output := outputsEq (blocks.length + index) (by omega)
+              have startEq : start + (blocks.length + index) * 1096 =
+                  start + blocks.length * 1096 + index * 1096 := by
+                rw [Nat.add_mul, Nat.add_assoc]
+              rw [startEq] at output
+              rw [output]
+              congr 1
+              omega) tailSamples
+      | readK pair expected =>
+          have parts : expected = Read.sample symbolic pair ∧
+              Formal.expectedSamples actions =
+                (Formal.compile start symbolic actions).samples := by
+            simpa [Formal.expectedSamples, Formal.compile]
+              using List.cons.inj samples
+          refine ⟨?_, inductionHypothesis start offset symbolic initialEq
+            (by
+              intro index bound
+              exact outputsEq index (by
+                simpa [Invocations.invocationCount,
+                  Invocations.Action.invocationCount] using bound))
+            parts.2⟩
+          rw [parts.1, Read.sample_eval, initialEq]
 
 end NightstreamFPrime.Export.Stage1.PoseidonActionSemantics

@@ -1,9 +1,9 @@
 import NightstreamFPrime.Lifecycle.Nebula.Sponge
 import NightstreamFPrime.Lifecycle.Nebula.Framing
 
-/-! Owns the v1.1 transcript framing over expressions for the sponge child:
+/-! Owns the framed-block transcript over expressions for the sponge child:
 self-delimiting blocks, the rate chunks of a block sequence, and the proof that
-the sponge's chunk fold is `Transcript.absorbBlocks`. It also owns the two
+the sponge's chunk fold is `absorbBlocks`. It also owns the two
 state facts the memory circuit reads: the zero start state and one permutation
 as the absorption of an empty chunk. -/
 
@@ -22,7 +22,7 @@ theorem evalList_blockE (env : Env) (words : List Circuit.Expr) :
     Hash.evalList env (blockE words) = block (Hash.evalList env words) := by
   simp [blockE, block, Hash.evalList]
 
-/-- The rate chunks that the v1.1 transcript absorbs for a block sequence. -/
+/-- The rate chunks that `absorbBlocks` absorbs for a block sequence. -/
 def transcriptChunks (blocks : List (List Circuit.Expr)) : List (List Circuit.Expr) :=
   blocks.flatMap fun b => Hash.inputChunks (blockE b)
 
@@ -31,7 +31,7 @@ absorption. -/
 theorem fold_transcriptChunks (env : Env) (blocks : List (List Circuit.Expr))
     (s : Spec.Poseidon2.State) :
     ((transcriptChunks blocks).map (Hash.evalList env)).foldl Spec.Poseidon2.absorbBlock s =
-      Transcript.absorbBlocks s (blocks.map (Hash.evalList env)) := by
+      absorbBlocks s (blocks.map (Hash.evalList env)) := by
   induction blocks generalizing s with
   | nil => rfl
   | cons b bs ih =>

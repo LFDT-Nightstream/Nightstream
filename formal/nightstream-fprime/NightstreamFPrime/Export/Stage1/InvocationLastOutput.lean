@@ -13,9 +13,6 @@ open NightstreamFPrime.Export.Stage1.Invocations
 open NightstreamFPrime.Gadgets.Poseidon2
 open NightstreamFPrime.Gadgets.Poseidon2.Duplex
 
-def ActionsPositive (actions : List Formal.Action) : Prop :=
-  ∀ action ∈ actions, 0 < Action.invocationCount action
-
 private theorem invocationCount_cons (action : Formal.Action)
     (actions : List Formal.Action) :
     invocationCount (action :: actions) =
@@ -58,86 +55,69 @@ theorem compileBlocks_state_last (phase rowStart witnessStart : Nat)
               simp only [List.length_cons]
               omega
 
-theorem compileActions_singleton_state (phase rowStart witnessStart : Nat)
-    (state : EState) (action : Formal.Action)
-    (positive : 0 < Action.invocationCount action) :
-    (compileActions phase rowStart witnessStart state [action]).state =
-      permutationOutput
-        (witnessStart + (Action.invocationCount action - 1) * 1096) := by
-  cases action with
-  | absorb input =>
-      have chunksNonempty : Hash.inputChunks input ≠ [] := by
-        intro empty
-        simp [Action.invocationCount, empty] at positive
-      simpa [compileActions, Action.invocationCount] using
-        compileBlocks_state_last phase rowStart witnessStart state
-          (Hash.inputChunks input) chunksNonempty
-  | squeezeK expected =>
-      change permutationOutput (witnessStart + 1096) =
-        permutationOutput (witnessStart + (2 - 1) * 1096)
-      apply congrArg permutationOutput
-      omega
+/-- A schedule without permutations leaves the incoming state unchanged. -/
+theorem compileActions_state_of_invocationCount_zero
+    (phase rowStart witnessStart : Nat) (state : EState)
+    (actions : List Formal.Action) (zero : invocationCount actions = 0) :
+    (compileActions phase rowStart witnessStart state actions).state = state := by
+  induction actions generalizing rowStart witnessStart state with
+  | nil => rfl
+  | cons action actions inductionHypothesis =>
+      rw [invocationCount_cons] at zero
+      cases action with
+      | absorb input =>
+          have empty : Hash.inputChunks input = [] := by
+            apply List.eq_nil_of_length_eq_zero
+            simp only [Action.invocationCount] at zero
+            omega
+          simp only [compileActions, empty, compileBlocks]
+          exact inductionHypothesis _ _ _ (by omega)
+      | readK pair expected =>
+          simp only [Action.invocationCount, Nat.zero_add] at zero
+          exact inductionHypothesis _ _ _ zero
 
 theorem compileActions_state_last (phase rowStart witnessStart : Nat)
-    (state : EState) (actions : List Formal.Action) (nonempty : actions ≠ [])
-    (positive : ActionsPositive actions) :
+    (state : EState) (actions : List Formal.Action)
+    (positive : 0 < invocationCount actions) :
     (compileActions phase rowStart witnessStart state actions).state =
       permutationOutput
         (witnessStart + (invocationCount actions - 1) * 1096) := by
   induction actions generalizing rowStart witnessStart state with
-  | nil => exact False.elim (nonempty rfl)
+  | nil => simp [invocationCount] at positive
   | cons action actions inductionHypothesis =>
-      cases actions with
-      | nil =>
-          exact compileActions_singleton_state phase rowStart witnessStart state
-            action (positive action (by simp))
-      | cons next rest =>
-          have tailPositive : ActionsPositive (next :: rest) := by
-            intro current member
-            exact positive current (by simp [member])
-          have tailCountPositive : 0 < invocationCount (next :: rest) := by
-            have headPositive := tailPositive next (by simp)
-            simp only [invocationCount, List.map_cons, List.sum_cons]
-            omega
-          cases action with
-          | absorb input =>
-              let absorbed := compileBlocks phase rowStart witnessStart state
-                (Hash.inputChunks input)
-              change
-                (compileActions phase absorbed.rowNext absorbed.witnessNext
-                  absorbed.state (next :: rest)).state = _
-              have tail := inductionHypothesis absorbed.rowNext
-                absorbed.witnessNext absorbed.state (by simp) tailPositive
-              rw [tail, compileBlocks_witnessNext]
-              rw [invocationCount_cons (.absorb input) (next :: rest)]
-              simp only [Action.invocationCount]
-              apply congrArg permutationOutput
-              exact lastOffset_cons witnessStart
-                (Hash.inputChunks input).length
-                (invocationCount (next :: rest)) tailCountPositive
-          | squeezeK expected =>
-              change
-                (compileActions phase (rowStart + 2192) (witnessStart + 2192)
-                  (permutationOutput (witnessStart + 1096))
-                  (next :: rest)).state = _
-              have tail := inductionHypothesis (rowStart + 2192)
-                (witnessStart + 2192)
-                (permutationOutput (witnessStart + 1096)) (by simp) tailPositive
-              rw [tail]
-              rw [invocationCount_cons (.squeezeK expected) (next :: rest)]
-              simp only [Action.invocationCount]
-              apply congrArg permutationOutput
-              simpa using lastOffset_cons witnessStart 2
-                (invocationCount (next :: rest)) tailCountPositive
+      rw [invocationCount_cons] at positive ⊢
+      cases action with
+      | absorb input =>
+          let absorbed := compileBlocks phase rowStart witnessStart state
+            (Hash.inputChunks input)
+          change
+            (compileActions phase absorbed.rowNext absorbed.witnessNext
+              absorbed.state actions).state = _
+          simp only [Action.invocationCount] at positive ⊢
+          by_cases tailZero : invocationCount actions = 0
+          · rw [compileActions_state_of_invocationCount_zero _ _ _ _ _
+              tailZero, tailZero]
+            have nonempty : Hash.inputChunks input ≠ [] := by
+              intro empty
+              rw [empty, tailZero] at positive
+              simp at positive
+            rw [compileBlocks_state_last phase rowStart witnessStart state _
+              nonempty, Nat.add_zero]
+          · rw [inductionHypothesis _ _ _ (by omega), compileBlocks_witnessNext]
+            apply congrArg permutationOutput
+            exact lastOffset_cons witnessStart _ _ (by omega)
+      | readK pair expected =>
+          simp only [Action.invocationCount, Nat.zero_add] at positive ⊢
+          exact inductionHypothesis rowStart witnessStart state positive
 
 theorem compileActions_state_scheduleOutput
     (phase rowStart witnessStart : Nat) (state : EState)
-    (actions : List Formal.Action) (nonempty : actions ≠ [])
-    (positive : ActionsPositive actions) :
+    (actions : List Formal.Action)
+    (positive : 0 < invocationCount actions) :
     (compileActions phase rowStart witnessStart state actions).state =
       Permutation.scheduleOutput
         (witnessStart + (invocationCount actions - 1) * 1096) := by
   exact compileActions_state_last phase rowStart witnessStart state actions
-    nonempty positive
+    positive
 
 end NightstreamFPrime.Export.Stage1.InvocationLastOutput

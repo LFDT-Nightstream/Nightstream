@@ -6,7 +6,7 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 /-!
 Canonical Boolean-domain ownership for paper-level joint `Pi_CCS` residuals.
 
-Protocol: SuperNeo `Pi_CCS` (Section 7.3 / Appendix D.4).
+Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
 Phase: common Boolean-domain indexing before residual-family construction.
 Constraint family: shared infrastructure for CCS, norm, and carried-evaluation
 tables; this file owns no residual formula itself.

@@ -40,10 +40,10 @@ rows. Application state has four input words and four output words. The manifest
 exports the existing source-row, source-column, and retained-carrier conditions
 for the `2^28` Nightstream Goldilocks profile with `k_rho = 16`.
 
-The current selected application has 49,707,850 logical coordinates and
-49,707,864 padded coordinates, using 920,516 columns of the unchanged fixed
+The current selected application has 43,963,750 logical coordinates and
+43,963,776 padded coordinates, using 814,144 columns of the unchanged fixed
 key. The approved maximum is 4,708,530 columns. With logical width
-`49483006 + 41 * (witness_words + local_words)`, that maximum permits 4,994,575
+`43738906 + 41 * (witness_words + local_words)`, that maximum permits 5,134,675
 application witness and local fields together. Source rows, source columns,
 and the padded carrier must also fit the declared domain.
 
@@ -56,6 +56,7 @@ bash scripts/validate.sh build checkSharedVerifier
 bash scripts/validate.sh file tests/SharedVerifier.lean
 bash scripts/validate.sh lean-executable .lake/build/bin/checkSharedVerifier
 bash scripts/validate.sh lean-executable .lake/build/bin/emitSharedVerifier ../../crates/nightstream/artifacts/shared-verifier-v1.json
+python3 -B scripts/check_artifacts.py --write
 ```
 
 The native check compares the manifest with both existing Lean applications.
@@ -72,8 +73,8 @@ bash scripts/validate.sh emit /tmp/nightstream-reference.json
 ```
 
 The memory packages come from the same emitter. Build `emit`, then run it
-from the same directory (measured on one Mac: about 165 seconds for v1,
-about 490 seconds for n1):
+from the same directory (measured on one Mac: about 160 seconds for v1,
+about 185 seconds for n1):
 
 ```sh
 bash scripts/validate.sh build emit

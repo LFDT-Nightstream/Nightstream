@@ -6,7 +6,7 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 /-!
 Typed, batch-invariant carriers for the paper Phi81 CCS/CE relation.
 
-Protocol: SuperNeo Definitions 11--13 specialized to the Phi81 carrier.
+Protocol: SuperNeo v1.2 Definitions 19--21 specialized to the Phi81 carrier.
 Phase: verifier-owned relation shape and sole matrix source.
 Constraint family: none; this file emits no rows.
 

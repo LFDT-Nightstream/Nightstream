@@ -41,28 +41,28 @@ theorem physicalEndpoint_column (family : Fin familyCount) (lane : Fin laneCount
     (physicalInvocation (endpointInvocation family)).witnessStart + 1080 + lane.val =
       Spartan.sourceToSpartan (endpointColumn family lane) := by
   let index := endpointInvocation family
-  let sourceStart := if index.val < 355 then
-      PiCCSInputs.phaseOffset + index.val * 1096
-    else PiCCSInvocations.outputWitnessStart + (index.val - 355) * 1096
+  let sourceStart := if index.val < 183 then
+      PiCCSStarts.statementWitnessStart + index.val * 1096
+    else PiCCSInvocations.outputWitnessStart + (index.val - 183) * 1096
   have startEq : (physicalInvocation index).witnessStart = Spartan.sourceToSpartan sourceStart := by
     rw [physicalInvocation_data]
-    by_cases beforeOutput : index.val < 355
-    · rw [show sourceStart = PiCCSInputs.phaseOffset + index.val * 1096 from if_pos beforeOutput]
+    by_cases beforeOutput : index.val < 183
+    · rw [show sourceStart = PiCCSStarts.statementWitnessStart + index.val * 1096 from if_pos beforeOutput]
       exact PermutationPlan.canonicalInvocation_witnessStart_of_transcript _ beforeOutput
-    · rw [show sourceStart = PiCCSInvocations.outputWitnessStart + (index.val - 355) * 1096 from if_neg beforeOutput]
+    · rw [show sourceStart = PiCCSInvocations.outputWitnessStart + (index.val - 183) * 1096 from if_neg beforeOutput]
       apply PermutationPlan.canonicalInvocation_witnessStart_of_output
-      · change 355 ≤ index.val
+      · change 183 ≤ index.val
         exact Nat.le_of_not_gt beforeOutput
       · simpa only [PiCCSPoseidonPlan.invocationCount_eq] using
           (show index.val < PiCCSPoseidonPlan.invocationCount from index.isLt)
   have sourceLocal : Spartan.piCcsPhaseOffset ≤ sourceStart := by
     unfold sourceStart
     split
-    · rw [PiCCSInputs.phaseOffset_eq]
-      change 5945960 ≤ 5945960 + index.val * 1096
+    · rw [PiCCSStarts.statementWitnessStart_eq]
+      change 5156956 ≤ 5157226 + index.val * 1096
       omega
     · rw [PiCCSInvocations.outputWitnessStart, PiCCSStarts.outputBindingWitnessStart_eq]
-      change 5945960 ≤ 6364631 + (index.val - 355) * 1096
+      change 5156956 ≤ 5387385 + (index.val - 183) * 1096
       omega
   have endpointEq : sourceStart + 1080 + lane.val = endpointColumn family lane := by
     unfold sourceStart index endpointInvocation endpointColumn endpointStart
@@ -73,7 +73,7 @@ theorem physicalEndpoint_column (family : Fin familyCount) (lane : Fin laneCount
         PiCCSTranscriptDirectSemantics.challengeLast,
         PiCCSTranscriptDirectSemantics.roundLast, PiCCSTranscriptDirectSemantics.outputLast,
         PiCCSTranscriptDirectSemantics.roundCount, PiCCSInputs.phaseOffset_eq,
-        PiCCSStarts.challengeWitnessStart_eq, PiCCSStarts.roundTranscriptWitnessStart_eq,
+        PiCCSStarts.statementWitnessStart_eq, PiCCSStarts.challengeWitnessStart_eq, PiCCSStarts.roundTranscriptWitnessStart_eq,
         PiCCSStarts.outputBindingWitnessStart_eq]
   calc
     (physicalInvocation (endpointInvocation family)).witnessStart + 1080 + lane.val =
@@ -90,7 +90,7 @@ theorem endpointValue_of_completed
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (target : Env)
     (suffix : Fin (PerApplicationPackage.addedPrivateColumnCount application) → F)
-    (physical : NightstreamFPrime.Layout.PiCCS.v1_1.PhysicalHolds relation
+    (physical : NightstreamFPrime.Layout.PiCCS.v1_2.PhysicalHolds relation
       (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset (Spartan.pullback target))
     (family : Fin familyCount) (lane : Fin laneCount) :
     let raw := canonicalRawValues application (PerApplicationSourceAssignment.ofCompleted application target suffix)
@@ -110,7 +110,7 @@ theorem rowsZero_of_completed
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (target : Env)
     (suffix : Fin (PerApplicationPackage.addedPrivateColumnCount application) → F)
-    (physical : NightstreamFPrime.Layout.PiCCS.v1_1.PhysicalHolds relation
+    (physical : NightstreamFPrime.Layout.PiCCS.v1_2.PhysicalHolds relation
       (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset (Spartan.pullback target)) :
     let raw := canonicalRawValues application (PerApplicationSourceAssignment.ofCompleted application target suffix)
     (PiCCSTranscriptEndpointPlan.plan (PerApplicationCanonicalEncodes.poseidonGeometry application)

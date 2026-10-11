@@ -1,5 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationRows
-import NightstreamFPrime.Lifecycle.PiRLC.v1_1.InputBinding
+import NightstreamFPrime.Lifecycle.PiRLC.v1_2.InputBinding
 
 /-!
 Numeric row selectors for the selected matrix and full-carrier Pad prefixes.
@@ -67,7 +67,7 @@ private abbrev selectedRelation := PerApplicationFixedPoint.relation
   Poseidon2HashChainV1Package.application Poseidon2HashChainV1Package.fits
 
 private abbrev selectedPadLayout :=
-  (Lifecycle.PiRLC.v1_1.InputBinding.relationSource selectedRelation).cubeLayout
+  (Lifecycle.PiRLC.v1_2.InputBinding.relationSource selectedRelation).cubeLayout
 
 /-- Compute active selected matrix rows and return zero beyond their prefix. -/
 def matrixRow
@@ -158,7 +158,7 @@ theorem padRow_value
     (padRow assignments child (NumericBooleanDomain.index vertex)).get =
       PiRLC.ExplicitMatrix.rowRing selectedRelation.system
         (PaperAlgebra.padMatrix
-          (Lifecycle.PiRLC.v1_1.InputBinding.relationSource selectedRelation))
+          (Lifecycle.PiRLC.v1_2.InputBinding.relationSource selectedRelation))
         (assignments.get child).get vertex := by
   change (padRow assignments child (NumericBooleanDomain.index vertex)).get =
     PiRLC.ExplicitMatrix.rowRing selectedRelation.system

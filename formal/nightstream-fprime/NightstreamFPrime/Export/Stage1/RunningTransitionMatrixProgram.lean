@@ -35,20 +35,6 @@ def outputRange (program : ApplicationProgram) : SourceRange :=
     (Spartan.sourceToSpartan RunningTransitionSourceSupport.outputStart)
     RunningTransitionSourceSupport.outputCount 0
 
-def roundC0SourceStart : Nat :=
-  PiCCSStarts.roundTranscriptWitnessStart +
-    RunningTransitionInputs.roundSampleC0Offset
-
-def roundC1SourceStart : Nat :=
-  PiCCSStarts.roundTranscriptWitnessStart +
-    RunningTransitionInputs.roundSampleC1Offset
-
-def roundC0Grid (program : ApplicationProgram) : SourceGrid :=
-  PiCCSTranscriptOutputForms.pointGrid program 0
-
-def roundC1Grid (program : ApplicationProgram) : SourceGrid :=
-  PiCCSTranscriptOutputForms.pointGrid program 1
-
 def piDecRange (program : ApplicationProgram) : SourceRange :=
   SourceRange.ofSemantic (piDecBlock program) (piDecStart program)
     (Spartan.sourceToSpartan RunningTransitionSourceSupport.piDecStart)
@@ -62,12 +48,12 @@ def freshRange (program : ApplicationProgram) : SourceRange :=
 def substitution (program : ApplicationProgram) : SourceSubstitution where
   ranges := [stateRange program, outputRange program, piDecRange program,
     freshRange program]
-  grids := [roundC0Grid program, roundC1Grid program]
+  grids := [PiCCSTranscriptOutputForms.pointGrid program]
 
 def rowSchedule : IndexSchedule :=
-  .rangeList [⟨RunningTransitionArithmetic.rowStart, 32079⟩]
+  .rangeList [⟨RunningTransitionArithmetic.rowStart, 27800⟩]
 
-@[simp] theorem rowSchedule_count : rowSchedule.count = 32079 := by
+@[simp] theorem rowSchedule_count : rowSchedule.count = 27800 := by
   rfl
 
 def ordinaryBlock {program : ApplicationProgram} {logicalWidth : Nat}
@@ -85,7 +71,7 @@ def matrixProgram {program : ApplicationProgram} {logicalWidth : Nat}
 @[simp] theorem matrixProgram_rowCount
     {program : ApplicationProgram} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) :
-    (matrixProgram geometry).rowCount = 32079 := by
+    (matrixProgram geometry).rowCount = 27800 := by
   rfl
 
 end NightstreamFPrime.Export.Stage1.RunningTransitionMatrixProgram

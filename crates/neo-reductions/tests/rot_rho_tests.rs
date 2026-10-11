@@ -21,7 +21,7 @@ fn sample_rot_rhos_n(
 #[test]
 #[allow(non_snake_case)]
 fn test_goldilocks_ring_expansion_factor() {
-    // Test that Goldilocks ring produces the Appendix B.2 expansion factor.
+    // Test that Goldilocks ring produces the Section 8.2 expansion factor.
     let ring = RotRing::goldilocks();
 
     let max_coeff = ring
@@ -34,7 +34,7 @@ fn test_goldilocks_ring_expansion_factor() {
     assert_eq!(
         T_computed,
         goldilocks_paper_b2::T as u128,
-        "Goldilocks expansion factor should match Appendix B.2"
+        "Goldilocks expansion factor should match Section 8.2"
     );
 
     // Check parameter set has matching T
@@ -42,7 +42,7 @@ fn test_goldilocks_ring_expansion_factor() {
     assert_eq!(
         params.T,
         goldilocks_paper_b2::T,
-        "Goldilocks preset T should match Appendix B.2"
+        "Goldilocks preset T should match Section 8.2"
     );
 }
 
@@ -50,9 +50,9 @@ fn test_goldilocks_ring_expansion_factor() {
 fn test_sample_rot_rhos_succeeds_with_valid_params() {
     let params = NeoParams::goldilocks_paper_b2();
     let ring = RotRing::goldilocks();
-    let mut tr = Poseidon2Transcript::new_v1_1();
+    let mut tr = Poseidon2Transcript::new_v1_2();
 
-    // Should sample params.k_rho+1 rhos under the Appendix B.2 norm budget.
+    // Should sample params.k_rho+1 rhos under the Section 8.2 norm budget.
     let result = sample_rot_rhos_n(&mut tr, &params, &ring, (params.k_rho as usize) + 1);
 
     assert!(result.is_ok(), "Sampling should succeed with valid params");
@@ -76,11 +76,11 @@ fn test_sample_rot_rhos_succeeds_with_valid_params() {
 fn test_sample_rot_rhos_rejects_nonzero_absorb_cursor() {
     let params = NeoParams::goldilocks_paper_b2();
     let ring = RotRing::goldilocks();
-    let state = Poseidon2Transcript::new_v1_1().state();
+    let state = Poseidon2Transcript::new_v1_2().state();
     let mut transcript = Poseidon2Transcript::from_state_and_absorbed(state, 1);
 
     let error = sample_rot_rhos_n(&mut transcript, &params, &ring, 1)
-        .expect_err("v1_1 sampling must reject a nonzero absorb cursor");
+        .expect_err("v1_2 sampling must reject a nonzero absorb cursor");
     assert!(error.to_string().contains("zero transcript absorb cursor"));
 }
 
@@ -88,8 +88,8 @@ fn test_sample_rot_rhos_rejects_nonzero_absorb_cursor() {
 fn test_rot_rhos_k1_matches_first_sampled_rho() {
     let params = NeoParams::goldilocks_paper_b2();
     let ring = RotRing::goldilocks();
-    let mut tr_single = Poseidon2Transcript::new_v1_1();
-    let mut tr_pair = Poseidon2Transcript::new_v1_1();
+    let mut tr_single = Poseidon2Transcript::new_v1_2();
+    let mut tr_pair = Poseidon2Transcript::new_v1_2();
 
     let rho_single = sample_rot_rhos_n(&mut tr_single, &params, &ring, 1).unwrap();
     let rho_pair = sample_rot_rhos_n(&mut tr_pair, &params, &ring, 2).unwrap();
@@ -107,7 +107,7 @@ fn test_rot_rhos_are_different() {
     // Test that we don't accidentally generate identical challenge matrices
     let params = NeoParams::goldilocks_paper_b2();
     let ring = RotRing::goldilocks();
-    let mut tr = Poseidon2Transcript::new_v1_1();
+    let mut tr = Poseidon2Transcript::new_v1_2();
 
     // Should sample params.k_rho+1 rhos.
     let rhos = sample_rot_rhos_n(&mut tr, &params, &ring, (params.k_rho as usize) + 1).unwrap();
@@ -128,10 +128,10 @@ fn test_rot_rhos_deterministic() {
     let params = NeoParams::goldilocks_paper_b2();
     let ring = RotRing::goldilocks();
 
-    let mut tr1 = Poseidon2Transcript::new_v1_1();
+    let mut tr1 = Poseidon2Transcript::new_v1_2();
     let rhos1 = sample_rot_rhos_n(&mut tr1, &params, &ring, (params.k_rho as usize) + 1).unwrap();
 
-    let mut tr2 = Poseidon2Transcript::new_v1_1();
+    let mut tr2 = Poseidon2Transcript::new_v1_2();
     let rhos2 = sample_rot_rhos_n(&mut tr2, &params, &ring, (params.k_rho as usize) + 1).unwrap();
 
     // Should be identical
@@ -157,13 +157,13 @@ fn test_rlc_bound_violation_detected() {
     // Test that params with valid k satisfy the bound
     let params = NeoParams::goldilocks_paper_b2();
     let ring = RotRing::goldilocks();
-    let mut tr = Poseidon2Transcript::new_v1_1();
+    let mut tr = Poseidon2Transcript::new_v1_2();
 
-    // Appendix B.2 Goldilocks should satisfy the ΠRLC norm budget.
+    // Section 8.2 Goldilocks should satisfy the ΠRLC norm budget.
     let result = sample_rot_rhos_n(&mut tr, &params, &ring, (params.k_rho as usize) + 1);
     assert!(
         result.is_ok(),
-        "Appendix B.2 Goldilocks params should satisfy the ΠRLC bound"
+        "Section 8.2 Goldilocks params should satisfy the ΠRLC bound"
     );
 }
 
@@ -186,7 +186,7 @@ fn test_strong_sampling_set_check() {
 
     let params = NeoParams::goldilocks_paper_b2();
     let ring = TestRing::bad_alphabet();
-    let mut tr = Poseidon2Transcript::new_v1_1();
+    let mut tr = Poseidon2Transcript::new_v1_2();
 
     let result = sample_rot_rhos_n(&mut tr, &params, &ring, (params.k_rho as usize) + 1);
     assert!(result.is_err(), "Should reject alphabet with Δ_A >= b_inv");
@@ -234,7 +234,7 @@ fn public_sampler_rejects_a_ring_without_the_strong_set_property() {
         binv_floor: Some(goldilocks_paper_b2::B_INV_FLOOR),
     };
     let params = NeoParams::goldilocks_paper_b2();
-    let mut transcript = Poseidon2Transcript::new_v1_1();
+    let mut transcript = Poseidon2Transcript::new_v1_2();
     assert!(
         sample_rot_rhos_n(&mut transcript, &params, &ring, 6).is_err(),
         "the only public sampler must reject a quotient ring other than Phi81"

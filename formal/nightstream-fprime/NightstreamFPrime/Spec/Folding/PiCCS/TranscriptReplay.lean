@@ -4,13 +4,13 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomial
 /-! Provenance: adapted from
 `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/ProtocolVerifier.lean`
 at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; retained only the exact
-statement-and-round transcript replay and moved it to the canonical v1.1
+statement-and-round transcript replay and moved it to the canonical v1.2
 authority namespace. -/
 
 /-!
-Verifier-owned transcript replay for canonical SuperNeo v1.1 `Pi_CCS`.
+Verifier-owned transcript replay for canonical SuperNeo v1.2 `Pi_CCS`.
 
-Protocol: SuperNeo `Pi_CCS` (Section 7.3 / Appendix D.4).
+Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
 Phase: statement absorption, round-message absorption, and challenge
 derivation through the final SumCheck round. This file emits no rows.
 

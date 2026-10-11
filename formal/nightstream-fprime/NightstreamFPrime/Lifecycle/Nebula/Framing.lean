@@ -1,9 +1,10 @@
 import NightstreamFPrime.Lifecycle.Transcript
 import NightstreamFPrime.Spec.Nebula
 
-/-! Owns the concrete Poseidon2 framing of the Nebula memory phase over the
-Stage 1 v1.1 transcript: the record-chain digests of spec §9.1–§9.2, the plan
-digest of §4.3, the `η` transcript of §9.3, and the concrete verifier context.
+/-! Owns the concrete Poseidon2 framing of the Nebula memory phase: the
+framed-block transcript of spec §3 over the Stage 1 sponge absorb, the
+record-chain digests of §9.1–§9.2, the plan digest of §4.3, the `η` transcript
+of §9.3, and the concrete verifier context.
 It also owns obligation Ob3 for the record chains: canonical chain inputs
 absorb different padded chunk sequences, so a collision among the chain inputs
 of an accepted run is a Poseidon2 transcript collision. -/
@@ -37,10 +38,28 @@ def blocks : HashInput Digest → List (List F)
   | .header lane pd => [textWords (headerTag lane), digestWords pd]
   | .chain lane j D P => [textWords (chainTag lane), natWord j :: digestWords D, P.map natWord]
 
+/-- `absorb_block_v1_1` (spec §3): the block's length, then its words. The
+Stage 1 fold transcript has no framed blocks, so this file owns them. -/
+def absorbBlock (s : Poseidon2.State) (xs : List F) : Poseidon2.State :=
+  Transcript.absorb s (block xs)
+
+/-- One `absorb_block_v1_1` per block, in order. -/
+def absorbBlocks (s : Poseidon2.State) (bs : List (List F)) : Poseidon2.State :=
+  bs.foldl absorbBlock s
+
+/-- Lane 0, then one permutation. -/
+def squeezeF (s : Poseidon2.State) : F × Poseidon2.State := (s.getD 0 0, Poseidon2.permute s)
+
+/-- `squeeze_extension_v1_1` (spec §3): one `K` element from two lane-0 reads. -/
+def squeezeK (s : Poseidon2.State) : K × Poseidon2.State :=
+  let (c0, s) := squeezeF s
+  let (c1, s) := squeezeF s
+  (⟨c0, c1⟩, s)
+
 /-- The transcript state after `reset_v1_1` and one `absorb_block_v1_1` per
 block. -/
 def absorbed (bs : List (List F)) : Poseidon2.State :=
-  Transcript.absorbBlocks Transcript.initialState bs
+  absorbBlocks Transcript.initialState bs
 
 /-- `squeeze_digest_v1_1`: the first four lanes. -/
 def squeezeDigest (s : Poseidon2.State) : Digest := fun i => s.getD i 0
@@ -60,8 +79,8 @@ def etaChallenges (inp : EtaInput Digest) : K × K :=
   let s := absorbed [textWords "Nightstream/Nebula/v3/eta", digestWords inp.planDigest,
     [natWord inp.ts],
     digestWords inp.opsRoot ++ digestWords inp.memRoot ++ digestWords inp.finalRoot]
-  let (η1, s) := Transcript.squeezeK s
-  let (η2, _) := Transcript.squeezeK s
+  let (η1, s) := squeezeK s
+  let (η2, _) := squeezeK s
   (η1, η2)
 
 /-- The verifier context of a plan: Poseidon2 chains, the §9.3 transcript, and
@@ -113,12 +132,12 @@ private theorem absorb_eq (s : Poseidon2.State) (xs : List F) :
 
 /-- The transcript state depends only on the padded chunk sequence. -/
 theorem absorbBlocks_eq (s : Poseidon2.State) (bs : List (List F)) :
-    Transcript.absorbBlocks s bs =
+    absorbBlocks s bs =
       (blockChunks bs).foldl (fun s c => Poseidon2.absorbBlock s (List.ofFn c)) s := by
   induction bs generalizing s with
   | nil => rfl
   | cons b bs ih =>
-    show Transcript.absorbBlocks (Transcript.absorb s (block b)) bs = _
+    show absorbBlocks (Transcript.absorb s (block b)) bs = _
     rw [ih, absorb_eq, blockChunks_cons, List.foldl_append]
 
 private theorem natWord_injective {a b : ℕ} (ha : a < goldilocksModulus)

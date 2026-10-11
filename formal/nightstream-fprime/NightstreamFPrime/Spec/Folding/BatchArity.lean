@@ -46,7 +46,7 @@ structure BatchArity (params : GlobalParams) where
   freshCount : Nat
   /-- Rust rejects an empty fresh batch. -/
   freshPositive : 0 < freshCount
-  /-- Definition 14 is instantiated below the deployment maximum `K`. -/
+  /-- SuperNeo v1.2 Definition 22 is instantiated below the deployment maximum `K`. -/
   freshBound : freshCount ≤ params.maxFresh
   mode : RunningMode
 
@@ -60,7 +60,7 @@ theorem totalPositive {params : GlobalParams} (arity : BatchArity params) :
     0 < arity.total := by
   exact Nat.lt_of_lt_of_le arity.freshPositive (Nat.le_add_right arity.freshCount _)
 
-/-- Every production batch is covered by Definition 14's maximum-arity bound. -/
+/-- Every production batch is covered by Definition 22's maximum-arity bound. -/
 theorem total_le {params : GlobalParams} (arity : BatchArity params) :
     arity.total ≤ params.maxFresh + params.k := by
   exact Nat.add_le_add arity.freshBound (arity.mode.count_le params)

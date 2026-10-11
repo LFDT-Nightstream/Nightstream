@@ -108,14 +108,16 @@ private theorem pointWord_eq_piCcs
         (PiCCSTranscriptOutputForms.pointSource coordinate component) := by
   have before : PiCCSTranscriptOutputForms.pointSource coordinate component <
       PiRLCInputs.phaseOffset := by
-    have bound : (PiCCSTranscriptOutputForms.pointInvocation coordinate component).val <
-        355 := by
+    have bound : (PiCCSTranscriptOutputForms.pointInvocation coordinate).val <
+        183 := by
       simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq] using
-        (PiCCSTranscriptOutputForms.pointInvocation coordinate component).isLt
+        (PiCCSTranscriptOutputForms.pointInvocation coordinate).isLt
+    have laneBound := (PiCCSTranscriptOutputForms.pointLane component).isLt
     rw [PiCCSTranscriptOutputForms.pointSource_eq_transcriptSource]
     unfold PiCCSTranscriptOutputForms.transcriptSource
       PiCCSTranscriptOutputForms.transcriptSourceStart
-    rw [PiCCSInputs.phaseOffset_eq]
+    rw [PiCCSStarts.statementWitnessStart_eq]
+    norm_num [Poseidon2.width] at laneBound
     norm_num [PiRLCInputs.phaseOffset]
     omega
   apply decodedEnv_beforePiRLC geometry assignment _ before
@@ -136,19 +138,19 @@ arithmetic decoder cannot replace any point word with a zero or local value. -/
 theorem evalPoint_eq_piCcs
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth) :
-    Lifecycle.PiDEC.v1_1.InputBinding.evalPoint
+    Lifecycle.PiDEC.v1_2.InputBinding.evalPoint
         ((PiDECInputs.interface relationLogicalWidth relationPublicFits).point
           PiDECInputs.phaseOffset)
         (Spartan.pullback (decodedEnv geometry assignment)) =
-      Lifecycle.PiDEC.v1_1.InputBinding.evalPoint
+      Lifecycle.PiDEC.v1_2.InputBinding.evalPoint
         ((PiDECInputs.interface relationLogicalWidth relationPublicFits).point
           PiDECInputs.phaseOffset)
         (Spartan.pullback (PiCCSAssignmentSoundness.decodedEnv
           (PiDECRetainedGeometry.prefixGeometry geometry) assignment)) := by
   apply point_eq_of_coordinates
-  dsimp only [Lifecycle.PiDEC.v1_1.InputBinding.evalPoint,
-    Lifecycle.PiRLC.v1_1.InputBinding.evalPoint,
-    Lifecycle.PiCCS.v1_1.StatementAbsorption.evalPoint]
+  dsimp only [Lifecycle.PiDEC.v1_2.InputBinding.evalPoint,
+    Lifecycle.PiRLC.v1_2.InputBinding.evalPoint,
+    Lifecycle.PiCCS.v1_2.StatementAbsorption.evalPoint]
   apply congrArg List.ofFn
   funext coordinate
   have point := RunningTransitionInputs.recursivePoint_eq_direct
@@ -231,7 +233,7 @@ theorem rowsZero_implies_physical
     (assignment : Assignment F logicalWidth)
     (one : assignment (PiDECRetainedGeometry.oneColumn geometry) = 1)
     (rows : (PiDECDirectPlan.plan relation geometry).RowsZero assignment) :
-    Layout.PiDEC.v1_1.PhysicalHolds relation
+    Layout.PiDEC.v1_2.PhysicalHolds relation
       (PiDECArithmetic.phaseInterface relationLogicalWidth relationPublicFits)
       PiDECInputs.phaseOffset (Spartan.pullback (decodedEnv geometry assignment)) := by
   have sourceRows := rowsZero_implies_sourceRows relation geometry assignment one rows
@@ -254,10 +256,10 @@ theorem rowsZero_implies_phaseHolds
     (assignment : Assignment F logicalWidth)
     (one : assignment (PiDECRetainedGeometry.oneColumn geometry) = 1)
     (rows : (PiDECDirectPlan.plan relation geometry).RowsZero assignment) :
-    Lifecycle.PiDEC.v1_1.Semantics.PhaseHolds relation ajtai
+    Lifecycle.PiDEC.v1_2.Semantics.PhaseHolds relation ajtai
       (PiDECArithmetic.phaseInterface relationLogicalWidth relationPublicFits)
       PiDECInputs.phaseOffset (Spartan.pullback (decodedEnv geometry assignment)) :=
-  Layout.PiDEC.v1_1.physical_implies_phaseHolds relation ajtai
+  Layout.PiDEC.v1_2.physical_implies_phaseHolds relation ajtai
     (PiDECArithmetic.phaseInterface relationLogicalWidth relationPublicFits)
     PiDECInputs.phaseOffset (Spartan.pullback (decodedEnv geometry assignment))
     (PiDECInputs.assumptions relation _)
@@ -283,7 +285,7 @@ theorem selectedRowsAndPublic_imply_phaseHolds
       (Phi81CarrierLayout.extendAssignment 0 assignment) =
         encHash (publicFits := PerApplicationFixedPoint.publicFits application) digest)
     (rows : (PerApplicationFixedPoint.structuralPlan application fits).RowsZero assignment) :
-    Lifecycle.PiDEC.v1_1.Semantics.PhaseHolds
+    Lifecycle.PiDEC.v1_2.Semantics.PhaseHolds
       (PerApplicationFixedPoint.relation application fits) ajtai
       (PiDECArithmetic.phaseInterface (PerApplicationFixedPoint.logicalWidth application)
         (PerApplicationFixedPoint.publicFits application))

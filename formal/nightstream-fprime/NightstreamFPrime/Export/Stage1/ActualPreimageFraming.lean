@@ -84,8 +84,8 @@ theorem rowsZero_implies_actualPreimageCanonical
   let env := decodedEnv geometry assignment
   have arithmetic := rowsZero_implies_arithmeticSpecs relation geometry assignment one rows
   have statement := arithmetic.statementBinding
-  have framed : PiCCS.v1_1.StateBinding.SpecHolds
-      (PiCCS.v1_1.Formal.statementBindingInterface
+  have framed : PiCCS.v1_2.StateBinding.SpecHolds
+      (PiCCS.v1_2.Formal.statementBindingInterface
         (PiCCSArithmetic.sharedInterface relationLogicalWidth relationPublicFits)).state
       PiCCSArithmetic.statementBindingLogicalStart (Spartan.pullback env) :=
     statement.state
@@ -93,13 +93,13 @@ theorem rowsZero_implies_actualPreimageCanonical
   · intro word member
     have bounded : word.index < PilotProduction.stateHashWords := by
       rw [PilotProduction.stateHashWords_eq]
-      exact PiCCS.v1_1.StateBinding.fixedWord_index_lt word member
+      exact PiCCS.v1_2.StateBinding.fixedWord_index_lt word member
     rw [← priorWord_eq geometry assignment ⟨word.index, bounded⟩]
     exact framed.priorCanonical word member
   · intro word member
     have bounded : word.index < PilotProduction.stateHashWords := by
       rw [PilotProduction.stateHashWords_eq]
-      exact PiCCS.v1_1.StateBinding.fixedWord_index_lt word member
+      exact PiCCS.v1_2.StateBinding.fixedWord_index_lt word member
     rw [← outputWord_eq geometry assignment ⟨word.index, bounded⟩]
     exact framed.outputCanonical word member
 
@@ -151,19 +151,19 @@ theorem rowsZero_implies_contextKeys
   unfold StateDecoder.keyDigest
   apply StateDecoder.slice_congr
   intro lane
-  have bounded : PiCCS.v1_1.StateBinding.contextWordStart + lane.val <
+  have bounded : PiCCS.v1_2.StateBinding.contextWordStart + lane.val <
       PilotProduction.stateHashWords := by
     have bound := lane.isLt
-    norm_num [PiCCS.v1_1.StateBinding.contextWordStart,
+    norm_num [PiCCS.v1_2.StateBinding.contextWordStart,
       PilotProduction.digestWords, PilotValues.digestWords,
       PilotProduction.stateHashWords_eq] at bound ⊢
     omega
   rw [← outputWord_eq geometry assignment
-      ⟨PiCCS.v1_1.StateBinding.contextWordStart + lane.val, bounded⟩,
+      ⟨PiCCS.v1_2.StateBinding.contextWordStart + lane.val, bounded⟩,
     ← priorWord_eq geometry assignment
-      ⟨PiCCS.v1_1.StateBinding.contextWordStart + lane.val, bounded⟩]
+      ⟨PiCCS.v1_2.StateBinding.contextWordStart + lane.val, bounded⟩]
   simpa only [PiCCSArithmetic.sharedInterface, PiCCSArithmetic.parentInterface,
-    PiCCS.v1_1.Formal.statementBindingInterface, PiCCS.v1_1.Formal.atOffset,
+    PiCCS.v1_2.Formal.statementBindingInterface, PiCCS.v1_2.Formal.atOffset,
     PiCCSInputs.interface, PiCCSInputs.priorStateWord, PiCCSInputs.outputStateWord,
     Expr.eval] using! arithmetic.statementBinding.state.contextPreserved lane
 

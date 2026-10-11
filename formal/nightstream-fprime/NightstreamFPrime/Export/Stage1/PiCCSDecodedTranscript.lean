@@ -58,13 +58,6 @@ private theorem payload_eval
       | absorb block =>
           simpa [PiCCSActionPayloadBlock.selectedBlock,
             PiCCSActionPayloadBlock.selectedBlockForKind, found] using! wellFormed
-      | squeezeFirst expected =>
-          simp [PiCCSActionPayloadBlock.selectedBlock,
-            PiCCSActionPayloadBlock.selectedBlockForKind, found,
-            Spec.Poseidon2.rate]
-      | squeezeSecond =>
-          simp [PiCCSActionPayloadBlock.selectedBlock,
-            PiCCSActionPayloadBlock.selectedBlockForKind, found]
     apply Eq.symm
     apply List.getD_eq_default
     simp only [Hash.evalList, List.length_map]
@@ -91,46 +84,6 @@ private theorem absorb_input
   rw [payload_eval ordinary assignment one current lane]
   simp only [PiCCSActionPayloadBlock.selectedBlock, found,
     PiCCSActionPayloadBlock.selectedBlockForKind, Hash.absorbF]
-
-private theorem squeeze_pair
-    (ordinary : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
-    (poseidon : PiCCSPoseidonPlan.Geometry program logicalWidth)
-    (assignment : Assignment F logicalWidth)
-    (one : assignment (PiCCSOrdinaryRetainedGeometry.oneColumn ordinary) = 1)
-    (semantics : PiCCSPoseidonPlan.Semantics (PiCCSPayloadWiring.form ordinary)
-      poseidon assignment)
-    (current : Fin PiCCSPoseidonPlan.invocationCount)
-    (expected : Quadratic.KExpr)
-    (found : PiCCSActionPayloadBlock.kindAt current = .squeezeFirst expected) :
-    expected.eval (decoded ordinary assignment) =
-      ⟨previousValue poseidon assignment current 0,
-        outputValue poseidon assignment current 0⟩ := by
-  have rowZero := semantics.squeezeBinding current (0 : Fin 2)
-  rw [PiCCSPoseidonPlan.bindingForm_squeezeFirst_zero
-    (PiCCSPayloadWiring.form ordinary) poseidon current expected found,
-    SparseForm.add_eval, SparseForm.scale_eval,
-    payload_eval ordinary assignment one] at rowZero
-  rw [show (PiCCSPoseidonPlan.previousOutput poseidon current 0).eval
-      assignment = previousValue poseidon assignment current 0 from
-    congrFun (previousOutput_eval poseidon assignment current) 0] at rowZero
-  have c0 : expected.c0.eval (decoded ordinary assignment) =
-      previousValue poseidon assignment current 0 := by
-    apply Lean.Grind.AddCommGroup.sub_eq_zero_iff.mp
-    simpa [Hash.evalList, PiCCSActionPayloadBlock.selectedBlock,
-      PiCCSActionPayloadBlock.selectedBlockForKind, found, sub_eq_add_neg]
-      using rowZero
-  have rowOne := semantics.squeezeBinding current (1 : Fin 2)
-  rw [PiCCSPoseidonPlan.bindingForm_squeezeFirst_one
-    (PiCCSPayloadWiring.form ordinary) poseidon current expected found,
-    SparseForm.add_eval, SparseForm.scale_eval,
-    payload_eval ordinary assignment one] at rowOne
-  have c1 : expected.c1.eval (decoded ordinary assignment) =
-      outputValue poseidon assignment current 0 := by
-    apply Lean.Grind.AddCommGroup.sub_eq_zero_iff.mp
-    simpa [Hash.evalList, PiCCSActionPayloadBlock.selectedBlock,
-      PiCCSActionPayloadBlock.selectedBlockForKind, found, sub_eq_add_neg,
-      outputValue, SparseLayer.evalState] using rowOne
-  exact congrArg₂ K.mk c0 c1
 
 /-- The actual parent forms and arbitrary accepted Poseidon rows force the
 complete indexed transcript. The only value premise is the enforced constant
@@ -172,51 +125,6 @@ theorem rowsZero_implies_indexedSemantics
         simpa only [valueState, PoseidonActionSemantics.runKind,
           Spec.Poseidon2.absorbBlock, Hash.absorbF_input_eq_reference]
           using invocation
-    | squeezeFirst expected =>
-        rw [show SparseLayer.evalState assignment
-            (PiCCSPoseidonPlan.inputState (PiCCSPayloadWiring.form ordinary)
-              poseidon current) = previousValue poseidon assignment current by
-          simpa only [PiCCSPoseidonPlan.inputState, found] using
-            previousOutput_eval poseidon assignment current] at invocation
-        exact invocation
-    | squeezeSecond =>
-        rw [show SparseLayer.evalState assignment
-            (PiCCSPoseidonPlan.inputState (PiCCSPayloadWiring.form ordinary)
-              poseidon current) = previousValue poseidon assignment current by
-          simpa only [PiCCSPoseidonPlan.inputState, found] using
-            previousOutput_eval poseidon assignment current] at invocation
-        exact invocation
-  refine ⟨step, ?_⟩
-  intro current expected found
-  rw [previousState_eq_previousValue poseidon assignment current]
-  have pair := squeeze_pair ordinary poseidon assignment one semantics
-    current expected found
-  have permuteEq : valueState poseidon assignment current =
-      Spec.Poseidon2.permute (List.ofFn (previousValue poseidon assignment current)) := by
-    simpa only [PoseidonActionSemantics.runKind, found,
-      previousState_eq_previousValue] using step current
-  unfold Squeeze.referenceSample
-  rw [pair]
-  apply congrArg₂ K.mk
-  · exact (NightstreamFPrime.Lifecycle.PriorStateHash.ofFn_getD
-      (previousValue poseidon assignment current) 0 0).symm
-  · rw [← permuteEq]
-    exact (NightstreamFPrime.Lifecycle.PriorStateHash.ofFn_getD
-      (outputValue poseidon assignment current) 0 0).symm
-
-/-- All four protocol trace slices use the same arbitrary decoded values
-as the eight arithmetic leaf contracts. -/
-theorem rowsZero_implies_traces
-    (ordinary : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
-    (poseidon : PiCCSPoseidonPlan.Geometry program logicalWidth)
-    (assignment : Assignment F logicalWidth)
-    (one : assignment (PiCCSOrdinaryRetainedGeometry.oneColumn ordinary) = 1)
-    (rows : (PiCCSPoseidonPlan.plan (PiCCSPayloadWiring.form ordinary)
-      poseidon).RowsZero assignment) :
-    PiCCSTranscriptDirectSemantics.Traces poseidon assignment
-      (Spartan.pullback (PiCCSAssignmentSoundness.decodedEnv ordinary assignment)) :=
-  PiCCSTranscriptDirectSemantics.indexedSemantics_implies_traces
-    poseidon assignment _
-    (rowsZero_implies_indexedSemantics ordinary poseidon assignment one rows)
+  exact ⟨step⟩
 
 end NightstreamFPrime.Export.Stage1.PiCCSDecodedTranscript

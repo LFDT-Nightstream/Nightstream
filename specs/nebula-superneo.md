@@ -163,8 +163,15 @@ fixes the logical content and order. It does not fix column numbers.
 | `H` | Poseidon2, width 16, rate 12, capacity 4, digest 4 | `neo-params::poseidon2_goldilocks` |
 
 A digest is four canonical field elements. Every digest and challenge in this
-document uses `H` through the trunk v1.1 transcript primitives (`reset_v1_1`,
-`absorb_block_v1_1`, `squeeze_digest_v1_1`, `squeeze_extension_v1_1`).
+document uses `H` through four transcript primitives. The Stage 1 fold
+transcript does not use them, so this document defines them:
+
+- `reset_v1_1()`: the zero state.
+- `absorb_block_v1_1(tr, block)`: absorb the block's length, then its words,
+  in rate chunks, with one permutation after each chunk.
+- `squeeze_digest_v1_1(tr)`: the first four lanes.
+- `squeeze_extension_v1_1(tr)`: read lane 0 and permute, two times. The two
+  words are one element of 𝕂.
 
 `α` and `γ` always mean the PiCCS challenges, and `ρ` always means the PiRLC
 challenges. The memory challenges are `η`.

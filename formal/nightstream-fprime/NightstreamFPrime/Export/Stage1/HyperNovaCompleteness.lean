@@ -1,5 +1,5 @@
 import NightstreamFPrime.Export.Stage1.HyperNovaHistory
-import NightstreamFPrime.Lifecycle.PiDEC.v1_1.OutputWitnessConsumer
+import NightstreamFPrime.Lifecycle.PiDEC.v1_2.OutputWitnessConsumer
 import NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Completeness
 
 /-!
@@ -175,7 +175,7 @@ theorem recursive_nifs
             (Lifecycle.runningStatement relation result child) (children child) := by
   let relation := PerApplicationFixedPoint.relation application fits
   let key := ProductionKey.key relation productionAjtaiKey
-  obtain ⟨_statementValid, _pcValid, _positive, _public, runningMember, freshMember⟩ :=
+  obtain ⟨_statementValid, _canonical, _pcValid, _positive, _public, runningMember, freshMember⟩ :=
     (PerApplicationTerminal.holds_recursive_iff application fits productionSetup statement payload).mp accepted
   have memberships : Lifecycle.TerminalHolds relation productionAjtaiKey
       (payload.running functionIndex) (payload.runningWitness functionIndex)
@@ -199,7 +199,7 @@ theorem recursive_nifs
   refine ⟨proof, result, children, roundsEq, outputEq, sampleEq, verified, ?_⟩
   intro child
   have member := childValid child
-  rw [Lifecycle.PiDEC.v1_1.OutputWitnessConsumer.runningStatement_eq
+  rw [Lifecycle.PiDEC.v1_2.OutputWitnessConsumer.runningStatement_eq
     relation productionAjtaiKey result child] at member
   exact member
 

@@ -2,9 +2,10 @@ import NightstreamFPrime.Spec.Nebula.Fingerprint
 
 /-! Owns the per-step memory rows of spec §8 at the typed level and security
 note Lemma 4: the running products of rows O8, O9, S2, and S3 equal the
-fingerprint products of the step's multisets, and every tuple is small. The
-field-level meaning of rows O1, O4, and the O8 gate is in `FieldRows`. The
-tuple functions take no challenge, which is hash residency (spec §6.4, Ob6). -/
+fingerprint products of the step's multisets, and every tuple is small. A
+relation that refines these rows proves their field-level meaning (for the
+first memory application, `Lifecycle/Nebula/StepRefinement`). The tuple
+functions take no challenge, which is hash residency (spec §6.4, Ob6). -/
 
 namespace NightstreamFPrime.Spec.Nebula
 

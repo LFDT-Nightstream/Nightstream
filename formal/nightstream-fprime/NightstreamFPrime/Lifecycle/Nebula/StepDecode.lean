@@ -70,10 +70,6 @@ theorem bitsLE_bitsNat {n : ℕ} (bits : Fin n → F) :
   have := bitsLE_chunkValue ((List.ofFn bits).map toBool)
   rwa [List.length_map, List.length_ofFn] at this
 
-theorem natWord_injective {a b : ℕ} (ha : a < goldilocksModulus) (hb : b < goldilocksModulus)
-    (same : natWord a = natWord b) : a = b := by
-  rw [← natWord_val ha, ← natWord_val hb, same]
-
 /-- Spec §9.1 packing of field bits is the model's packing of their Booleans. -/
 theorem packWords_eq {bits : List F} (allBits : ∀ x ∈ bits, IsBit x) :
     packWords bits = (pack (bits.map toBool)).map natWord := by

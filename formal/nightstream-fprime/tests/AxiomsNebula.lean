@@ -5,7 +5,7 @@ import NightstreamFPrime.Lifecycle.Nebula.MemoryBound
 import NightstreamFPrime.Lifecycle.Nebula.RunLink
 import NightstreamFPrime.Lifecycle.Nebula.RowMeaning
 import NightstreamFPrime.Lifecycle.Nebula.EndToEnd
-import NightstreamFPrime.Lifecycle.Nebula.HonestStep
+import NightstreamFPrime.Lifecycle.Nebula.HonestRun
 import NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package
 import NightstreamFPrime.Export.Stage1.NebulaMemoryN1Package
 
@@ -33,10 +33,6 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Spec.Nebula.badChallenges_frequency
 #audit_axioms NightstreamFPrime.Spec.GoldilocksExtensionRing.card_K
 #audit_axioms NightstreamFPrime.Spec.Nebula.GoldilocksFingerprint.goldilocks_badChallenges_frequency
-#audit_axioms NightstreamFPrime.Spec.Nebula.bitRow_iff
-#audit_axioms NightstreamFPrime.Spec.Nebula.gateRow_eq
-#audit_axioms NightstreamFPrime.Spec.Nebula.o4Row_iff
-#audit_axioms NightstreamFPrime.Spec.Nebula.o4Row_fresh
 #audit_axioms NightstreamFPrime.Spec.Nebula.stepProducts_eq
 #audit_axioms NightstreamFPrime.Spec.Nebula.activeOps_length
 #audit_axioms NightstreamFPrime.Spec.Nebula.stepMultisets_small
@@ -111,12 +107,9 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Spec.Nebula.Game.play_closes
 #audit_axioms NightstreamFPrime.Spec.Nebula.Game.badAt_error
 #audit_axioms NightstreamFPrime.Spec.Nebula.Game.disagreement_collision
-#audit_axioms NightstreamFPrime.Spec.Nebula.Game.fails_cases
 #audit_axioms NightstreamFPrime.Spec.Nebula.Game.badAt_frequency
-#audit_axioms NightstreamFPrime.Spec.Nebula.Game.fails_frequency
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.context_hash
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.memory_bound
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.collides_transcript
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.badAt_bound
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.closing_collision_transcript
 #audit_axioms NightstreamFPrime.Spec.GoldilocksExtensionRing.add_eq
 #audit_axioms NightstreamFPrime.Spec.GoldilocksExtensionRing.sub_eq
@@ -600,3 +593,6 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.activeLength_le
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.startProduct_open
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.startProduct_continue
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.reach_invoke
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.reach_continueRun
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.history_of_execution

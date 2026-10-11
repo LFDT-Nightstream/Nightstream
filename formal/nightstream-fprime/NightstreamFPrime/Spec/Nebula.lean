@@ -1,4 +1,3 @@
-import NightstreamFPrime.Spec.Nebula.FieldRows
 import NightstreamFPrime.Spec.Nebula.Soundness
 import NightstreamFPrime.Spec.Nebula.Completeness
 import NightstreamFPrime.Spec.Nebula.RetryAveraging

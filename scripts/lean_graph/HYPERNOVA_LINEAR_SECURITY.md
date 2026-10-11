@@ -45,11 +45,12 @@ hash, which no random-oracle model covers. `Admitted`, `StageAdmitted` and
 `Closed` states that an admitted stage, as one algorithm, gives an admitted
 NIFS adversary and that one reverse step keeps a stage admitted, as in
 Lemma 17 for a constant depth. Lean has no running-time model.
-`Lifecycle.RandomOracleKnowledge.knowledge_error_le` proves a random-oracle
-analogue for one fold and motivates the value of `error`: linear in the query
-count, about `(Q + 74) · 2^-115.84 + 17 (Q + 17) · 2^-125.4` plus the named
-MSIS and state-hash events. No Lean statement derives `error` from it
-(trust item 4 of the security model).
+`Export.Stage1.RandomOracleSetup.production_knowledge_error_lt` proves a
+random-oracle analogue for one fold, with the same prior-state link, and
+motivates the value of `error`: linear in the query count, about
+`(Q + 74) · 2^-115.84 + 17 (Q + 17) · 2^-125.4` plus the MSIS solver's success
+and the state-hash collision chances. No Lean statement derives `error` from
+it (trust item 4 of the security model).
 
 Required premises:
 

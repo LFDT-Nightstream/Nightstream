@@ -2,7 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSCompletedReadout
 import NightstreamFPrime.Export.Stage1.PiCCSEndpointCompleteness
 import NightstreamFPrime.Export.Stage1.PiCCSInvocationSlices
 import NightstreamFPrime.Export.Stage1.InvocationInputLaw
-import NightstreamFPrime.Export.Stage1.PiCCSCompilerAssertions
 import NightstreamFPrime.Export.Stage1.PiCCSPhaseInputs
 import NightstreamFPrime.Export.Stage1.PiCCSActionPayloadSupport
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxSourceCompleteness
@@ -10,7 +9,7 @@ import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxSourceCompletenes
 /-!
 Owns the direct C permutation-plan proof from the actual completed C rows.
 Source input and retained S-box values are tied to the same compact compiler
-invocation. Squeeze pins use the actual compiler assertion meaning.
+invocation. Coins are permutation-output lanes, so the plan has no coin pins.
 -/
 
 set_option autoImplicit false
@@ -81,7 +80,7 @@ private theorem source_sbox (index : InvocationIndex) (row : Fin PoseidonRetaine
     PoseidonRetainedBlock.basePackage.layout.constantColumn at before
   have localBound := (PoseidonRetainedSlots.localOutput row).isLt
   change (PoseidonRetainedSlots.localOutput row).val < 1096 at localBound
-  have constant : PoseidonRetainedBlock.basePackage.layout.constantColumn = 11654204 :=
+  have constant : PoseidonRetainedBlock.basePackage.layout.constantColumn = 11464596 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
   rw [constant] at before
   change (physicalInvocation index).witnessStart +
@@ -152,74 +151,6 @@ private theorem payload_absorb_source
     rfl
 
 include relation physical in
-private theorem expected_source
-    (index : InvocationIndex) (expected : KExpr)
-    (found : PiCCSActionPayloadBlock.kindAt index = .squeezeFirst expected) :
-    expected.eval (PiCCSActionPayloadBlock.packageEnv application (raw).retainedSource) =
-      expected.eval (Spartan.pullback target) := by
-  have zero : expected.c0.eval (PiCCSActionPayloadBlock.packageEnv application (raw).retainedSource) =
-      expected.c0.eval (Spartan.pullback target) := by
-    have copied := payload_value application relation target suffix physical
-      (Fin.encodeProd (index, (⟨0, by decide⟩ : Fin Spec.Poseidon2.rate)))
-    simpa only [PiCCSActionPayloadBlock.payloadValue,
-      PiCCSActionPayloadBlock.payloadExpression_encode,
-      PiCCSActionPayloadBlock.payloadExpr, PiCCSActionPayloadBlock.selectedBlock,
-      found, PiCCSActionPayloadBlock.selectedBlockForKind, List.getD_cons_zero] using copied
-  have one : expected.c1.eval (PiCCSActionPayloadBlock.packageEnv application (raw).retainedSource) =
-      expected.c1.eval (Spartan.pullback target) := by
-    have copied := payload_value application relation target suffix physical
-      (Fin.encodeProd (index, (⟨1, by decide⟩ : Fin Spec.Poseidon2.rate)))
-    simpa only [PiCCSActionPayloadBlock.payloadValue,
-      PiCCSActionPayloadBlock.payloadExpression_encode,
-      PiCCSActionPayloadBlock.payloadExpr, PiCCSActionPayloadBlock.selectedBlock,
-      found, PiCCSActionPayloadBlock.selectedBlockForKind,
-      List.getD_cons_succ, List.getD_cons_zero] using copied
-  exact congrArg₂ K.mk zero one
-
-include relation physical in
-private theorem binding_zero
-    (expectedValues : ∀ (index : InvocationIndex) (expected : KExpr),
-      PiCCSActionPayloadBlock.kindAt index = .squeezeFirst expected →
-      expected.eval (Spartan.pullback target) =
-        K.mk (previousValue geometry (raw).assignment index 0) (outputValue geometry (raw).assignment index 0))
-    (index : InvocationIndex) (component : Fin 2) :
-    (PiCCSPoseidonPlan.bindingForm payload geometry index component).eval (raw).assignment = 0 := by
-  cases found : PiCCSActionPayloadBlock.kindAt index with
-  | absorb block =>
-      simp only [PiCCSPoseidonPlan.bindingForm, found, SparseForm.empty_eval]
-  | squeezeSecond =>
-      simp only [PiCCSPoseidonPlan.bindingForm, found, SparseForm.empty_eval]
-  | squeezeFirst expected =>
-      have same := (expected_source application relation target suffix physical index expected found).trans
-        (expectedValues index expected found)
-      have zero : expected.c0.eval (PiCCSActionPayloadBlock.packageEnv application (raw).retainedSource) =
-          previousValue geometry (raw).assignment index 0 := congrArg K.c0 same
-      have one : expected.c1.eval (PiCCSActionPayloadBlock.packageEnv application (raw).retainedSource) =
-          outputValue geometry (raw).assignment index 0 := congrArg K.c1 same
-      fin_cases component
-      · change (PiCCSPoseidonPlan.bindingForm payload geometry index (0 : Fin 2)).eval
-          (raw).assignment = 0
-        rw [PiCCSPoseidonPlan.bindingForm_squeezeFirst_zero payload geometry index expected found,
-          SparseForm.add_eval, SparseForm.scale_eval,
-          payloadForm_eval payload geometry (raw).assignment (raw).retainedSource
-            (encoding application target suffix),
-          payloadLaneValue_squeezeFirst_zero application (raw).retainedSource index expected found]
-        rw [show (PiCCSPoseidonPlan.previousOutput geometry index 0).eval (raw).assignment =
-            previousValue geometry (raw).assignment index 0 from
-          congrFun (previousOutput_eval geometry (raw).assignment index) 0, zero]
-        simp
-      · change (PiCCSPoseidonPlan.bindingForm payload geometry index (1 : Fin 2)).eval
-          (raw).assignment = 0
-        rw [PiCCSPoseidonPlan.bindingForm_squeezeFirst_one payload geometry index expected found,
-          SparseForm.add_eval, SparseForm.scale_eval,
-          payloadForm_eval payload geometry (raw).assignment (raw).retainedSource
-            (encoding application target suffix),
-          payloadLaneValue_squeezeFirst_one application (raw).retainedSource index expected found]
-        rw [show (PiCCSPoseidonPlan.outputState geometry index 0).eval (raw).assignment =
-            outputValue geometry (raw).assignment index 0 from rfl, one]
-        simp
-
-include relation physical in
 private theorem slice_values
     (phase rowStart witnessStart : Nat) (state : Layer.EState) (actions : List Formal.Action)
     (offset count : Nat) (counted : Invocations.invocationCount actions = count)
@@ -238,20 +169,11 @@ private theorem slice_values
     (initial : List.ofFn (Layer.evalState (Spartan.pullback target) state) =
       PoseidonActionSemantics.sliceInitial Spec.Poseidon2.zeroState
         (valueState geometry (raw).assignment) offset offsetBound)
-    (assertions : ConstraintsHold (Spartan.pullback target)
-      (Formal.compile witnessStart state actions).assertions)
-    (index : Fin count) :
-    (∀ lane : Fin 16,
-      (invocationInputCombination
+    (index : Fin count) (lane : Fin 16) :
+    (invocationInputCombination
         (physicalInvocation (PoseidonActionSemantics.sliceIndex offset count fits index)) lane.val).toR1CS.eval target =
       canonicalInput geometry (raw).assignment (raw).retainedSource
-        (PoseidonActionSemantics.sliceIndex offset count fits index) lane) ∧
-    (∀ expected : KExpr,
-      PiCCSActionPayloadBlock.kindAt (PoseidonActionSemantics.sliceIndex offset count fits index) =
-        .squeezeFirst expected →
-      expected.eval (Spartan.pullback target) =
-        K.mk (previousValue geometry (raw).assignment (PoseidonActionSemantics.sliceIndex offset count fits index) 0)
-          (outputValue geometry (raw).assignment (PoseidonActionSemantics.sliceIndex offset count fits index) 0)) := by
+        (PoseidonActionSemantics.sliceIndex offset count fits index) lane := by
   subst count
   have kindEq (current : Fin (Invocations.invocationCount actions)) :
       PiCCSActionPayloadBlock.kindAt
@@ -287,52 +209,28 @@ private theorem slice_values
       previous.getD lane.val 0 = previousValue geometry (raw).assignment globalIndex lane := by
     rw [previousEq]
     exact PriorStateHash.ofFn_getD _ lane (0 : F)
-  have currentLane : (outputs index).getD 0 0 = outputValue geometry (raw).assignment globalIndex 0 := by
-    rw [outputsEq]
-    exact PriorStateHash.ofFn_getD _ (0 : Fin 16) (0 : F)
-  constructor
-  · intro lane
-    have inputLaw := InvocationInputLaw.compileActions_input_eval phase rowStart witnessStart
-      state actions target witnessLocal stateAffine actionsAffine index lane
-    change (invocationInputCombination (selectedInvocation index) lane.val).toR1CS.eval target =
-      (match PoseidonActionSchedule.kindAt actions index with
-      | .absorb block => previous.getD lane.val 0 + (block.getD lane.val (0 : Expr)).eval (Spartan.pullback target)
-      | .squeezeFirst _ | .squeezeSecond => previous.getD lane.val 0) at inputLaw
-    rw [← selectedEq index, ← kindEq index] at inputLaw
-    simp only [previousLane] at inputLaw
-    cases found : PiCCSActionPayloadBlock.kindAt globalIndex with
-    | absorb block =>
-        change _ = canonicalInput geometry (raw).assignment (raw).retainedSource globalIndex lane
-        simp only [canonicalInput, found]
-        rw [payload_absorb_source application relation target suffix physical globalIndex lane block found]
-        simpa only [globalIndex, found] using inputLaw
-    | squeezeFirst expected =>
-        change _ = canonicalInput geometry (raw).assignment (raw).retainedSource globalIndex lane
-        rw [canonicalInput, found]
-        simpa only [globalIndex, found] using inputLaw
-    | squeezeSecond =>
-        change _ = canonicalInput geometry (raw).assignment (raw).retainedSource globalIndex lane
-        rw [canonicalInput, found]
-        simpa only [globalIndex, found] using inputLaw
-  · intro expected found
-    have localKind : PoseidonActionSchedule.kindAt actions index = .squeezeFirst expected :=
-      (kindEq index).symm.trans found
-    have expectedLaw := InvocationInputLaw.compileActions_expected_eval phase rowStart witnessStart
-      state actions target witnessLocal assertions index expected localKind
-    change expected.eval (Spartan.pullback target) = K.mk (previous.getD 0 0) ((outputs index).getD 0 0) at expectedLaw
-    exact expectedLaw.trans (congrArg₂ K.mk (previousLane 0) currentLane)
+  have inputLaw := InvocationInputLaw.compileActions_input_eval phase rowStart witnessStart
+    state actions target witnessLocal stateAffine actionsAffine index lane
+  change (invocationInputCombination (selectedInvocation index) lane.val).toR1CS.eval target =
+    (match PoseidonActionSchedule.kindAt actions index with
+    | .absorb block => previous.getD lane.val 0 +
+        (block.getD lane.val (0 : Expr)).eval (Spartan.pullback target)) at inputLaw
+  rw [← selectedEq index, ← kindEq index] at inputLaw
+  simp only [previousLane] at inputLaw
+  cases found : PiCCSActionPayloadBlock.kindAt globalIndex with
+  | absorb block =>
+      change _ = canonicalInput geometry (raw).assignment (raw).retainedSource globalIndex lane
+      simp only [canonicalInput]
+      rw [payload_absorb_source application relation target suffix physical globalIndex lane block found]
+      simpa only [globalIndex, found] using inputLaw
 
 include relation physical in
-private theorem invocation_values (index : InvocationIndex) :
-    (∀ lane : Fin 16,
-      (invocationInputCombination (physicalInvocation index) lane.val).toR1CS.eval target =
-        canonicalInput geometry (raw).assignment (raw).retainedSource index lane) ∧
-    (∀ expected : KExpr, PiCCSActionPayloadBlock.kindAt index = .squeezeFirst expected →
-      expected.eval (Spartan.pullback target) =
-        K.mk (previousValue geometry (raw).assignment index 0) (outputValue geometry (raw).assignment index 0)) := by
-  have bounded : index.val < 1121 := by
+private theorem invocation_values (index : InvocationIndex) (lane : Fin 16) :
+    (invocationInputCombination (physicalInvocation index) lane.val).toR1CS.eval target =
+      canonicalInput geometry (raw).assignment (raw).retainedSource index lane := by
+  have bounded : index.val < 948 := by
     simpa only [PiCCSPoseidonPlan.invocationCount_eq] using index.isLt
-  by_cases inStatement : index.val < 128
+  by_cases inStatement : index.val < 123
   · let current : Fin PiCCSTranscriptDirectSemantics.statementCount := ⟨index.val, inStatement⟩
     have same : PoseidonActionSemantics.sliceIndex
         PiCCSTranscriptDirectSemantics.statementOffset PiCCSTranscriptDirectSemantics.statementCount
@@ -355,16 +253,16 @@ private theorem invocation_values (index : InvocationIndex) :
       PiCCSInvocationSlices.statement_invocation
       PiCCSTranscriptDirectSemantics.statementKindAt_eq
       (PiCCSPhaseInputs.statement_initial application target suffix)
-      (PiCCSCompilerAssertions.statement_assertions (Spartan.pullback target)) current
-  · by_cases inChallenge : index.val < 215
-    · let current : Fin PiCCSTranscriptDirectSemantics.challengeCount := ⟨index.val - 128, by
-        change index.val - 128 < 87
+      current lane
+  · by_cases inChallenge : index.val < 127
+    · let current : Fin PiCCSTranscriptDirectSemantics.challengeCount := ⟨index.val - 123, by
+        change index.val - 123 < 4
         omega⟩
       have same : PoseidonActionSemantics.sliceIndex
           PiCCSTranscriptDirectSemantics.challengeOffset PiCCSTranscriptDirectSemantics.challengeCount
           PiCCSTranscriptDirectSemantics.challengeFits current = index := by
         apply Fin.ext
-        change 128 + (index.val - 128) = index.val
+        change 123 + (index.val - 123) = index.val
         omega
       rw [← same]
       have affine := PiCCSPhaseInputs.challenge_affine relation
@@ -381,16 +279,16 @@ private theorem invocation_values (index : InvocationIndex) :
         PiCCSInvocationSlices.challenge_invocation
         PiCCSTranscriptDirectSemantics.challengeKindAt_eq
         (PiCCSPhaseInputs.challenge_initial application relation target suffix physical)
-        (PiCCSCompilerAssertions.challenge_assertions (Spartan.pullback target)) current
-    · by_cases inRound : index.val < 355
-      · let current : Fin PiCCSTranscriptDirectSemantics.roundCount := ⟨index.val - 215, by
-          change index.val - 215 < 140
+        current lane
+    · by_cases inRound : index.val < 183
+      · let current : Fin PiCCSTranscriptDirectSemantics.roundCount := ⟨index.val - 127, by
+          change index.val - 127 < 56
           omega⟩
         have same : PoseidonActionSemantics.sliceIndex
             PiCCSTranscriptDirectSemantics.roundOffset PiCCSTranscriptDirectSemantics.roundCount
             PiCCSTranscriptDirectSemantics.roundFits current = index := by
           apply Fin.ext
-          change 215 + (index.val - 215) = index.val
+          change 127 + (index.val - 127) = index.val
           omega
         rw [← same]
         have affine := PiCCSPhaseInputs.round_affine relation
@@ -407,15 +305,15 @@ private theorem invocation_values (index : InvocationIndex) :
           PiCCSInvocationSlices.round_invocation
           PiCCSTranscriptDirectSemantics.roundKindAt_eq
           (PiCCSPhaseInputs.round_initial application relation target suffix physical)
-          (PiCCSCompilerAssertions.round_assertions (Spartan.pullback target)) current
-      · let current : Fin PiCCSTranscriptDirectSemantics.outputCount := ⟨index.val - 355, by
-          change index.val - 355 < 766
+          current lane
+      · let current : Fin PiCCSTranscriptDirectSemantics.outputCount := ⟨index.val - 183, by
+          change index.val - 183 < 765
           omega⟩
         have same : PoseidonActionSemantics.sliceIndex
             PiCCSTranscriptDirectSemantics.outputOffset PiCCSTranscriptDirectSemantics.outputCount
             PiCCSTranscriptDirectSemantics.outputFits current = index := by
           apply Fin.ext
-          change 355 + (index.val - 355) = index.val
+          change 183 + (index.val - 183) = index.val
           omega
         rw [← same]
         have affine := PiCCSPhaseInputs.output_affine relation
@@ -432,26 +330,24 @@ private theorem invocation_values (index : InvocationIndex) :
           PiCCSInvocationSlices.output_invocation
           PiCCSTranscriptDirectSemantics.outputKindAt_eq
           (PiCCSPhaseInputs.output_initial application relation target suffix physical)
-          (PiCCSCompilerAssertions.output_assertions (Spartan.pullback target)) current
+          current lane
 
 include relation physical in
 /-- Actual physical C rows satisfy the canonical direct C Poseidon plan.
-Inputs, retained S-box values and squeeze pins are derived from the same
-compiler invocations and their exact source expressions. -/
+Inputs and retained S-box values are derived from the same compiler
+invocations and their exact source expressions. -/
 theorem rowsZero_of_completed :
     (PiCCSPoseidonPlan.plan payload geometry).RowsZero (raw).assignment := by
   apply PiCCSPoseidonPlan.equations_imply_rowsZero payload geometry (raw).assignment
-  · intro index
-    apply sboxes_of_input application relation target suffix physical index
-    rw [inputState_eval payload geometry (raw).assignment (raw).retainedSource
-      (encoding application target suffix)]
-    funext lane
-    change canonicalInput geometry (raw).assignment (raw).retainedSource index lane =
-      Pilot.canonicalInvocationEnv (physicalInvocation index) target lane.val
-    rw [Pilot.canonicalInvocationEnv_input]
-    exact ((invocation_values application relation target suffix physical index).1 lane).symm
-  · exact binding_zero application relation target suffix physical
-      (fun index => (invocation_values application relation target suffix physical index).2)
+  intro index
+  apply sboxes_of_input application relation target suffix physical index
+  rw [inputState_eval payload geometry (raw).assignment (raw).retainedSource
+    (encoding application target suffix)]
+  funext lane
+  change canonicalInput geometry (raw).assignment (raw).retainedSource index lane =
+    Pilot.canonicalInvocationEnv (physicalInvocation index) target lane.val
+  rw [Pilot.canonicalInvocationEnv_input]
+  exact (invocation_values application relation target suffix physical index lane).symm
 
 end Completed
 

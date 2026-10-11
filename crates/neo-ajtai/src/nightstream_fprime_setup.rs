@@ -30,7 +30,7 @@ pub const SETUP_ID: &[u8] = b"nightstream-ajtai-shake128-wide256-v1";
 pub const ELEMENT_INPUT_BYTES: usize = SETUP_ID.len() + 32 + 4 + 8;
 pub const PRODUCTION_VERIFIER_ROWS: u64 = 22;
 // Lean authority: Poseidon2HashChainV1Setup.messageColumns_eq.
-pub const PRODUCTION_MESSAGE_COLUMNS: u64 = 835_936;
+pub const PRODUCTION_MESSAGE_COLUMNS: u64 = 814_144;
 pub const PRODUCTION_CARRIER_WIDTH: usize = PRODUCTION_MESSAGE_COLUMNS as usize * D;
 // Approved public-seed MSIS matrix; applications bind their exact key prefix.
 // Lean authority: Poseidon2HashChainV1Setup.approvedMsis_carrierWidth.

@@ -84,8 +84,10 @@ collision.
   `Export.Stage1.ActualTerminalSecurity.terminal_implies_securityOrCollision`;
   the selected rows come from
   `Export.Stage1.ActualContextSecurity.terminal_implies_rowsAndPublic`). A
-  named collision is two different well-formed preimages with one Poseidon2
-  hash (`Layout.Stage1.PiCCSSecurity.stateHash_identifies_statement_or_collision`).
+  named collision is two preimages with different serializations and one
+  Poseidon2 hash (`Layout.Stage1.PiCCSSecurity.StateHashCollision`). For two
+  well-formed preimages, equal hashes give equal preimages or such a collision
+  (`Layout.Stage1.PiCCSSecurity.stateHash_identifies_statement_or_collision`).
   The result is deterministic. It is about the Lean terminal predicate, not
   about the Rust verifier (trust item 5).
 
@@ -99,10 +101,10 @@ collision.
   (`Spec.RandomOracle.OracleComp` has no coins). A randomized adversary is
   covered for each fixed value of its coins; the average over the coins is an
   argument outside Lean. Each query is a call list no longer than a fixed
-  bound (`Lifecycle.RandomOracleTest.Point`).
+  bound and a lane pair (`Lifecycle.RandomOracleTest.Point`).
 - **Does not control:** the application, the setup chunks, which are uniform
   256-bit values (trust item 2), and `H`, a uniform random function of each
-  challenge's exact call list (trust item 1). The adversary is chosen before
+  challenge's address, its exact call list and its lane pair (trust item 1). The adversary is chosen before
   the chunks, so it cannot contain a kernel vector of the key.
 - **Wins:** the oracle verifier accepts the claim, the child witnesses open
   the returned children, the prior preimage links the claim, and extraction
@@ -168,7 +170,7 @@ fresh verifier coin by an oracle read. Each module header states its part:
 
 | Lemma | Step | Lean |
 |---|---|---|
-| 1 | Each challenge reads its exact call list; distinct challenges have distinct call lists. | `Lifecycle.TranscriptCoverage.challenge_seal`, `Lifecycle.TranscriptCoverage.challengeCalls_injective` |
+| 1 | Each challenge reads one lane pair of the state after its exact call list; distinct challenges have distinct addresses (call list and lane pair). | `Lifecycle.TranscriptCoverage.challenge_seal`, `Lifecycle.TranscriptCoverage.challengeAddress_injective` |
 | 2 | Bad-set bounds for bad sets that do not read their own point: `Q ε` at the queried points (Ironwood `escapesDuringC_measure_le'`) and the pinned-squeeze `(Q + 1) ε` at an output point (Ironwood `xEscAtPoint_measure_le`). | `Spec.RandomOracle.escape_le`, `Spec.RandomOracle.pinned_le` |
 | 3 | A false PiCCS acceptance has one bad coin. | `Spec.Folding.PiCCS.PaperJoint.RoundByRound.falseAcceptance_splits` |
 | 4 | Test error in the oracle model. | `Lifecycle.RandomOracleTest.test_error_le` |
@@ -210,20 +212,23 @@ fresh verifier coin by an oracle read. Each module header states its part:
 ## What you trust
 
 1. **The random-oracle model of the challenge reads.** The NIFS verifier
-   reads each challenge from the Poseidon2 sponge state after the exact call
-   list of that challenge. The deployed system makes these reads only inside
-   the step circuit, so this model applies to adversary 3's game, not to a
-   deployed check. `Lifecycle.TranscriptCoverage.piCcsProbe_coins`
-   and `Lifecycle.TranscriptCoverage.rho_seal` prove that the coins are one
-   read of each call list. The model replaces that read by a uniform random
-   function of the call list (`Lifecycle.RandomOracleTest.coins`). This is a
-   modelling assumption, and a stronger one than Ironwood's. Ironwood
-   idealizes one hash call on the whole transcript. A duplex read is related
-   to the reads after nearby call lists: an extension challenge reads two
-   permutation outputs, and the second is the first word of the next read
-   (`Lifecycle.TranscriptCoverage.readK`). The standard justification would be
-   duplex-sponge Fiat–Shamir in the ideal-permutation model; Lean does not
-   prove it. The same sponge also computes the state hash, which the theorem
+   reads each challenge from one lane pair of the Poseidon2 sponge state after
+   the exact call list of that challenge. One state gives up to six coins:
+   `α` and `γ` read consecutive lane pairs, and a round coin reads lanes 0
+   and 1 after its message (`Lifecycle.Transcript.squeezeAt`). The deployed
+   system makes these reads only inside the step circuit, so this model
+   applies to adversary 3's game, not to a deployed check.
+   `Lifecycle.TranscriptCoverage.piCcsProbe_coins` and
+   `Lifecycle.TranscriptCoverage.rho_seal` prove that the coins are one read
+   of each challenge's address: its call list and its lane pair. The model
+   replaces that read by a uniform random function of the address
+   (`Lifecycle.RandomOracleTest.coins`), so it treats the lane pairs of one
+   state as independent values, and a model query is one lane pair. This is
+   a modelling assumption, and a stronger one than Ironwood's. Ironwood
+   idealizes one hash call on the whole transcript. The standard
+   justification would be duplex-sponge Fiat–Shamir in the ideal-permutation
+   model, where the rate lanes of one permutation output are independent;
+   Lean does not prove it. The same sponge also computes the state hash, which the theorem
    treats as a concrete function. The two uses absorb different first words
    (their domain tags), but no Lean statement separates them. Each Π_RLC
    scalar is the existing sampler applied to an oracle answer; its law is
@@ -241,7 +246,7 @@ fresh verifier coin by an oracle read. Each module header states its part:
    - If MSIS is hard for a uniform matrix of `22 × blockCount` elements of
      `F_p[X]/Φ₈₁` (degree 54) at norm `8TB`, at the solver's work, then
      `msisAdvantage` is small. `blockCount` is at most 4,971,027 for every
-     application that fits, and 835,936 for `Poseidon2HashChainV1`. The
+     application that fits, and 814,144 for `Poseidon2HashChainV1`. The
      solver runs the adversary an expected number of times that grows with
      `Q`, and Lean does not bound its work. MSIS hardness is stated for
      solvers with a strict time bound, so this step also needs a Markov
@@ -271,11 +276,13 @@ fresh verifier coin by an oracle read. Each module header states its part:
      public input and be well formed, including canonical children. The bare
      NIFS verifier does not check this, so without the link a prover could
      choose the running statement after `γ`. The deployed system checks it:
-     the terminal verifier recomputes the state hash of the running claims,
-     which rejects a split that is not canonical, and compares it with the
-     fresh public input (`crates/nightstream/src/lifecycle/verify.rs`), and
-     for an inner fold the step circuit recomputes it. So Assumption 1 is
-     Definition 7 for the NIFS verifier together with this check.
+     the step circuit of the next step checks the link of every fold, and
+     the terminal verifier makes the same check on the terminal pair, which
+     no fold uses (`crates/nightstream/src/lifecycle/verify.rs`). Both
+     recompute the state hash of the running claims, which rejects a split
+     that is not canonical, and compare it with the fresh public input. So
+     Assumption 1 is Definition 7 for the NIFS verifier together with this
+     check.
    - The transcript is not the one of HyperNova Construction 3, which absorbs
      `sid` (the structure and the public parameters) and the running instance
      before the first challenge. The Nightstream transcript absorbs a domain
@@ -366,7 +373,8 @@ fresh verifier coin by an oracle read. Each module header states its part:
   prover has separate results:
   `Export.Stage1.SelectedAssignmentCompleteness.complete`,
   `Export.Stage1.HyperNovaInitial.initial_accepted`,
-  `Export.Stage1.HyperNovaAcceptedNext.recursive_extend` and
+  `Export.Stage1.HyperNovaAcceptedNext.recursive_extend` (proved for
+  `Poseidon2HashChainV1` only) and
   `Lifecycle.Nifs.BaseCompleteness.zeroProof_verify`.
 - The error is not one security level. The statistical part costs about
   `2^115.8` work for each unit of success, linear in `Q` (computed outside

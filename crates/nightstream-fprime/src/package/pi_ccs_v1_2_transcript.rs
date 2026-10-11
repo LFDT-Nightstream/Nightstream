@@ -4,7 +4,7 @@
 //! does not select a circuit or accept a proof; it derives verifier-owned
 //! challenges and the post-output state from fixed-profile public messages.
 
-use neo_transcript::Poseidon2Transcript;
+use neo_transcript::{fold_domain_chunk_v1_2, Poseidon2Transcript};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 
@@ -19,11 +19,6 @@ const COMMITMENT_WORDS: usize = 1_188;
 const PUBLIC_INPUT_WORDS: usize = 270;
 const EVALUATION_WORDS: usize = (MATRIX_COUNT + 1) * COEFFICIENT_COUNT * 2;
 const OUTPUT_WORDS: usize = SOURCE_COUNT * EVALUATION_WORDS;
-
-const DOMAIN_TAG: &[u64] = &[
-    78, 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47, 83, 117, 112, 101, 114, 78, 101, 111, 47, 80, 105, 67, 67,
-    83, 47, 100, 105, 103, 101, 115, 116, 45, 111, 110, 108, 121, 47, 118, 49, 95, 49,
-];
 
 /// Verifier-derived PiCCS values in exact Lean order.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -58,9 +53,11 @@ impl PiCcsV1_2Transcript {
 
 /// Derive the fixed-profile v1.2 PiCCS transcript.
 ///
-/// The statement is the fresh commitment and the fresh public input. The
-/// absorbed prior-state digest is Lean's `decodeHash` of that input, as
+/// After the constant domain chunk, the statement is absorbed as one stream
+/// with no length prefixes: the prior-state digest, the fresh commitment and
+/// the fresh public input. The digest is Lean's `decodeHash` of that input, as
 /// `ProductionKey.priorDigest` reads it, so it is not a separate argument.
+/// Coins are read from rate-lane pairs; nothing is labeled.
 pub fn derive_pi_ccs_v1_2_transcript(
     fresh_commitment: &[u64],
     fresh_public_input: &[u64],
@@ -70,31 +67,25 @@ pub fn derive_pi_ccs_v1_2_transcript(
     validate_shapes(fresh_commitment, fresh_public_input, rounds, output_words)?;
     let public_input = canonical_words(fresh_public_input)?;
     let mut transcript = Poseidon2Transcript::new_v1_2();
-    transcript.absorb_v1_2(&canonical_words(DOMAIN_TAG)?);
-    transcript.absorb_block_v1_2(&neo_transcript::prior_digest_v1_2(&public_input));
-    transcript.absorb_block_v1_2(&canonical_words(fresh_commitment)?);
-    transcript.absorb_block_v1_2(&public_input);
+    transcript.absorb_v1_2(&fold_domain_chunk_v1_2());
+    let mut statement = neo_transcript::prior_digest_v1_2(&public_input).to_vec();
+    statement.extend(canonical_words(fresh_commitment)?);
+    statement.extend_from_slice(&public_input);
+    transcript.absorb_v1_2(&statement);
 
     let mut alpha = Vec::with_capacity(CUBE_VARIABLES);
-    for coordinate in 0..CUBE_VARIABLES {
-        transcript.absorb_v1_2(&canonical_words(&[1, coordinate as u64])?);
-        alpha.push(extension_words(transcript.squeeze_extension_v1_2()));
+    for _ in 0..CUBE_VARIABLES {
+        alpha.push(read_coin(&mut transcript));
     }
-    transcript.absorb_v1_2(&canonical_words(&[2])?);
-    let gamma = extension_words(transcript.squeeze_extension_v1_2());
+    let gamma = read_coin(&mut transcript);
 
     let mut round_point = Vec::with_capacity(CUBE_VARIABLES);
-    for (round_index, message) in rounds.iter().enumerate() {
-        let mut words = Vec::with_capacity(1 + PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT * 2);
-        words.push(round_index as u64);
-        for coefficient in message {
-            words.extend(coefficient);
-        }
-        transcript.absorb_block_v1_2(&canonical_words(&words)?);
-        transcript.absorb_v1_2(&canonical_words(&[3, round_index as u64])?);
-        round_point.push(extension_words(transcript.squeeze_extension_v1_2()));
+    for message in rounds {
+        let words: Vec<u64> = message.iter().flatten().copied().collect();
+        transcript.absorb_v1_2(&canonical_words(&words)?);
+        round_point.push(read_coin(&mut transcript));
     }
-    transcript.absorb_block_v1_2(&canonical_words(output_words)?);
+    transcript.absorb_v1_2(&canonical_words(output_words)?);
 
     Ok(PiCcsV1_2Transcript {
         alpha,
@@ -133,6 +124,10 @@ fn canonical_words(words: &[u64]) -> Result<Vec<Goldilocks>, PackageError> {
         .collect()
 }
 
-fn extension_words(value: [Goldilocks; 2]) -> [u64; 2] {
-    value.map(|coefficient| coefficient.as_canonical_u64())
+/// Read the next fold-transcript coin as two canonical words.
+fn read_coin(transcript: &mut Poseidon2Transcript) -> [u64; 2] {
+    transcript
+        .read_coin_v1_2()
+        .value
+        .map(|coefficient| coefficient.as_canonical_u64())
 }

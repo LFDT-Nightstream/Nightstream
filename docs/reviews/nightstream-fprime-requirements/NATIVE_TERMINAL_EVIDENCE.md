@@ -84,8 +84,8 @@ openings; it requires no actual recursive NIFS prover call.
 
 The final security target `LeanGraph.Targets.HyperNovaLinearSecurity` was
 proved through `HyperNovaVisitedSecurity.history_probability_linear_bound`
-at `1ad23f55`. Since 2026-10-07 the target is
-`HyperNovaVisitedSecurity.history_probability_bound` under HyperNova errata
+at `1ad23f55`. The target is now
+`HyperNovaVisitedSecurity.history_failure_le` under HyperNova errata
 Assumption 1. No Lean library or audit source changed in the native milestones.
 The existing lean-graph query confirms passing, current gates and a passing
 review on that frozen proof snapshot. The current-tree security validation

@@ -172,7 +172,7 @@ theorem circuitPackage_hash_chains :
   rfl
 
 theorem circuitPackage_permutation_invocations :
-    (Data.circuitPackage ()).permutationInvocations.length = 1155 := by
+    (Data.circuitPackage ()).permutationInvocations.length = 982 := by
   rw [Data.circuitPackage_permutationInvocations,
     Data.components_permutationInvocations,
     Data.permutationInvocations_eq, List.length_append,
@@ -185,16 +185,16 @@ theorem proofInputStart_eq : Data.proofInputStart = 55638 := by
 theorem witnessStart_eq : Data.witnessStart = 70830 := by
   rfl
 
-theorem witnessLength_eq : Data.witnessLength = 11551134 := by
+theorem witnessLength_eq : Data.witnessLength = 11361526 := by
   rfl
 
 theorem circuitPackage_layout_values :
     let layout := (Data.circuitPackage ()).layout
-    layout.rowCount = 11567520 ∧
-      layout.privateColumnCount = 11654204 ∧
-      layout.constantColumn = 11654204 ∧
+    layout.rowCount = 11377912 ∧
+      layout.privateColumnCount = 11464596 ∧
+      layout.constantColumn = 11464596 ∧
       layout.publicColumnCount = 278 ∧
-      layout.totalColumnCount = 11654483 := by
+      layout.totalColumnCount = 11464875 := by
   rw [Data.circuitPackage_layout]
   dsimp [Data.physicalLayout]
   exact ⟨rfl, rfl, rfl, rfl, rfl⟩

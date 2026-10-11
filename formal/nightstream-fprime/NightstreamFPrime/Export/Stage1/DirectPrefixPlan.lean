@@ -117,7 +117,7 @@ def plan {program : Lifecycle.Stage1.Application.Program}
     (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (values : PiRLCRetainedInputs.Values logicalWidth)
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
-    (plan payloadForms values geometry).rowCount = 939424 := by
+    (plan payloadForms values geometry).rowCount = 911232 := by
   simp [plan, poseidonPlan, pilotPiCcsPlan, pilotPlan, piCcsPlan,
     samplerPlan, piRlcPlan]
 

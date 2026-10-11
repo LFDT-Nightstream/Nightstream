@@ -6,15 +6,16 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RoundByRound
 
 /-!
 Owns the PiCCS test error of the production NIFS key in the random-oracle
-model: a random function of each challenge's calls replaces the sponge read.
+model: a random function of each challenge's address (its calls and its lane
+pair) replaces the sponge read.
 
 Inputs: the production key, a fixed running statement, a fixed witness, and an
 adaptive oracle adversary with at most `Q` queries that outputs a fresh
 statement and a NIFS proof.
 
 Outputs:
-- `oracleProbe`: the key's PiCCS probe with oracle coins in place of
-  `readK ∘ run` (`TranscriptCoverage.piCcsProbe_coins`); the response is the
+- `oracleProbe`: the key's PiCCS probe with oracle coins in place of the
+  sponge reads (`TranscriptCoverage.piCcsProbe_coins`); the response is the
   key's own;
 - `test_error_le`: the oracle probe is accepted with an output that the
   witness opens, while the witness fails the source relation, with
@@ -23,7 +24,7 @@ Outputs:
   Lemma 6 (`RandomOracleUniqueness`) share.
 
 Invariant: each challenge's bad set reads the oracle only at the other
-challenges of the same execution (`TranscriptCoverage.challengeCalls_injective`),
+challenges of the same execution (`point_injective`),
 and equal calls give equal bad sets (`TranscriptCoverage.proverCalls_identify`).
 
 The statement is adaptive; the witness and the running statement are fixed.
@@ -125,28 +126,45 @@ private theorem exists_bound (degree : Nat) : ∃ bound : Nat,
 noncomputable def pointBound (degree : Nat) : Nat :=
   Classical.choose (exists_bound (logicalWidth := logicalWidth) (publicFits := publicFits) degree)
 
-/-- An oracle point: a call list no longer than `pointBound`. -/
-abbrev Point (logicalWidth : Nat)
+/-- A call list no longer than `pointBound`. -/
+abbrev BoundedCalls (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth)
     (degree : Nat) :=
   {calls : List Call // calls.length ≤
     pointBound (logicalWidth := logicalWidth) (publicFits := publicFits) degree}
 
-noncomputable instance (degree : Nat) : Fintype (Point logicalWidth publicFits degree) :=
+noncomputable instance (degree : Nat) : Fintype (BoundedCalls logicalWidth publicFits degree) :=
   (List.finite_length_le Call _).fintype
 
-/-- The oracle point of one challenge of one execution. -/
+/-- An oracle point: a bounded call list and a lane pair of the state after it. -/
+abbrev Point (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth)
+    (degree : Nat) :=
+  BoundedCalls logicalWidth publicFits degree × Slot
+
+/-- The oracle point of one challenge of one execution: its address. -/
 noncomputable def point {degree : Nat}
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Proof degree) (challenge : Challenge) : Point logicalWidth publicFits degree :=
-  ⟨challengeCalls fresh proof challenge,
-    Classical.choose_spec (exists_bound degree) fresh proof challenge⟩
+  (⟨challengeCalls fresh proof challenge,
+    Classical.choose_spec (exists_bound degree) fresh proof challenge⟩, challenge.slot)
 
-/-- The extension read of a call list: the oracle answer at its point. -/
+/-- Distinct challenges of one execution have distinct points. -/
+theorem point_injective {degree : Nat}
+    (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (proof : Proof degree) {challenge other : Challenge}
+    (same : point fresh proof challenge = point fresh proof other) : challenge = other :=
+  challengeAddress_injective fresh proof (by
+    have calls := congrArg (fun target => target.1.val) same
+    have slot := congrArg Prod.snd same
+    exact Prod.ext calls slot)
+
+/-- The extension read of an address: the oracle answer at its point. -/
 noncomputable def read {degree : Nat} (oracle : Point logicalWidth publicFits degree → Answer)
-    (calls : List Call) : K :=
-  if fits : calls.length ≤ pointBound (logicalWidth := logicalWidth)
-      (publicFits := publicFits) degree then decodeK (oracle ⟨calls, fits⟩) else K.zero
+    (address : List Call × Slot) : K :=
+  if fits : address.1.length ≤ pointBound (logicalWidth := logicalWidth)
+      (publicFits := publicFits) degree then decodeK (oracle (⟨address.1, fits⟩, address.2))
+  else K.zero
 
 /-- The PiCCS coins of one execution under `oracle`. -/
 noncomputable def coins {degree : Nat} (oracle : Point logicalWidth publicFits degree → Answer)
@@ -154,10 +172,12 @@ noncomputable def coins {degree : Nat} (oracle : Point logicalWidth publicFits d
     (proof : Proof degree) : PublicCoins K productionShape :=
   coinsFrom (read oracle) fresh proof
 
-theorem read_challengeCalls {degree : Nat} (oracle : Point logicalWidth publicFits degree → Answer)
+theorem read_challengeAddress {degree : Nat}
+    (oracle : Point logicalWidth publicFits degree → Answer)
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Proof degree) (challenge : Challenge) :
-    read oracle (challengeCalls fresh proof challenge) = decodeK (oracle (point fresh proof challenge)) :=
+    read oracle (challengeAddress fresh proof challenge) =
+      decodeK (oracle (point fresh proof challenge)) :=
   dif_pos _
 
 variable (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -244,10 +264,10 @@ private theorem read_update {degree : Nat} (oracle : Point logicalWidth publicFi
     (proof : Proof degree) {challenge other : Challenge} (different : other ≠ challenge)
     (answer : Answer) :
     read (Function.update oracle (point fresh proof challenge) answer)
-        (challengeCalls fresh proof other) = read oracle (challengeCalls fresh proof other) := by
+        (challengeAddress fresh proof other) = read oracle (challengeAddress fresh proof other) := by
   have apart : point fresh proof other ≠ point fresh proof challenge := fun same =>
-    different (challengeCalls_injective fresh proof (congrArg Subtype.val same))
-  rw [read_challengeCalls, read_challengeCalls, Function.update_of_ne apart]
+    different (point_injective fresh proof same)
+  rw [read_challengeAddress, read_challengeAddress, Function.update_of_ne apart]
 
 omit relation ajtai running witness in
 /-- Changing the answer at a non-`α` point leaves `α` unchanged. -/
@@ -279,7 +299,7 @@ private theorem alpha_update_self {degree : Nat}
   simp only [List.getElem_ofFn]
   by_cases same : position = index.val
   · subst same
-    simp [read_challengeCalls]
+    simp [read_challengeAddress]
   · rw [List.getElem_set_ne (Ne.symm same), List.getElem_ofFn]
     exact read_update oracle fresh proof
       (fun equal => same (congrArg Fin.val (Challenge.alpha.inj equal))) answer
@@ -368,14 +388,14 @@ private theorem challengeCalls_round_congr {degree : Nat}
     simp only [messages, agree earlier atMost]
   have earlierRounds :
       ((canonicalFinIndices productionShape.cubeVariables).take index.val).flatMap
-          (roundCalls (messages proof)) =
+          (messageCalls (messages proof)) =
         ((canonicalFinIndices productionShape.cubeVariables).take index.val).flatMap
-          (roundCalls (messages proof')) := by
+          (messageCalls (messages proof')) := by
     simp only [List.flatMap]
     congr 1
     apply List.map_congr_left
     intro earlier member
-    simp only [roundCalls, messageCalls, message earlier (below_of_mem_take member).le]
+    simp only [messageCalls, message earlier (below_of_mem_take member).le]
   simp only [challengeCalls, proverCalls, roundPrefixCalls, earlierRounds, messageCalls,
     message index le_rfl]
 
@@ -386,7 +406,7 @@ private theorem coordinate_alpha {degree : Nat}
     (proof : Proof degree) (index : Fin productionShape.cubeVariables) :
     RoundByRound.coordinate (coins oracle fresh proof).alpha index =
       decodeK (oracle (point fresh proof (.alpha index))) := by
-  simp only [RoundByRound.coordinate, coins, coinsFrom, List.getElem_ofFn, read_challengeCalls]
+  simp only [RoundByRound.coordinate, coins, coinsFrom, List.getElem_ofFn, read_challengeAddress]
 
 omit relation ajtai running witness in
 private theorem coordinate_round {degree : Nat}
@@ -395,7 +415,7 @@ private theorem coordinate_round {degree : Nat}
     (proof : Proof degree) (index : Fin productionShape.cubeVariables) :
     RoundByRound.coordinate (coins oracle fresh proof).roundPoint index =
       decodeK (oracle (point fresh proof (.round index))) := by
-  simp only [RoundByRound.coordinate, coins, coinsFrom, List.getElem_ofFn, read_challengeCalls]
+  simp only [RoundByRound.coordinate, coins, coinsFrom, List.getElem_ofFn, read_challengeAddress]
 
 omit relation ajtai running witness in
 /-- `α` and `γ` read only the statement calls, not the proof. -/
@@ -406,8 +426,9 @@ private theorem alpha_gamma_proof_irrelevant {degree : Nat}
     (coins oracle fresh proof).alpha = (coins oracle fresh proof').alpha ∧
       (coins oracle fresh proof).gamma = (coins oracle fresh proof').gamma := by
   have alpha (index : Fin productionShape.cubeVariables) :
-      challengeCalls fresh proof (.alpha index) = challengeCalls fresh proof' (.alpha index) := rfl
-  have gamma : challengeCalls fresh proof .gamma = challengeCalls fresh proof' .gamma := rfl
+      challengeAddress fresh proof (.alpha index) = challengeAddress fresh proof' (.alpha index) :=
+    rfl
+  have gamma : challengeAddress fresh proof .gamma = challengeAddress fresh proof' .gamma := rfl
   refine ⟨cubePoint_eq ?_, ?_⟩
   · simp only [coins, coinsFrom, alpha]
   · simp only [coins, coinsFrom, gamma]
@@ -421,7 +442,7 @@ private theorem coinBad_congr (challenge : Challenge) (oracle : Oracle)
     coinBad relation ajtai running witness challenge (coins oracle fresh proof) fresh proof =
       coinBad relation ajtai running witness challenge (coins oracle fresh' proof') fresh' proof' := by
   have calls : challengeCalls fresh proof challenge = challengeCalls fresh' proof' challenge :=
-    congrArg Subtype.val same
+    congrArg (fun target => target.1.val) same
   have agree := proverCalls_identify challenge (List.append_cancel_right calls)
   cases challenge with
   | alpha index =>
@@ -443,7 +464,7 @@ private theorem coinBad_congr (challenge : Challenge) (oracle : Oracle)
         apply List.ext_getElem (by simp)
         intro position inside _
         have below : position < index.val := by simp at inside; omega
-        simp only [List.getElem_take, List.getElem_ofFn]
+        simp only [List.getElem_take, List.getElem_ofFn, challengeAddress]
         rw [challengeCalls_round_congr fresh proof proof' ⟨position, by omega⟩
           fun round atMost => rounds round (by simp at atMost; omega)]
       simp only [coinBad]
@@ -567,8 +588,8 @@ theorem falseAcceptance_hits (oracle : Oracle)
     change RoundByRound.coordinate (coins oracle fresh proof).alpha index ∈ _ at member
     rwa [coordinate_alpha] at member
   · refine Or.inr (Or.inl ⟨fresh, proof, rfl, ?_⟩)
-    change read oracle (challengeCalls fresh proof .gamma) ∈ _ at member
-    rwa [read_challengeCalls] at member
+    change read oracle (challengeAddress fresh proof .gamma) ∈ _ at member
+    rwa [read_challengeAddress] at member
   · refine Or.inr (Or.inr ⟨index, fresh, proof, rfl, ?_⟩)
     have response : (oracleProbe relation ajtai running oracle fresh proof).response.rounds =
         SumCheck.Finite.FixedPhase.RawCertificate.encode

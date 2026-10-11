@@ -2,8 +2,8 @@
 
 **Retired 2026-10-07.** This chain depended on `FiatShamirModel` and was
 deleted with it. The current history bound is
-`HyperNovaVisitedSecurity.history_probability_bound` under HyperNova errata
-Assumption 1 (`formal/nightstream-fprime/TRUST_BOUNDARY.md`). The record below
+`HyperNovaVisitedSecurity.history_failure_le` under HyperNova errata
+Assumption 1 (adversary 4 of `formal/nightstream-fprime/SECURITY_MODEL.md`). The record below
 keeps the milestone as checked at its commit.
 
 Validated code: `1ad23f557b73e0564a27b62e20fe9d01a688f6b0` on

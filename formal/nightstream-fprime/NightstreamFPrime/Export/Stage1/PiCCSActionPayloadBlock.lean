@@ -5,10 +5,9 @@ import NightstreamFPrime.Export.Stage1.PiCCSTranscriptReadout
 import NightstreamFPrime.Layout.ProductionRelation.FieldSuffixBlock
 
 /-!
-Owns the four-lane payload source view for every PiCCS Poseidon2 invocation.
+Owns the payload source view for every PiCCS Poseidon2 invocation.
 The exact action lists remain the transcript authority. This module only
-selects their absorb chunks in invocation-major order and gives squeeze
-invocations a zero payload.
+selects their absorb chunks in invocation-major order.
 
 Original PiCCS expressions are evaluated through the per-application column
 pullback. The prover does not select an application or an action schedule.
@@ -42,7 +41,7 @@ def outputActions (_delay : Unit := ()) : List Formal.Action :=
   PiCCSInvocations.outputActions Data.logicalWidth Data.publicFits
 
 theorem challengeInvocationCount_eq :
-    Invocations.invocationCount challengeActions = 87 := by
+    Invocations.invocationCount challengeActions = 4 := by
   have same := Invocations.invocationCount_eq_of_shapes challengeActions
     (PiCCSInvocations.challengeActions Data.logicalWidth Data.publicFits) (by
       unfold challengeActions
@@ -52,7 +51,7 @@ theorem challengeInvocationCount_eq :
     Data.logicalWidth Data.publicFits)
 
 theorem roundInvocationCount_eq :
-    Invocations.invocationCount roundActions = 140 := by
+    Invocations.invocationCount roundActions = 56 := by
   have same := Invocations.invocationCount_eq_of_shapes roundActions
     (PiCCSInvocations.roundActions Data.logicalWidth Data.publicFits) (by
       unfold roundActions
@@ -61,20 +60,20 @@ theorem roundInvocationCount_eq :
   exact same.trans (PiCCSInvocations.roundInvocationCount_eq
     Data.logicalWidth Data.publicFits)
 
-def statementKindAt : Fin 128 → PoseidonActionSchedule.Kind :=
+def statementKindAt : Fin 123 → PoseidonActionSchedule.Kind :=
   fun index => PoseidonActionSchedule.kindAt statementActions <|
     Fin.cast (PiCCSInvocations.statementInvocationCount_eq
       Data.logicalWidth Data.publicFits).symm index
 
-def challengeKindAt : Fin 87 → PoseidonActionSchedule.Kind :=
+def challengeKindAt : Fin 4 → PoseidonActionSchedule.Kind :=
   fun index => PoseidonActionSchedule.kindAt challengeActions <|
     Fin.cast challengeInvocationCount_eq.symm index
 
-def roundKindAt : Fin 140 → PoseidonActionSchedule.Kind :=
+def roundKindAt : Fin 56 → PoseidonActionSchedule.Kind :=
   fun index => PoseidonActionSchedule.kindAt roundActions <|
     Fin.cast roundInvocationCount_eq.symm index
 
-def outputKindAt : Fin 766 → PoseidonActionSchedule.Kind :=
+def outputKindAt : Fin 765 → PoseidonActionSchedule.Kind :=
   fun index => PoseidonActionSchedule.kindAt outputActions <|
     Fin.cast (PiCCSInvocations.outputInvocationCount_eq
       Data.logicalWidth Data.publicFits).symm index
@@ -125,14 +124,14 @@ theorem outputKindAt_materializes :
     _ = PoseidonActionSchedule.kinds outputActions :=
       PoseidonActionSchedule.kindAt_materializes outputActions
 
-def invocationCount : Nat := 1121
+def invocationCount : Nat := 948
 
-@[simp] theorem invocationCount_eq : invocationCount = 1121 := by
+@[simp] theorem invocationCount_eq : invocationCount = 948 := by
   rfl
 
 def payloadCount : Nat := invocationCount * Spec.Poseidon2.rate
 
-@[simp] theorem payloadCount_eq : payloadCount = 13452 := by
+@[simp] theorem payloadCount_eq : payloadCount = 11376 := by
   rw [payloadCount, invocationCount_eq]
   rfl
 
@@ -188,8 +187,6 @@ theorem kindAt_wellFormed (invocation : Fin invocationCount) :
 
 def selectedBlockForKind : PoseidonActionSchedule.Kind → List Expr
   | .absorb block => block
-  | .squeezeFirst expected => [expected.c0, expected.c1]
-  | .squeezeSecond => []
 
 def selectedBlock (invocation : Fin invocationCount) : List Expr :=
   selectedBlockForKind (kindAt invocation)

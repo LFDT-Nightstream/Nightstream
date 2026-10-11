@@ -49,11 +49,11 @@ def ordinaryLogicalCount : Nat :=
     PiCCSInputs.priorChildrenStart_eq]
 
 @[simp] theorem transcriptInvocationCount_eq :
-    transcriptInvocationCount = 355 := by
+    transcriptInvocationCount = 183 := by
   unfold transcriptInvocationCount PiCCSStarts.initialClaimLogicalStart
   rw [PiCCSStarts.roundTranscriptWitnessStart_eq, PiCCSStarts.statementWitnessStart_eq]
 
-@[simp] theorem transcriptOutputCount_eq : transcriptOutputCount = 5680 := by
+@[simp] theorem transcriptOutputCount_eq : transcriptOutputCount = 2928 := by
   rw [transcriptOutputCount, transcriptInvocationCount_eq]
   norm_num [NightstreamFPrime.Spec.Poseidon2.width]
 
@@ -160,7 +160,7 @@ theorem source_lt_sourceColumnCount {column : Nat} (support : Source column) :
     column < Spartan.SourceColumnCount := by
   have phaseValue := congrArg (fun starts : List Nat => starts[4]!)
     PiDECInputs.inputStarts_eq
-  change PiDECInputs.phaseOffset = 11654210 at phaseValue
+  change PiDECInputs.phaseOffset = 11464602 at phaseValue
   have sourceLower := Spartan.sourceColumnCount_ge_piDecPhaseOffset
   rw [phaseValue] at sourceLower
   apply Nat.lt_of_lt_of_le ?_ sourceLower
@@ -195,7 +195,7 @@ theorem source_lt_sourceColumnCount {column : Nat} (support : Source column) :
           rw [PiCCSInputs.phaseOffset_eq]
           norm_num)
       · rcases transcript with ⟨invocation, lane, rfl⟩
-        have invocationBound : invocation.val < 355 := by
+        have invocationBound : invocation.val < 183 := by
           simpa only [transcriptInvocationCount_eq] using invocation.isLt
         have laneBound : lane.val < 16 := by
           simpa only [NightstreamFPrime.Spec.Poseidon2.width] using lane.isLt
@@ -210,7 +210,7 @@ theorem source_lt_sourceColumnCount {column : Nat} (support : Source column) :
                 PiCCSStarts.outputBindingWitnessStart_eq]
               unfold PiCCSStarts.initialClaimLogicalStart
               rw [PiCCSStarts.roundTranscriptWitnessStart_eq]
-            _ ≤ 11654210 := by
+            _ ≤ 11464602 := by
               rw [PiCCSStarts.outputBindingWitnessStart_eq]
               norm_num)
   · exact Nat.lt_of_lt_of_le fresh.2 (by

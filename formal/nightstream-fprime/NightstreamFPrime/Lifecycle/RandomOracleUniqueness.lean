@@ -105,7 +105,7 @@ variable {logicalWidth : Nat}
 /-- Whether a call list extends the statement calls of `fresh`. -/
 def Extends (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)) {degree : Nat}
     (target : Point logicalWidth publicFits degree) : Bool :=
-  (statementCalls fresh).isPrefixOf target.val
+  (statementCalls fresh).isPrefixOf target.1.val
 
 /-- Every challenge point of an execution extends its statement calls. -/
 theorem extends_point {degree : Nat}

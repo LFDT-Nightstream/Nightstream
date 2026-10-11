@@ -11,10 +11,11 @@ proof) and an oracle.
 
 Outputs:
 - `Deployed`: the oracle's value at each challenge point is the sponge read
-  after that challenge's calls, as `TranscriptCoverage.challenge_seal` states
+  at that challenge's address, as `TranscriptCoverage.challenge_seal` states
   for the key;
-- `deployedOracle_deployed`: every execution has such an oracle, because
-  distinct challenges have distinct points (`challengeCalls_injective`);
+- `deployedOracle_deployed`: the oracle that answers every point with the
+  lanes of the sponge state after its calls is such an oracle for every
+  execution;
 - `attempt_eq`: the key's `Π_DEC` attempt is the oracle attempt;
 - `accepts_iff_verify`: `Accepts` holds iff `verify` returns a running output
   and the witnesses open the attempt's children.
@@ -62,40 +63,35 @@ def Deployed {degree : Nat} (oracle : Point logicalWidth publicFits degree → A
 
 /-! ## Every execution has a deployed oracle -/
 
-/-- The answer that a challenge reads from a sponge state. -/
-private def stateAnswer : Challenge → Transcript.State → Answer
-  | .rho _, state => Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.block state
-  | _, state => fun lane =>
-      if lane.val = 0 then state.getD 0 0 else (Poseidon2.permute state).getD 0 0
+/-- The four lanes from lane `2·slot`: what a read at `slot` sees. -/
+private def stateAnswer (slot : Slot) (state : Transcript.State) : Answer :=
+  fun word => state.getD (2 * slot.val + word.val) 0
 
-/-- The sponge's answer at each challenge point of one execution, and zero
-elsewhere. -/
-noncomputable def deployedOracle {degree : Nat}
-    (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (proof : Proof degree) : Point logicalWidth publicFits degree → Answer := fun target =>
-  if found : ∃ challenge, point fresh proof challenge = target then
-    stateAnswer found.choose
-      (TranscriptCoverage.run Transcript.initialState (challengeCalls fresh proof found.choose))
-  else fun _ => 0
-
-private theorem deployedOracle_point {degree : Nat}
-    (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (proof : Proof degree) (challenge : Challenge) :
-    deployedOracle fresh proof (point fresh proof challenge) =
-      stateAnswer challenge
-        (TranscriptCoverage.run Transcript.initialState (challengeCalls fresh proof challenge)) := by
-  have found : ∃ other, point fresh proof other = point fresh proof challenge := ⟨challenge, rfl⟩
-  have chosen : found.choose = challenge :=
-    challengeCalls_injective fresh proof (congrArg Subtype.val found.choose_spec)
-  unfold deployedOracle
-  rw [dif_pos found, chosen]
+/-- The sponge's answer at every point: the lanes of the state after its calls. -/
+noncomputable def deployedOracle {degree : Nat} :
+    Point logicalWidth publicFits degree → Answer := fun target =>
+  stateAnswer target.2 (TranscriptCoverage.run Transcript.initialState target.1.val)
 
 theorem deployedOracle_deployed {degree : Nat}
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Proof degree) :
-    Deployed (deployedOracle fresh proof) fresh proof := by
+    Deployed deployedOracle fresh proof := by
   intro challenge
-  cases challenge <;> simp only [oracleValue, deployedOracle_point] <;> rfl
+  cases challenge with
+  | rho index =>
+      show RandomOracleExtraction.readRho (stateAnswer (slotOf 0) (TranscriptCoverage.run
+          Transcript.initialState (challengeCalls fresh proof (.rho index)))) =
+        TranscriptCoverage.readRho _
+      have block : stateAnswer (slotOf 0) (TranscriptCoverage.run Transcript.initialState
+          (challengeCalls fresh proof (.rho index))) =
+          Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.block
+            (TranscriptCoverage.run Transcript.initialState
+              (challengeCalls fresh proof (.rho index))) := by
+        funext word
+        simp [stateAnswer, slotOf, Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.block]
+      rw [block]
+      rfl
+  | _ => rfl
 
 /-! ## The oracle verifier at a deployed oracle -/
 
@@ -112,19 +108,21 @@ theorem coins_eq (deployed : Deployed oracle fresh proof) :
       ((ProductionKey.key relation ajtai).piCcsProbe running fresh proof).coins := by
   rw [piCcsProbe_coins relation ajtai running fresh proof]
   have alpha (coordinate : Fin productionShape.cubeVariables) :
-      read oracle (challengeCalls fresh proof (.alpha coordinate)) =
-        readK (TranscriptCoverage.run Transcript.initialState
+      read oracle (challengeAddress fresh proof (.alpha coordinate)) =
+        readK (slotOf coordinate.val) (TranscriptCoverage.run Transcript.initialState
           (challengeCalls fresh proof (.alpha coordinate))) :=
-    (read_challengeCalls oracle fresh proof _).trans (deployed (.alpha coordinate))
-  have gamma : read oracle (challengeCalls fresh proof .gamma) =
-      readK (TranscriptCoverage.run Transcript.initialState (challengeCalls fresh proof .gamma)) :=
-    (read_challengeCalls oracle fresh proof _).trans (deployed .gamma)
+    (read_challengeAddress oracle fresh proof _).trans (deployed (.alpha coordinate))
+  have gamma : read oracle (challengeAddress fresh proof .gamma) =
+      readK (slotOf productionShape.cubeVariables) (TranscriptCoverage.run
+        Transcript.initialState (challengeCalls fresh proof .gamma)) :=
+    (read_challengeAddress oracle fresh proof _).trans (deployed .gamma)
   have round (index : Fin productionShape.cubeVariables) :
-      read oracle (challengeCalls fresh proof (.round index)) =
-        readK (TranscriptCoverage.run Transcript.initialState
+      read oracle (challengeAddress fresh proof (.round index)) =
+        readK (slotOf 0) (TranscriptCoverage.run Transcript.initialState
           (challengeCalls fresh proof (.round index))) :=
-    (read_challengeCalls oracle fresh proof _).trans (deployed (.round index))
+    (read_challengeAddress oracle fresh proof _).trans (deployed (.round index))
   simp only [coins, coinsFrom, alpha, gamma, round]
+  rfl
 
 theorem oracleProbe_eq (deployed : Deployed oracle fresh proof) :
     oracleProbe relation ajtai running oracle fresh proof =

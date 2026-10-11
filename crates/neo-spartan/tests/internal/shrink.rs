@@ -241,7 +241,10 @@ fn parallel_r1cs_rows_equal_the_default() {
     }
     let parallel = record(Trace::default());
     assert_eq!(parallel.rows.len(), 2 * cubes().rows());
-    assert!(parallel.entries.iter().any(|&(wire, _)| wire == crate::circuit::record::ONE));
+    assert!(parallel
+        .entries
+        .iter()
+        .any(|&(wire, _)| wire == crate::circuit::record::ONE));
     assert_eq!(parallel, record(RowByRow(Trace::default())).0);
 }
 

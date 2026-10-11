@@ -445,3 +445,76 @@ fn metal_key_weights_match_cpu_key_rows() {
         }
     }
 }
+
+/// The radix-2 DFT of `values` at the powers of `omega`, recursively.
+fn fft(values: &[F], omega: F) -> Vec<F> {
+    if values.len() == 1 {
+        return values.to_vec();
+    }
+    let half = values.len() / 2;
+    let split = |parity: usize| {
+        values
+            .iter()
+            .skip(parity)
+            .step_by(2)
+            .copied()
+            .collect::<Vec<_>>()
+    };
+    let (even, odd) = (fft(&split(0), omega * omega), fft(&split(1), omega * omega));
+    let mut out = vec![F::ZERO; values.len()];
+    let mut twiddle = F::ONE;
+    for k in 0..half {
+        out[k] = even[k] + twiddle * odd[k];
+        out[k + half] = even[k] - twiddle * odd[k];
+        twiddle *= omega;
+    }
+    out
+}
+
+#[test]
+fn metal_dft_matches_cpu_fft() {
+    use p3_field::TwoAdicField;
+    let session = MetalSession::new().expect("Metal session");
+    let mut rng = rand::rngs::StdRng::seed_from_u64(17);
+    // One pass, two passes and three passes; narrow and wide rows.
+    for (log_rows, width) in [(1, 1), (3, 5), (8, 16), (9, 48), (10, 32), (17, 16)] {
+        let rows = 1usize << log_rows;
+        let values: Vec<u64> = (0..rows * width).map(|_| rng.random::<u64>()).collect();
+        let omega = F::two_adic_generator(log_rows);
+        let mut actual = values.clone();
+        session
+            .dft_columns(&mut actual, width, omega.as_canonical_u64())
+            .expect("Metal DFT");
+        for column in 0..width {
+            let input: Vec<F> = (0..rows)
+                .map(|r| F::from_u64(values[r * width + column]))
+                .collect();
+            for (row, expected) in fft(&input, omega).into_iter().enumerate() {
+                assert_eq!(
+                    actual[row * width + column],
+                    expected.as_canonical_u64(),
+                    "2^{log_rows} rows, width {width}, row {row}, column {column}"
+                );
+            }
+        }
+    }
+    // Past 2^24 rows a pass of one stage would launch 2^32 threads; spot
+    // check rows of a 2^25-row DFT by direct evaluation.
+    let log_rows = 25;
+    let values: Vec<u64> = (0..1u64 << log_rows).map(|_| rng.random::<u64>()).collect();
+    let omega = F::two_adic_generator(log_rows);
+    let mut actual = values.clone();
+    session
+        .dft_columns(&mut actual, 1, omega.as_canonical_u64())
+        .expect("Metal DFT");
+    for row in [0usize, 1, 3, 1 << 24, (1 << 25) - 1] {
+        let point = omega.exp_u64(row as u64);
+        let mut power = F::ONE;
+        let mut expected = F::ZERO;
+        for &value in &values {
+            expected += F::from_u64(value) * power;
+            power *= point;
+        }
+        assert_eq!(actual[row], expected.as_canonical_u64(), "2^25 rows, row {row}");
+    }
+}

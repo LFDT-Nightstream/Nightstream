@@ -51,6 +51,10 @@ impl Device for Reference {
     fn key_weights(&self, _powers: &[[u64; 3]], _blocks: usize) -> Option<Vec<[u64; 3]>> {
         None
     }
+
+    fn dft_columns(&self, _values: &mut [u64], _width: usize, _generator: u64) -> bool {
+        false
+    }
 }
 
 fn matrix(seed: u64, height: usize, width: usize) -> RowMajorMatrix<Gl> {

@@ -24,9 +24,9 @@ Outputs:
   Assumption 1 gives for stage `j`, as in Lemma 17. Every stage is admitted;
 - `reverse_input_event`: the reverse law keeps the IVC adversary's output law;
 - `history_failure_le`: the reverse law's mass where the terminal verifier
-  accepts and the reverse extractor returns no valid history is at most, at
-  each stage, the marked hash-collision mass of that stage and the
-  Assumption 1 error of that stage.
+  accepts and the reverse extractor returns no valid history is at most the
+  sum over the stages of the marked hash-collision mass and the Assumption 1
+  error of each stage.
 
 `Admitted`, `StageAdmitted` and `Efficient` are abstract. Their intended
 meaning is expected polynomial time; Lean states no running-time model. Assumption 1 is not a
@@ -476,9 +476,9 @@ theorem per_tape (depth : Nat)
 
 /-- History knowledge soundness under Assumption 1 (HyperNova Definition 11
 (ii) and Lemma 17). On the reverse law, the mass where the terminal verifier
-accepts and the reverse extractor returns no valid history is at most, at
-each stage, the marked hash-collision mass and the Assumption 1 error of that
-stage's NIFS adversary. Every stage is admitted (`reverseStages`). -/
+accepts and the reverse extractor returns no valid history is at most the sum
+over the stages of the marked hash-collision mass and the Assumption 1 error
+of each stage's NIFS adversary. Every stage is admitted (`reverseStages`). -/
 theorem history_failure_le (depth : Nat)
     (depthBound : ∀ tape ∈ adversary.tape.support, (adversary.output tape).1.iteration ≤ depth) :
     ((stages depth).1.reverseLaw.toOuterMeasure

@@ -63,7 +63,8 @@ def Deployed {degree : Nat} (oracle : Point logicalWidth publicFits degree → A
 
 /-! ## Every execution has a deployed oracle -/
 
-/-- The four lanes from lane `2·slot`: what a read at `slot` sees. -/
+/-- The four lanes from lane `2·slot`. A coin at `slot` reads the first two; a
+`Π_RLC` scalar (slot 0) reads all four. -/
 private def stateAnswer (slot : Slot) (state : Transcript.State) : Answer :=
   fun word => state.getD (2 * slot.val + word.val) 0
 

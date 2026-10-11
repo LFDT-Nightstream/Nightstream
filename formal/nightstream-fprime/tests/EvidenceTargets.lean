@@ -246,8 +246,9 @@ covers, every class of admitted stages that gives admitted NIFS adversaries
 and that one reverse step preserves, and every IVC adversary whose start stage
 is admitted and whose advertised iteration is bounded, the reverse law has the
 adversary's output law, and its mass where the terminal verifier accepts and
-the reverse extractor returns no valid history is at most, at each stage, that
-stage's marked hash-collision mass and its Assumption 1 error. The
+the reverse extractor returns no valid history is at most the sum over the
+stages of each stage's marked hash-collision mass and its Assumption 1 error.
+The
 random-oracle theorem `RandomOracleSetup.production_knowledge_error_lt` motivates
 the value of `error`; it does not prove Assumption 1 for Poseidon2, and no Lean
 statement derives `error` from it. -/

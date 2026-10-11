@@ -2,8 +2,9 @@ import NightstreamFPrime.Export.Stage1.HyperNovaVisitedSecurity
 
 /-!
 False acceptance at the selected full-opening terminal boundary means that
-the verifier accepts but no advice list has the advertised length and forward
-application result. This is exactly the history conclusion in AdviceReturned.
+the verifier accepts but no advice list of circuit-length witnesses has the
+advertised length and forward application result. Every history that
+AdviceReturned returns has these properties (`HyperNovaHistory.run_witness_length`).
 It is distinct from bare NIFS Boolean acceptance and from extractor failure.
 
 The bound is on the IVC adversary's original mixed law; no conditioning on

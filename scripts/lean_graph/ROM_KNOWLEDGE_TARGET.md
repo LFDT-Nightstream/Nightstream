@@ -35,8 +35,8 @@ The game:
 - `chunks` are uniform 256-bit setup chunks, one for each key coefficient. The
   coefficient is the chunk reduced modulo the Goldilocks prime. This is
   premise P1, SHAKE128 as a random oracle (`Spec.AjtaiSetupV1.Programming`).
-- `H` is a uniform random function on bounded call lists and lane pairs, the
-  random-oracle model of the Fiat–Shamir reads.
+- `H` is a uniform random function on addresses (a bounded call list and a
+  slot), the random-oracle model of the Fiat–Shamir reads.
 - The adversary is deterministic. It is chosen before the chunks and may read
   all of them, so it cannot contain a kernel vector of the key. An adversary
   precomputed for the fixed deployed seed is outside the game.

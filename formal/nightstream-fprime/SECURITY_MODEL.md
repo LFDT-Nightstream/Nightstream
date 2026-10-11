@@ -101,10 +101,10 @@ collision.
   (`Spec.RandomOracle.OracleComp` has no coins). A randomized adversary is
   covered for each fixed value of its coins; the average over the coins is an
   argument outside Lean. Each query is a call list no longer than a fixed
-  bound and a lane pair (`Lifecycle.RandomOracleTest.Point`).
+  bound and a slot (`Lifecycle.RandomOracleTest.Point`).
 - **Does not control:** the application, the setup chunks, which are uniform
   256-bit values (trust item 2), and `H`, a uniform random function of each
-  challenge's address, its exact call list and its lane pair (trust item 1). The adversary is chosen before
+  challenge's address, its exact call list and its slot (trust item 1). The adversary is chosen before
   the chunks, so it cannot contain a kernel vector of the key.
 - **Wins:** the oracle verifier accepts the claim, the child witnesses open
   the returned children, the prior preimage links the claim, and extraction
@@ -170,7 +170,7 @@ fresh verifier coin by an oracle read. Each module header states its part:
 
 | Lemma | Step | Lean |
 |---|---|---|
-| 1 | Each challenge reads one lane pair of the state after its exact call list; distinct challenges have distinct addresses (call list and lane pair). | `Lifecycle.TranscriptCoverage.challenge_seal`, `Lifecycle.TranscriptCoverage.challengeAddress_injective` |
+| 1 | Each challenge reads the state after its exact call list at its slot (a lane pair, or four lanes for a Π_RLC scalar); distinct challenges have distinct addresses (call list and slot). | `Lifecycle.TranscriptCoverage.challenge_seal`, `Lifecycle.TranscriptCoverage.challengeAddress_injective` |
 | 2 | Bad-set bounds for bad sets that do not read their own point: `Q ε` at the queried points (Ironwood `escapesDuringC_measure_le'`) and the pinned-squeeze `(Q + 1) ε` at an output point (Ironwood `xEscAtPoint_measure_le`). | `Spec.RandomOracle.escape_le`, `Spec.RandomOracle.pinned_le` |
 | 3 | A false PiCCS acceptance has one bad coin. | `Spec.Folding.PiCCS.PaperJoint.RoundByRound.falseAcceptance_splits` |
 | 4 | Test error in the oracle model. | `Lifecycle.RandomOracleTest.test_error_le` |
@@ -212,18 +212,21 @@ fresh verifier coin by an oracle read. Each module header states its part:
 ## What you trust
 
 1. **The random-oracle model of the challenge reads.** The NIFS verifier
-   reads each challenge from one lane pair of the Poseidon2 sponge state after
-   the exact call list of that challenge. One state gives up to six coins:
-   `α` and `γ` read consecutive lane pairs, and a round coin reads lanes 0
-   and 1 after its message (`Lifecycle.Transcript.squeezeAt`). The deployed
+   reads each challenge from the Poseidon2 sponge state after the exact call
+   list of that challenge. One state gives up to six coins: `α` and `γ` read
+   consecutive lane pairs, and a round coin reads lanes 0 and 1 after its
+   message (`Lifecycle.Transcript.squeezeAt`); a Π_RLC scalar reads four lanes
+   from lane 0. The deployed
    system makes these reads only inside the step circuit, so this model
    applies to adversary 3's game, not to a deployed check.
    `Lifecycle.TranscriptCoverage.piCcsProbe_coins` and
    `Lifecycle.TranscriptCoverage.rho_seal` prove that the coins are one read
-   of each challenge's address: its call list and its lane pair. The model
+   of each challenge's address: its call list and its slot. The model
    replaces that read by a uniform random function of the address
-   (`Lifecycle.RandomOracleTest.coins`), so it treats the lane pairs of one
-   state as independent values, and a model query is one lane pair. This is
+   (`Lifecycle.RandomOracleTest.coins`): each address gets an independent
+   four-word answer, and a model query is one address. In the sponge, the
+   answers at neighbouring slots of one state share two lanes; no verifier
+   read uses a shared word. This is
    a modelling assumption, and a stronger one than Ironwood's. Ironwood
    idealizes one hash call on the whole transcript. The standard
    justification would be duplex-sponge Fiat–Shamir in the ideal-permutation
@@ -377,8 +380,9 @@ fresh verifier coin by an oracle read. Each module header states its part:
   `Poseidon2HashChainV1` only) and
   `Lifecycle.Nifs.BaseCompleteness.zeroProof_verify`.
 - The error is not one security level. The statistical part costs about
-  `2^115.8` work for each unit of success, linear in `Q` (computed outside
-  Lean). The other terms
+  `2^115.8` oracle queries (addresses) for each unit of success, linear in
+  `Q`. One Poseidon2 state answers up to six addresses, so in permutation
+  calls this is about `2^113.2` (both computed outside Lean). The other terms
   depend on MSIS at the solver's work and on Poseidon2 collisions. 128-bit
   security needs a larger challenge field for `γ`.
 - Concrete attacks on Poseidon2 as a random oracle, or on the additive duplex,

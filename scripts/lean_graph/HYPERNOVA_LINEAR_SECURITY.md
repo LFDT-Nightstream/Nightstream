@@ -48,8 +48,8 @@ Lemma 17 for a constant depth. Lean has no running-time model.
 `Export.Stage1.RandomOracleSetup.production_knowledge_error_lt` proves a
 random-oracle analogue for one fold, with the same prior-state link, and
 motivates the value of `error`: linear in the query count, about
-`(Q + 74) · 2^-115.84 + 17 (Q + 17) · 2^-125.4` plus the MSIS solver's success
-and the state-hash collision chances. No Lean statement derives `error` from
+`(Q + 74) · 2^-115.84 + 17 (Q + 17) · 2^-125.4` plus the MSIS solver's success,
+the state-hash collision chances and `2^-190`. No Lean statement derives `error` from
 it (trust item 4 of the security model).
 
 Required premises:

@@ -3,7 +3,7 @@
 Status: **Approved for implementation.** The owner authorized Stage 2 on
 2026-10-07.
 
-Base revision: `nico/f-prime-constraints-cuda-formal` at `42df46bef`.
+Base revision: `nico/f-prime-constraints-cuda-formal` at `b2b23f50b`.
 
 Security companion: [`nebula-superneo-security.md`](./nebula-superneo-security.md).
 It holds the security goal, the assumptions, the lemmas, and the error bound.
@@ -156,7 +156,7 @@ fixes the logical content and order. It does not fix column numbers.
 | `b`, `k_ρ`, `B` | `2`, `16`, `2^16` | `CLAUDE.md` policy; architecture spec §3 |
 | fold arity | 1 fresh + 16 running = 17 PiRLC inputs | architecture spec §3 |
 | PiDEC children | 16 | architecture spec §3 |
-| CCS matrices | 7 | architecture spec §3 |
+| CCS matrices | 4 | architecture spec §3 |
 | `κ` | 22; one main commitment is `κ·d = 1,188` field words | main Ajtai setup decision |
 | key expander | SHAKE128, `nightstream-ajtai-shake128-wide256-v1` | SHAKE128 decision |
 | row domain | `2^28` | domain decision |
@@ -481,7 +481,8 @@ context (§4.3).
 At segment open, the prover proposes the ops root `D_pre.ops` and the FS root
 `D_pre.fs` of the segment. The IS root of the segment MUST be `D_mem`: the FS
 root of the previous segment, or `D_init`. The relation derives the
-challenges:
+challenges. It evaluates this transcript in every invocation, and only an
+opening invocation keeps the result:
 
 ```text
 tr ← reset_v1_1()
@@ -675,8 +676,6 @@ verifier and cover at least these cases:
 | Two segments with RAM written in the first and read in the second | accept |
 | Fresh memory at a segment boundary | reject at `D_seen.is = D_mem` |
 | Segment-0 IS records that differ from the plan images | reject at `D_seen.is = D_mem` |
-| A relation that reads `plan_digest` from the witness | rejected: the relation reads it as a package constant (§4.3) |
-| A first input carry with `D_mem ≠ D_init` | reject at the Stage 1 state link of the initial state (§13) |
 | An input carry or application words that do not open the input state | reject at the state digest check (§11.1) |
 | An envelope carry that does not open the final state | reject at the Stage 1 state link |
 | Read value differs from the last write | reject at the product equation |

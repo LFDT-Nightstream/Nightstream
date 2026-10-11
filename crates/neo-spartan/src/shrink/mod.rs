@@ -45,6 +45,10 @@ pub trait Program {
     /// The statement words, canonical; `run` emits exactly these as
     /// `public`, first.
     fn statement(&self) -> Vec<u64>;
+    /// Canonical words of everything else that fixes the checks (a key, a
+    /// context). The shrink transcript binds them with the statement, so
+    /// two programs of one shape never share challenges.
+    fn key(&self) -> Vec<u64>;
     /// Run the checks. A shape run reads its proof as zeros.
     fn run<B: Backend>(&self, b: &mut B) -> Result<(), Error>;
 }
@@ -110,11 +114,13 @@ impl Shrink {
         self.pcs.security_bits()
     }
 
-    fn start(&self, statement: &[Gl]) -> Challenger {
+    fn start(&self, key: &[Gl], statement: &[Gl]) -> Challenger {
         let mut challenger = Challenger::new(permutation().clone());
         challenger.observe_slice(&neo_transcript::domain_chunk_v1_1(DOMAIN).map(gl));
         challenger.observe_slice(&self.layout.shape.words());
         challenger.observe_slice(&self.pcs.profile_words());
+        challenger.observe(Gl::from_usize(key.len()));
+        challenger.observe_slice(key);
         challenger.observe_slice(statement);
         challenger
     }
@@ -161,12 +167,19 @@ impl ShrinkProof {
 
 /// The statement words as layer-1 field values; they must be canonical.
 fn statement_of(program: &impl Program) -> Result<Vec<Gl>, Error> {
-    let words = program.statement();
+    canonical(program.statement(), "statement words must be canonical")
+}
+
+fn key_of(program: &impl Program) -> Result<Vec<Gl>, Error> {
+    canonical(program.key(), "key words must be canonical")
+}
+
+fn canonical(words: Vec<u64>, what: &'static str) -> Result<Vec<Gl>, Error> {
     if words
         .iter()
         .any(|&word| word >= <Gl as p3_field_v08::PrimeField64>::ORDER_U64)
     {
-        return Err(Error::Shape("statement words must be canonical"));
+        return Err(Error::Shape(what));
     }
     Ok(words.into_iter().map(Gl::new).collect())
 }
@@ -194,7 +207,7 @@ pub fn prove(shrink: &Shrink, program: &impl Program, accelerator: &Accelerator)
     let z = z_table(layout, &trace);
     let products = products(layout, &trace, &z);
 
-    let mut challenger = shrink.start(&statement);
+    let mut challenger = shrink.start(&key_of(program)?, &statement);
     let n = layout.cell_variables;
     let (commitment, data) = shrink
         .pcs
@@ -232,7 +245,7 @@ pub fn verify(shrink: &Shrink, program: &impl Program, proof: &ShrinkProof) -> R
         return Err(Error::Rejected("shrink proof shape"));
     }
     let statement = statement_of(program)?;
-    let mut challenger = shrink.start(&statement);
+    let mut challenger = shrink.start(&key_of(program)?, &statement);
     shrink.pcs.observe(&proof.commitment, &mut challenger);
     let tau: Vec<Ext> = (0..m)
         .map(|_| challenger.sample_algebra_element())

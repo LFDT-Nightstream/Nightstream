@@ -201,7 +201,7 @@ pub enum FinishError {
 /// The last fold of an active proof, stopped before Π_DEC.
 pub(crate) struct LastFold {
     pub(crate) state: Stage1State,
-    /// The running instance as the state hash reads it.
+    /// The running claims as the state hash reads them, without witnesses.
     pub(crate) running: RunningInstance,
     pub(crate) fresh: CcsClaim,
     pub(crate) pi_ccs: pi_ccs::Proof,
@@ -247,12 +247,13 @@ impl PreparedLifecycle {
     /// Run PiCCS and PiRLC on the running and fresh claims of `envelope`.
     pub(crate) fn last_fold(&self, envelope: &Stage1Envelope) -> Result<LastFold, FinishError> {
         let state = envelope.state().clone();
-        let (semantic, mut fresh) = match (envelope.running(), envelope.fresh()) {
+        let (mut running, mut fresh) = match (envelope.running(), envelope.fresh()) {
             (Some(running), Some(fresh)) => (running.clone(), fresh.clone()),
             _ => return Err(FinishError::Input("an initial proof has no fold to finish")),
         };
+        // The state hash reads only the claims; the witnesses go into the fold.
+        let semantic = running.claims_only();
         let (_, digest) = self.checked_prior_state(&state, &semantic, &fresh.claim)?;
-        let mut running = semantic.clone();
         prepare_running(&mut running, &self.params, digest);
         nifs::validate_running_parent_authority(&self.params, &self.structure, ajtai_dec_mixer, &running)
             .map_err(FinishError::PriorFamily)?;
@@ -326,9 +327,8 @@ impl PreparedLifecycle {
     /// The key of this circuit for the layer-1 key `layer1`: the final
     /// program's constants and the shape of one run of it.
     fn compression_key_for(&self, layer1: neo_spartan::Key) -> Result<CompressionKey, neo_spartan::Error> {
-        let bits = self
-            .params
-            .compression_security_bits()
+        let layer_bits = self
+            .compression_layer_bits()
             .ok_or(neo_spartan::Error::Setup(
                 "the fold error leaves no room under the security minimum",
             ))?;
@@ -341,9 +341,8 @@ impl PreparedLifecycle {
         let mut key = CompressionKey {
             layer1,
             context: self.binding.verifier_context().digest(),
-            bound: PI_CCS_V1_1_SOURCE_COUNT as u32 * self.params.T() * (self.params.b() - 1),
-            // Layer 1 and the shrink layer each take half of the remainder.
-            layer_bits: bits + 1.0,
+            bound: self.compression_bound(),
+            layer_bits,
             shape: Shape::default(),
         };
         let shape = {
@@ -378,5 +377,36 @@ impl PreparedLifecycle {
     /// Derive the compression key from the package, without files.
     pub(crate) fn compression_key(&self) -> Result<CompressionKey, neo_spartan::Error> {
         self.compression_key_for(neo_spartan::Key::derive(&self.matrix_rows())?)
+    }
+
+    /// Refuse a compression key of another circuit or guard bound, or one
+    /// below this circuit's security minimum. The key's setup root is the
+    /// caller's trust: a key it derived (`compression_key`) or pinned.
+    pub(crate) fn check_compression_key(&self, key: &CompressionKey) -> Result<(), VerifyError> {
+        if key.context != self.binding.verifier_context().digest() || key.bound != self.compression_bound() {
+            return Err(VerifyError::Statement("the compression key belongs to another circuit"));
+        }
+        if self
+            .compression_layer_bits()
+            .is_none_or(|bits| key.layer_bits < bits)
+        {
+            return Err(VerifyError::Statement(
+                "the compression key is below this verifier's security minimum",
+            ));
+        }
+        Ok(())
+    }
+
+    /// PiRLC's guard bound `sources · T · (b - 1)`.
+    fn compression_bound(&self) -> u32 {
+        PI_CCS_V1_1_SOURCE_COUNT as u32 * self.params.T() * (self.params.b() - 1)
+    }
+
+    /// The bits each compression layer must reach: layer 1 and the shrink
+    /// layer each take half of the error the fold leaves under the minimum.
+    fn compression_layer_bits(&self) -> Option<f64> {
+        self.params
+            .compression_security_bits()
+            .map(|bits| bits + 1.0)
     }
 }

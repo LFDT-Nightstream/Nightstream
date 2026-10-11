@@ -251,7 +251,9 @@ fn recorder_notes_failed_checks_and_keeps_going() {
     recorder.mul(a, a);
     let (trace, failure) = recorder.finish();
     assert_eq!(failure, Some("first"));
-    assert_eq!(trace.rows.len(), 2, "rows continue after a failed check");
+    // The check row, the three rows of the constant zero's inverse (one
+    // cannot hold), then the product: rows continue after a failed check.
+    assert_eq!(trace.rows.len(), 5, "rows continue after a failed check");
     assert!(Native.assert_zero(Gl::from_u64(3), "first").is_err());
     assert!(Native.ext_inverse(Ext::ZERO, "zero").is_err());
 }

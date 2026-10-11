@@ -170,6 +170,39 @@ fn finish_with_spartan_verifies(engine: Engine) {
     assert!(verifier
         .verify_final(proof.state(), &other, &decoded)
         .is_err());
+
+    // The shrink binds the state itself: a state word changed in the proof
+    // and in the expected state together still fails. The proof bytes are a
+    // 16-byte tag, the iteration, z0 (4 words), then the current state.
+    for (offset, what) in [(16, "iteration"), (24, "z0"), (56, "current")] {
+        let mut restated = bytes.clone();
+        let word = u64::from_le_bytes(restated[offset..offset + 8].try_into().unwrap()) + 1;
+        restated[offset..offset + 8].copy_from_slice(&word.to_le_bytes());
+        let restated = FinalProof::from_bytes(&restated).unwrap();
+        assert!(
+            verifier
+                .verify_final(restated.state(), &key, &restated)
+                .is_err(),
+            "{what}"
+        );
+    }
+    // A key of another circuit, or below this verifier's minimum, is refused
+    // before the shrink. The key's encoding ends with the context (4 words),
+    // the bound (u32), the layer bits (f64) and the shrink shape (4 words).
+    let key_bytes = key.to_bytes();
+    let end = key_bytes.len();
+    let mut other_context = key_bytes.clone();
+    other_context[end - 76] ^= 1;
+    let mut weaker = key_bytes.clone();
+    let bits = f64::from_le_bytes(weaker[end - 40..end - 32].try_into().unwrap()) - 1.0;
+    weaker[end - 40..end - 32].copy_from_slice(&bits.to_le_bytes());
+    for (changed, what) in [(other_context, "another circuit"), (weaker, "security minimum")] {
+        let changed = CompressionKey::from_bytes(&changed).unwrap();
+        let error = verifier
+            .verify_final(proof.state(), &changed, &decoded)
+            .unwrap_err();
+        assert!(error.to_string().contains(what), "{error}");
+    }
 }
 
 /// Verification time of the final proof saved by

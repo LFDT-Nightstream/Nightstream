@@ -17,7 +17,7 @@ plan, the setup seed, and the public statement.
 
 | Quantity | Level | Source |
 |---|---|---|
-| Statistical error of one fold | 114.76 bits | `NeoParams::padded_row_security_summary_for_shape`: 7 matrices, sum-check degree 9, `ℓ = 28` |
+| Statistical error of one fold | 115.22 bits | `NeoParams::padded_row_security_summary_for_shape`: 4 matrices, CCS degree 7 (sum-check degree 8), `ℓ = 28` |
 | Main Module-SIS | 110.685 quantum Core-SVP bits after an eight-target allowance; selected by the owner | `decisions/fprime-stage1-main-ajtai-setup.md` |
 | Poseidon2 | generic collision ceiling near 128 bits | `decisions/piccs-prior-state-digest.md` |
 
@@ -36,7 +36,7 @@ exception:
 - each new digest uses the Stage 1 Poseidon2 model.
 
 Stage 2 adds no commitment map, so it adds no Module-SIS assumption. The
-memory term is the weakest statistical term: it is 4.85 bits below the fold
+memory term is the weakest statistical term: it is 5.31 bits below the fold
 term. The Fiat–Shamir step multiplies both statistical terms by a query count
 (§5).
 
@@ -114,10 +114,11 @@ unbalanced segment of the extracted run. The earlier segments are balanced, so
 they close with any challenge. The §9.3 input has no segment index, so equal
 inputs get equal `η`, but the game samples one pair per slot; the cut at the
 first unbalanced segment makes this harmless. The transfer has an explicit
-query factor `L`: a translation that guesses which of the `Q` evaluations of
-the §9.3 transcript answers segment `k` (the relation evaluates it in every
-invocation, and off-circuit evaluations count too), or that none does, has
-`L = Q + 1`. The owner approved the memory-round extension on 2026-10-07. The
+query factor `L`. A straight-line translation that guesses which of the
+`Q_η` evaluations of the §9.3 transcript answers segment `k` (the relation
+evaluates it in every invocation, and off-circuit evaluations count too), or
+that none does, has `L = Q_η + 1`. The extractor's rewinds can make `L`
+larger, and `δ` cannot absorb a multiplicative loss. The owner approved the memory-round extension on 2026-10-07. The
 per-slot form (2026-10-10) is the form that a one-slot reduction can
 discharge: a whole-run game needs every slot consistent at once. Like the
 Stage 1 boundary, A6 selects no numerical value for `g_d`, `delta_d`, or `L`.
@@ -150,7 +151,7 @@ this note, and each proof needs an independent review (§7).
 | Joint | Argument | Status |
 |---|---|---|
 | J1: records into chains | Lemmas 1 and 2; Ob2, Ob3, Ob6 | Proof in this note, deterministic |
-| J2: carry thread | A3, A4; Ob8 | Assumed. The arity adaptation is open; Property 6 is the Stage 1 one |
+| J2: carry thread | A3, A4; Ob8 | The relation-level thread is proved in Lean (`RunLink`), except with a state-digest collision. The Stage 1 part is assumed: the arity adaptation is open; Property 6 is the Stage 1 one |
 | J3: commit, then test | Lemmas 2–5 | Proof in this note, in the translated game of A6 |
 | J4: segment joins and terminal | Lemma 6 | Proof in this note |
 
@@ -361,7 +362,9 @@ these properties:
    nor the application state.
 6. **End.** The verifier rejects the initial envelope. The terminal requires
    `idx = N` in the final carry, `1 ≤ S ≤ S_max`, `T = S · N`, and
-   `seg_idx = S`. The statement fields equal the final state. ∎
+   `seg_idx = S`. The statement fields equal the final state, because the
+   words after the last step open the final state, except with a
+   state-digest collision. ∎
 
 ## 5. Composition and evaluation
 
@@ -371,7 +374,7 @@ the extractors of A1 and A4, such that, in the real experiment,
 ```text
 Pr[accept and E's output is not a valid execution]
    ≤  ε_Stage1                          (A1, A4: every fold and the terminal)
-    + ε_coll(t_E)                       (Lemma 6 step 2: state-digest links of E's run)
+    + ε_coll(t_E)                       (Lemma 6 steps 2 and 6: state-digest links of E's run)
     + ε_coll(t_E)                       (Lemma 2: the chains of E's run and every join)
     + S_max · (L · (ε_test + ε_coll(t_1)) + δ)   (A6 and Lemma 3, per segment slot)
 ```
@@ -402,38 +405,38 @@ coordinates. It needs an owner decision and a spec change before use. It is not
 part of this specification.
 
 **Evaluation at the current values.** The values use the trunk formula with
-`f_fold = 7,781` and `f_fork = 304`. The example geometry is `R = 2^12`,
+`f_fold = 5,161` and `f_fork = 304`. The example geometry is `R = 2^12`,
 `M = 2^16`, `N = 64`, and `B_ops = 1,088`, so `m_mem ≤ 139,264`. A release
 MUST recompute this table for the generated relation with
 `NeoParams::padded_row_security_summary_for_shape`.
 
 | Term | Bits |
 |---|---:|
-| One fold, `f_fold/|𝕂| + f_fork/|C|` | 114.76 |
+| One fold, `f_fold/|𝕂| + f_fork/|C|` | 115.22 |
 | Main Module-SIS level (Stage 1) | 110.685 |
 | Poseidon2 ceiling | about 128 |
 | `ε_test`, example geometry | 109.91 |
 
 The example geometry is at the floor. The memory term is the weakest
-statistical term: 109.91 bits is below the fold term of 114.76 bits. A second,
+statistical term: 109.91 bits is below the fold term of 115.22 bits. A second,
 independent challenge pair would give 219.83 bits. This specification does not
 use it.
 
 These are per-check values, before any query factor. For 64 folds and one
-segment, the sum of the per-check values is 108.23 bits; the 64 folds alone
-give 108.76 bits.
+segment, the sum of the per-check values is 108.53 bits; the 64 folds alone
+give 109.22 bits.
 
 **Legacy-ledger values, for information.** This table applies the legacy
 query bound `q_H = 2^18` as a lift on every statistical term.
 
 | Lift | Fold term | `ε_test` | One fold and one segment |
 |---|---:|---:|---:|
-| none | 114.76 | 109.91 | 109.86 |
-| `q_H` | 96.76 | 91.91 | 91.86 |
+| none | 115.22 | 109.91 | 109.88 |
+| `q_H` | 97.22 | 91.91 | 91.88 |
 
 Under the legacy lift, the memory term misses the legacy 96-bit target by 4.09
 bits. If recursive extraction also costs a factor of 64 folds (A4), the fold
-term alone falls to 90.76 bits. The correct lift is part of A4 and A6.
+term alone falls to 91.22 bits. The correct lift is part of A4 and A6.
 
 ## 6. Oracle-query census
 
@@ -442,9 +445,11 @@ Stage 2 adds these prescribed oracle calls to the Stage 1 census:
 - per fold: the three record chains of `step`. At the example geometry with
   `W_ts = 32`, they absorb 1,987 + 1,106 + 1,106 packed elements plus tags
   and framing, about 360–370 permutations;
-- per fold: one challenge transcript with two extension squeezes, about
-  10 permutations (7 absorbed chunks and 3 squeezes). The relation evaluates
-  it in every invocation, and only an opening invocation uses the result;
+- per fold: one challenge transcript with two extension squeezes, 10
+  permutations: 7 absorbed chunks and 3 squeeze permutations (the
+  permutation after the last read is not computed, because no value reads
+  it). The relation evaluates it in every invocation, and only an opening
+  invocation uses the result;
 - per fold: two state digests (spec §11.1), for the input and the output
   state.
 
@@ -567,6 +572,9 @@ generated relation MUST supply the exact census.
      function of the sample, with per-step validity of the program;
    - Ob6 as a static check: the relation compiler of spec §6.4 does not
      exist. Only this hand-written relation has the residency property;
+   - Ob3 for the §9.3 transcript: its framing is injective on canonical
+     inputs (`ts < q`). A one-slot A6 translation needs this to read the
+     committed transcript input from the guessed oracle input;
    - Ob1 for the statement fields and the proof bytes at the implementation
      boundary (Lean types the statement fields as field words and canonical
      values);

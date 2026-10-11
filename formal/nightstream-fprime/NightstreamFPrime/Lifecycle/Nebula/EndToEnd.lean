@@ -100,7 +100,8 @@ def Attested (s : Sample) : Prop :=
   Attests (context p) (Machine.application p two) (x.claim s) (x.run p s)
 
 /-- A state-digest collision between two inputs of the extracted run
-(security note Lemma 6 step 2). The extractor outputs both sides. -/
+(security note Lemma 6 steps 2 and 6). Both sides are data of the sample: the
+extracted words, and the envelope's final words. -/
 def StateLinkCollision (s : Sample) : Prop :=
   RunStateCollision (x.steps p s) (x.memory s).initialApp (x.memory s).finalApp
     (x.memory s).finalCarry (x.statement s).iteration

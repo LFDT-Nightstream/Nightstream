@@ -213,15 +213,17 @@ Setup MUST reject a plan that breaks any of these rules:
 5. **Positive sizes:** `B_ops, B_scan, N, S_max ≥ 1`.
 6. **Security:** the plan passes the setup check in the security note §5.
 
-The counter widths follow from the plan:
+The segment range of `open` (§11.2) decomposes `S_max − 1 − seg_idx` into
+`W_seg` bits:
 
 ```text
-W_step = ⌈log2(N + 1)⌉        holds idx in [0, N]
-W_seg  = ⌈log2(S_max + 1)⌉    holds seg_idx in [0, S_max]
-W_cnt  = ⌈log2(B_ops + 1)⌉    holds cnt in [0, B_ops]
+W_seg = ⌈log2(S_max + 1)⌉    holds every value in [0, S_max]
 ```
 
-An implementation MUST derive these widths. It MUST NOT use fixed widths.
+An implementation MUST derive `W_seg` from the plan. It MUST NOT use a fixed
+width. The relation needs no width for `idx` or `cnt`. The arm and close tests
+(§12) keep `idx` in `[0, N]`, and `cnt` is a field sum of at most `B_ops < q`
+terms.
 
 ### 4.3 Plan digest
 
@@ -235,10 +237,15 @@ Each integer and each image word enters as one canonical field element. The
 verifier computes `plan_digest`. A prover-supplied value is invalid.
 
 The verifier-context description of `decisions/piccs-prior-state-digest.md`
-MUST include `plan_digest` and `D_init` (§9.2). Both are package constants:
-the package rows fix them, as they fix the Stage 1 verifier-context digest.
-The relation MUST read them as constants. A witness copy of either value is
-invalid, because it would let the prover choose the initial memory.
+MUST include `plan_digest` and `D_init` (§9.2). `plan_digest` is a package
+constant: the package rows fix it, as they fix the Stage 1 verifier-context
+digest, and the relation MUST read it as a constant (the headers and the §9.3
+transcript). A witness copy of `plan_digest` is invalid. The verifier computes
+`D_init` and puts it in the start carry (§11.1). The relation reads `D_mem`
+from its input carry, which the state digest binds to the input state. So
+step 0 reads `D_init` because the verifier computes the initial state from the
+start carry (§13). A different initial memory opens a different initial state,
+which the Stage 1 state link rejects, except with a state-digest collision.
 
 ## 5. Memory model
 
@@ -379,7 +386,7 @@ For each operation slot `j`:
 | # | Constraint |
 |---|---|
 | O1 | every lane coordinate and auxiliary bit is in `{0, 1}` |
-| O2 | `cnt_j = cnt_{j−1} + (1 − pad_j)`, with `cnt_{−1} = 0`, as a `W_cnt`-bit word |
+| O2 | `cnt_j = cnt_{j−1} + (1 − pad_j)`, with `cnt_{−1} = 0`, as a field sum (at most `B_ops < q`) |
 | O3 | `(1 − is_write_j) · (v_w_j − v_r_j) = 0` |
 | O4 | `(1 − pad_j) · (wt_j − rt_j − 1 − diff_j) = 0`, where `diff_j` is a `W_ts`-bit auxiliary word |
 | O5 | `is_write_j · (1 − is_ram_j) = 0` |
@@ -519,8 +526,8 @@ The application state holds one memory carry:
 
 ```text
 MemoryCarry {
-  seg_idx:  W_seg bits       // segments closed so far
-  idx:      W_step bits      // steps run in the current segment
+  seg_idx:  integer in [0, S_max]   // segments closed so far
+  idx:      integer in [0, N]       // steps run in the current segment
   ts:       W_ts bits        // global timestamp; never resets
   η1, η2:   𝕂                // challenges of the current segment
   h[4]:     𝕂                // running products (rs, ws, is, fs)
@@ -550,8 +557,8 @@ carry digest.
 
 Chain start: the start carry is `seg_idx = 0`, `idx = N`, `ts = 0`,
 `η1 = η2 = 0`, `h` all `1_𝕂`, `D_pre = (D_init, D_init)`,
-`D_seen = (D_init, D_init, D_init)`, and `D_mem = D_init`, with `D_init` read
-as the package constant of §4.3. It is a closed carry, so the first invocation
+`D_seen = (D_init, D_init, D_init)`, and `D_mem = D_init`, with `D_init` as
+the verifier computes it (§4.3, §9.2). It is a closed carry, so the first invocation
 reopens it (§12). The statement's initial state is the state digest of the
 initial application words and the start carry.
 
@@ -668,7 +675,8 @@ verifier and cover at least these cases:
 | Two segments with RAM written in the first and read in the second | accept |
 | Fresh memory at a segment boundary | reject at `D_seen.is = D_mem` |
 | Segment-0 IS records that differ from the plan images | reject at `D_seen.is = D_mem` |
-| A base arm that reads `D_init` or `plan_digest` from the witness | rejected: the relation reads both as package constants (§4.3) |
+| A relation that reads `plan_digest` from the witness | rejected: the relation reads it as a package constant (§4.3) |
+| A first input carry with `D_mem ≠ D_init` | reject at the Stage 1 state link of the initial state (§13) |
 | An input carry or application words that do not open the input state | reject at the state digest check (§11.1) |
 | An envelope carry that does not open the final state | reject at the Stage 1 state link |
 | Read value differs from the last write | reject at the product equation |

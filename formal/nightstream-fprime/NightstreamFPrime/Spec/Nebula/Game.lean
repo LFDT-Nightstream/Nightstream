@@ -8,12 +8,12 @@ segment `k`, the prover commits the transcript input of segment `k`; the
 commitment depends only on the coins and the earlier challenges. After the
 last challenge, the extractor of A1 and A4 returns a statement and a run.
 
-The bound: an accepted, consistent run that is not an execution is at most as
-frequent as a collision among the run's own chain inputs, plus
-`S_max · 2·m_mem/|E|`, plus one retry-disagreement term per segment slot, and
-each disagreement exhibits a collision. A run whose segment transcript inputs
-differ from the committed ones is an extraction failure (A1, A4); it is a
-separate event. The transfer from the real protocol (A6) is not owned here. -/
+The bound is per slot: segment `k` of an accepted run, with the transcript
+input committed before slot `k`'s challenge, passes the product test with
+unbalanced multisets at most `2·m_mem/|E|` plus one retry-disagreement term of
+the time, and each disagreement exhibits a collision. Only slot `k` must be
+consistent, so a translation for slot `k` programs one challenge. The transfer
+from the real protocol (A6) is not owned here. -/
 
 namespace NightstreamFPrime.Spec.Nebula
 
@@ -116,33 +116,24 @@ variable (ctx : Context E Digest) (app : Application ctx.plan σ)
 def Accepted (q : Coins × (Fin ctx.plan.sMax → E × E)) : Prop :=
   Accepts (ctx.withChallenges q.2) app (g.statement q.1 q.2) (g.run q.1 q.2)
 
-/-- Each segment's transcript input is the one committed before its
+/-- Segment `k`'s transcript input is the one committed before slot `k`'s
 challenge. -/
-def Consistent (q : Coins × (Fin ctx.plan.sMax → E × E)) : Prop :=
-  ∀ k < (g.statement q.1 q.2).segments,
-    (segmentView ctx (g.run q.1 q.2) k).etaInput ctx = g.commit q.1 q.2 k
+def ConsistentAt (k : Fin ctx.plan.sMax) (q : Coins × (Fin ctx.plan.sMax → E × E)) : Prop :=
+  (segmentView ctx (g.run q.1 q.2) k).etaInput ctx = g.commit q.1 q.2 k
 
-/-- An accepted, consistent run that is not an execution. -/
-def Fails (q : Coins × (Fin ctx.plan.sMax → E × E)) : Prop :=
-  g.Accepted ctx app q ∧ g.Consistent ctx q ∧
-    ¬ Attests (ctx.withChallenges q.2) app (g.statement q.1 q.2) (g.run q.1 q.2)
-
-/-- A collision among the hash inputs of an accepted run. -/
-def Collides (q : Coins × (Fin ctx.plan.sMax → E × E)) : Prop :=
-  g.Accepted ctx app q ∧ RunCollision ctx (g.run q.1 q.2) (g.statement q.1 q.2).segments
-
-/-- Segment `k` of an accepted, consistent run passes the product test with
-unbalanced multisets. -/
+/-- Segment `k` of an accepted run, consistent at slot `k`, passes the product
+test with unbalanced multisets. -/
 def BadAt (k : Fin ctx.plan.sMax) (q : Coins × (Fin ctx.plan.sMax → E × E)) : Prop :=
-  g.Accepted ctx app q ∧ g.Consistent ctx q ∧ k.val < (g.statement q.1 q.2).segments ∧
+  g.Accepted ctx app q ∧ g.ConsistentAt ctx k q ∧ k.val < (g.statement q.1 q.2).segments ∧
     BadChallenge (ctx.withChallenges q.2) (segmentView ctx (g.run q.1 q.2) k)
 
 /-- One call of the Lemma 3 game for segment `k` from the prefix `(c, e)`:
 the challenge of slot `k` and fresh challenges for the later slots. It
-returns the segment's records when the run is accepted and consistent. -/
+returns the segment's records when the run is accepted and consistent at
+slot `k`. -/
 noncomputable def play (k : Fin ctx.plan.sMax) (c : Coins) (e : Fin ctx.plan.sMax → E × E) :
     (E × E) × (Fin ctx.plan.sMax → E × E) → Option (List StepRecords) := fun x =>
-  if g.Accepted ctx app (c, splice k e x.1 x.2) ∧ g.Consistent ctx (c, splice k e x.1 x.2) ∧
+  if g.Accepted ctx app (c, splice k e x.1 x.2) ∧ g.ConsistentAt ctx k (c, splice k e x.1 x.2) ∧
       k.val < (g.statement c (splice k e x.1 x.2)).segments then
     some (segmentView ctx (g.run c (splice k e x.1 x.2)) k).records
   else none
@@ -173,17 +164,16 @@ private theorem view_etaInput (v : SegmentView Digest) :
   rfl
 
 omit [CommRing E] in
-/-- In an accepted, consistent outcome, segment `k` is the view of the
+/-- In an outcome consistent at slot `k`, segment `k` is the view of the
 committed transcript input. -/
 theorem view_eq {k : Fin ctx.plan.sMax} {c : Coins} {e : Fin ctx.plan.sMax → E × E}
     {x : (E × E) × (Fin ctx.plan.sMax → E × E)}
-    (consistent : g.Consistent ctx (c, splice k e x.1 x.2))
-    (hk : k.val < (g.statement c (splice k e x.1 x.2)).segments) :
+    (consistent : g.ConsistentAt ctx k (c, splice k e x.1 x.2)) :
     (g.commit c e k).view k (segmentView ctx (g.run c (splice k e x.1 x.2)) k).records =
       segmentView ctx (g.run c (splice k e x.1 x.2)) k := by
   have before : g.commit c (splice k e x.1 x.2) k = g.commit c e k :=
     g.causal c _ _ k fun j hj => by simp [splice, hj]
-  rw [← before, ← consistent k hk]
+  rw [← before, ← consistent]
   exact view_etaInput ctx (segmentView ctx (g.run c (splice k e x.1 x.2)) k)
 
 /-- Every call that returns records closes against the committed transcript
@@ -204,7 +194,7 @@ theorem play_closes (valid : ctx.plan.Valid) (k : Fin ctx.plan.sMax) (c : Coins)
       (g.run c (splice k e x.1 x.2)) k).eta (ctx.withChallenges (splice k e x.1 x.2)) = x.1 := by
     simp [SegmentView.eta, Context.withChallenges, challengeAt, segmentView, splice]
   rw [challenge, segmentView_withChallenges] at closes
-  rw [view_eq ctx g consistent hk]
+  rw [view_eq ctx g consistent]
   exact closes.of_withChallenges
 
 /-- A bad segment `k` in a spliced outcome is an erroneous call. -/
@@ -215,7 +205,7 @@ theorem badAt_error [Fintype E] {k : Fin ctx.plan.sMax} {c : Coins} {e : Fin ctx
   obtain ⟨accepted, consistent, hk, unbalanced, -⟩ := bad
   simp only [errors, Finset.mem_filter, Finset.mem_univ, true_and]
   refine ⟨_, if_pos ⟨accepted, consistent, hk⟩, ?_⟩
-  rw [Unbalanced, view_eq ctx g consistent hk]
+  rw [Unbalanced, view_eq ctx g consistent]
   exact unbalanced
 
 /-- Every retry disagreement of segment `k` exhibits a collision among the
@@ -229,16 +219,6 @@ theorem disagreement_collision [IsDomain E] [Fintype E] [DecidableEq E]
           (((g.commit c e k).view k z').chainInputs ctx) :=
   (segment_fingerprint_bound valid (g.commit c e k) k (g.play ctx app k c e)
     (g.play_closes ctx app valid k c e)).2
-
-/-- An outcome that fails is a run collision or a bad segment slot. -/
-theorem fails_cases (valid : ctx.plan.Valid) {q : Coins × (Fin ctx.plan.sMax → E × E)}
-    (fails : g.Fails ctx app q) : g.Collides ctx app q ∨ ∃ k, g.BadAt ctx app k q := by
-  obtain ⟨accepted, consistent, notAttests⟩ := fails
-  rcases soundness (ctx := ctx.withChallenges q.2) valid accepted with
-    attests | collision | ⟨k, hk, bad⟩
-  · exact absurd attests notAttests
-  · exact Or.inl ⟨accepted, collision⟩
-  · exact Or.inr ⟨⟨k, lt_of_lt_of_le hk accepted.segmentsRange.2⟩, accepted, consistent, hk, bad⟩
 
 omit [CommRing E] in
 private theorem card_filter_prod {α β : Type} [Fintype α] [Fintype β] (p : α × β → Prop) :
@@ -297,41 +277,6 @@ theorem badAt_frequency [IsDomain E] [Fintype E] [DecidableEq E] [CharP E goldil
         Fintype.card (Coins × (Fin ctx.plan.sMax → E × E)) :=
       div_le_div_of_nonneg_right count zero_le
     _ = _ := by rw [add_div, mul_div_cancel_left₀ _ full.ne']
-
-/-- The memory terms of security note §5 in the game: an accepted, consistent
-run that is not an execution is at most as frequent as a run collision, plus
-`S_max · 2·m_mem/|E|`, plus the retry terms. Each retry disagreement exhibits a
-collision (`disagreement_collision`). -/
-theorem fails_frequency [IsDomain E] [Fintype E] [DecidableEq E] [CharP E goldilocksModulus]
-    [Fintype Coins] (valid : ctx.plan.Valid) :
-    freq (g.Fails ctx app) ≤ freq (g.Collides ctx app) +
-      ctx.plan.sMax * (2 * (ctx.plan.maxTuples : ℚ≥0) / Fintype.card E) +
-      ∑ k, g.retryTerm ctx app k := by
-  have cover : Finset.univ.filter (g.Fails ctx app) ⊆
-      Finset.univ.filter (g.Collides ctx app) ∪
-        Finset.univ.biUnion fun k => Finset.univ.filter (g.BadAt ctx app k) := by
-    intro q hq
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_union,
-      Finset.mem_biUnion] at hq ⊢
-    exact g.fails_cases ctx app valid hq
-  have count : ((Finset.univ.filter (g.Fails ctx app)).card : ℚ≥0) ≤
-      (Finset.univ.filter (g.Collides ctx app)).card +
-        ∑ k, ((Finset.univ.filter (g.BadAt ctx app k)).card : ℚ≥0) := by
-    exact_mod_cast (Finset.card_le_card cover).trans
-      ((Finset.card_union_le _ _).trans (Nat.add_le_add_left Finset.card_biUnion_le _))
-  have step : freq (g.Fails ctx app) ≤
-      freq (g.Collides ctx app) + ∑ k, freq (g.BadAt ctx app k) := by
-    unfold freq
-    rw [← Finset.sum_div, ← add_div]
-    exact div_le_div_of_nonneg_right count zero_le
-  calc freq (g.Fails ctx app)
-      ≤ freq (g.Collides ctx app) + ∑ k, freq (g.BadAt ctx app k) := step
-    _ ≤ freq (g.Collides ctx app) + ∑ k : Fin ctx.plan.sMax,
-          (2 * (ctx.plan.maxTuples : ℚ≥0) / Fintype.card E + g.retryTerm ctx app k) :=
-      by gcongr with k; exact g.badAt_frequency ctx app valid k
-    _ = _ := by
-      rw [Finset.sum_add_distrib, Finset.sum_const, Finset.card_univ, Fintype.card_fin,
-        nsmul_eq_mul, add_assoc]
 
 end Game
 

@@ -140,7 +140,7 @@ theorem absorbBlocks_eq (s : Poseidon2.State) (bs : List (List F)) :
     show absorbBlocks (Transcript.absorb s (block b)) bs = _
     rw [ih, absorb_eq, blockChunks_cons, List.foldl_append]
 
-private theorem natWord_injective {a b : ℕ} (ha : a < goldilocksModulus)
+theorem natWord_injective {a b : ℕ} (ha : a < goldilocksModulus)
     (hb : b < goldilocksModulus) (same : natWord a = natWord b) : a = b := by
   have := congrArg Fin.val same
   simp only [natWord, Poseidon2.ofNat, Nat.mod_eq_of_lt ha, Nat.mod_eq_of_lt hb] at this

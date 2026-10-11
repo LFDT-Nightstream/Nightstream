@@ -225,8 +225,8 @@ fresh verifier coin by an oracle read. Each module header states its part:
    replaces that read by a uniform random function of the address
    (`Lifecycle.RandomOracleTest.coins`): each address gets an independent
    four-word answer, and a model query is one address. In the sponge, the
-   answers at neighbouring slots of one state share two lanes; no verifier
-   read uses a shared word. This is
+   answers at neighbouring slots of one state share two lanes, but no two
+   verifier reads use the same lane. This is
    a modelling assumption, and a stronger one than Ironwood's. Ironwood
    idealizes one hash call on the whole transcript. The standard
    justification would be duplex-sponge Fiat–Shamir in the ideal-permutation

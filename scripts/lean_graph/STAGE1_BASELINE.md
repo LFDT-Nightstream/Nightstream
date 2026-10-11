@@ -260,9 +260,9 @@ boundaries. The public flow is `Stage1Envelope::initial(z0)`,
 Its open requirements remain until their actual tests and review exist.
 This registration does not change lean-graph's schema or acceptance rules.
 
-The terminal false-acceptance target bounds false acceptance by the marked
-hash-collision mass and the HyperNova errata Assumption 1 error at each stage
-of the Lemma 17 reverse extractor, for every application that fits the `2^28`
+The terminal false-acceptance target bounds false acceptance by the sum over
+the stages of the Lemma 17 reverse extractor of the marked hash-collision mass
+and the HyperNova errata Assumption 1 error, for every application that fits the `2^28`
 profile and every commitment setup (`HyperNovaFalseAcceptance.probability_bound`;
 adversary 4 of `formal/nightstream-fprime/SECURITY_MODEL.md`).
 

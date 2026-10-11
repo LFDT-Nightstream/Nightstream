@@ -45,7 +45,11 @@ fn leaf_claim_matches_the_witness_and_the_root_matches_the_histogram() {
     for variables in [1, 2, 7] {
         let z = witness(variables);
         let beta = beta();
-        let (proof, prover) = prove(vec![norm_tree(&z, beta)], &mut fresh());
+        let (proof, prover) = prove(
+            vec![norm_tree(&z, beta)],
+            &mut fresh(),
+            &crate::device::Accelerator::cpu(),
+        );
         let total = table_sum(&histogram(&z, BOUND).unwrap(), beta);
         let direct: Ext = z.iter().map(|&value| (beta - value).inverse()).sum();
         assert_eq!(total, direct);
@@ -67,7 +71,11 @@ fn leaf_claim_matches_the_witness_and_the_root_matches_the_histogram() {
 fn forged_histograms_reject() {
     let z = witness(7);
     let beta = beta();
-    let (proof, _) = prove(vec![norm_tree(&z, beta)], &mut fresh());
+    let (proof, _) = prove(
+        vec![norm_tree(&z, beta)],
+        &mut fresh(),
+        &crate::device::Accelerator::cpu(),
+    );
     let claims = run_verify(&proof, &[TreeShape { depth: 7, factors: 0 }]).unwrap();
     let [p, q] = claims[0].root;
     let counts = histogram(&z, BOUND).unwrap();
@@ -121,7 +129,7 @@ fn trees(parts: &[Vec<Vec<Ext>>]) -> Vec<Tree> {
 #[test]
 fn batched_trees_match_direct_sums_and_leaf_values() {
     let (shapes, parts) = batch();
-    let (proof, prover) = prove(trees(&parts), &mut fresh());
+    let (proof, prover) = prove(trees(&parts), &mut fresh(), &crate::device::Accelerator::cpu());
     let claims = run_verify(&proof, &shapes).unwrap();
     assert_eq!(claims, prover);
     for (claim, parts) in claims.iter().zip(&parts) {
@@ -148,7 +156,7 @@ fn batched_trees_match_direct_sums_and_leaf_values() {
 #[test]
 fn every_tampered_message_rejects_or_moves_a_claim() {
     let (shapes, parts) = batch();
-    let (proof, honest) = prove(trees(&parts), &mut fresh());
+    let (proof, honest) = prove(trees(&parts), &mut fresh(), &crate::device::Accelerator::cpu());
     // A tampered message must fail, or change a root or leaf claim the caller checks.
     let caught = |proof: &GkrProof| run_verify(proof, &shapes).is_none_or(|claims| claims != honest);
     for tree in 0..shapes.len() {
@@ -190,4 +198,119 @@ fn the_prover_refuses_a_witness_beyond_the_bound() {
     let mut z = witness(4);
     z[3] = signed(BOUND as i64 + 1);
     assert!(histogram(&z, BOUND).is_err());
+}
+
+/// A device that runs GKR layers on the CPU under the device contract: the
+/// caller's tables in place, folded at a doubling stride.
+struct StridedLayers;
+
+struct StridedLayer<'a> {
+    trees: Vec<Vec<&'a mut [u64]>>,
+    eq: &'a mut [u64],
+    stride: usize,
+}
+
+fn at(table: &[u64], index: usize) -> Ext {
+    Ext::from_basis_coefficients_fn(|c| Gl::new(table[3 * index + c]))
+}
+
+fn put(table: &mut [u64], index: usize, value: Ext) {
+    for (c, word) in BasedVectorSpace::<Gl>::as_basis_coefficients_slice(&value)
+        .iter()
+        .enumerate()
+    {
+        table[3 * index + c] = p3_field_v08::PrimeField64::as_canonical_u64(word);
+    }
+}
+
+fn words_ext(words: [u64; 3]) -> Ext {
+    Ext::from_basis_coefficients_fn(|c| Gl::new(words[c]))
+}
+
+impl crate::device::Device for StridedLayers {
+    fn merkle_layers(
+        &self,
+        _rows: usize,
+        _width: usize,
+        _fill: &(dyn Fn(&mut [u64]) + Sync),
+    ) -> Option<Vec<Vec<[u64; 4]>>> {
+        None
+    }
+
+    fn key_weights(&self, _powers: &[[u64; 3]], _blocks: usize) -> Option<Vec<[u64; 3]>> {
+        None
+    }
+
+    fn dft_columns(&self, _values: &mut [u64], _width: usize, _generator: u64) -> bool {
+        false
+    }
+
+    fn gkr_layer<'a>(
+        &self,
+        trees: Vec<Vec<&'a mut [u64]>>,
+        eq: &'a mut [u64],
+    ) -> Option<Box<dyn crate::device::GkrLayer + 'a>> {
+        Some(Box::new(StridedLayer { trees, eq, stride: 1 }))
+    }
+}
+
+impl crate::device::GkrLayer for StridedLayer<'_> {
+    fn message(&mut self, weights: &[[u64; 3]], mu: [u64; 3], degree: usize) -> Vec<[u64; 3]> {
+        let s = self.stride;
+        let pairs = self.eq.len() / 3 / s / 2;
+        let mu = words_ext(mu);
+        let nodes: Vec<u64> = std::iter::once(0).chain(2..=degree as u64).collect();
+        let line = |table: &[u64], i: usize, x: u64| {
+            let low = at(table, i * s);
+            low + Ext::from(Gl::from_u64(x)) * (at(table, (i + 1) * s) - low)
+        };
+        nodes
+            .iter()
+            .map(|&x| {
+                let mut sum = Ext::ZERO;
+                for m in 0..pairs {
+                    let mut total = Ext::ZERO;
+                    for (parts, &weight) in self.trees.iter().zip(weights) {
+                        let half = 2 * pairs;
+                        let f = parts.len() - 1;
+                        let child = |part: usize, b: usize| line(parts[part], b * half + 2 * m, x);
+                        let p = |b: usize| (0..f).map(|part| child(part, b)).product::<Ext>();
+                        let (q0, q1) = (child(f, 0), child(f, 1));
+                        total += words_ext(weight) * (p(0) * q1 + p(1) * q0 + mu * q0 * q1);
+                    }
+                    sum += line(self.eq, 2 * m, x) * total;
+                }
+                let words = BasedVectorSpace::<Gl>::as_basis_coefficients_slice(&sum);
+                std::array::from_fn(|c| p3_field_v08::PrimeField64::as_canonical_u64(&words[c]))
+            })
+            .collect()
+    }
+
+    fn fold(&mut self, r: [u64; 3]) {
+        let (s, r) = (self.stride, words_ext(r));
+        let fold = |table: &mut [u64]| {
+            for k in 0..table.len() / 3 / s / 2 {
+                let (a, b) = (at(table, 2 * k * s), at(table, (2 * k + 1) * s));
+                put(table, 2 * k * s, a + r * (b - a));
+            }
+        };
+        for parts in &mut self.trees {
+            parts.iter_mut().for_each(|part| fold(part));
+        }
+        fold(self.eq);
+        self.stride *= 2;
+    }
+}
+
+/// Layers run under the device contract (in place, at a doubling stride)
+/// give the CPU prover's proof and claims.
+#[test]
+fn device_layers_give_the_cpu_proof() {
+    let (_, parts) = batch();
+    let device = crate::device::Accelerator::new(std::sync::Arc::new(StridedLayers));
+    let (proof, claims) = prove(trees(&parts), &mut fresh(), &device);
+    assert_eq!(
+        (proof, claims),
+        prove(trees(&parts), &mut fresh(), &crate::device::Accelerator::cpu())
+    );
 }

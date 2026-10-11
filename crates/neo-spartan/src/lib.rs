@@ -79,7 +79,7 @@ use crate::verifier::ProofView;
 pub use crate::circuit::fold::FoldTranscript;
 pub use crate::circuit::r1cs::R1cs;
 pub use crate::circuit::{Backend, Native};
-pub use crate::device::{Accelerator, Device};
+pub use crate::device::{Accelerator, Device, GkrLayer};
 
 /// The claim this crate proves.
 pub type Claim = neo_ccs::CeClaim<Commitment, F, K>;
@@ -515,7 +515,7 @@ pub fn prove(
         denominator: z.par_iter().map(|&value| beta - value).collect(),
     }];
     trees.extend(tables.early_trees(&early, &claim.r, challenges));
-    let (early_proof, claims) = gkr::prove(trees, &mut challenger);
+    let (early_proof, claims) = gkr::prove(trees, &mut challenger, accelerator);
     let early_values = tables.early_values(&early, &claims[1..]);
     observe_early(&early_values, &mut challenger);
 
@@ -575,7 +575,11 @@ pub fn prove(
         .collect::<Result<Vec<_>, _>>()?;
 
     let beta: Ext = challenger.sample_algebra_element();
-    let (late_proof, late) = gkr::prove(tables.late_trees(&ubar, &lanes, &omega_a, beta), &mut challenger);
+    let (late_proof, late) = gkr::prove(
+        tables.late_trees(&ubar, &lanes, &omega_a, beta),
+        &mut challenger,
+        accelerator,
+    );
     let slots = |point: &[Ext]| point[..structure.slot_variables].to_vec();
     let late_values = tables.slot_values(&early, &eq_table(&slots(&late[0].point)));
     observe_pairs(&late_values, &mut challenger);

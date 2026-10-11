@@ -55,6 +55,14 @@ impl Device for Reference {
     fn dft_columns(&self, _values: &mut [u64], _width: usize, _generator: u64) -> bool {
         false
     }
+
+    fn gkr_layer<'a>(
+        &self,
+        _trees: Vec<Vec<&'a mut [u64]>>,
+        _eq: &'a mut [u64],
+    ) -> Option<Box<dyn crate::device::GkrLayer + 'a>> {
+        None
+    }
 }
 
 fn matrix(seed: u64, height: usize, width: usize) -> RowMajorMatrix<Gl> {

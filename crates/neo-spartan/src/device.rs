@@ -45,6 +45,25 @@ pub trait Device: Send + Sync {
     /// non-canonical; outputs are canonical. `false` when the device did not
     /// run it, with `values` unchanged: the caller runs it on the CPU.
     fn dft_columns(&self, values: &mut [u64], width: usize, generator: u64) -> bool;
+
+    /// The rounds of one GKR layer over the caller's tables, in place: per
+    /// tree its parts (at most two factors, then the denominator; `4·n`
+    /// cubic-extension elements of three words each), and the eq table (`2·n`
+    /// elements). After `r` folds, logical entry `j` of a table sits at
+    /// element `j·2^r`. `None` when the device cannot run the layer, with
+    /// nothing changed: the caller runs it on the CPU.
+    fn gkr_layer<'a>(&self, trees: Vec<Vec<&'a mut [u64]>>, eq: &'a mut [u64]) -> Option<Box<dyn GkrLayer + 'a>>;
+}
+
+/// The rounds of one batched fraction-sum GKR layer on a device
+/// (`gkr::prove` draws every challenge). Values are cubic-extension elements
+/// as three base words. A device failure here is a panic: the transcript has
+/// moved on, so no CPU fallback can resume.
+pub trait GkrLayer {
+    /// The round message at nodes `0, 2, ..., degree`, one weight per tree.
+    fn message(&mut self, weights: &[[u64; 3]], mu: [u64; 3], degree: usize) -> Vec<[u64; 3]>;
+    /// Bind the lowest variable of every table and the eq table to `r`.
+    fn fold(&mut self, r: [u64; 3]);
 }
 
 /// The prover's device, or none: the CPU.

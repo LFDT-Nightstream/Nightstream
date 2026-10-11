@@ -227,9 +227,60 @@ impl neo_spartan::Device for CompressionDevice {
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         match device.dft_columns(values, width, generator) {
             Ok(()) => true,
-            // Rejected before any work: `values` is unchanged.
-            Err(neo_prover_metal::MetalError::Shape(_) | neo_prover_metal::MetalError::Unavailable) => false,
-            Err(error) => panic!("the Metal DFT failed after it started: {error}"),
+            // Only execution touches `values`; any earlier failure leaves it
+            // unchanged.
+            Err(error @ neo_prover_metal::MetalError::Execution(_)) => {
+                panic!("the Metal DFT failed after it started: {error}")
+            }
+            Err(_) => false,
         }
+    }
+
+    fn gkr_layer<'a>(
+        &self,
+        trees: Vec<Vec<&'a mut [u64]>>,
+        eq: &'a mut [u64],
+    ) -> Option<Box<dyn neo_spartan::GkrLayer + 'a>> {
+        let layer = self.lock().gkr_layer(trees, eq).ok()?;
+        Some(Box::new(GkrOnDevice {
+            device: self.0.clone(),
+            layer,
+        }))
+    }
+}
+
+impl CompressionDevice {
+    fn lock(&self) -> std::sync::MutexGuard<'_, MetalRowProver> {
+        self.0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+}
+
+/// One GKR layer's rounds on the backend's device.
+struct GkrOnDevice<'a> {
+    device: std::sync::Arc<std::sync::Mutex<MetalRowProver>>,
+    layer: neo_prover_metal::MetalGkrLayer<'a>,
+}
+
+impl neo_spartan::GkrLayer for GkrOnDevice<'_> {
+    fn message(&mut self, weights: &[[u64; 3]], mu: [u64; 3], degree: usize) -> Vec<[u64; 3]> {
+        let device = self
+            .device
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        device
+            .gkr_message(&self.layer, weights, mu, degree)
+            .expect("the Metal GKR message")
+    }
+
+    fn fold(&mut self, r: [u64; 3]) {
+        let device = self
+            .device
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        device
+            .gkr_fold(&mut self.layer, r)
+            .expect("the Metal GKR fold");
     }
 }

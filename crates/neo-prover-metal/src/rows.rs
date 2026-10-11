@@ -47,6 +47,30 @@ impl MetalRowProver {
         }
     }
 
+    /// The device view of one GKR layer over the caller's tables; see
+    /// `MetalSession::gkr_layer`.
+    pub fn gkr_layer<'a>(
+        &self,
+        trees: Vec<Vec<&'a mut [u64]>>,
+        eq: &'a mut [u64],
+    ) -> Result<crate::MetalGkrLayer<'a>, MetalError> {
+        self.session.gkr_layer(trees, eq)
+    }
+
+    pub fn gkr_message(
+        &self,
+        layer: &crate::MetalGkrLayer<'_>,
+        weights: &[[u64; 3]],
+        mu: [u64; 3],
+        degree: usize,
+    ) -> Result<Vec<[u64; 3]>, MetalError> {
+        self.session.gkr_message(layer, weights, mu, degree)
+    }
+
+    pub fn gkr_fold(&self, layer: &mut crate::MetalGkrLayer<'_>, r: [u64; 3]) -> Result<(), MetalError> {
+        self.session.gkr_fold(layer, r)
+    }
+
     /// The DFT of every column of a row-major matrix; see
     /// `MetalSession::dft_columns`.
     pub fn dft_columns(&self, values: &mut [u64], width: usize, generator: u64) -> Result<(), MetalError> {

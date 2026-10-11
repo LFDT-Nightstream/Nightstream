@@ -15,14 +15,15 @@
 //! its leaf point.
 
 use p3_challenger_v08::FieldChallenger;
-use p3_field_v08::PrimeCharacteristicRing;
+use p3_field_v08::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::circuit::algebra;
 use crate::circuit::hash::Duplex;
 use crate::circuit::Backend;
-use crate::field::{eq_table, fold_low, Ext};
+use crate::device::Accelerator;
+use crate::field::{eq_table, ext_words, fold_low, Ext, Gl};
 use crate::hash::Challenger;
 use crate::sumcheck;
 use crate::Error;
@@ -117,8 +118,13 @@ fn degree(factors: impl Iterator<Item = usize>) -> usize {
     factors.map(|f| f + 2).max().unwrap_or(0).max(3)
 }
 
-/// Prove the fraction sums of `trees`; return the proof and one claim per tree.
-pub(crate) fn prove(trees: Vec<Tree>, challenger: &mut Challenger) -> (GkrProof, Vec<TreeClaim<Ext>>) {
+/// Prove the fraction sums of `trees`; return the proof and one claim per
+/// tree. A layer's rounds run on the accelerator's device when it takes them.
+pub(crate) fn prove(
+    trees: Vec<Tree>,
+    challenger: &mut Challenger,
+    accelerator: &Accelerator,
+) -> (GkrProof, Vec<TreeClaim<Ext>>) {
     let depths: Vec<usize> = trees.iter().map(Tree::depth).collect();
     // levels[i][k] is tree i at layer k; levels[i][depth] is its leaves.
     let mut levels: Vec<Vec<Tree>> = trees
@@ -153,10 +159,25 @@ pub(crate) fn prove(trees: Vec<Tree>, challenger: &mut Challenger) -> (GkrProof,
         let mu: Ext = challenger.sample_algebra_element();
         let nu: Ext = challenger.sample_algebra_element();
         let degree = degree(tables.iter().map(|tree| tree.factors.len()));
-        let (rounds, mut next) = prove_layer(eq_table(&point), &mut tables, mu, nu, degree, challenger);
+        let weights: Vec<Ext> = std::iter::successors(Some(Ext::ONE), |&w| Some(w * nu))
+            .take(tables.len())
+            .collect();
+        let (rounds, mut next, stride) = prove_layer(
+            &mut tables,
+            eq_table(&point),
+            &weights,
+            mu,
+            degree,
+            challenger,
+            accelerator,
+        );
         let children: Vec<Vec<Ext>> = tables
             .iter()
-            .map(|tree| tree.parts().flat_map(|part| [part[0], part[1]]).collect())
+            .map(|tree| {
+                tree.parts()
+                    .flat_map(|part| [part[0], part[stride]])
+                    .collect()
+            })
             .collect();
         for values in &children {
             challenger.observe_algebra_slice(values);
@@ -183,6 +204,78 @@ pub(crate) fn prove(trees: Vec<Tree>, challenger: &mut Challenger) -> (GkrProof,
         .map(|claim| claim.expect("every tree ends"))
         .collect();
     (GkrProof { roots, layers }, claims)
+}
+
+/// The rounds of one layer: the messages, the challenges, and where the
+/// folded tables keep their entries (logical entry `j` at element
+/// `j·stride`). A device folds in place at a doubling stride; the CPU
+/// compacts.
+fn prove_layer(
+    tables: &mut [Tree],
+    mut eq: Vec<Ext>,
+    weights: &[Ext],
+    mu: Ext,
+    degree: usize,
+    challenger: &mut Challenger,
+    accelerator: &Accelerator,
+) -> (Vec<Vec<Ext>>, Vec<Ext>, usize) {
+    // The nodes are 0, 2, ..., degree: `degree` of them.
+    assert!(degree <= NODES);
+    let count = eq.len().trailing_zeros() as usize;
+    let mut rounds = Vec::with_capacity(count);
+    let mut point = Vec::with_capacity(count + 1);
+    if count > 0 {
+        let words: Vec<Vec<&mut [u64]>> = tables
+            .iter_mut()
+            .map(|tree| tree.parts_mut().map(|part| ext_words_mut(part)).collect())
+            .collect();
+        let layer = accelerator
+            .device()
+            .and_then(|device| device.gkr_layer(words, ext_words_mut(&mut eq)));
+        if let Some(mut layer) = layer {
+            let weights: Vec<[u64; 3]> = weights.iter().map(|&w| words_of_ext(w)).collect();
+            for _ in 0..count {
+                let message: Vec<Ext> = layer
+                    .message(&weights, words_of_ext(mu), degree)
+                    .into_iter()
+                    .map(ext_of_words)
+                    .collect();
+                let r = sumcheck::send(&message, challenger);
+                layer.fold(words_of_ext(r));
+                rounds.push(message);
+                point.push(r);
+            }
+            return (rounds, point, 1 << count);
+        }
+    }
+    while eq.len() > 1 {
+        let message = host_message(tables, &eq, weights, mu, degree);
+        let r = sumcheck::send(&message, challenger);
+        fold_low(&mut eq, r);
+        for tree in tables.iter_mut() {
+            for table in tree.parts_mut() {
+                fold_low(table, r);
+            }
+        }
+        rounds.push(message);
+        point.push(r);
+    }
+    (rounds, point, 1)
+}
+
+fn words_of_ext(value: Ext) -> [u64; 3] {
+    ext_words(value).map(|word| word.as_canonical_u64())
+}
+
+fn ext_of_words(words: [u64; 3]) -> Ext {
+    Ext::from_basis_coefficients_fn(|c| Gl::new(words[c]))
+}
+
+/// The base words of `values`, three per element.
+fn ext_words_mut(values: &mut [Ext]) -> &mut [u64] {
+    // SAFETY: `Ext` is `repr(transparent)` over `[Goldilocks; 3]` and
+    // `Goldilocks` over `u64`; a device writes canonical words.
+    unsafe { std::slice::from_raw_parts_mut(values.as_mut_ptr().cast::<u64>(), 3 * values.len()) }
 }
 
 /// A `GkrProof` as backend words, or zeros of its shape.
@@ -372,76 +465,50 @@ fn step(value: &mut [[Ext; 2]], slope: &[[Ext; 2]], j: usize) {
     }
 }
 
-fn prove_layer(
-    mut eq: Vec<Ext>,
-    tables: &mut [Tree],
-    mu: Ext,
-    nu: Ext,
-    degree: usize,
-    challenger: &mut Challenger,
-) -> (Vec<Vec<Ext>>, Vec<Ext>) {
-    let weights: Vec<Ext> = std::iter::successors(Some(Ext::ONE), |&w| Some(w * nu))
-        .take(tables.len())
-        .collect();
-    // The nodes are 0, 2, ..., degree: `degree` of them.
-    assert!(degree <= NODES);
-    let mut rounds = Vec::new();
-    let mut point = Vec::new();
-    while eq.len() > 1 {
-        let tables_ref = &*tables;
-        let sums = (0..eq.len() / 2)
-            .into_par_iter()
-            .fold(
-                || [Ext::ZERO; NODES],
-                |mut sums, m| {
-                    let mut totals = [Ext::ZERO; NODES];
-                    for (tree, &weight) in tables_ref.iter().zip(&weights) {
-                        let half = tree.denominator.len() / 2;
-                        let f = tree.factors.len();
-                        // Each part's line through its two children, walked
-                        // over the nodes 0, 2, 3, ... by adding its slope.
-                        let mut value = [[Ext::ZERO; 2]; PARTS];
-                        let mut slope = [[Ext::ZERO; 2]; PARTS];
-                        for (k, table) in tree.parts().enumerate() {
-                            for b in 0..2 {
-                                let i = b * half + 2 * m;
-                                value[k][b] = table[i];
-                                slope[k][b] = table[i + 1] - table[i];
-                            }
-                        }
-                        for (j, total) in totals.iter_mut().enumerate().take(degree) {
-                            step(&mut value[..=f], &slope[..=f], j);
-                            let [q0, q1] = value[f];
-                            // p_b · q_{1-b} summed; a tree without factors has p = 1.
-                            let cross = match &value[..f] {
-                                [] => q0 + q1,
-                                [a] => a[0] * q1 + a[1] * q0,
-                                [a, c] => a[0] * c[0] * q1 + a[1] * c[1] * q0,
-                                _ => unreachable!("a tree has at most two factors"),
-                            };
-                            *total += weight * (cross + mu * q0 * q1);
+/// The round message at nodes `0, 2, ..., degree`, on the CPU.
+fn host_message(tables: &[Tree], eq: &[Ext], weights: &[Ext], mu: Ext, degree: usize) -> Vec<Ext> {
+    let sums = (0..eq.len() / 2)
+        .into_par_iter()
+        .fold(
+            || [Ext::ZERO; NODES],
+            |mut sums, m| {
+                let mut totals = [Ext::ZERO; NODES];
+                for (tree, &weight) in tables.iter().zip(weights) {
+                    let half = tree.denominator.len() / 2;
+                    let f = tree.factors.len();
+                    // Each part's line through its two children, walked
+                    // over the nodes 0, 2, 3, ... by adding its slope.
+                    let mut value = [[Ext::ZERO; 2]; PARTS];
+                    let mut slope = [[Ext::ZERO; 2]; PARTS];
+                    for (k, table) in tree.parts().enumerate() {
+                        for b in 0..2 {
+                            let i = b * half + 2 * m;
+                            value[k][b] = table[i];
+                            slope[k][b] = table[i + 1] - table[i];
                         }
                     }
-                    let mut e = [[eq[2 * m]; 2]];
-                    let de = [[eq[2 * m + 1] - eq[2 * m]; 2]];
-                    for (j, (sum, total)) in sums.iter_mut().zip(totals).enumerate().take(degree) {
-                        step(&mut e, &de, j);
-                        *sum += e[0][0] * total;
+                    for (j, total) in totals.iter_mut().enumerate().take(degree) {
+                        step(&mut value[..=f], &slope[..=f], j);
+                        let [q0, q1] = value[f];
+                        // p_b · q_{1-b} summed; a tree without factors has p = 1.
+                        let cross = match &value[..f] {
+                            [] => q0 + q1,
+                            [a] => a[0] * q1 + a[1] * q0,
+                            [a, c] => a[0] * c[0] * q1 + a[1] * c[1] * q0,
+                            _ => unreachable!("a tree has at most two factors"),
+                        };
+                        *total += weight * (cross + mu * q0 * q1);
                     }
-                    sums
-                },
-            )
-            .reduce(|| [Ext::ZERO; NODES], |a, b| std::array::from_fn(|j| a[j] + b[j]));
-        let message = sums[..degree].to_vec();
-        let r = sumcheck::send(&message, challenger);
-        fold_low(&mut eq, r);
-        for tree in tables.iter_mut() {
-            for table in tree.parts_mut() {
-                fold_low(table, r);
-            }
-        }
-        rounds.push(message);
-        point.push(r);
-    }
-    (rounds, point)
+                }
+                let mut e = [[eq[2 * m]; 2]];
+                let de = [[eq[2 * m + 1] - eq[2 * m]; 2]];
+                for (j, (sum, total)) in sums.iter_mut().zip(totals).enumerate().take(degree) {
+                    step(&mut e, &de, j);
+                    *sum += e[0][0] * total;
+                }
+                sums
+            },
+        )
+        .reduce(|| [Ext::ZERO; NODES], |a, b| std::array::from_fn(|j| a[j] + b[j]));
+    sums[..degree].to_vec()
 }

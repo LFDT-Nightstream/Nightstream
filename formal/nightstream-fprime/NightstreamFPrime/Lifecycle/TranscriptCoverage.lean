@@ -6,11 +6,12 @@ import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcrip
 Owns the Fiat–Shamir coverage contract of the production NIFS transcript.
 
 Every verifier challenge (`α`, `γ`, the SumCheck points, and the `Π_RLC`
-scalars) reads one lane pair of the Poseidon2 state after an explicit list of
-permutation inputs. One input is one zero-padded rate chunk, and a squeeze is
-the zero chunk, so a list of inputs is exactly what the permutation sees.
-`Transcript.squeezeAt` reads up to six coins from one state, so a challenge's
-address is its call list and its lane pair (`Slot`).
+scalars) reads the Poseidon2 state after an explicit list of permutation
+inputs, at a slot: a coin reads the lane pair of its slot, and a `Π_RLC`
+scalar reads four lanes from lane 0. One input is one zero-padded rate chunk,
+and a squeeze is the zero chunk, so a list of inputs is exactly what the
+permutation sees. `Transcript.squeezeAt` reads up to six coins from one
+state, so a challenge's address is its call list and its slot (`Slot`).
 
 Inputs: the production key, the fresh statement, and the NIFS proof.
 

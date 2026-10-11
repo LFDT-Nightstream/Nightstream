@@ -21,7 +21,9 @@ use crate::{
     PoseidonDigest, PoseidonHashVariant, PoseidonState,
 };
 
+mod gkr;
 mod joint;
+pub use gkr::MetalGkrLayer;
 mod masks;
 mod production_commitment;
 mod rlc;
@@ -78,6 +80,8 @@ pub struct MetalSession {
     dft_twiddles: Pipeline,
     dft_dif_pass: Pipeline,
     dft_bit_reverse: Pipeline,
+    gkr_message: Pipeline,
+    gkr_fold: Pipeline,
     production_ajtai_accumulate: Pipeline,
     production_ajtai_sum_groups: Pipeline,
     fold_k_table: Pipeline,
@@ -177,6 +181,8 @@ impl MetalSession {
         let dft_twiddles = pipeline(&device, &library, "dft_twiddles")?;
         let dft_dif_pass = pipeline(&device, &library, "dft_dif_pass")?;
         let dft_bit_reverse = pipeline(&device, &library, "dft_bit_reverse")?;
+        let gkr_message = pipeline(&device, &library, "gkr_message")?;
+        let gkr_fold = pipeline(&device, &library, "gkr_fold")?;
         let production_ajtai_accumulate = pipeline(&device, &library, "production_ajtai_accumulate")?;
         let production_ajtai_sum_groups = pipeline(&device, &library, "production_ajtai_sum_groups")?;
         let fold_k_table = pipeline(&device, &library, "fold_k_table")?;
@@ -230,6 +236,8 @@ impl MetalSession {
             dft_twiddles,
             dft_dif_pass,
             dft_bit_reverse,
+            gkr_message,
+            gkr_fold,
             production_ajtai_accumulate,
             production_ajtai_sum_groups,
             fold_k_table,

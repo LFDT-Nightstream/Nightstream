@@ -177,7 +177,7 @@ fn matrix_trees_verify_and_leave_true_openings() {
 
     // Early trees.
     let trees = tables.early_trees(&early, &r, challenges());
-    let (proof, prover) = prove(trees, &mut fresh());
+    let (proof, prover) = prove(trees, &mut fresh(), &crate::device::Accelerator::cpu());
     let values = tables.early_values(&early, &prover);
     let claims = gkr_verify(&proof, &structure.early_shapes()).unwrap();
     let openings = structure
@@ -236,7 +236,11 @@ fn matrix_trees_verify_and_leave_true_openings() {
     let omega = tables.block_weights(&ubar, &lanes, 3);
     let beta = ext(21, 0);
     let late = |omega: &[Ext]| {
-        let (proof, prover) = prove(tables.late_trees(&ubar, &lanes, omega, beta), &mut fresh());
+        let (proof, prover) = prove(
+            tables.late_trees(&ubar, &lanes, omega, beta),
+            &mut fresh(),
+            &crate::device::Accelerator::cpu(),
+        );
         let pairs = tables.slot_values(&early, &eq_table(&prover[0].point[..structure.slot_variables]));
         let claims = gkr_verify(&proof, &structure.late_shapes(3)).unwrap();
         (claims, pairs)
@@ -268,7 +272,11 @@ fn wrong_early_columns_break_the_roots() {
     let structure = tables.structure();
     let r = point();
     let run = |early: &crate::matrix::Early| {
-        let (proof, prover) = prove(tables.early_trees(early, &r, challenges()), &mut fresh());
+        let (proof, prover) = prove(
+            tables.early_trees(early, &r, challenges()),
+            &mut fresh(),
+            &crate::device::Accelerator::cpu(),
+        );
         let values = tables.early_values(early, &prover);
         let claims = gkr_verify(&proof, &structure.early_shapes()).unwrap();
         structure.check_early(&mut Native, &k_point(&r), challenges(), &claims, &values)

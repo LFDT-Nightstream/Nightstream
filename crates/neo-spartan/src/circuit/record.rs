@@ -379,15 +379,11 @@ impl<S: Sink> Backend for Recorder<S> {
     fn ext_inverse(&mut self, a: [Form; 3], what: &'static str) -> Result<[Form; 3], Error> {
         let value = ext_value(&a);
         let inverse = value.try_inverse();
-        if a.iter().all(Form::is_constant) {
-            return match inverse {
-                Some(inverse) => Ok(ext_coordinates(inverse).map(Form::constant)),
-                None => {
-                    self.fail(what);
-                    Ok([Form::constant(Gl::ZERO); 3])
-                }
-            };
+        if let (true, Some(inverse)) = (a.iter().all(Form::is_constant), inverse) {
+            return Ok(ext_coordinates(inverse).map(Form::constant));
         }
+        // A constant zero falls through: its rows cannot hold, so the shrink
+        // proves the failure too.
         let coordinates = ext_coordinates(inverse.unwrap_or(Ext::ZERO));
         let inverse: [Form; 3] = std::array::from_fn(|i| self.cell(coordinates[i]));
         let rows = Self::ext_rows(&a, &inverse);
@@ -401,10 +397,9 @@ impl<S: Sink> Backend for Recorder<S> {
     }
 
     fn assert_zero(&mut self, a: Form, what: &'static str) -> Result<(), Error> {
-        if a.is_constant() {
-            if a.constant != Gl::ZERO {
-                self.fail(what);
-            }
+        // A nonzero constant still gets its row, `c·1 = 0`, which cannot
+        // hold, so the shrink proves the failure too.
+        if a.is_constant() && a.constant == Gl::ZERO {
             return Ok(());
         }
         self.row(&[], &a.row_terms(), a.value, what);

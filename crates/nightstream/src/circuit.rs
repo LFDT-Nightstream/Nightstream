@@ -250,13 +250,16 @@ impl Verifier {
     }
 
     /// Check a finished proof against the expected state and a trusted
-    /// compression key. The key alone decides: see `CompressionKey::verify`.
+    /// compression key. The key must be this circuit's and meet this
+    /// verifier's security minimum; its setup root comes from
+    /// `compression_key` or a copy you pinned, never from a prover.
     pub fn verify_final(
         &self,
         expected_state: &Stage1State,
         key: &CompressionKey,
         proof: &FinalProof,
     ) -> Result<(), Error> {
+        self.lifecycle.check_compression_key(key)?;
         Ok(key.verify(expected_state, proof)?)
     }
 }

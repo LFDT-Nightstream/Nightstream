@@ -98,6 +98,7 @@ fn block_part_matches_every_entry() {
 /// Knowledge of `secret` with `P(P(secret, s1, 0, ...))[0] = s0`, plus some
 /// products, an extension inverse, a bit split and a fixed R1CS system.
 struct Toy {
+    key: Vec<u64>,
     statement: Vec<Gl>,
     secret: Option<Gl>,
 }
@@ -114,12 +115,14 @@ impl Toy {
         let (secret, tag) = (Gl::from_u64(secret), Gl::from_u64(tag));
         let statement = vec![Self::digest(secret, tag), tag];
         let prover = Self {
+            key: vec![1, 2],
             statement: statement.clone(),
             secret: Some(secret),
         };
         (
             prover,
             Self {
+                key: vec![1, 2],
                 statement,
                 secret: None,
             },
@@ -130,6 +133,10 @@ impl Toy {
 impl Program for Toy {
     fn statement(&self) -> Vec<u64> {
         self.statement.iter().map(Gl::as_canonical_u64).collect()
+    }
+
+    fn key(&self) -> Vec<u64> {
+        self.key.clone()
     }
 
     fn run<B: Backend>(&self, b: &mut B) -> Result<(), crate::Error> {
@@ -248,6 +255,23 @@ fn parallel_r1cs_rows_equal_the_default() {
     assert_eq!(parallel, record(RowByRow(Trace::default())).0);
 }
 
+/// A check that fails between constants records rows that cannot hold, so
+/// the shrink's equations carry the failure, not only the run.
+#[test]
+fn failing_constant_checks_record_rows() {
+    let mut b = Recorder::new(Trace::default());
+    let five = b.constant(5);
+    b.assert_zero(five, "constant").unwrap();
+    let zero = b.constant(0);
+    b.ext_inverse([zero; 3], "constant inverse").unwrap();
+    let (trace, failure) = b.finish();
+    assert_eq!(failure, Some("constant"));
+    let failing = (0..trace.rows.len())
+        .filter(|&row| trace.row_value(row) != Gl::ZERO)
+        .count();
+    assert_eq!(failing, 2, "one row per failed check");
+}
+
 fn shrink_of(program: &impl Program) -> Shrink {
     Shrink::new(Shape::derive(program).unwrap(), BITS).unwrap()
 }
@@ -295,8 +319,16 @@ fn toy_program_proves_verifies_and_rejects_mutations() {
     }
     let (_, other) = Toy::honest(18, 4);
     assert!(verify(&shrink, &other, &proof).is_err(), "other statement");
+    // Same shape and statement, another key: other challenges.
+    let other_key = Toy {
+        key: vec![1, 3],
+        ..Toy::honest(17, 4).1
+    };
+    assert_eq!(Shape::derive(&other_key).unwrap(), Shape::derive(&verifier).unwrap());
+    assert!(verify(&shrink, &other_key, &proof).is_err(), "other key");
     // A false statement has no witness.
     let false_statement = Toy {
+        key: vec![1, 2],
         statement: vec![Gl::ONE, Gl::from_u64(4)],
         secret: Some(Gl::from_u64(17)),
     };
@@ -326,6 +358,10 @@ impl<'a> Layer1<'a> {
 }
 
 impl Program for Layer1<'_> {
+    fn key(&self) -> Vec<u64> {
+        self.relation.key_words()
+    }
+
     fn statement(&self) -> Vec<u64> {
         let mut words = self.seed.to_vec();
         words.extend(self.statement.words());

@@ -34,6 +34,14 @@ pub(crate) struct FinalProgram<'a> {
 }
 
 impl neo_spartan::shrink::Program for FinalProgram<'_> {
+    /// The layer-1 relation (its key, shape and WHIR profiles, which fix
+    /// the bound and the security bits) and the circuit's context.
+    fn key(&self) -> Vec<u64> {
+        let mut words = self.relation.key_words();
+        words.extend(self.context);
+        words
+    }
+
     /// The statement words: the iteration, `z0` and the current state.
     fn statement(&self) -> Vec<u64> {
         let mut words = vec![self.state.iteration()];

@@ -345,6 +345,15 @@ impl<'k> Relation<'k> {
         -error.log2()
     }
 
+    /// `words` as canonical integers: what a transcript of a proof about
+    /// this relation binds.
+    pub fn key_words(&self) -> Vec<u64> {
+        self.words()
+            .iter()
+            .map(|word| word.as_canonical_u64())
+            .collect()
+    }
+
     /// The relation as transcript words: the shape, the key, both WHIR
     /// profiles and the setup query count.
     fn words(&self) -> Vec<Gl> {

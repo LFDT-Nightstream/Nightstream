@@ -62,14 +62,16 @@ The terms:
   reduction `RandomOracleBinding.rerunKernel`. That output is a nonzero
   integer kernel vector of the matrix's key with every coordinate below `8TB`.
   The vector is a function of the two runs; the definition is
-  `noncomputable`.
+  `noncomputable`. With a strict budget of `T` adversary runs the same
+  solver loses at most `(35 Q + 653) / T`
+  (`RandomOracleSetup.msisAdvantage_le_solver`).
 - `2^-190`: the error of drawing a uniform matrix instead of reduced chunks
   for every application that fits
   (`RandomOracleSetup.programmingError_lt_of_fits`).
 
-Required premises: the query bound only. MSIS hardness, the collision
-resistance of the state hash, and the running time of the solver are not
-premises; a numerical bound on `msisAdvantage` or `hashCollisions` needs them.
+Required premises: the query bound only. MSIS hardness and the collision
+resistance of the state hash are not premises; a numerical bound on
+`msisAdvantage` or `hashCollisions` needs them.
 
 Dependencies, with namespace prefix `NightstreamFPrime`:
 

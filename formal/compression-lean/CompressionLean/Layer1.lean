@@ -21,3 +21,6 @@ import CompressionLean.Layer1.Encoding
 import CompressionLean.Layer1.Weights
 import CompressionLean.Layer1.Linear
 import CompressionLean.Layer1.HonestStage
+import CompressionLean.Layer1.Stages
+import CompressionLean.Layer1.Soundness
+import CompressionLean.Layer1.Cost

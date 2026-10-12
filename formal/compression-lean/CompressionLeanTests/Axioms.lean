@@ -55,3 +55,14 @@ import CompressionLean
 #audit_axioms CompressionLean.Layer1.omegaTrue_parts
 #audit_axioms CompressionLean.Layer1.linear_world
 #audit_axioms CompressionLean.Layer1.honest_world
+#audit_axioms CompressionLean.Layer1.earlyGame_avoids
+#audit_axioms CompressionLean.Layer1.linearGame_avoids
+#audit_axioms CompressionLean.Layer1.honestGame_avoids
+#audit_axioms CompressionLean.Layer1.lateGame_avoids
+#audit_axioms CompressionLean.Layer1.layer1Game_avoids
+#audit_axioms CompressionLean.Layer1.earlyGame_cost
+#audit_axioms CompressionLean.Layer1.linearGame_cost
+#audit_axioms CompressionLean.Layer1.honestGame_cost
+#audit_axioms CompressionLean.Layer1.lateGame_cost
+#audit_axioms CompressionLean.Layer1.layer1Game_cost
+#audit_axioms CompressionLean.Layer1.layer1_sound

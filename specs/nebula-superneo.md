@@ -213,10 +213,10 @@ Setup MUST reject a plan that breaks any of these rules:
 5. **Positive sizes:** `B_ops, B_scan, N, S_max ≥ 1`.
 6. **Security:** the plan passes the setup check in the security note §5.
 
-In Lean, a memory package gets its program only from
+In Lean, every memory package that `emit` writes gets its program from
 `NebulaMemoryPackage.application`. That function takes the proofs of rules 1–5
-(`Plan.Valid`) and rule 6 (`Plan.Secure`), so no package exists for a plan
-that breaks a rule.
+(`Plan.Valid`) and rule 6 (`Plan.Secure`), so `emit` cannot write a package for
+a plan that breaks a rule.
 
 The segment range of `open` (§11.2) decomposes `S_max − 1 − seg_idx` into
 `W_seg` bits:

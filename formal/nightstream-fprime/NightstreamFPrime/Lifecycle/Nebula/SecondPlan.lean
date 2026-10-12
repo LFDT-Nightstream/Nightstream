@@ -1,4 +1,4 @@
-import NightstreamFPrime.Lifecycle.Nebula.ProgramSoundness
+import NightstreamFPrime.Spec.Nebula.SetupCheck
 import NightstreamFPrime.Lifecycle.Nebula.MachineApp
 
 /-! Owns the plan of the second memory-application test package, for the spec

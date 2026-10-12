@@ -131,8 +131,11 @@ the extracted run is accepted and has a claimed segment that passes the
 product test with unbalanced multisets is at most one error term `error_mem`
 of that adversary (Lean `NebulaMemorySecurity.MemoryRound`). One term covers
 all segment slots. In §5, the claim is the memory statement that the IVC
-adversary gives from its own tape. The record chains need only collision
-resistance (A3).
+adversary gives from its own tape. In Lean, `MemoryRound` holds when
+`error_mem` is the probability of the event itself. So the content of A6 is
+that `error_mem` is at most its target value (§5). Assumption 1 of A4 has the
+same form for its error. The record chains need only collision resistance
+(A3).
 
 No random-oracle model covers `η`. The relation computes `η` with Poseidon2
 inside the proven step, and the extractor gets the Poseidon2 inputs and
@@ -348,8 +351,8 @@ assumption 1. The write timestamps are `ts_open + 1, …, ts_close`, one per
 active operation, because `cnt` grows by one per active slot and the carry
 passes `ts` from step to step without a reset (assumption 2). O4 gives
 assumption 3, because spec §4.2 rule 3 keeps it an integer relation. O3 and O5
-give assumption 4. Lemmas 2–4 give assumption 5, except with the error of
-Lemma 3.
+give assumption 4. Lemmas 2 and 4 with A6 give assumption 5, except with the
+A6 error `error_mem`; Lemma 3 motivates its value.
 
 This proof needs no range check on IS or FS timestamps.
 
@@ -376,8 +379,8 @@ these properties:
    that carry (Ob8). So the steps run in order, each step hashes its own lanes
    once, and a segment closes exactly when `idx` reaches `N`.
 3. **One segment.** At each close, Lemma 4 turns the rows into the four
-   products. Lemma 3 gives `IS ∪ WS = RS ∪ FS`, except with the error of
-   Lemma 3. Lemma 5 gives one sequential history per segment.
+   products. A6 gives `IS ∪ WS = RS ∪ FS`, except with `error_mem`; Lemma 3
+   motivates its value. Lemma 5 gives one sequential history per segment.
 4. **Segment joins.** For segment 0, `D_seen.is = D_init`. The verifier
    computed `D_init` with the same chain and packing over the plan images, and
    it computes the initial state from the start carry, which holds `D_init`.
@@ -403,8 +406,8 @@ these properties:
 
 **Theorem.** Assume A1–A6 and Ob1–Ob8. Let `E` be the HyperNova reverse
 extractor of A4, run for `depth` stages, where every statement that the
-adversary can output has at most `depth` steps (spec §13 accepts at most
-`S_max · N`). On the joint law of the memory statement that the adversary
+adversary can output, accepted or not, has at most `depth` steps
+(`depthBound`). On the joint law of the memory statement that the adversary
 claims from its own tape and `E`'s sample,
 
 ```text
@@ -438,11 +441,15 @@ count `Q` (decision 2026-10-12), so each term stays a formula:
   `coll_link, coll_chain ≤ ε_coll(t_E)` (A3).
 - `error_j` has the value that the one-fold random-oracle theorem of PR #155
   motivates: about `17·(Q_j + 17)·ε_sample + (Q_j + 74)·ε_fold + msis + 2^−190`,
-  with `ε_fold = f_fold/q²` and `ε_sample ≈ 2^−125.4`
-  (`formal/nightstream-fprime/SECURITY_MODEL.md`, adversary 3). For the memory
-  package shape, `f_fold = 5,161` (A1); PR #155 states `4589` for its selected
-  Stage 1 shape. `Q_j` is the query count of stage `j`, and `msis` is the
-  advantage of an MSIS solver.
+  with `ε_fold = 4589/q²` and `ε_sample ≈ 2^−125.4`
+  (`formal/nightstream-fprime/SECURITY_MODEL.md`, adversary 3). Lean proves
+  `4589/q²` for the F′ shape with one fresh claim
+  (`VerifierErrorBudget.test_error_eq`), and every application that fits
+  `2^28` has this shape, the memory program too. The value `f_fold = 5,161`
+  of A1 and the table below is the Rust summary at the largest fresh count
+  that the PiRLC guard allows (287), so it is the more conservative value.
+  `Q_j` is the query count of stage `j`, and `msis` is the advantage of an
+  MSIS solver.
 - `error_mem` has the target value `(Q_η + 1)·(2·m_mem/q² + ε_coll(t_1))` (A6).
 
 **Depth limit, shared with Stage 1.** The sum has one Assumption 1 term for
@@ -460,9 +467,10 @@ needs a Stage 1 argument whose error does not grow in this way with the depth.
 **Setup check (spec §4.2 rule 6).** For the final relation shape and the plan,
 setup MUST check that `ε_test ≤ 2^−109.91`, the owner-approved floor. This
 holds exactly when `R + M + N · B_ops ≤ 139,509` (Lean `Plan.secure_iff`).
-Setup MUST reject the plan if the check fails. In Lean, a memory package gets
-its program only from `NebulaMemoryPackage.application`, which takes the
-proofs of rules 1–6. A larger memory needs a new owner decision. The check
+Setup MUST reject the plan if the check fails. In Lean, every memory package
+that `emit` writes gets its program from `NebulaMemoryPackage.application`,
+which takes the proofs of rules 1–6. A larger memory needs a new owner
+decision. The check
 applies to the per-check value. The A6 error adds the query loss, as the
 Stage 1 error does for the fold term.
 
@@ -658,7 +666,10 @@ generated relation MUST supply the exact census.
      the spec §14 cases that the first plan cannot reach. Both use the
      plan-independent geometry of `NebulaMemoryPackage`, and both get their
      program from `NebulaMemoryPackage.application`, which takes the proofs
-     of spec §4.2 rules 1–6 (`Plan.Valid`, `Plan.Secure`). The Rust crate loads
+     of spec §4.2 rules 1–6 (`Plan.Valid`, `Plan.Secure`). `emit` writes only
+     these two memory packages. The relation `MemoryApp.program` is defined
+     for every plan, so the setup rule binds the packages, not every Lean
+     term. The Rust crate loads
      each emitted package with a pinned structural identifier.
 
    Still open:

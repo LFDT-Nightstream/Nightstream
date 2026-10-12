@@ -37,7 +37,7 @@ structure Carry (E Digest : Type) where
 /-- The verifier context: the plan, the abstract hash, the challenges of each
 segment, and the package constant `plan_digest`. `eta k inp` is the challenge
 pair of segment `k` with transcript input `inp`: the Fiat–Shamir context reads
-only `inp` (§9.3); the interactive game of A6 samples one pair per segment.
+only `inp` (§9.3); the game that motivates A6 samples one pair per segment.
 `D_init` is derived from the plan (`Context.initRoot`), never supplied. -/
 structure Context (E Digest : Type) where
   plan : Plan

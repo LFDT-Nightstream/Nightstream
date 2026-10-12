@@ -521,8 +521,9 @@ independent challenge pair would give 219.83 bits. This specification does not
 use it.
 
 These are per-check values, before any query factor. For depth
-`S_max · N = 64` (`N = 64`, `S_max = 1`), the sum of the per-check values is
-108.53 bits; the 64 fold terms alone give 109.22 bits.
+`S_max · N = 64` (`N = 64`, `S_max = 1`), the sum of the statistical
+per-check values (64 fold terms and one `ε_test`) is 108.53 bits; the 64 fold
+terms alone give 109.22 bits.
 
 **Legacy-ledger values, for information.** This table applies the legacy
 query bound `q_H = 2^18` as a lift on every statistical term.

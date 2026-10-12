@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.Stage1.RandomOracleLink
+import NightstreamFPrime.Lifecycle.RandomOracleSolver
 import NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint
 import NightstreamFPrime.Spec.KnowledgeContract
 
@@ -23,6 +24,9 @@ Outputs:
 - `knowledge_error_le_setup`: averaged over the chunks, the linked knowledge
   bound with the binding term replaced by `msisAdvantage` plus the programming
   error;
+- `solverAdvantage`, `msisAdvantage_le_solver`: the same solver with a strict
+  budget of `T` adversary runs (`RandomOracleSolver.solve`) succeeds at least
+  `msisAdvantage − (35 Q + 653) / T`;
 - `production_knowledge_error_lt`: the same for every application that fits
   the `2 ^ 28` profile, at its own relation and key size, where the
   programming error is below `2 ^ -190` (`programmingError_lt_of_fits`);
@@ -32,8 +36,8 @@ Outputs:
 - `contract`: the theorem as a `Spec.KnowledgeContract`, whose runs are the
   chunks, the oracle and the extractor's retries.
 
-Does not own: MSIS hardness, the hardness of the state hash, the running time
-of the solver, or SHAKE128 itself.
+Does not own: MSIS hardness, the hardness of the state hash, machine work
+beyond counted adversary runs, or SHAKE128 itself.
 -/
 
 set_option autoImplicit false
@@ -150,6 +154,47 @@ theorem knowledge_error_le_setup {queries : Nat}
         rw [Finset.expect_add_distrib, Finset.expect_add_distrib,
           Finset.expect_const Finset.univ_nonempty]
     _ ≤ _ := by linarith
+
+/-- The strict MSIS solver on a uniform matrix: chunks uniform among the
+matrix's preimages, then the binding reduction with at most `budget` adversary
+runs (`RandomOracleSolver.solve`). -/
+noncomputable def solverAdvantage (budget : ℕ) : ℝ :=
+  𝔼 matrix : SetupIndex logicalWidth publicFits → F, 𝔼 chunks ∈ preimages matrix,
+    RandomOracleSolver.solverChance relation (keyOf matrix) (adversary chunks) Linked budget
+
+/-- **The MSIS term at strict work.** A solver with a strict budget of `T`
+adversary runs loses at most `(35 Q + 653) / T` of `msisAdvantage`
+(`RandomOracleSolver.kernelChance_le_solver`). -/
+theorem msisAdvantage_le_solver {queries : Nat}
+    (bounded : ∀ chunks, (adversary chunks).QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
+    msisAdvantage relation adversary claim prior contextDigest ≤
+      solverAdvantage relation adversary claim prior contextDigest budget +
+        (35 * queries + 653) / budget := by
+  have positiveReal : (0 : ℝ) < budget := by exact_mod_cast positive
+  have loss : 0 ≤ ((35 * queries + 653 : ℝ)) / budget := by positivity
+  have each (matrix : SetupIndex logicalWidth publicFits → F) (chunks : SetupIndex logicalWidth publicFits → Chunk) :
+      kernelChance relation (keyOf matrix) (adversary chunks) Linked ≤
+        RandomOracleSolver.solverChance relation (keyOf matrix) (adversary chunks) Linked budget +
+          (35 * queries + 653) / budget := by
+    have bound := RandomOracleSolver.kernelChance_le_solver relation (keyOf matrix) (adversary chunks) Linked
+      (bounded chunks) budget
+    rw [← sub_le_iff_le_add', le_div_iff₀ positiveReal, mul_comm]
+    exact bound
+  unfold msisAdvantage solverAdvantage
+  calc
+    _ ≤ 𝔼 matrix : SetupIndex logicalWidth publicFits → F, ((𝔼 chunks ∈ preimages matrix,
+          RandomOracleSolver.solverChance relation (keyOf matrix) (adversary chunks) Linked budget) +
+            (35 * queries + 653) / budget) :=
+      Finset.expect_le_expect fun matrix _ => by
+        rcases (preimages matrix).eq_empty_or_nonempty with empty | nonempty
+        · simp [empty, loss]
+        · calc
+            _ ≤ 𝔼 chunks ∈ preimages matrix,
+                  (RandomOracleSolver.solverChance relation (keyOf matrix) (adversary chunks) Linked budget +
+                    (35 * queries + 653) / budget) :=
+              Finset.expect_le_expect fun chunks _ => each matrix chunks
+            _ = _ := by rw [Finset.expect_add_distrib, Finset.expect_const nonempty]
+    _ = _ := by rw [Finset.expect_add_distrib, Finset.expect_const Finset.univ_nonempty]
 
 /-! ## The knowledge contract -/
 

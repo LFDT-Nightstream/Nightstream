@@ -143,11 +143,18 @@ collision.
     for every application that fits
     (`Export.Stage1.RandomOracleSetup.programmingError_lt_of_fits`).
 - **Work:** the extractor takes `17 (Q + 17)` expected retries
-  (`Lifecycle.RandomOracleExtraction.expected_retries_le`), and the binding
-  reduction takes `Q + 74` expected reruns
-  (`Lifecycle.RandomOracleUniqueness.expected_reruns_le`). Lean does not bound
-  the retries of the second extraction in the binding reduction. Lean counts
-  runs, not machine work.
+  (`Lifecycle.RandomOracleExtraction.expected_retries_le`). The binding
+  reduction is an algorithm with a strict budget
+  (`Lifecycle.RandomOracleSolver.solve`): each step runs the adversary once on
+  an oracle built from one fresh tape entry, and with budget `T` it makes at
+  most `T` runs on every tape (`Spec.RandomOracleBudget.Rewinding.runs_le`).
+  For every budget it makes at most `35 Q + 653` expected runs
+  (`Lifecycle.RandomOracleSolver.expected_runs_le`): the base run, `17 (Q + 17)`
+  retries, `Q + 74` reruns
+  (`Lifecycle.RandomOracleUniqueness.expected_reruns_le`) and `17 (Q + 17)`
+  retries of the extractions inside the reruns
+  (`Lifecycle.RandomOracleSolver.expected_second_retries_le`). Lean counts
+  adversary runs, not machine work.
 - **What it covers:** the oracle verifier is the Lean NIFS verifier
   `Spec.Folding.Nifs.PaperNonInteractive.verify`, with its coins read from
   `H`, plus the child openings. At an oracle that answers the 74 challenge
@@ -256,11 +263,12 @@ fresh verifier coin by an oracle read. Each module header states its part:
    - If MSIS is hard for a uniform matrix of `22 × blockCount` elements of
      `F_p[X]/Φ₈₁` (degree 54) at norm `8TB`, at the solver's work, then
      `msisAdvantage` is small. `blockCount` is at most 4,971,027 for every
-     application that fits, and 814,144 for `Poseidon2HashChainV1`. The
-     solver runs the adversary an expected number of times that grows with
-     `Q`, and Lean does not bound its work. MSIS hardness is stated for
-     solvers with a strict time bound, so this step also needs a Markov
-     truncation of the expected work, whose loss Lean does not count. The
+     application that fits, and 814,144 for `Poseidon2HashChainV1`. MSIS
+     hardness is stated for solvers with a strict time bound. The solver with
+     a strict budget of `T` adversary runs loses at most `(35 Q + 653) / T`:
+     `msisAdvantage ≤ solverAdvantage T + (35 Q + 653) / T`
+     (`Export.Stage1.RandomOracleSetup.msisAdvantage_le_solver`), so MSIS
+     hardness at the work of `T` runs applies to `solverAdvantage T`. The
      2026-09-08 public-seed MSIS approval covered the ChaCha20 matrix only.
      For ordinary binding collisions under the SHAKE128 matrix of the
      reference application,

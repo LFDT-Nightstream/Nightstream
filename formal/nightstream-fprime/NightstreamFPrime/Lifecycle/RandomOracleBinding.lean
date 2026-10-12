@@ -27,8 +27,8 @@ it decides the run conditions classically and takes each strong-set inverse,
 which is unique, with `Classical.choose` (`ForkStrongSet.strongSetUnits`).
 The extracted witnesses satisfy only the corrected ambient relation, so the
 step uses relaxed binding, not ordinary binding. Does not own: the hardness of
-the resulting MSIS instance or an algorithm and running time for the
-reduction.
+the resulting MSIS instance, or the reduction as an algorithm with a strict
+budget of runs (`RandomOracleSolver`).
 -/
 
 set_option autoImplicit false

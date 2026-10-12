@@ -237,6 +237,13 @@ private theorem expect_update (point : Point) (value : (Point → Answer) → �
   have positive : (0 : ℝ) < Fintype.card Answer := by exact_mod_cast Fintype.card_pos
   field_simp
 
+/-- A uniform oracle read at one point is a uniform answer. -/
+theorem expect_eval (point : Point) (value : Answer → ℝ) :
+    𝔼 oracle : Point → Answer, value (oracle point) = 𝔼 answer, value answer := by
+  rw [expect_update point]
+  simp only [Function.update_self]
+  exact Finset.expect_const Finset.univ_nonempty _
+
 /-- Answers held fixed on `fixed`; elsewhere `oracle` answers. -/
 def overlay (fixed : Finset Point) (values oracle : Point → Answer) : Point → Answer :=
   fun point => if point ∈ fixed then values point else oracle point

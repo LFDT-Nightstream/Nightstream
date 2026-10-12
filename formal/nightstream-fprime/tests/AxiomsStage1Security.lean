@@ -136,6 +136,14 @@ import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
 #audit_axioms NightstreamFPrime.Export.Stage1.RandomOracleSetup.programmingError_lt_of_fits
 #audit_axioms NightstreamFPrime.Export.Stage1.RandomOracleSetup.production_knowledge_error_lt
 #audit_axioms NightstreamFPrime.Export.Stage1.RandomOracleSetup.randomized_knowledge_error_lt
+#audit_axioms NightstreamFPrime.Export.Stage1.RandomOracleSetup.msisAdvantage_le_solver
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracleSolver.expected_second_retries_le
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracleSolver.expected_runs_le
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracleSolver.kernelChance_le_solver
+#audit_axioms NightstreamFPrime.Spec.RandomOracleBudget.Rewinding.runs_le
+#audit_axioms NightstreamFPrime.Spec.RandomOracleBudget.Rewinding.Bounds.expect_runs_le
+#audit_axioms NightstreamFPrime.Spec.RandomOracleBudget.Rewinding.Bounds.budget_mul_le
+#audit_axioms NightstreamFPrime.Spec.RandomOracleBudget.lineLaw_eq_retryWeight
 #audit_axioms NightstreamFPrime.Export.Stage1.RandomOracleSetup.contract
 #audit_axioms NightstreamFPrime.Spec.flatMap_eq_of_lengths
 #audit_axioms NightstreamFPrime.Spec.flatMap_length_eq

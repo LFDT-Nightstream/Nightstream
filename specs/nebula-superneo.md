@@ -346,10 +346,15 @@ from:
    lane coordinates.
 
 The challenges `η` and the product values MUST appear only as fingerprint
-coefficients and accumulators. The relation compiler MUST check this column
-dependency statically and MUST reject a relation that breaks it. A tuple input
-that the step does not hash, or that depends on `η`, lets a prover choose
-memory content after the challenge.
+coefficients and accumulators. A tuple input that the step does not hash, or
+that depends on `η`, lets a prover choose memory content after the challenge.
+
+The memory rows (§8) are the same for every application, and they obey this
+rule. The rows of an application read only its state words, its private words,
+and the operation slots (§10). They have no variable for `η`, for a product,
+or for a carry word. Thus every memory application obeys this rule, and no
+static check is necessary. Lean proves the memory soundness for every
+application (security note Ob6).
 
 ## 7. Interface with Stage 1
 
@@ -365,8 +370,9 @@ terminal openings do not change.
 The four Stage 1 application-state words are the state digest of §11.1. So the
 F′ relation, its layout, and its composition, fixed-point, and domain theorems
 are the Stage 1 ones for the memory application's package. The application
-interface has one addition: a validity predicate. The memory rows reject an
-invalid step, so the circuit holds exactly for valid steps.
+interface has one addition: a validity predicate. The memory rows and the
+application's rows (§10) reject an invalid step, so the circuit holds exactly
+for valid steps.
 
 A Nightstream F′ package without a memory application is a Stage 1 package and
 does not change.
@@ -518,6 +524,25 @@ of them. The application relation MUST accept an idle step: every port is
 inactive and the application state does not change. An idle step MAY occur at
 any step. The prover uses idle steps to fill the last segment. The iteration
 count `T` includes them.
+
+**Application interface.** An application supplies its state words (a fixed
+count), its private witness words (a fixed count), and its rows. Its rows read
+only the input state words, the output state words, the private words, and the
+fields of each operation slot. The memory rows and the carry are the same for
+every application. The application MUST prove two facts about its rows (Lean
+`PortApp`):
+
+1. Soundness (security note Ob7): when its rows hold and each operation slot
+   obeys rows O1, O3, and O7, the decoded ports are one application step from
+   the decoded input state to the decoded output state.
+2. Completeness: for each application step, and for operation slots that obey
+   rows O1, O3, and O7 and decode to the step's ports, there are private words
+   that satisfy its rows.
+
+The witness words of one step are the memory words, then the input state
+words, the output state words, and the private words. The first test
+application (Lean `MachineApp`) has two state words `(pc, acc)` and one
+private word, the idle flag.
 
 ## 11. Memory carry
 
@@ -687,7 +712,6 @@ verifier and cover at least these cases:
 | End inside a segment | reject at the terminal `idx = N` check |
 | The Stage 1 initial envelope (`T = 0`) with any memory fields | reject (§13) |
 | A fold with more than one fresh claim | reject |
-| A relation whose tuple inputs read `η` or a coordinate that the step does not hash | rejected by the static residency check (§6.4) |
 
 Each rejection test MUST fail at the named check, not at a host replay.
 

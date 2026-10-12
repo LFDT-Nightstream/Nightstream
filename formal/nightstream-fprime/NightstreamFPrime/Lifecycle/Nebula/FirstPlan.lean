@@ -1,4 +1,5 @@
 import NightstreamFPrime.Lifecycle.Nebula.ProgramSoundness
+import NightstreamFPrime.Lifecycle.Nebula.MachineApp
 
 /-! Owns the plan of the first memory-application package (spec §4): ROM and
 RAM of four words each, two ports, segments of two steps with four scan slots
@@ -46,7 +47,10 @@ theorem secure : plan.Secure := by
   unfold Plan.Secure
   decide
 
+/-- The machine as the plan's application. -/
+def app : PortApp plan := Machine.portApp plan two
+
 /-- The first memory application as a closed Stage 1 program. -/
-def program : Stage1.Application.Program := MemoryApp.program plan two
+def program : Stage1.Application.Program := MemoryApp.program plan app
 
 end NightstreamFPrime.Lifecycle.Nebula.FirstPlan

@@ -1,9 +1,8 @@
 import NightstreamFPrime.Lifecycle.Nebula.StepInvoke
-import NightstreamFPrime.Lifecycle.Nebula.MachineRefinement
 
 /-! Owns the honest witness of one memory-application invocation: the field
 words that an honest prover writes for a reachable carry, an invocation that
-the model's `invoke` accepts, and the machine state before the step. It also
+the model's `invoke` accepts, and the application's words. It also
 owns the inversion of `invoke` into the checks it makes. The row proofs
 (Ob5 for the relation) are in `HonestRows` and `HonestStep`. -/
 
@@ -25,8 +24,8 @@ theorem bitWord_isBit (b : Bool) : IsBit (bitWord b) := by
 
 theorem toBool_bitWord (b : Bool) : toBool (bitWord b) = b := by
   cases b
-  · exact toBool_zero
-  · exact toBool_one
+  · exact StepWitness.toBool_zero
+  · exact StepWitness.toBool_one
 
 /-- The low `n` bits of `x`, little-endian. -/
 def natBits (n x : ℕ) : Fin n → F := fun k => bitWord (x.testBit k)
@@ -89,14 +88,11 @@ theorem decode_encodeScan {p : Plan} {c : ScanSlot} (fits : c.Fits p) :
   obtain ⟨value, stamp⟩ := fits
   simp only [ScanSlotBits.decode, encodeScan, bitsNat_natBits value, bitsNat_natBits stamp]
 
-/-- The two application words of a machine state. -/
-def Machine.State.words (s : Machine.State) : Fin 2 → F := ![natWord s.pc, natWord s.acc]
-
 /-! ### The invocation -/
 
 namespace Honest
 
-variable (p : Plan) (c : MemoryCarry) (inv : Invocation Machine.State Digest)
+variable (p : Plan) (c : MemoryCarry) {σ : Type} (inv : Invocation σ Digest)
 
 /-- The carry that `step` starts from: the arm's open on a closed carry. -/
 def start : MemoryCarry := if c.idx = p.n then openedCarry (context p) c inv.proposal else c
@@ -206,15 +202,14 @@ def scanAfter (k : ℕ) : K × K :=
     (start p c inv).products.final * scanFactor (start p c inv).eta
       ((start p c inv).idx * p.bScan) (inv.records.finalScan.take k))
 
-/-- The honest witness of the invocation from machine state `s`. -/
-def witness (s : Machine.State) : StepWitness p where
-  appIn := s.words
+/-- The honest witness of the invocation, with the application's input,
+output, and private words. -/
+def witness {a : AppShape} (appIn appOut : Fin a.width → F) (aux : Fin a.aux → F) :
+    StepWitness p a where
   carryIn := carryVector c
   carryOut := carryVector (finished p c inv)
-  appOut := inv.next.words
   proposal i :=
     if h : i.val < 4 then inv.proposal.1 ⟨i.val, h⟩ else inv.proposal.2 ⟨i.val - 4, by omega⟩
-  idle := bitWord (opSlot inv 0).pad
   isOpen := bitWord (decide (c.idx = p.n))
   openInverse := fieldInverse (natWord c.idx - natWord p.n)
   isClose := bitWord (decide ((stepped p c inv).idx = p.n))
@@ -234,6 +229,9 @@ def witness (s : Machine.State) : StepWitness p where
     (opsAfter p c inv (j + 1)).2.c0, (opsAfter p c inv (j + 1)).2.c1]
   scanProducts j := ![(scanAfter p c inv (j + 1)).1.c0, (scanAfter p c inv (j + 1)).1.c1,
     (scanAfter p c inv (j + 1)).2.c0, (scanAfter p c inv (j + 1)).2.c1]
+  appIn := appIn
+  appOut := appOut
+  aux := aux
 
 end Honest
 

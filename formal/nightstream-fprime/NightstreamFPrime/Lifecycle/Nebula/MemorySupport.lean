@@ -13,22 +13,22 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Gadgets.Poseidon2
 open NightstreamFPrime.Lifecycle.Stage1
 
-variable (p : Plan) (i : AppInterface p) (offset : ℕ) (allowed : ℕ → Prop)
+variable (p : Plan) (app : PortApp p) (i : AppInterface p app) (offset : ℕ) (allowed : ℕ → Prop)
 
 /-- Every witness wire reads only allowed variables. -/
 def WiresSupported : Prop := ∀ index, (i.witness offset index).VarsSatisfy allowed
 
-variable {p i offset allowed}
+variable {p app i offset allowed}
 
-theorem wire_supported (wiresSupported : WiresSupported p i offset allowed) (k : ℕ) :
-    (wire p i offset k).VarsSatisfy allowed := by
+theorem wire_supported (wiresSupported : WiresSupported p app i offset allowed) (k : ℕ) :
+    (wire p app i offset k).VarsSatisfy allowed := by
   unfold wire
   split
   · exact wiresSupported _
   · trivial
 
-theorem sub_supported (wiresSupported : WiresSupported p i offset allowed) (e : Circuit.Expr) :
-    (sub p i offset e).VarsSatisfy allowed :=
+theorem sub_supported (wiresSupported : WiresSupported p app i offset allowed) (e : Circuit.Expr) :
+    (sub p app i offset e).VarsSatisfy allowed :=
   Expr.varsSatisfy_subst _ allowed (wire_supported wiresSupported) e
 
 theorem chunkFrom_supported : ∀ {acc : Circuit.Expr} {start : ℕ} {l : List Circuit.Expr},
@@ -68,8 +68,8 @@ theorem transcriptChunks_supported {blocks : List (List Circuit.Expr)}
   · trivial
   · exact each b blockMember e inWords
 
-theorem wires_supported (wiresSupported : WiresSupported p i offset allowed) (f : ℕ → ℕ) (n : ℕ) :
-    ∀ e ∈ wires p i offset f n, e.VarsSatisfy allowed := by
+theorem wires_supported (wiresSupported : WiresSupported p app i offset allowed) (f : ℕ → ℕ) (n : ℕ) :
+    ∀ e ∈ wires p app i offset f n, e.VarsSatisfy allowed := by
   intro e member
   obtain ⟨k, rfl⟩ := List.mem_ofFn.mp member
   exact wire_supported wiresSupported _
@@ -79,8 +79,9 @@ theorem textE_supported (text : String) : ∀ e ∈ textE text, e.VarsSatisfy al
   obtain ⟨_, _, rfl⟩ := List.mem_map.mp member
   trivial
 
-theorem stateBlocks_supported (wiresSupported : WiresSupported p i offset allowed) (app carry : ℕ → ℕ) :
-    ∀ b ∈ stateBlocks p i offset app carry, ∀ e ∈ b, e.VarsSatisfy allowed := by
+theorem stateBlocks_supported (wiresSupported : WiresSupported p app i offset allowed)
+    (appWords carry : ℕ → ℕ) :
+    ∀ b ∈ stateBlocks p app i offset appWords carry, ∀ e ∈ b, e.VarsSatisfy allowed := by
   intro b member
   simp only [stateBlocks, List.mem_cons, List.not_mem_nil, or_false] at member
   rcases member with rfl | rfl | rfl
@@ -88,9 +89,9 @@ theorem stateBlocks_supported (wiresSupported : WiresSupported p i offset allowe
   · exact wires_supported wiresSupported _ _
   · exact wires_supported wiresSupported _ _
 
-theorem chainBlocks_supported (wiresSupported : WiresSupported p i offset allowed) (lane : Lane)
+theorem chainBlocks_supported (wiresSupported : WiresSupported p app i offset allowed) (lane : Lane)
     (previous : ℕ) (lanes : List Circuit.Expr) :
-    ∀ b ∈ chainBlocks p i offset lane previous lanes, ∀ e ∈ b, e.VarsSatisfy allowed := by
+    ∀ b ∈ chainBlocks p app i offset lane previous lanes, ∀ e ∈ b, e.VarsSatisfy allowed := by
   intro b member
   simp only [chainBlocks, List.mem_cons, List.not_mem_nil, or_false] at member
   rcases member with rfl | rfl | rfl
@@ -104,8 +105,8 @@ theorem chainBlocks_supported (wiresSupported : WiresSupported p i offset allowe
     obtain ⟨y, -, rfl⟩ := List.mem_map.mp member
     exact sub_supported wiresSupported y
 
-theorem etaBlocks_supported (wiresSupported : WiresSupported p i offset allowed) :
-    ∀ b ∈ etaBlocks p i offset, ∀ e ∈ b, e.VarsSatisfy allowed := by
+theorem etaBlocks_supported (wiresSupported : WiresSupported p app i offset allowed) :
+    ∀ b ∈ etaBlocks p app i offset, ∀ e ∈ b, e.VarsSatisfy allowed := by
   intro b member
   simp only [etaBlocks, List.mem_cons, List.not_mem_nil, or_false] at member
   rcases member with rfl | rfl | rfl | rfl
@@ -124,7 +125,7 @@ theorem etaBlocks_supported (wiresSupported : WiresSupported p i offset allowed)
 /-! ### Below the call offset -/
 
 theorem wiresSupported_below (inputs : Application.InputsBelow i offset) :
-    WiresSupported p i offset (· < offset) :=
+    WiresSupported p app i offset (· < offset) :=
   fun index => (Circuit.Expr.varsSatisfy_lt_iff_varsBelow _ offset).2 (inputs.witness index)
 
 theorem blocksBelow {blocks : List (List Circuit.Expr)} {start : ℕ} (le : offset ≤ start)

@@ -475,13 +475,13 @@ impl Context {
             advanced
         };
         // Words.
-        w[words::APP_IN..words::APP_IN + 2].copy_from_slice(&app_words(step.state_in));
         w[words::CARRY_IN..words::CARRY_IN + 39].copy_from_slice(&input.words());
         w[words::CARRY_OUT..words::CARRY_OUT + 39].copy_from_slice(&output.words());
-        w[words::APP_OUT..words::APP_OUT + 2].copy_from_slice(&app_words(step.state_out));
         w[words::PROPOSAL..words::PROPOSAL + 4].copy_from_slice(&proposal.0);
         w[words::PROPOSAL + 4..words::PROPOSAL + 8].copy_from_slice(&proposal.1);
-        w[words::IDLE] = F::from_bool(step.idle);
+        w[layout.app_in(0)..layout.app_in(2)].copy_from_slice(&app_words(step.state_in));
+        w[layout.app_out(0)..layout.app_out(2)].copy_from_slice(&app_words(step.state_out));
+        w[layout.idle()] = F::from_bool(step.idle);
         w[words::IS_OPEN] = F::from_bool(opens);
         if !opens {
             w[words::OPEN_INVERSE] = (F::from_u64(input.idx) - F::from_u64(n)).inverse();

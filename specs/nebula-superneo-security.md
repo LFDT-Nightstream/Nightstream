@@ -82,6 +82,14 @@ fixed constant iteration bound. Its premises are:
   this as Assumption 1 for its own scheme. For F′, it is SuperNeo folding
   under A1 and A6.
 
+In Lean, the Stage 1 history is the output of the HyperNova reverse extractor
+(Lemma 17) under HyperNova errata Assumption 1 in the form of Definition 7
+(`HyperNovaVisitedSecurity.history_failure_le`, merged from PR #155; owner
+decision 2026-10-12). It holds for every application that fits `2^28`. Its
+failure event is that the terminal verifier accepts and the reverse program
+returns no history of valid steps: each returned step satisfies the
+application's validity predicate (`HyperNovaHistory.ValidAdvice`).
+
 Here the bound is `S_max · N`. Stage 2 adds no field to the state preimage:
 the carry is in the application-state digest (spec §11.1). So the Stage 1
 Property 6, fixed-point, and domain theorems apply to the memory
@@ -95,33 +103,45 @@ time. That bound is also open for Stage 1.
 injective. Lean proves both facts (`GoldilocksPrime.goldilocks_natPrime`,
 `GoldilocksExtension.extensionNoZeroDivisors`), so A5 is not an assumption.
 
-**A6 (Fiat–Shamir game transfer).** The F′ relation computes outputs of `H`
+**A6 (Fiat–Shamir in the circuit).** The F′ relation computes outputs of `H`
 inside a recursively proven step. A random oracle cannot run inside a circuit,
 so no random-oracle proof covers these outputs directly. Stage 1 states this
-gap as an explicit premise, which the owner approved on 2026-09-11
-(`docs/reviews/nightstream-fprime-requirements/FIAT_SHAMIR_MODEL.md`; Lean
-`FiatShamirModel` in `Lifecycle/Nifs/FiatShamirTransfer.lean`). The premise
-transfers success from the real Poseidon2 experiment to a translated
-experiment, through external functions `g_d` and `delta_d` of the total
-permutation-query count `Q`.
+gap as HyperNova errata Assumption 1 in the form of Definition 7: every
+admitted fold adversary has an efficient extractor that fails after a real
+success with probability at most an error term of that adversary
+(`HyperNovaVisitedSecurity.Assumption1`, PR #155). A one-fold random-oracle
+theorem motivates the value of that error. This premise replaced the earlier
+transfer premise `FiatShamirModel` (owner approval 2026-09-11).
 
-A6 extends that premise to the memory round, one segment slot at a time. In
-the translated interactive game for slot `k`, the prover sends the three roots
-`(D_pre.ops, D_mem, D_pre.fs)` and `ts` of segment `k`, and the verifier then
-samples `η` uniformly. The record chains need only collision resistance (A3).
-Lemma 3 holds for each slot of that game. A6 transfers only the first
-unbalanced segment of the extracted run. The earlier segments are balanced, so
-they close with any challenge. The §9.3 input has no segment index, so equal
-inputs get equal `η`, but the game samples one pair per slot; the cut at the
-first unbalanced segment makes this harmless. The transfer has an explicit
-query factor `L`. A straight-line translation that guesses which of the
-`Q_η` evaluations of the §9.3 transcript answers segment `k` (the relation
-evaluates it in every invocation, and off-circuit evaluations count too), or
-that none does, has `L = Q_η + 1`. The extractor's rewinds can make `L`
-larger, and `δ` cannot absorb a multiplicative loss. The owner approved the memory-round extension on 2026-10-07. The
-per-slot form (2026-10-10) is the form that a one-slot reduction can
-discharge: a whole-run game needs every slot consistent at once. Like the
-Stage 1 boundary, A6 selects no numerical value for `g_d`, `delta_d`, or `L`.
+A6 extends that premise to the memory round. The owner approved the extension
+on 2026-10-07 and chose on 2026-10-12 to state it in the form of HyperNova
+errata Assumption 1, as Stage 1 states its history premise. For every admitted
+adversary and every segment slot `k`, the probability that the extracted run
+is accepted with first unbalanced segment `k` is at most an error term
+`error_k` of that adversary (Lean `NebulaMemorySecurity.MemoryRound`). An
+adversary is a stage of the reverse extractor with the memory statement that
+it claims. The earlier segments are balanced, so they close with any
+challenge; only the first unbalanced segment counts. The record chains need
+only collision resistance (A3).
+
+No random-oracle model covers `η`. The relation computes `η` with Poseidon2
+inside the proven step, and the extractor gets the Poseidon2 inputs and
+outputs in the witness, not oracle queries. A random-oracle proof would need
+one more step, "the Poseidon2 in the circuit acts as the oracle", which is
+this assumption, not a proof of it.
+
+A proved game bound motivates the value of `error_k`, as the one-fold
+random-oracle theorem motivates the Stage 1 error. In the interactive game for
+slot `k`, the prover sends the three roots `(D_pre.ops, D_mem, D_pre.fs)` and
+`ts` of segment `k`, and the verifier then samples `η` uniformly. Lemma 3
+holds for each slot: slot `k` is bad with frequency at most `2·m_mem/q²` plus
+a retry term (`badAt_bound`). A straight-line translation that guesses which
+of the `Q_η` evaluations of the §9.3 transcript answers segment `k` (the
+relation evaluates it in every invocation, and off-circuit evaluations count
+too), or that none does, has the factor `Q_η + 1`. The extractor's rewinds
+can make the factor larger. The §9.3 framing separates canonical inputs (Ob3),
+so the committed transcript input is the guessed oracle input. Like the
+Stage 1 boundary, A6 selects no numerical value.
 
 **Optional stronger premise, not used.** A stronger premise would treat every
 in-circuit output of `H` as an observable oracle answer, with the query log
@@ -139,7 +159,7 @@ These obligations have no probability term. A failure is a defect.
 | Ob3 | Transcript framing of the chains and of the `η` transcript exactly as spec §9.2–§9.3 |
 | Ob4 | Every satisfying assignment of the generated relation refines to the actions of spec §8–§12 |
 | Ob5 | Every honest execution has a satisfying assignment, including `S = S_max`, the largest counter values, and idle steps |
-| Ob6 | Static hash-residency check (spec §6.4) |
+| Ob6 | Hash residency (spec §6.4): every application obeys it, because its rows have no variable for `η`, a product, or a carry word (spec §10) |
 | Ob7 | Port coverage: no application memory effect bypasses a port (spec §10) |
 | Ob8 | Lifecycle (spec §11.2, §12): the arm follows from the authenticated carry; each step hashes its own lanes; `close` runs exactly when `step` sets `idx = N`; the terminal requires a closed carry |
 
@@ -151,8 +171,8 @@ this note, and each proof needs an independent review (§7).
 | Joint | Argument | Status |
 |---|---|---|
 | J1: records into chains | Lemmas 1 and 2; Ob2, Ob3, Ob6 | Proof in this note, deterministic |
-| J2: carry thread | A3, A4; Ob8 | The relation-level thread is proved in Lean (`RunLink`), except with a state-digest collision. The Stage 1 part is assumed: the arity adaptation is open; Property 6 is the Stage 1 one |
-| J3: commit, then test | Lemmas 2–5 | Proof in this note, in the translated game of A6 |
+| J2: carry thread | A3, A4; Ob8 | The relation-level thread is proved in Lean (`RunLink`), except with a state-digest collision. The Stage 1 history is the reverse extractor of A4 (`history_failure_le`); Property 6 is the Stage 1 one |
+| J3: commit, then test | Lemmas 2–5 | Proof in this note, in the interactive game that motivates A6 |
 | J4: segment joins and terminal | Lemma 6 | Proof in this note |
 
 ### Lemma 1 — Packing is injective
@@ -196,7 +216,7 @@ the previous segment's FS chain, or the verifier's `D_init`. ∎
 
 ### Lemma 3 — Fingerprint test
 
-**Statement.** Work in the translated game of A6, for one segment. Let `in` be
+**Statement.** Work in the interactive game of A6, for one segment. Let `in` be
 everything fixed before `η`: the three roots, `ts`, and the adversary's state.
 After `η`, the extractor of A1 and A4 returns the segment's records. Let
 `A = IS ∪ WS` and `B = RS ∪ FS` be the multisets that these records define,
@@ -253,9 +273,9 @@ So `m_mem ≤ R + M + N · B_ops`.
 ### Lemma 4 — Rows to multisets
 
 **Statement.** Suppose an assignment satisfies rows O1–O9, S1–S3, and the
-boundary rows of spec §8, and the hash-residency property Ob6 holds. Then the
-outgoing products equal the incoming products times the fingerprints of the
-extracted tuples:
+boundary rows of spec §8, and the hash-residency property Ob6 holds (spec
+§6.4). Then the outgoing products equal the incoming products times the
+fingerprints of the extracted tuples:
 
 ```text
 h_rs_out = h_rs_in · Π_{active j} f(RS_j),   h_ws_out = h_ws_in · Π_{active j} f(WS_j),
@@ -368,35 +388,36 @@ these properties:
 
 ## 5. Composition and evaluation
 
-**Theorem.** Assume A1–A6 and Ob1–Ob8. There is an extractor `E`, built from
-the extractors of A1 and A4, such that, in the real experiment,
+**Theorem.** Assume A1–A6 and Ob1–Ob8. Let `E` be the HyperNova reverse
+extractor of A4. On the joint law of the adversary's claimed memory statement
+and `E`'s sample,
 
 ```text
-Pr[accept and E's output is not a valid execution]
-   ≤  ε_Stage1                          (A1, A4: every fold and the terminal)
+Pr[the verifier accepts and E's output is not a valid execution of the claim]
+   ≤  Σ_j (hash_j + error_j)            (A1, A4: one term per reverse stage)
     + ε_coll(t_E)                       (Lemma 6 steps 2 and 6: state-digest links of E's run)
     + ε_coll(t_E)                       (Lemma 2: the chains of E's run and every join)
-    + S_max · (L · (ε_test + ε_coll(t_1)) + δ)   (A6 and Lemma 3, per segment slot)
+    + Σ_k error_k                       (A6, per segment slot)
 ```
 
-with `ε_test = 2·m_mem/|𝕂|` and `m_mem ≤ R + M + N · B_ops`. `ε_Stage1` is
-the Stage 1 error for the Stage 2 relation shape, including SuperNeo's
-`ε_uniq` for `L_full`. `L` and `δ` are the query factor and the error of the
-A6 transfer. The two collision terms are events of `E`'s own output in the
-real protocol, so they need no transfer. The proof is Lemma 6 on `E`'s run
-with a union bound.
+with `ε_test = 2·m_mem/|𝕂|` and `m_mem ≤ R + M + N · B_ops`. `hash_j` is the
+state-hash collision mass of reverse stage `j`, and `error_j` is the
+Assumption 1 error of its fold adversary. The one-fold random-oracle theorem
+of PR #155 motivates the value of `error_j`. The target value of `error_k` is about
+`(Q_η + 1) · (ε_test + ε_coll(t_1))` (A6). The two collision terms are events
+of `E`'s own output in the real protocol, so they need no transfer. The proof
+is Lemma 6 on `E`'s run with a union bound.
 
-In Lean, this is `EndToEnd.bad_probability` (§7 item 5): the Lemma 3 term of
-one slot is `Game.badAt_frequency` and, over `𝕂` with Poseidon2,
-`badAt_bound`. `ε_coll` comes from a work estimate (A3). It becomes a
-probability only for a stated adversary time.
+In Lean, this is `NebulaMemorySecurity.bad_le` (§7 item 5), for every
+application with a port interface. `ε_coll` comes from a work estimate (A3).
+It becomes a probability only for a stated adversary time.
 
 **Setup check (spec §4.2 rule 6).** For the final relation shape and the plan,
 setup MUST check that `ε_test ≤ 2^−109.91`, the owner-approved floor. This
 holds exactly when `R + M + N · B_ops ≤ 139,509` (Lean `Plan.secure_iff`). Setup MUST reject the plan
 if the check fails. A larger memory needs a new owner decision. The check
-applies to the per-check value. The A6 transfer adds the query loss, as it
-does for the fold term.
+applies to the per-check value. The A6 error adds the query loss, as the
+Stage 1 error does for the fold term.
 
 **Above the cap.** The recommended upgrade for a plan with more than 139,509
 tuples per segment is a second, independent challenge pair. Then `ε_test`
@@ -461,8 +482,8 @@ generated relation MUST supply the exact census.
 1. **Non-author review** of Lemmas 2, 3, 5, and 6, and of §5.
 2. **Stage 2 authorization.** The owner authorized Stage 2 on 2026-10-07.
 3. **A6 Stage 2 extension.** The owner approved the memory-round extension on
-   2026-10-07. Its per-slot form (2026-10-10, A6) needs the owner's
-   confirmation. Its numerical values stay open with item 6.
+   2026-10-07 and chose its Assumption 1 form on 2026-10-12. Its numerical
+   values stay open with item 6.
 4. **Generated relation** that fits the `2^28` domain, with its exact shape and
    census, and the recomputed §5 table.
 5. **Lean formalization.** The model is in
@@ -474,9 +495,9 @@ generated relation MUST supply the exact census.
    - Lemma 3 part 1, as a count, as a frequency, and on `𝕂` as `2·m/q²`;
    - Lemma 3 part 2 for one segment, also on `𝕂`, in counting form: for a
      fixed transcript input and a call function of uniform `(η, coins)`;
-   - Lemma 4 in typed form. The typed rows contain the pad gate. For the
-     first memory application, the relation refinement proves the field form
-     of rows O1, O4, and the O8 gate (`RowList`, `StepRefinement`);
+   - Lemma 4 in typed form. The typed rows contain the pad gate. The relation
+     refinement proves the field form of rows O1, O4, and the O8 gate for
+     every application (`RowList`, `StepRefinement`);
    - Lemma 5 and its converse, for consecutive write stamps;
    - the lifecycle of the typed model (Ob8 for the model);
    - Lemma 6 as a deterministic theorem over an extracted typed run: an
@@ -487,6 +508,8 @@ generated relation MUST supply the exact census.
      with the same digest;
    - Ob3 for the record chains: the framing of spec §9.1–§9.2 separates
      canonical chain inputs;
+   - Ob3 for the §9.3 transcript: canonical inputs (`ts < q`) that differ
+     absorb different padded chunk sequences (`etaInputBlocks_injective`);
    - rule 6 of spec §4.2 (`ε_test ≤ 2^−109.91` exactly when
      `m_mem ≤ 139,509`);
    - completeness of the typed model (Ob5 for the model), for every hash
@@ -501,18 +524,28 @@ generated relation MUST supply the exact census.
      each retry disagreement is a Poseidon2 transcript collision. The retry
      adversary makes at most 2 calls in expectation (`t_1 ≤ 2·t_E`, counted in
      calls);
-   - the first memory application as a Stage 1 application program
-     (`Lifecycle/Nebula/MemoryProgram.lean`) for a plan with two ports. Its
-     circuit holds exactly when the output state is the state digest of the
-     output words and the decoded witness satisfies the memory rows and the
-     machine rows, and every row reads only supported variables;
+   - the application interface (`Lifecycle/Nebula/PortApp.lean`, spec §10):
+     an application supplies its state words, its private words, and rows over
+     those words and the operation slots, with Ob7 (`PortApp.sound`) and its
+     half of Ob5 (`PortApp.complete`), both over the decoded ports. Every
+     result below holds for every such application. The first test
+     application is the two-word machine (`Lifecycle/Nebula/MachineApp.lean`,
+     `Machine.portApp`); its Ob7 and its completeness are proved from the
+     decoded ports;
+   - a memory application as a Stage 1 application program
+     (`Lifecycle/Nebula/MemoryProgram.lean`). Its circuit holds exactly when
+     the output state is the state digest of the output words and the decoded
+     witness satisfies the memory rows and the application's rows, and every
+     row reads only supported variables;
    - the soundness refinement of that relation: canonical decoding of the
      carry words (the carry part of Ob1; Lean types the statement fields), the
      field-bit packing of the lanes (Ob2), one invocation's rows to the
-     model's `invoke` with a reachable output carry (Ob4; the chains and the
-     products read the same decoded records, so this relation has the §6.4
-     residency property), the port rows to one machine step (Ob7), and the
-     arm, `close`, and terminal rules (Ob8 for the relation);
+     model's `invoke` with a reachable output carry (Ob4), the application's
+     rows to one application step (Ob7), and the arm, `close`, and terminal
+     rules (Ob8 for the relation);
+   - Ob6 by construction: the memory rows are the same for every application,
+     and an application's rows have no variable for `η`, a product, or a
+     carry word (spec §6.4);
    - the run-level join (`MemoryApp.chain_soundness`): a chain of states whose
      steps satisfy the program's predicate, with the spec §13 terminal checks,
      gives Lemma 6's three results, or a collision between two state-digest
@@ -522,41 +555,37 @@ generated relation MUST supply the exact census.
      extractor returns: an event over all histories of a statement holds for
      a compressing hash and says nothing. The relation reads `plan_digest`
      and the chain headers as constants, and the terminal computes the
-     initial state from the start carry and `D_init`.
+     initial state from the start carry and `D_init`;
    - completeness of the relation (Ob5 for the relation,
      `Lifecycle/Nebula/HonestStep.lean`, `MemoryApp.complete`): for a
-     reachable carry, an invocation that `invoke` accepts, and one machine
-     step on its ports, the honest witness words satisfy the program's
-     validity predicate, and the step function gives the state digest of the
-     output state and the output carry. The witness writes the segment bits,
-     the timestamp bits, and the O4 words `diff_j`, and `MemoryApp.decode`
-     reads the words back as the same witness (`WitnessEncoding`);
+     reachable carry, an invocation that `invoke` accepts, and one
+     application step on its ports, the honest witness words with the
+     application's private words satisfy the program's validity predicate,
+     and the step function gives the state digest of the output state and the
+     output carry. The witness writes the segment bits, the timestamp bits,
+     and the O4 words `diff_j`, and `MemoryApp.decode` reads the words back as
+     the same witness (`WitnessEncoding`);
    - run-level completeness of the relation (Ob5 for runs,
      `Lifecycle/Nebula/HonestRun.lean`): the model's `invoke` keeps a carry
-     reachable (`MemoryApp.reach_invoke`), and every machine execution of
-     `S · N` steps with `1 ≤ S ≤ S_max` has a Stage 1 step history of the
-     memory program whose statement passes the §13 checks
+     reachable (`MemoryApp.reach_invoke`), and every execution of `S · N`
+     steps with `1 ≤ S ≤ S_max` has a Stage 1 step history of the memory
+     program whose statement passes the §13 checks
      (`MemoryApp.history_of_execution`). This includes `S = S_max`, idle
-     steps, and every reachable counter value.
-   - the end-to-end statement over two named premises
-     (`Lifecycle/Nebula/EndToEnd.lean`, owner decision 2026-10-08). An
-     `Experiment` records, per sample, the Stage 1 statement, the memory
-     statement, and the history that the Stage 1 extractor returns; every
-     event reads that one history. `Stage1Extraction` says what Stage 1 must
-     deliver: on an accepted sample, the extracted history is a step history
-     of the statement for the program, or a named Stage 1 failure occurs.
-     `MemoryRoundTransfer` is A6 for the memory round, per segment slot: the
-     real mass of samples whose extracted run has first unbalanced segment
-     `k` is at most `loss` times the frequency of slot `k`'s bad event in a
-     translated game, plus `delta`. With both, `bad_probability` bounds the
-     mass of accepted samples that pass the §13 checks while the extracted
-     history does not attest an execution by the Stage 1 failure mass, the
-     state-link and chain collision masses of the extracted runs, and
-     `Σ_k (loss · (2·m_mem/q² + retry_k) + delta)`.
+     steps, and every reachable counter value;
+   - the end-to-end statement (`Lifecycle/Nebula/EndToEnd.lean`,
+     `Export/Stage1/NebulaMemorySecurity.lean`). An `Experiment` records, per
+     sample, the Stage 1 statement, the claimed memory statement, and the
+     history that the Stage 1 extractor returns; every event reads that one
+     history. `stage1Extraction` proves Stage 1 extraction for the HyperNova
+     reverse extractor with no premise: on an accepted sample, the advice that
+     `HyperNovaHistory.run` returns is a step history of valid steps, or the
+     failure event of `history_failure_le` occurs. `MemoryRound` is A6. With
+     it, `bad_le` bounds the mass of samples that the memory verifier accepts
+     while the extracted history does not attest the claim, as in §5;
    - the first memory package (`Export/Stage1/NebulaMemoryV1Package.lean`)
      for the test plan `FirstPlan` (ROM and RAM of four words, `N = 2`,
-     `S_max = 4`). Its row, column, and carrier bounds give the Stage 1 fixed
-     point and the `2^28` domain (`plan_fixedPoint`,
+     `S_max = 4`) and the machine. Its row, column, and carrier bounds give
+     the Stage 1 fixed point and the `2^28` domain (`plan_fixedPoint`,
      `jointDomain_le_twoPow28`). A second test package
      (`NebulaMemoryN1Package`, plan `SecondPlan`: `N = 1`, `r < μ`) covers
      the spec §14 cases that the first plan cannot reach. Both use the
@@ -564,24 +593,13 @@ generated relation MUST supply the exact census.
      each emitted package with a pinned structural identifier.
 
    Still open:
-   - a proof or an accepted model of `MemoryRoundTransfer` (A6 for the memory
-     round, with `loss` and `delta`): the translation for slot `k` must keep
-     the extractor's rewinds consistent with the programmed challenge;
-   - `Stage1Extraction` for the memory program: Stage 1 extraction is written
-     for the hash-chain application only. Its output must be a history as a
-     function of the sample, with per-step validity of the program;
-   - Ob6 as a static check: the relation compiler of spec §6.4 does not
-     exist. Only this hand-written relation has the residency property;
-   - Ob3 for the §9.3 transcript: its framing is injective on canonical
-     inputs (`ts < q`). A one-slot A6 translation needs this to read the
-     committed transcript input from the guessed oracle input;
    - Ob1 for the statement fields and the proof bytes at the implementation
      boundary (Lean types the statement fields as field words and canonical
      values);
    - `ε_coll` as a probability needs a stated adversary time (A3);
    - a package for a production plan;
    - concrete values for the Stage 1 failure and collision terms (A1–A4).
-6. **Shared with Stage 1:** useful values of `g_d` and `delta_d` (A6), the
+6. **Shared with Stage 1:** useful values of the Assumption 1 errors (A4, A6), the
    concrete extractor time (A4), the arity adaptation of HyperNova Lemma 4, the
    terminal decider, encoding, and implementation terms, and an approved F′
    threat model with an end-to-end target. The legacy

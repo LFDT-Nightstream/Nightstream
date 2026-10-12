@@ -5,9 +5,12 @@
 use nightstream::nebula::{state_words, Context, MachineState, Plan, Run, Step, TerminalError};
 use p3_goldilocks::Goldilocks as F;
 
-/// The Stage 1 input state that an invocation's own words open to.
+/// The Stage 1 input state that an invocation's own words open to. The carry
+/// words come first; the machine's five words come last (input state, output
+/// state, idle flag).
 fn input_state(words: &[F]) -> [F; 4] {
-    state_words(&words[0..2], &words[2..41])
+    let app_in = words.len() - 5;
+    state_words(&words[app_in..app_in + 2], &words[0..39])
 }
 
 fn program_run() -> Run {

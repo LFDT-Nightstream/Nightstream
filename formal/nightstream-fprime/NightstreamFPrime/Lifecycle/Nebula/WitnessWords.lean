@@ -2,9 +2,10 @@ import NightstreamFPrime.Lifecycle.Nebula.StepRows
 
 /-! Owns the word layout of a memory-application step witness: the index of
 every witness field in the application's witness words, and the decoding of a
-word vector into a `StepWitness`. The circuit reads its witness wires and the
-Rust prover writes its witness vector with this layout. It does not own any
-row. -/
+word vector into a `StepWitness`. The memory words come first; the
+application's input, output, and private words follow them. The circuit reads
+its witness wires and the Rust prover writes its witness vector with this
+layout. It does not own any row. -/
 
 namespace NightstreamFPrime.Lifecycle.Nebula
 
@@ -19,25 +20,22 @@ variable (p : Plan)
 difference bits. -/
 def opWords : ℕ := p.opWidth + p.wTs
 
-def appIn (i : ℕ) : ℕ := i
-def carryIn (i : ℕ) : ℕ := 2 + i
-def carryOut (i : ℕ) : ℕ := 41 + i
-def appOut (i : ℕ) : ℕ := 80 + i
-def proposal (i : ℕ) : ℕ := 82 + i
-def idle : ℕ := 90
-def isOpen : ℕ := 91
-def openInverse : ℕ := 92
-def isClose : ℕ := 93
-def closeInverse : ℕ := 94
-def etaFresh (i : ℕ) : ℕ := 95 + i
-def eta1Square (i : ℕ) : ℕ := 99 + i
-def seenPrev (i : ℕ) : ℕ := 101 + i
-def idxEff : ℕ := 113
+def carryIn (i : ℕ) : ℕ := i
+def carryOut (i : ℕ) : ℕ := 39 + i
+def proposal (i : ℕ) : ℕ := 78 + i
+def isOpen : ℕ := 86
+def openInverse : ℕ := 87
+def isClose : ℕ := 88
+def closeInverse : ℕ := 89
+def etaFresh (i : ℕ) : ℕ := 90 + i
+def eta1Square (i : ℕ) : ℕ := 94 + i
+def seenPrev (i : ℕ) : ℕ := 96 + i
+def idxEff : ℕ := 108
 
 /-- Word `k` of operation slot `j`. -/
-def op (j k : ℕ) : ℕ := 114 + j * opWords p + k
+def op (j k : ℕ) : ℕ := 109 + j * opWords p + k
 
-def initialStart : ℕ := 114 + p.bOps * opWords p
+def initialStart : ℕ := 109 + p.bOps * opWords p
 
 /-- Word `k` of IS slot `j`. -/
 def initial (j k : ℕ) : ℕ := initialStart p + j * p.scanWidth + k
@@ -52,8 +50,17 @@ def segBits (k : ℕ) : ℕ := tsBits p p.wTs + k
 def opsProducts (j c : ℕ) : ℕ := segBits p p.segWidth + 4 * j + c
 def scanProducts (j c : ℕ) : ℕ := opsProducts p p.bOps 0 + 4 * j + c
 
+/-- The number of memory words. The application's words follow them. -/
+def memoryCount : ℕ := scanProducts p p.bScan 0
+
+variable (a : AppShape)
+
+def appIn (i : ℕ) : ℕ := memoryCount p + i
+def appOut (i : ℕ) : ℕ := memoryCount p + a.width + i
+def aux (i : ℕ) : ℕ := memoryCount p + 2 * a.width + i
+
 /-- The number of witness words. -/
-def count : ℕ := scanProducts p p.bScan 0
+def count : ℕ := memoryCount p + 2 * a.width + a.aux
 
 /-! Offsets inside an operation slot and a scan slot. -/
 
@@ -89,13 +96,10 @@ def ScanSlotBits.ofWords (p : Plan) (v : ℕ → F) (base : ℕ) : ScanSlotBits 
   stamp k := v (base + Words.scanStamp k)
 
 /-- The step witness of a word vector. -/
-def StepWitness.ofWords (p : Plan) (v : ℕ → F) : StepWitness p where
-  appIn i := v (Words.appIn i)
+def StepWitness.ofWords (p : Plan) (a : AppShape) (v : ℕ → F) : StepWitness p a where
   carryIn i := v (Words.carryIn i)
   carryOut i := v (Words.carryOut i)
-  appOut i := v (Words.appOut i)
   proposal i := v (Words.proposal i)
-  idle := v Words.idle
   isOpen := v Words.isOpen
   openInverse := v Words.openInverse
   isClose := v Words.isClose
@@ -111,5 +115,8 @@ def StepWitness.ofWords (p : Plan) (v : ℕ → F) : StepWitness p where
   segBits k := v (Words.segBits p k)
   opsProducts j c := v (Words.opsProducts p j c)
   scanProducts j c := v (Words.scanProducts p j c)
+  appIn i := v (Words.appIn p i)
+  appOut i := v (Words.appOut p a i)
+  aux i := v (Words.aux p a i)
 
 end NightstreamFPrime.Lifecycle.Nebula

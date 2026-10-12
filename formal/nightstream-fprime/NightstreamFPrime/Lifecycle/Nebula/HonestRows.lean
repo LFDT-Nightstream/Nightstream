@@ -12,7 +12,7 @@ open NightstreamFPrime.Spec.Nebula
 open scoped NightstreamFPrime.Spec.GoldilocksExtensionRing
 open Fin.CommRing
 
-variable {p : Plan} {c : MemoryCarry} {inv : Invocation Machine.State Digest}
+variable {p : Plan} {c : MemoryCarry} {σ : Type} {inv : Invocation σ Digest}
 
 /-! ### Carries -/
 
@@ -88,17 +88,17 @@ theorem canonical (valid : p.Valid) (reach : Reach p c) : c.Canonical := by
 
 /-! ### Witness words -/
 
-variable (s : Machine.State)
+variable {a : AppShape} (appIn appOut : Fin a.width → F) (aux : Fin a.aux → F)
 
-theorem cIn_val {k : ℕ} (h : k < 39) : (witness p c inv s).cIn k = carryVector c ⟨k, h⟩ :=
+theorem cIn_val {k : ℕ} (h : k < 39) : (witness p c inv appIn appOut aux).cIn k = carryVector c ⟨k, h⟩ :=
   StepWitness.cIn_eq _ h
 
 theorem cOut_val {k : ℕ} (h : k < 39) :
-    (witness p c inv s).cOut k = carryVector (finished p c inv) ⟨k, h⟩ :=
+    (witness p c inv appIn appOut aux).cOut k = carryVector (finished p c inv) ⟨k, h⟩ :=
   StepWitness.cOut_eq _ h
 
-theorem openZero : ((witness p c inv s).cIn 1 - natWord p.n) * (witness p c inv s).isOpen = 0 := by
-  rw [cIn_val s (by decide)]
+theorem openZero : ((witness p c inv appIn appOut aux).cIn 1 - natWord p.n) * (witness p c inv appIn appOut aux).isOpen = 0 := by
+  rw [cIn_val appIn appOut aux (by decide)]
   show (natWord c.idx - natWord p.n) * bitWord (decide (c.idx = p.n)) = 0
   by_cases h : c.idx = p.n
   · rw [h, sub_self, zero_mul]
@@ -110,9 +110,9 @@ theorem natWord_sub_ne {a b : ℕ} (ha : a < goldilocksModulus) (hb : b < goldil
   fun zero => ne (natWord_injective ha hb (sub_eq_zero.mp zero))
 
 theorem openTest (valid : p.Valid) (reach : Reach p c) :
-    ((witness p c inv s).cIn 1 - natWord p.n) * (witness p c inv s).openInverse =
-      1 - (witness p c inv s).isOpen := by
-  rw [cIn_val s (by decide)]
+    ((witness p c inv appIn appOut aux).cIn 1 - natWord p.n) * (witness p c inv appIn appOut aux).openInverse =
+      1 - (witness p c inv appIn appOut aux).isOpen := by
+  rw [cIn_val appIn appOut aux (by decide)]
   show (natWord c.idx - natWord p.n) * fieldInverse (natWord c.idx - natWord p.n) =
     1 - bitWord (decide (c.idx = p.n))
   by_cases h : c.idx = p.n
@@ -121,9 +121,9 @@ theorem openTest (valid : p.Valid) (reach : Reach p c) :
     simp [h, bitWord]
 
 theorem segRange (accepted : Accepted p c inv) :
-    (witness p c inv s).isOpen * (natWord (p.sMax - 1) - (witness p c inv s).cIn 0 -
-      bitsWord (witness p c inv s).segBits) = 0 := by
-  rw [cIn_val s (by decide)]
+    (witness p c inv appIn appOut aux).isOpen * (natWord (p.sMax - 1) - (witness p c inv appIn appOut aux).cIn 0 -
+      bitsWord (witness p c inv appIn appOut aux).segBits) = 0 := by
+  rw [cIn_val appIn appOut aux (by decide)]
   show bitWord (decide (c.idx = p.n)) * (natWord (p.sMax - 1) - natWord c.segIdx -
     bitsWord (natBits p.segWidth (p.sMax - 1 - c.segIdx))) = 0
   by_cases h : c.idx = p.n
@@ -139,8 +139,8 @@ theorem segRange (accepted : Accepted p c inv) :
   · simp [h, bitWord]
 
 theorem idxEff_row :
-    (witness p c inv s).idxEff = (1 - (witness p c inv s).isOpen) * (witness p c inv s).cIn 1 := by
-  rw [cIn_val s (by decide)]
+    (witness p c inv appIn appOut aux).idxEff = (1 - (witness p c inv appIn appOut aux).isOpen) * (witness p c inv appIn appOut aux).cIn 1 := by
+  rw [cIn_val appIn appOut aux (by decide)]
   show natWord (start p c inv).idx = (1 - bitWord (decide (c.idx = p.n))) * natWord c.idx
   unfold start
   by_cases h : c.idx = p.n
@@ -187,9 +187,9 @@ theorem carryVector_memRoot (d : MemoryCarry) (i : Fin 4) :
 /-! ### Open-arm rows -/
 
 theorem seenPrev_row (i : Fin 12) :
-    (witness p c inv s).seenPrev i = (witness p c inv s).isOpen * headerWords p i +
-      (1 - (witness p c inv s).isOpen) * (witness p c inv s).cIn (23 + i) := by
-  rw [cIn_val s (by omega)]
+    (witness p c inv appIn appOut aux).seenPrev i = (witness p c inv appIn appOut aux).isOpen * headerWords p i +
+      (1 - (witness p c inv appIn appOut aux).isOpen) * (witness p c inv appIn appOut aux).cIn (23 + i) := by
+  rw [cIn_val appIn appOut aux (by omega)]
   show carryVector (start p c inv) ⟨23 + i.val, _⟩ = bitWord (decide (c.idx = p.n)) *
     headerWords p i + (1 - bitWord (decide (c.idx = p.n))) * carryVector c ⟨23 + i.val, _⟩
   unfold start
@@ -199,9 +199,9 @@ theorem seenPrev_row (i : Fin 12) :
   · simp [h, bitWord]
 
 theorem proposed_row (i : Fin 8) :
-    (witness p c inv s).cOut (15 + i) = (witness p c inv s).isOpen * (witness p c inv s).proposal i +
-      (1 - (witness p c inv s).isOpen) * (witness p c inv s).cIn (15 + i) := by
-  rw [cIn_val s (by omega), cOut_val s (by omega), carryVector_proposed, carryVector_proposed,
+    (witness p c inv appIn appOut aux).cOut (15 + i) = (witness p c inv appIn appOut aux).isOpen * (witness p c inv appIn appOut aux).proposal i +
+      (1 - (witness p c inv appIn appOut aux).isOpen) * (witness p c inv appIn appOut aux).cIn (15 + i) := by
+  rw [cIn_val appIn appOut aux (by omega), cOut_val appIn appOut aux (by omega), carryVector_proposed, carryVector_proposed,
     finished_proposed]
   show (if h : i.val < 4 then (start p c inv).proposed.1 ⟨i.val, h⟩
       else (start p c inv).proposed.2 ⟨i.val - 4, by omega⟩) =
@@ -215,9 +215,9 @@ theorem proposed_row (i : Fin 8) :
   · simp [h, bitWord]
 
 theorem eta_row (i : Fin 4) :
-    (witness p c inv s).cOut (3 + i) = (witness p c inv s).isOpen * (witness p c inv s).etaFresh i +
-      (1 - (witness p c inv s).isOpen) * (witness p c inv s).cIn (3 + i) := by
-  rw [cIn_val s (by omega), cOut_val s (by omega), carryVector_eta, carryVector_eta, finished_eta]
+    (witness p c inv appIn appOut aux).cOut (3 + i) = (witness p c inv appIn appOut aux).isOpen * (witness p c inv appIn appOut aux).etaFresh i +
+      (1 - (witness p c inv appIn appOut aux).isOpen) * (witness p c inv appIn appOut aux).cIn (3 + i) := by
+  rw [cIn_val appIn appOut aux (by omega), cOut_val appIn appOut aux (by omega), carryVector_eta, carryVector_eta, finished_eta]
   show ![(start p c inv).eta.1.c0, (start p c inv).eta.1.c1, (start p c inv).eta.2.c0,
       (start p c inv).eta.2.c1] i =
     bitWord (decide (c.idx = p.n)) *
@@ -230,7 +230,7 @@ theorem eta_row (i : Fin 4) :
   · simp [h, bitWord]
 
 theorem square_row :
-    (witness p c inv s).eta1Sq = K.mul (witness p c inv s).eta1 (witness p c inv s).eta1 := by
+    (witness p c inv appIn appOut aux).eta1Sq = K.mul (witness p c inv appIn appOut aux).eta1 (witness p c inv appIn appOut aux).eta1 := by
   rw [← GoldilocksExtensionRing.mul_eq]
   rfl
 
@@ -272,7 +272,7 @@ theorem activeLength_take_le (l : List OpSlot) (k : ℕ) : activeLength (l.take 
 
 /-- Row O2: the active count before slot `k`. -/
 theorem cntBefore_val (accepted : Accepted p c inv) : ∀ k ≤ p.bOps,
-    (witness p c inv s).cntBefore k = natWord (activeLength (inv.records.ops.take k))
+    (witness p c inv appIn appOut aux).cntBefore k = natWord (activeLength (inv.records.ops.take k))
   | 0, _ => by simp [StepWitness.cntBefore, activeLength, natWord_zero]
   | k + 1, hk => by
     have previous := cntBefore_val accepted k (by omega)
@@ -286,8 +286,8 @@ theorem cntBefore_val (accepted : Accepted p c inv) : ∀ k ≤ p.bOps,
     · simp [bitWord]; rfl
 
 theorem readKeeps_row (accepted : Accepted p c inv) (j : Fin p.bOps) :
-    (1 - (witness p c inv s).isWrite j) *
-      ((witness p c inv s).vw j - (witness p c inv s).vr j) = 0 := by
+    (1 - (witness p c inv appIn appOut aux).isWrite j) *
+      ((witness p c inv appIn appOut aux).vw j - (witness p c inv appIn appOut aux).vr j) = 0 := by
   show (1 - bitWord (opSlot inv j).isWrite) *
     (bitsWord (natBits 32 (opSlot inv j).vw) - bitsWord (natBits 32 (opSlot inv j).vr)) = 0
   have rows := accepted.rows.slots _ (opSlot_mem accepted j)
@@ -296,7 +296,7 @@ theorem readKeeps_row (accepted : Accepted p c inv) (j : Fin p.bOps) :
   · simp [bitWord]
 
 theorem noRomWrite_row (accepted : Accepted p c inv) (j : Fin p.bOps) :
-    (witness p c inv s).isWrite j * (1 - (witness p c inv s).isRam j) = 0 := by
+    (witness p c inv appIn appOut aux).isWrite j * (1 - (witness p c inv appIn appOut aux).isRam j) = 0 := by
   show bitWord (opSlot inv j).isWrite * (1 - bitWord (opSlot inv j).isRam) = 0
   have rows := accepted.rows.slots _ (opSlot_mem accepted j)
   cases h : (opSlot inv j).isWrite
@@ -306,7 +306,7 @@ theorem noRomWrite_row (accepted : Accepted p c inv) (j : Fin p.bOps) :
 
 theorem romRange_row (accepted : Accepted p c inv) (j : Fin p.bOps) (k : Fin p.μ)
     (high : p.r ≤ k.val) :
-    (1 - (witness p c inv s).isRam j) * ((witness p c inv s).ops j).addr k = 0 := by
+    (1 - (witness p c inv appIn appOut aux).isRam j) * ((witness p c inv appIn appOut aux).ops j).addr k = 0 := by
   show (1 - bitWord (opSlot inv j).isRam) * natBits p.μ (opSlot inv j).addr k = 0
   have rows := accepted.rows.slots _ (opSlot_mem accepted j)
   cases h : (opSlot inv j).isRam
@@ -322,7 +322,7 @@ theorem padSlot_tail (p : Plan) : ∀ b ∈ (OpSlot.padSlot.bits p).tail, b = fa
   aesop
 
 theorem padZero_row (accepted : Accepted p c inv) (j : Fin p.bOps) :
-    ∀ x ∈ ((witness p c inv s).ops j).lane.tail, (witness p c inv s).pad j * x = 0 := by
+    ∀ x ∈ ((witness p c inv appIn appOut aux).ops j).lane.tail, (witness p c inv appIn appOut aux).pad j * x = 0 := by
   intro x member
   change x ∈ (encodeOp p (opSlot inv j) (diff c inv j)).lane.tail at member
   show bitWord (opSlot inv j).pad * x = 0
@@ -335,10 +335,10 @@ theorem padZero_row (accepted : Accepted p c inv) (j : Fin p.bOps) :
     simp [bitWord]
 
 theorem fresh_row (accepted : Accepted p c inv) (j : Fin p.bOps) :
-    (1 - (witness p c inv s).pad j) * ((witness p c inv s).wt j - (witness p c inv s).rt j - 1 -
-      (witness p c inv s).diff j) = 0 := by
-  show (1 - bitWord (opSlot inv j).pad) * ((witness p c inv s).cIn 2 +
-    (witness p c inv s).cntBefore (j.val + 1) - bitsWord (natBits p.wTs (opSlot inv j).rt) - 1 -
+    (1 - (witness p c inv appIn appOut aux).pad j) * ((witness p c inv appIn appOut aux).wt j - (witness p c inv appIn appOut aux).rt j - 1 -
+      (witness p c inv appIn appOut aux).diff j) = 0 := by
+  show (1 - bitWord (opSlot inv j).pad) * ((witness p c inv appIn appOut aux).cIn 2 +
+    (witness p c inv appIn appOut aux).cntBefore (j.val + 1) - bitsWord (natBits p.wTs (opSlot inv j).rt) - 1 -
       bitsWord (natBits p.wTs (diff c inv j))) = 0
   cases hpad : (opSlot inv j).pad
   · have fits := accepted.rows.shaped.opsFit _ (opSlot_mem accepted j)
@@ -376,7 +376,7 @@ theorem fresh_row (accepted : Accepted p c inv) (j : Fin p.bOps) :
       congr 1
       unfold diff
       omega
-    rw [cIn_val s (by decide), carryVector_ts, cntBefore_val s accepted (j.val + 1) j.isLt,
+    rw [cIn_val appIn appOut aux (by decide), carryVector_ts, cntBefore_val appIn appOut aux accepted (j.val + 1) j.isLt,
       bitsWord_natBits fits.2.2.2, bitsWord_natBits diffSmall, sum]
     ring
   · simp [bitWord]
@@ -389,55 +389,55 @@ theorem take_succ_getD {α : Type} (l : List α) (d : α) {k : ℕ} (hk : k < l.
   rw [List.take_add_one, List.getD_eq_getElem _ _ hk, List.getElem?_eq_getElem hk]
   rfl
 
-theorem isOpen_open (h : c.idx = p.n) : (witness p c inv s).isOpen = 1 := by
+theorem isOpen_open (h : c.idx = p.n) : (witness p c inv appIn appOut aux).isOpen = 1 := by
   show bitWord (decide (c.idx = p.n)) = 1
   simp [h, bitWord]
 
-theorem isOpen_continue (h : c.idx ≠ p.n) : (witness p c inv s).isOpen = 0 := by
+theorem isOpen_continue (h : c.idx ≠ p.n) : (witness p c inv appIn appOut aux).isOpen = 0 := by
   show bitWord (decide (c.idx = p.n)) = 0
   simp [h, bitWord]
 
 /-- The products at the start of the step are the start carry's. -/
 theorem startProducts :
-    (witness p c inv s).startProduct 7 = (start p c inv).products.read ∧
-      (witness p c inv s).startProduct 9 = (start p c inv).products.write ∧
-      (witness p c inv s).startProduct 11 = (start p c inv).products.initial ∧
-      (witness p c inv s).startProduct 13 = (start p c inv).products.final := by
+    (witness p c inv appIn appOut aux).startProduct 7 = (start p c inv).products.read ∧
+      (witness p c inv appIn appOut aux).startProduct 9 = (start p c inv).products.write ∧
+      (witness p c inv appIn appOut aux).startProduct 11 = (start p c inv).products.initial ∧
+      (witness p c inv appIn appOut aux).startProduct 13 = (start p c inv).products.final := by
   by_cases h : c.idx = p.n
-  · simp only [StepWitness.startProduct_open _ _ (isOpen_open s h), start, if_pos h]
+  · simp only [StepWitness.startProduct_open _ _ (isOpen_open appIn appOut aux h), start, if_pos h]
     exact ⟨rfl, rfl, rfl, rfl⟩
-  · simp only [StepWitness.startProduct_continue _ _ (isOpen_continue s h), start, if_neg h]
+  · simp only [StepWitness.startProduct_continue _ _ (isOpen_continue appIn appOut aux h), start, if_neg h]
     exact ⟨rfl, rfl, rfl, rfl⟩
 
 theorem opsProductAfter_val : ∀ k ≤ p.bOps,
-    (witness p c inv s).opsProductAfter 0 k = (opsAfter p c inv k).1 ∧
-      (witness p c inv s).opsProductAfter 1 k = (opsAfter p c inv k).2
+    (witness p c inv appIn appOut aux).opsProductAfter 0 k = (opsAfter p c inv k).1 ∧
+      (witness p c inv appIn appOut aux).opsProductAfter 1 k = (opsAfter p c inv k).2
   | 0, _ => by
     simp only [StepWitness.opsProductAfter, if_true, opsAfter, List.take_zero, opsFactors,
       mul_one]
-    exact ⟨(startProducts s).1, (startProducts s).2.1⟩
+    exact ⟨(startProducts appIn appOut aux).1, (startProducts appIn appOut aux).2.1⟩
   | k + 1, hk => by
     simp only [StepWitness.opsProductAfter, Nat.add_one_ne_zero, if_false,
       Nat.add_sub_cancel, dif_pos (show k < p.bOps by omega)]
     exact ⟨rfl, rfl⟩
 
 theorem scanProductAfter_val : ∀ k ≤ p.bScan,
-    (witness p c inv s).scanProductAfter 0 k = (scanAfter p c inv k).1 ∧
-      (witness p c inv s).scanProductAfter 1 k = (scanAfter p c inv k).2
+    (witness p c inv appIn appOut aux).scanProductAfter 0 k = (scanAfter p c inv k).1 ∧
+      (witness p c inv appIn appOut aux).scanProductAfter 1 k = (scanAfter p c inv k).2
   | 0, _ => by
     simp only [StepWitness.scanProductAfter, if_true, scanAfter, List.take_zero, scanFactor,
       mul_one]
-    exact ⟨(startProducts s).2.2.1, (startProducts s).2.2.2⟩
+    exact ⟨(startProducts appIn appOut aux).2.2.1, (startProducts appIn appOut aux).2.2.2⟩
   | k + 1, hk => by
     simp only [StepWitness.scanProductAfter, Nat.add_one_ne_zero, if_false,
       Nat.add_sub_cancel, dif_pos (show k < p.bScan by omega)]
     exact ⟨rfl, rfl⟩
 
-theorem eta_pair : ((witness p c inv s).eta1, (witness p c inv s).eta2) = (start p c inv).eta := by
+theorem eta_pair : ((witness p c inv appIn appOut aux).eta1, (witness p c inv appIn appOut aux).eta2) = (start p c inv).eta := by
   rw [← finished_eta]
   rfl
 
-theorem squareEq : (witness p c inv s).eta1Sq = (witness p c inv s).eta1 * (witness p c inv s).eta1 := by
+theorem squareEq : (witness p c inv appIn appOut aux).eta1Sq = (witness p c inv appIn appOut aux).eta1 * (witness p c inv appIn appOut aux).eta1 := by
   rw [square_row, GoldilocksExtensionRing.mul_eq]
 
 theorem natWord_val_small {n k : ℕ} (small : n < 2 ^ k) (width : k ≤ 63) :
@@ -445,7 +445,7 @@ theorem natWord_val_small {n k : ℕ} (small : n < 2 ^ k) (width : k ≤ 63) :
   natWord_val (lt_trans small (two_pow_lt_modulus width))
 
 theorem globalIndex_val (valid : p.Valid) (accepted : Accepted p c inv) (j : Fin p.bOps) :
-    ((witness p c inv s).globalIndex j).val = PortAccess.globalIndex p
+    ((witness p c inv appIn appOut aux).globalIndex j).val = PortAccess.globalIndex p
       ⟨(opSlot inv j).isWrite, (opSlot inv j).isRam, (opSlot inv j).addr, (opSlot inv j).vr,
         (opSlot inv j).vw⟩ := by
   have fits := accepted.rows.shaped.opsFit _ (opSlot_mem accepted j)
@@ -463,16 +463,16 @@ theorem globalIndex_val (valid : p.Valid) (accepted : Accepted p c inv) (j : Fin
     omega
 
 theorem readProduct_row (valid : p.Valid) (accepted : Accepted p c inv) (j : Fin p.bOps) :
-    (witness p c inv s).opsProductAfter 0 (j.val + 1) = K.mul
-      ((witness p c inv s).opsProductAfter 0 j.val)
-      (gatedK ((witness p c inv s).pad j) (fingerprintK (witness p c inv s).eta1
-        (witness p c inv s).eta2 (witness p c inv s).eta1Sq ((witness p c inv s).rt j)
-        ((witness p c inv s).globalIndex j) ((witness p c inv s).vr j))) := by
+    (witness p c inv appIn appOut aux).opsProductAfter 0 (j.val + 1) = K.mul
+      ((witness p c inv appIn appOut aux).opsProductAfter 0 j.val)
+      (gatedK ((witness p c inv appIn appOut aux).pad j) (fingerprintK (witness p c inv appIn appOut aux).eta1
+        (witness p c inv appIn appOut aux).eta2 (witness p c inv appIn appOut aux).eta1Sq ((witness p c inv appIn appOut aux).rt j)
+        ((witness p c inv appIn appOut aux).globalIndex j) ((witness p c inv appIn appOut aux).vr j))) := by
   have fits := accepted.rows.shaped.opsFit _ (opSlot_mem accepted j)
-  rw [(opsProductAfter_val s (j.val + 1) j.isLt).1, (opsProductAfter_val s j.val j.isLt.le).1,
+  rw [(opsProductAfter_val appIn appOut aux (j.val + 1) j.isLt).1, (opsProductAfter_val appIn appOut aux j.val j.isLt.le).1,
     ← GoldilocksExtensionRing.mul_eq,
-    gatedK_bit (show IsBit ((witness p c inv s).pad j) from bitWord_isBit _),
-    fingerprintK_eq _ _ _ (squareEq s), eta_pair, globalIndex_val s valid accepted j]
+    gatedK_bit (show IsBit ((witness p c inv appIn appOut aux).pad j) from bitWord_isBit _),
+    fingerprintK_eq _ _ _ (squareEq appIn appOut aux), eta_pair, globalIndex_val appIn appOut aux valid accepted j]
   show _ = _ * (if toBool (bitWord (opSlot inv j).pad) then 1 else fingerprint (start p c inv).eta
     ((bitsWord (natBits p.wTs (opSlot inv j).rt)).val, _, (bitsWord (natBits 32 (opSlot inv j).vr)).val))
   rw [toBool_bitWord, bitsWord_natBits fits.2.2.2, bitsWord_natBits fits.2.1,
@@ -482,18 +482,18 @@ theorem readProduct_row (valid : p.Valid) (accepted : Accepted p c inv) (j : Fin
   rw [take_succ_ops accepted j.isLt, opsFactors_append, mul_assoc]
 
 theorem writeProduct_row (valid : p.Valid) (accepted : Accepted p c inv) (j : Fin p.bOps) :
-    (witness p c inv s).opsProductAfter 1 (j.val + 1) = K.mul
-      ((witness p c inv s).opsProductAfter 1 j.val)
-      (gatedK ((witness p c inv s).pad j) (fingerprintK (witness p c inv s).eta1
-        (witness p c inv s).eta2 (witness p c inv s).eta1Sq ((witness p c inv s).wt j)
-        ((witness p c inv s).globalIndex j) ((witness p c inv s).vw j))) := by
+    (witness p c inv appIn appOut aux).opsProductAfter 1 (j.val + 1) = K.mul
+      ((witness p c inv appIn appOut aux).opsProductAfter 1 j.val)
+      (gatedK ((witness p c inv appIn appOut aux).pad j) (fingerprintK (witness p c inv appIn appOut aux).eta1
+        (witness p c inv appIn appOut aux).eta2 (witness p c inv appIn appOut aux).eta1Sq ((witness p c inv appIn appOut aux).wt j)
+        ((witness p c inv appIn appOut aux).globalIndex j) ((witness p c inv appIn appOut aux).vw j))) := by
   have fits := accepted.rows.shaped.opsFit _ (opSlot_mem accepted j)
-  rw [(opsProductAfter_val s (j.val + 1) j.isLt).2, (opsProductAfter_val s j.val j.isLt.le).2,
+  rw [(opsProductAfter_val appIn appOut aux (j.val + 1) j.isLt).2, (opsProductAfter_val appIn appOut aux j.val j.isLt.le).2,
     ← GoldilocksExtensionRing.mul_eq,
-    gatedK_bit (show IsBit ((witness p c inv s).pad j) from bitWord_isBit _),
-    fingerprintK_eq _ _ _ (squareEq s), eta_pair, globalIndex_val s valid accepted j]
+    gatedK_bit (show IsBit ((witness p c inv appIn appOut aux).pad j) from bitWord_isBit _),
+    fingerprintK_eq _ _ _ (squareEq appIn appOut aux), eta_pair, globalIndex_val appIn appOut aux valid accepted j]
   show _ = _ * (if toBool (bitWord (opSlot inv j).pad) then 1 else fingerprint (start p c inv).eta
-    (((witness p c inv s).cIn 2 + (witness p c inv s).cntBefore (j.val + 1)).val, _,
+    (((witness p c inv appIn appOut aux).cIn 2 + (witness p c inv appIn appOut aux).cntBefore (j.val + 1)).val, _,
       (bitsWord (natBits 32 (opSlot inv j).vw)).val))
   rw [toBool_bitWord, bitsWord_natBits fits.2.2.1,
     natWord_val_small fits.2.2.1 (by norm_num)]
@@ -507,7 +507,7 @@ theorem writeProduct_row (valid : p.Valid) (accepted : Accepted p c inv) (j : Fi
         activeLength (inv.records.ops.take j) + 1 := by
       rw [take_succ_ops accepted j.isLt, activeLength_append, hpad]
       simp
-    rw [cIn_val s (by decide), carryVector_ts, cntBefore_val s accepted (j.val + 1) j.isLt,
+    rw [cIn_val appIn appOut aux (by decide), carryVector_ts, cntBefore_val appIn appOut aux accepted (j.val + 1) j.isLt,
       ← natWord_add, step,
       natWord_val_small (k := p.wTs) (by omega) (by have := valid.fieldEncoding; omega)]
     simp only [Bool.false_eq_true, if_false]
@@ -518,7 +518,7 @@ theorem take_scan_length {l : List ScanSlot} {k : ℕ} (le : k ≤ l.length) : (
   simp [le]
 
 theorem scanIndex_val (valid : p.Valid) (reach : Reach p c) (j : Fin p.bScan) :
-    ((witness p c inv s).scanIndex j).val = (start p c inv).idx * p.bScan + j.val := by
+    ((witness p c inv appIn appOut aux).scanIndex j).val = (start p c inv).idx * p.bScan + j.val := by
   have idxLt := start_idx_lt (inv := inv) valid reach
   have cover := valid.exactCover
   have below := valid.belowModulus
@@ -534,20 +534,20 @@ theorem scanIndex_val (valid : p.Valid) (reach : Reach p c) (j : Fin p.bScan) :
 
 theorem initialProduct_row (valid : p.Valid) (reach : Reach p c) (accepted : Accepted p c inv)
     (j : Fin p.bScan) :
-    (witness p c inv s).scanProductAfter 0 (j.val + 1) = K.mul
-      ((witness p c inv s).scanProductAfter 0 j.val)
-      (fingerprintK (witness p c inv s).eta1 (witness p c inv s).eta2 (witness p c inv s).eta1Sq
-        (bitsWord ((witness p c inv s).initial j).stamp) ((witness p c inv s).scanIndex j)
-        (bitsWord ((witness p c inv s).initial j).value)) := by
+    (witness p c inv appIn appOut aux).scanProductAfter 0 (j.val + 1) = K.mul
+      ((witness p c inv appIn appOut aux).scanProductAfter 0 j.val)
+      (fingerprintK (witness p c inv appIn appOut aux).eta1 (witness p c inv appIn appOut aux).eta2 (witness p c inv appIn appOut aux).eta1Sq
+        (bitsWord ((witness p c inv appIn appOut aux).initial j).stamp) ((witness p c inv appIn appOut aux).scanIndex j)
+        (bitsWord ((witness p c inv appIn appOut aux).initial j).value)) := by
   have length := accepted.rows.shaped.initialLength
   have member : initialSlot inv j ∈ inv.records.initialScan := by
     unfold initialSlot
     rw [List.getD_eq_getElem _ _ (by omega)]
     exact List.getElem_mem _
   have fits := accepted.rows.shaped.initialFit _ member
-  rw [(scanProductAfter_val s (j.val + 1) j.isLt).1, (scanProductAfter_val s j.val j.isLt.le).1,
-    ← GoldilocksExtensionRing.mul_eq, fingerprintK_eq _ _ _ (squareEq s), eta_pair,
-    scanIndex_val s valid reach]
+  rw [(scanProductAfter_val appIn appOut aux (j.val + 1) j.isLt).1, (scanProductAfter_val appIn appOut aux j.val j.isLt.le).1,
+    ← GoldilocksExtensionRing.mul_eq, fingerprintK_eq _ _ _ (squareEq appIn appOut aux), eta_pair,
+    scanIndex_val appIn appOut aux valid reach]
   show _ = _ * fingerprint (start p c inv).eta
     ((bitsWord (natBits p.wTs (initialSlot inv j).stamp)).val, _,
       (bitsWord (natBits 32 (initialSlot inv j).value)).val)
@@ -561,20 +561,20 @@ theorem initialProduct_row (valid : p.Valid) (reach : Reach p c) (accepted : Acc
 
 theorem finalProduct_row (valid : p.Valid) (reach : Reach p c) (accepted : Accepted p c inv)
     (j : Fin p.bScan) :
-    (witness p c inv s).scanProductAfter 1 (j.val + 1) = K.mul
-      ((witness p c inv s).scanProductAfter 1 j.val)
-      (fingerprintK (witness p c inv s).eta1 (witness p c inv s).eta2 (witness p c inv s).eta1Sq
-        (bitsWord ((witness p c inv s).final j).stamp) ((witness p c inv s).scanIndex j)
-        (bitsWord ((witness p c inv s).final j).value)) := by
+    (witness p c inv appIn appOut aux).scanProductAfter 1 (j.val + 1) = K.mul
+      ((witness p c inv appIn appOut aux).scanProductAfter 1 j.val)
+      (fingerprintK (witness p c inv appIn appOut aux).eta1 (witness p c inv appIn appOut aux).eta2 (witness p c inv appIn appOut aux).eta1Sq
+        (bitsWord ((witness p c inv appIn appOut aux).final j).stamp) ((witness p c inv appIn appOut aux).scanIndex j)
+        (bitsWord ((witness p c inv appIn appOut aux).final j).value)) := by
   have length := accepted.rows.shaped.finalLength
   have member : finalSlot inv j ∈ inv.records.finalScan := by
     unfold finalSlot
     rw [List.getD_eq_getElem _ _ (by omega)]
     exact List.getElem_mem _
   have fits := accepted.rows.shaped.finalFit _ member
-  rw [(scanProductAfter_val s (j.val + 1) j.isLt).2, (scanProductAfter_val s j.val j.isLt.le).2,
-    ← GoldilocksExtensionRing.mul_eq, fingerprintK_eq _ _ _ (squareEq s), eta_pair,
-    scanIndex_val s valid reach]
+  rw [(scanProductAfter_val appIn appOut aux (j.val + 1) j.isLt).2, (scanProductAfter_val appIn appOut aux j.val j.isLt.le).2,
+    ← GoldilocksExtensionRing.mul_eq, fingerprintK_eq _ _ _ (squareEq appIn appOut aux), eta_pair,
+    scanIndex_val appIn appOut aux valid reach]
   show _ = _ * fingerprint (start p c inv).eta
     ((bitsWord (natBits p.wTs (finalSlot inv j).stamp)).val, _,
       (bitsWord (natBits 32 (finalSlot inv j).value)).val)
@@ -590,37 +590,37 @@ theorem finalProduct_row (valid : p.Valid) (reach : Reach p c) (accepted : Accep
 /-! ### Boundary and close rows -/
 
 theorem tsOut_row (accepted : Accepted p c inv) :
-    (witness p c inv s).cOut 2 = (witness p c inv s).cIn 2 + (witness p c inv s).cntBefore p.bOps := by
-  rw [cOut_val s (by decide), cIn_val s (by decide), carryVector_ts, carryVector_ts,
-    cntBefore_val s accepted p.bOps le_rfl, finished_ts, stepped_ts, ← natWord_add,
+    (witness p c inv appIn appOut aux).cOut 2 = (witness p c inv appIn appOut aux).cIn 2 + (witness p c inv appIn appOut aux).cntBefore p.bOps := by
+  rw [cOut_val appIn appOut aux (by decide), cIn_val appIn appOut aux (by decide), carryVector_ts, carryVector_ts,
+    cntBefore_val appIn appOut aux accepted p.bOps le_rfl, finished_ts, stepped_ts, ← natWord_add,
     List.take_of_length_le accepted.rows.shaped.opsLength.le]
   rfl
 
 theorem tsRange_row (accepted : Accepted p c inv) :
-    (witness p c inv s).cOut 2 = bitsWord (witness p c inv s).tsBits := by
+    (witness p c inv appIn appOut aux).cOut 2 = bitsWord (witness p c inv appIn appOut aux).tsBits := by
   have small : (stepped p c inv).ts < 2 ^ p.wTs := by
     rw [stepped_ts]
     exact accepted.rows.boundary
-  rw [cOut_val s (by decide), carryVector_ts, finished_ts]
+  rw [cOut_val appIn appOut aux (by decide), carryVector_ts, finished_ts]
   exact (bitsWord_natBits small).symm
 
-theorem idxOut_row : (witness p c inv s).cOut 1 = (witness p c inv s).idxEff + 1 := by
-  rw [cOut_val s (by decide)]
+theorem idxOut_row : (witness p c inv appIn appOut aux).cOut 1 = (witness p c inv appIn appOut aux).idxEff + 1 := by
+  rw [cOut_val appIn appOut aux (by decide)]
   show natWord (finished p c inv).idx = natWord (start p c inv).idx + 1
   rw [finished_idx, ← natWord_one, ← natWord_add]
   rfl
 
 theorem productsOut_row (accepted : Accepted p c inv) :
-    kOf ((witness p c inv s).cOut 7) ((witness p c inv s).cOut 8) =
-        (witness p c inv s).opsProductAfter 0 p.bOps ∧
-      kOf ((witness p c inv s).cOut 9) ((witness p c inv s).cOut 10) =
-        (witness p c inv s).opsProductAfter 1 p.bOps ∧
-      kOf ((witness p c inv s).cOut 11) ((witness p c inv s).cOut 12) =
-        (witness p c inv s).scanProductAfter 0 p.bScan ∧
-      kOf ((witness p c inv s).cOut 13) ((witness p c inv s).cOut 14) =
-        (witness p c inv s).scanProductAfter 1 p.bScan := by
-  obtain ⟨read, write⟩ := opsProductAfter_val s p.bOps le_rfl
-  obtain ⟨initial, final⟩ := scanProductAfter_val s p.bScan le_rfl
+    kOf ((witness p c inv appIn appOut aux).cOut 7) ((witness p c inv appIn appOut aux).cOut 8) =
+        (witness p c inv appIn appOut aux).opsProductAfter 0 p.bOps ∧
+      kOf ((witness p c inv appIn appOut aux).cOut 9) ((witness p c inv appIn appOut aux).cOut 10) =
+        (witness p c inv appIn appOut aux).opsProductAfter 1 p.bOps ∧
+      kOf ((witness p c inv appIn appOut aux).cOut 11) ((witness p c inv appIn appOut aux).cOut 12) =
+        (witness p c inv appIn appOut aux).scanProductAfter 0 p.bScan ∧
+      kOf ((witness p c inv appIn appOut aux).cOut 13) ((witness p c inv appIn appOut aux).cOut 14) =
+        (witness p c inv appIn appOut aux).scanProductAfter 1 p.bScan := by
+  obtain ⟨read, write⟩ := opsProductAfter_val appIn appOut aux p.bOps le_rfl
+  obtain ⟨initial, final⟩ := scanProductAfter_val appIn appOut aux p.bScan le_rfl
   rw [read, write, initial, final]
   simp only [opsAfter, scanAfter, List.take_of_length_le accepted.rows.shaped.opsLength.le,
     List.take_of_length_le accepted.rows.shaped.initialLength.le,
@@ -644,8 +644,8 @@ theorem productsOut_row (accepted : Accepted p c inv) :
     rfl
 
 theorem closeZero_row :
-    ((witness p c inv s).cOut 1 - natWord p.n) * (witness p c inv s).isClose = 0 := by
-  rw [cOut_val s (by decide)]
+    ((witness p c inv appIn appOut aux).cOut 1 - natWord p.n) * (witness p c inv appIn appOut aux).isClose = 0 := by
+  rw [cOut_val appIn appOut aux (by decide)]
   show (natWord (finished p c inv).idx - natWord p.n) *
     bitWord (decide ((stepped p c inv).idx = p.n)) = 0
   rw [finished_idx]
@@ -654,9 +654,9 @@ theorem closeZero_row :
   · simp [h, bitWord]
 
 theorem closeTest_row (valid : p.Valid) (reach : Reach p c) :
-    ((witness p c inv s).cOut 1 - natWord p.n) * (witness p c inv s).closeInverse =
-      1 - (witness p c inv s).isClose := by
-  rw [cOut_val s (by decide)]
+    ((witness p c inv appIn appOut aux).cOut 1 - natWord p.n) * (witness p c inv appIn appOut aux).closeInverse =
+      1 - (witness p c inv appIn appOut aux).isClose := by
+  rw [cOut_val appIn appOut aux (by decide)]
   show (natWord (finished p c inv).idx - natWord p.n) *
       fieldInverse (natWord (stepped p c inv).idx - natWord p.n) =
     1 - bitWord (decide ((stepped p c inv).idx = p.n))
@@ -672,9 +672,9 @@ theorem closeTest_row (valid : p.Valid) (reach : Reach p c) :
     simp [h, bitWord]
 
 theorem closeOps_row (accepted : Accepted p c inv) (i : Fin 4) :
-    (witness p c inv s).isClose * ((witness p c inv s).cOut (23 + i) -
-      (witness p c inv s).cOut (15 + i)) = 0 := by
-  rw [cOut_val s (by omega), cOut_val s (by omega), carryVector_seenOps, carryVector_proposedOps,
+    (witness p c inv appIn appOut aux).isClose * ((witness p c inv appIn appOut aux).cOut (23 + i) -
+      (witness p c inv appIn appOut aux).cOut (15 + i)) = 0 := by
+  rw [cOut_val appIn appOut aux (by omega), cOut_val appIn appOut aux (by omega), carryVector_seenOps, carryVector_proposedOps,
     finished_seen, finished_proposed]
   show bitWord (decide ((stepped p c inv).idx = p.n)) * _ = 0
   by_cases h : (stepped p c inv).idx = p.n
@@ -683,9 +683,9 @@ theorem closeOps_row (accepted : Accepted p c inv) (i : Fin 4) :
   · simp [h, bitWord]
 
 theorem closeInitial_row (accepted : Accepted p c inv) (i : Fin 4) :
-    (witness p c inv s).isClose * ((witness p c inv s).cOut (27 + i) -
-      (witness p c inv s).cIn (35 + i)) = 0 := by
-  rw [cOut_val s (by omega), cIn_val s (by omega), carryVector_seenInitial, carryVector_memRoot,
+    (witness p c inv appIn appOut aux).isClose * ((witness p c inv appIn appOut aux).cOut (27 + i) -
+      (witness p c inv appIn appOut aux).cIn (35 + i)) = 0 := by
+  rw [cOut_val appIn appOut aux (by omega), cIn_val appIn appOut aux (by omega), carryVector_seenInitial, carryVector_memRoot,
     finished_seen]
   show bitWord (decide ((stepped p c inv).idx = p.n)) * _ = 0
   by_cases h : (stepped p c inv).idx = p.n
@@ -693,9 +693,9 @@ theorem closeInitial_row (accepted : Accepted p c inv) (i : Fin 4) :
   · simp [h, bitWord]
 
 theorem closeFinal_row (accepted : Accepted p c inv) (i : Fin 4) :
-    (witness p c inv s).isClose * ((witness p c inv s).cOut (31 + i) -
-      (witness p c inv s).cOut (19 + i)) = 0 := by
-  rw [cOut_val s (by omega), cOut_val s (by omega), carryVector_seenFinal,
+    (witness p c inv appIn appOut aux).isClose * ((witness p c inv appIn appOut aux).cOut (31 + i) -
+      (witness p c inv appIn appOut aux).cOut (19 + i)) = 0 := by
+  rw [cOut_val appIn appOut aux (by omega), cOut_val appIn appOut aux (by omega), carryVector_seenFinal,
     carryVector_proposedFinal, finished_seen, finished_proposed]
   show bitWord (decide ((stepped p c inv).idx = p.n)) * _ = 0
   by_cases h : (stepped p c inv).idx = p.n
@@ -704,11 +704,11 @@ theorem closeFinal_row (accepted : Accepted p c inv) (i : Fin 4) :
   · simp [h, bitWord]
 
 theorem closeProducts_row (accepted : Accepted p c inv) :
-    K.mul (embed (witness p c inv s).isClose)
-      (K.sub (K.mul (kOf ((witness p c inv s).cOut 11) ((witness p c inv s).cOut 12))
-          (kOf ((witness p c inv s).cOut 9) ((witness p c inv s).cOut 10)))
-        (K.mul (kOf ((witness p c inv s).cOut 7) ((witness p c inv s).cOut 8))
-          (kOf ((witness p c inv s).cOut 13) ((witness p c inv s).cOut 14)))) = K.zero := by
+    K.mul (embed (witness p c inv appIn appOut aux).isClose)
+      (K.sub (K.mul (kOf ((witness p c inv appIn appOut aux).cOut 11) ((witness p c inv appIn appOut aux).cOut 12))
+          (kOf ((witness p c inv appIn appOut aux).cOut 9) ((witness p c inv appIn appOut aux).cOut 10)))
+        (K.mul (kOf ((witness p c inv appIn appOut aux).cOut 7) ((witness p c inv appIn appOut aux).cOut 8))
+          (kOf ((witness p c inv appIn appOut aux).cOut 13) ((witness p c inv appIn appOut aux).cOut 14)))) = K.zero := by
   show K.mul (embed (bitWord (decide ((stepped p c inv).idx = p.n))))
     (K.sub (K.mul (finished p c inv).products.initial (finished p c inv).products.write)
       (K.mul (finished p c inv).products.read (finished p c inv).products.final)) = K.zero
@@ -722,8 +722,8 @@ theorem closeProducts_row (accepted : Accepted p c inv) :
     rw [zero, zero_mul]
 
 theorem segOut_row :
-    (witness p c inv s).cOut 0 = (witness p c inv s).cIn 0 + (witness p c inv s).isClose := by
-  rw [cOut_val s (by decide), cIn_val s (by decide)]
+    (witness p c inv appIn appOut aux).cOut 0 = (witness p c inv appIn appOut aux).cIn 0 + (witness p c inv appIn appOut aux).isClose := by
+  rw [cOut_val appIn appOut aux (by decide), cIn_val appIn appOut aux (by decide)]
   show natWord (finished p c inv).segIdx = natWord c.segIdx +
     bitWord (decide ((stepped p c inv).idx = p.n))
   rw [finished_segIdx]
@@ -732,10 +732,10 @@ theorem segOut_row :
   · simp [h, bitWord]
 
 theorem memOut_row (i : Fin 4) :
-    (witness p c inv s).cOut (35 + i) = (witness p c inv s).isClose *
-      (witness p c inv s).cOut (19 + i) +
-        (1 - (witness p c inv s).isClose) * (witness p c inv s).cIn (35 + i) := by
-  rw [cOut_val s (by omega), cOut_val s (by omega), cIn_val s (by omega), carryVector_memRoot,
+    (witness p c inv appIn appOut aux).cOut (35 + i) = (witness p c inv appIn appOut aux).isClose *
+      (witness p c inv appIn appOut aux).cOut (19 + i) +
+        (1 - (witness p c inv appIn appOut aux).isClose) * (witness p c inv appIn appOut aux).cIn (35 + i) := by
+  rw [cOut_val appIn appOut aux (by omega), cOut_val appIn appOut aux (by omega), cIn_val appIn appOut aux (by omega), carryVector_memRoot,
     carryVector_memRoot, carryVector_proposedFinal, finished_memRoot, finished_proposed]
   show _ = bitWord (decide ((stepped p c inv).idx = p.n)) * _ +
     (1 - bitWord (decide ((stepped p c inv).idx = p.n))) * _
@@ -746,7 +746,7 @@ theorem memOut_row (i : Fin 4) :
 /-- Ob5 for the polynomial rows: the honest witness satisfies every row of
 `StepWitness.PolyRows`. -/
 theorem polyRows (valid : p.Valid) (reach : Reach p c) (accepted : Accepted p c inv) :
-    (witness p c inv s).PolyRows where
+    (witness p c inv appIn appOut aux).PolyRows where
   opsBits j := by
     show ∀ x ∈ (encodeOp p (opSlot inv j) (diff c inv j)).lane, IsBit x
     rw [lane_encodeOp]
@@ -762,37 +762,36 @@ theorem polyRows (valid : p.Valid) (reach : Reach p c) (accepted : Accepted p c 
     exact bitWord_bits
   tsBits _ := bitWord_isBit _
   segBits _ := bitWord_isBit _
-  idleBit := bitWord_isBit _
   openBit := bitWord_isBit _
   closeBit := bitWord_isBit _
-  openZero := openZero s
-  openTest := openTest s valid reach
-  segRange := segRange s accepted
-  idxEff := idxEff_row s
-  seenPrev := seenPrev_row s
-  proposed := proposed_row s
-  eta := eta_row s
-  square := square_row s
-  readKeeps := readKeeps_row s accepted
-  fresh := fresh_row s accepted
-  noRomWrite := noRomWrite_row s accepted
-  romRange := romRange_row s accepted
-  padZero := padZero_row s accepted
-  readProduct := readProduct_row s valid accepted
-  writeProduct := writeProduct_row s valid accepted
-  initialProduct := initialProduct_row s valid reach accepted
-  finalProduct := finalProduct_row s valid reach accepted
-  tsOut := tsOut_row s accepted
-  tsRange := tsRange_row s accepted
-  idxOut := idxOut_row s
-  productsOut := productsOut_row s accepted
-  closeZero := closeZero_row s
-  closeTest := closeTest_row s valid reach
-  closeOps := closeOps_row s accepted
-  closeInitial := closeInitial_row s accepted
-  closeFinal := closeFinal_row s accepted
-  closeProducts := closeProducts_row s accepted
-  segOut := segOut_row s
-  memOut := memOut_row s
+  openZero := openZero appIn appOut aux
+  openTest := openTest appIn appOut aux valid reach
+  segRange := segRange appIn appOut aux accepted
+  idxEff := idxEff_row appIn appOut aux
+  seenPrev := seenPrev_row appIn appOut aux
+  proposed := proposed_row appIn appOut aux
+  eta := eta_row appIn appOut aux
+  square := square_row appIn appOut aux
+  readKeeps := readKeeps_row appIn appOut aux accepted
+  fresh := fresh_row appIn appOut aux accepted
+  noRomWrite := noRomWrite_row appIn appOut aux accepted
+  romRange := romRange_row appIn appOut aux accepted
+  padZero := padZero_row appIn appOut aux accepted
+  readProduct := readProduct_row appIn appOut aux valid accepted
+  writeProduct := writeProduct_row appIn appOut aux valid accepted
+  initialProduct := initialProduct_row appIn appOut aux valid reach accepted
+  finalProduct := finalProduct_row appIn appOut aux valid reach accepted
+  tsOut := tsOut_row appIn appOut aux accepted
+  tsRange := tsRange_row appIn appOut aux accepted
+  idxOut := idxOut_row appIn appOut aux
+  productsOut := productsOut_row appIn appOut aux accepted
+  closeZero := closeZero_row appIn appOut aux
+  closeTest := closeTest_row appIn appOut aux valid reach
+  closeOps := closeOps_row appIn appOut aux accepted
+  closeInitial := closeInitial_row appIn appOut aux accepted
+  closeFinal := closeFinal_row appIn appOut aux accepted
+  closeProducts := closeProducts_row appIn appOut aux accepted
+  segOut := segOut_row appIn appOut aux
+  memOut := memOut_row appIn appOut aux
 
 end NightstreamFPrime.Lifecycle.Nebula.Honest

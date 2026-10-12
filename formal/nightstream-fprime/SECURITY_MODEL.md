@@ -129,8 +129,11 @@ collision.
   - `Lifecycle.RandomOracleKnowledge.statisticalError`: the two statistical
     terms. `ε_test = 4589/p² ≈ 2^-115.84`
     (`Lifecycle.Nifs.VerifierErrorBudget.test_error_eq`) and
-    `ε_sample ≈ 2^-125.4`; at `Q = 2^64` their sum is about `2^-51.84`. These
-    two approximations are computed outside Lean.
+    `ε_sample ≈ 2^-125.4`. Each query adds less than `2^-115.79`: the sum is
+    at most `(Q + 74) · 50 / (87 · 2^115)`
+    (`Lifecycle.RandomOracleKnowledge.statisticalError_le`), so at `Q = 2^64`
+    it is below `2^-51` (about `2^-51.80`;
+    `Lifecycle.RandomOracleKnowledge.statisticalError_two_pow_64`).
   - `Export.Stage1.RandomOracleSetup.msisAdvantage`: the success of an
     explicit MSIS solver on a uniform matrix. It runs the binding reduction
     `Lifecycle.RandomOracleBinding.rerunKernel`, which computes a nonzero
@@ -378,10 +381,11 @@ fresh verifier coin by an oracle read. Each module header states its part:
   `Export.Stage1.HyperNovaAcceptedNext.recursive_extend` (proved for
   `Poseidon2HashChainV1` only) and
   `Lifecycle.Nifs.BaseCompleteness.zeroProof_verify`.
-- The error is not one security level. The statistical part costs about
-  `2^115.8` oracle queries (addresses) for each unit of success, linear in
-  `Q`. One Poseidon2 state answers up to six addresses, so in permutation
-  calls this is about `2^113.2` (both computed outside Lean). The other terms
+- The error is not one security level. The statistical part costs more
+  than `2^115.79` oracle queries (addresses) for each unit of success, linear
+  in `Q` (`Lifecycle.RandomOracleKnowledge.statisticalError_le`). One
+  Poseidon2 state answers up to six addresses, so in permutation calls this
+  is about `2^113.2` (computed outside Lean). The other terms
   depend on MSIS at the solver's work and on Poseidon2 collisions. 128-bit
   security needs a larger challenge field for `γ`.
 - Concrete attacks on Poseidon2 as a random oracle, or on the additive duplex,

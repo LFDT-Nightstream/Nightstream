@@ -235,8 +235,12 @@ fresh verifier coin by an oracle read. Each module header states its part:
    justification would be duplex-sponge Fiat–Shamir in the ideal-permutation
    model, where the rate lanes of one permutation output are independent;
    Lean does not prove it. The same sponge also computes the state hash, which the theorem
-   treats as a concrete function. The two uses absorb different first words
-   (their domain tags), but no Lean statement separates them. Each Π_RLC
+   treats as a concrete function. The state hash is a four-lane read after its
+   own call list (`Lifecycle.TranscriptCoverage.stateHash_eq_run`), and the
+   only common prefix of a challenge's call list and a state hash's call list
+   is empty, because their first inputs absorb different domain chunks
+   (`Lifecycle.TranscriptCoverage.stateHash_separated`). So no challenge
+   read uses a call list that the state hash computes. Each Π_RLC
    scalar is the existing sampler applied to an oracle answer; its law is
    within `2^-132` of uniform on the strong set
    (`Spec.Folding.Nifs.NonInteractive.PiRlcSampler.distance_lt`).

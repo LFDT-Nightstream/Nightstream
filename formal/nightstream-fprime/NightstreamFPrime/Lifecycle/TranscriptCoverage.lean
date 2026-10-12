@@ -29,7 +29,10 @@ Outputs:
   that read by a random oracle and changes nothing else;
 - `challengeAddress_injective`, `challengeCalls_length_eq`: distinct
   challenges of one execution have distinct addresses, and the shape fixes the
-  length of each challenge's calls.
+  length of each challenge's calls;
+- `stateHash_eq_run`, `stateHash_separated`: the state hash is a four-lane
+  read after its own calls, and no challenge's calls share a nonempty prefix
+  with them: their first inputs absorb different domain chunks.
 
 `AgreeOnAbsorbed` is the dependency specification; a change to it is a
 protocol change. `tests/TranscriptCoverageChecks.lean` pins it by `Iff.rfl`,
@@ -1013,6 +1016,96 @@ theorem challengeAddress_injective {degree : Nat}
   exact offset_slot_injective _ _
     (List.length_pos_iff.mpr (messageCalls_ne_nil proof ⟨0, by decide⟩))
     (Nat.add_left_cancel lengths) (congrArg Prod.snd same)
+
+/-! ## Separation from the state hash -/
+
+/-- A word list starts its absorbed calls with its first rate chunk. -/
+private theorem absorbCalls_head? {words : List F} (nonempty : words ≠ []) :
+    (absorbCalls words).head? = some (padChunk (words.take Poseidon2.rate)) := by
+  have positive : 0 < (words.length + Poseidon2.rate - 1) / Poseidon2.rate := by
+    have length : 0 < words.length := List.length_pos_iff.mpr nonempty
+    unfold Poseidon2.rate
+    omega
+  obtain ⟨count, count_eq⟩ : ∃ count, (words.length + Poseidon2.rate - 1) / Poseidon2.rate =
+      count + 1 := ⟨_, (Nat.succ_pred_eq_of_pos positive).symm⟩
+  unfold absorbCalls
+  rw [count_eq, List.range_succ_eq_map, List.map_cons, List.head?_cons, Nat.zero_mul, List.drop_zero]
+
+/-- Every challenge's calls start with the fold domain chunk. -/
+private theorem challengeCalls_head? {degree : Nat}
+    (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (proof : Proof degree) (challenge : Challenge) :
+    (challengeCalls fresh proof challenge).head? = some (padChunk Transcript.foldDomainChunk) := by
+  have statement : (statementCalls fresh).head? = some (padChunk Transcript.foldDomainChunk) := by
+    unfold statementCalls
+    rw [List.head?_append, absorbCalls_head? (by simp [Transcript.foldDomainChunk, Poseidon2.rate]),
+      List.take_of_length_le (by simp [Poseidon2.rate])]
+    rfl
+  cases challenge <;>
+    simp only [challengeCalls, proverCalls, roundPrefixCalls, outputCalls, preRoundCalls,
+      List.append_assoc, List.head?_append, statement, Option.some_or]
+
+variable (logicalWidth publicFits) in
+/-- The permutation inputs of `stateHash`: the absorbed preimage, then the
+padding input that adds one to lane 0. -/
+def stateHashCalls (preimage : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits)) :
+    List Call :=
+  absorbCalls (serializePreimage (publicFits := publicFits) preimage) ++ [padChunk [1]]
+
+/-- The state hash is the first four lanes of the state after its calls. -/
+theorem stateHash_eq_run
+    (preimage : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits)) :
+    stateHash (publicFits := publicFits) preimage =
+      (run Transcript.initialState (stateHashCalls logicalWidth publicFits preimage)).take
+        Poseidon2.digestLen := by
+  have padded (words : List F) : Poseidon2.hash words =
+      (Poseidon2.absorbBlock (Transcript.absorb Transcript.initialState words) [1]).take
+        Poseidon2.digestLen := by
+    unfold Poseidon2.hash Transcript.absorb Transcript.initialState
+    dsimp only
+    rw [Poseidon2.absorbBlock]
+    refine congrArg (fun state => (Poseidon2.permute state).take Poseidon2.digestLen) ?_
+    refine List.map_congr_left fun lane _ => ?_
+    cases lane with
+    | zero => simp
+    | succ lane => simp
+  unfold stateHash stateHashCalls
+  rw [padded, run_append, ← absorb_eq_run, run_cons, run_nil, step,
+    ← absorbBlock_padChunk _ (by simp [Poseidon2.rate])]
+
+/-- No Fiat–Shamir read shares a call sequence with the state hash: the only
+common prefix of a challenge's calls and a state hash's calls is empty, because
+their first inputs absorb different domain chunks (`Transcript.foldDomainChunk`,
+`stateDomainChunk`). So no challenge reads a call sequence that the state hash
+computes. -/
+theorem stateHash_separated {degree : Nat}
+    (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (proof : Proof degree) (challenge : Challenge)
+    (preimage : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits))
+    {calls : List Call} (challengePrefix : calls <+: challengeCalls fresh proof challenge)
+    (hashPrefix : calls <+: stateHashCalls logicalWidth publicFits preimage) :
+    calls = [] := by
+  cases calls with
+  | nil => rfl
+  | cons call rest =>
+      exfalso
+      have hashHead : (stateHashCalls logicalWidth publicFits preimage).head? =
+          some (padChunk stateDomainChunk) := by
+        unfold stateHashCalls serializePreimage
+        have rate : stateDomainChunk.length = Poseidon2.rate := stateDomainChunk_length
+        rw [List.head?_append, absorbCalls_head? (by simp [stateDomainChunk, Poseidon2.rate]),
+          List.append_assoc, List.take_left' rate]
+        rfl
+      obtain ⟨challengeTail, challengeEq⟩ := challengePrefix
+      obtain ⟨hashTail, hashEq⟩ := hashPrefix
+      have fromChallenge := challengeCalls_head? fresh proof challenge
+      rw [← challengeEq] at fromChallenge
+      rw [← hashEq] at hashHead
+      have same : padChunk Transcript.foldDomainChunk = padChunk stateDomainChunk :=
+        Option.some_injective _ (fromChallenge.symm.trans hashHead)
+      have lane := congrFun same ⟨0, by decide⟩
+      revert lane
+      decide
 
 /-! ## Contract -/
 

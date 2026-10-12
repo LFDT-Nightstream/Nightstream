@@ -83,6 +83,8 @@ import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
 #audit_axioms NightstreamFPrime.Lifecycle.TranscriptCoverage.piCcsProbe_coins
 #audit_axioms NightstreamFPrime.Lifecycle.TranscriptCoverage.challengeCalls_length_eq
 #audit_axioms NightstreamFPrime.Lifecycle.TranscriptCoverage.challengeAddress_injective
+#audit_axioms NightstreamFPrime.Lifecycle.TranscriptCoverage.stateHash_eq_run
+#audit_axioms NightstreamFPrime.Lifecycle.TranscriptCoverage.stateHash_separated
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracleTest.point_injective
 #audit_axioms NightstreamFPrime.Spec.RandomOracle.escape_le
 #audit_axioms NightstreamFPrime.Spec.RandomOracle.pinned_le

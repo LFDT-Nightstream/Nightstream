@@ -1,4 +1,5 @@
 import NightstreamFPrime.Lifecycle.RandomOracleUniqueness
+import NightstreamFPrime.Lifecycle.Nifs.VerifierErrorBudget
 
 /-!
 Owns the knowledge error of the production NIFS key in the random-oracle
@@ -10,6 +11,9 @@ claim (running and fresh statements, a NIFS proof, and child witnesses).
 Outputs:
 - `Extracts`: the extractor's retries form a complete `Π_RLC` fork, and the
   fork's witness satisfies the source relation of the claimed statement;
+- `statisticalError_le`, `statisticalError_two_pow_64`: each oracle query adds
+  less than `2 ^ -115.79` of statistical error, so at `Q = 2 ^ 64` it is below
+  `2 ^ -51`;
 - `knowledge_error_le`: the extractor succeeds with probability at least the
   acceptance probability minus `17 (Q + 17) sampleError + (Q + 74) testError`,
   the running-mismatch chance of Lemma 5, and the two binding-reduction
@@ -79,6 +83,45 @@ noncomputable def statisticalError (queries : Nat) : ℝ :=
   (Nifs.PaperProfile.arity).total *
       (((queries + (Nifs.PaperProfile.arity).total : Nat) : ℝ) * sampleError) +
     ((queries + challenges.length : Nat) : ℝ) * IndependentExecution.testError productionShape 8
+
+/-- Each oracle query adds less than `2 ^ -115.79` of statistical error:
+`ε_test = 4589 / p²` (`VerifierErrorBudget.test_error_eq`) and
+`ε_sample < 5 ^ -54 + 2 ^ -132` (`PiRlcSampler.distance_lt`). -/
+theorem statisticalError_le (queries : Nat) :
+    statisticalError queries ≤ ((queries : ℝ) + 74) * (50 / (87 * 2 ^ 115)) := by
+  have sample : sampleError < 1 / 5 ^ 54 + 1 / 2 ^ 132 := by
+    have distance := Spec.Folding.Nifs.NonInteractive.PiRlcSampler.distance_lt
+    have count : (Spec.Folding.Nifs.NonInteractive.PiRlcSampler.scalarCount : ℝ) = 5 ^ 54 := by
+      norm_num [Spec.Folding.Nifs.NonInteractive.PiRlcSampler.scalarCount,
+        Phi81StrongSet.alphabetSize, Phi81StrongSet.coefficientCount]
+    unfold sampleError
+    rw [count]
+    linarith
+  have test := Nifs.VerifierErrorBudget.test_error_eq
+  have perQuery : 17 * sampleError + IndependentExecution.testError productionShape 8 <
+      50 / (87 * 2 ^ 115) := by
+    have numbers : (17 : ℝ) * (1 / 5 ^ 54 + 1 / 2 ^ 132) +
+        4589 / (goldilocksModulus : ℝ) ^ 2 < 50 / (87 * 2 ^ 115) := by
+      norm_num [goldilocksModulus]
+    rw [test]
+    linarith
+  have sampleNonnegative := sampleError_nonnegative
+  have testNonnegative : 0 ≤ IndependentExecution.testError productionShape 8 := by
+    rw [test]
+    positivity
+  have queriesNonnegative : (0 : ℝ) ≤ queries := Nat.cast_nonneg queries
+  unfold statisticalError
+  rw [Nifs.PaperProfile.arity_total, challenges_length]
+  push_cast
+  calc
+    _ ≤ ((queries : ℝ) + 74) * (17 * sampleError + IndependentExecution.testError productionShape 8) := by
+      nlinarith
+    _ ≤ _ := mul_le_mul_of_nonneg_left perQuery.le (by positivity)
+
+/-- At `Q = 2 ^ 64` queries the statistical error is below `2 ^ -51`. -/
+theorem statisticalError_two_pow_64 : statisticalError (2 ^ 64) < 1 / 2 ^ 51 := by
+  refine (statisticalError_le (2 ^ 64)).trans_lt ?_
+  norm_num
 
 /-- The knowledge error: the statistical error, the chance that a retry
 changes the running statement (Lemma 5), and the two binding-reduction

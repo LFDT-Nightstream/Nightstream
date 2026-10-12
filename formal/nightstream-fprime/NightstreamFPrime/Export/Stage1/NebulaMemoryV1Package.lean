@@ -16,7 +16,7 @@ open NightstreamFPrime.Lifecycle.Nebula
 
 /-- The only application program selected by this package. -/
 def application : Lifecycle.Stage1.Application.Program :=
-  NebulaMemoryPackage.application FirstPlan.plan FirstPlan.app
+  NebulaMemoryPackage.application ⟨FirstPlan.plan, FirstPlan.valid, FirstPlan.secure⟩ FirstPlan.app
 
 theorem polyRows_mulCount : ((Rows.polyRows FirstPlan.plan FirstPlan.app).map Layout.R1CS.mulCount).sum ≤ 100000 := by
   decide +kernel
@@ -26,22 +26,22 @@ theorem polyRows_length : (Rows.polyRows FirstPlan.plan FirstPlan.app).length �
   decide
 
 theorem rows_le :
-    (PerApplicationPackage.applicationPlan (NebulaMemoryPackage.application FirstPlan.plan FirstPlan.app)).rowCount ≤ 257057539 :=
+    (PerApplicationPackage.applicationPlan (MemoryApp.program FirstPlan.plan FirstPlan.app)).rowCount ≤ 257057539 :=
   NebulaMemoryPackage.rows_le FirstPlan.plan FirstPlan.app polyRows_mulCount polyRows_length (by decide +kernel)
 
 theorem columns_le :
-    PerApplicationPackage.addedPrivateColumnCount (NebulaMemoryPackage.application FirstPlan.plan FirstPlan.app) ≤ 256970581 :=
+    PerApplicationPackage.addedPrivateColumnCount (MemoryApp.program FirstPlan.plan FirstPlan.app) ≤ 256970581 :=
   NebulaMemoryPackage.columns_le FirstPlan.plan FirstPlan.app polyRows_mulCount (by decide +kernel)
 
 theorem carrier_le :
-    (NebulaMemoryPackage.application FirstPlan.plan FirstPlan.app).witnessWordCount +
-      ApplicationRetainedBlocks.localCount (NebulaMemoryPackage.application FirstPlan.plan FirstPlan.app) ≤ 5480402 :=
+    (MemoryApp.program FirstPlan.plan FirstPlan.app).witnessWordCount +
+      ApplicationRetainedBlocks.localCount (MemoryApp.program FirstPlan.plan FirstPlan.app) ≤ 5480402 :=
   NebulaMemoryPackage.carrier_le FirstPlan.plan FirstPlan.app polyRows_mulCount (by decide +kernel)
 
 /-- All physical-package, retained-carrier, and recursive-plan bounds for the
 approved `2^28` profile. -/
 theorem fits : PerApplicationFixedPoint.FitsTwoPow28 application :=
-  PerApplicationFixedPoint.fitsTwoPow28OfApplicationBounds (NebulaMemoryPackage.application FirstPlan.plan FirstPlan.app) rows_le columns_le
+  PerApplicationFixedPoint.fitsTwoPow28OfApplicationBounds (MemoryApp.program FirstPlan.plan FirstPlan.app) rows_le columns_le
     carrier_le
 
 theorem plan_fixedPoint :

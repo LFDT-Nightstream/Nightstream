@@ -221,7 +221,6 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.state_wordsAfter
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.prefix_or_collision
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.accepts_or_collision
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.chain_soundness
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Expr.eval_subst
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Expr.varsSatisfy_subst
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Expr.eval_sum
@@ -355,7 +354,6 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.localLength_opsAt
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.supported
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.holds_of_valid
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.chain_soundness
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Sponge.compileAbsorptions_output
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Sponge.output_eq_program
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.transcriptChunks_length
@@ -419,7 +417,6 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Rows.sum_flatMap_range
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Rows.names_count
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.assertionNames_count
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.EndToEnd.soundness
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.EndToEnd.bad_subset
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.EndToEnd.bad_le_sum
 #audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryPackage.rows_le
@@ -621,6 +618,7 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Machine.argument_val
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Machine.sound
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Machine.complete
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Machine.State.words_ofWords
 #audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.fits
 #audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryN1Package.fits
 
@@ -629,4 +627,6 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemorySecurity.steps_of_validAdvice
 #audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemorySecurity.stage1Extraction
 #audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemorySecurity.ClaimedStage.law_snd
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemorySecurity.input_adversaryTape
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemorySecurity.tape_map_adversaryTape
 #audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemorySecurity.bad_le

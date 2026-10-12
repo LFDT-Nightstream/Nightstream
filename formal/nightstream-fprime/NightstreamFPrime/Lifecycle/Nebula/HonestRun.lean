@@ -63,8 +63,8 @@ private theorem MemoryApp.history_of_run (valid : p.Valid) :
       Reach p c → continueRun (context p) c run = some c' →
       AppThread app.model s run s' →
       ∃ z witness : ℕ → List F,
-        z 0 = stateWords (List.ofFn (app.words s)) (carryWords c) ∧
-        z run.length = stateWords (List.ofFn (app.words s')) (carryWords c') ∧
+        z 0 = stateWords (List.ofFn s) (carryWords c) ∧
+        z run.length = stateWords (List.ofFn (s')) (carryWords c') ∧
         (∀ i < run.length, (MemoryApp.program p app).valid (z i) (witness i) ∧
           z (i + 1) = (MemoryApp.program p app).step (z i) (witness i)) ∧
         ∀ i < run.length, (witness i).length = Words.count p app.toAppShape
@@ -73,18 +73,18 @@ private theorem MemoryApp.history_of_run (valid : p.Valid) :
     subst ran
     have same : s = _ := thread
     subst same
-    exact ⟨fun _ => stateWords (List.ofFn (app.words s)) (carryWords c), fun _ => [], rfl, rfl,
+    exact ⟨fun _ => stateWords (List.ofFn s) (carryWords c), fun _ => [], rfl, rfl,
       fun i below => absurd below (Nat.not_lt_zero i), fun i below => absurd below (Nat.not_lt_zero i)⟩
   | inv :: rest, c, _, s, _, reach, ran, thread => by
     simp only [continueRun, List.foldlM_cons, Option.bind_eq_bind, Option.bind_eq_some_iff] at ran
     obtain ⟨d, step, tail⟩ := ran
     obtain ⟨machine, thread⟩ := thread
     obtain ⟨w, lengthW, validW, stepW⟩ := MemoryApp.complete valid reach step machine
-    have stepW : (MemoryApp.program p app).step (stateWords (List.ofFn (app.words s)) (carryWords c)) w =
-        stateWords (List.ofFn (app.words inv.next)) (carryWords d) := stepW
+    have stepW : (MemoryApp.program p app).step (stateWords (List.ofFn s) (carryWords c)) w =
+        stateWords (List.ofFn (inv.next)) (carryWords d) := stepW
     obtain ⟨z, witness, z0, zT, steps, lengths⟩ :=
       MemoryApp.history_of_run valid (MemoryApp.reach_invoke valid reach step) tail thread
-    refine ⟨fun i => if i = 0 then stateWords (List.ofFn (app.words s)) (carryWords c) else z (i - 1),
+    refine ⟨fun i => if i = 0 then stateWords (List.ofFn s) (carryWords c) else z (i - 1),
       fun i => if i = 0 then w else witness (i - 1), rfl, ?_, ?_, ?_⟩
     · simpa using zT
     · intro i below
@@ -120,7 +120,7 @@ theorem MemoryApp.history_of_execution (valid : p.Valid)
     (exec : Executes p app.model s₀ (initialMachine p) steps s final) :
     ∃ (carry : Fin 39 → F) (z witness : ℕ → List F),
       let m : EndToEnd.MemoryStatement app.width :=
-        ⟨app.words s₀, app.words s, carry, segments, final.ts,
+        ⟨s₀, s, carry, segments, final.ts,
           memoryRoot hash p (planDigest p) final.memory⟩
       let statement : TerminalStatement AppState :=
         ⟨segments * p.n, stateWords (List.ofFn m.initialApp) (carryWords (startCarry (context p))),

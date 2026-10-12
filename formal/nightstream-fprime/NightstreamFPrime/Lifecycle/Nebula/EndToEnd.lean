@@ -12,7 +12,8 @@ some other history of a statement always contains a collision.
   failure occurs. `Export/Stage1/NebulaMemorySecurity` proves it for the
   HyperNova reverse extractor.
 * `bad_subset`: a bad sample has a Stage 1 failure, a state-link collision, a
-  chain collision, or a first unbalanced segment in an accepted extracted run.
+  chain collision, or an accepted extracted run with an unbalanced claimed
+  segment that passes the product test (`Unbalanced`).
 * `bad_le_sum`: the same cover as a bound on the mass of any law.
 
 This module gives no term a number and states no premise about the memory
@@ -57,7 +58,7 @@ structure VerifierChecks {width : ℕ} (p : Plan) (statement : TerminalStatement
 /-- The typed statement that a memory statement claims after `T` steps. -/
 def MemoryStatement.typed (app : PortApp p) (m : MemoryStatement app.width) (T : ℕ) :
     Nebula.Statement app.State Digest :=
-  ⟨T, app.ofWords m.initialApp, app.ofWords m.finalApp, m.segments, m.finalTs, m.finalRoot⟩
+  ⟨T, m.initialApp, m.finalApp, m.segments, m.finalTs, m.finalRoot⟩
 
 /-- What the end-to-end layer reads from one sample: the Stage 1 statement,
 the memory statement with the prover's final carry, and the history that
@@ -111,20 +112,11 @@ def ChainCollision (s : Sample) : Prop :=
     ∃ b ∈ runInputs (context p) (x.run app s) (x.memory s).segments,
       TranscriptCollision (blocks a) (blocks b)
 
-/-- The model accepts the extracted run, and `k` is its first unbalanced
-segment: the only event that A6 transfers. The earlier segments are balanced,
-so they close with any challenge. -/
-def FirstUnbalanced (k : Fin p.sMax) (s : Sample) : Prop :=
+/-- The model accepts the extracted run, and a claimed segment passes the
+product test with unbalanced multisets: the one event that A6 bounds, for all
+segment slots at once. -/
+def Unbalanced (s : Sample) : Prop :=
   Accepts (context p) app.model (x.claim app s) (x.run app s) ∧
-    k.val < (x.memory s).segments ∧
-    ¬ ((segmentView (context p) (x.run app s) k).multisets p).Balanced ∧
-    ∀ j < k.val, ((segmentView (context p) (x.run app s) j).multisets p).Balanced
-
-/-- Security note Lemma 6 on the extracted run: an execution, a state-link
-collision, a chain collision, or a segment whose challenges pass the product
-test with unbalanced multisets. -/
-def Outcome (s : Sample) : Prop :=
-  x.Attested app s ∨ x.StateLinkCollision app s ∨ x.ChainCollision app s ∨
     ∃ k < (x.memory s).segments, BadChallenge (context p) (segmentView (context p) (x.run app s) k)
 
 /-- An accepted sample that passes the spec §13 checks, but whose extracted
@@ -138,45 +130,24 @@ end Experiment
 
 variable {Sample : Type} {x : Experiment app.width Sample} {Accepted Failure : Sample → Prop}
 
-/-- End-to-end soundness, deterministic: on an accepted sample that passes the
-spec §13 checks, the extracted history is a history with the Lemma 6 outcome,
-or the named Stage 1 failure occurs. -/
-theorem soundness (valid : p.Valid)
-    (extraction : Stage1Extraction (MemoryApp.program p app) x Accepted Failure)
-    {s : Sample} (accepted : Accepted s)
-    (checks : VerifierChecks p (x.statement s) (x.memory s)) :
-    (History (MemoryApp.program p app) (x.statement s) (x.states s) (x.witness s) ∧
-      x.Outcome app s) ∨ Failure s := by
-  rcases extraction.extract s accepted with ⟨z0, zT, steps⟩ | failure
-  · exact Or.inl ⟨⟨z0, zT, steps⟩,
-      MemoryApp.chain_soundness valid (z0.trans checks.start) steps (zT ▸ checks.terminal)⟩
-  · exact Or.inr failure
-
-/-- The deterministic cover: a bad sample has a Stage 1 failure, a state-link
-collision, a chain collision, or a first unbalanced segment in an accepted
-extracted run. -/
+/-- The deterministic cover (security note Lemma 6 on the extracted run): a
+bad sample has a Stage 1 failure, a state-link collision, a chain collision,
+or an accepted extracted run with a claimed segment that passes the product
+test with unbalanced multisets. -/
 theorem bad_subset (valid : p.Valid)
     (extraction : Stage1Extraction (MemoryApp.program p app) x Accepted Failure) :
     {s | x.Bad app Accepted s} ⊆
       {s | Failure s} ∪ {s | x.StateLinkCollision app s} ∪ {s | x.ChainCollision app s} ∪
-        ⋃ k : Fin p.sMax, {s | x.FirstUnbalanced app k s} := by
+        {s | x.Unbalanced app s} := by
   intro s ⟨accepted, checks, notGood⟩
   rcases extraction.extract s accepted with ⟨z0, zT, steps⟩ | failure
   · rcases accepts_or_collision valid (z0.trans checks.start)
         (fun i below => MemoryApp.holds_of_valid (steps i below).1 (steps i below).2)
         (zT ▸ checks.terminal) with ran | link
-    · rcases poseidon2_soundness rfl valid ran with attests | chain | ⟨k, hk, bad⟩
+    · rcases poseidon2_soundness rfl valid ran with attests | chain | bad
       · exact absurd ⟨⟨z0, zT, steps⟩, attests⟩ notGood
       · exact Or.inl (Or.inr chain)
-      · classical
-        have unbalanced : ∃ j, j < (x.memory s).segments ∧
-            ¬ ((segmentView (context p) (x.run app s) j).multisets p).Balanced := ⟨k, hk, bad.1⟩
-        have first := Nat.find_spec unbalanced
-        refine Or.inr (Set.mem_iUnion.mpr
-          ⟨⟨Nat.find unbalanced, lt_of_lt_of_le first.1 ran.segmentsRange.2⟩,
-            ran, first.1, first.2, fun j below => ?_⟩)
-        by_contra notBalanced
-        exact Nat.find_min unbalanced below ⟨lt_trans below first.1, notBalanced⟩
+      · exact Or.inr ⟨ran, bad⟩
     · exact Or.inl (Or.inl (Or.inr link))
   · exact Or.inl (Or.inl (Or.inl failure))
 
@@ -192,17 +163,16 @@ theorem bad_le_sum (valid : p.Valid)
     law.toOuterMeasure {s | x.Bad app Accepted s} ≤
       law.toOuterMeasure {s | Failure s} + law.toOuterMeasure {s | x.StateLinkCollision app s} +
         law.toOuterMeasure {s | x.ChainCollision app s} +
-        ∑ k : Fin p.sMax, law.toOuterMeasure {s | x.FirstUnbalanced app k s} := by
+        law.toOuterMeasure {s | x.Unbalanced app s} := by
   calc law.toOuterMeasure {s | x.Bad app Accepted s}
       ≤ law.toOuterMeasure ({s | Failure s} ∪ {s | x.StateLinkCollision app s} ∪
-          {s | x.ChainCollision app s} ∪ ⋃ k : Fin p.sMax, {s | x.FirstUnbalanced app k s}) :=
+          {s | x.ChainCollision app s} ∪ {s | x.Unbalanced app s}) :=
         measure_mono (bad_subset valid extraction)
     _ ≤ _ := by
         refine (measure_union_le _ _).trans ?_
         gcongr
-        · refine (measure_union_le _ _).trans ?_
-          gcongr
-          exact measure_union_le _ _
-        · exact measure_iUnion_fintype_le _ _
+        refine (measure_union_le _ _).trans ?_
+        gcongr
+        exact measure_union_le _ _
 
 end NightstreamFPrime.Lifecycle.Nebula.EndToEnd

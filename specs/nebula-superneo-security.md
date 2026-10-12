@@ -86,8 +86,9 @@ fixed constant iteration bound. Its premises are:
   (recursive-size closure);
 - `hash` is collision resistant or a random oracle;
 - the non-interactive folding scheme is knowledge sound. HyperNova states
-  this as Assumption 1 for its own scheme. For F′, it is SuperNeo folding
-  under A1 and A6.
+  this as Assumption 1 for its own scheme. For F′, it is HyperNova errata
+  Assumption 1 for the Poseidon2 fold (A6, first paragraph); A1 and the
+  one-fold random-oracle theorem of PR #155 motivate its error.
 
 In Lean, the Stage 1 history is the output of the HyperNova reverse extractor
 (Lemma 17) under HyperNova errata Assumption 1 in the form of Definition 7
@@ -122,14 +123,16 @@ transfer premise `FiatShamirModel` (owner approval 2026-09-11).
 
 A6 extends that premise to the memory round. The owner approved the extension
 on 2026-10-07 and chose on 2026-10-12 to state it in the form of HyperNova
-errata Assumption 1, as Stage 1 states its history premise. For every admitted
-adversary and every segment slot `k`, the probability that the extracted run
-is accepted with first unbalanced segment `k` is at most an error term
-`error_k` of that adversary (Lean `NebulaMemorySecurity.MemoryRound`). An
-adversary is a stage of the reverse extractor with the memory statement that
-it claims. The earlier segments are balanced, so they close with any
-challenge; only the first unbalanced segment counts. The record chains need
-only collision resistance (A3).
+errata Assumption 1, as Stage 1 states its history premise. An adversary is
+a stage of the reverse extractor with a memory statement that its tape gives.
+The stage must be admitted in the same sense as the stages of A4
+(`StageAdmitted` of `Closed`). For every such adversary, the probability that
+the extracted run is accepted and has a claimed segment that passes the
+product test with unbalanced multisets is at most one error term `error_mem`
+of that adversary (Lean `NebulaMemorySecurity.MemoryRound`). One term covers
+all segment slots. In §5, the claim is the memory statement that the IVC
+adversary gives from its own tape. The record chains need only collision
+resistance (A3).
 
 No random-oracle model covers `η`. The relation computes `η` with Poseidon2
 inside the proven step, and the extractor gets the Poseidon2 inputs and
@@ -137,18 +140,21 @@ outputs in the witness, not oracle queries. A random-oracle proof would need
 one more step, "the Poseidon2 in the circuit acts as the oracle", which is
 this assumption, not a proof of it.
 
-A proved game bound motivates the value of `error_k`, as the one-fold
+A proved game bound motivates the value of `error_mem`, as the one-fold
 random-oracle theorem motivates the Stage 1 error. In the interactive game for
 slot `k`, the prover sends the three roots `(D_pre.ops, D_mem, D_pre.fs)` and
 `ts` of segment `k`, and the verifier then samples `η` uniformly. Lemma 3
 holds for each slot: slot `k` is bad with frequency at most `2·m_mem/q²` plus
-a retry term (`badAt_bound`). A straight-line translation that guesses which
-of the `Q_η` evaluations of the §9.3 transcript answers segment `k` (the
-relation evaluates it in every invocation, and off-circuit evaluations count
-too), or that none does, has the factor `Q_η + 1`. The extractor's rewinds
-can make the factor larger. The §9.3 framing separates canonical inputs (Ob3),
-so the committed transcript input is the guessed oracle input. Like the
-Stage 1 boundary, A6 selects no numerical value.
+a retry term (`badAt_bound`). An accepted run with an unbalanced segment has a
+first unbalanced segment, and the segments before it are balanced, so they
+close with any challenge. A straight-line translation that guesses which of
+the `Q_η` evaluations of the §9.3 transcript answers the first unbalanced
+segment (the relation evaluates it in every invocation, and off-circuit
+evaluations count too), or that none does, has the factor `Q_η + 1` once for
+all slots. The extractor's rewinds can make the factor larger. The §9.3
+framing separates canonical inputs (Ob3), so the committed transcript input is
+the guessed oracle input. Like the Stage 1 boundary, A6 selects no numerical
+value.
 
 **Optional stronger premise, not used.** A stronger premise would treat every
 in-circuit output of `H` as an observable oracle answer, with the query log
@@ -223,11 +229,11 @@ the previous segment's FS chain, or the verifier's `D_init`. ∎
 
 ### Lemma 3 — Fingerprint test
 
-**Statement.** Work in the interactive game of A6, for one segment. Let `in` be
-everything fixed before `η`: the three roots, `ts`, and the adversary's state.
-After `η`, the extractor of A1 and A4 returns the segment's records. Let
-`A = IS ∪ WS` and `B = RS ∪ FS` be the multisets that these records define,
-each of size at most `m_mem`. Then
+**Statement.** Work in the interactive game that motivates A6, for one
+segment. Let `in` be everything fixed before `η`: the three roots, `ts`, and
+the adversary's state. After `η`, the extractor of A1 and A4 returns the
+segment's records. Let `A = IS ∪ WS` and `B = RS ∪ FS` be the multisets that
+these records define, each of size at most `m_mem`. Then
 
 ```text
 Pr[ the close product equation holds and A ≠ B ]  ≤  ε_test + ε_coll(t_1),
@@ -306,8 +312,8 @@ satisfies the ranges of Lemma 3. Ob6 gives the last sentence. ∎
 
 1. the segment has exactly one IS tuple and one FS tuple for each cell `g`;
 2. the write timestamps of the active operations are `ts_open + 1,
-   ts_open + 2, …` in slot order (the relation gives this through O2; the
-   proof uses only that they are distinct);
+   ts_open + 2, …` in slot order (the relation gives this through O2, and the
+   Lean proof uses this exact form);
 3. each operation has `rt < wt`;
 4. a read has `v_w = v_r`, and no operation writes to ROM;
 5. `IS ∪ WS = RS ∪ FS` as multisets.
@@ -396,39 +402,48 @@ these properties:
 ## 5. Composition and evaluation
 
 **Theorem.** Assume A1–A6 and Ob1–Ob8. Let `E` be the HyperNova reverse
-extractor of A4. On the joint law of the adversary's claimed memory statement
-and `E`'s sample,
+extractor of A4, run for `depth` stages, where every statement that the
+adversary can output has at most `depth` steps (spec §13 accepts at most
+`S_max · N`). On the joint law of the memory statement that the adversary
+claims from its own tape and `E`'s sample,
 
 ```text
 Pr[the verifier accepts and E's output is not a valid execution of the claim]
-   ≤  Σ_j (hash_j + error_j)            (A1, A4: one term per reverse stage)
-    + ε_coll(t_E)                       (Lemma 6 steps 2 and 6: state-digest links of E's run)
-    + ε_coll(t_E)                       (Lemma 2: the chains of E's run and every join)
-    + Σ_k error_k                       (A6, per segment slot)
+   ≤  Σ_j (hash_j + error_j)   (A4 under A6 paragraph 1: one term per reverse stage)
+    + coll_link                (Lemma 6 steps 2 and 6: state-digest links of E's run)
+    + coll_chain               (Lemma 2: the chains of E's run and every join)
+    + error_mem                (A6 paragraph 2: one term for all segment slots)
 ```
 
 with `ε_test = 2·m_mem/|𝕂|` and `m_mem ≤ R + M + N · B_ops`. `hash_j` is the
 state-hash collision mass of reverse stage `j`, and `error_j` is the
-Assumption 1 error of its fold adversary. The one-fold random-oracle theorem
-of PR #155 motivates the value of `error_j`. The target value of `error_k` is about
-`(Q_η + 1) · (ε_test + ε_coll(t_1))` (A6). The two collision terms are events
-of `E`'s own output in the real protocol, so they need no transfer. The proof
-is Lemma 6 on `E`'s run with a union bound.
+Assumption 1 error of its fold adversary. `coll_link` and `coll_chain` are
+the probabilities of the two collision events of `E`'s own run, so they need
+no transfer. `error_mem` is the A6 error of the last reverse stage with the
+adversary's claim. The one-fold random-oracle theorem of PR #155 motivates
+the value of `error_j`. The target value of `error_mem` is about
+`(Q_η + 1) · (ε_test + ε_coll(t_1))` (A6). The proof is Lemma 6 on `E`'s run
+with a union bound.
 
-In Lean, this is `NebulaMemorySecurity.bad_le` (§7 item 5), for every
-application with a port interface.
+In Lean, this is `NebulaMemorySecurity.bad_le` (§7 item 5). It holds for
+every application with a port interface whose memory program fits `2^28`,
+for every commitment setup and every valid plan. Its premises are A4
+(`Assumption1`, `Closed`, and an admitted start stage), the step bound
+(`depthBound`), and A6 (`MemoryRound`).
 
 **Symbolic values.** The owner has set no adversary time `t` and no query
 count `Q` (decision 2026-10-12), so each term stays a formula:
 
-- `hash_j ≤ ε_coll(t_j)`, where `t_j` is the time of reverse stage `j`; each
-  of the two collision terms is `ε_coll(t_E)` (A3).
+- `hash_j ≤ ε_coll(t_j)`, where `t_j` is the time of reverse stage `j`, and
+  `coll_link, coll_chain ≤ ε_coll(t_E)` (A3).
 - `error_j` has the value that the one-fold random-oracle theorem of PR #155
   motivates: about `17·(Q_j + 17)·ε_sample + (Q_j + 74)·ε_fold + msis + 2^−190`,
-  with `ε_fold = 4589/q² ≈ 2^−115.84` and `ε_sample ≈ 2^−125.4`
-  (`formal/nightstream-fprime/SECURITY_MODEL.md`, adversary 3). `Q_j` is the
-  query count of stage `j`, and `msis` is the advantage of an MSIS solver.
-- `error_k` has the target value `(Q_η + 1)·(2·m_mem/q² + ε_coll(t_1))` (A6).
+  with `ε_fold = f_fold/q²` and `ε_sample ≈ 2^−125.4`
+  (`formal/nightstream-fprime/SECURITY_MODEL.md`, adversary 3). For the memory
+  package shape, `f_fold = 5,161` (A1); PR #155 states `4589` for its selected
+  Stage 1 shape. `Q_j` is the query count of stage `j`, and `msis` is the
+  advantage of an MSIS solver.
+- `error_mem` has the target value `(Q_η + 1)·(2·m_mem/q² + ε_coll(t_1))` (A6).
 
 **Depth limit, shared with Stage 1.** The sum has one Assumption 1 term for
 each reverse stage, and the extractor of stage `j + 1` can rerun stage `j`.
@@ -437,14 +452,17 @@ If it reruns its adversary as the random-oracle extractor does,
 `Q_0 = 2^64`, and at `j = 2` when `Q_0 = 2^30` (`SECURITY_MODEL.md`, trust item
 4). A memory run has `T = S·N` folds. So, with these values, this bound gives
 no concrete security for a run of two or more folds when `Q_0 = 2^64`, or of
-three or more folds when `Q_0 = 2^30`. The Lean statement is correct for every
-depth. A useful number
+three or more folds when `Q_0 = 2^30`. The A6 term grows in the same way:
+its adversary is the last reverse stage, so its `Q_η` counts the queries of
+every rerun. The Lean statement is correct for every depth. A useful number
 needs a Stage 1 argument whose error does not grow in this way with the depth.
 
 **Setup check (spec §4.2 rule 6).** For the final relation shape and the plan,
 setup MUST check that `ε_test ≤ 2^−109.91`, the owner-approved floor. This
-holds exactly when `R + M + N · B_ops ≤ 139,509` (Lean `Plan.secure_iff`). Setup MUST reject the plan
-if the check fails. A larger memory needs a new owner decision. The check
+holds exactly when `R + M + N · B_ops ≤ 139,509` (Lean `Plan.secure_iff`).
+Setup MUST reject the plan if the check fails. In Lean, a memory package gets
+its program only from `NebulaMemoryPackage.application`, which takes the
+proofs of rules 1–6. A larger memory needs a new owner decision. The check
 applies to the per-check value. The A6 error adds the query loss, as the
 Stage 1 error does for the fold term.
 
@@ -543,24 +561,29 @@ generated relation MUST supply the exact census.
      `m_mem ≤ 139,509`);
    - completeness of the typed model (Ob5 for the model), for every hash
      function and every challenge function;
-   - Lemma 3 per segment slot in the interactive game of A6
+   - Lemma 3 per segment slot in the interactive game that motivates A6
      (`Spec/Nebula/Game.lean`, `Lifecycle/Nebula/MemoryBound.lean`). An
      outcome is the prover's coins and one fresh uniform challenge pair per
      segment slot. Slot `k` is bad when segment `k` of an accepted run has the
      transcript input committed before slot `k`'s challenge and passes the
      product test with unbalanced multisets. Its frequency is at most
      `2·m_mem/q²` plus one retry term (`badAt_frequency`, `badAt_bound`), and
-     each retry disagreement is a Poseidon2 transcript collision. The retry
-     adversary makes at most 2 calls in expectation (`t_1 ≤ 2·t_E`, counted in
-     calls);
+     each retry disagreement is a Poseidon2 transcript collision. Lean proves
+     only the arithmetic step of the retry count, `1 + #Err/#Succ ≤ 2` when
+     `#Err ≤ #Succ` (`retry_expected_calls`); the retry process is not
+     modelled;
    - the application interface (`Lifecycle/Nebula/PortApp.lean`, spec §10):
-     an application supplies its state words, its private words, and rows over
-     those words and the operation slots, with Ob7 (`PortApp.sound`) and its
-     half of Ob5 (`PortApp.complete`), both over the decoded ports. Every
+     an application supplies a model over its state words, its private
+     words, and rows over those words and the operation slots, with Ob7
+     (`PortApp.sound`) and its half of Ob5 (`PortApp.complete`), both over the
+     decoded ports. The application state is its state words, so the claim
+     that soundness attests and the statement that completeness gives name the
+     same states, and two different word vectors never name one state. Every
      result below holds for every such application. The first test
      application is the two-word machine (`Lifecycle/Nebula/MachineApp.lean`,
-     `Machine.portApp`); its Ob7 and its completeness are proved from the
-     decoded ports;
+     `Machine.portApp`): one machine step between the states that its two
+     words give; its Ob7 and its completeness are proved from the decoded
+     ports;
    - a memory application as a Stage 1 application program
      (`Lifecycle/Nebula/MemoryProgram.lean`). Its circuit holds exactly when
      the output state is the state digest of the output words and the decoded
@@ -575,11 +598,13 @@ generated relation MUST supply the exact census.
    - Ob6 by construction: the memory rows are the same for every application,
      and an application's rows have no variable for `η`, a product, or a
      carry word (spec §6.4);
-   - the run-level join (`MemoryApp.chain_soundness`): a chain of states whose
-     steps satisfy the program's predicate, with the spec §13 terminal checks,
-     gives Lemma 6's three results, or a collision between two state-digest
-     inputs of the run: at a link of the chain, or between the words after the
-     last step and the statement's final words. Every collision event, here
+   - the run-level join (`accepts_or_collision`): a chain of states whose
+     steps satisfy the program's predicate (`MemoryApp.holds_of_valid`), with
+     the spec §13 terminal checks, gives a run that the model accepts, or a
+     collision between two state-digest inputs of the run: at a link of the
+     chain, or between the words after the last step and the statement's
+     final words. `EndToEnd.bad_subset` joins it with Lemma 6 for the
+     Poseidon2 chains (`poseidon2_soundness`). Every collision event, here
      and in the end-to-end statement, names inputs of the one run that the
      extractor returns: an event over all histories of a statement holds for
      a compressing hash and says nothing. The relation reads `plan_digest`
@@ -608,9 +633,13 @@ generated relation MUST supply the exact census.
      history. `stage1Extraction` proves Stage 1 extraction for the HyperNova
      reverse extractor with no premise: on an accepted sample, the advice that
      `HyperNovaHistory.run` returns is a step history of valid steps, or the
-     failure event of `history_failure_le` occurs. `MemoryRound` is A6. With
-     it, `bad_le` bounds the mass of samples that the memory verifier accepts
-     while the extracted history does not attest the claim, as in §5;
+     failure event of `history_failure_le` occurs. `MemoryRound` is A6 for
+     the stages that A4 admits, with one term for all segment slots. With it,
+     `bad_le` bounds the mass of samples that the memory verifier accepts
+     while the extracted history does not attest the claim, as in §5. The
+     claim reads only the adversary's tape (`adversaryTape`). The Stage 1
+     statement comes from the same tape (`input_adversaryTape`), and that
+     tape has the adversary's law (`tape_map_adversaryTape`);
    - Ob1 at the Rust boundary (`crates/nightstream/src/nebula/mod.rs`,
      `Context::terminal_states`): the verifier rejects an initial or final
      application word, or a `final_timestamp`, at or above `q` before it
@@ -627,7 +656,9 @@ generated relation MUST supply the exact census.
      `jointDomain_le_twoPow28`). A second test package
      (`NebulaMemoryN1Package`, plan `SecondPlan`: `N = 1`, `r < μ`) covers
      the spec §14 cases that the first plan cannot reach. Both use the
-     plan-independent geometry of `NebulaMemoryPackage`. The Rust crate loads
+     plan-independent geometry of `NebulaMemoryPackage`, and both get their
+     program from `NebulaMemoryPackage.application`, which takes the proofs
+     of spec §4.2 rules 1–6 (`Plan.Valid`, `Plan.Secure`). The Rust crate loads
      each emitted package with a pinned structural identifier.
 
    Still open:
@@ -639,7 +670,8 @@ generated relation MUST supply the exact census.
      useless for runs of more than one or two folds;
    - a package for a production plan, deferred to the real application
      (decision 2026-10-12). It needs: the application with a `PortApp`
-     instance (state words, private words, rows, `sound`, `complete`); the
+     instance (a model over its state words, private words, rows, `sound`,
+     `complete`); the
      plan fields `R`, `μ`, `M`, `W_ts`, `B_ops` (the application's ports),
      `B_scan`, `N`, `S_max`, and the ROM and RAM images, which must pass spec
      §4.2 (rule 6: `R + M + N·B_ops ≤ 139,509`); the package bounds and the

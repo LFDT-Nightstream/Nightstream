@@ -26,12 +26,14 @@ abbrev Sample := Statement × Envelope application × List (SourceResult applica
 def Accepted (sample : Sample application) : Prop :=
   PerApplicationTerminal.Holds application fits setup sample.1 sample.2.1
 
-/-- The actual reverse program returns a complete forward application history. -/
+/-- The actual reverse program returns a complete forward application history
+of valid steps. -/
 def AdviceReturned (sample : Sample application) : Prop :=
   ∃ advice unused,
     run application fits sample.1 sample.2.1 sample.2.2 = .ok (advice, unused) ∧
     advice.length = sample.1.iteration ∧
-    advice.foldl application.step sample.1.z0 = sample.1.zi
+    advice.foldl application.step sample.1.z0 = sample.1.zi ∧
+    ValidAdvice application sample.1.z0 advice
 
 /-- An accepted run lacks a required successful source return on its visited path. -/
 def SourceFailure (sample : Sample application) : Prop :=

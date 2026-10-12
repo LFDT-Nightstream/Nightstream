@@ -193,7 +193,6 @@ import NightstreamFPrime.Export.Stage1.HyperNovaCompleteness
 import NightstreamFPrime.Export.Stage1.HyperNovaAcceptedNext
 import NightstreamFPrime.Export.Stage1.HyperNovaStepData
 import NightstreamFPrime.Export.Stage1.HyperNovaHistoryLaw
-import NightstreamFPrime.Export.Stage1.HyperNovaHistoryWork
 import NightstreamFPrime.Export.Stage1.HyperNovaVisitedLaw
 import NightstreamFPrime.Export.Stage1.HyperNovaGuardedSourceLaw
 import NightstreamFPrime.Export.Stage1.HyperNovaVisitedAcceptance

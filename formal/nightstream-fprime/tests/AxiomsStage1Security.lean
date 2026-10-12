@@ -13,7 +13,6 @@ import NightstreamFPrime.Export.Stage1.HyperNovaCompleteness
 import NightstreamFPrime.Export.Stage1.HyperNovaAcceptedNext
 import NightstreamFPrime.Export.Stage1.HyperNovaStepData
 import NightstreamFPrime.Export.Stage1.HyperNovaHistoryLaw
-import NightstreamFPrime.Export.Stage1.HyperNovaHistoryWork
 import NightstreamFPrime.Export.Stage1.HyperNovaVisitedLaw
 import NightstreamFPrime.Export.Stage1.HyperNovaGuardedSourceLaw
 import NightstreamFPrime.Export.Stage1.HyperNovaVisitedAcceptance
@@ -158,17 +157,12 @@ import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaInput.fresh_ofClaims
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaSource.sourceReturned_iff_terminalHolds
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaHistory.run_correct
-#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaHistoryProbability.accepted_subset
-#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaHistoryProbability.accepted_probability_le
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaRealInput.realSuccess_of_terminal
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaCompleteness.recursive_nifs
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaAcceptedNext.recursive_extend
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaAcceptedNext.base_extend
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaStepData.stepHolds_and_wellFormed
-#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaHistoryLaw.source_failure_probability_le
-#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaHistoryWork.source_calls_le_iteration
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaHistoryLaw.initial_marginal
-#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaHistoryLaw.accepted_probability_le
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaHistoryLaw.results_eq
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaVisitedLaw.visitedDraw_marginal
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaGuardedSourceLaw.realOutput_off

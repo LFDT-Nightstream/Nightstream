@@ -80,8 +80,7 @@ collision.
   authenticated NIFS step of the verifier's context.
 - **Result:** acceptance gives the verifier's context, the prior-state link
   and the exact NIFS output, or the base step, or a named state-hash collision
-  (`Export.Stage1.ActualTerminalSecurity.terminal_implies_nifsOrBaseOrCollision`,
-  `Export.Stage1.ActualTerminalSecurity.terminal_implies_securityOrCollision`;
+  (`Export.Stage1.ActualTerminalSecurity.terminal_implies_nifsOrBaseOrCollision`;
   the selected rows come from
   `Export.Stage1.ActualContextSecurity.terminal_implies_rowsAndPublic`). A
   named collision is two preimages with different serializations and one

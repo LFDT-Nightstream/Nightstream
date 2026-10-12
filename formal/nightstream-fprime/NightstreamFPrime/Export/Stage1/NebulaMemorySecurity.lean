@@ -254,8 +254,11 @@ theorem bad_le (valid : p.Valid) (depth : ℕ)
 
 /-- The adversary on its own tape, with each output of more than `bound` steps
 replaced by the same output at iteration `0`. The memory verifier rejects
-iteration `0` (`clamp_output_of_checks`), so `bad_le` for this adversary, with
-`bound = S_max · N`, covers an adversary whose outputs can be longer. -/
+iteration `0`, so the clamp adds no accepted output
+(`clamp_output_of_checks`). With `S_max · N ≤ bound`, it keeps every accepted
+output (`clamp_output_of_adversary_checks`). So `bad_le` for this adversary,
+with `depth = bound = S_max · N`, covers an adversary whose outputs can be
+longer. -/
 def clamp (bound : ℕ) : IvcAdversary (MemoryApp.program p app) fits setup where
   Tape := adversary.Tape
   tape := adversary.tape
@@ -276,8 +279,7 @@ theorem clamp_depthBound (bound : ℕ) :
   · exact Nat.zero_le bound
 
 /-- An output of the clamped adversary that passes the spec §13 checks is the
-adversary's own output: the clamp changes only outputs that the verifier
-rejects. -/
+adversary's own output: the clamp adds no accepted output. -/
 theorem clamp_output_of_checks (valid : p.Valid) (bound : ℕ) (tape : adversary.Tape)
     {m : MemoryStatement app.width}
     (checks : EndToEnd.VerifierChecks p ((clamp app fits setup adversary bound).output tape).1 m) :
@@ -295,5 +297,22 @@ theorem clamp_output_of_checks (valid : p.Valid) (bound : ℕ) (tape : adversary
     have n := valid.positive.2.2.1
     have : 0 < m.segments * p.n := Nat.mul_pos segments n
     omega
+
+/-- With `S_max · N ≤ bound`, an output of the adversary that passes the spec
+§13 checks is also the clamped adversary's output: the clamp keeps every
+accepted output. -/
+theorem clamp_output_of_adversary_checks (bound : ℕ) (below : p.sMax * p.n ≤ bound)
+    (tape : adversary.Tape) {m : MemoryStatement app.width}
+    (checks : EndToEnd.VerifierChecks p (adversary.output tape).1 m) :
+    (clamp app fits setup adversary bound).output tape = adversary.output tape := by
+  have steps : (adversary.output tape).1.iteration = m.segments * p.n := checks.terminal.stepCount
+  have segments := checks.terminal.segmentsRange.2
+  have short : (adversary.output tape).1.iteration ≤ bound := by
+    rw [steps]
+    exact (Nat.mul_le_mul_right p.n segments).trans below
+  show (if (adversary.output tape).1.iteration ≤ bound then adversary.output tape
+    else (⟨0, (adversary.output tape).1.z0, (adversary.output tape).1.zi⟩,
+      (adversary.output tape).2)) = adversary.output tape
+  rw [if_pos short]
 
 end NightstreamFPrime.Export.Stage1.NebulaMemorySecurity

@@ -104,11 +104,12 @@ application's validity predicate (`HyperNovaHistory.ValidAdvice`).
 Here the bound is `S_max · N`: the theorem covers an adversary whose every
 output, accepted or not, has at most `S_max · N` steps (Lean `depthBound`). An
 adversary with longer outputs reduces to this case. Its clamped form
-(`NebulaMemorySecurity.clamp`) has the same tape and replaces each longer
-output by the same output at iteration 0. It meets the bound
-(`clamp_depthBound`), and every output of it that the memory verifier accepts
-is the adversary's own output (`clamp_output_of_checks`). The clamped form
-must be admitted in the same sense. Stage 2 adds no field to the state
+(`NebulaMemorySecurity.clamp`, with bound `S_max · N`) has the same tape and
+replaces each longer output by the same output at iteration 0. It meets the
+bound (`clamp_depthBound`). It adds no accepted output
+(`clamp_output_of_checks`), and it keeps every output of the adversary that
+the memory verifier accepts (`clamp_output_of_adversary_checks`). The clamped
+form must be admitted in the same sense. Stage 2 adds no field to the state
 preimage: the carry is in the application-state digest (spec §11.1). So the
 Stage 1 Property 6, fixed-point, and domain theorems apply to the memory
 application's package. Definition 12 is stated for arity `(1, 1)`, and F′
@@ -661,8 +662,9 @@ generated relation MUST supply the exact census.
      claim reads only the adversary's tape (`adversaryTape`). The Stage 1
      statement comes from the same tape (`input_adversaryTape`), and that
      tape has the adversary's law (`tape_map_adversaryTape`). An adversary
-     with outputs longer than `S_max · N` steps reduces to its clamped form
-     (`clamp`, `clamp_depthBound`, `clamp_output_of_checks`; A4);
+     with outputs longer than `S_max · N` steps reduces to its clamped form,
+     which must be admitted (`clamp`, `clamp_depthBound`,
+     `clamp_output_of_checks`, `clamp_output_of_adversary_checks`; A4);
    - Ob1 at the Rust boundary (`crates/nightstream/src/nebula/mod.rs`,
      `Context::terminal_states`): the verifier rejects an initial or final
      application word, or a `final_timestamp`, at or above `q` before it

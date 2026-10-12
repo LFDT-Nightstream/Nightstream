@@ -8,6 +8,7 @@ import NightstreamFPrime.Lifecycle.Nebula.EndToEnd
 import NightstreamFPrime.Lifecycle.Nebula.HonestRun
 import NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package
 import NightstreamFPrime.Export.Stage1.NebulaMemoryN1Package
+import NightstreamFPrime.Export.Stage1.NebulaMemorySecurity
 
 /-! Axiom audits for the Nebula memory-phase model (`Spec/Nebula`) and its
 memory application layer (`Lifecycle/Nebula`): framing, carry, step rows,
@@ -94,6 +95,7 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.blockChunks_cons
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.blockChunks_injective
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.blocks_injective
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.etaInputBlocks_injective
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.collision_transcript
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.runCollision_transcript
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.poseidon2_soundness
@@ -207,16 +209,13 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.RowsHold.reachOut
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.RowsHold.invoke
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.val_add_one
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.toBool_zero
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.toBool_one
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.toBool_zero
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.toBool_one
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Plan.two_pow_mu_lt
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Plan.mu_le
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.bitsNat_split
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.OpSlotBits.port_pad
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.OpSlotBits.port_active
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.records_ops_two
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.RowsHold.argument_val
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.RowsHold.machineStep
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.decodeCarry_startCarry
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.state_eq_or_collision
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.state_wordsAfter
@@ -280,7 +279,6 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Rows.slotRows_iff
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Rows.scanRows_iff
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Rows.closeRows_iff
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Rows.machineRows_iff
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Rows.polyRows_iff
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Sponge.localLength_ops
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Sponge.localLength_eq
@@ -423,7 +421,7 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.assertionNames_count
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.EndToEnd.soundness
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.EndToEnd.bad_subset
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.EndToEnd.bad_probability
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.EndToEnd.bad_le_sum
 #audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryPackage.rows_le
 #audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryPackage.columns_le
 #audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryPackage.carrier_le
@@ -451,7 +449,6 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.wordAt_carryOut
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.wordAt_appOut
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.wordAt_proposal
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.wordAt_idle
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.wordAt_isOpen
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.wordAt_openInverse
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.wordAt_isClose
@@ -576,17 +573,6 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Honest.chainFinal_row
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Honest.freshEta_row
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Honest.rowsHold
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Honest.natBits_apply
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Honest.bitWord_false
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Honest.bitWord_true
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Honest.testBit_zero_mod
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Honest.testBit_one_mod
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Honest.argument_natBits
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Honest.port_some
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Honest.port_none
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Honest.ops_two
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Honest.bitsWord_natBits_zero
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Honest.machineRows
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.complete
 #audit_axioms NightstreamFPrime.Spec.Nebula.bitsLE_injective
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.take_succ_ofFn
@@ -596,3 +582,51 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.reach_invoke
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.reach_continueRun
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.history_of_execution
+
+/-! Application interface (`PortApp`) and the machine instance (`MachineApp`). -/
+
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.slotAt_offset
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.OpSlotBits.word_ofWords
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.AppView.env_appIn
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.AppView.env_appOut
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.AppView.env_aux
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.AppView.env_op
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.env_appVar
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.PolyRows.wellFormed
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Rows.appRows_iff
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.invocation_ports
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.values_zero
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.view_env
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Words.memoryCount_eq
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.tail_order
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.wordAt_aux
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.ofWords_words
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.honest_slots
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.bitsWord_zeros
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.OpSlotBits.WellFormed.fieldBits
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.OpSlotBits.WellFormed.zeros
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.OpSlotBits.WellFormed.pad_one
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.OpSlotBits.WellFormed.active
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Machine.opWords_eq
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Machine.eval_slotE
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Machine.eval_padE
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Machine.eval_isWriteE
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Machine.eval_isRamE
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Machine.eval_addrE
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Machine.eval_vrBitE
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Machine.eval_vrE
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Machine.eval_vwE
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Machine.rows_iff
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Machine.ports_two
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Machine.argument_val
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Machine.sound
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Machine.complete
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.fits
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryN1Package.fits
+
+/-! End-to-end bound over the HyperNova reverse extractor (`NebulaMemorySecurity`). -/
+
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemorySecurity.steps_of_validAdvice
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemorySecurity.stage1Extraction
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemorySecurity.ClaimedStage.law_snd
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemorySecurity.bad_le

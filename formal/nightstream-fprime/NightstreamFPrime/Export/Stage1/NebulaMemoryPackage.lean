@@ -4,8 +4,8 @@ import NightstreamFPrime.Lifecycle.Nebula.ProgramSoundness
 import NightstreamFPrime.Lifecycle.Nebula.RowNames
 
 /-!
-Owns the package geometry of the memory application for any plan with two
-ports: the affine inputs and direct rows of the sponge children, the fresh
+Owns the package geometry of a memory application for any plan and
+application: the affine inputs and direct rows of the sponge children, the fresh
 columns, the local length, and the Stage 1 size bounds from a plan's
 multiplication and row counts. A plan's package module supplies those two
 counts and the fixed point (`NebulaMemoryV1Package`, `NebulaMemoryN1Package`).
@@ -20,52 +20,52 @@ open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.Nebula
 open NightstreamFPrime.Spec
 
-variable (plan : Spec.Nebula.Plan) (two : plan.bOps = 2)
+variable (plan : Spec.Nebula.Plan) (app : PortApp plan)
 
 /-- The memory application of `plan` as a Stage 1 program. -/
-def application : Lifecycle.Stage1.Application.Program := MemoryApp.program plan two
+def application : Lifecycle.Stage1.Application.Program := MemoryApp.program plan app
 
-abbrev wires : MemoryApp.AppInterface plan :=
-  Layout.Stage1.ApplicationInputs.interface (application plan two)
+abbrev wires : MemoryApp.AppInterface plan app :=
+  Layout.Stage1.ApplicationInputs.interface (application plan app)
 
-abbrev start : ℕ := Layout.Stage1.ApplicationInputs.localStart (application plan two)
+abbrev start : ℕ := Layout.Stage1.ApplicationInputs.localStart (application plan app)
 
-variable {plan two}
+variable {plan app}
 
 theorem constraints_eq :
-    ApplicationPackage.constraints (application plan two) (ApplicationPackage.productionColumns (application plan two))
-        (start plan two) = flatConstraints (MemoryApp.opsAt plan (wires plan two) (start plan two)) :=
+    ApplicationPackage.constraints (application plan app) (ApplicationPackage.productionColumns (application plan app))
+        (start plan app) = flatConstraints (MemoryApp.opsAt plan app (wires plan app) (start plan app)) :=
   rfl
 
 theorem operations_eq :
-    ApplicationPackage.operations (application plan two) (ApplicationPackage.productionColumns (application plan two))
-        (start plan two) = MemoryApp.opsAt plan (wires plan two) (start plan two) :=
+    ApplicationPackage.operations (application plan app) (ApplicationPackage.productionColumns (application plan app))
+        (start plan app) = MemoryApp.opsAt plan app (wires plan app) (start plan app) :=
   rfl
 
 /-! ### Affine inputs -/
 
-theorem wire_affine (k : ℕ) : R1CS.IsAffine (MemoryApp.wire plan (wires plan two) (start plan two) k) := by
+theorem wire_affine (k : ℕ) : R1CS.IsAffine (MemoryApp.wire plan app (wires plan app) (start plan app) k) := by
   unfold MemoryApp.wire
   split
   · exact R1CS.isAffine_var _
   · exact R1CS.isAffine_const _
 
 theorem sub_mulCount (e : Circuit.Expr) :
-    R1CS.mulCount (MemoryApp.sub plan (wires plan two) (start plan two) e) = R1CS.mulCount e := by
+    R1CS.mulCount (MemoryApp.sub plan app (wires plan app) (start plan app) e) = R1CS.mulCount e := by
   induction e with
   | var k =>
-    change R1CS.mulCount (MemoryApp.wire plan (wires plan two) (start plan two) k) = 0
+    change R1CS.mulCount (MemoryApp.wire plan app (wires plan app) (start plan app) k) = 0
     unfold MemoryApp.wire
     split <;> rfl
   | const value => rfl
   | add left right ihl ihr =>
-    change R1CS.mulCount (MemoryApp.sub plan (wires plan two) (start plan two) left) +
-      R1CS.mulCount (MemoryApp.sub plan (wires plan two) (start plan two) right) = _
+    change R1CS.mulCount (MemoryApp.sub plan app (wires plan app) (start plan app) left) +
+      R1CS.mulCount (MemoryApp.sub plan app (wires plan app) (start plan app) right) = _
     rw [ihl, ihr]
     rfl
   | mul left right ihl ihr =>
-    change R1CS.mulCount (MemoryApp.sub plan (wires plan two) (start plan two) left) +
-      R1CS.mulCount (MemoryApp.sub plan (wires plan two) (start plan two) right) + 1 = _
+    change R1CS.mulCount (MemoryApp.sub plan app (wires plan app) (start plan app) left) +
+      R1CS.mulCount (MemoryApp.sub plan app (wires plan app) (start plan app) right) + 1 = _
     rw [ihl, ihr]
     rfl
 
@@ -106,7 +106,7 @@ theorem transcriptChunks_affine {blocks : List (List Circuit.Expr)}
   · exact R1CS.isAffine_const _
   · exact each b blockMember e inWords
 
-theorem wires_affine (f : ℕ → ℕ) (n : ℕ) : Poseidon2.ListAffine (MemoryApp.wires plan (wires plan two) (start plan two) f n) := by
+theorem wires_affine (f : ℕ → ℕ) (n : ℕ) : Poseidon2.ListAffine (MemoryApp.wires plan app (wires plan app) (start plan app) f n) := by
   intro e member
   obtain ⟨k, rfl⟩ := List.mem_ofFn.mp member
   exact wire_affine _
@@ -116,11 +116,12 @@ theorem textE_affine (text : String) : Poseidon2.ListAffine (MemoryApp.textE tex
   obtain ⟨_, _, rfl⟩ := List.mem_map.mp member
   exact R1CS.isAffine_const _
 
-theorem sub_word_affine (k : ℕ) : R1CS.IsAffine (MemoryApp.sub plan (wires plan two) (start plan two) (.var k)) :=
+theorem sub_word_affine (k : ℕ) : R1CS.IsAffine (MemoryApp.sub plan app (wires plan app) (start plan app) (.var k)) :=
   wire_affine k
 
-theorem stateBlocks_affine (app carry : ℕ → ℕ) :
-    ∀ b ∈ MemoryApp.stateBlocks plan (wires plan two) (start plan two) app carry, Poseidon2.ListAffine b := by
+theorem stateBlocks_affine (appWords carry : ℕ → ℕ) :
+    ∀ b ∈ MemoryApp.stateBlocks plan app (wires plan app) (start plan app) appWords carry,
+      Poseidon2.ListAffine b := by
   intro b member
   simp only [MemoryApp.stateBlocks, List.mem_cons, List.not_mem_nil, or_false] at member
   rcases member with rfl | rfl | rfl
@@ -130,7 +131,7 @@ theorem stateBlocks_affine (app carry : ℕ → ℕ) :
 
 theorem chainBlocks_affine (lane : Spec.Nebula.Lane) (previous : ℕ) (lanes : List Circuit.Expr)
     (laneWords : ∀ x ∈ lanes, ∃ k, x = .var k) :
-    ∀ b ∈ MemoryApp.chainBlocks plan (wires plan two) (start plan two) lane previous lanes, Poseidon2.ListAffine b := by
+    ∀ b ∈ MemoryApp.chainBlocks plan app (wires plan app) (start plan app) lane previous lanes, Poseidon2.ListAffine b := by
   intro b member
   simp only [MemoryApp.chainBlocks, List.mem_cons, List.not_mem_nil, or_false] at member
   rcases member with rfl | rfl | rfl
@@ -145,7 +146,7 @@ theorem chainBlocks_affine (lane : Spec.Nebula.Lane) (previous : ℕ) (lanes : L
     obtain ⟨k, rfl⟩ := laneWords y yMember
     exact sub_word_affine k
 
-theorem etaBlocks_affine : ∀ b ∈ MemoryApp.etaBlocks plan (wires plan two) (start plan two), Poseidon2.ListAffine b := by
+theorem etaBlocks_affine : ∀ b ∈ MemoryApp.etaBlocks plan app (wires plan app) (start plan app), Poseidon2.ListAffine b := by
   intro b member
   simp only [MemoryApp.etaBlocks, List.mem_cons, List.not_mem_nil, or_false] at member
   rcases member with rfl | rfl | rfl | rfl
@@ -228,21 +229,21 @@ theorem sub_affine {a b : Circuit.Expr} (ha : R1CS.IsAffine a) (hb : R1CS.IsAffi
     R1CS.IsAffine (a - b) :=
   R1CS.IsAffine.add ha (R1CS.IsAffine.const_mul (-1) hb)
 
-theorem etaState_affine : Poseidon2.StateAffine (MemoryApp.etaState plan (wires plan two) (start plan two)) := by
+theorem etaState_affine : Poseidon2.StateAffine (MemoryApp.etaState plan app (wires plan app) (start plan app)) := by
   rw [MemoryApp.etaState_output]
   exact absorbing_output_affine _ _ etaBlocks_affine
 
-theorem squeeze1State_affine : Poseidon2.StateAffine (MemoryApp.squeeze1State plan (wires plan two) (start plan two)) :=
+theorem squeeze1State_affine : Poseidon2.StateAffine (MemoryApp.squeeze1State plan app (wires plan app) (start plan app)) :=
   permuting_output_affine _ _ etaState_affine
 
-theorem squeeze2State_affine : Poseidon2.StateAffine (MemoryApp.squeeze2State plan (wires plan two) (start plan two)) :=
+theorem squeeze2State_affine : Poseidon2.StateAffine (MemoryApp.squeeze2State plan app (wires plan app) (start plan app)) :=
   permuting_output_affine _ _ squeeze1State_affine
 
-theorem squeeze3State_affine : Poseidon2.StateAffine (MemoryApp.squeeze3State plan (wires plan two) (start plan two)) :=
+theorem squeeze3State_affine : Poseidon2.StateAffine (MemoryApp.squeeze3State plan app (wires plan app) (start plan app)) :=
   permuting_output_affine _ _ squeeze2State_affine
 
 theorem childConstraints_noFresh :
-    R1CS.totalFreshCount (flatConstraints (MemoryApp.childOps plan (wires plan two) (start plan two))) = 0 := by
+    R1CS.totalFreshCount (flatConstraints (MemoryApp.childOps plan app (wires plan app) (start plan app))) = 0 := by
   apply R1CS.totalFreshCount_eq_zero_of_noFresh
   intro e member
   obtain ⟨op, opMember, member⟩ := List.mem_flatMap.mp member
@@ -271,12 +272,12 @@ theorem flatAssertions (l : List Circuit.Expr) : flatConstraints (l.map Op.asser
     rw [ih]
     rfl
 
-/-- The (application plan two)'s R1CS lowering allocates at most one fresh column per
+/-- The (application plan app)'s R1CS lowering allocates at most one fresh column per
 multiplication of the polynomial rows. -/
 theorem freshCount_le :
-    R1CS.totalFreshCount (flatConstraints (MemoryApp.opsAt plan (wires plan two) (start plan two))) ≤
-      ((Rows.polyRows plan).map R1CS.mulCount).sum := by
-  have wireAffine : ∀ k, R1CS.IsAffine (MemoryApp.wire plan (wires plan two) (start plan two) k) := wire_affine
+    R1CS.totalFreshCount (flatConstraints (MemoryApp.opsAt plan app (wires plan app) (start plan app))) ≤
+      ((Rows.polyRows plan app).map R1CS.mulCount).sum := by
+  have wireAffine : ∀ k, R1CS.IsAffine (MemoryApp.wire plan app (wires plan app) (start plan app) k) := wire_affine
   have laneAffine : ∀ {state : Sponge.EState}, Poseidon2.StateAffine state →
       ∀ (k : Fin 4) {target : Circuit.Expr}, R1CS.IsAffine target →
         R1CS.constraintFreshCount (MemoryApp.lane state k - target) = 0 :=
@@ -286,31 +287,31 @@ theorem freshCount_le :
     childConstraints_noFresh, Nat.zero_add, MemoryApp.assertions, R1CS.totalFreshCount_append]
   have lanes : R1CS.totalFreshCount (((((
       (List.finRange 4).map (fun k =>
-        MemoryApp.lane (Sponge.output (MemoryApp.stateIn plan (wires plan two) (start plan two)) (start plan two)) k -
-          (wires plan two).input (start plan two) k) ++
+        MemoryApp.lane (Sponge.output (MemoryApp.stateIn plan app (wires plan app) (start plan app)) (start plan app)) k -
+          (wires plan app).input (start plan app) k) ++
       (List.finRange 4).map (fun k =>
-        MemoryApp.lane (Sponge.output (MemoryApp.stateOut plan (wires plan two) (start plan two))
-          (MemoryApp.stateOutStart plan (wires plan two) (start plan two))) k - (wires plan two).output (start plan two) k)) ++
+        MemoryApp.lane (Sponge.output (MemoryApp.stateOut plan app (wires plan app) (start plan app))
+          (MemoryApp.stateOutStart plan app (wires plan app) (start plan app))) k - (wires plan app).output (start plan app) k)) ++
       (List.finRange 4).map (fun k =>
-        MemoryApp.lane (Sponge.output (MemoryApp.chainOps plan (wires plan two) (start plan two))
-          (MemoryApp.chainOpsStart plan (wires plan two) (start plan two))) k -
-          MemoryApp.wire plan (wires plan two) (start plan two) (Words.carryOut (23 + k.val)))) ++
+        MemoryApp.lane (Sponge.output (MemoryApp.chainOps plan app (wires plan app) (start plan app))
+          (MemoryApp.chainOpsStart plan app (wires plan app) (start plan app))) k -
+          MemoryApp.wire plan app (wires plan app) (start plan app) (Words.carryOut (23 + k.val)))) ++
       (List.finRange 4).map (fun k =>
-        MemoryApp.lane (Sponge.output (MemoryApp.chainInitial plan (wires plan two) (start plan two))
-          (MemoryApp.chainInitialStart plan (wires plan two) (start plan two))) k -
-          MemoryApp.wire plan (wires plan two) (start plan two) (Words.carryOut (27 + k.val)))) ++
+        MemoryApp.lane (Sponge.output (MemoryApp.chainInitial plan app (wires plan app) (start plan app))
+          (MemoryApp.chainInitialStart plan app (wires plan app) (start plan app))) k -
+          MemoryApp.wire plan app (wires plan app) (start plan app) (Words.carryOut (27 + k.val)))) ++
       (List.finRange 4).map (fun k =>
-        MemoryApp.lane (Sponge.output (MemoryApp.chainFinal plan (wires plan two) (start plan two))
-          (MemoryApp.chainFinalStart plan (wires plan two) (start plan two))) k -
-          MemoryApp.wire plan (wires plan two) (start plan two) (Words.carryOut (31 + k.val)))) ++
-      [MemoryApp.lane (MemoryApp.etaState plan (wires plan two) (start plan two)) 0 -
-          MemoryApp.wire plan (wires plan two) (start plan two) (Words.etaFresh 0),
-        MemoryApp.lane (MemoryApp.squeeze1State plan (wires plan two) (start plan two)) 0 -
-          MemoryApp.wire plan (wires plan two) (start plan two) (Words.etaFresh 1),
-        MemoryApp.lane (MemoryApp.squeeze2State plan (wires plan two) (start plan two)) 0 -
-          MemoryApp.wire plan (wires plan two) (start plan two) (Words.etaFresh 2),
-        MemoryApp.lane (MemoryApp.squeeze3State plan (wires plan two) (start plan two)) 0 -
-          MemoryApp.wire plan (wires plan two) (start plan two) (Words.etaFresh 3)]) = 0 := by
+        MemoryApp.lane (Sponge.output (MemoryApp.chainFinal plan app (wires plan app) (start plan app))
+          (MemoryApp.chainFinalStart plan app (wires plan app) (start plan app))) k -
+          MemoryApp.wire plan app (wires plan app) (start plan app) (Words.carryOut (31 + k.val)))) ++
+      [MemoryApp.lane (MemoryApp.etaState plan app (wires plan app) (start plan app)) 0 -
+          MemoryApp.wire plan app (wires plan app) (start plan app) (Words.etaFresh 0),
+        MemoryApp.lane (MemoryApp.squeeze1State plan app (wires plan app) (start plan app)) 0 -
+          MemoryApp.wire plan app (wires plan app) (start plan app) (Words.etaFresh 1),
+        MemoryApp.lane (MemoryApp.squeeze2State plan app (wires plan app) (start plan app)) 0 -
+          MemoryApp.wire plan app (wires plan app) (start plan app) (Words.etaFresh 2),
+        MemoryApp.lane (MemoryApp.squeeze3State plan app (wires plan app) (start plan app)) 0 -
+          MemoryApp.wire plan app (wires plan app) (start plan app) (Words.etaFresh 3)]) = 0 := by
     apply R1CS.totalFreshCount_eq_zero_of_noFresh
     intro e member
     simp only [List.mem_append, List.mem_map, List.mem_finRange, true_and, List.mem_cons,
@@ -356,18 +357,20 @@ theorem pack_length_le (l : List Circuit.Expr) : (Nebula.Expr.pack l).length ≤
     simp only [List.length_drop] at ih
     omega
 
-theorem stateBlocks_size (app carry : ℕ → ℕ) :
-    ((MemoryApp.stateBlocks plan (wires plan two) (start plan two) app carry).map fun b => b.length + 1).sum = 71 := by
+theorem stateBlocks_size (appWords carry : ℕ → ℕ) :
+    ((MemoryApp.stateBlocks plan app (wires plan app) (start plan app) appWords carry).map
+      fun b => b.length + 1).sum = 69 + app.width := by
+  have tag : (textWords "Nightstream/Nebula/v3/state").length = 27 := by decide
   simp only [MemoryApp.stateBlocks, MemoryApp.wires, MemoryApp.textE, List.map_cons, List.map_nil,
-    List.length_map, List.length_ofFn, List.sum_cons, List.sum_nil]
-  decide
+    List.length_map, List.length_ofFn, List.sum_cons, List.sum_nil, tag]
+  omega
 
 theorem chainBlocks_size (lane : Spec.Nebula.Lane) (previous : ℕ) (lanes : List Circuit.Expr) :
-    ((MemoryApp.chainBlocks plan (wires plan two) (start plan two) lane previous lanes).map fun b => b.length + 1).sum ≤
+    ((MemoryApp.chainBlocks plan app (wires plan app) (start plan app) lane previous lanes).map fun b => b.length + 1).sum ≤
       lanes.length + 39 := by
   have tag : (MemoryApp.textE (chainTag lane)).length = 31 := by
     cases lane <;> decide
-  have packed := pack_length_le (lanes.map (MemoryApp.sub plan (wires plan two) (start plan two)))
+  have packed := pack_length_le (lanes.map (MemoryApp.sub plan app (wires plan app) (start plan app)))
   simp only [List.length_map] at packed
   simp only [MemoryApp.chainBlocks, MemoryApp.wires, List.map_cons, List.map_nil, List.length_cons,
     List.length_ofFn, List.sum_cons, List.sum_nil, tag]
@@ -396,19 +399,21 @@ theorem span_le (blocks : List (List Circuit.Expr)) (bound : ℕ)
 
 /-- A bound on the variables of the nine sponge children: chunks of 1,096
 variables each. -/
-def localBound (plan : Spec.Nebula.Plan) : ℕ :=
-  (142 + (plan.bOps * plan.opWidth + 39) + 2 * (plan.bScan * plan.scanWidth + 39) + 7 + 3) * 1096
+def localBound (plan : Spec.Nebula.Plan) (app : PortApp plan) : ℕ :=
+  (2 * (69 + app.width) + (plan.bOps * plan.opWidth + 39) + 2 * (plan.bScan * plan.scanWidth + 39) +
+    7 + 3) * 1096
 
 theorem localLength_le :
-    localLength (MemoryApp.opsAt plan (wires plan two) (start plan two)) ≤ localBound plan := by
-  have total := MemoryApp.localLength_opsAt plan (wires plan two) (start plan two)
-  have s1 := span_le _ _ (le_of_eq (stateBlocks_size (plan := plan) (two := two) Words.appIn Words.carryIn))
-  have s2 := span_le _ _ (le_of_eq (stateBlocks_size (plan := plan) (two := two) Words.appOut Words.carryOut))
-  have s3 := span_le _ _ ((chainBlocks_size (plan := plan) (two := two) .ops 0 (MemoryApp.opsLanes plan)).trans
+    localLength (MemoryApp.opsAt plan app (wires plan app) (start plan app)) ≤ localBound plan app := by
+  have total := MemoryApp.localLength_opsAt plan app (wires plan app) (start plan app)
+  have s1 := span_le _ _ (le_of_eq (stateBlocks_size (plan := plan) (app := app) (Words.appIn plan) Words.carryIn))
+  have s2 := span_le _ _ (le_of_eq (stateBlocks_size (plan := plan) (app := app) (Words.appOut plan app.toAppShape)
+    Words.carryOut))
+  have s3 := span_le _ _ ((chainBlocks_size (plan := plan) (app := app) .ops 0 (MemoryApp.opsLanes plan)).trans
     (le_of_eq (by rw [opsLanes_length])))
-  have s4 := span_le _ _ ((chainBlocks_size (plan := plan) (two := two) .mem 4 (MemoryApp.scanLanes plan fun j =>
+  have s4 := span_le _ _ ((chainBlocks_size (plan := plan) (app := app) .mem 4 (MemoryApp.scanLanes plan fun j =>
     Words.initial plan j 0)).trans (le_of_eq (by rw [scanLanes_length])))
-  have s5 := span_le _ _ ((chainBlocks_size (plan := plan) (two := two) .mem 8 (MemoryApp.scanLanes plan fun j =>
+  have s5 := span_le _ _ ((chainBlocks_size (plan := plan) (app := app) .mem 8 (MemoryApp.scanLanes plan fun j =>
     Words.final plan j 0)).trans (le_of_eq (by rw [scanLanes_length])))
   have s6 : MemoryApp.etaChunkCount = 7 := by decide
   unfold MemoryApp.endOffset MemoryApp.squeeze3Start MemoryApp.squeeze2Start
@@ -435,63 +440,63 @@ theorem flat_length_eq (ops : List Op)
     rw [List.length_append, each op (by simp), ih fun o member => each o (by simp [member])]
 
 theorem childOps_length :
-    (flatConstraints (MemoryApp.childOps plan (wires plan two) (start plan two))).length =
-      localLength (MemoryApp.childOps plan (wires plan two) (start plan two)) := by
+    (flatConstraints (MemoryApp.childOps plan app (wires plan app) (start plan app))).length =
+      localLength (MemoryApp.childOps plan app (wires plan app) (start plan app)) := by
   apply flat_length_eq
   intro op member
   simp only [MemoryApp.childOps, List.mem_cons, List.not_mem_nil, or_false] at member
   rcases member with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> exact child_length _ _ _
 
 theorem assertions_length :
-    (MemoryApp.assertions plan (wires plan two) (start plan two)).length = 24 + (Rows.polyRows plan).length := by
+    (MemoryApp.assertions plan app (wires plan app) (start plan app)).length = 24 + (Rows.polyRows plan app).length := by
   simp [MemoryApp.assertions]
   omega
 
 theorem constraints_length :
-    (flatConstraints (MemoryApp.opsAt plan (wires plan two) (start plan two))).length =
-      localLength (MemoryApp.opsAt plan (wires plan two) (start plan two)) + 24 + (Rows.polyRows plan).length := by
+    (flatConstraints (MemoryApp.opsAt plan app (wires plan app) (start plan app))).length =
+      localLength (MemoryApp.opsAt plan app (wires plan app) (start plan app)) + 24 + (Rows.polyRows plan app).length := by
   rw [MemoryApp.opsAt, flatConstraints_append, flatAssertions, List.length_append, childOps_length,
     assertions_length, Sequence.localLength_append, MemoryApp.assertions_localLength]
   omega
 
-@[simp] theorem witnessWordCount : (application plan two).witnessWordCount = Words.count plan :=
+@[simp] theorem witnessWordCount : (application plan app).witnessWordCount = Words.count plan app.toAppShape :=
   rfl
 
 /-! ### Stage 1 size bounds from a plan's counts -/
 
-theorem rows_le (plan : Spec.Nebula.Plan) (two : plan.bOps = 2) {mul polyRows rows : ℕ}
-    (mulBound : ((Rows.polyRows plan).map R1CS.mulCount).sum ≤ mul)
-    (lengthBound : (Rows.polyRows plan).length ≤ polyRows)
-    (fits : mul + localBound plan + 24 + polyRows ≤ rows) :
-    (PerApplicationPackage.applicationPlan (application plan two)).rowCount ≤ rows := by
+theorem rows_le (plan : Spec.Nebula.Plan) (app : PortApp plan) {mul polyRows rows : ℕ}
+    (mulBound : ((Rows.polyRows plan app).map R1CS.mulCount).sum ≤ mul)
+    (lengthBound : (Rows.polyRows plan app).length ≤ polyRows)
+    (fits : mul + localBound plan app + 24 + polyRows ≤ rows) :
+    (PerApplicationPackage.applicationPlan (application plan app)).rowCount ≤ rows := by
   rw [PerApplicationPackage.applicationPlan, ApplicationPackage.productionPlan_rowCount]
   unfold ApplicationPackage.compiledRows
   rw [Rows.compileRowsTR_length, Rows.lowerConstraintsTR_eq, R1CS.lowerConstraints_rows_length,
     constraints_eq, R1CS.totalRowCount_eq_fresh_add_length, constraints_length]
-  have := freshCount_le (plan := plan) (two := two)
-  have := localLength_le (plan := plan) (two := two)
+  have := freshCount_le (plan := plan) (app := app)
+  have := localLength_le (plan := plan) (app := app)
   omega
 
-theorem columns_le (plan : Spec.Nebula.Plan) (two : plan.bOps = 2) {mul columns : ℕ}
-    (mulBound : ((Rows.polyRows plan).map R1CS.mulCount).sum ≤ mul)
-    (fits : Words.count plan + localBound plan + mul ≤ columns) :
-    PerApplicationPackage.addedPrivateColumnCount (application plan two) ≤ columns := by
+theorem columns_le (plan : Spec.Nebula.Plan) (app : PortApp plan) {mul columns : ℕ}
+    (mulBound : ((Rows.polyRows plan app).map R1CS.mulCount).sum ≤ mul)
+    (fits : Words.count plan app.toAppShape + localBound plan app + mul ≤ columns) :
+    PerApplicationPackage.addedPrivateColumnCount (application plan app) ≤ columns := by
   rw [PerApplicationPackage.addedPrivateColumnCount, PerApplicationPackage.applicationPlan,
     ApplicationPackage.productionPlan_privateCount, witnessWordCount, operations_eq, constraints_eq]
-  have := freshCount_le (plan := plan) (two := two)
-  have := localLength_le (plan := plan) (two := two)
+  have := freshCount_le (plan := plan) (app := app)
+  have := localLength_le (plan := plan) (app := app)
   omega
 
-theorem carrier_le (plan : Spec.Nebula.Plan) (two : plan.bOps = 2) {mul words : ℕ}
-    (mulBound : ((Rows.polyRows plan).map R1CS.mulCount).sum ≤ mul)
-    (fits : Words.count plan + localBound plan + mul ≤ words) :
-    (application plan two).witnessWordCount +
-      ApplicationRetainedBlocks.localCount (application plan two) ≤ words := by
+theorem carrier_le (plan : Spec.Nebula.Plan) (app : PortApp plan) {mul words : ℕ}
+    (mulBound : ((Rows.polyRows plan app).map R1CS.mulCount).sum ≤ mul)
+    (fits : Words.count plan app.toAppShape + localBound plan app + mul ≤ words) :
+    (application plan app).witnessWordCount +
+      ApplicationRetainedBlocks.localCount (application plan app) ≤ words := by
   unfold ApplicationRetainedBlocks.localCount ApplicationRetainedBlocks.sourceWidth
     ApplicationDirectSource.sourceWidth ApplicationPackage.r1csFreshStart
   rw [witnessWordCount, operations_eq, constraints_eq]
-  have := freshCount_le (plan := plan) (two := two)
-  have := localLength_le (plan := plan) (two := two)
+  have := freshCount_le (plan := plan) (app := app)
+  have := localLength_le (plan := plan) (app := app)
   omega
 
 /-- The row range `[first, end)` of each named assertion group
@@ -499,11 +504,11 @@ theorem carrier_le (plan : Spec.Nebula.Plan) (two : plan.bOps = 2) {mul words : 
 row. The assertions are the last constraints of the circuit
 (`MemoryApp.assertionNames_count`), and each constraint lowers to
 `R1CS.constraintRowCount` consecutive rows. Conformance tests read it. -/
-def namedRowRanges (plan : Spec.Nebula.Plan) (two : plan.bOps = 2) : List (String × ℕ × ℕ) :=
-  let rows := (ApplicationPackage.constraints (application plan two)
-    (ApplicationPackage.productionColumns (application plan two)) (start plan two)).map
+def namedRowRanges (plan : Spec.Nebula.Plan) (app : PortApp plan) : List (String × ℕ × ℕ) :=
+  let rows := (ApplicationPackage.constraints (application plan app)
+    (ApplicationPackage.productionColumns (application plan app)) (start plan app)).map
       R1CS.constraintRowCount
-  let names := MemoryApp.assertionNames plan
+  let names := MemoryApp.assertionNames plan app
   let children := rows.length - (names.map Prod.snd).sum
   let step := fun (state : Array (String × ℕ × ℕ) × ℕ × List ℕ) (group : String × ℕ) =>
     let span := (state.2.2.take group.2).sum

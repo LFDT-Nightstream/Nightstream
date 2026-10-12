@@ -1,23 +1,25 @@
 //! The witness word layout of one memory-application step. Mirrors
-//! `Lifecycle/Nebula/WitnessWords.lean` index by index.
+//! `Lifecycle/Nebula/WitnessWords.lean` index by index: the memory words
+//! first, then the machine's words (`Lifecycle/Nebula/MachineApp.lean`): two
+//! input state words, two output state words, and the idle flag.
 
 use super::plan::Plan;
 
-pub const APP_IN: usize = 0;
-pub const CARRY_IN: usize = 2;
-pub const CARRY_OUT: usize = 41;
-pub const APP_OUT: usize = 80;
-pub const PROPOSAL: usize = 82;
-pub const IDLE: usize = 90;
-pub const IS_OPEN: usize = 91;
-pub const OPEN_INVERSE: usize = 92;
-pub const IS_CLOSE: usize = 93;
-pub const CLOSE_INVERSE: usize = 94;
-pub const ETA_FRESH: usize = 95;
-pub const ETA1_SQUARE: usize = 99;
-pub const SEEN_PREV: usize = 101;
-pub const IDX_EFF: usize = 113;
-const OPS_START: usize = 114;
+pub const CARRY_IN: usize = 0;
+pub const CARRY_OUT: usize = 39;
+pub const PROPOSAL: usize = 78;
+pub const IS_OPEN: usize = 86;
+pub const OPEN_INVERSE: usize = 87;
+pub const IS_CLOSE: usize = 88;
+pub const CLOSE_INVERSE: usize = 89;
+pub const ETA_FRESH: usize = 90;
+pub const ETA1_SQUARE: usize = 94;
+pub const SEEN_PREV: usize = 96;
+pub const IDX_EFF: usize = 108;
+const OPS_START: usize = 109;
+
+/// The machine's state words `(pc, acc)`.
+const APP_WIDTH: usize = 2;
 
 /// Offsets that depend on the plan.
 #[derive(Clone, Copy, Debug)]
@@ -32,7 +34,7 @@ pub struct Layout {
     seg_bits: usize,
     ops_products: usize,
     scan_products: usize,
-    count: usize,
+    memory_count: usize,
 }
 
 impl Layout {
@@ -46,7 +48,7 @@ impl Layout {
         let seg_bits = ts_bits + plan.w_ts;
         let ops_products = seg_bits + plan.seg_width();
         let scan_products = ops_products + 4 * plan.b_ops;
-        let count = scan_products + 4 * plan.b_scan;
+        let memory_count = scan_products + 4 * plan.b_scan;
         Self {
             op_words,
             op_width,
@@ -58,12 +60,27 @@ impl Layout {
             seg_bits,
             ops_products,
             scan_products,
-            count,
+            memory_count,
         }
     }
 
     pub fn count(&self) -> usize {
-        self.count
+        self.memory_count + 2 * APP_WIDTH + 1
+    }
+
+    /// Input state word `k` of the machine.
+    pub fn app_in(&self, k: usize) -> usize {
+        self.memory_count + k
+    }
+
+    /// Output state word `k` of the machine.
+    pub fn app_out(&self, k: usize) -> usize {
+        self.memory_count + APP_WIDTH + k
+    }
+
+    /// The machine's idle flag, its one private word.
+    pub fn idle(&self) -> usize {
+        self.memory_count + 2 * APP_WIDTH
     }
 
     /// Word `k` of operation slot `j`: pad, is_write, is_ram, addr, v_r, v_w, rt, diff.

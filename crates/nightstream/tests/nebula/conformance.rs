@@ -173,7 +173,7 @@ fn conformance(engine: Engine) {
     let base = h.step(None, &honest.invocations[0]).unwrap();
 
     // An input carry or application words that do not open the input state.
-    for word in [words::CARRY_IN + 2, words::APP_IN + 1] {
+    for word in [words::CARRY_IN + 2, Layout::new(plan).app_in(1)] {
         let mut changed = honest.invocations[0].clone();
         changed.words[word] += F::ONE;
         h.reject(None, &changed, "state_in");

@@ -22,7 +22,7 @@ theorem chainLink_eq (lane : Lane) (index : F) (previous : Digest) {bits : List 
 
 namespace StepWitness
 
-variable {p : Plan} (w : StepWitness p)
+variable {p : Plan} {a : AppShape} (w : StepWitness p a)
 
 /-- The carry after the step's `advance`, read from the output words, with
 the input carry's segment and memory root. -/

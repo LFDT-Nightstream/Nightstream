@@ -162,7 +162,6 @@ def eta1 : KExpr := kOfE (cOut 3) (cOut 4)
 def eta2 : KExpr := kOfE (cOut 5) (cOut 6)
 def eta1Sq : KExpr := kOfE (word (Words.eta1Square 0)) (word (Words.eta1Square 1))
 
-def idle : Circuit.Expr := word Words.idle
 def isOpen : Circuit.Expr := word Words.isOpen
 def openInverse : Circuit.Expr := word Words.openInverse
 def isClose : Circuit.Expr := word Words.isClose
@@ -236,11 +235,11 @@ end Sym
 
 namespace Sym
 
-variable (p : Plan) (v : ℕ → F)
+variable (p : Plan) (a : AppShape) (v : ℕ → F)
 
-local notation "W" => StepWitness.ofWords p v
+local notation "W" => StepWitness.ofWords p a v
 
-omit p in
+omit p a in
 theorem eval_carryWord (base : ℕ → ℕ) (k : ℕ) (c : Fin 39 → F)
     (same : ∀ i : Fin 39, c i = v (base i)) :
     (carryWord base k).eval v = StepWitness.carryWord c k := by
@@ -254,10 +253,10 @@ theorem eval_cOut (k : ℕ) : (cOut k).eval v = (W).cOut k :=
   eval_carryWord v _ k _ fun _ => rfl
 
 theorem eval_eta1 : (eta1).eval v = (W).eta1 := by
-  rw [eta1, StepWitness.eta1, eval_kOfE, eval_cOut p, eval_cOut p]
+  rw [eta1, StepWitness.eta1, eval_kOfE, eval_cOut p a v, eval_cOut p a v]
 
 theorem eval_eta2 : (eta2).eval v = (W).eta2 := by
-  rw [eta2, StepWitness.eta2, eval_kOfE, eval_cOut p, eval_cOut p]
+  rw [eta2, StepWitness.eta2, eval_kOfE, eval_cOut p a v, eval_cOut p a v]
 
 theorem eval_eta1Sq : (eta1Sq).eval v = (W).eta1Sq := rfl
 
@@ -328,11 +327,11 @@ theorem eval_cntBefore (k : ℕ) : (cntBefore p k).eval v = (W).cntBefore k := b
   simp [Function.comp_def, pad, word, StepWitness.pad, StepWitness.ofWords, OpSlotBits.ofWords]
 
 theorem eval_wt (j : Fin p.bOps) : (wt p j).eval v = (W).wt j := by
-  simp only [wt, StepWitness.wt, Circuit.Expr.eval_hadd, eval_cIn p, eval_cntBefore]
+  simp only [wt, StepWitness.wt, Circuit.Expr.eval_hadd, eval_cIn p a v, eval_cntBefore p a v]
 
 theorem eval_globalIndex (j : Fin p.bOps) : (globalIndex p j).eval v = (W).globalIndex j := by
   simp only [globalIndex, StepWitness.globalIndex, Circuit.Expr.eval_hadd, Circuit.Expr.eval_hmul,
-    eval_addr, constE, Circuit.Expr.eval_const]
+    eval_addr p a v, constE, Circuit.Expr.eval_const]
   rfl
 
 theorem eval_scanIndex (j : Fin p.bScan) : (scanIndex p j).eval v = (W).scanIndex j := by
@@ -342,18 +341,18 @@ theorem eval_scanIndex (j : Fin p.bScan) : (scanIndex p j).eval v = (W).scanInde
 
 theorem eval_startProduct (k : ℕ) : (startProduct k).eval v = (W).startProduct k := by
   simp only [startProduct, StepWitness.startProduct, KExpr.eval_add, KExpr.eval_mul, eval_embedE,
-    Circuit.Expr.eval_sub, eval_kOfE, eval_cIn p, Expr.eval_one]
+    Circuit.Expr.eval_sub, eval_kOfE, eval_cIn p a v, Expr.eval_one]
   rfl
 
 theorem eval_opsProductAfter (pair k : ℕ) :
     (opsProductAfter p pair k).eval v = (W).opsProductAfter pair k := by
   unfold opsProductAfter StepWitness.opsProductAfter
-  split_ifs <;> first | exact eval_startProduct p v _ | rfl
+  split_ifs <;> first | exact eval_startProduct p a v _ | rfl
 
 theorem eval_scanProductAfter (pair k : ℕ) :
     (scanProductAfter p pair k).eval v = (W).scanProductAfter pair k := by
   unfold scanProductAfter StepWitness.scanProductAfter
-  split_ifs <;> first | exact eval_startProduct p v _ | rfl
+  split_ifs <;> first | exact eval_startProduct p a v _ | rfl
 
 end Sym
 

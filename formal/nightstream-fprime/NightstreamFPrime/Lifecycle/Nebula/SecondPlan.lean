@@ -1,4 +1,5 @@
 import NightstreamFPrime.Lifecycle.Nebula.ProgramSoundness
+import NightstreamFPrime.Lifecycle.Nebula.MachineApp
 
 /-! Owns the plan of the second memory-application test package, for the spec
 §14 cases that the first plan cannot reach. ROM has four words and RAM eight,
@@ -52,7 +53,10 @@ theorem secure : plan.Secure := by
   unfold Plan.Secure
   decide
 
+/-- The machine as the plan's application. -/
+def app : PortApp plan := Machine.portApp plan two
+
 /-- The second memory application as a closed Stage 1 program. -/
-def program : Stage1.Application.Program := MemoryApp.program plan two
+def program : Stage1.Application.Program := MemoryApp.program plan app
 
 end NightstreamFPrime.Lifecycle.Nebula.SecondPlan

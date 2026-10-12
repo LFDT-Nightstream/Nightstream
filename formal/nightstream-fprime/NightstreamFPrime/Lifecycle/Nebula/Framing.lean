@@ -5,9 +5,9 @@ import NightstreamFPrime.Spec.Nebula
 framed-block transcript of spec §3 over the Stage 1 sponge absorb, the
 record-chain digests of §9.1–§9.2, the plan digest of §4.3, the `η` transcript
 of §9.3, and the concrete verifier context.
-It also owns obligation Ob3 for the record chains: canonical chain inputs
-absorb different padded chunk sequences, so a collision among the chain inputs
-of an accepted run is a Poseidon2 transcript collision. -/
+It also owns obligation Ob3: canonical chain inputs and canonical challenge
+inputs absorb different padded chunk sequences, so a collision among the chain
+inputs of an accepted run is a Poseidon2 transcript collision. -/
 
 namespace NightstreamFPrime.Lifecycle.Nebula
 
@@ -74,11 +74,14 @@ def planDigest (p : Plan) : Digest :=
     (List.range p.romSize).map fun a => natWord (p.rom a),
     (List.range p.ramSize).map fun a => natWord (p.ram a)])
 
+/-- The absorbed blocks of the spec §9.3 challenge transcript. -/
+def etaInputBlocks (inp : EtaInput Digest) : List (List F) :=
+  [textWords "Nightstream/Nebula/v3/eta", digestWords inp.planDigest, [natWord inp.ts],
+    digestWords inp.opsRoot ++ digestWords inp.memRoot ++ digestWords inp.finalRoot]
+
 /-- Spec §9.3: the two memory challenges of a segment. -/
 def etaChallenges (inp : EtaInput Digest) : K × K :=
-  let s := absorbed [textWords "Nightstream/Nebula/v3/eta", digestWords inp.planDigest,
-    [natWord inp.ts],
-    digestWords inp.opsRoot ++ digestWords inp.memRoot ++ digestWords inp.finalRoot]
+  let s := absorbed (etaInputBlocks inp)
   let (η1, s) := squeezeK s
   let (η2, _) := squeezeK s
   (η1, η2)
@@ -209,6 +212,31 @@ theorem blockChunks_injective : ∀ {bs bs' : List (List F)},
     rw [block, block, List.cons.injEq] at equal
     rw [equal.2, blockChunks_injective (fun x hx => small x (by simp [hx]))
       (fun x hx => small' x (by simp [hx])) rest]
+
+/-! ### Ob3 for the challenge transcript -/
+
+/-- Ob3 for the spec §9.3 transcript: canonical inputs (`ts < q`) that differ
+absorb different padded chunk sequences. -/
+theorem etaInputBlocks_injective {inp inp' : EtaInput Digest}
+    (small : inp.ts < goldilocksModulus) (small' : inp'.ts < goldilocksModulus)
+    (same : blockChunks (etaInputBlocks inp) = blockChunks (etaInputBlocks inp')) :
+    inp = inp' := by
+  have lengths (x : EtaInput Digest) : ∀ b ∈ etaInputBlocks x, b.length < goldilocksModulus := by
+    intro b hb
+    simp only [etaInputBlocks, List.mem_cons, List.not_mem_nil, or_false] at hb
+    rcases hb with rfl | rfl | rfl | rfl
+    · decide
+    all_goals simp [digestWords, goldilocksModulus]
+  have blocksEq := blockChunks_injective (lengths inp) (lengths inp') same
+  simp only [etaInputBlocks, List.cons.injEq, and_true] at blocksEq
+  obtain ⟨-, plan, ts, roots⟩ := blocksEq
+  obtain ⟨front, final⟩ := List.append_inj roots (by simp [digestWords])
+  obtain ⟨ops, mem⟩ := List.append_inj front (by simp [digestWords])
+  cases inp
+  cases inp'
+  simp only [EtaInput.mk.injEq]
+  exact ⟨List.ofFn_injective plan, natWord_injective small small' ts, List.ofFn_injective ops,
+    List.ofFn_injective mem, List.ofFn_injective final⟩
 
 /-! ### Ob3 for the record chains -/
 

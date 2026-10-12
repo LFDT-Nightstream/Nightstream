@@ -1,9 +1,10 @@
 import NightstreamFPrime.Lifecycle.Nebula.RowExprs
+import NightstreamFPrime.Lifecycle.Nebula.PortApp
 
 /-! Owns the polynomial rows of the memory-application circuit as expressions
-over the witness words, and their meaning: the rows evaluate to zero on a word
-vector exactly when its decoded witness satisfies `PolyRows` and
-`MachineRows`. It does not own the hash rows or the circuit. -/
+over the witness words: the memory rows, and the application's rows with
+their local variables mapped to witness words. Their meaning is in
+`RowMeaning`. It does not own the hash rows or the circuit. -/
 
 namespace NightstreamFPrime.Lifecycle.Nebula
 
@@ -70,7 +71,7 @@ namespace Rows
 
 variable (p : Plan)
 
-open Sym (word cIn cOut eta1 eta2 eta1Sq idle isOpen openInverse isClose closeInverse idxEff
+open Sym (word cIn cOut eta1 eta2 eta1Sq isOpen openInverse isClose closeInverse idxEff
   isWrite isRam addrBit vrBit vwBit rtBit diffBit addr vr vw rt diff opLane scanValue scanStamp
   scanLane tsWord segWord cntBefore wt globalIndex scanIndex opsProductAfter scanProductAfter)
 
@@ -87,7 +88,7 @@ def bitRows : List Circuit.Expr :=
   (List.finRange p.wTs).map (fun k : Fin p.wTs => bitRow (word (Words.tsBits p k.val))) ++
   (List.finRange p.segWidth).map (fun k : Fin p.segWidth =>
     bitRow (word (Words.segBits p k.val))) ++
-  [bitRow idle, bitRow isOpen, bitRow isClose]
+  [bitRow isOpen, bitRow isClose]
 
 /-! ### §12 arm and §11.2 open -/
 
@@ -155,33 +156,14 @@ def memoryRows : List Circuit.Expr :=
   bitRows p ++ armRows p ++ (List.finRange p.bOps).flatMap (slotRows p) ++
     (List.finRange p.bScan).flatMap (scanRows p) ++ closeRows p
 
-/-! ### §10 machine port rows (fetch slot 0, data slot 1) -/
+/-! ### §10 application rows -/
 
-def instructionBit (k : ℕ) : Circuit.Expr := vrBit p 0 k
-def isLoad : Circuit.Expr := instructionBit p 0 * (1 - instructionBit p 1)
-def isStore : Circuit.Expr := (1 - instructionBit p 0) * instructionBit p 1
-def isLoadi : Circuit.Expr := instructionBit p 0 * instructionBit p 1
-def argument : Circuit.Expr := Expr.chunk ((List.ofFn fun k : Fin 32 => vrBit p 0 k).drop 2)
-
-def appIn (i : ℕ) : Circuit.Expr := word (Words.appIn i)
-def appOut (i : ℕ) : Circuit.Expr := word (Words.appOut i)
-
-def machineRows : List Circuit.Expr :=
-  [Sym.pad p 0 - idle,
-    isWrite p 0,
-    isRam p 0,
-    addr p 0 - (1 - idle) * appIn 0,
-    Sym.pad p 1 - (1 - (isLoad p + isStore p)),
-    isWrite p 1 - isStore p,
-    isRam p 1 - (isLoad p + isStore p),
-    addr p 1 - (isLoad p + isStore p) * argument p,
-    vw p 1 - (isStore p * appIn 1 + isLoad p * vr p 1),
-    appOut 0 - (appIn 0 + isLoad p + isStore p + isLoadi p),
-    appOut 1 - (isLoad p * vr p 1 + isLoadi p * argument p +
-      (1 - isLoad p - isLoadi p) * appIn 1)]
+/-- The application's rows over the witness words. -/
+def appRows (app : PortApp p) : List Circuit.Expr :=
+  app.rows.map (Expr.subst fun k => word (Words.appVar p app.toAppShape k))
 
 /-- Every polynomial row of the memory application. -/
-def polyRows : List Circuit.Expr := memoryRows p ++ machineRows p
+def polyRows (app : PortApp p) : List Circuit.Expr := memoryRows p ++ appRows p app
 
 end Rows
 

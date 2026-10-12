@@ -17,32 +17,32 @@ open NightstreamFPrime.Lifecycle.Nebula
 
 /-- The only application program selected by this package. -/
 def application : Lifecycle.Stage1.Application.Program :=
-  NebulaMemoryPackage.application SecondPlan.plan SecondPlan.two
+  NebulaMemoryPackage.application SecondPlan.plan SecondPlan.app
 
-theorem polyRows_mulCount : ((Rows.polyRows SecondPlan.plan).map Layout.R1CS.mulCount).sum ≤ 300000 := by
+theorem polyRows_mulCount : ((Rows.polyRows SecondPlan.plan SecondPlan.app).map Layout.R1CS.mulCount).sum ≤ 300000 := by
   decide +kernel
 
-theorem polyRows_length : (Rows.polyRows SecondPlan.plan).length ≤ 10000 := by
+theorem polyRows_length : (Rows.polyRows SecondPlan.plan SecondPlan.app).length ≤ 10000 := by
   rw [← Rows.names_count]
   decide
 
 theorem rows_le :
-    (PerApplicationPackage.applicationPlan (NebulaMemoryPackage.application SecondPlan.plan SecondPlan.two)).rowCount ≤ 257057539 :=
-  NebulaMemoryPackage.rows_le SecondPlan.plan SecondPlan.two polyRows_mulCount polyRows_length (by decide +kernel)
+    (PerApplicationPackage.applicationPlan (NebulaMemoryPackage.application SecondPlan.plan SecondPlan.app)).rowCount ≤ 257057539 :=
+  NebulaMemoryPackage.rows_le SecondPlan.plan SecondPlan.app polyRows_mulCount polyRows_length (by decide +kernel)
 
 theorem columns_le :
-    PerApplicationPackage.addedPrivateColumnCount (NebulaMemoryPackage.application SecondPlan.plan SecondPlan.two) ≤ 256970581 :=
-  NebulaMemoryPackage.columns_le SecondPlan.plan SecondPlan.two polyRows_mulCount (by decide +kernel)
+    PerApplicationPackage.addedPrivateColumnCount (NebulaMemoryPackage.application SecondPlan.plan SecondPlan.app) ≤ 256970581 :=
+  NebulaMemoryPackage.columns_le SecondPlan.plan SecondPlan.app polyRows_mulCount (by decide +kernel)
 
 theorem carrier_le :
-    (NebulaMemoryPackage.application SecondPlan.plan SecondPlan.two).witnessWordCount +
-      ApplicationRetainedBlocks.localCount (NebulaMemoryPackage.application SecondPlan.plan SecondPlan.two) ≤ 5480402 :=
-  NebulaMemoryPackage.carrier_le SecondPlan.plan SecondPlan.two polyRows_mulCount (by decide +kernel)
+    (NebulaMemoryPackage.application SecondPlan.plan SecondPlan.app).witnessWordCount +
+      ApplicationRetainedBlocks.localCount (NebulaMemoryPackage.application SecondPlan.plan SecondPlan.app) ≤ 5480402 :=
+  NebulaMemoryPackage.carrier_le SecondPlan.plan SecondPlan.app polyRows_mulCount (by decide +kernel)
 
 /-- All physical-package, retained-carrier, and recursive-plan bounds for the
 approved `2^28` profile. -/
 theorem fits : PerApplicationFixedPoint.FitsTwoPow28 application :=
-  PerApplicationFixedPoint.fitsTwoPow28OfApplicationBounds (NebulaMemoryPackage.application SecondPlan.plan SecondPlan.two) rows_le columns_le
+  PerApplicationFixedPoint.fitsTwoPow28OfApplicationBounds (NebulaMemoryPackage.application SecondPlan.plan SecondPlan.app) rows_le columns_le
     carrier_le
 
 theorem plan_fixedPoint :
@@ -74,6 +74,6 @@ theorem matrixProgram_exact :
 
 /-- The named assertion row ranges of this package (`NebulaMemoryPackage`). -/
 def namedRowRanges : List (String × ℕ × ℕ) :=
-  NebulaMemoryPackage.namedRowRanges SecondPlan.plan SecondPlan.two
+  NebulaMemoryPackage.namedRowRanges SecondPlan.plan SecondPlan.app
 
 end NightstreamFPrime.Export.Stage1.NebulaMemoryN1Package

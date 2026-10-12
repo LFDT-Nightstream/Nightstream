@@ -117,7 +117,7 @@ end ScanSlotBits
 
 namespace StepWitness
 
-variable {p : Plan} (w : StepWitness p)
+variable {p : Plan} {a : AppShape} (w : StepWitness p a)
 
 /-- The typed records of the step. -/
 def records : StepRecords :=

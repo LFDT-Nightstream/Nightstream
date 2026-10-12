@@ -1,13 +1,13 @@
 import NightstreamFPrime.Lifecycle.Nebula.Carry
-import NightstreamFPrime.Lifecycle.Nebula.Machine
 
-/-! Owns the witness of one invocation of the first Nebula memory application
-and the field equations that its circuit checks: the memory rows of spec §8,
-the carry actions of §11.2 with the two arms of §12, the three record chains
-and the `η` transcript of §9, the state digests of §11.1, and the machine's
-port rows (§10). Every value the relation needs is a witness word, so
-validity is exactly "these equations hold". The refinement to the typed model
-(Ob4) and the honest witness (Ob5) are proved elsewhere. -/
+/-! Owns the witness of one invocation of a Nebula memory application and the
+field equations that the memory rows check: the rows of spec §8, the carry
+actions of §11.2 with the two arms of §12, the three record chains and the
+`η` transcript of §9, and the input state digest of §11.1. The witness also
+holds the application's state words and private words; the application's
+own rows (§10) are in `PortApp`. Every value the relation needs is a witness
+word, so validity is exactly "these equations hold". The refinement to the
+typed model (Ob4) and the honest witness (Ob5) are proved elsewhere. -/
 
 namespace NightstreamFPrime.Lifecycle.Nebula
 
@@ -39,15 +39,18 @@ def OpSlotBits.lane {p : Plan} (slot : OpSlotBits p) : List F :=
 def ScanSlotBits.lane {p : Plan} (slot : ScanSlotBits p) : List F :=
   List.ofFn slot.value ++ List.ofFn slot.stamp
 
+/-- The word counts of an application's circuit side (spec §10): its state
+words and its private words. -/
+structure AppShape where
+  width : ℕ
+  aux : ℕ
+
 /-- The witness of one invocation. Bit fields are field words that the rows
-force into `{0, 1}`. -/
-structure StepWitness (p : Plan) where
-  appIn : Fin 2 → F
+force into `{0, 1}`. The application words come last. -/
+structure StepWitness (p : Plan) (a : AppShape) where
   carryIn : Fin 39 → F
   carryOut : Fin 39 → F
-  appOut : Fin 2 → F
   proposal : Fin 8 → F
-  idle : F
   isOpen : F
   openInverse : F
   isClose : F
@@ -63,6 +66,9 @@ structure StepWitness (p : Plan) where
   segBits : Fin p.segWidth → F
   opsProducts : Fin p.bOps → Fin 4 → F
   scanProducts : Fin p.bScan → Fin 4 → F
+  appIn : Fin a.width → F
+  appOut : Fin a.width → F
+  aux : Fin a.aux → F
 
 /-- A field word is a bit. -/
 def IsBit (x : F) : Prop := x = 0 ∨ x = 1
@@ -90,7 +96,7 @@ def gatedK (pad : F) (f : K) : K := K.add (embed pad) (K.mul (embed (1 - pad)) f
 
 namespace StepWitness
 
-variable {p : Plan} (w : StepWitness p)
+variable {p : Plan} {a : AppShape} (w : StepWitness p a)
 
 /-! ### Carry fields -/
 
@@ -203,7 +209,7 @@ def headerWords (p : Plan) (i : ℕ) : F :=
 /-- The polynomial equations of one memory-application invocation: the memory
 rows of spec §8 and the carry actions of §11.2 with the arms of §12. Indices
 follow spec §11.1 carry word order. -/
-structure StepWitness.PolyRows {p : Plan} (w : StepWitness p) : Prop where
+structure StepWitness.PolyRows {p : Plan} {a : AppShape} (w : StepWitness p a) : Prop where
   -- O1, S1, and the auxiliary bits
   opsBits : ∀ j, ∀ x ∈ (w.ops j).lane, IsBit x
   diffBits : ∀ j k, IsBit ((w.ops j).diff k)
@@ -211,7 +217,6 @@ structure StepWitness.PolyRows {p : Plan} (w : StepWitness p) : Prop where
   finalBits : ∀ j, ∀ x ∈ (w.final j).lane, IsBit x
   tsBits : ∀ k, IsBit (w.tsBits k)
   segBits : ∀ k, IsBit (w.segBits k)
-  idleBit : IsBit w.idle
   openBit : IsBit w.isOpen
   closeBit : IsBit w.isClose
   -- §12 arm: reopen exactly when the input carry is closed
@@ -266,7 +271,7 @@ structure StepWitness.PolyRows {p : Plan} (w : StepWitness p) : Prop where
 /-- Every equation that the circuit of one memory-application invocation
 checks, except the output state, which is the step function: the polynomial
 rows, the §9.2 chains, the §9.3 challenges, and the §11.1 input state `zIn`. -/
-structure StepWitness.RowsHold {p : Plan} (w : StepWitness p) (zIn : List F) : Prop
+structure StepWitness.RowsHold {p : Plan} {a : AppShape} (w : StepWitness p a) (zIn : List F) : Prop
     extends w.PolyRows where
   chainOps : StepWitness.carryDigest w.carryOut 23 =
     chainLink .ops w.idxEff (w.previousDigest 0) (packWords w.opsLaneBits)
@@ -277,42 +282,5 @@ structure StepWitness.RowsHold {p : Plan} (w : StepWitness p) (zIn : List F) : P
   freshEta : etaChallenges ⟨planDigest p, (w.cIn 2).val, w.proposalDigest 0,
     StepWitness.carryDigest w.carryIn 35, w.proposalDigest 4⟩ = w.freshEta
   stateIn : stateWords (List.ofFn w.appIn) (List.ofFn w.carryIn) = zIn
-
-namespace StepWitness
-
-variable {p : Plan} (w : StepWitness p) (two : p.bOps = 2)
-
-/-- Port 0, the fetch port. -/
-def fetchSlot : Fin p.bOps := ⟨0, by omega⟩
-/-- Port 1, the data port. -/
-def dataSlot : Fin p.bOps := ⟨1, by omega⟩
-
-/-- Bit `k` of the fetched instruction word. -/
-def instructionBit (k : Fin 32) : F := (w.ops (fetchSlot two)).vr k
-
-def isLoad : F := w.instructionBit two 0 * (1 - w.instructionBit two 1)
-def isStore : F := (1 - w.instructionBit two 0) * w.instructionBit two 1
-def isLoadi : F := w.instructionBit two 0 * w.instructionBit two 1
-
-/-- The instruction argument `v / 4`: bits 2–31 of the fetched word. -/
-def argument : F := chunkWord ((List.ofFn (w.ops (fetchSlot two)).vr).drop 2)
-
-/-- The machine's port rows (spec §10, Ob7) and its next state. -/
-structure MachineRows : Prop where
-  fetchPad : w.pad (fetchSlot two) = w.idle
-  fetchRead : w.isWrite (fetchSlot two) = 0
-  fetchRom : w.isRam (fetchSlot two) = 0
-  fetchAddr : w.addr (fetchSlot two) = (1 - w.idle) * w.appIn 0
-  dataPad : w.pad (dataSlot two) = 1 - (w.isLoad two + w.isStore two)
-  dataWrite : w.isWrite (dataSlot two) = w.isStore two
-  dataRam : w.isRam (dataSlot two) = w.isLoad two + w.isStore two
-  dataAddr : w.addr (dataSlot two) = (w.isLoad two + w.isStore two) * w.argument two
-  dataValue : w.vw (dataSlot two) =
-    w.isStore two * w.appIn 1 + w.isLoad two * w.vr (dataSlot two)
-  pcOut : w.appOut 0 = w.appIn 0 + w.isLoad two + w.isStore two + w.isLoadi two
-  accOut : w.appOut 1 = w.isLoad two * w.vr (dataSlot two) + w.isLoadi two * w.argument two +
-    (1 - w.isLoad two - w.isLoadi two) * w.appIn 1
-
-end StepWitness
 
 end NightstreamFPrime.Lifecycle.Nebula

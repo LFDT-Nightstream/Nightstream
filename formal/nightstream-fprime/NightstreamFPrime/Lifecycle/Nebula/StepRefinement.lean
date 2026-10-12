@@ -1,4 +1,4 @@
-import NightstreamFPrime.Lifecycle.Nebula.StepDecode
+import NightstreamFPrime.Lifecycle.Nebula.PortApp
 
 /-! Owns Ob4 for the memory rows of one invocation: when the rows of
 `StepWitness.RowsHold` hold and the input carry is reachable, the model's
@@ -63,7 +63,7 @@ theorem Plan.bOps_small {p : Plan} (valid : p.Valid) : p.bOps < 2 ^ 62 := by
 
 namespace StepWitness
 
-variable {p : Plan} (w : StepWitness p)
+variable {p : Plan} {a : AppShape} (w : StepWitness p a)
 
 /-- The decoded input carry. -/
 def inCarry : MemoryCarry := decodeCarry w.carryIn
@@ -108,6 +108,10 @@ theorem toBool_true {x : F} : toBool x = true ↔ x = 1 := by simp [toBool]
 
 theorem toBool_false {x : F} (bit : IsBit x) : toBool x = false ↔ x = 0 := by
   rcases bit with rfl | rfl <;> simp [toBool, modulus_ne_one]
+
+theorem toBool_zero : toBool 0 = false := by simp [toBool, modulus_ne_one]
+
+theorem toBool_one : toBool 1 = true := by simp [toBool]
 
 private theorem chunkValue_replicate (m : ℕ) : chunkValue (List.replicate m false) = 0 := by
   induction m with
@@ -175,6 +179,15 @@ theorem RowsHold.padTail (rows : w.RowsHold zIn) (j : Fin p.bOps) (pad : (w.ops 
     List.mem_ofFn] at zero
   exact ⟨zero _ (by simp), zero _ (by simp), fun k => zero _ (by simp), fun k => zero _ (by simp),
     fun k => zero _ (by simp), fun k => zero _ (by simp)⟩
+
+/-- The memory rows make every operation slot well formed for the
+application (rows O1, O3, O7). -/
+theorem PolyRows.wellFormed (rows : w.PolyRows) (j : Fin p.bOps) : (w.ops j).WellFormed where
+  bits := rows.opsBits j
+  padTail := fun pad x member => by
+    have := rows.padZero j x member
+    rwa [StepWitness.pad, pad, one_mul] at this
+  readKeeps := rows.readKeeps j
 
 /-- Rows O3, O5, O6, O7 give the typed slot rows. -/
 theorem RowsHold.slotRows (valid : p.Valid) (rows : w.RowsHold zIn) (j : Fin p.bOps) :
@@ -520,7 +533,7 @@ theorem gatedK_bit {pad : F} (bit : IsBit pad) (f : K) :
 
 namespace StepWitness
 
-variable {p : Plan} (w : StepWitness p) {zIn : List F}
+variable {p : Plan} {a : AppShape} (w : StepWitness p a) {zIn : List F}
 
 /-! ### Field values of a slot -/
 

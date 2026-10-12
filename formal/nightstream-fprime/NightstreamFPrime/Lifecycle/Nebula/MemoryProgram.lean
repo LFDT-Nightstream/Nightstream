@@ -1,8 +1,8 @@
 import NightstreamFPrime.Lifecycle.Nebula.MemoryCompleteness
 
-/-! Owns the first memory application as a closed Stage 1 `Application.Program`
-for a plan with two ports: the circuit, its exact step and validity predicate,
-and the support contract. It does not select a plan or a package. -/
+/-! Owns a memory application as a closed Stage 1 `Application.Program`: the
+circuit, its exact step and validity predicate, and the support contract. It
+does not select a plan, an application, or a package. -/
 
 namespace NightstreamFPrime.Lifecycle.Nebula.MemoryApp
 
@@ -12,7 +12,7 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Gadgets.Poseidon2
 open NightstreamFPrime.Lifecycle.Stage1
 
-variable (p : Plan) (i : AppInterface p) (offset : ℕ)
+variable (p : Plan) (app : PortApp p) (i : AppInterface p app) (offset : ℕ)
 
 theorem assertions_localLength (l : List Circuit.Expr) : localLength (l.map Op.assertZero) = 0 := by
   induction l with
@@ -31,37 +31,37 @@ theorem child_localLength (child : Sponge.Interface) (name : String) (start : �
 
 /-- Each child ends where the next starts. -/
 theorem child_ends :
-    offset + ((stateIn p i offset).chunks offset).length * 1096 = stateOutStart p i offset ∧
-    stateOutStart p i offset + ((stateOut p i offset).chunks (stateOutStart p i offset)).length * 1096 =
-      chainOpsStart p i offset ∧
-    chainOpsStart p i offset +
-      ((chainOps p i offset).chunks (chainOpsStart p i offset)).length * 1096 =
-      chainInitialStart p i offset ∧
-    chainInitialStart p i offset +
-      ((chainInitial p i offset).chunks (chainInitialStart p i offset)).length * 1096 =
-      chainFinalStart p i offset ∧
-    chainFinalStart p i offset +
-      ((chainFinal p i offset).chunks (chainFinalStart p i offset)).length * 1096 =
-      etaStart p i offset ∧
-    etaStart p i offset + ((eta p i offset).chunks (etaStart p i offset)).length * 1096 =
-      squeeze1Start p i offset ∧
-    squeeze1Start p i offset +
-      ((squeeze1 p i offset).chunks (squeeze1Start p i offset)).length * 1096 =
-      squeeze2Start p i offset ∧
-    squeeze2Start p i offset +
-      ((squeeze2 p i offset).chunks (squeeze2Start p i offset)).length * 1096 =
-      squeeze3Start p i offset ∧
-    squeeze3Start p i offset +
-      ((squeeze3 p i offset).chunks (squeeze3Start p i offset)).length * 1096 =
-      endOffset p i offset := by
+    offset + ((stateIn p app i offset).chunks offset).length * 1096 = stateOutStart p app i offset ∧
+    stateOutStart p app i offset + ((stateOut p app i offset).chunks (stateOutStart p app i offset)).length * 1096 =
+      chainOpsStart p app i offset ∧
+    chainOpsStart p app i offset +
+      ((chainOps p app i offset).chunks (chainOpsStart p app i offset)).length * 1096 =
+      chainInitialStart p app i offset ∧
+    chainInitialStart p app i offset +
+      ((chainInitial p app i offset).chunks (chainInitialStart p app i offset)).length * 1096 =
+      chainFinalStart p app i offset ∧
+    chainFinalStart p app i offset +
+      ((chainFinal p app i offset).chunks (chainFinalStart p app i offset)).length * 1096 =
+      etaStart p app i offset ∧
+    etaStart p app i offset + ((eta p app i offset).chunks (etaStart p app i offset)).length * 1096 =
+      squeeze1Start p app i offset ∧
+    squeeze1Start p app i offset +
+      ((squeeze1 p app i offset).chunks (squeeze1Start p app i offset)).length * 1096 =
+      squeeze2Start p app i offset ∧
+    squeeze2Start p app i offset +
+      ((squeeze2 p app i offset).chunks (squeeze2Start p app i offset)).length * 1096 =
+      squeeze3Start p app i offset ∧
+    squeeze3Start p app i offset +
+      ((squeeze3 p app i offset).chunks (squeeze3Start p app i offset)).length * 1096 =
+      endOffset p app i offset := by
   refine ⟨rfl, rfl, rfl, rfl, rfl, by rw [etaChunks_length]; rfl, ?_, ?_, ?_⟩
   · simp only [squeeze2Start, squeeze1, permuting, List.length_singleton, one_mul]
   · simp only [squeeze3Start, squeeze2, permuting, List.length_singleton, one_mul]
   · simp only [endOffset, squeeze3, permuting, List.length_singleton, one_mul]
 
 /-- The circuit allocates exactly the children's variables. -/
-theorem localLength_opsAt : offset + localLength (opsAt p i offset) = endOffset p i offset := by
-  obtain ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9⟩ := child_ends p i offset
+theorem localLength_opsAt : offset + localLength (opsAt p app i offset) = endOffset p app i offset := by
+  obtain ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9⟩ := child_ends p app i offset
   rw [opsAt, Sequence.localLength_append, assertions_localLength, Nat.add_zero, childOps]
   simp only [localLength_cons, child_localLength, show localLength ([] : List Op) = 0 from rfl,
     Nat.add_zero, ← Nat.add_assoc, e1, e2, e3, e4, e5, e6, e7, e8, e9]
@@ -70,44 +70,44 @@ theorem localLength_opsAt : offset + localLength (opsAt p i offset) = endOffset 
 variables. -/
 theorem supported (allowed : ℕ → Prop) (inputs : Application.InputsSupported i offset allowed)
     (localSupport : ∀ index, offset ≤ index →
-      index < offset + localLength (opsAt p i offset) → allowed index) :
-    ∀ expression ∈ flatConstraints (opsAt p i offset), expression.VarsSatisfy allowed := by
-  have wires : WiresSupported p i offset allowed := inputs.witness
-  have total := localLength_opsAt p i offset
-  obtain ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9⟩ := child_ends p i offset
+      index < offset + localLength (opsAt p app i offset) → allowed index) :
+    ∀ expression ∈ flatConstraints (opsAt p app i offset), expression.VarsSatisfy allowed := by
+  have wires : WiresSupported p app i offset allowed := inputs.witness
+  have total := localLength_opsAt p app i offset
+  obtain ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9⟩ := child_ends p app i offset
   have within : ∀ (child : Sponge.Interface) (start : ℕ), offset ≤ start →
-      start + (child.chunks start).length * 1096 ≤ endOffset p i offset →
+      start + (child.chunks start).length * 1096 ≤ endOffset p app i offset →
       ∀ index, start ≤ index → index < start + localLength (Circuit.ops (Sponge.main child) start) →
         allowed index := by
     intro child start lower upper index low high
     rw [Sponge.localLength_eq] at high
     exact localSupport index (by omega) (by omega)
-  have stateInS := Sponge.supported (stateIn p i offset) offset allowed (fun _ => trivial)
+  have stateInS := Sponge.supported (stateIn p app i offset) offset allowed (fun _ => trivial)
     (transcriptChunks_supported (stateBlocks_supported wires _ _)) (within _ _ le_rfl (by omega))
-  have stateOutS := Sponge.supported (stateOut p i offset) (stateOutStart p i offset) allowed
+  have stateOutS := Sponge.supported (stateOut p app i offset) (stateOutStart p app i offset) allowed
     (fun _ => trivial) (transcriptChunks_supported (stateBlocks_supported wires _ _))
     (within _ _ (by omega) (by omega))
-  have chainOpsS := Sponge.supported (chainOps p i offset) (chainOpsStart p i offset) allowed
+  have chainOpsS := Sponge.supported (chainOps p app i offset) (chainOpsStart p app i offset) allowed
     (fun _ => trivial) (transcriptChunks_supported (chainBlocks_supported wires _ _ _))
     (within _ _ (by omega) (by omega))
-  have chainInitialS := Sponge.supported (chainInitial p i offset) (chainInitialStart p i offset)
+  have chainInitialS := Sponge.supported (chainInitial p app i offset) (chainInitialStart p app i offset)
     allowed (fun _ => trivial) (transcriptChunks_supported (chainBlocks_supported wires _ _ _))
     (within _ _ (by omega) (by omega))
-  have chainFinalS := Sponge.supported (chainFinal p i offset) (chainFinalStart p i offset)
+  have chainFinalS := Sponge.supported (chainFinal p app i offset) (chainFinalStart p app i offset)
     allowed (fun _ => trivial) (transcriptChunks_supported (chainBlocks_supported wires _ _ _))
     (within _ _ (by omega) (by omega))
-  have etaS := Sponge.supported (eta p i offset) (etaStart p i offset) allowed (fun _ => trivial)
+  have etaS := Sponge.supported (eta p app i offset) (etaStart p app i offset) allowed (fun _ => trivial)
     (transcriptChunks_supported (etaBlocks_supported wires)) (within _ _ (by omega) (by omega))
   have noChunks : ∀ chunk ∈ ([[]] : List (List Circuit.Expr)), ∀ e ∈ chunk, e.VarsSatisfy allowed := by
     simp
-  have etaStateS : ∀ lane, (etaState p i offset lane).VarsSatisfy allowed := fun lane => by
+  have etaStateS : ∀ lane, (etaState p app i offset lane).VarsSatisfy allowed := fun lane => by
     rw [etaState_output]
     exact etaS.2 lane
-  have squeeze1S := Sponge.supported (squeeze1 p i offset) (squeeze1Start p i offset) allowed
+  have squeeze1S := Sponge.supported (squeeze1 p app i offset) (squeeze1Start p app i offset) allowed
     etaStateS noChunks (within _ _ (by omega) (by omega))
-  have squeeze2S := Sponge.supported (squeeze2 p i offset) (squeeze2Start p i offset) allowed
+  have squeeze2S := Sponge.supported (squeeze2 p app i offset) (squeeze2Start p app i offset) allowed
     squeeze1S.2 noChunks (within _ _ (by omega) (by omega))
-  have squeeze3S := Sponge.supported (squeeze3 p i offset) (squeeze3Start p i offset) allowed
+  have squeeze3S := Sponge.supported (squeeze3 p app i offset) (squeeze3Start p app i offset) allowed
     squeeze2S.2 noChunks (within _ _ (by omega) (by omega))
   have flatAssertions : ∀ l : List Circuit.Expr, flatConstraints (l.map Op.assertZero) = l := by
     intro l
@@ -149,26 +149,25 @@ theorem supported (allowed : ℕ → Prop) (inputs : Application.InputsSupported
     · exact Circuit.Expr.VarsSatisfy.sub _ _ _ (laneOf squeeze3S.2 0) (wire_supported wires _)
     · exact sub_supported wires e'
 
-variable (two : p.bOps = 2)
-
 /-- The memory-application circuit. -/
-def circuit (i : AppInterface p) : FormalCircuit where
-  main := main p i
+def circuit (i : AppInterface p app) : FormalCircuit where
+  main := main p app i
   assumptions := fun offset _ => Application.InputsBelow i offset
-  spec := fun offset env => Application.Holds step i offset env ∧ Application.Valid (valid p two) i offset env
-  soundness := fun env offset inputs rows => soundness p i offset env two inputs rows
+  spec := fun offset env =>
+    Application.Holds (step p app) i offset env ∧ Application.Valid (valid p app) i offset env
+  soundness := fun env offset inputs rows => soundness p app i offset env inputs rows
   completeness := fun env offset inputs specification =>
-    completeness p i offset two env inputs specification
+    completeness p app i offset env inputs specification
 
-/-- The first memory application as a closed Stage 1 program. -/
+/-- The memory application as a closed Stage 1 program. -/
 def program : Application.Program where
-  witnessWordCount := Words.count p
-  step := step
-  valid := valid p two
-  circuit := circuit p two
+  witnessWordCount := Words.count p app.toAppShape
+  step := step p app
+  valid := valid p app
+  circuit := circuit p app
   spec_iff := fun _ _ _ => Iff.rfl
   assumptions_of_inputsBelow := fun _ _ _ inputs => inputs
   constraintsSupported := fun i offset _ allowed _ inputs localSupport =>
-    supported p i offset allowed inputs localSupport
+    supported p app i offset allowed inputs localSupport
 
 end NightstreamFPrime.Lifecycle.Nebula.MemoryApp

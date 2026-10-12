@@ -4,9 +4,10 @@ import NightstreamFPrime.Spec.Nebula.Consistency
 /-! Owns security note Lemma 6, deterministic form: an accepted extracted run
 refines the reference machine, or the hash has a collision among the run's own
 chain inputs and the `D_init` chain, or one segment's challenges passed the
-product test although its multisets are not balanced. The last event is the
-one that Lemma 3 bounds (`RetryAveraging`). A1–A4 and A6, which turn verifier
-acceptance into `Accepts`, are not owned here. -/
+product test although its multisets are not balanced. A6 bounds the last
+event, and Lemma 3 (`RetryAveraging`) motivates the value of its error.
+A1–A4, which turn verifier acceptance into `Accepts`, and A6 are not owned
+here. -/
 
 namespace NightstreamFPrime.Spec.Nebula
 

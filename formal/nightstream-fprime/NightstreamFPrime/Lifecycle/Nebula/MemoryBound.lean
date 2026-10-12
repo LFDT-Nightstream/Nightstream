@@ -1,10 +1,11 @@
 import NightstreamFPrime.Lifecycle.Nebula.Framing
 import NightstreamFPrime.Spec.Nebula.Game
 
-/-! Owns the memory terms of security note §5 for the concrete verifier
-context: the per-slot bound of the A6 game over `K` with the Poseidon2 chains.
-Each retry disagreement is a Poseidon2 transcript collision. The A6 transfer
-from the real protocol to this game is not owned here. -/
+/-! Owns the per-slot bound of the game that motivates security note A6, for
+the concrete verifier context: over `K` with the Poseidon2 chains. Each retry
+disagreement is a Poseidon2 transcript collision. A6 itself is a premise of
+the end-to-end bound (`NebulaMemorySecurity.MemoryRound`); this bound only
+motivates the value of its error. -/
 
 namespace NightstreamFPrime.Lifecycle.Nebula
 

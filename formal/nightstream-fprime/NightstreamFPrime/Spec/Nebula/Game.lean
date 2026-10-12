@@ -1,8 +1,8 @@
 import NightstreamFPrime.Spec.Nebula.Soundness
 import NightstreamFPrime.Spec.Nebula.RetryAveraging
 
-/-! Owns the translated interactive memory game of security note A6 and the
-memory terms of the §5 bound in that game. An outcome is the prover's coins
+/-! Owns the interactive memory game that motivates the value of the error of
+security note A6, and its per-slot bound. An outcome is the prover's coins
 and one fresh uniform challenge pair per segment slot. Before the challenge of
 segment `k`, the prover commits the transcript input of segment `k`; the
 commitment depends only on the coins and the earlier challenges. After the
@@ -12,8 +12,9 @@ The bound is per slot: segment `k` of an accepted run, with the transcript
 input committed before slot `k`'s challenge, passes the product test with
 unbalanced multisets at most `2·m_mem/|E|` plus one retry-disagreement term of
 the time, and each disagreement exhibits a collision. Only slot `k` must be
-consistent, so a translation for slot `k` programs one challenge. The transfer
-from the real protocol (A6) is not owned here. -/
+consistent, so a translation for slot `k` programs one challenge. A6 itself
+is a premise of the end-to-end bound (`NebulaMemorySecurity.MemoryRound`); this
+game only motivates the value of its error. -/
 
 namespace NightstreamFPrime.Spec.Nebula
 

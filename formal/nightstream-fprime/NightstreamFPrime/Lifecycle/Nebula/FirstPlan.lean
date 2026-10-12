@@ -1,4 +1,4 @@
-import NightstreamFPrime.Lifecycle.Nebula.ProgramSoundness
+import NightstreamFPrime.Spec.Nebula.SetupCheck
 import NightstreamFPrime.Lifecycle.Nebula.MachineApp
 
 /-! Owns the plan of the first memory-application package (spec §4): ROM and

@@ -3,13 +3,13 @@ import Mathlib.Data.NNRat.Lemmas
 import NightstreamFPrime.Spec.Nebula.Binding
 
 /-! Owns security note Lemma 3 part 2: the records come after `η`, so they can
-depend on it. One call of the translated A6 game runs from a fixed transcript
-input with fresh uniform coins `(η, rest)` and returns closing records or
-nothing. The uniqueness adversary of SuperNeo v1.2 Appendix B repeats calls
-after an erroneous one until one succeeds. The averaging is a count: agreeing
-retries lie in the fiber of the erroneous records, which part 1 bounds, and
-disagreeing retries give a collision among the two calls' own chain inputs.
-The game itself, its uniformity, and the A6 transfer stay premises. -/
+depend on it. One call of the game that motivates A6 runs from a fixed
+transcript input with fresh uniform coins `(η, rest)` and returns closing
+records or nothing. The uniqueness adversary of SuperNeo v1.2 Appendix B
+repeats calls after an erroneous one until one succeeds. The averaging is a
+count: agreeing retries lie in the fiber of the erroneous records, which part
+1 bounds, and disagreeing retries give a collision among the two calls' own
+chain inputs. The game itself and its uniformity stay premises. -/
 
 namespace NightstreamFPrime.Spec.Nebula
 
@@ -91,9 +91,9 @@ theorem retry_frequency {bound : ℕ}
   exact div_le_div_of_nonneg_right (by exact_mod_cast key) zero_le
 
 /-- The uniqueness adversary of SuperNeo v1.2 Appendix B makes one call and,
-after an erroneous call, repeats calls until one succeeds. Its expected number
-of calls is `1 + #Err/#Succ`, which is at most 2: `t_1 ≤ 2·t_E`, counted in
-calls. -/
+after an erroneous call, repeats calls until one succeeds. This is the
+arithmetic step of its call count: `1 + #Err/#Succ ≤ 2`, because every error
+has a success. The retry process itself is not modelled here. -/
 theorem retry_expected_calls :
     (1 : ℚ≥0) + ((errors play bad).card : ℚ≥0) / (successes play).card ≤ 2 := by
   have subset := Finset.card_le_card (errors_subset_successes play bad)

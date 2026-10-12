@@ -276,12 +276,12 @@ theorem substitution_location_form? {program : Program} {logicalWidth : Nat}
           (Spartan.sourceToSpartan (Location.poseidon source lane).sourceColumn) = none := by
         rw [address]
         exact frameGrid_none _ logicalWidth 2500 (1080 + lane.val)
-          rfl ⟨rfl, rfl, rfl, rfl⟩ (by change 3117 ≤ 4267; decide) source (by omega) (by left; change 1080 + lane.val < 2500; omega)
+          rfl ⟨rfl, rfl, rfl, rfl⟩ (by change 3117 ≤ 4267; decide) source (by omega) (by left; omega)
       have missWord : (wordGrid program).form? logicalWidth
           (Spartan.sourceToSpartan (Location.poseidon source lane).sourceColumn) = none := by
         rw [address]
         exact frameGrid_none _ logicalWidth 4213 (1080 + lane.val)
-          rfl ⟨rfl, rfl, rfl, rfl⟩ (by change 4267 ≤ 4267; decide) source (by omega) (by left; change 1080 + lane.val < 4213; omega)
+          rfl ⟨rfl, rfl, rfl, rfl⟩ (by change 4267 ≤ 4267; decide) source (by omega) (by left; omega)
       have missFresh : (freshGrid program).form? logicalWidth
           (Spartan.sourceToSpartan (Location.poseidon source lane).sourceColumn) = none := by
         rw [address]
@@ -304,7 +304,7 @@ theorem substitution_location_form? {program : Program} {logicalWidth : Nat}
           (Spartan.sourceToSpartan (Location.logical source position).sourceColumn) = none := by
         rw [address]
         exact frameGrid_none _ logicalWidth 4213 (2500 + position.val)
-          rfl ⟨rfl, rfl, rfl, rfl⟩ (by change 4267 ≤ 4267; decide) source (by omega) (by left; change 2500 + position.val < 4213; omega)
+          rfl ⟨rfl, rfl, rfl, rfl⟩ (by change 4267 ≤ 4267; decide) source (by omega) (by left; omega)
       have missFresh : (freshGrid program).form? logicalWidth
           (Spartan.sourceToSpartan (Location.logical source position).sourceColumn) = none := by
         rw [address]

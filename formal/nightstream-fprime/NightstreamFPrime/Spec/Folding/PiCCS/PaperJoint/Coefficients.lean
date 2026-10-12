@@ -165,6 +165,24 @@ theorem canonicalFinIndices_length (count : Nat) :
     (canonicalFinIndices count).length = count := by
   simp [canonicalFinIndices]
 
+/-- Position `index` of the canonical enumeration is the coordinate `index`. -/
+theorem canonicalFinIndices_getElem (count index : Nat)
+    (bound : index < (canonicalFinIndices count).length) :
+    (canonicalFinIndices count)[index] =
+      ⟨index, by simpa [canonicalFinIndices] using bound⟩ := by
+  simp [canonicalFinIndices]
+
+/-- Every coordinate occurs in the canonical enumeration. -/
+theorem mem_canonicalFinIndices {count : Nat} (index : Fin count) :
+    index ∈ canonicalFinIndices count := by
+  simp [canonicalFinIndices]
+
+/-- Every coordinate below `bound` occurs in the first `bound` positions. -/
+theorem mem_take_canonicalFinIndices {count : Nat} (index : Fin count) {bound : Nat}
+    (below : index.val < bound) : index ∈ (canonicalFinIndices count).take bound := by
+  rw [List.mem_iff_getElem]
+  exact ⟨index.val, by simp [canonicalFinIndices]; omega, by simp [canonicalFinIndices]⟩
+
 /-- The canonical finite-index enumeration contains no repeated coordinate. -/
 theorem canonicalFinIndices_nodup (count : Nat) :
     (canonicalFinIndices count).Nodup := by

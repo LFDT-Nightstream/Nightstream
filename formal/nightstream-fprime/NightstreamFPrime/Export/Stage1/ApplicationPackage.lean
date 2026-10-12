@@ -98,7 +98,7 @@ def Plan.format : Format Plan where
   decode_encode := by
     intro value
     cases value
-    simp [Format.decode_encode] <;> rfl
+    simp [Format.decode_encode]; rfl
 
 theorem Plan.decode_encode (value : Plan) :
     Plan.format.decode (Plan.format.encode value) = .ok value :=

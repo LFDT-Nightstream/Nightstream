@@ -74,7 +74,7 @@ theorem accepted_and_handoff
         advice (CheckedReplayNifs.proof input (PiDECComputedChildren.messages parent children)))
     (contextCustody : PerApplicationDecodedIO.contextKey raw =
       PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup) :
-    let result := PiCCSInputCheck.runningFromInput (PiDECComputedChildren.messages parent children)
+    let result := PiCCSInputCheck.selectedRunningFromInput (PiDECComputedChildren.messages parent children)
     let openings := PiDECComputedChildren.witnesses children
     let successor := CheckedReplaySuccessor.payload result openings raw
     let nextStatement := CheckedReplaySuccessor.nextStatement statement advice

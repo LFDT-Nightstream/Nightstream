@@ -111,7 +111,7 @@ theorem pointSource_c0 (coordinate : Fin Lifecycle.productionShape.cubeVariables
         coordinate.val * RunningTransitionInputs.roundStride +
         RunningTransitionInputs.roundSampleC0Offset := by
   unfold pointSource pointSourceStart
-  simp only [Fin.val_zero, Nat.zero_mul, Nat.add_zero]
+  simp only [Fin.val_zero, Nat.add_zero]
   omega
 
 theorem pointSource_c1 (coordinate : Fin Lifecycle.productionShape.cubeVariables) :

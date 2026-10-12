@@ -166,7 +166,7 @@ private theorem sum_take_ofFn_const {count : Nat} (value : Nat)
     (index : Fin count) :
     ((List.ofFn fun _ : Fin count => value).take index.val).sum =
       index.val * value := by
-  simp [List.sum_const_nat, index.isLt.le]
+  simp [index.isLt.le]
 
 private theorem weightedLaneFreshPrefix (cellCount : Nat)
     (lane : Fin ringDegree) :

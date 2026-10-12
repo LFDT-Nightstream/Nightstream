@@ -12,7 +12,6 @@ use super::{canonical_field, PackageError, PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT, 
 
 const WIDTH: usize = neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
 const CUBE_VARIABLES: usize = PI_CCS_V1_2_ROUND_COUNT;
-const RUNNING_SOURCES: usize = 16;
 const SOURCE_COUNT: usize = 17;
 const MATRIX_COUNT: usize = super::PI_CCS_V1_2_MATRIX_COUNT;
 const COEFFICIENT_COUNT: usize = 54;
@@ -54,22 +53,25 @@ impl PiCcsV1_2Transcript {
 
 /// Derive the fixed-profile v1.2 PiCCS transcript.
 ///
-/// After the constant domain chunk, the public statement blocks are absorbed
-/// as one stream: the pilot-recomputed prior-state digest, the fresh
-/// commitment, and the fresh public input. The semantic verifier blocks are
-/// validated but are not absorbed again because the prior digest already
-/// binds them. Coins are read from rate-lane pairs; nothing is labeled or
-/// length-prefixed.
+/// After the constant domain chunk, the statement is absorbed as one stream
+/// with no length prefixes: the prior-state digest, the fresh commitment and
+/// the fresh public input. The digest is Lean's `decodeHash` of that input, as
+/// `ProductionKey.priorDigest` reads it, so it is not a separate argument.
+/// Coins are read from rate-lane pairs; nothing is labeled.
 pub fn derive_pi_ccs_v1_2_transcript(
-    public_statement_blocks: &[Vec<u64>],
-    verifier_input_blocks: &[Vec<u64>],
+    fresh_commitment: &[u64],
+    fresh_public_input: &[u64],
     rounds: &[Vec<[u64; 2]>],
     output_words: &[u64],
 ) -> Result<PiCcsV1_2Transcript, PackageError> {
-    validate_shapes(public_statement_blocks, verifier_input_blocks, rounds, output_words)?;
+    validate_shapes(fresh_commitment, fresh_public_input, rounds, output_words)?;
+    let public_input = canonical_words(fresh_public_input)?;
     let mut transcript = Poseidon2Transcript::new_v1_2();
     transcript.absorb_v1_2(&fold_domain_chunk_v1_2());
-    transcript.absorb_v1_2(&canonical_words(&public_statement_blocks.concat())?);
+    let mut statement = neo_transcript::prior_digest_v1_2(&public_input).to_vec();
+    statement.extend(canonical_words(fresh_commitment)?);
+    statement.extend_from_slice(&public_input);
+    transcript.absorb_v1_2(&statement);
 
     let mut alpha = Vec::with_capacity(CUBE_VARIABLES);
     for _ in 0..CUBE_VARIABLES {
@@ -94,18 +96,13 @@ pub fn derive_pi_ccs_v1_2_transcript(
 }
 
 fn validate_shapes(
-    public: &[Vec<u64>],
-    verifier: &[Vec<u64>],
+    commitment: &[u64],
+    public_input: &[u64],
     rounds: &[Vec<[u64; 2]>],
     output: &[u64],
 ) -> Result<(), PackageError> {
-    if public.len() != 3
-        || public[0].len() != 4
-        || public[1].len() != COMMITMENT_WORDS
-        || public[2].len() != PUBLIC_INPUT_WORDS
-        || verifier.len() != 2
-        || verifier[0].len() != CUBE_VARIABLES * 2
-        || verifier[1].len() != RUNNING_SOURCES * EVALUATION_WORDS
+    if commitment.len() != COMMITMENT_WORDS
+        || public_input.len() != PUBLIC_INPUT_WORDS
         || rounds.len() != CUBE_VARIABLES
         || rounds
             .iter()

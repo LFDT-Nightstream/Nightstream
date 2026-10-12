@@ -51,8 +51,8 @@ theorem valueSource_support
       · left; left; left
         unfold PiCCSOrdinarySourceSupport.InRange
         simp only [PiRLCProductSchedule.Descriptor.valueColumn,
-          PiRLCCombinationInvocations.commitmentValueSourceStart, first,
-          if_neg]
+          PiRLCCombinationInvocations.commitmentValueSourceStart, first
+          ]
         have sourceBound := source.isLt
         have blockBound := block.isLt
         have laneBound := lane.isLt
@@ -83,8 +83,8 @@ theorem valueSource_support
       · left; left; right; right; right; right
         unfold PiCCSOrdinarySourceSupport.InRange
         simp only [PiRLCProductSchedule.Descriptor.valueColumn,
-          PiRLCCombinationInvocations.publicInputValueSourceStart, first,
-          if_neg]
+          PiRLCCombinationInvocations.publicInputValueSourceStart, first
+          ]
         have sourceBound := source.isLt
         have blockBound := block.isLt
         have laneBound := lane.isLt

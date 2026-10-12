@@ -395,7 +395,8 @@ private theorem fullLane_value {columns : Nat} (interface : PoseidonSboxPlan.Int
   refine ⟨third.1, fun target => ?_⟩
   unfold fullLane
   rw [third.2 target, second.2 target, first.2 target]
-  fin_cases target <;> simp [change, extensionLaws.add_assoc] <;> rfl
+  fin_cases target <;> simp [change, extensionLaws.add_assoc]
+  rfl
 
 /-- Each lane adds its contribution to every port. -/
 private theorem foldl_lanes {columns : Nat} (update : Fin 16 → Merged columns → Merged columns)

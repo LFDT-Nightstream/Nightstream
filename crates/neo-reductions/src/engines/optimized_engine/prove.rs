@@ -6,7 +6,6 @@ use neo_math::{F, K};
 use neo_params::NeoParams;
 use neo_transcript::Poseidon2Transcript;
 
-use crate::engines::pi_ccs_joint_protocol::TranscriptBinding;
 use crate::error::PiCcsError;
 
 use super::{OptimizedStructureCache, PaperJointOracleBackend, PiCcsProof, PiCcsProvePerf, PiDecProverPrecompute};
@@ -107,7 +106,7 @@ pub fn optimized_prove_with_cache_and_precompute_and_perf<L: neo_ccs::traits::SM
     ),
     PiCcsError,
 > {
-    let (outputs, proof, perf) = super::paper_joint::prove_with_binding(
+    let (outputs, proof, perf) = super::paper_joint::prove(
         transcript,
         params,
         structure,
@@ -117,7 +116,6 @@ pub fn optimized_prove_with_cache_and_precompute_and_perf<L: neo_ccs::traits::SM
         running_witnesses,
         commitment,
         cache,
-        TranscriptBinding::digest_only(),
     )?;
     let precompute = PiDecProverPrecompute {
         row_chals: outputs
@@ -152,7 +150,7 @@ pub fn optimized_prove_with_cache_and_precompute_and_backend_and_perf<
     ),
     PiCcsError,
 > {
-    let (outputs, proof, perf) = super::paper_joint::prove_with_binding_and_backend(
+    let (outputs, proof, perf) = super::paper_joint::prove_with_backend(
         transcript,
         params,
         structure,
@@ -162,7 +160,6 @@ pub fn optimized_prove_with_cache_and_precompute_and_backend_and_perf<
         running_witnesses,
         commitment,
         cache,
-        TranscriptBinding::digest_only(),
         backend,
     )?;
     let precompute = PiDecProverPrecompute {

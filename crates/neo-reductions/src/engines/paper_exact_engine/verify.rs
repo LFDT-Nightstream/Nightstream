@@ -14,7 +14,7 @@ use crate::error::PiCcsError;
 use super::paper_joint::{
     dimensions, initial_claim, paper_prior_point, terminal_components, validate_public_instances,
 };
-use super::transcript::{absorb_outputs, bind_and_sample, verify_sumcheck, PaperTranscriptBinding};
+use super::transcript::{absorb_outputs, bind_and_sample, verify_sumcheck};
 
 fn validate_outputs(
     fresh: &[CcsClaim<Cmt, F>],
@@ -94,42 +94,11 @@ pub fn paper_exact_verify_with_trace(
     outputs: &[CeClaim<Cmt, F, K>],
     proof: &PiCcsProof,
 ) -> Result<(bool, ProtocolTrace), PiCcsError> {
-    paper_exact_verify_with_trace_and_binding(
-        transcript,
-        params,
-        structure,
-        fresh_claims,
-        running_claims,
-        outputs,
-        proof,
-        PaperTranscriptBinding::digest_only(),
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn paper_exact_verify_with_trace_and_binding(
-    transcript: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    structure: &CcsStructure<F>,
-    fresh_claims: &[CcsClaim<Cmt, F>],
-    running_claims: &[CeClaim<Cmt, F, K>],
-    outputs: &[CeClaim<Cmt, F, K>],
-    proof: &PiCcsProof,
-    binding: PaperTranscriptBinding,
-) -> Result<(bool, ProtocolTrace), PiCcsError> {
     validate_public_instances(structure, fresh_claims, running_claims)?;
     let dims = dimensions(params, structure, fresh_claims.len(), running_claims.len())?;
     let prior_point = paper_prior_point(running_claims, dims.variables)?;
     let mut trace = ProtocolTrace::default();
-    let challenges = bind_and_sample(
-        transcript,
-        &mut trace,
-        structure,
-        fresh_claims,
-        running_claims,
-        dims,
-        binding,
-    )?;
+    let challenges = bind_and_sample(transcript, &mut trace, structure, fresh_claims, running_claims, dims)?;
     let initial = initial_claim(structure, &challenges, fresh_claims.len(), running_claims)?;
     let (point, final_claim) = verify_sumcheck(transcript, &mut trace, dims, initial, &proof.sumcheck_rounds)?;
     validate_outputs(fresh_claims, running_claims, outputs, &point, dims)?;

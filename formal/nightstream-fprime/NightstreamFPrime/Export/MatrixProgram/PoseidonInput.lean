@@ -74,7 +74,8 @@ def Term.format : Format Term where
     intro term
     cases term <;> simp [RetainedBlock.format.decode_encode,
       OptionalConstantTable.format.decode_encode, Affine.Table.format.decode_encode,
-      SourceSubstitution.format.decode_encode] <;> rfl
+      SourceSubstitution.format.decode_encode]
+    rfl
 
 def Rule.format : Format Rule where
   encode := fun rule => .array [

@@ -53,7 +53,7 @@ private theorem k_embed_strictNorm (value : F) :
   exact NormRange.embed_cubicResidual value
 
 /-- The concrete embedding preserves and reflects the semantic zero. -/
-def zeroReflectingLift :
+theorem zeroReflectingLift :
     ConcreteJointData.ZeroReflectingLift baseOps extensionOps K.embed where
   zero_iff := by
     intro value
@@ -76,7 +76,7 @@ theorem embed_strictNorm (value : F) :
 
 /-- Concrete `F -> K` placement assembled solely from the named leaf
 theorems above. -/
-def protocolLift :
+theorem protocolLift :
     ProtocolDataRefinement.ProtocolLift baseOps extensionOps K.embed where
   toZeroReflectingLift := zeroReflectingLift
   map_one := embed_one

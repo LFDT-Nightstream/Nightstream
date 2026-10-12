@@ -392,7 +392,7 @@ private theorem matrixPower_totalRowCount
 private theorem constraintPower_totalFreshCount
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.Interface)
-    (offset : Nat) (inputs : InputsLinear interface offset) :
+    (offset : Nat) (_inputs : InputsLinear interface offset) :
     R1CS.totalFreshCount (flatConstraints (Circuit.ops
       (NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.constraintPowerCircuitAt
         interface offset).main
@@ -405,7 +405,7 @@ private theorem constraintPower_totalFreshCount
 private theorem constraintPower_totalRowCount
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.Interface)
-    (offset : Nat) (inputs : InputsLinear interface offset) :
+    (offset : Nat) (_inputs : InputsLinear interface offset) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
       (NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.constraintPowerCircuitAt
         interface offset).main

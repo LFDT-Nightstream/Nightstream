@@ -7,7 +7,6 @@ use neo_params::NeoParams;
 use neo_transcript::Poseidon2Transcript;
 
 use crate::engines::pi_ccs_joint::ProtocolTrace;
-use crate::engines::pi_ccs_joint_protocol::TranscriptBinding;
 use crate::error::PiCcsError;
 
 use super::{OptimizedStructureCache, PiCcsProof, PiCcsVerifyPerf};
@@ -32,17 +31,13 @@ pub fn optimized_verify_with_trace(
         running_claims,
         outputs,
         proof,
-        TranscriptBinding::digest_only(),
-        None,
     )
 }
 
 /// Replay the public protocol against the caller-selected relation header.
 /// Matrix evaluator caches belong to preprocessing and proving.
 ///
-/// Authenticate the complete running claims against their shared fold digest
-/// and fix the verifier context as required by the
-/// [caller contract](crate::engines::PiCcsEngine::verify).
+/// The [caller contract](crate::engines::PiCcsEngine::verify) applies.
 pub fn optimized_verify(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,
@@ -106,33 +101,8 @@ pub fn optimized_verify_with_cache_and_perf(
     cache: &OptimizedStructureCache,
 ) -> Result<(bool, PiCcsVerifyPerf), PiCcsError> {
     cache.validate_structure(structure)?;
-    verify_with_binding(
-        transcript,
-        params,
-        structure,
-        fresh_claims,
-        running_claims,
-        outputs,
-        proof,
-        cache.matrix_digest(),
-        TranscriptBinding::digest_only(),
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
-fn verify_with_binding(
-    transcript: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    structure: &CcsStructure<F>,
-    fresh_claims: &[CcsClaim<Cmt, F>],
-    running_claims: &[CeClaim<Cmt, F, K>],
-    outputs: &[CeClaim<Cmt, F, K>],
-    proof: &PiCcsProof,
-    expected_matrix_digest: &[F; 4],
-    binding: TranscriptBinding,
-) -> Result<(bool, PiCcsVerifyPerf), PiCcsError> {
     let started = std::time::Instant::now();
-    let valid = crate::engines::pi_ccs_joint_protocol::verify_with_binding_and_matrix_digest(
+    let (valid, _) = crate::engines::pi_ccs_joint_protocol::verify_with_trace(
         transcript,
         params,
         structure,
@@ -140,8 +110,6 @@ fn verify_with_binding(
         running_claims,
         outputs,
         proof,
-        binding,
-        expected_matrix_digest,
     )?;
     Ok((
         valid,

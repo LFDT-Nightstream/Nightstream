@@ -314,7 +314,7 @@ private theorem pullback_agreesBelow_runningTransition
     rw [runningTransitionTargetEnd_eq]
     exact mappedPublic.le
 
-private def recursiveRunningBelowPiDec
+private theorem recursiveRunningBelowPiDec
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
     (env : Env)
     (assumptions :

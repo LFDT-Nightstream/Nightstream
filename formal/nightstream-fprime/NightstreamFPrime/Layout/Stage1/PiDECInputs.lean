@@ -160,7 +160,7 @@ def interface
           logicalWidth publicFits)
         coordinate)
 
-def inputShapes
+theorem inputShapes
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}

@@ -20,6 +20,11 @@ equal the separately checked iteration-3 output.
 These two cases also exercise successful active extension. A separate
 ordinary-cache run adds no necessary coverage to this check.
 
+Note (2026-10-07, PR #155): the running instance no longer has a parent
+cache. Both cases reduce to frame and `w` changes. The terminal sweep and the
+CI native fixture show that `verify` and `step_inputs` ignore them; by
+inspection, `prove_active` clears `w` and reads no frame.
+
 ## Proposed allowance, not yet approved
 
 The measured C, R, D-material, terminal-acceptance and successor-construction

@@ -39,7 +39,10 @@ The game:
   slot), the random-oracle model of the Fiat–Shamir reads.
 - The adversary is deterministic. It is chosen before the chunks and may read
   all of them, so it cannot contain a kernel vector of the key. An adversary
-  precomputed for the fixed deployed seed is outside the game.
+  precomputed for the fixed deployed seed is outside the game. A randomized
+  adversary is a family over uniform coins;
+  `RandomOracleSetup.randomized_knowledge_error_lt` averages the criterion
+  over the coins.
 - The extractor and the binding reduction rerun the adversary with a changed
   `H`, so the oracle is programmable.
 - The claim is linked: the verifier also checks that the prior preimage

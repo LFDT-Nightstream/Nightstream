@@ -97,9 +97,10 @@ collision.
   the oracle `H`. It may choose the running and fresh statements after any
   query. It outputs a claim (the statements, a NIFS proof and 16 child
   witnesses) and a prior preimage. The algorithm is deterministic
-  (`Spec.RandomOracle.OracleComp` has no coins). A randomized adversary is
-  covered for each fixed value of its coins; the average over the coins is an
-  argument outside Lean. Each query is a call list no longer than a fixed
+  (`Spec.RandomOracle.OracleComp` has no coins). A randomized adversary is a
+  family over uniform coins, drawn independently of the chunks and of `H`;
+  `Export.Stage1.RandomOracleSetup.randomized_knowledge_error_lt` states the
+  result averaged over the coins. Each query is a call list no longer than a fixed
   bound and a slot (`Lifecycle.RandomOracleTest.Point`).
 - **Does not control:** the application, the setup chunks, which are uniform
   256-bit values (trust item 2), and `H`, a uniform random function of each

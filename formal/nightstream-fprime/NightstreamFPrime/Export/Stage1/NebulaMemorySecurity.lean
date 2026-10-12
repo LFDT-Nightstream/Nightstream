@@ -183,7 +183,9 @@ def badSamples : Set (Sample app) :=
 
 /-- The right side of security note §5 for the reverse stages `stage` run to
 `depth`, the claimed stage `c`, and its A6 error `memoryError`: the Stage 1
-history terms, the state-link and chain collision masses, and the A6 error. -/
+history terms, the state-link and chain collision masses, and the A6 error. It
+is the §5 bound only when `c.stage` is `stage depth`, as in `bad_le` and
+`bad_le_clamp`. -/
 noncomputable def badBound (error : NifsAdversary (MemoryApp.program p app) fits setup → ℝ)
     (stage : ℕ → Stage (MemoryApp.program p app) fits setup) (depth : ℕ)
     (c : ClaimedStage app fits setup) (memoryError : ℝ) : ℝ :=

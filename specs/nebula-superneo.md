@@ -196,7 +196,8 @@ The verifier key binds one `NebulaPlan`:
 A cell value is one 32-bit word. The verifier accepts at most `S_max · N`
 steps. This is the fixed iteration bound of HyperNova Lemma 4 for this
 verifier key: the security note (A4) covers an adversary whose every output
-has at most `S_max · N` steps.
+has at most `S_max · N` steps, and every other adversary through its clamped
+form, which replaces each longer output by one that the verifier rejects.
 
 ### 4.2 Validity rules
 

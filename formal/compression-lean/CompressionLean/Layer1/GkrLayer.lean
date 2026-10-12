@@ -94,6 +94,10 @@ theorem degree_le (s : GkrShape) (k bound : ℕ) (three : 3 ≤ bound)
     (factors : ∀ t ∈ s.active k, s.partFactors k t + 2 ≤ bound) : s.degree k ≤ bound :=
   foldr_max_le _ _ _ _ three factors
 
+theorem layers_le (s : GkrShape) (bound : ℕ) (depths : ∀ t, t < s.trees → s.depth t ≤ bound) :
+    s.layers ≤ bound :=
+  foldr_max_le _ _ _ _ (Nat.zero_le _) fun t member => depths t (List.mem_range.mp member)
+
 end GkrShape
 
 variable {K : Type} [Field K]

@@ -66,3 +66,7 @@ import CompressionLean
 #audit_axioms CompressionLean.Layer1.lateGame_cost
 #audit_axioms CompressionLean.Layer1.layer1Game_cost
 #audit_axioms CompressionLean.Layer1.layer1_sound
+#audit_axioms CompressionLean.Layer1.layer1Count_le
+#audit_axioms CompressionLean.Layer1.goldilocks_cube
+#audit_axioms CompressionLean.Layer1.production_error
+#audit_axioms CompressionLean.Layer1.production_budget

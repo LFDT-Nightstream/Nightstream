@@ -34,3 +34,17 @@ import CompressionLean
 #audit_axioms CompressionLean.Layer1.Level.root_fraction
 #audit_axioms CompressionLean.Layer1.gkr_avoids
 #audit_axioms CompressionLean.Layer1.gkr_cost
+#audit_axioms CompressionLean.Layer1.mle_ne_zero_of_path'
+#audit_axioms CompressionLean.Layer1.twoSided
+#audit_axioms CompressionLean.Layer1.norm_sound
+#audit_axioms CompressionLean.Layer1.Lookup.sound
+#audit_axioms CompressionLean.Layer1.Lookup.bad_card
+#audit_axioms CompressionLean.Layer1.Scatter.sound
+#audit_axioms CompressionLean.Layer1.Scatter.bad_card
+#audit_axioms CompressionLean.Layer1.RingRows.ring_sound
+#audit_axioms CompressionLean.Layer1.RingRows.zetaBad_card
+#audit_axioms CompressionLean.Layer1.univ_eval
+#audit_axioms CompressionLean.Layer1.univ_eq_zero
+#audit_axioms CompressionLean.Layer1.leaf_formula
+#audit_axioms CompressionLean.Layer1.agreement_card
+#audit_axioms CompressionLean.Layer1.queryBad_density

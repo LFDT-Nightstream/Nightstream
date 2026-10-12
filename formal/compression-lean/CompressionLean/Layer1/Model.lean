@@ -129,6 +129,8 @@ structure Setup.Fits (S : Setup F) (s : Shape) : Prop where
   slot_lt : ∀ k, S.runSlot k < 2 ^ s.slotVars
   matrix_lt : ∀ k, S.runMatrix k < 2 ^ s.matrixVars
   slots_le : S.slots ≤ 2 ^ s.slotVars
+  run_slot : ∀ k, k < S.runs → S.runSlot k < S.slots
+  run_matrix : ∀ k, k < S.runs → S.runMatrix k < s.matrices
   lane_lt : ∀ σ, S.slotLane σ < s.D
   length_le : ∀ σ, S.slotLength σ ≤ s.D
   inside : ∀ σ, s.D * S.slotBlock σ + S.slotLane σ + S.slotLength σ ≤ s.D * s.blocks

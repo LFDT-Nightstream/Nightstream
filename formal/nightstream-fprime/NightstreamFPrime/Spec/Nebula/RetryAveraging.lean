@@ -92,8 +92,9 @@ theorem retry_frequency {bound : ℕ}
 
 /-- The uniqueness adversary of SuperNeo v1.2 Appendix B makes one call and,
 after an erroneous call, repeats calls until one succeeds. This is the
-arithmetic step of its call count: `1 + #Err/#Succ ≤ 2`, because every error
-has a success. The retry process itself is not modelled here. -/
+arithmetic step of its call count: `1 + #Err/#Succ ≤ 2`, because every
+erroneous call is a successful call (`errors_subset_successes`). The retry
+process itself is not modelled here. -/
 theorem retry_expected_calls :
     (1 : ℚ≥0) + ((errors play bad).card : ℚ≥0) / (successes play).card ≤ 2 := by
   have subset := Finset.card_le_card (errors_subset_successes play bad)
@@ -213,7 +214,7 @@ private theorem mem_filter_any {α : Type} {p : α → Prop} {inst : DecidablePr
 
 variable [IsDomain E] [Fintype E] [DecidableEq E] [CharP E goldilocksModulus]
 
-/-- Security note Lemma 3 for one segment of the translated game:
+/-- Security note Lemma 3 for one segment of the game that motivates A6:
 `Pr[Err] ≤ 2·m_mem/|E| + Pr[Err and the retry disagrees]`, and every
 disagreeing pair gives a collision among the two calls' chain inputs. -/
 theorem segment_fingerprint_bound {ctx : Context E Digest} (valid : ctx.plan.Valid)

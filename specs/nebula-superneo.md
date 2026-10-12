@@ -193,8 +193,10 @@ The verifier key binds one `NebulaPlan`:
 | `rom_image` | `R` words of 32 bits |
 | `ram_image` | `M` words of 32 bits |
 
-A cell value is one 32-bit word. A proof has at most `S_max · N` steps. This
-is the fixed iteration bound of HyperNova Lemma 4 for this verifier key.
+A cell value is one 32-bit word. The verifier accepts at most `S_max · N`
+steps. This is the fixed iteration bound of HyperNova Lemma 4 for this
+verifier key: the security note (A4) covers an adversary whose every output
+has at most `S_max · N` steps.
 
 ### 4.2 Validity rules
 
@@ -213,10 +215,10 @@ Setup MUST reject a plan that breaks any of these rules:
 5. **Positive sizes:** `B_ops, B_scan, N, S_max ≥ 1`.
 6. **Security:** the plan passes the setup check in the security note §5.
 
-In Lean, every memory package that `emit` writes gets its program from
+In Lean, every memory package that `lake exe emit` writes gets its program from
 `NebulaMemoryPackage.application`. That function takes the proofs of rules 1–5
-(`Plan.Valid`) and rule 6 (`Plan.Secure`), so `emit` cannot write a package for
-a plan that breaks a rule.
+(`Plan.Valid`) and rule 6 (`Plan.Secure`), so `lake exe emit` cannot write a
+package for a plan that breaks a rule.
 
 The segment range of `open` (§11.2) decomposes `S_max − 1 − seg_idx` into
 `W_seg` bits:

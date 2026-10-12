@@ -32,20 +32,6 @@ noncomputable def parts : ℕ → ℕ → (ℕ → K) → ℕ → K[X]
       if u % 2 = 0 then parts f m (fun i => t (2 * i)) (u / 2)
       else parts f m (fun i => t (2 * i + 1) - t (2 * i)) (u / 2)
 
-theorem cubeSum_eq_sum_range {M : Type} [AddCommMonoid M] (n : ℕ) (t : ℕ → M) :
-    cubeSum n t = ∑ i ∈ Finset.range (2 ^ n), t i := by
-  induction n generalizing t with
-  | zero => simp [cubeSum]
-  | succ n ih =>
-      simp only [cubeSum, ih]
-      rw [pow_succ, mul_comm]
-      induction 2 ^ n with
-      | zero => simp
-      | succ k ihk =>
-          rw [show 2 * (k + 1) = 2 * k + 1 + 1 by ring, Finset.sum_range_succ, Finset.sum_range_succ,
-            Finset.sum_range_succ, Finset.sum_range_succ, ← ihk]
-          abel
-
 theorem parts_add (f m : ℕ) (t u : ℕ → K) (v : ℕ) :
     parts f m (fun i => t i + u i) v = parts f m t v + parts f m u v := by
   induction f generalizing m t u v with

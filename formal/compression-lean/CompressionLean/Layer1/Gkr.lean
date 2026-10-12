@@ -361,16 +361,19 @@ theorem gkrLayers_avoids (worlds : Finset W) (batch : W → Batch K) (extra : �
       st.point.length = k - 1 →
       (∀ t, t < s.trees → s.depth t < k →
         (st.leafPoint t).length = s.depth t ∧ Path (extra (s.depth t)) [] (st.leafPoint t)) →
+      (∀ t t', s.depth t < k → s.depth t = s.depth t' → st.leafPoint t = st.leafPoint t') →
       (gkrLayers s worlds batch extra remaining k st).Avoids fun r =>
         r = none ∨ ∃ fin, r = some fin ∧ fin.roots = st.roots ∧
           (∀ w ∈ worlds, Doomed s (batch w) k st → LeafFalse s (batch w) fin) ∧
-          ∀ t, t < s.trees → s.depth t ≤ s.layers →
-            (fin.leafPoint t).length = s.depth t ∧ Path (extra (s.depth t)) [] (fin.leafPoint t) := by
+          (∀ t, t < s.trees → s.depth t ≤ s.layers →
+            (fin.leafPoint t).length = s.depth t ∧ Path (extra (s.depth t)) [] (fin.leafPoint t)) ∧
+          ∀ t t', s.depth t ≤ s.layers → s.depth t = s.depth t' → fin.leafPoint t = fin.leafPoint t' := by
   intro remaining
   induction remaining with
   | zero =>
-      intro k st _ last _ ended
-      refine Or.inr ⟨st, rfl, rfl, ?_, fun t tree deep => ended t tree (by omega)⟩
+      intro k st _ last _ ended shared
+      refine Or.inr ⟨st, rfl, rfl, ?_, fun t tree deep => ended t tree (by omega),
+        fun t t' deep same => shared t t' (by omega) same⟩
       intro w _ doomed
       rcases doomed with ⟨t, member, _⟩ | ⟨t, tree, _, j, le, false_leaf⟩
       · obtain ⟨tree, reach⟩ := (s.mem_active).mp member
@@ -378,7 +381,7 @@ theorem gkrLayers_avoids (worlds : Finset W) (batch : W → Batch K) (extra : �
         omega
       · exact ⟨t, tree, j, le, false_leaf⟩
   | succ remaining ih =>
-      intro k st low fits_layers length ended μ hμ ν hν
+      intro k st low fits_layers length ended shared μ hμ ν hν
       have inside : k ≤ s.layers := by omega
       rw [Game.avoids_bind]
       have degree : ∀ μ ν : K, (layerComb s k μ ν).totalDegree ≤ s.degree k - 1 + 1 := by
@@ -410,10 +413,18 @@ theorem gkrLayers_avoids (worlds : Finset W) (batch : W → Batch K) (extra : �
               (fun hit => hτ (Finset.mem_union_right _ (by simpa using hit)))
           · simp only [advance, if_neg here]
             exact ended t tree (by omega)
-        refine (ih (k + 1) _ (by omega) (by omega) (by simp [advance, count]; omega) stays).mono ?_
-        rintro r (none | ⟨fin, rfl, roots, doomed, structural⟩)
+        have stays_shared : ∀ t t', s.depth t < k + 1 → s.depth t = s.depth t' →
+            (advance s k st next children τ).leafPoint t = (advance s k st next children τ).leafPoint t' := by
+          intro t t' shallow same
+          by_cases here : s.depth t = k
+          · simp only [advance, if_pos here, if_pos (same ▸ here)]
+          · simp only [advance, if_neg here, if_neg (same ▸ here)]
+            exact shared t t' (by omega) same
+        refine (ih (k + 1) _ (by omega) (by omega) (by simp [advance, count]; omega) stays
+          stays_shared).mono ?_
+        rintro r (none | ⟨fin, rfl, roots, doomed, structural, shared'⟩)
         · exact Or.inl none
-        refine Or.inr ⟨fin, rfl, roots, ?_, structural⟩
+        refine Or.inr ⟨fin, rfl, roots, ?_, structural, shared'⟩
         intro w member before
         apply doomed w member
         exact doomed_step s (batch w) (fits w member) low length (by omega)
@@ -434,14 +445,17 @@ theorem gkr_avoids (worlds : Finset W) (batch : W → Batch K) (extra : ℕ → 
       r = none ∨ ∃ fin, r = some fin ∧
         (∀ w ∈ worlds, (∃ t, t < s.trees ∧ fin.roots t ≠ trueRoot s (batch w) t) →
           LeafFalse s (batch w) fin) ∧
-        ∀ t, t < s.trees →
-          (fin.leafPoint t).length = s.depth t ∧ Path (extra (s.depth t)) [] (fin.leafPoint t) := by
+        (∀ t, t < s.trees →
+          (fin.leafPoint t).length = s.depth t ∧ Path (extra (s.depth t)) [] (fin.leafPoint t)) ∧
+        ∀ t t', t < s.trees → s.depth t = s.depth t' → fin.leafPoint t = fin.leafPoint t' := by
   intro roots
   refine (gkrLayers_avoids worlds batch extra fits distinct s.layers 1 _ le_rfl (by omega) rfl
-    (fun t tree shallow => absurd (deep t tree) (by omega))).mono ?_
-  rintro r (none | ⟨fin, rfl, root_eq, doomed, structural⟩)
+    (fun t tree shallow => absurd (deep t tree) (by omega))
+    (fun t t' _ _ => rfl)).mono ?_
+  rintro r (none | ⟨fin, rfl, root_eq, doomed, structural, shared⟩)
   · exact Or.inl none
-  refine Or.inr ⟨fin, rfl, ?_, fun t tree => structural t tree (s.depth_le_layers tree)⟩
+  refine Or.inr ⟨fin, rfl, ?_, fun t tree => structural t tree (s.depth_le_layers tree),
+    fun t t' tree same => shared t t' (s.depth_le_layers tree) same⟩
   intro w member ⟨t, tree, false_root⟩
   apply doomed w member
   left

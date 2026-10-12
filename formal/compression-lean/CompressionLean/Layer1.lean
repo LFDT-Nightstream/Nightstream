@@ -13,3 +13,6 @@ import CompressionLean.Layer1.RingRows
 import CompressionLean.Layer1.Univariate
 import CompressionLean.Layer1.HonestFold
 import CompressionLean.Layer1.Queries
+import CompressionLean.Layer1.Model
+import CompressionLean.Layer1.Early
+import CompressionLean.Layer1.EarlySound

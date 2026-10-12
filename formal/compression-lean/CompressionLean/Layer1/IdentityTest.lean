@@ -106,4 +106,46 @@ theorem mle_ne_zero_of_path' (d : ℕ → K) (point : List K) (nonzero : Nonzero
   have := mle_ne_zero_of_path d point.length point [] (by simp) (by simpa [fold] using nonzero) path
   simpa [mle] using this
 
+omit [Field K] [Fintype K] [DecidableEq K] in
+theorem Path.append_iff (extra : List K → Finset K) :
+    ∀ (point l₁ l₂ : List K), Path extra point (l₁ ++ l₂) ↔ Path extra point l₁ ∧ Path extra (point ++ l₁) l₂ := by
+  intro point l₁
+  induction l₁ generalizing point with
+  | nil => intro l₂; simp [Path]
+  | cons c rest ih =>
+      intro l₂
+      simp only [List.cons_append, Path]
+      rw [ih]
+      simp [and_assoc]
+
+omit [Field K] [Fintype K] [DecidableEq K] in
+/-- A path whose bad sets shrink while the prefix is short stays a path. -/
+theorem Path.mono_short {extra extra' : List K → Finset K} (bound : ℕ)
+    (subset : ∀ q : List K, q.length < bound → extra' q ⊆ extra q) :
+    ∀ (point l : List K), point.length + l.length ≤ bound → Path extra point l → Path extra' point l := by
+  intro point l
+  induction l generalizing point with
+  | nil => intro _ _; trivial
+  | cons c rest ih =>
+      intro fits path
+      refine ⟨fun hit => path.1 (subset point (by simp at fits; omega) hit), ?_⟩
+      exact ih (point ++ [c]) (by simp at fits ⊢; omega) path.2
+
+omit [Fintype K] [DecidableEq K] in
+/-- A path past a prefix length whose bad sets are `{1}` avoids `1`. -/
+theorem Path.ne_one {extra : List K → Finset K} (bound : ℕ)
+    (one : ∀ q : List K, bound ≤ q.length → extra q = {1}) :
+    ∀ (point l : List K), bound ≤ point.length → Path extra point l → ∀ x ∈ l, x ≠ 1 := by
+  intro point l
+  induction l generalizing point with
+  | nil => intro _ _ x member; simp at member
+  | cons c rest ih =>
+      intro long path x member
+      rcases List.mem_cons.mp member with rfl | inside
+      · intro equal
+        apply path.1
+        rw [one point long, equal]
+        exact Finset.mem_singleton_self 1
+      · exact ih (point ++ [c]) (by simp; omega) path.2 x inside
+
 end CompressionLean.Layer1

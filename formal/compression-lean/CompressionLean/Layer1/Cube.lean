@@ -1,6 +1,7 @@
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Algebra.Ring.Basic
 import Mathlib.Tactic.Ring
+import Mathlib.Tactic.Abel
 
 /-!
 Owns tables on the Boolean cube and their multilinear extensions, in the
@@ -282,6 +283,82 @@ theorem mle_append_top (ρ : List K) (τ : K) (t : ℕ → K) :
   simp only [mle, fold, bindLow]
   rw [fold_shift ρ t 0, fold_shift ρ t 1]
   simp [mle]
+
+/-- The extension at `p ++ q`: the `q`-extension of the `p`-extensions of the columns. -/
+theorem mle_append_split (p q : List K) (t : ℕ → K) :
+    mle (p ++ q) t = mle q (fun j => mle p (fun y => t (y + 2 ^ p.length * j))) := by
+  rw [mle_append]
+  congr 1
+  funext j
+  exact fold_shift p t j
+
+/-- The extension of a table with one value at index `0`. -/
+theorem mle_delta (q : List K) (c : K) :
+    mle q (fun j => if j = 0 then c else 0) = c * (q.map fun x => 1 - x).prod := by
+  induction q generalizing c with
+  | nil => simp [mle, fold]
+  | cons x rest ih =>
+      rw [mle_cons]
+      have bound : bindLow x (fun j => if j = 0 then c else 0) = fun j => if j = 0 then (1 - x) * c else 0 := by
+        funext j
+        simp only [bindLow]
+        by_cases zero : j = 0
+        · subst zero
+          simp
+        · simp [zero, show 2 * j ≠ 0 by omega]
+      rw [bound, ih]
+      simp only [List.map_cons, List.prod_cons]
+      ring
+
+/-- A table supported on the low cube: the high coordinates contribute `Π (1 - x)`. -/
+theorem mle_low_support (p q : List K) (t : ℕ → K) (zero : ∀ i, 2 ^ p.length ≤ i → t i = 0) :
+    mle (p ++ q) t = mle p t * (q.map fun x => 1 - x).prod := by
+  rw [mle_append_split]
+  have column : (fun j => mle p (fun y => t (y + 2 ^ p.length * j))) =
+      fun j => if j = 0 then mle p t else 0 := by
+    funext j
+    split
+    · rename_i h
+      subst h
+      simp
+    · rename_i h
+      rw [← mle_const p 0]
+      apply mle_congr
+      intro y _
+      apply zero
+      have one : 1 ≤ j := Nat.one_le_iff_ne_zero.mpr h
+      calc 2 ^ p.length = 2 ^ p.length * 1 := (mul_one _).symm
+        _ ≤ 2 ^ p.length * j := Nat.mul_le_mul_left _ one
+        _ ≤ y + 2 ^ p.length * j := Nat.le_add_left _ _
+  rw [column]
+  exact mle_delta q (mle p t)
+
+/-- Trailing zero coordinates read index `0` of the folded table. -/
+theorem mle_append_zeros (p : List K) (k : ℕ) (t : ℕ → K) :
+    mle (p ++ List.replicate k 0) t = mle p t := by
+  rw [mle_append]
+  induction k generalizing p t with
+  | zero => simp [mle, fold]
+  | succ k ih =>
+      rw [List.replicate_succ, mle_cons]
+      have : bindLow 0 (fold p t) = fold (p ++ [0]) t := by rw [fold_append_single]
+      rw [this, ih (p ++ [0]) t]
+      rw [mle_append, mle_cons]
+      simp [mle, fold, bindLow]
+
+theorem cubeSum_eq_sum_range {M : Type} [AddCommMonoid M] (n : ℕ) (t : ℕ → M) :
+    cubeSum n t = ∑ i ∈ Finset.range (2 ^ n), t i := by
+  induction n generalizing t with
+  | zero => simp [cubeSum]
+  | succ n ih =>
+      simp only [cubeSum, ih]
+      rw [pow_succ, mul_comm]
+      induction 2 ^ n with
+      | zero => simp
+      | succ k ihk =>
+          rw [show 2 * (k + 1) = 2 * k + 1 + 1 by ring, Finset.sum_range_succ, Finset.sum_range_succ,
+            Finset.sum_range_succ, Finset.sum_range_succ, ← ihk]
+          abel
 
 end Lemmas
 

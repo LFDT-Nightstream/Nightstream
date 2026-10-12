@@ -48,3 +48,4 @@ import CompressionLean
 #audit_axioms CompressionLean.Layer1.leaf_formula
 #audit_axioms CompressionLean.Layer1.agreement_card
 #audit_axioms CompressionLean.Layer1.queryBad_density
+#audit_axioms CompressionLean.Layer1.early_world

@@ -54,3 +54,4 @@ import CompressionLean
 #audit_axioms CompressionLean.Layer1.scaled_eq
 #audit_axioms CompressionLean.Layer1.omegaTrue_parts
 #audit_axioms CompressionLean.Layer1.linear_world
+#audit_axioms CompressionLean.Layer1.honest_world

@@ -20,3 +20,4 @@ import CompressionLean.Layer1.Late
 import CompressionLean.Layer1.Encoding
 import CompressionLean.Layer1.Weights
 import CompressionLean.Layer1.Linear
+import CompressionLean.Layer1.HonestStage

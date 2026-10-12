@@ -109,13 +109,14 @@ replaces each longer output by the same output at iteration 0. It meets the
 bound (`clamp_depthBound`). It adds no accepted output
 (`clamp_output_of_checks`), and it keeps every output of the adversary that
 the memory verifier accepts (`clamp_output_of_adversary_checks`). The clamped
-form must be admitted in the same sense. Stage 2 adds no field to the state
-preimage: the carry is in the application-state digest (spec §11.1). So the
-Stage 1 Property 6, fixed-point, and domain theorems apply to the memory
-application's package. Definition 12 is stated for arity `(1, 1)`, and F′
-folds one fresh claim with 16 running children. So Stage 1 must also adapt the
-lemma to that arity. The lemma gives no concrete extractor time. That bound is
-also open for Stage 1.
+form must be admitted as an adversary of A4: its start stage is admitted
+(`StageAdmitted (Stage.start …)`), as for any adversary of `bad_le`. Stage 2
+adds no field to the state preimage: the carry is in the application-state
+digest (spec §11.1). So the Stage 1 Property 6, fixed-point, and domain
+theorems apply to the memory application's package. Definition 12 is stated
+for arity `(1, 1)`, and F′ folds one fresh claim with 16 running children. So
+Stage 1 must also adapt the lemma to that arity. The lemma gives no concrete
+extractor time. That bound is also open for Stage 1.
 
 **A5 (Field facts).** `q` is prime, and 7 is a quadratic nonresidue modulo
 `q`. Then `𝕂 = F[U]/(U² − 7)` is a field of size `q²`, and `F → 𝕂` is

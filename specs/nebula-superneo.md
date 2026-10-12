@@ -198,8 +198,8 @@ steps. This is the fixed iteration bound of HyperNova Lemma 4 for this
 verifier key: the security note (A4) covers an adversary whose every output
 has at most `S_max · N` steps. It covers every other adversary through its
 clamped form, which replaces each longer output by one that the verifier
-rejects and keeps every accepted output, if that clamped form is admitted in
-the same sense.
+rejects and keeps every accepted output, if that clamped form is admitted as
+an adversary of A4 (its start stage is admitted, Lean `StageAdmitted`).
 
 ### 4.2 Validity rules
 

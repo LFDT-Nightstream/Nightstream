@@ -15,10 +15,10 @@ use neo_math::{balanced::to_balanced_i128, F};
 use neo_wasm::ccs::build_wasm_relation;
 use neo_wasm::isa::{opcode_code, WasmOpcode};
 use neo_wasm::layout::{
-    selector_col, COL_CALL_STACK_PUSH_PRESENT, COL_HOST_CALL_ACTIVE, COL_ONE, COL_OUTPUT_CAPTURED, COL_SP_AFTER,
-    COL_SP_BEFORE, COL_STACK_READS, COL_STACK_READ_ACTIVE, COL_STACK_READ_ADDR_LO, COL_STACK_WRITE0_ACTIVE,
-    COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_HI_ACTIVE, COL_STACK_WRITES,
-    NAMED_COLUMN_COUNT,
+    selector_col, COL_CALL_STACK_PUSH_PRESENT, COL_HOST_CALL_ACTIVE, COL_LOCAL_VALUE, COL_ONE, COL_OUTPUT_CAPTURED,
+    COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READS, COL_STACK_READ_ACTIVE, COL_STACK_READ_ADDR_LO,
+    COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_HI_ACTIVE,
+    COL_STACK_WRITES, NAMED_COLUMN_COUNT,
 };
 use neo_wasm::range_check::range_checked_bit_columns;
 use neo_wasm::relation_layout::build_wasm_relation_layout;
@@ -129,6 +129,29 @@ fn emit_rocq_full_relation(relation: &ApplicationRelation<WasmConstraintScope>) 
         assert!(matches!(row.tag().owner(), WasmConstraintScope::Opcode(owner) if *owner == opcode));
         out.push_str(&format!("Definition {name} : nat := {index}%nat.\n"));
     }
+    for (opcode, name) in [
+        (WasmOpcode::LocalGet, "localGetCopyRowIndex"),
+        (WasmOpcode::LocalSet, "localSetCopyRowIndex"),
+    ] {
+        let selector = selector_col(opcode).unwrap();
+        let mut matches = catalog.rows().iter().enumerate().filter(|(_, tagged)| {
+            let row = tagged.row();
+            tagged.tag().label() == "locals value constraints"
+                && row
+                    .a_terms()
+                    .first()
+                    .is_some_and(|(col, _)| *col == selector)
+                && row
+                    .b_terms()
+                    .first()
+                    .is_some_and(|(col, _)| *col == COL_LOCAL_VALUE)
+        });
+        let (index, _) = matches
+            .next()
+            .unwrap_or_else(|| panic!("missing row for {name}"));
+        assert!(matches.next().is_none(), "ambiguous row for {name}");
+        out.push_str(&format!("Definition {name} : nat := {index}%nat.\n"));
+    }
     emit_stack_proof_indices(relation, &mut out);
     out
 }
@@ -180,7 +203,50 @@ fn emit_stack_proof_indices(relation: &ApplicationRelation<WasmConstraintScope>,
             C,
             column("GMEM_LOCAL"),
         ),
+        (
+            "gatherLocalLowWriteRow",
+            "host-event gather binding",
+            C,
+            column("COL_GATHER_LOCAL_WRITE_LO"),
+        ),
         ("gatherHighLimbRow", "host-event gather binding", C, column("GK2_HI")),
+        (
+            "localIndexGateRow",
+            "program immediate gates",
+            A,
+            column("COL_PROGRAM_LOCAL_INDEX_ACTIVE"),
+        ),
+        (
+            "localWriteGateIndex",
+            "locals write gate",
+            A,
+            column("COL_LOCAL_WRITE_ENABLED"),
+        ),
+        (
+            "guestEntryFlagRow",
+            "guest call flag",
+            C,
+            column("COL_GUEST_ENTRY_ACTIVE"),
+        ),
+        ("localsBasePreservedRow", "locals fbp transition", A, COL_ONE),
+        (
+            "stackRead1SupportRow",
+            "memory activation support",
+            A,
+            COL_STACK_READ_ACTIVE[1],
+        ),
+        (
+            "nullaryWriteAddressRow",
+            "stack write0 addr = sp_before",
+            B,
+            COL_STACK_WRITE0_ADDR_LO,
+        ),
+        (
+            "unaryReadAddressRow",
+            "stack read0 addr = sp_before - 1",
+            B,
+            COL_STACK_READ_ADDR_LO[0],
+        ),
         ("stackReadsArityRow", "fixed stack arity", B, COL_STACK_READS),
         ("stackWritesArityRow", "fixed stack arity", B, COL_STACK_WRITES),
         ("stackReadsActiveRow", "unlabeled", A, COL_STACK_READ_ACTIVE[0]),
@@ -322,6 +388,7 @@ fn emit_rocq_memory_catalog() -> String {
         (WasmMemoryId::LocalLo, "localLoId"),
         (WasmMemoryId::Stack, "stackId"),
         (WasmMemoryId::ProgramOpcode, "programOpcodeId"),
+        (WasmMemoryId::ProgramLocalIndex, "programLocalIndexId"),
         (WasmMemoryId::PcEdgeKind, "pcEdgeKindId"),
         (WasmMemoryId::PcRom, "pcRomId"),
     ] {

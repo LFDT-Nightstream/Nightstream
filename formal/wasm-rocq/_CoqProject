@@ -16,7 +16,10 @@ Eqz.v
 Locals.v
 TraceRefinement.v
 ProgramBinding.v
+LocalBindings.v
 StackBindings.v
-ArithmeticSpec.v
-ArithmeticRefinement.v
+StraightLineSpec.v
+StackSimulation.v
 LocalSimulation.v
+StraightLineRefinement.v
+tests/StraightLinePrograms.v

@@ -4,6 +4,29 @@ Require Import R1CS Columns FullRelation Range ZeroTest MemoryTrace MemoryCatalo
 Import ListNotations.
 Open Scope Z_scope.
 
+Lemma local_index_memory_read_only :
+  readOnlyMemory MemoryCatalog.programLocalIndexId MemoryCatalog.memories = true.
+Proof. vm_compute. reflexivity. Qed.
+
+Definition localIndexPort : PortSpec :=
+  mkPort [COL_PC_BEFORE] COL_LOCAL_INDEX Read (When COL_PROGRAM_LOCAL_INDEX_ACTIVE).
+
+Lemma circuit_row_local_index_fetch : forall initial final (w : Witness),
+  Replay initial (eventsForRow MemoryCatalog.memories w) final ->
+  w COL_PROGRAM_LOCAL_INDEX_ACTIVE = 1 ->
+  initial MemoryCatalog.programLocalIndexId [w COL_PC_BEFORE] = Some (w COL_LOCAL_INDEX).
+Proof.
+  intros initial final w Hreplay Hactive.
+  eapply replay_read_from_initial; [exact Hreplay | | ].
+  - apply read_only_row. exact local_index_memory_read_only.
+  - eapply port_event_in_row with
+      (specification := mkMemory MemoryCatalog.programLocalIndexId Rom [localIndexPort])
+      (port := localIndexPort).
+    + apply nth_error_In with (n := MemoryCatalog.programLocalIndexId). vm_compute. reflexivity.
+    + left. reflexivity.
+    + unfold portEvent, active, localIndexPort. simpl. rewrite Hactive. reflexivity.
+Qed.
+
 Definition opcodePort : PortSpec :=
   mkPort [COL_PC_BEFORE] COL_OPCODE_CODE Read (When COL_IS_PROGRAM_ROW).
 

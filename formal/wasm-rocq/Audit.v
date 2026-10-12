@@ -1,4 +1,4 @@
-Require Import ArithmeticRefinement.
+Require Import StraightLineRefinement.
 
-Check arithmetic_run_refinement.
-Print Assumptions arithmetic_run_refinement.
+Check straight_line_run_refinement.
+Print Assumptions straight_line_run_refinement.

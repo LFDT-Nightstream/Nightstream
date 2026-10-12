@@ -563,3 +563,13 @@ Proof.
     pose proof (value_bound w COL_TAIL_DISCARD_COUNT). field_linear Hrow. }
   destruct Hgmem. constructor; assumption.
 Qed.
+
+Ltac selected_row chosen index name :=
+  match goal with
+  | Hprime : Range.fieldPrime, Hfull : FullRelation.satFull ?w |- _ =>
+    let raw := eval vm_compute in (List.nth index FullRelation.rows ([], [], [])) in
+    let reduced := eval vm_compute in (selectedRow chosen raw) in
+    pose proof (full_selected_row w chosen index raw Hprime Hfull ltac:(assumption) ltac:(assumption) eq_refl) as name;
+    change (sat w reduced) in name;
+    unfold sat in name; cbn [eval fold_right] in name; normalize_columns
+  end.

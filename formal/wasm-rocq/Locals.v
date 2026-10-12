@@ -13,11 +13,11 @@ Definition localSetRow : Row :=
    [(COL_LOCAL_VALUE, 1); (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat, -1)], []).
 
 Lemma local_get_row_in_full :
-  nth_error FullRelation.rows 5%nat = Some localGetRow.
+  nth_error FullRelation.rows localGetCopyRowIndex = Some localGetRow.
 Proof. vm_compute. reflexivity. Qed.
 
 Lemma local_set_row_in_full :
-  nth_error FullRelation.rows 6%nat = Some localSetRow.
+  nth_error FullRelation.rows localSetCopyRowIndex = Some localSetRow.
 Proof. vm_compute. reflexivity. Qed.
 
 Lemma active_copy_row : forall (w : Witness) selector source dest,
@@ -44,7 +44,7 @@ Proof.
   intros w Hsel [_ Hall].
   eapply active_copy_row.
   - exact Hsel.
-  - exact (sat_row w 5%nat _ Hall local_get_row_in_full).
+  - exact (sat_row w localGetCopyRowIndex _ Hall local_get_row_in_full).
 Qed.
 
 Lemma full_local_set_value : forall (w : Witness),
@@ -54,7 +54,7 @@ Proof.
   intros w Hsel [_ Hall].
   eapply active_copy_row.
   - exact Hsel.
-  - exact (sat_row w 6%nat _ Hall local_set_row_in_full).
+  - exact (sat_row w localSetCopyRowIndex _ Hall local_set_row_in_full).
 Qed.
 
 Definition i32Value (z : Z) : val :=

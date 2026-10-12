@@ -30,7 +30,7 @@ structure Holds (w : StepWitness p app.toAppShape) (zIn zOut : List F) : Prop wh
 
 /-- The invocation that a step witness gives the model. -/
 def invocation (w : StepWitness p app.toAppShape) : Invocation app.State Digest :=
-  ⟨w.proposals, w.records, app.ofWords w.appOut⟩
+  ⟨w.proposals, w.records, w.appOut⟩
 
 theorem invocation_ports (w : StepWitness p app.toAppShape) :
     (w.invocation app).ports = List.ofFn fun j => (w.ops j).decode.port := by
@@ -137,8 +137,7 @@ theorem prefix_or_collision (valid : p.Valid) {T : ℕ} {z : ℕ → List F}
     ∀ k ≤ T, (continueRun (context p) (startCarry (context p)) (runOf app w k) =
         some (decodeCarry (wordsAfter w initialApp k).2) ∧
       Reach p (decodeCarry (wordsAfter w initialApp k).2) ∧
-      AppThread app.model (app.ofWords initialApp) (runOf app w k)
-        (app.ofWords (wordsAfter w initialApp k).1)) ∨
+      AppThread app.model initialApp (runOf app w k) (wordsAfter w initialApp k).1) ∨
       ∃ j < k, LinkCollision w initialApp j
   | 0, _ => by
     refine Or.inl ⟨?_, ?_, rfl⟩
@@ -156,8 +155,8 @@ theorem prefix_or_collision (valid : p.Valid) {T : ℕ} {z : ℕ → List F}
           rw [StepWitness.inCarry, carryIn]
         rw [← inCarry] at before reach
         obtain ⟨invoked, reachOut⟩ :=
-          holds.rows.invoke valid reach (app.ofWords (w k).appOut)
-        have step : app.model.Step (app.ofWords (w k).appIn) ((w k).invocation app).ports
+          holds.rows.invoke valid reach (w k).appOut
+        have step : app.model.Step (w k).appIn ((w k).invocation app).ports
             ((w k).invocation app).next := by
           rw [StepWitness.invocation_ports]
           exact app.sound valid (w k).view
@@ -182,8 +181,7 @@ theorem accepts_or_collision (valid : p.Valid) {T : ℕ} {z : ℕ → List F}
     (start : z 0 = stateWords (List.ofFn initialApp) (carryWords (startCarry (context p))))
     (steps : ∀ i < T, (w i).Holds app (z i) (z (i + 1)))
     (terminal : TerminalChecks p (z T) finalApp finalCarry T segments finalTs finalRoot) :
-    Accepts (context p) app.model
-        ⟨T, app.ofWords initialApp, app.ofWords finalApp, segments, finalTs, finalRoot⟩
+    Accepts (context p) app.model ⟨T, initialApp, finalApp, segments, finalTs, finalRoot⟩
         (runOf app w T) ∨ RunStateCollision w initialApp finalApp finalCarry T := by
   rcases prefix_or_collision valid start steps T le_rfl with ⟨ran, -, thread⟩ | collision
   · rcases state_eq_or_collision app.width_lt ((state_wordsAfter start steps T le_rfl).symm.trans
@@ -197,32 +195,6 @@ theorem accepts_or_collision (valid : p.Valid) {T : ℕ} {z : ℕ → List F}
           terminal := ⟨_, ran, terminal.closed, terminal.segIdx, terminal.ts, terminal.root⟩
           application := thread }
     · exact Or.inr (Or.inr collision)
-  · exact Or.inr (Or.inl collision)
-
-/-- Security note Lemma 6 for the memory application, at the relation level:
-a chain of Stage 1 states whose steps satisfy the memory rows and the
-application's rows, with the spec §13 terminal checks, attests an execution with the
-statement's final timestamp and memory root, or gives a Poseidon2 transcript
-collision (between two state-digest inputs of the run, or among the run's
-chain inputs), or a segment
-whose challenges pass the product test with unbalanced multisets. -/
-theorem chain_soundness (valid : p.Valid) {T : ℕ} {z : ℕ → List F}
-    {w : ℕ → StepWitness p app.toAppShape} {initialApp finalApp : Fin app.width → F}
-    {finalCarry : Fin 39 → F} {segments finalTs : ℕ} {finalRoot : Digest}
-    (start : z 0 = stateWords (List.ofFn initialApp) (carryWords (startCarry (context p))))
-    (steps : ∀ i < T, (w i).Holds app (z i) (z (i + 1)))
-    (terminal : TerminalChecks p (z T) finalApp finalCarry T segments finalTs finalRoot) :
-    Attests (context p) app.model
-        ⟨T, app.ofWords initialApp, app.ofWords finalApp, segments, finalTs, finalRoot⟩
-        (runOf app w T) ∨ RunStateCollision w initialApp finalApp finalCarry T ∨
-      (∃ a ∈ runInputs (context p) (runOf app w T) segments,
-        ∃ b ∈ runInputs (context p) (runOf app w T) segments,
-          TranscriptCollision (blocks a) (blocks b)) ∨
-      ∃ k < segments, BadChallenge (context p) (segmentView (context p) (runOf app w T) k) := by
-  rcases accepts_or_collision valid start steps terminal with accepted | collision
-  · rcases poseidon2_soundness rfl valid accepted with attests | rest
-    · exact Or.inl attests
-    · exact Or.inr (Or.inr rest)
   · exact Or.inr (Or.inl collision)
 
 end NightstreamFPrime.Lifecycle.Nebula

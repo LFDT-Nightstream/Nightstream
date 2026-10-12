@@ -12,9 +12,11 @@ HyperNova reverse extractor's sample.
   `HyperNovaHistory.run_correct` with no premise. Its failure is the event
   that `HyperNovaVisitedSecurity.history_failure_le` bounds.
 * `MemoryRound`: security note A6 in the form of HyperNova errata
-  Assumption 1. It is not a theorem here.
-* `bad_le`: the bad mass is at most the Stage 1 history terms, the state-link
-  and chain collision masses, and the A6 error of each segment slot.
+  Assumption 1, for the stages that Stage 1 admits. It is not a theorem here.
+* `adversaryTape`: the IVC adversary's tape inside a reverse stage's tape.
+* `bad_le`: on the claim that the adversary's tape gives, the bad mass is at
+  most the Stage 1 history terms, the state-link and chain collision masses,
+  and the A6 error of the last stage.
 
 Does not own: numerical values, collision resistance of Poseidon2, or the
 running time of an admitted adversary.
@@ -113,8 +115,9 @@ theorem stage1Extraction :
 
 /-! ## Security note A6 -/
 
-/-- A reverse stage of the HyperNova extractor, with the memory statement that
-its adversary claims. The claim may read the whole stage tape. -/
+/-- A reverse stage of the HyperNova extractor, with a memory statement that
+its tape gives. `bad_le` uses the claim that reads only the IVC adversary's
+part of the tape (`adversaryTape`). -/
 structure ClaimedStage where
   stage : Stage (MemoryApp.program p app) fits setup
   claim : stage.Tape → MemoryStatement app.width
@@ -136,17 +139,20 @@ theorem ClaimedStage.law_snd (c : ClaimedStage app fits setup) :
   exact PMF.map_id _
 
 /-- Security note A6 for the memory round, in the form of HyperNova errata
-Assumption 1: for every admitted claimed stage and every segment slot `k`,
-the mass of samples whose extracted run the model accepts with first
-unbalanced segment `k` is at most `error c k`. The relation computes `η` with
+Assumption 1: for every claimed stage whose stage is admitted, the mass of
+samples whose extracted run the model accepts with a claimed segment that
+passes the product test with unbalanced multisets is at most `error c`, one
+term for all segment slots. `StageAdmitted` is the class of `Closed`, so A6
+and Assumption 1 cover the same stages. The relation computes `η` with
 Poseidon2, so no random-oracle model covers it. The per-slot game bound
 `Lifecycle.Nebula.badAt_bound` (`2·m/q²` per slot plus the retry term)
-motivates the value of `error`; it does not prove this premise. `Admitted` is
-abstract; its intended meaning is expected polynomial time. -/
-def MemoryRound (Admitted : ClaimedStage app fits setup → Prop)
-    (error : ClaimedStage app fits setup → Fin p.sMax → ℝ) : Prop :=
-  ∀ c, Admitted c → ∀ k,
-    (c.law.toOuterMeasure {s | (experiment app fits).FirstUnbalanced app k s}).toReal ≤ error c k
+motivates the value of `error`; it does not prove this premise. `bad_le`
+applies it at the last reverse stage, so its error counts every rerun of the
+earlier stages. -/
+def MemoryRound (StageAdmitted : Stage (MemoryApp.program p app) fits setup → Prop)
+    (error : ClaimedStage app fits setup → ℝ) : Prop :=
+  ∀ c : ClaimedStage app fits setup, StageAdmitted c.stage →
+    (c.law.toOuterMeasure {s | (experiment app fits).Unbalanced app s}).toReal ≤ error c
 
 /-! ## The end-to-end bound -/
 
@@ -161,55 +167,85 @@ variable {Admitted : NifsAdversary (MemoryApp.program p app) fits setup → Prop
 
 local notation "stages" => reverseStages assumption closed adversary admitted
 
+/-- The IVC adversary's tape inside the tape of reverse stage `j`: stage
+`j + 1` draws a tape of stage `j` and the coins of one extractor. -/
+noncomputable def adversaryTape : (j : ℕ) → (stages j).1.Tape → adversary.Tape
+  | 0, tape => tape
+  | j + 1, draw => adversaryTape j draw.1
+
+/-- Every reverse stage reads its Stage 1 input from the adversary's tape. -/
+theorem input_adversaryTape (j : ℕ) (tape : (stages j).1.Tape) :
+    (stages j).1.input tape =
+      adversary.output (adversaryTape app fits setup assumption closed adversary admitted j tape) := by
+  induction j with
+  | zero => rfl
+  | succ j ih => exact ih tape.1
+
+/-- The adversary's tape inside a reverse stage has the adversary's law. -/
+theorem tape_map_adversaryTape (j : ℕ) :
+    (stages j).1.tape.map (adversaryTape app fits setup assumption closed adversary admitted j) =
+      adversary.tape := by
+  induction j with
+  | zero => exact PMF.map_id _
+  | succ j ih =>
+    rw [← ih]
+    change ((stages j).1.tape.bind fun tape =>
+        (HyperNovaVisitedSecurity.reverseExtractor assumption closed adversary admitted j).coins.map
+          (tape, ·)).map
+        (fun draw => adversaryTape app fits setup assumption closed adversary admitted j draw.1) = _
+    rw [PMF.map_bind, ← PMF.bind_pure_comp]
+    congr 1
+    funext tape
+    rw [PMF.map_comp]
+    exact PMF.map_const (HyperNovaVisitedSecurity.reverseExtractor assumption closed adversary admitted j).coins
+      (adversaryTape app fits setup assumption closed adversary admitted j tape)
+
 /-- Security note §5 for a memory application: on the joint law of the
-adversary's claim and the reverse extractor, the mass of samples that the
-memory verifier accepts (Stage 1 terminal and spec §13 checks) but whose
-extracted history does not attest the claim is at most the Stage 1 history
-terms of `history_failure_le`, the state-link and chain collision masses of
-the extracted runs, and the A6 error of each segment slot. -/
+memory statement that the adversary claims from its own tape and the reverse
+extractor's sample, the mass of samples that the memory verifier accepts
+(Stage 1 terminal and spec §13 checks) but whose extracted history does not
+attest the claim is at most the Stage 1 history terms of
+`history_failure_le`, the state-link and chain collision masses of the
+extracted runs, and the A6 error of the last stage. A6 holds for the stages
+that `closed` admits. -/
 theorem bad_le (valid : p.Valid) (depth : ℕ)
     (depthBound : ∀ tape ∈ adversary.tape.support, (adversary.output tape).1.iteration ≤ depth)
-    (claim : (stages depth).1.Tape → MemoryStatement app.width)
-    {ClaimAdmitted : ClaimedStage app fits setup → Prop}
-    {memoryError : ClaimedStage app fits setup → Fin p.sMax → ℝ}
-    (round : MemoryRound app fits setup ClaimAdmitted memoryError)
-    (claimAdmitted : ClaimAdmitted ⟨(stages depth).1, claim⟩) :
-    let law := (⟨(stages depth).1, claim⟩ : ClaimedStage app fits setup).law
-    (law.toOuterMeasure {s | (experiment app fits).Bad app
+    (claim : adversary.Tape → MemoryStatement app.width)
+    {memoryError : ClaimedStage app fits setup → ℝ}
+    (round : MemoryRound app fits setup StageAdmitted memoryError) :
+    let c : ClaimedStage app fits setup :=
+      ⟨(stages depth).1, claim ∘ adversaryTape app fits setup assumption closed adversary admitted depth⟩
+    (c.law.toOuterMeasure {s | (experiment app fits).Bad app
         (fun s => Accepted (MemoryApp.program p app) fits setup s.2) s}).toReal ≤
       ∑ j : Fin depth,
           (((stages j.val).1.tape.toOuterMeasure
               {tape | MarkedHashCollision (MemoryApp.program p app) fits setup
                 ((stages j.val).1.visit tape)}).toReal +
             error (stages j.val).1.nifs) +
-        (law.toOuterMeasure {s | (experiment app fits).StateLinkCollision app s}).toReal +
-        (law.toOuterMeasure {s | (experiment app fits).ChainCollision app s}).toReal +
-        ∑ k : Fin p.sMax, memoryError ⟨(stages depth).1, claim⟩ k := by
-  intro law
-  have cover := EndToEnd.bad_le_sum valid (stage1Extraction app fits setup) law
-  have failure : law.toOuterMeasure {s | Failure app fits setup s} =
+        (c.law.toOuterMeasure {s | (experiment app fits).StateLinkCollision app s}).toReal +
+        (c.law.toOuterMeasure {s | (experiment app fits).ChainCollision app s}).toReal +
+        memoryError c := by
+  intro c
+  have cover := EndToEnd.bad_le_sum valid (stage1Extraction app fits setup) c.law
+  have failure : c.law.toOuterMeasure {s | Failure app fits setup s} =
       (stages depth).1.reverseLaw.toOuterMeasure
         {sample | Accepted (MemoryApp.program p app) fits setup sample ∧
           ¬ AdviceReturned (MemoryApp.program p app) fits sample} := by
-    rw [← ClaimedStage.law_snd app fits setup ⟨(stages depth).1, claim⟩, PMF.toOuterMeasure_map_apply]
+    rw [← ClaimedStage.law_snd app fits setup c, PMF.toOuterMeasure_map_apply]
     rfl
   have history := HyperNovaVisitedSecurity.history_failure_le assumption closed adversary admitted
     depth depthBound
   rw [← failure] at history
-  have finite (event : Set (Sample app)) : law.toOuterMeasure event ≠ ∞ := event_ne_top law event
-  have sumFinite : ∑ k : Fin p.sMax,
-      law.toOuterMeasure {s | (experiment app fits).FirstUnbalanced app k s} ≠ ∞ :=
-    ENNReal.sum_ne_top.mpr fun k _ => finite _
+  have finite (event : Set (Sample app)) : c.law.toOuterMeasure event ≠ ∞ := event_ne_top c.law event
   have real := ENNReal.toReal_mono
     (ENNReal.add_ne_top.mpr ⟨ENNReal.add_ne_top.mpr ⟨ENNReal.add_ne_top.mpr
-      ⟨finite _, finite _⟩, finite _⟩, sumFinite⟩) cover
+      ⟨finite _, finite _⟩, finite _⟩, finite _⟩) cover
   rw [ENNReal.toReal_add (ENNReal.add_ne_top.mpr ⟨ENNReal.add_ne_top.mpr ⟨finite _, finite _⟩,
-      finite _⟩) sumFinite,
+      finite _⟩) (finite _),
     ENNReal.toReal_add (ENNReal.add_ne_top.mpr ⟨finite _, finite _⟩) (finite _),
-    ENNReal.toReal_add (finite _) (finite _),
-    ENNReal.toReal_sum fun k _ => finite _] at real
+    ENNReal.toReal_add (finite _) (finite _)] at real
   refine real.trans ?_
-  gcongr with k
-  exact round _ claimAdmitted k
+  gcongr
+  exact round c (stages depth).2
 
 end NightstreamFPrime.Export.Stage1.NebulaMemorySecurity

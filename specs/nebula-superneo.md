@@ -213,6 +213,11 @@ Setup MUST reject a plan that breaks any of these rules:
 5. **Positive sizes:** `B_ops, B_scan, N, S_max ≥ 1`.
 6. **Security:** the plan passes the setup check in the security note §5.
 
+In Lean, a memory package gets its program only from
+`NebulaMemoryPackage.application`. That function takes the proofs of rules 1–5
+(`Plan.Valid`) and rule 6 (`Plan.Secure`), so no package exists for a plan
+that breaks a rule.
+
 The segment range of `open` (§11.2) decomposes `S_max − 1 − seg_idx` into
 `W_seg` bits:
 
@@ -354,7 +359,7 @@ rule. The rows of an application read only its state words, its private words,
 and the operation slots (§10). They have no variable for `η`, for a product,
 or for a carry word. Thus every memory application obeys this rule, and no
 static check is necessary. Lean proves the memory soundness for every
-application (security note Ob6).
+application (security note Ob4, Ob7, and Lemma 6).
 
 ## 7. Interface with Stage 1
 
@@ -528,13 +533,15 @@ count `T` includes them.
 **Application interface.** An application supplies its state words (a fixed
 count), its private witness words (a fixed count), and its rows. Its rows read
 only the input state words, the output state words, the private words, and the
-fields of each operation slot. The memory rows and the carry are the same for
-every application. The application MUST prove two facts about its rows (Lean
-`PortApp`):
+words of each operation slot (its lane fields and its O4 difference word). The
+memory rows and the carry are the same for every application. The application
+MUST prove two facts about its rows (Lean `PortApp`):
 
 1. Soundness (security note Ob7): when its rows hold and each operation slot
    obeys rows O1, O3, and O7, the decoded ports are one application step from
-   the decoded input state to the decoded output state.
+   the input state words to the output state words. The application state is
+   its state words. An application with a richer state decodes it inside its
+   step relation.
 2. Completeness: for each application step, and for operation slots that obey
    rows O1, O3, and O7 and decode to the step's ports, there are private words
    that satisfy its rows.
@@ -717,7 +724,7 @@ verifier and cover at least these cases:
 | Change one record of a step after its segment opened | reject at a close equality |
 | Swap the IS and FS records of one step, when they differ | reject at a close equality |
 | A lane coordinate equal to `−1` | reject at O1 or S1 |
-| A packing with more than 63 bits in one element | rejected by the packing-layout check (§9.1; security note Ob2) |
+| A packing with more than 63 bits in one element | cannot be expressed: the package fixes the packing (§9.1; security note Ob2) |
 | End inside a segment | reject at the terminal `idx = N` check |
 | The Stage 1 initial envelope (`T = 0`) with any memory fields | reject (§13) |
 | A fold with more than one fresh claim | reject |
@@ -728,7 +735,7 @@ Each rejection test MUST fail at the named check, not at a host replay.
 
 | Deviation | Paper | Reason |
 |---|---|---|
-| One F′ chain. At segment open, the prover proposes the ops and FS roots. The challenges come from these roots, `D_mem`, `plan_digest`, and `ts`. `ts` is absorbed because the write timestamps are computed (`ts + cnt`), not committed. The ops and scan products run in the same invocations as the application steps. The close, in the step that completes the segment, checks the proposals. | Nebula §4.3: Layer 1 proves `F`, then hashes the four carried commitments into `γ`, then proves `F_ops` and `F_scan`. Layer 2 folds the three proofs with `F_final`. | Trunk §6 requires one memory phase that reuses the Stage 1 core. One chain cannot make a second pass over the steps. Security note Lemmas 2 and 3 prove the commit-before-challenge order. The close repeats the `F_final` checks: continuity, challenge binding, product equation, and memory handoff. |
+| One F′ chain. At segment open, the prover proposes the ops and FS roots. The challenges come from these roots, `D_mem`, `plan_digest`, and `ts`. `ts` is absorbed because the write timestamps are computed (`ts + cnt`), not committed. The ops and scan products run in the same invocations as the application steps. The close, in the step that completes the segment, checks the proposals. | Nebula §4.3: Layer 1 proves `F`, then hashes the four carried commitments into `γ`, then proves `F_ops` and `F_scan`. Layer 2 folds the three proofs with `F_final`. | Trunk §6 requires one memory phase that reuses the Stage 1 core. One chain cannot make a second pass over the steps. Security note Lemma 2 binds the records to the proposed roots, and premise A6 gives the commit-before-challenge order; Lemma 3 motivates the value of A6. The close repeats the `F_final` checks: continuity, challenge binding, product equation, and memory handoff. |
 | Fingerprint challenges `(η1, η2)` in `𝕂` | Nebula §4.2–§4.3: one pair `(γ1, γ2)` in `F` | `|F| = 2^64` is too small: the example geometry gives 45.91 bits over `F` and 109.91 bits over `𝕂` (security note §5). |
 | The incremental commitment is the §3.1 hash chain over packed records, computed inside F′ by the generic construction at the start of §3.2 | Nebula Constructions 1 and 2 chain commitments to a split-committed witness. §3.2 notes that the generic construction costs in-circuit work linear in the size of the carried data `ω`. | Here `ω` is only the memory records, and this design pays that cost: about 360–370 Poseidon2 permutations per fold at the example geometry. SuperNeo claims and the terminal openings stay unchanged. Separate lane commitments at lane rank 2 would cost about 955 permutations, because all 16 running children would carry them in both state hashes. |
 | Fixed segment length `N`, with idle steps (§10) | Nebula §4.3: a segment has as many steps as the proof runs, and the scan has that many chunks | One uniform F′ circuit needs a fixed scan width `B_scan = (R + M)/N`. Idle steps let an execution of any length fill the last segment. |

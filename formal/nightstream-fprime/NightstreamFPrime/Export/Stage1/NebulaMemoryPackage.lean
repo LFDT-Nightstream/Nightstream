@@ -22,23 +22,28 @@ open NightstreamFPrime.Spec
 
 variable (plan : Spec.Nebula.Plan) (app : PortApp plan)
 
-/-- The memory application of `plan` as a Stage 1 program. -/
-def application : Lifecycle.Stage1.Application.Program := MemoryApp.program plan app
+/-- Spec §4.2 setup: the memory program of a package, for a plan that passes
+rules 1–5 (`Plan.Valid`) and rule 6 (`Plan.Secure`). Every memory package
+selects its program here, so no package exists for a plan that breaks a rule.
+The relation `MemoryApp.program` is defined for every plan. -/
+def application (plan : {p : Spec.Nebula.Plan // p.Valid ∧ p.Secure}) (app : PortApp plan.1) :
+    Lifecycle.Stage1.Application.Program :=
+  MemoryApp.program plan.1 app
 
 abbrev wires : MemoryApp.AppInterface plan app :=
-  Layout.Stage1.ApplicationInputs.interface (application plan app)
+  Layout.Stage1.ApplicationInputs.interface (MemoryApp.program plan app)
 
-abbrev start : ℕ := Layout.Stage1.ApplicationInputs.localStart (application plan app)
+abbrev start : ℕ := Layout.Stage1.ApplicationInputs.localStart (MemoryApp.program plan app)
 
 variable {plan app}
 
 theorem constraints_eq :
-    ApplicationPackage.constraints (application plan app) (ApplicationPackage.productionColumns (application plan app))
+    ApplicationPackage.constraints (MemoryApp.program plan app) (ApplicationPackage.productionColumns (MemoryApp.program plan app))
         (start plan app) = flatConstraints (MemoryApp.opsAt plan app (wires plan app) (start plan app)) :=
   rfl
 
 theorem operations_eq :
-    ApplicationPackage.operations (application plan app) (ApplicationPackage.productionColumns (application plan app))
+    ApplicationPackage.operations (MemoryApp.program plan app) (ApplicationPackage.productionColumns (MemoryApp.program plan app))
         (start plan app) = MemoryApp.opsAt plan app (wires plan app) (start plan app) :=
   rfl
 
@@ -272,7 +277,7 @@ theorem flatAssertions (l : List Circuit.Expr) : flatConstraints (l.map Op.asser
     rw [ih]
     rfl
 
-/-- The (application plan app)'s R1CS lowering allocates at most one fresh column per
+/-- The program's R1CS lowering allocates at most one fresh column per
 multiplication of the polynomial rows. -/
 theorem freshCount_le :
     R1CS.totalFreshCount (flatConstraints (MemoryApp.opsAt plan app (wires plan app) (start plan app))) ≤
@@ -459,7 +464,7 @@ theorem constraints_length :
     assertions_length, Sequence.localLength_append, MemoryApp.assertions_localLength]
   omega
 
-@[simp] theorem witnessWordCount : (application plan app).witnessWordCount = Words.count plan app.toAppShape :=
+@[simp] theorem witnessWordCount : (MemoryApp.program plan app).witnessWordCount = Words.count plan app.toAppShape :=
   rfl
 
 /-! ### Stage 1 size bounds from a plan's counts -/
@@ -468,7 +473,7 @@ theorem rows_le (plan : Spec.Nebula.Plan) (app : PortApp plan) {mul polyRows row
     (mulBound : ((Rows.polyRows plan app).map R1CS.mulCount).sum ≤ mul)
     (lengthBound : (Rows.polyRows plan app).length ≤ polyRows)
     (fits : mul + localBound plan app + 24 + polyRows ≤ rows) :
-    (PerApplicationPackage.applicationPlan (application plan app)).rowCount ≤ rows := by
+    (PerApplicationPackage.applicationPlan (MemoryApp.program plan app)).rowCount ≤ rows := by
   rw [PerApplicationPackage.applicationPlan, ApplicationPackage.productionPlan_rowCount]
   unfold ApplicationPackage.compiledRows
   rw [Rows.compileRowsTR_length, Rows.lowerConstraintsTR_eq, R1CS.lowerConstraints_rows_length,
@@ -480,7 +485,7 @@ theorem rows_le (plan : Spec.Nebula.Plan) (app : PortApp plan) {mul polyRows row
 theorem columns_le (plan : Spec.Nebula.Plan) (app : PortApp plan) {mul columns : ℕ}
     (mulBound : ((Rows.polyRows plan app).map R1CS.mulCount).sum ≤ mul)
     (fits : Words.count plan app.toAppShape + localBound plan app + mul ≤ columns) :
-    PerApplicationPackage.addedPrivateColumnCount (application plan app) ≤ columns := by
+    PerApplicationPackage.addedPrivateColumnCount (MemoryApp.program plan app) ≤ columns := by
   rw [PerApplicationPackage.addedPrivateColumnCount, PerApplicationPackage.applicationPlan,
     ApplicationPackage.productionPlan_privateCount, witnessWordCount, operations_eq, constraints_eq]
   have := freshCount_le (plan := plan) (app := app)
@@ -490,8 +495,8 @@ theorem columns_le (plan : Spec.Nebula.Plan) (app : PortApp plan) {mul columns :
 theorem carrier_le (plan : Spec.Nebula.Plan) (app : PortApp plan) {mul words : ℕ}
     (mulBound : ((Rows.polyRows plan app).map R1CS.mulCount).sum ≤ mul)
     (fits : Words.count plan app.toAppShape + localBound plan app + mul ≤ words) :
-    (application plan app).witnessWordCount +
-      ApplicationRetainedBlocks.localCount (application plan app) ≤ words := by
+    (MemoryApp.program plan app).witnessWordCount +
+      ApplicationRetainedBlocks.localCount (MemoryApp.program plan app) ≤ words := by
   unfold ApplicationRetainedBlocks.localCount ApplicationRetainedBlocks.sourceWidth
     ApplicationDirectSource.sourceWidth ApplicationPackage.r1csFreshStart
   rw [witnessWordCount, operations_eq, constraints_eq]
@@ -505,8 +510,8 @@ row. The assertions are the last constraints of the circuit
 (`MemoryApp.assertionNames_count`), and each constraint lowers to
 `R1CS.constraintRowCount` consecutive rows. Conformance tests read it. -/
 def namedRowRanges (plan : Spec.Nebula.Plan) (app : PortApp plan) : List (String × ℕ × ℕ) :=
-  let rows := (ApplicationPackage.constraints (application plan app)
-    (ApplicationPackage.productionColumns (application plan app)) (start plan app)).map
+  let rows := (ApplicationPackage.constraints (MemoryApp.program plan app)
+    (ApplicationPackage.productionColumns (MemoryApp.program plan app)) (start plan app)).map
       R1CS.constraintRowCount
   let names := MemoryApp.assertionNames plan app
   let children := rows.length - (names.map Prod.snd).sum

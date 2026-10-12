@@ -196,13 +196,11 @@ theorem env_appVar {a : AppShape} (v : ℕ → F) (zero : ∀ k, Words.count p a
 /-! ### The interface -/
 
 /-- An application of the memory phase at the circuit level (spec §10): the
-model application, its state words, its private words, and its rows over
-`AppView.env`. -/
+model application over its state words, its private words, and its rows over
+`AppView.env`. The state is the state words, so a claim names the words that
+the statement carries, and completeness and soundness name the same state. -/
 structure PortApp (p : Plan) extends AppShape where
-  State : Type
-  model : Application p State
-  ofWords : (Fin width → F) → State
-  words : State → Fin width → F
+  model : Application p (Fin width → F)
   rows : List Circuit.Expr
   /-- The state words fit the length word of the §11.1 state digest. -/
   width_lt : width < goldilocksModulus
@@ -212,13 +210,16 @@ structure PortApp (p : Plan) extends AppShape where
   decoded ports. -/
   sound : p.Valid → ∀ v : AppView p ⟨width, aux⟩, (∀ j, (v.ops j).WellFormed) →
     ConstraintsHold v.env rows →
-    model.Step (ofWords v.appIn) (List.ofFn fun j => (v.ops j).decode.port) (ofWords v.appOut)
+    model.Step v.appIn (List.ofFn fun j => (v.ops j).decode.port) v.appOut
   /-- Ob5 for the application: every model step has private words that
   satisfy the rows, on well-formed slots with its ports. -/
   complete : p.Valid → ∀ {s ports s'} (ops : Fin p.bOps → OpSlotBits p),
     model.Step s ports s' → (∀ j, (ops j).WellFormed) →
     (List.ofFn fun j => (ops j).decode.port) = ports →
     ∃ priv : Fin aux → F,
-      ConstraintsHold (AppView.env (⟨words s, words s', priv, ops⟩ : AppView p ⟨width, aux⟩)) rows
+      ConstraintsHold (AppView.env (⟨s, s', priv, ops⟩ : AppView p ⟨width, aux⟩)) rows
+
+/-- The state of an application: its state words. -/
+abbrev PortApp.State (app : PortApp p) : Type := Fin app.width → F
 
 end NightstreamFPrime.Lifecycle.Nebula

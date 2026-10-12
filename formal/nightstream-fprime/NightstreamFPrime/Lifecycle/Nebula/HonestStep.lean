@@ -174,14 +174,14 @@ theorem complete (valid : p.Valid) {c c' : MemoryCarry} (reach : Reach p c)
     {s : app.State} {inv : Invocation app.State Digest}
     (accepts : invoke (context p) c inv = some c') (step : app.model.Step s inv.ports inv.next) :
     ∃ witness : List F, witness.length = Words.count p app.toAppShape ∧
-      MemoryApp.valid p app (stateWords (List.ofFn (app.words s)) (carryWords c)) witness ∧
-      MemoryApp.step p app (stateWords (List.ofFn (app.words s)) (carryWords c)) witness =
-        stateWords (List.ofFn (app.words inv.next)) (carryWords c') := by
+      MemoryApp.valid p app (stateWords (List.ofFn s) (carryWords c)) witness ∧
+      MemoryApp.step p app (stateWords (List.ofFn s) (carryWords c)) witness =
+        stateWords (List.ofFn inv.next) (carryWords c') := by
   obtain ⟨accepted, rfl⟩ := Honest.accepted p c inv accepts
   obtain ⟨wf, decoded⟩ := honest_slots valid reach accepted
   obtain ⟨priv, appRows⟩ := app.complete valid _ step wf decoded
   have count := Words.memoryCount_eq (p := p)
-  refine ⟨(Honest.witness p c inv (app.words s) (app.words inv.next) priv).words,
+  refine ⟨(Honest.witness p c inv s inv.next priv).words,
     StepWitness.length_words _, ?_, ?_⟩
   · unfold MemoryApp.valid
     rw [StepWitness.decode_words]

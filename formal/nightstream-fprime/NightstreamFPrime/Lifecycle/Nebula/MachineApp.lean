@@ -108,6 +108,11 @@ def State.ofWords (words : Fin 2 → F) : State := ⟨(words 0).val, (words 1).v
 /-- The two state words of a machine state. -/
 def State.words (s : State) : Fin 2 → F := ![natWord s.pc, natWord s.acc]
 
+/-- The words of a decoded state are the word vector. -/
+theorem State.words_ofWords (w : Fin 2 → F) : (State.ofWords w).words = w := by
+  funext i
+  fin_cases i <;> simp [State.words, State.ofWords, natWord_of_val]
+
 variable {p : Plan} (two : p.bOps = 2)
 
 /-- Port 0, the fetch port. -/
@@ -598,14 +603,17 @@ theorem complete {s s' : State} {ports : List (Option PortAccess)} (ops : Fin p.
           ram0, addrWord, bit0, bit1, pad1, w1, r1, bitsWord_zeros a1, bitsWord_zeros u1,
           bitsWord_zeros v1, exec, r, State.words, pcSucc, IsBit]
 
+/-- The machine over its two state words: one machine step between the
+decoded states. -/
+def wordApplication (p : Plan) (two : p.bOps = 2) : Application p (Fin 2 → F) where
+  Step w ports w' := Step (State.ofWords w) ports (State.ofWords w')
+  idle w := (application p two).idle (State.ofWords w)
+
 /-- The machine as a port application of a plan with two ports. -/
 def portApp (p : Plan) (two : p.bOps = 2) : PortApp p where
   width := 2
   aux := 1
-  State := State
-  model := application p two
-  ofWords := State.ofWords
-  words := State.words
+  model := wordApplication p two
   rows := rows p
   width_lt := by decide
   portsLength := by
@@ -615,6 +623,7 @@ def portApp (p : Plan) (two : p.bOps = 2) : PortApp p where
   complete := by
     intro _ _ _ _ ops step wf decoded
     obtain ⟨priv, rows⟩ := complete two ops step wf decoded
+    rw [State.words_ofWords, State.words_ofWords] at rows
     exact ⟨priv, (rows_iff two _).mpr rows⟩
 
 end Machine

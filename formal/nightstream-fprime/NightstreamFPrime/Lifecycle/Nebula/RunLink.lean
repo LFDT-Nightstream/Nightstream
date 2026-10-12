@@ -1,9 +1,10 @@
 import NightstreamFPrime.Lifecycle.Nebula.StepInvoke
 
-/-! Owns the run-level link of a memory application (spec §11.1, §12, §13). The input is what the Stage 1 relation chain and its terminal check
+/-! Owns the run-level link of a memory application (spec §11.1, §12, §13).
+The input is what the Stage 1 relation chain and its terminal check
 authenticate: the state words `z_0 … z_T`, one step witness per invocation
 whose rows hold from `z_i` to `z_{i+1}`, and the §13 terminal checks with the
-envelope's final carry. The output is the model's `Accepts` on the extracted
+prover's final carry. The output is the model's `Accepts` on the extracted
 run, or a Poseidon2 collision between two state-digest inputs of the run. It
 does not own the Stage 1 fold, the circuit that checks the rows, or the memory
 security argument. -/
@@ -38,7 +39,7 @@ theorem invocation_ports (w : StepWitness p app.toAppShape) :
 end StepWitness
 
 /-- The spec §13 terminal checks on the final state words `zT`, with the
-statement fields and the envelope's final carry words. -/
+statement fields and the prover's final carry words. -/
 structure TerminalChecks {width : ℕ} (p : Plan) (zT : List F) (finalApp : Fin width → F)
     (carry : Fin 39 → F)
     (steps segments finalTs : ℕ) (finalRoot : Digest) : Prop where

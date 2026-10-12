@@ -70,6 +70,13 @@ modeled as a random oracle. This is the Stage 1 assumption without change.
 collision resistant and preimage resistant at the ceiling of the trunk
 decision. `ε_coll(t)` is the probability that an adversary with expected time
 `t` finds a collision of `H`. Stage 2 adds digests of the same kind as Stage 1.
+The sponge has four capacity words and a four-word digest, so the generic value
+under the trunk's random-permutation reading is about `ε_coll(t) = t²/q⁴`
+(about `t²/2^256`), with `t` counted in permutation calls. The owner has set no
+adversary time (decision 2026-10-12), so `t` stays symbolic. For a stage of the
+reverse extractor, this value applies only under the human-ignorance reading
+of Assumption 1 (`formal/nightstream-fprime/SECURITY_MODEL.md`, trust item 4):
+an algorithm that contains a known collision has `ε_coll = 1`.
 
 **A4 (Recursive extraction).** HyperNova Lemma 4, as corrected in
 `docs/hypernova-paper/`, gives knowledge soundness of Construction 2 for a
@@ -409,8 +416,30 @@ of `E`'s own output in the real protocol, so they need no transfer. The proof
 is Lemma 6 on `E`'s run with a union bound.
 
 In Lean, this is `NebulaMemorySecurity.bad_le` (§7 item 5), for every
-application with a port interface. `ε_coll` comes from a work estimate (A3).
-It becomes a probability only for a stated adversary time.
+application with a port interface.
+
+**Symbolic values.** The owner has set no adversary time `t` and no query
+count `Q` (decision 2026-10-12), so each term stays a formula:
+
+- `hash_j ≤ ε_coll(t_j)`, where `t_j` is the time of reverse stage `j`; each
+  of the two collision terms is `ε_coll(t_E)` (A3).
+- `error_j` has the value that the one-fold random-oracle theorem of PR #155
+  motivates: about `17·(Q_j + 17)·ε_sample + (Q_j + 74)·ε_fold + msis + 2^−190`,
+  with `ε_fold = 4589/q² ≈ 2^−115.84` and `ε_sample ≈ 2^−125.4`
+  (`formal/nightstream-fprime/SECURITY_MODEL.md`, adversary 3). `Q_j` is the
+  query count of stage `j`, and `msis` is the advantage of an MSIS solver.
+- `error_k` has the target value `(Q_η + 1)·(2·m_mem/q² + ε_coll(t_1))` (A6).
+
+**Depth limit, shared with Stage 1.** The sum has one Assumption 1 term for
+each reverse stage, and the extractor of stage `j + 1` can rerun stage `j`.
+If it reruns its adversary as the random-oracle extractor does,
+`Q_{j+1} ≈ 17·Q_j²`. Then `(Q_j + 74)·ε_fold` is above 1 at `j = 1` when
+`Q_0 = 2^64`, and at `j = 2` when `Q_0 = 2^30` (`SECURITY_MODEL.md`, trust item
+4). A memory run has `T = S·N` folds. So, with these values, this bound gives
+no concrete security for a run of two or more folds when `Q_0 = 2^64`, or of
+three or more folds when `Q_0 = 2^30`. The Lean statement is correct for every
+depth. A useful number
+needs a Stage 1 argument whose error does not grow in this way with the depth.
 
 **Setup check (spec §4.2 rule 6).** For the final relation shape and the plan,
 setup MUST check that `ε_test ≤ 2^−109.91`, the owner-approved floor. This
@@ -582,6 +611,15 @@ generated relation MUST supply the exact census.
      failure event of `history_failure_le` occurs. `MemoryRound` is A6. With
      it, `bad_le` bounds the mass of samples that the memory verifier accepts
      while the extracted history does not attest the claim, as in §5;
+   - Ob1 at the Rust boundary (`crates/nightstream/src/nebula/mod.rs`,
+     `Context::terminal_states`): the verifier rejects an initial or final
+     application word, or a `final_timestamp`, at or above `q` before it
+     hashes the words (`TerminalError::NonCanonical`). The other statement
+     fields and carry counters must equal values below `q`, and the proof
+     decoder rejects other lengths and words at or above `q`. The test
+     `terminal_rejects_statement_integers_at_or_above_q` failed on the earlier
+     code for all five integers, and `memory_conformance` checks the same
+     rejection through `Context::verify` with a real proof;
    - the first memory package (`Export/Stage1/NebulaMemoryV1Package.lean`)
      for the test plan `FirstPlan` (ROM and RAM of four words, `N = 2`,
      `S_max = 4`) and the machine. Its row, column, and carrier bounds give
@@ -593,16 +631,25 @@ generated relation MUST supply the exact census.
      each emitted package with a pinned structural identifier.
 
    Still open:
-   - Ob1 for the statement fields and the proof bytes at the implementation
-     boundary (Lean types the statement fields as field words and canonical
-     values);
-   - `ε_coll` as a probability needs a stated adversary time (A3);
-   - a package for a production plan;
-   - concrete values for the Stage 1 failure and collision terms (A1–A4).
-6. **Shared with Stage 1:** useful values of the Assumption 1 errors (A4, A6), the
-   concrete extractor time (A4), the arity adaptation of HyperNova Lemma 4, the
-   terminal decider, encoding, and implementation terms, and an approved F′
-   threat model with an end-to-end target. The legacy
+   - values for the adversary time `t` and the query counts `Q` and `Q_η`.
+     They stay symbolic until the owner sets them (decision 2026-10-12); §5
+     gives each term as a formula in them;
+   - concrete values for the end-to-end bound. With the error that PR #155
+     motivates, the depth limit of §5 (shared with Stage 1) makes the bound
+     useless for runs of more than one or two folds;
+   - a package for a production plan, deferred to the real application
+     (decision 2026-10-12). It needs: the application with a `PortApp`
+     instance (state words, private words, rows, `sound`, `complete`); the
+     plan fields `R`, `μ`, `M`, `W_ts`, `B_ops` (the application's ports),
+     `B_scan`, `N`, `S_max`, and the ROM and RAM images, which must pass spec
+     §4.2 (rule 6: `R + M + N·B_ops ≤ 139,509`); the package bounds and the
+     fixed point in `2^28`; and the Rust native run and word layout of that
+     application.
+6. **Shared with Stage 1:** useful values of the Assumption 1 errors (A4,
+   A6), a Stage 1 argument whose error does not grow with the depth (§5), the
+   concrete extractor time (A4), the arity adaptation of HyperNova Lemma 4,
+   the terminal decider, encoding, and implementation terms, and an approved
+   F′ threat model with an end-to-end target. The legacy
    `protocol-contract/security-reduction.md` §8 shows the form of these terms.
 7. **Query model, shared with Stage 1.** The Module-SIS level is a quantum
    estimate, but this note counts classical oracle queries. A quantum search

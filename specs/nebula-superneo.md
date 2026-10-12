@@ -647,7 +647,8 @@ optional: §11.2 requires it.
 **Terminal.** The verifier keeps the Stage 1 terminal check
 (`crates/nightstream/src/lifecycle/verify.rs`). It does no extra fold. It opens
 the 16 running children and `u_{T−1}` directly and checks the state link of
-`u_{T−1}`. The proof envelope carries the final carry. The verifier computes
+`u_{T−1}`. The prover gives the final carry to the verifier with the proof; it
+is a verifier input, not part of the Stage 1 proof bytes. The verifier computes
 the final Stage 1 state as the state digest of the statement's final
 application words and that carry. Only the state link authenticates the carry
 fields that are not statement fields. The final carry is the one that
@@ -675,11 +676,18 @@ The terminal check MUST:
 
 1. compute the initial state as the state digest of the initial application
    words and the start carry, and the final state as the state digest of the
-   final application words and the envelope's final carry; then run the
+   final application words and the prover's final carry; then run the
    Stage 1 terminal check with these states;
 2. require `idx = N` in the final carry;
 3. require `1 ≤ S ≤ S_max`, `T = S · N`, and `seg_idx = S`;
 4. require every statement field to equal the value in the final state.
+
+Before these checks, the verifier MUST decode the statement canonically
+(security note Ob1): it MUST reject an initial or final application word, or a
+`final_timestamp`, that is not below `q`. Such a value has the field word of a
+smaller one. Each other statement field and carry counter must equal a value
+below `q`. This is a decoding rule, not a relation check: the relation has
+field words, and a field word has no alias.
 
 `final_memory_root` lets another proof refer to the final memory.
 
@@ -702,7 +710,8 @@ verifier and cover at least these cases:
 | Fresh memory at a segment boundary | reject at `D_seen.is = D_mem` |
 | Segment-0 IS records that differ from the plan images | reject at `D_seen.is = D_mem` |
 | An input carry or application words that do not open the input state | reject at the state digest check (§11.1) |
-| An envelope carry that does not open the final state | reject at the Stage 1 state link |
+| A final carry that does not open the final state | reject at the Stage 1 state link |
+| An initial or final application word, or a `final_timestamp`, at or above `q` | reject at canonical decoding (§13) |
 | Read value differs from the last write | reject at the product equation |
 | `rt ≥ wt`; write to ROM; ROM address out of range; nonzero pad | reject at O4; O5; O6; O7 |
 | Change one record of a step after its segment opened | reject at a close equality |

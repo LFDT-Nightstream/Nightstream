@@ -90,6 +90,40 @@ theorem rowsZero_implies_decodedStep
   exact ApplicationAssignmentSoundness.rowsZero_implies_step
     fits geometry assignment one rows
 
+/-- Arbitrary accepted application rows make the selected application's
+validity predicate hold on the decoded prior state and witness. -/
+theorem rowsZero_implies_decodedValid
+    (fits : PerApplicationPackage.FitsTwoPow28 application)
+    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (one : assignment (ApplicationRetainedGeometry.oneColumn geometry) = 1)
+    (rows : (ApplicationDirectPlan.plan fits geometry).RowsZero assignment) :
+    application.valid
+      (StateDecoder.currentState (ActualPreimageFraming.priorState
+        (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry geometry) assignment))
+      (witness geometry assignment) := by
+  rw [input_eq_forms geometry assignment]
+  exact ApplicationAssignmentSoundness.rowsZero_implies_valid
+    fits geometry assignment one rows
+
+/-- The selected complete Stage 1 rows contain the application rows. -/
+private theorem selected_applicationRows
+    (application : Lifecycle.Stage1.Application.Program)
+    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))
+    (accepted : (PerApplicationFixedPoint.structuralPlan application fits).RowsZero
+      assignment) :
+    (ApplicationDirectPlan.plan fits.package
+      (PerApplicationFixedPoint.geometry application)).RowsZero assignment := by
+  have selected : (DirectApplicationPrefixPlan.plan
+      (PerApplicationFixedPoint.relation application fits) fits.package
+      (PerApplicationFixedPoint.geometry application)).RowsZero assignment := by
+    rw [PerApplicationFixedPoint.plan_fixedPoint]
+    exact accepted
+  exact ((DirectApplicationPrefixPlan.rowsZero_iff
+    (PerApplicationFixedPoint.relation application fits) fits.package
+    (PerApplicationFixedPoint.geometry application) assignment).mp selected).1.1.2
+
 /-- The selected complete Stage 1 rows imply the same typed application
 equation. This theorem needs no canonical raw packet or representation. -/
 theorem selectedRowsZero_implies_decodedStep
@@ -108,15 +142,27 @@ theorem selectedRowsZero_implies_decodedStep
           (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry
             (PerApplicationFixedPoint.geometry application)) assignment))
         (witness (PerApplicationFixedPoint.geometry application) assignment) := by
-  have selected : (DirectApplicationPrefixPlan.plan
-      (PerApplicationFixedPoint.relation application fits) fits.package
-      (PerApplicationFixedPoint.geometry application)).RowsZero assignment := by
-    rw [PerApplicationFixedPoint.plan_fixedPoint]
-    exact accepted
-  have children := (DirectApplicationPrefixPlan.rowsZero_iff
-    (PerApplicationFixedPoint.relation application fits) fits.package
-    (PerApplicationFixedPoint.geometry application) assignment).mp selected
   exact rowsZero_implies_decodedStep fits.package
-    (PerApplicationFixedPoint.geometry application) assignment one children.1.1.2
+    (PerApplicationFixedPoint.geometry application) assignment one
+    (selected_applicationRows application fits assignment accepted)
+
+/-- The selected complete Stage 1 rows imply the application's validity
+predicate on the decoded prior state and witness. -/
+theorem selectedRowsZero_implies_decodedValid
+    (application : Lifecycle.Stage1.Application.Program)
+    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))
+    (one : assignment (ApplicationRetainedGeometry.oneColumn
+      (PerApplicationFixedPoint.geometry application)) = 1)
+    (accepted : (PerApplicationFixedPoint.structuralPlan application fits).RowsZero
+      assignment) :
+    application.valid
+      (StateDecoder.currentState (ActualPreimageFraming.priorState
+        (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry
+          (PerApplicationFixedPoint.geometry application)) assignment))
+      (witness (PerApplicationFixedPoint.geometry application) assignment) :=
+  rowsZero_implies_decodedValid fits.package
+    (PerApplicationFixedPoint.geometry application) assignment one
+    (selected_applicationRows application fits assignment accepted)
 
 end NightstreamFPrime.Export.Stage1.ActualApplicationStep

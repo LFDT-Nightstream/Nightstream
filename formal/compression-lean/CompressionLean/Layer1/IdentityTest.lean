@@ -148,4 +148,13 @@ theorem Path.ne_one {extra : List K → Finset K} (bound : ℕ)
         exact Finset.mem_singleton_self 1
       · exact ih (point ++ [c]) (by simp; omega) path.2 x inside
 
+omit [Field K] [Fintype K] [DecidableEq K] in
+/-- A path stays a path for smaller bad sets. -/
+theorem Path.mono {extra extra' : List K → Finset K} (subset : ∀ q, extra' q ⊆ extra q) :
+    ∀ (point l : List K), Path extra point l → Path extra' point l := by
+  intro point l
+  induction l generalizing point with
+  | nil => intro _; trivial
+  | cons c rest ih => exact fun path => ⟨fun hit => path.1 (subset point hit), ih _ path.2⟩
+
 end CompressionLean.Layer1

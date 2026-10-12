@@ -156,16 +156,44 @@ theorem avoids_bind (g : Game α) (f : α → Game β) (Q : β → Prop) :
   | draw C bad next ih => exact forall_congr' fun c => imp_congr_right fun _ => ih c
   | recv M next ih => exact forall_congr' fun m => ih m
 
-theorem costLe_bind {g : Game α} {f : α → Game β} {ε δ : ℝ} (h : g.CostLe ε)
-    (hf : ∀ a, (f a).CostLe δ) : (bind g f).CostLe (ε + δ) := by
+/-- Every path ends in `P`, whatever the challenges. -/
+def Ends : Game α → (α → Prop) → Prop
+  | pure a, P => P a
+  | draw _ _ next, P => ∀ c, Ends (next c) P
+  | recv _ next, P => ∀ m, Ends (next m) P
+
+theorem Ends.of_forall {P : α → Prop} (all : ∀ a, P a) (g : Game α) : g.Ends P := by
+  induction g with
+  | pure a => exact all a
+  | draw C bad next ih => exact ih
+  | recv M next ih => exact ih
+
+theorem ends_bind (g : Game α) (f : α → Game β) (P : β → Prop) :
+    (bind g f).Ends P ↔ g.Ends (fun a => (f a).Ends P) := by
+  induction g with
+  | pure a => exact Iff.rfl
+  | draw C bad next ih => exact forall_congr' fun c => ih c
+  | recv M next ih => exact forall_congr' fun m => ih m
+
+/-- Sequential composition: the second cost needs to hold only where the first game ends. -/
+theorem costLe_bind_of {g : Game α} {f : α → Game β} {P : α → Prop} {ε δ : ℝ} (h : g.CostLe ε)
+    (ends : g.Ends P) (hf : ∀ a, P a → (f a).CostLe δ) : (bind g f).CostLe (ε + δ) := by
   induction g generalizing ε with
   | pure a =>
-      have := (hf a).nonneg
-      exact (hf a).mono (by linarith [show (0 : ℝ) ≤ ε from h])
+      have := (hf a ends).nonneg
+      exact (hf a ends).mono (by linarith [show (0 : ℝ) ≤ ε from h])
   | draw C bad next ih =>
       obtain ⟨rest, bound, nexts⟩ := h
-      exact ⟨rest + δ, by linarith, fun c => ih c (nexts c)⟩
-  | recv M next ih => exact fun m => ih m (h m)
+      exact ⟨rest + δ, by linarith, fun c => ih c (nexts c) (ends c)⟩
+  | recv M next ih => exact fun m => ih m (h m) (ends m)
+
+theorem costLe_bind {g : Game α} {f : α → Game β} {ε δ : ℝ} (h : g.CostLe ε)
+    (hf : ∀ a, (f a).CostLe δ) : (bind g f).CostLe (ε + δ) :=
+  costLe_bind_of h (Ends.of_forall (P := fun _ => True) (fun _ => trivial) g) fun a _ => hf a
+
+theorem prob_congr (s : Strategy α) (g : Game α) {E E' : α → Prop} (same : ∀ a, E a ↔ E' a) :
+    prob s g E = prob s g E' := by
+  rw [show E = E' from funext fun a => propext (same a)]
 
 end Game
 

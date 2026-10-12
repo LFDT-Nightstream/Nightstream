@@ -83,6 +83,17 @@ theorem partFactors_le_degree {k t : ℕ} (member : t ∈ s.active k) :
 theorem depth_le_layers {t : ℕ} (tree : t < s.trees) : s.depth t ≤ s.layers :=
   foldr_max_mem _ s.depth 0 (List.mem_range.mpr tree)
 
+private theorem foldr_max_le (l : List ℕ) (g : ℕ → ℕ) (b bound : ℕ) (hb : b ≤ bound)
+    (each : ∀ t ∈ l, g t ≤ bound) : l.foldr (fun t d => max d (g t)) b ≤ bound := by
+  induction l with
+  | nil => exact hb
+  | cons t rest ih =>
+      exact max_le (ih fun u member => each u (List.mem_cons_of_mem t member)) (each t (by simp))
+
+theorem degree_le (s : GkrShape) (k bound : ℕ) (three : 3 ≤ bound)
+    (factors : ∀ t ∈ s.active k, s.partFactors k t + 2 ≤ bound) : s.degree k ≤ bound :=
+  foldr_max_le _ _ _ _ three factors
+
 end GkrShape
 
 variable {K : Type} [Field K]

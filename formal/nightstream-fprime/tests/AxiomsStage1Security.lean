@@ -133,6 +133,7 @@ import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
 #audit_axioms NightstreamFPrime.Export.Stage1.RandomOracleSetup.knowledge_error_le_setup
 #audit_axioms NightstreamFPrime.Export.Stage1.RandomOracleSetup.programmingError_lt_of_fits
 #audit_axioms NightstreamFPrime.Export.Stage1.RandomOracleSetup.production_knowledge_error_lt
+#audit_axioms NightstreamFPrime.Export.Stage1.RandomOracleSetup.randomized_knowledge_error_lt
 #audit_axioms NightstreamFPrime.Export.Stage1.RandomOracleSetup.contract
 #audit_axioms NightstreamFPrime.Spec.flatMap_eq_of_lengths
 #audit_axioms NightstreamFPrime.Spec.flatMap_length_eq

@@ -26,6 +26,9 @@ Outputs:
 - `production_knowledge_error_lt`: the same for every application that fits
   the `2 ^ 28` profile, at its own relation and key size, where the
   programming error is below `2 ^ -190` (`programmingError_lt_of_fits`);
+- `randomized_knowledge_error_lt`: the same for an adversary with uniform
+  coins, drawn independently of the chunks and the oracle, averaged over the
+  coins;
 - `contract`: the theorem as a `Spec.KnowledgeContract`, whose runs are the
   chunks, the oracle and the extractor's retries.
 
@@ -292,6 +295,36 @@ theorem production_knowledge_error_lt {Output : Type}
   have bound := knowledge_error_le_setup Selected adversary claim prior contextDigest bounded
   have small := programmingError_lt_of_fits application fits
   linarith
+
+/-- The setup-game theorem for an adversary with uniform coins, drawn
+independently of the chunks and the oracle. Every term is linear in the
+adversary, so the bound holds for the average over the coins; the MSIS term is
+the success of the solver that first draws the coins. -/
+theorem randomized_knowledge_error_lt {Coins Output : Type} [Fintype Coins] [Nonempty Coins]
+    (adversary : Coins → (SetupIndex Width Fits → Chunk) →
+      OracleComp (Point Width Fits (ProductionKey.degreeBound Selected)) Answer Output)
+    (claim : Output → Claim Selected)
+    (prior : Output → Lifecycle.HashPreimage (logicalWidth := Width) (publicFits := Fits))
+    (contextDigest : KeyDigest) {queries : Nat}
+    (bounded : ∀ coins chunks, (adversary coins chunks).QueryBound queries) :
+    𝔼 coins, 𝔼 chunks : SetupIndex Width Fits → Chunk, 𝔼 oracle,
+        (if Succeeds Selected (setupKey chunks) (adversary coins chunks)
+            (linkedClaim Selected claim prior contextDigest) oracle then (1 : ℝ) else 0) <
+      𝔼 coins, 𝔼 chunks, (extraction Selected (adversary coins) claim prior contextDigest chunks +
+          hashCollisions Selected (adversary coins) claim prior contextDigest chunks) +
+        statisticalError queries +
+        𝔼 coins, msisAdvantage Selected (adversary coins) claim prior contextDigest + 1 / 2 ^ 190 := by
+  have each (coins : Coins) := production_knowledge_error_lt application fits (adversary coins) claim
+    prior contextDigest (bounded coins)
+  calc _ < 𝔼 coins, (𝔼 chunks, (extraction Selected (adversary coins) claim prior contextDigest chunks +
+          hashCollisions Selected (adversary coins) claim prior contextDigest chunks) +
+        statisticalError queries + msisAdvantage Selected (adversary coins) claim prior contextDigest +
+        1 / 2 ^ 190) :=
+        Finset.expect_lt_expect (fun coins _ => (each coins).le)
+          (Finset.univ_nonempty.elim fun coins member => ⟨coins, member, each coins⟩)
+    _ = _ := by
+        rw [Finset.expect_add_distrib, Finset.expect_add_distrib, Finset.expect_add_distrib,
+          Finset.expect_const Finset.univ_nonempty, Finset.expect_const Finset.univ_nonempty]
 
 end Production
 

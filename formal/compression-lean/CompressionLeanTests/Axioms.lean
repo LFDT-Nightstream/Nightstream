@@ -21,3 +21,16 @@ import CompressionLean
 #audit_axioms CompressionLean.Terminal.eval_K_eval
 #audit_axioms CompressionLean.Terminal.eval_A_eval
 #audit_axioms CompressionLean.Terminal.state_eval
+
+/-! Axiom gate for the layer-1 soundness proof. -/
+
+#audit_axioms CompressionLean.Layer1.Game.prob_not_le
+#audit_axioms CompressionLean.Layer1.Game.avoids_bind
+#audit_axioms CompressionLean.Layer1.Game.costLe_bind
+#audit_axioms CompressionLean.Layer1.sumcheck_avoids
+#audit_axioms CompressionLean.Layer1.sumcheck_cost
+#audit_axioms CompressionLean.Layer1.combRound_truth
+#audit_axioms CompressionLean.Layer1.fraction_sum_bad
+#audit_axioms CompressionLean.Layer1.Level.root_fraction
+#audit_axioms CompressionLean.Layer1.gkr_avoids
+#audit_axioms CompressionLean.Layer1.gkr_cost

@@ -13,6 +13,29 @@ circuits without change.
   `nightstream` crate embeds it and pins its identifier (`IDENTIFIER` in
   `crates/nightstream/src/lifecycle/terminal/package.rs`).
 
+## Layer 1
+
+`Layer1/` proves the soundness of the layer-1 verifier
+(`crates/neo-spartan/src/verifier.rs`) against an adaptive prover.
+
+- Model: the verifier is a public-coin game (`Game.lean`). Each challenge
+  names its bad set, from the earlier messages only. If every path that
+  avoids the bad sets ends in the claim, a prover breaks the claim with
+  probability at most the sum of the bad-set densities on the worst path.
+- Adversary: the prover picks every message after it sees all earlier
+  challenges. It commits to at most `L0` P0 and `L1` P1 candidate tables
+  (the WHIR lists). Every bad set is a union over these candidates.
+- Idealized openings: the verifier accepts the two WHIR openings when one
+  P0 candidate and one P1 candidate agree with every opened value
+  (`Soundness.lean`, `Opens`). The WHIR error of this step is a named term
+  of the budget (`Budget.lean`), not proved here.
+- Claim: `Cost.lean`, `layer1_sound`. An accepted transcript has a P0
+  candidate that is a CE(B) witness (`Model.lean`, `Relation`), except with
+  probability `layer1Error`. `Budget.lean` bounds it at production sizes.
+- Stage order (`Stages.lean`): early (norm, row lookup, slot scatter, GKR),
+  linear (ring rows at `λ`, `ζ`, two sum-checks), honest fold (setup
+  partials, `α`, setup queries), late (block scatter, GKR).
+
 Build and emit (each Lean command under the 1,500 s cap). Copy the F′ build
 cache into `.lake` first (`cp -cR ../nightstream-fprime/.lake/packages .lake/`)
 so that Lake does not rebuild Mathlib.

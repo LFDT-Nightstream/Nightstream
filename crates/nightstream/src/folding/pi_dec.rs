@@ -1,13 +1,13 @@
 //! Selected radix-two decomposition under the existing production key.
 use super::{
-    ajtai_dec_mixer, kernels as engine, superneo_has_canonical_x_shape, superneo_public_x_cols, CeClaim, DecMixer,
-    Params, Structure,
+    ajtai_dec_mixer, has_canonical_evaluations, kernels as engine, superneo_has_canonical_x_shape,
+    superneo_public_x_cols, CeClaim, DecMixer, Params, Structure,
 };
 use neo_ajtai::nightstream_fprime_setup::{
     commit_production_signed_unit_prefix_matrices, MAX_MESSAGE_COLUMNS, PRODUCTION_VERIFIER_ROWS,
 };
 use neo_ccs::Mat;
-use neo_math::{balanced::within_nc_bound, D, F, K};
+use neo_math::{balanced::within_nc_bound, D, F};
 use neo_reductions::superneo_eval::{eval_real_v1_2_openings_from_rows, MatrixRows, MatrixShape, SuperneoZBlocks};
 use p3_field::PrimeField64;
 #[derive(Debug, thiserror::Error)]
@@ -26,10 +26,8 @@ pub enum Error {
     FoldDigestCanonicality { owner: &'static str, lane: usize },
     #[error("PiDEC point shape in {0}")]
     RShape(&'static str),
-    #[error("PiDEC evaluation shape in {0}")]
-    EvaluationShape(&'static str),
-    #[error("PiDEC evaluation padding in {0}")]
-    EvaluationPadding(&'static str),
+    #[error("PiDEC noncanonical evaluations in {0}")]
+    Evaluation(&'static str),
     #[error("plain claims cannot carry auxiliary commitments")]
     Auxiliary,
     #[error(transparent)]
@@ -139,40 +137,44 @@ pub fn verify(
 }
 
 fn validate_verifier_inputs(pp: &Params, s: &Structure, parent: &CeClaim, proof: &Proof) -> Result<(), Error> {
-    validate_child_count(pp, proof.children.len())?;
+    validate_children(pp, s, &proof.children)?;
+    validate_claim("parent", s, parent)?;
     validate_fold_digest_canonical("parent", parent)?;
     for child in &proof.children {
         validate_fold_digest_canonical("child", child)?;
     }
-    validate_r_shape(s, parent, &proof.children)?;
-    validate_evaluation_shape(s, parent, &proof.children)?;
-    validate_canonical_x_shape(parent, &proof.children)?;
-    validate_child_x_low_norm(pp, &proof.children)?;
-    validate_evaluation_padding_zero(parent, &proof.children)?;
-    validate_fold_digest_consistency(parent, &proof.children)?;
-    if parent.adv.is_some() || proof.children.iter().any(|c| c.adv.is_some()) {
-        return Err(Error::Auxiliary);
-    }
-    Ok(())
+    validate_fold_digest_consistency(parent, &proof.children)
 }
 
-fn validate_r_shape(s: &Structure, parent: &CeClaim, children: &[CeClaim]) -> Result<(), Error> {
-    validate_r_shape_one("parent", s, parent)?;
+/// The child-family checks that need no parent: the selected count, each
+/// claim's point, evaluation and public shapes, and unit-norm public inputs.
+/// Frames are not checked here.
+pub(crate) fn validate_children(pp: &Params, s: &Structure, children: &[CeClaim]) -> Result<(), Error> {
+    validate_child_count(pp, children.len())?;
     for child in children {
-        validate_r_shape_one("child", s, child)?;
+        validate_claim("child", s, child)?;
     }
-    Ok(())
+    validate_child_x_low_norm(pp, children)
 }
 
-fn validate_r_shape_one(owner: &'static str, s: &Structure, claim: &CeClaim) -> Result<(), Error> {
-    let expected = s
+fn validate_claim(owner: &'static str, s: &Structure, claim: &CeClaim) -> Result<(), Error> {
+    let point = s
         .domain_rows()
         .max(neo_reductions::common::superneo_carrier_width(s.m))
         .next_power_of_two()
         .max(2)
         .trailing_zeros() as usize;
-    if claim.r.len() != expected {
+    if claim.r.len() != point {
         return Err(Error::RShape(owner));
+    }
+    if !has_canonical_evaluations(claim, s.t()) {
+        return Err(Error::Evaluation(owner));
+    }
+    if !superneo_has_canonical_x_shape(&claim.X, claim.m_in) {
+        return Err(Error::NoncanonicalXShape(owner));
+    }
+    if claim.adv.is_some() {
+        return Err(Error::Auxiliary);
     }
     Ok(())
 }
@@ -181,18 +183,6 @@ fn validate_child_count(pp: &Params, got: usize) -> Result<(), Error> {
     let expected = pp.k_rho() as usize;
     if got != expected {
         return Err(Error::ChildCount { expected, got });
-    }
-    Ok(())
-}
-
-fn validate_canonical_x_shape(parent: &CeClaim, children: &[CeClaim]) -> Result<(), Error> {
-    if !superneo_has_canonical_x_shape(&parent.X, parent.m_in) {
-        return Err(Error::NoncanonicalXShape("parent"));
-    }
-    for child in children {
-        if !superneo_has_canonical_x_shape(&child.X, child.m_in) {
-            return Err(Error::NoncanonicalXShape("child"));
-        }
     }
     Ok(())
 }
@@ -229,49 +219,6 @@ fn validate_fold_digest_canonical(owner: &'static str, claim: &CeClaim) -> Resul
         let value = u64::from_le_bytes(chunk.try_into().expect("fold_digest lanes are 8 bytes"));
         if value >= F::ORDER_U64 {
             return Err(Error::FoldDigestCanonicality { owner, lane });
-        }
-    }
-    Ok(())
-}
-
-fn validate_evaluation_shape(s: &Structure, parent: &CeClaim, children: &[CeClaim]) -> Result<(), Error> {
-    validate_evaluation_shape_one("parent", s, parent)?;
-    for child in children {
-        validate_evaluation_shape_one("child", s, child)?;
-    }
-    Ok(())
-}
-
-fn validate_evaluation_shape_one(owner: &'static str, s: &Structure, claim: &CeClaim) -> Result<(), Error> {
-    let width = D.next_power_of_two();
-    if claim.eval_k.len() != width || claim.eval_a.len() != s.t() || claim.eval_a.iter().any(|row| row.len() != width) {
-        return Err(Error::EvaluationShape(owner));
-    }
-    Ok(())
-}
-
-fn validate_evaluation_padding_zero(parent: &CeClaim, children: &[CeClaim]) -> Result<(), Error> {
-    validate_evaluation_padding_zero_one("parent", parent)?;
-    for child in children {
-        validate_evaluation_padding_zero_one("child", child)?;
-    }
-    Ok(())
-}
-
-fn validate_evaluation_padding_zero_one(owner: &'static str, claim: &CeClaim) -> Result<(), Error> {
-    if claim
-        .eval_k
-        .iter()
-        .skip(D)
-        .any(|&lane| lane != K::default())
-    {
-        return Err(Error::EvaluationPadding(owner));
-    }
-    for row in &claim.eval_a {
-        for &lane in row.iter().skip(D) {
-            if lane != K::default() {
-                return Err(Error::EvaluationPadding(owner));
-            }
         }
     }
     Ok(())

@@ -18,5 +18,5 @@
 | Terminal verification | Check the fresh relation and running openings against the expected final state | `nightstream/src/lifecycle/verify.rs` |
 
 The [protocol pages](protocol/index.md) explain the paper construction. The
-[assurance surface](../formal/nightstream-fprime/ASSURANCE_SURFACE.md) states
+[security model](../formal/nightstream-fprime/SECURITY_MODEL.md) states
 what the implementation proofs establish.

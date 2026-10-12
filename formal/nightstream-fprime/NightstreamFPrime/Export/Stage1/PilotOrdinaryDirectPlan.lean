@@ -20,7 +20,7 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 open PilotOrdinaryDirectSource
 
-def piCcsGeometry {program : Lifecycle.Stage1.Application.Program}
+theorem piCcsGeometry {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth) :
     PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth :=
@@ -498,10 +498,6 @@ theorem Location.form_eval
           program base groupValue) encodes.prior.priorLast
         (finalSlot lane)]
       rw [priorLastBlock_source program lane]
-      change PiRLCRetainedPreservation.sourceAssignment program base groupValue
-          (RunningTransitionRetainedBlocks.packageSourceColumn program
-            (Location.priorDigest lane).sourceColumn
-            (Location.priorDigest lane).stage1SourceColumn_lt) = _
       exact sourceAssignment_at base groupValue (.priorDigest lane)
   | priorPublic index =>
       rw [form, LowNormBlock.Block.form_eval
@@ -539,10 +535,6 @@ theorem Location.form_eval
           program base groupValue) encodes.prior.outputLast
         (finalSlot lane)]
       rw [outputLastBlock_source program lane]
-      change PiRLCRetainedPreservation.sourceAssignment program base groupValue
-          (RunningTransitionRetainedBlocks.packageSourceColumn program
-            (Location.outputState lane).sourceColumn
-            (Location.outputState lane).stage1SourceColumn_lt) = _
       exact sourceAssignment_at base groupValue (.outputState lane)
   | canonicalFresh index =>
       rw [form, LowNormBlock.Block.form_eval

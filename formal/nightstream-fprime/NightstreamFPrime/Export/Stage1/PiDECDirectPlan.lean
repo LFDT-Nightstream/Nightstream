@@ -652,7 +652,7 @@ def plan {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Na
     (geometry : Geometry application logicalWidth) :
     (plan relation geometry).rowCount = Layout.PiDEC.v1_2.exactRowCount := by
   simp [plan, Layout.PiDEC.v1_2.exactRowCount,
-    Layout.PiDEC.v1_2.exactRowDeltas, Nat.add_assoc]
+    Layout.PiDEC.v1_2.exactRowDeltas]
 
 /-- The PiDEC matrix plan depends on relation shape only. The logical
 relation value supplies proof certificates but does not select any row. -/

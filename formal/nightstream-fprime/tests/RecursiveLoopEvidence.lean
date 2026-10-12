@@ -41,33 +41,33 @@ def CheckedRecursiveReplay : Prop :=
     (parentWitness : StoredAssignment PiCCSSourceImages.shape.carrierWidth)
     (children : PiDECComputedChildren.Children)
     (raw : RawValues application) (bytes : ByteArray)
-    (accepted : PerApplicationTerminal.Holds application fits productionSetup statement
+    (_accepted : PerApplicationTerminal.Holds application fits productionSetup statement
       (.recursive (CheckedReplayStep.prior input runningWitness freshWitness)))
-    (nonwrap : statement.iteration + 1 < goldilocksModulus)
-    (sourceCustody : ∀ source, CheckedReplayParent.assignments masks source =
+    (_nonwrap : statement.iteration + 1 < goldilocksModulus)
+    (_sourceCustody : ∀ source, CheckedReplayParent.assignments masks source =
       Fin.addCases (fun _ : Fin productionShape.freshCount => freshWitness)
         runningWitness (sourceIndex source))
-    (evaluationCustody : ∀ source, PiRLCInputCheck.evaluations input source =
+    (_evaluationCustody : ∀ source, PiRLCInputCheck.evaluations input source =
       CheckedReplayParent.evaluations masks (PiCCSInputCheck.execute input).point source)
-    (sampled : PiRLCInputCheck.sampled input = some batch)
-    (returned : PiRLCParent.computedParent input batch = some parent)
-    (parentBlocks : ∀ block,
+    (_sampled : PiRLCInputCheck.sampled input = some batch)
+    (_returned : PiRLCParent.computedParent input batch = some parent)
+    (_parentBlocks : ∀ block,
       ((PiRLCWitnessBlock.preparedWitnessBlockPartials batch.challenges
         (PiRLCWitnessBlock.prepareWitnessActions batch.challenges)
         (fun source => MaterializedRingF.ofRing
           (CarrierAction.assignmentBlock (CheckedReplayParent.assignments masks source) block))).map
         MaterializedRingF.toRing).getLast? =
         some (CarrierAction.assignmentBlock (view parentWitness) block))
-    (split : StoredSplit.splitChecked parentWitness = some children)
-    (checked : PiDECInputCheck.accepted parent (PiDECComputedChildren.messages parent children) = true)
-    (carrierCustody : FreshRowsCheck.carrierRead bytes = raw.completeAssignment)
-    (rowCheck : FreshRowsCheck.checkProgram (PerApplicationMatrixProgram.matrixProgram application)
+    (_split : StoredSplit.splitChecked parentWitness = some children)
+    (_checked : PiDECInputCheck.accepted parent (PiDECComputedChildren.messages parent children) = true)
+    (_carrierCustody : FreshRowsCheck.carrierRead bytes = raw.completeAssignment)
+    (_rowCheck : FreshRowsCheck.checkProgram (PerApplicationMatrixProgram.matrixProgram application)
       (fun source => (PiDECCanonicalSourceCache.stored application)[source]?)
       (FreshRowsCheck.logicalRead bytes) = true)
-    (inputCustody : PerApplicationDecodedIO.input application fits raw =
+    (_inputCustody : PerApplicationDecodedIO.input application fits raw =
       HyperNovaStepData.input statement (CheckedReplayStep.prior input runningWitness freshWitness)
         advice (CheckedReplayNifs.proof input (PiDECComputedChildren.messages parent children)))
-    (contextCustody : PerApplicationDecodedIO.contextKey raw =
+    (_contextCustody : PerApplicationDecodedIO.contextKey raw =
       PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup),
     let result := PiCCSInputCheck.runningFromInput (PiDECComputedChildren.messages parent children)
     let openings := PiDECComputedChildren.witnesses children

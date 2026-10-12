@@ -1,7 +1,7 @@
 //! Native NIFS handoff to the selected Stage 1 caller packet.
-//! Package-owned verification fixes the returned children. State hashes and
-//! frame metadata are recomputed; packet data still requires the emitted
-//! witness program and its relation checks.
+//! Package-owned verification fixes the returned children. State hashes are
+//! recomputed; packet data still requires the emitted witness program and its
+//! relation checks.
 
 use neo_math::{KExtensions, F};
 use nightstream_fprime::{
@@ -102,8 +102,7 @@ impl Stage1StepInputs {
         self.next_state
     }
 
-    /// Claims and checked parent cache, framed for the next state digest.
-    /// The original NIFS proof retains its own transcript-frame metadata.
+    /// The verified PiDEC children: the next running claims.
     pub fn next_running(&self) -> &RunningInstance {
         &self.next_running
     }
@@ -128,46 +127,21 @@ impl PreparedLifecycle {
     ) -> Result<Stage1StepInputs, StepInputError> {
         let (prior_preimage, prior_digest) = self.checked_prior_state(state, running, fresh)?;
         let prior_children = pi_ccs_v1_2_prior_children(&running.claims)?;
-        if running
-            .parent_authority
-            .iter()
-            .any(|claim| claim.adv.is_some())
-        {
-            return Err(StepInputError::Input(
-                "selected plain claims cannot carry auxiliary commitments",
-            ));
-        }
         let context = self.binding.verifier_context().digest().map(F::from_u64);
         let prior_public_input = encode_pi_ccs_v1_2_public_input(prior_digest)?;
-        let prior_frame = digest_bytes(prior_digest);
-        if running
-            .claims
-            .iter()
-            .chain(running.parent_authority.iter())
-            .any(|claim| claim.fold_digest != prior_frame)
-        {
-            return Err(StepInputError::Input(
-                "running child or parent frame differs from the prior state hash",
-            ));
-        }
         let params = &self.params;
         let mut transcript = Transcript::session();
-        let mut next_running = nifs::verify(
+        let next_running = nifs::verify(
             &mut transcript,
             params,
             &self.structure,
             ajtai_rlc_mixer,
             ajtai_dec_mixer,
-            std::slice::from_ref(fresh),
+            fresh,
             running,
             proof,
         )?;
-        if next_running
-            .claims
-            .iter()
-            .chain(next_running.parent_authority.iter())
-            .any(|claim| claim.adv.is_some())
-        {
+        if next_running.claims.iter().any(|claim| claim.adv.is_some()) {
             return Err(StepInputError::Input(
                 "selected returned claims cannot carry auxiliary commitments",
             ));
@@ -232,26 +206,15 @@ impl PreparedLifecycle {
         )?;
         #[cfg(test)]
         let recorded_output_preimage = output_preimage.clone();
-        let pi_ccs = PiCcsV1_2ProofInputs::from_proof(std::slice::from_ref(fresh), &proof.pi_ccs)?
-            .into_package_inputs(
-                prior_preimage,
-                output_preimage,
-                prior_children,
-                prior_public_input,
-                output_digest,
-                self.binding.verifier_context().clone(),
-            )?;
+        let pi_ccs = PiCcsV1_2ProofInputs::from_proof(fresh, &proof.pi_ccs)?.into_package_inputs(
+            prior_preimage,
+            output_preimage,
+            prior_children,
+            prior_public_input,
+            output_digest,
+            self.binding.verifier_context().clone(),
+        )?;
 
-        // The next PiCCS call absorbs its state hash as the prior frame.
-        // Rebind only this returned carrier after verifying the original proof.
-        let next_frame = digest_bytes(output_digest);
-        for claim in next_running
-            .claims
-            .iter_mut()
-            .chain(next_running.parent_authority.iter_mut())
-        {
-            claim.fold_digest = next_frame;
-        }
         Ok(Stage1StepInputs {
             pi_ccs,
             pi_dec,
@@ -266,8 +229,8 @@ impl PreparedLifecycle {
         })
     }
 
-    /// Check semantic prior data before native cache construction or proving.
-    /// Parent caches and frame metadata do not enter the state preimage.
+    /// Check semantic prior data before proving. Frame metadata does not enter
+    /// the state preimage.
     pub(super) fn checked_prior_state(
         &self,
         state: &Stage1State,
@@ -307,12 +270,4 @@ impl PreparedLifecycle {
         }
         Ok((preimage, digest))
     }
-}
-
-pub(super) fn digest_bytes(words: [u64; 4]) -> [u8; 32] {
-    let mut bytes = [0; 32];
-    for (lane, word) in words.into_iter().enumerate() {
-        bytes[lane * 8..(lane + 1) * 8].copy_from_slice(&word.to_le_bytes());
-    }
-    bytes
 }

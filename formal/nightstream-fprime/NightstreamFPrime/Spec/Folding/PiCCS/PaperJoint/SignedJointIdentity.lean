@@ -440,7 +440,7 @@ private theorem summedQ_eq_blocks
     exact congrArg (gammaTerm ops gamma shape.constraintOffset)
       (summedConstraintAt_eq ops laws data alpha gamma)]
 
-private def shiftLaws
+private theorem shiftLaws
     {Field : Type uField}
     (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops) :

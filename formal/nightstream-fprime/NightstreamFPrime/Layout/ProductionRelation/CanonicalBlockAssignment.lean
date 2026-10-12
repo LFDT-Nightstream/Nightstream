@@ -243,7 +243,7 @@ def entryStart (schedule : Schedule) (index : Fin schedule.length) : Nat :=
   ProductionAssignment.publicWidth +
     coordinateCount (schedule.take index.val)
 
-def entryFits {logicalWidth : Nat} (schedule : Schedule)
+theorem entryFits {logicalWidth : Nat} (schedule : Schedule)
     (scheduleFits : ProductionAssignment.publicWidth +
       coordinateCount schedule ≤ logicalWidth)
     (index : Fin schedule.length) :

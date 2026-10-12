@@ -45,12 +45,6 @@ theorem piRlcBatchForProbe_eq_piRlcBatch (proof : Proof Extension Commitment sha
     piRlcBatchForProbe key running fresh (key.piCcsProbe running fresh proof) =
       PaperSecurityComposition.piRlcBatch key running fresh proof := rfl
 
-/-- Two different transcripts from one source statement have the same Phi.
-This pointwise equality also covers aborted-run conditional applications. -/
-theorem piRlcBatchForProbe_same_phi (left right : Probe Extension shape) :
-    PiRLC.phi (piRlcBatchForProbe key running fresh left).inputs =
-      PiRLC.phi (piRlcBatchForProbe key running fresh right).inputs := rfl
-
 /-- Reindex the weak extractor's returned vector into PiCCS source order. -/
 def outputWitnessOfAssignments
     (values : Fin key.arity.total → PaperLinearAlgebra.Assignment F columns) :

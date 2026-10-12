@@ -45,7 +45,7 @@ def evalChallenges
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
-    (interface : Formal.Interface logicalWidth publicFits)
+    (_interface : Formal.Interface logicalWidth publicFits)
     (offset : Nat) (env : Env) :
     Fin Nifs.PaperProfile.arity.total → RingF :=
   fun source position =>

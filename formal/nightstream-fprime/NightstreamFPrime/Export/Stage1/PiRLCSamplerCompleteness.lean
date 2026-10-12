@@ -113,7 +113,7 @@ def sourceInterface (source : Nat) : Sampler.Logical.Interface :=
 def sourceOffset (source : Nat) : Nat :=
   SamplerChain.Logical.sourceOffset PiRLCStarts.samplerLogicalStart source
 
-private def sourceInputs (source : Nat) :
+private theorem sourceInputs (source : Nat) :
     ∀ current, Sampler.InputsAffine (sourceInterface source) current :=
   SamplerChain.childInputs chainInterface PiRLCStarts.samplerLogicalStart
     (PiRLCInputs.samplerInputs (logicalWidth := Data.logicalWidth)

@@ -363,7 +363,7 @@ private theorem indexedLaneFreshCountSum
         rw [← listSumOfFn]
         exact laneFreshCountSum
       rw [laneSum]
-      simp [Nat.mul_assoc, Nat.mul_comm, Nat.mul_left_comm]
+      simp [Nat.mul_assoc]
 
 theorem physicalFreshColumnCountEqProduction
     {blockCount cellCount : Nat} [NeZero cellCount]
@@ -386,6 +386,6 @@ theorem physicalFreshColumnCountEqProduction
     NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationStep.privateCount
     ringDegree
   rw [show 8100 = 54 * 150 by rfl]
-  simp [Nat.mul_assoc, Nat.mul_comm, Nat.mul_left_comm]
+  simp [Nat.mul_assoc, Nat.mul_comm]
 
 end NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep

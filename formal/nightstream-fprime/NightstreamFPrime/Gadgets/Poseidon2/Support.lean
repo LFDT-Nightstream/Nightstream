@@ -467,8 +467,7 @@ theorem hashCompile_supported (start : Nat) (input : List Expr)
     rfl
   have absorbedLength : absorbed.recipes.length =
       (Hash.inputChunks input).length * 1096 := by
-    simpa [absorbed, blocks] using Hash.compileAbsorptions_recipes_length
-      start Hash.zeroE (Hash.inputChunks input)
+    simp [absorbed, blocks]
   have zeroSupported : StateSupported Hash.zeroE allowed := by
     intro lane
     trivial

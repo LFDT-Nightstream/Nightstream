@@ -245,7 +245,7 @@ private theorem checkInvocation_sound (block : Poseidon.Block) {columns : Nat}
           else false) 0 150 = true := by
         simpa only [checkInvocation, loaded] using checked
       have rowChecked := allFrom_sound _ 0 150 allRows row.val (by omega) (by
-        simpa using row.isLt)
+        simp)
       simpa only [PiDECPoseidonNumericBlock.row?,
         PiDECPoseidonNumericBlock.loadRow?_encodeProd, loaded,
         Option.map_some, checkRow, ofFn_get, dif_pos row.isLt] using rowChecked
@@ -268,7 +268,7 @@ theorem checkBlock_sound (block : MatrixProgram.Block) {columns : Nat}
       let index : Fin (block.invocationCount * 150) := ⟨row, bounded⟩
       let pair := Fin.decodeProd index
       have invocationChecked := allFrom_sound _ 0 block.invocationCount checked
-        pair.1.val (by omega) (by simpa using pair.1.isLt)
+        pair.1.val (by omega) (by simp)
       have selected : checkInvocation block read pair.1 = true := by
         simpa only [dif_pos pair.1.isLt] using invocationChecked
       have rowChecked := checkInvocation_sound block read pair.1 selected pair.2

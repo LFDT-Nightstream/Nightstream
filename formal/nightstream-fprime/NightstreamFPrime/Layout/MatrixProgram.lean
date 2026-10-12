@@ -148,7 +148,7 @@ private def fixedState16 {Alpha : Type}
   fun lane =>
     [lane0, lane1, lane2, lane3, lane4, lane5, lane6, lane7,
       lane8, lane9, lane10, lane11, lane12, lane13, lane14, lane15].get
-      ⟨lane.val, by simpa using lane.isLt⟩
+      ⟨lane.val, by simp⟩
 
 /-- Reconstruct one Poseidon2 external-layer output from sixteen consecutive
 retained final-round S-box slots. -/

@@ -68,7 +68,7 @@ theorem lowering?_isSome (index : Fin PiCCSActionPayloadBlock.payloadCount) :
   dsimp only
   cases checked : SourceCompiler.combinationBoundedDecidable
       Spartan.SourceColumnCount lowered.combination with
-  | isTrue proof => simp only [checked]; rfl
+  | isTrue proof => simp only []; rfl
   | isFalse rejected => exact False.elim (rejected bounded)
 
 def lowering (index : Fin PiCCSActionPayloadBlock.payloadCount) :

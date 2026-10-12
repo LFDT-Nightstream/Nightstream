@@ -211,7 +211,7 @@ def canonicalInput (chain : HashChain) (env : Circuit.Env)
   let previous := previousValue output invocation
   if invocation.val < chain.absorbCount then
     fun lane =>
-      if rateLane : lane.val < Spec.Poseidon2.rate then
+      if _rateLane : lane.val < Spec.Poseidon2.rate then
         let offset := invocation.val * Spec.Poseidon2.rate + lane.val
         if offset < chain.inputLength then
           previous lane + env (chain.inputStart + offset)
@@ -295,7 +295,7 @@ theorem priorInputState_eval
         have pilotPresent : offset < PilotData.priorChain.inputLength := by
           simpa [Data.priorChain, Data.liftPilotChain] using present
         rw [if_pos pilotPresent]
-        simp only [SparseLayer.evalState, SparseForm.add_eval]
+        simp only [SparseForm.add_eval]
         rw [show
             (PilotPoseidonPlan.previousOutput
               (PilotPoseidonPlan.priorSchedule program)
@@ -327,7 +327,7 @@ theorem priorInputState_eval
     rw [if_neg pilotFinal]
     by_cases zeroLane : lane.val = 0
     · rw [if_pos zeroLane, if_pos zeroLane]
-      simp only [SparseLayer.evalState, SparseForm.add_eval,
+      simp only [SparseForm.add_eval,
         SparseForm.singleton_eval, one, mul_one]
       rw [show
           (PilotPoseidonPlan.previousOutput
@@ -381,7 +381,7 @@ theorem outputInputState_eval
         have pilotPresent : offset < PilotData.outputChain.inputLength := by
           simpa [Data.outputChain, Data.liftPilotChain] using present
         rw [if_pos pilotPresent]
-        simp only [SparseLayer.evalState, SparseForm.add_eval]
+        simp only [SparseForm.add_eval]
         rw [show
             (PilotPoseidonPlan.previousOutput
               (PilotPoseidonPlan.outputSchedule program)
@@ -413,7 +413,7 @@ theorem outputInputState_eval
     rw [if_neg pilotFinal]
     by_cases zeroLane : lane.val = 0
     · rw [if_pos zeroLane, if_pos zeroLane]
-      simp only [SparseLayer.evalState, SparseForm.add_eval,
+      simp only [SparseForm.add_eval,
         SparseForm.singleton_eval, one, mul_one]
       rw [show
           (PilotPoseidonPlan.previousOutput

@@ -17,19 +17,16 @@ pub(crate) fn prove(
     structure: &Structure,
     rows: &dyn MatrixRows,
     workspace_bytes: usize,
-    fresh: Vec<CcsInstance>,
+    fresh: CcsInstance,
     running: RunningInstance,
 ) -> Result<(RunningInstance, NifsProof), folding::Error> {
-    let (claims, witnesses): (Vec<_>, Vec<_>) = fresh
-        .into_iter()
-        .map(|source| (source.claim, source.witness))
-        .unzip();
+    let CcsInstance { claim, witness } = fresh;
     let (outputs, sumcheck, _, _) = optimized_prove_with_matrix_rows(
         transcript.inner_mut(),
         params.inner(),
         structure,
-        &claims,
-        &witnesses,
+        std::slice::from_ref(&claim),
+        std::slice::from_ref(&witness),
         &running.claims,
         &running.witnesses,
         rows,
@@ -39,9 +36,7 @@ pub(crate) fn prove(
     .map_err(folding::kernels::Error::from)
     .map_err(pi_ccs::Error::from)?;
     let c = pi_ccs::Proof { outputs, sumcheck };
-    let sources: Vec<_> = witnesses
-        .iter()
-        .map(|witness| &witness.Z)
+    let sources: Vec<_> = std::iter::once(&witness.Z)
         .chain(running.witnesses.iter())
         .collect();
     // The parent witness stays on the device; only its PiDEC digits return.
@@ -58,7 +53,7 @@ pub(crate) fn prove(
         )?
     };
     drop(sources);
-    drop(witnesses);
+    drop(witness);
     drop(running);
     let (digits, flags) = split
         .map_err(folding::kernels::Error::from)
@@ -92,7 +87,7 @@ pub(crate) fn prove(
     let d = pi_dec::Proof { children };
     let children = pi_dec::verify(params, structure, ajtai_dec_mixer, &parent, &d)?;
     Ok((
-        RunningInstance::new(children, digits, Some(parent)),
+        RunningInstance::new(children, digits),
         NifsProof {
             pi_ccs: c,
             pi_rlc: r,

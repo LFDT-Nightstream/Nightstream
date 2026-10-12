@@ -47,54 +47,11 @@ theorem preimage_length (priorState message : List F)
 def step (priorState message : List F) : List F :=
   Poseidon2.hash (preimage priorState message)
 
-private theorem externalLayer_length (state : Poseidon2.State) :
-    (Poseidon2.externalLayer state).length = Poseidon2.width := by
-  simp [Poseidon2.externalLayer]
-
-private theorem internalLayer_length (state : Poseidon2.State) :
-    (Poseidon2.internalLayer state).length = Poseidon2.width := by
-  simp [Poseidon2.internalLayer]
-
-private theorem fullRound_length (rows : List (List Nat)) (round : Nat)
-    (state : Poseidon2.State) :
-    (Poseidon2.fullRound rows round state).length = Poseidon2.width := by
-  exact externalLayer_length _
-
-private theorem partialRound_length (round : Nat) (state : Poseidon2.State) :
-    (Poseidon2.partialRound round state).length = Poseidon2.width := by
-  exact internalLayer_length _
-
-private theorem rounds_length (roundStep : Nat → Poseidon2.State →
-    Poseidon2.State)
-    (stepLength : ∀ round state,
-      (roundStep round state).length = Poseidon2.width)
-    (rounds : List Nat) (state : Poseidon2.State)
-    (stateLength : state.length = Poseidon2.width) :
-    (rounds.foldl (fun current round => roundStep round current) state).length =
-      Poseidon2.width := by
-  induction rounds generalizing state with
-  | nil => exact stateLength
-  | cons round rest inductionHypothesis =>
-      exact inductionHypothesis _ (stepLength round state)
-
-private theorem permute_length (state : Poseidon2.State) :
-    (Poseidon2.permute state).length = Poseidon2.width := by
-  unfold Poseidon2.permute Poseidon2.rounds
-  apply rounds_length
-  · exact fullRound_length Poseidon2.terminalConstants
-  · apply rounds_length
-    · exact partialRound_length
-    · apply rounds_length
-      · exact fullRound_length Poseidon2.initialConstants
-      · exact externalLayer_length state
-
 theorem step_output_length (priorState message : List F) :
     (step priorState message).length = Application.stateWordCount := by
-  unfold step Poseidon2.hash
-  dsimp only
-  rw [List.length_take, permute_length]
-  norm_num [Poseidon2.digestLen, Poseidon2.width,
-    Application.stateWordCount]
+  unfold step
+  rw [Poseidon2.hash_length]
+  rfl
 
 def inputExpressions (interface : Application.Interface messageWordCount)
     (offset : Nat) : List Expr :=

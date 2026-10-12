@@ -24,7 +24,7 @@ def rowCount : Nat := chainCount * laneCount
 
 @[simp] theorem rowCount_eq : rowCount = 8 := by rfl
 
-def poseidonGeometry {program : Lifecycle.Stage1.Application.Program}
+theorem poseidonGeometry {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth) :
     PiRLCPoseidonGeometry.Geometry program logicalWidth where

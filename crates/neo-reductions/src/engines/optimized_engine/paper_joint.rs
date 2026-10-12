@@ -13,7 +13,7 @@ use crate::engines::pi_ccs_joint::{
     equality, eval_a_gamma_exponent, eval_k_gamma_exponent, gamma_power, range_product, JointDims, ProtocolTrace,
     TerminalComponents,
 };
-use crate::engines::pi_ccs_joint_protocol::{self, PaperJointRoundOracle, TranscriptBinding, V1_2OutputOpening};
+use crate::engines::pi_ccs_joint_protocol::{self, PaperJointRoundOracle, V1_2OutputOpening};
 use crate::engines::pi_ccs_protocol::{Challenges, PiCcsProof};
 use crate::error::PiCcsError;
 use crate::superneo_eval::{CachedMatrixRows, MatrixRows, MatrixWindow, SuperneoEvalCache};
@@ -359,7 +359,6 @@ fn prove_with_trace_inner(
     fresh_witnesses: &[CcsWitness<F>],
     running_claims: &[CeClaim<Cmt, F, K>],
     running_witnesses: &[Mat<F>],
-    binding: TranscriptBinding,
     source: OracleSource<'_>,
 ) -> Result<
     (
@@ -417,8 +416,6 @@ fn prove_with_trace_inner(
         structure,
         fresh_claims,
         running_claims,
-        binding,
-        cache.map(OptimizedStructureCache::matrix_digest),
     )?;
     let bind_ms = bind_started.elapsed().as_secs_f64() * 1_000.0;
     let prior_point = crate::engines::utils::shared_me_input_r(running_claims, dims.variables)?;
@@ -581,7 +578,6 @@ pub(crate) fn prove_with_trace<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     running_witnesses: &[Mat<F>],
     _commitment: &L,
     cache: &OptimizedStructureCache,
-    binding: TranscriptBinding,
 ) -> Result<
     (
         Vec<CeClaim<Cmt, F, K>>,
@@ -599,7 +595,6 @@ pub(crate) fn prove_with_trace<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         fresh_witnesses,
         running_claims,
         running_witnesses,
-        binding,
         OracleSource::Cached { cache, backend: None },
     )
 }
@@ -626,41 +621,12 @@ pub fn prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         running_witnesses,
         commitment,
         cache,
-        TranscriptBinding::digest_only(),
     )?;
     Ok((outputs, proof, perf))
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn prove_with_binding<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
-    transcript: &mut Poseidon2Transcript,
-    params: &neo_params::NeoParams,
-    structure: &CcsStructure<F>,
-    fresh_claims: &[CcsClaim<Cmt, F>],
-    fresh_witnesses: &[CcsWitness<F>],
-    running_claims: &[CeClaim<Cmt, F, K>],
-    running_witnesses: &[Mat<F>],
-    commitment: &L,
-    cache: &OptimizedStructureCache,
-    binding: TranscriptBinding,
-) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, super::PiCcsProvePerf), PiCcsError> {
-    let (outputs, proof, perf, _) = prove_with_trace(
-        transcript,
-        params,
-        structure,
-        fresh_claims,
-        fresh_witnesses,
-        running_claims,
-        running_witnesses,
-        commitment,
-        cache,
-        binding,
-    )?;
-    Ok((outputs, proof, perf))
-}
-
-#[allow(clippy::too_many_arguments)]
-pub fn prove_with_binding_and_backend<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
+pub fn prove_with_backend<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     transcript: &mut Poseidon2Transcript,
     params: &neo_params::NeoParams,
     structure: &CcsStructure<F>,
@@ -670,7 +636,6 @@ pub fn prove_with_binding_and_backend<L: neo_ccs::traits::SModuleHomomorphism<F,
     running_witnesses: &[Mat<F>],
     _commitment: &L,
     cache: &OptimizedStructureCache,
-    binding: TranscriptBinding,
     backend: &mut dyn PaperJointOracleBackend,
 ) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, super::PiCcsProvePerf), PiCcsError> {
     let (outputs, proof, perf, _) = prove_with_trace_inner(
@@ -681,7 +646,6 @@ pub fn prove_with_binding_and_backend<L: neo_ccs::traits::SModuleHomomorphism<F,
         fresh_witnesses,
         running_claims,
         running_witnesses,
-        binding,
         OracleSource::Cached {
             cache,
             backend: Some(backend),
@@ -722,7 +686,6 @@ pub fn prove_with_complete_oracle(
         fresh_witnesses,
         running_claims,
         running_witnesses,
-        TranscriptBinding::digest_only(),
         OracleSource::Complete {
             oracle,
             challenges: prepared,
@@ -852,7 +815,6 @@ pub fn prove_with_matrix_rows<'a>(
         fresh_witnesses,
         running_claims,
         running_witnesses,
-        TranscriptBinding::digest_only(),
         OracleSource::Rows {
             rows,
             workspace_bytes,

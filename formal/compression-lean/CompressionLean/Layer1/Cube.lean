@@ -1,4 +1,6 @@
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
+import Mathlib.Algebra.BigOperators.Ring.Finset
+import Mathlib.Algebra.BigOperators.Group.Finset.Sigma
 import Mathlib.Algebra.Ring.Basic
 import Mathlib.Tactic.Ring
 import Mathlib.Tactic.Abel
@@ -368,6 +370,17 @@ theorem mle_finset_sum {ι : Type} (p : List K) (T : Finset ι) (f : ι → ℕ 
   | insert a T notin ih =>
       simp only [Finset.sum_insert notin]
       rw [mle_add, ih]
+
+/-- Nested extensions commute. -/
+theorem mle_swap (p q : List K) (t : ℕ → ℕ → K) :
+    mle p (fun l => mle q (fun b => t l b)) = mle q (fun b => mle p (fun l => t l b)) := by
+  simp only [mle_eq_cubeSum, cubeSum_eq_sum_range, Finset.mul_sum]
+  rw [Finset.sum_comm]
+  apply Finset.sum_congr rfl
+  intro b _
+  apply Finset.sum_congr rfl
+  intro l _
+  ring
 
 end Lemmas
 

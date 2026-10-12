@@ -8,7 +8,8 @@ the five early challenges, the batched early GKR over the norm, lookup and
 scatter trees, the early values and the early checks.
 
 Public values the verifier computes (identity, `χ_r`, the matrix step) are
-taken at their definitions here; `ClosedForms` proves the `mle.rs` formulas.
+taken at their definitions here. The `mle.rs` formulas for them are not
+proved equal to these definitions.
 -/
 
 namespace CompressionLean.Layer1

@@ -47,6 +47,7 @@ Definition memories : list MemorySpec :=
 Definition localLoId : nat := 5%nat.
 Definition stackId : nat := 0%nat.
 Definition programOpcodeId : nat := 11%nat.
+Definition programLocalIndexId : nat := 12%nat.
 Definition pcEdgeKindId : nat := 29%nat.
 Definition pcRomId : nat := 38%nat.
 

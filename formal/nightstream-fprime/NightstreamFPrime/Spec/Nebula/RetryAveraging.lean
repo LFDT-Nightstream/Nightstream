@@ -92,8 +92,8 @@ theorem retry_frequency {bound : ℕ}
 
 /-- The uniqueness adversary of SuperNeo v1.2 Appendix B makes one call and,
 after an erroneous call, repeats calls until one succeeds. This is the
-arithmetic step of its call count: `1 + #Err/#Succ ≤ 2`, because every
-erroneous call is a successful call (`errors_subset_successes`). The retry
+arithmetic step of its call count: `1 + #Err/#Succ ≤ 2`, because `Err` is the
+part of `Succ` with a bad result (`errors_subset_successes`). The retry
 process itself is not modelled here. -/
 theorem retry_expected_calls :
     (1 : ℚ≥0) + ((errors play bad).card : ℚ≥0) / (successes play).card ≤ 2 := by

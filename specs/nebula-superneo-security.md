@@ -62,8 +62,10 @@ extraction term. The trunk computes both with
 `NeoParams::padded_row_security_summary_for_shape` at the largest fresh count
 that the PiRLC guard allows, `K = 287`: `f_fold = 5,161` and `f_fork = 304`.
 F′ folds one fresh claim, and for `K = 1` Lean proves the numerator `4589`
-(`VerifierErrorBudget.test_error_eq`). So 5,161 and 304 are conservative.
-v1.2's `ε_uniq` reduces to relaxed binding of `L_full` (A2).
+(`VerifierErrorBudget.test_error_eq`), so 5,161 is conservative. The fork
+numerator `K + k_rho + 1` of the Rust summary grows with `K` (18 at `K = 1`),
+so 304 is conservative too. v1.2's `ε_uniq` reduces to relaxed binding of
+`L_full` (A2).
 
 **A2 (Module-SIS binding).** `L_full` is `(2B, C)`-relaxed binding at the main
 level, as SuperNeo v1.2 §7 requires. Its key comes from the SHAKE128 expander,
@@ -103,20 +105,22 @@ application's validity predicate (`HyperNovaHistory.ValidAdvice`).
 
 Here the bound is `S_max · N`: the theorem covers an adversary whose every
 output, accepted or not, has at most `S_max · N` steps (Lean `depthBound`). An
-adversary with longer outputs reduces to this case. Its clamped form
-(`NebulaMemorySecurity.clamp`, with bound `S_max · N`) has the same tape and
-replaces each longer output by the same output at iteration 0. It meets the
-bound (`clamp_depthBound`). It adds no accepted output
-(`clamp_output_of_checks`), and it keeps every output of the adversary that
-the memory verifier accepts (`clamp_output_of_adversary_checks`). The clamped
-form must be admitted as an adversary of A4: its start stage is admitted
-(`StageAdmitted (Stage.start …)`), as for any adversary of `bad_le`. Stage 2
-adds no field to the state preimage: the carry is in the application-state
-digest (spec §11.1). So the Stage 1 Property 6, fixed-point, and domain
-theorems apply to the memory application's package. Definition 12 is stated
-for arity `(1, 1)`, and F′ folds one fresh claim with 16 running children. So
-Stage 1 must also adapt the lemma to that arity. The lemma gives no concrete
-extractor time. That bound is also open for Stage 1.
+adversary with longer outputs reduces to this case through its clamped form
+(`NebulaMemorySecurity.clamp`): the same tape, with each longer output
+replaced by the same output at iteration 0. The clamp meets the bound
+(`clamp_depthBound`). On each tape, the clamped output passes the memory
+verifier exactly when the adversary's output does, and the two are then equal
+(`clamp_output_of_checks`, `clamp_output_of_adversary_checks`). So
+`bad_le_clamp` bounds the bad mass of the adversary's own outputs by the bound
+of `bad_le` for the clamped form at depth `S_max · N`. Its premise is that the
+clamped form's start stage is admitted (`StageAdmitted (Stage.start …)`), as
+for any adversary of `bad_le`. Stage 2 adds no field to the state preimage:
+the carry is in the application-state digest (spec §11.1). So the Stage 1
+Property 6, fixed-point, and domain theorems apply to the memory application's
+package. Definition 12 is stated for arity `(1, 1)`, and F′ folds one fresh
+claim with 16 running children. So Stage 1 must also adapt the lemma to that
+arity. The lemma gives no concrete extractor time. That bound is also open for
+Stage 1.
 
 **A5 (Field facts).** `q` is prime, and 7 is a quadratic nonresidue modulo
 `q`. Then `𝕂 = F[U]/(U² − 7)` is a field of size `q²`, and `F → 𝕂` is
@@ -445,8 +449,10 @@ In Lean, this is `NebulaMemorySecurity.bad_le` (§7 item 5). It holds for
 every application with a port interface whose memory program fits `2^28`,
 for every commitment setup and every valid plan. Its premises are A4
 (`Assumption1`, `Closed`, and an admitted start stage), the step bound
-(`depthBound`), and A6 (`MemoryRound`). For an adversary with longer outputs,
-apply it to the clamped form with `depth = S_max · N` (A4).
+(`depthBound`), and A6 (`MemoryRound`). For an adversary whose outputs can be
+longer, `NebulaMemorySecurity.bad_le_clamp` gives the same bound on the
+adversary's own outputs, with `depth = S_max · N`, if its clamped form is
+admitted (A4).
 
 **Symbolic values.** The owner has set no adversary time `t` and no query
 count `Q` (decision 2026-10-12), so each term stays a formula:
@@ -468,16 +474,18 @@ count `Q` (decision 2026-10-12), so each term stays a formula:
 - `error_mem` has the target value `(Q_η + 1)·(2·m_mem/q² + ε_coll(t_1))` (A6).
 
 **Depth limit, shared with Stage 1.** The sum has one Assumption 1 term for
-each reverse stage, and the extractor of stage `j + 1` can rerun stage `j`.
-If it reruns its adversary as the random-oracle extractor does,
+each reverse stage, and the extractor of stage `j + 1` can rerun stage `j`. If
+it reruns its adversary as the random-oracle extractor does,
 `Q_{j+1} ≈ 17·Q_j²`. Then `(Q_j + 74)·ε_fold` is above 1 at `j = 1` when
-`Q_0 = 2^64`, and at `j = 2` when `Q_0 = 2^30` (`SECURITY_MODEL.md`, trust item
-4). A memory run has `T = S·N` folds. So, with these values, this bound gives
-no concrete security for a run of two or more folds when `Q_0 = 2^64`, or of
-three or more folds when `Q_0 = 2^30`. The A6 term grows in the same way:
-its adversary is the last reverse stage, so its `Q_η` counts the queries of
-every rerun. The Lean statement is correct for every depth. A useful number
-needs a Stage 1 argument whose error does not grow in this way with the depth.
+`Q_0 = 2^64`, and at `j = 2` when `Q_0 = 2^30` (`SECURITY_MODEL.md`, trust
+item 4). The depth is the bound on the adversary's outputs: at most
+`S_max · N` with the clamp (A4), whatever the length of the accepted run. So,
+with these values, this bound gives no concrete security when the depth is 2
+or more and `Q_0 = 2^64`, or 3 or more and `Q_0 = 2^30`. The A6 term grows in
+the same way: its adversary is the last reverse stage, so its `Q_η` counts the
+queries of every rerun. The Lean statement is correct for every depth. A
+useful number needs a Stage 1 argument whose error does not grow in this way
+with the depth.
 
 **Setup check (spec §4.2 rule 6).** For the final relation shape and the plan,
 setup MUST check that `ε_test ≤ 2^−109.91`, the owner-approved floor. This
@@ -662,10 +670,10 @@ generated relation MUST supply the exact census.
      while the extracted history does not attest the claim, as in §5. The
      claim reads only the adversary's tape (`adversaryTape`). The Stage 1
      statement comes from the same tape (`input_adversaryTape`), and that
-     tape has the adversary's law (`tape_map_adversaryTape`). An adversary
-     with outputs longer than `S_max · N` steps reduces to its clamped form,
-     which must be admitted (`clamp`, `clamp_depthBound`,
-     `clamp_output_of_checks`, `clamp_output_of_adversary_checks`; A4);
+     tape has the adversary's law (`tape_map_adversaryTape`).
+     `bad_le_clamp` gives the bound for an adversary whose outputs can be
+     longer than `S_max · N` steps, on its own outputs, if its clamped form
+     (`clamp`) is admitted (A4);
    - Ob1 at the Rust boundary (`crates/nightstream/src/nebula/mod.rs`,
      `Context::terminal_states`): the verifier rejects an initial or final
      application word, or a `final_timestamp`, at or above `q` before it
@@ -696,7 +704,7 @@ generated relation MUST supply the exact census.
      gives each term as a formula in them;
    - concrete values for the end-to-end bound. With the error that PR #155
      motivates, the depth limit of §5 (shared with Stage 1) makes the bound
-     useless for runs of more than one or two folds;
+     useless when the depth `S_max · N` is more than one or two;
    - a package for a production plan, deferred to the real application
      (decision 2026-10-12). It needs: the application with a `PortApp`
      instance (a model over its state words, private words, rows, `sound`,

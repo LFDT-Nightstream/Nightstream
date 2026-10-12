@@ -7,3 +7,9 @@ import CompressionLean.Layer1.LogUp
 import CompressionLean.Layer1.Fraction
 import CompressionLean.Layer1.GkrLayer
 import CompressionLean.Layer1.Gkr
+import CompressionLean.Layer1.IdentityTest
+import CompressionLean.Layer1.Lookups
+import CompressionLean.Layer1.RingRows
+import CompressionLean.Layer1.Univariate
+import CompressionLean.Layer1.HonestFold
+import CompressionLean.Layer1.Queries

@@ -14,11 +14,13 @@ HyperNova reverse extractor's sample.
 * `MemoryRound`: security note A6 in the form of HyperNova errata
   Assumption 1, for the stages that Stage 1 admits. It is not a theorem here.
 * `adversaryTape`: the IVC adversary's tape inside a reverse stage's tape.
+* `badBound`: the right side of security note §5: the Stage 1 history terms,
+  the state-link and chain collision masses, and the A6 error.
 * `bad_le`: on the claim that the adversary's tape gives, the bad mass is at
-  most the Stage 1 history terms, the state-link and chain collision masses,
-  and the A6 error of the last stage.
-* `clamp`: an adversary whose outputs can be longer than `S_max · N` steps,
-  reduced to one that meets the step bound of `bad_le`.
+  most `badBound` at the adversary's step bound.
+* `bad_le_clamp`: the same for an adversary whose outputs can be longer than
+  `S_max · N` steps, on its own outputs, through the reverse extractor of its
+  clamped form (`clamp`), if that clamped form is admitted.
 
 Does not own: numerical values, collision resistance of Poseidon2, or the
 running time of an admitted adversary.
@@ -124,16 +126,23 @@ structure ClaimedStage where
   stage : Stage (MemoryApp.program p app) fits setup
   claim : stage.Tape → MemoryStatement app.width
 
+/-- On stage tape `tape`, the claim and one reverse sample for terminal input
+`x`: the reverse program runs on `x` and reads the stage's source returns from
+`x`'s iteration. -/
+noncomputable def ClaimedStage.sampleAt (c : ClaimedStage app fits setup) (tape : c.stage.Tape)
+    (x : HyperNovaHistory.Statement × HyperNovaHistory.Envelope (MemoryApp.program p app)) :
+    PMF (Sample app) :=
+  (HyperNovaHistoryLaw.law (MemoryApp.program p app) fits
+    (HyperNovaVisitedLaw.listSource (MemoryApp.program p app) x.1.iteration (c.stage.results tape))
+    (PMF.pure x)).map fun s => (c.claim tape, s)
+
 /-- The joint law of the claim and a reverse sample whose terminal input is
-`input tape`, with the source returns of the stage. -/
+`input tape`. -/
 noncomputable def ClaimedStage.lawAt (c : ClaimedStage app fits setup)
     (input : c.stage.Tape →
       HyperNovaHistory.Statement × HyperNovaHistory.Envelope (MemoryApp.program p app)) :
     PMF (Sample app) :=
-  c.stage.tape.bind fun tape =>
-    (HyperNovaHistoryLaw.law (MemoryApp.program p app) fits
-      (HyperNovaVisitedLaw.listSource (MemoryApp.program p app) (c.stage.input tape).1.iteration
-        (c.stage.results tape)) (PMF.pure (input tape))).map fun s => (c.claim tape, s)
+  c.stage.tape.bind fun tape => ClaimedStage.sampleAt app fits setup c tape (input tape)
 
 /-- The joint law of the claim and the reverse sample. -/
 noncomputable def ClaimedStage.law (c : ClaimedStage app fits setup) : PMF (Sample app) :=
@@ -145,7 +154,7 @@ theorem ClaimedStage.law_snd (c : ClaimedStage app fits setup) :
   rw [ClaimedStage.law, ClaimedStage.lawAt, PMF.map_bind, Stage.reverseLaw]
   congr 1
   funext tape
-  rw [PMF.map_comp]
+  rw [ClaimedStage.sampleAt, PMF.map_comp]
   exact PMF.map_id _
 
 /-- Security note A6 for the memory round, in the form of HyperNova errata
@@ -165,6 +174,26 @@ def MemoryRound (StageAdmitted : Stage (MemoryApp.program p app) fits setup → 
     (c.law.toOuterMeasure {s | (experiment app fits).Unbalanced app s}).toReal ≤ error c
 
 /-! ## The end-to-end bound -/
+
+/-- The samples of security note §5: the memory verifier accepts (Stage 1
+terminal and spec §13 checks), but the extracted history does not attest the
+claim. -/
+def badSamples : Set (Sample app) :=
+  {s | (experiment app fits).Bad app (fun s => Accepted (MemoryApp.program p app) fits setup s.2) s}
+
+/-- The right side of security note §5 for the reverse stages `stage` run to
+`depth`, the claimed stage `c`, and its A6 error `memoryError`: the Stage 1
+history terms, the state-link and chain collision masses, and the A6 error. -/
+noncomputable def badBound (error : NifsAdversary (MemoryApp.program p app) fits setup → ℝ)
+    (stage : ℕ → Stage (MemoryApp.program p app) fits setup) (depth : ℕ)
+    (c : ClaimedStage app fits setup) (memoryError : ℝ) : ℝ :=
+  ∑ j : Fin depth,
+      (((stage j.val).tape.toOuterMeasure
+          {tape | MarkedHashCollision (MemoryApp.program p app) fits setup ((stage j.val).visit tape)}).toReal +
+        error (stage j.val).nifs) +
+    (c.law.toOuterMeasure {s | (experiment app fits).StateLinkCollision app s}).toReal +
+    (c.law.toOuterMeasure {s | (experiment app fits).ChainCollision app s}).toReal +
+    memoryError
 
 variable {Admitted : NifsAdversary (MemoryApp.program p app) fits setup → Prop}
   {StageAdmitted : Stage (MemoryApp.program p app) fits setup → Prop}
@@ -225,17 +254,10 @@ theorem bad_le (valid : p.Valid) (depth : ℕ)
     (round : MemoryRound app fits setup StageAdmitted memoryError) :
     let c : ClaimedStage app fits setup :=
       ⟨(stages depth).1, claim ∘ adversaryTape app fits setup assumption closed adversary admitted depth⟩
-    (c.law.toOuterMeasure {s | (experiment app fits).Bad app
-        (fun s => Accepted (MemoryApp.program p app) fits setup s.2) s}).toReal ≤
-      ∑ j : Fin depth,
-          (((stages j.val).1.tape.toOuterMeasure
-              {tape | MarkedHashCollision (MemoryApp.program p app) fits setup
-                ((stages j.val).1.visit tape)}).toReal +
-            error (stages j.val).1.nifs) +
-        (c.law.toOuterMeasure {s | (experiment app fits).StateLinkCollision app s}).toReal +
-        (c.law.toOuterMeasure {s | (experiment app fits).ChainCollision app s}).toReal +
-        memoryError c := by
+    (c.law.toOuterMeasure (badSamples app fits setup)).toReal ≤
+      badBound app fits setup error (fun j => (stages j).1) depth c (memoryError c) := by
   intro c
+  rw [badBound]
   have cover := EndToEnd.bad_le_sum valid (stage1Extraction app fits setup) c.law
   have failure : c.law.toOuterMeasure {s | Failure app fits setup s} =
       (stages depth).1.reverseLaw.toOuterMeasure
@@ -267,34 +289,21 @@ def clampOutput (bound : ℕ)
     HyperNovaHistory.Statement × HyperNovaHistory.Envelope (MemoryApp.program p app) :=
   if output.1.iteration ≤ bound then output else ({ output.1 with iteration := 0 }, output.2)
 
-/-- The adversary on its own tape with clamped outputs. The memory verifier
-rejects iteration `0`, so the clamp adds no accepted output
-(`clamp_output_of_checks`); with `S_max · N ≤ bound` it keeps every accepted
-output (`clamp_output_of_adversary_checks`). `bad_le_clamp` uses it to bound an
-adversary whose outputs can be longer than `S_max · N` steps, if the clamped
-adversary's start stage is admitted. -/
-def clamp (bound : ℕ) : IvcAdversary (MemoryApp.program p app) fits setup :=
-  { adversary with output := clampOutput app bound ∘ adversary.output }
-
-/-- The clamped adversary meets the step bound of `bad_le`. -/
-theorem clamp_depthBound (bound : ℕ) :
-    ∀ tape ∈ (clamp app fits setup adversary bound).tape.support,
-      ((clamp app fits setup adversary bound).output tape).1.iteration ≤ bound := by
-  intro tape _
-  show (clampOutput app bound (adversary.output tape)).1.iteration ≤ bound
+/-- A clamped output has at most `bound` steps. -/
+theorem clampOutput_iteration_le (bound : ℕ)
+    (x : HyperNovaHistory.Statement × HyperNovaHistory.Envelope (MemoryApp.program p app)) :
+    (clampOutput app bound x).1.iteration ≤ bound := by
   unfold clampOutput
   split
   · assumption
   · exact Nat.zero_le bound
 
-/-- An output of the clamped adversary that passes the spec §13 checks is the
-adversary's own output: the clamp adds no accepted output. -/
-theorem clamp_output_of_checks (valid : p.Valid) (bound : ℕ) (tape : adversary.Tape)
-    {m : MemoryStatement app.width}
-    (checks : EndToEnd.VerifierChecks p ((clamp app fits setup adversary bound).output tape).1 m) :
-    (clamp app fits setup adversary bound).output tape = adversary.output tape := by
-  change EndToEnd.VerifierChecks p (clampOutput app bound (adversary.output tape)).1 m at checks
-  show clampOutput app bound (adversary.output tape) = adversary.output tape
+/-- A clamped output that passes the spec §13 checks is unchanged: the memory
+verifier rejects iteration `0`. -/
+theorem clampOutput_eq_of_checks (valid : p.Valid) (bound : ℕ)
+    (x : HyperNovaHistory.Statement × HyperNovaHistory.Envelope (MemoryApp.program p app))
+    {m : MemoryStatement app.width} (checks : EndToEnd.VerifierChecks p (clampOutput app bound x).1 m) :
+    clampOutput app bound x = x := by
   unfold clampOutput at checks ⊢
   split at checks
   · rw [if_pos ‹_›]
@@ -302,95 +311,94 @@ theorem clamp_output_of_checks (valid : p.Valid) (bound : ℕ) (tape : adversary
     have : 0 < m.segments * p.n := Nat.mul_pos checks.terminal.segmentsRange.1 valid.positive.2.2.1
     omega
 
-/-- With `S_max · N ≤ bound`, an output of the adversary that passes the spec
-§13 checks is also the clamped adversary's output: the clamp keeps every
-accepted output. -/
-theorem clamp_output_of_adversary_checks (bound : ℕ) (below : p.sMax * p.n ≤ bound)
-    (tape : adversary.Tape) {m : MemoryStatement app.width}
-    (checks : EndToEnd.VerifierChecks p (adversary.output tape).1 m) :
-    (clamp app fits setup adversary bound).output tape = adversary.output tape := by
-  have short : (adversary.output tape).1.iteration ≤ bound := by
+/-- With `S_max · N ≤ bound`, an output that passes the spec §13 checks is
+unchanged by the clamp. -/
+theorem clampOutput_eq_of_input_checks (bound : ℕ) (below : p.sMax * p.n ≤ bound)
+    (x : HyperNovaHistory.Statement × HyperNovaHistory.Envelope (MemoryApp.program p app))
+    {m : MemoryStatement app.width} (checks : EndToEnd.VerifierChecks p x.1 m) :
+    clampOutput app bound x = x := by
+  have short : x.1.iteration ≤ bound := by
     rw [checks.terminal.stepCount]
     exact (Nat.mul_le_mul_right p.n checks.terminal.segmentsRange.2).trans below
-  show clampOutput app bound (adversary.output tape) = adversary.output tape
   unfold clampOutput
   rw [if_pos short]
 
-/-- On the clamped adversary's reverse stages, the bad mass with the
-adversary's own outputs as terminal inputs equals the bad mass of the clamped
-run: on each tape the two outputs are equal when either passes the spec §13
-checks, and neither is bad otherwise. -/
+/-- The adversary on its own tape with clamped outputs. With
+`S_max · N ≤ bound`, a clamped output passes the spec §13 checks exactly when
+the adversary's output does, and the two are then equal
+(`clampOutput_eq_of_checks`, `clampOutput_eq_of_input_checks`). -/
+def clamp (bound : ℕ) : IvcAdversary (MemoryApp.program p app) fits setup :=
+  { adversary with output := clampOutput app bound ∘ adversary.output }
+
+/-- The clamped adversary meets the step bound of `bad_le`. -/
+theorem clamp_depthBound (bound : ℕ) :
+    ∀ tape ∈ (clamp app fits setup adversary bound).tape.support,
+      ((clamp app fits setup adversary bound).output tape).1.iteration ≤ bound :=
+  fun tape _ => clampOutput_iteration_le app bound (adversary.output tape)
+
+/-- On the clamped adversary's reverse stages at depth `S_max · N`, the bad
+mass with the adversary's own outputs as terminal inputs equals the bad mass
+of the clamped run: on each tape the two outputs are equal when either passes
+the spec §13 checks, and neither is bad otherwise. -/
 private theorem clamp_bad_eq (valid : p.Valid)
-    (admitted : StageAdmitted (Stage.start (clamp app fits setup adversary (p.sMax * p.n))))
-    (depth : ℕ) (claim : adversary.Tape → MemoryStatement app.width) :
+    (clampedAdmitted : StageAdmitted (Stage.start (clamp app fits setup adversary (p.sMax * p.n))))
+    (claim : adversary.Tape → MemoryStatement app.width) :
     let clamped := clamp app fits setup adversary (p.sMax * p.n)
-    let own := adversaryTape app fits setup assumption closed clamped admitted depth
+    let own := adversaryTape app fits setup assumption closed clamped clampedAdmitted (p.sMax * p.n)
     let c : ClaimedStage app fits setup :=
-      ⟨(reverseStages assumption closed clamped admitted depth).1, claim ∘ own⟩
+      ⟨(reverseStages assumption closed clamped clampedAdmitted (p.sMax * p.n)).1, claim ∘ own⟩
     (ClaimedStage.lawAt app fits setup c (adversary.output ∘ own)).toOuterMeasure
-        {s | (experiment app fits).Bad app (fun s => Accepted (MemoryApp.program p app) fits setup s.2) s} =
-      c.law.toOuterMeasure
-        {s | (experiment app fits).Bad app (fun s => Accepted (MemoryApp.program p app) fits setup s.2) s} := by
+        (badSamples app fits setup) =
+      c.law.toOuterMeasure (badSamples app fits setup) := by
   intro clamped own c
   have zero : ∀ (tape : c.stage.Tape)
       (x : HyperNovaHistory.Statement × HyperNovaHistory.Envelope (MemoryApp.program p app)),
       ¬ EndToEnd.VerifierChecks p x.1 (claim (own tape)) →
-      ((HyperNovaHistoryLaw.law (MemoryApp.program p app) fits
-        (HyperNovaVisitedLaw.listSource (MemoryApp.program p app) (c.stage.input tape).1.iteration
-          (c.stage.results tape)) (PMF.pure x)).map fun s => (c.claim tape, s)).toOuterMeasure
-        {s | (experiment app fits).Bad app (fun s => Accepted (MemoryApp.program p app) fits setup s.2) s} = 0 := by
+      (ClaimedStage.sampleAt app fits setup c tape x).toOuterMeasure (badSamples app fits setup) = 0 := by
     intro tape x no
-    rw [PMF.toOuterMeasure_map_apply, HyperNovaHistoryLaw.law, PMF.pure_bind, PMF.toOuterMeasure_map_apply]
+    rw [ClaimedStage.sampleAt, PMF.toOuterMeasure_map_apply, HyperNovaHistoryLaw.law, PMF.pure_bind,
+      PMF.toOuterMeasure_map_apply]
     convert MeasureTheory.measure_empty (μ := (HyperNovaHistoryLaw.results (MemoryApp.program p app) fits
-      (HyperNovaVisitedLaw.listSource (MemoryApp.program p app) (c.stage.input tape).1.iteration
-        (c.stage.results tape)) x.1 x.2).toOuterMeasure)
+      (HyperNovaVisitedLaw.listSource (MemoryApp.program p app) x.1.iteration (c.stage.results tape))
+      x.1 x.2).toOuterMeasure)
     ext r
-    simp only [Set.mem_preimage, Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false]
+    simp only [badSamples, Set.mem_preimage, Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false]
     exact fun bad => no bad.2.1
   rw [ClaimedStage.law, ClaimedStage.lawAt, ClaimedStage.lawAt, PMF.toOuterMeasure_bind_apply,
     PMF.toOuterMeasure_bind_apply]
   congr 1
   funext tape
   congr 1
-  have input : c.stage.input tape = clamped.output (own tape) :=
-    input_adversaryTape app fits setup assumption closed clamped admitted depth tape
-  rw [show (adversary.output ∘ own) tape = adversary.output (own tape) from rfl]
-  by_cases same : clamped.output (own tape) = adversary.output (own tape)
-  · rw [input, same]
+  have input : c.stage.input tape = clampOutput app (p.sMax * p.n) (adversary.output (own tape)) :=
+    input_adversaryTape app fits setup assumption closed clamped clampedAdmitted (p.sMax * p.n) tape
+  rw [show (adversary.output ∘ own) tape = adversary.output (own tape) from rfl, input]
+  by_cases same : clampOutput app (p.sMax * p.n) (adversary.output (own tape)) = adversary.output (own tape)
+  · rw [same]
   · rw [zero tape _ (fun checks => same
-        (clamp_output_of_adversary_checks app fits setup adversary _ le_rfl (own tape) checks)),
-      zero tape _ (fun checks => same (by
-        rw [input] at checks
-        exact clamp_output_of_checks app fits setup adversary valid _ (own tape) checks))]
+        (clampOutput_eq_of_input_checks app _ le_rfl _ checks)),
+      zero tape _ (fun checks => same (clampOutput_eq_of_checks app valid _ _ checks))]
 
 /-- Security note §5 for an adversary whose outputs can be longer than
 `S_max · N` steps (note A4): with the reverse extractor of its clamped form at
 depth `S_max · N`, the mass of samples where the memory verifier accepts the
 adversary's own output but the extracted history does not attest the claim is
-at most the bound of `bad_le` for the clamped form. The premise is that the
-clamped adversary's start stage is admitted. -/
+at most `badBound` of the clamped form, the bound of `bad_le` for it. The
+premise is that the clamped adversary's start stage is admitted. -/
 theorem bad_le_clamp (valid : p.Valid)
-    (admitted : StageAdmitted (Stage.start (clamp app fits setup adversary (p.sMax * p.n))))
+    (clampedAdmitted : StageAdmitted (Stage.start (clamp app fits setup adversary (p.sMax * p.n))))
     (claim : adversary.Tape → MemoryStatement app.width)
     {memoryError : ClaimedStage app fits setup → ℝ}
     (round : MemoryRound app fits setup StageAdmitted memoryError) :
     let clamped := clamp app fits setup adversary (p.sMax * p.n)
-    let stage := reverseStages assumption closed clamped admitted
-    let own := adversaryTape app fits setup assumption closed clamped admitted (p.sMax * p.n)
+    let stage := reverseStages assumption closed clamped clampedAdmitted
+    let own := adversaryTape app fits setup assumption closed clamped clampedAdmitted (p.sMax * p.n)
     let c : ClaimedStage app fits setup := ⟨(stage (p.sMax * p.n)).1, claim ∘ own⟩
-    ((ClaimedStage.lawAt app fits setup c (adversary.output ∘ own)).toOuterMeasure {s | (experiment app fits).Bad app
-        (fun s => Accepted (MemoryApp.program p app) fits setup s.2) s}).toReal ≤
-      ∑ j : Fin (p.sMax * p.n),
-          (((stage j.val).1.tape.toOuterMeasure
-              {tape | MarkedHashCollision (MemoryApp.program p app) fits setup
-                ((stage j.val).1.visit tape)}).toReal +
-            error (stage j.val).1.nifs) +
-        (c.law.toOuterMeasure {s | (experiment app fits).StateLinkCollision app s}).toReal +
-        (c.law.toOuterMeasure {s | (experiment app fits).ChainCollision app s}).toReal +
-        memoryError c := by
+    ((ClaimedStage.lawAt app fits setup c (adversary.output ∘ own)).toOuterMeasure
+        (badSamples app fits setup)).toReal ≤
+      badBound app fits setup error (fun j => (stage j).1) (p.sMax * p.n) c (memoryError c) := by
   intro clamped stage own c
-  rw [clamp_bad_eq app fits setup assumption closed adversary valid admitted (p.sMax * p.n) claim]
-  exact bad_le app fits setup assumption closed clamped admitted valid (p.sMax * p.n)
+  rw [clamp_bad_eq app fits setup assumption closed adversary valid clampedAdmitted claim]
+  exact bad_le app fits setup assumption closed clamped clampedAdmitted valid (p.sMax * p.n)
     (clamp_depthBound app fits setup adversary _) claim round
 
 end NightstreamFPrime.Export.Stage1.NebulaMemorySecurity

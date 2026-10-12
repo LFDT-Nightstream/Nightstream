@@ -110,7 +110,7 @@ adversary with longer outputs reduces to this case through its clamped form
 replaced by the same output at iteration 0. The clamp meets the bound
 (`clamp_depthBound`). On each tape, the clamped output passes the memory
 verifier exactly when the adversary's output does, and the two are then equal
-(`clamp_output_of_checks`, `clamp_output_of_adversary_checks`). So
+(`clampOutput_eq_of_checks`, `clampOutput_eq_of_input_checks`). So
 `bad_le_clamp` bounds the bad mass of the adversary's own outputs by the bound
 of `bad_le` for the clamped form at depth `S_max · N`. Its premise is that the
 clamped form's start stage is admitted (`StageAdmitted (Stage.start …)`), as
@@ -449,10 +449,10 @@ In Lean, this is `NebulaMemorySecurity.bad_le` (§7 item 5). It holds for
 every application with a port interface whose memory program fits `2^28`,
 for every commitment setup and every valid plan. Its premises are A4
 (`Assumption1`, `Closed`, and an admitted start stage), the step bound
-(`depthBound`), and A6 (`MemoryRound`). For an adversary whose outputs can be
-longer, `NebulaMemorySecurity.bad_le_clamp` gives the same bound on the
-adversary's own outputs, with `depth = S_max · N`, if its clamped form is
-admitted (A4).
+(`depthBound`), and A6 (`MemoryRound`); the right side is `badBound`. For an
+adversary whose outputs can be longer, `NebulaMemorySecurity.bad_le_clamp`
+bounds the bad mass of the adversary's own outputs by `badBound` of its
+clamped form at depth `S_max · N`, if that clamped form is admitted (A4).
 
 **Symbolic values.** The owner has set no adversary time `t` and no query
 count `Q` (decision 2026-10-12), so each term stays a formula:
@@ -478,14 +478,13 @@ each reverse stage, and the extractor of stage `j + 1` can rerun stage `j`. If
 it reruns its adversary as the random-oracle extractor does,
 `Q_{j+1} ≈ 17·Q_j²`. Then `(Q_j + 74)·ε_fold` is above 1 at `j = 1` when
 `Q_0 = 2^64`, and at `j = 2` when `Q_0 = 2^30` (`SECURITY_MODEL.md`, trust
-item 4). The depth is the bound on the adversary's outputs: at most
-`S_max · N` with the clamp (A4), whatever the length of the accepted run. So,
-with these values, this bound gives no concrete security when the depth is 2
-or more and `Q_0 = 2^64`, or 3 or more and `Q_0 = 2^30`. The A6 term grows in
-the same way: its adversary is the last reverse stage, so its `Q_η` counts the
-queries of every rerun. The Lean statement is correct for every depth. A
-useful number needs a Stage 1 argument whose error does not grow in this way
-with the depth.
+item 4). The depth is the bound on the adversary's outputs: `S_max · N` with
+the clamp (A4), whatever the length of the accepted run. So, with these
+values, this bound gives no concrete security when the depth is 2 or more and
+`Q_0 = 2^64`, or 3 or more and `Q_0 = 2^30`. The A6 term grows in the same
+way: its adversary is the last reverse stage, so its `Q_η` counts the queries
+of every rerun. The Lean statement is correct for every depth. A useful number
+needs a Stage 1 argument whose error does not grow in this way with the depth.
 
 **Setup check (spec §4.2 rule 6).** For the final relation shape and the plan,
 setup MUST check that `ε_test ≤ 2^−109.91`, the owner-approved floor. This
@@ -521,9 +520,9 @@ statistical term: 109.91 bits is below the fold term of 115.22 bits. A second,
 independent challenge pair would give 219.83 bits. This specification does not
 use it.
 
-These are per-check values, before any query factor. For 64 folds and one
-segment, the sum of the per-check values is 108.53 bits; the 64 folds alone
-give 109.22 bits.
+These are per-check values, before any query factor. For depth
+`S_max · N = 64` (`N = 64`, `S_max = 1`), the sum of the per-check values is
+108.53 bits; the 64 fold terms alone give 109.22 bits.
 
 **Legacy-ledger values, for information.** This table applies the legacy
 query bound `q_H = 2^18` as a lift on every statistical term.
@@ -534,7 +533,7 @@ query bound `q_H = 2^18` as a lift on every statistical term.
 | `q_H` | 97.22 | 91.91 | 91.88 |
 
 Under the legacy lift, the memory term misses the legacy 96-bit target by 4.09
-bits. If recursive extraction also costs a factor of 64 folds (A4), the fold
+bits. If recursive extraction also costs a factor of the depth 64 (A4), the fold
 term alone falls to 91.22 bits. The correct lift is part of A4 and A6.
 
 ## 6. Oracle-query census

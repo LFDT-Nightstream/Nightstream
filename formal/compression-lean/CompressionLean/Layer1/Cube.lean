@@ -360,6 +360,15 @@ theorem cubeSum_eq_sum_range {M : Type} [AddCommMonoid M] (n : ℕ) (t : ℕ →
             Finset.sum_range_succ, Finset.sum_range_succ, ← ihk]
           abel
 
+theorem mle_finset_sum {ι : Type} (p : List K) (T : Finset ι) (f : ι → ℕ → K) :
+    mle p (fun x => ∑ j ∈ T, f j x) = ∑ j ∈ T, mle p (f j) := by
+  classical
+  induction T using Finset.induction_on with
+  | empty => simpa using mle_const p 0
+  | insert a T notin ih =>
+      simp only [Finset.sum_insert notin]
+      rw [mle_add, ih]
+
 end Lemmas
 
 end CompressionLean.Layer1

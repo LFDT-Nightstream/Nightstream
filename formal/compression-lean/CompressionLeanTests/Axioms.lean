@@ -49,3 +49,5 @@ import CompressionLean
 #audit_axioms CompressionLean.Layer1.agreement_card
 #audit_axioms CompressionLean.Layer1.queryBad_density
 #audit_axioms CompressionLean.Layer1.early_world
+#audit_axioms CompressionLean.Layer1.late_world
+#audit_axioms CompressionLean.Layer1.slotWeights_eq

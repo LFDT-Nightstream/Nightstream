@@ -17,7 +17,7 @@ plan, the setup seed, and the public statement.
 
 | Quantity | Level | Source |
 |---|---|---|
-| Statistical error of one fold | 115.22 bits | `NeoParams::padded_row_security_summary_for_shape`: 4 matrices, CCS degree 7 (sum-check degree 8), `ℓ = 28` |
+| Statistical error of one fold | 115.22 bits (conservative) | `NeoParams::padded_row_security_summary_for_shape`: 4 matrices, CCS degree 7 (sum-check degree 8), `ℓ = 28`, at the PiRLC guard's largest fresh count `K = 287` |
 | Main Module-SIS | 110.685 quantum Core-SVP bits after an eight-target allowance; selected by the owner | `decisions/fprime-stage1-main-ajtai-setup.md` |
 | Poseidon2 | generic collision ceiling near 128 bits | `decisions/piccs-prior-state-digest.md` |
 
@@ -54,13 +54,16 @@ information only.
 **A1 (SuperNeo knowledge soundness).** SuperNeo v1.2 Theorem 3 holds for the
 Stage 1 profile and its commitment map `L_full`. Stage 2 adds rows to the step
 relation, but no state field (the carry is in the application-state digest,
-spec §11.1) and no commitment component (spec §7). The
-theorem is an interactive reduction of knowledge. Its statistical error for one
-fold is `f_fold/|𝕂| + f_fork/|C|`, with `|C| = 5^54`. `f_fold` is the
-numerator of v1.2's `ε_test` (sum-check and Schwartz–Zippel), and `f_fork` is
-the PiRLC extraction term. The trunk computes both with
-`NeoParams::padded_row_security_summary_for_shape` for the final relation
-shape. v1.2's `ε_uniq` reduces to relaxed binding of `L_full` (A2).
+spec §11.1) and no commitment component (spec §7). The theorem is an
+interactive reduction of knowledge. Its statistical error for one fold is
+`f_fold/|𝕂| + f_fork/|C|`, with `|C| = 5^54`. `f_fold` bounds the numerator of
+v1.2's `ε_test` (sum-check and Schwartz–Zippel), and `f_fork` is the PiRLC
+extraction term. The trunk computes both with
+`NeoParams::padded_row_security_summary_for_shape` at the largest fresh count
+that the PiRLC guard allows, `K = 287`: `f_fold = 5,161` and `f_fork = 304`.
+F′ folds one fresh claim, and for `K = 1` Lean proves the numerator `4589`
+(`VerifierErrorBudget.test_error_eq`). So 5,161 and 304 are conservative.
+v1.2's `ε_uniq` reduces to relaxed binding of `L_full` (A2).
 
 **A2 (Module-SIS binding).** `L_full` is `(2B, C)`-relaxed binding at the main
 level, as SuperNeo v1.2 §7 requires. Its key comes from the SHAKE128 expander,
@@ -98,13 +101,17 @@ failure event is that the terminal verifier accepts and the reverse program
 returns no history of valid steps: each returned step satisfies the
 application's validity predicate (`HyperNovaHistory.ValidAdvice`).
 
-Here the bound is `S_max · N`. Stage 2 adds no field to the state preimage:
-the carry is in the application-state digest (spec §11.1). So the Stage 1
-Property 6, fixed-point, and domain theorems apply to the memory
-application's package. Definition 12 is stated for arity
-`(1, 1)`, and F′ folds one fresh claim with 16 running children. So Stage 1
-must also adapt the lemma to that arity. The lemma gives no concrete extractor
-time. That bound is also open for Stage 1.
+Here the bound is `S_max · N`: the theorem covers an adversary whose every
+output, accepted or not, has at most `S_max · N` steps (Lean `depthBound`).
+The verifier rejects a longer statement, but Lean does not prove that an
+adversary with longer outputs reduces to this class; that step needs a wrapper
+adversary that is admitted in the same sense. Stage 2 adds no field to the
+state preimage: the carry is in the application-state digest (spec §11.1). So
+the Stage 1 Property 6, fixed-point, and domain theorems apply to the memory
+application's package. Definition 12 is stated for arity `(1, 1)`, and F′
+folds one fresh claim with 16 running children. So Stage 1 must also adapt the
+lemma to that arity. The lemma gives no concrete extractor time. That bound is
+also open for Stage 1.
 
 **A5 (Field facts).** `q` is prime, and 7 is a quadratic nonresidue modulo
 `q`. Then `𝕂 = F[U]/(U² − 7)` is a field of size `q²`, and `F → 𝕂` is
@@ -133,9 +140,10 @@ of that adversary (Lean `NebulaMemorySecurity.MemoryRound`). One term covers
 all segment slots. In §5, the claim is the memory statement that the IVC
 adversary gives from its own tape. In Lean, `MemoryRound` holds when
 `error_mem` is the probability of the event itself. So the content of A6 is
-that `error_mem` is at most its target value (§5). Assumption 1 of A4 has the
-same form for its error. The record chains need only collision resistance
-(A3).
+that `error_mem` is at most its target value (§5). Assumption 1 of A4 puts
+its quantitative content in its error in the same way, but it also asserts
+that an efficient extractor exists. The record chains need only collision
+resistance (A3).
 
 No random-oracle model covers `η`. The relation computes `η` with Poseidon2
 inside the proven step, and the extractor gets the Poseidon2 inputs and
@@ -188,7 +196,7 @@ this note, and each proof needs an independent review (§7).
 |---|---|---|
 | J1: records into chains | Lemmas 1 and 2; Ob2, Ob3, Ob6 | Proof in this note, deterministic |
 | J2: carry thread | A3, A4; Ob8 | The relation-level thread is proved in Lean (`RunLink`), except with a state-digest collision. The Stage 1 history is the reverse extractor of A4 (`history_failure_le`); Property 6 is the Stage 1 one |
-| J3: commit, then test | Lemmas 2–5 | Proof in this note, in the interactive game that motivates A6 |
+| J3: commit, then test | A6; Lemmas 2–5 | A6 is a premise; Lemma 3 holds in the interactive game that motivates A6 |
 | J4: segment joins and terminal | Lemma 6 | Proof in this note |
 
 ### Lemma 1 — Packing is injective
@@ -445,9 +453,10 @@ count `Q` (decision 2026-10-12), so each term stays a formula:
   (`formal/nightstream-fprime/SECURITY_MODEL.md`, adversary 3). Lean proves
   `4589/q²` for the F′ shape with one fresh claim
   (`VerifierErrorBudget.test_error_eq`), and every application that fits
-  `2^28` has this shape, the memory program too. The value `f_fold = 5,161`
-  of A1 and the table below is the Rust summary at the largest fresh count
-  that the PiRLC guard allows (287), so it is the more conservative value.
+  `2^28` has this shape, so a memory program that fits has it too. The value
+  `f_fold = 5,161` of A1 and the table below is the Rust summary at the
+  largest fresh count that the PiRLC guard allows (287), so it is the more
+  conservative value.
   `Q_j` is the query count of stage `j`, and `msis` is the advantage of an
   MSIS solver.
 - `error_mem` has the target value `(Q_η + 1)·(2·m_mem/q² + ε_coll(t_1))` (A6).
@@ -468,11 +477,11 @@ needs a Stage 1 argument whose error does not grow in this way with the depth.
 setup MUST check that `ε_test ≤ 2^−109.91`, the owner-approved floor. This
 holds exactly when `R + M + N · B_ops ≤ 139,509` (Lean `Plan.secure_iff`).
 Setup MUST reject the plan if the check fails. In Lean, every memory package
-that `emit` writes gets its program from `NebulaMemoryPackage.application`,
-which takes the proofs of rules 1–6. A larger memory needs a new owner
-decision. The check
-applies to the per-check value. The A6 error adds the query loss, as the
-Stage 1 error does for the fold term.
+that `lake exe emit` writes gets its program from
+`NebulaMemoryPackage.application`, which takes the proofs of rules 1–6. A
+larger memory needs a new owner decision. The check applies to the per-check
+value. The A6 error adds the query loss, as the Stage 1 error does for the
+fold term.
 
 **Above the cap.** The recommended upgrade for a plan with more than 139,509
 tuples per segment is a second, independent challenge pair. Then `ε_test`
@@ -665,17 +674,20 @@ generated relation MUST supply the exact census.
      (`NebulaMemoryN1Package`, plan `SecondPlan`: `N = 1`, `r < μ`) covers
      the spec §14 cases that the first plan cannot reach. Both use the
      plan-independent geometry of `NebulaMemoryPackage`, and both get their
-     program from `NebulaMemoryPackage.application`, which takes the proofs
-     of spec §4.2 rules 1–6 (`Plan.Valid`, `Plan.Secure`). `emit` writes only
-     these two memory packages. The relation `MemoryApp.program` is defined
-     for every plan, so the setup rule binds the packages, not every Lean
-     term. The Rust crate loads
-     each emitted package with a pinned structural identifier.
+     program from `NebulaMemoryPackage.application`, which takes the proofs of
+     spec §4.2 rules 1–6 (`Plan.Valid`, `Plan.Secure`). `lake exe emit` writes
+     only these two memory packages. The relation `MemoryApp.program` is
+     defined for every plan, so the setup rule binds the packages, not every
+     Lean term. The Rust crate loads each emitted package with a pinned
+     structural identifier.
 
    Still open:
    - values for the adversary time `t` and the query counts `Q` and `Q_η`.
      They stay symbolic until the owner sets them (decision 2026-10-12); §5
      gives each term as a formula in them;
+   - the reduction from an adversary with outputs longer than `S_max · N`
+     steps to one that meets `depthBound` (A4); it needs a wrapper adversary
+     that is admitted in the same sense;
    - concrete values for the end-to-end bound. With the error that PR #155
      motivates, the depth limit of §5 (shared with Stage 1) makes the bound
      useless for runs of more than one or two folds;

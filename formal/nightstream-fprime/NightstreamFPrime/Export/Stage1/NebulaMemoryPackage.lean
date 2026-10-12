@@ -23,9 +23,10 @@ open NightstreamFPrime.Spec
 variable (plan : Spec.Nebula.Plan) (app : PortApp plan)
 
 /-- Spec §4.2 setup: the memory program of a package, for a plan that passes
-rules 1–5 (`Plan.Valid`) and rule 6 (`Plan.Secure`). Every memory package
-selects its program here, so no package exists for a plan that breaks a rule.
-The relation `MemoryApp.program` is defined for every plan. -/
+rules 1–5 (`Plan.Valid`) and rule 6 (`Plan.Secure`). Both memory packages
+that `lake exe emit` writes select their program here. The relation
+`MemoryApp.program` is defined for every plan, so the rule binds these
+packages, not every Lean term. -/
 def application (plan : {p : Spec.Nebula.Plan // p.Valid ∧ p.Secure}) (app : PortApp plan.1) :
     Lifecycle.Stage1.Application.Program :=
   MemoryApp.program plan.1 app

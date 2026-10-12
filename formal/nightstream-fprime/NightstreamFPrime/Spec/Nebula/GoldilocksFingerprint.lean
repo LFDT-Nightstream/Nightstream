@@ -21,7 +21,7 @@ theorem goldilocks_badChallenges_frequency {A B : Multiset Tuple} {m : ℕ} (dif
   rwa [card_K] at bound
 
 open Classical in
-/-- Lemma 3 part 2 on `K` for one segment of the translated game, with
+/-- Lemma 3 part 2 on `K` for one segment of the game that motivates A6, with
 `ε_test = 2·m_mem / q²`: `Pr[Err] ≤ ε_test + Pr[Err and the retry disagrees]`,
 and every disagreeing pair gives a collision among the two calls' chain
 inputs. -/

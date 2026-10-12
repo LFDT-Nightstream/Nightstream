@@ -51,3 +51,6 @@ import CompressionLean
 #audit_axioms CompressionLean.Layer1.early_world
 #audit_axioms CompressionLean.Layer1.late_world
 #audit_axioms CompressionLean.Layer1.slotWeights_eq
+#audit_axioms CompressionLean.Layer1.scaled_eq
+#audit_axioms CompressionLean.Layer1.omegaTrue_parts
+#audit_axioms CompressionLean.Layer1.linear_world

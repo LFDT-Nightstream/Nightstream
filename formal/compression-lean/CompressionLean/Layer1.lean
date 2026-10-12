@@ -18,3 +18,5 @@ import CompressionLean.Layer1.Early
 import CompressionLean.Layer1.EarlySound
 import CompressionLean.Layer1.Late
 import CompressionLean.Layer1.Encoding
+import CompressionLean.Layer1.Weights
+import CompressionLean.Layer1.Linear

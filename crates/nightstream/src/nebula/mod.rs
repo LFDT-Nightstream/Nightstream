@@ -12,6 +12,9 @@ mod segment;
 mod transcript;
 mod words;
 
+use p3_field::PrimeField64;
+use p3_goldilocks::Goldilocks as F;
+
 pub use carry::{Carry, Products};
 pub use machine::MachineState;
 pub use plan::Plan;
@@ -50,6 +53,10 @@ pub struct Statement {
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum TerminalError {
+    /// Ob1: an integer of the statement that becomes a field word is not
+    /// below `q`, so it has the word of a smaller integer.
+    #[error("a statement integer is not a canonical field element")]
+    NonCanonical,
     #[error("the final carry is inside a segment")]
     OpenCarry,
     #[error("the segment count is outside 1..=S_max")]
@@ -93,6 +100,33 @@ impl Context {
         statement: &Statement,
         final_carry: &Carry,
     ) -> Result<(Digest, Digest), TerminalError> {
+        // Ob1: an integer that becomes a field word must be below `q`, as Lean
+        // reads each word with `.val`. The patterns name every field, so a new
+        // field does not compile until it is classified here. `steps`,
+        // `segments`, and the carry counters must equal values below `q`
+        // (checked below), and `final_root` is field-typed.
+        let Statement {
+            steps: _,
+            initial,
+            final_,
+            segments: _,
+            final_ts,
+            final_root: _,
+        } = statement;
+        let MachineState {
+            pc: initial_pc,
+            acc: initial_acc,
+        } = *initial;
+        let MachineState {
+            pc: final_pc,
+            acc: final_acc,
+        } = *final_;
+        if [initial_pc, initial_acc, final_pc, final_acc, *final_ts]
+            .iter()
+            .any(|word| *word >= F::ORDER_U64)
+        {
+            return Err(TerminalError::NonCanonical);
+        }
         let plan = self.plan();
         if final_carry.idx != plan.n as u64 {
             return Err(TerminalError::OpenCarry);

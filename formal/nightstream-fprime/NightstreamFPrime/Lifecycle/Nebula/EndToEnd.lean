@@ -35,7 +35,7 @@ def History (program : Application.Program) (statement : TerminalStatement AppSt
       program.valid (z i) (witness i) ∧ z (i + 1) = program.step (z i) (witness i)
 
 /-- The memory fields of the spec §13 statement, with `width` application
-words, and the envelope's final carry words. -/
+words, and the prover's final carry words. -/
 structure MemoryStatement (width : ℕ) where
   initialApp : Fin width → F
   finalApp : Fin width → F
@@ -60,7 +60,7 @@ def MemoryStatement.typed (app : PortApp p) (m : MemoryStatement app.width) (T :
   ⟨T, app.ofWords m.initialApp, app.ofWords m.finalApp, m.segments, m.finalTs, m.finalRoot⟩
 
 /-- What the end-to-end layer reads from one sample: the Stage 1 statement,
-the memory statement with the envelope's final carry, and the history that
+the memory statement with the prover's final carry, and the history that
 the Stage 1 extractor returns. A randomized extractor keeps its coins in the
 sample. -/
 structure Experiment (width : ℕ) (Sample : Type) where
@@ -99,7 +99,7 @@ def Attested (s : Sample) : Prop :=
 
 /-- A state-digest collision between two inputs of the extracted run
 (security note Lemma 6 steps 2 and 6). Both sides are data of the sample: the
-extracted words, and the envelope's final words. -/
+extracted words, and the claimed final words. -/
 def StateLinkCollision (s : Sample) : Prop :=
   RunStateCollision (x.steps app s) (x.memory s).initialApp (x.memory s).finalApp
     (x.memory s).finalCarry (x.statement s).iteration

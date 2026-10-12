@@ -3,6 +3,7 @@
 //! proofs over the Lean-emitted package.
 
 use nightstream::nebula::{state_words, Context, MachineState, Plan, Run, Step, TerminalError};
+use p3_field::PrimeField64;
 use p3_goldilocks::Goldilocks as F;
 
 /// The Stage 1 input state that an invocation's own words open to. The carry
@@ -63,6 +64,51 @@ fn native_run_closes_every_segment_and_passes_the_terminal() {
         run.context().terminal_states(&wrong, run.carry()),
         Err(TerminalError::Field)
     );
+}
+
+/// Ob1 (security note §3): an integer of the statement that becomes a field
+/// word must be below `q`. Otherwise `v` and `v + q` give one word, and the
+/// proof of the honest statement also verifies the second one.
+#[test]
+fn terminal_rejects_statement_integers_at_or_above_q() {
+    let mut run = program_run();
+    for steps in [
+        [Step::Execute, Step::Execute],
+        [Step::Execute, Step::Execute],
+        [Step::Idle, Step::Idle],
+        [Step::Idle, Step::Idle],
+    ] {
+        run.segment(&steps).expect("segment runs");
+    }
+    let (honest, carry, q) = (run.statement(), *run.carry(), F::ORDER_U64);
+    let context = run.context();
+    assert!(context.terminal_states(&honest, &carry).is_ok());
+
+    let mut cases = Vec::new();
+    let mut statement = honest.clone();
+    statement.initial.pc += q;
+    cases.push(("initial pc", statement, carry));
+    let mut statement = honest.clone();
+    statement.initial.acc += q;
+    cases.push(("initial acc", statement, carry));
+    let mut statement = honest.clone();
+    statement.final_.pc += q;
+    cases.push(("final pc", statement, carry));
+    let mut statement = honest.clone();
+    statement.final_.acc += q;
+    cases.push(("final acc", statement, carry));
+    let mut statement = honest.clone();
+    statement.final_ts += q;
+    let mut aliased = carry;
+    aliased.ts += q;
+    cases.push(("final timestamp", statement, aliased));
+
+    let accepted: Vec<&str> = cases
+        .iter()
+        .filter(|(_, statement, carry)| context.terminal_states(statement, carry) != Err(TerminalError::NonCanonical))
+        .map(|(name, _, _)| *name)
+        .collect();
+    assert!(accepted.is_empty(), "accepted non-canonical integers: {accepted:?}");
 }
 
 fn package(name: &str) -> Vec<u8> {
@@ -209,6 +255,15 @@ fn memory_conformance(engine: nightstream::Engine) {
         .verify(&verifier, &statement, run.carry(), &proof)
         .unwrap();
     eprintln!("memory verification elapsed={:?}", verifying.elapsed());
+
+    // Ob1: an application integer at or above `q` has the word of a smaller
+    // integer, so the honest proof would verify it. Reject it at the terminal.
+    let mut alias = statement.clone();
+    alias.final_.acc += F::ORDER_U64;
+    assert!(matches!(
+        context.verify(&verifier, &alias, run.carry(), &proof),
+        Err(VerifyError::Terminal(TerminalError::NonCanonical))
+    ));
 
     // One closed segment is a complete proof of its own.
     let mut one = statement.clone();

@@ -102,12 +102,15 @@ returns no history of valid steps: each returned step satisfies the
 application's validity predicate (`HyperNovaHistory.ValidAdvice`).
 
 Here the bound is `S_max · N`: the theorem covers an adversary whose every
-output, accepted or not, has at most `S_max · N` steps (Lean `depthBound`).
-The verifier rejects a longer statement, but Lean does not prove that an
-adversary with longer outputs reduces to this class; that step needs a wrapper
-adversary that is admitted in the same sense. Stage 2 adds no field to the
-state preimage: the carry is in the application-state digest (spec §11.1). So
-the Stage 1 Property 6, fixed-point, and domain theorems apply to the memory
+output, accepted or not, has at most `S_max · N` steps (Lean `depthBound`). An
+adversary with longer outputs reduces to this case. Its clamped form
+(`NebulaMemorySecurity.clamp`) has the same tape and replaces each longer
+output by the same output at iteration 0. It meets the bound
+(`clamp_depthBound`), and every output of it that the memory verifier accepts
+is the adversary's own output (`clamp_output_of_checks`). The clamped form
+must be admitted in the same sense. Stage 2 adds no field to the state
+preimage: the carry is in the application-state digest (spec §11.1). So the
+Stage 1 Property 6, fixed-point, and domain theorems apply to the memory
 application's package. Definition 12 is stated for arity `(1, 1)`, and F′
 folds one fresh claim with 16 running children. So Stage 1 must also adapt the
 lemma to that arity. The lemma gives no concrete extractor time. That bound is
@@ -440,7 +443,8 @@ In Lean, this is `NebulaMemorySecurity.bad_le` (§7 item 5). It holds for
 every application with a port interface whose memory program fits `2^28`,
 for every commitment setup and every valid plan. Its premises are A4
 (`Assumption1`, `Closed`, and an admitted start stage), the step bound
-(`depthBound`), and A6 (`MemoryRound`).
+(`depthBound`), and A6 (`MemoryRound`). For an adversary with longer outputs,
+apply it to the clamped form with `depth = S_max · N` (A4).
 
 **Symbolic values.** The owner has set no adversary time `t` and no query
 count `Q` (decision 2026-10-12), so each term stays a formula:
@@ -656,7 +660,9 @@ generated relation MUST supply the exact census.
      while the extracted history does not attest the claim, as in §5. The
      claim reads only the adversary's tape (`adversaryTape`). The Stage 1
      statement comes from the same tape (`input_adversaryTape`), and that
-     tape has the adversary's law (`tape_map_adversaryTape`);
+     tape has the adversary's law (`tape_map_adversaryTape`). An adversary
+     with outputs longer than `S_max · N` steps reduces to its clamped form
+     (`clamp`, `clamp_depthBound`, `clamp_output_of_checks`; A4);
    - Ob1 at the Rust boundary (`crates/nightstream/src/nebula/mod.rs`,
      `Context::terminal_states`): the verifier rejects an initial or final
      application word, or a `final_timestamp`, at or above `q` before it
@@ -685,9 +691,6 @@ generated relation MUST supply the exact census.
    - values for the adversary time `t` and the query counts `Q` and `Q_η`.
      They stay symbolic until the owner sets them (decision 2026-10-12); §5
      gives each term as a formula in them;
-   - the reduction from an adversary with outputs longer than `S_max · N`
-     steps to one that meets `depthBound` (A4); it needs a wrapper adversary
-     that is admitted in the same sense;
    - concrete values for the end-to-end bound. With the error that PR #155
      motivates, the depth limit of §5 (shared with Stage 1) makes the bound
      useless for runs of more than one or two folds;

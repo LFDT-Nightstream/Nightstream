@@ -17,6 +17,8 @@ HyperNova reverse extractor's sample.
 * `bad_le`: on the claim that the adversary's tape gives, the bad mass is at
   most the Stage 1 history terms, the state-link and chain collision masses,
   and the A6 error of the last stage.
+* `clamp`: an adversary whose outputs can be longer than `S_max · N` steps,
+  reduced to one that meets the step bound of `bad_le`.
 
 Does not own: numerical values, collision resistance of Poseidon2, or the
 running time of an admitted adversary.
@@ -247,5 +249,51 @@ theorem bad_le (valid : p.Valid) (depth : ℕ)
   refine real.trans ?_
   gcongr
   exact round c (stages depth).2
+
+/-! ## Adversaries with longer outputs -/
+
+/-- The adversary on its own tape, with each output of more than `bound` steps
+replaced by the same output at iteration `0`. The memory verifier rejects
+iteration `0` (`clamp_output_of_checks`), so `bad_le` for this adversary, with
+`bound = S_max · N`, covers an adversary whose outputs can be longer. -/
+def clamp (bound : ℕ) : IvcAdversary (MemoryApp.program p app) fits setup where
+  Tape := adversary.Tape
+  tape := adversary.tape
+  output tape :=
+    if (adversary.output tape).1.iteration ≤ bound then adversary.output tape
+    else (⟨0, (adversary.output tape).1.z0, (adversary.output tape).1.zi⟩, (adversary.output tape).2)
+
+/-- The clamped adversary meets the step bound of `bad_le`. -/
+theorem clamp_depthBound (bound : ℕ) :
+    ∀ tape ∈ (clamp app fits setup adversary bound).tape.support,
+      ((clamp app fits setup adversary bound).output tape).1.iteration ≤ bound := by
+  intro tape _
+  show (if (adversary.output tape).1.iteration ≤ bound then adversary.output tape
+    else (⟨0, (adversary.output tape).1.z0, (adversary.output tape).1.zi⟩,
+      (adversary.output tape).2)).1.iteration ≤ bound
+  split
+  · assumption
+  · exact Nat.zero_le bound
+
+/-- An output of the clamped adversary that passes the spec §13 checks is the
+adversary's own output: the clamp changes only outputs that the verifier
+rejects. -/
+theorem clamp_output_of_checks (valid : p.Valid) (bound : ℕ) (tape : adversary.Tape)
+    {m : MemoryStatement app.width}
+    (checks : EndToEnd.VerifierChecks p ((clamp app fits setup adversary bound).output tape).1 m) :
+    (clamp app fits setup adversary bound).output tape = adversary.output tape := by
+  change EndToEnd.VerifierChecks p (if (adversary.output tape).1.iteration ≤ bound then
+    adversary.output tape else (⟨0, (adversary.output tape).1.z0, (adversary.output tape).1.zi⟩,
+      (adversary.output tape).2)).1 m at checks
+  show (if (adversary.output tape).1.iteration ≤ bound then adversary.output tape
+    else (⟨0, (adversary.output tape).1.z0, (adversary.output tape).1.zi⟩,
+      (adversary.output tape).2)) = adversary.output tape
+  split at checks
+  · rw [if_pos ‹_›]
+  · have steps : 0 = m.segments * p.n := checks.terminal.stepCount
+    have segments := checks.terminal.segmentsRange.1
+    have n := valid.positive.2.2.1
+    have : 0 < m.segments * p.n := Nat.mul_pos segments n
+    omega
 
 end NightstreamFPrime.Export.Stage1.NebulaMemorySecurity

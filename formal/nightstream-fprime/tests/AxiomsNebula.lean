@@ -630,3 +630,5 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemorySecurity.input_adversaryTape
 #audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemorySecurity.tape_map_adversaryTape
 #audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemorySecurity.bad_le
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemorySecurity.clamp_depthBound
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemorySecurity.clamp_output_of_checks

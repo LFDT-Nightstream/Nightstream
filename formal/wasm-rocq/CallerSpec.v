@@ -1,6 +1,5 @@
-(* Sequential callers containing arithmetic, locals and complete direct guest calls.
-   The outer split into instruction/call segments is explicit. Call initialization
-   is derived; nested calls and other row kinds remain outside this fragment. *)
+(* Internal instruction/call segments for sequential callers. TraceSegmentation
+   derives this grouping from rows; nested calls remain outside the fragment. *)
 From Stdlib Require Import List ZArith.
 Require Import R1CS Columns Wasm2 MemoryTrace StraightLineSpec CallSpec CallScope.
 Import ListNotations.

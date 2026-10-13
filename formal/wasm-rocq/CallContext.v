@@ -97,6 +97,40 @@ Proof.
   destruct Hp, Hq; field_linear Hrow.
 Qed.
 
+(* A function-ending END exits even at depth zero, where it halts instead
+   of popping. A block END has a different ROM edge kind. *)
+Lemma full_function_end_exits : forall (w : Witness),
+  fieldPrime -> FullRelation.satFull w -> w COL_SEL_END = 1 ->
+  w COL_PC_EDGE_KIND = 1 ->
+  w COL_CALL_STACK_POP_PRESENT = 1 \/ w COL_HALTED = 1.
+Proof.
+  intros w Hprime Hfull Hchosen Hedge.
+  circuit_boolean COL_CALL_STACK_POP_PRESENT Hpop. circuit_boolean COL_HALTED Hhalt.
+  destruct Hpop as [Hpop | Hpop]; [ | left; exact Hpop].
+  destruct Hhalt as [Hhalt | Hhalt]; [ | right; exact Hhalt].
+  exfalso.
+  assert (Hin : In COL_SEL_END selectorColumns) by (vm_compute; tauto).
+  assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
+  pose proof (full_selected_is_program_row w COL_SEL_END Hprime Hfull Hin Hchosen) as Hprogram.
+  assert (Hturn : w COL_TURN_BOUNDARY = 0).
+  { exact (full_row_kind_exclusive w COL_IS_PROGRAM_ROW COL_TURN_BOUNDARY Hprime Hfull
+      ltac:(cbn; tauto) ltac:(cbn; tauto) ltac:(discriminate) Hprogram). }
+  assert (Hbefore : w COL_HALTED_BEFORE = 0).
+  { circuit_row ([(COL_IS_PROGRAM_ROW, 1)], [(COL_HALTED_BEFORE, 1)], ([] : SparseRow)) Hrow.
+    expand_row Hrow. normalize_columns. rewrite Hprogram in Hrow.
+    pose proof (value_bound w COL_HALTED_BEFORE). field_linear Hrow. }
+  selected_circuit_row COL_SEL_END
+    ([(COL_HALTED, 1); (COL_HALTED_BEFORE, -1); (COL_TURN_BOUNDARY, 1);
+      (COL_CALL_STACK_POP_PRESENT, 1); (COL_PC_EDGE_KIND, -1); (COL_SEL_CALL_INDIRECT, 2);
+      (COL_SEL_RETURN_CALL_INDIRECT, 2); (COL_SEL_UNREACHABLE, 2); (COL_DIV_TRAP, -1);
+      (COL_CALL_INDIRECT_IS_TRAP, -1); (COL_MEM_OOB, -1)],
+      [(COL_ONE, 1)], ([] : SparseRow)) HedgeRow.
+  normalize_columns. rewrite Hone, Hhalt, Hbefore, Hturn, Hpop, Hedge in HedgeRow.
+  circuit_boolean COL_DIV_TRAP Hdiv. circuit_boolean COL_CALL_INDIRECT_IS_TRAP Hci.
+  circuit_boolean COL_MEM_OOB Hmem.
+  destruct Hdiv, Hci, Hmem; field_linear HedgeRow.
+Qed.
+
 Lemma full_end_pops_nonempty_context : forall (w : Witness),
   fieldPrime -> FullRelation.satFull w -> w COL_SEL_END = 1 ->
   w COL_PC_EDGE_KIND = 1 -> 0 < w COL_CALL_STACK_DEPTH_BEFORE ->

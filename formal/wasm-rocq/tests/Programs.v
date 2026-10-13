@@ -102,7 +102,7 @@ Example wrong_module_function_addresses_rejected : forall stale,
     (stackConfig sourceInitialState [] getCallAdd).
 Proof. intros stale [[_ [Haddresses _]] _]. discriminate Haddresses. Qed.
 
-(* Refine two runs at the public interface. The prefix supplies both the preserved
+(* Exercise internal segment composition. The prefix supplies both the preserved
    program ROM binding and the dynamic state needed to execute the final ADD. *)
 Example source_program_two_runs : forall stale initialGet call middle endRow finalAdd final,
   fieldPrime ->
@@ -123,7 +123,7 @@ Proof.
         (flat_map segmentRows [instructionSegment initialGet; callSegment call middle endRow] ++
          flat_map segmentRows [instructionSegment finalAdd]) final);
       rewrite <- flat_map_app; exact Hrun)) as [between [HprefixRun HlastRun]].
-  destruct (run_refinement sourceProgram (sourcePosition 1 0)
+  destruct (segmented_run_refinement sourceProgram (sourcePosition 1 0)
     [LOCAL_GET (mk_uN 0); CALL (mk_uN 0)] [BINOP I32 (mk_binop__0 Inn_I32 ADD)]
     [instructionSegment initialGet; callSegment call middle endRow]
     sourceInitialState (sourceMemory stale) between (mkBoundary 2 4 4 7) _
@@ -134,7 +134,7 @@ Proof.
   { symmetry. apply segment_chain_boundary with
       (segment := callSegment call middle endRow) (next := instructionSegment finalAdd) (rest := []).
     eapply chain_suffix with (prefix := [initialGet]). exact (proj1 (proj2 Hrun)). }
-  destruct (run_refinement sourceProgram (sourcePosition 1 2)
+  destruct (segmented_run_refinement sourceProgram (sourcePosition 1 2)
     [BINOP I32 (mk_binop__0 Inn_I32 ADD)] [] [instructionSegment finalAdd]
     z1 between final (afterBoundary endRow) c1 Hprime Hloaded HlastRun
     ltac:(constructor; [exact Hadd | constructor]) Hstart Hsource)

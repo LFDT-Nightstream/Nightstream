@@ -1,7 +1,8 @@
 (* Public refinement: one program ROM binding and a changing source position. *)
 From Stdlib Require Import List ZArith Lia.
 Require Import R1CS Range MemoryTrace TraceRefinement Wasm2 StraightLineSpec
-  CallerSpec CallerRefinement ProgramSpec ProgramEncoding.
+  CallerSpec CallerRefinement ProgramSpec ProgramEncoding TraceSegmentation
+  MemoryCatalog OpcodeCatalog.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -26,7 +27,7 @@ Qed.
 
 (* The supported fragment is restricted by callerTyped and segmentMatches.
    programLoaded fixes the ROM once; SourceState contains no ROM lookups. *)
-Theorem run_refinement : forall program position executed remaining segments z initial final boundary c0,
+Lemma segmented_run_refinement : forall program position executed remaining segments z initial final boundary c0,
   fieldPrime -> programLoaded program initial ->
   validCircuitRun initial (callerRows segments) final ->
   Forall2 segmentMatches executed segments -> callerStartsAt boundary segments ->
@@ -52,4 +53,45 @@ Proof.
     split; [eapply frame_matches_preserved; eassumption | ].
     split; [apply code_at_advance; exact Hcode | ].
     split; [exact Htyped' | ]. split; [exact Hrep' | ]. rewrite Nat2Z.inj_add. lia.
+Qed.
+
+(* Every row is consumed. The executed prefix and its grouping are consequences
+   of validity and the ROM binding, rather than inputs supplied by the caller. *)
+Theorem run_refinement : forall program position code rows z initial final boundary depth c0,
+  fieldPrime -> programLoaded program initial -> validCircuitRun initial rows final ->
+  callerFragment boundary depth rows ->
+  SourceState program position z initial boundary code c0 ->
+  exists executed remaining z' c1,
+    code = executed ++ remaining /\ Steps c0 c1 /\ programLoaded program final /\
+    SourceState program (advanceSource position (length executed)) z' final
+      (rowsFinalBoundary boundary rows) remaining c1.
+Proof.
+  intros program [index offset] code rows z initial final boundary depth c0
+    Hprime Hloaded Hrun Hfragment Hsource.
+  pose proof Hsource as Hparts. unfold SourceState in Hparts.
+  cbn [sourceFunction sourceOffset] in Hparts.
+  destruct (functionAt program index) as [f | ] eqn:Hf; [ | contradiction].
+  destruct Hparts as [Hframe [Hcode [Htyped [Hrep Hpc]]]].
+  assert (Hcaller : CallerState (programCallees program (guestModule f)) z initial boundary
+      (guestEntry f + Z.of_nat offset) code c0).
+  { constructor; try assumption. eapply program_loaded_caller; eassumption. }
+  assert (Hterminal :
+    initial programOpcodeId [guestEntry f + Z.of_nat offset + Z.of_nat (length code)] = Some CODE_END /\
+    initial pcEdgeKindId [guestEntry f + Z.of_nat offset + Z.of_nat (length code)] = Some 1).
+  { destruct Hcode as [Hbound Hsuffix].
+    pose proof (f_equal (@length instr) Hsuffix) as Hlength. rewrite length_skipn in Hlength.
+    replace (guestEntry f + Z.of_nat offset + Z.of_nat (length code)) with
+      (guestEntry f + Z.of_nat (length (guestBody f))) by lia.
+    exact (encoded_function_end _ _ _ _ Hloaded Hf). }
+  destruct (valid_caller_run_has_segments code rows (programCallees program (guestModule f)) z
+    initial final boundary (guestEntry f + Z.of_nat offset) depth c0
+    Hprime Hrun Hfragment Hcaller (proj1 Hterminal) (proj2 Hterminal))
+    as [executed [remaining [segments [Hsplit [Hrows [Hmatches Hstart]]]]]].
+  rewrite Hsplit in Hsource. rewrite Hrows in Hrun.
+  destruct (segmented_run_refinement program (sourcePosition index offset) executed remaining segments z
+    initial final boundary c0 Hprime Hloaded Hrun Hmatches Hstart Hsource)
+    as [z' [c1 [Hsteps [Hloaded' Hsource']]]].
+  exists executed, remaining, z', c1. split; [exact Hsplit | ].
+  split; [exact Hsteps | ]. split; [exact Hloaded' | ].
+  rewrite Hrows, caller_rows_final_boundary. exact Hsource'.
 Qed.

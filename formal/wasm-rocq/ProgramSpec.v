@@ -2,7 +2,7 @@
    This encoder covers i32 guest functions without imports or structured control.
    PCs are consecutive across bodies, with one trailing END per function. *)
 From Stdlib Require Import List ZArith Bool.
-Require Import Wasm2 MemoryTrace MemoryCatalog OpcodeCatalog StraightLineSpec CallerSpec.
+Require Import R1CS Columns Wasm2 MemoryTrace MemoryCatalog OpcodeCatalog StraightLineSpec CallerSpec.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -144,3 +144,27 @@ Definition SourceState (program : Program) (position : SourcePosition) (z : stat
       represents z memory boundary code c /\
       boundaryPC boundary = guestEntry f + Z.of_nat (sourceOffset position)
   end.
+
+(* Trace endpoints are caller instruction boundaries. Initialization is allowed
+   inside calls, but not at the caller's own depth. At that depth a row may
+   neither pop nor halt (the depth-zero return halts without popping). *)
+Definition callerRow (depth : Z) (row : Witness) : Prop :=
+  (row COL_IS_PROGRAM_ROW = 1 \/ row COL_LOCAL_ZERO_ACTIVE_BEFORE = 1 \/
+    row COL_PARAM_INIT_ACTIVE_BEFORE = 1) /\
+  (row COL_CALL_STACK_DEPTH_BEFORE = depth ->
+    row COL_IS_PROGRAM_ROW = 1 /\ row COL_CALL_STACK_POP_PRESENT = 0 /\ row COL_HALTED = 0).
+
+Definition rowsStartAt (boundary : Boundary) (depth : Z) (rows : list Witness) : Prop :=
+  match rows with
+  | [] => True
+  | first :: _ => beforeBoundary first = boundary /\ first COL_CALL_STACK_DEPTH_BEFORE = depth
+  end.
+
+Fixpoint rowsFinalBoundary (boundary : Boundary) (rows : list Witness) : Boundary :=
+  match rows with [] => boundary | row :: rest => rowsFinalBoundary (afterBoundary row) rest end.
+
+Fixpoint rowsFinalDepth (depth : Z) (rows : list Witness) : Z :=
+  match rows with [] => depth | row :: rest => rowsFinalDepth (row COL_CALL_STACK_DEPTH_AFTER) rest end.
+
+Definition callerFragment (boundary : Boundary) (depth : Z) (rows : list Witness) : Prop :=
+  rowsStartAt boundary depth rows /\ Forall (callerRow depth) rows /\ rowsFinalDepth depth rows = depth.

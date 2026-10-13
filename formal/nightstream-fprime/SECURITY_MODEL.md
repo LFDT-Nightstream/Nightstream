@@ -145,9 +145,10 @@ collision.
     (`Export.Stage1.RandomOracleSetup.programmingError_lt_of_fits`).
 - **Work:** the extractor takes `17 (Q + 17)` expected retries
   (`Lifecycle.RandomOracleExtraction.expected_retries_le`). The binding
-  reduction is an algorithm that holds no adversary
-  (`Lifecycle.RandomOracleReduction.solve`). It is an oracle program whose
-  queries are adversary runs: the program builds the oracle of each run from
+  reduction is an oracle program that holds no adversary
+  (`Lifecycle.RandomOracleReduction.reduction`);
+  `Lifecycle.RandomOracleReduction.solve` runs it on the adversary's records.
+  The program's queries are adversary runs: it builds the oracle of each run from
   its state and one fresh tape entry, and the answer is the run's record (its
   output and its queries). So the run count is a query bound of that program,
   as in Ironwood's cost certificates. With budget `T` it makes at most `T`
@@ -163,7 +164,11 @@ collision.
   (`Lifecycle.RandomOracleUniqueness.expected_reruns_le`) and `17 (Q + 17)`
   retries of the extractions inside the reruns
   (`Lifecycle.RandomOracleSolver.expected_second_retries_le`). Lean counts
-  adversary runs, not machine work.
+  adversary runs, not machine work. Each step also applies the claim parse
+  function to the run's record and checks the claim (the oracle verifier,
+  and `PriorLink` for the prior preimage). Lean decides these checks
+  classically. The strict-time readings in trust item 3 need these checks to
+  be efficient, with their cost counted inside a run.
 - **What it covers:** the oracle verifier is the Lean NIFS verifier
   `Spec.Folding.Nifs.PaperNonInteractive.verify`, with its coins read from
   `H`, plus the child openings. At an oracle that answers the 74 challenge
@@ -294,15 +299,19 @@ fresh verifier coin by an oracle read. Each module header states its part:
    - If Poseidon2 state-hash collisions are hard to find, then
      `hashCollisions` is small. Collision hardness is also stated for
      algorithms with a strict time bound. Eighteen finders with a strict
-     budget of `T` adversary runs, one for each Π_RLC coordinate and one for
-     the reruns, lose at most `(52 Q + 959) / T`:
+     budget of `T` adversary runs, one for each Π_RLC coordinate and one that
+     runs the binding reduction, lose at most `(52 Q + 959) / T`:
      `𝔼 chunks, hashCollisions ≤ 18 · hashAdvantage T + (52 Q + 959) / T`
      (`Export.Stage1.RandomOracleHashSolver.hashCollisions_le_solver`).
      `hashAdvantage T` is the success of one finder
      (`Export.Stage1.RandomOracleHashSolver.hashSolve`) that draws the
-     chunks, one of the 18 targets and a tape. It holds no adversary and
-     makes at most `T` runs on every tape
-     (`Export.Stage1.RandomOracleHashSolver.hashRuns_length_le`). The state
+     chunks, one of the 18 targets and a tape. Each finder is a program that
+     holds no adversary: it makes at most `T` runs on every tape
+     (`Export.Stage1.RandomOracleHashSolver.hashRuns_length_le`), each run
+     depends only on the records of the earlier runs
+     (`Export.Stage1.RandomOracleHashSolver.hashRuns_take_congr`), and the
+     output only on the records of the runs made
+     (`Export.Stage1.RandomOracleHashSolver.hashSolve_congr`). The state
      hash is fixed and has no key, so an
      efficient algorithm that contains a collision exists. A bound therefore
      needs the human-ignorance reading (Rogaway): it applies to algorithms

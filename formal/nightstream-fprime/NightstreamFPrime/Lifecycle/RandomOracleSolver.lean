@@ -14,8 +14,9 @@ Outputs:
   `35 Q + 653` expected runs: 1 base run, `17 (Q + 17)` base retries
   (`RandomOracleExtraction.expected_retries_le`), `Q + 74` reruns
   (`RandomOracleUniqueness.expected_reruns_le`) and the second extraction;
-- `reductionChance_le_program`: for any test of the two runs that the
-  algorithm finishes with, `T · (reductionChance − chance T) ≤ 35 Q + 653`;
+- `reductionChance_le_program`: for any test of the end state,
+  `T · (reductionChance − chance T) ≤ 35 Q + 653`, where `reductionChance`
+  reads the test on the two finished runs;
 - `solverChance`, `kernelChance_le_solver`: the success of
   `RandomOracleReduction.solve`, which loses at most `(35 Q + 653) / T` of
   `RandomOracleBinding.kernelChance`.
@@ -930,9 +931,12 @@ theorem expected_runs_le {queries : Nat} (bounded : adversary.QueryBound queries
     _ ≤ _ := ((bounds relation ajtai adversary claim fun _ _ _ _ => True).expect_runs_le budget
         (state := .start) trivial).trans (work_start_le relation ajtai adversary claim bounded)
 
-/-- **The Markov loss, for any test of the finished runs.** With budget `T`,
-the algorithm finishes with two runs that pass `finished` with chance at
-least the reduction's chance of the same test minus `(35 Q + 653) / T`. -/
+/-- **The Markov loss, for any test of the end state.** With budget `T`, the
+algorithm ends in a state that passes `finished` with chance at least
+`reductionChance` of `finished` on the two finished runs, minus
+`(35 Q + 653) / T`. A test that also passes some unfinished states only
+raises that chance. The tests of `kernelChance_le_solver` and
+`RandomOracleHashSolver` fail on every state that is not finished. -/
 theorem reductionChance_le_program {queries : Nat} (bounded : adversary.QueryBound queries)
     (finished : Progress → Prop) [DecidablePred finished] (budget : ℕ) :
     budget * (reductionChance relation ajtai adversary claim (fun base retries other otherRetries =>

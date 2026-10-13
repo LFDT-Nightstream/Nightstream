@@ -27,3 +27,5 @@ import CompressionLean.Layer1.Cost
 import CompressionLean.Layer1.Budget
 import CompressionLean.Layer1.Restoration
 import CompressionLean.Layer1.FiatShamir
+import CompressionLean.Layer1.ClosedForms
+import CompressionLean.Layer1.EvalK

@@ -74,7 +74,8 @@ structure Setup (F : Type) where
 structure Statement (F : Type) where
   commitment : ℕ → ℕ → F
   publicInput : ℕ → ℕ → F
-  /-- `χ_r(i)` at every index (rows for the lookup, coordinates for Eval_K). -/
+  /-- `χ_r(i)` at every index (rows for the lookup, coordinates for Eval_K),
+  as given values: the model does not derive them from `r`. -/
   chi : ℕ → F × F
   evalK : ℕ → F × F
   evalA : ℕ → ℕ → F × F

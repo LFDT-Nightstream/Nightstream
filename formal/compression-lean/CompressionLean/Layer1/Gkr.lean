@@ -469,13 +469,14 @@ section Cost
 
 variable (s : GkrShape)
 
-/-- Bad challenges of layer `k`, counted over `n` worlds with `E` riding
-values per draw: `μ` (1), `ν` (`A - 1`), each round (`degree`), `τ` (1). -/
-def gkrLayerCost (n E k : ℕ) : ℕ :=
-  n + n * ((s.active k).length - 1) + (k - 1) * (n * s.degree k + E) + (n + E)
+/-- Bad challenges of layer `k`, counted over `n` worlds with `E k` riding
+values per draw of the layer: `μ` (1), `ν` (`A - 1`), each round (`degree`),
+`τ` (1). -/
+def gkrLayerCost (n : ℕ) (E : ℕ → ℕ) (k : ℕ) : ℕ :=
+  n + n * ((s.active k).length - 1) + (k - 1) * (n * s.degree k + E k) + (n + E k)
 
 /-- Bad challenges of `remaining` layers from layer `k`. -/
-def gkrCost (n E : ℕ) : ℕ → ℕ → ℕ
+def gkrCost (n : ℕ) (E : ℕ → ℕ) : ℕ → ℕ → ℕ
   | 0, _ => 0
   | remaining + 1, k => gkrLayerCost s n E k + gkrCost n E remaining (k + 1)
 
@@ -503,18 +504,8 @@ theorem card_badTau (batch : W → Batch K) (k : ℕ) (next : List K) (children 
   · exact zeros_card_le_of_natDegree_le (linePoly_natDegree _ _)
   · simp
 
-private theorem draw_step {C : Type} [Fintype C] [Nonempty C] {α : Type} {bad : Finset C}
-    {next : C → Game α} {used later : ℕ} (card : bad.card ≤ used)
-    (nexts : ∀ c, (next c).CostLe (later / (Fintype.card C : ℝ))) :
-    (Game.draw C bad next).CostLe ((used + later : ℕ) / (Fintype.card C : ℝ)) := by
-  refine ⟨later / (Fintype.card C : ℝ), ?_, nexts⟩
-  have positive : (0 : ℝ) < Fintype.card C := by exact_mod_cast Fintype.card_pos
-  rw [Nat.cast_add, add_div]
-  have := div_le_div_of_nonneg_right (show (bad.card : ℝ) ≤ used by exact_mod_cast card) positive.le
-  linarith
-
 theorem gkrLayers_cost (worlds : Finset W) (batch : W → Batch K) (extra : ℕ → List K → Finset K)
-    (E : ℕ) (extra_card : ∀ k point, (extra k point).card ≤ E)
+    (E : ℕ → ℕ) (extra_card : ∀ k point, (extra k point).card ≤ E k)
     (distinct : ∀ k, 1 ≤ k → k ≤ s.layers → NodesDistinct K (s.degree k - 1)) :
     ∀ (remaining k : ℕ) (st : GkrClaims K), 1 ≤ k → k + remaining = s.layers + 1 →
       (gkrLayers s worlds batch extra remaining k st).CostLe
@@ -529,19 +520,19 @@ theorem gkrLayers_cost (worlds : Finset W) (batch : W → Batch K) (extra : ℕ 
       have positive : (0 : ℝ) < Fintype.card K := by exact_mod_cast Fintype.card_pos
       set n := worlds.card
       set later := gkrCost s n E remaining (k + 1)
-      set rounds := (k - 1) * (n * s.degree k + E)
+      set rounds := (k - 1) * (n * s.degree k + E k)
       have total : gkrCost s n E (remaining + 1) k =
-          n * 1 + (n * ((s.active k).length - 1) + (rounds + ((n * 1 + E) + later))) := by
+          n * 1 + (n * ((s.active k).length - 1) + (rounds + ((n * 1 + E k) + later))) := by
         simp only [gkrCost, gkrLayerCost, rounds, later]
         ring
       rw [total]
-      refine draw_step (card_badMu batch k st worlds) fun μ => ?_
-      refine draw_step (card_badNu batch k st μ worlds) fun ν => ?_
+      refine draw_step _ _ _ _ (density_le _ _ (card_badMu batch k st worlds)) fun μ => ?_
+      refine draw_step _ _ _ _ (density_le _ _ (card_badNu batch k st μ worlds)) fun ν => ?_
       rw [Nat.cast_add, add_div]
       refine Game.costLe_bind ?_ ?_
       · have cost := sumcheck_cost worlds (s.degree k - 1) (distinct k low inside)
           (fun w => combRound (k - 1) (layerTables s (batch w) k st.point) (layerComb s k μ ν))
-          (extra k) (k - 1) E
+          (extra k) (k - 1) (E k)
           (fun w _ point short => (combRound_truth (k - 1) (s.degree k - 1) _ _
             (by have := totalDegree_layerComb s k μ ν; omega)).degree point short)
           (extra_card k) (k - 1) [] (wsum ν (fun t => (st.current t).1 + μ * (st.current t).2) (s.active k))
@@ -554,13 +545,13 @@ theorem gkrLayers_cost (worlds : Finset W) (batch : W → Batch K) (extra : ℕ 
       · intro result children
         dsimp only
         split_ifs
-        · refine draw_step (used := n * 1 + E) ?_ fun τ => ih (k + 1) _ (by omega) (by omega)
+        · refine draw_step _ _ (n * 1 + E k) _ (density_le _ _ ?_) fun τ => ih (k + 1) _ (by omega) (by omega)
           exact (Finset.card_union_le _ _).trans (add_le_add (card_badTau batch k _ children worlds)
             (extra_card k _))
         · exact div_nonneg (Nat.cast_nonneg _) positive.le
 
 theorem gkr_cost (worlds : Finset W) (batch : W → Batch K) (extra : ℕ → List K → Finset K)
-    (E : ℕ) (extra_card : ∀ k point, (extra k point).card ≤ E)
+    (E : ℕ → ℕ) (extra_card : ∀ k point, (extra k point).card ≤ E k)
     (distinct : ∀ k, 1 ≤ k → k ≤ s.layers → NodesDistinct K (s.degree k - 1)) :
     (gkr s worlds batch extra).CostLe (gkrCost s worlds.card E s.layers 1 / (Fintype.card K : ℝ)) :=
   fun _ => gkrLayers_cost worlds batch extra E extra_card distinct s.layers 1 _ le_rfl (by omega)

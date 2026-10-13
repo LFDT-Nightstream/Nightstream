@@ -5,6 +5,9 @@ Owns the whole layer-1 verifier game and what its accepting paths give
 (`layer1Game_avoids`): along every path that avoids the bad sets, an accepted
 transcript has a P0 candidate that is a CE(B) witness.
 
+The prover names the CE(B) statement first: Rust absorbs the statement
+words before the first layer-1 challenge, so a prover may choose it.
+
 The two WHIR openings are idealized (`Opens`): the verifier accepts them when
 one P0 candidate and one P1 candidate agree with every opened value. The
 lists are the candidates the prover fixed at its commitments. The WHIR error
@@ -22,6 +25,7 @@ local notation "ι" => algebraMap F K
 
 /-- One layer-1 transcript. -/
 structure Transcript (F K : Type) (t L : ℕ) where
+  statement : Statement F
   early : EarlyOut F K
   linear : LinearOut K
   honest : HonestOut K t L
@@ -36,9 +40,12 @@ def Opens (s : Shape) (S : Setup F) (q : ℕ → K) {L : ℕ} (tr : Transcript F
     HonestConsistent s S q tr.early tr.linear tr.honest v ∧
     tr.linear.omegaValue = mle tr.linear.blockPoint v.omegaA
 
-/-- The layer-1 verifier: early, linear, honest fold, late, then the openings. -/
-noncomputable def layer1Game (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : Setup F) (st : Statement F)
+instance : Nonempty (Statement F) := ⟨⟨fun _ _ => 0, fun _ _ => 0, fun _ => 0, fun _ => 0, fun _ _ => 0⟩⟩
+
+/-- The layer-1 verifier: the statement, early, linear, honest fold, late, then the openings. -/
+noncomputable def layer1Game (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : Setup F)
     (L0 L1 L : ℕ) [NeZero L] (q : ℕ → K) : Game (Option (Transcript F K s.queries L)) :=
+  .recv (Statement F) fun st =>
   Game.bind (earlyGame s S st L0) fun early =>
   match early with
   | none => .pure none
@@ -56,7 +63,7 @@ noncomputable def layer1Game (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (
   | none => .pure none
   | some e =>
     have := Classical.propDecidable
-    if Opens s S q ⟨o, lin, h, e⟩ then .pure (some ⟨o, lin, h, e⟩) else .pure none
+    if Opens s S q ⟨st, o, lin, h, e⟩ then .pure (some ⟨st, o, lin, h, e⟩) else .pure none
 
 /-- The size conditions of the layer-1 argument. Integers below `N` stay
 distinct in `K`. -/
@@ -131,14 +138,15 @@ theorem slotValue_of_map (H t : ℕ) (x : F) (equal : ι x = slotValue (K := K) 
 
 /-- Along every path that avoids the bad sets, an accepted transcript has a
 P0 candidate that is a CE(B) witness. -/
-theorem layer1Game_avoids (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : Setup F) (st : Statement F)
+theorem layer1Game_avoids (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : Setup F)
     (L0 L1 L : ℕ) [NeZero L] (q : ℕ → K) (N : ℕ) (sizes : s.Sizes N)
     (cast : ∀ a b : ℕ, a < N → b < N → (a : K) = b → a = b) (fits : S.Fits s) (monic : Φ.Monic)
     (proper : Φ ≠ 1) :
-    (layer1Game s Φ bar S st L0 L1 L q).Avoids fun r =>
-      ∀ tr, r = some tr → ∃ w ∈ tr.early.candidates, Relation s Φ bar S st w.z := by
+    (layer1Game s Φ bar S L0 L1 L q).Avoids fun r =>
+      ∀ tr, r = some tr → ∃ w ∈ tr.early.candidates, Relation s Φ bar S tr.statement w.z := by
   have nodes := nodes_of_cast N cast sizes.big_nodes
   unfold layer1Game
+  intro st
   rw [Game.avoids_bind]
   refine (earlyGame_avoids (K := K) s S st L0 nodes
     ⟨sizes.deep_cube, sizes.deep_runs, sizes.deep_rows, sizes.deep_pairs⟩).mono ?_

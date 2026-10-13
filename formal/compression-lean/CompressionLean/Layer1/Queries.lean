@@ -8,8 +8,9 @@ Owns the setup queries of the honest fold (`Relation::query_indices`,
 at fewer than half of the leaves' query points, so `t` independent leaves all
 agree with probability below `2^-t` (`queryBad_density`).
 
-A leaf `j` has the query point `q_j = (g·ω^j)^8`; the points of distinct
-leaves are distinct when `ω^8` has order at least the leaf count.
+A leaf `j` has the query point `q_j = (g·ω^j)^8`. The points of distinct
+leaves must be distinct (the premise `distinct`); this holds when `ω^8` has
+order at least the leaf count.
 -/
 
 namespace CompressionLean.Layer1
@@ -17,18 +18,6 @@ namespace CompressionLean.Layer1
 open Polynomial
 
 variable {K : Type} [Field K]
-
-/-- Powers of an element of order at least `L` are distinct below `L`. -/
-theorem pow_injective_below (x : K) (L : ℕ) (x_ne : x ≠ 0)
-    (primitive : ∀ k, 0 < k → k < L → x ^ k ≠ 1) :
-    ∀ i j, i < L → j < L → x ^ i = x ^ j → i = j := by
-  intro i j hi hj equal
-  by_contra different
-  rcases Nat.lt_or_gt_of_ne different with lt | gt
-  · apply primitive (j - i) (by omega) (by omega)
-    rw [pow_sub₀ x x_ne lt.le, ← equal, mul_inv_cancel₀ (pow_ne_zero _ x_ne)]
-  · apply primitive (i - j) (by omega) (by omega)
-    rw [pow_sub₀ x x_ne gt.le, equal, mul_inv_cancel₀ (pow_ne_zero _ x_ne)]
 
 /-- Distinct tables have forms that agree at fewer than `2^m` distinct points. -/
 theorem agreement_card [DecidableEq K] (m : ℕ) (g h : ℕ → K) (different : ∃ i, i < 2 ^ m ∧ g i ≠ h i)

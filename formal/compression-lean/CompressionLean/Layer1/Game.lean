@@ -40,18 +40,6 @@ def bind : Game α → (α → Game β) → Game β
   | draw C bad next, f => draw C bad (fun c => bind (next c) f)
   | recv M next, f => recv M (fun m => bind (next m) f)
 
-instance : Monad Game where
-  pure := pure
-  bind := bind
-
-/-- One uniform challenge with its bad set. -/
-def sample (C : Type) [Fintype C] [Nonempty C] (bad : Finset C) : Game C :=
-  draw C bad pure
-
-/-- One prover message. -/
-def receive (M : Type) [Nonempty M] : Game M :=
-  recv M pure
-
 /-- Every path that avoids the bad sets ends in `Q`. -/
 def Avoids : Game α → (α → Prop) → Prop
   | pure a, Q => Q a
@@ -73,12 +61,6 @@ noncomputable def prob (s : Strategy α) : Game α → (α → Prop) → ℝ
   | pure a, E => by classical exact if E a then 1 else 0
   | draw _ _ next, E => 𝔼 c, prob s (next c) E
   | recv M next, E => prob s (next (s M next)) E
-
-theorem prob_nonneg (s : Strategy α) (g : Game α) (E : α → Prop) : 0 ≤ prob s g E := by
-  induction g with
-  | pure a => simp only [prob]; split <;> norm_num
-  | draw C bad next ih => exact Finset.expect_nonneg (fun c _ => ih c)
-  | recv M next ih => exact ih _
 
 theorem prob_le_one (s : Strategy α) (g : Game α) (E : α → Prop) : prob s g E ≤ 1 := by
   induction g with
@@ -196,5 +178,16 @@ theorem prob_congr (s : Strategy α) (g : Game α) {E E' : α → Prop} (same : 
   rw [show E = E' from funext fun a => propext (same a)]
 
 end Game
+
+theorem density_le {C : Type} [Fintype C] (bad : Finset C) (n : ℕ) (card : bad.card ≤ n) :
+    (bad.card : ℝ) / Fintype.card C ≤ n / Fintype.card C :=
+  div_le_div_of_nonneg_right (by exact_mod_cast card) (by positivity)
+
+/-- One draw of density at most `a / |D|`, then a game of cost `rest / |D|`. -/
+theorem draw_step {α C D : Type} [Fintype C] [Nonempty C] [Fintype D] (bad : Finset C)
+    (next : C → Game α) (a rest : ℕ) (density : (bad.card : ℝ) / Fintype.card C ≤ a / Fintype.card D)
+    (nexts : ∀ c, (next c).CostLe (rest / Fintype.card D)) :
+    (Game.draw C bad next).CostLe (((a + rest : ℕ) : ℝ) / Fintype.card D) :=
+  ⟨_, by push_cast; rw [add_div]; linarith, nexts⟩
 
 end CompressionLean.Layer1

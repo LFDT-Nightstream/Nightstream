@@ -48,11 +48,6 @@ def eqEval : List K → List K → K
   | r :: ρ, x :: xs => (r * x + (1 - r) * (1 - x)) * eqEval ρ xs
   | _, _ => 1
 
-/-- The point of index `i` on the `n`-cube, low bit first. -/
-def boolPoint : ℕ → ℕ → List K
-  | 0, _ => []
-  | n + 1, i => (if i % 2 = 1 then 1 else 0) :: boolPoint n (i / 2)
-
 section Lemmas
 
 theorem cubeSum_add {M : Type} [AddCommMonoid M] (n : ℕ) (t u : ℕ → M) :
@@ -76,29 +71,12 @@ theorem cubeSum_mul_left (n : ℕ) (a : K) (t : ℕ → K) :
       simp only [cubeSum]
       rw [ih (fun i => t (2 * i)), ih (fun i => t (2 * i + 1)), mul_add]
 
-theorem cubeSum_congr {M : Type} [AddCommMonoid M] (n : ℕ) {t u : ℕ → M}
-    (equal : ∀ i, i < 2 ^ n → t i = u i) : cubeSum n t = cubeSum n u := by
-  induction n generalizing t u with
-  | zero => exact equal 0 (by norm_num)
-  | succ n ih =>
-      simp only [cubeSum]
-      congr 1
-      · exact ih fun i lt => equal _ (by rw [pow_succ]; omega)
-      · exact ih fun i lt => equal _ (by rw [pow_succ]; omega)
-
 /-- A homomorphism of additive monoids passes through the cube sum. -/
 theorem map_cubeSum {M N : Type} [AddCommMonoid M] [AddCommMonoid N] (f : M →+ N) (n : ℕ)
     (t : ℕ → M) : f (cubeSum n t) = cubeSum n (fun i => f (t i)) := by
   induction n generalizing t with
   | zero => rfl
   | succ n ih => simp only [cubeSum, map_add, ih]
-
-/-- Binding the low variable commutes with the sum over the other variables. -/
-theorem cubeSum_bindLow (n : ℕ) (c : K) (t : ℕ → K) :
-    cubeSum n (bindLow c t) =
-      (1 - c) * cubeSum n (fun i => t (2 * i)) + c * cubeSum n (fun i => t (2 * i + 1)) := by
-  unfold bindLow
-  rw [cubeSum_add, cubeSum_mul_left, cubeSum_mul_left]
 
 theorem fold_append (p q : List K) (t : ℕ → K) : fold (p ++ q) t = fold q (fold p t) := by
   induction p generalizing t with
@@ -207,23 +185,6 @@ theorem mle_congr (p : List K) {t u : ℕ → K} (equal : ∀ i, i < 2 ^ p.lengt
     mle p t = mle p u := by
   unfold mle
   exact fold_congr p 0 (by simpa using equal) 0 (by norm_num)
-
-/-- The extension agrees with the table on the cube. -/
-theorem mle_boolPoint (n i : ℕ) (t : ℕ → K) : mle (boolPoint n i) t = t (i % 2 ^ n) := by
-  induction n generalizing i t with
-  | zero => simp [boolPoint, mle, fold, Nat.mod_one]
-  | succ n ih =>
-      simp only [boolPoint, mle_cons]
-      rw [ih]
-      simp only [bindLow]
-      have split : i % 2 ^ (n + 1) = i % 2 + 2 * (i / 2 % 2 ^ n) := by
-        rw [pow_succ, mul_comm, Nat.mod_mul]
-      rw [split]
-      rcases Nat.mod_two_eq_zero_or_one i with parity | parity
-      · rw [if_neg (by omega), parity, zero_add]
-        ring
-      · rw [if_pos parity, parity, add_comm 1]
-        ring
 
 /-- The extension is the eq-weighted sum of the table. -/
 theorem mle_eq_cubeSum (point : List K) (t : ℕ → K) :

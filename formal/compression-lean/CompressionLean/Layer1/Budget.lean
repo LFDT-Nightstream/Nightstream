@@ -5,20 +5,21 @@ Owns the layer-1 error at production sizes (`production_error`) and the
 layer-1 budget with the two WHIR opening errors as named terms
 (`production_budget`).
 
-The size bounds (`Shape.Production`) cover the production key of
-`finish.rs::relation`: every cube at most `2^28` (the F′ application
-bound), `D = 54`, `κ + 2 + 2·matrices + public` rows, and the norm bound
-`17·T·(b - 1) = 3672`. The WHIR lists have at most `(2η√ρ)⁻¹ = 20`
-candidates at rate `1/2` (Johnson bound, `η = √ρ/20`); the bounds below
-allow 32. The challenge field is the cubic Goldilocks extension, with
+`Shape.Production` and the hypotheses `L0, L1 ≤ 32` and `123 ≤ queries`
+are premises, not facts about every key. The Rust test
+`production_shape_reaches_the_required_security`
+(`crates/neo-spartan/tests/internal/whir.rs`) asserts them for the
+production key of `finish.rs::relation`. The cube bound `2^29` covers every
+key that `key()` accepts (at most `MAX_MESSAGE_COLUMNS` blocks of 64 lanes).
+The challenge field is the cubic Goldilocks extension, with
 `p^3 ≥ 2^189` elements.
 -/
 
 namespace CompressionLean.Layer1
 
-/-- Size bounds that cover the production layer-1 shape. -/
+/-- Size bounds of the production layer-1 shape. -/
 structure Shape.Production (s : Shape) : Prop where
-  cube : s.cubeVars ≤ 28
+  cube : s.cubeVars ≤ 29
   runs : s.runVars ≤ 28
   rows : s.rowVars ≤ 28
   pairs : s.slotVars + s.matrixVars ≤ 28
@@ -28,8 +29,9 @@ structure Shape.Production (s : Shape) : Prop where
   ring : s.D ≤ 64
   setup : 3 ≤ s.setupVars
 
-theorem gkrLayerCost_le (s : GkrShape) (small : ∀ t, s.factors t ≤ 2) (n E k : ℕ) :
-    gkrLayerCost s n E k ≤ n * (s.trees + 2) + E + k * (4 * n + E) := by
+theorem gkrLayerCost_le (s : GkrShape) (small : ∀ t, s.factors t ≤ 2) (n : ℕ) (E : ℕ → ℕ) (e k : ℕ)
+    (ride : ∀ k, E k ≤ e) :
+    gkrLayerCost s n E k ≤ n * (s.trees + 2) + e + k * (4 * n + e) := by
   have active : (s.active k).length ≤ s.trees :=
     (List.length_filter_le _ _).trans (by simp)
   have degree : s.degree k ≤ 4 := s.degree_le k 4 (by norm_num) fun t _ => by
@@ -38,22 +40,24 @@ theorem gkrLayerCost_le (s : GkrShape) (small : ∀ t, s.factors t ≤ 2) (n E k
     · have := small t; omega
     · omega
   have h1 : n * ((s.active k).length - 1) ≤ n * s.trees := Nat.mul_le_mul_left _ (by omega)
-  have h2 : (k - 1) * (n * s.degree k + E) ≤ k * (4 * n + E) :=
-    Nat.mul_le_mul (by omega) (by have := Nat.mul_le_mul_left n degree; omega)
+  have h2 : (k - 1) * (n * s.degree k + E k) ≤ k * (4 * n + e) :=
+    Nat.mul_le_mul (by omega) (by have := Nat.mul_le_mul_left n degree; have := ride k; omega)
+  have h3 := ride k
   unfold gkrLayerCost
   nlinarith
 
-theorem gkrCost_le (s : GkrShape) (small : ∀ t, s.factors t ≤ 2) (n E bound : ℕ) :
+theorem gkrCost_le (s : GkrShape) (small : ∀ t, s.factors t ≤ 2) (n : ℕ) (E : ℕ → ℕ) (e bound : ℕ)
+    (ride : ∀ k, E k ≤ e) :
     ∀ remaining k, k + remaining ≤ bound + 1 →
-      gkrCost s n E remaining k ≤ remaining * (n * (s.trees + 2) + E + bound * (4 * n + E)) := by
+      gkrCost s n E remaining k ≤ remaining * (n * (s.trees + 2) + e + bound * (4 * n + e)) := by
   intro remaining
   induction remaining with
   | zero => intro k _; simp [gkrCost]
   | succ r ih =>
       intro k fits
       simp only [gkrCost]
-      have layer := gkrLayerCost_le s small n E k
-      have scaled : k * (4 * n + E) ≤ bound * (4 * n + E) := Nat.mul_le_mul_right _ (by omega)
+      have layer := gkrLayerCost_le s small n E e k ride
+      have scaled : k * (4 * n + e) ≤ bound * (4 * n + e) := Nat.mul_le_mul_right _ (by omega)
       have rest := ih (k + 1) (by omega)
       rw [Nat.succ_mul]
       omega
@@ -61,42 +65,43 @@ theorem gkrCost_le (s : GkrShape) (small : ∀ t, s.factors t ≤ 2) (n E bound 
 /-- At production sizes the layer-1 bad-challenge count is below `2^40`. -/
 theorem layer1Count_le (s : Shape) (prod : s.Production) (L0 L1 : ℕ) (h0 : L0 ≤ 32) (h1 : L1 ≤ 32) :
     layer1Count s L0 L1 ≤ 2 ^ 40 := by
-  have lanes : s.laneVars ≤ 28 := by have := prod.cube; unfold Shape.cubeVars at this; omega
-  have blocks : s.blockVars ≤ 28 := by have := prod.cube; unfold Shape.cubeVars at this; omega
-  have earlyLayers : (earlyShape s).layers ≤ 28 := GkrShape.layers_le _ _ fun t _ => by
+  have lanes : s.laneVars ≤ 29 := by have := prod.cube; unfold Shape.cubeVars at this; omega
+  have blocks : s.blockVars ≤ 29 := by have := prod.cube; unfold Shape.cubeVars at this; omega
+  have earlyLayers : (earlyShape s).layers ≤ 29 := GkrShape.layers_le _ _ fun t _ => by
     simp only [earlyShape]
     have := prod.cube; have := prod.runs; have := prod.rows; have := prod.pairs
     split_ifs <;> omega
-  have lateLayers : (lateShape s).layers ≤ 28 := GkrShape.layers_le _ _ fun t _ => by
+  have lateLayers : (lateShape s).layers ≤ 29 := GkrShape.layers_le _ _ fun t _ => by
     simp only [lateShape]
     have := prod.slots
     split_ifs <;> omega
   have earlyGkr := gkrCost_le (earlyShape s) (fun t => by simp only [earlyShape]; split_ifs <;> omega)
-    L0 L0 28 (earlyShape s).layers 1 (by omega)
+    L0 (earlyRide s L0) L0 29 (fun k => by unfold earlyRide; split_ifs <;> omega) (earlyShape s).layers 1
+    (by omega)
   have lateGkr := gkrCost_le (lateShape s) (fun t => by simp only [lateShape]; split_ifs <;> omega)
-    (L0 * L1) 0 28 (lateShape s).layers 1 (by omega)
-  have early : earlyCount s L0 ≤ 32 * (2 ^ 28 + (2 * 2 ^ 12 + 1)) +
+    (L0 * L1) (fun _ => 0) 0 29 (fun _ => le_rfl) (lateShape s).layers 1 (by omega)
+  have early : earlyCount s L0 ≤ 32 * (2 ^ 29 + (2 * 2 ^ 12 + 1)) +
       (32 * (2 * 2 ^ 28 + (2 ^ 28 + 2 ^ 28)) + (32 * (1 + (2 ^ 28 + 2 ^ 28)) +
-        28 * (32 * (5 + 2) + 32 + 28 * (4 * 32 + 32)))) := by
+        29 * (32 * (5 + 2) + 32 + 29 * (4 * 32 + 32)))) := by
     unfold earlyCount
     have trees : (earlyShape s).trees = 5 := rfl
     rw [trees] at earlyGkr
     have := prod.cube; have := prod.runs; have := prod.rows; have := prod.pairs; have := prod.norm
     have := earlyGkr.trans (Nat.mul_le_mul earlyLayers
-      (show L0 * (5 + 2) + L0 + 28 * (4 * L0 + L0) ≤ 32 * (5 + 2) + 32 + 28 * (4 * 32 + 32) by omega))
+      (show L0 * (5 + 2) + L0 + 29 * (4 * L0 + L0) ≤ 32 * (5 + 2) + 32 + 29 * (4 * 32 + 32) by omega))
     gcongr <;> omega
-  have linear : linearCount s L0 ≤ 32 * (2 ^ 8 - 1) + (32 * (2 * 64 - 2) + (28 * (32 * 2) + 28 * (32 * 2))) := by
+  have linear : linearCount s L0 ≤ 32 * (2 ^ 8 - 1) + (32 * (2 * 64 - 2) + (29 * (32 * 2) + 29 * (32 * 2))) := by
     unfold linearCount
     have := prod.rowCount; have := prod.ring
     gcongr
-  have late : lateCount s L0 L1 ≤ 32 * 32 * (2 ^ 28 + 2 ^ 28) +
-      28 * (32 * 32 * (2 + 2) + 0 + 28 * (4 * (32 * 32) + 0)) := by
+  have late : lateCount s L0 L1 ≤ 32 * 32 * (2 ^ 28 + 2 ^ 29) +
+      29 * (32 * 32 * (2 + 2) + 0 + 29 * (4 * (32 * 32) + 0)) := by
     unfold lateCount
     have trees : (lateShape s).trees = 2 := rfl
     rw [trees] at lateGkr
     have product : L0 * L1 ≤ 32 * 32 := Nat.mul_le_mul h0 h1
     have := lateGkr.trans (Nat.mul_le_mul lateLayers
-      (show L0 * L1 * (2 + 2) + 0 + 28 * (4 * (L0 * L1) + 0) ≤ 32 * 32 * (2 + 2) + 0 + 28 * (4 * (32 * 32) + 0)
+      (show L0 * L1 * (2 + 2) + 0 + 29 * (4 * (L0 * L1) + 0) ≤ 32 * 32 * (2 + 2) + 0 + 29 * (4 * (32 * 32) + 0)
         by omega))
     have := prod.slots
     gcongr <;> omega
@@ -104,9 +109,6 @@ theorem layer1Count_le (s : Shape) (prod : s.Production) (L0 L1 : ℕ) (h0 : L0 
   have := Nat.add_le_add (Nat.add_le_add (Nat.add_le_add early linear) (le_refl 9)) late
   refine this.trans ?_
   norm_num
-
-/-- The cubic Goldilocks extension has at least `2^189` elements. -/
-theorem goldilocks_cube : 2 ^ 189 ≤ (2 ^ 64 - 2 ^ 32 + 1) ^ 3 := by norm_num
 
 /-- Layer-1 error at production sizes: the field part is at most `2^-149`;
 the query part is at most `32·2^-t` with `2^(setupVars - 2)` query leaves. -/

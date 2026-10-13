@@ -3,8 +3,10 @@
 This pilot proves straight-line `i32.add/sub` and `local.get/set` refinement,
 plus complete direct guest calls with i32 parameters, locals, results, and
 straight-line bodies ending in `end`, composed with caller instructions, against SpecTec's Wasm 2.0 semantics.
-Call initialization and return are proved; nested/indirect/host calls and early
-returns are outside the call theorem. Selected zero-test steps are also proved.
+`run_refinement` takes plain rows and derives their instruction/call grouping.
+Runs start and finish at caller instruction boundaries; padding, host rows,
+nested/indirect calls and returning out of that caller are excluded. Call
+initialization and return are proved. Selected zero-test steps are also proved.
 Field primality and memory-event consistency are assumed; the offline memory
 argument is not proved. The program ROM encoder covers this guest-only fragment;
 its correspondence with Rust preprocessing is not yet proved.

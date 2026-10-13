@@ -155,7 +155,8 @@ Lemma caller_segment_refinement : forall instruction rest segment callees z init
   exists z' c1, Steps c0 c1 /\
     (callerTyped callees z' (stackHeight (afterBoundary (segmentLast segment))) rest /\
     represents z' final (afterBoundary (segmentLast segment)) rest c1) /\
-    boundaryPC (afterBoundary (segmentLast segment)) = pc + 1 /\ sameCaller z z'.
+    boundaryPC (afterBoundary (segmentLast segment)) = pc + 1 /\ sameCaller z z' /\
+    segmentLast segment COL_CALL_STACK_DEPTH_AFTER = segmentFirst segment COL_CALL_STACK_DEPTH_BEFORE.
 Proof.
   intros instruction rest segment callees z initial final pc c0 Hprime Hrun Hmatches [Himage Hloaded] Hpc
     Hready. apply represented_values in Hready.
@@ -199,7 +200,8 @@ Proof.
     + split.
       * apply represented_values. exists outputs. split; [exact Hout | ]. split; [exact Hrest' | ]. split; [reflexivity | ].
         split; [apply stack_config_wf; [exact Hz' | exact (proj1 (proj2 (proj2 Hout))) | exact HrestWf] | exact HoutLocals].
-      * split; [change (row COL_PC_AFTER = pc + 1); lia | exact Hidentity].
+      * split; [change (row COL_PC_AFTER = pc + 1); lia | ].
+        split; [exact Hidentity | exact (proj1 Hregs)].
   - destruct instruction; cbn [segmentMatches] in Hmatches; try contradiction.
     match type of Hwf with wf_config (stackConfig _ _ (CALL ?x :: _)) => rename x into index end.
     cbn [callerTyped] in HtypedAll. cbv beta iota in Himage.
@@ -225,7 +227,7 @@ Proof.
         split; [reflexivity | ]. split.
         -- apply stack_config_wf; [exact Hz | exact (proj1 (proj2 (proj2 Hout))) | exact HrestWf].
         -- exact HoutLocals.
-      * split; [exact Hnext | repeat split; reflexivity].
+      * split; [exact Hnext | ]. split; [repeat split; reflexivity | exact (proj2 (proj2 Hregisters))].
 Qed.
 
 Lemma segment_chain_boundary : forall segment next rest,
@@ -277,7 +279,7 @@ Proof.
       represents z initial (beforeBoundary (segmentFirst segment)) (instruction :: rest ++ remaining) c0).
     { rewrite Hstart. split; assumption. }
     destruct (caller_segment_refinement instruction (rest ++ remaining) segment callees z initial middle pc c0 Hprime HfirstRun
-      Hmatch Hloaded HsegmentPC Hbefore) as [z1 [c1 [Hsteps [[HtypedAfter Hafter] [Hnext Hcaller]]]]].
+      Hmatch Hloaded HsegmentPC Hbefore) as [z1 [c1 [Hsteps [[HtypedAfter Hafter] [Hnext [Hcaller Hdepth]]]]]].
     assert (HloadedRest : loadedCaller callees z1 middle (pc + 1) (rest ++ remaining)).
     { eapply loaded_caller_preserved; [eapply run_preserves_roms; exact HfirstRun | exact Hcaller | exact (proj2 Hloaded)]. }
     assert (HstartRest : callerStartsAt (afterBoundary (segmentLast segment)) segments').

@@ -56,9 +56,9 @@ theorem checked_step
     (nonwrap : statement.iteration + 1 < goldilocksModulus) :
     let relation := PerApplicationFixedPoint.relation application fits
     let context := (PerApplicationCanonicalPackage.verifierContextDescriptor fits productionSetup).digest4
-    let before := HyperNovaStepData.input statement (prior input runningWitness freshWitness)
+    let before := HyperNovaStepData.input application statement (prior input runningWitness freshWitness)
       advice (CheckedReplayNifs.proof input messages)
-    let after := HyperNovaStepData.output statement advice
+    let after := HyperNovaStepData.output application fits productionSetup statement advice
       (PiCCSInputCheck.selectedRunningFromInput messages)
     StepHoldsFor relation productionAjtaiKey context.toList application before after ∧
     StateEncoding.WellFormed (priorHashPreimage (setup relation productionAjtaiKey context.toList) before) ∧
@@ -66,7 +66,7 @@ theorem checked_step
     before.fresh.publicInputs ⟨0, by decide⟩ =
       encHash (stateHash (priorHashPreimage (setup relation productionAjtaiKey context.toList) before)) ∧
     PiCCSInputCheck.selectedRunningFromInput messages = after.runningNext functionIndex := by
-  exact HyperNovaStepData.stepHolds_and_wellFormed statement
+  exact HyperNovaStepData.stepHolds_and_wellFormed application fits productionSetup statement
     (prior input runningWitness freshWitness) advice
     (CheckedReplayNifs.proof input messages) (PiCCSInputCheck.selectedRunningFromInput messages)
     accepted (CheckedReplayNifs.checked_verifies_selected input batch parent messages

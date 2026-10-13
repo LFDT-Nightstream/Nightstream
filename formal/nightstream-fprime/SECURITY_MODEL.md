@@ -388,12 +388,17 @@ fresh verifier coin by an oracle read. Each module header states its part:
 
 - Completeness does not follow from a knowledge bound: a bound on the
   adversary is not evidence that an honest proof is accepted. The honest
-  prover has separate results:
-  `Export.Stage1.SelectedAssignmentCompleteness.complete`,
-  `Export.Stage1.HyperNovaInitial.initial_accepted`,
-  `Export.Stage1.HyperNovaAcceptedNext.recursive_extend` (proved for
-  `Poseidon2HashChainV1` only) and
-  `Lifecycle.Nifs.BaseCompleteness.zeroProof_verify`.
+  prover has separate results, for every application that fits the `2^28`
+  profile and every commitment setup: the initial statement is accepted
+  (`Export.Stage1.HyperNovaInitial.initial_accepted`), and an accepted proof
+  with advice of the application's witness width gives an accepted next proof
+  (`Export.Stage1.HyperNovaAcceptedNext.recursive_extend`,
+  `Export.Stage1.HyperNovaAcceptedNext.base_extend`, through
+  `Export.Stage1.SelectedAssignmentCompleteness.complete` and
+  `Lifecycle.Nifs.BaseCompleteness.zeroProof_verify`). Each application
+  promises that its step keeps the state width
+  (`Lifecycle.Stage1.Application.Program.step_length`); the counter must stay
+  below `p`.
 - The error is not one security level. The statistical part costs more
   than `2^115.79` oracle queries (addresses) for each unit of success, linear
   in `Q` (`Lifecycle.RandomOracleKnowledge.statisticalError_le`). One

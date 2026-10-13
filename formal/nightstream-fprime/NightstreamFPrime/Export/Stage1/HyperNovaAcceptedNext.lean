@@ -5,7 +5,8 @@ import NightstreamFPrime.Layout.Stage1.PiDECBaseCompleteness
 import NightstreamFPrime.Lifecycle.PilotZeroRunning
 
 /-!
-Owns selected accepted-next completeness from actual old openings.
+Owns accepted-next completeness from actual old openings, for every
+application that fits the `2^28` profile and every commitment setup.
 The recursive branch fixes its C prefix before the total sampler runs. The
 base branch uses canonical dummy advice and retains the default running claims.
 Both call the actual selected assignment constructor and compute the fresh
@@ -29,8 +30,6 @@ open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Layout.ProductionRelation
 open PerApplicationCanonicalAssignment
 open _root_.NightstreamFPrime.Spec.SumCheck.Finite
-open Poseidon2HashChainV1Package (application fits)
-open Poseidon2HashChainV1Setup (productionSetup productionAjtaiKey)
 
 private theorem completeAssignment_eq_extend {program : Program} (raw : RawValues program) :
     raw.completeAssignment = Phi81CarrierLayout.extendAssignment 0 raw.assignment := by
@@ -122,6 +121,9 @@ theorem terminal_of_memberships
     exact runningMember
   · exact freshMember
 
+variable (application : Program) (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+  (commitmentSetup : PerApplicationCanonicalPackage.CommitmentSetup application)
+
 /-- An accepted prior payload and valid application advice construct the
 normal local proof and an accepted successor envelope. The same returned
 child assignments and actual canonical fresh carrier occur in that envelope.
@@ -130,12 +132,12 @@ callback is a caller premise. This is deterministic completeness only. -/
 theorem recursive_extend
     (statement : HyperNovaHistory.Statement) (payload : HyperNovaHistory.Payload application)
     (advice : AppWitness)
-    (accepted : PerApplicationTerminal.Holds application fits productionSetup
+    (accepted : PerApplicationTerminal.Holds application fits commitmentSetup
       statement (.recursive payload))
-    (adviceWidth : advice.length = Stage1.Poseidon2HashChainV1.messageWordCount)
+    (adviceWidth : advice.length = application.witnessWordCount)
     (nonwrap : statement.iteration + 1 < goldilocksModulus) :
     let relation := PerApplicationFixedPoint.relation application fits
-    let key := ProductionKey.key relation productionAjtaiKey
+    let key := ProductionKey.key relation (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
     ∃ (messages : Fin productionShape.cubeVariables → FixedPolynomial K 8)
       (fullOutput : FullOutputCoordinates.FullOutput K productionShape),
       let coins := FiatShamir.derive key.oracle.transcript
@@ -156,12 +158,12 @@ theorem recursive_extend
           proof.piCcsRounds = messages ∧ proof.piCcsOutput = fullOutput ∧
           key.piRlcChallenges (payload.running functionIndex) payload.fresh proof = some rho ∧
           Nifs.PaperNonInteractive.verify key (payload.running functionIndex) payload.fresh proof = some result ∧
-          (∀ child, CE.Holds (semantics productionAjtaiKey) productionGlobalParams
+          (∀ child, CE.Holds (semantics (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)) productionGlobalParams
             (Lifecycle.runningStatement relation result child) (children child)) ∧
           Stage1.Application.witnessValue (ApplicationInputs.interface application)
             (ApplicationInputs.localStart application) (SourceCompiler.sourceEnv raw.base) = advice ∧
-          raw.outputDigest = (HyperNovaStepData.output statement advice result).x ∧
-          PerApplicationTerminal.Holds application fits productionSetup
+          raw.outputDigest = (HyperNovaStepData.output application fits commitmentSetup statement advice result).x ∧
+          PerApplicationTerminal.Holds application fits commitmentSetup
             { iteration := statement.iteration + 1
               z0 := statement.z0
               zi := application.step statement.zi advice } (.recursive {
@@ -169,37 +171,37 @@ theorem recursive_extend
               runningWitness := fun _ => children
               fresh := {
                 commitments := fun _ => Phi81Relation.PiRLCAlgebra.Commitment.commit
-                  productionAjtaiKey raw.completeAssignment
+                  (PerApplicationCanonicalPackage.commitmentKey commitmentSetup) raw.completeAssignment
                 publicInputs := fun _ => encHash raw.outputDigest }
               freshWitness := raw.completeAssignment
               pc := 1 }) := by
   let relation := PerApplicationFixedPoint.relation application fits
-  let key := ProductionKey.key relation productionAjtaiKey
-  let context := (PerApplicationCanonicalPackage.verifierContextDescriptor fits productionSetup).digest4
+  let key := ProductionKey.key relation (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
+  let context := (PerApplicationCanonicalPackage.verifierContextDescriptor fits commitmentSetup).digest4
   obtain ⟨messages, fullOutput, continuation⟩ :=
-    HyperNovaCompleteness.recursive_nifs application fits productionSetup statement payload accepted
+    HyperNovaCompleteness.recursive_nifs application fits commitmentSetup statement payload accepted
   refine ⟨messages, fullOutput, ?_⟩
   intro coins
   obtain ⟨rho, sampled, proof, result, children, roundsEq, outputEq, sampleEq, verified, childrenMember⟩ :=
     continuation
   refine ⟨rho, sampled, ?_⟩
-  let before := HyperNovaStepData.input statement payload advice proof
-  let after := HyperNovaStepData.output statement advice result
+  let before := HyperNovaStepData.input application statement payload advice proof
+  let after := HyperNovaStepData.output application fits commitmentSetup statement advice result
   obtain ⟨step, priorWellFormed, nextWellFormed, freshPublic, resultEq⟩ :=
-    HyperNovaStepData.stepHolds_and_wellFormed statement payload advice proof result
+    HyperNovaStepData.stepHolds_and_wellFormed application fits commitmentSetup statement payload advice proof result
       accepted verified nonwrap
   obtain ⟨raw, rows, bounded, _publicInput, actualAdvice, digest⟩ :=
-    SelectedAssignmentCompleteness.complete productionAjtaiKey context before after result
+    SelectedAssignmentCompleteness.complete application fits (PerApplicationCanonicalPackage.commitmentKey commitmentSetup) context before after result
       step priorWellFormed nextWellFormed freshPublic verified (fun _ => resultEq) adviceWidth
-  have freshMember := freshHolds_of_rows application fits productionAjtaiKey raw rows bounded
+  have freshMember := freshHolds_of_rows application fits (PerApplicationCanonicalPackage.commitmentKey commitmentSetup) raw rows bounded
   have priorValid := ((PerApplicationTerminal.holds_recursive_iff
-    application fits productionSetup statement payload).mp accepted).1
+    application fits commitmentSetup statement payload).mp accepted).1
   let next : HyperNovaHistory.Statement :=
     { iteration := statement.iteration + 1, z0 := statement.z0,
       zi := application.step statement.zi advice }
   have nextValid : Stage1.Terminal.StatementValid next :=
-    ⟨nonwrap, priorValid.2.1, Stage1.Poseidon2HashChainV1.step_output_length statement.zi advice⟩
-  have nextAccepted := terminal_of_memberships application fits productionSetup next
+    ⟨nonwrap, priorValid.2.1, application.step_length statement.zi advice priorValid.2.2⟩
+  have nextAccepted := terminal_of_memberships application fits commitmentSetup next
     result children raw nextValid (Nat.zero_lt_succ statement.iteration)
     digest nextWellFormed.2.2.2 childrenMember freshMember
   exact ⟨proof, result, children, raw, roundsEq, outputEq, sampleEq, verified,
@@ -212,11 +214,11 @@ the default running claims and their proved zero openings. No opening of the
 dummy fresh claim or its verifier-produced children is assumed or claimed. -/
 theorem base_extend
     (statement : HyperNovaHistory.Statement) (advice : AppWitness)
-    (accepted : PerApplicationTerminal.Holds application fits productionSetup statement .bottom)
-    (adviceWidth : advice.length = Stage1.Poseidon2HashChainV1.messageWordCount) :
+    (accepted : PerApplicationTerminal.Holds application fits commitmentSetup statement .bottom)
+    (adviceWidth : advice.length = application.witnessWordCount) :
     let relation := PerApplicationFixedPoint.relation application fits
-    let key := ProductionKey.key relation productionAjtaiKey
-    let context := (PerApplicationCanonicalPackage.verifierContextDescriptor fits productionSetup).digest4
+    let key := ProductionKey.key relation (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
+    let context := (PerApplicationCanonicalPackage.verifierContextDescriptor fits commitmentSetup).digest4
     let prior : HashPreimage
         (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
         (publicFits := PerApplicationFixedPoint.publicFits application) := {
@@ -234,8 +236,8 @@ theorem base_extend
           (Nifs.BaseCompleteness.baseFresh prior) Nifs.BaseCompleteness.zeroProof = some dummyResult ∧
         Stage1.Application.witnessValue (ApplicationInputs.interface application)
           (ApplicationInputs.localStart application) (SourceCompiler.sourceEnv raw.base) = advice ∧
-        raw.outputDigest = (HyperNovaStepData.output statement advice defaultRunning).x ∧
-        PerApplicationTerminal.Holds application fits productionSetup
+        raw.outputDigest = (HyperNovaStepData.output application fits commitmentSetup statement advice defaultRunning).x ∧
+        PerApplicationTerminal.Holds application fits commitmentSetup
           { iteration := statement.iteration + 1
             z0 := statement.z0
             zi := application.step statement.zi advice } (.recursive {
@@ -243,13 +245,13 @@ theorem base_extend
             runningWitness := fun _ _ => Phi81Relation.EvaluationHomomorphism.BaseLinear.assignmentZero
             fresh := {
               commitments := fun _ => Phi81Relation.PiRLCAlgebra.Commitment.commit
-                productionAjtaiKey raw.completeAssignment
+                (PerApplicationCanonicalPackage.commitmentKey commitmentSetup) raw.completeAssignment
               publicInputs := fun _ => encHash raw.outputDigest }
             freshWitness := raw.completeAssignment
             pc := 1 }) := by
   intro relation key context prior
   obtain ⟨valid, zero, sameInitial⟩ :=
-    (PerApplicationTerminal.holds_bottom_iff application fits productionSetup statement).mp accepted
+    (PerApplicationTerminal.holds_bottom_iff application fits commitmentSetup statement).mp accepted
   let seeded : Input KeyDigest AppState AppWitness
       (Running (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
         (publicFits := PerApplicationFixedPoint.publicFits application))
@@ -264,33 +266,34 @@ theorem base_extend
     priorPc := 1
     witness := advice
     nifsProof := Nifs.BaseCompleteness.zeroProof }
-  let before := PiDECBaseCompleteness.canonicalInput relation productionAjtaiKey context seeded
-  let after := HyperNovaStepData.output statement advice defaultRunning
-  have seededStep : StepHoldsFor relation productionAjtaiKey context.toList application seeded after :=
+  let before := PiDECBaseCompleteness.canonicalInput relation (PerApplicationCanonicalPackage.commitmentKey commitmentSetup) context seeded
+  let after := HyperNovaStepData.output application fits commitmentSetup statement advice defaultRunning
+  have seededStep : StepHoldsFor relation (PerApplicationCanonicalPackage.commitmentKey commitmentSetup) context.toList application seeded after :=
     ⟨rfl, rfl, rfl, Or.inl ⟨zero, sameInitial.symm, rfl⟩⟩
   have step := PiDECBaseCompleteness.canonicalInput_preserves_base
-    relation productionAjtaiKey context seeded after seededStep zero
+    relation (PerApplicationCanonicalPackage.commitmentKey commitmentSetup) context seeded after application
+    seededStep zero
   have priorFixed : PilotProduction.FixedPreimage
-      (priorHashPreimage (setup relation productionAjtaiKey context.toList) before) :=
+      (priorHashPreimage (setup relation (PerApplicationCanonicalPackage.commitmentKey commitmentSetup) context.toList) before) :=
     ⟨context.toList_length, valid.2.1, valid.2.2⟩
   have nextFixed : PilotProduction.FixedPreimage
-      (nextHashPreimage (setup relation productionAjtaiKey context.toList) before after) :=
+      (nextHashPreimage (setup relation (PerApplicationCanonicalPackage.commitmentKey commitmentSetup) context.toList) before after) :=
     ⟨context.toList_length, valid.2.1,
-      Stage1.Poseidon2HashChainV1.step_output_length statement.zi advice⟩
+      application.step_length statement.zi advice valid.2.2⟩
   have nonwrap : statement.iteration + 1 < goldilocksModulus := by
     rw [zero]
     exact (by decide : 0 + 1 < goldilocksModulus)
   have priorWellFormed : StateEncoding.WellFormed
-      (priorHashPreimage (setup relation productionAjtaiKey context.toList) before) :=
+      (priorHashPreimage (setup relation (PerApplicationCanonicalPackage.commitmentKey commitmentSetup) context.toList) before) :=
     ⟨priorFixed, valid.1, rfl, StateEncoding.defaultRunning_canonical⟩
   have nextWellFormed : StateEncoding.WellFormed
-      (nextHashPreimage (setup relation productionAjtaiKey context.toList) before after) :=
+      (nextHashPreimage (setup relation (PerApplicationCanonicalPackage.commitmentKey commitmentSetup) context.toList) before after) :=
     ⟨nextFixed, nonwrap, rfl, StateEncoding.defaultRunning_canonical⟩
   have freshPublic : before.fresh.publicInputs ⟨0, by decide⟩ =
-      encHash (stateHash (priorHashPreimage (setup relation productionAjtaiKey context.toList) before)) := by
+      encHash (stateHash (priorHashPreimage (setup relation (PerApplicationCanonicalPackage.commitmentKey commitmentSetup) context.toList) before)) := by
     rfl
   obtain ⟨dummyResult, verified⟩ := Nifs.BaseCompleteness.zeroProof_verify
-    relation productionAjtaiKey prior
+    relation (PerApplicationCanonicalPackage.commitmentKey commitmentSetup) prior
   have beforeVerified : Nifs.PaperNonInteractive.verify key
       (before.running functionIndex) before.fresh before.nifsProof = some dummyResult := by
     simpa only [before, PiDECBaseCompleteness.canonicalInput, seeded] using! verified
@@ -299,20 +302,20 @@ theorem base_extend
     have beforeZero : before.iteration = 0 := zero
     exact False.elim ((Nat.ne_of_gt positive) beforeZero)
   obtain ⟨raw, rows, bounded, _publicInput, actualAdvice, digest⟩ :=
-    SelectedAssignmentCompleteness.complete productionAjtaiKey context before after dummyResult
+    SelectedAssignmentCompleteness.complete application fits (PerApplicationCanonicalPackage.commitmentKey commitmentSetup) context before after dummyResult
       step priorWellFormed nextWellFormed freshPublic beforeVerified recursiveResult adviceWidth
-  have freshMember := freshHolds_of_rows application fits productionAjtaiKey raw rows bounded
+  have freshMember := freshHolds_of_rows application fits (PerApplicationCanonicalPackage.commitmentKey commitmentSetup) raw rows bounded
   let next : HyperNovaHistory.Statement := {
     iteration := statement.iteration + 1
     z0 := statement.z0
     zi := application.step statement.zi advice }
   have nextValid : Stage1.Terminal.StatementValid next :=
-    ⟨nonwrap, valid.2.1, Stage1.Poseidon2HashChainV1.step_output_length statement.zi advice⟩
-  have nextAccepted := terminal_of_memberships application fits productionSetup next
+    ⟨nonwrap, valid.2.1, application.step_length statement.zi advice valid.2.2⟩
+  have nextAccepted := terminal_of_memberships application fits commitmentSetup next
     defaultRunning (fun _ => Phi81Relation.EvaluationHomomorphism.BaseLinear.assignmentZero) raw
     nextValid (Nat.zero_lt_succ statement.iteration) digest
     StateEncoding.defaultRunning_canonical
-    (PilotZeroRunning.defaultRunning_holds relation productionAjtaiKey) freshMember
+    (PilotZeroRunning.defaultRunning_holds relation (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)) freshMember
   exact ⟨dummyResult, raw, verified, actualAdvice, digest, nextAccepted⟩
 
 end NightstreamFPrime.Export.Stage1.HyperNovaAcceptedNext

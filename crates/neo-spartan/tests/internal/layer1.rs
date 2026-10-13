@@ -168,6 +168,35 @@ fn batched_row_holds_exactly_for_a_true_claim() {
     assert!(!holds(&setup, &relation, &toy.claim, &witness), "carrier tail lane");
 }
 
+/// The Lean proof (`formal/compression-lean`, `Layer1/Cost.lean`) charges
+/// these draws, in this order; each needs its own term.
+#[test]
+fn outer_terms_name_every_draw_of_the_lean_proof() {
+    let (toy, setup, _scratch) = setup_toy(9, 4, 6);
+    let relation = relation_of(&toy, setup.key());
+    let labels: Vec<&str> = crate::outer_terms(&relation.shape, &relation.key.structure, 0.0)
+        .iter()
+        .map(|term| term.label)
+        .collect();
+    assert_eq!(
+        labels,
+        [
+            "norm logUp",
+            "row lookup",
+            "slot scatter",
+            "early GKR",
+            "slot-block test",
+            "ring-row batching",
+            "quotient at zeta",
+            "linear sum-check",
+            "run group",
+            "honest-fold partials",
+            "block scatter",
+            "late GKR",
+        ]
+    );
+}
+
 #[test]
 fn keys_derive_reopen_and_bind() {
     let (toy, setup, scratch) = setup_toy(5, 4, 6);

@@ -37,6 +37,10 @@ circuits without change.
   got. `FiatShamir.lean` bounds layer 1 there by `queries · layer1Error`.
   The step from Poseidon2 to this experiment (random oracle, injective
   transcript encoding) is assumed.
+- Verifier formulas: the model takes the public tables at their
+  definitions. `ClosedForms.lean` and `EvalK.lean` prove the `mle.rs`
+  formulas equal to them. `CubicField.lean` proves that `x³ - x - 1` is
+  irreducible over Goldilocks, so the challenge field is a field.
 - Stage order (`Stages.lean`): early (norm, row lookup, slot scatter, GKR),
   linear (ring rows at `λ`, `ζ`, two sum-checks), honest fold (setup
   partials, `α`, setup queries), late (block scatter, GKR).

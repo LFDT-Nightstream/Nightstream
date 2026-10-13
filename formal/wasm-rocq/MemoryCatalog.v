@@ -45,7 +45,16 @@ Definition memories : list MemorySpec :=
    (* pc_rom *) mkMemory 38%nat Rom [mkPort [8%nat; 10%nat] 9%nat Read (When 20%nat); mkPort [8%nat; 49%nat] 43%nat Read (When 41%nat); mkPort [8%nat; 49%nat] 9%nat Read (When 450%nat)]].
 
 Definition localLoId : nat := 5%nat.
+Definition localHiId : nat := 6%nat.
 Definition stackId : nat := 0%nat.
+Definition callStackReturnPcId : nat := 1%nat.
+Definition callStackCallerFbpId : nat := 2%nat.
+Definition callStackCallerSpBaseId : nat := 3%nat.
+Definition functionLocalCountId : nat := 23%nat.
+Definition functionCallMetadataId : nat := 25%nat.
+Definition pcFunctionRefId : nat := 24%nat.
+Definition callTargetId : nat := 27%nat.
+Definition functionEntryId : nat := 28%nat.
 Definition programOpcodeId : nat := 11%nat.
 Definition programLocalIndexId : nat := 12%nat.
 Definition pcEdgeKindId : nat := 29%nat.

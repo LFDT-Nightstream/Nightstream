@@ -1,7 +1,7 @@
 (* Local instruction simulation over the complete stack and active frame. *)
 From Stdlib Require Import List ZArith NArith Lia.
 Require Import R1CS Columns FullRelation Range Selectors Wasm2 WasmIntegers Locals
-  MemoryTrace MemoryCatalog ProgramBinding StraightLineSpec StackSimulation
+  MemoryTrace MemoryCatalog StraightLineSpec StackSimulation
   LocalBindings StackBindings.
 Import ListNotations.
 Open Scope Z_scope.
@@ -184,37 +184,22 @@ Proof.
         -- destruct n; discriminate.
 Qed.
 
-Lemma local_instruction_index : forall program initial final (w : Witness) pc (x : localidx),
-  loadedProgram program initial -> w COL_PC_BEFORE = Z.of_nat pc ->
-  programLocalIndexAt program pc = Some (Z.of_N (x :> N)) ->
-  w COL_PROGRAM_LOCAL_INDEX_ACTIVE = 1 ->
-  Replay initial (eventsForRow MemoryCatalog.memories w) final ->
-  w COL_LOCAL_INDEX = Z.of_N (x :> N).
+Lemma local_get_frame_refinement : forall z initial final row c0 x rest,
+  Range.fieldPrime -> FullRelation.satFull row ->
+  Replay initial (eventsForRow MemoryCatalog.memories row) final ->
+  row COL_SEL_LOCAL_GET = 1 -> row COL_LOCAL_INDEX = Z.of_N (x :> N) ->
+  (programTyped (length (stateLocals z)) (stackHeight (beforeBoundary row)) (LOCAL_GET x :: rest) /\
+    represents z initial (beforeBoundary row) (LOCAL_GET x :: rest) c0) ->
+  exists c1, Step c0 c1 /\
+    (programTyped (length (stateLocals z)) (stackHeight (afterBoundary row)) rest /\
+    represents z final (afterBoundary row) rest c1).
 Proof.
-  intros program initial final w pc x [_ [_ [_ Hrom]]] Hpc Hlookup Hactive Hreplay.
-  pose proof (circuit_row_local_index_fetch initial final w Hreplay Hactive) as Hfetch.
-  rewrite Hpc, Hrom, Hlookup in Hfetch. congruence.
-Qed.
-
-Lemma local_get_row_refinement : forall program z initial final row pc c0 x,
-  Range.fieldPrime -> loadedProgram program initial -> FullRelation.satFull row ->
-  row COL_IS_PROGRAM_ROW = 1 -> Replay initial (eventsForRow MemoryCatalog.memories row) final ->
-  nth_error program pc = Some (LOCAL_GET x) -> row COL_SEL_LOCAL_GET = 1 ->
-  represents program z initial (beforeBoundary row) pc c0 ->
-  exists c1, Step c0 c1 /\ represents program z final (afterBoundary row) (S pc) c1.
-Proof.
-  intros program z initial final row pc c0 x Hprime Hloaded Hfull Hprogram Hreplay Hlookup Hchosen Hrep.
-  destruct Hrep as [Hpc [HpcBound [values [Hstack [Htyped [Hconfig [Hwf Hlocals]]]]]]].
-  change (row COL_PC_BEFORE = Z.of_nat pc) in Hpc.
-  pose proof (skipn_at_instruction program pc (LOCAL_GET x) Hlookup) as Hsuffix.
-  rewrite Hsuffix in Htyped, Hconfig. cbn [programTyped] in Htyped.
-  destruct Htyped as [HindexBound Htyped].
+  intros z initial final row c0 x rest Hprime Hfull Hreplay Hchosen Hindex Hrep.
+  apply represented_values in Hrep. destruct Hrep as [values [Hstack [Htyped [Hconfig [Hwf Hlocals]]]]].
+  cbn [programTyped instructionStackHeight] in Htyped. destruct Htyped as [HindexBound Htyped].
   assert (Hchoice : straightLineSelector COL_SEL_LOCAL_GET) by (cbn; auto).
   destruct (full_straight_line_local_gates row _ Hprime Hfull Hchoice Hchosen)
     as [Hfbp [Hwrite HindexGate]].
-  assert (Hindex : row COL_LOCAL_INDEX = Z.of_N (x :> N)).
-  { eapply local_instruction_index; try eassumption.
-    unfold programLocalIndexAt. rewrite Hlookup. reflexivity. }
   pose proof (full_straight_line_local_writes row _ Hprime Hfull Hchoice Hchosen) as Hwrites.
   cbn [Nat.eqb COL_SEL_LOCAL_GET COL_SEL_LOCAL_SET] in Hwrites.
   assert (Hno : Forall (NoWriteTo MemoryCatalog.localLoId
@@ -241,23 +226,18 @@ Proof.
     (stackConfig z [row COL_STACK_WRITE0_VALUE_LO] [])) in Hsmall.
   rewrite <- (app_nil_r values) in Hwf at 1.
   destruct (stack_config_step z z values [] [row COL_STACK_WRITE0_VALUE_LO] (LOCAL_GET x)
-    (skipn (S pc) program) Hsmall ltac:(constructor; [exact Hresult | constructor]) Hz Hwf)
+    rest Hsmall ltac:(constructor; [exact Hresult | constructor]) Hz Hwf)
     as [Hstep HwfAfter].
   rewrite app_nil_r in Hstep.
-  exists (stackConfig z (values ++ [row COL_STACK_WRITE0_VALUE_LO]) (skipn (S pc) program)).
-  split; [exact Hstep | ]. split.
-  - change (row COL_PC_AFTER = Z.of_nat (S pc)).
-    destruct (program_row_next_pc program initial final row pc Hprime Hfull Hloaded Hprogram Hpc Hreplay)
-      as [_ [_ Hnext]]. replace (S pc) with (pc + 1)%nat by lia. exact Hnext.
-  - split.
-    + apply nth_error_Some. rewrite Hlookup. discriminate.
-    + exists (values ++ [row COL_STACK_WRITE0_VALUE_LO]). split; [exact HstackAfter | ].
-      split.
-      * rewrite length_app. cbn [length]. replace (length values + 1)%nat with (S (length values)) by lia.
-        exact Htyped.
-      * split; [reflexivity | ]. split; [exact HwfAfter | ].
-        eapply (locals_match_preserved initial final (beforeBoundary row) (afterBoundary row) z); [exact Hfbp | | exact Hlocals].
-        eapply no_local_writes_preserve; eassumption.
+  exists (stackConfig z (values ++ [row COL_STACK_WRITE0_VALUE_LO]) rest).
+  split; [exact Hstep | ].
+  apply represented_values. exists (values ++ [row COL_STACK_WRITE0_VALUE_LO]). split; [exact HstackAfter | ].
+  split.
+  - rewrite length_app. cbn [length]. replace (length values + 1)%nat with (S (length values)) by lia.
+    exact Htyped.
+  - split; [reflexivity | ]. split; [exact HwfAfter | ].
+    eapply (locals_match_preserved initial final (beforeBoundary row) (afterBoundary row) z); [exact Hfbp | | exact Hlocals].
+    eapply no_local_writes_preserve; eassumption.
 Qed.
 
 Lemma stack_has_last : forall (values : list Z),
@@ -270,20 +250,19 @@ Proof.
     exists (a :: prefix), value. cbn. now rewrite Hrest.
 Qed.
 
-Lemma local_set_row_refinement : forall program z initial final row pc c0 x,
-  Range.fieldPrime -> loadedProgram program initial -> FullRelation.satFull row ->
-  row COL_IS_PROGRAM_ROW = 1 -> Replay initial (eventsForRow MemoryCatalog.memories row) final ->
-  nth_error program pc = Some (LOCAL_SET x) -> row COL_SEL_LOCAL_SET = 1 ->
-  represents program z initial (beforeBoundary row) pc c0 ->
+Lemma local_set_frame_refinement : forall z initial final row c0 x rest,
+  Range.fieldPrime -> FullRelation.satFull row ->
+  Replay initial (eventsForRow MemoryCatalog.memories row) final ->
+  row COL_SEL_LOCAL_SET = 1 -> row COL_LOCAL_INDEX = Z.of_N (x :> N) ->
+  (programTyped (length (stateLocals z)) (stackHeight (beforeBoundary row)) (LOCAL_SET x :: rest) /\
+    represents z initial (beforeBoundary row) (LOCAL_SET x :: rest) c0) ->
   exists c1, Step c0 c1 /\
-    represents program (with_local z x (i32Value (row COL_LOCAL_VALUE))) final (afterBoundary row) (S pc) c1.
+    (programTyped (length (stateLocals (with_local z x (i32Value (row COL_LOCAL_VALUE))))) (stackHeight (afterBoundary row)) rest /\
+    represents (with_local z x (i32Value (row COL_LOCAL_VALUE))) final (afterBoundary row) rest c1).
 Proof.
-  intros program z initial final row pc c0 x Hprime Hloaded Hfull Hprogram Hreplay Hlookup Hchosen Hrep.
-  destruct Hrep as [Hpc [HpcBound [values [Hstack [Htyped [Hconfig [Hwf Hlocals]]]]]]].
-  change (row COL_PC_BEFORE = Z.of_nat pc) in Hpc.
-  pose proof (skipn_at_instruction program pc (LOCAL_SET x) Hlookup) as Hsuffix.
-  rewrite Hsuffix in Htyped, Hconfig. cbn [programTyped] in Htyped.
-  destruct Htyped as [HindexBound Htyped].
+  intros z initial final row c0 x rest Hprime Hfull Hreplay Hchosen Hindex Hrep.
+  apply represented_values in Hrep. destruct Hrep as [values [Hstack [Htyped [Hconfig [Hwf Hlocals]]]]].
+  cbn [programTyped instructionStackHeight] in Htyped. destruct Htyped as [HindexBound Htyped].
   assert (Hheight : (0 < length values)%nat).
   { destruct (length values); [contradiction | lia]. }
   destruct (stack_has_last values Hheight) as [prefix [value Hvalues]]. subst values c0.
@@ -296,9 +275,6 @@ Proof.
   assert (Hchoice : straightLineSelector COL_SEL_LOCAL_SET) by (cbn; auto).
   destruct (full_straight_line_local_gates row _ Hprime Hfull Hchoice Hchosen)
     as [Hfbp [Hwrite HindexGate]].
-  assert (Hindex : row COL_LOCAL_INDEX = Z.of_N (x :> N)).
-  { eapply local_instruction_index; try eassumption.
-    unfold programLocalIndexAt. rewrite Hlookup. reflexivity. }
   pose proof (full_straight_line_local_writes row _ Hprime Hfull Hchoice Hchosen) as Hwrites.
   cbn [Nat.eqb COL_SEL_LOCAL_SET] in Hwrites.
   pose proof (Range.full_local_value_u32 row Hprime Hfull) as Hresult.
@@ -310,22 +286,17 @@ Proof.
   assert (Hz : wf_state z) by (inversion Hwf; assumption).
   pose proof (with_local_wf z x _ Hz (full_local_value_wf row Hprime Hfull)) as HzAfter.
   destruct (stack_config_step z (with_local z x (i32Value (row COL_LOCAL_VALUE)))
-    prefix [value] [] (LOCAL_SET x) (skipn (S pc) program) Hsmall ltac:(constructor) HzAfter Hwf)
+    prefix [value] [] (LOCAL_SET x) rest Hsmall ltac:(constructor) HzAfter Hwf)
     as [Hstep HwfAfter].
   rewrite app_nil_r in Hstep, HwfAfter.
-  exists (stackConfig (with_local z x (i32Value (row COL_LOCAL_VALUE))) prefix (skipn (S pc) program)).
-  split; [exact Hstep | ]. split.
-  - change (row COL_PC_AFTER = Z.of_nat (S pc)).
-    destruct (program_row_next_pc program initial final row pc Hprime Hfull Hloaded Hprogram Hpc Hreplay)
-      as [_ [_ Hnext]]. replace (S pc) with (pc + 1)%nat by lia. exact Hnext.
-  - split.
-    + apply nth_error_Some. rewrite Hlookup. discriminate.
-    + exists prefix. split; [exact HstackAfter | ]. split.
-      * rewrite locals_length_after_set.
-        rewrite length_app in Htyped. cbn [length] in Htyped.
-        replace (length prefix + 1)%nat with (S (length prefix)) in Htyped by lia. exact Htyped.
-      * split; [reflexivity | ]. split; [exact HwfAfter | ].
-        eapply (locals_match_set initial final (beforeBoundary row) (afterBoundary row) z x (row COL_LOCAL_VALUE)); [exact Hfbp | exact HindexBound | exact Hresult | | exact Hlocals].
-        pose proof (one_local_write_effect _ _ _ _ _ _ Hreplay Hwrites) as Heffect.
-        rewrite Hindex in Heffect. exact Heffect.
+  exists (stackConfig (with_local z x (i32Value (row COL_LOCAL_VALUE))) prefix rest).
+  split; [exact Hstep | ].
+  apply represented_values. exists prefix. split; [exact HstackAfter | ]. split.
+  - rewrite locals_length_after_set.
+    rewrite length_app in Htyped. cbn [length] in Htyped.
+    replace (length prefix + 1)%nat with (S (length prefix)) in Htyped by lia. exact Htyped.
+  - split; [reflexivity | ]. split; [exact HwfAfter | ].
+    eapply (locals_match_set initial final (beforeBoundary row) (afterBoundary row) z x (row COL_LOCAL_VALUE)); [exact Hfbp | exact HindexBound | exact Hresult | | exact Hlocals].
+    pose proof (one_local_write_effect _ _ _ _ _ _ Hreplay Hwrites) as Heffect.
+    rewrite Hindex in Heffect. exact Heffect.
 Qed.

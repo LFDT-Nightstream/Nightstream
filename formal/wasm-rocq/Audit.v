@@ -1,4 +1,4 @@
-Require Import StraightLineRefinement.
+Require Import CallerRefinement.
 
-Check straight_line_run_refinement.
-Print Assumptions straight_line_run_refinement.
+Check run_refinement.
+Print Assumptions run_refinement.

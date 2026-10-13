@@ -1,5 +1,6 @@
 From Stdlib Require Import List ZArith Lia.
-Require Import Wasm2 StraightLineSpec OpcodeCatalog MemoryTrace MemoryCatalog Locals.
+Require Import R1CS Columns Range TraceRefinement Wasm2 StraightLineSpec StraightLineRefinement
+  OpcodeCatalog MemoryTrace MemoryCatalog Locals.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -9,9 +10,9 @@ Definition localArithmetic :=
    BINOP I32 (mk_binop__0 Inn_I32 SUB);
    LOCAL_SET (mk_uN 0); LOCAL_GET (mk_uN 0)].
 
-Example local_arithmetic_supported : supportedProgram localArithmetic.
+Example local_arithmetic_supported : supportedStraightLineProgram localArithmetic.
 Proof.
-  unfold supportedProgram, localArithmetic. repeat constructor;
+  unfold supportedStraightLineProgram, localArithmetic. repeat constructor;
     eexists; reflexivity.
 Qed.
 
@@ -49,8 +50,8 @@ Definition localArithmeticState : state :=
 
 Example local_arithmetic_initial_state :
   loadedProgram localArithmetic localArithmeticMemory /\
-  represents localArithmetic localArithmeticState localArithmeticMemory
-    (mkBoundary 0 4 4 7) 0 (stackConfig localArithmeticState [] localArithmetic).
+  represents localArithmeticState localArithmeticMemory
+    (mkBoundary 0 4 4 7) localArithmetic (stackConfig localArithmeticState [] localArithmetic).
 Proof.
   split.
   - unfold loadedProgram. repeat split; intros pc;
@@ -65,12 +66,10 @@ Proof.
         destruct (choice =? 0); reflexivity.
     + unfold localArithmeticMemory. rewrite Hnonnegative, Nat2Z.id.
       destruct pc as [ | [ | [ | [ | [ | [ | pc]]]]]]; reflexivity.
-  - unfold represents. split; [reflexivity | ]. split; [cbn; lia | ].
-    exists []. split.
+  - exists []. split.
     + unfold stackMatches. cbn. repeat split; try lia; try constructor.
       intros [ | index] value H; discriminate.
-    + split; [exact local_arithmetic_no_initial_stack | ].
-      split; [reflexivity | ]. split.
+    + split; [reflexivity | ]. split.
       * unfold stackConfig, localArithmeticState, localArithmetic, i32Value.
         cbn. repeat constructor.
       * intros [ | [ | index]] v H; cbn [stateLocals localArithmeticState nth_error] in H.
@@ -99,8 +98,53 @@ Example local_immediates_distinguished :
   programLocalIndexAt localArithmetic 2 = None.
 Proof. vm_compute. repeat constructor. Qed.
 
-Example unsupported_instruction_rejected : ~ supportedProgram [NOP].
+Example unsupported_instruction_rejected : ~ supportedStraightLineProgram [NOP].
 Proof.
   intros H. inversion H; subst. match goal with Hcode : exists _, _ |- _ =>
     destruct Hcode as [code Hcode]; discriminate Hcode end.
+Qed.
+
+Example binary_underflow_has_no_height :
+  instructionStackHeight (BINOP I32 (mk_binop__0 Inn_I32 ADD)) 0 = None /\
+  instructionStackHeight (BINOP I32 (mk_binop__0 Inn_I32 ADD)) 1 = None /\
+  instructionStackHeight (BINOP I32 (mk_binop__0 Inn_I32 SUB)) 0 = None /\
+  instructionStackHeight (BINOP I32 (mk_binop__0 Inn_I32 SUB)) 1 = None /\
+  instructionStackHeight (LOCAL_SET (mk_uN 0)) 0 = None.
+Proof. repeat split; reflexivity. Qed.
+
+(* Constants and eqz are not in this fragment yet. They must not inherit the
+   binary instructions' -1 delta or their two-operand typing rule. *)
+Example unsupported_stack_effects_rejected : forall height,
+  instructionStackHeight (CONST I32 (mk_num__0 Inn_I32 (mk_uN 0))) height = None /\
+  instructionStackDelta (CONST I32 (mk_num__0 Inn_I32 (mk_uN 0))) = None /\
+  instructionStackHeight (TESTOP I32 (mk_testop__0 Inn_I32 EQZ)) height = None /\
+  instructionStackDelta (TESTOP I32 (mk_testop__0 Inn_I32 EQZ)) = None.
+Proof. intros height. repeat split; reflexivity. Qed.
+
+Example typing_rejects_unsupported_even_with_operands : ~ programTyped 0 2 [NOP].
+Proof. exact (fun H => H). Qed.
+
+Example body_delta_rejects_unsupported_instruction :
+  bodyStackDelta [LOCAL_GET (mk_uN 0); NOP] = None.
+Proof. reflexivity. Qed.
+
+(* The straight-line corollary keeps the unexecuted source, just as a call prefix does. *)
+Example local_arithmetic_prefix_refines : forall first second final,
+  fieldPrime -> validCircuitRun localArithmeticMemory [first; second] final ->
+  first COL_IS_PROGRAM_ROW = 1 -> second COL_IS_PROGRAM_ROW = 1 ->
+  beforeBoundary first = mkBoundary 0 4 4 7 ->
+  exists z c, Steps (stackConfig localArithmeticState [] localArithmetic) c /\
+    programTyped (length (stateLocals z)) (stackHeight (afterBoundary second))
+      [BINOP I32 (mk_binop__0 Inn_I32 SUB); LOCAL_SET (mk_uN 0); LOCAL_GET (mk_uN 0)] /\
+    represents z final (afterBoundary second)
+      [BINOP I32 (mk_binop__0 Inn_I32 SUB); LOCAL_SET (mk_uN 0); LOCAL_GET (mk_uN 0)] c /\
+    second COL_PC_AFTER = 2.
+Proof.
+  intros first second final Hprime Hrun Hfirst Hsecond Hboundary.
+  eapply (straight_line_run_refinement localArithmetic localArithmeticState localArithmeticMemory final first [second]
+    _ Hprime local_arithmetic_supported (proj1 local_arithmetic_initial_state) Hrun).
+  - repeat constructor; assumption.
+  - change (boundaryPC (beforeBoundary first) = 0). now rewrite Hboundary.
+  - rewrite Hboundary. exact local_arithmetic_no_initial_stack.
+  - rewrite Hboundary. exact (proj2 local_arithmetic_initial_state).
 Qed.

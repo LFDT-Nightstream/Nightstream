@@ -27,3 +27,41 @@ Proof.
   split; [exact (Forall_inv_tail Hsat) |].
   split; assumption.
 Qed.
+
+Lemma chain_prefix : forall links prefix suffix,
+  Chain links (prefix ++ suffix) -> Chain links prefix.
+Proof.
+  intros links prefix. induction prefix as [ | first rest IH]; intros suffix Hchain.
+  - constructor.
+  - destruct rest as [ | next rest]; [constructor | ].
+    inversion Hchain; subst. constructor; [assumption | ]. eapply IH; eassumption.
+Qed.
+
+Lemma chain_suffix : forall links prefix suffix,
+  Chain links (prefix ++ suffix) -> Chain links suffix.
+Proof.
+  intros links prefix. induction prefix as [ | first rest IH]; intros suffix Hchain.
+  - exact Hchain.
+  - apply IH. inversion Hchain; subst; try constructor; assumption.
+Qed.
+
+Lemma valid_run_split : forall prefix suffix initial final,
+  validCircuitRun initial (prefix ++ suffix) final ->
+  exists middle, validCircuitRun initial prefix middle /\ validCircuitRun middle suffix final.
+Proof.
+  intros prefix suffix initial final [Hsat [Hchain Hreplay]].
+  apply Forall_app in Hsat. destruct Hsat as [Hprefix Hsuffix].
+  unfold eventsForTrace in Hreplay. rewrite flat_map_app in Hreplay.
+  destruct (replay_app_inv _ _ _ _ Hreplay) as [middle [Hfirst Hrest]].
+  exists middle. split; repeat split; try assumption.
+  - eapply chain_prefix; exact Hchain.
+  - eapply chain_suffix; exact Hchain.
+Qed.
+
+Lemma replay_app : forall initial prefix middle suffix final,
+  Replay initial prefix middle -> Replay middle suffix final ->
+  Replay initial (prefix ++ suffix) final.
+Proof.
+  intros initial prefix middle suffix final Hprefix Hsuffix.
+  induction Hprefix; cbn; [exact Hsuffix | econstructor; eauto].
+Qed.

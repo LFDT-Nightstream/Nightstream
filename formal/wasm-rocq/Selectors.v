@@ -519,7 +519,7 @@ Ltac zero_gather_kinds Hzero H :=
       end
   end.
 
-Local Ltac full_row index name :=
+Ltac full_row index name :=
   match goal with
   | Hfull : FullRelation.satFull ?w |- _ =>
   let raw := eval vm_compute in (List.nth index FullRelation.rows ([], [], [])) in
@@ -538,13 +538,11 @@ Record ProgramRowQuiet (w : Witness) : Prop := {
   quiet_tail_discard : w COL_TAIL_DISCARD_COUNT = 0
 }.
 
-Theorem full_program_row_quiet : forall (w : Witness) selected,
+Lemma full_quiet_from_gates : forall (w : Witness),
   Range.fieldPrime -> FullRelation.satFull w ->
-  In selected selectorColumns -> w selected = 1 -> ProgramRowQuiet w.
+  w COL_GATHER_ACTIVE = 0 -> w COL_TAIL_ENTER_ACTIVE = 0 -> ProgramRowQuiet w.
 Proof.
-  intros w selected Hprime Hfull Hin Hselected.
-  pose proof (full_opcode_aux_gates_zero w selected Hprime Hfull Hin Hselected)
-    as [_ [_ [Hgather Htail]]].
+  intros w Hprime Hfull Hgather Htail.
   assert (Hkinds : forall column, In column gatherKindColumns -> w column = 0)
     by (intros; eapply full_no_gather_kind; eassumption).
   assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
@@ -562,6 +560,16 @@ Proof.
   { full_row tailDiscardInactiveRow Hrow. rewrite Hone, Htail in Hrow.
     pose proof (value_bound w COL_TAIL_DISCARD_COUNT). field_linear Hrow. }
   destruct Hgmem. constructor; assumption.
+Qed.
+
+Theorem full_program_row_quiet : forall (w : Witness) selected,
+  Range.fieldPrime -> FullRelation.satFull w ->
+  In selected selectorColumns -> w selected = 1 -> ProgramRowQuiet w.
+Proof.
+  intros w selected Hprime Hfull Hin Hselected.
+  pose proof (full_opcode_aux_gates_zero w selected Hprime Hfull Hin Hselected)
+    as [_ [_ [Hgather Htail]]].
+  exact (full_quiet_from_gates w Hprime Hfull Hgather Htail).
 Qed.
 
 Ltac selected_row chosen index name :=

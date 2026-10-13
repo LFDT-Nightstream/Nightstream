@@ -908,6 +908,9 @@ fn outer_terms(shape: &Shape, structure: &Structure, extra_log2: f64) -> Vec<Sec
         term("row lookup", 3.0 * (size(runs) + size(rows))),
         term("slot scatter", size(runs) + size(pairs) + 1.0),
         term("early GKR", gkr(&[cube, runs, rows, runs, pairs])),
+        // The P0 slot-block copy against the setup block column at the early
+        // run point, then `1 - x ≠ 0` on its high coordinates: one draw each.
+        term("slot-block test", runs as f64),
         term("ring-row batching", (ring::row_count(shape) - 1) as f64),
         term("quotient at zeta", (2 * D - 2) as f64),
         term("linear sum-check", 2.0 * cube as f64),

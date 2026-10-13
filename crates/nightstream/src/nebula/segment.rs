@@ -36,7 +36,7 @@ pub enum SegmentError {
 
 /// One memory cell: its value and the stamp of its last access.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct Cell {
+pub(crate) struct Cell {
     pub value: u64,
     pub stamp: u64,
 }
@@ -156,7 +156,7 @@ pub struct Invocation {
 
 /// A proved-ready segment: its invocations and the values after it.
 #[derive(Clone, Debug)]
-pub struct Segment {
+pub(crate) struct Segment {
     pub invocations: Vec<Invocation>,
     pub carry: Carry,
     pub state: MachineState,
@@ -270,7 +270,7 @@ fn set_k(words: &mut [F], start: usize, value: K) {
 impl Context {
     /// Run one segment from a closed carry: execute the `N` steps, compute the
     /// proposed ops and FS roots, then the witness words of each invocation.
-    pub fn run_segment(
+    pub(crate) fn run_segment(
         &self,
         carry: Carry,
         state: MachineState,

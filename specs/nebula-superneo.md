@@ -486,8 +486,8 @@ equals the IS root of segment `k + 1` when the snapshots are equal.
 
 `D_init` is the IS root over the initial snapshot: for each step `j`, the IS
 slots of the cells `j · B_scan … (j+1) · B_scan − 1` with the image values and
-`t = 0`. The verifier computes `D_init` at setup. It is part of the verifier
-context (§4.3).
+`t = 0`. The verifier computes `D_init` at setup and binds it through the start
+carry (§4.3).
 
 ### 9.3 Challenge transcript
 

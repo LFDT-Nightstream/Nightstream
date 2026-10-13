@@ -10,7 +10,7 @@ use std::ops::Range;
 
 use super::*;
 use crate::lifecycle::{VerifyError, FAILED_ASSERTION_ROW, UNCHECKED_WITNESS};
-use crate::{Circuit, Engine, Error, Proof, Prover, Verifier};
+use crate::{Engine, Error, Proof, Prover, Verifier};
 
 /// `loadi 5; store 0`, then `load 0; halt`.
 const EXECUTE: [Step; 2] = [Step::Execute, Step::Execute];
@@ -49,8 +49,8 @@ impl Harness {
                 .join(fixture.artifact),
         )
         .expect("saved Lean memory package");
-        let circuit = Circuit::load_package(&bytes, fixture.package.structural_identifier()).unwrap();
-        let rows = circuit.application_rows();
+        let loaded = fixture.package.load(&bytes).unwrap();
+        let rows = loaded.circuit.application_rows();
         let named: Vec<(String, usize, usize)> = serde_json::from_slice(fixture.rows).unwrap();
         assert_eq!(
             named.last().map(|check| check.2),
@@ -59,8 +59,8 @@ impl Harness {
         );
         Self {
             context: Context::new(fixture.package),
-            prover: circuit.prover(engine, 114).unwrap(),
-            verifier: Verifier::from_package(&circuit, engine, 114).unwrap(),
+            prover: loaded.prover(engine, 114).unwrap(),
+            verifier: Verifier::from_package(&loaded.circuit, engine, 114).unwrap(),
             checks: named
                 .into_iter()
                 .map(|(name, first, end)| (name, rows.start + first..rows.start + end))

@@ -19,7 +19,7 @@ pub const IDX_EFF: usize = 108;
 const OPS_START: usize = 109;
 
 /// The machine's state words `(pc, acc)`.
-const APP_WIDTH: usize = 2;
+pub(super) const APP_WIDTH: usize = 2;
 
 /// Offsets that depend on the plan.
 #[derive(Clone, Copy, Debug)]

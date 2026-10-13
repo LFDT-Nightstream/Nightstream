@@ -6,9 +6,12 @@
 //! only computes values for them.
 
 mod carry;
+mod circuit;
+mod expr;
 mod machine;
 mod plan;
 mod records;
+mod rows;
 mod segment;
 mod transcript;
 mod words;
@@ -49,6 +52,12 @@ impl Package {
             package: self,
             circuit: crate::Circuit::load_package(bytes, self.structural_identifier())?,
         })
+    }
+
+    /// The package's relation built in Rust, row for row as Lean builds it
+    /// (`tests/nebula_parity.rs`).
+    pub fn application(self) -> Result<crate::application::ApplicationCircuit, crate::application::ApplicationError> {
+        circuit::memory_circuit(self)
     }
 
     fn structural_identifier(self) -> [u64; 4] {

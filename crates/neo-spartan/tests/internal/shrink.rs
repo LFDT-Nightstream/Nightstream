@@ -4,6 +4,7 @@
 use std::time::Instant;
 
 use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
+use p3_challenger_v08::{CanObserve, FieldChallenger};
 use p3_field_v08::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
 use p3_symmetric_v08::Permutation;
 
@@ -11,14 +12,15 @@ use super::layer1::{relation_of, setup_toy, transcript};
 use super::verifier::statement_input;
 use super::word;
 use crate::circuit::block::Kind;
-use crate::circuit::block::{KINDS, MATRICES};
+use crate::circuit::block::{C, KINDS, MATRICES, X};
 use crate::circuit::record::{Recorder, Sink, Term, Trace};
 use crate::circuit::{algebra, Backend};
 use crate::device::Accelerator;
-use crate::field::{eq_table, Ext, Gl};
-use crate::hash::{permutation, seed};
+use crate::field::{eq_table, fold_low, Ext, Gl};
+use crate::hash::{permutation, seed, Challenger};
 use crate::shrink::layout::{diagonal, Layout, Shape};
-use crate::shrink::{prove, verify, Program, Shrink, ShrinkProof};
+use crate::shrink::{prove, prove_outer, verify, Program, Shrink, ShrinkProof};
+use crate::sumcheck;
 use crate::verifier::ProofView;
 use crate::{Claim, ClaimWords, Proof, R1cs, Relation};
 
@@ -93,6 +95,75 @@ fn block_part_matches_every_entry() {
         (layout.row_variables, layout.cell_variables)
     );
     assert_ne!(fewer.block_part(&rx, &ry, &rho), direct);
+}
+
+/// The outer sum-check summed directly: the full `eq` table, every table in
+/// `Ext`, and `eq·P` evaluated at every message abscissa.
+fn textbook_outer(
+    tables: &[Vec<Gl>],
+    tau: &[Ext],
+    challenger: &mut Challenger,
+) -> (Vec<Vec<Ext>>, Vec<Ext>, [Ext; MATRICES]) {
+    let mut tables: Vec<Vec<Ext>> = tables
+        .iter()
+        .map(|table| table.iter().map(|&value| Ext::from(value)).collect())
+        .collect();
+    let mut eq = eq_table(tau);
+    let (mut rounds, mut point) = (Vec::new(), Vec::new());
+    while eq.len() > 1 {
+        let mut sums = [Ext::ZERO; 9];
+        for k in 0..eq.len() / 2 {
+            let mut e = eq[2 * k];
+            let de = eq[2 * k + 1] - e;
+            let mut at: [Ext; MATRICES] = std::array::from_fn(|j| tables[j][2 * k]);
+            let step: [Ext; MATRICES] = std::array::from_fn(|j| tables[j][2 * k + 1] - at[j]);
+            for (t, sum) in sums.iter_mut().enumerate() {
+                if t != 1 {
+                    *sum += e * (at[X].exp_u64(7) + at[1] * at[2] + at[3] * at[4] + at[5] * at[6] - at[C]);
+                }
+                e += de;
+                for j in 0..MATRICES {
+                    at[j] += step[j];
+                }
+            }
+        }
+        let mut message = vec![sums[0]];
+        message.extend_from_slice(&sums[2..]);
+        let r = sumcheck::send(&message, challenger);
+        fold_low(&mut eq, r);
+        for table in &mut tables {
+            fold_low(table, r);
+        }
+        rounds.push(message);
+        point.push(r);
+    }
+    (rounds, point, std::array::from_fn(|j| tables[j][0]))
+}
+
+#[test]
+fn outer_sum_check_matches_the_textbook_prover() {
+    // Random tables break the zero claim; a zero `τ` coordinate leaves no
+    // divisor for `q(1)` in its round.
+    for (m, zero) in [(0, None), (1, None), (2, Some(1)), (5, None), (12, None), (12, Some(7))] {
+        let tables: Vec<Vec<Gl>> = (0..MATRICES as u64)
+            .map(|j| {
+                (0..1u64 << m)
+                    .map(|x| Gl::from_u64(word(100 + j, x)))
+                    .collect()
+            })
+            .collect();
+        let mut tau = points(200 + m as u64, m);
+        if let Some(i) = zero {
+            tau[i] = Ext::ZERO;
+        }
+        let mut challenger = Challenger::new(permutation().clone());
+        challenger.observe(Gl::from_u64(m as u64));
+        let mut textbook = challenger.clone();
+        let fast = prove_outer(tables.clone(), &tau, &mut challenger);
+        assert_eq!(fast, textbook_outer(&tables, &tau, &mut textbook), "m = {m}");
+        let draw: Ext = challenger.sample_algebra_element();
+        assert_eq!(draw, textbook.sample_algebra_element(), "m = {m}");
+    }
 }
 
 /// Knowledge of `secret` with `P(P(secret, s1, 0, ...))[0] = s0`, plus some

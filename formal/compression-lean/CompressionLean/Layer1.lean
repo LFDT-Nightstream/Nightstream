@@ -25,3 +25,5 @@ import CompressionLean.Layer1.Stages
 import CompressionLean.Layer1.Soundness
 import CompressionLean.Layer1.Cost
 import CompressionLean.Layer1.Budget
+import CompressionLean.Layer1.Restoration
+import CompressionLean.Layer1.FiatShamir

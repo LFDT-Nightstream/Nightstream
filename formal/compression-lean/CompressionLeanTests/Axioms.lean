@@ -70,3 +70,6 @@ import CompressionLean
 #audit_axioms CompressionLean.Layer1.goldilocks_cube
 #audit_axioms CompressionLean.Layer1.production_error
 #audit_axioms CompressionLean.Layer1.production_budget
+#audit_axioms CompressionLean.Layer1.Game.restore_sound
+#audit_axioms CompressionLean.Layer1.layer1_restore_sound
+#audit_axioms CompressionLean.Layer1.production_restore

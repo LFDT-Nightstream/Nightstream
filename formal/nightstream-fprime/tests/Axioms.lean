@@ -950,7 +950,6 @@ import tests.AxiomsFoundations
 #audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.remappedRows_hold
 #audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.paddedRows_length
 #audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.paddedRows_hold
-#audit_axioms NightstreamFPrime.Layout.Poseidon2.hashPhysical_complete
 #audit_axioms NightstreamFPrime.Layout.Pilot.rowOwners_length
 #audit_axioms NightstreamFPrime.Layout.Pilot.physicalColumnCount_eq
 #audit_axioms NightstreamFPrime.Layout.Pilot.physicalRowCount_eq

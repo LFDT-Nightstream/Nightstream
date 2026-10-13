@@ -228,3 +228,11 @@ fn honest_fold_accepts_and_tampering_rejects() {
         Error::Rejected("setup leaf shape")
     ));
 }
+
+#[test]
+fn scratches_with_one_name_do_not_share_a_directory() {
+    let (first, second) = (Scratch::new("shared"), Scratch::new("shared"));
+    assert_ne!(first.0, second.0);
+    drop(first);
+    assert!(second.0.is_dir());
+}

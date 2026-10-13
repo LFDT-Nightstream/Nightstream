@@ -157,27 +157,31 @@ def childOps : List Op :=
 /-- Lane `k` of a digest state. -/
 def lane (state : Sponge.EState) (k : Fin 4) : Circuit.Expr := state ⟨k.val, by omega⟩
 
-/-- The parent rows: each digest against its wires, the challenge words, and
-the polynomial rows. -/
+/-- The hash rows by check: each digest against its wires, and the challenge
+words. -/
+def hashChecks : Checks :=
+  [("state_in", (List.finRange 4).map (fun k =>
+      lane (Sponge.output (stateIn p app i offset) offset) k - i.input offset k)),
+    ("state_out", (List.finRange 4).map (fun k =>
+      lane (Sponge.output (stateOut p app i offset) (stateOutStart p app i offset)) k -
+        i.output offset k)),
+    ("chain_ops", (List.finRange 4).map (fun k =>
+      lane (Sponge.output (chainOps p app i offset) (chainOpsStart p app i offset)) k -
+        wire p app i offset (Words.carryOut (23 + k.val)))),
+    ("chain_is", (List.finRange 4).map (fun k =>
+      lane (Sponge.output (chainInitial p app i offset) (chainInitialStart p app i offset)) k -
+        wire p app i offset (Words.carryOut (27 + k.val)))),
+    ("chain_fs", (List.finRange 4).map (fun k =>
+      lane (Sponge.output (chainFinal p app i offset) (chainFinalStart p app i offset)) k -
+        wire p app i offset (Words.carryOut (31 + k.val)))),
+    ("eta", [lane (etaState p app i offset) 0 - wire p app i offset (Words.etaFresh 0),
+      lane (squeeze1State p app i offset) 0 - wire p app i offset (Words.etaFresh 1),
+      lane (squeeze2State p app i offset) 0 - wire p app i offset (Words.etaFresh 2),
+      lane (squeeze3State p app i offset) 0 - wire p app i offset (Words.etaFresh 3)])]
+
+/-- The parent rows: the hash rows and the polynomial rows. -/
 def assertions : List Circuit.Expr :=
-  (List.finRange 4).map (fun k =>
-    lane (Sponge.output (stateIn p app i offset) offset) k - i.input offset k) ++
-  (List.finRange 4).map (fun k =>
-    lane (Sponge.output (stateOut p app i offset) (stateOutStart p app i offset)) k - i.output offset k) ++
-  (List.finRange 4).map (fun k =>
-    lane (Sponge.output (chainOps p app i offset) (chainOpsStart p app i offset)) k -
-      wire p app i offset (Words.carryOut (23 + k.val))) ++
-  (List.finRange 4).map (fun k =>
-    lane (Sponge.output (chainInitial p app i offset) (chainInitialStart p app i offset)) k -
-      wire p app i offset (Words.carryOut (27 + k.val))) ++
-  (List.finRange 4).map (fun k =>
-    lane (Sponge.output (chainFinal p app i offset) (chainFinalStart p app i offset)) k -
-      wire p app i offset (Words.carryOut (31 + k.val))) ++
-  [lane (etaState p app i offset) 0 - wire p app i offset (Words.etaFresh 0),
-    lane (squeeze1State p app i offset) 0 - wire p app i offset (Words.etaFresh 1),
-    lane (squeeze2State p app i offset) 0 - wire p app i offset (Words.etaFresh 2),
-    lane (squeeze3State p app i offset) 0 - wire p app i offset (Words.etaFresh 3)] ++
-  (Rows.polyRows p app).map (sub p app i offset)
+  joinChecks (hashChecks p app i offset) ++ (Rows.polyRows p app).map (sub p app i offset)
 
 def opsAt : List Op := childOps p app i offset ++ (assertions p app i offset).map Op.assertZero
 

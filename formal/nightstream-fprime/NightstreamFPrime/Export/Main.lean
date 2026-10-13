@@ -702,6 +702,14 @@ def emitNebulaMemoryRows (ranges : List (String × ℕ × ℕ)) (path : System.F
   IO.FS.writeFile path ("[" ++ ",".intercalate entries ++ "]\n")
   IO.println s!"emitted_application_rows={path}"
 
+/-- Write `D_init` of `plan` (spec §9.2, the start carry's `D_mem`) as
+`{"d_init":[...]}`. `ofWords_initRootWords`: the words are
+`(context plan).initRoot`. Rust tests compare their own value with it. -/
+def emitNebulaMemoryStart (plan : Spec.Nebula.Plan) (path : System.FilePath) : IO Unit := do
+  let words := (Lifecycle.Nebula.initRootWords plan).map fun w => toString w.val
+  IO.FS.writeFile path ("{\"d_init\":[" ++ ",".intercalate words ++ "]}\n")
+  IO.println s!"emitted_application_start={path}"
+
 def run (arguments : List String) : IO UInt32 := do
   match arguments with
   | [path] | ["--", path] =>
@@ -719,6 +727,10 @@ def run (arguments : List String) : IO UInt32 := do
   | ["--", "--application-rows", "nebula-memory-v1", path] =>
       emitNebulaMemoryRows Stage1.NebulaMemoryV1Package.namedRowRanges ⟨path⟩
       pure 0
+  | ["--application-start", "nebula-memory-v1", path]
+  | ["--", "--application-start", "nebula-memory-v1", path] =>
+      emitNebulaMemoryStart Lifecycle.Nebula.FirstPlan.plan ⟨path⟩
+      pure 0
   | ["--application", "nebula-memory-n1", path]
   | ["--", "--application", "nebula-memory-n1", path] =>
       emitPerApplication Stage1.NebulaMemoryN1Package.application
@@ -728,9 +740,13 @@ def run (arguments : List String) : IO UInt32 := do
   | ["--", "--application-rows", "nebula-memory-n1", path] =>
       emitNebulaMemoryRows Stage1.NebulaMemoryN1Package.namedRowRanges ⟨path⟩
       pure 0
+  | ["--application-start", "nebula-memory-n1", path]
+  | ["--", "--application-start", "nebula-memory-n1", path] =>
+      emitNebulaMemoryStart Lifecycle.Nebula.SecondPlan.plan ⟨path⟩
+      pure 0
   | _ =>
       IO.eprintln
-        ("usage: lake exe emit -- [--expanded | --application[-rows] " ++
+        ("usage: lake exe emit -- [--expanded | --application[-rows | -start] " ++
           "(nebula-memory-v1 | nebula-memory-n1)] <output-path>")
       pure 2
 

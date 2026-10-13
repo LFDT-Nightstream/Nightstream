@@ -23,8 +23,7 @@ theorem polyRows_mulCount : ((Rows.polyRows SecondPlan.plan SecondPlan.app).map 
   decide +kernel
 
 theorem polyRows_length : (Rows.polyRows SecondPlan.plan SecondPlan.app).length ≤ 10000 := by
-  rw [← Rows.names_count]
-  decide
+  decide +kernel
 
 theorem rows_le :
     (PerApplicationPackage.applicationPlan (MemoryApp.program SecondPlan.plan SecondPlan.app)).rowCount ≤ 257057539 :=

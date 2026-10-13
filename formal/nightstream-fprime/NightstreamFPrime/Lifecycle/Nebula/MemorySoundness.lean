@@ -95,31 +95,31 @@ variable {p app i offset}
 
 theorem mem_stateIn (k : Fin 4) :
     lane (Sponge.output (stateIn p app i offset) offset) k - i.input offset k ∈ assertions p app i offset := by
-  simp only [assertions, List.mem_append]
+  simp only [assertions, hashChecks, joinChecks, List.foldl_cons, List.foldl_nil, List.nil_append, List.mem_append]
   exact Or.inl (Or.inl (Or.inl (Or.inl (Or.inl (Or.inl (List.mem_map_of_mem (List.mem_finRange k)))))))
 
 theorem mem_stateOut (k : Fin 4) :
     lane (Sponge.output (stateOut p app i offset) (stateOutStart p app i offset)) k - i.output offset k ∈
       assertions p app i offset := by
-  simp only [assertions, List.mem_append]
+  simp only [assertions, hashChecks, joinChecks, List.foldl_cons, List.foldl_nil, List.nil_append, List.mem_append]
   exact Or.inl (Or.inl (Or.inl (Or.inl (Or.inl (Or.inr (List.mem_map_of_mem (List.mem_finRange k)))))))
 
 theorem mem_chainOps (k : Fin 4) :
     lane (Sponge.output (chainOps p app i offset) (chainOpsStart p app i offset)) k -
       wire p app i offset (Words.carryOut (23 + k.val)) ∈ assertions p app i offset := by
-  simp only [assertions, List.mem_append]
+  simp only [assertions, hashChecks, joinChecks, List.foldl_cons, List.foldl_nil, List.nil_append, List.mem_append]
   exact Or.inl (Or.inl (Or.inl (Or.inl (Or.inr (List.mem_map_of_mem (List.mem_finRange k))))))
 
 theorem mem_chainInitial (k : Fin 4) :
     lane (Sponge.output (chainInitial p app i offset) (chainInitialStart p app i offset)) k -
       wire p app i offset (Words.carryOut (27 + k.val)) ∈ assertions p app i offset := by
-  simp only [assertions, List.mem_append]
+  simp only [assertions, hashChecks, joinChecks, List.foldl_cons, List.foldl_nil, List.nil_append, List.mem_append]
   exact Or.inl (Or.inl (Or.inl (Or.inr (List.mem_map_of_mem (List.mem_finRange k)))))
 
 theorem mem_chainFinal (k : Fin 4) :
     lane (Sponge.output (chainFinal p app i offset) (chainFinalStart p app i offset)) k -
       wire p app i offset (Words.carryOut (31 + k.val)) ∈ assertions p app i offset := by
-  simp only [assertions, List.mem_append]
+  simp only [assertions, hashChecks, joinChecks, List.foldl_cons, List.foldl_nil, List.nil_append, List.mem_append]
   exact Or.inl (Or.inl (Or.inr (List.mem_map_of_mem (List.mem_finRange k))))
 
 theorem mem_eta :
@@ -127,7 +127,7 @@ theorem mem_eta :
     lane (squeeze1State p app i offset) 0 - wire p app i offset (Words.etaFresh 1) ∈ assertions p app i offset ∧
     lane (squeeze2State p app i offset) 0 - wire p app i offset (Words.etaFresh 2) ∈ assertions p app i offset ∧
     lane (squeeze3State p app i offset) 0 - wire p app i offset (Words.etaFresh 3) ∈ assertions p app i offset := by
-  simp only [assertions, List.mem_append, List.mem_cons, true_or, or_true, and_self]
+  simp only [assertions, hashChecks, joinChecks, List.foldl_cons, List.foldl_nil, List.nil_append, List.mem_append, List.mem_cons, true_or, or_true, and_self]
 
 theorem mem_poly {e : Circuit.Expr} (member : e ∈ Rows.polyRows p app) :
     sub p app i offset e ∈ assertions p app i offset :=

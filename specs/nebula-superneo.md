@@ -243,16 +243,16 @@ plan_digest = Digest("Nightstream/Nebula/v3/plan",
 Each integer and each image word enters as one canonical field element. The
 verifier computes `plan_digest`. A prover-supplied value is invalid.
 
-The verifier-context description of `decisions/piccs-prior-state-digest.md`
-MUST include `plan_digest` and `D_init` (§9.2). `plan_digest` is a package
-constant: the package rows fix it, as they fix the Stage 1 verifier-context
-digest, and the relation MUST read it as a constant (the headers and the §9.3
-transcript). A witness copy of `plan_digest` is invalid. The verifier computes
-`D_init` and puts it in the start carry (§11.1). The relation reads `D_mem`
-from its input carry, which the state digest binds to the input state. So
-step 0 reads `D_init` because the verifier computes the initial state from the
-start carry (§13). A different initial memory opens a different initial state,
-which the Stage 1 state link rejects, except with a state-digest collision.
+The verifier binds `plan_digest` and `D_init` (§9.2) without a separate
+verifier-context field. `plan_digest` is a package constant: the package rows
+fix it, as they fix the Stage 1 verifier-context digest, and the relation MUST
+read it as a constant (the headers and the §9.3 transcript). A witness copy of
+`plan_digest` is invalid. The verifier computes `D_init` and puts it in the
+start carry (§11.1). The relation reads `D_mem` from its input carry, which
+the state digest binds to the input state. So step 0 reads `D_init` because
+the verifier computes the initial state from the start carry (§13). A
+different initial memory opens a different initial state, which the Stage 1
+state link rejects, except with a state-digest collision.
 
 ## 5. Memory model
 

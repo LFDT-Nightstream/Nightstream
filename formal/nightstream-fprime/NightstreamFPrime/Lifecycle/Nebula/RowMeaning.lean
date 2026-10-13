@@ -22,15 +22,6 @@ open Sym (word cIn cOut eta1 eta2 eta1Sq isOpen openInverse isClose closeInverse
   isWrite isRam addrBit vrBit vwBit rtBit diffBit addr vr vw rt diff opLane scanValue scanStamp
   scanLane tsWord segWord cntBefore wt globalIndex scanIndex opsProductAfter scanProductAfter)
 
-theorem hold_three (a b c : Circuit.Expr) :
-    ConstraintsHold v [a, b, c] ↔ a.eval v = 0 ∧ b.eval v = 0 ∧ c.eval v = 0 := by
-  simp [ConstraintsHold]
-
-theorem hold_four (a b c d : Circuit.Expr) :
-    ConstraintsHold v [a, b, c, d] ↔
-      a.eval v = 0 ∧ b.eval v = 0 ∧ c.eval v = 0 ∧ d.eval v = 0 := by
-  simp [ConstraintsHold]
-
 theorem hold_two (a b : Circuit.Expr) :
     ConstraintsHold v [a, b] ↔ a.eval v = 0 ∧ b.eval v = 0 := by
   simp [ConstraintsHold]
@@ -45,7 +36,8 @@ theorem bitRows_iff : ConstraintsHold v (bitRows p) ↔
       (∀ j, ∀ x ∈ ((W).initial j).lane, IsBit x)) ∧ (∀ j, ∀ x ∈ ((W).final j).lane, IsBit x)) ∧
       (∀ k, IsBit ((W).tsBits k))) ∧ (∀ k, IsBit ((W).segBits k))) ∧
       (IsBit (W).isOpen ∧ IsBit (W).isClose) := by
-  rw [bitRows, hold_append, hold_append, hold_append, hold_append, hold_append, hold_append,
+  simp only [bitRows, bitChecks, joinChecks, List.foldl_cons, List.foldl_nil, List.nil_append]
+  rw [hold_append, hold_append, hold_append, hold_append, hold_append, hold_append,
     hold_finRange, hold_finRange, hold_finRange, hold_finRange, hold_finRange_map,
     hold_finRange_map, hold_two, bitRow_iff, bitRow_iff]
   refine and_congr (and_congr (and_congr (and_congr (and_congr (and_congr ?_ ?_) ?_) ?_)
@@ -58,9 +50,9 @@ theorem bitRows_iff : ConstraintsHold v (bitRows p) ↔
 /-! ### Arm and open -/
 
 theorem armRows_iff : ConstraintsHold v (armRows p) ↔
-    (((((((W).cIn 1 - natWord p.n) * (W).isOpen = 0 ∧
-      ((W).cIn 1 - natWord p.n) * (W).openInverse = 1 - (W).isOpen ∧
-      (W).isOpen * (natWord (p.sMax - 1) - (W).cIn 0 - bitsWord (W).segBits) = 0 ∧
+    (((((((((W).cIn 1 - natWord p.n) * (W).isOpen = 0 ∧
+      ((W).cIn 1 - natWord p.n) * (W).openInverse = 1 - (W).isOpen) ∧
+      (W).isOpen * (natWord (p.sMax - 1) - (W).cIn 0 - bitsWord (W).segBits) = 0) ∧
       (W).idxEff = (1 - (W).isOpen) * (W).cIn 1) ∧
       (∀ i : Fin 12, (W).seenPrev i =
         (W).isOpen * headerWords p i + (1 - (W).isOpen) * (W).cIn (23 + i))) ∧
@@ -69,10 +61,12 @@ theorem armRows_iff : ConstraintsHold v (armRows p) ↔
       (∀ i : Fin 4, (W).cOut (3 + i) =
         (W).isOpen * (W).etaFresh i + (1 - (W).isOpen) * (W).cIn (3 + i))) ∧
       (W).eta1Sq = K.mul (W).eta1 (W).eta1) := by
-  rw [armRows, hold_append, hold_append, hold_append, hold_append, hold_four, hold_finRange_map,
-    hold_finRange_map, hold_finRange_map, keq_iff, KExpr.eval_mul, Sym.eval_eta1 p a v, Sym.eval_eta1Sq p a v]
+  simp only [armRows, armChecks, joinChecks, List.foldl_cons, List.foldl_nil, List.nil_append]
+  rw [hold_append, hold_append, hold_append, hold_append, hold_append, hold_append, hold_two,
+    hold_single, hold_single, hold_finRange_map, hold_finRange_map, hold_finRange_map, keq_iff,
+    KExpr.eval_mul, Sym.eval_eta1 p a v, Sym.eval_eta1Sq p a v]
   refine and_congr (and_congr (and_congr (and_congr ?_ ?_) ?_) ?_) Iff.rfl
-  · refine and_congr ?_ (and_congr ?_ (and_congr ?_ ?_))
+  · refine and_congr (and_congr (and_congr ?_ ?_) ?_) ?_
     · simp only [Circuit.Expr.eval_hmul, Circuit.Expr.eval_sub, Sym.eval_cIn p a v, constE,
         Circuit.Expr.eval_const]
       rfl
@@ -105,8 +99,8 @@ theorem armRows_iff : ConstraintsHold v (armRows p) ↔
 /-! ### Operation rows -/
 
 theorem slotRows_iff (j : Fin p.bOps) : ConstraintsHold v (slotRows p j) ↔
-    ((((((1 - (W).isWrite j) * ((W).vw j - (W).vr j) = 0 ∧
-      (1 - (W).pad j) * ((W).wt j - (W).rt j - 1 - (W).diff j) = 0 ∧
+    (((((((1 - (W).isWrite j) * ((W).vw j - (W).vr j) = 0 ∧
+      (1 - (W).pad j) * ((W).wt j - (W).rt j - 1 - (W).diff j) = 0) ∧
       (W).isWrite j * (1 - (W).isRam j) = 0) ∧
       (∀ k : Fin p.μ, p.r ≤ k.val → (1 - (W).isRam j) * ((W).ops j).addr k = 0)) ∧
       (∀ x ∈ (((W).ops j).lane).tail, (W).pad j * x = 0)) ∧
@@ -116,7 +110,9 @@ theorem slotRows_iff (j : Fin p.bOps) : ConstraintsHold v (slotRows p j) ↔
       (W).opsProductAfter 1 (j.val + 1) = K.mul ((W).opsProductAfter 1 j.val)
         (gatedK ((W).pad j) (fingerprintK (W).eta1 (W).eta2 (W).eta1Sq ((W).wt j)
           ((W).globalIndex j) ((W).vw j)))) := by
-  rw [slotRows, hold_append, hold_append, hold_append, hold_append, hold_three, keq_iff, keq_iff]
+  simp only [slotRows, slotChecks, joinChecks, List.foldl_cons, List.foldl_nil, List.nil_append]
+  rw [hold_append, hold_append, hold_append, hold_append, hold_append, hold_append, hold_single,
+    hold_single, hold_single, keq_iff, keq_iff]
   refine and_congr (and_congr (and_congr (and_congr ?_ ?_) ?_) ?_) ?_
   · simp only [Circuit.Expr.eval_hmul, Circuit.Expr.eval_sub, Expr.eval_one, Sym.eval_vw p a v,
       Sym.eval_vr p a v, Sym.eval_wt p a v, Sym.eval_rt p a v, Sym.eval_diff p a v]
@@ -146,7 +142,8 @@ theorem scanRows_iff (j : Fin p.bScan) : ConstraintsHold v (scanRows p j) ↔
     (W).scanProductAfter 1 (j.val + 1) = K.mul ((W).scanProductAfter 1 j.val)
       (fingerprintK (W).eta1 (W).eta2 (W).eta1Sq (bitsWord ((W).final j).stamp)
         ((W).scanIndex j) (bitsWord ((W).final j).value)) := by
-  rw [scanRows, hold_append, keq_iff, keq_iff]
+  simp only [scanRows, scanChecks, joinChecks, List.foldl_cons, List.foldl_nil, List.nil_append]
+  rw [hold_append, keq_iff, keq_iff]
   simp only [KExpr.eval_mul, eval_fingerprintE, Sym.eval_scanProductAfter p a v, Sym.eval_eta1 p a v,
     Sym.eval_eta2 p a v, Sym.eval_eta1Sq p a v, Sym.eval_scanIndex p a v, Sym.eval_initialStamp p a v,
     Sym.eval_initialValue p a v, Sym.eval_finalStamp p a v, Sym.eval_finalValue p a v]
@@ -154,12 +151,12 @@ theorem scanRows_iff (j : Fin p.bScan) : ConstraintsHold v (scanRows p j) ↔
 /-! ### Boundary and close -/
 
 theorem closeRows_iff : ConstraintsHold v (closeRows p) ↔
-    ((((((((((((W).cOut 2 = (W).cIn 2 + (W).cntBefore p.bOps ∧ (W).cOut 2 = bitsWord (W).tsBits ∧
+    ((((((((((W).cOut 2 = (W).cIn 2 + (W).cntBefore p.bOps ∧ (W).cOut 2 = bitsWord (W).tsBits) ∧
       (W).cOut 1 = (W).idxEff + 1) ∧
-      kOf ((W).cOut 7) ((W).cOut 8) = (W).opsProductAfter 0 p.bOps) ∧
+      (((kOf ((W).cOut 7) ((W).cOut 8) = (W).opsProductAfter 0 p.bOps ∧
       kOf ((W).cOut 9) ((W).cOut 10) = (W).opsProductAfter 1 p.bOps) ∧
       kOf ((W).cOut 11) ((W).cOut 12) = (W).scanProductAfter 0 p.bScan) ∧
-      kOf ((W).cOut 13) ((W).cOut 14) = (W).scanProductAfter 1 p.bScan) ∧
+      kOf ((W).cOut 13) ((W).cOut 14) = (W).scanProductAfter 1 p.bScan)) ∧
       (((W).cOut 1 - natWord p.n) * (W).isClose = 0 ∧
         ((W).cOut 1 - natWord p.n) * (W).closeInverse = 1 - (W).isClose)) ∧
       (∀ i : Fin 4, (W).isClose * ((W).cOut (23 + i) - (W).cOut (15 + i)) = 0)) ∧
@@ -171,10 +168,9 @@ theorem closeRows_iff : ConstraintsHold v (closeRows p) ↔
       (W).cOut 0 = (W).cIn 0 + (W).isClose) ∧
       (∀ i : Fin 4, (W).cOut (35 + i) =
         (W).isClose * (W).cOut (19 + i) + (1 - (W).isClose) * (W).cIn (35 + i)) := by
-  rw [closeRows, hold_append, hold_append, hold_append, hold_append, hold_append, hold_append,
-    hold_append, hold_append, hold_append, hold_append, hold_append, hold_three, keq_iff, keq_iff,
-    keq_iff, keq_iff, hold_two, hold_finRange_map, hold_finRange_map, hold_finRange_map, keq_iff,
-    hold_single, hold_finRange_map]
+  simp only [closeRows, closeChecks, joinChecks, List.foldl_cons, List.foldl_nil, List.nil_append, hold_append]
+  rw [hold_single, hold_single, hold_single, keq_iff, keq_iff, keq_iff, keq_iff, hold_two,
+    hold_finRange_map, hold_finRange_map, hold_finRange_map, keq_iff, hold_single, hold_finRange_map]
   simp only [Circuit.Expr.eval_hmul, Circuit.Expr.eval_hadd, sub_eq_zero,
     Circuit.Expr.eval_sub, Expr.eval_one, Sym.eval_cIn p a v, Sym.eval_cOut p a v, Sym.eval_cntBefore p a v,
     Sym.eval_tsWord p a v, eval_kOfE, Sym.eval_opsProductAfter p a v, Sym.eval_scanProductAfter p a v, constE,
@@ -204,8 +200,8 @@ theorem polyRows_iff (app : PortApp p) :
   · rintro ⟨⟨⟨⟨⟨bits, arm⟩, slots⟩, scans⟩, close⟩, application⟩
     obtain ⟨⟨⟨⟨⟨⟨opsBits, diffBits⟩, initialBits⟩, finalBits⟩, tsBits⟩, segBits⟩, openBit,
       closeBit⟩ := bits
-    obtain ⟨⟨⟨⟨⟨openZero, openTest, segRange, idxEff⟩, seenPrev⟩, proposed⟩, eta⟩, square⟩ := arm
-    obtain ⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨tsOut, tsRange, idxOut⟩, read⟩, write⟩, initial⟩, final⟩, closeZero,
+    obtain ⟨⟨⟨⟨⟨⟨⟨openZero, openTest⟩, segRange⟩, idxEff⟩, seenPrev⟩, proposed⟩, eta⟩, square⟩ := arm
+    obtain ⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨tsOut, tsRange⟩, idxOut⟩, ⟨⟨⟨read, write⟩, initial⟩, final⟩⟩, closeZero,
       closeTest⟩, closeOps⟩, closeInitial⟩, closeFinal⟩, closeProducts⟩, segOut⟩, memOut⟩ := close
     refine ⟨?_, application⟩
     exact {
@@ -214,9 +210,9 @@ theorem polyRows_iff (app : PortApp p) :
       openBit := openBit, closeBit := closeBit, openZero := openZero, openTest := openTest,
       segRange := segRange, idxEff := idxEff, seenPrev := seenPrev, proposed := proposed,
       eta := eta, square := square,
-      readKeeps := fun j => (slots j).1.1.1.1.1,
-      fresh := fun j => (slots j).1.1.1.1.2.1,
-      noRomWrite := fun j => (slots j).1.1.1.1.2.2,
+      readKeeps := fun j => (slots j).1.1.1.1.1.1,
+      fresh := fun j => (slots j).1.1.1.1.1.2,
+      noRomWrite := fun j => (slots j).1.1.1.1.2,
       romRange := fun j => (slots j).1.1.1.2,
       padZero := fun j => (slots j).1.1.2,
       readProduct := fun j => (slots j).1.2,
@@ -233,12 +229,12 @@ theorem polyRows_iff (app : PortApp p) :
       application⟩
     · exact ⟨⟨⟨⟨⟨⟨rows.opsBits, rows.diffBits⟩, rows.initialBits⟩, rows.finalBits⟩, rows.tsBits⟩,
         rows.segBits⟩, rows.openBit, rows.closeBit⟩
-    · exact ⟨⟨⟨⟨⟨rows.openZero, rows.openTest, rows.segRange, rows.idxEff⟩, rows.seenPrev⟩,
+    · exact ⟨⟨⟨⟨⟨⟨⟨rows.openZero, rows.openTest⟩, rows.segRange⟩, rows.idxEff⟩, rows.seenPrev⟩,
         rows.proposed⟩, rows.eta⟩, rows.square⟩
-    · exact ⟨⟨⟨⟨⟨rows.readKeeps j, rows.fresh j, rows.noRomWrite j⟩, rows.romRange j⟩,
+    · exact ⟨⟨⟨⟨⟨⟨rows.readKeeps j, rows.fresh j⟩, rows.noRomWrite j⟩, rows.romRange j⟩,
         rows.padZero j⟩, rows.readProduct j⟩, rows.writeProduct j⟩
-    · exact ⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨rows.tsOut, rows.tsRange, rows.idxOut⟩, rows.productsOut.1⟩,
-        rows.productsOut.2.1⟩, rows.productsOut.2.2.1⟩, rows.productsOut.2.2.2⟩, rows.closeZero,
+    · exact ⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨rows.tsOut, rows.tsRange⟩, rows.idxOut⟩, ⟨⟨⟨rows.productsOut.1,
+        rows.productsOut.2.1⟩, rows.productsOut.2.2.1⟩, rows.productsOut.2.2.2⟩⟩, rows.closeZero,
         rows.closeTest⟩, rows.closeOps⟩, rows.closeInitial⟩, rows.closeFinal⟩, rows.closeProducts⟩,
         rows.segOut⟩, rows.memOut⟩
 

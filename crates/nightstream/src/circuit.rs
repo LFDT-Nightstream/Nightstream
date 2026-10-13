@@ -257,6 +257,12 @@ impl Verifier {
         self.lifecycle.engine()
     }
 
+    /// The structural identifier of the configured package. `Circuit::load`
+    /// keeps the saved value, so it names the package but does not authenticate it.
+    pub(crate) fn structural_identifier(&self) -> [u64; 4] {
+        self.lifecycle.structural_identifier()
+    }
+
     /// Decode untrusted proof bytes. The configured circuit fixes the exact
     /// length, which is checked before allocation. Acceptance still needs `verify`.
     pub fn decode_proof(&self, bytes: &[u8]) -> Result<Stage1Envelope, Error> {

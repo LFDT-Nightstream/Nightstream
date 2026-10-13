@@ -111,6 +111,22 @@ fn terminal_rejects_statement_integers_at_or_above_q() {
     assert!(accepted.is_empty(), "accepted non-canonical integers: {accepted:?}");
 }
 
+/// The verifier's `D_init` (spec §9.2), from which it computes the start
+/// carry and `z0`, equals the value that Lean computes for the same plan
+/// (`emit --application-start`). It binds the plan digest and the images.
+#[test]
+fn d_init_matches_lean() {
+    for (plan, fixture) in [
+        (Plan::first(), include_str!("fixtures/nebula-memory-v1-start.json")),
+        (Plan::second(), include_str!("fixtures/nebula-memory-n1-start.json")),
+    ] {
+        let lean: serde_json::Value = serde_json::from_str(fixture).unwrap();
+        let lean: Vec<u64> = serde_json::from_value(lean["d_init"].clone()).unwrap();
+        let d_init = Context::new(plan).unwrap().d_init();
+        assert_eq!(d_init.map(|word| word.as_canonical_u64()).to_vec(), lean);
+    }
+}
+
 fn package(name: &str) -> Vec<u8> {
     std::fs::read(
         std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -154,8 +170,10 @@ fn n1_native_run_reaches_every_counter_maximum() {
 }
 
 /// The spec §14 accept cases of the second plan through `Context::verify`:
-/// `N = 1`, and `S = S_max` with every counter at its largest value.
+/// `N = 1`, and `S = S_max` with every counter at its largest value. A
+/// context of another plan rejects this package's verifier.
 fn n1_accept(engine: nightstream::Engine) {
+    use nightstream::nebula::VerifyError;
     use nightstream::{Circuit, Verifier};
     let circuit = Circuit::load_package(
         &package("nightstream-fprime-stage2-nebula-memory-n1.json"),
@@ -179,9 +197,16 @@ fn n1_accept(engine: nightstream::Engine) {
         });
     }
     let statement = run.statement();
+    let proof = proof.unwrap();
     run.context()
-        .verify(&verifier, &statement, run.carry(), proof.as_ref().unwrap())
+        .verify(&verifier, &statement, run.carry(), &proof)
         .unwrap();
+
+    let first = Context::new(Plan::first()).expect("first plan");
+    assert!(matches!(
+        first.verify(&verifier, &statement, run.carry(), &proof),
+        Err(VerifyError::Package)
+    ));
 }
 
 #[test]

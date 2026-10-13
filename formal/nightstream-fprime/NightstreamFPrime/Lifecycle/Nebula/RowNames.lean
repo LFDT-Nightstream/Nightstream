@@ -2,55 +2,48 @@ import NightstreamFPrime.Lifecycle.Nebula.MemoryCircuit
 
 /-! Owns the spec names of the memory application's assertion constraints, as
 (name, count) pairs in constraint order. Conformance tests use them to name the
-check that a rejected step fails. The counts restate the shapes of
-`MemoryApp.assertions` and `Rows.polyRows`; the package emitter checks that
-they cover the assertions exactly. They carry no protocol authority. -/
+check that a rejected step fails. Each pair comes from the `Checks` group that
+also defines the rows, so a name labels its own rows. They carry no protocol
+authority. -/
 
 namespace NightstreamFPrime.Lifecycle.Nebula
 
 open NightstreamFPrime.Spec.Nebula
 
+/-- The names of `checks` with their row counts. -/
+def checkNames (checks : Checks) : List (String × ℕ) :=
+  checks.map fun check => (check.1, check.2.length)
+
+theorem checkNames_count (checks : Checks) :
+    ((checkNames checks).map Prod.snd).sum = (joinChecks checks).length := by
+  simp [checkNames, joinChecks_length, Function.comp_def]
+
+theorem checkNames_flatMap_count {α : Type} (l : List α) (f : α → Checks) :
+    ((l.flatMap fun a => checkNames (f a)).map Prod.snd).sum =
+      (l.flatMap fun a => joinChecks (f a)).length := by
+  induction l with
+  | nil => rfl
+  | cons a rest ih =>
+    simp only [List.flatMap_cons, List.map_append, List.sum_append, List.length_append,
+      checkNames_count, ih]
+
 namespace Rows
 
 variable (p : Plan)
 
-def opLaneLength : ℕ := 3 + p.μ + 64 + p.wTs
-
-def scanLaneLength : ℕ := 32 + p.wTs
-
-def bitNames : List (String × ℕ) :=
-  [("O1 operation lanes", p.bOps * opLaneLength p), ("O1 diff bits", p.bOps * p.wTs),
-    ("S1 IS lanes", p.bScan * scanLaneLength p), ("S1 FS lanes", p.bScan * scanLaneLength p),
-    ("ts bits", p.wTs), ("segment bits", p.segWidth), ("flag bits", 2)]
-
-def armNames : List (String × ℕ) :=
-  [("arm open flag", 2), ("arm segment bound", 1), ("arm idx", 1), ("arm D_seen headers", 12),
-    ("arm D_pre", 8), ("arm eta", 4), ("arm eta1 square", 2)]
-
-def slotNames (j : ℕ) : List (String × ℕ) :=
-  [(s!"O3 slot {j}", 1), (s!"O4 slot {j}", 1), (s!"O5 slot {j}", 1),
-    (s!"O6 slot {j}", ((List.finRange p.μ).filter fun k : Fin p.μ => p.r ≤ k.val).length),
-    (s!"O7 slot {j}", opLaneLength p - 1), (s!"O8 slot {j}", 2), (s!"O9 slot {j}", 2)]
-
-def scanNames (j : ℕ) : List (String × ℕ) := [(s!"S2 slot {j}", 2), (s!"S3 slot {j}", 2)]
-
-def closeNames : List (String × ℕ) :=
-  [("boundary ts", 1), ("boundary ts bits", 1), ("boundary idx", 1), ("boundary products", 8),
-    ("close flag", 2), ("close D_seen.ops = D_pre.ops", 4), ("close D_seen.is = D_mem", 4),
-    ("close D_seen.fs = D_pre.fs", 4), ("close product equation", 2), ("close seg_idx", 1),
-    ("close D_mem", 4)]
-
 /-- The names of `polyRows`, in row order. -/
 def names (app : PortApp p) : List (String × ℕ) :=
-  bitNames p ++ armNames ++ (List.range p.bOps).flatMap (slotNames p) ++
-    (List.range p.bScan).flatMap scanNames ++ closeNames ++ [("application", app.rows.length)]
+  checkNames (bitChecks p) ++ checkNames (armChecks p) ++
+    (List.finRange p.bOps).flatMap (fun j => checkNames (slotChecks p j)) ++
+    (List.finRange p.bScan).flatMap (fun j => checkNames (scanChecks p j)) ++
+    checkNames (closeChecks p) ++ [("application", app.rows.length)]
 
 end Rows
 
 /-- The names of `MemoryApp.assertions`, in constraint order. -/
-def MemoryApp.assertionNames (p : Plan) (app : PortApp p) : List (String × ℕ) :=
-  [("state_in", 4), ("state_out", 4), ("chain_ops", 4), ("chain_is", 4), ("chain_fs", 4),
-    ("eta", 4)] ++ Rows.names p app
+def MemoryApp.assertionNames (p : Plan) (app : PortApp p) (i : MemoryApp.AppInterface p app)
+    (offset : ℕ) : List (String × ℕ) :=
+  checkNames (MemoryApp.hashChecks p app i offset) ++ Rows.names p app
 
 end NightstreamFPrime.Lifecycle.Nebula
 
@@ -58,22 +51,13 @@ namespace NightstreamFPrime.Lifecycle.Nebula.Rows
 
 open NightstreamFPrime.Spec.Nebula
 
-theorem sum_flatMap_range (n : ℕ) (l : List ℕ) :
-    ((List.range n).flatMap fun _ => l).sum = n * l.sum := by
-  induction n with
-  | zero => simp
-  | succ n ih => simp [List.range_succ, List.flatMap_append, ih, Nat.succ_mul]
-
 /-- The names cover the polynomial rows exactly. -/
 theorem names_count (p : Plan) (app : PortApp p) :
     ((names p app).map Prod.snd).sum = (polyRows p app).length := by
-  simp only [names, bitNames, armNames, slotNames, scanNames, closeNames, List.map_append,
-    List.map_flatMap, List.sum_append]
-  simp [sum_flatMap_range, polyRows, memoryRows, bitRows, armRows, slotRows, scanRows, closeRows,
-    appRows, opLaneLength, scanLaneLength, Sym.opLane, Sym.scanLane,
-    Circuit.Quadratic.KExpr.equalities, List.length_flatMap, List.map_const', List.sum_replicate,
-    List.length_finRange, smul_eq_mul]
-  ring
+  simp only [names, polyRows, memoryRows, appRows, List.map_append, List.sum_append,
+    List.length_append, checkNames_count, checkNames_flatMap_count, List.length_map, List.map_cons,
+    List.map_nil, List.sum_cons, List.sum_nil, Nat.add_zero]
+  rfl
 
 end NightstreamFPrime.Lifecycle.Nebula.Rows
 
@@ -83,8 +67,8 @@ open NightstreamFPrime.Spec.Nebula
 
 /-- The names cover the assertions exactly. -/
 theorem assertionNames_count (p : Plan) (app : PortApp p) (i : AppInterface p app) (offset : ℕ) :
-    ((assertionNames p app).map Prod.snd).sum = (assertions p app i offset).length := by
-  simp [assertionNames, assertions, Rows.names_count]
-  omega
+    ((assertionNames p app i offset).map Prod.snd).sum = (assertions p app i offset).length := by
+  simp only [assertionNames, assertions, List.map_append, List.sum_append, List.length_append,
+    checkNames_count, Rows.names_count, List.length_map]
 
 end NightstreamFPrime.Lifecycle.Nebula.MemoryApp

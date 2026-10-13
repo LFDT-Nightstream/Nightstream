@@ -40,6 +40,18 @@ pub const N1_PACKAGE_STRUCTURAL_IDENTIFIER: [u64; 4] = [
     2244383376532064420,
 ];
 
+/// The pinned package of each plan that Lean emits a package for. The
+/// verifier key binds the plan (spec §4.1), so `Context::verify` accepts only
+/// a verifier of this package.
+fn pinned_package(plan: &Plan) -> Option<[u64; 4]> {
+    [
+        (Plan::first(), PACKAGE_STRUCTURAL_IDENTIFIER),
+        (Plan::second(), N1_PACKAGE_STRUCTURAL_IDENTIFIER),
+    ]
+    .into_iter()
+    .find_map(|(pinned, identifier)| (pinned == *plan).then_some(identifier))
+}
+
 /// The spec §13 public statement of a memory proof.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Statement {
@@ -70,6 +82,8 @@ pub enum TerminalError {
 /// Why a memory proof does not verify.
 #[derive(Debug, thiserror::Error)]
 pub enum VerifyError {
+    #[error("the verifier is not from the plan's pinned package")]
+    Package,
     #[error(transparent)]
     Terminal(#[from] TerminalError),
     #[error(transparent)]
@@ -79,8 +93,8 @@ pub enum VerifyError {
 impl Context {
     /// Verify a memory proof (spec §13): the terminal checks on the final
     /// carry, then the Stage 1 verification of `proof` with the initial and
-    /// final states that the statement and the carry open. `verifier` must
-    /// come from the package with `PACKAGE_STRUCTURAL_IDENTIFIER`.
+    /// final states that the statement and the carry open. `verifier` must be
+    /// configured with the plan's pinned package.
     pub fn verify(
         &self,
         verifier: &crate::Verifier,
@@ -88,6 +102,9 @@ impl Context {
         final_carry: &Carry,
         proof: &crate::Proof,
     ) -> Result<(), VerifyError> {
+        if pinned_package(self.plan()) != Some(verifier.structural_identifier()) {
+            return Err(VerifyError::Package);
+        }
         let (initial, last) = self.terminal_states(statement, final_carry)?;
         verifier.verify(&crate::State::new(statement.steps, initial, last), proof)?;
         Ok(())

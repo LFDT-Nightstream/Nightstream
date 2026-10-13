@@ -22,8 +22,8 @@ local notation "ι" => algebraMap F K
 
 section Counting
 
-theorem gkrCost_mono (s : GkrShape) {n n' E E' : ℕ} (hn : n ≤ n') (hE : E ≤ E') :
-    ∀ remaining k, gkrCost s n E remaining k ≤ gkrCost s n' E' remaining k := by
+theorem gkrCost_mono (s : GkrShape) {n n' : ℕ} (E : ℕ → ℕ) (hn : n ≤ n') :
+    ∀ remaining k, gkrCost s n E remaining k ≤ gkrCost s n' E remaining k := by
   intro remaining
   induction remaining with
   | zero => intro k; simp [gkrCost]
@@ -32,11 +32,6 @@ theorem gkrCost_mono (s : GkrShape) {n n' E E' : ℕ} (hn : n ≤ n') (hE : E �
       simp only [gkrCost, gkrLayerCost]
       have := ih (k + 1)
       gcongr
-
-omit [DecidableEq K] in
-theorem density_le {C : Type} [Fintype C] (bad : Finset C) (n : ℕ) (card : bad.card ≤ n) :
-    (bad.card : ℝ) / Fintype.card C ≤ n / Fintype.card C :=
-  div_le_div_of_nonneg_right (by exact_mod_cast card) (by positivity)
 
 omit [DecidableEq K] in
 theorem density_pair (bad : Finset (K × K)) (n : ℕ) (card : bad.card ≤ n * Fintype.card K) :
@@ -48,16 +43,12 @@ theorem density_pair (bad : Finset (K × K)) (n : ℕ) (card : bad.card ≤ n * 
         mul_le_mul_of_nonneg_right cast positive.le
     _ = n * (Fintype.card K * Fintype.card K) := by ring
 
-omit [Field K] [DecidableEq K] in
-/-- One draw of density at most `a / |K|`, then a game of cost `rest / |K|`. -/
-theorem draw_step {α C : Type} [Fintype C] [Nonempty C] (bad : Finset C) (next : C → Game α)
-    (a rest : ℕ) (density : (bad.card : ℝ) / Fintype.card C ≤ a / Fintype.card K)
-    (nexts : ∀ c, (next c).CostLe (rest / Fintype.card K)) :
-    (Game.draw C bad next).CostLe (((a + rest : ℕ) : ℝ) / Fintype.card K) :=
-  ⟨_, by push_cast; rw [add_div]; linarith, nexts⟩
-
 end Counting
 section Early
+
+/-- The slot-block test rides on the draws of the run layer: one bad value
+per candidate there, none elsewhere. -/
+def earlyRide (s : Shape) (L0 k : ℕ) : ℕ := if k = s.runVars then L0 else 0
 
 /-- The early stage's bad challenges: norm `β`, lookup, scatter, GKR (with the
 slot-block test at the run layer). -/
@@ -65,7 +56,7 @@ def earlyCount (s : Shape) (L0 : ℕ) : ℕ :=
   L0 * (2 ^ s.cubeVars + (2 * s.normBound + 1)) +
     (L0 * (2 * 2 ^ s.rowVars + (2 ^ s.runVars + 2 ^ s.rowVars)) +
       (L0 * (1 + (2 ^ s.runVars + 2 ^ (s.slotVars + s.matrixVars))) +
-        gkrCost (earlyShape s) L0 L0 (earlyShape s).layers 1))
+        gkrCost (earlyShape s) L0 (earlyRide s L0) (earlyShape s).layers 1))
 
 theorem blockTest_card (s : Shape) (S : Setup F) (w : P0Tables F) (point : List K) :
     (blockTest s S w point).card ≤ 1 := by
@@ -102,13 +93,13 @@ theorem earlyGame_cost (s : Shape) (S : Setup F) (st : Statement F) (L0 : ℕ)
   intro scatter
   have small : ∀ t, (earlyShape s).factors t ≤ 2 := by
     intro t; simp only [earlyShape]; split_ifs <;> omega
-  have extra : ∀ (k : ℕ) (point : List K), (earlyExtra s S cands.1 k point).card ≤ L0 := by
+  have extra : ∀ (k : ℕ) (point : List K), (earlyExtra s S cands.1 k point).card ≤ earlyRide s L0 k := by
     intro k point
-    unfold earlyExtra
+    unfold earlyExtra earlyRide
     split
     · exact (card_biUnion_le_mul _ _ 1 fun w _ => blockTest_card s S _ point).trans (by simpa using count)
     · simp
-  refine (Game.costLe_bind (gkr_cost Finset.univ _ _ L0 extra (nodes_of_small _ small nodes))
+  refine (Game.costLe_bind (gkr_cost Finset.univ _ _ (earlyRide s L0) extra (nodes_of_small _ small nodes))
     (δ := 0) ?_).mono ?_
   · rintro (_ | claims)
     · exact le_rfl
@@ -116,7 +107,7 @@ theorem earlyGame_cost (s : Shape) (S : Setup F) (st : Statement F) (L0 : ℕ)
       dsimp only
       split_ifs <;> exact le_rfl
   · rw [add_zero]
-    exact div_le_div_of_nonneg_right (by exact_mod_cast gkrCost_mono _ count le_rfl _ _) (by positivity)
+    exact div_le_div_of_nonneg_right (by exact_mod_cast gkrCost_mono _ _ count _ _) (by positivity)
 
 theorem earlyGame_ends (s : Shape) (S : Setup F) (st : Statement F) (L0 : ℕ) :
     (earlyGame (K := K) s S st L0).Ends fun r => ∀ o, r = some o → o.candidates.length ≤ L0 := by
@@ -270,7 +261,7 @@ section Late
 /-- The late stage's bad challenges: the block `β` and the late GKR, per candidate pair. -/
 def lateCount (s : Shape) (L0 L1 : ℕ) : ℕ :=
   L0 * L1 * (2 ^ (s.slotVars + 1) + 2 ^ s.blockVars) +
-    gkrCost (lateShape s) (L0 * L1) 0 (lateShape s).layers 1
+    gkrCost (lateShape s) (L0 * L1) (fun _ => 0) (lateShape s).layers 1
 
 theorem lateGame_cost (s : Shape) (S : Setup F) (lam : K) (τ : ℕ → K) (cands : List (P0Tables F))
     (p1 : List (P1Tables K)) (L0 L1 : ℕ) (short0 : cands.length ≤ L0) (short1 : p1.length ≤ L1)
@@ -288,7 +279,7 @@ theorem lateGame_cost (s : Shape) (S : Setup F) (lam : K) (τ : ℕ → K) (cand
   intro beta
   have small : ∀ t, (lateShape s).factors t ≤ 2 := by
     intro t; simp only [lateShape]; split_ifs <;> omega
-  refine (Game.costLe_bind (gkr_cost Finset.univ _ _ 0 (fun _ _ => by simp) (nodes_of_small _ small nodes))
+  refine (Game.costLe_bind (gkr_cost Finset.univ _ _ (fun _ => 0) (fun _ _ => by simp) (nodes_of_small _ small nodes))
     (δ := 0) ?_).mono ?_
   · rintro (_ | claims)
     · exact le_rfl
@@ -296,7 +287,7 @@ theorem lateGame_cost (s : Shape) (S : Setup F) (lam : K) (τ : ℕ → K) (cand
       dsimp only
       split_ifs <;> exact le_rfl
   · rw [add_zero]
-    exact div_le_div_of_nonneg_right (by exact_mod_cast gkrCost_mono _ count le_rfl _ _) (by positivity)
+    exact div_le_div_of_nonneg_right (by exact_mod_cast gkrCost_mono _ _ count _ _) (by positivity)
 
 end Late
 section Main
@@ -310,15 +301,16 @@ sizes `L0` (P0) and `L1` (P1) and `L` query leaves. -/
 noncomputable def layer1Error (s : Shape) (L0 L1 L size : ℕ) : ℝ :=
   (layer1Count s L0 L1 : ℝ) / size + queryError s L1 L
 
-theorem layer1Game_cost (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : Setup F) (st : Statement F)
+theorem layer1Game_cost (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : Setup F)
     (L0 L1 L : ℕ) [NeZero L] (q : ℕ → K) (distinct : ∀ i j, i < L → j < L → q i = q j → i = j)
     (nodes : ∀ d, d ≤ 3 → NodesDistinct K d) (degree : Φ.natDegree = s.D) (two : 2 ≤ s.D) :
-    (layer1Game s Φ bar S st L0 L1 L q).CostLe (layer1Error s L0 L1 L (Fintype.card K)) := by
+    (layer1Game s Φ bar S L0 L1 L q).CostLe (layer1Error s L0 L1 L (Fintype.card K)) := by
   have rest : 0 ≤ (linearCount s L0 : ℝ) / Fintype.card K +
       ((((9 : ℕ) : ℝ) / Fintype.card K + queryError s L1 L) + ((lateCount s L0 L1 : ℝ) / Fintype.card K + 0)) := by
     have := queryError_nonneg s L1 L
     positivity
   unfold layer1Game
+  intro st
   refine (Game.costLe_bind_of (earlyGame_cost s S st L0 nodes) (earlyGame_ends s S st L0)
     (δ := (linearCount s L0 : ℝ) / Fintype.card K +
       ((((9 : ℕ) : ℝ) / Fintype.card K + queryError s L1 L) + ((lateCount s L0 L1 : ℝ) / Fintype.card K + 0)))
@@ -349,22 +341,22 @@ theorem layer1Game_cost (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : S
 /-- Layer-1 soundness with idealized WHIR openings: against every adaptive
 prover, the verifier accepts while no P0 candidate is a CE(B) witness with
 probability at most `layer1Error`. -/
-theorem layer1_sound (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : Setup F) (st : Statement F)
+theorem layer1_sound (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : Setup F)
     (L0 L1 L : ℕ) [NeZero L] (q : ℕ → K) (N : ℕ) (sizes : s.Sizes N)
     (cast : ∀ a b : ℕ, a < N → b < N → (a : K) = b → a = b)
     (distinct : ∀ i j, i < L → j < L → q i = q j → i = j) (fits : S.Fits s) (monic : Φ.Monic)
     (degree : Φ.natDegree = s.D) (two : 2 ≤ s.D) (prover : Game.Strategy (Option (Transcript F K s.queries L))) :
-    Game.prob prover (layer1Game s Φ bar S st L0 L1 L q)
-        (fun r => ∃ tr, r = some tr ∧ ¬ ∃ w ∈ tr.early.candidates, Relation s Φ bar S st w.z) ≤
+    Game.prob prover (layer1Game s Φ bar S L0 L1 L q)
+        (fun r => ∃ tr, r = some tr ∧ ¬ ∃ w ∈ tr.early.candidates, Relation s Φ bar S tr.statement w.z) ≤
       layer1Error s L0 L1 L (Fintype.card K) := by
   have proper : Φ ≠ 1 := by
     rintro rfl
     rw [natDegree_one] at degree
     omega
   rw [Game.prob_congr _ _ (E' := fun r =>
-    ¬ ∀ tr, r = some tr → ∃ w ∈ tr.early.candidates, Relation s Φ bar S st w.z)]
-  · exact Game.prob_not_le _ _ _ _ (layer1Game_avoids s Φ bar S st L0 L1 L q N sizes cast fits monic proper)
-      (layer1Game_cost s Φ bar S st L0 L1 L q distinct (nodes_of_cast N cast sizes.big_nodes) degree two)
+    ¬ ∀ tr, r = some tr → ∃ w ∈ tr.early.candidates, Relation s Φ bar S tr.statement w.z)]
+  · exact Game.prob_not_le _ _ _ _ (layer1Game_avoids s Φ bar S L0 L1 L q N sizes cast fits monic proper)
+      (layer1Game_cost s Φ bar S L0 L1 L q distinct (nodes_of_cast N cast sizes.big_nodes) degree two)
   · intro r
     constructor
     · rintro ⟨tr, rfl, none⟩ all

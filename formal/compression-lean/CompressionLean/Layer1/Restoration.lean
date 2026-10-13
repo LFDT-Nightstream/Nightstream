@@ -16,9 +16,10 @@ not less.
 If the game's error is at most `ε` (`CostLe`), every bad set has density at
 most `ε`, so `q` queries leave the claim with probability at most `q·ε`.
 
-Does not own: the step from a hash to this experiment. A random-oracle prover
-with `Q` hash calls is a prover here with `Q + R` queries (`R`, the draws on
-one path) when the transcript encoding is injective on prefixes.
+Does not own: the step from a hash to this experiment. When the transcript
+encoding is injective on prefixes, a random-oracle prover with `Q` calls that
+give at most `k` challenges each is a prover here with at most `k·Q + R`
+queries (`R`, the draws on one path).
 -/
 
 namespace CompressionLean.Layer1

@@ -10,7 +10,6 @@ even and odd halves, `Ô_t(Y) = Ô_e(Y²) + Y·(Ô_o - Ô_e)(Y²)`. Equivalently
 - `univ_eval`: `Ô_t(q) = t~(q, q², q⁴, ...)`, the P1 opening at a query point.
 - `univ_natDegree`: degree below `2^m`.
 - `univ_eq_zero`: only the zero table has the zero form.
-- `univ_bindLow`: binding the low variable to `α` gives `Ô_e + α·(Ô_o - Ô_e)`.
 -/
 
 namespace CompressionLean.Layer1
@@ -123,14 +122,5 @@ theorem univ_eq_zero (m : ℕ) (t : ℕ → K) (zero : univ m t = 0) : ∀ i, i 
         exact ih _ even (i / 2) (by rw [pow_succ] at lt; omega)
       · rw [show i = 2 * (i / 2) + 1 by omega]
         exact ih _ odd (i / 2) (by rw [pow_succ] at lt; omega)
-
-theorem univ_bindLow (m : ℕ) (α : K) (t : ℕ → K) :
-    univ m (bindLow α t) =
-      univ m (fun i => t (2 * i)) + C α * (univ m (fun i => t (2 * i + 1)) - univ m fun i => t (2 * i)) := by
-  have rewrite : bindLow α t = fun i => t (2 * i) + α * (t (2 * i + 1) - t (2 * i)) := by
-    funext i
-    simp only [bindLow]
-    ring
-  rw [rewrite, univ_add, univ_mul_left, univ_sub]
 
 end CompressionLean.Layer1

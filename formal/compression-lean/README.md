@@ -23,8 +23,9 @@ circuits without change.
   avoids the bad sets ends in the claim, a prover breaks the claim with
   probability at most the sum of the bad-set densities on the worst path.
 - Adversary: the prover picks every message after it sees all earlier
-  challenges. It commits to at most `L0` P0 and `L1` P1 candidate tables
-  (the WHIR lists). Every bad set is a union over these candidates.
+  challenges, and it names the CE(B) statement first. It commits to at most
+  `L0` P0 and `L1` P1 candidate tables (the WHIR lists). Every bad set is a
+  union over these candidates.
 - Idealized openings: the verifier accepts the two WHIR openings when one
   P0 candidate and one P1 candidate agree with every opened value
   (`Soundness.lean`, `Opens`). The WHIR error of this step is a named term
@@ -35,8 +36,6 @@ circuits without change.
 - Fiat–Shamir: `Restoration.lean` lets the prover ask for challenges at any
   node, as often as it wants, and output one path that uses only answers it
   got. `FiatShamir.lean` bounds layer 1 there by `queries · layer1Error`.
-  The step from Poseidon2 to this experiment (random oracle, injective
-  transcript encoding) is assumed.
 - Verifier formulas: the model takes the public tables at their
   definitions. `ClosedForms.lean` and `EvalK.lean` prove the `mle.rs`
   formulas equal to them. `CubicField.lean` proves that `x³ - x - 1` is
@@ -44,6 +43,34 @@ circuits without change.
 - Stage order (`Stages.lean`): early (norm, row lookup, slot scatter, GKR),
   linear (ring rows at `λ`, `ζ`, two sum-checks), honest fold (setup
   partials, `α`, setup queries), late (block scatter, GKR).
+
+Layer 1 assumes, and does not prove:
+
+- WHIR: an opening is accepted only when one listed candidate agrees with
+  every opened value (`Opens`), except with that opening's error. The P0
+  candidates are tables over the base field; candidates over `Ext` are not
+  modeled. The errors come from Plonky3's Johnson-bound report (`pcs.rs`).
+- Fiat–Shamir: Poseidon2 acts as a random oracle, and the transcript
+  encoding is injective on prefixes. One permutation call can give `k`
+  challenges, so `Q` calls and the `R` draws of one path are at most
+  `k·Q + R` queries of `Restoration.lean`. WHIR's own Fiat–Shamir step is
+  part of the WHIR error.
+- Query indices: `sample_bits` takes the low `setupVars - 2` bits of a
+  uniform Goldilocks element. Each index is at most `1 + 2^(setupVars - 66)`
+  times as likely as under the uniform law.
+- Setup root: the Merkle root of the setup binds its leaves, so the opened
+  setup values are the honest setup's (`HonestStage.lean`).
+- χ: the statement carries the values of `χ_r` (`Model.lean`). `mle_chi`
+  proves the `chi` formula over any commutative ring; that its `K ⊗ Ext`
+  value splits into the model's re and im tables is not proved.
+- Key order: the key's runs are sorted by matrix and its slots by segment,
+  so the matrix column and the slot tables are step functions
+  (`ClosedForms.lean`).
+- Transcription: the model is written by hand from the Rust verifier.
+- Production sizes: `Shape.Production`, lists of at most 32 candidates and
+  at least 123 setup queries are premises of `Budget.lean`. The Rust test
+  `production_shape_reaches_the_required_security` asserts them for the
+  production key.
 
 Build and emit (each Lean command under the 1,500 s cap). Copy the F′ build
 cache into `.lake` first (`cp -cR ../nightstream-fprime/.lake/packages .lake/`)

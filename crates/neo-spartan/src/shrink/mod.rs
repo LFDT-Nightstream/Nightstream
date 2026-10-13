@@ -448,58 +448,42 @@ fn constraint<T: PrimeCharacteristicRing + Copy>(v: &[T; MATRICES]) -> T {
     v[X].exp_u64(7) + v[1] * v[2] + v[3] * v[4] + v[5] * v[6] - v[C]
 }
 
+/// The abscissas of an outer round message: `h(0), h(2), ..., h(DEGREE)`.
+const ABSCISSAS: [usize; DEGREE] = [0, 2, 3, 4, 5, 6, 7, 8];
+
 /// The outer sum-check of `Σ_x eq(τ, x)·P(x) = 0`, low bit first. Returns the
 /// rounds, the point and every table at the point.
 ///
 /// Round `i` writes `eq` as `c·ℓ(X)·eq(τ_{>i}, k)` (Gruen, ePrint 2024/108):
 /// `c` is the product over the bound coordinates and `ℓ(X) = eq(τ_i, X)`.
-/// The prover sums only `q(X) = Σ_k eq(τ_{>i}, k)·P_k(X)`, of degree 7, and
-/// sends `s(t) = c·ℓ(t)·q(t)`: the values the direct sum of `eq·P` gives.
+/// The prover sums only `q(X) = Σ_k eq(τ_{>i}, k)·P_k(X)` and sends
+/// `s(t) = c·ℓ(t)·q(t)`: the values the direct sum of `eq·P` gives.
 /// Round 0 reads the Goldilocks tables; its fold moves them to `Ext`.
 pub(crate) fn prove_outer(
     tables: Vec<Vec<Gl>>,
     tau: &[Ext],
     challenger: &mut Challenger,
 ) -> (Vec<Vec<Ext>>, Vec<Ext>, [Ext; MATRICES]) {
-    /// Every abscissa of a round's `s`.
-    const EVERY: [usize; DEGREE + 1] = [0, 1, 2, 3, 4, 5, 6, 7, 8];
-    /// The abscissas left when the claim gives `q(1)` and they give `q(DEGREE)`.
-    const SUMMED: [usize; DEGREE - 1] = [0, 2, 3, 4, 5, 6, 7];
     let mut rounds = Vec::with_capacity(tau.len());
     let mut point = Vec::with_capacity(tau.len());
     let mut base = Some(tables);
     let mut folded: Vec<Vec<Ext>> = Vec::new();
     let mut bound = Ext::ONE;
-    let mut claim = Ext::ZERO;
     for (i, &tau_i) in tau.iter().enumerate() {
         let rest = &tau[i + 1..];
-        let divisor = bound * tau_i;
-        // `q[t] = q(t)`.
         let q = match &base {
-            // The first claim is the statement's zero, which a failing
-            // witness breaks, so round 0 sums every abscissa.
-            Some(tables) => line_sums(tables, rest, &EVERY),
-            None if divisor.is_zero() => line_sums(&folded, rest, &EVERY),
-            // A later claim is `s(0) + s(1)` exactly, so it gives `q(1)`.
-            None => {
-                let mut q = line_sums(&folded, rest, &SUMMED);
-                q[1] = (claim - bound * (Ext::ONE - tau_i) * q[0]) * divisor.inverse();
-                q[DEGREE] = algebra::interpolate(&mut Native, &q[..DEGREE], Ext::from_usize(DEGREE));
-                q
-            }
+            Some(tables) => line_sums(tables, rest),
+            None => line_sums(&folded, rest),
         };
-        let s: Vec<Ext> = q
+        let message: Vec<Ext> = q
             .iter()
-            .enumerate()
-            .map(|(t, &value)| {
+            .zip(ABSCISSAS)
+            .map(|(&value, t)| {
                 let t = Ext::from_usize(t);
                 bound * ((Ext::ONE - tau_i) * (Ext::ONE - t) + tau_i * t) * value
             })
             .collect();
-        let mut message = vec![s[0]];
-        message.extend_from_slice(&s[2..]);
         let r = sumcheck::send(&message, challenger);
-        claim = algebra::interpolate(&mut Native, &s, r);
         bound *= tau_i * r + (Ext::ONE - tau_i) * (Ext::ONE - r);
         match base.take() {
             Some(tables) => {
@@ -525,12 +509,11 @@ pub(crate) fn prove_outer(
     (rounds, point, values)
 }
 
-/// `q(t) = Σ_k eq(rest, k)·P_k(t)` at each of the increasing `abscissas`
-/// (index `t`; the others stay zero), where `P_k(t)` is the constraint on the
-/// line through rows `2k` and `2k + 1`. `eq(rest, ·)` is the product of two
-/// half-size tables (Dao and Thaler, ePrint 2024/1210); a `T` value meets
-/// `Ext` only there.
-fn line_sums<T>(tables: &[Vec<T>], rest: &[Ext], abscissas: &[usize]) -> [Ext; DEGREE + 1]
+/// `q(t) = Σ_k eq(rest, k)·P_k(t)` at each of `ABSCISSAS`, where `P_k(t)` is
+/// the constraint on the line through rows `2k` and `2k + 1`. `eq(rest, ·)`
+/// is the product of two half-size tables (Dao and Thaler, ePrint
+/// 2024/1210); a `T` value meets `Ext` only there.
+fn line_sums<T>(tables: &[Vec<T>], rest: &[Ext]) -> [Ext; DEGREE]
 where
     T: PrimeCharacteristicRing + Copy + Send + Sync,
     Ext: Algebra<T>,
@@ -540,23 +523,23 @@ where
     high.par_iter()
         .enumerate()
         .map(|(h, &outer)| {
-            let mut sums = [Ext::ZERO; DEGREE + 1];
+            let mut sums = [Ext::ZERO; DEGREE];
             for (l, &inner) in low.iter().enumerate() {
                 let k = (h << split) | l;
                 let mut at: [T; MATRICES] = std::array::from_fn(|j| tables[j][2 * k]);
                 let step: [T; MATRICES] = std::array::from_fn(|j| tables[j][2 * k + 1] - at[j]);
                 let mut t = 0;
-                for &target in abscissas {
+                for (sum, target) in sums.iter_mut().zip(ABSCISSAS) {
                     while t < target {
                         for j in 0..MATRICES {
                             at[j] += step[j];
                         }
                         t += 1;
                     }
-                    sums[target] += inner * constraint(&at);
+                    *sum += inner * constraint(&at);
                 }
             }
             sums.map(|sum| outer * sum)
         })
-        .reduce(|| [Ext::ZERO; DEGREE + 1], |a, b| std::array::from_fn(|t| a[t] + b[t]))
+        .reduce(|| [Ext::ZERO; DEGREE], |a, b| std::array::from_fn(|s| a[s] + b[s]))
 }

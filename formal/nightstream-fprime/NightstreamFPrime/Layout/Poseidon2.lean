@@ -468,14 +468,4 @@ theorem hashConstraints_rowCount (interface : Formal.Interface)
   simp [Formal.opsAt, Formal.assertions, flatConstraints,
     Op.flatConstraints, Hash.compile_recipes_length]
 
-theorem hashPhysical_complete (interface : Formal.Interface) (offset : Nat)
-    (env : Env) (physicalStart : Nat)
-    (affine : HashInterfaceAffine interface offset)
-    (logical : ConstraintsHold env (hashConstraints interface offset)) :
-    R1CS.RowsHold env
-      (R1CS.lowerConstraints (hashConstraints interface offset)
-        physicalStart).rows :=
-  R1CS.lowerConstraints_complete_of_noFresh env _ physicalStart
-    (hashConstraints_noFresh interface offset affine) logical
-
 end NightstreamFPrime.Layout.Poseidon2

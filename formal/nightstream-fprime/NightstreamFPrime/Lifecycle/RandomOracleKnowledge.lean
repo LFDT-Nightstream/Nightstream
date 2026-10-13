@@ -12,8 +12,8 @@ Outputs:
 - `Extracts`: the extractor's retries form a complete `Π_RLC` fork, and the
   fork's witness satisfies the source relation of the claimed statement;
 - `statisticalError_le`, `statisticalError_two_pow_64`: each oracle query adds
-  less than `2 ^ -115.79` of statistical error, so at `Q = 2 ^ 64` it is below
-  `2 ^ -51`;
+  at most `50 / (87 · 2 ^ 115)` of statistical error, so at `Q = 2 ^ 64` it is
+  below `2 ^ -51`;
 - `knowledge_error_le`: the extractor succeeds with probability at least the
   acceptance probability minus `17 (Q + 17) sampleError + (Q + 74) testError`,
   the running-mismatch chance of Lemma 5, and the two binding-reduction
@@ -84,7 +84,7 @@ noncomputable def statisticalError (queries : Nat) : ℝ :=
       (((queries + (Nifs.PaperProfile.arity).total : Nat) : ℝ) * sampleError) +
     ((queries + challenges.length : Nat) : ℝ) * IndependentExecution.testError productionShape 8
 
-/-- Each oracle query adds less than `2 ^ -115.79` of statistical error:
+/-- Each oracle query adds at most `50 / (87 · 2 ^ 115)` of statistical error:
 `ε_test = 4589 / p²` (`VerifierErrorBudget.test_error_eq`) and
 `ε_sample < 5 ^ -54 + 2 ^ -132` (`PiRlcSampler.distance_lt`). -/
 theorem statisticalError_le (queries : Nat) :

@@ -130,8 +130,9 @@ collision.
   - `Lifecycle.RandomOracleKnowledge.statisticalError`: the two statistical
     terms. `ε_test = 4589/p² ≈ 2^-115.84`
     (`Lifecycle.Nifs.VerifierErrorBudget.test_error_eq`) and
-    `ε_sample ≈ 2^-125.4`. Each query adds less than `2^-115.79`: the sum is
-    at most `(Q + 74) · 50 / (87 · 2^115)`
+    `ε_sample ≈ 2^-125.4`. Each query adds at most `50 / (87 · 2^115)`, which
+    is below `2^-115.79` (computed outside Lean): the sum is at most
+    `(Q + 74) · 50 / (87 · 2^115)`
     (`Lifecycle.RandomOracleKnowledge.statisticalError_le`), so at `Q = 2^64`
     it is below `2^-51` (about `2^-51.80`;
     `Lifecycle.RandomOracleKnowledge.statisticalError_two_pow_64`).
@@ -400,8 +401,8 @@ fresh verifier coin by an oracle read. Each module header states its part:
   (`Lifecycle.Stage1.Application.Program.step_length`); the counter must stay
   below `p`.
 - The error is not one security level. The statistical part costs more
-  than `2^115.79` oracle queries (addresses) for each unit of success, linear
-  in `Q` (`Lifecycle.RandomOracleKnowledge.statisticalError_le`). One
+  than `87 · 2^115 / 50 ≈ 2^115.79` oracle queries (addresses) for each unit
+  of success, linear in `Q` (`Lifecycle.RandomOracleKnowledge.statisticalError_le`). One
   Poseidon2 state answers up to six addresses, so in permutation calls this
   is about `2^113.2` (computed outside Lean). The other terms
   depend on MSIS at the solver's work and on Poseidon2 collisions. 128-bit

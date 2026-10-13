@@ -104,6 +104,16 @@ impl Circuit {
         })
     }
 
+    /// The structural identifier that `load_package` recomputed from Lean
+    /// package bytes, or `None` for a compiled or saved circuit, whose
+    /// identifier is not authenticated by its bytes.
+    pub(crate) fn lean_package_identifier(&self) -> Option<[u64; 4]> {
+        match self.compiled.application {
+            None => Some(self.compiled.binding.structural_identifier()),
+            Some(_) => None,
+        }
+    }
+
     /// Save validated execution data and bindings for use in another process.
     /// The destination must not exist.
     pub fn write(&self, path: impl AsRef<Path>) -> Result<(), Error> {
@@ -255,12 +265,6 @@ impl Verifier {
 
     pub fn engine(&self) -> Engine {
         self.lifecycle.engine()
-    }
-
-    /// The structural identifier of the configured package. `Circuit::load`
-    /// keeps the saved value, so it names the package but does not authenticate it.
-    pub(crate) fn structural_identifier(&self) -> [u64; 4] {
-        self.lifecycle.structural_identifier()
     }
 
     /// Decode untrusted proof bytes. The configured circuit fixes the exact

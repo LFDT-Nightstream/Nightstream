@@ -14,11 +14,10 @@ use super::plan::Plan;
 use super::records::{ops_lane, pack, scan_lane, OpSlot, PortAccess, ScanSlot};
 use super::transcript::{chain_link, chain_root, eta_challenges, header, plan_digest, state_words, Digest, Lane};
 use super::words::{self, Layout};
+use super::Package;
 
 #[derive(Debug, thiserror::Error)]
 pub enum SegmentError {
-    #[error("the plan must have two ports")]
-    Ports,
     #[error("a segment needs exactly N step choices")]
     StepCount,
     #[error("a segment must start from a closed carry below S_max")]
@@ -61,21 +60,19 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn new(plan: Plan) -> Result<Self, SegmentError> {
-        if plan.b_ops != 2 {
-            return Err(SegmentError::Ports);
-        }
+    pub fn new(package: Package) -> Self {
+        let plan = package.plan();
         let plan_digest = plan_digest(&plan);
         let memory = initial_memory(&plan);
         let d_init = chain_root(Lane::Mem, &plan_digest, &memory_lanes(&plan, &memory));
-        Ok(Self {
+        Self {
             header_ops: header(Lane::Ops, &plan_digest),
             header_mem: header(Lane::Mem, &plan_digest),
             layout: Layout::new(&plan),
             plan,
             plan_digest,
             d_init,
-        })
+        }
     }
 
     pub fn plan(&self) -> &Plan {

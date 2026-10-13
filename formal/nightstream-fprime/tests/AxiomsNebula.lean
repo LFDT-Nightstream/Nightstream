@@ -638,3 +638,20 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemorySecurity.clampOutput_eq_of_checks
 #audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemorySecurity.clampOutput_eq_of_input_checks
 #audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemorySecurity.bad_le_clamp
+
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryPackage.witnessWordCount
+#audit_axioms NightstreamFPrime.Gadgets.Poseidon2.Support.compileAbsorptions_supported
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Expr.eval_zero
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Expr.eval_one
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Expr.eval_two
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Sponge.main_ops
+#audit_axioms NightstreamFPrime.Spec.GoldilocksExtensionRing.zero_eq
+#audit_axioms NightstreamFPrime.Spec.GoldilocksExtensionRing.one_eq
+#audit_axioms NightstreamFPrime.Spec.GoldilocksExtensionRing.neg_eq
+#audit_axioms NightstreamFPrime.Spec.Nebula.pack_nil
+#audit_axioms NightstreamFPrime.Spec.Nebula.pack_of_ne_nil
+#audit_axioms NightstreamFPrime.Spec.Nebula.chunkValue_lt
+#audit_axioms NightstreamFPrime.Spec.Nebula.activeLength_append
+#audit_axioms NightstreamFPrime.Spec.Nebula.activeOps_append
+#audit_axioms NightstreamFPrime.Spec.Nebula.opsFactors_append
+#audit_axioms NightstreamFPrime.Spec.Nebula.scanFactor_append

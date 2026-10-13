@@ -682,7 +682,7 @@ generated relation MUST supply the exact census.
      decoder rejects other lengths and words at or above `q`. The test
      `terminal_rejects_statement_integers_at_or_above_q` failed on the earlier
      code for all five integers, and `memory_conformance` checks the same
-     rejection through `Context::verify` with a real proof;
+     rejection through `nebula::Verifier::verify` with a real proof;
    - the first memory package (`Export/Stage1/NebulaMemoryV1Package.lean`)
      for the test plan `FirstPlan` (ROM and RAM of four words, `N = 2`,
      `S_max = 4`) and the machine. Its row, column, and carrier bounds give

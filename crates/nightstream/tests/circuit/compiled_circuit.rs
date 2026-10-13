@@ -331,6 +331,33 @@ fn atomic_write_refuses_to_replace_an_existing_destination() {
     assert_eq!(remaining, vec![path], "failed publication retained a staging file");
 }
 
+/// A memory verifier rejects a saved circuit that claims a memory package's
+/// structural identifier: `Circuit::load` keeps the saved value unchecked.
+#[test]
+fn memory_verifier_rejects_a_saved_circuit_that_claims_a_memory_package() {
+    use crate::nebula::{self, Package};
+    let directory = TestDirectory::new();
+    let path = directory.path("claimed");
+    compiled_fixture().write(&path).unwrap();
+    // The NSCIR magic and output tags, the NSFPREP1 magic, and the source
+    // length come before the four structural words.
+    let mut file = OpenOptions::new().write(true).open(&path).unwrap();
+    file.seek(SeekFrom::Start(8 + 4 + 8 + 8)).unwrap();
+    for word in Package::V1.structural_identifier() {
+        file.write_all(&word.to_le_bytes()).unwrap();
+    }
+    drop(file);
+    let claimed = Circuit::load(&path).unwrap();
+    assert_eq!(
+        claimed.compiled.binding.structural_identifier(),
+        Package::V1.structural_identifier()
+    );
+    assert!(matches!(
+        nebula::Verifier::new(Package::V1, &claimed, Engine::Optimized, 114),
+        Err(nebula::VerifyError::Package)
+    ));
+}
+
 #[cfg(feature = "metal")]
 fn private_zero_application(coefficient: F) -> ApplicationCircuit {
     let mut builder = ApplicationBuilder::new(1).unwrap();

@@ -2,8 +2,10 @@
 //! Mirrors `Spec/Nebula/Plan.lean`; `FirstPlan.lean` and `SecondPlan.lean` own the
 //! package plans.
 
-/// Spec §4.1 `NebulaPlan`. Images hold 32-bit words.
+/// Spec §4.1 `NebulaPlan`. Images hold 32-bit words. Only `Package::plan`
+/// builds one outside this crate.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Plan {
     pub r: usize,
     pub mu: usize,
@@ -21,7 +23,7 @@ impl Plan {
     /// RAM of four words, two ports, segments of two steps, at most four
     /// segments, 5-bit timestamps, and the ROM program
     /// `loadi 5; store 0; load 0; halt`.
-    pub fn first() -> Self {
+    pub(super) fn first() -> Self {
         Self {
             r: 2,
             mu: 2,
@@ -39,7 +41,7 @@ impl Plan {
     /// that the first plan cannot reach: ROM of four words and RAM of eight
     /// (`r < μ`), segments of one step, at most four segments, 4-bit
     /// timestamps, and the ROM program `load 0; store 1; load 1; store 0`.
-    pub fn second() -> Self {
+    pub(super) fn second() -> Self {
         let mut ram = vec![0; 8];
         ram[0] = 7;
         Self {

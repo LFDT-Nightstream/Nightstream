@@ -92,6 +92,10 @@ impl LogicalAssignment {
         self.values.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.values.is_empty()
+    }
+
     pub fn value(&self, column: usize) -> Result<u64, PackageError> {
         match self.values.get(column).copied() {
             Some(-1) => Ok(GOLDILOCKS_MODULUS - 1),

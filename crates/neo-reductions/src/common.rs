@@ -540,6 +540,7 @@ pub fn phi_coeffs_from_params(params: &NeoParams) -> Result<&'static [i32], PiCc
 /// This enforces the shift recurrence:
 /// - col_{j+1}[0] = col_j[d-1] * (-c_0)
 /// - col_{j+1}[r] = col_j[r-1] + col_j[d-1] * (-c_r), r >= 1
+///
 /// where `phi_coeffs = [c_0, ..., c_{d-1}]`.
 pub fn validate_rho_is_rotation_matrix<Ff>(rho: &Mat<Ff>, phi_coeffs: &[i32], label: &str) -> Result<(), PiCcsError>
 where
@@ -981,7 +982,7 @@ where
             "project_x_from_witness_mat: m_in={m_in} exceeds expected_m={expected_m}"
         )));
     }
-    if m_in % D != 0 {
+    if !m_in.is_multiple_of(D) {
         return Err(PiCcsError::InvalidInput(format!(
             "project_x_from_witness_mat: m_in={m_in} is not a whole number of degree-{D} ring elements"
         )));

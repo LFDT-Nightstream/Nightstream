@@ -387,8 +387,7 @@ fn events(raw: &RawPackage) -> Vec<Event<'_>> {
             "reference hash-chain witness rows",
         );
         assert!(
-            word(chain.8) == 0
-                || (word(chain.9) >= word(raw.3 .2) + 1 && word(chain.9) + word(chain.8) <= word(raw.3 .4)),
+            word(chain.8) == 0 || (word(chain.9) > word(raw.3 .2) && word(chain.9) + word(chain.8) <= word(raw.3 .4)),
             "reference hash-chain digest range",
         );
         for ordinal in 0..=word(chain.7) {

@@ -28,7 +28,7 @@ impl CompactRowBlock {
         Self(
             block as u32
                 | (local as u32) << COMPACT_SINGLE_LOCAL_SHIFT
-                | u32::from(coefficient == F::ZERO - F::ONE) * COMPACT_NEGATIVE_TAG,
+                | (u32::from(coefficient == F::ZERO - F::ONE) * COMPACT_NEGATIVE_TAG),
         )
     }
 

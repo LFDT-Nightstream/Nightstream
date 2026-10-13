@@ -59,7 +59,7 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
     let fresh_claim = fresh.claim.clone();
     let first_fold = Instant::now();
     eprintln!("first full C/R/D started elapsed={:?}", started.elapsed());
-    let (next, proof) = package.prove(vec![fresh], running).unwrap();
+    let (next, proof) = package.prove(vec![fresh], *running).unwrap();
     eprintln!("first full C/R/D elapsed={:?}", first_fold.elapsed());
 
     // Only assertions read expected proof bytes. They never enter the prover.
@@ -225,5 +225,5 @@ pub(super) fn rehash_false_running_opening(package: &PreparedLifecycle, final_pr
     fresh.witness.Z = Mat::compact_signed_unit_from_column_masks(D, positive.len(), &positive, &negative).unwrap();
     drop((positive, negative));
     fresh.claim.c = commit_production_signed_unit_prefix_matrix(&fresh.witness.Z).unwrap();
-    Stage1Envelope::from_parts(expected_state, running, fresh)
+    Stage1Envelope::from_parts(expected_state, *running, fresh)
 }

@@ -67,7 +67,7 @@ pub(crate) fn validate_ce_claim_shape(
             ce.m_in, s.m
         )));
     }
-    if ce.m_in % D != 0 {
+    if !ce.m_in.is_multiple_of(D) {
         return Err(PiCcsError::InvalidInput(format!(
             "{label}: m_in={} is not a whole number of degree-{D} ring elements",
             ce.m_in

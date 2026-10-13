@@ -132,7 +132,7 @@ impl LatestInstance {
 enum ProofState {
     Initial,
     Active {
-        running: RunningInstance,
+        running: Box<RunningInstance>,
         latest: LatestInstance,
     },
 }
@@ -141,7 +141,10 @@ impl ProofState {
         Self::Initial
     }
     fn active(running: RunningInstance, latest: LatestInstance) -> Self {
-        Self::Active { running, latest }
+        Self::Active {
+            running: Box::new(running),
+            latest,
+        }
     }
     fn is_initial(&self) -> bool {
         matches!(self, Self::Initial)
@@ -149,7 +152,7 @@ impl ProofState {
     fn running(&self) -> Option<&RunningInstance> {
         match self {
             Self::Initial => None,
-            Self::Active { running, .. } => Some(running),
+            Self::Active { running, .. } => Some(running.as_ref()),
         }
     }
     fn latest(&self) -> Option<&LatestInstance> {

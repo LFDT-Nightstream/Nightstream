@@ -890,11 +890,14 @@ fn validate_dense_input_indices(events: &[EventBlock], declared: u8, context: &s
     }
 }
 
-pub(super) fn events_dense_input_count(events: &[EventBlock], context: &str) -> Result<u8, WasmBuildError> {
+pub(super) fn events_dense_input_count<'a>(
+    events: impl IntoIterator<Item = &'a EventBlock>,
+    context: &str,
+) -> Result<u8, WasmBuildError> {
     let mut visited = vec![];
 
     for index in events
-        .iter()
+        .into_iter()
         .flat_map(|event| &event.block)
         .filter_map(|slot| match *slot {
             SlotBinding::InputLocal { input, .. }

@@ -67,6 +67,66 @@ fn public_builder_pads_blocks_derives_inputs_and_validates_functions() -> Result
 }
 
 #[test]
+fn public_builder_constructs_and_validates_split_imports() -> Result<(), Box<dyn std::error::Error>> {
+    let wasm = wat::parse_str(
+        r#"(module
+        (import "host" "f" (func (param i32) (result i32)))
+        (import "host" "yield" (func))
+        (func (export "run")))"#,
+    )?;
+    let artifacts = neo_wasm::extract_wasm_program_artifacts(&wasm)?;
+    let call = EventSequenceBuilder::op(10).arg_i32(0)?.finish()?;
+    let ret = EventSequenceBuilder::op(11)
+        .memory_write_i32(0, MemoryBase::Arg(0), 0)?
+        .memory_write_i32(1, MemoryBase::Arg(0), 4)?
+        .result()?
+        .finish()?;
+    let mut builder = HostEventBindingsBuilder::new(&artifacts.tables);
+    builder.split_import(1, call.clone(), ret.clone())?;
+    builder.split_import(2, vec![], vec![])?;
+    assert!(
+        builder.import(1, vec![]).is_err(),
+        "duplicate binding must not replace the split template"
+    );
+    let bindings = builder.finish()?;
+    assert_eq!(bindings.imports[&1].input_count, 2);
+    assert_eq!(bindings.imports[&1].events, call);
+    assert_eq!(bindings.imports[&1].return_events, Some(ret));
+    assert_eq!(bindings.imports[&2].return_events, Some(vec![]));
+    assert_eq!(bindings.imports[&2].input_count, 0);
+
+    let gap = EventSequenceBuilder::op(11)
+        .memory_write_i32(1, MemoryBase::Arg(0), 0)?
+        .result()?
+        .finish()?;
+    let mut builder = HostEventBindingsBuilder::new(&artifacts.tables);
+    assert!(
+        builder.split_import(1, call.clone(), gap).is_err(),
+        "return inputs must be dense"
+    );
+
+    // The complete split template must reach the existing validation, including
+    // phase restrictions and the imported function's actual signature.
+    for (call, ret) in [
+        // Results belong to the return phase, not the call phase.
+        (EventSequenceBuilder::op(10).result()?.finish()?, vec![]),
+        // This import has one argument, so only argument index 0 exists.
+        (
+            call,
+            EventSequenceBuilder::op(11)
+                .arg_i32(1)?
+                .result()?
+                .finish()?,
+        ),
+    ] {
+        let mut builder = HostEventBindingsBuilder::new(&artifacts.tables);
+        builder.split_import(1, call, ret)?;
+        assert!(builder.finish().is_err());
+    }
+    Ok(())
+}
+
+#[test]
 fn core_export_input_local_bootstraps_parameter() -> Result<(), Box<dyn std::error::Error>> {
     let wasm = wat::parse_str(
         r#"(module

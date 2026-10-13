@@ -19,7 +19,7 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use thiserror::Error;
 
 use crate::folding::pi_ccs;
-use crate::folding::{CcsClaim, CeClaim};
+use crate::folding::{is_canonical_evaluation, CcsClaim, CeClaim};
 
 /// `HyperNova/NIVC/state/v2`, eight little-endian bytes per word, then zero
 /// words up to one full sponge rate.
@@ -61,13 +61,10 @@ pub struct PiCcsV1_2ProofInputs {
 
 impl PiCcsV1_2ProofInputs {
     /// Convert one native v1_2 PiCCS proof without changing its order.
-    pub fn from_proof(fresh: &[CcsClaim], proof: &pi_ccs::Proof) -> Result<Self, PiCcsV1_2PackageBridgeError> {
-        if fresh.len() != 1 {
-            return Err(PiCcsV1_2PackageBridgeError::Shape("fresh source count"));
-        }
-        if fresh[0].c.d != PI_CCS_V1_2_COEFFICIENT_COUNT
-            || fresh[0].c.kappa != COMMITMENT_WIDTH
-            || fresh[0].c.data.len() != PI_CCS_V1_2_FRESH_COMMITMENT_WORDS
+    pub fn from_proof(fresh: &CcsClaim, proof: &pi_ccs::Proof) -> Result<Self, PiCcsV1_2PackageBridgeError> {
+        if fresh.c.d != PI_CCS_V1_2_COEFFICIENT_COUNT
+            || fresh.c.kappa != COMMITMENT_WIDTH
+            || fresh.c.data.len() != PI_CCS_V1_2_FRESH_COMMITMENT_WORDS
         {
             return Err(PiCcsV1_2PackageBridgeError::Shape("fresh commitment width"));
         }
@@ -84,7 +81,7 @@ impl PiCcsV1_2ProofInputs {
             return Err(PiCcsV1_2PackageBridgeError::Shape("output source count"));
         }
 
-        let fresh_commitment = fresh[0]
+        let fresh_commitment = fresh
             .c
             .data
             .iter()
@@ -330,11 +327,7 @@ pub fn encode_pi_ccs_v1_2_public_input(digest: [u64; 4]) -> Result<Vec<u64>, PiC
 }
 
 fn validate_family(values: &[K]) -> Result<(), PiCcsV1_2PackageBridgeError> {
-    if values.len() < PI_CCS_V1_2_COEFFICIENT_COUNT
-        || values[PI_CCS_V1_2_COEFFICIENT_COUNT..]
-            .iter()
-            .any(|value| *value != K::ZERO)
-    {
+    if !is_canonical_evaluation(values) {
         return Err(PiCcsV1_2PackageBridgeError::Shape("evaluation family width or padding"));
     }
     Ok(())

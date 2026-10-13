@@ -61,7 +61,7 @@ def extensionOps : InterpolationOps K where
   neg := fun value => K.sub K.zero value
 
 /-- The semantic base zero is definitionally the concrete Goldilocks zero. -/
-def baseZeroAgreement : NormResidualTable.BaseZeroAgreement baseOps where
+theorem baseZeroAgreement : NormResidualTable.BaseZeroAgreement baseOps where
   zero_eq := rfl
 
 private theorem fadd_assoc (left middle right : F) :
@@ -237,7 +237,7 @@ theorem extensionLaws : InterpolationEvaluationLaws extensionOps := by
 
 /-- The zero laws used by the coefficient transform are a direct projection
 of the stronger concrete evaluation laws. -/
-def extensionZeroLaws : InterpolationZeroLaws extensionOps where
+theorem extensionZeroLaws : InterpolationZeroLaws extensionOps where
   add_zero := extensionLaws.add_zero
   neg_zero := by
     simp only [extensionOps, K.sub, K.zero, Fin.sub_self]
@@ -267,7 +267,7 @@ theorem embed_mul (left right : F) :
 /-- Direct concrete algebraic contract for structurally lifting sparse CCS
 polynomials from `F` to `K`. This contract is independent of norm semantics
 and the high-level protocol verifier. -/
-def constraintEvaluationLaws :
+theorem constraintEvaluationLaws :
     ConstraintPolynomialLift.Evaluation.EvaluationLaws
       baseOps extensionOps K.embed where
   map_zero := embed_zero

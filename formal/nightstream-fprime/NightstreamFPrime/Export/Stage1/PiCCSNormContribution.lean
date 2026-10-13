@@ -173,7 +173,7 @@ theorem normTerm_innerPair (input : ProtocolPolynomial.VerifierInput K productio
   unfold normTerm innerNormPair
   rw [selector_factor]
 
-private def shiftLaws : TargetPolynomial.ShiftLaws extensionOps.toOps where
+private theorem shiftLaws : TargetPolynomial.ShiftLaws extensionOps.toOps where
   one_mul := extensionLaws.one_mul
   mul_assoc := extensionLaws.mul_assoc
   mul_zero := extensionLaws.mul_zero

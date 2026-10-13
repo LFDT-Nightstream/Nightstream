@@ -149,6 +149,53 @@ def zeroState : State := List.replicate width 0
 def absorbBlock (s : State) (block : List F) : State :=
   permute ((List.range width).map fun i => s.getD i 0 + block.getD i 0)
 
+private theorem rounds_length (step : Nat → State → State)
+    (lengths : ∀ index state, (step index state).length = width)
+    (indices : List Nat) (state : State) (fixed : state.length = width) :
+    (indices.foldl (fun state index => step index state) state).length = width := by
+  induction indices generalizing state with
+  | nil => exact fixed
+  | cons index rest inductionHypothesis => exact inductionHypothesis _ (lengths index state)
+
+/-- Every permutation output has exactly `width` lanes. -/
+theorem permute_length (state : State) : (permute state).length = width := by
+  unfold permute rounds
+  apply rounds_length
+  · intro index state
+    simp [fullRound, externalLayer]
+  · apply rounds_length
+    · intro index state
+      simp [partialRound, internalLayer]
+    · apply rounds_length
+      · intro index state
+        simp [fullRound, externalLayer]
+      · simp [externalLayer]
+
+/-- Every absorption output has exactly `width` lanes. -/
+theorem absorbBlock_length (state : State) (block : List F) :
+    (absorbBlock state block).length = width :=
+  permute_length _
+
+/-- Absorbing an all-zero block into a full-width state is a plain
+permutation. -/
+theorem absorbBlock_zero (state : State) (fixed : state.length = width)
+    {block : List F} (zeros : ∀ index, block.getD index 0 = 0) :
+    absorbBlock state block = permute state := by
+  unfold absorbBlock
+  apply congrArg permute
+  have values : (List.range width).map (fun index => state.getD index 0 + block.getD index 0) =
+      (List.range width).map (fun index => state.getD index 0) := by
+    apply List.map_congr_left
+    intro index _
+    rw [zeros]
+    simp
+  rw [values, ← fixed]
+  apply List.ext_getElem
+  · simp
+  · intro index _bound bound
+    simp only [List.getElem_map, List.getElem_range]
+    exact (List.getElem_eq_getD 0).symm
+
 /-- Tail-recursive absorption of the first `count` rate-sized blocks.
 
 Unlike the indexed reference expression in `hash`, this function drops only
@@ -200,6 +247,13 @@ def hashFast (input : List F) : List F :=
   let padded := permute ((List.range width).map fun i =>
     if i = 0 then absorbed.getD 0 0 + 1 else absorbed.getD i 0)
   padded.take digestLen
+
+/-- Every digest has exactly `digestLen` words. -/
+theorem hash_length (input : List F) : (hash input).length = digestLen := by
+  unfold hash
+  dsimp only
+  rw [List.length_take, permute_length]
+  decide
 
 @[csimp] theorem hash_eq_hashFast : @hash = @hashFast := by
   funext input

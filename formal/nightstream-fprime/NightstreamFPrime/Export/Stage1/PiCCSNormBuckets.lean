@@ -102,7 +102,7 @@ private theorem lookup_add_of_ne (buckets : Buckets)
   by_cases sourceEqual : query = source <;>
     by_cases lowEqual : a = low <;>
       by_cases highEqual : b = high <;>
-        simp [add, different, lookup, get_set, sourceEqual, lowEqual, highEqual, addZero] <;> rfl
+        simp [add, different, lookup, get_set, sourceEqual, lowEqual, highEqual, addZero]; rfl
 
 private def sumKeys
     (value : Fin productionShape.sourceCount → Fin 3 → Fin 3 → K) : K :=

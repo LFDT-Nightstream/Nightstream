@@ -49,7 +49,7 @@ structure Geometry (program : Lifecycle.Stage1.Application.Program)
     (logicalWidth : Nat) : Prop where
   completeFits : completeLogicalWidth program ≤ logicalWidth
 
-def prefixGeometry {program : Lifecycle.Stage1.Application.Program}
+theorem prefixGeometry {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     PiDECRetainedGeometry.Geometry program logicalWidth where
   completeFits := by
@@ -62,7 +62,7 @@ def oneColumn {program : Lifecycle.Stage1.Application.Program}
     Fin logicalWidth :=
   PiDECRetainedGeometry.oneColumn (prefixGeometry geometry)
 
-def logicalFits {program : Lifecycle.Stage1.Application.Program}
+theorem logicalFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     logicalStart program +
         (PiRLCSamplerOrdinaryRetainedBlocks.logicalBlock program).coordinateCount ≤
@@ -71,14 +71,14 @@ def logicalFits {program : Lifecycle.Stage1.Application.Program}
   unfold completeLogicalWidth freshStart
   omega
 
-def freshFits {program : Lifecycle.Stage1.Application.Program}
+theorem freshFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     freshStart program +
         (PiRLCSamplerOrdinaryRetainedBlocks.freshBlock program).coordinateCount ≤
       logicalWidth :=
   geometry.completeFits
 
-def piRlcGeometry {program : Lifecycle.Stage1.Application.Program}
+theorem piRlcGeometry {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     PiRLCRetainedGeometry.Geometry program logicalWidth :=
   PiDECRetainedGeometry.piRlcGeometry (prefixGeometry geometry)

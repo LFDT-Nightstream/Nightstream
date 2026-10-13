@@ -382,16 +382,16 @@ theorem flatConstraints_varsBelow
         · unfold wordExpr lowExpr highExpr
           apply Expr.VarsBelow.add
           · apply weightedExpr_varsBelow
-            simp [halfBitCount, bitCount, auxiliaryCount]
+            simp [halfBitCount, auxiliaryCount]
           · apply Expr.VarsBelow.mul
             · exact trivial
             · apply weightedExpr_varsBelow
-              simp [halfBitCount, bitCount, auxiliaryCount]
+              simp [halfBitCount, auxiliaryCount]
       · unfold canonicalityConstraint highFlagExpr lowExpr
         apply Expr.VarsBelow.mul
         · simp [Expr.VarsBelow, bitCount, auxiliaryCount]
         · apply weightedExpr_varsBelow
-          simp [halfBitCount, bitCount, auxiliaryCount]
+          simp [halfBitCount, auxiliaryCount]
 
 theorem bitExpr_varsSatisfy (offset index : Nat) (allowed : Nat → Prop)
     (supported : allowed (offset + index)) :

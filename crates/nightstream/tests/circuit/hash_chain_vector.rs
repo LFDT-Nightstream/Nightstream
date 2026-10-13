@@ -65,8 +65,8 @@ fn two_link_hash_chain_base_step_verifies_and_rejects_changes() {
     verifier.verify(&expected, &decoded).unwrap();
 
     // Reassemble the same openings under a supplied statement.
-    let running = proof.running().unwrap().clone();
-    let fresh = proof.fresh().unwrap().clone();
+    let (running, fresh) = proof.active_parts().unwrap();
+    let (running, fresh) = (running.clone(), fresh.clone());
     let reseal =
         |state: &Stage1State, fresh: CcsInstance| Stage1Envelope::from_parts(state.clone(), running.clone(), fresh);
     verifier
@@ -92,7 +92,7 @@ fn two_link_hash_chain_base_step_verifies_and_rejects_changes() {
     // Change one application coordinate to another signed unit. The old
     // commitment no longer opens, and a recomputed commitment opens to a
     // witness that violates the CCS rows.
-    let application = &circuit.compiled.application;
+    let application = circuit.compiled.application.as_ref().unwrap();
     let manifest: serde_json::Value =
         serde_json::from_slice(include_bytes!("../../artifacts/shared-verifier-v1.json")).unwrap();
     let local = manifest["ports"]
@@ -173,11 +173,8 @@ fn two_link_hash_chain_folds_on_metal() {
     let mut changed = expected.current();
     changed[0] += F::ONE;
     let state = Stage1State::new(2, initial, changed);
-    let envelope = Stage1Envelope::from_parts(
-        state.clone(),
-        proof.running().unwrap().clone(),
-        proof.fresh().unwrap().clone(),
-    );
+    let (running, fresh) = proof.active_parts().unwrap();
+    let envelope = Stage1Envelope::from_parts(state.clone(), running.clone(), fresh.clone());
     assert!(matches!(
         verifier.verify(&state, &envelope),
         Err(Error::Verify(VerifyError::Fresh(

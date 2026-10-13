@@ -95,7 +95,7 @@ theorem runningWord_isAffine {logicalWidth : Nat}
   exact serializeRunningExpr_affine running linear _
     (List.get_mem _ ⟨index.val, indexBound⟩)
 
-def recursiveMulFree
+theorem recursiveMulFree
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}

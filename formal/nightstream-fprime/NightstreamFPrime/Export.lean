@@ -108,6 +108,9 @@ import NightstreamFPrime.Export.Stage1.DirectApplicationPrefixPlan
 import NightstreamFPrime.Export.Stage1.Stage1LoweringBridge
 import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPackage
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
+import NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package
+import NightstreamFPrime.Export.Stage1.NebulaMemoryN1Package
+import NightstreamFPrime.Export.Stage1.NebulaMemorySecurity
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows
 import NightstreamFPrime.Export.Stage1.PiCCSOwnershipAudit
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Parity
@@ -136,6 +139,7 @@ import NightstreamFPrime.Export.Stage1.PilotHashRowsCompleteness
 import NightstreamFPrime.Export.Stage1.PilotCompletedAssignment
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentBlocks
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransport
+import NightstreamFPrime.Export.Stage1.PerApplicationCachedBlocks
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransportExpressions
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransportProducts
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransportExecution
@@ -188,20 +192,20 @@ import NightstreamFPrime.Export.Stage1.HyperNovaInput
 import NightstreamFPrime.Export.Stage1.HyperNovaSource
 import NightstreamFPrime.Export.Stage1.HyperNovaHistory
 import NightstreamFPrime.Export.Stage1.HyperNovaHistoryProbability
-import NightstreamFPrime.Export.Stage1.HyperNovaSourceLaw
 import NightstreamFPrime.Export.Stage1.HyperNovaRealInput
 import NightstreamFPrime.Export.Stage1.HyperNovaCompleteness
 import NightstreamFPrime.Export.Stage1.HyperNovaAcceptedNext
 import NightstreamFPrime.Export.Stage1.HyperNovaStepData
 import NightstreamFPrime.Export.Stage1.HyperNovaHistoryLaw
+import NightstreamFPrime.Export.Stage1.HyperNovaHistoryWork
 import NightstreamFPrime.Export.Stage1.HyperNovaVisitedLaw
 import NightstreamFPrime.Export.Stage1.HyperNovaGuardedSourceLaw
 import NightstreamFPrime.Export.Stage1.HyperNovaVisitedAcceptance
 import NightstreamFPrime.Export.Stage1.HyperNovaFirstFailure
 import NightstreamFPrime.Export.Stage1.HyperNovaVisitedSecurity
+import NightstreamFPrime.Export.Stage1.RandomOracleLink
+import NightstreamFPrime.Export.Stage1.RandomOracleSetup
 import NightstreamFPrime.Export.Stage1.HyperNovaFalseAcceptance
-import NightstreamFPrime.Export.Stage1.HyperNovaHistoryWork
-import NightstreamFPrime.Export.Stage1.HyperNovaSourceWork
 import NightstreamFPrime.Export.Stage1.ActualPiDEC
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectSource
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryRetainedBlocks
@@ -264,10 +268,6 @@ import NightstreamFPrime.Export.Stage1.PoseidonRetainedBlock
 import NightstreamFPrime.Export.Stage1.DirectPiRLCProductFootprint
 import NightstreamFPrime.Export.Stage1.DirectPiRLCProductFootprintBridge
 import NightstreamFPrime.Export.Stage1.DirectLowNormFootprint
-
-import NightstreamFPrime.Export.Stage1.NifsClosure
-import NightstreamFPrime.Export.Stage1.NifsProviderLaw
-import NightstreamFPrime.Export.Stage1.NifsInvalidSource
 
 import NightstreamFPrime.Export.Stage1.PiCCSFirstRound
 import NightstreamFPrime.Export.Stage1.PiCCSFreshPolynomial

@@ -381,7 +381,7 @@ private theorem padE_supported (state : Layer.EState) (allowed : Nat → Prop)
   · simp [Hash.padE, hzero, Expr.VarsSatisfy, stateSupported lane]
   · simpa [Hash.padE, hzero] using stateSupported lane
 
-private theorem compileAbsorptions_supported (start : Nat)
+theorem compileAbsorptions_supported (start : Nat)
     (state : Layer.EState) (blocks : List (List Expr))
     (allowed : Nat → Prop) (stateSupported : StateSupported state allowed)
     (blocksSupported : BlocksSupported blocks allowed)
@@ -467,8 +467,7 @@ theorem hashCompile_supported (start : Nat) (input : List Expr)
     rfl
   have absorbedLength : absorbed.recipes.length =
       (Hash.inputChunks input).length * 1096 := by
-    simpa [absorbed, blocks] using Hash.compileAbsorptions_recipes_length
-      start Hash.zeroE (Hash.inputChunks input)
+    simp [absorbed, blocks]
   have zeroSupported : StateSupported Hash.zeroE allowed := by
     intro lane
     trivial

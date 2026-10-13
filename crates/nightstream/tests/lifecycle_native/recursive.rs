@@ -50,16 +50,14 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
     eprintln!("fresh recursive source elapsed={:?}", started.elapsed());
 
     let (state, proof_state) = base_proof.into_parts();
-    let ProofState::Active { running, mut latest } = proof_state else {
+    let ProofState::Active { running, fresh } = proof_state else {
         panic!("base generation must produce an active source");
     };
-    assert_eq!(latest.instances.len(), 1);
-    let fresh = latest.instances.pop().unwrap();
     let prior = running.claims_only();
     let fresh_claim = fresh.claim.clone();
     let first_fold = Instant::now();
     eprintln!("first full C/R/D started elapsed={:?}", started.elapsed());
-    let (next, proof) = package.prove(vec![fresh], running).unwrap();
+    let (next, proof) = package.prove(fresh, running).unwrap();
     eprintln!("first full C/R/D elapsed={:?}", first_fold.elapsed());
 
     // Only assertions read expected proof bytes. They never enter the prover.
@@ -81,13 +79,12 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
         &package.structure,
         ajtai_rlc_mixer,
         ajtai_dec_mixer,
-        std::slice::from_ref(&fresh_claim),
+        &fresh_claim,
         &prior,
         &proof,
     )
     .unwrap();
     assert_eq!(next.claims, verified.claims);
-    assert_eq!(next.parent_authority, verified.parent_authority);
     let outgoing = transcript
         .snapshot()
         .state()
@@ -149,6 +146,7 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
     eprintln!("later terminal acceptance started elapsed={:?}", started.elapsed());
     package.verify(&expected_state, &final_proof).unwrap();
     eprintln!("later terminal acceptance elapsed={:?}", terminal.elapsed());
+    let (final_running, final_fresh) = final_proof.active_parts().unwrap();
     eprintln!(
         "new recursive result={}",
         json!({
@@ -156,8 +154,8 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
             "iteration": expected_state.iteration(),
             "initial": initial.map(|value| value.as_canonical_u64()),
             "current": final_output.map(|value| value.as_canonical_u64()),
-            "running_claims": &final_proof.running().unwrap().claims,
-            "fresh_claim": &final_proof.fresh().unwrap().claim,
+            "running_claims": &final_running.claims,
+            "fresh_claim": &final_fresh.claim,
         })
     );
 
@@ -187,14 +185,9 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
 pub(super) fn rehash_false_running_opening(package: &PreparedLifecycle, final_proof: Stage1Envelope) -> Stage1Envelope {
     let expected_state = *final_proof.state();
     let (_, proof_state) = final_proof.into_parts();
-    let ProofState::Active {
-        mut running,
-        mut latest,
-    } = proof_state
-    else {
+    let ProofState::Active { mut running, mut fresh } = proof_state else {
         panic!("recursive output must remain active");
     };
-    let mut fresh = latest.instances.pop().unwrap();
     running.claims[0].eval_k[0] += K::ONE;
     let preimage = serialize_pi_ccs_v1_2_state_preimage(
         package.binding.verifier_context().digest().map(F::from_u64),

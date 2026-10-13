@@ -12,9 +12,6 @@ use neo_math::{F, K};
 use neo_params::NeoParams;
 use neo_transcript::{Poseidon2Transcript, Transcript};
 
-use crate::engines::paper_exact_engine::PaperTranscriptBinding;
-use crate::engines::pi_ccs_joint_protocol::TranscriptBinding;
-
 #[cfg(not(target_arch = "wasm32"))]
 fn run_pair<Optimized, Reference, RunOptimized, RunReference>(
     run_optimized: RunOptimized,
@@ -73,46 +70,8 @@ pub fn crosscheck_prove<I, R, L>(
 where
     L: neo_ccs::traits::SModuleHomomorphism<F, Cmt> + Sync,
 {
-    crosscheck_prove_with_binding(
-        _inner,
-        _reference,
-        transcript,
-        params,
-        structure,
-        fresh_claims,
-        fresh_witnesses,
-        running_claims,
-        running_witnesses,
-        commitment,
-        TranscriptBinding::digest_only(),
-    )
-}
-
-fn reference_binding(binding: TranscriptBinding) -> PaperTranscriptBinding {
-    let _ = binding;
-    PaperTranscriptBinding::digest_only()
-}
-
-#[allow(clippy::too_many_arguments)]
-pub fn crosscheck_prove_with_binding<I, R, L>(
-    _inner: &I,
-    _reference: &R,
-    transcript: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    structure: &CcsStructure<F>,
-    fresh_claims: &[CcsClaim<Cmt, F>],
-    fresh_witnesses: &[CcsWitness<F>],
-    running_claims: &[CeClaim<Cmt, F, K>],
-    running_witnesses: &[Mat<F>],
-    commitment: &L,
-    binding: TranscriptBinding,
-) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof), PiCcsError>
-where
-    L: neo_ccs::traits::SModuleHomomorphism<F, Cmt> + Sync,
-{
     let cache = OptimizedStructureCache::build(structure)?;
     let mut reference_transcript = transcript.clone();
-    let paper_binding = reference_binding(binding);
     let (optimized, reference) = run_pair(
         || {
             crate::engines::optimized_engine::paper_joint::prove_with_trace(
@@ -125,11 +84,10 @@ where
                 running_witnesses,
                 commitment,
                 &cache,
-                binding,
             )
         },
         || {
-            crate::engines::paper_exact_engine::prove::paper_exact_prove_with_trace_and_binding(
+            crate::engines::paper_exact_engine::prove::paper_exact_prove_with_trace(
                 &mut reference_transcript,
                 params,
                 structure,
@@ -138,7 +96,6 @@ where
                 running_claims,
                 running_witnesses,
                 commitment,
-                paper_binding,
             )
         },
     )?;
@@ -203,38 +160,7 @@ pub fn crosscheck_verify<I, R>(
     outputs: &[CeClaim<Cmt, F, K>],
     proof: &PiCcsProof,
 ) -> Result<bool, PiCcsError> {
-    crosscheck_verify_with_binding(
-        _inner,
-        _reference,
-        transcript,
-        params,
-        structure,
-        fresh_claims,
-        running_claims,
-        outputs,
-        proof,
-        TranscriptBinding::digest_only(),
-    )
-}
-
-/// Cross-check PiCCS verification with the selected transcript binding.
-///
-/// The [caller contract](crate::engines::PiCcsEngine::verify) applies.
-#[allow(clippy::too_many_arguments)]
-pub fn crosscheck_verify_with_binding<I, R>(
-    _inner: &I,
-    _reference: &R,
-    transcript: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    structure: &CcsStructure<F>,
-    fresh_claims: &[CcsClaim<Cmt, F>],
-    running_claims: &[CeClaim<Cmt, F, K>],
-    outputs: &[CeClaim<Cmt, F, K>],
-    proof: &PiCcsProof,
-    binding: TranscriptBinding,
-) -> Result<bool, PiCcsError> {
     let mut reference_transcript = transcript.clone();
-    let paper_binding = reference_binding(binding);
     let (optimized, reference) = run_pair(
         || {
             crate::engines::pi_ccs_joint_protocol::verify_with_trace(
@@ -245,12 +171,10 @@ pub fn crosscheck_verify_with_binding<I, R>(
                 running_claims,
                 outputs,
                 proof,
-                binding,
-                None,
             )
         },
         || {
-            crate::engines::paper_exact_engine::verify::paper_exact_verify_with_trace_and_binding(
+            crate::engines::paper_exact_engine::verify::paper_exact_verify_with_trace(
                 &mut reference_transcript,
                 params,
                 structure,
@@ -258,7 +182,6 @@ pub fn crosscheck_verify_with_binding<I, R>(
                 running_claims,
                 outputs,
                 proof,
-                paper_binding,
             )
         },
     )?;

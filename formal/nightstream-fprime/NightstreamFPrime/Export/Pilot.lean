@@ -80,8 +80,7 @@ private theorem templateRowsFrom_hold (output : Nat) (rows : List R1CS.Row)
   | nil => simp [PilotData.templateRowsFrom, R1CS.RowsHold]
   | cons row rest ih =>
       constructor
-      · intro holds
-        intro current member
+      · intro holds current member
         rcases List.mem_cons.mp member with equals | member
         · subst current
           exact (templateRow_holds output row value).mp
@@ -825,11 +824,11 @@ theorem canonicalChainFinal_sound (chain : HashChain) (env : Env)
       · have laneEq : lane = 0 := Fin.ext zeroLane
         subst lane
         simp [invocationInput, Hash.padF, chainCarriedState,
-          PilotData.circuitPackage, PilotData.poseidonSchedule,
+          PilotData.circuitPackage, 
           PilotData.permutationTemplate, chainOutputState,
           invocationLocalStart, empty]
       · simp [invocationInput, Hash.padF, chainCarriedState,
-          PilotData.circuitPackage, PilotData.poseidonSchedule,
+          PilotData.circuitPackage, 
           PilotData.permutationTemplate, chainOutputState,
           invocationLocalStart, empty, zeroLane]
   have absorbed := canonicalChainAbsorptions_sound chain env holds

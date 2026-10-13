@@ -12,7 +12,7 @@ open NightstreamFPrime.Lifecycle.Stage1
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-def recursiveRunningBelow
+theorem recursiveRunningBelow
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth)

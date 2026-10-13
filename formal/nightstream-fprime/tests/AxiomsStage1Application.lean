@@ -3,6 +3,7 @@ import NightstreamFPrime.Export.Stage1.ApplicationPackage
 import NightstreamFPrime.Export.Stage1.ApplicationRetainedGeometry
 import NightstreamFPrime.Export.Stage1.ApplicationMatrixProgramSemantics
 import NightstreamFPrime.Export.Stage1.PerApplicationPackage
+import NightstreamFPrime.Export.Stage1.PerApplicationCachedBlocks
 import NightstreamFPrime.Export.Stage1.PerApplicationCachedShift
 import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPreservation
 import NightstreamFPrime.Export.Stage1.PerApplicationSoundness
@@ -20,9 +21,11 @@ import NightstreamFPrime.Layout.R1CS.ColumnMap
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.Application.inputState_length
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.Application.witnessValue_length
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.Application.outputState_length
+#audit_axioms NightstreamFPrime.Lifecycle.Stage1.Application.Program.soundness_valid
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.Application.Program.soundness
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.Application.Program.completeness
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.Application.Program.holds_of_agree_below
+#audit_axioms NightstreamFPrime.Lifecycle.Stage1.Application.Program.valid_of_values_eq
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.Application.Program.step_output_length
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.Application.Program.assumptions
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.Application.Program.support
@@ -110,6 +113,10 @@ import NightstreamFPrime.Layout.R1CS.ColumnMap
 #audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationCachedShift.shiftPermutationInvocation_eq
 #audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationCachedShift.shiftCompactInputRange_eq
 #audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationCachedShift.shiftCompactRowInvocation_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationCachedBlocks.cachedOfKind_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationCachedBlocks.canonical_eq_cachedCanonical
+#audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationCachedBlocks.phi81QuotientRecipe_eq_cached
+#audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationCachedBlocks.outputDigestExpressions_eq_cached
 #audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationPackage.applicationPlan_wellFormed
 #audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationPackage.package_schemaVersion
 #audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationPackage.package_layout

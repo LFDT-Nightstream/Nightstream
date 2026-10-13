@@ -14,7 +14,7 @@ use super::paper_joint::{
     build_outputs, dimensions, initial_claim, paper_prior_point, terminal, validate_fresh_assignment,
     validate_public_instances, PaperJointOracle,
 };
-use super::transcript::{absorb_outputs, assemble_proof, bind_and_sample, prove_sumcheck, PaperTranscriptBinding};
+use super::transcript::{absorb_outputs, assemble_proof, bind_and_sample, prove_sumcheck};
 use super::PaperMatrixRows;
 
 #[allow(clippy::too_many_arguments)]
@@ -26,32 +26,7 @@ pub(crate) fn paper_exact_prove_with_trace<L: neo_ccs::traits::SModuleHomomorphi
     fresh_witnesses: &[CcsWitness<F>],
     running_claims: &[CeClaim<Cmt, F, K>],
     running_witnesses: &[Mat<F>],
-    commitment: &L,
-) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, ProtocolTrace), PiCcsError> {
-    paper_exact_prove_with_trace_and_binding(
-        transcript,
-        params,
-        structure,
-        fresh_claims,
-        fresh_witnesses,
-        running_claims,
-        running_witnesses,
-        commitment,
-        PaperTranscriptBinding::digest_only(),
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn paper_exact_prove_with_trace_and_binding<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
-    transcript: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    structure: &CcsStructure<F>,
-    fresh_claims: &[CcsClaim<Cmt, F>],
-    fresh_witnesses: &[CcsWitness<F>],
-    running_claims: &[CeClaim<Cmt, F, K>],
-    running_witnesses: &[Mat<F>],
     _commitment: &L,
-    binding: PaperTranscriptBinding,
 ) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, ProtocolTrace), PiCcsError> {
     prove_with_rows_inner(
         transcript,
@@ -62,7 +37,6 @@ pub(crate) fn paper_exact_prove_with_trace_and_binding<L: neo_ccs::traits::SModu
         running_claims,
         running_witnesses,
         None,
-        binding,
     )
 }
 
@@ -87,7 +61,6 @@ pub fn paper_exact_prove_with_rows(
         running_claims,
         running_witnesses,
         Some(rows),
-        PaperTranscriptBinding::digest_only(),
     )
 }
 
@@ -101,7 +74,6 @@ fn prove_with_rows_inner(
     running_claims: &[CeClaim<Cmt, F, K>],
     running_witnesses: &[Mat<F>],
     rows: Option<&dyn PaperMatrixRows<F>>,
-    binding: PaperTranscriptBinding,
 ) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, ProtocolTrace), PiCcsError> {
     if fresh_claims.len() != fresh_witnesses.len() {
         return Err(PiCcsError::InvalidInput(
@@ -121,15 +93,7 @@ fn prove_with_rows_inner(
     }
     let prior_point = paper_prior_point(running_claims, dims.variables)?;
     let mut trace = ProtocolTrace::default();
-    let challenges = bind_and_sample(
-        transcript,
-        &mut trace,
-        structure,
-        fresh_claims,
-        running_claims,
-        dims,
-        binding,
-    )?;
+    let challenges = bind_and_sample(transcript, &mut trace, structure, fresh_claims, running_claims, dims)?;
     let initial = initial_claim(structure, &challenges, fresh_claims.len(), running_claims)?;
     let mut oracle = match rows {
         Some(rows) => PaperJointOracle::from_rows(

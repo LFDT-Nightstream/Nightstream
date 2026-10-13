@@ -7,7 +7,7 @@ use crate::folding::{
     self, ajtai_dec_mixer, ajtai_rlc_mixer, pi_ccs, pi_dec, pi_rlc, transcript::Transcript, CcsClaim, CcsInstance,
     CcsWitness, CeClaim, NifsProof, Params, RunningInstance,
 };
-use crate::lifecycle::{extend::prepare_running, PreparedLifecycle, Stage1Envelope, Stage1State};
+use crate::lifecycle::{PreparedLifecycle, Stage1Envelope, Stage1State};
 use neo_ajtai::{
     nightstream_fprime_setup::{
         commit_production_signed_unit_prefix_matrices, commit_production_signed_unit_prefix_matrix,
@@ -30,7 +30,7 @@ use std::{
 #[path = "staged_fold.rs"]
 mod fold;
 #[path = "staged_opening_tests.rs"]
-mod opening_tests;
+pub(super) mod opening_tests;
 #[path = "staged_terminal.rs"]
 mod terminal;
 
@@ -264,7 +264,6 @@ struct SavedEnvelope {
     current: [u64; 4],
     child_witness_count: usize,
     running_claims: Vec<CeClaim>,
-    running_parent: Option<CeClaim>,
 }
 struct Sources {
     state: Stage1State,
@@ -280,14 +279,12 @@ fn load_claims(package: &PreparedLifecycle, directory: &Path, step: u64) -> (Sta
     let state = Stage1State::new(saved.iteration, saved.z0.map(field), saved.current.map(field));
     assert_eq!(state, expected_state(step), "external source state");
     let fresh: CcsClaim = load(&directory.join("fresh-claim.json"));
-    let mut running = RunningInstance::new(saved.running_claims, Vec::new(), saved.running_parent);
-    let (_, digest) = package
+    let running = RunningInstance::new(saved.running_claims, Vec::new());
+    // The production checks; frame caches are not read.
+    package
         .checked_prior_state(&state, &running, &fresh)
         .unwrap();
-    // Use the production normalization; supplied parent/frame caches are not authority.
-    let params = params(package);
-    prepare_running(&mut running, &params, digest);
-    folding::validate_running_parent_authority(&params, &package.structure, ajtai_dec_mixer, &running).unwrap();
+    folding::validate_running_children(&params(package), &package.structure, &running).unwrap();
     (state, fresh, running)
 }
 fn load_sources(package: &PreparedLifecycle, directory: &Path, step: u64) -> Sources {
@@ -330,7 +327,7 @@ fn save_envelope(
     digit_directory: Option<&Path>,
 ) {
     fs::create_dir(directory).expect("fresh envelope directory");
-    let running = envelope.running().unwrap();
+    let (running, fresh) = envelope.active_parts().unwrap();
     assert_eq!(running.claims.len(), 16);
     assert_eq!(running.witnesses.len(), 16);
     for (child, witness) in running.witnesses.iter().enumerate() {
@@ -343,7 +340,6 @@ fn save_envelope(
             save(&directory.join(name), witness);
         }
     }
-    let fresh = envelope.fresh().unwrap();
     save(&directory.join("fresh-claim.json"), &fresh.claim);
     save(&directory.join("fresh-witness.json"), &fresh.witness.Z);
     let state = envelope.state();
@@ -357,7 +353,6 @@ fn save_envelope(
             current: state.current().map(|value| value.as_canonical_u64()),
             child_witness_count: running.witnesses.len(),
             running_claims: running.claims.clone(),
-            running_parent: running.parent_authority.clone(),
         },
     );
 }

@@ -207,14 +207,14 @@ private theorem complete_suffix
     unfold PriorStateHash.RepresentsPreimage
     rw [PilotProduction.priorInterface_preimage_apply]
     simp only [Gadgets.Poseidon2.Hash.evalList, PilotProduction.priorPreimage, PilotProduction.variableExprs,
-      List.map_ofFn, Function.comp_apply, Expr.eval_var]
+      List.map_ofFn]
     exact represented_words prior priorFixed _ priorWords
   have nextRepresented : OutputHash.RepresentsPreimage PilotProduction.outputInterface
       PilotProduction.lifecycleOutputOffset (Spartan.pullback target) next := by
     unfold OutputHash.RepresentsPreimage
     rw [PilotProduction.outputInterface_preimage_apply]
     simp only [Gadgets.Poseidon2.Hash.evalList, PilotProduction.outputPreimage, PilotProduction.variableExprs,
-      List.map_ofFn, Function.comp_apply, Expr.eval_var]
+      List.map_ofFn]
     exact represented_words next nextFixed _ nextWords
   have inputValue := ApplicationInputs.inputState_eq_current application target prior priorFixed priorRepresented
   have outputValue := ApplicationInputs.outputState_eq_current application target next nextFixed nextRepresented
@@ -228,7 +228,8 @@ private theorem complete_suffix
     exact step
   obtain ⟨built, agrees, logicalRows⟩ := application.completeness
     (ApplicationInputs.interface application) (ApplicationInputs.localStart application) loaded
-    (application.assumptions _ _ loaded (ApplicationInputs.externalBelow application)) applicationHolds
+    (application.assumptions _ _ loaded (ApplicationInputs.externalBelow application))
+    ⟨applicationHolds, trivial⟩
   have physicalRows : R1CS.RowsHold built (ApplicationDirectSource.sourceRows application) := by
     rw [ApplicationDirectSource.sourceRows, ApplicationPackage.ofProgram_compiledRows_toR1CS,
       Poseidon2HashChainV1Package.constraints_eq_hashConstraints]

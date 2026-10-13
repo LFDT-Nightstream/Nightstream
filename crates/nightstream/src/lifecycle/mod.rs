@@ -11,7 +11,7 @@ use neo_math::D;
 use neo_reductions::superneo_eval::RetainedMatrixWindow;
 use nightstream_fprime::{
     LoadedPerApplicationPackage, PackageError, PiCcsV1_2PackageInputs, PiDecV1_2PackageInputs, Stage1VerifierBinding,
-    WitnessAssignment,
+    WitnessAssignment, PI_CCS_V1_2_COEFFICIENT_COUNT, PI_CCS_V1_2_SOURCE_COUNT, PI_DEC_V1_2_CHILD_COUNT,
 };
 mod base;
 mod complete;
@@ -95,9 +95,31 @@ impl PreparedLifecycle {
         d: &PiDecV1_2PackageInputs,
         application_witness: &[u64],
     ) -> Result<WitnessAssignment, PackageError> {
+        #[cfg(test)]
+        if UNCHECKED_WITNESS.get() {
+            if let Err(PackageError::UnsatisfiedAssertionRow { row }) =
+                self.package
+                    .execute_stage1_v1_2_witness(c, d, application_witness)
+            {
+                FAILED_ASSERTION_ROW.set(Some(row));
+            }
+            return self
+                .package
+                .execute_stage1_v1_2_witness_unchecked(c, d, application_witness);
+        }
         self.package
             .execute_stage1_v1_2_witness(c, d, application_witness)
     }
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Conformance tests: while set, the prover builds each witness without
+    /// the package's assertion check, so that a test can give an invalid
+    /// fresh instance to the verifier.
+    pub(crate) static UNCHECKED_WITNESS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// The first assertion row that such a witness fails.
+    pub(crate) static FAILED_ASSERTION_ROW: std::cell::Cell<Option<usize>> = const { std::cell::Cell::new(None) };
 }
 /// The package binds its exact prefix dimensions; the selected seed and rows are fixed.
 pub(crate) fn validate_key_prefix(logical_width: usize, commitment_key_words: &[u64]) -> Result<(), PackageError> {
@@ -114,47 +136,20 @@ pub(crate) fn validate_key_prefix(logical_width: usize, commitment_key_words: &[
     Ok(())
 }
 
-#[derive(Clone, Debug)]
-struct LatestInstance {
-    instances: Vec<CcsInstance>,
-}
-impl LatestInstance {
-    fn from_instances(instances: Vec<CcsInstance>) -> Self {
-        Self { instances }
-    }
-}
+// The running children and the one fresh instance fill every PiCCS source.
+const _: () = assert!(PI_CCS_V1_2_SOURCE_COUNT == PI_DEC_V1_2_CHILD_COUNT + 1);
+// The package bridges slice the coefficients that the evaluation checks bound.
+const _: () = assert!(D == PI_CCS_V1_2_COEFFICIENT_COUNT);
+
+/// The selected profile carries exactly one fresh instance per active proof.
 #[derive(Clone, Debug)]
 enum ProofState {
     Initial,
     Active {
         running: RunningInstance,
-        latest: LatestInstance,
+        fresh: CcsInstance,
     },
 }
-impl ProofState {
-    fn initial() -> Self {
-        Self::Initial
-    }
-    fn active(running: RunningInstance, latest: LatestInstance) -> Self {
-        Self::Active { running, latest }
-    }
-    fn is_initial(&self) -> bool {
-        matches!(self, Self::Initial)
-    }
-    fn running(&self) -> Option<&RunningInstance> {
-        match self {
-            Self::Initial => None,
-            Self::Active { running, .. } => Some(running),
-        }
-    }
-    fn latest(&self) -> Option<&LatestInstance> {
-        match self {
-            Self::Initial => None,
-            Self::Active { latest, .. } => Some(latest),
-        }
-    }
-}
-
 #[cfg(test)]
 #[path = "../../tests/lifecycle_native/mod.rs"]
 mod tests;

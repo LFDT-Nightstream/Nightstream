@@ -131,7 +131,7 @@ theorem sourceWidth :
 
 /-- All physical-package, retained-carrier, and recursive-plan bounds for the
 approved `2^28` profile. -/
-def fits : PerApplicationFixedPoint.FitsTwoPow28 application :=
+theorem fits : PerApplicationFixedPoint.FitsTwoPow28 application :=
   PerApplicationFixedPoint.fitsTwoPow28OfApplicationBounds application
     (by rw [applicationPlan_rowCount]; norm_num)
     (by rw [addedPrivateColumnCount]; norm_num)

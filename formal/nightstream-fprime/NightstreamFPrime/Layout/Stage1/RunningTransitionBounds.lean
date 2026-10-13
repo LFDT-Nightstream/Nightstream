@@ -13,7 +13,7 @@ open NightstreamFPrime.Lifecycle.Stage1
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-def assumptions
+theorem assumptions
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth)

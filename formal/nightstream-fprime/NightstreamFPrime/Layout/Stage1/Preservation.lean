@@ -1295,6 +1295,9 @@ structure ChildSpecs
   application : Lifecycle.Stage1.Application.Holds program.step
     (ApplicationInputs.interface program) (ApplicationInputs.localStart program)
     env
+  applicationValid : Lifecycle.Stage1.Application.Valid program.valid
+    (ApplicationInputs.interface program) (ApplicationInputs.localStart program)
+    env
   nextPreimage : Lifecycle.Stage1.NextPreimage.SpecHolds
     NextPreimageInputs.spartanInterface Lowering.nextPreimagePrivateStart env
 
@@ -1345,6 +1348,9 @@ theorem physical_implies_childSpecs
     application := program.soundness (ApplicationInputs.interface program)
       (ApplicationInputs.localStart program) env applicationAssumptions
       (holdsFlat_implies_holds env _ applicationFlat)
+    applicationValid := (program.soundness_valid (ApplicationInputs.interface program)
+      (ApplicationInputs.localStart program) env applicationAssumptions
+      (holdsFlat_implies_holds env _ applicationFlat)).2
     nextPreimage := Lifecycle.Stage1.NextPreimage.soundness
       NextPreimageInputs.spartanInterface env Lowering.nextPreimagePrivateStart
       (holdsFlat_implies_holds env _ nextPreimageFlat) }
@@ -1412,9 +1418,12 @@ theorem physical_implies_compactApplication
     (AssemblerInputs.applicationOffset program)
     (CompactPullback.compactEnv program env)).mpr
   have physicalApplication := children.application
-  unfold Lifecycle.Stage1.Application.Holds at physicalApplication ⊢
+  have physicalValid := children.applicationValid
+  unfold Lifecycle.Stage1.Application.Holds at physicalApplication
+  unfold Lifecycle.Stage1.Application.Valid at physicalValid
+  unfold Lifecycle.Stage1.Application.Holds Lifecycle.Stage1.Application.Valid
   rw [compactApplicationInput_eq, compactApplicationWitness_eq,
     compactApplicationOutput_eq]
-  exact physicalApplication
+  exact ⟨physicalApplication, physicalValid⟩
 
 end NightstreamFPrime.Layout.Stage1.Preservation

@@ -473,7 +473,7 @@ private theorem ofFn_cast_get {Alpha : Type} (rows : List Alpha) {count : Nat}
     List.ofFn (fun index : Fin count =>
       rows.get (Fin.cast lengthEq.symm index)) = rows := by
   subst count
-  simpa using List.ofFn_get rows
+  simp
 
 theorem publicProgramRows_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :

@@ -128,7 +128,7 @@ child assignments and actual canonical fresh carrier occur in that envelope.
 No accepted local proof, child validity, physical rows, or assignment-correctness
 callback is a caller premise. This is deterministic completeness only. -/
 theorem recursive_extend
-    (statement : HyperNovaHistory.Statement) (payload : HyperNovaHistory.Payload)
+    (statement : HyperNovaHistory.Statement) (payload : HyperNovaHistory.Payload application)
     (advice : AppWitness)
     (accepted : PerApplicationTerminal.Holds application fits productionSetup
       statement (.recursive payload))
@@ -177,7 +177,7 @@ theorem recursive_extend
   let key := ProductionKey.key relation productionAjtaiKey
   let context := (PerApplicationCanonicalPackage.verifierContextDescriptor fits productionSetup).digest4
   obtain ⟨messages, fullOutput, continuation⟩ :=
-    HyperNovaCompleteness.recursive_nifs statement payload accepted
+    HyperNovaCompleteness.recursive_nifs application fits productionSetup statement payload accepted
   refine ⟨messages, fullOutput, ?_⟩
   intro coins
   obtain ⟨rho, sampled, proof, result, children, roundsEq, outputEq, sampleEq, verified, childrenMember⟩ :=

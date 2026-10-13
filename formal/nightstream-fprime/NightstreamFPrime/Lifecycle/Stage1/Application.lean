@@ -83,14 +83,25 @@ def Holds (step : AppState → AppWitness → AppState)
   outputState interface offset env =
     step (inputState interface offset env) (witnessValue interface offset env)
 
+/-- The application's validity predicate on the circuit's input and witness
+values. An application whose circuit accepts every witness uses `True`. -/
+def Valid (valid : AppState → AppWitness → Prop)
+    {witnessWordCount : Nat} (interface : Interface witnessWordCount)
+    (offset : Nat) (env : Env) : Prop :=
+  valid (inputState interface offset env) (witnessValue interface offset env)
+
 /-- A Lean-authored application is one proved circuit for one exact step
-function. The proof field is erased during execution. -/
+function and its validity predicate: the circuit holds exactly for valid
+inputs and witnesses, with the step's output. The proof field is erased during
+execution. -/
 structure Program where
   witnessWordCount : Nat
   step : AppState → AppWitness → AppState
+  valid : AppState → AppWitness → Prop
   circuit : Interface witnessWordCount → FormalCircuit
   spec_iff : ∀ interface offset env,
-    (circuit interface).spec offset env ↔ Holds step interface offset env
+    (circuit interface).spec offset env ↔
+      Holds step interface offset env ∧ Valid valid interface offset env
   assumptions_of_inputsBelow : ∀ interface offset env,
     InputsBelow interface offset → (circuit interface).assumptions offset env
   constraintsSupported : ∀ interface offset env allowed,
@@ -168,21 +179,32 @@ theorem scope (program : Program)
   exact supported expression member
 
 /-- Arbitrary satisfying circuit witnesses implement the selected application
+transition and satisfy its validity predicate. -/
+theorem soundness_valid (program : Program)
+    (interface : Interface program.witnessWordCount) (offset : Nat) (env : Env)
+    (assumptions : (program.circuit interface).assumptions offset env)
+    (rows : holds env (Circuit.ops (program.circuit interface).main offset)) :
+    Holds program.step interface offset env ∧
+      Valid program.valid interface offset env := by
+  apply (program.spec_iff interface offset env).mp
+  exact (program.circuit interface).soundness env offset assumptions rows
+
+/-- Arbitrary satisfying circuit witnesses implement the selected application
 transition. -/
 theorem soundness (program : Program)
     (interface : Interface program.witnessWordCount) (offset : Nat) (env : Env)
     (assumptions : (program.circuit interface).assumptions offset env)
     (rows : holds env (Circuit.ops (program.circuit interface).main offset)) :
-    Holds program.step interface offset env := by
-  apply (program.spec_iff interface offset env).mp
-  exact (program.circuit interface).soundness env offset assumptions rows
+    Holds program.step interface offset env :=
+  (program.soundness_valid interface offset env assumptions rows).1
 
 /-- Every valid selected application transition has a witness for the exact
 flattened rows emitted from its Lean circuit. -/
 theorem completeness (program : Program)
     (interface : Interface program.witnessWordCount) (offset : Nat) (env : Env)
     (assumptions : (program.circuit interface).assumptions offset env)
-    (specification : Holds program.step interface offset env) :
+    (specification : Holds program.step interface offset env ∧
+      Valid program.valid interface offset env) :
     ∃ completed,
       AgreesOutside env completed offset
         (localLength (Circuit.ops (program.circuit interface).main offset)) ∧
@@ -225,6 +247,22 @@ theorem holds_of_agree_below
       after before (inputs.output index) agrees
   rw [outputEq, inputEq, witnessEq]
   exact holds
+
+/-- The validity predicate transports through equality of the input and
+witness values. -/
+theorem valid_of_values_eq
+    (program : Program)
+    (interface : Interface program.witnessWordCount)
+    (offset : Nat) (before after : Env)
+    (inputEq : inputState interface offset before =
+      inputState interface offset after)
+    (witnessEq : witnessValue interface offset before =
+      witnessValue interface offset after)
+    (valid : Valid program.valid interface offset before) :
+    Valid program.valid interface offset after := by
+  unfold Valid
+  rw [← inputEq, ← witnessEq]
+  exact valid
 
 /-- The selected application relation transports through equality of the
 three values it reads. -/

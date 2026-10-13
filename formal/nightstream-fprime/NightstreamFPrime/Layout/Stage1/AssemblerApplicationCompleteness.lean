@@ -46,8 +46,7 @@ theorem completeStage1
       env index = p6.current index := by
     intro index below
     exact (p6.agrees index (Or.inl below)).symm
-  have inputsRoot := AssemblerBounds.applicationInputsBelowRoot
-    (logicalWidth := logicalWidth) program
+  have inputsRoot := AssemblerBounds.applicationInputsBelowRoot program
   let appInterface := AssemblerInputs.applicationInterface program
   let appOffset := AssemblerInputs.applicationOffset program
   have inputEq : Lifecycle.Stage1.Application.inputState appInterface appOffset
@@ -84,15 +83,16 @@ theorem completeStage1
       (AssemblerInputs.rootOffset program)) env at applicationInitialSpec
   rw [AssemblerInputs.parent_applicationOffset_eq relation ajtai program
     template] at applicationInitialSpec
-  have applicationInitial : Lifecycle.Stage1.Application.Holds program.step
-      appInterface appOffset env :=
+  have applicationInitial :=
     (program.spec_iff appInterface appOffset env).mp applicationInitialSpec
   have applicationCurrent := program.holds_of_values_eq appInterface appOffset
-    env p6.current inputEq witnessEq outputEq applicationInitial
+    env p6.current inputEq witnessEq outputEq applicationInitial.1
+  have applicationValid := program.valid_of_values_eq appInterface appOffset
+    env p6.current inputEq witnessEq applicationInitial.2
   let child := Lifecycle.Stage1.applicationChild relation program
     (AssemblerInputs.interface relation program)
   have assumptions := AssemblerBounds.applicationAssumptions
-    (logicalWidth := logicalWidth) program p6.current
+    program p6.current
   have childScope : ∀ expression ∈ flatConstraints
       (Circuit.ops child.main (AssemblerInputs.applicationOffset program)),
       expression.VarsBelow
@@ -106,13 +106,13 @@ theorem completeStage1
           (Circuit.ops (program.circuit appInterface).main appOffset))
     exact program.scope appInterface appOffset p6.current
       (AssemblerBounds.applicationInputsBelow
-        (logicalWidth := logicalWidth) program)
+        program)
       assumptions
   have applicationSpec : child.spec
       (AssemblerInputs.applicationOffset program) p6.current := by
     change (program.circuit appInterface).spec appOffset p6.current
     exact (program.spec_iff appInterface appOffset p6.current).mpr
-      applicationCurrent
+      ⟨applicationCurrent, applicationValid⟩
   rcases Sequence.appendAt p6 "stage1.application" child
       (AssemblerInputs.applicationOffset program) p6End childScope assumptions
       applicationSpec with
@@ -199,7 +199,7 @@ theorem completeStage1
 
 /-- The canonical compact layout supplies the proof-only root completion used
 by the sole logical Stage 1 circuit. -/
-def rootCompleteness
+theorem rootCompleteness
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))

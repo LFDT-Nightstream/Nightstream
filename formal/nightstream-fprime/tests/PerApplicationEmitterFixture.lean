@@ -132,10 +132,12 @@ def circuit (interface : Interface) : FormalCircuit where
 def program (_ : Unit) : Application.Program where
   witnessWordCount := 0
   step := step
+  valid := fun _ _ => True
   circuit := circuit
   spec_iff := by
     intro interface offset env
-    exact (applicationHolds_iff_specHolds interface offset env).symm
+    exact (applicationHolds_iff_specHolds interface offset env).symm.trans
+      (and_true _).symm.to_iff
   assumptions_of_inputsBelow := by
     intro _interface _offset _env _inputs
     trivial
@@ -159,7 +161,7 @@ def program (_ : Unit) : Application.Program where
     ApplicationRetainedBlocks.localCount (program ()) = 0 := by
   rfl
 
-def fits (_ : Unit) : PerApplicationFixedPoint.FitsTwoPow28 (program ()) :=
+theorem fits (_ : Unit) : PerApplicationFixedPoint.FitsTwoPow28 (program ()) :=
   PerApplicationFixedPoint.fitsTwoPow28OfApplicationBounds (program ())
     (by simp) (by simp) (by
       change 0 ≤ _

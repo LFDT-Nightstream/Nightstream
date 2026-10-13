@@ -5,14 +5,17 @@ import NightstreamFPrime.Lifecycle.PaperAlgebra
 import NightstreamFPrime.Lifecycle.PaperExtractionAlgebra
 import NightstreamFPrime.Lifecycle.Transcript
 import NightstreamFPrime.Lifecycle.ProductionKey
+import NightstreamFPrime.Lifecycle.TranscriptCoverage
+import NightstreamFPrime.Lifecycle.RandomOracleTest
+import NightstreamFPrime.Lifecycle.RandomOracleExtraction
+import NightstreamFPrime.Lifecycle.RandomOracleUniqueness
+import NightstreamFPrime.Lifecycle.RandomOracleKnowledge
+import NightstreamFPrime.Lifecycle.RandomOracleBinding
+import NightstreamFPrime.Lifecycle.RandomOracleFidelity
 import NightstreamFPrime.Lifecycle.NifsProfile
-import NightstreamFPrime.Lifecycle.Nifs.StrongExtraction
-import NightstreamFPrime.Lifecycle.Nifs.WeakExtraction
 import NightstreamFPrime.Lifecycle.Nifs.InteractiveCompleteness
 import NightstreamFPrime.Lifecycle.Nifs.BaseCompleteness
 import NightstreamFPrime.Lifecycle.Nifs.BaseVerifierCompleteness
-import NightstreamFPrime.Lifecycle.Nifs.InteractiveWork
-import NightstreamFPrime.Lifecycle.Nifs.SupportedExtraction
 import NightstreamFPrime.Lifecycle.Relation
 import NightstreamFPrime.Lifecycle.PriorStateHash
 import NightstreamFPrime.Lifecycle.OutputHash
@@ -79,5 +82,9 @@ import NightstreamFPrime.Lifecycle.Stage1.RunningTransition
 import NightstreamFPrime.Lifecycle.Stage1.RunningTransitionSupport
 import NightstreamFPrime.Lifecycle.Stage1.Interface
 import NightstreamFPrime.Lifecycle.Stage1.Formal
+import NightstreamFPrime.Lifecycle.Nebula.EndToEnd
+import NightstreamFPrime.Lifecycle.Nebula.HonestStep
+import NightstreamFPrime.Lifecycle.Nebula.HonestRun
+import NightstreamFPrime.Lifecycle.Nebula.MemoryBound
 
 /-! Lifecycle layer root. Lists the modules of this layer explicitly. -/

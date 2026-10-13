@@ -58,7 +58,7 @@ structure Geometry (program : Lifecycle.Stage1.Application.Program)
     (logicalWidth : Nat) : Prop where
   completeFits : completeLogicalWidth program ≤ logicalWidth
 
-def poseidonGeometry {program : Lifecycle.Stage1.Application.Program}
+theorem poseidonGeometry {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     PiCCSPoseidonPlan.Geometry program logicalWidth where
   pilotFits := by
@@ -67,7 +67,7 @@ def poseidonGeometry {program : Lifecycle.Stage1.Application.Program}
     omega
 
 /-- The actual pilot preimages already belong to the preceding prefix. -/
-def pilotGeometry {program : Lifecycle.Stage1.Application.Program}
+theorem pilotGeometry {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     PiRLCPoseidonGeometry.Geometry program logicalWidth where
   pilotFits := by
@@ -76,7 +76,7 @@ def pilotGeometry {program : Lifecycle.Stage1.Application.Program}
     rw [PiRLCPoseidonGeometry.pilotLogicalWidth_eq]
     omega
 
-def prefixGeometry {program : Lifecycle.Stage1.Application.Program}
+theorem prefixGeometry {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     PiRLCRetainedGeometry.Geometry program logicalWidth :=
   PiRLCPoseidonGeometry.prefixGeometry (pilotGeometry geometry)
@@ -86,7 +86,7 @@ def oneColumn {program : Lifecycle.Stage1.Application.Program}
     Fin logicalWidth :=
   PiRLCRetainedGeometry.oneColumn (prefixGeometry geometry)
 
-def stateFits {program : Lifecycle.Stage1.Application.Program}
+theorem stateFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     stateStart program + (stateBlock program).coordinateCount ≤ logicalWidth := by
   have parent := PiRLCPoseidonGeometry.priorInputFits (pilotGeometry geometry)
@@ -97,7 +97,7 @@ def stateFits {program : Lifecycle.Stage1.Application.Program}
     logicalWidth
   omega
 
-def outputFits {program : Lifecycle.Stage1.Application.Program}
+theorem outputFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     outputStart program + (outputBlock program).coordinateCount ≤ logicalWidth := by
   have width : (outputBlock program).coordinateCount =
@@ -108,14 +108,14 @@ def outputFits {program : Lifecycle.Stage1.Application.Program}
   rw [width]
   exact PiRLCPoseidonGeometry.outputInputFits (pilotGeometry geometry)
 
-def piDecFits {program : Lifecycle.Stage1.Application.Program}
+theorem piDecFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     piDecStart program + (piDecBlock program).coordinateCount ≤ logicalWidth := by
   apply Nat.le_trans _ geometry.completeFits
   unfold completeLogicalWidth freshStart
   omega
 
-def freshFits {program : Lifecycle.Stage1.Application.Program}
+theorem freshFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     freshStart program + (freshBlock program).coordinateCount ≤ logicalWidth :=
   geometry.completeFits

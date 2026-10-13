@@ -22,7 +22,7 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
-def poseidonGeometry {program : Lifecycle.Stage1.Application.Program}
+theorem poseidonGeometry {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth) :
     PiRLCPoseidonGeometry.Geometry program logicalWidth :=
@@ -83,7 +83,7 @@ theorem implies_spec
             (poseidonGeometry geometry) assignment) lane := by
         unfold PilotPoseidonPreservation.directDigest
           PilotPoseidonPreservation.priorOutputValue Hash.digestF
-        congr 2 <;> apply Fin.ext <;> rfl
+        congr 2
   have outputLane (lane : Fin 4) :
       NightstreamFPrime.Export.Pilot.chainOutputState PilotData.outputChain
           PilotData.outputChain.absorbCount env
@@ -113,7 +113,7 @@ theorem implies_spec
             (poseidonGeometry geometry) assignment) lane := by
         unfold PilotPoseidonPreservation.directDigest
           PilotPoseidonPreservation.outputOutputValue Hash.digestF
-        congr 2 <;> apply Fin.ext <;> rfl
+        congr 2
   have priorChainHash :
       List.ofFn (fun lane : Fin 4 =>
         NightstreamFPrime.Export.Pilot.chainOutputState PilotData.priorChain

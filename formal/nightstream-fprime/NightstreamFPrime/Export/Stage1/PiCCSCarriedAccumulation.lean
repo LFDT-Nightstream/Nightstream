@@ -54,7 +54,7 @@ theorem blockMoments_eq_flat_sum
     have bounded := bit.isLt
     omega
   rcases bitCases with low | high
-  · simp only [low, if_pos rfl]
+  · simp only [low]
     apply numericSum_congr extensionOps extensionLaws
     intro lane bounded
     have parity : (block * ringDegree + lane) % 2 = lane % 2 := by

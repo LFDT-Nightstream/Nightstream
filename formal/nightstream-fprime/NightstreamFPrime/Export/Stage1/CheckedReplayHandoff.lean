@@ -27,7 +27,7 @@ theorem prior_eq_payload
       (HyperNovaInput.ofClaims result (CheckedReplaySuccessor.payload result children raw).fresh
         nextProof) children raw.completeAssignment =
       CheckedReplaySuccessor.payload result children raw := by
-  unfold CheckedReplayStep.prior
+  unfold CheckedReplayStep.prior PiCCSInputCheck.selectedRunning PiCCSInputCheck.selectedFresh
   rw [HyperNovaInput.running_ofClaims, HyperNovaInput.fresh_ofClaims]
   rfl
 

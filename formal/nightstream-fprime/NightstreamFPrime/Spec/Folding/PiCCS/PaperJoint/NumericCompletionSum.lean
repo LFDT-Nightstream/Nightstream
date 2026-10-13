@@ -84,10 +84,6 @@ theorem numericSum_eq_vertexSum (ops : InterpolationOps Field)
         ops.zero := by
       apply (numericVertices_perm arity).foldl_eq'
       intro left _ right _ accumulated
-      change ops.add (ops.add accumulated (term (NumericBooleanDomain.index left)))
-          (term (NumericBooleanDomain.index right)) =
-        ops.add (ops.add accumulated (term (NumericBooleanDomain.index right)))
-          (term (NumericBooleanDomain.index left))
       rw [laws.add_assoc, laws.add_assoc,
         laws.add_comm (term (NumericBooleanDomain.index left))
           (term (NumericBooleanDomain.index right))]

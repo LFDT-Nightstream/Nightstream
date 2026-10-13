@@ -74,3 +74,24 @@ See [the workflow](../../../../scripts/GOLDEN_CONFORMANCE.md) and
 The selected verifier blueprint has one package copy under `artifacts`, shared
 by assembly and lifecycle tests. These test-only saved outputs are never read
 by `Circuit::compile`, `load`, `prove`, `extend`, or `verify`.
+
+`nebula-memory-v1-rows.json` and `nebula-memory-n1-rows.json` name the
+assertion rows of the two Nebula memory packages as `[name, first, end]`,
+counted from the application's first package row. Each name comes from the
+same spec §8–§11 check group that defines its rows (`Checks` in
+`Lifecycle/Nebula/RowList.lean` and `MemoryCircuit.lean`).
+The spec §14 rejection tests (`tests/nebula/conformance.rs`) use it to name the
+check that a faulty step fails.
+
+`nebula-memory-v1-start.json` and `nebula-memory-n1-start.json` hold `D_init`
+of each plan (`initRootWords`, proved equal to `(context plan).initRoot`).
+`tests/nebula_memory.rs` compares the verifier's own `D_init` with it.
+
+Regenerate both kinds with the memory packages, from `formal/nightstream-fprime`:
+
+```sh
+bash scripts/validate.sh lean-executable .lake/build/bin/emit --application-rows nebula-memory-v1 ../../crates/nightstream/tests/fixtures/nebula-memory-v1-rows.json
+bash scripts/validate.sh lean-executable .lake/build/bin/emit --application-rows nebula-memory-n1 ../../crates/nightstream/tests/fixtures/nebula-memory-n1-rows.json
+bash scripts/validate.sh lean-executable .lake/build/bin/emit --application-start nebula-memory-v1 ../../crates/nightstream/tests/fixtures/nebula-memory-v1-start.json
+bash scripts/validate.sh lean-executable .lake/build/bin/emit --application-start nebula-memory-n1 ../../crates/nightstream/tests/fixtures/nebula-memory-n1-start.json
+```

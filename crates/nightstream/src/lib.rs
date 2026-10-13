@@ -8,6 +8,7 @@ mod circuit;
 mod engine;
 mod folding;
 mod lifecycle;
+pub mod nebula;
 
 pub use circuit::{Circuit, Error, Prover, Verifier};
 pub use engine::{Engine, EngineError};

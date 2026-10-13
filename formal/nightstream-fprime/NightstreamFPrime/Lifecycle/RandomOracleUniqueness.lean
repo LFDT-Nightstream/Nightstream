@@ -9,7 +9,12 @@ extraction of `RandomOracleExtraction`.
 
 Outputs:
 - `forkIndex`: the first checked query that extends the claim's statement
-  calls; every challenge of that statement comes at or after it;
+  calls; every challenge of that statement comes at or after it.
+  `forkIndexOf` and `contextOf` compute the fork index and the fork context
+  from a run's claim and queries (`forkIndex_eq`, `context_eq`);
+- `ValidOf`, `Valid`: a run and its retries form a complete fork;
+- `reductionChance`: the binding reduction's chance of any test of its two
+  runs; `collisionChance` and `runningChance` are two such tests;
 - `source_error_le`: the extracted witness fails the source relation with
   probability at most `(Q + 74) * testError`, plus the chance that the
   binding reduction finds a different witness for the same running statement
@@ -30,8 +35,8 @@ run's witness. That witness is replaced by the worst witness of the context
 `RandomOracle.escape_le` charges every query once. Averaging over the base
 run removes the division by the rerun success (`expect_div_resampled`).
 
-Does not own: the numerical hardness of MSIS or of the state hash, or an
-executable form of the binding reduction.
+Does not own: the numerical hardness of MSIS or of the state hash, or the
+binding reduction as an algorithm (`RandomOracleReduction`).
 -/
 
 set_option autoImplicit false
@@ -176,6 +181,40 @@ theorem context_stopping (index : Nat) :
     Stopping (context relation adversary claim index) :=
   queriedBefore_stopping _ index
 
+/-- The checked queries of a run, from its claim and the adversary's own
+queries: after the adversary halts, the verifier queries every challenge
+point of the claim. -/
+noncomputable def checkedOf (runClaim : Claim relation) (queries : List (Point logicalWidth publicFits Degree)) :
+    List (Point logicalWidth publicFits Degree) :=
+  queries ++ challenges.map (point runClaim.fresh runClaim.proof)
+
+/-- `forkIndex` from a run's claim and queries. -/
+noncomputable def forkIndexOf (runClaim : Claim relation) (queries : List (Point logicalWidth publicFits Degree)) :
+    Nat :=
+  (checkedOf relation runClaim queries).findIdx (Extends runClaim.fresh)
+
+/-- `context` from a run's claim and queries. -/
+noncomputable def contextOf (index : Nat) (runClaim : Claim relation)
+    (queries : List (Point logicalWidth publicFits Degree)) : Finset (Point logicalWidth publicFits Degree) :=
+  ((checkedOf relation runClaim queries).take index).toFinset
+
+theorem checked_queries (oracle : Oracle) :
+    (checked relation adversary claim).queries oracle =
+      checkedOf relation (claimed relation adversary claim oracle) (adversary.queries oracle) :=
+  OracleComp.queries_thenQueries _ oracle adversary
+
+theorem forkIndex_eq (oracle : Oracle) :
+    forkIndex relation adversary claim oracle =
+      forkIndexOf relation (claimed relation adversary claim oracle) (adversary.queries oracle) := by
+  unfold forkIndex firstIndex forkIndexOf
+  rw [checked_queries]
+
+theorem context_eq (index : Nat) (oracle : Oracle) :
+    context relation adversary claim index oracle =
+      contextOf relation index (claimed relation adversary claim oracle) (adversary.queries oracle) := by
+  unfold context queriedBefore contextOf
+  rw [checked_queries]
+
 /-- The statement's first index ignores the answer at any point that extends
 the statement: such a point is queried no earlier. -/
 theorem firstIndex_update (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -218,9 +257,12 @@ theorem overlay_context_congr {index : Nat} {oracle other : Oracle}
 local notation "Retries" => Fin Nifs.PaperProfile.arity.total → Answer
 
 /-- The run's retries form a complete `Π_RLC` fork. -/
+def ValidOf (fork : ForkClaims relation) : Prop :=
+  SucceedsOf relation ajtai fork.oracle fork.base ∧ ∀ index, ForkValidOf relation ajtai fork index
+
+/-- The adversary's run and its retries form a complete fork (`ValidOf`). -/
 def Valid (oracle : Oracle) (retries : Retries) : Prop :=
-  Succeeds relation ajtai adversary claim oracle ∧
-    ∀ index, ForkValid relation ajtai adversary claim oracle retries index
+  ValidOf relation ajtai (forkClaimsOf relation adversary claim oracle retries)
 
 /-- The witness a valid run extracts. -/
 noncomputable def witnessOf (oracle : Oracle) (retries : Retries) :
@@ -273,25 +315,27 @@ def Collides (oracle : Oracle) (retries : Retries) (other : Oracle) (otherRetrie
 def Moves (oracle other : Oracle) (_ : Retries) : Prop :=
   (claimed relation adversary claim other).running ≠ (claimed relation adversary claim oracle).running
 
+/-- The binding reduction's chance of `outcome`: the base run extracts, and
+the first rerun from its fork context that extracts at the same index has
+`outcome` against it. -/
+noncomputable def reductionChance (outcome : Oracle → Retries → Oracle → Retries → Prop) : ℝ :=
+  𝔼 oracle, ∑ retries, weight relation ajtai adversary claim oracle retries *
+    (if Valid relation ajtai adversary claim oracle retries then
+      retryChance relation ajtai adversary claim (forkIndex relation adversary claim oracle) oracle
+        (outcome oracle retries)
+    else 0)
+
 /-- The binding reduction: the base run extracts, and its retry from the same
 context collides. Two different witnesses for one statement give a short
 kernel vector of the Ajtai key (`RandomOracleBinding.rerunKernel_isSome`). -/
 noncomputable def collisionChance : ℝ :=
-  𝔼 oracle, ∑ retries, weight relation ajtai adversary claim oracle retries *
-    (if Valid relation ajtai adversary claim oracle retries then
-      retryChance relation ajtai adversary claim (forkIndex relation adversary claim oracle) oracle
-        (Collides relation ajtai adversary claim oracle retries)
-    else 0)
+  reductionChance relation ajtai adversary claim (Collides relation ajtai adversary claim)
 
 /-- The same reduction, when the retry changes the running statement. With the
 prior link this is a state-hash collision
 (`Export.Stage1.RandomOracleLink.runningChance_le`). -/
 noncomputable def runningChance : ℝ :=
-  𝔼 oracle, ∑ retries, weight relation ajtai adversary claim oracle retries *
-    (if Valid relation ajtai adversary claim oracle retries then
-      retryChance relation ajtai adversary claim (forkIndex relation adversary claim oracle) oracle
-        (Moves relation adversary claim oracle)
-    else 0)
+  reductionChance relation ajtai adversary claim fun oracle _ => Moves relation adversary claim oracle
 
 /-! ## Facts about one run -/
 
@@ -452,6 +496,27 @@ theorem resampledSuccess_pos {oracle : Oracle} {retries : Retries}
       (weight_le_retryMass relation ajtai adversary claim oracle ⟨rfl, valid⟩)
   unfold resampledSuccess
   exact expect_pos (fun fresh => success_nonnegative relation ajtai adversary claim _ _) own
+
+theorem reductionChance_nonnegative (outcome : Oracle → Retries → Oracle → Retries → Prop) :
+    0 ≤ reductionChance relation ajtai adversary claim outcome :=
+  Finset.expect_nonneg fun oracle _ => Finset.sum_nonneg fun retries _ =>
+    mul_nonneg (weight_nonnegative relation ajtai adversary claim oracle retries) (by
+      split_ifs
+      · exact retryChance_nonnegative relation ajtai adversary claim _ oracle _
+      · exact le_rfl)
+
+/-- The reduction's chance is a probability. -/
+theorem reductionChance_le_one (outcome : Oracle → Retries → Oracle → Retries → Prop) :
+    reductionChance relation ajtai adversary claim outcome ≤ 1 := by
+  unfold reductionChance
+  calc
+    _ ≤ 𝔼 _oracle : Oracle, (1 : ℝ) := Finset.expect_le_expect fun oracle _ =>
+        (Finset.sum_le_sum fun retries _ => mul_le_of_le_one_right
+          (weight_nonnegative relation ajtai adversary claim oracle retries) (by
+            split_ifs
+            · exact retryChance_le_one relation ajtai adversary claim _ oracle _
+            · exact zero_le_one)).trans (retryWeight_sum_le_one _)
+    _ = 1 := Finset.expect_const Finset.univ_nonempty _
 
 /-- A run forks before the end of its checked queries. -/
 theorem forkIndex_lt (oracle : Oracle) :
@@ -682,7 +747,7 @@ theorem falseFor_of_agree {oracle other : Oracle} {retries otherRetries : Retrie
     rw [dif_pos valid, dif_pos baseValid] at sameWitness
     exact Option.some.inj sameWitness
   refine ⟨baseValid, ?_, ?_, ?_⟩
-  · have accepted := valid.1.1.1
+  · have accepted := (show Succeeds relation ajtai adversary claim other from valid.1).1.1
     rw [sameRunning] at accepted
     exact accepted
   · have ambient := extracted_ambient relation ajtai adversary claim other otherRetries valid.1 valid.2

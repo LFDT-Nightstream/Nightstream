@@ -54,7 +54,9 @@ The terms:
 
 - `hashCollisions`: the chance that a retry or a rerun of the adversary gives
   two different prior preimages with one state hash. Both preimages are the
-  adversary's own outputs.
+  adversary's own outputs. With a strict budget of `T` adversary runs, 18
+  collision finders lose at most `(52 Q + 959) / T`
+  (`RandomOracleHashSolver.hashCollisions_le_solver`).
 - `17 (Q + 17) ε_sample + (Q + 74) ε_test`: `RandomOracleKnowledge.statisticalError`.
 - `msisAdvantage`: the success of an explicit MSIS solver. For a uniform
   matrix, it draws chunks uniformly among the matrix's preimages, runs the
@@ -63,7 +65,7 @@ The terms:
   integer kernel vector of the matrix's key with every coordinate below `8TB`.
   The vector is a function of the two runs; the definition is
   `noncomputable`. With a strict budget of `T` adversary runs the same
-  solver loses at most `(35 Q + 653) / T`
+  solver (`RandomOracleReduction.solve`) loses at most `(35 Q + 653) / T`
   (`RandomOracleSetup.msisAdvantage_le_solver`).
 - `2^-190`: the error of drawing a uniform matrix instead of reduced chunks
   for every application that fits

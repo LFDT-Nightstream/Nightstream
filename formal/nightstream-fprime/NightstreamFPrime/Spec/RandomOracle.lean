@@ -22,7 +22,9 @@ Outputs:
   most `Q * ε`, after at most `Q` expected retries; each queried point is
   charged once (`expect_queried_le`, `mem_queries_update_iff`);
 - `expected_bad_retries`: under independent retries (`retryWeight`), the
-  expected number of bad retries is the sum of the per-coordinate chances.
+  expected number of bad retries is the sum of the per-coordinate chances;
+- `OracleComp.record`, `run_congr`: what one run shows, its output and its
+  queries; a run reads its oracle only at the points it queries.
 
 Invariant: a bad set is `Local`. It may read the oracle anywhere except at its
 own point, so the bad set of one challenge may read the answers of the others.
@@ -51,6 +53,12 @@ inductive OracleComp (Point : Type uPoint) (Answer : Type uAnswer) (Output : Typ
     Type (max uPoint uAnswer uOutput) where
   | done (output : Output)
   | query (point : Point) (next : Answer → OracleComp Point Answer Output)
+
+/-- What one run shows the algorithm that answers its queries: the output and
+the points queried, in order. -/
+structure RunRecord (Point : Type uPoint) (Output : Type uOutput) where
+  output : Output
+  queries : List Point
 
 namespace OracleComp
 
@@ -120,6 +128,14 @@ private theorem queries_queryAll (oracle : Point → Answer) (output : Output) (
   induction points with
   | nil => rfl
   | cons point rest inductionHypothesis => exact congrArg (point :: ·) inductionHypothesis
+
+theorem queries_thenQueries (points : Output → List Point) (oracle : Point → Answer)
+    (computation : OracleComp Point Answer Output) :
+    (computation.thenQueries points).queries oracle =
+      computation.queries oracle ++ points (computation.run oracle) := by
+  induction computation with
+  | done output => exact queries_queryAll oracle output (points output)
+  | query asked next inductionHypothesis => exact congrArg (asked :: ·) (inductionHypothesis (oracle asked))
 
 theorem mem_queries_thenQueries (points : Output → List Point) (oracle : Point → Answer)
     (computation : OracleComp Point Answer Output) {point : Point}
@@ -200,6 +216,23 @@ theorem take_succ_queries_congr (oracle other : Point → Answer)
           apply agree point
           simp only [queries, List.take_succ_cons, List.mem_cons]
           exact Or.inr inside
+
+/-- The record of the run on `oracle`. -/
+def record (computation : OracleComp Point Answer Output) (oracle : Point → Answer) :
+    RunRecord Point Output :=
+  ⟨computation.run oracle, computation.queries oracle⟩
+
+/-- A run reads its oracle only at the points it queries. -/
+theorem run_congr (oracle other : Point → Answer) (computation : OracleComp Point Answer Output)
+    (agree : ∀ point ∈ computation.queries oracle, oracle point = other point) :
+    computation.run other = computation.run oracle := by
+  induction computation with
+  | done => rfl
+  | query asked next inductionHypothesis =>
+      have first : oracle asked = other asked := agree asked List.mem_cons_self
+      change (next (other asked)).run other = (next (oracle asked)).run oracle
+      rw [← first]
+      exact inductionHypothesis (oracle asked) fun point inside => agree point (List.mem_cons_of_mem _ inside)
 
 end OracleComp
 

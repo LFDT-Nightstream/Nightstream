@@ -1,33 +1,35 @@
-import NightstreamFPrime.Lifecycle.RandomOracleBinding
-import NightstreamFPrime.Spec.RandomOracleBudget
+import NightstreamFPrime.Lifecycle.RandomOracleReduction
 
 /-!
-Owns the binding reduction of Lemma 6 as an algorithm with a strict budget of
-adversary runs (`Spec.RandomOracleBudget.Rewinding`).
+Owns the laws and the work of the binding reduction of Lemma 6
+(`RandomOracleReduction.reduction`), and its loss under a strict budget.
 
 Inputs: an adaptive oracle adversary with at most `Q` queries, its claims, the
 Ajtai key, and a budget `T`.
 
 Outputs:
-- `solve`: the reduction on a uniform tape of `T` oracles. Each step runs the
-  adversary once: the base run on a fresh oracle, a retry on the base run's
-  oracle with one fresh `Π_RLC` answer, or a rerun on the fork context with
-  fresh answers elsewhere. Every other test reads the outputs of runs already
-  made. It returns `rerunKernel` of the two runs it finishes with, so at most
-  `T` runs on every tape (`Spec.RandomOracleBudget.Rewinding.runs_le`);
 - `expected_second_retries_le`: the retries of the extractions inside the
   reruns take at most `17 (Q + 17)` expected runs;
-- `expected_runs_le`: for every budget, at most `35 Q + 653` expected runs:
-  1 base run, `17 (Q + 17)` base retries
+- `expected_runs_le`: for every budget, the algorithm makes at most
+  `35 Q + 653` expected runs: 1 base run, `17 (Q + 17)` base retries
   (`RandomOracleExtraction.expected_retries_le`), `Q + 74` reruns
   (`RandomOracleUniqueness.expected_reruns_le`) and the second extraction;
-- `kernelChance_le_solver`: `T · (kernelChance − solverChance T) ≤ 35 Q + 653`,
-  so the strict algorithm loses at most `(35 Q + 653) / T` of the binding
-  reduction's chance (`RandomOracleBinding.kernelChance`).
+- `reductionChance_le_program`: for any test of the two runs that the
+  algorithm finishes with, `T · (reductionChance − chance T) ≤ 35 Q + 653`;
+- `solverChance`, `kernelChance_le_solver`: the success of
+  `RandomOracleReduction.solve`, which loses at most `(35 Q + 653) / T` of
+  `RandomOracleBinding.kernelChance`.
 
-The reduction's laws are the existing ones: a retry loop ends uniform on its
-line (`Spec.RandomOracleBudget.lineLaw_eq_retryWeight`), and a rerun loop
-restarts until a rerun extracts at the fork index (`retryChance`).
+Each step of the algorithm makes one run and stores its record. A private law
+machine makes the same runs on the oracles alone, and reads the adversary
+where the algorithm reads a stored record. `runOf` and `forksOf` store the
+adversary's record of each run, and they map every step of the law onto a step
+of the algorithm, so both make the same runs on every tape. The law's
+potentials meet each step's law with equality: a retry loop ends uniform on
+its line (`Spec.RandomOracleBudget.lineLaw_eq_retryWeight`), and a rerun loop
+restarts until a rerun extracts at the fork index (`retryChance`). The
+certificate uses only one direction: the success potential is at most the
+next step's average, and the work potential pays one run per step.
 
 Does not own: the hardness of MSIS for the resulting solver, or machine work
 beyond counted adversary runs.
@@ -50,25 +52,11 @@ open NightstreamFPrime.Lifecycle.RandomOracleTest
 open NightstreamFPrime.Lifecycle.RandomOracleExtraction
 open NightstreamFPrime.Lifecycle.RandomOracleUniqueness
 open NightstreamFPrime.Lifecycle.RandomOracleBinding
+open NightstreamFPrime.Lifecycle.RandomOracleReduction
 open _root_.NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra
 open StrongReduction ConcreteCarrier
 
 attribute [local instance low] Classical.propDecidable
-
-/-- What follows an extraction: the base run's rerun loop, or the end of a
-rerun of `base`. -/
-inductive Purpose (Oracle Retries : Type)
-  | first
-  | second (base : Oracle) (baseRetries : Retries)
-
-/-- The reduction between two adversary runs. -/
-inductive State (Oracle Retries Coordinate : Type)
-  | start
-  | extract (purpose : Purpose Oracle Retries) (run : Oracle) (index : Coordinate)
-      (rest : List Coordinate) (retries : Retries)
-  | rerun (base : Oracle) (retries : Retries)
-  | finished (base : Oracle) (retries : Retries) (other : Oracle) (otherRetries : Retries)
-  | failed
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -82,14 +70,22 @@ variable {logicalWidth : Nat}
 local notation "Oracle" => Point logicalWidth publicFits (ProductionKey.degreeBound relation) → Answer
 local notation "Coordinate" => Fin Nifs.PaperProfile.arity.total
 local notation "Retries" => Coordinate → Answer
-local notation "SolverState" => State Oracle Retries Coordinate
+local notation "LawState" => State Oracle Retries Coordinate
+local notation "Record" => RunRecord (Point logicalWidth publicFits (ProductionKey.degreeBound relation)) Output
+local notation "Made" => Run Oracle Record
+local notation "Retried" => Forks Coordinate Answer Record
+local notation "Progress" => State Made Retried Coordinate
 
-/-! ## The algorithm -/
+/-- Tapes of oracles are finite (named here: instance search exceeds its size
+limit on this type). -/
+noncomputable local instance (budget : ℕ) : Fintype (Fin budget → Oracle) := Pi.instFintype
+
+/-! ## The law -/
 
 /-- After a run's last retry loop: a valid base run starts its rerun loop; a
 valid rerun finishes; an invalid rerun restarts the rerun loop. -/
-private noncomputable def afterExtraction :
-    Purpose Oracle Retries → Oracle → Retries → SolverState
+private noncomputable def lawAfter :
+    Purpose Oracle Retries → Oracle → Retries → LawState
   | .first, run, retries =>
       if Valid relation ajtai adversary claim run retries then .rerun run retries else .failed
   | .second base baseRetries, run, retries =>
@@ -97,9 +93,9 @@ private noncomputable def afterExtraction :
       else .rerun base baseRetries
 
 /-- The retry loops still pending on `run`. -/
-private noncomputable def extracted (purpose : Purpose Oracle Retries) (run : Oracle) :
-    List Coordinate → Retries → SolverState
-  | [], retries => afterExtraction relation ajtai adversary claim purpose run retries
+private noncomputable def lawExtracted (purpose : Purpose Oracle Retries) (run : Oracle) :
+    List Coordinate → Retries → LawState
+  | [], retries => lawAfter relation ajtai adversary claim purpose run retries
   | index :: rest, retries => .extract purpose run index rest retries
 
 /-- The rerun of `base` on the fresh oracle `fresh`: the fork context of the
@@ -108,59 +104,39 @@ private noncomputable def rerunOracle (base fresh : Oracle) : Oracle :=
   overlay (context relation adversary claim (forkIndex relation adversary claim base) base) base fresh
 
 /-- Retry loops on every coordinate, starting from the run's own answers. -/
-private noncomputable def startExtraction (purpose : Purpose Oracle Retries) (run : Oracle) :
-    SolverState :=
-  extracted relation ajtai adversary claim purpose run (List.finRange _)
+private noncomputable def lawStart (purpose : Purpose Oracle Retries) (run : Oracle) :
+    LawState :=
+  lawExtracted relation ajtai adversary claim purpose run (List.finRange _)
     fun index => run (rhoPoint relation adversary claim index run)
 
-/-- One step: one adversary run on an oracle built from one fresh tape entry. -/
-private noncomputable def step : SolverState → Oracle → SolverState
+/-- One step of the law: the algorithm's step on the oracles alone. -/
+private noncomputable def step : LawState → Oracle → LawState
   | .start, fresh =>
       if Succeeds relation ajtai adversary claim fresh then
-        startExtraction relation ajtai adversary claim .first fresh
+        lawStart relation ajtai adversary claim .first fresh
       else .failed
   | .extract purpose run index rest retries, fresh =>
       if fresh (rhoPoint relation adversary claim index run) ∈ retrySets relation ajtai adversary claim run index
-      then extracted relation ajtai adversary claim purpose run rest
+      then lawExtracted relation ajtai adversary claim purpose run rest
         (Function.update retries index (fresh (rhoPoint relation adversary claim index run)))
       else .extract purpose run index rest retries
   | .rerun base retries, fresh =>
       if forkIndex relation adversary claim (rerunOracle relation adversary claim base fresh) =
           forkIndex relation adversary claim base ∧
         Succeeds relation ajtai adversary claim (rerunOracle relation adversary claim base fresh)
-      then startExtraction relation ajtai adversary claim (.second base retries)
+      then lawStart relation ajtai adversary claim (.second base retries)
         (rerunOracle relation adversary claim base fresh)
       else .rerun base retries
   | .finished base retries other otherRetries, _ => .finished base retries other otherRetries
   | .failed, _ => .failed
 
-/-- The reduction as a rewinding machine: it halts when it finishes or fails. -/
-noncomputable def machine : Rewinding SolverState Oracle where
+/-- The law as a rewinding machine: it halts when it finishes or fails. -/
+private noncomputable def law : Rewinding LawState Oracle where
   step := step relation ajtai adversary claim
   halted
     | .finished .. => true
     | .failed => true
     | _ => false
-
-/-- The reduction's output: the binding reduction on the two runs it finished
-with. -/
-noncomputable def output :
-    SolverState → Option (Binding.ShortKernelVector ajtai productionGlobalParams.msisNormBound)
-  | .finished base retries other otherRetries =>
-      rerunKernel relation ajtai adversary claim base retries other otherRetries
-  | _ => none
-
-/-- **The strict algorithm**: the reduction with at most `budget` adversary
-runs on the tape (`Rewinding.runs_le`). -/
-noncomputable def solve (budget : ℕ) (tape : Fin budget → Oracle) :
-    Option (Binding.ShortKernelVector ajtai productionGlobalParams.msisNormBound) :=
-  output relation ajtai adversary claim
-    ((machine relation ajtai adversary claim).run budget .start tape).final
-
-/-- The strict algorithm's success over a uniform tape. -/
-noncomputable def solverChance (budget : ℕ) : ℝ :=
-  (machine relation ajtai adversary claim).chance
-    (fun state => (output relation ajtai adversary claim state).isSome) budget .start
 
 /-! ## The second extraction -/
 
@@ -254,10 +230,19 @@ theorem expected_second_retries_le {queries : Nat} (bounded : adversary.QueryBou
 
 /-! ## Potentials -/
 
-/-- The rerun loop's eventual success: `retryChance` of the binding outcome. -/
+variable (outcome : (Point logicalWidth publicFits (ProductionKey.degreeBound relation) → Answer) →
+  (Fin Nifs.PaperProfile.arity.total → Answer) →
+  (Point logicalWidth publicFits (ProductionKey.degreeBound relation) → Answer) →
+  (Fin Nifs.PaperProfile.arity.total → Answer) → Prop)
+
+/-- The law finished with two runs that satisfy `outcome`. -/
+private def Found : LawState → Prop
+  | .finished base retries other otherRetries => outcome base retries other otherRetries
+  | _ => False
+
+/-- The rerun loop's eventual success: `retryChance` of `outcome`. -/
 private noncomputable def rerunSuccess (base : Oracle) (retries : Retries) : ℝ :=
-  retryChance relation ajtai adversary claim (forkIndex relation adversary claim base) base
-    fun other otherRetries => (rerunKernel relation ajtai adversary claim base retries other otherRetries).isSome
+  retryChance relation ajtai adversary claim (forkIndex relation adversary claim base) base (outcome base retries)
 
 /-- The rerun loop's expected remaining runs: one run and an extraction per
 attempt, for `1 / resampledSuccess` expected attempts. -/
@@ -268,11 +253,11 @@ private noncomputable def rerunWork (base : Oracle) : ℝ :=
 private noncomputable def successAfter : Purpose Oracle Retries → Oracle → Retries → ℝ
   | .first, run, retries =>
       if Valid relation ajtai adversary claim run retries then
-        rerunSuccess relation ajtai adversary claim run retries else 0
+        rerunSuccess relation ajtai adversary claim outcome run retries else 0
   | .second base baseRetries, run, retries =>
       if Valid relation ajtai adversary claim run retries then
-        (if (rerunKernel relation ajtai adversary claim base baseRetries run retries).isSome then 1 else 0)
-      else rerunSuccess relation ajtai adversary claim base baseRetries
+        (if outcome base baseRetries run retries then 1 else 0)
+      else rerunSuccess relation ajtai adversary claim outcome base baseRetries
 
 private noncomputable def workAfter : Purpose Oracle Retries → Oracle → Retries → ℝ
   | .first, run, retries =>
@@ -283,26 +268,26 @@ private noncomputable def workAfter : Purpose Oracle Retries → Oracle → Retr
 
 /-- The states the reduction reaches: every pending loop has positive mass, and
 every rerun loop restarts from a valid base. -/
-private def goodOf : SolverState → Prop
+private def goodOf : LawState → Prop
   | .extract .first run _ _ _ => Succeeds relation ajtai adversary claim run
   | .extract (.second base baseRetries) run _ _ _ =>
       Succeeds relation ajtai adversary claim run ∧ Valid relation ajtai adversary claim base baseRetries
   | .rerun base retries => Valid relation ajtai adversary claim base retries
   | _ => True
 
-/-- The eventual chance that the unbudgeted reduction returns a vector. -/
-private noncomputable def successOf : SolverState → ℝ
-  | .start => kernelChance relation ajtai adversary claim
+/-- The eventual chance that the unbudgeted law finishes with `outcome`. -/
+private noncomputable def successOf : LawState → ℝ
+  | .start => reductionChance relation ajtai adversary claim outcome
   | .extract purpose run index rest retries =>
       lineLaw (retrySets relation ajtai adversary claim run)
-        (successAfter relation ajtai adversary claim purpose run) (index :: rest) retries
-  | .rerun base retries => rerunSuccess relation ajtai adversary claim base retries
+        (successAfter relation ajtai adversary claim outcome purpose run) (index :: rest) retries
+  | .rerun base retries => rerunSuccess relation ajtai adversary claim outcome base retries
   | .finished base retries other otherRetries =>
-      if (rerunKernel relation ajtai adversary claim base retries other otherRetries).isSome then 1 else 0
+      if outcome base retries other otherRetries then 1 else 0
   | .failed => 0
 
 /-- The expected remaining adversary runs of the unbudgeted reduction. -/
-private noncomputable def workOf : SolverState → ℝ
+private noncomputable def workOf : LawState → ℝ
   | .start => 1 + 𝔼 oracle, (if Succeeds relation ajtai adversary claim oracle then
         retriesOf relation ajtai adversary claim oracle +
           retryMass relation ajtai adversary claim oracle (Valid relation ajtai adversary claim oracle) *
@@ -348,13 +333,13 @@ private theorem retryMass_eq_zero {run : Oracle} {event : Retries → Prop} (nev
   Finset.sum_eq_zero fun retries _ => by simp [never retries]
 
 private theorem successOf_extracted (purpose : Purpose Oracle Retries) (run : Oracle) :
-    ∀ pending retries, successOf relation ajtai adversary claim
-        (extracted relation ajtai adversary claim purpose run pending retries) =
+    ∀ pending retries, successOf relation ajtai adversary claim outcome
+        (lawExtracted relation ajtai adversary claim purpose run pending retries) =
       lineLaw (retrySets relation ajtai adversary claim run)
-        (successAfter relation ajtai adversary claim purpose run) pending retries
+        (successAfter relation ajtai adversary claim outcome purpose run) pending retries
   | [], retries => by
       cases purpose <;>
-      · simp only [extracted, afterExtraction, lineLaw, successAfter]
+      · simp only [lawExtracted, lawAfter, lineLaw, successAfter]
         by_cases valid : Valid relation ajtai adversary claim run retries
         · simp only [valid, if_true]
           rfl
@@ -364,13 +349,13 @@ private theorem successOf_extracted (purpose : Purpose Oracle Retries) (run : Or
 
 private theorem workOf_extracted (purpose : Purpose Oracle Retries) (run : Oracle) :
     ∀ pending retries, workOf relation ajtai adversary claim
-        (extracted relation ajtai adversary claim purpose run pending retries) =
+        (lawExtracted relation ajtai adversary claim purpose run pending retries) =
       (pending.map fun coordinate => retryCount (Hits relation ajtai adversary claim coordinate)
           (rhoPoint relation adversary claim coordinate run) run).sum +
         lineLaw (retrySets relation ajtai adversary claim run)
           (workAfter relation ajtai adversary claim purpose run) pending retries
   | [], retries => by
-      cases purpose <;> simp only [extracted, afterExtraction, lineLaw, workAfter, List.map_nil, List.sum_nil,
+      cases purpose <;> simp only [lawExtracted, lawAfter, lineLaw, workAfter, List.map_nil, List.sum_nil,
         zero_add] <;> split_ifs <;> rfl
   | _ :: _, _ => rfl
 
@@ -383,16 +368,16 @@ private def Started : Purpose Oracle Retries → Oracle → Prop
 private theorem goodOf_extracted {purpose : Purpose Oracle Retries} {run : Oracle}
     (started : Started relation ajtai adversary claim purpose run) :
     ∀ pending retries, goodOf relation ajtai adversary claim
-      (extracted relation ajtai adversary claim purpose run pending retries)
+      (lawExtracted relation ajtai adversary claim purpose run pending retries)
   | [], retries => by
       cases purpose with
       | first =>
-          simp only [extracted, afterExtraction]
+          simp only [lawExtracted, lawAfter]
           split_ifs with valid
           · exact valid
           · trivial
       | second base baseRetries =>
-          simp only [extracted, afterExtraction]
+          simp only [lawExtracted, lawAfter]
           split_ifs
           · trivial
           · exact started.2
@@ -407,29 +392,29 @@ private theorem started_succeeds {purpose : Purpose Oracle Retries} {run : Oracl
 
 /-- A started extraction's eventual success is the retry law's average. -/
 private theorem successOf_start {purpose : Purpose Oracle Retries} {run : Oracle} :
-    successOf relation ajtai adversary claim (startExtraction relation ajtai adversary claim purpose run) =
+    successOf relation ajtai adversary claim outcome (lawStart relation ajtai adversary claim purpose run) =
       ∑ retries, weight relation ajtai adversary claim run retries *
-        successAfter relation ajtai adversary claim purpose run retries := by
-  unfold startExtraction
+        successAfter relation ajtai adversary claim outcome purpose run retries := by
+  unfold lawStart
   rw [successOf_extracted, lineLaw_eq_retryWeight]
   rfl
 
 private theorem workOf_start {purpose : Purpose Oracle Retries} {run : Oracle} :
-    workOf relation ajtai adversary claim (startExtraction relation ajtai adversary claim purpose run) =
+    workOf relation ajtai adversary claim (lawStart relation ajtai adversary claim purpose run) =
       retriesOf relation ajtai adversary claim run +
         ∑ retries, weight relation ajtai adversary claim run retries *
           workAfter relation ajtai adversary claim purpose run retries := by
-  unfold startExtraction
+  unfold lawStart
   rw [workOf_extracted, lineLaw_eq_retryWeight, retriesOf, Fin.sum_univ_def]
   rfl
 
 /-! ### The base run -/
 
 private theorem success_start_step :
-    successOf relation ajtai adversary claim .start =
-      𝔼 fresh, successOf relation ajtai adversary claim (step relation ajtai adversary claim .start fresh) := by
+    successOf relation ajtai adversary claim outcome .start =
+      𝔼 fresh, successOf relation ajtai adversary claim outcome (step relation ajtai adversary claim .start fresh) := by
   conv_lhs => unfold successOf
-  unfold kernelChance
+  unfold reductionChance
   refine Finset.expect_congr rfl fun oracle _ => ?_
   simp only [step]
   by_cases succeeds : Succeeds relation ajtai adversary claim oracle
@@ -461,16 +446,16 @@ private theorem work_start_step :
 
 private theorem success_extract_step {purpose : Purpose Oracle Retries} {run : Oracle} {index : Coordinate}
     {rest : List Coordinate} {retries : Retries} (started : Started relation ajtai adversary claim purpose run) :
-    successOf relation ajtai adversary claim (.extract purpose run index rest retries) =
-      𝔼 fresh, successOf relation ajtai adversary claim
+    successOf relation ajtai adversary claim outcome (.extract purpose run index rest retries) =
+      𝔼 fresh, successOf relation ajtai adversary claim outcome
         (step relation ajtai adversary claim (.extract purpose run index rest retries) fresh) := by
   have positive := mass_ne_zero
     (base_mem_retrySets relation ajtai adversary claim (started_succeeds relation ajtai adversary claim started) index)
   let next : Answer → ℝ := fun answer =>
-    lineLaw (retrySets relation ajtai adversary claim run) (successAfter relation ajtai adversary claim purpose run)
+    lineLaw (retrySets relation ajtai adversary claim run) (successAfter relation ajtai adversary claim outcome purpose run)
       rest (Function.update retries index answer)
   have pointwise (fresh : Oracle) :
-      successOf relation ajtai adversary claim
+      successOf relation ajtai adversary claim outcome
           (step relation ajtai adversary claim (.extract purpose run index rest retries) fresh) =
         (fun answer => if answer ∈ retrySets relation ajtai adversary claim run index then next answer
           else lineAverage (retrySets relation ajtai adversary claim run index) next)
@@ -558,26 +543,24 @@ private theorem rerun_tries {base fresh : Oracle}
 
 private theorem success_rerun_step {base : Oracle} {retries : Retries}
     (valid : Valid relation ajtai adversary claim base retries) :
-    successOf relation ajtai adversary claim (.rerun base retries) =
-      𝔼 fresh, successOf relation ajtai adversary claim
+    successOf relation ajtai adversary claim outcome (.rerun base retries) =
+      𝔼 fresh, successOf relation ajtai adversary claim outcome
         (step relation ajtai adversary claim (.rerun base retries) fresh) := by
-  let outcome : Oracle → Retries → Prop := fun other otherRetries =>
-    (rerunKernel relation ajtai adversary claim base retries other otherRetries).isSome
   let found : Oracle → ℝ := fun fresh =>
     retryMass relation ajtai adversary claim (rerunOracle relation adversary claim base fresh)
       fun otherRetries => forkIndex relation adversary claim (rerunOracle relation adversary claim base fresh) =
           forkIndex relation adversary claim base ∧
         Valid relation ajtai adversary claim (rerunOracle relation adversary claim base fresh) otherRetries ∧
-        outcome (rerunOracle relation adversary claim base fresh) otherRetries
+        outcome base retries (rerunOracle relation adversary claim base fresh) otherRetries
   let tries : Oracle → ℝ := fun fresh =>
     success relation ajtai adversary claim (forkIndex relation adversary claim base)
       (rerunOracle relation adversary claim base fresh)
   have positive : 𝔼 fresh, tries fresh ≠ 0 := (resampledSuccess_pos relation ajtai adversary claim valid).ne'
-  have chance : successOf relation ajtai adversary claim (.rerun base retries) =
+  have chance : successOf relation ajtai adversary claim outcome (.rerun base retries) =
       (𝔼 fresh, found fresh) / 𝔼 fresh, tries fresh := rfl
   have pointwise (fresh : Oracle) :
-      successOf relation ajtai adversary claim (step relation ajtai adversary claim (.rerun base retries) fresh) =
-        found fresh + (1 - tries fresh) * successOf relation ajtai adversary claim (.rerun base retries) := by
+      successOf relation ajtai adversary claim outcome (step relation ajtai adversary claim (.rerun base retries) fresh) =
+        found fresh + (1 - tries fresh) * successOf relation ajtai adversary claim outcome (.rerun base retries) := by
     simp only [step]
     split
     · rename_i forked
@@ -585,10 +568,10 @@ private theorem success_rerun_step {base : Oracle} {retries : Retries}
           ∑ otherRetries, weight relation ajtai adversary claim (rerunOracle relation adversary claim base fresh)
               otherRetries *
             (if Valid relation ajtai adversary claim (rerunOracle relation adversary claim base fresh) otherRetries
-              then (if (rerunKernel relation ajtai adversary claim base retries
-                  (rerunOracle relation adversary claim base fresh) otherRetries).isSome then 1 else 0)
+              then (if outcome base retries (rerunOracle relation adversary claim base fresh) otherRetries
+                then 1 else 0)
               else 0) := by
-        simp only [found, outcome, retryMass]
+        simp only [found, retryMass]
         exact Finset.sum_congr rfl fun otherRetries _ => by
           by_cases holds : Valid relation ajtai adversary claim (rerunOracle relation adversary claim base fresh)
               otherRetries <;> simp [holds, forked.1]
@@ -599,7 +582,7 @@ private theorem success_rerun_step {base : Oracle} {retries : Retries}
       rfl
     · rename_i missed
       obtain ⟨noFound, noTries⟩ := rerun_missed relation ajtai adversary claim missed
-        (outcome (rerunOracle relation adversary claim base fresh))
+        (outcome base retries (rerunOracle relation adversary claim base fresh))
       simp only [found, tries, noFound, noTries, sub_zero, one_mul, zero_add]
   rw [Finset.expect_congr rfl fun fresh _ => pointwise fresh, chance, restart_success_eq found tries positive]
 
@@ -645,7 +628,7 @@ private theorem rerunWork_nonnegative (base : Oracle) : 0 ≤ rerunWork relation
     (resampledSuccess_nonnegative relation ajtai adversary claim _ _)
 
 private theorem successAfter_le_one (purpose : Purpose Oracle Retries) (run : Oracle) (retries : Retries) :
-    successAfter relation ajtai adversary claim purpose run retries ≤ 1 := by
+    successAfter relation ajtai adversary claim outcome purpose run retries ≤ 1 := by
   cases purpose <;> simp only [successAfter] <;> split_ifs <;>
     first
     | exact retryChance_le_one relation ajtai adversary claim _ _ _
@@ -664,13 +647,13 @@ private theorem started_of_good {purpose : Purpose Oracle Retries} {run : Oracle
     Started relation ajtai adversary claim purpose run := by
   cases purpose <;> exact good
 
-/-- The reduction's potentials: `successOf` is its eventual chance of a vector
-and `workOf` its expected remaining runs, exactly. -/
+/-- The law's potentials: `successOf` for the eventual chance of `outcome`,
+and `workOf` for the expected remaining runs. Each step meets them with
+equality; the certificate needs only one direction of each. -/
 private noncomputable def bounds :
-    (machine relation ajtai adversary claim).Bounds
-      (fun state => (output relation ajtai adversary claim state).isSome) where
+    (law relation ajtai adversary claim).Bounds (Found relation outcome) where
   good := goodOf relation ajtai adversary claim
-  success := successOf relation ajtai adversary claim
+  success := successOf relation ajtai adversary claim outcome
   work := workOf relation ajtai adversary claim
   good_step := by
     intro state good unhalted sample
@@ -698,40 +681,39 @@ private noncomputable def bounds :
           exact goodOf_extracted relation ajtai adversary claim (purpose := .second base retries)
             ⟨forked.2, good⟩ _ _
         · exact good
-    | finished => simp [machine] at unhalted
-    | failed => simp [machine] at unhalted
+    | finished => simp [law] at unhalted
+    | failed => simp [law] at unhalted
   success_le_one := by
     intro state _
     cases state with
-    | start => exact kernelChance_le_one relation ajtai adversary claim
+    | start => exact reductionChance_le_one relation ajtai adversary claim outcome
     | extract purpose run index rest retries =>
-        exact lineLaw_le _ zero_le_one (successAfter_le_one relation ajtai adversary claim purpose run) _ _
+        exact lineLaw_le _ zero_le_one (successAfter_le_one relation ajtai adversary claim outcome purpose run) _ _
     | rerun base retries =>
-        show rerunSuccess relation ajtai adversary claim base retries ≤ 1
+        show rerunSuccess relation ajtai adversary claim outcome base retries ≤ 1
         exact retryChance_le_one relation ajtai adversary claim _ _ _
     | finished base retries other otherRetries =>
-        show (if (rerunKernel relation ajtai adversary claim base retries other otherRetries).isSome then (1 : ℝ)
-          else 0) ≤ 1
+        show (if outcome base retries other otherRetries then (1 : ℝ) else 0) ≤ 1
         split <;> norm_num
     | failed => show (0 : ℝ) ≤ 1; norm_num
   success_halted := by
     intro state _ halted
     cases state with
     | finished => exact le_rfl
-    | failed => simp [successOf, output]
-    | start => simp [machine] at halted
-    | extract => simp [machine] at halted
-    | rerun => simp [machine] at halted
+    | failed => show (0 : ℝ) ≤ _; simp [Found]
+    | start => simp [law] at halted
+    | extract => simp [law] at halted
+    | rerun => simp [law] at halted
   success_step := by
     intro state good unhalted
     cases state with
-    | start => exact (success_start_step relation ajtai adversary claim).le
+    | start => exact (success_start_step relation ajtai adversary claim outcome).le
     | extract purpose run index rest retries =>
-        exact (success_extract_step relation ajtai adversary claim
+        exact (success_extract_step relation ajtai adversary claim outcome
           (started_of_good relation ajtai adversary claim good)).le
-    | rerun base retries => exact (success_rerun_step relation ajtai adversary claim good).le
-    | finished => simp [machine] at unhalted
-    | failed => simp [machine] at unhalted
+    | rerun base retries => exact (success_rerun_step relation ajtai adversary claim outcome good).le
+    | finished => simp [law] at unhalted
+    | failed => simp [law] at unhalted
   work_nonnegative := by
     intro state _
     cases state with
@@ -758,8 +740,8 @@ private noncomputable def bounds :
         exact (work_extract_step relation ajtai adversary claim
           (started_of_good relation ajtai adversary claim good)).le
     | rerun base retries => exact (work_rerun_step relation ajtai adversary claim good).le
-    | finished => simp [machine] at unhalted
-    | failed => simp [machine] at unhalted
+    | finished => simp [law] at unhalted
+    | failed => simp [law] at unhalted
 
 /-- `1 + 17 (Q + 17) + (Q + 74) + 17 (Q + 17) = 35 Q + 653`. -/
 private theorem work_start_le {queries : Nat} (bounded : adversary.QueryBound queries) :
@@ -817,19 +799,183 @@ private theorem work_start_le {queries : Nat} (bounded : adversary.QueryBound qu
   show 1 + _ ≤ _
   linarith
 
-/-- **Expected work.** For every budget, the strict algorithm makes at most
+/-! ## The algorithm makes the law's runs -/
+
+omit outcome
+
+/-- The adversary's run on `oracle`, as the algorithm stores it. -/
+noncomputable def runOf (oracle : Oracle) : Made :=
+  ⟨oracle, adversary.record oracle⟩
+
+/-- The adversary's retries of the run on `oracle`, as the algorithm stores
+them. -/
+noncomputable def forksOf (oracle : Oracle) (retries : Retries) : Retried :=
+  ⟨retries, fun index => adversary.record (forked relation adversary claim oracle retries index)⟩
+
+private noncomputable def embedPurpose : Purpose Oracle Retries → Purpose Made Retried
+  | .first => .first
+  | .second base retries => .second (runOf relation adversary base) (forksOf relation adversary claim base retries)
+
+/-- A law state with the adversary's record of every run it names. -/
+private noncomputable def embed : LawState → Progress
+  | .start => .start
+  | .extract purpose run index rest retries =>
+      .extract (embedPurpose relation adversary claim purpose) (runOf relation adversary run) index rest
+        (forksOf relation adversary claim run retries)
+  | .rerun base retries => .rerun (runOf relation adversary base) (forksOf relation adversary claim base retries)
+  | .finished base retries other otherRetries =>
+      .finished (runOf relation adversary base) (forksOf relation adversary claim base retries)
+        (runOf relation adversary other) (forksOf relation adversary claim other otherRetries)
+  | .failed => .failed
+
+private theorem embed_extracted (purpose : Purpose Oracle Retries) (run : Oracle) :
+    ∀ pending retries,
+      extracted relation ajtai claim (embedPurpose relation adversary claim purpose) (runOf relation adversary run) pending
+          (forksOf relation adversary claim run retries) =
+        embed relation adversary claim (lawExtracted relation ajtai adversary claim purpose run pending retries)
+  | [], retries => by
+      cases purpose <;>
+      · simp only [extracted, afterExtraction, lawExtracted, lawAfter]
+        rw [apply_ite (embed relation adversary claim)]
+        exact if_congr Iff.rfl rfl rfl
+  | _ :: _, _ => rfl
+
+/-- A pending coordinate's retry is the run itself, so its record is the
+run's record. -/
+private theorem embed_start (purpose : Purpose Oracle Retries) (run : Oracle) :
+    startExtraction relation ajtai claim (embedPurpose relation adversary claim purpose) (runOf relation adversary run) =
+      embed relation adversary claim (lawStart relation ajtai adversary claim purpose run) := by
+  have records : (⟨fun index => run (rhoPoint relation adversary claim index run), fun _ => adversary.record run⟩ :
+      Retried) = forksOf relation adversary claim run fun index => run (rhoPoint relation adversary claim index run) :=
+    congrArg (Forks.mk _) (funext fun index => by simp only [forked, Function.update_eq_self])
+  unfold startExtraction lawStart
+  rw [← embed_extracted, ← records]
+  rfl
+
+/-- After a retry, the stored records are the adversary's records of the
+updated retries. -/
+private theorem forksOf_update (run : Oracle) (retries : Retries) (index : Coordinate) (answer : Answer) :
+    (⟨Function.update retries index answer,
+        Function.update (forksOf relation adversary claim run retries).records index
+          (adversary.record (Function.update run (rhoPoint relation adversary claim index run) answer))⟩ :
+      Retried) = forksOf relation adversary claim run (Function.update retries index answer) := by
+  refine congrArg (Forks.mk _) (funext fun other => ?_)
+  by_cases same : other = index
+  · subst same
+    simp only [forksOf, forked, Function.update_self]
+  · simp only [forksOf, forked, Function.update_of_ne same]
+
+/-- The rerun's oracle from the stored base record is the law's. -/
+private theorem query_rerun (base : Oracle) (retries : Retries) (fresh : Oracle) :
+    query relation claim (.rerun (runOf relation adversary base) (forksOf relation adversary claim base retries)) fresh =
+      rerunOracle relation adversary claim base fresh := by
+  unfold rerunOracle
+  rw [context_eq, forkIndex_eq]
+  rfl
+
+/-- **Each step of the law is a step of the algorithm.** -/
+private theorem embed_step (state : LawState) (fresh : Oracle)
+    (unhalted : (law relation ajtai adversary claim).halted state = false) :
+    ((reduction relation ajtai claim).rewinding adversary.record).step (embed relation adversary claim state) fresh =
+      embed relation adversary claim (step relation ajtai adversary claim state fresh) := by
+  cases state with
+  | start =>
+      show next relation ajtai claim .start fresh (adversary.record fresh) = _
+      simp only [next, step]
+      rw [apply_ite (embed relation adversary claim)]
+      exact if_congr Iff.rfl (embed_start relation ajtai adversary claim .first fresh) rfl
+  | extract purpose run index rest retries =>
+      let embedded : Progress := .extract (embedPurpose relation adversary claim purpose) (runOf relation adversary run)
+        index rest (forksOf relation adversary claim run retries)
+      show next relation ajtai claim embedded fresh (adversary.record (query relation claim embedded fresh)) = _
+      simp only [embedded, next, step]
+      rw [apply_ite (embed relation adversary claim)]
+      refine if_congr Iff.rfl ?_ rfl
+      rw [← embed_extracted, ← forksOf_update]
+      rfl
+  | rerun base retries =>
+      let embedded : Progress := .rerun (runOf relation adversary base) (forksOf relation adversary claim base retries)
+      show next relation ajtai claim embedded fresh (adversary.record (query relation claim embedded fresh)) = _
+      simp only [embedded, next, step]
+      rw [query_rerun, apply_ite (embed relation adversary claim)]
+      refine if_congr ?_ (embed_start relation ajtai adversary claim (.second base retries) _) rfl
+      rw [forkIndex_eq relation adversary claim (rerunOracle relation adversary claim base fresh),
+        forkIndex_eq relation adversary claim base]
+      exact Iff.rfl
+  | finished => simp [law] at unhalted
+  | failed => simp [law] at unhalted
+
+/-- On every tape, the algorithm ends where the law ends, after the same runs. -/
+private theorem simulation (budget : ℕ) (tape : Fin budget → Oracle) :
+    finalState relation ajtai claim adversary budget tape =
+        embed relation adversary claim ((law relation ajtai adversary claim).run budget .start tape).final ∧
+      (runs relation ajtai claim adversary budget tape).length =
+        ((law relation ajtai adversary claim).run budget .start tape).runs := by
+  have same := (law relation ajtai adversary claim).run_embed ((reduction relation ajtai claim).rewinding adversary.record)
+    (embed relation adversary claim) (fun state => by cases state <;> rfl)
+    (embed_step relation ajtai adversary claim) budget .start tape
+  have program := (reduction relation ajtai claim).run_program adversary.record budget .start tape
+  refine ⟨program.1.trans ?_, program.2.trans ?_⟩
+  · exact congrArg Rewinding.Result.final same
+  · exact congrArg Rewinding.Result.runs same
+
+/-- **Expected work.** For every budget, the algorithm makes at most
 `35 Q + 653` expected adversary runs. -/
 theorem expected_runs_le {queries : Nat} (bounded : adversary.QueryBound queries) (budget : ℕ) :
-    (machine relation ajtai adversary claim).expectedRuns budget .start ≤ 35 * queries + 653 :=
-  ((bounds relation ajtai adversary claim).expect_runs_le budget (state := .start) trivial).trans
-    (work_start_le relation ajtai adversary claim bounded)
+    𝔼 tape : Fin budget → Oracle, ((runs relation ajtai claim adversary budget tape).length : ℝ) ≤
+      35 * queries + 653 := by
+  calc
+    _ = (law relation ajtai adversary claim).expectedRuns budget .start :=
+      Finset.expect_congr rfl fun tape _ => by rw [(simulation relation ajtai adversary claim budget tape).2]
+    _ ≤ _ := ((bounds relation ajtai adversary claim fun _ _ _ _ => True).expect_runs_le budget
+        (state := .start) trivial).trans (work_start_le relation ajtai adversary claim bounded)
 
-/-- **The Markov loss.** With budget `T`, the strict algorithm returns a
-vector with chance at least `kernelChance − (35 Q + 653) / T`. -/
+/-- **The Markov loss, for any test of the finished runs.** With budget `T`,
+the algorithm finishes with two runs that pass `finished` with chance at
+least the reduction's chance of the same test minus `(35 Q + 653) / T`. -/
+theorem reductionChance_le_program {queries : Nat} (bounded : adversary.QueryBound queries)
+    (finished : Progress → Prop) [DecidablePred finished] (budget : ℕ) :
+    budget * (reductionChance relation ajtai adversary claim (fun base retries other otherRetries =>
+          finished (.finished (runOf relation adversary base) (forksOf relation adversary claim base retries)
+            (runOf relation adversary other) (forksOf relation adversary claim other otherRetries))) -
+        𝔼 tape : Fin budget → Oracle,
+          (if finished (finalState relation ajtai claim adversary budget tape) then (1 : ℝ) else 0)) ≤
+      35 * queries + 653 := by
+  let outcome : Oracle → Retries → Oracle → Retries → Prop := fun base retries other otherRetries =>
+    finished (.finished (runOf relation adversary base) (forksOf relation adversary claim base retries)
+      (runOf relation adversary other) (forksOf relation adversary claim other otherRetries))
+  have each (state : LawState) :
+      (if Found relation outcome state then (1 : ℝ) else 0) ≤
+        if finished (embed relation adversary claim state) then 1 else 0 := by
+    cases state with
+    | finished => simp only [Found, embed]; split_ifs <;> norm_num
+    | _ => simp only [Found, if_false]; split <;> norm_num
+  have chance : (law relation ajtai adversary claim).chance (Found relation outcome) budget .start ≤
+      𝔼 tape : Fin budget → Oracle,
+        (if finished (finalState relation ajtai claim adversary budget tape) then (1 : ℝ) else 0) :=
+    Finset.expect_le_expect fun tape _ => by
+      rw [(simulation relation ajtai adversary claim budget tape).1]
+      exact each _
+  have loss := (bounds relation ajtai adversary claim outcome).budget_mul_le budget (state := .start) trivial
+  have positive : (0 : ℝ) ≤ budget := Nat.cast_nonneg budget
+  calc
+    _ ≤ (budget : ℝ) * (reductionChance relation ajtai adversary claim outcome -
+          (law relation ajtai adversary claim).chance (Found relation outcome) budget .start) :=
+      mul_le_mul_of_nonneg_left (by linarith) positive
+    _ ≤ _ := loss.trans (work_start_le relation ajtai adversary claim bounded)
+
+/-- The success of the strict algorithm `RandomOracleReduction.solve` on a
+uniform tape. -/
+noncomputable def solverChance (budget : ℕ) : ℝ :=
+  𝔼 tape : Fin budget → Oracle,
+    if (solve relation ajtai claim adversary budget tape).isSome then 1 else 0
+
+/-- **The Markov loss.** With budget `T`, `solve` returns a vector with chance
+at least `kernelChance − (35 Q + 653) / T`. -/
 theorem kernelChance_le_solver {queries : Nat} (bounded : adversary.QueryBound queries) (budget : ℕ) :
     budget * (kernelChance relation ajtai adversary claim - solverChance relation ajtai adversary claim budget) ≤
       35 * queries + 653 :=
-  ((bounds relation ajtai adversary claim).budget_mul_le budget (state := .start) trivial).trans
-    (work_start_le relation ajtai adversary claim bounded)
+  reductionChance_le_program relation ajtai adversary claim bounded
+    (fun state => (output relation ajtai claim state).isSome) budget
 
 end NightstreamFPrime.Lifecycle.RandomOracleSolver

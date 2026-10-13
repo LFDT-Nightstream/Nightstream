@@ -114,7 +114,7 @@ theorem succeeds_iff_realSuccess (oracle : Oracle)
       (child : Fin (ProductionKey.key relation ajtai).params.k) :=
     PiDEC.OutputWitnessConsumer.runningStatement_eq_child (ProductionKey.key relation ajtai)
       (claimed relation adversary Linked oracle).running (claimed relation adversary Linked oracle).fresh (claimed relation adversary Linked oracle).proof result _ attemptEq verified child
-  unfold Succeeds
+  unfold Succeeds SucceedsOf
   rw [RandomOracleFidelity.accepts_iff_verify relation ajtai _ _ deployed]
   constructor
   · rintro ⟨⟨⟨result, verified⟩, holds⟩, link⟩
@@ -183,11 +183,8 @@ noncomputable def hashMismatchChance (index : Fin Nifs.PaperProfile.arity.total)
 /-- The binding reduction's chance that a rerun gives a state-hash collision
 with the base run. -/
 noncomputable def hashRunningChance : ℝ :=
-  𝔼 oracle, ∑ retries, weight relation ajtai adversary Linked oracle retries *
-    (if Valid relation ajtai adversary Linked oracle retries then
-      retryChance relation ajtai adversary Linked (forkIndex relation adversary Linked oracle) oracle
-        (fun other _ => StateHashCollision (prior (adversary.run oracle)) (prior (adversary.run other)))
-    else 0)
+  reductionChance relation ajtai adversary Linked fun oracle _ other _ =>
+    StateHashCollision (prior (adversary.run oracle)) (prior (adversary.run other))
 
 theorem mismatchChance_le {oracle : Oracle} (succeeds : Succeeds relation ajtai adversary Linked oracle)
     (index : Fin Nifs.PaperProfile.arity.total) :
@@ -202,7 +199,7 @@ theorem mismatchChance_le {oracle : Oracle} (succeeds : Succeeds relation ajtai 
 theorem runningChance_le :
     runningChance relation ajtai adversary Linked ≤
       hashRunningChance relation ajtai adversary claim prior contextDigest := by
-  unfold runningChance hashRunningChance
+  unfold runningChance hashRunningChance reductionChance
   refine Finset.expect_le_expect fun oracle _ => Finset.sum_le_sum fun retries _ =>
     mul_le_mul_of_nonneg_left ?_ (weight_nonnegative relation ajtai adversary Linked oracle retries)
   split_ifs with valid

@@ -40,8 +40,6 @@ pub enum Error {
     ProofBytes(#[from] ProofCodecError),
     #[error(transparent)]
     Parameters(#[from] neo_params::ParamsError),
-    #[error(transparent)]
-    Compression(#[from] neo_spartan::Error),
 }
 
 struct CompiledCircuit {

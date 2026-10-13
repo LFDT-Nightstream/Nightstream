@@ -2,7 +2,7 @@
 //! terminal checks, and (ignored, production profile) spec §14 conformance
 //! proofs over the Lean-emitted package.
 
-use nightstream::nebula::{state_words, Context, MachineState, Plan, Run, Step, TerminalError};
+use nightstream::nebula::{state_words, Context, MachineState, Package, Run, Step, TerminalError};
 use p3_field::PrimeField64;
 use p3_goldilocks::Goldilocks as F;
 
@@ -15,8 +15,7 @@ fn input_state(words: &[F]) -> [F; 4] {
 }
 
 fn program_run() -> Run {
-    let context = Context::new(Plan::first()).expect("first plan");
-    Run::new(context, MachineState::default())
+    Run::new(Context::new(Package::V1), MachineState::default())
 }
 
 #[test]
@@ -116,13 +115,13 @@ fn terminal_rejects_statement_integers_at_or_above_q() {
 /// (`emit --application-start`). It binds the plan digest and the images.
 #[test]
 fn d_init_matches_lean() {
-    for (plan, fixture) in [
-        (Plan::first(), include_str!("fixtures/nebula-memory-v1-start.json")),
-        (Plan::second(), include_str!("fixtures/nebula-memory-n1-start.json")),
+    for (package, fixture) in [
+        (Package::V1, include_str!("fixtures/nebula-memory-v1-start.json")),
+        (Package::N1, include_str!("fixtures/nebula-memory-n1-start.json")),
     ] {
         let lean: serde_json::Value = serde_json::from_str(fixture).unwrap();
         let lean: Vec<u64> = serde_json::from_value(lean["d_init"].clone()).unwrap();
-        let d_init = Context::new(plan).unwrap().d_init();
+        let d_init = Context::new(package).d_init();
         assert_eq!(d_init.map(|word| word.as_canonical_u64()).to_vec(), lean);
     }
 }
@@ -136,15 +135,27 @@ fn package(name: &str) -> Vec<u8> {
     .expect("saved Lean memory package")
 }
 
+/// A memory verifier accepts only its own package: the second package's
+/// circuit is not the first package.
+#[test]
+fn memory_verifier_rejects_another_package() {
+    let circuit = nightstream::Circuit::load_package(
+        &package("nightstream-fprime-stage2-nebula-memory-n1.json"),
+        Package::N1.structural_identifier(),
+    )
+    .unwrap();
+    assert!(matches!(
+        nightstream::nebula::Verifier::new(Package::V1, &circuit, nightstream::Engine::Optimized, 114),
+        Err(nightstream::nebula::VerifyError::Package)
+    ));
+}
+
 fn memory_package() -> Vec<u8> {
     package("nightstream-fprime-stage2-nebula-memory-v1.json")
 }
 
 fn n1_run() -> Run {
-    Run::new(
-        Context::new(Plan::second()).expect("second plan"),
-        MachineState::default(),
-    )
+    Run::new(Context::new(Package::N1), MachineState::default())
 }
 
 /// The second plan (`N = 1`): every invocation opens and closes a segment,
@@ -169,19 +180,17 @@ fn n1_native_run_reaches_every_counter_maximum() {
     assert_eq!(initial, run.initial_state());
 }
 
-/// The spec §14 accept cases of the second plan through `Context::verify`:
-/// `N = 1`, and `S = S_max` with every counter at its largest value. A
-/// context of another plan rejects this package's verifier.
+/// The spec §14 accept cases of the second plan through the memory verifier:
+/// `N = 1`, and `S = S_max` with every counter at its largest value.
 fn n1_accept(engine: nightstream::Engine) {
-    use nightstream::nebula::VerifyError;
-    use nightstream::{Circuit, Verifier};
+    use nightstream::{nebula, Circuit};
     let circuit = Circuit::load_package(
         &package("nightstream-fprime-stage2-nebula-memory-n1.json"),
-        nightstream::nebula::N1_PACKAGE_STRUCTURAL_IDENTIFIER,
+        Package::N1.structural_identifier(),
     )
     .expect("pinned memory package");
     let prover = circuit.prover(engine, 114).unwrap();
-    let verifier = Verifier::from_package(&circuit, engine, 114).unwrap();
+    let verifier = nebula::Verifier::new(Package::N1, &circuit, engine, 114).unwrap();
     let mut run = n1_run();
     let z0 = run.initial_state();
     let mut proof: Option<nightstream::Proof> = None;
@@ -196,17 +205,9 @@ fn n1_accept(engine: nightstream::Engine) {
                 .unwrap(),
         });
     }
-    let statement = run.statement();
-    let proof = proof.unwrap();
-    run.context()
-        .verify(&verifier, &statement, run.carry(), &proof)
+    verifier
+        .verify(&run.statement(), run.carry(), proof.as_ref().unwrap())
         .unwrap();
-
-    let first = Context::new(Plan::first()).expect("first plan");
-    assert!(matches!(
-        first.verify(&verifier, &statement, run.carry(), &proof),
-        Err(VerifyError::Package)
-    ));
 }
 
 #[test]
@@ -223,17 +224,17 @@ fn n1_accept_on_metal() {
 }
 
 /// The spec §14 accept cases that the first plan reaches, and the rejections
-/// that need no invalid witness, through `Context::verify`. One run of four
+/// that need no invalid witness, through the memory verifier. One run of four
 /// segments (`S = S_max`) has continue arms (`N = 2`), writes RAM in the first
 /// segment and reads it in the second, and ends with an idle segment.
 fn memory_conformance(engine: nightstream::Engine) {
-    use nightstream::nebula::VerifyError;
-    use nightstream::{Circuit, Verifier};
+    use nightstream::nebula::{self, VerifyError};
+    use nightstream::Circuit;
     let started = std::time::Instant::now();
-    let circuit = Circuit::load_package(&memory_package(), nightstream::nebula::PACKAGE_STRUCTURAL_IDENTIFIER)
-        .expect("pinned memory package");
+    let circuit =
+        Circuit::load_package(&memory_package(), Package::V1.structural_identifier()).expect("pinned memory package");
     let prover = circuit.prover(engine, 114).unwrap();
-    let verifier = Verifier::from_package(&circuit, engine, 114).unwrap();
+    let verifier = nebula::Verifier::new(Package::V1, &circuit, engine, 114).unwrap();
     eprintln!("memory preparation elapsed={:?}", started.elapsed());
 
     let mut run = program_run();
@@ -276,9 +277,7 @@ fn memory_conformance(engine: nightstream::Engine) {
         "the second segment reads the first segment's write"
     );
     let verifying = std::time::Instant::now();
-    context
-        .verify(&verifier, &statement, run.carry(), &proof)
-        .unwrap();
+    verifier.verify(&statement, run.carry(), &proof).unwrap();
     eprintln!("memory verification elapsed={:?}", verifying.elapsed());
 
     // Ob1: an application integer at or above `q` has the word of a smaller
@@ -286,7 +285,7 @@ fn memory_conformance(engine: nightstream::Engine) {
     let mut alias = statement.clone();
     alias.final_.acc += F::ORDER_U64;
     assert!(matches!(
-        context.verify(&verifier, &alias, run.carry(), &proof),
+        verifier.verify(&alias, run.carry(), &proof),
         Err(VerifyError::Terminal(TerminalError::NonCanonical))
     ));
 
@@ -297,8 +296,8 @@ fn memory_conformance(engine: nightstream::Engine) {
     one.final_ = MachineState { pc: 2, acc: 5 };
     one.final_ts = invocations[1].carry.ts;
     one.final_root = invocations[1].carry.mem_root;
-    context
-        .verify(&verifier, &one, &invocations[1].carry, &segment_proof)
+    verifier
+        .verify(&one, &invocations[1].carry, &segment_proof)
         .unwrap();
 
     // End inside a segment: reject at the terminal `idx = N` check.
@@ -307,7 +306,7 @@ fn memory_conformance(engine: nightstream::Engine) {
     open.final_ = MachineState { pc: 1, acc: 5 };
     open.final_ts = invocations[0].carry.ts;
     assert!(matches!(
-        context.verify(&verifier, &open, &invocations[0].carry, &first),
+        verifier.verify(&open, &invocations[0].carry, &first),
         Err(VerifyError::Terminal(TerminalError::OpenCarry))
     ));
 
@@ -316,7 +315,7 @@ fn memory_conformance(engine: nightstream::Engine) {
     empty.steps = 0;
     empty.segments = 0;
     assert!(matches!(
-        context.verify(&verifier, &empty, run.carry(), &proof),
+        verifier.verify(&empty, run.carry(), &proof),
         Err(VerifyError::Terminal(TerminalError::SegmentRange))
     ));
 
@@ -334,7 +333,7 @@ fn memory_conformance(engine: nightstream::Engine) {
     carry.seen.swap(0, 1);
     assert_ne!(carry, *run.carry());
     assert!(matches!(
-        context.verify(&verifier, &statement, &carry, &proof),
+        verifier.verify(&statement, &carry, &proof),
         Err(VerifyError::Proof(_))
     ));
 }

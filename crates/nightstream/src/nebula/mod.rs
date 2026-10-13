@@ -1,8 +1,9 @@
 //! Native side of the first Nebula memory application (spec §4–§13): the plan,
 //! the machine, the record chains and challenge transcript, the carry, the
-//! segment runner that writes each invocation's witness words, and the spec
-//! §13 terminal checks. The circuit and its proofs are Lean-owned
-//! (`Lifecycle/Nebula/`); this module only computes values for them.
+//! segment runner that writes each invocation's witness words, the spec §13
+//! terminal checks, and the memory verifier of the two Lean-emitted packages.
+//! The circuit and its proofs are Lean-owned (`Lifecycle/Nebula/`); this module
+//! only computes values for them.
 
 mod carry;
 mod machine;
@@ -21,35 +22,42 @@ pub use plan::Plan;
 pub use segment::{Cell, Context, Invocation, Segment, SegmentError, Step};
 pub use transcript::{state_words, Digest};
 
-/// The structural identifier of the Lean-emitted first memory-application
-/// package (`artifacts/nightstream-fprime-stage2-nebula-memory-v1.json`).
-/// A verifier loads the package only with this identifier.
-pub const PACKAGE_STRUCTURAL_IDENTIFIER: [u64; 4] = [
-    7606418978967494273,
-    7012554739737736582,
-    16451068804121006463,
-    2787927620498818402,
-];
+/// A Lean-emitted memory package: the plan that it proves and its pinned
+/// structural identifier. The verifier key binds the plan (spec §4.1), so a
+/// memory run and a memory verifier exist only for these packages.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Package {
+    /// `artifacts/nightstream-fprime-stage2-nebula-memory-v1.json` (`FirstPlan.lean`).
+    V1,
+    /// `artifacts/nightstream-fprime-stage2-nebula-memory-n1.json` (`SecondPlan.lean`).
+    N1,
+}
 
-/// The structural identifier of the second memory-application package
-/// (`artifacts/nightstream-fprime-stage2-nebula-memory-n1.json`, `Plan::second`).
-pub const N1_PACKAGE_STRUCTURAL_IDENTIFIER: [u64; 4] = [
-    2732929784355259483,
-    2352438795120520828,
-    6712609518222072634,
-    2244383376532064420,
-];
+impl Package {
+    pub fn plan(self) -> Plan {
+        match self {
+            Package::V1 => Plan::first(),
+            Package::N1 => Plan::second(),
+        }
+    }
 
-/// The pinned package of each plan that Lean emits a package for. The
-/// verifier key binds the plan (spec §4.1), so `Context::verify` accepts only
-/// a verifier of this package.
-fn pinned_package(plan: &Plan) -> Option<[u64; 4]> {
-    [
-        (Plan::first(), PACKAGE_STRUCTURAL_IDENTIFIER),
-        (Plan::second(), N1_PACKAGE_STRUCTURAL_IDENTIFIER),
-    ]
-    .into_iter()
-    .find_map(|(pinned, identifier)| (pinned == *plan).then_some(identifier))
+    /// The identifier that `Circuit::load_package` requires of the package bytes.
+    pub fn structural_identifier(self) -> [u64; 4] {
+        match self {
+            Package::V1 => [
+                7606418978967494273,
+                7012554739737736582,
+                16451068804121006463,
+                2787927620498818402,
+            ],
+            Package::N1 => [
+                2732929784355259483,
+                2352438795120520828,
+                6712609518222072634,
+                2244383376532064420,
+            ],
+        }
+    }
 }
 
 /// The spec §13 public statement of a memory proof.
@@ -79,10 +87,10 @@ pub enum TerminalError {
     Field,
 }
 
-/// Why a memory proof does not verify.
+/// Why a memory verifier cannot be built, or a memory proof does not verify.
 #[derive(Debug, thiserror::Error)]
 pub enum VerifyError {
-    #[error("the verifier is not from the plan's pinned package")]
+    #[error("the circuit is not the package as `Circuit::load_package` loaded it")]
     Package,
     #[error(transparent)]
     Terminal(#[from] TerminalError),
@@ -90,26 +98,49 @@ pub enum VerifyError {
     Proof(#[from] crate::Error),
 }
 
-impl Context {
-    /// Verify a memory proof (spec §13): the terminal checks on the final
-    /// carry, then the Stage 1 verification of `proof` with the initial and
-    /// final states that the statement and the carry open. `verifier` must be
-    /// configured with the plan's pinned package.
-    pub fn verify(
-        &self,
-        verifier: &crate::Verifier,
-        statement: &Statement,
-        final_carry: &Carry,
-        proof: &crate::Proof,
-    ) -> Result<(), VerifyError> {
-        if pinned_package(self.plan()) != Some(verifier.structural_identifier()) {
+/// The memory verifier of one package: the spec §13 terminal checks, then
+/// the Stage 1 verifier of the package's relation.
+pub struct Verifier {
+    context: Context,
+    stage1: crate::Verifier,
+}
+
+impl Verifier {
+    /// The verifier of `package` over `circuit`, which must be that package as
+    /// `Circuit::load_package` loaded it: only that path recomputes the
+    /// structural identifier from the bytes. A prover may share the circuit.
+    pub fn new(
+        package: Package,
+        circuit: &crate::Circuit,
+        engine: crate::Engine,
+        minimum_security_bits: u32,
+    ) -> Result<Self, VerifyError> {
+        if circuit.lean_package_identifier() != Some(package.structural_identifier()) {
             return Err(VerifyError::Package);
         }
-        let (initial, last) = self.terminal_states(statement, final_carry)?;
-        verifier.verify(&crate::State::new(statement.steps, initial, last), proof)?;
-        Ok(())
+        Ok(Self {
+            context: Context::new(package),
+            stage1: crate::Verifier::from_package(circuit, engine, minimum_security_bits)?,
+        })
     }
 
+    /// Decode untrusted proof bytes (`crate::Verifier::decode_proof`).
+    pub fn decode_proof(&self, bytes: &[u8]) -> Result<crate::Proof, crate::Error> {
+        self.stage1.decode_proof(bytes)
+    }
+
+    /// Verify a memory proof (spec §13): the terminal checks on the final
+    /// carry, then the Stage 1 verification of `proof` with the initial and
+    /// final states that the statement and the carry open.
+    pub fn verify(&self, statement: &Statement, final_carry: &Carry, proof: &crate::Proof) -> Result<(), VerifyError> {
+        let (initial, last) = self.context.terminal_states(statement, final_carry)?;
+        self.stage1
+            .verify(&crate::State::new(statement.steps, initial, last), proof)?;
+        Ok(())
+    }
+}
+
+impl Context {
     /// Spec §13: check the final carry against the statement and return the
     /// initial and final Stage 1 states for the Stage 1 terminal check.
     pub fn terminal_states(

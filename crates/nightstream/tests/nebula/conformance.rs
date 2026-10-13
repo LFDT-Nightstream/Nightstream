@@ -10,31 +10,27 @@ use std::ops::Range;
 
 use super::*;
 use crate::lifecycle::{VerifyError, FAILED_ASSERTION_ROW, UNCHECKED_WITNESS};
-use crate::nebula::{N1_PACKAGE_STRUCTURAL_IDENTIFIER, PACKAGE_STRUCTURAL_IDENTIFIER};
 use crate::{Circuit, Engine, Error, Proof, Prover, Verifier};
 
 /// `loadi 5; store 0`, then `load 0; halt`.
 const EXECUTE: [Step; 2] = [Step::Execute, Step::Execute];
 
-/// A saved memory package, its pinned identifier, its plan, and its row names.
-struct Package {
+/// A saved memory package and its row names.
+struct Fixture {
     artifact: &'static str,
-    identifier: [u64; 4],
-    plan: fn() -> Plan,
+    package: Package,
     rows: &'static [u8],
 }
 
-const FIRST: Package = Package {
+const FIRST: Fixture = Fixture {
     artifact: "nightstream-fprime-stage2-nebula-memory-v1.json",
-    identifier: PACKAGE_STRUCTURAL_IDENTIFIER,
-    plan: Plan::first,
+    package: Package::V1,
     rows: include_bytes!("../fixtures/nebula-memory-v1-rows.json"),
 };
 
-const N1: Package = Package {
+const N1: Fixture = Fixture {
     artifact: "nightstream-fprime-stage2-nebula-memory-n1.json",
-    identifier: N1_PACKAGE_STRUCTURAL_IDENTIFIER,
-    plan: Plan::second,
+    package: Package::N1,
     rows: include_bytes!("../fixtures/nebula-memory-n1-rows.json"),
 };
 
@@ -46,23 +42,23 @@ struct Harness {
 }
 
 impl Harness {
-    fn new(engine: Engine, package: &Package) -> Self {
+    fn new(engine: Engine, fixture: &Fixture) -> Self {
         let bytes = std::fs::read(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
                 .join("artifacts")
-                .join(package.artifact),
+                .join(fixture.artifact),
         )
         .expect("saved Lean memory package");
-        let circuit = Circuit::load_package(&bytes, package.identifier).unwrap();
+        let circuit = Circuit::load_package(&bytes, fixture.package.structural_identifier()).unwrap();
         let rows = circuit.application_rows();
-        let named: Vec<(String, usize, usize)> = serde_json::from_slice(package.rows).unwrap();
+        let named: Vec<(String, usize, usize)> = serde_json::from_slice(fixture.rows).unwrap();
         assert_eq!(
             named.last().map(|check| check.2),
             Some(rows.len()),
             "names cover the rows"
         );
         Self {
-            context: Context::new((package.plan)()).unwrap(),
+            context: Context::new(fixture.package),
             prover: circuit.prover(engine, 114).unwrap(),
             verifier: Verifier::from_package(&circuit, engine, 114).unwrap(),
             checks: named

@@ -47,8 +47,9 @@ structure MemoryStatement (width : ℕ) where
 
 variable {p : Plan} {app : PortApp p}
 
-/-- The checks of `Context::verify` (spec §13) on a Stage 1 statement: it
-opens to the memory statement's states, and the terminal checks hold. -/
+/-- The checks of the Rust `nebula::Verifier::verify` (spec §13) on a Stage 1
+statement: it opens to the memory statement's states, and the terminal checks
+hold. -/
 structure VerifierChecks {width : ℕ} (p : Plan) (statement : TerminalStatement AppState)
     (m : MemoryStatement width) : Prop where
   start : statement.z0 = stateWords (List.ofFn m.initialApp) (carryWords (startCarry (context p)))

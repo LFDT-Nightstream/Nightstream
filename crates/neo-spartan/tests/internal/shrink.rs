@@ -142,8 +142,8 @@ fn textbook_outer(
 
 #[test]
 fn outer_sum_check_matches_the_textbook_prover() {
-    // Random tables break the zero claim; a zero `τ` coordinate leaves no
-    // divisor for `q(1)` in its round.
+    // Random tables break the zero claim, so the prover may not rely on it; a
+    // zero `τ` coordinate makes `ℓ(1) = 0`.
     for (m, zero) in [(0, None), (1, None), (2, Some(1)), (5, None), (12, None), (12, Some(7))] {
         let tables: Vec<Vec<Gl>> = (0..MATRICES as u64)
             .map(|j| {

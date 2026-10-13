@@ -196,6 +196,7 @@ theorem constraintsSupported
 def program : Application.Program where
   witnessWordCount := messageWordCount
   step := step
+  step_length := fun state message _ => step_output_length state message
   circuit := circuit
   spec_iff := spec_iff
   assumptions_of_inputsBelow := assumptions_of_inputsBelow

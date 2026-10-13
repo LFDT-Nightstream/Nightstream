@@ -88,6 +88,10 @@ function. The proof field is erased during execution. -/
 structure Program where
   witnessWordCount : Nat
   step : AppState → AppWitness → AppState
+  /-- The step maps a state to a state (HyperNova's `F`): a carried-width
+  state gives a carried-width state for every witness. -/
+  step_length : ∀ state witness, state.length = stateWordCount →
+    (step state witness).length = stateWordCount
   circuit : Interface witnessWordCount → FormalCircuit
   spec_iff : ∀ interface offset env,
     (circuit interface).spec offset env ↔ Holds step interface offset env

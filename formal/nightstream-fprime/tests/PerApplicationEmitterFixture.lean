@@ -132,6 +132,7 @@ def circuit (interface : Interface) : FormalCircuit where
 def program (_ : Unit) : Application.Program where
   witnessWordCount := 0
   step := step
+  step_length := fun _ _ stateLength => stateLength
   circuit := circuit
   spec_iff := by
     intro interface offset env

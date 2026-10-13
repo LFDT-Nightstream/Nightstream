@@ -65,7 +65,7 @@ def CheckedRecursiveReplay : Prop :=
       (fun source => (PiDECCanonicalSourceCache.stored application)[source]?)
       (FreshRowsCheck.logicalRead bytes) = true)
     (_inputCustody : PerApplicationDecodedIO.input application fits raw =
-      HyperNovaStepData.input statement (CheckedReplayStep.prior input runningWitness freshWitness)
+      HyperNovaStepData.input application statement (CheckedReplayStep.prior input runningWitness freshWitness)
         advice (CheckedReplayNifs.proof input (PiDECComputedChildren.messages parent children)))
     (_contextCustody : PerApplicationDecodedIO.contextKey raw =
       PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup),

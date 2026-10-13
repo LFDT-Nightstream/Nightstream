@@ -123,7 +123,7 @@ theorem accepted_of_checked_rows
     (rows : (PerApplicationFixedPoint.structuralPlan application fits).RowsZero raw.assignment)
     (bounded : ∀ column, centeredMagnitude (raw.completeAssignment column) < 2)
     (inputCustody : PerApplicationDecodedIO.input application fits raw =
-      HyperNovaStepData.input statement (CheckedReplayStep.prior input runningWitness freshWitness)
+      HyperNovaStepData.input application statement (CheckedReplayStep.prior input runningWitness freshWitness)
         advice (CheckedReplayNifs.proof input messages))
     (contextCustody : PerApplicationDecodedIO.contextKey raw =
       PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup)
@@ -144,13 +144,13 @@ theorem accepted_of_checked_rows
     (setup (PerApplicationFixedPoint.relation application fits) productionAjtaiKey
       (PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup))
     (machineFor (PerApplicationFixedPoint.publicFits application) application) functionIndex
-    (HyperNovaStepData.input statement (CheckedReplayStep.prior input runningWitness freshWitness)
+    (HyperNovaStepData.input application statement (CheckedReplayStep.prior input runningWitness freshWitness)
       advice (CheckedReplayNifs.proof input messages))
     (PerApplicationDecodedIO.output application raw)
-    (HyperNovaStepData.output statement advice (PiCCSInputCheck.selectedRunningFromInput messages))
+    (HyperNovaStepData.output application fits productionSetup statement advice (PiCCSInputCheck.selectedRunningFromInput messages))
     rawStep selectedStep
   have digest : raw.outputDigest =
-      (HyperNovaStepData.output statement advice (PiCCSInputCheck.selectedRunningFromInput messages)).x :=
+      (HyperNovaStepData.output application fits productionSetup statement advice (PiCCSInputCheck.selectedRunningFromInput messages)).x :=
     congrArg (fun output => output.x) outputEq
   have priorValid := ((PerApplicationTerminal.holds_recursive_iff application fits productionSetup
     statement (CheckedReplayStep.prior input runningWitness freshWitness)).mp accepted).1

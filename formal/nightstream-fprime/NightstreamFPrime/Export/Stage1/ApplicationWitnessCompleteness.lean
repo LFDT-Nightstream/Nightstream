@@ -1,5 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PerApplicationSourceAssignment
-import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
+import NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint
 import NightstreamFPrime.Export.Stage1.Stage1LoweringBridge
 import NightstreamFPrime.Export.Stage1.DirectApplicationPrefixPlan
 import NightstreamFPrime.Export.Stage1.PerApplicationDecodedIO
@@ -7,11 +7,13 @@ import NightstreamFPrime.Layout.Stage1.ApplicationSemantics
 import NightstreamFPrime.Layout.Stage1.StepPhysicalCompleteness
 
 /-!
-Owns construction of the selected application's private suffix from its real
-four-word witness and the state frames constructed by the physical prefix.
-The four-word condition is the selected input ABI, not a generated-output
-assumption. The source packet retains the preceding prefix through the existing
-per-application shift and fills the application interval from its proved builder.
+Owns construction of an application's private suffix from its real witness
+and the state frames constructed by the physical prefix, for every application.
+The witness width is the application's input ABI, not a generated-output
+assumption. The application's own circuit completeness
+(`Lifecycle.Stage1.Application.Program.completeness`) fills its local interval,
+and the R1CS lowering completeness fills the lowering columns. The source
+packet retains the preceding prefix through the existing per-application shift.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.ApplicationWitnessCompleteness
@@ -26,43 +28,41 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec.Folding
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.HyperNova.Construction2.Paper
-open Poseidon2HashChainV1Package (application)
+variable (application : Lifecycle.Stage1.Application.Program)
 
-private def loadWitness (env : Env) (witness : AppWitness) : Env :=
-  (((env.set ApplicationInputs.witnessStart (witness.getD 0 0)).set
-    (ApplicationInputs.witnessStart + 1) (witness.getD 1 0)).set
-    (ApplicationInputs.witnessStart + 2) (witness.getD 2 0)).set
-    (ApplicationInputs.witnessStart + 3) (witness.getD 3 0)
+/-- The environment with the witness words at the application's witness
+columns. -/
+private def loadWitness (env : Env) (witness : AppWitness) : Env := fun index =>
+  if ApplicationInputs.witnessStart ≤ index ∧
+      index < ApplicationInputs.witnessStart + application.witnessWordCount then
+    witness.getD (index - ApplicationInputs.witnessStart) 0
+  else env index
 
 private theorem loadWitness_read (env : Env) (witness : AppWitness)
-    (index : Fin Lifecycle.Stage1.Poseidon2HashChainV1.messageWordCount) :
-    loadWitness env witness (ApplicationInputs.witnessStart + index.val) = witness.getD index.val 0 := by
-  fin_cases index <;> simp [loadWitness, Env.set]
+    (index : Fin application.witnessWordCount) :
+    loadWitness application env witness (ApplicationInputs.witnessStart + index.val) =
+      witness.getD index.val 0 := by
+  have inside : ApplicationInputs.witnessStart ≤ ApplicationInputs.witnessStart + index.val ∧
+      ApplicationInputs.witnessStart + index.val <
+        ApplicationInputs.witnessStart + application.witnessWordCount :=
+    ⟨Nat.le_add_right _ _, Nat.add_lt_add_left index.isLt _⟩
+  simp only [loadWitness, if_pos inside, Nat.add_sub_cancel_left]
 
 private theorem loadWitness_agrees (env : Env) (witness : AppWitness) :
-    AgreesOutside env (loadWitness env witness) ApplicationInputs.witnessStart
-      Lifecycle.Stage1.Poseidon2HashChainV1.messageWordCount := by
+    AgreesOutside env (loadWitness application env witness) ApplicationInputs.witnessStart
+      application.witnessWordCount := by
   intro index outside
-  have first : index ≠ ApplicationInputs.witnessStart := by
-    simp only [Lifecycle.Stage1.Poseidon2HashChainV1.messageWordCount] at outside
+  have notInside : ¬ (ApplicationInputs.witnessStart ≤ index ∧
+      index < ApplicationInputs.witnessStart + application.witnessWordCount) := by
     omega
-  have second : index ≠ ApplicationInputs.witnessStart + 1 := by
-    simp only [Lifecycle.Stage1.Poseidon2HashChainV1.messageWordCount] at outside
-    omega
-  have third : index ≠ ApplicationInputs.witnessStart + 2 := by
-    simp only [Lifecycle.Stage1.Poseidon2HashChainV1.messageWordCount] at outside
-    omega
-  have fourth : index ≠ ApplicationInputs.witnessStart + 3 := by
-    simp only [Lifecycle.Stage1.Poseidon2HashChainV1.messageWordCount] at outside
-    omega
-  simp only [loadWitness, Env.set, if_neg first, if_neg second, if_neg third, if_neg fourth]
+  simp only [loadWitness, if_neg notInside]
 
 private theorem witnessValue_loaded (env : Env) (witness : AppWitness)
-    (width : witness.length = Lifecycle.Stage1.Poseidon2HashChainV1.messageWordCount) :
+    (width : witness.length = application.witnessWordCount) :
     Lifecycle.Stage1.Application.witnessValue (ApplicationInputs.interface application)
-      (ApplicationInputs.localStart application) (loadWitness env witness) = witness := by
-  change List.ofFn (fun index : Fin Lifecycle.Stage1.Poseidon2HashChainV1.messageWordCount =>
-    loadWitness env witness (ApplicationInputs.witnessStart + index.val)) = witness
+      (ApplicationInputs.localStart application) (loadWitness application env witness) = witness := by
+  change List.ofFn (fun index : Fin application.witnessWordCount =>
+    loadWitness application env witness (ApplicationInputs.witnessStart + index.val)) = witness
   apply List.ext_get
   · rw [List.length_ofFn, width]
   · intro index leftBound rightBound
@@ -85,25 +85,27 @@ private theorem output_before_witness (index : Lifecycle.Stage1.Application.Stat
 
 private theorem stateValues_loaded (env : Env) (witness : AppWitness) :
     Lifecycle.Stage1.Application.inputState (ApplicationInputs.interface application)
-        (ApplicationInputs.localStart application) (loadWitness env witness) =
+        (ApplicationInputs.localStart application) (loadWitness application env witness) =
       Lifecycle.Stage1.Application.inputState (ApplicationInputs.interface application)
         (ApplicationInputs.localStart application) env ∧
     Lifecycle.Stage1.Application.outputState (ApplicationInputs.interface application)
-        (ApplicationInputs.localStart application) (loadWitness env witness) =
+        (ApplicationInputs.localStart application) (loadWitness application env witness) =
       Lifecycle.Stage1.Application.outputState (ApplicationInputs.interface application)
         (ApplicationInputs.localStart application) env := by
   constructor
   · apply congrArg List.ofFn
     funext index
-    exact loadWitness_agrees env witness _ (Or.inl (input_before_witness index))
+    exact loadWitness_agrees application env witness _ (Or.inl (input_before_witness index))
   · apply congrArg List.ofFn
     funext index
-    exact loadWitness_agrees env witness _ (Or.inl (output_before_witness index))
+    exact loadWitness_agrees application env witness _ (Or.inl (output_before_witness index))
 
 private theorem source_end : ApplicationDirectSource.sourceWidth application =
     Spartan.privateColumnCount + PerApplicationPackage.addedPrivateColumnCount application := by
-  rw [Poseidon2HashChainV1Package.sourceWidth, Poseidon2HashChainV1Package.addedPrivateColumnCount]
-  change Spartan.privateColumnCount + 4 + 5480 = Spartan.privateColumnCount + 5484
+  unfold ApplicationDirectSource.sourceWidth ApplicationPackage.r1csFreshStart
+    PerApplicationPackage.addedPrivateColumnCount PerApplicationPackage.applicationPlan
+  rw [ApplicationPackage.productionPlan_privateCount]
+  change Spartan.privateColumnCount + application.witnessWordCount + _ + _ = _
   omega
 
 private theorem source_bound : ApplicationDirectSource.sourceWidth application ≤
@@ -128,8 +130,8 @@ private theorem sourceCopied_of_built
       SourceCompiler.sourceEnv base (Spartan.privateColumnCount + index.val) =
         built (Spartan.privateColumnCount + index.val) := by
     have bound : Spartan.privateColumnCount + index.val < PiRLCProductPlan.baseSourceWidth application := by
-      apply Nat.lt_of_lt_of_le _ source_bound
-      rw [source_end]
+      apply Nat.lt_of_lt_of_le _ (source_bound application)
+      rw [source_end application]
       exact Nat.add_lt_add_left index.isLt _
     change SourceCompiler.sourceEnv base (⟨Spartan.privateColumnCount + index.val, bound⟩ :
       Fin (PiRLCProductPlan.baseSourceWidth application)).val = _
@@ -137,8 +139,8 @@ private theorem sourceCopied_of_built
     exact PerApplicationSourceAssignment.application_ofCompleted application target suffix index
   have earlier (index : Nat) (below : index < Spartan.privateColumnCount) : SourceCompiler.sourceEnv base index = built index := by
     have bound : index < PiRLCProductPlan.baseSourceWidth application := by
-      apply Nat.lt_of_lt_of_le _ source_bound
-      rw [source_end]
+      apply Nat.lt_of_lt_of_le _ (source_bound application)
+      rw [source_end application]
       exact below.trans_le (Nat.le_add_right _ _)
     change SourceCompiler.sourceEnv base (⟨index, bound⟩ : Fin (PiRLCProductPlan.baseSourceWidth application)).val = _
     rw [SourceCompiler.sourceEnv_at]
@@ -148,7 +150,7 @@ private theorem sourceCopied_of_built
   have inside (index : Nat) (lower : Spartan.privateColumnCount ≤ index)
       (upper : index < ApplicationDirectSource.sourceWidth application) : SourceCompiler.sourceEnv base index = built index := by
     let slot : Fin (PerApplicationPackage.addedPrivateColumnCount application) :=
-      ⟨index - Spartan.privateColumnCount, by rw [source_end] at upper; omega⟩
+      ⟨index - Spartan.privateColumnCount, by rw [source_end application] at upper; omega⟩
     have position : Spartan.privateColumnCount + slot.val = index := Nat.add_sub_of_le lower
     simpa only [position] using insert slot
   intro index support
@@ -158,11 +160,11 @@ private theorem sourceCopied_of_built
   · obtain ⟨position, rfl⟩ := witness
     apply inside
     · exact Nat.le_add_right _ _
-    · rw [source_end]
+    · rw [source_end application]
       have bound := position.isLt
       have fits : application.witnessWordCount ≤ PerApplicationPackage.addedPrivateColumnCount application := by
-        rw [Poseidon2HashChainV1Package.addedPrivateColumnCount]
-        decide
+        unfold PerApplicationPackage.addedPrivateColumnCount
+        exact Nat.le_add_right _ _
       simpa only [ApplicationInputs.witnessColumn, ApplicationInputs.witnessStart] using
         (Nat.add_lt_add_left (bound.trans_le fits) Spartan.privateColumnCount)
   · obtain ⟨position, rfl⟩ := output
@@ -194,7 +196,7 @@ private theorem complete_suffix
       Spartan.pullback target (PilotProduction.outputPreimageStart + index.val) =
         (serializePreimage (publicFits := publicFits) next).getD index.val 0)
     (witness : AppWitness)
-    (width : witness.length = Lifecycle.Stage1.Poseidon2HashChainV1.messageWordCount)
+    (width : witness.length = application.witnessWordCount)
     (step : next.current = application.step prior.current witness) :
     ∃ suffix : Fin (PerApplicationPackage.addedPrivateColumnCount application) → F,
       R1CS.RowsHold (SourceCompiler.sourceEnv (PerApplicationSourceAssignment.ofCompleted application target suffix))
@@ -218,49 +220,61 @@ private theorem complete_suffix
     exact represented_words next nextFixed _ nextWords
   have inputValue := ApplicationInputs.inputState_eq_current application target prior priorFixed priorRepresented
   have outputValue := ApplicationInputs.outputState_eq_current application target next nextFixed nextRepresented
-  let loaded := loadWitness target witness
-  have applicationHolds : Lifecycle.Stage1.Application.Holds application.step
-      (ApplicationInputs.interface application) (ApplicationInputs.localStart application) loaded := by
+  let interface := ApplicationInputs.interface application
+  let localStart := ApplicationInputs.localStart application
+  let loaded := loadWitness application target witness
+  have applicationHolds : Lifecycle.Stage1.Application.Holds application.step interface localStart loaded := by
     change Lifecycle.Stage1.Application.outputState _ _ loaded = application.step
       (Lifecycle.Stage1.Application.inputState _ _ loaded) (Lifecycle.Stage1.Application.witnessValue _ _ loaded)
-    rw [(stateValues_loaded target witness).1, (stateValues_loaded target witness).2,
-      witnessValue_loaded target witness width, inputValue, outputValue]
+    rw [(stateValues_loaded application target witness).1, (stateValues_loaded application target witness).2,
+      witnessValue_loaded application target witness width, inputValue, outputValue]
     exact step
-  obtain ⟨built, agrees, logicalRows⟩ := application.completeness
-    (ApplicationInputs.interface application) (ApplicationInputs.localStart application) loaded
-    (application.assumptions _ _ loaded (ApplicationInputs.externalBelow application)) applicationHolds
-  have physicalRows : R1CS.RowsHold built (ApplicationDirectSource.sourceRows application) := by
-    rw [ApplicationDirectSource.sourceRows, ApplicationPackage.ofProgram_compiledRows_toR1CS,
-      Poseidon2HashChainV1Package.constraints_eq_hashConstraints]
-    exact Layout.Poseidon2.hashPhysical_complete _ _ built _ Poseidon2HashChainV1Package.hashInterface_affine logicalRows
-  have before : ∀ index, index < Spartan.privateColumnCount → built index = target index := by
+  have assumptions := application.assumptions interface localStart loaded
+    (ApplicationInputs.externalBelow application)
+  obtain ⟨built, agrees, logicalRows⟩ :=
+    application.completeness interface localStart loaded assumptions applicationHolds
+  let constraints := ApplicationPackage.constraints application (ApplicationPackage.productionColumns application)
+    localStart
+  let freshStart := ApplicationPackage.r1csFreshStart application
+    (ApplicationPackage.productionColumns application) localStart
+  have scope : ∀ expression ∈ constraints, expression.VarsBelow freshStart :=
+    application.scope interface localStart built (ApplicationInputs.externalBelow application)
+      (application.assumptions interface localStart built (ApplicationInputs.externalBelow application))
+  obtain ⟨lowered, loweredAgrees, loweredRows⟩ :=
+    R1CS.lowerConstraints_complete built constraints freshStart scope logicalRows
+  have physicalRows : R1CS.RowsHold lowered (ApplicationDirectSource.sourceRows application) := by
+    rw [ApplicationDirectSource.sourceRows, ApplicationPackage.ofProgram_compiledRows_toR1CS]
+    exact loweredRows
+  have localBelow : localStart ≤ freshStart := Nat.le_add_right _ _
+  have witnessBelow : ApplicationInputs.witnessStart + application.witnessWordCount = localStart := rfl
+  have before : ∀ index, index < Spartan.privateColumnCount → lowered index = target index := by
     intro index below
-    exact (agrees index (Or.inl (below.trans_le (Nat.le_add_right _ _)))).trans
-      (loadWitness_agrees target witness index (Or.inl below))
+    have belowLocal : index < localStart := by
+      change index < ApplicationInputs.witnessStart + application.witnessWordCount
+      exact below.trans_le (Nat.le_add_right _ _)
+    exact (loweredAgrees index (Or.inl (belowLocal.trans_le localBelow))).trans
+      ((agrees index (Or.inl belowLocal)).trans (loadWitness_agrees application target witness index (Or.inl below)))
   let suffix := fun index : Fin (PerApplicationPackage.addedPrivateColumnCount application) =>
-    built (Spartan.privateColumnCount + index.val)
-  have copied := sourceCopied_of_built target built before
-  refine ⟨suffix, R1CS.rowsHold_of_agree _ _ built _
+    lowered (Spartan.privateColumnCount + index.val)
+  have copied := sourceCopied_of_built application target lowered before
+  refine ⟨suffix, R1CS.rowsHold_of_agree _ _ lowered _
     (ApplicationDirectSource.sourceRows_varsSatisfy application) copied physicalRows, ?_⟩
-  have witnessSame : Lifecycle.Stage1.Application.witnessValue (ApplicationInputs.interface application)
-      (ApplicationInputs.localStart application)
+  have witnessSame : Lifecycle.Stage1.Application.witnessValue interface localStart
       (SourceCompiler.sourceEnv (PerApplicationSourceAssignment.ofCompleted application target suffix)) =
-      Lifecycle.Stage1.Application.witnessValue (ApplicationInputs.interface application)
-        (ApplicationInputs.localStart application) built := by
+      Lifecycle.Stage1.Application.witnessValue interface localStart lowered := by
     apply congrArg List.ofFn
     funext index
     exact copied _ (Or.inr (Or.inl ⟨index, rfl⟩))
   rw [witnessSame]
-  have builtWitness : Lifecycle.Stage1.Application.witnessValue (ApplicationInputs.interface application)
-      (ApplicationInputs.localStart application) built =
-      Lifecycle.Stage1.Application.witnessValue (ApplicationInputs.interface application)
-        (ApplicationInputs.localStart application) loaded := by
+  have loweredWitness : Lifecycle.Stage1.Application.witnessValue interface localStart lowered =
+      Lifecycle.Stage1.Application.witnessValue interface localStart loaded := by
     apply congrArg List.ofFn
     funext index
-    exact agrees _ (Or.inl (by
-      change ApplicationInputs.witnessStart + index.val < ApplicationInputs.witnessStart + application.witnessWordCount
-      exact Nat.add_lt_add_left index.isLt _))
-  exact builtWitness.trans (witnessValue_loaded target witness width)
+    have inside : ApplicationInputs.witnessStart + index.val < localStart := by
+      rw [← witnessBelow]
+      exact Nat.add_lt_add_left index.isLt _
+    exact (loweredAgrees _ (Or.inl (inside.trans_le localBelow))).trans (agrees _ (Or.inl inside))
+  exact loweredWitness.trans (witnessValue_loaded application target witness width)
 
 private theorem outputDigest_of_completed
     (target : Env)
@@ -310,11 +324,12 @@ private theorem outputDigest_of_completed
   exact digestEq.symm
 
 private theorem application_rowsZero_of_source_rows
+    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
     (raw : PerApplicationCanonicalAssignment.RawValues application)
     (rows : R1CS.RowsHold (SourceCompiler.sourceEnv raw.base) (ApplicationDirectSource.sourceRows application)) :
-    (ApplicationDirectPlan.plan Poseidon2HashChainV1Package.fits.package
+    (ApplicationDirectPlan.plan fits.package
       (PerApplicationFixedPoint.geometry application)).RowsZero raw.assignment := by
-  apply (ApplicationDirectPlan.rowsZero_iff_rowsHold Poseidon2HashChainV1Package.fits.package
+  apply (ApplicationDirectPlan.rowsZero_iff_rowsHold fits.package
     (PerApplicationFixedPoint.geometry application) raw.assignment raw.applicationSource
     (PerApplicationCanonicalEncodes.encodes raw).applicationEncoding
     (PerApplicationCanonicalAssignment.assignment_one raw)).2
@@ -328,12 +343,13 @@ private theorem application_rowsZero_of_source_rows
   rw [dif_pos sourceBound]
   exact DirectApplicationPrefixPlan.applicationSource_eq_sourceEnv application raw.base ⟨index, sourceBound⟩
 
-/-- A selected admissible semantic step constructs the physical prefix and
-the selected application suffix from its actual witness. The exact four-word
-witness condition is the selected input ABI also enforced by the Rust encoder.
-All source words and application rows are outputs of the construction. The
-canonical carrier public input is the encoding of the same output digest. -/
+/-- An admissible semantic step of any application constructs the physical
+prefix and the application suffix from its actual witness. The witness width is
+the application's input ABI, also enforced by the Rust encoder. All source words
+and application rows are outputs of the construction. The canonical carrier
+public input is the encoding of the same output digest. -/
 theorem complete
+    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (context : VerifierContext.Digest4)
@@ -352,7 +368,7 @@ theorem complete
     (accepted : Nifs.PaperNonInteractive.verify (ProductionKey.key relation ajtai)
       (input.running functionIndex) input.fresh input.nifsProof = some result)
     (recursiveResult : 0 < input.iteration → result = output.runningNext functionIndex)
-    (witnessWidth : input.witness.length = Lifecycle.Stage1.Poseidon2HashChainV1.messageWordCount) :
+    (witnessWidth : input.witness.length = application.witnessWordCount) :
     let prior := priorHashPreimage (setup relation ajtai context.toList) input
     let next := nextHashPreimage (setup relation ajtai context.toList) input output
     let values := PiCCSProofReadback.ofProof (input.fresh.commitments ⟨0, by decide⟩) input.nifsProof
@@ -382,16 +398,16 @@ theorem complete
       raw.outputDigest = output.x ∧
       Phi81Relation.projectPublicInput raw.completeAssignment =
         encHash (publicFits := PerApplicationFixedPoint.publicFits application) output.x ∧
-      (ApplicationDirectPlan.plan Poseidon2HashChainV1Package.fits.package
+      (ApplicationDirectPlan.plan fits.package
         (PerApplicationFixedPoint.geometry application)).RowsZero raw.assignment := by
   obtain ⟨digestFixed, target, constant, physical, nextRows, nifsOutput, sources, priorWords, nextWords⟩ :=
-    StepPhysicalCompleteness.complete relation ajtai context input output result step priorWellFormed nextWellFormed
-      freshPublic accepted recursiveResult
-  obtain ⟨suffix, applicationRows, actualWitness⟩ := complete_suffix target
+    StepPhysicalCompleteness.complete relation ajtai context input output result application step
+      priorWellFormed nextWellFormed freshPublic accepted recursiveResult
+  obtain ⟨suffix, applicationRows, actualWitness⟩ := complete_suffix application target
     (priorHashPreimage (setup relation ajtai context.toList) input)
     (nextHashPreimage (setup relation ajtai context.toList) input output)
     priorWellFormed.1 nextWellFormed.1 priorWords nextWords input.witness witnessWidth step.2.1
-  have outputDigest := outputDigest_of_completed target suffix
+  have outputDigest := outputDigest_of_completed application target suffix
     (priorHashPreimage (setup relation ajtai context.toList) input)
     (nextHashPreimage (setup relation ajtai context.toList) input output)
     output.x priorWellFormed.1 nextWellFormed.1 digestFixed
@@ -401,7 +417,7 @@ theorem complete
     (PerApplicationAssignmentTransportExecution.canonicalRawValues application
       (PerApplicationSourceAssignment.ofCompleted application target suffix))
   rw [outputDigest] at publicInput
-  have applicationPlanRows := application_rowsZero_of_source_rows
+  have applicationPlanRows := application_rowsZero_of_source_rows application fits
     (PerApplicationAssignmentTransportExecution.canonicalRawValues application
       (PerApplicationSourceAssignment.ofCompleted application target suffix)) applicationRows
   exact ⟨digestFixed, target, suffix, constant, physical, nextRows, nifsOutput, sources,

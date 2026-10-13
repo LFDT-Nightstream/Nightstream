@@ -32,6 +32,11 @@ circuits without change.
 - Claim: `Cost.lean`, `layer1_sound`. An accepted transcript has a P0
   candidate that is a CE(B) witness (`Model.lean`, `Relation`), except with
   probability `layer1Error`. `Budget.lean` bounds it at production sizes.
+- Fiat–Shamir: `Restoration.lean` lets the prover ask for challenges at any
+  node, as often as it wants, and output one path that uses only answers it
+  got. `FiatShamir.lean` bounds layer 1 there by `queries · layer1Error`.
+  The step from Poseidon2 to this experiment (random oracle, injective
+  transcript encoding) is assumed.
 - Stage order (`Stages.lean`): early (norm, row lookup, slot scatter, GKR),
   linear (ring rows at `λ`, `ζ`, two sum-checks), honest fold (setup
   partials, `α`, setup queries), late (block scatter, GKR).

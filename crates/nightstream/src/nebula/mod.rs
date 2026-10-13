@@ -19,7 +19,8 @@ use p3_goldilocks::Goldilocks as F;
 pub use carry::{Carry, Products};
 pub use machine::MachineState;
 pub use plan::Plan;
-pub use segment::{Cell, Context, Invocation, Segment, SegmentError, Step};
+use segment::Cell;
+pub use segment::{Context, Invocation, SegmentError, Step};
 pub use transcript::{state_words, Digest};
 
 /// A Lean-emitted memory package: the plan that it proves and its pinned
@@ -41,8 +42,16 @@ impl Package {
         }
     }
 
-    /// The identifier that `Circuit::load_package` requires of the package bytes.
-    pub fn structural_identifier(self) -> [u64; 4] {
+    /// Load the package's circuit from its bytes. `Circuit::load_package`
+    /// recomputes the structural identifier and requires the package's pin.
+    pub fn load(self, bytes: &[u8]) -> Result<PackageCircuit, crate::Error> {
+        Ok(PackageCircuit {
+            package: self,
+            circuit: crate::Circuit::load_package(bytes, self.structural_identifier())?,
+        })
+    }
+
+    fn structural_identifier(self) -> [u64; 4] {
         match self {
             Package::V1 => [
                 7606418978967494273,
@@ -87,11 +96,22 @@ pub enum TerminalError {
     Field,
 }
 
-/// Why a memory verifier cannot be built, or a memory proof does not verify.
+/// The circuit of a memory package, which only `Package::load` builds. The
+/// memory prover and the memory verifier share it.
+pub struct PackageCircuit {
+    package: Package,
+    circuit: crate::Circuit,
+}
+
+impl PackageCircuit {
+    pub fn prover(&self, engine: crate::Engine, minimum_security_bits: u32) -> Result<crate::Prover, crate::Error> {
+        self.circuit.prover(engine, minimum_security_bits)
+    }
+}
+
+/// Why a memory proof does not verify.
 #[derive(Debug, thiserror::Error)]
 pub enum VerifyError {
-    #[error("the circuit is not the package as `Circuit::load_package` loaded it")]
-    Package,
     #[error(transparent)]
     Terminal(#[from] TerminalError),
     #[error(transparent)]
@@ -106,21 +126,15 @@ pub struct Verifier {
 }
 
 impl Verifier {
-    /// The verifier of `package` over `circuit`, which must be that package as
-    /// `Circuit::load_package` loaded it: only that path recomputes the
-    /// structural identifier from the bytes. A prover may share the circuit.
+    /// The verifier of a loaded package. It may share the prover's circuit.
     pub fn new(
-        package: Package,
-        circuit: &crate::Circuit,
+        circuit: &PackageCircuit,
         engine: crate::Engine,
         minimum_security_bits: u32,
-    ) -> Result<Self, VerifyError> {
-        if circuit.lean_package_identifier() != Some(package.structural_identifier()) {
-            return Err(VerifyError::Package);
-        }
+    ) -> Result<Self, crate::Error> {
         Ok(Self {
-            context: Context::new(package),
-            stage1: crate::Verifier::from_package(circuit, engine, minimum_security_bits)?,
+            context: Context::new(circuit.package),
+            stage1: crate::Verifier::from_package(&circuit.circuit, engine, minimum_security_bits)?,
         })
     }
 

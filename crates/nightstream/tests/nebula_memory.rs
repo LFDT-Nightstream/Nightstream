@@ -135,18 +135,15 @@ fn package(name: &str) -> Vec<u8> {
     .expect("saved Lean memory package")
 }
 
-/// A memory verifier accepts only its own package: the second package's
-/// circuit is not the first package.
+/// A package loads only from its own bytes: the second package's bytes fail
+/// as the first package at the pinned structural identifier.
 #[test]
-fn memory_verifier_rejects_another_package() {
-    let circuit = nightstream::Circuit::load_package(
-        &package("nightstream-fprime-stage2-nebula-memory-n1.json"),
-        Package::N1.structural_identifier(),
-    )
-    .unwrap();
+fn package_loads_only_its_own_bytes() {
     assert!(matches!(
-        nightstream::nebula::Verifier::new(Package::V1, &circuit, nightstream::Engine::Optimized, 114),
-        Err(nightstream::nebula::VerifyError::Package)
+        Package::V1.load(&package("nightstream-fprime-stage2-nebula-memory-n1.json")),
+        Err(nightstream::Error::Package(
+            nightstream_fprime::PackageError::ExpectedIdentityMismatch { .. }
+        ))
     ));
 }
 
@@ -183,14 +180,11 @@ fn n1_native_run_reaches_every_counter_maximum() {
 /// The spec §14 accept cases of the second plan through the memory verifier:
 /// `N = 1`, and `S = S_max` with every counter at its largest value.
 fn n1_accept(engine: nightstream::Engine) {
-    use nightstream::{nebula, Circuit};
-    let circuit = Circuit::load_package(
-        &package("nightstream-fprime-stage2-nebula-memory-n1.json"),
-        Package::N1.structural_identifier(),
-    )
-    .expect("pinned memory package");
+    let circuit = Package::N1
+        .load(&package("nightstream-fprime-stage2-nebula-memory-n1.json"))
+        .expect("pinned memory package");
     let prover = circuit.prover(engine, 114).unwrap();
-    let verifier = nebula::Verifier::new(Package::N1, &circuit, engine, 114).unwrap();
+    let verifier = nightstream::nebula::Verifier::new(&circuit, engine, 114).unwrap();
     let mut run = n1_run();
     let z0 = run.initial_state();
     let mut proof: Option<nightstream::Proof> = None;
@@ -229,12 +223,12 @@ fn n1_accept_on_metal() {
 /// segment and reads it in the second, and ends with an idle segment.
 fn memory_conformance(engine: nightstream::Engine) {
     use nightstream::nebula::{self, VerifyError};
-    use nightstream::Circuit;
     let started = std::time::Instant::now();
-    let circuit =
-        Circuit::load_package(&memory_package(), Package::V1.structural_identifier()).expect("pinned memory package");
+    let circuit = Package::V1
+        .load(&memory_package())
+        .expect("pinned memory package");
     let prover = circuit.prover(engine, 114).unwrap();
-    let verifier = nebula::Verifier::new(Package::V1, &circuit, engine, 114).unwrap();
+    let verifier = nebula::Verifier::new(&circuit, engine, 114).unwrap();
     eprintln!("memory preparation elapsed={:?}", started.elapsed());
 
     let mut run = program_run();

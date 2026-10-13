@@ -2,10 +2,8 @@
 //! Mirrors `Spec/Nebula/Plan.lean`; `FirstPlan.lean` and `SecondPlan.lean` own the
 //! package plans.
 
-/// Spec §4.1 `NebulaPlan`. Images hold 32-bit words. Only `Package::plan`
-/// builds one outside this crate.
+/// Spec §4.1 `NebulaPlan`. Images hold 32-bit words.
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[non_exhaustive]
 pub struct Plan {
     pub r: usize,
     pub mu: usize,

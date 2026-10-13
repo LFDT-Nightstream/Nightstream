@@ -13,6 +13,7 @@ mod whir;
 mod whir_verify;
 
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use neo_ajtai::nightstream_fprime_setup::{coefficient_block, PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS};
@@ -57,12 +58,15 @@ pub(super) fn gkr_verify(proof: &GkrProof, shapes: &[TreeShape]) -> Result<Vec<T
     crate::gkr::verify(b, &view, shapes, &mut duplex)
 }
 
-/// A scratch directory removed on drop.
+/// A scratch directory removed on drop. Every value owns its own directory, so
+/// parallel tests that pass one name do not delete each other's files.
 pub(super) struct Scratch(pub(super) PathBuf);
 
 impl Scratch {
     pub(super) fn new(name: &str) -> Self {
-        let dir = std::env::temp_dir().join(format!("neo-spartan-{name}-{}", std::process::id()));
+        static NEXT: AtomicUsize = AtomicUsize::new(0);
+        let id = NEXT.fetch_add(1, Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!("neo-spartan-{name}-{}-{id}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         Self(dir)
     }

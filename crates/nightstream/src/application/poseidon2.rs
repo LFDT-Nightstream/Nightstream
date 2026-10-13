@@ -102,7 +102,9 @@ fn full_round(
     Ok(())
 }
 
-fn permutation(
+/// One Poseidon2 permutation of `state`: 1096 generated variables in the
+/// order of `Gadgets/Poseidon2/Permutation.lean`.
+pub(crate) fn permutation(
     builder: &mut ApplicationBuilder,
     state: [Affine; WIDTH],
     constants: &Poseidon2RoundConstants,

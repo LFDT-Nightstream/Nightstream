@@ -68,7 +68,7 @@ fn header_tag(lane: Lane) -> &'static str {
     }
 }
 
-fn chain_tag(lane: Lane) -> &'static str {
+pub(super) fn chain_tag(lane: Lane) -> &'static str {
     match lane {
         Lane::Ops => "Nightstream/Nebula/v3/chain-ops",
         Lane::Mem => "Nightstream/Nebula/v3/chain-mem",

@@ -141,6 +141,19 @@ impl ApplicationBuilder {
         self.equality_row(left, right).map(|_| ())
     }
 
+    /// The row `a · b = c` as given, with no generated variable. A circuit
+    /// that mirrors a Lean lowering row by row uses it; it returns the row.
+    pub(crate) fn constrain(&mut self, a: Affine, b: Affine, c: Affine) -> Result<usize, ApplicationError> {
+        for form in [&a, &b, &c] {
+            self.validate(form, false)?;
+        }
+        self.append_row(&R1csRow {
+            a: a.compact_shared(),
+            b: b.compact_shared(),
+            c: c.compact_shared(),
+        })
+    }
+
     fn equality_row(&mut self, left: Affine, right: Affine) -> Result<OutputRow, ApplicationError> {
         self.validate(&left, false)?;
         self.validate(&right, false)?;
@@ -211,12 +224,25 @@ impl ApplicationBuilder {
         for ((slot, expression), output) in output_rows.iter_mut().zip(outputs).zip(self.output_state()) {
             *slot = self.equality_row(expression, output.into())?;
         }
+        self.into_circuit(output_rows)
+    }
+
+    /// Finish when `rows` already bind the output state: row `rows[k]` is
+    /// `output_k · 1 = value`, the `equality_row` shape with the value on C.
+    pub(crate) fn finish_with_output_rows(self, rows: [usize; 4]) -> Result<ApplicationCircuit, ApplicationError> {
+        self.into_circuit(rows.map(|row| OutputRow {
+            row,
+            form: ApplicationForm::C,
+        }))
+    }
+
+    fn into_circuit(self, outputs: [OutputRow; 4]) -> Result<ApplicationCircuit, ApplicationError> {
         Ok(ApplicationCircuit {
             private_inputs: self.private_inputs.into(),
             generated_start: self.generated_start,
             variable_count: self.variable_count,
             records: Arc::new(self.records.finish()?),
-            outputs: output_rows,
+            outputs,
         })
     }
 }

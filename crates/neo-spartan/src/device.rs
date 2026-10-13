@@ -42,9 +42,11 @@ pub trait Device: Send + Sync {
     /// The DFT of every column of the row-major matrix `values` of `width`
     /// columns, in place: row `k` becomes `Σ_i row_i·ω^{ik}` with `ω` =
     /// `generator` of order the row count (a power of two). Inputs may be
-    /// non-canonical; outputs are canonical. `false` when the device did not
-    /// run it, with `values` unchanged: the caller runs it on the CPU.
-    fn dft_columns(&self, values: &mut [u64], width: usize, generator: u64) -> bool;
+    /// non-canonical; outputs are canonical. `Ok(false)` when the device did
+    /// not run it, with `values` unchanged: the caller runs it on the CPU.
+    /// `Err` when it failed after it started: `values` are undefined and the
+    /// proof fails.
+    fn dft_columns(&self, values: &mut [u64], width: usize, generator: u64) -> Result<bool, String>;
 
     /// The rounds of one GKR layer over the caller's tables, in place: per
     /// tree its parts (at most two factors, then the denominator; `4·n`
@@ -57,13 +59,13 @@ pub trait Device: Send + Sync {
 
 /// The rounds of one batched fraction-sum GKR layer on a device
 /// (`gkr::prove` draws every challenge). Values are cubic-extension elements
-/// as three base words. A device failure here is a panic: the transcript has
-/// moved on, so no CPU fallback can resume.
+/// as three base words. A device failure here fails the proof: the
+/// transcript has moved on, so no CPU fallback can resume.
 pub trait GkrLayer {
     /// The round message at nodes `0, 2, ..., degree`, one weight per tree.
-    fn message(&mut self, weights: &[[u64; 3]], mu: [u64; 3], degree: usize) -> Vec<[u64; 3]>;
+    fn message(&mut self, weights: &[[u64; 3]], mu: [u64; 3], degree: usize) -> Result<Vec<[u64; 3]>, String>;
     /// Bind the lowest variable of every table and the eq table to `r`.
-    fn fold(&mut self, r: [u64; 3]);
+    fn fold(&mut self, r: [u64; 3]) -> Result<(), String>;
 }
 
 /// The prover's device, or none: the CPU.

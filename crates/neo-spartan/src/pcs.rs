@@ -5,6 +5,8 @@
 //! comes from the caller; a `Profile` holds performance choices, not
 //! security parameters. Plonky3 0.8 PCS types do not leave this file.
 
+use std::sync::{Arc, OnceLock};
+
 use p3_commit_v08::MultilinearPcs;
 use p3_dft_v08::{Radix2DFTSmallBatch, TwoAdicSubgroupDft};
 use p3_field_v08::{PrimeCharacteristicRing, PrimeField64, TwoAdicField};
@@ -80,12 +82,16 @@ pub(crate) struct TablePlan {
 }
 
 /// The DFT of the WHIR provers: on the accelerator's device when it runs
-/// it, otherwise Plonky3's. Both give the same evaluations.
+/// it, otherwise Plonky3's. Both give the same evaluations. Plonky3's DFT
+/// returns no error, so a device failure is recorded here and fails the
+/// commitment or opening that ran it (`check`).
 #[derive(Clone, Default)]
 pub(crate) struct Dft {
     /// Shares its twiddle cache with every clone.
     cpu: Radix2DFTSmallBatch<Gl>,
     accelerator: Accelerator,
+    /// The first device failure, shared with every clone of one prover.
+    failure: Arc<OnceLock<String>>,
 }
 
 impl Dft {
@@ -93,7 +99,15 @@ impl Dft {
         Self {
             cpu: self.cpu.clone(),
             accelerator: accelerator.clone(),
+            failure: Arc::default(),
         }
+    }
+
+    /// Fail when the device failed during a DFT of this prover.
+    fn check(&self) -> Result<(), Error> {
+        self.failure
+            .get()
+            .map_or(Ok(()), |reason| Err(Error::Device(reason.clone())))
     }
 }
 
@@ -109,8 +123,13 @@ impl TwoAdicSubgroupDft<Gl> for Dft {
             let words = unsafe {
                 std::slice::from_raw_parts_mut(matrix.values.as_mut_ptr().cast::<u64>(), matrix.values.len())
             };
-            if device.dft_columns(words, width, generator) {
-                return matrix;
+            match device.dft_columns(words, width, generator) {
+                Ok(true) => return matrix,
+                Ok(false) => {}
+                Err(reason) => {
+                    let _ = self.failure.set(reason);
+                    return matrix;
+                }
             }
         }
         self.cpu.dft_batch(matrix).to_row_major_matrix()
@@ -225,9 +244,11 @@ impl Pcs {
             .to_vec()
     }
 
-    /// The prover instance whose DFTs and Merkle trees run on `accelerator`.
-    fn prover(&self, accelerator: &Accelerator) -> Whir {
-        Whir::new(self.config.clone(), self.dft.on(accelerator), Mmcs::new(accelerator))
+    /// The prover instance whose DFTs and Merkle trees run on `accelerator`,
+    /// and its DFT, to check for a device failure.
+    fn prover(&self, accelerator: &Accelerator) -> (Whir, Dft) {
+        let dft = self.dft.on(accelerator);
+        (Whir::new(self.config.clone(), dft.clone(), Mmcs::new(accelerator)), dft)
     }
 
     /// Commit to `tables` (each its columns one after another, low index bit
@@ -237,7 +258,7 @@ impl Pcs {
         tables: Vec<Vec<Gl>>,
         challenger: &mut Challenger,
         accelerator: &Accelerator,
-    ) -> (Commitment, ProverData) {
+    ) -> Result<(Commitment, ProverData), Error> {
         assert_eq!(tables.len(), self.plans.len());
         let tables = tables
             .into_iter()
@@ -248,9 +269,12 @@ impl Pcs {
             })
             .collect();
         let witness = Layout::new_witness(tables, self.profile.first_folding);
-        self.prover(accelerator)
+        let (whir, dft) = self.prover(accelerator);
+        let committed = whir
             .commit(witness, challenger)
-            .expect("the configuration fixes the witness size")
+            .expect("the configuration fixes the witness size");
+        dft.check()?;
+        Ok(committed)
     }
 
     /// Plonky3's own root binding: the shrink layer's, and the reference for
@@ -267,11 +291,14 @@ impl Pcs {
         points: &[Vec<Ext>],
         challenger: &mut Challenger,
         accelerator: &Accelerator,
-    ) -> Opening {
+    ) -> Result<Opening, Error> {
         let points = self.p3_points(points);
-        self.prover(accelerator)
+        let (whir, dft) = self.prover(accelerator);
+        let opening = whir
             .open_at(data, &self.protocol, &points, challenger)
-            .expect("the plan fixes the claims")
+            .expect("the plan fixes the claims");
+        dft.check()?;
+        Ok(opening)
     }
 
     /// Plonky3's own verifier, the opened columns' values per batch if the

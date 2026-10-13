@@ -384,6 +384,22 @@ impl LoadedPackage {
         None
     }
 
+    /// The private inputs of `execute_witness` that hold the prior state
+    /// preimage, or `None` when no caller input segment has that role.
+    pub fn prior_preimage_inputs(&self) -> Option<std::ops::Range<usize>> {
+        let mut offset = 0;
+        for segment in &self.layout.private_segments {
+            if v1_1::is_witness_role(segment.role) {
+                continue;
+            }
+            if segment.role == v1_1::PRIOR_PREIMAGE_ROLE {
+                return Some(offset..offset + segment.length);
+            }
+            offset += segment.length;
+        }
+        None
+    }
+
     pub fn public_column_count(&self) -> usize {
         self.layout.public_column_count
     }

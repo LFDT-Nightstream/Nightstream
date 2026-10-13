@@ -19,7 +19,7 @@ use nightstream_fprime::{
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use serde::{Deserialize, Serialize};
 
-use super::terminal::{self, FinalProgram, Package};
+use super::terminal::{self, FinalProgram, Package, TerminalPackageError};
 use super::{
     encode_pi_ccs_v1_1_public_input, extend::prepare_running, pi_ccs_v1_1_prior_children, PiCcsV1_1ProofInputs,
     PreparedLifecycle, ProofCodecError, ProveError, Stage1Envelope, Stage1State, StepInputError, VerifyError,
@@ -93,7 +93,8 @@ impl FinalProof {
 
 /// The verifier's trusted constants of one circuit's compression: the
 /// layer-1 key, the constants the final program replays, and the shrink
-/// shape. A verifier needs nothing else. Authority: derived from the circuit
+/// shape. `Verifier::verify_final` checks it against the circuit before it
+/// checks a proof with it. Authority: derived from the circuit
 /// (`Verifier::compression_key`) or a pinned copy. Never take a key from a
 /// prover.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -114,12 +115,16 @@ impl CompressionKey {
         bincode::serialize(self).expect("an in-memory key always encodes")
     }
 
-    /// Strict: the bytes must be the canonical encoding of the decoded key.
+    /// Strict: the bytes must be the canonical encoding of a well-formed
+    /// key.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, ProofCodecError> {
         let key: Self = bincode::deserialize(bytes).map_err(|_| ProofCodecError("compression key"))?;
         if key.to_bytes() != bytes {
             return Err(ProofCodecError("non-canonical compression key"));
         }
+        key.layer1
+            .check()
+            .map_err(|_| ProofCodecError("compression key structure"))?;
         Ok(key)
     }
 
@@ -135,7 +140,7 @@ impl CompressionKey {
             ));
         }
         let relation = self.relation().map_err(VerifyError::Final)?;
-        let package = terminal::package().map_err(VerifyError::Final)?;
+        let package = terminal::package()?;
         let program = self.program(&relation, package, expected_state, None);
         let shrink = Shrink::new(self.shape, self.layer_bits).map_err(VerifyError::Final)?;
         shrink::verify(&shrink, &program, &proof.shrink).map_err(VerifyError::Final)
@@ -181,10 +186,13 @@ impl CompressionSetup {
     }
 }
 
+/// A compression call failed: the setup, the key or a finish.
 #[derive(Debug, thiserror::Error)]
-pub enum FinishError {
+pub enum CompressionError {
     #[error("compression input: {0}")]
     Input(&'static str),
+    #[error("compression key: {0}")]
+    Key(&'static str),
     #[error(transparent)]
     StepInputs(#[from] StepInputError),
     #[error("prior running claims are not a canonical PiDEC child family: {0}")]
@@ -194,9 +202,11 @@ pub enum FinishError {
     #[error(transparent)]
     Package(#[from] PackageError),
     #[error(transparent)]
+    TerminalPackage(#[from] TerminalPackageError),
+    #[error(transparent)]
     Fold(#[from] nifs::Error),
     #[error(transparent)]
-    Compression(#[from] neo_spartan::Error),
+    Layer1(#[from] neo_spartan::Error),
 }
 
 /// The last fold of an active proof, stopped before Π_DEC.
@@ -218,7 +228,9 @@ impl PreparedLifecycle {
         &self,
         envelope: &Stage1Envelope,
         setup: &CompressionSetup,
-    ) -> Result<FinalProof, FinishError> {
+    ) -> Result<FinalProof, CompressionError> {
+        self.check_compression_key(&setup.key)
+            .map_err(CompressionError::Key)?;
         // The package loads while the last fold and layer 1 run.
         terminal::preload();
         let last = self.last_fold(envelope)?;
@@ -246,18 +258,18 @@ impl PreparedLifecycle {
     }
 
     /// Run PiCCS and PiRLC on the running and fresh claims of `envelope`.
-    pub(crate) fn last_fold(&self, envelope: &Stage1Envelope) -> Result<LastFold, FinishError> {
+    pub(crate) fn last_fold(&self, envelope: &Stage1Envelope) -> Result<LastFold, CompressionError> {
         let state = envelope.state().clone();
         let (mut running, mut fresh) = match (envelope.running(), envelope.fresh()) {
             (Some(running), Some(fresh)) => (running.clone(), fresh.clone()),
-            _ => return Err(FinishError::Input("an initial proof has no fold to finish")),
+            _ => return Err(CompressionError::Input("an initial proof has no fold to finish")),
         };
         // The state hash reads only the claims; the witnesses go into the fold.
         let semantic = running.claims_only();
         let (_, digest) = self.checked_prior_state(&state, &semantic, &fresh.claim)?;
         prepare_running(&mut running, &self.params, digest);
         nifs::validate_running_parent_authority(&self.params, &self.structure, ajtai_dec_mixer, &running)
-            .map_err(FinishError::PriorFamily)?;
+            .map_err(CompressionError::PriorFamily)?;
         // The complete Z opening is the source; w is a redundant cache.
         fresh.witness.w.clear();
         self.validate_prover_sources(std::slice::from_ref(&fresh), &running)?;
@@ -325,20 +337,29 @@ impl PreparedLifecycle {
         )
     }
 
-    /// The key of this circuit for the layer-1 key `layer1`: the final
-    /// program's constants and the shape of one run of it.
-    fn compression_key_for(&self, layer1: neo_spartan::Key) -> Result<CompressionKey, neo_spartan::Error> {
-        let layer_bits = self
-            .compression_layer_bits()
-            .ok_or(neo_spartan::Error::Setup(
-                "the fold error leaves no room under the security minimum",
-            ))?;
+    /// The cheap part of a compression key, checked before any setup work:
+    /// the security budget and the terminal package against this circuit.
+    fn compression_constants(&self) -> Result<(f64, &'static Package), CompressionError> {
+        let layer_bits = self.compression_layer_bits().ok_or(CompressionError::Key(
+            "the fold error leaves no room under the security minimum",
+        ))?;
         let package = terminal::package()?;
         if !package.checks(&self.structure.f) {
-            return Err(neo_spartan::Error::Setup(
+            return Err(CompressionError::Key(
                 "the terminal package checks another CCS polynomial",
             ));
         }
+        Ok((layer_bits, package))
+    }
+
+    /// The key of this circuit for the layer-1 key `layer1`: the final
+    /// program's constants and the shape of one run of it.
+    fn compression_key_for(
+        &self,
+        layer1: neo_spartan::Key,
+        layer_bits: f64,
+        package: &Package,
+    ) -> Result<CompressionKey, CompressionError> {
         let mut key = CompressionKey {
             layer1,
             context: self.binding.verifier_context().digest(),
@@ -356,18 +377,21 @@ impl PreparedLifecycle {
     }
 
     /// Write the compression setup files of this circuit into `dir`.
-    pub(crate) fn compression_setup(&self, dir: &std::path::Path) -> Result<CompressionSetup, FinishError> {
+    pub(crate) fn compression_setup(&self, dir: &std::path::Path) -> Result<CompressionSetup, CompressionError> {
+        let (layer_bits, package) = self.compression_constants()?;
         let layer1 = neo_spartan::Setup::build(&self.matrix_rows(), dir)?;
-        let key = self.compression_key_for(layer1.key().clone())?;
+        let key = self.compression_key_for(layer1.key().clone(), layer_bits, package)?;
         Ok(CompressionSetup { layer1, key })
     }
 
-    /// Reopen setup files written for `key`.
+    /// Reopen setup files written for `key`, which must be this circuit's.
     pub(crate) fn open_compression_setup(
         &self,
         dir: &std::path::Path,
         key: &CompressionKey,
-    ) -> Result<CompressionSetup, FinishError> {
+    ) -> Result<CompressionSetup, CompressionError> {
+        self.check_compression_key(key)
+            .map_err(CompressionError::Key)?;
         let layer1 = neo_spartan::Setup::open(&self.matrix_rows(), dir, &key.layer1)?;
         Ok(CompressionSetup {
             layer1,
@@ -376,24 +400,28 @@ impl PreparedLifecycle {
     }
 
     /// Derive the compression key from the package, without files.
-    pub(crate) fn compression_key(&self) -> Result<CompressionKey, FinishError> {
-        Ok(self.compression_key_for(neo_spartan::Key::derive(&self.matrix_rows())?)?)
+    pub(crate) fn compression_key(&self) -> Result<CompressionKey, CompressionError> {
+        let (layer_bits, package) = self.compression_constants()?;
+        let layer1 = neo_spartan::Key::derive(&self.matrix_rows())?;
+        self.compression_key_for(layer1, layer_bits, package)
     }
 
-    /// Refuse a compression key of another circuit or guard bound, or one
-    /// below this circuit's security minimum. The key's setup root is the
-    /// caller's trust: a key it derived (`compression_key`) or pinned.
-    pub(crate) fn check_compression_key(&self, key: &CompressionKey) -> Result<(), VerifyError> {
-        if key.context != self.binding.verifier_context().digest() || key.bound != self.compression_bound() {
-            return Err(VerifyError::Statement("the compression key belongs to another circuit"));
+    /// Refuse a compression key of another circuit, guard bound or matrix
+    /// size, or one below this circuit's security minimum. The key's setup
+    /// root is the caller's trust: a key it derived (`compression_key`) or
+    /// pinned.
+    pub(crate) fn check_compression_key(&self, key: &CompressionKey) -> Result<(), &'static str> {
+        if key.context != self.binding.verifier_context().digest()
+            || key.bound != self.compression_bound()
+            || !key.layer1.fits(&self.matrix_rows())
+        {
+            return Err("the compression key belongs to another circuit");
         }
         if self
             .compression_layer_bits()
             .is_none_or(|bits| key.layer_bits < bits)
         {
-            return Err(VerifyError::Statement(
-                "the compression key is below this verifier's security minimum",
-            ));
+            return Err("the compression key is below this circuit's security minimum");
         }
         Ok(())
     }

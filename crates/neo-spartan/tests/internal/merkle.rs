@@ -52,8 +52,8 @@ impl Device for Reference {
         None
     }
 
-    fn dft_columns(&self, _values: &mut [u64], _width: usize, _generator: u64) -> bool {
-        false
+    fn dft_columns(&self, _values: &mut [u64], _width: usize, _generator: u64) -> Result<bool, String> {
+        Ok(false)
     }
 
     fn gkr_layer<'a>(

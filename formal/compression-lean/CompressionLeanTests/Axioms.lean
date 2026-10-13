@@ -66,12 +66,11 @@ import CompressionLean
 #audit_axioms CompressionLean.Layer1.lateGame_cost
 #audit_axioms CompressionLean.Layer1.layer1Game_cost
 #audit_axioms CompressionLean.Layer1.layer1_sound
-#audit_axioms CompressionLean.Layer1.layer1Count_le
-#audit_axioms CompressionLean.Layer1.production_error
-#audit_axioms CompressionLean.Layer1.production_budget
+#audit_axioms CompressionLean.Layer1.layer1Count_le_rust
+#audit_axioms CompressionLean.Layer1.layer1_budget
 #audit_axioms CompressionLean.Layer1.Game.restore_sound
 #audit_axioms CompressionLean.Layer1.layer1_restore_sound
-#audit_axioms CompressionLean.Layer1.production_restore
+#audit_axioms CompressionLean.Layer1.layer1_restore_budget
 #audit_axioms CompressionLean.Layer1.mle_identity
 #audit_axioms CompressionLean.Layer1.lessThan_eq
 #audit_axioms CompressionLean.Layer1.step_eq

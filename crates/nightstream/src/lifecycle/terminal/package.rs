@@ -24,9 +24,9 @@ use nightstream_fprime::{
 };
 use p3_field::PrimeField64;
 
-use super::super::inputs::state_domain_words;
+use super::super::inputs::{state_domain_words, STATE_CONTEXT_START, STATE_STATEMENT_WORDS};
 
-const ARTIFACT: &[u8] = include_bytes!("../../../../../formal/compression-lean/artifacts/compression-terminal-v1.json");
+const ARTIFACT: &[u8] = include_bytes!("../../../artifacts/compression-terminal-v1.json");
 
 /// The identifier of the embedded artifact.
 pub(crate) const IDENTIFIER: [u64; 4] = [
@@ -36,10 +36,6 @@ pub(crate) const IDENTIFIER: [u64; 4] = [
     4_459_281_972_164_541_863,
 ];
 
-/// The words that close the prior preimage: context (4), iteration, `z0`
-/// (4) and the current state (4).
-const STATEMENT_WORDS: usize = 9;
-const CONTEXT_START: usize = PI_CCS_V1_1_STATE_PREIMAGE_WORDS - STATEMENT_WORDS - 4;
 /// The public inputs: the prior public input, the output digest, the context.
 const PUBLIC_CONTEXT_START: usize = PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS + 4;
 
@@ -73,17 +69,28 @@ pub(crate) fn preload() {
     });
 }
 
+/// The embedded package does not load; the text is the loader's reason.
+#[derive(Clone, Debug, thiserror::Error)]
+#[error("the terminal package does not load: {0}")]
+pub struct TerminalPackageError(String);
+
 /// The embedded package, loaded once.
-pub(crate) fn package() -> Result<&'static Package, Error> {
-    static PACKAGE: OnceLock<Result<Package, String>> = OnceLock::new();
+pub(crate) fn package() -> Result<&'static Package, TerminalPackageError> {
+    static PACKAGE: OnceLock<Result<Package, TerminalPackageError>> = OnceLock::new();
     PACKAGE
-        .get_or_init(|| load().map_err(|error| error.to_string()))
+        .get_or_init(|| load().map_err(|error| TerminalPackageError(error.to_string())))
         .as_ref()
-        .map_err(|_| Error::Setup("the terminal package does not load"))
+        .map_err(Clone::clone)
 }
 
 fn load() -> Result<Package, PackageError> {
     let (loaded, outputs) = load_terminal_package(ARTIFACT, IDENTIFIER)?;
+    // `apply` reads the first caller inputs as the prior state preimage.
+    if loaded.prior_preimage_inputs() != Some(0..PI_CCS_V1_1_STATE_PREIMAGE_WORDS) {
+        return Err(PackageError::Invalid(
+            "the prior state preimage is not the first caller input",
+        ));
+    }
     let matrices = loaded.ordered_r1cs()?;
     let sides = [matrices.a(), matrices.b(), matrices.c()];
     let total = loaded.total_column_count();
@@ -176,7 +183,7 @@ impl Package {
         context: [u64; 4],
         inputs: Option<&PiCcsV1_1EncodedInputs>,
     ) -> Result<(ClaimWords<B::F>, FoldTranscript<B>), Error> {
-        assert_eq!(statement.len(), STATEMENT_WORDS);
+        assert_eq!(statement.len(), STATE_STATEMENT_WORDS);
         let computed = b.hint(&[], self.computed.len(), &|_| self.execute(inputs));
         let domain = state_domain_words();
         let private = |index: usize| inputs.map_or(0, |inputs| inputs.private_values()[index]);
@@ -187,11 +194,13 @@ impl Package {
             .map(|&source| match source {
                 Source::One => b.constant(1),
                 Source::Private(index) if index < domain.len() => b.constant(domain[index]),
-                Source::Private(index) if (CONTEXT_START..CONTEXT_START + 4).contains(&index) => {
-                    b.constant(context[index - CONTEXT_START])
+                Source::Private(index) if (STATE_CONTEXT_START..STATE_CONTEXT_START + 4).contains(&index) => {
+                    b.constant(context[index - STATE_CONTEXT_START])
                 }
-                Source::Private(index) if (CONTEXT_START + 4..PI_CCS_V1_1_STATE_PREIMAGE_WORDS).contains(&index) => {
-                    statement[index - CONTEXT_START - 4]
+                Source::Private(index)
+                    if (STATE_CONTEXT_START + 4..PI_CCS_V1_1_STATE_PREIMAGE_WORDS).contains(&index) =>
+                {
+                    statement[index - STATE_CONTEXT_START - 4]
                 }
                 Source::Private(index) => b.private(private(index)),
                 Source::Public(index) if index >= PUBLIC_CONTEXT_START => {

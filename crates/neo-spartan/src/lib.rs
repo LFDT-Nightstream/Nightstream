@@ -104,6 +104,8 @@ pub enum Error {
     Codec(&'static str),
     #[error("layer-1 setup files: {0}")]
     Io(#[from] std::io::Error),
+    #[error("layer-1 device: {0}")]
+    Device(String),
 }
 
 /// The verifier's constants of one circuit: the setup root, the sizes and the
@@ -127,13 +129,26 @@ impl Key {
         bincode::serialize(self).expect("an in-memory key always encodes")
     }
 
-    /// Strict: the bytes must be the canonical encoding of the decoded key.
+    /// Strict: the bytes must be the canonical encoding of a well-formed key.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
-        let key: Self = bincode::deserialize(bytes).map_err(|_| Error::Codec("key"))?;
-        if key.to_bytes() != bytes {
-            return Err(Error::Codec("non-canonical key"));
-        }
+        let key: Self = decode_canonical(bytes, "key")?;
+        key.check()?;
         Ok(key)
+    }
+
+    /// The key is well formed: its structure is one that `derive` can
+    /// produce, so the verifier's step functions and tables are defined.
+    pub fn check(&self) -> Result<(), Error> {
+        if self.blocks == 0 {
+            return Err(Error::Codec("key without blocks"));
+        }
+        self.structure.check()
+    }
+
+    /// The key's matrix sizes are those of `rows`.
+    pub fn fits(&self, rows: &dyn MatrixRows) -> bool {
+        let shape = rows.shape();
+        shape.columns == self.blocks * D && shape.rows == self.rows
     }
 
     fn cube_variables(&self) -> usize {
@@ -155,6 +170,26 @@ impl Key {
         words.extend(self.structure.words());
         words
     }
+}
+
+/// Decode `bytes` as the canonical encoding of a `T`. Reading stops at the
+/// input length, so no length prefix can make the decoder allocate more than
+/// the input holds.
+pub(crate) fn decode_canonical<T: Serialize + serde::de::DeserializeOwned>(
+    bytes: &[u8],
+    what: &'static str,
+) -> Result<T, Error> {
+    use bincode::Options;
+    let value: T = bincode::DefaultOptions::new()
+        .with_fixint_encoding()
+        .allow_trailing_bytes()
+        .with_limit(bytes.len() as u64)
+        .deserialize(bytes)
+        .map_err(|_| Error::Codec(what))?;
+    if bincode::serialize(&value).map_err(|_| Error::Codec(what))? != bytes {
+        return Err(Error::Codec(what));
+    }
+    Ok(value)
 }
 
 fn block_variables(blocks: usize) -> usize {
@@ -473,11 +508,7 @@ impl Proof {
 
     /// Strict: the bytes must be the canonical encoding of the decoded proof.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
-        let proof: Self = bincode::deserialize(bytes).map_err(|_| Error::Codec("decode"))?;
-        if proof.to_bytes() != bytes {
-            return Err(Error::Codec("non-canonical encoding"));
-        }
-        Ok(proof)
+        decode_canonical(bytes, "layer-1 proof")
     }
 }
 
@@ -515,7 +546,9 @@ pub fn prove(
         slot_columns,
         early.mult.clone(),
     ];
-    let (p0, p0_data) = relation.p0.commit(p0_tables, &mut challenger, accelerator);
+    let (p0, p0_data) = relation
+        .p0
+        .commit(p0_tables, &mut challenger, accelerator)?;
     challenger.observe_slice(&norm::words(&histogram));
     let beta: Ext = challenger.sample_algebra_element();
     let challenges = early_challenges(&mut challenger);
@@ -524,7 +557,7 @@ pub fn prove(
         denominator: z.par_iter().map(|&value| beta - value).collect(),
     }];
     trees.extend(tables.early_trees(&early, &claim.r, challenges));
-    let (early_proof, claims) = gkr::prove(trees, &mut challenger, accelerator);
+    let (early_proof, claims) = gkr::prove(trees, &mut challenger, accelerator)?;
     let early_values = tables.early_values(&early, &claims[1..]);
     observe_early(&early_values, &mut challenger);
 
@@ -576,7 +609,7 @@ pub fn prove(
     drop((key_table, run_table));
     let (p1, p1_data) = relation
         .p1
-        .commit(vec![fold_columns, coordinates(&omega_a)], &mut challenger, accelerator);
+        .commit(vec![fold_columns, coordinates(&omega_a)], &mut challenger, accelerator)?;
     let indices = relation.query_indices(&mut challenger);
     let leaves = indices
         .iter()
@@ -588,7 +621,7 @@ pub fn prove(
         tables.late_trees(&ubar, &lanes, &omega_a, beta),
         &mut challenger,
         accelerator,
-    );
+    )?;
     let slots = |point: &[Ext]| point[..structure.slot_variables].to_vec();
     let late_values = tables.slot_values(&early, &eq_table(&slots(&late[0].point)));
     observe_pairs(&late_values, &mut challenger);
@@ -605,7 +638,7 @@ pub fn prove(
     let p1_points = p1_points(&key_point, &run_point, query_points, block_point, &late[1].point);
     let p1_opening = relation
         .p1
-        .open(p1_data, &p1_points, &mut challenger, accelerator);
+        .open(p1_data, &p1_points, &mut challenger, accelerator)?;
     let p0_points = vec![
         claims[0].point.clone(),
         linear_point.clone(),
@@ -617,7 +650,7 @@ pub fn prove(
     ];
     let p0_opening = relation
         .p0
-        .open(p0_data, &p0_points, &mut challenger, accelerator);
+        .open(p0_data, &p0_points, &mut challenger, accelerator)?;
     Ok(Proof {
         p0,
         histogram,

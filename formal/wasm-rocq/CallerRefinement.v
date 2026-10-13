@@ -247,27 +247,26 @@ Qed.
 
 (* Execute a source prefix, retaining its continuation in the final configuration.
    Segmentation is explicit; each segment is checked against its source instruction. *)
-Theorem run_refinement : forall executed remaining segments callees z initial final boundary pc c0,
+Theorem caller_run_refinement : forall executed remaining segments callees z initial final boundary pc c0,
   fieldPrime ->
   validCircuitRun initial (callerRows segments) final ->
   Forall2 segmentMatches executed segments ->
-  loadedCaller callees z initial pc (executed ++ remaining) ->
-  boundaryPC boundary = pc -> callerStartsAt boundary segments ->
-  callerTyped callees z (stackHeight boundary) (executed ++ remaining) ->
-  represents z initial boundary (executed ++ remaining) c0 ->
-  exists z' c1,
-    Steps c0 c1 /\
-    callerTyped callees z' (stackHeight (callerFinalBoundary boundary segments)) remaining /\
-    represents z' final (callerFinalBoundary boundary segments) remaining c1 /\
-    boundaryPC (callerFinalBoundary boundary segments) = pc + Z.of_nat (length executed).
+  callerStartsAt boundary segments ->
+  CallerState callees z initial boundary pc (executed ++ remaining) c0 ->
+  exists z' c1, Steps c0 c1 /\
+    CallerState callees z' final (callerFinalBoundary boundary segments)
+      (pc + Z.of_nat (length executed)) remaining c1 /\ sameCaller z z'.
 Proof.
   induction executed as [ | instruction rest IH];
-    intros remaining segments callees z initial final boundary pc c0 Hprime Hrun Hmatches Hloaded Hpc Hstart Htyped Hrep.
+    intros remaining segments callees z initial final boundary pc c0 Hprime Hrun Hmatches Hstart
+      [Hloaded Htyped Hrep Hpc].
   - inversion Hmatches; subst segments. destruct Hrun as [_ [_ Hreplay]].
     assert (Heq : initial = final) by (inversion Hreplay; reflexivity). subst final.
     exists z, c0. split.
     + pose proof (represents_wf _ _ _ _ _ Hrep) as Hwf. destruct c0. apply Steps__refl. exact Hwf.
-    + split; [exact Htyped | ]. split; [exact Hrep | cbn [callerFinalBoundary length]; lia].
+    + split.
+      * cbn [callerFinalBoundary length]. rewrite Z.add_0_r. constructor; assumption.
+      * repeat split; reflexivity.
   - inversion Hmatches as [ | instruction' segment rest' segments' Hmatch Htail]; subst instruction' rest' segments.
     destruct (valid_run_split (segmentRows segment) (callerRows segments') initial final Hrun)
       as [middle [HfirstRun HrestRun]].
@@ -285,9 +284,13 @@ Proof.
     { destruct segments' as [ | next segments']; [exact I | ].
       symmetry. apply segment_chain_boundary with (rest := segments'). exact (proj1 (proj2 Hrun)). }
     destruct (IH remaining segments' callees z1 middle final (afterBoundary (segmentLast segment)) (pc + 1) c1
-      Hprime HrestRun Htail HloadedRest Hnext HstartRest HtypedAfter Hafter)
-      as [z2 [c2 [HrestSteps [HtypedFinal [Hfinal HfinalPC]]]]].
+      Hprime HrestRun Htail HstartRest ltac:(constructor; assumption))
+      as [z2 [c2 [HrestSteps [Hfinal Hidentity]]]].
     exists z2, c2. split; [eapply spec_steps_transitive; eassumption | ].
-    split; [exact HtypedFinal | ]. split; [exact Hfinal | ].
-    cbn [callerFinalBoundary length]; rewrite Nat2Z.inj_succ; lia.
+    split.
+    + cbn [callerFinalBoundary length].
+      replace (pc + Z.of_nat (S (length rest))) with (pc + 1 + Z.of_nat (length rest))
+        by (rewrite Nat2Z.inj_succ; lia). exact Hfinal.
+    + destruct Hcaller as [Hs [Ha Hl]], Hidentity as [Hs' [Ha' Hl']].
+      unfold sameCaller. repeat split; congruence.
 Qed.

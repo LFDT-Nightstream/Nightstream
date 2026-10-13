@@ -161,12 +161,12 @@ Proof.
     - apply Forall_forall. intros i Hin. apply (proj1 (Forall_forall _ _) Hsupported).
       rewrite <- (firstn_skipn n program). apply in_or_app. left. exact Hin.
     - exact Hprogram. }
-  pose proof (run_refinement (firstn n program) (skipn n program)
+  pose proof (caller_run_refinement (firstn n program) (skipn n program)
     (map instructionSegment (first :: rest)) (fun _ => None) z initial final (beforeBoundary first) 0 c0)
     as Hmain.
   rewrite firstn_skipn, singleton_segment_rows in Hmain.
-  destruct (Hmain Hprime Hrun Hmatches HloadedCaller Hpc eq_refl Hcaller Hrep)
-    as [z' [c1 [Hsteps [Htyped' [Hrep' Hpc']]]]].
+  destruct (Hmain Hprime Hrun Hmatches eq_refl ltac:(constructor; assumption))
+    as [z' [c1 [Hsteps [[_ Htyped' Hrep' Hpc'] _]]]].
   rewrite singleton_final_boundary in Htyped', Hrep', Hpc'.
   exists z', c1. split; [exact Hsteps | ]. split.
   - apply straight_line_caller_typed in Htyped'; [exact Htyped' | | ].

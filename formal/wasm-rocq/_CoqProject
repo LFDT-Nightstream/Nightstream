@@ -37,7 +37,11 @@ CallReturn.v
 CallRefinement.v
 CallerSpec.v
 CallerRefinement.v
+ProgramSpec.v
+ProgramEncoding.v
+ProgramRefinement.v
 StraightLineRefinement.v
 tests/StraightLinePrograms.v
 tests/Calls.v
 tests/Callers.v
+tests/Programs.v

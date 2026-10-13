@@ -2,27 +2,36 @@ import NightstreamFPrime.Spec.RandomOracle
 import Mathlib.Algebra.BigOperators.Fin
 
 /-!
-Owns rewinding algorithms with a strict budget, and the conversion from
-expected work to strict work (Markov's inequality on the coin tape).
+Owns rewinding algorithms with a strict budget of adversary runs, the
+conversion from expected work to strict work (Markov's inequality on the
+coin tape), and the laws of the run-until-success loops that such algorithms
+run.
 
-Inputs: a step machine that runs the adversary once per step on one fresh
-uniform sample, a goal on its final states, and a certificate of potentials
-on its reachable states.
+Inputs: a reduction that runs the adversary once per step on an oracle built
+from its state and one fresh uniform sample, a goal on its final states, and a
+certificate of potentials on its reachable states.
 
 Outputs:
-- `Rewinding.run`, `runs_le`: the machine with budget `T` reads a tape of `T`
-  samples and makes at most `T` adversary runs on every tape;
-- `Bounds.expect_runs_le`: its expected runs are at most the work potential,
+- `RunMachine.program`, `program_bound`: the reduction with budget `T` is an
+  oracle program whose queries are adversary runs and whose answers are run
+  records. It holds no adversary, and it makes at most `T` runs on every tape;
+- `RunMachine.rewinding`, `run_program`: the same reduction against fixed
+  records, as a step machine; `Rewinding.run_embed` moves runs along a map of
+  states that commutes with the steps;
+- `Bounds.expect_runs_le`: the expected runs are at most the work potential,
   for every budget;
-- `Bounds.budget_mul_le`: with budget `T`, it reaches the goal with chance at
-  least the success potential minus `work / T`.
+- `Bounds.budget_mul_le`: with budget `T`, the machine reaches the goal with
+  chance at least the success potential minus `work / T`;
+- `lineAverage`, `lineLaw_eq_retryWeight`, `line_work_step`: a retry loop
+  ends uniform on its line, and sequential loops give `RandomOracle.retryWeight`;
+- `restart_success_eq`, `restart_work_eq`: the success and the work of a loop
+  that restarts after each failed attempt.
 
 The certificate holds closed forms of the eventual success and of the expected
 remaining runs. It needs no law of the run count: an unfinished run has spent
 the whole budget, so `T · Pr[unfinished] ≤ 𝔼 runs`.
 
-Does not own: which machine a reduction runs, or the claim that one step is
-one adversary run; each machine's module states that.
+Does not own: which reduction an application of these laws runs.
 -/
 
 set_option autoImplicit false
@@ -30,6 +39,7 @@ set_option autoImplicit false
 namespace NightstreamFPrime.Spec.RandomOracleBudget
 
 open scoped BigOperators
+open NightstreamFPrime.Spec.RandomOracle (OracleComp)
 
 /-- An algorithm that runs the adversary once per step, on one fresh uniform
 sample, until it halts. -/
@@ -54,16 +64,66 @@ def Rewinding.run : (budget : ℕ) → State → (Fin budget → Sample) → Rew
           Rewinding.run budget (machine.step state (tape 0)) (Fin.tail tape)
         ⟨rest.final, rest.runs + 1⟩
 
-/-- **Strict work.** No tape makes the machine exceed its budget. -/
-theorem Rewinding.runs_le (budget : ℕ) (state : State) (tape : Fin budget → Sample) :
-    (machine.run budget state tape).runs ≤ budget := by
+/-- A reduction that runs the adversary once per step: `query` names the run's
+oracle from the state and one fresh sample, and `next` reads that run's
+record. It holds no adversary. -/
+structure RunMachine (State Sample Point Record : Type*) where
+  query : State → Sample → Point
+  next : State → Sample → Record → State
+  halted : State → Bool
+
+section RunMachine
+
+variable {Point Record : Type*} (reduction : RunMachine State Sample Point Record)
+
+/-- The reduction against fixed run records: the machine its laws are proved
+on. -/
+def RunMachine.rewinding (records : Point → Record) : Rewinding State Sample where
+  step state sample := reduction.next state sample (records (reduction.query state sample))
+  halted := reduction.halted
+
+/-- The reduction with a strict budget, as an oracle program whose points are
+run oracles and whose answers are run records. -/
+def RunMachine.program : (budget : ℕ) → State → (Fin budget → Sample) → OracleComp Point Record State
+  | 0, state, _ => .done state
+  | budget + 1, state, tape =>
+      if reduction.halted state then .done state else
+        .query (reduction.query state (tape 0)) fun record =>
+          RunMachine.program budget (reduction.next state (tape 0) record) (Fin.tail tape)
+
+/-- **Strict work.** On every tape and for every adversary, the budgeted
+reduction makes at most `budget` runs. -/
+theorem RunMachine.program_bound (budget : ℕ) (state : State) (tape : Fin budget → Sample) :
+    (reduction.program budget state tape).QueryBound budget := by
   induction budget generalizing state with
-  | zero => exact le_rfl
+  | zero => exact .done _ _
   | succ budget induction =>
-      unfold Rewinding.run
+      unfold RunMachine.program
       split
-      · exact Nat.zero_le _
-      · exact Nat.succ_le_succ (induction _ _)
+      · exact .done _ _
+      · exact .query _ _ _ fun _ => induction _ _
+
+/-- The program against an adversary's records is the budgeted rewinding run. -/
+theorem RunMachine.run_program (records : Point → Record) (budget : ℕ) (state : State)
+    (tape : Fin budget → Sample) :
+    (reduction.program budget state tape).run records = ((reduction.rewinding records).run budget state tape).final ∧
+      ((reduction.program budget state tape).queries records).length =
+        ((reduction.rewinding records).run budget state tape).runs := by
+  induction budget generalizing state with
+  | zero => exact ⟨rfl, rfl⟩
+  | succ budget induction =>
+      unfold RunMachine.program Rewinding.run
+      have haltedEq : (reduction.rewinding records).halted state = reduction.halted state := rfl
+      by_cases halted : reduction.halted state = true
+      · simp only [haltedEq, halted, if_true]
+        exact ⟨rfl, rfl⟩
+      · have unhalted : reduction.halted state = false := by simpa using halted
+        have rest := induction (reduction.next state (tape 0) (records (reduction.query state (tape 0))))
+          (Fin.tail tape)
+        simp only [haltedEq, unhalted, Bool.false_eq_true, if_false]
+        exact ⟨rest.1, congrArg (· + 1) rest.2⟩
+
+end RunMachine
 
 /-- A run that ends unhalted has spent its whole budget. -/
 private theorem runs_eq_of_not_halted (budget : ℕ) (state : State) (tape : Fin budget → Sample)
@@ -77,6 +137,27 @@ private theorem runs_eq_of_not_halted (budget : ℕ) (state : State) (tape : Fin
       · simp [halted] at unfinished
       · simp only [halted, Bool.false_eq_true, if_false] at unfinished ⊢
         exact congrArg (· + 1) (induction _ _ unfinished)
+
+/-- **Simulation.** When `embed` maps each step of `machine` onto a step of
+`machine'`, the budgeted runs agree: the same end state under `embed` and the
+same number of runs. -/
+theorem Rewinding.run_embed {State' : Type*} (machine' : Rewinding State' Sample) (embed : State → State')
+    (halted_eq : ∀ state, machine'.halted (embed state) = machine.halted state)
+    (step_eq : ∀ state sample, machine.halted state = false →
+      machine'.step (embed state) sample = embed (machine.step state sample))
+    (budget : ℕ) (state : State) (tape : Fin budget → Sample) :
+    machine'.run budget (embed state) tape =
+      ⟨embed (machine.run budget state tape).final, (machine.run budget state tape).runs⟩ := by
+  induction budget generalizing state with
+  | zero => rfl
+  | succ budget induction =>
+      unfold Rewinding.run
+      rw [halted_eq]
+      by_cases halted : machine.halted state = true
+      · simp only [halted, if_true]
+      · have unhalted : machine.halted state = false := by simpa using halted
+        simp only [unhalted, Bool.false_eq_true, if_false]
+        rw [step_eq state (tape 0) unhalted, induction]
 
 variable [Fintype Sample] [Nonempty Sample]
 

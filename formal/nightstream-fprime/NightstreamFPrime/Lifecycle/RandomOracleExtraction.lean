@@ -17,6 +17,10 @@ Outputs:
 - `Accepts`: the key's NIFS verifier with every coin read from the oracle,
   and valid witnesses for the exact children it returns. At the sponge reads
   it is `PaperNonInteractive.verify` (`RandomOracleFidelity.accepts_iff_verify`);
+- `SucceedsOf`, `ForkValidOf`, `completeForkOf`: the same checks on the
+  claims that runs output (`ForkClaims`), with no adversary. `Succeeds`,
+  `ForkValid` and `completeFork` are these checks at the adversary's own
+  claims;
 - `completeFork`: a base acceptance and one valid retry per coordinate form
   the paper's complete coordinate fork over the base batch, so
   `extracted_ambient` opens every `Π_CCS` output of the base probe;
@@ -24,7 +28,8 @@ Outputs:
   most `17 * (Q + 17) * ε_sample`, plus the chance that a retry changes the
   running statement (`mismatchChance`; with `PriorLink` it is a state-hash
   collision, `Export.Stage1.RandomOracleLink.mismatch_collision`);
-- `expected_retries_le`: at most `17 * (Q + 17)` expected retries.
+- `expected_retries_at_le`, `expected_retries_le`: at most `Q + 17`
+  expected retries at each coordinate, so at most `17 * (Q + 17)` in all.
 
 A retry resamples the oracle answer at one `Π_RLC` point and reruns the
 adversary until that point succeeds again (`RandomOracle.retryWeight`).
@@ -341,6 +346,110 @@ structure Claim where
     PaperAlgebra.Assignment (logicalWidth := logicalWidth) (publicFits := publicFits)
   linked : Prop
 
+/-! ## Checks on claims
+
+Each check reads the oracle and the claims that runs output, and nothing
+else. The adversary forms below are the same checks at the adversary's own
+claims. -/
+
+/-- The oracle verifier accepts `claim`, and `claim` passes the verifier's
+`linked` check. -/
+def SucceedsOf (oracle : Oracle) (claim : Claim relation) : Prop :=
+  Accepts relation ajtai oracle claim.running claim.fresh claim.proof claim.children ∧ claim.linked
+
+/-- The oracle point of the claim's `index`-th `Π_RLC` challenge. -/
+noncomputable def rhoPointOf (claim : Claim relation) (index : Fin (Nifs.PaperProfile.arity).total) :
+    Point logicalWidth publicFits Degree :=
+  point claim.fresh claim.proof (.rho index)
+
+/-- A base run and one retry per coordinate, as the oracle, the retry answers
+and the claims the runs output: all that a complete fork reads. -/
+structure ForkClaims where
+  oracle : Oracle
+  base : Claim relation
+  retries : Fin (Nifs.PaperProfile.arity).total → Answer
+  forks : Fin (Nifs.PaperProfile.arity).total → Claim relation
+
+/-- The oracle a retry at coordinate `index` runs: the base oracle with that
+coordinate's answer resampled. -/
+noncomputable def ForkClaims.forked (fork : ForkClaims relation) (index : Fin (Nifs.PaperProfile.arity).total) :
+    Oracle :=
+  Function.update fork.oracle (rhoPointOf relation fork.base index) (fork.retries index)
+
+/-- A retry forms a fork: it succeeds at the same point, with a different
+`Π_RLC` scalar, and keeps the running statement. -/
+def ForkValidOf (fork : ForkClaims relation) (index : Fin (Nifs.PaperProfile.arity).total) : Prop :=
+  (SucceedsOf relation ajtai (fork.forked relation index) (fork.forks index) ∧
+      rhoPointOf relation (fork.forks index) index = rhoPointOf relation fork.base index) ∧
+    Spec.Folding.Nifs.NonInteractive.PiRlcSampler.sample (fork.retries index) ≠
+      Spec.Folding.Nifs.NonInteractive.PiRlcSampler.sample (fork.oracle (rhoPointOf relation fork.base index)) ∧
+    (fork.forks index).running = fork.base.running
+
+/-- A valid fork outputs the base fresh statement and the base absorbed
+messages. -/
+theorem fork_identifies {fork : ForkClaims relation} {index : Fin (Nifs.PaperProfile.arity).total}
+    (valid : ForkValidOf relation ajtai fork index) :
+    fork.base.fresh = (fork.forks index).fresh ∧ SameAbsorbed fork.base.proof (fork.forks index).proof :=
+  rhoPoint_identifies index valid.1.2.symm
+
+/-- The fork's response opens the base batch. -/
+theorem fork_success {fork : ForkClaims relation} {index : Fin (Nifs.PaperProfile.arity).total}
+    (valid : ForkValidOf relation ajtai fork index) :
+    (response relation ajtai (fork.forked relation index) (fork.forks index).fresh (fork.forks index).proof
+        (fork.forks index).children).Success
+      (ProductionKey.key relation ajtai).piRlcSemantics (ProductionKey.key relation ajtai).params
+      (ProductionKey.key relation ajtai).piRlcAlgebra
+      (batch relation ajtai fork.oracle fork.base.running fork.base.fresh fork.base.proof) := by
+  have success := response_success relation ajtai (fork.forked relation index) (fork.forks index).running
+    (fork.forks index).fresh (fork.forks index).proof (fork.forks index).children valid.1.1.1
+  obtain ⟨freshEq, same⟩ := fork_identifies relation ajtai valid
+  have batchEq : batch relation ajtai (fork.forked relation index) (fork.forks index).running
+      (fork.forks index).fresh (fork.forks index).proof =
+        batch relation ajtai fork.oracle fork.base.running fork.base.fresh fork.base.proof := by
+    rw [valid.2.2, ← freshEq]
+    exact batch_update relation ajtai fork.oracle fork.base.running fork.base.fresh same index (fork.retries index)
+  rw [batchEq] at success
+  exact success
+
+/-- The fork's challenges: the base challenges with coordinate `index`
+replaced by the retry's scalar. -/
+theorem fork_rho {fork : ForkClaims relation} {index : Fin (Nifs.PaperProfile.arity).total}
+    (valid : ForkValidOf relation ajtai fork index) (other : Fin (Nifs.PaperProfile.arity).total) :
+    rho (fork.forked relation index) (fork.forks index).fresh (fork.forks index).proof other =
+      if other = index then readRho (fork.retries index) else rho fork.oracle fork.base.fresh fork.base.proof other := by
+  obtain ⟨freshEq, same⟩ := fork_identifies relation ajtai valid
+  rw [← freshEq, ← rho_congr _ fork.base.fresh same]
+  exact rho_update fork.oracle fork.base.fresh fork.base.proof index other (fork.retries index)
+
+/-- One base acceptance and a valid fork at every coordinate form the paper's
+complete coordinate fork over the base batch. -/
+noncomputable def completeForkOf (fork : ForkClaims relation)
+    (succeeds : SucceedsOf relation ajtai fork.oracle fork.base)
+    (valid : ∀ index, ForkValidOf relation ajtai fork index) :
+    CompleteFork (ProductionKey.key relation ajtai).piRlcSemantics
+      (ProductionKey.key relation ajtai).params (ProductionKey.key relation ajtai).piRlcAlgebra
+      (batch relation ajtai fork.oracle fork.base.running fork.base.fresh fork.base.proof) where
+  base := response relation ajtai fork.oracle fork.base.fresh fork.base.proof fork.base.children
+  forks index := response relation ajtai (fork.forked relation index) (fork.forks index).fresh
+    (fork.forks index).proof (fork.forks index).children
+  baseSuccess := response_success relation ajtai fork.oracle _ _ _ _ succeeds.1
+  forkSuccess index := fork_success relation ajtai (valid index)
+  baseStrong _ := readRho_valid _
+  forkStrong _ _ := readRho_valid _
+  agreeExcept index other different := by
+    change rho fork.oracle _ _ other = rho (fork.forked relation index) _ _ other
+    rw [fork_rho relation ajtai (valid index) other]
+    split_ifs with same
+    · exact absurd same different
+    · rfl
+  changed index := by
+    change rho fork.oracle _ _ index ≠ rho (fork.forked relation index) _ _ index
+    rw [fork_rho relation ajtai (valid index) index]
+    simp only [if_true]
+    exact fun same => (valid index).2.1 ((readRho_eq_iff _ _).mp same).symm
+
+/-! ## The adversary's runs -/
+
 variable {Output : Type}
   (adversary : OracleComp (Point logicalWidth publicFits (ProductionKey.degreeBound relation))
     Answer Output)
@@ -353,16 +462,12 @@ noncomputable def claimed (oracle : Oracle) : Claim relation :=
 /-- The oracle verifier accepts the adversary's claim, and the claim passes
 the verifier's `linked` check. -/
 def Succeeds (oracle : Oracle) : Prop :=
-  Accepts relation ajtai oracle (claimed relation adversary claim oracle).running
-    (claimed relation adversary claim oracle).fresh (claimed relation adversary claim oracle).proof
-    (claimed relation adversary claim oracle).children ∧
-  (claimed relation adversary claim oracle).linked
+  SucceedsOf relation ajtai oracle (claimed relation adversary claim oracle)
 
 /-- The oracle point of the claim's `index`-th `Π_RLC` challenge. -/
 noncomputable def rhoPoint (index : Fin (Nifs.PaperProfile.arity).total) (oracle : Oracle) :
     Point logicalWidth publicFits Degree :=
-  point (claimed relation adversary claim oracle).fresh (claimed relation adversary claim oracle).proof
-    (.rho index)
+  rhoPointOf relation (claimed relation adversary claim oracle) index
 
 /-- Coordinate `index` succeeds at `target`. -/
 def Hits (index : Fin (Nifs.PaperProfile.arity).total) (target : Point logicalWidth publicFits Degree)
@@ -394,74 +499,18 @@ noncomputable def forked (oracle : Oracle) (retries : Fin (Nifs.PaperProfile.ari
     (index : Fin (Nifs.PaperProfile.arity).total) : Oracle :=
   Function.update oracle (rhoPoint relation adversary claim index oracle) (retries index)
 
-/-- A retry forms a fork: it succeeds at the same point, with a different
-`Π_RLC` scalar, and keeps the running statement. -/
+/-- The adversary's base run on `oracle` and its retries. -/
+noncomputable def forkClaimsOf (oracle : Oracle) (retries : Fin (Nifs.PaperProfile.arity).total → Answer) :
+    ForkClaims relation :=
+  ⟨oracle, claimed relation adversary claim oracle, retries,
+    fun index => claimed relation adversary claim (forked relation adversary claim oracle retries index)⟩
+
+/-- The adversary's retry at `index` forms a fork (`ForkValidOf`). -/
 def ForkValid (oracle : Oracle) (retries : Fin (Nifs.PaperProfile.arity).total → Answer)
     (index : Fin (Nifs.PaperProfile.arity).total) : Prop :=
-  retries index ∈ lineSet (Hits relation ajtai adversary claim index)
-      (rhoPoint relation adversary claim index oracle) oracle ∧
-    Spec.Folding.Nifs.NonInteractive.PiRlcSampler.sample (retries index) ≠
-      Spec.Folding.Nifs.NonInteractive.PiRlcSampler.sample
-        (oracle (rhoPoint relation adversary claim index oracle)) ∧
-    (claimed relation adversary claim (forked relation adversary claim oracle retries index)).running =
-      (claimed relation adversary claim oracle).running
+  ForkValidOf relation ajtai (forkClaimsOf relation adversary claim oracle retries) index
 
-/-- A valid fork outputs the base fresh statement and the base absorbed
-messages. -/
-theorem fork_identifies {oracle : Oracle} {retries : Fin (Nifs.PaperProfile.arity).total → Answer}
-    {index : Fin (Nifs.PaperProfile.arity).total}
-    (valid : ForkValid relation ajtai adversary claim oracle retries index) :
-    (claimed relation adversary claim oracle).fresh =
-        (claimed relation adversary claim (forked relation adversary claim oracle retries index)).fresh ∧
-      SameAbsorbed (claimed relation adversary claim oracle).proof
-        (claimed relation adversary claim (forked relation adversary claim oracle retries index)).proof :=
-  rhoPoint_identifies index valid.1.2.symm
-
-/-- The fork's response opens the base batch. -/
-theorem fork_success {oracle : Oracle} {retries : Fin (Nifs.PaperProfile.arity).total → Answer}
-    {index : Fin (Nifs.PaperProfile.arity).total}
-    (valid : ForkValid relation ajtai adversary claim oracle retries index) :
-    let base := claimed relation adversary claim oracle
-    let fork := claimed relation adversary claim (forked relation adversary claim oracle retries index)
-    (response relation ajtai (forked relation adversary claim oracle retries index) fork.fresh fork.proof
-        fork.children).Success
-      (ProductionKey.key relation ajtai).piRlcSemantics (ProductionKey.key relation ajtai).params
-      (ProductionKey.key relation ajtai).piRlcAlgebra
-      (batch relation ajtai oracle base.running base.fresh base.proof) := by
-  intro base fork
-  have success : (response relation ajtai (forked relation adversary claim oracle retries index)
-      fork.fresh fork.proof fork.children).Success
-        (ProductionKey.key relation ajtai).piRlcSemantics (ProductionKey.key relation ajtai).params
-        (ProductionKey.key relation ajtai).piRlcAlgebra
-        (batch relation ajtai (forked relation adversary claim oracle retries index)
-          fork.running fork.fresh fork.proof) :=
-    response_success relation ajtai _ fork.running fork.fresh fork.proof fork.children valid.1.1.1
-  obtain ⟨freshEq, same⟩ := fork_identifies relation ajtai adversary claim valid
-  have batchEq : batch relation ajtai (forked relation adversary claim oracle retries index)
-      fork.running fork.fresh fork.proof = batch relation ajtai oracle base.running base.fresh base.proof := by
-    have runningEq : fork.running = base.running := valid.2.2
-    rw [runningEq, ← freshEq]
-    exact batch_update relation ajtai oracle base.running base.fresh same index (retries index)
-  rw [batchEq] at success
-  exact success
-
-/-- The fork's challenges: the base challenges with coordinate `index`
-replaced by the retry's scalar. -/
-theorem fork_rho {oracle : Oracle} {retries : Fin (Nifs.PaperProfile.arity).total → Answer}
-    {index : Fin (Nifs.PaperProfile.arity).total}
-    (valid : ForkValid relation ajtai adversary claim oracle retries index)
-    (other : Fin (Nifs.PaperProfile.arity).total) :
-    let base := claimed relation adversary claim oracle
-    let fork := claimed relation adversary claim (forked relation adversary claim oracle retries index)
-    rho (forked relation adversary claim oracle retries index) fork.fresh fork.proof other =
-      if other = index then readRho (retries index) else rho oracle base.fresh base.proof other := by
-  intro base fork
-  obtain ⟨freshEq, same⟩ := fork_identifies relation ajtai adversary claim valid
-  rw [← freshEq, ← rho_congr _ base.fresh same]
-  exact rho_update oracle base.fresh base.proof index other (retries index)
-
-/-- One base acceptance and a valid fork at every coordinate form the paper's
-complete coordinate fork over the base batch. -/
+/-- The adversary's complete coordinate fork (`completeForkOf`). -/
 noncomputable def completeFork (oracle : Oracle)
     (retries : Fin (Nifs.PaperProfile.arity).total → Answer)
     (succeeds : Succeeds relation ajtai adversary claim oracle)
@@ -469,28 +518,8 @@ noncomputable def completeFork (oracle : Oracle)
     CompleteFork (ProductionKey.key relation ajtai).piRlcSemantics
       (ProductionKey.key relation ajtai).params (ProductionKey.key relation ajtai).piRlcAlgebra
       (batch relation ajtai oracle (claimed relation adversary claim oracle).running
-        (claimed relation adversary claim oracle).fresh (claimed relation adversary claim oracle).proof) where
-  base := response relation ajtai oracle (claimed relation adversary claim oracle).fresh
-    (claimed relation adversary claim oracle).proof (claimed relation adversary claim oracle).children
-  forks index := response relation ajtai (forked relation adversary claim oracle retries index)
-    (claimed relation adversary claim (forked relation adversary claim oracle retries index)).fresh
-    (claimed relation adversary claim (forked relation adversary claim oracle retries index)).proof
-    (claimed relation adversary claim (forked relation adversary claim oracle retries index)).children
-  baseSuccess := response_success relation ajtai oracle _ _ _ _ succeeds.1
-  forkSuccess index := fork_success relation ajtai adversary claim (valid index)
-  baseStrong _ := readRho_valid _
-  forkStrong _ _ := readRho_valid _
-  agreeExcept index other different := by
-    change rho oracle _ _ other = rho (forked relation adversary claim oracle retries index) _ _ other
-    rw [fork_rho relation ajtai adversary claim (valid index) other]
-    split_ifs with same
-    · exact absurd same different
-    · rfl
-  changed index := by
-    change rho oracle _ _ index ≠ rho (forked relation adversary claim oracle retries index) _ _ index
-    rw [fork_rho relation ajtai adversary claim (valid index) index]
-    simp only [if_true]
-    exact fun same => (valid index).2.1 ((readRho_eq_iff _ _).mp same).symm
+        (claimed relation adversary claim oracle).fresh (claimed relation adversary claim oracle).proof) :=
+  completeForkOf relation ajtai (forkClaimsOf relation adversary claim oracle retries) succeeds valid
 
 /-- The `Π_CCS` output witness that the complete fork extracts. -/
 noncomputable def extractedWitness (oracle : Oracle)
@@ -549,7 +578,8 @@ theorem forkValid_iff (oracle : Oracle) (retries : Fin (Nifs.PaperProfile.arity)
     (index : Fin (Nifs.PaperProfile.arity).total) :
     ForkValid relation ajtai adversary claim oracle retries index ↔
       retries index ∉ badRetries relation ajtai adversary claim oracle index := by
-  simp [badRetries, ForkValid, forked]
+  simp only [badRetries, Set.mem_setOf_eq, not_not]
+  rfl
 
 private theorem mass_union_le (left right : Set Answer) :
     mass (left ∪ right) ≤ mass left + mass right := by
@@ -643,7 +673,10 @@ theorem fork_failure_le {queries : Nat} (bounded : adversary.QueryBound queries)
       apply div_le_div_of_nonneg_right _ (mass_nonnegative _)
       refine (mass_mono ?_).trans (mass_union_le _ _)
       rintro answer ⟨inside, invalid⟩
-      simp only [badRetries, Set.mem_setOf_eq, ForkValid, forked, not_and_or, not_not] at invalid
+      simp only [badRetries, Set.mem_setOf_eq] at invalid
+      change ¬ (answer ∈ lineSet (Hits relation ajtai adversary claim index)
+        (rhoPoint relation adversary claim index oracle) oracle ∧ _ ∧ _) at invalid
+      simp only [not_and_or, not_not] at invalid
       rcases invalid with outside | repeated | mismatch
       · exact absurd inside outside
       · exact Or.inl ⟨inside, repeated⟩
@@ -677,6 +710,22 @@ theorem fork_failure_le {queries : Nat} (bounded : adversary.QueryBound queries)
     _ = _ := by
       rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
 
+/-- Lemma 5 work at one coordinate: at most `Q + 17` expected retries. -/
+theorem expected_retries_at_le {queries : Nat} (bounded : adversary.QueryBound queries)
+    (index : Fin (Nifs.PaperProfile.arity).total) :
+    𝔼 oracle, (if Succeeds relation ajtai adversary claim oracle then
+        retryCount (Hits relation ajtai adversary claim index)
+          (rhoPoint relation adversary claim index oracle) oracle else 0) ≤
+      ((queries + (Nifs.PaperProfile.arity).total : Nat) : ℝ) :=
+  calc
+    _ = 𝔼 oracle, ∑ target,
+          if Hits relation ajtai adversary claim index target oracle then
+            retryCount (Hits relation ajtai adversary claim index) target oracle else 0 :=
+      Finset.expect_congr rfl fun oracle _ => (sum_hits relation ajtai adversary claim index _ oracle).symm
+    _ ≤ _ := retries_le (Hits relation ajtai adversary claim index)
+        (normalized_bound relation adversary claim bounded)
+        (hits_queried relation ajtai adversary claim index)
+
 /-- Lemma 5 work: at most `17 * (Q + 17)` expected retries. -/
 theorem expected_retries_le {queries : Nat} (bounded : adversary.QueryBound queries) :
     𝔼 oracle, (if Succeeds relation ajtai adversary claim oracle then
@@ -684,18 +733,15 @@ theorem expected_retries_le {queries : Nat} (bounded : adversary.QueryBound quer
           (rhoPoint relation adversary claim index oracle) oracle else 0) ≤
       (Nifs.PaperProfile.arity).total * ((queries + (Nifs.PaperProfile.arity).total : Nat) : ℝ) := by
   calc
-    _ = ∑ index, 𝔼 oracle, ∑ target,
-          if Hits relation ajtai adversary claim index target oracle then
-            retryCount (Hits relation ajtai adversary claim index) target oracle else 0 := by
+    _ = ∑ index, 𝔼 oracle, (if Succeeds relation ajtai adversary claim oracle then
+          retryCount (Hits relation ajtai adversary claim index)
+            (rhoPoint relation adversary claim index oracle) oracle else 0) := by
       rw [← Finset.expect_sum_comm]
       refine Finset.expect_congr rfl fun oracle _ => ?_
-      simp only [sum_hits]
       split <;> simp
     _ ≤ ∑ _index : Fin (Nifs.PaperProfile.arity).total,
           ((queries + (Nifs.PaperProfile.arity).total : Nat) : ℝ) :=
-      Finset.sum_le_sum fun index _ => retries_le (Hits relation ajtai adversary claim index)
-        (normalized_bound relation adversary claim bounded)
-        (hits_queried relation ajtai adversary claim index)
+      Finset.sum_le_sum fun index _ => expected_retries_at_le relation ajtai adversary claim bounded index
     _ = _ := by
       rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
 

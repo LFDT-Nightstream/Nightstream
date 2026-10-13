@@ -25,8 +25,8 @@ Outputs:
   bound with the binding term replaced by `msisAdvantage` plus the programming
   error;
 - `solverAdvantage`, `msisAdvantage_le_solver`: the same solver with a strict
-  budget of `T` adversary runs (`RandomOracleSolver.solve`) succeeds at least
-  `msisAdvantage − (35 Q + 653) / T`;
+  budget of `T` adversary runs (`RandomOracleReduction.solve`) succeeds at
+  least `msisAdvantage − (35 Q + 653) / T`;
 - `production_knowledge_error_lt`: the same for every application that fits
   the `2 ^ 28` profile, at its own relation and key size, where the
   programming error is below `2 ^ -190` (`programmingError_lt_of_fits`);
@@ -136,8 +136,8 @@ theorem knowledge_error_le_setup {queries : Nat}
     linarith
   have binding := expect_le_programmed
     (fun chunks => kernelChance relation (setupKey chunks) (adversary chunks) Linked)
-    (fun chunks => kernelChance_nonnegative relation (setupKey chunks) (adversary chunks) Linked)
-    (fun chunks => kernelChance_le_one relation (setupKey chunks) (adversary chunks) Linked)
+    (fun chunks => reductionChance_nonnegative relation (setupKey chunks) (adversary chunks) Linked _)
+    (fun chunks => reductionChance_le_one relation (setupKey chunks) (adversary chunks) Linked _)
   have programmed : (𝔼 matrix : SetupIndex logicalWidth publicFits → F, 𝔼 chunks ∈ preimages matrix,
       kernelChance relation (setupKey chunks) (adversary chunks) Linked) =
         msisAdvantage relation adversary claim prior contextDigest := by
@@ -157,7 +157,7 @@ theorem knowledge_error_le_setup {queries : Nat}
 
 /-- The strict MSIS solver on a uniform matrix: chunks uniform among the
 matrix's preimages, then the binding reduction with at most `budget` adversary
-runs (`RandomOracleSolver.solve`). -/
+runs (`RandomOracleReduction.solve`). -/
 noncomputable def solverAdvantage (budget : ℕ) : ℝ :=
   𝔼 matrix : SetupIndex logicalWidth publicFits → F, 𝔼 chunks ∈ preimages matrix,
     RandomOracleSolver.solverChance relation (keyOf matrix) (adversary chunks) Linked budget

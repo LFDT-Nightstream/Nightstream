@@ -81,6 +81,9 @@ impl PreparedLifecycle {
     pub(crate) fn engine(&self) -> Engine {
         self.backend.engine()
     }
+    pub(crate) fn structural_identifier(&self) -> [u64; 4] {
+        self.binding.structural_identifier()
+    }
     #[cfg(test)]
     pub(crate) fn structure(&self) -> &Structure {
         &self.structure

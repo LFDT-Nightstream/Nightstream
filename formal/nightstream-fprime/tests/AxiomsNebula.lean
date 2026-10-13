@@ -269,8 +269,6 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.mul_sub_one_eq_zero_iff
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.bitRow_iff
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.hold_bits
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Rows.hold_three
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Rows.hold_four
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Rows.hold_two
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Rows.keq_iff
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Rows.bitRows_iff
@@ -414,7 +412,12 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.plan_fixedPoint
 #audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.jointDomain_le_twoPow28
 #audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.matrixProgram_exact
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Rows.sum_flatMap_range
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.ofWords_digestWords
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.ofWords_memoryRoot
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.ofWords_initRootWords
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.joinChecks_length
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.checkNames_count
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.checkNames_flatMap_count
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Rows.names_count
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.assertionNames_count
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.EndToEnd.bad_subset

@@ -236,7 +236,8 @@ theorem completeness (env : Env) (inputs : Application.InputsBelow i offset)
   · rw [holdsFlat, opsAt, flatConstraints_append, flatAssertions]
     refine (constraintsHold_append _ _ _).mpr ⟨by rw [← operations]; exact children.rows, ?_⟩
     intro e member
-    simp only [assertions, List.mem_append, List.mem_map, List.mem_finRange, true_and,
+    simp only [assertions, hashChecks, joinChecks, List.foldl_cons, List.foldl_nil, List.nil_append,
+      List.mem_append, List.mem_map, List.mem_finRange, true_and,
       List.mem_cons, List.not_mem_nil, or_false] at member
     rcases member with (((((⟨k, rfl⟩ | ⟨k, rfl⟩) | ⟨k, rfl⟩) | ⟨k, rfl⟩) | ⟨k, rfl⟩) |
       (rfl | rfl | rfl | rfl)) | ⟨e', poly, rfl⟩

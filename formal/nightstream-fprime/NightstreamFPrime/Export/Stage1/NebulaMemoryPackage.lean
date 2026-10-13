@@ -290,7 +290,9 @@ theorem freshCount_le :
     fun affine k _ target => R1CS.constraintFreshCount_eq_zero_of_affine _
       (sub_affine (affine _) target)
   rw [MemoryApp.opsAt, flatConstraints_append, flatAssertions, R1CS.totalFreshCount_append,
-    childConstraints_noFresh, Nat.zero_add, MemoryApp.assertions, R1CS.totalFreshCount_append]
+    childConstraints_noFresh, Nat.zero_add, MemoryApp.assertions]
+  simp only [MemoryApp.hashChecks, joinChecks, List.foldl_cons, List.foldl_nil, List.nil_append]
+  rw [R1CS.totalFreshCount_append]
   have lanes : R1CS.totalFreshCount (((((
       (List.finRange 4).map (fun k =>
         MemoryApp.lane (Sponge.output (MemoryApp.stateIn plan app (wires plan app) (start plan app)) (start plan app)) k -
@@ -455,7 +457,7 @@ theorem childOps_length :
 
 theorem assertions_length :
     (MemoryApp.assertions plan app (wires plan app) (start plan app)).length = 24 + (Rows.polyRows plan app).length := by
-  simp [MemoryApp.assertions]
+  simp [MemoryApp.assertions, MemoryApp.hashChecks, joinChecks]
   omega
 
 theorem constraints_length :
@@ -514,7 +516,7 @@ def namedRowRanges (plan : Spec.Nebula.Plan) (app : PortApp plan) : List (String
   let rows := (ApplicationPackage.constraints (MemoryApp.program plan app)
     (ApplicationPackage.productionColumns (MemoryApp.program plan app)) (start plan app)).map
       R1CS.constraintRowCount
-  let names := MemoryApp.assertionNames plan app
+  let names := MemoryApp.assertionNames plan app (wires plan app) (start plan app)
   let children := rows.length - (names.map Prod.snd).sum
   let step := fun (state : Array (String × ℕ × ℕ) × ℕ × List ℕ) (group : String × ℕ) =>
     let span := (state.2.2.take group.2).sum

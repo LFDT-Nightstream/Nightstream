@@ -4,7 +4,8 @@ import NightstreamFPrime.Spec.Nebula
 /-! Owns the concrete Poseidon2 framing of the Nebula memory phase: the
 framed-block transcript of spec §3 over the Stage 1 sponge absorb, the
 record-chain digests of §9.1–§9.2, the plan digest of §4.3, the `η` transcript
-of §9.3, and the concrete verifier context.
+of §9.3, the concrete verifier context, and `D_init` over word lists for
+executable code.
 It also owns obligation Ob3: canonical chain inputs and canonical challenge
 inputs absorb different padded chunk sequences, so a collision among the chain
 inputs of an accepted run is a Poseidon2 transcript collision. -/
@@ -89,6 +90,47 @@ def etaChallenges (inp : EtaInput Digest) : K × K :=
 /-- The verifier context of a plan: Poseidon2 chains, the §9.3 transcript, and
 the plan digest that the verifier computes. -/
 def context (p : Plan) : Context K Digest := ⟨p, hash, fun _ => etaChallenges, planDigest p⟩
+
+/-! ### Word digests for executable code
+
+Compiled code recomputes a function digest at each read, so a chain of `n`
+hashes would cost `4^n` hashes. Executable code computes a chain over word
+lists instead and reads the result through `ofWords`. -/
+
+/-- Four words as a digest. -/
+def ofWords (words : List F) : Digest := fun i => words.getD i 0
+
+theorem ofWords_digestWords (d : Digest) : ofWords (digestWords d) = d := by
+  funext i
+  fin_cases i <;> rfl
+
+/-- `hash` over word-list digests. -/
+def wordHash : HashInput (List F) → List F
+  | .header lane pd => digestWords (hash (.header lane (ofWords pd)))
+  | .chain lane j D P => digestWords (hash (.chain lane j (ofWords D) P))
+
+/-- A memory root over word lists is the memory root over digests. -/
+theorem ofWords_memoryRoot (p : Plan) (pd : Digest) (mem : Memory) :
+    ofWords (memoryRoot wordHash p (digestWords pd) mem) = memoryRoot hash p pd mem := by
+  have links : ∀ (packed : List (List ℕ)) (w : List F) (k : ℕ),
+      ofWords (packed.foldl (fun acc P => (wordHash (.chain .mem acc.2 acc.1 P), acc.2 + 1)) (w, k)).1 =
+        (packed.foldl (fun acc P => (hash (.chain .mem acc.2 acc.1 P), acc.2 + 1)) (ofWords w, k)).1 := by
+    intro packed
+    induction packed with
+    | nil => intro w k; rfl
+    | cons P rest ih =>
+      intro w k
+      simp only [List.foldl_cons]
+      rw [ih, wordHash, ofWords_digestWords]
+  simp only [memoryRoot, chainRoot, chainState]
+  rw [links, wordHash, ofWords_digestWords, ofWords_digestWords]
+
+/-- `D_init` of a plan for executable code (`ofWords_initRootWords`). -/
+def initRootWords (p : Plan) : List F :=
+  memoryRoot wordHash p (digestWords (planDigest p)) (initialMemory p)
+
+theorem ofWords_initRootWords (p : Plan) : ofWords (initRootWords p) = (context p).initRoot := by
+  simp only [initRootWords, Context.initRoot, context, ofWords_memoryRoot]
 
 /-! ### Absorbed chunks -/
 

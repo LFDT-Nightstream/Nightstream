@@ -149,6 +149,8 @@ import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracleSolver.reductionChance_le_program
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracleSolver.kernelChance_le_solver
 #audit_axioms NightstreamFPrime.Export.Stage1.RandomOracleHashSolver.hashRuns_length_le
+#audit_axioms NightstreamFPrime.Export.Stage1.RandomOracleHashSolver.hashRuns_take_congr
+#audit_axioms NightstreamFPrime.Export.Stage1.RandomOracleHashSolver.hashSolve_congr
 #audit_axioms NightstreamFPrime.Export.Stage1.RandomOracleHashSolver.hashCollisions_le_solver
 #audit_axioms NightstreamFPrime.Spec.RandomOracle.OracleComp.queries_thenQueries
 #audit_axioms NightstreamFPrime.Spec.RandomOracle.OracleComp.run_congr

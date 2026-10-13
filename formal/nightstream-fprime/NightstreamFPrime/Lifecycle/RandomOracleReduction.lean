@@ -9,7 +9,8 @@ algorithm holds no adversary.
 
 Inputs: the claim parse function, the Ajtai key, a budget `T` and a tape of
 `T` uniform oracles. The adversary enters only through the record of each run
-the algorithm makes: its output and its queries.
+the algorithm makes: its output and its queries. The algorithm applies the
+claim parse function to each record.
 
 Outputs:
 - `reduction`: one adversary run per step, on an oracle built from one fresh
@@ -27,7 +28,8 @@ Outputs:
 - `solve_congr`: the output depends on the adversary only through the
   records of the runs made.
 
-Does not own: the reduction's laws and work (`RandomOracleSolver`).
+Does not own: the reduction's laws and work (`RandomOracleSolver`), or the
+cost of the checks that each step makes: Lean decides them classically.
 -/
 
 set_option autoImplicit false

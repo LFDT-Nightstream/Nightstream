@@ -15,8 +15,11 @@ Outputs:
   one hits the point again (Lemma 5). It compares the two prior preimages;
 - `hashSolve`: one finder for each of the 18 targets: a line finder for each
   of the 17 coordinates, or the binding reduction
-  (`RandomOracleReduction.reduction`) on its two finished runs. It holds no
-  adversary and makes at most `T` runs on every tape (`hashRuns_length_le`);
+  (`RandomOracleReduction.reduction`) on its two finished runs. Each finder
+  is a program that holds no adversary: it makes at most `T` runs on every
+  tape (`hashRuns_length_le`), each run depends only on the records of the
+  earlier runs (`hashRuns_take_congr`), and the output only on the records of
+  the runs made (`hashSolve_congr`);
 - `hashAdvantage`: its success when it draws the chunks, the target and the
   tape uniformly;
 - `hashCollisions_le_solver`:
@@ -165,6 +168,36 @@ theorem hashRuns_length_le (target : Option Coordinate) (budget : ℕ) (tape : F
   | some index =>
       exact ((lineFinder relation ajtai claim prior contextDigest index).program_bound budget .start tape).queries_length_le _
   | none => exact runs_length_le relation ajtai Linked adversary budget tape
+
+/-- **Causal runs.** The first `step + 1` runs depend on the adversary only
+through the records of the first `step`. -/
+theorem hashRuns_take_congr
+    (other : OracleComp (Point logicalWidth publicFits (ProductionKey.degreeBound relation)) Answer Output)
+    (target : Option Coordinate) (budget : ℕ) (tape : Fin budget → Oracle) (step : ℕ)
+    (agree : ∀ oracle ∈ (hashRuns relation ajtai claim prior contextDigest adversary target budget tape).take step,
+      adversary.record oracle = other.record oracle) :
+    (hashRuns relation ajtai claim prior contextDigest other target budget tape).take (step + 1) =
+      (hashRuns relation ajtai claim prior contextDigest adversary target budget tape).take (step + 1) := by
+  cases target with
+  | some index => exact OracleComp.take_succ_queries_congr _ _ _ step agree
+  | none => exact runs_take_congr relation ajtai Linked adversary other budget tape step agree
+
+/-- **Causal output.** The output depends on the adversary only through the
+records of the runs made. -/
+theorem hashSolve_congr
+    (other : OracleComp (Point logicalWidth publicFits (ProductionKey.degreeBound relation)) Answer Output)
+    (target : Option Coordinate) (budget : ℕ) (tape : Fin budget → Oracle)
+    (agree : ∀ oracle ∈ hashRuns relation ajtai claim prior contextDigest adversary target budget tape,
+      adversary.record oracle = other.record oracle) :
+    hashSolve relation ajtai claim prior contextDigest other target budget tape =
+      hashSolve relation ajtai claim prior contextDigest adversary target budget tape := by
+  cases target with
+  | some index =>
+      simp only [hashSolve]
+      rw [OracleComp.run_congr _ _ _ agree]
+  | none =>
+      simp only [hashSolve, finalState]
+      rw [OracleComp.run_congr _ _ _ agree]
 
 /-- The chance that the finder of `target` returns a collision. -/
 noncomputable def targetChance (target : Option Coordinate) (budget : ℕ) : ℝ :=

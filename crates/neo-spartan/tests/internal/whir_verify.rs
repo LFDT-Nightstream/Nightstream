@@ -51,8 +51,12 @@ fn case(plans: Vec<TablePlan>, seed: u64) -> Case {
         .collect();
     let pcs = Pcs::new(crate::pcs::LAYER1, plans, 100.0, &|_| Vec::new()).unwrap();
     let mut prover = Challenger::new(permutation().clone());
-    let (commitment, data) = pcs.commit(tables, &mut prover, &Accelerator::cpu());
-    let opening = pcs.open(data, &points, &mut prover, &Accelerator::cpu());
+    let (commitment, data) = pcs
+        .commit(tables, &mut prover, &Accelerator::cpu())
+        .unwrap();
+    let opening = pcs
+        .open(data, &points, &mut prover, &Accelerator::cpu())
+        .unwrap();
     let root = commitment.roots()[0];
     Case {
         pcs,

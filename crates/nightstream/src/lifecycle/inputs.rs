@@ -143,10 +143,12 @@ impl PiCcsV1_1ProofInputs {
     }
 }
 
-/// Serialize the exact Lean `HashPreimage` for the fixed v1_1 profile: the
-/// domain chunk, the running commitments, `Eval_K`, `Eval_A` and point, the
-/// packed parent public input, then `vk, i, z0, zi`. The children's public
-/// inputs enter only through their parent.
+/// A state preimage ends with the verifier context (4 words), then the
+/// statement: the iteration, `z0` (4) and the current state (4).
+pub(crate) const STATE_STATEMENT_WORDS: usize = 9;
+/// Where the verifier context starts in a state preimage.
+pub(crate) const STATE_CONTEXT_START: usize = PI_CCS_V1_1_STATE_PREIMAGE_WORDS - STATE_STATEMENT_WORDS - 4;
+
 /// The domain words that open every state preimage.
 pub(crate) fn state_domain_words() -> [u64; STATE_DOMAIN_WORDS] {
     std::array::from_fn(|chunk| {
@@ -157,6 +159,10 @@ pub(crate) fn state_domain_words() -> [u64; STATE_DOMAIN_WORDS] {
     })
 }
 
+/// Serialize the exact Lean `HashPreimage` for the fixed v1_1 profile: the
+/// domain chunk, the running commitments, `Eval_K`, `Eval_A` and point, the
+/// packed parent public input, then `vk, i, z0, zi`. The children's public
+/// inputs enter only through their parent.
 pub fn serialize_pi_ccs_v1_1_state_preimage(
     verifier_context_digest: [F; 4],
     iteration: u64,

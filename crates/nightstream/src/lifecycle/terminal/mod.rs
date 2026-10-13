@@ -3,7 +3,8 @@
 //! Owns: the order of the terminal checks of a `FinalProof` against an
 //! expected state: the statement, the Lean terminal package (prior-state
 //! hash, PiCCS, PiRLC), then the layer-1 argument for the parent claim.
-//! `Native` reads it as `verify_final`; the shrink layer reads it as rows.
+//! The shrink prover records it as rows with their values; `verify_final`
+//! runs it again to evaluate those rows at the shrink point.
 //!
 //! Invariant: the parent claim and the transcript that layer 1 reads are the
 //! package's output columns, which its rows fix. The proof carries only the
@@ -13,7 +14,7 @@ mod package;
 
 #[cfg(test)]
 pub(crate) use package::IDENTIFIER as TERMINAL_PACKAGE_IDENTIFIER;
-pub(crate) use package::{package, preload, Package};
+pub(crate) use package::{package, preload, Package, TerminalPackageError};
 
 use neo_math::F;
 use neo_spartan::{Backend, Error, Relation};

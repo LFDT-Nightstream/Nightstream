@@ -11,10 +11,11 @@ use p3_field::PrimeField64;
 use crate::application::{ApplicationCircuit, ApplicationError};
 use crate::assembly::{self, AssemblyError};
 use crate::engine::{Backend, Engine, EngineError};
-pub use crate::lifecycle::{CompressionKey, CompressionSetup};
 use crate::lifecycle::{
-    ExtendError, FinalProof, FinishError, PreparedLifecycle, ProofCodecError, Stage1Envelope, Stage1State, VerifyError,
+    CompressionError, ExtendError, FinalProof, PreparedLifecycle, ProofCodecError, Stage1Envelope, Stage1State,
+    VerifyError,
 };
+pub use crate::lifecycle::{CompressionKey, CompressionSetup};
 
 mod storage;
 
@@ -35,7 +36,7 @@ pub enum Error {
     #[error(transparent)]
     Verify(#[from] VerifyError),
     #[error(transparent)]
-    Finish(#[from] FinishError),
+    Compression(#[from] CompressionError),
     #[error(transparent)]
     ProofBytes(#[from] ProofCodecError),
     #[error(transparent)]
@@ -170,7 +171,7 @@ impl Prover {
     }
 
     /// Write this circuit's compression setup files into the existing
-    /// directory `dir` (about 29 GB at the production size) and return the
+    /// directory `dir` (about 29 GB, 27 GiB, at the production size) and return the
     /// setup. Its key is what verifiers need.
     pub fn compression_setup(&self, dir: impl AsRef<Path>) -> Result<CompressionSetup, Error> {
         Ok(self.lifecycle.compression_setup(dir.as_ref())?)
@@ -257,7 +258,9 @@ impl Verifier {
         key: &CompressionKey,
         proof: &FinalProof,
     ) -> Result<(), Error> {
-        self.lifecycle.check_compression_key(key)?;
+        self.lifecycle
+            .check_compression_key(key)
+            .map_err(VerifyError::Statement)?;
         Ok(key.verify(expected_state, proof)?)
     }
 }

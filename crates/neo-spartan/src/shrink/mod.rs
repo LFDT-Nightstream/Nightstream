@@ -157,11 +157,7 @@ impl ShrinkProof {
 
     /// Strict: the bytes must be the canonical encoding of the decoded proof.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
-        let proof: Self = bincode::deserialize(bytes).map_err(|_| Error::Codec("shrink proof"))?;
-        if proof.to_bytes() != bytes {
-            return Err(Error::Codec("non-canonical shrink proof"));
-        }
-        Ok(proof)
+        crate::decode_canonical(bytes, "shrink proof")
     }
 }
 
@@ -211,7 +207,7 @@ pub fn prove(shrink: &Shrink, program: &impl Program, accelerator: &Accelerator)
     let n = layout.cell_variables;
     let (commitment, data) = shrink
         .pcs
-        .commit(vec![z[..1 << n].to_vec()], &mut challenger, accelerator);
+        .commit(vec![z[..1 << n].to_vec()], &mut challenger, accelerator)?;
     let tau: Vec<Ext> = (0..layout.row_variables)
         .map(|_| challenger.sample_algebra_element())
         .collect();
@@ -223,7 +219,7 @@ pub fn prove(shrink: &Shrink, program: &impl Program, accelerator: &Accelerator)
     let (inner, ry, _) = sumcheck::prove_product(weights, z, &mut challenger);
     let opening = shrink
         .pcs
-        .open(data, &[ry[..n].to_vec()], &mut challenger, accelerator);
+        .open(data, &[ry[..n].to_vec()], &mut challenger, accelerator)?;
     Ok(ShrinkProof {
         commitment,
         outer,

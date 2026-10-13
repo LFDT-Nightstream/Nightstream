@@ -124,7 +124,7 @@ pub(crate) fn prove(
     trees: Vec<Tree>,
     challenger: &mut Challenger,
     accelerator: &Accelerator,
-) -> (GkrProof, Vec<TreeClaim<Ext>>) {
+) -> Result<(GkrProof, Vec<TreeClaim<Ext>>), Error> {
     let depths: Vec<usize> = trees.iter().map(Tree::depth).collect();
     // levels[i][k] is tree i at layer k; levels[i][depth] is its leaves.
     let mut levels: Vec<Vec<Tree>> = trees
@@ -170,7 +170,7 @@ pub(crate) fn prove(
             degree,
             challenger,
             accelerator,
-        );
+        )?;
         let children: Vec<Vec<Ext>> = tables
             .iter()
             .map(|tree| {
@@ -203,7 +203,7 @@ pub(crate) fn prove(
         .into_iter()
         .map(|claim| claim.expect("every tree ends"))
         .collect();
-    (GkrProof { roots, layers }, claims)
+    Ok((GkrProof { roots, layers }, claims))
 }
 
 /// The rounds of one layer: the messages, the challenges, and where the
@@ -218,7 +218,7 @@ fn prove_layer(
     degree: usize,
     challenger: &mut Challenger,
     accelerator: &Accelerator,
-) -> (Vec<Vec<Ext>>, Vec<Ext>, usize) {
+) -> Result<(Vec<Vec<Ext>>, Vec<Ext>, usize), Error> {
     // The nodes are 0, 2, ..., degree: `degree` of them.
     assert!(degree <= NODES);
     let count = eq.len().trailing_zeros() as usize;
@@ -237,15 +237,16 @@ fn prove_layer(
             for _ in 0..count {
                 let message: Vec<Ext> = layer
                     .message(&weights, words_of_ext(mu), degree)
+                    .map_err(Error::Device)?
                     .into_iter()
                     .map(ext_of_words)
                     .collect();
                 let r = sumcheck::send(&message, challenger);
-                layer.fold(words_of_ext(r));
+                layer.fold(words_of_ext(r)).map_err(Error::Device)?;
                 rounds.push(message);
                 point.push(r);
             }
-            return (rounds, point, 1 << count);
+            return Ok((rounds, point, 1 << count));
         }
     }
     while eq.len() > 1 {
@@ -260,7 +261,7 @@ fn prove_layer(
         rounds.push(message);
         point.push(r);
     }
-    (rounds, point, 1)
+    Ok((rounds, point, 1))
 }
 
 fn words_of_ext(value: Ext) -> [u64; 3] {

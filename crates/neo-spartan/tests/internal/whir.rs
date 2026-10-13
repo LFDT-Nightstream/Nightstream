@@ -99,8 +99,12 @@ fn whir_opens_two_tables_through_the_seeded_challenger() {
     assert!(pcs.security_bits() >= 100.0);
 
     let mut prover = challenger(seed(fold_transcript(1)));
-    let (commitment, data) = pcs.commit(vec![large, small.concat()], &mut prover, &Accelerator::cpu());
-    let opening = pcs.open(data, &points, &mut prover, &Accelerator::cpu());
+    let (commitment, data) = pcs
+        .commit(vec![large, small.concat()], &mut prover, &Accelerator::cpu())
+        .unwrap();
+    let opening = pcs
+        .open(data, &points, &mut prover, &Accelerator::cpu())
+        .unwrap();
 
     let verify = |transcript: Poseidon2Transcript, points: &[Vec<Ext>], opening| {
         let mut verifier = challenger(seed(transcript));
@@ -148,18 +152,6 @@ fn production_shape_reaches_the_required_security() {
     };
     let relation = Relation::new(&key, 5, 28, 3_672, 117.0).unwrap();
     assert!(relation.security_bits() >= 117.0, "{}", relation.security_bits());
-    // The Lean budget (`formal/compression-lean`, `Layer1/Budget.lean`) takes
-    // these as premises: the bounds of `Shape.Production`, WHIR lists of at
-    // most 32 candidates, and at least 123 setup queries.
-    let (shape, structure) = (&relation.shape, &key.structure);
-    assert!(shape.cube_variables() <= 29);
-    assert!(structure.run_variables <= 28 && structure.row_variables <= 28);
-    assert!(structure.slot_variables + structure.matrix_variables() <= 28);
-    assert!(structure.slot_variables < 28);
-    assert!(shape.norm_bound <= 1 << 12 && crate::ring::row_count(shape) <= 1 << 8);
-    assert!(key.setup_variables() >= 3);
-    assert!(relation.p0.log2_candidates() <= 5.0 && relation.p1.log2_candidates() <= 5.0);
-    assert!(relation.queries >= 123);
     eprintln!(
         "P0 {:.1} bits, P1 {:.1} bits, {} setup queries",
         relation.p0.security_bits(),

@@ -32,10 +32,13 @@ circuits without change.
   of the budget (`Budget.lean`), not proved here.
 - Claim: `Cost.lean`, `layer1_sound`. An accepted transcript has a P0
   candidate that is a CE(B) witness (`Model.lean`, `Relation`), except with
-  probability `layer1Error`. `Budget.lean` bounds it at production sizes.
+  probability `layer1Error`. `Budget.lean` bounds it at Rust's split:
+  `2^-t` for layer bits `t`, when each WHIR commitment's composed error, as
+  Plonky3 charges it, is at most `2^-(t+1)`.
 - Fiat–Shamir: `Restoration.lean` lets the prover ask for challenges at any
   node, as often as it wants, and output one path that uses only answers it
-  got. `FiatShamir.lean` bounds layer 1 there by `queries · layer1Error`.
+  got. `FiatShamir.lean` bounds layer 1 there by `calls · layer1Error`,
+  which is at most `calls / 2^t` at Rust's split.
 - Verifier formulas: the model takes the public tables at their
   definitions. `ClosedForms.lean` and `EvalK.lean` prove the `mle.rs`
   formulas equal to them. `CubicField.lean` proves that `x³ - x - 1` is
@@ -67,10 +70,10 @@ Layer 1 assumes, and does not prove:
   so the matrix column and the slot tables are step functions
   (`ClosedForms.lean`).
 - Transcription: the model is written by hand from the Rust verifier.
-- Production sizes: `Shape.Production`, lists of at most 32 candidates and
-  at least 123 setup queries are premises of `Budget.lean`. The Rust test
-  `production_shape_reaches_the_required_security` asserts them for the
-  production key.
+- Charges: Plonky3 composes a commitment's error as its WHIR terms plus each
+  charged term times its candidate count. `rustDegrees` (`Budget.lean`) is
+  `outer_terms` written in Lean, and `Pcs::new` enforces the two composed
+  bounds that `layer1_budget` takes as premises.
 
 Build and emit (each Lean command under the 1,500 s cap). Copy the F′ build
 cache into `.lake` first (`cp -cR ../nightstream-fprime/.lake/packages .lake/`)

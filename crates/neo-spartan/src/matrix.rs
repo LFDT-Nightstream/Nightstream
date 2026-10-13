@@ -1,5 +1,5 @@
-//! The CCS matrices as runs, slots and blocks: the two-level scatter of
-//! `docs/reviews/compression-akita/M2-DESIGN.md`.
+//! The CCS matrices as runs, slots and blocks: a two-level scatter, proved
+//! in `formal/compression-lean` (`Layer1/EarlySound.lean`, `Layer1/Late.lean`).
 //!
 //! Owns: the run and slot tables built from `MatrixRows`, the structure the
 //! verifier keeps, the per-proof columns and weights, the leaves of the six
@@ -135,6 +135,52 @@ fn bits(count: u64) -> usize {
 }
 
 impl Structure {
+    /// The structure is one that `Tables::from_rows` can produce: run bounds
+    /// that start at zero and grow, classes of length `1..=D` with a
+    /// canonical ratio, and segments that start at slot zero, grow, and
+    /// name a class and a lane.
+    pub(crate) fn check(&self) -> Result<(), Error> {
+        let fits = |count: u64, variables: usize| variables < 64 && count <= 1 << variables;
+        let ordered = self.run_bounds.windows(2).all(|pair| pair[0] <= pair[1]);
+        if self.matrices == 0
+            || self.run_bounds.len() != self.matrices + 1
+            || self.run_bounds[0] != 0
+            || !ordered
+            || !fits(self.run_bounds[self.matrices], self.run_variables)
+            || !fits(self.slots, self.slot_variables)
+            || self.row_variables >= 64
+        {
+            return Err(Error::Codec("key run or slot sizes"));
+        }
+        if self
+            .classes
+            .iter()
+            .any(|class| class.len == 0 || class.len > D as u64 || class.ratio >= Gl::ORDER_U64)
+        {
+            return Err(Error::Codec("key run class"));
+        }
+        let starts_ordered = self
+            .segments
+            .windows(2)
+            .all(|pair| pair[0].first < pair[1].first);
+        let named = self
+            .segments
+            .iter()
+            .all(|segment| (segment.class as usize) < self.classes.len() && (segment.lane as usize) < D);
+        let covered = self
+            .segments
+            .first()
+            .is_none_or(|segment| segment.first == 0)
+            && self
+                .segments
+                .last()
+                .is_none_or(|segment| segment.first < self.slots);
+        if !starts_ordered || !named || !covered {
+            return Err(Error::Codec("key slot segments"));
+        }
+        Ok(())
+    }
+
     pub(crate) fn matrix_variables(&self) -> usize {
         self.matrices.next_power_of_two().trailing_zeros() as usize
     }

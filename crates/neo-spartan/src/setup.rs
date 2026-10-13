@@ -1,4 +1,5 @@
-//! Honest setup oracles ("honest fold", docs/reviews/compression-akita/M2-DESIGN.md).
+//! Honest setup oracles and the honest fold. Its soundness is proved in
+//! `formal/compression-lean` (`Layer1/HonestStage.lean`).
 //!
 //! Owns: the exact Reed-Solomon encoding of setup oracles, their Merkle tree
 //! and on-disk store, the streaming root, and the honest fold: the prover's

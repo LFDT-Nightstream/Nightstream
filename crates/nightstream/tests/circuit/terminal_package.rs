@@ -15,6 +15,13 @@ fn read(path: &str) -> Vec<u8> {
     fs::read(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(path)).unwrap()
 }
 
+/// The embedded package loads: the artifact has the pinned identifier, its
+/// first caller inputs are the prior state preimage, and its rows build.
+#[test]
+fn terminal_package_loads() {
+    crate::lifecycle::terminal_package().unwrap();
+}
+
 #[test]
 #[ignore = "Production base step, fold and terminal package; run separately under the 300-second cap."]
 fn terminal_package_accepts_the_last_fold() {
@@ -34,7 +41,7 @@ fn terminal_package_accepts_the_last_fold() {
 
     let started = Instant::now();
     let (package, outputs) = load_terminal_package(
-        &read("../../formal/compression-lean/artifacts/compression-terminal-v1.json"),
+        &read("artifacts/compression-terminal-v1.json"),
         TERMINAL_PACKAGE_IDENTIFIER,
     )
     .unwrap();

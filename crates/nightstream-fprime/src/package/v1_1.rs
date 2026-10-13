@@ -6,7 +6,7 @@
 use super::{canonical_field, LoadedPackage, PackageError, Segment};
 use crate::identity::{pi_ccs_v1_1_verifier_context, PiCcsV1_1VerifierContext};
 
-const PRIOR_PREIMAGE_ROLE: u64 = 1;
+pub(crate) const PRIOR_PREIMAGE_ROLE: u64 = 1;
 const OUTPUT_PREIMAGE_ROLE: u64 = 2;
 const WITNESS_ROLE: u64 = 3;
 const FRESH_COMMITMENT_ROLE: u64 = 6;

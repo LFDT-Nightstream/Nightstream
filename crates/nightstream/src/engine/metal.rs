@@ -205,34 +205,23 @@ impl neo_spartan::Device for CompressionDevice {
         width: usize,
         fill: &(dyn Fn(&mut [u64]) + Sync),
     ) -> Option<Vec<Vec<[u64; 4]>>> {
-        let device = self
-            .0
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        device.merkle_layers(rows, width, fill).ok()
+        self.lock()?.merkle_layers(rows, width, fill).ok()
     }
 
     fn key_weights(&self, powers: &[[u64; 3]], blocks: usize) -> Option<Vec<[u64; 3]>> {
-        let device = self
-            .0
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        device.production_key_weights(powers, blocks).ok()
+        self.lock()?.production_key_weights(powers, blocks).ok()
     }
 
-    fn dft_columns(&self, values: &mut [u64], width: usize, generator: u64) -> bool {
-        let device = self
-            .0
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+    fn dft_columns(&self, values: &mut [u64], width: usize, generator: u64) -> Result<bool, String> {
+        let Some(device) = self.lock() else {
+            return Ok(false);
+        };
         match device.dft_columns(values, width, generator) {
-            Ok(()) => true,
+            Ok(()) => Ok(true),
             // Only execution touches `values`; any earlier failure leaves it
-            // unchanged.
-            Err(error @ neo_prover_metal::MetalError::Execution(_)) => {
-                panic!("the Metal DFT failed after it started: {error}")
-            }
-            Err(_) => false,
+            // unchanged, and the CPU runs the DFT.
+            Err(error @ neo_prover_metal::MetalError::Execution(_)) => Err(error.to_string()),
+            Err(_) => Ok(false),
         }
     }
 
@@ -241,7 +230,7 @@ impl neo_spartan::Device for CompressionDevice {
         trees: Vec<Vec<&'a mut [u64]>>,
         eq: &'a mut [u64],
     ) -> Option<Box<dyn neo_spartan::GkrLayer + 'a>> {
-        let layer = self.lock().gkr_layer(trees, eq).ok()?;
+        let layer = self.lock()?.gkr_layer(trees, eq).ok()?;
         Some(Box::new(GkrOnDevice {
             device: self.0.clone(),
             layer,
@@ -250,10 +239,10 @@ impl neo_spartan::Device for CompressionDevice {
 }
 
 impl CompressionDevice {
-    fn lock(&self) -> std::sync::MutexGuard<'_, MetalRowProver> {
-        self.0
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    /// The device session, or `None` once a panic poisoned it: a poisoned
+    /// session is never used again, as in `extend`.
+    fn lock(&self) -> Option<std::sync::MutexGuard<'_, MetalRowProver>> {
+        self.0.lock().ok()
     }
 }
 
@@ -264,23 +253,19 @@ struct GkrOnDevice<'a> {
 }
 
 impl neo_spartan::GkrLayer for GkrOnDevice<'_> {
-    fn message(&mut self, weights: &[[u64; 3]], mu: [u64; 3], degree: usize) -> Vec<[u64; 3]> {
-        let device = self
-            .device
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+    fn message(&mut self, weights: &[[u64; 3]], mu: [u64; 3], degree: usize) -> Result<Vec<[u64; 3]>, String> {
+        let device = self.device.lock().map_err(|_| POISONED.to_string())?;
         device
             .gkr_message(&self.layer, weights, mu, degree)
-            .expect("the Metal GKR message")
+            .map_err(|error| error.to_string())
     }
 
-    fn fold(&mut self, r: [u64; 3]) {
-        let device = self
-            .device
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+    fn fold(&mut self, r: [u64; 3]) -> Result<(), String> {
+        let device = self.device.lock().map_err(|_| POISONED.to_string())?;
         device
             .gkr_fold(&mut self.layer, r)
-            .expect("the Metal GKR fold");
+            .map_err(|error| error.to_string())
     }
 }
+
+const POISONED: &str = "the device session lock was poisoned";

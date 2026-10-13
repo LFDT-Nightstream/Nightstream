@@ -1,6 +1,8 @@
-//! Compression on the parity fixtures: PiCCS + PiRLC without PiDEC, then the
-//! layer-1 argument for the parent claim, and the verifier's replay of both
-//! with only the compression key.
+//! Layer 1 on the parity fixtures: PiCCS + PiRLC without PiDEC give the
+//! parent claim, then the layer-1 argument for it. The check replays layer 0
+//! with the fold verifier's own first half (`verify_parent`) and verifies
+//! layer 1 with the layer-1 key; the final verifier checks layer 0 with the
+//! Lean rows instead.
 
 use std::path::PathBuf;
 
@@ -48,7 +50,8 @@ fn relation<'k>(
 ) -> Result<neo_spartan::Relation<'k>, neo_spartan::Error> {
     let params = &fixture.params;
     let bound = 17 * params.T() * (params.b() - 1);
-    let bits = params.compression_security_bits().unwrap();
+    // `CompressionKey` gives layer 1 one bit more than the compression share.
+    let bits = params.compression_security_bits().unwrap() + 1.0;
     neo_spartan::Relation::new(key, parent.m_in / D, parent.r.len(), bound, bits)
 }
 

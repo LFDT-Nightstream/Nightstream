@@ -330,13 +330,14 @@ them from the F′ Stage 1 package without change and proves what they imply.
 The crate embeds that artifact and pins its identifier. The rest of the final
 verifier (statement, layer 1) is written once over `neo_spartan::Backend`.
 The final proof carries no witness. Compression needs a one-time setup per
-circuit: `Prover::compression_setup` writes the setup files (27 GB for the
-production package) and returns the setup, whose `CompressionKey` is 1,988
-bytes. `Verifier::verify_final` checks a final proof with that key and the
-embedded terminal package: no files, no commitment key, no matrix rows. It
-first refuses a key of another circuit or below the verifier's security
-minimum. The first verification in a process loads the package (about 6 s). Take the key from `Verifier::compression_key` (about
-60 s, no files) or from a copy you pinned; never from a prover. In the
+circuit: `Prover::compression_setup` writes the setup files (about 29 GB for
+the production package) and returns the setup, whose `CompressionKey` is
+1,988 bytes. `Verifier::verify_final` checks a final proof with that key and
+the embedded terminal package: no files, no commitment key, no matrix rows.
+It first refuses a key of another circuit or below the verifier's security
+minimum. The first verification in a process loads the package (about 6 s).
+Take the key from `Verifier::compression_key` (about 60 s, no files) or from
+a copy you pinned; never from a prover. In the
 production test, one fold gives a 129,490-byte final proof
 (`FinalProof::to_bytes`), against 221,738,816 bytes for the accumulator
 proof; finishing takes about 43-45 s on CPU and 21-22 s on Metal, and

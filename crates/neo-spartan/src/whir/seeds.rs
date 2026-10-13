@@ -3,10 +3,10 @@
 //!
 //! Plonky3 keeps three of the separator shapes crate-private (layout opening,
 //! out-of-domain claim, batching); they are rebuilt here from the same public
-//! parts. `DomainSeparator::seed` does the encoding, including the approved
-//! Keccak-256 fingerprint of the fixed pattern string (M2-DESIGN.md, Result
-//! item 7). No prover data passes through it. Parity tests against Plonky3's
-//! own verifier pin every word.
+//! parts. `DomainSeparator::seed` does the encoding, including the Keccak-256
+//! fingerprint of the fixed pattern string, which the owner approved as a
+//! fixed constant. No prover data passes through it. Parity tests against
+//! Plonky3's own verifier pin every word.
 
 use p3_challenger_v08::fs::{DomainSeparator, FieldUnit, Hierarchy, Interaction, InteractionPattern, Kind, Length};
 use p3_challenger_v08::CanObserve;

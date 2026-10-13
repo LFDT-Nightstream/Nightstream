@@ -60,6 +60,16 @@ Fixpoint loadedCaller (callees : CalleeEnvironment) (z : state) (memory : Memory
        end) /\ loadedCaller callees z memory (pc + 1) rest
   end.
 
+(* Internal invariant for composing segments; ProgramSpec.SourceState separates
+   the program-wide ROM binding from the active source position. *)
+Record CallerState (callees : CalleeEnvironment) (z : state) (memory : MemoryState)
+    (boundary : Boundary) (pc : Z) (code : list instr) (configuration : config) : Prop := {
+  callerStateLoaded : loadedCaller callees z memory pc code;
+  callerStateTyped : callerTyped callees z (stackHeight boundary) code;
+  callerStateRepresents : represents z memory boundary code configuration;
+  callerStatePC : boundaryPC boundary = pc
+}.
+
 Inductive CallerSegment :=
 | instructionSegment (row : Witness)
 | callSegment (first : Witness) (middle : list Witness) (last : Witness).

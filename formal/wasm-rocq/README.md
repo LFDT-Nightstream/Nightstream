@@ -6,7 +6,8 @@ straight-line bodies ending in `end`, composed with caller instructions, against
 Call initialization and return are proved; nested/indirect/host calls and early
 returns are outside the call theorem. Selected zero-test steps are also proved.
 Field primality and memory-event consistency are assumed; the offline memory
-argument is not proved.
+argument is not proved. The program ROM encoder covers this guest-only fragment;
+its correspondence with Rust preprocessing is not yet proved.
 
 ## Build
 

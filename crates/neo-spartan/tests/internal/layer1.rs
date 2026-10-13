@@ -183,6 +183,23 @@ fn keys_derive_reopen_and_bind() {
     assert!(Setup::open(&other_rows, &scratch.0, &key).is_err());
 }
 
+/// A pinned key is decoded, not trusted: a key whose structure the verifier
+/// would index out of range does not decode.
+#[test]
+fn malformed_keys_do_not_decode() {
+    let toy = Toy::new(5, 4, 6, 4, BOUND);
+    let key = Key::derive(&CachedMatrixRows::new(&toy.cache).unwrap()).unwrap();
+    let mut class = key.clone();
+    class.structure.segments[0].class = class.structure.classes.len() as u32;
+    let mut lane = key.clone();
+    lane.structure.segments[0].lane = neo_math::D as u32;
+    let mut runs = key.clone();
+    runs.structure.run_bounds.reverse();
+    for (malformed, what) in [(class, "segment class"), (lane, "segment lane"), (runs, "run bounds")] {
+        assert!(Key::from_bytes(&malformed.to_bytes()).is_err(), "{what}");
+    }
+}
+
 #[test]
 fn true_claims_verify_and_every_tampered_part_rejects() {
     let (toy, setup, _scratch) = setup_toy(2, 4, 6);

@@ -1,6 +1,6 @@
 //! Export-boundary templates: entry events absorb before the export's first
 //! instruction, with `InputLocal` slots bootstrapping the zero-initialized
-//! entry frame. Exit events absorb after the halting row and may bind the
+//! entry frame. Exit events absorb after the activation returns and may bind the
 //! captured result. The verifier folds the claimed transcript natively and
 //! compares it with the proof-carried final commitment chain. Tags below are
 //! arbitrary embedder data.

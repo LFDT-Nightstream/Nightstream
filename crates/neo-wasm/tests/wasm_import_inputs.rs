@@ -24,6 +24,7 @@ fn bindings(slots: &[SlotBinding], inputs: u8, export: u32) -> HostEventBindings
     bindings.imports.insert(
         1,
         ImportTemplate {
+            return_events: None,
             events: vec![EventBlock { block, absorb: true }],
             input_count: inputs,
         },
@@ -269,7 +270,7 @@ fn import_capture_waits_for_the_caller_after_cross_instance_reentry() {
 }
 
 #[test]
-fn same_instance_reentry_captures_each_return_but_cannot_be_normalized_as_an_atomic_call() {
+fn same_instance_reentry_is_rejected_for_atomic_imports() {
     let bytes = wat::parse_str(
         r#"(module
         (import "host" "write" (func $write (param i32) (result i32)))
@@ -305,17 +306,12 @@ fn same_instance_reentry_captures_each_return_but_cannot_be_normalized_as_an_ato
         .unwrap();
     let module = Module::new(store.engine(), &bytes).unwrap();
     let instance = block_on(linker.instantiate_async(&mut store, &module)).unwrap();
-    invoke(&mut store, instance);
-    let state = store.data().single_instance().unwrap();
-    let captured: Vec<_> = state
-        .steps()
-        .iter()
-        .filter_map(|row| row.host_call_memory.as_ref())
-        .collect();
-    assert_eq!(captured.len(), 2);
-    assert_eq!(captured[0].as_ref().unwrap()[&16], 17);
-    assert_eq!(captured[1].as_ref().unwrap()[&32], 33);
-    assert!(normalize(state.steps(), state.artifacts())
+    // Capture rejects at reentrant guest entry; do not expose a partial trace.
+    let run = instance.get_func(&mut store, "run").unwrap();
+    let _ = block_on(run.call_async(&mut store, &[], &mut [Val::I32(0)]));
+    assert!(store
+        .data()
+        .single_instance()
         .unwrap_err()
         .to_string()
         .contains("same-instance reentry"));
@@ -430,9 +426,12 @@ fn callback_error_only_retires_the_activations_that_unwind() {
     .unwrap();
     for catch in [false, true] {
         let mut store = store();
+        let mut configured = bindings(&[word(0, 0)], 1, 2);
+        let import = configured.imports.get_mut(&1).unwrap();
+        import.return_events = Some(std::mem::take(&mut import.events));
         store
             .data_mut()
-            .register_module(&bytes, bindings(&[word(0, 0)], 1, 2))
+            .register_module(&bytes, configured)
             .unwrap();
         let mut linker = Linker::new(store.engine());
         linker
@@ -471,7 +470,7 @@ fn callback_error_only_retires_the_activations_that_unwind() {
             store
                 .data()
                 .check_errors()
-                .expect("unwinding a callback must not poison the registry");
+                .expect("unwinding a reentrant guest invocation must not poison the registry");
         }
         let state = store.data().single_instance().unwrap();
         let calls: Vec<_> = state
@@ -481,7 +480,10 @@ fn callback_error_only_retires_the_activations_that_unwind() {
             .collect();
         assert_eq!(calls.len(), 4);
         for pair in calls.chunks_exact(2) {
-            assert!(pair[1].host_call_memory.is_none(), "the callback never returned");
+            assert!(
+                pair[1].host_call_memory.is_none(),
+                "the reentrant guest invocation never returned"
+            );
             if catch {
                 assert_eq!(pair[0].host_call_memory.as_ref().unwrap().as_ref().unwrap()[&16], 99);
             } else {

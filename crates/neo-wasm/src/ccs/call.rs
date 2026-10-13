@@ -5,14 +5,15 @@ use super::super::gadgets::push_gated_linear_zero;
 use super::super::ir::{FUNCTION_CALL_METADATA_GUEST_FACTOR, FUNCTION_CALL_METADATA_RESULT_FACTOR};
 use super::super::isa::WasmOpcode;
 use super::super::layout::{
-    selector_col, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_INDIRECT_IS_TRAP, COL_CALL_PARAM_COUNT,
-    COL_CALL_RESULT_COUNT, COL_CALL_STACK_ADDR, COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_CALLER_SP_BASE_VALUE,
-    COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_DEPTH_BEFORE, COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_PUSH_PRESENT,
+    selector_col, COL_ACTIVATION_FINISHED_AFTER, COL_ACTIVATION_FINISHED_BEFORE, COL_CALL_INDIRECT_IS_NOT_TRAP,
+    COL_CALL_INDIRECT_IS_TRAP, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_CALL_STACK_ADDR,
+    COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_CALLER_SP_BASE_VALUE, COL_CALL_STACK_DEPTH_AFTER,
+    COL_CALL_STACK_DEPTH_BEFORE, COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_PUSH_PRESENT,
     COL_CALL_STACK_RETURN_PC_VALUE, COL_CALL_TARGET_METADATA, COL_CI_HOST_CALL, COL_CURRENT_FUNCTION_NUM_LOCALS,
-    COL_ENTERED_FUNCTION_NUM_LOCALS, COL_FUNCTION_REF, COL_GATHER_ACTIVE, COL_GUEST_ENTRY_ACTIVE, COL_HALTED,
-    COL_HALTED_BEFORE, COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_EVENT_EXIT_LATCH,
-    COL_IS_PROGRAM_ROW, COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE, COL_LOCAL_INDEX, COL_LOCAL_VALUE,
-    COL_LOCAL_VALUE_HI, COL_LOCAL_ZERO_ACTIVE_AFTER, COL_LOCAL_ZERO_ACTIVE_BEFORE, COL_LOCAL_ZERO_REMAINING_AFTER,
+    COL_ENTERED_FUNCTION_NUM_LOCALS, COL_FUNCTION_REF, COL_GATHER_ACTIVE, COL_GUEST_ENTRY_ACTIVE,
+    COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_EVENT_EXIT_LATCH, COL_IS_PROGRAM_ROW,
+    COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE, COL_LOCAL_INDEX, COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI,
+    COL_LOCAL_ZERO_ACTIVE_AFTER, COL_LOCAL_ZERO_ACTIVE_BEFORE, COL_LOCAL_ZERO_REMAINING_AFTER,
     COL_LOCAL_ZERO_REMAINING_AFTER_INV, COL_LOCAL_ZERO_REMAINING_AFTER_IS_ZERO, COL_LOCAL_ZERO_REMAINING_BEFORE,
     COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE, COL_ONE, COL_OUTPUT_CAPTURED, COL_OUTPUT_ENABLED_AFTER,
     COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_AFTER,
@@ -27,6 +28,10 @@ use super::super::layout::{
 };
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::always;
+use crate::layout::{
+    COL_HOST_CLEAR_ACTIVATION_FINISHED, COL_HOST_FRAME_DEPTH_BEFORE, COL_HOST_NESTED_ENTRY, COL_HOST_RESUME,
+    COL_HOST_SUSPEND,
+};
 use neo_application::ZeroTest;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
@@ -79,6 +84,8 @@ pub(super) fn push_call_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             (COL_PADDING_ACTIVE, F::ONE),
             (COL_GATHER_ACTIVE, F::ONE),
             (COL_TURN_BOUNDARY, F::ONE),
+            (COL_HOST_RESUME, F::ONE),
+            (COL_HOST_SUSPEND, F::ONE),
             (COL_PERM_PENDING_BEFORE, F::ONE),
             (COL_PERM_ROUND_BEFORE_IS_ZERO, -F::ONE),
         ]);
@@ -153,6 +160,7 @@ pub(super) fn push_call_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         // pc-pin gate folds the perm-row flag `pending + 1 - round_is_zero`
         // in directly.
         let aux_row_gate_with_perm = [
+            (COL_HOST_SUSPEND, F::ONE),
             (COL_PARAM_INIT_ACTIVE_BEFORE, F::ONE),
             (COL_LOCAL_ZERO_ACTIVE_BEFORE, F::ONE),
             (COL_TAIL_ENTER_ACTIVE, F::ONE),
@@ -211,27 +219,46 @@ pub(super) fn push_call_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         push_param_init_state_preservation_constraints(b);
     });
 
-    b.with_tag(always("halt terminality"), |b| {
-        // The carried `halted` latch is cleared only by a turn boundary
-        // (its preservation elsewhere lives in `ccs.rs`; program rows are
-        // barred there while it is set).
-        push_gated_linear_zero(b, COL_TURN_BOUNDARY, [(COL_HALTED, F::ONE)]);
-        // Re-entry requires a finished turn.
-        push_gated_linear_zero(b, COL_TURN_BOUNDARY, [(COL_ONE, F::ONE), (COL_HALTED_BEFORE, -F::ONE)]);
+    b.with_tag(always("activation completion"), |b| {
+        // Entry and resume clear activation completion. Other rows preserve
+        // the latch; program rows cannot execute while it is set.
+        push_gated_linear_zero(b, COL_TURN_BOUNDARY, [(COL_ACTIVATION_FINISHED_AFTER, F::ONE)]);
+        // Root entry requires a finished turn; nested entry requires suspension.
+        b.push_row(
+            [(COL_TURN_BOUNDARY, F::ONE), (COL_HOST_NESTED_ENTRY, -F::ONE)],
+            [(COL_ONE, F::ONE), (COL_ACTIVATION_FINISHED_BEFORE, -F::ONE)],
+            [],
+        );
     });
 
     b.with_tag(always("turn boundary row"), |b| {
-        // Re-entry requires empty operand and call stacks. Other state-machine
+        // Root entry requires empty operand and call stacks. Other state-machine
         // constraints require spent event schedules and an idle permutation.
-        push_gated_linear_zero(b, COL_TURN_BOUNDARY, [(COL_SP_BEFORE, F::ONE)]);
-        push_gated_linear_zero(b, COL_TURN_BOUNDARY, [(COL_CALL_STACK_DEPTH_BEFORE, F::ONE)]);
-        push_gated_linear_zero(b, COL_TURN_BOUNDARY, [(COL_STACK_FRAME_BASE_BEFORE, F::ONE)]);
-        push_gated_linear_zero(b, COL_TURN_BOUNDARY, [(COL_STACK_FRAME_BASE_AFTER, F::ONE)]);
+        b.push_row(
+            [(COL_TURN_BOUNDARY, F::ONE), (COL_HOST_NESTED_ENTRY, -F::ONE)],
+            [(COL_SP_BEFORE, F::ONE)],
+            [],
+        );
+        b.push_row(
+            [(COL_TURN_BOUNDARY, F::ONE), (COL_HOST_NESTED_ENTRY, -F::ONE)],
+            [(COL_CALL_STACK_DEPTH_BEFORE, F::ONE)],
+            [],
+        );
+        b.push_row(
+            [(COL_TURN_BOUNDARY, F::ONE), (COL_HOST_NESTED_ENTRY, -F::ONE)],
+            [(COL_STACK_FRAME_BASE_BEFORE, F::ONE)],
+            [],
+        );
+        b.push_row(
+            [(COL_TURN_BOUNDARY, F::ONE), (COL_HOST_NESTED_ENTRY, -F::ONE)],
+            [(COL_STACK_FRAME_BASE_AFTER, F::ONE)],
+            [],
+        );
         // The next turn starts a fresh entry frame at the same base.
-        push_gated_linear_zero(
-            b,
-            COL_TURN_BOUNDARY,
+        b.push_row(
+            [(COL_TURN_BOUNDARY, F::ONE), (COL_HOST_NESTED_ENTRY, -F::ONE)],
             [(COL_LOCALS_FBP_AFTER, F::ONE), (COL_LOCALS_FBP_BEFORE, -F::ONE)],
+            [],
         );
     });
 
@@ -280,16 +307,25 @@ fn push_simple_output_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             (COL_OUTPUT_VALUE_LO_AFTER, COL_OUTPUT_VALUE_LO_BEFORE),
             (COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE),
         ] {
-            // Halt and boundary rows own output transitions.
+            // Activation completion and boundary rows own output transitions.
             b.push_row(
-                [(COL_ONE, F::ONE), (COL_HALTED, -F::ONE), (COL_TURN_BOUNDARY, -F::ONE)],
+                [
+                    (COL_ONE, F::ONE),
+                    (COL_ACTIVATION_FINISHED_AFTER, -F::ONE),
+                    (COL_TURN_BOUNDARY, -F::ONE),
+                    (COL_HOST_RESUME, -F::ONE),
+                ],
                 [(after, F::ONE), (before, -F::ONE)],
                 [],
             );
             // Carry captured output until a boundary. A resultless boundary
             // preserves the already-zero state.
             b.push_row(
-                [(COL_OUTPUT_ENABLED_BEFORE, F::ONE), (COL_TURN_BOUNDARY, -F::ONE)],
+                [
+                    (COL_OUTPUT_ENABLED_BEFORE, F::ONE),
+                    (COL_TURN_BOUNDARY, -F::ONE),
+                    (COL_HOST_RESUME, -F::ONE),
+                ],
                 [(after, F::ONE), (before, -F::ONE)],
                 [],
             );
@@ -297,7 +333,7 @@ fn push_simple_output_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
 
         // Capture raises the flag; a boundary clears it only when set.
         b.push_row(
-            [(COL_TURN_BOUNDARY, F::ONE)],
+            [(COL_TURN_BOUNDARY, F::ONE), (COL_HOST_RESUME, F::ONE)],
             [(COL_OUTPUT_ENABLED_BEFORE, F::ONE)],
             [
                 (COL_OUTPUT_ENABLED_BEFORE, F::ONE),
@@ -310,7 +346,7 @@ fn push_simple_output_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         push_gated_linear_zero(b, COL_TURN_BOUNDARY, [(COL_OUTPUT_VALUE_HI_AFTER, F::ONE)]);
         b.push_row(
             [(COL_OUTPUT_CAPTURED, F::ONE)],
-            [(COL_ONE, F::ONE), (COL_HALTED, -F::ONE)],
+            [(COL_ONE, F::ONE), (COL_ACTIVATION_FINISHED_AFTER, -F::ONE)],
             [],
         );
         b.push_row(
@@ -318,16 +354,16 @@ fn push_simple_output_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             [(COL_OUTPUT_ENABLED_BEFORE, F::ONE)],
             [],
         );
-        // A clean top-level halt leaves exactly the optional result above
-        // the current frame base. The boundary term cancels the halted-latch
+        // A clean activation return leaves exactly the optional result above
+        // the current frame base. The boundary term cancels the activation-finished latch
         // reset between turns.
         b.push_row(
             [
-                (COL_HALTED, F::ONE),
-                (COL_HALTED_BEFORE, -F::ONE),
+                (COL_ACTIVATION_FINISHED_AFTER, F::ONE),
+                (COL_ACTIVATION_FINISHED_BEFORE, -F::ONE),
                 (COL_TRAPPED_AFTER, -F::ONE),
                 (COL_TRAPPED_BEFORE, F::ONE),
-                (COL_TURN_BOUNDARY, F::ONE),
+                (COL_HOST_CLEAR_ACTIVATION_FINISHED, F::ONE),
             ],
             [
                 (COL_SP_BEFORE, F::ONE),
@@ -480,6 +516,7 @@ fn push_host_call_attribution_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             // or next turn's export.
             (COL_HOST_EVENT_EXIT_LATCH, -F::ONE),
             (COL_TURN_BOUNDARY, -F::ONE),
+            (COL_HOST_RESUME, -F::ONE),
         ],
         [
             (COL_HOST_CALLEE_FREF_AFTER, F::ONE),
@@ -705,6 +742,8 @@ fn push_call_stack_transition_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         (COL_CALL_STACK_DEPTH_BEFORE, -F::ONE),
         (push, -F::ONE),
         (pop, F::ONE),
+        (COL_HOST_SUSPEND, -F::ONE),
+        (COL_HOST_RESUME, F::ONE),
     ]);
 
     push_gated_linear_zero(
@@ -741,11 +780,14 @@ fn push_call_stack_transition_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             (COL_STACK_FRAME_BASE_BEFORE, -F::ONE),
         ],
     );
-    // A clean halt returns from the top-level frame, but a trap terminates
+    // A clean return finishes the activation at its outermost frame, but a trap terminates
     // immediately and may leave abandoned caller frames on the call stack.
     b.push_row(
-        [(COL_HALTED, F::ONE), (COL_TRAPPED_AFTER, -F::ONE)],
-        [(COL_CALL_STACK_DEPTH_BEFORE, F::ONE)],
+        [(COL_ACTIVATION_FINISHED_AFTER, F::ONE), (COL_TRAPPED_AFTER, -F::ONE)],
+        [
+            (COL_CALL_STACK_DEPTH_BEFORE, F::ONE),
+            (COL_HOST_FRAME_DEPTH_BEFORE, -F::ONE),
+        ],
         [],
     );
 }
@@ -816,7 +858,13 @@ fn push_stack_frame_base_transition_constraints(b: &mut WasmTaggedR1csBuilder<'_
         ],
     );
     b.push_row(
-        [(COL_ONE, F::ONE), (push, -F::ONE), (pop, -F::ONE)],
+        [
+            (COL_ONE, F::ONE),
+            (push, -F::ONE),
+            (pop, -F::ONE),
+            (COL_HOST_RESUME, -F::ONE),
+            (COL_HOST_NESTED_ENTRY, -F::ONE),
+        ],
         [
             (COL_STACK_FRAME_BASE_AFTER, F::ONE),
             (COL_STACK_FRAME_BASE_BEFORE, -F::ONE),
@@ -847,7 +895,13 @@ fn push_locals_fbp_transition_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         ],
     );
     b.push_row(
-        [(COL_ONE, F::ONE), (guest_call, -F::ONE), (pop, -F::ONE)],
+        [
+            (COL_ONE, F::ONE),
+            (guest_call, -F::ONE),
+            (pop, -F::ONE),
+            (COL_HOST_RESUME, -F::ONE),
+            (COL_HOST_NESTED_ENTRY, -F::ONE),
+        ],
         [(COL_LOCALS_FBP_AFTER, F::ONE), (COL_LOCALS_FBP_BEFORE, -F::ONE)],
         [],
     );

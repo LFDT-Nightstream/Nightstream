@@ -54,6 +54,7 @@ fn memory_bindings(host_fref: u32, export_fref: u32) -> HostEventBindings {
     bindings.imports.insert(
         host_fref,
         ImportTemplate {
+            return_events: None,
             events: vec![
                 EventBlock::op(
                     40,

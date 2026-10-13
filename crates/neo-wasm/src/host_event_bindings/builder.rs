@@ -341,9 +341,14 @@ impl<'a> HostEventBindingsBuilder<'a> {
             )));
         }
 
-        self.bindings
-            .imports
-            .insert(function_ref, ImportTemplate { events, input_count });
+        self.bindings.imports.insert(
+            function_ref,
+            ImportTemplate {
+                return_events: None,
+                events,
+                input_count,
+            },
+        );
 
         Ok(self)
     }

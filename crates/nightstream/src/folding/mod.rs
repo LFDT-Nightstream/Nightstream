@@ -31,9 +31,9 @@ pub(crate) type DecMixer = fn(&[Commitment], u32) -> Commitment;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error(transparent)]
-    PiCcs(#[from] pi_ccs::Error),
+    Ccs(#[from] pi_ccs::Error),
     #[error(transparent)]
-    PiRlc(#[from] pi_rlc::Error),
+    Rlc(#[from] pi_rlc::Error),
     #[error(transparent)]
-    PiDec(#[from] pi_dec::Error),
+    Dec(#[from] pi_dec::Error),
 }

@@ -77,7 +77,7 @@ impl Shape {
 impl PreparedLifecycle {
     fn proof_shape(&self) -> Result<Shape, ProofCodecError> {
         let public_width = self.package.logical_public_input_count();
-        if public_width % D != 0 {
+        if !public_width.is_multiple_of(D) {
             return Err(ProofCodecError("public width is not whole ring elements"));
         }
         Ok(Shape {

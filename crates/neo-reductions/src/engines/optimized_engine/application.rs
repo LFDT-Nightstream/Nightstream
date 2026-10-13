@@ -55,7 +55,7 @@ impl ApplicationTables {
         if shape.rows == 0
             || shape.matrices == 0
             || shape.columns == 0
-            || shape.columns % D != 0
+            || !shape.columns.is_multiple_of(D)
             || witnesses.is_empty()
             || witnesses
                 .iter()

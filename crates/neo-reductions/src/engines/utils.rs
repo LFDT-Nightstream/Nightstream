@@ -18,10 +18,7 @@ use rayon::prelude::*;
 /// Validate that all ME inputs share the same evaluation point `r`.
 ///
 /// Returns `None` when `me_inputs` is empty, otherwise returns a shared `r` slice.
-pub fn shared_me_input_r<'a, C, Ff>(
-    me_inputs: &'a [CeClaim<C, Ff, K>],
-    ell_n: usize,
-) -> Result<Option<&'a [K]>, PiCcsError>
+pub fn shared_me_input_r<C, Ff>(me_inputs: &[CeClaim<C, Ff, K>], ell_n: usize) -> Result<Option<&[K]>, PiCcsError>
 where
     Ff: Field + PrimeCharacteristicRing + Copy,
 {

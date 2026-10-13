@@ -305,11 +305,11 @@ fn build_outputs(
             .as_deref()
             .expect("host openings require the equality tensor");
         let assignment = crate::common::decode_superneo_coeffs_from_witness_mat(witness, structure.m)?;
-        let mut eval_k = identity_ring_mle(&assignment, &weights).to_vec();
+        let mut eval_k = identity_ring_mle(&assignment, weights).to_vec();
         eval_k.resize(d_pad, K::ZERO);
         let cache = cache.expect("host openings require the validated structure cache");
         let eval_a =
-            crate::superneo_eval::eval_all_mats_ring_cached(cache.superneo(), &assignment, &weights, structure.n)
+            crate::superneo_eval::eval_all_mats_ring_cached(cache.superneo(), &assignment, weights, structure.n)
                 .into_iter()
                 .map(|coefficients| {
                     let mut row = coefficients.to_vec();

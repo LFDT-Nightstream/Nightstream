@@ -283,7 +283,7 @@ impl Coverage {
 
     fn run(&mut self, row: usize, matrix: usize, run: &GeometricRowRun<F>) -> Result<(), PiCcsError> {
         self.slot(row, matrix)?;
-        if run.len() == 0
+        if run.is_empty()
             || run.row() != row
             || !run.validate_shape(self.shape.rows, self.shape.columns)
             || u32::try_from(run.column_start()).is_err()

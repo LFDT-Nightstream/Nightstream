@@ -35,7 +35,7 @@ where
     Ff: Field,
 {
     let active_columns = neo_ccs::superneo_public_x_cols(claim.m_in);
-    if claim.m_in % D != 0 || claim.X.rows() != D || claim.X.cols() != active_columns {
+    if !claim.m_in.is_multiple_of(D) || claim.X.rows() != D || claim.X.cols() != active_columns {
         return Err(PiCcsError::InvalidInput(format!(
             "{label}: X has shape {}x{} for m_in={}, expected a whole-ring {D}x{} coefficient embedding",
             claim.X.rows(),

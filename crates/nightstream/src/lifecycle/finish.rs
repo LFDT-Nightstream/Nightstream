@@ -65,7 +65,7 @@ impl FinalProof {
     }
 
     /// Strict: the bytes must be the canonical encoding of the decoded proof.
-    /// Acceptance still needs `CompressionKey::verify`.
+    /// Acceptance still needs `Verifier::verify_final`.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, ProofCodecError> {
         let header = FINAL_MAGIC.len() + STATE_BYTES;
         if bytes.len() < header || &bytes[..FINAL_MAGIC.len()] != FINAL_MAGIC {
@@ -124,7 +124,8 @@ impl CompressionKey {
     }
 
     /// Check `proof` for `expected_state` with this key alone.
-    pub fn verify(&self, expected_state: &Stage1State, proof: &FinalProof) -> Result<(), VerifyError> {
+    /// `Verifier::verify_final` checks the key first, then calls this.
+    pub(crate) fn verify(&self, expected_state: &Stage1State, proof: &FinalProof) -> Result<(), VerifyError> {
         if proof.state != *expected_state {
             return Err(VerifyError::Statement("final proof differs from the external state"));
         }
@@ -355,7 +356,7 @@ impl PreparedLifecycle {
     }
 
     /// Write the compression setup files of this circuit into `dir`.
-    pub(crate) fn compression_setup(&self, dir: &std::path::Path) -> Result<CompressionSetup, neo_spartan::Error> {
+    pub(crate) fn compression_setup(&self, dir: &std::path::Path) -> Result<CompressionSetup, FinishError> {
         let layer1 = neo_spartan::Setup::build(&self.matrix_rows(), dir)?;
         let key = self.compression_key_for(layer1.key().clone())?;
         Ok(CompressionSetup { layer1, key })
@@ -366,7 +367,7 @@ impl PreparedLifecycle {
         &self,
         dir: &std::path::Path,
         key: &CompressionKey,
-    ) -> Result<CompressionSetup, neo_spartan::Error> {
+    ) -> Result<CompressionSetup, FinishError> {
         let layer1 = neo_spartan::Setup::open(&self.matrix_rows(), dir, &key.layer1)?;
         Ok(CompressionSetup {
             layer1,
@@ -375,8 +376,8 @@ impl PreparedLifecycle {
     }
 
     /// Derive the compression key from the package, without files.
-    pub(crate) fn compression_key(&self) -> Result<CompressionKey, neo_spartan::Error> {
-        self.compression_key_for(neo_spartan::Key::derive(&self.matrix_rows())?)
+    pub(crate) fn compression_key(&self) -> Result<CompressionKey, FinishError> {
+        Ok(self.compression_key_for(neo_spartan::Key::derive(&self.matrix_rows())?)?)
     }
 
     /// Refuse a compression key of another circuit or guard bound, or one

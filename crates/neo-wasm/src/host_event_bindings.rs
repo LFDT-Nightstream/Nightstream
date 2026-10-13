@@ -22,8 +22,11 @@ use std::collections::BTreeMap;
 
 mod builder;
 mod opaque;
+mod phases;
 pub use builder::{EventSequenceBuilder, EventSources, HostEventBindingsBuilder};
 pub use opaque::opaque_value_root;
+pub use phases::MAX_IMPORT_PHASE_BLOCKS;
+pub(crate) use phases::{IMPORT_SCHEDULE_COUNT_BITS, IMPORT_SCHEDULE_COUNT_FACTOR};
 
 /// Which 32-bit limb of a two-limb value feeds a slot.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -178,7 +181,9 @@ impl EventBlock {
 
 /// Static expansion of one imported function into host-event blocks.
 ///
-/// The whole call is one atomic event sequence at the call site. Imports
+/// Each phase is limited to [`MAX_IMPORT_PHASE_BLOCKS`] eight-slot blocks.
+/// `return_events: None` makes the call atomic. With `Some`, `events` executes
+/// before reentrant guest invocations; return events execute after the caller resumes. Imports
 /// may mix transcript-bound and advice events; in either case, the
 /// `ResultElem { limb: Lo }` slot pushes the host result onto the operand
 /// stack.
@@ -195,6 +200,8 @@ impl EventBlock {
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ImportTemplate {
     pub events: Vec<EventBlock>,
+    /// `None` for atomic imports; `Some` for split imports, including an empty return phase.
+    pub return_events: Option<Vec<EventBlock>>,
     /// Number of per-call input words the template draws from (one array
     /// for the whole call; one word may feed multiple modeled memory writes).
     pub input_count: u8,
@@ -202,7 +209,7 @@ pub struct ImportTemplate {
 
 /// Static expansion of one exported function's boundary into host-event
 /// blocks: entry effects run before the first instruction, and exit effects
-/// run after a clean halt. Either phase may mix advice and absorbing blocks.
+/// run after a clean activation return. Either phase may mix advice and absorbing blocks.
 /// A nonempty template must absorb in at least one phase so completed turns
 /// remain visible; a completely empty template cannot be entered at a turn boundary.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -296,7 +303,7 @@ impl ExportTemplate {
                         }
                         SlotBinding::OutputElem { .. } => {
                             if matches!(phase, ExportPhase::Entry) {
-                                return err(ctx("output reference before the export halts"));
+                                return err(ctx("output reference before the export returns"));
                             }
                             if result_count != 1 {
                                 return err(ctx("output reference requires a single-result export"));
@@ -454,9 +461,15 @@ impl ImportTemplate {
     /// These order rules are deliberately out-of-circuit: the bindings are
     /// verifier-authored data, audited here rather than in the relation.
     pub fn validate(&self, param_count: u8, result_count: u8) -> Result<(), WasmBuildError> {
-        opaque::validate(&self.events)?;
+        self.validate_phases()?;
+        let events: Vec<_> = self
+            .events
+            .iter()
+            .chain(self.return_events.iter().flatten())
+            .cloned()
+            .collect();
         let err = |msg: String| Err(WasmBuildError::Trace(msg));
-        if self.input_count != 0 && !self.events.iter().any(|event| event.absorb) {
+        if self.input_count != 0 && !events.iter().any(|event| event.absorb) {
             return err(format!(
                 "input words are absorbed words; a template with no absorbing events cannot deliver {} of them",
                 self.input_count
@@ -464,7 +477,7 @@ impl ImportTemplate {
         }
         let mut result_lo_seen = false;
         let mut result_hi_seen = false;
-        for (idx, event) in self.events.iter().enumerate() {
+        for (idx, event) in events.iter().enumerate() {
             let ctx = |what: &str| format!("host-event template block {idx}: {what}");
             for slot in &event.block {
                 // Unabsorbed slots must either affect the VM or be padding.
@@ -562,7 +575,7 @@ impl ImportTemplate {
                     .to_string(),
             );
         }
-        validate_dense_input_indices(&self.events, self.input_count, "host-event import")?;
+        validate_dense_input_indices(&events, self.input_count, "host-event import")?;
         Ok(())
     }
 }
@@ -579,20 +592,37 @@ pub fn expand_import_events(
     memory_reads: &[u32],
 ) -> Result<Vec<[u64; COMM_CHAIN_BLOCK_WORDS]>, WasmBuildError> {
     check_inputs("per-call", inputs, template.input_count)?;
-    check_memory_reads("per-call", memory_reads, &template.events)?;
-    let mut memory_index = 0usize;
-    let mut blocks = template
+    let events: Vec<_> = template
         .events
         .iter()
+        .chain(template.return_events.iter().flatten())
+        .cloned()
+        .collect();
+    expand_import_phase(&events, args, result, inputs, memory_reads)
+}
+
+/// Expand one already-validated phase. Recovery has checked its input words;
+/// the phase must finish before execution can suspend or resume.
+pub(crate) fn expand_import_phase(
+    events: &[EventBlock],
+    args: &[(u32, u32)],
+    result: Option<(u32, u32)>,
+    inputs: &[u64],
+    memory_reads: &[u32],
+) -> Result<Vec<[u64; COMM_CHAIN_BLOCK_WORDS]>, WasmBuildError> {
+    check_memory_reads("per-call", memory_reads, events)?;
+    let mut memory_index = 0;
+    let mut blocks = events
+        .iter()
         .map(|event| {
-            let mut block = [0u64; COMM_CHAIN_BLOCK_WORDS];
+            let mut block = [0; COMM_CHAIN_BLOCK_WORDS];
             for (word, slot) in block.iter_mut().zip(&event.block) {
                 *word = resolve_slot(*slot, args, result, inputs, memory_reads, &mut memory_index)?;
             }
             Ok(block)
         })
         .collect::<Result<Vec<_>, WasmBuildError>>()?;
-    opaque::replay(&template.events, &mut blocks)?;
+    opaque::replay(events, &mut blocks)?;
     Ok(blocks)
 }
 

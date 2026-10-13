@@ -28,7 +28,7 @@ fn unreachable_trap_is_a_provable_terminal_state() {
     let last = checked.trace.last().expect("non-empty trace");
     assert_eq!(last.opcode, WasmOpcode::Unreachable);
     assert!(last.state_after.trapped);
-    assert!(last.state_after.halted);
+    assert!(last.state_after.activation_finished);
     assert!(!last.state_after.output.enabled);
 
     // batch_size 2 forces one padding row after the trap row, covering

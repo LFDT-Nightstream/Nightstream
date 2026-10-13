@@ -300,17 +300,17 @@ fn exit_only_template_allows_reentry_and_commits_each_return() {
         "exit count at re-entry is verifier-bound"
     );
 
-    let halt = trace
+    let exit = trace
         .iter()
-        .find(|row| !row.state_before.halted && row.state_after.halted)
+        .find(|row| !row.state_before.activation_finished && row.state_after.activation_finished)
         .unwrap();
     assert!(
-        !halt.state_after.is_terminal(),
-        "halt must still spend the exit schedule"
+        !exit.state_after.is_terminal(),
+        "activation completion must still spend the exit schedule"
     );
-    let mut forged = build_witness_vector(halt);
+    let mut forged = build_witness_vector(exit);
     forged[neo_wasm::layout::COL_HOST_EVENTS_REMAINING_AFTER] = neo_math::F::ZERO;
-    common::assert_rejected(&forged, "halt cannot skip its return event");
+    common::assert_rejected(&forged, "activation completion cannot skip its return event");
 }
 
 #[test]
@@ -684,7 +684,7 @@ fn memory_model_rejects_boundary_into_undeclared_fref() {
 }
 
 #[test]
-fn ccs_rejects_execution_after_halt() {
+fn ccs_rejects_execution_after_activation_finished() {
     let setup = multi_turn_setup();
 
     // A program row claiming the turn already finished is rejected.
@@ -695,20 +695,20 @@ fn ccs_rejects_execution_after_halt() {
         .expect("program row");
     let mut witness = build_witness_vector(program_row);
     common::assert_satisfied(&witness, "untampered program row");
-    witness[neo_wasm::layout::COL_HALTED_BEFORE] = neo_math::F::ONE;
-    witness[neo_wasm::layout::COL_HALTED] = neo_math::F::ONE;
-    common::assert_rejected(&witness, "program row executing after a halt");
+    witness[neo_wasm::layout::COL_ACTIVATION_FINISHED_BEFORE] = neo_math::F::ONE;
+    witness[neo_wasm::layout::COL_ACTIVATION_FINISHED_AFTER] = neo_math::F::ONE;
+    common::assert_rejected(&witness, "program row executing after activation completion");
 
-    // The halting row cannot suppress the latch (with or without capture).
-    let halting_row = setup
+    // The activation-finishing row cannot suppress the latch (with or without capture).
+    let finishing_row = setup
         .trace
         .iter()
-        .find(|row| row.row_kind.is_program() && row.state_after.halted)
-        .expect("halting row");
-    let mut witness = build_witness_vector(halting_row);
-    common::assert_satisfied(&witness, "untampered halting row");
-    witness[neo_wasm::layout::COL_HALTED] = neo_math::F::ZERO;
-    common::assert_rejected(&witness, "halting row pretending the turn is not done");
+        .find(|row| row.row_kind.is_program() && row.state_after.activation_finished)
+        .expect("activation-finishing row");
+    let mut witness = build_witness_vector(finishing_row);
+    common::assert_satisfied(&witness, "untampered activation-finishing row");
+    witness[neo_wasm::layout::COL_ACTIVATION_FINISHED_AFTER] = neo_math::F::ZERO;
+    common::assert_rejected(&witness, "activation-finishing row pretending the turn is not done");
 }
 
 #[test]
@@ -786,8 +786,8 @@ fn resultless_turn_can_precede_another_turn() {
         .expect("boundary row");
     assert!(!tb.state_before.output.enabled);
     assert!(!tb.state_after.output.enabled);
-    assert!(tb.state_before.halted);
-    assert!(!tb.state_after.halted);
+    assert!(tb.state_before.activation_finished);
+    assert!(!tb.state_after.activation_finished);
     assert_eq!(tb.state_before.host_events.turn_export_fref, poke_fref);
     assert_eq!(tb.state_after.host_events.turn_export_fref, read_fref);
 

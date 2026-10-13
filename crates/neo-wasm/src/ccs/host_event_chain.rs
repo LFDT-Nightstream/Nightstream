@@ -50,6 +50,7 @@ use super::call::host_call_gate_terms;
 use super::host_event;
 use crate::comm_chain::{COMM_CHAIN_PERM_ROWS, PERM_PARTIAL_FIRST_ROW, PERM_TERMINAL_FIRST_ROW};
 use crate::ir::{WasmHostEventSlotKind, WasmVmStep};
+use crate::layout::{COL_HOST_CLEAR_ACTIVATION_FINISHED, COL_HOST_RESUME, COL_HOST_SPLIT_CALL};
 use neo_application::poseidon2::external_matrix;
 use neo_application::{
     define_column_region, Poseidon2FullRound12, Poseidon2FullRoundChoice, Poseidon2PartialPair12,
@@ -211,9 +212,14 @@ fn push_interface_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             (COL_PERM_PENDING_BEFORE, F::ONE),
             (COL_TURN_BOUNDARY, F::ONE),
             (super::super::layout::COL_PADDING_ACTIVE, F::ONE),
+            (COL_HOST_RESUME, F::ONE),
         ]);
         b.push_row(
-            [(COL_ONE, F::ONE), (COL_TURN_BOUNDARY, -F::ONE)],
+            [
+                (COL_ONE, F::ONE),
+                (COL_TURN_BOUNDARY, -F::ONE),
+                (COL_HOST_RESUME, -F::ONE),
+            ],
             [
                 (COL_TURN_EXPORT_FREF_AFTER, F::ONE),
                 (COL_TURN_EXPORT_FREF_BEFORE, -F::ONE),
@@ -275,8 +281,8 @@ fn push_interface_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
 /// call site.
 fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     use super::super::layout::{
-        COL_CALL_PARAM_COUNT as PARAM_COUNT, COL_GATHER_LOCAL_WRITE, COL_GATHER_LOCAL_WRITE_LO, COL_HALTED,
-        COL_HALTED_BEFORE, COL_HOST_CALL_ACTIVE as HOST_CALL_ACTIVE,
+        COL_ACTIVATION_FINISHED_AFTER, COL_ACTIVATION_FINISHED_BEFORE, COL_CALL_PARAM_COUNT as PARAM_COUNT,
+        COL_GATHER_LOCAL_WRITE, COL_GATHER_LOCAL_WRITE_LO, COL_HOST_CALL_ACTIVE as HOST_CALL_ACTIVE,
         COL_HOST_EVENTS_REMAINING_AFTER as EVENTS_REMAINING_AFTER,
         COL_HOST_EVENTS_REMAINING_BEFORE as EVENTS_REMAINING_BEFORE,
         COL_HOST_EVENTS_REMAINING_BEFORE_IS_ZERO as EVENTS_REMAINING_IS_ZERO,
@@ -296,10 +302,10 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     let ci_sel = super::super::layout::selector_col(crate::isa::WasmOpcode::CallIndirect).expect("ci selector");
 
     b.with_tag(host_event("host-event gather binding"), |b| {
-        // Host calls pop their args on the call row itself. The sp identity
-        // consumes this product of the host-call gate and ROM-bound arity.
+        // Atomic host calls pop args here; split calls retain them until resume.
+        // The sp identity consumes this product with ROM-bound arity.
         b.push_row(
-            [(HOST_CALL_ACTIVE, F::ONE)],
+            [(HOST_CALL_ACTIVE, F::ONE), (COL_HOST_SPLIT_CALL, -F::ONE)],
             [(PARAM_COUNT, F::ONE)],
             [(GHC_PARAMS, F::ONE)],
         );
@@ -342,6 +348,7 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
                 (GK_ENTER, -F::ONE),
                 (COL_HOST_EVENT_EXIT_LATCH, -F::ONE),
                 (COL_TURN_BOUNDARY, -F::ONE),
+                (COL_HOST_RESUME, -F::ONE),
             ],
             [(EVENTS_REMAINING_AFTER, F::ONE), (EVENTS_REMAINING_BEFORE, -F::ONE)],
             [],
@@ -409,6 +416,7 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
                 (GK_ENTER, -F::ONE),
                 (COL_HOST_EVENT_EXIT_LATCH, -F::ONE),
                 (COL_TURN_BOUNDARY, -F::ONE),
+                (COL_HOST_RESUME, -F::ONE),
             ],
             [(EVENT_INDEX_AFTER, F::ONE), (EVENT_INDEX_BEFORE, -F::ONE)],
             [],
@@ -429,7 +437,11 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             [],
         );
         b.push_row(
-            [(COL_ONE, F::ONE), (HOST_CALL_ACTIVE, -F::ONE)],
+            [
+                (COL_ONE, F::ONE),
+                (HOST_CALL_ACTIVE, -F::ONE),
+                (COL_HOST_RESUME, -F::ONE),
+            ],
             [(ARGS_BASE_AFTER, F::ONE), (ARGS_BASE_BEFORE, -F::ONE)],
             [],
         );
@@ -789,16 +801,16 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             [],
         );
 
-        // A clean halt transition loads the owning turn's exit schedule and
+        // A clean activation return loads the owning export's exit schedule and
         // repoints gather attribution from the last import to that export.
         // This is independent of result capture, so constant-only exit
         // templates also cover resultless exports.
         b.push_linear_zero([
-            (COL_HALTED, F::ONE),
-            (COL_HALTED_BEFORE, -F::ONE),
+            (COL_ACTIVATION_FINISHED_AFTER, F::ONE),
+            (COL_ACTIVATION_FINISHED_BEFORE, -F::ONE),
             (COL_TRAPPED_AFTER, -F::ONE),
             (COL_TRAPPED_BEFORE, F::ONE),
-            (COL_TURN_BOUNDARY, F::ONE),
+            (COL_HOST_CLEAR_ACTIVATION_FINISHED, F::ONE),
             (COL_HOST_EVENT_EXIT_LATCH, -F::ONE),
         ]);
         b.push_row(
@@ -1141,8 +1153,9 @@ pub(crate) fn fill_witness(wit: &mut [F], trace: &WasmVmStep) {
             }
         }
     }
-    // Host-call arg pops: HOST_CALL_ACTIVE · ROM-bound param count.
-    wit[GHC_PARAMS] = wit[super::super::layout::COL_HOST_CALL_ACTIVE] * wit[super::super::layout::COL_CALL_PARAM_COUNT];
+    // Atomic host-call arg pops; split calls defer them until resume.
+    wit[GHC_PARAMS] = (wit[super::super::layout::COL_HOST_CALL_ACTIVE] - wit[COL_HOST_SPLIT_CALL])
+        * wit[super::super::layout::COL_CALL_PARAM_COUNT];
     write_turn_schedule_guard_witness(wit);
     // Limb-selected values: filled on every row so the unconditional select
     // rows hold (the limb column is zero off gather rows).

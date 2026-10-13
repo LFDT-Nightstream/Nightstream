@@ -19,7 +19,7 @@ use crate::ir::{
     WasmBuildError, WasmCountdownState, WasmEventAbsorbState, WasmHostEventState, WasmOutputState, WasmStepState,
 };
 use crate::layout::{
-    COL_CALL_STACK_DEPTH_BEFORE, COL_COMM_CHAIN_BEFORE, COL_EVBUF_BEFORE, COL_HALTED_BEFORE,
+    COL_ACTIVATION_FINISHED_BEFORE, COL_CALL_STACK_DEPTH_BEFORE, COL_COMM_CHAIN_BEFORE, COL_EVBUF_BEFORE,
     COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_EVENTS_REMAINING_BEFORE, COL_HOST_EVENT_ARGS_BASE_BEFORE,
     COL_HOST_EVENT_INDEX_BEFORE, COL_HOST_EVENT_SLOT_CURSOR_BEFORE, COL_LOCALS_FBP_BEFORE,
     COL_LOCAL_ZERO_ACTIVE_BEFORE, COL_LOCAL_ZERO_REMAINING_BEFORE, COL_MAX_MEMORY_PAGES_BEFORE,
@@ -158,8 +158,11 @@ pub(crate) fn export_fref_for_entry_pc(tables: &WasmProgramTables, entry_pc: u64
 /// verifier-owned initial anchor expected by [`preprocess_seeded_batched`],
 /// and the final-state claim checked by the test-only relation audit harness.
 ///
-/// `halted` is carried explicitly, so the terminal claim cannot be changed
+/// `activation_finished` is carried explicitly, so the terminal claim cannot be changed
 /// independently of the folded semantic-state digest.
+/// A completed outermost invocation also requires zero call/host-frame depths,
+/// no pending import (`awaiting_host == false`), and drained event schedules:
+/// `activation_finished` alone can describe a nested export awaiting its caller's resumption.
 pub fn semantic_state_digest(state: WasmStepState) -> [u8; 32] {
     let layout = build_wasm_relation_layout();
     let fields = layout
@@ -207,7 +210,7 @@ pub fn host_event_top_level_initial_state(
         memory_pages: tables.initial_memory_pages,
         max_memory_pages: tables.max_memory_pages,
         locals_fbp: 0,
-        halted: false,
+        activation_finished: false,
         trapped: false,
         param_init: WasmCountdownState::ZERO,
         local_zero: WasmCountdownState::ZERO,
@@ -268,11 +271,14 @@ fn carried_state_field(state: WasmStepState, column: usize) -> F {
     }
 
     match column {
+        crate::layout::COL_HOST_FRAME_DEPTH_BEFORE => F::from_u64(state.host_events.host_frame_depth),
+        crate::layout::COL_HOST_AWAITING_BEFORE => bool_field(state.host_events.awaiting_host),
+        crate::layout::COL_HOST_SUSPEND_PENDING_BEFORE => bool_field(state.host_events.suspend_pending),
         COL_OBJECT_ACTIVE_BEFORE => bool_field(state.event_absorb.object_active),
         COL_PC_BEFORE => F::from_u64(state.pc),
         COL_SP_BEFORE => F::from_u64(state.sp),
         COL_STACK_FRAME_BASE_BEFORE => F::from_u64(state.stack_frame_base),
-        COL_HALTED_BEFORE => bool_field(state.halted),
+        COL_ACTIVATION_FINISHED_BEFORE => bool_field(state.activation_finished),
         COL_OUTPUT_ENABLED_BEFORE => bool_field(state.output.enabled),
         COL_OUTPUT_VALUE_LO_BEFORE => F::from_u64(u64::from(state.output.value_lo)),
         COL_OUTPUT_VALUE_HI_BEFORE => F::from_u64(u64::from(state.output.value_hi)),

@@ -18,7 +18,9 @@ use crate::layout::{
 
 /// Auxiliary row-kind columns that are pairwise disjoint with each other and
 /// with every opcode selector under the CCS row-kind and opcode one-hots.
-const AUXILIARY_ROW_SUPPORT_ATOMS: [usize; 5] = [
+const AUXILIARY_ROW_SUPPORT_ATOMS: [usize; 7] = [
+    crate::layout::COL_HOST_RESUME,
+    crate::layout::COL_HOST_SUSPEND,
     COL_LOCAL_ZERO_ACTIVE_BEFORE,
     COL_PARAM_INIT_ACTIVE_BEFORE,
     COL_TAIL_ENTER_ACTIVE,
@@ -26,7 +28,7 @@ const AUXILIARY_ROW_SUPPORT_ATOMS: [usize; 5] = [
     COL_TURN_BOUNDARY,
 ];
 
-fn activation_supports() -> BTreeMap<usize, BTreeSet<usize>> {
+pub(crate) fn activation_supports() -> BTreeMap<usize, BTreeSet<usize>> {
     let mut supports = SELECTOR_COLS
         .into_iter()
         .chain(AUXILIARY_ROW_SUPPORT_ATOMS)
@@ -195,6 +197,18 @@ fn activation_supports() -> BTreeMap<usize, BTreeSet<usize>> {
         })),
     );
 
+    insert_derived_activation_support(
+        &mut supports,
+        "split host calls",
+        crate::layout::COL_HOST_SPLIT_CALL,
+        call_selectors.iter().copied(),
+    );
+    insert_derived_activation_support(
+        &mut supports,
+        "suspended host context reads",
+        crate::layout::COL_HOST_CONTEXT_READ,
+        [COL_TURN_BOUNDARY, crate::layout::COL_HOST_RESUME],
+    );
     let program_selectors = SELECTOR_COLS.to_vec();
     insert_derived_activation_support(
         &mut supports,
@@ -280,6 +294,7 @@ fn activation_supports() -> BTreeMap<usize, BTreeSet<usize>> {
             COL_PARAM_INIT_ACTIVE_BEFORE,
             COL_LOCAL_ZERO_ACTIVE_BEFORE,
             COL_TAIL_ENTER_ACTIVE,
+            crate::layout::COL_HOST_SUSPEND,
         ]),
     );
     supports

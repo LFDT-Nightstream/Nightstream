@@ -73,3 +73,11 @@ import CompressionLean
 #audit_axioms CompressionLean.Layer1.Game.restore_sound
 #audit_axioms CompressionLean.Layer1.layer1_restore_sound
 #audit_axioms CompressionLean.Layer1.production_restore
+#audit_axioms CompressionLean.Layer1.mle_identity
+#audit_axioms CompressionLean.Layer1.lessThan_eq
+#audit_axioms CompressionLean.Layer1.step_eq
+#audit_axioms CompressionLean.Layer1.mle_chi
+#audit_axioms CompressionLean.Layer1.laneSplit_head
+#audit_axioms CompressionLean.Layer1.laneSplit_tail
+#audit_axioms CompressionLean.Layer1.evalKValue_eq
+#audit_axioms CompressionLean.Layer1.mle_evalK

@@ -5,6 +5,34 @@ Require Import R1CS Columns FullRelation Range MemoryTrace MemoryCatalog
 Import ListNotations.
 Open Scope Z_scope.
 
+Lemma instruction_stack_height_delta : forall instruction before after,
+  instructionStackHeight instruction before = Some after ->
+  instructionStackDelta instruction = Some (Z.of_nat after - Z.of_nat before).
+Proof.
+  intros instruction before after Hheight.
+  destruct instruction; cbn [instructionStackHeight instructionStackDelta] in *; try discriminate;
+    repeat match goal with
+    | x : numtype |- _ => destruct x; try discriminate
+    | x : binop_ |- _ => destruct x; try discriminate
+    | x : Inn |- _ => destruct x; try discriminate
+    | x : binop_Inn |- _ => destruct x; try discriminate
+    end;
+    destruct before as [ | [ | before]]; cbn in Hheight; try discriminate;
+    inversion Hheight; subst; f_equal; lia.
+Qed.
+
+Lemma program_typed_binary : forall localCount height op rest,
+  programTyped localCount height (BINOP I32 op :: rest) ->
+  match height with S (S remaining) => programTyped localCount (S remaining) rest | _ => False end.
+Proof.
+  intros localCount height op rest Htyped.
+  destruct op; repeat match goal with
+    | x : Inn |- _ => destruct x
+    | x : binop_Inn |- _ => destruct x
+    end; cbn [programTyped instructionStackHeight] in Htyped; try contradiction;
+    destruct height as [ | [ | remaining]]; exact Htyped.
+Qed.
+
 Lemma follows_boundary : forall previous next,
   Follows MemoryCatalog.continuityLinks previous next ->
   afterBoundary previous = beforeBoundary next.
@@ -14,12 +42,30 @@ Proof.
     apply Hlinks; vm_compute; tauto.
 Qed.
 
-Lemma represents_wf : forall program z memory boundary pc configuration,
-  represents program z memory boundary pc configuration -> wf_config configuration.
+Lemma stack_matches_height : forall memory boundary values,
+  stackMatches memory boundary values -> stackHeight boundary = length values.
 Proof.
-  intros program z memory boundary pc configuration [_ [_ [values [_ [_ [_ [Hwf _]]]]]]].
-  exact Hwf.
+  intros memory boundary values [_ [Hsp _]]. unfold stackHeight. rewrite Hsp.
+  replace (boundaryStackBase boundary + Z.of_nat (length values) - boundaryStackBase boundary)
+    with (Z.of_nat (length values)) by lia. apply Nat2Z.id.
 Qed.
+
+Lemma represented_values : forall (typed : nat -> list instr -> Prop) z memory boundary code c,
+  (typed (stackHeight boundary) code /\ represents z memory boundary code c) <->
+  exists values, stackMatches memory boundary values /\ typed (length values) code /\
+    c = stackConfig z values code /\ wf_config c /\ localsMatch memory boundary z.
+Proof.
+  intros typed z memory boundary code c. split.
+  - intros [Ht [values [Hs Hr]]]. exists values. split; [exact Hs | ].
+    split; [rewrite <- (stack_matches_height _ _ _ Hs); exact Ht | exact Hr].
+  - intros [values [Hs [Ht Hr]]]. split.
+    + rewrite (stack_matches_height _ _ _ Hs). exact Ht.
+    + exists values. auto.
+Qed.
+
+Lemma represents_wf : forall z memory boundary code c,
+  represents z memory boundary code c -> wf_config c.
+Proof. intros z memory boundary code c [values [_ [_ [Hwf _]]]]. exact Hwf. Qed.
 
 Lemma loaded_program_preserved : forall program before events after,
   loadedProgram program before -> Replay before events after ->

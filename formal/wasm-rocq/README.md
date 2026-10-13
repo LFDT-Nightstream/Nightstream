@@ -1,8 +1,10 @@
 # Wasm circuit proofs in Rocq
 
-This pilot proves trace refinement for straight-line `i32.add/sub` and
-`local.get/set` programs in one frame with i32 locals, plus selected zero-test
-steps, against SpecTec's Wasm 2.0 semantics.
+This pilot proves straight-line `i32.add/sub` and `local.get/set` refinement,
+plus complete direct guest calls with i32 parameters, locals, results, and
+straight-line bodies ending in `end`, composed with caller instructions, against SpecTec's Wasm 2.0 semantics.
+Call initialization and return are proved; nested/indirect/host calls and early
+returns are outside the call theorem. Selected zero-test steps are also proved.
 Field primality and memory-event consistency are assumed; the offline memory
 argument is not proved.
 
@@ -23,8 +25,8 @@ make
 For an existing switch, install those packages there and run `make` with that
 switch active. SpecTec is not needed to build the checked-in `Wasm2.v`.
 
-Run `make audit` (requires Python 3) to build and print the straight-line refinement
-theorem's type and assumptions. It fails if axiom names differ from `scripts/audit.expected`
+Run `make audit` (requires Python 3) to build and print `run_refinement`
+and its assumptions. It fails if axiom names differ from `scripts/audit.expected`
 or the report cannot be parsed. Review changes before editing that file; changes
 to existing axioms' types are not detected.
 

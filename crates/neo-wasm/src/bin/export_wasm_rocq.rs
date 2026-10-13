@@ -386,7 +386,16 @@ fn emit_rocq_memory_catalog() -> String {
     out.push_str("].\n\n");
     for (id, name) in [
         (WasmMemoryId::LocalLo, "localLoId"),
+        (WasmMemoryId::LocalHi, "localHiId"),
         (WasmMemoryId::Stack, "stackId"),
+        (WasmMemoryId::CallStackReturnPc, "callStackReturnPcId"),
+        (WasmMemoryId::CallStackCallerFbp, "callStackCallerFbpId"),
+        (WasmMemoryId::CallStackCallerSpBase, "callStackCallerSpBaseId"),
+        (WasmMemoryId::FunctionLocalCount, "functionLocalCountId"),
+        (WasmMemoryId::FunctionCallMetadata, "functionCallMetadataId"),
+        (WasmMemoryId::PcFunctionRef, "pcFunctionRefId"),
+        (WasmMemoryId::CallTarget, "callTargetId"),
+        (WasmMemoryId::FunctionEntry, "functionEntryId"),
         (WasmMemoryId::ProgramOpcode, "programOpcodeId"),
         (WasmMemoryId::ProgramLocalIndex, "programLocalIndexId"),
         (WasmMemoryId::PcEdgeKind, "pcEdgeKindId"),

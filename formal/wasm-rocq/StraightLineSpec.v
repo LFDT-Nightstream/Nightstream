@@ -1,7 +1,5 @@
-(* Single-frame i32 arithmetic and locals specification: program loading and the projection
-   of circuit memory and boundary registers into a SpecTec configuration.
-   Initial locals must already match memory; parameter initialization and local
-   zeroing are auxiliary rows outside this fragment. *)
+(* Shared i32 stack/local representation and call-free program predicates.
+   Straight-line runs assume initialized locals; call segments prove initialization. *)
 From Stdlib Require Import List ZArith Bool.
 Require Import R1CS Columns MemoryTrace MemoryCatalog OpcodeCatalog Wasm2 WasmIntegers Locals.
 Import ListNotations.
@@ -16,7 +14,7 @@ Definition encodedOpcode (instruction : instr) : option Z :=
   | _ => None
   end.
 
-Definition supportedProgram (program : list instr) : Prop :=
+Definition supportedStraightLineProgram (program : list instr) : Prop :=
   Forall (fun instruction => exists code, encodedOpcode instruction = Some code) program.
 
 Definition programOpcodeAt (program : list instr) (pc : nat) : option Z :=
@@ -77,19 +75,49 @@ Definition localsMatch (memory : MemoryState) (boundary : Boundary) (z : state) 
     exists value, v = i32Value value /\ 0 <= value < i32Modulus /\
       memory MemoryCatalog.localLoId [boundaryLocalsBase boundary; Z.of_nat index] = Some value.
 
+(* Unsupported instructions and insufficient operands have no successor height. *)
+Definition instructionStackHeight (instruction : instr) (height : nat) : option nat :=
+  match instruction with
+  | LOCAL_GET _ => Some (S height)
+  | LOCAL_SET _ => match height with S remaining => Some remaining | _ => None end
+  | BINOP I32 (mk_binop__0 Inn_I32 ADD)
+  | BINOP I32 (mk_binop__0 Inn_I32 SUB) =>
+      match height with S (S remaining) => Some (S remaining) | _ => None end
+  | _ => None
+  end.
+
+Definition instructionStackDelta (instruction : instr) : option Z :=
+  match instruction with
+  | LOCAL_GET _ => Some 1
+  | LOCAL_SET _
+  | BINOP I32 (mk_binop__0 Inn_I32 ADD)
+  | BINOP I32 (mk_binop__0 Inn_I32 SUB) => Some (-1)
+  | _ => None
+  end.
+
+Fixpoint bodyStackDelta (body : list instr) : option Z :=
+  match body with
+  | [] => Some 0
+  | instruction :: rest =>
+      match instructionStackDelta instruction, bodyStackDelta rest with
+      | Some delta, Some remaining => Some (delta + remaining)
+      | _, _ => None
+      end
+  end.
+
 (* Bounds on local indices and stack underflow; the final height is unrestricted. *)
 Fixpoint programTyped (localCount height : nat) (program : list instr) : Prop :=
   match program with
   | [] => True
-  | LOCAL_GET x :: rest =>
-      (N.to_nat (x :> N) < localCount)%nat /\ programTyped localCount (S height) rest
-  | LOCAL_SET x :: rest =>
-      (N.to_nat (x :> N) < localCount)%nat /\
-      match height with S remaining => programTyped localCount remaining rest | _ => False end
-  | _ :: rest =>
-      match height with
-      | S (S remaining) => programTyped localCount (S remaining) rest
-      | _ => False
+  | instruction :: rest =>
+      let continuation :=
+        match instructionStackHeight instruction height with
+        | Some remaining => programTyped localCount remaining rest
+        | None => False
+        end in
+      match instruction with
+      | LOCAL_GET x | LOCAL_SET x => (N.to_nat (x :> N) < localCount)%nat /\ continuation
+      | _ => continuation
       end
   end.
 
@@ -99,13 +127,13 @@ Definition i32Constant (value : Z) : admininstr :=
 Definition stackConfig (z : state) (values : list Z) (code : list instr) : config :=
   mk_config z (map i32Constant values ++ map admininstr_instr code).
 
-Definition represents (program : list instr) (z : state) (memory : MemoryState)
-    (boundary : Boundary) (pc : nat) (configuration : config) : Prop :=
-  boundaryPC boundary = Z.of_nat pc /\
-  (pc <= length program)%nat /\
+Definition stackHeight (boundary : Boundary) : nat :=
+  Z.to_nat (boundarySP boundary - boundaryStackBase boundary).
+
+(* Memory and register representation only; typing and program loading are separate. *)
+Definition represents (z : state) (memory : MemoryState) (boundary : Boundary)
+    (code : list instr) (configuration : config) : Prop :=
   exists values,
     stackMatches memory boundary values /\
-    programTyped (length (stateLocals z)) (length values) (skipn pc program) /\
-    configuration = stackConfig z values (skipn pc program) /\
-    wf_config configuration /\
-    localsMatch memory boundary z.
+    configuration = stackConfig z values code /\
+    wf_config configuration /\ localsMatch memory boundary z.

@@ -1,4 +1,4 @@
-"""Check the dependencies of the theorem in Audit.v against audit.expected."""
+"""Check the dependencies of the refinement theorems in Audit.v against audit.expected."""
 
 from pathlib import Path
 import re

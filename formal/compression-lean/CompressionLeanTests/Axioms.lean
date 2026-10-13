@@ -81,3 +81,5 @@ import CompressionLean
 #audit_axioms CompressionLean.Layer1.laneSplit_tail
 #audit_axioms CompressionLean.Layer1.evalKValue_eq
 #audit_axioms CompressionLean.Layer1.mle_evalK
+#audit_axioms CompressionLean.Layer1.cubic_no_root
+#audit_axioms CompressionLean.Layer1.cubic_irreducible

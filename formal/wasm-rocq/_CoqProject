@@ -20,6 +20,14 @@ CallInitialization.v
 CallBindings.v
 ProgramBinding.v
 BranchBindings.v
+BlockBindings.v
+BlockSpec.v
+BlockInstructions.v
+BlockSimulation.v
+BlockValidation.v
+CodeLayout.v
+SourceInstructions.v
+SourceValidation.v
 LocalBindings.v
 CallMemory.v
 FrameInitialization.v
@@ -46,8 +54,12 @@ CallerRefinement.v
 CallerValidation.v
 ProgramSpec.v
 ProgramEncoding.v
+BlockEncoding.v
+BlockTrace.v
+BlockRefinement.v
 ProgramValidation.v
 TraceSegmentation.v
+SourceRefinement.v
 ProgramRefinement.v
 StraightLineRefinement.v
 tests/StraightLinePrograms.v
@@ -57,3 +69,4 @@ tests/Programs.v
 tests/Segmentation.v
 tests/Validation.v
 tests/Branches.v
+tests/BlockPrograms.v

@@ -2,7 +2,7 @@ From Stdlib Require Import List ZArith Lia.
 From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range MemoryTrace MemoryCatalog OpcodeCatalog TraceRefinement
   Wasm2 WasmIntegers Locals SpecTecCalls StackSimulation StraightLineSpec CallSpec CallerSpec CallerRefinement
-  ProgramSpec ProgramEncoding ProgramRefinement ProgramValidation FunctionValidation CallerValidation tests.Calls tests.Callers.
+  ProgramSpec ProgramEncoding ProgramRefinement ProgramValidation FunctionValidation CallerValidation SourceInstructions SourceValidation CodeLayout tests.Calls tests.Callers.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -119,10 +119,13 @@ Proof.
       apply Instrs_ok__instr; [apply local_get | | ]; try reflexivity; repeat constructor.
     + constructor; [apply source_function_validates; [repeat constructor | exact source_body_validates] | constructor].
   - split.
-    + constructor; [eexists; reflexivity | ]. constructor.
-      * exists (mkGuestFunction 0%N callModule (mk_uN 0) 0 1 1 readZeroBody 0).
-        split; [reflexivity | ]. split; [repeat constructor; eexists; reflexivity | split; cbn; lia].
+    + constructor.
       * constructor; [eexists; reflexivity | constructor].
+      * constructor.
+        -- constructor; [ | constructor].
+           exists (mkGuestFunction 0%N callModule (mk_uN 0) 0 1 1 readZeroBody 0).
+           split; [reflexivity | ]. split; [repeat constructor; eexists; reflexivity | split; cbn; lia].
+        -- constructor; [constructor; [eexists; reflexivity | constructor] | constructor].
     + exists sourceModuleContext, 1%nat. split; [exact source_module_validates | exact source_body_validates].
 Qed.
 
@@ -176,42 +179,57 @@ Example wrong_module_function_addresses_rejected : forall stale,
     (stackConfig sourceInitialState [] getCallAdd).
 Proof. intros stale [[_ [Haddresses _]] _]. discriminate Haddresses. Qed.
 
-(* Exercise internal segment composition. The prefix supplies both the preserved
-   program ROM binding and the dynamic state needed to execute the final ADD. *)
-Example source_program_two_runs : forall stale initialGet call middle endRow finalAdd final,
-  fieldPrime ->
-  validCircuitRun (sourceMemory stale)
-    (callerRows [instructionSegment initialGet; callSegment call middle endRow; instructionSegment finalAdd]) final ->
-  initialGet COL_IS_PROGRAM_ROW = 1 -> call COL_IS_PROGRAM_ROW = 1 ->
-  endRow COL_SEL_END = 1 -> Forall CallScope.bodyRow middle -> finalAdd COL_IS_PROGRAM_ROW = 1 ->
-  beforeBoundary initialGet = mkBoundary 2 4 4 7 ->
-  exists z c, Steps (stackConfig sourceInitialState [] getCallAdd) c /\
-    programLoaded sourceProgram final /\
-    SourceState sourceProgram (sourcePosition 1 3) z final (afterBoundary finalAdd) [] c.
+(* PC layout makes the source offset observable, including after a prefix. *)
+Lemma source_position_pc : forall offset z memory boundary code c,
+  SourceState sourceProgram (sourcePosition 1 offset) z memory boundary code c ->
+  (offset <= 3)%nat /\ boundaryPC boundary = 2 + Z.of_nat offset.
 Proof.
-  intros stale initialGet call middle endRow finalAdd final Hprime Hrun Hget Hcall Hend Hmiddle Hadd Hboundary.
-  destruct (valid_run_split
-    (callerRows [instructionSegment initialGet; callSegment call middle endRow]) [finalAdd]
-    (sourceMemory stale) final ltac:(
-      change (validCircuitRun (sourceMemory stale)
-        (flat_map segmentRows [instructionSegment initialGet; callSegment call middle endRow] ++
-         flat_map segmentRows [instructionSegment finalAdd]) final);
-      rewrite <- flat_map_app; exact Hrun)) as [between [HprefixRun HlastRun]].
-  destruct (segmented_run_refinement sourceProgram (sourcePosition 1 0)
-    [LOCAL_GET (mk_uN 0); CALL (mk_uN 0)] [BINOP I32 (mk_binop__0 Inn_I32 ADD)]
-    [instructionSegment initialGet; callSegment call middle endRow]
-    sourceInitialState (sourceMemory stale) between (mkBoundary 2 4 4 7) _
-    Hprime (source_program_loaded stale) HprefixRun
-    ltac:(constructor; [exact Hget | ]; constructor; [repeat split; assumption | constructor])
-    Hboundary (source_initial_matches stale)) as [z1 [c1 [Hprefix [Hloaded Hsource]]]].
-  assert (Hstart : callerStartsAt (afterBoundary endRow) [instructionSegment finalAdd]).
-  { symmetry. apply segment_chain_boundary with
-      (segment := callSegment call middle endRow) (next := instructionSegment finalAdd) (rest := []).
-    eapply chain_suffix with (prefix := [initialGet]). exact (proj1 (proj2 Hrun)). }
-  destruct (segmented_run_refinement sourceProgram (sourcePosition 1 2)
-    [BINOP I32 (mk_binop__0 Inn_I32 ADD)] [] [instructionSegment finalAdd]
-    z1 between final (afterBoundary endRow) c1 Hprime Hloaded HlastRun
-    ltac:(constructor; [exact Hadd | constructor]) Hstart Hsource)
-    as [z2 [c2 [Hlast Hfinal]]].
-  exists z2, c2. split; [eapply spec_steps_transitive; eassumption | exact Hfinal].
+  intros offset z memory boundary code c H.
+  pose proof (proj1 (proj1 (proj2 H))) as Hbound.
+  change (offset <= 3)%nat in Hbound. split; [exact Hbound | ].
+  pose proof (proj2 (proj2 (proj2 (proj2 H)))) as Hpc.
+  destruct offset as [ | [ | [ | [ | offset]]]]; try lia; exact Hpc.
+Qed.
+
+(* The public theorem composes across a raw-row boundary after the call. *)
+Example source_program_two_runs : forall stale firstRows lastRows final depth,
+  fieldPrime -> validCircuitRun (sourceMemory stale) (firstRows ++ lastRows) final ->
+  callerFragment (mkBoundary 2 4 4 7) depth firstRows ->
+  callerFragment (rowsFinalBoundary (mkBoundary 2 4 4 7) firstRows) depth lastRows ->
+  boundaryPC (rowsFinalBoundary (mkBoundary 2 4 4 7) firstRows) = 4 ->
+  boundaryPC (rowsFinalBoundary (mkBoundary 2 4 4 7) (firstRows ++ lastRows)) = 5 ->
+  exists z c, Steps (stackConfig sourceInitialState [] getCallAdd) c /\ programLoaded sourceProgram final /\
+    SourceState sourceProgram (sourcePosition 1 3) z final
+      (rowsFinalBoundary (mkBoundary 2 4 4 7) (firstRows ++ lastRows)) [] c.
+Proof.
+  intros stale firstRows lastRows final depth Hprime Hrun Hfirst Hlast Hpc1 Hpc2.
+  destruct (valid_run_split _ _ _ _ Hrun) as [between [Hrun1 Hrun2]].
+  assert (Hend1 : sourceEndpoint sourceProgram (sourcePosition 1 0)
+    (rowsFinalBoundary (mkBoundary 2 4 4 7) firstRows)).
+  { exists 2%nat. split; [cbn; lia | exact Hpc1]. }
+  destruct (run_refinement sourceProgram (sourcePosition 1 0) getCallAdd firstRows sourceInitialState
+    (sourceMemory stale) between (mkBoundary 2 4 4 7) depth _ Hprime (source_program_loaded stale)
+    Hrun1 Hfirst Hend1 (source_initial_matches stale))
+    as [executed [remaining [z1 [c1 [Hcode1 [Hsteps1 [Hloaded1 Hsource1]]]]]]].
+  change (SourceState sourceProgram (sourcePosition 1 (length executed)) z1 between (rowsFinalBoundary (mkBoundary 2 4 4 7) firstRows) remaining c1) in Hsource1.
+  pose proof (proj2 (source_position_pc _ _ _ _ _ _ Hsource1)) as Hoffset1.
+  assert (Hlength1 : length executed = 2%nat) by lia. rewrite Hlength1 in Hsource1.
+  assert (Hremaining : remaining = [BINOP I32 (mk_binop__0 Inn_I32 ADD)]).
+  { exact (Logic.eq_sym (proj2 (proj1 (proj2 Hsource1)))). }
+  subst remaining.
+  assert (Hend2 : sourceEndpoint sourceProgram (sourcePosition 1 2)
+    (rowsFinalBoundary (rowsFinalBoundary (mkBoundary 2 4 4 7) firstRows) lastRows)).
+  { exists 3%nat. split; [cbn; lia | rewrite <- TraceSegmentation.rows_final_boundary_app; exact Hpc2]. }
+  destruct (run_refinement sourceProgram (sourcePosition 1 2) [BINOP I32 (mk_binop__0 Inn_I32 ADD)] lastRows z1
+    between final (rowsFinalBoundary (mkBoundary 2 4 4 7) firstRows) depth c1 Hprime Hloaded1
+    Hrun2 Hlast Hend2 Hsource1)
+    as [executed2 [remaining2 [z2 [c2 [Hcode2 [Hsteps2 [Hloaded2 Hsource2]]]]]]].
+  change (SourceState sourceProgram (sourcePosition 1 (2 + length executed2)) z2 final (rowsFinalBoundary (rowsFinalBoundary (mkBoundary 2 4 4 7) firstRows) lastRows) remaining2 c2) in Hsource2.
+  destruct (source_position_pc _ _ _ _ _ _ Hsource2) as [_ Hoffset2].
+  rewrite <- TraceSegmentation.rows_final_boundary_app in Hoffset2.
+  assert (Hlength2 : (2 + length executed2 = 3)%nat) by lia.
+  rewrite Hlength2 in Hsource2.
+  assert (Hempty : remaining2 = []) by exact (Logic.eq_sym (proj2 (proj1 (proj2 Hsource2)))).
+  subst remaining2. exists z2, c2. split; [eapply spec_steps_transitive; eassumption | ].
+  split; [exact Hloaded2 | ]. rewrite TraceSegmentation.rows_final_boundary_app. exact Hsource2.
 Qed.

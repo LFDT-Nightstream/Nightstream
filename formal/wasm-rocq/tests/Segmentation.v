@@ -18,10 +18,10 @@ Proof.
   intros stale rows final depth Hprime Hrun Hfragment Hfinish.
   destruct (run_refinement sourceProgram (sourcePosition 1 0) getCallAdd rows sourceInitialState
     (sourceMemory stale) final (mkBoundary 2 4 4 7) depth _ Hprime (source_program_loaded stale)
-    Hrun Hfragment (source_initial_matches stale))
+    Hrun Hfragment ltac:(exists 3%nat; split; [cbn; lia | exact Hfinish]) (source_initial_matches stale))
     as [executed [remaining [z [c [Hcode [Hsteps [Hloaded Hsource]]]]]]].
   assert (Hpc : boundaryPC (rowsFinalBoundary (mkBoundary 2 4 4 7) rows) = 2 + Z.of_nat (length executed)).
-  { exact (proj2 (proj2 (proj2 (proj2 Hsource)))). }
+  { exact (proj2 (source_position_pc _ _ _ _ _ _ Hsource)). }
   assert (Hlength : length executed = 3%nat) by lia.
   assert (Hempty : remaining = []).
   { pose proof (f_equal (@length instr) Hcode) as Hsize.

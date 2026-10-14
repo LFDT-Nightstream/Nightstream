@@ -1,7 +1,7 @@
 (* Connect the executable ROM encoding to the instruction/call loading lemmas. *)
 From Stdlib Require Import List ZArith Lia Bool.
 Require Import Wasm2 SpecTecCalls MemoryTrace MemoryCatalog OpcodeCatalog StraightLineSpec
-  CallerSpec CallerRefinement CallSpec ProgramSpec StraightLineInstructions.
+  CallerSpec CallerRefinement CallSpec ProgramSpec StraightLineInstructions CodeLayout.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -79,10 +79,10 @@ Proof.
 Qed.
 
 Lemma instruction_at_function_pc : forall program index f offset,
-  functionAt program index = Some f -> (offset <= length (guestBody f))%nat ->
+  functionAt program index = Some f -> (offset <= codeSize (guestBody f))%nat ->
   instructionAtPC program (guestEntry f + Z.of_nat offset) =
     Some (i32Function (guestModule f) (guestTypeIndex f) (guestParams f) (guestResults f) (guestLocals f) (guestBody f),
-      nth_error (guestBody f) offset).
+      nth_error (flattenCode (guestBody f)) offset).
 Proof.
   intros program index f offset Hf Hoffset.
   destruct (function_at_sound _ _ _ Hf) as [Hlookup [_ Hentry]].
@@ -100,7 +100,7 @@ Ltac program_cell H :=
 
 Lemma encoded_frame_image : forall program memory index f offset z,
   programLoaded program memory -> functionAt program index = Some f ->
-  (offset <= length (guestBody f))%nat -> frameMatches program f z ->
+  (offset <= codeSize (guestBody f))%nat -> frameMatches program f z ->
   callerFrameImage memory (guestEntry f + Z.of_nat offset) z.
 Proof.
   intros program memory index f offset z Hloaded Hf Hoffset [_ [_ Hcount]].
@@ -145,14 +145,14 @@ Lemma encoded_instruction_image : forall program memory index f offset instructi
   programLoaded program memory -> functionAt program index = Some f ->
   nth_error (guestBody f) offset = Some instruction ->
   (exists code, encodedOpcode instruction = Some code) ->
-  instructionImage memory (guestEntry f + Z.of_nat offset) instruction.
+  instructionImage memory (guestEntry f + Z.of_nat (codeOffset (guestBody f) offset)) instruction.
 Proof.
   intros program memory index f offset instruction Hloaded Hf Hlookup [code Hcode].
   assert (Hoffset : (offset <= length (guestBody f))%nat).
   { assert (Hlt : (offset < length (guestBody f))%nat).
     { apply nth_error_Some. rewrite Hlookup. discriminate. } lia. }
-  pose proof (instruction_at_function_pc _ _ _ _ Hf Hoffset) as Hpc.
-  rewrite Hlookup in Hpc.
+  pose proof (instruction_at_function_pc _ _ _ (codeOffset (guestBody f) offset) Hf (code_offset_bound _ _)) as Hpc.
+  rewrite (flatten_at_source _ _ _ Hlookup) in Hpc.
   destruct (encoded_opcode_cases instruction code Hcode)
     as [[-> _] | [[-> _] | [[x [-> _]] | [x [-> _]]]]];
     unfold instructionImage; repeat split; try intros choice;
@@ -167,7 +167,7 @@ Lemma encoded_body_loaded : forall program memory index f,
 Proof.
   intros program memory index f Hloaded Hf Hsupported.
   assert (Hsuffix : forall code offset, skipn offset (guestBody f) = code ->
-    loadedBody memory (guestEntry f + Z.of_nat offset) code).
+    loadedBody memory (guestEntry f + Z.of_nat (codeOffset (guestBody f) offset)) code).
   { induction code as [ | instruction rest IH]; intros offset Hcode; [exact I | ].
     assert (Hlookup : nth_error (guestBody f) offset = Some instruction).
     { pose proof (f_equal (fun xs => nth_error xs 0) Hcode) as H.
@@ -175,19 +175,23 @@ Proof.
     split.
     - eapply encoded_instruction_image; [exact Hloaded | exact Hf | exact Hlookup | ].
       apply (proj1 (Forall_forall _ _) Hsupported). eapply nth_error_In; exact Hlookup.
-    - replace (guestEntry f + Z.of_nat offset + 1) with (guestEntry f + Z.of_nat (S offset)) by lia.
+    - assert (Hsize : instructionSize instruction = 1%nat).
+      { apply ordinary_instruction_size. apply (proj1 (Forall_forall _ _) Hsupported). eapply nth_error_In; exact Hlookup. }
+      replace (guestEntry f + Z.of_nat (codeOffset (guestBody f) offset) + 1)
+        with (guestEntry f + Z.of_nat (codeOffset (guestBody f) (S offset)))
+        by (rewrite (code_offset_next _ _ _ Hlookup), Hsize, Nat2Z.inj_add; lia).
       apply IH. rewrite (StackSimulation.skipn_at_instruction _ _ _ Hlookup) in Hcode. now injection Hcode. }
-  replace (guestEntry f) with (guestEntry f + Z.of_nat 0) by lia. apply Hsuffix. reflexivity.
+  replace (guestEntry f) with (guestEntry f + Z.of_nat 0) by lia. exact (Hsuffix (guestBody f) 0%nat eq_refl).
 Qed.
 
 Lemma encoded_function_end : forall program memory index f,
   programLoaded program memory -> functionAt program index = Some f ->
-  memory programOpcodeId [guestEntry f + Z.of_nat (length (guestBody f))] = Some CODE_END /\
-  memory pcEdgeKindId [guestEntry f + Z.of_nat (length (guestBody f))] = Some 1.
+  memory programOpcodeId [guestEntry f + Z.of_nat (codeSize (guestBody f))] = Some CODE_END /\
+  memory pcEdgeKindId [guestEntry f + Z.of_nat (codeSize (guestBody f))] = Some 1.
 Proof.
   intros program memory index f Hloaded Hf.
-  pose proof (instruction_at_function_pc _ _ _ (length (guestBody f)) Hf ltac:(lia)) as Hpc.
-  assert (Hnone : nth_error (guestBody f) (length (guestBody f)) = None) by (apply nth_error_None; lia).
+  pose proof (instruction_at_function_pc _ _ _ (codeSize (guestBody f)) Hf ltac:(lia)) as Hpc.
+  assert (Hnone : nth_error (flattenCode (guestBody f)) (codeSize (guestBody f)) = None) by (apply nth_error_None; unfold codeSize; lia).
   rewrite Hnone in Hpc. split; program_cell Hloaded; unfold encodeProgram;
     cbn [Nat.eqb pcRomId pcFunctionRefId functionEntryId functionLocalCountId functionCallMetadataId orb];
     unfold instructionRom; rewrite Hpc; reflexivity.
@@ -198,7 +202,7 @@ Lemma encoded_call_loaded : forall program memory index f offset z x callee,
   nth_error (guestBody f) offset = Some (CALL x) -> frameMatches program f z ->
   programCallees program (guestModule f) (x :> N) = Some callee ->
   supportedStraightLineProgram (guestBody callee) ->
-  loadedCall memory (guestEntry f + Z.of_nat offset) (guestEntry f + Z.of_nat offset + 1) z x
+  loadedCall memory (guestEntry f + Z.of_nat (codeOffset (guestBody f) offset)) (guestEntry f + Z.of_nat (codeOffset (guestBody f) offset) + 1) z x
     (guestAddress callee) (guestModule callee) (guestTypeIndex callee)
     (guestParams callee) (guestResults callee) (guestLocals callee) (guestBody callee) (guestEntry callee).
 Proof.
@@ -206,7 +210,8 @@ Proof.
   assert (Hoffset : (offset <= length (guestBody f))%nat).
   { assert (Hlt : (offset < length (guestBody f))%nat).
     { apply nth_error_Some. rewrite Hlookup. discriminate. } lia. }
-  pose proof (instruction_at_function_pc _ _ _ offset Hf Hoffset) as Hpc. rewrite Hlookup in Hpc.
+  pose proof (instruction_at_function_pc _ _ _ (codeOffset (guestBody f) offset) Hf (code_offset_bound _ _)) as Hpc.
+  rewrite (flatten_at_source _ _ _ Hlookup) in Hpc.
   unfold programCallees in Hcallee.
   destruct (nth_error (FUNCS (guestModule f)) (N.to_nat (x :> N))) as [address | ] eqn:Haddress; [ | discriminate].
   destruct (function_at_sound _ _ _ Hcallee) as [Hinstance [HcalleeAddress Hentry]].
@@ -229,16 +234,17 @@ Proof.
               ** program_cell Hloaded. unfold encodeProgram. cbn.
                  unfold instructionRom. rewrite Hpc. reflexivity.
               ** eapply encoded_guest_image; eassumption.
-  - split; [eapply encoded_frame_image; eassumption | ]. split.
+  - split; [eapply encoded_frame_image; try eassumption; apply code_offset_bound | ]. split.
     + eapply encoded_body_loaded; eassumption.
-    + eapply encoded_function_end; eassumption.
+    + pose proof (encoded_function_end _ _ _ _ Hloaded Hcallee) as Hend.
+      rewrite straight_code_size in Hend by exact Hsupported. exact Hend.
 Qed.
 
 Lemma program_loaded_caller : forall program memory index f offset code z height,
   programLoaded program memory -> functionAt program index = Some f ->
   codeAt f offset code -> frameMatches program f z ->
   callerFacts (programCallees program (guestModule f)) z height code ->
-  loadedCaller (programCallees program (guestModule f)) z memory (guestEntry f + Z.of_nat offset) code.
+  loadedCaller (programCallees program (guestModule f)) z memory (guestEntry f + Z.of_nat (codeOffset (guestBody f) offset)) code.
 Proof.
   intros program memory index f offset code. revert offset.
   induction code as [ | instruction rest IH]; intros offset z height Hloaded Hf [Hbound Hcode] Hframe Htyped;
@@ -251,11 +257,15 @@ Proof.
     - assert (Hlt : (offset < length (guestBody f))%nat).
       { apply nth_error_Some. rewrite Hlookup. discriminate. } lia.
     - rewrite (StackSimulation.skipn_at_instruction _ _ _ Hlookup) in Hcode. now injection Hcode. }
+  assert (Hsize : instructionSize instruction = 1%nat).
+  { destruct instruction; try reflexivity;
+      apply ordinary_instruction_size; exact (Forall_inv (proj1 Htyped)). }
   assert (Hcontinue : forall next,
     callerFacts (programCallees program (guestModule f)) z next rest ->
-    loadedCaller (programCallees program (guestModule f)) z memory (guestEntry f + Z.of_nat offset + 1) rest).
-  { intros next Hnext. replace (guestEntry f + Z.of_nat offset + 1)
-      with (guestEntry f + Z.of_nat (S offset)) by lia.
+    loadedCaller (programCallees program (guestModule f)) z memory (guestEntry f + Z.of_nat (codeOffset (guestBody f) offset) + 1) rest).
+  { intros next Hnext. replace (guestEntry f + Z.of_nat (codeOffset (guestBody f) offset) + 1)
+      with (guestEntry f + Z.of_nat (codeOffset (guestBody f) (S offset)))
+      by (rewrite (code_offset_next _ _ _ Hlookup), Hsize, Nat2Z.inj_add; lia).
     eapply IH; eassumption. }
   assert (Hordinary : forall i,
     supportedStraightLineProgram [i] /\ wf_instr i /\
@@ -263,8 +273,8 @@ Proof.
       (match instructionStackHeight i height with
        | Some next => callerFacts (programCallees program (guestModule f)) z next rest | None => False end) ->
     nth_error (guestBody f) offset = Some i ->
-    instructionImage memory (guestEntry f + Z.of_nat offset) i /\
-    loadedCaller (programCallees program (guestModule f)) z memory (guestEntry f + Z.of_nat offset + 1) rest).
+    instructionImage memory (guestEntry f + Z.of_nat (codeOffset (guestBody f) offset)) i /\
+    loadedCaller (programCallees program (guestModule f)) z memory (guestEntry f + Z.of_nat (codeOffset (guestBody f) offset) + 1) rest).
   { intros i [Hs [_ [_ Hnext]]] Hi. split.
     - eapply encoded_instruction_image; [exact Hloaded | exact Hf | exact Hi | exact (Forall_inv Hs)].
     - destruct (instructionStackHeight i height) as [next | ]; [eapply Hcontinue; exact Hnext | contradiction]. }

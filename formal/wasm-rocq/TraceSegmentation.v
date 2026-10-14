@@ -226,7 +226,7 @@ Proof.
       by (rewrite Hfirst; auto).
     destruct (caller_segment_refinement instruction rest segment callees z initial between pc c0
       Hprime HsegmentRun Hmatch Hloaded HsegmentPC Hready)
-      as [z' [c1 [Hsteps [[Htyped' Hrep'] [Hpc' [Hcaller Hdepth']]]]]].
+      as [z' [c1 [Hsteps [[Htyped' Hrep'] [Hpc' [Hcaller [Hdepth' HheightSegment]]]]]]].
     assert (HsegmentDepth : rowsFinalDepth depth (segmentRows segment) = depth).
     { rewrite segment_final_depth, Hdepth', Hfirst. exact Hdepth. }
     assert (Hfragment : callerFragment (afterBoundary (segmentLast segment)) depth suffix).

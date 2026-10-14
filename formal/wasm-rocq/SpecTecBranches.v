@@ -29,6 +29,26 @@ Proof.
   eapply trans; [exact Hstep | apply Steps__refl; exact Ha | exact Hb | exact Ha | exact Ha].
 Qed.
 
+Lemma enter_empty_block : forall z body,
+  wf_state z -> Forall wf_instr body ->
+  Steps (stackConfig z [] [BLOCK (_RESULT None) body]) (blockContext (stackConfig z [] body)).
+Proof.
+  intros z body Hz Hbody. apply one_spec_step.
+  - apply stack_config_wf; [exact Hz | constructor | ]. repeat constructor; assumption.
+  - apply block_context_wf. apply stack_config_wf; assumption || constructor.
+  - apply read. apply (Step_read__block z 0%N [] (_RESULT None) body 0%N [] []);
+      apply (introT eqP); reflexivity.
+Qed.
+
+Lemma exit_empty_block : forall z,
+  wf_state z -> Steps (blockContext (stackConfig z [] [])) (stackConfig z [] []).
+Proof.
+  intros z Hz. apply one_spec_step.
+  - apply block_context_wf. repeat constructor; exact Hz.
+  - repeat constructor; exact Hz.
+  - apply pure. apply (label_vals 0%N [] []).
+Qed.
+
 Definition branchBlockConfig z condition rest : config :=
   blockContext (stackConfig z [condition] (BR_IF (mk_uN 0) :: rest)).
 

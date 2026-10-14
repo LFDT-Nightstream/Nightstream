@@ -11,7 +11,7 @@ use neo_math::D;
 use neo_reductions::superneo_eval::RetainedMatrixWindow;
 use nightstream_fprime::{
     LoadedPerApplicationPackage, PackageError, PiCcsV1_2PackageInputs, PiDecV1_2PackageInputs, Stage1VerifierBinding,
-    WitnessAssignment,
+    WitnessAssignment, PI_CCS_V1_2_COEFFICIENT_COUNT, PI_CCS_V1_2_SOURCE_COUNT, PI_DEC_V1_2_CHILD_COUNT,
 };
 mod base;
 mod complete;
@@ -114,47 +114,20 @@ pub(crate) fn validate_key_prefix(logical_width: usize, commitment_key_words: &[
     Ok(())
 }
 
-#[derive(Clone, Debug)]
-struct LatestInstance {
-    instances: Vec<CcsInstance>,
-}
-impl LatestInstance {
-    fn from_instances(instances: Vec<CcsInstance>) -> Self {
-        Self { instances }
-    }
-}
+// The running children and the one fresh instance fill every PiCCS source.
+const _: () = assert!(PI_CCS_V1_2_SOURCE_COUNT == PI_DEC_V1_2_CHILD_COUNT + 1);
+// The package bridges slice the coefficients that the evaluation checks bound.
+const _: () = assert!(D == PI_CCS_V1_2_COEFFICIENT_COUNT);
+
+/// The selected profile carries exactly one fresh instance per active proof.
 #[derive(Clone, Debug)]
 enum ProofState {
     Initial,
     Active {
         running: RunningInstance,
-        latest: LatestInstance,
+        fresh: CcsInstance,
     },
 }
-impl ProofState {
-    fn initial() -> Self {
-        Self::Initial
-    }
-    fn active(running: RunningInstance, latest: LatestInstance) -> Self {
-        Self::Active { running, latest }
-    }
-    fn is_initial(&self) -> bool {
-        matches!(self, Self::Initial)
-    }
-    fn running(&self) -> Option<&RunningInstance> {
-        match self {
-            Self::Initial => None,
-            Self::Active { running, .. } => Some(running),
-        }
-    }
-    fn latest(&self) -> Option<&LatestInstance> {
-        match self {
-            Self::Initial => None,
-            Self::Active { latest, .. } => Some(latest),
-        }
-    }
-}
-
 #[cfg(test)]
 #[path = "../../tests/lifecycle_native/mod.rs"]
 mod tests;

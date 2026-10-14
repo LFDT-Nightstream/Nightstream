@@ -20,13 +20,13 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 
-def pilotGeometry {program : Lifecycle.Stage1.Application.Program}
+theorem pilotGeometry {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
     PiRLCPoseidonGeometry.Geometry program logicalWidth :=
   PiCCSPoseidonPlan.pilotGeometry geometry
 
-def prefixGeometry {program : Lifecycle.Stage1.Application.Program}
+theorem prefixGeometry {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
     PiRLCRetainedGeometry.Geometry program logicalWidth :=

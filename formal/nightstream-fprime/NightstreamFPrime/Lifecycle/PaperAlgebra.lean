@@ -318,7 +318,7 @@ def combineEvaluationFamily {count : Nat}
 def combineEvaluations : {count : Nat} ->
     (Fin count -> RingF) -> (Fin count -> Array Evaluation) -> Array Evaluation
   | 0, _, _ => #[evaluationZero]
-  | count + 1, challenges, items =>
+  | _count + 1, challenges, items =>
       Array.ofFn fun index : Fin (items 0).size =>
         combineEvaluationFamily challenges fun source =>
           (items source).getD index.val evaluationZero

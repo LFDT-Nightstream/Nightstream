@@ -101,18 +101,6 @@ theorem inputBatch_eq_probe (input : Input) :
         (PiCCSInputCheck.probe input) := by
   rfl
 
-/-- This actual batch has the exact commitment projection used by the
-existing strong-prefix/weak-suffix interface, for every probe. -/
-theorem inputBatch_phi_eq_probe (input : Input)
-    (probe : StrongReduction.Probe K productionShape) :
-    PiRLC.phi (inputBatch input).inputs =
-      PiRLC.phi (Nifs.PaperStrongInterface.piRlcBatchForProbe
-        (ProductionKey.key PiDECInputCheck.relation Poseidon2HashChainV1Setup.productionAjtaiKey)
-        (PiCCSInputCheck.running input) (PiCCSInputCheck.fresh input) probe).inputs := by
-  funext source
-  exact PiRLCInputCheck.commitments_eq_batch PiDECInputCheck.relation
-    Poseidon2HashChainV1Setup.productionAjtaiKey input probe source
-
 theorem computedParent_outgoing (input : Input) (batch : Batch) (values : Values)
     (returned : computedParent input batch = some values) :
     values.outgoing = batch.finalState :=
@@ -183,7 +171,7 @@ theorem computedParent_eq_combined (input : Input) (batch : Batch) (values : Val
           (fun source => (PiRLCInputCheck.evaluations input source).matrix matrix)).getLast? =
           some (values.evalA.get matrix) := by
       simpa [List.get_eq_getElem] using! paired.get (i := matrix.val)
-        (by simpa using matrix.isLt) (by simpa using matrix.isLt)
+        (by simp) (by simp)
     have hm := evaluationPartials_getLast? batch.challenges
       (fun source => (PiRLCInputCheck.evaluations input source).matrix matrix)
     rw [List.getLast?_map, matrixReturned, Option.map_some] at hm
@@ -283,47 +271,5 @@ theorem computedParent_correct (input : Input) (batch : Batch) :
   obtain ⟨values, returned⟩ := computedParent_returns input batch
   exact ⟨values, returned, computedParent_eq_combined input batch values returned,
     computedParent_outgoing input batch values returned⟩
-
-/-- Accepted D children supply the exact weak-extraction success witness
-for this checked C/R run. Sampler replay is connected without assigning it
-an interactive or Fiat–Shamir coin law. -/
-theorem checked_children_imply_rlc_success
-    (input : Input) (batch : Batch) (values : Values)
-    (messages : PiDECInputCheck.Messages)
-    (assignments : Fin 16 → PaperAlgebra.Assignment
-      (logicalWidth := PiDECInputCheck.logicalWidth)
-      (publicFits := PiDECInputCheck.publicFits))
-    (sampled : PiRLCInputCheck.sampled input = some batch)
-    (returned : computedParent input batch = some values)
-    (checked : PiDECInputCheck.accepted values messages = true)
-    (childrenValid : ∀ child,
-      CE.Holds (semantics Poseidon2HashChainV1Setup.productionAjtaiKey)
-        productionGlobalParams (PiDECInputCheck.children values messages child) (assignments child)) :
-    (PiCCSInputCheck.probe input).FixedWidthAccepted ConcreteCarrier.extensionOps K.embed
-        ((ProductionKey.key PiDECInputCheck.relation Poseidon2HashChainV1Setup.productionAjtaiKey).statement
-          (PiCCSInputCheck.running input) (PiCCSInputCheck.fresh input)) 8 ∧
-      ProductionKey.piRlcResponse (PiCCSInputCheck.execute input).outgoing = some batch.challenges ∧
-      PiRLC.PaperForkExtraction.Response.Success
-        (semantics Poseidon2HashChainV1Setup.productionAjtaiKey) productionGlobalParams
-        (piRlcAlgebra Poseidon2HashChainV1Setup.productionAjtaiKey)
-        (Nifs.PaperStrongInterface.piRlcBatchForProbe
-          (ProductionKey.key PiDECInputCheck.relation Poseidon2HashChainV1Setup.productionAjtaiKey)
-          (PiCCSInputCheck.running input) (PiCCSInputCheck.fresh input)
-          (PiCCSInputCheck.probe input))
-        { challenges := batch.challenges, assignment := Radix.recomposeAssignment assignments } ∧
-      ∀ probe : StrongReduction.Probe K productionShape,
-        PiRLC.phi (inputBatch input).inputs =
-          PiRLC.phi (Nifs.PaperStrongInterface.piRlcBatchForProbe
-            (ProductionKey.key PiDECInputCheck.relation Poseidon2HashChainV1Setup.productionAjtaiKey)
-            (PiCCSInputCheck.running input) (PiCCSInputCheck.fresh input) probe).inputs := by
-  have response := PiRLCInputCheck.sampled_response input batch sampled
-  refine ⟨PiRLCInputCheck.sampled_fixedWidthAccepted PiDECInputCheck.relation
-    Poseidon2HashChainV1Setup.productionAjtaiKey input batch sampled,
-    response.2, ?_, inputBatch_phi_eq_probe input⟩
-  rw [← inputBatch_eq_probe input]
-  change CE.Holds _ _ (PiRLC.combinedOutput _ _ _ _ batch.challenges)
-    (Radix.recomposeAssignment assignments)
-  rw [← computedParent_eq_combined input batch values returned]
-  exact PiDECInputCheck.accepted_reduces_knowledge values messages assignments checked childrenValid
 
 end NightstreamFPrime.Export.Stage1.PiRLCParent

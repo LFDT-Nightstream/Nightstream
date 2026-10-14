@@ -26,12 +26,20 @@ pub fn verify_pi_ccs(
     tr: &mut neo_transcript::Poseidon2Transcript,
     pp: &Params,
     s: &Structure,
-    fresh_claims: &[CcsClaim],
+    fresh_claim: &CcsClaim,
     running: &RunningInstance,
     fold_outputs: &[CeClaim],
     proof: &nr::PiCcsProof,
 ) -> Result<bool, Error> {
-    let ok = pi_ccs_verify(tr, pp.inner(), s, fresh_claims, &running.claims, fold_outputs, proof)?;
+    let ok = pi_ccs_verify(
+        tr,
+        pp.inner(),
+        s,
+        std::slice::from_ref(fresh_claim),
+        &running.claims,
+        fold_outputs,
+        proof,
+    )?;
     Ok(ok)
 }
 

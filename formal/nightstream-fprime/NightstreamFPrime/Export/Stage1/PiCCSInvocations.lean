@@ -68,7 +68,7 @@ def sharedInterface
   NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.atOffset
     (parentInterface logicalWidth publicFits) phaseOffset
 
-def inputShapes
+theorem inputShapes
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth)
@@ -1015,7 +1015,7 @@ theorem outputEnd_eq_logicalFreshBase (logicalWidth : Nat)
   unfold outputWitnessStart
   rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.outputBindingWitnessStart_eq]
   unfold NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
-  rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq] <;> norm_num
+  rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
 
 /-- The exact production output-binding state is wholly below the first
 PiRLC sampler column. Downstream semantic views can therefore transport this
@@ -1137,7 +1137,7 @@ theorem statementTrace_scheduleWithin (logicalWidth : Nat)
     unfold challengeWitnessStart
     rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.challengeWitnessStart_eq]
     unfold NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
-    rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq] <;> norm_num
+    rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]; norm_num
   have endWithin : NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
       (statementWitnessStart +
         invocationCount (statementActions logicalWidth publicFits) * 1096) ≤
@@ -1227,7 +1227,7 @@ theorem challengeTrace_scheduleWithin (logicalWidth : Nat)
     unfold roundWitnessStart
     rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.roundTranscriptWitnessStart_eq]
     unfold NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
-    rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq] <;> norm_num
+    rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]; norm_num
   have endWithin : NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
       (challengeWitnessStart +
         invocationCount (challengeActions logicalWidth publicFits) * 1096) ≤
@@ -1328,7 +1328,7 @@ theorem roundTrace_scheduleWithin (logicalWidth : Nat)
     unfold outputWitnessStart
     rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.outputBindingWitnessStart_eq]
     unfold NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
-    rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq] <;> norm_num
+    rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]; norm_num
   have endStrict : roundWitnessStart +
       invocationCount (roundActions logicalWidth publicFits) * 1096 <
         NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase :=

@@ -80,9 +80,9 @@ private theorem priorPublicTarget (index : Fin 270) :
   change PilotSpartan.sourceToSpartan (27819 + index.val) = _
   unfold PilotSpartan.sourceToSpartan
   rw [if_neg (by
-    norm_num [PilotSpartan.priorPublicStart_value] at bound ⊢ <;> omega)]
+    norm_num [PilotSpartan.priorPublicStart_value] at bound ⊢)]
   rw [if_pos (by
-    norm_num [PilotSpartan.outputPreimageStart_value] at bound ⊢ <;> omega)]
+    norm_num [PilotSpartan.outputPreimageStart_value] at bound ⊢; omega)]
   norm_num [PilotSpartan.firstPublicStart_value,
     PilotSpartan.priorPublicStart_value]
 
@@ -97,15 +97,15 @@ private theorem canonicalLocalTarget (index : Fin 264) :
     PilotProduction.witnessOffset_eq]
   unfold PilotSpartan.sourceToSpartan
   rw [if_neg (by
-    norm_num [PilotSpartan.priorPublicStart_value] at bound ⊢ <;> omega)]
+    norm_num [PilotSpartan.priorPublicStart_value] at bound ⊢; omega)]
   rw [if_neg (by
-    norm_num [PilotSpartan.outputPreimageStart_value] at bound ⊢ <;> omega)]
+    norm_num [PilotSpartan.outputPreimageStart_value] at bound ⊢; omega)]
   rw [if_neg (by
-    norm_num [PilotSpartan.outputDigestStart_value] at bound ⊢ <;> omega)]
+    norm_num [PilotSpartan.outputDigestStart_value] at bound ⊢; omega)]
   rw [if_neg (by
-    norm_num [PilotSpartan.witnessStart_value] at bound ⊢ <;> omega)]
+    norm_num [PilotSpartan.witnessStart_value] at bound ⊢; omega)]
   norm_num [PilotSpartan.witnessPrivateStart_value,
-    PilotSpartan.witnessStart_value] <;> omega
+    PilotSpartan.witnessStart_value]; omega
 
 private theorem canonicalFreshTarget (index : Fin 144) :
     PilotSpartan.sourceToSpartan
@@ -115,15 +115,15 @@ private theorem canonicalFreshTarget (index : Fin 144) :
   change PilotSpartan.sourceToSpartan (5141616 + index.val) = _
   unfold PilotSpartan.sourceToSpartan
   rw [if_neg (by
-    norm_num [PilotSpartan.priorPublicStart_value] at bound ⊢ <;> omega)]
+    norm_num [PilotSpartan.priorPublicStart_value] at bound ⊢; omega)]
   rw [if_neg (by
-    norm_num [PilotSpartan.outputPreimageStart_value] at bound ⊢ <;> omega)]
+    norm_num [PilotSpartan.outputPreimageStart_value] at bound ⊢; omega)]
   rw [if_neg (by
-    norm_num [PilotSpartan.outputDigestStart_value] at bound ⊢ <;> omega)]
+    norm_num [PilotSpartan.outputDigestStart_value] at bound ⊢; omega)]
   rw [if_neg (by
-    norm_num [PilotSpartan.witnessStart_value] at bound ⊢ <;> omega)]
+    norm_num [PilotSpartan.witnessStart_value] at bound ⊢; omega)]
   norm_num [PilotSpartan.witnessPrivateStart_value,
-    PilotSpartan.witnessStart_value] <;> omega
+    PilotSpartan.witnessStart_value]; omega
 
 private theorem outputDigestTarget (index : Fin 4) :
     PilotSpartan.sourceToSpartan
@@ -133,13 +133,13 @@ private theorem outputDigestTarget (index : Fin 4) :
   change PilotSpartan.sourceToSpartan (55908 + index.val) = _
   unfold PilotSpartan.sourceToSpartan
   rw [if_neg (by
-    norm_num [PilotSpartan.priorPublicStart_value] at bound ⊢ <;> omega)]
+    norm_num [PilotSpartan.priorPublicStart_value] at bound ⊢; omega)]
   rw [if_neg (by
-    norm_num [PilotSpartan.outputPreimageStart_value] at bound ⊢ <;> omega)]
+    norm_num [PilotSpartan.outputPreimageStart_value] at bound ⊢; omega)]
   rw [if_neg (by
-    norm_num [PilotSpartan.outputDigestStart_value] at bound ⊢ <;> omega)]
+    norm_num [PilotSpartan.outputDigestStart_value] at bound ⊢)]
   rw [if_pos (by
-    norm_num [PilotSpartan.witnessStart_value] at bound ⊢ <;> omega)]
+    norm_num [PilotSpartan.witnessStart_value] at bound ⊢; omega)]
   norm_num [PilotSpartan.secondPublicStart_value,
     PilotSpartan.outputDigestStart_value]
 

@@ -12,7 +12,7 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 
 def logicalWidth : Nat := 27420587
 
-def publicFits : ringDegree * publicRingColumns ≤
+theorem publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth := by
   apply Nat.le_trans (m := logicalWidth)
   · norm_num [logicalWidth, ringDegree, publicRingColumns]

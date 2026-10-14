@@ -46,8 +46,7 @@ theorem completeStage1
       env index = p6.current index := by
     intro index below
     exact (p6.agrees index (Or.inl below)).symm
-  have inputsRoot := AssemblerBounds.applicationInputsBelowRoot
-    (logicalWidth := logicalWidth) program
+  have inputsRoot := AssemblerBounds.applicationInputsBelowRoot program
   let appInterface := AssemblerInputs.applicationInterface program
   let appOffset := AssemblerInputs.applicationOffset program
   have inputEq : Lifecycle.Stage1.Application.inputState appInterface appOffset
@@ -92,7 +91,7 @@ theorem completeStage1
   let child := Lifecycle.Stage1.applicationChild relation program
     (AssemblerInputs.interface relation program)
   have assumptions := AssemblerBounds.applicationAssumptions
-    (logicalWidth := logicalWidth) program p6.current
+    program p6.current
   have childScope : ∀ expression ∈ flatConstraints
       (Circuit.ops child.main (AssemblerInputs.applicationOffset program)),
       expression.VarsBelow
@@ -106,7 +105,7 @@ theorem completeStage1
           (Circuit.ops (program.circuit appInterface).main appOffset))
     exact program.scope appInterface appOffset p6.current
       (AssemblerBounds.applicationInputsBelow
-        (logicalWidth := logicalWidth) program)
+        program)
       assumptions
   have applicationSpec : child.spec
       (AssemblerInputs.applicationOffset program) p6.current := by
@@ -199,7 +198,7 @@ theorem completeStage1
 
 /-- The canonical compact layout supplies the proof-only root completion used
 by the sole logical Stage 1 circuit. -/
-def rootCompleteness
+theorem rootCompleteness
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))

@@ -14,7 +14,7 @@ open NightstreamFPrime.Circuit.Quadratic
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-def assumptionsAt
+theorem assumptionsAt
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -375,7 +375,7 @@ theorem completeSamplerPrefix
     (interface : Interface logicalWidth publicFits)
     (env : Env) (offset : Nat)
     (assumptions : Assumptions relation interface offset env)
-    (phase : Semantics.PhaseHolds relation ajtai interface offset env) :
+    (_phase : Semantics.PhaseHolds relation ajtai interface offset env) :
     ∃ completed : Sequence.Prefix env offset,
       completed.operations = (opsAt relation interface offset).take 2 ∧
       offset + localLength completed.operations = commitmentOffset offset := by
@@ -424,7 +424,7 @@ theorem completeCombinationPrefix
     (interface : Interface logicalWidth publicFits)
     (env : Env) (offset : Nat)
     (assumptions : Assumptions relation interface offset env)
-    (phase : Semantics.PhaseHolds relation ajtai interface offset env) :
+    (_phase : Semantics.PhaseHolds relation ajtai interface offset env) :
     ∃ completed : Sequence.Prefix env offset,
       completed.operations = (opsAt relation interface offset).take 6 ∧
       offset + localLength completed.operations = outputBindingOffset offset := by
@@ -523,7 +523,7 @@ theorem completePrefix
     (interface : Interface logicalWidth publicFits)
     (env : Env) (offset : Nat)
     (assumptions : Assumptions relation interface offset env)
-    (phase : Semantics.PhaseHolds relation ajtai interface offset env) :
+    (_phase : Semantics.PhaseHolds relation ajtai interface offset env) :
     ∃ completed : Sequence.Prefix env offset,
       completed.operations = opsAt relation interface offset := by
   exact completePrefixFromSampler relation interface env offset assumptions

@@ -106,7 +106,7 @@ private theorem Program.select_append_right (blocks tail : List Block)
         ((blocks.map Block.rowCount).sum + ordinal) =
       Program.row?.select logicalWidth sourceRow tail ordinal := by
   induction blocks with
-  | nil => simp [Program.row?.select]
+  | nil => simp []
   | cons block rest ih =>
       simp only [List.map_cons, List.sum_cons, List.cons_append]
       rw [Program.row?.select]

@@ -32,18 +32,6 @@ def absorb (s : State) (xs : List F) : State :=
 
 def initialState : State := Poseidon2.zeroState
 
-/-- ASCII bytes of `Nightstream/SuperNeo/NIFS/v1`, retained for the complete
-NIFS transcript after PiCCS. -/
-def domainTagBytes : List Nat :=
-  [78, 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47,
-    83, 117, 112, 101, 114, 78, 101, 111, 47, 78, 73, 70, 83, 47, 118, 49]
-
-/-- Domain tag absorbed before every protocol transcript. -/
-def domainTag : List F := domainTagBytes.map Poseidon2.ofNat
-
-@[simp] theorem domainTag_length : domainTag.length = 28 := by
-  simp [domainTag, domainTagBytes]
-
 /-- ASCII bytes of `Nightstream/SuperNeo/fold/v2`. -/
 def foldDomainBytes : List Nat :=
   [78, 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47,
@@ -65,7 +53,8 @@ def serializeMessage (m : SumCheck.Finite.Message K) : List F :=
   m.coefficients.flatMap serializeK
 
 /-- The two verifier-input blocks of v1.2 Π_CCS: prior point, then Pad
-claims in `I_K` order followed by matrix claims in `I_A` order. -/
+claims in `I_K` order followed by matrix claims in `I_A` order. This is a
+parity surface only: the transcript does not absorb these blocks. -/
 def verifierInputBlocks
     (input : ProtocolPolynomial.VerifierInput K productionShape) :
     List (List F) :=

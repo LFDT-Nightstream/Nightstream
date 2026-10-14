@@ -127,7 +127,7 @@ private theorem expectedChainFrom
       | cons message messages =>
           have tailLength : messages.length = challenges.length := by
             simpa using sameLength
-          simp only [expectedPolynomialsFrom, sumCompletions, ExpectedChain]
+          simp only [expectedPolynomialsFrom, ExpectedChain]
           constructor
           · trivial
           · simpa [List.append_assoc] using

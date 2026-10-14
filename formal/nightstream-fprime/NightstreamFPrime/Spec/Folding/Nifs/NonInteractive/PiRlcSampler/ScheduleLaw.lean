@@ -7,7 +7,7 @@ query, the answers are exactly 17 joint uniform four-field blocks.
 
 This fresh-batch law is not a claim that an adversarially chosen transcript
 has fresh queries. Such executions use OracleModel.run_bias_bound with all
-oracle calls counted. The extractor below still runs with uniform challenges. -/
+oracle calls counted. -/
 
 namespace NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.ScheduleLaw
 
@@ -89,23 +89,5 @@ theorem fresh_folds_bias_bound (folds : Nat) (test : (Fin (17 * folds) → Scala
     |average (fun blocks : Fin (17 * folds) → Draw => test (sampleVector blocks)) - average test| ≤
       (17 * folds : Nat) * distance := by
   simpa only [Fintype.card_fin] using! vector_average_difference_abs_le test nonnegative atMostOne
-
-open NightstreamFPrime.Spec.Folding.PiRLC
-open CoordinateRetry CoordinateOracle CoordinateOracleStar CoordinateTerminalLaw
-
-/-- Compose the exact fresh-batch law with V6. The probability on the right
-is the existing uniform-challenge extractor, not a Fiat–Shamir extractor. -/
-theorem fresh_blocks_extractor_lower_bound {Assignment : Type*} [Fintype Assignment]
-    (initial : List Draw) (cache : Cache) (fresh : Fresh initial cache) (oracle : Oracle (Fin 17) Scalar Assignment)
-    (check : (Fin 17 → Scalar) → Assignment → Bool)
-    (returns : (Fin 17 → Scalar) → Option Assignment →
-      (Fin 17 → CoordinateOracle.Outcome (Challenge := Scalar) (Assignment := Assignment)) → Bool)
-    (returnsOnFork : ∀ vector assignment outputs,
-      0 < outcomeMass oracle check vector assignment outputs → returns vector assignment outputs = true) :
-    average (fun blocks => (line oracle check).acceptance (readScalars initial cache fresh blocks)) -
-        17 * distance - (17 : ℝ) / Fintype.card Scalar ≤ returningProbability oracle check returns := by
-  rw [fresh_batch_law]
-  simpa only [sampledRate, sampleVector, Fintype.card_fin] using!
-    returningProbability_sampled_lower_bound oracle check returns returnsOnFork
 
 end NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.ScheduleLaw

@@ -24,9 +24,12 @@ open NightstreamFPrime.Spec.HyperNova.NonInteractiveMultiFold
 open ActualContextSecurity
 
 /-- The accepted terminal opening supplies the selected context, the complete
-prior-state public input and the digest absorbed by PiCCS, and the exact NIFS
-output. The base branch performs no NIFS call. No input-authentication or
-output-match premise is added at this boundary. -/
+prior-state public input (all words, so stronger than the decoded digest), the
+prior-state link of the transcript coverage contract (the digest absorbed by
+PiCCS, the selected verifier context, the running vector read by NIFS, and a
+well-formed prior preimage), and the exact NIFS output. The base branch
+performs no NIFS call. No input-authentication or output-match premise is added
+at this boundary. -/
 theorem terminal_implies_nifsOrBaseOrCollision
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
@@ -48,7 +51,7 @@ theorem terminal_implies_nifsOrBaseOrCollision
       (input.iteration = 0 ∨
         (0 < input.iteration ∧
           input.fresh.publicInputs ⟨0, by decide⟩ = encHash (stateHash prior) ∧
-          ProductionKey.priorDigest input.fresh = stateHash prior ∧
+          PiCCSSecurity.PriorLink prior (input.running functionIndex) input.fresh context ∧
           Nifs.PaperNonInteractive.verify (ProductionKey.key relation ajtai)
             (input.running functionIndex) input.fresh input.nifsProof =
               some (payload.running functionIndex)))) ∨
@@ -66,8 +69,10 @@ theorem terminal_implies_nifsOrBaseOrCollision
   let prior := priorHashPreimage (Lifecycle.setup relation ajtai context) input
   rcases terminal_implies_matchingStepOrCollision application fits commitmentSetup
     statement payload terminal with ⟨step, same⟩ | collision
-  · apply Or.inl
-    refine ⟨congrArg (fun preimage => preimage.verifierKeys functionIndex) same, ?_⟩
+  · have contextEqual : ActualStep.contextKey application assignment = context :=
+      congrArg (fun preimage => preimage.verifierKeys functionIndex) same
+    apply Or.inl
+    refine ⟨contextEqual, ?_⟩
     change FixedAugmentedTransition (Lifecycle.setup relation ajtai context)
       (Lifecycle.machineFor (PerApplicationFixedPoint.publicFits application) application)
       functionIndex input output at step
@@ -86,13 +91,21 @@ theorem terminal_implies_nifsOrBaseOrCollision
         unfold ProductionKey.priorDigest
         rw [priorPublic]
         exact decodeHash_encHash _ (StateEncoding.stateHash_length prior)
+      have wellFormed : StateEncoding.WellFormed prior := by
+        show StateEncoding.WellFormed
+          (priorHashPreimage (Lifecycle.setup relation ajtai context) input)
+        rw [← contextEqual, ActualStep.priorHashPreimage_eq_prior]
+        exact ⟨StateDecoder.preimage_fixed _ _ _, StateDecoder.iteration_lt _, rfl,
+          terminal_implies_priorCanonical application fits commitmentSetup statement payload
+            terminal⟩
       have checked : Nifs.PaperNonInteractive.verify (ProductionKey.key relation ajtai)
           (input.running functionIndex) input.fresh input.nifsProof =
             some (output.runningNext functionIndex) := by
         simpa [Accepts, Lifecycle.setup, Lifecycle.nifsVerifier] using selectedNifs
       have outputSame : output.runningNext functionIndex = payload.running functionIndex :=
         congrArg (fun preimage => preimage.running functionIndex) same
-      exact Or.inr ⟨positive, priorPublic, digest, checked.trans (congrArg some outputSame)⟩
+      exact Or.inr ⟨positive, priorPublic, ⟨digest, rfl, rfl, wellFormed⟩,
+        checked.trans (congrArg some outputSame)⟩
   · exact Or.inr collision
 
 /-- Actual terminal acceptance either comes from the base step, supplies the
@@ -132,7 +145,7 @@ theorem terminal_implies_parentOrBaseOrCollision
   rcases terminal_implies_nifsOrBaseOrCollision application fits commitmentSetup
     statement payload terminal with ⟨_context, base | recursive⟩ | collision
   · exact Or.inl base
-  · rcases recursive with ⟨positive, _priorPublic, _priorDigest, accepted⟩
+  · rcases recursive with ⟨positive, _priorPublic, _link, accepted⟩
     have checks := (Nifs.PaperNonInteractive.verify_eq_some_iff key
       (input.running functionIndex) input.fresh input.nifsProof
       (payload.running functionIndex)).mp accepted
@@ -181,7 +194,7 @@ theorem terminal_implies_securityOrCollision
   rcases terminal_implies_nifsOrBaseOrCollision application fits commitmentSetup
     statement payload terminal with ⟨context, base | recursive⟩ | collision
   · exact Or.inl ⟨context, Or.inl base⟩
-  · rcases recursive with ⟨positive, _priorPublic, _priorDigest, accepted⟩
+  · rcases recursive with ⟨positive, _priorPublic, _link, accepted⟩
     exact Or.inl ⟨context, Or.inr ⟨positive,
       Nifs.PaperSecurityComposition.accepted_implies_securityOutcome
         (PerApplicationSecurity.canonicalKey fits commitmentSetup) _ _ _

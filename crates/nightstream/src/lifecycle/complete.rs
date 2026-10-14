@@ -10,7 +10,7 @@ use neo_reductions::common::project_x_from_witness_mat;
 use nightstream_fprime::{PackageError, PI_DEC_V1_2_CHILD_COUNT};
 use p3_field::PrimeCharacteristicRing;
 
-use super::{LatestInstance, ProofState};
+use super::ProofState;
 use super::{PreparedLifecycle, Stage1State, Stage1StepInputs};
 use crate::folding::{CcsClaim, CcsInstance, CcsWitness, RunningInstance};
 
@@ -35,15 +35,22 @@ impl Stage1Envelope {
     pub(crate) fn from_parts(state: Stage1State, running: RunningInstance, fresh: CcsInstance) -> Self {
         Self {
             state,
-            proof: ProofState::active(running, LatestInstance::from_instances(vec![fresh])),
+            proof: ProofState::Active { running, fresh },
         }
+    }
+
+    /// Any state with any proof, including a bottom proof under a positive
+    /// state, which no production constructor builds.
+    #[cfg(test)]
+    pub(super) fn from_state_and_proof(state: Stage1State, proof: ProofState) -> Self {
+        Self { state, proof }
     }
 
     /// The exact bottom case has zero iterations and no running or fresh proof.
     pub(crate) fn initial(z0: [F; 4]) -> Self {
         Self {
             state: Stage1State::new(0, z0, z0),
-            proof: ProofState::initial(),
+            proof: ProofState::Initial,
         }
     }
 
@@ -51,18 +58,12 @@ impl Stage1Envelope {
         &self.state
     }
 
-    pub(crate) fn running(&self) -> Option<&RunningInstance> {
-        self.proof.running()
-    }
-
-    pub(crate) fn fresh(&self) -> Option<&CcsInstance> {
-        self.proof
-            .latest()
-            .and_then(|latest| latest.instances.first())
-    }
-
-    pub(crate) fn is_initial(&self) -> bool {
-        self.proof.is_initial()
+    /// The running and fresh instances of an active envelope; `None` at the bottom.
+    pub(crate) fn active_parts(&self) -> Option<(&RunningInstance, &CcsInstance)> {
+        match &self.proof {
+            ProofState::Initial => None,
+            ProofState::Active { running, fresh } => Some((running, fresh)),
+        }
     }
 
     pub(super) fn into_parts(self) -> (Stage1State, ProofState) {
@@ -247,7 +248,7 @@ impl PreparedLifecycle {
         running.witnesses = child_witnesses;
         Ok(Stage1Envelope {
             state,
-            proof: ProofState::active(running, LatestInstance::from_instances(vec![fresh])),
+            proof: ProofState::Active { running, fresh },
         })
     }
 }

@@ -1,7 +1,8 @@
 //! Selected terminal verification against an external state statement.
 //! The exact running and fresh openings use the package relation and fixed
-//! key. Parent caches, carried frame digests and redundant `w` storage are
-//! non-authoritative; every witness check uses the complete matrix `Z`.
+//! key. Carried frame digests and redundant `w` storage are not read; every
+//! witness check uses the complete matrix `Z`.
+//! Evaluation vectors have exactly the padded folding width.
 
 use neo_ajtai::{nightstream_fprime_setup::PRODUCTION_VERIFIER_ROWS, Commitment};
 use neo_math::{D, F, K};
@@ -12,6 +13,8 @@ use neo_reductions::{
 };
 use nightstream_fprime::{PackageError, PI_CCS_V1_2_ROUND_COUNT, PI_DEC_V1_2_CHILD_COUNT};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
+
+use crate::folding::{has_canonical_evaluations, is_canonical_evaluation};
 
 use super::{
     encode_pi_ccs_v1_2_public_input, pi_ccs_v1_2_state_hash, serialize_pi_ccs_v1_2_state_preimage,
@@ -53,23 +56,17 @@ impl PreparedLifecycle {
                 "iteration is not a canonical Goldilocks counter",
             ));
         }
-        if envelope.is_initial() {
+        let Some((running, fresh)) = envelope.active_parts() else {
             if expected_state.iteration() != 0 || expected_state.current() != expected_state.z0() {
                 return Err(VerifyError::Statement(
                     "bottom requires zero iterations and equal endpoints",
                 ));
             }
             return Ok(());
-        }
+        };
         if expected_state.iteration() == 0 {
             return Err(VerifyError::Statement("an active proof requires a positive iteration"));
         }
-        let running = envelope
-            .running()
-            .ok_or(VerifyError::Statement("missing running payload"))?;
-        let fresh = envelope
-            .fresh()
-            .ok_or(VerifyError::Statement("missing fresh payload"))?;
         if running.claims.len() != PI_DEC_V1_2_CHILD_COUNT || running.witnesses.len() != PI_DEC_V1_2_CHILD_COUNT {
             return Err(VerifyError::Statement(
                 "running claim or witness count differs from the selected profile",
@@ -96,13 +93,7 @@ impl PreparedLifecycle {
                     reason: "running claims must share the selected evaluation point",
                 });
             }
-            if !evaluation_has_selected_shape(&claim.eval_k)
-                || claim.eval_a.len() != self.structure.t()
-                || claim
-                    .eval_a
-                    .iter()
-                    .any(|values| !evaluation_has_selected_shape(values))
-            {
+            if !has_canonical_evaluations(claim, self.structure.t()) {
                 return Err(VerifyError::Running {
                     index,
                     reason: "evaluation shape or nonzero surplus coefficients",
@@ -132,9 +123,9 @@ impl PreparedLifecycle {
         }
 
         // The formal terminal preimage contains the semantic running claims,
-        // not parent_authority or fold_digest. It binds only the parent public
-        // input, so serialization rejects children that are not its canonical
-        // split (`Terminal.ProofCanonical`).
+        // not their fold_digest frames. It binds only the parent public input,
+        // so serialization rejects children that are not its canonical split
+        // (`Terminal.ProofCanonical`).
         let preimage = serialize_pi_ccs_v1_2_state_preimage(
             self.binding.verifier_context().digest().map(F::from_u64),
             expected_state.iteration(),
@@ -259,10 +250,6 @@ fn commitment_has_selected_shape(commitment: &Commitment) -> bool {
     commitment.d == D && commitment.kappa == rows && commitment.data.len() == D * rows
 }
 
-fn evaluation_has_selected_shape(values: &[K]) -> bool {
-    values.len() >= D && values[D..].iter().all(|value| *value == K::ZERO)
-}
-
 fn evaluation_matches(recorded: &[K], expected: &[K]) -> bool {
-    evaluation_has_selected_shape(recorded) && expected.len() == D && recorded[..D] == *expected
+    is_canonical_evaluation(recorded) && expected.len() == D && recorded[..D] == *expected
 }

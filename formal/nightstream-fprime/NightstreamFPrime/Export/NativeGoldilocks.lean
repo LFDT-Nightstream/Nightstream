@@ -466,8 +466,8 @@ theorem mul64_canonical (a b : Word) :
   exact reduceWide64_canonical _ _
 
 @[simp] theorem mul64_denote (a b : Word)
-    (ha : a.toNat < goldilocksModulus)
-    (hb : b.toNat < goldilocksModulus) :
+    (_ha : a.toNat < goldilocksModulus)
+    (_hb : b.toNat < goldilocksModulus) :
     (mul64 a b).denote = a.denote * b.denote := by
   let a0 := low64 a
   let a1 := high64 a

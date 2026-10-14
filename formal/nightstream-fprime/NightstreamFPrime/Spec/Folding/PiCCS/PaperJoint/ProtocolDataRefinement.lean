@@ -94,7 +94,7 @@ theorem map_zero
 
 /-- Forget the norm and zero-reflection obligations when only sparse CCS
 evaluation is being refined. -/
-def toConstraintEvaluationLaws
+theorem toConstraintEvaluationLaws
     {Extension : Type uExtension}
     {baseOps : InterpolationOps F}
     {extensionOps : InterpolationOps Extension}

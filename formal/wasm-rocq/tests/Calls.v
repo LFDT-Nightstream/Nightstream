@@ -1,11 +1,20 @@
 From Stdlib Require Import List ZArith Lia.
 Require Import Wasm2 WasmIntegers Locals R1CS Columns Range FullRelation MemoryTrace MemoryCatalog OpcodeCatalog
-  StraightLineSpec SpecTecCalls CallSpec CallEntry TraceRefinement.
+  StraightLineSpec SpecTecCalls CallSpec CallEntry TraceRefinement StraightLineValidation.
 Import ListNotations.
 Open Scope Z_scope.
 
 Definition readZeroBody := [LOCAL_GET (mk_uN 0)].
-Definition callModule := MKmoduleinst [] [0%N] [] [] [] [] [] [].
+Example read_zero_validates :
+  Instrs_ok (i32TypingContext 1) readZeroBody (i32StackType 0 1).
+Proof.
+  apply Instrs_ok__instr.
+  - apply local_get; [reflexivity | reflexivity | repeat constructor | repeat constructor].
+  - repeat constructor.
+  - repeat constructor.
+Qed.
+
+Definition callModule := MKmoduleinst [i32StackType 0 1] [0%N] [] [] [] [] [] [].
 Definition readZeroFunction := i32Function callModule (mk_uN 0) 0 1 1 readZeroBody.
 Definition callState := mk_state (MKstore [readZeroFunction] [] [] [] [] [])
   (MKframe [i32Value 5] callModule).
@@ -58,7 +67,8 @@ Proof.
   - split.
     + unfold typedCall, callState, readZeroFunction, i32Function, callModule, readZeroBody, i32Value.
       split; [repeat constructor | ]. split; [repeat constructor | ]. split; [repeat constructor | ].
-      split; [repeat constructor; eexists; reflexivity | ]. vm_compute. repeat constructor.
+      split; [repeat constructor; eexists; reflexivity | ].
+      split; [exact read_zero_validates | split; lia].
     + split.
       * unfold stackMatches. cbn [boundaryStackBase boundarySP]. split; [lia | ].
         split; [reflexivity | ]. split; [constructor; [unfold i32Modulus; lia | constructor] | ].
@@ -72,7 +82,11 @@ Qed.
 
 Example wrong_result_arity_rejected :
   ~ typedCall callState (mk_uN 0) callModule (mk_uN 0) 0 0 1 readZeroBody.
-Proof. intros [_ [_ [_ [_ [_ [Harity _]]]]]]. discriminate Harity. Qed.
+Proof.
+  intros [_ [_ [_ [Hsupported [Hvalidated _]]]]].
+  pose proof (proj2 (i32_validation_facts _ _ _ _ Hvalidated Hsupported)) as Harity.
+  discriminate Harity.
+Qed.
 
 (* This conclusion comes from the exported circuit and replay, not an assumed
    zero-filled initial frame. The pre-existing value of the callee cell is free. *)

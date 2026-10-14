@@ -20,7 +20,17 @@ Record GuestFunction := mkGuestFunction {
    used entry against that module's addresses, SpecTec's store and the ROMs. *)
 Definition CalleeEnvironment := N -> option GuestFunction.
 
-Fixpoint callerTyped (callees : CalleeEnvironment) (z : state) (height : nat)
+(* Fragment restrictions are independent of validation and stack height. *)
+Definition supportedCaller (callees : CalleeEnvironment) (code : list instr) : Prop :=
+  Forall (fun instruction => match instruction with
+    | CALL x => exists f, callees (x :> N) = Some f /\
+        supportedStraightLineProgram (guestBody f) /\
+        (guestParams f < 256)%nat /\ (guestResults f < 256)%nat
+    | _ => exists opcode, encodedOpcode instruction = Some opcode
+    end) code.
+
+(* Internal numerical facts derived from SpecTec validation. *)
+Fixpoint callerFacts (callees : CalleeEnvironment) (z : state) (height : nat)
     (program : list instr) : Prop :=
   match program with
   | [] => True
@@ -30,14 +40,14 @@ Fixpoint callerTyped (callees : CalleeEnvironment) (z : state) (height : nat)
           typedCall z x (guestModule f) (guestTypeIndex f) (guestParams f)
             (guestResults f) (guestLocals f) (guestBody f) /\
           (guestParams f <= height)%nat /\
-          callerTyped callees z (height - guestParams f + guestResults f) rest
+          callerFacts callees z (height - guestParams f + guestResults f) rest
       | None => False
       end
   | instruction :: rest =>
       supportedStraightLineProgram [instruction] /\ wf_instr instruction /\
       programTyped (length (stateLocals z)) height [instruction] /\
       match instructionStackHeight instruction height with
-      | Some remaining => callerTyped callees z remaining rest
+      | Some remaining => callerFacts callees z remaining rest
       | None => False
       end
   end.
@@ -64,7 +74,7 @@ Fixpoint loadedCaller (callees : CalleeEnvironment) (z : state) (memory : Memory
 Record CallerState (callees : CalleeEnvironment) (z : state) (memory : MemoryState)
     (boundary : Boundary) (pc : Z) (code : list instr) (configuration : config) : Prop := {
   callerStateLoaded : loadedCaller callees z memory pc code;
-  callerStateTyped : callerTyped callees z (stackHeight boundary) code;
+  callerStateTyped : callerFacts callees z (stackHeight boundary) code;
   callerStateRepresents : represents z memory boundary code configuration;
   callerStatePC : boundaryPC boundary = pc
 }.

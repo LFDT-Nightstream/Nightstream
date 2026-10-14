@@ -105,7 +105,16 @@ Fixpoint bodyStackDelta (body : list instr) : option Z :=
       end
   end.
 
-(* Bounds on local indices and stack underflow; the final height is unrestricted. *)
+(* Validation context for this i32-only, call-free fragment. Other context
+   components are unused by its supported instructions. *)
+Definition i32TypingContext (localCount : nat) : context :=
+  MKcontext [] [] [] [] [] [] [] (repeat valtype_I32 localCount) [] None.
+
+Definition i32StackType (inputs outputs : nat) : functype :=
+  mk_functype (mk_list _ (repeat valtype_I32 inputs)) (mk_list _ (repeat valtype_I32 outputs)).
+
+(* Internal bounds on local indices and stack underflow, derived from SpecTec
+   validation by StraightLineValidation; the final height is unrestricted. *)
 Fixpoint programTyped (localCount height : nat) (program : list instr) : Prop :=
   match program with
   | [] => True

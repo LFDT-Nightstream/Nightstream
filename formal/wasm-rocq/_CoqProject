@@ -30,6 +30,8 @@ SpecTecCalls.v
 CallSpec.v
 CallEntry.v
 StraightLineInstructions.v
+StraightLineValidation.v
+FunctionValidation.v
 CallBody.v
 CallContext.v
 CallScope.v
@@ -37,8 +39,10 @@ CallReturn.v
 CallRefinement.v
 CallerSpec.v
 CallerRefinement.v
+CallerValidation.v
 ProgramSpec.v
 ProgramEncoding.v
+ProgramValidation.v
 TraceSegmentation.v
 ProgramRefinement.v
 StraightLineRefinement.v
@@ -47,3 +51,4 @@ tests/Calls.v
 tests/Callers.v
 tests/Programs.v
 tests/Segmentation.v
+tests/Validation.v

@@ -1,6 +1,6 @@
 From Stdlib Require Import List ZArith Lia.
 Require Import R1CS Columns Range TraceRefinement Wasm2 StraightLineSpec StraightLineRefinement
-  OpcodeCatalog MemoryTrace MemoryCatalog Locals.
+  OpcodeCatalog MemoryTrace MemoryCatalog Locals StraightLineValidation.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -18,6 +18,32 @@ Qed.
 
 Example local_arithmetic_no_initial_stack : programTyped 2 0 localArithmetic.
 Proof. vm_compute. repeat constructor. Qed.
+
+Local Ltac validation_wf :=
+  match goal with
+  | |- wf_context _ => repeat constructor
+  | |- Forall _ _ => repeat constructor
+  end.
+
+Example local_arithmetic_validates :
+  Instrs_ok (i32TypingContext 2) localArithmetic (i32StackType 0 1).
+Proof.
+  unfold localArithmetic, i32StackType.
+  eapply res_seq with (instr_1_lst := [LOCAL_GET (mk_uN 0)])
+    (t_2_lst := [valtype_I32]); try validation_wf.
+  - apply Instrs_ok__instr; [apply local_get | | ]; try reflexivity; repeat constructor.
+  - eapply res_seq with (instr_1_lst := [LOCAL_GET (mk_uN 1)])
+      (t_2_lst := [valtype_I32; valtype_I32]); try validation_wf.
+    + apply (Instrs_ok__frame _ _ [valtype_I32] [] [valtype_I32]); try validation_wf.
+      apply Instrs_ok__instr; [apply local_get | | ]; try reflexivity; repeat constructor.
+    + eapply res_seq with (instr_1_lst := [BINOP I32 (mk_binop__0 Inn_I32 SUB)])
+        (t_2_lst := [valtype_I32]); try validation_wf.
+      * apply Instrs_ok__instr; [apply binop | | ]; repeat constructor.
+      * eapply res_seq with (instr_1_lst := [LOCAL_SET (mk_uN 0)])
+          (t_2_lst := []); try validation_wf.
+        -- apply Instrs_ok__instr; [apply local_set | | ]; try reflexivity; repeat constructor.
+        -- apply Instrs_ok__instr; [apply local_get | | ]; try reflexivity; repeat constructor.
+Qed.
 
 (* Concrete ROM contents, locals [20; 3] at frame base 7, and an empty stack.
    This checks that loading and representation can hold together; it does not
@@ -141,10 +167,10 @@ Example local_arithmetic_prefix_refines : forall first second final,
     second COL_PC_AFTER = 2.
 Proof.
   intros first second final Hprime Hrun Hfirst Hsecond Hboundary.
-  eapply (straight_line_run_refinement localArithmetic localArithmeticState localArithmeticMemory final first [second]
+  eapply (straight_line_run_refinement localArithmetic 1 localArithmeticState localArithmeticMemory final first [second]
     _ Hprime local_arithmetic_supported (proj1 local_arithmetic_initial_state) Hrun).
   - repeat constructor; assumption.
   - change (boundaryPC (beforeBoundary first) = 0). now rewrite Hboundary.
-  - rewrite Hboundary. exact local_arithmetic_no_initial_stack.
+  - rewrite Hboundary. exact local_arithmetic_validates.
   - rewrite Hboundary. exact (proj2 local_arithmetic_initial_state).
 Qed.

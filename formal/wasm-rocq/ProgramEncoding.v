@@ -237,7 +237,7 @@ Qed.
 Lemma program_loaded_caller : forall program memory index f offset code z height,
   programLoaded program memory -> functionAt program index = Some f ->
   codeAt f offset code -> frameMatches program f z ->
-  callerTyped (programCallees program (guestModule f)) z height code ->
+  callerFacts (programCallees program (guestModule f)) z height code ->
   loadedCaller (programCallees program (guestModule f)) z memory (guestEntry f + Z.of_nat offset) code.
 Proof.
   intros program memory index f offset code. revert offset.
@@ -252,7 +252,7 @@ Proof.
       { apply nth_error_Some. rewrite Hlookup. discriminate. } lia.
     - rewrite (StackSimulation.skipn_at_instruction _ _ _ Hlookup) in Hcode. now injection Hcode. }
   assert (Hcontinue : forall next,
-    callerTyped (programCallees program (guestModule f)) z next rest ->
+    callerFacts (programCallees program (guestModule f)) z next rest ->
     loadedCaller (programCallees program (guestModule f)) z memory (guestEntry f + Z.of_nat offset + 1) rest).
   { intros next Hnext. replace (guestEntry f + Z.of_nat offset + 1)
       with (guestEntry f + Z.of_nat (S offset)) by lia.
@@ -261,14 +261,14 @@ Proof.
     supportedStraightLineProgram [i] /\ wf_instr i /\
       programTyped (length (stateLocals z)) height [i] /\
       (match instructionStackHeight i height with
-       | Some next => callerTyped (programCallees program (guestModule f)) z next rest | None => False end) ->
+       | Some next => callerFacts (programCallees program (guestModule f)) z next rest | None => False end) ->
     nth_error (guestBody f) offset = Some i ->
     instructionImage memory (guestEntry f + Z.of_nat offset) i /\
     loadedCaller (programCallees program (guestModule f)) z memory (guestEntry f + Z.of_nat offset + 1) rest).
   { intros i [Hs [_ [_ Hnext]]] Hi. split.
     - eapply encoded_instruction_image; [exact Hloaded | exact Hf | exact Hi | exact (Forall_inv Hs)].
     - destruct (instructionStackHeight i height) as [next | ]; [eapply Hcontinue; exact Hnext | contradiction]. }
-  destruct instruction; cbn [callerTyped loadedCaller] in *;
+  destruct instruction; cbn [callerFacts loadedCaller] in *;
     try (eapply Hordinary; eassumption).
   match type of Htyped with context [programCallees _ _ ?x] =>
     destruct (programCallees program (guestModule f) x) as [callee | ] eqn:Hcallee end; [ | contradiction].

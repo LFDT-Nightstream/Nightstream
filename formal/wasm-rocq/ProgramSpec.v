@@ -2,7 +2,7 @@
    This encoder covers i32 guest functions without imports or structured control.
    PCs are consecutive across bodies, with one trailing END per function. *)
 From Stdlib Require Import List ZArith Bool.
-Require Import R1CS Columns Wasm2 MemoryTrace MemoryCatalog OpcodeCatalog StraightLineSpec CallerSpec.
+Require Import R1CS Columns Wasm2 MemoryTrace MemoryCatalog OpcodeCatalog StraightLineSpec CallerSpec FunctionValidation SpecTecCalls.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -134,13 +134,25 @@ Definition frameMatches (program : Program) (f : GuestFunction) (z : state) : Pr
   fun_funcinst z = program /\ fun_funcaddr z = FUNCS (guestModule f) /\
   length (stateLocals z) = (guestParams f + guestLocals f)%nat.
 
+(* Validation uses SpecTec's instantiated functions and the active function's
+   module context. Support only restricts the circuit fragment we can simulate. *)
+Definition validatedCode (program : Program) (f : GuestFunction) (z : state)
+    (height : nat) (code : list instr) : Prop :=
+  Forall (fun fi => Funcinst_ok (fun_store z) fi (funcinst_TYPE fi)) program /\
+  supportedCaller (programCallees program (guestModule f)) code /\
+  exists C outputs,
+    Moduleinst_ok (fun_store z) (guestModule f) C /\
+    Instrs_ok (functionContext C (i32Function (guestModule f) (guestTypeIndex f)
+      (guestParams f) (guestResults f) (guestLocals f) (guestBody f))) code
+      (i32StackType height outputs).
+
 Definition SourceState (program : Program) (position : SourcePosition) (z : state)
     (memory : MemoryState) (boundary : Boundary) (code : list instr) (c : config) : Prop :=
   match functionAt program (sourceFunction position) with
   | None => False
   | Some f =>
       frameMatches program f z /\ codeAt f (sourceOffset position) code /\
-      callerTyped (programCallees program (guestModule f)) z (stackHeight boundary) code /\
+      validatedCode program f z (stackHeight boundary) code /\
       represents z memory boundary code c /\
       boundaryPC boundary = guestEntry f + Z.of_nat (sourceOffset position)
   end.

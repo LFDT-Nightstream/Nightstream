@@ -2,7 +2,7 @@
 From Stdlib Require Import List ZArith Lia.
 Require Import R1CS Range MemoryTrace TraceRefinement Wasm2 StraightLineSpec
   CallerSpec CallerRefinement ProgramSpec ProgramEncoding TraceSegmentation
-  MemoryCatalog OpcodeCatalog.
+  MemoryCatalog OpcodeCatalog ProgramValidation.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -25,7 +25,7 @@ Proof.
   destruct before, after. cbn [fun_store fun_funcinst] in *. congruence.
 Qed.
 
-(* The supported fragment is restricted by callerTyped and segmentMatches.
+(* Generated validation and opcode support are separate parts of SourceState.
    programLoaded fixes the ROM once; SourceState contains no ROM lookups. *)
 Lemma segmented_run_refinement : forall program position executed remaining segments z initial final boundary c0,
   fieldPrime -> programLoaded program initial ->
@@ -40,7 +40,9 @@ Proof.
     Hprime Hloaded Hrun Hmatches Hstart Hsource.
   unfold SourceState in Hsource. cbn [sourceFunction sourceOffset] in Hsource.
   destruct (functionAt program index) as [f | ] eqn:Hf; [ | contradiction].
-  destruct Hsource as [Hframe [Hcode [Htyped [Hrep Hpc]]]].
+  destruct Hsource as [Hframe [Hcode [Hvalidation [Hrep Hpc]]]].
+  pose proof (validated_code_facts _ _ _ _ _ Hframe
+    (represented_state_wf _ _ _ _ _ Hrep) Hvalidation) as Htyped.
   assert (Hcaller : CallerState (programCallees program (guestModule f)) z initial boundary
       (guestEntry f + Z.of_nat offset) (executed ++ remaining) c0).
   { constructor; try assumption. eapply program_loaded_caller; eassumption. }
@@ -52,7 +54,9 @@ Proof.
   - unfold SourceState. cbn [advanceSource sourceFunction sourceOffset]. rewrite Hf.
     split; [eapply frame_matches_preserved; eassumption | ].
     split; [apply code_at_advance; exact Hcode | ].
-    split; [exact Htyped' | ]. split; [exact Hrep' | ]. rewrite Nat2Z.inj_add. lia.
+    split.
+    + eapply validated_code_remaining; [exact Hidentity | eapply frame_matches_preserved; eassumption | exact Hvalidation | exact Htyped'].
+    + split; [exact Hrep' | ]. rewrite Nat2Z.inj_add. lia.
 Qed.
 
 (* Every row is consumed. The executed prefix and its grouping are consequences
@@ -71,7 +75,9 @@ Proof.
   pose proof Hsource as Hparts. unfold SourceState in Hparts.
   cbn [sourceFunction sourceOffset] in Hparts.
   destruct (functionAt program index) as [f | ] eqn:Hf; [ | contradiction].
-  destruct Hparts as [Hframe [Hcode [Htyped [Hrep Hpc]]]].
+  destruct Hparts as [Hframe [Hcode [Hvalidation [Hrep Hpc]]]].
+  pose proof (validated_code_facts _ _ _ _ _ Hframe
+    (represented_state_wf _ _ _ _ _ Hrep) Hvalidation) as Htyped.
   assert (Hcaller : CallerState (programCallees program (guestModule f)) z initial boundary
       (guestEntry f + Z.of_nat offset) code c0).
   { constructor; try assumption. eapply program_loaded_caller; eassumption. }

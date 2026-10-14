@@ -6,7 +6,7 @@
 use super::{canonical_field, LoadedPackage, PackageError, Segment};
 use crate::identity::{pi_ccs_v1_1_verifier_context, PiCcsV1_1VerifierContext};
 
-const PRIOR_PREIMAGE_ROLE: u64 = 1;
+pub(crate) const PRIOR_PREIMAGE_ROLE: u64 = 1;
 const OUTPUT_PREIMAGE_ROLE: u64 = 2;
 const WITNESS_ROLE: u64 = 3;
 const FRESH_COMMITMENT_ROLE: u64 = 6;
@@ -386,6 +386,22 @@ impl LoadedPackage {
         if inputs.verifier_context.structural_identifier() != self.relation_identifier {
             return Err(PackageError::Invalid("PiCCS v1_1 verifier-context package identity"));
         }
+        self.encode_pi_ccs_segments(inputs)
+    }
+
+    /// Encode the inputs of the compression terminal package: the PiCCS
+    /// segments, then zero PiDEC segments, which no terminal row reads. The
+    /// context is the folded circuit's, not the terminal package's.
+    pub fn encode_terminal_inputs(
+        &self,
+        inputs: &PiCcsV1_1PackageInputs,
+    ) -> Result<PiCcsV1_1EncodedInputs, PackageError> {
+        let mut encoded = self.encode_pi_ccs_segments(inputs)?;
+        encoded.private_values.resize(self.private_input_count(), 0);
+        Ok(encoded)
+    }
+
+    fn encode_pi_ccs_segments(&self, inputs: &PiCcsV1_1PackageInputs) -> Result<PiCcsV1_1EncodedInputs, PackageError> {
         let pi_ccs_input_count = self
             .layout
             .private_segments

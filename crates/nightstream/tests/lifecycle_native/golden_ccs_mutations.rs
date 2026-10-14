@@ -44,7 +44,6 @@ pub fn check_proof_mutations(
     rejects(&changed, "missing round coefficient");
     let checked = 2
         + (0..proof.sumcheck_rounds.len())
-            .into_iter()
             .map(|round| {
                 let mut checked = 0;
                 for coefficient in 0..proof.sumcheck_rounds[round].len() {
@@ -185,31 +184,29 @@ pub fn check_claim_mutations(
         }
         "output-mutations" => {
             let mutations_per_source = claim_families + 28 + 4;
-            (0..outputs.len() * mutations_per_source)
-                .into_iter()
-                .for_each(|mutation| {
-                    let source = mutation / mutations_per_source;
-                    let mutation = mutation % mutations_per_source;
-                    let mut changed = outputs.to_vec();
-                    let label = if mutation < claim_families {
-                        match mutation {
-                            0 => changed[source].c.data[0] += F::ONE,
-                            1 => changed[source].X[(0, 0)] += F::ONE,
-                            2 => changed[source].eval_k[0] += K::ONE,
-                            _ => changed[source].eval_a[mutation - 3][0] += K::ONE,
-                        }
-                        format!("output source {source}, family {mutation}")
-                    } else if mutation < claim_families + 28 {
-                        let coordinate = mutation - claim_families;
-                        changed[source].r[coordinate] += K::ONE;
-                        format!("output source {source}, point {coordinate}")
-                    } else {
-                        let lane = mutation - claim_families - 28;
-                        change_digest(&mut changed[source].fold_digest, lane);
-                        format!("output source {source}, digest {lane}")
-                    };
-                    rejects(fresh, running, &changed, &label);
-                });
+            (0..outputs.len() * mutations_per_source).for_each(|mutation| {
+                let source = mutation / mutations_per_source;
+                let mutation = mutation % mutations_per_source;
+                let mut changed = outputs.to_vec();
+                let label = if mutation < claim_families {
+                    match mutation {
+                        0 => changed[source].c.data[0] += F::ONE,
+                        1 => changed[source].X[(0, 0)] += F::ONE,
+                        2 => changed[source].eval_k[0] += K::ONE,
+                        _ => changed[source].eval_a[mutation - 3][0] += K::ONE,
+                    }
+                    format!("output source {source}, family {mutation}")
+                } else if mutation < claim_families + 28 {
+                    let coordinate = mutation - claim_families;
+                    changed[source].r[coordinate] += K::ONE;
+                    format!("output source {source}, point {coordinate}")
+                } else {
+                    let lane = mutation - claim_families - 28;
+                    change_digest(&mut changed[source].fold_digest, lane);
+                    format!("output source {source}, digest {lane}")
+                };
+                rejects(fresh, running, &changed, &label);
+            });
             for shape in 0..10 {
                 let mut changed = outputs.to_vec();
                 match shape {

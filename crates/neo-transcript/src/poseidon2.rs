@@ -12,8 +12,15 @@ const FOLD_DOMAIN: &[u8] = b"Nightstream/SuperNeo/fold/v2";
 /// `Nightstream/SuperNeo/fold/v2`, eight little-endian bytes per word, then
 /// zero words up to one rate chunk.
 pub fn fold_domain_chunk_v1_1() -> [F; p2::RATE] {
+    domain_chunk_v1_1(FOLD_DOMAIN)
+}
+
+/// One rate chunk that names a protocol: `label`, eight little-endian bytes
+/// per word, then zero words. The label fits in one chunk.
+pub fn domain_chunk_v1_1(label: &[u8]) -> [F; p2::RATE] {
+    assert!(label.len() <= 8 * p2::RATE, "domain label exceeds one rate chunk");
     std::array::from_fn(|word| {
-        let bytes = FOLD_DOMAIN.get(8 * word..).unwrap_or_default();
+        let bytes = label.get(8 * word..).unwrap_or_default();
         let mut packed = [0u8; 8];
         let length = bytes.len().min(8);
         packed[..length].copy_from_slice(&bytes[..length]);

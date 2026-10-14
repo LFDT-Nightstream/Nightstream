@@ -112,10 +112,10 @@ fn run_case(k_mcs: usize) {
     run_case_with_n(D, k_mcs);
 }
 
-fn make_dummy_me_input(m_in: usize, r: Vec<K>) -> CeClaim<neo_ajtai::Commitment, F, K> {
+fn make_dummy_me_input(params: &NeoParams, m_in: usize, r: Vec<K>) -> CeClaim<neo_ajtai::Commitment, F, K> {
     CeClaim {
         adv: None,
-        c: neo_ajtai::Commitment::zeros(D, 1),
+        c: neo_ajtai::Commitment::zeros(D, params.kappa as usize),
         X: Mat::zero(D, neo_ccs::superneo_public_x_cols(m_in), F::ZERO),
         r,
         eval_k: vec![K::ZERO; D.next_power_of_two()],
@@ -186,8 +186,8 @@ fn pi_ccs_prove_rejects_non_shared_me_r() {
 
     let r_len = ccs.n.next_power_of_two().trailing_zeros() as usize;
     let me_inputs = vec![
-        make_dummy_me_input(D, vec![K::ZERO; r_len]),
-        make_dummy_me_input(D, vec![K::ONE; r_len]),
+        make_dummy_me_input(&params, D, vec![K::ZERO; r_len]),
+        make_dummy_me_input(&params, D, vec![K::ONE; r_len]),
     ];
     let me_witnesses = vec![Mat::zero(D, ccs.m / D, F::ZERO), Mat::zero(D, ccs.m / D, F::ZERO)];
 

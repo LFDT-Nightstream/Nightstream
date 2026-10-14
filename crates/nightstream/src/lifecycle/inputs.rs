@@ -143,6 +143,22 @@ impl PiCcsV1_1ProofInputs {
     }
 }
 
+/// A state preimage ends with the verifier context (4 words), then the
+/// statement: the iteration, `z0` (4) and the current state (4).
+pub(crate) const STATE_STATEMENT_WORDS: usize = 9;
+/// Where the verifier context starts in a state preimage.
+pub(crate) const STATE_CONTEXT_START: usize = PI_CCS_V1_1_STATE_PREIMAGE_WORDS - STATE_STATEMENT_WORDS - 4;
+
+/// The domain words that open every state preimage.
+pub(crate) fn state_domain_words() -> [u64; STATE_DOMAIN_WORDS] {
+    std::array::from_fn(|chunk| {
+        let bytes = STATE_DOMAIN_TAG.get(8 * chunk..).unwrap_or_default();
+        let mut word = [0; 8];
+        word[..bytes.len().min(8)].copy_from_slice(&bytes[..bytes.len().min(8)]);
+        u64::from_le_bytes(word)
+    })
+}
+
 /// Serialize the exact Lean `HashPreimage` for the fixed v1_1 profile: the
 /// domain chunk, the running commitments, `Eval_K`, `Eval_A` and point, the
 /// packed parent public input, then `vk, i, z0, zi`. The children's public
@@ -159,12 +175,7 @@ pub fn serialize_pi_ccs_v1_1_state_preimage(
     }
     let point = checked_running_point(running)?;
     let mut words = Vec::with_capacity(PI_CCS_V1_1_STATE_PREIMAGE_WORDS);
-    for chunk in 0..STATE_DOMAIN_WORDS {
-        let bytes = STATE_DOMAIN_TAG.get(8 * chunk..).unwrap_or_default();
-        let mut word = [0; 8];
-        word[..bytes.len().min(8)].copy_from_slice(&bytes[..bytes.len().min(8)]);
-        words.push(u64::from_le_bytes(word));
-    }
+    words.extend(state_domain_words());
     for claim in running {
         if claim.c.d != PI_CCS_V1_1_COEFFICIENT_COUNT
             || claim.c.kappa != COMMITMENT_WIDTH

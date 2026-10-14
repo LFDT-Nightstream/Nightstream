@@ -67,6 +67,9 @@ jobs:
     - name: Run Nightstream tests
       run: timeout --signal=KILL 300 cargo test -p nightstream --release
 
+    - name: Run compression layer-1 tests
+      run: timeout --signal=KILL 300 cargo test -p neo-spartan --release
+
     - name: Run packed witness tests
       run: timeout --signal=KILL 300 cargo test -p neo-ccs --release --test packed_witness
 

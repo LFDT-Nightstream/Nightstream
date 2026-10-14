@@ -18,19 +18,24 @@ mod complete;
 mod encoding;
 mod evaluation;
 mod extend;
+mod finish;
 mod inputs;
 mod prove;
 mod step_inputs;
+mod terminal;
 mod verify;
 pub use complete::{CompleteStepError, Stage1Envelope};
 pub use encoding::ProofCodecError;
 pub use extend::ExtendError;
+pub use finish::{CompressionError, CompressionKey, CompressionSetup, FinalProof};
 pub use inputs::{
     check_pi_ccs_v1_1_canonical_children, encode_pi_ccs_v1_1_public_input, pi_ccs_v1_1_prior_children,
     pi_ccs_v1_1_state_hash, serialize_pi_ccs_v1_1_state_preimage, PiCcsV1_1PackageBridgeError, PiCcsV1_1ProofInputs,
 };
 pub use prove::ProveError;
 pub use step_inputs::{Stage1State, Stage1StepInputs, StepInputError};
+#[cfg(test)]
+pub(crate) use terminal::{package as terminal_package, TERMINAL_PACKAGE_IDENTIFIER};
 pub use verify::VerifyError;
 
 pub struct PreparedLifecycle {
@@ -127,7 +132,7 @@ impl LatestInstance {
 enum ProofState {
     Initial,
     Active {
-        running: RunningInstance,
+        running: Box<RunningInstance>,
         latest: LatestInstance,
     },
 }
@@ -136,7 +141,10 @@ impl ProofState {
         Self::Initial
     }
     fn active(running: RunningInstance, latest: LatestInstance) -> Self {
-        Self::Active { running, latest }
+        Self::Active {
+            running: Box::new(running),
+            latest,
+        }
     }
     fn is_initial(&self) -> bool {
         matches!(self, Self::Initial)
@@ -144,7 +152,7 @@ impl ProofState {
     fn running(&self) -> Option<&RunningInstance> {
         match self {
             Self::Initial => None,
-            Self::Active { running, .. } => Some(running),
+            Self::Active { running, .. } => Some(running.as_ref()),
         }
     }
     fn latest(&self) -> Option<&LatestInstance> {

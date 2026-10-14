@@ -11,7 +11,11 @@ use p3_field::PrimeField64;
 use crate::application::{ApplicationCircuit, ApplicationError};
 use crate::assembly::{self, AssemblyError};
 use crate::engine::{Backend, Engine, EngineError};
-use crate::lifecycle::{ExtendError, PreparedLifecycle, ProofCodecError, Stage1Envelope, Stage1State, VerifyError};
+use crate::lifecycle::{
+    CompressionError, ExtendError, FinalProof, PreparedLifecycle, ProofCodecError, Stage1Envelope, Stage1State,
+    VerifyError,
+};
+pub use crate::lifecycle::{CompressionKey, CompressionSetup};
 
 mod storage;
 
@@ -31,6 +35,8 @@ pub enum Error {
     Extend(#[from] ExtendError),
     #[error(transparent)]
     Verify(#[from] VerifyError),
+    #[error(transparent)]
+    Compression(#[from] CompressionError),
     #[error(transparent)]
     ProofBytes(#[from] ProofCodecError),
     #[error(transparent)]
@@ -163,6 +169,29 @@ impl Prover {
     pub fn encode_proof(&self, proof: &Stage1Envelope) -> Result<Vec<u8>, Error> {
         Ok(self.lifecycle.encode_proof(proof)?)
     }
+
+    /// Write this circuit's compression setup files into the existing
+    /// directory `dir` (about 29 GB, 27 GiB, at the production size) and return the
+    /// setup. Its key is what verifiers need.
+    pub fn compression_setup(&self, dir: impl AsRef<Path>) -> Result<CompressionSetup, Error> {
+        Ok(self.lifecycle.compression_setup(dir.as_ref())?)
+    }
+
+    /// Reopen setup files written for `key`. The files gain no authority.
+    pub fn open_compression_setup(
+        &self,
+        dir: impl AsRef<Path>,
+        key: &CompressionKey,
+    ) -> Result<CompressionSetup, Error> {
+        Ok(self.lifecycle.open_compression_setup(dir.as_ref(), key)?)
+    }
+
+    /// Compress `proof`: one more PiCCS + PiRLC fold without PiDEC, then a
+    /// sum-check and WHIR argument for the folded claim. The result carries
+    /// no witness and cannot be extended; `proof` does not change.
+    pub fn finish_with_spartan(&self, proof: &Stage1Envelope, setup: &CompressionSetup) -> Result<FinalProof, Error> {
+        Ok(self.lifecycle.finish_with_spartan(proof, setup)?)
+    }
 }
 
 /// Terminal verification against a circuit chosen independently of the proof.
@@ -206,9 +235,33 @@ impl Verifier {
         Ok(self.lifecycle.decode_proof(bytes)?)
     }
 
-    /// Check every remaining claim and opening against the configured circuit.
+    /// Check `proof` against the configured circuit and the expected state,
+    /// with its witnesses.
     pub fn verify(&self, expected_state: &Stage1State, proof: &Stage1Envelope) -> Result<(), Error> {
         Ok(self.lifecycle.verify(expected_state, proof)?)
+    }
+
+    /// Derive the compression key from the configured circuit, without files.
+    /// This key, or a copy of it you pinned, is the authority for
+    /// `verify_final`. Never take a key from a prover.
+    pub fn compression_key(&self) -> Result<CompressionKey, Error> {
+        Ok(self.lifecycle.compression_key()?)
+    }
+
+    /// Check a finished proof against the expected state and a trusted
+    /// compression key. The key must be this circuit's and meet this
+    /// verifier's security minimum; its setup root comes from
+    /// `compression_key` or a copy you pinned, never from a prover.
+    pub fn verify_final(
+        &self,
+        expected_state: &Stage1State,
+        key: &CompressionKey,
+        proof: &FinalProof,
+    ) -> Result<(), Error> {
+        self.lifecycle
+            .check_compression_key(key)
+            .map_err(VerifyError::Statement)?;
+        Ok(key.verify(expected_state, proof)?)
     }
 }
 
@@ -219,3 +272,7 @@ mod compiled_circuit;
 #[cfg(test)]
 #[path = "../tests/circuit/hash_chain_vector.rs"]
 mod hash_chain_vector;
+
+#[cfg(test)]
+#[path = "../tests/circuit/terminal_package.rs"]
+mod terminal_package;

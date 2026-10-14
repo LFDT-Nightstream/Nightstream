@@ -1,8 +1,8 @@
 use super::ccs::{
     dividend_min_zero_test, divisor_neg1_zero_test, CALL_INDIRECT_ENTRY_ZERO_TEST, CALL_INDIRECT_TYPE_ZERO_TEST,
-    CMP_HI_ZERO_TEST, CMP_LO_ZERO_TEST, DIVISOR_ZERO_TEST, HOST_EVENTS_REMAINING_ZERO_TEST,
-    LOCAL_ZERO_REMAINING_AFTER_ZERO_TEST, PARAM_INIT_REMAINING_AFTER_ZERO_TEST, PC_EDGE_KIND_ZERO_TEST,
-    PERM_ROUND_ZERO_TEST, SELECT_COND_ZERO_TEST, SELECT_HI_MUX, SELECT_LO_MUX,
+    DIVISOR_ZERO_TEST, HI_ZERO_TEST, HOST_EVENTS_REMAINING_ZERO_TEST, LOCAL_ZERO_REMAINING_AFTER_ZERO_TEST,
+    LO_ZERO_TEST, PARAM_INIT_REMAINING_AFTER_ZERO_TEST, PC_EDGE_KIND_ZERO_TEST, PERM_ROUND_ZERO_TEST,
+    SELECT_COND_ZERO_TEST, SELECT_HI_MUX, SELECT_LO_MUX,
 };
 use super::gadgets::unsigned_ge_witness;
 use super::ir::{pack_function_call_metadata, WasmHostEventSlotKind, WasmRowKind, WasmVmStep};
@@ -63,7 +63,9 @@ use super::layout::{
     COL_TURN_EXPORT_FREF_AFTER, COL_TURN_EXPORT_FREF_BEFORE, COL_WIDE_AUX0, COL_WIDE_AUX1, COL_WIDE_VALUES_ENABLED,
     PC_ROM_CALL_RETURN_CHOICE,
 };
-use crate::layout::{COL_CMP_AND, COL_CMP_HI_DIFF, COL_CMP_HI_IS_ZERO, COL_CMP_LO_DIFF, COL_CMP_LO_IS_ZERO};
+use crate::layout::{
+    COL_CMP_AND, COL_ZERO_TEST_HI_INPUT, COL_ZERO_TEST_HI_IS_ZERO, COL_ZERO_TEST_LO_INPUT, COL_ZERO_TEST_LO_IS_ZERO,
+};
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
@@ -105,6 +107,15 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     };
     if trace.row_kind.is_tail_enter() {
         wit[COL_TAIL_DISCARD_COUNT] = F::from_u64(trace.state_before.sp - trace.state_after.sp);
+    }
+    if trace.opcode == super::isa::WasmOpcode::BrTable {
+        use crate::layout::{COL_BR_TABLE_IN_BOUNDS, COL_BR_TABLE_LEN};
+        let index = trace.stack_read0.map(|access| access.value_lo).unwrap_or(0);
+        let (low, ge) = unsigned_ge_witness(u64::from(index), u64::from(trace.br_table_len));
+        wit[COL_BR_TABLE_LEN] = F::from_u64(u64::from(trace.br_table_len));
+        wit[COL_CMP_LOW] = low;
+        wit[COL_CMP_GE] = ge;
+        wit[COL_BR_TABLE_IN_BOUNDS] = F::ONE - ge;
     }
     wit[COL_CONTROL_CHOICE] = F::from_u64(u64::from(trace.control_choice));
     wit[COL_PC_EDGE_KIND] = F::from_u64(u64::from(trace.pc_edge_kind.as_u32()));
@@ -882,12 +893,14 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     SELECT_HI_MUX.assign_delta(&mut wit);
 
     // Comparator zero-test scratch (see `push_comparator_constraints` in ccs.rs).
-    // For non-comparator opcodes both diffs are 0 and the gadget pins both
+    // Conditional control uses the low zero-test too. For other opcodes both
+    // diffs are 0 and the gadget pins both
     // is_zero flags to 1, so cmp_and = 1.
-    let cmp_lo_diff = match trace.opcode {
-        super::isa::WasmOpcode::I32Eqz | super::isa::WasmOpcode::I64Eqz => {
-            F::from_u64(u64::from(trace.stack_read0.map(|l| l.value_lo).unwrap_or(0)))
-        }
+    let zero_test_lo_input = match trace.opcode {
+        super::isa::WasmOpcode::I32Eqz
+        | super::isa::WasmOpcode::I64Eqz
+        | super::isa::WasmOpcode::BrIf
+        | super::isa::WasmOpcode::If => F::from_u64(u64::from(trace.stack_read0.map(|l| l.value_lo).unwrap_or(0))),
         super::isa::WasmOpcode::I32Eq
         | super::isa::WasmOpcode::I32Ne
         | super::isa::WasmOpcode::I64Eq
@@ -898,7 +911,7 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
         }
         _ => F::ZERO,
     };
-    let cmp_hi_diff = match trace.opcode {
+    let zero_test_hi_input = match trace.opcode {
         super::isa::WasmOpcode::I64Eqz => F::from_u64(u64::from(
             trace
                 .stack_read0
@@ -922,13 +935,13 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
         }
         _ => F::ZERO,
     };
-    wit[COL_CMP_LO_DIFF] = cmp_lo_diff;
-    wit[COL_CMP_HI_DIFF] = cmp_hi_diff;
-    CMP_LO_ZERO_TEST.assign(&mut wit);
-    CMP_HI_ZERO_TEST.assign(&mut wit);
-    let cmp_lo_is_zero = wit[COL_CMP_LO_IS_ZERO];
-    let cmp_hi_is_zero = wit[COL_CMP_HI_IS_ZERO];
-    wit[COL_CMP_AND] = cmp_lo_is_zero * cmp_hi_is_zero;
+    wit[COL_ZERO_TEST_LO_INPUT] = zero_test_lo_input;
+    wit[COL_ZERO_TEST_HI_INPUT] = zero_test_hi_input;
+    LO_ZERO_TEST.assign(&mut wit);
+    HI_ZERO_TEST.assign(&mut wit);
+    let zero_test_lo_is_zero = wit[COL_ZERO_TEST_LO_IS_ZERO];
+    let zero_test_hi_is_zero = wit[COL_ZERO_TEST_HI_IS_ZERO];
+    wit[COL_CMP_AND] = zero_test_lo_is_zero * zero_test_hi_is_zero;
 
     crate::range_check::write_range_check_bits(&mut wit);
     wit

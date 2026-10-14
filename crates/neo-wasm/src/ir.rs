@@ -524,6 +524,8 @@ pub struct WasmVmStep {
     /// For example, `br_if` chooses taken vs fallthrough, and `br_table`
     /// chooses one table arm/default. Static fallthrough rows use 0.
     pub control_choice: u32,
+    /// Explicit arm count, excluding the default, for br_table; zero on other rows.
+    pub br_table_len: u32,
     pub pc_edge_kind: WasmPcEdgeKind,
     pub wide_values_enabled: bool,
     pub opcode: WasmOpcode,

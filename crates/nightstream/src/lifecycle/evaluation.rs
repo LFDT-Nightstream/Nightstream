@@ -69,8 +69,9 @@ impl PreparedLifecycle {
     }
 
     /// Reserve the selected profile's packed witness copies, carried table,
-    /// and largest assignment-fold overlap before giving rows working space.
-    /// This accounts for engine payload, not package/allocator/driver RSS.
+    /// largest assignment-fold overlap, and a prover's kept commitment key
+    /// before giving rows working space. This accounts for engine payload, not
+    /// package/allocator/driver RSS.
     pub(crate) fn matrix_workspace_bytes(&self) -> Result<usize, PackageError> {
         let width = self.structure.m.div_ceil(D) as u128 * D as u128;
         let rows = self.structure.n as u128;
@@ -84,7 +85,8 @@ impl PreparedLifecycle {
         let values = (u16::MAX as u128 + 1) * size_of::<neo_math::K>() as u128;
         let assignments = (sources + 1) * (codes + values);
         let matrix_projection = rows * size_of::<neo_math::K>() as u128;
-        let reserved = masks + common + assignments.max(matrix_projection);
+        let key = self.backend.kept_commitment_key_bytes(blocks as usize) as u128;
+        let reserved = masks + common + assignments.max(matrix_projection) + key;
         // The owner requested 16 GB. The existing Metal buffer policy uses
         // the same decimal-byte ceiling; RSS is still checked separately.
         let remaining = 16_000_000_000u128

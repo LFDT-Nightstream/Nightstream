@@ -78,6 +78,7 @@ fn conversion_row(opcode: WasmOpcode, value: u32, width_bytes: usize, writes_i64
         state_before,
         state_after,
         control_choice: 0,
+        br_table_len: 0,
         pc_edge_kind: WasmPcEdgeKind::Static,
         wide_values_enabled: writes_i64,
         opcode,

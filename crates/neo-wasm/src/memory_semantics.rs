@@ -28,6 +28,7 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts) -> WasmM
     for entry in &tables.program_decode {
         let pc = narrow(entry.pc, "program_decode.pc");
         preload.insert(WasmMemoryId::ProgramOpcode, vec![pc], entry.opcode_code);
+        preload.insert(WasmMemoryId::ProgramBrTableLen, vec![pc], entry.br_table_len);
         preload.insert(WasmMemoryId::ProgramLocalIndex, vec![pc], entry.local_index);
         preload.insert(WasmMemoryId::ProgramGlobalIndex, vec![pc], entry.global_index);
         preload.insert(WasmMemoryId::ProgramTableId, vec![pc], entry.table_id);

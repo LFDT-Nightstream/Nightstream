@@ -122,6 +122,7 @@ pub struct WasmProgramDecodeEntry {
     /// checked by the `module_types` ROM, but keyed by program PC so the
     /// static opcode/immediate row is bound directly to the wasm bytes.
     pub call_indirect_expected_type_id: u32,
+    pub br_table_len: u32,
     pub i32_const_value: u32,
     pub i64_const_value_lo: u32,
     pub i64_const_value_hi: u32,
@@ -601,6 +602,10 @@ impl ParsedWasmArtifactsBuilder {
                             memory_offset,
                             call_indirect_type_index: call_indirect_type_index.unwrap_or(0),
                             call_indirect_expected_type_id: expected_type_id.unwrap_or(0),
+                            br_table_len: match &operator {
+                                wasmparser::Operator::BrTable { targets } => targets.len(),
+                                _ => 0,
+                            },
                             i32_const_value: match opcode {
                                 WasmOpcode::I32Const => immediate.unwrap_or(0),
                                 _ => 0,

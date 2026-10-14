@@ -1109,6 +1109,12 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                 },
             ],
         },
+        rom_read_spec(
+            WasmMemoryId::ProgramBrTableLen,
+            vec![Column(COL_PC_BEFORE)],
+            Column(super::layout::COL_BR_TABLE_LEN),
+            active_when(Column(selector_col(WasmOpcode::BrTable).unwrap())),
+        ),
     ];
 
     let columns = crate::witness_layout::range_checked_column_registry();

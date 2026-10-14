@@ -223,7 +223,7 @@ once per lane for both ports. -/
   -- The coefficients become words once, for the reads of all lanes.
   let words := (prepared.map PiDECNativeSparseEvaluation.TwoPairEntry.ofEntry).toArray
   let lanes := Vector.ofFn fun output : Fin ringDegree =>
-    PiDECNativeSparseEvaluation.nativeEvalTwoPairsWords words (read output)
+    PiDECNativeSparseEvaluation.nativeEvalTwoPairs words (read output)
   Vector.ofFn fun port : Fin matrixCount =>
     match portIndex? port with
     | some 0 => MaterializedRingK.ofRing fun output =>
@@ -999,7 +999,6 @@ private theorem evaluate_get {columns : Nat} (merged : Merged columns) (fits : s
     length
   fin_cases target <;>
     simp only [evaluate, vget, Vector.getElem_ofFn, index, MaterializedRingK.toRing_ofRing,
-      PiDECNativeSparseEvaluation.nativeEvalTwoPairsWords_ofEntry,
       PiDECNativeSparseEvaluation.nativeEvalTwoPairs_eq_spec] <;>
     simp only [entryPair] at entries <;>
     exact entries

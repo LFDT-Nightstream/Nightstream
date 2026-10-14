@@ -16,7 +16,7 @@ mod evaluate;
 pub(crate) mod layout;
 
 use p3_challenger_v08::{CanObserve, FieldChallenger};
-use p3_field_v08::{Field, PrimeCharacteristicRing};
+use p3_field_v08::{Algebra, Field, PrimeCharacteristicRing};
 use p3_security_v08::{ErrorBits, SecurityTerm};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -248,8 +248,7 @@ pub fn verify(shrink: &Shrink, program: &impl Program, proof: &ShrinkProof) -> R
         .collect();
     let (rx, last) = replay(&proof.outer, Ext::ZERO, &mut challenger);
     let v = proof.values;
-    let constraint = v[X].exp_u64(7) + v[1] * v[2] + v[3] * v[4] + v[5] * v[6] - v[C];
-    if last != eq(&tau, &rx) * constraint {
+    if last != eq(&tau, &rx) * constraint(&v) {
         return Err(Error::Rejected("shrink outer sum-check"));
     }
     challenger.observe_algebra_slice(&v);
@@ -351,7 +350,7 @@ fn z_table(layout: &Layout, trace: &Trace) -> Vec<Gl> {
 }
 
 /// `M_j·z` on the row cube for every matrix.
-fn products(layout: &Layout, trace: &Trace, z: &[Gl]) -> Vec<Vec<Ext>> {
+fn products(layout: &Layout, trace: &Trace, z: &[Gl]) -> Vec<Vec<Gl>> {
     let rows = 1usize << layout.row_variables;
     let mut tables = vec![vec![Gl::ZERO; rows]; MATRICES];
     for (matrix, table) in tables.iter_mut().enumerate() {
@@ -390,9 +389,6 @@ fn products(layout: &Layout, trace: &Trace, z: &[Gl]) -> Vec<Vec<Ext>> {
             });
     }
     tables
-        .into_par_iter()
-        .map(|table| table.into_iter().map(Ext::from).collect())
-        .collect()
 }
 
 /// `Σ_j ρ^j·M_j(rx, y)` for every column `y` of `z`.
@@ -443,47 +439,103 @@ fn weights(layout: &Layout, trace: &Trace, rx: &[Ext], rho: &[Ext; MATRICES]) ->
     weights
 }
 
-/// The outer sum-check of `Σ_x eq(τ, x)·(X^7 + Σ_i A_i·B_i − C)(x) = 0`, low
-/// bit first. Returns the rounds, the point and every table at the point.
-fn prove_outer(
-    mut tables: Vec<Vec<Ext>>,
+/// The constraint `P = X^7 + Σ_i A_i·B_i − C` on one row's matrix values.
+fn constraint<T: PrimeCharacteristicRing + Copy>(v: &[T; MATRICES]) -> T {
+    v[X].exp_u64(7) + v[1] * v[2] + v[3] * v[4] + v[5] * v[6] - v[C]
+}
+
+/// The abscissas of an outer round message: `h(0), h(2), ..., h(DEGREE)`.
+const ABSCISSAS: [usize; DEGREE] = [0, 2, 3, 4, 5, 6, 7, 8];
+
+/// The outer sum-check of `Σ_x eq(τ, x)·P(x) = 0`, low bit first. Returns the
+/// rounds, the point and every table at the point.
+///
+/// Round `i` writes `eq` as `c·ℓ(X)·eq(τ_{>i}, k)` (Gruen, ePrint 2024/108):
+/// `c` is the product over the bound coordinates and `ℓ(X) = eq(τ_i, X)`.
+/// The prover sums only `q(X) = Σ_k eq(τ_{>i}, k)·P_k(X)` and sends
+/// `s(t) = c·ℓ(t)·q(t)`: the values the direct sum of `eq·P` gives.
+/// Round 0 reads the Goldilocks tables; its fold moves them to `Ext`.
+pub(crate) fn prove_outer(
+    tables: Vec<Vec<Gl>>,
     tau: &[Ext],
     challenger: &mut Challenger,
 ) -> (Vec<Vec<Ext>>, Vec<Ext>, [Ext; MATRICES]) {
-    let mut eq = eq_table(tau);
     let mut rounds = Vec::with_capacity(tau.len());
     let mut point = Vec::with_capacity(tau.len());
-    while eq.len() > 1 {
-        let half = eq.len() / 2;
-        let sums = (0..half)
-            .into_par_iter()
-            .fold(
-                || [Ext::ZERO; DEGREE + 1],
-                |mut acc, k| {
-                    let mut e = eq[2 * k];
-                    let de = eq[2 * k + 1] - e;
-                    let mut at: [Ext; MATRICES] = std::array::from_fn(|j| tables[j][2 * k]);
-                    let step: [Ext; MATRICES] = std::array::from_fn(|j| tables[j][2 * k + 1] - at[j]);
-                    for (t, sum) in acc.iter_mut().enumerate() {
-                        if t != 1 {
-                            *sum += e * (at[X].exp_u64(7) + at[1] * at[2] + at[3] * at[4] + at[5] * at[6] - at[C]);
-                        }
-                        e += de;
-                        for j in 0..MATRICES {
-                            at[j] += step[j];
-                        }
-                    }
-                    acc
-                },
-            )
-            .reduce(|| [Ext::ZERO; DEGREE + 1], |a, b| std::array::from_fn(|t| a[t] + b[t]));
-        let mut message = vec![sums[0]];
-        message.extend_from_slice(&sums[2..]);
+    let mut base = Some(tables);
+    let mut folded: Vec<Vec<Ext>> = Vec::new();
+    let mut bound = Ext::ONE;
+    for (i, &tau_i) in tau.iter().enumerate() {
+        let rest = &tau[i + 1..];
+        let q = match &base {
+            Some(tables) => line_sums(tables, rest),
+            None => line_sums(&folded, rest),
+        };
+        let message: Vec<Ext> = q
+            .iter()
+            .zip(ABSCISSAS)
+            .map(|(&value, t)| {
+                let t = Ext::from_usize(t);
+                bound * ((Ext::ONE - tau_i) * (Ext::ONE - t) + tau_i * t) * value
+            })
+            .collect();
         let r = sumcheck::send(&message, challenger);
-        fold_low(&mut eq, r);
-        tables.par_iter_mut().for_each(|table| fold_low(table, r));
+        bound *= tau_i * r + (Ext::ONE - tau_i) * (Ext::ONE - r);
+        match base.take() {
+            Some(tables) => {
+                folded = tables
+                    .par_iter()
+                    .map(|table| {
+                        table
+                            .par_chunks_exact(2)
+                            .map(|pair| r * (pair[1] - pair[0]) + pair[0])
+                            .collect()
+                    })
+                    .collect();
+            }
+            None => folded.par_iter_mut().for_each(|table| fold_low(table, r)),
+        }
         rounds.push(message);
         point.push(r);
     }
-    (rounds, point, std::array::from_fn(|j| tables[j][0]))
+    let values = match base {
+        Some(tables) => std::array::from_fn(|j| Ext::from(tables[j][0])),
+        None => std::array::from_fn(|j| folded[j][0]),
+    };
+    (rounds, point, values)
+}
+
+/// `q(t) = Σ_k eq(rest, k)·P_k(t)` at each of `ABSCISSAS`, where `P_k(t)` is
+/// the constraint on the line through rows `2k` and `2k + 1`. `eq(rest, ·)`
+/// is the product of two half-size tables (Dao and Thaler, ePrint
+/// 2024/1210); a `T` value meets `Ext` only there.
+fn line_sums<T>(tables: &[Vec<T>], rest: &[Ext]) -> [Ext; DEGREE]
+where
+    T: PrimeCharacteristicRing + Copy + Send + Sync,
+    Ext: Algebra<T>,
+{
+    let split = rest.len() / 2;
+    let (low, high) = (eq_table(&rest[..split]), eq_table(&rest[split..]));
+    high.par_iter()
+        .enumerate()
+        .map(|(h, &outer)| {
+            let mut sums = [Ext::ZERO; DEGREE];
+            for (l, &inner) in low.iter().enumerate() {
+                let k = (h << split) | l;
+                let mut at: [T; MATRICES] = std::array::from_fn(|j| tables[j][2 * k]);
+                let step: [T; MATRICES] = std::array::from_fn(|j| tables[j][2 * k + 1] - at[j]);
+                let mut t = 0;
+                for (sum, target) in sums.iter_mut().zip(ABSCISSAS) {
+                    while t < target {
+                        for j in 0..MATRICES {
+                            at[j] += step[j];
+                        }
+                        t += 1;
+                    }
+                    *sum += inner * constraint(&at);
+                }
+            }
+            sums.map(|sum| outer * sum)
+        })
+        .reduce(|| [Ext::ZERO; DEGREE], |a, b| std::array::from_fn(|s| a[s] + b[s]))
 }

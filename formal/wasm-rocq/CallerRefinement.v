@@ -77,15 +77,15 @@ Qed.
 
 Lemma caller_typed_preserved : forall program callees z z' height,
   length (stateLocals z') = length (stateLocals z) -> wf_state z' ->
-  callerTyped callees z height program -> callerTyped callees z' height program.
+  callerFacts callees z height program -> callerFacts callees z' height program.
 Proof.
   induction program as [ | instruction rest IH]; intros callees z z' height Hcount Hwf Htyped; [exact I | ].
   assert (Hcontinue : forall next,
-    (match next with Some h => callerTyped callees z h rest | None => False end) ->
-    (match next with Some h => callerTyped callees z' h rest | None => False end)).
+    (match next with Some h => callerFacts callees z h rest | None => False end) ->
+    (match next with Some h => callerFacts callees z' h rest | None => False end)).
   { intros [h | ] H; [eapply IH; eassumption | contradiction]. }
   pose proof (Hcontinue (instructionStackHeight instruction height)) as Hnext.
-  destruct instruction; cbn [callerTyped] in *;
+  destruct instruction; cbn [callerFacts] in *;
     try (destruct Htyped as [Hs [Hi [Ht Hr]]];
       split; [exact Hs | ]; split; [exact Hi | ]; split; [now rewrite Hcount | exact (Hnext Hr)]).
   match goal with |- context [callees ?x] => destruct (callees x) as [f | ] end; [ | contradiction].
@@ -94,15 +94,15 @@ Proof.
 Qed.
 
 Lemma caller_program_wf : forall program callees z height,
-  callerTyped callees z height program -> Forall wf_instr program.
+  callerFacts callees z height program -> Forall wf_instr program.
 Proof.
   induction program as [ | instruction rest IH]; intros callees z height Htyped; [constructor | ].
   assert (Hcontinue : forall next,
-    (match next with Some h => callerTyped callees z h rest | None => False end) ->
+    (match next with Some h => callerFacts callees z h rest | None => False end) ->
     Forall wf_instr rest).
   { intros [h | ] H; [eapply IH; exact H | contradiction]. }
   pose proof (Hcontinue (instructionStackHeight instruction height)) as Hnext.
-  destruct instruction; cbn [callerTyped] in Htyped;
+  destruct instruction; cbn [callerFacts] in Htyped;
     try (destruct Htyped as [_ [Hi [_ Hr]]]; constructor; [exact Hi | exact (Hnext Hr)]).
   match type of Htyped with context [callees ?x] => destruct (callees x) as [f | ] end; [ | contradiction].
   destruct Htyped as [[_ [Hindex _]] [_ Hrest]].
@@ -150,10 +150,10 @@ Lemma caller_segment_refinement : forall instruction rest segment callees z init
   segmentMatches instruction segment ->
   loadedCaller callees z initial pc (instruction :: rest) ->
   boundaryPC (beforeBoundary (segmentFirst segment)) = pc ->
-  (callerTyped callees z (stackHeight (beforeBoundary (segmentFirst segment))) (instruction :: rest) /\
+  (callerFacts callees z (stackHeight (beforeBoundary (segmentFirst segment))) (instruction :: rest) /\
     represents z initial (beforeBoundary (segmentFirst segment)) (instruction :: rest) c0) ->
   exists z' c1, Steps c0 c1 /\
-    (callerTyped callees z' (stackHeight (afterBoundary (segmentLast segment))) rest /\
+    (callerFacts callees z' (stackHeight (afterBoundary (segmentLast segment))) rest /\
     represents z' final (afterBoundary (segmentLast segment)) rest c1) /\
     boundaryPC (afterBoundary (segmentLast segment)) = pc + 1 /\ sameCaller z z' /\
     segmentLast segment COL_CALL_STACK_DEPTH_AFTER = segmentFirst segment COL_CALL_STACK_DEPTH_BEFORE.
@@ -166,7 +166,7 @@ Proof.
   - assert (Hplain : supportedStraightLineProgram [instruction] /\ wf_instr instruction /\
         programTyped (length (stateLocals z)) (length values) [instruction] /\
         match instructionStackHeight instruction (length values) with
-        | Some remaining => callerTyped callees z remaining rest | None => False end).
+        | Some remaining => callerFacts callees z remaining rest | None => False end).
     { destruct instruction; cbn [segmentMatches] in Hmatches; try contradiction; exact HtypedAll. }
     assert (HimagePlain : instructionImage initial pc instruction).
     { destruct instruction; cbn [segmentMatches] in Hmatches; try contradiction; exact Himage. }
@@ -190,7 +190,7 @@ Proof.
     assert (Hlength : length outputs = nextHeight).
     { eapply ordinary_result_height; eassumption. }
     assert (Hz' : wf_state z') by (inversion HoutWf; assumption).
-    assert (Hrest' : callerTyped callees z' (length outputs) rest).
+    assert (Hrest' : callerFacts callees z' (length outputs) rest).
     { rewrite Hlength. eapply caller_typed_preserved; [exact (proj2 (proj2 Hidentity)) | exact Hz' | exact Hrest]. }
     assert (Hsteps : Steps (stackConfig z values [instruction]) (stackConfig z' outputs [])).
     { eapply trans; [exact Hstep | apply Steps__refl; exact HoutWf | | exact HoutWf | exact HoutWf].
@@ -204,7 +204,7 @@ Proof.
         split; [exact Hidentity | exact (proj1 Hregs)].
   - destruct instruction; cbn [segmentMatches] in Hmatches; try contradiction.
     match type of Hwf with wf_config (stackConfig _ _ (CALL ?x :: _)) => rename x into index end.
-    cbn [callerTyped] in HtypedAll. cbv beta iota in Himage.
+    cbn [callerFacts] in HtypedAll. cbv beta iota in Himage.
     destruct (callees (index :> N)) as [f | ] eqn:Hlookup; [ | contradiction].
     destruct Hmatches as [Hfirst [Hlast Hmiddle]]. destruct HtypedAll as [HcallTyped [Hheight Hrest]].
     pose proof (caller_program_wf rest callees z _ Hrest) as HrestWf.
@@ -274,7 +274,7 @@ Proof.
       as [middle [HfirstRun HrestRun]].
     change (beforeBoundary (segmentFirst segment) = boundary) in Hstart.
     assert (HsegmentPC : boundaryPC (beforeBoundary (segmentFirst segment)) = pc) by now rewrite Hstart.
-    assert (Hbefore : callerTyped callees z (stackHeight (beforeBoundary (segmentFirst segment)))
+    assert (Hbefore : callerFacts callees z (stackHeight (beforeBoundary (segmentFirst segment)))
         (instruction :: rest ++ remaining) /\
       represents z initial (beforeBoundary (segmentFirst segment)) (instruction :: rest ++ remaining) c0).
     { rewrite Hstart. split; assumption. }

@@ -63,5 +63,6 @@ Definition typedCall (caller : state) (index : idx) (module : moduleinst) (typeI
     (params results locals : nat) (body : list instr) : Prop :=
   wf_state caller /\ wf_uN 32%N index /\
   wf_funcinst (i32Function module typeIndex params results locals body) /\
-  supportedStraightLineProgram body /\ programTyped (params + locals) 0 body /\
-  bodyStackDelta body = Some (Z.of_nat results) /\ (params < 256)%nat /\ (results < 256)%nat.
+  supportedStraightLineProgram body /\
+  Instrs_ok (i32TypingContext (params + locals)) body (i32StackType 0 results) /\
+  (params < 256)%nat /\ (results < 256)%nat.

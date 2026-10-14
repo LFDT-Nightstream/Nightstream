@@ -1,25 +1,25 @@
 (* Straight-line executions are singleton-segment instances of the main theorem. *)
 From Stdlib Require Import List ZArith Lia Bool.
 Require Import R1CS Columns Range MemoryTrace MemoryCatalog TraceRefinement Wasm2
-  StraightLineSpec StackSimulation CallSpec CallerSpec CallerRefinement StraightLineInstructions.
+  StraightLineSpec StackSimulation CallSpec CallerSpec CallerRefinement StraightLineInstructions StraightLineValidation.
 Import ListNotations.
 Open Scope Z_scope.
 
 Lemma straight_line_caller_typed : forall program z height,
   supportedStraightLineProgram program -> Forall wf_instr program ->
-  (callerTyped (fun _ => None) z height program <->
+  (callerFacts (fun _ => None) z height program <->
     programTyped (length (stateLocals z)) height program).
 Proof.
   induction program as [ | instruction rest IH]; intros z height Hsupported Hwf; [reflexivity | ].
   destruct (Forall_inv Hsupported) as [code Hcode].
-  assert (Htail : forall h, callerTyped (fun _ => None) z h rest <->
+  assert (Htail : forall h, callerFacts (fun _ => None) z h rest <->
       programTyped (length (stateLocals z)) h rest).
   { intros h. apply IH; [exact (Forall_inv_tail Hsupported) | exact (Forall_inv_tail Hwf)]. }
   assert (Hsingle : supportedStraightLineProgram [instruction]) by (constructor; [eauto | constructor]).
   pose proof (Forall_inv Hwf) as Hi.
   destruct (encoded_opcode_cases instruction code Hcode)
     as [[-> _] | [[-> _] | [[x [-> _]] | [x [-> _]]]]];
-    cbn [callerTyped programTyped instructionStackHeight];
+    cbn [callerFacts programTyped instructionStackHeight];
     destruct height as [ | [ | height]]; cbn [programTyped instructionStackHeight];
     try rewrite Htail; tauto.
 Qed.
@@ -132,12 +132,13 @@ Qed.
 
 (* The same run theorem, with one segment per row. The remaining source stays in
    the final configuration, including when the run stops before the program ends. *)
-Theorem straight_line_run_refinement : forall program z initial final first rest c0,
+Theorem straight_line_run_refinement : forall program results z initial final first rest c0,
   fieldPrime -> supportedStraightLineProgram program -> loadedProgram program initial ->
   validCircuitRun initial (first :: rest) final ->
   Forall (fun row : Witness => row COL_IS_PROGRAM_ROW = 1) (first :: rest) ->
   first COL_PC_BEFORE = 0 ->
-  programTyped (length (stateLocals z)) (stackHeight (beforeBoundary first)) program ->
+  Instrs_ok (i32TypingContext (length (stateLocals z))) program
+    (i32StackType (stackHeight (beforeBoundary first)) results) ->
   represents z initial (beforeBoundary first) program c0 ->
   exists z' c1, Steps c0 c1 /\
     programTyped (length (stateLocals z')) (stackHeight (afterBoundary (finalRow first rest)))
@@ -145,13 +146,14 @@ Theorem straight_line_run_refinement : forall program z initial final first rest
     represents z' final (afterBoundary (finalRow first rest)) (skipn (length (first :: rest)) program) c1 /\
     (finalRow first rest) COL_PC_AFTER = Z.of_nat (length (first :: rest)).
 Proof.
-  intros program z initial final first rest c0 Hprime Hsupported Hloaded Hrun Hprogram Hpc Htyped Hrep.
+  intros program results z initial final first rest c0 Hprime Hsupported Hloaded Hrun Hprogram Hpc Hvalidated Hrep.
+  destruct (i32_validation_facts _ _ _ _ Hvalidated Hsupported) as [Htyped _].
   set (n := length (first :: rest)).
   assert (Hlength : (n <= length program)%nat).
   { eapply (straight_line_run_length (first :: rest) program initial final 0 Hprime Hloaded Hrun Hprogram);
       [lia | intros row Hhead; injection Hhead as <-; exact Hpc]. }
   assert (Hwf : Forall wf_instr program) by (eapply represented_straight_line_wf; eassumption).
-  assert (Hcaller : callerTyped (fun _ => None) z (stackHeight (beforeBoundary first)) program).
+  assert (Hcaller : callerFacts (fun _ => None) z (stackHeight (beforeBoundary first)) program).
   { apply straight_line_caller_typed; assumption. }
   assert (HloadedCaller : loadedCaller (fun _ => None) z initial 0 program).
   { exact (loaded_program_caller program z initial 0 Hsupported Hloaded). }

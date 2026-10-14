@@ -119,12 +119,12 @@ Proof.
         (guestParams f) (guestResults f) (guestLocals f) (guestBody f) (guestEntry f)) \/
     (forall index, instruction <> CALL index)).
   { destruct instruction; try (right; intros; discriminate).
-    left. cbn [callerTyped loadedCaller] in Htyped, Hloaded.
+    left. cbn [callerFacts loadedCaller] in Htyped, Hloaded.
     match type of Htyped with context [callees (?x :> N)] =>
       destruct (callees (x :> N)) as [f | ] eqn:Hlookup; [exists x, f | contradiction] end.
     split; [reflexivity | ]. split; [exact Hlookup | ]. split; [exact (proj1 Htyped) | exact (proj1 Hloaded)]. }
   destruct Hcase as [[index [f [-> [Hlookup [HcallTyped Himage]]]]] | Hordinary].
-  - destruct HcallTyped as [Hwf [Hindex [Hfunction [Hsupported [HbodyTyped [Hdelta [Hp Hr]]]]]]].
+  - destruct HcallTyped as [Hwf [Hindex [Hfunction [Hsupported [Hvalidated [Hp Hr]]]]]].
     destruct Himage as [Hdirect [Hframe [Hbody [Hend Hedge]]]].
     destruct (direct_call_entry_bound initial between row pc (pc + 1) z index
       (guestAddress f) (guestModule f) (guestTypeIndex f) (repeat 0 (guestParams f))
@@ -221,7 +221,7 @@ Proof.
       as [between [HsegmentRun HtailRun]].
     destruct HrowState as [Hloaded Htyped Hrep Hpc].
     assert (HsegmentPC : boundaryPC (beforeBoundary (segmentFirst segment)) = pc) by now rewrite Hfirst.
-    assert (Hready : callerTyped callees z (stackHeight (beforeBoundary (segmentFirst segment))) (instruction :: rest) /\
+    assert (Hready : callerFacts callees z (stackHeight (beforeBoundary (segmentFirst segment))) (instruction :: rest) /\
       represents z initial (beforeBoundary (segmentFirst segment)) (instruction :: rest) c0)
       by (rewrite Hfirst; auto).
     destruct (caller_segment_refinement instruction rest segment callees z initial between pc c0

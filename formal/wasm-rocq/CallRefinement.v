@@ -4,7 +4,7 @@ From Stdlib Require Import List ZArith NArith Lia.
 Require Import R1CS Columns FullRelation Range Selectors MemoryTrace MemoryCatalog OpcodeCatalog
   TraceRefinement ProgramBinding Wasm2 WasmIntegers Locals StraightLineSpec StackSimulation LocalSimulation
   LocalBindings CallSpec SpecTecCalls CallInitialization CallBindings CallMemory FrameInitialization
-  CallEntry CallContext CallScope CallBody CallReturn.
+  CallEntry CallContext CallScope CallBody CallReturn StraightLineValidation.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -33,8 +33,10 @@ Proof.
   intros initial final callRow middle endRow pc returnPC caller index address module typeIndex
     prefix arguments results locals body entry Hprime
     [Himage [HcallerImage [Hloaded [HendImage HkindImage]]]]
-    [Hstate [Hindex [HfunctionWf [Hsupported [Htyped [Harity [Hp Hr]]]]]]]
+    [Hstate [Hindex [HfunctionWf [Hsupported [Hvalidated [Hp Hr]]]]]]
     Hrun HcallProgram HendSelected Hkinds Hpc Hstack HcallerLocals.
+  destruct (i32_validation_facts _ _ _ _ Hvalidated Hsupported) as [Htyped Harity].
+  rewrite Z.sub_0_r in Harity.
   assert (HendFull : FullRelation.satFull endRow).
   { apply (proj1 (Forall_forall _ _) (proj1 Hrun)). right. apply in_or_app. right. left. reflexivity. }
   pose proof (full_selected_is_program_row endRow COL_SEL_END Hprime HendFull

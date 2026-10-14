@@ -1,7 +1,8 @@
 From Stdlib Require Import List ZArith Lia.
+From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range MemoryTrace MemoryCatalog OpcodeCatalog TraceRefinement
   Wasm2 WasmIntegers Locals SpecTecCalls StraightLineSpec CallSpec CallerSpec CallerRefinement
-  ProgramSpec ProgramEncoding ProgramRefinement tests.Calls tests.Callers.
+  ProgramSpec ProgramEncoding ProgramRefinement ProgramValidation FunctionValidation CallerValidation tests.Calls tests.Callers.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -36,20 +37,93 @@ Example source_program_keeps_stale_locals : forall stale, sourceMemory stale loc
 Proof. reflexivity. Qed.
 
 Example source_initial_typed :
-  callerTyped (programCallees sourceProgram callModule) sourceInitialState 0 getCallAdd.
+  callerFacts (programCallees sourceProgram callModule) sourceInitialState 0 getCallAdd.
 Proof.
-  cbn [getCallAdd callerTyped instructionStackHeight].
+  cbn [getCallAdd callerFacts instructionStackHeight].
   split; [repeat constructor; eexists; reflexivity | ].
   split; [repeat constructor | ]. split; [vm_compute; repeat constructor | ].
   change (typedCall sourceInitialState (mk_uN 0) callModule (mk_uN 0) 0 1 1 readZeroBody /\
-    (0 <= 1)%nat /\ callerTyped (programCallees sourceProgram callModule) sourceInitialState 2
+    (0 <= 1)%nat /\ callerFacts (programCallees sourceProgram callModule) sourceInitialState 2
       [BINOP I32 (mk_binop__0 Inn_I32 ADD)]).
   split.
   - unfold typedCall. split; [repeat constructor | ]. split; [repeat constructor | ].
     split; [repeat constructor | ]. split; [repeat constructor; eexists; reflexivity | ].
-    vm_compute. repeat constructor.
+    split; [exact read_zero_validates | split; lia].
   - split; [lia | ]. split; [repeat constructor; eexists; reflexivity | ].
     split; [repeat constructor | ]. split; exact I.
+Qed.
+
+Definition sourceModuleContext :=
+  MKcontext [i32StackType 0 1] [i32StackType 0 1] [] [] [] [] [] [] [] None.
+
+Example source_module_validates :
+  Moduleinst_ok (fun_store sourceInitialState) callModule sourceModuleContext.
+Proof.
+  apply mk_Moduleinst_ok; try reflexivity; try solve [constructor].
+  all: try solve [constructor; [eapply Externaddr_ok__func with (v_funcinst := readZeroFunction);
+    try reflexivity; try (apply (introT eqP); reflexivity); repeat constructor | constructor]].
+  all: repeat constructor.
+Qed.
+
+Definition sourceBodyContext := functionContext sourceModuleContext readZeroFunction.
+
+Example source_body_validates :
+  Instrs_ok sourceBodyContext getCallAdd (i32StackType 0 1).
+Proof.
+  change (Instrs_ok sourceBodyContext
+    ([LOCAL_GET (mk_uN 0)] ++ [CALL (mk_uN 0); BINOP I32 (mk_binop__0 Inn_I32 ADD)]) (i32StackType 0 1)).
+  eapply res_seq with (t_2_lst := [valtype_I32]).
+  - apply Instrs_ok__instr; [apply local_get | | ]; try reflexivity; repeat constructor.
+  - change (Instrs_ok sourceBodyContext
+      ([CALL (mk_uN 0)] ++ [BINOP I32 (mk_binop__0 Inn_I32 ADD)]) (i32StackType 1 1)).
+    eapply res_seq with (t_2_lst := [valtype_I32; valtype_I32]).
+    + apply (i32_validation_frame _ _ 0 1 1).
+      * apply call; try reflexivity; try (apply (introT eqP); reflexivity); repeat constructor.
+      * repeat constructor.
+      * repeat constructor.
+    + apply Instrs_ok__instr; [apply binop | | ]; repeat constructor.
+    + repeat constructor.
+    + repeat constructor.
+    + repeat constructor.
+  - repeat constructor.
+  - repeat constructor.
+  - repeat constructor.
+Qed.
+
+Lemma source_function_validates : forall body,
+  Forall wf_instr body -> Instrs_ok sourceBodyContext body (i32StackType 0 1) ->
+  Funcinst_ok (fun_store sourceInitialState) (i32Function callModule (mk_uN 0) 0 1 1 body) (i32StackType 0 1).
+Proof.
+  intros body Hw Hv. apply mk_Funcinst_ok with (C := sourceModuleContext).
+  - repeat constructor.
+  - exact source_module_validates.
+  - apply mk_Func_ok; try reflexivity; try (apply (introT eqP); reflexivity).
+    + repeat constructor.
+    + apply mk_Expr_ok; [exact Hv | repeat constructor | exact Hw].
+    + repeat constructor.
+    + repeat constructor; exact Hw.
+    + repeat constructor.
+  - repeat constructor.
+  - repeat constructor.
+  - repeat constructor; exact Hw.
+Qed.
+
+Example source_initial_validated :
+  validatedCode sourceProgram
+    (mkGuestFunction 1%N callModule (mk_uN 0) 0 1 1 getCallAdd 2)
+    sourceInitialState 0 getCallAdd.
+Proof.
+  split.
+  - constructor.
+    + apply source_function_validates; [repeat constructor | ].
+      apply Instrs_ok__instr; [apply local_get | | ]; try reflexivity; repeat constructor.
+    + constructor; [apply source_function_validates; [repeat constructor | exact source_body_validates] | constructor].
+  - split.
+    + constructor; [eexists; reflexivity | ]. constructor.
+      * exists (mkGuestFunction 0%N callModule (mk_uN 0) 0 1 1 readZeroBody 0).
+        split; [reflexivity | ]. split; [repeat constructor; eexists; reflexivity | split; cbn; lia].
+      * constructor; [eexists; reflexivity | constructor].
+    + exists sourceModuleContext, 1%nat. split; [exact source_module_validates | exact source_body_validates].
 Qed.
 
 Example source_initial_represents : forall stale,
@@ -72,7 +146,7 @@ Example source_initial_matches : forall stale,
 Proof.
   intros stale. split; [repeat split; reflexivity | ]. split.
   - split; [cbn; lia | reflexivity].
-  - split; [exact source_initial_typed | ]. split; [apply source_initial_represents | reflexivity].
+  - split; [exact source_initial_validated | ]. split; [apply source_initial_represents | reflexivity].
 Qed.
 
 Example wrong_function_entry_rejected : forall stale,

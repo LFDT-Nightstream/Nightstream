@@ -154,6 +154,7 @@ pub(crate) struct ParsedFunctionMeta {
 }
 
 pub(super) fn parse_wasm_artifacts(wasm_bytes: &[u8]) -> Result<WasmProgramArtifacts, WasmBuildError> {
+    super::branch_stack::validate_branch_stack_support(wasm_bytes)?;
     let mut builder = ParsedWasmArtifactsBuilder::default();
     for payload in Parser::new(0).parse_all(wasm_bytes) {
         let payload = payload.map_err(|err| WasmBuildError::Trace(format!("failed to parse wasm payload: {err}")))?;

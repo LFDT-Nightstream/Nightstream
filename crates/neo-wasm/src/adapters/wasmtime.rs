@@ -14,6 +14,7 @@ use wasmtime::{
     Config, DebugEvent, DebugHandler, Engine, FrameHandle, Func, Linker, Module, Store, StoreContextMut, Trap, Val,
 };
 
+mod branch_stack;
 mod decode;
 mod entry_inputs;
 mod import_inputs;

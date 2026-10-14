@@ -109,16 +109,6 @@ Proof.
   constructor; [constructor; exact Hindex | eapply IH; exact Hrest].
 Qed.
 
-Lemma stack_config_wf : forall z values code,
-  wf_state z -> Forall (fun value => 0 <= value < i32Modulus) values ->
-  Forall wf_instr code -> wf_config (stackConfig z values code).
-Proof.
-  intros z values code Hz Hvalues Hcode. constructor; [exact Hz | ].
-  apply Forall_app. split; apply Forall_map.
-  - eapply Forall_impl; [ | exact Hvalues]. intros value H. apply i32_constant_wf. exact H.
-  - eapply Forall_impl; [ | exact Hcode]. intros i H. apply instruction_admin_wf. exact H.
-Qed.
-
 Lemma stack_suffix_steps : forall z z' values values' code rest,
   Steps (stackConfig z values code) (stackConfig z' values' []) ->
   Forall wf_instr rest ->

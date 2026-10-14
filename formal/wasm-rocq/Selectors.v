@@ -393,13 +393,13 @@ Proof.
     Hprime (conj Hone Hall) eq_refl) as Htail.
   pose proof (full_boolean_at w COL_PADDING_ACTIVE 1116%nat
     Hprime (conj Hone Hall) eq_refl) as Hpadding.
-  pose proof (full_boolean_at w COL_GATHER_ACTIVE 3651%nat
+  pose proof (full_boolean_at w COL_GATHER_ACTIVE 3685%nat
     Hprime (conj Hone Hall) eq_refl) as Hgather.
-  pose proof (full_boolean_at w COL_TURN_BOUNDARY 3657%nat
+  pose proof (full_boolean_at w COL_TURN_BOUNDARY 3691%nat
     Hprime (conj Hone Hall) eq_refl) as Hturn.
-  pose proof (full_boolean_at w COL_PERM_PENDING_BEFORE 3648%nat
+  pose proof (full_boolean_at w COL_PERM_PENDING_BEFORE 3682%nat
     Hprime (conj Hone Hall) eq_refl) as Hpending.
-  pose proof (full_boolean_at w COL_PERM_ROUND_BEFORE_IS_ZERO 3650%nat
+  pose proof (full_boolean_at w COL_PERM_ROUND_BEFORE_IS_ZERO 3684%nat
     Hprime (conj Hone Hall) eq_refl) as Hround.
   pose proof (Range.sat_row w 37%nat _ Hall row_kind_row_in_full) as Hrow.
   unfold sat, rowKindRow in Hrow.
@@ -411,7 +411,7 @@ Proof.
   unfold modulus in *; lia.
 Qed.
 
-Definition gatherKindColumns : list Column := seq 534%nat 10%nat.
+Definition gatherKindColumns : list Column := GATHER_KIND.
 
 Definition gatherKindRow : Row :=
   (map (fun column => (column, 1)) gatherKindColumns ++
@@ -422,7 +422,7 @@ Lemma gather_kind_row_in_full :
 Proof. vm_compute. reflexivity. Qed.
 
 Lemma gather_kind_boolean_block :
-  firstn 10%nat (skipn 3687%nat FullRelation.rows) =
+  firstn 10%nat (skipn 3721%nat FullRelation.rows) =
     map Range.booleanRow gatherKindColumns.
 Proof. vm_compute. reflexivity. Qed.
 
@@ -431,7 +431,7 @@ Lemma full_no_gather_kind : forall (w : Witness) column,
   In column gatherKindColumns -> w column = 0.
 Proof.
   intros w column Hprime Hfull Hgather Hin.
-  pose proof (selector_boolean_from_block w 3687%nat 10%nat
+  pose proof (selector_boolean_from_block w 3721%nat 10%nat
     gatherKindColumns Hprime Hfull gather_kind_boolean_block) as Hbits.
   pose proof (selector_sum_boolean_bound w gatherKindColumns Hbits) as Hbound.
   change (0 <= selectorSum w gatherKindColumns <= 10) in Hbound.

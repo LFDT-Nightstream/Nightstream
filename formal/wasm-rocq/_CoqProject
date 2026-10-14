@@ -19,6 +19,7 @@ TraceRefinement.v
 CallInitialization.v
 CallBindings.v
 ProgramBinding.v
+BranchBindings.v
 LocalBindings.v
 CallMemory.v
 FrameInitialization.v
@@ -27,6 +28,9 @@ StraightLineSpec.v
 StackSimulation.v
 LocalSimulation.v
 SpecTecCalls.v
+SpecTecBranches.v
+BranchSpec.v
+BranchRefinement.v
 CallSpec.v
 CallEntry.v
 StraightLineInstructions.v
@@ -52,3 +56,4 @@ tests/Callers.v
 tests/Programs.v
 tests/Segmentation.v
 tests/Validation.v
+tests/Branches.v

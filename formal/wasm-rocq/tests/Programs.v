@@ -1,7 +1,7 @@
 From Stdlib Require Import List ZArith Lia.
 From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range MemoryTrace MemoryCatalog OpcodeCatalog TraceRefinement
-  Wasm2 WasmIntegers Locals SpecTecCalls StraightLineSpec CallSpec CallerSpec CallerRefinement
+  Wasm2 WasmIntegers Locals SpecTecCalls StackSimulation StraightLineSpec CallSpec CallerSpec CallerRefinement
   ProgramSpec ProgramEncoding ProgramRefinement ProgramValidation FunctionValidation CallerValidation tests.Calls tests.Callers.
 Import ListNotations.
 Open Scope Z_scope.

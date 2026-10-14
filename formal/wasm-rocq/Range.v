@@ -139,25 +139,25 @@ Proof.
   lia.
 Qed.
 
-Lemma read0_range_block : rangeBlock 2557%nat 2243%nat.
+Lemma read0_range_block : rangeBlock 2557%nat 2245%nat.
 Proof. vm_compute. reflexivity. Qed.
 Lemma read0_recompose :
   nth_error FullRelation.rows 2589%nat =
   Some (recomposeRow (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)
-    (u32Bits 2243%nat)).
+    (u32Bits 2245%nat)).
 Proof. vm_compute. reflexivity. Qed.
-Lemma read1_range_block : rangeBlock 2590%nat 2275%nat.
+Lemma read1_range_block : rangeBlock 2590%nat 2277%nat.
 Proof. vm_compute. reflexivity. Qed.
 Lemma read1_recompose :
   nth_error FullRelation.rows 2622%nat =
   Some (recomposeRow (List.nth 1%nat COL_STACK_READ_VALUE_LO 0%nat)
-    (u32Bits 2275%nat)).
+    (u32Bits 2277%nat)).
 Proof. vm_compute. reflexivity. Qed.
-Lemma write0_range_block : rangeBlock 2821%nat 2499%nat.
+Lemma write0_range_block : rangeBlock 2821%nat 2501%nat.
 Proof. vm_compute. reflexivity. Qed.
 Lemma write0_recompose :
   nth_error FullRelation.rows 2853%nat =
-  Some (recomposeRow COL_STACK_WRITE0_VALUE_LO (u32Bits 2499%nat)).
+  Some (recomposeRow COL_STACK_WRITE0_VALUE_LO (u32Bits 2501%nat)).
 Proof. vm_compute. reflexivity. Qed.
 
 Lemma full_read0_u32 : forall (w : Witness),
@@ -165,7 +165,7 @@ Lemma full_read0_u32 : forall (w : Witness),
   0 <= w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat) < 4294967296.
 Proof.
   intros w Hprime Hsat.
-  exact (u32_from_full w _ 2557%nat 2243%nat Hprime Hsat
+  exact (u32_from_full w _ 2557%nat 2245%nat Hprime Hsat
     read0_range_block read0_recompose).
 Qed.
 
@@ -174,7 +174,7 @@ Lemma full_read1_u32 : forall (w : Witness),
   0 <= w (List.nth 1%nat COL_STACK_READ_VALUE_LO 0%nat) < 4294967296.
 Proof.
   intros w Hprime Hsat.
-  exact (u32_from_full w _ 2590%nat 2275%nat Hprime Hsat
+  exact (u32_from_full w _ 2590%nat 2277%nat Hprime Hsat
     read1_range_block read1_recompose).
 Qed.
 
@@ -183,15 +183,15 @@ Lemma full_write0_u32 : forall (w : Witness),
   0 <= w COL_STACK_WRITE0_VALUE_LO < 4294967296.
 Proof.
   intros w Hprime Hsat.
-  exact (u32_from_full w _ 2821%nat 2499%nat Hprime Hsat
+  exact (u32_from_full w _ 2821%nat 2501%nat Hprime Hsat
     write0_range_block write0_recompose).
 Qed.
 
-Lemma local_value_range_block : rangeBlock 1779%nat 1491%nat.
+Lemma local_value_range_block : rangeBlock 1779%nat 1493%nat.
 Proof. vm_compute. reflexivity. Qed.
 Lemma local_value_recompose :
   nth_error FullRelation.rows 1811%nat =
-  Some (recomposeRow COL_LOCAL_VALUE (u32Bits 1491%nat)).
+  Some (recomposeRow COL_LOCAL_VALUE (u32Bits 1493%nat)).
 Proof. vm_compute. reflexivity. Qed.
 
 Lemma full_local_value_u32 : forall (w : Witness),
@@ -199,7 +199,7 @@ Lemma full_local_value_u32 : forall (w : Witness),
   0 <= w COL_LOCAL_VALUE < 4294967296.
 Proof.
   intros w Hprime Hsat.
-  exact (u32_from_full w _ 1779%nat 1491%nat Hprime Hsat
+  exact (u32_from_full w _ 1779%nat 1493%nat Hprime Hsat
     local_value_range_block local_value_recompose).
 Qed.
 

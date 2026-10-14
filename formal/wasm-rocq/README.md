@@ -6,7 +6,10 @@ straight-line bodies ending in `end`, composed with caller instructions, against
 `run_refinement` takes plain rows and derives their instruction/call grouping.
 Runs start and finish at caller instruction boundaries; padding, host rows,
 nested/indirect calls and returning out of that caller are excluded. Call
-initialization and return are proved. Selected zero-test steps are also proved.
+initialization and return are proved. A separate `block_branch_row_refinement`
+proves both outcomes of `br_if 0` inside a zero-result block, including the stack
+pop and ROM edge; it is not yet integrated into `run_refinement`. Selected
+zero-test steps are also proved.
 Field primality and memory-event consistency are assumed; the offline memory
 argument is not proved. The program ROM encoder covers this guest-only fragment;
 its correspondence with Rust preprocessing is not yet proved.

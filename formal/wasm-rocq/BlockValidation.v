@@ -1,21 +1,12 @@
 (* Numerical stack facts and context transport for the supported block body. *)
 From Stdlib Require Import List ZArith Lia.
 From mathcomp Require Import ssrbool eqtype.
-Require Import Wasm2 StraightLineSpec StraightLineInstructions StackSimulation StraightLineValidation BlockSpec.
+Require Import Wasm2 StraightLineSpec StraightLineInstructions StackSimulation StraightLineValidation BlockSpec CallerValidation.
 Import ListNotations.
 Open Scope Z_scope.
 
-Definition branchHeight (i : instr) (height : nat) : option nat :=
-  match i with BR_IF _ => match height with S h => Some h | _ => None end
-  | _ => instructionStackHeight i height end.
-Fixpoint branchHeights (code : list instr) (height : nat) : option nat :=
-  match code with [] => Some height | i :: rest =>
-    match branchHeight i height with Some h => branchHeights rest h | None => None end end.
 Definition localIndexValid (locals : nat) (i : instr) : Prop :=
   match i with LOCAL_GET x | LOCAL_SET x => (N.to_nat (x :> N) < locals)%nat | _ => True end.
-Definition supportedBranchBody (code : list instr) : Prop :=
-  Forall (fun i => i = BR_IF (mk_uN 0) \/ exists op, encodedOpcode i = Some op) code.
-
 Lemma branch_heights_app : forall a b h,
   branchHeights (a ++ b) h =
     match branchHeights a h with Some next => branchHeights b next | None => None end.
@@ -172,4 +163,79 @@ Proof.
   - exact HC.
   - exact Hw.
   - repeat constructor.
+Qed.
+
+Lemma validated_code_wf : forall C code ft,
+  Instrs_ok C code ft -> Forall wf_instr code.
+Proof.
+  intros C code ft H. destruct H; try assumption.
+  - constructor.
+  - constructor; [assumption | constructor].
+  - apply Forall_app; auto.
+Qed.
+
+Lemma branch_height_ordinary : forall i h,
+  (exists op, encodedOpcode i = Some op) -> branchHeight i h = instructionStackHeight i h.
+Proof.
+  intros i h [op H]. destruct (encoded_opcode_cases _ _ H) as [[-> _] | [[-> _] | [[x [-> _]] | [x [-> _]]]]]; reflexivity.
+Qed.
+
+Lemma branch_singleton_typed : forall i count before after,
+  (exists op, encodedOpcode i = Some op) -> localIndexValid count i ->
+  instructionStackHeight i before = Some after -> programTyped count before [i].
+Proof.
+  intros i count before after Hs Hl Hh.
+  apply (proj1 (straight_branch_height_facts [i] count before after
+    ltac:(constructor; [exact Hs | constructor]) ltac:(constructor; [exact Hl | constructor])
+    ltac:(cbn [branchHeights]; rewrite branch_height_ordinary by exact Hs; now rewrite Hh))).
+Qed.
+
+Lemma balanced_tail : forall i code before after,
+  branchSitesBalanced (i :: code) before -> branchHeight i before = Some after ->
+  branchSitesBalanced code after.
+Proof.
+  intros i code before after H Hh. destruct i; cbn [branchSitesBalanced] in H; cbn [branchHeight] in Hh;
+    try contradiction; try (rewrite Hh in H; exact H).
+  destruct H as [-> H]. cbn [branchHeight] in Hh. injection Hh as <-. exact H.
+Qed.
+
+
+Lemma branch_facts_validate : forall code count before after,
+  supportedBranchBody code -> Forall wf_instr code -> Forall (localIndexValid count) code ->
+  branchHeights code before = Some after ->
+  Instrs_ok (blockTypingContext count) code (i32StackType before after).
+Proof.
+  induction code as [ | i code IH]; intros count before after Hs Hw Hl Hheight.
+  - cbn in Hheight. injection Hheight as <-.
+    replace before with (before + 0)%nat by lia. unfold i32StackType. rewrite repeat_app.
+    apply Instrs_ok__frame; [constructor | | ]; repeat constructor.
+  - cbn [branchHeights] in Hheight.
+    destruct (branchHeight i before) as [next | ] eqn:Hnext; [ | discriminate].
+    assert (Hi : Instrs_ok (blockTypingContext count) [i] (i32StackType before next)).
+    { destruct (Forall_inv Hs) as [-> | Hop].
+      - destruct before; [discriminate | ]. injection Hnext as <-.
+        replace (S before) with (before + 1)%nat by lia. replace before with (before + 0)%nat at 2 by lia.
+        apply i32_validation_frame; [apply (br_if _ _ []) | | ]; try reflexivity; repeat constructor.
+      - rewrite (branch_height_ordinary _ _ Hop) in Hnext.
+        destruct (ordinary_instruction_validates (blockTypingContext count) count i before ltac:(reflexivity)
+          ltac:(repeat constructor) (Forall_inv Hw) ltac:(constructor; [exact Hop | constructor])
+          (branch_singleton_typed _ _ _ _ Hop (Forall_inv Hl) Hnext)) as [n [Hn Hvalid]].
+        rewrite Hnext in Hn. injection Hn as <-. exact Hvalid. }
+    change (Instrs_ok (blockTypingContext count) ([i] ++ code) (i32StackType before after)).
+    eapply res_seq; [exact Hi | apply IH; exact (Forall_inv_tail Hs) || exact (Forall_inv_tail Hw) || exact (Forall_inv_tail Hl) || exact Hheight | repeat constructor |
+      constructor; [exact (Forall_inv Hw) | constructor] | exact (Forall_inv_tail Hw)].
+Qed.
+
+Lemma branch_validation_tail : forall count before after i code next,
+  Instrs_ok (blockTypingContext count) (i :: code) (i32StackType before after) ->
+  supportedBranchBody (i :: code) -> branchHeight i before = Some next ->
+  Instrs_ok (blockTypingContext count) code (i32StackType next after).
+Proof.
+  intros count before after i code next Hv Hs Hnext.
+  destruct (branch_validation_heights _ _ _ Hv Hs) as [Hh Hl].
+  specialize (Hh 0%nat). rewrite !repeat_length in Hh.
+  cbn [Nat.add branchHeights] in Hh. rewrite Hnext in Hh.
+  cbn [blockTypingContext context_LOCALS] in Hl. rewrite repeat_length in Hl.
+  apply branch_facts_validate; [exact (Forall_inv_tail Hs) |
+    exact (Forall_inv_tail (validated_code_wf _ _ _ Hv)) | exact (Forall_inv_tail Hl) | exact Hh].
 Qed.

@@ -70,3 +70,4 @@ tests/Segmentation.v
 tests/Validation.v
 tests/Branches.v
 tests/BlockPrograms.v
+tests/BlockValidation.v

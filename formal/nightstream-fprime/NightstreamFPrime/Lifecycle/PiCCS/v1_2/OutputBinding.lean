@@ -119,20 +119,6 @@ def outputWords (interface : Interface) (offset : Nat) : List Expr :=
   (List.finRange productionShape.sourceCount).flatMap fun source =>
     sourceWords (interface.output offset) source
 
-private theorem flatMap_length_constant
-    {Index Value : Type}
-    (indices : List Index)
-    (values : Index → List Value)
-    (count : Nat)
-    (each : ∀ index, (values index).length = count) :
-    (indices.flatMap values).length = indices.length * count := by
-  induction indices with
-  | nil => simp
-  | cons head tail inductionHypothesis =>
-      rw [List.flatMap_cons, List.length_append, each,
-        inductionHypothesis]
-      simp [Nat.succ_mul, Nat.add_comm]
-
 private theorem padWords_length (output : OutputExpr)
     (source : Fin productionShape.sourceCount) :
     (padWords output source).length = 108 := by
@@ -325,11 +311,6 @@ def valueMatrixWords
       NightstreamFPrime.Lifecycle.serializeK
         (output.matrixCoordinate source matrix coefficient)
 
-def valueWords
-    (output : FullOutputCoordinates.FullOutput K productionShape) : List F :=
-  (List.finRange productionShape.sourceCount).flatMap fun source =>
-    valuePadWords output source ++ valueMatrixWords output source
-
 @[simp] private theorem serializeKExpr_eval (env : Env) (value : KExpr) :
     (StatementAbsorption.serializeKExpr value).map (Expr.eval env) =
       NightstreamFPrime.Lifecycle.serializeK (value.eval env) := by
@@ -422,8 +403,8 @@ theorem outputWords_eval (interface : Interface) (offset : Nat) (env : Env)
       ((interface.output offset).matrixCoordinate source matrix
         coefficient).eval env =
         output.matrixCoordinate source matrix coefficient) :
-    Hash.evalList env (outputWords interface offset) = valueWords output := by
-  unfold Hash.evalList outputWords valueWords
+    Hash.evalList env (outputWords interface offset) = ProductionKey.fullOutputWords output := by
+  unfold Hash.evalList outputWords ProductionKey.fullOutputWords
   apply map_flatMap_congr
   intro source
   exact sourceWords_eval interface offset env output padEq matrixEq source
@@ -469,11 +450,11 @@ theorem spec_implies_keyOutgoingState
     List.ofFn (Layer.evalState env (finalState interface offset)) =
         Absorb.reference
           (List.ofFn (Layer.evalState env (interface.initialState offset)))
-          (valueWords proof.piCcsOutput) := trace.symm
+          (ProductionKey.fullOutputWords proof.piCcsOutput) := trace.symm
     _ = NightstreamFPrime.Lifecycle.Transcript.absorb
           ((ProductionKey.key relation ajtai).piCcsExecution
             running fresh proof).coins.finalState
-          (valueWords proof.piCcsOutput) := by
+          (ProductionKey.fullOutputWords proof.piCcsOutput) := by
       rw [initialEq]
       rfl
     _ = ProductionKey.absorbFullOutput

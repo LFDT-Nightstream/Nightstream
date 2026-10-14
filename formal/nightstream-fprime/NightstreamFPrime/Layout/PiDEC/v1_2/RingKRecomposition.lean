@@ -53,7 +53,7 @@ theorem expressionCell_mulCount (cell : Fin Logical.cellCount)
   · simpa [Logical.expressionCell, Logical.cellCount] using! linear.c0_mulCount
   · simpa [Logical.expressionCell, Logical.cellCount] using! linear.c1_mulCount
 
-def scalarInputs {blockCount : Nat}
+theorem scalarInputs {blockCount : Nat}
     (interface : Logical.Interface blockCount)
     (inputs : ∀ offset, InputsLinear interface offset) :
     ∀ offset,

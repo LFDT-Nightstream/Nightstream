@@ -58,7 +58,7 @@ private theorem abstract_eval (inputCount localStart : Nat)
   have mapped := CompactRows.instantiate_abstractCombination inputCount
     (localStart - inputCount) inputColumn combination
   rw [startEq] at mapped
-  rw [mapped, CompactRows.renameCombination_eval] <;> rfl
+  rw [mapped, CompactRows.renameCombination_eval]; rfl
 
 theorem outputLocal_bound (inputCount count : Nat)
     (combination : R1CS.LinearCombination)

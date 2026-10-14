@@ -90,7 +90,7 @@ class ProjectionTests(unittest.TestCase):
             self.save(self.source / f"digit-{child}.json", matrix(pos, neg) if child in (0, 15) else matrix())
         self.save(self.source / "envelope.json", {
             "schema": 1, "iteration": 2, "z0": [0] * 4, "current": [0] * 4,
-            "child_witness_count": 16, "running_claims": claims, "running_parent": {}})
+            "child_witness_count": 16, "running_claims": claims})
         self.children = self.root / "children.json"
         self.save(self.children, self.running)
         self.first, self.second = self.root / "first.jsonl", self.root / "second.jsonl"

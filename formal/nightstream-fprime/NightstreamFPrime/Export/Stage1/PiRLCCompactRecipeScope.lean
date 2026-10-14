@@ -31,7 +31,7 @@ theorem combination_outputRecipe (firstSource : Bool) (lane : Fin ringDegree) :
       apply Expr.VarsBelow.sub
       · change challengeInputStart + current.val < outputInput
         have currentBound : current.val < 54 := by
-          simpa [ringDegree] using current.isLt
+          simp [ringDegree]
         norm_num [challengeInputStart, outputInput]
         omega
       · trivial
@@ -39,7 +39,7 @@ theorem combination_outputRecipe (firstSource : Bool) (lane : Fin ringDegree) :
       unfold PiRLCCombinationTemplates.value
       change valueInputStart + current.val < outputInput
       have currentBound : current.val < 54 := by
-        simpa [ringDegree] using current.isLt
+        simp [ringDegree]
       norm_num [valueInputStart, outputInput]
       omega
 

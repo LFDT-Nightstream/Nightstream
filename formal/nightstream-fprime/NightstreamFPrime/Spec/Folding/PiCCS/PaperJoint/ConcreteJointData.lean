@@ -198,12 +198,6 @@ def IndependentInputs.SemanticTruth
     MatrixEvaluationResidual.AllClaimsHold baseOps extensionOps lift
       data.matrixData
 
-private theorem mem_canonicalFinIndices
-    {count : Nat}
-    (index : Fin count) :
-    index ∈ canonicalFinIndices count := by
-  simp [canonicalFinIndices]
-
 private theorem mem_canonicalPadCoordinates
     {shape : Shape}
     (coordinate : PadCoordinate shape) :

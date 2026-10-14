@@ -243,7 +243,8 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       apply RunningTransitionDirectPlan.transitionEnv_of_outside program base _ (Location.priorInput index).sourceColumn_lt
       have indexBound : index.val < 27819 := index.isLt
       left
-      norm_num [sourceColumn, PilotProduction.priorPreimageStart, PiCCSStarts.statementWitnessStart_eq] <;> omega
+      norm_num [sourceColumn, PilotProduction.priorPreimageStart, PiCCSStarts.statementWitnessStart_eq]
+      omega
   | freshPublicInput index =>
       rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.freshPublicInput]
       have sourceEq : (freshPublicInputBlock program).source index =
@@ -256,7 +257,8 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       apply RunningTransitionDirectPlan.transitionEnv_of_outside program base _ (Location.freshPublicInput index).sourceColumn_lt
       have indexBound : index.val < 270 := index.isLt
       left
-      norm_num [sourceColumn, PilotProduction.priorPublicInputStart, PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq, PiCCSStarts.statementWitnessStart_eq] <;> omega
+      norm_num [sourceColumn, PilotProduction.priorPublicInputStart, PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq, PiCCSStarts.statementWitnessStart_eq]
+      omega
   | outputInput index =>
       rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.outputInput]
       have sourceEq : (outputInputBlock program).source index =
@@ -269,7 +271,8 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       apply RunningTransitionDirectPlan.transitionEnv_of_outside program base _ (Location.outputInput index).sourceColumn_lt
       have indexBound : index.val < 27819 := index.isLt
       left
-      norm_num [sourceColumn, PilotProduction.outputPreimageStart, PilotProduction.priorPublicInputStart, PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq, Lifecycle.PriorStateHash.publicWidth, Lifecycle.PaperAlgebra.publicRingColumns, Spec.ringDegree, PiCCSStarts.statementWitnessStart_eq] <;> omega
+      norm_num [sourceColumn, PilotProduction.outputPreimageStart, PilotProduction.priorPublicInputStart, PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq, Lifecycle.PriorStateHash.publicWidth, Lifecycle.PaperAlgebra.publicRingColumns, Spec.ringDegree, PiCCSStarts.statementWitnessStart_eq]
+      omega
   | expectedContext index =>
       rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.expectedContext]
       have sourceEq : (expectedContextBlock program).source index =
@@ -301,7 +304,8 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
         PiCCSStarts.challengeFreshStart PiCCSStarts.statementAbsorptionFreshStart
         PiCCSStarts.statementBindingFreshStart PiCCSStarts.logicalFreshBase
       rw [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
-      norm_num [PiCCSInputs.phaseOffset_eq, PiCCSStarts.statementWitnessStart_eq] <;> omega
+      norm_num [PiCCSInputs.phaseOffset_eq, PiCCSStarts.statementWitnessStart_eq]
+      omega
   | proofLogical index =>
       by_cases proof : index.val < proofInputCount
       · rw [form, dif_pos proof,

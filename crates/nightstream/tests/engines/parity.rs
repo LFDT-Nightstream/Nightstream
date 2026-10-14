@@ -120,7 +120,6 @@ impl Fixture {
         for values in &mut claim.eval_a {
             values.resize(D.next_power_of_two(), K::ZERO);
         }
-        running.parent_authority = Some(claim.clone());
         running.witnesses[0] =
             Mat::compact_signed_unit_from_column_masks(D, 2, &[1, u64::from(n > 1)], &[0, 1 << (D - 1)]).unwrap();
         Self {
@@ -212,7 +211,7 @@ fn run(engine: Engine, fixture: &Fixture) -> Result<Run, Box<dyn std::error::Err
             &fixture.structure,
             &matrix_rows,
             workspace_bytes,
-            vec![fixture.fresh.clone()],
+            fixture.fresh.clone(),
             fixture.running.clone(),
         )?,
         Backend::PaperExact => super::paper_exact::prove(
@@ -220,7 +219,7 @@ fn run(engine: Engine, fixture: &Fixture) -> Result<Run, Box<dyn std::error::Err
             &fixture.params,
             &fixture.structure,
             &fixture.rows,
-            vec![fixture.fresh.clone()],
+            fixture.fresh.clone(),
             fixture.running.clone(),
         )?,
         Backend::Crosscheck => {
@@ -236,7 +235,7 @@ fn run(engine: Engine, fixture: &Fixture) -> Result<Run, Box<dyn std::error::Err
                 &matrix_rows,
                 workspace_bytes,
                 &rows,
-                vec![fixture.fresh.clone()],
+                fixture.fresh.clone(),
                 fixture.running.clone(),
             )?;
             assert!(
@@ -255,7 +254,7 @@ fn run(engine: Engine, fixture: &Fixture) -> Result<Run, Box<dyn std::error::Err
                 &fixture.structure,
                 &matrix_rows,
                 workspace_bytes,
-                vec![fixture.fresh.clone()],
+                fixture.fresh.clone(),
                 fixture.running.clone(),
             )?;
             assert!(
@@ -272,12 +271,11 @@ fn run(engine: Engine, fixture: &Fixture) -> Result<Run, Box<dyn std::error::Err
         &fixture.structure,
         ajtai_rlc_mixer,
         ajtai_dec_mixer,
-        std::slice::from_ref(&fixture.fresh.claim),
+        &fixture.fresh.claim,
         &fixture.running.claims_only(),
         &proof,
     )?;
     assert_eq!(checked.claims, running.claims);
-    assert_eq!(checked.parent_authority, running.parent_authority);
     assert_eq!(verifier.snapshot(), transcript.snapshot());
     let mut changed = proof.clone();
     changed.pi_dec.children[0].eval_k[0] += K::ONE;
@@ -287,7 +285,7 @@ fn run(engine: Engine, fixture: &Fixture) -> Result<Run, Box<dyn std::error::Err
         &fixture.structure,
         ajtai_rlc_mixer,
         ajtai_dec_mixer,
-        std::slice::from_ref(&fixture.fresh.claim),
+        &fixture.fresh.claim,
         &fixture.running.claims_only(),
         &changed
     )
@@ -352,10 +350,6 @@ fn crosscheck_rejects_changed_results() {
     check(&changed, "running accumulator");
 
     let mut changed = original.clone();
-    changed.running.parent_authority.as_mut().unwrap().eval_k[0] += K::ONE;
-    check(&changed, "running accumulator");
-
-    let mut changed = original.clone();
     let mut state = original.transcript.state();
     state[0] += F::ONE;
     let mut transcript = Transcript::session();
@@ -389,7 +383,7 @@ fn crosscheck_rejects_different_rows_without_updating_the_transcript() {
         &matrix_rows,
         workspace_bytes,
         &fixture.rows,
-        vec![fixture.fresh],
+        fixture.fresh,
         fixture.running,
     );
     assert!(matches!(result, Err(EngineError::CrosscheckMismatch { .. })));
@@ -412,7 +406,7 @@ fn crosscheck_rejects_a_prover_error_without_updating_the_transcript() {
         &matrix_rows,
         workspace_bytes,
         &fixture.rows,
-        vec![fixture.fresh],
+        fixture.fresh,
         fixture.running,
     );
     assert!(matches!(
@@ -445,7 +439,7 @@ fn crosscheck_rejects_a_worker_panic_without_updating_the_transcript() {
         &matrix_rows,
         workspace_bytes,
         &PanickingRows,
-        vec![fixture.fresh],
+        fixture.fresh,
         fixture.running,
     );
     assert!(matches!(

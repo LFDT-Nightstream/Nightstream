@@ -397,7 +397,6 @@ theorem publicInputBlocks_eval {logicalWidth : Nat}
     (interface : Interface logicalWidth publicFits) (offset : Nat) (env : Env) :
     (publicInputBlocks interface offset).map (Hash.evalList env) =
       ProductionKey.publicInputBlocks
-        (evalRunning (interface.running offset) env)
         (evalFresh (interface.fresh offset) env) := by
   unfold publicInputBlocks ProductionKey.publicInputBlocks
   dsimp only
@@ -475,11 +474,8 @@ theorem absorbedBlocks_eval
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) (env : Env) :
     (absorbedBlocks interface offset).map (Hash.evalList env) =
-      let running := evalRunning (interface.running offset) env
-      let fresh := evalFresh (interface.fresh offset) env
-      ProductionKey.publicInputBlocks running fresh := by
-  dsimp only
-  exact publicInputBlocks_eval interface offset env
+      ProductionKey.publicInputBlocks (evalFresh (interface.fresh offset) env) :=
+  publicInputBlocks_eval interface offset env
 
 private theorem constantWords_eval (env : Env) (words : List F) :
     Hash.evalList env (constantWords words) = words := by
@@ -956,7 +952,7 @@ theorem spec_implies_keyInitialState
         (Hash.evalList env (publicInputBlocks interface offset).flatten))
       [] (evalState env (finalState interface offset)) at trace
   have flatEval : Hash.evalList env (publicInputBlocks interface offset).flatten =
-      (ProductionKey.publicInputBlocks running fresh).flatten := by
+      (ProductionKey.publicInputBlocks fresh).flatten := by
     rw [← absorbedBlocks_eval interface offset env]
     simp [Hash.evalList, absorbedBlocks, List.map_flatten]
     rfl
@@ -970,7 +966,7 @@ theorem spec_implies_keyInitialState
     evalState env (finalState interface offset) =
         NightstreamFPrime.Lifecycle.Transcript.absorb
           NightstreamFPrime.Lifecycle.Transcript.foldInitialState
-          (ProductionKey.publicInputBlocks running fresh).flatten :=
+          (ProductionKey.publicInputBlocks fresh).flatten :=
       trace.symm
     _ = key.publicInputState running fresh := publicStateEq.symm
     _ = key.oracle.transcript.initialState context := oracleStateEq.symm

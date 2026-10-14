@@ -366,9 +366,9 @@ theorem soundness
     (by simp [operations])
   intro index
   have value := recipeConstraints_value env offset (recipes interface offset)
-    recipeRows index.val (by simpa [recipes_length] using index.isLt)
+    recipeRows index.val (by simp [recipes_length])
   rw [show (recipes interface offset).get
-      ⟨index.val, by simpa [recipes_length] using index.isLt⟩ =
+      ⟨index.val, by simp [recipes_length]⟩ =
         recipe interface offset index by simp [recipes]] at value
   simpa [output, recipe_eval] using value
 

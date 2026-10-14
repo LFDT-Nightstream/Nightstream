@@ -1,9 +1,9 @@
 //! One honest zero running claim for direct PiCCS tests.
 //!
-//! The digest-only PiCCS statement takes its prior digest from the running
-//! claims, so it needs at least one. A zero witness opens to zero at every
-//! point, so this claim holds. The test is the caller that authenticates
-//! its digest, as the selected lifecycle does with its prior state hash.
+//! A zero witness opens to zero at every point, so this claim holds. The
+//! digest-only PiCCS statement reads its prior digest from the fresh public
+//! input; the test is the caller that would authenticate that this digest
+//! names the claim, as the selected lifecycle does with its prior state hash.
 
 use neo_ajtai::Commitment;
 use neo_ccs::{CcsStructure, CeClaim, Mat};

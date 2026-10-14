@@ -152,7 +152,7 @@ theorem spec_implies_phaseHolds
         (challengeOffset interface offset) env := by
     have startEq : challengeStart shared =
         challengeOffset interface offset := by
-      simpa [shared] using challengeStart_atOffset interface offset
+      simp [shared]
     rw [ChallengeDerivation.evalGamma_eq]
     change (ChallengeDerivation.gamma
       (challengeInterface shared shared.baseOffset)
@@ -175,21 +175,21 @@ theorem spec_implies_phaseHolds
         change (EvalKTerminal.output (evalKInterface shared)
           (evalKStart shared)).eval env = _
         have startEq : evalKStart shared = evalKOffset interface offset := by
-          simpa [shared] using evalKStart_atOffset interface offset
+          simp [shared]
         rw [startEq]
         exact evalKEq)
       (by
         change (EvalATerminal.output (evalAInterface shared)
           (evalAStart shared)).eval env = _
         have startEq : evalAStart shared = evalAOffset interface offset := by
-          simpa [shared] using evalAStart_atOffset interface offset
+          simp [shared]
         rw [startEq]
         exact evalAEq)
       (by
         change (CcsTerminal.output relation (ccsInterface relation shared)
           (ccsStart shared)).eval env = _
         have startEq : ccsStart shared = ccsOffset interface offset := by
-          simpa [shared] using ccsStart_atOffset interface offset
+          simp [shared]
         rw [startEq]
         exact ccsEq)
       (by
@@ -218,7 +218,7 @@ theorem spec_implies_phaseHolds
     intro roundIndex _
     have startEq : roundTranscriptStart shared =
         roundTranscriptOffset interface offset := by
-      simpa [shared] using roundTranscriptStart_atOffset interface offset
+      simp [shared]
     change (RoundTranscript.challenge (roundTranscriptInterface shared)
       (roundTranscriptStart shared) roundIndex).eval env =
         (RoundTranscript.challenge (roundTranscriptInterface shared)
@@ -231,7 +231,7 @@ theorem spec_implies_phaseHolds
           (initialClaimStart shared)).eval env = _
         have startEq : initialClaimStart shared =
             initialClaimOffset interface offset := by
-          simpa [shared] using initialClaimStart_atOffset interface offset
+          simp [shared]
         rw [startEq]
         exact initialEq)
       (by
@@ -242,7 +242,7 @@ theorem spec_implies_phaseHolds
       (by
         have startEq : sumcheckStart shared =
             sumcheckOffset interface offset := by
-          simpa [shared] using sumcheckStart_atOffset interface offset
+          simp [shared]
         have wiring := congrArg (fun expression : KExpr => expression.eval env)
           (finalIdentityTerminal_eq_sumcheckOutput relation shared
             (finalIdentityOffset relation interface offset)

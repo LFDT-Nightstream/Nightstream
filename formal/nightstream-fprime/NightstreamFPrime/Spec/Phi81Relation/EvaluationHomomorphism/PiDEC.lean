@@ -51,14 +51,6 @@ def radixWeight
 
 namespace Raw
 
-/-- Recompose every raw assignment coordinate with the production `PiDEC`
-radix weights. -/
-def recomposeAssignment {columns : Nat}
-    (assignments : Fin productionGlobalParams.k ->
-      PaperLinearAlgebra.Assignment F columns) :
-    PaperLinearAlgebra.Assignment F columns :=
-  BaseLinear.Raw.combineAssignments radixWeight assignments
-
 end Raw
 
 /-- Recompose every typed relation-assignment coordinate with the production
@@ -67,16 +59,6 @@ def recomposeAssignment {shape : Shape}
     (assignments : Fin productionGlobalParams.k -> Assignment shape) :
     Assignment shape :=
   BaseLinear.combineAssignments radixWeight assignments
-
-/-- The width-only recomposition used by independent packed semantics is
-exactly the typed relation recomposition. -/
-theorem raw_recomposeAssignment_eq
-    {shape : Shape}
-    (assignments : Fin productionGlobalParams.k -> Assignment shape) :
-    Raw.recomposeAssignment assignments =
-      recomposeAssignment assignments := by
-  unfold Raw.recomposeAssignment recomposeAssignment
-  exact BaseLinear.raw_combineAssignments_eq radixWeight assignments
 
 /-- Recompose arbitrary public evaluation arrays into the verifier-owned
 matrix shape. Semantic arrays never exercise the default branch. -/

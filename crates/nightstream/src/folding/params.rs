@@ -48,20 +48,6 @@ impl Params {
     pub fn big_b(&self) -> u64 {
         self.inner.B
     }
-    #[allow(non_snake_case)]
-    pub fn T(&self) -> u32 {
-        self.inner.T
-    }
-    pub fn max_fresh_count(&self) -> usize {
-        let denom = (self.T() as u128) * (self.b().saturating_sub(1) as u128);
-        if denom == 0 {
-            return 0;
-        }
-        let max_total = (self.big_b() as u128).saturating_sub(1) / denom;
-        max_total
-            .saturating_sub(self.k_rho() as u128)
-            .min(usize::MAX as u128) as usize
-    }
     pub fn kappa(&self) -> u32 {
         self.inner.kappa
     }

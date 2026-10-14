@@ -100,7 +100,7 @@ private theorem indexedLaneRowCountSum
         rw [← listSumOfFn]
         exact PiRLCCombinationTemplates.laneRowCount_sum
       rw [laneSum]
-      simp [Nat.mul_assoc, Nat.mul_comm, Nat.mul_left_comm]
+      simp [Nat.mul_assoc]
 
 private theorem sourceCompactRowCountFor
     (templates : List CompactRowTemplate)

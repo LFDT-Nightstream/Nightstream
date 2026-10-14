@@ -62,6 +62,8 @@ pub(super) fn check(package_path: &Path, identity: [u64; 4], input_path: &Path, 
     assert_eq!(fresh.x.len(), 270);
     assert_eq!(fresh.x[0], F::ONE);
     assert!(fresh.x[257..].iter().all(|&value| value == F::ZERO));
+    // The decoded digest is compared with Lean's statement block below. No
+    // check reads the running frames, so they stay zero.
     let prior_digest: [u64; 4] = std::array::from_fn(|lane| {
         let word = (0..64).fold(0u64, |word, bit| {
             let digit = fresh.x[1 + lane * 64 + bit].as_canonical_u64();
@@ -81,7 +83,7 @@ pub(super) fn check(package_path: &Path, identity: [u64; 4], input_path: &Path, 
                     input[6][3][source],
                     input[6][4][source]
                 ]),
-                frame(prior_digest),
+                [0; 32],
             )
         })
         .collect();

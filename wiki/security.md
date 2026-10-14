@@ -16,7 +16,7 @@ Pad openings, and all matrix openings. A carried digest must be recomputed
 from authoritative data or replayed into the verifier-driven transcript.
 Self-consistent rehashing is not evidence of a valid witness.
 
-See the [assurance surface](../formal/nightstream-fprime/ASSURANCE_SURFACE.md)
-for the exact theorem boundaries and executed evidence. No security claim
+See the [security model](../formal/nightstream-fprime/SECURITY_MODEL.md)
+for the adversaries, the Lean results and the premises. No security claim
 for a removed frontend or compression backend transfers to the maintained
 implementation.

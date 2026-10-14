@@ -60,7 +60,7 @@ end Role
 def logicalWidth : Nat :=
   PhaseReference.logicalWidth
 
-def publicFits : ringDegree * publicRingColumns ≤
+theorem publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth :=
   PhaseReference.publicFits
 

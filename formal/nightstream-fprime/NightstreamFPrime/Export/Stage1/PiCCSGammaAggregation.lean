@@ -16,7 +16,7 @@ open FiniteSumAlgebra (sumMap)
 universe uField uLeft uRight
 variable {Field : Type uField} {shape : Shape}
 
-private def shiftLaws (ops : InterpolationOps Field)
+private theorem shiftLaws (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops) : TargetPolynomial.ShiftLaws ops.toOps where
   one_mul := laws.one_mul
   mul_assoc := laws.mul_assoc

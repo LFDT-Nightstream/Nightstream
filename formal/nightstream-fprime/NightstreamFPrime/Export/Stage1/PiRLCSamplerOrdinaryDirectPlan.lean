@@ -259,21 +259,21 @@ theorem classifySource_complete {column : Nat}
       rw [classifySource_word ⟨source, sourceLt⟩ ⟨position, positionLt⟩]
       simp
 
-def piDecGeometry {program : Lifecycle.Stage1.Application.Program}
+theorem piDecGeometry {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
       logicalWidth) :
     PiDECRetainedGeometry.Geometry program logicalWidth :=
   PiRLCSamplerOrdinaryRetainedGeometry.prefixGeometry geometry
 
-def poseidonGeometry {program : Lifecycle.Stage1.Application.Program}
+theorem poseidonGeometry {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
       logicalWidth) :
     PiCCSPoseidonPlan.Geometry program logicalWidth :=
   DirectPiDECPrefixPlan.poseidonGeometry (piDecGeometry geometry)
 
-def piRlcGeometry {program : Lifecycle.Stage1.Application.Program}
+theorem piRlcGeometry {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
       logicalWidth) :

@@ -11,9 +11,12 @@ pub(crate) mod pi_rlc;
 mod proof;
 pub(crate) mod transcript;
 
-pub(crate) use claims::{ajtai_dec_mixer, ajtai_rlc_mixer, superneo_has_canonical_x_shape};
+pub(crate) use claims::{
+    ajtai_dec_mixer, ajtai_rlc_mixer, has_canonical_evaluations, is_canonical_evaluation,
+    superneo_has_canonical_x_shape, EVALUATION_WIDTH,
+};
 pub use claims::{CcsInstance, RunningInstance};
-pub(crate) use compose::{prove_owned_with_rows, validate_running_parent_authority, verify};
+pub(crate) use compose::{prove_owned_with_rows, validate_running_children, verify};
 use neo_ajtai::Commitment;
 pub(crate) use neo_ccs::superneo_public_x_cols;
 use neo_math::{F, K};

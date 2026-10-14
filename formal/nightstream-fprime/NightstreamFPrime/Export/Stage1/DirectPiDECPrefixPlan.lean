@@ -48,26 +48,26 @@ private theorem append_eq_of_eq
   cases rightEq
   rfl
 
-def piCcsOrdinaryGeometry
+theorem piCcsOrdinaryGeometry
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
     PiCCSOrdinaryRetainedGeometry.Geometry application logicalWidth :=
   PiDECRetainedGeometry.prefixGeometry geometry
 
-def pilotOrdinaryGeometry
+theorem pilotOrdinaryGeometry
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
     PilotOrdinaryRetainedGeometry.Geometry application logicalWidth :=
   PiDECRetainedGeometry.pilotOrdinaryGeometry geometry
 
-def runningGeometry
+theorem runningGeometry
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
     RunningTransitionRetainedGeometry.Geometry application logicalWidth :=
   PiCCSOrdinaryRetainedGeometry.prefixGeometry
     (piCcsOrdinaryGeometry geometry)
 
-def poseidonGeometry
+theorem poseidonGeometry
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
     PiCCSPoseidonPlan.Geometry application logicalWidth :=

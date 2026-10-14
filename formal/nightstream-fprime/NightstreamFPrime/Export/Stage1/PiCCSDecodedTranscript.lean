@@ -76,7 +76,7 @@ private theorem absorb_input
       Hash.absorbF (previousValue poseidon assignment current)
         (Hash.evalList (decoded ordinary assignment) block) := by
   funext lane
-  simp only [PiCCSPoseidonPlan.inputState, found, SparseLayer.evalState,
+  simp only [PiCCSPoseidonPlan.inputState, SparseLayer.evalState,
     SparseForm.add_eval]
   rw [show (PiCCSPoseidonPlan.previousOutput poseidon current lane).eval
       assignment = previousValue poseidon assignment current lane from

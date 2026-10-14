@@ -132,6 +132,7 @@ def circuit (interface : Interface) : FormalCircuit where
 def program (_ : Unit) : Application.Program where
   witnessWordCount := 0
   step := step
+  step_length := fun _ _ stateLength => stateLength
   circuit := circuit
   spec_iff := by
     intro interface offset env
@@ -159,7 +160,7 @@ def program (_ : Unit) : Application.Program where
     ApplicationRetainedBlocks.localCount (program ()) = 0 := by
   rfl
 
-def fits (_ : Unit) : PerApplicationFixedPoint.FitsTwoPow28 (program ()) :=
+theorem fits (_ : Unit) : PerApplicationFixedPoint.FitsTwoPow28 (program ()) :=
   PerApplicationFixedPoint.fitsTwoPow28OfApplicationBounds (program ())
     (by simp) (by simp) (by
       change 0 ≤ _

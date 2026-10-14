@@ -35,38 +35,4 @@ def run {shape : Shape} {columns width : Nat} (prover : Prover shape columns wid
              rounds := FixedPhase.RawCertificate.encode { rounds }
              fullOutput := output.1 } }, output.2)
 
-/-- Every returned probe has the actual sampled coins and issued raw messages. -/
-theorem run_implies_receipt {shape : Shape} {columns width : Nat}
-    (prover : Prover shape columns width)
-    (alpha : CubePoint K shape.cubeVariables) (gamma : K)
-    (roundPoint : CubePoint K shape.cubeVariables)
-    (probe : Probe K shape) (witness : OutputWitness shape columns)
-    (returned : run prover alpha gamma roundPoint = some (probe, witness)) :
-    probe.coins.alpha = alpha ∧ probe.coins.gamma = gamma ∧
-      probe.coins.roundPoint = roundPoint ∧
-      GoldilocksCausal.IssuedProbe (prover.rounds alpha gamma) probe := by
-  cases execution : issued (prover.rounds alpha gamma) [] roundPoint.coordinates with
-  | none =>
-      simp only [run, execution] at returned
-      cases returned
-  | some rounds =>
-      cases response : prover.output alpha gamma roundPoint.coordinates with
-      | none =>
-          simp only [run, execution, response, Option.map_none] at returned
-          cases returned
-      | some output =>
-          have equal :
-              (({ coins := { alpha, gamma, roundPoint }
-                  response := {
-                    rounds := FixedPhase.RawCertificate.encode { rounds }
-                    fullOutput := output.1 } } : Probe K shape), output.2) =
-                (probe, witness) := by
-            exact Option.some.inj (by
-              simpa only [run, execution, response, Option.map_some] using returned)
-          have probeEqual := congrArg Prod.fst equal
-          dsimp only at probeEqual
-          subst probe
-          refine ⟨rfl, rfl, rfl, ⟨{ rounds }, ?_, execution⟩⟩
-          exact FixedPhase.RawCertificate.decode_encode _
-
 end NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CausalExecution

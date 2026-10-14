@@ -1,8 +1,8 @@
 (* Source functions, their ROM encoding, and the active source position.
-   This encoder covers i32 guest functions without imports or structured control.
-   PCs are consecutive across bodies, with one trailing END per function. *)
+   This encoder covers i32 guest functions without imports. Blocks occupy
+   flattened instruction addresses; each function also has one trailing END. *)
 From Stdlib Require Import List ZArith Bool.
-Require Import R1CS Columns Wasm2 MemoryTrace MemoryCatalog OpcodeCatalog StraightLineSpec CallerSpec FunctionValidation SpecTecCalls.
+Require Import R1CS Columns Wasm2 MemoryTrace MemoryCatalog OpcodeCatalog StraightLineSpec CallerSpec FunctionValidation SpecTecCalls CodeLayout SourceInstructions.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -11,7 +11,7 @@ Definition Program := list funcinst.
 Definition functionBody (f : funcinst) : list instr :=
   match CODE f with func_FUNC _ _ body => body end.
 
-Definition functionSize (f : funcinst) : nat := S (length (functionBody f)).
+Definition functionSize (f : funcinst) : nat := S (codeSize (functionBody f)).
 
 Definition functionEntry (program : Program) (function : nat) : Z :=
   Z.of_nat (fold_right (fun f size => functionSize f + size)%nat 0%nat (firstn function program)).
@@ -49,11 +49,11 @@ Fixpoint locatePC (program : Program) (pc : nat) : option (nat * nat) :=
         (locatePC rest (pc - functionSize f))
   end.
 
-Definition instructionAtPC (program : Program) (pc : Z) : option (funcinst * option instr) :=
+Definition instructionAtPC (program : Program) (pc : Z) : option (funcinst * option FlatInstruction) :=
   if pc <? 0 then None else
   match locatePC program (Z.to_nat pc) with
   | Some (function, offset) => match nth_error program function with
-      | Some f => Some (f, nth_error (functionBody f) offset)
+      | Some f => Some (f, nth_error (flattenCode (functionBody f)) offset)
       | None => None end
   | None => None
   end.
@@ -64,23 +64,34 @@ Definition callAddress (f : funcinst) (index : idx) : option N :=
 Definition instructionRom (program : Program) (memory : nat) (pc : Z) (choice : Z) : option Z :=
   match instructionAtPC program pc with
   | None => None
-  | Some (f, instruction) =>
+  | Some (f, slot) =>
       if Nat.eqb memory pcRomId then
-        match instruction with
-        | Some (CALL index) =>
+        match slot with
+        | Some (flatInstruction (Some (CALL index)) _) =>
             if choice =? 1 then Some (pc + 1) else if choice =? 0 then
               option_map (fun address => functionEntry program (N.to_nat address)) (callAddress f index)
             else None
+        | Some (flatInstruction (Some (BR_IF _)) (Some distance)) =>
+            if choice =? 0 then Some (pc + 1) else if choice =? 1 then Some (pc + Z.of_nat distance) else None
         | Some _ => if choice =? 0 then Some (pc + 1) else None
         | None => None end
       else if Nat.eqb memory programOpcodeId then
-        match instruction with Some (CALL _) => Some CODE_CALL | Some i => encodedOpcode i | None => Some CODE_END end
+        match slot with
+        | Some (flatInstruction (Some (CALL _)) _) => Some CODE_CALL
+        | Some (flatInstruction (Some (BLOCK _ _)) _) => Some CODE_BLOCK
+        | Some (flatInstruction (Some (BR_IF _)) _) => Some CODE_BR_IF
+        | Some (flatInstruction (Some i) _) => encodedOpcode i
+        | _ => Some CODE_END end
       else if Nat.eqb memory pcEdgeKindId then
-        match instruction with Some _ => Some 0 | None => Some 1 end
+        match slot with Some _ => Some 0 | None => Some 1 end
       else if Nat.eqb memory programLocalIndexId then
-        match instruction with Some (LOCAL_GET x) | Some (LOCAL_SET x) => Some (Z.of_N (x :> N)) | _ => Some 0 end
+        match slot with
+        | Some (flatInstruction (Some (LOCAL_GET x)) _)
+        | Some (flatInstruction (Some (LOCAL_SET x)) _) => Some (Z.of_N (x :> N))
+        | _ => Some 0 end
       else if Nat.eqb memory callTargetId then
-        match instruction with Some (CALL x) => option_map (fun address => Z.of_N address + 1) (callAddress f x) | _ => None end
+        match slot with Some (flatInstruction (Some (CALL x)) _) =>
+          option_map (fun address => Z.of_N address + 1) (callAddress f x) | _ => None end
       else None
   end.
 
@@ -139,7 +150,7 @@ Definition frameMatches (program : Program) (f : GuestFunction) (z : state) : Pr
 Definition validatedCode (program : Program) (f : GuestFunction) (z : state)
     (height : nat) (code : list instr) : Prop :=
   Forall (fun fi => Funcinst_ok (fun_store z) fi (funcinst_TYPE fi)) program /\
-  supportedCaller (programCallees program (guestModule f)) code /\
+  supportedSourceCode (programCallees program (guestModule f)) code /\
   exists C outputs,
     Moduleinst_ok (fun_store z) (guestModule f) C /\
     Instrs_ok (functionContext C (i32Function (guestModule f) (guestTypeIndex f)
@@ -154,7 +165,7 @@ Definition SourceState (program : Program) (position : SourcePosition) (z : stat
       frameMatches program f z /\ codeAt f (sourceOffset position) code /\
       validatedCode program f z (stackHeight boundary) code /\
       represents z memory boundary code c /\
-      boundaryPC boundary = guestEntry f + Z.of_nat (sourceOffset position)
+      boundaryPC boundary = guestEntry f + Z.of_nat (codeOffset (guestBody f) (sourceOffset position))
   end.
 
 (* Trace endpoints are caller instruction boundaries. Initialization is allowed
@@ -180,3 +191,12 @@ Fixpoint rowsFinalDepth (depth : Z) (rows : list Witness) : Z :=
 
 Definition callerFragment (boundary : Boundary) (depth : Z) (rows : list Witness) : Prop :=
   rowsStartAt boundary depth rows /\ Forall (callerRow depth) rows /\ rowsFinalDepth depth rows = depth.
+
+(* This first block fragment completes each outer instruction. The endpoint is
+   a source boundary in the same function, rather than an interior block PC. *)
+Definition sourceEndpoint (program : Program) (position : SourcePosition) (boundary : Boundary) : Prop :=
+  match functionAt program (sourceFunction position) with
+  | None => False
+  | Some f => exists offset, (offset <= length (guestBody f))%nat /\
+      boundaryPC boundary = guestEntry f + Z.of_nat (codeOffset (guestBody f) offset)
+  end.

@@ -26,9 +26,9 @@ Proof.
     destruct (N_eq_dec (Z.to_N a) 0%N); [contradiction|reflexivity].
 Qed.
 
-Definition cmpInput : nat := COL_CMP_LO_DIFF.
-Definition cmpInverse : nat := COL_CMP_LO_INV.
-Definition cmpFlag : nat := COL_CMP_LO_IS_ZERO.
+Definition cmpInput : nat := COL_ZERO_TEST_LO_INPUT.
+Definition cmpInverse : nat := COL_ZERO_TEST_LO_INV.
+Definition cmpFlag : nat := COL_ZERO_TEST_LO_IS_ZERO.
 Definition eqzSelector : nat := COL_SEL_I32_EQZ.
 Definition eqzRead : nat := List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat.
 Definition eqzWrite : nat := COL_STACK_WRITE0_VALUE_LO.

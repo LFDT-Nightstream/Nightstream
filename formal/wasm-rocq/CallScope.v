@@ -103,7 +103,7 @@ Proof.
   cbn [beforeBoundary boundarySP boundaryStackBase] in Hbase, Hsp.
   rewrite length_app, Nat2Z.inj_add in Hsp. cbn [length] in Hsp.
   pose proof (full_local_set_stack_shape w Hprime Hfull Hchosen ltac:(lia)) as Hshape.
-  destruct (local_set_stack_replay w initial final Hshape Hreplay) as [_ Hwrites].
+  destruct (pop_stack_replay w initial final Hshape Hreplay) as [_ Hwrites].
   destruct (body_row_other_memories initial final w COL_SEL_LOCAL_SET Hprime Hfull
     ltac:(cbn; auto) Hchosen Hreplay) as [Hlocals Hcontext].
   constructor; try assumption. intros; apply Hwrites.

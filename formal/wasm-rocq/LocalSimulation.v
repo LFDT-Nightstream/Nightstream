@@ -118,8 +118,8 @@ Proof.
   eapply forall_set_at; eassumption.
 Qed.
 
-Lemma stack_matches_local_set : forall w initial final prefix value,
-  LocalStackShape w true -> Replay initial (eventsForRow MemoryCatalog.memories w) final ->
+Lemma stack_matches_pop : forall w initial final prefix value,
+  UnaryStackShape w true -> Replay initial (eventsForRow MemoryCatalog.memories w) final ->
   stackMatches initial (beforeBoundary w) (prefix ++ [value]) ->
   w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat) = value /\
   stackMatches final (afterBoundary w) prefix.
@@ -127,7 +127,7 @@ Proof.
   intros w initial final prefix value Hshape Hreplay [Hbase [Hsp [Hbounds Hcells]]].
   cbn [beforeBoundary boundarySP boundaryStackBase] in Hbase, Hsp, Hcells.
   rewrite length_app, Nat2Z.inj_add in Hsp. cbn [length] in Hsp.
-  destruct (local_set_stack_replay w initial final Hshape Hreplay) as [Hread Hfinal].
+  destruct (pop_stack_replay w initial final Hshape Hreplay) as [Hread Hfinal].
   assert (Hlookup : nth_error (prefix ++ [value]) (length prefix) = Some value).
   { rewrite nth_error_app2 by lia. rewrite Nat.sub_diag. reflexivity. }
   pose proof (Hcells _ _ Hlookup) as Hcell.
@@ -145,7 +145,7 @@ Proof.
 Qed.
 
 Lemma stack_matches_local_get : forall w initial final values,
-  LocalStackShape w false -> Replay initial (eventsForRow MemoryCatalog.memories w) final ->
+  UnaryStackShape w false -> Replay initial (eventsForRow MemoryCatalog.memories w) final ->
   stackMatches initial (beforeBoundary w) values ->
   0 <= w COL_STACK_WRITE0_VALUE_LO < i32Modulus ->
   stackMatches final (afterBoundary w) (values ++ [w COL_STACK_WRITE0_VALUE_LO]).
@@ -270,7 +270,7 @@ Proof.
   { destruct Hstack as [Hbase [Hsp _]]. cbn [beforeBoundary boundarySP boundaryStackBase] in Hbase, Hsp.
     rewrite length_app, Nat2Z.inj_add in Hsp. cbn [length] in Hsp. lia. }
   pose proof (full_local_set_stack_shape row Hprime Hfull Hchosen Hdepth) as Hshape.
-  destruct (stack_matches_local_set row initial final prefix value Hshape Hreplay Hstack)
+  destruct (stack_matches_pop row initial final prefix value Hshape Hreplay Hstack)
     as [Hread HstackAfter].
   assert (Hchoice : straightLineSelector COL_SEL_LOCAL_SET) by (cbn; auto).
   destruct (full_straight_line_local_gates row _ Hprime Hfull Hchoice Hchosen)

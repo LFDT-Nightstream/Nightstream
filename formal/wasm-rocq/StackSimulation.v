@@ -210,6 +210,16 @@ Proof.
   apply Add.spectec_i32_well_formed. exact Hbound.
 Qed.
 
+Lemma stack_config_wf : forall z values code,
+  wf_state z -> Forall (fun value => 0 <= value < i32Modulus) values ->
+  Forall wf_instr code -> wf_config (stackConfig z values code).
+Proof.
+  intros z values code Hz Hvalues Hcode. constructor; [exact Hz | ].
+  apply Forall_app. split; apply Forall_map.
+  - eapply Forall_impl; [ | exact Hvalues]. intros value H. apply i32_constant_wf. exact H.
+  - eapply Forall_impl; [ | exact Hcode]. intros i H. destruct H; cbn; solve [constructor | econstructor; eassumption].
+Qed.
+
 Lemma stack_config_step : forall z z' prefix consumed produced instruction code,
   Step (stackConfig z consumed [instruction]) (stackConfig z' produced []) ->
   Forall (fun value => 0 <= value < i32Modulus) produced -> wf_state z' ->

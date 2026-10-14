@@ -1,0 +1,34 @@
+use neo_wasm::{extract_wasm_program_artifacts, WasmBuildError};
+
+fn reject_unwinding(body: &str) {
+    let wasm = wat::parse_str(format!("(module (func (export \"main\") {body}))")).unwrap();
+    wasmparser::Validator::new().validate_all(&wasm).unwrap();
+    let error =
+        extract_wasm_program_artifacts(&wasm).expect_err("branch stack unwinding has no circuit constraints yet");
+    assert!(matches!(error, WasmBuildError::Unsupported(_)), "{error}");
+    assert!(error.to_string().contains("branch stack unwinding"), "{error}");
+}
+
+#[test]
+fn reject_branches_that_discard_temporaries() {
+    reject_unwinding("block i32.const 99 i32.const 1 br_if 0 drop end");
+    reject_unwinding("block i32.const 99 br 0 end");
+    reject_unwinding("block i32.const 99 i32.const 0 br_table 0 end");
+    reject_unwinding("block i32.const 99 block i32.const 1 br_if 1 end drop end");
+    reject_unwinding("block (result i32) i32.const 99 i32.const 42 i32.const 1 br_if 0 drop end drop");
+}
+
+#[test]
+fn allow_branches_without_stack_unwinding() {
+    for body in [
+        "block i32.const 1 br_if 0 end",
+        "block block i32.const 1 br_if 1 end end",
+        "block (result i32) i32.const 42 i32.const 1 br_if 0 end drop",
+        "block br 0 end",
+        "block i32.const 0 br_table 0 end",
+        "loop i32.const 0 br_if 0 end",
+    ] {
+        let wasm = wat::parse_str(format!("(module (func (export \"main\") {body}))")).unwrap();
+        extract_wasm_program_artifacts(&wasm).unwrap();
+    }
+}

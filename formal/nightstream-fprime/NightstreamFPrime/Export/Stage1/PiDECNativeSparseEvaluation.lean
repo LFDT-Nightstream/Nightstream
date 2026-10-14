@@ -120,71 +120,8 @@ theorem nativeEvalPair_eq_spec {columns : Nat} (entries : List (Fin columns × F
   rw [toF_fromF] at value
   simp only [nativeEvalPair, SparseForm.evalSparse, List.foldl_map, value.1, value.2]
 
-/-- Four native-word accumulators: two pairs. -/
-private structure TwoPairWords where
-  firstLow : CanonicalWord
-  firstHigh : CanonicalWord
-  secondLow : CanonicalWord
-  secondHigh : CanonicalWord
-
-/-- Entries with two coefficient pairs: one read per entry for both of them. -/
-@[inline] private def accumulateTwoPairs {columns : Nat} (read : Fin columns → F)
-    (entries : List (Fin columns × (F × F) × (F × F))) (initial : TwoPairWords) :
-    TwoPairWords :=
-  entries.foldl (fun state entry =>
-    let value := fromF (read entry.1)
-    ⟨addWord state.firstLow (mulWord (fromF entry.2.1.1) value),
-      addWord state.firstHigh (mulWord (fromF entry.2.1.2) value),
-      addWord state.secondLow (mulWord (fromF entry.2.2.1) value),
-      addWord state.secondHigh (mulWord (fromF entry.2.2.2) value)⟩)
-    initial
-
-private theorem accumulateTwoPairs_value {columns : Nat} (read : Fin columns → F)
-    (entries : List (Fin columns × (F × F) × (F × F))) (initial : TwoPairWords) :
-    toF (accumulateTwoPairs read entries initial).firstLow =
-        entries.foldl (fun total entry => total + entry.2.1.1 * read entry.1)
-          (toF initial.firstLow) ∧
-      toF (accumulateTwoPairs read entries initial).firstHigh =
-        entries.foldl (fun total entry => total + entry.2.1.2 * read entry.1)
-          (toF initial.firstHigh) ∧
-      toF (accumulateTwoPairs read entries initial).secondLow =
-        entries.foldl (fun total entry => total + entry.2.2.1 * read entry.1)
-          (toF initial.secondLow) ∧
-      toF (accumulateTwoPairs read entries initial).secondHigh =
-        entries.foldl (fun total entry => total + entry.2.2.2 * read entry.1)
-          (toF initial.secondHigh) := by
-  unfold accumulateTwoPairs
-  induction entries generalizing initial with
-  | nil => exact ⟨rfl, rfl, rfl, rfl⟩
-  | cons entry entries ih =>
-      simp only [List.foldl_cons, ih, addWord_value, mulWord_value, toF_fromF, and_self]
-
-/-- Evaluate two pairs of sparse forms over the same columns with one read per
-column. -/
-@[specialize] def nativeEvalTwoPairs {columns : Nat}
-    (entries : List (Fin columns × (F × F) × (F × F))) (read : Fin columns → F) :
-    (F × F) × (F × F) :=
-  let zero := fromF 0
-  let result := accumulateTwoPairs read entries ⟨zero, zero, zero, zero⟩
-  ((toF result.firstLow, toF result.firstHigh),
-    (toF result.secondLow, toF result.secondHigh))
-
-/-- Each coordinate of each pair is the evaluation of its own sparse form, for
-every list of entries and every read. -/
-theorem nativeEvalTwoPairs_eq_spec {columns : Nat}
-    (entries : List (Fin columns × (F × F) × (F × F))) (read : Fin columns → F) :
-    nativeEvalTwoPairs entries read =
-      (((SparseForm.mk (entries.map fun entry => ⟨entry.1, entry.2.1.1⟩)).evalSparse read,
-          (SparseForm.mk (entries.map fun entry => ⟨entry.1, entry.2.1.2⟩)).evalSparse read),
-        ((SparseForm.mk (entries.map fun entry => ⟨entry.1, entry.2.2.1⟩)).evalSparse read,
-          (SparseForm.mk (entries.map fun entry => ⟨entry.1, entry.2.2.2⟩)).evalSparse read)) := by
-  have value := accumulateTwoPairs_value read entries ⟨fromF 0, fromF 0, fromF 0, fromF 0⟩
-  simp only [toF_fromF] at value
-  simp only [nativeEvalTwoPairs, SparseForm.evalSparse, List.foldl_map, value.1, value.2.1,
-    value.2.2.1, value.2.2.2]
-
-/-- An entry of `nativeEvalTwoPairs` whose four coefficients are canonical words. Converting
-the entries once lets every read of the same entries skip the conversions and the nested pairs. -/
+/-- An entry with two coefficient pairs whose four coefficients are canonical
+words, so that reading the same entries for many lanes converts them once. -/
 structure TwoPairEntry (columns : Nat) where
   column : Fin columns
   firstLow : { word : UInt64 // word.toNat < goldilocksModulus }
@@ -192,31 +129,68 @@ structure TwoPairEntry (columns : Nat) where
   secondLow : { word : UInt64 // word.toNat < goldilocksModulus }
   secondHigh : { word : UInt64 // word.toNat < goldilocksModulus }
 
-/-- The words of one entry of `nativeEvalTwoPairs`. -/
+/-- The words of one entry. -/
 def TwoPairEntry.ofEntry {columns : Nat} (entry : Fin columns × (F × F) × (F × F)) :
     TwoPairEntry columns :=
   ⟨entry.1, fromF entry.2.1.1, fromF entry.2.1.2, fromF entry.2.2.1, fromF entry.2.2.2⟩
 
-/-- `nativeEvalTwoPairs` of entries converted by `TwoPairEntry.ofEntry`. -/
-@[specialize] def nativeEvalTwoPairsWords {columns : Nat} (entries : Array (TwoPairEntry columns))
+/-- Four native-word accumulators: two pairs. -/
+private structure TwoPairWords where
+  firstLow : CanonicalWord
+  firstHigh : CanonicalWord
+  secondLow : CanonicalWord
+  secondHigh : CanonicalWord
+
+/-- Add one entry times its read to the four accumulators. -/
+@[inline] private def stepTwoPairs {columns : Nat} (read : Fin columns → F)
+    (state : TwoPairWords) (entry : TwoPairEntry columns) : TwoPairWords :=
+  let value := fromF (read entry.column)
+  ⟨addWord state.firstLow (mulWord entry.firstLow value),
+    addWord state.firstHigh (mulWord entry.firstHigh value),
+    addWord state.secondLow (mulWord entry.secondLow value),
+    addWord state.secondHigh (mulWord entry.secondHigh value)⟩
+
+private theorem foldTwoPairs_value {columns : Nat} (read : Fin columns → F)
+    (entries : List (Fin columns × (F × F) × (F × F))) (initial : TwoPairWords) :
+    toF ((entries.map TwoPairEntry.ofEntry).foldl (stepTwoPairs read) initial).firstLow =
+        entries.foldl (fun total entry => total + entry.2.1.1 * read entry.1)
+          (toF initial.firstLow) ∧
+      toF ((entries.map TwoPairEntry.ofEntry).foldl (stepTwoPairs read) initial).firstHigh =
+        entries.foldl (fun total entry => total + entry.2.1.2 * read entry.1)
+          (toF initial.firstHigh) ∧
+      toF ((entries.map TwoPairEntry.ofEntry).foldl (stepTwoPairs read) initial).secondLow =
+        entries.foldl (fun total entry => total + entry.2.2.1 * read entry.1)
+          (toF initial.secondLow) ∧
+      toF ((entries.map TwoPairEntry.ofEntry).foldl (stepTwoPairs read) initial).secondHigh =
+        entries.foldl (fun total entry => total + entry.2.2.2 * read entry.1)
+          (toF initial.secondHigh) := by
+  induction entries generalizing initial with
+  | nil => exact ⟨rfl, rfl, rfl, rfl⟩
+  | cons entry entries ih =>
+      simp only [List.map_cons, List.foldl_cons, ih, stepTwoPairs, TwoPairEntry.ofEntry,
+        addWord_value, mulWord_value, toF_fromF, and_self]
+
+/-- Evaluate two pairs of sparse forms over the same columns with one read per
+column. -/
+@[specialize] def nativeEvalTwoPairs {columns : Nat} (entries : Array (TwoPairEntry columns))
     (read : Fin columns → F) : (F × F) × (F × F) :=
   let zero := fromF 0
-  let result := entries.foldl (fun (state : TwoPairWords) entry =>
-    let value := fromF (read entry.column)
-    ⟨addWord state.firstLow (mulWord entry.firstLow value),
-      addWord state.firstHigh (mulWord entry.firstHigh value),
-      addWord state.secondLow (mulWord entry.secondLow value),
-      addWord state.secondHigh (mulWord entry.secondHigh value)⟩)
-    ⟨zero, zero, zero, zero⟩
+  let result := entries.foldl (stepTwoPairs read) ⟨zero, zero, zero, zero⟩
   ((toF result.firstLow, toF result.firstHigh),
     (toF result.secondLow, toF result.secondHigh))
 
-/-- Converting the entries first does not change the evaluation. -/
-theorem nativeEvalTwoPairsWords_ofEntry {columns : Nat}
+/-- Each coordinate of each pair is the evaluation of its own sparse form, for
+every list of entries and every read. -/
+theorem nativeEvalTwoPairs_eq_spec {columns : Nat}
     (entries : List (Fin columns × (F × F) × (F × F))) (read : Fin columns → F) :
-    nativeEvalTwoPairsWords (entries.map TwoPairEntry.ofEntry).toArray read =
-      nativeEvalTwoPairs entries read := by
-  simp only [nativeEvalTwoPairsWords, nativeEvalTwoPairs, accumulateTwoPairs,
-    List.foldl_toArray', List.foldl_map, TwoPairEntry.ofEntry]
+    nativeEvalTwoPairs (entries.map TwoPairEntry.ofEntry).toArray read =
+      (((SparseForm.mk (entries.map fun entry => ⟨entry.1, entry.2.1.1⟩)).evalSparse read,
+          (SparseForm.mk (entries.map fun entry => ⟨entry.1, entry.2.1.2⟩)).evalSparse read),
+        ((SparseForm.mk (entries.map fun entry => ⟨entry.1, entry.2.2.1⟩)).evalSparse read,
+          (SparseForm.mk (entries.map fun entry => ⟨entry.1, entry.2.2.2⟩)).evalSparse read)) := by
+  have value := foldTwoPairs_value read entries ⟨fromF 0, fromF 0, fromF 0, fromF 0⟩
+  simp only [toF_fromF, List.foldl_map] at value
+  simp only [nativeEvalTwoPairs, SparseForm.evalSparse, List.foldl_toArray', List.foldl_map,
+    value.1, value.2.1, value.2.2.1, value.2.2.2]
 
 end NightstreamFPrime.Export.Stage1.PiDECNativeSparseEvaluation

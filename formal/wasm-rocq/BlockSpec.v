@@ -1,5 +1,5 @@
-(* Complete zero-result blocks. A local supplies the condition; the fallthrough
-   tail is straight-line code. There are no nested labels or calls in this body. *)
+(* Complete zero-result blocks currently use the conditionalBlock template.
+   The branch-body predicates also describe prefixes inside more general blocks. *)
 From Stdlib Require Import List ZArith.
 Require Import Wasm2 R1CS MemoryTrace MemoryCatalog OpcodeCatalog StraightLineSpec
   CallSpec BranchBindings SpecTecBranches.
@@ -9,6 +9,24 @@ Open Scope Z_scope.
 Definition conditionalBlock (x : localidx) (tail : list instr) : instr :=
   BLOCK (_RESULT None) (LOCAL_GET x :: BR_IF (mk_uN 0) :: tail).
 
+Definition branchHeight (i : instr) (height : nat) : option nat :=
+  match i with BR_IF _ => match height with S h => Some h | _ => None end
+  | _ => instructionStackHeight i height end.
+Fixpoint branchHeights (code : list instr) (height : nat) : option nat :=
+  match code with [] => Some height | i :: rest =>
+    match branchHeight i height with Some h => branchHeights rest h | None => None end end.
+Definition supportedBranchBody (code : list instr) : Prop :=
+  Forall (fun i => i = BR_IF (mk_uN 0) \/ exists op, encodedOpcode i = Some op) code.
+
+(* The current circuit pops the condition but cannot discard other operands.
+   This is a restriction on the program, checked on both possible branch paths. *)
+Fixpoint branchSitesBalanced (code : list instr) (height : nat) : Prop :=
+  match code with
+  | [] => True
+  | BR_IF _ :: rest => height = 1%nat /\ branchSitesBalanced rest 0%nat
+  | i :: rest => match instructionStackHeight i height with
+      | Some next => branchSitesBalanced rest next | None => False end
+  end.
 Definition supportedBlock (bt : blocktype) (body : list instr) : Prop :=
   bt = _RESULT None /\ exists x tail,
     body = LOCAL_GET x :: BR_IF (mk_uN 0) :: tail /\ supportedStraightLineProgram tail.

@@ -370,7 +370,7 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
         })
         .collect();
 
-    let memories = vec![
+    let mut memories = vec![
         MemorySpec {
             id: WasmMemoryId::Stack,
             kind: MemoryKind::Ram,
@@ -841,6 +841,14 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     kind: MemoryPortKind::Read,
                     activation: active_when(Column(COL_LOCAL_ZERO_ACTIVE_BEFORE)),
                 },
+                // Suspend uses its continuation PC's function identity, already
+                // authenticated by PcFunctionRef, to bound the saved locals end.
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_CURRENT_FUNCTION_REF)]),
+                    value_column: COL_CURRENT_FUNCTION_NUM_LOCALS,
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(crate::layout::COL_HOST_SUSPEND)),
+                },
                 MemoryPortSpec {
                     address_columns: memory_columns([Column(COL_FUNCTION_REF)]),
                     value_column: COL_ENTERED_FUNCTION_NUM_LOCALS,
@@ -1030,12 +1038,20 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
         MemorySpec {
             id: WasmMemoryId::HostEventImportScheduleCount,
             kind: MemoryKind::Rom,
-            ports: vec![MemoryPortSpec {
-                address_columns: memory_columns([Column(COL_FUNCTION_REF)]),
-                value_column: COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT,
-                kind: MemoryPortKind::Read,
-                activation: active_when(Column(COL_HOST_CALL_ACTIVE)),
-            }],
+            ports: vec![
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_FUNCTION_REF)]),
+                    value_column: crate::layout::COL_HOST_IMPORT_SCHEDULE_COUNTS,
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(COL_HOST_CALL_ACTIVE)),
+                },
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_HOST_CALLEE_FREF_AFTER)]),
+                    value_column: crate::layout::COL_HOST_IMPORT_SCHEDULE_COUNTS,
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(crate::layout::COL_HOST_RESUME)),
+                },
+            ],
         },
         MemorySpec {
             id: WasmMemoryId::HostEventExportEntryScheduleCount,
@@ -1111,6 +1127,45 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
         },
     ];
 
+    use crate::layout::{COL_HOST_CONTEXT, COL_HOST_CONTEXT_ADDR, COL_HOST_CONTEXT_READ, COL_HOST_SUSPEND};
+    let context_memories = [
+        WasmMemoryId::CallStackReturnPc,
+        WasmMemoryId::CallStackCallerFbp,
+        WasmMemoryId::CallStackCallerSpBase,
+        WasmMemoryId::HostContextExport,
+        WasmMemoryId::HostContextImport,
+        WasmMemoryId::HostContextArgsBase,
+        WasmMemoryId::HostContextParentDepth,
+        WasmMemoryId::HostContextSp,
+        WasmMemoryId::HostContextLocalsEnd,
+    ];
+    for (id, value_column) in context_memories.into_iter().zip(COL_HOST_CONTEXT) {
+        let ports = vec![
+            MemoryPortSpec {
+                address_columns: memory_columns([Column(COL_HOST_CONTEXT_ADDR)]),
+                value_column,
+                kind: MemoryPortKind::Write {
+                    value_before_column: None,
+                },
+                activation: active_when(Column(COL_HOST_SUSPEND)),
+            },
+            MemoryPortSpec {
+                address_columns: memory_columns([Column(COL_HOST_CONTEXT_ADDR)]),
+                value_column,
+                kind: MemoryPortKind::Read,
+                activation: active_when(Column(COL_HOST_CONTEXT_READ)),
+            },
+        ];
+        if let Some(memory) = memories.iter_mut().find(|memory| memory.id == id) {
+            memory.ports.extend(ports);
+        } else {
+            memories.push(MemorySpec {
+                id,
+                kind: MemoryKind::Ram,
+                ports,
+            });
+        }
+    }
     let columns = crate::witness_layout::range_checked_column_registry();
     let memory = MemoryCatalog::new(memories, &columns).expect("valid WASM memory declarations");
     let continuity = ContinuityCatalog::new(build_ivc_state_continuity_links(), &columns)

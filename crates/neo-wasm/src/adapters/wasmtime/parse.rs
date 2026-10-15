@@ -17,7 +17,7 @@ use crate::layout::PC_ROM_CALL_RETURN_CHOICE;
 use std::collections::BTreeMap;
 use wasmparser::{Parser, Payload};
 
-const WASM32_MAX_PAGES: u32 = 65_536;
+pub(super) const WASM32_MAX_PAGES: u32 = 65_536;
 
 /// Parsed program tables and capture metadata, paired with application-authored
 /// host-event bindings. Lazy capture constructs this pair from the executing
@@ -552,10 +552,6 @@ impl ParsedWasmArtifactsBuilder {
                         _ => decode_opcode(&operator),
                     };
                     let memory = decode_memory_opcode(&operator);
-                    let call_return_pc = match &operator {
-                        wasmparser::Operator::Call { .. } | wasmparser::Operator::CallIndirect { .. } => Some(pc_after),
-                        _ => None,
-                    };
                     let (call_indirect_type_index, expected_type_id) = match &operator {
                         wasmparser::Operator::CallIndirect { type_index, .. }
                         | wasmparser::Operator::ReturnCallIndirect { type_index, .. } => {
@@ -637,7 +633,6 @@ impl ParsedWasmArtifactsBuilder {
                             pc_edge_kind,
                             call_indirect_type_index,
                             expected_type_id,
-                            call_return_pc,
                             pc_after_instruction: pc_after,
                         },
                     );

@@ -235,7 +235,12 @@ pub(super) fn capture_step<T: WasmTraceSink + 'static>(
         if let Some(pending) = state.pending_imports.last() {
             match pending.activation_depth.cmp(&activation_depth) {
                 // Nested reentry: the original host call is still suspended.
-                Ordering::Less => None,
+                Ordering::Less if pending.split => None,
+                Ordering::Less => {
+                    return Err(WasmBuildError::Unsupported(
+                        "same-instance reentry under an atomic import".into(),
+                    ))
+                }
                 // Possible return: validate the caller and continuation below.
                 Ordering::Equal => state.pending_imports.pop(),
                 // A deeper pending call survived an unwind without cleanup.
@@ -260,7 +265,7 @@ pub(super) fn capture_step<T: WasmTraceSink + 'static>(
         let captured = pending
             .writes
             .and_then(|writes| {
-                if pending.memory_pages != row.memory_pages_before {
+                if !pending.split && pending.memory_pages != row.memory_pages_before {
                     return Err(WasmBuildError::Trace(
                         "host memory growth across an import is unsupported".into(),
                     ));
@@ -277,6 +282,7 @@ pub(super) fn capture_step<T: WasmTraceSink + 'static>(
             .steps[pending.row]
             .host_call_memory = Some(captured);
     }
+    row.activation_depth = activation_depth;
     let pending = PendingImport::from_call(&row, &tables, activation_depth)?;
     entry_inputs::capture_entry_memory(&mut row, frame, store, &tables);
     let registry = store.data_mut().wasm_trace_registry_mut();

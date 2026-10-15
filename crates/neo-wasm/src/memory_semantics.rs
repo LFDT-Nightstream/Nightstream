@@ -289,8 +289,9 @@ pub fn preload_host_event_tables(
             }
         }
     };
-    // Count cells in the fref-keyed-from-free-state families store
-    // count + 1 (presence bias): an undeclared fref reads the zero-filled 0
+    // Import cells pack the biased call count in the low half and the biased
+    // return count (zero for atomic) in the high half. Export entry counts
+    // also use count + 1: an undeclared fref reads the zero-filled 0
     // and the CCS load rows subtract 1, poisoning the schedule to
     // events_remaining = p-1. See the relation-layout family comment for the full
     // non-termination argument. Export exit counts stay raw: their read key
@@ -299,9 +300,17 @@ pub fn preload_host_event_tables(
         preload.insert(
             WasmMemoryId::HostEventImportScheduleCount,
             vec![fref],
-            template.events.len() as u32 + 1,
+            template.packed_schedule_counts(),
         );
-        insert_slots(preload, fref, template.events.iter().collect());
+        insert_slots(
+            preload,
+            fref,
+            template
+                .events
+                .iter()
+                .chain(template.return_events.iter().flatten())
+                .collect(),
+        );
     }
     for (&fref, template) in &bindings.exports {
         preload.insert(
@@ -349,7 +358,13 @@ fn wasm_memory_check_policy(layout: &WasmRelationLayout) -> Result<MemoryCheckPo
 
 fn memory_init_mode(memory: WasmMemoryId) -> Option<RamInitialization> {
     match memory {
-        WasmMemoryId::Stack
+        WasmMemoryId::HostContextExport
+        | WasmMemoryId::HostContextImport
+        | WasmMemoryId::HostContextArgsBase
+        | WasmMemoryId::HostContextParentDepth
+        | WasmMemoryId::HostContextSp
+        | WasmMemoryId::HostContextLocalsEnd
+        | WasmMemoryId::Stack
         | WasmMemoryId::CallStackReturnPc
         | WasmMemoryId::CallStackCallerFbp
         | WasmMemoryId::CallStackCallerSpBase

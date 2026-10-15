@@ -7,6 +7,7 @@ use super::super::NormalizedStep;
 use crate::host_event_bindings::{HostEventBindings, MemoryBase, SlotBinding};
 use crate::ir::{function_call_metadata_shape, WasmBuildError};
 
+#[derive(Clone)]
 pub(super) struct TurnSetup<'g> {
     pub(super) fref: u32,
     pub(super) param_count: u8,

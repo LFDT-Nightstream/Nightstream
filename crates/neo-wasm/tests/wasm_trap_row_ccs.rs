@@ -8,15 +8,16 @@ mod common;
 use common::{assert_rejected, assert_satisfied, step};
 use neo_math::F;
 use neo_wasm::layout::{
-    COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_INDIRECT_IS_TRAP, COL_CI_ENTRY_IS_NULL, COL_DIV_OVERFLOW, COL_DIV_TRAP,
-    COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_HALTED, COL_MEM_OOB, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
+    COL_ACTIVATION_FINISHED_AFTER, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_INDIRECT_IS_TRAP, COL_CI_ENTRY_IS_NULL,
+    COL_DIV_OVERFLOW, COL_DIV_TRAP, COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_MEM_OOB, COL_TRAPPED_AFTER,
+    COL_TRAPPED_BEFORE,
 };
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{opcode_code, StackValueAccess, WasmOpcode};
 use p3_field::PrimeCharacteristicRing;
 
 #[test]
-fn unreachable_row_requires_halted_boundary() {
+fn unreachable_row_requires_activation_finished_boundary() {
     let accepted = build_witness_vector(&step(
         0,
         14,
@@ -47,7 +48,7 @@ fn unreachable_row_requires_halted_boundary() {
         0,
         false,
     ));
-    assert_rejected(&rejected, "unreachable row with halted=0");
+    assert_rejected(&rejected, "unreachable row with activation_finished=0");
 }
 
 #[test]
@@ -237,7 +238,7 @@ const NULL_ENTRY_CALL_INDIRECT_WAT: &str = r#"(module
         call_indirect (type $t)))"#;
 
 /// Faking a trap on a healthy `call_indirect` must fail even when the
-/// trapped/halted/live columns are adjusted consistently: the row has a live
+/// trapped/activation_finished/live columns are adjusted consistently: the row has a live
 /// type lookup and matching type, so the trap equation forces a clean row.
 #[test]
 fn healthy_call_indirect_row_rejects_faked_trap() {
@@ -250,12 +251,12 @@ fn healthy_call_indirect_row_rejects_faked_trap() {
     let mut witness = checked.witnesses[row_index].clone();
     witness[COL_CALL_INDIRECT_IS_TRAP] = F::ONE;
     witness[COL_TRAPPED_AFTER] = F::ONE;
-    witness[COL_HALTED] = F::ONE;
+    witness[COL_ACTIVATION_FINISHED_AFTER] = F::ONE;
     witness[COL_CALL_INDIRECT_IS_NOT_TRAP] = F::ZERO;
     assert_rejected(&witness, "faked trap on a valid call_indirect");
 }
 
-/// Hiding a null-entry trap must fail even when the trapped/halted/live
+/// Hiding a null-entry trap must fail even when the trapped/activation_finished/live
 /// columns are adjusted consistently: the table entry is zero, so the
 /// zero-test forces the null flag, de-gating the type lookup and forcing the
 /// trap equation.
@@ -270,7 +271,7 @@ fn null_entry_call_indirect_row_rejects_hidden_trap() {
     let mut witness = checked.witnesses[row_index].clone();
     witness[COL_CALL_INDIRECT_IS_TRAP] = F::ZERO;
     witness[COL_TRAPPED_AFTER] = F::ZERO;
-    witness[COL_HALTED] = F::ZERO;
+    witness[COL_ACTIVATION_FINISHED_AFTER] = F::ZERO;
     witness[COL_CALL_INDIRECT_IS_NOT_TRAP] = F::ONE;
     assert_rejected(&witness, "hidden null-entry call_indirect trap");
 }
@@ -289,7 +290,7 @@ fn null_entry_call_indirect_row_rejects_forged_null_flag() {
     witness[COL_CI_ENTRY_IS_NULL] = F::ZERO;
     witness[COL_CALL_INDIRECT_IS_TRAP] = F::ZERO;
     witness[COL_TRAPPED_AFTER] = F::ZERO;
-    witness[COL_HALTED] = F::ZERO;
+    witness[COL_ACTIVATION_FINISHED_AFTER] = F::ZERO;
     witness[COL_CALL_INDIRECT_IS_NOT_TRAP] = F::ONE;
     witness[COL_FUNCTION_CALL_TYPE_LOOKUP_GATE] = F::ONE;
     assert_rejected(&witness, "forged null flag on a null table entry");
@@ -311,7 +312,7 @@ const OOB_CALL_INDIRECT_WAT: &str = r#"(module
 /// Hiding an OOB-index trap must fail: `ci_oob` is the selector-gated bound
 /// comparison (table index 5 >= size 1), which de-gates the type lookup and
 /// forces the trap equation, so a clean claim cannot satisfy the CCS even with
-/// the trapped/halted/live columns adjusted.
+/// the trapped/activation_finished/live columns adjusted.
 #[test]
 fn oob_call_indirect_row_rejects_hidden_trap() {
     let checked = common::checked_main(OOB_CALL_INDIRECT_WAT);
@@ -323,7 +324,7 @@ fn oob_call_indirect_row_rejects_hidden_trap() {
     let mut witness = checked.witnesses[row_index].clone();
     witness[COL_CALL_INDIRECT_IS_TRAP] = F::ZERO;
     witness[COL_TRAPPED_AFTER] = F::ZERO;
-    witness[COL_HALTED] = F::ZERO;
+    witness[COL_ACTIVATION_FINISHED_AFTER] = F::ZERO;
     witness[COL_CALL_INDIRECT_IS_NOT_TRAP] = F::ONE;
     assert_rejected(&witness, "hidden OOB-index call_indirect trap");
 }
@@ -337,7 +338,7 @@ const OOB_LOAD_WAT: &str = r#"(module
 /// Hiding an OOB linear-memory trap must fail: `mem_oob` is the selector-gated
 /// bound comparison (highest word lane >= memory size in words), and it both
 /// feeds the trapped-flag transition and gates the lane reads, so a clean claim
-/// cannot satisfy the CCS even with the trapped/halted columns adjusted.
+/// cannot satisfy the CCS even with the trapped/activation_finished columns adjusted.
 #[test]
 fn oob_load_row_rejects_hidden_trap() {
     let checked = common::checked_main(OOB_LOAD_WAT);
@@ -349,7 +350,7 @@ fn oob_load_row_rejects_hidden_trap() {
     let mut witness = checked.witnesses[row_index].clone();
     witness[COL_MEM_OOB] = F::ZERO;
     witness[COL_TRAPPED_AFTER] = F::ZERO;
-    witness[COL_HALTED] = F::ZERO;
+    witness[COL_ACTIVATION_FINISHED_AFTER] = F::ZERO;
     assert_rejected(&witness, "hidden OOB linear-memory trap");
 }
 
@@ -375,6 +376,6 @@ fn oob_store_row_rejects_hidden_trap() {
     let mut witness = checked.witnesses[row_index].clone();
     witness[COL_MEM_OOB] = F::ZERO;
     witness[COL_TRAPPED_AFTER] = F::ZERO;
-    witness[COL_HALTED] = F::ZERO;
+    witness[COL_ACTIVATION_FINISHED_AFTER] = F::ZERO;
     assert_rejected(&witness, "hidden OOB linear-memory store trap");
 }

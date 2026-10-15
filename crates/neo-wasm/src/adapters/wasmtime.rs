@@ -34,6 +34,8 @@ pub use parse::{WasmProgramArtifacts, WasmProgramDecodeEntry, WasmProgramTables}
 
 #[derive(Clone, Debug, Eq, PartialEq, Default)]
 pub struct WasmtimeTraceStep {
+    /// Host-to-guest activation depth, distinct from guest call-stack depth.
+    pub activation_depth: usize,
     /// The cycle for memory and op-table lookups
     pub step: u64,
     pub function: String,
@@ -83,12 +85,9 @@ pub struct WasmtimeTraceStep {
     pub operand_stack_words_hi: Vec<u32>,
     /// Total number of locals (params + declared) in this frame.
     pub num_locals: u32,
-    /// For `call` instructions: the dense PC of the instruction immediately after
-    /// the call (= the return address). Populated at map-build time.
-    pub call_return_pc: Option<u64>,
     /// Dense PC immediately after this instruction. For `call`
     /// this is the return PC; for branches it is the linear successor, not
-    /// necessarily the runtime next PC. Halting rows retain this value even
+    /// necessarily the runtime next PC. Rows finishing an activation retain this value even
     /// when it does not name an instruction in the current function.
     pub pc_after_instruction: Option<u64>,
     /// Declared import-write bytes from memory 0, captured when the calling

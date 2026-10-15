@@ -1,11 +1,10 @@
 From Stdlib Require Import List ZArith Lia.
 Require Import R1CS Columns Range MemoryTrace TraceRefinement Wasm2 StraightLineSpec
-  CallerSpec ProgramSpec ProgramRefinement TraceSegmentation tests.Programs tests.Callers.
+  CallerSpec ProgramSpec ControlSpec ProgramRefinement TraceSegmentation tests.Programs tests.Callers.
 Import ListNotations.
 Open Scope Z_scope.
 
-(* No supplied chunks or instruction/row correspondence: reaching the caller's
-   final PC establishes that the entire get/call/add program was executed. *)
+(* No supplied chunks or instruction/row correspondence. *)
 Example plain_rows_get_call_add : forall stale rows final depth,
   fieldPrime -> validCircuitRun (sourceMemory stale) rows final ->
   callerFragment (mkBoundary 2 4 4 7) depth rows ->
@@ -15,22 +14,13 @@ Example plain_rows_get_call_add : forall stale rows final depth,
     SourceState sourceProgram (sourcePosition 1 3) z final
       (rowsFinalBoundary (mkBoundary 2 4 4 7) rows) [] c.
 Proof.
-  intros stale rows final depth Hprime Hrun Hfragment Hfinish.
-  destruct (run_refinement sourceProgram (sourcePosition 1 0) getCallAdd rows sourceInitialState
+  intros stale rows final depth Hprime Hrun Hfragment Hpc.
+  destruct (run_refinement sourceProgram (atInstruction (sourcePosition 1 0)) rows sourceInitialState
     (sourceMemory stale) final (mkBoundary 2 4 4 7) depth _ Hprime (source_program_loaded stale)
-    Hrun Hfragment ltac:(exists 3%nat; split; [cbn; lia | exact Hfinish]) (source_initial_matches stale))
-    as [executed [remaining [z [c [Hcode [Hsteps [Hloaded Hsource]]]]]]].
-  assert (Hpc : boundaryPC (rowsFinalBoundary (mkBoundary 2 4 4 7) rows) = 2 + Z.of_nat (length executed)).
-  { exact (proj2 (source_position_pc _ _ _ _ _ _ Hsource)). }
-  assert (Hlength : length executed = 3%nat) by lia.
-  assert (Hempty : remaining = []).
-  { pose proof (f_equal (@length instr) Hcode) as Hsize.
-    rewrite length_app in Hsize. change (3 = length executed + length remaining)%nat in Hsize.
-    apply length_zero_iff_nil. lia. }
-  subst remaining. exists z, c. split; [exact Hsteps | ]. split; [exact Hloaded | ].
-  change (SourceState sourceProgram (sourcePosition 1 (length executed)) z final
-    (rowsFinalBoundary (mkBoundary 2 4 4 7) rows) [] c) in Hsource.
-  now rewrite Hlength in Hsource.
+    Hrun Hfragment ltac:(exists getCallAdd; exact (source_initial_matches stale)))
+    as [cursor [z [c [Hsteps [Hloaded Hstate]]]]].
+  exists z, c. split; [exact Hsteps | ]. split; [exact Hloaded | ].
+  exact (source_final_control_state _ _ _ _ _ Hstate Hpc).
 Qed.
 
 (* A call cannot be accepted as a complete caller prefix without an END row,

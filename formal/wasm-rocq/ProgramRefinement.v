@@ -3,28 +3,9 @@ From Stdlib Require Import List ZArith Lia.
 Require Import R1CS Columns StackSimulation SpecTecCalls Range MemoryTrace TraceRefinement Wasm2 StraightLineSpec
   CallerSpec CallerRefinement ProgramSpec ProgramEncoding TraceSegmentation
   MemoryCatalog OpcodeCatalog ProgramValidation SourceInstructions SourceValidation SourceRefinement
-  CodeLayout BlockSpec.
+  CodeLayout BlockSpec ControlSpec ControlState ControlRows.
 Import ListNotations.
 Open Scope Z_scope.
-
-Lemma code_at_advance : forall f offset executed remaining,
-  codeAt f offset (executed ++ remaining) ->
-  codeAt f (offset + length executed) remaining.
-Proof.
-  intros f offset executed remaining [Hbound Hcode]. split.
-  - pose proof (f_equal (@length instr) Hcode) as Hlength.
-    rewrite length_skipn, length_app in Hlength. lia.
-  - replace (offset + length executed)%nat with (length executed + offset)%nat by lia.
-    rewrite <- skipn_skipn, Hcode, skipn_app, skipn_all, Nat.sub_diag. reflexivity.
-Qed.
-
-Lemma frame_matches_preserved : forall program f before after,
-  sameCaller before after -> frameMatches program f before -> frameMatches program f after.
-Proof.
-  intros program f before after [Hs [Ha Hl]] [Hfunctions [Haddresses Hlocals]].
-  unfold frameMatches. rewrite Ha, Hl. split; [ | auto].
-  destruct before, after. cbn [fun_store fun_funcinst] in *. congruence.
-Qed.
 
 Lemma rows_start_after_prefix : forall prefix suffix boundary depth,
   Chain continuityLinks (prefix ++ suffix) -> rowsStartAt boundary depth (prefix ++ suffix) ->
@@ -39,31 +20,13 @@ Proof.
     symmetry. exact (Hlink COL_CALL_STACK_DEPTH_AFTER COL_CALL_STACK_DEPTH_BEFORE ltac:(vm_compute; tauto)).
 Qed.
 
-(* Every row is consumed. Blocks and calls derive their row extents internally.
-   The endpoint premise excludes stopping inside a block; it supplies no split,
-   branch decisions, or instruction/row correspondence. *)
-Theorem run_refinement : forall program position code rows z initial final boundary depth c0,
-  fieldPrime -> programLoaded program initial -> validCircuitRun initial rows final ->
-  callerFragment boundary depth rows ->
-  sourceEndpoint program position (rowsFinalBoundary boundary rows) ->
-  SourceState program position z initial boundary code c0 ->
-  exists executed remaining z' c1,
-    code = executed ++ remaining /\ Steps c0 c1 /\ programLoaded program final /\
-    SourceState program (advanceSource position (length executed)) z' final
-      (rowsFinalBoundary boundary rows) remaining c1.
+Lemma finished_source_has_no_row : forall program index offset first rows z initial final boundary depth c0,
+  fieldPrime -> programLoaded program initial -> validCircuitRun initial (first :: rows) final ->
+  callerFragment boundary depth (first :: rows) ->
+  SourceState program (sourcePosition index offset) z initial boundary [] c0 -> False.
 Proof.
-  intros program position code. revert position.
-  induction code as [ | i rest IH]; intros [index offset] rows z initial final boundary depth c0
-    Hprime Hloaded Hrun Hfragment Hendpoint Hsource;
-    destruct rows as [ | first rows].
-  - destruct Hrun as [_ [_ Hreplay]]; inversion Hreplay; subst;
-    exists [], [], z, c0; split; [reflexivity | ]; split;
-    [ destruct c0; apply Steps__refl; eapply represents_wf;
-      unfold SourceState in Hsource; cbn [sourceFunction sourceOffset] in Hsource;
-      destruct (functionAt program index); [exact (proj1 (proj2 (proj2 (proj2 Hsource)))) | contradiction]
-    | split; [exact Hloaded | ]; unfold advanceSource; cbn [length sourceFunction sourceOffset];
-      rewrite Nat.add_0_r; exact Hsource ].
-  - destruct Hfragment as [[Hboundary Hdepth] [Hkinds Hfinish]].
+  intros program index offset first rows z initial final boundary depth c0 Hprime Hloaded Hrun
+    [[Hboundary Hdepth] [Hkinds Hfinish]] Hsource.
     unfold SourceState in Hsource. cbn [sourceFunction sourceOffset] in Hsource.
     destruct (functionAt program index) as [f | ] eqn:Hf; [ | contradiction].
     destruct Hsource as [Hframe [[Hbound Hcode] [Hvalidation [Hrep Hpc]]]].
@@ -79,72 +42,88 @@ Proof.
     pose proof (ProgramBinding.circuit_row_edge_kind_fetch _ _ _ Hreplay Hprogram) as Hkind.
     rewrite HfirstPC, Hedge in Hkind.
     destruct (CallContext.full_function_end_exits first Hprime Hfull Hend ltac:(congruence)); congruence.
-  - destruct Hrun as [_ [_ Hreplay]]; inversion Hreplay; subst;
-    exists [], (i :: rest), z, c0; split; [reflexivity | ]; split;
-    [ destruct c0; apply Steps__refl; eapply represents_wf;
-      unfold SourceState in Hsource; cbn [sourceFunction sourceOffset] in Hsource;
-      destruct (functionAt program index); [exact (proj1 (proj2 (proj2 (proj2 Hsource)))) | contradiction]
-    | split; [exact Hloaded | ]; unfold advanceSource; cbn [length sourceFunction sourceOffset];
-      rewrite Nat.add_0_r; exact Hsource ].
-  - destruct Hfragment as [Hstart [Hkinds Hfinish]]. destruct Hstart as [Hboundary Hdepth].
-    pose proof Hsource as Hparts. unfold SourceState in Hparts. cbn [sourceFunction sourceOffset] in Hparts.
-    destruct (functionAt program index) as [f | ] eqn:Hf; [ | contradiction].
-    destruct Hparts as [Hframe [Hcode [Hvalidation [Hrep Hpc]]]].
-    pose proof (validated_code_facts _ _ _ _ _ Hframe (represented_state_wf _ _ _ _ _ Hrep) Hvalidation) as Hfacts.
-    pose proof (source_facts_wf _ _ _ _ Hfacts) as Hwf.
-    destruct Hfacts as [Hif Hrest].
-    assert (Hlookup : nth_error (guestBody f) offset = Some i).
-    { pose proof (f_equal (fun xs => nth_error xs 0) (proj2 Hcode)) as H.
-      cbn beta in H. rewrite nth_error_skipn, Nat.add_0_r in H. exact H. }
-    destruct Hrep as [values [Hstack [-> [HconfigWf Hlocals]]]].
-    assert (Hz : wf_state z) by (inversion HconfigWf; assumption).
-    assert (Hsmall : represents z initial (beforeBoundary first) [i] (stackConfig z values [i])).
-    { rewrite Hboundary. exists values. split; [exact Hstack | ]. split; [reflexivity | ].
-      split; [apply stack_config_wf; [exact Hz | exact (proj1 (proj2 (proj2 Hstack))) | constructor; [exact (Forall_inv Hwf) | constructor]] | exact Hlocals]. }
-    destruct (source_instruction_refinement program index f offset i first rows z initial final depth _
-      Hprime Hloaded Hf Hlookup Hframe Hrun Hkinds Hdepth Hfinish
-      ltac:(change (boundaryPC (beforeBoundary first) = guestEntry f + Z.of_nat (codeOffset (guestBody f) offset)); now rewrite Hboundary)
-      ltac:(exact Hendpoint) ltac:(now rewrite Hboundary) Hsmall)
-      as [consumed [suffix [between [z1 [small1 [Hsplit [Hnonempty [Hprefix [Hsuffix [Hsteps [Hrep1 [Hsame [Hpc1 [Hdepth1 Hheight1]]]]]]]]]]]]]].
-    assert (HboundaryPrefix : rowsFinalBoundary (beforeBoundary first) consumed = rowsFinalBoundary boundary consumed)
-      by now rewrite Hboundary.
-    rewrite HboundaryPrefix in Hrep1, Hpc1, Hheight1.
-    rewrite Hboundary in Hheight1. rewrite Hheight1 in Hrest.
-    pose proof (represented_state_wf _ _ _ _ _ Hrep1) as Hz1.
-    pose proof (source_facts_preserved _ _ _ _ _ Hsame Hz1 Hrest) as Hrest1.
-    destruct Hrep1 as [outputs [Hstack1 [-> [HsmallWf1 Hlocals1]]]].
-    assert (Hsteps1 : Steps (stackConfig z values (i :: rest)) (stackConfig z1 outputs rest)).
-    { exact (stack_suffix_steps z z1 values outputs [i] rest Hsteps (Forall_inv_tail Hwf)). }
+Qed.
+
+(* Consume one ordinary row, one block row, or a whole direct call. The trace
+   determines which prefix is consumed; no grouping is supplied by the caller. *)
+Lemma control_run_prefix : forall program cursor first rows z initial final boundary depth c0,
+  fieldPrime -> programLoaded program initial -> validCircuitRun initial (first :: rows) final ->
+  callerFragment boundary depth (first :: rows) ->
+  ControlState program cursor z initial boundary c0 ->
+  exists consumed suffix between cursor' z' c1,
+    first :: rows = consumed ++ suffix /\ consumed <> [] /\
+    validCircuitRun initial consumed between /\ validCircuitRun between suffix final /\
+    Steps c0 c1 /\ ControlState program cursor' z' between (rowsFinalBoundary boundary consumed) c1 /\
+    rowsFinalDepth depth consumed = depth.
+Proof.
+  intros program cursor first rows z initial final boundary depth c0 Hprime Hloaded Hrun Hfragment Hstate.
+  pose proof Hfragment as HfragmentWhole.
+  destruct Hfragment as [[Hboundary Hdepth] [Hkinds Hfinish]].
+  destruct (valid_run_head _ _ _ _ Hrun) as [between [Hfull [Hreplay Htail]]].
+  destruct (proj2 (Forall_inv Hkinds) Hdepth) as [Hprogram [Hpop Hhalt]].
+  assert (Hsingle : validCircuitRun initial [first] between).
+  { split; [constructor; [exact Hfull | constructor] | ]. split; [constructor | ].
+    cbn [eventsForTrace flat_map]. rewrite app_nil_r. exact Hreplay. }
+  destruct cursor as [[index offset] | position offset prefix].
+  - destruct Hstate as [code Hsource]. destruct code as [ | i rest].
+    + exfalso. exact (finished_source_has_no_row program index offset first rows z initial final boundary depth c0
+        Hprime Hloaded Hrun HfragmentWhole Hsource).
+    + destruct i eqn:Hi;
+        try solve [match type of Hsource with
+        | SourceState _ _ _ _ _ (?instruction :: _) _ =>
+          destruct (outer_instruction_prefix program index offset instruction rest first rows z initial final boundary depth c0
+          Hprime Hloaded Hrun HfragmentWhole ltac:(intros; discriminate) Hsource)
+          as [consumed [suffix [middle [z' [c1 [Hs [Hne [Hp [Ht [Hsteps [Hstate Hd]]]]]]]]]]];
+          exists consumed, suffix, middle, (atInstruction (sourcePosition index (S offset))), z', c1;
+          split; [exact Hs | ]; split; [exact Hne | ]; split; [exact Hp | ];
+          split; [exact Ht | ]; split; [exact Hsteps | ]; split; assumption end].
+      rewrite <- Hboundary in Hsource.
+      destruct (block_enter_row _ _ _ _ _ _ _ _ _ _ Hprime Hloaded Hfull Hreplay Hprogram Hpop Hhalt Hsource)
+        as [prefix [c1 [Hsteps [Hstate Hd]]]].
+      exists [first], rows, between, (inBlock (sourcePosition index offset) 0 prefix), z, c1.
+      split; [reflexivity | ]. split; [discriminate | ]. split; [exact Hsingle | ].
+      split; [exact Htail | ]. split; [exact Hsteps | ]. split; [exact Hstate | cbn; lia].
+  - rewrite <- Hboundary in Hstate.
+    destruct (block_control_row _ _ _ _ _ _ _ _ _ Hprime Hloaded Hfull Hreplay Hprogram Hpop Hhalt Hstate)
+      as [cursor' [z' [c1 [Hsteps [Hstate' Hd]]]]].
+    exists [first], rows, between, cursor', z', c1.
+    split; [reflexivity | ]. split; [discriminate | ]. split; [exact Hsingle | ].
+    split; [exact Htail | ]. split; [exact Hsteps | ]. split; [exact Hstate' | cbn; lia].
+Qed.
+
+(* Every row is consumed. The resulting control state can be supplied to a
+   subsequent run, including when the boundary lies inside a block. Direct calls
+   still finish within the run, as required by callerFragment's depth boundary. *)
+Theorem run_refinement : forall program cursor rows z initial final boundary depth c0,
+  fieldPrime -> programLoaded program initial -> validCircuitRun initial rows final ->
+  callerFragment boundary depth rows ->
+  ControlState program cursor z initial boundary c0 ->
+  exists cursor' z' c1, Steps c0 c1 /\ programLoaded program final /\
+    ControlState program cursor' z' final (rowsFinalBoundary boundary rows) c1.
+Proof.
+  intros program cursor rows. remember (length rows) as n eqn:Hn.
+  revert cursor rows Hn. induction n using lt_wf_ind.
+  intros cursor rows Hn z initial final boundary depth c0 Hprime Hloaded Hrun Hfragment Hstate.
+  destruct rows as [ | first rows].
+  - destruct Hrun as [_ [_ Hreplay]]. inversion Hreplay; subst.
+    exists cursor, z, c0. split; [destruct c0; apply Steps__refl; eapply control_state_wf; exact Hstate | auto].
+  - destruct (control_run_prefix _ _ _ _ _ _ _ _ _ _ Hprime Hloaded Hrun Hfragment Hstate)
+      as [consumed [suffix [between [cursor1 [z1 [c1 [Hsplit [Hnonempty [Hprefix [Hsuffix [Hsteps [Hstate1 Hdepth1]]]]]]]]]]]].
+    destruct Hfragment as [Hstart [Hkinds Hfinish]].
     assert (Hloaded1 : programLoaded program between)
       by (eapply program_loaded_preserved; [eapply run_preserves_roms; exact Hprefix | exact Hloaded]).
-    assert (Hsource1 : SourceState program (sourcePosition index (S offset)) z1 between
-      (rowsFinalBoundary boundary consumed) rest (stackConfig z1 outputs rest)).
-    { unfold SourceState. cbn [sourceFunction sourceOffset]. rewrite Hf.
-      split; [eapply frame_matches_preserved; eassumption | ]. split.
-      - replace (S offset) with (offset + length [i])%nat by (cbn; lia). apply code_at_advance. exact Hcode.
-      - split.
-        + eapply validated_code_remaining with (executed := [i]); try eassumption.
-          eapply frame_matches_preserved; eassumption.
-        + split.
-          * exists outputs. split; [exact Hstack1 | ]. split; [reflexivity | ].
-            split; [apply stack_config_wf; [exact Hz1 | exact (proj1 (proj2 (proj2 Hstack1))) | exact (Forall_inv_tail Hwf)] | exact Hlocals1].
-          * rewrite (code_offset_next _ _ _ Hlookup), Nat2Z.inj_add. lia. }
     assert (Hfragment1 : callerFragment (rowsFinalBoundary boundary consumed) depth suffix).
     { split.
       - rewrite <- Hdepth1. apply rows_start_after_prefix.
         + rewrite <- Hsplit. exact (proj1 (proj2 Hrun)).
-        + rewrite <- Hsplit. split; assumption.
+        + rewrite <- Hsplit. exact Hstart.
       - split; [rewrite Hsplit, Forall_app in Hkinds; exact (proj2 Hkinds) | ].
         rewrite Hsplit, rows_final_depth_app, Hdepth1 in Hfinish. exact Hfinish. }
-    assert (Hendpoint1 : sourceEndpoint program (sourcePosition index (S offset))
-      (rowsFinalBoundary (rowsFinalBoundary boundary consumed) suffix)).
-    { rewrite <- rows_final_boundary_app, <- Hsplit. exact Hendpoint. }
-    destruct (IH (sourcePosition index (S offset)) suffix z1 between final (rowsFinalBoundary boundary consumed) depth
-      (stackConfig z1 outputs rest) Hprime Hloaded1 Hsuffix Hfragment1 Hendpoint1 Hsource1)
-      as [executed [remaining [z2 [c2 [Hcode2 [Hsteps2 [Hloaded2 Hsource2]]]]]]].
-    exists (i :: executed), remaining, z2, c2. split; [cbn; now rewrite Hcode2 | ].
-    split; [eapply spec_steps_transitive; eassumption | ]. split; [exact Hloaded2 | ].
-    rewrite Hsplit, rows_final_boundary_app.
-    unfold advanceSource in *. cbn [sourceFunction sourceOffset length] in *.
-    replace (offset + S (length executed))%nat with (S offset + length executed)%nat by lia. exact Hsource2.
+    assert (Hshorter : (length suffix < n)%nat).
+    { rewrite Hsplit, length_app in Hn. destruct consumed; [contradiction | cbn in Hn; lia]. }
+    destruct (H (length suffix) Hshorter cursor1 suffix eq_refl z1 between final
+      (rowsFinalBoundary boundary consumed) depth c1 Hprime Hloaded1 Hsuffix Hfragment1 Hstate1)
+      as [cursor2 [z2 [c2 [Hsteps2 [Hloaded2 Hstate2]]]]].
+    exists cursor2, z2, c2. split; [eapply spec_steps_transitive; eassumption | ].
+    split; [exact Hloaded2 | ]. rewrite Hsplit, rows_final_boundary_app. exact Hstate2.
 Qed.

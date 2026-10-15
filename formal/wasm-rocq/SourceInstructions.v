@@ -1,5 +1,5 @@
 (* Source instruction support is distinct from validation. Calls still have
-   straight-line callees; blocks have the conditional shape in BlockSpec. *)
+   straight-line callees; block branches must not require stack unwinding. *)
 From Stdlib Require Import List ZArith.
 Require Import Wasm2 StraightLineSpec CallerSpec BlockSpec CodeLayout.
 Import ListNotations.

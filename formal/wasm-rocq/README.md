@@ -2,12 +2,14 @@
 
 `run_refinement` proves circuit traces against SpecTec's Wasm 2.0 semantics for
 `i32.add/sub`, `local.get/set`, direct guest calls with straight-line bodies, and
-zero-result blocks shaped `local.get x; br_if 0; <straight-line tail>`.
+zero-result blocks containing those arithmetic/local instructions and `br_if 0`.
+Conditions may be computed, with multiple branches per block; branch sites must
+have only the condition above the label's protected stack prefix (no unwinding).
 Parameters, results, locals and stack values are i32. The theorem takes plain
-rows and derives instruction boundaries, call initialization/return, and both
-branch paths. Runs must start and finish at outer caller instruction boundaries;
-padding, host rows, nested/indirect calls, nested blocks and returning out of the
-caller are excluded. Selected zero-test steps are also proved.
+rows and returns a composable `ControlState`, including inside a block. Calls
+must complete within each run. Padding, host rows, nested/indirect calls, nested
+blocks and returning out of the caller are excluded. Selected zero-test steps
+are also proved.
 Field primality and memory-event consistency are assumed; the offline memory
 argument is not proved. The program ROM encoder covers this guest-only fragment;
 its correspondence with Rust preprocessing is not yet proved.

@@ -191,12 +191,3 @@ Fixpoint rowsFinalDepth (depth : Z) (rows : list Witness) : Z :=
 
 Definition callerFragment (boundary : Boundary) (depth : Z) (rows : list Witness) : Prop :=
   rowsStartAt boundary depth rows /\ Forall (callerRow depth) rows /\ rowsFinalDepth depth rows = depth.
-
-(* This first block fragment completes each outer instruction. The endpoint is
-   a source boundary in the same function, rather than an interior block PC. *)
-Definition sourceEndpoint (program : Program) (position : SourcePosition) (boundary : Boundary) : Prop :=
-  match functionAt program (sourceFunction position) with
-  | None => False
-  | Some f => exists offset, (offset <= length (guestBody f))%nat /\
-      boundaryPC boundary = guestEntry f + Z.of_nat (codeOffset (guestBody f) offset)
-  end.

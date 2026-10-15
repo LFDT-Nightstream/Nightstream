@@ -6,15 +6,15 @@ Require Import R1CS Columns FullRelation Range Wasm2 WasmIntegers MemoryTrace Me
 Import ListNotations.
 Open Scope Z_scope.
 
-Theorem block_branch_row_refinement : forall z initial final row pc prefix tail continuation c0,
+Theorem block_branch_row_step : forall z initial final row pc prefix tail continuation c0,
   fieldPrime -> FullRelation.satFull row -> row COL_IS_PROGRAM_ROW = 1 ->
-  Replay initial (eventsForRow memories row) final -> blockBranchImage initial pc tail ->
+  Replay initial (eventsForRow memories row) final -> branchImage initial pc (pc + 1) (pc + 2 + Z.of_nat (length tail)) ->
   blockBranchRepresents z initial (beforeBoundary row) pc prefix tail continuation BeforeBranch c0 ->
   exists position c1, position <> BeforeBranch /\ Steps c0 c1 /\
     blockBranchRepresents z final (afterBoundary row) pc prefix tail continuation position c1.
 Proof.
   intros z initial final row pc prefix tail continuation c0 Hprime Hfull Hprogram Hreplay
-    [Hsupport Himage] [Hz [Htail [Hcontinuation [Hlocals [Hpc [condition [Hstack ->]]]]]]].
+    Himage [Hz [Htail [Hcontinuation [Hlocals [Hpc [condition [Hstack ->]]]]]]].
   destruct (circuit_br_if_control _ _ _ _ _ _ Hprime Hfull Hreplay Hprogram Hpc Himage)
     as [Hchosen Hnext].
   pose proof Hstack as [Hbase [Hsp [Hbounds Hcells]]].
@@ -40,4 +40,15 @@ Proof.
   - exists AfterBlock, (stackConfig z prefix continuation).
     split; [discriminate | ]. split; [exact Hsteps | ].
     unfold blockBranchRepresents. repeat first [assumption | reflexivity | split].
+Qed.
+
+Theorem block_branch_row_refinement : forall z initial final row pc prefix tail continuation c0,
+  fieldPrime -> FullRelation.satFull row -> row COL_IS_PROGRAM_ROW = 1 ->
+  Replay initial (eventsForRow memories row) final -> blockBranchImage initial pc tail ->
+  blockBranchRepresents z initial (beforeBoundary row) pc prefix tail continuation BeforeBranch c0 ->
+  exists position c1, position <> BeforeBranch /\ Steps c0 c1 /\
+    blockBranchRepresents z final (afterBoundary row) pc prefix tail continuation position c1.
+Proof.
+  intros z initial final row pc prefix tail continuation c0 Hprime Hfull Hprogram Hreplay [_ Himage] Hrep.
+  eapply block_branch_row_step; eassumption.
 Qed.

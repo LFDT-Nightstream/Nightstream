@@ -62,3 +62,6 @@ Qed.
 
 Example unwinding_body_is_not_balanced : ~ branchSitesBalanced unwindingBody 0.
 Proof. intros [H _]; discriminate. Qed.
+
+Example unwinding_block_is_not_supported : ~ supportedBlock (_RESULT None) unwindingBody.
+Proof. intros [_ [_ H]]. exact (unwinding_body_is_not_balanced H). Qed.

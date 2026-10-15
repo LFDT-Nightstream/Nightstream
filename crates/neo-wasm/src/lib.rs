@@ -15,6 +15,7 @@ mod lookup_circuit;
 pub mod lookup_semantics;
 mod memory_activation;
 mod memory_id;
+mod memory_routing;
 pub mod memory_semantics;
 #[doc(hidden)]
 pub mod preprocess;
@@ -39,9 +40,9 @@ pub use ccs::host_event_chain::write_turn_schedule_guard_witness;
 pub use comm_chain::CommChainState;
 pub use ir::{
     boundary_states, LinearMemoryAccess, LinearMemoryWordLane, StackValueAccess, WasmAuxOpcode, WasmBoundaryState,
-    WasmBuildError, WasmCountdownState, WasmEventAbsorbState, WasmHostEventMemoryWidth, WasmHostEventRomEntry,
-    WasmHostEventRomVariant, WasmHostEventSlotKind, WasmHostEventState, WasmOutputState, WasmPcEdgeKind, WasmRowKind,
-    WasmStepState, WasmVmStep,
+    WasmBuildError, WasmCountdownState, WasmEventAbsorbState, WasmHostContext, WasmHostEventMemoryWidth,
+    WasmHostEventRomEntry, WasmHostEventRomVariant, WasmHostEventSlotKind, WasmHostEventState, WasmOutputState,
+    WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep,
 };
 pub use isa::{
     opcode_code, opcode_info_from_code, WasmMemoryAccessInfo, WasmMemoryAccessKind, WasmMemoryExtension, WasmOpTable,
@@ -52,6 +53,7 @@ pub use layout::{column_families, named_column_family, Column, ColumnFamilySpec,
 pub use lookup_circuit::{audit_compact_lookup_auxiliary_load_bearing, audit_compact_lookup_witness};
 pub use lookup_semantics::{sanity_check_lookup_row, LookupBuiltin, LookupExpr, LookupPredicate, LookupSemantics};
 pub use memory_id::WasmMemoryId;
+pub use memory_routing::{plan_wasm_memory_slots, WasmMemorySlotPlan};
 pub use memory_semantics::{preload_from_program_artifacts, sanity_check_memory_rows, WasmMemoryPreload};
 pub use preprocess::{
     host_event_top_level_initial_state, host_event_top_level_initial_state_digest, preprocess_seeded_batched,

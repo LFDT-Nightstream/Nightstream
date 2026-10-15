@@ -43,9 +43,11 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<crat
 /// the captured instance's artifacts here. Recovery rejects overlapping writes.
 /// Only memory 0 with verifier-known initialization is supported; addresses use
 /// entry locals for exports and pre-call arguments for imports. Host memory
-/// growth and normalization of same-instance host reentry are unsupported.
-/// Import templates describe an atomic call: a return snapshot cannot recover
-/// intermediate host writes observed during reentry or through shared memory.
+/// growth is unsupported. Split imports permit nested same-instance exports;
+/// atomic imports reject reentry. Host writes are applied at import return:
+/// intermediate host writes observed by reentrant guest invocations cannot be recovered.
+/// A completed proof must bind a final state with `activation_finished = true`, zero call-stack and
+/// host-frame depths and no pending import; a nested exit is not final completion.
 /// Recovery supplies witness values, not independent evidence of the caller's
 /// intended arguments. Bootstrap checks ensure that the declared initialization
 /// reproduces the captured frame; the relation and memory checks validate the
@@ -64,6 +66,7 @@ pub fn traces_from_wasmtime_steps_with_host_events(
 
 #[derive(Clone, Debug)]
 struct NormalizedStep {
+    activation_depth: usize,
     cycle: u64,
     pc: u32,
     control_choice: u32,
@@ -106,8 +109,6 @@ struct NormalizedStep {
     memory_pages_after: Option<u32>,
     /// Declared max page count (carried constant), capped at the wasm32 limit.
     max_memory_pages: Option<u32>,
-    /// For `call` instructions: dense PC of the instruction after the call.
-    call_return_pc: Option<u64>,
     /// Dense PC immediately after this instruction.
     pc_after_instruction: Option<u64>,
     /// Total number of locals (params + declared) in this frame at this step.
@@ -237,6 +238,7 @@ fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, Was
         _ => None,
     };
     Ok(Some(NormalizedStep {
+        activation_depth: row.activation_depth,
         cycle: row.step,
         pc,
         control_choice,
@@ -272,7 +274,6 @@ fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, Was
         memory_pages_before,
         memory_pages_after,
         max_memory_pages: row.memory_max_pages,
-        call_return_pc: row.call_return_pc,
         pc_after_instruction: row.pc_after_instruction,
         num_locals: row.num_locals,
         locals_snapshot: row.locals_words.clone(),
@@ -505,6 +506,7 @@ pub(crate) fn capture_frame<T>(
     )?;
 
     Ok(WasmtimeTraceStep {
+        activation_depth: 0,
         step,
         function,
         function_index,
@@ -542,7 +544,6 @@ pub(crate) fn capture_frame<T>(
         operand_stack_words,
         operand_stack_words_hi,
         num_locals: num_locals as u32,
-        call_return_pc: decoded_opcode.as_ref().and_then(|d| d.call_return_pc),
         pc_after_instruction: decoded_opcode.as_ref().map(|d| d.pc_after_instruction),
         host_call_memory: None,
         entry_memory: None,

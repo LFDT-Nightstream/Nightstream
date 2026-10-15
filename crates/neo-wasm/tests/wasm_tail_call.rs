@@ -214,7 +214,7 @@ fn host_event_exit_events_remain_attributed_to_the_export_after_a_guest_tail_cal
         .expect("output capture");
     assert_ne!(
         capture.current_function_ref, export_fref,
-        "the tail callee halts the turn"
+        "the tail callee finishes the activation"
     );
     assert_eq!(capture.state_before.host_events.turn_export_fref, export_fref);
     let exit_rows: Vec<_> = trace

@@ -327,13 +327,32 @@ impl<'a> HostEventBindingsBuilder<'a> {
         }
     }
 
-    /// Bind a host import. Referenced inputs must form a dense zero-based
+    /// Bind an atomic import. Referenced inputs must form a dense zero-based
     /// tuple; its length becomes the per-call input count.
     pub fn import(&mut self, function_ref: u32, events: Vec<EventBlock>) -> Result<&mut Self, WasmBuildError> {
-        let input_count = {
-            let events: &[EventBlock] = &events;
-            events_dense_input_count(events, "host-event")
-        }?;
+        self.bind_import(function_ref, events, None)
+    }
+
+    /// Bind a split import that permits same-instance reentry between its call
+    /// and return phases; `return_events` may be empty. Referenced inputs across
+    /// both phases must form a dense zero-based tuple. `finish` validates phase
+    /// rules and function arity.
+    pub fn split_import(
+        &mut self,
+        function_ref: u32,
+        call_events: Vec<EventBlock>,
+        return_events: Vec<EventBlock>,
+    ) -> Result<&mut Self, WasmBuildError> {
+        self.bind_import(function_ref, call_events, Some(return_events))
+    }
+
+    fn bind_import(
+        &mut self,
+        function_ref: u32,
+        events: Vec<EventBlock>,
+        return_events: Option<Vec<EventBlock>>,
+    ) -> Result<&mut Self, WasmBuildError> {
+        let input_count = events_dense_input_count(events.iter().chain(return_events.iter().flatten()), "host-event")?;
 
         if self.bindings.imports.contains_key(&function_ref) {
             return Err(WasmBuildError::Trace(format!(
@@ -341,9 +360,14 @@ impl<'a> HostEventBindingsBuilder<'a> {
             )));
         }
 
-        self.bindings
-            .imports
-            .insert(function_ref, ImportTemplate { events, input_count });
+        self.bindings.imports.insert(
+            function_ref,
+            ImportTemplate {
+                return_events,
+                events,
+                input_count,
+            },
+        );
 
         Ok(self)
     }

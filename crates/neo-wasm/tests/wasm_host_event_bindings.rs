@@ -67,6 +67,66 @@ fn public_builder_pads_blocks_derives_inputs_and_validates_functions() -> Result
 }
 
 #[test]
+fn public_builder_constructs_and_validates_split_imports() -> Result<(), Box<dyn std::error::Error>> {
+    let wasm = wat::parse_str(
+        r#"(module
+        (import "host" "f" (func (param i32) (result i32)))
+        (import "host" "yield" (func))
+        (func (export "run")))"#,
+    )?;
+    let artifacts = neo_wasm::extract_wasm_program_artifacts(&wasm)?;
+    let call = EventSequenceBuilder::op(10).arg_i32(0)?.finish()?;
+    let ret = EventSequenceBuilder::op(11)
+        .memory_write_i32(0, MemoryBase::Arg(0), 0)?
+        .memory_write_i32(1, MemoryBase::Arg(0), 4)?
+        .result()?
+        .finish()?;
+    let mut builder = HostEventBindingsBuilder::new(&artifacts.tables);
+    builder.split_import(1, call.clone(), ret.clone())?;
+    builder.split_import(2, vec![], vec![])?;
+    assert!(
+        builder.import(1, vec![]).is_err(),
+        "duplicate binding must not replace the split template"
+    );
+    let bindings = builder.finish()?;
+    assert_eq!(bindings.imports[&1].input_count, 2);
+    assert_eq!(bindings.imports[&1].events, call);
+    assert_eq!(bindings.imports[&1].return_events, Some(ret));
+    assert_eq!(bindings.imports[&2].return_events, Some(vec![]));
+    assert_eq!(bindings.imports[&2].input_count, 0);
+
+    let gap = EventSequenceBuilder::op(11)
+        .memory_write_i32(1, MemoryBase::Arg(0), 0)?
+        .result()?
+        .finish()?;
+    let mut builder = HostEventBindingsBuilder::new(&artifacts.tables);
+    assert!(
+        builder.split_import(1, call.clone(), gap).is_err(),
+        "return inputs must be dense"
+    );
+
+    // The complete split template must reach the existing validation, including
+    // phase restrictions and the imported function's actual signature.
+    for (call, ret) in [
+        // Results belong to the return phase, not the call phase.
+        (EventSequenceBuilder::op(10).result()?.finish()?, vec![]),
+        // This import has one argument, so only argument index 0 exists.
+        (
+            call,
+            EventSequenceBuilder::op(11)
+                .arg_i32(1)?
+                .result()?
+                .finish()?,
+        ),
+    ] {
+        let mut builder = HostEventBindingsBuilder::new(&artifacts.tables);
+        builder.split_import(1, call, ret)?;
+        assert!(builder.finish().is_err());
+    }
+    Ok(())
+}
+
+#[test]
 fn core_export_input_local_bootstraps_parameter() -> Result<(), Box<dyn std::error::Error>> {
     let wasm = wat::parse_str(
         r#"(module
@@ -199,6 +259,7 @@ fn sequence_builder_chunks_across_scalar_boundaries() -> Result<(), Box<dyn std:
 
     // The argument's low limb ends block zero; its high limb starts block one.
     let template = ImportTemplate {
+        return_events: None,
         events: prefix.clone().arg_i64(0)?.finish()?,
         input_count: 0,
     };
@@ -211,6 +272,7 @@ fn sequence_builder_chunks_across_scalar_boundaries() -> Result<(), Box<dyn std:
 
     // The result pair can cross the same boundary without being reordered.
     let template = ImportTemplate {
+        return_events: None,
         events: prefix.clone().result()?.finish()?,
         input_count: 0,
     };
@@ -222,6 +284,7 @@ fn sequence_builder_chunks_across_scalar_boundaries() -> Result<(), Box<dyn std:
 
     // Chunking must not bypass the ban on reading argument zero after the result push.
     let invalid = ImportTemplate {
+        return_events: None,
         events: prefix.clone().result()?.arg_i64(0)?.finish()?,
         input_count: 0,
     };
@@ -253,7 +316,11 @@ fn sequence_builder_pads_roots_without_splitting_them() -> Result<(), Box<dyn st
         .opaque(schema, EventSources::new())?
         .constant_i32(99)?
         .finish()?;
-    let template = ImportTemplate { events, input_count: 0 };
+    let template = ImportTemplate {
+        return_events: None,
+        events,
+        input_count: 0,
+    };
     template.validate(3, 0)?;
     let expanded = expand_import_events(&template, &[(10, 11), (20, 21), (30, 31)], None, &[], &[])?;
     let root = opaque_value_root(schema, &[30, 31])?;
@@ -288,7 +355,11 @@ fn append_builder_places_opaque_roots_and_preserves_suffixes() -> Result<(), Box
         )?
         .constant_i32(99)?
         .finish()?;
-    let template = ImportTemplate { events, input_count: 0 };
+    let template = ImportTemplate {
+        return_events: None,
+        events,
+        input_count: 0,
+    };
     template.validate(4, 0)?;
     assert_eq!(
         template.events.len(),
@@ -382,6 +453,7 @@ fn slots(entries: &[(usize, SlotBinding)]) -> [SlotBinding; COMM_CHAIN_EVENT_ARG
 fn zero_arg_import_expands_to_single_const_event() {
     // `burn()`: one event, all slots constant.
     let template = ImportTemplate {
+        return_events: None,
         events: vec![EventBlock::op(7, [ZERO; COMM_CHAIN_EVENT_ARGS])],
         input_count: 0,
     };
@@ -393,6 +465,7 @@ fn zero_arg_import_expands_to_single_const_event() {
 #[test]
 fn direct_templates_reject_unreferenced_declared_inputs() {
     let import = ImportTemplate {
+        return_events: None,
         events: vec![EventBlock::op(
             1,
             slots(&[(
@@ -445,6 +518,7 @@ fn validation_rejects_unresolvable_templates() {
 
     // Arg index beyond the import's arity.
     let template = ImportTemplate {
+        return_events: None,
         events: vec![event(SlotBinding::ArgElem { arg: 2, limb: Limb::Lo })],
         ..Default::default()
     };
@@ -452,6 +526,7 @@ fn validation_rejects_unresolvable_templates() {
 
     // Result reference on a resultless import.
     let template = ImportTemplate {
+        return_events: None,
         events: vec![event(result_lo)],
         ..Default::default()
     };
@@ -459,6 +534,7 @@ fn validation_rejects_unresolvable_templates() {
 
     // A returning import MUST push: the ResultElem Lo slot is the push.
     let template = ImportTemplate {
+        return_events: None,
         events: vec![event(SlotBinding::Const(1))],
         ..Default::default()
     };
@@ -466,6 +542,7 @@ fn validation_rejects_unresolvable_templates() {
 
     // ... and must push exactly once.
     let template = ImportTemplate {
+        return_events: None,
         events: vec![event(result_lo), event(result_lo)],
         ..Default::default()
     };
@@ -474,11 +551,13 @@ fn validation_rejects_unresolvable_templates() {
     // The Hi slot writes the pushed cell's hi lane, so it must follow the
     // Lo slot.
     let template = ImportTemplate {
+        return_events: None,
         events: vec![event(result_hi), event(result_lo)],
         ..Default::default()
     };
     assert!(template.validate(0, 1).is_err());
     let template = ImportTemplate {
+        return_events: None,
         events: vec![event(result_lo), event(result_hi)],
         ..Default::default()
     };
@@ -487,6 +566,7 @@ fn validation_rejects_unresolvable_templates() {
     // ... and is REQUIRED: a Lo-only template leaves the pushed hi lane as
     // unbound advice (an i32 result absorbs 0).
     let template = ImportTemplate {
+        return_events: None,
         events: vec![event(result_lo)],
         ..Default::default()
     };
@@ -494,6 +574,7 @@ fn validation_rejects_unresolvable_templates() {
 
     // Memory-write input index beyond the declared count.
     let template = ImportTemplate {
+        return_events: None,
         events: vec![event(SlotBinding::MemoryWrite32 {
             input: 1,
             base: MemoryBase::Arg(0),
@@ -505,6 +586,7 @@ fn validation_rejects_unresolvable_templates() {
 
     // Non-canonical constant.
     let template = ImportTemplate {
+        return_events: None,
         events: vec![event(SlotBinding::Const(u64::MAX))],
         ..Default::default()
     };
@@ -517,16 +599,19 @@ fn validation_rejects_unresolvable_templates() {
         EventBlock::advice(block)
     };
     let template = ImportTemplate {
+        return_events: None,
         events: vec![advice(result_lo), advice(result_hi)],
         ..Default::default()
     };
     assert!(template.validate(0, 1).is_ok());
     let template = ImportTemplate {
+        return_events: None,
         events: vec![advice(SlotBinding::ArgElem { arg: 0, limb: Limb::Lo })],
         ..Default::default()
     };
     assert!(template.validate(1, 0).is_err());
     let template = ImportTemplate {
+        return_events: None,
         events: vec![advice(SlotBinding::MemoryWrite32 {
             input: 0,
             base: MemoryBase::Arg(0),
@@ -536,6 +621,7 @@ fn validation_rejects_unresolvable_templates() {
     };
     assert!(template.validate(1, 0).is_err());
     let template = ImportTemplate {
+        return_events: None,
         events: vec![advice(result_lo), advice(result_hi)],
         input_count: 1,
     };
@@ -554,12 +640,14 @@ fn validation_rejects_unresolvable_templates() {
 
     // Argument 0 after the result push (its stack slot holds the result).
     let template = ImportTemplate {
+        return_events: None,
         events: vec![event(result_lo), event(SlotBinding::ArgElem { arg: 0, limb: Limb::Lo })],
         ..Default::default()
     };
     assert!(template.validate(1, 1).is_err());
     // Later arguments stay addressable after the push.
     let template = ImportTemplate {
+        return_events: None,
         events: vec![
             event(result_lo),
             event(result_hi),
@@ -780,6 +868,7 @@ fn export_parameter_requires_entry_binding_even_for_one_turn() {
 #[test]
 fn expansion_rejects_wrong_input_count() {
     let template = ImportTemplate {
+        return_events: None,
         events: vec![EventBlock::op(
             1,
             slots(&[(
@@ -799,6 +888,7 @@ fn expansion_rejects_wrong_input_count() {
 #[test]
 fn expansion_rejects_non_canonical_input() {
     let template = ImportTemplate {
+        return_events: None,
         events: vec![EventBlock::op(
             1,
             slots(&[(
@@ -819,6 +909,7 @@ fn expansion_rejects_non_canonical_input() {
 fn memory_slots_validate_phase_base_and_input_source() {
     let event = |source| EventBlock::op(1, slots(&[(0, source)]));
     let import = ImportTemplate {
+        return_events: None,
         events: vec![event(SlotBinding::MemoryRead32 {
             base: MemoryBase::Local(0),
             byte_offset: 0,
@@ -828,6 +919,7 @@ fn memory_slots_validate_phase_base_and_input_source() {
     assert!(import.validate(1, 0).is_err());
 
     let import = ImportTemplate {
+        return_events: None,
         events: vec![event(SlotBinding::MemoryWrite32 {
             input: 0,
             base: MemoryBase::Arg(0),
@@ -838,6 +930,7 @@ fn memory_slots_validate_phase_base_and_input_source() {
     assert!(import.validate(1, 0).is_err());
 
     let import = ImportTemplate {
+        return_events: None,
         events: vec![EventBlock::op(
             1,
             slots(&[
@@ -930,6 +1023,7 @@ fn memory_slots_validate_phase_base_and_input_source() {
         .expect("pointer bootstrap precedes memory write");
 
     let byte_write = ImportTemplate {
+        return_events: None,
         events: vec![event(SlotBinding::MemoryWrite8 {
             input: 0,
             base: MemoryBase::Arg(0),
@@ -940,6 +1034,7 @@ fn memory_slots_validate_phase_base_and_input_source() {
     assert!(expand_import_events(&byte_write, &[(0, 0)], None, &[256], &[]).is_err());
 
     let half_write = ImportTemplate {
+        return_events: None,
         events: vec![event(SlotBinding::MemoryWrite16 {
             input: 0,
             base: MemoryBase::Arg(0),
@@ -990,4 +1085,55 @@ fn mismatched_runtime_locals_return_an_error() {
     let err = neo_wasm::traces_from_wasmtime_steps_with_host_events(&run.steps, &artifacts, Default::default())
         .expect_err("mismatched runtime locals must not panic");
     assert!(err.to_string().contains("runtime locals snapshot"));
+}
+
+#[test]
+fn import_schedule_phase_limits_include_the_presence_bias() {
+    use neo_wasm::host_event_bindings::MAX_IMPORT_PHASE_BLOCKS;
+    let block = EventBlock {
+        block: [SlotBinding::Const(0); 8],
+        absorb: false,
+    };
+    let mut template = ImportTemplate {
+        events: vec![block.clone(); MAX_IMPORT_PHASE_BLOCKS],
+        return_events: Some(vec![block.clone(); MAX_IMPORT_PHASE_BLOCKS]),
+        input_count: 0,
+    };
+    template.validate(0, 0).unwrap();
+    template.events.push(block.clone());
+    let err = template.validate(0, 0).unwrap_err().to_string();
+    assert!(err.contains("call phase") && err.contains(&MAX_IMPORT_PHASE_BLOCKS.to_string()));
+    template.events.pop();
+    template.return_events.as_mut().unwrap().push(block);
+    let err = template.validate(0, 0).unwrap_err().to_string();
+    assert!(err.contains("return phase") && err.contains(&MAX_IMPORT_PHASE_BLOCKS.to_string()));
+}
+
+#[test]
+fn import_schedule_rom_packs_atomic_and_split_phases() {
+    let block = EventBlock {
+        block: [SlotBinding::Const(0); 8],
+        absorb: false,
+    };
+    for call_count in [0, 2] {
+        for return_count in [None, Some(0), Some(3)] {
+            let mut bindings = HostEventBindings::default();
+            bindings.imports.insert(
+                1,
+                ImportTemplate {
+                    events: vec![block.clone(); call_count],
+                    return_events: return_count.map(|n| vec![block.clone(); n]),
+                    input_count: 0,
+                },
+            );
+            bindings.imports[&1].validate(0, 0).unwrap();
+            let mut preload = neo_wasm::WasmMemoryPreload::default();
+            neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings);
+            let packed = preload
+                .remove(neo_wasm::WasmMemoryId::HostEventImportScheduleCount, &[1])
+                .unwrap();
+            assert_eq!(packed & 0xffff, call_count as u32 + 1);
+            assert_eq!(packed >> 16, return_count.map_or(0, |n| n as u32 + 1));
+        }
+    }
 }

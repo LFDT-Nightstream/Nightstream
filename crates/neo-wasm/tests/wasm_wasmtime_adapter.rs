@@ -314,7 +314,7 @@ fn wasmtime_steps_normalize_to_wasm_ir() {
     assert_eq!(trace[2].stack_write0, Some(StackValueAccess::new(0, 16)));
 
     assert_eq!(trace[3].opcode, WasmOpcode::End);
-    assert!(trace[3].state_after.halted);
+    assert!(trace[3].state_after.activation_finished);
 }
 
 #[test]

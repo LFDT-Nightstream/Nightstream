@@ -2,7 +2,7 @@ From Stdlib Require Import List ZArith Lia.
 From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range Add TraceRefinement MemoryTrace MemoryCatalog OpcodeCatalog Wasm2 WasmIntegers Locals
   StraightLineSpec StackSimulation SpecTecCalls CallerSpec CallerValidation FunctionValidation
-  BlockSpec BlockValidation SourceInstructions CodeLayout ProgramSpec ProgramEncoding ProgramRefinement.
+  BlockSpec BlockValidation SourceInstructions CodeLayout ProgramSpec ProgramEncoding ProgramRefinement ControlSpec.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -35,18 +35,6 @@ Example conditional_layout :
   encodeProgram conditionalProgram pcEdgeKindId [7] = Some 1.
 Proof. repeat split; reflexivity. Qed.
 
-Example block_boundary_is_not_an_internal_pc :
-  ~ sourceEndpoint conditionalProgram (sourcePosition 0 0) (mkBoundary 3 5 4 7).
-Proof.
-  intros [offset [Hbound Hpc]]. change (offset <= 2)%nat in Hbound.
-  destruct offset as [ | [ | [ | offset]]]; cbn in Hpc; discriminate || lia.
-Qed.
-
-Example block_and_function_end_are_source_boundaries :
-  sourceEndpoint conditionalProgram (sourcePosition 0 0) (mkBoundary 6 5 4 7) /\
-  sourceEndpoint conditionalProgram (sourcePosition 0 0) (mkBoundary 7 6 4 7).
-Proof. split; [exists 1%nat | exists 2%nat]; (split; [cbn; lia | reflexivity]). Qed.
-
 Example conditional_block_validates :
   typedBlock 2 (LOCAL_GET (mk_uN 0) :: BR_IF (mk_uN 0) :: conditionalTail).
 Proof.
@@ -77,6 +65,16 @@ Qed.
 Definition conditionalContext := MKcontext [i32StackType 0 1] [i32StackType 0 1] [] [] [] [] [] [] [] None.
 Definition conditionalBodyContext := functionContext conditionalContext conditionalFunction.
 
+Example conditional_supported : supportedBlock (_RESULT None)
+    (LOCAL_GET (mk_uN 0) :: BR_IF (mk_uN 0) :: conditionalTail).
+Proof.
+  split; [reflexivity | ]. split.
+  - unfold supportedBranchBody, conditionalTail.
+    repeat (constructor; [first [left; reflexivity | right; eexists; reflexivity] | ]).
+    constructor.
+  - repeat split; reflexivity.
+Qed.
+
 Example conditional_code_validates : Instrs_ok conditionalBodyContext conditionalCode (i32StackType 0 1).
 Proof.
   change (Instrs_ok conditionalBodyContext
@@ -84,8 +82,7 @@ Proof.
   eapply res_seq with (t_2_lst := []).
   - apply Instrs_ok__instr; [ | repeat constructor | repeat constructor].
     apply (block_validates_context 2); try reflexivity; try solve [repeat constructor].
-    + split; [reflexivity | ]. exists (mk_uN 0), conditionalTail. split; [reflexivity | ].
-      repeat constructor; eexists; reflexivity.
+    + exact conditional_supported.
     + exact conditional_block_validates.
   - apply Instrs_ok__instr; [apply local_get | | ]; try reflexivity; repeat constructor.
   - repeat constructor.
@@ -130,8 +127,7 @@ Proof.
   split; [repeat split; reflexivity | ]. split; [split; [cbn; lia | reflexivity] | ]. split.
   - split; [constructor; [apply conditional_function_validates | constructor] | ]. split.
     + constructor.
-      * split; [reflexivity | ]. exists (mk_uN 0), conditionalTail. split; [reflexivity | ].
-        repeat constructor; eexists; reflexivity.
+      * exact conditional_supported.
       * constructor; [constructor; [eexists; reflexivity | constructor] | constructor].
     + exists conditionalContext, 2%nat. split; [apply conditional_module_validates | ].
       change (Instrs_ok conditionalBodyContext conditionalCode (i32StackType (1 + 0) (1 + 1))).
@@ -153,37 +149,19 @@ Proof.
         -- destruct index; discriminate.
 Qed.
 
-(* The public theorem applies to raw rows, with either branch outcome, and
-   resumes after the block to execute local.get 1. The protected 42 is already
-   present in the initial operand stack. No row grouping is supplied. *)
+(* Raw rows may now stop inside the label, without a sourceEndpoint premise. *)
 Example conditional_program_refines : forall condition rows final depth,
   fieldPrime -> 0 <= condition < i32Modulus ->
   validCircuitRun (conditionalMemory condition) rows final ->
   callerFragment (mkBoundary 0 5 4 7) depth rows ->
-  boundaryPC (rowsFinalBoundary (mkBoundary 0 5 4 7) rows) = 7 ->
-  exists z c,
+  exists cursor z c,
     Steps (stackConfig (conditionalState condition) [42] conditionalCode) c /\
     programLoaded conditionalProgram final /\
-    SourceState conditionalProgram (sourcePosition 0 2) z final
-      (rowsFinalBoundary (mkBoundary 0 5 4 7) rows) [] c.
+    ControlState conditionalProgram cursor z final (rowsFinalBoundary (mkBoundary 0 5 4 7) rows) c.
 Proof.
-  intros condition rows final depth Hprime Hcondition Hrun Hfragment Hpc.
+  intros condition rows final depth Hprime Hcondition Hrun Hfragment.
   destruct (conditional_initial_state_exists condition Hcondition) as [Hloaded Hsource].
-  assert (Hendpoint : sourceEndpoint conditionalProgram (sourcePosition 0 0)
-    (rowsFinalBoundary (mkBoundary 0 5 4 7) rows)).
-  { exists 2%nat. split; [cbn; lia | exact Hpc]. }
-  destruct (run_refinement conditionalProgram (sourcePosition 0 0) conditionalCode rows
+  exact (run_refinement conditionalProgram (atInstruction (sourcePosition 0 0)) rows
     (conditionalState condition) (conditionalMemory condition) final (mkBoundary 0 5 4 7)
-    depth _ Hprime Hloaded Hrun Hfragment Hendpoint Hsource)
-    as [executed [remaining [z [c [Hcode [Hsteps [Hloaded' Hsource']]]]]]].
-  change (SourceState conditionalProgram (sourcePosition 0 (length executed)) z final
-    (rowsFinalBoundary (mkBoundary 0 5 4 7) rows) remaining c) in Hsource'.
-  pose proof (proj1 (proj1 (proj2 Hsource'))) as Hbound.
-  change (length executed <= 2)%nat in Hbound.
-  pose proof (proj2 (proj2 (proj2 (proj2 Hsource')))) as Hoffset.
-  assert (Hlength : length executed = 2%nat).
-  { destruct (length executed) as [ | [ | [ | n]]]; cbn in Hoffset; lia. }
-  rewrite Hlength in Hsource'.
-  assert (Hremaining : remaining = []) by exact (Logic.eq_sym (proj2 (proj1 (proj2 Hsource')))).
-  subst remaining. exists z, c. auto.
+    depth _ Hprime Hloaded Hrun Hfragment ltac:(exists conditionalCode; exact Hsource)).
 Qed.

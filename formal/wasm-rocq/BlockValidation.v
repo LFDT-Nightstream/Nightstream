@@ -77,23 +77,6 @@ Proof.
     + cbn [bodyStackDelta]. rewrite (instruction_stack_height_delta _ _ _ Hnext), Hdelta. f_equal; lia.
 Qed.
 
-Lemma typed_block_facts : forall count x tail,
-  supportedStraightLineProgram tail ->
-  typedBlock count (LOCAL_GET x :: BR_IF (mk_uN 0) :: tail) ->
-  (N.to_nat (x :> N) < count)%nat /\ programTyped count 0 tail /\ bodyStackDelta tail = Some 0.
-Proof.
-  intros count x tail Hsupport Htyped.
-  assert (Hs : supportedBranchBody (LOCAL_GET x :: BR_IF (mk_uN 0) :: tail)).
-  { constructor; [right; eexists; reflexivity | ]. constructor; [left; reflexivity | ].
-    eapply Forall_impl; [ | exact Hsupport]. intros i H; now right. }
-  destruct (branch_validation_heights _ _ _ Htyped Hs) as [Hheight Hlocals].
-  specialize (Hheight 0%nat). cbn [branchHeights branchHeight instructionStackHeight i32StackType length] in Hheight.
-  cbn [blockTypingContext context_LOCALS] in Hlocals. rewrite repeat_length in Hlocals.
-  pose proof (Forall_inv Hlocals) as Hindex.
-  destruct (straight_branch_height_facts tail count 0 0 Hsupport (Forall_inv_tail (Forall_inv_tail Hlocals)) Hheight)
-    as [Ht Hd]. auto.
-Qed.
-
 Lemma branch_validation_context : forall C code ft,
   Instrs_ok C code ft -> supportedBranchBody code ->
   nth_error (LABELS C) 0 = Some (mk_list _ []) ->
@@ -131,10 +114,7 @@ Qed.
 
 Lemma supported_block_body : forall bt body,
   supportedBlock bt body -> supportedBranchBody body.
-Proof.
-  intros bt body [_ [x [tail [-> Htail]]]].
-  constructor; [right; eexists; reflexivity | ]. constructor; [left; reflexivity | ].
-  eapply Forall_impl; [ | exact Htail]. intros i H; now right.
+Proof. intros bt body [_ [H _]]; exact H.
 Qed.
 
 Lemma block_validation_facts : forall C bt body inputs outputs count,

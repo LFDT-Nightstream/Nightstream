@@ -23,7 +23,6 @@ BranchBindings.v
 BlockBindings.v
 BlockSpec.v
 BlockInstructions.v
-BlockSimulation.v
 BlockValidation.v
 CodeLayout.v
 SourceInstructions.v
@@ -56,8 +55,10 @@ ProgramSpec.v
 ProgramEncoding.v
 BlockEncoding.v
 BlockTrace.v
-BlockRefinement.v
 ProgramValidation.v
+ControlSpec.v
+ControlState.v
+ControlRows.v
 TraceSegmentation.v
 SourceRefinement.v
 ProgramRefinement.v
@@ -71,3 +72,4 @@ tests/Validation.v
 tests/Branches.v
 tests/BlockPrograms.v
 tests/BlockValidation.v
+tests/ControlPrograms.v

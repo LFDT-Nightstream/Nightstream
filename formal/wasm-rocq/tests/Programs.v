@@ -2,7 +2,7 @@ From Stdlib Require Import List ZArith Lia.
 From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range MemoryTrace MemoryCatalog OpcodeCatalog TraceRefinement
   Wasm2 WasmIntegers Locals SpecTecCalls StackSimulation StraightLineSpec CallSpec CallerSpec CallerRefinement
-  ProgramSpec ProgramEncoding ProgramRefinement ProgramValidation FunctionValidation CallerValidation SourceInstructions SourceValidation CodeLayout tests.Calls tests.Callers.
+  ProgramSpec ControlSpec ProgramEncoding ProgramRefinement ProgramValidation FunctionValidation CallerValidation SourceInstructions SourceValidation CodeLayout tests.Calls tests.Callers.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -191,45 +191,44 @@ Proof.
   destruct offset as [ | [ | [ | [ | offset]]]]; try lia; exact Hpc.
 Qed.
 
-(* The public theorem composes across a raw-row boundary after the call. *)
+Lemma source_final_control_state : forall cursor z memory boundary c,
+  ControlState sourceProgram cursor z memory boundary c -> boundaryPC boundary = 5 ->
+  SourceState sourceProgram (sourcePosition 1 3) z memory boundary [] c.
+Proof.
+  intros [[index offset] | [index outer] offset prefix] z memory boundary c Hstate Hpc.
+  - destruct Hstate as [code Hstate]. destruct index as [ | [ | index]].
+    + destruct Hstate as [_ [[Hbound _] [_ [_ Hpos]]]].
+      change (offset <= 1)%nat in Hbound.
+      destruct offset as [ | [ | offset]]; cbn in Hpos; lia.
+    + pose proof (proj2 (source_position_pc _ _ _ _ _ _ Hstate)) as Hpos.
+      assert (offset = 3)%nat by lia. subst offset.
+      assert (code = []) by exact (Logic.eq_sym (proj2 (proj1 (proj2 Hstate)))).
+      subst code. exact Hstate.
+    + unfold SourceState in Hstate. destruct index; contradiction.
+  - destruct Hstate as [f [body [continuation [values [Hf [Hbody _]]]]]].
+    destruct index as [ | [ | index]]; try (destruct index; discriminate); injection Hf as <-.
+    + destruct outer as [ | outer]; [discriminate | destruct outer; discriminate].
+    + destruct outer as [ | [ | [ | outer]]]; try discriminate; destruct outer; discriminate.
+Qed.
+
+(* The public theorem composes directly through its returned control state. *)
 Example source_program_two_runs : forall stale firstRows lastRows final depth,
   fieldPrime -> validCircuitRun (sourceMemory stale) (firstRows ++ lastRows) final ->
   callerFragment (mkBoundary 2 4 4 7) depth firstRows ->
   callerFragment (rowsFinalBoundary (mkBoundary 2 4 4 7) firstRows) depth lastRows ->
-  boundaryPC (rowsFinalBoundary (mkBoundary 2 4 4 7) firstRows) = 4 ->
-  boundaryPC (rowsFinalBoundary (mkBoundary 2 4 4 7) (firstRows ++ lastRows)) = 5 ->
-  exists z c, Steps (stackConfig sourceInitialState [] getCallAdd) c /\ programLoaded sourceProgram final /\
-    SourceState sourceProgram (sourcePosition 1 3) z final
-      (rowsFinalBoundary (mkBoundary 2 4 4 7) (firstRows ++ lastRows)) [] c.
+  exists cursor z c, Steps (stackConfig sourceInitialState [] getCallAdd) c /\ programLoaded sourceProgram final /\
+    ControlState sourceProgram cursor z final
+      (rowsFinalBoundary (mkBoundary 2 4 4 7) (firstRows ++ lastRows)) c.
 Proof.
-  intros stale firstRows lastRows final depth Hprime Hrun Hfirst Hlast Hpc1 Hpc2.
+  intros stale firstRows lastRows final depth Hprime Hrun Hfirst Hlast.
   destruct (valid_run_split _ _ _ _ Hrun) as [between [Hrun1 Hrun2]].
-  assert (Hend1 : sourceEndpoint sourceProgram (sourcePosition 1 0)
-    (rowsFinalBoundary (mkBoundary 2 4 4 7) firstRows)).
-  { exists 2%nat. split; [cbn; lia | exact Hpc1]. }
-  destruct (run_refinement sourceProgram (sourcePosition 1 0) getCallAdd firstRows sourceInitialState
+  destruct (run_refinement sourceProgram (atInstruction (sourcePosition 1 0)) firstRows sourceInitialState
     (sourceMemory stale) between (mkBoundary 2 4 4 7) depth _ Hprime (source_program_loaded stale)
-    Hrun1 Hfirst Hend1 (source_initial_matches stale))
-    as [executed [remaining [z1 [c1 [Hcode1 [Hsteps1 [Hloaded1 Hsource1]]]]]]].
-  change (SourceState sourceProgram (sourcePosition 1 (length executed)) z1 between (rowsFinalBoundary (mkBoundary 2 4 4 7) firstRows) remaining c1) in Hsource1.
-  pose proof (proj2 (source_position_pc _ _ _ _ _ _ Hsource1)) as Hoffset1.
-  assert (Hlength1 : length executed = 2%nat) by lia. rewrite Hlength1 in Hsource1.
-  assert (Hremaining : remaining = [BINOP I32 (mk_binop__0 Inn_I32 ADD)]).
-  { exact (Logic.eq_sym (proj2 (proj1 (proj2 Hsource1)))). }
-  subst remaining.
-  assert (Hend2 : sourceEndpoint sourceProgram (sourcePosition 1 2)
-    (rowsFinalBoundary (rowsFinalBoundary (mkBoundary 2 4 4 7) firstRows) lastRows)).
-  { exists 3%nat. split; [cbn; lia | rewrite <- TraceSegmentation.rows_final_boundary_app; exact Hpc2]. }
-  destruct (run_refinement sourceProgram (sourcePosition 1 2) [BINOP I32 (mk_binop__0 Inn_I32 ADD)] lastRows z1
-    between final (rowsFinalBoundary (mkBoundary 2 4 4 7) firstRows) depth c1 Hprime Hloaded1
-    Hrun2 Hlast Hend2 Hsource1)
-    as [executed2 [remaining2 [z2 [c2 [Hcode2 [Hsteps2 [Hloaded2 Hsource2]]]]]]].
-  change (SourceState sourceProgram (sourcePosition 1 (2 + length executed2)) z2 final (rowsFinalBoundary (rowsFinalBoundary (mkBoundary 2 4 4 7) firstRows) lastRows) remaining2 c2) in Hsource2.
-  destruct (source_position_pc _ _ _ _ _ _ Hsource2) as [_ Hoffset2].
-  rewrite <- TraceSegmentation.rows_final_boundary_app in Hoffset2.
-  assert (Hlength2 : (2 + length executed2 = 3)%nat) by lia.
-  rewrite Hlength2 in Hsource2.
-  assert (Hempty : remaining2 = []) by exact (Logic.eq_sym (proj2 (proj1 (proj2 Hsource2)))).
-  subst remaining2. exists z2, c2. split; [eapply spec_steps_transitive; eassumption | ].
+    Hrun1 Hfirst ltac:(exists getCallAdd; exact (source_initial_matches stale)))
+    as [cursor1 [z1 [c1 [Hsteps1 [Hloaded1 Hsource1]]]]].
+  destruct (run_refinement sourceProgram cursor1 lastRows z1 between final
+    (rowsFinalBoundary (mkBoundary 2 4 4 7) firstRows) depth c1 Hprime Hloaded1 Hrun2 Hlast Hsource1)
+    as [cursor2 [z2 [c2 [Hsteps2 [Hloaded2 Hsource2]]]]].
+  exists cursor2, z2, c2. split; [eapply spec_steps_transitive; eassumption | ].
   split; [exact Hloaded2 | ]. rewrite TraceSegmentation.rows_final_boundary_app. exact Hsource2.
 Qed.

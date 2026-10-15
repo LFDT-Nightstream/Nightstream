@@ -1,6 +1,6 @@
 (* A br_if 0 boundary inside a zero-result block. The stack below the label is
    preserved; at this boundary the block itself holds only the i32 condition.
-   The tail is flat supported code, so its END is at pc + 1 + length tail.
+   For a flat tail, its END is at pc + 1 + length tail.
    Result-carrying branches, deeper labels, and extra discarded values are outside
    this first fragment. No executed-prefix equation describes the branch. *)
 From Stdlib Require Import List ZArith.

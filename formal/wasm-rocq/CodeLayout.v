@@ -91,30 +91,3 @@ Proof.
   rewrite (skipn_at_instruction code offset i Hsource). cbn [flat_map].
   rewrite nth_error_app1; [exact Hslot | apply nth_error_Some; rewrite Hslot; discriminate].
 Qed.
-Lemma block_code_ordinary : forall body index i,
-  supportedStraightLineProgram body -> nth_error body index = Some i ->
-  nth_error (blockCode body) index = Some (flatInstruction (Some i) None).
-Proof.
-  intros body index i Hsupport. revert index. induction Hsupport as [ | a body Ha Hs IH]; intros [ | index] H; try discriminate.
-  - injection H as <-. destruct Ha as [op Hop].
-    destruct (encoded_opcode_cases _ _ Hop) as [[-> _] | [[-> _] | [[x [-> _]] | [x [-> _]]]]]; reflexivity.
-  - apply IH. exact H.
-Qed.
-Lemma code_offset_cons : forall i code offset,
-  codeOffset (i :: code) (S offset) = instructionSize i + codeOffset code offset.
-Proof. intros; change (codeSize (i :: firstn offset code) = instructionSize i + codeOffset code offset). apply code_size_cons. Qed.
-Lemma code_offset_monotone : forall code a b, a <= b -> codeOffset code a <= codeOffset code b.
-Proof.
-  induction code as [ | i code IH]; intros [ | a] [ | b] H; try (cbn [codeOffset firstn codeSize flattenCode flat_map length]; lia).
-  rewrite !code_offset_cons. specialize (IH a b ltac:(lia)). lia.
-Qed.
-Lemma no_boundary_inside_instruction : forall code offset i boundary,
-  nth_error code offset = Some i ->
-  ~ (codeOffset code offset < codeOffset code boundary < codeOffset code offset + instructionSize i).
-Proof.
-  intros code offset i boundary Hi Hinside.
-  destruct (Nat.le_gt_cases boundary offset).
-  - pose proof (code_offset_monotone code boundary offset H); lia.
-  - pose proof (code_offset_monotone code (S offset) boundary ltac:(lia)).
-    rewrite (code_offset_next _ _ _ Hi) in H0. lia.
-Qed.

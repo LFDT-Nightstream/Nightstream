@@ -6,10 +6,12 @@ zero-result blocks containing those arithmetic/local instructions and `br_if 0`.
 Conditions may be computed, with multiple branches per block; branch sites must
 have only the condition above the label's protected stack prefix (no unwinding).
 Parameters, results, locals and stack values are i32. The theorem takes plain
-rows and returns a composable `ControlState`, including inside a block. Calls
-must complete within each run. Padding, host rows, nested/indirect calls, nested
-blocks and returning out of the caller are excluded. Selected zero-test steps
-are also proved.
+rows, refines them one at a time, and returns a composable `ControlState`: a run
+may stop anywhere in its base frame, including inside a block, inside a call, or
+during a callee's frame initialization. Suspended callers form a stack; callee
+bodies are straight-line, so it is at most one call deep. Padding, host rows,
+nested/indirect calls, nested blocks and returning out of the base frame are
+excluded. Selected zero-test steps are also proved.
 Field primality and memory-event consistency are assumed; the offline memory
 argument is not proved. The program ROM encoder covers this guest-only fragment;
 its correspondence with Rust preprocessing is not yet proved.

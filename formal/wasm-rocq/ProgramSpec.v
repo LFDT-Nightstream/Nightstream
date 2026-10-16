@@ -146,16 +146,17 @@ Definition frameMatches (program : Program) (f : GuestFunction) (z : state) : Pr
   length (stateLocals z) = (guestParams f + guestLocals f)%nat.
 
 (* Validation uses SpecTec's instantiated functions and the active function's
-   module context. Support only restricts the circuit fragment we can simulate. *)
+   module context. The remaining code ends with the function's declared results.
+   Support only restricts the circuit fragment we can simulate. *)
 Definition validatedCode (program : Program) (f : GuestFunction) (z : state)
     (height : nat) (code : list instr) : Prop :=
   Forall (fun fi => Funcinst_ok (fun_store z) fi (funcinst_TYPE fi)) program /\
   supportedSourceCode (programCallees program (guestModule f)) code /\
-  exists C outputs,
+  exists C,
     Moduleinst_ok (fun_store z) (guestModule f) C /\
     Instrs_ok (functionContext C (i32Function (guestModule f) (guestTypeIndex f)
       (guestParams f) (guestResults f) (guestLocals f) (guestBody f))) code
-      (i32StackType height outputs).
+      (i32StackType height (guestResults f)).
 
 Definition SourceState (program : Program) (position : SourcePosition) (z : state)
     (memory : MemoryState) (boundary : Boundary) (code : list instr) (c : config) : Prop :=
@@ -168,9 +169,9 @@ Definition SourceState (program : Program) (position : SourcePosition) (z : stat
       boundaryPC boundary = guestEntry f + Z.of_nat (codeOffset (guestBody f) (sourceOffset position))
   end.
 
-(* Trace endpoints are caller instruction boundaries. Initialization is allowed
-   inside calls, but not at the caller's own depth. At that depth a row may
-   neither pop nor halt (the depth-zero return halts without popping). *)
+(* Row kinds a run may contain. Initialization belongs to callees, not to the
+   frame at the given depth; at that depth a row may neither pop nor halt (the
+   depth-zero return halts without popping), so the run stays in that frame. *)
 Definition callerRow (depth : Z) (row : Witness) : Prop :=
   (row COL_IS_PROGRAM_ROW = 1 \/ row COL_LOCAL_ZERO_ACTIVE_BEFORE = 1 \/
     row COL_PARAM_INIT_ACTIVE_BEFORE = 1) /\

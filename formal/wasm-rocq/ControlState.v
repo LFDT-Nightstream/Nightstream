@@ -2,9 +2,34 @@
 From Stdlib Require Import List ZArith Lia.
 Require Import Wasm2 R1CS MemoryTrace StraightLineSpec StackSimulation SpecTecCalls SpecTecBranches
   CallerSpec CallerRefinement ProgramSpec ProgramValidation SourceValidation CodeLayout BlockSpec BlockValidation
-  FunctionValidation ControlSpec.
+  FunctionValidation ControlSpec Columns Range FullRelation MemoryCatalog OpcodeCatalog Selectors ProgramBinding
+  CallInitialization StraightLineInstructions.
 Import ListNotations.
 Open Scope Z_scope.
+
+Ltac not_call_selector :=
+  let H := fresh in intro H; vm_compute in H; repeat (destruct H as [H | H]; [discriminate H | ]); exact H.
+
+(* An ordinary instruction's row selects its own, non-call opcode. *)
+Lemma fetched_ordinary_keeps_idle : forall initial final (w : Witness) i,
+  fieldPrime -> FullRelation.satFull w -> w COL_IS_PROGRAM_ROW = 1 ->
+  Replay initial (eventsForRow memories w) final ->
+  initial programOpcodeId [w COL_PC_BEFORE] = encodedOpcode i -> (exists op, encodedOpcode i = Some op) ->
+  initializationIdle (beforeBoundary w) -> initializationIdle (afterBoundary w).
+Proof.
+  intros initial final w i Hprime Hfull Hprogram Hreplay Hrom [op Hop] Hidle.
+  pose proof (circuit_row_opcode_fetch _ _ _ Hreplay Hprogram) as Hfetch.
+  rewrite Hrom, Hop in Hfetch. injection Hfetch as Hcode.
+  destruct (encoded_opcode_cases _ _ Hop) as [[-> ->] | [[-> ->] | [[x [-> ->]] | [x [-> ->]]]]].
+  - apply (program_row_keeps_idle w COL_SEL_I32_ADD); [exact Hprime | exact Hfull | vm_compute; tauto | | not_call_selector | exact Hidle].
+    apply (full_opcode_selects w COL_SEL_I32_ADD CODE_I32_ADD Hprime Hfull Hprogram); [vm_compute; reflexivity | symmetry; exact Hcode].
+  - apply (program_row_keeps_idle w COL_SEL_I32_SUB); [exact Hprime | exact Hfull | vm_compute; tauto | | not_call_selector | exact Hidle].
+    apply (full_opcode_selects w COL_SEL_I32_SUB CODE_I32_SUB Hprime Hfull Hprogram); [vm_compute; reflexivity | symmetry; exact Hcode].
+  - apply (program_row_keeps_idle w COL_SEL_LOCAL_GET); [exact Hprime | exact Hfull | vm_compute; tauto | | not_call_selector | exact Hidle].
+    apply (full_opcode_selects w COL_SEL_LOCAL_GET CODE_LOCAL_GET Hprime Hfull Hprogram); [vm_compute; reflexivity | symmetry; exact Hcode].
+  - apply (program_row_keeps_idle w COL_SEL_LOCAL_SET); [exact Hprime | exact Hfull | vm_compute; tauto | | not_call_selector | exact Hidle].
+    apply (full_opcode_selects w COL_SEL_LOCAL_SET CODE_LOCAL_SET Hprime Hfull Hprogram); [vm_compute; reflexivity | symmetry; exact Hcode].
+Qed.
 
 Lemma code_at_advance : forall f offset executed remaining,
   codeAt f offset (executed ++ remaining) -> codeAt f (offset + length executed) remaining.
@@ -32,12 +57,13 @@ Proof.
   pose proof (validated_code_facts _ _ _ _ _ Hframe Hz Hvalid) as Hfacts.
   eapply validated_code_remaining with (executed := []) (before := height); try eassumption.
   - eapply frame_matches_preserved; eassumption.
+  - reflexivity.
   - eapply source_facts_preserved; eassumption.
 Qed.
 
 Lemma validated_instructions_wf : forall program f z height code,
   validatedCode program f z height code -> Forall wf_instr code.
-Proof. intros program f z height code [_ [_ [C [outputs [_ H]]]]]. eapply validated_code_wf; exact H. Qed.
+Proof. intros program f z height code [_ [_ [C [_ H]]]]. eapply validated_code_wf; exact H. Qed.
 
 Lemma supported_branch_suffix : forall body offset,
   supportedBranchBody body -> supportedBranchBody (skipn offset body).
@@ -47,7 +73,7 @@ Qed.
 
 Lemma validated_code_module : forall program f z height code,
   validatedCode program f z height code -> exists C, Moduleinst_ok (fun_store z) (guestModule f) C.
-Proof. intros program f z height code [_ [_ [C [_ [H _]]]]]. exists C. exact H. Qed.
+Proof. intros program f z height code [_ [_ [C [H _]]]]. exists C. exact H. Qed.
 
 (* The row proofs type block bodies in blockTypingContext. It agrees with SpecTec's
    block context on the locals and the innermost label, the only parts consulted
@@ -76,19 +102,20 @@ Proof.
       Hcount. reflexivity.
 Qed.
 
-Lemma control_state_wf : forall program cursor z memory boundary c,
-  ControlState program cursor z memory boundary c -> wf_config c.
+Lemma active_state_wf : forall program cursor z memory boundary c,
+  ActiveState program cursor z memory boundary c -> wf_config c.
 Proof.
-  intros program [position | position offset prefix] z memory boundary c H.
-  - destruct H as [code H]. unfold SourceState in H.
+  intros program [position | position offset prefix | function arguments] z memory boundary c H.
+  - destruct H as [[code H] _]. unfold SourceState in H.
     destruct (functionAt program (sourceFunction position)); [ | contradiction].
     eapply represents_wf. exact (proj1 (proj2 (proj2 (proj2 H)))).
-  - destruct H as [f [body [continuation [values [Hf [Hi [Hcode [Hframe [Hvalid [Hs [Hbound [[C [_ Ht]] [Hb [Hz [Hstack [Hlocals [Hpc ->]]]]]]]]]]]]]]]]].
+  - destruct H as [f [body [continuation [values [Hf [Hi [Hcode [Hframe [Hvalid [Hs [Hbound [[C [_ Ht]] [Hb [Hz [Hstack [Hlocals [Hpc [_ ->]]]]]]]]]]]]]]]]]].
     pose proof (proj1 (proj2 (proj2 Hstack))) as Hvalues. apply Forall_app in Hvalues.
     apply stack_prefix_wf; [exact (proj1 Hvalues) | ].
     apply instruction_suffix_wf; [eapply validated_instructions_wf; exact Hvalid | ].
     apply block_context_wf. apply stack_config_wf;
       [exact Hz | exact (proj2 Hvalues) | eapply validated_code_wf; exact Ht].
+  - destruct H as [f [_ [_ [_ [_ [_ [_ [_ [Hwf [_ [_ [_ [_ ->]]]]]]]]]]]]]. exact Hwf.
 Qed.
 
 Lemma block_exit_pc : forall f outer body,
@@ -115,10 +142,11 @@ Lemma block_continuation_state : forall program position f body continuation pre
   validatedCode program f z (length prefix) continuation -> wf_state z ->
   stackMatches memory boundary prefix -> localsMatch memory boundary z ->
   boundaryPC boundary = guestEntry f + Z.of_nat (codeOffset (guestBody f) (sourceOffset position)) + 2 + Z.of_nat (length body) ->
-  ControlState program (atInstruction (advanceSource position 1)) z memory boundary (stackConfig z prefix continuation).
+  initializationIdle boundary ->
+  ActiveState program (atInstruction (advanceSource position 1)) z memory boundary (stackConfig z prefix continuation).
 Proof.
-  intros program position f body continuation prefix z memory boundary Hf Hi Hcode Hframe Hv Hz Hstack Hl Hpc.
-  exists continuation. unfold SourceState, advanceSource. cbn [sourceFunction sourceOffset]. rewrite Hf.
+  intros program position f body continuation prefix z memory boundary Hf Hi Hcode Hframe Hv Hz Hstack Hl Hpc Hidle.
+  split; [ | exact Hidle]. exists continuation. unfold SourceState, advanceSource. cbn [sourceFunction sourceOffset]. rewrite Hf.
   replace (sourceOffset position + 1)%nat with (S (sourceOffset position)) by lia.
   split; [exact Hframe | ]. split; [exact Hcode | ]. split.
   - rewrite (stack_matches_height _ _ _ Hstack). exact Hv.

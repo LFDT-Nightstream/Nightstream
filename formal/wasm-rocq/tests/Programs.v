@@ -126,11 +126,11 @@ Proof.
            exists (mkGuestFunction 0%N callModule (mk_uN 0) 0 1 1 readZeroBody 0).
            split; [reflexivity | ]. split; [repeat constructor; eexists; reflexivity | split; cbn; lia].
         -- constructor; [constructor; [eexists; reflexivity | constructor] | constructor].
-    + exists sourceModuleContext, 1%nat. split; [exact source_module_validates | exact source_body_validates].
+    + exists sourceModuleContext. split; [exact source_module_validates | exact source_body_validates].
 Qed.
 
 Example source_initial_represents : forall stale,
-  represents sourceInitialState (sourceMemory stale) (mkBoundary 2 4 4 7)
+  represents sourceInitialState (sourceMemory stale) (mkBoundary 2 4 4 7 0 0 0 0 0)
     getCallAdd (stackConfig sourceInitialState [] getCallAdd).
 Proof.
   intros stale. exists []. split.
@@ -145,7 +145,7 @@ Qed.
 
 Example source_initial_matches : forall stale,
   SourceState sourceProgram (sourcePosition 1 0) sourceInitialState (sourceMemory stale)
-    (mkBoundary 2 4 4 7) getCallAdd (stackConfig sourceInitialState [] getCallAdd).
+    (mkBoundary 2 4 4 7 0 0 0 0 0) getCallAdd (stackConfig sourceInitialState [] getCallAdd).
 Proof.
   intros stale. split; [repeat split; reflexivity | ]. split.
   - split; [cbn; lia | reflexivity].
@@ -162,7 +162,7 @@ Qed.
 Example caller_local_count_mismatch_rejected : forall stale,
   ~ SourceState sourceProgram (sourcePosition 1 0)
     (mk_state (MKstore sourceProgram [] [] [] [] []) (MKframe [i32Value 5; i32Value 9] callModule))
-    (sourceMemory stale) (mkBoundary 2 4 4 7) getCallAdd
+    (sourceMemory stale) (mkBoundary 2 4 4 7 0 0 0 0 0) getCallAdd
     (stackConfig sourceInitialState [] getCallAdd).
 Proof. intros stale [[_ [_ Hcount]] _]. discriminate Hcount. Qed.
 
@@ -175,7 +175,7 @@ Example wrong_module_function_addresses_rejected : forall stale,
   ~ SourceState sourceProgram (sourcePosition 1 0)
     (mk_state (MKstore sourceProgram [] [] [] [] [])
       (MKframe [i32Value 5] (MKmoduleinst [] [1%N] [] [] [] [] [] [])))
-    (sourceMemory stale) (mkBoundary 2 4 4 7) getCallAdd
+    (sourceMemory stale) (mkBoundary 2 4 4 7 0 0 0 0 0) getCallAdd
     (stackConfig sourceInitialState [] getCallAdd).
 Proof. intros stale [[_ [Haddresses _]] _]. discriminate Haddresses. Qed.
 
@@ -191,44 +191,65 @@ Proof.
   destruct offset as [ | [ | [ | [ | offset]]]]; try lia; exact Hpc.
 Qed.
 
-Lemma source_final_control_state : forall cursor z memory boundary c,
-  ControlState sourceProgram cursor z memory boundary c -> boundaryPC boundary = 5 ->
-  SourceState sourceProgram (sourcePosition 1 3) z memory boundary [] c.
+Example source_initial_control : forall stale,
+  ControlState sourceProgram 0 (controlCursor [] (atInstruction (sourcePosition 1 0))) sourceInitialState
+    (sourceMemory stale) (mkBoundary 2 4 4 7 0 0 0 0 0) (stackConfig sourceInitialState [] getCallAdd).
 Proof.
-  intros [[index offset] | [index outer] offset prefix] z memory boundary c Hstate Hpc.
-  - destruct Hstate as [code Hstate]. destruct index as [ | [ | index]].
+  intros stale.
+  apply (base_control_state sourceProgram (atInstruction (sourcePosition 1 0)) sourceInitialState
+    (sourceMemory stale) (mkBoundary 2 4 4 7 0 0 0 0 0)); [ | cbn; lia].
+  split; [exists getCallAdd; exact (source_initial_matches stale) | repeat split].
+Qed.
+
+(* At the caller's END no call is suspended: the caller's body is not straight-line,
+   so it cannot be a callee, and the callee's PCs are 0..1. *)
+Lemma source_final_control_state : forall cursor z memory boundary c,
+  ControlState sourceProgram 0 cursor z memory boundary c -> boundaryPC boundary = 5 ->
+  suspendedCalls cursor = [] /\ SourceState sourceProgram (sourcePosition 1 3) z memory boundary [] c.
+Proof.
+  intros [stack active] z memory boundary c [f [inner [Hf [Hactive [Hsusp [_ [_ ->]]]]]]] Hpc.
+  cbn [activePosition suspendedCalls] in *.
+  destruct active as [[index offset] | [index outer] offset prefix | function arguments].
+  - destruct Hactive as [[code Hstate] _]. destruct index as [ | [ | index]].
     + destruct Hstate as [_ [[Hbound _] [_ [_ Hpos]]]].
       change (offset <= 1)%nat in Hbound.
       destruct offset as [ | [ | offset]]; cbn in Hpos; lia.
     + pose proof (proj2 (source_position_pc _ _ _ _ _ _ Hstate)) as Hpos.
       assert (offset = 3)%nat by lia. subst offset.
       assert (code = []) by exact (Logic.eq_sym (proj2 (proj1 (proj2 Hstate)))).
-      subst code. exact Hstate.
+      subst code. cbn [activeFunction sourceFunction] in Hf. injection Hf as <-.
+      destruct stack as [ | top more].
+      * split; [reflexivity | exact Hstate].
+      * exfalso. destruct Hsusp as [g [x [_ [_ [_ [_ [_ [Hstraight _]]]]]]]].
+        inversion Hstraight as [ | ? ? _ Hrest]; subst. inversion Hrest as [ | ? ? [op Hop] _]; subst.
+        discriminate.
     + unfold SourceState in Hstate. destruct index; contradiction.
-  - destruct Hstate as [f [body [continuation [values [Hf [Hbody _]]]]]].
-    destruct index as [ | [ | index]]; try (destruct index; discriminate); injection Hf as <-.
+  - destruct Hactive as [f' [body [continuation [values [Hf' [Hbody _]]]]]].
+    destruct index as [ | [ | index]]; try (destruct index; discriminate); injection Hf' as <-.
     + destruct outer as [ | outer]; [discriminate | destruct outer; discriminate].
     + destruct outer as [ | [ | [ | outer]]]; try discriminate; destruct outer; discriminate.
+  - exfalso. destruct Hactive as [f' [Hf' [_ [_ [_ [_ [_ [_ [_ [_ [_ [_ [Hpos _]]]]]]]]]]]]].
+    destruct function as [ | [ | function]]; try (destruct function; discriminate);
+      injection Hf' as <-; cbn in Hpos; lia.
 Qed.
 
-(* The public theorem composes directly through its returned control state. *)
-Example source_program_two_runs : forall stale firstRows lastRows final depth,
+(* The public theorem composes directly through its returned control state. The
+   split may fall anywhere, including inside the call or its frame initialization. *)
+Example source_program_two_runs : forall stale firstRows lastRows final,
   fieldPrime -> validCircuitRun (sourceMemory stale) (firstRows ++ lastRows) final ->
-  callerFragment (mkBoundary 2 4 4 7) depth firstRows ->
-  callerFragment (rowsFinalBoundary (mkBoundary 2 4 4 7) firstRows) depth lastRows ->
+  runFragment (mkBoundary 2 4 4 7 0 0 0 0 0) 0 firstRows ->
+  runFragment (rowsFinalBoundary (mkBoundary 2 4 4 7 0 0 0 0 0) firstRows) 0 lastRows ->
   exists cursor z c, Steps (stackConfig sourceInitialState [] getCallAdd) c /\ programLoaded sourceProgram final /\
-    ControlState sourceProgram cursor z final
-      (rowsFinalBoundary (mkBoundary 2 4 4 7) (firstRows ++ lastRows)) c.
+    ControlState sourceProgram 0 cursor z final
+      (rowsFinalBoundary (mkBoundary 2 4 4 7 0 0 0 0 0) (firstRows ++ lastRows)) c.
 Proof.
-  intros stale firstRows lastRows final depth Hprime Hrun Hfirst Hlast.
+  intros stale firstRows lastRows final Hprime Hrun Hfirst Hlast.
   destruct (valid_run_split _ _ _ _ Hrun) as [between [Hrun1 Hrun2]].
-  destruct (run_refinement sourceProgram (atInstruction (sourcePosition 1 0)) firstRows sourceInitialState
-    (sourceMemory stale) between (mkBoundary 2 4 4 7) depth _ Hprime (source_program_loaded stale)
-    Hrun1 Hfirst ltac:(exists getCallAdd; exact (source_initial_matches stale)))
-    as [cursor1 [z1 [c1 [Hsteps1 [Hloaded1 Hsource1]]]]].
-  destruct (run_refinement sourceProgram cursor1 lastRows z1 between final
-    (rowsFinalBoundary (mkBoundary 2 4 4 7) firstRows) depth c1 Hprime Hloaded1 Hrun2 Hlast Hsource1)
-    as [cursor2 [z2 [c2 [Hsteps2 [Hloaded2 Hsource2]]]]].
+  destruct (run_refinement sourceProgram 0 _ firstRows _ (sourceMemory stale) between _ _ Hprime
+    (source_program_loaded stale) Hrun1 Hfirst (source_initial_control stale))
+    as [cursor1 [z1 [c1 [Hsteps1 [Hloaded1 Hstate1]]]]].
+  destruct (run_refinement sourceProgram 0 cursor1 lastRows z1 between final _ c1 Hprime Hloaded1 Hrun2 Hlast
+    Hstate1) as [cursor2 [z2 [c2 [Hsteps2 [Hloaded2 Hstate2]]]]].
   exists cursor2, z2, c2. split; [eapply spec_steps_transitive; eassumption | ].
-  split; [exact Hloaded2 | ]. rewrite TraceSegmentation.rows_final_boundary_app. exact Hsource2.
+  split; [exact Hloaded2 | ]. rewrite TraceSegmentation.rows_final_boundary_app. exact Hstate2.
 Qed.

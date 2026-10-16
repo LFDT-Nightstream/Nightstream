@@ -120,8 +120,8 @@ Example conditional_initial_state_exists : forall condition,
   0 <= condition < i32Modulus ->
   programLoaded conditionalProgram (conditionalMemory condition) /\
   SourceState conditionalProgram (sourcePosition 0 0) (conditionalState condition)
-    (conditionalMemory condition) (mkBoundary 0 5 4 7) conditionalCode
-    (stackConfig (conditionalState condition) [42] conditionalCode).
+    (conditionalMemory condition) (mkBoundary 0 4 4 7 0 0 0 0 0) conditionalCode
+    (stackConfig (conditionalState condition) [] conditionalCode).
 Proof.
   intros condition Hcondition. split; [apply load_program_loaded | ].
   split; [repeat split; reflexivity | ]. split; [split; [cbn; lia | reflexivity] | ]. split.
@@ -129,19 +129,17 @@ Proof.
     + constructor.
       * exact conditional_supported.
       * constructor; [constructor; [eexists; reflexivity | constructor] | constructor].
-    + exists conditionalContext, 2%nat. split; [apply conditional_module_validates | ].
-      change (Instrs_ok conditionalBodyContext conditionalCode (i32StackType (1 + 0) (1 + 1))).
-      unfold i32StackType. rewrite !repeat_app. apply Instrs_ok__frame;
-        [exact conditional_code_validates | repeat constructor | repeat constructor].
-  - split; [ | reflexivity]. exists [42]. split.
-    + unfold stackMatches. cbn. split; [lia | ]. split; [reflexivity | ]. split.
-      * constructor; [unfold i32Modulus; lia | constructor].
-      * intros [ | index] value H; [injection H as <-; reflexivity | destruct index; discriminate].
+    + exists conditionalContext. split; [apply conditional_module_validates | ].
+      change (Instrs_ok conditionalBodyContext conditionalCode (i32StackType 0 1)).
+      exact conditional_code_validates.
+  - split; [ | reflexivity]. exists []. split.
+    + unfold stackMatches. cbn. split; [lia | ]. split; [reflexivity | ]. split; [constructor | ].
+      intros [ | index] value H; discriminate.
     + split; [reflexivity | ]. split.
       * apply stack_config_wf.
         -- constructor; [repeat constructor | ]. constructor; [ | repeat constructor].
            constructor; [apply val_case_0; apply spectec_i32_well_formed; exact Hcondition | repeat constructor].
-        -- constructor; [unfold i32Modulus; lia | constructor].
+        -- constructor.
         -- repeat constructor.
       * intros [ | [ | index]] value H; cbn [conditionalState stateLocals LOCALS nth_error] in H.
         -- injection H as <-. exists condition. repeat split; try reflexivity; lia.
@@ -149,19 +147,23 @@ Proof.
         -- destruct index; discriminate.
 Qed.
 
-(* Raw rows may now stop inside the label, without a sourceEndpoint premise. *)
-Example conditional_program_refines : forall condition rows final depth,
+(* Raw rows may stop anywhere inside the function, including inside the label. *)
+Example conditional_program_refines : forall condition rows final,
   fieldPrime -> 0 <= condition < i32Modulus ->
   validCircuitRun (conditionalMemory condition) rows final ->
-  callerFragment (mkBoundary 0 5 4 7) depth rows ->
+  runFragment (mkBoundary 0 4 4 7 0 0 0 0 0) 0 rows ->
   exists cursor z c,
-    Steps (stackConfig (conditionalState condition) [42] conditionalCode) c /\
+    Steps (stackConfig (conditionalState condition) [] conditionalCode) c /\
     programLoaded conditionalProgram final /\
-    ControlState conditionalProgram cursor z final (rowsFinalBoundary (mkBoundary 0 5 4 7) rows) c.
+    ControlState conditionalProgram 0 cursor z final (rowsFinalBoundary (mkBoundary 0 4 4 7 0 0 0 0 0) rows) c.
 Proof.
-  intros condition rows final depth Hprime Hcondition Hrun Hfragment.
+  intros condition rows final Hprime Hcondition Hrun Hfragment.
   destruct (conditional_initial_state_exists condition Hcondition) as [Hloaded Hsource].
-  exact (run_refinement conditionalProgram (atInstruction (sourcePosition 0 0)) rows
-    (conditionalState condition) (conditionalMemory condition) final (mkBoundary 0 5 4 7)
-    depth _ Hprime Hloaded Hrun Hfragment ltac:(exists conditionalCode; exact Hsource)).
+  assert (Hidle : initializationIdle (mkBoundary 0 4 4 7 0 0 0 0 0)) by (repeat split).
+  exact (run_refinement conditionalProgram 0 (controlCursor [] (atInstruction (sourcePosition 0 0))) rows
+    (conditionalState condition) (conditionalMemory condition) final (mkBoundary 0 4 4 7 0 0 0 0 0) _
+    Hprime Hloaded Hrun Hfragment
+    (base_control_state conditionalProgram (atInstruction (sourcePosition 0 0)) (conditionalState condition)
+      (conditionalMemory condition) (mkBoundary 0 4 4 7 0 0 0 0 0) _
+      (conj (ex_intro _ conditionalCode Hsource) Hidle) ltac:(cbn; lia))).
 Qed.

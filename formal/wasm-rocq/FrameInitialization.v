@@ -84,27 +84,22 @@ Proof.
       apply Hzeros. lia.
 Qed.
 
-Lemma parameter_row_initializes_frame : forall initial final previous w arguments declaredLocals,
-  fieldPrime -> FullRelation.satFull previous -> FullRelation.satFull w ->
-  Follows MemoryCatalog.continuityLinks previous w -> w COL_PARAM_INIT_ACTIVE_BEFORE = 1 ->
+(* A parameter row copies one argument once the zero countdown has finished. *)
+Lemma parameter_row_after_zeroing : forall initial final w arguments declaredLocals,
+  fieldPrime -> FullRelation.satFull w -> w COL_PARAM_INIT_ACTIVE_BEFORE = 1 ->
+  w COL_LOCAL_ZERO_REMAINING_BEFORE = 0 ->
   Replay initial (eventsForRow MemoryCatalog.memories w) final ->
   InitializingFrame initial (beforeBoundary w) arguments declaredLocals
     (w COL_LOCAL_ZERO_REMAINING_BEFORE) (w COL_PARAM_INIT_REMAINING_BEFORE) ->
   InitializingFrame final (afterBoundary w) arguments declaredLocals
     (w COL_LOCAL_ZERO_REMAINING_AFTER) (w COL_PARAM_INIT_REMAINING_AFTER).
 Proof.
-  intros initial final previous w arguments declaredLocals Hprime Hprev Hfull Hlink Hparam Hreplay Hinv.
+  intros initial final w arguments declaredLocals Hprime Hfull Hparam HzeroBefore Hreplay Hinv.
   destruct Hinv as [Hzb Hpb Hphase Hsp Hargs Hparams Hzeros].
   destruct (full_parameter_initialization_row w Hprime Hfull Hparam) as [Hdec [Hindex _]].
   assert (Hzero : w COL_LOCAL_ZERO_ACTIVE_BEFORE = 0).
   { exact (full_row_kind_exclusive w COL_PARAM_INIT_ACTIVE_BEFORE COL_LOCAL_ZERO_ACTIVE_BEFORE
       Hprime Hfull ltac:(cbn; tauto) ltac:(cbn; tauto) ltac:(discriminate) Hparam). }
-  assert (HzeroBefore : w COL_LOCAL_ZERO_REMAINING_BEFORE = 0).
-  { destruct (full_initialization_flags previous Hprime Hprev) as [_ Hflag].
-    destruct (initialization_follows_counts previous w Hlink) as [Hcount [_ [_ Hactive]]].
-    rewrite Hactive, Hparam in Hflag.
-    destruct (previous COL_LOCAL_ZERO_REMAINING_AFTER =? 0) eqn:Hz; [ | discriminate].
-    apply Z.eqb_eq in Hz. lia. }
   pose proof (full_initialization_counter_carry w COL_PARAM_INIT_ACTIVE_BEFORE
     Hprime Hfull ltac:(right; reflexivity) Hparam) as [Hcarry _].
   specialize (Hcarry Hzero).
@@ -137,6 +132,25 @@ Proof.
   - intros index Hrange. rewrite Hwrite, Hfbp.
     rewrite update_other by (right; intro Heq; inversion Heq; lia).
     apply Hzeros. lia.
+Qed.
+
+Lemma parameter_row_initializes_frame : forall initial final previous w arguments declaredLocals,
+  fieldPrime -> FullRelation.satFull previous -> FullRelation.satFull w ->
+  Follows MemoryCatalog.continuityLinks previous w -> w COL_PARAM_INIT_ACTIVE_BEFORE = 1 ->
+  Replay initial (eventsForRow MemoryCatalog.memories w) final ->
+  InitializingFrame initial (beforeBoundary w) arguments declaredLocals
+    (w COL_LOCAL_ZERO_REMAINING_BEFORE) (w COL_PARAM_INIT_REMAINING_BEFORE) ->
+  InitializingFrame final (afterBoundary w) arguments declaredLocals
+    (w COL_LOCAL_ZERO_REMAINING_AFTER) (w COL_PARAM_INIT_REMAINING_AFTER).
+Proof.
+  intros initial final previous w arguments declaredLocals Hprime Hprev Hfull Hlink Hparam Hreplay Hinv.
+  apply (parameter_row_after_zeroing initial final w arguments declaredLocals Hprime Hfull Hparam);
+    [ | exact Hreplay | exact Hinv].
+  destruct (full_initialization_flags previous Hprime Hprev) as [_ Hflag].
+  destruct (initialization_follows_counts previous w Hlink) as [Hcount [_ [_ Hactive]]].
+  rewrite Hactive, Hparam in Hflag.
+  destruct (previous COL_LOCAL_ZERO_REMAINING_AFTER =? 0) eqn:Hz; [ | discriminate].
+  apply Z.eqb_eq in Hz. lia.
 Qed.
 
 Lemma initialized_frame_matches : forall memory boundary arguments locals s module,

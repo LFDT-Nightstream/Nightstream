@@ -61,7 +61,7 @@ Proof.
 Qed.
 
 Example get_call_add_initial : forall stale,
-  CallerState callerCallees callState (callerMemory stale) (mkBoundary 0 4 4 7) 0
+  CallerState callerCallees callState (callerMemory stale) (mkBoundary 0 4 4 7 0 0 0 0 0) 0
     getCallAdd (stackConfig callState [] getCallAdd).
 Proof.
   intros stale. constructor; [apply get_call_add_loaded | exact get_call_add_typed | | reflexivity].
@@ -111,7 +111,7 @@ Example get_call_add_refines : forall stale initialGet call middle endRow finalA
     (callerRows [instructionSegment initialGet; callSegment call middle endRow; instructionSegment finalAdd]) final ->
   initialGet COL_IS_PROGRAM_ROW = 1 -> call COL_IS_PROGRAM_ROW = 1 ->
   endRow COL_SEL_END = 1 -> Forall bodyRow middle -> finalAdd COL_IS_PROGRAM_ROW = 1 ->
-  beforeBoundary initialGet = mkBoundary 0 4 4 7 ->
+  beforeBoundary initialGet = mkBoundary 0 4 4 7 0 0 0 0 0 ->
   exists z c,
     Steps (stackConfig callState [] [LOCAL_GET (mk_uN 0); CALL (mk_uN 0); BINOP I32 (mk_binop__0 Inn_I32 ADD)]) c /\
     CallerState callerCallees z final (afterBoundary finalAdd) 3 [] c.
@@ -119,7 +119,7 @@ Proof.
   intros stale initialGet call middle endRow finalAdd final Hprime Hrun Hget Hcall Hend Hmiddle Hadd Hboundary.
   destruct (caller_run_refinement getCallAdd []
     [instructionSegment initialGet; callSegment call middle endRow; instructionSegment finalAdd]
-    callerCallees callState (callerMemory stale) final (mkBoundary 0 4 4 7) 0 _ Hprime Hrun
+    callerCallees callState (callerMemory stale) final (mkBoundary 0 4 4 7 0 0 0 0 0) 0 _ Hprime Hrun
     ltac:(constructor; [exact Hget | ]; constructor; [repeat split; assumption | ];
       constructor; [exact Hadd | constructor]) Hboundary (get_call_add_initial stale))
     as [z [c [Hsteps [Hfinal _]]]]. exists z, c. auto.
@@ -132,14 +132,14 @@ Example get_call_prefix_refines : forall stale initialGet call middle endRow fin
     (callerRows [instructionSegment initialGet; callSegment call middle endRow]) final ->
   initialGet COL_IS_PROGRAM_ROW = 1 -> call COL_IS_PROGRAM_ROW = 1 ->
   endRow COL_SEL_END = 1 -> Forall bodyRow middle ->
-  beforeBoundary initialGet = mkBoundary 0 4 4 7 ->
+  beforeBoundary initialGet = mkBoundary 0 4 4 7 0 0 0 0 0 ->
   exists z c, Steps (stackConfig callState [] getCallAdd) c /\
     CallerState callerCallees z final (afterBoundary endRow) 2 [BINOP I32 (mk_binop__0 Inn_I32 ADD)] c.
 Proof.
   intros stale initialGet call middle endRow final Hprime Hrun Hget Hcall Hend Hmiddle Hboundary.
   destruct (caller_run_refinement [LOCAL_GET (mk_uN 0); CALL (mk_uN 0)] [BINOP I32 (mk_binop__0 Inn_I32 ADD)]
     [instructionSegment initialGet; callSegment call middle endRow]
-    callerCallees callState (callerMemory stale) final (mkBoundary 0 4 4 7) 0 _ Hprime Hrun
+    callerCallees callState (callerMemory stale) final (mkBoundary 0 4 4 7 0 0 0 0 0) 0 _ Hprime Hrun
     ltac:(constructor; [exact Hget | ]; constructor; [repeat split; assumption | constructor])
     Hboundary (get_call_add_initial stale)) as [z [c [Hsteps [Hfinal _]]]].
   exists z, c. auto.
@@ -153,7 +153,7 @@ Example get_call_add_in_two_runs : forall stale initialGet call middle endRow fi
     (callerRows [instructionSegment initialGet; callSegment call middle endRow; instructionSegment finalAdd]) final ->
   initialGet COL_IS_PROGRAM_ROW = 1 -> call COL_IS_PROGRAM_ROW = 1 ->
   endRow COL_SEL_END = 1 -> Forall bodyRow middle -> finalAdd COL_IS_PROGRAM_ROW = 1 ->
-  beforeBoundary initialGet = mkBoundary 0 4 4 7 ->
+  beforeBoundary initialGet = mkBoundary 0 4 4 7 0 0 0 0 0 ->
   exists z c, Steps (stackConfig callState [] getCallAdd) c /\
     CallerState callerCallees z final (afterBoundary finalAdd) 3 [] c.
 Proof.

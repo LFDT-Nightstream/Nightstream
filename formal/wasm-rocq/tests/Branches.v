@@ -30,7 +30,7 @@ Definition branchMemory condition : MemoryState := fun memory address =>
 Example branch_initial_representation : forall condition,
   0 <= condition < i32Modulus ->
   blockBranchImage (branchMemory condition) 10 branchTail /\
-  blockBranchRepresents branchState (branchMemory condition) (mkBoundary 10 6 4 7)
+  blockBranchRepresents branchState (branchMemory condition) (mkBoundary 10 6 4 7 0 0 0 0 0)
     10 [42] branchTail branchContinuation BeforeBranch
     (blockBranchConfig branchState [42] condition branchTail branchContinuation).
 Proof.

@@ -72,6 +72,27 @@ Proof.
   rewrite app_nil_r, repeat_app. reflexivity.
 Qed.
 
+(* Func_ok types the body in exactly functionContext, from an empty stack to the results. *)
+Lemma funcinst_body_validated : forall s m ti p r l body,
+  Funcinst_ok s (i32Function m ti p r l body) (i32StackType p r) ->
+  exists C, Moduleinst_ok s m C /\
+    Instrs_ok (functionContext C (i32Function m ti p r l body)) body (i32StackType 0 r).
+Proof.
+  intros s m ti p r l body Hinst.
+  inversion Hinst; subst. match goal with H : Func_ok _ _ _ |- _ => inversion H; subst end.
+  assert (Ht : t_lst = repeat valtype_I32 l).
+  { change (map LOCAL t_lst = map LOCAL (repeat valtype_I32 l)) in H0.
+    apply (f_equal (map (fun x => match x with LOCAL t => t end))) in H0.
+    rewrite !map_map in H0. change (map (fun x : valtype => x) t_lst = map (fun x : valtype => x) (repeat valtype_I32 l)) in H0.
+    now rewrite !map_id in H0. }
+  subst t_lst.
+  match goal with H : Expr_ok _ _ _ |- _ => inversion H; subst end.
+  exists C. split; [assumption | ].
+  unfold functionContext, i32Function. cbn [funcinst_TYPE CODE]. rewrite map_map.
+  change (map (fun x : valtype => x) (repeat valtype_I32 l)) with (map id (repeat valtype_I32 l)).
+  rewrite map_id. assumption.
+Qed.
+
 Lemma extern_function_lookup : forall s a t,
   Externaddr_ok s a t ->
   match a with externaddr_FUNC address =>

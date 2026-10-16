@@ -77,7 +77,7 @@ Definition localArithmeticState : state :=
 Example local_arithmetic_initial_state :
   loadedProgram localArithmetic localArithmeticMemory /\
   represents localArithmeticState localArithmeticMemory
-    (mkBoundary 0 4 4 7) localArithmetic (stackConfig localArithmeticState [] localArithmetic).
+    (mkBoundary 0 4 4 7 0 0 0 0 0) localArithmetic (stackConfig localArithmeticState [] localArithmetic).
 Proof.
   split.
   - unfold loadedProgram. repeat split; intros pc;
@@ -158,7 +158,7 @@ Proof. reflexivity. Qed.
 Example local_arithmetic_prefix_refines : forall first second final,
   fieldPrime -> validCircuitRun localArithmeticMemory [first; second] final ->
   first COL_IS_PROGRAM_ROW = 1 -> second COL_IS_PROGRAM_ROW = 1 ->
-  beforeBoundary first = mkBoundary 0 4 4 7 ->
+  beforeBoundary first = mkBoundary 0 4 4 7 0 0 0 0 0 ->
   exists z c, Steps (stackConfig localArithmeticState [] localArithmetic) c /\
     programTyped (length (stateLocals z)) (stackHeight (afterBoundary second))
       [BINOP I32 (mk_binop__0 Inn_I32 SUB); LOCAL_SET (mk_uN 0); LOCAL_GET (mk_uN 0)] /\

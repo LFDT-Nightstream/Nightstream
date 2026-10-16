@@ -51,8 +51,8 @@ Example dirty_callee_is_a_valid_call_input : forall stale,
   loadedCall (reusedFrameMemory stale) 0 1 callState (mk_uN 0) 0%N callModule (mk_uN 0)
     0 1 1 readZeroBody 10 /\
   typedCall callState (mk_uN 0) callModule (mk_uN 0) 0 1 1 readZeroBody /\
-  stackMatches (reusedFrameMemory stale) (mkBoundary 0 5 4 7) [11] /\
-  localsMatch (reusedFrameMemory stale) (mkBoundary 0 5 4 7) callState /\
+  stackMatches (reusedFrameMemory stale) (mkBoundary 0 5 4 7 0 0 0 0 0) [11] /\
+  localsMatch (reusedFrameMemory stale) (mkBoundary 0 5 4 7 0 0 0 0 0) callState /\
   reusedFrameMemory stale localLoId [8; 0] = Some stale.
 Proof.
   intros stale. split.

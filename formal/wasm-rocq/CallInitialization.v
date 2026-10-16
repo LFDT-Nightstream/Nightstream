@@ -430,3 +430,48 @@ Proof.
   normalize_columns. rewrite Hone, Hperm in Hrow.
   pose proof (value_bound w COL_PC_FREF_ACTIVE). field_linear Hrow.
 Qed.
+
+(* A program row that is not a call starts no frame, so an idle countdown stays idle. *)
+Lemma program_row_keeps_idle : forall (w : Witness) chosen,
+  fieldPrime -> FullRelation.satFull w -> In chosen selectorColumns -> w chosen = 1 ->
+  ~ In chosen [COL_SEL_CALL; COL_SEL_CALL_INDIRECT; COL_SEL_RETURN_CALL; COL_SEL_RETURN_CALL_INDIRECT] ->
+  initializationIdle (beforeBoundary w) -> initializationIdle (afterBoundary w).
+Proof.
+  intros w chosen Hprime Hfull Hin Hchosen Hnotcall [Hz [Hp [Hza Hpa]]].
+  cbn [beforeBoundary boundaryZeroRemaining boundaryParamRemaining boundaryZeroActive boundaryParamActive] in *.
+  assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
+  assert (Hcalls : forall column, In column [COL_SEL_CALL; COL_SEL_CALL_INDIRECT; COL_SEL_RETURN_CALL;
+      COL_SEL_RETURN_CALL_INDIRECT] -> w column = 0).
+  { intros column Hcolumn. eapply full_opcode_selector_exclusive; [exact Hprime | exact Hfull | exact Hchosen |
+      exact Hin | vm_compute in Hcolumn |- *; tauto | intro Heq; subst column; contradiction]. }
+  pose proof (full_selected_is_program_row w chosen Hprime Hfull Hin Hchosen) as Hprogram.
+  assert (Hturn : w COL_TURN_BOUNDARY = 0).
+  { exact (full_row_kind_exclusive w COL_IS_PROGRAM_ROW COL_TURN_BOUNDARY Hprime Hfull
+      ltac:(cbn; tauto) ltac:(cbn; tauto) ltac:(discriminate) Hprogram). }
+  assert (Hguest : w COL_GUEST_ENTRY_ACTIVE = 0).
+  { circuit_row ([(COL_SEL_CALL, 1); (COL_SEL_CALL_INDIRECT, 1); (COL_SEL_RETURN_CALL, 1);
+      (COL_SEL_RETURN_CALL_INDIRECT, 1)], [(COL_TARGET_FUNCTION_IS_GUEST, 1)],
+      [(COL_GUEST_ENTRY_ACTIVE, 1)]) Hrow.
+    pose proof (Hcalls COL_SEL_CALL ltac:(cbn; tauto)) as Hc1.
+    pose proof (Hcalls COL_SEL_CALL_INDIRECT ltac:(cbn; tauto)) as Hc2.
+    pose proof (Hcalls COL_SEL_RETURN_CALL ltac:(cbn; tauto)) as Hc3.
+    pose proof (Hcalls COL_SEL_RETURN_CALL_INDIRECT ltac:(cbn; tauto)) as Hc4.
+    expand_row Hrow. rewrite Hc1, Hc2, Hc3, Hc4 in Hrow.
+    pose proof (value_bound w COL_GUEST_ENTRY_ACTIVE). field_linear Hrow. }
+  assert (HzAfter : w COL_LOCAL_ZERO_REMAINING_AFTER = 0).
+  { circuit_row ([(COL_ONE, 1); (COL_GUEST_ENTRY_ACTIVE, -1); (COL_TURN_BOUNDARY, -1);
+      (COL_LOCAL_ZERO_ACTIVE_BEFORE, -1)],
+      [(COL_LOCAL_ZERO_REMAINING_AFTER, 1); (COL_LOCAL_ZERO_REMAINING_BEFORE, -1)], ([] : SparseRow)) Hrow.
+    expand_row Hrow. normalize_columns. rewrite Hone, Hguest, Hturn, Hza, Hz in Hrow.
+    pose proof (value_bound w COL_LOCAL_ZERO_REMAINING_AFTER). field_linear Hrow. }
+  assert (HpAfter : w COL_PARAM_INIT_REMAINING_AFTER = 0).
+  { circuit_row ([(COL_ONE, 1); (COL_GUEST_ENTRY_ACTIVE, -1); (COL_PARAM_INIT_ACTIVE_BEFORE, -1);
+      (COL_TURN_BOUNDARY, -1)],
+      [(COL_PARAM_INIT_REMAINING_AFTER, 1); (COL_PARAM_INIT_REMAINING_BEFORE, -1)], ([] : SparseRow)) Hrow.
+    expand_row Hrow. normalize_columns. rewrite Hone, Hguest, Hturn, Hpa, Hp in Hrow.
+    pose proof (value_bound w COL_PARAM_INIT_REMAINING_AFTER). field_linear Hrow. }
+  destruct (full_initialization_flags w Hprime Hfull) as [HzFlag HpFlag].
+  rewrite HzAfter in HzFlag. rewrite HzAfter, HpAfter in HpFlag.
+  cbn [afterBoundary boundaryZeroRemaining boundaryParamRemaining boundaryZeroActive boundaryParamActive].
+  repeat split; assumption.
+Qed.

@@ -40,18 +40,34 @@ Definition loadedProgram (program : list instr) (memory : MemoryState) : Prop :=
   (forall pc, memory MemoryCatalog.programLocalIndexId [Z.of_nat pc] =
     programLocalIndexAt program pc).
 
+(* The continuity-linked registers a state between two rows depends on: the
+   active frame, the call depth, and the frame-initialization countdowns. *)
 Record Boundary := mkBoundary {
   boundaryPC : Z;
   boundarySP : Z;
   boundaryStackBase : Z;
-  boundaryLocalsBase : Z
+  boundaryLocalsBase : Z;
+  boundaryDepth : Z;
+  boundaryZeroRemaining : Z;
+  boundaryParamRemaining : Z;
+  boundaryZeroActive : Z;
+  boundaryParamActive : Z
 }.
 
 Definition beforeBoundary (w : Witness) : Boundary :=
-  mkBoundary (w COL_PC_BEFORE) (w COL_SP_BEFORE) (w COL_STACK_FRAME_BASE_BEFORE) (w COL_LOCALS_FBP_BEFORE).
+  mkBoundary (w COL_PC_BEFORE) (w COL_SP_BEFORE) (w COL_STACK_FRAME_BASE_BEFORE) (w COL_LOCALS_FBP_BEFORE)
+    (w COL_CALL_STACK_DEPTH_BEFORE) (w COL_LOCAL_ZERO_REMAINING_BEFORE) (w COL_PARAM_INIT_REMAINING_BEFORE)
+    (w COL_LOCAL_ZERO_ACTIVE_BEFORE) (w COL_PARAM_INIT_ACTIVE_BEFORE).
 
 Definition afterBoundary (w : Witness) : Boundary :=
-  mkBoundary (w COL_PC_AFTER) (w COL_SP_AFTER) (w COL_STACK_FRAME_BASE_AFTER) (w COL_LOCALS_FBP_AFTER).
+  mkBoundary (w COL_PC_AFTER) (w COL_SP_AFTER) (w COL_STACK_FRAME_BASE_AFTER) (w COL_LOCALS_FBP_AFTER)
+    (w COL_CALL_STACK_DEPTH_AFTER) (w COL_LOCAL_ZERO_REMAINING_AFTER) (w COL_PARAM_INIT_REMAINING_AFTER)
+    (w COL_LOCAL_ZERO_ACTIVE_AFTER) (w COL_PARAM_INIT_ACTIVE_AFTER).
+
+(* No frame initialization is pending at this boundary. *)
+Definition initializationIdle (boundary : Boundary) : Prop :=
+  boundaryZeroRemaining boundary = 0 /\ boundaryParamRemaining boundary = 0 /\
+  boundaryZeroActive boundary = 0 /\ boundaryParamActive boundary = 0.
 
 Fixpoint finalRow (first : Witness) (rest : list Witness) : Witness :=
   match rest with [] => first | next :: rest => finalRow next rest end.

@@ -3,7 +3,8 @@ From Stdlib Require Import List ZArith Lia.
 Require Import Wasm2 R1CS Columns Range FullRelation MemoryTrace MemoryCatalog OpcodeCatalog TraceRefinement
   StraightLineSpec StackSimulation SpecTecCalls SpecTecBranches CallerSpec CallerRefinement
   ProgramSpec ProgramEncoding ProgramValidation CodeLayout BlockSpec BlockValidation BlockBindings BlockEncoding
-  BlockInstructions BlockTrace BranchBindings BranchSpec BranchRefinement ControlSpec ControlState.
+  BlockInstructions BlockTrace BranchBindings BranchSpec BranchRefinement ControlSpec ControlState SourceInstructions
+  CallInitialization Selectors.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -11,12 +12,12 @@ Theorem block_control_row : forall program position offset prefix z initial fina
   fieldPrime -> programLoaded program initial -> FullRelation.satFull row ->
   Replay initial (eventsForRow memories row) final ->
   row COL_IS_PROGRAM_ROW = 1 -> row COL_CALL_STACK_POP_PRESENT = 0 -> row COL_HALTED = 0 ->
-  ControlState program (inBlock position offset prefix) z initial (beforeBoundary row) c0 ->
-  exists cursor z' c1, Steps c0 c1 /\ ControlState program cursor z' final (afterBoundary row) c1 /\
+  ActiveState program (inBlock position offset prefix) z initial (beforeBoundary row) c0 ->
+  exists cursor z' c1, Steps c0 c1 /\ ActiveState program cursor z' final (afterBoundary row) c1 /\
     row COL_CALL_STACK_DEPTH_AFTER = row COL_CALL_STACK_DEPTH_BEFORE.
 Proof.
   intros program position offset prefix z initial final row c0 Hprime Hloaded Hfull Hreplay Hprogram Hpop Hhalt
-    [f [body [continuation [values [Hf [Houter [Hcode [Hframe [Hvalid [Hsupport [Hbound [Htyped [Hbalanced [Hz [Hstack [Hlocals [Hpc ->]]]]]]]]]]]]]]]]].
+    [f [body [continuation [values [Hf [Houter [Hcode [Hframe [Hvalid [Hsupport [Hbound [Htyped [Hbalanced [Hz [Hstack [Hlocals [Hpc [Hidle ->]]]]]]]]]]]]]]]]]].
   pose proof (supported_branch_suffix body offset Hsupport) as HsupportRest.
   destruct (validated_code_module _ _ _ _ _ Hvalid) as [C HC].
   pose proof (block_rest_typed program f z _ _ Hframe HsupportRest Htyped) as Htyped'.
@@ -38,6 +39,8 @@ Proof.
     destruct (block_memory_preserved initial final row COL_SEL_END Hprime Hfull ltac:(right; reflexivity)
       Hchosen Hpop Hhalt Hreplay) as [HstackAfter HlocalsAfter].
     pose proof (full_block_context row COL_SEL_END Hprime Hfull ltac:(right; reflexivity) Hchosen Hpop Hhalt) as Hregs.
+    pose proof (program_row_keeps_idle row COL_SEL_END Hprime Hfull ltac:(vm_compute; tauto) Hchosen
+      ltac:(not_call_selector) Hidle) as HidleAfter.
     exists (atInstruction (advanceSource position 1)), z, (stackConfig z prefix continuation).
     split.
     + pose proof (steps_with_stack_prefix prefix _ _ (proj1 Hbounds)
@@ -69,6 +72,8 @@ Proof.
         as [choice [c1 [Hnot [Hsteps Hafter]]]].
       pose proof (proj1 (circuit_br_if_control _ _ _ _ _ _ Hprime Hfull Hreplay Hprogram eq_refl Himage')) as Hchosen.
       pose proof (br_if_depth_preserved row Hprime Hfull Hchosen) as Hdepth.
+      pose proof (program_row_keeps_idle row COL_SEL_BR_IF_EQZ Hprime Hfull ltac:(vm_compute; tauto) Hchosen
+        ltac:(not_call_selector) Hidle) as HidleAfter.
       destruct choice; [contradiction | | ].
       * destruct Hafter as [_ [_ [_ [HlocalsAfter [HpcAfter [HstackAfter ->]]]]]].
         exists (inBlock position (S offset) prefix), z,
@@ -88,6 +93,8 @@ Proof.
         cbn [beforeBoundary afterBoundary boundaryPC blockBranchPC] in *. lia.
     + pose proof (encoded_block_ordinary _ _ _ _ _ _ _ _ Hloaded Hf Houter Hi Hordinary) as Himage.
       cbn [beforeBoundary boundaryPC] in Hpc. rewrite <- Hpc in Himage.
+      pose proof (fetched_ordinary_keeps_idle _ _ _ _ Hprime Hfull Hprogram Hreplay (proj1 Himage) Hordinary Hidle)
+        as HidleAfter.
       destruct (branch_validation_heights _ _ _ Htyped HsupportRest) as [Hheights Hindices].
       specialize (Hheights 0%nat). rewrite !repeat_length in Hheights.
       cbn [Nat.add branchHeights] in Hheights. rewrite (branch_height_ordinary _ _ Hordinary) in Hheights.
@@ -125,11 +132,12 @@ Theorem block_enter_row : forall program position bt body continuation z initial
   Replay initial (eventsForRow memories row) final ->
   row COL_IS_PROGRAM_ROW = 1 -> row COL_CALL_STACK_POP_PRESENT = 0 -> row COL_HALTED = 0 ->
   SourceState program position z initial (beforeBoundary row) (BLOCK bt body :: continuation) c0 ->
+  initializationIdle (beforeBoundary row) ->
   exists prefix c1, Steps c0 c1 /\
-    ControlState program (inBlock position 0 prefix) z final (afterBoundary row) c1 /\
+    ActiveState program (inBlock position 0 prefix) z final (afterBoundary row) c1 /\
     row COL_CALL_STACK_DEPTH_AFTER = row COL_CALL_STACK_DEPTH_BEFORE.
 Proof.
-  intros program position bt body continuation z initial final row c0 Hprime Hloaded Hfull Hreplay Hprogram Hpop Hhalt Hsource.
+  intros program position bt body continuation z initial final row c0 Hprime Hloaded Hfull Hreplay Hprogram Hpop Hhalt Hsource Hidle.
   unfold SourceState in Hsource. destruct (functionAt program (sourceFunction position)) as [f | ] eqn:Hf; [ | contradiction].
   destruct Hsource as [Hframe [Hcode [Hvalid [Hrep Hpc]]]].
   pose proof (validated_code_facts _ _ _ _ _ Hframe (represented_state_wf _ _ _ _ _ Hrep) Hvalid) as Hfacts.
@@ -147,9 +155,11 @@ Proof.
   destruct (block_memory_preserved initial final row COL_SEL_BLOCK Hprime Hfull ltac:(left; reflexivity)
     Hchosen Hpop Hhalt Hreplay) as [HstackAfter HlocalsAfter].
   pose proof (full_block_context row COL_SEL_BLOCK Hprime Hfull ltac:(left; reflexivity) Hchosen Hpop Hhalt) as Hregs.
+  pose proof (program_row_keeps_idle row COL_SEL_BLOCK Hprime Hfull ltac:(vm_compute; tauto) Hchosen
+    ltac:(not_call_selector) Hidle) as HidleAfter.
   assert (Hcont : validatedCode program f z (length prefix) continuation).
   { eapply validated_code_remaining with (executed := [BLOCK (_RESULT None) body]); try eassumption.
-    repeat split; reflexivity. }
+    all: first [repeat split; reflexivity | cbn [sourceHeights sourceHeight]; now rewrite Hheight]. }
   assert (HcodeNext : codeAt f (S (sourceOffset position)) continuation).
   { replace (S (sourceOffset position)) with (sourceOffset position + length [BLOCK (_RESULT None) body])%nat by (cbn; lia).
     eapply code_at_advance; exact Hcode. }

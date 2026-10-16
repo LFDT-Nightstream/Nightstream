@@ -3,9 +3,16 @@
    Calls still complete as segments; nested labels/calls are not supported here. *)
 From Stdlib Require Import List ZArith.
 Require Import Wasm2 R1CS MemoryTrace StraightLineSpec StackSimulation SpecTecCalls SpecTecBranches
-  CallerSpec ProgramSpec CodeLayout BlockSpec.
+  CallerSpec ProgramSpec CodeLayout BlockSpec FunctionValidation.
 Import ListNotations.
 Open Scope Z_scope.
+
+(* The rest of a block body, typed as SpecTec's BLOCK rule types it: the active
+   function's context with the block's empty result label prepended. *)
+Definition validatedBlockRest (f : GuestFunction) (z : state) (height : nat) (code : list instr) : Prop :=
+  exists C, Moduleinst_ok (fun_store z) (guestModule f) C /\
+    Instrs_ok (labelContext [] (functionContext C (i32Function (guestModule f) (guestTypeIndex f)
+      (guestParams f) (guestResults f) (guestLocals f) (guestBody f)))) code (i32StackType height 0).
 
 Inductive ControlPosition :=
 | atInstruction (position : SourcePosition)
@@ -22,8 +29,7 @@ Definition ControlState (program : Program) (cursor : ControlPosition) (z : stat
       frameMatches program f z /\
       validatedCode program f z (length prefix) continuation /\
       supportedBranchBody body /\ (offset <= length body)%nat /\
-      Instrs_ok (blockTypingContext (length (stateLocals z))) (skipn offset body)
-        (i32StackType (length values) 0) /\
+      validatedBlockRest f z (length values) (skipn offset body) /\
       branchSitesBalanced (skipn offset body) (length values) /\ wf_state z /\
       stackMatches memory boundary (prefix ++ values) /\ localsMatch memory boundary z /\
       boundaryPC boundary = guestEntry f + Z.of_nat (codeOffset (guestBody f) (sourceOffset position))

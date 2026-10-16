@@ -146,11 +146,14 @@ Proof.
     (mkGuestFunction 0 computedModule (mk_uN 0) 0 1 2 computedCode 0) (computedState 7) 1 [LOCAL_GET (mk_uN 1)]).
   { eapply validated_code_remaining with (executed := [BLOCK (_RESULT None) computedBranches]); try eassumption.
     repeat split; reflexivity. }
+  destruct (validated_code_module _ _ _ _ _ Hcont) as [C HC].
   exists (mkGuestFunction 0 computedModule (mk_uN 0) 0 1 2 computedCode 0), computedBranches,
     [LOCAL_GET (mk_uN 1)], [4294967294].
   split; [reflexivity | ]. split; [reflexivity | ]. split; [split; [cbn; lia | reflexivity] | ].
   split; [exact Hframe | ]. split; [exact Hcont | ]. split; [exact computed_branches_supported | ].
-  split; [cbn; lia | ]. split; [exact remainder_after_sub_validates | ].
+  split; [cbn; lia | ]. split.
+  { eapply block_rest_validated; [exact Hframe | | exact HC | exact remainder_after_sub_validates].
+    apply supported_branch_suffix. exact computed_branches_supported. }
   split; [exact remainder_after_sub_balanced | ]. split; [exact Hz | ]. split.
   - unfold stackMatches. cbn. split; [lia | ]. split; [reflexivity | ]. split.
     + repeat constructor; unfold i32Modulus; lia.

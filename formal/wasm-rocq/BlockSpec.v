@@ -30,6 +30,8 @@ Fixpoint branchSitesBalanced (code : list instr) (height : nat) : Prop :=
 Definition supportedBlock (bt : blocktype) (body : list instr) : Prop :=
   bt = _RESULT None /\ supportedBranchBody body /\ branchSitesBalanced body 0%nat.
 
+(* Internal proof context. The specification states block validation in SpecTec's
+   own block context (ControlSpec.validatedBlockRest); ControlState transports it. *)
 Definition blockTypingContext (localCount : nat) : context :=
   MKcontext [] [] [] [] [] [] [] (repeat valtype_I32 localCount) [mk_list _ []] None.
 

@@ -13,6 +13,21 @@ Definition functionContext (C : context) (f : funcinst) : context :=
           [mk_list _ results] (Some (mk_list _ results))) C
   end.
 
+(* SpecTec's BLOCK rule types the body with the block's label prepended. *)
+Definition labelContext (results : list valtype) (C : context) : context :=
+  _append_context (MKcontext [] [] [] [] [] [] [] [] [mk_list _ results] None) C.
+
+Lemma label_context_locals : forall results C,
+  context_LOCALS (labelContext results C) = context_LOCALS C.
+Proof. reflexivity. Qed.
+
+Lemma label_context_label : forall results C,
+  nth_error (LABELS (labelContext results C)) 0 = Some (mk_list _ results).
+Proof. reflexivity. Qed.
+
+Lemma label_context_wf : forall results C, wf_context C -> wf_context (labelContext results C).
+Proof. intros results C H. inversion H; subst. constructor; assumption. Qed.
+
 Lemma module_context_locals : forall s m C,
   Moduleinst_ok s m C -> context_LOCALS C = [].
 Proof. intros s m C H; inversion H; reflexivity. Qed.

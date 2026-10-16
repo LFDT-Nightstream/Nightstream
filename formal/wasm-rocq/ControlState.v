@@ -1,7 +1,8 @@
 (* Preservation and well-formedness of the source/control representation. *)
 From Stdlib Require Import List ZArith Lia.
 Require Import Wasm2 R1CS MemoryTrace StraightLineSpec StackSimulation SpecTecCalls SpecTecBranches
-  CallerSpec CallerRefinement ProgramSpec ProgramValidation SourceValidation CodeLayout BlockSpec BlockValidation ControlSpec.
+  CallerSpec CallerRefinement ProgramSpec ProgramValidation SourceValidation CodeLayout BlockSpec BlockValidation
+  FunctionValidation ControlSpec.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -38,6 +39,43 @@ Lemma validated_instructions_wf : forall program f z height code,
   validatedCode program f z height code -> Forall wf_instr code.
 Proof. intros program f z height code [_ [_ [C [outputs [_ H]]]]]. eapply validated_code_wf; exact H. Qed.
 
+Lemma supported_branch_suffix : forall body offset,
+  supportedBranchBody body -> supportedBranchBody (skipn offset body).
+Proof.
+  intros body offset H. revert offset. induction H; intros [ | offset]; cbn; try constructor; auto.
+Qed.
+
+Lemma validated_code_module : forall program f z height code,
+  validatedCode program f z height code -> exists C, Moduleinst_ok (fun_store z) (guestModule f) C.
+Proof. intros program f z height code [_ [_ [C [_ [H _]]]]]. exists C. exact H. Qed.
+
+(* The row proofs type block bodies in blockTypingContext. It agrees with SpecTec's
+   block context on the locals and the innermost label, the only parts consulted
+   by a supported block body. *)
+Lemma block_rest_typed : forall program f z height code,
+  frameMatches program f z -> supportedBranchBody code -> validatedBlockRest f z height code ->
+  Instrs_ok (blockTypingContext (length (stateLocals z))) code (i32StackType height 0).
+Proof.
+  intros program f z height code [_ [_ Hcount]] Hsupport [C [Hmodule Hvalid]].
+  eapply branch_validation_context;
+    [exact Hvalid | exact Hsupport | apply label_context_label | repeat constructor | | reflexivity].
+  rewrite label_context_locals, (function_context_locals _ _ _ _ _ _ _ (module_context_locals _ _ _ Hmodule)),
+    Hcount. reflexivity.
+Qed.
+
+Lemma block_rest_validated : forall program f z height code C,
+  frameMatches program f z -> supportedBranchBody code -> Moduleinst_ok (fun_store z) (guestModule f) C ->
+  Instrs_ok (blockTypingContext (length (stateLocals z))) code (i32StackType height 0) ->
+  validatedBlockRest f z height code.
+Proof.
+  intros program f z height code C [_ [_ Hcount]] Hsupport Hmodule Htyped.
+  exists C. split; [exact Hmodule | ].
+  eapply branch_validation_context; [exact Htyped | exact Hsupport | reflexivity | | | apply label_context_label].
+  - apply label_context_wf. apply function_context_wf. exact (module_context_wf _ _ _ Hmodule).
+  - rewrite label_context_locals, (function_context_locals _ _ _ _ _ _ _ (module_context_locals _ _ _ Hmodule)),
+      Hcount. reflexivity.
+Qed.
+
 Lemma control_state_wf : forall program cursor z memory boundary c,
   ControlState program cursor z memory boundary c -> wf_config c.
 Proof.
@@ -45,7 +83,7 @@ Proof.
   - destruct H as [code H]. unfold SourceState in H.
     destruct (functionAt program (sourceFunction position)); [ | contradiction].
     eapply represents_wf. exact (proj1 (proj2 (proj2 (proj2 H)))).
-  - destruct H as [f [body [continuation [values [Hf [Hi [Hcode [Hframe [Hvalid [Hs [Hbound [Ht [Hb [Hz [Hstack [Hlocals [Hpc ->]]]]]]]]]]]]]]]]].
+  - destruct H as [f [body [continuation [values [Hf [Hi [Hcode [Hframe [Hvalid [Hs [Hbound [[C [_ Ht]] [Hb [Hz [Hstack [Hlocals [Hpc ->]]]]]]]]]]]]]]]]].
     pose proof (proj1 (proj2 (proj2 Hstack))) as Hvalues. apply Forall_app in Hvalues.
     apply stack_prefix_wf; [exact (proj1 Hvalues) | ].
     apply instruction_suffix_wf; [eapply validated_instructions_wf; exact Hvalid | ].

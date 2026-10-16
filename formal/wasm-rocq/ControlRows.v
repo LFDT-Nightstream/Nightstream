@@ -7,12 +7,6 @@ Require Import Wasm2 R1CS Columns Range FullRelation MemoryTrace MemoryCatalog O
 Import ListNotations.
 Open Scope Z_scope.
 
-Lemma supported_branch_suffix : forall body offset,
-  supportedBranchBody body -> supportedBranchBody (skipn offset body).
-Proof.
-  intros body offset H. revert offset. induction H; intros [ | offset]; cbn; try constructor; auto.
-Qed.
-
 Theorem block_control_row : forall program position offset prefix z initial final row c0,
   fieldPrime -> programLoaded program initial -> FullRelation.satFull row ->
   Replay initial (eventsForRow memories row) final ->
@@ -24,6 +18,9 @@ Proof.
   intros program position offset prefix z initial final row c0 Hprime Hloaded Hfull Hreplay Hprogram Hpop Hhalt
     [f [body [continuation [values [Hf [Houter [Hcode [Hframe [Hvalid [Hsupport [Hbound [Htyped [Hbalanced [Hz [Hstack [Hlocals [Hpc ->]]]]]]]]]]]]]]]]].
   pose proof (supported_branch_suffix body offset Hsupport) as HsupportRest.
+  destruct (validated_code_module _ _ _ _ _ Hvalid) as [C HC].
+  pose proof (block_rest_typed program f z _ _ Hframe HsupportRest Htyped) as Htyped'.
+  clear Htyped. rename Htyped' into Htyped.
   pose proof (validated_code_wf _ _ _ Htyped) as HwfRest.
   pose proof (validated_instructions_wf _ _ _ _ _ Hvalid) as HwfCont.
   pose proof (proj1 (proj2 (proj2 Hstack))) as Hbounds. apply Forall_app in Hbounds.
@@ -80,6 +77,7 @@ Proof.
         exists f, body, continuation, []. rewrite HrestNext. cbn [length].
         assert (Ht : Instrs_ok (blockTypingContext (length (stateLocals z))) rest (i32StackType 0 0))
           by (eapply branch_validation_tail; [exact Htyped | exact HsupportRest | reflexivity]).
+        pose proof (block_rest_validated program f z _ _ C Hframe (Forall_inv_tail HsupportRest) HC Ht) as HrestValid.
         rewrite app_nil_r. repeat first [assumption | reflexivity | split].
         cbn [beforeBoundary afterBoundary boundaryPC blockBranchPC] in *. lia.
       * destruct Hafter as [_ [_ [_ [HlocalsAfter [HpcAfter [HstackAfter ->]]]]]].
@@ -106,6 +104,8 @@ Proof.
       assert (Hvalid' : validatedCode program f z' (length prefix) continuation)
         by (eapply validated_code_preserved; eassumption).
       assert (Hframe' : frameMatches program f z') by (eapply frame_matches_preserved; eassumption).
+      destruct (validated_code_module _ _ _ _ _ Hvalid') as [C' HC'].
+      pose proof (block_rest_validated program f z' _ _ C' Hframe' (Forall_inv_tail HsupportRest) HC' Ht) as HrestValid.
       assert (Hv' : Forall (fun v => 0 <= v < WasmIntegers.i32Modulus) values').
       { pose proof (proj1 (proj2 (proj2 Hstack'))) as H. apply Forall_app in H; tauto. }
       pose proof (one_spec_step _ _ ltac:(apply stack_config_wf; [exact Hz | exact (proj2 Hbounds) | constructor; [exact (Forall_inv HwfRest) | constructor]])
@@ -153,6 +153,8 @@ Proof.
   assert (HcodeNext : codeAt f (S (sourceOffset position)) continuation).
   { replace (S (sourceOffset position)) with (sourceOffset position + length [BLOCK (_RESULT None) body])%nat by (cbn; lia).
     eapply code_at_advance; exact Hcode. }
+  destruct (validated_code_module _ _ _ _ _ Hvalid) as [C HC].
+  pose proof (block_rest_validated program f z 0 body C Hframe Hsupport HC Htyped) as HbodyValid.
   exists prefix, (stackPrefix prefix (instructionSuffix continuation (blockContext (stackConfig z [] body)))).
   split.
   - exact (steps_with_stack_prefix prefix _ _ (proj1 (proj2 (proj2 Hstack)))

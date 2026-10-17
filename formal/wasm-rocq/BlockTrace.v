@@ -2,7 +2,7 @@
 From Stdlib Require Import List ZArith Lia.
 Require Import R1CS Columns FullRelation Range Selectors CircuitFacts MemoryTrace MemoryCatalog OpcodeCatalog
   TraceRefinement Wasm2 StraightLineSpec StackSimulation LocalBindings ProgramBinding CallSpec CallBody CallContext
-  CallerRefinement ProgramSpec TraceSegmentation BlockSpec BranchBindings.
+  CallerRefinement ProgramSpec BlockSpec BranchBindings.
 Import ListNotations.
 Open Scope Z_scope.
 

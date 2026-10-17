@@ -57,11 +57,3 @@ Proof.
   - eapply chain_prefix; exact Hchain.
   - eapply chain_suffix; exact Hchain.
 Qed.
-
-Lemma replay_app : forall initial prefix middle suffix final,
-  Replay initial prefix middle -> Replay middle suffix final ->
-  Replay initial (prefix ++ suffix) final.
-Proof.
-  intros initial prefix middle suffix final Hprefix Hsuffix.
-  induction Hprefix; cbn; [exact Hsuffix | econstructor; eauto].
-Qed.

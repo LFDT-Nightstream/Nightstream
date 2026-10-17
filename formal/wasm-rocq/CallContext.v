@@ -251,14 +251,3 @@ Proof.
         pose proof (value_bound w COL_STACK_FRAME_BASE_AFTER); field_linear Hrow ]
     end.
 Qed.
-
-Lemma full_end_opcode : forall (w : Witness),
-  fieldPrime -> FullRelation.satFull w -> w COL_SEL_END = 1 ->
-  w COL_OPCODE_CODE = OpcodeCatalog.CODE_END.
-Proof.
-  intros w Hprime Hfull Hchosen.
-  assert (Hin : In COL_SEL_END selectorColumns) by (vm_compute; tauto).
-  assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
-  selected_circuit_row COL_SEL_END opcodeDecodeRow Hrow. rewrite Hone in Hrow.
-  pose proof (value_bound w COL_OPCODE_CODE). unfold OpcodeCatalog.CODE_END. field_linear Hrow.
-Qed.

@@ -41,14 +41,3 @@ Proof.
     split; [discriminate | ]. split; [exact Hsteps | ].
     unfold blockBranchRepresents. repeat first [assumption | reflexivity | split].
 Qed.
-
-Theorem block_branch_row_refinement : forall z initial final row pc prefix tail continuation c0,
-  fieldPrime -> FullRelation.satFull row -> row COL_IS_PROGRAM_ROW = 1 ->
-  Replay initial (eventsForRow memories row) final -> blockBranchImage initial pc tail ->
-  blockBranchRepresents z initial (beforeBoundary row) pc prefix tail continuation BeforeBranch c0 ->
-  exists position c1, position <> BeforeBranch /\ Steps c0 c1 /\
-    blockBranchRepresents z final (afterBoundary row) pc prefix tail continuation position c1.
-Proof.
-  intros z initial final row pc prefix tail continuation c0 Hprime Hfull Hprogram Hreplay [_ Himage] Hrep.
-  eapply block_branch_row_step; eassumption.
-Qed.

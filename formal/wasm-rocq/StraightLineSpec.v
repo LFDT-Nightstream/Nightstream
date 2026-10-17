@@ -1,5 +1,4 @@
-(* Shared i32 stack/local representation and call-free program predicates.
-   Straight-line runs assume initialized locals; call segments prove initialization. *)
+(* Shared i32 stack/local representation and call-free program predicates. *)
 From Stdlib Require Import List ZArith Bool.
 Require Import R1CS Columns MemoryTrace MemoryCatalog OpcodeCatalog Wasm2 WasmIntegers Locals.
 Import ListNotations.
@@ -16,29 +15,6 @@ Definition encodedOpcode (instruction : instr) : option Z :=
 
 Definition supportedStraightLineProgram (program : list instr) : Prop :=
   Forall (fun instruction => exists code, encodedOpcode instruction = Some code) program.
-
-Definition programOpcodeAt (program : list instr) (pc : nat) : option Z :=
-  match nth_error program pc with
-  | Some instruction => encodedOpcode instruction
-  | None => None
-  end.
-
-Definition programLocalIndexAt (program : list instr) (pc : nat) : option Z :=
-  match nth_error program pc with
-  | Some (LOCAL_GET x) | Some (LOCAL_SET x) => Some (Z.of_N (x :> N))
-  | _ => None
-  end.
-
-(* This fragment uses consecutive instruction addresses starting at zero.
-   Equality also fixes absent entries: no extra instructions may follow it. *)
-Definition loadedProgram (program : list instr) (memory : MemoryState) : Prop :=
-  (forall pc, memory MemoryCatalog.programOpcodeId [Z.of_nat pc] = programOpcodeAt program pc) /\
-  (forall pc, memory MemoryCatalog.pcEdgeKindId [Z.of_nat pc] =
-    if (pc <? length program)%nat then Some 0 else None) /\
-  (forall pc choice, memory MemoryCatalog.pcRomId [Z.of_nat pc; choice] =
-    if (pc <? length program)%nat && (choice =? 0) then Some (Z.of_nat (pc + 1)) else None) /\
-  (forall pc, memory MemoryCatalog.programLocalIndexId [Z.of_nat pc] =
-    programLocalIndexAt program pc).
 
 (* The continuity-linked registers a state between two rows depends on: the
    active frame, the call depth, and the frame-initialization countdowns. *)
@@ -68,9 +44,6 @@ Definition afterBoundary (w : Witness) : Boundary :=
 Definition initializationIdle (boundary : Boundary) : Prop :=
   boundaryZeroRemaining boundary = 0 /\ boundaryParamRemaining boundary = 0 /\
   boundaryZeroActive boundary = 0 /\ boundaryParamActive boundary = 0.
-
-Fixpoint finalRow (first : Witness) (rest : list Witness) : Witness :=
-  match rest with [] => first | next :: rest => finalRow next rest end.
 
 (* Values are ordered bottom-to-top. i32 uses the low limb at 2 * stack index. *)
 Definition stackMatches (memory : MemoryState) (boundary : Boundary)

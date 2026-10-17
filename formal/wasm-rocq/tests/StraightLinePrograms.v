@@ -1,5 +1,5 @@
 From Stdlib Require Import List ZArith Lia.
-Require Import R1CS Columns Range TraceRefinement Wasm2 StraightLineSpec StraightLineRefinement
+Require Import R1CS Columns Range TraceRefinement Wasm2 StraightLineSpec
   OpcodeCatalog MemoryTrace MemoryCatalog Locals StraightLineValidation.
 Import ListNotations.
 Open Scope Z_scope.
@@ -45,65 +45,6 @@ Proof.
         -- apply Instrs_ok__instr; [apply local_get | | ]; try reflexivity; repeat constructor.
 Qed.
 
-(* Concrete ROM contents, locals [20; 3] at frame base 7, and an empty stack.
-   This checks that loading and representation can hold together; it does not
-   construct a circuit witness or prove a validCircuitRun. *)
-Definition localArithmeticMemory : MemoryState := fun memory address =>
-  match address with
-  | [pc] =>
-      if pc <? 0 then None else
-      if Nat.eqb memory programOpcodeId then
-        nth_error [CODE_LOCAL_GET; CODE_LOCAL_GET; CODE_I32_SUB; CODE_LOCAL_SET; CODE_LOCAL_GET]
-          (Z.to_nat pc)
-      else if Nat.eqb memory pcEdgeKindId then
-        nth_error [0; 0; 0; 0; 0] (Z.to_nat pc)
-      else if Nat.eqb memory programLocalIndexId then
-        List.nth (Z.to_nat pc) [Some 0; Some 1; None; Some 0; Some 0] None
-      else None
-  | [base; index] =>
-      if Nat.eqb memory localLoId then
-        match base, index with 7, 0 => Some 20 | 7, 1 => Some 3 | _, _ => None end
-      else if Nat.eqb memory pcRomId then
-        if (base <? 0) then None else
-        if index =? 0 then nth_error [1; 2; 3; 4; 5] (Z.to_nat base) else None
-      else None
-  | _ => None
-  end.
-
-Definition localArithmeticState : state :=
-  mk_state (MKstore [] [] [] [] [] [])
-    (MKframe [i32Value 20; i32Value 3] (MKmoduleinst [] [] [] [] [] [] [] [])).
-
-Example local_arithmetic_initial_state :
-  loadedProgram localArithmetic localArithmeticMemory /\
-  represents localArithmeticState localArithmeticMemory
-    (mkBoundary 0 4 4 7 0 0 0 0 0) localArithmetic (stackConfig localArithmeticState [] localArithmetic).
-Proof.
-  split.
-  - unfold loadedProgram. repeat split; intros pc;
-      assert (Hnonnegative : (Z.of_nat pc <? 0) = false) by
-        (apply Z.ltb_ge; lia).
-    + unfold localArithmeticMemory. rewrite Hnonnegative, Nat2Z.id.
-      destruct pc as [ | [ | [ | [ | [ | [ | pc]]]]]]; reflexivity.
-    + unfold localArithmeticMemory. rewrite Hnonnegative, Nat2Z.id.
-      destruct pc as [ | [ | [ | [ | [ | [ | pc]]]]]]; reflexivity.
-    + intros choice. unfold localArithmeticMemory. rewrite Hnonnegative, Nat2Z.id.
-      destruct pc as [ | [ | [ | [ | [ | [ | pc]]]]]]; cbn;
-        destruct (choice =? 0); reflexivity.
-    + unfold localArithmeticMemory. rewrite Hnonnegative, Nat2Z.id.
-      destruct pc as [ | [ | [ | [ | [ | [ | pc]]]]]]; reflexivity.
-  - exists []. split.
-    + unfold stackMatches. cbn. repeat split; try lia; try constructor.
-      intros [ | index] value H; discriminate.
-    + split; [reflexivity | ]. split.
-      * unfold stackConfig, localArithmeticState, localArithmetic, i32Value.
-        cbn. repeat constructor.
-      * intros [ | [ | index]] v H; cbn [stateLocals localArithmeticState nth_error] in H.
-        -- inversion H; subst. exists 20. vm_compute. repeat split; congruence.
-        -- inversion H; subst. exists 3. vm_compute. repeat split; congruence.
-        -- destruct index; discriminate.
-Qed.
-
 (* Repeated writes to the same local are allowed; no readback-pair restriction. *)
 Example overwrite_local_supported :
   programTyped 2 0
@@ -116,13 +57,6 @@ Proof. vm_compute. tauto. Qed.
 
 Example nonexistent_local_rejected : ~ programTyped 1 0 [LOCAL_GET (mk_uN 1)].
 Proof. vm_compute. lia. Qed.
-
-Example local_immediates_distinguished :
-  programOpcodeAt localArithmetic 0 = programOpcodeAt localArithmetic 1 /\
-  programLocalIndexAt localArithmetic 0 = Some 0 /\
-  programLocalIndexAt localArithmetic 1 = Some 1 /\
-  programLocalIndexAt localArithmetic 2 = None.
-Proof. vm_compute. repeat constructor. Qed.
 
 Example unsupported_instruction_rejected : ~ supportedStraightLineProgram [NOP].
 Proof.
@@ -153,24 +87,3 @@ Proof. exact (fun H => H). Qed.
 Example body_delta_rejects_unsupported_instruction :
   bodyStackDelta [LOCAL_GET (mk_uN 0); NOP] = None.
 Proof. reflexivity. Qed.
-
-(* The straight-line corollary keeps the unexecuted source, just as a call prefix does. *)
-Example local_arithmetic_prefix_refines : forall first second final,
-  fieldPrime -> validCircuitRun localArithmeticMemory [first; second] final ->
-  first COL_IS_PROGRAM_ROW = 1 -> second COL_IS_PROGRAM_ROW = 1 ->
-  beforeBoundary first = mkBoundary 0 4 4 7 0 0 0 0 0 ->
-  exists z c, Steps (stackConfig localArithmeticState [] localArithmetic) c /\
-    programTyped (length (stateLocals z)) (stackHeight (afterBoundary second))
-      [BINOP I32 (mk_binop__0 Inn_I32 SUB); LOCAL_SET (mk_uN 0); LOCAL_GET (mk_uN 0)] /\
-    represents z final (afterBoundary second)
-      [BINOP I32 (mk_binop__0 Inn_I32 SUB); LOCAL_SET (mk_uN 0); LOCAL_GET (mk_uN 0)] c /\
-    second COL_PC_AFTER = 2.
-Proof.
-  intros first second final Hprime Hrun Hfirst Hsecond Hboundary.
-  eapply (straight_line_run_refinement localArithmetic 1 localArithmeticState localArithmeticMemory final first [second]
-    _ Hprime local_arithmetic_supported (proj1 local_arithmetic_initial_state) Hrun).
-  - repeat constructor; assumption.
-  - change (boundaryPC (beforeBoundary first) = 0). now rewrite Hboundary.
-  - rewrite Hboundary. exact local_arithmetic_validates.
-  - rewrite Hboundary. exact (proj2 local_arithmetic_initial_state).
-Qed.

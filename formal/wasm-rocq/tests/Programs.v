@@ -315,5 +315,5 @@ Proof.
   destruct (run_refinement sourceProgram sourceStore 0 shape1 lastRows between final _ c1 Hprime Hloaded1 Hrun2
     Hlast Hconfig1) as [shape2 [c2 [Hsteps2 [Hloaded2 Hconfig2]]]].
   exists shape2, c2. split; [eapply spec_steps_transitive; eassumption | ].
-  split; [exact Hloaded2 | ]. rewrite TraceSegmentation.rows_final_boundary_app. exact Hconfig2.
+  split; [exact Hloaded2 | ]. rewrite rows_final_boundary_app. exact Hconfig2.
 Qed.

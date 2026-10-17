@@ -67,59 +67,6 @@ Lemma represents_wf : forall z memory boundary code c,
   represents z memory boundary code c -> wf_config c.
 Proof. intros z memory boundary code c [values [_ [_ [Hwf _]]]]. exact Hwf. Qed.
 
-Lemma loaded_program_preserved : forall program before events after,
-  loadedProgram program before -> Replay before events after ->
-  (forall memory address,
-    readOnlyMemory memory MemoryCatalog.memories = true ->
-    Forall (NoWriteTo memory address) events) ->
-  loadedProgram program after.
-Proof.
-  intros program before events after [Hopcode [Hkind [Hpc Hlocal]]] Hreplay Hreadonly.
-  repeat split; intros.
-  - rewrite (replay_preserves _ _ _ _ _ Hreplay
-      (Hreadonly _ _ opcode_memory_read_only)). apply Hopcode.
-  - rewrite (replay_preserves _ _ _ _ _ Hreplay
-      (Hreadonly _ _ edge_kind_memory_read_only)). apply Hkind.
-  - rewrite (replay_preserves _ _ _ _ _ Hreplay
-      (Hreadonly _ _ pc_memory_read_only)). apply Hpc.
-  - rewrite (replay_preserves _ _ _ _ _ Hreplay
-      (Hreadonly _ _ local_index_memory_read_only)). apply Hlocal.
-Qed.
-
-Lemma program_row_fetch : forall program initial final (w : Witness) pc,
-  loadedProgram program initial ->
-  w COL_IS_PROGRAM_ROW = 1 -> w COL_PC_BEFORE = Z.of_nat pc ->
-  Replay initial (eventsForRow MemoryCatalog.memories w) final ->
-  exists instruction,
-    nth_error program pc = Some instruction /\
-    encodedOpcode instruction = Some (w COL_OPCODE_CODE).
-Proof.
-  intros program initial final w pc [Hopcode _] Hprogram Hpc Hreplay.
-  pose proof (circuit_row_opcode_fetch initial final w Hreplay Hprogram) as Hfetch.
-  rewrite Hpc, Hopcode in Hfetch. unfold programOpcodeAt in Hfetch.
-  destruct (nth_error program pc) as [instruction | ] eqn:Hlookup; [ | discriminate].
-  exists instruction. auto.
-Qed.
-
-Lemma program_row_next_pc : forall program initial final (w : Witness) pc,
-  Range.fieldPrime -> FullRelation.satFull w -> loadedProgram program initial ->
-  w COL_IS_PROGRAM_ROW = 1 -> w COL_PC_BEFORE = Z.of_nat pc ->
-  Replay initial (eventsForRow MemoryCatalog.memories w) final ->
-  w COL_PC_ROM_ACTIVE = 1 /\ w COL_CONTROL_CHOICE = 0 /\
-  w COL_PC_AFTER = Z.of_nat (pc + 1).
-Proof.
-  intros program initial final w pc Hprime Hfull [_ [Hkind [HpcRom _]]] Hprogram Hpc Hreplay.
-  pose proof (circuit_row_edge_kind_fetch initial final w Hreplay Hprogram) as HfetchKind.
-  rewrite Hpc, Hkind in HfetchKind.
-  destruct (pc <? length program)%nat eqn:Hinside; [ | discriminate].
-  assert (Hstatic : w COL_PC_EDGE_KIND = 0) by congruence.
-  pose proof (full_static_pc_rom_active w Hprime Hfull Hprogram Hstatic) as Hactive.
-  pose proof (circuit_row_next_pc_fetch initial final w Hreplay Hactive) as HfetchPc.
-  rewrite Hpc, HpcRom, Hinside in HfetchPc. cbn in HfetchPc.
-  destruct (w COL_CONTROL_CHOICE =? 0) eqn:Hchoice; [ | discriminate].
-  apply Z.eqb_eq in Hchoice. repeat split; congruence.
-Qed.
-
 Lemma stack_matches_binary_step : forall w initial final prefix a b,
   BinaryStackShape w ->
   Replay initial (eventsForRow MemoryCatalog.memories w) final ->

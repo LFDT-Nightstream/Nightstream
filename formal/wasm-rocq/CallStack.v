@@ -6,7 +6,7 @@ Require Import Wasm2 WasmIntegers R1CS Columns Range FullRelation MemoryTrace Me
   StraightLineSpec StackSimulation StraightLineInstructions SpecTecCalls CallerSpec CallerRefinement
   CallContext CallScope CallBody ProgramSpec ProgramEncoding ProgramValidation SourceInstructions
   SourceValidation CodeLayout ControlDecode ControlInvariant ControlState SpecTecBranches FrameInitialization Locals
-  CallEntry CallBindings CallMemory CallReturn LocalBindings CallInitialization FunctionValidation CallSpec
+  CallEntry CallBindings CallMemory CallReturn LocalBindings CallInitialization FunctionValidation CallSpec Fragment FragmentViews
   ProgramBinding Selectors CallerValidation OpcodeCatalog.
 Import ListNotations.
 Open Scope Z_scope.
@@ -315,7 +315,7 @@ Proof.
   pose proof (program_callee_validates program s (guestModule f) (x :> N) callee Hfunctions Hcallee) as Hinst.
   destruct (funcinst_body_validated _ _ _ _ _ _ _ Hinst) as [Cc [HCc HbodyTyped]].
   assert (HcalleeValid : validatedCode program callee zc 0 (guestBody callee)).
-  { split; [exact Hfunctions | ]. split; [apply straight_source_supported; exact Hstraight | ].
+  { split; [exact Hfunctions | ]. split; [apply source_code_supported_iff, straight_source_supported; exact Hstraight | ].
     exists Cc. split; [exact HCc | exact HbodyTyped]. }
   assert (HcalleeFrame : frameMatches program callee zc).
   { split; [exact (proj1 Hframe) | ]. split; [reflexivity | ].

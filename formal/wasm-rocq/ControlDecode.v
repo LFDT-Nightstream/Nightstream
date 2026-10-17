@@ -6,7 +6,7 @@
    and the supported fragment require of it. *)
 From Stdlib Require Import List ZArith Bool.
 Require Import Wasm2 WasmIntegers R1CS MemoryTrace MemoryCatalog StraightLineSpec SpecTecCalls SpecTecBranches
-  CallerSpec ProgramSpec CodeLayout BlockSpec FunctionValidation FrameInitialization Locals.
+  CallerSpec ProgramSpec CodeLayout BlockSpec FunctionValidation FrameInitialization Locals Fragment.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -117,7 +117,7 @@ Definition decodeActive (program : Program) (s : store) (memory : MemoryState) (
       let values := skipn prefixHeight stack in
       Some (stackPrefix (firstn prefixHeight stack)
           (instructionSuffix continuation (blockContext (stackConfig z values rest))),
-        validatedCode program f z prefixHeight continuation /\ supportedBranchBody body /\
+        validatedCode program f z prefixHeight continuation /\ supportedCode blockSite body /\
         validatedBlockRest f z (length values) rest /\ branchSitesBalanced rest (length values))
   | siteEntering function =>
       let? f := functionAt program function in
@@ -155,7 +155,7 @@ Fixpoint decodeCalls (program : Program) (s : store) (memory : MemoryState) (cal
       decodeCalls program s memory (sourceFunction site) callerBase callerFbp (depth - 1) rest
         (stackPrefix values (instructionSuffix continuation
           (callContext (activeFrame g locals) (N.of_nat (guestResults f)) c)))
-        (obligations /\ supportedStraightLineProgram (guestBody f) /\
+        (obligations /\ supportedCode calleeSite (guestBody f) /\
           validatedCode program g (mk_state s (activeFrame g locals))
             (length values + guestResults f) continuation)
   end.

@@ -3,7 +3,7 @@
 From Stdlib Require Import List ZArith Bool Lia.
 Require Import Wasm2 WasmIntegers R1CS MemoryTrace MemoryCatalog Add Locals StraightLineSpec StackSimulation
   SpecTecCalls SpecTecBranches CallerSpec ProgramSpec ProgramEncoding CodeLayout BlockSpec FrameInitialization
-  ControlDecode ControlInvariant ControlState.
+  ControlDecode ControlInvariant ControlState Fragment FragmentViews.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -277,7 +277,7 @@ Proof.
     split; [exact Hf | ]. split; [exact Hblock | ].
     split; [split; [pose proof (nth_bound _ _ _ _ Hblock); lia | reflexivity] | ].
     split; [apply active_frame_matches; assumption | ]. split; [rewrite Hprefix; exact Hcontinuation | ].
-    split; [exact Hsupport | ]. split; [assumption | ]. split; [exact Hrest | ]. split; [exact Hbalanced | ].
+    split; [apply branch_body_supported_iff; exact Hsupport | ]. split; [assumption | ]. split; [exact Hrest | ]. split; [exact Hbalanced | ].
     split; [exact Hz | ]. split; [rewrite firstn_skipn; apply stack_matches_read; auto | ].
     split; [exact Hat | ]. split; [unfold sourceAddress in *; assumption | ]. split; [exact H | reflexivity].
   - destruct (functionAt program function) as [f | ] eqn:Hf; [ | discriminate].
@@ -324,7 +324,7 @@ Proof.
     apply idle_check in Hidle. unfold sourceAddress. pass_check.
     rewrite Hvalues, Hread, firstn_app, skipn_app, Nat.sub_diag, firstn_all, skipn_all. cbn [firstn skipn app].
     rewrite app_nil_r. eexists. split; [reflexivity | ].
-    split; [exact Hvalid | split; [exact Hsupport | split; assumption]].
+    split; [exact Hvalid | split; [apply branch_body_supported_iff; exact Hsupport | split; assumption]].
   - destruct Hstate as [f [Hf [Hlen [Hbounds [Hz [Hframe [_ [Hvalid [_ [Hinit [Hflags [Hpending [Hpc ->]]]]]]]]]]]]].
     rewrite Hf. rewrite Hstore in Hz. subst z.
     apply flags_check in Hflags. pass_check.
@@ -374,7 +374,7 @@ Proof.
     split; [exact Hg | ]. split; [exact Hcall | ].
     split; [split; [pose proof (nth_bound _ _ _ _ Hcall); lia | reflexivity] | ].
     split; [unfold programCallees; rewrite Haddress; subst callee; exact Hf | ]. split; [reflexivity | ].
-    split; [exact Hstraight | ]. split; [apply active_frame_matches; assumption | ].
+    split; [apply straight_line_supported_iff; exact Hstraight | ]. split; [apply active_frame_matches; assumption | ].
     split; [pose proof (active_frame_wf _ _ _ _ _ Hfuncs Hwf Hg Hbounds) as Hz; inversion Hz; assumption | ].
     split; [exact Hvalid | ]. split; [exact Hvalues | ]. split; [assumption | ]. split; [lia | ].
     split; [exact Hcells | ]. split; [cbn; rewrite length_map, Hlen; unfold frameLocals in *; lia | ].
@@ -408,10 +408,10 @@ Proof.
     destruct (IH (sourceFunction (callPosition top)) g (callerBase top) (callerFbp top) (depth - 1)
       (stackPrefix (callerValues top) (instructionSuffix (callContinuation top)
         (callContext (callerFrame top) (N.of_nat (callResults top)) inner)))
-      (obligations /\ supportedStraightLineProgram (guestBody f) /\
+      (obligations /\ supportedCode calleeSite (guestBody f) /\
         validatedCode program g (mk_state s (callerFrame top)) (length (callerValues top) + callResults top)
           (callContinuation top)) Hg Hrest) as [result [Hdecode Hresult]].
-    { split; [exact Hobligations | split; [exact Hstraight | exact Hvalid]]. }
+    { split; [exact Hobligations | split; [apply straight_line_supported_iff; exact Hstraight | exact Hvalid]]. }
     exists result. split; [exact Hdecode | exact Hresult].
 Qed.
 

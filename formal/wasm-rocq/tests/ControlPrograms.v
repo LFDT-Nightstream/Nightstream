@@ -2,7 +2,7 @@ From Stdlib Require Import List ZArith Lia.
 From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range Add TraceRefinement MemoryTrace MemoryCatalog OpcodeCatalog Wasm2 WasmIntegers Locals
   StraightLineSpec StackSimulation SpecTecCalls CallerSpec CallerValidation FunctionValidation
-  BlockSpec BlockValidation SourceInstructions CodeLayout ProgramSpec ProgramEncoding ProgramRefinement ControlDecode ControlInvariant ControlState ControlBridge ProgramValidation SourceValidation tests.BlockValidation.
+  BlockSpec BlockValidation SourceInstructions CodeLayout ProgramSpec ProgramEncoding ProgramRefinement ControlDecode ControlInvariant ControlState ControlBridge Fragment FragmentViews ProgramValidation SourceValidation tests.BlockValidation.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -74,9 +74,10 @@ Proof.
   intros condition Hcondition. split; [apply load_program_loaded | ].
   split; [repeat split; reflexivity | ]. split; [split; [cbn; lia | reflexivity] | ]. split.
   - split; [constructor; [apply computed_function_validates | constructor] | ]. split.
-    + constructor.
-      * split; [reflexivity | ]. split; [exact computed_branches_supported | exact computed_branches_balanced].
-      * constructor; [constructor; [eexists; reflexivity | constructor] | constructor].
+    + (* block (computed branches); local.get 1 *)
+      constructor; [ | constructor; [constructor | constructor]].
+      apply supported_block; [ | exact computed_branches_balanced].
+      apply branch_body_supported_iff. exact computed_branches_supported.
     + exists computedContext. split; [apply computed_module_validates | ].
       change (Instrs_ok computedBodyContext computedCode (i32StackType 0 1)).
       exact computed_code_validates.

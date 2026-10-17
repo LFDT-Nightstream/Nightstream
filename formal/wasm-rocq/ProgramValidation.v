@@ -1,7 +1,7 @@
 (* Bind validation's CALL types to the same store entries used by ROM encoding. *)
 From Stdlib Require Import List ZArith Lia.
 Require Import Wasm2 StraightLineSpec SpecTecCalls CallSpec CallerSpec CallerRefinement
-  FunctionValidation CallerValidation ProgramSpec ProgramEncoding SourceInstructions SourceValidation.
+  FunctionValidation CallerValidation ProgramSpec ProgramEncoding SourceInstructions SourceValidation Fragment FragmentViews.
 Import ListNotations.
 
 Lemma state_function_store : forall z, store_FUNCS (fun_store z) = fun_funcinst z.
@@ -44,6 +44,7 @@ Lemma validated_code_facts : forall program f z height code,
   sourceFacts (programCallees program (guestModule f)) z height code.
 Proof.
   intros program f z height code [Hstore [_ Hlocals]] Hz [Hfunctions [Hsupport [C [Hmodule Hcode]]]].
+  apply source_code_supported_iff in Hsupport.
   assert (Htypes : calleeTypes (functionContext C (i32Function (guestModule f) (guestTypeIndex f)
     (guestParams f) (guestResults f) (guestLocals f) (guestBody f))) (programCallees program (guestModule f))).
   { apply (program_callee_types program (fun_store z) (guestModule f) C ltac:(rewrite state_function_store; exact Hstore) Hmodule). }
@@ -74,8 +75,10 @@ Lemma validated_code_remaining : forall program f z z' before after executed rem
 Proof.
   intros program f z z' before after executed remaining [Hstore _] [Hfunctions [_ Hlocals]]
     [Hvalid [Hsupport [C [Hmodule Hcode]]]] Hexecuted Hfacts.
+  apply source_code_supported_iff in Hsupport.
   unfold validatedCode. rewrite Hstore.
-  split; [exact Hvalid | ]. split; [apply Forall_app in Hsupport; exact (proj2 Hsupport) | ].
+  split; [exact Hvalid | ].
+  split; [apply source_code_supported_iff; apply Forall_app in Hsupport; exact (proj2 Hsupport) | ].
   assert (Htypes : calleeTypes (functionContext C (i32Function (guestModule f) (guestTypeIndex f)
     (guestParams f) (guestResults f) (guestLocals f) (guestBody f))) (programCallees program (guestModule f))).
   { apply (program_callee_types program (fun_store z) (guestModule f) C); [ | exact Hmodule].

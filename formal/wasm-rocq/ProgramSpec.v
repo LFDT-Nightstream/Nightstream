@@ -178,17 +178,5 @@ Definition callerRow (depth : Z) (row : Witness) : Prop :=
   (row COL_CALL_STACK_DEPTH_BEFORE = depth ->
     row COL_IS_PROGRAM_ROW = 1 /\ row COL_CALL_STACK_POP_PRESENT = 0 /\ row COL_HALTED = 0).
 
-Definition rowsStartAt (boundary : Boundary) (depth : Z) (rows : list Witness) : Prop :=
-  match rows with
-  | [] => True
-  | first :: _ => beforeBoundary first = boundary /\ first COL_CALL_STACK_DEPTH_BEFORE = depth
-  end.
-
 Fixpoint rowsFinalBoundary (boundary : Boundary) (rows : list Witness) : Boundary :=
   match rows with [] => boundary | row :: rest => rowsFinalBoundary (afterBoundary row) rest end.
-
-Fixpoint rowsFinalDepth (depth : Z) (rows : list Witness) : Z :=
-  match rows with [] => depth | row :: rest => rowsFinalDepth (row COL_CALL_STACK_DEPTH_AFTER) rest end.
-
-Definition callerFragment (boundary : Boundary) (depth : Z) (rows : list Witness) : Prop :=
-  rowsStartAt boundary depth rows /\ Forall (callerRow depth) rows /\ rowsFinalDepth depth rows = depth.

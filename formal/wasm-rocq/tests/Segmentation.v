@@ -1,6 +1,6 @@
 From Stdlib Require Import List ZArith Lia.
 Require Import R1CS Columns Range MemoryTrace TraceRefinement Wasm2 StraightLineSpec
-  CallerSpec ProgramSpec ControlDecode ControlInvariant ControlBridge ProgramRefinement TraceSegmentation tests.Programs tests.Callers.
+  CallerSpec ProgramSpec ControlDecode ControlInvariant ControlBridge ProgramRefinement tests.Programs tests.Callers.
 Import ListNotations.
 Open Scope Z_scope.
 

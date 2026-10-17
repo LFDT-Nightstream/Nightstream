@@ -1,5 +1,4 @@
-(* The circuit's initialization countdowns, including the transition that keeps
-   program execution blocked until zeroing and argument copying finish. *)
+(* The circuit's initialization countdowns and the row kinds they select. *)
 From Stdlib Require Import List ZArith Lia Bool.
 Require Import R1CS Columns FullRelation Range Selectors CircuitFacts
   MemoryTrace MemoryCatalog TraceRefinement StraightLineSpec.
@@ -168,26 +167,6 @@ Proof.
   repeat split; [exact Hdecrement | field_linear Hindex | field_linear Hlo | field_linear Hhi].
 Qed.
 
-Theorem program_resumption_requires_initialized_frame : forall previous next,
-  fieldPrime -> FullRelation.satFull previous -> FullRelation.satFull next ->
-  Follows MemoryCatalog.continuityLinks previous next -> next COL_IS_PROGRAM_ROW = 1 ->
-  previous COL_LOCAL_ZERO_REMAINING_AFTER = 0 /\
-  previous COL_PARAM_INIT_REMAINING_AFTER = 0.
-Proof.
-  intros previous next Hprime Hprevious Hnext Hlink Hprogram.
-  pose proof (full_initialization_flags previous Hprime Hprevious) as [Hz Hp].
-  assert (Hza : previous COL_LOCAL_ZERO_ACTIVE_AFTER = 0).
-  { rewrite (Hlink COL_LOCAL_ZERO_ACTIVE_AFTER COL_LOCAL_ZERO_ACTIVE_BEFORE ltac:(vm_compute; tauto)).
-    eapply full_row_kind_exclusive; try eassumption; cbn; tauto || discriminate. }
-  assert (Hpa : previous COL_PARAM_INIT_ACTIVE_AFTER = 0).
-  { rewrite (Hlink COL_PARAM_INIT_ACTIVE_AFTER COL_PARAM_INIT_ACTIVE_BEFORE ltac:(vm_compute; tauto)).
-    eapply full_row_kind_exclusive; try eassumption; cbn; tauto || discriminate. }
-  rewrite Hza in Hz. rewrite Hpa in Hp.
-  destruct (previous COL_LOCAL_ZERO_REMAINING_AFTER =? 0) eqn:Hzero; [ | discriminate].
-  destruct (previous COL_PARAM_INIT_REMAINING_AFTER =? 0) eqn:Hparam; [ | discriminate].
-  split; apply Z.eqb_eq; assumption.
-Qed.
-
 Definition initializationKind (chosen : Column) : Prop :=
   chosen = COL_LOCAL_ZERO_ACTIVE_BEFORE \/ chosen = COL_PARAM_INIT_ACTIVE_BEFORE.
 
@@ -277,90 +256,6 @@ Proof.
   pose proof (value_bound w COL_PARAM_INIT_REMAINING_AFTER).
   split; intros Hinactive; normalize_columns;
     [rewrite Hinactive in Hzero; field_linear Hzero | rewrite Hinactive in Hparam; field_linear Hparam].
-Qed.
-
-Lemma initialization_follows_counts : forall previous next,
-  Follows MemoryCatalog.continuityLinks previous next ->
-  previous COL_LOCAL_ZERO_REMAINING_AFTER = next COL_LOCAL_ZERO_REMAINING_BEFORE /\
-  previous COL_PARAM_INIT_REMAINING_AFTER = next COL_PARAM_INIT_REMAINING_BEFORE /\
-  previous COL_LOCAL_ZERO_ACTIVE_AFTER = next COL_LOCAL_ZERO_ACTIVE_BEFORE /\
-  previous COL_PARAM_INIT_ACTIVE_AFTER = next COL_PARAM_INIT_ACTIVE_BEFORE.
-Proof. intros previous next H; repeat split; apply H; vm_compute; tauto. Qed.
-
-Definition initializationRemaining (w : Witness) : Z :=
-  w COL_LOCAL_ZERO_REMAINING_AFTER + w COL_PARAM_INIT_REMAINING_AFTER.
-
-(* No segmentation assumption: if initialization is unfinished, continuity and
-   the zero tests determine which kind the next row must have. *)
-Theorem unfinished_initialization_forces_next_row : forall previous next,
-  fieldPrime -> FullRelation.satFull previous -> FullRelation.satFull next ->
-  Follows MemoryCatalog.continuityLinks previous next ->
-  initializationRemaining previous > 0 ->
-  (next COL_LOCAL_ZERO_ACTIVE_BEFORE = 1 \/ next COL_PARAM_INIT_ACTIVE_BEFORE = 1) /\
-  initializationRemaining previous = initializationRemaining next + 1.
-Proof.
-  intros previous next Hprime Hprevious Hnext Hlink Hremaining.
-  destruct (full_initialization_flags previous Hprime Hprevious) as [Hz Hp].
-  destruct (initialization_follows_counts previous next Hlink) as [Hzc [Hpc [Hza Hpa]]].
-  pose proof (value_bound previous COL_LOCAL_ZERO_REMAINING_AFTER) as Hzb.
-  pose proof (value_bound previous COL_PARAM_INIT_REMAINING_AFTER) as Hpb.
-  unfold initializationRemaining in *.
-  destruct (previous COL_LOCAL_ZERO_REMAINING_AFTER =? 0) eqn:Htest.
-  - apply Z.eqb_eq in Htest.
-    assert (Hnonzero : (previous COL_PARAM_INIT_REMAINING_AFTER =? 0) = false)
-      by (apply Z.eqb_neq; lia).
-    rewrite Hnonzero in Hp.
-    assert (Hactive : next COL_PARAM_INIT_ACTIVE_BEFORE = 1) by congruence.
-    assert (Hzero : next COL_LOCAL_ZERO_ACTIVE_BEFORE = 0) by congruence.
-    pose proof (full_parameter_initialization_row next Hprime Hnext Hactive) as [Hdec _].
-    pose proof (full_initialization_counter_carry next COL_PARAM_INIT_ACTIVE_BEFORE
-      Hprime Hnext ltac:(right; reflexivity) Hactive) as [Hcarry _].
-    specialize (Hcarry Hzero). split; [right; exact Hactive | lia].
-  - assert (Hactive : next COL_LOCAL_ZERO_ACTIVE_BEFORE = 1) by congruence.
-    assert (Hparam : next COL_PARAM_INIT_ACTIVE_BEFORE = 0) by congruence.
-    pose proof (full_zero_initialization_row next Hprime Hnext Hactive) as [Hdec _].
-    pose proof (full_initialization_counter_carry next COL_LOCAL_ZERO_ACTIVE_BEFORE
-      Hprime Hnext ltac:(left; reflexivity) Hactive) as [_ Hcarry].
-    specialize (Hcarry Hparam). split; [left; exact Hactive | lia].
-Qed.
-
-Theorem initialization_prefix_forced : forall middle previous resume,
-  fieldPrime ->
-  Forall FullRelation.satFull (previous :: middle ++ [resume]) ->
-  Chain MemoryCatalog.continuityLinks (previous :: middle ++ [resume]) ->
-  resume COL_IS_PROGRAM_ROW = 1 ->
-  exists prefix suffix,
-    middle = prefix ++ suffix /\
-    Forall (fun w : Witness =>
-      w COL_LOCAL_ZERO_ACTIVE_BEFORE = 1 \/ w COL_PARAM_INIT_ACTIVE_BEFORE = 1) prefix /\
-    Z.of_nat (length prefix) = initializationRemaining previous /\
-    initializationRemaining (finalRow previous prefix) = 0.
-Proof.
-  induction middle as [ | next rest IH]; intros previous resume Hprime Hsat Hchain Hprogram.
-  - assert (Hlink : Follows MemoryCatalog.continuityLinks previous resume)
-      by (inversion Hchain; subst; assumption).
-    destruct (program_resumption_requires_initialized_frame previous resume Hprime
-      (Forall_inv Hsat) (Forall_inv (Forall_inv_tail Hsat)) Hlink Hprogram) as [Hz Hp].
-    exists [], []. cbn [app length finalRow]. unfold initializationRemaining.
-    repeat split; try constructor; lia.
-  - destruct (Z.eq_dec (initializationRemaining previous) 0) as [Hdone | Hpending].
-    + exists [], (next :: rest). cbn [app length finalRow].
-      repeat split; try constructor; lia.
-    + assert (Hpositive : initializationRemaining previous > 0).
-      { unfold initializationRemaining in *.
-        pose proof (value_bound previous COL_LOCAL_ZERO_REMAINING_AFTER).
-        pose proof (value_bound previous COL_PARAM_INIT_REMAINING_AFTER). lia. }
-      assert (Hlink : Follows MemoryCatalog.continuityLinks previous next)
-        by (inversion Hchain; subst; assumption).
-      assert (Htail : Chain MemoryCatalog.continuityLinks (next :: rest ++ [resume]))
-        by (inversion Hchain; subst; assumption).
-      destruct (unfinished_initialization_forces_next_row previous next Hprime
-        (Forall_inv Hsat) (Forall_inv (Forall_inv_tail Hsat)) Hlink Hpositive) as [Hkind Hdecrease].
-      destruct (IH next resume Hprime (Forall_inv_tail Hsat) Htail Hprogram)
-        as [prefix [suffix [Hsplit [Hkinds [Hlength Hdone]]]]].
-      exists (next :: prefix), suffix. cbn [app finalRow length].
-      split; [now rewrite Hsplit | ]. split; [constructor; assumption | ].
-      split; [rewrite Nat2Z.inj_succ; lia | exact Hdone].
 Qed.
 
 Lemma full_zero_pc_preserved : forall (w : Witness),

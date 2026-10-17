@@ -47,7 +47,6 @@ CallBody.v
 CallContext.v
 CallScope.v
 CallReturn.v
-CallRefinement.v
 CallerSpec.v
 CallerRefinement.v
 CallerValidation.v
@@ -62,9 +61,7 @@ ControlState.v
 ControlRows.v
 CallStack.v
 ControlBridge.v
-TraceSegmentation.v
 ProgramRefinement.v
-StraightLineRefinement.v
 tests/StraightLinePrograms.v
 tests/Calls.v
 tests/Callers.v
@@ -75,3 +72,4 @@ tests/Branches.v
 tests/BlockPrograms.v
 tests/BlockValidation.v
 tests/ControlPrograms.v
+tests/Initialization.v

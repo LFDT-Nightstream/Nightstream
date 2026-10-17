@@ -149,6 +149,11 @@ Proof.
     exists cursor', z, c1. split; [reflexivity | split; assumption].
 Qed.
 
+Lemma rows_final_boundary_app : forall prefix suffix boundary,
+  rowsFinalBoundary boundary (prefix ++ suffix) =
+    rowsFinalBoundary (rowsFinalBoundary boundary prefix) suffix.
+Proof. induction prefix; intros; cbn; auto. Qed.
+
 (* Every row is consumed, over the relational invariant. *)
 Lemma control_run : forall program baseDepth cursor rows z initial final boundary c0,
   fieldPrime -> programLoaded program initial -> validCircuitRun initial rows final ->

@@ -225,7 +225,7 @@ Proof.
   destruct (run_refinement computedProgram computedStore 0 shape1 lastRows between final _ c1 Hprime Hloaded1 Hrun2
     Hlast Hconfig1) as [shape2 [c2 [Hsteps2 [Hloaded2 Hconfig2]]]].
   exists shape2, c2. split; [eapply spec_steps_transitive; eassumption | ].
-  split; [exact Hloaded2 | ]. rewrite TraceSegmentation.rows_final_boundary_app. exact Hconfig2.
+  split; [exact Hloaded2 | ]. rewrite rows_final_boundary_app. exact Hconfig2.
 Qed.
 
 Lemma computed_pc_four_is_inside : forall cursor z memory boundary c,
@@ -280,5 +280,5 @@ Proof.
   exists (length prefix), between, c1, shape2, c2.
   split; [exact (control_state_circuit _ _ _ _ _ _ _ _ Logic.eq_refl computed_store_wf Hstore Hstate1) | ].
   split; [exact Hsteps1 | ]. split; [exact Hsteps2 | ].
-  split; [exact Hloaded2 | ]. rewrite TraceSegmentation.rows_final_boundary_app. exact Hconfig2.
+  split; [exact Hloaded2 | ]. rewrite rows_final_boundary_app. exact Hconfig2.
 Qed.

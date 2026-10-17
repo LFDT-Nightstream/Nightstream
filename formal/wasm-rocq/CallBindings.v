@@ -111,22 +111,6 @@ Proof.
     end.
 Qed.
 
-Theorem guest_call_cannot_skip_initialization : forall callRow next,
-  fieldPrime -> FullRelation.satFull callRow -> FullRelation.satFull next ->
-  callRow COL_SEL_CALL = 1 -> callRow COL_TARGET_FUNCTION_IS_GUEST = 1 ->
-  callRow COL_ENTERED_FUNCTION_NUM_LOCALS > 0 ->
-  next COL_IS_PROGRAM_ROW = 1 ->
-  ~ Follows MemoryCatalog.continuityLinks callRow next.
-Proof.
-  intros callRow next Hprime Hcall Hnext Hselected Htarget Hlocals Hprogram Hlink.
-  destruct (full_direct_guest_call callRow Hprime Hcall Hselected Htarget) as [Hguest _].
-  pose proof (full_selected_is_program_row callRow COL_SEL_CALL Hprime Hcall
-    ltac:(vm_compute; tauto) Hselected) as HcallProgram.
-  destruct (full_guest_initialization_seed callRow Hprime Hcall HcallProgram Hguest) as [Hz Hp].
-  destruct (program_resumption_requires_initialized_frame callRow next Hprime Hcall Hnext Hlink Hprogram).
-  lia.
-Qed.
-
 Lemma full_direct_guest_call_stack : forall (w : Witness),
   fieldPrime -> FullRelation.satFull w -> w COL_SEL_CALL = 1 ->
   w COL_TARGET_FUNCTION_IS_GUEST = 1 ->

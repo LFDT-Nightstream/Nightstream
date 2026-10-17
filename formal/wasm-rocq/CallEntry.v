@@ -1,4 +1,4 @@
-(* Direct-call ROM bindings seed initialization; validity forces its complete prefix. *)
+(* Direct-call ROM bindings bound the callee entry and seed its frame initialization. *)
 From Stdlib Require Import List ZArith NArith Lia.
 Require Import R1CS Columns FullRelation Range Selectors CircuitFacts MemoryTrace MemoryCatalog
   TraceRefinement ProgramBinding StraightLineSpec StackSimulation CallInitialization
@@ -72,74 +72,4 @@ Proof.
     replace (2 * (w COL_STACK_FRAME_BASE_AFTER + Z.of_nat index)) with
       (2 * (w COL_STACK_FRAME_BASE_BEFORE + (Z.of_nat (length prefix) + Z.of_nat index))) by lia.
     exact Hcells.
-Qed.
-
-Theorem direct_call_initialization_refinement : forall initial final callRow middle resume
-    pc returnPC caller index address module typeIndex prefix arguments results locals body entry,
-  fieldPrime ->
-  validCircuitRun initial (callRow :: middle ++ [resume]) final ->
-  callRow COL_IS_PROGRAM_ROW = 1 -> resume COL_IS_PROGRAM_ROW = 1 ->
-  callRow COL_PC_BEFORE = pc ->
-  directCallImage initial pc returnPC caller index address module typeIndex
-    (length arguments) results locals body entry ->
-  (length arguments < 256)%nat -> (results < 256)%nat ->
-  stackMatches initial (beforeBoundary callRow) (prefix ++ arguments) ->
-  exists initialization suffix ready,
-    middle = initialization ++ suffix /\
-    length initialization = (length arguments + locals)%nat /\
-    Forall (fun w : Witness => w COL_LOCAL_ZERO_ACTIVE_BEFORE = 1 \/ w COL_PARAM_INIT_ACTIVE_BEFORE = 1) initialization /\
-    validCircuitRun initial (callRow :: initialization) ready /\
-    validCircuitRun ready (suffix ++ [resume]) final /\
-    stackMatches ready (afterBoundary (finalRow callRow initialization)) [] /\
-    localsMatch ready (afterBoundary (finalRow callRow initialization))
-      (match caller with mk_state s _ => mk_state s (enteredFrame module arguments locals) end) /\
-    (finalRow callRow initialization) COL_LOCAL_ZERO_REMAINING_AFTER = 0 /\
-    (finalRow callRow initialization) COL_PARAM_INIT_REMAINING_AFTER = 0.
-Proof.
-  intros initial final callRow middle resume pc returnPC caller index address module typeIndex
-    prefix arguments results locals body entry Hprime Hrun Hprogram Hresume Hpc Himage Hp Hr Hstack.
-  destruct (valid_run_head _ _ _ _ Hrun) as [afterCall [Hcall [Hreplay Htail]]].
-  destruct (direct_call_entry_bound _ _ _ _ _ _ _ _ _ _ arguments _ _ _ _
-    Hprime Hcall Hprogram Hpc Hreplay Himage Hp Hr) as [Hselected [Htarget [Hparams [Hz [Hparam Hentry]]]]].
-  pose proof (call_starts_frame_initialization _ _ _ prefix arguments locals Hprime Hcall
-    Hselected Htarget Hparams Hz Hparam Hreplay Hstack) as Hstart.
-  destruct Hrun as [Hsat [Hchain Htrace]].
-  destruct (initialization_prefix_forced middle callRow resume Hprime Hsat Hchain Hresume)
-    as [initialization [suffix [Hsplit [Hkinds [Hlength Hdone]]]]].
-  assert (HchainInit : Chain continuityLinks (callRow :: initialization)).
-  { rewrite Hsplit, <- app_assoc in Hchain.
-    eapply (chain_prefix _ (callRow :: initialization) (suffix ++ [resume])). exact Hchain. }
-  rewrite Hsplit, <- app_assoc in Htail.
-  destruct (valid_run_split initialization (suffix ++ [resume]) afterCall final Htail)
-    as [ready [Hinit Hsuffix]].
-  destruct Himage as [_ [_ [_ [_ [_ [_ [Htotal [_ Hreference]]]]]]]].
-  assert (HromRef : afterCall pcFunctionRefId [entry] = Some (Z.of_N address + 1)).
-  { rewrite (replay_preserves _ _ _ _ _ Hreplay); [exact Hreference | ].
-    apply read_only_row. vm_compute. reflexivity. }
-  assert (HromCount : afterCall functionLocalCountId [Z.of_N address + 1] =
-      Some (Z.of_nat (length arguments) + Z.of_nat locals)).
-  { rewrite (replay_preserves _ _ _ _ _ Hreplay); [rewrite <- Nat2Z.inj_add; exact Htotal | ].
-    apply read_only_row. vm_compute. reflexivity. }
-  pose proof (initialization_rows_preserve_invariant initialization callRow afterCall ready arguments
-    (Z.of_nat locals) entry (Z.of_N address + 1) Hprime Hcall Hinit HchainInit Hkinds
-    Hentry HromRef HromCount Hstart) as Hready.
-  assert (Hcounts : (finalRow callRow initialization) COL_LOCAL_ZERO_REMAINING_AFTER = 0 /\
-      (finalRow callRow initialization) COL_PARAM_INIT_REMAINING_AFTER = 0).
-  { unfold initializationRemaining in Hdone.
-    pose proof (value_bound (finalRow callRow initialization) COL_LOCAL_ZERO_REMAINING_AFTER).
-    pose proof (value_bound (finalRow callRow initialization) COL_PARAM_INIT_REMAINING_AFTER). lia. }
-  destruct Hcounts as [HzDone HpDone]. rewrite HzDone, HpDone in Hready.
-  destruct caller as [s frame].
-  assert (Hbase : 0 <= boundaryStackBase (afterBoundary (finalRow callRow initialization))).
-  { cbn. exact (proj1 (value_bound _ _)). }
-  assert (Hargs : Forall (fun value => 0 <= value < i32Modulus) arguments).
-  { destruct Hstack as [_ [_ [Hbounds _]]]. apply Forall_app in Hbounds. tauto. }
-  destruct (initialized_frame_matches ready _ arguments locals s module Hbase Hargs Hready)
-    as [Hempty Hlocals].
-  exists initialization, suffix, ready. split; [exact Hsplit | ]. split.
-  - unfold initializationRemaining in Hlength. rewrite Hz, Hparam in Hlength. lia.
-  - split; [exact Hkinds | ]. split.
-    + split; [constructor; [exact Hcall | exact (proj1 Hinit)] | ]. split; [exact HchainInit | ].
-      cbn [eventsForTrace flat_map]. eapply replay_app; [exact Hreplay | exact (proj2 (proj2 Hinit))].
-    + split; [exact Hsuffix | ]. split; [exact Hempty | ]. split; [exact Hlocals | ]. split; assumption.
 Qed.

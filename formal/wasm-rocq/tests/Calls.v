@@ -87,31 +87,3 @@ Proof.
   pose proof (proj2 (i32_validation_facts _ _ _ _ Hvalidated Hsupported)) as Harity.
   discriminate Harity.
 Qed.
-
-(* This conclusion comes from the exported circuit and replay, not an assumed
-   zero-filled initial frame. The pre-existing value of the callee cell is free. *)
-Example call_forces_zero_before_body : forall initial final callRow middle resume pc returnPC
-    caller index address module typeIndex prefix entry,
-  fieldPrime -> validCircuitRun initial (callRow :: middle ++ [resume]) final ->
-  callRow COL_IS_PROGRAM_ROW = 1 -> resume COL_IS_PROGRAM_ROW = 1 -> callRow COL_PC_BEFORE = pc ->
-  directCallImage initial pc returnPC caller index address module typeIndex 0 1 1 readZeroBody entry ->
-  stackMatches initial (beforeBoundary callRow) prefix ->
-  exists initialization suffix ready,
-    middle = initialization ++ suffix /\ length initialization = 1%nat /\
-    validCircuitRun initial (callRow :: initialization) ready /\
-    ready localLoId [(finalRow callRow initialization) COL_LOCALS_FBP_AFTER; 0] = Some 0.
-Proof.
-  intros initial final callRow middle resume pc returnPC caller index address module typeIndex prefix entry
-    Hprime Hrun Hcall Hresume Hpc Himage Hstack.
-  rewrite <- (app_nil_r prefix) in Hstack.
-  destruct (direct_call_initialization_refinement initial final callRow middle resume pc returnPC
-    caller index address module typeIndex prefix [] 1 1 readZeroBody entry Hprime Hrun Hcall Hresume
-    Hpc Himage ltac:(cbn; lia) ltac:(lia) Hstack)
-    as [initialization [suffix [ready [Hsplit [Hlength [Hkinds [Hinit [Hrest [Hempty [Hlocals Hdone]]]]]]]]]].
-  destruct caller as [s f].
-  destruct (Hlocals 0%nat (i32Value 0) eq_refl) as [value [Hvalue [Hbound Hcell]]].
-  assert (HvalueZero : value = 0).
-  { injection Hvalue as Hrepr. apply Z2N.inj; [lia | lia | symmetry; exact Hrepr]. }
-  subst value. exists initialization, suffix, ready.
-  split; [exact Hsplit | ]. split; [exact Hlength | ]. split; [exact Hinit | exact Hcell].
-Qed.

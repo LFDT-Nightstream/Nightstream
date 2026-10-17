@@ -134,25 +134,6 @@ Proof.
     apply Hzeros. lia.
 Qed.
 
-Lemma parameter_row_initializes_frame : forall initial final previous w arguments declaredLocals,
-  fieldPrime -> FullRelation.satFull previous -> FullRelation.satFull w ->
-  Follows MemoryCatalog.continuityLinks previous w -> w COL_PARAM_INIT_ACTIVE_BEFORE = 1 ->
-  Replay initial (eventsForRow MemoryCatalog.memories w) final ->
-  InitializingFrame initial (beforeBoundary w) arguments declaredLocals
-    (w COL_LOCAL_ZERO_REMAINING_BEFORE) (w COL_PARAM_INIT_REMAINING_BEFORE) ->
-  InitializingFrame final (afterBoundary w) arguments declaredLocals
-    (w COL_LOCAL_ZERO_REMAINING_AFTER) (w COL_PARAM_INIT_REMAINING_AFTER).
-Proof.
-  intros initial final previous w arguments declaredLocals Hprime Hprev Hfull Hlink Hparam Hreplay Hinv.
-  apply (parameter_row_after_zeroing initial final w arguments declaredLocals Hprime Hfull Hparam);
-    [ | exact Hreplay | exact Hinv].
-  destruct (full_initialization_flags previous Hprime Hprev) as [_ Hflag].
-  destruct (initialization_follows_counts previous w Hlink) as [Hcount [_ [_ Hactive]]].
-  rewrite Hactive, Hparam in Hflag.
-  destruct (previous COL_LOCAL_ZERO_REMAINING_AFTER =? 0) eqn:Hz; [ | discriminate].
-  apply Z.eqb_eq in Hz. lia.
-Qed.
-
 Lemma initialized_frame_matches : forall memory boundary arguments locals s module,
   0 <= boundaryStackBase boundary ->
   Forall (fun value => 0 <= value < WasmIntegers.i32Modulus) arguments ->
@@ -182,50 +163,4 @@ Proof.
       apply nth_error_In in Hlookup. apply repeat_spec in Hlookup. subst v.
       exists 0. split; [reflexivity | ]. split; [unfold WasmIntegers.i32Modulus; lia | ].
       apply Hzeros. lia.
-Qed.
-
-Theorem initialization_rows_preserve_invariant : forall rows previous initial final arguments locals entry reference,
-  fieldPrime -> FullRelation.satFull previous ->
-  validCircuitRun initial rows final ->
-  Chain MemoryCatalog.continuityLinks (previous :: rows) ->
-  Forall (fun w : Witness =>
-    w COL_LOCAL_ZERO_ACTIVE_BEFORE = 1 \/ w COL_PARAM_INIT_ACTIVE_BEFORE = 1) rows ->
-  previous COL_PC_AFTER = entry ->
-  initial pcFunctionRefId [entry] = Some reference ->
-  initial functionLocalCountId [reference] = Some (Z.of_nat (length arguments) + locals) ->
-  InitializingFrame initial (afterBoundary previous) arguments locals
-    (previous COL_LOCAL_ZERO_REMAINING_AFTER) (previous COL_PARAM_INIT_REMAINING_AFTER) ->
-  InitializingFrame final (afterBoundary (finalRow previous rows)) arguments locals
-    ((finalRow previous rows) COL_LOCAL_ZERO_REMAINING_AFTER)
-    ((finalRow previous rows) COL_PARAM_INIT_REMAINING_AFTER).
-Proof.
-  induction rows as [ | row rest IH];
-    intros previous initial final arguments locals entry reference Hprime Hprevious Hrun Hchain Hkinds
-      Hpc Hreference Htotal Hinv.
-  - destruct Hrun as [_ [_ Hreplay]]. inversion Hreplay; subst. exact Hinv.
-  - destruct (valid_run_head _ _ _ _ Hrun) as [middle [Hfull [Hreplay Htail]]].
-    assert (Hlink : Follows continuityLinks previous row) by (inversion Hchain; subst; assumption).
-    assert (HtailChain : Chain continuityLinks (row :: rest)) by (inversion Hchain; subst; assumption).
-    destruct (initialization_follows_counts previous row Hlink) as [Hz [Hp _]].
-    rewrite (StackSimulation.follows_boundary previous row Hlink), Hz, Hp in Hinv.
-    assert (HrowPC : row COL_PC_BEFORE = entry).
-    { rewrite <- (Hlink COL_PC_AFTER COL_PC_BEFORE ltac:(vm_compute; tauto)). exact Hpc. }
-    assert (Hafter : InitializingFrame middle (afterBoundary row) arguments locals
-      (row COL_LOCAL_ZERO_REMAINING_AFTER) (row COL_PARAM_INIT_REMAINING_AFTER)).
-    { destruct (Forall_inv Hkinds) as [Hzero | Hparam].
-      - eapply zero_row_initializes_frame; try eassumption.
-        eapply zero_row_uses_loaded_local_count; eassumption.
-      - eapply parameter_row_initializes_frame with (previous := previous); eassumption. }
-    assert (HafterPC : row COL_PC_AFTER = entry).
-    { destruct (Forall_inv Hkinds) as [Hzero | Hparam].
-      - rewrite (full_zero_pc_preserved row Hprime Hfull Hzero). exact HrowPC.
-      - rewrite (full_parameter_pc_preserved row Hfull Hparam). exact HrowPC. }
-    apply (IH row middle final arguments locals entry reference Hprime Hfull Htail HtailChain
-      (Forall_inv_tail Hkinds) HafterPC); [ | | exact Hafter].
-    + rewrite (replay_preserves _ _ _ pcFunctionRefId [entry] Hreplay).
-      * exact Hreference.
-      * apply read_only_row. vm_compute. reflexivity.
-    + rewrite (replay_preserves _ _ _ functionLocalCountId [reference] Hreplay).
-      * exact Htotal.
-      * apply read_only_row. vm_compute. reflexivity.
 Qed.

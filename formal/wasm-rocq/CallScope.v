@@ -15,19 +15,6 @@ Record FrameEffect (base fbp : Z) (initial final : MemoryState) : Prop := {
     final memory address = initial memory address
 }.
 
-Lemma frame_effect_refl : forall base fbp memory, FrameEffect base fbp memory memory.
-Proof. intros; constructor; reflexivity. Qed.
-
-Lemma frame_effect_trans : forall base fbp initial middle final,
-  FrameEffect base fbp initial middle -> FrameEffect base fbp middle final ->
-  FrameEffect base fbp initial final.
-Proof.
-  intros base fbp initial middle final [Hs Hl Hc] [Hs' Hl' Hc']; constructor; intros.
-  - rewrite Hs', Hs by assumption. reflexivity.
-  - rewrite Hl', Hl by assumption. reflexivity.
-  - rewrite (Hc' _ column), (Hc _ column) by assumption. reflexivity.
-Qed.
-
 Lemma body_row_other_memories : forall initial final w chosen,
   fieldPrime -> FullRelation.satFull w -> straightLineSelector chosen -> w chosen = 1 ->
   Replay initial (eventsForRow memories w) final ->
@@ -179,125 +166,6 @@ Proof.
     eapply local_set_row_frame_effect; eassumption.
 Qed.
 
-Lemma final_row_follows : forall first rows last,
-  Chain continuityLinks (first :: rows ++ [last]) ->
-  Follows continuityLinks (finalRow first rows) last.
-Proof.
-  intros first rows. revert first. induction rows; intros first last Hchain; cbn in *.
-  - inversion Hchain; subst; assumption.
-  - apply IHrows. inversion Hchain; subst; assumption.
-Qed.
-
-Lemma initialization_rows_scope : forall rows previous initial final,
-  fieldPrime -> validCircuitRun initial rows final -> Chain continuityLinks (previous :: rows) ->
-  Forall (fun w : Witness => w COL_LOCAL_ZERO_ACTIVE_BEFORE = 1 \/ w COL_PARAM_INIT_ACTIVE_BEFORE = 1) rows ->
-  FrameEffect (previous COL_STACK_FRAME_BASE_AFTER) (previous COL_LOCALS_FBP_AFTER) initial final /\
-  (finalRow previous rows) COL_CALL_STACK_DEPTH_AFTER = previous COL_CALL_STACK_DEPTH_AFTER /\
-  (finalRow previous rows) COL_STACK_FRAME_BASE_AFTER = previous COL_STACK_FRAME_BASE_AFTER /\
-  (finalRow previous rows) COL_LOCALS_FBP_AFTER = previous COL_LOCALS_FBP_AFTER /\
-  (finalRow previous rows) COL_PC_AFTER = previous COL_PC_AFTER.
-Proof.
-  induction rows as [ | row rows IH]; intros previous initial final Hprime Hrun Hchain Hkinds.
-  - destruct Hrun as [_ [_ Hreplay]]. inversion Hreplay; subst.
-    split; [apply frame_effect_refl | repeat split; reflexivity].
-  - destruct (valid_run_head _ _ _ _ Hrun) as [middle [Hfull [Hreplay Htail]]].
-    assert (Hlink : Follows continuityLinks previous row) by (inversion Hchain; subst; assumption).
-    assert (HtailChain : Chain continuityLinks (row :: rows)) by (inversion Hchain; subst; assumption).
-    assert (Hrow : FrameEffect (row COL_STACK_FRAME_BASE_BEFORE) (row COL_LOCALS_FBP_BEFORE) initial middle /\
-      row COL_CALL_STACK_DEPTH_AFTER = row COL_CALL_STACK_DEPTH_BEFORE /\
-      row COL_STACK_FRAME_BASE_AFTER = row COL_STACK_FRAME_BASE_BEFORE /\
-      row COL_LOCALS_FBP_AFTER = row COL_LOCALS_FBP_BEFORE /\ row COL_PC_AFTER = row COL_PC_BEFORE).
-    { destruct (Forall_inv Hkinds) as [Hzero | Hparam].
-      - destruct (full_initialization_preserves_frame row COL_LOCAL_ZERO_ACTIVE_BEFORE
-          Hprime Hfull ltac:(left; reflexivity) Hzero) as [Hf [Hb Hd]].
-        split; [eapply initialization_frame_effect; [exact Hprime | exact Hfull | left; reflexivity | exact Hzero | exact Hreplay] | ].
-        repeat split; try assumption. apply full_zero_pc_preserved; assumption.
-      - destruct (full_initialization_preserves_frame row COL_PARAM_INIT_ACTIVE_BEFORE
-          Hprime Hfull ltac:(right; reflexivity) Hparam) as [Hf [Hb Hd]].
-        split; [eapply initialization_frame_effect; [exact Hprime | exact Hfull | right; reflexivity | exact Hparam | exact Hreplay] | ].
-        repeat split; try assumption. apply full_parameter_pc_preserved; assumption. }
-    destruct Hrow as [Heffect [Hd [Hb [Hf Hp]]]].
-    destruct (IH row middle final Hprime Htail HtailChain (Forall_inv_tail Hkinds))
-      as [Hrest [Hd' [Hb' [Hf' Hp']]]].
-    pose proof (Hlink COL_CALL_STACK_DEPTH_AFTER COL_CALL_STACK_DEPTH_BEFORE ltac:(vm_compute; tauto)) as Hdl.
-    pose proof (Hlink COL_STACK_FRAME_BASE_AFTER COL_STACK_FRAME_BASE_BEFORE ltac:(vm_compute; tauto)) as Hbl.
-    pose proof (Hlink COL_LOCALS_FBP_AFTER COL_LOCALS_FBP_BEFORE ltac:(vm_compute; tauto)) as Hfl.
-    pose proof (Hlink COL_PC_AFTER COL_PC_BEFORE ltac:(vm_compute; tauto)) as Hpl.
-    split.
-    + rewrite Hbl, Hfl. rewrite Hb, Hf in Hrest. eapply frame_effect_trans; eassumption.
-    + cbn [finalRow]. repeat split; lia.
-Qed.
-
-Definition bodyRow (w : Witness) : Prop :=
-  (exists chosen, straightLineSelector chosen /\ w chosen = 1) \/
-  w COL_LOCAL_ZERO_ACTIVE_BEFORE = 1 \/ w COL_PARAM_INIT_ACTIVE_BEFORE = 1.
-
-Lemma completed_initialization_forces_body_opcode : forall previous row,
-  fieldPrime -> FullRelation.satFull previous ->
-  Follows continuityLinks previous row ->
-  previous COL_LOCAL_ZERO_REMAINING_AFTER = 0 ->
-  previous COL_PARAM_INIT_REMAINING_AFTER = 0 -> bodyRow row ->
-  exists chosen, straightLineSelector chosen /\ row chosen = 1.
-Proof.
-  intros previous row Hprime Hprevious Hlink Hz Hp Hkind.
-  destruct (full_initialization_flags previous Hprime Hprevious) as [HzFlag HpFlag].
-  rewrite Hz in HzFlag. rewrite Hz, Hp in HpFlag.
-  destruct (initialization_follows_counts previous row Hlink) as [_ [_ [HzLink HpLink]]].
-  cbn in HzFlag, HpFlag. destruct Hkind as [Hbody | [Hzero | Hparam]]; [exact Hbody | congruence | congruence].
-Qed.
-
-Lemma full_body_initialization_done : forall (w : Witness) chosen,
-  fieldPrime -> FullRelation.satFull w -> straightLineSelector chosen -> w chosen = 1 ->
-  w COL_LOCAL_ZERO_REMAINING_BEFORE = 0 -> w COL_PARAM_INIT_REMAINING_BEFORE = 0 ->
-  w COL_LOCAL_ZERO_REMAINING_AFTER = 0 /\ w COL_PARAM_INIT_REMAINING_AFTER = 0.
-Proof.
-  intros w chosen Hprime Hfull Hchoice Hchosen Hz Hp.
-  pose proof (straight_line_selector_in chosen Hchoice) as Hin.
-  pose proof (full_selected_is_program_row w chosen Hprime Hfull Hin Hchosen) as Hprogram.
-  assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
-  destruct (full_opcode_aux_gates_zero w chosen Hprime Hfull Hin Hchosen) as [Hparam [Hzero _]].
-  assert (Hturn : w COL_TURN_BOUNDARY = 0).
-  { exact (full_row_kind_exclusive w COL_IS_PROGRAM_ROW COL_TURN_BOUNDARY Hprime Hfull
-      ltac:(cbn; tauto) ltac:(cbn; tauto) ltac:(discriminate) Hprogram). }
-  assert (Hguest : w COL_GUEST_ENTRY_ACTIVE = 0).
-  { destruct Hchoice as [<- | [<- | [<- | [<- | []]]]];
-      match goal with Hchosen : value w ?chosen = 1 |- _ =>
-        selected_row chosen guestEntryFlagRow Hrow;
-        pose proof (value_bound w COL_GUEST_ENTRY_ACTIVE); field_linear Hrow end. }
-  split.
-  - circuit_row ([(COL_ONE, 1); (COL_GUEST_ENTRY_ACTIVE, -1); (COL_TURN_BOUNDARY, -1);
-      (COL_LOCAL_ZERO_ACTIVE_BEFORE, -1)],
-      [(COL_LOCAL_ZERO_REMAINING_AFTER, 1); (COL_LOCAL_ZERO_REMAINING_BEFORE, -1)], ([] : SparseRow)) Hrow.
-    expand_row Hrow. normalize_columns. rewrite Hone, Hguest, Hturn, Hzero, Hz in Hrow.
-    pose proof (value_bound w COL_LOCAL_ZERO_REMAINING_AFTER). field_linear Hrow.
-  - circuit_row ([(COL_ONE, 1); (COL_GUEST_ENTRY_ACTIVE, -1); (COL_PARAM_INIT_ACTIVE_BEFORE, -1);
-      (COL_TURN_BOUNDARY, -1)],
-      [(COL_PARAM_INIT_REMAINING_AFTER, 1); (COL_PARAM_INIT_REMAINING_BEFORE, -1)], ([] : SparseRow)) Hrow.
-    expand_row Hrow. normalize_columns. rewrite Hone, Hguest, Hturn, Hparam, Hp in Hrow.
-    pose proof (value_bound w COL_PARAM_INIT_REMAINING_AFTER). field_linear Hrow.
-Qed.
-
-Lemma body_rows_initialized : forall rows previous initial final,
-  fieldPrime -> FullRelation.satFull previous -> validCircuitRun initial rows final ->
-  Chain continuityLinks (previous :: rows) ->
-  previous COL_LOCAL_ZERO_REMAINING_AFTER = 0 -> previous COL_PARAM_INIT_REMAINING_AFTER = 0 ->
-  Forall bodyRow rows ->
-  Forall (fun w : Witness => exists chosen, straightLineSelector chosen /\ w chosen = 1) rows.
-Proof.
-  induction rows as [ | row rows IH]; intros previous initial final Hprime Hprevious Hrun Hchain Hz Hp Hkinds;
-    [constructor | ].
-  destruct (valid_run_head _ _ _ _ Hrun) as [middle [Hfull [Hreplay Htail]]].
-  assert (Hlink : Follows continuityLinks previous row) by (inversion Hchain; subst; assumption).
-  assert (HtailChain : Chain continuityLinks (row :: rows)) by (inversion Hchain; subst; assumption).
-  destruct (completed_initialization_forces_body_opcode previous row Hprime Hprevious Hlink Hz Hp
-    (Forall_inv Hkinds)) as [chosen [Hchoice Hselected]].
-  constructor; [exists chosen; auto | ].
-  destruct (initialization_follows_counts previous row Hlink) as [HzLink [HpLink _]].
-  destruct (full_body_initialization_done row chosen Hprime Hfull Hchoice Hselected
-    ltac:(lia) ltac:(lia)) as [HzAfter HpAfter].
-  eapply IH; eassumption || exact (Forall_inv_tail Hkinds).
-Qed.
-
 Lemma frame_row_stack_delta : forall instruction rest z initial row c0,
   fieldPrime -> FullRelation.satFull row -> row COL_IS_PROGRAM_ROW = 1 ->
   encodedOpcode instruction = Some (row COL_OPCODE_CODE) ->
@@ -335,19 +203,4 @@ Proof.
     assert (Hheight : (1 <= length values)%nat) by (destruct (length values); [contradiction | lia]).
     pose proof (full_local_set_stack_shape row Hprime Hfull Hchosen ltac:(lia)) as Hshape.
     pose proof (local_stack_pointer_after row true Hshape). cbn [instructionStackDelta] in *; f_equal; lia.
-Qed.
-
-Lemma chain_after_prefix : forall prefix first suffix,
-  Chain continuityLinks (first :: prefix ++ suffix) ->
-  Chain continuityLinks (finalRow first prefix :: suffix).
-Proof.
-  induction prefix as [ | row rows IH]; intros first suffix Hchain; [exact Hchain | ].
-  apply IH. inversion Hchain; subst; assumption.
-Qed.
-
-Lemma final_row_satisfies : forall rows first (P : Witness -> Prop),
-  Forall P (first :: rows) -> P (finalRow first rows).
-Proof.
-  induction rows; intros first P H; [exact (Forall_inv H) | ].
-  cbn [finalRow]. eapply IHrows. exact (Forall_inv_tail H).
 Qed.

@@ -3,15 +3,16 @@
 From Stdlib Require Import List ZArith Lia.
 Require Import R1CS Columns FullRelation Range MemoryTrace MemoryCatalog OpcodeCatalog TraceRefinement Wasm2
   StraightLineSpec StackSimulation SpecTecCalls CallerSpec CallerRefinement ProgramSpec ProgramEncoding
-  SourceInstructions CodeLayout BlockSpec ControlDecode ControlInvariant ControlState ControlRows CallStack ControlBridge CallContext
+  SourceInstructions CodeLayout BlockSpec ControlDecode ControlInvariant ControlState ControlRows CallStack ControlBridge CallContext Fragment
   ProgramBinding Selectors.
 Import ListNotations.
 Open Scope Z_scope.
 
-Lemma source_instruction_cases : forall callees i, supportedSourceInstruction callees i ->
+Lemma source_instruction_cases : forall callees i, Supported (functionSite callees) i ->
   (exists bt body, i = BLOCK bt body) \/ (exists x, i = CALL x) \/ (exists op, encodedOpcode i = Some op).
 Proof.
-  intros callees i H. destruct i; try (right; right; exact (Forall_inv H)); [left; eauto | right; left; eauto].
+  intros callees i H. inversion H; subst;
+    first [right; right; eexists; reflexivity | solve [right; left; eauto] | solve [left; eauto]].
 Qed.
 
 Lemma straight_lookup : forall body offset i,

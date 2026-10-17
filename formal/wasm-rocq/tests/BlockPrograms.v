@@ -2,7 +2,7 @@ From Stdlib Require Import List ZArith Lia.
 From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range Add TraceRefinement MemoryTrace MemoryCatalog OpcodeCatalog Wasm2 WasmIntegers Locals
   StraightLineSpec StackSimulation SpecTecCalls CallerSpec CallerValidation FunctionValidation
-  BlockSpec BlockValidation SourceInstructions CodeLayout ProgramSpec ProgramEncoding ProgramRefinement ControlDecode ControlInvariant ControlBridge.
+  BlockSpec BlockValidation SourceInstructions CodeLayout ProgramSpec ProgramEncoding ProgramRefinement ControlDecode ControlInvariant ControlBridge Fragment.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -127,9 +127,9 @@ Proof.
   intros condition Hcondition. split; [apply load_program_loaded | ].
   split; [repeat split; reflexivity | ]. split; [split; [cbn; lia | reflexivity] | ]. split.
   - split; [constructor; [apply conditional_function_validates | constructor] | ]. split.
-    + constructor.
-      * exact conditional_supported.
-      * constructor; [constructor; [eexists; reflexivity | constructor] | constructor].
+    + (* block (local.get 0; br_if 0; local.get 0; local.set 1); local.get 1 *)
+      constructor; [ | constructor; [constructor | constructor]].
+      apply supported_block; [repeat constructor | repeat split; reflexivity].
     + exists conditionalContext. split; [apply conditional_module_validates | ].
       change (Instrs_ok conditionalBodyContext conditionalCode (i32StackType 0 1)).
       exact conditional_code_validates.

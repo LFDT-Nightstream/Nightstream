@@ -2,7 +2,7 @@
    This encoder covers i32 guest functions without imports. Blocks occupy
    flattened instruction addresses; each function also has one trailing END. *)
 From Stdlib Require Import List ZArith Bool.
-Require Import R1CS Columns Wasm2 MemoryTrace MemoryCatalog OpcodeCatalog StraightLineSpec CallerSpec FunctionValidation SpecTecCalls CodeLayout SourceInstructions.
+Require Import R1CS Columns Wasm2 MemoryTrace MemoryCatalog OpcodeCatalog StraightLineSpec CallerSpec FunctionValidation SpecTecCalls CodeLayout SourceInstructions Fragment.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -147,11 +147,11 @@ Definition frameMatches (program : Program) (f : GuestFunction) (z : state) : Pr
 
 (* Validation uses SpecTec's instantiated functions and the active function's
    module context. The remaining code ends with the function's declared results.
-   Support only restricts the circuit fragment we can simulate. *)
+   Support (Fragment) only restricts the circuit fragment we can simulate. *)
 Definition validatedCode (program : Program) (f : GuestFunction) (z : state)
     (height : nat) (code : list instr) : Prop :=
   Forall (fun fi => Funcinst_ok (fun_store z) fi (funcinst_TYPE fi)) program /\
-  supportedSourceCode (programCallees program (guestModule f)) code /\
+  supportedCode (functionSite (programCallees program (guestModule f))) code /\
   exists C,
     Moduleinst_ok (fun_store z) (guestModule f) C /\
     Instrs_ok (functionContext C (i32Function (guestModule f) (guestTypeIndex f)

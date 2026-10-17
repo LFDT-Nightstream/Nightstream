@@ -2,7 +2,7 @@ From Stdlib Require Import List ZArith Lia.
 From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range MemoryTrace MemoryCatalog OpcodeCatalog TraceRefinement
   Wasm2 WasmIntegers Locals SpecTecCalls StackSimulation StraightLineSpec CallSpec CallerSpec CallerRefinement
-  ProgramSpec ControlDecode ControlInvariant ControlBridge ProgramEncoding ProgramRefinement ProgramValidation FunctionValidation CallerValidation SourceInstructions SourceValidation CodeLayout tests.Calls tests.Callers.
+  ProgramSpec ControlDecode ControlInvariant ControlBridge ProgramEncoding ProgramRefinement ProgramValidation FunctionValidation CallerValidation SourceInstructions SourceValidation CodeLayout Fragment tests.Calls tests.Callers.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -119,13 +119,10 @@ Proof.
       apply Instrs_ok__instr; [apply local_get | | ]; try reflexivity; repeat constructor.
     + constructor; [apply source_function_validates; [repeat constructor | exact source_body_validates] | constructor].
   - split.
-    + constructor.
-      * constructor; [eexists; reflexivity | constructor].
-      * constructor.
-        -- constructor; [ | constructor].
-           exists (mkGuestFunction 0%N callModule (mk_uN 0) 0 1 1 readZeroBody 0).
-           split; [reflexivity | ]. split; [repeat constructor; eexists; reflexivity | split; cbn; lia].
-        -- constructor; [constructor; [eexists; reflexivity | constructor] | constructor].
+    + (* local.get 0; call 0 (to readZero); i32.add *)
+      constructor; [constructor | constructor; [ | constructor; [constructor | constructor]]].
+      apply supported_call with (f := mkGuestFunction 0%N callModule (mk_uN 0) 0 1 1 readZeroBody 0);
+        [reflexivity | repeat constructor | cbn; lia | cbn; lia].
     + exists sourceModuleContext. split; [exact source_module_validates | exact source_body_validates].
 Qed.
 

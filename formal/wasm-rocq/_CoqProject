@@ -26,6 +26,8 @@ BlockInstructions.v
 BlockValidation.v
 CodeLayout.v
 SourceInstructions.v
+Fragment.v
+FragmentViews.v
 SourceValidation.v
 LocalBindings.v
 CallMemory.v
@@ -73,3 +75,4 @@ tests/BlockPrograms.v
 tests/BlockValidation.v
 tests/ControlPrograms.v
 tests/Initialization.v
+tests/Fragment.v

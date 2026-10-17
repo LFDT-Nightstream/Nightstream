@@ -5,8 +5,9 @@
 zero-result blocks containing those arithmetic/local instructions and `br_if 0`.
 Conditions may be computed, with multiple branches per block; branch sites must
 have only the condition above the label's protected stack prefix (no unwinding).
-Parameters, results, locals and stack values are i32. The theorem takes plain
-rows, refines them one at a time, and relates circuit and SpecTec states through
+`Fragment.v` lists the supported instructions, one constructor each with its
+restrictions. Parameters, results, locals and stack values are i32. The theorem
+takes plain rows, refines them one at a time, and relates circuit and SpecTec states through
 `CircuitConfig` (`ControlDecode.v`): a decoder reads the configuration from memory
 at a static control shape, and each frame's code must pass SpecTec validation. A
 run may stop anywhere in its base frame, including inside a block, inside a call,

@@ -197,6 +197,10 @@ Proof.
     unfold instructionRom; rewrite Hpc; reflexivity.
 Qed.
 
+Lemma frame_matches_addresses : forall program f z,
+  frameMatches program f z -> fun_funcaddr z = FUNCS (guestModule f).
+Proof. intros program f [s frame] [_ [H _]]. cbn in *. now rewrite H. Qed.
+
 Lemma encoded_call_loaded : forall program memory index f offset z x callee,
   programLoaded program memory -> functionAt program index = Some f ->
   nth_error (guestBody f) offset = Some (CALL x) -> frameMatches program f z ->
@@ -218,7 +222,7 @@ Proof.
   replace (N.of_nat (N.to_nat address)) with address in HcalleeAddress by lia.
   split.
   - unfold directCallImage. split.
-    + rewrite (proj1 (proj2 Hframe)), HcalleeAddress. exact Haddress.
+    + rewrite (frame_matches_addresses _ _ _ Hframe), HcalleeAddress. exact Haddress.
     + split.
       * rewrite (proj1 Hframe), HcalleeAddress. exact Hinstance.
       * split.

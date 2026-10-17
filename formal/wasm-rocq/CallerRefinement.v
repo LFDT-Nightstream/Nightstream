@@ -7,8 +7,11 @@ Import ListNotations.
 Open Scope Z_scope.
 
 Definition sameCaller (before after : state) : Prop :=
-  fun_store after = fun_store before /\ fun_funcaddr after = fun_funcaddr before /\
+  fun_store after = fun_store before /\ fun_moduleinst after = fun_moduleinst before /\
   length (stateLocals after) = length (stateLocals before).
+
+Lemma module_addresses : forall z z', fun_moduleinst z' = fun_moduleinst z -> fun_funcaddr z' = fun_funcaddr z.
+Proof. intros [s f] [s' f'] H. cbn in *. now rewrite H. Qed.
 
 Definition sameRoms (before after : MemoryState) : Prop :=
   forall memory, readOnlyMemory memory memories = true ->
@@ -52,7 +55,8 @@ Lemma loaded_call_preserved : forall initial final pc returnPC z z' index addres
   loadedCall final pc returnPC z' index address module typeIndex params results locals body entry.
 Proof.
   intros initial final pc returnPC z z' index address module typeIndex params results locals body entry
-    Hrom [Hstore [Haddresses Hcount]] [Hcall [Hcaller [Hbody Hend]]].
+    Hrom [Hstore [Hmodule Hcount]] [Hcall [Hcaller [Hbody Hend]]].
+  pose proof (module_addresses _ _ Hmodule) as Haddresses.
   assert (Hfunctions : fun_funcinst z' = fun_funcinst z).
   { destruct z, z'. cbn in Hstore |- *. now rewrite Hstore. }
   split.

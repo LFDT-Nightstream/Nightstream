@@ -5,7 +5,7 @@ From Stdlib Require Import List ZArith Lia.
 Require Import Wasm2 WasmIntegers R1CS Columns Range FullRelation MemoryTrace MemoryCatalog TraceRefinement
   StraightLineSpec StackSimulation StraightLineInstructions SpecTecCalls CallerSpec CallerRefinement
   CallContext CallScope CallBody ProgramSpec ProgramEncoding ProgramValidation SourceInstructions
-  SourceValidation CodeLayout ControlSpec ControlState SpecTecBranches FrameInitialization Locals
+  SourceValidation CodeLayout ControlDecode ControlInvariant ControlState SpecTecBranches FrameInitialization Locals
   CallEntry CallBindings CallMemory CallReturn LocalBindings CallInitialization FunctionValidation CallSpec
   ProgramBinding Selectors CallerValidation OpcodeCatalog.
 Import ListNotations.
@@ -245,7 +245,7 @@ Lemma call_row_enters : forall program baseDepth index offset x rest z initial f
   Replay initial (eventsForRow memories row) final ->
   SourceState program (sourcePosition index offset) z initial (beforeBoundary row) (CALL x :: rest) c0 ->
   row COL_CALL_STACK_DEPTH_BEFORE = baseDepth ->
-  exists cursor z' c1, Steps c0 c1 /\ ControlState program baseDepth cursor z' final (afterBoundary row) c1.
+  exists cursor z' c1, fun_store z' = fun_store z /\ Steps c0 c1 /\ ControlState program baseDepth cursor z' final (afterBoundary row) c1.
 Proof.
   intros program baseDepth index offset x rest z initial final row c0 Hprime Hloaded Hfull Hprogram Hreplay
     Hsource Hdepth.
@@ -330,7 +330,7 @@ Proof.
     (row COL_LOCALS_FBP_BEFORE) rest (guestResults callee)] position), zc,
     (plugCalls [suspendedCall (sourcePosition index offset) frame0 prefix (row COL_STACK_FRAME_BASE_BEFORE)
       (row COL_LOCALS_FBP_BEFORE) rest (guestResults callee)] (stackConfig zc [] (guestBody callee))).
-  split.
+  split; [reflexivity | ]. split.
   { rewrite stack_config_split. cbn [plugCalls callerValues callContinuation callerFrame callResults].
     apply steps_with_stack_prefix; [exact HprefixBounds | ].
     apply steps_with_instruction_suffix; [exact (Forall_inv_tail Hwf) | exact Henter]. }
@@ -338,7 +338,7 @@ Proof.
   split; [exact Hactive | ]. split; [exact Hstate | ].
   split; [ | split; [subst baseDepth; exact (proj1 (value_bound row _)) | split; [cbn; lia | reflexivity]]].
   cbn [SuspendedStack callPosition callerFrame callerValues callerBase callerFbp callContinuation callResults
-    sourceFunction sourceOffset afterBoundary boundaryStackBase boundaryLocalsBase boundaryDepth].
+    sourceFunction sourceOffset afterBoundary boundaryStackBase boundaryLocalsBase boundaryCallDepth].
   assert (HcodeNext : codeOffset (guestBody f) (S offset) = (codeOffset (guestBody f) offset + 1)%nat)
     by (rewrite (code_offset_next _ _ _ Hlookup); reflexivity).
   exists f, x.
@@ -421,9 +421,9 @@ Proof.
   exists (controlCursor stack position), (plugCalls stack (stackConfig z [] (guestBody f))). split.
   - apply steps_refl_wf. apply plug_calls_wf; [eapply suspended_stack_ready; exact Hsusp | exact HbodyWf].
   - exists f, (stackConfig z [] (guestBody f)). split; [exact Hactive' | ]. split; [exact Hstate' | ].
-    split; [ | split; [exact Hbase0 | split; [cbn [afterBoundary beforeBoundary boundaryDepth suspendedCalls] in *; lia | reflexivity]]].
-    cbn [suspendedCalls afterBoundary boundaryStackBase boundaryLocalsBase boundaryDepth].
-    cbn [beforeBoundary boundaryStackBase boundaryLocalsBase boundaryDepth] in Hsusp.
+    split; [ | split; [exact Hbase0 | split; [cbn [afterBoundary beforeBoundary boundaryCallDepth suspendedCalls] in *; lia | reflexivity]]].
+    cbn [suspendedCalls afterBoundary boundaryStackBase boundaryLocalsBase boundaryCallDepth].
+    cbn [beforeBoundary boundaryStackBase boundaryLocalsBase boundaryCallDepth] in Hsusp.
     rewrite Hfbp, Hbase, Hd. eapply frame_effect_suspended; [exact Heffect | exact Hsusp].
 Qed.
 
@@ -443,7 +443,7 @@ Lemma return_row_step : forall program baseDepth top rest position z initial fin
   SuspendedStack program f (row COL_STACK_FRAME_BASE_BEFORE) (row COL_LOCALS_FBP_BEFORE)
     (row COL_CALL_STACK_DEPTH_BEFORE) (fun_store z) initial (top :: rest) ->
   0 <= baseDepth -> row COL_CALL_STACK_DEPTH_BEFORE = baseDepth + Z.of_nat (S (length rest)) ->
-  exists cursor z' c1, Steps (plugCalls (top :: rest) inner) c1 /\
+  exists cursor z' c1, fun_store z' = fun_store z /\ Steps (plugCalls (top :: rest) inner) c1 /\
     ControlState program baseDepth cursor z' final (afterBoundary row) c1.
 Proof.
   intros program baseDepth top rest [index offset] z initial final row inner f Hprime Hloaded Hfull Hprogram
@@ -514,7 +514,7 @@ Proof.
   pose proof (suspended_stack_ready _ _ _ _ _ _ _ _ Hrest) as Hready.
   exists (controlCursor rest (atInstruction (advanceSource (callPosition top) 1))), (mk_state s (callerFrame top)),
     (plugCalls rest (stackConfig (mk_state s (callerFrame top)) (callerValues top ++ values) (callContinuation top))).
-  split.
+  split; [reflexivity | ]. split.
   { cbn [plugCalls]. rewrite Hinner, <- stack_config_rejoin. apply steps_in_plug_calls; [exact Hready | ].
     apply steps_with_stack_prefix; [exact Hbounds | ].
     apply steps_with_instruction_suffix; [eapply validated_instructions_wf; exact HvalidC | exact Hleave]. }
@@ -550,7 +550,7 @@ Proof.
         cbn [afterBoundary boundaryLocalsBase]. rewrite HfbpAfter, <- HfbpValue, HlocalMem. exact Hcell.
     + cbn [afterBoundary boundaryPC]. rewrite HpcAfter, <- HretValue. reflexivity.
   - split.
-    + cbn [suspendedCalls afterBoundary boundaryStackBase boundaryLocalsBase boundaryDepth fun_store].
+    + cbn [suspendedCalls afterBoundary boundaryStackBase boundaryLocalsBase boundaryCallDepth fun_store].
       rewrite HbaseAfter, <- HbaseValue, HfbpAfter, <- HfbpValue, HdepthBalance.
       replace (row COL_CALL_STACK_DEPTH_BEFORE + 0 - 1) with (row COL_CALL_STACK_DEPTH_BEFORE - 1) by lia.
       eapply suspended_stack_preserved; [exact Hrest | | | ].
@@ -558,5 +558,5 @@ Proof.
       * intros other i _. apply HlocalMem.
       * intros id column address Hin _. eapply HcontextMem. exact Hin.
     + split; [exact Hbase0 | ]. split; [ | reflexivity].
-      cbn [afterBoundary boundaryDepth suspendedCalls]. rewrite HdepthBalance, Hdepth, Nat2Z.inj_succ. lia.
+      cbn [afterBoundary boundaryCallDepth suspendedCalls]. rewrite HdepthBalance, Hdepth, Nat2Z.inj_succ. lia.
 Qed.

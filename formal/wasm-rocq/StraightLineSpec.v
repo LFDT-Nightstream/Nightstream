@@ -47,7 +47,7 @@ Record Boundary := mkBoundary {
   boundarySP : Z;
   boundaryStackBase : Z;
   boundaryLocalsBase : Z;
-  boundaryDepth : Z;
+  boundaryCallDepth : Z;
   boundaryZeroRemaining : Z;
   boundaryParamRemaining : Z;
   boundaryZeroActive : Z;

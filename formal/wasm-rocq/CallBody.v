@@ -44,7 +44,7 @@ Lemma frame_row_refinement : forall instruction rest z initial final row c0,
     FrameEffect (row COL_STACK_FRAME_BASE_BEFORE) (row COL_LOCALS_FBP_BEFORE) initial final /\
     frameRegistersPreserved row /\
     instructionStackDelta instruction = Some (row COL_SP_AFTER - row COL_SP_BEFORE) /\
-    fun_store z' = fun_store z /\ fun_funcaddr z' = fun_funcaddr z /\
+    fun_store z' = fun_store z /\ fun_moduleinst z' = fun_moduleinst z /\
     length (stateLocals z') = length (stateLocals z).
 Proof.
   assert (Hstore : forall z x value, fun_store (with_local z x value) = fun_store z).

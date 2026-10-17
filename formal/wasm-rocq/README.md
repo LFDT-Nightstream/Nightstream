@@ -6,10 +6,13 @@ zero-result blocks containing those arithmetic/local instructions and `br_if 0`.
 Conditions may be computed, with multiple branches per block; branch sites must
 have only the condition above the label's protected stack prefix (no unwinding).
 Parameters, results, locals and stack values are i32. The theorem takes plain
-rows, refines them one at a time, and returns a composable `ControlState`: a run
-may stop anywhere in its base frame, including inside a block, inside a call, or
-during a callee's frame initialization. Suspended callers form a stack; callee
-bodies are straight-line, so it is at most one call deep. Padding, host rows,
+rows, refines them one at a time, and relates circuit and SpecTec states through
+`CircuitConfig` (`ControlDecode.v`): a decoder reads the configuration from memory
+at a static control shape, and each frame's code must pass SpecTec validation. A
+run may stop anywhere in its base frame, including inside a block, inside a call,
+or during a callee's frame initialization; the final shape resumes the next run.
+Suspended callers form a stack; callee bodies are straight-line, so it is at most
+one call deep. The store is an input: the circuit does not hold it. Padding, host rows,
 nested/indirect calls, nested blocks and returning out of the base frame are
 excluded. Selected zero-test steps are also proved.
 Field primality and memory-event consistency are assumed; the offline memory

@@ -3,7 +3,7 @@ From Stdlib Require Import List ZArith Lia.
 Require Import Wasm2 R1CS Columns Range FullRelation MemoryTrace MemoryCatalog OpcodeCatalog TraceRefinement
   StraightLineSpec StackSimulation SpecTecCalls SpecTecBranches CallerSpec CallerRefinement
   ProgramSpec ProgramEncoding ProgramValidation CodeLayout BlockSpec BlockValidation BlockBindings BlockEncoding
-  BlockInstructions BlockTrace BranchBindings BranchSpec BranchRefinement ControlSpec ControlState SourceInstructions
+  BlockInstructions BlockTrace BranchBindings BranchSpec BranchRefinement ControlDecode ControlInvariant ControlState SourceInstructions
   CallInitialization Selectors.
 Import ListNotations.
 Open Scope Z_scope.
@@ -13,7 +13,8 @@ Theorem block_control_row : forall program position offset prefix z initial fina
   Replay initial (eventsForRow memories row) final ->
   row COL_IS_PROGRAM_ROW = 1 -> row COL_CALL_STACK_POP_PRESENT = 0 -> row COL_HALTED = 0 ->
   ActiveState program (inBlock position offset prefix) z initial (beforeBoundary row) c0 ->
-  exists cursor z' c1, Steps c0 c1 /\ ActiveState program cursor z' final (afterBoundary row) c1 /\
+  exists cursor z' c1, fun_store z' = fun_store z /\ Steps c0 c1 /\
+    ActiveState program cursor z' final (afterBoundary row) c1 /\
     row COL_CALL_STACK_DEPTH_AFTER = row COL_CALL_STACK_DEPTH_BEFORE.
 Proof.
   intros program position offset prefix z initial final row c0 Hprime Hloaded Hfull Hreplay Hprogram Hpop Hhalt
@@ -42,7 +43,7 @@ Proof.
     pose proof (program_row_keeps_idle row COL_SEL_END Hprime Hfull ltac:(vm_compute; tauto) Hchosen
       ltac:(not_call_selector) Hidle) as HidleAfter.
     exists (atInstruction (advanceSource position 1)), z, (stackConfig z prefix continuation).
-    split.
+    split; [reflexivity | ]. split.
     + pose proof (steps_with_stack_prefix prefix _ _ (proj1 Hbounds)
         (steps_with_instruction_suffix continuation _ _ HwfCont (exit_empty_block z Hz))) as Hsteps.
       exact Hsteps.
@@ -78,6 +79,7 @@ Proof.
       * destruct Hafter as [_ [_ [_ [HlocalsAfter [HpcAfter [HstackAfter ->]]]]]].
         exists (inBlock position (S offset) prefix), z,
           (stackPrefix prefix (instructionSuffix continuation (blockContext (stackConfig z [] rest)))).
+        split; [reflexivity | ].
         split; [exact Hsteps | ]. split; [ | exact Hdepth].
         exists f, body, continuation, []. rewrite HrestNext. cbn [length].
         assert (Ht : Instrs_ok (blockTypingContext (length (stateLocals z))) rest (i32StackType 0 0))
@@ -87,7 +89,7 @@ Proof.
         cbn [beforeBoundary afterBoundary boundaryPC blockBranchPC] in *. lia.
       * destruct Hafter as [_ [_ [_ [HlocalsAfter [HpcAfter [HstackAfter ->]]]]]].
         exists (atInstruction (advanceSource position 1)), z, (stackConfig z prefix continuation).
-        split; [exact Hsteps | ]. split; [ | exact Hdepth].
+        split; [reflexivity | ]. split; [exact Hsteps | ]. split; [ | exact Hdepth].
         eapply block_continuation_state; try eassumption.
         pose proof (f_equal (@length instr) Hrest) as Hlength. rewrite length_skipn in Hlength. cbn [length] in Hlength.
         cbn [beforeBoundary afterBoundary boundaryPC blockBranchPC] in *. lia.
@@ -120,7 +122,7 @@ Proof.
       pose proof (stack_suffix_steps z z' values values' [i] rest Hone (Forall_inv_tail HwfRest)) as Hinner.
       exists (inBlock position (S offset) prefix), z',
         (stackPrefix prefix (instructionSuffix continuation (blockContext (stackConfig z' values' rest)))).
-      split.
+      split; [exact (proj1 Hsame) | ]. split.
       * apply steps_with_stack_prefix; [exact (proj1 Hbounds) | ].
         apply steps_with_instruction_suffix; [exact HwfCont | ]. apply steps_in_block. exact Hinner.
       * split; [ | exact (proj1 Hregs)]. exists f, body, continuation, values'. rewrite HrestNext.

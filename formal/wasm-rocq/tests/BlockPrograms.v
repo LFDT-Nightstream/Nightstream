@@ -2,7 +2,7 @@ From Stdlib Require Import List ZArith Lia.
 From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range Add TraceRefinement MemoryTrace MemoryCatalog OpcodeCatalog Wasm2 WasmIntegers Locals
   StraightLineSpec StackSimulation SpecTecCalls CallerSpec CallerValidation FunctionValidation
-  BlockSpec BlockValidation SourceInstructions CodeLayout ProgramSpec ProgramEncoding ProgramRefinement ControlSpec.
+  BlockSpec BlockValidation SourceInstructions CodeLayout ProgramSpec ProgramEncoding ProgramRefinement ControlDecode ControlInvariant ControlBridge.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -11,7 +11,8 @@ Definition conditionalCode := [conditionalBlock (mk_uN 0) conditionalTail; LOCAL
 Definition conditionalModule := MKmoduleinst [i32StackType 0 1] [0%N] [] [] [] [] [] [].
 Definition conditionalFunction := i32Function conditionalModule (mk_uN 0) 0 1 2 conditionalCode.
 Definition conditionalProgram := [conditionalFunction].
-Definition conditionalState condition := mk_state (MKstore conditionalProgram [] [] [] [] [])
+Definition conditionalStore := MKstore conditionalProgram [] [] [] [] [].
+Definition conditionalState condition := mk_state conditionalStore
   (MKframe [i32Value condition; i32Value 9] conditionalModule).
 Definition conditionalRam condition : MemoryState := fun memory address =>
   if Nat.eqb memory stackId then match address with [8] => Some 42 | _ => None end
@@ -152,18 +153,20 @@ Example conditional_program_refines : forall condition rows final,
   fieldPrime -> 0 <= condition < i32Modulus ->
   validCircuitRun (conditionalMemory condition) rows final ->
   runFragment (mkBoundary 0 4 4 7 0 0 0 0 0) 0 rows ->
-  exists cursor z c,
+  exists shape c,
     Steps (stackConfig (conditionalState condition) [] conditionalCode) c /\
     programLoaded conditionalProgram final /\
-    ControlState conditionalProgram 0 cursor z final (rowsFinalBoundary (mkBoundary 0 4 4 7 0 0 0 0 0) rows) c.
+    CircuitConfig conditionalProgram conditionalStore 0 shape final
+      (rowsFinalBoundary (mkBoundary 0 4 4 7 0 0 0 0 0) rows) c.
 Proof.
   intros condition rows final Hprime Hcondition Hrun Hfragment.
   destruct (conditional_initial_state_exists condition Hcondition) as [Hloaded Hsource].
   assert (Hidle : initializationIdle (mkBoundary 0 4 4 7 0 0 0 0 0)) by (repeat split).
-  exact (run_refinement conditionalProgram 0 (controlCursor [] (atInstruction (sourcePosition 0 0))) rows
-    (conditionalState condition) (conditionalMemory condition) final (mkBoundary 0 4 4 7 0 0 0 0 0) _
-    Hprime Hloaded Hrun Hfragment
-    (base_control_state conditionalProgram (atInstruction (sourcePosition 0 0)) (conditionalState condition)
-      (conditionalMemory condition) (mkBoundary 0 4 4 7 0 0 0 0 0) _
-      (conj (ex_intro _ conditionalCode Hsource) Hidle) ltac:(cbn; lia))).
+  apply (run_refinement conditionalProgram conditionalStore 0 (controlShape [] (siteInstruction (sourcePosition 0 0)))
+    rows (conditionalMemory condition) final _ _ Hprime Hloaded Hrun Hfragment).
+  apply (control_state_circuit _ _ _ (controlCursor [] (atInstruction (sourcePosition 0 0)))
+    (conditionalState condition)); [reflexivity | repeat constructor | reflexivity | ].
+  exact (base_control_state conditionalProgram (atInstruction (sourcePosition 0 0)) (conditionalState condition)
+    (conditionalMemory condition) (mkBoundary 0 4 4 7 0 0 0 0 0) _
+    (conj (ex_intro _ conditionalCode Hsource) Hidle) ltac:(cbn; lia)).
 Qed.

@@ -140,9 +140,9 @@ Definition advanceSource (position : SourcePosition) (count : nat) : SourcePosit
 Definition codeAt (f : GuestFunction) (offset : nat) (code : list instr) : Prop :=
   (offset <= length (guestBody f))%nat /\ skipn offset (guestBody f) = code.
 
-(* Bind the function store, module function addresses, and active frame's local count. *)
+(* Bind the function store, the active function's module, and the frame's local count. *)
 Definition frameMatches (program : Program) (f : GuestFunction) (z : state) : Prop :=
-  fun_funcinst z = program /\ fun_funcaddr z = FUNCS (guestModule f) /\
+  fun_funcinst z = program /\ fun_moduleinst z = guestModule f /\
   length (stateLocals z) = (guestParams f + guestLocals f)%nat.
 
 (* Validation uses SpecTec's instantiated functions and the active function's

@@ -56,10 +56,12 @@ ProgramEncoding.v
 BlockEncoding.v
 BlockTrace.v
 ProgramValidation.v
-ControlSpec.v
+ControlDecode.v
+ControlInvariant.v
 ControlState.v
 ControlRows.v
 CallStack.v
+ControlBridge.v
 TraceSegmentation.v
 ProgramRefinement.v
 StraightLineRefinement.v

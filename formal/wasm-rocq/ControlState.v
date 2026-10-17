@@ -2,7 +2,7 @@
 From Stdlib Require Import List ZArith Lia.
 Require Import Wasm2 R1CS MemoryTrace StraightLineSpec StackSimulation SpecTecCalls SpecTecBranches
   CallerSpec CallerRefinement ProgramSpec ProgramValidation SourceValidation CodeLayout BlockSpec BlockValidation
-  FunctionValidation ControlSpec Columns Range FullRelation MemoryCatalog OpcodeCatalog Selectors ProgramBinding
+  FunctionValidation ControlDecode ControlInvariant Columns Range FullRelation MemoryCatalog OpcodeCatalog Selectors ProgramBinding
   CallInitialization StraightLineInstructions.
 Import ListNotations.
 Open Scope Z_scope.

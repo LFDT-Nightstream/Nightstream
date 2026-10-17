@@ -1,22 +1,15 @@
-(* The control state between two rows: the active function's position and the
-   suspended callers beneath it. The active position is an outer instruction, a
-   position inside one zero-result block, or a callee whose frame is still being
-   initialized. Each suspended caller owns the memory its return restores, and its
+(* The proof invariant between two rows, a relational form of ControlDecode: the
+   active function's position and the suspended callers beneath it. The active
+   position is an outer instruction, a position inside one zero-result block, or a
+   callee whose frame is still being initialized. Each suspended caller owns the memory its return restores, and its
    SpecTec continuation wraps the active configuration in a FRAME_/LABEL_ context.
    Callee bodies are straight-line, so a run's call stack is at most one deep. *)
 From Stdlib Require Import List ZArith.
 Require Import Wasm2 WasmIntegers R1CS MemoryTrace MemoryCatalog StraightLineSpec StackSimulation
   SpecTecCalls SpecTecBranches CallerSpec ProgramSpec CodeLayout BlockSpec FunctionValidation
-  FrameInitialization Locals.
+  FrameInitialization Locals ControlDecode.
 Import ListNotations.
 Open Scope Z_scope.
-
-(* The rest of a block body, typed as SpecTec's BLOCK rule types it: the active
-   function's context with the block's empty result label prepended. *)
-Definition validatedBlockRest (f : GuestFunction) (z : state) (height : nat) (code : list instr) : Prop :=
-  exists C, Moduleinst_ok (fun_store z) (guestModule f) C /\
-    Instrs_ok (labelContext [] (functionContext C (i32Function (guestModule f) (guestTypeIndex f)
-      (guestParams f) (guestResults f) (guestLocals f) (guestBody f)))) code (i32StackType height 0).
 
 Inductive ControlPosition :=
 | atInstruction (position : SourcePosition)
@@ -139,14 +132,6 @@ Definition ControlState (program : Program) (baseDepth : Z) (cursor : ControlCur
     activeFunction program (activePosition cursor) = Some f /\
     ActiveState program (activePosition cursor) z memory boundary inner /\
     SuspendedStack program f (boundaryStackBase boundary) (boundaryLocalsBase boundary)
-      (boundaryDepth boundary) (fun_store z) memory (suspendedCalls cursor) /\
-    0 <= baseDepth /\ boundaryDepth boundary = baseDepth + Z.of_nat (length (suspendedCalls cursor)) /\
+      (boundaryCallDepth boundary) (fun_store z) memory (suspendedCalls cursor) /\
+    0 <= baseDepth /\ boundaryCallDepth boundary = baseDepth + Z.of_nat (length (suspendedCalls cursor)) /\
     c = plugCalls (suspendedCalls cursor) inner.
-
-Definition runStartsAt (boundary : Boundary) (rows : list Witness) : Prop :=
-  match rows with [] => True | first :: _ => beforeBoundary first = boundary end.
-
-(* The run starts at the given boundary and never leaves the base frame: at the
-   base depth a row neither pops nor halts. Calls may be left unfinished. *)
-Definition runFragment (boundary : Boundary) (baseDepth : Z) (rows : list Witness) : Prop :=
-  runStartsAt boundary rows /\ Forall (callerRow baseDepth) rows.

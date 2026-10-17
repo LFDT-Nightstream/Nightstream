@@ -1,25 +1,28 @@
 From Stdlib Require Import List ZArith Lia.
 Require Import R1CS Columns Range MemoryTrace TraceRefinement Wasm2 StraightLineSpec
-  CallerSpec ProgramSpec ControlSpec ProgramRefinement TraceSegmentation tests.Programs tests.Callers.
+  CallerSpec ProgramSpec ControlDecode ControlInvariant ControlBridge ProgramRefinement TraceSegmentation tests.Programs tests.Callers.
 Import ListNotations.
 Open Scope Z_scope.
 
-(* No supplied chunks or instruction/row correspondence. *)
+(* No supplied chunks or instruction/row correspondence. Ending at the caller's
+   END pins the final shape. *)
 Example plain_rows_get_call_add : forall stale rows final,
   fieldPrime -> validCircuitRun (sourceMemory stale) rows final ->
   runFragment (mkBoundary 2 4 4 7 0 0 0 0 0) 0 rows ->
   boundaryPC (rowsFinalBoundary (mkBoundary 2 4 4 7 0 0 0 0 0) rows) = 5 ->
-  exists z c, Steps (stackConfig sourceInitialState [] getCallAdd) c /\
+  exists c, Steps (stackConfig sourceInitialState [] getCallAdd) c /\
     programLoaded sourceProgram final /\
-    SourceState sourceProgram (sourcePosition 1 3) z final
-      (rowsFinalBoundary (mkBoundary 2 4 4 7 0 0 0 0 0) rows) [] c.
+    CircuitConfig sourceProgram sourceStore 0 (controlShape [] (siteInstruction (sourcePosition 1 3))) final
+      (rowsFinalBoundary (mkBoundary 2 4 4 7 0 0 0 0 0) rows) c.
 Proof.
   intros stale rows final Hprime Hrun Hfragment Hpc.
-  destruct (run_refinement sourceProgram 0 _ rows _ (sourceMemory stale) final _ _ Hprime
-    (source_program_loaded stale) Hrun Hfragment (source_initial_control stale))
-    as [cursor [z [c [Hsteps [Hloaded Hstate]]]]].
-  exists z, c. split; [exact Hsteps | ]. split; [exact Hloaded | ].
-  exact (proj2 (source_final_control_state _ _ _ _ _ Hstate Hpc)).
+  destruct (run_refinement sourceProgram sourceStore 0 _ rows (sourceMemory stale) final _ _ Hprime
+    (source_program_loaded stale) Hrun Hfragment (source_initial_config stale))
+    as [shape [c [Hsteps [Hloaded Hconfig]]]].
+  exists c. split; [exact Hsteps | ]. split; [exact Hloaded | ].
+  destruct (circuit_config_state _ _ _ _ _ _ _ Hconfig) as [cursor [z [Hstore Hstate]]].
+  rewrite <- (source_final_shape _ _ _ _ _ Hstate Hpc).
+  exact (control_state_circuit _ _ _ _ _ _ _ _ eq_refl source_store_wf Hstore Hstate).
 Qed.
 
 (* These rows test the scope predicate alone, not full circuit satisfaction or

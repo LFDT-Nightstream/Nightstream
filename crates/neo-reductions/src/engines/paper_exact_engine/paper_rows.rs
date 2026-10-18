@@ -9,14 +9,9 @@ use crate::PiCcsError;
 
 use super::{paper_joint, paper_ring::PaperRing};
 
-/// A prepared source of original, untransformed CCS coefficients.
-/// The circuit owner must validate the rows before providing this view.
-/// This is prover input, not an authority for the verifier's circuit.
 pub trait PaperMatrixRows<Ff>: Sync {
-    /// Active row count, logical column count, and matrix count.
     fn shape(&self) -> (usize, usize, usize);
 
-    /// Return every nonzero term in one original matrix row.
     fn row(&self, matrix: usize, row: usize) -> Vec<(usize, Ff)>;
 }
 

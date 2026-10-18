@@ -6,6 +6,7 @@
 
 #![allow(non_snake_case)]
 
+use crate::engines::{DecOutcome, RlcMixer};
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsStructure, CeClaim, Mat};
 use neo_math::{Fq, D, ETA, K};
@@ -60,9 +61,12 @@ where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy,
 {
     assert_eq!(ell_d, D.next_power_of_two().trailing_zeros() as usize);
-    assert_eq!(claim.m_in % D, 0, "PaperExact requires whole-ring public inputs");
     assert_eq!(claim.X.rows(), D);
-    assert_eq!(claim.X.cols(), neo_ccs::superneo_public_x_cols(claim.m_in));
+    assert_eq!(
+        neo_ccs::superneo_public_x_cols(claim.m_in),
+        Some(claim.X.cols()),
+        "PaperExact requires whole-ring public inputs"
+    );
     assert_eq!(claim.eval_k.len(), D.next_power_of_two());
     assert!(claim.eval_k.iter().skip(D).all(|&value| value == K::ZERO));
     assert_eq!(claim.eval_a.len(), structure.t());
@@ -72,19 +76,17 @@ where
     }
 }
 
-/// Compute the public PaperExact PiRLC claim without a prover witness.
 #[doc(hidden)]
-pub fn rlc_claim_paper_exact_with_commit_mix<Ff, Combine>(
+pub fn rlc_claim_paper_exact_with_commit_mix<Ff>(
     structure: &CcsStructure<Ff>,
     params: &NeoParams,
     rhos: &[Mat<Ff>],
     inputs: &[CeClaim<Cmt, Ff, K>],
     ell_d: usize,
-    combine: Combine,
+    combine: RlcMixer<Ff>,
 ) -> CeClaim<Cmt, Ff, K>
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
-    Combine: Fn(&[Mat<Ff>], &[Cmt]) -> Cmt,
 {
     assert!(!inputs.is_empty(), "PaperExact PiRLC needs at least one source");
     assert_eq!(rhos.len(), inputs.len());
@@ -98,7 +100,7 @@ where
         assert_eq!(claim.r, point);
     }
 
-    let x_cols = neo_ccs::superneo_public_x_cols(m_in);
+    let x_cols = inputs[0].X.cols();
     let mut X = Mat::zero(D, x_cols, Ff::ZERO);
     for (rho, input) in coefficients.iter().zip(inputs) {
         for column in 0..x_cols {
@@ -138,20 +140,18 @@ where
     }
 }
 
-/// Apply the complete paper PiRLC relation and its commitment action.
 #[doc(hidden)]
-pub fn rlc_reduction_paper_exact_with_commit_mix<Ff, Combine>(
+pub fn rlc_reduction_paper_exact_with_commit_mix<Ff>(
     structure: &CcsStructure<Ff>,
     params: &NeoParams,
     rhos: &[Mat<Ff>],
     inputs: &[CeClaim<Cmt, Ff, K>],
     witnesses: &[Mat<Ff>],
     ell_d: usize,
-    combine: Combine,
+    combine: RlcMixer<Ff>,
 ) -> (CeClaim<Cmt, Ff, K>, Mat<Ff>)
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
-    Combine: Fn(&[Mat<Ff>], &[Cmt]) -> Cmt,
 {
     assert_eq!(witnesses.len(), inputs.len());
     let output = rlc_claim_paper_exact_with_commit_mix(structure, params, rhos, inputs, ell_d, combine);
@@ -250,7 +250,6 @@ where
     true
 }
 
-/// Apply the complete paper PiDEC relation and check child commitments.
 #[doc(hidden)]
 pub fn dec_reduction_paper_exact_with_commit_check<Ff, Combine>(
     structure: &CcsStructure<Ff>,
@@ -260,7 +259,7 @@ pub fn dec_reduction_paper_exact_with_commit_check<Ff, Combine>(
     ell_d: usize,
     child_commitments: &[Cmt],
     combine: Combine,
-) -> (Vec<CeClaim<Cmt, Ff, K>>, bool, bool, bool)
+) -> DecOutcome<Ff>
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
     K: From<Ff>,
@@ -279,7 +278,6 @@ where
     )
 }
 
-/// Evaluate PiDEC child openings directly from circuit-owned original rows.
 #[allow(clippy::too_many_arguments)]
 pub fn dec_reduction_paper_exact_with_rows<Ff, Combine>(
     structure: &CcsStructure<Ff>,
@@ -290,7 +288,7 @@ pub fn dec_reduction_paper_exact_with_rows<Ff, Combine>(
     child_commitments: &[Cmt],
     combine: Combine,
     rows: &dyn PaperMatrixRows<Ff>,
-) -> Result<(Vec<CeClaim<Cmt, Ff, K>>, bool, bool, bool), crate::PiCcsError>
+) -> Result<DecOutcome<Ff>, crate::PiCcsError>
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
     K: From<Ff>,
@@ -319,7 +317,7 @@ fn dec_children<Ff, Combine>(
     child_commitments: &[Cmt],
     combine: Combine,
     matrices: &Matrices<'_, Ff>,
-) -> (Vec<CeClaim<Cmt, Ff, K>>, bool, bool, bool)
+) -> DecOutcome<Ff>
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
     K: From<Ff>,
@@ -388,7 +386,7 @@ where
     }
 
     let mut x_valid = split_valid;
-    let x_cols = neo_ccs::superneo_public_x_cols(parent.m_in);
+    let x_cols = parent.X.cols();
     for row in 0..D {
         for column in 0..x_cols {
             let mut reconstructed = Ff::ZERO;
@@ -401,10 +399,14 @@ where
         }
     }
     let commitment_valid = split_valid && combine(child_commitments, params.b) == parent.c;
-    (children, y_valid, x_valid, commitment_valid)
+    DecOutcome {
+        children,
+        ok_y: y_valid,
+        ok_x: x_valid,
+        ok_c: commitment_valid,
+    }
 }
 
-/// Verify the public PaperExact PiDEC recomposition with direct loops.
 #[doc(hidden)]
 pub fn verify_dec_public_paper_exact<Ff, Combine>(
     params: &NeoParams,

@@ -7,8 +7,6 @@ use p3_field::PrimeField64;
 #[test]
 fn production_key_commitments_match_cpu_across_groups_blocks_and_representations() {
     let session = MetalSession::new().unwrap();
-    // Two full column ranges and one column give three group partials, the
-    // last one short. All signed sums exceed 64 bits before reduction.
     let columns = 2 * COLUMNS_PER_GROUP + 1;
     let positive = Mat::virtual_constant(D, columns, F::ONE);
     let negative = Mat::virtual_constant(D, columns, -F::ONE);
@@ -51,8 +49,6 @@ fn production_key_commitments_match_cpu_across_groups_blocks_and_representations
         packed,
         short,
     ];
-    // More active witnesses than one threadgroup serves, so a second witness
-    // block reads the same key row.
     let block = session
         .production_ajtai_accumulate
         .maxTotalThreadsPerThreadgroup()
@@ -129,8 +125,6 @@ fn production_commitment_checks_all_inputs_before_device_work() {
     assert_eq!(session.activity().allocated_bytes, before.allocated_bytes);
 }
 
-/// Commit time for 1, 4 and 16 dense random witnesses at production width,
-/// for comparing commitment kernels. It only prints timings.
 #[test]
 #[ignore = "timing evidence at production width; run on its own under the 300 s cap"]
 fn production_commitment_cost_per_witness() {

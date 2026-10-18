@@ -43,9 +43,6 @@ private theorem authorityNats_eq_iff
         left.seed.bytes = right.seed.bytes := by
   simp [authorityNats, List.append_assoc, left.seed.length_eq, right.seed.length_eq]
 
-/-- Equal canonical setup words force equal key dimensions and identical seed
-bytes. In particular, neither seed framing nor field reduction can alias two
-in-range setup descriptors. -/
 theorem authorityWords_eq_iff
     {leftRows leftColumns rightRows rightColumns : Nat}
     (left : Setup leftRows leftColumns) (right : Setup rightRows rightColumns)
@@ -69,8 +66,6 @@ theorem authorityWords_eq_iff
     exact congrArg (List.map Poseidon2.ofNat)
       ((authorityNats_eq_iff left right).mpr same)
 
-/-- The canonical descriptor determines every coefficient of the semantic key,
-not only its dimensions or its field range. No key matrix is expanded. -/
 theorem verifierKey_eq_of_authorityWords {rows columns : Nat}
     (left right : Setup rows columns)
     (rowsBound : rows < goldilocksModulus)

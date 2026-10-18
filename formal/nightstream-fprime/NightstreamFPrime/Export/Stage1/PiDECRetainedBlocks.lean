@@ -63,7 +63,6 @@ def freshBlock (program : Lifecycle.Stage1.Application.Program) :
   sourceFieldBlock program freshCount PiDECStarts.phaseFreshStart
     fresh_end_le_sourceColumnCount
 
-/-- Retained slots follow the logical and fresh allocation owners. -/
 @[simp] theorem retainedSlotCount_eq
     (program : Lifecycle.Stage1.Application.Program) :
     (logicalBlock program).slotCount + (freshBlock program).slotCount =
@@ -75,7 +74,6 @@ def retainedCoordinateCount (program : Lifecycle.Stage1.Application.Program) :
           (logicalBlock program).coordinateCount +
     (freshBlock program).coordinateCount
 
-/-- Each retained field slot uses the existing balanced-ternary encoding. -/
 @[simp] theorem retainedCoordinateCount_eq
     (program : Lifecycle.Stage1.Application.Program) :
     retainedCoordinateCount program =

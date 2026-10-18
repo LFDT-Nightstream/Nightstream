@@ -2,9 +2,9 @@ import NightstreamFPrime.Export.Stage1.PiCCSNormPrefixSource
 import NightstreamFPrime.Export.Stage1.PiCCSPrefixComposition
 import NightstreamFPrime.Export.Stage1.PiCCSPrefixSelectorFactor
 
-/-! Pure norm accumulation after retained prefix folds. Each source keeps its
-own cubic before its gamma scale. This file proves coefficient formulas for
-the existing bucket and direct range kernels, not file or worker-loop origin. -/
+/-! Pure norm accumulation after retained prefix folds. This file proves
+coefficient formulas for the existing bucket and direct range kernels, not file
+or worker-loop origin. -/
 
 set_option autoImplicit false
 
@@ -24,8 +24,6 @@ private abbrev code (masks : Array (Array (Nat × Nat)))
   PiCCSNormSource.sourceCode (masks[column / ringDegree]?.getD #[]) source
     ⟨column % ringDegree, Nat.mod_lt _ (by decide)⟩
 
-/-- The already proved source array: two code-table folds followed by the
-existing scalar prefix fold. Source indices are never combined here. -/
 def retained (masks : Array (Array (Nat × Nat))) (groups : Nat)
     (first second : K) (challenges : List K)
     (source : Fin productionShape.sourceCount) : Array K :=
@@ -34,8 +32,6 @@ def retained (masks : Array (Array (Nat × Nat))) (groups : Nat)
       (PiCCSPrefixCodeFold.pairedTable (PiCCSPrefixNorm.values first) second)
       (PiCCSPrefixCodeFold.quadCodes (code masks source) 0 groups)) challenges
 
-/-- The pure direct cubic update used by normAfterTwo and, after adjacent
-pair decoding, normFromPrefix. Missing array endpoints are exactly zero. -/
 def sourceRange (values : Array K) (weight : Nat → K) (count : Nat) :
     FixedPolynomial K 3 :=
   PiCCSPolynomialRange.range extensionOps 0 count fun index =>
@@ -43,8 +39,6 @@ def sourceRange (values : Array K) (weight : Nat → K) (count : Nat) :
       (PiCCSFirstRoundPair.normPair extensionOps
         (values.getD (2 * index) K.zero) (values.getD (2 * index + 1) K.zero))
 
-/-- Canonical source sum of separately weighted cubics. The source gamma
-factor is outside each source's complete numeric pair range. -/
 def innerRange (values : Fin productionShape.sourceCount → Array K)
     (gamma : K) (weight : Nat → K) (count : Nat) : FixedPolynomial K 3 :=
   FixedPolynomial.sum extensionOps.toOps (canonicalFinIndices productionShape.sourceCount)
@@ -62,8 +56,6 @@ private theorem getD_outside (values : Array K) (index : Nat)
     (outside : values.size ≤ index) : values.getD index K.zero = K.zero := by
   simp only [Array.getD_eq_getD_getElem?, Array.getElem?_eq_none outside, Option.getD_none]
 
-/-- Extending a complete pair range adds only zero cubics. The final stored
-value still pairs with zero when the length is odd or one. -/
 theorem sourceRange_eq_full (values : Array K) (weight : Nat → K)
     (count fullCount : Nat) (covered : values.size ≤ 2 * count)
     (included : count ≤ fullCount) :
@@ -79,8 +71,6 @@ theorem sourceRange_eq_full (values : Array K) (weight : Nat → K)
     getD_outside values (2 * index + 1) (by omega), normPair_zero]
   exact scale_zero_polynomial extensionOps extensionLaws 3 (weight index)
 
-/-- Swap only the two finite sums, after preserving each source cubic.
-All absent suffix pairs are discharged by actual array sizes. -/
 theorem innerRange_eq_full (values : Fin productionShape.sourceCount → Array K)
     (gamma : K) (weight : Nat → K) (count remaining : Nat)
     (covered : ∀ source, (values source).size ≤ 2 * count)
@@ -229,9 +219,6 @@ private theorem inner_pair_value (input : PiCCSPublicReplay.Input)
   have high := source_pair input masks groups loaded covered fits first second challenges dimension index source true
   exact congrArg₂ (PiCCSFirstRoundPair.normPair extensionOps) low high
 
-/-- The complete pure direct norm contribution equals the canonical sum of
-the original normTerm. Premises concern only source loading, domain geometry,
-and retained lengths. No source-value or contribution equality is assumed. -/
 theorem selected_eq_normTerm_sum
     (input : PiCCSPublicReplay.Input) (masks : Array (Array (Nat × Nat))) (groups : Nat)
     (loaded : masks.size ≤ PiCCSSourceImages.blockCount)
@@ -273,8 +260,6 @@ private theorem decoded_getD {count : Nat} (values : Vector K count) (zeroCode :
   | none => simpa only [loaded, Option.map_none, Option.getD_none] using zeroValue.symm
   | some code => simp only [Option.map_some, Option.getD_some]
 
-/-- The actual 81-entry bucket accumulator gives the direct array cubic
-range, including its true missing final endpoint with zero code 40. -/
 theorem bucketRange_eq_sourceRange (first second : K) (codes : Array (Fin 81))
     (weight : Nat → K) (count : Nat) :
     PiCCSPrefixNormBuckets.range
@@ -292,7 +277,6 @@ theorem bucketRange_eq_sourceRange (first second : K) (codes : Array (Fin 81))
   rw [decoded_getD _ ⟨40, by decide⟩ (PiCCSPrefixCodeFold.secondTable_zero first second),
     decoded_getD _ ⟨40, by decide⟩ (PiCCSPrefixCodeFold.secondTable_zero first second)]
 
-/-- Pure normAfterTwo bucket formula, with one gamma scale per source. -/
 def bucketInner (masks : Array (Array (Nat × Nat))) (groups : Nat)
     (first second gamma : K) (weight : Nat → K) (count : Nat) : FixedPolynomial K 3 :=
   FixedPolynomial.sum extensionOps.toOps (canonicalFinIndices productionShape.sourceCount) fun source =>
@@ -303,8 +287,6 @@ def bucketInner (masks : Array (Array (Nat × Nat))) (groups : Nat)
         (fun index => codes.getD (2 * index) ⟨40, by decide⟩)
         (fun index => codes.getD (2 * index + 1) ⟨40, by decide⟩) weight 0 count)
 
-/-- Bucket completion and the direct source formula are identical before
-the shared consumed-alpha selector and global gamma factors are applied. -/
 theorem bucketInner_eq_innerRange (masks : Array (Array (Nat × Nat))) (groups : Nat)
     (first second gamma : K) (weight : Nat → K) (count : Nat) :
     bucketInner masks groups first second gamma weight count =
@@ -316,8 +298,6 @@ theorem bucketInner_eq_innerRange (masks : Array (Array (Nat × Nat))) (groups :
   rw [bucketRange_eq_sourceRange]
   rfl
 
-/-- The selected bucket path has the same complete original normTerm sum,
-with no decoded-file value or bucket correctness premise. -/
 theorem selected_buckets_eq_normTerm_sum
     (input : PiCCSPublicReplay.Input) (masks : Array (Array (Nat × Nat))) (groups : Nat)
     (loaded : masks.size ≤ PiCCSSourceImages.blockCount)

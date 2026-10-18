@@ -1,5 +1,3 @@
-"""Validate reviewed expectations. Candidate metadata cannot remove a gate."""
-
 from __future__ import annotations
 
 import hashlib
@@ -17,7 +15,6 @@ TIERS = ("Compiler", "Conformance", "Production")
 
 
 def gate_order(policy, selected):
-    """Order only the selected gates and their complete prerequisite set."""
     graph, pending = {}, list(selected)
     while pending:
         name = pending.pop()
@@ -56,7 +53,6 @@ def checker_key():
 
 
 def verify_checker_sources(snapshot):
-    """Candidate edits cannot substitute the trusted Lean checker commands."""
     root = Path(__file__).resolve().parents[2]
     for relative in ("scripts/lean_graph/ExportMetadata.lean",
                      "scripts/lean_graph/CompilerCoverage.lean",
@@ -163,12 +159,6 @@ def validate(policy):
 
 
 class Authority:
-    """Read a separately provisioned checker policy and authentication key.
-
-    Filesystem separation alone is not isolation. The operator must prevent
-    candidate processes from reading this key or changing the approved policy.
-    The CLI does not provision that boundary or write review decisions.
-    """
 
     def __init__(self, directory):
         self.directory = Path(directory).resolve()

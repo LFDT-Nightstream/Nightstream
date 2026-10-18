@@ -25,8 +25,6 @@ private theorem seven_not_square : ¬ IsSquare (7 : ZMod goldilocksModulus) := b
   rw [exponent]
   exact ZMod.pow_card_sub_one_eq_one rootNonzero
 
-/-- The existing `Fin q` arithmetic is definitionally the nonzero-modulus
-`ZMod q` arithmetic; no second field representation is introduced. -/
 theorem sevenProjectiveNonresidue : SevenProjectiveNonresidue := by
   letI : Fact (Nat.Prime goldilocksModulus) := ⟨GoldilocksPrime.goldilocks_natPrime⟩
   change ∀ real imaginary : ZMod goldilocksModulus,
@@ -45,7 +43,6 @@ theorem sevenProjectiveNonresidue : SevenProjectiveNonresidue := by
     rw [← pow_two, div_pow]
     exact ((div_eq_iff (pow_ne_zero 2 imaginaryZero)).mpr equation).symm
 
-/-- Unconditional cancellation for the actual quadratic-extension carrier. -/
 theorem extensionNoZeroDivisors : ExtensionNoZeroDivisors :=
   extensionNoZeroDivisors_of_base_and_seven
     GoldilocksPrime.baseFieldNoZeroDivisors sevenProjectiveNonresidue

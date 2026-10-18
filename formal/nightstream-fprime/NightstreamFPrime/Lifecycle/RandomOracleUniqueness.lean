@@ -57,9 +57,6 @@ open StrongReduction ConcreteCarrier
 
 attribute [local instance low] Classical.propDecidable
 
-/-! ## Challenge lists -/
-
-/-- Every challenge of one execution, in schedule order. -/
 def challenges : List Challenge :=
   List.ofFn Challenge.alpha ++ [Challenge.gamma] ++ List.ofFn Challenge.round ++
     List.ofFn Challenge.rho
@@ -67,13 +64,10 @@ def challenges : List Challenge :=
 theorem mem_challenges (challenge : Challenge) : challenge ∈ challenges := by
   cases challenge <;> simp [challenges]
 
-/-- The `74` of `Q + 74`: 28 `α` coordinates, `γ`, 28 rounds and 17 `Π_RLC`
-scalars. -/
 theorem challenges_length : challenges.length = 74 := by
   simp [challenges]
   rfl
 
-/-- An item where `value` is largest. -/
 private noncomputable def best {Item : Type} [Fintype Item] [Nonempty Item] (value : Item → ℝ) :
     Item :=
   Classical.choose (Finset.exists_max_image Finset.univ value Finset.univ_nonempty)
@@ -107,12 +101,10 @@ private theorem not_mem_take_findIdx {Item : Type} {test : Item → Bool} {items
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- Whether a call list extends the statement calls of `fresh`. -/
 def Extends (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)) {degree : Nat}
     (target : Point logicalWidth publicFits degree) : Bool :=
   (statementCalls fresh).isPrefixOf target.1.val
 
-/-- Every challenge point of an execution extends its statement calls. -/
 theorem extends_point {degree : Nat}
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Proof degree) (challenge : Challenge) :
@@ -123,7 +115,6 @@ theorem extends_point {degree : Nat}
     simp only [challengeCalls, proverCalls, roundPrefixCalls, outputCalls, preRoundCalls,
       List.append_assoc] <;> exact List.prefix_append _ _
 
-/-- One call list extends the statement calls of at most one fresh statement. -/
 theorem fresh_eq_of_extends {degree : Nat}
     {fresh fresh' : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)}
     {target : Point logicalWidth publicFits degree}
@@ -144,9 +135,6 @@ variable {Output : Type}
     Answer Output)
   (claim : Output → Claim relation)
 
-/-! ## Checked runs and fork contexts -/
-
-/-- The adversary followed by the verifier's query of every challenge point. -/
 noncomputable def checked :
     OracleComp (Point logicalWidth publicFits Degree) Answer Output :=
   adversary.thenQueries fun output =>
@@ -163,16 +151,13 @@ theorem mem_checked (oracle : Oracle) (challenge : Challenge) :
   OracleComp.mem_queries_thenQueries _ _ _
     (List.mem_map.mpr ⟨challenge, mem_challenges challenge, rfl⟩)
 
-/-- The checked query index at which the statement of `fresh` first appears. -/
 noncomputable def firstIndex (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (oracle : Oracle) : Nat :=
   ((checked relation adversary claim).queries oracle).findIdx (Extends fresh)
 
-/-- The fork index: where the claim's own statement first appears. -/
 noncomputable def forkIndex (oracle : Oracle) : Nat :=
   firstIndex relation adversary claim (claimed relation adversary claim oracle).fresh oracle
 
-/-- The points the run has seen before query `index`: the fork context. -/
 noncomputable def context (index : Nat) (oracle : Oracle) :
     Finset (Point logicalWidth publicFits Degree) :=
   queriedBefore (checked relation adversary claim) index oracle
@@ -181,19 +166,14 @@ theorem context_stopping (index : Nat) :
     Stopping (context relation adversary claim index) :=
   queriedBefore_stopping _ index
 
-/-- The checked queries of a run, from its claim and the adversary's own
-queries: after the adversary halts, the verifier queries every challenge
-point of the claim. -/
 noncomputable def checkedOf (runClaim : Claim relation) (queries : List (Point logicalWidth publicFits Degree)) :
     List (Point logicalWidth publicFits Degree) :=
   queries ++ challenges.map (point runClaim.fresh runClaim.proof)
 
-/-- `forkIndex` from a run's claim and queries. -/
 noncomputable def forkIndexOf (runClaim : Claim relation) (queries : List (Point logicalWidth publicFits Degree)) :
     Nat :=
   (checkedOf relation runClaim queries).findIdx (Extends runClaim.fresh)
 
-/-- `context` from a run's claim and queries. -/
 noncomputable def contextOf (index : Nat) (runClaim : Claim relation)
     (queries : List (Point logicalWidth publicFits Degree)) : Finset (Point logicalWidth publicFits Degree) :=
   ((checkedOf relation runClaim queries).take index).toFinset
@@ -215,8 +195,6 @@ theorem context_eq (index : Nat) (oracle : Oracle) :
   unfold context queriedBefore contextOf
   rw [checked_queries]
 
-/-- The statement's first index ignores the answer at any point that extends
-the statement: such a point is queried no earlier. -/
 theorem firstIndex_update (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (oracle : Oracle) {target : Point logicalWidth publicFits Degree}
     (extends_ : Extends fresh target = true) (answer : Answer) :
@@ -231,7 +209,6 @@ theorem firstIndex_update (fresh : Fresh (logicalWidth := logicalWidth) (publicF
   have outside : point ≠ target := fun same => not_mem_take_findIdx extends_ (same ▸ inside)
   exact (Function.update_of_ne outside _ _).symm
 
-/-- The target is outside the context of its statement's first index. -/
 theorem not_mem_context (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (oracle : Oracle) {target : Point logicalWidth publicFits Degree}
     (extends_ : Extends fresh target = true) :
@@ -239,8 +216,6 @@ theorem not_mem_context (fresh : Fresh (logicalWidth := logicalWidth) (publicFit
   intro inside
   exact not_mem_take_findIdx extends_ (List.mem_toFinset.mp inside)
 
-/-- A fork keeps the context and resamples everything else; another oracle that
-agrees on the context makes the same fork. -/
 theorem overlay_context_congr {index : Nat} {oracle other : Oracle}
     (agree : ∀ point ∈ context relation adversary claim index oracle, oracle point = other point)
     (fresh : Oracle) :
@@ -252,48 +227,36 @@ theorem overlay_context_congr {index : Nat} {oracle other : Oracle}
   · simp [overlay, inside, agree point inside]
   · simp [overlay, inside]
 
-/-! ## Runs and their extractions -/
-
 local notation "Retries" => Fin Nifs.PaperProfile.arity.total → Answer
 
-/-- The run's retries form a complete `Π_RLC` fork. -/
 def ValidOf (fork : ForkClaims relation) : Prop :=
   SucceedsOf relation ajtai fork.oracle fork.base ∧ ∀ index, ForkValidOf relation ajtai fork index
 
-/-- The adversary's run and its retries form a complete fork (`ValidOf`). -/
 def Valid (oracle : Oracle) (retries : Retries) : Prop :=
   ValidOf relation ajtai (forkClaimsOf relation adversary claim oracle retries)
 
-/-- The witness a valid run extracts. -/
 noncomputable def witnessOf (oracle : Oracle) (retries : Retries) :
     Option (OutputWitness productionShape (Phi81CarrierLayout.carrierWidth logicalWidth)) :=
   if valid : Valid relation ajtai adversary claim oracle retries then
     some (extractedWitness relation ajtai adversary claim oracle retries valid.1 valid.2)
   else none
 
-/-- The retry law of one run. -/
 noncomputable def weight (oracle : Oracle) (retries : Retries) : ℝ :=
   retryWeight (retrySets relation ajtai adversary claim oracle) retries
 
-/-- The mass of the run's retries that satisfy `event`. -/
 noncomputable def retryMass (oracle : Oracle) (event : Retries → Prop) : ℝ :=
   ∑ retries, weight relation ajtai adversary claim oracle retries *
     (if event retries then 1 else 0)
 
-/-- The probability that a run extracts at fork index `index`. -/
 noncomputable def success (index : Nat) (oracle : Oracle) : ℝ :=
   if forkIndex relation adversary claim oracle = index then
     retryMass relation ajtai adversary claim oracle (Valid relation ajtai adversary claim oracle)
   else 0
 
-/-- The probability that a run resampled after the context of `index`
-extracts at that index. -/
 noncomputable def resampledSuccess (index : Nat) (oracle : Oracle) : ℝ :=
   𝔼 fresh, success relation ajtai adversary claim index
     (overlay (context relation adversary claim index oracle) oracle fresh)
 
-/-- The chance that the binding reduction's first successful retry from the
-context of `index` has `outcome` against the base run. -/
 noncomputable def retryChance (index : Nat) (oracle : Oracle)
     (outcome : Oracle → Retries → Prop) : ℝ :=
   (𝔼 fresh, retryMass relation ajtai adversary claim
@@ -305,19 +268,14 @@ noncomputable def retryChance (index : Nat) (oracle : Oracle)
         outcome (overlay (context relation adversary claim index oracle) oracle fresh) retries)) /
     resampledSuccess relation ajtai adversary claim index oracle
 
-/-- The retry keeps the running statement but extracts another witness. -/
 def Collides (oracle : Oracle) (retries : Retries) (other : Oracle) (otherRetries : Retries) : Prop :=
   (claimed relation adversary claim other).running = (claimed relation adversary claim oracle).running ∧
     witnessOf relation ajtai adversary claim other otherRetries ≠
       witnessOf relation ajtai adversary claim oracle retries
 
-/-- The retry changes the running statement. -/
 def Moves (oracle other : Oracle) (_ : Retries) : Prop :=
   (claimed relation adversary claim other).running ≠ (claimed relation adversary claim oracle).running
 
-/-- The binding reduction's chance of `outcome`: the base run extracts, and
-the first rerun from its fork context that extracts at the same index has
-`outcome` against it. -/
 noncomputable def reductionChance (outcome : Oracle → Retries → Oracle → Retries → Prop) : ℝ :=
   𝔼 oracle, ∑ retries, weight relation ajtai adversary claim oracle retries *
     (if Valid relation ajtai adversary claim oracle retries then
@@ -325,19 +283,11 @@ noncomputable def reductionChance (outcome : Oracle → Retries → Oracle → R
         (outcome oracle retries)
     else 0)
 
-/-- The binding reduction: the base run extracts, and its retry from the same
-context collides. Two different witnesses for one statement give a short
-kernel vector of the Ajtai key (`RandomOracleBinding.rerunKernel_isSome`). -/
 noncomputable def collisionChance : ℝ :=
   reductionChance relation ajtai adversary claim (Collides relation ajtai adversary claim)
 
-/-- The same reduction, when the retry changes the running statement. With the
-prior link this is a state-hash collision
-(`Export.Stage1.RandomOracleLink.runningChance_le`). -/
 noncomputable def runningChance : ℝ :=
   reductionChance relation ajtai adversary claim fun oracle _ => Moves relation adversary claim oracle
-
-/-! ## Facts about one run -/
 
 theorem weight_nonnegative (oracle : Oracle) (retries : Retries) :
     0 ≤ weight relation ajtai adversary claim oracle retries :=
@@ -353,7 +303,6 @@ theorem retryMass_le_one (oracle : Oracle) (event : Retries → Prop) :
   (Finset.sum_le_sum fun retries _ => mul_le_of_le_one_right (weight_nonnegative relation ajtai
     adversary claim oracle retries) (by split <;> norm_num)).trans (retryWeight_sum_le_one _)
 
-/-- An event that does not read the retries has mass at most its indicator. -/
 theorem retryMass_const_le (oracle : Oracle) (event : Prop) [Decidable event] :
     retryMass relation ajtai adversary claim oracle (fun _ => event) ≤ if event then 1 else 0 := by
   by_cases happens : event
@@ -361,7 +310,6 @@ theorem retryMass_const_le (oracle : Oracle) (event : Prop) [Decidable event] :
     exact retryMass_le_one relation ajtai adversary claim oracle _
   · simp [retryMass, happens]
 
-/-- The mass of an event is at most the masses of three events that cover it. -/
 theorem retryMass_le_three (oracle : Oracle) {event first second third : Retries → Prop}
     (covered : ∀ retries, event retries → first retries ∨ second retries ∨ third retries) :
     retryMass relation ajtai adversary claim oracle event ≤
@@ -388,7 +336,6 @@ theorem retryMass_le_three (oracle : Oracle) {event first second third : Retries
   · rw [if_neg happens]
     linarith
 
-/-- A retry weight is at most the mass of any event that holds there. -/
 theorem weight_le_retryMass (oracle : Oracle) {event : Retries → Prop} {retries : Retries}
     (happens : event retries) :
     weight relation ajtai adversary claim oracle retries ≤
@@ -404,7 +351,6 @@ theorem weight_le_retryMass (oracle : Oracle) {event : Retries → Prop} {retrie
       (fun retries _ => mul_nonneg (weight_nonnegative relation ajtai adversary claim oracle retries)
         (by split <;> norm_num)) (Finset.mem_univ retries)
 
-/-- The retries of a valid run have positive weight. -/
 theorem weight_pos {oracle : Oracle} {retries : Retries}
     (valid : Valid relation ajtai adversary claim oracle retries) :
     0 < weight relation ajtai adversary claim oracle retries := by
@@ -418,7 +364,6 @@ theorem weight_pos {oracle : Oracle} {retries : Retries}
   have positive := lt_of_le_of_ne (mass_nonnegative _) (mass_ne_zero inside).symm
   exact div_pos one_pos (mul_pos card positive)
 
-/-- The success mass is the mass of the event "forks at `index` and is valid". -/
 theorem success_eq (index : Nat) (oracle : Oracle) :
     success relation ajtai adversary claim index oracle =
       retryMass relation ajtai adversary claim oracle fun retries =>
@@ -444,7 +389,6 @@ theorem retryChance_nonnegative (index : Nat) (oracle : Oracle) (outcome : Oracl
   div_nonneg (Finset.expect_nonneg fun _ _ => retryMass_nonnegative relation ajtai adversary claim
     _ _) (resampledSuccess_nonnegative relation ajtai adversary claim index oracle)
 
-/-- A larger event has at least the same mass. -/
 theorem retryMass_mono (oracle : Oracle) {event event' : Retries → Prop}
     (implies : ∀ retries, event retries → event' retries) :
     retryMass relation ajtai adversary claim oracle event ≤
@@ -456,8 +400,6 @@ theorem retryMass_mono (oracle : Oracle) {event event' : Retries → Prop}
           split <;> norm_num)
     (weight_nonnegative relation ajtai adversary claim oracle retries)
 
-/-- An outcome that is larger on every valid rerun from the context of
-`index` has at least the same rerun chance. -/
 theorem retryChance_mono (index : Nat) (oracle : Oracle) {outcome outcome' : Oracle → Retries → Prop}
     (implies : ∀ fresh retries,
       forkIndex relation adversary claim (overlay (context relation adversary claim index oracle) oracle fresh) =
@@ -473,7 +415,6 @@ theorem retryChance_mono (index : Nat) (oracle : Oracle) {outcome outcome' : Ora
       fun retries holds => ⟨holds.1, holds.2.1, implies fresh retries holds.1 holds.2.1 holds.2.2⟩)
     (resampledSuccess_nonnegative relation ajtai adversary claim index oracle)
 
-/-- A rerun chance is a conditional probability: at most one. -/
 theorem retryChance_le_one (index : Nat) (oracle : Oracle) (outcome : Oracle → Retries → Prop) :
     retryChance relation ajtai adversary claim index oracle outcome ≤ 1 :=
   div_le_one_of_le₀
@@ -482,8 +423,6 @@ theorem retryChance_le_one (index : Nat) (oracle : Oracle) (outcome : Oracle →
       exact retryMass_mono relation ajtai adversary claim _ fun _ holds => ⟨holds.1, holds.2.1⟩)
     (resampledSuccess_nonnegative relation ajtai adversary claim index oracle)
 
-/-- After a valid run, the resampled runs from its fork context succeed with
-positive probability: the run itself is one of them. -/
 theorem resampledSuccess_pos {oracle : Oracle} {retries : Retries}
     (valid : Valid relation ajtai adversary claim oracle retries) :
     0 < resampledSuccess relation ajtai adversary claim
@@ -505,7 +444,6 @@ theorem reductionChance_nonnegative (outcome : Oracle → Retries → Oracle →
       · exact retryChance_nonnegative relation ajtai adversary claim _ oracle _
       · exact le_rfl)
 
-/-- The reduction's chance is a probability. -/
 theorem reductionChance_le_one (outcome : Oracle → Retries → Oracle → Retries → Prop) :
     reductionChance relation ajtai adversary claim outcome ≤ 1 := by
   unfold reductionChance
@@ -518,15 +456,12 @@ theorem reductionChance_le_one (outcome : Oracle → Retries → Oracle → Retr
             · exact zero_le_one)).trans (retryWeight_sum_le_one _)
     _ = 1 := Finset.expect_const Finset.univ_nonempty _
 
-/-- A run forks before the end of its checked queries. -/
 theorem forkIndex_lt (oracle : Oracle) :
     forkIndex relation adversary claim oracle <
       ((checked relation adversary claim).queries oracle).length :=
   List.findIdx_lt_length_of_exists ⟨_, mem_checked relation adversary claim oracle .gamma,
     extends_point _ _ .gamma⟩
 
-/-- Two runs with one context that both fork at its index output the same fresh
-statement: the query at that index extends both statement call lists. -/
 theorem fresh_eq_of_fork (oracle fresh : Oracle)
     (forked : forkIndex relation adversary claim
       (overlay (context relation adversary claim (forkIndex relation adversary claim oracle) oracle)
@@ -558,26 +493,18 @@ theorem fresh_eq_of_fork (oracle fresh : Oracle)
   rw [samePoint] at nextExtends
   exact fresh_eq_of_extends nextExtends baseExtends
 
-/-! ## The worst witness of a fork context -/
-
-/-- The first run `pair` extracts a witness, and the run under `oracle` is a
-false acceptance of that witness for the first run's running statement. -/
 def FalseFor (pair : Oracle × Retries) (oracle : Oracle) : Prop :=
   ∃ valid : Valid relation ajtai adversary claim pair.1 pair.2,
     FalseAcceptance relation ajtai (claimed relation adversary claim pair.1).running
       (extractedWitness relation ajtai adversary claim pair.1 pair.2 valid.1 valid.2) oracle
       (claimed relation adversary claim oracle).fresh (claimed relation adversary claim oracle).proof
 
-/-- The chance that a run resampled after the context of `index` forks at
-`index` and falsely accepts the witness of `pair`. -/
 noncomputable def testChance (index : Nat) (oracle : Oracle) (pair : Oracle × Retries) : ℝ :=
   𝔼 fresh, if forkIndex relation adversary claim
         (overlay (context relation adversary claim index oracle) oracle fresh) = index ∧
       FalseFor relation ajtai adversary claim pair
         (overlay (context relation adversary claim index oracle) oracle fresh) then 1 else 0
 
-/-- A first run whose witness the resampled runs from the context of `index`
-falsely accept most often. -/
 noncomputable def worst (index : Nat) (oracle : Oracle) : Oracle × Retries :=
   best (testChance relation ajtai adversary claim index oracle)
 
@@ -591,7 +518,6 @@ theorem testChance_nonnegative (index : Nat) (oracle : Oracle) (pair : Oracle ×
     0 ≤ testChance relation ajtai adversary claim index oracle pair :=
   Finset.expect_nonneg fun _ _ => by split <;> norm_num
 
-/-- The test chances read `oracle` only on the context of `index`. -/
 theorem testChance_congr {index : Nat} {oracle other : Oracle}
     (agree : ∀ point ∈ context relation adversary claim index oracle, oracle point = other point) :
     testChance relation ajtai adversary claim index other =
@@ -606,10 +532,6 @@ theorem worst_congr {index : Nat} {oracle other : Oracle}
   unfold worst
   rw [testChance_congr relation ajtai adversary claim agree]
 
-/-! ## Bad sets for the worst witness -/
-
-/-- The answers at `target` that put `challenge` into its bad set for the
-witness of `pair`. -/
 def pairBad (pair : Oracle × Retries) (challenge : Challenge)
     (target : Point logicalWidth publicFits Degree) (oracle : Oracle) : Set Answer :=
   {answer | ∃ valid : Valid relation ajtai adversary claim pair.1 pair.2,
@@ -642,9 +564,6 @@ theorem pairBad_mass_le (pair : Oracle × Retries) (challenge : Challenge)
     simp only [mass, Set.mem_empty_iff_false, if_false, Finset.expect_const_zero]
     exact error_nonnegative challenge
 
-/-- The answers at `target` that put `challenge` into its bad set for the
-worst witness of the context where the statement of `target` first appears.
-That context ends before `target`, so the set does not read `target`. -/
 def worstBad (challenge : Challenge) (target : Point logicalWidth publicFits Degree)
     (oracle : Oracle) : Set Answer :=
   {answer | ∃ fresh, Extends fresh target = true ∧
@@ -680,8 +599,6 @@ theorem worstBad_mass_le (challenge : Challenge) (target : Point logicalWidth pu
     obtain ⟨fresh, extends_, _⟩ := inside
     exact absurd ⟨fresh, extends_⟩ located
 
-/-- A run falsely accepts the worst witness of its own fork context with
-probability at most `(Q + 74) * testError`. -/
 theorem worst_error_le {queries : Nat} (bounded : adversary.QueryBound queries) :
     𝔼 oracle, (if FalseFor relation ajtai adversary claim
         (worst relation ajtai adversary claim (forkIndex relation adversary claim oracle) oracle) oracle
@@ -718,9 +635,6 @@ theorem worst_error_le {queries : Nat} (bounded : adversary.QueryBound queries) 
     · simp only [if_neg isBad]
       split <;> norm_num
 
-/-! ## The binding reduction's outcomes -/
-
-/-- A valid run whose witness fails the source relation of its own statement. -/
 def SourceFails (oracle : Oracle) (retries : Retries) : Prop :=
   ∃ valid : Valid relation ajtai adversary claim oracle retries,
     ¬ SourceHolds extensionOps K.embed (PaperAlgebra.openingMaps ajtai) productionGlobalParams
@@ -728,8 +642,6 @@ def SourceFails (oracle : Oracle) (retries : Retries) : Prop :=
         (claimed relation adversary claim oracle).fresh)
       (extractedWitness relation ajtai adversary claim oracle retries valid.1 valid.2)
 
-/-- A valid run with the fresh statement, the running statement and the
-witness of a failing run is a false acceptance of that witness. -/
 theorem falseFor_of_agree {oracle other : Oracle} {retries otherRetries : Retries}
     (fails : SourceFails relation ajtai adversary claim oracle retries)
     (valid : Valid relation ajtai adversary claim other otherRetries)
@@ -757,8 +669,6 @@ theorem falseFor_of_agree {oracle other : Oracle} {retries otherRetries : Retrie
   · rw [sameFresh]
     exact invalid
 
-/-- The worst-witness false acceptance after the run under `oracle`, per
-successful retry from its fork context. -/
 noncomputable def agreeChance (oracle : Oracle) : ℝ :=
   testChance relation ajtai adversary claim (forkIndex relation adversary claim oracle) oracle
       (worst relation ajtai adversary claim (forkIndex relation adversary claim oracle) oracle) /
@@ -769,8 +679,6 @@ theorem agreeChance_nonnegative (oracle : Oracle) :
   div_nonneg (testChance_nonnegative relation ajtai adversary claim _ _ _)
     (resampledSuccess_nonnegative relation ajtai adversary claim _ _)
 
-/-- After a failing run, its successful retries from the fork context collide,
-change the running statement, or falsely accept its witness. -/
 theorem one_le_outcomes {oracle : Oracle} {retries : Retries}
     (fails : SourceFails relation ajtai adversary claim oracle retries) :
     1 ≤ retryChance relation ajtai adversary claim (forkIndex relation adversary claim oracle) oracle
@@ -807,8 +715,6 @@ theorem one_le_outcomes {oracle : Oracle} {retries : Retries}
       (fresh_eq_of_fork relation adversary claim oracle fresh forked) sameRunning
       (Classical.byContradiction fun different => collides ⟨sameRunning, different⟩)
 
-/-- The resampling identity at one fork index: averaging the worst-witness
-test chance per success over the base runs gives a plain probability. -/
 theorem resampled_le (index : Nat) :
     𝔼 oracle, testChance relation ajtai adversary claim index oracle
           (worst relation ajtai adversary claim index oracle) *
@@ -858,14 +764,11 @@ theorem resampled_le (index : Nat) :
           FalseFor relation ajtai adversary claim (worst relation ajtai adversary claim index oracle)
             oracle then (1 : ℝ) else 0).symm
 
-/-- The fork index lies below the checked query bound. -/
 theorem forkIndex_lt_bound {queries : Nat} (bounded : adversary.QueryBound queries) (oracle : Oracle) :
     forkIndex relation adversary claim oracle < queries + challenges.length :=
   (forkIndex_lt relation adversary claim oracle).trans_le
     ((checked_bound relation adversary claim bounded).queries_length_le oracle)
 
-/-- A quantity at the run's fork index, spread over the possible fork
-indices. -/
 theorem sum_success {queries : Nat} (bounded : adversary.QueryBound queries)
     (factor : Nat → Oracle → ℝ) (oracle : Oracle) :
     retryMass relation ajtai adversary claim oracle (Valid relation ajtai adversary claim oracle) *
@@ -882,10 +785,6 @@ theorem sum_success {queries : Nat} (bounded : adversary.QueryBound queries)
     exact absurd (Finset.mem_range.mpr (forkIndex_lt_bound relation adversary claim bounded oracle))
       outside
 
-/-- The binding reduction's work. After a valid run it reruns the adversary
-from the fork context until a rerun succeeds at the same fork index, which
-takes `1 / resampledSuccess` expected reruns. The expected total is at most
-`Q + 74`. -/
 theorem expected_reruns_le {queries : Nat} (bounded : adversary.QueryBound queries) :
     𝔼 oracle, retryMass relation ajtai adversary claim oracle (Valid relation ajtai adversary claim oracle) /
         resampledSuccess relation ajtai adversary claim (forkIndex relation adversary claim oracle) oracle ≤
@@ -905,13 +804,6 @@ theorem expected_reruns_le {queries : Nat} (bounded : adversary.QueryBound queri
           (Finset.expect_const Finset.univ_nonempty (1 : ℝ)).le)
     _ = _ := by rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul, mul_one]
 
-/-! ## Lemma 6 -/
-
-/-- **Lemma 6.** The extracted witness fails the source relation of the base
-statement with probability at most `(Q + 74) * testError`, plus the chance
-that the binding reduction finds two different witnesses for one running
-statement (`collisionChance`) or a changed running statement
-(`runningChance`). -/
 theorem source_error_le {queries : Nat} (bounded : adversary.QueryBound queries) :
     𝔼 oracle, ∑ retries, weight relation ajtai adversary claim oracle retries *
         (if SourceFails relation ajtai adversary claim oracle retries then 1 else 0) ≤

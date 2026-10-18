@@ -1,5 +1,3 @@
-"""Check exact byte copying, zero ranges, and malformed range rejection."""
-
 import hashlib
 import importlib.util
 import json

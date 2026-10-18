@@ -6,9 +6,7 @@ import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns the ordered direct 4-matrix plan through one verifier-selected
-application. The running prefix comes first; application rows follow and read
-the actual pilot preimage forms. Only application witness/local values add
-retained coordinates.
+application.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.DirectApplicationPrefixPlan
@@ -187,8 +185,6 @@ def plan
   simp [plan, throughNextPreimagePlan, prefixApplicationPlan, prefixPlan,
     applicationPlan, nextPreimagePlan, publicOutputPlan]
 
-/-- The ordered plan through the application depends on relation shape only.
-The application program and retained placement are verifier-owned inputs. -/
 theorem plan_eq_of_same_shape
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
@@ -221,8 +217,6 @@ theorem rowsZero_iff
   rw [throughNextPreimagePlan, ProductionRelation.Plan.append_rowsZero_iff]
   rw [prefixApplicationPlan, ProductionRelation.Plan.append_rowsZero_iff]
 
-/-- The application source is contained in the complete package source
-prefix used by the canonical retained assignment. -/
 theorem applicationSourceWidth_le_baseSourceWidth
     (application : Lifecycle.Stage1.Application.Program) :
     ApplicationRetainedBlocks.sourceWidth application ≤
@@ -260,8 +254,6 @@ theorem applicationSourceWidth_le_baseSourceWidth
         (11464596 + application.witnessWordCount))))
   omega
 
-/-- The application reads the same complete package source assignment as the
-NIFS prefix. There is no independently selectable application source. -/
 def applicationSource
     (application : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F) :
@@ -270,8 +262,6 @@ def applicationSource
     lt_of_lt_of_le column.isLt
       (applicationSourceWidth_le_baseSourceWidth application)⟩
 
-/-- The application-prefix view is the total physical-base environment at
-every application source column. -/
 @[simp] theorem applicationSource_eq_sourceEnv
     (application : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
@@ -292,8 +282,6 @@ structure Encodes
     : Prop where
   runningPrefix : DirectPiRLCSamplerCompletePrefixPlan.Encodes
     (prefixGeometry geometry) assignment base groupValue
-  /-- Input/output facts refer to the existing pilot coordinates. Only the
-  witness/local fields describe new application suffix coordinates. -/
   applicationEncoding : ApplicationRetainedGeometry.Encodes geometry assignment
     (applicationSource application base)
 

@@ -1,8 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSNormScanCorrectness
 
-/-! Ordered merging of the implemented norm scan's worker polynomials.
-Every partial is computed from the same powers, weights and original masks.
-The equalities preserve the complete coefficient object. -/
+/-! Ordered merging of the implemented norm scan's worker polynomials. -/
 
 set_option autoImplicit false
 
@@ -14,8 +12,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open PiCCSNormScanCorrectness
 
-/-- Ascending contiguous cuts give exactly one scan range, including empty
-parts. Each worker value is the actual finished scan, not a supplied reference. -/
 theorem fold_adjacent_eq_range (powers weight : Nat → K)
     (masks : Array (Array (Nat × Nat))) (start : Nat) (cuts : Nat → Nat)
     (first : cuts 0 = 0) (count : Nat) :
@@ -50,8 +46,6 @@ theorem fold_adjacent_eq_range (powers weight : Nat → K)
       simp only [range_finish]
       exact joined.symm
 
-/-- The runner's proportional cuts start at first, end at last, and remain
-ordered. This arithmetic uses no proof or matrix data to select a cut. -/
 theorem proportionalCuts (first last parts : Nat) (positive : 0 < parts)
     (ordered : first ≤ last) :
     first + (last - first) * 0 / parts = first ∧
@@ -74,8 +68,6 @@ theorem proportionalCuts (first last parts : Nat) (positive : 0 < parts)
           (Nat.div_le_div_right (Nat.mul_le_mul_left (last - first) (by omega))) first
       _ = last := lastCut
 
-/-- The exact cuts used by replayNorm merge to its requested complete range.
-No positivity condition is needed for each part's length. -/
 theorem fold_proportional_eq_range (powers weight : Nat → K)
     (masks : Array (Array (Nat × Nat))) (first last parts : Nat)
     (positive : 0 < parts) (ordered : first ≤ last) :
@@ -103,8 +95,6 @@ theorem fold_proportional_eq_range (powers weight : Nat → K)
   rw [finalLength] at merged
   simpa only [cuts, Nat.add_sub_add_left] using merged
 
-/-- Collecting worker results in canonical index order and folding the array
-performs the same exact merge as the numeric loop. -/
 theorem array_proportional_eq_range (powers weight : Nat → K)
     (masks : Array (Array (Nat × Nat))) (first last parts : Nat)
     (positive : 0 < parts) (ordered : first ≤ last) :

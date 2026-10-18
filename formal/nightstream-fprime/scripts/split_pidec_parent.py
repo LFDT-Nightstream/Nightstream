@@ -13,7 +13,6 @@ import re
 import sys
 
 
-# Read only the JSON block index. The coefficient payload remains opaque bytes.
 BLOCK_INDEX = re.compile(rb"^[ \t]*\[[ \t]*(0|[1-9][0-9]*)[ \t]*,")
 
 
@@ -57,7 +56,6 @@ def split_parent(source_path, output_directory, blocks_per_range):
         header = source.readline()
         source_digest.update(header)
         total, start, end = read_header(header)
-        # An existing directory, file, or symlink must fail; nothing is replaced.
         output_directory.mkdir()
         rows = block_lines(source, source_digest, start, end)
         pending = next(rows, None)

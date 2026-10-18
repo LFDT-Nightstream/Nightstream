@@ -11,7 +11,6 @@ const OUTPUT_BYTES: usize = 32 * D;
 const _: () = assert!(ELEMENT_INPUT_BYTES < RATE);
 
 // ARM SHA3 processes two independent 64-bit lanes in each vector register.
-// Keeping this batch small also bounds the scalar backend's stack storage.
 pub(super) fn split_pair(seed: &[u8; 32], row: u32, columns: [u64; 2]) -> [SplitRing; 2] {
     word_pair(seed, row, columns).map(SplitRing::from_wide256)
 }
@@ -62,8 +61,7 @@ impl BackendClosure for KeyPair<'_> {
                 for (index, byte) in input.into_iter().enumerate() {
                     state[index / 8] ^= u64::from(byte) << (8 * (index % 8));
                 }
-                // SHAKE domain suffix and multi-rate padding, unchanged from
-                // sha3::Shake128. Every key input fits in one rate block.
+                // SHAKE domain suffix and multi-rate padding, unchanged from sha3::Shake128.
                 state[ELEMENT_INPUT_BYTES / 8] ^= 0x1f << (8 * (ELEMENT_INPUT_BYTES % 8));
                 state[RATE / 8 - 1] ^= 0x80 << 56;
             }

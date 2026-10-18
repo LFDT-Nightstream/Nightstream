@@ -4,8 +4,6 @@ import NightstreamFPrime.Layout.R1CS.Segments
 
 /-!
 Owns the ordinary-row projection from the actual PiCCS physical lowering.
-The existing twelve child lists and their owned fresh starts determine each
-of the eight exported arithmetic packets. No child rows are reconstructed.
 -/
 
 set_option autoImplicit false
@@ -169,8 +167,6 @@ private theorem packets_of_physical
       exact source
     · rfl
 
-/-- Every ordinary compact PiCCS row is the same row of the actual child
-lowering at its owned fresh start. The completed target supplies all rows. -/
 theorem ordinaryRows_of_physical
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (target : Env)

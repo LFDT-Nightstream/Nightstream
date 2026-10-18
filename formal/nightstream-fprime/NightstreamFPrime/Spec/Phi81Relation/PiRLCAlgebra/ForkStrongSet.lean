@@ -5,10 +5,6 @@ import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Challenge
 /-!
 Owns the exact production scalar-ring and strong-set unit bridge used by the
 PiRLC coordinate-fork extractor.
-
-All quotient-ring laws are deterministic. The only hypothesis is
-`LowNormInvertibility`. `Phi81StrongSet.lowNormInvertibility` proves it;
-consumers that already load Mathlib supply it.
 -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ForkStrongSet
@@ -60,8 +56,6 @@ theorem ringLaws : CommutativeRingLaws ring where
   left_distrib := EvaluationHomomorphism.CarrierAction.ringFMul_add_right
   right_distrib := EvaluationHomomorphism.CarrierAction.ringFMul_add_left
 
-/-- The production challenge predicate supplies a two-sided inverse for every
-nonzero fork difference. -/
 noncomputable def strongSetUnits
     (theorem8 : Phi81StrongSet.LowNormInvertibility) :
     StrongSetUnits ring Challenge.challengeValid where

@@ -4,9 +4,8 @@ import NightstreamFPrime.Export.Stage1.NifsRealSuccess
 
 /-!
 The actual local proof and current child witnesses for one recursive reverse
-step. Terminal acceptance supplies the prior-state link, the exact NIFS output
-and every child membership. This is a deterministic event link, with no
-adversary translation, probability, or work premise.
+step. This is a deterministic event link, with no adversary translation,
+probability, or work premise.
 -/
 
 set_option autoImplicit false
@@ -67,8 +66,6 @@ private theorem success_of_verified_output
     relation ajtai result child]
   exact valid child
 
-/-- The prior preimage that the decoded local step names under the package's
-verifier context: the preimage whose hash the terminal checks. -/
 noncomputable def prior (payload : HyperNovaHistory.Payload application) :=
   HyperNova.Construction2.Paper.priorHashPreimage
     (Lifecycle.setup (PerApplicationFixedPoint.relation application fits)
@@ -76,17 +73,11 @@ noncomputable def prior (payload : HyperNovaHistory.Payload application) :=
       (PerApplicationCanonicalPackage.verifierContextDigest fits setup))
     (HyperNovaHistory.decodedInput application fits payload)
 
-/-- The decoded prior preimage and local proof with the terminal's existing
-ordered sixteen child witnesses. No claimed output or source witness is added. -/
 noncomputable def output (payload : HyperNovaHistory.Payload application) :
     NifsRealSuccess.RealOutput (PerApplicationFixedPoint.relation application fits) :=
   makeOutput (PerApplicationFixedPoint.relation application fits) (prior application fits setup payload)
     (HyperNovaHistory.decodedInput application fits payload).nifsProof (payload.runningWitness functionIndex)
 
-/-- A non-base accepted terminal opening supplies the actual NIFS real-success
-event for the same prior input used by the reverse history. The prior-state
-link, child correctness and verifier-output equality are derived from
-acceptance, not assumed. -/
 theorem realSuccess_of_terminal
     (statement : HyperNovaHistory.Statement) (payload : HyperNovaHistory.Payload application)
     (accepted : PerApplicationTerminal.Holds application fits setup

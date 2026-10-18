@@ -23,7 +23,7 @@ pub use matrix_program::MatrixRun;
 pub(crate) mod native_application;
 use native_application::PreparedApplication;
 mod prepared;
-pub use prepared::{load_compiled_application_package, PREPARED_FIXED_SOURCE_NODE_LIMIT};
+pub use prepared::{load_trusted_compiled_application_package, PREPARED_FIXED_SOURCE_NODE_LIMIT};
 mod v1_2;
 pub use v1_2::{
     PiCcsV1_2EncodedInputs, PiCcsV1_2OutputEvaluations, PiCcsV1_2PackageInputs, PiDecV1_2PackageInputs,
@@ -298,8 +298,6 @@ impl ScheduledWitness<'_> {
     }
 }
 
-/// Decoded package execution data with structural checks. Its caller supplies
-/// circuit authority; prepared-package identity words alone do not grant it.
 #[derive(Clone, Debug)]
 pub struct LoadedPackage {
     layout: Layout,
@@ -317,7 +315,6 @@ pub struct LoadedPackage {
     relation_identifier: [u64; 4],
 }
 
-/// Canonical outer-terminal metadata retained from the Lean package.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LoadedTerminalLayout {
     row_start: usize,
@@ -410,8 +407,6 @@ impl LoadedPackage {
         self.witness_instructions.len()
     }
 
-    /// Execute the canonical sparse-row witness program. `private_inputs`
-    /// contains every non-witness private segment in package order.
     pub fn execute_witness(
         &self,
         private_inputs: &[u64],

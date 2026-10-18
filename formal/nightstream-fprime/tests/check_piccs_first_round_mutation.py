@@ -1,5 +1,3 @@
-"""Reject one changed Rust coefficient against the actual Lean round result."""
-
 import copy
 import json
 from pathlib import Path

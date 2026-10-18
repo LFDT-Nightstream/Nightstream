@@ -3,7 +3,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSLinearRows
 import Std.Data.HashMap.Lemmas
 
 /-! Cache complete carried blocks and their K-valued column reads for one
-invocation. Repeated keys reuse computed values; misses use the original read. -/
+invocation. -/
 
 set_option autoImplicit false
 
@@ -13,14 +13,11 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Export.Stage1.PiRLCPartialTrace
 
-/-- Compute each distinct requested key once. Every stored value comes from
-`blocks`; the key list supplies no values or correctness claims. -/
 def prepareCache {Value : Type} (keys : List Nat) (blocks : Nat → Value) :
     Std.HashMap Nat Value :=
   keys.foldl (fun cache key =>
     if cache.contains key then cache else cache.insert key (blocks key)) ∅
 
-/-- The original function is evaluated only when the key is absent. -/
 def cachedRead {Value : Type} (cache : Std.HashMap Nat Value)
     (blocks : Nat → Value) (key : Nat) : Value :=
   match cache[key]? with
@@ -56,8 +53,6 @@ private theorem fold_read {Value : Type} (keys : List Nat) (blocks : Nat → Val
       · simpa only [if_pos present] using valid
       · simpa only [if_neg present] using insert_read cache blocks valid inserted
 
-/-- Cache preparation preserves every original read, including repeated
-keys and keys absent from the preparation list. There is no support premise. -/
 theorem cachedRead_prepareCache {Value : Type} (keys : List Nat)
     (blocks : Nat → Value) (key : Nat) :
     cachedRead (prepareCache keys blocks) blocks key = blocks key := by
@@ -66,15 +61,11 @@ theorem cachedRead_prepareCache {Value : Type} (keys : List Nat)
   intro requested
   simp [cachedRead]
 
-/-- Request blocks from the existing invocation inputs and retained cells.
-Missing keys remain correct through the original-read fallback. -/
 def interfaceKeys {columns : Nat} (interface : PoseidonSboxPlan.Interface columns) : List Nat :=
   interface.oneColumn.val / ringDegree ::
     ((List.ofFn interface.input ++ List.ofFn interface.sboxOutput ++ List.ofFn interface.output).flatMap
       fun form => form.entries.map (fun entry => entry.column.val / ringDegree))
 
-/-- The same invocation fields supply the exact physical column keys.
-Only these requested scalar reads are prepared; missing keys retain fallback. -/
 def interfaceColumnKeys {columns : Nat}
     (interface : PoseidonSboxPlan.Interface columns) : List Nat :=
   interface.oneColumn.val ::
@@ -92,8 +83,6 @@ private theorem cached_columns_eq {columns : Nat}
   rw [cachedRead_prepareCache]
   simp only [columnValue, dif_pos column.isLt]
 
-/-- Share each requested block and each complete K column read across both
-scalar projections and all 150 numeric rows of the same invocation. -/
 def invocation {columns : Nat}
     (basis : FixedArray (Vector K ringDegree) ringDegree)
     (blocks : Nat → Vector K ringDegree) (interface : PoseidonSboxPlan.Interface columns) :
@@ -105,8 +94,6 @@ def invocation {columns : Nat}
   PiCCSLinearRows.invocation
     (fun column => cachedRead columnCache (columnValue read) column.val) interface
 
-/-- Both caches preserve every stored row and matrix port, for arbitrary
-original blocks and interfaces. No requested-support premise is needed. -/
 theorem invocation_eq {columns : Nat}
     (basis : FixedArray (Vector K ringDegree) ringDegree)
     (blocks : Nat → Vector K ringDegree) (interface : PoseidonSboxPlan.Interface columns) :
@@ -120,14 +107,10 @@ theorem invocation_eq {columns : Nat}
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.MatrixProgram
 
-/-- Physical columns read by the already compiled meaningful port forms.
-Repeated entries remain in the forms; cache preparation shares only reads. -/
 def rowColumnKeys {columns : Nat} (forms : RowForms columns) : List Nat :=
   (List.ofFn forms).flatMap fun form =>
     form.entries.map fun entry => entry.column.val
 
-/-- Cache complete blocks and K column reads for one loaded sparse row.
-Every port value uses the existing sparse evaluator. -/
 def sparseRow {columns : Nat}
     (basis : FixedArray (Vector K ringDegree) ringDegree)
     (blocks : Nat → Vector K ringDegree) (forms : RowForms columns) :
@@ -144,8 +127,6 @@ def sparseRow {columns : Nat}
         | none => SparseForm.empty)
       (fun column => cachedRead columnCache (columnValue read) column.val)
 
-/-- The caches preserve each original sparse port. No assignment or
-requested-support premise is required. -/
 theorem sparseRow_value {columns : Nat}
     (basis : FixedArray (Vector K ringDegree) ringDegree)
     (blocks : Nat → Vector K ringDegree) (forms : RowForms columns)
@@ -167,8 +148,6 @@ theorem sparseRow_value {columns : Nat}
   change (Vector.ofFn _)[port.val] = _
   rw [Vector.getElem_ofFn]
 
-/-- Load the original program row once, then share its carried reads.
-Every original lookup failure is retained. -/
 def row? (program : MatrixProgram.Program) {columns : Nat}
     (sourceRow : Nat → Option R1CS.Row)
     (basis : FixedArray (Vector K ringDegree) ringDegree)
@@ -176,9 +155,6 @@ def row? (program : MatrixProgram.Program) {columns : Nat}
     Option (Vector K Spec.ProductionRelation.matrixCount) :=
   (program.row? columns sourceRow ordinal).map (sparseRow basis blocks)
 
-/-- Exact optional-output equality with both scalar passes of the existing
-linear row interpreter. The source accessor, row order, guards, and all
-K values are unchanged, for arbitrary programs and carried blocks. -/
 theorem row?_eq (program : MatrixProgram.Program) {columns : Nat}
     (sourceRow : Nat → Option R1CS.Row)
     (basis : FixedArray (Vector K ringDegree) ringDegree)

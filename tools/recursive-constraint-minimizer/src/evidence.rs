@@ -1,5 +1,3 @@
-//! Serializable record of the exact query and raw cvc5 response.
-
 use serde::Serialize;
 
 use crate::{Conclusion, Problem, Query, Selection, SolverConfig, SolverRun, SolverStatus, Source};

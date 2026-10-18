@@ -1,15 +1,10 @@
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.CarrierAction
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Centered
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Concrete/Phi81Relation/PiRLCAlgebra/Norm/Product.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Exact quotient-ring support bound for one production Phi81 challenge action.
 
 Protocol: SuperNeo `Pi_RLC`.
-Phase: one valid challenge times one fresh assignment block.
-Constraint family: semantic norm only; this file emits no rows.
 
 Owns: support of the executable `rawMulCoeffF` convolution, centered bounds
 for its finite field sum, the exact three-branch support census of
@@ -17,20 +12,6 @@ for its finite field sum, the exact three-branch support census of
 
 Does not own: finite source folding, arity arithmetic, commitments,
 transcripts, Rust/R1CS refinement, row removal, or counts.
-
-Emits constraints: no.
-
-Authority boundary: support is read from the executable multiplication
-predicate itself. The finite theorem checks every one of the 54 possible
-output lanes in the kernel. No expansion law is supplied by a caller and no
-old circuit is used as an oracle.
-
-| Stage path | Mathematical obligation | Authority class | Lean owner |
-|---|---|---|---|
-| `nifs.pi_rlc.verify.norm_growth.product.raw.support` | one raw convolution includes exactly the active schoolbook indices | computed | `supportActive`, `supportCount`, `rawMulCoeffF_eq_fieldListSum` |
-| `nifs.pi_rlc.verify.norm_growth.product.raw.term` | valid symbol times fresh coefficient has centered magnitude at most two | derived | `rawTerm_le_two` |
-| `nifs.pi_rlc.verify.norm_growth.product.reduction.support` | all base/fold/twice occurrences total at most `2 * 54` | derived finite arithmetic | `totalSupport_le_two_degrees` |
-| `nifs.pi_rlc.verify.norm_growth.product.expansion` | every executable Phi81 product lane has centered magnitude at most `216` | derived | `ringFMul_le_expansion` |
 -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Product
@@ -40,9 +21,6 @@ open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
 open NightstreamFPrime.Spec.Phi81StrongSet
 
 
-/-! ## Executable raw support -/
-
-/-- The exact predicate inside one `rawMulCoeffF` loop iteration. -/
 def supportActive (degree index : Nat) : Prop :=
   index <= degree /\ degree - index < ringDegree
 
@@ -51,20 +29,16 @@ instance supportActiveDecidable (degree index : Nat) :
   unfold supportActive
   infer_instance
 
-/-- Number of active schoolbook terms in one executable raw convolution. -/
 def supportCount (degree : Nat) : Nat :=
   ((List.range ringDegree).filter fun index =>
     decide (supportActive degree index)).length
 
-/-- One raw schoolbook term, including the executable inactive zero. -/
 def rawTerm (left right : RingF) (degree index : Nat) : F :=
   if supportActive degree index then
     ringFCoeff left index * ringFCoeff right (degree - index)
   else
     0
 
-/-- Explicit finite field sum used only to expose the support hidden inside
-the tail-recursive production loop. -/
 def fieldListSum : List Nat -> (Nat -> F) -> F
   | [], _ => 0
   | index :: rest, term => term index + fieldListSum rest term
@@ -84,8 +58,6 @@ private theorem foldl_eq_add_fieldListSum
       rw [List.foldl_cons, inductionHypothesis]
       exact Lean.Grind.Fin.add_assoc _ _ _
 
-/-- The production raw loop is exactly the explicit sum of its indexed
-terms. -/
 theorem rawMulCoeffF_eq_fieldListSum
     (left right : RingF) (degree : Nat) :
     rawMulCoeffF left right degree =
@@ -111,8 +83,6 @@ theorem rawMulCoeffF_eq_fieldListSum
       simp [rawTerm, active, inactive']
   rw [step, foldl_eq_add_fieldListSum]
   exact field_zero_add _
-
-/-! ## Centered finite-sum bound -/
 
 private theorem fieldListSum_le_activeCount
     (indices : List Nat) (active : Nat -> Prop) [DecidablePred active]
@@ -167,8 +137,6 @@ private theorem fieldListSum_le_activeCount
               decide (active item)).length) * bound := by
             simp [headActive]
 
-/-- A production challenge coefficient has magnitude at most two; the other
-factor can have any stated coordinate bound. -/
 theorem rawTerm_le_twice_bound
     {bound : Nat} (challenge : RingF) (block : RingF)
     (challengeMember : ProductionMember challenge)
@@ -195,8 +163,6 @@ theorem rawTerm_le_twice_bound
       _ <= 2 * bound := Nat.mul_le_mul_left 2 (blockBounded blockLane)
   · simp [rawTerm, active, Centered.centeredMagnitude_zero]
 
-/-- A raw convolution is bounded by exactly its number of active terms, not
-by all 54 loop iterations. -/
 theorem rawMulCoeffF_le_support_of_bounded
     {bound : Nat} (challenge : RingF) (block : RingF)
     (challengeMember : ProductionMember challenge)
@@ -214,7 +180,6 @@ theorem rawMulCoeffF_le_support_of_bounded
   · intro index member inactive
     simp [rawTerm, inactive]
 
-/-- Fresh-coefficient specialization retained by the PiRLC norm proof. -/
 theorem rawTerm_le_two
     (challenge : RingF) (block : RingF)
     (challengeMember : ProductionMember challenge)
@@ -233,26 +198,17 @@ theorem rawMulCoeffF_le_support
   simpa using rawMulCoeffF_le_support_of_bounded (bound := 1) challenge block challengeMember
     (fun lane => Nat.le_of_lt_succ (blockFresh lane)) degree
 
-/-! ## Phi81 reduction support census -/
-
-/-- Degree of the executable negative folded raw coefficient. -/
 def foldedDegree (output : Nat) : Nat :=
   if output < ringMiddleDegree then output + ringDegree
   else output + ringMiddleDegree
 
-/-- Whether the executable second reduction contributes its positive raw
-coefficient. -/
 def twiceEnabled (output : Nat) : Bool :=
   decide (output + 81 <= 106)
 
-/-- Total raw-convolution support actually used by one output lane. -/
 def totalSupport (output : Nat) : Nat :=
   supportCount output + supportCount (foldedDegree output) +
     if twiceEnabled output then supportCount (output + 81) else 0
 
-/-- Kernel-checked exact finite census over all 54 output lanes. The actual
-maximum is 81; `2 * ringDegree = 108` is the production factorization used by
-`expansionT = 216`. -/
 theorem totalSupport_le_two_degrees :
     forall output : Fin ringDegree,
       totalSupport output.val <= 2 * ringDegree := by
@@ -260,21 +216,18 @@ theorem totalSupport_le_two_degrees :
     foldedDegree, twiceEnabled, ringDegree, ringMiddleDegree]
   decide
 
-/-- Executable negative folded raw coefficient. -/
 def foldedRaw (challenge block : RingF) (output : Nat) : F :=
   if output < ringMiddleDegree then
     rawMulCoeffF challenge block (output + ringDegree)
   else
     rawMulCoeffF challenge block (output + ringMiddleDegree)
 
-/-- Executable positive second-reduction raw coefficient. -/
 def twiceRaw (challenge block : RingF) (output : Nat) : F :=
   if output + 81 <= 106 then
     rawMulCoeffF challenge block (output + 81)
   else
     0
 
-/-- Exact field expression returned by one executable reduction lane. -/
 def reducedValue (challenge block : RingF) (output : Nat) : F :=
   rawMulCoeffF challenge block output - foldedRaw challenge block output +
     twiceRaw challenge block output
@@ -285,8 +238,6 @@ theorem ringFMul_eq_reducedValue
       reducedValue challenge block output.val := by
   rfl
 
-/-- Multiplication by a production challenge expands a coordinate bound by
-at most `216 = 2 * 54 * 2`, including bounded non-fresh openings. -/
 theorem ringFMul_le_expansion_of_bounded
     {bound : Nat} (challenge : RingF) (block : RingF)
     (challengeMember : ProductionMember challenge)
@@ -348,7 +299,6 @@ theorem ringFMul_le_expansion_of_bounded
       simp [totalSupport, folded, Nat.add_mul]
     _ <= 216 * bound := expandedBound
 
-/-- Fresh-coefficient specialization retained by the existing PiRLC consumer. -/
 theorem ringFMul_le_expansion
     (challenge : RingF) (block : RingF)
     (challengeMember : ProductionMember challenge)

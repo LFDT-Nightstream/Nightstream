@@ -290,10 +290,14 @@ pub(super) fn public_segment_mutation_checks(
     private_values: &[u64],
     public_values: &[u64],
 ) -> usize {
-    const PUBLIC_SEGMENTS: [(u64, &str); 3] = [
-        (4, "prior_public_input"),
-        (5, "output_digest"),
-        (10, "verification_key"),
+    enum Owner {
+        Pilot,
+        PiCcs,
+    }
+    const PUBLIC_SEGMENTS: [(u64, &str, Owner); 3] = [
+        (4, "prior_public_input", Owner::PiCcs),
+        (5, "output_digest", Owner::Pilot),
+        (10, "verification_key", Owner::PiCcs),
     ];
 
     assert_eq!(raw.3 .6.len(), PUBLIC_SEGMENTS.len(), "public segment count");
@@ -311,7 +315,7 @@ pub(super) fn public_segment_mutation_checks(
     let mut cursor = layout.unpadded_constant + 1;
     let schedule = events(raw);
     let mut checks = 0;
-    for (segment, (expected_role, name)) in raw.3 .6.iter().zip(PUBLIC_SEGMENTS) {
+    for (segment, (expected_role, name, owner)) in raw.3 .6.iter().zip(PUBLIC_SEGMENTS) {
         assert_eq!(segment.0, expected_role, "{name} public role");
         let start = word(segment.1);
         let count = word(segment.2);
@@ -319,9 +323,10 @@ pub(super) fn public_segment_mutation_checks(
         assert_ne!(count, 0, "{name} public count");
         let end = start.checked_add(count).expect("public segment end");
         assert!(end <= physical_end, "{name} public range");
-        // The output digest is checked by Pilot. PiCCS consumes the output
-        // preimage and must not claim ownership of this already-checked value.
-        let rows = if expected_role == 5 { pilot_rows } else { pi_ccs_rows };
+        let rows = match owner {
+            Owner::Pilot => pilot_rows,
+            Owner::PiCcs => pi_ccs_rows,
+        };
         assert!(
             matching_column_rejects(
                 raw,

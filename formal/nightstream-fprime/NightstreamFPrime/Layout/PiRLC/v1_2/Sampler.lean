@@ -102,7 +102,6 @@ theorem counts (interface : Logical.Interface) (coordinate offset : Nat)
   refine ⟨fresh, ?_⟩
   rw [R1CS.totalRowCount_eq_fresh_add_length, fresh, Lifecycle.PiRLC.v1_2.Sampler.rowCount_eq, Lifecycle.PiRLC.v1_2.Sampler.counts.2]
 
-/-- The scalar's external expressions are its incoming transcript state. -/
 structure InputsAffine (interface : Logical.Interface) (offset : Nat) : Prop where
   initialState : StateAffine (interface.initialState offset)
 

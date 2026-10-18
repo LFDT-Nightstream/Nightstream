@@ -5,9 +5,7 @@ import NightstreamFPrime.Lifecycle.PaperAlgebra
 Paper authority: SuperNeo v1.2, Section 7.4, verifier Step 1, equation
 `x = sum_i rho_i x_i` under coefficient embedding.
 
-This leaf instantiates all five 54-coefficient public rings. It proves that
-the block/lane circuit order is the canonical flat public-column order used
-by `PiRLCAlgebra.PublicInput.combinePublicInputs`.
+This leaf instantiates all five 54-coefficient public rings.
 -/
 
 namespace NightstreamFPrime.Lifecycle.PiRLC.v1_2.PublicInputCombination

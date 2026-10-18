@@ -2,9 +2,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSSignedFirstFold
 import NightstreamFPrime.Export.Stage1.PiCCSPrefixNormBuckets
 import NightstreamFPrime.Export.Stage1.PiCCSNormBuckets
 
-/-! Norm endpoints after the first sum-check challenge. Each endpoint is
-the existing interpolation of two original signed coefficients. Four original
-coefficients form the next pair; the cubic is applied after interpolation. -/
+/-! Norm endpoints after the first sum-check challenge. -/
 
 set_option autoImplicit false
 
@@ -15,18 +13,15 @@ open NightstreamFPrime.Spec.SumCheck.Finite
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 
-/-- The nine ordered pairs in the existing signed-code order. -/
 def pairCode (low high : Fin 3) : Fin 9 :=
   ⟨low.val * 3 + high.val, by omega⟩
 
-/-- Flatten the proved first-fold cache without new arithmetic. -/
 def values (challenge : K) : Vector K 9 :=
   let table := PiCCSSignedFirstFold.prepare challenge
   Vector.ofFn fun code =>
     (table.get ⟨code.val / 3, by omega⟩).get
       ⟨code.val % 3, Nat.mod_lt _ (by decide)⟩
 
-/-- Each cached endpoint is the specification's first prefix fold. -/
 theorem values_pairCode (challenge : K) (low high : Fin 3) :
     (values challenge).get (pairCode low high) =
       PrefixFold.interpolate extensionOps challenge
@@ -46,8 +41,6 @@ theorem values_pairCode (challenge : K) (low high : Fin 3) :
     omega
   rw [first, second, PiCCSSignedFirstFold.prepare_value]
 
-/-- Compute a second-round norm range directly from original signed codes.
-The range is in four-scalar groups; the weights are the remaining alpha factors. -/
 def range (challenge : K) (codes : Nat → Fin 3) (weight : Nat → K)
     (start count : Nat) : FixedPolynomial K 3 :=
   PiCCSPrefixNormBuckets.range (values challenge)
@@ -55,9 +48,6 @@ def range (challenge : K) (codes : Nat → Fin 3) (weight : Nat → K)
     (fun index => pairCode (codes (4 * index + 2)) (codes (4 * index + 3)))
     weight start count
 
-/-- The cached range is exactly the original norm polynomial applied after
-the original prefix interpolation. No signed-endpoint assumption is made
-about the interpolated values, and diagonal cubics are not removed. -/
 theorem range_eq_reference (challenge : K) (codes : Nat → Fin 3) (weight : Nat → K)
     (start count : Nat) :
     range challenge codes weight start count =
@@ -111,8 +101,6 @@ private theorem referenceTerm_zero (challenge : K) (codes : Nat → Fin 3)
   simp only [interpolate_zero, normPair_zero,
     PiCCSPolynomialRange.scale_zero_polynomial extensionOps extensionLaws]
 
-/-- Every four-scalar group after the source bound contributes exactly zero.
-The range length, challenge, and scalar weights remain arbitrary. -/
 theorem range_zero (challenge : K) (codes : Nat → Fin 3) (weight : Nat → K)
     (bound start count : Nat)
     (zeroAfter : ∀ i, bound ≤ i → codes i = ⟨1, by decide⟩)
@@ -123,8 +111,6 @@ theorem range_zero (challenge : K) (codes : Nat → Fin 3) (weight : Nat → K)
   intro index lower _
   exact referenceTerm_zero challenge codes weight bound index zeroAfter (by omega)
 
-/-- A complete four-scalar prefix equals any longer full range: all appended
-pairs are the proved zero suffix of the same original code reader. -/
 theorem prefix_eq_full (challenge : K) (codes : Nat → Fin 3) (weight : Nat → K)
     (bound count fullCount : Nat)
     (zeroAfter : ∀ i, bound ≤ i → codes i = ⟨1, by decide⟩)

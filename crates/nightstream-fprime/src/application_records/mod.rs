@@ -78,7 +78,6 @@ fn canonical(value: u64) -> Result<Goldilocks, PackageError> {
     Ok(Goldilocks::from_u64(value))
 }
 
-/// Always writes private records; no size-dependent storage mode is selected.
 pub struct ApplicationRecordsWriter {
     data: Writer,
     rows: Writer,
@@ -233,7 +232,6 @@ impl ApplicationRecordsWriter {
     }
 }
 
-/// Sealed records are shared through `Arc`; readers own independent cursors.
 pub struct ApplicationRecords {
     data: Reader,
     rows: Reader,
@@ -384,7 +382,6 @@ impl ApplicationRecords {
         Ok(ControlFlow::Continue(()))
     }
 
-    /// Evaluate all three forms from one sequential row read.
     pub fn evaluate_row(
         &self,
         row: usize,
@@ -444,7 +441,6 @@ impl ApplicationRecords {
     }
 }
 
-/// One batch's disk scratch; the authoritative records stay immutable.
 pub(crate) struct RecipeEvaluator<'a> {
     records: &'a ApplicationRecords,
     stack: RecipeStack,

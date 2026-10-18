@@ -21,8 +21,6 @@ variable {logicalWidth : Nat}
   (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
 
-/-- An accepted NIFS run supplies C acceptance and the D checks for the
-same transcript-derived challenges. -/
 theorem verifierInputs
     (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -52,7 +50,6 @@ theorem verifierInputs
   rw [parentValue, attemptValue]
   exact checks
 
-/-- D proof sources begin after the complete logical R witness interval. -/
 theorem rEnd_before_dInputs :
     PiRLCInputs.phaseOffset + PiRLC.v1_2.Formal.logicalPrivateCount ≤ PiDECInputs.proofInputStart := by
   change PiRLCStarts.phaseFreshStart ≤ PiRLCStarts.outputFreshStart
@@ -337,10 +334,6 @@ private theorem rValues_eq_of_agree
         · exact agrees index below)
     exact result.symm
 
-/-- Continue D from a constructed R prefix after physical lowering.
-The preceding constructor supplies its exact challenge and parent equalities;
-bounded agreement preserves them across the R fresh interval. Actual verifier
-acceptance supplies every D check and the final result. -/
 theorem completePrefix_after_r
     (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -459,11 +452,6 @@ variable
   (values : PiCCSProofInputs.ProofValues) (context : VerifierContext.Digest4)
   (template : Proof 8)
 
-/-- An actual accepted NIFS run constructs the canonical local C/R/D
-prefixes and their exact running output. C acceptance and the D parent bound
-follow from that run; the sampler is total. State framing and context are
-the outer circuit's fixed input prerequisites. No child opening, generated
-phase specification, or generated output value is a premise. -/
 theorem completePrefix_from
     (result : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (priorCanonical : Lifecycle.ChildrenCanonical (prior.running functionIndex))
@@ -528,11 +516,6 @@ theorem completePrefix_from
   exact ⟨c, r, d, cOperations, rOperations, dOperations, cRows, rRows, dPhase, dOutput⟩
 
 
-/-- An actual accepted NIFS run constructs the canonical local C/R/D
-prefixes and their exact running output. C acceptance and the D parent bound
-follow from that run; the sampler is total. State framing and context are
-the outer circuit's fixed input prerequisites. No child opening, generated
-phase specification, or generated output value is a premise. -/
 theorem completePrefix
     (result : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (priorCanonical : Lifecycle.ChildrenCanonical (prior.running functionIndex))

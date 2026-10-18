@@ -1,15 +1,3 @@
-//! WIP CUDA backend for the canonical SuperNeo NIFS prover.
-//!
-//! The former CUDA kernels implemented an incompatible protocol. This crate
-//! keeps CUDA as a required backend target, but construction fails until a
-//! canonical one-joint device kernel exists. It does not fall back to CPU.
-//!
-//! Build discipline: the `cuda` feature is only built through
-//! `cargo +nightly-2026-04-03 oxide` (custom rustc codegen backend for
-//! `#[cuda_module]` blocks). Plain `cargo` workspace builds keep it off.
-//!
-//! The kernel status is available without the driver dependency.
-
 #[cfg(feature = "perf-timers")]
 pub mod perf_ranges {
     pub struct NvtxRange {
@@ -114,8 +102,6 @@ pub mod perf_ranges {
     }
 }
 
-/// Time a statement block to stderr under the workspace `perf-timers`
-/// convention; free when the feature is off.
 #[cfg(feature = "perf-timers")]
 #[macro_export]
 macro_rules! perf_timed {
@@ -144,5 +130,4 @@ macro_rules! perf_timed {
     };
 }
 
-/// The canonical CUDA kernel must exist before either lifecycle can select it.
 pub const CANONICAL_KERNEL_UNAVAILABLE: &str = "the canonical one-joint CUDA NIFS kernel is not implemented";

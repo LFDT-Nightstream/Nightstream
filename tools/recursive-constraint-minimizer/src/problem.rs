@@ -1,10 +1,9 @@
-//! Typed input boundary for one normalized Goldilocks R1CS slice.
-
 use std::collections::HashSet;
 use std::error::Error;
 use std::fmt;
 
-use serde::{Deserialize, Serialize};
+use serde::de::Error as _;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 pub const PROBLEM_SCHEMA: &str = "nightstream/r1cs-redundancy-problem/v3";
 pub const GOLDILOCKS_MODULUS: &str = "18446744069414584321";
@@ -25,11 +24,48 @@ pub struct Source {
     pub total_rows: usize,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Residue(u64);
+
+impl Residue {
+    pub fn new(value: u64) -> Option<Self> {
+        let modulus = GOLDILOCKS_MODULUS
+            .parse::<u64>()
+            .expect("the fixed Goldilocks modulus is a u64");
+        (value != 0 && value < modulus).then_some(Self(value))
+    }
+
+    pub fn get(self) -> u64 {
+        self.0
+    }
+}
+
+impl Serialize for Residue {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_str(&self.0)
+    }
+}
+
+impl<'de> Deserialize<'de> for Residue {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let text = String::deserialize(deserializer)?;
+        let value = text
+            .parse::<u64>()
+            .map_err(|_| D::Error::custom(format!("coefficient {text:?} is not a decimal residue")))?;
+        Residue::new(value)
+            .filter(|_| text == value.to_string())
+            .ok_or_else(|| {
+                D::Error::custom(format!(
+                    "coefficient {text:?} is not a nonzero canonical Goldilocks residue"
+                ))
+            })
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Term {
     pub column: usize,
-    /// Canonical decimal residue in `[1, GOLDILOCKS_MODULUS)`.
-    pub coefficient: String,
+    pub coefficient: Residue,
 }
 
 pub type LinearCombination = Vec<Term>;
@@ -51,9 +87,7 @@ pub struct Problem {
     pub field_modulus: String,
     pub column_count: usize,
     pub constant_one_column: usize,
-    /// Exclusive end of the normalized public-column prefix.
     pub public_input_count: usize,
-    /// Families for which this input contains every source row owned by the family.
     pub complete_families: Vec<String>,
     pub rows: Vec<Row>,
 }
@@ -213,9 +247,6 @@ impl Problem {
         side: &str,
         terms: &LinearCombination,
     ) -> Result<(), ProblemError> {
-        let modulus = GOLDILOCKS_MODULUS
-            .parse::<u64>()
-            .expect("the fixed Goldilocks modulus is a u64");
         let mut prior_column = None;
         for term in terms {
             if term.column >= self.column_count {
@@ -231,18 +262,6 @@ impl Problem {
                 )));
             }
             prior_column = Some(term.column);
-            let coefficient = term.coefficient.parse::<u64>().map_err(|_| {
-                ProblemError::new(format!(
-                    "row {:?} side {side} has a non-decimal coefficient {:?}",
-                    row.id, term.coefficient
-                ))
-            })?;
-            if coefficient == 0 || coefficient >= modulus || term.coefficient != coefficient.to_string() {
-                return Err(ProblemError::new(format!(
-                    "row {:?} side {side} has a noncanonical coefficient {:?}",
-                    row.id, term.coefficient
-                )));
-            }
         }
         Ok(())
     }

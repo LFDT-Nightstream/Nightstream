@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Check full-mask source selection, exact outputs and input rejection."""
 
 import json
 from pathlib import Path

@@ -4,8 +4,7 @@ import NightstreamFPrime.Export.Stage1.CompactRowRelocation
 
 /-!
 Compose stored execution, physical row relocation and the canonical lowerers
-for the two compact-template constructors. All geometry premises remain explicit.
-The reference environment is the pullback after the physical output write.
+for the two compact-template constructors.
 -/
 
 set_option autoImplicit false
@@ -19,8 +18,6 @@ open NightstreamFPrime.Export.Package
 open StoredWitnessExecution (asEnv)
 open CompactRowRelocation (pullback)
 
-/-- A physical output write preserves every input used by the recipe. Other
-input aliases are unrestricted. Reuse the existing normalized output law. -/
 private theorem logical_after_physical_output
     (inputCount outputInput localStart : Nat) (inputColumn : Nat → Nat)
     (env : Env) (recipe : Expr) (outputBelow : outputInput < inputCount)
@@ -58,7 +55,6 @@ private theorem logical_after_physical_output
     normalized scope agrees]
   exact CompactOutputExecution.logical_after_output inputEnv outputInput recipe recipeScope
 
-/-- Local guards follow from the canonical lowerer's C-column scope. -/
 private theorem abstract_localBounds (inputCount count : Nat) (rows : List R1CS.Row)
     (scope : ∀ row ∈ rows, row.c.VarsBelow (inputCount + count)) :
     ∀ row ∈ rows.map (CompactRows.abstractRow inputCount), ∀ index,
@@ -92,8 +88,6 @@ private theorem run_lowerGenericConstraint (inputCount localStart : Nat)
     (pullback inputCount localStart inputColumn env) expression inputCount
     (Nat.le_refl _) scope logical
 
-/-- Stored execution of a generic canonical compact template has exactly the
-existing expression executor's result after the initial physical output write. -/
 theorem execute_compactTemplate (inputCount outputInput localStart : Nat)
     (inputColumn : Nat → Nat) (recipe : Expr) (values : Array F)
     (outputFits : inputColumn outputInput < values.size)
@@ -150,8 +144,6 @@ theorem execute_compactTemplate (inputCount outputInput localStart : Nat)
       congrArg (Option.map (pullback inputCount localStart inputColumn)) stored
     _ = _ := rows
 
-/-- Stored execution keeps the optimized directConstraint branch and its generic
-fallback exactly as selected by the existing canonical constraint lowerer. -/
 theorem execute_compactConstraintTemplate (inputCount outputInput localStart : Nat)
     (inputColumn : Nat → Nat) (recipe : Expr) (values : Array F)
     (outputFits : inputColumn outputInput < values.size)

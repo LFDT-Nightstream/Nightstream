@@ -5,9 +5,6 @@ import NightstreamFPrime.Layout.Stage1.AccumulatorSemantics
 
 /-!
 Owns the complete NIFS proof decoded from the actual selected assignment.
-PiCCS reads its existing decoder. All sixteen PiDEC commitments and separate
-Eval_K/Eval_A messages read the actual PiDEC decoder. The existing operational
-attempt consumes these messages once the exact verifier parent is supplied.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.ActualPiDECMessages
@@ -22,8 +19,6 @@ open NightstreamFPrime.Spec.Folding
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
-/-- The existing accumulator proof reads every PiDEC message from its actual
-physical owner. Its PiCCS fields are replaced by the PiCCS decoder below. -/
 def sourceProof (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application)) :
@@ -32,8 +27,6 @@ def sourceProof (application : Lifecycle.Stage1.Application.Program)
     (Spartan.pullback (ActualPiDEC.decodedEnv
       (ActualPiDEC.selectedGeometry application) assignment))
 
-/-- Both phase message families come from the assignment, with no external
-proof template or caller-supplied representation premise. -/
 def proof (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application)) :
@@ -50,7 +43,6 @@ def attempt (application : Lifecycle.Stage1.Application.Program)
     (Spartan.pullback (ActualPiDEC.decodedEnv
       (ActualPiDEC.selectedGeometry application) assignment))
 
-/-- Every child commitment coefficient uses the actual PiDEC message wire. -/
 theorem proof_commitment_eq
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
@@ -63,7 +55,6 @@ theorem proof_commitment_eq
           (ActualPiDEC.selectedGeometry application) assignment)) := by
   rfl
 
-/-- Every child Pad evaluation uses the actual separate Eval_K message. -/
 theorem proof_evalK_eq
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
@@ -76,7 +67,6 @@ theorem proof_evalK_eq
           (ActualPiDEC.selectedGeometry application) assignment)) := by
   rfl
 
-/-- Every child and CCS matrix uses its actual separate Eval_A message. -/
 theorem proof_evalA_eq
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
@@ -89,8 +79,6 @@ theorem proof_evalA_eq
           (ActualPiDEC.selectedGeometry application) assignment)) := by
   rfl
 
-/-- The complete decoded message families form exactly the operational
-attempt over its actual parent. This equality needs no honest encoding. -/
 theorem attemptForParent_eq
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
@@ -111,8 +99,6 @@ theorem attemptForParent_eq
     ActualStep.withDecodedPiCCS, PiCCS.v1_2.Formal.evalProof, sourceProof,
     attempt, PiDECArithmetic.phaseInterface, relation, env] using! boundary
 
-/-- Exact parent equality is the remaining input to the production key's
-optional attempt. Its message fields are already fixed by the assignment. -/
 theorem keyPiDecAttempt_eq_some_of_parent
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
@@ -133,8 +119,6 @@ theorem keyPiDecAttempt_eq_some_of_parent
     attemptForParent_eq]
   rfl
 
-/-- Accepted selected rows and the actual public input fix the complete
-production PiDEC attempt, including every child message and its exact parent. -/
 theorem selectedRowsAndPublic_imply_attempt
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)

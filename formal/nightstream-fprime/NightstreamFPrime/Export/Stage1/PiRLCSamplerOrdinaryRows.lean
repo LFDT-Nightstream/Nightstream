@@ -1,8 +1,7 @@
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerInvocations
 
 /-! Emits the checked wide reduction and its coefficient-word rows. The two
-Poseidon2 permutations per scalar are owned by PiRLCSamplerInvocations. Every
-ordinary row is compiled from the canonical circuit at its declared offset. -/
+Poseidon2 permutations per scalar are owned by PiRLCSamplerInvocations. -/
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRows
 

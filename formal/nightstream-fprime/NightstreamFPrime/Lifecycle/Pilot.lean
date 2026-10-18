@@ -65,10 +65,6 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns <=
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- Base-case convention for the pilot. At iteration zero, Construction 2
-does not consume the prior-state fresh-instance binding. The base branch still
-consumes the output-hash slot; its application and default-running slots belong
-to their later builders. -/
 theorem base_branch_output_slot
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -85,8 +81,6 @@ theorem base_branch_output_slot
       input output :=
   base.outputHash
 
-/-- Both logical pilot builders imply their exact fields of the production
-recursive relation. -/
 theorem builders_imply_hash_slots
     (interface : Interface) (offset : Nat) (env : Env)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)

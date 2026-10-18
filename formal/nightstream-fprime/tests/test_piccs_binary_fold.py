@@ -7,7 +7,6 @@ import sys
 import tempfile
 import unittest
 
-# Pool workers import the checker by module name.
 sys.path.insert(0, str(Path(__file__).parent))
 import check_piccs_binary_fold as checker  # noqa: E402
 
@@ -17,7 +16,6 @@ CHALLENGE = [5, 3]
 
 
 def fold(low, high):
-    """One binary fold of K values with the fixed challenge r = 5 + 3u, u² = 7."""
     (a, b), (c, d) = low, high
     delta0, delta1 = (c - a) % P, (d - b) % P
     r0, r1 = CHALLENGE

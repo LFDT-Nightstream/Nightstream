@@ -1,9 +1,5 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteJointData
 
-/-! Provenance: adapted from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/UnifiedSources.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; split into the
-SuperNeo v1.2 Pad and 4-matrix evaluation families. -/
-
 /-!
 One authoritative assignment family for every SuperNeo v1.2 `Pi_CCS`
 obligation.
@@ -26,25 +22,6 @@ the nonlinear protocol polynomial, Fiat--Shamir, Rust, R1CS, or constraint
 counts.
 
 Emits constraints: no.
-
-Authority boundary: callers provide assignments once. They cannot separately
-choose the norm values or either evaluation assignment family. `ColumnLayout`
-is injective from columns to rows and identifies padding rows explicitly, so
-a norm check over Boolean vertices covers every authoritative assignment
-column and checks zero on every padding row. The older
-`ConcreteJointData.IndependentInputs` remains only as an internal derived view
-for reusing already-proved family lemmas.
-
-| Protocol | Phase | Family | Mathematical obligation |
-|---|---|---|---|
-| `Pi_CCS` | source domain | Boolean row / assignment column | `ColumnLayout` is an injection with explicit padding and forces `columns <= 2^variables` |
-| `Pi_CCS` | source ownership | all `K+k` vectors | `UnifiedInputs.assignments` is authoritative |
-| `Pi_CCS` | CCS | first `K` sources | `freshBatch` reads `freshSourceIndex i` |
-| `Pi_CCS` | norm | all `K+k` sources | `normBatch` reads the same assignment through `ColumnLayout` |
-| `Pi_CCS` | Pad evaluation | final `k` sources | `padData` reads `runningSourceIndex i` |
-| `Pi_CCS` | matrix evaluation | final `k` sources | `matrixData` reads the same `runningSourceIndex i` |
-| assurance | connectivity | norm coverage | `normBatch_allStrictNormBounded_iff_allAssignmentsStrictNormBounded` |
-| assurance | semantic closure | all three families | `toIndependentInputs_semanticTruth_iff` |
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.UnifiedSources
@@ -56,11 +33,7 @@ open PaperLinearAlgebra
 universe uExtension
 
 /-- Exact layout for the paper requirement `n_F <= m = 2^ell`.
-
-Every assignment column owns one Boolean row. A row either decodes to that
-unique column or is a padding row. This is the typed form of
-`M_1 = [I; 0]`; it prevents omission and duplication without requiring the
-assignment width to equal the row count. -/
+This is the typed form of `M_1 = [I; 0]`. -/
 structure ColumnLayout (variables columns : Nat) where
   columns_le : columns <= 2 ^ variables
   toVertex : Fin columns -> BooleanVertex variables
@@ -72,14 +45,12 @@ structure ColumnLayout (variables columns : Nat) where
 
 namespace ColumnLayout
 
-/-- Embed the canonical assignment-column order into the Boolean row cube. -/
 def enumeratedVertices
     {variables columns : Nat}
     (layout : ColumnLayout variables columns) :
     List (BooleanVertex variables) :=
   (canonicalFinIndices columns).map layout.toVertex
 
-/-- Two assignment columns cannot own the same Boolean row. -/
 theorem toVertex_injective
     {variables columns : Nat}
     (layout : ColumnLayout variables columns) :
@@ -90,7 +61,6 @@ theorem toVertex_injective
     layout.toColumn_toVertex right] at decoded
   exact Option.some.inj decoded
 
-/-- The embedded column rows contain no duplicate Boolean vertex. -/
 theorem enumeratedVertices_nodup
     {variables columns : Nat}
     (layout : ColumnLayout variables columns) :
@@ -99,7 +69,6 @@ theorem enumeratedVertices_nodup
     intro left right different equal
     exact different (layout.toVertex_injective equal))
 
-/-- Every embedded assignment row occurs in the canonical Boolean cube. -/
 theorem enumeratedVertices_subset_all
     {variables columns : Nat}
     (layout : ColumnLayout variables columns) :
@@ -107,16 +76,12 @@ theorem enumeratedVertices_subset_all
   intro vertex _
   exact BooleanVertex.mem_all vertex
 
-/-- The paper layout proves the required dimension inequality
-`n_F <= m = 2^ell`. -/
 theorem columns_le_twoPow
     {variables columns : Nat}
     (layout : ColumnLayout variables columns) :
     columns <= 2 ^ variables :=
   layout.columns_le
 
-/-- Read an assignment through `M_1 = [I; 0]`: live rows return their unique
-assignment coordinate and padding rows return the additive zero. -/
 def paddedValue
     {Value : Type}
     {variables columns : Nat}
@@ -128,8 +93,7 @@ def paddedValue
   | some column => assignment column
   | none => zero
 
-/-- One entry of the paper's padded first matrix `M_1 = [I; 0]`.
-Live rows contain one canonical unit entry. Padding rows are zero rows. -/
+/-- One entry of the paper's padded first matrix `M_1 = [I; 0]`. -/
 def paddedIdentityEntry
     {Value : Type}
     {variables columns : Nat}
@@ -141,8 +105,6 @@ def paddedIdentityEntry
   | some selected => if column = selected then one else zero
   | none => zero
 
-/-- Every authoritative assignment coordinate survives the padding
-injection exactly. -/
 @[simp] theorem paddedValue_toVertex
     {Value : Type}
     {variables columns : Nat}
@@ -154,7 +116,6 @@ injection exactly. -/
       assignment column := by
   simp [paddedValue, layout.toColumn_toVertex]
 
-/-- The row owned by `column` has the expected unit entry. -/
 @[simp] theorem paddedIdentityEntry_toVertex
     {Value : Type}
     {variables columns : Nat}
@@ -167,7 +128,6 @@ injection exactly. -/
 
 end ColumnLayout
 
-/-- Canonical injection of one of the first `K` sources into `K+k`. -/
 def freshSourceIndex
     {shape : Shape}
     (source : Fin shape.freshCount) : Fin shape.sourceCount :=
@@ -175,7 +135,6 @@ def freshSourceIndex
     simp only [Shape.sourceCount]
     omega⟩
 
-/-- Canonical injection of one of the final `k` sources into `K+k`. -/
 def runningSourceIndex
     {shape : Shape}
     (source : Fin shape.runningCount) : Fin shape.sourceCount :=
@@ -183,7 +142,6 @@ def runningSourceIndex
     simp only [Shape.sourceCount]
     omega⟩
 
-/-- The fresh and running injections cannot alias. -/
 theorem freshSourceIndex_ne_runningSourceIndex
     {shape : Shape}
     (fresh : Fin shape.freshCount)
@@ -194,8 +152,6 @@ theorem freshSourceIndex_ne_runningSourceIndex
   simp only [freshSourceIndex, runningSourceIndex] at values
   omega
 
-/-- Every source is owned by exactly one canonical side of the `K+k`
-partition. -/
 theorem source_eq_fresh_or_running
     {shape : Shape}
     (source : Fin shape.sourceCount) :
@@ -214,9 +170,6 @@ theorem source_eq_fresh_or_running
     simp only [runningSourceIndex, running]
     omega
 
-/-- The paper-level input bundle with a single owner for every source vector.
-The coefficient-expanded matrices remain explicit because their derivation
-from ring matrices is a separate refinement theorem. -/
 structure UnifiedInputs
     (Extension : Type uExtension)
     (shape : Shape)
@@ -235,7 +188,6 @@ structure UnifiedInputs
 
 namespace UnifiedInputs
 
-/-- CCS view of the first `K` authoritative assignments. -/
 def freshBatch
     {Extension : Type uExtension}
     {shape : Shape}
@@ -245,8 +197,6 @@ def freshBatch
   system := data.system
   assignments := fun source => data.assignments (freshSourceIndex source)
 
-/-- Norm view of all `K+k` authoritative assignments through `M_1 = [I; 0]`.
-Padding rows contain the canonical field zero. -/
 def normBatch
     {Extension : Type uExtension}
     {shape : Shape}
@@ -256,7 +206,6 @@ def normBatch
   assignments := fun source vertex =>
     data.layout.paddedValue 0 (data.assignments source) vertex
 
-/-- Pad-evaluation view of the final `k` authoritative assignments. -/
 def padData
     {Extension : Type uExtension}
     {shape : Shape}
@@ -269,8 +218,6 @@ def padData
   coefficientMatrices := data.padCoefficientMatrices
   claimedCoefficient := data.claimedPadCoefficient
 
-/-- CCS-matrix evaluation view of the same final `k` assignments and prior
-point. -/
 def matrixData
     {Extension : Type uExtension}
     {shape : Shape}
@@ -283,9 +230,6 @@ def matrixData
   coefficientMatrices := data.matrixCoefficientMatrices
   claimedCoefficient := data.claimedMatrixCoefficient
 
-/-- Internal projection used only to reuse the independently proved residual
-family theorems. No caller can construct its three assignment views
-independently through this API. -/
 def toIndependentInputs
     {Extension : Type uExtension}
     {shape : Shape}
@@ -302,7 +246,6 @@ def toIndependentInputs
   claimedPadCoefficient := data.claimedPadCoefficient
   claimedMatrixCoefficient := data.claimedMatrixCoefficient
 
-/-- The CCS view reads the authoritative fresh assignment verbatim. -/
 theorem freshBatch_assignment_eq
     {Extension : Type uExtension}
     {shape : Shape}
@@ -314,8 +257,6 @@ theorem freshBatch_assignment_eq
       data.assignments (freshSourceIndex source) column := by
   rfl
 
-/-- The norm view is exactly the assignment after the paper's zero-padding
-injection. -/
 theorem normBatch_assignment_eq
     {Extension : Type uExtension}
     {shape : Shape}
@@ -327,7 +268,6 @@ theorem normBatch_assignment_eq
       data.layout.paddedValue 0 (data.assignments source) vertex := by
   rfl
 
-/-- The Pad view reads the authoritative running assignment verbatim. -/
 theorem padData_assignment_eq
     {Extension : Type uExtension}
     {shape : Shape}
@@ -339,8 +279,6 @@ theorem padData_assignment_eq
       data.assignments (runningSourceIndex source) column := by
   rfl
 
-/-- The matrix view reads the same authoritative running assignment
-verbatim. -/
 theorem matrixData_assignment_eq
     {Extension : Type uExtension}
     {shape : Shape}
@@ -352,9 +290,6 @@ theorem matrixData_assignment_eq
       data.assignments (runningSourceIndex source) column := by
   rfl
 
-/-- Looking up a norm value at the vertex corresponding to a column recovers
-that exact authoritative column; no assignment coordinate can evade the norm
-family. -/
 theorem normBatch_at_toVertex_eq_assignment
     {Extension : Type uExtension}
     {shape : Shape}
@@ -366,7 +301,6 @@ theorem normBatch_at_toVertex_eq_assignment
       data.assignments source column := by
   simp [normBatch]
 
-/-- Authoritative strict norm over every actual source column. -/
 def AllAssignmentsStrictNormBounded
     {Extension : Type uExtension}
     {shape : Shape}
@@ -374,8 +308,6 @@ def AllAssignmentsStrictNormBounded
     (data : UnifiedInputs Extension shape columns) : Prop :=
   ∀ source column, centeredMagnitude (data.assignments source column) < 2
 
-/-- The Boolean norm family is exact for the authoritative assignment family.
-Every live column has one row, and every padding row contains zero. -/
 theorem normBatch_allStrictNormBounded_iff_allAssignmentsStrictNormBounded
     {Extension : Type uExtension}
     {shape : Shape}
@@ -397,7 +329,6 @@ theorem normBatch_allStrictNormBounded_iff_allAssignmentsStrictNormBounded
         simpa [normBatch, ColumnLayout.paddedValue, decoded] using
           bounded source column
 
-/-- Independent semantic truth over the one authoritative source family. -/
 def SemanticTruth
     {Extension : Type uExtension}
     {shape : Shape}
@@ -412,9 +343,6 @@ def SemanticTruth
     MatrixEvaluationResidual.AllClaimsHold baseOps extensionOps lift
       data.matrixData
 
-/-- Projecting to the old independent residual-family bundle preserves
-exactly the stronger unified semantic truth; this theorem is the only intended
-entry into those reusable family lemmas. -/
 theorem toIndependentInputs_semanticTruth_iff
     {Extension : Type uExtension}
     {shape : Shape}

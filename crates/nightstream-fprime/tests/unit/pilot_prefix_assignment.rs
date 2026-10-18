@@ -18,6 +18,7 @@ use crate::{load_poseidon2_hash_chain_v1_package, WitnessAssignment, PI_CCS_V1_2
 const PILOT_ROWS: usize = 14_623_730;
 const PILOT_PRIVATE_END: usize = 14_751_526;
 const PILOT_PUBLIC_WORDS: usize = 274;
+const TAIL_WORDS: usize = 4 + 1 + 4 + 4;
 
 // PerApplicationMatrixProgram orders pilotPoseidon before PiCCS, then
 // pilotOrdinary and pilotDigestBinding after the PiCCS core. These are the
@@ -53,9 +54,7 @@ fn check_pilot_preimage(words: &[u64], context: [u64; 4]) {
         assert_eq!(*word, u64::from_le_bytes(expected), "pilot domain chunk word {chunk}");
     }
     // The Lean PilotZeroRunning theorem supplies the bounded zero openings.
-    // Check that this serialized input carries those exact running claims;
-    // `vk, i, z0, zi` close the preimage.
-    let tail = PI_CCS_V1_2_STATE_PREIMAGE_WORDS - 13;
+    let tail = PI_CCS_V1_2_STATE_PREIMAGE_WORDS - TAIL_WORDS;
     assert!(
         words[12..tail].iter().all(|word| *word == 0),
         "pilot zero-running values"
@@ -72,8 +71,6 @@ fn check_logical_family_mutations(
 ) -> logical_reference::Result<(usize, usize)> {
     use logical_reference::{evaluation::evaluate_row_with_result, Field, Form, MATRIX_COUNT};
 
-    // The final encHash public prefix supplies a fixed one and fixed padding.
-    // Column mutations change a decoded sparse entry to one of these columns.
     if value_at(0)? != Field::ONE || value_at(first_public_padding)? != Field::ZERO {
         return Err("pilot logical public one/padding values are not canonical".into());
     }
@@ -141,10 +138,8 @@ fn pilot_checkers_read_generated_witness_columns() {
     let raw_bytes = inner_raw_package_bytes(&sealed_bytes);
     let mut private_values = vec![0; 5_156_678];
     let public_values = vec![0; 278];
-    // A zero assignment fails a constraint; reading its generated columns must not panic.
     assert!(conformance_support::evaluate_pilot_assignment(&raw_bytes, &private_values, &public_values).is_err());
 
-    // The first retained S-box output is the first logical private field.
     private_values[70_849] = 1;
     let assignment = logical_reference::assignment::PartialLogicalAssignment::decode_pilot(
         &sealed_bytes,
@@ -266,18 +261,12 @@ fn check_standalone_pilot_assignment(
     .expect("every independent canonical pilot physical row holds");
     assert_eq!(report.rows, PILOT_ROWS);
     assert_eq!(report.public_mutations, PILOT_PUBLIC_WORDS);
-    // For each hash owner: its first generated value and all four digest lanes.
     assert_eq!(report.generated_mutations, 2 * (1 + 4));
-    // One effective decoded-row and column-reference mutation per hash owner.
     assert_eq!(report.row_mutations, 2);
     assert_eq!(report.column_mutations, 2);
     drop(raw_bytes);
     println!("standalone pilot physical rows and mutations: {:?}", started.elapsed());
 
-    // The existing production transport takes a complete physical vector.
-    // Extend only this test input with zeros; this is not a complete witness.
-    // The independent view below keeps the proof gap and suffix unavailable,
-    // so every logical coordinate used by a pilot row must decode without them.
     let mut transport_private = assignment.private_values.clone();
     transport_private.resize(package.circuit.layout.private_column_count, 0);
     let transport_input = WitnessAssignment {
@@ -326,8 +315,6 @@ fn check_standalone_pilot_assignment(
     assert_eq!(production_logical_assignment.len(), artifact.logical_columns);
     println!("standalone pilot logical relation decode: {:?}", started.elapsed());
 
-    // Each independent family owns its comparison bitset. The assignment
-    // views are immutable, and every row is still evaluated in ordinal order.
     let checked_values = || {
         let mut compared_columns = vec![0u64; artifact.logical_columns.div_ceil(u64::BITS as usize)];
         let production_assignment = &production_logical_assignment;

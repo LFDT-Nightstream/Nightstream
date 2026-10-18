@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Reject trusted-hole tokens in Lean code, but ignore comments and strings."""
 
 from pathlib import Path
 import re

@@ -14,7 +14,6 @@ fn ajtai_smodule_commit_matches_direct_commit() {
     set_global_pp(pp.clone()).unwrap();
     let l = AjtaiSModule::new(Arc::new(pp.clone()));
 
-    // Random Z as a d×m row-major matrix, then re-commit both ways
     let mut z = Mat::zero(d, m, Fq::ZERO);
     for r in 0..d {
         for c in 0..m {

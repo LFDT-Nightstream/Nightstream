@@ -92,9 +92,6 @@ private theorem finalSbox_local (lane : Fin 16) :
       1019 + 4 * lane.val :=
   finalSbox_locals lane
 
-/-- The canonical source template's final layer is determined by its own
-last sixteen retained S-box source cells. This applies to hash-chain templates
-and explicit invocations without changing either invocation representation. -/
 theorem canonical_finalLayer (env : Env)
     (rows : ConstraintsHold env (PilotData.canonicalConstraints ())) :
     Layer.evalState env (Permutation.scheduleOutput PoseidonScheduleTrace.inputCount) =
@@ -118,8 +115,6 @@ theorem canonical_finalLayer (env : Env)
   rw [sboxes] at state
   exact state
 
-/-- The sixteen accepted final-layer rows identify output words with the
-external layer of the sixteen final S-box words in the same invocation. -/
 theorem invocation_finalLayer (invocation : PermutationInvocation) (env : Env)
     (rows : PermutationInvocationHolds
       (PilotData.circuitPackage ()) invocation env) :

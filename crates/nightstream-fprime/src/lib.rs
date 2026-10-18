@@ -25,8 +25,8 @@ pub use identity::{
     POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER, POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST,
 };
 pub use package::{
-    derive_pi_ccs_v1_2_transcript, load_compiled_application_package, load_per_application_package,
-    load_poseidon2_hash_chain_v1_package, load_prepared_application_records, load_prepared_application_value,
+    derive_pi_ccs_v1_2_transcript, load_per_application_package, load_poseidon2_hash_chain_v1_package,
+    load_prepared_application_records, load_prepared_application_value, load_trusted_compiled_application_package,
     CcsMatrixSource, LoadedApplicationPlan, LoadedAssignmentPlan, LoadedPackage, LoadedPerApplicationPackage,
     LoadedTerminalLayout, LogicalAssignment, LogicalMatrixEntry, LogicalMatrixRow, MatrixRun, PackageCcsRelation,
     PackageError, PackagePolynomialTerm, PackageR1cs, PackageSparseMatrix, PiCcsV1_2EncodedInputs,

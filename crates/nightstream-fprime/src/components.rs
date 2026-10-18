@@ -207,8 +207,6 @@ impl FormulaVariant {
             .ok_or(ComponentError::Invalid("register count overflow"))?;
         let mut registers: Vec<_> = (0..input_count).map(SparseForm::variable).collect();
         for form in raw.linear_forms {
-            // Validate before normalization: even a zero coefficient cannot hide
-            // an out-of-range or forward reference in the input format.
             if form.iter().any(|(index, _)| *index >= registers.len()) {
                 return Err(ComponentError::Invalid("forward or invalid register reference"));
             }
@@ -253,7 +251,6 @@ impl FormulaVariant {
         self.input_count
     }
 
-    /// Linear maps over the original input-port ordinals, before substitution.
     pub(crate) fn row_templates(&self, range: std::ops::Range<usize>) -> Result<&[MatrixRow], ComponentError> {
         self.rows
             .get(range)

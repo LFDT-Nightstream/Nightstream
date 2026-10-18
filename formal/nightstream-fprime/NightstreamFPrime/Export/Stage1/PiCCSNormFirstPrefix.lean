@@ -1,8 +1,7 @@
 import NightstreamFPrime.Export.Stage1.PiCCSNormPrefixSum
 
 /-! The Q1 norm contribution uses the existing one-challenge range kernel.
-The algebra is proved with symbolic protocol data. The selected theorem
-supplies original-source endpoints last. File and worker IO are separate. -/
+File and worker IO are separate. -/
 
 set_option autoImplicit false
 
@@ -45,8 +44,6 @@ private theorem firstValues_getD (challenge : K) (codes : Nat → Fin 3) (groups
   simp only [Array.getD_eq_getD_getElem?, Array.getElem?_ofFn,
     dif_pos low, dif_pos high, Option.getD_some]
 
-/-- The actual one-challenge bucket range in replayNormAfterFirst is the
-same direct pair range over the existing SignedFirstFold output. -/
 theorem range_eq_sourceRange (challenge : K) (codes : Nat → Fin 3)
     (weight : Nat → K) (groups : Nat) :
     PiCCSPrefixNorm.range challenge codes weight 0 groups =
@@ -89,10 +86,9 @@ private theorem oneChallenge_endpoint (input : PiCCSPublicReplay.Input)
   rw [firstValues, PiCCSSignedFirstFold.foldOne_prepare]
   cases bit <;> simpa only [ProtocolPolynomial.messageAt, PiCCSPrefixRound.point,
     BooleanVertex.toCubePoint_coordinates, BooleanVertex.fieldCoordinates,
-    SumCheckTruthPath.VertexEncoding.fieldCoordinates, Bool.false_eq_true,
+    Bool.false_eq_true,
     if_false, if_true] using! value
 
--- Symbolic data keeps all coefficient tactics outside the selected 2^28 table.
 private theorem inner_pair_of_endpoints
     (values : Fin productionShape.sourceCount → Array K) (gamma weight : K)
     (low high : ProtocolPolynomial.OutputMessage K productionShape) (index : Nat)
@@ -147,8 +143,6 @@ private theorem sum_of_endpoints
     NumericBooleanDomain.index_vertex]
   rfl
 
-/-- The pure source loop of replayNormAfterFirst. Each source supplies the
-existing PiCCSPrefixNorm.range, followed by its own gamma power. -/
 def inner (masks : Array (Array (Nat × Nat))) (challenge gamma : K)
     (weight : Nat → K) (groups : Nat) : FixedPolynomial K 3 :=
   FixedPolynomial.sum extensionOps.toOps (canonicalFinIndices productionShape.sourceCount)
@@ -179,9 +173,6 @@ private theorem group_fits {remaining : Nat} (challenge : K)
   rw [total] at fits
   omega
 
-/-- Q1 after its one consumed challenge: the actual selected norm range
-equals the complete canonical normTerm sum. Source values are proved from
-the original masks. All 17 cubics, carrier tails and high coefficients remain. -/
 theorem selected_eq_normTerm_sum
     (input : PiCCSPublicReplay.Input) (masks : Array (Array (Nat × Nat)))
     (loaded : masks.size ≤ PiCCSSourceImages.blockCount) (groups : Nat)

@@ -4,10 +4,6 @@ import NightstreamFPrime.Layout.LowNormBlock
 
 /-!
 Owns retained low-norm input blocks for the two pilot Poseidon2 hash chains.
-Each block keeps exactly the authoritative preimage fields. Intermediate
-permutation outputs are derived from retained S-box values and are not copied.
-
-This module does not select later PiCCS or PiRLC permutation inputs.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PoseidonInputRetainedBlock

@@ -39,8 +39,6 @@ theorem plan_eq_of_same_shape
     plan left geometry = plan right geometry := by
   rfl
 
-/-- Direct matrix acceptance is exactly the canonical Lean-lowered sampler
-ordinary row relation under the assignment-derived zero-copy source view. -/
 theorem rowsZero_iff_rowsHold
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth

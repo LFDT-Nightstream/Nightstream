@@ -2,9 +2,6 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedJointIdentity
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanReproduction
 import NightstreamFPrime.Spec.SumCheck.HypercubeTruth
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/SumCheckTruthPath.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Canonical SumCheck truth path for the explicit paper-level joint polynomial.
 
@@ -22,21 +19,6 @@ challenge sampling, Fiat--Shamir, concrete table
 construction, Rust, R1CS, or constraint counts.
 
 Emits constraints: no.
-
-Authority boundary: both the semantic initial sum and terminal evaluation are
-derived from the same explicit `Q`. No prover message, caller-supplied expected
-round function, terminal oracle, Rust evaluator, or old circuit enters this
-construction. A coordinate list of the wrong arity evaluates to zero, while a
-valid verifier execution must separately enforce the exact round count.
-
-| Protocol | Phase | Mathematical object | Exact result |
-|---|---|---|---|
-| `Pi_CCS` | point evaluation | `pointEquality` | `prod_i ((1-x_i)(1-r_i)+x_i r_i)` |
-| `Pi_CCS` | point evaluation | `qAtPoint` | arbitrary-field-point `Q(x,A,C)` |
-| `Pi_CCS` | Boolean restriction | `qAtPoint_toCubePoint_eq_qAt` | arbitrary-point `Q` agrees with the explicit Boolean definition |
-| `Pi_CCS` | initial sum | `sumCompletions_jointPolynomial_eq_summedQ` | canonical completion sum equals `sum_x Q` |
-| `Pi_CCS` | terminal | `jointPolynomial challenges` | same `Q` at the full challenge vector |
-| `Pi_CCS` | truth path | `canonicalGhosts_honest` | expected rounds are derived, finite, and terminal-bound |
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SumCheckTruthPath
@@ -46,34 +28,6 @@ universe uField
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.SumCheck
 
-namespace VertexEncoding
-
-/-- Compatibility name for the neutral canonical Boolean point encoding. -/
-abbrev fieldCoordinates
-    {Field : Type uField}
-    (ops : InterpolationOps Field) :
-    {variables : Nat} -> BooleanVertex variables -> List Field
-  := BooleanVertex.fieldCoordinates ops
-
-theorem fieldCoordinates_length
-    {Field : Type uField}
-    (ops : InterpolationOps Field)
-    {variables : Nat}
-    (vertex : BooleanVertex variables) :
-    (fieldCoordinates ops vertex).length = variables :=
-  BooleanVertex.fieldCoordinates_length ops vertex
-
-/-- Compatibility name for the neutral dimension-checked field point. -/
-abbrev toCubePoint
-    {Field : Type uField}
-    (ops : InterpolationOps Field)
-    {variables : Nat}
-    (vertex : BooleanVertex variables) : CubePoint Field variables :=
-  BooleanVertex.toCubePoint ops vertex
-
-end VertexEncoding
-
-/-- One coordinate factor of the multilinear equality polynomial. -/
 def equalityFactor
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -82,15 +36,6 @@ def equalityFactor
     (ops.mul (ops.sub ops.one left) (ops.sub ops.one right))
     (ops.mul left right)
 
-/-- The equality factor in affine form with respect to its first argument.
-
-This form is mathematically identical to `equalityFactor`, but exposes that a
-verifier needs only one multiplication when `right` is already available:
-
-`(1 - right) + left * (right - (1 - right))`.
-
-The canonical row encoder uses this theorem; the paper definition above
-remains unchanged. -/
 theorem equalityFactor_eq_affine
     {Field : Type uField}
     {ops : InterpolationOps Field}
@@ -125,7 +70,6 @@ theorem equalityFactor_eq_affine
       exact (FiniteSumAlgebra.mul_sub ops laws left right
         (ops.sub ops.one right)).symm
 
-/-- Total coordinate-list equality polynomial. Shape mismatches fail closed. -/
 def pointEqualityCoordinates
     {Field : Type uField}
     (ops : InterpolationOps Field) : List Field -> List Field -> Field
@@ -135,7 +79,6 @@ def pointEqualityCoordinates
         (pointEqualityCoordinates ops lefts rights)
   | _, _ => ops.zero
 
-/-- Equality polynomial between two dimension-checked cube points. -/
 def pointEquality
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -207,8 +150,6 @@ private theorem add_sub_self_right
     _ = ops.add high ops.zero := by rw [laws.add_neg]
     _ = high := laws.add_zero high
 
-/-- The independent recursive table MLE specializes to the exact leaf at a
-canonical Boolean point. -/
 theorem evaluateCoordinates_fieldCoordinates_eq_valueAt
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -216,7 +157,7 @@ theorem evaluateCoordinates_fieldCoordinates_eq_valueAt
     {variables : Nat}
     (table : BooleanTable Field variables)
     (vertex : BooleanVertex variables) :
-    table.evaluateCoordinates ops (VertexEncoding.fieldCoordinates ops vertex) =
+    table.evaluateCoordinates ops (BooleanVertex.fieldCoordinates ops vertex) =
       table.valueAt vertex := by
   induction table with
   | leaf value =>
@@ -226,13 +167,11 @@ theorem evaluateCoordinates_fieldCoordinates_eq_valueAt
       cases vertex with
       | cons coordinate tail =>
           cases coordinate
-          · simp only [VertexEncoding.fieldCoordinates,
-              BooleanVertex.fieldCoordinates,
+          · simp only [BooleanVertex.fieldCoordinates,
               BooleanTable.evaluateCoordinates, BooleanTable.valueAt]
             rw [zero_mul ops laws, laws.add_zero,
               lowInduction tail]
-          · simp only [VertexEncoding.fieldCoordinates,
-              BooleanVertex.fieldCoordinates,
+          · simp only [BooleanVertex.fieldCoordinates,
               BooleanTable.evaluateCoordinates, BooleanTable.valueAt]
             rw [laws.one_mul, add_sub_self_right ops laws,
               highInduction tail]
@@ -244,13 +183,11 @@ theorem evaluate_toCubePoint_eq_valueAt
     {variables : Nat}
     (table : BooleanTable Field variables)
     (vertex : BooleanVertex variables) :
-    table.evaluate ops (VertexEncoding.toCubePoint ops vertex) =
+    table.evaluate ops (BooleanVertex.toCubePoint ops vertex) =
       table.valueAt vertex := by
   exact evaluateCoordinates_fieldCoordinates_eq_valueAt
     ops laws table vertex
 
-/-- The arbitrary-point equality polynomial specializes to the paper's
-Boolean-vertex equality weight. -/
 theorem pointEquality_toCubePoint_eq_equalityWeight
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -258,7 +195,7 @@ theorem pointEquality_toCubePoint_eq_equalityWeight
     {variables : Nat}
     (vertex : BooleanVertex variables)
     (right : CubePoint Field variables) :
-    pointEquality ops (VertexEncoding.toCubePoint ops vertex) right =
+    pointEquality ops (BooleanVertex.toCubePoint ops vertex) right =
       vertex.equalityWeight ops right := by
   rcases right with ⟨coordinates, dimension⟩
   induction vertex generalizing coordinates with
@@ -275,22 +212,19 @@ theorem pointEquality_toCubePoint_eq_equalityWeight
             Nat.succ.inj dimension
           have tailEquality :
               pointEqualityCoordinates ops
-                  (VertexEncoding.fieldCoordinates ops tail) rights =
-                BooleanVertex.equalityWeightCoordinates ops tail rights := by
-            simpa only [pointEquality, VertexEncoding.toCubePoint,
-              BooleanVertex.equalityWeight] using!
+                  (BooleanVertex.fieldCoordinates ops tail) rights =
+                BooleanVertex.equalityWeightCoordinates ops tail rights tailDimension := by
+            simpa only [pointEquality, BooleanVertex.equalityWeight] using!
               inductionHypothesis rights tailDimension
           cases coordinate
-          · simp only [pointEquality, VertexEncoding.toCubePoint,
-              BooleanVertex.toCubePoint_coordinates,
+          · simp only [pointEquality, BooleanVertex.toCubePoint_coordinates,
               BooleanVertex.fieldCoordinates,
               pointEqualityCoordinates,
               BooleanVertex.equalityWeight,
               BooleanVertex.equalityWeightCoordinates,
               equalityFactor_zero ops laws]
             rw [tailEquality]
-          · simp only [pointEquality, VertexEncoding.toCubePoint,
-              BooleanVertex.toCubePoint_coordinates,
+          · simp only [pointEquality, BooleanVertex.toCubePoint_coordinates,
               BooleanVertex.fieldCoordinates,
               pointEqualityCoordinates,
               BooleanVertex.equalityWeight,
@@ -298,7 +232,6 @@ theorem pointEquality_toCubePoint_eq_equalityWeight
               equalityFactor_one ops laws]
             rw [tailEquality]
 
-/-- Arbitrary-point `F(x,C)`. -/
 def ccsAtPoint
     {Field : Type uField}
     {shape : Shape}
@@ -310,7 +243,6 @@ def ccsAtPoint
     SignedJointIdentity.gammaTerm ops gamma source.val
       ((data.ccs source).evaluate ops point)
 
-/-- Arbitrary-point unshifted `NC(x,C)`. -/
 def normAtPoint
     {Field : Type uField}
     {shape : Shape}
@@ -322,7 +254,6 @@ def normAtPoint
     SignedJointIdentity.gammaTerm ops gamma source.val
       ((data.norm source).evaluate ops point)
 
-/-- Arbitrary-point unshifted `Eval_K(x,C)`. -/
 def padAtPoint
     {Field : Type uField}
     {shape : Shape}
@@ -335,7 +266,6 @@ def padAtPoint
       SignedJointIdentity.gammaTerm ops gamma coordinate.localGammaExponent
         ((data.padImage coordinate).evaluate ops point)
 
-/-- Arbitrary-point unshifted `Eval_A(x,C)`. -/
 def matrixAtPoint
     {Field : Type uField}
     {shape : Shape}
@@ -361,7 +291,6 @@ def constraintAtPoint
       (SignedJointIdentity.gammaTerm ops gamma shape.freshCount
         (normAtPoint ops data gamma point)))
 
-/-- Literal joint polynomial at an arbitrary field point. -/
 def qAtPoint
     {Field : Type uField}
     {shape : Shape}
@@ -391,7 +320,7 @@ private theorem sumMap_evaluate_toCubePoint_eq_valueAt
     SignedJointIdentity.sumMap ops indices (fun index =>
         ops.mul (weights index)
           ((tables index).evaluate ops
-            (VertexEncoding.toCubePoint ops vertex))) =
+            (BooleanVertex.toCubePoint ops vertex))) =
       SignedJointIdentity.sumMap ops indices (fun index =>
         ops.mul (weights index) ((tables index).valueAt vertex)) := by
   unfold SignedJointIdentity.sumMap
@@ -408,7 +337,7 @@ theorem ccsAtPoint_toCubePoint_eq_ccsAt
     (data : SignedJointIdentity.JointData Field shape)
     (gamma : Field)
     (vertex : BooleanVertex shape.cubeVariables) :
-    ccsAtPoint ops data gamma (VertexEncoding.toCubePoint ops vertex) =
+    ccsAtPoint ops data gamma (BooleanVertex.toCubePoint ops vertex) =
       SignedJointIdentity.ccsAt ops data gamma vertex := by
   unfold ccsAtPoint SignedJointIdentity.ccsAt SignedJointIdentity.gammaTerm
   exact sumMap_evaluate_toCubePoint_eq_valueAt ops laws _ data.ccs
@@ -422,7 +351,7 @@ theorem normAtPoint_toCubePoint_eq_normAt
     (data : SignedJointIdentity.JointData Field shape)
     (gamma : Field)
     (vertex : BooleanVertex shape.cubeVariables) :
-    normAtPoint ops data gamma (VertexEncoding.toCubePoint ops vertex) =
+    normAtPoint ops data gamma (BooleanVertex.toCubePoint ops vertex) =
       SignedJointIdentity.normAt ops data gamma vertex := by
   unfold normAtPoint SignedJointIdentity.normAt SignedJointIdentity.gammaTerm
   exact sumMap_evaluate_toCubePoint_eq_valueAt ops laws _ data.norm
@@ -436,7 +365,7 @@ theorem padAtPoint_toCubePoint_eq_padAt
     (data : SignedJointIdentity.JointData Field shape)
     (gamma : Field)
     (vertex : BooleanVertex shape.cubeVariables) :
-    padAtPoint ops data gamma (VertexEncoding.toCubePoint ops vertex) =
+    padAtPoint ops data gamma (BooleanVertex.toCubePoint ops vertex) =
       SignedJointIdentity.padAt ops data gamma vertex := by
   unfold padAtPoint SignedJointIdentity.padAt
   rw [pointEquality_toCubePoint_eq_equalityWeight ops laws]
@@ -455,7 +384,7 @@ theorem matrixAtPoint_toCubePoint_eq_matrixAt
     (data : SignedJointIdentity.JointData Field shape)
     (gamma : Field)
     (vertex : BooleanVertex shape.cubeVariables) :
-    matrixAtPoint ops data gamma (VertexEncoding.toCubePoint ops vertex) =
+    matrixAtPoint ops data gamma (BooleanVertex.toCubePoint ops vertex) =
       SignedJointIdentity.matrixAt ops data gamma vertex := by
   unfold matrixAtPoint SignedJointIdentity.matrixAt
   rw [pointEquality_toCubePoint_eq_equalityWeight ops laws]
@@ -476,16 +405,13 @@ theorem constraintAtPoint_toCubePoint_eq_constraintAt
     (gamma : Field)
     (vertex : BooleanVertex shape.cubeVariables) :
     constraintAtPoint ops data alpha gamma
-        (VertexEncoding.toCubePoint ops vertex) =
+        (BooleanVertex.toCubePoint ops vertex) =
       SignedJointIdentity.constraintAt ops data alpha gamma vertex := by
   unfold constraintAtPoint SignedJointIdentity.constraintAt
   rw [pointEquality_toCubePoint_eq_equalityWeight ops laws,
     ccsAtPoint_toCubePoint_eq_ccsAt ops laws,
     normAtPoint_toCubePoint_eq_normAt ops laws]
 
-/-- The arbitrary-point joint polynomial is not an MLE of a sampled truth
-table: it is the literal product expression, and it agrees with the prior
-Boolean definition exactly on every cube vertex. -/
 theorem qAtPoint_toCubePoint_eq_qAt
     {Field : Type uField}
     {shape : Shape}
@@ -495,15 +421,13 @@ theorem qAtPoint_toCubePoint_eq_qAt
     (alpha : CubePoint Field shape.cubeVariables)
     (gamma : Field)
     (vertex : BooleanVertex shape.cubeVariables) :
-    qAtPoint ops data alpha gamma (VertexEncoding.toCubePoint ops vertex) =
+    qAtPoint ops data alpha gamma (BooleanVertex.toCubePoint ops vertex) =
       SignedJointIdentity.qAt ops data alpha gamma vertex := by
   unfold qAtPoint SignedJointIdentity.qAt
   rw [padAtPoint_toCubePoint_eq_padAt ops laws,
     matrixAtPoint_toCubePoint_eq_matrixAt ops laws,
     constraintAtPoint_toCubePoint_eq_constraintAt ops laws]
 
-/-- Total coordinate-list form of the joint polynomial. The dependent branch
-constructs the sole dimension proof; a wrong-length list fails closed. -/
 def jointPolynomial
     {Field : Type uField}
     {shape : Shape}
@@ -517,7 +441,6 @@ def jointPolynomial
   else
     ops.zero
 
-/-- Verifier-computed terminal from the same explicit joint polynomial. -/
 def verifierTerminal
     {Field : Type uField}
     {shape : Shape}
@@ -538,10 +461,10 @@ theorem jointPolynomial_fieldCoordinates_eq_qAt
     (gamma : Field)
     (vertex : BooleanVertex shape.cubeVariables) :
     jointPolynomial ops data alpha gamma
-        (VertexEncoding.fieldCoordinates ops vertex) =
+        (BooleanVertex.fieldCoordinates ops vertex) =
       SignedJointIdentity.qAt ops data alpha gamma vertex := by
   unfold jointPolynomial
-  rw [dif_pos (VertexEncoding.fieldCoordinates_length ops vertex)]
+  rw [dif_pos (BooleanVertex.fieldCoordinates_length ops vertex)]
   exact qAtPoint_toCubePoint_eq_qAt ops laws data alpha gamma vertex
 
 private theorem finiteSum_append
@@ -559,8 +482,6 @@ private theorem finiteSum_append
       rw [finiteSum_append ops laws values right]
       exact (laws.add_assoc _ _ _).symm
 
-/-- Generic enumeration theorem connecting the recursive completion sum to
-the sole canonical Boolean-vertex order. -/
 theorem sumCompletions_eq_vertexSum
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -573,12 +494,11 @@ theorem sumCompletions_eq_vertexSum
       BooleanTable.finiteSum ops
         ((BooleanVertex.all variables).map (fun vertex =>
           polynomial
-            (fixed ++ VertexEncoding.fieldCoordinates ops vertex))) := by
+            (fixed ++ BooleanVertex.fieldCoordinates ops vertex))) := by
   induction variables generalizing fixed with
   | zero =>
       simp [SumCheck.Finite.HypercubeTruth.sumCompletions.eq_def,
-        BooleanVertex.all, VertexEncoding.fieldCoordinates,
-        BooleanTable.finiteSum, laws.add_zero]
+        BooleanVertex.all, BooleanTable.finiteSum, laws.add_zero]
   | succ variables inductionHypothesis =>
       change ops.add
           (SumCheck.Finite.HypercubeTruth.sumCompletions ops.toOps polynomial
@@ -594,14 +514,12 @@ theorem sumCompletions_eq_vertexSum
       · apply congrArg (BooleanTable.finiteSum ops)
         apply List.map_congr_left
         intro vertex _
-        simp [VertexEncoding.fieldCoordinates, List.append_assoc]
+        simp [List.append_assoc]
       · apply congrArg (BooleanTable.finiteSum ops)
         apply List.map_congr_left
         intro vertex _
-        simp [VertexEncoding.fieldCoordinates, List.append_assoc]
+        simp [List.append_assoc]
 
-/-- The Boolean initial sum of the total joint polynomial is exactly the
-independently defined paper `sum_x Q`. -/
 theorem sumCompletions_jointPolynomial_eq_summedQ
     {Field : Type uField}
     {shape : Shape}
@@ -622,8 +540,6 @@ theorem sumCompletions_jointPolynomial_eq_summedQ
   exact jointPolynomial_fieldCoordinates_eq_qAt
     ops laws data alpha gamma vertex
 
-/-- Canonical semantic ghost object. The initial sum is the independently
-named paper sum; expected rounds are derived from the same total `Q`. -/
 def canonicalGhosts
     {Field : Type uField}
     {shape : Shape}
@@ -636,9 +552,6 @@ def canonicalGhosts
   expected := SumCheck.Finite.HypercubeTruth.expectedPolynomials ops.toOps
     (jointPolynomial ops data alpha gamma) challenges
 
-/-- Exact truth path for the joint paper polynomial. The only shape premises
-are explicit: one challenge per cube variable and one message per challenge.
-The degree of each derived expected round remains a separate theorem. -/
 theorem canonicalGhosts_honest
     {Field : Type uField}
     {shape : Shape}

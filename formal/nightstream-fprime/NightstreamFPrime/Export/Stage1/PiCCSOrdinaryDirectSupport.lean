@@ -274,8 +274,6 @@ private theorem final_finish_le :
     PiCCSStarts.initialClaimLogicalStart
   rw [PiCCSStarts.roundTranscriptWitnessStart_eq]
 
-/-- Every expression in the canonical eight-child ordinary packet uses only
-the selected pre-Spartan retained source families. -/
 theorem emittedConstraints_varsSatisfy
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -612,9 +610,6 @@ theorem emittedConstraints_varsSatisfy
           PiCCSArithmetic.mainConstraints, Formal.finalIdentityRowMain,
           finalInterface] using finalMember)
 
-/-- Exact R1CS lowering and Spartan remapping preserve the retained PiCCS
-source set. Every generic multiplication column is included in the declared
-fresh retained interval. -/
 theorem sourceRows_varsSatisfy
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

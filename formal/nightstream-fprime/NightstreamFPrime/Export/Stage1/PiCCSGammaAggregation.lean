@@ -1,9 +1,9 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetPolynomial
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FiniteSumAlgebra
 
-/-! Factor the existing canonical carried-coordinate gamma sums. Source
-weights can be applied before a linear image evaluation. The matrix total
-is local; the enclosing pair kernel owns its matrixEvaluationOffset shift. -/
+/-! Factor the existing canonical carried-coordinate gamma sums.
+The matrix total is local; the enclosing pair kernel owns its
+matrixEvaluationOffset shift. -/
 
 set_option autoImplicit false
 
@@ -93,8 +93,6 @@ private theorem power_product_three (ops : InterpolationOps Field)
     power_product ops laws gamma matrix (source + coefficient) value]
   rw [show (source + coefficient) + matrix = source + matrix + coefficient by omega]
 
-/-- Coefficient then source order; source gamma weights are applied inside
-before multiplication by the coefficient gamma weight. -/
 def padTotal (ops : InterpolationOps Field) (powers : Nat → Field)
     (image : PadCoordinate shape → Field) : Field :=
   sumMap ops (canonicalFinIndices shape.coefficientCount) fun coefficient =>
@@ -102,8 +100,6 @@ def padTotal (ops : InterpolationOps Field) (powers : Nat → Field)
       (sumMap ops (canonicalFinIndices shape.runningCount) fun source =>
         ops.mul (powers source.val) (image ⟨source, coefficient⟩))
 
-/-- Matrix then coefficient then source order. These are precisely the
-three factors of the existing local MatrixCoordinate gamma exponent. -/
 def matrixTotal (ops : InterpolationOps Field) (powers : Nat → Field)
     (image : MatrixCoordinate shape → Field) : Field :=
   sumMap ops (canonicalFinIndices shape.matrixCount) fun matrix =>
@@ -113,7 +109,6 @@ def matrixTotal (ops : InterpolationOps Field) (powers : Nat → Field)
           (sumMap ops (canonicalFinIndices shape.runningCount) fun source =>
             ops.mul (powers source.val) (image ⟨source, matrix, coefficient⟩)))
 
-/-- The factored Pad computation is the unchanged canonical-coordinate sum. -/
 theorem padTotal_power (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops) (gamma : Field)
     (image : PadCoordinate shape → Field) :
@@ -130,8 +125,6 @@ theorem padTotal_power (ops : InterpolationOps Field)
   intro source _
   exact power_product ops laws gamma (shape.runningCount * coefficient.val) source.val _
 
-/-- The factored matrix computation preserves every local exponent. The
-sole traversal change is justified by the existing finite-sum swap theorem. -/
 theorem matrixTotal_power (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops) (gamma : Field)
     (image : MatrixCoordinate shape → Field) :

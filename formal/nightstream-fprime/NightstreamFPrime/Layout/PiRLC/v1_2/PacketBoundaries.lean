@@ -135,8 +135,6 @@ def packetConstraints
     List Expr :=
   (packetConstraintLists interface offset).flatten
 
-/-- The phase child ledger contains two empty views and the five opaque
-nonempty packet lists, in exact parent order. -/
 theorem childConstraintLists_eq_packets
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat) :

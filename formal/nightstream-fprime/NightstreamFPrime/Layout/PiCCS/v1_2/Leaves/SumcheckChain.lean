@@ -3,12 +3,12 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Completeness
 
 /-!
 Paper authority: SuperNeo v1.2, section 7.3, `SumCheck(T; Q)`.
-Obligation: Enforce the 28 degree-9 round equations and export the final
+Obligation: Enforce the 28 round equations and export the final
 verifier claim for the separate `Q(r')` identity.
 
 Inputs:
 - the Initial-claim child output;
-- 28 prover degree-9 polynomial messages;
+- 28 prover polynomial messages;
 - 28 transcript-derived challenges.
 
 Outputs:
@@ -41,8 +41,6 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- Stable physical wire shape for the initial claim, prover coefficients,
-and verifier-derived challenges. -/
 structure InputsLinear
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_2.SumcheckChain.Interface 8)
@@ -89,7 +87,6 @@ private theorem core_totalRowCount
       (coreRounds_linear interface offset inputs)]
   norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
 
-/-- Exact parent-facing physical footprint for the fixed 28-round chain. -/
 def footprint
     (interface : Formal.Interface logicalWidth 8 publicFits)
     (inputs : ∀ offset,
@@ -145,7 +142,6 @@ theorem physicalPrivateColumnCount_eq
       productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
   rw [storedColumns, freshColumnCount_eq interface inputs offset]
 
-/-- The final SumCheck claim is in causal scope at the final-identity child. -/
 theorem output_varsBelow_finalIdentity
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth
@@ -199,8 +195,6 @@ theorem output_varsBelow_finalIdentity
     (Nat.le_trans evalKLeEvalA
       (Nat.le_trans evalALeCcs (Nat.le_trans ccsLeNorm normLeFinal)))
 
-/-- The final claim exported to the final-identity leaf is a sum of stored
-wires. -/
 theorem output_linear
     (interface : Formal.Interface logicalWidth 8 publicFits)
     (offset : Nat)

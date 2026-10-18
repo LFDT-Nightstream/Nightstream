@@ -151,8 +151,6 @@ def form {program : Lifecycle.Stage1.Application.Program}
   | .fresh index => (freshBlock program).form (freshStart program)
       (freshFits geometry) index
 
-/-- PiDEC and the recursive running transition use the same child commitment,
-public-input, Eval_K, and Eval_A forms for every assignment. -/
 theorem proof_form_eq_running
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)
@@ -654,8 +652,6 @@ def plan {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Na
   simp [plan, Layout.PiDEC.v1_2.exactRowCount,
     Layout.PiDEC.v1_2.exactRowDeltas]
 
-/-- The PiDEC matrix plan depends on relation shape only. The logical
-relation value supplies proof certificates but does not select any row. -/
 theorem plan_eq_of_same_shape
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     {relationLogicalWidth : Nat}
@@ -818,8 +814,6 @@ theorem evalARowsZero_iff_rowsHold
     base groupValue one encodes]
   exact evalAHolds_iff_rowsHold relation _
 
-/-- The assembled direct plan vanishes exactly when all canonical PiDEC source
-rows hold in their original order. -/
 theorem rowsZero_iff_rowsHold
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
@@ -849,7 +843,6 @@ theorem rowsZero_iff_rowsHold
   · rintro ⟨⟨⟨publicHolds, commitmentHolds⟩, evalKHolds⟩, evalAHolds⟩
     exact ⟨publicHolds, commitmentHolds, evalKHolds, evalAHolds⟩
 
-/-- The direct plan is exactly the canonical Lean-lowered PiDEC relation. -/
 theorem rowsZero_iff_canonicalRowsHold
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
@@ -871,8 +864,6 @@ theorem rowsZero_iff_canonicalRowsHold
         (R1CS.RowsHold (RunningTransitionDirectPlan.transitionEnv application base))
         PiDECOrdinaryDirectSource.sourceRows_eq_canonical)
 
-/-- Acceptance by the direct 4-matrix plan implies the exact PiDEC phase
-predicate under the existing formal input assumptions. -/
 theorem rowsZero_implies_phaseHolds
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth

@@ -25,7 +25,6 @@ variable {Extension : Type uExtension} {Commitment : Type uCommitment}
   (running : Running Extension Commitment PublicInput shape)
   (fresh : Fresh Commitment PublicInput shape)
 
-/-- The exact interactive output product in the weak suffix's K+k order. -/
 def piRlcBatchForProbe (probe : Probe Extension shape) :
     InputBatch (RelationSource shape columns blockCount) PublicInput
       (CubePoint Extension shape.cubeVariables) (EvaluationFamily Extension shape)
@@ -39,13 +38,10 @@ def piRlcBatchForProbe (probe : Probe Extension shape) :
   evaluationCount := 1
   evaluationsSize := fun _ => rfl
 
-/-- Replaying an actual NIFS proof selects exactly the existing public batch.
-This equality makes no assertion about the distribution of replayed coins. -/
 theorem piRlcBatchForProbe_eq_piRlcBatch (proof : Proof Extension Commitment shape width) :
     piRlcBatchForProbe key running fresh (key.piCcsProbe running fresh proof) =
       PaperSecurityComposition.piRlcBatch key running fresh proof := rfl
 
-/-- Reindex the weak extractor's returned vector into PiCCS source order. -/
 def outputWitnessOfAssignments
     (values : Fin key.arity.total → PaperLinearAlgebra.Assignment F columns) :
     OutputWitness shape columns where
@@ -59,8 +55,6 @@ theorem outputWitnessOfAssignments_at
   apply congrArg values
   exact Fin.ext rfl
 
-/-- The suffix's actual corrected ambient openings give the literal PiCCS
-relaxed output relation. No intermediate opening is invented by this adapter. -/
 theorem outputWitnessOfAssignments_ambient
     (probe : Probe Extension shape)
     (values : Fin key.arity.total → PaperLinearAlgebra.Assignment F columns)

@@ -57,7 +57,6 @@ theorem Shape.coordinate?_of_coordinates (shape : Shape)
   simp only
   rw [Fin.decodeProd_encodeProd, Fin.decodeProd_encodeProd]
 
-/-- Complete operands for one multiplication grid. -/
 structure Block where
   shape : Shape
   oneColumn : Nat
@@ -68,7 +67,6 @@ deriving Repr, DecidableEq
 
 def Block.rowCount (block : Block) : Nat := block.shape.rowCount
 
-/-- Decode one multiplication row without expanding any other row. -/
 def Block.row? (block : Block) (logicalWidth ordinal : Nat) :
     Option (OrdinaryRow.Forms logicalWidth) := do
   if block.oneColumn < logicalWidth then
@@ -82,8 +80,6 @@ def Block.row? (block : Block) (logicalWidth ordinal : Nat) :
       c := output }
   else none
 
-/-- Exact affine operand results produce the standard multiplication-family
-row at the same grid coordinate. -/
 theorem Block.row?_of_results (block : Block) {logicalWidth : Nat}
     (oneColumn : Fin logicalWidth) (oneEqual : block.oneColumn = oneColumn.val)
     (major : Fin block.shape.majorCount)

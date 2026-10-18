@@ -6,8 +6,6 @@ import Mathlib.Tactic.Ring
 
 /-!
 Owns a small canonical affine-run codec for verifier-owned index streams.
-The reference compressor is proof-oriented. Production emitters may use a
-proved tail-recursive equivalent after measurement shows that it is needed.
 -/
 
 namespace NightstreamFPrime.Export.AffineRuns
@@ -49,7 +47,6 @@ theorem expand_length (runs : List Run) :
     (expand runs).length = (runs.map Run.count).sum := by
   simp [expand]
 
-/-- Add one value to the front of an already compressed suffix. -/
 def prepend (value : Nat) : List Run → List Run
   | [] => [Run.single value]
   | run :: runs =>
@@ -63,8 +60,6 @@ def prepend (value : Nat) : List Run → List Run
       else
         Run.single value :: run :: runs
 
-/-- Greedy canonical compression from right to left. A decreasing boundary
-starts a new run because the encoded step is a natural number. -/
 def compress : List Nat → List Run
   | [] => []
   | value :: rest => prepend value (compress rest)
@@ -76,8 +71,6 @@ theorem compress_eq_foldr_prepend (indices : List Nat) :
   | cons value rest inductionHypothesis =>
       simp [compress, inductionHypothesis]
 
-/-- Allocation-bounded executable compression for an indexed source. It
-visits indices from right to left and retains only the compressed runs. -/
 @[inline] def compressIndexedTR {count : Nat}
     (source : Fin count → Nat) : List Run :=
   go count (Nat.le_refl count) []
@@ -114,8 +107,6 @@ private theorem compressIndexedTR_go_eq {count : Nat}
       rw [List.ofFn_succ', List.concat_eq_append, List.foldr_concat]
       rfl
 
-/-- The bounded executable emits the exact canonical run list, not only an
-extensionally equivalent source stream. -/
 theorem compressIndexedTR_eq_compress_ofFn {count : Nat}
     (source : Fin count → Nat) :
     compressIndexedTR source = compress (List.ofFn source) := by
@@ -144,7 +135,6 @@ private theorem expand_prepend (value : Nat) (run : Run)
       value :: run.expand := by
   simp [Run.expand, values, next]
 
-/-- Compressing and then expanding preserves every index and its order. -/
 theorem expand_compress (indices : List Nat) :
     expand (compress indices) = indices := by
   induction indices with
@@ -199,7 +189,6 @@ theorem decode_encode (runs : List Run) :
     format.decode (format.encode runs) = .ok runs :=
   format.decode_encode runs
 
-/-- Direct point lookup in a serialized affine-run stream. -/
 def sourceAt : List AffineRuns.Run → Nat → Nat
   | [], _ => 0
   | run :: rest, slot =>
@@ -223,7 +212,6 @@ private theorem affineValues_getD_of_lt (first step count slot : Nat)
             (slot := slot) (by omega)]
           ring
 
-/-- Direct run lookup is the pointwise meaning of affine-run expansion. -/
 theorem sourceAt_eq_expand_getD
     (runs : List AffineRuns.Run) (slot : Nat) :
     sourceAt runs slot = (AffineRuns.expand runs).getD slot 0 := by

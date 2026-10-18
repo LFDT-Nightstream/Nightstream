@@ -31,9 +31,7 @@ pub use artifact::{
     SuperneoCacheArtifactError, SuperneoCacheArtifactLimits, SuperneoCacheArtifactReceipt,
     VerifiedSuperneoCacheArtifact,
 };
-pub use authority::{
-    check_ccs_relation_zero_cached, check_ccs_relation_zero_cached_with_blocks, SuperneoCachedRelationError,
-};
+pub use authority::{check_ccs_relation_zero_cached_with_blocks, SuperneoCachedRelationError};
 pub use baseline::{
     eval_all_mats_direct, eval_all_mats_superneo, eval_all_mats_transformed, eval_mle_direct_matrix,
     eval_mle_superneo_from_original, eval_mle_transformed_matrix, is_superneo_compatible_shape,
@@ -61,9 +59,6 @@ pub use window_eval::{
 };
 pub(crate) use window_eval::{eval_real_v1_2_openings_from_rows_reusing, fill_weighted_rows_from_source};
 
-/// The per-lane weighted projection basis forms `(re, im)` derived from the
-/// chi-alpha weights. Device backends use the same forms to build their row
-/// tables without materializing the CPU table first.
 pub fn weighted_projection_basis_forms(weights: &[K; D]) -> ([Rq; D], [Rq; D]) {
     weighted_projection_basis_forms_from_k(weights)
 }
@@ -105,7 +100,6 @@ fn matrix_entry<Ff: Field + PrimeCharacteristicRing + Copy>(mat: &CcsMatrix<Ff>,
     }
 }
 
-/// Row dot-product using a transformed row `bar(a)` and SuperNeo's `ct` product.
 pub fn superneo_row_dot_transformed_matrix(mat_bar: &CcsMatrix<F>, row: usize, z: &[K]) -> K {
     assert_eq!(
         mat_bar.cols(),
@@ -362,8 +356,6 @@ pub struct SuperneoMatrixCache {
 }
 
 impl SuperneoMatrixCache {
-    /// CSR shape of the explicit bar-transformed entries. Geometric runs
-    /// remain represented separately and are not included in this entry view.
     pub fn bar_shape(&self) -> (usize, usize, Vec<usize>, usize) {
         if self.identity {
             return (self.rows, self.cols, (0..=self.rows).collect(), self.rows);
@@ -378,7 +370,6 @@ impl SuperneoMatrixCache {
         )
     }
 
-    /// Explicit entry `i` in row order: `(block, bar ring element)`.
     pub fn bar_entry(&self, i: usize) -> (usize, Rq) {
         if self.identity {
             let mut orig = [F::ZERO; D];
@@ -389,7 +380,6 @@ impl SuperneoMatrixCache {
         (row_block.blk, row_block.bar)
     }
 
-    /// Explicit entry `i` in row order: `(block, original ring row)`.
     pub fn orig_entry(&self, i: usize) -> (usize, Rq) {
         if self.identity {
             let mut orig = [F::ZERO; D];
@@ -413,7 +403,6 @@ pub struct SuperneoWeightedMatrixCache {
     row_offsets: Vec<usize>,
     row_blocks: Vec<WeightedRowBlock>,
 }
-/// Precomputed linear form `v = M^T · χ_r` in sparse `(col, value)` form.
 #[derive(Clone, Debug)]
 pub struct SuperneoLinearForm {
     cols: usize,
@@ -440,10 +429,6 @@ impl SuperneoLinearForm {
         acc
     }
 
-    /// Evaluate packed SuperNeo witness coefficients and return Ajtai digit lanes.
-    ///
-    /// For packed witnesses, logical column `c` belongs to digit lane `rho = c % D`.
-    /// This computes all `D` lane sums in one pass over the sparse linear form.
     #[inline]
     pub fn eval_packed_digits_k(&self, z: &[K]) -> [K; D] {
         assert_eq!(
@@ -491,10 +476,6 @@ impl SuperneoLinearForm {
     }
 }
 
-/// Precomputed ring-linear form `bar(M)^T · chi_r`, grouped by D-column block.
-///
-/// This lets DEC evaluate many digit witnesses at the same row challenge without
-/// rescanning every matrix row for each child.
 #[derive(Clone, Debug)]
 pub struct SuperneoRingLinearForm {
     cols: usize,
@@ -511,9 +492,6 @@ struct SuperneoRingLinearBlock {
 }
 
 impl SuperneoRingLinearForm {
-    /// Dense (re, im) coefficient planes over all column blocks, laid out as
-    /// `[block][D]`. CUDA evaluates this form as a flat ring mat-vec rather
-    /// than walking the sparse entry list.
     pub fn to_dense_block_coeffs(&self) -> (Vec<F>, Vec<F>) {
         let blocks = self.cols.div_ceil(D);
         let mut re = vec![F::ZERO; blocks * D];
@@ -562,7 +540,6 @@ impl SuperneoRingLinearForm {
     }
 }
 
-/// Evaluate independent ring-linear forms against the same packed witness.
 pub fn eval_ring_linear_forms_real_z_blocks(
     forms: &[SuperneoRingLinearForm],
     z_blocks: &SuperneoZBlocks,
@@ -798,7 +775,7 @@ impl SuperneoZBlocks {
         Ff: Field + PrimeCharacteristicRing + Copy,
         K: From<Ff>,
     {
-        crate::common::validate_superneo_witness_mat(z, expected_m)?;
+        crate::common::validate_superneo_witness_shape(z, expected_m)?;
         let blocks = expected_m.div_ceil(D);
         if z.virtual_constant_value()
             .is_some_and(|value| *value == Ff::ZERO)
@@ -939,12 +916,10 @@ impl SuperneoZBlocks {
         self.imag_all_zero
     }
 
-    /// Whether every real and imaginary coefficient, including the carrier tail, is zero.
     pub fn is_zero(&self) -> bool {
         self.imag_all_zero && self.real_is_zero()
     }
 
-    /// Real coefficient plane as canonical words in `[block][D]` layout.
     pub fn re_plane_words(&self) -> Vec<u64> {
         let mut words = vec![0; self.re.len() * D];
         for block in 0..self.re.len() {
@@ -955,7 +930,6 @@ impl SuperneoZBlocks {
         words
     }
 
-    /// Imaginary coefficient plane in `[block][D]` layout.
     pub fn im_plane_words(&self) -> Vec<u64> {
         if self.imag_all_zero {
             return vec![0; self.re.len() * D];
@@ -978,7 +952,6 @@ impl SuperneoZBlocks {
         self.real_nonzero(blk) || (!self.imag_all_zero && self.im_nonzero[blk])
     }
 
-    /// Number of complete ring blocks, including the carrier completion tail.
     #[inline]
     pub fn block_len(&self) -> usize {
         self.re.len()
@@ -1168,7 +1141,6 @@ impl SuperneoWeightedMatrixCache {
     }
 }
 
-/// Cached SuperNeo row-lifted representation for all CCS matrices.
 #[derive(Clone, Debug)]
 pub struct SuperneoEvalCache {
     mats: Vec<SuperneoMatrixCache>,
@@ -1181,7 +1153,6 @@ impl SuperneoEvalCache {
         self.mats.get(j)
     }
 
-    /// Per-matrix explicit bar caches, in CCS matrix order.
     pub fn matrix_caches(&self) -> &[SuperneoMatrixCache] {
         &self.mats
     }
@@ -1211,8 +1182,6 @@ impl SuperneoEvalCache {
         forms
     }
 
-    /// Evaluate every matrix ring form against real-only packed witnesses while
-    /// retaining only one matrix's accumulator scratch at a time.
     #[inline]
     pub fn eval_ring_linear_forms_for_real_z_blocks(
         &self,
@@ -1423,7 +1392,6 @@ pub fn eval_all_mats_ring_cached_with_split_chi(
     }
     out
 }
-/// Evaluate `\widetilde{(M_j z)}(r)` for all matrices in ring-coefficient form.
 pub fn eval_all_mats_ring_cached(cache: &SuperneoEvalCache, z: &[K], chi_r: &[K], n_eff: usize) -> Vec<[K; D]> {
     let z_blocks = SuperneoZBlocks::from_z(z);
     eval_all_mats_ring_cached_with_blocks(cache, &z_blocks, chi_r, n_eff)

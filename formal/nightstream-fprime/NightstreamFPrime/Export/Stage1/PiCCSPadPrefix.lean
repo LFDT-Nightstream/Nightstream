@@ -2,8 +2,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSCarriedRead
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PrefixFold
 
 /-! Retain all carried Pad values of one complete block and apply its first
-adjacent prefix fold. The original block order and every tail lane remain.
-Later folds operate on the concatenated 27-value block outputs. -/
+adjacent prefix fold. -/
 
 set_option autoImplicit false
 
@@ -26,16 +25,12 @@ private theorem dot_zero (basis : Vector K ringDegree) :
   unfold PiCCSWeightedBasis.dotK
   simp only [extensionLaws.mul_zero, sumMap_zero extensionOps extensionLaws]
 
-/-- Materialize each original forward dot product once. Only equality of the
-complete combined block with zero skips the arithmetic. -/
 def blockValues (basis : FixedArray (Vector K ringDegree) ringDegree)
     (values : Vector K ringDegree) : Vector K ringDegree :=
   if values = Vector.replicate ringDegree K.zero then
     Vector.replicate ringDegree K.zero
   else Vector.ofFn fun lane => PiCCSWeightedBasis.dotK (basis.get lane) values.get
 
-/-- Every retained lane is the same dot product used by blockMoment, with
-no support, source-validity, or nonzero premise. -/
 theorem blockValues_value (basis : FixedArray (Vector K ringDegree) ringDegree)
     (values : Vector K ringDegree) (lane : Fin ringDegree) :
     (blockValues basis values).get lane =
@@ -49,7 +44,6 @@ theorem blockValues_value (basis : FixedArray (Vector K ringDegree) ringDegree)
     change (Vector.ofFn _)[lane.val] = _
     rw [Vector.getElem_ofFn]
 
-/-- The existing array view includes every lane and has an exact zero suffix. -/
 theorem blockValues_getD (basis : FixedArray (Vector K ringDegree) ringDegree)
     (values : Vector K ringDegree) (index : Nat) :
     (blockValues basis values).toArray.getD index K.zero =
@@ -68,8 +62,6 @@ theorem blockValues_getD (basis : FixedArray (Vector K ringDegree) ringDegree)
       exact Nat.le_of_not_gt bounded
     rw [Array.getElem?_eq_none outside, Option.getD_none, dif_neg bounded]
 
-/-- Fix the first challenge through the existing executable prefix fold.
-A complete 54-lane input block supplies exactly 27 adjacent pairs. -/
 def foldedBlock (basis : FixedArray (Vector K ringDegree) ringDegree)
     (values : Vector K ringDegree) (challenge : K) : Array K :=
   PrefixFold.foldOne extensionOps (blockValues basis values).toArray challenge
@@ -80,8 +72,6 @@ theorem foldedBlock_size (basis : FixedArray (Vector K ringDegree) ringDegree)
   rw [foldedBlock, PrefixFold.foldOne_size, Vector.size_toArray]
   rfl
 
-/-- Total coefficient equality, including reads beyond the stored block.
-The low and high operands are the exact original forward Pad dot products. -/
 theorem foldedBlock_getD (basis : FixedArray (Vector K ringDegree) ringDegree)
     (values : Vector K ringDegree) (challenge : K) (index : Nat) :
     (foldedBlock basis values challenge).getD index K.zero =
@@ -97,7 +87,6 @@ theorem foldedBlock_getD (basis : FixedArray (Vector K ringDegree) ringDegree)
     (PrefixFold.foldOne_getD extensionOps extensionLaws
       (blockValues basis values).toArray challenge index)
 
-/-- Missing coefficients use the same zero default as the full prefix fold. -/
 theorem foldedBlock_getD_of_outside
     (basis : FixedArray (Vector K ringDegree) ringDegree)
     (values : Vector K ringDegree) (challenge : K)

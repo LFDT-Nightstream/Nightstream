@@ -9,6 +9,7 @@ use serde_json::Value;
 use crate::application_records::{ApplicationRecords, PrivateSnapshot};
 use crate::identity::{native_application_word_count, ApplicationIdentity};
 
+use super::assignment_transport::FIELD_COORDINATES;
 use super::sealed::{decode_native_application_records, prepared_record_counts};
 use super::{LoadedPerApplicationPackage, PackageError, GOLDILOCKS_MODULUS};
 
@@ -16,18 +17,13 @@ mod value;
 
 const MAGIC: &[u8; 8] = b"NSFPREP1";
 
-// Compiler output has N0 + W + 4*[W>0] + 4*[L>0] numeric/array nodes.
-// The unchanged maximum key permits floor((MAX_CARRIER_WIDTH - fixedWidth)/41)
-// application fields. W=maximum-1, L=1 attains the largest envelope.
-// Derivation: nightstream/tests/evidence/prepared-fixed-source-bound.md.
-const NATIVE_REFERENCE_NODES: usize = 12_164_493;
-const MAX_APPLICATION_FIELDS: usize = (neo_ajtai::nightstream_fprime_setup::MAX_CARRIER_WIDTH - 43_738_906) / 41;
-/// Node cap of a prepared fixed source: the largest envelope the unchanged
-/// maximum key admits. The compiler test checks it against that envelope.
-pub const PREPARED_FIXED_SOURCE_NODE_LIMIT: usize = NATIVE_REFERENCE_NODES - 12 + MAX_APPLICATION_FIELDS + 7;
-// Compact numeric-array JSON needs at most 20 decimal digits and one separator
-// per node; array delimiters fit this bound as well.
-const MAX_FIXED_SOURCE_BYTES: u64 = 21 * PREPARED_FIXED_SOURCE_NODE_LIMIT as u64;
+const BASE_FIXED_SOURCE_NODES: usize = 12_164_481;
+const FIXED_CARRIER_WIDTH: usize = 43_738_906;
+const MAX_APPLICATION_FIELDS: usize =
+    (neo_ajtai::nightstream_fprime_setup::MAX_CARRIER_WIDTH - FIXED_CARRIER_WIDTH) / FIELD_COORDINATES;
+pub const PREPARED_FIXED_SOURCE_NODE_LIMIT: usize = BASE_FIXED_SOURCE_NODES + MAX_APPLICATION_FIELDS + 7;
+const MAX_NODE_BYTES: u64 = u64::MAX.ilog10() as u64 + 2;
+const MAX_FIXED_SOURCE_BYTES: u64 = MAX_NODE_BYTES * PREPARED_FIXED_SOURCE_NODE_LIMIT as u64;
 
 fn check_source_bytes(length: u64) -> Result<(), PackageError> {
     if length > MAX_FIXED_SOURCE_BYTES {
@@ -94,10 +90,9 @@ pub(super) fn write(
     records.write_to(&mut output)
 }
 
-/// Read reusable execution data without replaying whole-circuit identities.
-/// This validates structure and record syntax. The cached identity components
-/// do not authenticate the artifact or authorize it as a verifier's circuit.
-pub fn load_compiled_application_package(mut input: impl Read) -> Result<LoadedPerApplicationPackage, PackageError> {
+pub fn load_trusted_compiled_application_package(
+    mut input: impl Read,
+) -> Result<LoadedPerApplicationPackage, PackageError> {
     let mut magic = [0; MAGIC.len()];
     input.read_exact(&mut magic)?;
     if magic != *MAGIC {

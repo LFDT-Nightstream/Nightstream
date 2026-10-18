@@ -32,7 +32,6 @@ fn mul_reduction_identity() {
     let a = rand_rq(2);
     let b = rand_rq(3);
     let c = a.mul(&b);
-    // Sanity: c has length d, norm finite
     assert_eq!(cf(c).len(), D);
     assert!(inf_norm(&c) < u128::MAX);
 }

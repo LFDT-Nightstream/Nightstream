@@ -1,8 +1,7 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NumericCompletionSum
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Coefficients
 
-/-! Scalar ordering identities for the existing numeric sum. The proofs
-preserve ascending order and introduce no selected shape or new evaluator. -/
+/-! Scalar ordering identities for the existing numeric sum. -/
 
 set_option autoImplicit false
 
@@ -30,8 +29,6 @@ private theorem foldl_eq_add_sumMap {Index : Type uIndex}
       rw [List.foldl_cons, ih]
       exact laws.add_assoc initial (term index) _
 
-/-- The numeric prefix and canonical finite-index sum have exactly the same
-terms and order. This includes the empty prefix. -/
 theorem numericSum_eq_finSum (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops) (count : Nat) (term : Nat → Field) :
     numericSum ops count term =
@@ -55,8 +52,6 @@ private theorem numericSum_append (ops : InterpolationOps Field)
       rw [Nat.add_succ, numericSum_succ, ih, numericSum_succ]
       exact laws.add_assoc _ _ _
 
-/-- Flatten complete blocks without changing their block-major, lane-major
-order. Width zero and count zero are both included. -/
 theorem numericSum_group (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops) (count width : Nat) (term : Nat → Field) :
     numericSum ops (count * width) term =
@@ -67,8 +62,6 @@ theorem numericSum_group (ops : InterpolationOps Field)
   | succ count ih =>
       rw [Nat.succ_mul, numericSum_append ops laws, numericSum_succ, ih]
 
-/-- Restrict a complete even row domain to exactly one parity. The chosen
-bit is zero or one by its existing Fin type; terms need no value premise. -/
 theorem numericSum_parity (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops) (count : Nat) (bit : Fin 2) (term : Nat → Field) :
     numericSum ops (2 * count) (fun row => if row % 2 = bit.val then term row else ops.zero) =
@@ -87,8 +80,6 @@ theorem numericSum_parity (ops : InterpolationOps Field)
       · simp [low, even, odd, laws.add_zero]
       · simp [high, even, odd, laws.add_zero]
 
-/-- A parity-restricted active prefix is the complete endpoint sum when
-all omitted in-domain rows are zero. The last odd prefix row is retained. -/
 theorem numericSum_prefix_parity_eq_finSum (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops) (remaining activeCount : Nat) (bit : Fin 2)
     (term : Nat → Field) (fits : activeCount ≤ 2 ^ (remaining + 1))

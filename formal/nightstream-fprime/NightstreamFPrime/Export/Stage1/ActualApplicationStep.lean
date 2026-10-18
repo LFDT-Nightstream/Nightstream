@@ -4,8 +4,7 @@ import NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint
 
 /-!
 Owns the application equation on the typed states decoded from the actual
-pilot preimages. The witness and both states are read from their existing
-owned forms. The selected-row theorem supplies every application row.
+pilot preimages.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.ActualApplicationStep
@@ -72,8 +71,6 @@ private theorem output_eq_forms
   rw [ActualPreimageFraming.outputState, dif_pos bounded]
   rfl
 
-/-- Arbitrary accepted application rows force the decoded next current state
-to be the selected application step on the decoded prior state and witness. -/
 theorem rowsZero_implies_decodedStep
     (fits : PerApplicationPackage.FitsTwoPow28 application)
     (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
@@ -90,8 +87,6 @@ theorem rowsZero_implies_decodedStep
   exact ApplicationAssignmentSoundness.rowsZero_implies_step
     fits geometry assignment one rows
 
-/-- The selected complete Stage 1 rows imply the same typed application
-equation. This theorem needs no canonical raw packet or representation. -/
 theorem selectedRowsZero_implies_decodedStep
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)

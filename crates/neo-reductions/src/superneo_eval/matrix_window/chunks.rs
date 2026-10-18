@@ -16,11 +16,8 @@ use super::{
 };
 use crate::PiCcsError;
 
-/// Rows per chunk for the production loader.
 pub(super) const CHUNK_ROWS: usize = 1 << 16;
 
-/// Return the complete window over `requested`, or `None` when it does not fit
-/// the workspace. The result equals the serial loader's complete window.
 pub(super) fn load_complete(
     source: &dyn MatrixRows,
     requested: Range<usize>,
@@ -118,8 +115,6 @@ pub(super) fn load_complete(
     }))
 }
 
-/// One matrix's storage for a contiguous row chunk. Offsets exclude the
-/// initial zero; `base` is the global index of the chunk's first entry.
 struct MatrixSlices<'a> {
     row_offsets: Option<&'a mut [u32]>,
     row_blocks: &'a mut [CompactRowBlock],
@@ -157,7 +152,6 @@ impl<'a> MatrixSlices<'a> {
         }
     }
 
-    /// Split off the first `rows` rows holding `count` entries.
     fn split(self, rows: usize, count: Counts) -> Result<(Self, Self), PiCcsError> {
         let (row_offsets, rest_row_offsets) = split_offsets(self.row_offsets, rows);
         let (row_blocks, rest_row_blocks) = self.row_blocks.split_at_mut(count.explicit);

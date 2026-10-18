@@ -3,7 +3,6 @@ import Lean
 /-! Shared fail-closed axiom audit command. -/
 
 open Lean Elab Command in
-/-- Fail unless `decl` depends only on the permitted kernel axioms. -/
 elab "#audit_axioms " decl:ident : command => do
   let name ← liftCoreM <| realizeGlobalConstNoOverloadWithInfo decl
   let axioms ← liftCoreM <| Lean.collectAxioms name
@@ -15,10 +14,6 @@ elab "#audit_axioms " decl:ident : command => do
     throwError m!"{name} depends on disallowed axioms: {bad}"
 
 open Lean Elab Command in
-/-- Fail unless every full name that the document at `path` cites in
-backticks exists as a declaration or a module, and every cited declaration
-passes the axiom audit. Cited names omit the common `NightstreamFPrime`
-namespace and start with `Export.`, `Layout.`, `Lifecycle.` or `Spec.`. -/
 elab "#endpoint_census " path:str : command => do
   let text ← IO.FS.readFile path.getString
   let roots := ["Export.", "Layout.", "Lifecycle.", "Spec."]

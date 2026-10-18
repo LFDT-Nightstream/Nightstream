@@ -8,12 +8,6 @@ import NightstreamFPrime.Layout.Stage1.ApplicationSemantics
 /-!
 Owns the standalone canonical package for one Lean-authored Stage 1
 application.
-
-The plan contains every application-owned executable row category and the
-exact column map for its four-word input state, fixed-width witness, and
-four-word output state. Its identifier is recomputed from the complete
-prefix-free plan encoding. The final Stage 1 package will embed one such plan;
-this module does not change the current candidate package.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.ApplicationPackage
@@ -27,8 +21,6 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-/-- Canonical executable application slice. All indices are final physical
-package indices, so Rust performs no application-specific layout choice. -/
 structure Plan where
   schemaVersion : Nat
   witnessWordCount : Nat
@@ -110,20 +102,14 @@ theorem Plan.encode_injective : Function.Injective Plan.format.encode := by
   rw [Plan.decode_encode, Plan.decode_encode] at decoded
   exact Except.ok.inj decoded
 
-/-- Fixed production Poseidon2 template size. Application permutations use
-the same canonical template as the complete Stage 1 package. -/
 def permutationRowCount : Nat := 1096
 
-/-- Exact expanded application row count under the canonical package rules. -/
 def Plan.expandedRowCount (plan : Plan) : Nat :=
   (plan.hashChains.map fun chain => chain.witnessLength).sum +
     plan.permutationInvocations.length * permutationRowCount +
     compactRowCountFor plan.compactRowTemplates plan.compactRowInvocations +
     plan.witnessInstructions.length + plan.assertionRows.length
 
-/-- Structural validity required before a plan can enter a final package.
-Row- and column-ownership theorems remain obligations of the concrete
-application layout. -/
 structure Plan.WellFormed (plan : Plan) : Prop where
   schema : plan.schemaVersion = 1
   inputWidth : plan.inputColumns.length =
@@ -138,12 +124,9 @@ def identityDomain : List F :=
     70, 80, 114, 105, 109, 101, 47, 97, 112, 112, 108, 105, 99, 97,
     116, 105, 111, 110, 47, 118, 49] : List Nat).map Poseidon2.ofNat
 
-/-- Full authoritative token sequence. A verifier can recompute it from the
-embedded plan; a prover-carried digest never replaces these words. -/
 def authorityWords (plan : Plan) : List F :=
   Package.valuePreimage (Plan.format.encode plan)
 
-/-- Domain-separated identity of one exact application plan. -/
 def identifier (plan : Plan) : VerifierContext.Digest4 :=
   VerifierContext.Digest4.ofList
     (Poseidon2.hash (identityDomain ++ authorityWords plan))
@@ -155,17 +138,12 @@ def identifierWords (plan : Plan) : List F :=
     (identifierWords plan).length = 4 := by
   exact VerifierContext.Digest4.toList_length (identifier plan)
 
-/-- The application identity is always recomputed from the complete canonical
-plan token sequence. -/
 theorem identifier_recomputed (plan : Plan) :
     identifierWords plan =
       (VerifierContext.Digest4.ofList
         (Poseidon2.hash (identityDomain ++ authorityWords plan))).toList := by
   rfl
 
-/-! ## Direct compiler from one selected Lean application -/
-
-/-- Exact final-package columns used by the selected application. -/
 structure Columns (witnessWordCount : Nat) where
   input : Lifecycle.Stage1.Application.StateIndex → Nat
   witness : Fin witnessWordCount → Nat
@@ -200,8 +178,6 @@ def compiledRows (program : Lifecycle.Stage1.Application.Program)
   Rows.compileRowsTR freshStart rowStart
     (Rows.lowerConstraintsTR source freshStart).rows
 
-/-- Canonical ordinary-row plan. The executable uses the stack-safe lowering
-and row classifiers already proved equal to the structural definitions. -/
 def ofProgram (program : Lifecycle.Stage1.Application.Program)
     (columns : Columns program.witnessWordCount) (privateStart rowStart : Nat) :
     Plan :=
@@ -258,9 +234,6 @@ theorem ofProgram_compiledRows_toR1CS
   unfold compiledRows
   rw [Rows.compileRowsTR_toR1CS, Rows.lowerConstraintsTR_eq]
 
-/-- Independent satisfaction of every stored ordinary application row implies
-the exact transition of the selected Lean program for an arbitrary
-assignment. -/
 theorem rows_imply_programHolds
     (program : Lifecycle.Stage1.Application.Program)
     (columns : Columns program.witnessWordCount) (privateStart rowStart : Nat)
@@ -300,10 +273,6 @@ theorem rows_imply_programHolds
     (holdsFlat_implies_holds env
       (operations program columns privateStart) flattened)
 
-/-! ## Verifier-context application binding -/
-
-/-- Replace only the application component of a verifier-owned authority with
-the full canonical words of the selected Lean program plan. -/
 def bindApplication (base : VerifierContext.Authority)
     (program : Lifecycle.Stage1.Application.Program)
     (columns : Columns program.witnessWordCount) (privateStart rowStart : Nat) :
@@ -330,8 +299,6 @@ theorem bindApplication_descriptor_application
         (authorityWords
           (ofProgram program columns privateStart rowStart)) := by
   rfl
-
-/-! ## Production zero-copy specialization -/
 
 def productionColumns (program : Lifecycle.Stage1.Application.Program) :
     Columns program.witnessWordCount where
@@ -373,8 +340,6 @@ theorem productionPlan_wellFormed
   exact ofProgram_wellFormed program (productionColumns program)
     (Layout.Stage1.ApplicationInputs.localStart program) rowStart
 
-/-- The independently checked canonical application rows imply the exact
-typed transition between the prior and next state-hash preimages. -/
 theorem productionRows_imply_typedTransition
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

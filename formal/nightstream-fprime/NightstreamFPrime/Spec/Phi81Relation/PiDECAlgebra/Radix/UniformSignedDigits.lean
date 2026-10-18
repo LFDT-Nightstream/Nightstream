@@ -1,15 +1,9 @@
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Concrete/Phi81Relation/PiDECAlgebra/Radix/UniformSignedDigits.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Model-level uniqueness of the production signed-binary `PiDEC` split.
 
 Protocol: SuperNeo `Pi_DEC` at production `b = 2`, `k = 16`.
-Phase: verifier-owned public-input digit decomposition.
-Constraint family: abstract common-sign digit acceptance; this file emits no
-rows.
 
 Owns: a row-encoding-independent predicate saying that one sign is in
 `{-1, 0, 1}`, every digit is either zero or that common sign, and the digits
@@ -19,19 +13,6 @@ uniqueness of the accepted digits for every strictly `B`-bounded parent.
 Does not own: a polynomial or R1CS encoding of the predicate; canonical field
 representative checks at an implementation boundary; Rust refinement; row
 counts; generated artifacts; or authorization to remove any constraint.
-
-Authority boundary: the soundness theorem starts from the independent
-strict-`B` parent bound and the semantic radix recomposition. In particular,
-sixteen independent centered-unit facts are not mistaken for canonical digit
-selection: all digits must share the one accepted sign.
-
-| Stage path | Mathematical obligation | Authority class | Lean owner |
-|---|---|---|---|
-| `nifs.pi_dec.paper.public_split.sign` | one common sign lies in `{-1,0,1}` | checked | `SignAllowed` |
-| `nifs.pi_dec.paper.public_split.digit` | every child digit is zero or the common sign | checked | `ConstraintPredicate` |
-| `nifs.pi_dec.paper.public_split.recompose` | signed digits recompose to the bounded parent | checked | `Accepted.recomposition` |
-| `nifs.pi_dec.paper.public_split.exact` | accepted digits equal `Radix.splitScalar` | derived | `accepted_digits_eq_splitScalar` |
-| `nifs.pi_dec.paper.public_split.complete` | canonical digits satisfy the predicate | derived | `honest_complete` |
 -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix.UniformSignedDigits
@@ -40,31 +21,19 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm
 
-/-! ## Row-independent accepted roots -/
-
-/-- The shared signed-binary direction. This is an accepted-root predicate,
-not a claim about any particular polynomial encoding. -/
 def SignAllowed (sign : F) : Prop :=
   sign = 0 ∨ sign = 1 ∨ sign = -1
 
-/-- The semantic content of one common-sign family: after selecting one
-allowed sign, each digit is either inactive or equal to that sign. -/
 def ConstraintPredicate (sign : F) (digits : ChildIndex → F) : Prop :=
   SignAllowed sign ∧ ∀ index, digits index = 0 ∨ digits index = sign
 
-/-- The row-count-neutral candidate accepted by the proposed family. -/
 structure Accepted (parent sign : F) (digits : ChildIndex → F) : Prop where
   constraint : ConstraintPredicate sign digits
   recomposition : recomposeScalar digits = parent
 
-/-- The honest common sign is derived from the same centered branch used by
-the canonical production split. Zero uses the positive branch. -/
 def honestSign (parent : F) : F :=
   if isNonnegative parent then 1 else -1
 
-/-! ## Finite binary uniqueness -/
-
-/-- Head-first natural sum over a fixed finite index set. -/
 private def sumNats : {count : Nat} → (Fin count → Nat) → Nat
   | 0, _ => 0
   | _ + 1, values => values 0 + sumNats (fun index => values index.succ)
@@ -80,7 +49,6 @@ private theorem sumNats_mul (factor : Nat) {count : Nat}
       rw [inductionHypothesis (fun index => values index.succ)]
       exact (Nat.mul_add factor _ _).symm
 
-/-- Little-endian natural value of a fixed binary word. -/
 private def binaryValue {count : Nat} (bits : Fin count → Nat) : Nat :=
   sumNats fun index => 2 ^ index.val * bits index
 
@@ -121,8 +89,6 @@ private theorem natBit_succ (value index : Nat) :
     natBit value (index + 1) = natBit (value / 2) index := by
   simp [natBit, Nat.div_div_eq_div_mul, Nat.pow_succ']
 
-/-- Fixed-width binary expansion is injective. This proof is structural in the
-width; it does not enumerate the `2^16` possible production words. -/
 private theorem bits_eq_natBit_binaryValue {count : Nat}
     (bits : Fin count → Nat)
     (binary : ∀ index, bits index < 2) :
@@ -155,10 +121,6 @@ private theorem bits_eq_natBit_binaryValue {count : Nat}
             simpa [Fin.val_succ, quotient] using
               (natBit_succ (binaryValue bits) tail.val).symm
 
-/-! ## Field recomposition of binary words -/
-
-/-- Local scalar fold definitionally equal to the fold hidden behind
-`Radix.recomposeScalar`. It exists only to prove a generic arithmetic bridge. -/
 private def scalarFold : {count : Nat} →
     (Fin count → F) → (Fin count → F) → F
   | 0, _, _ => 0
@@ -234,9 +196,6 @@ private theorem recompose_negFieldBits (bits : ChildIndex → Nat) :
   rw [← recomposeScalar_eq_scalarFold]
   exact congrArg Neg.neg (recompose_fieldBits bits)
 
-/-! ## Selector-bit interpretation -/
-
-/-- Natural selector of the nonzero common-sign branch. -/
 private def selectorBit (digit : F) : Nat :=
   if digit = 0 then 0 else 1
 
@@ -274,11 +233,6 @@ private theorem magnitudeFieldDigit_cases (parent : F) (index : ChildIndex) :
   · right
     rw [one, fieldOfNat_one]
 
-/-! ## Honest completeness -/
-
-/-- The canonical signed-binary split satisfies the common-sign predicate and
-the existing exact recomposition equation. This is model-level completeness;
-it does not compile the predicate to rows. -/
 theorem honest_complete (parent : F)
     (bounded : centeredMagnitude parent < combinedBound) :
     Accepted parent (honestSign parent) (splitScalar parent) := by
@@ -307,14 +261,9 @@ theorem honest_complete (parent : F)
           rw [one]
   · exact splitScalar_recompose parent
 
-/-! ## Exact soundness -/
-
 private theorem centeredMagnitude_one : centeredMagnitude (1 : F) = 1 := by
   decide
 
-/-- Every accepted common-sign digit is strictly inside the production fresh
-bound. This follows from the accepted roots themselves; it is not an
-additional parent- or prover-supplied premise. -/
 theorem Accepted.digitBounded {parent sign : F}
     {digits : ChildIndex → F} (accepted : Accepted parent sign digits)
     (index : ChildIndex) :
@@ -332,9 +281,6 @@ theorem Accepted.digitBounded {parent sign : F}
     · simp [digitSign, signNegative, productionGlobalParams,
         Centered.centeredMagnitude_neg, centeredMagnitude_one]
 
-/-- Recomposition of sixteen accepted common-sign digits is automatically
-strictly `B`-bounded. Consequently the exactness theorem below does not need a
-separate parent-bound check at the R1CS boundary. -/
 theorem Accepted.parentBounded {parent sign : F}
     {digits : ChildIndex → F} (accepted : Accepted parent sign digits) :
     centeredMagnitude parent < combinedBound := by
@@ -464,9 +410,6 @@ private theorem sound_negative {parent : F} {digits : ChildIndex → F}
       magnitudeDigit, magnitudeExact, ← congrFun bitsExact index]
     exact negativeDigit_eq_negFieldBit (allowed index)
 
-/-- Under the independent strict combined bound, the common-sign predicate
-and radix recomposition force every child digit to be exactly the
-verifier-computed production split. -/
 theorem accepted_digits_eq_splitScalar {parent sign : F}
     {digits : ChildIndex → F}
     (bounded : centeredMagnitude parent < combinedBound)
@@ -487,17 +430,11 @@ theorem accepted_digits_eq_splitScalar {parent sign : F}
   · subst sign
     exact sound_negative bounded accepted.constraint.2 accepted.recomposition
 
-/-- Accepted common-sign roots and recomposition alone determine the exact
-verifier-computed split. The strict parent bound is derived internally by
-`Accepted.parentBounded`. -/
 theorem Accepted.digits_eq_splitScalar {parent sign : F}
     {digits : ChildIndex → F} (accepted : Accepted parent sign digits) :
     digits = splitScalar parent :=
   accepted_digits_eq_splitScalar accepted.parentBounded accepted
 
-/-- Soundness and honest completeness packaged as the exact accepted-language
-characterization. The witness sign is deliberately existential, while the
-accepted digit vector is deterministic. -/
 theorem exists_accepted_iff_exact {parent : F} {digits : ChildIndex → F}
     (bounded : centeredMagnitude parent < combinedBound) :
     (∃ sign, Accepted parent sign digits) ↔ digits = splitScalar parent := by

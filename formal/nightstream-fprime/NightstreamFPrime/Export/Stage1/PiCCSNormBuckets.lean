@@ -2,8 +2,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSNormCache
 import NightstreamFPrime.Export.Stage1.PiCCSPolynomialRange
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanReproduction
 
-/-! Accumulate scalar weights for the existing signed-unit norm cubics.
-Each bucket retains one original source and its two signed endpoint codes. -/
+/-! Accumulate scalar weights for the existing signed-unit norm cubics. -/
 
 set_option autoImplicit false
 
@@ -18,7 +17,6 @@ open NightstreamFPrime.Lifecycle (productionShape)
 
 abbrev Buckets := Vector (Vector (Vector K 3) 3) productionShape.sourceCount
 
-/-- Initial scalar weights; no polynomial is constructed here. -/
 def empty : Buckets :=
   Vector.replicate productionShape.sourceCount
     (Vector.replicate 3 (Vector.replicate 3 K.zero))
@@ -27,7 +25,6 @@ private def lookup (buckets : Buckets) (source : Fin productionShape.sourceCount
     (low high : Fin 3) : K :=
   ((buckets.get source).get low).get high
 
-/-- Add only the selected K weight. Equal signed endpoints have zero cubic. -/
 def add (buckets : Buckets) (source : Fin productionShape.sourceCount)
     (low high : Fin 3) (weight : K) : Buckets :=
   if low = high then buckets
@@ -40,8 +37,6 @@ def add (buckets : Buckets) (source : Fin productionShape.sourceCount)
         low.isLt)
       source.isLt
 
-/-- Scale only after scalar accumulation. Traversal is canonical source,
-low-code, high-code order, using the existing prepared norm cubics. -/
 def finish (powers : Nat → K) (buckets : Buckets) : FixedPolynomial K 3 :=
   let table := PiCCSNormCache.prepare powers
   FixedPolynomial.sum extensionOps.toOps
@@ -51,7 +46,6 @@ def finish (powers : Nat → K) (buckets : Buckets) : FixedPolynomial K 3 :=
           FixedPolynomial.scale extensionOps.toOps (lookup buckets source low high)
             (PiCCSNormCache.weightedLookup table source low high)
 
-/-- Every equal signed endpoint gives exactly four zero coefficients. -/
 theorem pairTable_diagonal (code : Fin 3) :
     ((PiCCSNormCache.pairTable ()).get code).get code =
       FixedPolynomial.zero extensionOps.toOps 3 := by
@@ -191,7 +185,6 @@ private theorem finish_coefficient (powers : Nat → K) (buckets : Buckets) (ind
   unfold finish sumKeys
   simp only [PiCCSPolynomialRange.coefficient_sum, PiCCSPolynomialRange.coefficient_scale]
 
-/-- No weights gives the existing fixed-width zero polynomial. -/
 theorem finish_empty (powers : Nat → K) :
     finish powers empty = FixedPolynomial.zero extensionOps.toOps 3 := by
   apply PiCCSPolynomialRange.coefficient_ext
@@ -205,8 +198,6 @@ theorem finish_empty (powers : Nat → K) :
       exact zero_left _
     _ = _ := sumKeys_zero
 
-/-- One scalar insertion contributes exactly its original weighted norm cubic.
-Diagonal insertions may be skipped because their coefficient objects are zero. -/
 theorem finish_add (powers : Nat → K) (buckets : Buckets)
     (source : Fin productionShape.sourceCount) (low high : Fin 3) (weight : K) :
     finish powers (add buckets source low high weight) =

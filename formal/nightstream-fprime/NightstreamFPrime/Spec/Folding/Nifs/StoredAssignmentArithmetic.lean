@@ -26,12 +26,10 @@ private def coordinateAction {width : Nat} (coordinate : Fin width → Result F)
   let result := coordinate index
   (result.value, work + result.work + 2)
 
-/-- A tail-recursive array traversal, with no intermediate list of indices. -/
 def build {width : Nat} (coordinate : Fin width → Result F) : Result (StoredAssignment width) :=
   let result := (Vector.ofFnM (coordinateAction coordinate)).run (width + 1)
   ⟨result.1, result.2 + 1⟩
 
-/-- Two array reads, one field subtraction, and one result return. -/
 def subtract {width : Nat} (left right : StoredAssignment width) : Result (StoredAssignment width) :=
   build fun column =>
     let leftRead : Result F := ⟨left.get column, 1⟩

@@ -24,8 +24,6 @@ private abbrev selectedRelation := PerApplicationFixedPoint.relation
 private abbrev selectedRelationSource :=
   Lifecycle.PiRLC.v1_2.InputBinding.relationSource selectedRelation
 
-/-- Proof adapter for the existing arbitrary-assignment family theorem.
-This does not split an original assignment or constrain its carrier tail. -/
 private def stored {columns : Nat} (assignment : Fin columns → F) :
     Vector (Vector F columns) productionGlobalParams.k :=
   Vector.replicate productionGlobalParams.k (Vector.ofFn assignment)
@@ -37,17 +35,12 @@ private theorem stored_get {columns : Nat} (assignment : Fin columns → F)
   change ((Vector.replicate productionGlobalParams.k (Vector.ofFn assignment))[child.val])[column.val] = _
   rw [Vector.getElem_replicate, Vector.getElem_ofFn]
 
-/-- Complete matrix evaluation through the existing row-accumulation reference.
-The repeated assignment vector is a proof adapter, not an IO implementation. -/
 def matrix (masks : Array (Array (Nat × Nat))) (point : PaperAlgebra.Point)
     (source : Fin productionShape.sourceCount) (port : Fin matrixCount) : MaterializedRingK :=
   MaterializedRingK.ofRing
     ((PiDECEvaluationHonestMessages.family
       (stored (PiCCSOriginalReads.assignment masks source)) point ⟨0, by decide⟩).matrix port)
 
-/-- Complete field-family equality for every original source and matrix port,
-including every nonconstant lane of fresh source zero. The existing family
-theorem supplies the row-prefix bound and zero suffix without a split premise. -/
 theorem matrix_eq_evaluationFamily (masks : Array (Array (Nat × Nat)))
     (point : PaperAlgebra.Point) (source : Fin productionShape.sourceCount) (port : Fin matrixCount) :
     (matrix masks point source port).toRing =

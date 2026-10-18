@@ -89,8 +89,6 @@ private theorem pilot_constraints (interface : Lifecycle.Pilot.Interface) (offse
   rw [flatConstraints_append, flatConstraints_singleton, flatConstraints_singleton]
   rfl
 
-/-- Construct both pilot hash children from the canonical protocol source and
-the actual output hash. The returned prefix carries its rows and exact scope. -/
 theorem pilot_prefix
     (outputHash : digest = stateHash advertised) :
     ∃ p : Sequence.Prefix
@@ -176,10 +174,6 @@ variable
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
   (template : Proof 8)
 
-/-- Actual hash and NIFS acceptance construct the existing pilot and C/R/D
-rows in one final environment. The initial source values and accepted NIFS
-output remain exact. No generated pilot/NIFS phase, row, or output value is
-assumed. -/
 theorem completePrefix
     (result : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (priorCanonical : Lifecycle.ChildrenCanonical (prior.running functionIndex))

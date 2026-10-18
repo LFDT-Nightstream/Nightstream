@@ -3,9 +3,10 @@ import NightstreamFPrime.Export.Stage1.PiCCSOriginalPadPreservation
 import NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixRange
 import NightstreamFPrime.Export.Stage1.PiRLCWitnessHonestResponse
 
-/-! Derive the actual computed R parent opening from the original seventeen
-openings and the existing C/R source kernels. Custody names exact computed
-field/block outputs; no semantic parent-correctness callback is supplied. -/
+/-!
+Derive the actual computed R parent opening from the original seventeen
+openings and the existing C/R source kernels.
+-/
 
 set_option autoImplicit false
 
@@ -30,7 +31,6 @@ def assignments (masks : Array (Array (Nat × Nat))) :
     Fin SourceCount → Phi81Relation.Assignment shape :=
   fun source => PiCCSOriginalReads.assignment masks (sourceIndex source)
 
-/-- The same complete original-source C evaluation kernels used in the replay. -/
 def evaluations (masks : Array (Array (Nat × Nat))) (point : PaperAlgebra.Point)
     (source : Fin SourceCount) : PaperAlgebra.Evaluation where
   pad := ((PiCCSOriginalPad.range 0 PiCCSSourceImages.blockCount point masks).get
@@ -119,8 +119,6 @@ private theorem block_ext {carrier : Phi81Relation.Shape}
     right (CarrierAction.carrierColumn pair.1 pair.2) at lane
   simpa only [recovered] using lane
 
-/-- A returned prepared R block is the block of the actual complete-carrier
-combination. Every block is covered; no stored output is taken as authoritative. -/
 theorem returned_witness
     (masks : Array (Array (Nat × Nat))) (batch : PiRLCParent.Batch)
     (parentWitness : StoredAssignment shape.carrierWidth)
@@ -138,9 +136,6 @@ theorem returned_witness
     (PiRLCWitnessBlock.preparedWitnessBlockPartials_getLast? batch.challenges
       (assignments masks) block))
 
-/-- This is the exact ParentValid premise required by computed D children.
-Initial acceptance supplies old openings. New evaluation and R-block custody
-refer to concrete source kernels at the actual C point and sampled rho. -/
 theorem parent_opening
     (statement : HyperNovaHistory.Statement) (input : PiCCSInputCheck.Input)
     (runningWitness : Stage1.Terminal.RunningWitness

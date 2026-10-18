@@ -66,8 +66,6 @@ variable {logicalWidth : Nat}
 local notation "Oracle" => Point logicalWidth publicFits (ProductionKey.degreeBound relation) → Answer
 local notation "Retries" => Fin Nifs.PaperProfile.arity.total → Answer
 
-/-- The `Π_RLC` input commitments of a probe's batch are the statement's
-commitments: they do not depend on the probe. -/
 theorem probe_phi
     (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -79,8 +77,6 @@ theorem probe_phi
   funext coordinate
   rfl
 
-/-- The oracle batch's input commitments depend only on the two statements,
-not on the oracle or the proof. -/
 theorem batch_phi (oracle other : Oracle)
     (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -90,30 +86,21 @@ theorem batch_phi (oracle other : Oracle)
   probe_phi relation ajtai running fresh _ _
 
 
-/-! ## The binding reduction -/
-
-/-- The two runs that the binding reduction compares: both extract, and the
-rerun outputs the base run's running and fresh statements. -/
 def PairedOf (fork other : ForkClaims relation) : Prop :=
   ValidOf relation ajtai fork ∧ ValidOf relation ajtai other ∧
     other.base.running = fork.base.running ∧ other.base.fresh = fork.base.fresh
 
-/-- Paired runs have the same `Π_RLC` input commitments. -/
 theorem paired_phi {fork other : ForkClaims relation} (paired : PairedOf relation ajtai fork other) :
     PiRLC.phi (batch relation ajtai fork.oracle fork.base.running fork.base.fresh fork.base.proof).inputs =
       PiRLC.phi (batch relation ajtai other.oracle other.base.running other.base.fresh other.base.proof).inputs := by
   rw [paired.2.2.1, paired.2.2.2]
   exact batch_phi relation ajtai _ _ _ _ _ _
 
-/-- The `Π_RLC` assignments that a valid run's complete fork extracts, one for
-each coordinate. -/
 noncomputable def forkAssignments {fork : ForkClaims relation} (valid : ValidOf relation ajtai fork) :=
   PiRLC.PaperForkExtraction.extractedAssignment (PaperExtractionAlgebra.extractionAlgebra ajtai)
     (ForkStrongSet.strongSetUnits Phi81StrongSet.lowNormInvertibility)
     (completeForkOf relation ajtai fork valid.1 valid.2)
 
-/-- A relaxed collision under the key's `Π_RLC` semantics, as a short kernel
-vector of the same key. -/
 noncomputable def kernelOf {commitment}
     (collision : PiRLC.RelaxedBindingCollision
       (ProductionKey.key relation ajtai).piRlcSemantics (ProductionKey.key relation ajtai).params
@@ -133,10 +120,6 @@ noncomputable def kernelOf {commitment}
     secondNorm := collision.secondNorm
     crossDifferent := collision.crossDifferent }
 
-/-- The binding reduction's output on two runs, from their claims. For paired
-runs whose forks extract different assignments, the short kernel vector of
-the relaxed collision at the first coordinate where the assignments differ;
-otherwise `none`. -/
 noncomputable def rerunKernelOf (fork other : ForkClaims relation) :
     Option (Binding.ShortKernelVector ajtai productionGlobalParams.msisNormBound) :=
   if paired : PairedOf relation ajtai fork other then
@@ -155,16 +138,12 @@ noncomputable def rerunKernelOf (fork other : ForkClaims relation) :
     else none
   else none
 
-/-- The binding reduction on the adversary's two runs (`rerunKernelOf`). -/
 noncomputable def rerunKernel (oracle : Oracle) (retries : Retries) (other : Oracle)
     (otherRetries : Retries) :
     Option (Binding.ShortKernelVector ajtai productionGlobalParams.msisNormBound) :=
   rerunKernelOf relation ajtai (forkClaimsOf relation adversary claim oracle retries)
     (forkClaimsOf relation adversary claim other otherRetries)
 
-/-- Every pair of runs that `collisionChance` counts makes the reduction
-return a vector: the extracted witnesses differ, so the forks' extracted
-assignments differ at some coordinate. -/
 theorem rerunKernel_isSome {oracle other : Oracle} {retries otherRetries : Retries}
     (valid : Valid relation ajtai adversary claim oracle retries)
     (otherValid : Valid relation ajtai adversary claim other otherRetries)
@@ -188,14 +167,10 @@ theorem rerunKernel_isSome {oracle other : Oracle} {retries otherRetries : Retri
   rw [dif_pos paired, dif_pos different]
   rfl
 
-/-- The chance that the reduction returns a vector, under the law of
-`collisionChance`: the base run extracts, and its rerun from the same context
-makes `rerunKernel` return a vector. -/
 noncomputable def kernelChance : ℝ :=
   reductionChance relation ajtai adversary claim fun oracle retries other otherRetries =>
     (rerunKernel relation ajtai adversary claim oracle retries other otherRetries).isSome
 
-/-- The binding term of the knowledge error is at most the reduction's chance. -/
 theorem collisionChance_le_kernelChance :
     collisionChance relation ajtai adversary claim ≤ kernelChance relation ajtai adversary claim := by
   unfold collisionChance kernelChance reductionChance

@@ -1,8 +1,5 @@
 import NightstreamFPrime.Spec.Folding.BatchArity
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiRLC.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Model-level Π_RLC reduction (SuperNeo v1.2 Lemma 8).
 
@@ -12,15 +9,12 @@ This file separates three claims which must not be conflated:
 2. weak extraction into the ambient input relation for the selected batch; and
 3. uniqueness of two extracted input witnesses, except for the paper's
    `(2B, C)` relaxed-binding collision.
-
-There is intentionally no standalone Π_RLC knowledge-soundness theorem.
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiRLC
 
 universe uStructure uAssignment uPublicInput uPoint uEvaluation uCommitment uScalar
 
-/-- Algebraic laws used by the verifier's single, shared linear combination. -/
 structure Algebra
     (Structure : Type uStructure)
     (Assignment : Type uAssignment)
@@ -67,7 +61,6 @@ structure Algebra
     semantics.normBounded params.bigB
       (combineAssignment challenges assignments)
 
-/-- Public Π_RLC input/output at one production batch arity. -/
 structure Attempt
     (Structure : Type uStructure)
     (PublicInput : Type uPublicInput)
@@ -82,11 +75,6 @@ structure Attempt
   challenges : Fin arity.total → Scalar
   output : CE.Instance Structure PublicInput Point Evaluation Commitment
 
-/-- Exact public Π_RLC equations, excluding challenge-set membership.
-
-This separation matters for noninteractive verification: a transcript sampler
-may derive membership from replay, so membership must not be duplicated as an
-independent checked obligation. -/
 structure Equations
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -121,9 +109,6 @@ structure Equations
       algebra.combineEvaluations attempt.challenges
         (fun i => (attempt.inputs i).evaluations)
 
-/-- Complete Π_RLC verifier acceptance. Challenge membership is semantically
-required, but a concrete noninteractive verifier should derive it from its
-sampler replay rather than check a second prover-controlled assertion. -/
 structure Accepted
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -145,8 +130,6 @@ structure Accepted
 
 namespace Equations
 
-/-- Assemble complete Π_RLC acceptance once challenge membership has been
-derived by the owning authority boundary. -/
 theorem withChallengesValid
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -170,7 +153,6 @@ theorem withChallengesValid
 
 end Equations
 
-/-- The verifier-computed combined CE statement. -/
 def combinedOutput
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -198,7 +180,6 @@ def combinedOutput
   evaluations := algebra.combineEvaluations challenges (fun i => (inputs i).evaluations)
   stage := .combined
 
-/-- The prover uses the same challenges to combine witnesses. -/
 def combinedWitness
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -217,7 +198,6 @@ def combinedWitness
     (assignments : Fin n → Assignment) : Assignment :=
   algebra.combineAssignment challenges assignments
 
-/-- Honest fresh inputs combine to an actual `CE(B)` opening. -/
 theorem combinedOutput_holds
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -278,7 +258,6 @@ theorem combinedOutput_holds
   · exact (algebra.evaluations_hom system point challenges assignments).trans
       (congrArg (algebra.combineEvaluations challenges) evaluationsAgree)
 
-/-- Perfect completeness: verifier equations and the combined relation both hold. -/
 theorem complete
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -367,7 +346,6 @@ structure RelaxedBindingCollision
   crossDifferent :
     ops.scaleAssignment delta₁ opening₂ ≠ ops.scaleAssignment delta₂ opening₁
 
-/-- The weak reduction's `φ`: the uncombined vector of input commitments. -/
 def phi
     {Structure : Type uStructure}
     {PublicInput : Type uPublicInput}

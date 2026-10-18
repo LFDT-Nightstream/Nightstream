@@ -3,9 +3,8 @@ import NightstreamFPrime.Export.Stage1.PiCCSPolynomialRange
 
 /-!
 One sum-check round after a challenge prefix, using the original protocol
-shape and output-message type. Endpoints are actual messageAt values of the
-same data. This semantic kernel owns no stored-table, source-reader or IO
-correspondence and makes no executed replay claim.
+shape and output-message type. This semantic kernel owns no stored-table,
+source-reader or IO correspondence and makes no executed replay claim.
 -/
 
 set_option autoImplicit false
@@ -20,14 +19,12 @@ open ProtocolPolynomialDegree.Support (polynomialLaws)
 universe uField
 variable {Field : Type uField} {shape : Shape}
 
-/-- Insert the current coordinate between the consumed challenges and the
-Boolean suffix. The original arity is retained. -/
 def point (ops : InterpolationOps Field) {arity remaining : Nat}
     (challenges : List Field) (dimension : arity = challenges.length + remaining + 1)
     (value : Field) (suffix : BooleanVertex remaining) : CubePoint Field arity where
-  coordinates := challenges ++ value :: SumCheckTruthPath.VertexEncoding.fieldCoordinates ops suffix
+  coordinates := challenges ++ value :: BooleanVertex.fieldCoordinates ops suffix
   dimension := by
-    rw [List.length_append, List.length_cons, SumCheckTruthPath.VertexEncoding.fieldCoordinates_length]
+    rw [List.length_append, List.length_cons, BooleanVertex.fieldCoordinates_length]
     omega
 
 private theorem affine_endpoints (ops : InterpolationOps Field)
@@ -51,8 +48,6 @@ private theorem affine_endpoints (ops : InterpolationOps Field)
   simp only [FixedPolynomial.evaluate_affine ops.toOps (polynomialLaws laws),
     zeroMul, laws.add_zero, laws.one_mul, subtract]
 
-/-- Reuse the proved coordinate-slice representation only within the proof.
-No existential representation is chosen by any executable definition. -/
 private theorem table_affine (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops) {arity remaining : Nat}
     (table : BooleanTable Field arity) (challenges : List Field)
@@ -64,17 +59,15 @@ private theorem table_affine (ops : InterpolationOps Field)
         (table.evaluate ops (point ops challenges dimension ops.zero suffix)))) =
       table.evaluate ops (point ops challenges dimension value suffix) := by
   have length : challenges.length + 1 +
-      (SumCheckTruthPath.VertexEncoding.fieldCoordinates ops suffix).length = arity := by
-    rw [SumCheckTruthPath.VertexEncoding.fieldCoordinates_length]
+      (BooleanVertex.fieldCoordinates ops suffix).length = arity := by
+    rw [BooleanVertex.fieldCoordinates_length]
     omega
   rcases ProtocolPolynomialDegree.Support.evaluateCoordinates_affine ops laws table
-      challenges (SumCheckTruthPath.VertexEncoding.fieldCoordinates ops suffix) length with
+      challenges (BooleanVertex.fieldCoordinates ops suffix) length with
     ⟨polynomial, represents⟩
   simpa only [represents, BooleanTable.evaluate, point] using
     (affine_endpoints ops laws polynomial value).symm
 
-/-- Every existing message field interpolates at the same prefixed point.
-There is no endpoint-image correctness hypothesis. -/
 theorem affine_messageAt_eq (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops)
     (data : ProtocolPolynomial.Data Field shape) (challenges : List Field) {remaining : Nat}
@@ -94,8 +87,6 @@ theorem affine_messageAt_eq (ops : InterpolationOps Field)
   · funext coordinate
     exact table_affine ops laws (data.matrixImages coordinate) challenges dimension suffix value
 
-/-- The existing pair kernel, with actual messageAt endpoints and consumed
-alpha/prior factors. Shape and verifier degree are unchanged. -/
 def pairPolynomial (ops : InterpolationOps Field)
     (data : ProtocolPolynomial.Data Field shape)
     (alpha : CubePoint Field shape.cubeVariables) (gamma : Field)
@@ -108,7 +99,6 @@ def pairPolynomial (ops : InterpolationOps Field)
     (ProtocolPolynomial.messageAt ops data (point ops challenges dimension ops.zero suffix))
     (ProtocolPolynomial.messageAt ops data (point ops challenges dimension ops.one suffix))
 
-/-- This pair evaluates to the original Q at the complete prefixed point. -/
 theorem pairPolynomial_evaluate (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops)
     (data : ProtocolPolynomial.Data Field shape)
@@ -118,7 +108,7 @@ theorem pairPolynomial_evaluate (ops : InterpolationOps Field)
     (suffix : BooleanVertex remaining) (value : Field) :
     (pairPolynomial ops data alpha gamma challenges dimension suffix).evaluate ops.toOps value =
       ProtocolPolynomial.polynomial ops data alpha gamma
-        (challenges ++ value :: SumCheckTruthPath.VertexEncoding.fieldCoordinates ops suffix) := by
+        (challenges ++ value :: BooleanVertex.fieldCoordinates ops suffix) := by
   calc
     _ = ProtocolPolynomial.terminalFromMessage ops data.toVerifierInput alpha gamma
         (point ops challenges dimension value suffix)
@@ -136,12 +126,11 @@ theorem pairPolynomial_evaluate (ops : InterpolationOps Field)
     _ = _ := by
       rw [affine_messageAt_eq ops laws]
       have length :
-          (challenges ++ value :: SumCheckTruthPath.VertexEncoding.fieldCoordinates ops suffix).length =
+          (challenges ++ value :: BooleanVertex.fieldCoordinates ops suffix).length =
             shape.cubeVariables := (point ops challenges dimension value suffix).dimension
       simp only [ProtocolPolynomial.polynomial, dif_pos length]
       rfl
 
-/-- Total numeric access with the same zero convention as the first round. -/
 def numericPair (ops : InterpolationOps Field)
     (data : ProtocolPolynomial.Data Field shape)
     (alpha : CubePoint Field shape.cubeVariables) (gamma : Field)
@@ -177,8 +166,6 @@ private theorem range_evaluate (ops : InterpolationOps Field)
         FixedPolynomial.evaluate_add ops.toOps (polynomialLaws laws)] using
         congrArg (fun accumulated => ops.add accumulated ((term (start + count)).evaluate ops.toOps value)) ih
 
-/-- Full completion sum at the original degree, with no new shape or table
-representation. The executable accumulation reuses the existing numeric range. -/
 def roundPolynomial (ops : InterpolationOps Field)
     (data : ProtocolPolynomial.Data Field shape)
     (alpha : CubePoint Field shape.cubeVariables) (gamma : Field)
@@ -188,8 +175,6 @@ def roundPolynomial (ops : InterpolationOps Field)
   PiCCSPolynomialRange.range ops 0 (2 ^ remaining)
     (numericPair ops data alpha gamma challenges dimension)
 
-/-- The generic next round is the existing completion-sum specification.
-Only interpolation laws and the exact prefix/suffix dimension are premises. -/
 theorem roundPolynomial_evaluate (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops)
     (data : ProtocolPolynomial.Data Field shape)
@@ -204,7 +189,7 @@ theorem roundPolynomial_evaluate (ops : InterpolationOps Field)
   calc
     _ = FiniteSumAlgebra.sumMap ops (BooleanVertex.all remaining) (fun suffix =>
         ProtocolPolynomial.polynomial ops data alpha gamma
-          ((challenges ++ [value]) ++ SumCheckTruthPath.VertexEncoding.fieldCoordinates ops suffix)) := by
+          ((challenges ++ [value]) ++ BooleanVertex.fieldCoordinates ops suffix)) := by
       apply FiniteSumAlgebra.sumMap_congr
       intro suffix _
       rw [numericPair_index, pairPolynomial_evaluate ops laws]

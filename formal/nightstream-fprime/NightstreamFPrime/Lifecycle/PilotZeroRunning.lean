@@ -13,8 +13,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 
-/-- Every one of the 16 default running claims has the zero `CE(b)` opening
-under the same relation and key used by the production verifier. -/
 theorem defaultRunning_holds
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

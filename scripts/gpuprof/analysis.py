@@ -1,13 +1,5 @@
-"""Decision-layer analysis: kernel lint, floors, levers, residency, boundaries.
-
-Everything here is computed from data the capture already collects — launch
-configs, transfer sizes, per-stage idle splits — and turns accounting
-("where time went") into decisions ("what is recoverable, what to fix").
-"""
-
 from util import fmt_ms, short_kernel_name
 
-# RTX 4090 (sm_89) static limits for theoretical-occupancy math.
 SM89 = {
     "sms": 128,
     "warp": 32,
@@ -17,11 +9,7 @@ SM89 = {
     "blocks_per_sm": 24,
 }
 
-# Conservative per-launch driver overhead used for the launch floor.
 LAUNCH_OVERHEAD_US = 4.0
-
-
-# ── kernel lint ──────────────────────────────────────────────────────────────
 
 
 def kernel_configs(kernels):
@@ -58,7 +46,6 @@ def theoretical_occupancy(threads, regs, smem):
 
 
 def lint_kernels(kernels):
-    """Static red flags from launch configs alone (no counters needed)."""
     findings = []
     for key, a in sorted(kernel_configs(kernels).items(), key=lambda kv: -kv[1]["ms"]):
         name, grid, block, regs, local_mem, smem = key
@@ -103,13 +90,9 @@ def print_lint(findings, limit=12):
     print()
 
 
-# ── floors + Amdahl levers ───────────────────────────────────────────────────
-
-
 def measured_bandwidth_mb_per_ms(memcpys, kind):
-    """Achievable link bandwidth from this run's own >=1MB copies (p90)."""
     rates = sorted(
-        c["bytes"] / max(c["end"] - c["start"], 1)  # bytes/ns == GB/s == MB/ms
+        c["bytes"] / max(c["end"] - c["start"], 1)
         for c in memcpys
         if c["copy_kind"] == kind and c["bytes"] >= (1 << 20)
     )
@@ -119,24 +102,15 @@ def measured_bandwidth_mb_per_ms(memcpys, kind):
 
 
 def build_levers(stages, online_cuda_ms, memcpys):
-    """Rank leaf stages by recoverable ms against a physics floor.
-
-    floor = kernel busy (treated as the floor until ncu counters are
-    unlocked) + transfers at this run's achievable bandwidth + launch
-    overhead. recoverable = wall - floor; the Amdahl projection assumes the
-    GPU chain is serial, which holds until whole-fold command streams land.
-    """
     bw = {kind: measured_bandwidth_mb_per_ms(memcpys, kind) for kind in (1, 2, 3)}
     leaves = [
         label for label in stages
         if not any(other != label and other.startswith(label + ".") for other in stages)
     ]
-    # Synthetic windows duplicate the sub-stages they span; ranking them
-    # would double-count the last fold.
-    synthetic = {"finalize.terminal_fold"}
+    windows_spanning_substages = {"finalize.terminal_fold"}
     levers = []
     for label in leaves:
-        if label in synthetic or not (label.startswith("fold") or label.startswith("finalize")):
+        if label in windows_spanning_substages or not (label.startswith("fold") or label.startswith("finalize")):
             continue
         t = stages[label]
         wall = t.get("wall_gpu", 0.0)
@@ -200,18 +174,11 @@ def print_levers(levers, online_cuda_ms, limit=8):
     print()
 
 
-# ── residency gate ───────────────────────────────────────────────────────────
-
-# The CURRENT architecture contract, per stage: (h2d_mb_max, d2h_mb_max);
-# None = unconstrained today. Tighten these as slices land (e.g. sumcheck
-# d2h -> ~0 after device-driven FS; oracle d2h -> 0 after resident F tables).
 RESIDENCY_BUDGETS = {
     "session.structure": (None, 1.0),
     "fold.ingest.fresh": (None, 1.0),
     "fold.ingest.running": (1.0, 1.0),
     "fold.commit.fresh": (None, 1.0),
-    # Device-driven FE/NC sumcheck may export small terminal proof/debug logs,
-    # but it must not reintroduce per-round or table-sized D2H traffic.
     "fold.superneo.pi_ccs.sumcheck": (None, 0.25),
     "fold.superneo.pi_rlc.mix_witness": (None, 1.0),
 }
@@ -236,12 +203,6 @@ def check_residency(stages):
 
 
 def structural_causes(a, b):
-    """Explain a stage's wall change via structure: counts, sizes, kernels.
-
-    Returns human-readable cause strings for facts that changed between run
-    `a` (baseline) and run `b` (candidate) — launch counts, copy counts/MB,
-    memsets, syncs, average kernel size, and per-kernel-name ms deltas.
-    """
     causes = []
 
     def count_delta(key):
@@ -289,8 +250,6 @@ def print_residency(results, failures):
     print()
 
 
-# ── protocol-boundary scorecard ──────────────────────────────────────────────
-
 BOUNDARY_STAGES = [
     ("fold.ingest", "input planes enter device"),
     ("fold.commit.fresh", "fresh Ajtai commitments"),
@@ -309,7 +268,6 @@ BOUNDARY_STAGES = [
 
 
 def _cpu_owned_ms(stage):
-    """Host work not explained by CUDA activity for a stage row."""
     wall = stage.get("wall_gpu", 0.0)
     device_work = (
         stage.get("gpu_ms", 0.0)
@@ -393,8 +351,6 @@ def print_boundary_scorecard(rows, limit=14):
     print("Rows rank migration pressure, not performance findings.")
     print()
 
-
-# ── SuperNeo protocol context ────────────────────────────────────────────────
 
 SUPERN_STAGE_CONTEXT = [
     {

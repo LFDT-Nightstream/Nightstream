@@ -1,8 +1,5 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConstraintPolynomialLift
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/ConstraintPolynomialLift/Evaluation.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Evaluation refinement for structurally lifted sparse CCS polynomials.
 
@@ -17,16 +14,6 @@ Does not own: a concrete carrier embedding, zero reflection, norm semantics,
 protocol source data, SumCheck, Rust, R1CS, or constraint counts.
 
 Emits constraints: no.
-
-Authority boundary: the lifted syntax comes only from
-`ConstraintPolynomialLift`; callers provide four explicit homomorphism laws,
-not an evaluator or a claimed equality between evaluations.
-
-| Stage path | Mathematical obligation | Authority class | Lean owner |
-|---|---|---|---|
-| `pi_ccs.ccs.lift.algebra` | lift preserves zero, one, addition, multiplication | security boundary | `EvaluationLaws` |
-| `pi_ccs.ccs.lift.monomial_eval` | lifted monomial evaluation equals lifted base evaluation | derived | `evaluateMonomial_lift` |
-| `pi_ccs.ccs.lift.polynomial_eval` | lifted sparse polynomial evaluation equals lifted base evaluation | derived | `evaluatePolynomial_lift` |
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConstraintPolynomialLift.Evaluation
@@ -36,7 +23,6 @@ universe uBase uExtension
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open ConstraintPolynomialLift
 
-/-- Exactly the algebraic preservation laws used by sparse CCS evaluation. -/
 structure EvaluationLaws
     {Base : Type uBase}
     {Extension : Type uExtension}
@@ -102,7 +88,6 @@ private theorem monomialFold_lift
       rw [<- laws.map_mul]
       exact inductionHypothesis _
 
-/-- Evaluation of one explicit sparse monomial commutes with lifting. -/
 theorem evaluateMonomial_lift
     {Base : Type uBase}
     {Extension : Type uExtension}
@@ -150,9 +135,6 @@ private theorem polynomialFold_lift
       rw [<- laws.map_add]
       exact inductionHypothesis _
 
-/-- Evaluation of a complete explicit sparse CCS polynomial commutes with
-lifting. This follows from syntax and the four algebraic laws; no protocol
-truth predicate is an input. -/
 theorem evaluatePolynomial_lift
     {Base : Type uBase}
     {Extension : Type uExtension}

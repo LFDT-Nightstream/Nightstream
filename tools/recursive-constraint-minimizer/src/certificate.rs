@@ -1,12 +1,10 @@
-//! Scalar polynomial-combination certificates for simple R1CS redundancy.
-
 use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Problem, Row, Selection, Source, GOLDILOCKS_MODULUS};
+use crate::{Problem, Residue, Row, Selection, Source, GOLDILOCKS_MODULUS};
 
 pub const SCALAR_CERTIFICATE_SCHEMA: &str = "nightstream/r1cs-scalar-redundancy-certificate/v1";
 
@@ -16,7 +14,7 @@ type Polynomial = BTreeMap<Monomial, u64>;
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ScalarSupport {
     pub source_index: usize,
-    pub coefficient: String,
+    pub coefficient: Residue,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
@@ -50,34 +48,34 @@ impl fmt::Display for CertificateError {
 
 impl Error for CertificateError {}
 
-/// Derive one scalar-span certificate for every selected candidate row.
-///
-/// `None` means that this deliberately small certificate grammar cannot prove
-/// the implication. It does not mean that the candidate is necessary.
-pub fn derive_scalar_certificate(
-    problem: &Problem,
-    selection: &Selection,
-) -> Result<Option<ScalarCertificate>, CertificateError> {
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ScalarSearch {
+    Certified(ScalarCertificate),
+    OutsideGrammar,
+}
+
+pub fn derive_scalar_certificate(problem: &Problem, selection: &Selection) -> Result<ScalarSearch, CertificateError> {
     let partition = problem
         .partition(selection)
         .map_err(|error| CertificateError::new(error.to_string()))?;
     let retained = partition
         .retained
         .iter()
-        .map(|&(problem_index, row)| polynomial(row).map(|polynomial| (problem_index, polynomial)))
-        .collect::<Result<Vec<_>, _>>()?;
+        .map(|&(problem_index, row)| (problem_index, polynomial(row)))
+        .collect::<Vec<_>>();
     let basis = build_basis(&retained)?;
     let mut rows = Vec::with_capacity(partition.removed.len());
     for &(_, candidate) in &partition.removed {
-        let Some(combination) = solve(&basis, polynomial(candidate)?) else {
-            return Ok(None);
+        let Some(combination) = solve(&basis, polynomial(candidate)) else {
+            return Ok(ScalarSearch::OutsideGrammar);
         };
         let support = combination
             .into_iter()
-            .filter(|(_, coefficient)| *coefficient != 0)
-            .map(|(problem_index, coefficient)| ScalarSupport {
-                source_index: problem.rows[problem_index].source_index,
-                coefficient: coefficient.to_string(),
+            .filter_map(|(problem_index, coefficient)| {
+                Residue::new(coefficient).map(|coefficient| ScalarSupport {
+                    source_index: problem.rows[problem_index].source_index,
+                    coefficient,
+                })
             })
             .collect();
         rows.push(ScalarRowCertificate {
@@ -92,10 +90,9 @@ pub fn derive_scalar_certificate(
         rows,
     };
     validate_scalar_certificate(problem, &certificate)?;
-    Ok(Some(certificate))
+    Ok(ScalarSearch::Certified(certificate))
 }
 
-/// Recompute all artifact references and polynomial equalities.
 pub fn validate_scalar_certificate(problem: &Problem, certificate: &ScalarCertificate) -> Result<(), CertificateError> {
     problem
         .validate()
@@ -161,10 +158,14 @@ pub fn validate_scalar_certificate(problem: &Problem, certificate: &ScalarCertif
                         support.source_index
                     ))
                 })?;
-            let coefficient = parse_nonzero_coefficient(&support.coefficient)?;
-            add_scaled(&mut combination, &polynomial(support_row)?, coefficient, false);
+            add_scaled(
+                &mut combination,
+                &polynomial(support_row),
+                support.coefficient.get(),
+                false,
+            );
         }
-        if combination != polynomial(candidate)? {
+        if combination != polynomial(candidate) {
             return Err(CertificateError::new(format!(
                 "scalar polynomial identity failed for source row {}",
                 row_certificate.candidate_source_index
@@ -236,49 +237,20 @@ fn solve(basis: &BTreeMap<Monomial, BasisEntry>, mut target: Polynomial) -> Opti
     target.is_empty().then_some(combination)
 }
 
-fn polynomial(row: &Row) -> Result<Polynomial, CertificateError> {
+fn polynomial(row: &Row) -> Polynomial {
     let mut polynomial = Polynomial::new();
     for left in &row.a {
         for right in &row.b {
             let mut monomial = vec![left.column, right.column];
             monomial.sort_unstable();
-            let coefficient = multiply(
-                parse_coefficient(&left.coefficient)?,
-                parse_coefficient(&right.coefficient)?,
-            );
+            let coefficient = multiply(left.coefficient.get(), right.coefficient.get());
             add_coefficient(&mut polynomial, monomial, coefficient, false);
         }
     }
     for output in &row.c {
-        add_coefficient(
-            &mut polynomial,
-            vec![output.column],
-            parse_coefficient(&output.coefficient)?,
-            true,
-        );
+        add_coefficient(&mut polynomial, vec![output.column], output.coefficient.get(), true);
     }
-    Ok(polynomial)
-}
-
-fn parse_nonzero_coefficient(value: &str) -> Result<u64, CertificateError> {
-    let coefficient = parse_coefficient(value)?;
-    if coefficient == 0 {
-        return Err(CertificateError::new("certificate coefficient must be nonzero"));
-    }
-    Ok(coefficient)
-}
-
-fn parse_coefficient(value: &str) -> Result<u64, CertificateError> {
-    let modulus = modulus();
-    let coefficient = value
-        .parse::<u64>()
-        .map_err(|_| CertificateError::new(format!("invalid field coefficient {value:?}")))?;
-    if coefficient >= modulus || value != coefficient.to_string() {
-        return Err(CertificateError::new(format!(
-            "noncanonical field coefficient {value:?}"
-        )));
-    }
-    Ok(coefficient)
+    polynomial
 }
 
 fn add_scaled<K: Ord + Clone>(

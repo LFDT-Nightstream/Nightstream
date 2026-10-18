@@ -1,9 +1,8 @@
 import NightstreamFPrime.Layout.MatrixProgram
 
 /-!
-Find a source index in the existing range-list schedule without expanding
-its indices. The first matching range determines the returned local ordinal.
-The value theorem needs no validity, ordering or uniqueness premise.
+Find a source index in the existing range-list schedule without expanding its
+indices.
 -/
 
 set_option autoImplicit false
@@ -12,7 +11,6 @@ namespace NightstreamFPrime.Export.Stage1.PiDECSourceIndex
 
 open NightstreamFPrime.Layout.MatrixProgram
 
-/-- Scan only range headers and retain the cumulative local offset. -/
 def findRange : List IndexRange → Nat → Option Nat
   | [], _ => none
   | range :: rest, source =>
@@ -21,9 +19,6 @@ def findRange : List IndexRange → Nat → Option Nat
       else
         (findRange rest source).map fun ordinal => range.count + ordinal
 
-/-- Every returned local ordinal selects the original source index through
-the existing interpreter. Overlapping and empty ranges do not weaken this
-direction: findRange returns the first match and preserves preceding counts. -/
 theorem findRange_value (ranges : List IndexRange) (source : Nat)
     {ordinal : Nat} (found : findRange ranges source = some ordinal) :
     (IndexSchedule.rangeList ranges).index? ordinal = some source := by

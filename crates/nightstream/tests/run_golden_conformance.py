@@ -90,8 +90,6 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, required=True)
     parser.add_argument("--directory", type=Path, required=True)
-    # Reference archives hold earlier native outputs for one package version.
-    # Omit them for a package that has none; the Lean checks do not use them.
     parser.add_argument("--references", type=Path)
     args = parser.parse_args()
     binary, directory = args.binary.resolve(), args.directory.resolve()
@@ -100,8 +98,6 @@ def main():
     for name in ("reference-first", "reference-later") if references else ():
         require((references / name).is_dir(), f"missing restored reference: {references / name}")
     require(not directory.exists(), f"run directory already exists: {directory}")
-    # Capture custody before creating any run outputs. These hashes identify
-    # files; they do not prove build correctness or protocol semantics.
     record = {"schema": 1, "outcome": "running", "engine": "optimized",
               "binary": file_identity(binary), "source": source_identity(), "commands": [],
               "references": str(references) if references else None,

@@ -44,7 +44,6 @@ def fresh
   NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.evalFresh
     (piCcsInterface logicalWidth publicFits) PiCCSInputs.phaseOffset env
 
-/-- One complete NIFS proof projected from the canonical phase wires. -/
 def proof
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -62,7 +61,6 @@ def proof
   piDecEvaluations :=
     (RunningTransitionInputs.piDecRunningOutput relation env).evaluations
 
-/-- The NIFS output uses the exact typed PiDEC child vector. -/
 def output
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

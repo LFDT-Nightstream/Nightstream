@@ -11,7 +11,6 @@ SPEC = importlib.util.spec_from_file_location(
 mutations = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(mutations)
 ROOT = Path(__file__).resolve().parents[3]
-# The retained archive records the case table of the older 14-matrix format.
 ARCHIVE = ROOT / "docs/reviews/nightstream-fprime-requirements/NIFS_DEC_AND_FINAL_OUTPUT_EVIDENCE.zip"
 VECTORS = Path(__file__).with_name("fixtures") / "golden-v1.zip"
 

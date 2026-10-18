@@ -4,8 +4,7 @@ import NightstreamFPrime.Export.Stage1.PiDECEvaluationSelectedPrefix
 import NightstreamFPrime.Export.Stage1.PiDECCanonicalSourceCache
 
 /-! Proof-only transport from the original scalar and coefficient reads to
-all four sourceProtocolData endpoint families. Do not import this module
-into an executable: its old evaluation-row proofs retain reference plans. -/
+all four sourceProtocolData endpoint families. -/
 
 set_option autoImplicit false
 
@@ -40,8 +39,6 @@ private noncomputable abbrev statementFor
 private noncomputable abbrev selectedStatement (input : PiCCSPublicReplay.Input) :=
   statementFor selectedRelation input
 
-/-- Instantiation of the old arbitrary-assignment row theorem. This reference
-conversion is used only in proofs; no executable definition calls it. -/
 private def stored (assignment : Phi81Relation.Assignment shape) :
     Vector (Vector F shape.carrierWidth) productionGlobalParams.k :=
   Vector.replicate productionGlobalParams.k (Vector.ofFn assignment)
@@ -73,8 +70,6 @@ private theorem eval_kernelRead_eq_row {columns : Nat} (form : SparseForm column
   · simp only [kernelRead, blockAt, dif_neg live, get_replicate,
       PiDECCommitmentFold.zero_value]
 
-/-- The prepared sparse basis reader works on the original block itself,
-without any signed-digit or decomposition premise. -/
 theorem coefficientRead_value {columns : Nat}
     (assignment : Phi81Relation.Assignment shape) (output : Fin ringDegree)
     (column : Fin columns) :
@@ -89,8 +84,6 @@ theorem coefficientRead_value {columns : Nat}
     ⟨column.val % ringDegree, Nat.mod_lt _ (by decide)⟩
     (blockAt assignment (column.val / ringDegree))) output).symm
 
-/-- Preparing the actual basis tables gives the same complete original
-assignment read, for every field coefficient and every requested column. -/
 theorem preparedRead_eq {columns : Nat} (assignment : Phi81Relation.Assignment shape)
     (output : Fin ringDegree) :
     (preparedRead (PiDECParentSparseRead.prepare ()) assignment output : Fin columns → F) =
@@ -126,8 +119,6 @@ private theorem canonical_numericRow
     (PerApplicationCanonicalPackage.sourceRow application fits) read row matrix
     (PerApplicationCanonicalPackage.matrixProgram_row? application fits row)
 
-/-- All selected rows and all four ports, including the complete zero
-suffix. Matrix/source correspondence is discharged by the selected theorem. -/
 theorem matrixImage_value (assignment : Phi81Relation.Assignment shape)
     (output : Fin ringDegree) (vertex : BooleanVertex Lifecycle.cubeVariables)
     (matrix : Fin Spec.ProductionRelation.matrixCount) :
@@ -163,7 +154,6 @@ theorem matrixImage_value (assignment : Phi81Relation.Assignment shape)
       PiDECCommitmentFold.zero_value] at reference
     exact congrArg some reference
 
-/-- The existing prepared source HashMap has the same selected authority. -/
 theorem cachedMatrixImage_value (assignment : Phi81Relation.Assignment shape)
     (output : Fin ringDegree) (vertex : BooleanVertex Lifecycle.cubeVariables)
     (matrix : Fin Spec.ProductionRelation.matrixCount) :
@@ -256,7 +246,6 @@ private theorem assignmentBlock_logical {width : Nat}
   change column.val / ringDegree * ringDegree + column.val % ringDegree = column.val
   exact Nat.div_add_mod' column.val ringDegree
 
-/-- Output coefficient zero is the original scalar read, not basis zero. -/
 theorem kernelRead_constant (assignment : Phi81Relation.Assignment shape)
     (column : Fin logicalWidth) :
     kernelRead assignment Phi81CoefficientKernel.constant column = plainRead assignment column := by
@@ -301,7 +290,6 @@ private theorem matrix_constant (assignment : Phi81Relation.Assignment shape)
       PaperLinearAlgebra.matrixVectorAt baseOps image value atVertex) matrix_eq
   exact row_constant selectedRelation.system assignment matrix vertex
 
-/-- Original scalar CCS images for the fresh source. -/
 theorem freshMatrixImage_value (assignment : Phi81Relation.Assignment shape)
     (vertex : BooleanVertex Lifecycle.cubeVariables)
     (matrix : Fin Spec.ProductionRelation.matrixCount) :
@@ -458,8 +446,6 @@ private theorem matrix_endpoint (input : PiCCSPublicReplay.Input)
         coordinate.matrix vertex coordinate.coefficient) := by
   exact matrix_endpoint_for selectedRelation input witness coordinate vertex
 
-/-- Every running matrix endpoint is an original assignment image. There is
-no matrix-equality, split, norm, row-validity or opening premise. -/
 theorem runningMatrix_sourceProtocolData (input : PiCCSPublicReplay.Input)
     (witness : StrongReduction.OutputWitness productionShape shape.carrierWidth)
     (coordinate : MatrixCoordinate productionShape)
@@ -474,7 +460,6 @@ theorem runningMatrix_sourceProtocolData (input : PiCCSPublicReplay.Input)
       (witness.assignments (runningSourceIndex coordinate.running))
       coordinate.coefficient vertex coordinate.matrix)
 
-/-- Every running Pad endpoint retains the original complete carrier. -/
 theorem runningPad_sourceProtocolData (input : PiCCSPublicReplay.Input)
     (witness : StrongReduction.OutputWitness productionShape shape.carrierWidth)
     (coordinate : PadCoordinate productionShape)
@@ -485,8 +470,6 @@ theorem runningPad_sourceProtocolData (input : PiCCSPublicReplay.Input)
   rw [padImage_value]
   exact (pad_endpoint_for selectedRelation input witness coordinate vertex).symm
 
-/-- The fresh source uses original scalar M_j z, including the matrix's
-canonical zero completion. It does not use a nonconstant carried coefficient. -/
 theorem freshMatrix_sourceProtocolData (input : PiCCSPublicReplay.Input)
     (witness : StrongReduction.OutputWitness productionShape shape.carrierWidth)
     (source : Fin productionShape.freshCount) (matrix : Fin Spec.ProductionRelation.matrixCount)
@@ -506,7 +489,6 @@ theorem freshMatrix_sourceProtocolData (input : PiCCSPublicReplay.Input)
     congrArg (Option.map K.embed)
       (freshMatrixImage_value (witness.assignments (freshSourceIndex source)) vertex matrix)
 
-/-- All seventeen source assignment endpoints are the padded original read. -/
 theorem assignment_sourceProtocolData (input : PiCCSPublicReplay.Input)
     (witness : StrongReduction.OutputWitness productionShape shape.carrierWidth)
     (source : Fin productionShape.sourceCount)
@@ -541,9 +523,6 @@ private theorem images_preparedPad_eq
     simp only [padImage, decoded, SparseForm.singleton, SparseForm.empty,
       SparseForm.evalSparse, List.foldl_cons, List.foldl_nil, Fin.one_mul, Fin.zero_add]
 
-/-- The executable assembly returns the complete original-source message.
-The selected source cache, basis tables and full-carrier layout discharge
-all row and image correspondences; no successful-lookup premise is needed. -/
 theorem images_sourceProtocolData (input : PiCCSPublicReplay.Input)
     (witness : StrongReduction.OutputWitness productionShape shape.carrierWidth)
     (vertex : BooleanVertex Lifecycle.cubeVariables) :

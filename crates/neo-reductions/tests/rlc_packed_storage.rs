@@ -51,7 +51,6 @@ fn measured_mix(witness: &Mat<F>, rhos: &[Mat<F>]) -> (Mat<F>, usize) {
 
 #[test]
 fn packed_rlc_needs_no_nonzero_entry_lists() {
-    // One worker isolates scratch allocation from Rayon scheduling and other tests.
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(1)
         .build()
@@ -72,14 +71,12 @@ fn packed_rlc_needs_no_nonzero_entry_lists() {
         assert_eq!(actual, packed);
         assert_eq!(nonzero_bytes, zero_bytes, "packed RLC allocates data beyond its output");
     });
-    // Mixed signs, zero lanes, non-diagonal challenges and both packed layouts.
     let positive: Vec<_> = (0..columns).map(|column| 1u64 << (column % D)).collect();
     let negative: Vec<_> = (0..columns)
         .map(|column| 1u64 << ((column + D / 2) % D))
         .collect();
     let first = Mat::compact_signed_unit_from_column_masks(D, columns, &positive, &negative).unwrap();
-    let second = Mat::compact_signed_unit(D, columns, packed.to_dense_vec());
-    let witnesses = [&first, &zero, &second];
+    let witnesses = [&first, &zero, &packed];
     let rhos: Vec<_> = (0..witnesses.len())
         .map(|source| {
             Mat::from_row_major(

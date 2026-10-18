@@ -55,8 +55,6 @@ theorem Region.offsets?_of_offsets (region : Region)
       laneOffset.val by omega]
   rw [if_pos laneOffset.isLt]
 
-/-- Random-access optional constant words. An absent array cell is malformed;
-a stored `none` is the canonical instruction to add no form. -/
 structure OptionalConstantTable where
   values : Array (Option Nat)
 deriving Repr, DecidableEq
@@ -152,7 +150,6 @@ theorem Term.constant_form? {logicalWidth : Nat}
     else none) = _
   rw [dif_pos oneColumn.isLt, dif_pos coefficient.isLt]
 
-/-- An affine word is compiled by the existing source substitution. -/
 theorem Term.affine_form?_ofSemantic
     {logicalWidth invocationCount laneCount : Nat}
     (combinations : Fin (invocationCount * laneCount) → R1CS.LinearCombination)
@@ -243,8 +240,6 @@ structure Rule where
   term : Term
 deriving Repr, DecidableEq
 
-/-- `some none` means that the rule does not apply. `none` means that an
-applicable rule was malformed. -/
 def Rule.form? (rule : Rule) (logicalWidth oneColumn invocation lane : Nat) :
     Option (Option (SparseForm logicalWidth)) :=
   match rule.region.offsets? invocation lane with
@@ -378,12 +373,10 @@ private def applyRules? {logicalWidth : Nat} (oneColumn invocation lane : Nat) :
         (fun value => applyRules? oneColumn invocation lane rest
           (SparseForm.add accumulated value))
 
-/-- Decode one lane. An empty rule set produces the zero form. -/
 def Program.form? (program : Program) (logicalWidth oneColumn invocation lane : Nat) :
     Option (SparseForm logicalWidth) :=
   applyRules? oneColumn invocation lane program.rules .empty
 
-/-- A one-rule program returns the exact selected form. -/
 theorem Program.singleton_form?_of_selected {logicalWidth : Nat}
     (rule : Rule) (oneColumn invocation lane : Nat)
     (value : SparseForm logicalWidth)
@@ -395,7 +388,6 @@ theorem Program.singleton_form?_of_selected {logicalWidth : Nat}
   rw [selected]
   rfl
 
-/-- A two-rule program adds its selected forms in exact rule order. -/
 theorem Program.two_form?_of_results {logicalWidth : Nat}
     (rule0 rule1 : Rule) (oneColumn invocation lane : Nat)
     (value0 value1 : Option (SparseForm logicalWidth))
@@ -409,7 +401,6 @@ theorem Program.two_form?_of_results {logicalWidth : Nat}
   cases value0 <;> cases value1 <;>
     simp [Program.form?, applyRules?, result0, result1]
 
-/-- A three-rule program adds its selected forms in exact rule order. -/
 theorem Program.three_form?_of_results {logicalWidth : Nat}
     (rule0 rule1 rule2 : Rule) (oneColumn invocation lane : Nat)
     (value0 value1 value2 : Option (SparseForm logicalWidth))
@@ -427,7 +418,6 @@ theorem Program.three_form?_of_results {logicalWidth : Nat}
   cases value0 <;> cases value1 <;> cases value2 <;>
     simp [Program.form?, applyRules?, result0, result1, result2]
 
-/-- A four-rule program adds its selected forms in exact rule order. -/
 theorem Program.four_form?_of_results {logicalWidth : Nat}
     (rule0 rule1 rule2 rule3 : Rule)
     (oneColumn invocation lane : Nat)
@@ -469,7 +459,6 @@ private theorem applyRules?_of_allOutside {logicalWidth : Nat}
         headOutside]
       exact inductionHypothesis accumulated tailOutside
 
-/-- If no rule applies, lane decoding returns the exact zero form. -/
 theorem Program.form?_eq_some_empty_of_allOutside
     (program : Program) (logicalWidth oneColumn invocation lane : Nat)
     (outside : ∀ rule ∈ program.rules,
@@ -478,7 +467,6 @@ theorem Program.form?_eq_some_empty_of_allOutside
   exact applyRules?_of_allOutside oneColumn invocation lane program.rules
     .empty outside
 
-/-- Decode all sixteen input lanes exactly once. -/
 private def fixedState16 {Alpha : Type}
     (lane0 lane1 lane2 lane3 lane4 lane5 lane6 lane7 lane8 lane9 lane10 lane11 lane12 lane13 lane14 lane15 : Alpha) :
     Fin 16 → Alpha :=
@@ -507,7 +495,6 @@ def Program.state? (program : Program) (logicalWidth oneColumn invocation : Nat)
   let lane15 ← program.form? logicalWidth oneColumn invocation 15
   pure (fixedState16 lane0 lane1 lane2 lane3 lane4 lane5 lane6 lane7 lane8 lane9 lane10 lane11 lane12 lane13 lane14 lane15)
 
-/-- Exact lane decoding gives the exact semantic input state. -/
 theorem Program.state?_eq_some
     (program : Program) (logicalWidth oneColumn invocation : Nat)
     (state : PoseidonSboxPlan.State logicalWidth)

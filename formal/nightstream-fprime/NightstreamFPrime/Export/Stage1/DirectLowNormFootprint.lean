@@ -4,8 +4,7 @@ import NightstreamFPrime.Export.Stage1.PoseidonRetainedBlock
 
 /-!
 Owns the current combined low-norm coordinate ledger for direct Poseidon2
-and direct PiRLC product plans. Later compiler families must extend this
-ledger before the complete Stage 1 fit can close.
+and direct PiRLC product plans.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.DirectLowNormFootprint

@@ -1,8 +1,5 @@
 #include <metal_stdlib>
 
-// Root translation unit for every Nightstream Metal kernel.
-// Host-visible field values are canonical unsigned Goldilocks words.
-
 using namespace metal;
 
 constant ulong GOLDILOCKS_MODULUS = 0xffffffff00000001ul;
@@ -100,7 +97,6 @@ inline ulong gl_sbox(ulong value) {
     return gl_mul(gl_mul(cube, cube), value);
 }
 
-// Quadratic extension layout is interleaved c0, c1 with u^2 = 7.
 struct Kx {
     ulong c0;
     ulong c1;
@@ -131,7 +127,6 @@ inline Kx kx_mul(Kx lhs, Kx rhs) {
     return Kx{c0, c1};
 }
 
-// Round constants come from the canonical Rust table embedded by build.rs.
 struct PoseidonState {
     ulong s0;
     ulong s1;
@@ -359,7 +354,6 @@ inline void poseidon_store(device ulong *words, uint base, PoseidonState state) 
     words[base + 15] = state.s15;
 }
 
-// Device transcript state mirrors sixteen sponge words plus a rate cursor.
 inline void transcript_set(thread PoseidonState &state, uint lane, ulong value) {
     switch (lane) {
         case 0: state.s0 = value; break;
@@ -390,7 +384,6 @@ inline void transcript_absorb(
     cursor += 1;
 }
 
-// Ring products are reduced modulo Phi_81 = X^54 + X^27 + 1.
 inline ulong ring_convolution_coeff(
     device const ulong *matrix,
     device const ulong *message,
@@ -767,7 +760,6 @@ kernel void ajtai_low_norm_products(
         gl_reduce_sum(negative_sum.lo, negative_sum.hi));
 }
 
-
 constant ulong SIS_BALANCED_TERNARY_SHIFT = 18236498188585393201ul;
 constant ulong SIS_MODULUS_MINUS_SHIFT = 210245880829191120ul;
 constant ulong SIS_BALANCED_TERNARY_DIGITS = 41ul;
@@ -1010,9 +1002,6 @@ inline void accumulate_signed_mask_rhos(
     }
 }
 
-// Pi_RLC consumes either signed masks, dense planes, or a resident mask tail.
-// Signed masks are planar: the positive columns, then the negative columns,
-// of each input.
 kernel void rlc_witness_mix_signed_masks(
     device const char *rhos [[buffer(0)]],
     device const ulong *masks [[buffer(1)]],
@@ -1109,7 +1098,6 @@ kernel void rlc_witness_mix_dense_fresh_resident_masks(
         gl_reduce_sum(positive.lo, positive.hi),
         gl_reduce_sum(negative.lo, negative.hi));
 }
-
 
 #include "decomposition.metal"
 

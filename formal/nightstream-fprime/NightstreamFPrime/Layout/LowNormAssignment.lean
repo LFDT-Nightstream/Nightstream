@@ -14,7 +14,6 @@ namespace NightstreamFPrime.Layout.LowNormAssignment
 
 open NightstreamFPrime.Spec
 
-/-- One retained source value and its sole production encoding. -/
 structure Slot (sourceWidth : Nat) where
   source : Fin sourceWidth
   kind : LowNormSlot.Kind
@@ -46,18 +45,13 @@ theorem encode_norm {sourceWidth : Nat}
 
 end Slot
 
-/-- Exact logical assignment width of a canonical slot sequence. -/
 def logicalWidth {sourceWidth : Nat} (slots : List (Slot sourceWidth)) : Nat :=
   (slots.map Slot.width).sum
 
-/-- Reference coordinate sequence in exact slot and digit order. -/
 def coordinates {sourceWidth : Nat} (slots : List (Slot sourceWidth))
     (source : Fin sourceWidth → F) : List F :=
   slots.flatMap (Slot.encode source)
 
-/-- Direct coordinate lookup for executable production paths. It traverses
-only the slots before the requested coordinate and does not build the full
-flattened coordinate list. -/
 def coordinateAt {sourceWidth : Nat} (source : Fin sourceWidth → F) :
     List (Slot sourceWidth) → Nat → F
   | [], _ => 0
@@ -67,8 +61,6 @@ def coordinateAt {sourceWidth : Nat} (source : Fin sourceWidth → F) :
       else
         coordinateAt source rest (index - slot.width)
 
-/-- The direct executable lookup is exactly the proof-oriented flattened
-coordinate sequence. -/
 theorem coordinateAt_eq_getD {sourceWidth : Nat}
     (slots : List (Slot sourceWidth)) (source : Fin sourceWidth → F)
     (index : Nat) :
@@ -92,13 +84,10 @@ theorem coordinateAt_eq_getD {sourceWidth : Nat}
             inductionHypothesis (index - slot.width)
         · simpa only [Slot.encode_length] using Nat.le_of_not_gt outside
 
-/-- Logical width before one indexed slot. -/
 def prefixWidth {sourceWidth : Nat} (slots : List (Slot sourceWidth))
     (slot : Fin slots.length) : Nat :=
   logicalWidth (slots.take slot.val)
 
-/-- The canonical coordinate of one slot lies inside the complete private
-coordinate stream. -/
 theorem prefixWidth_add_lt {sourceWidth : Nat}
     (slots : List (Slot sourceWidth)) (slot : Fin slots.length)
     (coordinate : Fin (slots.get slot).width) :
@@ -114,7 +103,6 @@ theorem prefixWidth_add_lt {sourceWidth : Nat}
         simp [prefixWidth, logicalWidth, tailSlot] at inside ⊢
         omega
 
-/-- Canonical private-coordinate index of one coordinate inside one slot. -/
 def coordinateIndex {sourceWidth : Nat} (slots : List (Slot sourceWidth))
     (slot : Fin slots.length) (coordinate : Fin (slots.get slot).width) :
     Fin (logicalWidth slots) :=
@@ -152,8 +140,6 @@ private theorem coordinates_getD_prefix {sourceWidth : Nat}
         · simp only [Slot.encode_length]
           omega
 
-/-- Direct lookup at a canonical slot coordinate returns exactly that slot's
-encoded coordinate. -/
 theorem coordinateAt_coordinateIndex {sourceWidth : Nat}
     (slots : List (Slot sourceWidth)) (source : Fin sourceWidth → F)
     (slot : Fin slots.length) (coordinate : Fin (slots.get slot).width) :
@@ -181,8 +167,6 @@ theorem coordinateAt_coordinateIndex {sourceWidth : Nat}
     (coordinates slots source).length = logicalWidth slots := by
   simp [coordinates, logicalWidth, Slot.encode_length]
 
-/-- A valid source for every retained slot yields the exact fresh-opening
-bound over the complete coordinate stream. -/
 theorem coordinates_norm {sourceWidth : Nat}
     (slots : List (Slot sourceWidth)) (source : Fin sourceWidth → F)
     (valid : ∀ slot ∈ slots, slot.Valid source) :

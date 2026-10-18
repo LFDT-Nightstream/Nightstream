@@ -1,19 +1,11 @@
 import NightstreamFPrime.Spec.Phi81Relation.Evaluation
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 
-/-! Provenance: adapted from `formal/nightstream-lean/Nightstream/SuperNeo/Concrete/Phi81Relation/EvaluationHomomorphism/BaseLinear.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed and the
-generic matrix-vector zero/add/scale lemmas exported for the separate v1.2
-Pad evaluation family. -/
-
 /-!
 Base-field linearity of the typed Phi81 carried-evaluation map.
 
 Protocol: SuperNeo v1.2 Theorem 11 restricted to constant-ring scalars, and the
 base-`b` recomposition used by `Pi_DEC`.
-Phase: complete-carrier assignment combination followed by one matrix/Phi81
-evaluation.
-Constraint family: semantic evaluation only; this file emits no rows.
 
 Owns: raw width-only and typed relation assignment operations; their exact
 refinement equality; the corresponding operations on all 54 `RingK` lanes;
@@ -24,22 +16,6 @@ preserves them.
 Does not own: arbitrary `RingF` challenge action, complete-carrier block
 packing, Phi81 multiplication associativity, commitments, public-input
 projection, norm bounds, transcripts, Rust, R1CS, row removal, or counts.
-
-Emits constraints: no.
-
-Authority boundary: the theorem starts from the sole derived Phi81 matrix
-source and the typed complete assignment. No evaluation array, matrix image,
-or linearity oracle is supplied by a caller. This is enough for the field
-weights `b^(i-1)` in `Pi_DEC`; it is deliberately not advertised as the
-`RingF`-module theorem required by `Pi_RLC`.
-
-| Stage path | Mathematical obligation | Authority class | Lean owner |
-|---|---|---|---|
-| `nifs.pi_dec.verify.recomposition.assignment` | add, scale, and finite-combine every coordinate of the complete assignment | computed | `assignmentAdd`, `assignmentScale`, `combineAssignments` |
-| `nifs.shared.assignment.raw_refinement` | width-only and relation-typed finite folds are exactly equal | derived | `raw_combineAssignments_eq` |
-| `nifs.pi_dec.verify.recomposition.matrix_row` | each finite matrix image is base-`F` linear in that assignment | derived | `matrixEvaluation_zero`, `matrixEvaluation_add`, `matrixEvaluation_scale` |
-| `nifs.pi_dec.verify.recomposition.mle` | the independently defined Boolean MLE preserves the same embedded-`F` operations in all 54 lanes | derived | `matrixEvaluation_combine` |
-| `nifs.pi_dec.verify.recomposition.evaluations` | every matrix in canonical order preserves the same finite combination | derived | `evaluations_combine` |
 -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.BaseLinear
@@ -48,55 +24,43 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
-/-! ## Exact base-linear carriers -/
-
 namespace Raw
 
-/-- Add two raw finite assignments coordinatewise. -/
 def assignmentAdd {columns : Nat}
     (left right : PaperLinearAlgebra.Assignment F columns) :
     PaperLinearAlgebra.Assignment F columns :=
   fun column => left column + right column
 
-/-- Scale one raw finite assignment by a base-field element. -/
 def assignmentScale {columns : Nat}
     (scalar : F) (assignment : PaperLinearAlgebra.Assignment F columns) :
     PaperLinearAlgebra.Assignment F columns :=
   fun column => scalar * assignment column
 
-/-- The canonical zero raw finite assignment. -/
 def assignmentZero {columns : Nat} :
     PaperLinearAlgebra.Assignment F columns :=
   fun _ => 0
 
 end Raw
 
-/-- Add two typed complete-carrier relation assignments coordinatewise. -/
 def assignmentAdd {shape : Shape}
     (left right : Assignment shape) : Assignment shape :=
   Raw.assignmentAdd left right
 
-/-- Scale one typed complete-carrier relation assignment. -/
 def assignmentScale {shape : Shape}
     (scalar : F) (assignment : Assignment shape) : Assignment shape :=
   Raw.assignmentScale scalar assignment
 
-/-- The canonical zero typed complete-carrier relation assignment. -/
 def assignmentZero {shape : Shape} : Assignment shape :=
   Raw.assignmentZero
 
-/-- Add two Phi81 evaluation rings coefficientwise. -/
 def evaluationAdd (left right : Evaluation) : Evaluation :=
   fun lane => K.add (left lane) (right lane)
 
-/-- Scale every Phi81 evaluation coefficient by an embedded base scalar. -/
 def evaluationScale (scalar : F) (evaluation : Evaluation) : Evaluation :=
   fun lane => K.mul (K.embed scalar) (evaluation lane)
 
-/-- The canonical zero Phi81 evaluation. -/
 def evaluationZero : Evaluation := ringKZero
 
-/-- Canonical head-first finite base-field combination of typed assignments. -/
 def combineAssignments {shape : Shape} :
     {count : Nat} ->
       (Fin count -> F) -> (Fin count -> Assignment shape) -> Assignment shape
@@ -108,7 +72,6 @@ def combineAssignments {shape : Shape} :
           (fun index => weights index.succ)
           (fun index => assignments index.succ))
 
-/-- The identical finite combination on one `RingK` evaluation. -/
 def combineEvaluations :
     {count : Nat} ->
       (Fin count -> F) -> (Fin count -> Evaluation) -> Evaluation
@@ -119,8 +82,6 @@ def combineEvaluations :
         (combineEvaluations
           (fun index => weights index.succ)
           (fun index => evaluations index.succ))
-
-/-! ## Finite matrix-image linearity -/
 
 private def sumTerms
     {Value Index : Type}
@@ -219,7 +180,6 @@ private theorem sumTerms_scale
   | cons index indices inductionHypothesis =>
       simp only [sumTerms, inductionHypothesis, scaleAdd]
 
-/-- A matrix-vector product at the zero assignment is zero. -/
 theorem matrixVectorAt_zero
     {variables columns : Nat}
     (matrix : BooleanMatrix F variables columns)
@@ -250,7 +210,6 @@ theorem matrixVectorAt_zero
     _ = sumTerms 0 add indices (fun _ => 0) := by rw [termsZero]
     _ = 0 := sumTerms_zero 0 add ConcreteCarrier.baseLaws.zero_add indices
 
-/-- A matrix-vector product is additive in its assignment. -/
 theorem matrixVectorAt_add
     {variables columns : Nat}
     (matrix : BooleanMatrix F variables columns)
@@ -325,7 +284,6 @@ theorem matrixVectorAt_add
           (fun accumulated column => accumulated + rightTerm column) 0 := by
       rw [leftFold, rightFold]
 
-/-- A matrix-vector product commutes with a base-field scalar. -/
 theorem matrixVectorAt_scale
     {variables columns : Nat}
     (matrix : BooleanMatrix F variables columns)
@@ -387,8 +345,6 @@ theorem matrixVectorAt_scale
     _ = scalar * indices.foldl
           (fun accumulated column => accumulated + term column) 0 := by
       rw [termFold]
-
-/-! ## Independently recursive MLE linearity -/
 
 private theorem mul_neg
     {Value : Type}
@@ -531,8 +487,6 @@ private theorem evaluateCoordinates_tabulate_scale
           exact interpolate_scale_identity ConcreteCarrier.extensionOps
             ConcreteCarrier.extensionLaws _ _ _ _
 
-/-- A canonically tabulated zero `K` table evaluates to zero at every typed
-point. -/
 theorem evaluateTabulated_zero
     {variables : Nat}
     (point : CubePoint K variables) :
@@ -542,7 +496,6 @@ theorem evaluateTabulated_zero
   unfold BooleanTable.evaluate
   exact evaluateCoordinates_tabulate_zero point.coordinates
 
-/-- Canonical `K`-valued Boolean-table evaluation is additive. -/
 theorem evaluateTabulated_add
     {variables : Nat}
     (left right : BooleanVertex variables -> K)
@@ -558,8 +511,6 @@ theorem evaluateTabulated_add
   unfold BooleanTable.evaluate
   exact evaluateCoordinates_tabulate_add left right point.coordinates
 
-/-- Canonical `K`-valued Boolean-table evaluation commutes with a fixed
-extension-field scalar. -/
 theorem evaluateTabulated_scale
     {variables : Nat}
     (scalar : K)
@@ -574,10 +525,6 @@ theorem evaluateTabulated_scale
   unfold BooleanTable.evaluate
   exact evaluateCoordinates_tabulate_scale scalar values point.coordinates
 
-/-! ## Typed Phi81 evaluator theorems -/
-
-/-- The typed Phi81 evaluation of the zero complete assignment is zero in all
-54 lanes. -/
 theorem matrixEvaluation_zero
     {shape : Shape}
     (system : Structure shape) (point : Point shape)
@@ -591,8 +538,6 @@ theorem matrixEvaluation_zero
     (evaluateCoordinates_tabulate_zero
       (variables := shape.rowVariables) point.coordinates)
 
-/-- One matrix's complete 54-lane Phi81 evaluation is additive in the exact
-complete-carrier assignment. -/
 theorem matrixEvaluation_add
     {shape : Shape}
     (system : Structure shape)
@@ -616,8 +561,6 @@ theorem matrixEvaluation_add
         right vertex))
       point.coordinates)
 
-/-- One matrix's complete 54-lane Phi81 evaluation commutes with an embedded
-base-field scalar. -/
 theorem matrixEvaluation_scale
     {shape : Shape}
     (system : Structure shape)
@@ -640,8 +583,6 @@ theorem matrixEvaluation_scale
         assignment vertex))
       point.coordinates)
 
-/-- `Pi_DEC`'s exact finite base-field recomposition commutes with every
-matrix and every one of the 54 Phi81 evaluation lanes. -/
 theorem matrixEvaluation_combine
     {shape : Shape} {count : Nat}
     (system : Structure shape)
@@ -657,8 +598,6 @@ theorem matrixEvaluation_combine
       rw [combineAssignments, combineEvaluations, matrixEvaluation_add,
         matrixEvaluation_scale, inductionHypothesis]
 
-/-- Array-level form: canonical matrix ordering and all 54 lanes preserve the
-same finite base-field combination. -/
 theorem evaluations_combine
     {shape : Shape} {count : Nat}
     (system : Structure shape)

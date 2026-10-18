@@ -15,9 +15,6 @@ pub const RC_TERMINAL: usize = RC_INTERNAL + INTERNAL_ROUNDS;
 pub const RC_DIAG: usize = RC_TERMINAL + EXTERNAL_HALF_ROUNDS * WIDTH;
 pub const RC_WORDS: usize = RC_DIAG + WIDTH;
 
-/// Flatten the canonical Poseidon2 parameters into the device ABI shared by
-/// CUDA and Metal: initial external rows, internal constants, terminal
-/// external rows, then the internal-matrix diagonal.
 pub fn round_constant_words() -> Vec<u64> {
     let constants = neo_ccs::crypto::poseidon2_goldilocks::round_constants();
     assert_eq!(constants.initial.len(), EXTERNAL_HALF_ROUNDS);

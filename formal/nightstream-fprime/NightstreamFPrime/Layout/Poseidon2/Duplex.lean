@@ -16,22 +16,16 @@ open NightstreamFPrime.Gadgets.Poseidon2
 open NightstreamFPrime.Gadgets.Poseidon2.Duplex
 open NightstreamFPrime.Layout.Polynomial.Horner
 
-/-- Both base-field coordinates of one symbolic extension-field value are
-affine. -/
 def KExprAffine (value : KExpr) : Prop :=
   R1CS.IsAffine value.c0 ∧ R1CS.IsAffine value.c1
 
-/-- Symbolic inputs read by one Duplex action are affine. -/
 def ActionAffine : Formal.Action → Prop
   | .absorb input => ListAffine input
   | .readK _ expected => KExprAffine expected
 
-/-- Every action input in one Duplex schedule is affine. -/
 def ActionsAffine (actions : List Formal.Action) : Prop :=
   ∀ action ∈ actions, ActionAffine action
 
-/-- A transcript state is one exact permutation-owned block of eight fresh
-variables. -/
 def StateFresh (state : Layer.EState) : Prop :=
   ∃ start, state = Permutation.freshState start
 
@@ -78,7 +72,6 @@ theorem read_sample_linear (state : Layer.EState) (pair : Read.Pair)
   · simp [Read.sample, Permutation.freshState, Nonconstant]
   · simp [Read.sample, Permutation.freshState, Nonconstant]
 
-/-- Every action preserves a fresh state once the initial state is fresh. -/
 theorem compile_output_fresh (start : Nat) (state : Layer.EState)
     (actions : List Formal.Action) (stateFresh : StateFresh state) :
     StateFresh (Formal.compile start state actions).output := by
@@ -98,8 +91,6 @@ theorem compile_output_fresh (start : Nat) (state : Layer.EState)
       | readK pair expected =>
           exact inductionHypothesis start state stateFresh
 
-/-- Every read sample is a nonconstant linear pair once the initial state is
-fresh. -/
 theorem compile_samples_linear (start : Nat) (state : Layer.EState)
     (actions : List Formal.Action) (stateFresh : StateFresh state) :
     ∀ sample ∈ (Formal.compile start state actions).samples,
@@ -122,8 +113,6 @@ theorem compile_samples_linear (start : Nat) (state : Layer.EState)
           · exact read_sample_linear state pair stateFresh
           · exact inductionHypothesis start state stateFresh sample member
 
-/-- A leading nonempty absorb establishes the fresh-state invariant for the
-remainder of the program. -/
 theorem compile_output_fresh_of_head_absorb
     (start : Nat) (state : Layer.EState) (input : List Expr)
     (actions : List Formal.Action)
@@ -162,8 +151,6 @@ theorem read_sample_affine (state : Layer.EState) (pair : Read.Pair)
     KExprAffine (Read.sample state pair) :=
   ⟨stateAffine (Read.lowLane pair), stateAffine (Read.highLane pair)⟩
 
-/-- Every Duplex witness recipe lowers to one direct R1CS row. This theorem
-is structural in the action list and does not evaluate an emitted schedule. -/
 theorem compile_recipes_direct (start : Nat) (state : Layer.EState)
     (actions : List Formal.Action)
     (stateAffine : StateAffine state)
@@ -200,8 +187,6 @@ theorem compile_recipes_direct (start : Nat) (state : Layer.EState)
           exact inductionHypothesis (start := start) (state := state)
             stateAffine tailAffine
 
-/-- Every verifier-derived Duplex sample is an affine pair of existing
-symbolic variables. Expected samples do not alter this output list. -/
 theorem compile_samples_affine (start : Nat) (state : Layer.EState)
     (actions : List Formal.Action)
     (stateAffine : StateAffine state)
@@ -236,8 +221,6 @@ theorem compile_samples_affine (start : Nat) (state : Layer.EState)
           · exact inductionHypothesis (start := start) (state := state)
               stateAffine tailAffine sample member
 
-/-- The final Duplex state is affine when the initial state and action inputs
-are affine. -/
 theorem compile_output_affine (start : Nat) (state : Layer.EState)
     (actions : List Formal.Action)
     (stateAffine : StateAffine state)

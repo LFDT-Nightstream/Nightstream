@@ -1,14 +1,7 @@
 import NightstreamFPrime.Export.Stage1.PilotDigestBindingPlan
 import NightstreamFPrime.Export.Stage1.PilotPoseidonPreservation
 
-/-!
-Owns the complete semantic bridge for the direct pilot relation. It composes
-the selective Poseidon2 chains, eight digest-custody rows, and the exact 686
-ordinary rows into the canonical logical pilot specification.
-
-This module does not claim that unused legacy permutation locals satisfy the
-old expanded template rows.
--/
+/-! Owns the complete semantic bridge for the direct pilot relation. -/
 
 namespace NightstreamFPrime.Export.Stage1.PilotDirectSemantics
 
@@ -28,8 +21,6 @@ theorem poseidonGeometry {program : Lifecycle.Stage1.Application.Program}
     PiRLCPoseidonGeometry.Geometry program logicalWidth :=
   PilotDigestBindingPlan.poseidonGeometry geometry
 
-/-- Direct pilot acceptance facts imply the exact logical pilot builder
-specification under the canonical pilot pullback environment. -/
 theorem implies_spec
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth)

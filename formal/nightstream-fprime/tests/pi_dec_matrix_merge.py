@@ -1,5 +1,3 @@
-"""Synthetic codec/addition checks. These are not matrix producer conformance."""
-
 import copy
 import json
 from pathlib import Path
@@ -65,7 +63,6 @@ def synthetic_values(part):
                              for component in range(2)])
             matrices.append(ring)
         values.append(matrices)
-    # Check both exact wrap to zero and a sum strictly beyond the modulus.
     values[-1][-1][-1] = [MODULUS - 1, MODULUS - 2] if part == 0 else [1, 6]
     return values
 
@@ -109,8 +106,6 @@ def check_case(binary, ccs, directory, name, pad, ranges, deadline, error=None):
         parts.append(str(path))
     output = directory / f"{name}.output.json"
     command = [str(binary), str(ccs), str(pad_path), str(output), *parts]
-    # AGENTS.md caps the complete Python test at 300 seconds. The caller must
-    # also apply that outer cap. Every child uses only the remaining allowance.
     remaining = deadline - time.monotonic()
     assert remaining > 0, "the 300-second test cap was reached"
     result = subprocess.run(command, capture_output=True, text=True,
@@ -141,8 +136,6 @@ def main():
     pad = complete_pad(Path(sys.argv[3]).resolve(strict=True))
     directory = Path(sys.argv[4]).resolve()
     directory.mkdir()
-    # Synthetic partial values exercise only decoding, coverage and addition.
-    # They do not purport to be evaluations of the two represented row ranges.
     valid = [[1, ROWS, 0, 1, copy.deepcopy(pad[4]), synthetic_values(0)],
              [1, ROWS, 1, ROWS, copy.deepcopy(pad[4]), synthetic_values(1)]]
     check_case(binary, ccs, directory, "two_part_all_words", pad, valid, deadline)

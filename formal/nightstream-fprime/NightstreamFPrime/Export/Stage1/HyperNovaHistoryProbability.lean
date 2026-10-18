@@ -3,8 +3,7 @@ import Mathlib.Probability.ProbabilityMassFunction.Constructions
 
 /-!
 Owns the sample and the events of the actual reverse-history result of one
-application. A sample retains the terminal statement, its opening, and every
-supplied source return, including aborts.
+application.
 -/
 
 set_option autoImplicit false
@@ -20,11 +19,9 @@ variable (application : Lifecycle.Stage1.Application.Program)
 
 abbrev Sample := Statement × Envelope application × List (SourceResult application)
 
-/-- The exact selected terminal membership, before reverse extraction. -/
 def Accepted (sample : Sample application) : Prop :=
   PerApplicationTerminal.Holds application fits setup sample.1 sample.2.1
 
-/-- The actual reverse program returns a complete forward application history. -/
 def AdviceReturned (sample : Sample application) : Prop :=
   ∃ advice unused,
     run application fits sample.1 sample.2.1 sample.2.2 = .ok (advice, unused) ∧

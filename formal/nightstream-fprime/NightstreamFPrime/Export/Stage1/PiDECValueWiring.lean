@@ -1,9 +1,8 @@
 import NightstreamFPrime.Export.Stage1.PiDECDirectPlan
 
 /-!
-Owns the shared forms between final PiRLC accumulators and PiDEC parents.
-The four PiDEC parent views select existing PiRLC coordinates. They allocate
-no slots and need no copy rows.
+Owns the shared forms between final PiRLC accumulators and PiDEC parents. The
+four PiDEC parent views select existing PiRLC coordinates.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiDECValueWiring
@@ -87,7 +86,6 @@ private theorem parentCommitment_source (program : Lifecycle.Stage1.Application.
       (Spartan.sourceToSpartan (finalDescriptor .commitment index).outputColumn)
   rw [final_outputColumn]
 
-/-- PiDEC reads the final PiRLC commitment value for every assignment. -/
 theorem parentCommitment_form_eq_output
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry program logicalWidth)
@@ -107,7 +105,6 @@ theorem parentCommitment_form_eq_output
       (19008 + index.val) * 41
     ring
 
-/-- The honest constructor reuses the PiRLC encoding at the shared columns. -/
 theorem parentCommitmentEncodes
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry program logicalWidth)
@@ -161,7 +158,6 @@ private theorem parentPublicInput_source (program : Lifecycle.Stage1.Application
       (Spartan.sourceToSpartan (finalDescriptor .publicInput index).outputColumn)
   rw [final_outputColumn]
 
-/-- PiDEC reads the final PiRLC publicInput value for every assignment. -/
 theorem parentPublicInput_form_eq_output
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry program logicalWidth)
@@ -181,7 +177,6 @@ theorem parentPublicInput_form_eq_output
       (24516 + index.val) * 41
     ring
 
-/-- The honest constructor reuses the PiRLC encoding at the shared columns. -/
 theorem parentPublicInputEncodes
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry program logicalWidth)
@@ -235,7 +230,6 @@ private theorem parentEvalK_source (program : Lifecycle.Stage1.Application.Progr
       (Spartan.sourceToSpartan (finalDescriptor .evalK index).outputColumn)
   rw [final_outputColumn]
 
-/-- PiDEC reads the final PiRLC evalK value for every assignment. -/
 theorem parentEvalK_form_eq_output
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry program logicalWidth)
@@ -255,7 +249,6 @@ theorem parentEvalK_form_eq_output
       (26514 + index.val) * 41
     ring
 
-/-- The honest constructor reuses the PiRLC encoding at the shared columns. -/
 theorem parentEvalKEncodes
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry program logicalWidth)
@@ -309,7 +302,6 @@ private theorem parentEvalA_source (program : Lifecycle.Stage1.Application.Progr
       (Spartan.sourceToSpartan (finalDescriptor .evalA index).outputColumn)
   rw [final_outputColumn]
 
-/-- PiDEC reads the final PiRLC evalA value for every assignment. -/
 theorem parentEvalA_form_eq_output
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry program logicalWidth)
@@ -329,7 +321,6 @@ theorem parentEvalA_form_eq_output
       (33534 + index.val) * 41
     ring
 
-/-- The honest constructor reuses the PiRLC encoding at the shared columns. -/
 theorem parentEvalAEncodes
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry program logicalWidth)

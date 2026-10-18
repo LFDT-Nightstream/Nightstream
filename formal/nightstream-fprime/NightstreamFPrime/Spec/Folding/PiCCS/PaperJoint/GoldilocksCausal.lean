@@ -17,8 +17,6 @@ open ConcreteCarrier StrongReduction
 
 universe uCommitment uPublicInput
 
-/-- The paper polynomial has the verifier's selected width at every prefix.
-The representation comes from its concrete CCS, norm, and evaluation terms. -/
 theorem sequentialRoundRepresentable {shape : Shape}
     (data : ProtocolPolynomial.Data K shape) (alpha : CubePoint K shape.cubeVariables)
     (gamma : K) (width : Nat)

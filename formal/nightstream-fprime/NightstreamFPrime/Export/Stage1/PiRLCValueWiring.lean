@@ -209,8 +209,6 @@ theorem form_eval_eq_decodedEnv
     (located invocation).location).symm
   simpa only [form, location_sourceColumn] using read
 
-/-- Canonical construction reads the same base value through the existing
-PiCCS owner coordinates. This theorem is constructor evidence only. -/
 theorem form_eval_source
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (invocation : Fin PiRLCProductSchedule.invocationCount)

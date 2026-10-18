@@ -3,9 +3,6 @@ import Mathlib.Tactic.SplitIfs
 
 /-!
 Materialized Phi81 arithmetic for extraction and dense commitment checks.
-Every product constructs all 54 coefficients. Counts cover array reads,
-field and index operations, branches, constructors, and returns. Semantic
-coefficient functions are views of stored arrays, not executable primitives.
 -/
 
 set_option autoImplicit false
@@ -36,9 +33,6 @@ private theorem sum_work_le (term : Nat → Result F) (count bound : Nat)
       simp only [sum, Nat.add_mul, Nat.one_mul]
       omega
 
-/-- A live term charges three comparisons and branches, one subtraction,
-two bounded-index constructors, two array projections and reads, one field
-product, and one return. Each failed branch charges its executed prefix. -/
 private def rawTerm (left right : StoredRing) (degree index : Nat) : Result F :=
   if live : index < ringDegree then
     if index ≤ degree then
@@ -90,16 +84,12 @@ private theorem coefficient_work_le (left right : StoredRing) (output : Fin ring
   dsimp only [coefficient]
   split_ifs <;> dsimp only <;> omega
 
-/-- The array builder charges each coefficient, allocation, push, and return.
-Two more operations account for the coordinate closure and outer return. -/
 def multiply (left right : StoredRing) : Result StoredRing :=
   let result := build (coefficient left right)
   ⟨result.value, result.work + 2⟩
 
 def multiplyWork : Nat := ringDegree + 1 + ringDegree * ((3 * rawWork + 12) + 2) + 1 + 2
 
-/-- Build the identity array; each coefficient reads and compares its index,
-branches, and returns. The outer closure and return add two operations. -/
 def one (_ : Unit) : Result StoredRing :=
   let result := build (fun index : Fin ringDegree =>
     (⟨if index.val = 0 then 1 else 0, 4⟩ : Result F))
@@ -107,8 +97,6 @@ def one (_ : Unit) : Result StoredRing :=
 
 def oneWork : Nat := ringDegree + 1 + ringDegree * (4 + 2) + 1 + 2
 
-/-- Each coordinate reads both stored arrays and adds their field values.
-The read count includes each vector's array projection. -/
 def add (left right : StoredRing) : Result StoredRing :=
   let result := build (fun index => (⟨left.get index + right.get index, 6⟩ : Result F))
   ⟨result.value, result.work + 2⟩

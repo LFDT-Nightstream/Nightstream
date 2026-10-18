@@ -2,8 +2,7 @@ import NightstreamFPrime.Layout.ProductionRelation.SparseEvaluation
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FiniteSumAlgebra
 
 /-! Evaluate an existing sparse form on extension-field reads through its
-real and imaginary scalar evaluations. Weighted source aggregation preserves
-every stored entry, including repeated columns. -/
+real and imaginary scalar evaluations. -/
 
 set_option autoImplicit false
 
@@ -17,7 +16,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FiniteSumAlgebra
 open NightstreamFPrime.Layout.ProductionRelation
 
-/-- Use the existing scalar evaluator for both extension coordinates. -/
 def evaluateK {columns : Nat} (form : SparseForm columns)
     (read : Fin columns → K) : K :=
   ⟨form.evalSparse (fun column => (read column).c0),
@@ -59,8 +57,6 @@ private theorem pair_fold_value {columns : Nat}
           rfl
         _ = _ := extensionLaws.add_assoc _ _ _
 
-/-- Exact extension-field sum over all stored sparse entries. No distinctness
-or coefficient restriction is needed. -/
 theorem evaluateK_value {columns : Nat} (form : SparseForm columns)
     (read : Fin columns → K) :
     evaluateK form read =
@@ -80,8 +76,6 @@ private theorem evaluateK_embed {columns : Nat} (form : SparseForm columns)
   simp only [evaluateK, K.embed, SparseForm.evalSparse, Fin.mul_zero,
     Fin.add_zero, List.foldl_fixed]
 
-/-- Weighted extension-field reads commute with the same sparse evaluator.
-The input list and the stored entries can both contain repetitions. -/
 theorem weighted_readsK {Index : Type uIndex} {columns : Nat}
     (form : SparseForm columns) (indices : List Index) (weight : Index → K)
     (read : Index → Fin columns → K) :
@@ -136,8 +130,6 @@ theorem weighted_readsK {Index : Type uIndex} {columns : Nat}
       sumMap extensionOps indices (fun index =>
         extensionOps.mul (weight index) (read index column)))).symm
 
-/-- Aggregate any finite list of weighted original reads before sparse
-matrix evaluation. Repeated source indices and repeated entries are retained. -/
 theorem weighted_reads {Index : Type uIndex} {columns : Nat}
     (form : SparseForm columns) (indices : List Index) (weight : Index → K)
     (read : Index → Fin columns → F) :

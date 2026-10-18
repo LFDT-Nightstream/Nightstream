@@ -18,7 +18,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 open NightstreamFPrime.Layout.ProductionRelation
 
-/-- One homogeneous retained-slot block in canonical compiler order. -/
 structure Block (sourceWidth : Nat) where
   kind : LowNormSlot.Kind
   slotCount : Nat
@@ -26,8 +25,6 @@ structure Block (sourceWidth : Nat) where
 
 namespace Block
 
-/-- Lift a block into a larger source domain without changing its slot or
-coordinate order. -/
 def lift {sourceWidth largerWidth : Nat} (block : Block sourceWidth)
     (fits : sourceWidth ≤ largerWidth) : Block largerWidth where
   kind := block.kind
@@ -53,8 +50,6 @@ def lift {sourceWidth largerWidth : Nat} (block : Block sourceWidth)
       (block.source slot).val := by
   rfl
 
-/-- Zero-copy contiguous view of a parent block. The source function remains
-opaque and is selected only at the proved parent slot. -/
 def slice {sourceWidth : Nat} (block : Block sourceWidth)
     (offset count : Nat) (fits : offset + count ≤ block.slotCount) :
     Block sourceWidth where
@@ -90,7 +85,6 @@ private theorem sum_ofFn_const (count value : Nat) :
   | succ count inductionHypothesis =>
       simp [List.ofFn_succ, Nat.succ_mul, Nat.add_comm]
 
-/-- Exact number of low-norm coordinates owned by the block. -/
 def coordinateCount {sourceWidth : Nat} (block : Block sourceWidth) : Nat :=
   block.slotCount * block.kind.width
 
@@ -105,8 +99,6 @@ def coordinateCount {sourceWidth : Nat} (block : Block sourceWidth) : Nat :=
     (block.slice offset count fits).coordinateCount = count * block.kind.width := by
   rfl
 
-/-- Proof-oriented reference expansion. Production code uses the indexed
-block directly. -/
 def expanded {sourceWidth : Nat} (block : Block sourceWidth) :
     List (LowNormAssignment.Slot sourceWidth) :=
   List.ofFn fun slot =>
@@ -118,7 +110,6 @@ def expanded {sourceWidth : Nat} (block : Block sourceWidth) :
     block.expanded.length = block.slotCount := by
   simp [expanded]
 
-/-- Expanded reference geometry has exactly the direct block width. -/
 theorem expanded_logicalWidth {sourceWidth : Nat}
     (block : Block sourceWidth) :
     LowNormAssignment.logicalWidth block.expanded = block.coordinateCount := by
@@ -129,7 +120,6 @@ theorem expanded_logicalWidth {sourceWidth : Nat}
       block.slotCount * block.kind.width
   exact sum_ofFn_const block.slotCount block.kind.width
 
-/-- Canonical offset of one coordinate inside the block. -/
 def coordinateOffset {sourceWidth : Nat} (block : Block sourceWidth)
     (slot : Fin block.slotCount) (coordinate : Fin block.kind.width) :
     Fin block.coordinateCount :=
@@ -144,7 +134,6 @@ def coordinateOffset {sourceWidth : Nat} (block : Block sourceWidth)
       _ ≤ block.slotCount * block.kind.width :=
         Nat.mul_le_mul_right block.kind.width slotSucc⟩
 
-/-- Canonical assignment column of one block coordinate. -/
 def column {sourceWidth logicalWidth : Nat} (block : Block sourceWidth)
     (start : Nat) (fits : start + block.coordinateCount ≤ logicalWidth)
     (slot : Fin block.slotCount) (coordinate : Fin block.kind.width) :
@@ -153,8 +142,6 @@ def column {sourceWidth logicalWidth : Nat} (block : Block sourceWidth)
     have offsetBound := (block.coordinateOffset slot coordinate).isLt
     omega⟩
 
-/-- The final assignment contains the canonical encoding at every coordinate
-of this block. -/
 def EncodesAt {sourceWidth logicalWidth : Nat} (block : Block sourceWidth)
     (start : Nat) (fits : start + block.coordinateCount ≤ logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -163,8 +150,6 @@ def EncodesAt {sourceWidth logicalWidth : Nat} (block : Block sourceWidth)
     assignment (block.column start fits slot coordinate) =
       LowNormSlot.coordinate block.kind (source (block.source slot)) coordinate
 
-/-- Extending the source domain preserves an encoded block when the extended
-source agrees on every selected slot. -/
 theorem encodesAt_lift
     {sourceWidth largerWidth logicalWidth : Nat}
     (block : Block sourceWidth) (sourceFits : sourceWidth ≤ largerWidth)
@@ -186,8 +171,6 @@ theorem encodesAt_lift
   rw [agrees slot]
   exact encodes slot coordinate
 
-/-- A contiguous slot view reuses the parent coordinates at the exact shifted
-start. No copy row or duplicate assignment value is introduced. -/
 theorem encodesAt_slice
     {sourceWidth logicalWidth : Nat}
     (block : Block sourceWidth) (offset count : Nat)
@@ -215,7 +198,6 @@ theorem encodesAt_slice
   rw [columnEq, slice_source]
   exact encodes parentSlot coordinate
 
-/-- Equal starts and proof-irrelevant fit witnesses preserve an encoding. -/
 theorem encodesAt_start_eq
     {sourceWidth logicalWidth : Nat} (block : Block sourceWidth)
     (leftStart rightStart : Nat) (startEq : leftStart = rightStart)
@@ -227,15 +209,12 @@ theorem encodesAt_start_eq
   cases startEq
   exact encodes
 
-/-- Direct sparse reconstruction form for one retained source value. -/
 def form {sourceWidth logicalWidth : Nat} (block : Block sourceWidth)
     (start : Nat) (fits : start + block.coordinateCount ≤ logicalWidth)
     (slot : Fin block.slotCount) : SparseForm logicalWidth :=
   RetainedSlot.recomposeForms <| List.ofFn fun coordinate =>
     SparseForm.singleton (block.column start fits slot coordinate) 1
 
-/-- Blocks with the same slot encoding at the same physical coordinates
-have the same form, independently of their source views. -/
 theorem form_eq_of_coordinates
     {leftSourceWidth rightSourceWidth logicalWidth : Nat}
     (left : LowNormBlock.Block leftSourceWidth)
@@ -263,7 +242,6 @@ theorem form_eq_of_coordinates
       simpa only [LowNormBlock.Block.column, LowNormBlock.Block.coordinateOffset,
         Nat.add_assoc] using congrArg (fun value => value + coordinate.val) offsetEq
 
-/-- Direct block forms reconstruct the exact retained source value. -/
 theorem form_eval {sourceWidth logicalWidth : Nat} (block : Block sourceWidth)
     (start : Nat) (fits : start + block.coordinateCount ≤ logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -291,14 +269,11 @@ theorem form_eval {sourceWidth logicalWidth : Nat} (block : Block sourceWidth)
   rw [coordinates]
   exact LowNormSlot.recompose_encode _ _
 
-/-- Every expanded reference slot has the block's one fixed kind. -/
 theorem expanded_kind {sourceWidth : Nat} (block : Block sourceWidth)
     (slot : Fin block.expanded.length) :
     (block.expanded.get slot).kind = block.kind := by
   simp [expanded]
 
-/-- Every expanded reference slot has the exact indexed source selected by
-the compact block. -/
 theorem expanded_source {sourceWidth : Nat} (block : Block sourceWidth)
     (slot : Fin block.slotCount) :
     (block.expanded.get ⟨slot.val, by simp⟩).source =

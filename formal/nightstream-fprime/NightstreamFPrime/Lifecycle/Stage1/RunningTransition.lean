@@ -73,7 +73,6 @@ def inverseHint {logicalWidth : Nat}
     (interface : Interface logicalWidth publicFits) (offset : Nat) : Hint :=
   .inverseOrZero (interface.iteration offset)
 
-/-- The stored recursive flag `iteration · inverse`. -/
 def flagRecipe {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -92,14 +91,12 @@ def baseFlag {logicalWidth : Nat}
     (interface : Interface logicalWidth publicFits) (offset : Nat) : Expr :=
   1 - recursiveFlag interface offset
 
-/-- This row forces the recursive flag to one when iteration is nonzero. -/
 def bindingConstraint {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) : Expr :=
   0 - interface.iteration offset * baseFlag interface offset
 
-/-- `output − default = flag · (recursive − default)`. -/
 def muxConstraint {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -284,7 +281,6 @@ structure Assumptions {logicalWidth : Nat}
   output : ∀ index,
     (interface.output offset index).VarsBelow offset
 
-/-- Field-level scope certificate for one complete symbolic running vector. -/
 structure RunningBelow {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -394,8 +390,6 @@ structure SpecHolds {logicalWidth : Nat}
   recursive : iterationValue interface offset env ≠ 0 →
     WordsEqual (interface.output offset) (interface.recursive offset) env
 
-/-- Running-transition semantics depend only on the declared expressions
-below the child start. -/
 theorem specHolds_of_agree_below
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -455,9 +449,6 @@ theorem specHolds_of_agree_below
         (Expr.eval_eq_of_agree_below _ offset after before
           (assumptions.recursive index) agrees).symm
 
-/-- Running-transition semantics transport through equality of every value
-that the branch predicate reads. This is weaker and more exact than requiring
-the complete prefix below the child start to remain unchanged. -/
 theorem specHolds_of_values_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -539,7 +530,6 @@ private theorem localLength_assertions (items : List Expr) :
       change 0 + localLength (rest.map .assertZero) = 0
       simpa using inductionHypothesis
 
-/-- The recipe row of the stored flag. -/
 def flagConstraint {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -802,7 +792,6 @@ theorem soundness {logicalWidth : Nat}
     have difference := sub_eq_zero.mp row
     exact sub_left_injective difference
 
-/-- The honest witness: the inverse hint, then the stored flag. -/
 def completeEnv {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -1012,9 +1001,6 @@ theorem runningWord_eval {logicalWidth : Nat}
     (n := index.val) (RunningWords.serializeRunningExpr running)
     (0 : Expr) (Expr.eval env)).symm
 
-/-- Running-transition semantics transport across two interfaces when every
-semantic value read by the branch predicate is equal. Complete running-value
-equalities imply equality of all canonical serialized words. -/
 theorem specHolds_of_cross_values_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -1074,7 +1060,6 @@ theorem specHolds_of_cross_values_eq
     rw [← outputEq index, ← recursiveEq]
     exact word
 
-/-- The committed output running words. -/
 def outputWords {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -1101,8 +1086,6 @@ private theorem outputWords_eq_of_get {logicalWidth : Nat}
     outputWords interface offset env = words :=
   ofFn_eq_of_getD _ words length each
 
-/-- The base branch selects the exact default running words, which are all
-zero. -/
 theorem spec_serialized_base {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -1116,8 +1099,6 @@ theorem spec_serialized_base {logicalWidth : Nat}
   outputWords_eq_of_get interface offset env _
     (by rw [serializeRunning_length]; rfl) (specification.base iterationZero)
 
-/-- The recursive branch selects every hashed PiDEC output word, with no
-digest-only substitution. -/
 theorem spec_serialized_recursive {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -1131,7 +1112,6 @@ theorem spec_serialized_recursive {logicalWidth : Nat}
     (by rw [serializeRunning_length]; rfl) fun index => by
       rw [specification.recursive iterationNonzero index, runningWord_eval]
 
-/-- The sole logical circuit for the Stage 1 running-instance branch. -/
 def circuit {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}

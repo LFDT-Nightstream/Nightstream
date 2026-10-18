@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-"""Compare every second-fold byte with indexed Python field interpolation.
-
-The coordinator runs this command under the 300-second native test cap.
-Original public-input and trace provenance remain separate evidence.
-"""
 
 from __future__ import annotations
 
@@ -127,7 +122,6 @@ def record(line, width, index, label):
     words = []
     for pair in values:
         a, b = sequence(pair, 2, label)
-        # Validate external integers before any modular arithmetic.
         if type(a) is not int or type(b) is not int or not (0 <= a < P and 0 <= b < P):
             raise ValueError(f"{label}: noncanonical field word at record {index}")
         words.extend((a, b))
@@ -141,7 +135,7 @@ def legacy_chunks(directories, profile, challenge):
         for path in directory.iterdir():
             require(path.is_file(), f"{path}: not a regular input file")
             if profile.kind != 2 and path.name == "moments.json":
-                continue  # Existing carried metadata; not an interpolation input.
+                continue
             require(path.suffix == ".jsonl", f"{path}: unexpected legacy file")
             with path.open("rb") as stream:
                 first, finish = header(json.loads(stream.readline()), profile, challenge, str(path))
@@ -213,8 +207,6 @@ def check_chunk(job):
     item_finish = profile.items_per_record * chunk.finish
     width = profile.output_width
     require(len(words) == (item_finish - item_start) * width * 2, f"{label}: wrong input field count")
-    # One indexed look-ahead row closes a pair crossing a file boundary.
-    # Zero is available only after the true end of the complete source.
     if chunk.finish < profile.records:
         require(next_words is not None, f"{label}: missing next source record")
         words.extend(next_words if profile.kind == 2 else next_words[:2])

@@ -5,7 +5,8 @@ use neo_ccs::{poly::SparsePoly, poly::Term, CcsStructure, CeClaim, Mat};
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use neo_reductions::api::{
-    dec_children_with_commit, rlc_public, rlc_public_matches_with_perf, rlc_with_commit, verify_dec_public, FoldingMode,
+    dec_children_with_commit, rlc_public, rlc_public_matches, rlc_with_commit, verify_dec_public, DecOutcome,
+    FoldingMode,
 };
 use neo_reductions::common::{compute_v1_2_evaluations_from_z_and_r, sample_rot_rhos_n_typed, RotRing};
 use neo_transcript::{Poseidon2Transcript, Transcript};
@@ -167,7 +168,7 @@ fn rlc_public_matches_rejects_common_short_row_point() {
         input.r.pop();
     }
     expected.r.pop();
-    let (accepted, _) = rlc_public_matches_with_perf(
+    let accepted = rlc_public_matches(
         &structure,
         &params,
         &rhos,
@@ -217,7 +218,12 @@ fn verify_dec_public_rejects_common_short_row_point() {
         combine_commitments_b_pows(&child_commitments, params.b),
         105_000,
     );
-    let (mut children, ok_y, ok_x, ok_c) = dec_children_with_commit(
+    let DecOutcome {
+        mut children,
+        ok_y,
+        ok_x,
+        ok_c,
+    } = dec_children_with_commit(
         FoldingMode::Optimized,
         &structure,
         &params,
@@ -364,7 +370,7 @@ fn rlc_public_rejects_ell_d_that_cannot_describe_a_usize_domain() {
         CcsStructure::new(vec![Mat::identity(D)], SparsePoly::new(1, Vec::new())).expect("valid CCS structure");
     let input = CeClaim::<Commitment, F, K> {
         c: Commitment::zeros(D, 1),
-        X: Mat::zero(D, neo_ccs::superneo_public_x_cols(D), F::ZERO),
+        X: Mat::zero(D, neo_ccs::superneo_public_x_cols(D).unwrap(), F::ZERO),
         r: vec![K::ZERO; D.next_power_of_two().trailing_zeros() as usize],
         eval_k: vec![K::ZERO; d_pad],
         eval_a: vec![vec![K::ZERO; d_pad]],

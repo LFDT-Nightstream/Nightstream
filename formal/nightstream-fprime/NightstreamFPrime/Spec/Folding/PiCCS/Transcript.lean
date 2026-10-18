@@ -16,9 +16,6 @@ Outputs:
 
 Parent coverage:
 - the pre-SumCheck prefix of `PiCCS.Coverage.transcript`.
-
-This module is a semantic facade over the canonical Fiat–Shamir machine. It
-defines no second verifier and emits no circuit constraints.
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.Transcript
@@ -27,8 +24,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 universe uContext uField uState
 
-/-- Replay only the verifier-owned pre-SumCheck labels from an already-bound
-transcript state. -/
 def deriveFromState
     {Context : Type uContext}
     {Field : Type uField}
@@ -50,7 +45,6 @@ def deriveFromState
     state := gammaResult.2
   }
 
-/-- Named semantic predicate for the complete pre-SumCheck challenge leaf. -/
 structure PreSumcheckHolds
     {Context : Type uContext}
     {Field : Type uField}
@@ -65,8 +59,6 @@ structure PreSumcheckHolds
   gamma_eq : gamma = (deriveFromState oracle initial).gamma
   finalState_eq : finalState = (deriveFromState oracle initial).state
 
-/-- Starting at the oracle's statement state is definitionally the canonical
-`derivePreSumcheck` execution. -/
 theorem deriveFromState_initialState
     {Context : Type uContext}
     {Field : Type uField}
@@ -78,7 +70,6 @@ theorem deriveFromState_initialState
       FiatShamir.derivePreSumcheck oracle context := by
   rfl
 
-/-- The canonical pre-SumCheck execution satisfies the named predicate. -/
 theorem derivePreSumcheck_holds
     {Context : Type uContext}
     {Field : Type uField}
@@ -93,7 +84,6 @@ theorem derivePreSumcheck_holds
   rw [← deriveFromState_initialState oracle context]
   exact ⟨rfl, rfl, rfl⟩
 
-/-- Full transcript replay uses the same verifier-derived `α` as this leaf. -/
 theorem derive_alpha_eq_preSumcheck
     {Context : Type uContext}
     {Field : Type uField}
@@ -106,7 +96,6 @@ theorem derive_alpha_eq_preSumcheck
       (FiatShamir.derivePreSumcheck oracle context).alpha := by
   rfl
 
-/-- Full transcript replay uses the same verifier-derived `γ` as this leaf. -/
 theorem derive_gamma_eq_preSumcheck
     {Context : Type uContext}
     {Field : Type uField}
@@ -119,8 +108,6 @@ theorem derive_gamma_eq_preSumcheck
       (FiatShamir.derivePreSumcheck oracle context).gamma := by
   rfl
 
-/-- Named semantic predicate for the interleaved SumCheck round replay. Each
-message is absorbed before its corresponding verifier challenge is squeezed. -/
 structure RoundsHolds
     {Context : Type uContext}
     {Field : Type uField}
@@ -138,8 +125,6 @@ structure RoundsHolds
     (FiatShamir.deriveRoundsFrom oracle rounds initial
       (canonicalFinIndices shape.cubeVariables)).2
 
-/-- The complete transcript execution uses this exact round suffix after the
-pre-SumCheck state. -/
 theorem derive_rounds_holds
     {Context : Type uContext}
     {Field : Type uField}

@@ -1,5 +1,3 @@
-"""Retain checked Lean build products outside candidate execution directories."""
-
 from __future__ import annotations
 
 import os
@@ -27,7 +25,6 @@ def cache_root(store, authority):
 
 
 def restore(context, work, store, authority):
-    """A missing or invalid cache is a cold build, never passing evidence."""
     directory = cache_root(store, authority) / digest(context)
     if not directory.exists():
         return "miss"
@@ -59,7 +56,6 @@ def restore(context, work, store, authority):
 
 
 def stage(context, work, directory):
-    """Freeze products immediately after the build, before later commands run."""
     source = build_directory(work, context)
     if not source.exists():
         return None

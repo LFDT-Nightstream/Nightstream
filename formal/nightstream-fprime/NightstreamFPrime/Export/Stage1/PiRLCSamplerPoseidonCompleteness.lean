@@ -4,10 +4,9 @@ import NightstreamFPrime.Export.Stage1.PiCCSEndpointCompleteness
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxSourceCompleteness
 
 /-!
-Owns the direct sampler permutation plan from actual cumulative physical
-rows. Entry inputs use the preceding physical sampler output, with the first
-entry using the actual C endpoint. Each advance uses its scalar entry output.
-The canonical template rows supply every retained S-box equation.
+Owns the direct sampler permutation plan from actual cumulative physical rows.
+Entry inputs use the preceding physical sampler output, with the first entry
+using the actual C endpoint. Each advance uses its scalar entry output.
 -/
 
 set_option autoImplicit false
@@ -408,11 +407,6 @@ private theorem initial_value
     (PerApplicationSourceAssignment.source_ofCompleted application target suffix _
       (PiCCSTranscriptEndpointPlan.endpointColumn_lt_source PiCCSTranscriptEndpointPlan.outputFamily lane)).symm
 
-/-- Actual cumulative rows imply the complete direct R permutation plan on
-its canonical assignment. The first entry is tied to the actual C output;
-every other input comes from its physical predecessor. The source templates
-supply every S-box equation, so no output, endpoint, or equation assumption
-is part of this selected consumer. -/
 theorem rowsZero_of_completed
     (application : Lifecycle.Stage1.Application.Program)
     (relation : ProductionKey.LogicalRelation relationLogicalWidth relationPublicFits)

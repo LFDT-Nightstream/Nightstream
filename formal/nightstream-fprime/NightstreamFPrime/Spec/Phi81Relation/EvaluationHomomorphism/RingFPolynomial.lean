@@ -3,9 +3,7 @@ import Mathlib.Tactic.Ring
 import Mathlib.RingTheory.AdjoinRoot
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFLaws
 
-/-! Polynomial views of the existing 54-coefficient RingF carrier. These
-noncomputable views serve only the multiplication and inverse correctness
-proofs. They define no executable inverse or protocol operation. -/
+/-! Polynomial views of the existing 54-coefficient RingF carrier. -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial
 
@@ -201,8 +199,6 @@ private theorem image_monomialReduce (degree : Nat) :
     rw [highPower, middlePower, relation]
     ring
 
-/-- Lift equality through the finite coefficient expansion. Both maps keep
-only the existing base-linear RingF operations as hypotheses. -/
 private theorem linear_image_eq
     (leftMap rightMap : RingF → QuotientRing)
     (leftZero : leftMap ringFZero = 0) (rightZero : rightMap ringFZero = 0)
@@ -280,8 +276,6 @@ theorem image_mul (left right : RingF) :
   · intro index
     exact image_mul_basis index right
 
-/-- The protocol's executed schoolbook multiplication has exactly the
-polynomial product's remainder modulo Phi81. -/
 theorem toPolynomial_ringFMul_mod (left right : RingF) :
     toPolynomial (ringFMul left right) = (toPolynomial left * toPolynomial right) %ₘ modulus := by
   have quotient : AdjoinRoot.mk modulus (toPolynomial (ringFMul left right)) =

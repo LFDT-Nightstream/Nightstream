@@ -1,5 +1,3 @@
-// Compact transposed SuperNeo forms used by the canonical PiCCS openings.
-
 constant ulong DEC_PARALLEL_FORM_LIST_THRESHOLD = 128;
 constant uint DEC_FORM_REDUCTION_THREADS = 256;
 
@@ -15,8 +13,6 @@ inline ulong dec_pow(ulong base, ulong exponent) {
     return value;
 }
 
-// The transpose carries one reference per row/block. Coefficient patterns are
-// shared by all uses of the same block formula.
 inline ulong dec_pattern_coefficient(
     uint descriptor,
     ulong local,
@@ -107,7 +103,6 @@ kernel void dec_build_ring_forms(
     ulong block = encoded % blocks;
     if (matrix_identity[matrix] != 0) {
         ulong row = block * RING_DEGREE + local;
-        // Pad includes the completion tail; matrix identities use this row window.
         bool valid = matrix == 0 ? row < shape[4]
             : row >= shape[8] && row - shape[8] < shape[2];
         Kx value = valid
@@ -251,7 +246,6 @@ kernel void dec_reduce_parallel_original_form_tiles(
     }
 }
 
-// One thread per geometric span: the sum of its weighted references.
 kernel void dec_geometric_span_weights(
     device const uint *offsets [[buffer(0)]],
     device const uint *rows [[buffer(1)]],
@@ -274,13 +268,11 @@ kernel void dec_geometric_span_weights(
     weights[2 * (ulong)span + 1] = value.c1;
 }
 
-// Spans of one layer that start before `column`.
 inline ulong dec_span_rank(device const ulong *starts, device const uint *ranks, ulong column) {
     ulong below = (1ul << (column % 64)) - 1;
     return (ulong)ranks[column / 64] + (ulong)popcount(starts[column / 64] & below);
 }
 
-// One thread per matrix form coordinate: expand the spans that cover it.
 kernel void dec_add_geometric_span_forms(
     device const ulong *starts [[buffer(0)]],
     device const uint *ranks [[buffer(1)]],

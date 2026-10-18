@@ -50,8 +50,6 @@ abbrev Context :=
 def oracle : FiatShamir.Oracle Context K State productionShape :=
   NightstreamFPrime.Lifecycle.Transcript.piCcsOracle.transcript
 
-/-- One prover-supplied SumCheck polynomial message. It contains no verifier
-challenge. -/
 structure Message (degreeBound : Nat) where
   coefficient : Fin (degreeBound + 1) → KExpr
 
@@ -65,8 +63,6 @@ def Message.semanticPolynomial {degreeBound : Nat} (message : Message degreeBoun
     (env : Env) : NightstreamFPrime.Spec.SumCheck.Finite.FixedPolynomial K degreeBound :=
   (message.asRound KExpr.zero).semanticPolynomial env
 
-/-- External inputs are the prior state and 28 prover messages. Challenges
-and the outgoing state are child-owned outputs. -/
 structure Interface (degreeBound : Nat) where
   initialState : Nat → EState
   round : Nat → Fin productionShape.cubeVariables → Message degreeBound
@@ -80,11 +76,8 @@ def serializeRoundExpr {degreeBound : Nat} (round : Message degreeBound) :
     List Expr :=
   serializeKExprs (List.ofFn round.coefficient)
 
-/-- Every round coin is the first lane pair of the state after its absorb. -/
 def roundCoinPair : Read.Pair := ⟨0, by decide⟩
 
-/-- One paper round with an explicit expected sample. Layout uses zero only to
-fix positions; production uses the compiler-owned sample at this position. -/
 def roundActionsWithExpected {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat)
     (roundIndex : Fin productionShape.cubeVariables)
@@ -102,7 +95,6 @@ def layoutProgram {degreeBound : Nat}
   Formal.compile offset (interface.initialState offset)
     (layoutActions interface offset)
 
-/-- Recipe-free executable projection of the fixed round transcript. -/
 def layoutWiring {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat) : Formal.Wiring :=
   Formal.compileWiringLazy offset (fun _ => interface.initialState offset)
@@ -166,7 +158,6 @@ private theorem layoutActions_readCount {degreeBound : Nat}
     (layoutWiring interface offset).samples.length = 28 := by
   rw [layoutWiring_samples_eq, layoutProgram_samples_length]
 
-/-- Verifier-derived challenge for one indexed round. -/
 def challenge {degreeBound : Nat} (interface : Interface degreeBound)
     (offset : Nat) (roundIndex : Fin productionShape.cubeVariables) : KExpr :=
   (layoutProgram interface offset).samples.get ⟨roundIndex.val, by
@@ -174,7 +165,6 @@ def challenge {degreeBound : Nat} (interface : Interface degreeBound)
     rw [samplesLength]
     simp [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]⟩
 
-/-- Executable verifier-derived round challenge from the recipe-free wiring. -/
 def challengeFast {degreeBound : Nat} (interface : Interface degreeBound)
     (offset : Nat) (roundIndex : Fin productionShape.cubeVariables) : KExpr :=
   (layoutWiring interface offset).samples.getD roundIndex.val KExpr.zero
@@ -207,7 +197,6 @@ theorem challenge_eq_challengeFast_pointwise {degreeBound : Nat}
   funext degreeBound interface offset roundIndex
   exact challenge_eq_challengeFast_pointwise interface offset roundIndex
 
-/-- The one round view consumed by the fixed SumCheck chain. -/
 def round {degreeBound : Nat} (interface : Interface degreeBound)
     (offset : Nat) (roundIndex : Fin productionShape.cubeVariables) :
     NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round degreeBound :=
@@ -267,7 +256,6 @@ theorem program_shape_eq_layout {degreeBound : Nat}
     (actions interface offset) (layoutActions interface offset)
       (actions_shape_eq_layout interface offset)
 
-/-- Executable final-state projection from the recipe-free round wiring. -/
 def finalStateFast {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat) : EState :=
   (layoutWiring interface offset).output
@@ -738,8 +726,6 @@ theorem flatConstraints_varsBelow {degreeBound : Nat}
   rw [flatConstraints_opsAt, opsAt_localLength]
   exact scope
 
-/-- Every verifier-derived round challenge lies inside this transcript
-child's declared symbolic interval. -/
 theorem challenge_varsBelow {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat)
     (env : Env) (assumptions : Assumptions interface offset env)
@@ -758,8 +744,6 @@ theorem challenge_varsBelow {degreeBound : Nat}
   rw [recipesEq]
   exact below
 
-/-- The compiler-owned outgoing transcript state lies inside this child's
-declared symbolic interval. -/
 theorem finalState_varsBelow {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat)
     (env : Env) (assumptions : Assumptions interface offset env) :
@@ -851,8 +835,6 @@ def recipeCount {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat) : Nat :=
   Formal.recipeCount (actions interface offset)
 
-/-- Exact symbolic footprint: 28 indexed round groups, with no copied round
-implementation. -/
 theorem recipeCount_eq {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat) :
     recipeCount interface offset =
@@ -906,8 +888,6 @@ private theorem cubePoint_eq_of_coordinates
   cases right
   simp_all
 
-/-- Concrete parent coverage: the shared round messages and this transcript
-leaf produce the production key's exact SumCheck point and pre-output state. -/
 theorem spec_implies_keyExecution_rounds
     {logicalWidth : Nat}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤

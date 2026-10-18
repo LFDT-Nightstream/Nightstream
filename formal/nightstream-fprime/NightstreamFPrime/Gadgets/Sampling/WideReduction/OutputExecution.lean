@@ -124,8 +124,6 @@ theorem certificate (interface : Interface) (base : Env) (helperOffset offset : 
     simpa only [checkStart, digitStart, Nat.add_assoc] using checks)
   simpa only [HintProgram.resultHints, List.append_assoc] using all
 
-/-- Exact execution of the retained bits, with the canonical children and
-temporary helpers already present. No constraint assumes hint correctness. -/
 theorem execute_reference (interface : Interface) (base : Env) (helperOffset offset : Nat)
     (before : helperOffset + HintProgram.helperCount ≤ offset)
     (helpers : HelperValues.Present base helperOffset (drawOf interface base offset))

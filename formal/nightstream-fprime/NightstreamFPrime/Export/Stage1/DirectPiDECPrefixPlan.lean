@@ -11,12 +11,6 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_2.FormalPhase
 /-!
 Owns the first complete ordered direct 4-matrix prefix through PiDEC and the
 running-instance transition.
-
-Rows occur in protocol order: pilot Poseidon2, PiCCS Poseidon2, PiCCS ordinary,
-pilot ordinary and digest-custody rows, PiRLC sampler Poseidon2, PiRLC
-arithmetic, PiDEC, then the running transition. This remains phase-local
-evidence. It does not select a concrete application, close a package identity,
-or include application rows.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.DirectPiDECPrefixPlan
@@ -73,14 +67,12 @@ theorem poseidonGeometry
     PiCCSPoseidonPlan.Geometry application logicalWidth :=
   DirectRunningPrefixPlan.prefixGeometry (runningGeometry geometry)
 
-/-- The phase parent selects the declared action values from its source map. -/
 def piCcsPayload
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
     PiCCSPoseidonPlan.Payload logicalWidth :=
   PiCCSPayloadWiring.form (piCcsOrdinaryGeometry geometry)
 
-/-- PiRLC consumes the same retained values as the PiCCS parent. -/
 def piRlcValues
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
@@ -447,9 +439,6 @@ def plan
     (plan relation geometry).rowCount = 983695 := by
   simp [plan, transitionPlan]
 
-/-- The complete ordered prefix depends on the verified relation shape, but
-not on matrix entries. Each relation-sensitive leaf has this property before
-the plans are appended. -/
 theorem plan_eq_of_same_shape
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (left right : ProductionKey.LogicalRelation relationLogicalWidth

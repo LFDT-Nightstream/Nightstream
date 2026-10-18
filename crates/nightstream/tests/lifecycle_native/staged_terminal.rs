@@ -24,7 +24,6 @@ pub(super) fn successor(root: &Path, step: u64, engine: EvaluationEngine) {
         .package
         .encode_stage1_v1_2_inputs(packet.pi_ccs(), packet.pi_dec(), packet.application_witness())
         .unwrap();
-    // Export every caller word for the separate fresh Lean comparison.
     save(
         &directory.join("caller-inputs.json"),
         &json!({
@@ -37,8 +36,6 @@ pub(super) fn successor(root: &Path, step: u64, engine: EvaluationEngine) {
             "next_public_input": packet.next_public_input(),
         }),
     );
-    // Use only the current native caller arrays. This is the same witness
-    // executor used by complete_step; no Lean output enters either call.
     let started = Instant::now();
     let physical = package
         .package
@@ -123,8 +120,6 @@ pub(super) fn reject(root: &Path, step: u64, engine: EvaluationEngine) {
     let error = package
         .verify(&expected_state(step), &changed)
         .expect_err("a rehashed false opening must be rejected");
-    // Row evaluation checks the fresh relation before the running openings.
-    // Changing its public digest without its private assignment breaks that relation.
     assert!(
         matches!(
             error,

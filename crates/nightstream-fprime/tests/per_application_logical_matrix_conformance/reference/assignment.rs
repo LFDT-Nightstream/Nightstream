@@ -546,10 +546,6 @@ impl LogicalAssignment {
     }
 }
 
-/// A fail-closed logical view over an available physical-assignment prefix.
-///
-/// Values are decoded from the raw schema-6 transport only when a logical
-/// row requests them. No value is invented for an unavailable private suffix.
 pub struct PartialLogicalAssignment<'a> {
     transport: Transport,
     physical: Physical<'a>,
@@ -639,8 +635,6 @@ impl<'a> PartialLogicalAssignment<'a> {
         LOGICAL_WIDTH
     }
 
-    /// Keep the sealed pilot's proof-input gap and non-pilot public context
-    /// unavailable. This uses the same independent schema-6 transport.
     pub fn decode_pilot(sealed_bytes: &[u8], private_prefix: &'a [u64], public_values: &'a [u64]) -> Result<Self> {
         if private_prefix.len() != 5_156_678 {
             return Err("pilot physical-assignment prefix has the wrong length".into());
@@ -796,7 +790,6 @@ fn derive_phi81_quotients(transport: &Transport, physical: &Physical<'_>) -> Res
                         let slot = family.invocation(source, block, degree, cell)?;
                         *coefficient = physical.value(source_at(&plan.value_sources, slot)?)?;
                     }
-                    // Independent monic long division, not the consumer's closed coefficient formula.
                     let mut product = [0u64; 108];
                     for (i, &a) in left.iter().enumerate() {
                         for (j, &b) in right.iter().enumerate() {

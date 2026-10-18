@@ -3,9 +3,8 @@ import NightstreamFPrime.Export.Stage1.RunningTransitionDirectPlan
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
-Owns the executable source resolver and direct 4-matrix plan for the exact
-686 non-Poseidon pilot rows. The resolver is fixed by the Lean source
-support proof and the canonical lifted pilot environment.
+Owns the executable source resolver and direct 4-matrix plan for the exact 686
+non-Poseidon pilot rows.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PilotOrdinaryDirectPlan
@@ -718,7 +717,6 @@ def rowForms
     (PilotOrdinaryDirectSource.programRow index)
     (PilotOrdinaryDirectSource.programRow_bounded index)
 
-/-- Canonical direct 4-matrix rows for all 686 non-Poseidon pilot rows. -/
 def plan
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth) :
@@ -732,8 +730,6 @@ def plan
     (plan geometry).rowCount = 686 := by
   rfl
 
-/-- Matrix acceptance is exactly the canonical Lean-lowered pilot ordinary
-row relation. -/
 theorem rowsZero_iff_rowsHold
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth)

@@ -1,12 +1,7 @@
 import NightstreamFPrime.Export.Stage1.PiCCSCarriedReadCache
 
 /-!
-Carried rows of one Phi81 product invocation from its state values. Every row
-evaluates the same five state polynomials (left, right, output, prior and
-quotient; 54 coefficients each) at its own node, so each state coefficient is
-read once per invocation instead of once for each of the 108 rows, whose forms
-have 8,911 entries each. Every row and port equals the existing direct product
-row under the carried read.
+Carried rows of one Phi81 product invocation from its state values.
 -/
 
 set_option autoImplicit false
@@ -18,24 +13,20 @@ open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Export.Stage1.PiRLCPartialTrace
 open NightstreamFPrime.Export.Stage1.PiCCSCarriedReadCache
 
-/-- Columns of the five product states. -/
 def stateColumnKeys {columns : Nat} (interface : Phi81ProductPlan.Interface columns) :
     List Nat :=
   [interface.left, interface.right, interface.output, interface.prior,
     interface.quotient].flatMap fun state =>
     (List.ofFn state).flatMap fun form => form.entries.map fun entry => entry.column.val
 
-/-- The carried value of every coefficient of one state. -/
 def stateValues {columns : Nat} (state : Phi81ProductPlan.State columns)
     (read : Fin columns → K) : Vector K ringDegree :=
   Vector.ofFn fun lane => PiCCSSparseEvaluation.evaluateK (state lane) read
 
-/-- One state polynomial at an evaluation node, per field coordinate. -/
 def evaluateAt (values : Vector K ringDegree) (point : F) : K :=
   ⟨Phi81Relation.QuotientProduct.evaluate (fun lane => (values.get lane).c0) point,
     Phi81Relation.QuotientProduct.evaluate (fun lane => (values.get lane).c1) point⟩
 
-/-- `output - prior + Phi81(point) * quotient` at an evaluation node. -/
 def outputAt (output prior quotient : Vector K ringDegree) (point : F) : K :=
   let modulus := Phi81Relation.QuotientProduct.modulusValue point
   ⟨(Phi81Relation.QuotientProduct.evaluate (fun lane => (output.get lane).c0) point +
@@ -45,7 +36,6 @@ def outputAt (output prior quotient : Vector K ringDegree) (point : F) : K :=
       -1 * Phi81Relation.QuotientProduct.evaluate (fun lane => (prior.get lane).c1) point) +
       modulus * Phi81Relation.QuotientProduct.evaluate (fun lane => (quotient.get lane).c1) point⟩
 
-/-- The four carried port values of one product row from its state values. -/
 def rowValues (left right output prior quotient : Vector K ringDegree)
     (row : Fin 108) : Vector K Spec.ProductionRelation.matrixCount :=
   let point := Phi81Relation.QuotientProduct.node row
@@ -59,7 +49,6 @@ def rowValues (left right output prior quotient : Vector K ringDegree)
         | _ => ⟨0, 0⟩
     | none => ⟨0, 0⟩
 
-/-- Read each state coefficient once, then evaluate every row at its node. -/
 def invocation {columns : Nat}
     (basis : FixedArray (Vector K ringDegree) ringDegree)
     (blocks : Nat → Vector K ringDegree)
@@ -98,7 +87,6 @@ private theorem evaluateK_outputForm {columns : Nat}
     SparseForm.scale_eval, Phi81ProductPlan.evaluateForm_eval]
   rfl
 
-/-- One row's values from state values are the row's carried port evaluations. -/
 private theorem rowValues_eq {columns : Nat} (interface : Phi81ProductPlan.Interface columns)
     (read : Fin columns → K) (row : Fin 108) :
     rowValues (stateValues interface.left read) (stateValues interface.right read)
@@ -117,8 +105,6 @@ private theorem rowValues_eq {columns : Nat} (interface : Phi81ProductPlan.Inter
   | 3, _ => rfl
   | _ + 4, bounded => exact absurd bounded (by change ¬ _ < 4; omega)
 
-/-- Every row and port equals the existing direct product row under the original
-carried read. No cache, interface or row premise is used. -/
 theorem invocation_value {columns : Nat}
     (basis : FixedArray (Vector K ringDegree) ringDegree)
     (blocks : Nat → Vector K ringDegree)

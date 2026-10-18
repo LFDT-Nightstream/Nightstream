@@ -22,11 +22,8 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 def logicalColumnCount : Nat :=
   phaseOffset + RunningTransition.exactPrivateCount
 
-/-- Every running-transition constraint is one rank-one row, so the
-transition allocates no fresh column. -/
 def exactFreshCount : Nat := 0
 
-/-- The running transition ends after its logical and R1CS fresh columns. -/
 def physicalEnd : Nat := logicalColumnCount + exactFreshCount
 
 structure RunningMulFree {logicalWidth : Nat}
@@ -54,8 +51,6 @@ private theorem serializeKExpr_mulFree (value : KExpr)
   · exact linear.c0_mulCount
   · exact linear.c1_mulCount
 
-/-- Every hashed running word is affine: the fields are multiplication-free
-and each packed parent word is a constant-weighted sum of child inputs. -/
 private theorem serializeRunningExpr_affine {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -160,7 +155,6 @@ private theorem baseFlag_affine
   R1CS.IsAffine.add (R1CS.isAffine_const _)
     (R1CS.IsAffine.const_mul _ (R1CS.isAffine_var _))
 
-/-- The flag recipe and every assertion are one rank-one row. -/
 private theorem constraintFreshCount_eq_zero
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -191,7 +185,6 @@ private theorem constraintFreshCount_eq_zero
       (R1CS.IsAffine.add (R1CS.isAffine_var _)
         (R1CS.IsAffine.const_mul _ (R1CS.isAffine_var _)))
 
-/-- Structural lowering uses exactly the fresh columns declared by the footprint. -/
 theorem totalFreshCount_eq_exactFreshCount
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

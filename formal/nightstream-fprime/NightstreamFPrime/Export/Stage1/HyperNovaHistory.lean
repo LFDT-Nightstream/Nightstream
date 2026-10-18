@@ -6,9 +6,7 @@ import NightstreamFPrime.Export.Stage1.PerApplicationTerminal
 /-!
 Owns the selected deterministic reverse history from HyperNova Appendix H.3.
 The caller supplies the actual NIFS source results in reverse chronological
-order. The walk decodes each current fresh opening, constructs its exact
-predecessor from the supplied source value, and collects application advice.
-The final base step consumes no source result.
+order.
 
 Correctness requires the existing source-success event and absence of the
 existing state-hash collision at the steps actually visited. This is neither
@@ -41,24 +39,20 @@ abbrev Payload := ActualContextSecurity.TerminalPayload application
 private abbrev Accepted (statement : Statement) (proof : Envelope application) : Prop :=
   PerApplicationTerminal.Holds application fits setup statement proof
 
-/-- The existing arbitrary-assignment decoder applied to this fresh opening. -/
 def decodedInput (payload : Payload application) :=
   let assignment := ProductionRelation.Plan.logicalAssignment payload.freshWitness
   ActualStep.input application fits assignment
     (ActualStep.decodedFresh application assignment)
     (ActualPiDECMessages.proof application fits assignment)
 
-/-- The exact prior claims and local proof supplied to the source checker. -/
 def sourceInput (payload : Payload application) : PiCCSInputCheck.Input :=
   let input := decodedInput application fits payload
   HyperNovaInput.ofClaims (input.running functionIndex) input.fresh input.nifsProof
 
-/-- The prior public state advertised by the decoded local step. -/
 def predecessorStatement (payload : Payload application) : Statement :=
   let input := decodedInput application fits payload
   { iteration := input.iteration, z0 := input.z0, zi := input.zi }
 
-/-- Reconstruct the prior terminal opening from the actual source return. -/
 def predecessorPayload (payload : Payload application) (values : SourceValues application) : Payload application :=
   let input := decodedInput application fits payload
   { running := input.running
@@ -67,20 +61,16 @@ def predecessorPayload (payload : Payload application) (values : SourceValues ap
     freshWitness := HyperNovaSource.freshWitness application (sourceInput application fits payload) values
     pc := input.priorPc }
 
-/-- The existing state-hash collision at this visited terminal opening. -/
 def Collision (statement : Statement) (payload : Payload application) : Prop :=
   PiCCSSecurity.StateHashCollision
     (ActualContextSecurity.decodedNext application
       (ProductionRelation.Plan.logicalAssignment payload.freshWitness))
     (ActualContextSecurity.terminalPreimage application fits setup statement payload)
 
-/-- The selected source checker succeeds for the exact decoded prior input. -/
 def SourceSucceeded (payload : Payload application) (result : (SourceResult application)) : Prop :=
   CheckedWitnessExtraction.SourceReturned (PiCCSStoredWitnessCheck.commit application setup)
     productionGlobalParams (PiCCSStoredWitnessCheck.statement application fits (sourceInput application fits payload)) result
 
-/-- Explicit failures of the supplied reverse walk. A failed source check is
-represented by the actual `none` result supplied by its caller. -/
 inductive Failure where
   | unexpectedEnvelope
   | initialStateMismatch
@@ -116,13 +106,10 @@ private def walk (statement : Statement) (proof : Envelope application)
 termination_by results.length
 decreasing_by simp_wf
 
-/-- Recover forward-ordered advice from the actual returned source values.
-The remaining list contains exactly the values this walk did not consume. -/
 def run (statement : Statement) (proof : Envelope application) (results : List (SourceResult application)) :
     Except Failure (List AppWitness × List (SourceResult application)) :=
   walk application fits statement proof results []
 
-/-- Every witness that the walk adds is a decoded circuit witness. -/
 private theorem walk_witness_length (statement : Statement) (proof : Envelope application)
     (results : List (SourceResult application)) (suffix : List AppWitness)
     (sized : ∀ witness ∈ suffix, witness.length = application.witnessWordCount)
@@ -161,7 +148,6 @@ decreasing_by
   rw [resultsEq]
   exact Nat.lt_succ_self _
 
-/-- Every witness that `run` returns has the circuit's witness length. -/
 theorem run_witness_length (statement : Statement) (proof : Envelope application)
     (results : List (SourceResult application)) {advice : List AppWitness}
     {unused : List (SourceResult application)}
@@ -169,9 +155,6 @@ theorem run_witness_length (statement : Statement) (proof : Envelope application
     ∀ witness ∈ advice, witness.length = application.witnessWordCount :=
   walk_witness_length application fits statement proof results [] (by simp) returned
 
-/-- Exact source-return success at every source read reached by `run`.
-The base branch and paths that stop before a source read add no source event.
-An absent required list entry fails this condition. -/
 def SuccessfulSources (statement : Statement) (proof : Envelope application)
     (results : List (SourceResult application)) : Prop :=
   match proof with
@@ -195,9 +178,6 @@ def SuccessfulSources (statement : Statement) (proof : Envelope application)
 termination_by results.length
 decreasing_by simp_wf
 
-/-- No existing state-hash collision occurs at any decoded recursive payload
-visited by the walk. This is a condition on this supplied finite history,
-not a global collision-resistance axiom. -/
 def NoStateHashCollisions (statement : Statement) (proof : Envelope application)
     (results : List (SourceResult application)) : Prop :=
   match proof with
@@ -235,8 +215,6 @@ private theorem source_none (payload : Payload application) : ¬ SourceSucceeded
   rintro ⟨values, impossible, _⟩
   cases impossible
 
-/-- Accepted application fits setup terminal membership without the existing state-hash collision
-identifies the decoded predecessor counter with the public successor counter. -/
 theorem counter_matches (statement : Statement) (payload : Payload application)
     (accepted : PerApplicationTerminal.Holds application fits setup
       statement (.recursive payload))
@@ -251,9 +229,6 @@ theorem counter_matches (statement : Statement) (payload : Payload application)
     exact counter
   · exact False.elim (safe collision)
 
-/-- A checked source return reconstructs the accepted predecessor of a non-base
-terminal opening when the existing current state-hash collision does not occur.
-The initial state and application transition are preserved exactly. -/
 theorem predecessor_accepted (statement : Statement) (payload : Payload application)
     (values : SourceValues application) (positive : 0 < (decodedInput application fits payload).iteration)
     (accepted : PerApplicationTerminal.Holds application fits setup
@@ -373,11 +348,6 @@ decreasing_by
   rw [resultsEq]
   exact Nat.lt_succ_self _
 
-/-- Every successful supplied source return, together with absence of the
-encountered state-hash collisions, yields exactly the advertised number of
-application witnesses. Executing them in forward order reaches the public
-terminal state. No existence or efficiency assumption about an extractor is
-added; the source results are the explicit inputs consumed by `run`. -/
 theorem run_correct (statement : Statement) (proof : Envelope application) (results : List (SourceResult application))
     (accepted : PerApplicationTerminal.Holds application fits setup statement proof)
     (sources : SuccessfulSources application fits setup statement proof results)

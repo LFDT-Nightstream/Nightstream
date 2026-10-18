@@ -8,7 +8,7 @@ use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat, SparsePoly, Term};
 use neo_math::{KExtensions, D, F, K};
 use neo_params::NeoParams;
-use neo_reductions::api::{dec_children_with_commit, rlc_with_commit, FoldingMode};
+use neo_reductions::api::{dec_children_with_commit, rlc_with_commit, DecOutcome, FoldingMode};
 use neo_reductions::engines::crosscheck_engine::{crosscheck_prove, crosscheck_verify};
 use neo_reductions::engines::paper_exact_engine::paper_joint::PaperJointOracle;
 use neo_reductions::engines::pi_ccs_joint::{
@@ -20,7 +20,7 @@ use neo_reductions::optimized_engine::canonical_audit::OptimizedPaperJointOracle
 use neo_reductions::optimized_engine::{optimized_verify_with_trace, OptimizedStructureCache, PaperJointRoundOracle};
 use neo_reductions::sumcheck::RoundOracle;
 use neo_reductions::superneo_eval::{CachedMatrixRows, MatrixWindow};
-use neo_reductions::{split_b_matrix_k, verify_and_export_pi_ccs_receipt, PiCcsError, PiCcsProof};
+use neo_reductions::{split_b_matrix_k, PiCcsError, PiCcsProof};
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 use rand_chacha::rand_core::SeedableRng;
@@ -55,8 +55,6 @@ fn rectangular_ccs(rows: usize, columns: usize) -> CcsStructure<F> {
     .expect("valid rectangular CCS")
 }
 
-/// The selected Nightstream profile, with its statistical target set to the
-/// census of this shape, as the lifecycle does. PaperExact requires its rank.
 fn selected_parameters(structure: &CcsStructure<F>) -> NeoParams {
     let mut params = NeoParams::nightstream_goldilocks_k16();
     let summary = params
@@ -113,9 +111,6 @@ fn source(log: &AjtaiSModule, columns: usize, seed: usize) -> (Claim, CcsWitness
     for (column, &value) in values.iter().enumerate() {
         Z[(column % D, column / D)] = value;
     }
-    // The digest-only transcript decodes the prior digest from the marker-offset
-    // bit cells of the first fresh public input; this ring sets four of them.
-    // Smaller oracle-only fixtures keep an empty public prefix.
     (
         CcsClaim {
             adv: None,
@@ -123,14 +118,10 @@ fn source(log: &AjtaiSModule, columns: usize, seed: usize) -> (Claim, CcsWitness
             x: values[..m_in].to_vec(),
             m_in,
         },
-        CcsWitness {
-            w: values[m_in..].to_vec(),
-            Z,
-        },
+        CcsWitness { Z },
     )
 }
 
-/// PiCCS through the public engine that serves `mode`.
 #[allow(clippy::too_many_arguments)]
 fn mode_prove(
     mode: FoldingMode,
@@ -499,11 +490,6 @@ fn v1_2_transcript_matches_the_independent_reference() {
     .expect("v1_2 transcript crosscheck verify"));
 }
 
-/// Both engines absorb the Lean `decodeHash` of the first fresh public input
-/// as the prior digest. The input is `encHash(d)`, built by the encoder for four
-/// distinct words. The first two are complements, so every bit position is set
-/// in one word and clear in another. The crosscheck proves that the optimized
-/// and PaperExact traces agree. Running frames are not read.
 #[test]
 fn prior_digest_comes_from_the_fresh_public_input() {
     let public = 5 * D;
@@ -537,10 +523,7 @@ fn prior_digest_comes_from_the_fresh_public_input() {
         x: values[..public].to_vec(),
         m_in: public,
     };
-    let witness = CcsWitness {
-        w: values[public..].to_vec(),
-        Z,
-    };
+    let witness = CcsWitness { Z };
     let (running, running_witnesses) = zero_running::zero_running(&params, &structure, 1, public);
     let label = b"pi-ccs/v1_2/prior-digest";
     let (outputs, proof) = crosscheck_prove(
@@ -590,106 +573,6 @@ fn prior_digest_comes_from_the_fresh_public_input() {
 }
 
 #[test]
-fn accepting_v1_2_path_exports_receipt_and_rejects_mutations() {
-    let columns = D + 1;
-    let structure = rectangular_ccs(D / 2, columns);
-    let params = selected_parameters(&structure);
-    let log = committer(&params, columns);
-    let cache = OptimizedStructureCache::build(&structure).expect("structure cache");
-    let (claim, witness) = source(&log, columns, 12);
-    let (running, running_witnesses) = zero_running::zero_running(&params, &structure, 1, claim.m_in);
-    let label = b"padded-row/execution-receipt";
-    let (outputs, proof, _, _) = neo_reductions::optimized_engine::optimized_prove_with_cache_and_precompute_and_perf(
-        &mut Poseidon2Transcript::new(label),
-        &params,
-        &structure,
-        std::slice::from_ref(&claim),
-        std::slice::from_ref(&witness),
-        &running,
-        &running_witnesses,
-        &log,
-        &cache,
-    )
-    .expect("v1_2 production proof");
-
-    let receipt = verify_and_export_pi_ccs_receipt(
-        &mut Poseidon2Transcript::new(label),
-        &params,
-        &structure,
-        std::slice::from_ref(&claim),
-        &running,
-        &outputs,
-        &proof,
-        &cache,
-    )
-    .expect("accepted v1_2 execution receipt");
-    assert_eq!(receipt.proof.proof_bytes, proof.canonical_bytes().unwrap());
-    assert_eq!(receipt.proof.output_eval_k.len(), outputs.len() * D);
-    assert_eq!(receipt.proof.output_eval_a.len(), outputs.len() * structure.t() * D);
-    assert_eq!(receipt.statement.relation_id.len(), 4);
-    assert_eq!(
-        receipt.statement.transcript_absorptions[0],
-        vec![
-            8_247_343_761_427_229_006,
-            7_309_471_195_360_747_877,
-            7_813_576_232_429_506_162,
-            846_606_180,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-        ],
-        "first absorb is the packed `Nightstream/SuperNeo/fold/v2` chunk"
-    );
-
-    let mut changed_proof = proof.clone();
-    changed_proof.sumcheck_rounds[0][0] += K::ONE;
-    assert!(verify_and_export_pi_ccs_receipt(
-        &mut Poseidon2Transcript::new(label),
-        &params,
-        &structure,
-        std::slice::from_ref(&claim),
-        &running,
-        &outputs,
-        &changed_proof,
-        &cache,
-    )
-    .is_err());
-
-    let mut changed_output = outputs.clone();
-    changed_output[0].eval_k[0] += K::ONE;
-    assert!(verify_and_export_pi_ccs_receipt(
-        &mut Poseidon2Transcript::new(label),
-        &params,
-        &structure,
-        std::slice::from_ref(&claim),
-        &running,
-        &changed_output,
-        &proof,
-        &cache,
-    )
-    .is_err());
-
-    let mut changed_claim = claim.clone();
-    changed_claim.c.data[0] += F::ONE;
-    assert!(verify_and_export_pi_ccs_receipt(
-        &mut Poseidon2Transcript::new(label),
-        &params,
-        &structure,
-        std::slice::from_ref(&changed_claim),
-        &running,
-        &outputs,
-        &proof,
-        &cache,
-    )
-    .is_err());
-}
-
-#[test]
 fn public_crosscheck_covers_v1_2_rlc_and_dec() {
     let columns = D + 1;
     let structure = rectangular_ccs(D / 2, columns);
@@ -735,7 +618,12 @@ fn public_crosscheck_covers_v1_2_rlc_and_dec() {
         .iter()
         .map(|child| log.commit(child))
         .collect();
-    let (children, y_valid, x_valid, commitment_valid) = dec_children_with_commit(
+    let DecOutcome {
+        children,
+        ok_y: y_valid,
+        ok_x: x_valid,
+        ok_c: commitment_valid,
+    } = dec_children_with_commit(
         mode,
         &structure,
         &params,
@@ -867,7 +755,12 @@ fn crosscheck_rejects_a_noncanonical_dec_split_that_recomposes() {
     split[1][coordinate] = first;
     let child_commitments: Vec<_> = split.iter().map(|child| log.commit(child)).collect();
 
-    let (_, y_valid, x_valid, commitment_valid) = dec_children_with_commit(
+    let DecOutcome {
+        ok_y: y_valid,
+        ok_x: x_valid,
+        ok_c: commitment_valid,
+        ..
+    } = dec_children_with_commit(
         mode,
         &structure,
         &params,

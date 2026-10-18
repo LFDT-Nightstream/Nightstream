@@ -18,8 +18,6 @@ def sourceEnv (program : Lifecycle.Stage1.Application.Program)
     (env : Env) : Env :=
   Spartan.pullback (Lowering.basePullback program env)
 
-/-- The one compact-to-physical environment map. Branch endpoints are the
-proved adjacent logical child offsets. -/
 def compactEnv (program : Lifecycle.Stage1.Application.Program)
     (env : Env) : Env := fun column =>
   if column < AssemblerInputs.rootOffset program then

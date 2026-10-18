@@ -4,9 +4,7 @@ import Init.Data.Vector.Lemmas
 import Init.Data.Vector.OfFn
 
 /-!
-Stored signed-binary PiDEC splitting. The existing assignment vector stores
-all sixteen children, including zero children and the complete carrier tail.
-The returned coordinates are proved equal to the existing scalar split.
+Stored signed-binary PiDEC splitting.
 -/
 
 set_option autoImplicit false
@@ -30,8 +28,6 @@ private theorem bounded_iff {width : Nat} (parent : StoredAssignment width) :
   · intro checked column live
     simpa [Vector.get] using checked ⟨column, live⟩
 
-/-- Reject an out-of-bound parent before constructing any short witness.
-All 16 children are stored, including zero children. -/
 def splitChecked {width : Nat} (parent : StoredAssignment width) :
     Option (Vector (StoredAssignment width) productionGlobalParams.k) :=
   if bounded parent then
@@ -39,9 +35,6 @@ def splitChecked {width : Nat} (parent : StoredAssignment width) :
       parent.map (fun value => Radix.boundedDigit value child))
   else none
 
-/-- Successful computation establishes the bound and identifies the exact
-stored result. Neither a supplied digit witness nor an equality test selects
-the computed digits. -/
 theorem splitChecked_eq_some_iff {width : Nat}
     (parent : StoredAssignment width)
     (children : Vector (StoredAssignment width) productionGlobalParams.k) :
@@ -55,8 +48,6 @@ theorem splitChecked_eq_some_iff {width : Nat}
   · have parentUnbounded := mt (bounded_iff parent).mpr checked
     simp [splitChecked, checked, parentUnbounded]
 
-/-- Every returned private coefficient is the existing semantic scalar
-split. The same statement applies to a ring block or the complete carrier. -/
 theorem splitChecked_value {width : Nat}
     (parent : StoredAssignment width)
     (children : Vector (StoredAssignment width) productionGlobalParams.k)
@@ -70,8 +61,6 @@ theorem splitChecked_value {width : Nat}
   rw [Radix.splitScalar, if_pos (parentBound column)]
   rfl
 
-/-- At the complete typed width, these are precisely the honest private
-assignments consumed by PiDEC.childrenOf and PiDEC.complete. -/
 theorem splitChecked_assignment {shape : Shape}
     (parent : StoredAssignment shape.carrierWidth)
     (children : Vector (StoredAssignment shape.carrierWidth) productionGlobalParams.k)
@@ -82,8 +71,6 @@ theorem splitChecked_assignment {shape : Shape}
   funext column
   exact splitChecked_value parent children success child column
 
-/-- The kernel returns the existing scalar split for exactly the bounded
-inputs. A bounded parent cannot abort. -/
 theorem kernel_eq_spec {width : Nat} (parent : StoredAssignment width) :
     splitChecked parent =
       if ∀ column, centeredMagnitude (parent.get column) < Radix.combinedBound then

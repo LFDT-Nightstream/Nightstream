@@ -22,7 +22,6 @@ open NightstreamFPrime.Spec.Folding
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
 
-/-- Retain the exact PiCCS output values used by the matching PiRLC fixture. -/
 def fixtureFromComputed (computed : PiCCSNonzero.Computed)
     (batch : PiDECNonzero.Batch) : PiDECNonzero.Fixture :=
   let evaluation := PiRLCParity.combinedEvaluationFromComputed computed batch.challenges
@@ -88,9 +87,6 @@ def childPublicInputsValue (fixture : PiDECNonzero.Fixture) : Value :=
   .array ((List.finRange productionGlobalParams.k).map fun child =>
     publicInputValue (PiDECNonzero.childPublicInput fixture child))
 
-/-- Input order after the PiRLC parent: 16 commitments, 16 `Eval_K`
-families, 16 separate 4-matrix `Eval_A` families, then 16 public digit
-vectors. This is the exact `PiDECInputs` physical segment order. -/
 def inputValue (fixture : PiDECNonzero.Fixture)
     (packageIdentity : VerifierContext.Digest4) : Value :=
   .array [parentValue fixture,

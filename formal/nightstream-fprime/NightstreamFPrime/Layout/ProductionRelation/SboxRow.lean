@@ -16,7 +16,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
-/-- The two live sparse forms of one seventh-power row. -/
 structure Forms (logicalWidth : Nat) where
   input : SparseForm logicalWidth
   output : SparseForm logicalWidth
@@ -61,7 +60,6 @@ def residual {logicalWidth : Nat} (forms : Forms logicalWidth)
   evaluatePolynomial baseOps Spec.ProductionRelation.polynomial
     (forms.portImages assignment)
 
-/-- The complete 3-term gate reduces to the S-box residual. -/
 theorem residual_eq {logicalWidth : Nat} (forms : Forms logicalWidth)
     (assignment : Assignment F logicalWidth) :
     forms.residual assignment =
@@ -72,13 +70,11 @@ theorem residual_eq {logicalWidth : Nat} (forms : Forms logicalWidth)
   rw [portImages_eq_sbox]
   exact Spec.ProductionRelation.RowSemantics.evaluate_sbox _ _
 
-/-- Exact source-value preservation premise for one collapsed S-box trace. -/
 def Preserves {logicalWidth : Nat} (forms : Forms logicalWidth)
     (assignment : Assignment F logicalWidth) (input output : F) : Prop :=
   forms.input.eval assignment = input ∧
     forms.output.eval assignment = output
 
-/-- A preserving S-box row vanishes exactly for the seventh-power equation. -/
 theorem residual_zero_iff {logicalWidth : Nat} (forms : Forms logicalWidth)
     (assignment : Assignment F logicalWidth) (input output : F)
     (preserves : forms.Preserves assignment input output) :

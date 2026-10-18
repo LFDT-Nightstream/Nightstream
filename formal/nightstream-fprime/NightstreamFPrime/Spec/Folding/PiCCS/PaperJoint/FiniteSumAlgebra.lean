@@ -1,8 +1,5 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanHypercubeSum
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/FiniteSumAlgebra.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Algebraic laws for explicit finite sums used by `Pi_CCS` compression.
 
@@ -18,18 +15,6 @@ Does not own: any protocol index family, gamma exponents, Boolean selectors,
 residual formulas, SumCheck, Rust, R1CS, or constraint counts.
 
 Emits constraints: no.
-
-Authority boundary: index lists and value functions are explicit. These
-lemmas rearrange an existing finite computation under stated algebraic laws;
-they do not invent or omit indices.
-
-| Stage path | Mathematical obligation | Authority class | Lean owner |
-|---|---|---|---|
-| `pi_ccs.algebra.sum.map` | right-associated sum over an explicit index list | computed | `sumMap` |
-| `pi_ccs.algebra.sum.congr` | pointwise equality preserves the sum | derived | `sumMap_congr` |
-| `pi_ccs.algebra.sum.linear` | zero/add/neg/sub and left scaling commute with sum | derived | `sumMap_zero`, `sumMap_add`, `sumMap_neg`, `sumMap_sub`, `sumMap_mul_left` |
-| `pi_ccs.algebra.sub.zero` | `left - right = 0` exactly when `left = right` | derived | `sub_eq_zero_iff` |
-| `pi_ccs.algebra.sum.product` | finite product sums may swap traversal order | derived | `sumMap_swap` |
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FiniteSumAlgebra
@@ -38,7 +23,6 @@ universe uField uIndex uLeft uRight
 
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-/-- Right-associated finite sum over a caller-independent index list. -/
 def sumMap
     {Field : Type uField}
     {Index : Type uIndex}
@@ -86,7 +70,6 @@ theorem mul_sub
   unfold InterpolationOps.sub
   rw [laws.left_distrib, mul_neg ops laws]
 
-/-- Subtraction vanishes exactly when its two explicit operands agree. -/
 theorem sub_eq_zero_iff
     {Field : Type uField}
     (ops : InterpolationOps Field)

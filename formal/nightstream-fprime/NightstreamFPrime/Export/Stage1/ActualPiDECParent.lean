@@ -5,8 +5,7 @@ import Mathlib.Algebra.BigOperators.Fin
 
 /-!
 Owns the exact PiDEC parent from arbitrary accepted selected rows and actual
-public input. Every field is the verifier combination of the decoded PiCCS
-outputs and exact sampler challenges. Child-message decoding is a separate owner.
+public input. Child-message decoding is a separate owner.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.ActualPiDECParent
@@ -517,7 +516,6 @@ private theorem instance_eq_of_fields
   cases stage
   rfl
 
-/-- Every typed parent field is the exact 17-source combination. -/
 theorem rowsZero_implies_combinedParent
     (relation : ProductionKey.LogicalRelation relationLogicalWidth relationPublicFits)
     (ajtai : AjtaiKey (logicalWidth := relationLogicalWidth) (publicFits := relationPublicFits))
@@ -554,8 +552,6 @@ private theorem keyParent_eq_of_piCcsFields
   cases output
   rfl
 
-/-- The actual parent equals the NIFS parent for the exact decoded PiCCS
-fields and retained challenge vector. PiDEC messages do not enter this calculation. -/
 theorem selectedRowsAndPublic_imply_parentForChallenges
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
@@ -621,8 +617,6 @@ theorem selectedRowsAndPublic_imply_parentForChallenges
   exact canonicalParent.trans (keyParent_eq_of_piCcsFields relation ajtai _ _ canonical _
     (ActualPiRLCSampling.challenge samplerGeometry assignment) rfl rfl)
 
-/-- Selected acceptance makes the verifier's optional parent exactly the
-actual decoded parent, including successful verifier-owned challenge sampling. -/
 theorem selectedRowsAndPublic_imply_parent
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)

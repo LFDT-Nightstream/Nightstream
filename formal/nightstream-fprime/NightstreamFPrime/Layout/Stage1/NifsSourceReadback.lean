@@ -49,9 +49,6 @@ private theorem agrees_below_pilot
       ((r.agrees index (Or.inl beforeR)).trans
         ((c.agrees index (Or.inl beforeC)).trans (p.agrees index (Or.inl below)))))
 
-/-- The actual generated prefixes preserve every word of both canonical
-state-preimage intervals. This derives the bounded source agreement consumed
-by typed decoder readback; it adds no caller environment-equality premise. -/
 theorem words_of_prefixes
     (prior advertised : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits))
     (priorPublic : PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))

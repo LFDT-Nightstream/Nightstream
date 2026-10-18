@@ -12,8 +12,6 @@ namespace NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 
-/-- Exact child row bridges compose through the same ordered append used by
-the canonical production plan. -/
 theorem Program.append_plan_row?
     {logicalWidth : Nat}
     (leftProgram rightProgram : Program)

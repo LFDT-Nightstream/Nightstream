@@ -35,7 +35,6 @@ abbrev compile :=
 
 end Logical
 
-/-- Stable physical wire shape for one equality coordinate. -/
 structure CoordinateLinear (coordinate : Logical.CoordinateExpr) : Prop where
   left : KExprLinear coordinate.left
   right : KExprLinear coordinate.right

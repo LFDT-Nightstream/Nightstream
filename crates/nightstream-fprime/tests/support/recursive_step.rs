@@ -1,5 +1,4 @@
 //! Bind the recursive caller packet to the checked prior proof and children.
-//! The complete independent row evaluator runs after these input checks.
 
 use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};

@@ -12,7 +12,6 @@ open NightstreamFPrime.Export
 private def check (ok : Bool) (message : String) : IO Unit :=
   unless ok do throw (IO.userError message)
 
-/-- Lines without terminators and their byte offsets; no line after a final terminator. -/
 private def sequentialLines (text : String) : Array (Nat × String) := Id.run do
   let pieces := text.splitOn "\n"
   let pieces := if pieces.getLast? == some "" then pieces.dropLast else pieces
@@ -35,7 +34,6 @@ private def splitting : IO Unit := do
   | .error _ => pure ()
   | .ok _ => throw (IO.userError "invalid UTF-8 was accepted")
 
-/-- The source loader accepts a valid file and rejects broken framing. -/
 private def sourceFraming : IO Unit := IO.FS.withTempDir fun directory => do
   let header := "[1,54,17,3]\n"
   let valid := header ++ "[0,[[0,1,2]]]\n[2,[[3,4,0]]]\n[]\n"

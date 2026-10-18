@@ -1,5 +1,3 @@
-"""Check parent range decoding and zero-input arithmetic, not a producer trace."""
-
 import json
 from pathlib import Path
 import subprocess
@@ -7,7 +5,6 @@ import sys
 from threading import Thread
 
 
-# The selected setup and field; these are existing production dimensions.
 BLOCKS = 814_144
 MODULUS = 2**64 - 2**32 + 1
 LANES = 54
@@ -91,7 +88,6 @@ def reject_batch(binary, ccs, directory, name, arguments, outputs, error):
 
 
 def accept_batch(binary, ccs, directory, parent, first_output, second_output):
-    # Two complete Poseidon ranges overlap but have different identities/paths.
     requested = {str(first_output): (0, 150), str(second_output): (0, 300)}
     reference_path = directory / "complete_zero_ranges.output.json"
     reference = check_zero_output(reference_path, 0, 150)
@@ -118,7 +114,6 @@ def accept_batch(binary, ccs, directory, parent, first_output, second_output):
                         assert output in requested, "completed an unrequested output"
                         assert output not in completed, "duplicate range completion"
                         first, last = requested[output]
-                        # Read all coefficients when completion is observed, not just at exit.
                         values = check_zero_output(Path(output), first, last, reference[4])
                         expected = reference.copy()
                         expected[2:4] = [first, last]
@@ -255,7 +250,6 @@ def check_inactive_shared_ranges(binary, ccs, directory):
     parent = directory / "shared.zero.jsonl"
     with parent.open("x") as output:
         output.write(stream())
-    # All row families share slices; include a nonzero Poseidon invocation offset.
     requests = [(4, 0, 1), (4, 1, 2), (10, 0, 108), (0, 0, 150), (0, 150, 300)]
     for mode, selected in (("single", requests[:1]), ("batch", requests)):
         outputs = [directory / f"shared.{mode}.{index}.json" for index in range(len(selected))]

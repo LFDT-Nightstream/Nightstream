@@ -17,14 +17,12 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
 namespace Plan
 
-/-- Exact live-row acceptance predicate for any production plan. -/
 def RowsZero {logicalWidth : Nat} (plan : ProductionRelation.Plan logicalWidth)
     (assignment : Assignment F logicalWidth) : Prop :=
   ∀ row : Fin plan.rowCount,
     evaluatePolynomial baseOps Spec.ProductionRelation.polynomial
       (plan.rowImage assignment (plan.rowLayout.toVertex row)) = 0
 
-/-- On a live row, `rowImage` is exactly the selected sparse-form evaluation. -/
 theorem rowImage_toVertex {logicalWidth : Nat}
     (plan : ProductionRelation.Plan logicalWidth)
     (assignment : Assignment F logicalWidth) (row : Fin plan.rowCount) :
@@ -82,7 +80,6 @@ theorem rightIndex_of_splitIndex_eq (leftCount rightCount : Nat)
     simp only [rightIndex_val]
     omega
 
-/-- Canonical ordered concatenation of two plan row families. -/
 def append {logicalWidth : Nat}
     (left right : ProductionRelation.Plan logicalWidth)
     (rowCount_le : left.rowCount + right.rowCount ≤
@@ -183,7 +180,6 @@ theorem append_residual_right {logicalWidth : Nat}
   funext port
   rw [append_portForm_right]
 
-/-- Appended live rows vanish exactly when both child plans vanish. -/
 theorem append_rowsZero_iff {logicalWidth : Nat}
     (left right : ProductionRelation.Plan logicalWidth)
     (rowCount_le : left.rowCount + right.rowCount ≤
@@ -231,7 +227,6 @@ theorem append_rowsZero_iff {logicalWidth : Nat}
         rw [append_residual_right]
         exact rightZero rightRow
 
-/-- Invocation-major fixed-size plan. -/
 def indexed {logicalWidth blockCount rowCount : Nat}
     (forms : Fin blockCount → Fin rowCount →
       Fin Spec.ProductionRelation.meaningfulPortCount → SparseForm logicalWidth)

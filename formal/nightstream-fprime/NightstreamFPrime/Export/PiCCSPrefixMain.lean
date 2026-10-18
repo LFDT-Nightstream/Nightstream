@@ -57,8 +57,6 @@ private structure Trace where
   challenges : List K
   rounds : List (Vector K 9)
 
-/-- Replay saved Lean rounds causally from the original public statement.
-Every trace field is checked; a supplied state or challenge is never trusted. -/
 private def readTrace (publicPath : System.FilePath) (roundPaths : List String) :
     IO Trace := do
   let input ← checked (PiCCSPublicReplay.parse (← IO.FS.readFile publicPath))
@@ -161,7 +159,6 @@ private def writeCodes (publicPath sourceInput roundZero roundOne directory : Sy
     ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
   return 0
 
-/-- Canonical little-endian field words for the full-value comparison. -/
 private def fieldBytes (values : Array K) : ByteArray := Id.run do
   let mut result := ByteArray.empty
   for value in values do
@@ -171,8 +168,6 @@ private def fieldBytes (values : Array K) : ByteArray := Id.run do
   return result
 
 
-/-- The old scalar fold is evaluated on every possible signed four-scalar
-input. This reference table does not use the new paired-table constructor. -/
 private def referenceWords (firstChallenge secondChallenge : K) : Vector ByteArray 81 :=
   Vector.ofFn fun code =>
     let digit := fun index : Nat =>
@@ -182,8 +177,6 @@ private def referenceWords (firstChallenge secondChallenge : K) : Vector ByteArr
     fieldBytes (PrefixFold.foldOne extensionOps
       (PrefixFold.foldOne extensionOps original firstChallenge) secondChallenge)
 
-/-- Independently classify the existing scalar decoder's result. Its only
-possible results are zero, one and minus one, by its definition. -/
 private def scalarIndex (value : F) : Fin 3 :=
   if value.val == 0 then ⟨1, by decide⟩
   else if value.val == 1 then ⟨2, by decide⟩ else ⟨0, by decide⟩
@@ -214,9 +207,6 @@ private def readMetadata (directory : System.FilePath) (trace : Trace)
   unless entries.size == productionShape.sourceCount + 1 do
     throw (IO.userError "norm code directory has missing or extra files")
 
-/-- Check every stored code and every decoded field byte against the original
-scalar reader and two existing folds. Chunks start at absolute four-scalar
-boundaries; no scalar is lost where a 54-lane source block ends. -/
 private def checkCodes (publicPath sourceInput roundZero roundOne directory : System.FilePath)
     (first finish chunkSize : Nat) (direct : Bool := false) : IO UInt32 := do
   validateRange first finish chunkSize
@@ -284,9 +274,6 @@ private def checkCodes (publicPath sourceInput roundZero roundOne directory : Sy
     ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
   return 0
 
-/-- Form the next inner norm cubic from the complete retained source files.
-Each source keeps its own cubic and gamma exponent. Pairing uses absolute
-indices; only the true missing final endpoint is zero. -/
 private def normAfterTwo (publicPath roundZero roundOne directory outputPath : System.FilePath)
     (first finish chunkPairs : Nat) (direct : Bool) : IO UInt32 := do
   let pairs := (groupCount + 1) / 2
@@ -581,8 +568,6 @@ private def advanceFirst (kind : Nat) (publicPath roundZero roundOne outputDirec
 private def normDirectory (directory : System.FilePath) (source : Nat) : System.FilePath :=
   directory / s!"source-{source}"
 
-/-- Decode the retained signed-source tables and use the existing fold once.
-Full chunks have an even number of inputs; only the true tail is odd. -/
 private def normFieldsAfterTwo
     (publicPath roundZero roundOne roundTwo directory outputDirectory : System.FilePath)
     (chunkPairs : Nat) : IO UInt32 := do
@@ -676,8 +661,6 @@ private def advanceNorm (publicPath directory outputDirectory : System.FilePath)
     ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
   return 0
 
-/-- Calculate each source cubic separately from complete canonical field files.
-All records are decoded even when a requested arithmetic slice is smaller. -/
 private def normFromPrefix (publicPath directory outputPath : System.FilePath)
     (first finish : Nat) (roundPaths : List String) : IO UInt32 := do
   unless !(← outputPath.pathExists) do throw (IO.userError "output already exists")

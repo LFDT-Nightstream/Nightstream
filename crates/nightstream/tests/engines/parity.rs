@@ -66,15 +66,10 @@ impl Fixture {
         let row_window = MatrixWindow::required_workspace(rows, 0..self.structure.n, row_payload).unwrap();
         let witnesses = (1 + self.running.witnesses.len()) * dims.assignment_width;
         let openings = self.params.k_rho() as usize * (self.structure.t() + 1) * D;
-        // The host and device may both hold row metadata. The remaining
-        // payload comes from this fixture's witnesses, child openings, and round.
         2 * row_window + (witnesses + openings + dims.degree + 1 + self.structure.t()) * size_of::<K>()
     }
 
     fn new(polynomial: SparsePoly<F>, matrices: Vec<Vec<Vec<(usize, F)>>>) -> Self {
-        // One public ring plus one private word gives a non-aligned logical
-        // width. The carried source also has a nonzero completion tail.
-        // The production decomposition and commitment parameters stay unchanged.
         let n = matrices[0].len();
         let rows = Rows { n, matrices };
         let structure = Structure::new_verifier_artifact_header(n, D + 1, rows.matrices.len(), polynomial).unwrap();
@@ -100,7 +95,6 @@ impl Fixture {
                 adv: None,
             },
             witness: CcsWitness {
-                w: vec![],
                 Z: Mat::compact_signed_unit_from_column_masks(D, 2, &[1, u64::from(n > 1)], &[0, 0]).unwrap(),
             },
         };
@@ -152,6 +146,7 @@ impl Fixture {
     }
 
     fn selected_polynomial() -> Self {
+        const C_PORT: usize = 2;
         static POLYNOMIAL: OnceLock<SparsePoly<F>> = OnceLock::new();
         let polynomial = POLYNOMIAL.get_or_init(|| {
             let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -163,23 +158,18 @@ impl Fixture {
                 .f
         });
         let count = polynomial.terms()[0].exps.len();
-        // Exercise the complete exported polynomial with nonzero input ports.
-        // Its C port (slot 2) is affine; solve that coordinate so the fresh row
-        // is valid.
-        assert!(polynomial.terms().iter().all(|term| term.exps[2] <= 1));
+        assert!(polynomial.terms().iter().all(|term| term.exps[C_PORT] <= 1));
         let mut matrices = vec![Vec::new(); count];
-        // Two distinct rows exercise interpolation across rows and two witness
-        // columns. This count comes from the requested multi-row parity case.
         for (row, column) in [D, 0].into_iter().enumerate() {
             let mut values: Vec<_> = (1..=count)
                 .map(|value| F::from_usize(value + row * count))
                 .collect();
-            values[2] = F::ZERO;
+            values[C_PORT] = F::ZERO;
             let constant = polynomial.eval(&values);
-            values[2] = F::ONE;
+            values[C_PORT] = F::ONE;
             let coefficient = polynomial.eval(&values) - constant;
             assert_ne!(coefficient, F::ZERO);
-            values[2] = -constant * coefficient.inverse();
+            values[C_PORT] = -constant * coefficient.inverse();
             assert_eq!(polynomial.eval(&values), F::ZERO);
             for (matrix, value) in matrices.iter_mut().zip(values) {
                 matrix.push(if value == F::ZERO {
@@ -272,7 +262,7 @@ fn run(engine: Engine, fixture: &Fixture) -> Result<Run, Box<dyn std::error::Err
         ajtai_rlc_mixer,
         ajtai_dec_mixer,
         &fixture.fresh.claim,
-        &fixture.running.claims_only(),
+        folding::BoundRunning::from_checked_prior(&fixture.running.claims_only()),
         &proof,
     )?;
     assert_eq!(checked.claims, running.claims);
@@ -286,7 +276,7 @@ fn run(engine: Engine, fixture: &Fixture) -> Result<Run, Box<dyn std::error::Err
         ajtai_rlc_mixer,
         ajtai_dec_mixer,
         &fixture.fresh.claim,
-        &fixture.running.claims_only(),
+        folding::BoundRunning::from_checked_prior(&fixture.running.claims_only()),
         &changed
     )
     .is_err());
@@ -368,8 +358,6 @@ fn crosscheck_rejects_changed_results() {
 #[test]
 fn crosscheck_rejects_different_rows_without_updating_the_transcript() {
     let mut fixture = Fixture::bit();
-    // Both x^2 - x relations accept this fresh bit, but their openings differ.
-    // Deliberately give the reference different rows from the optimized cache.
     fixture.rows.matrices[0][0].clear();
     fixture.running = RunningInstance::canonical_zero(&fixture.params, &fixture.structure, D).unwrap();
     let matrix_rows = CachedMatrixRows::new(&fixture.cache).unwrap();
@@ -393,7 +381,6 @@ fn crosscheck_rejects_different_rows_without_updating_the_transcript() {
 #[test]
 fn crosscheck_rejects_a_prover_error_without_updating_the_transcript() {
     let mut fixture = Fixture::bit();
-    // Only the reference loses its required matrix. The optimized cache is valid.
     fixture.rows.matrices.clear();
     let matrix_rows = CachedMatrixRows::new(&fixture.cache).unwrap();
     let workspace_bytes = fixture.workspace_bytes(&matrix_rows);

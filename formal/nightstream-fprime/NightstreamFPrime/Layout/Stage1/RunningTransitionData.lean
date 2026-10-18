@@ -16,10 +16,8 @@ open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
 
-/-- The completed PiDEC source-column endpoint. -/
 def phaseOffset : Nat := PiDECStarts.outputFreshStart
 
-/-- PiDEC inputs precede its logical and fresh allocations. -/
 theorem piDecPhaseOffset_le : PiDECInputs.phaseOffset ≤ phaseOffset := by
   dsimp only [phaseOffset, PiDECStarts.outputFreshStart,
     PiDECStarts.evalAFreshStart, PiDECStarts.evalKFreshStart,
@@ -37,7 +35,6 @@ theorem phaseOffset_matches_piDec
   rw [PilotPiCCSPiRLCPiDEC.physicalColumnCount_eq]
   rfl
 
-/-- Tail positions in the state block: `vk` at 27,806, then `i`, `z0`, `zi`. -/
 def iterationWordIndex : Nat := 27810
 
 def initialStateWordStart : Nat := 27811
@@ -54,7 +51,6 @@ def currentStateExpr (index : RunningTransition.StateIndex) : Expr :=
 
 def outputBase : Nat := PilotProduction.outputPreimageStart
 
-/-- Running word `index` of the output state block, in place. -/
 def outputWord (index : RunningTransition.WordIndex) : Expr :=
   Expr.var (outputBase + PiCCSInputs.priorRunningStart + index.val)
 
@@ -121,7 +117,6 @@ def recursiveRunningExpr
       (piDec.message PiDECInputs.phaseOffset
         (childOfRunning source)).evaluation }
 
-/-- The sole logical transition interface in cumulative Stage 1 source order. -/
 def interface
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤

@@ -39,8 +39,6 @@ variable {logicalWidth degreeBound : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- Exact syntax shape of one strict-`b = 2` residual or a residual plus a
-materialized Horner product. -/
 structure ResidualShape (value : KExpr) : Prop where
   c0_mulCount : R1CS.mulCount value.c0 = 10
   c1_mulCount : R1CS.mulCount value.c1 = 9
@@ -49,8 +47,6 @@ structure ResidualShape (value : KExpr) : Prop where
   c0_nonAffine : R1CS.lowerAffine value.c0 = none
   c1_nonAffine : R1CS.lowerAffine value.c1 = none
 
-/-- Stable physical wire shape for the verifier challenge and all source
-assignments. -/
 structure InputsLinear
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_2.NormTerminal.Interface)
@@ -86,8 +82,6 @@ theorem residualExpr_shape (value : KExpr) (linear : KExprLinear value) :
     change Expr.add _ _ = Expr.const constant at equality
     cases equality
 
-/-- The exact strict-base-2 residual uses no variable outside its source
-assignment's range. -/
 theorem residualExpr_varsBelow (value : KExpr) (bound : Nat)
     (below : value.VarsBelow bound) :
     (NightstreamFPrime.Lifecycle.PiCCS.v1_2.NormTerminal.residualExpr
@@ -104,8 +98,6 @@ theorem residualExpr_varsBelow (value : KExpr) (bound : Nat)
   unfold NightstreamFPrime.Lifecycle.PiCCS.v1_2.NormTerminal.residualExpr
   exact KExpr.mul_varsBelow _ _ bound firstProductBelow minusBelow
 
-/-- The owned norm result lies below the canonical final-identity child
-start. -/
 theorem output_varsBelow_finalIdentity
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
@@ -139,9 +131,6 @@ theorem output_varsBelow_finalIdentity
     rw [FormalCircuit.withConstantFootprint_main]
   rw [outputEq, boundEq]
   exact below
-
-/-! The norm residual operand is not affine, so its three product recipes use
-the general lowering. -/
 
 private theorem high_directConstraint_eq_none (output : Nat)
     (point right : KExpr) (pointLinear : KExprLinear point)
@@ -423,7 +412,6 @@ private theorem core_totalRowCount
     (coefficientExprs_shape interface offset inputs)]
   rw [NightstreamFPrime.Lifecycle.PiCCS.v1_2.NormTerminal.coefficientExprs_length]
 
-/-- Exact parent-facing physical footprint for strict base-2 `N`. -/
 def footprint
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
@@ -483,7 +471,6 @@ theorem physicalPrivateColumnCount_eq
         (Formal.normInterface relation interface) offset
   rw [logicalColumns, freshColumnCount_eq relation interface inputs offset]
 
-/-- Exact residual shape exported to the final identity. -/
 theorem output_shape
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth degreeBound publicFits)

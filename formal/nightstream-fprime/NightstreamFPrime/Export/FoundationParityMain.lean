@@ -32,12 +32,10 @@ private def emitSplit (path : System.FilePath) : IO Unit := do
   handle.putStrLn (Value.array [.atom goldilocksModulus,
     .atom productionGlobalParams.b, .atom productionGlobalParams.k,
     .atom combinedBound]).render
-  -- The complete strict-B domain, with zero once and both signs thereafter.
   for magnitude in [0:combinedBound] do
     let value := fieldOfNat magnitude
     writeSplit handle value
     if magnitude != 0 then writeSplit handle (-value)
-  -- First rejected magnitude, its neighbour, and both centered field extremes.
   for magnitude in [combinedBound, combinedBound + 1, goldilocksModulus / 2] do
     let value := fieldOfNat magnitude
     writeSplit handle value

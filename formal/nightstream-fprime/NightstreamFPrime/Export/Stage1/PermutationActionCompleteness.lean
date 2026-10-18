@@ -1,9 +1,8 @@
 import NightstreamFPrime.Export.Stage1.PermutationCompilerTransport
 
 /-!
-Owns the source-row projection from the existing Duplex action compiler to
-its compact permutation invocations. The action and block lists retain their
-existing compiler inputs, states, and witness starts.
+Owns the source-row projection from the existing Duplex action compiler to its
+compact permutation invocations.
 -/
 
 set_option autoImplicit false
@@ -62,9 +61,6 @@ private theorem compileBlocks_complete_of_sourceConstraints
           (permutationOutput witnessStart) (by omega)
           (permutationOutput_affine witnessStart) restAffine tailRows current member
 
-/-- The actual source recipe rows of a Duplex action list supply every
-compact permutation invocation in that same list. Reads run no permutation;
-no expected-value equality is assumed. -/
 theorem compileActions_complete_of_sourceConstraints
     (phase rowStart witnessStart : Nat) (state : EState)
     (actions : List Action) (env : Env)

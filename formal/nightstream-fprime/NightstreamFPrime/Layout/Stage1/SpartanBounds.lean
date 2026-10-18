@@ -11,8 +11,6 @@ namespace NightstreamFPrime.Layout.Stage1.Spartan
 
 open NightstreamFPrime.Layout
 
-/-- Remapping a bounded source combination keeps every term inside the exact
-Spartan column interval. -/
 theorem remapCombination_varsBelow (combination : R1CS.LinearCombination)
     (scope : combination.VarsBelow SourceColumnCount) :
     (remapCombination combination).VarsBelow spartanColumnCount := by
@@ -21,8 +19,6 @@ theorem remapCombination_varsBelow (combination : R1CS.LinearCombination)
   rcases member with ⟨source, sourceMember, rfl⟩
   exact sourceToSpartan_lt source.1 (scope source sourceMember)
 
-/-- Remapping a bounded source row keeps all three combinations inside the
-exact Spartan column interval. -/
 theorem remapRow_varsBelow (row : R1CS.Row)
     (scope : row.VarsBelow SourceColumnCount) :
     (remapRow row).VarsBelow spartanColumnCount := by
@@ -30,8 +26,6 @@ theorem remapRow_varsBelow (row : R1CS.Row)
     remapCombination_varsBelow row.b scope.2.1,
     remapCombination_varsBelow row.c scope.2.2⟩
 
-/-- Remapping a bounded source row list keeps every output row inside the
-exact Spartan column interval. -/
 theorem remapRows_varsBelow (rows : List R1CS.Row)
     (scope : ∀ row ∈ rows, row.VarsBelow SourceColumnCount) :
     ∀ row ∈ remapRows rows, row.VarsBelow spartanColumnCount := by
@@ -40,8 +34,6 @@ theorem remapRows_varsBelow (rows : List R1CS.Row)
   rcases member with ⟨source, sourceMember, rfl⟩
   exact remapRow_varsBelow source (scope source sourceMember)
 
-/-- A caller-selected source support transports exactly through the Spartan
-column permutation. -/
 theorem remapCombination_varsSatisfy (sourceTarget : Nat → Prop)
     (target : Nat → Prop) (combination : R1CS.LinearCombination)
     (scope : combination.VarsSatisfy sourceTarget)

@@ -2,8 +2,7 @@ import NightstreamFPrime.Export.Stage1.Invocations
 
 /-!
 Owns the structural last-output theorem for a nonempty Duplex invocation
-schedule. The proof follows action and absorb-block structure. It does not
-evaluate a concrete production action list.
+schedule. It does not evaluate a concrete production action list.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.InvocationLastOutput
@@ -55,7 +54,6 @@ theorem compileBlocks_state_last (phase rowStart witnessStart : Nat)
               simp only [List.length_cons]
               omega
 
-/-- A schedule without permutations leaves the incoming state unchanged. -/
 theorem compileActions_state_of_invocationCount_zero
     (phase rowStart witnessStart : Nat) (state : EState)
     (actions : List Formal.Action) (zero : invocationCount actions = 0) :

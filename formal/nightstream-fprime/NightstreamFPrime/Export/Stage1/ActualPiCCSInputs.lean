@@ -3,8 +3,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSDecodedPhase
 
 /-!
 Owns agreement between the typed PiCCS inputs and the actual prior hash.
-The running claim uses the existing state decoder. The fresh public input
-uses the pilot's shared forms. These connections add no rows or value premise.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.ActualPiCCSInputs
@@ -23,9 +21,6 @@ variable {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
   {relationPublicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth relationLogicalWidth}
 
-/-- PiCCS reads the complete running claim from the same prior preimage
-that the pilot hashes. The accepted state-binding rows supply the child
-split of each packed parent word. -/
 theorem evalRunning_eq_priorRunning
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -56,8 +51,6 @@ theorem evalRunning_eq_priorRunning
     omega
   exact ActualPreimageFraming.priorWord_eq geometry assignment ⟨word, stateBound⟩
 
-/-- Accepted selected rows check the prior child split in the decoded PiCCS
-environment. -/
 theorem selectedRowsZero_implies_priorSplit
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
@@ -80,7 +73,6 @@ theorem selectedRowsZero_implies_priorSplit
   (PiCCSDecodedPhase.selectedRowsZero_implies_specHolds application fits assignment
     one accepted).statementBinding.state.priorChildren
 
-/-- Accepted selected rows make the decoded prior running instance canonical. -/
 theorem selectedRowsZero_implies_priorCanonical
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
@@ -108,8 +100,6 @@ theorem selectedRowsZero_implies_priorCanonical
   rw [evalRunning_eq_priorRunning geometry assignment split] at canonical
   exact canonical
 
-/-- The typed fresh public input is the same public value as the prior hash
-slot. The parent shares these forms without a copy constraint. -/
 theorem evalFreshPublic_eq_priorPublic
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -127,8 +117,6 @@ theorem evalFreshPublic_eq_priorPublic
     ActualHashSlots.publicInput, PilotProduction.priorInterface, Expr.eval_var]
     using! (PilotDecodedEnvironment.priorPublic_agrees geometry assignment column).symm
 
-/-- The selected rows bind each PiCCS fresh public input to the hash of the
-same decoded prior state that supplies its running claim. -/
 theorem selectedRowsZero_implies_freshPublicHash
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
@@ -156,9 +144,6 @@ theorem selectedRowsZero_implies_freshPublicHash
   exact (ActualHashSlots.selectedRowsZero_implies_hashSlots
     application fits assignment one accepted).1
 
-/-- The actual public boundary and selected rows imply the phase and its
-shared hash observations. The public marker supplies the one cell. These
-facts retain one assignment and one decoded PiCCS environment throughout. -/
 theorem selectedRowsAndPublic_imply_phaseAndHashes
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)

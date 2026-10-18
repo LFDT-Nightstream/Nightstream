@@ -35,6 +35,5 @@ fn declared_domain_sets_the_joint_rows_and_must_hold_the_carrier() {
     pinned.validate().expect("valid pinned header");
     assert_eq!((pinned.n, pinned.domain_rows()), (4, 1 << 10));
 
-    // Eight columns pad to one 54-coordinate ring block, which exceeds 2^5.
     assert!(header.with_domain_variables(5).is_err());
 }

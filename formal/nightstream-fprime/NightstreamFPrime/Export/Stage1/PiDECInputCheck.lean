@@ -105,8 +105,6 @@ def accepted (values : ParentValues) (messages : Messages) : Bool :=
   if parentBounded values then paperAccepted values messages && outputMatches values messages
   else false
 
-/-- The concrete check implies the existing paper predicate at the selected
-key and exact parent. No opening or canonical-assignment premise is added. -/
 theorem accepted_implies_paper (values : ParentValues) (messages : Messages)
     (checked : accepted values messages = true) :
     PiDEC.PaperVerifier.Accepted
@@ -151,8 +149,6 @@ theorem child_publicInput (values : ParentValues) (messages : Messages) (child :
     (children values messages child).publicInput =
       PublicInput.splitPublicInput (parent values).publicInput child := rfl
 
-/-- The checked execution consumes the existing knowledge reduction. Valid
-openings of its actual children reconstruct an opening of its actual parent. -/
 theorem accepted_reduces_knowledge (values : ParentValues) (messages : Messages)
     (assignments : Fin 16 → PaperAlgebra.Assignment
       (logicalWidth := logicalWidth) (publicFits := publicFits))

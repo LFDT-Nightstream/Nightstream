@@ -2,10 +2,11 @@ import NightstreamFPrime.Export.Stage1.PiRLCParent
 import NightstreamFPrime.Export.Stage1.HyperNovaStepData
 import NightstreamFPrime.Export.Stage1.HyperNovaInput
 
-/-! Compose the actual checked C/R/D fields into the selected NIFS return.
-The full C output is absorbed before R sampling. D's checked public fields
-identify the returned running claim. Child openings and the next fresh
-assignment remain separate consumers of this exact result. -/
+/-!
+Compose the actual checked C/R/D fields into the selected NIFS return.
+Child openings and the next fresh assignment remain separate consumers of this
+exact result.
+-/
 
 set_option autoImplicit false
 
@@ -24,8 +25,6 @@ open Nifs.PaperNonInteractive
 private noncomputable abbrev selectedKey :=
   ProductionKey.key PiDECInputCheck.relation productionAjtaiKey
 
-/-- Use exactly the supplied C polynomials/full output and D message fields.
-The returned point and public inputs remain verifier-derived. -/
 def proof (input : PiCCSInputCheck.Input) (messages : PiDECInputCheck.Messages) :
     Lifecycle.Proof 8 where
   piCcsRounds := PiCCSProofInputs.roundPolynomial (PiCCSInputCheck.proofValues input)
@@ -222,9 +221,6 @@ private theorem output_eq (input : PiCCSInputCheck.Input)
     rfl
   · rfl
 
-/-- The actual C/R/D checker results imply the exact selected NIFS return.
-Sampling and D acceptance are checked computation outcomes. No wanted running
-claim, source-value equality, witness validity, or expected artifact is supplied. -/
 theorem checked_verifies (input : PiCCSInputCheck.Input)
     (batch : PiRLCParent.Batch) (parent : PiRLCParent.Values)
     (messages : PiDECInputCheck.Messages)
@@ -252,7 +248,6 @@ theorem checked_verifies (input : PiCCSInputCheck.Input)
       (proof input messages) (PiDECInputCheck.attempt parent messages) attempt accepted.parentBounded).trans
         (congrArg some (output_eq input parent messages checked))
 
-/-- Transport to the unchanged relation used by HyperNovaStepData. -/
 theorem checked_verifies_selected (input : PiCCSInputCheck.Input)
     (batch : PiRLCParent.Batch) (parent : PiRLCParent.Values)
     (messages : PiDECInputCheck.Messages)

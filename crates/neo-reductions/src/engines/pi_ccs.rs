@@ -1,9 +1,4 @@
 //! Π_CCS engine trait and implementations.
-//!
-//! This module defines the core trait for Π_CCS proving/verification engines
-//! and provides concrete implementations (optimized, paper-exact, cross-check).
-//!
-//! For the public API, see the facade module which delegates to these engines.
 
 #![allow(non_snake_case)]
 
@@ -15,13 +10,11 @@ use neo_transcript::Poseidon2Transcript;
 
 use crate::error::PiCcsError;
 
-// Re-export proof type from optimized_engine
 pub use super::optimized_engine::PiCcsProof;
 
 #[cfg(feature = "paper-exact")]
 pub use super::crosscheck_engine::CrossCheckEngine;
 
-/// A minimal trait implemented by each Π_CCS engine.
 pub trait PiCcsEngine {
     fn prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt> + Sync>(
         &self,
@@ -35,21 +28,6 @@ pub trait PiCcsEngine {
         log: &L,
     ) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof), PiCcsError>;
 
-    /// Check one reduction. Acceptance does not establish the full statement.
-    ///
-    /// # Caller contract
-    ///
-    /// The transcript absorbs the prior digest that the first fresh public
-    /// input encodes, not the running claims. The caller must authenticate
-    /// that this digest names the complete supplied running claims. Recompute
-    /// it from authoritative inputs or establish it through verifier-driven
-    /// proof replay that binds those claims. Comparing the digest to a trusted
-    /// value alone is insufficient.
-    ///
-    /// The caller must also fix the verifier context, including the CCS
-    /// structure, protocol parameters, and commitment key, independently of
-    /// the proof. The lifecycle enforces both obligations through its state
-    /// hash and verifier context.
     fn verify(
         &self,
         tr: &mut Poseidon2Transcript,
@@ -62,7 +40,6 @@ pub trait PiCcsEngine {
     ) -> Result<bool, PiCcsError>;
 }
 
-/// Engine backed by the optimized implementation.
 #[derive(Clone, Debug, Default, Copy)]
 pub struct OptimizedEngine;
 
@@ -95,7 +72,6 @@ impl PiCcsEngine for OptimizedEngine {
     }
 }
 
-/// Reference engine for correctness-only runs (paper exact).
 #[cfg(feature = "paper-exact")]
 #[derive(Clone, Debug, Default, Copy)]
 pub struct PaperExactEngine;
@@ -139,7 +115,6 @@ impl PiCcsEngine for PaperExactEngine {
     }
 }
 
-/// Cross-check engine trait implementation.
 #[cfg(feature = "paper-exact")]
 impl<I: PiCcsEngine, R: PiCcsEngine + Sync> PiCcsEngine for CrossCheckEngine<I, R> {
     fn prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt> + Sync>(

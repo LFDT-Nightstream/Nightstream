@@ -3,8 +3,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSCachedSelector
 import NightstreamFPrime.Export.Stage1.PiCCSAggregatedImages
 import NightstreamFPrime.Export.Stage1.PiCCSSourceImagesPreservation
 
-/-! Proof-only closure of the fresh numeric pair sum. Optional row failures
-are preserved and then discharged by the selected original-source theorem.
+/-! Proof-only closure of the fresh numeric pair sum.
 This does not verify the executable's IO task or invocation-cache loop. -/
 
 set_option autoImplicit false
@@ -36,8 +35,6 @@ private noncomputable abbrev message (input : PiCCSPublicReplay.Input)
     (vertex : BooleanVertex cubeVariables) :=
   ProtocolPolynomial.vertexMessage ((selectedStatement input).sourceProtocolData K.embed witness) vertex
 
-/-- The public input used by the fresh runner is the verifier projection
-of the same original-source protocol data. No key or matrix is unfolded. -/
 theorem verifierInput_eq_sourceProtocolData (input : PiCCSPublicReplay.Input)
     (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth) :
     PiCCSPublicReplay.verifierInput input =
@@ -51,7 +48,6 @@ private theorem selectedSource_value : selectedSource = canonicalSource := by
   exact PiDECCanonicalSourceCache.stored_value Poseidon2HashChainV1Package.application
     Poseidon2HashChainV1Package.fits row
 
-/-- The unchanged outer fresh gamma shift and degree widening in Main. -/
 def outerFresh (input : ProtocolPolynomial.VerifierInput K productionShape)
     (powers : Nat → K)
     (inner : FixedPolynomial K input.constraintPolynomial.canonicalEqualityGatedDegreeBound) :
@@ -59,8 +55,6 @@ def outerFresh (input : ProtocolPolynomial.VerifierInput K productionShape)
   FixedPolynomial.scale extensionOps.toOps (powers productionShape.constraintOffset)
     (FixedPolynomial.widen extensionOps.toOps (Nat.le_max_left _ _) inner)
 
-/-- The same numeric fresh endpoint operations as Main, before its degree-9
-cast. No failed row lookup is replaced with a polynomial value. -/
 def numericPairFresh? (input : PiCCSPublicReplay.Input)
     (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
     (layout : ColumnLayout cubeVariables PiCCSSourceImages.shape.carrierWidth)
@@ -84,8 +78,6 @@ def numericPairFresh? (input : PiCCSPublicReplay.Input)
   else some (FixedPolynomial.zero extensionOps.toOps
     (PiCCSPublicReplay.verifierInput input).sumcheckDegreeBound)
 
-/-- The original-source reference fresh term over the full numeric domain.
-Only the existing public input and sourceProtocolData endpoint messages occur. -/
 noncomputable def referencePair (input : PiCCSPublicReplay.Input)
     (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
     (powers : Nat → K) (alpha : CubePoint K cubeVariables) (index : Nat) :
@@ -161,8 +153,6 @@ private theorem reference_fresh_congr
   unfold PiCCSFirstRoundPair.ccsPolynomialWithPowers
   rw [lowFields, highFields]
 
-/-- Selected source semantics discharge both loads and identify every fresh
-field. This theorem applies to arbitrary original complete assignments. -/
 theorem numericPairFresh?_value (input : PiCCSPublicReplay.Input)
     (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
     (layout : ColumnLayout cubeVariables PiCCSSourceImages.shape.carrierWidth)
@@ -199,8 +189,6 @@ theorem numericPairFresh?_value (input : PiCCSPublicReplay.Input)
     exact reference_fresh_congr _ powers _ _ _ _ _ lowFields highFields
   · simp only [numericPairFresh?, referencePair, dif_neg inside]
 
-/-- The same coefficient addition loop with Option failure retained.
-The first argument is an absolute pair index, as in each worker range. -/
 def freshRange? (input : PiCCSPublicReplay.Input)
     (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
     (layout : ColumnLayout cubeVariables PiCCSSourceImages.shape.carrierWidth)
@@ -213,8 +201,6 @@ def freshRange? (input : PiCCSPublicReplay.Input)
     (some (FixedPolynomial.zero extensionOps.toOps
       (PiCCSPublicReplay.verifierInput input).sumcheckDegreeBound))
 
-/-- Every actual worker interval equals the same interval of original-source
-reference terms. This supplies the worker values for the ordered range merger. -/
 theorem freshRange?_value (input : PiCCSPublicReplay.Input)
     (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
     (layout : ColumnLayout cubeVariables PiCCSSourceImages.shape.carrierWidth)
@@ -237,7 +223,6 @@ theorem freshRange?_value (input : PiCCSPublicReplay.Input)
           (referencePair input witness powers alpha (first + count))) = _
       simp only [PiCCSPolynomialRange.range, Nat.fold_succ]
 
-/-- One final mixed pair is retained when the active row count is odd. -/
 def activePairs : Nat := (selectedProgram.rowCount + 1) / 2
 
 private theorem activePairs_le_domain : activePairs ≤ 2 ^ (cubeVariables - 1) := by
@@ -309,10 +294,6 @@ private theorem referencePair_padding (input : PiCCSPublicReplay.Input)
   exact (congrArg (outerFresh (PiCCSPublicReplay.verifierInput input) powers) zero).trans
     (outerFresh_zero _ powers)
 
-/-- The complete active-row fresh scan is the full 2^27-pair reference fresh
-sum of the original sourceProtocolData. The selector, every coefficient,
-degree widening, outer gamma shift and final mixed pair are retained.
-Prepared gamma lookup can be substituted by PiCCSGammaPowers.lookup_prepare. -/
 theorem freshRange_eq_fullPairSum (input : PiCCSPublicReplay.Input)
     (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
     (layout : ColumnLayout cubeVariables PiCCSSourceImages.shape.carrierWidth)

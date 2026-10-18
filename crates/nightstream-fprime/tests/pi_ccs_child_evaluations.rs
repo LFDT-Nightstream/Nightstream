@@ -1,5 +1,4 @@
 //! Independent CE evaluations for all sixteen actual folded digits.
-//! One selected family shares its canonical row weights across the children.
 
 use std::{
     fs,
@@ -91,8 +90,6 @@ fn check_output_mutations(actual: &Values, encoded: &Value) {
             }
         }
     }
-    // Adjacent digit weights differ by two. These changes preserve their
-    // weighted sum, so a recombination-only check would accept them.
     for child in 0..CHILDREN - 1 {
         let left = encoded[child][0][0].as_u64().unwrap();
         let right = encoded[child + 1][0][0].as_u64().unwrap();
@@ -140,7 +137,7 @@ fn add_children(values: &mut Values, weights: &Ring, parent: &[u8], active_digit
     if native.iter().all(|&value| value == 0) {
         return;
     }
-    let transformed = opening::transform(weights);
+    let transformed = opening::inverse_constant_term_matrix(weights);
     for child in 0..active_digits {
         let source: [u8; DEGREE] = std::array::from_fn(|lane| {
             let digit = (u32::from(native[lane].unsigned_abs()) / (1u32 << child)) % 2;

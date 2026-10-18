@@ -51,8 +51,6 @@ fn matrix_window_retries_bound_rebuilt_rows_with_fixed_overhead() {
 
 #[test]
 fn compact_openings_match_cpu_across_parallel_and_tiled_lists() {
-    // Cross the actual device list thresholds. All matrices share columns,
-    // so each matrix must overwrite the reused form storage correctly.
     let rows = FORM_TILE_ENTRIES + 1;
     let mut builder = SuperneoEvalCacheBuilder::new(rows, 2 * D, 3).unwrap();
     for row in 0..rows {
@@ -152,7 +150,6 @@ fn geometric_openings_group_spans_and_dispatch_each_layer_once() {
                 ],
                 (0, 1) => vec![GeometricRowRun::new(row, 3 * D, 1, F::from_u64(11), F::ONE)],
                 (2, 0) => vec![GeometricRowRun::new(row, D + 2, D + 5, F::from_u64(13), -F::ONE)],
-                // Start 0 has two shapes, so the second shape needs a second layer.
                 (2, 1) => vec![
                     GeometricRowRun::new(row, 0, 5, F::from_u64(29), F::from_u64(3)),
                     GeometricRowRun::new(row, 0, 41, F::from_u64(23), F::ZERO),
@@ -232,8 +229,6 @@ fn geometric_openings_group_spans_and_dispatch_each_layer_once() {
         assert_eq!(actual.eval_k, expected.eval_k);
         assert_eq!(actual.eval_a, expected.eval_a);
     }
-    // One tensor stage per point coordinate, one row-weight dispatch, six
-    // common opening stages per live matrix, and two dispatches per span layer.
     let expected_dispatches = point.len() + 1 + 6 * opening.matrix_count + 2 * opening.geometric.len();
     assert_eq!(session.activity().dispatches - before, expected_dispatches as u64);
     drop(opening);
@@ -263,8 +258,6 @@ fn geometric_openings_group_spans_and_dispatch_each_layer_once() {
 
 #[test]
 fn span_census_stops_before_it_exceeds_its_budget() {
-    // 41-coordinate runs; every third row also has a one-coordinate run at
-    // the same start, which needs a second layer.
     let (rows, columns) = (D, 32 * D);
     let mut builder = SuperneoEvalCacheBuilder::new(rows, columns, 2).unwrap();
     for row in 0..rows {
@@ -291,8 +284,6 @@ fn span_census_stops_before_it_exceeds_its_budget() {
         .unwrap();
     assert_eq!(full.spans[0].len(), 2);
     assert!(full.census_bytes > 0 && full.metadata_bytes > full.census_bytes);
-    // The active-block bitmap stays live beside the census. One byte less
-    // than both stops the census; the exact size builds the same layout.
     let needed = full.census_bytes + blocks;
     assert!(OpeningLayout::measure(matrices, blocks, true, needed - 1)
         .unwrap()

@@ -9,10 +9,8 @@ import NightstreamFPrime.Lifecycle.Stage1.Formal
 /-!
 Owns the compact logical wiring for the Stage 1 opaque-child assembler.
 
-The existing package uses phase-local source offsets. This constructor instead
-places the eight logical children in one adjacent suffix and wires each later
-phase to the earlier child's generated expressions. A later lowering theorem
-must map this compact logical suffix to the canonical physical package.
+This constructor places the eight logical children in one adjacent suffix and
+wires each later phase to the earlier child's generated expressions.
 
 This file does not emit rows, select an application, or alter package identity.
 -/
@@ -30,8 +28,6 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- Application advice extends the canonical source layout before any compact
-logical child allocation. -/
 def applicationWitnessStart : Nat := Spartan.SourceColumnCount
 
 def applicationWitnessColumn {count : Nat} (index : Fin count) : Nat :=
@@ -48,7 +44,6 @@ def applicationInterface
   witness := fun _ index => .var (applicationWitnessColumn index)
   output := fun _ index => .var (ApplicationInputs.outputSourceColumn index)
 
-/-- The compact logical suffix starts after every source-coordinate input. -/
 def rootOffset (program : Lifecycle.Stage1.Application.Program) : Nat :=
   applicationLocalStart program
 
@@ -124,8 +119,6 @@ theorem piCcsRoundPoint_eq_challenge
       (logicalWidth := logicalWidth) (publicFits := publicFits) program)
     (piCcsOffset program), interfaceEq]
 
-/-- PiRLC reads the exact compact PiCCS transcript outputs. Its statement
-inputs remain the shared external PiCCS output fields. -/
 def piRlcInterface
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) :
@@ -152,7 +145,6 @@ def piRlcOutputInterface
 def piRlcOutputOffset (program : Lifecycle.Stage1.Application.Program) : Nat :=
   Lifecycle.PiRLC.v1_2.Formal.outputBindingOffset (piRlcOffset program)
 
-/-- PiDEC's parent is exactly the compact PiRLC combined output. -/
 def piDecParent
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) :
@@ -201,7 +193,6 @@ def digitCoordinate
       logicalWidth publicFits) :=
   Fin.cast publicWidth_eq_coordinateCount coordinate
 
-/-- The recursive running value is exactly the compact PiDEC output family. -/
 def recursiveRunningExpr
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) :
@@ -227,7 +218,6 @@ def runningInterface
   recursive := fun _ => recursiveRunningExpr relation program
   output := fun _ => RunningTransitionInputs.outputWord
 
-/-- The exact production child interfaces for the compact logical parent. -/
 def interface
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) :
@@ -260,8 +250,6 @@ theorem piRlc_point_wiring
       (publicFits := publicFits) program
   simp only [piRlcInterface]
 
-/-- Evaluating the compact PiDEC parent is exactly evaluating the compact
-PiRLC combined output; no copied digest or boundary value intervenes. -/
 theorem piDecParent_eval_eq_piRlcOutput
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
@@ -426,7 +414,6 @@ theorem parent_applicationOffset_eq
       applicationOffset program
   rfl
 
-/-- The next-preimage child reuses the pilot preimage columns without a copy. -/
 theorem nextPreimage_parent_wiring
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) :

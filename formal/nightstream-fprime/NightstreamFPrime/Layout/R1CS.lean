@@ -14,7 +14,6 @@ namespace NightstreamFPrime.Layout.R1CS
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
 
-/-- Sparse affine form over physical variable indices. -/
 structure LinearCombination where
   constant : F
   terms : List (Nat × F)
@@ -77,7 +76,6 @@ def scale (coefficient : F) (combination : LinearCombination) :
 
 end LinearCombination
 
-/-- One physical rank-one equation `A · B = C`. -/
 structure Row where
   a : LinearCombination
   b : LinearCombination
@@ -102,13 +100,11 @@ theorem rowsHold_append (env : Env) (first second : List Row) :
     · exact firstHolds row member
     · exact secondHolds row member
 
-/-- Number of fresh multiplication variables needed by one expression. -/
 def mulCount : Expr → Nat
   | .var _ | .const _ => 0
   | .add left right => mulCount left + mulCount right
   | .mul left right => mulCount left + mulCount right + 1
 
-/-- Lowering result for one expression. -/
 structure LoweredExpression where
   value : LinearCombination
   next : Nat
@@ -202,14 +198,10 @@ theorem lowerExpression_sound (env : Env) (expression : Expr) (start : Nat)
             rightIH loweredLeft.next secondSplit.1]
         _ = (left * right).eval env := rfl
 
-/-- A proof-producing recognition result for an affine logical expression. -/
 structure AffineResult (expression : Expr) where
   combination : LinearCombination
   sound : ∀ env, combination.eval env = expression.eval env
 
-/-- Recognize exactly the affine fragment used by staged witness recipes.
-Multiplication by a field constant is coefficient scaling, not a rank-one
-row. -/
 def lowerAffine : (expression : Expr) → Option (AffineResult expression)
   | .var index =>
       some ⟨LinearCombination.ofVar index, by intro env; simp⟩
@@ -243,7 +235,6 @@ def lowerAffine : (expression : Expr) → Option (AffineResult expression)
       | none => none
   | .mul _ _ => none
 
-/-- Syntactic affine recognition succeeded. -/
 def IsAffine (expression : Expr) : Prop :=
   ∃ lowered, lowerAffine expression = some lowered
 
@@ -266,7 +257,6 @@ theorem IsAffine.const_mul (coefficient : F) {expression : Expr}
   rcases affine with ⟨lowered, equals⟩
   simp [IsAffine, lowerAffine, equals]
 
-/-- One direct row and its exact canonical recipe-equation proof. -/
 structure RecipeRowResult (output : Nat) (recipe : Expr) where
   row : Row
   sound : ∀ env, row.Holds env →
@@ -307,8 +297,6 @@ def quadraticRecipeRow (output : Nat) (left right : Expr)
     simpa [Row.Holds, loweredLeft.sound env, loweredRight.sound env] using
       equation.symm
 
-/-- The rank-one row `left · right = output − rest` for the recipe
-`left * right + rest` with affine parts. -/
 def productSumRecipeRow (output : Nat) (left right rest : Expr)
     (loweredLeft : AffineResult left) (loweredRight : AffineResult right)
     (loweredRest : AffineResult rest) :
@@ -336,7 +324,6 @@ def productSumRecipeRow (output : Nat) (left right rest : Expr)
       loweredLeft.sound env, loweredRight.sound env, loweredRest.sound env]
     rw [equation, neg_one_mul, add_neg_cancel_right]
 
-/-- Recognize `left * right + rest` with affine parts. -/
 def productSumRecipeRow? (output : Nat) :
     (product rest : Expr) →
       Option (RecipeRowResult output (.add product rest))
@@ -357,9 +344,6 @@ theorem productSumRecipeRow?_eq_none_of_rest (output : Nat)
         simp [productSumRecipeRow?, restNone]
   | _ => rfl
 
-/-- Compile an affine recipe, one rank-one product of affine expressions, or
-one such product plus an affine expression directly against its already
-allocated logical witness variable. -/
 def directRecipeRow (output : Nat) (recipe : Expr) :
     Option (RecipeRowResult output recipe) :=
   match lowerAffine recipe with
@@ -375,8 +359,6 @@ def directRecipeRow (output : Nat) (recipe : Expr) :
       | .add product rest => productSumRecipeRow? output product rest
       | _ => none
 
-/-- One recipe has a one-row lowering: it is affine, one rank-one product of
-affine expressions, or such a product plus an affine expression. -/
 def IsDirectRecipe (output : Nat) (recipe : Expr) : Prop :=
   ∃ lowered, directRecipeRow output recipe = some lowered
 
@@ -412,8 +394,6 @@ theorem IsDirectRecipe.mul_add (output : Nat) {left right rest : Expr}
   | some lowered =>
       simp [IsDirectRecipe, directRecipeRow, sumEquals]
 
-/-- Every recipe in a batch has a one-row lowering at its exact output
-offset. -/
 def RecipesDirect : Nat → List Expr → Prop
   | _, [] => True
   | output, recipe :: rest =>
@@ -431,7 +411,6 @@ theorem recipesDirect_append (output : Nat) (first second : List Expr)
       · apply ih (output + 1) firstDirect.2
         convert secondDirect using 1; simp; omega
 
-/-- One recognized canonical logical constraint and its direct physical row. -/
 structure DirectConstraintResult (expression : Expr) where
   row : Row
   sound : ∀ env, row.Holds env → expression.eval env = 0
@@ -454,8 +433,6 @@ def affineConstraint (expression : Expr) :
   | some lowered => some (affineConstraintRow expression lowered)
   | none => none
 
-/-- The rank-one row `left · right = constant` for the zero assertion
-`constant − left * right` with affine parts. -/
 def rankOneConstraintRow (constant left right : Expr) (coefficient : F)
     (coefficientEquals : coefficient = -1)
     (loweredConstant : AffineResult constant)
@@ -481,8 +458,6 @@ def rankOneConstraintRow (constant left right : Expr) (coefficient : F)
       loweredConstant.sound env]
     exact equation.symm
 
-/-- The rank-one row `left · right = 0` for the zero assertion
-`left * right` with affine parts. -/
 def productConstraintRow (left right : Expr)
     (loweredLeft : AffineResult left) (loweredRight : AffineResult right) :
     DirectConstraintResult (.mul left right) where
@@ -495,8 +470,6 @@ def productConstraintRow (left right : Expr)
     intro env holds
     simpa [Row.Holds, loweredLeft.sound env, loweredRight.sound env] using holds
 
-/-- Recognize the zero assertions `constant − left * right` and
-`left * right` with affine parts as one rank-one row. -/
 def rankOneConstraint : (expression : Expr) →
     Option (DirectConstraintResult expression)
   | .add constant (.mul (.const coefficient) (.mul left right)) =>
@@ -514,16 +487,12 @@ def rankOneConstraint : (expression : Expr) →
       | _, _ => none
   | _ => none
 
-/-- An affine zero assertion, or else a rank-one one. -/
 def affineOrRankOneConstraint (expression : Expr) :
     Option (DirectConstraintResult expression) :=
   match affineConstraint expression with
   | some lowered => some lowered
   | none => rankOneConstraint expression
 
-/-- Recognize `recipeConstraints` equations and affine or rank-one zero
-assertions. Other zero constraints use the general expression lowering
-below. -/
 def directConstraint : (expression : Expr) →
     Option (DirectConstraintResult expression)
   | .add (.var output) (.mul (.const coefficient) recipe) =>
@@ -544,7 +513,6 @@ def directConstraint : (expression : Expr) →
         affineConstraint _
   | expression => affineOrRankOneConstraint expression
 
-/-- Lowering result for one logical zero constraint. -/
 structure LoweredConstraint where
   next : Nat
   rows : List Row
@@ -589,20 +557,16 @@ def lowerConstraint (expression : Expr) (start : Nat) : LoweredConstraint :=
   | some direct => ⟨start, [direct.row]⟩
   | none => lowerGenericConstraint expression start
 
-/-- Fresh intermediate columns allocated by one optimized constraint. -/
 def constraintFreshCount (expression : Expr) : Nat :=
   match directConstraint expression with
   | some _ => 0
   | none => mulCount expression
 
-/-- Physical rows allocated by one optimized constraint. -/
 def constraintRowCount (expression : Expr) : Nat :=
   match directConstraint expression with
   | some _ => 1
   | none => mulCount expression + 1
 
-/-- Every syntactically affine constraint is recognized by the optimized
-direct-row compiler. -/
 theorem directConstraint_ne_none_of_affine (expression : Expr)
     (affine : IsAffine expression) :
     directConstraint expression ≠ none := by
@@ -658,7 +622,6 @@ theorem directConstraint_ne_none_of_affine (expression : Expr)
           simp [directConstraint, affineOrRankOneConstraint,
             affineConstraint, loweredEq]
 
-/-- The assertion `constant − left * right` with affine parts is one row. -/
 theorem directConstraint_rankOne_ne_none (constant left right : Expr)
     (constantAffine : IsAffine constant) (leftAffine : IsAffine left)
     (rightAffine : IsAffine right) :
@@ -820,7 +783,6 @@ theorem lowerConstraint_complete_of_freshCount_zero
       subst row
       exact direct.complete env holds
 
-/-- Lowering result for an ordered logical constraint list. -/
 structure LoweredConstraints where
   next : Nat
   rows : List Row
@@ -843,8 +805,6 @@ theorem constraintRowCount_eq_fresh_add_one (expression : Expr) :
   unfold constraintRowCount constraintFreshCount
   cases directConstraint expression <;> rfl
 
-/-- Every logical zero constraint contributes one assertion row in addition
-to the multiplication rows counted as fresh columns. -/
 theorem totalRowCount_eq_fresh_add_length (constraints : List Expr) :
     totalRowCount constraints = totalFreshCount constraints + constraints.length := by
   induction constraints with
@@ -994,8 +954,6 @@ theorem lowerConstraints_sound (env : Env) (constraints : List Expr)
         exact lowerConstraint_sound env _ start separated.1
       · exact ih first.next separated.2 current member
 
-/-- A logical constraint list whose optimized lowering allocates no extra
-columns is physically complete in the same environment. -/
 theorem lowerConstraints_complete_of_noFresh
     (env : Env) (constraints : List Expr) (start : Nat)
     (noFresh : ∀ expression ∈ constraints,
@@ -1019,9 +977,6 @@ theorem lowerConstraints_complete_of_noFresh
         · intro current member
           exact holds current (by simp [member])
 
-/-- Opaque physical-lowering boundary. A phase supplies only its logical
-constraint list and the first fresh column. The generic theorems below keep
-parent proof cost independent of the concrete list length. -/
 structure LoweringPlan where
   constraints : List Expr
   firstFresh : Nat
@@ -1063,8 +1018,6 @@ theorem complete_of_noFresh (plan : LoweringPlan) (env : Env)
 
 end LoweringPlan
 
-/-- Exact physical footprint of one proved logical circuit. A phase parent
-uses these certified numbers and never unfolds the child's operations. -/
 structure CircuitFootprint (circuit : FormalCircuit) where
   freshColumnCount : Nat → Nat
   physicalRowCount : Nat → Nat

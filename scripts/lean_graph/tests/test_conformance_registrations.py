@@ -29,15 +29,12 @@ class ConformanceRegistrationTests(unittest.TestCase):
     def test_current_rust_sources_can_be_captured(self):
         root = Path(__file__).resolve().parents[3]
         manifest, _ = inspect(root, self.policy, {}, {"sources": ["rust"], "inputs": []})
-        # Every captured artifact link must resolve to captured bytes, not an
-        # uncaptured file in the author's checkout.
         self.assertTrue(entries(manifest))
 
     def selected(self, obligation):
         return gate_order(self.policy, self.policy["obligations"][obligation]["gates"])
 
     def test_build_commands_do_not_drop_required_targets(self):
-        # validate.sh's build branch reads only ${2}; later targets are ignored.
         for name, gate in self.gates.items():
             for command in gate["commands"]:
                 argv = command["argv"]

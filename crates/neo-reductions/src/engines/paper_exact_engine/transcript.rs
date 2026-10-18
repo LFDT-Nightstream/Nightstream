@@ -2,8 +2,6 @@
 //!
 //! This is a direct Rust transcription of the Lean-owned v1_2 schedule. It
 //! does not call the optimized transcript or proof-assembly implementation.
-//! The canonical statement serializer is shared because it is protocol input,
-//! not an alternative prover computation.
 
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsStructure, CeClaim};
@@ -30,13 +28,6 @@ fn append(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, field
     trace.events.push(TraceEvent::Absorb(fields));
 }
 
-/// Lean `decodeHashWord` for each of the four digest words, read from the
-/// bit cells after the marker of the first fresh public input. A cell past a
-/// shorter input reads as zero; the caller checks the input length, and the
-/// input is absorbed in full after the digest.
-/// The reference engine keeps its own decoder on purpose: it shares no
-/// decoding code with `neo_transcript::prior_digest_v1_2`, which the optimized
-/// engine uses.
 fn prior_digest_fields(fresh: &CcsClaim<Cmt, F>) -> Vec<F> {
     let mut words = vec![F::ZERO; 4];
     for (word, value) in words.iter_mut().enumerate() {
@@ -51,15 +42,13 @@ fn prior_digest_fields(fresh: &CcsClaim<Cmt, F>) -> Vec<F> {
     words
 }
 
-/// Read the next fold-transcript coin and record it. The label is trace
-/// metadata only. A refresh absorb is recorded like any other absorb.
 fn read_coin(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, label: u64, index: Option<usize>) -> K {
     let coin = transcript.read_coin_v1_2();
     let value = neo_math::from_complex(coin.value[0], coin.value[1]);
     trace
         .events
         .push(TraceEvent::Challenge { label, index, value });
-    if coin.refreshed {
+    if coin.absorbed_zero_chunk {
         trace.events.push(TraceEvent::Absorb(vec![F::ZERO; RATE]));
     }
     value
@@ -267,7 +256,6 @@ pub(super) fn absorb_outputs(
             "PaperExact output source count mismatch".into(),
         ));
     }
-    let _ = fresh_count;
     let mut fields = Vec::new();
     // SuperNeo Section 7.3 sends y' after the SumCheck. Validate the complete
     // message shape here. PiRLC binds its canonical digest before sampling
@@ -303,10 +291,6 @@ pub(super) fn assemble_proof(rounds: Vec<Vec<K>>) -> PiCcsProof {
     PiCcsProof::new(rounds)
 }
 
-/// Encode the one-joint proof without using the production codec.
-///
-/// The duplicate constants and field order are intentional. PaperExact must
-/// detect a production codec change that is not made in the reference codec.
 #[doc(hidden)]
 pub fn encode_proof(proof: &PiCcsProof) -> Result<Vec<u8>, PiCcsError> {
     const PROOF_TAG: u64 = 1102;

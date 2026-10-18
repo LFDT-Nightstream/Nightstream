@@ -17,7 +17,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 
-/-- External expressions owned by the lifecycle parent. -/
 structure Interface where
   preimage : Nat → List Expr
   digest : Nat → Fin 4 → Expr
@@ -53,7 +52,6 @@ theorem compiledHashLength_eq_hashLength (interface : Interface)
     compiledHashLength interface offset = hashLength interface offset := by
   exact Hash.compile_recipes_length offset (interface.preimage offset)
 
-/-- The production logical builder for the `outputHash` phase. -/
 def rawCircuit (interface : Interface) : FormalCircuit :=
   Formal.circuit (hashInterface interface)
 
@@ -78,7 +76,6 @@ theorem rawCircuit_rowCount (interface : Interface) (offset : Nat) :
     _ = hashLength interface offset + 4 := by
       rw [compiledHashLength_eq_hashLength]
 
-/-- The production output hash with closed-form footprint metadata. -/
 def circuit (interface : Interface) : FormalCircuit :=
   { rawCircuit interface with
     privateCount := hashLength interface
@@ -115,9 +112,6 @@ theorem completeness (interface : Interface) (env : Env) (offset : Nat)
       holdsFlat completed (Circuit.ops (circuit interface).main offset) :=
   (circuit interface).completeness env offset assumptions specification
 
-/-- Output-hash semantics depend only on the caller-owned expressions below
-the child start. This transports the specification across an earlier sibling
-completion without exposing hash-circuit rows. -/
 theorem specHolds_of_agree_below
     (interface : Interface) (offset : Nat) (before after : Env)
     (assumptions : Assumptions interface offset before)
@@ -146,8 +140,6 @@ theorem specHolds_of_agree_below
   rw [digestEq, inputEq]
   exact specification
 
-/-- Output-hash semantics are unchanged when two environments agree on the
-exact caller-selected support of the preimage and digest expressions. -/
 theorem specHolds_of_agree_satisfy
     (interface : Interface) (offset : Nat) (allowed : Nat → Prop)
     (before after : Env)
@@ -215,8 +207,6 @@ theorem builder_implies_digest
       rw [preimageRepresents]
     _ = stateHash (publicFits := publicFits) preimage := rfl
 
-/-- Production specialization: the builder proves the exact
-`OutputHolds` equation inside `StepHolds`. -/
 theorem builder_implies_output_slot
     (interface : Interface) (offset : Nat) (env : Env)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)

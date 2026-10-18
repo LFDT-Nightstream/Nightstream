@@ -54,12 +54,9 @@ abbrev scope := NightstreamFPrime.Lifecycle.PiRLC.v1_2.SamplerChain.scope
 
 end Logical
 
-/-- The chain's only external expressions are its incoming transcript state. -/
 structure InputsAffine (interface : Logical.Interface) (offset : Nat) : Prop where
   initialState : StateAffine (interface.initialState offset)
 
-/-- Every scalar child receives affine state. The first state is external;
-each successor is the preceding sampler's output state. -/
 theorem childInputs (interface : Logical.Interface) (offset : Nat)
     (inputs : InputsAffine interface offset) (source : Nat) :
     ∀ current,
@@ -87,12 +84,10 @@ def childConstraintLists (interface : Logical.Interface) (offset : Nat) :
   (List.range Logical.sourceCount).map
     (childConstraints interface offset)
 
-/-- The exact physical-owner order is the logical `K + k` child order. -/
 def orderedConstraints (interface : Logical.Interface) (offset : Nat) :
     List Expr :=
   (childConstraintLists interface offset).flatten
 
-/-- The unchanged logical rows of the sole 17-sampler parent. -/
 def logicalConstraints (interface : Logical.Interface) (offset : Nat) :
     List Expr :=
   flatConstraints (Circuit.ops (Logical.main interface) offset)
@@ -115,8 +110,6 @@ private theorem flatConstraints_childOps (interface : Logical.Interface)
       exact congrArg (fun tail =>
         childConstraints interface offset source ++ tail) inductionHypothesis
 
-/-- Exact equality between the rows owned here and all 17 opaque scalar child
-lists, in source order. -/
 theorem logicalConstraints_eq_ordered (interface : Logical.Interface)
     (offset : Nat) :
     logicalConstraints interface offset =
@@ -169,7 +162,6 @@ private theorem totalRowCount_sources (interface : Logical.Interface)
         inductionHypothesis, List.length_cons]
       omega
 
-/-- Exact R1CS multiplication-column count for 17 scalar samplers. -/
 theorem totalFreshCount_eq (interface : Logical.Interface) (offset : Nat)
     (inputs : InputsAffine interface offset) :
     R1CS.totalFreshCount (logicalConstraints interface offset) =
@@ -181,7 +173,6 @@ theorem totalFreshCount_eq (interface : Logical.Interface) (offset : Nat)
   change 17 * 144 = 2448
   norm_num
 
-/-- Exact physical-row count for 17 scalar samplers. -/
 theorem totalRowCount_eq (interface : Logical.Interface) (offset : Nat)
     (inputs : InputsAffine interface offset) :
     R1CS.totalRowCount (logicalConstraints interface offset) =
@@ -193,7 +184,6 @@ theorem totalRowCount_eq (interface : Logical.Interface) (offset : Nat)
   change 17 * 3071 = 52207
   norm_num
 
-/-- Exact logical-plus-R1CS private-column count for the chain. -/
 theorem physicalPrivateColumnCount_eq (interface : Logical.Interface)
     (offset : Nat) (inputs : InputsAffine interface offset) :
     localLength (Circuit.ops (Logical.main interface) offset) +

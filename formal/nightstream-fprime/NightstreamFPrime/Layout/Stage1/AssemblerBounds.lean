@@ -36,8 +36,6 @@ private theorem piCcsPhaseOffset_le
   rw [Stage1.Spartan.sourceColumnCount_eq, PiCCSInputs.phaseOffset_eq]
   omega
 
-/-- The unchanged caller-owned PiCCS expressions remain below the later
-compact parent offset. -/
 theorem piCcsExternalInputsLinear
     (program : Lifecycle.Stage1.Application.Program) :
     NightstreamFPrime.Layout.PiCCS.v1_2.ProductionInputs.ExternalInputsLinear
@@ -99,8 +97,6 @@ theorem piCcsExternalInputsLinear
           (source.outputEval_A sourceIndex matrix coefficient).2 le⟩ }
   exact { canonical with below := below }
 
-/-- The compact PiCCS child has every causal assumption required by its sole
-`FormalCircuit`. -/
 theorem piCcsAssumptions
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
@@ -155,8 +151,6 @@ private theorem evalK_le_evalA
   unfold PiRLC.v1_2.Formal.evalAOffset
   omega
 
-/-- Every lane of the PiCCS output transcript state is allocated before the
-PiRLC phase starts. -/
 theorem piCcsOutputStateBelow
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) (env : Env)
@@ -286,8 +280,6 @@ private theorem sourceEvalABelow
     Expr.VarsBelow.mono _ (below.outputEval_A source matrix coefficient).2
       (piCcs_le_piRlc program)⟩
 
-/-- The compact PiRLC child has every causal assumption required by its sole
-`FormalCircuit`. -/
 theorem piRlcAssumptions
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
@@ -375,7 +367,6 @@ theorem piRlcAssumptions
       · exact Expr.VarsBelow.mono _ below.1 bound
       · exact Expr.VarsBelow.mono _ below.2 bound
 
-/-- The shared PiCCS round point is fully allocated before PiRLC starts. -/
 theorem piCcsRoundPointBelowPiRlc
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) (env : Env)
@@ -444,7 +435,6 @@ private theorem point_ext (left right : PaperAlgebra.Point)
   cases right
   simp_all
 
-/-- Agreement below the PiRLC boundary preserves its shared point exactly. -/
 theorem piRlcPoint_eq_of_agree_below
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program)
@@ -477,8 +467,6 @@ theorem piRlcPoint_eq_of_agree_below
     (Expr.eval_eq_of_agree_below _ (AssemblerInputs.piRlcOffset program)
       left right below.2 agrees)
 
-/-- Agreement below the PiRLC boundary preserves the exact eight-word
-sampler seed produced by PiCCS. -/
 theorem piRlcInitialState_eq_of_agree_below
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program)
@@ -512,8 +500,6 @@ theorem piRlcInitialState_eq_of_agree_below
         piCcsOutputStateBelow relation program left lane
   · exact agrees
 
-/-- Agreement below the PiRLC boundary preserves all 17 exact typed input
-instances, including separate `Eval_K` and `Eval_A` families. -/
 theorem piRlcInputs_eq_of_agree_below
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program)
@@ -596,7 +582,6 @@ private theorem below_of_interval (expression : Expr) {start finish : Nat}
   apply (Expr.varsSatisfy_lt_iff_varsBelow expression finish).mp
   exact supported.mono expression (fun _ support => support.elim False.elim And.right)
 
-/-- Every compact PiDEC input is owned before its phase allocation. -/
 theorem piDecInputsBelow
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) :
@@ -655,8 +640,6 @@ theorem piDecInputsBelow
     simpa [AssemblerInputs.piDecInterface] using!
       Expr.VarsBelow.mono _ (source.digit child coordinate) sourceLe
 
-/-- The compact PiDEC child has every causal assumption required by its sole
-`FormalCircuit`. -/
 theorem piDecAssumptions
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
@@ -733,8 +716,6 @@ private theorem recursiveRunningBelow
         ⟨Expr.VarsBelow.mono _ below.1 le,
           Expr.VarsBelow.mono _ below.2 le⟩)
 
-/-- The compact running-transition child has every causal assumption required
-by its sole `FormalCircuit`. -/
 theorem runningAssumptions
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
@@ -765,8 +746,6 @@ theorem runningAssumptions
   · intro index
     exact Expr.VarsBelow.mono _ (RunningTransitionInputs.outputWordBelow index) sourceLe
 
-/-- Every verifier-owned application input precedes all compact logical
-children. -/
 theorem applicationInputsBelowRoot
     (program : Lifecycle.Stage1.Application.Program) :
     Lifecycle.Stage1.Application.InputsBelow
@@ -813,8 +792,6 @@ theorem applicationInputsBelowRoot
       Lifecycle.Stage1.Application.stateWordCount] at bound ⊢
     omega
 
-/-- Every verifier-owned application input precedes the exact compact
-application child start. -/
 theorem applicationInputsBelow
     (program : Lifecycle.Stage1.Application.Program) :
     Lifecycle.Stage1.Application.InputsBelow
@@ -833,8 +810,6 @@ theorem applicationInputsBelow
     witness := fun index => Expr.VarsBelow.mono _ (source.witness index) le
     output := fun index => Expr.VarsBelow.mono _ (source.output index) le }
 
-/-- The compact application child receives the exact assumptions of the
-verifier-selected Lean program. -/
 theorem applicationAssumptions
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
     (program.circuit (AssemblerInputs.applicationInterface program)
@@ -871,8 +846,6 @@ theorem nextPreimageAssumptions
     outputInitialState := fun index =>
       Expr.VarsBelow.mono _ (source.outputInitialState index) le }
 
-/-- The exact eight child assumptions for the compact Stage 1 parent at its
-production root. -/
 theorem stage1Assumptions
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey

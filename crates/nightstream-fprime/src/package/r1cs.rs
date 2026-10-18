@@ -6,8 +6,6 @@ use super::{
     ScheduledWitness, SparseCombination, SparseRow, TemplateCombination, TemplateRow, WitnessInstruction,
 };
 
-/// One canonical sparse matrix derived from the Lean-emitted row program.
-/// Values are canonical Goldilocks words in CSR row order.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PackageSparseMatrix {
     pub(super) rows: usize,
@@ -74,7 +72,6 @@ impl PackageSparseMatrix {
     }
 }
 
-/// Exact R1CS matrices expanded from one identity-checked package.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PackageR1cs {
     pub(super) a: PackageSparseMatrix,

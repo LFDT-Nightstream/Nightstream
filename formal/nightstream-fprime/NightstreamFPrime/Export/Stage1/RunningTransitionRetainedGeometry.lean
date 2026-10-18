@@ -4,8 +4,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPlan.Retained
 
 /-!
 Owns the canonical low-norm placement for the direct running-transition
-source support. Two blocks extend the pilot prefix without gaps. State and
-output use the coordinates of the actual pilot preimages.
+source support.
 
 This module does not compile transition rows or construct an assignment.
 -/
@@ -66,7 +65,6 @@ theorem poseidonGeometry {program : Lifecycle.Stage1.Application.Program}
     rw [PiRLCPoseidonGeometry.pilotLogicalWidth_eq, completeLogicalWidth_eq]
     omega
 
-/-- The actual pilot preimages already belong to the preceding prefix. -/
 theorem pilotGeometry {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     PiRLCPoseidonGeometry.Geometry program logicalWidth where
@@ -120,8 +118,6 @@ theorem freshFits {program : Lifecycle.Stage1.Application.Program}
     freshStart program + (freshBlock program).coordinateCount ≤ logicalWidth :=
   geometry.completeFits
 
-/-- Exact encoding obligation for the two allocated blocks and the two
-shared pilot-preimage views. -/
 structure Encodes {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth)
     (assignment : Assignment NightstreamFPrime.Spec.F logicalWidth)

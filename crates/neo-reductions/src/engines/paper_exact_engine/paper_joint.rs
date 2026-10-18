@@ -51,12 +51,8 @@ where
     }
 
     let assignment_width = structure.m.div_ceil(D) * D;
-    let row_count = structure
-        .domain_rows()
-        .max(assignment_width)
-        .next_power_of_two()
-        .max(2);
-    let variables = row_count.trailing_zeros() as usize;
+    let variables = structure.cube_variables();
+    let row_count = 1 << variables;
     let matrix_count = structure.t();
     let degree = (structure.max_degree() as usize + 1)
         .max(2 * params.b as usize)
@@ -99,9 +95,8 @@ where
     let evaluation_width = D.next_power_of_two();
     for (index, claim) in running.iter().enumerate() {
         if claim.m_in > structure.m
-            || claim.m_in % D != 0
             || claim.X.rows() != D
-            || claim.X.cols() != neo_ccs::superneo_public_x_cols(claim.m_in)
+            || neo_ccs::superneo_public_x_cols(claim.m_in) != Some(claim.X.cols())
             || claim.eval_k.len() != evaluation_width
             || claim.eval_a.len() != matrix_count
         {
@@ -329,7 +324,6 @@ pub(super) fn direct_identity_ring_mle(ring: &PaperRing, assignment: &[K], point
 pub(super) fn initial_claim<Ff>(
     structure: &CcsStructure<Ff>,
     challenges: &Challenges,
-    fresh_count: usize,
     running: &[CeClaim<Cmt, Ff, K>],
 ) -> Result<K, PiCcsError>
 where
@@ -365,7 +359,6 @@ where
             }
         }
     }
-    let _ = fresh_count;
     Ok(eval_k + gamma_power(challenges.gamma, running_count * D) * eval_a)
 }
 
@@ -499,7 +492,6 @@ where
         Self::with_matrix_rows(structure, params, fresh, running, challenges, prior_point, dims, None)
     }
 
-    /// Evaluate exported original rows with the same direct paper formulas.
     #[allow(clippy::too_many_arguments)]
     pub fn from_rows(
         structure: &'a CcsStructure<Ff>,

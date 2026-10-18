@@ -37,13 +37,11 @@ variable {logicalWidth : Nat}
   (values : PiCCSProofInputs.ProofValues)
   (context : VerifierContext.Digest4)
 
-/-- Load existing protocol values and the verifier's expected context. -/
 def environment : Env :=
   PiCCSProofInputs.loadExpectedContext
     (PiCCSProofInputs.protocolEnv prior priorPublic output digest
       priorFixed outputFixed digestFixed values) context
 
-/-- The canonical protocol environment preserves the complete pilot input prefix. -/
 theorem pilot_word (index : Nat) (bound : index < PilotProduction.externalColumnCount) :
     environment prior priorPublic output digest priorFixed outputFixed digestFixed values context index =
       PilotProduction.protocolEnv prior priorPublic output digest priorFixed outputFixed digestFixed index := by
@@ -90,7 +88,6 @@ private theorem pilot_output_word (values : PilotProduction.ExternalValues)
   simp only [PilotProduction.loadExternal, dif_neg afterPrior, dif_neg afterPublic,
     dif_pos inside, Nat.add_sub_cancel_left]
 
-/-- Each loaded prior-state source word is the exact canonical serialized word. -/
 theorem prior_word (index : Fin PilotProduction.stateHashWords) :
     (PiCCSInputs.priorStateWord index.val).eval
       (environment prior priorPublic output digest priorFixed outputFixed digestFixed values context) =
@@ -106,7 +103,6 @@ theorem prior_word (index : Fin PilotProduction.stateHashWords) :
     simp only [PilotProduction.priorPreimageStart]
     omega
 
-/-- Each loaded next-state source word is the exact canonical serialized word. -/
 theorem output_word (index : Fin PilotProduction.stateHashWords) :
     (PiCCSInputs.outputStateWord index.val).eval
       (environment prior priorPublic output digest priorFixed outputFixed digestFixed values context) =
@@ -125,8 +121,6 @@ theorem output_word (index : Fin PilotProduction.stateHashWords) :
 
 variable (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
 
-/-- The honest child region satisfies every prior child-split row after the
-context is loaded: those rows read no context slot. -/
 private theorem childrenSplit_environment
     (priorCanonical : Lifecycle.ChildrenCanonical (prior.running functionIndex)) :
     StateBinding.ChildrenSplit
@@ -172,8 +166,6 @@ private theorem childrenSplit_environment
       unfold PilotProduction.priorPreimageStart StateBinding.packedWordStart
       omega))).trans (base.packed word)
 
-/-- The typed state serializer and loaded selected context establish all
-state-binding checks. There is no caller-supplied state-binding conclusion. -/
 theorem stateBinding
     (priorCanonical : Lifecycle.ChildrenCanonical (prior.running functionIndex))
     (priorContext : prior.verifierKeys functionIndex = context.toList)
@@ -236,9 +228,6 @@ theorem stateBinding
       _ = context.toList.getD lane.val 0 := by rw [outputContext]
       _ = _ := (PiCCSProofInputs.loadExpectedContext_read _ context lane).symm
 
-/-- An environment with the same existing external source columns reads the
-same typed running instance, fresh instance, and proof. Generated pilot cells
-are not part of that source agreement. -/
 theorem inputs_eq_of_external
     (template : Proof 8) (initial : Env)
     (priorCanonical : Lifecycle.ChildrenCanonical (prior.running functionIndex))
@@ -268,9 +257,6 @@ theorem inputs_eq_of_external
     fresh.trans (loaded.2.1.trans original.2.1),
     proof.trans (loaded.2.2.trans original.2.2)⟩
 
-/-- Accepted protocol inputs construct the local PiCCS prefix in any environment
-with the same external source values. Existing sibling witnesses are retained
-outside this phase, and generated phase outputs are derived from its rows. -/
 theorem completePrefix_from
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (template : Proof 8)
@@ -313,10 +299,6 @@ theorem completePrefix_from
   exact Formal.completePrefix_of_accepted relation ajtai (relationInterface relation)
     (relationProof relation values template) initial phaseOffset assumptions binding acceptedEnv
 
-/-- Actual accepted protocol inputs construct the complete local PiCCS
-prefix. Canonical state and context checks are derived above, syntactic
-bounds come from the existing interface, and generated phase outputs are
-proved rather than supplied. -/
 theorem completePrefix
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (template : Proof 8)

@@ -5,8 +5,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanReproduction
 
 /-!
 Owns the SuperNeo v1.2 Section 7.3 polynomial reduction for the production
-shape with literal zero running assignments. All tables come from the same
-connected matrix source. Pad retains its complete coefficient family. No CCS
+shape with literal zero running assignments. No CCS
 validity premise is used.
 -/
 
@@ -118,8 +117,6 @@ private abbrev sourceIndex : Fin productionShape.sourceCount :=
 variable {columns blockCount : Nat}
   (data : ConnectedInputs K productionShape columns blockCount)
 
-/-- Every coefficient of both running output families is zero because each
-family reads the literal zero source assignment. -/
 theorem runningOutput_zero
     (runningZero : ∀ index column,
       data.assignments (runningSourceIndex index) column = 0)
@@ -137,8 +134,6 @@ theorem runningOutput_zero
   · intro matrix coefficient
     exact evaluate_zero_assignment _ _ (runningZero index) point
 
-/-- The norm input of each running source is the MLE of its zero-padded
-assignment, so it is zero at every field point. -/
 theorem runningAssignment_zero
     (runningZero : ∀ index column,
       data.assignments (runningSourceIndex index) column = 0)
@@ -258,9 +253,6 @@ private theorem ccsAtMessage_eq_fresh
           (message.freshMatrixImage freshIndex)) := sumMap_single _
     _ = _ := gammaTerm_zero_exponent gamma _
 
-/-- The exact source-derived polynomial with zero running openings reduces
-to one fresh CCS residual and one fresh strict-norm residual. The fixed
-`gamma^4320` offset is preserved. -/
 theorem qAtPoint_eq_fresh
     (runningZero : ∀ index column,
       data.assignments (runningSourceIndex index) column = 0)
@@ -296,8 +288,6 @@ private theorem foldr_map_zero {Index : Type}
       rw [List.map_cons, List.foldr_cons, zero index, inductionHypothesis]
       exact extensionLaws.zero_add K.zero
 
-/-- The verifier's initial claim is zero from the literal public coefficient
-fields alone. This theorem does not use an assignment or its validity. -/
 theorem initial_zero
     (padZero : ∀ coordinate, data.claimedPadCoefficient coordinate = K.zero)
     (matrixZero : ∀ coordinate, data.claimedMatrixCoefficient coordinate = K.zero)

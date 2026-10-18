@@ -11,11 +11,7 @@ import NightstreamFPrime.Export.Stage1.RunningTransitionMatrixProgramSemantics
 
 /-!
 Proves row-by-row equality between the complete compact per-application matrix
-program and the exact Lean structural plan. Ordinary source rows remain an
-explicit identity-checked input to this theorem.
-
-This module does not claim package identity, Rust conformance, or production
-closure.
+program and the exact Lean structural plan.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationMatrixProgramSemantics
@@ -31,7 +27,6 @@ def relation (application : ApplicationProgram)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application) :=
   PerApplicationProductionPlan.relation application fits
 
-/-- Exact compact interpretation of one semantic plan. -/
 structure Exact {logicalWidth : Nat}
     (matrixProgram : MatrixProgram.Program)
     (plan : ProductionRelation.Plan logicalWidth)
@@ -58,8 +53,6 @@ theorem Exact.append {logicalWidth : Nat}
       leftPlan rightPlan fits sourceRow left.rowCount left.row? right.row?
       global
 
-/-- The final source-row accessor must return the exact Lean-selected source
-row for every ordinary family. -/
 structure SourceCustody (application : ApplicationProgram)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
     (sourceRow : Nat → Option R1CS.Row) : Prop where
@@ -457,8 +450,6 @@ theorem blockExact (application : ApplicationProgram)
   | recursivePublicOutput =>
       exact recursivePublicOutputExact application fits sourceRow
 
-/-- Any successfully compiled Lean production tree has an exact compact
-matrix interpretation. -/
 theorem compileMatrixExact (application : ApplicationProgram)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
     (sourceRow : Nat → Option R1CS.Row)
@@ -493,8 +484,6 @@ theorem compileMatrixExact (application : ApplicationProgram)
                     (rightInduction rightPlan rightCompiled) bounded
               · simp [leftCompiled, rightCompiled, bounded] at compiled
 
-/-- The canonical compact matrix program is exactly the self-derived
-per-application structural plan, row for row. -/
 theorem matrixProgramExact (application : ApplicationProgram)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
     (sourceRow : Nat → Option R1CS.Row)

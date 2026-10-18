@@ -18,7 +18,6 @@ use p3_field::PrimeCharacteristicRing;
 use super::MetalSession;
 use crate::MetalError;
 
-/// Columns that one accumulation threadgroup walks before it writes a partial.
 /// Measured on an M5 Max with 16 dense witnesses at production width: 128,
 /// 512 and 2,048 columns took 5.01 s, 4.91 s and 5.12 s.
 const COLUMNS_PER_GROUP: usize = 512;
@@ -28,8 +27,6 @@ impl MetalSession {
         &self,
         witnesses: &[W],
     ) -> Result<Vec<Commitment>, MetalError> {
-        // This is the CPU commitment's validator, including complete carrier tails.
-        // Validate the entire batch before allocating or dispatching device work.
         let blocks = witnesses
             .iter()
             .map(|witness| signed_unit_prefix_blocks(witness.borrow()))
@@ -77,8 +74,6 @@ impl MetalSession {
         let device_masks = self.buffer_from_slice(&masks)?;
         let device_columns = self.buffer_from_slice(&columns)?;
         drop((masks, columns));
-        // SHAKE128 input bytes 0..69 (setup ID and seed) as nine little-endian
-        // lanes; the kernel adds each row and column.
         let fixed = SETUP_ID.len() + PRODUCTION_SEED.len();
         let input = element_input(&PRODUCTION_SEED, 0, 0);
         let prefix: [u64; 9] = std::array::from_fn(|lane| {
@@ -93,7 +88,6 @@ impl MetalSession {
         });
         let prefix = self.buffer_from_slice(&prefix)?;
 
-        // A threadgroup serves as many witnesses as fit, 64 lanes each.
         let key_row = &self.production_key_row;
         let accumulate = &self.production_ajtai_accumulate;
         let witnesses_per_group = active

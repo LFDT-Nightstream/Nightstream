@@ -1,5 +1,3 @@
-//! Strict parsing and local replay of cvc5 Goldilocks assignments.
-
 use std::error::Error;
 use std::fmt;
 
@@ -15,9 +13,6 @@ impl FieldModel {
         &self.values
     }
 
-    /// Build a model from canonical residues produced by a Rust witness
-    /// constructor. The same replay and Lean checks apply to every model,
-    /// independent of how the model was found.
     pub fn from_canonical_values(values: Vec<u64>) -> Result<Self, ModelError> {
         if values.is_empty() {
             return Err(ModelError::new("model must contain at least one column"));
@@ -49,14 +44,11 @@ impl fmt::Display for ModelError {
 
 impl Error for ModelError {}
 
-/// Parse all `x_N` definitions from a cvc5 finite-field model.
 pub fn parse_model(stdout: &str, column_count: usize) -> Result<FieldModel, ModelError> {
     let expected_columns = (0..column_count).collect::<Vec<_>>();
     parse_model_with_defaults(stdout, &vec![0; column_count], &expected_columns)
 }
 
-/// Parse exactly the columns declared by a bounded query and fill every other
-/// source column from a complete canonical background assignment.
 pub fn parse_model_with_defaults(
     stdout: &str,
     defaults: &[u64],
@@ -109,7 +101,6 @@ pub fn parse_model_with_defaults(
     Ok(FieldModel { values })
 }
 
-/// Evaluate one exported R1CS equation with a parsed assignment.
 pub fn row_is_satisfied(row: &Row, model: &FieldModel) -> Result<bool, ModelError> {
     let a = evaluate(&row.a, model)?;
     let b = evaluate(&row.b, model)?;
@@ -117,7 +108,6 @@ pub fn row_is_satisfied(row: &Row, model: &FieldModel) -> Result<bool, ModelErro
     Ok(multiply(a, b) == c)
 }
 
-/// Evaluate one independently defined typed-target equation.
 pub fn typed_target_row_is_satisfied(row: &TypedTargetRow, model: &FieldModel) -> Result<bool, ModelError> {
     let a = evaluate(&row.a, model)?;
     let b = evaluate(&row.b, model)?;
@@ -209,11 +199,7 @@ fn evaluate(terms: &[crate::Term], model: &FieldModel) -> Result<u64, ModelError
             .values
             .get(term.column)
             .ok_or_else(|| ModelError::new(format!("row uses missing model column {}", term.column)))?;
-        let coefficient = term
-            .coefficient
-            .parse::<u64>()
-            .map_err(|_| ModelError::new(format!("invalid row coefficient {:?}", term.coefficient)))?;
-        let product = multiply(coefficient, *value);
+        let product = multiply(term.coefficient.get(), *value);
         sum = ((u128::from(sum) + u128::from(product)) % u128::from(modulus)) as u64;
     }
     Ok(sum)

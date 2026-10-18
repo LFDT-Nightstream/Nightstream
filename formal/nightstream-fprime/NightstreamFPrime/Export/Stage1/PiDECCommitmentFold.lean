@@ -4,8 +4,6 @@ import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment
 
 /-!
 Stored addition and finite accumulation of the existing PiDEC block products.
-The value proofs identify the finite sum and complete Ajtai row. No work
-counter, key representation, IO, or range size is introduced.
 -/
 
 set_option autoImplicit false
@@ -22,7 +20,6 @@ open NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment
 open NightstreamFPrime.Export.NativePoseidon2
   (add64 add64_canonical add64_denote)
 
-/-- The stored additive identity. -/
 def zero : StoredRing := Vector.replicate ringDegree 0
 
 theorem zero_value : zero.get = ringFZero := by
@@ -65,7 +62,6 @@ private theorem addCoefficient_value (left right : F) :
       canonicalWord_denote (add64 a b) (add64_canonical a b ha hb)
     _ = left + right := by rw [add64_denote a b ha hb, aValue, bValue]
 
-/-- Materialize every coefficient with native-word field addition. -/
 def add (left right : StoredRing) : StoredRing :=
   Vector.ofFn fun lane => addCoefficient (left.get lane) (right.get lane)
 
@@ -91,13 +87,10 @@ private theorem zero_ringAdd (value : RingF) : ringFAdd ringFZero value = value 
   funext lane
   exact ConcreteCarrier.baseLaws.zero_add _
 
-/-- Visit the exact finite index domain with a stored accumulator. -/
 def fold {count : Nat} (terms : Fin count → StoredRing)
     (initial : StoredRing) : StoredRing :=
   Fin.foldl count (fun accumulated index => add accumulated (terms index)) initial
 
-/-- The executed left fold equals the existing head-first ring sum.
-Reindexing is confined to the proof. -/
 theorem fold_value : ∀ {count : Nat} (terms : Fin count → StoredRing)
     (initial : StoredRing),
     (fold terms initial).get =
@@ -119,7 +112,6 @@ theorem fold_value : ∀ {count : Nat} (terms : Fin count → StoredRing)
               (ringFSum fun index => (terms index).get) :=
                 ringAdd_assoc _ _ _
 
-/-- A complete finite sum starts at the stored zero. -/
 def sum {count : Nat} (terms : Fin count → StoredRing) : StoredRing :=
   fold terms zero
 
@@ -127,8 +119,6 @@ theorem sum_value {count : Nat} (terms : Fin count → StoredRing) :
     (sum terms).get = ringFSum fun index => (terms index).get := by
   rw [sum, fold_value, zero_value, zero_ringAdd]
 
-/-- Summing the existing computed contributions preserves each key/block/child
-coordinate. The block family may be consumed directly by a streaming caller. -/
 theorem sum_contributions_value {verifierRows messageColumns : Nat}
     (setup : AjtaiSetupV1.Setup verifierRows messageColumns)
     (row : Fin verifierRows)
@@ -143,7 +133,6 @@ theorem sum_contributions_value {verifierRows messageColumns : Nat}
   funext block
   exact PiDECCommitmentBlock.contributions_value setup row block (children block) child
 
-/-- Read the same complete carrier block from each stored child assignment. -/
 def childBlocks {shape : Phi81Relation.Shape}
     (assignments : Vector (Vector F shape.carrierWidth) productionGlobalParams.k)
     (block : Fin (Phi81ColumnLayout.blockCount shape.carrierWidth)) :
@@ -165,8 +154,6 @@ theorem childBlocks_value {shape : Phi81Relation.Shape}
       (logicalWidth := shape.logicalWidth) (assignments.get selected).get block)))[child.val])[lane.val] = _
   rw [Vector.getElem_ofFn, Vector.getElem_ofFn]
 
-/-- Folding every complete carrier block gives the exact existing commitment
-row of the selected stored child assignment. No expected row is supplied. -/
 theorem sum_contributions_eq_ajtaiRow
     {shape : Phi81Relation.Shape} {verifierRows : Nat}
     (setup : AjtaiSetupV1.Setup verifierRows
@@ -184,7 +171,6 @@ theorem sum_contributions_eq_ajtaiRow
   funext block
   rw [childBlocks_value]
 
-/-- Continuing with a second finite part preserves both ordered partial sums. -/
 theorem fold_parts_value {leftCount rightCount : Nat}
     (left : Fin leftCount → StoredRing) (right : Fin rightCount → StoredRing)
     (initial : StoredRing) :
@@ -195,8 +181,6 @@ theorem fold_parts_value {leftCount rightCount : Nat}
   rw [fold_value, fold_value]
   exact ringAdd_assoc _ _ _
 
-/-- Adding two separately computed partial sums gives the same value as
-continuing the second fold from the first partial sum. -/
 theorem combine_partialSums_value {leftCount rightCount : Nat}
     (left : Fin leftCount → StoredRing) (right : Fin rightCount → StoredRing) :
     (add (sum left) (sum right)).get = (fold right (sum left)).get := by
@@ -223,9 +207,6 @@ private theorem ringFold_add_right (values : List RingF) (initial extra : RingF)
           _ = _ := (ConcreteCarrier.baseLaws.add_assoc _ _ _).symm
       rw [swap, ih]
 
-/-- Adding one contribution to any worker slot increases the complete slot
-sum by that contribution. The unchanged prefix and suffix include slots that
-receive no block in the final partial batch. -/
 theorem workerSlot_add_value (before after : List RingF)
     (current contribution initial : RingF) :
     (before ++ ringFAdd current contribution :: after).foldl ringFAdd initial =

@@ -1,10 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# General-purpose Rust test profiler
-# Usage: ./scripts/profile_any_test.sh <package> <test_name> [mode]
-#   e.g., ./scripts/profile_any_test.sh neo-fold test_starstream_tx_valid_optimized flamegraph
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
@@ -114,13 +110,11 @@ case "$PROFILE_MODE" in
     PROFILE_FILE="$PROJECT_ROOT/samply-${PACKAGE}-${TEST_NAME}.json"
     
     echo "🎯 Running samply profiler..."
-    # Record to file
     samply record --save-only -o "$PROFILE_FILE" "$TEST_BINARY" --nocapture
     
     echo "✅ Profile saved to: $PROFILE_FILE"
     echo "🌐 Opening in browser..."
     
-    # Load the profile (opens in default browser)
     samply load "$PROFILE_FILE"
     
     echo ""

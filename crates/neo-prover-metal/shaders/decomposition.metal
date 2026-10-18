@@ -1,8 +1,3 @@
-// Pi_DEC writes fourteen child masks per parent scan. The first group also checks
-// that every centered coefficient fits in the fixed base-2 child count. For
-// base two the balanced digits of a value are the bits of its magnitude with
-// its sign. Child masks are planar: the positive columns, then the negative
-// columns, of each child.
 constant ushort DEC_SPLIT_CHILDREN_PER_THREAD = 14;
 
 kernel void dec_split_base2_masks(
@@ -42,8 +37,6 @@ kernel void dec_split_base2_masks(
         }
     }
 
-    // Lanes in the first lane's child group share one atomic per child. A
-    // SIMD group that crosses into the next group records those lanes alone.
     bool first_group = index / cols == simd_broadcast_first(index) / cols;
     for (ushort local = 0; local < DEC_SPLIT_CHILDREN_PER_THREAD; ++local) {
         ulong child = first_child + local;

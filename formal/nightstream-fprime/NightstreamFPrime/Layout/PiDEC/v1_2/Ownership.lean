@@ -162,7 +162,6 @@ theorem ownedRows_length
   rw [ownedRows, List.length_zip, rowOwners_length, physicalRows_length]
   simp
 
-/-- The parent inserts no copy or boundary row between its six children. -/
 theorem noBoundaryRows
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat) :
@@ -170,7 +169,6 @@ theorem noBoundaryRows
       orderedConstraints relation interface offset :=
   logicalConstraints_eq_ordered relation interface offset
 
-/-- The parent's logical interval contains exactly the child-owned cells. -/
 theorem noBoundaryColumns
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat) :
@@ -183,7 +181,6 @@ inductive ColumnOwner where
   | r1csIntermediate (index : Nat)
 deriving Repr, DecidableEq
 
-/-- Total owner function for every external, logical, and R1CS-fresh column. -/
 def columnOwner
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits)

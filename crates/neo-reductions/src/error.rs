@@ -1,5 +1,3 @@
-//! Error types for the neo-fold crate
-
 use thiserror::Error;
 
 #[derive(Error, Debug)]

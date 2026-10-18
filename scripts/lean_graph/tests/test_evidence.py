@@ -264,9 +264,9 @@ class EvidenceTests(EvidenceFixture):
             run_gate("validity", self.policy, manifest, directory, self.store, self.authority)
 
     def test_lock_is_shared_between_stores(self):
-        with build_lock(self.store):
+        with build_lock():
             with self.assertRaises(EvidenceError):
-                with build_lock(self.root / "other-store"):
+                with build_lock():
                     self.fail("second managed gate acquired the lock")
 
     def test_relative_library_file_symlink_keeps_its_captured_target(self):
@@ -342,7 +342,6 @@ class EvidenceTests(EvidenceFixture):
         (work / "source/src").mkdir(parents=True)
         command = {"kind": "python", "cwd": "src", "argv": [sys.executable, "-c", "pass"],
                    "completion": {"patterns": ["done"]}}
-        # Simulate expiry at the project cap; do not wait five minutes for a harness test.
         with patch("scripts.lean_graph.runner.subprocess.Popen") as process, \
                 patch("scripts.lean_graph.runner.kill_process_groups") as kill:
             child = process.return_value

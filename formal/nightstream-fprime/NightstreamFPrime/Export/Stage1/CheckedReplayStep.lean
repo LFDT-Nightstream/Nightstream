@@ -1,9 +1,9 @@
 import NightstreamFPrime.Export.Stage1.CheckedReplayNifs
 
-/-! Bind the checked local replay to its exact augmented-function state.
-The prior openings are supplied in the prior accepted payload. The exact
-next running claim comes from the checked D fields. Successor opening
-construction and terminal acceptance remain separate. -/
+/-!
+Bind the checked local replay to its exact augmented-function state.
+Successor opening construction and terminal acceptance remain separate.
+-/
 
 set_option autoImplicit false
 
@@ -19,8 +19,6 @@ open NightstreamFPrime.Layout.Stage1
 open Poseidon2HashChainV1Package (application fits)
 open Poseidon2HashChainV1Setup (productionSetup productionAjtaiKey)
 
-/-- The accepted prior payload contains the exact C input claims and supplied
-openings. This constructor adds no correctness equality as a premise. -/
 def prior (input : PiCCSInputCheck.Input)
     (runningWitness : Stage1.Terminal.RunningWitness
       (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
@@ -34,9 +32,6 @@ def prior (input : PiCCSInputCheck.Input)
   freshWitness := freshWitness
   pc := 1
 
-/-- Actual successful C/R/D computations determine the exact semantic next
-state. The premise accepts only the prior state; it does not supply a verified
-local proof, a next-state equality, or an accepted successor. -/
 theorem checked_step
     (statement : HyperNovaHistory.Statement)
     (input : PiCCSInputCheck.Input) (batch : PiRLCParent.Batch)

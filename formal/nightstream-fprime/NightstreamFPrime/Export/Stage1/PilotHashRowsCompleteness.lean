@@ -6,7 +6,6 @@ import NightstreamFPrime.Layout.Stage1.SpartanRows
 /-!
 Owns the pilot compiler-row connection from the actual completed Spartan
 prefix to the existing package hash-chain predicates and compact pilot rows.
-Every input and local value comes from the same physical target.
 -/
 
 set_option autoImplicit false
@@ -313,8 +312,6 @@ private theorem pilot_hashRows (target : Env)
       ← PilotProduction.lifecycleOutputOffset_matches_layout] at recipes
     exact recipes
 
-/-- Actual physical pilot rows enforce both package hash-chain predicates.
-The input and local equalities are proved from the existing Spartan maps. -/
 theorem hashChains_of_pilotRows (target : Env)
     (rows : NightstreamFPrime.Layout.Pilot.PhysicalHolds PilotProduction.interface
       PilotProduction.witnessOffset (Spartan.pullback target)) :
@@ -355,8 +352,6 @@ theorem hashChains_of_pilotRows (target : Env)
     · exact output_local_values target
     · exact packets.2
 
-/-- The complete physical prefix supplies the pilot assumptions of the
-checked canonical assignment consumer. No separate hash-row premise remains. -/
 theorem rowsZero_of_spartanRows
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}

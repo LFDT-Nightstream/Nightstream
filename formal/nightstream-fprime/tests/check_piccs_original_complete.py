@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-"""Compare all individual Lean PiCCS evaluations with Rust comparison targets.
-
-This covers the point and every Pad/matrix coefficient for all 17 sources,
-including the nonconstant coefficients of fresh source zero. Full proof
-encoding and the post-output transcript are outside this check.
-"""
 
 import copy
 import json
@@ -91,8 +85,6 @@ def main():
             coefficient[1] = (coefficient[1] + 1) % P
             changed_phase[13] = copy.deepcopy(changed[5])
             expected = "matrix[16][3][53][1] differs"
-        # Both Rust target copies change consistently. The round comparison
-        # must still pass, and only the actual field comparison must reject.
         compare_round(public, final_round, changed, changed_phase, 27)
         try:
             compare_evaluations(merged, changed, changed_phase)

@@ -72,7 +72,6 @@ private def sourceRuns (parameters : List Nat) (values : List Lean.Json) :
     if count != 0 then runs := ⟨first, step, count⟩ :: runs
   pure runs.reverse
 
-/-- Compare whole affine index streams without expanding their slot values. -/
 private partial def equalRuns : List AffineRuns.Run → List AffineRuns.Run → Bool
   | [], [] => true
   | [], _ | _, [] => false

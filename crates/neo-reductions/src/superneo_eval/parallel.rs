@@ -56,9 +56,6 @@ pub(super) fn eval_active_blocks(scratch: &RingEvalScratch, z_blocks: &SuperneoZ
     }
 }
 
-/// Evaluate every witness against the active scratch blocks. Each block's
-/// forms are read once for all witnesses, and blocks are split across
-/// workers; the result is `eval_ring_scratch_real_z_blocks` per witness.
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 pub(super) fn eval_active_blocks_many(scratch: &RingEvalScratch, witnesses: &[&SuperneoZBlocks]) -> Vec<[K; D]> {
     let sums = scratch

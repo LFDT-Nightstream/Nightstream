@@ -7,9 +7,8 @@ import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns the retained field blocks and shared preimage views for PiCCS ordinary
-rows. The prior/output preimage views reuse the actual pilot coordinates.
-Only the remaining source families allocate new retained coordinates.
-Source-support and direct-plan theorems own row coverage and preservation.
+rows. Source-support and direct-plan theorems own row coverage and
+preservation.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSOrdinaryRetainedBlocks
@@ -37,7 +36,6 @@ private theorem finalColumn_lt_basePackage (column : Nat)
     column < PiRLCProductPlan.basePackage.layout.totalColumnCount := by
   exact bound
 
-/-- Embed one final package column into the nested direct-plan source domain. -/
 def packageSourceColumn (program : Lifecycle.Stage1.Application.Program)
     (column : Nat)
     (bound : column < PerApplicationPackage.basePackage.layout.totalColumnCount) :
@@ -137,9 +135,6 @@ def transcriptOutputCount : Nat :=
 def ordinaryLogicalCount : Nat :=
   PiCCSOrdinarySourceSupport.ordinaryLogicalCount
 
-/-- Exact compact slot count: the prior child digits, the proof inputs and
-the 270 hinted statement-binding signs (`proofInputCount`), then the
-transcript output lanes, then the non-transcript PiCCS logical suffix. -/
 def proofLogicalCount : Nat :=
   proofInputCount + transcriptOutputCount + ordinaryLogicalCount
 
@@ -301,9 +296,6 @@ def proofLogicalBlock (program : Lifecycle.Stage1.Application.Program) :
     RunningTransitionRetainedBlocks.packageSourceColumn program
       (proofLogicalSource index) (proofLogicalSource_lt index)
 
-/-- The final sixteen output-binding variables are the declared post-PiCCS
-state. They are outside `proofLogicalBlock` and require one exact endpoint
-block for the direct transcript pins. -/
 def outputEndpointStart : Nat := PiCCSStarts.logicalFreshBase - 16
 
 def outputEndpointBlock (program : Lifecycle.Stage1.Application.Program) :

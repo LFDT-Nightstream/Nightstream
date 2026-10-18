@@ -18,7 +18,6 @@ open _root_.NightstreamFPrime.Spec.Folding
 open PiRLC.PaperForkExtraction PiRLC.CoordinateForkLaw
 open _root_.NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork (Result)
 
-/-- Raw public child messages and the final witness returned by this call. -/
 structure Reply (Assignment Evaluation Commitment : Type*) (params : GlobalParams) where
   messages : Fin params.k → PiDEC.PaperVerifier.ChildMessage Evaluation Commitment
   assignments : Fin params.k → Assignment
@@ -29,7 +28,6 @@ variable {Structure Assignment PublicInput Point Evaluation Commitment Scalar : 
   (rlc : PiRLC.Algebra Structure Assignment PublicInput Point Evaluation Commitment Scalar semantics params)
   (batch : InputBatch Structure PublicInput Point Evaluation Commitment params arity)
 
-/-- The verifier computes the public parent; it is absent from the reply. -/
 def attempt (vector : Fin arity.total → Challenge rlc)
     (reply : Reply Assignment Evaluation Commitment params) :
     PiDEC.PaperVerifier.Attempt Structure PublicInput Point Evaluation Commitment params where

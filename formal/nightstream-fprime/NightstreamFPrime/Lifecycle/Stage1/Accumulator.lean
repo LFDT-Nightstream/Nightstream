@@ -27,7 +27,6 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- The exact computed SuperNeo accumulator update consumed by HyperNova. -/
 noncomputable def Holds
     (relation : LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
@@ -43,9 +42,6 @@ noncomputable def Holds
   Nifs.PaperNonInteractive.verify
     (key relation ajtai) running fresh proof = some output
 
-/-- Accumulator acceptance is exactly the production PiCCS check, the strict
-PiDEC check over the verifier-computed PiRLC parent, and the computed PiDEC
-running output. -/
 theorem holds_iff_checks
     (relation : LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
@@ -68,7 +64,6 @@ theorem holds_iff_checks
   exact Nifs.PaperNonInteractive.verify_eq_some_iff
     (key relation ajtai) running fresh proof output
 
-/-- One fixed NIFS proof has at most one accepted accumulator output. -/
 theorem output_unique
     (relation : LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey

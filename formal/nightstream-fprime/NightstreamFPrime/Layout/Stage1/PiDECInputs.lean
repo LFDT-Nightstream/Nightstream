@@ -21,7 +21,6 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
 
-/-- The completed PiRLC private-column endpoint. -/
 def proofInputStart : Nat := PiRLCStarts.outputFreshStart
 
 def childCount : Nat := productionGlobalParams.k
@@ -44,7 +43,6 @@ def proofInputColumnCount : Nat :=
   childCount * (commitmentWordsPerChild + evalKWordsPerChild +
     evalAWordsPerChild + publicInputWordsPerChild)
 
-/-- PiDEC logical witnesses start after every constrained input word. -/
 def phaseOffset : Nat := proofInputStart + proofInputColumnCount
 
 theorem proofInputStart_matches_piRlc
@@ -141,7 +139,6 @@ def message (child : Radix.ChildIndex) :
     eval_K := childEvalK child
     eval_A := childEvalA child }
 
-/-- The sole production PiDEC interface in cumulative Stage 1 order. -/
 def interface
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤

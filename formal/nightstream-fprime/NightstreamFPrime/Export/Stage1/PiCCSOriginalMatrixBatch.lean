@@ -78,15 +78,11 @@ private theorem sparseRow_value {columns count : Nat} (firstRow : Nat)
       (Vector.replicate ringDegree (0 : F)))[(Fin.encodeProd (source, port)).val])[output.val] = 0
     rw [Vector.getElem_replicate, Vector.getElem_replicate]
 
-/-- One global row traversal and one point weight per row for all source/port
-pairs. Each loaded row and port form is selected once before its source loop. -/
 def sum {columns arity count : Nat} (firstRow : Nat) (point : CubePoint K arity)
     (read : Fin productionShape.sourceCount → Fin ringDegree → Fin columns → F)
     (forms : Vector (MatrixProgram.RowForms columns) count) : Batch :=
   PiDECEvaluationBatch.range firstRow count point (sparseRow firstRow read forms)
 
-/-- Every source/port retains the existing complete 54-lane weighted sparse
-range. This equality needs no premise on reads, forms, point, or source values. -/
 theorem sum_source_port {columns arity count : Nat} (firstRow : Nat)
     (point : CubePoint K arity)
     (read : Fin productionShape.sourceCount → Fin ringDegree → Fin columns → F)
@@ -101,14 +97,11 @@ theorem sum_source_port {columns arity count : Nat} (firstRow : Nat)
   rw [sparseRow_value]
   rfl
 
-/-- Prepare each original source's numeric invocation once. This uses the
-existing stored numeric evaluator and does not construct sparse plan rows. -/
 def prepareInvocation {columns : Nat}
     (read : Fin productionShape.sourceCount → Fin ringDegree → Fin columns → F)
     (interface : PoseidonSboxPlan.Interface columns) : PreparedInvocation :=
   Vector.ofFn fun source => PiDECMatrixInvocation.prepare (read source) interface
 
-/-- The prepared source table is exactly the existing invocation constructor. -/
 theorem prepareInvocation_source {columns : Nat}
     (read : Fin productionShape.sourceCount → Fin ringDegree → Fin columns → F)
     (interface : PoseidonSboxPlan.Interface columns) (source : Fin productionShape.sourceCount) :
@@ -145,15 +138,10 @@ private theorem invocationRow_value (prepared : PreparedInvocation) (start index
       (Vector.replicate ringDegree (0 : F)))[(Fin.encodeProd (source, port)).val])[output.val] = 0
     rw [Vector.getElem_replicate, Vector.getElem_replicate]
 
-/-- One 150-row traversal of supplied numeric tables. Each stored source/lane
-record is selected once per row and shared across all matrix ports. -/
 def sumInvocation {arity : Nat} (start : Nat) (point : CubePoint K arity)
     (prepared : PreparedInvocation) : Batch :=
   PiDECEvaluationBatch.range start 150 point (invocationRow prepared start)
 
-/-- Exact projection for arbitrary supplied prepared tables, including every
-source, port, ring lane and both field coordinates. The point weights and
-single-source arithmetic remain those of PiDECMatrixInvocation.sum. -/
 theorem sumInvocation_source_port {arity : Nat} (start : Nat) (point : CubePoint K arity)
     (prepared : PreparedInvocation) (source : Fin productionShape.sourceCount)
     (port : Fin matrixCount) :
@@ -165,9 +153,6 @@ theorem sumInvocation_source_port {arity : Nat} (start : Nat) (point : CubePoint
   funext index
   rw [invocationRow_value]
 
-/-- Sum contiguous loaded invocations in global row order. Each source is
-prepared once per interface, and all source/port totals use the existing
-extension-ring batch sum. -/
 def sumInvocations {columns arity count : Nat} (firstRow : Nat)
     (point : CubePoint K arity)
     (read : Fin productionShape.sourceCount → Fin ringDegree → Fin columns → F)
@@ -178,8 +163,6 @@ def sumInvocations {columns arity count : Nat} (firstRow : Nat)
         (prepareInvocation read (interfaces.get ⟨index, live⟩))
     else PiDECEvaluationBatch.zero (productionShape.sourceCount * matrixCount)
 
-/-- Every complete source/port value equals the existing single-source
-invocation range with the same reads, interfaces, point and global offset. -/
 theorem sumInvocations_source_port {columns arity count : Nat} (firstRow : Nat)
     (point : CubePoint K arity)
     (read : Fin productionShape.sourceCount → Fin ringDegree → Fin columns → F)

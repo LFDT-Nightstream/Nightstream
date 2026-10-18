@@ -27,10 +27,6 @@ Outputs:
 - `restart_success_eq`, `restart_work_eq`: the success and the work of a loop
   that restarts after each failed attempt.
 
-The certificate holds closed forms of the eventual success and of the expected
-remaining runs. It needs no law of the run count: an unfinished run has spent
-the whole budget, so `T · Pr[unfinished] ≤ 𝔼 runs`.
-
 Does not own: which reduction an application of these laws runs.
 -/
 
@@ -41,21 +37,16 @@ namespace NightstreamFPrime.Spec.RandomOracleBudget
 open scoped BigOperators
 open NightstreamFPrime.Spec.RandomOracle (OracleComp)
 
-/-- An algorithm that runs the adversary once per step, on one fresh uniform
-sample, until it halts. -/
 structure Rewinding (State Sample : Type*) where
   step : State → Sample → State
   halted : State → Bool
 
-/-- Where a budgeted run ends, and how many adversary runs it made. -/
 structure Rewinding.Result (State : Type*) where
   final : State
   runs : ℕ
 
 variable {State Sample : Type*} (machine : Rewinding State Sample)
 
-/-- The machine with a strict budget: step `k` reads `tape k`; it stops when
-it halts or when the budget is spent. -/
 def Rewinding.run : (budget : ℕ) → State → (Fin budget → Sample) → Rewinding.Result State
   | 0, state, _ => ⟨state, 0⟩
   | budget + 1, state, tape =>
@@ -64,9 +55,6 @@ def Rewinding.run : (budget : ℕ) → State → (Fin budget → Sample) → Rew
           Rewinding.run budget (machine.step state (tape 0)) (Fin.tail tape)
         ⟨rest.final, rest.runs + 1⟩
 
-/-- A reduction that runs the adversary once per step: `query` names the run's
-oracle from the state and one fresh sample, and `next` reads that run's
-record. It holds no adversary. -/
 structure RunMachine (State Sample Point Record : Type*) where
   query : State → Sample → Point
   next : State → Sample → Record → State
@@ -76,14 +64,10 @@ section RunMachine
 
 variable {Point Record : Type*} (reduction : RunMachine State Sample Point Record)
 
-/-- The reduction against fixed run records: the machine its laws are proved
-on. -/
 def RunMachine.rewinding (records : Point → Record) : Rewinding State Sample where
   step state sample := reduction.next state sample (records (reduction.query state sample))
   halted := reduction.halted
 
-/-- The reduction with a strict budget, as an oracle program whose points are
-run oracles and whose answers are run records. -/
 def RunMachine.program : (budget : ℕ) → State → (Fin budget → Sample) → OracleComp Point Record State
   | 0, state, _ => .done state
   | budget + 1, state, tape =>
@@ -91,8 +75,6 @@ def RunMachine.program : (budget : ℕ) → State → (Fin budget → Sample) �
         .query (reduction.query state (tape 0)) fun record =>
           RunMachine.program budget (reduction.next state (tape 0) record) (Fin.tail tape)
 
-/-- **Strict work.** On every tape and for every adversary, the budgeted
-reduction makes at most `budget` runs. -/
 theorem RunMachine.program_bound (budget : ℕ) (state : State) (tape : Fin budget → Sample) :
     (reduction.program budget state tape).QueryBound budget := by
   induction budget generalizing state with
@@ -103,7 +85,6 @@ theorem RunMachine.program_bound (budget : ℕ) (state : State) (tape : Fin budg
       · exact .done _ _
       · exact .query _ _ _ fun _ => induction _ _
 
-/-- The program against an adversary's records is the budgeted rewinding run. -/
 theorem RunMachine.run_program (records : Point → Record) (budget : ℕ) (state : State)
     (tape : Fin budget → Sample) :
     (reduction.program budget state tape).run records = ((reduction.rewinding records).run budget state tape).final ∧
@@ -125,7 +106,6 @@ theorem RunMachine.run_program (records : Point → Record) (budget : ℕ) (stat
 
 end RunMachine
 
-/-- A run that ends unhalted has spent its whole budget. -/
 private theorem runs_eq_of_not_halted (budget : ℕ) (state : State) (tape : Fin budget → Sample)
     (unfinished : machine.halted (machine.run budget state tape).final = false) :
     (machine.run budget state tape).runs = budget := by
@@ -138,9 +118,6 @@ private theorem runs_eq_of_not_halted (budget : ℕ) (state : State) (tape : Fin
       · simp only [halted, Bool.false_eq_true, if_false] at unfinished ⊢
         exact congrArg (· + 1) (induction _ _ unfinished)
 
-/-- **Simulation.** When `embed` maps each step of `machine` onto a step of
-`machine'`, the budgeted runs agree: the same end state under `embed` and the
-same number of runs. -/
 theorem Rewinding.run_embed {State' : Type*} (machine' : Rewinding State' Sample) (embed : State → State')
     (halted_eq : ∀ state, machine'.halted (embed state) = machine.halted state)
     (step_eq : ∀ state sample, machine.halted state = false →
@@ -162,8 +139,6 @@ theorem Rewinding.run_embed {State' : Type*} (machine' : Rewinding State' Sample
 variable [Fintype Sample] [Nonempty Sample]
 
 omit [Nonempty Sample] in
-/-- A uniform tape of `budget + 1` samples is its first sample and a uniform
-tape of the rest. -/
 private theorem expect_tape (budget : ℕ) (value : (Fin (budget + 1) → Sample) → ℝ) :
     𝔼 tape, value tape = 𝔼 sample, 𝔼 rest : Fin budget → Sample, value (Fin.cons sample rest) := by
   rw [← Finset.expect_product' Finset.univ Finset.univ (fun sample rest => value (Fin.cons sample rest)),
@@ -172,7 +147,6 @@ private theorem expect_tape (budget : ℕ) (value : (Fin (budget + 1) → Sample
     simp [Fin.consEquiv, Fin.cons_self_tail]
 
 omit [Nonempty Sample] in
-/-- One step of the budgeted run, averaged over the tape. -/
 private theorem expect_run_succ (budget : ℕ) (state : State)
     (unhalted : machine.halted state = false) (value : Rewinding.Result State → ℝ) :
     𝔼 tape, value (machine.run (budget + 1) state tape) =
@@ -183,18 +157,13 @@ private theorem expect_run_succ (budget : ℕ) (state : State)
   refine Finset.expect_congr rfl fun sample _ => Finset.expect_congr rfl fun rest _ => ?_
   simp [Rewinding.run, unhalted, Fin.cons_zero, Fin.tail_cons]
 
-/-- The expected adversary runs of the budgeted run. -/
 noncomputable def Rewinding.expectedRuns (budget : ℕ) (state : State) : ℝ :=
   𝔼 tape : Fin budget → Sample, ((machine.run budget state tape).runs : ℝ)
 
-/-- The chance that the budgeted run ends in `goal`. -/
 noncomputable def Rewinding.chance (goal : State → Prop) [DecidablePred goal] (budget : ℕ)
     (state : State) : ℝ :=
   𝔼 tape : Fin budget → Sample, if goal (machine.run budget state tape).final then 1 else 0
 
-/-- A certificate on `good` states: `success` never exceeds the next step's
-average (it is a lower bound on the eventual chance of `goal`), and `work` pays
-one adversary run per step (an upper bound on the expected remaining runs). -/
 structure Rewinding.Bounds (goal : State → Prop) [DecidablePred goal] where
   good : State → Prop
   success : State → ℝ
@@ -212,8 +181,6 @@ structure Rewinding.Bounds (goal : State → Prop) [DecidablePred goal] where
 
 variable {machine} {goal : State → Prop} [DecidablePred goal] (bounds : machine.Bounds goal)
 
-/-- **Expected work.** For every budget, the expected runs from a good state
-are at most its work potential. -/
 theorem Rewinding.Bounds.expect_runs_le (budget : ℕ) {state : State} (good : bounds.good state) :
     machine.expectedRuns budget state ≤ bounds.work state := by
   unfold Rewinding.expectedRuns
@@ -239,8 +206,6 @@ theorem Rewinding.Bounds.expect_runs_le (budget : ℕ) {state : State} (good : b
               add_le_add le_rfl (induction (bounds.good_step state good unhalted sample))
           _ = _ := by rw [Finset.expect_add_distrib, Finset.expect_const Finset.univ_nonempty]
 
-/-- The success potential is at most the chance of the goal within the budget
-plus the chance that the run ends unhalted. -/
 private theorem success_le_chance_add (budget : ℕ) {state : State} (good : bounds.good state) :
     bounds.success state ≤ machine.chance goal budget state +
       𝔼 tape : Fin budget → Sample,
@@ -275,8 +240,6 @@ private theorem success_le_chance_add (budget : ℕ) {state : State} (good : bou
         unfold Rewinding.chance at step
         exact step
 
-/-- **Markov on the tape.** With budget `T`, the machine reaches the goal with
-chance at least the success potential minus `work / T`. -/
 theorem Rewinding.Bounds.budget_mul_le (budget : ℕ) {state : State} (good : bounds.good state) :
     budget * (bounds.success state - machine.chance goal budget state) ≤ bounds.work state := by
   have split := success_le_chance_add bounds budget good
@@ -296,8 +259,6 @@ theorem Rewinding.Bounds.budget_mul_le (budget : ℕ) {state : State} (good : bo
       mul_le_mul_of_nonneg_left (by linarith) positive
     _ ≤ _ := unfinished.trans (bounds.expect_runs_le budget good)
 
-/-! ## Run-until-success loops -/
-
 section Loops
 
 open RandomOracle
@@ -306,15 +267,12 @@ variable {Answer : Type*} [Fintype Answer]
 
 attribute [local instance low] Classical.propDecidable
 
-/-- The outcome law of one run-until-success loop: uniform on `set`. -/
 noncomputable def lineAverage (set : Set Answer) (value : Answer → ℝ) : ℝ :=
   (𝔼 answer, if answer ∈ set then value answer else 0) / mass set
 
 private theorem expect_mem_eq_mass (set : Set Answer) :
     𝔼 answer, (if answer ∈ set then (1 : ℝ) else 0) = mass set := rfl
 
-/-- One attempt of a loop on `set`: an answer in `set` ends it with `value`;
-any other answer starts the loop again. -/
 theorem lineAverage_step [Nonempty Answer] (set : Set Answer) (positive : mass set ≠ 0) (value : Answer → ℝ) :
     𝔼 answer, (if answer ∈ set then value answer else lineAverage set value) =
       lineAverage set value := by
@@ -329,8 +287,6 @@ theorem lineAverage_step [Nonempty Answer] (set : Set Answer) (positive : mass s
   field_simp
   ring
 
-/-- The work of one attempt: the loop takes `1 / mass set` expected attempts
-before it continues with `later + value`. -/
 theorem line_work_step [Nonempty Answer] (set : Set Answer) (positive : mass set ≠ 0) (later : ℝ)
     (value : Answer → ℝ) :
     1 + 𝔼 answer, (if answer ∈ set then later + value answer
@@ -349,7 +305,6 @@ theorem line_work_step [Nonempty Answer] (set : Set Answer) (positive : mass set
   field_simp
   ring
 
-/-- The loop's outcome law never exceeds a bound on its values. -/
 theorem lineAverage_le (set : Set Answer) {value : Answer → ℝ} {bound : ℝ} (nonnegative : 0 ≤ bound)
     (below : ∀ answer, value answer ≤ bound) : lineAverage set value ≤ bound := by
   unfold lineAverage
@@ -364,8 +319,6 @@ theorem lineAverage_nonnegative (set : Set Answer) {value : Answer → ℝ}
   div_nonneg (Finset.expect_nonneg fun answer _ => by split <;> simp [nonnegative])
     (mass_nonnegative set)
 
-/-- Loops on the coordinates in `pending`, in order; each ends uniform on its
-coordinate's set. -/
 noncomputable def lineLaw {Index : Type*} [DecidableEq Index] (sets : Index → Set Answer)
     (value : (Index → Answer) → ℝ) : List Index → (Index → Answer) → ℝ
   | [], retries => value retries
@@ -385,8 +338,6 @@ theorem lineLaw_nonnegative {Index : Type*} [DecidableEq Index] (sets : Index �
   | [], retries => nonnegative retries
   | _ :: rest, _ => lineAverage_nonnegative _ fun _ => lineLaw_nonnegative sets nonnegative rest _
 
-/-- The weight of one answer in a coordinate's outcome law (`retryWeight`'s
-factor). -/
 private noncomputable def factor {Index : Type*} (sets : Index → Set Answer) (index : Index)
     (answer : Answer) : ℝ :=
   (if answer ∈ sets index then 1 else 0) / (Fintype.card Answer * mass (sets index))
@@ -399,8 +350,6 @@ private theorem lineAverage_eq_sum (set : Set Answer) (value : Answer → ℝ) :
   refine Finset.sum_congr rfl fun answer _ => ?_
   split <;> ring
 
-/-- The sequential loops on a duplicate-free `pending` list give the product
-law on the pending coordinates; the others keep their values. -/
 private theorem lineLaw_eq_sum {n : ℕ} (sets : Fin n → Set Answer) (value : (Fin n → Answer) → ℝ) :
     ∀ pending : List (Fin n), pending.Nodup → ∀ retries,
       lineLaw sets value pending retries =
@@ -453,8 +402,6 @@ private theorem lineLaw_eq_sum {n : ℕ} (sets : Fin n → Set Answer) (value : 
             List.prod_cons]
           ring
 
-/-- **Sequential loops on every coordinate give the existing retry law**
-(`RandomOracle.retryWeight`). -/
 theorem lineLaw_eq_retryWeight {n : ℕ} (sets : Fin n → Set Answer) (value : (Fin n → Answer) → ℝ)
     (retries : Fin n → Answer) :
     lineLaw sets value (List.finRange n) retries = ∑ other, retryWeight sets other * value other := by
@@ -467,10 +414,6 @@ theorem lineLaw_eq_retryWeight {n : ℕ} (sets : Fin n → Set Answer) (value : 
 
 end Loops
 
-/-! ## Restarting loops -/
-
-/-- A loop that restarts after each failed attempt: an attempt succeeds with
-`found`, fails and restarts with `1 - tries`. Its success is `𝔼 found / 𝔼 tries`. -/
 theorem restart_success_eq (found tries : Sample → ℝ) (positive : 𝔼 sample, tries sample ≠ 0) :
     𝔼 sample, (found sample + (1 - tries sample) * ((𝔼 s, found s) / 𝔼 s, tries s)) =
       (𝔼 s, found s) / 𝔼 s, tries s := by
@@ -479,8 +422,6 @@ theorem restart_success_eq (found tries : Sample → ℝ) (positive : 𝔼 sampl
   field_simp
   ring
 
-/-- The work of a restarting loop: one run per attempt plus `extra` runs, for
-`1 / 𝔼 tries` expected attempts. -/
 theorem restart_work_eq (extra tries : Sample → ℝ) (positive : 𝔼 sample, tries sample ≠ 0) :
     1 + 𝔼 sample, (extra sample + (1 - tries sample) * ((1 + 𝔼 s, extra s) / 𝔼 s, tries s)) =
       (1 + 𝔼 s, extra s) / 𝔼 s, tries s := by

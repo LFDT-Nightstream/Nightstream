@@ -2,15 +2,8 @@ import NightstreamFPrime.Export.Stage1.PerApplicationTerminal
 
 /-!
 Owns the iteration-independent size of the existing HyperNova proof envelope.
-The count includes the tag, one program-counter word, all running and fresh
-claims, and every coordinate of all running and fresh openings. A running
-claim counts its shared fields and all sixteen child public inputs, not the
-hashed state encoding, which stores only the packed parent. The accepted
-program counter is proved to be one.
-
-Opening sizes count their complete finite coordinate domains without creating
-coordinate lists. This is a dense field-word count with the existing claim
-framing, not a Rust wire format, heap-size bound, or execution-cost claim.
+This is a dense field-word count with the existing claim framing, not a Rust
+wire format, heap-size bound, or execution-cost claim.
 -/
 
 set_option autoImplicit false
@@ -25,8 +18,6 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 
 abbrev Program := Lifecycle.Stage1.Application.Program
 
-/-- Every complete opening contains one field coordinate at each index of
-its existing assignment type, including the full carrier padding. -/
 private def assignmentWords (application : Program)
     (_value : PaperAlgebra.Assignment
       (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
@@ -34,10 +25,6 @@ private def assignmentWords (application : Program)
   Fintype.card (Fin (Phi81CarrierLayout.carrierWidth
     (PerApplicationFixedPoint.logicalWidth application)))
 
-/-- Count every field of the existing proof payload. One tag word selects
-bottom or recursive; a recursive proof also has one program-counter word.
-Acceptance below proves that this counter is the constant one. The witness
-functions contribute their full domain sizes, rather than Lean closure sizes. -/
 def wordCount (application : Program)
     (proof : PerApplicationTerminal.ProofEnvelope application) : Nat :=
   match proof with
@@ -59,10 +46,6 @@ def wordCount (application : Program)
           (payload.fresh.publicInputs source))).length).sum +
       assignmentWords application payload.freshWitness
 
-/-- The size bound depends only on the selected application and production
-dimensions. A running claim has 27,704 field words
-(`serializeRunningFields_length`) and 4,320 child public-input words
-(`serializeChildPublicInputs_length`). -/
 def fixedWordBound (application : Program) : Nat :=
   let width := Phi81CarrierLayout.carrierWidth
     (PerApplicationFixedPoint.logicalWidth application)
@@ -85,10 +68,6 @@ private theorem wordCount_le (application : Program)
         serializeChildPublicInputs_length, fullShape, Phi81Relation.Shape.publicWidth,
         Nat.add_assoc]
 
-/-- Every accepted selected terminal proof has the fixed dense field-word
-bound and, if recursive, the constant program counter one. Neither conclusion
-depends on the statement's iteration or on retained proof history. All claims
-and complete openings in the actual payload are included in `wordCount`. -/
 theorem accepted_wordCount_le
     (application : Program)
     (fits : PerApplicationTerminal.FitsTwoPow28 application)

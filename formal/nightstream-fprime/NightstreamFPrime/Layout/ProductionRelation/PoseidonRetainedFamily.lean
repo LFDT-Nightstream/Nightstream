@@ -27,8 +27,6 @@ def slot {sourceWidth invocationCount : Nat}
     Fin schedule.block.slotCount :=
   Fin.cast schedule.slotCount_eq.symm (Fin.encodeProd (invocation, row))
 
-/-- Invocation-major slot index. Callers rewrite `rows.length` with
-`PoseidonRetainedSlots.rows_length` instead of unfolding the template. -/
 theorem slot_val {sourceWidth invocationCount : Nat}
     (schedule : Schedule sourceWidth invocationCount)
     (invocation : Fin invocationCount)
@@ -59,7 +57,6 @@ theorem form_eval {sourceWidth invocationCount logicalWidth : Nat}
   exact LowNormBlock.Block.form_eval schedule.block start fits assignment
     source encodes (slot schedule invocation row)
 
-/-- Closed-form final output state from the final eight retained S-box rows. -/
 def outputState {sourceWidth invocationCount logicalWidth : Nat}
     (schedule : Schedule sourceWidth invocationCount)
     (start : Nat)
@@ -68,8 +65,6 @@ def outputState {sourceWidth invocationCount logicalWidth : Nat}
   SparseLayer.external fun lane =>
     form schedule start fits invocation (PoseidonRetainedSlots.finalRow lane)
 
-/-- Evaluating a retained final state reconstructs the exact selected source
-value in every lane. -/
 theorem outputState_eval {sourceWidth invocationCount logicalWidth : Nat}
     (schedule : Schedule sourceWidth invocationCount)
     (start : Nat)
@@ -131,7 +126,6 @@ def familyInterface {sourceWidth invocationCount logicalWidth : Nat}
       invocationInterface schedule start fits oneColumn input invocation := by
   rfl
 
-/-- The generic trace output is the adapter's constant-time final state. -/
 theorem trace_state_eq_outputState
     {sourceWidth invocationCount logicalWidth : Nat}
     (schedule : Schedule sourceWidth invocationCount)
@@ -156,8 +150,6 @@ theorem trace_state_eq_outputState
   apply Fin.ext
   rfl
 
-/-- Output pins are exact definitional custody checks for the derived final
-state and require no extra witness values. -/
 theorem outputEquations
     {sourceWidth invocationCount logicalWidth : Nat}
     (schedule : Schedule sourceWidth invocationCount)

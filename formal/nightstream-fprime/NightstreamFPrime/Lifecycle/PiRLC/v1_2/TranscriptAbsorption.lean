@@ -50,7 +50,6 @@ def evalState (env : Env) (state : EState) : State :=
 def Assumptions (interface : Interface) (offset : Nat) (_env : Env) : Prop :=
   ∀ lane, (interface.initialState offset lane).VarsBelow offset
 
-/-- Exact verifier-owned scalar-domain entry. -/
 def SpecHolds (interface : Interface) (coordinate offset : Nat)
     (env : Env) : Prop :=
   NightstreamFPrime.Lifecycle.Transcript.PiRlcSampler.enterScalar
@@ -90,7 +89,6 @@ theorem ownedSpec_iff_specHolds (interface : Interface)
   simp [Poseidon2.rate, NightstreamFPrime.Lifecycle.natWord, evalState,
     output, ownedInterface, actions, frameWords]
 
-/-- The sole logical circuit for scalar-domain entry. -/
 def circuit (interface : Interface) (coordinate : Nat) : FormalCircuit where
   main := Formal.Owned.main (ownedInterface interface coordinate)
   assumptions := Assumptions interface
@@ -123,8 +121,6 @@ theorem soundness (interface : Interface) (coordinate : Nat)
     SpecHolds interface coordinate offset env :=
   (circuit interface coordinate).soundness env offset assumptions rows
 
-/-- The absorb-only scalar-entry schedule has a deterministic witness builder
-that needs no semantic output premise. -/
 theorem complete (interface : Interface) (coordinate : Nat)
     (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env) :
@@ -173,7 +169,6 @@ private theorem assertionCount_eq (coordinate : Nat) :
     Formal.assertionCount (actions coordinate) = 0 := by
   rfl
 
-/-- Exact private allocation: one Poseidon2 permutation. -/
 theorem localLength_eq (interface : Interface) (coordinate offset : Nat) :
     localLength
       (Circuit.ops (circuit interface coordinate).main offset) = 1096 := by
@@ -183,14 +178,12 @@ theorem localLength_eq (interface : Interface) (coordinate offset : Nat) :
   rw [Formal.compile_recipes_length]
   exact recipeCount_eq coordinate
 
-/-- One witness batch and no assertion or copy operation. -/
 theorem operations_length (interface : Interface) (coordinate offset : Nat) :
     (Circuit.ops (circuit interface coordinate).main offset).length = 1 := by
   rw [circuit_ops, Formal.Owned.operations_length]
   change 1 + Formal.assertionCount (actions coordinate) = 1
   rw [assertionCount_eq]
 
-/-- Exact logical rows: one row for each of the 1096 recipes. -/
 theorem flatConstraints_length (interface : Interface)
     (coordinate offset : Nat) :
     (flatConstraints
@@ -200,7 +193,6 @@ theorem flatConstraints_length (interface : Interface)
     Formal.assertionCount (actions coordinate) = 1096
   rw [recipeCount_eq, assertionCount_eq]
 
-/-- The owned outgoing state lies inside the exact private interval. -/
 theorem output_varsBelow (interface : Interface) (coordinate offset : Nat)
     (env : Env) (assumptions : Assumptions interface offset env) :
     ∀ lane, (output interface coordinate offset lane).VarsBelow

@@ -46,7 +46,6 @@ def limbTerms (offset limb : Nat) : List (Nat × Expr) :=
       else []
 
 def limbHints (offset limb : Nat) : List Hint :=
-  -- The proved accumulator bound also gives 5 * accumulator < p.
   .quotientFive (Expr.const (fieldOfNat 5) * linearExpr (limbTerms offset limb)) ::
     (List.range accumulatorBits).map fun bit => .bit (Expr.var (limbStart offset limb)) bit
 
@@ -60,7 +59,6 @@ def initialDivisionLimb (offset limb : Nat) : Expr :=
 
 def divisionStart (offset : Nat) : Nat := offset + sourceBitCount + limbCount * limbStride
 
-/-- Division visits limb 4 first and limb 0 last. Each pair is q then r. -/
 def divisionColumn (offset round position : Nat) : Nat :=
   divisionStart offset + round * divisionStride + 2 * position
 

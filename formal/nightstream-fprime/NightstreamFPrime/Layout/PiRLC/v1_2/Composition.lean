@@ -70,7 +70,6 @@ private theorem childOp_flatConstraints (name : String)
       childConstraints child offset := by
   rfl
 
-/-- Exact equality between the phase rows and the seven opaque child lists. -/
 theorem logicalConstraints_eq_ordered
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits)
@@ -84,8 +83,6 @@ theorem logicalConstraints_eq_ordered
     List.flatten_cons, List.flatten_nil, childOp_flatConstraints,
     List.append_nil]
 
-/-- Exact expression-shape evidence required for the fixed production
-footprint. The canonical package must construct this record. -/
 structure InputShapes
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits)

@@ -264,8 +264,6 @@ theorem compile_schedule_output_affine (start : Nat) (state : Layer.EState)
       (Permutation.compile start state Permutation.schedule).output :=
   compile_output_affine start state Permutation.schedule stateAffine
 
-/-- The fixed schedule's final layer owns the eight variables beginning at
-`start + 1080`. This reduction is fixed-size and independent of hash length. -/
 theorem compile_schedule_output_eq (start : Nat) (state : Layer.EState) :
     (Permutation.compile start state Permutation.schedule).output =
       Permutation.freshState (start + 1080) := by

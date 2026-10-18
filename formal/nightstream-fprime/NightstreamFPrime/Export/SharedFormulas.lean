@@ -97,8 +97,6 @@ private def exportPoseidonStep (accumulated : PoseidonAccumulator)
     rows := accumulated.rows ++
       result.rows.map (fun row => wireRow row.meaningfulForm) }
 
-/-- Serialize each existing step against local state ports before substituting
-its predecessor. This keeps the partial-round linear sums as a DAG. -/
 def poseidonVariant (_ : Unit) : Variant :=
   let initial : PoseidonAccumulator :=
     { nextSbox := 0, state := poseidonInterface.input
@@ -247,7 +245,6 @@ def profile : List Nat :=
     Spec.ProductionRelation.matrixCount,
     Spec.ProductionRelation.meaningfulPortCount]
 
-/-- Stream fixed component variants; do not construct expanded matrices. -/
 def write (path : System.FilePath) : IO Unit := do
   let handle ← IO.FS.Handle.mk path .write
   let header := Lean.Json.mkObj [
@@ -306,7 +303,6 @@ def libraryValue (_ : Unit) : Value :=
     .array [(poseidonComponent ()).value, (externalComponent ()).value,
       (phi81Component ()).value]]
 
-/-- The ASCII bytes of `Nightstream/FPrime/formulas/v1`. -/
 def digestDomain : List F :=
   ([78, 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47,
     70, 80, 114, 105, 109, 101, 47, 102, 111, 114, 109, 117, 108, 97, 115,

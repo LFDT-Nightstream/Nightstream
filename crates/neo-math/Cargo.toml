@@ -12,20 +12,16 @@ workspace = true
 
 [dependencies]
 neo-params = { path = "../neo-params" }
-# Plonky3 field + Goldilocks + Matrix (no NTT/FFT in folding layer per Neo design)
 p3-field = { workspace = true }
 p3-goldilocks = { workspace = true }
 p3-matrix = { workspace = true }
 
-# Core  
-thiserror = { workspace = true }
 subtle = { workspace = true }
 rand = { workspace = true }
 rand_chacha = { workspace = true }
 serde = { workspace = true, optional = true, features = ["derive"] }
 
 [dev-dependencies]
-# Dev and property testing
 proptest = { workspace = true }
 rand = { workspace = true }
 rand_chacha = { workspace = true }

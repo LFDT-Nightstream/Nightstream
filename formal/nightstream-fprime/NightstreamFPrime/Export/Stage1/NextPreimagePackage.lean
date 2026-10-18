@@ -4,8 +4,7 @@ import NightstreamFPrime.Layout.Stage1.NextPreimageInputs
 
 /-!
 Owns the five ordinary package rows for HyperNova Construction 2's next
-state-hash preimage. These rows read existing Spartan columns, allocate no
-private value, and belong only to the per-application Stage 1 suffix.
+state-hash preimage.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.NextPreimagePackage
@@ -93,8 +92,6 @@ theorem assertionRows_length (rowStart : Nat) :
     compiledRows_length] at classified
   exact classified
 
-/-- Satisfaction of the exact five source rows implies the typed wiring
-predicate in the Spartan environment. -/
 theorem sourceRows_imply_spec (env : Env)
     (rows : R1CS.RowsHold env sourceRows) :
     NextPreimage.SpecHolds NextPreimageInputs.spartanInterface privateStart env := by

@@ -37,8 +37,6 @@ private theorem pilotSourceEnd_le_root
     Lifecycle.PaperAlgebra.publicRingColumns, Spec.ringDegree] at nonnegative ⊢
   omega
 
-/-- The compact prior-state child reads only source expressions before the
-compact root. -/
 theorem priorAssumptions
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
     PriorStateHash.Assumptions PilotProduction.priorInterface
@@ -69,7 +67,6 @@ theorem priorAssumptions
       at columnBound ⊢
     omega
 
-/-- The output-hash preimage remains in the caller-owned source prefix. -/
 theorem outputPreimageBelowRoot
     (program : Lifecycle.Stage1.Application.Program) :
     ∀ expression ∈ PilotProduction.outputInterface.preimage
@@ -85,7 +82,6 @@ theorem outputPreimageBelowRoot
     unfold PilotProduction.outputDigestStart
     omega) (pilotSourceEnd_le_root program)
 
-/-- The expected output digest remains in the caller-owned source prefix. -/
 theorem outputDigestBelowRoot
     (program : Lifecycle.Stage1.Application.Program) (lane : Fin 4) :
     (PilotProduction.outputInterface.digest
@@ -105,8 +101,6 @@ theorem outputDigestBelowRoot
     Lifecycle.PaperAlgebra.publicRingColumns] at laneBound ⊢
   omega
 
-/-- Exact compact-root support used to transport output-hash semantics after
-the prior child completes. -/
 theorem outputSupport
     (program : Lifecycle.Stage1.Application.Program) :
     (∀ expression ∈ PilotProduction.outputInterface.preimage
@@ -124,8 +118,6 @@ theorem outputSupport
     exact (Expr.varsSatisfy_lt_iff_varsBelow _ _).2
       (outputDigestBelowRoot program lane)
 
-/-- The compact output-hash child has its exact causal assumptions at the
-later logical allocation. -/
 theorem outputAssumptions
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
     OutputHash.Assumptions PilotProduction.outputInterface

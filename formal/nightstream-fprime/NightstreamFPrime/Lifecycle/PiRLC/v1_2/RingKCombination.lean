@@ -6,8 +6,7 @@ import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.PiRLCFinite
 Paper authority: SuperNeo v1.2, Section 7.4, verifier Step 1, evaluation
 equations `y_j = sum_i rho_i y_(i,j)`.
 
-This reusable leaf proves that the generic two-cell circuit representation is
-exactly the canonical action of `RingF` on `RingK`. `Eval_K` and `Eval_A`
+`Eval_K` and `Eval_A`
 instantiate only the block count; they do not duplicate this arithmetic.
 -/
 
@@ -147,7 +146,6 @@ private theorem rawMulCoeffK_cell (cell : Fin cellCount)
   exact foldl_raw_cell cell (List.range ringDegree) challenge value degree
     K.zero 0 (kCell_zero cell)
 
-/-- One canonical `RingK` action is exactly the two cellwise circuit actions. -/
 theorem ringKMul_cell (cell : Fin cellCount)
     (challenge : RingF) (value : RingK) (lane : Fin ringDegree) :
     ringFMul challenge (ringKCell cell value) lane =
@@ -155,10 +153,12 @@ theorem ringKMul_cell (cell : Fin cellCount)
         (ringKMul (RingKAction.embedChallenge challenge) value lane) := by
   unfold ringFMul ringKMul
   by_cases foldedLow : lane.val < ringMiddleDegree
-  · by_cases hasTwice : lane.val + 81 ≤ 106
+  · by_cases hasTwice :
+      lane.val + (ringDegree + ringMiddleDegree) ≤ 2 * (ringDegree - 1)
     · simp [foldedLow, hasTwice, rawMulCoeffK_cell]
     · simp [foldedLow, hasTwice, rawMulCoeffK_cell]
-  · by_cases hasTwice : lane.val + 81 ≤ 106
+  · by_cases hasTwice :
+      lane.val + (ringDegree + ringMiddleDegree) ≤ 2 * (ringDegree - 1)
     · simp [foldedLow, hasTwice, rawMulCoeffK_cell]
     · simp [foldedLow, hasTwice, rawMulCoeffK_cell]
 

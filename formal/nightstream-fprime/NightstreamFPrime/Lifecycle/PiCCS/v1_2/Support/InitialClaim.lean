@@ -33,8 +33,6 @@ private theorem coefficientExprs_supported (interface : Interface)
     rcases member with ⟨coordinate, _coordinateMember, rfl⟩
     exact evalASupport coordinate
 
-/-- Exact support propagation through the child-owned 4,320-coefficient
-Horner program. -/
 theorem flatConstraints_varsSatisfy (interface : Interface) (offset : Nat)
     (allowed : Nat → Prop)
     (gammaSupport : Horner.KSupported (interface.gamma offset) allowed)
@@ -64,7 +62,6 @@ theorem flatConstraints_varsSatisfy (interface : Interface) (offset : Nat)
   · exact localSupport index lower (by
       simpa [program, ownedInterface, Horner.Owned.program] using upper)
 
-/-- The child-owned initial claim has the same exact support as its rows. -/
 theorem output_varsSatisfy (interface : Interface) (offset : Nat)
     (allowed : Nat → Prop)
     (gammaSupport : Horner.KSupported (interface.gamma offset) allowed)

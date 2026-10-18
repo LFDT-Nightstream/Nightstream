@@ -97,7 +97,6 @@ pub(super) fn matrix(reference: &mut Envelope, manifest: &Manifest, counts: Coun
 }
 
 /// Same right-to-left greedy compression as Export/AffineRuns.compressIndexedTR.
-/// Source values are streamed; no expanded source-index vector is allocated.
 fn runs(templates: &[Run], counts: Counts) -> Result<Vec<[usize; 3]>, AssemblyError> {
     let mut reversed: Vec<[usize; 3]> = Vec::new();
     for run in templates.iter().rev() {

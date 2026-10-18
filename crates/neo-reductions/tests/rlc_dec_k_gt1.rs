@@ -6,13 +6,13 @@ use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use neo_reductions::api::{
     dec_children_with_commit, dec_children_with_commit_superneo_cached_from_trusted_split_digits,
-    dec_children_with_commit_superneo_cached_with_digit_flags, rlc_public,
-    rlc_public_matches_verified_inputs_with_perf, rlc_public_matches_with_perf, rlc_with_commit,
-    rlc_with_commit_refs_and_resident_witness, verify_dec_public, FoldingMode,
+    dec_children_with_commit_superneo_cached_with_digit_flags, rlc_public, rlc_public_matches, rlc_with_commit,
+    rlc_with_commit_refs_and_resident_witness, verify_dec_public, DecOutcome, FoldingMode,
 };
 use neo_reductions::common::{
     compute_v1_2_evaluations_from_z_and_r, left_mul_acc, project_x_from_witness_mat, rot_rhos_to_mats,
-    sample_rot_rhos_n_typed, split_b_matrix_k_with_nonzero_flags, validate_packed_witness_nc_range, RotRing,
+    sample_rot_rhos_n_typed, split_b_matrix_k, split_b_matrix_k_with_nonzero_flags,
+    validate_packed_witness_dec_representable, RotRing,
 };
 use neo_reductions::superneo_eval::build_superneo_eval_cache;
 use neo_transcript::Poseidon2Transcript;
@@ -34,16 +34,19 @@ fn packed_signed_unit_range_validation_matches_dense_semantics() {
         })
         .collect::<Vec<_>>();
     let dense = Mat::from_row_major(D, 1, values.clone());
-    let compact = Mat::compact_signed_unit(D, 1, values);
+    let signs = (0..D)
+        .map(|index| [0, 1, -1][index % 3])
+        .collect::<Vec<i8>>();
+    let compact = Mat::<F>::compact_signed_unit_from_column_major_prefix(D, 1, &signs).unwrap();
     let zero = Mat::virtual_constant(D, 1, F::ZERO);
 
-    validate_packed_witness_nc_range(&params, &dense, D, "dense").expect("dense signed units");
-    validate_packed_witness_nc_range(&params, &compact, D, "compact").expect("compact signed units");
-    validate_packed_witness_nc_range(&params, &zero, D, "constant").expect("constant zero");
+    validate_packed_witness_dec_representable(&params, &dense, D, "dense").expect("dense signed units");
+    validate_packed_witness_dec_representable(&params, &compact, D, "compact").expect("compact signed units");
+    validate_packed_witness_dec_representable(&params, &zero, D, "constant").expect("constant zero");
 
     let mut invalid = Mat::zero(D, 1, F::ZERO);
     invalid[(0, 0)] = F::from_u64(1u64 << 60);
-    assert!(validate_packed_witness_nc_range(&params, &invalid, D, "invalid").is_err());
+    assert!(validate_packed_witness_dec_representable(&params, &invalid, D, "invalid").is_err());
 }
 
 fn build_structure(n: usize, m: usize) -> CcsStructure<F> {
@@ -470,7 +473,7 @@ fn rlc_x_projection_tracks_mixed_witness_under_rotation_rhos() {
 }
 
 #[test]
-fn rlc_public_verified_inputs_fast_path_matches_full_public_check() {
+fn rlc_public_matches_accepts_valid_inputs_and_rejects_tampered_rhos() {
     let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_structure(D, D);
@@ -508,7 +511,7 @@ fn rlc_public_verified_inputs_fast_path_matches_full_public_check() {
     )
     .expect("optimized rlc_with_commit");
 
-    let (full_ok, _) = rlc_public_matches_with_perf(
+    let accepted = rlc_public_matches(
         &s,
         &params,
         &rhos_typed,
@@ -517,22 +520,11 @@ fn rlc_public_verified_inputs_fast_path_matches_full_public_check() {
         mix_commitments_from_rhos,
         ell_d,
     )
-    .expect("full rlc_public_matches_with_perf");
-    let (verified_ok, _) = rlc_public_matches_verified_inputs_with_perf(
-        &s,
-        &params,
-        &rhos_typed,
-        &me_inputs,
-        &parent,
-        mix_commitments_from_rhos,
-        ell_d,
-    )
-    .expect("verified-inputs rlc_public_matches_with_perf");
-    assert_eq!(verified_ok, full_ok, "fast path must agree on valid verified inputs");
-    assert!(verified_ok, "valid verified inputs must satisfy the public RLC check");
+    .expect("rlc_public_matches");
+    assert!(accepted, "valid inputs must satisfy the public RLC check");
 
     let (rhos_tampered, _) = sampled_rhos(&params, Zs.len(), true);
-    let (full_bad, _) = rlc_public_matches_with_perf(
+    let tampered = rlc_public_matches(
         &s,
         &params,
         &rhos_tampered,
@@ -541,19 +533,8 @@ fn rlc_public_verified_inputs_fast_path_matches_full_public_check() {
         mix_commitments_from_rhos,
         ell_d,
     )
-    .expect("full tampered rlc_public_matches_with_perf");
-    let (verified_bad, _) = rlc_public_matches_verified_inputs_with_perf(
-        &s,
-        &params,
-        &rhos_tampered,
-        &me_inputs,
-        &parent,
-        mix_commitments_from_rhos,
-        ell_d,
-    )
-    .expect("verified-inputs tampered rlc_public_matches_with_perf");
-    assert_eq!(verified_bad, full_bad, "fast path must agree on tampered rho checks");
-    assert!(!verified_bad, "tampered rho must fail the public RLC check");
+    .expect("tampered rlc_public_matches");
+    assert!(!tampered, "tampered rho must fail the public RLC check");
 }
 
 #[cfg(feature = "paper-exact")]
@@ -623,8 +604,7 @@ fn dec_children_with_commit_fixed_arity_public_and_tamper_checks() {
 
     let k_dec = params.k_rho as usize;
     let Z_parent = make_z(1000, s.m);
-    let (Z_split, _) =
-        split_b_matrix_k_with_nonzero_flags(&Z_parent, k_dec, params.b).expect("parent must have a canonical split");
+    let Z_split = split_b_matrix_k(&Z_parent, k_dec, params.b).expect("parent must have a canonical split");
     let mut parent = build_me_from_z(
         &params,
         &s,
@@ -641,7 +621,12 @@ fn dec_children_with_commit_fixed_arity_public_and_tamper_checks() {
         .collect();
     parent.c = combine_commitments_b_pows(&child_commitments, params.b);
 
-    let (children, ok_y, ok_X, ok_c) = dec_children_with_commit(
+    let DecOutcome {
+        children,
+        ok_y,
+        ok_x: ok_X,
+        ok_c,
+    } = dec_children_with_commit(
         FoldingMode::Optimized,
         &s,
         &params,
@@ -692,8 +677,7 @@ fn dec_children_trusted_split_digits_matches_checked_path() {
         }
     }
 
-    let (z_split, digit_nonzero) =
-        split_b_matrix_k_with_nonzero_flags(&z_parent, k_dec, params.b).expect("split small witness");
+    let split = split_b_matrix_k_with_nonzero_flags(&z_parent, k_dec, params.b).expect("split small witness");
     let child_commitments: Vec<Commitment> = (0..k_dec)
         .map(|i| make_commitment(&params, 72_000 + i as u64))
         .collect();
@@ -715,8 +699,8 @@ fn dec_children_trusted_split_digits_matches_checked_path() {
         &s,
         &params,
         &parent,
-        &z_split,
-        &digit_nonzero,
+        split.planes(),
+        split.nonzero(),
         ell_d,
         &child_commitments,
         combine_commitments_b_pows,
@@ -727,23 +711,27 @@ fn dec_children_trusted_split_digits_matches_checked_path() {
         &s,
         &params,
         &parent,
-        &z_split,
-        &digit_nonzero,
+        &split,
         ell_d,
         &child_commitments,
         combine_commitments_b_pows,
         Some(&superneo_cache),
         None,
-        None,
     );
 
-    assert_eq!(trusted.1, checked.1, "ok_y mismatch");
-    assert_eq!(trusted.2, checked.2, "ok_X mismatch");
-    assert_eq!(trusted.3, checked.3, "ok_c mismatch");
-    assert_eq!(trusted.0, checked.0, "trusted split DEC children diverged");
-    assert!(trusted.1 && trusted.2 && trusted.3, "trusted split DEC must verify");
+    assert_eq!(trusted.ok_y, checked.ok_y, "ok_y mismatch");
+    assert_eq!(trusted.ok_x, checked.ok_x, "ok_X mismatch");
+    assert_eq!(trusted.ok_c, checked.ok_c, "ok_c mismatch");
+    assert_eq!(
+        trusted.children, checked.children,
+        "trusted split DEC children diverged"
+    );
+    assert!(
+        trusted.ok_y && trusted.ok_x && trusted.ok_c,
+        "trusted split DEC must verify"
+    );
     let openings = checked
-        .0
+        .children
         .iter()
         .map(|child| neo_ccs::V1_2Evaluations {
             eval_k: child.eval_k[..D].to_vec(),
@@ -759,12 +747,10 @@ fn dec_children_trusted_split_digits_matches_checked_path() {
         &s,
         &params,
         &parent,
-        &z_split,
-        &digit_nonzero,
+        &split,
         ell_d,
         &child_commitments,
         combine_commitments_b_pows,
-        None,
         None,
         Some(&openings),
     );
@@ -785,8 +771,7 @@ fn dec_children_with_commit_optimized_matches_paper_exact() {
 
     let k_dec = params.k_rho as usize;
     let Z_parent = make_z(1300, s.m);
-    let (Z_split, _) =
-        split_b_matrix_k_with_nonzero_flags(&Z_parent, k_dec, params.b).expect("parent must have a canonical split");
+    let Z_split = split_b_matrix_k(&Z_parent, k_dec, params.b).expect("parent must have a canonical split");
 
     let mut parent = build_me_from_z(
         &params,
@@ -825,11 +810,17 @@ fn dec_children_with_commit_optimized_matches_paper_exact() {
         combine_commitments_b_pows,
     );
 
-    assert_eq!(out_opt.1, out_paper.1, "ok_y mismatch");
-    assert_eq!(out_opt.2, out_paper.2, "ok_X mismatch");
-    assert_eq!(out_opt.3, out_paper.3, "ok_c mismatch");
-    assert_eq!(out_opt.0, out_paper.0, "DEC children mismatch between engines");
-    assert!(out_opt.1 && out_opt.2 && out_opt.3, "canonical DEC split must verify");
+    assert_eq!(out_opt.ok_y, out_paper.ok_y, "ok_y mismatch");
+    assert_eq!(out_opt.ok_x, out_paper.ok_x, "ok_X mismatch");
+    assert_eq!(out_opt.ok_c, out_paper.ok_c, "ok_c mismatch");
+    assert_eq!(
+        out_opt.children, out_paper.children,
+        "DEC children mismatch between engines"
+    );
+    assert!(
+        out_opt.ok_y && out_opt.ok_x && out_opt.ok_c,
+        "canonical DEC split must verify"
+    );
 }
 
 #[test]

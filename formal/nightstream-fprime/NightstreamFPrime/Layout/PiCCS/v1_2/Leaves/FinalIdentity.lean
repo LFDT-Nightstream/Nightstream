@@ -23,9 +23,6 @@ Constraint groups:
 
 Parent coverage:
 - `Formal.opsAt`, child `piccs.v1_2.final_identity`.
-
-The terminal assertion costs are exact because every preceding child exports
-its proved syntactic output shape. The parent does not unfold those children.
 -/
 
 namespace NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.FinalIdentity
@@ -43,7 +40,6 @@ variable {logicalWidth degreeBound : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- Stable physical wire shape for the fixed point and Power children. -/
 structure InputsLinear
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.Interface)
@@ -54,7 +50,6 @@ structure InputsLinear
     KExprLinear (interface.alpha offset coordinate)
   gamma : KExprLinear (interface.gamma offset)
 
-/-- Opaque output-shape contracts supplied by the preceding PiCCS children. -/
 structure TerminalInputShapes
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.Interface)
@@ -190,7 +185,6 @@ private theorem nonconstant_of_mulCount_ne_zero {expression : Expr}
   subst equality
   simp [R1CS.mulCount] at count
 
-/-- The part of the terminal expression after `E_K` is not affine. -/
 private theorem terminalTail_nonAffine
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.Interface)
@@ -432,7 +426,6 @@ def terminalPhysicalRowCount
     (NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.terminalAssertions
       interface offset)
 
-/-- Exact fresh-column cost of the two v1_2 terminal equality components. -/
 theorem terminalFreshColumnCount_eq
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.Interface)
@@ -447,7 +440,6 @@ theorem terminalFreshColumnCount_eq
   rw [terminal_c0_freshCount_eq interface offset inputs shapes,
     terminal_c1_freshCount_eq interface offset inputs shapes]
 
-/-- Exact physical-row cost of the two v1_2 terminal equality components. -/
 theorem terminalPhysicalRowCount_eq
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.Interface)
@@ -498,7 +490,6 @@ private theorem core_totalRowCount
     constraintPower_totalRowCount interface offset inputs]
   rfl
 
-/-- Exact parent-facing footprint for the complete final-identity leaf. -/
 def footprint
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
@@ -564,8 +555,6 @@ theorem physicalPrivateColumnCount_eq
   rw [logicalColumns, freshColumnCount_eq relation interface inputs offset]
   omega
 
-/-- Exact logical rows of the final-identity leaf, before generic R1CS
-lowering. -/
 def logicalConstraints
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.Interface)
@@ -574,7 +563,6 @@ def logicalConstraints
     (NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.main interface)
       offset)
 
-/-- Multiplication intermediates start after the exact logical leaf interval. -/
 def plan
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.Interface)
@@ -638,8 +626,6 @@ theorem physical_implies_spec
   change ConstraintsHold env (logicalConstraints interface offset)
   exact physical_implies_logicalConstraints interface offset env physical
 
-/-- Honest logical execution followed by the generic R1CS executor constructs
-all logical and multiplication-witness columns. -/
 theorem physical_complete
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.Interface)

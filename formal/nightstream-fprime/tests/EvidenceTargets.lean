@@ -131,8 +131,6 @@ def PiCCSPublicAssignment : Prop :=
 theorem piCCSPublicAssignment : PiCCSPublicAssignment :=
   ActualPiCCSInputs.selectedRowsAndPublic_imply_phaseAndHashes
 
-/-- Arbitrary selected rows and their actual public input imply the full
-typed step at the decoded context. Verifier-context binding is separate. -/
 def Stage1Assignment : Prop :=
   ∀ (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
@@ -162,8 +160,6 @@ theorem stage1Assignment : Stage1Assignment := by
 
 #audit_axioms stage1Assignment
 
-/-- Actual terminal membership must supply the arbitrary opening and all
-row/public premises, plus exact advertised-state matching or a named collision. -/
 def Stage1TerminalAssignment : Prop :=
   ∀ (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
@@ -193,8 +189,6 @@ theorem stage1TerminalAssignment : Stage1TerminalAssignment :=
 
 #audit_axioms stage1TerminalAssignment
 
-/-- The terminal's actual witnesses must open the exact decoded PiDEC parent.
-The first step needs no NIFS extraction; collisions remain named events. -/
 def Stage1TerminalParent : Prop :=
   ∀ (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
@@ -237,21 +231,10 @@ open scoped BigOperators ENNReal
 open HyperNovaVisitedSecurity (NifsAdversary NifsExtractor Assumption1 Closed IvcAdversary Stage
   reverseStages)
 
-/-- Exact final history criterion under HyperNova errata Assumption 1, in the
-form of Definition 7 knowledge soundness of the NIFS, with the failure event
-of Definition 11 (ii) (HyperNova Lemma 17): for every
-application that fits the `2^28` profile, every commitment setup, every class
-of admitted NIFS adversaries with efficient extractors that Assumption 1
-covers, every class of admitted stages that gives admitted NIFS adversaries
-and that one reverse step preserves, and every IVC adversary whose start stage
-is admitted and whose advertised iteration is bounded, the reverse law has the
-adversary's output law, and its mass where the terminal verifier accepts and
-the reverse extractor returns no valid history is at most the sum over the
-stages of each stage's marked hash-collision mass and its Assumption 1 error.
-The
-random-oracle theorem `RandomOracleSetup.production_knowledge_error_lt` motivates
-the value of `error`; it does not prove Assumption 1 for Poseidon2, and no Lean
-statement derives `error` from it. -/
+/-- HyperNova errata Assumption 1, Definition 7, Definition 11 (ii), and
+Lemma 17. The random-oracle theorem `RandomOracleSetup.production_knowledge_error_lt`
+motivates the value of `error`; it does not prove Assumption 1 for Poseidon2,
+and no Lean statement derives `error` from it. -/
 def HyperNovaLinearSecurity : Prop :=
   ∀ (application : Lifecycle.Stage1.Application.Program)
     (fits : Export.Stage1.PerApplicationFixedPoint.FitsTwoPow28 application)
@@ -276,7 +259,6 @@ def HyperNovaLinearSecurity : Prop :=
               ((reverseStages assumption closed adversary admitted j.val).1.visit tape)}).toReal +
           error (reverseStages assumption closed adversary admitted j.val).1.nifs)
 
-/-- The final history theorem discharges the registered criterion. -/
 theorem hyperNovaLinearSecurity : HyperNovaLinearSecurity :=
   fun _ _ _ _ _ _ _ assumption closed adversary admitted depth depthBound =>
     ⟨HyperNovaVisitedSecurity.reverse_input_event assumption closed adversary admitted depth,
@@ -285,9 +267,7 @@ theorem hyperNovaLinearSecurity : HyperNovaLinearSecurity :=
 
 #audit_axioms hyperNovaLinearSecurity
 
-/-- The terminal false-acceptance event and its loss under Assumption 1, on
-the IVC adversary's original mixed law (HyperNova Lemma 17), for every
-application that fits the `2^28` profile and every commitment setup. -/
+/-- HyperNova errata Assumption 1 and Lemma 17. -/
 def HyperNovaTerminalFalseAcceptance : Prop :=
   ∀ (application : Lifecycle.Stage1.Application.Program)
     (fits : Export.Stage1.PerApplicationFixedPoint.FitsTwoPow28 application)
@@ -307,7 +287,6 @@ def HyperNovaTerminalFalseAcceptance : Prop :=
               ((reverseStages assumption closed adversary admitted j.val).1.visit tape)}).toReal +
           error (reverseStages assumption closed adversary admitted j.val).1.nifs)
 
-/-- The original mixed-law event bridge discharges the registered criterion. -/
 theorem hyperNovaTerminalFalseAcceptance : HyperNovaTerminalFalseAcceptance :=
   fun application fits setup _ _ _ _ assumption closed adversary admitted depth depthBound =>
     HyperNovaFalseAcceptance.probability_bound application fits setup assumption closed adversary
@@ -326,17 +305,8 @@ open Export.Stage1.RandomOracleSetup (SetupIndex setupKey extraction hashCollisi
 
 attribute [local instance low] Classical.propDecidable
 
-/-- Exact one-fold knowledge criterion of the production NIFS in the
-random-oracle model, for every application that fits the `2 ^ 28` profile, at
-its own relation and key size, with the prior-state link and the Ajtai key
-drawn inside the game. For every adversary that may read the uniform setup
-chunks and makes at most `queries` Fiat–Shamir oracle queries, the probability
-that the verifier accepts its linked claim is less than the extractor's
-success probability, plus the state-hash collision chances, the statistical
-error, the success of the explicit MSIS solver on a uniform matrix
-(`RandomOracleSetup.msisAdvantage`, built from `RandomOracleBinding.rerunKernel`),
-and `2 ^ -190`. SHAKE128 and the Fiat–Shamir hash are random oracles in this
-statement; MSIS and state-hash hardness are not assumed. -/
+/-- SHAKE128 and the Fiat–Shamir hash are random oracles in this statement;
+MSIS and state-hash hardness are not assumed. -/
 def RomKnowledgeSoundness : Prop :=
   ∀ (application : Lifecycle.Stage1.Application.Program)
     (fits : Export.Stage1.PerApplicationFixedPoint.FitsTwoPow28 application) {Output : Type}
@@ -365,7 +335,6 @@ def RomKnowledgeSoundness : Prop :=
         Lifecycle.RandomOracleKnowledge.statisticalError queries +
         msisAdvantage relation adversary claim prior contextDigest + 1 / 2 ^ 190
 
-/-- The setup-game theorem for every application discharges the criterion. -/
 theorem romKnowledgeSoundness : RomKnowledgeSoundness :=
   fun application fits _ adversary claim prior contextDigest _ bounded =>
     Export.Stage1.RandomOracleSetup.production_knowledge_error_lt application fits adversary claim
@@ -375,9 +344,6 @@ theorem romKnowledgeSoundness : RomKnowledgeSoundness :=
 
 end RomKnowledge
 
-/-- The prepared executable computes every full-carrier block of the existing
-PiRLC assignment combination. Challenges and all 17 source assignments are inputs;
-no expected Rust parent or source-validity premise occurs in the statement. -/
 def PiRLCWitnessReplay : Prop :=
   ∀ (shape : Phi81Relation.Shape)
     (challenges : Fin PiRLCNonzero.SourceCount → RingF)
@@ -392,14 +358,11 @@ def PiRLCWitnessReplay : Prop :=
         (Phi81Relation.EvaluationHomomorphism.PiRLCFinite.combineAssignments
           challenges assignments) block)
 
-/-- The audited block equality supplies the literal replay criterion. -/
 theorem piRLCWitnessReplay : PiRLCWitnessReplay :=
   fun _ => PiRLCWitnessBlock.preparedWitnessBlockPartials_getLast?
 
 #audit_axioms piRLCWitnessReplay
 
-/-- The executable returns all canonical private digits exactly when the
-complete supplied parent is bounded. No expected Rust child is an input. -/
 def PiDECWitnessReplay : Prop :=
   ∀ (width : Nat) (parent : Spec.Folding.Nifs.StoredAssignmentArithmetic.StoredAssignment width),
     Phi81Relation.PiDECAlgebra.StoredSplit.splitChecked parent =
@@ -410,14 +373,11 @@ def PiDECWitnessReplay : Prop :=
             Phi81Relation.PiDECAlgebra.Radix.splitScalar (parent.get column) child)
       else none
 
-/-- The total kernel equality includes successful and rejected inputs. -/
 theorem piDECWitnessReplay : PiDECWitnessReplay :=
   fun _ => Phi81Relation.PiDECAlgebra.StoredSplit.kernel_eq_spec
 
 #audit_axioms piDECWitnessReplay
 
-/-- Every child and every production commitment row, using the same successful
-stored split and summing the actual computed block contributions. -/
 def PiDECCommitmentReplay : Prop :=
   let shape := PaperAlgebra.FullShape
     (PerApplicationFixedPoint.logicalWidth Poseidon2HashChainV1Package.application)
@@ -447,9 +407,6 @@ theorem piDECCommitmentReplay : PiDECCommitmentReplay := by
 
 #audit_axioms piDECCommitmentReplay
 
-/-- Every complete child evaluation family at the common parent point is
-computed from the same successfully split witness. No expected message,
-opening or cryptographic premise is supplied to the evaluation kernel. -/
 def PiDECChildEvaluationReplay : Prop :=
   let shape := PaperAlgebra.FullShape
     (PerApplicationFixedPoint.logicalWidth Poseidon2HashChainV1Package.application)
@@ -473,9 +430,6 @@ theorem piDECChildEvaluationReplay : PiDECChildEvaluationReplay := by
 
 #audit_axioms piDECChildEvaluationReplay
 
-/-- The computable complete first-round polynomial evaluates to the existing
-Q completion sum. This kernel target does not assert source-image loading or
-an executed comparison with Rust. Those remain separate replay obligations. -/
 def PiCCSFirstRoundKernel : Prop :=
   ∀ (data : ProtocolPolynomial.Data K Lifecycle.productionShape)
     (alpha : CubePoint K Lifecycle.productionShape.cubeVariables)
@@ -485,15 +439,12 @@ def PiCCSFirstRoundKernel : Prop :=
       Spec.SumCheck.Finite.HypercubeTruth.sumCompletions ConcreteCarrier.extensionOps.toOps
         (ProtocolPolynomial.polynomial ConcreteCarrier.extensionOps data alpha gamma) [value] 27
 
-/-- The complete sum theorem supplies the exact coefficient-kernel target. -/
 theorem piCCSFirstRoundKernel : PiCCSFirstRoundKernel :=
   fun data alpha gamma value => PiCCSFirstRound.firstRound_evaluate
     ConcreteCarrier.extensionOps ConcreteCarrier.extensionLaws data alpha gamma (by decide) value
 
 #audit_axioms piCCSFirstRoundKernel
 
-/-- The executable image assembly uses the original complete witnesses and
-returns the existing source-connected protocol message. -/
 def PiCCSOriginalImages : Prop :=
   let relation := PerApplicationFixedPoint.relation Poseidon2HashChainV1Package.application
     Poseidon2HashChainV1Package.fits
@@ -513,8 +464,6 @@ def PiCCSOriginalImages : Prop :=
 theorem piCCSOriginalImages : PiCCSOriginalImages :=
   PiCCSSourceImages.images_sourceProtocolData
 
-/-- The aggregated constructor, including zeroed unused message fields,
-preserves the complete coefficient object with prepared gamma lookup. -/
 def PiCCSPreparedPairKernel : Prop :=
   ∀ (input : ProtocolPolynomial.VerifierInput K productionShape) (gamma : K)
     (alphaSelector priorSelector : Spec.SumCheck.Finite.FixedPolynomial K 1)
@@ -560,8 +509,6 @@ theorem piCCSPreparedPairKernel : PiCCSPreparedPairKernel := by
     ConcreteCarrier.extensionOps ConcreteCarrier.extensionLaws input _
       alphaSelector priorSelector low high
 
-/-- The optimized source constructor supplies the selected vertex fields
-and the complete canonical carried sums without image-success premises. -/
 def PiCCSAggregatedEndpoints : Prop :=
   let relation := PerApplicationFixedPoint.relation Poseidon2HashChainV1Package.application
     Poseidon2HashChainV1Package.fits
@@ -589,8 +536,6 @@ def PiCCSAggregatedEndpoints : Prop :=
 theorem piCCSAggregatedEndpoints : PiCCSAggregatedEndpoints :=
   PiCCSAggregatedImages.endpoint_sourceProtocolData
 
-/-- Reused invocation rows have the same block semantics after the existing
-loader succeeds. The runner retains its checked numeric fallback on a miss. -/
 def PiCCSStoredInvocation : Prop :=
   ∀ (block : Layout.MatrixProgram.Poseidon.Block) (columns : Nat)
     (index : Fin block.invocationCount)
@@ -611,8 +556,6 @@ theorem piCCSStoredInvocation : PiCCSStoredInvocation := by
   exact PiCCSLinearRows.invocation_loaded_value block index interface loaded
     (PiCCSCarriedRead.read basis blocks) row port
 
-/-- The actual norm and selector caches preserve every pair coefficient.
-Endpoints and carried totals are arbitrary; no signedness premise is needed. -/
 def PiCCSCachedPairKernel : Prop :=
   ∀ (input : ProtocolPolynomial.VerifierInput K productionShape) (powers : Nat → K)
     (alpha : CubePoint K productionShape.cubeVariables) (suffix : BooleanVertex 27)
@@ -630,7 +573,6 @@ def PiCCSCachedPairKernel : Prop :=
           (PiCCSFirstRound.equalitySelector ConcreteCarrier.extensionOps suffix input.priorPoint)
           low high padLow padHigh matrixLow matrixHigh
 
-/-- Compose the total cache equalities at the selected first-coordinate split. -/
 theorem piCCSCachedPairKernel : PiCCSCachedPairKernel := by
   intro input powers alpha suffix low high padLow padHigh matrixLow matrixHigh
   rw [PiCCSCachedSelector.equalitySelector_prepare ConcreteCarrier.extensionOps
@@ -640,8 +582,6 @@ theorem piCCSCachedPairKernel : PiCCSCachedPairKernel := by
     PiCCSNormCache.sourceNorm_eq,
     PiCCSFirstRoundPair.pairPolynomialWithNorm_eq]
 
-/-- The prepared and partitioned scan equals the complete norm contribution,
-including the entire zero suffix of the Boolean domain. -/
 def PiCCSCompleteNormKernel : Prop :=
   ∀
     (input : ProtocolPolynomial.VerifierInput K productionShape)
@@ -667,8 +607,6 @@ def PiCCSCompleteNormKernel : Prop :=
 theorem piCCSCompleteNormKernel : PiCCSCompleteNormKernel :=
   PiCCSNormComplete.prepared_workers_eq_fullPairSum
 
-/-- The original-source fresh scan covers the complete Boolean-domain
-contribution, with optional load failures discharged by selected row semantics. -/
 def PiCCSCompleteFreshKernel : Prop :=
   ∀ (input : PiCCSPublicReplay.Input)
     (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
@@ -682,9 +620,6 @@ def PiCCSCompleteFreshKernel : Prop :=
 theorem piCCSCompleteFreshKernel : PiCCSCompleteFreshKernel :=
   PiCCSFreshComplete.freshRange_eq_fullPairSum
 
-/-- The complete first-round coefficients are those of the selected original
-source data. Inputs are only public fields and original signed masks.
-This target makes no IO, cache-loop, file-origin or later-round claim. -/
 def PiCCSFirstRoundSourceCoefficients : Prop :=
   ∀ (input : PiCCSPublicReplay.Input) (masks : Array (Array (Nat × Nat))),
     PiCCSFirstRoundComposition.coefficients? input masks =
@@ -703,10 +638,6 @@ theorem piCCSFirstRoundSourceCoefficients : PiCCSFirstRoundSourceCoefficients :=
 
 #audit_axioms piCCSFirstRoundSourceCoefficients
 
-/-- Kernel closure combines complete completion-sum semantics, original-source
-assembly, aggregated endpoints, stored rows, exact cached coefficients and
-the complete prepared norm scan and original-source fresh scan.
-Executed full-round coverage and Rust comparison remain separate requirements. -/
 def PiCCSFirstRoundReplayKernel : Prop :=
   PiCCSFirstRoundKernel ∧ PiCCSOriginalImages ∧ PiCCSPreparedPairKernel ∧
     PiCCSAggregatedEndpoints ∧ PiCCSStoredInvocation ∧ PiCCSCachedPairKernel ∧
@@ -726,8 +657,6 @@ theorem piCCSFirstRoundReplayKernel : PiCCSFirstRoundReplayKernel :=
 #audit_axioms piCCSCachedPairKernel
 #audit_axioms piCCSFirstRoundReplayKernel
 
-/-- Norm table decoding equals two ordinary folds of the same signed source
-range. Input-file origin and execution coverage are separate replay gates. -/
 def PiCCSNormPrefixKernel : Prop :=
   ∀ (firstChallenge secondChallenge : K) (codes : Nat → Fin 3) (start count : Nat),
     PiCCSPrefixCodeFold.decode
@@ -745,8 +674,6 @@ theorem piCCSNormPrefixKernel : PiCCSNormPrefixKernel :=
 
 #audit_axioms piCCSNormPrefixKernel
 
-/-- Chunked norm buckets preserve the direct coefficient update and exact
-adjacent range composition. Source decoding and IO remain separate gates. -/
 def PiCCSPrefixNormAccumulation : Prop :=
   (∀ (codeCount : Nat) (values : Vector K codeCount)
       (buckets : Vector (Vector K codeCount) codeCount)
@@ -773,10 +700,6 @@ theorem piCCSPrefixNormAccumulation : PiCCSPrefixNormAccumulation :=
 
 #audit_axioms piCCSPrefixNormAccumulation
 
-/-- Retained arrays preserve scalar MLE evaluation after any challenge prefix,
-and each fresh row port has the exact scalar fold. The scalar array must fit
-the full cube. Concrete K interpolation laws are discharged by the witness.
-This target does not prove file origin, source provenance or round polynomials. -/
 def PiCCSRetainedPrefixKernel : Prop :=
   (∀ (values : Array K) (challenges : List K) (remaining : Nat)
       (suffix : CubePoint K remaining),
@@ -804,10 +727,6 @@ theorem piCCSRetainedPrefixKernel : PiCCSRetainedPrefixKernel := by
 #audit_axioms piCCSRetainedPrefixKernel
 
 
-/-- Exact original-mask reads and complete Pad/matrix evaluation kernels.
-Runtime matrix ranges retain their separate successful-load and bounds
-premises. File provenance, complete execution and whole-PiCCS closure are
-separate obligations. All seventeen sources and all ring lanes are present. -/
 def PiCCSOriginalEvaluationKernel : Prop :=
   (∀ (columns : Nat) (masks : Array (Array (Nat × Nat)))
       (source : Fin productionShape.sourceCount) (output : Fin ringDegree),
@@ -875,12 +794,6 @@ theorem piCCSOriginalEvaluationKernel : PiCCSOriginalEvaluationKernel := by
 
 #audit_axioms piCCSOriginalEvaluationKernel
 
-/-- Complete source coefficient equality for Q0, each nonempty dimension-correct
-prefix Q1 through Q27, and the Q2 bucket constructor. The source is the selected
-key's sourceProtocolData with the original signed-mask assignments. Alpha and
-gamma are derived from the public input. Later challenge prefixes are arbitrary
-inputs of the stated dimension; this is not a transcript or IO theorem.
-The mask bound is the original decoder's allocated block extent. -/
 def PiCCSAllRoundSourceCoefficients : Prop :=
   PiCCSFirstRoundSourceCoefficients ∧
   (∀ (input : PiCCSPublicReplay.Input) (masks : Array (Array (Nat × Nat))),

@@ -113,8 +113,6 @@ private theorem compactRecursiveRunning_eq
       PiDEC.v1_2.Formal.atOffset,
       AssemblerInputs.childOfRunning] using! evaluationEq
 
-/-- The source running-transition specification relocates to the exact
-running field of the compact Stage 1 parent. -/
 theorem physical_implies_compactRunning
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
@@ -154,8 +152,6 @@ theorem physical_implies_compactRunning
       before after (assumptions.output index) agrees
   · exact children.running
 
-/-- Physical next-preimage rows preserve the same pilot inputs in the compact
-logical assembler. No new row or column is introduced by this connection. -/
 theorem physical_implies_compactNextPreimage
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
@@ -210,8 +206,6 @@ theorem physical_implies_compactNextPreimage
       _ _ (bounds.outputInitialState index) agrees
   · exact source
 
-/-- Every physical Stage 1 row family implies the sole compact eight-child
-logical parent specification. -/
 theorem physical_implies_compactSpec
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
@@ -256,8 +250,6 @@ theorem physical_implies_compactSpec
     exact Preservation.physical_implies_compactApplication relation ajtai
       program template env physical
 
-/-- Physical Stage 1 rows, together with the canonical representation
-boundary, imply the exact fixed HyperNova step relation. -/
 theorem physical_implies_stepHoldsFor
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey

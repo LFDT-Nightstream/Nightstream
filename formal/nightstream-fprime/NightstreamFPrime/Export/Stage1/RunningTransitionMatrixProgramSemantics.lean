@@ -2,8 +2,7 @@ import NightstreamFPrime.Export.Stage1.RunningTransitionMatrixProgramSubstitutio
 
 /-!
 Proves row-by-row equality between the compact running-transition matrix
-program and the canonical direct 4-matrix plan. The package row accessor is
-an explicit identity-checked premise.
+program and the canonical direct 4-matrix plan.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.RunningTransitionMatrixProgram
@@ -126,8 +125,6 @@ theorem ordinaryBlock_row?
     ((RunningTransitionDirectSource.program relation).bounded index)
     agreesA agreesB agreesC
 
-/-- Every row of the compact running-transition program is the exact row of
-the canonical direct Lean plan. -/
 theorem matrixProgram_row?
     {program : ApplicationProgram} {logicalWidth : Nat}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth

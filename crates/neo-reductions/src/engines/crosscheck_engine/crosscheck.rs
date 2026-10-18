@@ -145,9 +145,6 @@ where
     Ok((optimized_outputs, optimized_proof))
 }
 
-/// Verify PiCCS with both engines and compare their complete execution traces.
-///
-/// The [caller contract](crate::engines::PiCcsEngine::verify) applies.
 #[allow(clippy::too_many_arguments)]
 pub fn crosscheck_verify<I, R>(
     _inner: &I,

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Check which profiling tools are available
 
 echo "🔍 Checking profiling tools availability..."
 echo ""
@@ -37,7 +36,6 @@ check_tool "hyperfine (benchmarking)" "hyperfine" "brew install hyperfine"
 check_tool "perf (Linux)" "perf" "N/A on macOS"
 echo ""
 
-# Check if DTrace is available (needed for flamegraph on macOS)
 if [[ "$OSTYPE" == "darwin"* ]]; then
     echo "macOS-specific:"
     if sudo -n dtrace -V &> /dev/null; then

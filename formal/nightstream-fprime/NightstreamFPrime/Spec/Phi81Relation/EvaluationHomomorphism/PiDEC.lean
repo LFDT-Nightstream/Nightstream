@@ -3,9 +3,6 @@ import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.BaseLinear
 import NightstreamFPrime.Spec.Phi81Relation.Semantics
 import NightstreamFPrime.Spec.Folding.PiDEC
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Concrete/Phi81Relation/EvaluationHomomorphism/PiDEC.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Production-parameter evaluation recomposition for the typed Phi81 `PiDEC`
 algebra.
@@ -18,21 +15,6 @@ theorem with the exact type of `PiDEC.Algebra.evaluations_hom`.
 Does not own: digit splitting, digit norm bounds, commitment or public-input
 homomorphisms, construction of a complete `PiDEC.Algebra`, Rust/R1CS
 refinement, row removal, or constraint counts.
-
-Emits constraints: no.
-
-Authority boundary: every output array has exactly the verifier-owned matrix
-count. Default reads appear only in the total operation on arbitrary public
-arrays; the homomorphism proof eliminates them because independently derived
-semantic evaluation arrays have the exact typed size.
-
-| Stage path | Mathematical obligation | Authority class | Lean owner |
-|---|---|---|---|
-| `nifs.pi_dec.verify.recomposition.weights` | child `i` has verifier-fixed weight `2^i` in `F` | computed | `radixWeight` |
-| `nifs.pi_dec.verify.recomposition.assignment` | recomposition covers every coordinate of the complete Phi81 assignment | computed | `recomposeAssignment` |
-| `nifs.pi_dec.verify.recomposition.assignment.raw_refinement` | width-only recomposition is exactly the typed relation recomposition | derived | `raw_recomposeAssignment_eq` |
-| `nifs.pi_dec.verify.recomposition.evaluations` | every matrix and all 54 lanes use the same `2^i` weights | computed | `evaluations_hom` |
-| `nifs.pi_dec.verify.algebra.evaluations_hom` | the concrete theorem has the exact `PiDEC.Algebra` field signature | derived | `relation_evaluations_hom` |
 -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.PiDEC
@@ -43,7 +25,6 @@ open NightstreamFPrime.Spec.Phi81Relation
 open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-/-- Production `PiDEC` radix weight in canonical Goldilocks representation. -/
 def radixWeight
     (index : Fin productionGlobalParams.k) : F :=
   ⟨productionGlobalParams.b ^ index.val % goldilocksModulus,
@@ -53,15 +34,11 @@ namespace Raw
 
 end Raw
 
-/-- Recompose every typed relation-assignment coordinate with the production
-`PiDEC` radix weights. -/
 def recomposeAssignment {shape : Shape}
     (assignments : Fin productionGlobalParams.k -> Assignment shape) :
     Assignment shape :=
   BaseLinear.combineAssignments radixWeight assignments
 
-/-- Recompose arbitrary public evaluation arrays into the verifier-owned
-matrix shape. Semantic arrays never exercise the default branch. -/
 def recomposeEvaluations {shape : Shape}
     (items : Fin productionGlobalParams.k -> Array Evaluation) :
     Array Evaluation :=
@@ -82,8 +59,6 @@ private theorem semantic_getD
   rw [Array.getD_eq_getD_getElem?, Array.getElem?_eq_getElem bound]
   exact evaluations_get system assignment point matrix
 
-/-- Exact production-parameter evaluation law. This is the concrete
-`PiDEC.Algebra.evaluations_hom` field, not merely an adjacent linearity lemma. -/
 theorem evaluations_hom
     {shape : Shape}
     (system : Structure shape) (point : Point shape)
@@ -102,9 +77,6 @@ theorem evaluations_hom
     funext index
     exact (semantic_getD system (assignments index) point typedMatrix).symm
 
-/-- The same theorem stated through the independently defined relation
-semantics, with exactly the field type expected by a future concrete
-`PiDEC.Algebra` instance. -/
 theorem relation_evaluations_hom
     {shape : Shape} {Commitment : Type}
     (commit : Assignment shape -> Commitment) :

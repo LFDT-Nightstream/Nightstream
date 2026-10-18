@@ -29,8 +29,6 @@ variable {logicalWidth : Nat}
     (Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (Proof (ProductionKey.degreeBound relation)) slotCount)
 
-/-- Select the existing canonical dummy advice in the existing semantic
-input record. State, iteration, and application witness are preserved. -/
 noncomputable def canonicalInput : Input KeyDigest AppState AppWitness
     (Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -45,9 +43,6 @@ variable
   (output : Output Digest AppState
     (Running (logicalWidth := logicalWidth) (publicFits := publicFits)) slotCount)
 
-/-- Canonical dummy advice preserves the same accepted base step, including
-its application witness and public output. No NIFS acceptance or opening is
-needed for this semantic normalization. -/
 theorem canonicalInput_preserves_base
     (program : Lifecycle.Stage1.Application.Program)
     (step : StepHoldsFor relation ajtai context.toList program input output)
@@ -59,10 +54,6 @@ theorem canonicalInput_preserves_base
   · rcases recursive with ⟨_, positive, _⟩
     exact False.elim ((Nat.ne_of_gt positive) zero)
 
-/-- The canonical base advice constructs pilot, C/R/D, running-transition,
-and next-preimage rows using the total production sampler. The actual
-NIFS dummy result is preserved, while the base transition selects the semantic
-`defaultRunning`. No child opening or equality of those two values is assumed. -/
 theorem base_completePrefix
     (valid : Lifecycle.Stage1.Terminal.StatementValid
       { iteration := input.iteration, z0 := input.z0, zi := input.zi })

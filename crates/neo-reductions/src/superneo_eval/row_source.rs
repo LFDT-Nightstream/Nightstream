@@ -12,9 +12,6 @@ use std::{
     hash::{Hash, Hasher},
 };
 
-/// Incremental construction from original coefficients, with columns grouped
-/// into consecutive degree-54 blocks. No scalar matrix or dense block table
-/// is retained. Rows must arrive in `(row, matrix)` order, including empty rows.
 pub struct SuperneoEvalCacheBuilder {
     mats: Vec<SuperneoMatrixCache>,
     patterns: Vec<HashMap<u64, Vec<usize>>>,
@@ -72,9 +69,6 @@ impl SuperneoEvalCacheBuilder {
         })
     }
 
-    /// Reserve storage from a prior row count. These values only control
-    /// allocation; every supplied row still passes the same value checks.
-    /// Underestimated hints grow normally and do not change the output.
     pub fn reserve_matrix(
         &mut self,
         matrix: usize,
@@ -113,8 +107,6 @@ impl SuperneoEvalCacheBuilder {
         Ok(())
     }
 
-    /// Append one row. Columns must be strictly increasing, in range, and
-    /// have nonzero coefficients. After any error, `finish` rejects the builder.
     pub fn push_row(
         &mut self,
         matrix: usize,
@@ -124,9 +116,6 @@ impl SuperneoEvalCacheBuilder {
         self.push_row_with_runs(matrix, row, entries, [])
     }
 
-    /// Append explicit entries and unexpanded geometric runs. Runs must be
-    /// sorted by `(column_start, len)` and belong to this row. Overlapping
-    /// contributions add, including overlaps with the explicit entries.
     pub fn push_row_with_runs(
         &mut self,
         matrix: usize,
@@ -232,8 +221,6 @@ impl SuperneoEvalCacheBuilder {
         Ok(())
     }
 
-    /// Finish only after every matrix row has been supplied. Empty matrices
-    /// keep implicit zero offsets; all other offsets use the existing packing.
     pub fn finish(mut self) -> Result<SuperneoEvalCache, PiCcsError> {
         if self.failed || self.next_row != self.mats[0].rows || self.next_matrix != 0 {
             return Err(invalid("incomplete or failed cache row source"));
@@ -282,8 +269,6 @@ fn append_block(
     let candidates = patterns
         .entry(pattern_hash(locals, coefficients))
         .or_default();
-    // The hash only selects candidates. Full local-index and coefficient
-    // equality decides reuse, including when different patterns hash alike.
     let pattern = candidates.iter().copied().find(|&pattern| {
         let range = offsets[pattern] as usize..offsets[pattern + 1] as usize;
         &stored_locals[range.clone()] == locals && &stored_coefficients[range] == coefficients

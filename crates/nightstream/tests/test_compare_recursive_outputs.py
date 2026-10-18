@@ -35,7 +35,6 @@ class RecursiveComparisonTests(unittest.TestCase):
         self.write(self.cpu / "step-2/envelope.json", dict(envelope, iteration=2))
         self.write(self.cpu / "step-3/envelope.json", envelope)
         archived = {key: envelope[key] for key in compare.ENVELOPE_FIELDS}
-        # Older provers stored other running frames; the comparison ignores them.
         archived["running_claims"] = [dict(claim, fold_digest=[7]) for claim in envelope["running_claims"]]
         archived.update({key: "record metadata" for key in compare.REFERENCE_METADATA})
         self.write(self.reference / "output/envelope/envelope.json", archived)

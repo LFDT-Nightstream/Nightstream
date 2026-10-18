@@ -88,8 +88,8 @@ pub fn check_claim_mutations(
 ) {
     assert_eq!(running.len(), 16);
     assert_eq!(outputs.len(), 17);
-    // Commitment, public input, Eval_K, and each Eval_A matrix.
-    let claim_families = 3 + structure.t();
+    const FIXED_CLAIM_FAMILIES: usize = 3;
+    let claim_families = FIXED_CLAIM_FAMILIES + structure.t();
     let checked = Cell::new(0);
     let rejects = |fresh: &CcsClaim<Commitment, F>,
                    running: &[CeClaim<Commitment, F, K>],
@@ -111,8 +111,6 @@ pub fn check_claim_mutations(
 
     match group {
         "point-mutations" => {
-            // This group is for the nonzero-running fixture. Zero openings
-            // stay valid at every common point and use the parent hash gate.
             assert!(running
                 .iter()
                 .any(|claim| claim.eval_k.iter().any(|&value| value != K::ZERO)));
@@ -136,9 +134,6 @@ pub fn check_claim_mutations(
             assert_eq!(checked.get(), 28 * 2);
         }
         "statement-mutations" => {
-            // Zero running openings remain valid at every common point.
-            // The parent pilot hashes that point; its preimage-mutation gate
-            // owns rejection of a changed point with the old public digest.
             let mut changed = running.to_vec();
             changed[1].r[0] += K::ONE;
             rejects(fresh, &changed, outputs, "one inconsistent prior-point");

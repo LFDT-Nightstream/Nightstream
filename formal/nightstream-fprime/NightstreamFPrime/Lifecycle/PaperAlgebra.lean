@@ -7,13 +7,6 @@ derived from one logical structure, the opening maps, the packed evaluation
 adapter and its agreement with the independent paper relation, and the
 complete Π_RLC and Π_DEC algebras the NIFS key consumes. The logical width is
 the one open circuit parameter (closed by the recursive fixed point).
-
-Provenance: adapted from
-`formal/nightstream-lean/Nightstream/Implementation/Nebula/NIFS/Core/PaperAlgebra.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`: the four-lane product commitment is replaced by the Ajtai
-  commitment of `Spec.Phi81Relation.PiRLCAlgebra.Commitment`, the row domain is
-  the Stage 1 `cubeVariables`, the public block is five ring columns, and the
-SuperNeo v1.2 Pad evaluation family is separate from all CCS matrices.
 -/
 
 namespace NightstreamFPrime.Lifecycle.PaperAlgebra
@@ -30,12 +23,8 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongReduction
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.UnifiedSources
 open NightstreamFPrime.Lifecycle
 
-/-- Five ring columns hold one marker, four canonical 64-bit digest encodings,
-and a zero tail. Every nonzero coordinate has centered magnitude one. -/
 def publicRingColumns : Nat := 5
 
-/-- The Φ₈₁ relation shape of the Stage 1 F′ circuit at logical width
-`logicalWidth`. All folding dimensions are fixed; only the width is open. -/
 def fullShape (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns <=
       Phi81CarrierLayout.carrierWidth logicalWidth) :
@@ -85,7 +74,6 @@ private theorem evaluation_ext
   cases right
   simp_all
 
-/-- The paper source derived from the logical matrix family. -/
 def matrixSource
     (system : Phi81Relation.Structure (FullShape logicalWidth publicFits)) :
     MatrixStructure logicalWidth :=
@@ -93,7 +81,6 @@ def matrixSource
     productionProfile.runningSources productionProfile.ccsMatrices logicalWidth
     system.matrices system.constraintPolynomial
 
-/-- Complete v1.2 source: canonical Pad layout plus all 4 CCS matrices. -/
 def relationSource
     (layout : ColumnLayout productionShape.cubeVariables
       (Phi81CarrierLayout.carrierWidth logicalWidth))
@@ -102,8 +89,6 @@ def relationSource
   cubeLayout := layout
   matrixSource := matrixSource system
 
-/-- Recover the logical family from a complete paper source; total on every
-source, exact at the selected one. -/
 def canonicalStructure (source : Structure logicalWidth) :
     Phi81Relation.Structure (FullShape logicalWidth publicFits) where
   matrices := fun matrix vertex column =>
@@ -126,8 +111,6 @@ theorem canonicalStructure_relationSource
           productionProfile.ccsMatrices logicalWidth matrices polynomial matrix vertex column
       · rfl
 
-/-- The completed Pad matrix owned by the v1.2 relation source. Pad is not a
-member of the CCS matrix family. -/
 def padMatrix (source : Structure logicalWidth) :
     BooleanMatrix F productionShape.cubeVariables
       (Phi81CarrierLayout.carrierWidth logicalWidth) :=
@@ -135,7 +118,6 @@ def padMatrix (source : Structure logicalWidth) :
     source.cubeLayout.paddedIdentityEntry
       baseOps.zero baseOps.one vertex column
 
-/-- The independent v1.2 `Eval_K` family for Pad. -/
 def padEvaluation
     (source : Structure logicalWidth)
     (assignment : Assignment (logicalWidth := logicalWidth)
@@ -145,14 +127,12 @@ def padEvaluation
     (canonicalStructure (publicFits := publicFits) source)
     (padMatrix source) assignment point
 
-/-- Ajtai opening maps: one assignment opens one commitment. -/
 def openingMaps (key : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     OpeningMaps Commitment (PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
       (FullShape logicalWidth publicFits).carrierWidth where
   commit := PiRLCAlgebra.Commitment.commit key
   projectPublicInput := Phi81Relation.projectPublicInput
 
-/-- One packed matrix/coefficient family through the normalized relation. -/
 def evaluationFamily (source : Structure logicalWidth)
     (assignment : Assignment (logicalWidth := logicalWidth) (publicFits := publicFits))
     (point : Point) : Evaluation where
@@ -162,7 +142,6 @@ def evaluationFamily (source : Structure logicalWidth)
       (canonicalStructure (publicFits := publicFits) source)
       assignment point matrix
 
-/-- Exact paper-carrier semantics used by Π_RLC and Π_DEC. -/
 def semantics (key : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     RelationSemantics (Structure logicalWidth)
       (Assignment (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -300,8 +279,6 @@ theorem openingAgreement
         (forall column, centeredMagnitude (assignment column) < normBound)))
   exact Iff.rfl
 
-/-! ## One-entry Π_RLC evaluation algebra -/
-
 def evaluationZero : Evaluation where
   pad := BaseLinear.evaluationZero
   matrix := fun _ => BaseLinear.evaluationZero
@@ -323,8 +300,6 @@ def combineEvaluations : {count : Nat} ->
         combineEvaluationFamily challenges fun source =>
           (items source).getD index.val evaluationZero
 
-/-- Combining singleton evaluation arrays preserves the v1.2 split and
-produces exactly one combined Pad/matrix family. -/
 theorem combineEvaluations_singletons
     {count : Nat} (positive : 0 < count)
     (challenges : Fin count → RingF) (families : Fin count → Evaluation) :
@@ -392,7 +367,6 @@ theorem evaluations_combine
             (canonicalStructure (publicFits := publicFits) source)
             challenges assignments point matrix
 
-/-- Complete Stage 1 Π_RLC algebra over the Ajtai commitment. -/
 def piRlcAlgebra (key : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     PiRLC.Algebra (Structure logicalWidth)
       (Assignment (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -415,8 +389,6 @@ def piRlcAlgebra (key : AjtaiKey (logicalWidth := logicalWidth) (publicFits := p
     intro count totalBound challenges assignments valid fresh
     exact PiRLCAlgebra.Norm.relation_norm_growth
       (PiRLCAlgebra.Commitment.commit key) totalBound challenges assignments valid fresh
-
-/-! ## One-entry Π_DEC evaluation algebra -/
 
 def recomposeEvaluationFamily
     (families : Fin productionGlobalParams.k -> Evaluation) : Evaluation :=
@@ -464,7 +436,6 @@ theorem evaluations_recompose
         (canonicalStructure (publicFits := publicFits) source)
         EvaluationHomomorphism.PiDEC.radixWeight assignments point matrix
 
-/-- Complete Stage 1 Π_DEC algebra over the Ajtai commitment. -/
 def piDecAlgebra (key : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     PiDEC.Algebra (Structure logicalWidth)
       (Assignment (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -499,7 +470,6 @@ def evaluationArity (key : AjtaiKey (logicalWidth := logicalWidth) (publicFits :
   count := fun _ => 1
   evaluations_size := fun _ _ _ => rfl
 
-/-- Constructive equality for the complete separate Pad and matrix families. -/
 def evaluationDecidableEq : DecidableEq Evaluation := by
   letI : DecidableEq (Fin productionShape.coefficientCount → K) :=
     Fintype.decidablePiFintype
@@ -516,7 +486,6 @@ def evaluationDecidableEq : DecidableEq Evaluation := by
   · exact isFalse fun equal =>
       pad (congrArg EvaluationFamily.pad equal)
 
-/-- Constructive production decision for the exact PiDEC accepted language. -/
 def piDecDecision
     (key : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (attempt : PiDEC.PaperVerifier.Attempt

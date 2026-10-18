@@ -19,8 +19,6 @@ Constraint groups:
 - 864-term Horner: 2,589 logical columns, no fresh column,
   2,589 rows;
 - parent wiring: zero columns and zero rows.
-- total leaf footprint: 2,699 logical columns, 665 fresh columns,
-  3,364 rows.
 
 Parent coverage:
 - `Formal.opsAt`, child `piccs.v1_2.eval_K_terminal`.
@@ -41,7 +39,6 @@ variable {logicalWidth degreeBound : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- Stable physical wire shape for the separate Pad-family terminal. -/
 structure InputsLinear
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_2.EvalKTerminal.Interface)
@@ -54,7 +51,6 @@ structure InputsLinear
   outputEval_K : ∀ coordinate,
     KExprLinear (interface.outputEval_K offset coordinate)
 
-/-- The owned `Eval_K` result lies below the canonical `Eval_A` child start. -/
 theorem output_varsBelow_evalA
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
     (parentOffset : Nat) (env : Env)
@@ -160,7 +156,6 @@ private theorem core_totalRowCount
       rw [NightstreamFPrime.Lifecycle.PiCCS.v1_2.EvalKTerminal.coefficientExprs_length]
       norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
 
-/-- Exact parent-facing physical footprint for separate `Eval_K`. -/
 def footprint
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
     (inputs : ∀ offset,
@@ -215,7 +210,6 @@ theorem physicalPrivateColumnCount_eq
         (Formal.evalKInterface interface) offset
   rw [logicalColumns, freshColumnCount_eq interface inputs offset]
 
-/-- Exact unmaterialized product shape exported to the final identity. -/
 theorem output_shape
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
     (offset : Nat)

@@ -13,13 +13,11 @@ namespace NightstreamFPrime.Export.Stage1.PreparedPhysicalSourceTasks
 
 open PreparedPhysicalSources
 
-/-- Collect an indexed task result without replacing its provenance fields. -/
 def collect {Value : Type} (task : Task (Except IO.Error Value)) : IO Value := do
   match ← IO.wait task with
   | .ok value => return value
   | .error error => throw error
 
-/-- Start the same seven independent packet builders with distinct result types. -/
 def startWitnessGroups : IO PreparedWitnessTasks := do
   let initialClaim ← IO.asTask do
     return prepareWitnessGroup fun _ =>
@@ -44,7 +42,6 @@ def startWitnessGroups : IO PreparedWitnessTasks := do
       PiCCSPackets.finalIdentity Data.logicalWidth Data.publicFits
   return { initialClaim, sumcheck, evalK, evalA, ccs, norm, finalIdentity }
 
-/-- Preserve all seven builder indices when the tasks become stored groups. -/
 def collectWitnessGroups (tasks : PreparedWitnessTasks) : IO PreparedWitnessGroups := do
   let initialClaim ← collect tasks.initialClaim
   let sumcheck ← collect tasks.sumcheck
@@ -55,7 +52,6 @@ def collectWitnessGroups (tasks : PreparedWitnessTasks) : IO PreparedWitnessGrou
   let finalIdentity ← collect tasks.finalIdentity
   return { initialClaim, sumcheck, evalK, evalA, ccs, norm, finalIdentity }
 
-/-- The canonical permutation list is constructed within its existing task. -/
 def startPermutationBlocks :
     IO (Task (Except IO.Error PreparedPermutationBlocks)) :=
   IO.asTask do
@@ -65,22 +61,17 @@ def startStatementBinding : IO (PreparedRowTask .statementBinding) :=
   IO.asTask do
     return prepareRowBlock .statementBinding
 
-/-- Keep construction of the complete PiDEC row source inside the task. -/
 def startPiDec : IO (PreparedRowTask (OrdinaryRowPlan.piDecBlock ())) :=
   IO.asTask do
     let source := OrdinaryRowPlan.piDecBlock ()
     return prepareRowBlock source
 
-/-- Keep construction of the running-transition row source inside the task. -/
 def startRunningTransition :
     IO (PreparedRowTask (OrdinaryRowPlan.runningTransitionBlock ())) :=
   IO.asTask do
     let source := OrdinaryRowPlan.runningTransitionBlock ()
     return prepareRowBlock source
 
-/-- Start every source computation before collecting the recursive tail.
-Appending the checked head before the tail fixes the returned block order.
-Each source retains the dedicated priority used by the existing emitter. -/
 def preparePiRlcSources :
     (sources : List Nat) →
       IO (PreparedRowBlocks (sources.flatMap OrdinaryRowPlan.piRlcSourceBlocks))
@@ -93,13 +84,10 @@ def preparePiRlcSources :
       let head ← collect headTask
       return head.append tail
 
-/-- All PiRLC sources, including their checked coefficient words, retain
-the canonical list index. The source count comes from its owner. -/
 def prepareAllPiRlc :
     IO (PreparedRowBlocks (OrdinaryRowPlan.piRlcBlocks ())) :=
   preparePiRlcSources (List.range PiRLCSamplerInvocations.sourceCount)
 
-/-- Let the per-source preparation overlap with the other physical sources. -/
 def startAllPiRlc :
     IO (Task (Except IO.Error (PreparedRowBlocks (OrdinaryRowPlan.piRlcBlocks ())))) :=
   IO.asTask prepareAllPiRlc

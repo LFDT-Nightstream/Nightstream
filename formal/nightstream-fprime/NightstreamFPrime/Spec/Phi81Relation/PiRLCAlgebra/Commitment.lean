@@ -1,15 +1,9 @@
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.PiRLCFinite
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Concrete/Phi81Relation/PiRLCAlgebra/Commitment.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Typed Ajtai commitment homomorphism for the concrete Phi81 `Pi_RLC` action.
 
 Protocol: SuperNeo v1.2 Theorem 11, commitment branch of `Pi_RLC`.
-Phase: complete assignment action to the verifier-owned Ajtai rows.
-Constraint family: semantic commitment combination only; this file emits no
-rows.
 
 Owns: an exact finite key over a generic verifier-owned row count and every
 complete 54-lane carrier block; the canonical finite Ajtai row equation; the
@@ -19,21 +13,6 @@ commitment homomorphisms required by `PiRLC.Algebra.commit_hom`.
 Does not own: key generation, key serialization, Ajtai binding or MSIS
 security, norm growth, challenge validity, transcript derivation, Rust/R1CS
 refinement, row removal, or constraint counts.
-
-Emits constraints: no.
-
-Authority boundary: `combineCommitments` consumes only public commitments and
-challenges. The key and assignment domains are exact finite types, so neither
-the row equation nor its proof uses default reads, truncation, a caller-supplied
-linearity law, or a prover-carried digest.
-
-| Stage path | Mathematical obligation | Authority class | Lean owner |
-|---|---|---|---|
-| `nifs.pi_rlc.verify.commitment_hom.key` | every verifier row contains one key block for every complete carrier block | typed input | `Key` |
-| `nifs.pi_rlc.verify.commitment_hom.row` | `C_r = sum_j A_(r,j) * z_j` in canonical block order | computed | `ajtaiRow` |
-| `nifs.pi_rlc.verify.commitment_hom.action` | `commit (rho * z) = rho * commit z` | derived | `commit_act` |
-| `nifs.pi_rlc.verify.commitment_hom.finite` | public commitments use the identical head-first challenge fold | computed/derived | `combineCommitments`, `commit_combine` |
-| `nifs.pi_rlc.verify.commitment_hom.algebra` | theorem has the exact algebra-field signature | derived | `relation_commit_hom` |
 -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment
@@ -43,60 +22,44 @@ open NightstreamFPrime.Spec.Phi81Relation
 open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-/-! ## Exact key and row equation -/
-
-/-- A verifier-owned Ajtai key with exactly one `RingF` block per commitment
-row and complete assignment block. -/
 abbrev Key (shape : Shape) (verifierRows : Nat) :=
   Fin verifierRows ->
     Fin (Phi81ColumnLayout.blockCount shape.carrierWidth) -> RingF
 
-/-- One typed public Ajtai commitment. -/
 abbrev Value (verifierRows : Nat) := Fin verifierRows -> RingF
 
-/-- Canonical head-first sum over an exact finite domain. -/
 def ringFSum : {count : Nat} -> (Fin count -> RingF) -> RingF
   | 0, _ => ringFZero
   | _ + 1, terms =>
       ringFAdd (terms 0) (ringFSum fun index => terms index.succ)
 
-/-- Canonical sum over every complete carrier block. -/
 def blockSum {shape : Shape}
     (terms : Fin (Phi81ColumnLayout.blockCount shape.carrierWidth) -> RingF) :
     RingF :=
   ringFSum terms
 
-/-- One Ajtai row, computed as the exact finite ring inner product between the
-verifier-owned key row and all complete assignment blocks. -/
 def ajtaiRow {shape : Shape} {verifierRows : Nat}
     (key : Key shape verifierRows) (assignment : Assignment shape)
     (row : Fin verifierRows) : RingF :=
   blockSum fun block =>
     ringFMul (key row block) (CarrierAction.assignmentBlock assignment block)
 
-/-- The complete typed Ajtai commitment. -/
 def commit {shape : Shape} {verifierRows : Nat}
     (key : Key shape verifierRows) (assignment : Assignment shape) :
     Value verifierRows :=
   fun row => ajtaiRow key assignment row
 
-/-! ## Public commitment action and finite combination -/
-
-/-- One challenge acts on a public commitment without access to an opening. -/
 def commitmentAct {verifierRows : Nat}
     (challenge : RingF) (value : Value verifierRows) : Value verifierRows :=
   fun row => ringFMul challenge (value row)
 
-/-- Pointwise addition of two public commitments. -/
 def commitmentAdd {verifierRows : Nat}
     (left right : Value verifierRows) : Value verifierRows :=
   fun row => ringFAdd (left row) (right row)
 
-/-- Canonical zero public commitment. -/
 def commitmentZero {verifierRows : Nat} : Value verifierRows :=
   fun _ => ringFZero
 
-/-- Canonical head-first challenge fold computed from public commitments alone. -/
 def combineCommitments {verifierRows : Nat} :
     {count : Nat} ->
       (Fin count -> RingF) ->
@@ -108,8 +71,6 @@ def combineCommitments {verifierRows : Nat} :
         (combineCommitments
           (fun index => challenges index.succ)
           (fun index => values index.succ))
-
-/-! ## Finite-sum algebra -/
 
 private theorem ringFAdd_assoc (left middle right : RingF) :
     ringFAdd (ringFAdd left middle) right =
@@ -208,10 +169,6 @@ private theorem ringFSum_act {count : Nat}
       rw [ringFSum, ringFSum, inductionHypothesis,
         CarrierAction.ringFMul_add_right]
 
-/-! ## One-action and finite commitment homomorphisms -/
-
-/-- Reading one block commutes definitionally with complete-assignment
-addition. -/
 private theorem assignmentBlock_add {shape : Shape}
     (left right : Assignment shape)
     (block : Fin (Phi81ColumnLayout.blockCount shape.carrierWidth)) :
@@ -221,14 +178,12 @@ private theorem assignmentBlock_add {shape : Shape}
         (CarrierAction.assignmentBlock right block) := by
   rfl
 
-/-- Every block of the canonical complete assignment zero is the ring zero. -/
 private theorem assignmentBlock_zero {shape : Shape}
     (block : Fin (Phi81ColumnLayout.blockCount shape.carrierWidth)) :
     CarrierAction.assignmentBlock
         (BaseLinear.assignmentZero : Assignment shape) block = ringFZero := by
   rfl
 
-/-- Ajtai commitment is additive in the complete typed assignment. -/
 theorem commit_add {shape : Shape} {verifierRows : Nat}
     (key : Key shape verifierRows) (left right : Assignment shape) :
     commit key (BaseLinear.assignmentAdd left right) =
@@ -258,8 +213,6 @@ theorem commit_add {shape : Shape} {verifierRows : Nat}
             (CarrierAction.assignmentBlock right block)) :=
       ringFSum_add _ _
 
-/-- Ajtai commitment maps the canonical complete assignment zero to the public
-commitment zero. -/
 theorem commit_zero {shape : Shape} {verifierRows : Nat}
     (key : Key shape verifierRows) :
     commit key (BaseLinear.assignmentZero : Assignment shape) =
@@ -276,8 +229,6 @@ theorem commit_zero {shape : Shape} {verifierRows : Nat}
       rw [assignmentBlock_zero, CarrierAction.ringFMul_zero_right]
     _ = ringFZero := ringFSum_zero
 
-/-- One complete-assignment challenge action commutes with the exact Ajtai
-commitment. The product-order step is the symbolic executable Phi81 theorem. -/
 theorem commit_act {shape : Shape} {verifierRows : Nat}
     (key : Key shape verifierRows) (challenge : RingF)
     (assignment : Assignment shape) :
@@ -306,8 +257,6 @@ theorem commit_act {shape : Shape} {verifierRows : Nat}
             (CarrierAction.assignmentBlock assignment block)) :=
       ringFSum_act challenge _
 
-/-- The exact finite assignment fold and the public commitment-only fold agree
-for every verifier-owned key and row count. -/
 theorem commit_combine {shape : Shape} {verifierRows count : Nat}
     (key : Key shape verifierRows)
     (challenges : Fin count -> RingF)
@@ -323,8 +272,6 @@ theorem commit_combine {shape : Shape} {verifierRows count : Nat}
         (fun index => challenges index.succ)
         (fun index => assignments index.succ)]
 
-/-- Exact commitment field required by a future concrete
-`Folding.PiRLC.Algebra`. -/
 theorem relation_commit_hom {shape : Shape} {verifierRows count : Nat}
     (key : Key shape verifierRows)
     (challenges : Fin count -> RingF)

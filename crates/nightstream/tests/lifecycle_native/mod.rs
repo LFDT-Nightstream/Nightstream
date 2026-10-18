@@ -12,7 +12,9 @@ use neo_math::{from_complex, D, F, K};
 use nightstream_fprime::{load_poseidon2_hash_chain_v1_package, PI_CCS_V1_2_STATE_PREIMAGE_WORDS};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use serde_json::{json, Value};
-use std::{fs, path::PathBuf};
+use std::{fs, ops::Range, path::PathBuf};
+
+const INITIAL_STATE_WORDS: Range<usize> = 27_811..27_815;
 
 #[cfg(feature = "metal")]
 mod terminal_engine;
@@ -208,8 +210,6 @@ impl Fixture {
         let mut running = RunningInstance::canonical_zero(&params, package.structure(), 270)
             .unwrap()
             .claims_only();
-        // Running frames are caches that no check reads. Distinct, noncanonical
-        // values per child show that the honest fold does not depend on them.
         for (index, child) in running.claims.iter_mut().enumerate() {
             child.fold_digest = [0xff; 32];
             child.fold_digest[0] = index as u8;
@@ -220,10 +220,11 @@ impl Fixture {
             m_in: 270,
             adv: None,
         };
-        let z0 = [202, 203, 204, 205].map(field); // Existing base fixture inputs.
+        let private = fields(&base[2]);
+        let z0: [F; 4] = private[INITIAL_STATE_WORDS].try_into().unwrap();
         let current: [F; 4] = fields(&base[4][0]).try_into().unwrap();
         let state = Stage1State::new(1, z0, current);
-        let message = [7, 11, 13, 17].map(field); // Same advice as the Lean reference.
+        let message: [F; 4] = private[private.len() - 4..].try_into().unwrap();
         Self {
             package,
             loaded,
@@ -298,8 +299,6 @@ fn actual_nifs_builds_the_checked_successor_assignment() {
         "handoff does not mutate its source proof"
     );
 
-    // Exercise the selected public consumer, then check its complete low-norm
-    // logical carrier and public output. Independent row checks run separately.
     let assignment = package
         .execute_step_witness(packet.pi_ccs(), packet.pi_dec(), packet.application_witness())
         .unwrap();
@@ -352,8 +351,6 @@ fn actual_nifs_builds_the_checked_successor_assignment() {
             output(current, message)
         )
         .is_err());
-    // The prior digest names the running claims only through the state hash:
-    // a changed running opening must fail that recomputation before any fold.
     let mut detached_running = running.clone();
     detached_running.claims[0].eval_k[0] += K::ONE;
     let error = package
@@ -412,7 +409,7 @@ fn actual_nifs_builds_the_checked_successor_assignment() {
 #[test]
 fn selected_plain_step_rejects_auxiliary_commitments() {
     let fixture = Fixture::load();
-    let _ = fixture.packet(); // The unchanged plain input is accepted.
+    let _ = fixture.packet();
     for value in [F::ZERO, F::ONE] {
         let mut commitment = Commitment::zeros(D, fixture.fresh.c.kappa);
         commitment.data[0] = value;
@@ -508,7 +505,7 @@ fn saved_proof_and_transcript_match_lean() {
         folding::ajtai_rlc_mixer,
         folding::ajtai_dec_mixer,
         &fixture.fresh,
-        &fixture.running,
+        folding::BoundRunning::from_checked_prior(&fixture.running),
         &fixture.proof,
     )
     .unwrap();
@@ -529,7 +526,7 @@ fn saved_proof_and_transcript_match_lean() {
         folding::ajtai_rlc_mixer,
         folding::ajtai_dec_mixer,
         &fixture.fresh,
-        &fixture.running,
+        folding::BoundRunning::from_checked_prior(&fixture.running),
         &invalid
     )
     .is_err());

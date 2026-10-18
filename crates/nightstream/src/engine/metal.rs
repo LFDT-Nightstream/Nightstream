@@ -39,7 +39,6 @@ pub(crate) fn prove(
     let sources: Vec<_> = std::iter::once(&witness.Z)
         .chain(running.witnesses.iter())
         .collect();
-    // The parent witness stays on the device; only its PiDEC digits return.
     let (parent, split, r) = {
         let device = &*device;
         pi_rlc::prove_refs_resident(
@@ -55,39 +54,41 @@ pub(crate) fn prove(
     drop(sources);
     drop(witness);
     drop(running);
-    let (digits, flags) = split
+    let split = split
         .map_err(folding::kernels::Error::from)
         .map_err(pi_dec::Error::from)?;
     let commitments = device
-        .commit_production_prefixes(&digits)
+        .commit_production_prefixes(split.planes())
         .map_err(folding::kernels::Error::from)
         .map_err(pi_dec::Error::from)?;
     let openings = device
-        .child_openings(rows, workspace_bytes, &digits, &parent.r, structure.m)
+        .child_openings(rows, workspace_bytes, split.planes(), &parent.r, structure.m)
         .map_err(folding::kernels::Error::from)
         .map_err(pi_dec::Error::from)?;
-    let (children, ok_y, ok_x, ok_c) =
-        neo_reductions::api::dec_children_with_commit_superneo_cached_from_trusted_split_digits(
-            neo_reductions::api::FoldingMode::Optimized,
-            structure,
-            params.inner(),
-            &parent,
-            &digits,
-            &flags,
-            D.next_power_of_two().trailing_zeros() as usize,
-            &commitments,
-            ajtai_dec_mixer,
-            None,
-            None,
-            Some(&openings),
-        );
+    let neo_reductions::api::DecOutcome {
+        children,
+        ok_y,
+        ok_x,
+        ok_c,
+    } = neo_reductions::api::dec_children_with_commit_superneo_cached_from_trusted_split_digits(
+        neo_reductions::api::FoldingMode::Optimized,
+        structure,
+        params.inner(),
+        &parent,
+        &split,
+        D.next_power_of_two().trailing_zeros() as usize,
+        &commitments,
+        ajtai_dec_mixer,
+        None,
+        Some(&openings),
+    );
     if !(ok_y && ok_x && ok_c) {
         return Err(pi_dec::Error::Engine(folding::kernels::Error::PiDecPublicCheckFailed { ok_y, ok_x, ok_c }).into());
     }
     let d = pi_dec::Proof { children };
     let children = pi_dec::verify(params, structure, ajtai_dec_mixer, &parent, &d)?;
     Ok((
-        RunningInstance::new(children, digits),
+        RunningInstance::new(children, split.into_planes()),
         NifsProof {
             pi_ccs: c,
             pi_rlc: r,

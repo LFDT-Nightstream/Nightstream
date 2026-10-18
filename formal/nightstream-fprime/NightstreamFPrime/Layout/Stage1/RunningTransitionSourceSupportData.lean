@@ -33,8 +33,6 @@ def piDecCount : Nat := PiDECInputs.proofInputColumnCount
 
 def physicalEnd : Nat := RunningTransitionLayout.physicalEnd
 
-/-- Exact PiDEC child-message and public-input fields consumed by the
-recursive branch. -/
 def PiDecField (column : Nat) : Prop :=
   (∃ (source : Radix.ChildIndex)
       (row : Fin productionProfile.commitmentWidth)
@@ -89,8 +87,6 @@ def Target (column : Nat) : Prop :=
 @[simp] theorem piDecCount_eq : piDecCount = 31968 := by
   exact PiDECInputs.proofInputColumnCount_eq
 
-/-- Every typed PiDEC child field lies in the one canonical proof-input
-interval. This makes the retained resolver executable as a range decoder. -/
 theorem piDecField_inRange {column : Nat} (field : PiDecField column) :
     InRange piDecStart piDecCount column := by
   rw [piDecStart_eq, piDecCount_eq]
@@ -152,8 +148,6 @@ theorem piDecField_inRange {column : Nat} (field : PiDecField column) :
         unfold InRange
         omega
 
-/-- Every declared transition source has a valid image in the established
-Spartan source permutation. -/
 theorem source_lt_sourceColumnCount {column : Nat} (support : Source column) :
     column < Spartan.SourceColumnCount := by
   have phaseLower := Spartan.sourceColumnCount_ge_piDecPhaseOffset

@@ -32,7 +32,6 @@ fn preimage(running: &[CeClaim]) -> Result<Vec<u64>, PiCcsV1_2PackageBridgeError
 fn the_state_hash_rejects_a_second_split_of_the_same_parent() {
     let mut canonical = zero_running();
     canonical[0].X[(0, 0)] = F::ONE;
-    // 1 = -1 + 2 · 1 is a second signed binary split of the same parent.
     let mut other = zero_running();
     other[0].X[(0, 0)] = F::NEG_ONE;
     other[1].X[(0, 0)] = F::ONE;
@@ -58,9 +57,6 @@ fn the_state_hash_rejects_a_child_outside_the_digit_set() {
     ));
 }
 
-/// The terminal decider must reject a second split before any commitment or
-/// relation check. With canonical children the same envelope reaches the
-/// later public-input check, so the first rejection comes from the split.
 #[test]
 fn verify_rejects_a_second_split_of_the_running_parent() {
     let bytes = fs::read(artifact("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json")).unwrap();
@@ -79,8 +75,6 @@ fn verify_rejects_a_second_split_of_the_running_parent() {
     .unwrap();
     let blocks = structure.m.div_ceil(D);
     let state = Stage1State::new(1, [F::ZERO; 4], [F::ONE; 4]);
-    // Each child digit sits in both the claim and its witness, so the
-    // public-projection check passes.
     let envelope = |digits: &[(usize, F)]| {
         let mut running = RunningInstance::canonical_zero(&params, structure, PARENT_COORDINATES).unwrap();
         for &(child, digit) in digits {
@@ -105,7 +99,6 @@ fn verify_rejects_a_second_split_of_the_running_parent() {
                 adv: None,
             },
             witness: CcsWitness {
-                w: vec![],
                 Z: Mat::virtual_constant(D, blocks, F::ZERO),
             },
         };

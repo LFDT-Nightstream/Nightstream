@@ -6,11 +6,7 @@ import NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedBlock
 
 /-!
 Owns the compact retained low-norm field block for every Poseidon2 invocation
-in the current Stage 1 prefix. The order is the prior hash chain, the output
-hash chain, then the explicit PiCCS and PiRLC invocation list.
-
-This module selects only the retained S-box source columns. It does not select
-the remaining non-Poseidon slots or claim the complete final assignment fit.
+in the current Stage 1 prefix.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PoseidonRetainedBlock
@@ -53,8 +49,6 @@ theorem basePackage_permutationInvocations_eq :
   exact Data.circuitPackage_permutationInvocations.trans
     Data.components_permutationInvocations
 
-/-- Every selected package invocation satisfies the canonical Poseidon2
-template when the package rows hold. The invocation list remains opaque. -/
 theorem invocation_holds (env : NightstreamFPrime.Circuit.Env)
     (rows : basePackage.RowsHold env)
     (index : Fin basePackage.permutationInvocations.length) :
@@ -93,7 +87,6 @@ private theorem outputChain_mem :
   rw [Data.circuitPackage_hashChains]
   simp
 
-/-- Exact source-local start of one prior-hash invocation. -/
 def priorWitnessStart (invocation : Fin priorInvocationCount) : Nat :=
   Data.priorChain.witnessStart +
     invocation.val * PoseidonScheduleTrace.localColumnCount
@@ -106,7 +99,6 @@ theorem priorWitnessStart_bound (invocation : Fin priorInvocationCount) :
       PerApplicationPreservation.canonicalHashInvocation_witnessBound
         Data.priorChain priorChain_mem invocation
 
-/-- Exact source-local start of one output-hash invocation. -/
 def outputWitnessStart (invocation : Fin outputInvocationCount) : Nat :=
   Data.outputChain.witnessStart +
     invocation.val * PoseidonScheduleTrace.localColumnCount
@@ -119,13 +111,11 @@ theorem outputWitnessStart_bound (invocation : Fin outputInvocationCount) :
       PerApplicationPreservation.canonicalHashInvocation_witnessBound
         Data.outputChain outputChain_mem invocation
 
-/-- Exact source-local start of one explicit PiCCS or PiRLC invocation. -/
 def laterWitnessStart (invocation : Fin laterInvocationCount) : Nat :=
   let index : Fin basePackage.permutationInvocations.length :=
     ⟨invocation.val, by simp [laterInvocationCount]⟩
   (basePackage.permutationInvocations.get index).witnessStart
 
-/-- Delayed random-access view of the canonical later witness-start schedule. -/
 def laterWitnessStartsArray (_delay : Unit := ()) : Array Nat :=
   (PermutationPlan.canonicalWitnessStarts ()).toArray
 
@@ -135,13 +125,11 @@ def laterWitnessStartsArray (_delay : Unit := ()) : Array Nat :=
     PermutationPlan.canonicalWitnessStarts_materializes, List.length_map]
   exact data_permutationInvocations_length
 
-/-- Allocation-bounded executable lookup for the canonical witness start. -/
 @[inline] def directLaterWitnessStart
     (invocation : Fin laterInvocationCount) : Nat :=
   ((laterWitnessStartsArray ())[invocation.val]'(by
     simpa using invocation.isLt))
 
-/-- Random access returns the exact list-selected canonical witness start. -/
 theorem directLaterWitnessStart_eq_laterWitnessStart
     (invocation : Fin laterInvocationCount) :
     directLaterWitnessStart invocation = laterWitnessStart invocation := by
@@ -157,7 +145,6 @@ theorem directLaterWitnessStart_eq_laterWitnessStart
     PermutationPlan.canonicalWitnessStarts_materializes, List.getElem_map,
     basePackage_permutationInvocations_eq]
 
-/-- Compiled retained-slot emission uses the proved random-access lookup. -/
 @[csimp] theorem laterWitnessStart_eq_directLaterWitnessStart :
     @laterWitnessStart = @directLaterWitnessStart := by
   funext invocation
@@ -225,7 +212,6 @@ def laterBlock : LowNormBlock.Block basePackage.layout.constantColumn :=
     Layout.ProductionRelation.PoseidonRetainedBlock.block_coordinateCount,
     laterInvocationCount_eq]
 
-/-- Three fixed blocks preserve the package's canonical invocation order. -/
 def retainedBlocks : List
     (LowNormBlock.Block basePackage.layout.constantColumn) :=
   [priorBlock, outputBlock, laterBlock]
@@ -250,8 +236,6 @@ def retainedCoordinateCount : Nat :=
     priorInvocationCount_eq, outputInvocationCount_eq,
     laterInvocationCount_eq]
 
-/-- The concrete block is the proof object counted by the earlier footprint
-guard. -/
 theorem retainedBlock_coordinateCount_eq_footprint :
     retainedCoordinateCount =
       DirectPoseidonFootprint.directSboxCoordinateCount := by

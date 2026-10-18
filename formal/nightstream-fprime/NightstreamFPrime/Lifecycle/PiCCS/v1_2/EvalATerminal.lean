@@ -119,7 +119,6 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
   PointWeightedHorner.Owned.flatConstraints_varsBelow (coreInterface interface)
     cubeVariables_positive offset env assumptions
 
-/-- The owned `Eval_A` result lies inside this leaf's declared interval. -/
 theorem output_varsBelow (interface : Interface) (offset : Nat)
     (env : Env) (assumptions : Assumptions interface offset env) :
     (output interface offset).VarsBelow
@@ -173,8 +172,6 @@ theorem flatConstraints_length (interface : Interface) (offset : Nat) :
   rw [coefficientExprs_length]
   norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
 
-/-- Concrete parent coverage: the generic point-weighted Horner value is
-exactly production `ProtocolPolynomial.matrixAtMessage`. -/
 theorem spec_implies_keyMatrixAtMessage
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

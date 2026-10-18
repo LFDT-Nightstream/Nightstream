@@ -21,8 +21,6 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open CompletenessSupport
 
-/-- One canonical child operation exposes only its proved specification to
-the logical parent. -/
 theorem childOp_holds_of_spec (name : String) (child : FormalCircuit)
     (offset : Nat) (env : Env) (specification : child.spec offset env) :
     (childOp name child offset).holds env := by
@@ -30,8 +28,6 @@ theorem childOp_holds_of_spec (name : String) (child : FormalCircuit)
   intro _
   exact specification
 
-/-- The 12 child specifications are exactly the opaque logical meaning of
-the ordered parent operation list. -/
 theorem specHolds_implies_holds
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -56,13 +52,11 @@ theorem specHolds_implies_holds
     childOp_holds_of_spec _ _ _ _ specification.finalIdentity,
     childOp_holds_of_spec _ _ _ _ specification.outputBinding⟩
 
-/-- Exact private symbolic-variable count of the complete PiCCS assembler. -/
 def privateCount (degreeBound : Nat) : Nat :=
   1006821 + productionShape.cubeVariables *
     RoundTranscript.perRoundRecipeCount degreeBound +
       SumcheckChain.privateCount degreeBound
 
-/-- Exact flattened logical-row count of the complete PiCCS assembler. -/
 def rowCount (degreeBound : Nat) : Nat :=
   1011321 + productionShape.cubeVariables *
     RoundTranscript.perRoundRecipeCount degreeBound +
@@ -227,10 +221,6 @@ theorem rowCount_eq_of_degreeBound_eq_eight (degreeBound : Nat)
     SumcheckChain.privateCount, FixedChain.Owned.privateCount,
     productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
 
-/-- State binding and acceptance of the caller-owned PiCCS data construct
-the complete local prefix. Its generated environment satisfies the phase
-specification, including the actual round point and outgoing transcript state;
-neither generated value is an input premise. -/
 theorem completePrefix_of_accepted
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -275,9 +265,6 @@ theorem completePrefix_of_accepted
     (soundness relation interface p12.current offset
       (assumptionsAt assumptions p12.current) rows)
 
-/-- The phase-level completeness interface follows from state binding and
-accepted input data. The generated phase specification is proved by the
-constructor and does not need the supplied point or outgoing-state equations. -/
 theorem completePrefix
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

@@ -1,7 +1,4 @@
 //! Nonzero assignment execution for the Lean-authored concrete application.
-//!
-//! The package witness IR generates the assignment. A separate raw-package
-//! interpreter then checks the completed assignment without matrix expansion.
 
 use std::{fs, path::PathBuf};
 
@@ -27,7 +24,6 @@ const TOTAL_COLUMN_COUNT: usize = 11_470_359;
 const FIRST_GENERATED_COLUMN: usize = 70_830;
 const STATE_PREIMAGE_WORDS: usize = 27_819;
 const OUTPUT_DIGEST_PUBLIC_START: usize = 270;
-// The preimage tail `vk, i, z0, zi`.
 const ITERATION_WORD: usize = 27_810;
 const INITIAL_STATE_WORD_START: usize = 27_811;
 const CURRENT_WORD_START: usize = 27_815;
@@ -295,8 +291,6 @@ fn rust_assignment_satisfies_the_complete_lean_logical_relation() {
     check_logical_assignment(package, sealed_bytes, private_inputs, public_inputs);
 }
 
-/// Run the same complete assignment and strict mutation gate before replacing
-/// production pins. The external parity inputs must match the loaded candidate.
 pub fn check_candidate_assignment(
     package: LoadedPerApplicationPackage,
     sealed_bytes: Vec<u8>,
@@ -393,9 +387,6 @@ fn check_logical_assignment(
         artifact.logical_rows,
     )
     .expect("independent final matrix-program decoder");
-    // The complete vector comparison above establishes that both assignments
-    // have the same values. One independent row traversal therefore checks
-    // both vectors, including every required mutation below.
     drop(production_logical_assignment);
     let result = logical_reference::evaluation::evaluate(&program, &artifact.sources, &relation, &logical_assignment)
         .expect("Rust assignment satisfies every final Lean logical row");

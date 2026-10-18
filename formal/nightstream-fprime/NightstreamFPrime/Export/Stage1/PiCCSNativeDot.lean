@@ -2,9 +2,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSWeightedBasis
 import NightstreamFPrime.Export.Stage1.PiCCSNumericSumOrder
 import NightstreamFPrime.Export.NativePoseidon2RoundCore
 
-/-! Native-word accumulation for the existing PiCCS weighted dot product.
-The input and output types remain the specified quadratic extension. Word
-arithmetic uses the proved Goldilocks operations; no expected output is an input. -/
+/-! Native-word accumulation for the existing PiCCS weighted dot product. -/
 
 set_option autoImplicit false
 
@@ -106,12 +104,9 @@ private theorem accumulate_value {lanes : Nat} (count : Nat)
           Nat.fold_succ, extensionLaws.add_zero]
         exact ih
 
-/-- Compute every lane of the specified dot product with a native accumulator. -/
 def dotK {lanes : Nat} (prepared : Vector K lanes) (source : Fin lanes → K) : K :=
   value (accumulate lanes prepared source)
 
-/-- The native loop equals the existing dot product for arbitrary inputs and
-lengths, including an empty vector. There is no source-validity premise. -/
 theorem dotK_eq_spec {lanes : Nat} (prepared : Vector K lanes)
     (source : Fin lanes → K) : dotK prepared source = PiCCSWeightedBasis.dotK prepared source := by
   rw [dotK, accumulate_value,
@@ -121,7 +116,6 @@ theorem dotK_eq_spec {lanes : Nat} (prepared : Vector K lanes)
   intro lane _
   exact dif_pos lane.isLt
 
-/-- Compile the proved dot-product implementation at existing call sites. -/
 @[csimp] theorem dotK_eq_native : @PiCCSWeightedBasis.dotK = @dotK := by
   funext lanes prepared source
   exact (dotK_eq_spec prepared source).symm

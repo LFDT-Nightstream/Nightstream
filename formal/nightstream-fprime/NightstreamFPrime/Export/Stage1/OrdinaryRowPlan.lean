@@ -7,8 +7,6 @@ The eight PiCCS packets, 17 PiRLC reduction and 17 coefficient-word packets,
 one PiDEC packet, and one running-transition packet are independent immutable
 blocks. The emitter may prepare them concurrently, but it writes completed
 blocks in this Lean-owned order.
-The expansion and classifier theorems prove that segmentation does not change
-any package row or witness instruction.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.OrdinaryRowPlan

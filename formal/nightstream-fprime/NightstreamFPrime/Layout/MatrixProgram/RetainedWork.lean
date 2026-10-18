@@ -56,10 +56,6 @@ private theorem coordinates_length {columns : Nat} (start count : Nat)
         List.length_cons, List.length_nil, ih]
       omega
 
-/-- The empty case charges dispatch, Unit construction, the empty call,
-its value read and Result construction. The step charges dispatch/predecessor,
-start addition, four calls, column/one/three constructors, four value reads,
-and Result construction (15). Clock arithmetic is instrumentation. -/
 private theorem coordinates_work {columns : Nat} (start count : Nat)
     (fits : start + count ≤ columns) :
     (coordinates start count fits).work = 7 * count ^ 2 + 49 * count + 8 := by
@@ -71,11 +67,6 @@ private theorem coordinates_work {columns : Nat} (start count : Nat)
         List.length_cons, List.length_nil, coordinates_length, ih]
       ring
 
-/-- Check the whole block geometry before constructing the selected slot.
-The successful wrapper charges slot-count read/comparison/branch (3), kind
-read/width call/dispatch (3), start read (1), geometry arithmetic/check (4),
-slot arithmetic (2), call/value read (2), and Some/Result construction (2).
-Rejections charge their executed prefixes and None/Result construction. -/
 def form? (block : RetainedBlock) (logicalWidth slot : Nat) :
     Result (Option (SparseForm logicalWidth)) :=
   let slotCount := block.slotCount

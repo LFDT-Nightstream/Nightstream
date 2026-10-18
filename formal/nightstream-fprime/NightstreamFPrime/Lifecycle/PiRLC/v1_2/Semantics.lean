@@ -420,7 +420,6 @@ theorem outputCombined
     (Formal.outputBindingInterface (Formal.atOffset interface offset) offset)
     (Formal.outputBindingOffset offset) env specification.outputBinding).1
 
-/-- The one public attempt checked by the canonical PiRLC relation. -/
 def attempt
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -461,9 +460,6 @@ theorem spec_implies_equations
   · simpa [attempt, PaperAlgebra.piRlcAlgebra] using
       evaluationEquation relation interface offset env specification
 
-/-- Complete deterministic meaning of one logical PiRLC phase. Successful
-transcript replay remains explicit because membership alone does not prove
-that the verifier derived the challenges. -/
 structure PhaseHolds
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -534,9 +530,6 @@ theorem challengesValid
     (Formal.samplerInterface (Formal.atOffset interface offset)) env
     (Formal.samplerOffset offset) specification.sampler (sourceIndex source)
 
-/-- Mechanical coverage of the exact production PiRLC relation and its
-transcript transition. No challenge or outgoing state is supplied as a
-premise. -/
 theorem spec_implies_phaseHolds
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -596,8 +589,6 @@ theorem output_eq_combinedOutput
   · exact phase.accepted.evaluationEquation
   · exact phase.accepted.outputCombined
 
-/-- Honest input openings combine to an opening of the exact circuit output.
-The combined witness is prover-side semantic data and emits no verifier row. -/
 theorem combinedWitness_holds
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

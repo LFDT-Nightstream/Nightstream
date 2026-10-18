@@ -8,7 +8,7 @@ holds for the running statement and the verifier context digest, the actual
 `ProductionKey` verifier accepts, and the adversary's witnesses open the exact
 sixteen returned children. Bare public acceptance is not this event.
 
-The prior link is required (owner decision 2026-10-06). No challenge depends
+The prior link is required. No challenge depends
 on the running statement, so without the link a prover could choose it after
 γ and keep the claimed sum. The preimage must be an output, not merely exist:
 its initial state, current state and iteration are free, so some well-formed
@@ -38,10 +38,6 @@ open _root_.NightstreamFPrime.Lifecycle.PaperAlgebra
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- The adversary's prior preimage, the existing proof data, and witnesses
-for the existing ordered output. The preimage is the HyperNova Construction 2
-state that the IVC prover holds; this adds no NIFS message, claimed verifier
-output, or representation. -/
 structure RealOutput (relation : ProductionKey.LogicalRelation logicalWidth publicFits) where
   prior : Lifecycle.HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits)
   proof : PaperNonInteractive.Proof K PaperAlgebra.Commitment productionShape
@@ -54,10 +50,6 @@ variable
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
   (contextDigest : KeyDigest)
 
-/-- The output prior preimage links the running statement and the verifier
-context to the absorbed digest, the actual NIFS verifier accepts, and the
-supplied witnesses open its exact sixteen returned children. The same proof
-supplies the PiDEC attempt. -/
 def RealSuccess
     (running : Lifecycle.Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (fresh : Lifecycle.Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)) :
@@ -72,8 +64,6 @@ def RealSuccess
         ∀ child, CE.Holds key.piRlcSemantics key.params
           (PiDEC.OutputWitnessConsumer.runningStatement key result child) (output.children child)
 
-/-- The real event's witnesses are for the exact verifier-computed PiDEC
-children, in their original order, with no assumed output correspondence. -/
 theorem realSuccess_implies_exact_children
     (running : Lifecycle.Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (fresh : Lifecycle.Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))

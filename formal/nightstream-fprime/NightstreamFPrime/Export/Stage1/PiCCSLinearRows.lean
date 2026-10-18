@@ -1,9 +1,7 @@
 import NightstreamFPrime.Export.Stage1.PiCCSSparseEvaluation
 import NightstreamFPrime.Export.Stage1.PiDECMatrixNumericRows
 
-/-! Evaluate existing matrix rows on aggregated extension-field reads. The
-numeric interpreter runs once per scalar component. A stored Poseidon
-invocation shares both evaluations across its existing 150 rows. -/
+/-! Evaluate existing matrix rows on aggregated extension-field reads. -/
 
 set_option autoImplicit false
 
@@ -24,7 +22,6 @@ private theorem get_ofFn {Alpha : Type} {count : Nat}
 private def pack (first second : Vector F matrixCount) : Vector K matrixCount :=
   Vector.ofFn fun port => ⟨first.get port, second.get port⟩
 
-/-- Both scalar calls retain the original program's guards and failures. -/
 def row? (program : MatrixProgram.Program) {columns : Nat}
     (sourceRow : Nat → Option R1CS.Row) (read : Fin columns → K)
     (ordinal : Nat) : Option (Vector K matrixCount) := do
@@ -34,8 +31,6 @@ def row? (program : MatrixProgram.Program) {columns : Nat}
     (fun column => (read column).c1) ordinal
   return pack first second
 
-/-- Every optional matrix port equals the existing sparse extension
-evaluation. No successful row lookup or valid assignment is assumed. -/
 theorem row?_value (program : MatrixProgram.Program) {columns : Nat}
     (sourceRow : Nat → Option R1CS.Row) (read : Fin columns → K)
     (ordinal : Nat) (port : Fin matrixCount) :
@@ -55,8 +50,6 @@ theorem row?_value (program : MatrixProgram.Program) {columns : Nat}
       simp only [pack, get_ofFn, PiDECMatrixNumericRows.sparseValues]
       rfl
 
-/-- Compute each scalar component once for all rows of one checked
-invocation. The returned arrays preserve the canonical port and row order. -/
 def invocation {columns : Nat} (read : Fin columns → K)
     (interface : PoseidonSboxPlan.Interface columns) :
     Vector (Vector K matrixCount) 150 :=
@@ -65,8 +58,6 @@ def invocation {columns : Nat} (read : Fin columns → K)
   Vector.ofFn fun row => Vector.ofFn fun port =>
     ⟨((first.get row).get port), ((second.get row).get port)⟩
 
-/-- Every stored invocation port is the same sparse row evaluated on the
-aggregated read, including the constant column. -/
 theorem invocation_value {columns : Nat} (read : Fin columns → K)
     (interface : PoseidonSboxPlan.Interface columns) (row : Fin 150)
     (port : Fin matrixCount) :
@@ -78,8 +69,6 @@ theorem invocation_value {columns : Nat} (read : Fin columns → K)
   simp only [invocation, get_ofFn, PiDECPoseidonNumericRows.stored_value]
   rfl
 
-/-- Reusing the stored invocation preserves both extension components of
-all 150 rows and 14 ports, at the original Fin product encoding. -/
 theorem invocation_loaded_value (block : Poseidon.Block) {columns : Nat}
     (invocationIndex : Fin block.invocationCount)
     (interface : PoseidonSboxPlan.Interface columns)

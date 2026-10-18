@@ -82,8 +82,6 @@ fn verifier_rejects_recomposing_signed_alias_and_accepts_honest_split() {
     honest_digits[0] = 1;
     assert!(verify(&params, &parent, &children_for_digits(&params, &honest_digits)));
 
-    // Both [1, 0, ...] and [-1, 1, 0, ...] recompose to one in base two,
-    // but only the former is verifier-computed split_b(parent.X).
     let mut alias_digits = vec![0; params.k_rho as usize];
     alias_digits[0] = -1;
     alias_digits[1] = 1;

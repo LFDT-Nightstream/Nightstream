@@ -2,8 +2,6 @@
 //!
 //! This test reuses the package witness executor and stops before PiRLC. It
 //! does not construct PiDEC or application inputs.
-//! The stored fixture is synthetic. The external target accepts a separate
-//! positive fixture; opening validity remains a distinct conformance gate.
 
 use std::{fs, path::PathBuf, time::Instant};
 
@@ -503,9 +501,6 @@ fn external_positive_pi_ccs_prefix() {
     let base_private = canonical_words(&base[2]);
     let state_words = crate::PI_CCS_V1_2_STATE_PREIMAGE_WORDS;
     let output = base_private[state_words..2 * state_words].to_vec();
-    // The prior hash must bind exactly the running statement checked by
-    // PiCCS. The output hash retains the base output for this prefix test;
-    // this input does not supply a full next Stage 1 step.
     let prior = pi_ccs_parent::with_running(&output, &input[6]);
     let rounds = input[3]
         .as_array()
@@ -615,9 +610,6 @@ fn check_pi_ccs_prefix(
     assert_eq!(report.public_mutations, 3);
     println!("PiCCS prefix owner mutations: {:?}", started.elapsed());
 
-    // The existing transport requires a complete physical vector. Extend
-    // only this test input; it is not an accepted full Stage 1 assignment.
-    // The independent prefix view below rejects any requested suffix source.
     let mut transport_private = assignment.private_values.clone();
     transport_private.resize(package.circuit.layout.private_column_count, 0);
     let transport_input = WitnessAssignment {
@@ -665,9 +657,6 @@ fn check_pi_ccs_prefix(
     assert_eq!(production_logical_assignment.len(), artifact.logical_columns);
     println!("PiCCS prefix logical relation decode: {:?}", started.elapsed());
 
-    // Compare each immutable coordinate once across the exact package width.
-    // Mark it only after successful decoding and equality. Every row is still
-    // evaluated using the actual production transport value.
     let mut compared_columns = vec![0u64; artifact.logical_columns.div_ceil(u64::BITS as usize)];
     let logical_rows = logical_reference::evaluation::verify_satisfaction_range_with(
         &program,

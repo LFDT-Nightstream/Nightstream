@@ -49,7 +49,6 @@ def freshStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
 def completeLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   freshStart program + (PiDECRetainedBlocks.freshBlock program).coordinateCount
 
-/-- The phase adds exactly its two retained allocation intervals. -/
 @[simp] theorem completeLogicalWidth_eq
     (program : Lifecycle.Stage1.Application.Program) :
     completeLogicalWidth program = prefixLogicalWidth program +

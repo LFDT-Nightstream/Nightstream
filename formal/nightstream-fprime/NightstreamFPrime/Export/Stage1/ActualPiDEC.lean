@@ -6,9 +6,7 @@ import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns PiDEC values and its opaque phase contract on arbitrary accepted rows.
-PiDEC-owned forms supply its arithmetic values. Other reads retain the PiCCS
-parent decoder, including the shared evaluation point. No raw packet or
-semantic representation is a premise. The NIFS parent connection is separate.
+The NIFS parent connection is separate.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.ActualPiDEC
@@ -37,7 +35,6 @@ def decodedEnv
   | none => PiCCSAssignmentSoundness.decodedEnv
       (PiDECRetainedGeometry.prefixGeometry geometry) assignment column
 
-/-- Every column used by a PiDEC row has its own declared form value. -/
 theorem decodedEnv_preserves_target
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -49,7 +46,6 @@ theorem decodedEnv_preserves_target
     ⟨decoded, found, _mapped⟩
   simp only [PiDECDirectPlan.sourceMap, decodedEnv, found]
 
-/-- Each PiDEC value resolves to the existing physical owner's logical form. -/
 theorem decodedEnv_location
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -133,8 +129,6 @@ private theorem point_eq_of_coordinates
   cases right
   simp_all
 
-/-- PiDEC retains the complete evaluation point from its PiCCS parent. Its
-arithmetic decoder cannot replace any point word with a zero or local value. -/
 theorem evalPoint_eq_piCcs
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth) :
@@ -202,8 +196,6 @@ private theorem compiledRowsZero_implies_sourceRows
   rw [← source.exactRows]
   exact List.forall_mem_ofFn_iff.mpr sourceHolds
 
-/-- The four compiled packets imply their exact canonical source rows in one
-decoded environment. The proof composes indexed contracts, not row data. -/
 theorem rowsZero_implies_sourceRows
     (relation : ProductionKey.LogicalRelation relationLogicalWidth relationPublicFits)
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth)
@@ -225,8 +217,6 @@ theorem rowsZero_implies_sourceRows
   simp only [PiDECOrdinaryDirectSource.sourceRows, R1CS.rowsHold_append]
   exact ⟨⟨⟨publicRows, commitmentRows⟩, evalKRows⟩, evalARows⟩
 
-/-- The same arbitrary assignment satisfies the canonical physical PiDEC
-layout after the proved source permutation. -/
 theorem rowsZero_implies_physical
     (relation : ProductionKey.LogicalRelation relationLogicalWidth relationPublicFits)
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth)
@@ -246,8 +236,6 @@ theorem rowsZero_implies_physical
   exact (Spartan.remapRows_hold (decodedEnv geometry assignment)
     (PiDECArithmetic.canonicalLayoutPlan relation).rows).mp sourceRows
 
-/-- The canonical input bounds and opaque physical contract derive the exact
-PiDEC output predicate, with no caller-supplied representation or scope fact. -/
 theorem rowsZero_implies_phaseHolds
     (relation : ProductionKey.LogicalRelation relationLogicalWidth relationPublicFits)
     (ajtai : AjtaiKey (logicalWidth := relationLogicalWidth)
@@ -270,8 +258,6 @@ theorem selectedGeometry (application : Lifecycle.Stage1.Application.Program) :
       (PerApplicationFixedPoint.logicalWidth application) :=
   DirectApplicationPrefixPlan.piDecGeometry (PerApplicationFixedPoint.geometry application)
 
-/-- The sole selected Stage 1 plan and actual public boundary imply PiDEC in
-its decoded environment. The public marker supplies the one coordinate. -/
 theorem selectedRowsAndPublic_imply_phaseHolds
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)

@@ -23,14 +23,12 @@ from .policy import CAPS
 from .snapshot import EvidenceError
 
 _WORKTREE_ROOT = Path(__file__).resolve().parents[2]
-# The digest names a local lock; it is not a protocol or evidence commitment.
 _LOCK_PATH = Path("/tmp") / ("lean-graph-build-" +
                            hashlib.sha256(os.fsencode(_WORKTREE_ROOT)).hexdigest() + ".lock")
 
 
 @contextmanager
-def build_lock(store=None):
-    # Stores and TMPDIR can differ. Clients in this checkout share one lock.
+def build_lock():
     descriptor = os.open(_LOCK_PATH, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
     with os.fdopen(descriptor, "r+") as handle:
         try:
@@ -56,7 +54,7 @@ def process_cwd(pid):
         try:
             return Path(os.readlink(f"/proc/{pid}/cwd")).resolve()
         except FileNotFoundError:
-            return None  # The process exited after the process-list snapshot.
+            return None
     if sys.platform == "darwin":
         result = subprocess.run(["lsof", "-a", "-p", str(pid), "-d", "cwd", "-Fn"],
                                 capture_output=True, text=True)
@@ -87,7 +85,6 @@ def check_build_processes():
 
 
 def kill_process_groups(pid):
-    """Stop a session child and nested groups created by validate.sh's timeout."""
     rows = subprocess.run(["ps", "-axo", "pid=,ppid=,pgid="], capture_output=True,
                           text=True, check=True).stdout.splitlines()
     processes = [tuple(map(int, row.split())) for row in rows]

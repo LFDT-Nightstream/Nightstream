@@ -1,18 +1,7 @@
 import NightstreamFPrime.Lifecycle.TranscriptCoverage
+import NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1
 
-/-!
-Checks for the transcript coverage contract.
-
-The pins restate the dependency specification `AgreeOnAbsorbed` by `Iff.rfl`.
-By `rfl` they also pin the fold domain chunk, the coin positions, the lane pair
-that a coin reads, the `Π_RLC` scalar domain `[4, i]`, the plain round absorb,
-and that the key absorbs the domain chunk before the statement stream. A
-change to any of them must also change this file. The two refutations take
-copies of the schedule, one without the fresh commitment and one with `y′`
-words without the matrix coordinates, and show that the identify property
-fails for them. They show only that the property is not vacuous;
-`challenge_seal` and the identify theorems tie it to the key.
--/
+/-! Checks for the transcript coverage contract. -/
 
 namespace NightstreamFPrime.Tests.TranscriptCoverageChecks
 
@@ -59,6 +48,14 @@ section TagsAndLabels
 
 example : Transcript.foldDomainBytes =
     "Nightstream/SuperNeo/fold/v2".toList.map Char.toNat :=
+  rfl
+
+example : Lifecycle.stateDomainBytes =
+    "HyperNova/NIVC/state/v2".toList.map Char.toNat :=
+  rfl
+
+example : Lifecycle.Stage1.Poseidon2HashChainV1.domainTagBytes =
+    "Nightstream/Stage1/Poseidon2HashChain/v1".toList.map Char.toNat :=
   rfl
 
 example (coordinate : Fin productionShape.cubeVariables) :
@@ -113,7 +110,6 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- The key's statement calls with the fresh commitment removed. -/
 private def droppedCommitmentCalls
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)) : List Call :=
   absorbCalls Transcript.foldDomainChunk ++
@@ -138,7 +134,6 @@ example :
 
 end Refutations
 
-/-- `y′` words with the matrix coordinates removed. -/
 private def padOnlyWords (output : FullOutputCoordinates.FullOutput K productionShape) :
     List F :=
   (List.finRange productionShape.sourceCount).flatMap fun source =>

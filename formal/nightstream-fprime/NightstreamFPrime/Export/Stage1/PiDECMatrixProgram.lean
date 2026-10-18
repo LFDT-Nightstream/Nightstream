@@ -3,12 +3,9 @@ import NightstreamFPrime.Export.Stage1.PerApplicationSourceProjection
 import NightstreamFPrime.Export.Stage1.PiDECDirectPlan
 
 /-!
-Owns the compact matrix program for the four nonempty PiDEC row families.
-Lean fixes all source ranges, physical row ranges, and the exact parent order:
-public split, commitment, Eval_K, then Eval_A.
-
-This module defines executable package data. Row equality to the canonical
-PiDEC plan is proved separately.
+Owns the compact matrix program for the four nonempty PiDEC row families. Lean
+fixes all source ranges, physical row ranges, and the exact parent order: public
+split, commitment, Eval_K, then Eval_A.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiDECMatrixProgram
@@ -47,8 +44,6 @@ def parentEvalARange (program : ApplicationProgram) : SourceRange :=
     (Spartan.sourceToSpartan PiDECSourceSupport.parentEvalAStart)
     PiDECInputs.evalAWordsPerChild 0
 
-/-- The child proof source resolves to the same logical forms used by the
-recursive running transition. This range adds no allocation or copy row. -/
 def proofRange (program : ApplicationProgram) : SourceRange :=
   SourceRange.ofSemantic (proofBlock program) (proofStart program)
     (Spartan.sourceToSpartan PiDECInputs.proofInputStart)
@@ -62,8 +57,6 @@ def freshRange (program : ApplicationProgram) : SourceRange :=
   SourceRange.ofSemantic (freshBlock program) (freshStart program)
     (Spartan.sourceToSpartan PiDECStarts.phaseFreshStart) freshCount 0
 
-/-- Complete fail-closed PiDEC source substitution in increasing Spartan
-column order. -/
 def substitution (program : ApplicationProgram) : SourceSubstitution where
   ranges := [parentCommitmentRange program, parentPublicInputRange program,
     parentEvalKRange program, parentEvalARange program, proofRange program,
@@ -148,7 +141,6 @@ def recompositionProgram {program : ApplicationProgram} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) : MatrixProgram.Program :=
   (commitmentProgram geometry).append (evaluationProgram geometry)
 
-/-- Exact canonical parent order, matching `PiDECDirectPlan.plan`. -/
 def matrixProgram {program : ApplicationProgram} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) : MatrixProgram.Program :=
   (publicProgram geometry).append (recompositionProgram geometry)

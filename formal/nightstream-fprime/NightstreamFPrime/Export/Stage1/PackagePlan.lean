@@ -1,13 +1,7 @@
 import NightstreamFPrime.Export.Stage1.PermutationPlan
 import NightstreamFPrime.Export.Stage1.WitnessPlan
 
-/-!
-Owns the compact, Lean-authored emission plan for the Stage 1 package.
-
-The semantic package remains `Data.circuitPackage`. The plan removes repeated
-invocation records from the artifact. Its expansion theorem fixes all bounds,
-ordering, row starts, local starts, templates, and input ranges in Lean.
--/
+/-! Owns the compact, Lean-authored emission plan for the Stage 1 package. -/
 
 namespace NightstreamFPrime.Export.Stage1.PackagePlan
 
@@ -15,7 +9,6 @@ open NightstreamFPrime.Export
 open NightstreamFPrime.Export.Codec
 open NightstreamFPrime.Export.Package
 
-/-- Exact public parameters for one indexed PiRLC combination family. -/
 structure CombinationFamilyBlock where
   logicalStart : Nat
   rowStart : Nat
@@ -44,7 +37,6 @@ def CombinationFamilyBlock.format : Format CombinationFamilyBlock where
     cases value
     rfl
 
-/-- The four distinct combination families in their fixed package order. -/
 structure CombinationInvocationBlock where
   sourceCount : Nat
   commitment : CombinationFamilyBlock
@@ -154,7 +146,6 @@ theorem canonicalCombinationBlock_expand :
     PiRLCCombinationInvocations.invocations
   rfl
 
-/-- A compact invocation-plan block. Each tag has one fixed Lean expansion. -/
 inductive CompactInvocationBlock where
   | combination (block : CombinationInvocationBlock)
 deriving Repr
@@ -176,8 +167,6 @@ def CompactInvocationBlock.format : Format CompactInvocationBlock where
     intro value
     cases value; simp [Format.decode_encode]
 
-/-- Schema 8 transports the exact package as static fields plus generative
-invocation blocks. `expand` is the semantic interpretation. -/
 structure Plan where
   schemaVersion : Nat
   staticPackage : CircuitPackage
@@ -221,8 +210,6 @@ def withoutPlannedData (package : CircuitPackage) : CircuitPackage :=
       Data.liftPilotBatches (PilotData.priorWordBatches ()) ++
         WitnessProgram.piCcsBatches Data.logicalWidth Data.publicFits }
 
-/-- Build the static payload directly. This avoids constructing either
-explicit invocation list only to clear it. -/
 def staticComponents (_unit : Unit) : Data.Components :=
   Data.Components.of (Data.arithmeticRows ()) []
 
@@ -300,8 +287,6 @@ private theorem restorePlannedInvocations
   cases package
   rfl
 
-/-- Expanding the emitted plan gives exactly the existing Lean semantic
-package. Rust can execute the plan but cannot select any schedule value. -/
 theorem canonical_expand : (canonical ()).expand = Data.circuitPackage () := by
   change ({ staticPackage () with
       permutationInvocations :=

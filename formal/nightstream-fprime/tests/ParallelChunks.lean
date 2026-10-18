@@ -11,8 +11,6 @@ open NightstreamFPrime.Export
 private def check (ok : Bool) (message : String) : IO Unit :=
   unless ok do throw (IO.userError message)
 
-/-- Every chunk runs once, results keep chunk order, at most `threads` chunks run
-at once, and no chunks give no tasks. -/
 private def ordering : IO Unit := do
   let running ← IO.mkRef 0
   let peak ← IO.mkRef 0
@@ -36,9 +34,6 @@ private def ordering : IO Unit := do
   let empty ← ParallelChunks.start 3 0 fun index => pure index
   check empty.isEmpty "an empty chunk range gave tasks"
 
-/-- The first chunk fails after 10 ms, while three others still run for 50 ms. Its error is kept,
-and every other chunk finishes or is skipped before the temporary directory is
-removed, so no chunk writes into a removed directory. -/
 private def failure : IO Unit := do
   let running ← IO.mkRef 0
   let lateWrites ← IO.mkRef 0

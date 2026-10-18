@@ -3,7 +3,6 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionLowering
 
 /-!
 Owns the ordinary-row package plan for the Stage 1 running transition.
-The plan is generative and is proved equal to the canonical Lean lowering.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.RunningTransitionArithmetic
@@ -17,7 +16,6 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-/-- The running-transition packet starts at the exact end of PiDEC. -/
 def rowStart : Nat :=
   NightstreamFPrime.Layout.Stage1.PiDECStarts.outputRowStart
 

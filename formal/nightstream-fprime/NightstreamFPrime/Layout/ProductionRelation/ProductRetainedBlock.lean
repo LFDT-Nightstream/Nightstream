@@ -32,7 +32,6 @@ def groupColumn (baseSourceWidth invocationCount : Nat)
     unfold sourceWidth
     omega⟩
 
-/-- Total augmented source assignment. -/
 def sourceAssignment (baseSourceWidth invocationCount : Nat)
     (base : Fin baseSourceWidth → F)
     (groupValue : Fin invocationCount → Fin 1 → F) :
@@ -69,7 +68,6 @@ def sourceAssignment (baseSourceWidth invocationCount : Nat)
       groupValue invocation group := by
   simp [sourceAssignment, groupColumn]
 
-/-- One field slot for every derived group output. -/
 def block (baseSourceWidth invocationCount : Nat) :
     LowNormBlock.Block (sourceWidth baseSourceWidth invocationCount) where
   kind := .field

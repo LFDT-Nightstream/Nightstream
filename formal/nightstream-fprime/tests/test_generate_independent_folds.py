@@ -1,4 +1,3 @@
-"""Checkpoint integrity and producer-input separation for the independent run."""
 import hashlib
 import json
 from pathlib import Path

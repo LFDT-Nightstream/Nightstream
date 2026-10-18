@@ -16,7 +16,7 @@ fn lean_artifact() -> [u64; 8] {
 fn field_numerator_matches_lean_selected_test_error() {
     let [schema, cube_variables, width, fresh, running, ring_degree, matrices, numerator] = lean_artifact();
     assert_eq!(schema, 1, "Lean PiCCS test-error schema");
-    let (sumcheck, mixing) = pi_ccs_padded_row_field_numerator(
+    let field_numerator = pi_ccs_padded_row_field_numerator(
         u32::try_from(cube_variables).unwrap(),
         u32::try_from(width).unwrap(),
         fresh.into(),
@@ -26,7 +26,7 @@ fn field_numerator_matches_lean_selected_test_error() {
     )
     .unwrap();
     assert_eq!(
-        sumcheck + mixing,
+        field_numerator.sumcheck + field_numerator.mixing,
         u128::from(numerator),
         "Rust PiCCS field numerator differs from the Lean test error"
     );

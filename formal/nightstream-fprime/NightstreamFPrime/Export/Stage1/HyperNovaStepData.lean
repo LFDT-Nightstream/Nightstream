@@ -3,10 +3,7 @@ import NightstreamFPrime.Layout.Stage1.StateEncoding
 
 /-!
 Owns the semantic step data of any application after the honest NIFS call
-returns.
-The accepted prior payload supplies the public link and prior framing.
-The output, next hash, and both WellFormed facts are constructed here.
-Physical and complete assignment construction remain separate.
+returns. Physical and complete assignment construction remain separate.
 -/
 
 set_option autoImplicit false
@@ -25,8 +22,6 @@ variable (application : Lifecycle.Stage1.Application.Program)
   (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
   (commitmentSetup : PerApplicationCanonicalPackage.CommitmentSetup application)
 
-/-- The actual prior payload, selected application advice, and returned local
-proof are the existing augmented-function input fields. -/
 def input (statement : HyperNovaHistory.Statement) (payload : HyperNovaHistory.Payload application)
     (advice : AppWitness) (proof : Lifecycle.Proof 8) :
     Input KeyDigest AppState AppWitness
@@ -44,8 +39,6 @@ def input (statement : HyperNovaHistory.Statement) (payload : HyperNovaHistory.P
   witness := advice
   nifsProof := proof
 
-/-- Compute the selected application result and the full next-state digest.
-The NIFS result fills the one outer running slot; no output is supplied. -/
 def output (statement : HyperNovaHistory.Statement) (advice : AppWitness)
     (result : Running (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application)) :
@@ -63,10 +56,6 @@ def output (statement : HyperNovaHistory.Statement) (advice : AppWitness)
     running := fun _ => result
     pc := 1 }
 
-/-- A returned honest NIFS result determines the exact recursive semantic
-step and both canonical state frames. Prior framing and the public link are
-derived from terminal acceptance; next framing uses only counter nonwrap.
-Advice width belongs to later application witness wiring, not this result. -/
 theorem stepHolds_and_wellFormed
     (statement : HyperNovaHistory.Statement) (payload : HyperNovaHistory.Payload application)
     (advice : AppWitness) (proof : Lifecycle.Proof 8)

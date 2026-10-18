@@ -5,7 +5,7 @@ use neo_ccs::utils::tensor_point;
 use neo_ccs::{CcsStructure, Mat, V1_2Evaluations};
 use neo_math::{superneo_bar_block, Fq, KExtensions, Rq, D, F, K};
 use neo_reductions::common::{
-    compute_v1_2_evaluations_from_z_and_r, decode_superneo_coeffs_from_witness_mat, validate_superneo_witness_mat,
+    compute_v1_2_evaluations_from_z_and_r, decode_superneo_coeffs_from_witness_mat, validate_superneo_witness_shape,
 };
 use neo_reductions::superneo_eval::build_superneo_eval_cache;
 use p3_field::PrimeCharacteristicRing;
@@ -85,7 +85,7 @@ fn manual_compute_v1_2_evaluations(s: &CcsStructure<F>, Z: &Mat<F>, r: &[K], ell
 #[test]
 fn compute_v1_2_evaluations_superneo_compatible_match_manual() {
     let n = 16usize;
-    let m = D; // SuperNeo-compatible width
+    let m = D;
     let s = CcsStructure::new(
         vec![dense_mat(n, m, 100), dense_mat(n, m, 200)],
         SparsePoly::new(
@@ -109,7 +109,7 @@ fn compute_v1_2_evaluations_superneo_compatible_match_manual() {
         K::from(F::from_u64(5)),
         K::from(F::from_u64(7)),
         K::from(F::from_u64(11)),
-    ]; // n_pad = 16
+    ];
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
 
     let got = compute_v1_2_evaluations_from_z_and_r(&s, &Z, &r, ell_d);
@@ -120,7 +120,7 @@ fn compute_v1_2_evaluations_superneo_compatible_match_manual() {
 #[test]
 fn compute_v1_2_evaluations_nondiv_width_use_packed_layout() {
     let n = 8usize;
-    let m = D + 1; // non-divisible width uses packed ceil(m/D) layout.
+    let m = D + 1;
     let s = CcsStructure::new(
         vec![dense_mat(n, m, 700), dense_mat(n, m, 900)],
         SparsePoly::new(
@@ -139,13 +139,13 @@ fn compute_v1_2_evaluations_nondiv_width_use_packed_layout() {
     );
 
     let Z = make_z(1200, m);
-    validate_superneo_witness_mat(&Z, s.m).expect("packed layout must be accepted");
+    validate_superneo_witness_shape(&Z, s.m).expect("packed layout must be accepted");
 
     let r = vec![
         K::from(F::from_u64(2)),
         K::from(F::from_u64(13)),
         K::from(F::from_u64(17)),
-    ]; // n_pad = 8
+    ];
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let evaluations = compute_v1_2_evaluations_from_z_and_r(&s, &Z, &r, ell_d);
     let d_pad = D.next_power_of_two();

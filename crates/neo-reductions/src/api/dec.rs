@@ -6,12 +6,6 @@ use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use p3_field::PrimeCharacteristicRing;
 
-/// Check a public Π_DEC transition.
-///
-/// The verifier requires exactly `params.k_rho` children, computes
-/// `split_b(parent.X, params.k_rho, params.b)` itself, and requires each child's
-/// public `X` to equal the corresponding canonical digit matrix. The remaining
-/// public fields are checked by radix-`b` recomposition.
 pub fn verify_dec_public<MB>(
     s: &CcsStructure<F>,
     params: &NeoParams,
@@ -87,7 +81,12 @@ where
     if parent.m_in > s.m {
         return fail(format!("parent m_in={} exceeds CCS width m={}", parent.m_in, s.m));
     }
-    let x_cols = neo_ccs::superneo_public_x_cols(parent.m_in);
+    let Some(x_cols) = neo_ccs::superneo_public_x_cols(parent.m_in) else {
+        return fail(format!(
+            "parent m_in={} is not a whole number of ring elements",
+            parent.m_in
+        ));
+    };
     if parent.X.rows() != D || parent.X.cols() != x_cols {
         eprintln!(
             "verify_dec_public failed: parent X has shape {}x{}, expected {}x{}",
@@ -162,7 +161,6 @@ where
         }
     }
 
-    // The verifier determines the public-X split.
     let expected_child_x = match crate::common::split_b_matrix_k(&parent.X, k, params.b) {
         Ok(split) => split,
         Err(e) => return fail(format!("parent X is not representable by split_b: {e}")),

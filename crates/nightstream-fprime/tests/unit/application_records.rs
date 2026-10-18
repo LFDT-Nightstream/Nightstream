@@ -100,8 +100,6 @@ fn ordered_terms_recipes_and_framing_counts_survive_sealing() {
 fn reused_recipe_evaluator_clears_pending_frames_after_lookup_error() {
     use ApplicationRecipeNode::*;
 
-    // x * (2 + y) + (x + 1) * z exercises pending frames on both
-    // branches. The following constant and variable recipes have no frames.
     let recipes = [
         vec![
             Add,
@@ -164,8 +162,6 @@ fn reused_recipe_evaluator_clears_pending_frames_after_lookup_error() {
         Err(PackageError::Invalid("injected recipe lookup failure"))
     ));
     assert_eq!(looked_up, [0, 1]);
-    // The failed lookup leaves Add/Multiply frames and stored left operands.
-    // A leaf evaluated next must not consume any of those old frames.
     assert_eq!(
         evaluator
             .evaluate(1, |_| panic!("constant has no lookup"))
@@ -190,7 +186,6 @@ fn reused_recipe_evaluator_clears_pending_frames_after_lookup_error() {
 fn writer_buffers_do_not_grow_with_distinct_rows_or_terms() {
     let mut writer = ApplicationRecordsWriter::new().unwrap();
     let bytes = writer.buffer_bytes();
-    // Cross the actual standard-library buffer capacity; this is not a policy cap.
     let rows = bytes / ((6 + 2) * size_of::<u64>()) + 1;
     for row in 0..rows {
         writer
@@ -318,34 +313,19 @@ fn serialized_records() -> (ApplicationRecords, Vec<u8>) {
 #[test]
 fn streamed_records_preserve_exact_words_and_rebuild_sealed_indices() {
     let (original, bytes) = serialized_records();
+    let row_and_recipe_counts = [1, 1];
+    let interleaved_constants_and_term_counts = [5, 3, 1, 0, 5, 0];
+    let ordered_terms = [1, 3, 1, crate::package::GOLDILOCKS_MODULUS - 3, 1, 0];
+    let linked_row_and_node_count = [0, 5];
+    let add_constant_times_variable = [2, 0, 1, 5, 3, 0, 1, 0, 0, 1];
     let words = [
-        1,
-        1, // Row and recipe counts.
-        5,
-        3,
-        1,
-        0,
-        5,
-        0, // Interleaved affine constants and term counts.
-        1,
-        3,
-        1,
-        crate::package::GOLDILOCKS_MODULUS - 3,
-        1,
-        0, // Ordered terms retain cancellation and zero coefficients.
-        0,
-        5, // Linked row and recipe node count.
-        2,
-        0,
-        1,
-        5,
-        3,
-        0,
-        1,
-        0,
-        0,
-        1, // Add(Constant(5), Multiply(Constant(0), Variable(1))).
-    ];
+        row_and_recipe_counts.as_slice(),
+        &interleaved_constants_and_term_counts,
+        &ordered_terms,
+        &linked_row_and_node_count,
+        &add_constant_times_variable,
+    ]
+    .concat();
     assert_eq!(
         bytes,
         words
@@ -440,24 +420,24 @@ fn streamed_records_rebuild_indices_after_interleaved_appends() {
 fn streamed_records_reject_bad_fields_counts_grammar_and_every_truncation() {
     let (_, bytes) = serialized_records();
     let modulus = crate::package::GOLDILOCKS_MODULUS;
-    for (word, value) in [
-        (0, 2),        // Row count differs from outer metadata.
-        (1, 2),        // Recipe count differs from outer metadata.
-        (2, modulus),  // Noncanonical row constant.
-        (3, u64::MAX), // Term-count arithmetic cannot fit.
-        (9, modulus),  // Noncanonical term coefficient.
-        (14, 1),       // Linked row does not exist.
-        (15, 4),       // Missing right operand in the declared node stream.
-        (16, 4),       // Unknown recipe tag.
-        (16, 1),       // Root becomes a leaf followed by extra nodes.
-        (17, 1),       // Binary nodes require zero payload.
-        (19, modulus), // Noncanonical recipe constant.
+    for (case, word, value) in [
+        ("row count differs from outer metadata", 0, 2),
+        ("recipe count differs from outer metadata", 1, 2),
+        ("noncanonical row constant", 2, modulus),
+        ("term-count arithmetic overflows", 3, u64::MAX),
+        ("noncanonical term coefficient", 9, modulus),
+        ("linked row does not exist", 14, 1),
+        ("missing right operand", 15, 4),
+        ("unknown recipe tag", 16, 4),
+        ("root leaf followed by extra nodes", 16, 1),
+        ("binary node with nonzero payload", 17, 1),
+        ("noncanonical recipe constant", 19, modulus),
     ] {
         let mut invalid = bytes.clone();
         invalid[word * 8..(word + 1) * 8].copy_from_slice(&value.to_le_bytes());
         assert!(
             ApplicationRecords::read_from(&mut invalid.as_slice(), 1, 1).is_err(),
-            "word {word}"
+            "{case}: word {word}"
         );
     }
     for end in 0..bytes.len() {

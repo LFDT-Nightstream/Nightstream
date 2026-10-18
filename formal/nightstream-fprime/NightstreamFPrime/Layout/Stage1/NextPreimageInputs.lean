@@ -228,8 +228,6 @@ theorem spartanAssumptions (offset : Nat) (env : Env)
   · exact lt_of_lt_of_le
       (Spartan.sourceToSpartan_lt _ (outputInitialStateSource_lt index)) fits
 
-/-- Next-preimage inputs are private. The final application suffix therefore
-does not move any wire read by this child. -/
 theorem spartanInputsBelowConstant (env : Env) :
     NextPreimage.Assumptions spartanInterface Spartan.constantColumn env := by
   refine {

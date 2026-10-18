@@ -1,6 +1,3 @@
-// Witness-prefix encoding: masks, byte/ushort indices, then dense K values.
-// All tables have an implicit zero suffix. Indices are shared across witnesses.
-
 inline ulong joint_assignment_code(
     device const ulong *data, device const ulong *sources,
     ulong source, ulong index, ulong length, ulong encoding,

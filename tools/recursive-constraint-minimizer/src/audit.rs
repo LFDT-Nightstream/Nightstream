@@ -1,5 +1,3 @@
-//! One-shot strict family audit with complete Rust replay.
-
 use std::error::Error;
 use std::fmt;
 use std::fmt::Write as _;
@@ -9,10 +7,6 @@ use crate::{
     Problem, Query, Selection, SolverConfig, SolverRun, SolverStatus, TypedTarget,
 };
 
-/// Bounded evidence for one complete typed family query.
-///
-/// Every conclusion remains a candidate. This report cannot authorize a row
-/// removal without the required Lean certificate or counterexample.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CompleteTypedAuditReport {
     pub conclusion: Conclusion,
@@ -40,12 +34,6 @@ impl fmt::Display for CompleteTypedAuditError {
 
 impl Error for CompleteTypedAuditError {}
 
-/// Run one strict family query and replay a SAT model in Rust.
-///
-/// The query includes every exact source row outside the selected family, the
-/// constant-one equation, all canonical columns, and the negation of an
-/// independent complete typed target. A parse or replay failure is an error
-/// and therefore inconclusive for constraint removal.
 pub fn audit_complete_typed_family(
     problem: &Problem,
     selection: &Selection,
@@ -58,10 +46,6 @@ pub fn audit_complete_typed_family(
     run_and_replay(problem, target, query, solver, None)
 }
 
-/// Ask cvc5 to check one complete Rust-replayed candidate assignment.
-///
-/// The solver remains untrusted. Its returned full model must equal the
-/// pinned candidate and must pass retained-row and typed-target replay.
 pub fn audit_complete_typed_candidate(
     problem: &Problem,
     selection: &Selection,

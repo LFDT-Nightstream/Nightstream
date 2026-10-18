@@ -55,8 +55,6 @@ private theorem pilot_sources_before_running : PilotProduction.witnessOffset ≤
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- The exact PiDEC running result is preserved when every input source
-below the PiDEC phase offset is preserved. No child opening is asserted. -/
 theorem piDecOutput_eq_of_agree
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) (before after : Env)
     (agrees : ∀ index, index < PiDECInputs.phaseOffset → before index = after index) :
@@ -90,12 +88,6 @@ private theorem next_word_below (index : Fin PilotProduction.stateHashWords) :
   unfold PilotProduction.witnessOffset PilotProduction.externalColumnCount PilotProduction.outputDigestStart
   omega
 
-/-- A selected semantic step and its actual accepted NIFS run construct the
-pilot, C/R/D, running-transition, and next-preimage rows in one environment.
-The input conditions are semantic data conditions; no source-word agreement,
-generated phase specification, or row is assumed. WellFormed keeps both
-natural counters in range. Base dummy results remain separate from the
-semantic default running output. -/
 theorem completePrefix
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))

@@ -1,12 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedCoefficientObject
 import NightstreamFPrime.Spec.SumCheck.GoldilocksCausal
 
-/-!
-Two facts about the signed PiCCS coefficient object: negation in `K` is zero
-only at zero (`neg_zero_iff`), and every α-dependent signed coefficient comes
-from one CCS or norm table of the data (`negative_coefficient_is_table`).
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingProbability
@@ -28,8 +22,6 @@ theorem neg_zero_iff (value : K) : extensionOps.neg value = K.zero ↔ value = K
     rw [zero]
     exact extensionZeroLaws.neg_zero
 
-/-- Every alpha-dependent signed coefficient comes from one of the exact CCS
-or norm tables in this data object. -/
 theorem negative_coefficient_is_table {shape : Shape}
     (data : SignedJointIdentity.JointData K shape)
     (polynomial : AlphaPolynomial K (canonicalAlphaBasis shape))

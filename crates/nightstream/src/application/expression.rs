@@ -58,8 +58,6 @@ impl Expression {
                 pending.push(left);
             }
         }
-        // Flat sharing has no repeated branching along a path. Preserve that
-        // existing recipe syntax; nested sharing can expand exponentially.
         let mut visited = HashSet::new();
         let mut pending = vec![(self, false)];
         while let Some((expression, shared_parent)) = pending.pop() {
@@ -98,8 +96,6 @@ impl Expression {
     }
 }
 
-// These cursors borrow the caller's live expression while it is appended. No
-// tree or term vector survives in the builder or sealed record owner.
 pub(super) struct OrderedTerms<'a> {
     stack: Vec<(&'a Expression, Goldilocks)>,
 }

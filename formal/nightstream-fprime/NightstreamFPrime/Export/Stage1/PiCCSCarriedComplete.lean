@@ -1,8 +1,7 @@
 import NightstreamFPrime.Export.Stage1.PiCCSCarriedAccumulation
 import NightstreamFPrime.Export.Stage1.PiCCSCarriedSource
 
-/-! Selected carried accumulation from original assignments. The Pad block
-kernel and optional numeric matrix reads produce the two full moments.
+/-! Selected carried accumulation from original assignments.
 This is a pure kernel theorem, not a proof of the IO task or cache loop. -/
 
 set_option autoImplicit false
@@ -102,8 +101,6 @@ private theorem pad_dot (input : PiCCSPublicReplay.Input)
   rw [carrierColumn_val] at flat
   exact source.trans flat.symm
 
-/-- The same complete-block kernel used by the Pad runner, projected to one
-of its two parity accumulators. The zero-block branch remains proved. -/
 def padMoment (input : PiCCSPublicReplay.Input)
     (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
     (gamma : K) (bit : Fin 2) : K :=
@@ -124,8 +121,6 @@ private theorem padMoment_value (input : PiCCSPublicReplay.Input)
   rw [carrier_count] at flat
   exact flat
 
-/-- One actual numeric matrix row, with a failure retained as none. The
-selected row bound keeps every accumulated index inside the Boolean domain. -/
 def matrixRow?
     (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
     (gamma : K) (row : Nat) : Option K :=
@@ -141,8 +136,6 @@ private theorem matrixRow?_value (input : PiCCSPublicReplay.Input)
   rw [matrixRow?, dif_pos inside, matrixRow, atRow, dif_pos inside]
   exact PiCCSCarriedSource.matrix_sourceProtocolData input witness gamma _
 
-/-- Scalar projection of the complete optional matrix-row accumulation.
-It uses the same slot sum and absolute row parity as the runner. -/
 def matrixMoment? (input : PiCCSPublicReplay.Input)
     (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
     (gamma : K) (bit : Fin 2) : Option K :=
@@ -233,10 +226,6 @@ private theorem matrixRow_zero (input : PiCCSPublicReplay.Input)
   apply PiCCSCarriedSource.originalMatrix_padding
   simpa only [NumericBooleanDomain.index_vertex] using lower
 
-/-- The selected computed Pad and optional matrix accumulators give the
-complete original-source carried moment. No source-correctness, row-coverage,
-or assignment-validity hypothesis remains. The optional result retains all
-matrix lookup failures, which the selected source theorem rules out. -/
 theorem selected_moment (input : PiCCSPublicReplay.Input)
     (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
     (gamma : K) (bit : Fin 2) :

@@ -6,9 +6,7 @@ import NightstreamFPrime.Spec.GoldilocksExtension
 import NightstreamFPrime.Spec.FieldTower
 import NightstreamFPrime.Spec.SumCheck.FixedPhase
 
-/-! Root counts for the verifier's actual coefficient lists over `K`.
-The probability statement uses a uniform point from the stated finite set,
-after both polynomials are fixed. It does not assert hash uniformity. -/
+/-! Root counts for the verifier's actual coefficient lists over `K`. -/
 
 namespace NightstreamFPrime.Spec.SumCheck.Finite.GoldilocksRoots
 
@@ -40,7 +38,6 @@ local instance : NoZeroDivisors K where
 
 local instance : IsDomain K := NoZeroDivisors.to_isDomain K
 
-/-- The operations used by the concrete extension-field verifier. -/
 def ops : Ops K := Folding.PiCCS.PaperJoint.ConcreteCarrier.extensionOps.toOps
 
 private noncomputable def polynomial : List K → Polynomial K
@@ -74,9 +71,6 @@ private theorem polynomial_degree (coefficients : List K) :
       change (Polynomial.C coefficient + Polynomial.X * polynomial (next :: rest)).natDegree ≤ _
       omega
 
-/-- Distinct polynomial functions of degree at most `degree` can agree on at
-most `degree` points of any finite challenge set. Degree comes from the
-verifier's coefficient width, not from a supplied annotation. -/
 theorem agreement_count_le {degree : Nat}
     (claimed expected : FixedPolynomial K degree) (challenges : Finset K)
     (different : ∃ point, claimed.evaluate ops point ≠ expected.evaluate ops point) :
@@ -107,8 +101,6 @@ theorem agreement_count_le {degree : Nat}
   rw [evalDifference, sub_eq_zero]
   exact (Finset.mem_filter.mp member).2
 
-/-- Exact event frequency for uniform sampling from a nonempty finite set.
-Both polynomial messages are fixed before this sample is drawn. -/
 theorem uniform_agreement_probability_le {degree : Nat}
     (claimed expected : FixedPolynomial K degree) (challenges : Finset K)
     (_nonempty : challenges.Nonempty)
@@ -127,7 +119,6 @@ theorem uniform_agreement_probability_le {degree : Nat}
 
 attribute [local instance] kFintype
 
-/-- The whole extension field is the ideal uniform sampling space. -/
 noncomputable def fullChallengeSet : Finset K := Finset.univ
 
 theorem fullChallengeSet_card : fullChallengeSet.card = goldilocksModulus ^ 2 := by
@@ -144,8 +135,6 @@ theorem uniform_fullField_agreement_probability_le {degree : Nat}
   exact uniform_agreement_probability_le claimed expected fullChallengeSet
     (by exact Finset.univ_nonempty) different
 
-/-- Connect the existing false-acceptance event to the root count, retaining
-its independently proved expected-polynomial representation. -/
 theorem badChallenge_count_le {degree challengeSetSize : Nat}
     (q : List K → K) (initial : K) (transcriptChallenges : List K)
     (certificate : FixedPhase.Certificate K degree) (round : SumCheck.Round K K)

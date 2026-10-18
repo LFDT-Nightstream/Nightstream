@@ -24,8 +24,6 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- The parent projection fixes the transcript challenge at the phase base;
-child offsets do not select a different challenge. -/
 theorem roundPoint_offset_eq
     {degreeBound : Nat}
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
@@ -35,8 +33,6 @@ theorem roundPoint_offset_eq
       Formal.roundPoint interface rightOffset coordinate := by
   rfl
 
-/-- The parent projection fixes `gamma` at the challenge child; later child
-offsets do not select a different value. -/
 theorem challengeGamma_offset_eq
     {degreeBound : Nat}
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
@@ -96,7 +92,6 @@ theorem sumcheckOutput_offset_eq
       Formal.sumcheckOutput interface rightOffset := by
   rfl
 
-/-- The four transcript-prefix assumption fields of the canonical parent. -/
 structure Transcript
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth
@@ -114,8 +109,6 @@ structure Transcript
     (Formal.roundTranscriptCircuit (Formal.atOffset interface parentOffset)
       ).assumptions (Formal.roundTranscriptOffset interface parentOffset) env
 
-/-- The production external-input range and prior child scopes imply every
-transcript-prefix assumption. -/
 theorem transcript
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth
@@ -149,7 +142,6 @@ theorem transcript
       simpa [frozen, Formal.atOffset, Formal.statementBindingInterface] using
         external.below.runningPublicInput
           (Fin.cast runningCount_eq_radixChildCount.symm child) (packedColumn word lane)
-  -- Statement absorption starts after the statement-binding sign columns.
   have statementInputs :
       Leaves.StatementAbsorption.InputsBelow
         (Formal.statementAbsorptionInterface frozen)
@@ -213,8 +205,6 @@ theorem transcript
   · exact challengeAssumption
   · exact roundAssumption
 
-/-- The transcript-derived `gamma` and the separate external `Eval_K` and
-`Eval_A` families discharge the initial-claim child assumption. -/
 theorem initialClaim
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth
@@ -274,8 +264,6 @@ theorem initialClaim
           coordinate.coefficient) parentLeInitial
       simpa [Formal.initialClaimInterface, frozen, Formal.atOffset] using widened
 
-/-- The initial-claim output, external round messages, and transcript-derived
-round challenges discharge the fixed 28-round SumCheck assumption. -/
 theorem sumcheck
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth
@@ -332,8 +320,6 @@ theorem sumcheck
         Formal.atOffset] using! widened
     · exact roundChallengeBelow roundIndex
 
-/-- The transcript point, prior point, `gamma`, and only the Pad-family output
-coefficients discharge the separate `Eval_K` child assumption. -/
 theorem evalK
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth
@@ -405,8 +391,6 @@ theorem evalK
         parentLeEvalK
       simpa [Formal.evalKInterface, frozen, Formal.atOffset] using widened
 
-/-- The transcript point, prior point, `gamma`, and only the genuine
-CCS-matrix output coefficients discharge the separate `Eval_A` assumption. -/
 theorem evalA
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth
@@ -483,8 +467,6 @@ theorem evalA
           coordinate.coefficient) parentLeEvalA
       simpa [Formal.evalAInterface, frozen, Formal.atOffset] using widened
 
-/-- The fresh source's genuine matrix-family values discharge the CCS
-terminal assumption at the verifier-owned constant coefficient. -/
 theorem ccs
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth
@@ -536,8 +518,6 @@ theorem ccs
   have widened := KExpr.varsBelow_mono _ sourceBelow parentLeCcs
   simpa [Formal.ccsInterface, frozen, Formal.atOffset] using! widened
 
-/-- The transcript-derived `gamma` and the 17 strict residuals over the
-separate Pad-family outputs discharge the norm child assumption. -/
 theorem norm
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth
@@ -611,8 +591,6 @@ theorem norm
       simpa [Formal.normInterface, frozen, Formal.atOffset] using widened)
   exact residualBelow
 
-/-- All seven separately owned terminal values discharge the exact v1_2 final
-joint-identity assumption. -/
 theorem finalIdentity
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth
@@ -747,8 +725,6 @@ theorem finalIdentity
     rw [challengeGamma_offset_eq frozen finalAt initialAt]
     exact KExpr.varsBelow_mono _ initialAssumption.1 initialLeFinal
 
-/-- Every child from the initial claim through the final identity allocates a
-nonnegative interval before output binding begins. -/
 theorem initialClaimOffset_le_outputBindingOffset
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth
@@ -799,7 +775,6 @@ theorem initialClaimOffset_le_outputBindingOffset
           (Nat.le_trans ccsLeNorm
             (Nat.le_trans normLeFinal finalLeOutput)))))
 
-/-- Caller-owned inputs precede the complete PiCCS child interval. -/
 theorem parentOffset_le_outputBindingOffset
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth
@@ -815,7 +790,6 @@ theorem parentOffset_le_outputBindingOffset
   exact Nat.le_trans parentLeInitial
     (initialClaimOffset_le_outputBindingOffset relation interface parentOffset)
 
-/-- Exact parent wiring packet for the output-binding leaf. -/
 theorem outputBindingInputsBelow
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth
@@ -853,8 +827,6 @@ theorem outputBindingInputsBelow
       coefficient).VarsBelow outputAt
     exact widened
 
-/-- The round transcript's owned final state and the caller-owned separate
-`Eval_K`/`Eval_A` output families discharge the output-binding assumption. -/
 theorem outputBinding
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth
@@ -873,8 +845,6 @@ theorem outputBinding
     (Formal.outputBindingInterface frozen) outputAt
       (outputBindingInputsBelow relation interface parentOffset external env) env
 
-/-- The one production external-input packet discharges every causal premise
-of the complete twelve-child PiCCS `FormalCircuit`. -/
 theorem production
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth

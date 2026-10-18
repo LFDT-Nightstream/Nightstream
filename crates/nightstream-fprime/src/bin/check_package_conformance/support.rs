@@ -435,8 +435,6 @@ fn event_row_count(event: Event<'_>, raw: &RawPackage) -> usize {
     }
 }
 
-/// The separately emitted physical reference must be the exact inner
-/// package of the sealed candidate used for every later check.
 pub fn require_sealed_expansion(sealed_bytes: &[u8], expanded_bytes: &[u8]) {
     let sealed: Value = serde_json::from_slice(sealed_bytes).expect("sealed candidate JSON");
     let inner = sealed

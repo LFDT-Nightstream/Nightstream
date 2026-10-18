@@ -4,8 +4,6 @@ import Mathlib.Data.List.FinRange
 
 /-!
 Owns a numeric sum loop and its equality with the canonical Boolean sum.
-The loop allocates no list of indices. A zero suffix may be omitted only
-under the explicit range and zero conditions in the prefix theorem.
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NumericCompletionSum
@@ -14,7 +12,6 @@ universe uField uIndex
 
 variable {Field : Type uField}
 
-/-- Sum an ascending numeric prefix without an index-list allocation. -/
 def numericSum (ops : InterpolationOps Field)
     (count : Nat) (term : Nat → Field) : Field :=
   Nat.fold count (fun index _ accumulated =>
@@ -61,8 +58,6 @@ private theorem numericVertices_perm (arity : Nat) :
           NumericBooleanDomain.index_lt_twoPow point⟩,
         List.mem_finRange _, NumericBooleanDomain.vertex_index point⟩
 
-/-- The full numeric sum visits every canonical Boolean vertex exactly once.
-The term is arbitrary; its values need not be zero or satisfy a relation. -/
 theorem numericSum_eq_vertexSum (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops)
     (arity : Nat) (term : Nat → Field) :
@@ -110,8 +105,6 @@ private theorem numericSum_eq_of_zero_suffix (ops : InterpolationOps Field)
         exact inductionHypothesis prefixCount prefixFits
           (fun index lower upper => outsideZero index lower (by omega))
 
-/-- A numeric prefix equals the full Boolean sum when every omitted in-domain
-term is zero. No condition is imposed beyond the Boolean domain. -/
 theorem numericSum_prefix_eq_vertexSum (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops)
     (arity prefixCount : Nat) (term : Nat → Field)

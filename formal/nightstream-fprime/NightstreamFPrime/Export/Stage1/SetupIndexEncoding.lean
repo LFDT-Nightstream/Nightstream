@@ -19,7 +19,6 @@ theorem setup_index_bounds (row : Fin verifierRows) (block : Fin messageColumns)
     decide
   exact ⟨Nat.lt_trans row.isLt rowLimit, Nat.lt_trans block.isLt blockLimit⟩
 
-/-- No two distinct production key elements use the same SHAKE128 input. -/
 theorem production_index_injective
     (leftRow rightRow : Fin verifierRows)
     (leftBlock rightBlock : Fin messageColumns)

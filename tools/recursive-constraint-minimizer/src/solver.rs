@@ -1,5 +1,3 @@
-//! Bounded cvc5 process execution and fail-closed result classification.
-
 use std::error::Error;
 use std::fmt;
 use std::io::{Read, Write};

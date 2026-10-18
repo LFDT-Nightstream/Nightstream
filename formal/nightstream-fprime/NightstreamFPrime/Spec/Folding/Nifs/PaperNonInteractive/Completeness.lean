@@ -247,12 +247,6 @@ private theorem package_suffix
   rw [same]
   exact complete.2 index
 
-/-- Source witnesses construct the causal C prefix before the PiRLC response
-is known. For any actual successful response from its complete-output state,
-the honest split constructs one normal NIFS proof, the verifier's returned
-running product, and valid witnesses for every exact returned child. Sampler
-success is explicit. Neither accepted messages nor valid children are inputs.
-The existential causal prover carries no executable work or sampling claim. -/
 theorem exists_honest_proof_of_sampler_success
     (witness : OutputWitness shape columns)
     (valid : SourceHolds key.extensionOps key.lift key.openingMaps key.params

@@ -198,6 +198,7 @@ theorem mulExpr_eval (env : Env)
     (mulExpr challenge value lane).eval env =
       ringFMul (evalRing env challenge) (evalRing env value) lane := by
   unfold mulExpr ringFMul
+  simp only [show ringDegree + ringMiddleDegree = 81 from rfl, show 2 * (ringDegree - 1) = 106 from rfl]
   by_cases foldedLow : lane.val < ringMiddleDegree
   · by_cases hasTwice : lane.val + 81 ≤ 106
     · simp only [if_pos foldedLow, if_pos hasTwice, Expr.eval_hadd,

@@ -1,11 +1,4 @@
 //! Common utilities and helper functions shared across engines.
-//!
-//! This module contains:
-//! - Balanced base-b digit splitting for DEC operations
-//! - RLC sampling (diagonal ρ matrices)
-//! - ME relation helpers (compute y from Z and r)
-//! - Matrix arithmetic helpers
-//! - Extension field formatting utilities
 
 #![allow(non_snake_case)]
 
@@ -16,8 +9,6 @@ use neo_math::{
 use neo_params::{goldilocks_paper_b2, NeoParams};
 use neo_transcript::Poseidon2Transcript;
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
-#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-use rayon::prelude::*;
 
 use crate::error::PiCcsError;
 
@@ -26,36 +17,8 @@ mod packed_split;
 mod pi_rlc_sampler;
 pub use pi_rlc_sampler::decode_pi_rlc_coefficients;
 
-// ---------------------------------------------------------------------------
-// Balanced Base-b Digit Splitting
-// ---------------------------------------------------------------------------
-
-/// Helper: returns (r, q) with r in the SuperNeo digit range `|r| < b`.
-///
-/// Matches the signed `split_b` decomposition (SuperNeo v1.2 Section 4):
-/// digits are signed, but the norm bound is the full `{-(b-1), ..., +(b-1)}`
-/// alphabet required by `split_b`.
-///
-/// This ensures termination for both positive and negative values.
-fn balanced_divrem(v: i128, b: i128) -> (i128, i128) {
-    debug_assert!(b >= 2);
-
-    let r = v % b;
-    let q = (v - r) / b;
-    (r, q)
-}
-
 #[inline]
-fn balanced_divrem_i64(v: i64, b: i64) -> (i64, i64) {
-    debug_assert!(b >= 2);
-
-    let r = v % b;
-    let q = (v - r) / b;
-    (r, q)
-}
-
-#[inline]
-fn balanced_divrem_i64_base2(v: i64) -> (i64, i64) {
+fn signed_divrem_base2(v: i64) -> (i64, i64) {
     if (v & 1) == 0 {
         (0, v >> 1)
     } else if v > 0 {
@@ -80,41 +43,93 @@ fn build_balanced_digit_lut(b: u32) -> (i64, Vec<F>) {
     (bound, lut)
 }
 
-/// Split Z into **balanced base-b digits** Z = Σ_{i=0}^{k-1} b^i · Z_i, entrywise.
-/// Each digit lies in `{-(b-1), ..., +(b-1)}`, so `||Z_i||_∞ < b`.
-/// Returns an error if an entry cannot be represented within k digits (i.e., if |value| ≥ b^k)
-/// — this indicates a bad RLC sample or overflow.
-pub fn split_b_matrix_k_with_nonzero_flags(
-    Z: &Mat<F>,
-    k: usize,
-    b: u32,
-) -> Result<(Vec<Mat<F>>, Vec<bool>), PiCcsError> {
+#[derive(Clone, Debug, PartialEq)]
+pub struct SplitDigits {
+    planes: Vec<Mat<F>>,
+    nonzero: Vec<bool>,
+}
+
+impl SplitDigits {
+    pub fn from_device_split(planes: Vec<Mat<F>>, nonzero: Vec<bool>) -> Self {
+        assert_eq!(
+            planes.len(),
+            nonzero.len(),
+            "split digit flag count must match the plane count"
+        );
+        Self { planes, nonzero }
+    }
+
+    pub fn planes(&self) -> &[Mat<F>] {
+        &self.planes
+    }
+
+    pub fn nonzero(&self) -> &[bool] {
+        &self.nonzero
+    }
+
+    pub fn into_planes(self) -> Vec<Mat<F>> {
+        self.planes
+    }
+
+    pub fn into_parts(self) -> (Vec<Mat<F>>, Vec<bool>) {
+        (self.planes, self.nonzero)
+    }
+}
+
+/// SuperNeo v1.2 Section 4 signed `split_b`.
+pub fn split_b_matrix_k_with_nonzero_flags(Z: &Mat<F>, k: usize, b: u32) -> Result<SplitDigits, PiCcsError> {
     let Z_rows = Z.rows();
     let Z_cols = Z.cols();
 
     if Z.virtual_constant_value()
         .is_some_and(|value| *value == F::ZERO)
     {
-        return Ok((
-            (0..k)
+        return Ok(SplitDigits {
+            planes: (0..k)
                 .map(|_| Mat::virtual_constant(Z_rows, Z_cols, F::ZERO))
                 .collect(),
-            vec![false; k],
-        ));
+            nonzero: vec![false; k],
+        });
     }
-    // Production witnesses take the parallel packed split. Invalid entries
-    // fall through to the serial split, which reports the first one.
+
+    let b_i = b as i128;
+    let mut B: i128 = 1;
+    for _ in 0..k {
+        B = B.saturating_mul(b_i);
+    }
+    let B_u: u128 = B as u128;
+    let z_data = Z.as_slice();
+    let out_of_range = |idx: usize| {
+        let u = z_data[idx].as_canonical_u64();
+        PiCcsError::ProtocolError(format!(
+            "DEC split: Z[{},{}] = {} (0x{:X}) is out of range for k_rho={}, b={}\n\
+             Matrix Z is {}×{}\n\
+             Balanced range: [{}, {}), where B = b^k_rho = {}^{} = {}\n\
+             This typically means witness values grew too large during RLC for the configured rotation challenge set",
+            idx / Z_cols,
+            idx % Z_cols,
+            u,
+            u,
+            k,
+            b,
+            Z_rows,
+            Z_cols,
+            -B,
+            B,
+            b,
+            k,
+            B_u
+        ))
+    };
+
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     if b == 2 && Z_rows <= u64::BITS as usize && (1..i64::BITS as usize - 1).contains(&k) {
-        if let Some(split) = packed_split::split_base2_packed(Z, k) {
-            return Ok(split);
-        }
+        return packed_split::split_base2_packed(Z, k)
+            .map(|(planes, nonzero)| SplitDigits { planes, nonzero })
+            .map_err(out_of_range);
     }
 
     let mut out_data = (0..k).map(|_| None::<Vec<F>>).collect::<Vec<_>>();
-    // The existing column-mask representation supports at most 64 rows.
-    // Production ring witnesses have D=54 rows; taller generic matrices keep
-    // their existing storage path.
     let packed_binary = b == 2 && Z_rows <= u64::BITS as usize;
     let mut out_masks = if packed_binary {
         (0..k).map(|_| None::<(Vec<u64>, Vec<u64>)>).collect()
@@ -122,255 +137,48 @@ pub fn split_b_matrix_k_with_nonzero_flags(
         Vec::new()
     };
     let mut digit_nonzero = vec![false; k];
-
-    let b_i = b as i128;
-    let mut B: i128 = 1;
-    for _ in 0..k {
-        B = B.saturating_mul(b_i);
-    } // b^k
     let (digit_bound, digit_lut) = build_balanced_digit_lut(b);
+    let p: u128 = F::ORDER_U64 as u128;
+    let total = z_data.len();
+    debug_assert_eq!(total, Z_rows * Z_cols);
 
-    // Helpers to interpret field element as a small signed integer in (-(B-1), B-1)
-    let p: u128 = F::ORDER_U64 as u128; // Goldilocks prime fits in u64
-    let B_u: u128 = B as u128;
-
-    let z_data = Z.as_slice();
-    {
-        let total = z_data.len();
-        debug_assert_eq!(total, Z_rows * Z_cols);
-        let mut store_digit = |plane: usize, index: usize, digit: F| {
-            if packed_binary {
-                let (positive, negative) = out_masks[plane].get_or_insert_with(|| (vec![0; Z_cols], vec![0; Z_cols]));
-                let mask = if digit == F::ONE { positive } else { negative };
-                mask[index % Z_cols] |= 1u64 << (index / Z_cols);
-            } else {
-                out_data[plane].get_or_insert_with(|| vec![F::ZERO; total])[index] = digit;
-            }
-            digit_nonzero[plane] = true;
+    for idx in 0..total {
+        let z_entry = z_data[idx];
+        if z_entry == F::ZERO {
+            continue;
+        }
+        let u = z_entry.as_canonical_u64() as u128;
+        let neg_mag = p.saturating_sub(u);
+        let mut v = match (u < B_u, neg_mag < B_u) {
+            (false, false) => return Err(out_of_range(idx)),
+            (true, false) => u as i128,
+            (false, true) => -(neg_mag as i128),
+            (true, true) if u <= neg_mag => u as i128,
+            (true, true) => -(neg_mag as i128),
         };
-
-        if B_u <= i64::MAX as u128 {
-            let b_i64 = b as i64;
-            let fast_base2 = b == 2;
-            for idx in 0..total {
-                let z_entry = z_data[idx];
-                if z_entry == F::ZERO {
-                    continue;
-                }
-                let u = z_entry.as_canonical_u64() as u128;
-                // Map to a small signed integer if within the DEC budget.
-                let val_opt: Option<i64> = {
-                    let neg_mag = p.saturating_sub(u);
-                    let pos_ok = u < B_u;
-                    let neg_ok = neg_mag < B_u;
-                    match (pos_ok, neg_ok) {
-                        (false, false) => None,
-                        (true, false) => Some(u as i64),
-                        (false, true) => Some(-(neg_mag as i64)),
-                        (true, true) => {
-                            // Choose the smaller-magnitude balanced representative.
-                            if u <= neg_mag {
-                                Some(u as i64)
-                            } else {
-                                Some(-(neg_mag as i64))
-                            }
-                        }
-                    }
-                };
-
-                let mut v = match val_opt {
-                    Some(v) => v,
-                    None => {
-                        let r = idx / Z_cols;
-                        let c = idx % Z_cols;
-                        let B_signed = B_u as i128;
-                        return Err(PiCcsError::ProtocolError(format!(
-                            "DEC split: Z[{},{}] = {} (0x{:X}) is out of range for k_rho={}, b={}\n\
-                             Matrix Z is {}×{}\n\
-                             Balanced range: [{}, {}), where B = b^k_rho = {}^{} = {}\n\
-                             This typically means witness values grew too large during RLC for the configured rotation challenge set",
-                            r, c, u, u, k, b, Z_rows, Z_cols, -B_signed, B_signed, b, k, B_u
-                        )));
-                    }
-                };
-
-                // Balanced digit extraction: r_i ∈ [-floor(b/2), ..., ceil(b/2)-1], v ← q
-                for i in 0..k {
-                    if v == 0 {
-                        break;
-                    }
-                    let (r_i, q) = if fast_base2 {
-                        balanced_divrem_i64_base2(v)
-                    } else {
-                        balanced_divrem_i64(v, b_i64)
-                    };
-                    if r_i != 0 {
-                        debug_assert!(r_i >= -digit_bound && r_i <= digit_bound);
-                        let digit_f = digit_lut[(r_i + digit_bound) as usize];
-                        store_digit(i, idx, digit_f);
-                    }
-                    v = q;
-                }
-
-                if v != 0 {
-                    let r = idx / Z_cols;
-                    let c = idx % Z_cols;
-                    return Err(PiCcsError::ProtocolError(format!(
-                        "DEC split: Z[{},{}] needs more than k_rho={} digits in base b={}\n\
-                         Matrix Z is {}×{}\n\
-                         After extracting {} digits, remainder v={} (should be 0)\n\
-                         Original value exceeded the range [{}, {}) for B = {}^{} = {}\n\
-                         This typically means witness values grew too large during RLC for the configured rotation challenge set",
-                        r,
-                        c,
-                        k,
-                        b,
-                        Z_rows,
-                        Z_cols,
-                        k,
-                        v,
-                        -(B_u as i128),
-                        B_u as i128,
-                        b,
-                        k,
-                        B_u
-                    )));
-                }
+        for plane in 0..k {
+            if v == 0 {
+                break;
             }
-        } else {
-            let b_i64 = b as i64;
-            let fast_base2 = b == 2;
-            for idx in 0..total {
-                let z_entry = z_data[idx];
-                if z_entry == F::ZERO {
-                    continue;
+            let (r_i, q) = (v % b_i, v / b_i);
+            if r_i != 0 {
+                let r_i = r_i as i64;
+                debug_assert!(r_i >= -digit_bound && r_i <= digit_bound);
+                let digit = digit_lut[(r_i + digit_bound) as usize];
+                if packed_binary {
+                    let (positive, negative) =
+                        out_masks[plane].get_or_insert_with(|| (vec![0; Z_cols], vec![0; Z_cols]));
+                    let mask = if digit == F::ONE { positive } else { negative };
+                    mask[idx % Z_cols] |= 1u64 << (idx / Z_cols);
+                } else {
+                    out_data[plane].get_or_insert_with(|| vec![F::ZERO; total])[idx] = digit;
                 }
-                let u = z_entry.as_canonical_u64() as u128;
-                // Map to a small signed integer if within the DEC budget.
-                let val_opt: Option<i128> = {
-                    let neg_mag = p.saturating_sub(u);
-                    let pos_ok = u < B_u;
-                    let neg_ok = neg_mag < B_u;
-                    match (pos_ok, neg_ok) {
-                        (false, false) => None,
-                        (true, false) => Some(u as i128),
-                        (false, true) => Some(-(neg_mag as i128)),
-                        (true, true) => {
-                            // Choose the smaller-magnitude balanced representative.
-                            if u <= neg_mag {
-                                Some(u as i128)
-                            } else {
-                                Some(-(neg_mag as i128))
-                            }
-                        }
-                    }
-                };
-
-                let v = match val_opt {
-                    Some(v) => v,
-                    None => {
-                        let r = idx / Z_cols;
-                        let c = idx % Z_cols;
-                        let B_signed = B_u as i128;
-                        return Err(PiCcsError::ProtocolError(format!(
-                            "DEC split: Z[{},{}] = {} (0x{:X}) is out of range for k_rho={}, b={}\n\
-                             Matrix Z is {}×{}\n\
-                             Balanced range: [{}, {}), where B = b^k_rho = {}^{} = {}\n\
-                             This typically means witness values grew too large during RLC for the configured rotation challenge set",
-                            r, c, u, u, k, b, Z_rows, Z_cols, -B_signed, B_signed, b, k, B_u
-                        )));
-                    }
-                };
-
-                // Even when B is large, the selected balanced representative is often small.
-                // Prefer i64 extraction in that common case to avoid expensive i128 division.
-                if v >= i64::MIN as i128 && v <= i64::MAX as i128 {
-                    let mut v64 = v as i64;
-                    for i in 0..k {
-                        if v64 == 0 {
-                            break;
-                        }
-                        let (r_i, q) = if fast_base2 {
-                            balanced_divrem_i64_base2(v64)
-                        } else {
-                            balanced_divrem_i64(v64, b_i64)
-                        };
-                        if r_i != 0 {
-                            debug_assert!(r_i >= -digit_bound && r_i <= digit_bound);
-                            let digit_f = digit_lut[(r_i + digit_bound) as usize];
-                            store_digit(i, idx, digit_f);
-                        }
-                        v64 = q;
-                    }
-
-                    if v64 != 0 {
-                        let r = idx / Z_cols;
-                        let c = idx % Z_cols;
-                        return Err(PiCcsError::ProtocolError(format!(
-                            "DEC split: Z[{},{}] needs more than k_rho={} digits in base b={}\n\
-                             Matrix Z is {}×{}\n\
-                             After extracting {} digits, remainder v={} (should be 0)\n\
-                             Original value exceeded the range [{}, {}) for B = {}^{} = {}\n\
-                             This typically means witness values grew too large during RLC for the configured rotation challenge set",
-                            r,
-                            c,
-                            k,
-                            b,
-                            Z_rows,
-                            Z_cols,
-                            k,
-                            v64,
-                            -(B_u as i128),
-                            B_u as i128,
-                            b,
-                            k,
-                            B_u
-                        )));
-                    }
-                    continue;
-                }
-
-                let mut v = v;
-                // Balanced digit extraction: r_i ∈ [-floor(b/2), ..., ceil(b/2)-1], v ← q
-                for i in 0..k {
-                    if v == 0 {
-                        break;
-                    }
-                    let (r_i, q) = balanced_divrem(v, b_i);
-                    if r_i != 0 {
-                        let r_i64 = r_i as i64;
-                        debug_assert!(r_i64 >= -digit_bound && r_i64 <= digit_bound);
-                        let digit_f = digit_lut[(r_i64 + digit_bound) as usize];
-                        store_digit(i, idx, digit_f);
-                    }
-                    v = q;
-                }
-
-                if v != 0 {
-                    let r = idx / Z_cols;
-                    let c = idx % Z_cols;
-                    return Err(PiCcsError::ProtocolError(format!(
-                        "DEC split: Z[{},{}] needs more than k_rho={} digits in base b={}\n\
-                         Matrix Z is {}×{}\n\
-                         After extracting {} digits, remainder v={} (should be 0)\n\
-                         Original value exceeded the range [{}, {}) for B = {}^{} = {}\n\
-                         This typically means witness values grew too large during RLC for the configured rotation challenge set",
-                        r,
-                        c,
-                        k,
-                        b,
-                        Z_rows,
-                        Z_cols,
-                        k,
-                        v,
-                        -(B_u as i128),
-                        B_u as i128,
-                        b,
-                        k,
-                        B_u
-                    )));
-                }
+                digit_nonzero[plane] = true;
             }
+            v = q;
+        }
+        if v != 0 {
+            return Err(out_of_range(idx));
         }
     }
 
@@ -385,7 +193,10 @@ pub fn split_b_matrix_k_with_nonzero_flags(
                 }
             })
             .collect();
-        return Ok((digits, digit_nonzero));
+        return Ok(SplitDigits {
+            planes: digits,
+            nonzero: digit_nonzero,
+        });
     }
 
     let outs = out_data
@@ -393,39 +204,23 @@ pub fn split_b_matrix_k_with_nonzero_flags(
         .map(|data| {
             data.map_or_else(
                 || Mat::virtual_constant(Z_rows, Z_cols, F::ZERO),
-                |data| {
-                    if b == 2 {
-                        Mat::compact_signed_unit(Z_rows, Z_cols, data)
-                    } else {
-                        Mat::from_row_major(Z_rows, Z_cols, data)
-                    }
-                },
+                |data| Mat::from_row_major(Z_rows, Z_cols, data),
             )
         })
         .collect();
-    Ok((outs, digit_nonzero))
+    Ok(SplitDigits {
+        planes: outs,
+        nonzero: digit_nonzero,
+    })
 }
 
 pub fn split_b_matrix_k(Z: &Mat<F>, k: usize, b: u32) -> Result<Vec<Mat<F>>, PiCcsError> {
-    split_b_matrix_k_with_nonzero_flags(Z, k, b).map(|(digits, _nonzero)| digits)
+    split_b_matrix_k_with_nonzero_flags(Z, k, b).map(SplitDigits::into_planes)
 }
 
-// ---------------------------------------------------------------------------
-// RLC Sampling - Rotation Matrices (Paper-Compliant)
-// ---------------------------------------------------------------------------
-
-/// Ring metadata for ΠRLC rotation-matrix challenges (SuperNeo v1.2 Definition 6, Section 7.4).
-///
-/// Specifies the cyclotomic polynomial Φ_η and the coefficient alphabet A
-/// used to construct the strong sampling set C = {rot(a) : a ∈ C_R}.
-/// C_R = {a ∈ R_q : all coeffs of a lie in A}.
 pub struct RotRing {
-    /// Coefficients [c_0, c_1, ..., c_{d-1}] of Φ_η(X) = X^d + c_{d-1}·X^{d-1} + ... + c_0.
-    /// Must have length D (the ring dimension).
-    pub phi_coeffs: &'static [i32],
+    pub phi_low_coeffs: &'static [i32; D],
 
-    /// Small coefficient alphabet A ⊂ ℤ.
-    /// The strong sampling set is C_R = {polynomials with coeffs in A}.
     pub alphabet: &'static [i8],
 
     /// Optional: lower bound on b_inv from SuperNeo v1.2 Theorem 4 (invertibility threshold).
@@ -434,10 +229,10 @@ pub struct RotRing {
 }
 
 impl RotRing {
-    /// Goldilocks SuperNeo v1.2 Section 8.2 profile, sourced from `neo_params::goldilocks_paper_b2`.
+    /// SuperNeo v1.2 Section 8.2 ring and challenge set.
     pub const fn goldilocks() -> Self {
         Self {
-            phi_coeffs: &goldilocks_paper_b2::PHI_COEFFS,
+            phi_low_coeffs: &goldilocks_paper_b2::PHI_COEFFS,
             alphabet: &goldilocks_paper_b2::CHALLENGE_ALPHABET,
             binv_floor: Some(goldilocks_paper_b2::B_INV_FLOOR),
         }
@@ -456,7 +251,6 @@ fn expansion_factor_T(alphabet: &[i8]) -> u128 {
     2u128 * (D as u128) * c_max
 }
 
-/// Convert signed small integer to a field element.
 #[inline]
 fn ff_from_i64<Ff: Field + PrimeCharacteristicRing>(x: i64) -> Ff {
     if x >= 0 {
@@ -466,41 +260,27 @@ fn ff_from_i64<Ff: Field + PrimeCharacteristicRing>(x: i64) -> Ff {
     }
 }
 
-/// Convert signed small integer to field element `F`.
 #[inline]
 fn f_from_i64(x: i64) -> F {
     ff_from_i64::<F>(x)
 }
 
-/// Build rotation matrix rot(a) given coefficients of a and Φ_η coefficients.
-///
-/// Uses the shift recurrence:
-///   col_0 = cf(a)
-///   col_{j+1} = F_shift · col_j
-/// where F_shift implements the reduction X·a ≡ (X·a) mod Φ_η.
-fn rot_from_coeffs(a_coeffs: &[F], phi_coeffs: &[i32]) -> Mat<F> {
+fn rot_from_coeffs(a_coeffs: &[F], phi_low_coeffs: &[i32; D]) -> Mat<F> {
     debug_assert_eq!(a_coeffs.len(), D);
-    debug_assert_eq!(phi_coeffs.len(), D);
 
-    // Precompute -c_r for shift matrix F
-    let neg_c: Vec<F> = phi_coeffs
+    let neg_c: Vec<F> = phi_low_coeffs
         .iter()
         .map(|&cr| f_from_i64(-(cr as i64)))
         .collect();
 
-    // Build columns: col_j = F^j · cf(a)
-    // F_shift(v)[0] = v[d-1]·(-c_0)
-    // F_shift(v)[r] = v[r-1] + v[d-1]·(-c_r) for r ≥ 1
     let mut rho = Mat::zero(D, D, F::ZERO);
     let mut col = a_coeffs.to_vec();
 
     for j in 0..D {
-        // Write column j
         for r in 0..D {
             rho[(r, j)] = col[r];
         }
 
-        // Compute next column: col ← F_shift(col)
         let last = col[D - 1];
         let mut next = vec![F::ZERO; D];
         next[0] = last * neg_c[0];
@@ -513,10 +293,7 @@ fn rot_from_coeffs(a_coeffs: &[F], phi_coeffs: &[i32]) -> Mat<F> {
     rho
 }
 
-/// Resolve the supported cyclotomic polynomial coefficients from parameters.
-///
-/// We keep this strict to prevent accepting arbitrary linear operators in Π_RLC.
-pub fn phi_coeffs_from_params(params: &NeoParams) -> Result<&'static [i32], PiCcsError> {
+pub fn phi_low_coeffs_from_params(params: &NeoParams) -> Result<&'static [i32; D], PiCcsError> {
     if params.d as usize != D {
         return Err(PiCcsError::InvalidInput(format!(
             "Π_RLC: params.d={} must equal D={}",
@@ -535,13 +312,11 @@ pub fn phi_coeffs_from_params(params: &NeoParams) -> Result<&'static [i32], PiCc
     }
 }
 
-/// Validate that a matrix is a ring-scalar rotation matrix `rot(a)` over the given cyclotomic ring.
-///
-/// This enforces the shift recurrence:
-/// - col_{j+1}[0] = col_j[d-1] * (-c_0)
-/// - col_{j+1}[r] = col_j[r-1] + col_j[d-1] * (-c_r), r >= 1
-/// where `phi_coeffs = [c_0, ..., c_{d-1}]`.
-pub fn validate_rho_is_rotation_matrix<Ff>(rho: &Mat<Ff>, phi_coeffs: &[i32], label: &str) -> Result<(), PiCcsError>
+pub fn validate_rho_is_rotation_matrix<Ff>(
+    rho: &Mat<Ff>,
+    phi_low_coeffs: &[i32; D],
+    label: &str,
+) -> Result<(), PiCcsError>
 where
     Ff: Field + PrimeCharacteristicRing + Copy,
 {
@@ -554,15 +329,7 @@ where
             D
         )));
     }
-    if phi_coeffs.len() != D {
-        return Err(PiCcsError::InvalidInput(format!(
-            "{label}: phi coeff length {} must equal D={}",
-            phi_coeffs.len(),
-            D
-        )));
-    }
-
-    let neg_c: Vec<Ff> = phi_coeffs
+    let neg_c: Vec<Ff> = phi_low_coeffs
         .iter()
         .map(|&cr| ff_from_i64::<Ff>(-(cr as i64)))
         .collect();
@@ -592,7 +359,6 @@ where
     Ok(())
 }
 
-/// Validate that all `rhos` are strict ring-scalar rotation matrices for the current params.
 pub fn validate_rhos_are_rotation_matrices<Ff>(
     params: &NeoParams,
     rhos: &[Mat<Ff>],
@@ -601,21 +367,19 @@ pub fn validate_rhos_are_rotation_matrices<Ff>(
 where
     Ff: Field + PrimeCharacteristicRing + Copy,
 {
-    let phi = phi_coeffs_from_params(params)?;
+    let phi = phi_low_coeffs_from_params(params)?;
     for (idx, rho) in rhos.iter().enumerate() {
         validate_rho_is_rotation_matrix(rho, phi, &format!("{label}[{idx}]"))?;
     }
     Ok(())
 }
 
-/// Typed Π_RLC challenge: a validated ring-scalar rotation matrix.
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
 pub struct RotRho(pub(crate) Mat<F>);
 
 impl RotRho {
-    /// Construct a typed rho after strict ring and strong-set validation.
     pub fn new_checked(params: &NeoParams, rho: Mat<F>) -> Result<Self, PiCcsError> {
-        let phi = phi_coeffs_from_params(params)?;
+        let phi = phi_low_coeffs_from_params(params)?;
         validate_rho_is_rotation_matrix(&rho, phi, "RotRho::new_checked")?;
         validate_rho_is_in_selected_strong_set(params, &rho, "RotRho::new_checked")?;
         Ok(Self(rho))
@@ -654,13 +418,12 @@ impl AsRef<Mat<F>> for RotRho {
     }
 }
 
-/// Validate and convert raw rho matrices into typed rotation-matrix challenges.
 pub fn rot_rhos_from_mats(params: &NeoParams, rhos: &[Mat<F>], label: &str) -> Result<Vec<RotRho>, PiCcsError> {
     rhos.iter()
         .cloned()
         .enumerate()
         .map(|(index, rho)| {
-            let phi = phi_coeffs_from_params(params)?;
+            let phi = phi_low_coeffs_from_params(params)?;
             let item_label = format!("{label}[{index}]");
             validate_rho_is_rotation_matrix(&rho, phi, &item_label)?;
             validate_rho_is_in_selected_strong_set(params, &rho, &item_label)?;
@@ -669,7 +432,6 @@ pub fn rot_rhos_from_mats(params: &NeoParams, rhos: &[Mat<F>], label: &str) -> R
         .collect()
 }
 
-/// Materialize typed rho challenges as raw matrices.
 pub fn rot_rhos_to_mats(rhos: &[RotRho]) -> Vec<Mat<F>> {
     rhos.iter().map(|rho| rho.as_mat().clone()).collect()
 }
@@ -713,46 +475,12 @@ fn validate_rho_is_in_selected_strong_set(params: &NeoParams, rho: &Mat<F>, labe
     Ok(())
 }
 
-/// Sample `count` rotation matrices ρ_i = rot(a_i) for ΠRLC with a_i having small coefficients.
-///
-/// One four-field transcript block is reduced modulo 5^54 for each scalar.
-/// The decoder is total; the transcript advances once after each draw.
-/// Lean proves its bias under the stated joint-block oracle model.
-///
-/// ## Key Insight: Decoupling `count` from `k_rho`
-///
-/// - `k_rho` controls the **DEC exponent** (accumulator width, B = b^{k_rho})
-/// - `count` is the **number of ME claims being RLC'd** (can be different from k_rho+1)
-///
-/// The soundness constraint is: `count · T · (b-1) < b^{k_rho}`
-/// - If this fails, you need to increase `k_rho` or reduce `count` (e.g., hierarchical merging)
-///
-/// ## Properties
-/// - Strong sampling set: differences (ρ_i - ρ_j) are invertible for distinct i,j (SuperNeo v1.2 Theorem 4)
-/// - Expansion factor T: Computed from ring/alphabet via SuperNeo v1.2 Theorem 5: T ≤ 2·φ(η)·max|coeff|
-///
-/// # Arguments
-/// * `tr` - Fiat-Shamir transcript for deterministic randomness
-/// * `params` - Neo parameters (k_rho determines norm bound B = b^{k_rho})
-/// * `ring` - Ring metadata (cyclotomic polynomial and coefficient alphabet)
-/// * `count` - Number of rhos to sample (= number of ME claims being RLC'd)
-///
-/// # Returns
-/// `count` rotation matrices ρ_i ∈ S ⊆ F^{D×D}, or error if soundness checks fail.
 fn sample_rot_rhos_n(
     tr: &mut Poseidon2Transcript,
     params: &NeoParams,
     ring: &RotRing,
     count: usize,
 ) -> Result<Vec<Mat<F>>, PiCcsError> {
-    // ---- Sanity checks ----
-    if ring.phi_coeffs.len() != D {
-        return Err(PiCcsError::InvalidInput(format!(
-            "phi_coeffs length {} != D={}",
-            ring.phi_coeffs.len(),
-            D
-        )));
-    }
     validate_sampling_alphabet(ring.alphabet)?;
     if count == 0 {
         return Err(PiCcsError::InvalidInput("count must be > 0".into()));
@@ -763,7 +491,6 @@ fn sample_rot_rhos_n(
         ));
     }
 
-    // ---- Strong sampling set check (SuperNeo v1.2 Definition 6 + Theorem 4) ----
     if let Some(binv) = ring.binv_floor {
         let min = *ring.alphabet.iter().min().unwrap() as i64;
         let max = *ring.alphabet.iter().max().unwrap() as i64;
@@ -781,9 +508,6 @@ fn sample_rot_rhos_n(
         ));
     }
 
-    // ---- ΠRLC norm bound check (Section 4.3) ----
-    // The REAL constraint: count · T · (b-1) < b^{k_rho}
-    // This ensures the combined witness after RLC stays within norm bound B = b^{k_rho}
     let T = expansion_factor_T(ring.alphabet);
     let b = params.b as u128;
     let lhs = (count as u128) * T * (b.saturating_sub(1));
@@ -817,7 +541,6 @@ fn sample_rot_rhos_n(
         )));
     }
 
-    // ---- Sample ρ_i = rot(a_i) ----
     let mut out = Vec::with_capacity(count);
 
     for i in 0..count {
@@ -827,18 +550,15 @@ fn sample_rot_rhos_n(
         let digest = tr.squeeze_digest_v1_2();
         let coeffs_i8 = decode_pi_rlc_coefficients(&digest);
 
-        // Lift to field F
         let a_coeffs_f: Vec<F> = coeffs_i8.iter().map(|&c| f_from_i64(c as i64)).collect();
 
-        // Build rotation matrix rot(a_i)
-        let rho = rot_from_coeffs(&a_coeffs_f, ring.phi_coeffs);
+        let rho = rot_from_coeffs(&a_coeffs_f, ring.phi_low_coeffs);
         out.push(rho);
     }
 
     Ok(out)
 }
 
-/// Typed variant of `sample_rot_rhos_n` returning validated `RotRho` values.
 pub fn sample_rot_rhos_n_typed(
     tr: &mut Poseidon2Transcript,
     params: &NeoParams,
@@ -851,11 +571,6 @@ pub fn sample_rot_rhos_n_typed(
         .collect()
 }
 
-/// Minimum `k_rho` satisfying the ΠRLC norm bound for a given batch count.
-///
-/// Finds the smallest `k` such that:
-/// `count · T · (b - 1) < b^k`
-/// where `T` is derived from the strong-set alphabet (SuperNeo v1.2 Theorem 5).
 pub fn min_k_rho_for_rlc_count(params: &NeoParams, ring: &RotRing, count: usize) -> Result<u32, PiCcsError> {
     if count == 0 {
         return Err(PiCcsError::InvalidInput("count must be > 0".into()));
@@ -879,41 +594,33 @@ pub fn min_k_rho_for_rlc_count(params: &NeoParams, ring: &RotRing, count: usize)
     Ok(k)
 }
 
-// ---------------------------------------------------------------------------
-// ME Relation Helpers
-// ---------------------------------------------------------------------------
-
-/// Number of physical coefficients in the complete packed carrier.
 #[inline]
 pub fn superneo_carrier_width(logical_width: usize) -> usize {
     logical_width.div_ceil(D) * D
 }
 
-/// Validate the packed SuperNeo witness shape against the expected CCS width.
-pub fn validate_superneo_witness_mat<Ff>(Z: &Mat<Ff>, expected_m: usize) -> Result<(), PiCcsError>
+pub fn validate_superneo_witness_shape<Ff>(Z: &Mat<Ff>, expected_m: usize) -> Result<(), PiCcsError>
 where
     Ff: Field + PrimeCharacteristicRing + Copy,
 {
     if Z.rows() != D {
         return Err(PiCcsError::InvalidInput(format!(
-            "validate_superneo_witness_mat: expected Z.rows()={}, got {}",
+            "validate_superneo_witness_shape: expected Z.rows()={}, got {}",
             D,
             Z.rows()
         )));
     }
     if expected_m == 0 {
         return Err(PiCcsError::InvalidInput(
-            "validate_superneo_witness_mat: expected_m must be > 0".into(),
+            "validate_superneo_witness_shape: expected_m must be > 0".into(),
         ));
     }
     let want_cols = expected_m.div_ceil(D);
     if Z.cols() == want_cols {
-        // NOTE: mixed witnesses (e.g. after Π_RLC) can legitimately carry non-zero values in
-        // padded tail lanes. Shape is the only invariant checked here.
         return Ok(());
     }
     Err(PiCcsError::InvalidInput(format!(
-        "validate_superneo_witness_mat: expected packed SuperNeo {}x{} witness for expected_m={expected_m}, got {}x{}",
+        "validate_superneo_witness_shape: expected packed SuperNeo {}x{} witness for expected_m={expected_m}, got {}x{}",
         D,
         want_cols,
         Z.rows(),
@@ -921,12 +628,11 @@ where
     )))
 }
 
-/// Fresh sources do not own the completed carrier tail.
 pub fn validate_fresh_witness_tail_zero<Ff>(Z: &Mat<Ff>, logical_width: usize, label: &str) -> Result<(), PiCcsError>
 where
     Ff: Field + PrimeCharacteristicRing + Copy,
 {
-    validate_superneo_witness_mat(Z, logical_width)?;
+    validate_superneo_witness_shape(Z, logical_width)?;
     for carrier_col in logical_width..superneo_carrier_width(logical_width) {
         if Z[(carrier_col % D, carrier_col / D)] != Ff::ZERO {
             return Err(PiCcsError::InvalidInput(format!(
@@ -937,45 +643,11 @@ where
     Ok(())
 }
 
-/// Read `Z[rho, col]` in the logical `D×expected_m` view of a packed SuperNeo witness.
-#[inline]
-pub fn witness_mat_get_f<Ff>(Z: &Mat<Ff>, expected_m: usize, rho: usize, col: usize) -> Ff
-where
-    Ff: Field + PrimeCharacteristicRing + Copy,
-{
-    if rho >= D || col >= expected_m {
-        return Ff::ZERO;
-    }
-    let blk = col / D;
-    let off = col % D;
-    if off == rho {
-        Z[(rho, blk)]
-    } else {
-        Ff::ZERO
-    }
-}
-
-/// Read a packed SuperNeo witness coefficient and lift it to `K`.
-#[inline]
-pub fn witness_mat_get_k<Ff>(Z: &Mat<Ff>, expected_m: usize, rho: usize, col: usize) -> K
-where
-    Ff: Field + PrimeCharacteristicRing + Copy,
-    K: From<Ff>,
-{
-    K::from(witness_mat_get_f(Z, expected_m, rho, col))
-}
-
-/// Project the SuperNeo public-input ring slots of packed witness matrix `Z`
-/// into the exact coefficient embedding `X ∈ F^{D×(m_in/D)}`.
-///
-/// `m_in` counts public field elements, but SuperNeo carries public inputs
-/// in complete packed ring columns, so protocol claims require
-/// `m_in % D == 0`.
 pub fn project_x_from_witness_mat<Ff>(Z: &Mat<Ff>, expected_m: usize, m_in: usize) -> Result<Mat<Ff>, PiCcsError>
 where
     Ff: Field + PrimeCharacteristicRing + Copy,
 {
-    validate_superneo_witness_mat(Z, expected_m)?;
+    validate_superneo_witness_shape(Z, expected_m)?;
     if m_in > expected_m {
         return Err(PiCcsError::InvalidInput(format!(
             "project_x_from_witness_mat: m_in={m_in} exceeds expected_m={expected_m}"
@@ -1003,37 +675,27 @@ where
     Ok(X)
 }
 
-/// Decode a witness matrix into a field vector `z` under a known CCS width.
-///
-/// SuperNeo-only layout:
-/// - packed layout `Z ∈ F^{D×ceil(m/D)}` where `m == expected_m`.
 pub fn decode_z_from_witness_mat<Ff>(_params: &NeoParams, Z: &Mat<Ff>, expected_m: usize) -> Result<Vec<K>, PiCcsError>
 where
     Ff: Field + PrimeCharacteristicRing + Copy,
     K: From<Ff>,
 {
-    validate_superneo_witness_mat(Z, expected_m)?;
+    validate_superneo_witness_shape(Z, expected_m)?;
     let mut z = vec![K::ZERO; expected_m];
     for c in 0..expected_m {
-        let rho = c % D;
-        z[c] = witness_mat_get_k(Z, expected_m, rho, c);
+        z[c] = K::from(Z[(c % D, c / D)]);
     }
     Ok(z)
 }
 
-/// Decode packed witness coefficients including padded tail lanes.
-///
-/// Returns a vector of length `ceil(expected_m / D) * D`, so ring-linear operations
-/// stay closed inside each `D`-coefficient block even when `expected_m % D != 0`.
 pub fn decode_superneo_coeffs_from_witness_mat<Ff>(Z: &Mat<Ff>, expected_m: usize) -> Result<Vec<K>, PiCcsError>
 where
     Ff: Field + PrimeCharacteristicRing + Copy,
     K: From<Ff>,
 {
-    validate_superneo_witness_mat(Z, expected_m)?;
+    validate_superneo_witness_shape(Z, expected_m)?;
     let m_eff = superneo_carrier_width(expected_m);
     let mut z = vec![K::ZERO; m_eff];
-    // Keep all packed lanes, including padded tail lanes, so RLC/DEC stay closed in block space.
     for (c, zc) in z.iter_mut().enumerate() {
         let blk = c / D;
         let off = c % D;
@@ -1056,9 +718,6 @@ where
     }
 }
 
-/// Balanced base-`b` decomposition of one field value into exactly `D` digits.
-///
-/// Returns an error when the value is not representable with `D` balanced digits for this base.
 pub fn decompose_balanced_fixed_d_digits_k<Ff>(val: Ff, b: u32) -> Result<[K; D], PiCcsError>
 where
     Ff: PrimeField64 + PrimeCharacteristicRing + Copy,
@@ -1086,9 +745,9 @@ where
         let b_i64 = b as i64;
         for d in digits_f.iter_mut().take(D) {
             let (r_i, q) = if b == 2 {
-                balanced_divrem_i64_base2(rem64)
+                signed_divrem_base2(rem64)
             } else {
-                balanced_divrem_i64(rem64, b_i64)
+                (rem64 % b_i64, rem64 / b_i64)
             };
             *d = i128_to_field_f(r_i as i128);
             rem64 = q;
@@ -1096,9 +755,8 @@ where
         rem = rem64 as i128;
     } else {
         for d in digits_f.iter_mut().take(D) {
-            let (r_i, q) = balanced_divrem(rem, b_i);
-            *d = i128_to_field_f(r_i);
-            rem = q;
+            *d = i128_to_field_f(rem % b_i);
+            rem /= b_i;
         }
     }
     if rem != 0 {
@@ -1117,7 +775,6 @@ where
     Ok(out)
 }
 
-/// Check whether one value is representable in exactly `D` balanced base-`b` digits.
 #[inline]
 fn is_representable_balanced_fixed_d_digits<Ff>(val: Ff, b: u32) -> Result<bool, PiCcsError>
 where
@@ -1138,12 +795,11 @@ where
             if rem64 == 0 {
                 return Ok(true);
             }
-            let (_, q) = if b == 2 {
-                balanced_divrem_i64_base2(rem64)
+            rem64 = if b == 2 {
+                signed_divrem_base2(rem64).1
             } else {
-                balanced_divrem_i64(rem64, b_i64)
+                rem64 / b_i64
             };
-            rem64 = q;
         }
         return Ok(rem64 == 0);
     }
@@ -1152,100 +808,12 @@ where
         if rem == 0 {
             return Ok(true);
         }
-        let (_, q) = balanced_divrem(rem, b_i);
-        rem = q;
+        rem /= b_i;
     }
     Ok(rem == 0)
 }
 
-/// Build NC rows (`D` coefficient lanes per logical column) for a witness matrix.
-///
-/// SuperNeo's NC polynomial checks the witness coefficient itself:
-/// `range_product(z_i[col], b)`. It must not check a balanced base-`b`
-/// decomposition of that coefficient; otherwise a high-norm value such as
-/// `2` at `b=2` decomposes into low-norm digits and evades the NC check.
-pub fn build_witness_nc_digit_table<Ff>(
-    params: &NeoParams,
-    Z: &Mat<Ff>,
-    expected_m: usize,
-) -> Result<Vec<[K; D]>, PiCcsError>
-where
-    Ff: PrimeField64 + PrimeCharacteristicRing + Copy + Send + Sync,
-    K: From<Ff>,
-{
-    build_witness_nc_digit_table_with_masks(params, Z, expected_m).map(|(digits, _masks)| digits)
-}
-
-pub fn build_witness_nc_digit_table_with_masks<Ff>(
-    params: &NeoParams,
-    Z: &Mat<Ff>,
-    expected_m: usize,
-) -> Result<(Vec<[K; D]>, Vec<u64>), PiCcsError>
-where
-    Ff: PrimeField64 + PrimeCharacteristicRing + Copy + Send + Sync,
-    K: From<Ff>,
-{
-    validate_superneo_witness_mat(Z, expected_m)?;
-    if params.b < 2 {
-        return Err(PiCcsError::InvalidInput(format!(
-            "NC witness table: invalid b={} (must be >= 2)",
-            params.b
-        )));
-    }
-    let carrier_width = superneo_carrier_width(expected_m);
-    let mut out = vec![[K::ZERO; D]; carrier_width];
-    let mut masks = vec![0u64; carrier_width];
-    let active_cols = expected_m.div_ceil(D);
-    // Process column blocks in parallel; each block writes to disjoint
-    // slices of `out` and `masks` (D contiguous columns per block).
-    let process_block = |blk: usize, out_chunk: &mut [[K; D]], mask_chunk: &mut [u64]| -> Result<(), PiCcsError> {
-        if blk >= active_cols {
-            return Ok(());
-        }
-        for (rho, (dst, mask_slot)) in out_chunk.iter_mut().zip(mask_chunk.iter_mut()).enumerate() {
-            let col = blk * D + rho;
-            if col >= carrier_width {
-                break;
-            }
-            let raw = Z[(rho, blk)];
-            if raw == Ff::ZERO {
-                continue;
-            }
-            dst[rho] = K::from(raw);
-            *mask_slot = 1u64 << rho;
-        }
-        Ok(())
-    };
-
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-    {
-        if rayon::current_thread_index().is_none() {
-            out.par_chunks_mut(D)
-                .zip(masks.par_chunks_mut(D))
-                .enumerate()
-                .try_for_each(|(blk, (out_chunk, mask_chunk))| process_block(blk, out_chunk, mask_chunk))?;
-        } else {
-            for (blk, (out_chunk, mask_chunk)) in out.chunks_mut(D).zip(masks.chunks_mut(D)).enumerate() {
-                process_block(blk, out_chunk, mask_chunk)?;
-            }
-        }
-    }
-    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-    {
-        for (blk, (out_chunk, mask_chunk)) in out.chunks_mut(D).zip(masks.chunks_mut(D)).enumerate() {
-            process_block(blk, out_chunk, mask_chunk)?;
-        }
-    }
-
-    Ok((out, masks))
-}
-
-/// Enforce DEC/RLC packed-witness representability.
-///
-/// This is not the Π_CCS low-norm predicate. It only checks that each entry
-/// can be represented by the fixed `D`-digit balanced base-`b` machinery used
-/// by split/decomposition paths.
-pub fn validate_packed_witness_nc_range<Ff>(
+pub fn validate_packed_witness_dec_representable<Ff>(
     params: &NeoParams,
     Z: &Mat<Ff>,
     expected_m: usize,
@@ -1255,7 +823,7 @@ where
     Ff: PrimeField64 + PrimeCharacteristicRing + Copy,
     K: From<Ff>,
 {
-    validate_superneo_witness_mat(Z, expected_m)?;
+    validate_superneo_witness_shape(Z, expected_m)?;
     if params.b < 2 {
         return Err(PiCcsError::InvalidInput(format!(
             "{label}: invalid b={} (must be >= 2)",
@@ -1289,7 +857,6 @@ where
     Ok(())
 }
 
-/// Enforce the SuperNeo Π_CCS NC alphabet `|x| < b` on packed witness coefficients.
 pub fn validate_packed_witness_nc_alphabet<Ff>(
     params: &NeoParams,
     Z: &Mat<Ff>,
@@ -1299,7 +866,7 @@ pub fn validate_packed_witness_nc_alphabet<Ff>(
 where
     Ff: PrimeField64 + PrimeCharacteristicRing + Copy,
 {
-    validate_superneo_witness_mat(Z, expected_m)?;
+    validate_superneo_witness_shape(Z, expected_m)?;
     if params.b < 2 {
         return Err(PiCcsError::InvalidInput(format!(
             "{label}: invalid b={} (must be >= 2)",
@@ -1320,7 +887,6 @@ where
     Ok(())
 }
 
-/// Compute the separate SuperNeo v1.2 evaluation families from `Z` and `r`.
 pub fn compute_v1_2_evaluations_from_z_and_r<Ff>(
     s: &CcsStructure<Ff>,
     z: &Mat<Ff>,
@@ -1336,11 +902,6 @@ where
     compute_v1_2_evaluations_from_z_and_rb_with_cache(s, z, &rb, ell_d, superneo_cache.as_ref())
 }
 
-/// Compute separate v1.2 evaluations from `Z` and a precomputed row tensor
-/// point `r^b`.
-///
-/// This variant enables callers to amortize the tensor-point and SuperNeo matrix-cache
-/// construction across many ME claims that share `(s, r)`.
 pub fn compute_v1_2_evaluations_from_z_and_rb_with_cache<Ff>(
     s: &CcsStructure<Ff>,
     Z: &Mat<Ff>,
@@ -1405,11 +966,6 @@ fn identity_ring_mle(assignment: &[K], weights: &[K]) -> [K; D] {
     output
 }
 
-// ---------------------------------------------------------------------------
-// Matrix Arithmetic
-// ---------------------------------------------------------------------------
-
-/// Left-multiply accumulator by rho: `acc += rho * a`.
 pub fn left_mul_acc(acc: &mut Mat<F>, rho: &Mat<F>, a: &Mat<F>) {
     debug_assert_eq!(rho.rows(), rho.cols());
     debug_assert_eq!(rho.rows(), acc.rows());
@@ -1428,11 +984,6 @@ pub fn left_mul_acc(acc: &mut Mat<F>, rho: &Mat<F>, a: &Mat<F>) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Formatting Utilities
-// ---------------------------------------------------------------------------
-
-/// Helper formatting for extension field elements used in debug logs.
 pub fn format_ext(x: K) -> String {
     let coeffs = x.as_coeffs();
     format!("({}, {})", coeffs[0].as_canonical_u64(), coeffs[1].as_canonical_u64())

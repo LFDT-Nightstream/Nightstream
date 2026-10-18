@@ -14,8 +14,6 @@ fn fixture() -> (Value, CcsClaim, Vec<CeClaim>, NifsProof) {
         m_in: 270,
         adv: None,
     };
-    // PiCCS decodes the prior digest from the fresh public input; no check
-    // reads the running frames, so they stay zero.
     let running = (0..16)
         .map(|source| {
             claim(

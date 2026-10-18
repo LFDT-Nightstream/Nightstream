@@ -349,7 +349,6 @@ impl SuperneoMatrixCache {
         self.eval_mle_with_blocks(&z_blocks, chi_r, n_eff)
     }
 
-    /// Evaluate `\widetilde{(M z)}(r)` in ring-coefficient form.
     pub fn eval_mle_ring_with_blocks(&self, z_blocks: &SuperneoZBlocks, chi_r: &[K], n_eff: usize) -> [K; D] {
         debug_assert_eq!(
             self.cols.div_ceil(D),
@@ -435,7 +434,6 @@ impl SuperneoMatrixCache {
         self.eval_mle_ring_with_blocks(&z_blocks, chi_r, n_eff)
     }
 
-    /// Build sparse `v = M^T · χ_r` once, so repeated evals at the same `r` are cheap.
     #[inline]
     pub fn build_linear_form(&self, chi_r: &[K], n_eff: usize) -> SuperneoLinearForm {
         let row_cap = min(min(self.rows, n_eff), chi_r.len());
@@ -462,7 +460,6 @@ impl SuperneoMatrixCache {
         SuperneoLinearForm { cols: self.cols, nz }
     }
 
-    /// Build a sparse ring-linear form for repeated real-only packed witness evals.
     #[inline]
     pub fn build_ring_linear_form(&self, chi_r: &[K], n_eff: usize) -> SuperneoRingLinearForm {
         let (chi_re, chi_im) = split_chi_coeffs(chi_r, n_eff);

@@ -1,7 +1,5 @@
 //! Type-compatible unavailable backend for non-Apple targets and shaderless builds.
 
-#![allow(dead_code)]
-
 use super::*;
 
 pub struct MetalSession;
@@ -12,16 +10,9 @@ pub struct MetalKxChainPlan;
 
 pub struct MetalPoseidonUniformPlan;
 
-#[derive(Clone)]
-pub(crate) struct MetalWitnessMasks;
-
 impl MetalSession {
     pub fn new() -> Result<Self, MetalError> {
         Err(MetalError::Unavailable)
-    }
-
-    pub(crate) fn ownership_id(&self) -> u64 {
-        0
     }
 
     pub fn goldilocks_ops(&self, _lhs: &[u64], _rhs: &[u64]) -> Result<Vec<GoldilocksOps>, MetalError> {
@@ -140,15 +131,6 @@ impl MetalSession {
         Err(MetalError::Unavailable)
     }
 
-    pub(crate) fn ajtai_low_norm_many_from_masks(
-        &self,
-        _plan: &MetalAjtaiLowNormPlan,
-        _masks: &MetalWitnessMasks,
-        _count: usize,
-    ) -> Result<(Vec<u64>, Duration), MetalError> {
-        Err(MetalError::Unavailable)
-    }
-
     pub fn fold_k_table(&self, _table: &[KWords], _challenge: KWords) -> Result<Vec<KWords>, MetalError> {
         Err(MetalError::Unavailable)
     }
@@ -174,14 +156,4 @@ impl MetalSession {
     }
 
     pub fn reset_activity(&self) {}
-
-    pub(crate) fn prepare_witness_masks(
-        &self,
-        _words: &[u64],
-        _witness_count: usize,
-        _blocks: usize,
-        _active_rows: usize,
-    ) -> Result<MetalWitnessMasks, MetalError> {
-        Err(MetalError::Unavailable)
-    }
 }

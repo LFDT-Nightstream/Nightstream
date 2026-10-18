@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::{OnceLock, RwLock};
 
-type Key = (usize, usize); // (d, m)
+type Key = (usize, usize);
 type PPRef = Arc<PP<RqEl>>;
 
 static AJTAI_PP_REGISTRY: OnceLock<RwLock<HashMap<Key, PPRef>>> = OnceLock::new();
@@ -15,7 +15,6 @@ fn registry() -> &'static RwLock<HashMap<Key, PPRef>> {
     AJTAI_PP_REGISTRY.get_or_init(|| RwLock::new(HashMap::new()))
 }
 
-/// Initialize the global Ajtai PP once (call this right after setup()).
 pub fn set_global_pp(pp: PP<RqEl>) -> Result<(), AjtaiError> {
     let key = (pp.d, pp.m);
     let mut w = registry()
@@ -34,7 +33,6 @@ pub fn set_global_pp(pp: PP<RqEl>) -> Result<(), AjtaiError> {
     Ok(())
 }
 
-/// Legacy: pick the sole PP if only one exists.
 pub fn get_global_pp() -> Result<PPRef, AjtaiError> {
     let r = registry()
         .read()
@@ -51,7 +49,6 @@ pub fn get_global_pp() -> Result<PPRef, AjtaiError> {
     }
 }
 
-/// True if a PP for (d,m) is available.
 pub fn has_global_pp_for_dims(d: usize, m: usize) -> bool {
     registry()
         .read()
@@ -59,7 +56,6 @@ pub fn has_global_pp_for_dims(d: usize, m: usize) -> bool {
         .unwrap_or(false)
 }
 
-/// Get the Ajtai PP for a specific (d,m).
 pub fn get_global_pp_for_dims(d: usize, m: usize) -> Result<PPRef, AjtaiError> {
     registry()
         .read()
@@ -73,7 +69,6 @@ pub fn get_global_pp_for_dims(d: usize, m: usize) -> Result<PPRef, AjtaiError> {
         })
 }
 
-/// Get the Ajtai PP using `z_len = d*m`.
 pub fn get_global_pp_for_z_len(z_len: usize) -> Result<PPRef, AjtaiError> {
     let d = neo_math::D;
     if z_len % d != 0 {
@@ -82,7 +77,6 @@ pub fn get_global_pp_for_z_len(z_len: usize) -> Result<PPRef, AjtaiError> {
     get_global_pp_for_dims(d, z_len / d)
 }
 
-/// Concrete S-module homomorphism backed by Ajtai PP
 #[derive(Clone)]
 pub struct AjtaiSModule {
     pp: PPRef,
@@ -93,39 +87,24 @@ impl AjtaiSModule {
         Self { pp }
     }
 
-    /// Legacy: pick the sole PP if only one exists.
     pub fn from_global() -> Result<Self, AjtaiError> {
         Ok(Self::new(get_global_pp()?))
     }
-    /// New: pick PP that matches (d,m).
     pub fn from_global_for_dims(d: usize, m: usize) -> Result<Self, AjtaiError> {
         Ok(Self::new(get_global_pp_for_dims(d, m)?))
     }
-    /// New: pick PP that matches `z_len = d*m`.
     pub fn from_global_for_z_len(z_len: usize) -> Result<Self, AjtaiError> {
         Ok(Self::new(get_global_pp_for_z_len(z_len)?))
     }
 
-    /// Return κ for the underlying PP.
     pub fn kappa(&self) -> usize {
         self.pp.kappa
     }
 
-    /// Return the Ajtai PP dimensions `(d, m)`. Here `m` is the number of
-    /// S-module columns, so a committed CCS witness has length `d * m`.
     pub fn dims(&self) -> (usize, usize) {
         (self.pp.d, self.pp.m)
     }
 
-    /// Materialize the public matrix for verifier-side constraint emission.
-    /// Commitment code should continue to use [`SModuleHomomorphism::commit`];
-    /// this accessor exists for proof systems that must encode the same
-    /// linear map as arithmetic constraints.
-    pub fn verification_pp(&self) -> Result<Arc<PP<RqEl>>, AjtaiError> {
-        self.materialize_pp()
-    }
-
-    /// Return the underlying Ajtai PP.
     pub fn materialize_pp(&self) -> Result<Arc<PP<RqEl>>, AjtaiError> {
         Ok(self.pp.clone())
     }

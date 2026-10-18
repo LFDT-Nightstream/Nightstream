@@ -27,11 +27,6 @@ The extractor's retry law has total mass one after every acceptance
 failure. It runs `17 (Q + 17)` expected retries
 (`RandomOracleExtraction.expected_retries_le`).
 
-With the prior-state link, `Export.Stage1.RandomOracleLink.knowledge_error_le_linked`
-states the same theorem with the two running terms as state-hash collisions.
-`Export.Stage1.RandomOracleSetup` draws the key inside the game and states the
-result as a `Spec.KnowledgeContract`.
-
 Does not own: the hardness of MSIS or of the state hash, which bound the
 binding-reduction and running-mismatch chances, or the fit of the oracle to
 Poseidon2.
@@ -68,8 +63,6 @@ variable {logicalWidth : Nat}
 local notation "Oracle" => Point logicalWidth publicFits (ProductionKey.degreeBound relation) → Answer
 local notation "Retries" => Fin Nifs.PaperProfile.arity.total → Answer
 
-/-- The extractor succeeds: the retries form a complete `Π_RLC` fork, and the
-fork's witness satisfies the source relation of the claimed statement. -/
 def Extracts (oracle : Oracle) (retries : Retries) : Prop :=
   ∃ valid : Valid relation ajtai adversary claim oracle retries,
     SourceHolds extensionOps K.embed (PaperAlgebra.openingMaps ajtai) productionGlobalParams
@@ -123,18 +116,12 @@ theorem statisticalError_two_pow_64 : statisticalError (2 ^ 64) < 1 / 2 ^ 51 := 
   refine (statisticalError_le (2 ^ 64)).trans_lt ?_
   norm_num
 
-/-- The knowledge error: the statistical error, the chance that a retry
-changes the running statement (Lemma 5), and the two binding-reduction
-chances (Lemma 6). -/
 noncomputable def knowledgeError (queries : Nat) : ℝ :=
   statisticalError queries +
   (𝔼 oracle, (if Succeeds relation ajtai adversary claim oracle then
       ∑ index, mismatchChance relation ajtai adversary claim index oracle else 0) +
     collisionChance relation ajtai adversary claim + runningChance relation ajtai adversary claim)
 
-/-- **ROM knowledge soundness of the production NIFS.** The extractor
-succeeds with probability at least the acceptance probability minus the
-knowledge error. -/
 theorem knowledge_error_le {queries : Nat} (bounded : adversary.QueryBound queries) :
     𝔼 oracle, (if Succeeds relation ajtai adversary claim oracle then (1 : ℝ) else 0) ≤
       𝔼 oracle, ∑ retries, weight relation ajtai adversary claim oracle retries *
@@ -205,11 +192,6 @@ theorem knowledge_error_le {queries : Nat} (bounded : adversary.QueryBound queri
   unfold knowledgeError statisticalError
   linarith
 
-/-! ## The extractor's output and the run law -/
-
-/-- The extractor's output: the fork's witness when it satisfies the source
-relation of the claimed statement, else nothing. The last step is the source
-relation's own check. -/
 noncomputable def extract (oracle : Oracle) (retries : Retries) :
     Option (OutputWitness productionShape (Phi81CarrierLayout.carrierWidth logicalWidth)) :=
   if Extracts relation ajtai adversary claim oracle retries then
@@ -224,14 +206,11 @@ theorem extract_eq_none_iff (oracle : Oracle) (retries : Retries) :
   · simp [extracts, extracts.fst]
   · simp [extracts]
 
-/-- The law of a run: a uniform oracle, then the extractor's retries after an
-acceptance. Retries after a rejection are uniform; no event reads them. -/
 noncomputable def runWeight (run : Oracle × Retries) : ℝ :=
   (if Succeeds relation ajtai adversary claim run.1 then
       weight relation ajtai adversary claim run.1 run.2
     else 1 / Fintype.card Retries) / Fintype.card Oracle
 
-/-- The retries of an accepted run have total weight one. -/
 theorem weight_sum_eq_one {oracle : Oracle} (succeeds : Succeeds relation ajtai adversary claim oracle) :
     ∑ retries, weight relation ajtai adversary claim oracle retries = 1 :=
   retryWeight_sum_eq_one _ fun index =>
@@ -265,7 +244,6 @@ theorem runWeight_sum : ∑ run, runWeight relation ajtai adversary claim run = 
   simp only [each, Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
   field_simp
 
-/-- A returned witness satisfies the source relation of the run's statement. -/
 theorem extract_holds {oracle : Oracle} {retries : Retries} {witness}
     (returned : extract relation ajtai adversary claim oracle retries = some witness) :
     SourceHolds extensionOps K.embed (PaperAlgebra.openingMaps ajtai) productionGlobalParams
@@ -282,8 +260,6 @@ theorem extract_holds {oracle : Oracle} {retries : Retries} {witness}
   · rw [if_neg extracts] at returned
     cases returned
 
-/-- The failure mass of a run, accepted yet `extract` returns nothing, is the
-acceptance probability minus the extraction probability. -/
 theorem failure_eq :
     ∑ run, runWeight relation ajtai adversary claim run *
         (if Succeeds relation ajtai adversary claim run.1 ∧

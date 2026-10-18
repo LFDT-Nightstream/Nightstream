@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Compare the complete independent original-source Pad family only."""
 
 import copy
 import json

@@ -6,10 +6,6 @@ Owns the one Nightstream Goldilocks production profile: `b = 2`,
 `k_rho = 16`, `B = 2^16`, `η = 81`, `d = 54`, `κ = 22`, quadratic
 extension. Every other module reads the profile from here; no module restates
 these values.
-
-Provenance: production part of
-`formal/nightstream-lean/Nightstream/SuperNeo/Concrete/Parameters.lean` at
-commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; only the production namespace is copied.
 -/
 
 namespace NightstreamFPrime.Spec
@@ -28,13 +24,9 @@ structure ProductionProfile where
   ringDegree : Nat
   commitmentWidth : Nat
   extensionDegree : Nat
-  /-- Floor of `log2(5^54)`: challenge-set size, not end-to-end security. -/
   challengeSetBitsFloor : Nat
-  /-- One fresh source per step. -/
   freshSources : Nat
-  /-- Running sources, equal to `k_rho`. -/
   runningSources : Nat
-  /-- CCS matrices in the F′ structure. -/
   ccsMatrices : Nat
 
 def productionProfile : ProductionProfile where
@@ -48,15 +40,11 @@ def productionProfile : ProductionProfile where
   runningSources := 16
   ccsMatrices := 4
 
-/-- Exact size of the five-symbol Phi81 challenge set. This is a count,
-not the rounded bit descriptor or an end-to-end security estimate. -/
 def productionChallengeSetCardinality : Nat := 5 ^ productionProfile.ringDegree
 
-/-- PiRLC inputs in exact `K + k` order. -/
 def ProductionProfile.piRlcInputs (p : ProductionProfile) : Nat :=
   p.freshSources + p.runningSources
 
-/-- PiDEC children, equal to `k_rho`. -/
 def ProductionProfile.piDecChildren (p : ProductionProfile) : Nat :=
   p.global.k
 
@@ -83,7 +71,6 @@ theorem production_norm_stages :
     NormStage.bound productionGlobalParams .ambient = 9223372034707292161 := by
   decide
 
-/-- Exact integer form of the paper's strict inequality `B < q / 2`. -/
 theorem production_bigB_below_half_modulus :
     2 * productionGlobalParams.bigB < productionGlobalParams.q := by
   decide

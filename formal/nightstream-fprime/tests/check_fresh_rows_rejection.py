@@ -9,6 +9,7 @@ import subprocess
 
 P = 18446744069414584321
 CARRIER = 43963776
+PUBLIC_WIDTH = 270
 
 
 def main():
@@ -71,9 +72,9 @@ def main():
     changed = directory / "changed-private.bin"
     shutil.copyfile(carrier, changed)
     with changed.open("r+b") as stream:
-        stream.seek(270)  # First coordinate after the complete public prefix.
+        stream.seek(PUBLIC_WIDTH)
         old = stream.read(1)
-        stream.seek(270)
+        stream.seek(PUBLIC_WIDTH)
         stream.write(b"\x01" if old == b"\x00" else b"\x00")
     run("changed-private", changed, caller_path, "canonical scalar production row check failed")
     print(json.dumps({"status": "passed", "rejected": rejected}))

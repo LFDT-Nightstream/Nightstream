@@ -20,7 +20,6 @@ fn library() -> Result<&'static FormulaLibrary, PackageError> {
         .map_err(|_| PackageError::Invalid("compiled Lean formula library"))
 }
 
-/// Digest of the embedded formula library that gives package rows their formulas.
 pub(in crate::package) fn formula_digest() -> Result<[u64; 4], PackageError> {
     Ok(library()?.digest())
 }
@@ -69,8 +68,6 @@ pub(super) fn substitute_into(
             terms.extend(inputs[input].terms().iter().map(|term| term.scaled(scalar)));
         }
     }
-    // Input Forms have sorted unique keys and nonzero coefficients.
-    // Nonzero SparseForm coefficients preserve this under single-input scaling.
     if form.entries().len() > 1 {
         normalize_terms(terms);
     }

@@ -16,7 +16,6 @@ open NightstreamFPrime.Circuit
 abbrev EState := Layer.EState
 abbrev FState := Layer.FState
 
-/-- One fixed step of the production Poseidon2 permutation. -/
 inductive Step where
   | initialLayer
   | initialFullRound (round : Nat)
@@ -46,7 +45,6 @@ def applyReference : Step → Spec.Poseidon2.State → Spec.Poseidon2.State
   | .terminalFullRound round =>
       Spec.Poseidon2.fullRound Spec.Poseidon2.terminalConstants round
 
-/-- The unique production permutation schedule. -/
 def schedule : List Step :=
   [Step.initialLayer] ++
     (List.range Spec.Poseidon2.halfFullRounds).map Step.initialFullRound ++
@@ -163,7 +161,6 @@ theorem applyE_varsBelow (step : Step) (state : EState) {bound : Nat}
   | terminalFullRound round =>
       exact varsBelow_fullE Spec.Poseidon2.terminalConstants round state hstate lane
 
-/-- Variables allocated for one sixteen-lane state. -/
 def freshState (start : Nat) : EState :=
   fun lane => Expr.var (start + lane.val)
 
@@ -211,8 +208,6 @@ theorem recipesCausal_append_causal (start : Nat) (first second : List Expr)
       · apply ih (start := start + 1) hfirst.2
         convert hsecond using 1; simp only [List.length_cons]; omega
 
-/-- Four shared multiplication recipes for `x⁷`: `x²`, `x⁴`, `x⁶`,
-then `x⁷`. -/
 def sboxRecipes (start : Nat) (value : Expr) : List Expr :=
   [value * value,
    Expr.var start * Expr.var start,
@@ -265,7 +260,6 @@ theorem sboxRows_sound (env : Env) (start : Nat) (value : Expr)
   rw [value3, value2, value1, value0]
   rfl
 
-/-- Shared S-box staging for a finite input list. -/
 structure SboxProgram where
   recipes : List Expr
   outputs : List Expr
@@ -340,7 +334,6 @@ theorem compileSboxes_sound (env : Env) (start : Nat) (values : List Expr)
       have tail := ih (start + 4) splitRows.2
       simp [compileSboxes, head, tail]
 
-/-- One canonical straight-line permutation program. -/
 structure Program where
   recipes : List Expr
   output : EState
@@ -364,7 +357,6 @@ def partialSboxState (start : Nat) (round : Nat) (state : EState) : EState :=
     (compileSboxes start [partialInput round state]).outputs.getD 0 0
   else state lane
 
-/-- Cells of one step: the layer outputs, plus four cells for each S-box. -/
 def stepSize : Step → Nat
   | .initialLayer => 16
   | .initialFullRound _ | .terminalFullRound _ => 80
@@ -407,8 +399,6 @@ def compile (start : Nat) (state : EState) : List Step → Program
       let tail := compile (start + stepSize step) nextState rest
       ⟨recipes ++ tail.recipes, tail.output⟩
 
-/-- Executable projection of the fixed production schedule's output lanes.
-The complete compiler still owns and checks all 1,096 internal recipes. -/
 def scheduleOutput (start : Nat) : EState := freshState (start + 1080)
 
 theorem scheduleOutput_eq_compile (start : Nat) (state : EState) :
@@ -764,8 +754,6 @@ theorem runReference_schedule (state : Spec.Poseidon2.State) :
     runReference_terminalRounds]
   rfl
 
-/-- Every environment that satisfies the generated permutation rows carries
-the exact executable Poseidon2 output in the program's final variables. -/
 theorem compile_schedule_sound (env : Env) (start : Nat) (state : EState)
     (hrows : ConstraintsHold env
       (recipeConstraints start (compile start state schedule).recipes)) :
@@ -780,14 +768,11 @@ theorem compile_schedule_sound (env : Env) (start : Nat) (state : EState)
     _ = Spec.Poseidon2.permute (List.ofFn (Layer.evalState env state)) :=
       runReference_schedule _
 
-/-- Honest witness execution is causal for every input state stored before the
-permutation's local range. -/
 theorem compile_schedule_causal (start : Nat) (state : EState)
     (hstate : ∀ lane, (state lane).VarsBelow start) :
     RecipesCausal start (compile start state schedule).recipes :=
   compile_causal start state schedule hstate
 
-/-- The staged logical permutation owns 1,096 shared-intermediate recipes. -/
 theorem compile_schedule_recipe_count (start : Nat) (state : EState) :
     (compile start state schedule).recipes.length = 1096 := by
   rw [compile_recipes_length]

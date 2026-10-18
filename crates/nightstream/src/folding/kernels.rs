@@ -1,5 +1,5 @@
 //! Arguments for the shared optimized arithmetic kernels.
-use super::{CcsClaim, CeClaim, Params, RunningInstance, Structure};
+use super::{CcsClaim, CeClaim, Params, RlcMixer, RunningInstance, Structure};
 use neo_ajtai::Commitment;
 use neo_ccs::Mat;
 use neo_math::F;
@@ -51,17 +51,14 @@ pub fn sample_rho_n(
     sample_rot_rhos_n_typed(tr, pp.inner(), &pp.ring(), count).map_err(Into::into)
 }
 
-pub fn prove_pi_rlc_refs<MR>(
+pub fn prove_pi_rlc_refs(
     pp: &Params,
     s: &Structure,
     rhos: &[RotRho],
     me_inputs: &[CeClaim],
     witnesses: &[&Mat<F>],
-    mix_rhos_commits: MR,
-) -> Result<(CeClaim, Mat<F>), Error>
-where
-    MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment,
-{
+    mix_rhos_commits: RlcMixer,
+) -> Result<(CeClaim, Mat<F>), Error> {
     nr::rlc_with_commit_refs(
         FoldingMode::Optimized,
         s,
@@ -75,20 +72,17 @@ where
     .map_err(Into::into)
 }
 
-/// PiRLC whose witness mix belongs to an accelerator. The claim algebra,
-/// the commitment mix, and every input check stay canonical.
 #[cfg(feature = "metal")]
-pub fn prove_pi_rlc_refs_resident<MR, MW, R>(
+pub fn prove_pi_rlc_refs_resident<MW, R>(
     pp: &Params,
     s: &Structure,
     rhos: &[RotRho],
     me_inputs: &[CeClaim],
     witnesses: &[&Mat<F>],
-    mix_rhos_commits: MR,
+    mix_rhos_commits: RlcMixer,
     mix_witnesses: MW,
 ) -> Result<(CeClaim, R), Error>
 where
-    MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment,
     MW: Fn(&[Mat<F>], &[&Mat<F>]) -> R,
 {
     nr::rlc_with_commit_refs_and_resident_witness(
@@ -105,28 +99,15 @@ where
     .map_err(Into::into)
 }
 
-pub fn verify_pi_rlc<MR>(
+pub fn verify_pi_rlc(
     pp: &Params,
     s: &Structure,
     rhos: &[RotRho],
     me_inputs: &[CeClaim],
     expected: &CeClaim,
-    mix_rhos_commits: MR,
-) -> Result<bool, Error>
-where
-    MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment,
-{
-    let (ok, perf) = nr::rlc_public_matches_verified_inputs_with_perf(
-        s,
-        pp.inner(),
-        rhos,
-        me_inputs,
-        expected,
-        mix_rhos_commits,
-        ell_d(),
-    )?;
-    let _ = perf;
-    Ok(ok)
+    mix_rhos_commits: RlcMixer,
+) -> Result<bool, Error> {
+    nr::rlc_public_matches(s, pp.inner(), rhos, me_inputs, expected, mix_rhos_commits, ell_d()).map_err(Into::into)
 }
 
 pub fn verify_pi_dec<MB>(pp: &Params, s: &Structure, parent: &CeClaim, children: &[CeClaim], combine_b_pows: MB) -> bool

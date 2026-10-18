@@ -421,8 +421,6 @@ fn event_row_count(event: Event<'_>, raw: &RawPackage) -> usize {
     }
 }
 
-/// Check every physical row in one canonical schema-8 Lean raw package.
-/// `Err` contains one unsatisfied physical row.
 pub fn evaluate_canonical_assignment(
     bytes: &[u8],
     private_values: &[u64],
@@ -431,9 +429,6 @@ pub fn evaluate_canonical_assignment(
     evaluate_canonical_rows(bytes, private_values, public_values, 0..usize::MAX)
 }
 
-/// Check only the physical rows in `rows`, after the same complete schedule
-/// checks. `Ok` contains the number of checked rows; `Err` contains one
-/// unsatisfied row.
 pub fn evaluate_canonical_rows(
     bytes: &[u8],
     private_values: &[u64],
@@ -506,10 +501,6 @@ pub fn evaluate_canonical_rows(
     Ok(rows.len())
 }
 
-/// Check exactly the Pilot and PiCCS row prefix in one canonical schema-8
-/// Lean raw package. The function still checks the complete physical row
-/// schedule before it selects the prefix. `Err` contains one unsatisfied
-/// prefix row.
 pub fn evaluate_pi_ccs_prefix_assignment(
     bytes: &[u8],
     private_values: &[u64],
@@ -529,15 +520,12 @@ pub fn evaluate_pi_ccs_prefix_assignment(
     assert_ne!(rate, 0, "canonical Poseidon rate");
     let local_count = word(raw.5 .1);
     let output_local_start = word(raw.5 .2);
-    // This assignment contains no private suffix. The existing indexed read
-    // therefore fails if any selected row reads a private column at or after
-    // the PiCCS boundary.
     let assignment = Assignment {
         private_values,
         public_values,
         constant_column: word(raw.3 .2),
         total_columns: word(raw.3 .4),
-        unavailable_private: None,
+        unavailable_private: Some(PI_CCS_PRIVATE_END..word(raw.3 .2)),
         changed_column: None,
     };
     assert_eq!(private_values.len(), PI_CCS_PRIVATE_END);
@@ -632,7 +620,6 @@ fn pilot_hash_row_mutations(raw: &RawPackage, assignment: &Assignment<'_>) -> (u
     let mut row_mutations = 0;
     let mut column_mutations = 0;
     for chain in &raw.6 {
-        // Each owner starts with the first row of its first hash invocation.
         let event = Event::Permutation {
             row_start: word(chain.1),
             invocation: Invocation::Hash { chain, ordinal: 0 },
@@ -666,8 +653,6 @@ fn pilot_hash_row_mutations(raw: &RawPackage, assignment: &Assignment<'_>) -> (u
         let mut rejected = false;
         'sides: for side in [Side::A, Side::B, Side::C] {
             for (term_index, term) in template_side(&raw.5 .3[0], side).1.iter().enumerate() {
-                // These are the exact input and local column domains in the
-                // decoded permutation schema, not a sample of assignment data.
                 for replacement in (0..word(raw.5 .0))
                     .map(|lane| RawColumnRef(0, lane as u64))
                     .chain((0..word(raw.5 .1)).map(|lane| RawColumnRef(1, lane as u64)))
@@ -731,9 +716,6 @@ fn evaluate_event_range(
     Ok(range.len())
 }
 
-/// Check every canonical pilot row on the standalone pilot assignment.
-/// The proof-input gap, private suffix, and non-pilot public context are
-/// unavailable. Mutations use the same raw evaluator and exact binding rows.
 pub fn evaluate_pilot_assignment(
     bytes: &[u8],
     private_values: &[u64],

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Create a focused, cache-free Nightstream Lean review bundle."""
 
 from __future__ import annotations
 

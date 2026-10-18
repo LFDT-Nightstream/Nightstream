@@ -15,7 +15,6 @@ namespace NightstreamFPrime.Lifecycle.VerifierContext
 
 open NightstreamFPrime.Spec
 
-/-- A four-field digest with no malformed-length state. -/
 structure Digest4 where
   c0 : F
   c1 : F
@@ -43,16 +42,12 @@ def Digest4.ofList (words : List F) : Digest4 where
   c2 := words.getD 2 0
   c3 := words.getD 3 0
 
-/-- Raw static words owned by the verifier or fixed setup process. Digests
-compress these words; they do not replace their authority. -/
 structure Authority where
   relationWords : List F
   applicationWords : List F
   nifsKeyWords : List F
   commitmentKeyWords : List F
 
-/-- Each component uses a distinct domain before hashing its authoritative
-word list. -/
 def componentDomain (component : Nat) : List F :=
   [Poseidon2.ofNat 78, Poseidon2.ofNat 105, Poseidon2.ofNat 103,
     Poseidon2.ofNat 104, Poseidon2.ofNat 116, Poseidon2.ofNat 115,
@@ -75,7 +70,6 @@ def framed (words : List F) : List F := Poseidon2.ofNat words.length :: words
 def componentDigest (component : Nat) (words : List F) : Digest4 :=
   Digest4.ofList (Poseidon2.hash (componentDomain component ++ framed words))
 
-/-- Fixed-length component identities used by the outer context hash. -/
 structure Descriptor where
   relation : Digest4
   application : Digest4
@@ -89,16 +83,11 @@ def descriptor (authority : Authority) : Descriptor where
   nifsKey := componentDigest 3 authority.nifsKeyWords
   commitmentKey := componentDigest 4 authority.commitmentKeyWords
 
-/-- Fixed Nightstream Goldilocks profile, including the split modulus limbs,
-`b = 2`, `k_rho = 16`, `B = 2^16`, and every Stage 1 PiCCS dimension. -/
 def profileWords : List F :=
   ([4294967295, 1, 2, 16, 65536, 1, 16, 17, 16, productionProfile.ccsMatrices,
       cubeVariables, 8, 54, productionProfile.commitmentWidth] :
     List Nat).map Poseidon2.ofNat
 
-/-- Fixed digest-only PiCCS schedule descriptor: state digest, fresh source,
-all causal rounds, complete output, then total PiRLC sampling. The last two
-words bind four canonical field draws and one permutation advance per scalar. -/
 def scheduleWords : List F :=
   ([1, 1, 1, cubeVariables, 9, 17, productionProfile.ccsMatrices, 54, 4, 1] :
       List Nat).map
@@ -118,7 +107,6 @@ def Descriptor.serialize (value : Descriptor) : List F :=
 def Descriptor.digest4 (value : Descriptor) : Digest4 :=
   Digest4.ofList (Poseidon2.hash value.serialize)
 
-/-- Public four-word context digest used as `KeyDigest` in the lifecycle. -/
 def digest (authority : Authority) : KeyDigest :=
   (descriptor authority).digest4.toList
 
@@ -126,24 +114,16 @@ def digest (authority : Authority) : KeyDigest :=
     (digest authority).length = 4 := by
   rfl
 
-/-- Recomputing the context from authoritative words is definitionally the
-component-domain tree followed by the fixed outer descriptor. -/
 theorem digest_recomputed (authority : Authority) :
     digest authority =
       (descriptor authority).digest4.toList := by
   rfl
 
-/-- The outer descriptor has one fixed length for every authority. This
-prevents one valid descriptor from being a nonempty trailing extension of
-another valid descriptor. -/
 theorem Descriptor.serialize_length (value : Descriptor) :
     value.serialize.length = 86 := by
   simp [Descriptor.serialize, contextDomain, framed, profileWords,
     scheduleWords, Digest4.toList]
 
-/-- Distinct fixed verifier-context descriptors have distinct canonical
-encodings. This theorem is deterministic; hash collisions are handled only
-by the separate security boundary. -/
 theorem Descriptor.serialize_injective :
     Function.Injective Descriptor.serialize := by
   intro left right equal

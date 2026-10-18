@@ -2,9 +2,7 @@ import NightstreamFPrime.Export.Stage1.PiDECEvaluationSparseBlock
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81MatrixSource
 
 /-!
-Derive a sparse Pad row from its authoritative column layout. Every carrier
-column, including the completed tail, belongs to this identity matrix.
-The stored block product uses the existing source's padded entry.
+Derive a sparse Pad row from its authoritative column layout.
 -/
 
 set_option autoImplicit false
@@ -22,14 +20,12 @@ open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingArith
   (StoredRing)
 open NightstreamFPrime.Layout.ProductionRelation
 
-/-- Convert the layout's selected identity entry to the existing sparse form. -/
 def form {arity columns : Nat} (layout : ColumnLayout arity columns)
     (vertex : BooleanVertex arity) : SparseForm columns :=
   match layout.toColumn? vertex with
   | some column => SparseForm.singleton column 1
   | none => SparseForm.empty
 
-/-- The sparse row has exactly the authoritative padded-identity coefficient. -/
 theorem form_coefficient {arity columns : Nat} (layout : ColumnLayout arity columns)
     (vertex : BooleanVertex arity) (column : Fin columns) :
     (form layout vertex).coefficient column =
@@ -41,8 +37,6 @@ theorem form_coefficient {arity columns : Nat} (layout : ColumnLayout arity colu
       simp only [form, selected, SparseForm.singleton_coefficient,
         ColumnLayout.paddedIdentityEntry, eq_comm]
 
-/-- Every returned coefficient is the complete-carrier Pad contribution in
-the existing Phi81 source. Pad does not read the stored CCS matrices. -/
 theorem rowBlock_paddedEntry
     (arity freshCount runningCount matrixCount logicalWidth : Nat)
     (matrices : Fin matrixCount → BooleanMatrix F arity logicalWidth)

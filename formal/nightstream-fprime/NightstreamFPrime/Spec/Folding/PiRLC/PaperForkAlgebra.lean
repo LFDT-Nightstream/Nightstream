@@ -1,6 +1,3 @@
-
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiRLC/PaperForkAlgebra.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
 /-!
 Generic fork algebra for the paper `Pi_RLC` extractor (SuperNeo v1.2 Appendix B.3).
 
@@ -12,14 +9,6 @@ Owns: an artifact-independent commutative-ring/module vocabulary, the
 canonical head-first finite linear combination, isolation of the one
 coordinate changed by a fork, and cancellation of an invertible scalar
 action.
-
-Does not own: transcript rewinding, fork probabilities, challenge-set
-security, source-relation validity, commitment binding, concrete Phi81
-associativity, Rust, R1CS, row removal, or constraint counts.
-
-Authority boundary: all coefficients, values, and the changed coordinate are
-explicit inputs.  No extractor result, source witness, uniqueness bridge, or
-desired extraction statement is accepted as a premise.
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiRLC.PaperForkAlgebra
@@ -38,14 +27,12 @@ structure CommutativeRingOps (Scalar : Type uScalar) where
 
 namespace CommutativeRingOps
 
-/-- Subtraction derived from the paper ring operations. -/
 def sub {Scalar : Type uScalar} (ops : CommutativeRingOps Scalar)
     (left right : Scalar) : Scalar :=
   ops.add left (ops.neg right)
 
 end CommutativeRingOps
 
-/-- Explicit commutative-ring laws needed by the paper-owned algebra. -/
 structure CommutativeRingLaws
     {Scalar : Type uScalar}
     (ops : CommutativeRingOps Scalar) : Prop where
@@ -69,7 +56,6 @@ structure CommutativeRingLaws
     ops.mul (ops.add left middle) right =
       ops.add (ops.mul left right) (ops.mul middle right)
 
-/-- Operations of the additive module carrying the extracted assignment. -/
 structure ModuleOps (Scalar : Type uScalar) (Value : Type uValue) where
   zero : Value
   add : Value -> Value -> Value
@@ -78,15 +64,12 @@ structure ModuleOps (Scalar : Type uScalar) (Value : Type uValue) where
 
 namespace ModuleOps
 
-/-- Subtraction derived from the module's additive operations. -/
 def sub {Scalar : Type uScalar} {Value : Type uValue}
     (ops : ModuleOps Scalar Value) (left right : Value) : Value :=
   ops.add left (ops.neg right)
 
 end ModuleOps
 
-/-- Explicit module laws over the same scalar and value operations used by
-the finite combination. -/
 structure ModuleLaws
     {Scalar : Type uScalar}
     {Value : Type uValue}
@@ -114,8 +97,6 @@ structure ModuleLaws
     module.smul scalar (module.add left right) =
       module.add (module.smul scalar left) (module.smul scalar right)
 
-/-- A concrete inverse for one scalar.  Challenge-set security supplies this
-for the difference between the original and forked coordinate. -/
 structure UnitWitness
     {Scalar : Type uScalar}
     (ring : CommutativeRingOps Scalar)
@@ -124,8 +105,6 @@ structure UnitWitness
   inverse_mul : ring.mul inverse value = ring.one
   mul_inverse : ring.mul value inverse = ring.one
 
-/-- Canonical head-first finite linear combination used by a complete
-coordinate fork.  It is independent of every executable artifact. -/
 def linearCombination
     {Scalar : Type uScalar}
     {Value : Type uValue}
@@ -141,8 +120,6 @@ def linearCombination
           (fun index => coefficients index.succ)
           (fun index => values index.succ))
 
-/-- Two coefficient vectors agree away from the coordinate rewound by the
-fork. -/
 def AgreeExcept
     {Scalar : Type uScalar}
     {count : Nat}
@@ -272,9 +249,6 @@ private theorem smul_sub
   unfold CommutativeRingOps.sub ModuleOps.sub
   rw [moduleLaws.add_smul, smul_neg ring module ringLaws moduleLaws]
 
-/-- If two finite coefficient vectors differ at only one coordinate, the
-difference of their canonical combinations is exactly the changed scalar
-acting on that coordinate's value. -/
 theorem coordinateIsolation
     {Scalar : Type uScalar}
     {Value : Type uValue}
@@ -326,8 +300,7 @@ theorem coordinateIsolation
           (fun index => values index.succ)
           tail tailsAgree
 
-/-- Applying the inverse of a unit scalar cancels its action.  This is the
-algebraic final step in Appendix B.3's coordinate extractor. -/
+/-- The algebraic final step in Appendix B.3's coordinate extractor. -/
 theorem inverseActionCancellation
     {Scalar : Type uScalar}
     {Value : Type uValue}

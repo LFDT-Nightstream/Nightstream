@@ -94,7 +94,6 @@ def logicalConstraints {blockCount cellCount : Nat} [NeZero cellCount]
     List Expr :=
   flatConstraints (Circuit.ops (Logical.main interface) offset)
 
-/-- Exact production expression shapes for all 17 sources in one family. -/
 structure ProductionInputs {blockCount cellCount : Nat} [NeZero cellCount]
     (interface : Logical.Interface blockCount cellCount) (offset : Nat) : Prop where
   challenge : ∀ source lane, ∃ index,

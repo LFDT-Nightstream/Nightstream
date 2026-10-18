@@ -1,19 +1,16 @@
 //! Ring layer: R_q = F_q\[X\]/(Phi_eta) with eta=81, Phi_eta = X^54 + X^27 + 1.
-//! MUST: cf/cf^{-1}, ||a||_∞, rot(a) S-action on vectors; constant-time schoolbook mul.
 
+use crate::balanced::to_balanced_i128;
 use crate::Fq;
 use neo_params::goldilocks_paper_b2;
-use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
+use p3_field::{Field, PrimeCharacteristicRing};
 use std::ops::{Add, Mul, Sub};
 use std::sync::OnceLock;
 
-/// Cyclotomic parameter eta and derived dimension d = deg(Phi_eta).
 pub const ETA: usize = goldilocks_paper_b2::ETA;
-/// Degree d = 54 for Phi_{81}(X) = X^54 + X^27 + 1 (used throughout Neo).
 pub const D: usize = goldilocks_paper_b2::D;
 pub const PHI_MID_DEGREE: usize = goldilocks_paper_b2::PHI_MID_DEGREE;
 
-/// A ring element a(X) ∈ R_q is represented by its coefficient vector (length D).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Rq(pub [Fq; D]);
 
@@ -29,7 +26,6 @@ impl Rq {
         Self(c)
     }
 
-    /// MUST: constant-time coefficient-wise add.
     #[inline]
     pub fn add(&self, rhs: &Self) -> Self {
         let mut out = [Fq::ZERO; D];
@@ -39,7 +35,6 @@ impl Rq {
         Self(out)
     }
 
-    /// MUST: constant-time coefficient-wise sub.
     #[inline]
     pub fn sub(&self, rhs: &Self) -> Self {
         let mut out = [Fq::ZERO; D];
@@ -49,8 +44,6 @@ impl Rq {
         Self(out)
     }
 
-    /// MUST: constant-time 3-way split mul with reduction mod Phi_{81}(X) = X^54 + X^27 + 1.
-    /// No branches on secret data; loops run fixed D and fixed split sizes.
     pub fn mul(&self, rhs: &Self) -> Self {
         let mut tmp = mul_3way_karatsuba_54(&self.0, &rhs.0);
         reduce_mod_phi_81(&mut tmp);
@@ -59,48 +52,17 @@ impl Rq {
         Self(out)
     }
 
-    /// Multiply by monomial X^j mod Phi_81 (fast rotation)
     pub fn mul_by_monomial(&self, j: usize) -> Self {
-        if j == 0 {
-            return *self;
-        }
-
-        let mut out = [Fq::ZERO; D];
-        for i in 0..D {
-            let new_deg = i + j;
-            if new_deg < D {
-                out[new_deg] = self.0[i];
-            } else if new_deg < D + PHI_MID_DEGREE {
-                // X^new_deg = X^(new_deg-54) * X^54 = X^(new_deg-54) * (-X^27 - 1)
-                let reduced_deg = new_deg - D;
-                out[reduced_deg] -= self.0[i]; // -X^(new_deg-54)
-                out[reduced_deg + PHI_MID_DEGREE] -= self.0[i]; // -X^(new_deg-54+27) = -X^(new_deg-27)
-            } else {
-                // new_deg >= D + 27, so new_deg - 27 >= D
-                // X^new_deg = -X^(new_deg-27) - X^(new_deg-54)
-                let deg1 = new_deg - PHI_MID_DEGREE;
-                let deg2 = new_deg - D;
-                if deg2 < D {
-                    out[deg2] -= self.0[i];
-                }
-                if deg1 >= D {
-                    // deg1 = new_deg - 27, need to reduce X^deg1 further
-                    let deg1_red = deg1 - D;
-                    if deg1_red < D {
-                        out[deg1_red] += self.0[i]; // -(-X^(deg1_red)) = +X^(deg1_red)
-                        if deg1_red + PHI_MID_DEGREE < D {
-                            out[deg1_red + PHI_MID_DEGREE] += self.0[i];
-                        }
-                    }
-                } else {
-                    out[deg1] -= self.0[i];
-                }
-            }
+        let mut out = self.0;
+        for _ in 0..j % ETA {
+            let top = out[D - 1];
+            out.copy_within(0..D - 1, 1);
+            out[0] = -top;
+            out[PHI_MID_DEGREE] -= top;
         }
         Self(out)
     }
 
-    /// Create ring element from field coefficients
     pub fn from_field_coeffs(coeffs: &[Fq]) -> Self {
         let mut ring_coeffs = [Fq::ZERO; D];
         for (i, &c) in coeffs.iter().enumerate().take(D) {
@@ -109,19 +71,16 @@ impl Rq {
         Self(ring_coeffs)
     }
 
-    /// Create ring element from scalar field element
     pub fn from_field_scalar(scalar: Fq) -> Self {
         let mut ring_coeffs = [Fq::ZERO; D];
         ring_coeffs[0] = scalar;
         Self(ring_coeffs)
     }
 
-    /// Get coefficients as field element vector
     pub fn field_coeffs(&self) -> Vec<Fq> {
         self.0.to_vec()
     }
 
-    /// Random ring element with small coefficients
     pub fn random_small(rng: &mut impl rand::Rng, bound: u64) -> Self {
         let mut coeffs = [Fq::ZERO; D];
         coeffs.iter_mut().for_each(|c| {
@@ -131,7 +90,6 @@ impl Rq {
         Self(coeffs)
     }
 
-    /// Random ring element (uniform over field elements)
     pub fn random_uniform(rng: &mut impl rand::Rng) -> Self {
         let mut coeffs = [Fq::ZERO; D];
         coeffs.iter_mut().for_each(|c| {
@@ -140,15 +98,12 @@ impl Rq {
         Self(coeffs)
     }
 
-    /// Infinity norm over centered representatives.
     pub fn norm_inf(&self) -> u64 {
         let n = inf_norm(self);
         debug_assert!(n <= u64::MAX as u128, "inf_norm exceeds u64 range");
         n as u64
     }
 
-    /// Pay-per-bit multiplication by sparse vector (Neo's key optimization)
-    /// Only processes set bits, avoiding full O(d^2) when input is sparse
     pub fn mul_sparse_bits(&self, bits: &[(usize, bool)]) -> Self {
         let mut result = Self::zero();
         for &(index, bit) in bits {
@@ -161,33 +116,21 @@ impl Rq {
     }
 }
 
-/// Constant-term extraction `ct: R_q -> F_q`.
 #[inline]
 pub fn ct(a: &Rq) -> Fq {
     a.0[0]
 }
 
-/// SuperNeo inner-product transform matrix `M` for `bar(v) = M * v`.
-///
-/// This matrix is built once (deterministically) as the inverse of the constant-term
-/// Gram matrix `G`, where `G[i,j] = ct(X^i * X^j mod Φ_81)`.
-///
-/// The resulting invariant is:
-/// `ct(cf_inv(superneo_bar_block(a)) * cf_inv(b)) == <a, b>`.
 pub fn superneo_bar_matrix() -> &'static [[Fq; D]; D] {
     static M: OnceLock<[[Fq; D]; D]> = OnceLock::new();
     M.get_or_init(build_superneo_bar_matrix)
 }
 
-/// One row of `superneo_bar_matrix` as signed column indices.
 struct BarRow {
     len: usize,
     terms: [(usize, bool); 2],
 }
 
-/// Signed sparse form of `superneo_bar_matrix`. Every entry is 0 or ±1 and
-/// each row has at most two nonzero entries, so applying it needs no field
-/// multiplication. The dense matrix remains the definition.
 fn superneo_bar_rows() -> &'static [BarRow; D] {
     static ROWS: OnceLock<[BarRow; D]> = OnceLock::new();
     ROWS.get_or_init(|| {
@@ -212,7 +155,6 @@ fn superneo_bar_rows() -> &'static [BarRow; D] {
     })
 }
 
-/// Apply the SuperNeo `bar` transform to one `d`-coefficient block.
 #[inline]
 pub fn superneo_bar_block(v: [Fq; D]) -> [Fq; D] {
     let rows = superneo_bar_rows();
@@ -231,9 +173,6 @@ pub fn superneo_bar_block(v: [Fq; D]) -> [Fq; D] {
     })
 }
 
-/// Apply the SuperNeo `bar` transform block-wise over a field vector.
-///
-/// Panics if `v.len()` is not a multiple of `D`.
 pub fn superneo_bar_vec(v: &[Fq]) -> Vec<Fq> {
     assert!(
         v.len().is_multiple_of(D),
@@ -250,30 +189,18 @@ pub fn superneo_bar_vec(v: &[Fq]) -> Vec<Fq> {
     out
 }
 
-/// Reduce polynomial in-place modulo Φ₈₁(X) = X^54 + X^27 + 1.
-///
-/// **Internal implementation detail** - not part of the public API.
-///
-/// **Precondition**: `coeffs` holds coefficients for degrees 0..(2*D-2) with D=54.
-///
-/// Implements the cyclotomic reduction X^i ≡ -X^(i-54) - X^(i-27) for i≥54
-/// in a single downward pass, avoiding double-counting corner cases.
-///
-/// This is specific to η=81, giving the 54th cyclotomic polynomial
-/// Φ₈₁(X) = X^54 + X^27 + 1 = ∏(X - ζ₈₁^k) where gcd(k,81)=1.
 pub(crate) fn reduce_mod_phi_81(coeffs: &mut [Fq; 2 * D - 1]) {
     for i in (D..(2 * D - 1)).rev() {
         let t = coeffs[i];
         coeffs[i] = Fq::ZERO;
-        coeffs[i - D] -= t; // X^i = X^(i-54) * X^54 = X^(i-54) * (-X^27 - 1)
+        coeffs[i - D] -= t;
         let idx_27 = i - PHI_MID_DEGREE;
         if idx_27 < D {
-            coeffs[idx_27] -= t; // -X^(i-27)
+            coeffs[idx_27] -= t;
         } else {
-            // idx_27 >= D, need recursive reduction
-            coeffs[idx_27 - D] += t; // -(-X^(idx_27-54)) = +X^(idx_27-54)
+            coeffs[idx_27 - D] += t;
             if idx_27 - PHI_MID_DEGREE < D {
-                coeffs[idx_27 - PHI_MID_DEGREE] += t; // -(-X^(idx_27-27)) = +X^(idx_27-27)
+                coeffs[idx_27 - PHI_MID_DEGREE] += t;
             }
         }
     }
@@ -283,7 +210,6 @@ fn build_superneo_bar_matrix() -> [[Fq; D]; D] {
     let g = build_ct_gram_matrix();
     let m = invert_matrix(g).expect("ct Gram matrix must be invertible");
 
-    // Internal sanity check: M^T G == I.
     let mut mtg = [[Fq::ZERO; D]; D];
     for i in 0..D {
         for j in 0..D {
@@ -364,50 +290,29 @@ fn invert_matrix(mut a: [[Fq; D]; D]) -> Option<[[Fq; D]; D]> {
     Some(inv)
 }
 
-/// Test-only wrapper for reduce_mod_phi_81
-/// Exposes the internal reduction function for testing cyclotomic properties
-/// Available for both unit tests and integration tests
-#[doc(hidden)]
-pub fn test_reduce_mod_phi_81(coeffs: &mut [Fq; 2 * D - 1]) {
-    reduce_mod_phi_81(coeffs);
-}
-
-/// MUST: coefficient embedding cf : R_q → F_q^d (just the coefficients).
 #[inline]
 pub fn cf(a: Rq) -> [Fq; D] {
     a.0
 }
 
-/// MUST: inverse map cf^{-1} : F_q^d → R_q.
 #[inline]
 pub fn cf_inv(v: [Fq; D]) -> Rq {
     Rq(v)
 }
 
-/// MUST: infinity norm ||a||_∞ := max_i |cf(a)_i| over centered reps.
-/// (Uses u128 modulus; audit-friendly explicit modulus in `field`.)
 pub fn inf_norm(a: &Rq) -> u128 {
-    let p: u128 = crate::field::GOLDILOCKS_MODULUS;
-    let half = (p - 1) / 2;
-    let mut m = 0u128;
-    for &c in a.0.iter() {
-        let x = c.as_canonical_u64() as u128;
-        let centered = if x <= half { x } else { p - x };
-        if centered > m {
-            m = centered;
-        }
-    }
-    m
+    a.0.iter()
+        .map(|&c| to_balanced_i128(c).unsigned_abs())
+        .max()
+        .unwrap_or(0)
 }
 
-/// MUST: S-action "rot(a)" applied to a vector v ∈ F_q^d as cf(a * cf^{-1}(v)).
 #[inline]
 pub fn rot_apply_vec(a: &Rq, v: &[Fq; D]) -> [Fq; D] {
     let prod = a.mul(&cf_inv(*v));
     cf(prod)
 }
 
-// Arithmetic trait implementations
 impl Add for Rq {
     type Output = Self;
     fn add(self, rhs: Self) -> Self::Output {

@@ -13,7 +13,7 @@ fn joint_row_domain_uses_the_complete_packed_carrier() {
         SparsePoly::new(1, Vec::new()),
     )
     .expect("valid rectangular structure");
-    let params = NeoParams::goldilocks_auto_r1cs_ccs(logical_width).expect("parameters");
+    let params = NeoParams::goldilocks_auto_rectangular_r1cs_ccs(logical_width, logical_width).expect("parameters");
     let dimensions = build_joint_dims(&params, &structure, 1, 0).expect("dimensions");
 
     assert_eq!(logical_width, 55);

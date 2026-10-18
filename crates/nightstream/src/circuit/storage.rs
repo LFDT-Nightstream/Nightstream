@@ -13,7 +13,7 @@ use std::{
 #[cfg(unix)]
 use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
 
-use nightstream_fprime::{load_compiled_application_package, PackageError};
+use nightstream_fprime::{load_trusted_compiled_application_package, PackageError};
 
 use super::{ApplicationCircuit, CompiledCircuit, Error};
 
@@ -73,7 +73,7 @@ pub(super) fn write(path: &Path, circuit: &CompiledCircuit) -> Result<(), Error>
     output.get_ref().sync_all()?;
     drop(output);
     // Same-directory hard linking publishes the complete file without replacing
-    // an existing destination. The private temporary name is removed on drop.
+    // an existing destination.
     fs::hard_link(&pending.path, path)?;
     Ok(())
 }
@@ -90,7 +90,7 @@ pub(super) fn read(path: &Path) -> Result<CompiledCircuit, Error> {
     if output_forms.iter().any(|tag| !matches!(tag, 0 | 2)) {
         return Err(PackageError::Invalid("prepared output form").into());
     }
-    let package = load_compiled_application_package(&mut input)?;
+    let package = load_trusted_compiled_application_package(&mut input)?;
     let binding = package.production_verifier_binding()?;
     crate::lifecycle::validate_key_prefix(
         package.logical_column_count(),

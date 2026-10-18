@@ -17,7 +17,6 @@ fn carried_projection_matches_cpu_with_all_production_sources_active() {
 fn carried_projection_scratch_does_not_grow_with_carrier_width() {
     let small = carried_projection_case(3, D + 41, &[]);
     let large = carried_projection_case(3, 2 * D + 41, &[]);
-    // The output gains one ring block. Matrix-row scratch stays the same size.
     assert_eq!(large - small, (D * size_of::<K>()) as u64);
 }
 
@@ -95,10 +94,7 @@ fn carried_projection_case(rows: usize, columns: usize, zero_sources: &[usize]) 
         }
         witnesses.push(witness);
     }
-    let fresh = [neo_ccs::CcsWitness {
-        w: vec![],
-        Z: witnesses.remove(0),
-    }];
+    let fresh = [neo_ccs::CcsWitness { Z: witnesses.remove(0) }];
     let combined = (0..width)
         .map(|column| {
             witnesses
@@ -109,8 +105,6 @@ fn carried_projection_case(rows: usize, columns: usize, zero_sources: &[usize]) 
         })
         .collect::<Vec<_>>();
     let combined = SuperneoZBlocks::from_z(&combined);
-    // The CPU evaluator owns the independent ring transformation. A separate
-    // identity matrix also checks the contribution outside application rows.
     let mut identity = SuperneoEvalCacheBuilder::new(width, width, 1).unwrap();
     for row in 0..width {
         identity.push_row(0, row, [(row, F::ONE)]).unwrap();

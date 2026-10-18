@@ -5,18 +5,11 @@ import NightstreamFPrime.Layout.MatrixProgram.CoefficientWork
 
 /-!
 Counted coefficient entries for the selected PiDEC commitment row packet.
-All matrix ports and 54 coefficient lanes reach the actual selected
-matrix source. The packet starts at global logical row 969110.
 SuperNeo v1.2 Section 7.3 and Appendix B.2 own the coefficient-matrix check;
 Section 7.5 and Appendix B.4 own these commitment recomposition rows.
 
-The caller supplies a typed local row. This program constructs its forms
-once, selects one stored port, and expands its 54 source lanes. Global row
-dispatch and Boolean-vertex conversion are caller work. No packet or matrix
-function is evaluated here. Work composes the existing declared callee clocks
-and the named wrapper charges. A complete refinement of those clocks to source
-execution or runtime is a separate obligation. Proof casts and clock
-instrumentation are erased from the count.
+The caller supplies a typed local row. Global row dispatch and Boolean-vertex
+conversion are caller work.
 -/
 
 set_option autoImplicit false
@@ -55,8 +48,6 @@ variable {application : Lifecycle.Stage1.Application.Program} {columns relationW
   (fits : PerApplicationPackage.FitsTwoPow28 application)
   (geometry : ApplicationRetainedGeometry.Geometry application columns)
 
-/-- A structural index through the existing append tree. This is used only
-to prove the selected packet's global position and exact matrix images. -/
 private def fullRow (row : Fin 1188) :
     Fin (DirectApplicationPrefixPlan.plan relation fits geometry).rowCount :=
   let sampler := DirectApplicationPrefixPlan.prefixGeometry geometry
@@ -117,8 +108,6 @@ private theorem plan_port_transport {columns : Nat} (left right : ProductionRela
   have indices : leftRow = rightRow := Fin.ext same
   rw [indices]
 
-/-- The constant offset is checked against the exact append tree below.
-This coordinate is a semantic reference; entry does not execute this map. -/
 def globalRow (row : Fin 1188) : Fin selectedPlan.rowCount :=
   ⟨969110 + row.val, by
     have bound := row.isLt
@@ -145,9 +134,6 @@ private theorem globalRow_port (row : Fin 1188) (matrix : Fin Spec.ProductionRel
     (fullRow PiDECInputCheck.relation fits geometry row) (globalRow row) same matrix
   exact moved.symm.trans (fullRow_port PiDECInputCheck.relation fits geometry row matrix)
 
-/-- One matrix-index read; each test costs literal/comparison/branch (3).
-A live field costs its record read and Result (2). Empty ports include
-Unit/call/value/Result (4), plus the actual empty-form constructor work. -/
 private def selectPort {columns : Nat} (forms : OrdinaryRow.Forms columns)
     (matrix : Fin Spec.ProductionRelation.matrixCount) : Result (SparseForm columns) :=
   let slot := matrix.val
@@ -229,9 +215,6 @@ private theorem selected_port_coefficient (row : Fin 1188)
   rw [← PiDECInputCheck.relation_eq_selected] at selected
   exact selected
 
-/-- One forms call, one port call and one coefficient call. Their three
-value reads, the explicit selected-width literal and Result add eight.
-Global dispatch and vertex construction are absent from this typed-row call. -/
 def entry (matrix : Fin productionShape.matrixCount)
     (coefficient : Fin productionShape.coefficientCount) (row : Fin 1188)
     (column : Fin carrier.carrierWidth) : Result F :=
@@ -242,8 +225,6 @@ def entry (matrix : Fin productionShape.matrixCount)
     (congrArg Phi81CarrierLayout.carrierWidth width_eq ▸ column)
   ⟨result.value, forms.work + selected.work + result.work + 8⟩
 
-/-- Bound for the composed declared clocks of this typed local-row call.
-The selected kernel's declared bound 5208 is included in coefficient expansion. -/
 def entryWork : Nat := 254724 + 17 + 637643 + 8
 
 theorem entry_value (matrix : Fin productionShape.matrixCount)

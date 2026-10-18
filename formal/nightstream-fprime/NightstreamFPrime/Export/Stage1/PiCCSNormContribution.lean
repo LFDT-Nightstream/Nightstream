@@ -4,8 +4,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSNormBuckets
 import NightstreamFPrime.Export.Stage1.PiCCSCachedSelector
 
 /-! Coefficient-level connection of the scanned norm cubic to the existing
-pair kernel. The alpha-tail weight enters the cubic; the head equality
-factor, degree widening and both gamma shifts remain in the norm branch. -/
+pair kernel. -/
 
 set_option autoImplicit false
 
@@ -18,21 +17,17 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open NightstreamFPrime.Lifecycle
 open PiCCSPolynomialRange
 
-/-- The inner cubic accumulated by the scalar norm scan. -/
 def innerNormPair (weight : K) (powers : Nat → K)
     (low high : ProtocolPolynomial.OutputMessage K productionShape) : FixedPolynomial K 3 :=
   FixedPolynomial.scale extensionOps.toOps weight
     (PiCCSFirstRoundPair.normPolynomialWithPowers extensionOps powers low high)
 
-/-- The head factor already used by equalitySelector. -/
 def headSelector (alpha : CubePoint K cubeVariables) : FixedPolynomial K 1 :=
   match alpha.coordinates with
   | [] => FixedPolynomial.zero extensionOps.toOps 1
   | head :: _ => FixedPolynomial.affine (extensionOps.sub extensionOps.one head)
       (extensionOps.sub head (extensionOps.sub extensionOps.one head))
 
-/-- The exact norm branch of pairPolynomialWithNorm after distributing its
-outer constraint scale. Source gamma powers remain inside sourceNorm. -/
 def normTerm (input : ProtocolPolynomial.VerifierInput K productionShape)
     (powers : Nat → K) (selector : FixedPolynomial K 1) (sourceNorm : FixedPolynomial K 3) :
     FixedPolynomial K input.sumcheckDegreeBound :=
@@ -118,8 +113,6 @@ private theorem mul_scaled_affine (scalar a b : K) (polynomial : FixedPolynomial
     rw [extensionLaws.mul_comm scalar left, extensionLaws.mul_assoc]
   simp only [commute]
 
-/-- This term is exactly the additive norm contribution in the existing pair
-constructor; the base is that same constructor with its norm input zeroed. -/
 theorem pairPolynomialWithNorm_split
     (input : ProtocolPolynomial.VerifierInput K productionShape) (powers : Nat → K)
     (alphaSelector priorSelector : FixedPolynomial K 1)
@@ -159,8 +152,6 @@ private theorem selector_factor (alpha : CubePoint K cubeVariables)
           (NumericBooleanDomain.WeightProductLaws.ofInterpolationEvaluationLaws extensionLaws)]
       exact mul_scaled_affine _ _ _ sourceNorm
 
-/-- Move only the alpha-tail scalar into the inner cubic. The original head
-selector, both gamma scales and exact target width remain unchanged. -/
 theorem normTerm_innerPair (input : ProtocolPolynomial.VerifierInput K productionShape)
     (powers : Nat → K) (alpha : CubePoint K cubeVariables)
     (suffix : BooleanVertex (cubeVariables - 1))
@@ -179,8 +170,6 @@ private theorem shiftLaws : TargetPolynomial.ShiftLaws extensionOps.toOps where
   mul_zero := extensionLaws.mul_zero
   mul_add := extensionLaws.left_distrib
 
-/-- For actual gamma powers, the two existing shifts combine to the declared
-normOffset. Each source's local gamma exponent remains inside the cubic. -/
 theorem normTerm_gamma (input : ProtocolPolynomial.VerifierInput K productionShape)
     (gamma : K) (selector : FixedPolynomial K 1) (sourceNorm : FixedPolynomial K 3) :
     normTerm input (TargetPolynomial.power extensionOps.toOps gamma) selector sourceNorm =
@@ -228,8 +217,6 @@ private abbrev endpointMessage (masks : Array (Array (Nat × Nat)))
     (PiCCSNormSource.assignments masks)
     (PiCCSFirstRound.endpointVertex (arity := cubeVariables) (by decide) bit suffix) fresh
 
-/-- Beyond the complete carrier, both endpoint fields vanish and the entire
-inner cubic is the exact four-coefficient zero, for any scalar weight. -/
 theorem innerNormPair_padding_zero (weight : K) (powers : Nat → K)
     (masks : Array (Array (Nat × Nat))) (suffix : BooleanVertex (cubeVariables - 1))
     (freshLow freshHigh : Vector F ProductionRelation.matrixCount)
@@ -252,8 +239,6 @@ theorem innerNormPair_padding_zero (weight : K) (powers : Nat → K)
   rw [normPolynomial_zero powers _ _ lowZero highZero]
   exact scale_zero_polynomial extensionOps extensionLaws 3 weight
 
-/-- Head weighting, both gamma shifts and width completion preserve the
-exact zero contribution of the padded domain. -/
 theorem normTerm_padding_zero (input : ProtocolPolynomial.VerifierInput K productionShape)
     (weight : K) (powers : Nat → K) (selector : FixedPolynomial K 1)
     (masks : Array (Array (Nat × Nat))) (suffix : BooleanVertex (cubeVariables - 1))
@@ -338,8 +323,6 @@ private theorem normTerm_add (input : ProtocolPolynomial.VerifierInput K product
         (normTerm input powers selector right) := by
   simp only [normTerm, mul_add_norm, widen_add, scale_add]
 
-/-- Apply the common head selector and gamma shifts after a complete cubic
-sum. Every coefficient, including all widened high zeros, is preserved. -/
 theorem normTerm_sum {Index : Type}
     (input : ProtocolPolynomial.VerifierInput K productionShape)
     (powers : Nat → K) (selector : FixedPolynomial K 1)
@@ -354,7 +337,6 @@ theorem normTerm_sum {Index : Type}
         congrArg (FixedPolynomial.add extensionOps.toOps
           (normTerm input powers selector (term index))) inductionHypothesis
 
-/-- The same linearity applies to the ascending range returned by NormScan. -/
 theorem normTerm_range (input : ProtocolPolynomial.VerifierInput K productionShape)
     (powers : Nat → K) (selector : FixedPolynomial K 1) (start count : Nat)
     (term : Nat → FixedPolynomial K 3) :
@@ -368,9 +350,6 @@ theorem normTerm_range (input : ProtocolPolynomial.VerifierInput K productionSha
         congrArg (fun polynomial => FixedPolynomial.add extensionOps.toOps polynomial
           (normTerm input powers selector (term (start + count)))) inductionHypothesis
 
-/-- A complete scanned block supplies exactly the norm components of its
-27 canonical pair kernels. The source cubics come from the existing mask
-sum; only their shared head factor and gamma shifts are applied afterward. -/
 theorem blockNorm_normTerms (input : ProtocolPolynomial.VerifierInput K productionShape)
     (powers : Nat → K) (alpha : CubePoint K cubeVariables)
     (masks : Array (Array (Nat × Nat))) (block : Fin PiCCSSourceImages.blockCount)

@@ -49,7 +49,6 @@ theorem physical_implies_specHolds
   exact holdsFlat_implies_holds env _
     (physical_implies_holdsFlat relation interface offset env physical)
 
-/-- Physical rows imply the exact production PiDEC verifier result. -/
 theorem physical_implies_phaseHolds
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
@@ -63,8 +62,6 @@ theorem physical_implies_phaseHolds
   exact holdsFlat_implies_holds env _
     (physical_implies_holdsFlat relation interface offset env physical)
 
-/-- Every physical row is confined to the exact phase endpoint. This scope
-theorem lets a later adjacent phase preserve PiDEC without inspecting rows. -/
 theorem physicalRows_varsBelow_of_phase
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
@@ -101,7 +98,6 @@ theorem physicalRows_varsBelow_of_phase
     (plan relation interface offset).constraints
     (plan relation interface offset).firstFresh planScope
 
-/-- Constructive completion over adjacent logical and R1CS-fresh intervals. -/
 theorem physical_complete
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey

@@ -32,7 +32,6 @@ private def decodeExtension (value : Lean.Json) : Except String K := do
   let words ← PiCCSInputCheck.decodeVector 2 PiCCSInputCheck.decodeField value
   return ⟨words.get 0, words.get 1⟩
 
-/-- Two canonical little-endian 64-bit words per extension-field value. -/
 def fieldBytes (values : Array K) : ByteArray := Id.run do
   let mut result := ByteArray.empty
   for value in values do
@@ -49,7 +48,6 @@ private def decodeWord (bytes : ByteArray) (offset : Nat) : Except String F := d
     return ⟨word.toNat, canonical⟩
   else throw "noncanonical Goldilocks word in prefix"
 
-/-- Decode complete field values without reducing external words modulo p. -/
 def decodeFields (bytes : ByteArray) : Except String (Array K) := do
   unless bytes.size % 16 == 0 do throw "partial extension-field value in prefix"
   let mut values := #[]
@@ -59,7 +57,6 @@ def decodeFields (bytes : ByteArray) : Except String (Array K) := do
     values := values.push ⟨low, high⟩
   return values
 
-/-- A contiguous range of rows. Each firstValues array has the declared width. -/
 structure Chunk where
   path : System.FilePath
   first : Nat
@@ -75,15 +72,11 @@ private def manifest (kind width count : Nat) (challenges : List K)
     .array (challenges.map extensionValue),
     .array (ranges.toList.map fun (first, finish) => .array [.atom first, .atom finish])]
 
-/-- Record completed file ranges with the shared manifest encoding.
-The caller owns file completion, geometry and challenge derivation. -/
 def writeManifest (directory : System.FilePath) (kind width count : Nat)
     (challenges : List K) (ranges : Array (Nat × Nat)) : IO Unit :=
   IO.FS.writeFile (directory / "manifest.json")
     ((manifest kind width count challenges ranges).render ++ "\n")
 
-/-- Check exact file identities, ranges, lengths and first rows. The consumer
-must decode the rest of each file to check all field encodings. -/
 def read (directory : System.FilePath) (expectedKind expectedWidth expectedCount : Nat)
     (challenges : List K) : IO (Array Chunk) := do
   unless expectedWidth > 0 do throw (IO.userError "zero prefix row width")
@@ -248,8 +241,6 @@ private def foldChunk (profile : LegacyProfile) (chunk : Chunk)
     throw (IO.userError "folded prefix byte count differs from its range")
   return result
 
-/-- Fold the complete legacy family through the second challenge. Input files
-define work chunks; output files and the completion manifest use numeric order. -/
 def foldLegacy (kind : Nat) (directories : List System.FilePath)
     (outputDirectory : System.FilePath) (firstChallenge secondChallenge : K) : IO Unit := do
   unless !(← outputDirectory.pathExists) do throw (IO.userError "output directory already exists")
@@ -308,9 +299,6 @@ private def foldBinaryChunk (width count : Nat) (chunk : Chunk)
     throw (IO.userError "folded binary prefix byte count differs from its range")
   return result
 
-/-- Consume one challenge from a complete binary prefix. Every row is decoded,
-including a leading odd row whose pair belongs to the preceding file.
-Only a missing endpoint beyond count is zero; singleton prefixes still fold. -/
 def foldBinary (kind width count : Nat) (inputDirectory outputDirectory : System.FilePath)
     (challenges : List K) (nextChallenge : K) : IO Unit := do
   unless !(← outputDirectory.pathExists) do throw (IO.userError "output directory already exists")

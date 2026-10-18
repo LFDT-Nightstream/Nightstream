@@ -7,8 +7,6 @@ import NightstreamFPrime.Layout.Stage1.SpartanValues
 /-!
 Owns the semantic composition from the direct retained PiRLC sampler plans to
 the existing lifecycle sampler relation.
-
-This module does not add rows, select an application, or close a phase status.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerDirectSemantics
@@ -24,8 +22,6 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
-/-- Below the sampler interval, the complete retained sampler view and the
-PiCCS package view evaluate every source expression identically. -/
 theorem semanticEnv_eq_packageEnv_belowSampler
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
@@ -56,8 +52,6 @@ theorem semanticEnv_eq_packageEnv_belowSampler
     program base groupValue (Spartan.sourceToSpartan column)
       mappedBound).symm
 
-/-- The complete retained sampler view and the PiCCS package view give the
-same value to each lane of the production PiCCS output-binding state. -/
 theorem piCcsOutputFinalState_eval_eq
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤
@@ -86,8 +80,6 @@ theorem piCcsOutputFinalState_eval_eq
   exact semanticEnv_eq_packageEnv_belowSampler geometry assignment base
     groupValue column below
 
-/-- The retained PiCCS output used by sampler invocation zero is the last
-value state of the canonical PiCCS Poseidon2 schedule. -/
 theorem piCcsFinalValue_eq_outputLast
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
@@ -102,9 +94,6 @@ theorem piCcsFinalValue_eq_outputLast
     PiCCSPoseidonPreservation.outputValue
   rfl
 
-/-- The 64 exact PiCCS endpoint rows connect the retained final Poseidon2
-state to the lifecycle output-binding state under the complete sampler
-environment. -/
 theorem endpointRows_imply_piCcsFinalState
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤
@@ -168,8 +157,6 @@ theorem endpointRows_imply_piCcsFinalState
       exact (piCcsOutputFinalState_eval_eq relation samplerGeometry assignment
         base groupValue lane).symm
 
-/-- Exact lifecycle expression for one retained sampler Poseidon2 output
-state. -/
 def retainedStateExpr
     (source : Fin PiRLCSamplerPoseidonPlan.sourceCount)
     (step : Fin PiRLCSamplerPoseidonPlan.invocationsPerSource) :
@@ -178,8 +165,6 @@ def retainedStateExpr
     (PiRLCSamplerRetainedCustody.StateLocation.sourceColumn
       { source := source, step := step, lane := lane })
 
-/-- Every retained sampler Poseidon2 output is the exact value of its
-lifecycle state column under the complete semantic environment. -/
 theorem outputValue_eq_retainedStateEval
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
@@ -204,7 +189,6 @@ theorem outputValue_eq_retainedStateEval
       (Spartan.sourceToSpartan location.sourceColumn)
   exact custody.symm
 
-/-- Step zero is the scalar-entry output in the canonical circuit. -/
 theorem retainedStateExpr_entry
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth relationLogicalWidth}
@@ -225,7 +209,6 @@ theorem retainedStateExpr_entry
   simp only [PiRLCSamplerRetainedCustody.stateOutputOffset, Nat.zero_mul,
     Nat.add_zero, PiRLCStarts.samplerSourceLogicalStart, SamplerChain.sourceOffset]
 
-/-- Step one is the single advance permutation and the scalar's final state. -/
 theorem retainedStateExpr_sourceFinal
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth relationLogicalWidth}
@@ -244,8 +227,6 @@ theorem retainedStateExpr_sourceFinal
     NightstreamFPrime.Gadgets.Sampling.WideReduction.Program.privateCount_eq,
     PiRLCStarts.samplerSourceLogicalStart, SamplerChain.sourceOffset]
 
-/-- Entry invocation `previous + 1` reads the final retained invocation of
-source `previous`. -/
 theorem previousValue_entrySucc
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
@@ -267,7 +248,6 @@ theorem previousValue_entrySucc
     omega
   · simp [PiRLCSamplerPoseidonPlan.invocation, Fin.encodeProd]
 
-/-- Pointwise form of the complete 17-source predecessor theorem. -/
 theorem previousValue_entry_eq_chainStateFn
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤
@@ -324,8 +304,6 @@ theorem previousValue_entry_eq_chainStateFn
         (relationPublicFits := relationPublicFits)]
     rfl
 
-/-- The direct entry invocation input is the exact chain state plus the
-verifier-owned scalar-domain lane vector. -/
 theorem canonicalInput_entry
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤
@@ -370,8 +348,6 @@ theorem canonicalInput_entry
   simp only [if_pos]
   rw [previous]
 
-/-- The lifecycle scalar-entry absorb is one Poseidon2 permutation of the
-incoming state plus the exact `[4, source, 0, ..., 0]` lane vector. -/
 theorem enterScalar_ofFn
     (state : NightstreamFPrime.Gadgets.Poseidon2.Layer.FState)
     (source : Fin PiRLCSamplerPoseidonPlan.sourceCount) :
@@ -388,8 +364,6 @@ theorem enterScalar_ofFn
   apply congrArg Spec.Poseidon2.permute
   norm_num [List.range, List.range.loop, List.getD, Spec.Poseidon2.ofNat, natWord]
 
-/-- Retained Poseidon2 semantics and the endpoint/state-chain custody proofs
-supply the exact verifier-owned scalar-entry child for every source. -/
 theorem canonicalSemantics_imply_entry
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤
@@ -480,7 +454,6 @@ theorem canonicalSemantics_imply_entry
       rfl
 
 
-/-- The advance consumes the entry output of the same scalar. -/
 theorem previousValue_advance
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)

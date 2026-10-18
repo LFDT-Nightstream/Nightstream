@@ -1,43 +1,19 @@
-//! Test helper functions for Ajtai commitment testing
-//!
-//! These functions are useful for testing linear algebra properties and extractors
-//! but are not part of the core protocol.
-
 use neo_ajtai::{AjtaiError, AjtaiResult, Commitment, PP};
 use neo_math::ring::{cf, Rq as RqEl, D};
 use neo_math::s_action::SAction;
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks as Fq;
 
-/// Rotation step for Φ₈₁(X) = X^54 + X^27 + 1 - exposed for testing
-///
-/// This is the same implementation as in commit.rs but exposed for test usage
 #[inline]
 #[allow(dead_code)]
 pub fn rot_step(cur: &[Fq; D], next: &mut [Fq; D]) {
     let last = cur[D - 1];
     next[0] = Fq::ZERO;
     next[1..D].copy_from_slice(&cur[..(D - 1)]);
-    next[0] -= last; // -1 * last
-    next[27] -= last; // -X^27 * last
+    next[0] -= last;
+    next[27] -= last;
 }
 
-/// PRODUCTION IMPLEMENTATION — true extraction from Ajtai public parameters.
-///
-/// Builds the linear map `L ∈ F_q^{(d·κ) × (d·m)}` such that, for **column‑major**
-/// encodings of `Z ∈ F_q^{d×m}` and commitment `c ∈ F_q^{d×κ}`:
-///
-///   `vec(c) = L · vec(Z)`  where  `c = cf(M · cf^{-1}(Z))`.
-///
-/// **Indexing conventions**
-/// - `z_len` must be `d·m`. The caller pads rows externally if the circuit padded `z_digits`
-///   to a power of two (we intentionally keep the extractor strict).
-/// - `num_coords` ≤ `d·κ`; typical usage requests all `d·κ` rows.
-///
-/// **Performance**
-/// - Deduplicates equal `a_ij` by hashing `cf(a_ij)` (O(1) average).
-/// - Precomputes all rotation columns per unique ring element via `rot_step`.
-/// - Builds rows in parallel with Rayon.
 #[allow(dead_code)]
 pub fn rows_for_coords(pp: &PP<RqEl>, z_len: usize, num_coords: usize) -> AjtaiResult<Vec<Vec<Fq>>> {
     use rayon::prelude::*;
@@ -46,7 +22,6 @@ pub fn rows_for_coords(pp: &PP<RqEl>, z_len: usize, num_coords: usize) -> AjtaiR
     let m = pp.m();
     let kappa = pp.kappa();
 
-    // Validate dimensions to prevent binding bugs
     if D != d {
         return Err(AjtaiError::InvalidInput(format!(
             "Ajtai ring dimension mismatch: compile-time D ({}) != runtime pp.d ({})",
@@ -60,7 +35,6 @@ pub fn rows_for_coords(pp: &PP<RqEl>, z_len: usize, num_coords: usize) -> AjtaiR
         return Err(AjtaiError::InvalidInput("num_coords exceeds d*kappa".to_string()));
     }
 
-    // Deduplicate identical ring elements
     use std::collections::HashMap;
 
     let mut unique_map = HashMap::new();
@@ -82,7 +56,6 @@ pub fn rows_for_coords(pp: &PP<RqEl>, z_len: usize, num_coords: usize) -> AjtaiR
         }
     }
 
-    // Precompute all rotation columns for each unique element
     let mut rot_columns: Vec<Box<[[Fq; D]]>> = Vec::with_capacity(all_elements.len());
     rot_columns.par_extend(all_elements.par_iter().map(|&a_ij| {
         let mut cols = vec![[Fq::ZERO; D]; D].into_boxed_slice();
@@ -90,7 +63,6 @@ pub fn rows_for_coords(pp: &PP<RqEl>, z_len: usize, num_coords: usize) -> AjtaiR
         cols
     }));
 
-    // Parallel row computation
     let rows: Vec<Vec<Fq>> = (0..num_coords)
         .into_par_iter()
         .map(|coord_idx| {
@@ -121,10 +93,6 @@ pub fn rows_for_coords(pp: &PP<RqEl>, z_len: usize, num_coords: usize) -> AjtaiR
     Ok(rows)
 }
 
-/// Compute a single Ajtai binding row on-demand from PP
-///
-/// This is the streaming version of `rows_for_coords` that computes only one row
-/// to avoid materializing the entire row matrix in memory.
 #[allow(dead_code)]
 pub fn compute_single_ajtai_row(
     pp: &PP<RqEl>,
@@ -136,7 +104,6 @@ pub fn compute_single_ajtai_row(
     let m = pp.m();
     let kappa = pp.kappa();
 
-    // Validation
     if D != d {
         return Err(AjtaiError::InvalidInput(format!(
             "Ajtai ring dimension mismatch: compile-time D ({}) != runtime pp.d ({})",
@@ -179,7 +146,6 @@ pub fn compute_single_ajtai_row(
     Ok(row)
 }
 
-/// Fill `cols` with the d rotation columns of rot(a): cols[t] = cf(a * X^t).
 #[inline]
 #[allow(dead_code)]
 fn precompute_rot_columns(a: RqEl, cols: &mut [[Fq; D]]) {
@@ -192,13 +158,6 @@ fn precompute_rot_columns(a: RqEl, cols: &mut [[Fq; D]]) {
     }
 }
 
-/// Reference implementation for differential testing against the optimized commit
-///
-/// Implements the specification directly: c = cf(M · cf^{-1}(Z))
-/// This verifies the fundamental S-action isomorphism cf(a·b) = rot(a)·cf(b)
-/// at the commitment level - exactly the algebra the construction relies on.
-///
-/// ⚠️  FOR TESTING ONLY - NOT CONSTANT TIME ⚠️
 #[allow(non_snake_case)]
 #[allow(dead_code)]
 pub fn commit_spec(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {

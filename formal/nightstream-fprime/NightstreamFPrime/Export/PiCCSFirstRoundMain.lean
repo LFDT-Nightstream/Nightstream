@@ -23,8 +23,7 @@ import NightstreamFPrime.Export.Stage1.PiDECCanonicalSourceCache
 /-!
 Compute a first-round pair range from original witnesses and public claims.
 Rust round messages and output evaluations are not inputs. A partial range
-is a measurement/accumulation result, not a complete first round. The runner
-aggregates linear carried reads before the existing numeric matrix interpreter.
+is a measurement/accumulation result, not a complete first round.
 -/
 
 set_option autoImplicit false
@@ -417,6 +416,18 @@ private def carriedRows (program : MatrixProgram.Program)
     firstRow := firstRow + block.rowCount
   throw (IO.userError "carried matrix row exceeds active rows")
 
+private def rangeCount (extent workers rangeSize : Nat) : Nat :=
+  min extent (max workers ((extent + rangeSize - 1) / rangeSize))
+
+private def carriedMatrixRangeSize (weightCount workers : Nat) : Nat :=
+  max 1 ((2 * weightCount) / workers)
+
+private def carriedPadRangeSize (weightCount : Nat) : Nat :=
+  max 1 weightCount
+
+private def carriedPrefixRangeSize (pad : Bool) (weightCount workers : Nat) : Nat :=
+  if pad then carriedPadRangeSize weightCount else max 1 (weightCount / workers)
+
 private def replayCarriedMatrix (publicPath sourcePath outputPath : System.FilePath)
     (first finish : Nat) (cacheSparse : Bool := true) : IO UInt32 := do
   unless first < finish do throw (IO.userError "invalid carried row range")
@@ -443,10 +454,8 @@ private def replayCarriedMatrix (publicPath sourcePath outputPath : System.FileP
   let cache ← IO.wait (Task.spawn fun _ =>
     PiDECCanonicalSourceCache.stored Poseidon2HashChainV1Package.application)
   let workers := max 1 (((← IO.getEnv "LEAN_NUM_THREADS").bind String.toNat?).getD 1)
-  -- One full low-weight cycle was measured across the runtime workers.
   let extent := finish - first
-  let rangeSize := max 1 ((2 * weights.1.size) / workers)
-  let parts := min extent (max workers ((extent + rangeSize - 1) / rangeSize))
+  let parts := rangeCount extent workers (carriedMatrixRangeSize weights.1.size workers)
   let computeStarted ← IO.monoNanosNow
   let mut low := K.zero
   let mut high := K.zero
@@ -520,12 +529,9 @@ private def replayCarriedPad (publicPath sourcePath outputPath : System.FilePath
   let basis ← IO.wait (Task.spawn fun _ => (PiCCSAggregatedImages.prepare tables power).1)
   let blocks := PiCCSAggregatedImages.combinedBlock power assignments
   let workers := max 1 (((← IO.getEnv "LEAN_NUM_THREADS").bind String.toNat?).getD 1)
-  -- The measured 8192-block preflight is the existing low-weight table size.
-  -- Batches retain the measured extent and existing dedicated worker count.
   -- The default runtime pool ran this workload on one CPU in the preflight.
   let extent := finish - first
-  let rangeSize := max 1 weights.1.size
-  let parts := min extent (max workers ((extent + rangeSize - 1) / rangeSize))
+  let parts := rangeCount extent workers (carriedPadRangeSize weights.1.size)
   let computeStarted ← IO.monoNanosNow
   let mut low := K.zero
   let mut high := K.zero
@@ -612,8 +618,6 @@ private def composeMoment (value : Lean.Json) : Except String (Nat × Nat × K �
       return (← first.getNat?, ← finish.getNat?, ← composeExtension low, ← composeExtension high)
   | _ => throw "expected five carried moment fields"
 
-/-- File order is the declared range order. No sorting or duplicate removal
-can turn gaps, overlaps or repeated ranges into accepted coverage. -/
 private def composeMoments (kind : String) (expectedEnd : Nat) (paths : List String) :
     IO (K × K) := do
   let mut next := 0
@@ -630,8 +634,6 @@ private def composeMoments (kind : String) (expectedEnd : Nat) (paths : List Str
     throw (IO.userError s!"{kind} moments do not cover the complete selected range")
   return (low, high)
 
-/-- Compose independently computed Lean contributions. The file bindings to
-original sources remain in external execution evidence; no proof target is read. -/
 private def composeRound (publicPath freshPath normPath outputPath : System.FilePath)
     (matrixPaths padPaths : List String) : IO UInt32 := do
   unless !(← outputPath.pathExists) do throw (IO.userError "output already exists")
@@ -671,8 +673,6 @@ private def composeRound (publicPath freshPath normPath outputPath : System.File
   let (challenge, nextState) := PiCCSPublicReplay.firstRound coins.state polynomial
   let nextClaim := polynomial.evaluate extensionOps.toOps challenge
   let stateValue := fun state : Transcript.State => Value.array (state.map (fun word => .atom word.val))
-  -- Trace schema 1: alpha, gamma, pre-state, ten q coefficients, challenge,
-  -- post-squeeze state, initial claim, q(0)+q(1), and q(challenge).
   let encoded := Value.array [.atom 1,
     .array (coins.alpha.coordinates.map extensionValue), extensionValue coins.gamma,
     stateValue coins.state, .array (polynomial.coefficients.map extensionValue),
@@ -728,8 +728,6 @@ private def saveFreshPrefix
     ("rows", Lean.toJson program.rowCount),
     ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
   let computeStarted ← IO.monoNanosNow
-  -- Chunks of each part stream their rows to temporary files on `workers` threads;
-  -- each part file then receives its header, its chunks in index order and `[]`.
   let chunks : Array (Nat × Nat × Nat) := Id.run do
     let mut chunks := #[]
     for part in [:parts] do
@@ -821,10 +819,8 @@ private def saveCarriedPrefix
   let sourceRows : Std.HashMap Nat R1CS.Row ← if pad then pure {} else IO.wait (Task.spawn fun _ =>
     PiDECCanonicalSourceCache.stored Poseidon2HashChainV1Package.application)
   let workers := max 1 (((← IO.getEnv "LEAN_NUM_THREADS").bind String.toNat?).getD 1)
-  -- Reuse the measured Pad block and matrix row extents of the original scans.
-  let rangeSize := max 1 (if pad then weights.1.size else weights.1.size / workers)
   let extent := finish - first
-  let parts := min extent (max workers ((extent + rangeSize - 1) / rangeSize))
+  let parts := rangeCount extent workers (carriedPrefixRangeSize pad weights.1.size workers)
   let width := if pad then 27 else 1
   let kind := if pad then 0 else 1
   IO.FS.createDirAll outputDirectory

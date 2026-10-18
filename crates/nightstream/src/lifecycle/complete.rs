@@ -186,7 +186,7 @@ impl PreparedLifecycle {
 
         // The length fits the carrier, so a failure is a coordinate outside
         // -1, 0, 1. Bits outside the logical assignment stay zero.
-        let packed = Mat::<F>::compact_signed_unit_from_balanced_columns(D, blocks, logical.balanced_values())
+        let packed = Mat::<F>::compact_signed_unit_from_column_major_prefix(D, blocks, logical.balanced_values())
             .map_err(|_| CompleteStepError::Input("fresh logical assignment exceeds the strict unit norm"))?;
         drop(logical);
         #[cfg(test)]
@@ -238,10 +238,7 @@ impl PreparedLifecycle {
                 m_in: public_width,
                 adv: None,
             },
-            witness: CcsWitness {
-                w: Vec::new(),
-                Z: packed,
-            },
+            witness: CcsWitness { Z: packed },
         };
         let state = inputs.next_state();
         let mut running = inputs.into_running();

@@ -79,7 +79,6 @@ fn sealed_package_builds_the_package_owned_logical_relation_header() {
     assert!(header.is_verifier_artifact_header());
     assert_eq!(header.n, relation.row_count());
     assert_eq!(header.m, relation.column_count());
-    // The rows and the carrier fit 2^27; the declared cube keeps 28 rounds.
     assert!(
         relation
             .row_count()
@@ -266,8 +265,6 @@ fn rust_v1_2_pi_ccs_transcript_matches_lean_emitted_vector() {
         }
     }
 
-    // The function decodes the prior digest from the public input; the Lean
-    // challenges below match only if it equals the statement block `public[0]`.
     let actual =
         derive_pi_ccs_v1_2_transcript(&public[1], &public[2], &rounds, &output).expect("exact v1_2 transcript replay");
     assert_eq!(actual.alpha(), alpha);
@@ -368,8 +365,6 @@ fn loader_rejects_a_missing_sampler_coefficient_witness_batch() {
     assert_eq!(batches[index][1].as_array().unwrap().len(), 54);
     batches.remove(index);
     let changed = canonical_bytes(&value);
-    // A self-consistent identity must not authorize a missing witness writer.
-    // Replay the computed identity so the second load reaches structural checks.
     let identity = match load_per_application_package(&changed, [0; 4]) {
         Err(PackageError::ExpectedIdentityMismatch { computed, .. }) => computed,
         _ => panic!("the mutation must change the structural identity"),
@@ -406,7 +401,6 @@ fn loader_rejects_a_rehashed_matrix_slot_permutation() {
 #[test]
 fn lean_test_error_counts_match_the_sealed_relation() {
     // VerifierErrorBudget exports the selected test error for these counts.
-    // They must come from the relation the verifier loads, not from the artifact.
     let bytes = fs::read(
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-piccs-test-error-v1.json"),

@@ -1,16 +1,4 @@
 //! Host census of one matrix's geometric runs for the opening forms.
-//!
-//! Runs with the same start, length and ratio form one span. The openings add
-//! a span's weighted references once and then expand the sum to the span's
-//! columns, instead of expanding every reference. One layer keeps one span
-//! shape per start column; a start used with another shape moves those runs
-//! to the next layer. Field addition is exact, so the grouping cannot change
-//! an opening. A form coordinate scans the spans that start less than the
-//! longest span length before it, so long spans make that scan long.
-//!
-//! The census reserves the bytes of every host array, including its
-//! temporary arrays, before it allocates it. A census that does not fit its
-//! budget stops, and the caller loads a smaller window.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -19,7 +7,6 @@ use neo_reductions::superneo_eval::SuperneoMatrixCache;
 
 use crate::MetalError;
 
-/// Host bytes that span censuses may still allocate.
 pub(super) struct CensusBudget(AtomicUsize);
 
 impl CensusBudget {
@@ -38,21 +25,13 @@ impl CensusBudget {
     }
 }
 
-/// Spans with distinct start columns and their grouped references.
 pub(super) struct SpanLayer {
-    /// Bit `column` is set when a span starts at `column`.
     pub(super) starts: Vec<u64>,
-    /// Number of spans that start before each 64-column word.
     pub(super) ranks: Vec<u32>,
-    /// `[start | length << 32, ratio]` of each span.
     pub(super) shapes: Vec<[u64; 2]>,
-    /// Offsets of each span's references.
     pub(super) offsets: Vec<u32>,
-    /// Row of each reference, grouped by span.
     pub(super) rows: Vec<u32>,
-    /// Canonical coefficient of each reference, grouped by span.
     pub(super) coefficients: Vec<u64>,
-    /// The longest span, which bounds the spans that can cover one column.
     pub(super) longest: u64,
 }
 
@@ -71,7 +50,6 @@ impl SpanLayer {
     }
 }
 
-/// Mark the column blocks that the spans of `layers` cover.
 pub(super) fn mark_blocks(layers: &[SpanLayer], active: &mut [bool]) {
     for layer in layers {
         for &[packed, _] in &layer.shapes {
@@ -82,8 +60,6 @@ pub(super) fn mark_blocks(layers: &[SpanLayer], active: &mut [bool]) {
     }
 }
 
-/// Group the runs of `matrix` into span layers over `columns` carrier columns.
-/// `None` means the census does not fit `budget`.
 pub(super) fn span_layers(
     matrix: &SuperneoMatrixCache,
     columns: usize,
@@ -126,9 +102,6 @@ pub(super) fn span_layers(
     Ok(Some(layers))
 }
 
-/// Build one layer from the visited `(row, run)` references, and return the
-/// references whose start already has a span of another shape. `None` means
-/// the layer does not fit `budget`.
 fn span_layer(
     runs: &[[u64; 3]],
     columns: usize,
@@ -136,7 +109,6 @@ fn span_layer(
     mut references: impl FnMut(&mut dyn FnMut(u32, u32)),
 ) -> Result<Option<(SpanLayer, Vec<[u32; 2]>)>, MetalError> {
     let words = columns / 64 + 1;
-    // The start bitset and its word ranks.
     if !budget.reserve(words * (size_of::<u64>() + size_of::<u32>())) {
         return Ok(None);
     }
@@ -168,7 +140,6 @@ fn span_layer(
     };
     let same_shape = |left: [u64; 3], right: [u64; 3]| left[0] == right[0] && left[2] == right[2];
 
-    // Representatives, counts, cursors and offsets, then the shapes.
     let spans = spans as usize;
     if !budget.reserve(spans * (4 * size_of::<u32>() + size_of::<[u64; 2]>()) + size_of::<u32>()) {
         return Ok(None);
@@ -200,7 +171,6 @@ fn span_layer(
     }
     let mut cursors = offsets[..counts.len()].to_vec();
     let total = offsets[counts.len()] as usize;
-    // Rows and coefficients of this layer, and the references it defers.
     if !budget.reserve(total * (size_of::<u32>() + size_of::<u64>()) + deferred_count * size_of::<[u32; 2]>()) {
         return Ok(None);
     }

@@ -2,10 +2,8 @@ import NightstreamFPrime.Export.Stage1.CompactRowExecution
 import NightstreamFPrime.Export.Stage1.StoredWitnessExecution
 
 /-!
-Array storage for the existing compact-row arithmetic core. The output recipe
-reads the original snapshot; each row computes A * B before its optional write
-and checks C afterward. Refinement requires the same physical write bounds and
-local-output bounds as the guarded runner. No template success is asserted.
+Array storage for the existing compact-row arithmetic core. No template
+success is asserted.
 -/
 
 set_option autoImplicit false
@@ -18,8 +16,6 @@ open NightstreamFPrime.Layout
 open NightstreamFPrime.Export.Package
 open StoredWitnessExecution (asEnv write write_size asEnv_write)
 
-/-- The enclosing executor checks the complete local interval. Each row also
-checks its declared local index before writing. -/
 def step (inputColumn : Nat → Nat) (localStart localCount : Nat)
     (values : Array F) (row : CompactTemplateRow) : Option (Array F) :=
   let product :=
@@ -38,7 +34,6 @@ def step (inputColumn : Nat → Nat) (localStart localCount : Nat)
         then some after else none
       else none
 
-/-- Process exactly the supplied row order and stop at the first rejection. -/
 def run (inputColumn : Nat → Nat) (localStart localCount : Nat) :
     Array F → List CompactTemplateRow → Option (Array F)
   | values, [] => some values
@@ -46,8 +41,6 @@ def run (inputColumn : Nat → Nat) (localStart localCount : Nat) :
       (step inputColumn localStart localCount values row).bind fun after =>
         run inputColumn localStart localCount after rest
 
-/-- Check both physical write regions before reading the output recipe. The
-per-row local-count guard remains in step. -/
 def execute (inputColumn : Nat → Nat) (localStart : Nat)
     (template : CompactRowTemplate) (values : Array F) : Option (Array F) :=
   if inputColumn template.outputInput < values.size ∧
@@ -74,8 +67,6 @@ private theorem step_size (inputColumn : Nat → Nat) (localStart localCount : N
       · have same := Option.some.inj success
         rw [← same, write_size]
 
-/-- Stored and functional row checks agree exactly, including rejection.
-The local interval and the row's declared output must both be valid. -/
 theorem step_eq (inputColumn : Nat → Nat) (localStart localCount : Nat)
     (values : Array F) (row : CompactTemplateRow)
     (fits : localStart + localCount ≤ values.size)
@@ -95,8 +86,6 @@ theorem step_eq (inputColumn : Nat → Nat) (localStart localCount : Nat)
         simp only [Option.map_some, Option.map_none,
           asEnv_write values (localStart + localIndex) _ targetBound]
 
-/-- Every row uses the same current environment. Successful writes preserve
-the array size, so the original interval bound is available to every row. -/
 theorem run_eq (inputColumn : Nat → Nat) (localStart localCount : Nat)
     (values : Array F) (rows : List CompactTemplateRow)
     (fits : localStart + localCount ≤ values.size)
@@ -132,9 +121,6 @@ theorem run_eq (inputColumn : Nat → Nat) (localStart localCount : Nat)
           simpa only [run, CompactRowExecution.run, first, pureSome, Option.bind_some] using
             inductionHypothesis after afterFits restBounds
 
-/-- The guarded stored executor refines the existing pure executor exactly.
-No input-read bound or template-satisfaction premise is needed. Local-output
-bounds are required because the pure core intentionally has no local-count guard. -/
 theorem execute_eq (inputColumn : Nat → Nat) (localStart : Nat)
     (template : CompactRowTemplate) (values : Array F)
     (outputFits : inputColumn template.outputInput < values.size)

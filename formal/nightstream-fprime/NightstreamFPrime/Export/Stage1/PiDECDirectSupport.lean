@@ -6,8 +6,6 @@ import NightstreamFPrime.Lifecycle.PiDEC.v1_2.Support.VariableSupport
 
 /-!
 Owns exact retained-source support for the canonical PiDEC ordinary rows.
-The source predicate is selected by the Stage 1 layout; the generic PiDEC
-support lemmas prove that every child reads only that predicate.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiDECDirectSupport

@@ -1,51 +1,31 @@
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/SumCheck.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespace renamed, otherwise unchanged. -/
 /-!
 Semantic SumCheck assurance used by the SuperNeo folding reductions.
-
-The verifier follows only the prover's claimed polynomial chain. Truth follows a
-separate expected chain whose initial target is the actual hypercube sum. The
-main theorem therefore does not assume that acceptance implies truth: a false
-accepted claim exposes a round polynomial that differs from the expected one
-but collides with it at the verifier's sampled challenge.
-
-This file proves the deterministic reduction. Turning the bounded-degree
-collision into the paper's statistical `rounds * degree / |challengeSet|`
-error is deliberately an explicit root-counting/sampling boundary, not a local
-soundness assumption smuggled into the verifier model.
 -/
 
 namespace NightstreamFPrime.Spec.SumCheck
 
 universe uChallenge uValue
 
-/-- The two Boolean-cube points and addition needed by the round verifier. -/
 structure Ops (Challenge : Type uChallenge) (Value : Type uValue) where
   zero : Challenge
   one : Challenge
   add : Value → Value → Value
 
-/-- One prover polynomial, its semantic counterpart, and the public challenge. -/
 structure Round (Challenge : Type uChallenge) (Value : Type uValue) where
   claimed : Challenge → Value
   expected : Challenge → Value
   challenge : Challenge
   degree : Nat
 
-/-- A complete SumCheck claim and transcript at the semantic model boundary. -/
 structure Instance (Challenge : Type uChallenge) (Value : Type uValue) where
   claimedInitial : Value
-  /-- The actual sum of the target multilinear expression over its Boolean cube. -/
   trueInitial : Value
-  /-- The actual terminal evaluation after every verifier challenge is fixed. -/
   terminal : Value
   rounds : List (Round Challenge Value)
   maxDegree : Nat
-  /-- Cardinality of the verifier-owned strong challenge set. -/
   challengeSetSize : Nat
 
-/-- Follow either the prover polynomials or the semantic polynomials round by round. -/
 def Chain
     {Challenge : Type uChallenge}
     {Value : Type uValue}
@@ -57,7 +37,6 @@ def Chain
       target = ops.add (polynomial round ops.zero) (polynomial round ops.one) ∧
       Chain ops polynomial (polynomial round round.challenge) rest terminal
 
-/-- What the executable verifier checks: claimed sums, challenge forwarding, and terminal equality. -/
 def Accepted
     {Challenge : Type uChallenge}
     {Value : Type uValue}
@@ -67,7 +46,6 @@ def Accepted
   Chain ops (fun round => round.claimed)
     transcript.claimedInitial transcript.rounds transcript.terminal
 
-/-- Executable form of the claimed-chain verifier. -/
 def checkChain
     {Challenge : Type uChallenge}
     {Value : Type uValue}
@@ -79,7 +57,6 @@ def checkChain
       decide (target = ops.add (round.claimed ops.zero) (round.claimed ops.one)) &&
       checkChain ops (round.claimed round.challenge) rest terminal
 
-/-- Executable SumCheck verifier: only public degree and claimed-chain checks. -/
 def check
     {Challenge : Type uChallenge}
     {Value : Type uValue}
@@ -103,7 +80,6 @@ private theorem checkChain_eq_true_iff
   | cons head tail inductionHypothesis =>
       simp [checkChain, Chain, inductionHypothesis]
 
-/-- The executable verifier accepts exactly the logical `Accepted` predicate. -/
 theorem check_eq_true_iff_accepted
     {Challenge : Type uChallenge}
     {Value : Type uValue}
@@ -113,7 +89,6 @@ theorem check_eq_true_iff_accepted
     check ops transcript = true ↔ Accepted ops transcript := by
   simp [check, Accepted, checkChain_eq_true_iff]
 
-/-- The independent semantic path beginning at the real hypercube sum. -/
 def TruthPath
     {Challenge : Type uChallenge}
     {Value : Type uValue}
@@ -124,7 +99,6 @@ def TruthPath
 
 namespace Claim
 
-/-- Claim truth is equality with the actual sum, not verifier acceptance. -/
 def True
     {Challenge : Type uChallenge}
     {Value : Type uValue}
@@ -133,7 +107,6 @@ def True
 
 end Claim
 
-/-- An honest transcript uses the semantic polynomial at every round. -/
 def Honest
     {Challenge : Type uChallenge}
     {Value : Type uValue}
@@ -142,7 +115,6 @@ def Honest
   (∀ round ∈ transcript.rounds, round.claimed = round.expected) ∧
   ∀ round ∈ transcript.rounds, round.degree ≤ transcript.maxDegree
 
-/-- The exact bad event exposed by a false accepted SumCheck claim. -/
 def BadChallenge
     {Challenge : Type uChallenge}
     {Value : Type uValue}
@@ -153,7 +125,6 @@ def BadChallenge
   round.claimed ≠ round.expected ∧
   round.claimed round.challenge = round.expected round.challenge
 
-/-- Numerator in the standard Lund/Schwartz--Zippel union bound. -/
 def errorNumerator
     {Challenge : Type uChallenge}
     {Value : Type uValue}
@@ -184,7 +155,6 @@ private theorem chain_of_round_agreement
           (fun round roundInTail => agreement round (by simp [roundInTail]))
           tailTruth
 
-/-- Perfect completeness of the semantic SumCheck verifier. -/
 theorem complete
     {Challenge : Type uChallenge}
     {Value : Type uValue}
@@ -242,12 +212,6 @@ private theorem chain_disagreement_implies_collision
           ⟨round, roundInTail, differs, agrees⟩
         exact ⟨round, by simp [roundInTail], differs, agrees⟩
 
-/--
-SumCheck soundness reduction: an accepted false claim cannot disappear into an
-`accepted → valid` premise. It yields a concrete bounded-degree round where a
-different prover polynomial collides with the semantic polynomial at the
-verifier's challenge.
--/
 theorem false_acceptance_implies_bad_challenge
     {Challenge : Type uChallenge}
     {Value : Type uValue}

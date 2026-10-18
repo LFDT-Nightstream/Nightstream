@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-"""Reject malformed fresh binary prefixes and changed causal round claims.
-
-This gate checks framing and rejection behavior, not source provenance.
-The complete positive computation is separate recorded evidence.
-"""
 
 from __future__ import annotations
 
@@ -57,7 +52,6 @@ def main():
         return directory
 
     def detached(directory, filename):
-        # Never write through a shared hardlink. Remove it before making a copy.
         target = directory / filename
         target.unlink()
         shutil.copyfile(prefix / filename, target)
@@ -78,9 +72,6 @@ def main():
         command = ["timeout", "--signal=KILL", "300", "bash", str(validate),
                    "lean-executable", str(binary), "fresh-prefix",
                    str(public), str(directory), str(output), "0", "1", str(q0), str(one)]
-        # Both deadlines use the project's 300-second native cap. The command
-        # timeout survives an outer test stop; the subprocess timeout also kills
-        # the complete child group when this test remains active.
         with subprocess.Popen(command, cwd=package, text=True, stdout=subprocess.PIPE,
                               stderr=subprocess.STDOUT, start_new_session=True) as child:
             try:
@@ -120,7 +111,6 @@ def main():
 
     directory = clone("missing_payload")
     (directory / first_file).unlink()
-    # The filesystem metadata error names the missing manifest-owned path.
     reject("missing_payload", directory, expected=first_file)
 
     directory = clone("extra_payload_file")

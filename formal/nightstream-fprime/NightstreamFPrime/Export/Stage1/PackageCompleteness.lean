@@ -5,9 +5,8 @@ import NightstreamFPrime.Export.Stage1.PiRLCSamplerCompleteness
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
-Owns the package-level constructive assemblers for the exact production
-PiCCS, PiRLC, PiDEC v1_2, and running-transition rows. It adds no row or
-alternate verifier path.
+Owns the package-level constructive assemblers for the exact production PiCCS,
+PiRLC, PiDEC v1_2, and running-transition rows.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PackageCompleteness
@@ -154,9 +153,6 @@ private theorem piCcsArithmeticLogicalEnds :
     NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq, StateBinding.signCount_eq]
   norm_num
 
-/-- Every source row lowered into the ordinary PiCCS packet reads only the
-completed PiCCS logical prefix. This proof is structural in the eight opaque
-child circuits and does not traverse the emitted rows. -/
 theorem piCcsEmittedConstraints_varsBelow
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -422,9 +418,6 @@ private theorem pullback_agreesBelow_piRlc
     rw [phaseSuffixEnd_eq]
     exact mappedPublic.le
 
-/-- PiRLC completion cannot change any exact Lean-lowered PiCCS arithmetic
-row. Source rows end at the PiRLC source offset; remapping sends earlier
-private columns below the write and public columns above its exact end. -/
 theorem piCcsArithmeticRows_of_piRlcAgreesOutside
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
     (before after : Env)
@@ -514,8 +507,6 @@ private theorem liftPilotCombination_eval_of_piRlcAgreesOutside
   simp only [Function.comp_apply]
   rw [agrees _ (liftPilotColumn_piRlcOutside term.column)]
 
-/-- The PiRLC-and-later write interval is disjoint from every input and
-target column of the lifted Pilot witness program. -/
 theorem pilotWitnessInstructions_of_piRlcAgreesOutside
     (before after : Env)
     (agrees : AgreesOutside before after
@@ -540,8 +531,6 @@ theorem pilotWitnessInstructions_of_piRlcAgreesOutside
     agrees _ (liftPilotColumn_piRlcOutside pilotInstruction.target)]
   exact beforeHolds
 
-/-- The PiRLC write interval is disjoint from every lifted Pilot assertion
-column, including the relocated public suffix. -/
 theorem pilotAssertionRows_of_piRlcAgreesOutside
     (before after : Env)
     (agrees : AgreesOutside before after
@@ -736,8 +725,6 @@ private theorem stage1HashChainHolds_iff_pilotTemplate
     change (instantiateRow (Data.circuitPackage ()) chain invocation row).Holds env
     exact held
 
-/-- Both lifted Pilot hash chains are entirely outside the PiRLC private
-write interval, so their exact canonical Poseidon2 rows remain true. -/
 theorem pilotHashChains_of_piRlcAgreesOutside
     (before after : Env)
     (agrees : AgreesOutside before after
@@ -809,8 +796,6 @@ theorem pilotHashChains_of_piRlcAgreesOutside
     · exact (stage1HashChainHolds_iff_pilotTemplate Data.outputChain before).mp
         (holds Data.outputChain (by simp))
 
-/-- The exact PiCCS permutation schedule and ordinary rows are disjoint from
-the later PiRLC private interval. Public inputs lie at or above its exact end. -/
 theorem piCcsRows_of_piRlcAgreesOutside
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
     (before after : Env)
@@ -867,8 +852,6 @@ theorem piCcsRows_of_piRlcAgreesOutside
   rw [Data.circuitPackage_permutation]
   exact preserved
 
-/-- Exact phase-local row packets assemble into the authoritative Stage 1
-package predicate. Every premise is indexed by a canonical `Data` list. -/
 theorem rowsHold_of_packets
     (env : Env)
     (pilotChains : ∀ chain ∈ [Data.priorChain, Data.outputChain],
@@ -930,8 +913,6 @@ theorem rowsHold_of_packets
     · exact pilotAssertions row member
     · exact ordinary.2 row member
 
-/-- The five exact remapped PiRLC physical packets construct every canonical
-PiRLC package component. -/
 theorem piRlcRowsHold_of_packets
     (env : Env)
     (packets : PiRLCPackageCompleteness.RemappedPacketRowsHold env) :
@@ -942,8 +923,6 @@ theorem piRlcRowsHold_of_packets
       env packets,
     PiRLCSamplerCompleteness.remappedPacket_implies_ordinaryRows env packets⟩
 
-/-- The pilot and all four exact phase-row packets assemble to the one
-canonical circuit-package predicate in one final environment. -/
 theorem rowsHold_of_phaseRows
     (env : Env)
     (pilotChains : ∀ chain ∈ [Data.priorChain, Data.outputChain],
@@ -963,8 +942,6 @@ theorem rowsHold_of_phaseRows
     piCcs.arithmetic piRlc.arithmetic piDec.arithmetic
       runningTransition.arithmetic
 
-/-- A valid semantic production PiRLC phase constructs all canonical PiRLC
-package components in one final-column environment. -/
 theorem complete_piRlcRows
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
     (ajtai : AjtaiKey
@@ -1032,8 +1009,6 @@ theorem complete_piCcsRows
           (NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount -
             NightstreamFPrime.Layout.Stage1.Spartan.piCcsLocalStart) ∧
         PiCCSRowsHold completed := by
-  -- The statement-binding leaf owns the first 270 PiCCS columns: fill its
-  -- hinted signs first. Every later step writes only above them.
   let signedSource := StateBinding.completeEnv (Formal.statementBindingInterface
         (PiCCSArithmetic.sharedInterface Data.logicalWidth Data.publicFits)).state
     (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)

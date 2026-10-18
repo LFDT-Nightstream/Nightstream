@@ -6,9 +6,6 @@ use p3_goldilocks::Goldilocks;
 
 type F = Goldilocks;
 
-// ---------------------------------------------------------------------------
-// 1. poseidon2_determinism
-// ---------------------------------------------------------------------------
 #[test]
 fn poseidon2_determinism() {
     let input = [F::from_u64(1), F::from_u64(2), F::from_u64(3)];
@@ -19,13 +16,10 @@ fn poseidon2_determinism() {
     assert_eq!(h1, h2, "same input should produce same hash output");
 }
 
-// ---------------------------------------------------------------------------
-// 2. poseidon2_domain_separation
-// ---------------------------------------------------------------------------
 #[test]
 fn poseidon2_domain_separation() {
     let input_a = [F::from_u64(1), F::from_u64(2), F::from_u64(3)];
-    let input_b = [F::from_u64(1), F::from_u64(2), F::from_u64(4)]; // last element differs
+    let input_b = [F::from_u64(1), F::from_u64(2), F::from_u64(4)];
 
     let h_a = poseidon2_hash(&input_a);
     let h_b = poseidon2_hash(&input_b);
@@ -33,9 +27,6 @@ fn poseidon2_domain_separation() {
     assert_ne!(h_a, h_b, "different inputs should produce different hashes");
 }
 
-// ---------------------------------------------------------------------------
-// 3. poseidon2_hash_single_matches
-// ---------------------------------------------------------------------------
 #[test]
 fn poseidon2_hash_single_matches() {
     let x = F::from_u64(42);

@@ -2,9 +2,6 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier.Algebra
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier.NoZeroDivisors
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolDataRefinement
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/ConcreteCarrier.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Concrete carrier closure for canonical SuperNeo v1.2 `Pi_CCS`.
 
@@ -23,21 +20,6 @@ coefficient-expanded matrix derivation, transcript hashing, SumCheck degree
 bounds, output CE projection, Pi_RLC handoff, R1CS, row removal, or counts.
 
 Emits constraints: no.
-
-Authority boundary: arithmetic and the zero/one/add/mul embedding laws come
-from `ConcreteCarrier.Algebra`. This file adds only the norm-aware protocol
-obligations and verifier composition. The still-unproved Goldilocks modulus
-Euclid property remains an explicit premise rather than being hidden inside
-the carrier instance.
-
-| Protocol | Phase | Family | Concrete owner / result |
-|---|---|---|---|
-| imported algebra | carrier arithmetic | base/extension operations and laws | `ConcreteCarrier.Algebra` |
-| imported cancellation | extension irreducibility | conditional no-zero-divisor derivation | `ConcreteCarrier.NoZeroDivisors` |
-| `Pi_CCS` | carrier placement | zero reflection | `zeroReflectingLift` |
-| `Pi_CCS` | norm placement | strict cubic commutes with `K.embed` | `embed_strictNorm` |
-| `Pi_CCS` | carrier placement | full norm-aware `F -> K` contract | `protocolLift` |
-| open arithmetic | number-theoretic instantiation | modulus Euclid and seven nonresidue | explicit theorem premises |
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
@@ -52,7 +34,6 @@ private theorem k_embed_strictNorm (value : F) :
   rw [show K.one = K.embed 1 from rfl]
   exact NormRange.embed_cubicResidual value
 
-/-- The concrete embedding preserves and reflects the semantic zero. -/
 theorem zeroReflectingLift :
     ConcreteJointData.ZeroReflectingLift baseOps extensionOps K.embed where
   zero_iff := by
@@ -65,8 +46,6 @@ theorem zeroReflectingLift :
       subst equal
       rfl
 
-/-- Applying the extension-carrier norm polynomial after embedding is exactly
-embedding the independent concrete base cubic. -/
 theorem embed_strictNorm (value : F) :
     ProtocolPolynomial.strictNormResidual extensionOps (K.embed value) =
       K.embed (NormRange.cubicResidual value) := by
@@ -74,8 +53,6 @@ theorem embed_strictNorm (value : F) :
   rw [derived_sub_eq_concrete_sub]
   exact k_embed_strictNorm value
 
-/-- Concrete `F -> K` placement assembled solely from the named leaf
-theorems above. -/
 theorem protocolLift :
     ProtocolDataRefinement.ProtocolLift baseOps extensionOps K.embed where
   toZeroReflectingLift := zeroReflectingLift

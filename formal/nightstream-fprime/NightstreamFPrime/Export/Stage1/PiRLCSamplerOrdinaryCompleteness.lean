@@ -161,9 +161,6 @@ private theorem sourceRows_eq_data :
   simp only [PiRLCSamplerOrdinaryRows.sourceRows, PiRLCSamplerOrdinaryRows.rangeRows,
     PiRLCSamplerOrdinaryRows.rangeConstraints, interfaceEq]
 
-/-- Actual cumulative physical rows make every ordinary sampler row vanish
-on the canonical retained assignment. The exact source set supplies every
-readback; all Poseidon output equalities are derived from its physical rows. -/
 theorem rowsZero_of_completed
     (application : Lifecycle.Stage1.Application.Program)
     (relation : ProductionKey.LogicalRelation relationLogicalWidth relationPublicFits)

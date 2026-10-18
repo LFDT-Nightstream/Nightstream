@@ -46,10 +46,6 @@ mod digest;
 
 use digest::cache_digest;
 
-/// Verifier-owned values that bind one compact cache artifact.
-///
-/// Store this receipt in trusted profile metadata. Do not read it from the
-/// same untrusted file that contains the cache.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SuperneoCacheArtifactReceipt {
     artifact_bytes: u64,
@@ -59,7 +55,6 @@ pub struct SuperneoCacheArtifactReceipt {
 }
 
 impl SuperneoCacheArtifactReceipt {
-    /// Rebuild a receipt from trusted profile metadata.
     pub fn from_parts(
         artifact_bytes: u64,
         matrix_count: usize,
@@ -80,28 +75,23 @@ impl SuperneoCacheArtifactReceipt {
         })
     }
 
-    /// Exact encoded artifact size.
     pub fn artifact_bytes(&self) -> u64 {
         self.artifact_bytes
     }
 
-    /// Number of cached matrices.
     pub fn matrix_count(&self) -> usize {
         self.matrix_count as usize
     }
 
-    /// Verifier-bound CCS matrix digest.
     pub fn matrix_digest(&self) -> [u64; DIGEST_LEN] {
         self.matrix_digest
     }
 
-    /// Poseidon2 digest of the compact cache representation.
     pub fn cache_digest(&self) -> [u64; DIGEST_LEN] {
         self.cache_digest
     }
 }
 
-/// Hard load bounds selected by the deployment profile.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SuperneoCacheArtifactLimits {
     max_bytes: u64,
@@ -110,37 +100,26 @@ pub struct SuperneoCacheArtifactLimits {
     max_matrices: usize,
 }
 
-/// A compact cache that passed bounded decoding and its verifier-owned
-/// receipt check. Keeping the receipt with the cache prevents later setup
-/// code from pairing checked bytes with a different matrix identity.
 pub struct VerifiedSuperneoCacheArtifact {
     cache: SuperneoEvalCache,
     receipt: SuperneoCacheArtifactReceipt,
 }
 
 impl VerifiedSuperneoCacheArtifact {
-    /// The checked compact evaluator cache.
     pub fn cache(&self) -> &SuperneoEvalCache {
         &self.cache
     }
 
-    /// The verifier-owned receipt used during bounded decoding.
     pub fn receipt(&self) -> &SuperneoCacheArtifactReceipt {
         &self.receipt
     }
 
-    /// Discard the verified pairing and keep only the evaluator cache.
     pub fn into_cache(self) -> SuperneoEvalCache {
         self.cache
-    }
-
-    pub(crate) fn into_parts(self) -> (SuperneoEvalCache, SuperneoCacheArtifactReceipt) {
-        (self.cache, self.receipt)
     }
 }
 
 impl SuperneoCacheArtifactLimits {
-    /// Set the maximum file size and matrix shape accepted by the loader.
     pub fn new(max_bytes: u64, max_rows: usize, max_cols: usize, max_matrices: usize) -> Self {
         Self {
             max_bytes,
@@ -151,23 +130,16 @@ impl SuperneoCacheArtifactLimits {
     }
 }
 
-/// Failure while encoding or loading a compact cache artifact.
 #[derive(Debug, Error)]
 pub enum SuperneoCacheArtifactError {
-    /// The backing reader or writer failed.
     #[error("compact cache artifact I/O failed: {0}")]
     Io(#[from] std::io::Error),
-    /// The artifact is malformed or does not match its receipt.
     #[error("invalid compact cache artifact: {0}")]
     Invalid(String),
-    /// A deployment bound was exceeded before allocation.
     #[error("compact cache artifact {item} {actual} exceeds limit {maximum}")]
     Limit {
-        /// Bounded item.
         item: &'static str,
-        /// Encoded value.
         actual: u64,
-        /// Accepted maximum.
         maximum: u64,
     },
 }
@@ -181,7 +153,6 @@ fn limit(item: &'static str, actual: u64, maximum: u64) -> SuperneoCacheArtifact
 }
 
 impl SuperneoEvalCache {
-    /// Encode this cache and return the verifier-owned receipt for the bytes.
     pub fn write_artifact<W: Write>(
         &self,
         writer: W,
@@ -217,7 +188,6 @@ impl SuperneoEvalCache {
         Ok(receipt)
     }
 
-    /// Load a cache under exact verifier-owned receipt values and hard bounds.
     pub fn read_artifact<R: Read>(
         reader: R,
         receipt: &SuperneoCacheArtifactReceipt,
@@ -226,7 +196,6 @@ impl SuperneoEvalCache {
         Self::read_verified_artifact(reader, receipt, limits).map(VerifiedSuperneoCacheArtifact::into_cache)
     }
 
-    /// Load and retain proof that bounded decoding used this exact receipt.
     pub fn read_verified_artifact<R: Read>(
         reader: R,
         receipt: &SuperneoCacheArtifactReceipt,

@@ -2,7 +2,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSTensorWeights
 import NightstreamFPrime.Export.Stage1.PiCCSFirstRound
 
 /-! Reuse the prepared suffix tensor weights in the existing first-round
-selector. The head affine factor and empty-target result are unchanged. -/
+selector. -/
 
 set_option autoImplicit false
 
@@ -14,7 +14,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 universe uField
 variable {Field : Type uField}
 
-/-- The same selector construction with a prepared suffix-weight lookup. -/
 def equalitySelector (ops : InterpolationOps Field) {arity remaining : Nat}
     (suffix : BooleanVertex remaining) (target : CubePoint Field arity)
     (tables : Array Field × Array Field) : FixedPolynomial Field 1 :=
@@ -33,7 +32,7 @@ private theorem suffixWeight_value (ops : InterpolationOps Field)
     PiCCSTensorWeights.lookup ops coordinates (PiCCSTensorWeights.prepare ops coordinates)
         (NumericBooleanDomain.index suffix) =
       SumCheckTruthPath.pointEqualityCoordinates ops
-        (SumCheckTruthPath.VertexEncoding.fieldCoordinates ops suffix) coordinates := by
+        (BooleanVertex.fieldCoordinates ops suffix) coordinates := by
   calc
     _ = NumericBooleanDomain.tensorWeightCoordinates ops coordinates
         (NumericBooleanDomain.index suffix) :=
@@ -46,14 +45,12 @@ private theorem suffixWeight_value (ops : InterpolationOps Field)
           ⟨NumericBooleanDomain.index suffix, NumericBooleanDomain.index_lt_twoPow suffix⟩
           (⟨coordinates, dimension⟩ : CubePoint Field remaining)
     _ = SumCheckTruthPath.pointEquality ops
-        (SumCheckTruthPath.VertexEncoding.toCubePoint ops suffix)
+        (BooleanVertex.toCubePoint ops suffix)
         (⟨coordinates, dimension⟩ : CubePoint Field remaining) :=
       (SumCheckTruthPath.pointEquality_toCubePoint_eq_equalityWeight ops laws suffix
         (⟨coordinates, dimension⟩ : CubePoint Field remaining)).symm
     _ = _ := rfl
 
-/-- Prepared suffix weights preserve the complete original polynomial.
-The sole dimension premise is the existing first-coordinate/suffix split. -/
 theorem equalitySelector_prepare (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops) {arity remaining : Nat}
     (dimension : arity = remaining + 1) (suffix : BooleanVertex remaining)
@@ -75,7 +72,7 @@ theorem equalitySelector_prepare (ops : InterpolationOps Field)
             (ops.sub head (ops.sub ops.one head))) =
         FixedPolynomial.scale ops.toOps
           (SumCheckTruthPath.pointEqualityCoordinates ops
-            (SumCheckTruthPath.VertexEncoding.fieldCoordinates ops suffix) tail)
+            (BooleanVertex.fieldCoordinates ops suffix) tail)
           (FixedPolynomial.affine (ops.sub ops.one head)
             (ops.sub head (ops.sub ops.one head)))
       rw [suffixWeight_value ops laws suffix tail tailDimension]

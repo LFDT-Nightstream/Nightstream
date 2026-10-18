@@ -20,8 +20,6 @@ use serde_json::{json, Value};
 
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
-// The retained Poseidon2 base fixture supplies these inputs. Every later step
-// uses the same message, so separate engine runs have identical workloads.
 const INITIAL: [u64; 4] = [202, 203, 204, 205];
 const MESSAGE: [u64; 4] = [7, 11, 13, 17];
 
@@ -174,8 +172,6 @@ fn benchmark(package: &Path, engine: Engine, steps: u64, minimum_security_bits: 
     }))?;
     let total = Instant::now();
     let started = begin("load", None)?;
-    // The caller selects the package. Loading and both selected-engine
-    // capabilities are part of the measured lifecycle.
     let circuit = Circuit::load(package)?;
     let prover = circuit.prover(engine, minimum_security_bits)?;
     let verifier = Verifier::from_package(&circuit, engine, minimum_security_bits)?;

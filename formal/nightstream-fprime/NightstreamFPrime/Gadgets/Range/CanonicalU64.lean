@@ -16,12 +16,6 @@ Invariants:
 - the bits recompose to the input as one integer below the modulus;
 - `0xffffffff : high32` forces `low32 = 0`, so `x + p` is rejected;
 - hints are witness computations only. Every accepted value is bound by rows.
-
-Provenance: the quadratic high-word flag schedule follows
-`formal/nightstream-lean/Nightstream/Implementation/R1CS/Canonical/
-CanonicalU64Recipe.lean` at commit
-`fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`. The circuit and proofs below
-are adapted to the F′ `FormalCircuit` DSL and use no frozen module.
 -/
 
 namespace NightstreamFPrime.Gadgets.Range.CanonicalU64
@@ -208,7 +202,6 @@ def wordValue (env : Env) (offset : Nat) : Nat :=
 def Assumptions (interface : Interface) (offset : Nat) (_env : Env) : Prop :=
   (interface.source offset).VarsBelow offset
 
-/-- Exact integer result of one accepted decomposition. -/
 structure Refines (interface : Interface) (offset : Nat) (env : Env) : Prop where
   source_eq : ((interface.source offset).eval env).val = wordValue env offset
   canonical : wordValue env offset < goldilocksModulus
@@ -235,7 +228,6 @@ private theorem fieldOfNat_val_self (value : F) :
   apply Fin.eq_of_val_eq
   simp [fieldOfNat, Nat.mod_eq_of_lt value.isLt]
 
-/-- Every nonzero field value times its hint inverse is one. -/
 theorem mul_hintInverse_eq_one (value : F) (nonzero : value ≠ 0) :
     value * Hint.inverse value = 1 := by
   have valuePositive : 0 < value.val := Nat.pos_of_ne_zero (by
@@ -345,8 +337,6 @@ private theorem flagRecipe_varsBelow (offset : Nat) :
     · exact Expr.VarsBelow.mono _ (highDifference_varsBelow offset) (by omega)
     · simp [inverseExpr, Expr.VarsBelow]
 
-/-- Every canonical-decomposition constraint reads only the caller-owned
-source and the exact 66-value logical interval. -/
 theorem flatConstraints_varsBelow
     (interface : Interface) (offset : Nat)
     (sourceBelow : (interface.source offset).VarsBelow offset) :
@@ -440,8 +430,6 @@ theorem flagRecipe_varsSatisfy (offset : Nat)
     · exact highDifference_varsSatisfy offset allowed localSupported
     · exact localSupported bitCount (by norm_num [bitCount, auxiliaryCount])
 
-/-- Every canonical-decomposition constraint reads only the caller-supported
-source and the exact 66 local columns. -/
 theorem flatConstraints_varsSatisfy
     (interface : Interface) (offset : Nat) (allowed : Nat → Prop)
     (sourceSupported : (interface.source offset).VarsSatisfy allowed)
@@ -698,8 +686,6 @@ private theorem wordValue_eq_fullWeighted (env : Env) (offset : Nat) :
   have split := weightedValue_split env offset halfBitCount halfBitCount
   simpa [wordValue, lowValue, highValue, halfBitCount, bitCount] using split.symm
 
-/-- Every accepted canonical decomposition exposes the exact integer bit
-window of its source value. Window weights restart at zero. -/
 theorem windowValue_eq (interface : Interface) (env : Env) (offset start count : Nat)
     (refines : Refines interface offset env)
     (within : start + count ≤ bitCount) :
@@ -1147,7 +1133,6 @@ private theorem completeEnv_holdsFlat
       · exact recomposition
       · exact canonicality
 
-/-- The concrete hint-and-recipe execution is the honest completion. -/
 theorem completeEnv_correct (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env) :
     AgreesOutside env (completeEnv interface env offset) offset auxiliaryCount ∧

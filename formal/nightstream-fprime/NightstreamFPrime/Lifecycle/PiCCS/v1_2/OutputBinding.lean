@@ -44,7 +44,6 @@ open NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.UnifiedSources
 
-/-- One shared symbolic copy of the complete paper `y′` family. -/
 structure OutputExpr where
   padCoordinate : Fin productionShape.sourceCount →
     Fin productionShape.coefficientCount → KExpr
@@ -52,24 +51,20 @@ structure OutputExpr where
     Fin productionShape.matrixCount →
     Fin productionShape.coefficientCount → KExpr
 
-/-- Complete symbolic interface of the output-binding leaf. -/
 structure Interface where
   roundPoint : Nat → Fin productionShape.cubeVariables → KExpr
   initialState : Nat → Layer.EState
   output : Nat → OutputExpr
 
-/-- Every reduced CE output reuses the verifier-derived point. -/
 def reducedPoint (interface : Interface) (offset : Nat)
     (_source : Fin productionShape.sourceCount) :=
   interface.roundPoint offset
 
-/-- The reduced `Eval_K` view is the same Pad wire family. -/
 def reducedEval_K (interface : Interface) (offset : Nat)
     (source : Fin productionShape.sourceCount)
     (coefficient : Fin productionShape.coefficientCount) : KExpr :=
   (interface.output offset).padCoordinate source coefficient
 
-/-- The reduced `Eval_A` view is the same genuine-matrix wire family. -/
 def reducedEval_A (interface : Interface) (offset : Nat)
     (source : Fin productionShape.sourceCount)
     (matrix : Fin productionShape.matrixCount)
@@ -113,8 +108,6 @@ def sourceWords (output : OutputExpr)
     (source : Fin productionShape.sourceCount) : List Expr :=
   padWords output source ++ matrixWords output source
 
-/-- Canonical `K + k` source order, with Pad coefficients before all genuine
-matrix coefficients inside each source. -/
 def outputWords (interface : Interface) (offset : Nat) : List Expr :=
   (List.finRange productionShape.sourceCount).flatMap fun source =>
     sourceWords (interface.output offset) source
@@ -148,8 +141,6 @@ private theorem sourceWords_length (output : OutputExpr)
     (sourceWords output source).length = 540 := by
   rw [sourceWords, List.length_append, padWords_length, matrixWords_length]
 
-/-- The complete output contains 9,180 base-field words: separate Pad and
-4-matrix coefficients for all 17 sources. -/
 theorem outputWords_length (interface : Interface) (offset : Nat) :
     (outputWords interface offset).length = 9180 := by
   unfold outputWords
@@ -157,7 +148,6 @@ theorem outputWords_length (interface : Interface) (offset : Nat) :
   norm_num [productionShape, productionProfile,
     Phi81MatrixSource.phi81Shape, Shape.sourceCount]
 
-/-- One output absorb is the complete post-SumCheck action. -/
 def actions (interface : Interface) (offset : Nat) : List Formal.Action :=
   [.absorb (outputWords interface offset)]
 
@@ -165,7 +155,6 @@ def duplexInterface (interface : Interface) : Formal.Owned.Interface where
   initial := interface.initialState
   actions := actions interface
 
-/-- The circuit-owned post-PiCCS transcript state. -/
 def finalState (interface : Interface) (offset : Nat) : Layer.EState :=
   Formal.Owned.output (duplexInterface interface) offset
 
@@ -178,8 +167,6 @@ theorem finalState_eq_compile (interface : Interface) (offset : Nat) :
 abbrev Assumptions (interface : Interface) (offset : Nat) (env : Env) : Prop :=
   Formal.Owned.Assumptions (duplexInterface interface) offset env
 
-/-- Named semantic predicate: the exact Poseidon2 output absorption reaches
-the declared post-PiCCS state. -/
 abbrev SpecHolds (interface : Interface) (offset : Nat) (env : Env) : Prop :=
   Formal.Owned.SpecHolds (duplexInterface interface) offset env
 
@@ -192,7 +179,6 @@ theorem trace_implies_specHolds (interface : Interface) (offset : Nat)
     SpecHolds interface offset env :=
   trace
 
-/-- The sole logical circuit for this leaf. -/
 def circuit (interface : Interface) : FormalCircuit :=
   Formal.Owned.circuit (duplexInterface interface)
 
@@ -206,8 +192,6 @@ theorem noAssertions (interface : Interface) (offset : Nat) :
     Formal.Owned.allAssertions (duplexInterface interface) offset = [] := by
   rfl
 
-/-- Honest execution owns the final state because this schedule contains only
-one absorb action and therefore no squeeze assertion. -/
 theorem build (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env) :
     ∃ completed,
@@ -247,7 +231,6 @@ theorem actions_length (interface : Interface) (offset : Nat) :
     (actions interface offset).length = 1 := by
   rfl
 
-/-- Exact symbolic private-variable footprint of the output absorption. -/
 def recipeCount (interface : Interface) (offset : Nat) : Nat :=
   Formal.recipeCount (actions interface offset)
 
@@ -257,8 +240,6 @@ private theorem inputChunks_length (input : List Expr) :
   rw [List.length_map, List.length_range]
   rfl
 
-/-- The 9,180 output words use 765 Poseidon2 chunks and 838,440 private
-recipe variables. -/
 theorem recipeCount_eq (interface : Interface) (offset : Nat) :
     recipeCount interface offset = 838440 := by
   unfold recipeCount actions
@@ -274,7 +255,6 @@ theorem localLength_eq (interface : Interface) (offset : Nat) :
   rw [Formal.compile_recipes_length]
   simpa [duplexInterface, recipeCount] using recipeCount_eq interface offset
 
-/-- One witness operation and no boundary assertion. -/
 theorem operations_length (interface : Interface) (offset : Nat) :
     (Circuit.ops (circuit interface).main offset).length = 1 := by
   change (Formal.Owned.opsAt (duplexInterface interface) offset).length = 1
@@ -282,7 +262,6 @@ theorem operations_length (interface : Interface) (offset : Nat) :
   simp [duplexInterface, actions, Formal.assertionCount,
     Formal.Action.assertionCount]
 
-/-- One row per recipe and no final-state row. -/
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
       838440 := by
@@ -392,8 +371,6 @@ private theorem sourceWords_eval (interface : Interface) (offset : Nat)
   rw [sourceWords, List.map_append, padWords_eval interface offset env output
     padEq, matrixWords_eval interface offset env output matrixEq]
 
-/-- Symbolic output serialization evaluates bit-for-bit to the semantic
-production output serialization. -/
 theorem outputWords_eval (interface : Interface) (offset : Nat) (env : Env)
     (output : FullOutputCoordinates.FullOutput K productionShape)
     (padEq : ∀ source coefficient,
@@ -409,8 +386,6 @@ theorem outputWords_eval (interface : Interface) (offset : Nat) (env : Env)
   intro source
   exact sourceWords_eval interface offset env output padEq matrixEq source
 
-/-- Circuit coverage of the verifier-owned outgoing state. The prover
-supplies only `y′`; the final transcript state is recomputed. -/
 theorem spec_implies_keyOutgoingState
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -472,7 +447,6 @@ theorem spec_implies_keyOutgoingState
         ).piCcsExecution_outgoingState_eq_absorbPiCcsOutput
           running fresh proof).symm
 
-/-- Exact output-Pad conjunct used by the canonical v1.2 coverage map. -/
 theorem key_output_eval_K
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -492,7 +466,6 @@ theorem key_output_eval_K
           (runningSourceIndex coordinate.running) coordinate.coefficient := by
   rfl
 
-/-- Exact output-matrix conjunct used by the canonical v1.2 coverage map. -/
 theorem key_output_eval_A
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

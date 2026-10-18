@@ -5,8 +5,6 @@ import NightstreamFPrime.Export.Stage1.PoseidonActionSemantics
 
 /-!
 Owns the value-preservation bridge for the direct PiCCS Poseidon2 plan.
-It proves that every sparse invocation input is the exact previous output plus
-the Lean action payload, with zero initial state.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSPoseidonPreservation
@@ -33,8 +31,6 @@ structure Encoding {program : Lifecycle.Stage1.Application.Program}
     (PiCCSPoseidonPlan.retainedFits geometry) assignment
     (sourceAssignment program prefixAssignment)
 
-/-- The canonical parent retained block supplies the PiCCS S-box slice. The
-parent proves each payload value through its own source map. -/
 theorem encodingOfRetained
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
@@ -131,8 +127,6 @@ def outputValue {program : Lifecycle.Stage1.Application.Program}
   SparseLayer.evalState assignment
     (PiCCSPoseidonPlan.outputState geometry invocation)
 
-/-- Every retained final-state lane reconstructs the exact canonical source
-value selected by the PiCCS Poseidon schedule. -/
 theorem outputValue_sourceAssignment
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     {payloadForms : PiCCSPoseidonPlan.Payload logicalWidth}

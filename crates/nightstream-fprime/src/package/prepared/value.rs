@@ -1,5 +1,4 @@
 //! The prepared fixed envelope contains only arrays and unsigned field/index words.
-//! Count nodes before constructing them; the ordinary JSON recursion check stays enabled.
 
 use std::{fmt, io::Read};
 

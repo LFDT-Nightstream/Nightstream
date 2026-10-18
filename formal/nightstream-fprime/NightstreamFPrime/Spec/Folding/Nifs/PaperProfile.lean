@@ -3,9 +3,6 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperProduct
 import NightstreamFPrime.Spec.Folding.PiDEC.PaperVerifier
 import NightstreamFPrime.Spec.Folding.PiRLC
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/Nifs/PaperProfile.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Independent fixed-active SuperNeo NIFS paper profile.
 
@@ -14,35 +11,14 @@ Phase: `Pi_CCS -> Pi_RLC -> Pi_DEC` at the production-selected arity.
 Constraint family: abstract relation obligations only; this file emits no
 rows.
 
-Assurance tier: model-level.
-
 Owns: the exact `1 CCS + 16 CE -> 17 CE -> 1 CE -> 16 CE` semantic graph;
 the abstract relation and tail algebras; source membership and common-shape
 obligations; one new row point; seventeen strong-set challenges; the operational
 Section-7.5 `Pi_DEC` verifier, including exact evaluation arity; and the
 canonical honest-completeness constructor.
 
-Does not own: Phi81, the PiCCS SumCheck message flow, Fiat--Shamir,
-commitment security, child-opening extraction, parent caches, HyperNova
-lifecycle state, Rust, R1CS, costs, necessity, or row removal.
-
-Authority boundary: this module depends only on the paper-level relation and
-the independently specified `Pi_CCS`, `Pi_RLC`, and `Pi_DEC` algebras. It does
-not import any concrete NIFS verifier or F-prime module. The combined parent
-is an internal computed intermediate; only the sixteen children are public.
-
 The final `-> 16 CE` edge comes from SuperNeo Section 7.5. Sections 7.3--7.4
 alone end at the single combined `CE(B)` parent.
-
-| Stage path | Mathematical obligation | Authority class | Lean owner |
-|---|---|---|---|
-| `nifs.paper.profile` | `K = 1`, `k_rho = 16`, seventeen sources, sixteen outputs, `b = 2` | verifier parameters | profile count theorems |
-| `nifs.paper.source` | every source is fresh-stage, valid, same-structure, and running claims share one prior point | independent specification | `Realization` |
-| `nifs.paper.pi_ccs` | all sources are re-evaluated at one valid new point | computed | `outputs`, `Realization.outputsHold` |
-| `nifs.paper.pi_rlc` | fifteen valid challenges determine one valid combined opening | checked/computed | `ChallengesValid`, `parentOf`, `Realization.parentOpening` |
-| `nifs.paper.pi_dec` | child public inputs/structure/point/stage and evaluation arity are fixed; commitment/evaluation recomposition is checked | checked/computed | `Realization.piDecAccepted`, `childrenOf`, `complete` |
-| `nifs.paper.transition` | public-verifier source-to-children acceptance relation | independent specification | `Transition` |
-| `nifs.paper.completeness` | every complete realization premise constructs the canonical target | derived | `complete` |
 -/
 
 namespace NightstreamFPrime.Spec.Folding.Nifs.PaperProfile
@@ -54,8 +30,6 @@ open NightstreamFPrime.Spec.Folding
 universe uStructure uAssignment uPublicInput uPoint uEvaluation uCommitment
   uScalar
 
-/-- HyperNova selects one fresh relation instance; SuperNeo carries the full
-production `k_rho = 16` running product. -/
 def arity : BatchArity productionGlobalParams :=
   BatchArity.active productionGlobalParams 1 (by decide) (by decide)
 
@@ -70,8 +44,6 @@ def arity : BatchArity productionGlobalParams :=
 
 @[simp] theorem baseNormBound : productionGlobalParams.b = 2 := rfl
 
-/-- Exact public paper input. The canonical source order is the one owned by
-`PiCCS.PaperProduct.InputProduct.source`. -/
 abbrev Input
     (Structure : Type uStructure)
     (PublicInput : Type uPublicInput)
@@ -81,7 +53,6 @@ abbrev Input
   PiCCS.PaperProduct.InputProduct Structure PublicInput Point Evaluation Commitment
     productionGlobalParams arity
 
-/-- Exact public paper target: the sixteen post-decomposition CE children. -/
 abbrev Output
     (Structure : Type uStructure)
     (PublicInput : Type uPublicInput)
@@ -91,8 +62,6 @@ abbrev Output
   Fin productionGlobalParams.k ->
     CE.Instance Structure PublicInput Point Evaluation Commitment
 
-/-- Abstract relation operations and the two independently specified tail
-algebras. No concrete verifier key or transcript state appears here. -/
 structure Profile
     (Structure : Type uStructure)
     (Assignment : Type uAssignment)
@@ -110,8 +79,6 @@ structure Profile
   decPublicInputSplit : PiDEC.PaperVerifier.PublicInputSplit decAlgebra
   decEvaluationArity : PiDEC.PaperVerifier.EvaluationArity semantics
 
-/-- Raw mathematical witness. Validity is deliberately not proof-carried so
-each retained obligation can later be removed independently. -/
 structure Witness
     (Assignment : Type uAssignment)
     (Point : Type uPoint)
@@ -120,11 +87,8 @@ structure Witness
   point : Point
   challenges : Fin arity.total -> Scalar
 
-/-- The unique fresh source used to derive the common relation structure. -/
 def firstFresh : Fin arity.freshCount := ⟨0, by decide⟩
 
-/-- Common structure is derived from the sole fresh source, never supplied as
-an independent caller-controlled value. -/
 def systemOf
     {Structure : Type uStructure}
     {PublicInput : Type uPublicInput}
@@ -135,7 +99,6 @@ def systemOf
     Structure :=
   (input.fresh firstFresh).constraintSystem
 
-/-- Canonical `Pi_CCS` outputs at the one verifier-selected new point. -/
 def outputs
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -153,7 +116,6 @@ def outputs
   PiCCS.PaperProduct.honestOutputs profile.semantics input
     witness.assignments witness.point
 
-/-- Strong-set membership for every `Pi_RLC` challenge. -/
 def ChallengesValid
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -168,7 +130,6 @@ def ChallengesValid
   forall index,
     profile.rlcAlgebra.challengeValid (witness.challenges index)
 
-/-- Canonical private opening of the internal combined parent. -/
 def combinedAssignment
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -183,7 +144,6 @@ def combinedAssignment
   PiRLC.combinedWitness profile.rlcAlgebra witness.challenges
     witness.assignments
 
-/-- Canonical internal `CE(B)` parent. -/
 def parentOf
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -200,7 +160,6 @@ def parentOf
   PiRLC.combinedOutput profile.rlcAlgebra (systemOf input) witness.point
     (outputs profile input witness) witness.challenges
 
-/-- Canonical public children obtained by exact base-two decomposition. -/
 def childrenOf
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -217,8 +176,6 @@ def childrenOf
   PiDEC.childrenOf profile.decAlgebra (parentOf profile input witness)
     (combinedAssignment profile witness)
 
-/-- One indexed paper realization. `input`, `output`, and `witness` are fixed
-outside the fields so later removal witnesses cannot change them. -/
 structure Realization
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -247,8 +204,6 @@ structure Realization
     profile.decPublicInputSplit profile.decEvaluationArity
     (parentOf profile input witness) output
 
-/-- Independent public-verifier acceptance relation. Child opening/membership
-is a soundness premise of the reduction, not a check performed by `Pi_DEC`. -/
 def Transition
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -264,9 +219,6 @@ def Transition
   exists witness : Witness Assignment Point Scalar,
     Realization profile input output witness
 
-/-- Conditional honest completeness: valid sources and challenges construct
-the canonical public target, which satisfies the exact operational `Pi_DEC`
-verifier. Challenge generation and sampler success are separate boundaries. -/
 theorem complete
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -335,8 +287,6 @@ theorem complete
 
 namespace Realization
 
-/-- Every canonical `Pi_CCS` output has the corresponding authoritative
-fresh-stage CE opening. -/
 theorem outputsHold
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -361,7 +311,6 @@ theorem outputsHold
   rw [holds.commonStructure index]
   exact holds.newPointValid
 
-/-- The internal combined parent has the canonical challenge-folded opening. -/
 theorem parentOpening
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -393,9 +342,6 @@ theorem parentOpening
   · exact holds.outputsHold
   · exact holds.newPointValid
 
-/-- Exact operational `Pi_DEC` acceptance for the derived parent and candidate
-target. Child public inputs and copied fields are verifier-computed; child
-commitments/evaluations remain prover supplied. -/
 theorem outputAccepted
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -415,7 +361,6 @@ theorem outputAccepted
       (parentOf profile input witness) output :=
   holds.piDecAccepted
 
-/-- Compatibility projection into the older public-recomposition relation. -/
 theorem outputRecompositionAccepted
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -436,9 +381,6 @@ theorem outputRecompositionAccepted
     } :=
   holds.piDecAccepted.toRecompositionAccepted
 
-/-- Valid openings of an accepted target reconstruct a valid combined parent
-opening. This is the `Pi_DEC` reduction-of-knowledge direction and does not
-claim that the children are the deterministic honest split. -/
 theorem recomposedParentOpening
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -467,10 +409,6 @@ theorem recomposedParentOpening
     } childAssignments (by decide) holds.outputRecompositionAccepted
       childrenValid
 
-/-- The source-derived combined opening equals the target-child
-recomposition, or the two valid openings expose the standard parent binding
-collision. Noncanonical but exactly recomposing child families take the left
-branch. -/
 theorem parentOpening_eq_recompose_or_bindingCollision
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -505,8 +443,6 @@ end Realization
 
 namespace Transition
 
-/-- Every paper transition contains one witness for which the target passes
-the exact operational `Pi_DEC` verifier against the source-derived parent. -/
 theorem outputAccepted
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}

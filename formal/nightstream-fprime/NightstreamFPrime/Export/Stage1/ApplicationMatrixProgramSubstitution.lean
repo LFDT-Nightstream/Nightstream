@@ -2,7 +2,6 @@ import NightstreamFPrime.Export.Stage1.ApplicationMatrixProgram
 
 /-!
 Proves exact source custody for the compact per-application matrix program.
-Each application source resolves through one Lean-authored retained range.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.ApplicationMatrixProgram
@@ -90,8 +89,6 @@ theorem localRange_form?
       (localStart application) (ApplicationInputs.localStart application)
       (localCount application) 0 (localFits geometry) (by simp) index)
 
-/-- The compact substitution reconstructs every direct application location
-and rejects all overlapping interpretations. -/
 theorem substitution_location_form?
     {application : ApplicationProgram} {logicalWidth : Nat}
     (geometry : Geometry application logicalWidth)
@@ -206,8 +203,6 @@ theorem substitution_location_form?
       simp [substitution, SourceSubstitution.form?, inputNone, witnessNone,
         outputNone, selected]
 
-/-- On every source column used by a canonical application row, the package
-substitution is exactly the direct Lean source map. -/
 theorem substitution_agrees_on_target
     {application : ApplicationProgram} {logicalWidth : Nat}
     (geometry : Geometry application logicalWidth)

@@ -43,7 +43,6 @@ variable {logicalWidth degreeBound : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- The only external symbolic input is an affine incoming transcript state. -/
 structure InputsAffine
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_2.ChallengeDerivation.Interface)
@@ -175,8 +174,6 @@ theorem actions_affine
     (layoutProgram interface offset).samples
     (layoutProgram_samples_affine interface offset inputs)
 
-/-- Exact parent-facing physical footprint. Derived challenges and transcript
-states use compiler output variables and need no boundary-copy rows. -/
 def footprint
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
     (parentOffset : Nat)

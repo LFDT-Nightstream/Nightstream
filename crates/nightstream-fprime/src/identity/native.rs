@@ -1,5 +1,4 @@
 //! Canonical identity replay from fixed package metadata and sealed application records.
-//! Local record columns are mapped at read time; both envelope occurrences use the same owner.
 
 use std::ops::ControlFlow;
 
@@ -7,6 +6,9 @@ use crate::application_records::{ApplicationForm, ApplicationRecipeNode, Applica
 use crate::package::native_application::PreparedApplication;
 
 use super::*;
+
+const FIXED_ABI_WORDS: usize = 100;
+const RECIPE_BATCH_HEADER_WORDS: usize = 16;
 
 pub(crate) fn native_relation_identifier(
     fixed: &Value,
@@ -43,9 +45,7 @@ pub(crate) fn native_application_identity(
 
 pub(crate) fn native_application_word_count(application: &PreparedApplication) -> Result<usize, PackageError> {
     let records = application.records();
-    // The 16-field ABI has two four-column lists, four empty row families,
-    // empty instructions, and the row/batch array headers.
-    let mut word_count = 100usize
+    let mut word_count = FIXED_ABI_WORDS
         .checked_add(
             application
                 .plan()
@@ -58,7 +58,7 @@ pub(crate) fn native_application_word_count(application: &PreparedApplication) -
         .ok_or(PackageError::Invalid("application identity length"))?;
     if records.recipe_count() != 0 {
         word_count = word_count
-            .checked_add(16)
+            .checked_add(RECIPE_BATCH_HEADER_WORDS)
             .and_then(|count| count.checked_add(records.recipe_preimage_word_count()))
             .ok_or(PackageError::Invalid("application identity length"))?;
     }

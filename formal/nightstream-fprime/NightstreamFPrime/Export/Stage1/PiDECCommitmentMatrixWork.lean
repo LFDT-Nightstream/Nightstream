@@ -5,16 +5,7 @@ import NightstreamFPrime.Layout.MatrixProgram.RetainedWork
 
 /-!
 Counted retained compilation of the selected 1188 PiDEC commitment rows.
-The source row is generated once. Its exact A/B/C lists feed the two retained
-blocks, with every zero constant, duplicate and entry order preserved.
 SuperNeo v1.2 Section 7.5 and Appendix B.4 own the commitment equation.
-The existing commitmentBlock_row? theorem connects these direct forms to
-the package source and its projection; no package accessor runs here.
-
-Clocks count dispatch, data reads, scalar literals/arithmetic, helper calls
-and constructors. Calls include passing existing arguments; callee work is
-added separately. Proof transport and clock instrumentation are erased from
-this count. These are named operations, not machine instructions or wall time.
 -/
 
 set_option autoImplicit false
@@ -41,7 +32,6 @@ private abbrev selectedGeometry : PiDECRetainedGeometry.Geometry
 attribute [local irreducible] PerApplicationFixedPoint.logicalWidth
   PiDECSourceSupport.parentCommitmentStart
 
-/-- Two kind constructors, four literals, two block records, pair and Result. -/
 private def blocks (_ : Unit) : Result (RetainedBlock × RetainedBlock) :=
   ⟨(⟨.field, 1188, 36785142⟩, ⟨.field, 31968, 39679578⟩), 10⟩
 
@@ -135,8 +125,6 @@ private theorem sourceMap_at_location
   rw [← represented] at located
   exact Option.some.inj (agrees.symm.trans located)
 
-/-- Read/match/payload/Result cost four. The None branch also constructs Unit,
-calls empty, reads its value and constructs Result, costing six plus empty. -/
 private def unpackForm {columns : Nat} (opened : Result (Option (SparseForm columns))) :
     Result (SparseForm columns) :=
   match opened.value with
@@ -174,10 +162,6 @@ private theorem unpackedRetained_length_le (columns : Nat) (block : RetainedBloc
   have length := RetainedWork.form?_length block columns slot form returned
   simpa only [kind, LowNormSlot.Kind.width, BalancedTernary.width] using length.le
 
-/-- The typed source-row theorem limits this lookup to two disjoint ranges.
-The wrapper charges comparison literal/comparison/branch (3), selected start
-literal/subtraction/retained call (3), unpack call/value read/Result (3).
-RetainedWork checks the slot and complete block geometry. -/
 private def sourceForm (columns : Nat) (parent proof : RetainedBlock) (column : Nat) :
     Result (SparseForm columns) :=
   let opened := if column < 11432356 then
@@ -297,8 +281,6 @@ private theorem sourceForm_correct
     rw [← coordinate] at correct
     exact ⟨correct.1.trans mapped.symm, correct.2⟩
 
-/-- Empty: dispatch, Unit, call, value and Result (5). Cons: dispatch/head/tail
-reads (3), pair fields (2), four calls, four value reads, and Result (14). -/
 private def terms (columns : Nat) (parent proof : RetainedBlock) :
     List (Nat × F) → Result (SparseForm columns)
   | [] =>
@@ -350,7 +332,6 @@ private theorem terms_work_le (columns : Nat) (parent proof : RetainedBlock)
       simp only [terms, SparseWork.scale_work, SparseWork.add_work, List.length_cons]
       omega
 
-/-- Two affine-field reads, three calls, three value reads and Result (9). -/
 private def combination (columns : Nat) (parent proof : RetainedBlock) (one : Fin columns)
     (row : R1CS.LinearCombination) : Result (SparseForm columns) :=
   let selected := terms columns parent proof row.terms
@@ -384,8 +365,6 @@ private theorem combination_work_le (columns : Nat) (parent proof : RetainedBloc
     SparseWork.singleton_value, SparseForm.singleton, List.length_cons, List.length_nil]
   omega
 
-/-- Three row-field reads, four calls, one field literal, four value reads,
-the Forms record and Result (14). -/
 private def compileRow (columns : Nat) (parent proof : RetainedBlock) (one : Fin columns)
     (row : R1CS.Row) : Result (OrdinaryRow.Forms columns) :=
   let a := combination columns parent proof one row.a
@@ -429,8 +408,6 @@ private theorem compileRow_work_le (columns : Nat) (parent proof : RetainedBlock
   simp only [compileRow]
   omega
 
-/-- Three calls, Unit, retained value and pair-field reads (3), zero/Fin
-constructors (2), source/compiled value reads (2), and Result total 12. -/
 private def run (columns : Nat) (positive : 0 < columns) (index : Fin 1188) :
     Result (OrdinaryRow.Forms columns) :=
   let source := PiDECOrdinarySourceWork.commitmentRow index
@@ -473,9 +450,6 @@ private theorem run_lengths
   rcases PiDECOrdinarySourceWork.commitmentRow_lengths index with ⟨a, b, c⟩
   simpa only [a, b, c] using! lengths
 
-/-- 17 terms include one retained lookup, scale, append and loop step each.
-Three affine wrappers and the row wrapper supply the remaining 149.
-The source call, two block records, run wrapper and width wrapper are added. -/
 def commitmentFormsWork : Nat :=
   PiDECOrdinarySourceWork.commitmentRowWork + 10 + 17 * 14843 + 149 + 12 + 4
 
@@ -492,8 +466,6 @@ private theorem run_work_le (columns : Nat) (positive : 0 < columns) (index : Fi
     PiDECOrdinarySourceWork.commitmentRowWork + 10 + 17 * 14843 + 149 + 12 + 4
   omega
 
-/-- Execute with the proved selected width literal. Literal/call/value/Result
-cost four; the equality transport changes only the erased type index. -/
 def commitmentForms (index : Fin 1188) :
     Result (OrdinaryRow.Forms PiDECInputCheck.logicalWidth) :=
   let result := run 43963750 (by decide) index

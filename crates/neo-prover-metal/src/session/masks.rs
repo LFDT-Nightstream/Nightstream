@@ -1,6 +1,6 @@
 //! Device storage for compact signed-digit witness masks.
 
-use std::{mem::size_of, sync::atomic::Ordering};
+use std::mem::size_of;
 
 use neo_math::D;
 use neo_reductions::superneo_eval::SuperneoZBlocks;
@@ -143,38 +143,26 @@ impl MetalSession {
             .checked_mul(words_per_source)
             .ok_or(MetalError::Shape("witness mask dimensions overflow"))?
             .max(1);
-        let bytes = word_count
-            .checked_mul(size_of::<u64>())
-            .ok_or(MetalError::Shape("witness mask dimensions overflow"))?;
-        let words = self.buffer(bytes)?;
-        // This new shared buffer has no device readers. Initialize it before
-        // borrowing its words, then pack directly into the final device storage.
-        let destination = unsafe {
-            let pointer = words.contents().as_ptr().cast::<u64>();
-            pointer.write_bytes(0, word_count);
-            std::slice::from_raw_parts_mut(pointer, word_count)
-        };
-        for (source, witness) in witnesses[..stored_witnesses].iter().enumerate() {
-            if witness.is_zero() {
-                continue;
-            }
-            let target = &mut destination[source * words_per_source..(source + 1) * words_per_source];
-            if let Some((positive, negative)) = witness.signed_unit_masks() {
-                for (block, masks) in target.chunks_exact_mut(2 * magnitudes).enumerate() {
-                    masks[0] = positive[block];
-                    masks[1] = negative[block];
+        let words = self.filled_buffer(word_count, |destination| {
+            for (source, witness) in witnesses[..stored_witnesses].iter().enumerate() {
+                if witness.is_zero() {
+                    continue;
                 }
-            } else {
-                // General digit input uses one source's temporary packing.
-                let packed = witness
-                    .signed_digit_masks(base)
-                    .ok_or(MetalError::Shape("witness is outside the configured radix alphabet"))?;
-                target.copy_from_slice(&packed);
+                let target = &mut destination[source * words_per_source..(source + 1) * words_per_source];
+                if let Some((positive, negative)) = witness.signed_unit_masks() {
+                    for (block, masks) in target.chunks_exact_mut(2 * magnitudes).enumerate() {
+                        masks[0] = positive[block];
+                        masks[1] = negative[block];
+                    }
+                } else {
+                    let packed = witness
+                        .signed_digit_masks(base)
+                        .ok_or(MetalError::Shape("witness is outside the configured radix alphabet"))?;
+                    target.copy_from_slice(&packed);
+                }
             }
-        }
-        self.activity
-            .uploaded_bytes
-            .fetch_add(bytes as u64, Ordering::Relaxed);
+            Ok(())
+        })?;
         Ok(MetalWitnessMasks {
             words,
             witness_count: witnesses.len(),
@@ -208,7 +196,6 @@ impl MetalSession {
             .chunks_exact(words_per_source)
             .rposition(|source| source.iter().any(|&word| word != 0))
             .map_or(0, |last| (last + 1) * words_per_source);
-        // Preserve logical source indices. Only an all-zero suffix is absent.
         // An empty source has one bindable word, which no kernel reads.
         let stored_words = if stored == 0 { &[0u64][..] } else { &words[..stored] };
         MetalWitnessMasks::new(

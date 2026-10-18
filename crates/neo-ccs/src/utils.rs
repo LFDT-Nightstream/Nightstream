@@ -2,17 +2,14 @@ use p3_field::Field;
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
-/// Validate n is a power-of-two.
 pub fn validate_power_of_two(n: usize) -> bool {
     n != 0 && (n & (n - 1)) == 0
 }
 
-/// Compute the tensor point r^b = ⊗_{i=1..ell} (r_i, 1-r_i) ∈ K^n where n = 2^ell.
 pub fn tensor_point<K: Field>(r: &[K]) -> Vec<K> {
     let ell = r.len();
     let n = 1usize << ell;
     let mut out = vec![K::ONE; n];
-    // Gray-code style expansion
     for (i, &ri) in r.iter().enumerate() {
         let stride = 1usize << i;
         let block = 1usize << (ell - i - 1);
@@ -33,7 +30,6 @@ pub fn tensor_point<K: Field>(r: &[K]) -> Vec<K> {
     out
 }
 
-/// Compute [`tensor_point`] with parallel stage updates for large domains.
 pub fn tensor_point_parallel<K>(r: &[K]) -> Vec<K>
 where
     K: Field + Send + Sync,
@@ -82,7 +78,6 @@ where
     out
 }
 
-/// Multiply an F-matrix (n×m) by an F-vector (m) → F-vector (n).
 pub fn mat_vec_mul_ff<F: Field>(m: &[F], n_rows: usize, n_cols: usize, v: &[F]) -> Vec<F> {
     debug_assert_eq!(n_cols, v.len());
     let mut out = vec![F::ZERO; n_rows];
@@ -97,7 +92,6 @@ pub fn mat_vec_mul_ff<F: Field>(m: &[F], n_rows: usize, n_cols: usize, v: &[F]) 
     out
 }
 
-/// Multiply an F-matrix (d×m) by a K-vector (m) using the natural embedding F→K.
 pub fn mat_vec_mul_fk<F: Field, K: Field + From<F>>(m: &[F], n_rows: usize, n_cols: usize, v: &[K]) -> Vec<K> {
     debug_assert_eq!(n_cols, v.len());
     let mut out = vec![K::ZERO; n_rows];

@@ -2,9 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiRLCCombinationInvocations
 
 /-!
 Owns structural row-count proofs for the compact PiRLC combination schedule.
-
-The proofs keep the source, block, lane, and cell products symbolic. They do
-not evaluate the full invocation list.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCCombinationInvocations

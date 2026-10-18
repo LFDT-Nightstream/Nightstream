@@ -65,11 +65,6 @@ private theorem recursive_inputs
           some (output.runningNext index)) selected) accepted
     exact ⟨pc, publicLink, selectedAccepted⟩
 
-/-- A positive selected step constructs pilot, C/R/D, running-transition,
-and next-preimage rows in one environment. Its actual proof supplies sampler
-availability and the exact NIFS result. State validity and the successor
-bound permit exact natural-counter readback. No generated row, phase value,
-or source agreement is assumed. -/
 theorem recursive_completePrefix
     (valid : Lifecycle.Stage1.Terminal.StatementValid
       { iteration := input.iteration, z0 := input.z0, zi := input.zi })

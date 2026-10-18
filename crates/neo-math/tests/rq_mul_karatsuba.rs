@@ -1,4 +1,4 @@
-use neo_math::ring::test_reduce_mod_phi_81;
+use neo_math::ring::PHI_MID_DEGREE;
 use neo_math::{Fq, Rq, D};
 use p3_field::PrimeCharacteristicRing;
 use rand::rngs::StdRng;
@@ -23,7 +23,12 @@ fn schoolbook_mul_reference(lhs: &Rq, rhs: &Rq) -> Rq {
             tmp[i + j] += ai * rhs.0[j];
         }
     }
-    test_reduce_mod_phi_81(&mut tmp);
+    for degree in (D..2 * D - 1).rev() {
+        let top = tmp[degree];
+        tmp[degree] = Fq::ZERO;
+        tmp[degree - D] -= top;
+        tmp[degree - D + PHI_MID_DEGREE] -= top;
+    }
     let mut out = [Fq::ZERO; D];
     out.copy_from_slice(&tmp[..D]);
     Rq(out)

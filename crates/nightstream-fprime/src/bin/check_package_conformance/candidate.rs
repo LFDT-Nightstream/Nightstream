@@ -111,8 +111,6 @@ fn component(tag: u64, authority: &[u64]) -> [u64; 4] {
     hash(&preimage)
 }
 
-// Same independent numeric-array framing as tests/production_binding.rs.
-// Source words come from the complete candidate, not from carried digests.
 fn append_value_preimage(value: &Value, output: &mut Vec<u64>) {
     match value {
         Value::Number(number) => {
@@ -145,8 +143,6 @@ fn setup_authority_words(message_columns: u64) -> Vec<u64> {
     authority
 }
 
-/// Execute the full-carrier primitive on the exact sparse input emitted by
-/// Lean. Its final coordinate is nonzero; this is not a fresh CCS padding test.
 pub fn check_sparse_commitment(path: &Path) {
     let started = Instant::now();
     let LeanSparseCommitment(schema, authority, support, expected_rows) =
@@ -335,8 +331,6 @@ impl Candidate {
     }
 }
 
-/// Run exactly one independently bounded gate. Paths and expected identity
-/// are explicit arguments; no candidate value replaces a production pin.
 pub fn run(
     mode: &str,
     candidate_path: &Path,

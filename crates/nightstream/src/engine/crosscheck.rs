@@ -44,7 +44,6 @@ pub(crate) fn prove(
             fresh,
             running,
         );
-        // Always join the reference, including when the CPU prover rejects.
         let reference = reference.join().map_err(|_| EngineError::Failure {
             engine: Engine::PaperExact,
             reason: "cross-check worker panicked".into(),
@@ -94,13 +93,11 @@ pub(super) fn require_match(
             boundary: "prover transcript",
         });
     }
-    // Equality includes the parent authority and every child witness value.
     if optimized_running != reference_running {
         return Err(EngineError::CrosscheckMismatch {
             boundary: "running accumulator",
         });
     }
-    // Compare all proof fields, not a digest of them.
     if optimized_proof != reference_proof {
         return Err(EngineError::CrosscheckMismatch {
             boundary: "proof fields",

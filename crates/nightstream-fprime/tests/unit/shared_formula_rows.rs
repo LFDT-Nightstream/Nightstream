@@ -54,7 +54,6 @@ fn shared_poseidon_templates_match_every_reference_row() {
             equal_row(row, &expected.row(logical_width, ordinal).unwrap(), ordinal);
             assert_eq!(*row, actual.row(logical_width, ordinal).unwrap());
         }
-        // A retained field remains one operator through formula substitution.
         let output = &visited[0][2];
         assert_eq!(output.terms().len(), 1);
         assert_eq!(output.terms()[0].column_count(), 41);
@@ -77,7 +76,6 @@ fn shared_poseidon_templates_match_every_reference_row() {
 
 #[test]
 fn shared_phi81_templates_match_all_points_sources_blocks_and_components() {
-    // Ring order crosses sources, blocks, extension components, and families.
     let logical_width = 4_000;
     let encoded = json!([
         [[2, 2, 2], [1, 1, 1]],
@@ -162,7 +160,6 @@ fn phi81_quotient_rows_accept_product_and_reject_omitted_node_attack() {
     let mut values = vec![Goldilocks::ZERO; logical_width];
     values[0] = Goldilocks::ONE;
     values[1..55].fill(Goldilocks::from_u64(2));
-    // X^53 * X^53 = X^25 + Phi81 * (X^52 - X^25).
     values[1 + 53] += Goldilocks::ONE;
     values[55 + 53] = Goldilocks::ONE;
     values[109 + 25] = Goldilocks::ONE;
@@ -176,8 +173,6 @@ fn phi81_quotient_rows_accept_product_and_reject_omitted_node_attack() {
         .iter()
         .any(|value| *value != Goldilocks::ZERO));
 
-    // A false product can satisfy the first 107 nodes. Construct the
-    // vanishing polynomial independently, then divide it by Phi81.
     let mut vanishing = vec![Goldilocks::ONE];
     for root in 0..107 {
         let root = Goldilocks::from_u64(root);

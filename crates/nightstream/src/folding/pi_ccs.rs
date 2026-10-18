@@ -1,4 +1,4 @@
-//! Selected PiCCS validation and shared native proving. Copied from neo-fold-clean.
+//! Selected PiCCS validation and shared native proving.
 use super::{
     has_canonical_evaluations, kernels as engine, superneo_has_canonical_x_shape, transcript::Transcript, CcsClaim,
     CcsWitness, CeClaim, Params, RunningInstance, Structure,
@@ -154,15 +154,7 @@ fn validate_v1_2_claims(s: &Structure, claims: &[CeClaim]) -> Result<(), Error> 
 }
 
 fn validate_v1_2_claim(s: &Structure, claim: &CeClaim) -> Result<(), Error> {
-    let assignment_width = neo_reductions::common::superneo_carrier_width(s.m);
-    let ell_n = s
-        .domain_rows()
-        .max(assignment_width)
-        .next_power_of_two()
-        .max(2)
-        .trailing_zeros() as usize;
-
-    if claim.r.len() != ell_n {
+    if claim.r.len() != s.cube_variables() {
         return Err(Error::Shape("CE r length must match the joint row point"));
     }
     if !has_canonical_evaluations(claim, s.t()) {

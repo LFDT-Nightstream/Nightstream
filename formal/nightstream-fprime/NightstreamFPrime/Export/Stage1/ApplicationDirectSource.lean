@@ -23,7 +23,6 @@ def sourceRows (application : Lifecycle.Stage1.Application.Program) :
     PerApplicationPackage.basePackage.layout.rowCount).map
       Rows.CompiledRow.toR1CS
 
-/-- Exclusive source-column bound after application-local R1CS lowering. -/
 def sourceWidth (application : Lifecycle.Stage1.Application.Program) : Nat :=
   ApplicationPackage.r1csFreshStart application
       (ApplicationPackage.productionColumns application)
@@ -33,7 +32,6 @@ def sourceWidth (application : Lifecycle.Stage1.Application.Program) : Nat :=
         (ApplicationPackage.productionColumns application)
         (Layout.Stage1.ApplicationInputs.localStart application))
 
-/-- Exact source columns that one selected application is permitted to read. -/
 def SourceAllowed (application : Lifecycle.Stage1.Application.Program)
     (column : Nat) : Prop :=
   (∃ index : Lifecycle.Stage1.Application.StateIndex,
@@ -52,8 +50,6 @@ theorem sourceRows_length_eq_plan
   simp [sourceRows, PerApplicationPackage.applicationPlan,
     ApplicationPackage.productionPlan, ApplicationPackage.ofProgram]
 
-/-- Every source row is confined to the selected application's exact
-caller-and-lowering interval. -/
 theorem sourceRows_varsBelow
     (application : Lifecycle.Stage1.Application.Program) :
     ∀ row ∈ sourceRows application, row.VarsBelow (sourceWidth application) := by
@@ -76,8 +72,6 @@ theorem sourceRows_varsBelow
         (ApplicationPackage.productionColumns application)
         (Layout.Stage1.ApplicationInputs.localStart application)) scope)
 
-/-- Lowering preserves the exact application-owned source set. No unrelated
-prior private column can enter an application row. -/
 theorem sourceRows_varsSatisfy
     (application : Lifecycle.Stage1.Application.Program) :
     ∀ row ∈ sourceRows application, row.VarsSatisfy (SourceAllowed application) := by
@@ -131,7 +125,6 @@ theorem sourceRows_rowCount_le
   rw [sourceRows_length_eq_plan]
   omega
 
-/-- Proof-oriented indexed access to the exact canonical application rows. -/
 def program (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationPackage.FitsTwoPow28 application) :
     OrdinarySourcePlan.Program (sourceWidth application) where
@@ -162,8 +155,6 @@ theorem program_holds_iff_rowsHold
   · intro holds index
     exact holds _ (List.get_mem _ index)
 
-/-- Exact satisfaction of the direct source rows implies the selected Lean
-application transition for an arbitrary source assignment. -/
 theorem rowsHold_implies_applicationHolds
     (application : Lifecycle.Stage1.Application.Program) (env : Env)
     (rows : R1CS.RowsHold env (sourceRows application)) :

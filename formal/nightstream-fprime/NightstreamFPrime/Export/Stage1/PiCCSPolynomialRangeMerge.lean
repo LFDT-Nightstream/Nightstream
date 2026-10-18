@@ -1,7 +1,7 @@
 import NightstreamFPrime.Export.Stage1.PiCCSNormRangeMerge
 
 /-! Proof-only connection of ordered polynomial worker results to one complete
-range. Proportional cut arithmetic is reused from the checked norm merger. -/
+range. -/
 
 set_option autoImplicit false
 
@@ -41,9 +41,6 @@ private theorem fold_adjacent_eq_range (ops : InterpolationOps Field)
       rw [Nat.fold_succ, previous]
       exact joined.symm
 
-/-- Each worker computes its exact proportional subrange. Reading those
-workers in array order and adding all stored coefficients gives the complete
-requested range. Empty individual parts and first = last are included. -/
 theorem array_proportional_eq_range (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops) {degree : Nat}
     (term : Nat → FixedPolynomial Field degree) (first last parts : Nat)

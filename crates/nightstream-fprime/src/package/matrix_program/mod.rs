@@ -11,7 +11,6 @@ use std::ops::ControlFlow;
 
 use super::{PackageError, GOLDILOCKS_MODULUS};
 
-/// Poseidon2 lanes in every compact template and external-layer form.
 const POSEIDON_WIDTH: usize = neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
 
 mod affine;

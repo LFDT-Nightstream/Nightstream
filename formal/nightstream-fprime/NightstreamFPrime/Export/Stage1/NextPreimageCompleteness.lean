@@ -4,8 +4,6 @@ import NightstreamFPrime.Layout.R1CS.Completeness
 
 /-!
 Owns the five next-preimage rows of the completed canonical assignment.
-The zero-allocation wiring and its lowering preserve the same environment.
-Only the prior and output preimage inputs are copied through the retained view.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.NextPreimageCompleteness
@@ -87,9 +85,6 @@ private theorem copied_input
     (Or.inl (Nat.lt_of_lt_of_le beforeC PiCCSStarts.phaseOffset_le_statementWitnessStart))).trans
     (PerApplicationSourceAssignment.source_ofCompleted application target suffix column sourceBound)
 
-/-- Actual next-preimage wiring makes all five retained next-preimage rows
-zero on the existing completed assignment. No separate framing equality or
-source-copy premise is supplied by the caller. -/
 theorem rowsZero_of_completed
     (application : Lifecycle.Stage1.Application.Program) (target : Env)
     (suffix : Fin (PerApplicationPackage.addedPrivateColumnCount application) → F)

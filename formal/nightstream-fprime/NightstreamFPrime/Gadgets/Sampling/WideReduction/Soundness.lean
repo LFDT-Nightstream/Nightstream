@@ -1,7 +1,7 @@
 import NightstreamFPrime.Gadgets.Sampling.WideReduction.Values
 
 /-!
-Owns the soundness of the whole-vector sampler constraints (V3): every
+Owns the soundness of the whole-vector sampler constraints: every
 assignment accepted by the rows decodes the digits of `sample`. The witness
 program is arbitrary. The argument is: children give `h_i` as bits, check rows
 give `Σ p^i h_i ≡ Q N + R` modulo six coprime moduli, the Chinese remainder
@@ -17,8 +17,6 @@ open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
 open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
 open NightstreamFPrime.Spec.Phi81StrongSet
 open Finset
-
-/-! ### Row extraction -/
 
 section Rows
 
@@ -95,8 +93,6 @@ private theorem digitValue_le (rows : holds env (operations interface hints offs
 
 end Rows
 
-/-- All retained values except each canonical child's two auxiliary fields
-are Boolean under the authoritative rows. -/
 theorem retained_bit_le_one (interface : Interface) (hints : Nat → List Hint)
     (env : Env) (offset column : Nat) (assumptions : Assumptions interface offset)
     (rows : holds env (operations interface hints offset)) (bound : column < privateCount)
@@ -137,8 +133,6 @@ theorem retained_bit_le_one (interface : Interface) (hints : Nat → List Hint)
         have coordinate : offset + 557 + 10 * ((column - 557) / 10) + (column - 557) % 10 =
             offset + column := by omega
         rwa [coordinate] at value
-
-/-! ### Check rows -/
 
 section Checks
 
@@ -228,9 +222,6 @@ private theorem check_modEq (assumptions : Assumptions interface offset)
 
 end Checks
 
-/-! ### Soundness -/
-
-/-- V3: every accepted assignment decodes the sampled scalar. -/
 theorem soundness (interface : Interface) (hints : Nat → List Hint) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset)
     (rows : holds env (operations interface hints offset)) :

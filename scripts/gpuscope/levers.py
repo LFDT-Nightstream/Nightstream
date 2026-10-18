@@ -1,5 +1,3 @@
-"""Rank optimization levers from analyzed stage facts."""
-
 LAUNCH_OVERHEAD_US = 4.0
 DEFAULT_BANDWIDTH_MB_PER_MS = 20.0
 

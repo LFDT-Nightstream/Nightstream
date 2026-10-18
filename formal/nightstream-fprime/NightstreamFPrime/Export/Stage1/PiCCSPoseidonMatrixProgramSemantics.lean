@@ -259,8 +259,6 @@ theorem matrixProgram_poseidon_row?
     exact global.isLt)]
   exact poseidonBlock_row? geometry global
 
-/-- Every compact PiCCS Poseidon row is the exact row of the canonical
-Poseidon plan. -/
 theorem matrixProgram_row?
     {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)

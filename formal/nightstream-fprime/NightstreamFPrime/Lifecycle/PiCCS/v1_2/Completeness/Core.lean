@@ -216,8 +216,6 @@ theorem stateBindingAssumptionsAt
     assumptions.priorContext, assumptions.outputContext,
     assumptions.expectedContext, assumptions.priorPacked, assumptions.priorDigit⟩
 
-/-- Child assumptions contain only syntactic range facts and do not depend
-on environment values. -/
 theorem assumptionsAt
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -245,8 +243,6 @@ theorem childOp_localLength (name : String) (child : FormalCircuit)
     localLength (Circuit.ops child.main offset)
   exact FormalCircuit.asSubcircuit_localLength child name offset
 
-/-- Append one child after transporting its contract from the named start to
-the definitionally equal end of the current prefix. -/
 theorem appendAt
     {initial : Env} {base : Nat}
     (before : Sequence.Prefix initial base)
@@ -296,8 +292,6 @@ theorem appendAt
     rfl
   · simpa only [startEq] using childRows
 
-/-- Append a child whose canonical logical builder already produced the
-satisfying assignment. This keeps the same opaque `childOp` assembly path. -/
 theorem appendBuiltAt
     {initial : Env} {base : Nat}
     (before : Sequence.Prefix initial base)

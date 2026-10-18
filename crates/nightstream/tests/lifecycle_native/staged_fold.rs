@@ -1,7 +1,7 @@
 //! Native C/R/D phases with replayed public inputs and recomputed split material.
 use super::*;
 use neo_reductions::{
-    common::{split_b_matrix_k_with_nonzero_flags, validate_superneo_witness_mat},
+    common::{split_b_matrix_k_with_nonzero_flags, validate_superneo_witness_shape, SplitDigits},
     superneo_eval::{eval_real_v1_2_openings_from_rows, SuperneoZBlocks},
 };
 use std::io::{self, BufRead};
@@ -95,7 +95,7 @@ impl SavedNifs {
             ajtai_rlc_mixer,
             ajtai_dec_mixer,
             &fresh,
-            &running,
+            folding::BoundRunning::from_checked_prior(&running),
             &proof,
         )
         .unwrap();
@@ -117,7 +117,12 @@ fn replay_ccs(
     proof: &pi_ccs::Proof,
 ) -> (Transcript, Vec<CeClaim>) {
     let params = params(package);
-    folding::validate_running_children(&params, &package.structure, running).unwrap();
+    folding::validate_running_children(
+        &params,
+        &package.structure,
+        folding::BoundRunning::from_checked_prior(running),
+    )
+    .unwrap();
     let mut transcript = Transcript::session();
     let outputs = pi_ccs::verify(&mut transcript, &params, &package.structure, fresh, running, proof).unwrap();
     (transcript, outputs)
@@ -160,22 +165,18 @@ fn read_parent(package: &PreparedLifecycle, root: &Path, step: u64) -> SavedPare
     );
     parent
 }
-fn committed_split(
-    package: &PreparedLifecycle,
-    witness: &Mat<F>,
-    parent: &CeClaim,
-) -> (Vec<Mat<F>>, Vec<bool>, Vec<Commitment>) {
-    validate_superneo_witness_mat(witness, package.structure.m).unwrap();
+fn committed_split(package: &PreparedLifecycle, witness: &Mat<F>, parent: &CeClaim) -> (SplitDigits, Vec<Commitment>) {
+    validate_superneo_witness_shape(witness, package.structure.m).unwrap();
     let params = params(package);
-    let (digits, flags) = split_b_matrix_k_with_nonzero_flags(witness, params.k_rho() as usize, params.b()).unwrap();
-    assert_eq!(digits.len(), 16);
-    let commitments = commit_production_signed_unit_prefix_matrices(&digits).unwrap();
+    let digits = split_b_matrix_k_with_nonzero_flags(witness, params.k_rho() as usize, params.b()).unwrap();
+    assert_eq!(digits.planes().len(), 16);
+    let commitments = commit_production_signed_unit_prefix_matrices(digits.planes()).unwrap();
     assert_eq!(
         ajtai_dec_mixer(&commitments, params.b()),
         parent.c,
         "actual R witness commitment"
     );
-    (digits, flags, commitments)
+    (digits, commitments)
 }
 fn zero_opening(package: &PreparedLifecycle) -> V1_2Evaluations<K> {
     V1_2Evaluations {
@@ -383,7 +384,7 @@ pub(super) fn prove(root: &Path, step: u64, engine: EvaluationEngine, reference_
         ajtai_rlc_mixer,
         ajtai_dec_mixer,
         &fresh,
-        &running,
+        folding::BoundRunning::from_checked_prior(&running),
         &proof,
     )
     .unwrap();
@@ -427,9 +428,9 @@ pub(super) fn split(root: &Path, step: u64) {
     let package = prepare();
     let parent = read_parent(&package, root, step);
     let witness: Mat<F> = load(&directory.join("parent-witness.json"));
-    let (digits, nonzero, commitments) = committed_split(&package, &witness, &parent.rlc_parent);
+    let (digits, commitments) = committed_split(&package, &witness, &parent.rlc_parent);
     drop(witness);
-    for (child, digit) in digits.iter().enumerate() {
+    for (child, digit) in digits.planes().iter().enumerate() {
         save(&directory.join(format!("digit-{child}.json")), digit);
     }
     save(
@@ -437,13 +438,11 @@ pub(super) fn split(root: &Path, step: u64) {
         &SavedSplit {
             schema: 1,
             parent: parent.rlc_parent,
-            nonzero,
+            nonzero: digits.nonzero().to_vec(),
             commitments,
         },
     );
 }
-// Produce CPU opening data from row windows. NIFS still authenticates every
-// saved witness and commitment before these values enter an accepted proof.
 pub(super) fn openings(root: &Path, step: u64) {
     let directory = fold_dir(root, step);
     let package = prepare();
@@ -457,7 +456,9 @@ pub(super) fn openings(root: &Path, step: u64) {
         parent.rlc_parent.c
     );
     let witness: Mat<F> = load(&directory.join("parent-witness.json"));
-    let (digits, flags) = split_b_matrix_k_with_nonzero_flags(&witness, 16, params(&package).b()).unwrap();
+    let (digits, flags) = split_b_matrix_k_with_nonzero_flags(&witness, 16, params(&package).b())
+        .unwrap()
+        .into_parts();
     drop(witness);
     assert_eq!(flags, split.nonzero);
     for (child, expected) in digits.iter().enumerate() {
@@ -514,10 +515,12 @@ pub(super) fn child(root: &Path, step: u64, child: usize, engine: EvaluationEngi
         parent.rlc_parent.c
     );
     let witness: Mat<F> = load(&directory.join("parent-witness.json"));
-    validate_superneo_witness_mat(&witness, package.structure.m).unwrap();
+    validate_superneo_witness_shape(&witness, package.structure.m).unwrap();
     let digit: Mat<F> = load(&directory.join(format!("digit-{child}.json")));
     let params = params(&package);
-    let (expected, flags) = split_b_matrix_k_with_nonzero_flags(&witness, params.k_rho() as usize, params.b()).unwrap();
+    let (expected, flags) = split_b_matrix_k_with_nonzero_flags(&witness, params.k_rho() as usize, params.b())
+        .unwrap()
+        .into_parts();
     assert_eq!(digit, expected[child], "exact canonical digit");
     let active = flags[child];
     assert_eq!(split.nonzero[child], active);
@@ -584,17 +587,17 @@ pub(super) fn nifs(root: &Path, step: u64) {
     let parent = read_parent(&package, root, step);
     let split: SavedSplit = load(&directory.join("split.json"));
     let witness: Mat<F> = load(&directory.join("parent-witness.json"));
-    let (expected, flags, commitments) = committed_split(&package, &witness, &parent.rlc_parent);
+    let (expected, commitments) = committed_split(&package, &witness, &parent.rlc_parent);
+    let flags = expected.nonzero();
     drop(witness);
     assert_eq!(split.schema, 1);
     assert_eq!(split.parent, parent.rlc_parent);
     assert_eq!(split.nonzero, flags, "activity derived from actual split");
     assert_eq!(split.commitments, commitments, "all commitments recomputed");
-    let mut digits = Vec::with_capacity(16);
     let mut openings = Vec::with_capacity(16);
-    for (child, expected_digit) in expected.into_iter().enumerate() {
+    for (child, expected_digit) in expected.planes().iter().enumerate() {
         let digit: Mat<F> = load(&directory.join(format!("digit-{child}.json")));
-        assert_eq!(digit, expected_digit, "exact saved digit {child}");
+        assert_eq!(&digit, expected_digit, "exact saved digit {child}");
         let opening = if flags[child] {
             let saved: SavedChildOpening = load(&directory.join(format!("child-{child}.json")));
             assert_eq!(saved.schema, 1);
@@ -610,31 +613,29 @@ pub(super) fn nifs(root: &Path, step: u64) {
         } else {
             zero_opening(&package)
         };
-        digits.push(digit);
         openings.push(opening);
     }
-    // The complete split was recomputed and every saved digit compared above.
-    let (children, ok_y, ok_x, ok_c) =
-        neo_reductions::api::dec_children_with_commit_superneo_cached_from_trusted_split_digits(
-            neo_reductions::api::FoldingMode::Optimized,
-            &package.structure,
-            params(&package).inner(),
-            &parent.rlc_parent,
-            &digits,
-            &flags,
-            D.next_power_of_two().trailing_zeros() as usize,
-            &commitments,
-            ajtai_dec_mixer,
-            None,
-            None,
-            Some(&openings),
-        );
+    let neo_reductions::api::DecOutcome {
+        children,
+        ok_y,
+        ok_x,
+        ok_c,
+    } = neo_reductions::api::dec_children_with_commit_superneo_cached_from_trusted_split_digits(
+        neo_reductions::api::FoldingMode::Optimized,
+        &package.structure,
+        params(&package).inner(),
+        &parent.rlc_parent,
+        &expected,
+        D.next_power_of_two().trailing_zeros() as usize,
+        &commitments,
+        ajtai_dec_mixer,
+        None,
+        Some(&openings),
+    );
     assert!(ok_y && ok_x && ok_c);
     let record = SavedNifs { parent, children };
     let (_, fresh, running, proof) = record.verify(&package, &step_dir(root, step), step);
     let wire = proof.canonical_bytes();
-    // Fresh proof verification above precedes export. The golden checker
-    // owns saved-result and complete proof-byte comparisons.
     assert_eq!(record.parent.transcript_absorbed, 0);
     lean::export(
         &directory,

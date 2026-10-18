@@ -1,5 +1,3 @@
-//! Exact SMT-LIB encoding of one R1CS row or row-family implication query.
-
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
 
@@ -19,14 +17,12 @@ pub struct RowReference {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Query {
     pub smt2: String,
-    /// Strictly ordered source columns declared in this bounded query.
     pub model_columns: Vec<usize>,
     pub retained_rows: Vec<RowReference>,
     pub removed_rows: Vec<RowReference>,
     pub target_rows: Vec<RowReference>,
 }
 
-/// One independently defined row in the complete typed target relation.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct TypedTargetRow {
     pub id: String,
@@ -35,7 +31,6 @@ pub struct TypedTargetRow {
     pub c: LinearCombination,
 }
 
-/// Complete typed relation that a strict family-removal query must violate.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct TypedTarget {
     pub id: String,
@@ -104,12 +99,6 @@ pub fn render_query(problem: &Problem, selection: &Selection) -> Result<Query, P
     })
 }
 
-/// Render the strict lifecycle-family query required for removal review.
-///
-/// The source problem must contain every exact source row and every source
-/// family. The selected family is absent, every other row is asserted, the
-/// constant-one column is one, and the independent complete typed target is
-/// violated.
 pub fn render_complete_typed_query(
     problem: &Problem,
     selection: &Selection,
@@ -236,24 +225,11 @@ fn validate_typed_target(problem: &Problem, target: &TypedTarget) -> Result<(), 
 }
 
 fn validate_target_terms(problem: &Problem, terms: &LinearCombination) -> Result<(), ProblemError> {
-    let modulus = problem
-        .field_modulus
-        .parse::<u64>()
-        .expect("validated Goldilocks modulus fits in u64");
     let mut prior = None;
     for term in terms {
         if term.column >= problem.column_count || prior.is_some_and(|column| term.column <= column) {
             return Err(ProblemError::new(
                 "typed target terms must use strictly ordered in-range columns",
-            ));
-        }
-        let coefficient = term
-            .coefficient
-            .parse::<u64>()
-            .map_err(|_| ProblemError::new("typed target coefficient is not a canonical decimal residue"))?;
-        if coefficient == 0 || coefficient >= modulus || term.coefficient != coefficient.to_string() {
-            return Err(ProblemError::new(
-                "typed target coefficient is not a nonzero canonical Goldilocks residue",
             ));
         }
         prior = Some(term.column);
@@ -296,10 +272,10 @@ fn linear_combination(terms: &LinearCombination) -> String {
     let rendered = terms
         .iter()
         .map(|term| {
-            if term.coefficient == "1" {
+            if term.coefficient.get() == 1 {
                 format!("x_{}", term.column)
             } else {
-                format!("(ff.mul (as ff{} F) x_{})", term.coefficient, term.column)
+                format!("(ff.mul (as ff{} F) x_{})", term.coefficient.get(), term.column)
             }
         })
         .collect::<Vec<_>>();

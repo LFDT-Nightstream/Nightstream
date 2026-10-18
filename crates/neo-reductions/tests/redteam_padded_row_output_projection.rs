@@ -36,7 +36,7 @@ struct HonestProof {
 }
 
 fn honest_proof(label: &'static [u8]) -> HonestProof {
-    let params = NeoParams::goldilocks_auto_r1cs_ccs(4).expect("params");
+    let params = NeoParams::goldilocks_auto_rectangular_r1cs_ccs(4, 4).expect("params");
     let structure = CcsStructure::new(
         vec![identity_left(4, D)],
         SparsePoly::new(
@@ -59,10 +59,7 @@ fn honest_proof(label: &'static [u8]) -> HonestProof {
         m_in: 0,
         adv: None,
     };
-    let witness = CcsWitness {
-        w: vec![F::ZERO; structure.m],
-        Z: z,
-    };
+    let witness = CcsWitness { Z: z };
 
     let (running, running_witnesses) = zero_running::zero_running(&params, &structure, 1, 0);
 

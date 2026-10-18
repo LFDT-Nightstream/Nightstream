@@ -1,9 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomialDegree
 import NightstreamFPrime.Spec.SumCheck.FixedPhase.RawCertificate
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/ProtocolPolynomialFixedWidth.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Paper-polynomial verification over one verifier-owned SumCheck width.
 
@@ -32,8 +29,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 universe uField
 
-/-- The paper SumCheck gate over raw transport messages.  Width mismatch is a
-verifier rejection, while high zero slots at the selected width are valid. -/
 def check
     {Field : Type uField}
     [DecidableEq Field]
@@ -52,8 +47,6 @@ def check
     (terminalFromMessage ops input alpha gamma roundPoint message)
     certificate
 
-/-- Exact executable exposure of the decoded certificate and fixed-width
-claimed chain. -/
 theorem check_eq_true_iff
     {Field : Type uField}
     [DecidableEq Field]
@@ -77,8 +70,6 @@ theorem check_eq_true_iff
     ops.toOps width (input.initial ops gamma) roundPoint.coordinates
     (terminalFromMessage ops input alpha gamma roundPoint message) certificate
 
-/-- The exact fixed-width bad-challenge event selected by one decoded
-certificate. -/
 def SumCheckCollision
     {Field : Type uField}
     {shape : Shape}
@@ -97,12 +88,6 @@ def SumCheckCollision
       (data.toVerifierInput.initial ops gamma)
       roundPoint.coordinates certificate round
 
-/-- Deterministic fixed-width PiCCS soundness boundary.
-
-The selected width may exceed the exact syntactic degree, but that inclusion
-is verifier-owned and explicit.  Acceptance yields no encoding escape:
-width-invalid raw messages have already been rejected before this theorem is
-called. -/
 theorem accepted_implies_tableTruth_or_badEvent
     {Field : Type uField}
     [DecidableEq Field]

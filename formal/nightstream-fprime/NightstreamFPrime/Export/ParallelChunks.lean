@@ -10,12 +10,9 @@ set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.ParallelChunks
 
-/-- The worker count from `LEAN_NUM_THREADS`, at least one. -/
 def workers : IO Nat := do
   return max 1 (((← IO.getEnv "LEAN_NUM_THREADS").bind String.toNat?).getD 1)
 
-/-- Start chunks `0` to `count - 1` on at most `threads` dedicated threads. The task
-of each chunk gives its result with its start and finish times, or its error. -/
 def start {Alpha : Type} (threads count : Nat) (run : Nat → IO Alpha) :
     IO (Array (Task (Except IO.Error (Alpha × Nat × Nat)))) := do
   let promises : Array (IO.Promise (Except IO.Error (Alpha × Nat × Nat))) ←
@@ -39,14 +36,10 @@ def start {Alpha : Type} (threads count : Nat) (run : Nat → IO Alpha) :
         else break
   return promises.map (·.result!)
 
-/-- Wait until every chunk has finished or been skipped. -/
 def waitAll {Beta : Type} (tasks : Array (Task (Except IO.Error Beta))) : BaseIO Unit := do
   for task in tasks do
     let _ ← IO.wait task
 
-/-- Run chunks that write into a new temporary directory, and consume their results.
-Every chunk finishes or is skipped before the directory is removed, also when
-`consume` fails; the original error is kept. -/
 def withScratch {Alpha Beta : Type} (threads count : Nat)
     (run : System.FilePath → Nat → IO Alpha)
     (consume : Array (Task (Except IO.Error (Alpha × Nat × Nat))) → IO Beta) : IO Beta :=

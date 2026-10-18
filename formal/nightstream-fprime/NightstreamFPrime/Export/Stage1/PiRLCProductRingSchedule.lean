@@ -1,9 +1,8 @@
 import NightstreamFPrime.Export.Stage1.PiRLCProductSchedule
 
 /-!
-Owns the complete-ring view of the existing PiRLC product schedule. Ring
-order is family, source, block, cell. `withLane` returns the exact existing
-source-lane descriptor, including the interleaved extension-field cells.
+Owns the complete-ring view of the existing PiRLC product schedule. Ring order
+is family, source, block, cell.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCProductRingSchedule
@@ -152,7 +151,6 @@ def Descriptor.invocation (value : Descriptor) : Fin invocationCount :=
         rw [familyIndex_familyDescriptor]
         rfl
 
-/-- Exact old source-lane index of one coefficient in a complete ring. -/
 def laneInvocation (ring : Fin invocationCount) (lane : Fin ringDegree) :
     Fin PiRLCProductSchedule.invocationCount :=
   ((descriptor ring).withLane lane).invocation

@@ -17,20 +17,13 @@ use crate::superneo_eval::{fill_combined_projection, EqualityWeights, MatrixRows
 use crate::PiCcsError;
 use application::ApplicationTables;
 
-// The production call uses offset zero. An offset preserves absolute tensor
-// indices for a separately stored contiguous input range.
-fn norm_coefficients(
-    assignments: &[Assignment<'_>],
-    gamma: K,
-    weights: &EqualityWeights,
-    pair_offset: usize,
-) -> [K; 4] {
+fn norm_coefficients(assignments: &[Assignment<'_>], gamma: K, weights: &EqualityWeights) -> [K; 4] {
     let mut result = [K::ZERO; 4];
     for (source, table) in assignments.iter().enumerate() {
         let pairs = table.len().div_ceil(2);
         let coefficients = match table.early_pairs() {
-            Some(early) => prefix::early_norm_coefficients(&early, pairs, weights, pair_offset),
-            None => pair_norm_coefficients(table, pairs, weights, pair_offset),
+            Some(early) => prefix::early_norm_coefficients(&early, pairs, weights),
+            None => pair_norm_coefficients(table, pairs, weights),
         };
         let weight = gamma_power(gamma, source);
         for index in 0..4 {
@@ -40,15 +33,10 @@ fn norm_coefficients(
     result
 }
 
-fn pair_norm_coefficients(
-    table: &Assignment<'_>,
-    pairs: usize,
-    weights: &EqualityWeights,
-    pair_offset: usize,
-) -> [K; 4] {
+fn pair_norm_coefficients(table: &Assignment<'_>, pairs: usize, weights: &EqualityWeights) -> [K; 4] {
     let term = |index| {
         let (low, high) = table.pair(index);
-        prefix::norm_pair(low, high).map(|value| value * weights.at(pair_offset + index))
+        prefix::norm_pair(low, high).map(|value| value * weights.at(index))
     };
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     {
@@ -158,7 +146,7 @@ impl<'a> OptimizedPaperJointOracle<'a> {
     }
 
     fn norm_coefficients(&self, weights: &EqualityWeights) -> [K; 4] {
-        norm_coefficients(&self.assignments, self.challenges.gamma, weights, 0)
+        norm_coefficients(&self.assignments, self.challenges.gamma, weights)
     }
 
     fn general_norm(&self, weights: &EqualityWeights, point: K) -> K {
@@ -272,8 +260,6 @@ impl PaperJointRoundOracle for OptimizedPaperJointOracle<'_> {
                 "optimized CPU opening point is not the completed point".into(),
             ));
         }
-        // The completed SumCheck tables are not inputs to witness openings.
-        // Their complete row window, if still retained, is the same source.
         self.assignments.clear();
         let complete = self.fresh_tables.take_complete_window();
         self.fresh_tables.clear();

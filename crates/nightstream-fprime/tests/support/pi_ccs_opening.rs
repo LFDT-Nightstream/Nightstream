@@ -63,10 +63,8 @@ impl std::ops::Mul for Extension {
 
 pub type Ring = [Extension; DEGREE];
 
-/// Inverse of T[i,j] = ct(X^(i+j)). For Phi81, T has nonzero
-/// entries only at i+j = 0, 54, 81, with coefficients 1, -1, 1.
-/// Solving these sparse equations gives the following dual basis map.
-pub fn transform(values: &Ring) -> Ring {
+/// Closed form of `T^{-1}` from SuperNeo v1.2 Lemma 5 and Definition 15 for Phi81.
+pub fn inverse_constant_term_matrix(values: &Ring) -> Ring {
     std::array::from_fn(|row| match row {
         0 => values[0],
         1..27 => -(values[27 - row] + values[54 - row]),
@@ -76,9 +74,6 @@ pub fn transform(values: &Ring) -> Ring {
 
 pub fn multiply_signed(left: &Ring, right: &[u8]) -> Ring {
     assert_eq!(right.len(), DEGREE);
-    // Each basis product contributes at most four signed terms after the
-    // two possible polynomial-reduction steps. Integer accumulation fits
-    // i128; reducing modulo p only at the end preserves the field product.
     const _: () = assert!(
         4 * DEGREE as u128 * DEGREE as u128 * (super::reference::GOLDILOCKS_MODULUS as u128) < i128::MAX as u128
     );
@@ -119,7 +114,7 @@ pub fn multiply_signed(left: &Ring, right: &[u8]) -> Ring {
 }
 
 pub fn evaluate_block(weights: &Ring, carrier: &[u8]) -> Ring {
-    multiply_signed(&transform(weights), carrier)
+    multiply_signed(&inverse_constant_term_matrix(weights), carrier)
 }
 
 pub fn add_rings(left: Ring, right: Ring) -> Ring {
@@ -146,8 +141,6 @@ fn tensor(point: &[Extension]) -> Vec<Extension> {
 
 impl EqualityTensor {
     pub fn new(point: &[Extension]) -> Self {
-        // Equal halves minimize the two stored tensor factors for this
-        // 28-variable profile; the split is derived from the point length.
         assert_eq!(point.len(), 28);
         let split = point.len() / 2;
         Self {

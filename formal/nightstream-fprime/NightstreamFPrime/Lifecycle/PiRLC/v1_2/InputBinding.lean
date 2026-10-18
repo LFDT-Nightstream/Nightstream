@@ -37,7 +37,6 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-/-- One symbolic CE claim. The point is shared by the parent interface. -/
 structure InputExpr (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) where
@@ -46,7 +45,6 @@ structure InputExpr (logicalWidth : Nat)
   evaluation :
     NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption.EvaluationExpr
 
-/-- One shared symbolic carrier for all 17 exact PiRLC inputs. -/
 structure Interface (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) where
@@ -54,7 +52,6 @@ structure Interface (logicalWidth : Nat)
   input : Nat → Fin productionShape.sourceCount →
     InputExpr logicalWidth publicFits
 
-/-- The same computable relation source selected by the production key. -/
 def relationSource
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -109,7 +106,6 @@ def evalInputs
   fun source => evalInput relation (interface.input offset source)
     (interface.point offset) env
 
-/-- Symbolic form of the exact three-field PiRLC input-binding predicate. -/
 def SpecHolds
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -121,7 +117,6 @@ def SpecHolds
     (evalInputs relation interface offset env)
     (relationSource relation) (evalPoint (interface.point offset) env)
 
-/-- The sole logical circuit for the input-binding leaf. -/
 def circuit
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -166,7 +161,6 @@ theorem completeness
         (Circuit.ops (circuit relation interface).main offset) :=
   (circuit relation interface).completeness env offset trivial specification
 
-/-- The leaf predicate is definitionally the exact parent relation prefix. -/
 theorem parentCoverage
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

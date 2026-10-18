@@ -36,8 +36,7 @@ fn offset_bytes(offsets: SuperneoCompactRowOffsets<'_>) -> Result<(usize, usize)
 }
 
 pub(super) fn upload_size(matrices: &[SuperneoMatrixCache]) -> Result<(usize, usize), MetalError> {
-    // All absent arrays share one bindable word. Expanded u16 row offsets
-    // use one temporary u32 array at a time during upload.
+    // All absent arrays share one bindable word.
     let mut bytes = size_of::<u64>();
     let mut staging = 0;
     for matrix in matrices {
@@ -72,14 +71,10 @@ pub(super) fn smaller_window(rows: usize, required: usize, available: usize) -> 
         });
     }
     let estimate = (rows as u128 * available as u128 / required as u128) as usize;
-    // Fixed column costs need not fall with the row count. Halving bounds
-    // the total rows rebuilt by retries even when those costs dominate.
     Ok(estimate.min(rows / 2).max(1))
 }
 
 impl MetalSession {
-    /// Load the largest prefix of `requested` that fits. `upload` copies the
-    /// matrix metadata to the device for the row kernels.
     pub(super) fn load_matrix_window(
         &self,
         plan: &MetalJointMatrixPlan<'_>,

@@ -4,9 +4,7 @@ import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 import Mathlib.Tactic.SplitIfs
 
 /-!
-Counted Phi81 basis weights and canonical Pad coefficient entries. The
-program executes the native bar branches and the ring's fixed convolution
-loops. It reads no caller-supplied matrix or kernel function. Counts measure
+Counted Phi81 basis weights and canonical Pad coefficient entries. Counts measure
 named index, branch, field, constructor, and return operations, not wall time.
 -/
 
@@ -18,8 +16,6 @@ open NightstreamFPrime.Spec
 open ConcreteCarrier MatrixCoefficientSource PaperLinearAlgebra UnifiedSources
 open _root_.NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork (Result)
 
-/-- Both indices are read once. Each tested condition charges comparison and
-branch; subtraction, negation, and the result are charged on their paths. -/
 def nativeBarEntry (output input : Fin ringDegree) : Result F :=
   let out := output.val
   let lane := input.val
@@ -40,9 +36,6 @@ theorem nativeBarEntry_work_le (output input : Fin ringDegree) :
   dsimp only [nativeBarEntry]
   split_ifs <;> dsimp only <;> omega
 
-/-- A direct numeric index is passed to every term. A step charges control,
-index descent, field addition, and return. The empty sum charges dispatch
-and return. -/
 private def sum (term : Nat → Result F) : Nat → Result F
   | 0 => ⟨0, 2⟩
   | count + 1 =>
@@ -67,12 +60,9 @@ private theorem sum_work_le (term : Nat → Result F) (count bound : Nat)
       simp only [sum, Nat.add_mul, Nat.one_mul]
       omega
 
-/-- Read the monomial index, compare, branch, and return its zero or one. -/
 private def monomial (assignment : Fin ringDegree) (degree : Nat) : Result F :=
   ⟨if degree = assignment.val then 1 else 0, 4⟩
 
-/-- The live path charges three comparisons/branches, index subtraction,
-the bounded-index constructor, multiplication, and return. -/
 private def rawTerm (row assignment : Fin ringDegree) (degree index : Nat) : Result F :=
   if live : index < ringDegree then
     if index ≤ degree then
@@ -106,7 +96,6 @@ private theorem rawTerm_work_le (row assignment : Fin ringDegree) (degree index 
   · dsimp only
     omega
 
-/-- The term closure and returned result add two operations to the sum. -/
 private def raw (row assignment : Fin ringDegree) (degree : Nat) : Result F :=
   let value := sum (rawTerm row assignment degree) ringDegree
   ⟨value.value, value.work + 2⟩
@@ -142,8 +131,6 @@ private theorem raw_work_le (row assignment : Fin ringDegree) (degree : Nat) :
   Nat.add_le_add_right
     (sum_work_le _ _ 28 (fun index _ => rawTerm_work_le row assignment degree index)) 2
 
-/-- Apply the same two Phi81 reductions as `ringFMul`. Each branch adds four
-operations for degree arithmetic, comparison, dispatch, and return. -/
 def kernelWeight (output row assignment : Fin ringDegree) : Result F :=
   let degree := output.val
   let low := raw row assignment degree
@@ -160,14 +147,13 @@ def kernelWeight (output row assignment : Fin ringDegree) : Result F :=
     else ⟨0, 4⟩
   ⟨low.value - folded.value + twice.value, low.work + folded.work + twice.work + 4⟩
 
-/-- Three fixed convolution sums, branch overhead, two field operations,
-the output-index read, and the final return. -/
 def kernelWork : Nat := 3 * rawWork + 12
 
 theorem kernelWeight_value (output row assignment : Fin ringDegree) :
     (kernelWeight output row assignment).value =
       Phi81CoefficientKernel.phi81Kernel.weight output row assignment := by
   dsimp only [kernelWeight, Phi81CoefficientKernel.phi81Kernel, ringFMul]
+  simp only [show ringDegree + ringMiddleDegree = 81 from rfl, show 2 * (ringDegree - 1) = 106 from rfl]
   split_ifs <;> simp only [raw_value]
 
 theorem kernelWeight_work_le (output row assignment : Fin ringDegree) :
@@ -180,8 +166,6 @@ theorem kernelWeight_work_le (output row assignment : Fin ringDegree) :
   unfold kernelWork
   split_ifs <;> dsimp only <;> omega
 
-/-- Each vertex step charges constructor dispatch, two field reads, the bit
-branch, two index operations, and return. The empty vertex costs two. -/
 private def vertexIndex : {arity : Nat} → BooleanVertex arity → Result Nat
   | 0, .nil => ⟨0, 2⟩
   | _ + 1, .cons bit tail =>
@@ -195,9 +179,6 @@ private theorem vertexIndex_value {arity : Nat} (vertex : BooleanVertex arity) :
   | @cons arity bit tail ih =>
       cases bit <;> simp only [vertexIndex, NumericBooleanDomain.index, ih] <;> rfl
 
-/-- Only the matching live Pad position invokes the kernel. The live path
-charges three comparisons/branches, two index operations, a Fin constructor,
-and return. Padding and other positions return zero. -/
 private def padTerm (columns block selected : Nat) (output assignment : Fin ringDegree)
     (lane : Nat) : Result F :=
   if live : lane < ringDegree then
@@ -210,9 +191,6 @@ private def padTerm (columns block selected : Nat) (output assignment : Fin ring
     else ⟨0, 7⟩
   else ⟨0, 3⟩
 
-/-- Execute the canonical Pad coefficient entry without calling a function
-from a statement. Column read, quotient/remainder, lane construction, term
-closure, and return contribute six operations outside the two traversals. -/
 def padEntry {arity columns : Nat} (output : Fin ringDegree)
     (vertex : BooleanVertex arity) (column : Fin columns) : Result F :=
   let selected := vertexIndex vertex
@@ -252,8 +230,6 @@ private theorem padTerm_value {arity columns : Nat}
   · simp [padTerm, live, within, Phi81ColumnLayout.encode?, Phi81ColumnLayout.flatIndex,
       Phi81ColumnLayout.decode, baseOps, zeroMul]
 
-/-- Exact coefficientMatrixOf value at the concrete Phi81 source. The matrix
-family is present only in the semantic statement; Pad never reads it. -/
 theorem padEntry_value (arity freshCount runningCount matrixCount logicalWidth : Nat)
     (matrices : Fin matrixCount → BooleanMatrix F arity logicalWidth)
     (polynomial : CCSResidualTable.ConstraintPolynomial F matrixCount)

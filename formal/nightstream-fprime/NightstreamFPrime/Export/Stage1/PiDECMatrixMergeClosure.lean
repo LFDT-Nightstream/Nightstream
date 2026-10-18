@@ -3,9 +3,8 @@ import NightstreamFPrime.Export.Stage1.PiDECMatrixSelectedBatch
 
 /-!
 Two composition links for the complete matrix replay: an ordered fold of
-adjacent computed ranges is the complete prefix, and scalar-split parent
-blocks are the complete blocks of the same successful stored split.
-No codec, IO, row producer, or new representation is introduced.
+adjacent computed ranges is the complete prefix, and scalar-split parent blocks
+are the complete blocks of the same successful stored split.
 -/
 
 set_option autoImplicit false
@@ -23,10 +22,6 @@ open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingArith
   (StoredRing)
 open PiDECMatrixRangeSum (Values)
 
-/-- The actual nested add fold preserves arbitrary adjacent canonical ranges.
-Each part equality is supplied by the existing selected range theorem.
-The merger's positive endpoints imply the weaker monotonicity used here.
-At start zero, specializing cuts count to the selected row count gives the full accumulator. -/
 theorem fold_adjacent_eq_range {arity : Nat} (start : Nat)
     (cuts : Nat → Nat) (parts : Nat → Values) (point : CubePoint K arity)
     (rows : Fin matrixCount → Nat → Vector StoredRing productionGlobalParams.k)
@@ -62,8 +57,6 @@ theorem fold_adjacent_eq_range {arity : Nat} (start : Nat)
       rw [Nat.fold_succ, PiDECMatrixRangeSum.add_value, previous, last]
       exact joined.symm
 
-/-- Proportional worker cuts cover the full unit interval in order. The
-worker count affects execution only; neither values nor rows choose a cut. -/
 theorem proportionalCuts (units parts : Nat) (positive : 0 < parts) :
     units * 0 / parts = 0 ∧ units * parts / parts = units ∧
       ∀ index, index < parts →
@@ -84,9 +77,6 @@ private theorem get_ofFn {Alpha : Type} {count : Nat}
   change (Vector.ofFn values)[index.val] = _
   rw [Vector.getElem_ofFn]
 
-/-- The reference blocks used by the numeric range proofs are exactly those
-used by familyFromBlocks_honestMessages for the same successful full split.
-Parent and child vectors are theorem data; no full vector is built by a reader. -/
 theorem splitBlocks_eq_childBlocks {shape : Phi81Relation.Shape}
     (parent : StoredAssignment shape.carrierWidth)
     (children : Vector (StoredAssignment shape.carrierWidth) productionGlobalParams.k)

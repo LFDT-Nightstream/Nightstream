@@ -1,14 +1,7 @@
 import NightstreamFPrime.Export.Stage1.PerApplicationPackage
 import NightstreamFPrime.Export.Stage1.PiCCSInvocationSchedule
 
-/-!
-Owns physical row preservation for the generic per-application package.
-
-`ShiftCompatible` is a proof object, not a cryptographic assumption. Its three
-fields state exact R1CS row equalities for the hash, explicit permutation, and
-compact invocation encodings after the constant/public suffix moves. A later
-production theorem must construct this object from the canonical generators.
--/
+/-! Owns physical row preservation for the generic per-application package. -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationPreservation
 
@@ -493,8 +486,6 @@ theorem canonicalHashChain_private (chain : HashChain)
       decide
     · rfl
 
-/-- Every canonical hash-chain invocation owns one complete 1096-column local
-interval below the private boundary. -/
 theorem canonicalHashInvocation_witnessBound (chain : HashChain)
     (member : chain ∈ basePackage.hashChains)
     (invocation : Fin (chain.absorbCount + 1)) :
@@ -711,9 +702,6 @@ theorem shiftedCompactColumn
         shiftColumn_private program (invocation.localStart + index) (by
           omega)]
 
-/-- Exact row-equality obligations for the three template invocation forms.
-Ordinary sparse rows are already covered by
-`packageRows_imply_baseOrdinaryRows`. -/
 structure ShiftCompatible
     (program : Lifecycle.Stage1.Application.Program) : Prop where
   hashRows : ∀ chain ∈ basePackage.hashChains,
@@ -776,9 +764,6 @@ theorem canonicalPermutationRows
     (shiftedInvocationColumn program invocation
       (canonicalPermutationInvocation_witnessBound invocation invocationMember))
 
-/-- Satisfaction of every row in the final per-application package implies
-satisfaction of the complete validated prefix under the exact column
-pullback. -/
 theorem packageRows_imply_basePackage
     (program : Lifecycle.Stage1.Application.Program) (env : Env)
     (compatible : ShiftCompatible program)

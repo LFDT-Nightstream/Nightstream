@@ -25,9 +25,7 @@ fn nightstream_goldilocks_k16_matches_the_frozen_binary_profile() {
 #[test]
 fn s_min_monotone_in_lambda() {
     let p = NeoParams::goldilocks_paper_b2();
-    // Pick a modest (ℓ, d_sc) representative for small CCS polynomials
     let (ell, d_sc) = (32u32, 8u32);
-    // With λ=128 in this synthetic setting, s_min may be ≥2; check monotonicity only.
     let s1 = p.s_min(ell, d_sc);
     let mut tighter = p;
     tighter.lambda = 192;
@@ -38,7 +36,6 @@ fn s_min_monotone_in_lambda() {
 #[test]
 fn extension_policy_enforces_s_eq_2() {
     let mut p = NeoParams::goldilocks_paper_b2();
-    // s!=2 not supported
     p.s = 3;
     assert_eq!(
         Err(ParamsError::UnsupportedExtension { required: 3 }),
@@ -48,7 +45,7 @@ fn extension_policy_enforces_s_eq_2() {
 
 #[test]
 fn r1cs_auto_params_charge_padded_row_field_and_fork_budget() {
-    let p = NeoParams::goldilocks_auto_r1cs_ccs(60).expect("R1CS params");
+    let p = NeoParams::goldilocks_auto_rectangular_r1cs_ccs(60, 60).expect("R1CS params");
 
     assert!(p.has_goldilocks_paper_b2_core());
     assert_eq!(p.lambda, 116);

@@ -1,8 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSNormScan
 
-/-! Exact coefficient sums for the checked original-mask norm scan. Every
-complete block contributes all 27 adjacent pairs and all 17 original sources.
-The source sum is linked to the existing nonlinear-message norm constructor. -/
+/-! Exact coefficient sums for the checked original-mask norm scan. -/
 
 set_option autoImplicit false
 
@@ -15,7 +13,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open NightstreamFPrime.Lifecycle
 open PiCCSNormSource
 
-/-- The existing source-weighted norm cubics at one decoded adjacent pair. -/
 def pairNorm (powers : Nat → K) (masks : Array (Nat × Nat)) (pair : Fin PairCount) :
     FixedPolynomial K 3 :=
   FixedPolynomial.sum extensionOps.toOps (canonicalFinIndices productionShape.sourceCount)
@@ -24,7 +21,6 @@ def pairNorm (powers : Nat → K) (masks : Array (Nat × Nat)) (pair : Fin PairC
         (K.embed (PiCCSNormCache.signedValue (sourceCode masks source (lowLane pair))))
         (K.embed (PiCCSNormCache.signedValue (sourceCode masks source (highLane pair)))))
 
-/-- Canonical pair order, with the same scalar weight used by the scan. -/
 def blockNorm (powers weight : Nat → K) (index : Nat) (masks : Array (Nat × Nat)) :
     FixedPolynomial K 3 :=
   FixedPolynomial.sum extensionOps.toOps (canonicalFinIndices PairCount) fun pair =>
@@ -141,9 +137,6 @@ private theorem finish_source_fold (powers : Nat → K) (weight : K)
   exact folded.trans (congrArg
     (FixedPolynomial.add extensionOps.toOps (PiCCSNormBuckets.finish powers initial)) sumEquality)
 
-/-- Finishing one implemented block adds exactly the canonical 27-pair,
-17-source coefficient sum to the arbitrary initial buckets. Empty-mask
-omission is justified by its exact zero cubics, with no support premise. -/
 theorem block_finish (powers weight : Nat → K) (index : Nat) (masks : Array (Nat × Nat))
     (initial : PiCCSNormBuckets.Buckets) :
     PiCCSNormBuckets.finish powers (PiCCSNormScan.block weight index masks initial) =
@@ -179,8 +172,6 @@ theorem block_finish (powers weight : Nat → K) (index : Nat) (masks : Array (N
         (FixedPolynomial.sum extensionOps.toOps (canonicalFinIndices PairCount) pairTerm)
     exact folded
 
-/-- Every implemented ascending block range gives the exact direct polynomial
-range. Missing array entries keep their original empty-mask zero meaning. -/
 theorem range_finish (powers weight : Nat → K) (masks : Array (Array (Nat × Nat)))
     (start count : Nat) :
     PiCCSNormBuckets.finish powers (PiCCSNormScan.range weight masks start count) =
@@ -193,9 +184,6 @@ theorem range_finish (powers weight : Nat → K) (masks : Array (Array (Nat × N
         congrArg (fun polynomial => FixedPolynomial.add extensionOps.toOps polynomial
           (blockNorm powers weight (start + count) (masks[start + count]?.getD #[]))) inductionHypothesis
 
-/-- This inner sum is the current normPolynomialWithPowers constructor at
-its actual canonical endpoint messages. Fresh matrix images are arbitrary
-because the norm reads only the original source-assignment fields. -/
 theorem pairNorm_eq_normPolynomialWithPowers (powers : Nat → K)
     (masks : Array (Array (Nat × Nat))) (block : Fin PiCCSSourceImages.blockCount)
     (pair : Fin PairCount) (freshLow freshHigh : Vector F Spec.ProductionRelation.matrixCount) :
@@ -227,8 +215,6 @@ theorem pairNorm_eq_normPolynomialWithPowers (powers : Nat → K)
           (sourceCode_low_sourceAssignment masks source block pair freshLow)
           (sourceCode_high_sourceAssignment masks source block pair freshHigh))))
 
-/-- The canonical outer pair sum also uses the original norm constructor,
-with the same pair weights and complete original source order. -/
 theorem blockNorm_eq_normPolynomialWithPowers (powers weight : Nat → K)
     (masks : Array (Array (Nat × Nat))) (block : Fin PiCCSSourceImages.blockCount)
     (freshLow freshHigh : Fin PairCount → Vector F Spec.ProductionRelation.matrixCount) :

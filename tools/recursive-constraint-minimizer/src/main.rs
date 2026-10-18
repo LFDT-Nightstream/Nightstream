@@ -1,5 +1,3 @@
-//! Command-line entry point for bounded cvc5 redundancy checks.
-
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};

@@ -7,7 +7,7 @@ Read the independently replayed PiRLC parent for indexed PiDEC evaluation.
 The input format is the existing sparse parent range stream. Range coverage,
 canonical field words, coefficient bounds and record order are checked before
 the centered integer parent is returned. Missing records denote the existing
-zero block. The canonical field input format is unchanged.
+zero block.
 -/
 
 set_option autoImplicit false
@@ -26,8 +26,6 @@ private def checked {Alpha : Type} (value : Except String Alpha) : IO Alpha :=
   | .ok result => pure result
   | .error error => throw (IO.userError error)
 
-/-- Use the same canonical field decoder as the Pad range runner, and check
-the strict parent bound before any child digit is requested. -/
 private def decodeBlock (line : String) :
     Except String (Nat × Vector Int ringDegree) := do
   let fields ← (← Lean.Json.parse line).getArr?
@@ -47,7 +45,6 @@ private def decodeBlock (line : String) :
       else throw "expected 54 parent coefficients"
   | _ => throw "expected parent block and coefficient array"
 
-/-- One decoded line of a parent range file. -/
 private inductive ParentLine where
   | header (line : String)
   | terminator
@@ -55,8 +52,6 @@ private inductive ParentLine where
 
 instance : Inhabited ParentLine := ⟨.terminator⟩
 
-/-- Decode one range file on the configured worker threads, then check its
-header, the increasing record order, the terminator and the end of the file. -/
 private def readRange (path : System.FilePath) :
     IO (Nat × Nat × Array (Vector Int ringDegree) × Nat) := do
   let lines : Array (Nat × ParentLine) ←
@@ -94,7 +89,6 @@ private def readRange (path : System.FilePath) :
   unless complete do throw (IO.userError "missing parent terminator")
   return (first, last, values, records)
 
-/-- Read the ordered range files one at a time; each file is decoded in parallel. -/
 def read (paths : List String) : IO (ParentBlocks × Nat) := do
   let mut complete : Array (Vector Int ringDegree) := #[]
   let mut cursor := 0

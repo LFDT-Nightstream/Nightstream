@@ -32,10 +32,13 @@ pub(crate) fn prove_owned_with_rows(
         },
     ))
 }
-/// Replay the NIFS verifier for one fold. PiCCS absorbs the prior digest that
-/// the fresh public input carries, not the running claims, so the caller must
-/// first bind that digest to these claims (the lifecycle uses
-/// `checked_prior_state`).
+#[derive(Clone, Copy)]
+pub(crate) struct BoundRunning<'a>(&'a RunningInstance);
+impl<'a> BoundRunning<'a> {
+    pub(crate) fn from_checked_prior(running: &'a RunningInstance) -> Self {
+        Self(running)
+    }
+}
 pub(crate) fn verify(
     tr: &mut Transcript,
     pp: &Params,
@@ -43,21 +46,19 @@ pub(crate) fn verify(
     mix: RlcMixer,
     combine: DecMixer,
     fresh: &CcsClaim,
-    running: &RunningInstance,
+    running: BoundRunning<'_>,
     proof: &NifsProof,
 ) -> Result<RunningInstance, Error> {
     validate_running_children(pp, s, running)?;
-    let outputs = pi_ccs::verify(tr, pp, s, fresh, running, &proof.pi_ccs)?;
+    let outputs = pi_ccs::verify(tr, pp, s, fresh, running.0, &proof.pi_ccs)?;
     let parent = pi_rlc::verify(tr, pp, s, mix, &outputs, &proof.pi_rlc)?;
     let children = pi_dec::verify(pp, s, combine, &parent, &proof.pi_dec)?;
     Ok(RunningInstance::new(children, Vec::new()))
 }
-/// A nonempty running instance must be one PiDEC child family. The caller
-/// binds the claims to the prior digest that PiCCS absorbs.
-pub(crate) fn validate_running_children(pp: &Params, s: &Structure, running: &RunningInstance) -> Result<(), Error> {
-    if running.claims.is_empty() {
+pub(crate) fn validate_running_children(pp: &Params, s: &Structure, running: BoundRunning<'_>) -> Result<(), Error> {
+    if running.0.claims.is_empty() {
         return Ok(());
     }
-    pi_dec::validate_children(pp, s, &running.claims)?;
+    pi_dec::validate_children_without_frames(pp, s, &running.0.claims)?;
     Ok(())
 }

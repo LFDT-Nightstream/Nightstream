@@ -1,8 +1,5 @@
 import NightstreamFPrime.Spec.Folding.PiDEC
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiDEC/PaperVerifier.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Paper-exact public verifier for SuperNeo `Pi_DEC`.
 
@@ -10,37 +7,10 @@ Protocol: SuperNeo Section 7.5.
 Phase: one combined `CE(B)` parent to exactly `k` fresh `CE(b)` children.
 Constraint family: semantic verifier equations only; this file emits no rows.
 
-Assurance tier: model-level.
-
 Owns: verifier-computed child public inputs, copied structure and point,
 fixed evaluation-message arity, prover-supplied child commitment/evaluation
 messages, the fixed-arity tuple boundary and two paper equations, projection
 to the recomposition verifier, reduction of knowledge, and honest completeness.
-
-Does not own: deterministic child commitments or evaluations, child CE
-membership as a verifier check, commitment binding, extraction, a concrete
-radix implementation, transcript binding, Rust/R1CS refinement, costs, or row
-removal.
-
-Emits constraints: no.
-
-Authority boundary: the prover sends only child commitments and evaluation
-arrays. The verifier computes every child public input from the public parent,
-copies the parent structure and point, marks each output fresh, and checks only
-commitment and evaluation recomposition. `PiDEC.Accepted` remains the weaker
-recomposition relation used by the existing knowledge theorem.
-
-| Stage path | Mathematical obligation | Authority class | Lean owner |
-|---|---|---|---|
-| `nifs.pi_dec.paper.public_split` | child `i` public input is `split_b(parent.x)_i` | computed | `PublicInputSplit.split`, `children` |
-| `nifs.pi_dec.paper.public_split.recompose` | the public split recomposes to the parent input | derived | `PublicInputSplit.recompose_split` |
-| `nifs.pi_dec.paper.public_split.projection` | splitting commutes with authoritative public projection | derived | `PublicInputSplit.split_project` |
-| `nifs.pi_dec.paper.copy` | structure and point are copied and stage is fresh | computed | `children` |
-| `nifs.pi_dec.paper.commitment` | parent commitment recomposes from prover messages | checked | `Accepted.commitmentEquation` |
-| `nifs.pi_dec.paper.evaluation_arity` | parent and every child message contain exactly the structure-owned `t` evaluations | checked/typed | `EvaluationArity`, `Accepted.parentEvaluationSize`, `Accepted.messageEvaluationSize` |
-| `nifs.pi_dec.paper.evaluations` | all `t` parent evaluations recompose from prover messages | checked | `Accepted.evaluationEquation` |
-| `nifs.pi_dec.paper.relaxed` | paper output satisfies public recomposition acceptance | derived | `Accepted.toRecompositionAccepted` |
-| `nifs.pi_dec.paper.complete` | the honest private split satisfies the paper verifier | derived | `complete` |
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiDEC.PaperVerifier
@@ -50,8 +20,6 @@ open NightstreamFPrime.Spec.Folding
 
 universe uStructure uAssignment uPublicInput uPoint uEvaluation uCommitment
 
-/-- Verifier-owned public radix split and the laws relating it to the existing
-assignment/recomposition algebra. -/
 structure PublicInputSplit
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -138,9 +106,6 @@ theorem checked_eq_none
 
 end PublicInputSplit
 
-/-- Verifier-owned evaluation-vector arity. The paper uses a statically sized
-`t`-tuple; this sidecar makes that typing obligation explicit because the
-generic `CE.Instance` carrier stores evaluations in an `Array`. -/
 structure EvaluationArity
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -154,15 +119,13 @@ structure EvaluationArity
   evaluations_size : ∀ system assignment point,
     (semantics.evaluations system assignment point).size = count system
 
-/-- The exact prover message in Section 7.5. Public inputs, structure, point,
-and norm stage are absent because the verifier computes them. -/
+/-- The exact prover message in Section 7.5. -/
 structure ChildMessage
     (Evaluation : Type uEvaluation)
     (Commitment : Type uCommitment) where
   commitment : Commitment
   evaluations : Array Evaluation
 
-/-- Public parent plus the `k` prover messages consumed by the paper verifier. -/
 structure Attempt
     (Structure : Type uStructure)
     (PublicInput : Type uPublicInput)
@@ -173,8 +136,6 @@ structure Attempt
   parent : CE.Instance Structure PublicInput Point Evaluation Commitment
   messages : Fin params.k → ChildMessage Evaluation Commitment
 
-/-- The full output family computed by the verifier from its parent and the
-prover messages. -/
 def children
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -220,9 +181,7 @@ def children
   rfl
 
 /-- The Section-7.5 fixed-tuple shape, its two arithmetic equations, and the
-required combined input stage. All child fields omitted here are computed by
-`children`. The size fields model static paper typing; a concrete fixed-layout
-refinement may discharge them without arithmetic constraints. -/
+required combined input stage. -/
 structure Accepted
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -256,9 +215,6 @@ structure Accepted
       algebra.recomposeEvaluations fun child =>
         (attempt.messages child).evaluations
 
-/-- Constructive decision procedure for the exact operational acceptance
-predicate. It depends only on finite public equality and the verifier-owned
-public-input bound decision. -/
 def acceptedDecision
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -316,8 +272,6 @@ def acceptedDecision
   · exact isFalse fun accepted =>
       parentBounded accepted.parentBounded
 
-/-- Forget the operational message boundary and expose the full parent/child
-family expected by the recomposition model. -/
 def toRecompositionAttempt
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -337,7 +291,6 @@ def toRecompositionAttempt
   children := children publicSplit attempt
 }
 
-/-- Extract exactly the message fields from a candidate full output family. -/
 def messagesOf
     {Structure : Type uStructure}
     {PublicInput : Type uPublicInput}
@@ -353,7 +306,6 @@ def messagesOf
     evaluations := (output child).evaluations
   }
 
-/-- Operational attempt induced by a parent and a candidate full output. -/
 def attemptForOutput
     {Structure : Type uStructure}
     {PublicInput : Type uPublicInput}
@@ -369,10 +321,6 @@ def attemptForOutput
   messages := messagesOf output
 }
 
-/-- Exact relation between one accepted operational verifier run and its full
-computed output. `checks` contains fixed tuple arities and the two paper
-equations; the separate equality records that the candidate family is the
-verifier's constructed result. -/
 structure OutputAccepted
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -397,8 +345,6 @@ structure OutputAccepted
 
 namespace Accepted
 
-/-- The operational paper verifier refines the established recomposition
-relation. The reverse implication is intentionally false in general. -/
 theorem toRecompositionAccepted
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -430,7 +376,6 @@ end Accepted
 
 namespace OutputAccepted
 
-/-- Every exact output carries the verifier-computed child public input. -/
 theorem childPublicInput_eq
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -459,8 +404,6 @@ theorem childPublicInput_eq
       (congrArg CE.Instance.publicInput childEq).symm
     _ = publicSplit.split parent.publicInput child := rfl
 
-/-- Exact outputs over equal parent public inputs have identical child public
-inputs, independently of their prover-supplied commitments/evaluations. -/
 theorem publicInputs_eq_of_parentPublicInput_eq
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -491,8 +434,6 @@ theorem publicInputs_eq_of_parentPublicInput_eq
   rw [leftAccepted.childPublicInput_eq child,
     rightAccepted.childPublicInput_eq child, parentPublicInputEq]
 
-/-- Exact outputs contain exactly the structure-owned number of evaluation
-claims; trailing or default-filled entries cannot pass this relation. -/
 theorem childEvaluations_size
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -517,8 +458,6 @@ theorem childEvaluations_size
       evaluationArity.count parent.constraintSystem := by
   exact accepted.checks.messageEvaluationSize child
 
-/-- The public parent also contains exactly the structure-owned number of
-evaluation claims. -/
 theorem parentEvaluations_size
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -542,8 +481,6 @@ theorem parentEvaluations_size
       evaluationArity.count parent.constraintSystem :=
   accepted.checks.parentEvaluationSize
 
-/-- Exact full-output paper acceptance implies the established recomposition
-predicate over that same parent and output family. -/
 theorem toRecompositionAccepted
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -574,9 +511,6 @@ theorem toRecompositionAccepted
 
 end OutputAccepted
 
-/-- Equal parent public inputs produce equal child public inputs. This is the
-children-from-parent direction missing from the recomposition-only relation;
-it deliberately says nothing about prover-supplied commitments/evaluations. -/
 theorem childPublicInputs_eq_of_parentPublicInput_eq
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -600,7 +534,6 @@ theorem childPublicInputs_eq_of_parentPublicInput_eq
   exact congrArg (fun input => publicSplit.split input child)
     parentPublicInputEq
 
-/-- Honest messages computed from the private parent split. -/
 def honestMessages
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -622,7 +555,6 @@ def honestMessages
       (algebra.splitAssignment assignment child) parent.point
   }
 
-/-- Honest paper-verifier attempt for one valid combined parent opening. -/
 def honestAttempt
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -642,8 +574,6 @@ def honestAttempt
   messages := honestMessages algebra parent assignment
 }
 
-/-- With an authoritative parent public opening, operational honest children
-are exactly the established private-split children. -/
 theorem honestChildren_eq_childrenOf
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -679,8 +609,6 @@ theorem honestChildren_eq_childrenOf
   simp [children, honestAttempt, honestMessages, PiDEC.childrenOf,
     publicInputEq]
 
-/-- Honest completeness of the exact operational paper verifier. Child CE
-membership is a theorem about the output, not an extra runtime check. -/
 theorem complete
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -735,8 +663,6 @@ theorem complete
     rw [childrenEq]
     exact recomposition.2 child
 
-/-- Full-output form of honest completeness, with the established canonical
-private children used only as the honest output constructor. -/
 theorem output_complete
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -776,8 +702,6 @@ theorem output_complete
     rw [← childrenEq]
     exact operational.2 child
 
-/-- Reduction of knowledge for the exact operational verifier, inherited only
-after deriving the weaker recomposition equations. -/
 theorem reduce_knowledge
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -805,8 +729,6 @@ theorem reduce_knowledge
     (toRecompositionAttempt publicSplit attempt) childAssignments kPositive
     accepted.toRecompositionAccepted childrenValid
 
-/-- The parent-opening binding dichotomy also transfers through the exact
-operational verifier. -/
 theorem parent_eq_recompose_or_bindingCollision
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}

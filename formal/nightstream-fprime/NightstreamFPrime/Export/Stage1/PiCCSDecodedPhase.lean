@@ -4,8 +4,7 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_2.FormalPhase
 
 /-!
 Owns the emitted-row soundness connection to the existing PiCCS phase
-assembler. All twelve opaque child contracts use one decoded environment.
-No raw encoding or semantic representation is an input to this theorem.
+assembler.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSDecodedPhase
@@ -19,9 +18,6 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
-/-- Arbitrary assignments satisfying the ordinary, Poseidon, and endpoint
-row families satisfy the sole logical phase assembler in their decoded
-environment. The enforced constant coordinate is the only value premise. -/
 theorem rowsZero_implies_specHolds
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     {relationLogicalWidth : Nat}
@@ -61,9 +57,6 @@ theorem rowsZero_implies_specHolds
     finalIdentity := arithmetic.finalIdentity_parent
     outputBinding := transcripts.outputBinding_parent relation }
 
-/-- Acceptance of the selected complete Stage 1 row plan implies the PiCCS
-specification in decoded values. The fixed-point theorem selects the
-key-facing relation before the three PiCCS row families are projected. -/
 theorem selectedRowsZero_implies_specHolds
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
@@ -108,8 +101,6 @@ theorem selectedRowsZero_implies_specHolds
       (DirectApplicationPrefixPlan.piDecGeometry geometry)) assignment one
     ordinaryRows transcriptRows endpointRows
 
-/-- Acceptance of the selected complete Stage 1 row plan implies the exact
-PiCCS phase predicate in decoded values. -/
 theorem selectedRowsZero_implies_phaseHolds
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)

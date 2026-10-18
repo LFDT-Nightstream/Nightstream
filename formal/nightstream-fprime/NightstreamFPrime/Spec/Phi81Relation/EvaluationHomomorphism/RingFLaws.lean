@@ -1,14 +1,9 @@
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.CarrierAction
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Concrete/Phi81Relation/EvaluationHomomorphism/RingFLaws.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Symbolic Phi81 multiplication laws needed by the `Pi_RLC` carrier bridge.
 
 Protocol: SuperNeo v1.2 Theorem 11, concrete assignment-side ring action.
-Phase: monomial normal form and product-order compatibility.
-Constraint family: semantic coefficient algebra only; this file emits no rows.
 
 Owns: a symbolic schoolbook-convolution theorem for two monomials; the
 canonical `X^81 = 1`, `X^54 = -X^27 - 1` monomial normal form; and the
@@ -17,19 +12,6 @@ arbitrary challenge action.
 
 Does not own: coefficientwise `RingF -> RingK` embedding, Boolean MLE,
 commitments, transcripts, Rust/R1CS refinement, row removal, or counts.
-
-Emits constraints: no.
-
-Authority boundary: all products are the executable `Concrete.ringFMul`.
-Finite arithmetic may close bounded index side conditions, but no exhaustive
-check unfolds the full 54-lane schoolbook multiplier.
-
-| Stage path | Mathematical obligation | Proof shape | Emits constraints |
-|---|---|---|---|
-| `nifs.pi_rlc.verify.evaluation_hom.ring_f.raw_monomial` | raw convolution has exactly one live coefficient | symbolic fold / one-hot selection | no |
-| `nifs.pi_rlc.verify.evaluation_hom.ring_f.normal_form` | executable Phi81 reduction agrees with the canonical monomial image | symbolic coefficient reduction | no |
-| `nifs.pi_ccs.output.identity.constant_row` | the constant bar basis acts as the exact quotient-ring unit | finite-basis linear lift | no |
-| `nifs.pi_rlc.verify.evaluation_hom.ring_f.bar_commutation` | `bar * (rho * z) = rho * (bar * z)` | finite-basis lift from normal forms | no |
 -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFLaws
@@ -39,13 +21,9 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.MatrixCoefficientSource
 
 
-/-- The coefficient basis element `X^degree`. Degrees outside the canonical
-range denote the zero vector, exactly as `ringFMonomial` does. -/
 def basis (degree : Nat) : RingF :=
   ringFMonomial degree 1
 
-/-- Canonical image of `X^degree` modulo `X^54 + X^27 + 1`, using the
-derived period `X^81 = 1`. -/
 def monomialReduce (degree : Nat) : RingF :=
   let residue := degree % 81
   if residue < ringDegree then
@@ -117,9 +95,6 @@ private theorem foldl_keep
   | cons _ indices inductionHypothesis =>
       exact inductionHypothesis initial
 
-/-- Raw schoolbook convolution of two canonical monomials has one live
-coefficient, at the sum of their degrees. This proof is symbolic in the
-field coefficients and does not enumerate the Goldilocks carrier. -/
 theorem rawMulCoeffF_monomial
     (leftDegree rightDegree : Nat)
     (leftCoefficient rightCoefficient : F)
@@ -209,7 +184,7 @@ private theorem ringFMul_basis_coefficient
           delta (output.val + 81) (left.val + right.val)
         else
           0) := by
-  simp only [ringFMul, basis,
+  simp only [ringFMul, basis, show ringDegree + ringMiddleDegree = 81 from rfl, show 2 * (ringDegree - 1) = 106 from rfl,
     rawMulCoeffF_monomial left.val right.val 1 1 left.isLt right.isLt,
     Fin.one_mul, delta]
 
@@ -387,9 +362,6 @@ private theorem reduction_high
           fin_neg_zero, Fin.add_zero] <;>
         simp
 
-/-- Multiplication of two coefficient bases is exactly the canonical Phi81
-monomial normal form. The executable convolution is eliminated first by
-`rawMulCoeffF_monomial`; only bounded natural-number reduction remains. -/
 theorem ringFMul_basis_basis
     (left right : Fin ringDegree) :
     ringFMul (basis left.val) (basis right.val) =
@@ -444,8 +416,6 @@ theorem ringFMul_basis_basis
       exact reduction_high (left.val + right.val) output.val
         sumGe sumLe106 output.isLt
 
-/-! ## Canonical-reduction recurrence -/
-
 private theorem negOne_mul (value : F) :
     (-1 : F) * value = -value := by
   calc
@@ -488,9 +458,6 @@ private theorem reduction_cancel_right (left right : F) :
     _ = right + 0 := by rw [cancel]
     _ = right := ConcreteCarrier.baseLaws.add_zero right
 
-/-- The canonical monomial image satisfies the defining Phi81 recurrence
-`X^(n+54) = -X^n - X^(n+27)` throughout the only residue range needed by
-one further coefficient-basis multiplication. -/
 theorem monomialReduce_recurrence
     (degree : Nat) (degreeLt : degree < 80) :
     monomialReduce (degree + 54) =
@@ -547,8 +514,6 @@ private theorem monomialReduce_eq_of_modEq
   unfold monomialReduce
   rw [modEq]
 
-/-- Multiplying an already reduced monomial image by one coefficient basis
-adds the basis degree before canonical reduction. -/
 theorem ringFMul_basis_monomialReduce_residue
     (left : Fin ringDegree) (residue : Fin 81) :
     ringFMul (basis left.val) (monomialReduce residue.val) =
@@ -623,8 +588,6 @@ theorem ringFMul_basis_monomialReduce_residue
       _ = monomialReduce (degree + 54) := recurrence.symm
       _ = monomialReduce (left.val + residue.val) := by rw [totalDegree]
 
-/-- The previous action law for an arbitrary exponent; only its residue
-modulo the derived period `X^81 = 1` affects the canonical image. -/
 theorem ringFMul_basis_monomialReduce
     (left : Fin ringDegree) (degree : Nat) :
     ringFMul (basis left.val) (monomialReduce degree) =
@@ -643,9 +606,6 @@ theorem ringFMul_basis_monomialReduce
       apply monomialReduce_eq_of_modEq
       simp [residue, Nat.add_mod]
 
-/-- Coefficient-basis left actions commute on a coefficient-basis input.
-This is the finite leaf later lifted by bilinearity; no carrier values are
-enumerated. -/
 theorem ringFMul_leftActionComm_basis
     (left middle right : Fin ringDegree) :
     ringFMul (basis left.val)
@@ -658,8 +618,6 @@ theorem ringFMul_leftActionComm_basis
     ringFMul_basis_monomialReduce middle]
   congr 1
   omega
-
-/-! ## Finite-basis lift -/
 
 private def ringFSumRange : Nat -> (Nat -> RingF) -> RingF
   | 0, _ => ringFZero
@@ -715,7 +673,6 @@ private theorem ringFScale_zero (value : RingF) :
   funext output
   exact Fin.zero_mul (value output)
 
-/-- Multiplication by the additive identity on the left is zero. -/
 theorem ringFMul_zero_left (right : RingF) :
     ringFMul ringFZero right = ringFZero := by
   calc
@@ -726,8 +683,6 @@ theorem ringFMul_zero_left (right : RingF) :
       CarrierAction.ringFMul_scale_left 0 ringFZero right
     _ = ringFZero := ringFScale_zero _
 
-/-- Two base-field-linear maps on `RingF` are equal when they agree on all
-54 coefficient basis elements. -/
 theorem ringF_linear_eq_of_basis
     (leftMap rightMap : RingF -> RingF)
     (leftZero : leftMap ringFZero = ringFZero)
@@ -829,9 +784,6 @@ private theorem ringF_bilinear_eq_of_basis
     (fun scalar value => rightScaleLeft scalar value right)
     leftBasis left
 
-/-- The executable quotient multiplication has the expected left unit. The
-proof is a symbolic finite-basis lift from `ringFMul_basis_basis`; it does not
-unfold the multiplier for an arbitrary 54-lane value. -/
 theorem ringFMul_one_left (value : RingF) :
     ringFMul ringFOne value = value := by
   apply ringF_linear_eq_of_basis
@@ -859,17 +811,11 @@ theorem ringFMul_one_left (value : RingF) :
     simp only [zero, Nat.zero_add]
     simp [monomialReduce, residue, index.isLt]
 
-/-- The constant coefficient row of the canonical Phi81 kernel returns the
-authoritative assignment block unchanged. This is an algebraic identity only;
-an identity-matrix opening must still prove that it selects this row. -/
 theorem kernelImage_constant (block : RingF) :
     CarrierAction.kernelImage Phi81CoefficientKernel.constant block = block := by
   rw [CarrierAction.kernelImage_eq_ringFMul,
     Phi81CoefficientKernel.barBasis_constant_eq_one, ringFMul_one_left]
 
-/-- Exact left-action commutation for the executable Phi81 quotient-ring
-multiplication. This is the strongest algebraic statement needed to reconcile
-the two product orders in the concrete `Pi_RLC` carrier bridge. -/
 theorem ringFMul_leftActionComm (left middle right : RingF) :
     ringFMul left (ringFMul middle right) =
       ringFMul middle (ringFMul left right) := by
@@ -930,8 +876,6 @@ theorem ringFMul_leftActionComm (left middle right : RingF) :
       exact ringFMul_leftActionComm_basis
         leftBasis middleBasis rightBasis
 
-/-- The executable Phi81 quotient multiplication is commutative. The proof
-uses the same finite coefficient-basis normal form as the product-order law. -/
 theorem ringFMul_comm (left right : RingF) :
     ringFMul left right = ringFMul right left := by
   apply ringF_bilinear_eq_of_basis
@@ -958,14 +902,10 @@ theorem ringFMul_comm (left right : RingF) :
   · intro leftBasis rightBasis
     rw [ringFMul_basis_basis, ringFMul_basis_basis, Nat.add_comm]
 
-/-- The executable Phi81 quotient multiplication has the expected right
-unit. -/
 theorem ringFMul_one_right (value : RingF) :
     ringFMul value ringFOne = value := by
   rw [ringFMul_comm, ringFMul_one_left]
 
-/-- The executable Phi81 quotient multiplication is associative. This
-follows from commutativity and the already proved commutation of left actions. -/
 theorem ringFMul_assoc (left middle right : RingF) :
     ringFMul (ringFMul left middle) right =
       ringFMul left (ringFMul middle right) := by
@@ -978,9 +918,6 @@ theorem ringFMul_assoc (left middle right : RingF) :
     _ = ringFMul left (ringFMul middle right) := by
       rw [ringFMul_comm right middle]
 
-/-- The exact product-order bridge required by the concrete `Pi_RLC`
-evaluation-homomorphism field. The fixed bar image and the sampled challenge
-act in either order on every complete assignment block. -/
 theorem ringFMul_barBasis_productOrder
     (row : Fin ringDegree) (challenge block : RingF) :
     ringFMul (Phi81CoefficientKernel.barBasis row)

@@ -1,6 +1,5 @@
 //! Compare the actual CPU norm kernel with a Lean inner-cubic range result.
 //! Source masks and public coins are inputs; Lean coefficients are targets only.
-//! This file is a private cfg(test) child of cpu_oracle.rs, not an integration crate.
 
 use std::{
     fs::File,
@@ -15,9 +14,8 @@ use neo_math::{from_complex, KExtensions, D, F, K};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use serde::Deserialize;
 
-use super::{norm_coefficients, prefix, Assignment, EqualityWeights};
+use super::{norm_coefficients, Assignment, EqualityWeights};
 
-// The selected Stage 1 profile has one fresh source and k_rho running sources.
 const SOURCES: usize = 1 + neo_params::nightstream_goldilocks_k16::K_RHO as usize;
 const ROUNDS: usize = 28;
 const BLOCKS: usize = PRODUCTION_MESSAGE_COLUMNS as usize;
@@ -47,8 +45,6 @@ fn next_line(reader: &mut impl BufRead, line: &mut String) -> Result<bool, Strin
         .map_err(|error| error.to_string())
 }
 
-/// Validate the complete ordered capture. Store only the requested interval;
-/// omitted blocks/sources remain zero in all seventeen compact matrices.
 fn source_range(mut reader: impl BufRead, first: usize, end: usize) -> Result<Vec<Mat<F>>, String> {
     if first >= end || end > BLOCKS {
         return Err("invalid selected carrier block range".into());
@@ -159,9 +155,7 @@ fn original_first_round_inner_norm_matches_lean() {
         .collect::<Vec<_>>();
     let weights = EqualityWeights::new(&alpha[1..]);
     let compute_started = Instant::now();
-    // Only original masks, public coins and the declared block bounds reach
-    // the same kernel used by the production CPU oracle. Targets do not.
-    let actual = norm_coefficients(&assignments, gamma, &weights, first * (D / 2));
+    let actual = norm_coefficients(&assignments, gamma, &weights);
     let compute_seconds = compute_started.elapsed().as_secs_f64();
     compare(&actual, &target).unwrap();
     let mut changed = target;
@@ -224,11 +218,9 @@ fn original_second_round_inner_norm_matches_lean() {
     let compute_started = Instant::now();
     let mut actual = [K::ZERO; 4];
     for (source, witness) in witnesses.iter().enumerate() {
-        // Keep one dense folded source at a time. Both operations below are
-        // the production CPU functions; Lean coefficients never enter them.
         let mut assignment = Assignment::new(witness, BLOCKS * D);
         assignment.fold(challenge);
-        let cubic = norm_coefficients(std::slice::from_ref(&assignment), gamma, &weights, 0);
+        let cubic = norm_coefficients(std::slice::from_ref(&assignment), gamma, &weights);
         let source_weight = super::gamma_power(gamma, source);
         for coefficient in 0..4 {
             actual[coefficient] += source_weight * cubic[coefficient];
@@ -263,7 +255,7 @@ fn capture(records: &str) -> String {
 }
 
 #[test]
-fn range_uses_absolute_weights_and_keeps_the_last_running_lane() {
+fn range_keeps_the_last_running_lane() {
     let last_source = SOURCES - 1;
     let text = capture(&format!("[1,[[0,1,0],[{last_source},0,{}]]]\n", 1u64 << (D - 1)));
     let witnesses = source_range(Cursor::new(text), 1, 3).unwrap();
@@ -273,25 +265,6 @@ fn range_uses_absolute_weights_and_keeps_the_last_running_lane() {
         assert_eq!(witness[(D - 1, 1)], F::ZERO, "omitted second block is zero");
     }
     assert_eq!(witnesses[last_source][(D - 1, 0)], -F::ONE);
-    let assignments = witnesses
-        .iter()
-        .map(|witness| Assignment::new(witness, 2 * D))
-        .collect::<Vec<_>>();
-    let alpha: Vec<_> = (0..ROUNDS)
-        .map(|index| K::from(F::from_u64(index as u64 + 2)))
-        .collect();
-    let gamma = K::from(F::from_u64(3));
-    let weights = EqualityWeights::new(&alpha[1..]);
-    let first_pair = D / 2;
-    let actual = norm_coefficients(&assignments, gamma, &weights, first_pair);
-    let fresh = prefix::norm_pair(K::ONE, K::ZERO);
-    let running = prefix::norm_pair(K::ZERO, -K::ONE);
-    let running_power = super::gamma_power(gamma, last_source);
-    let expected = std::array::from_fn(|index| {
-        fresh[index] * weights.at(first_pair) + running_power * running[index] * weights.at(first_pair + D / 2 - 1)
-    });
-    assert_eq!(actual, expected);
-    assert_ne!(actual, norm_coefficients(&assignments, gamma, &weights, 0));
 }
 
 #[test]

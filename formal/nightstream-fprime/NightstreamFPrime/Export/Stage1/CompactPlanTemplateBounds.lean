@@ -51,24 +51,18 @@ private theorem combination_block_index_lt (block : CombinationInvocationBlock)
   · exact combination_family_index_lt block.sourceCount block.evalA
       PiRLCCombinationInvocations.evalAValueSourceStart invocation evalAMember
 
-/-- The combination constructor guarantees template bounds for every invocation
-they emit. No restriction on their numeric count or geometry fields is needed. -/
 theorem block_templateIndex_lt (block : CompactInvocationBlock)
     (invocation : CompactRowInvocation) (member : invocation ∈ block.expand) :
     invocation.templateIndex < (Data.compactRowTemplates ()).length := by
   cases block with
   | combination block => exact combination_block_index_lt block invocation member
 
-/-- The canonical plan inherits the constructor-level bound without expanding
-its concrete invocation list. -/
 theorem canonical_templateIndex_lt (invocation : CompactRowInvocation)
     (member : invocation ∈ canonicalCompactBlocks.flatMap CompactInvocationBlock.expand) :
     invocation.templateIndex < (Data.compactRowTemplates ()).length := by
   rcases List.mem_flatMap.mp member with ⟨block, _blockMember, invocationMember⟩
   exact block_templateIndex_lt block invocation invocationMember
 
-/-- The guarded optional lookup returns the exact proof-indexed template.
-This permits a builder to use the bound without a default or chosen template. -/
 theorem canonical_template_getElem? (invocation : CompactRowInvocation)
     (member : invocation ∈ canonicalCompactBlocks.flatMap CompactInvocationBlock.expand) :
     (Data.compactRowTemplates ())[invocation.templateIndex]? =

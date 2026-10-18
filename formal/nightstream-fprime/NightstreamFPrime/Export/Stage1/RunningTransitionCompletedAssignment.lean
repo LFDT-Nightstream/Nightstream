@@ -4,8 +4,6 @@ import NightstreamFPrime.Layout.Stage1.SpartanRows
 
 /-!
 Owns the running-transition plan on the completed canonical assignment.
-Actual PiCCS rows determine the transcript readout; all other physical values
-are copied by the existing source constructor.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.RunningTransitionCompletedAssignment
@@ -23,9 +21,6 @@ open PerApplicationAssignmentTransportExecution
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- The actual cumulative physical rows imply the running-transition rows
-of the same canonical low-norm assignment, including the computed transcript
-point. No transcript-coherence or retained-row premise is supplied. -/
 theorem rowsZero_of_completed
     (application : Lifecycle.Stage1.Application.Program)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)

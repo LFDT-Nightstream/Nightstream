@@ -7,11 +7,7 @@ import NightstreamFPrime.Lifecycle.PilotZeroRunning
 /-!
 Owns accepted-next completeness from actual old openings, for every
 application that fits the `2^28` profile and every commitment setup.
-The recursive branch fixes its C prefix before the total sampler runs. The
-base branch uses canonical dummy advice and retains the default running claims.
-Both call the actual selected assignment constructor and compute the fresh
-commitment from that same carrier. No security or work law is claimed.
-
+No security or work law is claimed.
 -/
 
 set_option autoImplicit false
@@ -124,11 +120,6 @@ theorem terminal_of_memberships
 variable (application : Program) (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
   (commitmentSetup : PerApplicationCanonicalPackage.CommitmentSetup application)
 
-/-- An accepted prior payload and valid application advice construct the
-normal local proof and an accepted successor envelope. The same returned
-child assignments and actual canonical fresh carrier occur in that envelope.
-No accepted local proof, child validity, physical rows, or assignment-correctness
-callback is a caller premise. This is deterministic completeness only. -/
 theorem recursive_extend
     (statement : HyperNovaHistory.Statement) (payload : HyperNovaHistory.Payload application)
     (advice : AppWitness)
@@ -207,11 +198,6 @@ theorem recursive_extend
   exact ⟨proof, result, children, raw, roundsEq, outputEq, sampleEq, verified,
     childrenMember, actualAdvice, digest, nextAccepted⟩
 
-/-- The accepted initial envelope constructs a first canonical step using
-the total sampler on the existing zero proof. The dummy verifier
-result is used by the physical constructor. The new terminal envelope keeps
-the default running claims and their proved zero openings. No opening of the
-dummy fresh claim or its verifier-produced children is assumed or claimed. -/
 theorem base_extend
     (statement : HyperNovaHistory.Statement) (advice : AppWitness)
     (accepted : PerApplicationTerminal.Holds application fits commitmentSetup statement .bottom)

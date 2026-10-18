@@ -3,17 +3,7 @@ import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransportProducts
 
 /-!
 Owns the executable meaning of the serialized per-application assignment
-transport. The interpreter reads the compact product recipes, expression
-lists, block metadata, and affine source runs. It performs point lookup and
-does not materialize the complete logical assignment.
-
-The public executor first checks exact structural equality with the canonical
-plan. This fail-closed check consumes the opcode, selector, count, and fixed
-recipe fields that are validation metadata rather than value inputs.
-
-`PerApplicationCanonicalAssignment.RawValues.schedule` remains the semantic
-assignment authority. The final theorem proves that this serialized-plan
-interpreter is pointwise equal to that assignment.
+transport.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransportExecution
@@ -35,7 +25,6 @@ abbrev Program := Lifecycle.Stage1.Application.Program
 abbrev BaseValues (program : Program) :=
   PerApplicationAssignmentTransportProducts.BaseValues program
 
-/-- Derive the retained Phi81 group values from the serialized recipes. -/
 def rawValues (program : Program) (plan : Plan) (base : BaseValues program) :
     RawValues program where
   base := base
@@ -43,12 +32,10 @@ def rawValues (program : Program) (plan : Plan) (base : BaseValues program) :
     PerApplicationAssignmentTransportProducts.phi81GroupValue
       plan.phi81 program base invocation group.val
 
-/-- Raw values derived from the exact transport carried by the canonical plan. -/
 def canonicalRawValues (program : Program) (base : BaseValues program) :
     RawValues program :=
   rawValues program (PerApplicationAssignmentTransport.canonical program) base
 
-/-- The canonical Phi81 recipe computes the existing honest retained group. -/
 theorem canonicalRawValues_groupValue_eq_honestGroupValue
     (program : Program) (base : BaseValues program)
     (invocation : Fin PiRLCProductSchedule.invocationCount)
@@ -65,7 +52,6 @@ theorem canonicalRawValues_groupValue_eq_honestGroupValue
     PerApplicationAssignmentTransportProducts.canonical_phi81GroupValue_eq_honestGroupValue
       (canonicalRawValues program base) invocation group
 
-/-- Canonical run lookup selects the exact Lean-owned source index. -/
 private theorem canonical_runSource (program : Program) (kind : BlockKind)
     (slot : Nat)
     (bound :
@@ -84,20 +70,16 @@ private theorem canonical_runSource (program : Program) (kind : BlockKind)
   unfold PerApplicationAssignmentBlocks.sourceIndices
   exact NightstreamFPrime.Lifecycle.PriorStateHash.ofFn_getD _ ⟨slot, bound⟩ 0
 
-/-- Evaluate one serialized expression against the retained-source view. -/
 private def expressionValue {program : Program} (expressions : List Expr)
     (raw : RawValues program) (index : Nat) : F :=
   (expressions.getD index 0).eval
     (SourceCompiler.sourceEnv raw.retainedSource)
 
-/-- Total value view of one serialized block source domain. -/
 private def domainValue (program : Program)
     (raw : RawValues program) : SourceDomain → Nat → F
   | .retained => SourceCompiler.sourceEnv raw.retainedSource
   | .physicalBase => SourceCompiler.sourceEnv raw.base
 
-/-- On the canonical plan, each domain/index pair reads the scalar selected
-by the existing opcode interpreter. -/
 private theorem canonical_domain_source (program : Program)
     (raw : RawValues program) (kind : BlockKind) (slot : Nat)
     (entryBound :
@@ -121,7 +103,6 @@ private theorem canonical_domain_source (program : Program)
       PerApplicationCanonicalAssignment.RawValues.applicationSource
       ]
 
-/-- One serialized block slot. Invalid run coverage fails closed. -/
 private def blockSlotValue (program : Program)
     (raw : RawValues program) (block : BlockPlan)
     (slot : Fin block.slotCount) : F :=
@@ -132,15 +113,12 @@ private def blockSlotValue (program : Program)
   else
     0
 
-/-- An identity-source block lets the compact plan supply one value per slot
-without inventing another retained source layout. -/
 private def identityBlock (block : BlockPlan) :
     LowNormBlock.Block block.slotCount where
   kind := block.slotKind
   slotCount := block.slotCount
   source := fun slot => slot
 
-/-- Interpret one serialized block without expanding its slots. -/
 private def transportBlockValue (program : Program)
     (raw : RawValues program) (block : BlockPlan) :
     CanonicalBlockAssignment.BlockValue :=
@@ -160,8 +138,6 @@ private def transportBlockValue (program : Program)
       block.slotCount := by
   rfl
 
-/-- Two function-valued blocks with the same visible geometry and selected
-slot values have the same direct coordinate lookup. -/
 private theorem blockValue_coordinateAt_eq
     (left right : CanonicalBlockAssignment.BlockValue)
     (kindEq : left.block.kind = right.block.kind)
@@ -260,8 +236,6 @@ private theorem canonicalBlock_slotCount (program : Program)
   exact (PerApplicationAssignmentBlocks.entry_geometry_eq_expand
     program raw kind).2
 
-/-- One canonical serialized block has the same coordinate lookup as its
-Lean-owned opcode expansion. -/
 private theorem canonicalBlock_coordinateAt (program : Program)
     (raw : RawValues program) (kind : BlockKind) (index : Nat) :
     (transportBlockValue program raw
@@ -302,8 +276,6 @@ private theorem canonicalBlock_coordinateCount (program : Program)
   rw [canonicalBlock_slotCount program raw kind,
     canonicalBlock_kind program raw kind]
 
-/-- Interpret the serialized block order. The list has 26 function-valued
-entries; it contains no expanded slot or coordinate list. -/
 private def transportSchedule (program : Program) (plan : Plan)
     (raw : RawValues program) : CanonicalBlockAssignment.Schedule :=
   plan.blocks.map (transportBlockValue program raw)
@@ -337,8 +309,6 @@ private theorem canonicalBlocks_coordinateAt_aux (program : Program)
         rw [dif_neg inside, dif_neg rightOutside, countEq]
         exact inductionHypothesis _
 
-/-- The canonical serialized block program and the opcode plan have the same
-pointwise coordinate stream. -/
 private theorem canonicalBlocks_coordinateAt (program : Program)
     (raw : RawValues program) (index : Nat) :
     CanonicalBlockAssignment.coordinateAt
@@ -355,7 +325,6 @@ private theorem canonicalBlocks_coordinateAt (program : Program)
   exact canonicalBlocks_coordinateAt_aux program raw
     PerApplicationAssignmentPlan.canonicalKinds index
 
-/-- Evaluate the serialized four-word output-digest program. -/
 private def outputDigest {program : Program} (plan : Plan)
     (raw : RawValues program) : Digest :=
   List.ofFn fun lane : Fin PilotProduction.digestWords =>
@@ -385,8 +354,6 @@ private theorem canonical_outputDigest (program : Program)
       funext lane
       exact NightstreamFPrime.Lifecycle.PriorStateHash.ofFn_getD _ lane 0
 
-/-- Execute the already-validated serialized assignment transport by point
-lookup. -/
 private def executeUnchecked (program : Program) (plan : Plan)
     (base : BaseValues program) :
     Assignment F (PerApplicationFixedPoint.logicalWidth program) :=
@@ -420,8 +387,6 @@ private theorem canonical_execute_eq_plan_execute (program : Program)
   · rw [dif_neg publicRegion, dif_neg publicRegion]
     exact canonicalBlocks_coordinateAt program raw _
 
-/-- Execute only the exact canonical plan. Structural equality checks every
-serialized field; a mutation fails closed. -/
 def execute (program : Program) (plan : Plan) (base : BaseValues program) :
     Option (Assignment F (PerApplicationFixedPoint.logicalWidth program)) :=
   if plan = PerApplicationAssignmentTransport.canonical program then
@@ -429,8 +394,6 @@ def execute (program : Program) (plan : Plan) (base : BaseValues program) :
   else
     none
 
-/-- The real canonical interpreter returns the exact canonical logical
-assignment. -/
 theorem canonical_execute_eq_assignment (program : Program)
     (base : BaseValues program) :
     execute program (PerApplicationAssignmentTransport.canonical program) base =
@@ -439,8 +402,6 @@ theorem canonical_execute_eq_assignment (program : Program)
   rw [if_pos rfl, canonical_execute_eq_plan_execute,
     PerApplicationAssignmentPlan.execute_eq_assignment]
 
-/-- The accepted canonical output agrees with the canonical assignment at
-every logical column. -/
 theorem canonical_execute_eq_assignment_pointwise (program : Program)
     (base : BaseValues program)
     (column : Fin (PerApplicationFixedPoint.logicalWidth program)) :

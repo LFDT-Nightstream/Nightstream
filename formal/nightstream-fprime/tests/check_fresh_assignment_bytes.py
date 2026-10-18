@@ -72,7 +72,6 @@ def main():
             "manifest.json", "public.bin", *(row["file"] for row in local)}
         for row in local:
             assert row["file"] == f'block-{row["ordinal"]}.bin'
-            # A block kind without slots, such as the PiDEC fresh block, has an empty block.
             assert public_width <= row["first"] <= row["finish"] <= logical_width
             assert row["first"] < row["finish"] or row["slots"] == 0
             actual = (directory / row["file"]).read_bytes()
@@ -94,7 +93,6 @@ def main():
         equal(target.interval(logical_width, target.columns * WIDTH), bytes(tail), "zero tail")
         compared += tail
     row, directory = records[-1]
-    # The public prefix is a nonempty compared range if the final block is empty.
     actual = (directory / row["file"]).read_bytes() or public
     changed = bytearray(actual)
     changed[-1] = 1 if changed[-1] == 0 else 0

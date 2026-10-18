@@ -16,7 +16,6 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
-/-- One collapsed Poseidon2 S-box source equation. -/
 structure SboxStep (sourceWidth : Nat) where
   input : R1CS.LinearCombination
   inputBounded : SourceCompiler.CombinationBounded sourceWidth input
@@ -44,7 +43,6 @@ theorem compile_preserves {sourceWidth logicalWidth : Nat}
       step.input step.inputBounded assignment source one preserves
   · exact preserves step.output
 
-/-- The compiled S-box row is exact under a preserving source map. -/
 theorem residual_zero_iff {sourceWidth logicalWidth : Nat}
     (step : SboxStep sourceWidth)
     (sourceMap : SourceCompiler.SourceMap sourceWidth logicalWidth)
@@ -59,7 +57,6 @@ theorem residual_zero_iff {sourceWidth logicalWidth : Nat}
 
 end SboxStep
 
-/-- One retained Poseidon2 output bound to its source affine linear form. -/
 structure OutputStep (sourceWidth : Nat) where
   output : Fin sourceWidth
   linear : R1CS.LinearCombination
@@ -105,7 +102,6 @@ theorem compile_preserves {sourceWidth logicalWidth : Nat}
       (source step.output.val - step.linear.eval source) := by
   exact step.difference_eval sourceMap oneColumn assignment source one preserves
 
-/-- The compiled output pin is exact under a preserving source map. -/
 theorem residual_zero_iff {sourceWidth logicalWidth : Nat}
     (step : OutputStep sourceWidth)
     (sourceMap : SourceCompiler.SourceMap sourceWidth logicalWidth)

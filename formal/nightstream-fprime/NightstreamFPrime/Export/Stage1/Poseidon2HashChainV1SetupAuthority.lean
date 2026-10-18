@@ -2,9 +2,7 @@ import NightstreamFPrime.Spec.AjtaiSetupV1
 
 /-!
 Owns the small executable authority for the verifier-selected
-`Poseidon2HashChainV1` Ajtai setup. The package setup module proves that these
-direct constants equal the dimensions and seed derived from the recursive
-fixed point.
+`Poseidon2HashChainV1` Ajtai setup.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1SetupAuthority
@@ -15,7 +13,6 @@ def verifierRows : Nat := 22
 
 def messageColumns : Nat := 814144
 
-/-- Exact owner-approved operating-system CSPRNG output, in byte order. -/
 def productionSeedBytes : List Nat :=
   [252, 64, 73, 132, 212, 76, 27, 135, 141, 104, 166, 168, 0, 146,
     215, 215, 171, 68, 216, 26, 193, 123, 69, 168, 231, 189, 76, 31,

@@ -76,8 +76,6 @@ pub const POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST: [u64; 4] = [
     7_044_842_614_397_459_900,
 ];
 
-/// Verifier-owned context derived from one identity-checked package and the
-/// canonical serialization of its commitment setup.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PiCcsV1_2VerifierContext {
     package_identity: [u64; 4],
@@ -123,8 +121,6 @@ impl PiCcsV1_2VerifierContext {
     }
 }
 
-/// Application digest and exact preimage length, computed during compilation
-/// or retained as non-authoritative prepared-package metadata.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ApplicationIdentity {
     digest: [u64; 4],
@@ -150,7 +146,6 @@ impl ApplicationIdentity {
     }
 }
 
-/// Complete Stage 1 binding; circuit authority belongs to the caller.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Stage1VerifierBinding {
     structural_identifier: [u64; 4],
@@ -195,44 +190,6 @@ pub(crate) fn formula_library_digest(library: &Value) -> Result<[u64; 4], Packag
     update_words(&mut input, &bytes_as_words(FORMULA_LIBRARY_DOMAIN));
     append_value_preimage(library, &mut input)?;
     Ok(input.finalize().map(|value| value.as_canonical_u64()))
-}
-
-pub(super) fn pi_ccs_v1_2_verifier_context(
-    package_identity: [u64; 4],
-    commitment_key_words: &[u64],
-) -> Result<PiCcsV1_2VerifierContext, PackageError> {
-    validate_context_words(commitment_key_words)?;
-    let relation_words = package_identity.to_vec();
-    let application = ApplicationIdentity::from_words(&package_identity)?;
-    let commitment_digest = component_digest(4, commitment_key_words)?;
-
-    let mut nifs_key_words = bytes_as_words(NIFS_KEY_DOMAIN);
-    append_framed(&mut nifs_key_words, &VERIFIER_CONTEXT_PROFILE)?;
-    append_framed(&mut nifs_key_words, &VERIFIER_CONTEXT_SCHEDULE)?;
-    append_framed(&mut nifs_key_words, &relation_words)?;
-    append_framed(&mut nifs_key_words, &commitment_digest)?;
-
-    let relation = component_digest(1, &relation_words)?;
-    let nifs_key = component_digest(3, &nifs_key_words)?;
-
-    let mut descriptor = bytes_as_words(VERIFIER_CONTEXT_DOMAIN);
-    append_framed(&mut descriptor, &VERIFIER_CONTEXT_PROFILE)?;
-    append_framed(&mut descriptor, &VERIFIER_CONTEXT_SCHEDULE)?;
-    append_framed(&mut descriptor, &relation)?;
-    append_framed(&mut descriptor, &application.digest)?;
-    append_framed(&mut descriptor, &nifs_key)?;
-    append_framed(&mut descriptor, &commitment_digest)?;
-    let digest = poseidon_words(&descriptor);
-
-    Ok(PiCcsV1_2VerifierContext {
-        package_identity,
-        relation_words,
-        application,
-        nifs_key_words,
-        commitment_key_words: commitment_key_words.to_vec(),
-        descriptor_words: descriptor,
-        digest,
-    })
 }
 
 pub(super) fn stage1_verifier_binding(

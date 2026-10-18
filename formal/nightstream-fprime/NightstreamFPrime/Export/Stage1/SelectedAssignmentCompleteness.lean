@@ -12,9 +12,7 @@ import NightstreamFPrime.Export.Stage1.CanonicalPublicOutput
 
 /-!
 Owns construction of the complete plan of any application that fits the
-`2^28` profile from a semantic step and its accepted NIFS advice. All phase
-rows, the strict carrier norm, public digest and application advice refer to
-the same canonical completed assignment.
+`2^28` profile from a semantic step and its accepted NIFS advice.
 -/
 
 set_option autoImplicit false
@@ -82,11 +80,6 @@ private theorem prefix_rowsZero_of_completed
 variable (application : Lifecycle.Stage1.Application.Program)
   (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
 
-/-- A semantic step of any application constructs one complete canonical
-assignment.
-Every structural row, the strict carrier norm, the public digest and the exact
-application advice follow from the existing physical and retained builders.
-No row validity, environment agreement or completeness callback is supplied. -/
 theorem complete
     (ajtai : AjtaiKey
       (logicalWidth := PerApplicationFixedPoint.logicalWidth application)

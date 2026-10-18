@@ -91,13 +91,11 @@ fn carried_table_has_no_flat_combined_witness() {
     let matrix_coefficients = (0..dims.matrix_count)
         .map(|matrix| gamma_power(gamma, witnesses.len() * matrix))
         .collect::<Vec<_>>();
-    // One worker keeps every counted allocation on the probe's thread.
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(1)
         .build()
         .unwrap();
     pool.install(|| {
-        // Warm the shared projection bases and compute the old scalar reference.
         let matrix = cache.eval_weighted_row_table(&blocks, &matrix_weights, &matrix_coefficients, rows, rows);
         let pad_weights = std::array::from_fn(|lane| gamma_power(gamma, witnesses.len() * lane));
         let mut expected = weighted_identity_projection(&blocks, &pad_weights);
@@ -194,7 +192,6 @@ fn dense_prefix_folding_reuses_its_storage() {
         );
     });
 
-    // Two workers are the minimum needed to exercise chunk compaction.
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(2)
         .build()
@@ -250,7 +247,7 @@ fn openings_reuse_the_consumed_carrier_buffer() {
     pool.install(|| {
         let expected = cache.eval_real_v1_2_openings(&point, &sources).unwrap();
         let mut storage = vec![K::ONE; width];
-        storage.truncate(1); // Completed in-place SumCheck retains this capacity.
+        storage.truncate(1);
         ALLOCATIONS.set(0);
         REAL_ALLOCATIONS.set(0);
         CARRIER_BYTES.set(width * size_of::<K>());

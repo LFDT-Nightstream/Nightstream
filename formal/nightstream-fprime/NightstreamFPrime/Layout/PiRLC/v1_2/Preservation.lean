@@ -5,9 +5,7 @@ import NightstreamFPrime.Layout.R1CS.Completeness
 Owns deterministic physical soundness and constructive completeness for the
 sole PiRLC v1_2 phase layout.
 
-No cryptographic assumption occurs here. Physical R1CS rows imply the exact
-logical phase and therefore the canonical `PiRLC.Accepted` result and outgoing
-transcript state already proved by the logical circuit.
+No cryptographic assumption occurs here.
 -/
 
 namespace NightstreamFPrime.Layout.PiRLC.v1_2
@@ -53,7 +51,6 @@ theorem physical_implies_specHolds
   exact holdsFlat_implies_holds env _
     (physical_implies_holdsFlat relation interface offset env physical)
 
-/-- Physical PiRLC rows imply the full semantic phase result. -/
 theorem physical_implies_phaseHolds
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
@@ -67,9 +64,6 @@ theorem physical_implies_phaseHolds
   exact holdsFlat_implies_holds env _
     (physical_implies_holdsFlat relation interface offset env physical)
 
-/-- A valid semantic phase provides the static scope required by its lowering
-plan. This theorem remains generic so production users do not reconstruct the
-seven-child completion proof. -/
 theorem plan_constraints_varsBelow_of_phase
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
@@ -93,8 +87,6 @@ theorem plan_constraints_varsBelow_of_phase
   rw [logicalColumnCount_eq, ← mainOpsEq]
   exact logical.scope
 
-/-- Every physical row of a valid phase uses only columns below the plan's
-declared physical endpoint. -/
 theorem physicalRows_varsBelow_of_phase
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
@@ -118,8 +110,6 @@ theorem physicalRows_varsBelow_of_phase
   simpa [physicalColumnCount, R1CS.LoweringPlan.next_eq,
     R1CS.LoweringPlan.freshColumnCount] using rowScope
 
-/-- Constructive completion over the adjacent logical and R1CS-fresh
-intervals. -/
 theorem physical_complete
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey

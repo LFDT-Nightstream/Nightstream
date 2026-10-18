@@ -28,8 +28,6 @@ private theorem zero_add (a : RingF) : ringFAdd ringFZero a = a := by
   funext lane
   exact ConcreteCarrier.baseLaws.zero_add _
 
-/-- The existing native accumulator body, with the visited block indices
-explicit. This is the pure arithmetic core of a range, not a file runner. -/
 def fold {rows columns count : Nat} (setup : AjtaiSetupV1.Setup rows columns)
     (row : Fin rows) (indices : Fin count → Fin columns)
     (digits : Fin columns → StoredRing) (initial : PiDECNativeProduct.Accumulator) :
@@ -65,8 +63,6 @@ theorem fold_value {rows columns : Nat}
           rw [FreshCommitmentBlock.accumulatePrepared_value]
           exact add_assoc _ _ _
 
-/-- Visit every complete carrier block. No logical-prefix truncation, unit
-value, or nonzero premise enters the sum. -/
 def completeRow {shape : Phi81Relation.Shape} {rows : Nat}
     (setup : AjtaiSetupV1.Setup rows (Phi81ColumnLayout.blockCount shape.carrierWidth))
     (assignment : Phi81Relation.Assignment shape) (row : Fin rows) : StoredRing :=

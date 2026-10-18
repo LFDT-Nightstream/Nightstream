@@ -6,11 +6,6 @@ import NightstreamFPrime.Layout.Stage1.Spartan
 /-!
 Owns the exact compact-template invocations for all four PiRLC combination
 families.
-
-The invocations follow the Lean parent order and the concrete
-source/block/lane/cell order. All input, output, and R1CS-fresh columns are
-mapped from the canonical cumulative source layout through the one final
-Spartan permutation.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCCombinationInvocations
@@ -1060,9 +1055,6 @@ theorem evalAInvocationOutputRecipe_eq_remappedSourceRecipe
   exact evalAValueSource_affine source block cell offset sourceLt blockLt
     cellLt offsetLt
 
-/-- One serialized invocation expands to the exact Spartan image of its
-Lean-lowered source constraint. The two affine hypotheses are layout facts;
-the row expression and all A/B/C entries are fixed by Lean. -/
 theorem invocationRows_eq_remappedSource
     (logicalStart rowStart freshStart blockCount cellCount valueStride source
       block cell : Nat) (lane : Fin ringDegree)
@@ -1310,9 +1302,6 @@ theorem laneRowCosts_length : laneRowCosts.length = 54 := by
 
 theorem laneFreshCosts_sum : laneFreshCosts.sum = 8100 := by
   exact PiRLCCombinationTemplates.laneFreshCount_sum
-
-theorem laneRowCosts_sum : laneRowCosts.sum = 8154 := by
-  exact PiRLCCombinationTemplates.laneRowCount_sum
 
 theorem familyInvocations_length (logicalStart rowStart freshStart blockCount
     cellCount valueStride : Nat)

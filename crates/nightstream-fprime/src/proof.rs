@@ -1,6 +1,5 @@
 //! Public assignment and proof-run evidence returned by package execution.
 
-/// The exact direct-Spartan assignment produced by the package witness IR.
 #[derive(Clone, Debug)]
 pub struct WitnessAssignment {
     pub(super) private_values: Vec<u64>,
@@ -17,7 +16,6 @@ impl WitnessAssignment {
     }
 }
 
-/// Sparse-matrix evidence recorded while the loaded package is set up.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ProofRun {
     pub(super) a_nonzeros: usize,

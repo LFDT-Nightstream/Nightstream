@@ -227,8 +227,6 @@ def preparedRowSource (task : PreparedRowSourceTask) :
   | .ok blocks => pure blocks
   | .error error => throw error
 
-/-! ## Verifier-selected per-application sealed package -/
-
 def writeShiftedPermutationInvocation
     (shift : Stage1.PerApplicationCachedShift.Context)
     (handle : IO.FS.Handle) (invocation : Package.PermutationInvocation) :
@@ -543,8 +541,6 @@ def writePerApplicationInnerPackage
       shift.program)))
   writeByte handle 93
 
-/-- Stream the exact `ApplicationPackage.Plan.format` field order without
-constructing duplicate codec trees for its application-sized row lists. -/
 def writeApplicationPackagePlan (handle : IO.FS.Handle)
     (plan : Stage1.ApplicationPackage.Plan) : IO Unit := do
   writeByte handle 91
@@ -586,8 +582,6 @@ def writeApplicationPackagePlan (handle : IO.FS.Handle)
   writeListWith handle (TypedWriter.writeSparseRow handle) plan.assertionRows
   writeByte handle 93
 
-/-- Stream the assignment-transport codec fields. Field order and child codecs are exactly those
-of `PerApplicationAssignmentTransport.Plan.format`. -/
 def writePerApplicationAssignmentTransport
     (program : Lifecycle.Stage1.Application.Program)
     (handle : IO.FS.Handle) : IO Unit := do
@@ -611,9 +605,6 @@ def writePerApplicationAssignmentTransport
     (Stage1.PerApplicationAssignmentTransport.outputDigestExpressions program)
   writeByte handle 93
 
-/-- Stream the exact `sealedPackageValue` field order without constructing its
-artifact-sized codec tree. The selected application remains a Lean value; no
-runtime field selects its rows or layout. -/
 def writePerApplicationSealedPackage
     (program : Lifecycle.Stage1.Application.Program)
     (_fits : Stage1.PerApplicationFixedPoint.FitsTwoPow28 program)
@@ -682,12 +673,10 @@ def emitPerApplicationExpanded
   handle.flush
   IO.println s!"emitted_per_application_expanded={path}"
 
-/-- Emit the selected package with its exact matrix and assignment plans. -/
 def emit (path : System.FilePath) : IO Unit :=
   emitPerApplication Stage1.Poseidon2HashChainV1Package.application
     Stage1.Poseidon2HashChainV1Package.fits path
 
-/-- Emit the same physical rows for independent matrix conformance checks. -/
 def emitExpanded (path : System.FilePath) : IO Unit :=
   emitPerApplicationExpanded Stage1.Poseidon2HashChainV1Package.application
     Stage1.Poseidon2HashChainV1Package.fits path

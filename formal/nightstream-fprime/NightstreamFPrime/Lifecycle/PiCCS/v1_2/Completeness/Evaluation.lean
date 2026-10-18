@@ -85,8 +85,6 @@ private theorem appendInitialClaim
   · simpa [shared, sumcheckOffset] using nextEq
   · simpa [shared] using! childSpec
 
-/-- The identity `offset + stored cells` of the SumCheck child is the start of
-the next child. -/
 private theorem sumcheckEnd_eq_evalKOffset
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -98,8 +96,6 @@ private theorem sumcheckEnd_eq_evalKOffset
   unfold evalKOffset nextOffset childLength sumcheckCircuit
   rw [FormalCircuit.withConstantFootprint_main, SumcheckChain.localLength_eq]
 
-/-- Append the SumCheck child from an accepted proof. Honest execution stores
-every round evaluation; the stored final claim is the canonical terminal. -/
 private theorem appendSumcheckChain
     {logicalWidth base : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -731,9 +727,6 @@ private theorem evidence_of_specs
     eval_K := by simpa [running, fresh, proof] using evalKEq
     eval_A := by simpa [running, fresh, proof] using evalAEq }
 
-/-- Exact semantic evidence remains valid while later children allocate only
-at or after the CCS boundary. This theorem uses child footprint contracts and
-does not inspect child operations. -/
 theorem evidence_preserved
     {logicalWidth base : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

@@ -142,9 +142,6 @@ fn native_recipes_execute_stored_syntax_and_report_global_assertion_failure() {
         Err(PackageError::UnsatisfiedAssertionRow { row: 2 })
     ));
 
-    // A different, still-causal stored recipe must execute as written and
-    // fail its assertion; using the generated row as an unchecked hint would
-    // incorrectly replace this value with 3 * assignment[8].
     let changed = PreparedApplication::from_metadata(&metadata(), records(4, 0)).unwrap();
     changed.validate(&layout()).unwrap();
     assignment[0] = Goldilocks::from_u64(5);
@@ -276,8 +273,6 @@ fn native_records_reject_unmapped_terms_noncausal_recipes_and_dynamic_placeholde
         future_recipe.validate(&layout()),
         Err(PackageError::Invalid("noncausal witness expression"))
     ));
-    // Output local five maps to physical column four, before target nine.
-    // The native DSL still forbids that dependency while generating locals.
     let output_recipe = PreparedApplication::from_metadata(&metadata(), records(4, 5)).unwrap();
     assert!(matches!(
         output_recipe.validate(&layout()),
@@ -354,8 +349,6 @@ fn native_loader_rejects_dynamic_source_payload_before_fixed_decoding() {
         } else {
             json!([[2, [], [], []]])
         };
-        // Other source fields are deliberately absent: the dynamic-slot
-        // error must occur before copying/decoding the fixed source payload.
         let fixed = json!([6, source, [], metadata(), [], [4, 1], 270]);
         assert!(matches!(
             super::super::load_prepared_application_records(fixed, records(4, 4)),

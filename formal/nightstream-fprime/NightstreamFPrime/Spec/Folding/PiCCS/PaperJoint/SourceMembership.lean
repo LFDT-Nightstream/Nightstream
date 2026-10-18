@@ -3,9 +3,6 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongReduction
 /-!
 Paper authority: SuperNeo v1.2, Section 7.3, source CCS/CE relations.
 Owns the exact source-membership meaning of the existing extraction conclusion.
-The statement supplies one structure, fresh-then-running order, one prior
-point, and the complete separate Pad and matrix evaluation families. The
-witness supplies the same assignments used by StrongReduction.SourceHolds.
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SourceMembership
@@ -21,7 +18,6 @@ variable {Extension : Type uExtension} {Commitment : Type uCommitment}
   {PublicInput : Type uPublicInput} {shape : Shape} {columns blockCount : Nat}
   {baseOps : InterpolationOps F}
 
-/-- The selected fresh CCS statement, at its exact source position. -/
 def freshInstance
     (statement : Statement Extension Commitment PublicInput shape columns blockCount baseOps)
     (fresh : Fin shape.freshCount) :
@@ -31,7 +27,6 @@ def freshInstance
   publicInput := statement.publicInputs (freshSourceIndex fresh)
   stage := .fresh
 
-/-- The complete public evaluation family of one prior source. -/
 def runningEvaluation
     (statement : Statement Extension Commitment PublicInput shape columns blockCount baseOps)
     (running : Fin shape.runningCount) : EvaluationFamily Extension shape where
@@ -39,8 +34,6 @@ def runningEvaluation
   matrix := fun matrix coefficient =>
     statement.claimedMatrixCoefficient ⟨running, matrix, coefficient⟩
 
-/-- Every prior CE statement has the same selected structure and point.
-Its singleton evaluation array contains all Pad and matrix coefficients. -/
 def runningInstance
     (statement : Statement Extension Commitment PublicInput shape columns blockCount baseOps)
     (running : Fin shape.runningCount) :
@@ -102,9 +95,6 @@ private theorem runningEvaluations_eq_iff
         baseOps extensionOps extensionLaws lift inputs.matrixData ⟨running, matrixIndex, coefficient⟩
       exact computed.trans (matrix matrixIndex coefficient).symm
 
-/-- The existing strong-reduction conclusion is exactly the fresh CCS and
-prior CE witness products. No input validity follows from a constructor or a
-carried digest. The selected fresh bound is the existing b=2 profile. -/
 theorem sourceHolds_iff_memberships
     (extensionOps : InterpolationOps Extension)
     (extensionLaws : InterpolationEvaluationLaws extensionOps)
@@ -153,8 +143,6 @@ theorem sourceHolds_iff_memberships
         statement witness coordinate.running).mp (running coordinate.running).2.2).2
           coordinate.matrix coordinate.coefficient
 
-/-- The existing fixed-width extraction gate returns these exact CCS/CE
-memberships on its successful branch. Its two failure events are unchanged. -/
 theorem fixedWidthAcceptedProbe_implies_memberships_or_badEvent
     [DecidableEq Extension]
     (baseLaws : InterpolationEvaluationLaws baseOps)

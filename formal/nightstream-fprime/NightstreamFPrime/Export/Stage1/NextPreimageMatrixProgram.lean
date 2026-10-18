@@ -5,8 +5,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram
 
 /-!
 Owns the compact ordinary-row program for the five Construction 2
-next-preimage equations. It reuses the exact PiCCS retained substitution and
-selects the final five rows of the Lean-authored per-application package.
+next-preimage equations.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.NextPreimageMatrixProgram
@@ -137,8 +136,6 @@ theorem ordinaryBlock_row?
     (PiCCSOrdinaryRetainedGeometry.oneColumn geometry) rfl
     (NextPreimageDirectPlan.program.bounded index) agreesA agreesB agreesC
 
-/-- Every compact next-preimage row equals the corresponding canonical Lean
-plan row. -/
 theorem matrixProgram_row?
     {application : ApplicationProgram} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry application

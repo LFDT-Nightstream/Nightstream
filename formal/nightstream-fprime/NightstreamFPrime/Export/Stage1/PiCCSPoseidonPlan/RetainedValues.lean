@@ -41,8 +41,6 @@ def logicalPackageColumn (program : Lifecycle.Stage1.Application.Program)
     (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan column)
     (sourceToSpartan_lt_basePackage column bound)
 
-/-- The retained source prefix preserves every column of the physical base
-package, including its shifted public and constant columns. -/
 theorem retainedPrefix_baseEnv
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
@@ -77,9 +75,6 @@ theorem retainedPrefix_baseEnv
   rw [sourceEq, PiRLCRetainedPreservation.sourceAssignment_base]
   rfl
 
-/-- The computed transcript view commutes with the retained-prefix embedding.
-The proof checks all final S-box source bounds rather than assuming copied
-transcript outputs agree. -/
 theorem readout_sourceAssignment
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
@@ -97,8 +92,6 @@ theorem readout_sourceAssignment
     exact retainedPrefix_baseEnv program base groupValue _
       (PiCCSTranscriptReadout.sboxColumn_lt_spartanColumnCount index lane)
 
-/-- Actual PiCCS payload expressions read the computed transcript view of the
-same shifted base assignment. -/
 theorem packageEnv_sourceAssignment
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
@@ -122,7 +115,6 @@ def laterIndex (index : InvocationIndex) : Fin PoseidonRetainedBlock.laterInvoca
     rw [PoseidonRetainedBlock.laterInvocationCount_eq]
     omega⟩
 
-/-- The exact package invocation selected by the PiCCS retained block. -/
 def physicalInvocation (index : InvocationIndex) : PermutationInvocation :=
   PoseidonRetainedBlock.basePackage.permutationInvocations.get
     ⟨index.val, by
@@ -153,8 +145,6 @@ private theorem physicalSboxColumn_val (index : InvocationIndex)
   simpa only [Fin.decodeProd_encodeProd, ← physicalInvocation_witnessStart]
     using! selected
 
-/-- Projection through two domain lifts and a zero-offset slice depends only
-on the selected source slot. The underlying block remains opaque. -/
 private theorem liftedSlice_source_val {sourceWidth middleWidth outputWidth : Nat}
     (block : LowNormBlock.Block sourceWidth)
     (firstFits : sourceWidth ≤ middleWidth) (count : Nat)
@@ -166,8 +156,6 @@ private theorem liftedSlice_source_val {sourceWidth middleWidth outputWidth : Na
         exact Nat.lt_of_lt_of_le selected.isLt fits⟩).val := by
   simp only [LowNormBlock.Block.lift, LowNormBlock.Block.slice, Nat.zero_add]
 
-/-- Slicing the first PiCCS invocations and lifting their source domain keep
-the physical invocation-major S-box coordinate unchanged. -/
 private theorem schedule_source_val (application : Lifecycle.Stage1.Application.Program)
     (index : InvocationIndex) (row : Fin PoseidonRetainedSlots.rows.length) :
     ((PiCCSPoseidonPlan.schedule application).block.source
@@ -205,7 +193,6 @@ private def applicationSboxColumn (application : Lifecycle.Stage1.Application.Pr
     Nat.lt_of_lt_of_le (physicalSboxColumn index row).isLt
       (PiRLCProductPlan.basePackage_fits application)⟩
 
-/-- Each retained C S-box source is the exact original package coordinate. -/
 theorem retainedSource_sbox
     (application : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
@@ -241,9 +228,6 @@ theorem retainedSource_sbox
   exact (SourceCompiler.sourceEnv_at base
     (applicationSboxColumn application index row)).symm
 
-/-- Each output form reads the final retained S-boxes of its actual physical
-invocation. This needs only the retained encoding, not accepted physical rows
-or a canonical packet. -/
 theorem outputState_baseEnv
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)

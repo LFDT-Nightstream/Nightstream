@@ -84,7 +84,6 @@ theorem physicalRowCount_eq {blockCount cellCount : Nat} [NeZero cellCount]
       physicalRowCount interface offset := by
   exact R1CS.LoweringPlan.rowCount_eq _
 
-/-- Physical rows imply the exact generic step equation. -/
 theorem physical_implies_spec {blockCount cellCount : Nat} [NeZero cellCount]
     (interface : Logical.Interface blockCount cellCount) (offset : Nat)
     (env : Env) (assumptions : Logical.Assumptions interface offset env)
@@ -95,8 +94,6 @@ theorem physical_implies_spec {blockCount cellCount : Nat} [NeZero cellCount]
   change ConstraintsHold env (logicalConstraints interface offset)
   exact R1CS.LoweringPlan.sound (plan interface offset) env physical
 
-/-- Constructive completion over the exact logical and computed R1CS-fresh
-intervals. -/
 theorem physical_complete {blockCount cellCount : Nat} [NeZero cellCount]
     (interface : Logical.Interface blockCount cellCount) (offset : Nat)
     (env : Env) (assumptions : Logical.Assumptions interface offset env)

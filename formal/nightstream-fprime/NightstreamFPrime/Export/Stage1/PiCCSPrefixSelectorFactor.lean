@@ -15,13 +15,11 @@ open PiCCSPolynomialRange (coefficient_ext coefficient_scale)
 universe uField
 variable {Field : Type uField}
 
-/-- The exact consumed factor and current-coordinate head used by composePrefix. -/
 def headPrefix (ops : InterpolationOps Field) {arity : Nat}
     (challenges : List Field) (target : CubePoint Field arity) : FixedPolynomial Field 1 :=
   FixedPolynomial.scale ops.toOps (consumedFactor ops challenges target)
     (PiCCSCarriedMoments.headSelector ops (dropPoint target challenges.length))
 
-/-- The exact suffix coordinates used by the retained scalar accumulator. -/
 def tailWeight (ops : InterpolationOps Field) {arity : Nat}
     (challenges : List Field) (target : CubePoint Field arity) : Nat → Field :=
   NumericBooleanDomain.tensorWeightCoordinates ops
@@ -36,8 +34,6 @@ private theorem tail_drop (values : List Field) (count : Nat) :
       | nil => rfl
       | cons value values => exact ih values
 
-/-- Every coefficient retains the consumed factor, current head, and exact
-numeric suffix weight. This also covers an empty Boolean suffix. -/
 theorem selector_factor (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops) {arity remaining : Nat}
     (challenges : List Field) (suffix : BooleanVertex remaining)

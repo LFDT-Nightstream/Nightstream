@@ -5,10 +5,7 @@ import NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics
 Owns one deterministic nonzero PiRLC value fixture that starts at the exact
 PiCCS fixture output state.
 
-The fixture uses the production 17-input sampler and the four public
-combination operations from the authoritative Lean algebra. Its acceptance
-theorem is parametric in the final logical relation and Ajtai key. Neither a
-temporary relation nor a temporary key becomes fixture authority.
+Neither a temporary relation nor a temporary key becomes fixture authority.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCNonzero
@@ -32,16 +29,12 @@ def sourceIndex (source : Fin SourceCount) :
 def initialState (_ : Unit) : Transcript.State :=
   (PiCCSNonzero.compute ()).outgoingState
 
-/-- The total fixed-size production sampler result. -/
 def sampled (_ : Unit) : Transcript.PiRlcSampler.Batch SourceCount :=
   Transcript.PiRlcSampler.piRlcChallengesWithState (initialState ()) SourceCount
 
 def inputCommitment (source : Fin SourceCount) : PaperAlgebra.Commitment :=
   Fin.addCases (fun _ => freshCommitment) running.commitments (sourceIndex source)
 
-/-- The downstream fixture still uses the fixed 270-coordinate candidate
-carrier. This view evaluates the same key-bound PiCCS digest in that carrier;
-the logical-width proof does not change any serialized coordinate. -/
 def candidateFreshPublicInput :
     PublicInput (logicalWidth := PhaseReference.logicalWidth)
       (publicFits := PhaseReference.publicFits) :=
@@ -147,9 +140,6 @@ theorem attempt_output_evaluations
       #[combinedEvaluation challenges] := by
   rfl
 
-/-- The concrete sampler result plus the verifier-computed combined claim
-satisfy the exact model-level PiRLC acceptance predicate for any final
-relation and Ajtai key. -/
 theorem accepted
     (relation : ProductionKey.LogicalRelation
       PhaseReference.logicalWidth PhaseReference.publicFits)

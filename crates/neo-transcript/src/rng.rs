@@ -57,7 +57,6 @@ impl TranscriptRngBuilder {
         self
     }
     pub fn finalize<R: RngCore + CryptoRng>(mut self, rng: &mut R) -> TranscriptRng {
-        // Mix external entropy as 32 bytes
         let mut seed = [0u8; 32];
         rng.fill_bytes(&mut seed);
         for chunk in seed.chunks(8) {
@@ -65,7 +64,6 @@ impl TranscriptRngBuilder {
             b[..chunk.len()].copy_from_slice(chunk);
             self.absorb_elem(u64::from_le_bytes(b));
         }
-        // Squeeze gate before first RNG output: absorb a sentinel then permute
         self.absorb_elem(1);
         self.permute();
         TranscriptRng { st: self.st }

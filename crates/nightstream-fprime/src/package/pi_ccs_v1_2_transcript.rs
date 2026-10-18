@@ -1,8 +1,7 @@
 //! Exact additive Poseidon2 transcript replay for SuperNeo v1.2 PiCCS.
 //!
-//! Lean emits differential vectors for this implementation. This module
-//! does not select a circuit or accept a proof; it derives verifier-owned
-//! challenges and the post-output state from fixed-profile public messages.
+//! This module does not select a circuit or accept a proof; it derives
+//! verifier-owned challenges and the post-output state from fixed-profile public messages.
 
 use neo_transcript::{fold_domain_chunk_v1_2, Poseidon2Transcript};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -20,7 +19,6 @@ const PUBLIC_INPUT_WORDS: usize = 270;
 const EVALUATION_WORDS: usize = (MATRIX_COUNT + 1) * COEFFICIENT_COUNT * 2;
 const OUTPUT_WORDS: usize = SOURCE_COUNT * EVALUATION_WORDS;
 
-/// Verifier-derived PiCCS values in exact Lean order.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PiCcsV1_2Transcript {
     alpha: Vec<[u64; 2]>,
@@ -30,29 +28,23 @@ pub struct PiCcsV1_2Transcript {
 }
 
 impl PiCcsV1_2Transcript {
-    /// The pre-SumCheck challenges.
     pub fn alpha(&self) -> &[[u64; 2]] {
         &self.alpha
     }
 
-    /// The joint-polynomial mixing challenge.
     pub fn gamma(&self) -> [u64; 2] {
         self.gamma
     }
 
-    /// The SumCheck round challenges.
     pub fn round_point(&self) -> &[[u64; 2]] {
         &self.round_point
     }
 
-    /// State after the complete separate `Eval_K` and `Eval_A` output.
     pub fn outgoing_state(&self) -> [u64; WIDTH] {
         self.outgoing_state
     }
 }
 
-/// Derive the fixed-profile v1.2 PiCCS transcript.
-///
 /// After the constant domain chunk, the statement is absorbed as one stream
 /// with no length prefixes: the prior-state digest, the fresh commitment and
 /// the fresh public input. The digest is Lean's `decodeHash` of that input, as
@@ -124,7 +116,6 @@ fn canonical_words(words: &[u64]) -> Result<Vec<Goldilocks>, PackageError> {
         .collect()
 }
 
-/// Read the next fold-transcript coin as two canonical words.
 fn read_coin(transcript: &mut Poseidon2Transcript) -> [u64; 2] {
     transcript
         .read_coin_v1_2()

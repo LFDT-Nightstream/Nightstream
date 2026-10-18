@@ -5,7 +5,7 @@ use neo_ajtai::nightstream_fprime_setup::commit_production_signed_unit_prefix_ma
 use neo_ccs::Mat;
 use neo_math::{D, F};
 use neo_reductions::{
-    common::{decode_pi_rlc_coefficients, split_b_matrix_k_with_nonzero_flags, RotRho},
+    common::{decode_pi_rlc_coefficients, split_b_matrix_k, RotRho},
     paper_exact_engine::{
         dec_reduction_paper_exact_with_rows, paper_exact_prove_with_rows, rlc_reduction_paper_exact_with_commit_mix,
         PaperMatrixRows,
@@ -85,12 +85,17 @@ pub(crate) fn prove(
         ajtai_rlc_mixer,
     );
     drop(sources);
-    let (digits, _) = split_b_matrix_k_with_nonzero_flags(&witness, params.k_rho() as usize, params.b())
+    let digits = split_b_matrix_k(&witness, params.k_rho() as usize, params.b())
         .map_err(folding::kernels::Error::from)
         .map_err(pi_dec::Error::from)?;
     let commitments = commit_production_signed_unit_prefix_matrices(&digits)
         .map_err(|error| pi_dec::Error::from(error.into_error()))?;
-    let (children, ok_y, ok_x, ok_c) = dec_reduction_paper_exact_with_rows(
+    let neo_reductions::api::DecOutcome {
+        children,
+        ok_y,
+        ok_x,
+        ok_c,
+    } = dec_reduction_paper_exact_with_rows(
         structure,
         params.inner(),
         &parent,
@@ -115,7 +120,6 @@ pub(crate) fn prove(
     ))
 }
 
-// The reference engine uses the same production transcript schedule and decoder.
 fn sample_rhos(
     transcript: &mut neo_transcript::Poseidon2Transcript,
     params: &Params,

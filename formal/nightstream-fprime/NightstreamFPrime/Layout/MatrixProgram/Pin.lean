@@ -14,7 +14,6 @@ namespace NightstreamFPrime.Layout.MatrixProgram.Pin
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 
-/-- Complete package operands for one ordered zero-pin family. -/
 structure Block where
   values : List WireForm
 deriving Repr, DecidableEq
@@ -22,7 +21,6 @@ deriving Repr, DecidableEq
 def Block.rowCount (block : Block) : Nat :=
   block.values.length
 
-/-- Decode one pin row without materializing any other row. -/
 def Block.row? (block : Block) (logicalWidth ordinal : Nat) :
     Option (PinRow.Forms logicalWidth) :=
   do
@@ -30,7 +28,6 @@ def Block.row? (block : Block) (logicalWidth ordinal : Nat) :
     let value ← encoded.semantic? logicalWidth
     pure { value := value }
 
-/-- Canonical wire block derived from one semantic pin interface. -/
 def Block.ofSemantic {logicalWidth rowCount : Nat}
     (interface : PinFamilyPlan.Interface logicalWidth rowCount) : Block where
   values := List.ofFn fun row => WireForm.ofSemantic (interface.value row)
@@ -40,7 +37,6 @@ def Block.ofSemantic {logicalWidth rowCount : Nat}
     (Block.ofSemantic interface).rowCount = rowCount := by
   simp [Block.rowCount, Block.ofSemantic]
 
-/-- The canonical wire block returns the exact semantic pin row. -/
 theorem Block.row?_ofSemantic {logicalWidth rowCount : Nat}
     (interface : PinFamilyPlan.Interface logicalWidth rowCount)
     (row : Fin rowCount) :

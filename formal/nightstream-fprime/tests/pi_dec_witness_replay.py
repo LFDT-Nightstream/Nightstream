@@ -1,5 +1,3 @@
-"""Exercise the compiled PiDEC replay at the strict signed-digit boundary."""
-
 import json
 from pathlib import Path
 import subprocess
@@ -12,12 +10,11 @@ def run_case(directory, name, words, error=None):
     blocks = 3 if error is None else 1
     rows = [[1, blocks, 0, blocks], [0, words + [0] * (54 - len(words))]]
     if error is None:
-        rows.append([1, [0] * 54])  # Explicit and omitted zero blocks agree.
+        rows.append([1, [0] * 54])
     rows.append([])
     source.write_text("".join(json.dumps(row) + "\n" for row in rows))
     command = ["bash", "scripts/validate.sh", "pi-dec-witness-replay",
                str(source), str(output), "0", str(blocks)]
-    # The native test cap is 300 s, also below the Lean invocation cap.
     result = subprocess.run(command, capture_output=True, text=True, timeout=300)
     (directory / f"{name}.log").write_text(result.stdout + result.stderr)
     if error is not None:
@@ -34,7 +31,7 @@ def run_case(directory, name, words, error=None):
 
 if __name__ == "__main__":
     directory = Path(sys.argv[1]).resolve()
-    directory.mkdir()  # Each validation uses a fresh result directory.
+    directory.mkdir()
     modulus = 2**64 - 2**32 + 1
     bound = 2**16
     run_case(directory, "signed_edges", [0, 1, modulus - 1, bound - 1, modulus - bound + 1])

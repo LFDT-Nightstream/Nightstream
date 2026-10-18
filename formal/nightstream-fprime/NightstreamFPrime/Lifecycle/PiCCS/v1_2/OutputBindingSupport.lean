@@ -20,9 +20,6 @@ private theorem outputChunks_nonempty (interface : Interface) (offset : Nat) :
   simp only [List.length_map, List.length_range, outputWords_length]
   norm_num [Spec.Poseidon2.rate]
 
-/-- Every exposed lane of the output-binding endpoint is allocated at or
-after the PiCCS output-binding offset. The result does not depend on the
-9,180 output word contents. -/
 theorem finalState_supported_from_offset (interface : Interface)
     (offset : Nat) :
     Formal.StateSupported (finalState interface offset)

@@ -1,8 +1,4 @@
 //! Strict decoding and execution of the Lean-owned final-assignment transport.
-//!
-//! The decoded plan retains every compact recipe, expression, block, and
-//! affine source run. Execution reads a Rust-produced physical assignment and
-//! constructs the exact balanced logical assignment without a Lean runtime.
 
 use serde_json::Value;
 
@@ -12,7 +8,7 @@ use super::{Layout, PackageError, GOLDILOCKS_MODULUS};
 
 const TRANSPORT_SCHEMA: usize = 3;
 pub(super) const BLOCK_COUNT: usize = 26;
-const FIELD_COORDINATES: usize = 41;
+pub(super) const FIELD_COORDINATES: usize = 41;
 const OUTPUT_DIGEST_WORDS: usize = 4;
 const PHI81_INVOCATIONS: usize = 33_966;
 const PHI81_RING_DEGREE: usize = 54;
@@ -22,7 +18,6 @@ const PRODUCT_QUOTIENT_BLOCK: usize = 3;
 const CHALLENGE_WORDS_BLOCK: usize = 4;
 const OUTPUT_DIGEST_BLOCK: usize = 19;
 
-/// Lean-authored block order for the final logical assignment.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LoadedAssignmentPlan {
     blocks: Vec<BlockPlan>,
@@ -81,7 +76,6 @@ impl LoadedAssignmentPlan {
     }
 }
 
-/// Exact balanced logical assignment produced by the schema-6 transport.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LogicalAssignment {
     values: Vec<i8>,
@@ -543,7 +537,6 @@ impl Phi81Recipe {
     }
 }
 
-/// Decode and validate the exact five-field assignment transport.
 pub(super) fn decode(
     value: &Value,
     physical_width: usize,
@@ -717,7 +710,6 @@ fn raw_block_value(block: &BlockPlan, slot: usize, physical: &PhysicalAssignment
     physical.value(source)
 }
 
-/// Canonical quotient of the raw product by X^54 + X^27 + 1.
 fn phi81_quotient(left: &[u64; PHI81_RING_DEGREE], right: &[u64; PHI81_RING_DEGREE]) -> [u64; PHI81_RING_DEGREE] {
     let mut high_product = [0u64; 2 * PHI81_RING_DEGREE - 1];
     for (left_degree, &left_value) in left.iter().enumerate() {

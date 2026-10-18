@@ -1,15 +1,7 @@
 import NightstreamFPrime.Export.Stage1.PiRLCPoseidonGeometry
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedFamily
 
-/-!
-Owns the direct Poseidon2 plan for the two pilot hash chains. Each invocation
-reads its retained preimage words and the prior invocation's closed-form
-output. No recursive trace reconstruction or explicit invocation list is
-used by the plan.
-
-This module does not bind the final digests or select later phase
-permutations.
--/
+/-! Owns the direct Poseidon2 plan for the two pilot hash chains. -/
 
 namespace NightstreamFPrime.Export.Stage1.PilotPoseidonPlan
 
@@ -157,7 +149,6 @@ theorem combinedRowCount_le {program : Lifecycle.Stage1.Application.Program}
   norm_num [invocationCount_eq,
     NightstreamFPrime.Lifecycle.cubeVariables]
 
-/-- Prior-hash invocations precede output-hash invocations. -/
 def plan {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     ProductionRelation.Plan logicalWidth :=
@@ -212,8 +203,6 @@ theorem rowsZero_implies_semantics
       (outputInterface geometry) familyRowCount_le assignment one
         children.2 invocation
 
-/-- Honest retained S-box equations are sufficient for every pilot
-Poseidon2 row. Output equations are automatic from the closed-form state. -/
 theorem equations_imply_rowsZero
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)

@@ -1,9 +1,8 @@
-use neo_math::{cf, cf_inv, Fq, Rq, SAction, D, K};
+use neo_math::{cf, cf_inv, Fq, Rq, SAction, D};
 use p3_field::PrimeCharacteristicRing;
 
 #[test]
 fn rot_matches_ring_multiplication_on_vectors() {
-    // random-looking but deterministic vectors
     let mut v = [Fq::ZERO; D];
     v.iter_mut().enumerate().for_each(|(i, elem)| {
         *elem = Fq::from_u64((i as u64).wrapping_mul(7919));
@@ -46,16 +45,4 @@ fn scalar_action_is_coefficient_scaling() {
         SAction::scalar(scalar).apply_vec(&v),
         std::array::from_fn(|i| scalar * v[i])
     );
-}
-
-#[test]
-fn k_action_preserves_canonical_zero_padding() {
-    let action = SAction::scalar(Fq::from_u64(3));
-    let input = vec![K::ZERO; D + 4];
-    let output = action
-        .apply_k_vec(&input)
-        .expect("zero padding is canonical");
-
-    assert_eq!(output.len(), input.len());
-    assert!(output[D..].iter().all(|value| *value == K::ZERO));
 }

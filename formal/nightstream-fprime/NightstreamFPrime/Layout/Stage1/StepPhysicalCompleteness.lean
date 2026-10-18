@@ -342,12 +342,6 @@ private theorem spartan_copy_source (source : Env) (column : Nat) (bound : colum
   simp only [Spartan.pullback, spartan_copy, if_neg (Spartan.sourceToSpartan_ne_constant column bound),
     Spartan.spartanToSource_sourceToSpartan column bound, Option.map_some, Option.getD_some]
 
-/-- The selected semantic step and its accepted NIFS run construct one
-Spartan witness through the running transition. The theorem derives the
-physical rows, next-preimage rows, actual NIFS result, and exact protocol
-source readback. It assumes no physical rows, generated phase specification,
-or environment agreement. The application suffix is appended separately from
-its actual witness. -/
 theorem complete
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))

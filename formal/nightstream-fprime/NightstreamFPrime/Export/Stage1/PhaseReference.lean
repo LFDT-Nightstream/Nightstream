@@ -1,8 +1,6 @@
 import NightstreamFPrime.Lifecycle.PaperAlgebra
 
-/-! Reference shape for constructing phase circuits. Shape-invariance proofs
-connect these recipes to the selected application's fixed point. This width
-is not a package identity, commitment setup, or supported runtime layout. -/
+/-! Reference shape for constructing phase circuits. -/
 
 namespace NightstreamFPrime.Export.Stage1.PhaseReference
 

@@ -3,8 +3,7 @@ import NightstreamFPrime.Layout.Range.CanonicalU64
 
 /-!
 Owns physical lowering for one canonical word bound to 64 caller-owned public
-bits. The canonical child contributes 36 fresh columns and 103 physical rows;
-the 64 equality rows are affine and add no fresh column.
+bits.
 -/
 
 namespace NightstreamFPrime.Layout.Range.CanonicalPublicU64

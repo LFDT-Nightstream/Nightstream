@@ -2,9 +2,7 @@ import NightstreamFPrime.Export.Stage1.PiDECEvaluationBatch
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationHonestMessages
 
 /-!
-Execute child evaluations from complete stored block batches. The full
-StoredAssignment conversion is a reference used only by the value theorems.
-Each row calls the existing sparse block kernel once for all children.
+Execute child evaluations from complete stored block batches.
 -/
 
 set_option autoImplicit false
@@ -38,8 +36,6 @@ private theorem get_ofFn {Alpha : Type} {count : Nat}
   change (Vector.ofFn values)[index.val] = _
   rw [Vector.getElem_ofFn]
 
-/-- Reference conversion into the existing full assignment type. None of the
-executable row or family definitions below calls this conversion. -/
 def reference
     (blocks : Fin blockCount → Vector StoredRing productionGlobalParams.k) :
     Vector (StoredAssignment selectedShape.carrierWidth) productionGlobalParams.k :=
@@ -55,8 +51,6 @@ private theorem reference_value
       ((blocks packed.1).get child).get packed.2 := by
   rw [reference, get_ofFn, get_ofFn]
 
-/-- Reading a reference assignment block returns exactly the supplied stored
-batch, at every child and lane. The sole indexing owner is the carrier layout. -/
 theorem childBlocks_reference
     (blocks : Fin blockCount → Vector StoredRing productionGlobalParams.k)
     (block : Fin blockCount) :
@@ -82,8 +76,6 @@ theorem childBlocks_reference
           block ⟨lane, laneLt⟩)).2 = _
   rw [Phi81CarrierLayout.decode_carrierColumn]
 
-/-- The conversion also preserves every coordinate of an existing complete
-stored assignment, including all carried tail coordinates. -/
 theorem reference_childBlocks
     (assignments : Vector (StoredAssignment selectedShape.carrierWidth)
       productionGlobalParams.k) :
@@ -115,7 +107,6 @@ theorem reference_childBlocks
       (Phi81ColumnLayout.decode (⟨column, columnLt⟩ : Fin selectedShape.carrierWidth)).2) = _
   rw [roundtrip]
 
-/-- Guarded access for the existing Nat-indexed sparse block kernel. -/
 def blockAt (blocks : Fin blockCount → Vector StoredRing productionGlobalParams.k)
     (index : Nat) : Vector StoredRing productionGlobalParams.k :=
   if live : index < blockCount then blocks ⟨index, live⟩
@@ -147,8 +138,6 @@ private theorem formAtPort_plan {columns : Nat} (plan : Plan columns)
   unfold formAtPort Plan.portForm
   cases meaningfulPort? matrix <;> rfl
 
-/-- Read the selected compact program, retaining the explicit zero port.
-The canonical package owns ordinary source rows; no matrix row is supplied. -/
 def programForm (row : Fin selectedPlan.rowCount)
     (matrix : Fin Spec.ProductionRelation.matrixCount) : SparseForm selectedShape.logicalWidth :=
   formAtPort ((PerApplicationMatrixProgram.matrixProgram
@@ -156,7 +145,6 @@ def programForm (row : Fin selectedPlan.rowCount)
     (PerApplicationCanonicalPackage.sourceRow
       Poseidon2HashChainV1Package.application Poseidon2HashChainV1Package.fits) row.val) matrix
 
-/-- Active program rows are the exact selected structural-plan forms. -/
 theorem programForm_value (row : Fin selectedPlan.rowCount)
     (matrix : Fin Spec.ProductionRelation.matrixCount) :
     programForm row matrix = selectedPlan.portForm row matrix := by
@@ -166,7 +154,6 @@ theorem programForm_value (row : Fin selectedPlan.rowCount)
     (Poseidon2HashChainV1MatrixRows.compactProgram_row?_eq_structuralPlan_forms row)).trans
       (formAtPort_plan selectedPlan row matrix)
 
-/-- One sparse matrix kernel call computes the complete child batch for this row. -/
 def matrixRow (blocks : Fin blockCount → Vector StoredRing productionGlobalParams.k)
     (matrix : Fin Spec.ProductionRelation.matrixCount) (index : Nat) :
     Vector StoredRing productionGlobalParams.k :=
@@ -175,7 +162,6 @@ def matrixRow (blocks : Fin blockCount → Vector StoredRing productionGlobalPar
       (blockAt blocks)
   else Vector.replicate productionGlobalParams.k PiDECCommitmentFold.zero
 
-/-- Pad covers the full carrier and calls the same batched sparse kernel. -/
 def padRow (blocks : Fin blockCount → Vector StoredRing productionGlobalParams.k)
     (index : Nat) : Vector StoredRing productionGlobalParams.k :=
   if live : index < selectedShape.carrierWidth then
@@ -217,8 +203,6 @@ theorem padRow_child
     change (Vector.replicate productionGlobalParams.k PiDECCommitmentFold.zero)[child.val] = _
     rw [Vector.getElem_replicate]
 
-/-- Compute Pad and each matrix as one all-child batch before exposing family
-views. This definition does not assemble or access a full reference assignment. -/
 def familyFromBlocks
     (blocks : Fin blockCount → Vector StoredRing productionGlobalParams.k)
     (point : PaperAlgebra.Point) : Vector PaperAlgebra.Evaluation productionGlobalParams.k :=
@@ -230,8 +214,6 @@ def familyFromBlocks
     { pad := (pad.get child).toRing
       matrix := fun matrix => ((matrices.get matrix).get child).toRing }
 
-/-- Every batched family equals the existing scalar family on the reference
-assignment, with no expected-value or row-correctness premise. -/
 theorem familyFromBlocks_eq_family
     (blocks : Fin blockCount → Vector StoredRing productionGlobalParams.k)
     (point : PaperAlgebra.Point) (child : Fin productionGlobalParams.k) :
@@ -252,9 +234,6 @@ theorem familyFromBlocks_eq_family
     funext index
     exact matrixRow_child blocks matrix index child
 
-/-- Specialize the block executor to the same successfully split stored
-children. Only the checked split is assumed; all commitments and claimed
-evaluations remain outside the construction inputs. -/
 theorem familyFromBlocks_honestMessages
     (values : PiDECInputCheck.ParentValues)
     (parentWitness : StoredAssignment selectedShape.carrierWidth)

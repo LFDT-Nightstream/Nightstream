@@ -15,8 +15,6 @@ open NightstreamFPrime.Circuit.Quadratic
 open NightstreamFPrime.Gadgets.SumCheck.FixedChain
 open NightstreamFPrime.Layout.Polynomial.Horner
 
-/-- Every coefficient and the challenge of one round are plain wires or sums
-of wires. This is the syntactic boundary for stable round costs. -/
 structure RoundLinear {degree : Nat} (round : Round degree) : Prop where
   coefficient : ∀ index, KExprLinear (round.coefficient index)
   challenge : KExprLinear round.challenge
@@ -40,8 +38,6 @@ private theorem coefficients_nonempty {degree : Nat} (round : Round degree) :
   rw [empty] at length
   simp at length
 
-/-- The stored `p(r)` is a sum of wires for the next round and the terminal
-owner. -/
 theorem roundProgram_output_linear {degree : Nat} (start : Nat)
     (round : Round degree) (linear : RoundLinear round) :
     KExprLinear (Owned.roundProgram start round).output :=
@@ -102,7 +98,6 @@ private theorem boundarySum_affine (coefficients : List KExpr)
       have sum := coefficientSum_affine (coefficient :: rest) linear
       exact ⟨R1CS.IsAffine.add head.1 sum.1, R1CS.IsAffine.add head.2 sum.2⟩
 
-/-- A round equation reads only wires, so it lowers to one direct row. -/
 theorem roundEqualities_affine {degree : Nat} (current : KExpr)
     (round : Round degree) (currentLinear : KExprLinear current)
     (linear : RoundLinear round) :
@@ -160,7 +155,6 @@ private theorem interfaceRounds_linear {degree roundCount : Nat}
   rcases member with ⟨index, rfl⟩
   exact linear index
 
-/-- The stored products and the round equations need no lowering cell. -/
 theorem ownedCircuit_totalFreshCount {degree roundCount : Nat}
     (interface : Owned.Interface degree roundCount) (offset : Nat)
     (initialLinear : KExprLinear interface.initial)
@@ -178,7 +172,6 @@ theorem ownedCircuit_totalFreshCount {degree roundCount : Nat}
     Owned.recipes, recipesFrom_totalFreshCount offset interface.rounds
       (interfaceRounds_linear interface linear)]
 
-/-- Each stored product costs three rows, and each round equation two. -/
 theorem ownedCircuit_totalRowCount {degree roundCount : Nat}
     (interface : Owned.Interface degree roundCount) (offset : Nat)
     (initialLinear : KExprLinear interface.initial)
@@ -191,7 +184,6 @@ theorem ownedCircuit_totalRowCount {degree roundCount : Nat}
     Owned.flatConstraints_length, Owned.privateCount]
   omega
 
-/-- The owned final claim is a sum of wires for the terminal owner. -/
 theorem ownedOutput_linear {degree roundCount : Nat}
     (interface : Owned.Interface degree roundCount) (offset : Nat)
     (initialLinear : KExprLinear interface.initial)

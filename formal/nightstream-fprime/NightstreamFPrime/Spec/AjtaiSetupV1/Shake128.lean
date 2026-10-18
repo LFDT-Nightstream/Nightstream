@@ -10,7 +10,6 @@ no claim that SHAKE128 behaves as a random oracle.
 
 namespace NightstreamFPrime.Spec.AjtaiSetupV1.Shake128
 
-/-- The Keccak-f[1600] state. Field `aXY` holds lane `A[X, Y]`. -/
 structure State where
   a00 : UInt64
   a10 : UInt64
@@ -122,11 +121,9 @@ def round (s : State) (roundConstant : UInt64) : State :=
     a34 := b34 ^^^ (~~~b44 &&& b04),
     a44 := b44 ^^^ (~~~b04 &&& b14) }
 
-/-- Keccak-f[1600]: the 24 rounds of Keccak-p[1600, 24]. -/
 def permute (s : State) : State :=
   roundConstants.foldl round s
 
-/-- SHAKE128 rate: 168 bytes, 21 lanes. -/
 def rateBytes : Nat := 168
 
 /-- SHAKE padding after `used` bytes of the last rate block (FIPS 202,
@@ -136,17 +133,13 @@ def padding (used : Nat) : List Nat :=
   if used + 1 = rateBytes then [0x9F]
   else 0x1F :: (List.replicate (rateBytes - used - 2) 0 ++ [0x80])
 
-/-- The padded message: a nonempty multiple of the rate. -/
 def pad (message : List Nat) : List Nat :=
   message ++ padding (message.length % rateBytes)
 
-/-- One lane from eight bytes, little-endian. -/
 def laneOf (b0 b1 b2 b3 b4 b5 b6 b7 : Nat) : UInt64 :=
   UInt64.ofNat (b0 + 256 * (b1 + 256 * (b2 + 256 * (b3 + 256 * (b4 + 256 *
     (b5 + 256 * (b6 + 256 * b7)))))))
 
-/-- The little-endian lanes of a byte string. A padded message has a
-multiple of eight bytes, so no partial lane is dropped. -/
 def lanesOfBytes : List Nat → List UInt64
   | b0 :: b1 :: b2 :: b3 :: b4 :: b5 :: b6 :: b7 :: rest =>
       laneOf b0 b1 b2 b3 b4 b5 b6 b7 :: lanesOfBytes rest
@@ -172,26 +165,21 @@ def absorbLanes (s : State) : List UInt64 → State
 def absorb (message : List Nat) : State :=
   absorbLanes State.zero (lanesOfBytes (pad message))
 
-/-- The 21 rate lanes in output order. -/
 def rateLanes (s : State) : List UInt64 :=
   [s.a00, s.a10, s.a20, s.a30, s.a40, s.a01, s.a11, s.a21, s.a31, s.a41,
     s.a02, s.a12, s.a22, s.a32, s.a42, s.a03, s.a13, s.a23, s.a33, s.a43, s.a04]
 
-/-- Squeeze `blocks` rate blocks; the state is permuted only between them. -/
 def squeezeBlocks (s : State) : Nat → List UInt64
   | 0 => []
   | 1 => rateLanes s
   | blocks + 2 => rateLanes s ++ squeezeBlocks (permute s) (blocks + 1)
 
-/-- The first `count` output lanes of SHAKE128(message). -/
 def lanes (message : List Nat) (count : Nat) : List UInt64 :=
   (squeezeBlocks (absorb message) ((count + 20) / 21)).take count
 
-/-- The eight little-endian bytes of one lane. -/
 def laneBytes (lane : UInt64) : List Nat :=
   (List.range 8).map fun byte => lane.toNat / 256 ^ byte % 256
 
-/-- The first `count` output bytes of SHAKE128(message). -/
 def bytes (message : List Nat) (count : Nat) : List Nat :=
   ((lanes message ((count + 7) / 8)).flatMap laneBytes).take count
 
@@ -207,7 +195,6 @@ theorem squeezeBlocks_length (s : State) (blocks : Nat) :
           simp only [rateLanes, List.length_cons, List.length_nil]
           omega
 
-/-- Every requested output lane is a squeezed lane. -/
 theorem lanes_length (message : List Nat) (count : Nat) :
     (lanes message count).length = count := by
   simp only [lanes, List.length_take, squeezeBlocks_length]

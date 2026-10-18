@@ -3,9 +3,8 @@ import NightstreamFPrime.Lifecycle.Relation
 
 /-!
 For every application, the NIFS source return supplies the exact source CCS
-and CE openings. Fresh public fields come from the verifier-owned input; the returned
-value supplies its private tail and all sixteen running assignments.
-This is a value and relation bridge, with no probability or work assumption.
+and CE openings. This is a value and relation bridge, with no probability or
+work assumption.
 -/
 
 set_option autoImplicit false
@@ -109,13 +108,11 @@ local notation "Selected" => PerApplicationFixedPoint.relation application fits
 local notation "Key" => PerApplicationCanonicalPackage.commitmentKey setup
 local notation "Carrier" => PiCCSStoredWitnessCheck.carrier application
 
-/-- The returned running vectors keep their existing source order. -/
 def runningWitness
     (values : WitnessProjection.SourceWitness productionShape Carrier) :
     Fin productionShape.runningCount → Phi81Relation.Assignment Carrier :=
   fun index => (values.running.get index).get
 
-/-- Reattach the exact public prefix to the returned fresh private tail. -/
 def freshWitness (input : PiCCSInputCheck.Input)
     (values : WitnessProjection.SourceWitness productionShape Carrier) :
     Phi81Relation.Assignment Carrier :=
@@ -210,9 +207,6 @@ private theorem reconstruct_fresh (input : PiCCSInputCheck.Input)
   simp only [PiCCSStoredWitnessCheck.statement, PiCCSInputCheck.outputPublicInputs]
   rfl
 
-/-- Every successful source result has exactly the source CCS and CE
-memberships, with its returned running vectors and reconstructed fresh prefix.
-The result remains explicit; no witness is selected from an existential. -/
 theorem sourceReturned_iff_terminalHolds (input : PiCCSInputCheck.Input)
     (result : Option (WitnessProjection.SourceWitness productionShape Carrier)) :
     CheckedWitnessExtraction.SourceReturned (PiCCSStoredWitnessCheck.commit application setup)

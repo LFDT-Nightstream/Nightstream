@@ -37,10 +37,8 @@ fn independent_poseidon_assembly_preserves_selected_package_key_and_matrix_rows(
     assert_eq!(actual.application(), expected.application());
     assert_eq!(actual.assignment_plan(), expected.assignment_plan());
     assert_eq!(actual.ccs_relation(), expected.ccs_relation());
-    // Compare the application and final boundary as ordered sparse rows.
     let mut expected_rows = Vec::new();
     let application_rows = expected.application().row_range();
-    // Physical application rows are also checked byte-for-byte by the internal encoding test.
     assert_eq!(application_rows.len(), 5484);
     let boundary_rows = actual.next_preimage_row_range().len() + application.output_state().len();
     let rows = actual.row_count() - actual.application().row_range().len() - boundary_rows..actual.row_count();

@@ -1,5 +1,3 @@
-"""Small process fixture for runner tests; this is not a protocol validator."""
-
 import json
 import sys
 

@@ -2,9 +2,7 @@ import NightstreamFPrime.Export.Stage1.CompactConstraintExecution
 
 /-!
 Relate physical compact row execution to the normalized row executor.
-Input columns may alias each other. They must be outside the fresh interval,
-and every local write must remain inside that interval. The output-recipe
-write and array bounds are separate obligations.
+The output-recipe write and array bounds are separate obligations.
 -/
 
 set_option autoImplicit false
@@ -21,8 +19,6 @@ def pullback (inputCount localStart : Nat) (inputColumn : Nat → Nat)
   fun index =>
     env (CompactRows.relocate inputCount (localStart - inputCount) inputColumn index)
 
-/-- Only writes inside the fresh interval commute with this pullback.
-No injectivity assumption is made about the input-column map. -/
 private theorem pullback_setLocal (inputCount localStart count : Nat)
     (inputColumn : Nat → Nat) (localBound : inputCount ≤ localStart)
     (inputsOutside : ∀ input, input < inputCount →
@@ -110,9 +106,6 @@ private theorem step_relocate (inputCount localStart count : Nat)
       simp only [wrote]
       split_ifs <;> simp only [Option.map_some, Option.map_none, wrote]
 
-/-- Complete success/failure correspondence for an ordered list of abstract
-rows. A bound on C alone bounds every recognized local target; the exact
-combination transport handles all input and local reads. -/
 theorem run_relocate (inputCount localStart count : Nat)
     (inputColumn : Nat → Nat) (env : Env) (rows : List R1CS.Row)
     (localBound : inputCount ≤ localStart)
@@ -150,8 +143,6 @@ theorem run_relocate (inputCount localStart count : Nat)
           simpa only [List.map_cons, run, result, normalized, Option.bind_some] using
             inductionHypothesis after tailScope
 
-/-- Canonical optimized/generic row bounds come from the existing lowerer.
-The row-phase logical premise is evaluated on the exact physical pullback. -/
 theorem run_lowerConstraint (inputCount localStart : Nat)
     (inputColumn : Nat → Nat) (env : Env) (expression : Expr)
     (localBound : inputCount ≤ localStart)

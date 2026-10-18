@@ -1,6 +1,4 @@
 //! Independent full opening values for the current positive PiCCS input.
-//! Canonical Lean rows, raw signed-unit carrier, and verifier-derived point
-//! are evaluated separately from the fixture generator.
 
 use std::{fs, path::PathBuf, time::Instant};
 
@@ -489,8 +487,6 @@ fn check_positive_opening(sources: OpeningSources) {
     );
 }
 
-// Read the Lean assignment plan directly. The production assignment encoder
-// is not used to mutate or validate this arbitrary signed-unit assignment.
 fn zero_pi_rlc_product_blocks(bytes: &[u8], carrier: &mut [u8]) {
     let package: Value = serde_json::from_slice(bytes).expect("raw Lean package");
     let mut offset = package[6].as_u64().expect("logical public width") as usize;
@@ -506,7 +502,6 @@ fn zero_pi_rlc_product_blocks(bytes: &[u8], carrier: &mut [u8]) {
         };
         let end = offset + width * block[2].as_u64().expect("slot count") as usize;
         // PerApplicationAssignmentPlan: productGroup and productOutput.
-        // Product operands are the preserved PiCCS owner coordinates.
         if matches!(index, 3 | 9) {
             assert_eq!(width, 41, "field-encoded PiRLC product block");
             let values = &mut carrier[offset..end];

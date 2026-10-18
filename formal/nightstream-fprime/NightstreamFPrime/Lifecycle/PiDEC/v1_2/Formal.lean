@@ -111,7 +111,6 @@ def outputBindingInterface
 def inputBindingOffset (offset : Nat) : Nat := offset
 def publicInputOffset (offset : Nat) : Nat := offset
 
-/-- The split child is the only PiDEC child that allocates private cells. -/
 def recompositionOffset (offset : Nat) : Nat :=
   offset + PublicInputSplit.exactPrivateCount
 def commitmentOffset (offset : Nat) : Nat := recompositionOffset offset

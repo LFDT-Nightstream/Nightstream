@@ -1,9 +1,6 @@
 import NightstreamFPrime.Spec.SumCheck.Abstract
 import NightstreamFPrime.Spec.SumCheck.Polynomial
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/SumCheck/VerifierCertificate.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespace renamed, otherwise unchanged. -/
-
 /-!
 Finite verifier-visible SumCheck certificates and their symbolic projection.
 
@@ -15,21 +12,6 @@ Does not own: challenges, initial claims, terminal identities, maximum degree,
 semantic truth polynomials, or challenge-set size as certificate data. It also
 does not own root counting, Fiat--Shamir, PiCCS arithmetization, or any Rust or
 R1CS representation.
-
-Emits constraints: no.
-
-Authority boundary: all verifier-owned values are explicit arguments to
-`check`; `Certificate` contains only finite polynomial messages. The symbolic
-bridge requires the semantic `trueInitial` and expected-polynomial chain in a
-separate `SemanticGhosts` object whose truth path is independently supplied.
-
-| Protocol phase | Mathematical obligation | Runtime owner | Semantic owner |
-|---|---|---|---|
-| every round | canonical coefficients and derived degree bound | `checkChain` | `Chain` |
-| every round | `current = p(0) + p(1)` | `checkChain` | `Chain` |
-| verifier response | next target is `p(challenge)` | verifier argument | `Chain` |
-| terminal | final target equals verifier-computed terminal | verifier argument | `Chain` |
-| symbolic projection | reconstruct `SumCheck.Round` without certificate ghosts | `toSymbolicInstance` | `SemanticGhosts.Honest` |
 -/
 
 namespace NightstreamFPrime.Spec.SumCheck.Finite
@@ -38,8 +20,6 @@ universe uField
 
 namespace Ops
 
-/-- Forget multiplication while retaining the operations used by the existing
-symbolic SumCheck verifier. -/
 def toSymbolic
     {Field : Type uField}
     (ops : Ops Field) : SumCheck.Ops Field Field where
@@ -49,12 +29,9 @@ def toSymbolic
 
 end Ops
 
-/-- Raw verifier-visible certificate. It carries no challenges, degree claims,
-semantic polynomials, initial value, terminal value, or verifier parameters. -/
 structure Certificate (Field : Type uField) where
   rounds : List (Message Field)
 
-/-- Exact finite claimed-chain relation over parallel message/challenge lists. -/
 def Chain
     {Field : Type uField}
     (ops : Ops Field)
@@ -71,8 +48,6 @@ def Chain
         (message.evaluate ops challenge) messages challenges terminal
   | _, _, _, _ => False
 
-/-- Acceptance under verifier-owned initial, challenge, terminal, and degree
-parameters. -/
 def Accepted
     {Field : Type uField}
     (ops : Ops Field)
@@ -83,8 +58,6 @@ def Accepted
     (certificate : Certificate Field) : Prop :=
   Chain ops maxDegree initial certificate.rounds challenges terminal
 
-/-- Logical acceptance consumes exactly one verifier challenge per finite
-round message. -/
 theorem Chain.messages_length_eq_challenges_length
     {Field : Type uField}
     (ops : Ops Field)
@@ -107,7 +80,6 @@ theorem Chain.messages_length_eq_challenges_length
             (current := message.evaluate ops challenge)
             (challenges := challenges) chain.2.2.2
 
-/-- Executable finite claimed-chain checker. -/
 def checkChain
     {Field : Type uField}
     [DecidableEq Field]
@@ -125,7 +97,6 @@ def checkChain
         (message.evaluate ops challenge) messages challenges terminal
   | _, _, _, _ => false
 
-/-- Executable certificate verifier. -/
 def check
     {Field : Type uField}
     [DecidableEq Field]
@@ -137,7 +108,6 @@ def check
     (certificate : Certificate Field) : Bool :=
   checkChain ops maxDegree initial certificate.rounds challenges terminal
 
-/-- Exact executable/logical correspondence for the finite claimed chain. -/
 theorem checkChain_eq_true_iff
     {Field : Type uField}
     [DecidableEq Field]
@@ -158,7 +128,6 @@ theorem checkChain_eq_true_iff
       | cons challenge challenges =>
           simp [checkChain, Chain, inductionHypothesis, and_assoc]
 
-/-- The executable verifier accepts exactly the finite logical relation. -/
 theorem check_eq_true_iff_accepted
     {Field : Type uField}
     [DecidableEq Field]
@@ -173,7 +142,6 @@ theorem check_eq_true_iff_accepted
   exact checkChain_eq_true_iff ops maxDegree initial terminal
     certificate.rounds challenges
 
-/-- Completeness of the executable verifier from one canonical finite chain. -/
 theorem complete_of_canonical_chain
     {Field : Type uField}
     [DecidableEq Field]
@@ -188,11 +156,6 @@ theorem complete_of_canonical_chain
   (check_eq_true_iff_accepted ops maxDegree initial challenges terminal
     certificate).2 chain
 
-/-! ## Projection to the existing symbolic model -/
-
-/-- Semantic data deliberately absent from the verifier-visible certificate.
-Expected polynomials are a finite list so their shape must align exactly with
-the verifier-visible message and challenge lists. -/
 structure SemanticGhosts (Field : Type uField) where
   trueInitial : Field
   expected : List (Field -> Field)
@@ -212,9 +175,6 @@ private def toSymbolicRoundsFrom
       } :: toSymbolicRoundsFrom ops expecteds messages challenges
   | _, _, _ => []
 
-/-- Reconstruct the symbolic transcript. All verifier-owned values are
-arguments; only `trueInitial` and expected polynomials come from semantic
-ghost data. -/
 def toSymbolicInstance
     {Field : Type uField}
     (ops : Ops Field)
@@ -232,8 +192,6 @@ def toSymbolicInstance
   maxDegree := maxDegree
   challengeSetSize := challengeSetSize
 
-/-- Exact finite expected-polynomial chain. All three round-indexed lists must
-be consumed in lockstep; mismatched shapes are false rather than truncated. -/
 def ExpectedChain
     {Field : Type uField}
     (ops : Ops Field) :
@@ -247,10 +205,6 @@ def ExpectedChain
         terminal
   | _, _, _, _, _ => False
 
-/-- Honest semantic ghosts are exactly the independently expected finite
-chain. This is not verifier-visible certificate data. Verifier parameters and
-the claimed initial are arguments only to keep the conformance surface aligned
-with `toSymbolicInstance`; they do not define semantic truth. -/
 def SemanticGhosts.Honest
     {Field : Type uField}
     (ghosts : SemanticGhosts Field)
@@ -376,11 +330,6 @@ private theorem symbolicTruthPath_of_expectedChain
                 (expected := expecteds)
                 (challenges := challenges) tail⟩
 
-/-- A finite accepted chain plus a separately honest semantic truth path
-projects to the existing symbolic acceptance and truth predicates.
-
-This theorem does not construct the ghosts, prove PiCCS terminal identities,
-or establish a root-counting bound. -/
 theorem accepted_implies_symbolicAccepted_and_truthPath
     {Field : Type uField}
     (ops : Ops Field)

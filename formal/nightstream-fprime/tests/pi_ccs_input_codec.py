@@ -43,8 +43,6 @@ def main():
             str(input_path), str(result_path),
         ]
         started = time.monotonic()
-        # The root test policy caps every non-Lean test driver at 300 s.
-        # The enclosing invocation also needs a process-tree supervisor.
         with (output / f"{label}.log").open("w") as log:
             result = subprocess.run(
                 command, cwd=args.validation_package, stdout=log,
@@ -72,7 +70,6 @@ def main():
     check("missing-running", numeric_json(positive[:6]), False)
     check("extra-root-field", numeric_json(positive + [0]), False)
 
-    # Each path names one distinct required vector dimension.
     dimensions = {
         "running-fields": [6],
         "point": [6, 0],

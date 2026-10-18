@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Profile script for neo-fold starstream test
-# Usage: ./scripts/profile_starstream_test.sh [flamegraph|instruments|chrome|samply]
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
@@ -20,18 +17,15 @@ case "$PROFILE_MODE" in
   flamegraph)
     echo "📈 Generating flamegraph..."
     
-    # Check if cargo-flamegraph is installed
     if ! command -v cargo-flamegraph &> /dev/null; then
       echo "❌ cargo-flamegraph not found. Installing..."
       cargo install flamegraph
     fi
     
-    # Build the test binary with profiling profile
     echo "🔨 Building test with profiling profile (optimized + debug symbols)..."
     RUSTFLAGS="-C force-frame-pointers=yes" cargo test --profile profiling \
       --package neo-fold --test "$TEST_NAME" --no-run
     
-    # Find the test binary
     TEST_BINARY=$(cargo test --profile profiling --package neo-fold --test "$TEST_NAME" \
       --no-run --message-format=json 2>/dev/null | \
       jq -r 'select(.executable != null) | .executable' | head -1)
@@ -58,11 +52,9 @@ case "$PROFILE_MODE" in
   instruments)
     echo "🎼 Using macOS Instruments (Time Profiler)..."
     
-    # Build test with profiling profile
     echo "🔨 Building test with profiling profile (optimized + debug symbols)..."
     cargo test --profile profiling --package neo-fold --test "$TEST_NAME" --no-run
     
-    # Find the test binary
     TEST_BINARY=$(cargo test --profile profiling --package neo-fold --test "$TEST_NAME" \
       --no-run --message-format=json 2>/dev/null | \
       jq -r 'select(.executable != null) | .executable' | head -1)
@@ -88,7 +80,6 @@ case "$PROFILE_MODE" in
   chrome)
     echo "🌐 Generating Chrome tracing format..."
     
-    # Check if tracing-chrome is in Cargo.toml
     if ! grep -q "tracing-chrome" "$PROJECT_ROOT/crates/deprecated-neo-fold/Cargo.toml"; then
       echo "⚠️  tracing-chrome not found in Cargo.toml"
       echo "You need to add the following dependencies to crates/deprecated-neo-fold/Cargo.toml:"
@@ -105,7 +96,6 @@ case "$PROFILE_MODE" in
     echo "🔨 Running test with chrome tracing..."
     cargo test --release --package neo-fold --test "$TEST_NAME" -- --nocapture
     
-    # Find the trace file
     TRACE_FILE=$(find "$PROJECT_ROOT" -name "trace-*.json" -type f -mmin -1 | head -1)
     
     if [ -n "$TRACE_FILE" ]; then
@@ -120,18 +110,15 @@ case "$PROFILE_MODE" in
   samply)
     echo "🎯 Using samply profiler..."
     
-    # Check if samply is installed
     if ! command -v samply &> /dev/null; then
       echo "❌ samply not found. Installing..."
       cargo install samply
     fi
     
-    # Build test with profiling profile (has debug symbols)
     echo "🔨 Building test with profiling profile (optimized + debug symbols)..."
     cargo test --profile profiling --package neo-fold \
       --test "$TEST_NAME" --no-run
     
-    # Find the test binary
     TEST_BINARY=$(cargo test --profile profiling \
       --package neo-fold --test "$TEST_NAME" \
       --no-run --message-format=json 2>/dev/null | \
@@ -147,13 +134,11 @@ case "$PROFILE_MODE" in
     echo "🎯 Running samply profiler..."
     echo "Binary: $TEST_BINARY"
     
-    # Record to file
     samply record --save-only -o "$PROFILE_FILE" "$TEST_BINARY" --nocapture
     
     echo "✅ Profile saved to: $PROFILE_FILE"
     echo "🌐 Opening in browser..."
     
-    # Load the profile (opens in default browser, but works in any browser)
     samply load "$PROFILE_FILE"
     
     echo ""

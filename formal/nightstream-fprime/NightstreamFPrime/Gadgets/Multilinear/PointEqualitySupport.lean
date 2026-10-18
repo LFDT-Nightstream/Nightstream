@@ -104,8 +104,6 @@ private theorem materializedAt_supported (allowed : Nat → Prop)
   · apply interval <;> omega
   · apply interval <;> omega
 
-/-- Every point-equality recipe and the compiled output use only supported
-coordinate inputs or the exact recipe interval. -/
 theorem compile_varsSatisfy (start : Nat)
     (coordinates : List CoordinateExpr) (allowed : Nat → Prop)
     (coordinatesSupport : ∀ coordinate ∈ coordinates,
@@ -233,7 +231,6 @@ private theorem coordinateExprs_supported {variableCount : Nat}
   rcases member with ⟨index, _indexMember, rfl⟩
   exact ⟨leftSupport index, rightSupport index⟩
 
-/-- Exact support propagation through the child-owned point-equality rows. -/
 theorem flatConstraints_varsSatisfy {variableCount : Nat}
     (interface : Interface variableCount) (offset : Nat)
     (allowed : Nat → Prop)
@@ -268,8 +265,6 @@ theorem flatConstraints_varsSatisfy {variableCount : Nat}
   · exact support
   · exact localSupport index lower upper
 
-/-- The child-owned point-equality output uses the same external support and
-exact recipe interval as its rows. -/
 theorem output_varsSatisfy {variableCount : Nat}
     (interface : Interface variableCount) (offset : Nat)
     (allowed : Nat → Prop)

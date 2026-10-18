@@ -1,5 +1,4 @@
 //! Application matrix values: resident prefixes or bounded replay of original rows.
-//! Prior challenges define each replayed value. No transcript or circuit rule is changed.
 
 use super::*;
 
@@ -29,7 +28,7 @@ fn table_bytes(tables: usize, rows: usize, word_bytes: usize) -> Result<usize, M
 
 pub(super) fn available_workspace(session: &MetalSession, reserved: usize) -> usize {
     super::super::BUFFER_LIMIT_BYTES
-        .saturating_sub(session.activity().current_allocated_bytes as usize)
+        .saturating_sub(session.current_allocated_bytes())
         .saturating_sub(reserved)
 }
 
@@ -87,7 +86,7 @@ impl ApplicationTables {
     fn update_budget(&mut self, session: &MetalSession, reserved: usize) {
         let owned = self.resident.as_ref().map_or(0, |w| w.values.length());
         self.budget = super::super::BUFFER_LIMIT_BYTES
-            .saturating_sub((session.activity().current_allocated_bytes as usize).saturating_sub(owned))
+            .saturating_sub(session.current_allocated_bytes().saturating_sub(owned))
             .saturating_sub(reserved)
             .min(self.workspace_limit.unwrap_or(usize::MAX));
     }
@@ -112,9 +111,6 @@ impl ApplicationTables {
         self.resident.as_ref()
     }
 
-    // Two final K rows are needed by a SumCheck pair. A power-of-two source
-    // window has an in-place first (F-to-K) fold. Later folds need half as
-    // much new storage as the preceding window, at most W/2 base words.
     fn replay_capacity(&self) -> Result<usize, MetalError> {
         let destination = table_bytes(self.table_count, 2, size_of::<K>())?;
         let mut rows = self
@@ -179,8 +175,6 @@ impl ApplicationTables {
         for stage in 0..stages {
             let next_rows = rows.div_ceil(2);
             let next = if stage == 0 {
-                // Source windows are even. Each F pair and its K result own
-                // the same 16 bytes, including at matrix boundaries.
                 values.clone()
             } else {
                 let bytes = table_bytes(self.table_count, next_rows, size_of::<K>())?;

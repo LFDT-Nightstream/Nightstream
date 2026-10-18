@@ -3,8 +3,6 @@ import NightstreamFPrime.Layout.PiRLC.v1_2.PacketProjection
 
 /-!
 Owns the production specialization of the generic PiRLC packet projection.
-It proves the exact Stage 1 fresh starts, maps every held child packet to the
-final Spartan columns, and composes them with semantic physical completion.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCPackageCompleteness
@@ -180,9 +178,6 @@ private theorem evalAPacket_eq :
       (PiRLCCombinationConformance.evalAFamilyConstraints_eq_parent
         (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
 
-/-- Full source-ordered physical rows project to the five exact production
-packet lowerings. The relation width is arbitrary; these fixed-size packets
-retain the existing width-erased package definitions. -/
 theorem sourcePhysicalRows_imply_packets
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (env : Env)
@@ -227,8 +222,6 @@ structure RemappedPacketRowsHold (env : Env) : Prop where
         phaseInterface PiRLCInputs.phaseOffset)
       PiRLCStarts.evalAFreshStart).rows)
 
-/-- Final-column full physical rows project to the five exact final-column
-packet lowerings. -/
 theorem remappedPhysicalRows_imply_packets
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (env : Env)
@@ -249,8 +242,6 @@ theorem remappedPhysicalRows_imply_packets
     (Spartan.remapRows_hold env _).mpr packets.evalK,
     (Spartan.remapRows_hold env _).mpr packets.evalA⟩
 
-/-- A valid semantic production phase constructs one final-column assignment
-that holds every exact nonempty PiRLC packet. -/
 theorem completePackets
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
     (ajtai : AjtaiKey

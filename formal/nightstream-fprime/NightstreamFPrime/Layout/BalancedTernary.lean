@@ -13,16 +13,12 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix
 open NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm
 
-/-- Exact number of signed ternary coordinates used for one retained field
-value. -/
 def width : Nat := 41
 
-/-- Largest natural magnitude representable by `count` balanced trits. -/
 def radius : Nat → Nat
   | 0 => 0
   | count + 1 => 3 * radius count + 1
 
-/-- The centered Goldilocks half interval fits in 41 balanced trits. -/
 theorem halfModulus_le_radius : Centered.halfModulus ≤ radius width := by
   decide
 
@@ -32,7 +28,6 @@ def isNegative (value : F) : Prop :=
 instance (value : F) : Decidable (isNegative value) :=
   inferInstanceAs (Decidable (Centered.halfModulus < value.val))
 
-/-- Nonnegative magnitude of the canonical centered representative. -/
 def magnitude (value : F) : Nat :=
   if isNegative value then goldilocksModulus - value.val else value.val
 
@@ -51,13 +46,11 @@ theorem magnitude_le_radius (value : F) :
     magnitude value ≤ radius width :=
   (magnitude_le_halfModulus value).trans halfModulus_le_radius
 
-/-- One little-endian balanced trit in `{-1, 0, 1}`. -/
 def digit (value : Nat) : F :=
   if value % 3 = 0 then 0
   else if value % 3 = 1 then 1
   else -1
 
-/-- Remaining magnitude after removing one balanced trit. -/
 def next (value : Nat) : Nat :=
   value / 3 + if value % 3 = 2 then 1 else 0
 
@@ -77,7 +70,6 @@ theorem digit_norm (value : Nat) : centeredMagnitude (digit value) < 2 := by
     rw [show digit value = (-1 : F) by simp [digit, notZero, notOne]]
     decide
 
-/-- One balanced step reconstructs its input in the Goldilocks field. -/
 theorem digit_add_three_mul_next (value : Nat) :
     digit value + fieldOfNat 3 * fieldOfNat (next value) =
       fieldOfNat value := by
@@ -139,7 +131,6 @@ theorem next_le_radius {count value : Nat}
   · simp [radius, next, two] at bounded ⊢
     omega
 
-/-- Reference little-endian digit list. -/
 def digitsNat : Nat → Nat → List F
   | 0, _ => []
   | count + 1, value => digit value :: digitsNat count (next value)
@@ -151,7 +142,6 @@ def digitsNat : Nat → Nat → List F
   | succ count inductionHypothesis =>
       simp [digitsNat, inductionHypothesis]
 
-/-- Interpret little-endian balanced digits in the Goldilocks field. -/
 def recompose : List F → F
   | [] => 0
   | head :: tail => head + fieldOfNat 3 * recompose tail
@@ -215,7 +205,6 @@ private theorem neg_fieldOfNat_complement (value : F) :
     simp [fieldOfNat, Nat.mod_eq_of_lt complementLt]
     omega
 
-/-- Exact Rust-compatible 41-trit encoding of one canonical field value. -/
 def digits (value : F) : List F :=
   let unsigned := digitsNat width (magnitude value)
   if isNegative value then unsigned.map (fun digit => -digit) else unsigned
@@ -247,7 +236,6 @@ theorem digits_norm (value : F) (digitValue : F)
   next nonnegative =>
     exact digitsNat_norm width (magnitude value) digitValue member
 
-/-- The 41 low-norm coordinates reconstruct the exact field element. -/
 theorem recompose_digits (value : F) : recompose (digits value) = value := by
   have unsigned := recompose_digitsNat width (magnitude value)
     (magnitude_le_radius value)

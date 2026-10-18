@@ -23,7 +23,6 @@ fn dot(a: &[Fq; D], b: &[Fq; D]) -> Fq {
 
 #[test]
 fn superneo_transform_matches_one_sided_inner_product_identity() {
-    // Touch once so failures (if any) are immediate and deterministic.
     let _ = superneo_bar_matrix();
 
     for round in 0..16u64 {

@@ -43,13 +43,12 @@ fn build_mcs_step(
         .map(|i| if ((i as i64) + base) % 2 == 0 { F::ONE } else { -F::ONE })
         .collect();
     let x = z[..m_in].to_vec();
-    let w = z[m_in..].to_vec();
     let mut Z = Mat::zero(D, m.div_ceil(D), F::ZERO);
     for (c, val) in z.iter().copied().enumerate() {
         Z[(c % D, c / D)] = val;
     }
     let c = l.commit(&Z);
-    (CcsClaim { adv: None, c, x, m_in }, CcsWitness { w, Z })
+    (CcsClaim { adv: None, c, x, m_in }, CcsWitness { Z })
 }
 
 fn build_mcs_step_packed_digits(
@@ -71,14 +70,13 @@ fn build_mcs_step_packed_digits(
         Z[(c % D, c / D)] = val;
     }
     let x: Vec<F> = z_cols[..m_in].to_vec();
-    let w = z_cols[m_in..].to_vec();
     let c = l.commit(&Z);
-    (CcsClaim { adv: None, c, x, m_in }, CcsWitness { w, Z })
+    (CcsClaim { adv: None, c, x, m_in }, CcsWitness { Z })
 }
 
 fn run_case_with_n(n: usize, k_mcs: usize) {
     let ccs = identity_ccs(n);
-    let params = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("params");
+    let params = NeoParams::goldilocks_auto_rectangular_r1cs_ccs(n, n).expect("params");
     let l = setup_ajtai_committer(&params, ccs.m);
 
     let mut mcs_list = Vec::with_capacity(k_mcs);
@@ -116,7 +114,7 @@ fn make_dummy_me_input(params: &NeoParams, m_in: usize, r: Vec<K>) -> CeClaim<ne
     CeClaim {
         adv: None,
         c: neo_ajtai::Commitment::zeros(D, params.kappa as usize),
-        X: Mat::zero(D, neo_ccs::superneo_public_x_cols(m_in), F::ZERO),
+        X: Mat::zero(D, neo_ccs::superneo_public_x_cols(m_in).unwrap(), F::ZERO),
         r,
         eval_k: vec![K::ZERO; D.next_power_of_two()],
         eval_a: vec![vec![K::ZERO; D.next_power_of_two()]],
@@ -146,7 +144,7 @@ fn pi_ccs_prove_verify_superneo_shape_k_mcs_2() {
 fn pi_ccs_prove_verify_superneo_shape_nonzero_digits_k_mcs_2() {
     let n = D;
     let ccs = identity_ccs(n);
-    let params = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("params");
+    let params = NeoParams::goldilocks_auto_rectangular_r1cs_ccs(n, n).expect("params");
     let l = setup_ajtai_committer(&params, ccs.m);
 
     let mut mcs_list = Vec::with_capacity(2);
@@ -180,7 +178,7 @@ fn pi_ccs_prove_verify_superneo_shape_nonzero_digits_k_mcs_2() {
 fn pi_ccs_prove_rejects_non_shared_me_r() {
     let n = D;
     let ccs = identity_ccs(n);
-    let params = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("params");
+    let params = NeoParams::goldilocks_auto_rectangular_r1cs_ccs(n, n).expect("params");
     let l = setup_ajtai_committer(&params, ccs.m);
     let (mcs_inst, mcs_wit) = build_mcs_step(&params, &l, ccs.m, D, 71);
 
@@ -215,7 +213,7 @@ fn pi_ccs_prove_rejects_non_shared_me_r() {
 fn pi_ccs_verify_rejects_tampered_mcs_output_x_recomposition() {
     let n = D;
     let ccs = identity_ccs(n);
-    let params = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("params");
+    let params = NeoParams::goldilocks_auto_rectangular_r1cs_ccs(n, n).expect("params");
     let l = setup_ajtai_committer(&params, ccs.m);
 
     let mut mcs_list = Vec::with_capacity(2);
@@ -257,7 +255,7 @@ fn pi_ccs_verify_rejects_tampered_mcs_output_x_recomposition() {
 fn pi_ccs_verify_rejects_noncanonical_extra_x_column() {
     let n = D;
     let ccs = identity_ccs(n);
-    let params = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("params");
+    let params = NeoParams::goldilocks_auto_rectangular_r1cs_ccs(n, n).expect("params");
     let l = setup_ajtai_committer(&params, ccs.m);
 
     let mut mcs_list = Vec::with_capacity(1);
@@ -280,7 +278,6 @@ fn pi_ccs_verify_rejects_noncanonical_extra_x_column() {
     )
     .expect("pi_ccs prove");
 
-    // Add a noncanonical column and move the active input into it.
     let old_x = out[0].X.clone();
     out[0].X = Mat::zero(D, old_x.cols() + 1, F::ZERO);
     for rho in 0..out[0].X.rows() {

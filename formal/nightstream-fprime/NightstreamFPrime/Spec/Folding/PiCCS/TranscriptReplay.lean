@@ -1,12 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FiatShamir
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomial
 
-/-! Provenance: adapted from
-`formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/ProtocolVerifier.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; retained only the exact
-statement-and-round transcript replay and moved it to the canonical v1.2
-authority namespace. -/
-
 /-!
 Verifier-owned transcript replay for canonical SuperNeo v1.2 `Pi_CCS`.
 
@@ -26,23 +20,6 @@ encoding, random-oracle security, Pi_RLC handoff refinement, Rust, R1CS, or
 counts.
 
 Emits constraints: no.
-
-Authority boundary: the certificate carries no challenges, point, terminal,
-degree, or transcript state. The semantic statement still carries the public
-polynomial input, but the transcript initializer is required to use only its
-prior state. The public input is checked by the semantic verifier and is not
-part of this digest-only replay authority. The abstract transcript may still
-collide on the absorbed prior state and messages. Those exact replay events
-are named below; no probability or concrete-hash reduction is assigned here.
-The NIFS key separately owns the one complete `y'` absorption.
-
-| Protocol | Phase | Family | Mathematical obligation |
-|---|---|---|---|
-| `Pi_CCS` | pre-SumCheck | alpha / gamma | derived from the prior transcript state |
-| `Pi_CCS` | statement | prior state / complete public polynomial input | semantic carrier; only the prior state initializes replay |
-| `Pi_CCS` | verifier input | structure / prior point / public claims / degree | `ProtocolPolynomial.VerifierInput`; degree derives from explicit terms |
-| `Pi_CCS` | SumCheck rounds | messages / challenges | each message is absorbed before its challenge is squeezed |
-| assurance | transcript binding boundary | prior state/messages determine challenges and final round state | `TranscriptReplayCollision`, `TranscriptStateCollision` |
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.TranscriptReplay
@@ -52,9 +29,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 universe uField uState
 
-/-- Complete statement handed to abstract transcript initialization. This
-removes the former arbitrary `Context` surface: every execution supplies the
-prior verifier state and the exact public polynomial input together. -/
 structure Statement
     (Field : Type uField)
     (State : Type uState)
@@ -62,8 +36,6 @@ structure Statement
   priorState : State
   input : ProtocolPolynomial.VerifierInput Field shape
 
-/-- The verifier-owned transcript schedule through the final SumCheck
-challenge. The NIFS key owns post-SumCheck output absorption. -/
 structure Oracle
     (Field : Type uField)
     (State : Type uState)
@@ -72,15 +44,12 @@ structure Oracle
   initialState_is_prior : ∀ statement,
     transcript.initialState statement = statement.priorState
 
-/-- Complete prover certificate for this semantic phase. It contains values
-and polynomial messages only; all challenges and verifier state are derived. -/
 structure Certificate (Field : Type uField) (shape : Shape) where
   rounds : Fin shape.cubeVariables -> SumCheck.Finite.Message Field
   output : ProtocolPolynomial.OutputMessage Field shape
 
 namespace Certificate
 
-/-- Project only the round messages into the transcript-schedule certificate. -/
 def toTranscript
     {Field : Type uField}
     {shape : Shape}
@@ -88,7 +57,6 @@ def toTranscript
     FiatShamir.Certificate Field shape where
   rounds := certificate.rounds
 
-/-- Project the same round messages into the finite SumCheck certificate. -/
 def toFinite
     {Field : Type uField}
     {shape : Shape}
@@ -96,7 +64,6 @@ def toFinite
     SumCheck.Finite.Certificate Field :=
   certificate.toTranscript.toFinite
 
-/-- The finite checker sees exactly one message per semantic cube variable. -/
 theorem toFinite_rounds_length
     {Field : Type uField}
     {shape : Shape}
@@ -106,9 +73,6 @@ theorem toFinite_rounds_length
 
 end Certificate
 
-/-- Complete abstract transcript replay input: public statement plus every
-round polynomial message. The NIFS key binds the separate complete output
-after this replay. -/
 structure ReplayInput
     (Field : Type uField)
     (State : Type uState)
@@ -116,9 +80,6 @@ structure ReplayInput
   statement : Statement Field State shape
   rounds : FiatShamir.Certificate Field shape
 
-/-- Exact material absorbed by the digest-only PiCCS replay. The semantic
-verifier input remains in `ReplayInput.statement.input` and is checked
-separately. -/
 structure ReplayAuthority
     (Field : Type uField)
     (State : Type uState)
@@ -128,8 +89,6 @@ structure ReplayAuthority
 
 namespace ReplayAuthority
 
-/-- Replay from the exact prior transcript state. The semantic statement is
-not an input to this function. -/
 def derive
     {Field : Type uField}
     {State : Type uState}
@@ -147,7 +106,6 @@ end ReplayAuthority
 
 namespace ReplayInput
 
-/-- Remove the semantic verifier input that the transcript does not absorb. -/
 def authority
     {Field : Type uField}
     {State : Type uState}
@@ -157,7 +115,6 @@ def authority
   priorState := input.statement.priorState
   rounds := input.rounds
 
-/-- Replay from only the absorbed authority of this typed input. -/
 def derive
     {Field : Type uField}
     {State : Type uState}
@@ -167,8 +124,6 @@ def derive
     FiatShamir.DerivedCoins Field State shape :=
   input.authority.derive oracle
 
-/-- Equal absorbed replay authority gives equal verifier coins and equal
-final state. -/
 theorem derive_eq_of_authority_eq
     {Field : Type uField}
     {State : Type uState}
@@ -181,9 +136,6 @@ theorem derive_eq_of_authority_eq
 
 end ReplayInput
 
-/-- Two distinct absorbed replay authorities produce the same complete
-verifier challenge view. Changing only the unabsorbed semantic verifier input
-does not create this event. -/
 def TranscriptReplayCollision
     {Field : Type uField}
     {State : Type uState}
@@ -195,9 +147,6 @@ def TranscriptReplayCollision
     (left.derive oracle).gamma = (right.derive oracle).gamma /\
     (left.derive oracle).roundPoint = (right.derive oracle).roundPoint
 
-/-- Two distinct absorbed replay authorities end at the same pre-output
-transcript state. This separately names loss of chaining authority even when
-some sampled challenge differs. -/
 def TranscriptStateCollision
     {Field : Type uField}
     {State : Type uState}
@@ -207,8 +156,6 @@ def TranscriptStateCollision
   left.authority ≠ right.authority /\
     (left.derive oracle).finalState = (right.derive oracle).finalState
 
-/-- Equal complete verifier challenge views identify the absorbed replay
-authority unless that exact prior-state-and-message replay collides. -/
 theorem authority_eq_or_challenge_collision
     {Field : Type uField}
     {State : Type uState}
@@ -228,8 +175,6 @@ theorem authority_eq_or_challenge_collision
   · exact Or.inl same
   · exact Or.inr ⟨same, alphaEqual, gammaEqual, roundPointEqual⟩
 
-/-- Equal final pre-output transcript states identify the absorbed replay
-authority unless the exact causal transcript chain collides. -/
 theorem authority_eq_or_state_collision
     {Field : Type uField}
     {State : Type uState}
@@ -245,14 +190,12 @@ theorem authority_eq_or_state_collision
   · exact Or.inl same
   · exact Or.inr ⟨same, finalStateEqual⟩
 
-/-- Verifier-derived coins from the exact statement and round schedule. -/
 structure Derived
     (Field : Type uField)
     (State : Type uState)
     (shape : Shape) where
   coins : FiatShamir.DerivedCoins Field State shape
 
-/-- Replay the complete challenge schedule. -/
 def derive
     {Field : Type uField}
     {State : Type uState}
@@ -265,8 +208,6 @@ def derive
   let coins := FiatShamir.derive oracle.transcript statement certificate.toTranscript
   { coins := coins }
 
-/-- The challenge vector is computed from the complete statement and round
-messages. -/
 theorem derive_coins_eq_transcript
     {Field : Type uField}
     {State : Type uState}

@@ -10,7 +10,6 @@ pub(super) struct RawCcsRelation(u64, u64, u64, Vec<u64>, u64, Vec<RawPolynomial
 #[derive(Debug, Deserialize, Serialize)]
 struct RawPolynomialTerm(u64, Vec<u64>);
 
-/// Physical matrix selected by one Lean-owned logical CCS slot.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CcsMatrixSource {
     A,
@@ -19,7 +18,6 @@ pub enum CcsMatrixSource {
     SboxInput,
 }
 
-/// One sparse term of the Lean-owned CCS constraint polynomial.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PackagePolynomialTerm {
     coefficient: u64,
@@ -36,7 +34,6 @@ impl PackagePolynomialTerm {
     }
 }
 
-/// Exact logical CCS relation decoded from the identity-bound package.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PackageCcsRelation {
     row_count: usize,
@@ -108,8 +105,6 @@ pub(super) fn validate(raw: RawCcsRelation) -> Result<PackageCcsRelation, Packag
             _ => Err(PackageError::Invalid("CCS relation matrix source")),
         })
         .collect::<Result<Vec<_>, _>>()?;
-    // The matrix program writes ports by slot index, so the tags must name
-    // exactly that slot order.
     if matrix_sources
         != [
             CcsMatrixSource::A,

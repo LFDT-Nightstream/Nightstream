@@ -1,10 +1,8 @@
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerDirectSemantics
 
 /-!
-Owns composition of the retained Poseidon2 and checked wide-reduction rows
-into the complete sampler and sampler-chain lifecycle relations.
-
-This module does not add rows or close PiRLC status.
+Owns composition of the retained Poseidon2 and checked wide-reduction rows into
+the complete sampler and sampler-chain lifecycle relations.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerFullSemantics
@@ -21,7 +19,6 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
-/-- Every retained scalar checks the total reduction and its single advance. -/
 theorem directSemantics_imply_samplerSpec
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth relationLogicalWidth}
@@ -83,7 +80,6 @@ theorem directSemantics_imply_samplerSpec
   rw [PiRLCSamplerOrdinaryRows.rangeInterface_eq] at decoded
   exact decoded
 
-/-- All 17 scalar results compose the verifier's exact transcript schedule. -/
 theorem directSemantics_imply_samplerChain
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth relationLogicalWidth}

@@ -3,8 +3,8 @@ import NightstreamFPrime.Export.Stage1.PiCCSPadPrefix
 import NightstreamFPrime.Export.Stage1.PiCCSPrefixRound
 
 /-! Proof-only transport of original carried scalar reads through the existing
-prefix fold to the original weighted message fields. Pad and matrix prefixes
-have separate extents. File decoding and parity accumulation are not owned here. -/
+prefix fold to the original weighted message fields.
+File decoding and parity accumulation are not owned here. -/
 
 set_option autoImplicit false
 
@@ -30,8 +30,6 @@ private theorem rows_fit : selectedProgram.rowCount ≤ 2 ^ cubeVariables := by
   exact PerApplicationFixedPoint.structuralPlan_rowCount_le
     Poseidon2HashChainV1Package.application Poseidon2HashChainV1Package.fits
 
--- These prefixes collect only the existing scalar initializers. They are
--- proof-side array views, not an executable replay or a second prover.
 def padPrefix (masks : Array (Array (Nat × Nat))) (gamma : K) : Array K :=
   Array.ofFn fun column : Fin PiCCSSourceImages.shape.carrierWidth =>
     (PiCCSPadPrefix.blockValues (basis gamma).1
@@ -59,8 +57,6 @@ private theorem pad_column_source (input : PiCCSPublicReplay.Input)
   exact PiCCSCarriedSource.pad_column_sourceProtocolData input
     (PiCCSFirstRoundComposition.witness masks) gamma column
 
-/-- All retained Pad lanes, including the full carrier tail, come from the
-original source Pad family. The whole-block zero shortcut is already proved. -/
 theorem padPrefix_value (input : PiCCSPublicReplay.Input)
     (masks : Array (Array (Nat × Nat))) (gamma : K) :
     padPrefix masks gamma =
@@ -72,8 +68,6 @@ theorem padPrefix_value (input : PiCCSPublicReplay.Input)
   funext column
   exact pad_column_source input masks gamma column
 
-/-- Every active matrix scalar load succeeds and gives the original local
-gamma total. No successful-load or expected-value premise is required. -/
 theorem matrixPrefix_value (input : PiCCSPublicReplay.Input)
     (masks : Array (Array (Nat × Nat))) (gamma : K) :
     matrixPrefix? masks gamma =
@@ -114,9 +108,6 @@ private theorem padPrefix_block (masks : Array (Array (Nat × Nat))) (gamma : K)
   simp only [padPrefix, Array.getD_eq_getD_getElem?, Array.getElem?_ofFn,
     dif_pos live, Option.getD_some, quotient, remainder, PiCCSPadPrefix.blockValues_value]
 
-/-- Each actual 27-value block emitted by the first retained Pad fold is
-exactly its part of the complete full-carrier scalar fold. Block boundaries
-do not alter the canonical adjacent pairing. -/
 theorem pad_foldedBlock (masks : Array (Array (Nat × Nat))) (gamma challenge : K)
     (block : Fin PiCCSSourceImages.blockCount) (pair : Fin PiCCSNormSource.PairCount) :
     (PiCCSPadPrefix.foldedBlock (basis gamma).1
@@ -208,8 +199,6 @@ private theorem matrix_evaluate (input : PiCCSPublicReplay.Input)
     (fun coordinate => power gamma coordinate.localGammaExponent)
     (PiCCSFirstRoundComposition.sourceData input masks).matrixImages point
 
-/-- Every folded Pad value is the full local-gamma sum of original padImage
-evaluations at prefix ++ suffix. Only the full carrier's zero suffix is used. -/
 theorem padPrefix_evaluate (input : PiCCSPublicReplay.Input)
     (masks : Array (Array (Nat × Nat))) (gamma : K) (challenges : List K)
     {remaining : Nat} (dimension : cubeVariables = remaining + challenges.length)
@@ -231,9 +220,6 @@ theorem padPrefix_evaluate (input : PiCCSPublicReplay.Input)
       (PiCCSFirstRoundComposition.witness masks) gamma) challenges dimension suffix).trans
     (pad_evaluate input masks gamma _)
 
-/-- Every optional matrix prefix returns the full local-gamma sum of original
-matrixImage evaluations. Padding starts at the active program row count.
-The global matrixEvaluationOffset factor is not applied at this boundary. -/
 theorem matrixPrefix_evaluate (input : PiCCSPublicReplay.Input)
     (masks : Array (Array (Nat × Nat))) (gamma : K) (challenges : List K)
     {remaining : Nat} (dimension : cubeVariables = remaining + challenges.length)
@@ -256,7 +242,6 @@ theorem matrixPrefix_evaluate (input : PiCCSPublicReplay.Input)
       (PiCCSFirstRoundComposition.witness masks) gamma) challenges dimension suffix]
   exact matrix_evaluate input masks gamma _
 
-/-- Exact next-round Pad endpoint after any consumed challenge prefix. -/
 theorem padPrefix_endpoint (input : PiCCSPublicReplay.Input)
     (masks : Array (Array (Nat × Nat))) (gamma : K) (challenges : List K)
     {remaining : Nat} (dimension : cubeVariables = challenges.length + remaining + 1)
@@ -276,11 +261,9 @@ theorem padPrefix_endpoint (input : PiCCSPublicReplay.Input)
   simp only [PrefixFold.zeroExtend, BooleanTable.valueAt_tabulate] at value
   cases bit <;> simpa only [PiCCSPrefixRound.point,
     BooleanVertex.toCubePoint_coordinates, BooleanVertex.fieldCoordinates,
-    SumCheckTruthPath.VertexEncoding.fieldCoordinates, Bool.false_eq_true,
+    Bool.false_eq_true,
     if_false, if_true] using! value
 
-/-- Exact next-round matrix endpoint, with successful scalar initialization
-proved and the complete matrix family retained in canonical coordinate order. -/
 theorem matrixPrefix_endpoint (input : PiCCSPublicReplay.Input)
     (masks : Array (Array (Nat × Nat))) (gamma : K) (challenges : List K)
     {remaining : Nat} (dimension : cubeVariables = challenges.length + remaining + 1)
@@ -301,15 +284,13 @@ theorem matrixPrefix_endpoint (input : PiCCSPublicReplay.Input)
     PrefixFold.zeroExtend, BooleanTable.valueAt_tabulate] at value
   cases bit <;> simpa only [PiCCSPrefixRound.point,
     BooleanVertex.toCubePoint_coordinates, BooleanVertex.fieldCoordinates,
-    SumCheckTruthPath.VertexEncoding.fieldCoordinates, Bool.false_eq_true,
+    Bool.false_eq_true,
     if_false, if_true] using! value
 
-/-- The Pad initializer retains the complete carrier, including its tail. -/
 theorem padPrefix_size (masks : Array (Array (Nat × Nat))) (gamma : K) :
     (padPrefix masks gamma).size = PiCCSSourceImages.shape.carrierWidth := by
   simp only [padPrefix, Array.size_ofFn]
 
-/-- The selected matrix initializer succeeds at the exact active-row extent. -/
 theorem matrixPrefix_size (input : PiCCSPublicReplay.Input)
     (masks : Array (Array (Nat × Nat))) (gamma : K) :
     (matrixPrefix? masks gamma).map Array.size = some selectedProgram.rowCount := by

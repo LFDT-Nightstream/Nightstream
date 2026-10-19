@@ -80,8 +80,9 @@ fn provers_tree_matches_plonky3() {
         Mmcs::new(&Accelerator::new(Arc::new(Reference))),
     ];
     // Rows of one block, of four blocks and of a partial block; two
-    // matrices side by side; a single row.
-    let cases: [Vec<(usize, usize)>; 5] = [
+    // matrices side by side; a single row; rows of two CPU subtrees.
+    let cases: [Vec<(usize, usize)>; 6] = [
+        vec![(1 << 20, 2)],
         vec![(1 << 12, 16)],
         vec![(1 << 12, 48)],
         vec![(1 << 11, 5)],

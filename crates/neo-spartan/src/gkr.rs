@@ -13,6 +13,11 @@
 //! it share one sum-check, so trees of equal depth share the leaf point.
 //! The leaf claim of a tree is every factor's and the denominator's value at
 //! its leaf point.
+//!
+//! The prover takes the trees one at a time and keeps each level in a scratch
+//! file from the moment it is built (bottom up) until its layer's sum-check
+//! (top down), so it holds one tree while building and one layer while
+//! proving.
 
 use p3_challenger_v08::FieldChallenger;
 use p3_field_v08::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
@@ -25,8 +30,7 @@ use crate::circuit::Backend;
 use crate::device::Accelerator;
 use crate::field::{eq_table, ext_words, fold_low, Ext, Gl};
 use crate::hash::Challenger;
-use crate::sumcheck;
-use crate::Error;
+use crate::{scratch, sumcheck, Error};
 
 /// The leaves of one tree: numerator factors (none means all ones) and the
 /// denominator, each of length `2^depth`.
@@ -118,31 +122,73 @@ fn degree(factors: impl Iterator<Item = usize>) -> usize {
     factors.map(|f| f + 2).max().unwrap_or(0).max(3)
 }
 
+/// One tree layer in the scratch file: its parts, one after another.
+struct Spilled {
+    offset: usize,
+    parts: usize,
+    nodes: usize,
+}
+
+fn scratch_error(error: std::io::Error) -> Error {
+    Error::Device(format!("GKR scratch file: {error}"))
+}
+
+/// Append `tree`'s parts at word `end`.
+fn spill(file: &std::fs::File, end: &mut usize, tree: &Tree) -> Result<Spilled, Error> {
+    let spilled = Spilled {
+        offset: *end,
+        parts: tree.factors.len() + 1,
+        nodes: tree.denominator.len(),
+    };
+    for part in tree.parts() {
+        scratch::write(file, *end, table_words(part)).map_err(scratch_error)?;
+        *end += 3 * part.len();
+    }
+    Ok(spilled)
+}
+
+fn restore(file: &std::fs::File, spilled: &Spilled) -> Result<Tree, Error> {
+    let mut parts = (0..spilled.parts)
+        .map(|part| {
+            let mut values = vec![Ext::ZERO; spilled.nodes];
+            let offset = spilled.offset + 3 * spilled.nodes * part;
+            scratch::read(file, offset, ext_words_mut(&mut values)).map_err(scratch_error)?;
+            Ok(values)
+        })
+        .collect::<Result<Vec<_>, Error>>()?;
+    let denominator = parts.pop().expect("a tree has a denominator");
+    Ok(Tree {
+        factors: parts,
+        denominator,
+    })
+}
+
 /// Prove the fraction sums of `trees`; return the proof and one claim per
 /// tree. A layer's rounds run on the accelerator's device when it takes them.
 pub(crate) fn prove(
-    trees: Vec<Tree>,
+    trees: impl IntoIterator<Item = Tree>,
     challenger: &mut Challenger,
     accelerator: &Accelerator,
 ) -> Result<(GkrProof, Vec<TreeClaim<Ext>>), Error> {
-    let depths: Vec<usize> = trees.iter().map(Tree::depth).collect();
-    // levels[i][k] is tree i at layer k; levels[i][depth] is its leaves.
-    let mut levels: Vec<Vec<Tree>> = trees
-        .into_iter()
-        .map(|leaves| {
-            let mut levels = vec![leaves];
-            while levels.last().expect("nonempty").denominator.len() > 1 {
-                let parent = levels.last().expect("nonempty").parent();
-                levels.push(parent);
-            }
-            levels.reverse();
-            levels
-        })
-        .collect();
-    let roots: Vec<[Ext; 2]> = levels
-        .iter()
-        .map(|levels| [levels[0].factors[0][0], levels[0].denominator[0]])
-        .collect();
+    let file = scratch::file().map_err(scratch_error)?;
+    let mut end = 0;
+    let mut depths = Vec::new();
+    let mut roots: Vec<[Ext; 2]> = Vec::new();
+    // levels[i][k - 1] is tree i at layer k; its last entry is its leaves.
+    let mut levels: Vec<Vec<Spilled>> = Vec::new();
+    for leaves in trees {
+        depths.push(leaves.depth());
+        let mut spilled = Vec::new();
+        let mut level = leaves;
+        while level.denominator.len() > 1 {
+            let parent = level.parent();
+            spilled.push(spill(&file, &mut end, &level)?);
+            level = parent;
+        }
+        spilled.reverse();
+        roots.push([level.factors[0][0], level.denominator[0]]);
+        levels.push(spilled);
+    }
     for root in &roots {
         challenger.observe_algebra_slice(root);
     }
@@ -154,8 +200,8 @@ pub(crate) fn prove(
         let active: Vec<usize> = (0..depths.len()).filter(|&i| depths[i] >= k).collect();
         let mut tables: Vec<Tree> = active
             .iter()
-            .map(|&i| std::mem::take(&mut levels[i][k]))
-            .collect();
+            .map(|&i| restore(&file, &levels[i][k - 1]))
+            .collect::<Result<_, _>>()?;
         let mu: Ext = challenger.sample_algebra_element();
         let nu: Ext = challenger.sample_algebra_element();
         let degree = degree(tables.iter().map(|tree| tree.factors.len()));
@@ -270,6 +316,13 @@ fn words_of_ext(value: Ext) -> [u64; 3] {
 
 fn ext_of_words(words: [u64; 3]) -> Ext {
     Ext::from_basis_coefficients_fn(|c| Gl::new(words[c]))
+}
+
+/// The base words of `values`, three per element.
+fn table_words(values: &[Ext]) -> &[u64] {
+    // SAFETY: `Ext` is `repr(transparent)` over `[Goldilocks; 3]` and
+    // `Goldilocks` over `u64`.
+    unsafe { std::slice::from_raw_parts(values.as_ptr().cast::<u64>(), 3 * values.len()) }
 }
 
 /// The base words of `values`, three per element.

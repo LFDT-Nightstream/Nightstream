@@ -10,10 +10,8 @@
 //! file, not in memory: an opening reads only the rows and siblings it
 //! names, so a commitment costs disk, not RAM, until its last opening.
 
-use std::fs::{File, OpenOptions};
+use std::fs::File;
 use std::marker::PhantomData;
-use std::os::unix::fs::FileExt;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
 
 use neo_ccs::crypto::poseidon2_goldilocks::DIGEST_LEN;
@@ -27,13 +25,9 @@ use rayon::prelude::*;
 use crate::device::Accelerator;
 use crate::field::Gl;
 use crate::hash::{permutation, plain, Compress, Packed, Plain, Sponge};
-use crate::Error;
+use crate::{scratch, Error};
 
 type Digest = [Gl; DIGEST_LEN];
-
-/// Scratch writes go out in blocks of this many bytes; it bounds only each
-/// thread's buffer.
-const WRITE_BYTES: usize = 1 << 22;
 
 /// The Merkle commitment scheme of the WHIR provers; trees build on the
 /// accelerator's device when it has one.
@@ -123,26 +117,23 @@ impl<M: Matrix<Gl>> Tree<M> {
         }
     }
 
-    /// `count` words at byte `offset` of the scratch file; zeros, and a
+    /// `count` words at word `offset` of the scratch file; zeros, and a
     /// recorded failure, if the read fails.
     fn read(&self, offset: usize, count: usize) -> Vec<Gl> {
-        let mut bytes = vec![0u8; 8 * count];
+        let mut words = vec![0; count];
         if let Err(error) = self
             .file
             .as_ref()
-            .map_or(Ok(()), |file| file.read_exact_at(&mut bytes, offset as u64))
+            .map_or(Ok(()), |file| scratch::read(file, offset, &mut words))
         {
             let _ = self.failure.set(format!("Merkle scratch read: {error}"));
         }
-        bytes
-            .chunks_exact(8)
-            .map(|word| Gl::new(u64::from_le_bytes(word.try_into().expect("eight bytes"))))
-            .collect()
+        words.into_iter().map(Gl::new).collect()
     }
 
     fn rows(&self, index: usize) -> Vec<Vec<Gl>> {
         let width: usize = self.widths.iter().sum();
-        let mut words = self.read(8 * width * index, width).into_iter();
+        let mut words = self.read(width * index, width).into_iter();
         self.widths
             .iter()
             .map(|&width| words.by_ref().take(width).collect())
@@ -158,7 +149,7 @@ impl<M: Matrix<Gl>> Tree<M> {
     fn digest(&self, layer: usize, node: usize) -> Digest {
         let width: usize = self.widths.iter().sum();
         let below: usize = (0..layer).map(|l| self.rows >> l).sum();
-        let words = self.read(8 * width * self.rows + 32 * (below + node), DIGEST_LEN);
+        let words = self.read(width * self.rows + DIGEST_LEN * (below + node), DIGEST_LEN);
         std::array::from_fn(|k| words[k])
     }
 
@@ -198,48 +189,36 @@ impl<M: Matrix<Gl>> Tree<M> {
     }
 }
 
-/// Write the leaf words, then `layers`, to a fresh unlinked file in the
-/// system's temporary directory; its space returns when the tree drops.
+/// Write the leaf words, then `layers`, to a fresh scratch file.
 fn spill<M: Matrix<Gl>>(matrices: &[M], width: usize, layers: &[Vec<Digest>]) -> std::io::Result<File> {
-    static NEXT: AtomicUsize = AtomicUsize::new(0);
-    let path = std::env::temp_dir().join(format!(
-        "neo-spartan-merkle-{}-{}",
-        std::process::id(),
-        NEXT.fetch_add(1, Ordering::Relaxed)
-    ));
-    let file = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create_new(true)
-        .open(&path)?;
-    std::fs::remove_file(&path)?;
+    let file = scratch::file()?;
     let rows = matrices[0].height();
-    let block = (WRITE_BYTES / (8 * width)).max(1);
+    let block = (scratch::BLOCK_WORDS / width).max(1);
     (0..rows.div_ceil(block))
         .into_par_iter()
         .try_for_each(|chunk| {
             let first = chunk * block;
-            let bytes: Vec<u8> = (first..rows.min(first + block))
+            let words: Vec<u64> = (first..rows.min(first + block))
                 .flat_map(|r| leaf(matrices, r))
-                .flat_map(|value| value.as_canonical_u64().to_le_bytes())
+                .map(|value| value.as_canonical_u64())
                 .collect();
-            file.write_all_at(&bytes, (8 * width * first) as u64)
+            scratch::write(&file, width * first, &words)
         })?;
-    let mut offset = 8 * width * rows;
+    let mut offset = width * rows;
     for layer in layers {
-        let block = WRITE_BYTES / 32;
+        let block = scratch::BLOCK_WORDS / DIGEST_LEN;
         layer
             .par_chunks(block)
             .enumerate()
             .try_for_each(|(chunk, digests)| {
-                let bytes: Vec<u8> = digests
+                let words: Vec<u64> = digests
                     .iter()
                     .flatten()
-                    .flat_map(|value| value.as_canonical_u64().to_le_bytes())
+                    .map(|value| value.as_canonical_u64())
                     .collect();
-                file.write_all_at(&bytes, (offset + 32 * block * chunk) as u64)
+                scratch::write(&file, offset + DIGEST_LEN * block * chunk, &words)
             })?;
-        offset += 32 * layer.len();
+        offset += DIGEST_LEN * layer.len();
     }
     Ok(file)
 }

@@ -575,6 +575,7 @@ pub fn prove(
     let omega = padded(ring::evaluate(&weights, zeta), shape.block_variables);
     drop(weights);
     let (linear, linear_point, z_at_point) = prove_linear(omega, zeta, &z, &mut challenger);
+    drop(z);
     let block_point = &linear_point[LANE_VARIABLES..];
 
     let (_, lane_point) = mle::scaled_eq_point(&mut Native, zeta, LANE_VARIABLES)
@@ -626,6 +627,8 @@ pub fn prove(
     )?;
     let slots = |point: &[Ext]| point[..structure.slot_variables].to_vec();
     let late_values = tables.slot_values(&early, &eq_table(&slots(&late[0].point)));
+    // The openings need none of the per-proof tables.
+    drop((early, ubar, lanes, omega_a));
     observe_pairs(&late_values, &mut challenger);
 
     let query_points = indices

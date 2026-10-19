@@ -88,25 +88,38 @@ impl<M: Matrix<Gl>> Tree<M> {
                     }
                 });
         };
-        let layers = match accelerator
+        let device = accelerator
             .device()
-            .and_then(|device| device.merkle_layers(rows, width, &fill))
-        {
-            Some(layers) => layers
-                .into_iter()
-                .map(|layer| {
-                    layer
+            .and_then(|device| device.merkle_layers(rows, width, &fill));
+        let built = scratch::file().and_then(|file| {
+            write_rows(&file, &matrices, width)?;
+            let root = match device {
+                Some(layers) => {
+                    let layers: Vec<Vec<Digest>> = layers
                         .into_iter()
-                        .map(|digest| digest.map(Gl::new))
-                        .collect()
-                })
-                .collect(),
-            None => cpu_layers(&matrices, rows),
+                        .map(|layer| {
+                            layer
+                                .into_iter()
+                                .map(|digest| digest.map(Gl::new))
+                                .collect()
+                        })
+                        .collect();
+                    for (layer, digests) in layers[..layers.len() - 1].iter().enumerate() {
+                        write_digests(&file, layer_offset(width, rows, layer), digests)?;
+                    }
+                    layers.last().expect("a tree has a root")[0]
+                }
+                None => cpu_tree(&file, &matrices, width)?,
+            };
+            Ok((file, root))
+        });
+        let (file, root) = match built {
+            Ok((file, root)) => (Some(file), root),
+            Err(error) => {
+                let _ = failure.set(format!("Merkle scratch file: {error}"));
+                (None, [Gl::ZERO; DIGEST_LEN])
+            }
         };
-        let root = layers.last().expect("a tree has a root")[0];
-        let file = spill(&matrices, width, &layers[..layers.len() - 1])
-            .map_err(|error| failure.set(format!("Merkle scratch file: {error}")))
-            .ok();
         Self {
             rows,
             widths: matrices.iter().map(|matrix| matrix.width()).collect(),
@@ -148,8 +161,7 @@ impl<M: Matrix<Gl>> Tree<M> {
     /// Node `node` of layer `layer`, the leaves' digests being layer 0.
     fn digest(&self, layer: usize, node: usize) -> Digest {
         let width: usize = self.widths.iter().sum();
-        let below: usize = (0..layer).map(|l| self.rows >> l).sum();
-        let words = self.read(width * self.rows + DIGEST_LEN * (below + node), DIGEST_LEN);
+        let words = self.read(layer_offset(width, self.rows, layer) + DIGEST_LEN * node, DIGEST_LEN);
         std::array::from_fn(|k| words[k])
     }
 
@@ -189,9 +201,18 @@ impl<M: Matrix<Gl>> Tree<M> {
     }
 }
 
-/// Write the leaf words, then `layers`, to a fresh scratch file.
-fn spill<M: Matrix<Gl>>(matrices: &[M], width: usize, layers: &[Vec<Digest>]) -> std::io::Result<File> {
-    let file = scratch::file()?;
+/// Rows of one CPU subtree: its digest layers go to the scratch file before
+/// the next is hashed; it bounds only the buffers.
+const SUBTREE: usize = scratch::BLOCK_WORDS;
+
+/// Where layer `layer` starts in the scratch file, in words: after the leaf
+/// words and every layer below it.
+fn layer_offset(width: usize, rows: usize, layer: usize) -> usize {
+    width * rows + DIGEST_LEN * (0..layer).map(|below| rows >> below).sum::<usize>()
+}
+
+/// The leaf words, row by row.
+fn write_rows<M: Matrix<Gl>>(file: &File, matrices: &[M], width: usize) -> std::io::Result<()> {
     let rows = matrices[0].height();
     let block = (scratch::BLOCK_WORDS / width).max(1);
     (0..rows.div_ceil(block))
@@ -202,25 +223,50 @@ fn spill<M: Matrix<Gl>>(matrices: &[M], width: usize, layers: &[Vec<Digest>]) ->
                 .flat_map(|r| leaf(matrices, r))
                 .map(|value| value.as_canonical_u64())
                 .collect();
-            scratch::write(&file, width * first, &words)
-        })?;
-    let mut offset = width * rows;
-    for layer in layers {
-        let block = scratch::BLOCK_WORDS / DIGEST_LEN;
-        layer
-            .par_chunks(block)
-            .enumerate()
-            .try_for_each(|(chunk, digests)| {
-                let words: Vec<u64> = digests
-                    .iter()
-                    .flatten()
-                    .map(|value| value.as_canonical_u64())
-                    .collect();
-                scratch::write(&file, offset + DIGEST_LEN * block * chunk, &words)
-            })?;
-        offset += DIGEST_LEN * layer.len();
+            scratch::write(file, width * first, &words)
+        })
+}
+
+fn write_digests(file: &File, offset: usize, digests: &[Digest]) -> std::io::Result<()> {
+    let block = scratch::BLOCK_WORDS / DIGEST_LEN;
+    digests
+        .par_chunks(block)
+        .enumerate()
+        .try_for_each(|(chunk, digests)| {
+            let words: Vec<u64> = digests
+                .iter()
+                .flatten()
+                .map(|value| value.as_canonical_u64())
+                .collect();
+            scratch::write(file, offset + DIGEST_LEN * block * chunk, &words)
+        })
+}
+
+/// The tree on the CPU, one subtree at a time, then the layers above the
+/// subtrees' roots; every layer below the root goes to `file`. Returns the
+/// root.
+fn cpu_tree<M: Matrix<Gl>>(file: &File, matrices: &[M], width: usize) -> std::io::Result<Digest> {
+    let rows = matrices[0].height();
+    let size = SUBTREE.min(rows);
+    let mut roots = Vec::with_capacity(rows / size);
+    for start in (0..rows).step_by(size) {
+        let layers = cpu_layers(matrices, start, size);
+        for (layer, digests) in layers[..layers.len() - 1].iter().enumerate() {
+            write_digests(
+                file,
+                layer_offset(width, rows, layer) + DIGEST_LEN * (start >> layer),
+                digests,
+            )?;
+        }
+        roots.push(layers.last().expect("a subtree has a root")[0]);
     }
-    Ok(file)
+    let mut layer = size.trailing_zeros() as usize;
+    while roots.len() > 1 {
+        write_digests(file, layer_offset(width, rows, layer), &roots)?;
+        roots = compress_layer(&roots);
+        layer += 1;
+    }
+    Ok(roots[0])
 }
 
 /// Leaf `r`: row `r` of every matrix, in matrix order.
@@ -230,9 +276,9 @@ fn leaf<M: Matrix<Gl>>(matrices: &[M], r: usize) -> impl Iterator<Item = Gl> + '
         .flat_map(move |matrix| matrix.row(r).expect("the row is within the height"))
 }
 
-/// The digest layers on the CPU, `Packed::WIDTH` rows or nodes at a time,
-/// in parallel.
-fn cpu_layers<M: Matrix<Gl>>(matrices: &[M], rows: usize) -> Vec<Vec<Digest>> {
+/// The digest layers of rows `start..start + rows` on the CPU,
+/// `Packed::WIDTH` rows or nodes at a time, in parallel.
+fn cpu_layers<M: Matrix<Gl>>(matrices: &[M], start: usize, rows: usize) -> Vec<Vec<Digest>> {
     let lanes = Packed::WIDTH;
     let sponge = Sponge::new(permutation().clone());
     let mut leaves = vec![[Gl::ZERO; DIGEST_LEN]; rows];
@@ -240,7 +286,7 @@ fn cpu_layers<M: Matrix<Gl>>(matrices: &[M], rows: usize) -> Vec<Vec<Digest>> {
         .par_chunks_mut(lanes)
         .enumerate()
         .for_each(|(chunk, digests)| {
-            let first = chunk * lanes;
+            let first = start + chunk * lanes;
             if digests.len() < lanes {
                 for (k, digest) in digests.iter_mut().enumerate() {
                     *digest = sponge.hash_iter(leaf(matrices, first + k));
@@ -257,31 +303,38 @@ fn cpu_layers<M: Matrix<Gl>>(matrices: &[M], rows: usize) -> Vec<Vec<Digest>> {
                 *digest = std::array::from_fn(|k| packed[k].as_slice()[lane]);
             }
         });
-    let compress = Compress::new(permutation().clone());
     let mut layers = vec![leaves];
     while let Some(below) = layers.last().filter(|layer| layer.len() > 1) {
-        let mut layer = vec![[Gl::ZERO; DIGEST_LEN]; below.len() / 2];
-        layer
-            .par_chunks_mut(lanes)
-            .zip(below.par_chunks(2 * lanes))
-            .for_each(|(digests, children)| {
-                if digests.len() < lanes {
-                    for (digest, pair) in digests.iter_mut().zip(children.chunks_exact(2)) {
-                        *digest = compress.compress([pair[0], pair[1]]);
-                    }
-                    return;
-                }
-                let side = |s: usize| -> [Packed; DIGEST_LEN] {
-                    std::array::from_fn(|k| Packed::from_fn(|lane| children[2 * lane + s][k]))
-                };
-                let packed = compress.compress([side(0), side(1)]);
-                for (lane, digest) in digests.iter_mut().enumerate() {
-                    *digest = std::array::from_fn(|k| packed[k].as_slice()[lane]);
-                }
-            });
+        let layer = compress_layer(below);
         layers.push(layer);
     }
     layers
+}
+
+/// The layer above `below`, `Packed::WIDTH` nodes at a time, in parallel.
+fn compress_layer(below: &[Digest]) -> Vec<Digest> {
+    let lanes = Packed::WIDTH;
+    let compress = Compress::new(permutation().clone());
+    let mut layer = vec![[Gl::ZERO; DIGEST_LEN]; below.len() / 2];
+    layer
+        .par_chunks_mut(lanes)
+        .zip(below.par_chunks(2 * lanes))
+        .for_each(|(digests, children)| {
+            if digests.len() < lanes {
+                for (digest, pair) in digests.iter_mut().zip(children.chunks_exact(2)) {
+                    *digest = compress.compress([pair[0], pair[1]]);
+                }
+                return;
+            }
+            let side = |s: usize| -> [Packed; DIGEST_LEN] {
+                std::array::from_fn(|k| Packed::from_fn(|lane| children[2 * lane + s][k]))
+            };
+            let packed = compress.compress([side(0), side(1)]);
+            for (lane, digest) in digests.iter_mut().enumerate() {
+                *digest = std::array::from_fn(|k| packed[k].as_slice()[lane]);
+            }
+        });
+    layer
 }
 
 impl Scheme<Gl> for Mmcs {

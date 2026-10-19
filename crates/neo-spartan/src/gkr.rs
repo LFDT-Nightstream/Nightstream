@@ -109,7 +109,7 @@ struct Spilled {
 }
 
 fn scratch_error(error: std::io::Error) -> Error {
-    Error::Device(format!("GKR scratch file: {error}"))
+    Error::Scratch(format!("GKR: {error}"))
 }
 
 /// Append `tree`'s parts at word `end`.

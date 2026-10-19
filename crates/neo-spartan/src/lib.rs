@@ -107,6 +107,8 @@ pub enum Error {
     Io(#[from] std::io::Error),
     #[error("layer-1 device: {0}")]
     Device(String),
+    #[error("layer-1 scratch file: {0}")]
+    Scratch(String),
 }
 
 /// The verifier's constants of one circuit: the setup root, the sizes and the

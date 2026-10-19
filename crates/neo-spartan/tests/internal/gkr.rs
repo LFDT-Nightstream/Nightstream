@@ -99,7 +99,13 @@ fn batch() -> (Vec<TreeShape>, Vec<Vec<Vec<Ext>>>) {
         TreeShape { depth: 6, factors: 1 },
         TreeShape { depth: 5, factors: 2 },
     ];
-    let parts = shapes
+    let parts = parts_of(&shapes);
+    (shapes, parts)
+}
+
+/// Every part of every tree: pseudorandom extension values.
+fn parts_of(shapes: &[TreeShape]) -> Vec<Vec<Vec<Ext>>> {
+    shapes
         .iter()
         .enumerate()
         .map(|(i, shape)| {
@@ -111,8 +117,7 @@ fn batch() -> (Vec<TreeShape>, Vec<Vec<Vec<Ext>>>) {
                 })
                 .collect()
         })
-        .collect();
-    (shapes, parts)
+        .collect()
 }
 
 fn trees(parts: &[Vec<Vec<Ext>>]) -> Vec<Tree> {
@@ -128,13 +133,13 @@ fn trees(parts: &[Vec<Vec<Ext>>]) -> Vec<Tree> {
         .collect()
 }
 
-#[test]
-fn batched_trees_match_direct_sums_and_leaf_values() {
-    let (shapes, parts) = batch();
-    let (proof, prover) = prove(trees(&parts), &mut fresh(), &crate::device::Accelerator::cpu()).unwrap();
-    let claims = run_verify(&proof, &shapes).unwrap();
+/// The verified claims are the prover's, each root is its tree's direct
+/// fraction sum, and each leaf claim is the parts' values at its point.
+fn assert_direct(shapes: &[TreeShape], parts: &[Vec<Vec<Ext>>]) -> Vec<TreeClaim<Ext>> {
+    let (proof, prover) = prove(trees(parts), &mut fresh(), &crate::device::Accelerator::cpu()).unwrap();
+    let claims = run_verify(&proof, shapes).unwrap();
     assert_eq!(claims, prover);
-    for (claim, parts) in claims.iter().zip(&parts) {
+    for (claim, parts) in claims.iter().zip(parts) {
         let (denominator, factors) = parts.split_last().unwrap();
         let [p, q] = claim.root;
         let direct: Ext = (0..denominator.len())
@@ -147,12 +152,34 @@ fn batched_trees_match_direct_sums_and_leaf_values() {
             .collect();
         assert_eq!(claim.values, values);
     }
+    claims
+}
+
+#[test]
+fn batched_trees_match_direct_sums_and_leaf_values() {
+    let (shapes, parts) = batch();
+    let claims = assert_direct(&shapes, &parts);
+    let proof = prove(trees(&parts), &mut fresh(), &crate::device::Accelerator::cpu())
+        .unwrap()
+        .0;
     assert_eq!(claims[0].point, claims[1].point);
     assert_ne!(claims[2].point[..5], claims[3].point[..]);
     // Control: the same proof read with another factor count fails.
     let mut wrong = shapes.clone();
     wrong[3].factors = 1;
     assert!(run_verify(&proof, &wrong).is_none());
+}
+
+/// Leaf layers wider than one streamed chunk: the first rounds and the
+/// parents read the scratch file in several chunks.
+#[test]
+fn trees_wider_than_a_chunk_match_direct_sums_and_leaf_values() {
+    let shapes = vec![
+        TreeShape { depth: 20, factors: 2 },
+        TreeShape { depth: 20, factors: 0 },
+        TreeShape { depth: 19, factors: 1 },
+    ];
+    assert_direct(&shapes, &parts_of(&shapes));
 }
 
 #[test]

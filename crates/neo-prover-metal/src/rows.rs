@@ -25,18 +25,18 @@ impl MetalRowProver {
         })
     }
 
-    /// A prover session: the commitment key rows stay on the device after the
-    /// first commitment, at 8 bytes per key coefficient.
-    pub fn with_resident_commitment_key() -> Result<Self, MetalError> {
-        let mut session = MetalSession::new()?;
-        session.keep_production_key();
-        Ok(Self { session })
+    /// Keep the commitment key rows on the device after the first commitment.
+    pub fn keep_commitment_key(&mut self) {
+        self.session.keep_production_key();
     }
 
-    /// Device bytes the kept commitment key holds over `columns` commitment
-    /// columns; zero for a session that streams key rows.
-    pub fn kept_commitment_key_bytes(&self, columns: usize) -> usize {
-        self.session.kept_production_key_bytes(columns)
+    /// Device bytes a kept commitment key holds over `columns` commitment
+    /// columns, at 8 bytes per key coefficient.
+    pub fn commitment_key_bytes(columns: usize) -> usize {
+        neo_ajtai::nightstream_fprime_setup::PRODUCTION_VERIFIER_ROWS as usize
+            * columns
+            * neo_math::D
+            * size_of::<u64>()
     }
 
     pub fn activity(&self) -> MetalActivity {

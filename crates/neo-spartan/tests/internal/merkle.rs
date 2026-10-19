@@ -132,3 +132,17 @@ fn provers_tree_matches_plonky3() {
         plain.commit(vec![matrix(0, 1 << 12, 16)]).0
     );
 }
+
+/// A scratch read that fails at an opening fails that opening's check, not
+/// the committer's.
+#[test]
+fn a_failed_scratch_read_fails_the_opening() {
+    let (committer, opener) = (Mmcs::new(&Accelerator::cpu()), Mmcs::new(&Accelerator::cpu()));
+    let (_, mut tree) = committer.commit(vec![matrix(1, 1 << 10, 4)]);
+    opener.open_multi_batch(&[0, 5], &tree);
+    assert!(opener.check().is_ok(), "a readable tree opens");
+    tree.lose_scratch();
+    opener.open_multi_batch(&[0, 5], &tree);
+    assert!(opener.check().is_err(), "the failed read fails the opener");
+    assert!(committer.check().is_ok(), "the commitment itself held");
+}

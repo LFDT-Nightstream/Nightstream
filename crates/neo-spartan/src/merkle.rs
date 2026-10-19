@@ -48,12 +48,12 @@ impl Mmcs {
         }
     }
 
-    /// Fail if a tree of this prover lost its scratch file; its openings
-    /// then read zeros.
+    /// Fail if a commitment or an opening of this prover lost a scratch
+    /// file; it then read zeros.
     pub(crate) fn check(&self) -> Result<(), Error> {
         self.failure
             .get()
-            .map_or(Ok(()), |reason| Err(Error::Device(reason.clone())))
+            .map_or(Ok(()), |reason| Err(Error::Scratch(reason.clone())))
     }
 }
 
@@ -65,12 +65,11 @@ pub(crate) struct Tree<M> {
     widths: Vec<usize>,
     root: Digest,
     file: Option<File>,
-    failure: Arc<OnceLock<String>>,
     matrices: PhantomData<M>,
 }
 
 impl<M: Matrix<Gl>> Tree<M> {
-    fn build(matrices: Vec<M>, accelerator: &Accelerator, failure: Arc<OnceLock<String>>) -> Self {
+    fn build(matrices: Vec<M>, accelerator: &Accelerator, failure: &OnceLock<String>) -> Self {
         let rows = matrices[0].height();
         assert!(
             rows.is_power_of_two() && matrices.iter().all(|matrix| matrix.height() == rows),
@@ -116,7 +115,7 @@ impl<M: Matrix<Gl>> Tree<M> {
         let (file, root) = match built {
             Ok((file, root)) => (Some(file), root),
             Err(error) => {
-                let _ = failure.set(format!("Merkle scratch file: {error}"));
+                let _ = failure.set(format!("Merkle: {error}"));
                 (None, [Gl::ZERO; DIGEST_LEN])
             }
         };
@@ -125,28 +124,27 @@ impl<M: Matrix<Gl>> Tree<M> {
             widths: matrices.iter().map(|matrix| matrix.width()).collect(),
             root,
             file,
-            failure,
             matrices: PhantomData,
         }
     }
 
     /// `count` words at word `offset` of the scratch file; zeros, and a
-    /// recorded failure, if the read fails.
-    fn read(&self, offset: usize, count: usize) -> Vec<Gl> {
+    /// failure recorded in the opener's `failure`, if the read fails.
+    fn read(&self, offset: usize, count: usize, failure: &OnceLock<String>) -> Vec<Gl> {
         let mut words = vec![0; count];
         if let Err(error) = self
             .file
             .as_ref()
             .map_or(Ok(()), |file| scratch::read(file, offset, &mut words))
         {
-            let _ = self.failure.set(format!("Merkle scratch read: {error}"));
+            let _ = failure.set(format!("Merkle read: {error}"));
         }
         words.into_iter().map(Gl::new).collect()
     }
 
-    fn rows(&self, index: usize) -> Vec<Vec<Gl>> {
+    fn rows(&self, index: usize, failure: &OnceLock<String>) -> Vec<Vec<Gl>> {
         let width: usize = self.widths.iter().sum();
-        let mut words = self.read(width * index, width).into_iter();
+        let mut words = self.read(width * index, width, failure).into_iter();
         self.widths
             .iter()
             .map(|&width| words.by_ref().take(width).collect())
@@ -159,17 +157,21 @@ impl<M: Matrix<Gl>> Tree<M> {
     }
 
     /// Node `node` of layer `layer`, the leaves' digests being layer 0.
-    fn digest(&self, layer: usize, node: usize) -> Digest {
+    fn digest(&self, layer: usize, node: usize, failure: &OnceLock<String>) -> Digest {
         let width: usize = self.widths.iter().sum();
-        let words = self.read(layer_offset(width, self.rows, layer) + DIGEST_LEN * node, DIGEST_LEN);
+        let words = self.read(
+            layer_offset(width, self.rows, layer) + DIGEST_LEN * node,
+            DIGEST_LEN,
+            failure,
+        );
         std::array::from_fn(|k| words[k])
     }
 
     /// The siblings on the path from leaf `index` to the root.
-    fn path(&self, mut index: usize) -> Vec<Digest> {
+    fn path(&self, mut index: usize, failure: &OnceLock<String>) -> Vec<Digest> {
         (0..self.depth())
             .map(|layer| {
-                let sibling = self.digest(layer, index ^ 1);
+                let sibling = self.digest(layer, index ^ 1, failure);
                 index /= 2;
                 sibling
             })
@@ -178,7 +180,7 @@ impl<M: Matrix<Gl>> Tree<M> {
 
     /// Plonky3's pruned siblings of `indices`: level by level, in node
     /// order, the other node of each pair that holds exactly one known node.
-    fn pruned(&self, indices: &[usize]) -> Vec<Digest> {
+    fn pruned(&self, indices: &[usize], failure: &OnceLock<String>) -> Vec<Digest> {
         let mut known = indices.to_vec();
         known.sort_unstable();
         known.dedup();
@@ -190,7 +192,7 @@ impl<M: Matrix<Gl>> Tree<M> {
                 let node = known[i];
                 let both = node.is_multiple_of(2) && known.get(i + 1) == Some(&(node + 1));
                 if !both {
-                    siblings.push(self.digest(layer, node ^ 1));
+                    siblings.push(self.digest(layer, node ^ 1, failure));
                 }
                 parents.push(node / 2);
                 i += if both { 2 } else { 1 };
@@ -337,6 +339,14 @@ fn compress_layer(below: &[Digest]) -> Vec<Digest> {
     layer
 }
 
+#[cfg(test)]
+impl<M> Tree<M> {
+    /// Swap the scratch file for an empty one, so every later read fails.
+    pub(crate) fn lose_scratch(&mut self) {
+        self.file = scratch::file().ok();
+    }
+}
+
 impl Scheme<Gl> for Mmcs {
     type ProverData<M> = Tree<M>;
     type Commitment = <Plain as Scheme<Gl>>::Commitment;
@@ -345,16 +355,24 @@ impl Scheme<Gl> for Mmcs {
     type Error = <Plain as Scheme<Gl>>::Error;
 
     fn commit<M: Matrix<Gl>>(&self, inputs: Vec<M>) -> (Self::Commitment, Tree<M>) {
-        let tree = Tree::build(inputs, &self.accelerator, self.failure.clone());
+        let tree = Tree::build(inputs, &self.accelerator, &self.failure);
         (MerkleCap::new(vec![tree.root]), tree)
     }
 
     fn open_batch<M: Matrix<Gl>>(&self, index: usize, tree: &Tree<M>) -> BatchOpening<Gl, Self> {
-        BatchOpening::new(tree.rows(index), tree.path(index))
+        BatchOpening::new(tree.rows(index, &self.failure), tree.path(index, &self.failure))
     }
 
     fn get_matrices<'a, M: Matrix<Gl>>(&self, _tree: &'a Tree<M>) -> Vec<&'a M> {
         unreachable!("WHIR reads committed rows only through openings; the rows live in the scratch file")
+    }
+
+    fn get_matrix_heights<M: Matrix<Gl>>(&self, tree: &Tree<M>) -> Vec<usize> {
+        vec![tree.rows; tree.widths.len()]
+    }
+
+    fn get_max_height<M: Matrix<Gl>>(&self, tree: &Tree<M>) -> usize {
+        tree.rows
     }
 
     fn verify_batch(
@@ -373,8 +391,11 @@ impl Scheme<Gl> for Mmcs {
         indices: &[usize],
         tree: &Tree<M>,
     ) -> (Vec<Vec<Vec<Gl>>>, Self::MultiProof) {
-        let rows = indices.iter().map(|&index| tree.rows(index)).collect();
-        let sibling_hashes = tree.pruned(indices);
+        let rows = indices
+            .iter()
+            .map(|&index| tree.rows(index, &self.failure))
+            .collect();
+        let sibling_hashes = tree.pruned(indices, &self.failure);
         (rows, PrunedMerklePaths { sibling_hashes })
     }
 

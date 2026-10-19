@@ -39,6 +39,7 @@ mod mle;
 mod norm;
 mod pcs;
 mod ring;
+mod scratch;
 mod setup;
 pub mod shrink;
 mod sumcheck;
@@ -552,11 +553,11 @@ pub fn prove(
     challenger.observe_slice(&norm::words(&histogram));
     let beta: Ext = challenger.sample_algebra_element();
     let challenges = early_challenges(&mut challenger);
-    let mut trees = vec![Tree {
+    let norm = std::iter::once_with(|| Tree {
         factors: Vec::new(),
         denominator: z.par_iter().map(|&value| beta - value).collect(),
-    }];
-    trees.extend(tables.early_trees(&early, &claim.r, challenges));
+    });
+    let trees = norm.chain(tables.early_trees(&early, &claim.r, challenges));
     let (early_proof, claims) = gkr::prove(trees, &mut challenger, accelerator)?;
     let early_values = tables.early_values(&early, &claims[1..]);
     observe_early(&early_values, &mut challenger);

@@ -69,7 +69,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::circuit::algebra;
 use crate::field::{coordinates, eq_table, gl, re_im, Ext, Gl};
-use crate::gkr::{GkrProof, Tree};
+use crate::gkr::{GkrProof, Leaves, Tree};
 use crate::hash::Challenger;
 use crate::matrix::{EarlyChallenges, EarlyValues, Structure, Tables};
 use crate::pcs::{Pcs, TablePlan};
@@ -556,12 +556,10 @@ pub fn prove(
     challenger.observe_slice(&norm::words(&histogram));
     let beta: Ext = challenger.sample_algebra_element();
     let challenges = early_challenges(&mut challenger);
-    let norm = std::iter::once_with(|| Tree {
-        factors: Vec::new(),
-        denominator: z.par_iter().map(|&value| beta - value).collect(),
-    });
-    let trees = norm.chain(tables.early_trees(&early, &claim.r, challenges));
-    let (early_proof, claims) = gkr::prove(trees, &mut challenger, accelerator)?;
+    let mut trees = vec![Leaves::new(z.len(), Vec::new(), gkr::part(|x| beta - z[x]))];
+    trees.extend(tables.early_trees(&early, &claim.r, challenges));
+    let (early_proof, claims) = gkr::prove(&trees, &mut challenger, accelerator)?;
+    drop(trees);
     let early_values = tables.early_values(&early, &claims[1..]);
     observe_early(&early_values, &mut challenger);
 
@@ -622,11 +620,13 @@ pub fn prove(
         .collect::<Result<Vec<_>, _>>()?;
 
     let beta: Ext = challenger.sample_algebra_element();
+    let late_trees = tables.late_trees(&ubar, &lanes, &omega_a, beta);
     let (late_proof, late) = gkr::prove(
-        tables.late_trees(&ubar, &lanes, &omega_a, beta),
+        &late_trees.iter().map(Tree::leaves).collect::<Vec<_>>(),
         &mut challenger,
         accelerator,
     )?;
+    drop(late_trees);
     let slots = |point: &[Ext]| point[..structure.slot_variables].to_vec();
     let late_values = tables.slot_values(&early, &eq_table(&slots(&late[0].point)));
     // The openings need none of the per-proof tables.

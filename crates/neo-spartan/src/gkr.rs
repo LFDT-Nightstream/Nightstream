@@ -14,10 +14,12 @@
 //! The leaf claim of a tree is every factor's and the denominator's value at
 //! its leaf point.
 //!
-//! The prover takes the trees one at a time and keeps each level in a scratch
-//! file from the moment it is built (bottom up) until its layer's sum-check
-//! (top down). A layer's first round streams from the file, so the prover
-//! holds one tree while building and half a layer while proving.
+//! The prover never stores leaves: it computes them from the caller's tables
+//! each time it reads them, and recomputes the layer above them the same way.
+//! It builds the other levels bottom up, one tree at a time, and keeps each
+//! in a scratch file until its layer's sum-check (top down) reads it back.
+//! A layer that reads computed entries streams its first round, so the prover
+//! holds half of that layer.
 
 use p3_challenger_v08::FieldChallenger;
 use p3_field_v08::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
@@ -32,8 +34,8 @@ use crate::field::{eq_table, ext_words, fold_low, Ext, Gl};
 use crate::hash::Challenger;
 use crate::{scratch, sumcheck, Error};
 
-/// The leaves of one tree: numerator factors (none means all ones) and the
-/// denominator, each of length `2^depth`.
+/// One tree layer, or stored leaves: numerator factors (none means all ones)
+/// and the denominator, each of length `2^depth`.
 #[derive(Default)]
 pub(crate) struct Tree {
     pub(crate) factors: Vec<Vec<Ext>>,
@@ -101,6 +103,55 @@ fn degree(factors: impl Iterator<Item = usize>) -> usize {
     factors.map(|f| f + 2).max().unwrap_or(0).max(3)
 }
 
+/// One part of a tree's leaves: `fill(from, out)` writes leaves
+/// `from..from + out.len()`.
+pub(crate) type Part<'a> = Box<dyn Fn(usize, &mut [Ext]) + Sync + 'a>;
+
+/// A tree's `2^depth` leaves, computed on demand: the prover never stores
+/// them.
+pub(crate) struct Leaves<'a> {
+    depth: usize,
+    /// At most two numerator factors, then the denominator.
+    parts: Vec<Part<'a>>,
+}
+
+impl<'a> Leaves<'a> {
+    /// `count` leaves (a power of two, at least two) with numerator
+    /// `factors` (none means all ones) and `denominator`.
+    pub(crate) fn new(count: usize, mut factors: Vec<Part<'a>>, denominator: Part<'a>) -> Self {
+        assert!(count >= 2 && count.is_power_of_two() && factors.len() <= 2);
+        factors.push(denominator);
+        Self {
+            depth: count.trailing_zeros() as usize,
+            parts: factors,
+        }
+    }
+}
+
+/// The part whose leaf `x` is `value(x)`.
+pub(crate) fn part<'a>(value: impl Fn(usize) -> Ext + Sync + 'a) -> Part<'a> {
+    Box::new(move |from, out: &mut [Ext]| {
+        out.par_iter_mut()
+            .enumerate()
+            .for_each(|(i, entry)| *entry = value(from + i))
+    })
+}
+
+impl Tree {
+    /// These stored leaves as `Leaves`.
+    pub(crate) fn leaves(&self) -> Leaves<'_> {
+        Leaves::new(
+            1 << self.depth(),
+            self.factors.iter().map(|factor| stored(factor)).collect(),
+            stored(&self.denominator),
+        )
+    }
+}
+
+fn stored(values: &[Ext]) -> Part<'_> {
+    Box::new(move |from, out: &mut [Ext]| out.copy_from_slice(&values[from..from + out.len()]))
+}
+
 /// One tree layer in the scratch file: its parts, one after another.
 struct Spilled {
     offset: usize,
@@ -126,50 +177,6 @@ fn spill(file: &std::fs::File, end: &mut usize, tree: &Tree) -> Result<Spilled, 
     Ok(spilled)
 }
 
-/// The layer above a spilled layer, one factor `P` and the denominator `Q`,
-/// from its two halves streamed back: the layer and its parent are never in
-/// memory together.
-fn parent(file: &std::fs::File, level: &Spilled) -> Result<Tree, Error> {
-    let half = level.nodes / 2;
-    let factors = level.parts - 1;
-    let (mut p, mut q) = (vec![Ext::ZERO; half], vec![Ext::ZERO; half]);
-    // Both children's entries of every part.
-    let mut children = vec![[Vec::new(), Vec::new()]; level.parts];
-    for y0 in (0..half).step_by(CHUNK) {
-        let y1 = (y0 + CHUNK).min(half);
-        children
-            .par_iter_mut()
-            .enumerate()
-            .try_for_each(|(part, pair)| {
-                pair.par_iter_mut()
-                    .enumerate()
-                    .try_for_each(|(child, values)| {
-                        values.resize(y1 - y0, Ext::ZERO);
-                        read_part(file, level, part, child * half + y0, values)
-                    })
-            })?;
-        p[y0..y1]
-            .par_iter_mut()
-            .zip(&mut q[y0..y1])
-            .enumerate()
-            .for_each(|(i, (p, q))| {
-                let [p0, p1] = [0, 1].map(|c| {
-                    children[..factors]
-                        .iter()
-                        .map(|part| part[c][i])
-                        .product::<Ext>()
-                });
-                let (q0, q1) = (children[factors][0][i], children[factors][1][i]);
-                *p = p0 * q1 + p1 * q0;
-                *q = q0 * q1;
-            });
-    }
-    Ok(Tree {
-        factors: vec![p],
-        denominator: q,
-    })
-}
-
 fn restore(file: &std::fs::File, spilled: &Spilled) -> Result<Tree, Error> {
     let mut parts = (0..spilled.parts)
         .map(|part| {
@@ -186,84 +193,195 @@ fn restore(file: &std::fs::File, spilled: &Spilled) -> Result<Tree, Error> {
     })
 }
 
-/// Pairs of a streamed first round read at once; it bounds only the buffers.
-const CHUNK: usize = scratch::BLOCK_WORDS / 4;
-
-/// Read entries `from..from + values.len()` of part `part` of `level`.
-fn read_part(file: &std::fs::File, level: &Spilled, part: usize, from: usize, values: &mut [Ext]) -> Result<(), Error> {
-    let offset = level.offset + 3 * (level.nodes * part + from);
-    scratch::read(file, offset, ext_words_mut(values)).map_err(scratch_error)
+/// Each node's `P = p_0·q_1 + p_1·q_0` and `Q = q_0·q_1` from both children's
+/// entries of every part (factors, then the denominator; no factors means
+/// `p = 1`).
+fn parents(children: &[[&[Ext]; 2]], p: &mut [Ext], q: &mut [Ext]) {
+    let factors = children.len() - 1;
+    p.par_iter_mut().zip(q).enumerate().for_each(|(i, (p, q))| {
+        let (q0, q1) = (children[factors][0][i], children[factors][1][i]);
+        *p = match &children[..factors] {
+            [] => q0 + q1,
+            [a] => a[0][i] * q1 + a[1][i] * q0,
+            [a, c] => a[0][i] * c[0][i] * q1 + a[1][i] * c[1][i] * q0,
+            _ => unreachable!("a tree has at most two factors"),
+        };
+        *q = q0 * q1;
+    });
 }
 
+/// The layer above `level`, from its two halves.
+fn parent(level: &Tree) -> Tree {
+    let half = level.denominator.len() / 2;
+    let children: Vec<[&[Ext]; 2]> = level
+        .parts()
+        .map(|part| {
+            let (low, high) = part.split_at(half);
+            [low, high]
+        })
+        .collect();
+    let (mut p, mut q) = (vec![Ext::ZERO; half], vec![Ext::ZERO; half]);
+    parents(&children, &mut p, &mut q);
+    Tree {
+        factors: vec![p],
+        denominator: q,
+    }
+}
+
+/// One tree's layer as its sum-check reads it.
+enum Source<'a> {
+    /// The tree's leaves.
+    Leaves(&'a Leaves<'a>),
+    /// The layer above the leaves, recomputed from them.
+    AboveLeaves(&'a Leaves<'a>),
+    /// A layer read back from the scratch file.
+    Stored(Tree),
+}
+
+impl Source<'_> {
+    fn parts(&self) -> usize {
+        match self {
+            Source::Leaves(leaves) => leaves.parts.len(),
+            Source::AboveLeaves(_) => 2,
+            Source::Stored(tree) => tree.factors.len() + 1,
+        }
+    }
+
+    fn nodes(&self) -> usize {
+        match self {
+            Source::Leaves(leaves) => 1 << leaves.depth,
+            Source::AboveLeaves(leaves) => 1 << (leaves.depth - 1),
+            Source::Stored(tree) => tree.denominator.len(),
+        }
+    }
+
+    /// Fill `out`, one slice per part, with each part's entries from `from`.
+    /// The layer above the leaves computes its leaves in `scratch`.
+    fn read(&self, from: usize, out: &mut [&mut [Ext]], scratch: &mut Vec<Ext>) {
+        match self {
+            Source::Leaves(leaves) => out
+                .par_iter_mut()
+                .zip(&leaves.parts)
+                .for_each(|(out, fill)| fill(from, out)),
+            Source::AboveLeaves(leaves) => {
+                let (half, count) = (1 << (leaves.depth - 1), out[0].len());
+                // Each leaf part's entries under both children, side by side.
+                scratch.resize(2 * count * leaves.parts.len(), Ext::ZERO);
+                scratch
+                    .par_chunks_mut(count)
+                    .enumerate()
+                    .for_each(|(j, values)| leaves.parts[j / 2](j % 2 * half + from, values));
+                let children: Vec<[&[Ext]; 2]> = scratch
+                    .chunks(2 * count)
+                    .map(|pair| {
+                        let (low, high) = pair.split_at(count);
+                        [low, high]
+                    })
+                    .collect();
+                let [p, q] = out else {
+                    unreachable!("the layer above the leaves has two parts")
+                };
+                parents(&children, p, q);
+            }
+            Source::Stored(tree) => {
+                for (out, values) in out.iter_mut().zip(tree.parts()) {
+                    out.copy_from_slice(&values[from..from + out.len()]);
+                }
+            }
+        }
+    }
+
+    /// The whole layer in memory, read `CHUNK` entries at a time.
+    fn into_tree(self) -> Tree {
+        if let Source::Stored(tree) = self {
+            return tree;
+        }
+        let nodes = self.nodes();
+        let mut parts = vec![vec![Ext::ZERO; nodes]; self.parts()];
+        let mut scratch = Vec::new();
+        for from in (0..nodes).step_by(CHUNK) {
+            let mut out: Vec<&mut [Ext]> = parts
+                .iter_mut()
+                .map(|part| &mut part[from..(from + CHUNK).min(nodes)])
+                .collect();
+            self.read(from, &mut out, &mut scratch);
+        }
+        let denominator = parts.pop().expect("a tree has a denominator");
+        Tree {
+            factors: parts,
+            denominator,
+        }
+    }
+}
+
+/// Pairs (or entries) read at once by a streamed pass; it bounds only the
+/// buffers.
+const CHUNK: usize = scratch::BLOCK_WORDS / 4;
+
 /// Fill `buffers` (one per tree and part, both children's entries side by
-/// side) with pairs `m0..m1` of `spilled`, every part in parallel.
-fn read_pairs(
-    file: &std::fs::File,
-    spilled: &[&Spilled],
-    m0: usize,
-    m1: usize,
-    buffers: &mut [Tree],
-) -> Result<(), Error> {
+/// side) with pairs `m0..m1` of each source, every tree in parallel, each
+/// with its own scratch.
+fn read_pairs(sources: &[Source], m0: usize, m1: usize, buffers: &mut [Tree], scratch: &mut [Vec<Ext>]) {
     let count = m1 - m0;
     buffers
         .par_iter_mut()
-        .zip(spilled)
-        .try_for_each(|(tree, level)| {
-            let half = level.nodes / 2;
-            let parts: Vec<&mut Vec<Ext>> = tree.parts_mut().collect();
-            parts
-                .into_par_iter()
-                .enumerate()
-                .try_for_each(|(part, values)| {
+        .zip(scratch)
+        .zip(sources)
+        .for_each(|((tree, scratch), source)| {
+            let half = source.nodes() / 2;
+            let (mut low, mut high): (Vec<&mut [Ext]>, Vec<&mut [Ext]>) = tree
+                .parts_mut()
+                .map(|values| {
                     values.resize(4 * count, Ext::ZERO);
-                    let (low, high) = values.split_at_mut(2 * count);
-                    read_part(file, level, part, 2 * m0, low)?;
-                    read_part(file, level, part, half + 2 * m0, high)
+                    values.split_at_mut(2 * count)
                 })
-        })
+                .unzip();
+            source.read(2 * m0, &mut low, scratch);
+            source.read(half + 2 * m0, &mut high, scratch);
+        });
 }
 
-/// Round 1 of a layer whose tables are in the scratch file: the message from
-/// one pass, then the tables folded at the round's challenge from a second,
-/// so the layer is in memory only at half its size.
+/// Round 1 of a layer read from `sources`: the message from one pass, then
+/// the tables folded at the round's challenge from a second, so the layer is
+/// in memory only at half its size.
 fn first_round(
-    file: &std::fs::File,
-    spilled: &[&Spilled],
+    sources: &[Source],
     eq: &[Ext],
     weights: &[Ext],
     mu: Ext,
     degree: usize,
     challenger: &mut Challenger,
-) -> Result<(Vec<Ext>, Ext, Vec<Tree>), Error> {
-    let half = spilled[0].nodes / 2;
+) -> (Vec<Ext>, Ext, Vec<Tree>) {
+    let half = sources[0].nodes() / 2;
     let quarter = half / 2;
-    let mut buffers: Vec<Tree> = spilled
+    let mut buffers: Vec<Tree> = sources
         .iter()
-        .map(|level| Tree {
-            factors: vec![Vec::new(); level.parts - 1],
+        .map(|source| Tree {
+            factors: vec![Vec::new(); source.parts() - 1],
             denominator: Vec::new(),
         })
         .collect();
+    let mut scratch = vec![Vec::new(); sources.len()];
     let mut message = vec![Ext::ZERO; degree];
     for m0 in (0..quarter).step_by(CHUNK) {
         let m1 = (m0 + CHUNK).min(quarter);
-        read_pairs(file, spilled, m0, m1, &mut buffers)?;
+        read_pairs(sources, m0, m1, &mut buffers, &mut scratch);
         let part = host_message(&buffers, &eq[2 * m0..2 * m1], weights, mu, degree);
         for (sum, value) in message.iter_mut().zip(part) {
             *sum += value;
         }
     }
     let r = sumcheck::send(&message, challenger);
-    let mut folded: Vec<Tree> = spilled
+    let mut folded: Vec<Tree> = sources
         .iter()
-        .map(|level| Tree {
-            factors: vec![vec![Ext::ZERO; half]; level.parts - 1],
+        .map(|source| Tree {
+            factors: vec![vec![Ext::ZERO; half]; source.parts() - 1],
             denominator: vec![Ext::ZERO; half],
         })
         .collect();
     for m0 in (0..quarter).step_by(CHUNK) {
         let m1 = (m0 + CHUNK).min(quarter);
-        read_pairs(file, spilled, m0, m1, &mut buffers)?;
+        read_pairs(sources, m0, m1, &mut buffers, &mut scratch);
         for (tree, out) in buffers.iter().zip(&mut folded) {
             for (values, target) in tree.parts().zip(out.parts_mut()) {
                 // `fold_low` of each child's entries, into place.
@@ -277,36 +395,38 @@ fn first_round(
             }
         }
     }
-    Ok((message, r, folded))
+    (message, r, folded)
 }
 
 /// Prove the fraction sums of `trees`; return the proof and one claim per
-/// tree. A layer's rounds after the first run on the accelerator's device
-/// when it takes them.
+/// tree. A layer's rounds run on the accelerator's device when it takes them
+/// and every tree's layer is stored; a layer that reads leaves streams its
+/// first round on the host.
 pub(crate) fn prove(
-    trees: impl IntoIterator<Item = Tree>,
+    trees: &[Leaves<'_>],
     challenger: &mut Challenger,
     accelerator: &Accelerator,
 ) -> Result<(GkrProof, Vec<TreeClaim<Ext>>), Error> {
     let file = scratch::file().map_err(scratch_error)?;
     let mut end = 0;
-    let mut depths = Vec::new();
+    let depths: Vec<usize> = trees.iter().map(|leaves| leaves.depth).collect();
     let mut roots: Vec<[Ext; 2]> = Vec::new();
-    // levels[i][k - 1] is tree i at layer k; its last entry is its leaves.
-    let mut levels: Vec<Vec<Spilled>> = Vec::new();
+    // stored[i][k - 1] is tree i at layer k, below the layer above its leaves.
+    let mut stored: Vec<Vec<Spilled>> = Vec::new();
     for leaves in trees {
-        depths.push(leaves.depth());
         let mut spilled = Vec::new();
-        let mut level = leaves;
+        let mut level = Source::AboveLeaves(leaves).into_tree();
+        if level.denominator.len() > 1 {
+            level = parent(&level);
+        }
         while level.denominator.len() > 1 {
-            let below = spill(&file, &mut end, &level)?;
-            drop(level);
-            level = parent(&file, &below)?;
-            spilled.push(below);
+            let next = parent(&level);
+            spilled.push(spill(&file, &mut end, &level)?);
+            level = next;
         }
         spilled.reverse();
         roots.push([level.factors[0][0], level.denominator[0]]);
-        levels.push(spilled);
+        stored.push(spilled);
     }
     for root in &roots {
         challenger.observe_algebra_slice(root);
@@ -317,26 +437,37 @@ pub(crate) fn prove(
     let mut layers = Vec::new();
     for k in 1..=depths.iter().copied().max().unwrap_or(0) {
         let active: Vec<usize> = (0..depths.len()).filter(|&i| depths[i] >= k).collect();
-        let spilled: Vec<&Spilled> = active.iter().map(|&i| &levels[i][k - 1]).collect();
+        let sources = active
+            .iter()
+            .map(|&i| {
+                Ok(match depths[i] - k {
+                    0 => Source::Leaves(&trees[i]),
+                    1 => Source::AboveLeaves(&trees[i]),
+                    _ => Source::Stored(restore(&file, &stored[i][k - 1])?),
+                })
+            })
+            .collect::<Result<Vec<_>, Error>>()?;
         let mu: Ext = challenger.sample_algebra_element();
         let nu: Ext = challenger.sample_algebra_element();
-        let degree = degree(spilled.iter().map(|level| level.parts - 1));
+        let degree = degree(sources.iter().map(|source| source.parts() - 1));
         let weights: Vec<Ext> = std::iter::successors(Some(Ext::ONE), |&w| Some(w * nu))
-            .take(spilled.len())
+            .take(sources.len())
             .collect();
         let mut eq = eq_table(&point);
         let (mut rounds, mut next) = (Vec::new(), Vec::new());
-        let mut tables: Vec<Tree> = if eq.len() > 1 {
-            let (message, r, tables) = first_round(&file, &spilled, &eq, &weights, mu, degree, challenger)?;
+        let streamed = eq.len() > 1
+            && sources
+                .iter()
+                .any(|source| !matches!(source, Source::Stored(_)));
+        let mut tables: Vec<Tree> = if streamed {
+            let (message, r, tables) = first_round(&sources, &eq, &weights, mu, degree, challenger);
+            drop(sources);
             fold_low(&mut eq, r);
             rounds.push(message);
             next.push(r);
             tables
         } else {
-            spilled
-                .iter()
-                .map(|level| restore(&file, level))
-                .collect::<Result<_, _>>()?
+            sources.into_iter().map(Source::into_tree).collect()
         };
         let (rest, rest_point, stride) = prove_layer(&mut tables, eq, &weights, mu, degree, challenger, accelerator)?;
         rounds.extend(rest);

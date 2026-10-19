@@ -5,7 +5,7 @@ use p3_field_v08::{BasedVectorSpace, Field, PrimeCharacteristicRing};
 use super::{fresh, gkr_verify, word};
 use crate::circuit::Native;
 use crate::field::{signed, Ext, Gl};
-use crate::gkr::{prove, GkrProof, Tree, TreeClaim, TreeShape};
+use crate::gkr::{prove, GkrProof, Leaves, Tree, TreeClaim, TreeShape};
 use crate::norm::{histogram, words};
 use crate::sumcheck::evaluate;
 
@@ -46,7 +46,7 @@ fn leaf_claim_matches_the_witness_and_the_root_matches_the_histogram() {
         let z = witness(variables);
         let beta = beta();
         let (proof, prover) = prove(
-            vec![norm_tree(&z, beta)],
+            &[norm_tree(&z, beta).leaves()],
             &mut fresh(),
             &crate::device::Accelerator::cpu(),
         )
@@ -73,7 +73,7 @@ fn forged_histograms_reject() {
     let z = witness(7);
     let beta = beta();
     let (proof, _) = prove(
-        vec![norm_tree(&z, beta)],
+        &[norm_tree(&z, beta).leaves()],
         &mut fresh(),
         &crate::device::Accelerator::cpu(),
     )
@@ -133,10 +133,14 @@ fn trees(parts: &[Vec<Vec<Ext>>]) -> Vec<Tree> {
         .collect()
 }
 
+fn leaves(trees: &[Tree]) -> Vec<Leaves<'_>> {
+    trees.iter().map(Tree::leaves).collect()
+}
+
 /// The verified claims are the prover's, each root is its tree's direct
 /// fraction sum, and each leaf claim is the parts' values at its point.
 fn assert_direct(shapes: &[TreeShape], parts: &[Vec<Vec<Ext>>]) -> Vec<TreeClaim<Ext>> {
-    let (proof, prover) = prove(trees(parts), &mut fresh(), &crate::device::Accelerator::cpu()).unwrap();
+    let (proof, prover) = prove(&leaves(&trees(parts)), &mut fresh(), &crate::device::Accelerator::cpu()).unwrap();
     let claims = run_verify(&proof, shapes).unwrap();
     assert_eq!(claims, prover);
     for (claim, parts) in claims.iter().zip(parts) {
@@ -159,9 +163,13 @@ fn assert_direct(shapes: &[TreeShape], parts: &[Vec<Vec<Ext>>]) -> Vec<TreeClaim
 fn batched_trees_match_direct_sums_and_leaf_values() {
     let (shapes, parts) = batch();
     let claims = assert_direct(&shapes, &parts);
-    let proof = prove(trees(&parts), &mut fresh(), &crate::device::Accelerator::cpu())
-        .unwrap()
-        .0;
+    let proof = prove(
+        &leaves(&trees(&parts)),
+        &mut fresh(),
+        &crate::device::Accelerator::cpu(),
+    )
+    .unwrap()
+    .0;
     assert_eq!(claims[0].point, claims[1].point);
     assert_ne!(claims[2].point[..5], claims[3].point[..]);
     // Control: the same proof read with another factor count fails.
@@ -170,14 +178,14 @@ fn batched_trees_match_direct_sums_and_leaf_values() {
     assert!(run_verify(&proof, &wrong).is_none());
 }
 
-/// Leaf layers wider than one streamed chunk: the first rounds and the
-/// parents read the scratch file in several chunks.
+/// Layers wider than one streamed chunk: the first rounds read leaves, the
+/// layers above them, and stored layers beside them in several chunks.
 #[test]
 fn trees_wider_than_a_chunk_match_direct_sums_and_leaf_values() {
     let shapes = vec![
+        TreeShape { depth: 22, factors: 1 },
+        TreeShape { depth: 21, factors: 0 },
         TreeShape { depth: 20, factors: 2 },
-        TreeShape { depth: 20, factors: 0 },
-        TreeShape { depth: 19, factors: 1 },
     ];
     assert_direct(&shapes, &parts_of(&shapes));
 }
@@ -185,7 +193,12 @@ fn trees_wider_than_a_chunk_match_direct_sums_and_leaf_values() {
 #[test]
 fn every_tampered_message_rejects_or_moves_a_claim() {
     let (shapes, parts) = batch();
-    let (proof, honest) = prove(trees(&parts), &mut fresh(), &crate::device::Accelerator::cpu()).unwrap();
+    let (proof, honest) = prove(
+        &leaves(&trees(&parts)),
+        &mut fresh(),
+        &crate::device::Accelerator::cpu(),
+    )
+    .unwrap();
     // A tampered message must fail, or change a root or leaf claim the caller checks.
     let caught = |proof: &GkrProof| run_verify(proof, &shapes).is_none_or(|claims| claims != honest);
     for tree in 0..shapes.len() {
@@ -338,9 +351,14 @@ impl crate::device::GkrLayer for StridedLayer<'_> {
 fn device_layers_give_the_cpu_proof() {
     let (_, parts) = batch();
     let device = crate::device::Accelerator::new(std::sync::Arc::new(StridedLayers));
-    let (proof, claims) = prove(trees(&parts), &mut fresh(), &device).unwrap();
+    let (proof, claims) = prove(&leaves(&trees(&parts)), &mut fresh(), &device).unwrap();
     assert_eq!(
         (proof, claims),
-        prove(trees(&parts), &mut fresh(), &crate::device::Accelerator::cpu()).unwrap()
+        prove(
+            &leaves(&trees(&parts)),
+            &mut fresh(),
+            &crate::device::Accelerator::cpu()
+        )
+        .unwrap()
     );
 }

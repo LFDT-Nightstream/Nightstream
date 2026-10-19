@@ -13,7 +13,7 @@ use p3_field_v08::{BasedVectorSpace, PrimeCharacteristicRing};
 use super::{fresh, gkr_verify, word};
 use crate::circuit::Native;
 use crate::field::{eq_table, re_im, Ext, Gl};
-use crate::gkr::prove;
+use crate::gkr::{prove, Tree};
 use crate::matrix::{EarlyChallenges, Tables};
 use crate::ring::project;
 use crate::sumcheck::evaluate;
@@ -177,7 +177,7 @@ fn matrix_trees_verify_and_leave_true_openings() {
 
     // Early trees.
     let trees = tables.early_trees(&early, &r, challenges());
-    let (proof, prover) = prove(trees, &mut fresh(), &crate::device::Accelerator::cpu()).unwrap();
+    let (proof, prover) = prove(&trees, &mut fresh(), &crate::device::Accelerator::cpu()).unwrap();
     let values = tables.early_values(&early, &prover);
     let claims = gkr_verify(&proof, &structure.early_shapes()).unwrap();
     let openings = structure
@@ -237,7 +237,11 @@ fn matrix_trees_verify_and_leave_true_openings() {
     let beta = ext(21, 0);
     let late = |omega: &[Ext]| {
         let (proof, prover) = prove(
-            tables.late_trees(&ubar, &lanes, omega, beta),
+            &tables
+                .late_trees(&ubar, &lanes, omega, beta)
+                .iter()
+                .map(Tree::leaves)
+                .collect::<Vec<_>>(),
             &mut fresh(),
             &crate::device::Accelerator::cpu(),
         )
@@ -274,7 +278,7 @@ fn wrong_early_columns_break_the_roots() {
     let r = point();
     let run = |early: &crate::matrix::Early| {
         let (proof, prover) = prove(
-            tables.early_trees(early, &r, challenges()),
+            &tables.early_trees(early, &r, challenges()),
             &mut fresh(),
             &crate::device::Accelerator::cpu(),
         )

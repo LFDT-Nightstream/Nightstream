@@ -38,7 +38,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::circuit::{algebra, Backend};
 use crate::field::{eq_table, gl, re_im, Ext, Gl};
-use crate::gkr::{Tree, TreeClaim, TreeShape};
+use crate::gkr::{part, Leaves, Tree, TreeClaim, TreeShape};
 use crate::mle::{chi, identity, lane_split, step};
 use crate::Error;
 
@@ -612,83 +612,63 @@ impl Tables {
         }
     }
 
-    /// Early trees, in the order of `Structure::early_shapes`, each built when
-    /// the caller takes it.
+    /// Early trees, in the order of `Structure::early_shapes`, as leaves
+    /// computed on demand.
     pub(crate) fn early_trees<'a>(
         &'a self,
         early: &'a Early,
-        r: &'a [K],
+        r: &[K],
         challenges: EarlyChallenges<Ext>,
-    ) -> impl Iterator<Item = Tree> + 'a {
+    ) -> Vec<Leaves<'a>> {
         let structure = &self.structure;
         let runs = 1usize << structure.run_variables;
         let row = move |k: usize| self.row.get(k).map_or(0, |&row| row);
         let [beta, gamma] = challenges.lookup;
+        let gamma2 = gamma * gamma;
         let [scatter_beta, mu] = challenges.scatter;
-        (0..4).map(move |tree| match tree {
-            0 => Tree {
-                factors: Vec::new(),
-                denominator: (0..runs)
-                    .into_par_iter()
-                    .map(|k| beta - (gamma * early.e[0][k] + gamma * gamma * early.e[1][k] + Gl::from_u32(row(k))))
-                    .collect(),
-            },
-            1 => {
-                let rows = chi_rows(r, structure.row_variables);
-                Tree {
-                    factors: vec![early.mult.iter().map(|&count| Ext::from(count)).collect()],
-                    denominator: rows
-                        .par_iter()
-                        .enumerate()
-                        .map(|(i, &value)| {
-                            let [re, im] = re_im(value);
-                            beta - (gamma * re + gamma * gamma * im + Gl::from_usize(i))
-                        })
-                        .collect(),
-                }
-            }
-            2 => {
-                let scale = structure.slot_scale();
-                let mut tag = vec![Gl::ZERO; runs];
-                for j in 0..structure.matrices {
-                    let range = structure.run_bounds[j] as usize..structure.run_bounds[j + 1] as usize;
-                    tag[range.clone()]
-                        .par_iter_mut()
-                        .zip(&self.slot[range])
-                        .for_each(|(tag, &slot)| *tag = Gl::from_u32(slot) + scale * Gl::from_usize(j));
-                }
-                Tree {
-                    factors: vec![
-                        (0..runs)
-                            .into_par_iter()
-                            .map(|k| Ext::from(self.coefficient.get(k).copied().unwrap_or(Gl::ZERO)))
-                            .collect(),
-                        (0..runs)
-                            .into_par_iter()
-                            .map(|k| mu * early.e[1][k] + early.e[0][k])
-                            .collect(),
-                    ],
-                    denominator: tag.into_par_iter().map(|tag| scatter_beta - tag).collect(),
-                }
-            }
-            _ => {
-                let slots = 1usize << structure.slot_variables;
-                let pairs = slots << structure.matrix_variables();
-                Tree {
-                    factors: vec![(0..pairs)
-                        .into_par_iter()
-                        .map(|x| match early.u.get(x / slots) {
-                            Some([re, im]) => mu * im[x % slots] + re[x % slots],
-                            None => Ext::ZERO,
-                        })
-                        .collect()],
-                    denominator: (0..pairs)
-                        .into_par_iter()
-                        .map(|x| scatter_beta - Gl::from_usize(x))
-                        .collect(),
-                }
-            }
-        })
+        let rows = chi_rows(r, structure.row_variables);
+        let row_count = rows.len();
+        let scale = structure.slot_scale();
+        let bounds = &structure.run_bounds[..=structure.matrices];
+        // Run `k` of matrix `j` has tag `slot + scale·j`; a padding run has zero.
+        let tag = move |k: usize| match bounds.partition_point(|&bound| bound as usize <= k) {
+            0 => Gl::ZERO,
+            j if j > structure.matrices => Gl::ZERO,
+            j => Gl::from_u32(self.slot[k]) + scale * Gl::from_usize(j - 1),
+        };
+        let slots = 1usize << structure.slot_variables;
+        let pairs = slots << structure.matrix_variables();
+        vec![
+            Leaves::new(
+                runs,
+                Vec::new(),
+                part(move |k| beta - (gamma * early.e[0][k] + gamma2 * early.e[1][k] + Gl::from_u32(row(k)))),
+            ),
+            Leaves::new(
+                row_count,
+                vec![part(move |i| Ext::from(early.mult[i]))],
+                part(move |i| {
+                    let [re, im] = re_im(rows[i]);
+                    beta - (gamma * re + gamma2 * im + Gl::from_usize(i))
+                }),
+            ),
+            Leaves::new(
+                runs,
+                vec![
+                    part(move |k| Ext::from(self.coefficient.get(k).copied().unwrap_or(Gl::ZERO))),
+                    part(move |k| mu * early.e[1][k] + early.e[0][k]),
+                ],
+                part(move |k| scatter_beta - tag(k)),
+            ),
+            Leaves::new(
+                pairs,
+                vec![part(move |x| match early.u.get(x / slots) {
+                    Some([re, im]) => mu * im[x % slots] + re[x % slots],
+                    None => Ext::ZERO,
+                })],
+                part(move |x| scatter_beta - Gl::from_usize(x)),
+            ),
+        ]
     }
 
     /// The column values at the early leaf points of `claims`.

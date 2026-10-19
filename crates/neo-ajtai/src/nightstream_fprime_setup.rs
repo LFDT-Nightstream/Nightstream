@@ -121,6 +121,8 @@ fn signed_sums(row: u32, blocks: &[SignedBlock]) -> SignedShiftSums {
     sums
 }
 
+/// With 22 key rows on 18 workers the second pass kept four busy; 65,536-column ranges cut the
+/// staged fresh commitment from 10.9 s to 7.3 s in one run (commit 9445eb5e5).
 const TASK_COLUMNS: u64 = 1 << 16;
 
 fn column_slice<'a>(blocks: &'a [SignedBlock], columns: &Range<u64>) -> &'a [SignedBlock] {

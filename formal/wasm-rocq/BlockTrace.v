@@ -23,6 +23,15 @@ Proof.
   split; [exact (full_opcode_selects row chosen opcode Hprime Hfull Hprogram Hunique ltac:(congruence)) | congruence].
 Qed.
 
+Lemma control_row_static_edge : forall initial final (row : Witness) pc opcode next,
+  row COL_IS_PROGRAM_ROW = 1 -> Replay initial (eventsForRow memories row) final -> row COL_PC_BEFORE = pc ->
+  controlImage initial pc opcode next -> row COL_PC_EDGE_KIND = 0.
+Proof.
+  intros initial final row pc opcode next Hprogram Hreplay Hpc [_ [Hkind _]].
+  pose proof (circuit_row_edge_kind_fetch _ _ _ Hreplay Hprogram) as Hedge.
+  rewrite Hpc, Hkind in Hedge. congruence.
+Qed.
+
 Lemma br_if_depth_preserved : forall (w : Witness),
   fieldPrime -> FullRelation.satFull w -> w COL_SEL_BR_IF_EQZ = 1 ->
   w COL_CALL_STACK_DEPTH_AFTER = w COL_CALL_STACK_DEPTH_BEFORE.

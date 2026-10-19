@@ -1,5 +1,5 @@
 (* The fragment's per-site restrictions. *)
-From Stdlib Require Import List ZArith.
+From Stdlib Require Import List ZArith Lia.
 Require Import Wasm2 CallerSpec Fragment.
 Import ListNotations.
 
@@ -10,8 +10,13 @@ Example nested_block_rejected : forall callees body,
   ~ Supported (functionSite callees) (BLOCK (_RESULT None) [BLOCK (_RESULT None) body]).
 Proof. intros callees body H. inversion H as [ | | | | | ? ? Hbody _ | ]; subst. inversion Hbody as [ | ? ? Hinner _]. inversion Hinner. Qed.
 
-Example call_in_callee_rejected : forall x, ~ Supported calleeSite (CALL x).
-Proof. intros x H. inversion H. Qed.
+(* The call metadata holds the parameter count in one byte. *)
+Example wide_call_rejected : forall callees x f, callees (x :> N) = Some f -> guestParams f = 256%nat ->
+  ~ Supported (functionSite callees) (CALL x).
+Proof.
+  intros callees x f Hf Hparams H. inversion H as [ | | | | ? ? g Hg Hp _ | | ]; subst.
+  rewrite Hf in Hg. injection Hg as <-. lia.
+Qed.
 
 Example call_in_block_rejected : forall x, ~ Supported blockSite (CALL x).
 Proof. intros x H. inversion H. Qed.

@@ -76,3 +76,4 @@ tests/BlockValidation.v
 tests/ControlPrograms.v
 tests/Initialization.v
 tests/Fragment.v
+tests/NestedCalls.v

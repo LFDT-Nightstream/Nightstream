@@ -117,6 +117,19 @@ Proof.
   - repeat constructor.
 Qed.
 
+(* block (local.get 0; br_if 0; local.get 0; local.set 1); local.get 1 *)
+Example conditional_body_supported :
+  supportedCode (functionSite (programCallees conditionalProgram conditionalModule)) conditionalCode.
+Proof.
+  constructor; [ | constructor; [constructor | constructor]].
+  apply supported_block; [repeat constructor | repeat split; reflexivity].
+Qed.
+
+Example conditional_program_supported : programSupported conditionalProgram.
+Proof.
+  intros [ | index] g Hg; cbn in Hg; [injection Hg as <-; exact conditional_body_supported | destruct index; discriminate].
+Qed.
+
 Example conditional_initial_state_exists : forall condition,
   0 <= condition < i32Modulus ->
   programLoaded conditionalProgram (conditionalMemory condition) /\
@@ -126,10 +139,9 @@ Example conditional_initial_state_exists : forall condition,
 Proof.
   intros condition Hcondition. split; [apply load_program_loaded | ].
   split; [repeat split; reflexivity | ]. split; [split; [cbn; lia | reflexivity] | ]. split.
-  - split; [constructor; [apply conditional_function_validates | constructor] | ]. split.
-    + (* block (local.get 0; br_if 0; local.get 0; local.set 1); local.get 1 *)
-      constructor; [ | constructor; [constructor | constructor]].
-      apply supported_block; [repeat constructor | repeat split; reflexivity].
+  - split; [split; [constructor; [apply conditional_function_validates | constructor] |
+      exact conditional_program_supported] | ]. split.
+    + exact conditional_body_supported.
     + exists conditionalContext. split; [apply conditional_module_validates | ].
       change (Instrs_ok conditionalBodyContext conditionalCode (i32StackType 0 1)).
       exact conditional_code_validates.

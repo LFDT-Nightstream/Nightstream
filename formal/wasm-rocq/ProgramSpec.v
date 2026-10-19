@@ -145,12 +145,21 @@ Definition frameMatches (program : Program) (f : GuestFunction) (z : state) : Pr
   fun_funcinst z = program /\ fun_moduleinst z = guestModule f /\
   length (stateLocals z) = (guestParams f + guestLocals f)%nat.
 
+(* Every function body is in the supported fragment, calling within its module. *)
+Definition programSupported (program : Program) : Prop :=
+  forall index f, functionAt program index = Some f ->
+    supportedCode (functionSite (programCallees program (guestModule f))) (guestBody f).
+
+(* SpecTec validates every function in the store, and the circuit supports each. *)
+Definition programValidated (program : Program) (s : store) : Prop :=
+  Forall (fun fi => Funcinst_ok s fi (funcinst_TYPE fi)) program /\ programSupported program.
+
 (* Validation uses SpecTec's instantiated functions and the active function's
    module context. The remaining code ends with the function's declared results.
    Support (Fragment) only restricts the circuit fragment we can simulate. *)
 Definition validatedCode (program : Program) (f : GuestFunction) (z : state)
     (height : nat) (code : list instr) : Prop :=
-  Forall (fun fi => Funcinst_ok (fun_store z) fi (funcinst_TYPE fi)) program /\
+  programValidated program (fun_store z) /\
   supportedCode (functionSite (programCallees program (guestModule f))) code /\
   exists C,
     Moduleinst_ok (fun_store z) (guestModule f) C /\
@@ -169,14 +178,14 @@ Definition SourceState (program : Program) (position : SourcePosition) (z : stat
       boundaryPC boundary = guestEntry f + Z.of_nat (codeOffset (guestBody f) (sourceOffset position))
   end.
 
-(* Row kinds a run may contain. Initialization belongs to callees, not to the
-   frame at the given depth; at that depth a row may neither pop nor halt (the
-   depth-zero return halts without popping), so the run stays in that frame. *)
+(* Row kinds a run may contain. A run never halts (the program's final return
+   would). Initialization belongs to callees, not to the frame at the given depth;
+   at that depth a row may not pop, so the run stays in that frame. *)
 Definition callerRow (depth : Z) (row : Witness) : Prop :=
   (row COL_IS_PROGRAM_ROW = 1 \/ row COL_LOCAL_ZERO_ACTIVE_BEFORE = 1 \/
-    row COL_PARAM_INIT_ACTIVE_BEFORE = 1) /\
+    row COL_PARAM_INIT_ACTIVE_BEFORE = 1) /\ row COL_HALTED = 0 /\
   (row COL_CALL_STACK_DEPTH_BEFORE = depth ->
-    row COL_IS_PROGRAM_ROW = 1 /\ row COL_CALL_STACK_POP_PRESENT = 0 /\ row COL_HALTED = 0).
+    row COL_IS_PROGRAM_ROW = 1 /\ row COL_CALL_STACK_POP_PRESENT = 0).
 
 Fixpoint rowsFinalBoundary (boundary : Boundary) (rows : list Witness) : Boundary :=
   match rows with [] => boundary | row :: rest => rowsFinalBoundary (afterBoundary row) rest end.

@@ -161,29 +161,6 @@ Proof.
       unfold instructionRom; rewrite Hpc; reflexivity).
 Qed.
 
-Lemma encoded_body_loaded : forall program memory index f,
-  programLoaded program memory -> functionAt program index = Some f ->
-  supportedStraightLineProgram (guestBody f) -> loadedBody memory (guestEntry f) (guestBody f).
-Proof.
-  intros program memory index f Hloaded Hf Hsupported.
-  assert (Hsuffix : forall code offset, skipn offset (guestBody f) = code ->
-    loadedBody memory (guestEntry f + Z.of_nat (codeOffset (guestBody f) offset)) code).
-  { induction code as [ | instruction rest IH]; intros offset Hcode; [exact I | ].
-    assert (Hlookup : nth_error (guestBody f) offset = Some instruction).
-    { pose proof (f_equal (fun xs => nth_error xs 0) Hcode) as H.
-      cbn beta in H. rewrite nth_error_skipn, Nat.add_0_r in H. exact H. }
-    split.
-    - eapply encoded_instruction_image; [exact Hloaded | exact Hf | exact Hlookup | ].
-      apply (proj1 (Forall_forall _ _) Hsupported). eapply nth_error_In; exact Hlookup.
-    - assert (Hsize : instructionSize instruction = 1%nat).
-      { apply ordinary_instruction_size. apply (proj1 (Forall_forall _ _) Hsupported). eapply nth_error_In; exact Hlookup. }
-      replace (guestEntry f + Z.of_nat (codeOffset (guestBody f) offset) + 1)
-        with (guestEntry f + Z.of_nat (codeOffset (guestBody f) (S offset)))
-        by (rewrite (code_offset_next _ _ _ Hlookup), Hsize, Nat2Z.inj_add; lia).
-      apply IH. rewrite (StackSimulation.skipn_at_instruction _ _ _ Hlookup) in Hcode. now injection Hcode. }
-  replace (guestEntry f) with (guestEntry f + Z.of_nat 0) by lia. exact (Hsuffix (guestBody f) 0%nat eq_refl).
-Qed.
-
 Lemma encoded_function_end : forall program memory index f,
   programLoaded program memory -> functionAt program index = Some f ->
   memory programOpcodeId [guestEntry f + Z.of_nat (codeSize (guestBody f))] = Some CODE_END /\
@@ -201,16 +178,18 @@ Lemma frame_matches_addresses : forall program f z,
   frameMatches program f z -> fun_funcaddr z = FUNCS (guestModule f).
 Proof. intros program f [s frame] [_ [H _]]. cbn in *. now rewrite H. Qed.
 
-Lemma encoded_call_loaded : forall program memory index f offset z x callee,
+(* A direct call's ROM image: target, return pc and callee metadata. *)
+Lemma encoded_call_image : forall program memory index f offset z x callee,
   programLoaded program memory -> functionAt program index = Some f ->
   nth_error (guestBody f) offset = Some (CALL x) -> frameMatches program f z ->
   programCallees program (guestModule f) (x :> N) = Some callee ->
-  supportedStraightLineProgram (guestBody callee) ->
-  loadedCall memory (guestEntry f + Z.of_nat (codeOffset (guestBody f) offset)) (guestEntry f + Z.of_nat (codeOffset (guestBody f) offset) + 1) z x
+  directCallImage memory (guestEntry f + Z.of_nat (codeOffset (guestBody f) offset))
+    (guestEntry f + Z.of_nat (codeOffset (guestBody f) offset) + 1) z x
     (guestAddress callee) (guestModule callee) (guestTypeIndex callee)
-    (guestParams callee) (guestResults callee) (guestLocals callee) (guestBody callee) (guestEntry callee).
+    (guestParams callee) (guestResults callee) (guestLocals callee) (guestBody callee) (guestEntry callee) /\
+  callerFrameImage memory (guestEntry f + Z.of_nat (codeOffset (guestBody f) offset)) z.
 Proof.
-  intros program memory index f offset z x callee Hloaded Hf Hlookup Hframe Hcallee Hsupported.
+  intros program memory index f offset z x callee Hloaded Hf Hlookup Hframe Hcallee.
   assert (Hoffset : (offset <= length (guestBody f))%nat).
   { assert (Hlt : (offset < length (guestBody f))%nat).
     { apply nth_error_Some. rewrite Hlookup. discriminate. } lia. }
@@ -238,8 +217,5 @@ Proof.
               ** program_cell Hloaded. unfold encodeProgram. cbn.
                  unfold instructionRom. rewrite Hpc. reflexivity.
               ** eapply encoded_guest_image; eassumption.
-  - split; [eapply encoded_frame_image; try eassumption; apply code_offset_bound | ]. split.
-    + eapply encoded_body_loaded; eassumption.
-    + pose proof (encoded_function_end _ _ _ _ Hloaded Hcallee) as Hend.
-      rewrite straight_code_size in Hend by exact Hsupported. exact Hend.
+  - eapply encoded_frame_image; try eassumption; apply code_offset_bound.
 Qed.

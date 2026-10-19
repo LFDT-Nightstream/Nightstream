@@ -1,5 +1,5 @@
-(* Source instruction support is distinct from validation. Calls still have
-   straight-line callees; block branches must not require stack unwinding. *)
+(* Source instruction support, as the internal proofs consume it; FragmentViews
+   shows it equals the Fragment table. Validation is separate. *)
 From Stdlib Require Import List ZArith.
 Require Import Wasm2 StraightLineSpec CallerSpec BlockSpec CodeLayout.
 Import ListNotations.

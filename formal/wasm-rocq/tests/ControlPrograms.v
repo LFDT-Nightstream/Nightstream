@@ -64,6 +64,20 @@ Proof.
   - repeat constructor.
 Qed.
 
+(* block (computed branches); local.get 1 *)
+Example computed_body_supported :
+  supportedCode (functionSite (programCallees computedProgram computedModule)) computedCode.
+Proof.
+  constructor; [ | constructor; [constructor | constructor]].
+  apply supported_block; [ | exact computed_branches_balanced].
+  apply branch_body_supported_iff. exact computed_branches_supported.
+Qed.
+
+Example computed_program_supported : programSupported computedProgram.
+Proof.
+  intros [ | index] g Hg; cbn in Hg; [injection Hg as <-; exact computed_body_supported | destruct index; discriminate].
+Qed.
+
 Example computed_initial_state_exists : forall condition,
   0 <= condition < i32Modulus ->
   programLoaded computedProgram (computedMemory condition) /\
@@ -73,11 +87,9 @@ Example computed_initial_state_exists : forall condition,
 Proof.
   intros condition Hcondition. split; [apply load_program_loaded | ].
   split; [repeat split; reflexivity | ]. split; [split; [cbn; lia | reflexivity] | ]. split.
-  - split; [constructor; [apply computed_function_validates | constructor] | ]. split.
-    + (* block (computed branches); local.get 1 *)
-      constructor; [ | constructor; [constructor | constructor]].
-      apply supported_block; [ | exact computed_branches_balanced].
-      apply branch_body_supported_iff. exact computed_branches_supported.
+  - split; [split; [constructor; [apply computed_function_validates | constructor] |
+      exact computed_program_supported] | ]. split.
+    + exact computed_body_supported.
     + exists computedContext. split; [apply computed_module_validates | ].
       change (Instrs_ok computedBodyContext computedCode (i32StackType 0 1)).
       exact computed_code_validates.
@@ -276,8 +288,12 @@ Proof.
   pose proof Hstate1 as [f [inner [Hf [Hactive [Hsusp _]]]]]. cbn [activePosition suspendedCalls] in *.
   destruct (computed_pc_four_is_inside _ _ _ _ _ Hactive Hpc) as [prefix ->].
   destruct stack as [ | top more].
-  2: { exfalso. injection Hf as <-. pose proof (suspended_callee_straight _ _ _ _ _ _ _ _ _ Hsusp) as Hstraight.
-       inversion Hstraight as [ | ? ? [op Hop] _]. discriminate. }
+  (* The program has no CALL, so nothing is suspended. *)
+  2: { exfalso. destruct Hsusp as [g [x [Hg [Hcall _]]]].
+       destruct (callPosition top) as [[ | caller] site]; cbn [sourceFunction sourceOffset] in Hg, Hcall;
+         [ | destruct caller; discriminate].
+       injection Hg as <-. cbn [guestBody] in Hcall.
+       destruct site as [ | [ | site]]; [discriminate | discriminate | destruct site; discriminate]. }
   exists (length prefix), between, c1, shape2, c2.
   split; [exact (control_state_circuit _ _ _ _ _ _ _ _ Logic.eq_refl computed_store_wf Hstore Hstate1) | ].
   split; [exact Hsteps1 | ]. split; [exact Hsteps2 | ].

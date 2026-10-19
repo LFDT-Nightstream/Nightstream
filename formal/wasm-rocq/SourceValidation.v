@@ -23,7 +23,7 @@ Proof.
   { destruct i; try (right; right; exact (Forall_inv Hsupport)); eauto. }
   destruct Hcases as [[bt [body ->]] | [[x ->] | Hordinary]].
   - destruct (block_validation_facts _ _ _ _ _ _ Hi Hl Hsupport) as [-> [-> _]]. reflexivity.
-  - destruct (Forall_inv Hsupport) as [f [Hf [Hs [Hp Hr]]]]. inversion Hi; subst.
+  - destruct (Forall_inv Hsupport) as [f [Hf [Hp Hr]]]. inversion Hi; subst.
     pose proof (Htypes _ _ Hf) as Htype. apply (elimT eqP) in H4.
     match type of H4 with ?lhs = _ =>
       assert (Hlookup : lhs = i32StackType (guestParams f) (guestResults f))
@@ -40,7 +40,7 @@ Lemma source_validation_facts : forall C code ft,
   forall callees z,
     context_LOCALS C = repeat valtype_I32 (length (stateLocals z)) -> calleeTypes C callees ->
     (forall x f, callees (x :> N) = Some f -> wf_uN 32%N x ->
-      supportedStraightLineProgram (guestBody f) -> (guestParams f < 256)%nat -> (guestResults f < 256)%nat ->
+      (guestParams f < 256)%nat -> (guestResults f < 256)%nat ->
       typedCall z x (guestModule f) (guestTypeIndex f) (guestParams f) (guestResults f) (guestLocals f) (guestBody f)) ->
     supportedSourceCode callees code ->
     (forall extra suffix, sourceFacts callees z (extra + length outputs) suffix ->
@@ -124,7 +124,7 @@ Proof.
   intros callees z height i H. constructor; [ | constructor].
   destruct i; try exact (Forall_inv (proj1 H)).
   cbn [callerFacts] in H. destruct (callees (v_funcidx :> N)) as [f | ] eqn:Hf; [ | contradiction].
-  exists f. split; [reflexivity | ]. destruct H as [[_ [_ [_ [Hs [_ [Hp Hr]]]]]] _]. auto.
+  exists f. split; [reflexivity | ]. destruct H as [[_ [_ [_ [Hp Hr]]]] _]. auto.
 Qed.
 
 Lemma source_facts_supported : forall code callees z height,

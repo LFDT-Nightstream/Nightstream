@@ -363,7 +363,7 @@ Proof.
     destruct (readStack _ _ _) as [values | ] eqn:Hstack; [ | discriminate].
     destruct (readLocals _ _ _) as [locals | ] eqn:Hlocals; [ | discriminate].
     destruct (IH _ _ _ _ _ _ _ _ _ Hfuncs Hwf Hg Hdecode Hresult)
-      as [[Hobligations [Hstraight Hvalid]] [stack [Hsites [Hsusp ->]]]].
+      as [[Hobligations Hvalid] [stack [Hsites [Hsusp ->]]]].
     split; [exact Hobligations | ].
     destruct (read_locals_frame _ _ _ _ s (guestModule g) Hlocals) as [Hlen [Hbounds Hat]].
     destruct (proj1 (read_stack_cells _ _ _ _) Hstack) as [Hcount [Hvalues Hcells]].
@@ -374,7 +374,7 @@ Proof.
     split; [exact Hg | ]. split; [exact Hcall | ].
     split; [split; [pose proof (nth_bound _ _ _ _ Hcall); lia | reflexivity] | ].
     split; [unfold programCallees; rewrite Haddress; subst callee; exact Hf | ]. split; [reflexivity | ].
-    split; [apply straight_line_supported_iff; exact Hstraight | ]. split; [apply active_frame_matches; assumption | ].
+    split; [apply active_frame_matches; assumption | ].
     split; [pose proof (active_frame_wf _ _ _ _ _ Hfuncs Hwf Hg Hbounds) as Hz; inversion Hz; assumption | ].
     split; [exact Hvalid | ]. split; [exact Hvalues | ]. split; [assumption | ]. split; [lia | ].
     split; [exact Hcells | ]. split; [cbn; rewrite length_map, Hlen; unfold frameLocals in *; lia | ].
@@ -391,8 +391,8 @@ Proof.
   intros program s memory stack. induction stack as [ | top stack IH];
     intros callee f base fbp depth inner obligations Hf Hsusp Hobligations; cbn [map decodeCalls plugCalls].
   - eexists. split; [reflexivity | exact Hobligations].
-  - destruct Hsusp as [g [x [Hg [Hcall [[Hbound Hcont] [Hcallee [Hres [Hstraight [Hframe [_ [Hvalid [Hvalues
-      [Hbase0 [Hbase [Hcells [Hfbp [Hlocals [Hret [HsavedFbp [HsavedBase Hrest]]]]]]]]]]]]]]]]]]]].
+  - destruct Hsusp as [g [x [Hg [Hcall [[Hbound Hcont] [Hcallee [Hres [Hframe [_ [Hvalid [Hvalues
+      [Hbase0 [Hbase [Hcells [Hfbp [Hlocals [Hret [HsavedFbp [HsavedBase Hrest]]]]]]]]]]]]]]]]]]].
     rewrite Hg, Hf, (proj2 (call_at_some _ _ _) Hcall).
     unfold programCallees in Hcallee.
     destruct (nth_error (FUNCS (guestModule g)) (N.to_nat (x :> N))) as [address | ]; [ | discriminate].
@@ -408,10 +408,9 @@ Proof.
     destruct (IH (sourceFunction (callPosition top)) g (callerBase top) (callerFbp top) (depth - 1)
       (stackPrefix (callerValues top) (instructionSuffix (callContinuation top)
         (callContext (callerFrame top) (N.of_nat (callResults top)) inner)))
-      (obligations /\ supportedCode calleeSite (guestBody f) /\
-        validatedCode program g (mk_state s (callerFrame top)) (length (callerValues top) + callResults top)
+      (obligations /\ validatedCode program g (mk_state s (callerFrame top)) (length (callerValues top) + callResults top)
           (callContinuation top)) Hg Hrest) as [result [Hdecode Hresult]].
-    { split; [exact Hobligations | split; [apply straight_line_supported_iff; exact Hstraight | exact Hvalid]]. }
+    { split; [exact Hobligations | exact Hvalid]. }
     exists result. split; [exact Hdecode | exact Hresult].
 Qed.
 

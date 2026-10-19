@@ -41,6 +41,25 @@ Proof.
   normalize_columns. rewrite Hpush. cbn. let pop := eval compute in COL_CALL_STACK_POP_PRESENT in destruct (w pop =? 1); repeat constructor.
 Qed.
 
+(* A push writes each context memory only at the push address. *)
+Lemma context_push_elsewhere : forall initial final (w : Witness) memory column,
+  In (memory, column) contextMemories -> Replay initial (eventsForRow memories w) final ->
+  forall address, address <> [w COL_CALL_STACK_ADDR] -> final memory address = initial memory address.
+Proof.
+  intros initial final w memory column Hin Hreplay address Haddress.
+  eapply replay_preserves; [exact Hreplay | ].
+  destruct (context_catalog_split memory column Hin) as [Hsplit [Hbefore Hafter]].
+  rewrite Hsplit, events_for_row_app, events_for_row_cons.
+  apply Forall_app. split; [apply read_only_row; exact Hbefore | ].
+  apply Forall_app. split; [ | apply read_only_row; exact Hafter].
+  unfold contextSpec. cbn [memoryId ports flat_map portEvent active activation addressColumns valueColumn portKind map].
+  cbv [portEvent active]. cbn [activation addressColumns valueColumn portKind map option_map].
+  normalize_columns.
+  let push := eval compute in COL_CALL_STACK_PUSH_PRESENT in destruct (w push =? 1);
+  let pop := eval compute in COL_CALL_STACK_POP_PRESENT in destruct (w pop =? 1);
+  repeat first [apply Forall_nil | apply Forall_cons | exact I | (cbn; exact I) | (cbn; right; congruence)].
+Qed.
+
 Lemma context_push_records : forall initial final (w : Witness) memory column,
   In (memory, column) contextMemories -> w COL_CALL_STACK_PUSH_PRESENT = 1 ->
   Replay initial (eventsForRow memories w) final ->
@@ -129,6 +148,69 @@ Proof.
   circuit_boolean COL_DIV_TRAP Hdiv. circuit_boolean COL_CALL_INDIRECT_IS_TRAP Hci.
   circuit_boolean COL_MEM_OOB Hmem.
   destruct Hdiv, Hci, Hmem; field_linear HedgeRow.
+Qed.
+
+(* BLOCK and br_if rows never touch the call stack. *)
+Lemma full_block_selector_quiet : forall (w : Witness) chosen,
+  fieldPrime -> FullRelation.satFull w -> (chosen = COL_SEL_BLOCK \/ chosen = COL_SEL_BR_IF_EQZ) -> w chosen = 1 ->
+  w COL_CALL_STACK_PUSH_PRESENT = 0 /\ w COL_CALL_STACK_POP_PRESENT = 0.
+Proof.
+  intros w chosen Hprime Hfull Hkind Hchosen.
+  assert (Hin : In chosen selectorColumns) by (destruct Hkind as [-> | ->]; vm_compute; tauto).
+  pose proof (proj1 Hfull) as Hone.
+  destruct Hkind as [-> | ->];
+    match goal with Hchosen : value w ?chosen = 1 |- _ =>
+      split;
+      [ selected_row chosen callStackPushRow Hrow; pose proof (value_bound w COL_CALL_STACK_PUSH_PRESENT); field_linear Hrow
+      | selected_row chosen callStackPopSupportRow Hrow; rewrite Hone in Hrow;
+        pose proof (value_bound w COL_CALL_STACK_POP_PRESENT); field_linear Hrow ]
+    end.
+Qed.
+
+(* A block's END (a static edge) in any frame: without a halt, the trap accounting
+   leaves no trap flag set, so the row neither pops nor pushes a call context. *)
+Lemma full_block_end_quiet : forall (w : Witness),
+  fieldPrime -> FullRelation.satFull w -> w COL_SEL_END = 1 ->
+  w COL_PC_EDGE_KIND = 0 -> w COL_HALTED = 0 ->
+  w COL_CALL_STACK_PUSH_PRESENT = 0 /\ w COL_CALL_STACK_POP_PRESENT = 0.
+Proof.
+  intros w Hprime Hfull Hchosen Hedge Hhalt.
+  assert (Hin : In COL_SEL_END selectorColumns) by (vm_compute; tauto).
+  assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
+  pose proof (full_selected_is_program_row w COL_SEL_END Hprime Hfull Hin Hchosen) as Hprogram.
+  assert (Hturn : w COL_TURN_BOUNDARY = 0).
+  { exact (full_row_kind_exclusive w COL_IS_PROGRAM_ROW COL_TURN_BOUNDARY Hprime Hfull
+      ltac:(cbn; tauto) ltac:(cbn; tauto) ltac:(discriminate) Hprogram). }
+  assert (Hbefore : w COL_HALTED_BEFORE = 0).
+  { circuit_row ([(COL_IS_PROGRAM_ROW, 1)], [(COL_HALTED_BEFORE, 1)], ([] : SparseRow)) Hrow.
+    expand_row Hrow. normalize_columns. rewrite Hprogram in Hrow.
+    pose proof (value_bound w COL_HALTED_BEFORE). field_linear Hrow. }
+  assert (Hpush : w COL_CALL_STACK_PUSH_PRESENT = 0).
+  { selected_row COL_SEL_END callStackPushRow Hrow.
+    pose proof (value_bound w COL_CALL_STACK_PUSH_PRESENT). field_linear Hrow. }
+  split; [exact Hpush | ].
+  circuit_row ([(COL_HALTED, 1); (COL_HALTED_BEFORE, -1); (COL_TRAPPED_AFTER, -1); (COL_TRAPPED_BEFORE, 1);
+    (COL_TURN_BOUNDARY, 1); (COL_HOST_EVENT_EXIT_LATCH, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Hstate.
+  expand_row Hstate. normalize_columns.
+  selected_circuit_row COL_SEL_END
+    ([(COL_TRAPPED_AFTER, 1); (COL_TRAPPED_BEFORE, -1); (COL_SEL_UNREACHABLE, -1); (COL_DIV_TRAP, -1);
+      (COL_CALL_INDIRECT_IS_TRAP, -1); (COL_MEM_OOB, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Htrap.
+  selected_circuit_row COL_SEL_END
+    ([(COL_HALTED, 1); (COL_HALTED_BEFORE, -1); (COL_TURN_BOUNDARY, 1);
+      (COL_CALL_STACK_POP_PRESENT, 1); (COL_PC_EDGE_KIND, -1); (COL_SEL_CALL_INDIRECT, 2);
+      (COL_SEL_RETURN_CALL_INDIRECT, 2); (COL_SEL_UNREACHABLE, 2); (COL_DIV_TRAP, -1);
+      (COL_CALL_INDIRECT_IS_TRAP, -1); (COL_MEM_OOB, -1)],
+      [(COL_ONE, 1)], ([] : SparseRow)) Hedgerow.
+  normalize_columns. rewrite Hone in Hstate, Htrap, Hedgerow.
+  circuit_boolean COL_CALL_STACK_POP_PRESENT Hpop. circuit_boolean COL_DIV_TRAP Hdiv.
+  circuit_boolean COL_CALL_INDIRECT_IS_TRAP Hci. circuit_boolean COL_MEM_OOB Hmem.
+  circuit_boolean COL_HOST_EVENT_EXIT_LATCH Hlatch. circuit_boolean COL_TRAPPED_AFTER Hta.
+  circuit_boolean COL_TRAPPED_BEFORE Htb.
+  normalize_columns.
+  apply Z.mod_divide in Hstate; [ | unfold modulus; lia ]. destruct Hstate as [k1 Hstate].
+  apply Z.mod_divide in Htrap; [ | unfold modulus; lia ]. destruct Htrap as [k2 Htrap].
+  apply Z.mod_divide in Hedgerow; [ | unfold modulus; lia ]. destruct Hedgerow as [k3 Hedgerow].
+  unfold modulus in *. lia.
 Qed.
 
 Lemma full_end_pops_nonempty_context : forall (w : Witness),

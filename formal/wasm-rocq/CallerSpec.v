@@ -16,15 +16,13 @@ Record GuestFunction := mkGuestFunction {
   guestEntry : Z
 }.
 
-(* Function indices are local to this caller's module. loadedCall checks each
-   used entry against that module's addresses, SpecTec's store and the ROMs. *)
+(* Function indices are local to the calling function's module. *)
 Definition CalleeEnvironment := N -> option GuestFunction.
 
 (* Fragment restrictions are independent of validation and stack height. *)
 Definition supportedCaller (callees : CalleeEnvironment) (code : list instr) : Prop :=
   Forall (fun instruction => match instruction with
     | CALL x => exists f, callees (x :> N) = Some f /\
-        supportedStraightLineProgram (guestBody f) /\
         (guestParams f < 256)%nat /\ (guestResults f < 256)%nat
     | _ => exists opcode, encodedOpcode instruction = Some opcode
     end) code.

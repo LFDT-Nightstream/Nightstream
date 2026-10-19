@@ -18,7 +18,7 @@ use objc2_metal::{
 
 use crate::{
     poseidon2, GoldilocksMulVariant, GoldilocksOps, KWords, MetalActivity, MetalDeviceInfo, MetalError, MetalRunStats,
-    PoseidonDigest, PoseidonHashVariant, PoseidonState,
+    PoseidonDigest, PoseidonHashVariant, PoseidonState, BUFFER_LIMIT_BYTES,
 };
 
 mod joint;
@@ -35,9 +35,7 @@ type Queue = Retained<ProtocolObject<dyn MTLCommandQueue>>;
 type Buffer = Retained<ProtocolObject<dyn MTLBuffer>>;
 type Pipeline = Retained<ProtocolObject<dyn MTLComputePipelineState>>;
 
-// Owner's 16 GB ceiling. This bounds buffer requests; CPU memory is measured
-// separately. Serialize checks across sessions sharing the same device.
-pub(crate) const BUFFER_LIMIT_BYTES: usize = 16_000_000_000;
+// Serialize limit checks across sessions sharing the same device.
 static BUFFER_ALLOCATION: Mutex<()> = Mutex::new(());
 
 #[derive(Default)]

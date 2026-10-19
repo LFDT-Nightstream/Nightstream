@@ -38,6 +38,8 @@ pub struct PreparedLifecycle {
     structure: Structure,
     binding: Stage1VerifierBinding,
     backend: Backend,
+    // Device bytes of a commitment key the backend keeps; zero when it streams.
+    kept_key_bytes: usize,
     params: crate::folding::Params,
     matrix_window: std::sync::Arc<RetainedMatrixWindow>,
 }
@@ -68,6 +70,7 @@ impl PreparedLifecycle {
             structure,
             binding,
             backend,
+            kept_key_bytes: 0,
             params,
             matrix_window: Default::default(),
         })

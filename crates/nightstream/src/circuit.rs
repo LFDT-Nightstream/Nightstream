@@ -105,11 +105,7 @@ impl Circuit {
 
     /// Require the selected profile to meet the caller's positive statistical minimum.
     pub fn prover(&self, engine: Engine, minimum_security_bits: u32) -> Result<Prover, Error> {
-        Prover::new(
-            Arc::clone(&self.compiled),
-            Backend::new_prover(engine)?,
-            minimum_security_bits,
-        )
+        Prover::new(Arc::clone(&self.compiled), Backend::new(engine)?, minimum_security_bits)
     }
 }
 
@@ -121,14 +117,15 @@ pub struct Prover {
 
 impl Prover {
     fn new(compiled: Arc<CompiledCircuit>, backend: Backend, minimum_security_bits: u32) -> Result<Self, Error> {
-        let lifecycle = compiled.lifecycle(backend, minimum_security_bits)?;
+        let mut lifecycle = compiled.lifecycle(backend, minimum_security_bits)?;
+        lifecycle.keep_commitment_key_when_it_fits();
         Ok(Self { compiled, lifecycle })
     }
 
     /// Load proving data without repeating compilation or whole-circuit hashing.
     /// Saved identities are claims; verification uses an independently configured circuit.
     pub fn load(path: impl AsRef<Path>, engine: Engine, minimum_security_bits: u32) -> Result<Self, Error> {
-        let backend = Backend::new_prover(engine)?;
+        let backend = Backend::new(engine)?;
         Self::new(Arc::new(storage::read(path.as_ref())?), backend, minimum_security_bits)
     }
 

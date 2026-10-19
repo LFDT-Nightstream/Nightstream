@@ -2,6 +2,7 @@
 //! consumers request windows from the unchanged relation.
 
 use super::PreparedLifecycle;
+use crate::engine::CPU_MEMORY_LIMIT_BYTES;
 use neo_ccs::GeometricRowRun;
 use neo_math::{D, F};
 use neo_reductions::superneo_eval::{MatrixRowSink, MatrixRows, MatrixShape, RetainedMatrixWindow};
@@ -68,6 +69,26 @@ impl PreparedLifecycle {
         PackageRows(&self.package, &self.matrix_window)
     }
 
+    /// A prover commits at every step, so a Metal prover keeps the commitment
+    /// key on the device when the key fits in the headroom that its ceiling
+    /// has above the CPU engines' ceiling. Rows then keep at least the working
+    /// space that the CPU ceiling gives them. A wider circuit streams key rows.
+    pub(crate) fn keep_commitment_key_when_it_fits(&mut self) {
+        let headroom = self
+            .backend
+            .memory_limit_bytes()
+            .saturating_sub(CPU_MEMORY_LIMIT_BYTES);
+        let columns = self.structure.m.div_ceil(D);
+        if let Some(key) = self
+            .backend
+            .commitment_key_bytes(columns)
+            .filter(|&key| key <= headroom)
+        {
+            self.backend.keep_commitment_key();
+            self.kept_key_bytes = key;
+        }
+    }
+
     /// Reserve the selected profile's packed witness copies, carried table,
     /// largest assignment-fold overlap, and a prover's kept commitment key
     /// before giving rows working space. This accounts for engine payload, not
@@ -85,11 +106,8 @@ impl PreparedLifecycle {
         let values = (u16::MAX as u128 + 1) * size_of::<neo_math::K>() as u128;
         let assignments = (sources + 1) * (codes + values);
         let matrix_projection = rows * size_of::<neo_math::K>() as u128;
-        let key = self.backend.kept_commitment_key_bytes(blocks as usize) as u128;
-        let reserved = masks + common + assignments.max(matrix_projection) + key;
-        // The owner requested 16 GB. The existing Metal buffer policy uses
-        // the same decimal-byte ceiling; RSS is still checked separately.
-        let remaining = 16_000_000_000u128
+        let reserved = masks + common + assignments.max(matrix_projection) + self.kept_key_bytes as u128;
+        let remaining = (self.backend.memory_limit_bytes() as u128)
             .checked_sub(reserved)
             .ok_or(PackageError::Invalid("selected row workspace exceeds memory allowance"))?;
         usize::try_from(remaining).map_err(|_| PackageError::Invalid("selected row workspace exceeds address space"))

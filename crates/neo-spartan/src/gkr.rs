@@ -133,28 +133,33 @@ fn parent(file: &std::fs::File, level: &Spilled) -> Result<Tree, Error> {
     let half = level.nodes / 2;
     let factors = level.parts - 1;
     let (mut p, mut q) = (vec![Ext::ZERO; half], vec![Ext::ZERO; half]);
+    // Both children's entries of every part.
+    let mut children = vec![[Vec::new(), Vec::new()]; level.parts];
     for y0 in (0..half).step_by(CHUNK) {
         let y1 = (y0 + CHUNK).min(half);
-        let read = |part: usize, child: usize| -> Result<Vec<Ext>, Error> {
-            let mut values = vec![Ext::ZERO; y1 - y0];
-            let offset = level.offset + 3 * (level.nodes * part + child * half + y0);
-            scratch::read(file, offset, ext_words_mut(&mut values)).map_err(scratch_error)?;
-            Ok(values)
-        };
-        let [low, high] = [0, 1].map(|child| {
-            (0..level.parts)
-                .map(|part| read(part, child))
-                .collect::<Result<Vec<_>, Error>>()
-        });
-        let (low, high) = (low?, high?);
+        children
+            .par_iter_mut()
+            .enumerate()
+            .try_for_each(|(part, pair)| {
+                pair.par_iter_mut()
+                    .enumerate()
+                    .try_for_each(|(child, values)| {
+                        values.resize(y1 - y0, Ext::ZERO);
+                        read_part(file, level, part, child * half + y0, values)
+                    })
+            })?;
         p[y0..y1]
             .par_iter_mut()
             .zip(&mut q[y0..y1])
             .enumerate()
             .for_each(|(i, (p, q))| {
-                let p0: Ext = low[..factors].iter().map(|factor| factor[i]).product();
-                let p1: Ext = high[..factors].iter().map(|factor| factor[i]).product();
-                let (q0, q1) = (low[factors][i], high[factors][i]);
+                let [p0, p1] = [0, 1].map(|c| {
+                    children[..factors]
+                        .iter()
+                        .map(|part| part[c][i])
+                        .product::<Ext>()
+                });
+                let (q0, q1) = (children[factors][0][i], children[factors][1][i]);
                 *p = p0 * q1 + p1 * q0;
                 *q = q0 * q1;
             });
@@ -184,6 +189,40 @@ fn restore(file: &std::fs::File, spilled: &Spilled) -> Result<Tree, Error> {
 /// Pairs of a streamed first round read at once; it bounds only the buffers.
 const CHUNK: usize = scratch::BLOCK_WORDS / 4;
 
+/// Read entries `from..from + values.len()` of part `part` of `level`.
+fn read_part(file: &std::fs::File, level: &Spilled, part: usize, from: usize, values: &mut [Ext]) -> Result<(), Error> {
+    let offset = level.offset + 3 * (level.nodes * part + from);
+    scratch::read(file, offset, ext_words_mut(values)).map_err(scratch_error)
+}
+
+/// Fill `buffers` (one per tree and part, both children's entries side by
+/// side) with pairs `m0..m1` of `spilled`, every part in parallel.
+fn read_pairs(
+    file: &std::fs::File,
+    spilled: &[&Spilled],
+    m0: usize,
+    m1: usize,
+    buffers: &mut [Tree],
+) -> Result<(), Error> {
+    let count = m1 - m0;
+    buffers
+        .par_iter_mut()
+        .zip(spilled)
+        .try_for_each(|(tree, level)| {
+            let half = level.nodes / 2;
+            let parts: Vec<&mut Vec<Ext>> = tree.parts_mut().collect();
+            parts
+                .into_par_iter()
+                .enumerate()
+                .try_for_each(|(part, values)| {
+                    values.resize(4 * count, Ext::ZERO);
+                    let (low, high) = values.split_at_mut(2 * count);
+                    read_part(file, level, part, 2 * m0, low)?;
+                    read_part(file, level, part, half + 2 * m0, high)
+                })
+        })
+}
+
 /// Round 1 of a layer whose tables are in the scratch file: the message from
 /// one pass, then the tables folded at the round's challenge from a second,
 /// so the layer is in memory only at half its size.
@@ -196,36 +235,20 @@ fn first_round(
     degree: usize,
     challenger: &mut Challenger,
 ) -> Result<(Vec<Ext>, Ext, Vec<Tree>), Error> {
-    let nodes = spilled[0].nodes;
-    let (half, quarter) = (nodes / 2, nodes / 4);
-    // Pairs `m0..m1` of every tree: both children's entries of every part.
-    let chunk = |m0: usize, m1: usize| -> Result<Vec<Tree>, Error> {
-        spilled
-            .iter()
-            .map(|level| {
-                let mut parts = (0..level.parts)
-                    .map(|part| {
-                        let mut values = vec![Ext::ZERO; 4 * (m1 - m0)];
-                        let (low, high) = values.split_at_mut(2 * (m1 - m0));
-                        for (child, out) in [low, high].into_iter().enumerate() {
-                            let offset = level.offset + 3 * (level.nodes * part + child * half + 2 * m0);
-                            scratch::read(file, offset, ext_words_mut(out)).map_err(scratch_error)?;
-                        }
-                        Ok(values)
-                    })
-                    .collect::<Result<Vec<_>, Error>>()?;
-                let denominator = parts.pop().expect("a tree has a denominator");
-                Ok(Tree {
-                    factors: parts,
-                    denominator,
-                })
-            })
-            .collect()
-    };
+    let half = spilled[0].nodes / 2;
+    let quarter = half / 2;
+    let mut buffers: Vec<Tree> = spilled
+        .iter()
+        .map(|level| Tree {
+            factors: vec![Vec::new(); level.parts - 1],
+            denominator: Vec::new(),
+        })
+        .collect();
     let mut message = vec![Ext::ZERO; degree];
     for m0 in (0..quarter).step_by(CHUNK) {
         let m1 = (m0 + CHUNK).min(quarter);
-        let part = host_message(&chunk(m0, m1)?, &eq[2 * m0..2 * m1], weights, mu, degree);
+        read_pairs(file, spilled, m0, m1, &mut buffers)?;
+        let part = host_message(&buffers, &eq[2 * m0..2 * m1], weights, mu, degree);
         for (sum, value) in message.iter_mut().zip(part) {
             *sum += value;
         }
@@ -240,12 +263,17 @@ fn first_round(
         .collect();
     for m0 in (0..quarter).step_by(CHUNK) {
         let m1 = (m0 + CHUNK).min(quarter);
-        for (tree, out) in chunk(m0, m1)?.iter_mut().zip(&mut folded) {
-            for (table, target) in tree.parts_mut().zip(out.parts_mut()) {
-                fold_low(table, r);
-                let count = m1 - m0;
-                target[m0..m1].copy_from_slice(&table[..count]);
-                target[quarter + m0..quarter + m1].copy_from_slice(&table[count..]);
+        read_pairs(file, spilled, m0, m1, &mut buffers)?;
+        for (tree, out) in buffers.iter().zip(&mut folded) {
+            for (values, target) in tree.parts().zip(out.parts_mut()) {
+                // `fold_low` of each child's entries, into place.
+                let (low, high) = values.split_at(2 * (m1 - m0));
+                for (from, at) in [(low, m0), (high, quarter + m0)] {
+                    target[at..at + m1 - m0]
+                        .par_iter_mut()
+                        .zip(from.par_chunks_exact(2))
+                        .for_each(|(value, pair)| *value = pair[0] + r * (pair[1] - pair[0]));
+                }
             }
         }
     }

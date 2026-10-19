@@ -7,7 +7,7 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 /-!
 Concrete CCS residual tables for the paper-level joint `Pi_CCS` model.
 
-Protocol: SuperNeo `Pi_CCS` (Section 7.3 / Appendix D.4).
+Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
 Phase: construction of the uncompressed CCS block of `F(X, C)`.
 Constraint family: one fresh-source CCS zero-set obligation per Boolean row.
 
@@ -36,13 +36,13 @@ joint polynomial without changing zero is a separate, still-open refinement.
 |---|---|---|---|
 | imported `BooleanVertex` / `BooleanTable.tabulate` | `x in {0,1}^log(m)` | shared recursive low/high order | no CCS-local permutation |
 | imported `PaperLinearAlgebra.matrixVectorAt` | `M_j`, `(M_j z)(x)` | shared finite dot product over assignment columns | no evaluator supplied |
-| `ConstraintPolynomial` / `evaluatePolynomial` | sparse `f` in Definition 11 | finite sum of explicit monomials | arity is typed; declared degree metadata is proved sound |
+| `ConstraintPolynomial` / `evaluatePolynomial` | sparse `f` in v1.2 Definition 19 | finite sum of explicit monomials | arity is typed; declared degree metadata is proved sound |
 | `evaluatePolynomial_eq_sumMap` | sparse term traversal | left fold equals the shared finite sum | exact under explicit addition laws |
 | `ConstraintPolynomial.canonicalEqualityGatedDegreeBound` | verifier SumCheck ceiling for `eq * f` | maximum `totalDegree + 1` derived from explicit terms | independent of declared degree metadata |
 | `ConstraintPolynomial.term_totalDegree_succ_le_canonicalEqualityGatedDegreeBound` | one explicit term | its equality-gated degree fits the syntax-derived ceiling | no metadata authority |
 | `residualAt` | `f((M_1z)(x), ..., (M_tz)(x))` | one CCS zero-set residual | exact table leaf |
 | `residualTable` | one CCS alpha table | low branch then high branch | leaves equal canonical residual enumeration |
-| `residualTable_allEntriesZero_iff_constraintSatisfied` | Item 1 of Lemma 7 for one fresh source | all Boolean residuals vanish | unconditional model-level equivalence |
+| `residualTable_allEntriesZero_iff_constraintSatisfied` | Item 1 of Lemma 9 for one fresh source | all Boolean residuals vanish | unconditional model-level equivalence |
 | `residualPolynomial_coefficientZero_iff_constraintSatisfied` | alpha-coefficient form of the same item | canonical interpolation polynomial is zero | requires only interpolation zero laws |
 | `allResidualTablesZero_iff_allConstraintsSatisfied` | all `K` fresh CCS sources | pointwise family truth | no caller-selected iff |
 -/
@@ -72,7 +72,8 @@ def totalDegree
 
 end Monomial
 
-/-- Definition 11's finite sparse polynomial `f in F^{<u}[X_1,...,X_t]`.
+/-- SuperNeo v1.2 Definition 19's finite sparse polynomial
+`f in F^{<u}[X_1,...,X_t]`.
 The degree condition is attached to explicit monomial data; there is no
 function-valued polynomial evaluator or caller-declared degree oracle. -/
 structure ConstraintPolynomial (Field : Type uField) (matrixCount : Nat) where
@@ -174,7 +175,7 @@ private theorem foldl_max_le_of_forall_le
       · intro tail tailMember
         exact valuesLe tail (by simp [tailMember])
 
-/-- The syntax-derived equality-gated ceiling never exceeds Definition 11's
+/-- The syntax-derived equality-gated ceiling never exceeds Definition 19's
 declared strict degree bound. This direction uses the declared bound only as a
 paper-side proof about explicit monomials; verifier acceptance still computes
 its ceiling from the terms themselves. -/
@@ -192,7 +193,7 @@ theorem canonicalEqualityGatedDegreeBound_le_degreeBound
 
 end ConstraintPolynomial
 
-/-- Paper-level Definition 11 data at the dimensions owned by `Shape`.
+/-- Paper-level Definition 19 data at the dimensions owned by `Shape`.
 The common structure is shared by every fresh source in one batch. -/
 structure Structure
     (Field : Type uField)
@@ -224,7 +225,7 @@ def evaluateMonomial
         (pow ops (point index) (monomial.exponents index)))
     monomial.coefficient
 
-/-- Evaluate Definition 11's explicit sparse constraint polynomial. -/
+/-- Evaluate Definition 19's explicit sparse constraint polynomial. -/
 def evaluatePolynomial
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -295,7 +296,7 @@ def residualAt
   evaluatePolynomial ops system.constraintPolynomial
     (matrixImagesAt ops system assignment vertex)
 
-/-- Independent CCS zero-set obligation from Definition 12 / Lemma 7 Item 1.
+/-- Independent CCS zero-set obligation from Definition 20 / Lemma 9 Item 1.
 It is defined directly over explicit matrices, assignment, and polynomial,
 before any Boolean table or alpha interpolation is constructed. -/
 def ConstraintSatisfied

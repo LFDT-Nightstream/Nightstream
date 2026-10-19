@@ -4,7 +4,7 @@ import NightstreamFPrime.Export.Stage1.PiDECNonzero
 import NightstreamFPrime.Export.Stage1.PiRLCParity
 
 /-!
-Owns the complete deterministic PiDEC v1.1 Lean parity artifact. The input
+Owns the complete deterministic PiDEC v1.2 Lean parity artifact. The input
 tuple preserves the four physical PiDEC caller-input segments. The result
 contains every verifier-computed digit, range result, recomposition family,
 child claim, the unchanged transcript state, and the transition-ready output

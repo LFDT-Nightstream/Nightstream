@@ -5,7 +5,7 @@ import NightstreamFPrime.Lifecycle.ProductionKey
 import NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity
 
 /-!
-Owns a deterministic nonzero SuperNeo v1.1 verifier-result fixture.
+Owns a deterministic nonzero SuperNeo v1.2 verifier-result fixture.
 Its source openings and matrix evaluations are synthetic; it does not
 establish valid-input phase conformance. Lean computes every verifier coin
 from the public statement and the causal round messages.

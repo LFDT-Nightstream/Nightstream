@@ -1,4 +1,4 @@
-//! Independent SuperNeo v1_1 Section 5 opening arithmetic.
+//! Independent SuperNeo v1_2 Section 5 opening arithmetic.
 //! The base field comes from the independent row checker. No production
 //! extension, bar transform, ring product, or MLE evaluator is used.
 

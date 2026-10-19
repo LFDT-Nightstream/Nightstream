@@ -36,7 +36,7 @@ private theorem phases
     (target : Env) (rows : R1CS.RowsHold target (Spartan.remappedRows relation)) :
     NightstreamFPrime.Layout.Pilot.PhysicalHolds PilotProduction.interface
       PilotProduction.witnessOffset (Spartan.pullback target) ∧
-    NightstreamFPrime.Layout.PiCCS.v1_1.PhysicalHolds relation
+    NightstreamFPrime.Layout.PiCCS.v1_2.PhysicalHolds relation
       (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset (Spartan.pullback target) := by
   have allRows := (Spartan.remappedRows_hold relation target).mp rows
   have throughD := (PilotPiCCSPiRLCPiDECRunningTransition.physicalHolds_iff relation _).mp allRows

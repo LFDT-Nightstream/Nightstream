@@ -23,8 +23,8 @@ pub(super) const BOUND: u32 = 3672;
 const BITS: f64 = 100.0;
 
 pub(super) fn transcript(extra: u64) -> Poseidon2Transcript {
-    let mut transcript = Poseidon2Transcript::new_v1_1();
-    transcript.absorb_v1_1(&[F::from_u64(9), F::from_u64(extra)]);
+    let mut transcript = Poseidon2Transcript::new_v1_2();
+    transcript.absorb_v1_2(&[F::from_u64(9), F::from_u64(extra)]);
     transcript
 }
 

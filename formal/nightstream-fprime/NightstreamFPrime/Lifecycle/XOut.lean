@@ -1,12 +1,13 @@
 import Mathlib.Data.List.GetD
 import NightstreamFPrime.Lifecycle.PaperAlgebra
+import NightstreamFPrime.Spec.FlatMap
 import NightstreamFPrime.Spec.Poseidon2
 import NightstreamFPrime.Spec.Folding.Nifs
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix.UniformSignedDigits
 
 /-!
 Owns the Stage 1 public-state binding: the Construction-2 hash preimage
-`(vk, i, z0, zi, U, pc)` as field words, the state hash
+`(vk, i, z0, zi, U)` as field words, the state hash
 `XOut = Poseidon2(preimage)`, the fixed public-instance encoding of a digest,
 and the paper default running instance. Every function is computable (Rust
 parity surface, spec §11).
@@ -20,6 +21,11 @@ fixes `pc = 1`. The children's public inputs are the verifier-computed split of
 the parent (SuperNeo Π_DEC verifier step 2), so the packed parent determines
 them on every canonical state (`StateEncoding.serializePreimage_injective`).
 The committed state columns are exactly these words.
+
+The sponge `Poseidon2.hash` does not absorb its input length, so two word
+lists that differ only by trailing zeros collide. Injectivity therefore holds
+only on preimages of the fixed production width
+(`PilotProduction.FixedPreimage`).
 -/
 
 namespace NightstreamFPrime.Lifecycle
@@ -66,8 +72,9 @@ def stateDomainChunk : List F :=
 
 def natWord (n : Nat) : F := Poseidon2.ofNat n
 
-/-- A length prefix makes one variable-length transcript block
-self-delimiting. The state layouts have fixed widths and use none. -/
+/-- A length prefix makes one variable-length block self-delimiting. The
+proof-envelope size count frames each fresh claim part with it; the state
+layouts and the PiCCS transcript use none. -/
 def block (xs : List F) : List F := natWord xs.length :: xs
 
 @[simp] theorem block_length (xs : List F) :
@@ -268,6 +275,78 @@ theorem stateDomainChunk_length : stateDomainChunk.length = 12 := by
       (productionShape.matrixCount + 1) * productionShape.coefficientCount * 2 := by
   simp [serializeEvaluations, Nat.add_mul, Nat.mul_assoc, Nat.add_comm]
 
+/-! The serializers are injective at their fixed widths. -/
+
+theorem block_injective : Function.Injective block :=
+  fun _ _ same => (List.cons.inj same).2
+
+theorem serializeK_injective : Function.Injective serializeK := by
+  intro left right same
+  cases left
+  cases right
+  simp only [serializeK, List.cons.injEq, and_true] at same
+  obtain ⟨rfl, rfl⟩ := same
+  rfl
+
+theorem serializeKs_injective {left right : List K}
+    (same : left.flatMap serializeK = right.flatMap serializeK) : left = right := by
+  induction left generalizing right with
+  | nil =>
+      cases right with
+      | nil => rfl
+      | cons _ _ => simp [serializeK] at same
+  | cons value values inductionHypothesis =>
+      cases right with
+      | nil => simp [serializeK] at same
+      | cons other others =>
+          simp only [List.flatMap_cons] at same
+          obtain ⟨headEqual, tailEqual⟩ := List.append_inj same rfl
+          rw [serializeK_injective headEqual, inductionHypothesis tailEqual]
+
+theorem serializeRingF_injective : Function.Injective serializeRingF := by
+  intro left right same
+  funext coefficient
+  exact List.map_inj_left.mp same coefficient (List.mem_finRange coefficient)
+
+theorem serializeCommitment_injective : Function.Injective serializeCommitment := by
+  intro left right same
+  funext row
+  exact serializeRingF_injective (flatMap_eq_of_lengths _ _ _ (fun _ _ => by simp) same row
+    (List.mem_finRange row))
+
+theorem serializePublicInput_injective :
+    Function.Injective
+      (serializePublicInput (logicalWidth := logicalWidth) (publicFits := publicFits)) := by
+  intro left right same
+  funext column
+  exact List.map_inj_left.mp same column (List.mem_finRange column)
+
+theorem serializeEvaluations_injective : Function.Injective serializeEvaluations := by
+  intro left right same
+  obtain ⟨padWords, matrixWords⟩ := List.append_inj same (by simp)
+  have pad : left.pad = right.pad := by
+    funext coefficient
+    exact serializeK_injective (flatMap_eq_of_lengths _
+      (fun coefficient => serializeK (left.pad coefficient))
+      (fun coefficient => serializeK (right.pad coefficient))
+      (fun _ _ => rfl) padWords coefficient (List.mem_finRange _))
+  have matrix : left.matrix = right.matrix := by
+    funext matrix coefficient
+    have matrices := flatMap_eq_of_lengths _
+      (fun matrix => (List.finRange productionShape.coefficientCount).flatMap
+        fun coefficient => serializeK (left.matrix matrix coefficient))
+      (fun matrix => (List.finRange productionShape.coefficientCount).flatMap
+        fun coefficient => serializeK (right.matrix matrix coefficient))
+      (fun _ _ => by simp) matrixWords matrix (List.mem_finRange _)
+    exact serializeK_injective (flatMap_eq_of_lengths _
+      (fun coefficient => serializeK (left.matrix matrix coefficient))
+      (fun coefficient => serializeK (right.matrix matrix coefficient))
+      (fun _ _ => rfl) matrices coefficient (List.mem_finRange _))
+  cases left
+  cases right
+  simp only at pad matrix
+  rw [pad, matrix]
+
 theorem serializeCommitments_length
     (value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     (serializeCommitments value).length = 19008 := by
@@ -376,7 +455,7 @@ theorem finRange_map_getD
       encode position := by
   rw [List.getD_eq_get _ _ ⟨position.val, by simp⟩]
   simp only [List.get_eq_getElem, List.getElem_map,
-    List.getElem_finRange, Fin.eta]
+    List.getElem_finRange]
   apply congrArg encode
   exact Fin.ext rfl
 
@@ -593,13 +672,13 @@ private theorem reconstructBits_eq_mod (value : Nat) :
         Nat.mod_pow_succ]
       simp [digestBitNat]
 
-private theorem ofNat_add (left right : Nat) :
+theorem ofNat_add (left right : Nat) :
     Poseidon2.ofNat left + Poseidon2.ofNat right =
       Poseidon2.ofNat (left + right) := by
   apply Fin.eq_of_val_eq
   simp [Poseidon2.ofNat, Fin.val_add, Nat.add_mod]
 
-private theorem ofNat_mul (left right : Nat) :
+theorem ofNat_mul (left right : Nat) :
     Poseidon2.ofNat left * Poseidon2.ofNat right =
       Poseidon2.ofNat (left * right) := by
   apply Fin.eq_of_val_eq

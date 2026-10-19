@@ -12,7 +12,7 @@ namespace NightstreamFPrime.Export.Stage1.PiRLCCompactRecipeScope
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open PiRLCCombinationTemplates
 
 theorem combination_outputRecipe (firstSource : Bool) (lane : Fin ringDegree) :
@@ -31,7 +31,7 @@ theorem combination_outputRecipe (firstSource : Bool) (lane : Fin ringDegree) :
       apply Expr.VarsBelow.sub
       · change challengeInputStart + current.val < outputInput
         have currentBound : current.val < 54 := by
-          simpa [ringDegree] using current.isLt
+          simp [ringDegree]
         norm_num [challengeInputStart, outputInput]
         omega
       · trivial
@@ -39,7 +39,7 @@ theorem combination_outputRecipe (firstSource : Bool) (lane : Fin ringDegree) :
       unfold PiRLCCombinationTemplates.value
       change valueInputStart + current.val < outputInput
       have currentBound : current.val < 54 := by
-        simpa [ringDegree] using current.isLt
+        simp [ringDegree]
       norm_num [valueInputStart, outputInput]
       omega
 

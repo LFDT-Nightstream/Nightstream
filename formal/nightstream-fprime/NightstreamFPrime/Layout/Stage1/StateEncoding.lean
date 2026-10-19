@@ -295,18 +295,6 @@ private theorem ofNat_val (value : F) : Poseidon2.ofNat value.val = value := by
   apply Fin.ext
   simp [Poseidon2.ofNat, Nat.mod_eq_of_lt value.isLt]
 
-private theorem ofNat_add (left right : Nat) :
-    Poseidon2.ofNat left + Poseidon2.ofNat right =
-      Poseidon2.ofNat (left + right) := by
-  apply Fin.ext
-  simp [Poseidon2.ofNat, Fin.val_add, Nat.add_mod]
-
-private theorem ofNat_mul (left right : Nat) :
-    Poseidon2.ofNat left * Poseidon2.ofNat right =
-      Poseidon2.ofNat (left * right) := by
-  apply Fin.ext
-  simp [Poseidon2.ofNat, Fin.val_mul, Nat.mul_mod]
-
 /-- A coordinate of centered magnitude below `2^16`, shifted by `2^16`, is a
 natural number below `2^17`. -/
 private theorem shifted_val_lt {value : F}
@@ -420,7 +408,7 @@ theorem packWord_unpackWord (word : F) :
   exact add_right_cancel shifted
 
 private theorem radix_digits {a b c : Nat}
-    (aBound : a < 131072) (bBound : b < 131072) (cBound : c < 131072) :
+    (aBound : a < 131072) (bBound : b < 131072) :
     (a + 131072 * b + 17179869184 * c) % 2 ^ 17 = a ∧
       (a + 131072 * b + 17179869184 * c) / 2 ^ 17 % 2 ^ 17 = b ∧
       (a + 131072 * b + 17179869184 * c) / 2 ^ 34 = c := by
@@ -443,7 +431,7 @@ theorem unpackWord_packWord {low middle high : F}
     rw [← packWord_shift, packWord_val lowShift middleShift highShift]
   have lane (lane : F) : Poseidon2.ofNat (lane + packOffset).val - packOffset = lane := by
     rw [ofNat_val, add_sub_cancel_right]
-  rcases radix_digits lowShift middleShift highShift with ⟨lowDigit, middleDigit, highDigit⟩
+  rcases radix_digits lowShift middleShift with ⟨lowDigit, middleDigit, highDigit⟩
   refine ⟨?_, ?_, ?_⟩
   · simp only [unpackWord]
     rw [value, lowDigit, lane]
@@ -537,20 +525,12 @@ theorem serializePreimage_injective
   rcases List.append_inj afterDomain
       (by simp only [serializeRunning_length]) with
     ⟨runningEqual, tailEqual⟩
-  unfold serializeRunning at runningEqual
-  rcases List.append_inj runningEqual
-      (by simp only [serializeRunningFields_length]) with
-    ⟨fieldsEqual, parentEqual⟩
-  rcases serializeRunningFields_injective fieldsEqual with
-    ⟨pointEqual, commitmentsEqual, evaluationsEqual⟩
   rcases serializeTail_injective leftFixed rightFixed tailEqual with
     ⟨keyEqual, iterationWord, z0Equal, currentEqual⟩
   exact preimage_ext keyEqual
     (natWord_injective_below_modulus leftIteration rightIteration iterationWord)
     z0Equal currentEqual
-    (running_ext pointEqual commitmentsEqual
-      (serializeParentPublic_injective leftCanonical rightCanonical parentEqual)
-      evaluationsEqual)
+    (serializeRunning_injective leftCanonical rightCanonical runningEqual)
     (by rw [leftPc, rightPc])
 
 /-- No canonical preimage is another canonical preimage followed by a
@@ -641,34 +621,8 @@ the input length. The proof follows the round structure symbolically. -/
 theorem stateHash_length
     (preimage : HashPreimage
       (logicalWidth := logicalWidth) (publicFits := publicFits)) :
-    (stateHash preimage).length = 4 := by
-  have roundsLength (roundStep : Nat → Poseidon2.State → Poseidon2.State)
-      (stepLength : ∀ round state, (roundStep round state).length = Poseidon2.width)
-      (rounds : List Nat) (state : Poseidon2.State)
-      (stateLength : state.length = Poseidon2.width) :
-      (rounds.foldl (fun current round => roundStep round current) state).length =
-        Poseidon2.width := by
-    induction rounds generalizing state with
-    | nil => exact stateLength
-    | cons round rest inductionHypothesis =>
-        exact inductionHypothesis _ (stepLength round state)
-  have permuteLength (state : Poseidon2.State) :
-      (Poseidon2.permute state).length = Poseidon2.width := by
-    unfold Poseidon2.permute Poseidon2.rounds
-    apply roundsLength
-    · intro round current
-      simp [Poseidon2.fullRound, Poseidon2.externalLayer]
-    · apply roundsLength
-      · intro round current
-        simp [Poseidon2.partialRound, Poseidon2.internalLayer]
-      · apply roundsLength
-        · intro round current
-          simp [Poseidon2.fullRound, Poseidon2.externalLayer]
-        · simp [Poseidon2.externalLayer]
-  unfold stateHash Poseidon2.hash
-  dsimp only
-  rw [List.length_take, permuteLength]
-  norm_num [Poseidon2.digestLen, Poseidon2.width]
+    (stateHash preimage).length = 4 :=
+  Poseidon2.hash_length _
 
 /-- A decoded predecessor below the modulus cannot wrap to a positive,
 canonical terminal iteration with the same field word. -/

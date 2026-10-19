@@ -45,7 +45,7 @@ theorem preimage_eq_of_words
     intro word member
     let index : Fin PilotProduction.stateHashWords := ⟨word.index, by
       rw [PilotProduction.stateHashWords_eq]
-      exact PiCCS.v1_1.StateBinding.fixedWord_index_lt word member⟩
+      exact PiCCS.v1_2.StateBinding.fixedWord_index_lt word member⟩
     exact (matching index).trans (encodedCanonical word member)
   have runningEq : StateDecoder.running logicalWidth publicFits words =
       value.running functionIndex := by

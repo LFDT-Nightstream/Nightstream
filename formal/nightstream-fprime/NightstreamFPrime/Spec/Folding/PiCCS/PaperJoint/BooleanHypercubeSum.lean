@@ -7,7 +7,7 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 /-!
 Equality-weighted hypercube expansion of the canonical Boolean-table MLE.
 
-Protocol: SuperNeo `Pi_CCS` (Section 7.3 / Appendix D.4).
+Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
 Phase: Boolean-table evaluation before alpha/gamma compression.
 Constraint family: semantic equality-weight expansion; this file emits no
 constraints.

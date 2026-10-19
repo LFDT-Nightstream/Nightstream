@@ -15,7 +15,7 @@ namespace NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram
 open NightstreamFPrime.Export
 open NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Layout
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
@@ -57,7 +57,7 @@ def challengeSlotStart : Nat := 0
 /-- Each source owns exactly 54 checked coefficient words. -/
 def challengeSourceStride : Nat := 54
 
-def prefixGeometry {program : Lifecycle.Stage1.Application.Program}
+theorem prefixGeometry {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
     PiRLCRetainedGeometry.Geometry program logicalWidth :=

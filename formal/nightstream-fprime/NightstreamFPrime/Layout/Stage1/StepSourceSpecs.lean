@@ -1,7 +1,7 @@
 import NightstreamFPrime.Layout.Stage1.StateEncodingReadback
 import NightstreamFPrime.Layout.Stage1.RunningTransitionInputs
 import NightstreamFPrime.Layout.Stage1.NextPreimageInputs
-import NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1
+import NightstreamFPrime.Lifecycle.Stage1.Application
 import NightstreamFPrime.Lifecycle.Relation
 import NightstreamFPrime.Lifecycle.VerifierContext
 
@@ -18,7 +18,7 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 
@@ -62,7 +62,8 @@ theorem specs_of_step
     (output : Output Digest AppState
       (Running (logicalWidth := logicalWidth) (publicFits := publicFits)) slotCount)
     (env : Env)
-    (step : StepHoldsFor relation ajtai context.toList Lifecycle.Stage1.Poseidon2HashChainV1.program input output)
+    (program : Lifecycle.Stage1.Application.Program)
+    (step : StepHoldsFor relation ajtai context.toList program input output)
     (priorWellFormed : StateEncoding.WellFormed (priorHashPreimage (setup relation ajtai context.toList) input))
     (nextWellFormed : StateEncoding.WellFormed (nextHashPreimage (setup relation ajtai context.toList) input output))
     (priorWords : ∀ index : Fin PilotProduction.stateHashWords,

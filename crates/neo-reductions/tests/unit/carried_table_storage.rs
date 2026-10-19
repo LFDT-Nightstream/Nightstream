@@ -248,14 +248,14 @@ fn openings_reuse_the_consumed_carrier_buffer() {
         .build()
         .unwrap();
     pool.install(|| {
-        let expected = cache.eval_real_v1_1_openings(&point, &sources).unwrap();
+        let expected = cache.eval_real_v1_2_openings(&point, &sources).unwrap();
         let mut storage = vec![K::ONE; width];
         storage.truncate(1); // Completed in-place SumCheck retains this capacity.
         ALLOCATIONS.set(0);
         REAL_ALLOCATIONS.set(0);
         CARRIER_BYTES.set(width * size_of::<K>());
         let actual = cache
-            .eval_real_v1_1_openings_reusing(&point, &sources, storage)
+            .eval_real_v1_2_openings_reusing(&point, &sources, storage)
             .unwrap();
         CARRIER_BYTES.set(0);
         assert_eq!(actual, expected, "dirty reused storage changed complete openings");

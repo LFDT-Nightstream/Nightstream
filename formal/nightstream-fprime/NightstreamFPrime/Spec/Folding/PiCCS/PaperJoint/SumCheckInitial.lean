@@ -9,7 +9,7 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 /-!
 Finite SumCheck initial-claim binding for paper-level joint `Pi_CCS`.
 
-Protocol: SuperNeo `Pi_CCS` (Section 7.3 / Appendix D.4).
+Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
 Phase: verifier-owned initial claim before the first SumCheck round.
 Constraint family: equality between the shifted target and the explicit
 Boolean-hypercube sum of `Q`.

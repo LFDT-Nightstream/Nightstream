@@ -3,7 +3,7 @@
 //! the PiCCS prior child region; the hash and canonical rows must separately
 //! validate that data.
 
-use super::{PI_CCS_V1_1_ROUND_COUNT, STATE_PREIMAGE_WORDS};
+use super::{PI_CCS_V1_2_ROUND_COUNT, STATE_PREIMAGE_WORDS};
 
 const RUNNING_COUNT: usize = 16;
 const MATRIX_COUNT: usize = 4;
@@ -30,7 +30,7 @@ fn parse(running: &serde_json::Value) -> Running {
         eval_k: serde_json::from_value(fields[3].clone()).expect("running Eval_K"),
         eval_a: serde_json::from_value(fields[4].clone()).expect("running Eval_A"),
     };
-    assert_eq!(running.point.len(), PI_CCS_V1_1_ROUND_COUNT);
+    assert_eq!(running.point.len(), PI_CCS_V1_2_ROUND_COUNT);
     for count in [
         running.commitments.len(),
         running.public.len(),
@@ -74,7 +74,7 @@ pub fn with_running(base: &[u64], running: &serde_json::Value) -> Vec<u64> {
     words.extend(running.eval_a.iter().flatten().flatten().flatten().copied());
     words.extend(running.point.iter().flatten().copied());
     for lanes in parent(&running).chunks_exact(3) {
-        let packed = (lanes[0] as u128 + ((lanes[1] as u128) << 17) + ((lanes[2] as u128) << 34) % MODULUS) % MODULUS;
+        let packed = (lanes[0] as u128 + ((lanes[1] as u128) << 17) + ((lanes[2] as u128) << 34)) % MODULUS;
         words.push(packed as u64);
     }
     words.extend_from_slice(&base[STATE_PREIMAGE_WORDS - TAIL_WORDS..]);
@@ -82,15 +82,7 @@ pub fn with_running(base: &[u64], running: &serde_json::Value) -> Vec<u64> {
     words
 }
 
-/// The PiCCS prior child region: the child public inputs, child-major, then
-/// one sign bit per parent coordinate, one when the parent is negative.
+/// The PiCCS prior child region: the child public inputs, child-major.
 pub fn prior_children(running: &serde_json::Value) -> Vec<u64> {
-    let running = parse(running);
-    let mut words: Vec<u64> = running.public.iter().flatten().copied().collect();
-    words.extend(
-        parent(&running)
-            .into_iter()
-            .map(|value| u64::from(value as u128 > MODULUS / 2)),
-    );
-    words
+    parse(running).public.iter().flatten().copied().collect()
 }

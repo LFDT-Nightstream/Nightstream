@@ -19,13 +19,10 @@ pub(crate) fn prove(
     structure: &Structure,
     rows: &dyn MatrixRows,
     workspace_bytes: usize,
-    fresh: Vec<CcsInstance>,
+    fresh: CcsInstance,
     running: RunningInstance,
 ) -> Result<(RunningInstance, NifsProof), folding::Error> {
-    let (claims, witnesses): (Vec<_>, Vec<_>) = fresh
-        .into_iter()
-        .map(|source| (source.claim, source.witness))
-        .unzip();
+    let CcsInstance { claim, witness } = fresh;
     let c = prove_pi_ccs(
         device,
         transcript,
@@ -33,13 +30,11 @@ pub(crate) fn prove(
         structure,
         rows,
         workspace_bytes,
-        &claims,
-        &witnesses,
+        &claim,
+        &witness,
         &running,
     )?;
-    let sources: Vec<_> = witnesses
-        .iter()
-        .map(|witness| &witness.Z)
+    let sources: Vec<_> = std::iter::once(&witness.Z)
         .chain(running.witnesses.iter())
         .collect();
     // The parent witness stays on the device; only its PiDEC digits return.
@@ -56,7 +51,7 @@ pub(crate) fn prove(
         )?
     };
     drop(sources);
-    drop(witnesses);
+    drop(witness);
     drop(running);
     let (digits, flags) = split
         .map_err(folding::kernels::Error::from)
@@ -93,7 +88,7 @@ pub(crate) fn prove(
     let d = pi_dec::Proof { children };
     let children = pi_dec::verify(params, structure, ajtai_dec_mixer, &parent, &d)?;
     Ok((
-        RunningInstance::new(children, digits, Some(parent)),
+        RunningInstance::new(children, digits),
         NifsProof {
             pi_ccs: c,
             pi_rlc: r,
@@ -113,13 +108,10 @@ pub(crate) fn prove_parent(
     structure: &Structure,
     rows: &dyn MatrixRows,
     workspace_bytes: usize,
-    fresh: Vec<CcsInstance>,
+    fresh: CcsInstance,
     running: RunningInstance,
 ) -> Result<(pi_ccs::Proof, pi_rlc::Output, pi_rlc::Proof), folding::Error> {
-    let (claims, witnesses): (Vec<_>, Vec<_>) = fresh
-        .into_iter()
-        .map(|source| (source.claim, source.witness))
-        .unzip();
+    let CcsInstance { claim, witness } = fresh;
     let c = prove_pi_ccs(
         device,
         transcript,
@@ -127,13 +119,11 @@ pub(crate) fn prove_parent(
         structure,
         rows,
         workspace_bytes,
-        &claims,
-        &witnesses,
+        &claim,
+        &witness,
         &running,
     )?;
-    let sources: Vec<_> = witnesses
-        .iter()
-        .map(|witness| &witness.Z)
+    let sources: Vec<_> = std::iter::once(&witness.Z)
         .chain(running.witnesses.iter())
         .collect();
     let (parent, r) = pi_rlc::prove_refs(transcript, params, structure, ajtai_rlc_mixer, &c.outputs, &sources)?;
@@ -149,16 +139,16 @@ fn prove_pi_ccs(
     structure: &Structure,
     rows: &dyn MatrixRows,
     workspace_bytes: usize,
-    claims: &[CcsClaim],
-    witnesses: &[CcsWitness],
+    claim: &CcsClaim,
+    witness: &CcsWitness,
     running: &RunningInstance,
 ) -> Result<pi_ccs::Proof, folding::Error> {
     let (outputs, sumcheck, _, _) = optimized_prove_with_matrix_rows(
         transcript.inner_mut(),
         params.inner(),
         structure,
-        claims,
-        witnesses,
+        std::slice::from_ref(claim),
+        std::slice::from_ref(witness),
         &running.claims,
         &running.witnesses,
         rows,

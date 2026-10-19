@@ -21,38 +21,39 @@ open NightstreamFPrime.Export.Package
 
 abbrev Index := Fin PiCCSOrdinarySourceSupport.transcriptInvocationCount
 
-def phaseStart : Nat := Spartan.sourceToSpartan PiCCSInputs.phaseOffset
+/-- Spartan column of the first PiCCS transcript permutation. -/
+def transcriptStart : Nat := Spartan.sourceToSpartan PiCCSStarts.statementWitnessStart
 
-theorem phaseStart_eq : phaseStart = 5156948 := by
-  unfold phaseStart
-  rw [PiCCSInputs.phaseOffset_eq]
+theorem transcriptStart_eq : transcriptStart = 5156948 := by
+  unfold transcriptStart
+  rw [PiCCSStarts.statementWitnessStart_eq]
   rfl
 
 theorem sboxColumn_lt_spartanColumnCount (index : Index) (lane : Fin 16) :
-    PermutationOutput.Readout.sboxColumn phaseStart index lane <
+    PermutationOutput.Readout.sboxColumn transcriptStart index lane <
       Spartan.spartanColumnCount := by
-  apply Nat.lt_of_lt_of_le (PermutationOutput.Readout.sboxColumn_lt_end phaseStart index lane)
-  rw [phaseStart_eq, PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq,
+  apply Nat.lt_of_lt_of_le (PermutationOutput.Readout.sboxColumn_lt_end transcriptStart index lane)
+  rw [transcriptStart_eq, PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq,
     Spartan.spartanColumnCount_eq]
   norm_num
 
 def env (source : Env) : Env :=
-  PermutationOutput.Readout.env phaseStart
+  PermutationOutput.Readout.env transcriptStart
     PiCCSOrdinarySourceSupport.transcriptInvocationCount source
 
 def sourceColumn (index : Index) (lane : Fin 16) : Nat :=
-  PiCCSInputs.phaseOffset + index.val * 1096 + 1080 + lane.val
+  PiCCSStarts.statementWitnessStart + index.val * 1096 + 1080 + lane.val
 
 theorem sourceColumn_target (index : Index) (lane : Fin 16) :
     Spartan.sourceToSpartan (sourceColumn index lane) =
-      PermutationOutput.Readout.outputColumn phaseStart index lane := by
+      PermutationOutput.Readout.outputColumn transcriptStart index lane := by
   unfold sourceColumn PermutationOutput.Readout.outputColumn
-    PermutationOutput.Readout.witnessStart phaseStart
-  have combined : PiCCSInputs.phaseOffset + index.val * 1096 + 1080 + lane.val =
-      PiCCSInputs.phaseOffset + (index.val * 1096 + 1080 + lane.val) := by omega
+    PermutationOutput.Readout.witnessStart transcriptStart
+  have combined : PiCCSStarts.statementWitnessStart + index.val * 1096 + 1080 + lane.val =
+      PiCCSStarts.statementWitnessStart + (index.val * 1096 + 1080 + lane.val) := by omega
   rw [combined, Spartan.sourceToSpartan_add_of_piCcsLocal
-    PiCCSInputs.phaseOffset (index.val * 1096 + 1080 + lane.val) (by
-      norm_num [PiCCSInputs.phaseOffset_eq, Spartan.piCcsPhaseOffset])]
+    PiCCSStarts.statementWitnessStart (index.val * 1096 + 1080 + lane.val) (by
+      norm_num [PiCCSStarts.statementWitnessStart_eq, Spartan.piCcsPhaseOffset])]
   omega
 
 /-- Readout preserves every source outside the exact transcript-output family,
@@ -63,13 +64,13 @@ theorem env_source_of_notTranscript (source : Env) (column : Nat)
     env source (Spartan.sourceToSpartan column) =
       source (Spartan.sourceToSpartan column) := by
   apply PermutationOutput.Readout.env_of_decode_none
-  cases found : PermutationOutput.Readout.decode phaseStart
+  cases found : PermutationOutput.Readout.decode transcriptStart
       PiCCSOrdinarySourceSupport.transcriptInvocationCount
       (Spartan.sourceToSpartan column) with
   | none => rfl
   | some selected =>
       rcases selected with ⟨index, lane⟩
-      have address := PermutationOutput.Readout.decode_source phaseStart found
+      have address := PermutationOutput.Readout.decode_source transcriptStart found
       rw [← sourceColumn_target] at address
       have selectedBound : sourceColumn index lane < Spartan.SourceColumnCount :=
         PiCCSOrdinarySourceSupport.source_lt_sourceColumnCount
@@ -93,7 +94,7 @@ def invocation (index : Index) : PermutationInvocation :=
 
 theorem invocation_witnessStart (index : Index) :
     (invocation index).witnessStart =
-      PermutationOutput.Readout.witnessStart phaseStart index := by
+      PermutationOutput.Readout.witnessStart transcriptStart index := by
   have bound : index.val < 183 := by
     simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq] using index.isLt
   let selected : Fin (Data.permutationInvocations ()).length :=
@@ -120,9 +121,9 @@ theorem invocation_witnessStart (index : Index) :
   have same : invocation index = (Data.permutationInvocations ()).get selected :=
     Option.some.inj listEq
   rw [same, PermutationPlan.canonicalInvocation_witnessStart_of_transcript selected bound]
-  exact Spartan.sourceToSpartan_add_of_piCcsLocal PiCCSInputs.phaseOffset
+  exact Spartan.sourceToSpartan_add_of_piCcsLocal PiCCSStarts.statementWitnessStart
     (index.val * 1096) (by
-      norm_num [PiCCSInputs.phaseOffset_eq, Spartan.piCcsPhaseOffset])
+      norm_num [PiCCSStarts.statementWitnessStart_eq, Spartan.piCcsPhaseOffset])
 
 /-- The actual transcript permutation rows force their stored outputs to
 equal the computed readout. Other package rows are not required. -/
@@ -131,16 +132,16 @@ theorem env_eq_of_invocations (source : Env)
       (invocation index) source) :
     env source = source := by
   funext column
-  cases found : PermutationOutput.Readout.decode phaseStart
+  cases found : PermutationOutput.Readout.decode transcriptStart
       PiCCSOrdinarySourceSupport.transcriptInvocationCount column with
   | none => exact PermutationOutput.Readout.env_of_decode_none _ _ _ _ found
   | some selected =>
       rcases selected with ⟨index, lane⟩
-      have address := PermutationOutput.Readout.decode_source phaseStart found
+      have address := PermutationOutput.Readout.decode_source transcriptStart found
       rw [address]
-      change PermutationOutput.Readout.env phaseStart
+      change PermutationOutput.Readout.env transcriptStart
         PiCCSOrdinarySourceSupport.transcriptInvocationCount source
-        (PermutationOutput.Readout.outputColumn phaseStart index lane) = _
+        (PermutationOutput.Readout.outputColumn transcriptStart index lane) = _
       rw [PermutationOutput.Readout.env_outputColumn]
       have output := PermutationOutput.invocation_finalLayer (invocation index) source
         (rows index)

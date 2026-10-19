@@ -22,7 +22,7 @@ pub fn check_proof_mutations(
     proof: &PiCcsProof,
 ) {
     let rejects = |changed: &PiCcsProof, label: &str| {
-        let mut optimized_transcript = Poseidon2Transcript::new_v1_1();
+        let mut optimized_transcript = Poseidon2Transcript::new_v1_2();
         let optimized = optimized_verify_with_trace(
             &mut optimized_transcript,
             params,
@@ -94,7 +94,7 @@ pub fn check_claim_mutations(
                    running: &[CeClaim<Commitment, F, K>],
                    outputs: &[CeClaim<Commitment, F, K>],
                    label: &str| {
-        let mut optimized_transcript = Poseidon2Transcript::new_v1_1();
+        let mut optimized_transcript = Poseidon2Transcript::new_v1_2();
         let optimized = optimized_verify_with_trace(
             &mut optimized_transcript,
             params,
@@ -138,19 +138,9 @@ pub fn check_claim_mutations(
             // Zero running openings remain valid at every common point.
             // The parent pilot hashes that point; its preimage-mutation gate
             // owns rejection of a changed point with the old public digest.
-            for lane in 0..4 {
-                let mut changed = running.to_vec();
-                for claim in &mut changed {
-                    change_digest(&mut claim.fold_digest, lane);
-                }
-                rejects(fresh, &changed, outputs, &format!("shared prior-digest {lane}"));
-            }
             let mut changed = running.to_vec();
             changed[1].r[0] += K::ONE;
             rejects(fresh, &changed, outputs, "one inconsistent prior-point");
-            let mut changed = running.to_vec();
-            change_digest(&mut changed[1].fold_digest, 0);
-            rejects(fresh, &changed, outputs, "one inconsistent prior-digest");
             let mut changed = running.to_vec();
             changed[0].eval_k[D] = K::ONE;
             rejects(fresh, &changed, outputs, "running Eval_K nonzero padding");
@@ -180,7 +170,7 @@ pub fn check_claim_mutations(
             let mut changed = fresh.clone();
             changed.x[0] += F::ONE;
             rejects(&changed, running, outputs, "fresh public input");
-            assert_eq!(checked.get(), 4 + 4 + running.len() * claim_families + 2);
+            assert_eq!(checked.get(), 3 + running.len() * claim_families + 2);
         }
         "output-mutations" => {
             let mutations_per_source = claim_families + 28 + 4;

@@ -38,13 +38,13 @@ The implementation must preserve the obligations in these paper sections.
 
 ### SuperNeo
 
-- `docs/superneo-paper-v1_1/04_preliminaries.md`
-- `docs/superneo-paper-v1_1/05_embeddings_and_evaluation_homomorphism.md`
-- `docs/superneo-paper-v1_1/06_strong_and_weak_interactive_reductions.md`
-- `docs/superneo-paper-v1_1/07_superneo_folding_scheme_for_ccs.md`
-- `docs/superneo-paper-v1_1/08_concrete_parameters.md`
+- `docs/superneo-paper-v1_2/04_preliminaries.md`
+- `docs/superneo-paper-v1_2/05_embeddings_and_evaluation_homomorphism.md`
+- `docs/superneo-paper-v1_2/06_strong_and_weak_interactive_reductions.md`
+- `docs/superneo-paper-v1_2/07_superneo_folding_scheme_for_ccs.md`
+- `docs/superneo-paper-v1_2/08_concrete_parameters.md`
 - Appendix B.1 through B.4 in
-  `docs/superneo-paper-v1_1/11_appendix_B_deferred_theorems_and_proofs.md`
+  `docs/superneo-paper-v1_2/11_appendix_B_deferred_theorems_and_proofs.md`
 
 ### Nebula
 

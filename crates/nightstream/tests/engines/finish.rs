@@ -8,7 +8,7 @@ use std::path::PathBuf;
 
 use super::Fixture;
 use crate::folding::{
-    self, ajtai_dec_mixer, ajtai_rlc_mixer, pi_ccs, pi_rlc, transcript::Transcript, CcsClaim, CeClaim, RunningInstance,
+    self, ajtai_rlc_mixer, pi_ccs, pi_rlc, transcript::Transcript, CcsClaim, CeClaim, RunningInstance,
 };
 use neo_math::{D, F, K};
 use neo_reductions::superneo_eval::CachedMatrixRows;
@@ -49,7 +49,7 @@ fn relation<'k>(
     parent: &CeClaim,
 ) -> Result<neo_spartan::Relation<'k>, neo_spartan::Error> {
     let params = &fixture.params;
-    let bound = 17 * params.T() * (params.b() - 1);
+    let bound = 17 * params.inner().T * (params.b() - 1);
     // `CompressionKey` gives layer 1 one bit more than the compression share.
     let bits = params.compression_security_bits().unwrap() + 1.0;
     neo_spartan::Relation::new(key, parent.m_in / D, parent.r.len(), bound, bits)
@@ -71,12 +71,12 @@ fn finish(
         &fixture.structure,
         &rows,
         fixture.workspace_bytes(&rows),
-        vec![fixture.fresh.clone()],
+        fixture.fresh.clone(),
         fixture.running.clone(),
     )
     .unwrap();
     if let Some(word) = extra {
-        transcript.inner_mut().absorb_v1_1(&[word]);
+        transcript.inner_mut().absorb_v1_2(&[word]);
     }
     let relation = relation(fixture, setup.key(), &parent.claim).unwrap();
     let layer1 = neo_spartan::prove(
@@ -104,8 +104,7 @@ fn accepts(
         &fixture.params,
         &fixture.structure,
         ajtai_rlc_mixer,
-        ajtai_dec_mixer,
-        std::slice::from_ref(fresh),
+        fresh,
         running,
         &proof.pi_ccs,
         &proof.pi_rlc,
@@ -208,7 +207,7 @@ fn metal_parent_equals_cpu() {
     let fixture = Fixture::selected_polynomial();
     let rows = CachedMatrixRows::new(&fixture.cache).unwrap();
     let workspace = fixture.workspace_bytes(&rows);
-    let fresh = || vec![fixture.fresh.clone()];
+    let fresh = || fixture.fresh.clone();
     let mut cpu_transcript = Transcript::session();
     let cpu = folding::prove_parent_with_rows(
         &mut cpu_transcript,
@@ -246,7 +245,7 @@ fn metal_parent_equals_cpu() {
     );
     assert!(metal.2 == cpu.2, "PiRLC proof");
     assert_eq!(
-        metal_transcript.into_inner().squeeze_digest_v1_1(),
-        cpu_transcript.into_inner().squeeze_digest_v1_1()
+        metal_transcript.into_inner().squeeze_digest_v1_2(),
+        cpu_transcript.into_inner().squeeze_digest_v1_2()
     );
 }

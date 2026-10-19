@@ -7,7 +7,7 @@ import NightstreamFPrime.Layout.MatrixProgram.RetainedWork
 Counted retained compilation of the selected 1188 PiDEC commitment rows.
 The source row is generated once. Its exact A/B/C lists feed the two retained
 blocks, with every zero constant, duplicate and entry order preserved.
-SuperNeo v1.1 Section 7.5 and Appendix B.4 own the commitment equation.
+SuperNeo v1.2 Section 7.5 and Appendix B.4 own the commitment equation.
 The existing commitmentBlock_row? theorem connects these direct forms to
 the package source and its projection; no package accessor runs here.
 

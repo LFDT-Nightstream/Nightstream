@@ -63,7 +63,7 @@ private theorem sourceAssignment_privatePhysical
     (sourceEq : source.val = column)
     (privateBound : column <
       PiRLCProductPlan.basePackage.layout.constantColumn)
-    (beforeTranscript : column < PiCCSTranscriptReadout.phaseStart + 1080) :
+    (beforeTranscript : column < PiCCSTranscriptReadout.transcriptStart + 1080) :
     sourceAssignment program base groupValue source =
       RunningTransitionDirectPlan.transitionEnv program base column := by
   have totalBound : column <
@@ -150,8 +150,8 @@ theorem priorInputForm_eval
     _ (Data.priorChain.inputStart + index.val) (by rfl)
     (priorInputPrivate index) (by
       have bound : index.val < 27819 := index.isLt
-      change 0 + index.val < PiCCSTranscriptReadout.phaseStart + 1080
-      rw [PiCCSTranscriptReadout.phaseStart_eq]
+      change 0 + index.val < PiCCSTranscriptReadout.transcriptStart + 1080
+      rw [PiCCSTranscriptReadout.transcriptStart_eq]
       omega)]
   unfold PilotOrdinaryDirectPlan.pilotEnv
   rw [priorInputLift index]
@@ -175,8 +175,8 @@ theorem outputInputForm_eval
     _ (Data.outputChain.inputStart + index.val) (by rfl)
     (outputInputPrivate index) (by
       have bound : index.val < 27819 := index.isLt
-      change 27819 + index.val < PiCCSTranscriptReadout.phaseStart + 1080
-      rw [PiCCSTranscriptReadout.phaseStart_eq]
+      change 27819 + index.val < PiCCSTranscriptReadout.transcriptStart + 1080
+      rw [PiCCSTranscriptReadout.transcriptStart_eq]
       omega)]
   unfold PilotOrdinaryDirectPlan.pilotEnv
   rw [outputInputLift index]
@@ -211,7 +211,7 @@ def canonicalInput (chain : HashChain) (env : Circuit.Env)
   let previous := previousValue output invocation
   if invocation.val < chain.absorbCount then
     fun lane =>
-      if rateLane : lane.val < Spec.Poseidon2.rate then
+      if _rateLane : lane.val < Spec.Poseidon2.rate then
         let offset := invocation.val * Spec.Poseidon2.rate + lane.val
         if offset < chain.inputLength then
           previous lane + env (chain.inputStart + offset)
@@ -295,7 +295,7 @@ theorem priorInputState_eval
         have pilotPresent : offset < PilotData.priorChain.inputLength := by
           simpa [Data.priorChain, Data.liftPilotChain] using present
         rw [if_pos pilotPresent]
-        simp only [SparseLayer.evalState, SparseForm.add_eval]
+        simp only [SparseForm.add_eval]
         rw [show
             (PilotPoseidonPlan.previousOutput
               (PilotPoseidonPlan.priorSchedule program)
@@ -327,7 +327,7 @@ theorem priorInputState_eval
     rw [if_neg pilotFinal]
     by_cases zeroLane : lane.val = 0
     · rw [if_pos zeroLane, if_pos zeroLane]
-      simp only [SparseLayer.evalState, SparseForm.add_eval,
+      simp only [SparseForm.add_eval,
         SparseForm.singleton_eval, one, mul_one]
       rw [show
           (PilotPoseidonPlan.previousOutput
@@ -381,7 +381,7 @@ theorem outputInputState_eval
         have pilotPresent : offset < PilotData.outputChain.inputLength := by
           simpa [Data.outputChain, Data.liftPilotChain] using present
         rw [if_pos pilotPresent]
-        simp only [SparseLayer.evalState, SparseForm.add_eval]
+        simp only [SparseForm.add_eval]
         rw [show
             (PilotPoseidonPlan.previousOutput
               (PilotPoseidonPlan.outputSchedule program)
@@ -413,7 +413,7 @@ theorem outputInputState_eval
     rw [if_neg pilotFinal]
     by_cases zeroLane : lane.val = 0
     · rw [if_pos zeroLane, if_pos zeroLane]
-      simp only [SparseLayer.evalState, SparseForm.add_eval,
+      simp only [SparseForm.add_eval,
         SparseForm.singleton_eval, one, mul_one]
       rw [show
           (PilotPoseidonPlan.previousOutput

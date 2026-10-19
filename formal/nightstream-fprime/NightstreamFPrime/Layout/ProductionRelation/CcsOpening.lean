@@ -4,7 +4,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLinearAlgebra
 
 /-!
 Owns the connection from literal production-plan rows to a fresh SuperNeo
-v1.1 CCS opening. Inputs are row acceptance, a coordinate bound, and the exact
+v1.2 CCS opening. Inputs are row acceptance, a coordinate bound, and the exact
 public projection. The commitment is computed from the same completed
 assignment and verifier-owned key. No semantic representation is assumed.
 -/

@@ -49,24 +49,26 @@ fn permutation_block_matches_p3() {
 #[test]
 fn fold_transcript_matches_neo_transcript() {
     let b = &mut Native;
-    let mut theirs = neo_transcript::Poseidon2Transcript::new_v1_1();
+    let mut theirs = neo_transcript::Poseidon2Transcript::new_v1_2();
     let mut ours = FoldTranscript::new(b);
     for (step, length) in [0usize, 1, 11, 12, 13, 30].into_iter().enumerate() {
         let words: Vec<u64> = (0..length as u64)
             .map(|i| word(70 + step as u64, i) % F::ORDER_U64)
             .collect();
-        theirs.absorb_v1_1(&words.iter().map(|&w| F::from_u64(w)).collect::<Vec<_>>());
+        theirs.absorb_v1_2(&words.iter().map(|&w| F::from_u64(w)).collect::<Vec<_>>());
         ours.absorb_constants(b, &words);
-        for pair in 0..6 {
-            let expected = theirs.read_pair_v1_1(pair).map(|v| v.as_canonical_u64());
-            assert_eq!(
-                ours.read_pair(pair).map(|v| v.as_canonical_u64()),
-                expected,
-                "step {step} pair {pair}"
-            );
-        }
+        let expected: Vec<u64> = theirs
+            .state_prefix_v1_2()
+            .chunks(8)
+            .map(|lane| u64::from_le_bytes(lane.try_into().unwrap()))
+            .collect();
+        assert_eq!(
+            ours.prefix().map(|v| v.as_canonical_u64()).to_vec(),
+            expected,
+            "step {step}"
+        );
         if step % 2 == 1 {
-            let expected = theirs.squeeze_digest_v1_1().map(|v| v.as_canonical_u64());
+            let expected = theirs.squeeze_digest_v1_2().map(|v| v.as_canonical_u64());
             assert_eq!(
                 ours.squeeze_digest(b).map(|v| v.as_canonical_u64()),
                 expected,

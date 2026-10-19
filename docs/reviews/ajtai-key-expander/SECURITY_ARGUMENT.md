@@ -26,9 +26,13 @@ reduction.
 - Lean proves that a binding collision gives a short kernel vector for the
   same key: below `2B` for ordinary binding (`Binding.lean`) and below
   `8TB = 113,246,208` for relaxed binding (`RelaxedBinding.lean`). The
-  hardness bound enters as the hypothesis `msisBound` of
-  `returned_source_bound_of_msis` (`FiatShamirTransfer.lean`). No Lean result
-  proves that hypothesis.
+  random-oracle knowledge theorem computes such a kernel vector from each
+  counted rerun of its binding reduction (`RandomOracleBinding.rerunKernel`),
+  and with the key drawn from uniform chunks inside its game it bounds the
+  binding term by an MSIS solver's success on a uniform matrix
+  (`RandomOracleSetup.knowledge_error_le_setup`, through
+  `Programming.expect_le_programmed`). Hardness of the kernel problem is a
+  premise. No Lean result proves it.
 - Pseudorandomness of the expander does not help. The seed is public, so any
   attacker can calculate `M` (`FOUNDATION_SECURITY_REVIEW.md`).
 

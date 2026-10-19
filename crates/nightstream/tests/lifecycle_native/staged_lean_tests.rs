@@ -1,5 +1,5 @@
 use super::*;
-use crate::lifecycle::tests::{claim, commitment, fields as input_fields, frame, proof as fixture_proof};
+use crate::lifecycle::tests::{claim, commitment, fields as input_fields, proof as fixture_proof};
 
 #[allow(clippy::duplicate_mod)]
 #[path = "golden_ccs_mutations.rs"]
@@ -15,15 +15,8 @@ fn fixture() -> (Value, CcsClaim, Vec<CeClaim>, NifsProof) {
         m_in: 270,
         adv: None,
     };
-    // The native C transcript absorbs the caller digest. Recover it from
-    // the original public input, as load_claims does for staged execution.
-    let prior_digest = std::array::from_fn(|lane| {
-        (0..64).fold(0u64, |word, bit| {
-            let digit = fresh.x[1 + lane * 64 + bit].as_canonical_u64();
-            assert!(digit <= 1);
-            word | (digit << bit)
-        })
-    });
+    // PiCCS decodes the prior digest from the fresh public input; no check
+    // reads the running frames, so they stay zero.
     let running = (0..16)
         .map(|source| {
             claim(
@@ -34,7 +27,7 @@ fn fixture() -> (Value, CcsClaim, Vec<CeClaim>, NifsProof) {
                     input[6][3][source],
                     input[6][4][source]
                 ]),
-                frame(prior_digest),
+                [0; 32],
             )
         })
         .collect();
@@ -116,7 +109,7 @@ fn retained_pi_ccs_mutations_cover_the_current_matrix_families() {
     )
     .unwrap();
     let (accepted, _) = optimized_verify_with_trace(
-        &mut Poseidon2Transcript::new_v1_1(),
+        &mut Poseidon2Transcript::new_v1_2(),
         params.inner(),
         &structure,
         std::slice::from_ref(&fresh),

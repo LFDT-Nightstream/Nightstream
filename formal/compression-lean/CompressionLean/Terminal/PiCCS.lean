@@ -1,10 +1,10 @@
-import NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions
+import NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions
 import NightstreamFPrime.Lifecycle.VerifierContext
 import CompressionLean.Terminal.Rows
 
 /-!
 Owns the PiCCS edge of the terminal package: its rows imply the exact
-SuperNeo v1_1 PiCCS phase and bind both state preimages to the selected
+SuperNeo v1_2 PiCCS phase and bind both state preimages to the selected
 verifier context.
 
 The proofs are F′'s `Export/Stage1/Package` proofs with the terminal package
@@ -37,13 +37,13 @@ theorem piCcsTranscriptSpecs
 theorem piCcsSpecHolds
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
     (env : Env) (holds : (circuitPackage ()).RowsHold env) :
-    NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.SpecHolds relation
+    NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.SpecHolds relation
       (PiCCSInvocations.parentInterface Data.logicalWidth Data.publicFits)
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset
       (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
   let parent := PiCCSInvocations.parentInterface Data.logicalWidth Data.publicFits
   have assumptions :=
-    NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions.production relation parent
+    NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions.production relation parent
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.externalInputsLinear
         Data.logicalWidth Data.publicFits)
@@ -67,18 +67,18 @@ theorem piCcsSpecHolds
     finalIdentity := arithmetic.finalIdentity_parent
     outputBinding := transcripts.outputBinding_parent relation }
 
-/-- The terminal rows imply the exact SuperNeo v1_1 PiCCS phase. -/
+/-- The terminal rows imply the exact SuperNeo v1_2 PiCCS phase. -/
 theorem piCcsPhaseHolds
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
     (template : Proof (ProductionKey.degreeBound relation))
     (env : Env) (holds : (circuitPackage ()).RowsHold env) :
-    NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.PhaseHolds relation ajtai
+    NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.PhaseHolds relation ajtai
       (PiCCSInvocations.parentInterface Data.logicalWidth Data.publicFits)
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset
       (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) template := by
-  apply NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.spec_implies_phaseHolds
+  apply NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.spec_implies_phaseHolds
     relation ajtai
   exact piCcsSpecHolds relation env holds
 
@@ -92,13 +92,13 @@ theorem selectedVerifierContext
     (holds : (circuitPackage ()).RowsHold env) :
     (∀ lane : Fin 4,
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.priorStateWord
-        (NightstreamFPrime.Lifecycle.PiCCS.v1_1.StateBinding.contextWordStart +
+        (NightstreamFPrime.Lifecycle.PiCCS.v1_2.StateBinding.contextWordStart +
           lane.val)).eval
           (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) =
         (VerifierContext.digest authority).getD lane.val 0) ∧
     (∀ lane : Fin 4,
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.outputStateWord
-        (NightstreamFPrime.Lifecycle.PiCCS.v1_1.StateBinding.contextWordStart +
+        (NightstreamFPrime.Lifecycle.PiCCS.v1_2.StateBinding.contextWordStart +
           lane.val)).eval
           (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) =
         (VerifierContext.digest authority).getD lane.val 0) := by
@@ -108,7 +108,7 @@ theorem selectedVerifierContext
     have context := specification.statementBinding.state.priorContext lane
     change
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.priorStateWord
-        (NightstreamFPrime.Lifecycle.PiCCS.v1_1.StateBinding.contextWordStart +
+        (NightstreamFPrime.Lifecycle.PiCCS.v1_2.StateBinding.contextWordStart +
           lane.val)).eval
           (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) =
         (NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContext lane).eval
@@ -123,7 +123,7 @@ theorem selectedVerifierContext
     have context := specification.statementBinding.state.outputContext lane
     change
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.outputStateWord
-        (NightstreamFPrime.Lifecycle.PiCCS.v1_1.StateBinding.contextWordStart +
+        (NightstreamFPrime.Lifecycle.PiCCS.v1_2.StateBinding.contextWordStart +
           lane.val)).eval
           (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) =
         (NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContext lane).eval

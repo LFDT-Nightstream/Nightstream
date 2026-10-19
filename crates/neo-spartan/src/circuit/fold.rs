@@ -1,8 +1,8 @@
-//! The v1.1 fold transcript of `neo_transcript::Poseidon2Transcript` over any
+//! The v1.2 fold transcript of `neo_transcript::Poseidon2Transcript` over any
 //! backend: an additive sponge on the workspace Poseidon2 permutation.
 //!
-//! Owns: `absorb_v1_1`, `read_pair_v1_1`, `squeeze_digest_v1_1` and
-//! `state_prefix_v1_1` as backend operations, and the layer-1 handoff. A test
+//! Owns: `absorb_v1_2`, `squeeze_digest_v1_2` and `state_prefix_v1_2` as
+//! backend operations, and the layer-1 handoff. A test
 //! pins each one to `Poseidon2Transcript`.
 
 use neo_ccs::crypto::poseidon2_goldilocks::{DIGEST_LEN, RATE, WIDTH};
@@ -23,7 +23,7 @@ impl<B: Backend> Clone for FoldTranscript<B> {
 }
 
 impl<B: Backend> FoldTranscript<B> {
-    /// The zero state (`new_v1_1`, `reset_v1_1`).
+    /// The zero state (`new_v1_2`, `reset_v1_2`).
     pub fn new(b: &mut B) -> Self {
         let zero = b.constant(0);
         Self { state: [zero; WIDTH] }
@@ -51,12 +51,6 @@ impl<B: Backend> FoldTranscript<B> {
         self.absorb(b, &words);
     }
 
-    /// Lanes `2·pair` and `2·pair + 1`; the state does not change.
-    pub fn read_pair(&self, pair: usize) -> [B::F; 2] {
-        assert!(pair < RATE / 2, "a read pair lies in the rate lanes");
-        [self.state[2 * pair], self.state[2 * pair + 1]]
-    }
-
     /// The first four lanes, then one permutation.
     pub fn squeeze_digest(&mut self, b: &mut B) -> [B::F; DIGEST_LEN] {
         let digest = self.prefix();
@@ -72,7 +66,7 @@ impl<B: Backend> FoldTranscript<B> {
     /// Name layer 1 in the transcript and return the layer-1 seed
     /// (`hash::seed`).
     pub(crate) fn handoff(mut self, b: &mut B) -> [B::F; DIGEST_LEN] {
-        let chunk = neo_transcript::domain_chunk_v1_1(crate::hash::DOMAIN).map(|word| gl(word).as_canonical_u64());
+        let chunk = neo_transcript::domain_chunk_v1_2(crate::hash::DOMAIN).map(|word| gl(word).as_canonical_u64());
         self.absorb_constants(b, &chunk);
         self.squeeze_digest(b)
     }

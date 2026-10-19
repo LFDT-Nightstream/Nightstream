@@ -13,7 +13,6 @@ use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeField64;
 
 use crate::engines::pi_ccs_joint::{build_joint_dims, TraceEvent};
-use crate::engines::pi_ccs_joint_protocol::TranscriptBinding;
 use crate::engines::pi_ccs_protocol::PiCcsProof;
 use crate::error::PiCcsError;
 
@@ -44,8 +43,8 @@ pub struct PiCcsCanonicalStatement {
     /// Exact sixteen-lane transcript state before the PiCCS public input.
     pub transcript_state: [u64; WIDTH],
     pub transcript_absorbed: usize,
-    /// Every v1_1 transcript absorption in exact execution order. Framed
-    /// blocks include their length word.
+    /// Every v1_2 transcript absorption in exact execution order. No
+    /// absorption has a length word.
     pub transcript_absorptions: Vec<Vec<u64>>,
     /// Shared running-claim point in coordinate order.
     pub prior_point: Vec<PiCcsReceiptK>,
@@ -91,7 +90,7 @@ fn transcript_absorptions(trace: &[TraceEvent]) -> Result<Vec<Vec<u64>>, PiCcsEr
         .collect();
     if absorptions.is_empty() {
         return Err(PiCcsError::ProtocolError(
-            "Pi_CCS receipt trace has no v1_1 absorptions".into(),
+            "Pi_CCS receipt trace has no v1_2 absorptions".into(),
         ));
     }
     Ok(absorptions)
@@ -190,7 +189,6 @@ pub fn verify_and_export_pi_ccs_receipt(
     let transcript_state = transcript.state().map(|value| value.as_canonical_u64());
     let transcript_absorbed = transcript.absorbed();
     let relation_id = (*cache.matrix_digest()).map(|value| value.as_canonical_u64());
-    let binding = TranscriptBinding::digest_only();
     let (accepted, trace) = crate::engines::pi_ccs_joint_protocol::verify_with_trace(
         transcript,
         params,
@@ -199,8 +197,6 @@ pub fn verify_and_export_pi_ccs_receipt(
         running_claims,
         outputs,
         proof,
-        binding,
-        Some(cache.matrix_digest()),
     )?;
     if !accepted {
         return Err(PiCcsError::ProtocolError(

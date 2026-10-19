@@ -18,6 +18,10 @@ with certified row counts, and `AgreesOutside` completeness.
 
 namespace NightstreamFPrime.Circuit
 
+-- The `Circuit` monad is named after its namespace on purpose; renaming the
+-- API used across the gadgets for this naming lint is not worth the churn.
+set_option linter.dupNamespace false
+
 open NightstreamFPrime.Spec
 
 /-- Arithmetic expressions over variables addressed by absolute offset. -/
@@ -56,10 +60,10 @@ instance : Sub Expr := ⟨Expr.sub⟩
 @[simp] theorem eval_hmul (env : Env) (a b : Expr) : (a * b).eval env = a.eval env * b.eval env := rfl
 @[simp] theorem eval_neg (env : Env) (a : Expr) : (-a).eval env = -(a.eval env) := by
   show (mul (const (-1)) a).eval env = _
-  simp [eval, neg_one_mul]
+  simp [eval]
 @[simp] theorem eval_sub (env : Env) (a b : Expr) : (a - b).eval env = a.eval env - b.eval env := by
   show (add a (neg b)).eval env = _
-  simp [eval, neg, sub_eq_add_neg, neg_one_mul]
+  simp [eval, neg, sub_eq_add_neg]
 
 end Expr
 
@@ -392,7 +396,7 @@ theorem Op.holds_of_holdsFlat (env : Env) (op : Op) :
       exact id
   | assertZero e =>
       intro h
-      exact h e (by simp [Op.holdsFlat, Op.flatConstraints, ConstraintsHold])
+      exact h e (by simp [Op.flatConstraints])
   | subcircuit child =>
       exact child.soundness env
 

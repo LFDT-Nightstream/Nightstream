@@ -171,7 +171,7 @@ theorem flatIndex_lt_paddedWidth
     flatIndex block coefficient < blockCount columns * ringDegree := by
   have blockBound := block.isLt
   have coefficientBound : coefficient.val < 54 := by
-    simpa [ringDegree] using coefficient.isLt
+    simp [ringDegree]
   change
     block.val * 54 + coefficient.val < blockCount columns * 54
   omega

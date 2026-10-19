@@ -4,7 +4,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.UnifiedSources
 /-! Provenance: adapted from
 `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/PrefixLayout.lean`
 at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; the namespace and ownership
-text now identify the SuperNeo v1.1 canonical row injection. The proof body is
+text now identify the SuperNeo v1.2 canonical row injection. The proof body is
 unchanged. -/
 
 /-!

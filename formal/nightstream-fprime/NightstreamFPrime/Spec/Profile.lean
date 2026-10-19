@@ -92,7 +92,7 @@ theorem production_msis_norm_bound :
     productionGlobalParams.msisNormBound = 113246208 := by
   decide
 
-/-- Definition 14 at the production arity `K + k = 17`. -/
+/-- SuperNeo v1.2 Definition 22 at the production arity `K + k = 17`. -/
 theorem production_rlc_bound_one_fresh :
     (1 + 16) * 216 * (2 - 1) < 65536 := by decide
 

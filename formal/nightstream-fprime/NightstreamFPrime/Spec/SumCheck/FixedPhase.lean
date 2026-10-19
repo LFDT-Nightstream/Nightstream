@@ -590,7 +590,7 @@ private theorem symbolicTruthPathFrom
       | cons challenge challenges =>
           have tailLength : polynomials.length = challenges.length := by
             simpa using sameLength
-          simp only [HypercubeTruth.sumCompletions,
+          simp only [
             symbolicRoundsFrom, SumCheck.Chain]
           constructor
           · rfl

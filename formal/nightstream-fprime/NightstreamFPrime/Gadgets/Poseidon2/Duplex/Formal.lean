@@ -77,7 +77,7 @@ def Action.eval (env : Env) : Action → ValueAction
   | .absorb input => .absorb (Hash.evalList env input)
   | .readK pair expected => .readK pair (expected.eval env)
 
-/-- The operation schedule without caller-provided squeeze outputs. -/
+/-- The operation schedule without caller-provided read expectations. -/
 inductive ActionShape where
   | absorb (input : List Expr)
   | readK (pair : Read.Pair)
@@ -1033,8 +1033,9 @@ namespace Owned
 Obligation: execute one Duplex action schedule and expose its compiled final
 state directly to a parent circuit.
 
-The interface has no external final-state wire. Squeeze expectations remain
-authoritative action inputs and are still constrained by compiler assertions.
+The interface has no external final-state wire. Read expectations remain
+authoritative action inputs; each read adds two equality assertions against
+its two rate lanes.
 -/
 
 structure Interface where

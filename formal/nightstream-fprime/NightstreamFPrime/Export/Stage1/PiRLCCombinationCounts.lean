@@ -14,11 +14,11 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Export.Package
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Layout.Stage1
 
 abbrev laneFreshCount :=
-  NightstreamFPrime.Layout.PiRLC.v1_1.CombinationStep.laneFreshCount
+  NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep.laneFreshCount
 
 private theorem compactInvocationRowCountFor_invocation
     (templates : List CompactRowTemplate)
@@ -100,7 +100,7 @@ private theorem indexedLaneRowCountSum
         rw [← listSumOfFn]
         exact PiRLCCombinationTemplates.laneRowCount_sum
       rw [laneSum]
-      simp [Nat.mul_assoc, Nat.mul_comm, Nat.mul_left_comm]
+      simp [Nat.mul_assoc]
 
 private theorem sourceCompactRowCountFor
     (templates : List CompactRowTemplate)

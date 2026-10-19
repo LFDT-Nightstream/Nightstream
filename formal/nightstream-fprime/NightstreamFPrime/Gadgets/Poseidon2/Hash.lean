@@ -73,7 +73,7 @@ def digestF (state : FState) : Fin 4 → F :=
   by_cases hzero : lane.val = 0 <;>
     simp [Layer.evalState, padE, padF, hzero, evalOne]
 
-@[simp] theorem eval_digestE (env : Env) (state : EState) :
+theorem eval_digestE (env : Env) (state : EState) :
     (fun lane => (digestE state lane).eval env) =
       digestF (Layer.evalState env state) := by
   rfl
@@ -129,7 +129,7 @@ private theorem compileAbsorptionsTR_go_eq (start : Nat) (state : EState)
         (absorbE state block) Permutation.schedule
       rw [inductionHypothesis]
       apply congrArg₂ AbsorbProgram.mk
-      · simp [List.reverse_append, List.append_assoc, permutation]
+      · simp [List.reverse_append, List.append_assoc]
       · rfl
 
 @[csimp] theorem compileAbsorptions_eq_compileAbsorptionsTR :
@@ -272,7 +272,7 @@ theorem compileAbsorptions_output_varsBelow (start : Nat) (state : EState)
       convert tail using 1 <;>
         simp only [compileAbsorptions, List.length_append,
           Permutation.compile_schedule_recipe_count,
-          compileAbsorptions_recipes_length] <;> omega
+          compileAbsorptions_recipes_length]; omega
 
 theorem compileAbsorptions_sound (env : Env) (start : Nat) (state : EState)
     (blocks : List (List Expr))
@@ -343,9 +343,9 @@ theorem compile_output_varsBelow (start : Nat) (input : List Expr)
     (start + (absorbed.recipes ++
       (Permutation.compile (start + absorbed.recipes.length)
         (padE absorbed.output) Permutation.schedule).recipes).length)
-  convert finalOutput using 1 <;>
+  convert finalOutput using 1;
     simp only [List.length_append,
-      Permutation.compile_schedule_recipe_count] <;> omega
+      Permutation.compile_schedule_recipe_count]; omega
 
 theorem absorbF_input_eq_reference (state : FState) (block : List F) :
     List.ofFn (absorbF state block) =

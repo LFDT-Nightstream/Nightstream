@@ -57,7 +57,9 @@ the prior proof remains live until the caller replaces or drops it.
 `verifier.decode_proof(&bytes)` checks the exact length that its configured
 circuit fixes before it allocates. It then rejects noncanonical field words,
 malformed witness masks and trailing data. A decoded proof still needs
-`verify`. Each witness column travels as two 64-bit lane masks for `+1` and
+`verify`. The bytes carry exactly the values that `verify` reads, so each
+accepted proof has one encoding; the frame digests and the private witness
+copy are not encoded, because no check reads them. Each witness column travels as two 64-bit lane masks for `+1` and
 `-1`; the fixed-key commitment already rejects other witness values.
 
 Engine selection applies to proof arithmetic and terminal row checks. It does
@@ -206,7 +208,7 @@ PaperExact is a reference evaluator with exponential work in the joint-domain
 dimension. Both `PaperExact` and `Crosscheck` are for small correctness checks;
 neither is practical for the selected production circuit.
 The engine name does not change the Nightstream Goldilocks profile or make that
-profile an exact copy of SuperNeo Appendix B.2.
+profile an exact copy of SuperNeo v1.2 Section 8.2.
 
 ## Stored Lean Poseidon2 checks
 

@@ -10,7 +10,7 @@ use neo_ccs::{traits::SModuleHomomorphism, CcsClaim, CcsStructure, CcsWitness, C
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use neo_reductions::{
-    engines::{pi_ccs_joint::build_joint_dims, pi_ccs_joint_protocol::V1_1OutputOpening},
+    engines::{pi_ccs_joint::build_joint_dims, pi_ccs_joint_protocol::V1_2OutputOpening},
     optimized_engine::{
         canonical_audit::OptimizedPaperJointOracle, optimized_prove_with_cache_and_perf,
         optimized_prove_with_complete_oracle, optimized_verify_with_trace, Challenges, OptimizedStructureCache,
@@ -172,7 +172,7 @@ impl Case {
             openings: Some(
                 outputs
                     .iter()
-                    .map(|output| V1_1OutputOpening {
+                    .map(|output| V1_2OutputOpening {
                         eval_k: output.eval_k[..D].to_vec(),
                         eval_a: output
                             .eval_a
@@ -192,7 +192,7 @@ impl Case {
 // export only makes its type available; no PaperExact engine is executed.
 struct Complete<'a> {
     inner: OptimizedPaperJointOracle<'a>,
-    openings: Option<Vec<V1_1OutputOpening>>,
+    openings: Option<Vec<V1_2OutputOpening>>,
     point: Vec<K>,
     calls: usize,
 }
@@ -211,7 +211,7 @@ impl PaperJointRoundOracle for Complete<'_> {
     fn fold(&mut self, challenge: K) -> Result<(), PiCcsError> {
         self.inner.fold(challenge)
     }
-    fn output_openings(&mut self, point: &[K]) -> Result<Option<Vec<V1_1OutputOpening>>, PiCcsError> {
+    fn output_openings(&mut self, point: &[K]) -> Result<Option<Vec<V1_2OutputOpening>>, PiCcsError> {
         assert_eq!(point, self.point);
         Ok(self.openings.take())
     }

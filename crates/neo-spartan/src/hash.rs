@@ -9,7 +9,7 @@
 use std::sync::OnceLock;
 
 use neo_ccs::crypto::poseidon2_goldilocks::{DIGEST_LEN, RATE, SEED, WIDTH};
-use neo_transcript::{domain_chunk_v1_1, Poseidon2Transcript};
+use neo_transcript::{domain_chunk_v1_2, Poseidon2Transcript};
 use p3_challenger_v08::{CanObserve, DuplexChallenger};
 use p3_field_v08::Field;
 use p3_merkle_tree_v08::MerkleTreeMmcs;
@@ -83,8 +83,8 @@ pub(crate) fn squeeze(state: &mut [Gl; WIDTH], at: usize) -> [Gl; DIGEST_LEN] {
 /// Take ownership of the fold transcript, name layer 1 in it, and return a
 /// four-word digest of everything absorbed so far: the layer-1 seed.
 pub(crate) fn seed(mut transcript: Poseidon2Transcript) -> [Gl; 4] {
-    transcript.absorb_v1_1(&domain_chunk_v1_1(DOMAIN));
-    transcript.squeeze_digest_v1_1().map(gl)
+    transcript.absorb_v1_2(&domain_chunk_v1_2(DOMAIN));
+    transcript.squeeze_digest_v1_2().map(gl)
 }
 
 /// A layer-1 challenger that starts from `seed`.

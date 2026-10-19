@@ -116,7 +116,7 @@ impl Shrink {
 
     fn start(&self, key: &[Gl], statement: &[Gl]) -> Challenger {
         let mut challenger = Challenger::new(permutation().clone());
-        challenger.observe_slice(&neo_transcript::domain_chunk_v1_1(DOMAIN).map(gl));
+        challenger.observe_slice(&neo_transcript::domain_chunk_v1_2(DOMAIN).map(gl));
         challenger.observe_slice(&self.layout.shape.words());
         challenger.observe_slice(&self.pcs.profile_words());
         challenger.observe(Gl::from_usize(key.len()));

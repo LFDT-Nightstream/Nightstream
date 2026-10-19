@@ -6,7 +6,7 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 /-!
 Typed Ajtai commitment homomorphism for the concrete Phi81 `Pi_RLC` action.
 
-Protocol: SuperNeo Theorem 5, commitment branch of `Pi_RLC`.
+Protocol: SuperNeo v1.2 Theorem 11, commitment branch of `Pi_RLC`.
 Phase: complete assignment action to the verifier-owned Ajtai rows.
 Constraint family: semantic commitment combination only; this file emits no
 rows.

@@ -69,7 +69,7 @@ def interface? (block : Phi81Product.Block) (logicalWidth : Nat)
     block.output.form? logicalWidth (descriptor.invocationAtLane lane)
   let left : Phi81ProductPlan.State logicalWidth := fun lane =>
     SparseForm.add (challenge lane) (SparseForm.singleton oneColumn (-2))
-  pure { oneColumn, left, right := input, quotient, prior, output }
+  pure { left, right := input, quotient, prior, output }
 
 /-- Exact equality includes all missing-input rejections. -/
 theorem interface?_value (block : Phi81Product.Block) (logicalWidth : Nat)

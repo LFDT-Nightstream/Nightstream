@@ -24,7 +24,7 @@ from project_replay_sources import BLOCKS, LOGICAL, read, require
 from lean_graph.policy import CAPS
 
 ROWS, CARRIER = 1004131, BLOCKS * 54
-TOOLCHAIN = "nightstream-lean-4.32.2-3019a32c"
+TOOLCHAIN = "nightstream-lean-4.32.2-5b34cacf"
 ARTIFACT = FORMAL / "artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"
 
 
@@ -170,7 +170,7 @@ def source_snapshot(root):
     record = {"base_commit": subprocess.check_output(["git", "rev-parse", "HEAD"],
               cwd=REPO, text=True).strip(), "files": identities(sources), "package": identity(ARTIFACT),
               "lean_toolchain": TOOLCHAIN,
-              "compiler_commit": "3019a32cb6f44782ff1e1210676099d683b8d3a8"}
+              "compiler_commit": "5b34cacf5be147b191f6577a2dc67550970a62f3"}
     encoded = json.dumps(record, sort_keys=True, separators=(",", ":")).encode()
     directory = root / "source-snapshots"
     directory.mkdir(parents=True, exist_ok=True)

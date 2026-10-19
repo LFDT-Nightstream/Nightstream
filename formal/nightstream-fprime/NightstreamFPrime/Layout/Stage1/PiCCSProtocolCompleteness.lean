@@ -1,8 +1,8 @@
 import NightstreamFPrime.Layout.Stage1.PiCCSPriorRunning
 import NightstreamFPrime.Layout.Stage1.StateEncodingCanonical
-import NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions
+import NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions
 import NightstreamFPrime.Layout.Stage1.PiCCSInputSupport
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.PhaseTransport
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.PhaseTransport
 
 /-!
 Owns PiCCS witness construction from the existing typed protocol input.
@@ -19,7 +19,7 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open PiCCSInputs (phaseOffset)
 open PiCCSProofInputs (relationInterface relationProof)
@@ -121,7 +121,7 @@ theorem output_word (index : Fin PilotProduction.stateHashWords) :
     rw [PilotProduction.externalColumnCount_eq]
     norm_num [PilotProduction.outputPreimageStart, PilotProduction.priorPublicInputStart,
       PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq,
-      PriorStateHash.publicWidth, ringDegree, publicRingColumns] <;> omega
+      PriorStateHash.publicWidth, ringDegree, publicRingColumns]; omega
 
 variable (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
 
@@ -144,22 +144,6 @@ private theorem childrenSplit_environment
     PiCCSProofInputs.loadExpectedContext_agreesOutside
       (PiCCSProofInputs.protocolEnv prior priorPublic output digest priorFixed outputFixed
         digestFixed values) context index outside
-  have signSame (word : Fin packedParentWords) (lane : Fin 3) :
-      StateBinding.priorSignValue
-          (Formal.statementBindingInterface
-            (Formal.atOffset (relationInterface relation) phaseOffset)).state
-          phaseOffset
-          (environment prior priorPublic output digest priorFixed outputFixed digestFixed
-            values context) word lane =
-        StateBinding.priorSignValue
-          (Formal.statementBindingInterface
-            (Formal.atOffset (PiCCSInputs.interface logicalWidth publicFits) phaseOffset)).state
-          phaseOffset
-          (PiCCSProofInputs.protocolEnv prior priorPublic output digest priorFixed outputFixed
-            digestFixed values) word lane :=
-    same _ (Or.inr (by
-      unfold PiCCSInputs.priorSignStart PiCCSInputs.priorChildrenStart
-      omega))
   have digitsSame (word : Fin packedParentWords) (lane : Fin 3) :
       StateBinding.priorDigits
           (Formal.statementBindingInterface
@@ -176,13 +160,10 @@ private theorem childrenSplit_environment
     funext fun _ => same _ (Or.inr (by
       unfold PiCCSInputs.runningPublicStart PiCCSInputs.priorChildrenStart
       omega))
-  refine ⟨?_, ?_, ?_⟩
+  refine ⟨?_, ?_⟩
   · intro word lane
-    rw [signSame]
-    exact base.sign word lane
-  · intro word lane child
-    rw [digitsSame, signSame]
-    exact base.digit word lane child
+    rw [digitsSame]
+    exact base.digits word lane
   · intro word
     have wordBound : word.val < 90 := word.isLt
     rw [digitsSame, digitsSame, digitsSame]
@@ -307,10 +288,10 @@ theorem completePrefix_from
       completed.operations = Formal.opsAt relation (relationInterface relation) phaseOffset ∧
         Formal.PhaseHolds relation ajtai (relationInterface relation) phaseOffset completed.current
           (relationProof relation values template) := by
-  have external : NightstreamFPrime.Layout.PiCCS.v1_1.ProductionInputs.ExternalInputsLinear
+  have external : NightstreamFPrime.Layout.PiCCS.v1_2.ProductionInputs.ExternalInputsLinear
       (relationInterface relation) phaseOffset :=
     PiCCSInputs.externalInputsLinear logicalWidth publicFits
-  have assumptions := NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions.production
+  have assumptions := NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions.production
     relation (relationInterface relation) phaseOffset external initial
   have inputs := inputs_eq_of_external prior priorPublic output digest priorFixed outputFixed
     digestFixed values context relation template initial priorCanonical source

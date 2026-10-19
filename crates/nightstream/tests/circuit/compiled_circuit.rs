@@ -96,7 +96,7 @@ fn extension_errors_leave_the_supplied_proof_unchanged() {
     let prover = compiled_fixture().prover(Engine::Optimized, 114).unwrap();
     let original = Stage1Envelope::initial([F::ZERO; 4]);
     assert!(matches!(prover.extend(&original, &[]), Err(Error::Application(_))));
-    assert!(original.is_initial());
+    assert!(original.active_parts().is_none());
     assert_eq!(original.state().iteration(), 0);
     // This reaches lifecycle validation after valid application execution.
     let invalid = Stage1Envelope::from_parts(
@@ -475,11 +475,7 @@ fn shaped_proof(prover: &Prover) -> Stage1Envelope {
         negative[(seed * 7) % columns] |= 0b10;
         neo_ccs::Mat::compact_signed_unit_from_column_masks(D, columns, &positive, &negative).unwrap()
     };
-    let running = RunningInstance::new(
-        (0..16).map(claim).collect(),
-        (0..16).map(witness).collect(),
-        Some(claim(99)),
-    );
+    let running = RunningInstance::new((0..16).map(claim).collect(), (0..16).map(witness).collect());
     let fresh = CcsInstance {
         claim: CcsClaim {
             c: commitment(17),
@@ -502,7 +498,7 @@ fn proof_offsets(prover: &Prover) -> (usize, usize, usize) {
     let public_width = prover.compiled.package.logical_public_input_count();
     let d = neo_math::D;
     let header = 16 + 8 + 9 * 8;
-    let claim = (d * 22 + public_width + 2 * 28 + (structure.t() + 1) * 2 * d) * 8 + 32;
+    let claim = (d * 22 + public_width + 2 * 28 + (structure.t() + 1) * 2 * d) * 8;
     let witness = structure.m.div_ceil(d) * 16;
     (header, claim, witness)
 }
@@ -518,22 +514,39 @@ fn proof_bytes_round_trip_exactly() {
     let bytes = prover.encode_proof(&proof).unwrap();
     assert_eq!(
         bytes.len(),
-        header + 17 * claim + 16 * witness + (neo_math::D * 22 + public_width) * 8 + witness
+        header + 16 * claim + 16 * witness + (neo_math::D * 22 + public_width) * 8 + witness
     );
     let decoded = verifier.decode_proof(&bytes).unwrap();
     assert_eq!(decoded.state(), proof.state());
-    assert_eq!(decoded.running(), proof.running());
-    let (left, right) = (decoded.fresh().unwrap(), proof.fresh().unwrap());
-    assert_eq!(left.claim.c, right.claim.c);
-    assert_eq!(left.claim.x, right.claim.x);
-    assert_eq!(left.witness.Z, right.witness.Z);
+    let (decoded_running, decoded_fresh) = decoded.active_parts().unwrap();
+    let (running, fresh) = proof.active_parts().unwrap();
+    // The bytes carry only what `verify` reads; the frame caches stay zero.
+    let mut claims = running.claims.clone();
+    claims
+        .iter_mut()
+        .for_each(|claim| claim.fold_digest = [0; 32]);
+    assert_eq!(decoded_running.claims, claims);
+    assert_eq!(decoded_running.witnesses, running.witnesses);
+    assert_eq!(decoded_fresh.claim.c, fresh.claim.c);
+    assert_eq!(decoded_fresh.claim.x, fresh.claim.x);
+    assert_eq!(decoded_fresh.witness.Z, fresh.witness.Z);
     assert_eq!(prover.encode_proof(&decoded).unwrap(), bytes);
+
+    // Values that `verify` does not read do not change the bytes.
+    let (mut running, mut fresh) = (running.clone(), fresh.clone());
+    running
+        .claims
+        .iter_mut()
+        .for_each(|claim| claim.fold_digest = [7; 32]);
+    fresh.witness.w = vec![F::ONE];
+    let unread = Stage1Envelope::from_parts(*proof.state(), running, fresh);
+    assert_eq!(prover.encode_proof(&unread).unwrap(), bytes, "one encoding per proof");
 
     let initial = Stage1Envelope::initial([F::ONE, F::TWO, F::ZERO, F::ONE]);
     let bytes = prover.encode_proof(&initial).unwrap();
     assert_eq!(bytes.len(), 16 + 8 + 4 * 8);
     let decoded = verifier.decode_proof(&bytes).unwrap();
-    assert!(decoded.is_initial());
+    assert!(decoded.active_parts().is_none());
     assert_eq!(decoded.state(), initial.state());
 }
 
@@ -560,7 +573,7 @@ fn proof_decoder_rejects_resized_and_noncanonical_bytes() {
     mutate(0, u64::from_le_bytes(*b"NS-OTHER"), "format tag");
     mutate(16, 2, "unknown proof kind");
     mutate(header, 0xffff_ffff_0000_0001, "noncanonical field word");
-    let first_column = header + 17 * claim;
+    let first_column = header + 16 * claim;
     mutate(first_column, 1 << 60, "mask bit outside the 54 lanes");
     mutate(first_column + 8, 0b101, "overlapping masks");
     assert!(verifier.decode_proof(&bytes).is_ok(), "restored bytes");
@@ -570,9 +583,8 @@ fn proof_decoder_rejects_resized_and_noncanonical_bytes() {
 fn proof_encoder_rejects_values_outside_the_selected_shape() {
     let prover = compiled_fixture().prover(Engine::Optimized, 114).unwrap();
     let parts = |proof: Stage1Envelope| {
-        let running = proof.running().unwrap().clone();
-        let fresh = proof.fresh().unwrap().clone();
-        (*proof.state(), running, fresh)
+        let (running, fresh) = proof.active_parts().unwrap();
+        (*proof.state(), running.clone(), fresh.clone())
     };
     let rejects = |state, running, fresh| {
         matches!(
@@ -598,8 +610,42 @@ fn proof_encoder_rejects_values_outside_the_selected_shape() {
     let columns = fresh.witness.Z.cols();
     fresh.witness.Z = neo_ccs::Mat::virtual_constant(neo_math::D, columns, F::TWO);
     assert!(rejects(state, running, fresh), "witness value outside the signed units");
+}
 
-    let (state, running, mut fresh) = parts(shaped_proof(&prover));
-    fresh.witness.w = vec![F::ONE];
-    assert!(rejects(state, running, fresh), "redundant private witness copy");
+#[test]
+fn verifier_requires_the_padded_evaluation_width() {
+    // `verify` checks each running claim's shape before any commitment work,
+    // so a synthetic proof with one shared point reaches the evaluation check.
+    let prover = compiled_fixture().prover(Engine::Optimized, 114).unwrap();
+    let verifier = Verifier::from_package(compiled_fixture(), Engine::Optimized, 114).unwrap();
+    let proof = shaped_proof(&prover);
+    let state = *proof.state();
+    let (running, fresh) = proof.active_parts().unwrap();
+    let mut running = running.clone();
+    let point = running.claims[0].r.clone();
+    running
+        .claims
+        .iter_mut()
+        .for_each(|claim| claim.r = point.clone());
+    let decision = |running: crate::folding::RunningInstance| match verifier
+        .verify(&state, &Stage1Envelope::from_parts(state, running, fresh.clone()))
+    {
+        Err(Error::Verify(VerifyError::Running { index, reason })) => (index, reason),
+        other => panic!("unexpected decision: {other:?}"),
+    };
+    // At the padded width the evaluation check passes, and a later check
+    // rejects the synthetic witness.
+    assert_eq!(
+        decision(running.clone()),
+        (0, "witness public projection differs from X")
+    );
+    for width in [neo_math::D, neo_math::D.next_power_of_two() + 1] {
+        let mut changed = running.clone();
+        changed.claims[0].eval_k.resize(width, neo_math::K::ZERO);
+        assert_eq!(
+            decision(changed),
+            (0, "evaluation shape or nonzero surplus coefficients"),
+            "Eval_K width {width}"
+        );
+    }
 }

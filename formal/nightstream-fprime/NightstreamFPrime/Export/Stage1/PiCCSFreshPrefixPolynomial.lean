@@ -6,7 +6,7 @@ import NightstreamFPrime.Lifecycle.Types
 
 /-!
 One fresh CCS contribution from two retained extension-field rows. The
-original production shape and ten coefficient slots are retained. Prepared
+original production shape and nine coefficient slots are retained. Prepared
 selector/power equality is proved here; origin of the retained rows is not.
 -/
 

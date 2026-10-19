@@ -367,7 +367,7 @@ theorem pilot_row (program : Program) (row : R1CS.Row)
       mapRowColumns
         (fun column => PerApplicationPackage.shiftColumn program
           (Spartan.liftPilotColumn column)) row by
-    cases row <;> simp [mapRowColumns, mapCombinationColumns, List.map_map,
+    cases row; simp [mapRowColumns, mapCombinationColumns, List.map_map,
       Function.comp_def]]
   apply SourceProjection.row?_mapColumns _ _ _ _ bounded
   exact fun column => pilot_column program column.val column.isLt

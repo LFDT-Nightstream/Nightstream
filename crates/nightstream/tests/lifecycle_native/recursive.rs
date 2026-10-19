@@ -10,7 +10,7 @@ use p3_field::PrimeCharacteristicRing;
 use super::*;
 use crate::folding::{ajtai_dec_mixer, ajtai_rlc_mixer, transcript::Transcript};
 use crate::lifecycle::{
-    encode_pi_ccs_v1_1_public_input, pi_ccs_v1_1_state_hash, serialize_pi_ccs_v1_1_state_preimage, ProofState,
+    encode_pi_ccs_v1_2_public_input, pi_ccs_v1_2_state_hash, serialize_pi_ccs_v1_2_state_preimage, ProofState,
     Stage1Envelope, VerifyError,
 };
 
@@ -50,16 +50,14 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
     eprintln!("fresh recursive source elapsed={:?}", started.elapsed());
 
     let (state, proof_state) = base_proof.into_parts();
-    let ProofState::Active { running, mut latest } = proof_state else {
+    let ProofState::Active { running, fresh } = proof_state else {
         panic!("base generation must produce an active source");
     };
-    assert_eq!(latest.instances.len(), 1);
-    let fresh = latest.instances.pop().unwrap();
     let prior = running.claims_only();
     let fresh_claim = fresh.claim.clone();
     let first_fold = Instant::now();
     eprintln!("first full C/R/D started elapsed={:?}", started.elapsed());
-    let (next, proof) = package.prove(vec![fresh], *running).unwrap();
+    let (next, proof) = package.prove(fresh, running).unwrap();
     eprintln!("first full C/R/D elapsed={:?}", first_fold.elapsed());
 
     // Only assertions read expected proof bytes. They never enter the prover.
@@ -81,13 +79,12 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
         &package.structure,
         ajtai_rlc_mixer,
         ajtai_dec_mixer,
-        std::slice::from_ref(&fresh_claim),
+        &fresh_claim,
         &prior,
         &proof,
     )
     .unwrap();
     assert_eq!(next.claims, verified.claims);
-    assert_eq!(next.parent_authority, verified.parent_authority);
     let outgoing = transcript
         .snapshot()
         .state()
@@ -119,7 +116,7 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
     ));
     let encoded = package
         .package
-        .encode_stage1_v1_1_inputs(packet.pi_ccs(), packet.pi_dec(), packet.application_witness())
+        .encode_stage1_v1_2_inputs(packet.pi_ccs(), packet.pi_dec(), packet.application_witness())
         .unwrap();
     let expected_private: Vec<u64> = serde_json::from_value(expected_packet[2].clone()).unwrap();
     let expected_public: Vec<u64> = serde_json::from_value(expected_packet[3].clone()).unwrap();
@@ -149,6 +146,7 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
     eprintln!("later terminal acceptance started elapsed={:?}", started.elapsed());
     package.verify(&expected_state, &final_proof).unwrap();
     eprintln!("later terminal acceptance elapsed={:?}", terminal.elapsed());
+    let (final_running, final_fresh) = final_proof.active_parts().unwrap();
     eprintln!(
         "new recursive result={}",
         json!({
@@ -156,8 +154,8 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
             "iteration": expected_state.iteration(),
             "initial": initial.map(|value| value.as_canonical_u64()),
             "current": final_output.map(|value| value.as_canonical_u64()),
-            "running_claims": &final_proof.running().unwrap().claims,
-            "fresh_claim": &final_proof.fresh().unwrap().claim,
+            "running_claims": &final_running.claims,
+            "fresh_claim": &final_fresh.claim,
         })
     );
 
@@ -187,16 +185,11 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
 pub(super) fn rehash_false_running_opening(package: &PreparedLifecycle, final_proof: Stage1Envelope) -> Stage1Envelope {
     let expected_state = *final_proof.state();
     let (_, proof_state) = final_proof.into_parts();
-    let ProofState::Active {
-        mut running,
-        mut latest,
-    } = proof_state
-    else {
+    let ProofState::Active { mut running, mut fresh } = proof_state else {
         panic!("recursive output must remain active");
     };
-    let mut fresh = latest.instances.pop().unwrap();
     running.claims[0].eval_k[0] += K::ONE;
-    let preimage = serialize_pi_ccs_v1_1_state_preimage(
+    let preimage = serialize_pi_ccs_v1_2_state_preimage(
         package.binding.verifier_context().digest().map(F::from_u64),
         expected_state.iteration(),
         expected_state.z0(),
@@ -204,7 +197,7 @@ pub(super) fn rehash_false_running_opening(package: &PreparedLifecycle, final_pr
         &running.claims,
     )
     .unwrap();
-    fresh.claim.x = encode_pi_ccs_v1_1_public_input(pi_ccs_v1_1_state_hash(&preimage).unwrap())
+    fresh.claim.x = encode_pi_ccs_v1_2_public_input(pi_ccs_v1_2_state_hash(&preimage).unwrap())
         .unwrap()
         .into_iter()
         .map(F::from_u64)
@@ -225,5 +218,5 @@ pub(super) fn rehash_false_running_opening(package: &PreparedLifecycle, final_pr
     fresh.witness.Z = Mat::compact_signed_unit_from_column_masks(D, positive.len(), &positive, &negative).unwrap();
     drop((positive, negative));
     fresh.claim.c = commit_production_signed_unit_prefix_matrix(&fresh.witness.Z).unwrap();
-    Stage1Envelope::from_parts(expected_state, *running, fresh)
+    Stage1Envelope::from_parts(expected_state, running, fresh)
 }

@@ -5,8 +5,8 @@ import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Centered
 at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
 
 /-!
-Selected ambient norm boundary and historical obstruction for SuperNeo
-Appendix D.5.
+Selected ambient norm boundary and historical obstruction for SuperNeo v1.2
+Appendix B.3.
 
 Owns: the selected `B_amb = floor(q / 2) + 1` bound, the concrete obstruction
 to the older strict `q / 2` bound, and the smallest strict natural bound that
@@ -17,7 +17,7 @@ Fiat--Shamir, Rust, R1CS, or costs.
 
 Emits constraints: no.
 
-The corrected Appendix D.5 selects `B_amb = floor(q / 2) + 1`. The older
+The corrected Appendix B.3 selects `B_amb = floor(q / 2) + 1`. The older
 strict `q / 2` form cannot contain the midpoint residues because the
 Goldilocks modulus is odd. This module records both the selected bound and the
 kernel-checked historical obstruction.
@@ -63,28 +63,6 @@ def CorrectedAmbientHolds
     semantics.evaluationPointValid statement.constraintSystem statement.point ∧
     semantics.evaluations statement.constraintSystem assignment statement.point =
       statement.evaluations
-
-/-- On an ambient-stage statement, the explicit relaxed relation and the
-shared `CE.Holds` relation are the same relation. -/
-theorem correctedAmbientHolds_iff_ceHolds_of_ambient
-    {Structure : Type uStructure}
-    {Assignment : Type uAssignment}
-    {PublicInput : Type uPublicInput}
-    {Point : Type uPoint}
-    {Evaluation : Type uEvaluation}
-    {Commitment : Type uCommitment}
-    (semantics : NightstreamFPrime.Spec.RelationSemantics
-      Structure Assignment PublicInput Point Evaluation Commitment)
-    (params : NightstreamFPrime.Spec.GlobalParams)
-    (statement : NightstreamFPrime.Spec.CE.Instance
-      Structure PublicInput Point Evaluation Commitment)
-    (assignment : Assignment)
-    (ambient : statement.stage = .ambient) :
-    CorrectedAmbientHolds semantics params statement assignment ↔
-      NightstreamFPrime.Spec.CE.Holds semantics params statement assignment := by
-  simp [CorrectedAmbientHolds, NightstreamFPrime.Spec.CE.Holds,
-    correctedAmbientBoundFor, ambient, NightstreamFPrime.Spec.NormStage.bound,
-    NightstreamFPrime.Spec.GlobalParams.ambientBound]
 
 /-- Historical uncorrected strict ambient bound. -/
 def literalAmbientBound : Nat := goldilocksModulus / 2

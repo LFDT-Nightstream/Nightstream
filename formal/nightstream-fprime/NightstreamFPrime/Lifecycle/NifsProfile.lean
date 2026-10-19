@@ -1,7 +1,7 @@
 import NightstreamFPrime.Lifecycle.ProductionKey
 
 /-!
-SuperNeo v1.1 Definitions 18–21 and Sections 7.3–7.5.
+SuperNeo v1.2 Definitions 19–22 and Sections 7.3–7.5.
 The selected key fixes the relation, dimensions, and encoding across all
 three phases. These are structural facts; they do not assume Ajtai hardness
 or identify a caller-supplied key with the external verifier's selected key.

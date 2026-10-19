@@ -1,7 +1,7 @@
 import NightstreamFPrime.Export.Stage1.PiRLCCombinationInvocations
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerRows
-import NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily
-import NightstreamFPrime.Layout.PiRLC.v1_1.Composition
+import NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily
+import NightstreamFPrime.Layout.PiRLC.v1_2.Composition
 
 /-!
 Owns list-level conformance between the compact PiRLC combination export and
@@ -17,7 +17,7 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Export.Stage1.PiRLCCombinationInvocations
 
@@ -47,11 +47,11 @@ theorem sourceConstraints_eq_childConstraints
             (CombinationStep.indexOf block lane cell)) :
     sourceConstraints logicalStart blockCount cellCount valueStride source
         valueSourceStart =
-      NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.childConstraints
+      NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.childConstraints
         interface logicalStart source := by
   unfold sourceConstraints
-    NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.childConstraints
-    NightstreamFPrime.Layout.PiRLC.v1_1.CombinationStep.logicalConstraints
+    NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.childConstraints
+    NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep.logicalConstraints
   rw [stepFlatConstraints_eq_assertions]
   apply congrArg List.ofFn
   funext index
@@ -70,7 +70,7 @@ theorem sourceConstraint_freshCount_eq
     (sourceLt : source < CombinationFamily.sourceCount)
     (valueSourceStart : Nat → Nat → Nat → Nat)
     (inputs :
-      NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.ProductionInputs
+      NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.ProductionInputs
         interface logicalStart)
     (block : Fin blockCount) (lane : Fin ringDegree) (cell : Fin cellCount)
     (constraintEq :
@@ -89,10 +89,10 @@ theorem sourceConstraint_freshCount_eq
       laneFreshCost lane.val := by
   rw [constraintEq]
   unfold CombinationStep.output
-  rw [NightstreamFPrime.Layout.PiRLC.v1_1.CombinationStep.constraintFreshCountEqLane
+  rw [NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep.constraintFreshCountEqLane
     (CombinationFamily.stepInterface interface logicalStart source)
     (CombinationFamily.stepOffset logicalStart source blockCount cellCount)
-    (NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.stepProductionInputs
+    (NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.stepProductionInputs
       interface logicalStart source sourceLt inputs)
     (CombinationStep.indexOf block lane cell)]
   rw [CombinationStep.laneOf_indexOf]
@@ -107,7 +107,7 @@ theorem commitmentSourceConstraints_eq_childConstraints
     sourceConstraints PiRLCStarts.commitmentLogicalStart
         CommitmentCombination.blockCount CommitmentCombination.cellCount 1
         source.val commitmentValueSourceStart =
-      NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.childConstraints
+      NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.childConstraints
         (productionCommitmentFamilyInterface (logicalWidth := logicalWidth)
           (publicFits := publicFits))
         PiRLCStarts.commitmentLogicalStart source.val := by
@@ -126,7 +126,7 @@ theorem publicInputSourceConstraints_eq_childConstraints
     sourceConstraints PiRLCStarts.publicInputLogicalStart
         PublicInputCombination.blockCount PublicInputCombination.cellCount 1
         source.val publicInputValueSourceStart =
-      NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.childConstraints
+      NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.childConstraints
         (productionPublicInputFamilyInterface (logicalWidth := logicalWidth)
           (publicFits := publicFits))
         PiRLCStarts.publicInputLogicalStart source.val := by
@@ -145,7 +145,7 @@ theorem evalKSourceConstraints_eq_childConstraints
     sourceConstraints PiRLCStarts.evalKLogicalStart
         EvalKCombination.blockCount RingKCombination.cellCount 2
         source.val evalKValueSourceStart =
-      NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.childConstraints
+      NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.childConstraints
         (productionEvalKFamilyInterface (logicalWidth := logicalWidth)
           (publicFits := publicFits))
         PiRLCStarts.evalKLogicalStart source.val := by
@@ -164,7 +164,7 @@ theorem evalASourceConstraints_eq_childConstraints
     sourceConstraints PiRLCStarts.evalALogicalStart
         EvalACombination.blockCount RingKCombination.cellCount 2
         source.val evalAValueSourceStart =
-      NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.childConstraints
+      NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.childConstraints
         (productionEvalAFamilyInterface (logicalWidth := logicalWidth)
           (publicFits := publicFits))
         PiRLCStarts.evalALogicalStart source.val := by
@@ -188,18 +188,18 @@ theorem familyConstraints_eq_orderedConstraints
     (each : ∀ source : Fin CombinationFamily.sourceCount,
       sourceConstraints logicalStart blockCount cellCount valueStride source.val
           valueSourceStart =
-        NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.childConstraints
+        NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.childConstraints
           interface logicalStart source.val) :
     familyConstraints logicalStart blockCount cellCount valueStride
         valueSourceStart =
-      NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.orderedConstraints
+      NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.orderedConstraints
         interface logicalStart := by
   have countEq : sourceCount = CombinationFamily.sourceCount := by
     rw [CombinationFamily.sourceCount_eq]
     rfl
   unfold familyConstraints
-    NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.orderedConstraints
-    NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.childConstraintLists
+    NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.orderedConstraints
+    NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.childConstraintLists
   rw [countEq]
   apply congrArg List.flatten
   apply List.map_congr_left
@@ -214,10 +214,10 @@ theorem commitmentFamilyConstraints_eq_parent
     familyConstraints PiRLCStarts.commitmentLogicalStart
         CommitmentCombination.blockCount CommitmentCombination.cellCount 1
         commitmentValueSourceStart =
-      NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.logicalConstraints
+      NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.logicalConstraints
         (productionCommitmentFamilyInterface (logicalWidth := logicalWidth)
           (publicFits := publicFits)) PiRLCStarts.commitmentLogicalStart := by
-  rw [NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.logicalConstraints_eq_ordered]
+  rw [NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.logicalConstraints_eq_ordered]
   apply familyConstraints_eq_orderedConstraints
   intro source
   exact commitmentSourceConstraints_eq_childConstraints source
@@ -230,10 +230,10 @@ theorem publicInputFamilyConstraints_eq_parent
     familyConstraints PiRLCStarts.publicInputLogicalStart
         PublicInputCombination.blockCount PublicInputCombination.cellCount 1
         publicInputValueSourceStart =
-      NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.logicalConstraints
+      NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.logicalConstraints
         (productionPublicInputFamilyInterface (logicalWidth := logicalWidth)
           (publicFits := publicFits)) PiRLCStarts.publicInputLogicalStart := by
-  rw [NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.logicalConstraints_eq_ordered]
+  rw [NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.logicalConstraints_eq_ordered]
   apply familyConstraints_eq_orderedConstraints
   intro source
   exact publicInputSourceConstraints_eq_childConstraints source
@@ -246,10 +246,10 @@ theorem evalKFamilyConstraints_eq_parent
     familyConstraints PiRLCStarts.evalKLogicalStart
         EvalKCombination.blockCount RingKCombination.cellCount 2
         evalKValueSourceStart =
-      NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.logicalConstraints
+      NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.logicalConstraints
         (productionEvalKFamilyInterface (logicalWidth := logicalWidth)
           (publicFits := publicFits)) PiRLCStarts.evalKLogicalStart := by
-  rw [NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.logicalConstraints_eq_ordered]
+  rw [NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.logicalConstraints_eq_ordered]
   apply familyConstraints_eq_orderedConstraints
   intro source
   exact evalKSourceConstraints_eq_childConstraints source
@@ -262,10 +262,10 @@ theorem evalAFamilyConstraints_eq_parent
     familyConstraints PiRLCStarts.evalALogicalStart
         EvalACombination.blockCount RingKCombination.cellCount 2
         evalAValueSourceStart =
-      NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.logicalConstraints
+      NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.logicalConstraints
         (productionEvalAFamilyInterface (logicalWidth := logicalWidth)
           (publicFits := publicFits)) PiRLCStarts.evalALogicalStart := by
-  rw [NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily.logicalConstraints_eq_ordered]
+  rw [NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.logicalConstraints_eq_ordered]
   apply familyConstraints_eq_orderedConstraints
   intro source
   exact evalASourceConstraints_eq_childConstraints source

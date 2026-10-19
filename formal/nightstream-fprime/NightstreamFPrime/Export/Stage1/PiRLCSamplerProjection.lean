@@ -14,7 +14,7 @@ namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerProjection
 
 open NightstreamFPrime.Gadgets.Poseidon2
 open NightstreamFPrime.Gadgets.Poseidon2.Duplex
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 
 def fastOwnedOutput (interface : Formal.Owned.Interface) (offset : Nat) :
     Layer.EState :=
@@ -174,7 +174,7 @@ theorem productionInitialState_eq :
     _ = (PiCCSInvocations.outputSemanticTrace logicalWidth publicFits).state :=
       congrArg Invocations.Trace.state
         (PiCCSInvocations.outputTrace_eq_semantic logicalWidth publicFits)
-    _ = NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.finalState
+    _ = NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBinding.finalState
           (PiCCSInvocations.outputInterface logicalWidth publicFits)
           PiCCSInvocations.outputWitnessStart :=
       PiCCSInvocations.outputSemanticTrace_state_matches logicalWidth publicFits

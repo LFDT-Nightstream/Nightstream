@@ -30,7 +30,7 @@ def rowCount : Nat := 4
 @[simp] theorem rowCount_eq : rowCount = 4 := by
   rfl
 
-def publicFits
+theorem publicFits
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
@@ -41,7 +41,7 @@ def publicFits
     at complete ⊢
   omega
 
-def carrierPublicFits
+theorem carrierPublicFits
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
@@ -57,7 +57,7 @@ def oneColumn
     Fin logicalWidth :=
   ApplicationRetainedGeometry.oneColumn geometry
 
-def pilotOrdinaryGeometry
+theorem pilotOrdinaryGeometry
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :

@@ -84,10 +84,10 @@ def expandCombinationFamily (sourceCount : Nat)
     List CompactRowInvocation :=
   (List.range sourceCount).flatMap fun source =>
     List.ofFn fun index : Fin
-        (NightstreamFPrime.Lifecycle.PiRLC.v1_1.CombinationStep.privateCount
+        (NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationStep.privateCount
           block.blockCount block.cellCount) =>
       let coordinates :=
-        NightstreamFPrime.Lifecycle.PiRLC.v1_1.CombinationStep.coordinates
+        NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationStep.coordinates
           index
       PiRLCCombinationInvocations.invocation block.logicalStart
         block.rowStart block.freshStart block.blockCount block.cellCount
@@ -174,7 +174,7 @@ def CompactInvocationBlock.format : Format CompactInvocationBlock where
     | _ => .error "invalid compact invocation block"
   decode_encode := by
     intro value
-    cases value <;> simp [Format.decode_encode]
+    cases value; simp [Format.decode_encode]
 
 /-- Schema 8 transports the exact package as static fields plus generative
 invocation blocks. `expand` is the semantic interpretation. -/

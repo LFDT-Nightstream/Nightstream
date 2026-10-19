@@ -6,7 +6,7 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 /-!
 Symbolic Phi81 multiplication laws needed by the `Pi_RLC` carrier bridge.
 
-Protocol: SuperNeo Theorem 5, concrete assignment-side ring action.
+Protocol: SuperNeo v1.2 Theorem 11, concrete assignment-side ring action.
 Phase: monomial normal form and product-order compatibility.
 Constraint family: semantic coefficient algebra only; this file emits no rows.
 

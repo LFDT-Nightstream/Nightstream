@@ -84,7 +84,7 @@ private theorem copied_input
     rw [PiCCSInputs.phaseOffset_eq]
     omega
   exact (RunningTransitionDirectPlan.transitionEnv_of_outside application _ column sourceBound
-    (Or.inl beforeC)).trans
+    (Or.inl (Nat.lt_of_lt_of_le beforeC PiCCSStarts.phaseOffset_le_statementWitnessStart))).trans
     (PerApplicationSourceAssignment.source_ofCompleted application target suffix column sourceBound)
 
 /-- Actual next-preimage wiring makes all five retained next-preimage rows

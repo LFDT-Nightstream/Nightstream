@@ -54,7 +54,6 @@ theorem evaluateForm_eval {logicalWidth : Nat}
 
 /-- Forms for one complete ring product and its running sum. -/
 structure Interface (logicalWidth : Nat) where
-  oneColumn : Fin logicalWidth
   left : State logicalWidth
   right : State logicalWidth
   quotient : State logicalWidth

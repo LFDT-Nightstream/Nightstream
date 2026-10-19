@@ -39,7 +39,7 @@ private theorem pilotSourceEnd_le_root
 
 /-- The compact prior-state child reads only source expressions before the
 compact root. -/
-def priorAssumptions
+theorem priorAssumptions
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
     PriorStateHash.Assumptions PilotProduction.priorInterface
       (AssemblerInputs.priorOffset program) env := by
@@ -107,7 +107,7 @@ theorem outputDigestBelowRoot
 
 /-- Exact compact-root support used to transport output-hash semantics after
 the prior child completes. -/
-def outputSupport
+theorem outputSupport
     (program : Lifecycle.Stage1.Application.Program) :
     (∀ expression ∈ PilotProduction.outputInterface.preimage
         (AssemblerInputs.outputHashOffset program),
@@ -126,7 +126,7 @@ def outputSupport
 
 /-- The compact output-hash child has its exact causal assumptions at the
 later logical allocation. -/
-def outputAssumptions
+theorem outputAssumptions
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
     OutputHash.Assumptions PilotProduction.outputInterface
       (AssemblerInputs.outputHashOffset program) env := by

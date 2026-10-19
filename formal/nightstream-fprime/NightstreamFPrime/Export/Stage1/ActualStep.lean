@@ -48,7 +48,7 @@ def decodedFresh (application : Lifecycle.Stage1.Application.Program)
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application)) :
     Fresh (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application) :=
-  PiCCS.v1_1.Formal.evalFresh
+  PiCCS.v1_2.Formal.evalFresh
     (PiCCSInvocations.parentInterface (PerApplicationFixedPoint.logicalWidth application)
       (PerApplicationFixedPoint.publicFits application))
     PiCCSInputs.phaseOffset
@@ -64,7 +64,7 @@ def withDecodedPiCCS (application : Lifecycle.Stage1.Application.Program)
     (template : Proof (ProductionKey.degreeBound
       (PerApplicationFixedPoint.relation application fits))) :
     Proof (ProductionKey.degreeBound (PerApplicationFixedPoint.relation application fits)) :=
-  PiCCS.v1_1.Formal.evalProof (PerApplicationFixedPoint.relation application fits)
+  PiCCS.v1_2.Formal.evalProof (PerApplicationFixedPoint.relation application fits)
     (PiCCSInvocations.parentInterface (PerApplicationFixedPoint.logicalWidth application)
       (PerApplicationFixedPoint.publicFits application))
     PiCCSInputs.phaseOffset

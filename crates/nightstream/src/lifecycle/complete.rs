@@ -7,10 +7,10 @@ use neo_ajtai::{nightstream_fprime_setup::MAX_MESSAGE_COLUMNS, Commitment};
 use neo_ccs::Mat;
 use neo_math::{D, F};
 use neo_reductions::common::project_x_from_witness_mat;
-use nightstream_fprime::{PackageError, PI_DEC_V1_1_CHILD_COUNT};
+use nightstream_fprime::{PackageError, PI_DEC_V1_2_CHILD_COUNT};
 use p3_field::PrimeCharacteristicRing;
 
-use super::{LatestInstance, ProofState};
+use super::ProofState;
 use super::{PreparedLifecycle, Stage1State, Stage1StepInputs};
 use crate::folding::{CcsClaim, CcsInstance, CcsWitness, RunningInstance};
 
@@ -35,15 +35,22 @@ impl Stage1Envelope {
     pub(crate) fn from_parts(state: Stage1State, running: RunningInstance, fresh: CcsInstance) -> Self {
         Self {
             state,
-            proof: ProofState::active(running, LatestInstance::from_instances(vec![fresh])),
+            proof: ProofState::Active { running, fresh },
         }
+    }
+
+    /// Any state with any proof, including a bottom proof under a positive
+    /// state, which no production constructor builds.
+    #[cfg(test)]
+    pub(super) fn from_state_and_proof(state: Stage1State, proof: ProofState) -> Self {
+        Self { state, proof }
     }
 
     /// The exact bottom case has zero iterations and no running or fresh proof.
     pub(crate) fn initial(z0: [F; 4]) -> Self {
         Self {
             state: Stage1State::new(0, z0, z0),
-            proof: ProofState::initial(),
+            proof: ProofState::Initial,
         }
     }
 
@@ -51,18 +58,12 @@ impl Stage1Envelope {
         &self.state
     }
 
-    pub(crate) fn running(&self) -> Option<&RunningInstance> {
-        self.proof.running()
-    }
-
-    pub(crate) fn fresh(&self) -> Option<&CcsInstance> {
-        self.proof
-            .latest()
-            .and_then(|latest| latest.instances.first())
-    }
-
-    pub(crate) fn is_initial(&self) -> bool {
-        self.proof.is_initial()
+    /// The running and fresh instances of an active envelope; `None` at the bottom.
+    pub(crate) fn active_parts(&self) -> Option<(&RunningInstance, &CcsInstance)> {
+        match &self.proof {
+            ProofState::Initial => None,
+            ProofState::Active { running, fresh } => Some((running, fresh)),
+        }
     }
 
     pub(super) fn into_parts(self) -> (Stage1State, ProofState) {
@@ -116,11 +117,11 @@ impl PreparedLifecycle {
         proved_commitments: Option<Vec<Commitment>>,
         application_values: Option<&[F]>,
     ) -> Result<Stage1Envelope, CompleteStepError> {
-        if child_witnesses.len() != PI_DEC_V1_1_CHILD_COUNT
-            || inputs.next_running().claims.len() != PI_DEC_V1_1_CHILD_COUNT
+        if child_witnesses.len() != PI_DEC_V1_2_CHILD_COUNT
+            || inputs.next_running().claims.len() != PI_DEC_V1_2_CHILD_COUNT
             || proved_commitments
                 .as_ref()
-                .is_some_and(|commitments| commitments.len() != PI_DEC_V1_1_CHILD_COUNT)
+                .is_some_and(|commitments| commitments.len() != PI_DEC_V1_2_CHILD_COUNT)
         {
             return Err(CompleteStepError::Input(
                 "child witness count differs from the selected profile",
@@ -151,7 +152,7 @@ impl PreparedLifecycle {
         let physical = match application_values {
             Some(values) => self
                 .package
-                .execute_stage1_v1_1_witness_with_application_values(
+                .execute_stage1_v1_2_witness_with_application_values(
                     inputs.pi_ccs(),
                     inputs.pi_dec(),
                     inputs.application_witness(),
@@ -247,7 +248,7 @@ impl PreparedLifecycle {
         running.witnesses = child_witnesses;
         Ok(Stage1Envelope {
             state,
-            proof: ProofState::active(running, LatestInstance::from_instances(vec![fresh])),
+            proof: ProofState::Active { running, fresh },
         })
     }
 }

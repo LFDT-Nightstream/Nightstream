@@ -52,7 +52,7 @@ theorem evaluations_eq_family (masks : Array (Array (Nat × Nat)))
     (point : PaperAlgebra.Point) (source : Fin SourceCount) :
     evaluations masks point source =
       PaperAlgebra.evaluationFamily
-        (Lifecycle.PiRLC.v1_1.InputBinding.relationSource PiDECInputCheck.relation)
+        (Lifecycle.PiRLC.v1_2.InputBinding.relationSource PiDECInputCheck.relation)
         (assignments masks source) point := by
   apply evaluation_ext
   · exact PiCCSOriginalPad.complete_eq_evaluationFamily point masks (sourceIndex source)
@@ -65,7 +65,7 @@ theorem evaluations_eq_family (masks : Array (Array (Nat × Nat)))
       (PerApplicationMatrixProgram.matrixProgram application).rowCount
       (sourceIndex source)).get port).toRing =
       (PaperAlgebra.evaluationFamily
-        (Lifecycle.PiRLC.v1_1.InputBinding.relationSource
+        (Lifecycle.PiRLC.v1_2.InputBinding.relationSource
           (PerApplicationFixedPoint.relation application fits))
         (assignments masks source) point).matrix port at value
     rw [← PiDECInputCheck.relation_eq_selected] at value
@@ -182,7 +182,7 @@ theorem parent_opening
     · rw [sourceCustody source]
       exact old (sourceIndex source)
     · change #[PaperAlgebra.evaluationFamily
-          (Lifecycle.PiRLC.v1_1.InputBinding.relationSource PiDECInputCheck.relation)
+          (Lifecycle.PiRLC.v1_2.InputBinding.relationSource PiDECInputCheck.relation)
           (assignments masks source) (PiCCSInputCheck.execute input).point] =
         #[PiRLCInputCheck.evaluations input source]
       exact congrArg (fun value : PaperAlgebra.Evaluation => #[value])

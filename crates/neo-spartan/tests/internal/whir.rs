@@ -42,8 +42,8 @@ fn mle(values: &[Gl], point: &[Ext]) -> Ext {
 }
 
 fn fold_transcript(extra: u64) -> Poseidon2Transcript {
-    let mut transcript = Poseidon2Transcript::new_v1_1();
-    transcript.absorb_v1_1(&[F::from_u64(3), F::from_u64(extra)]);
+    let mut transcript = Poseidon2Transcript::new_v1_2();
+    transcript.absorb_v1_2(&[F::from_u64(3), F::from_u64(extra)]);
     transcript
 }
 

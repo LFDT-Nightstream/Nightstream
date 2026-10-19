@@ -7,14 +7,14 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 /-!
 Concrete Phi81 coefficient kernel for the paper matrix embedding.
 
-Protocol: SuperNeo coefficient embedding (Section 5, Theorems 3 and 4).
+Protocol: SuperNeo coefficient embedding (v1.2 Section 5, Theorems 8 and 9).
 Phase: concrete cyclotomic instantiation of the single-matrix source.
 Constraint family: transformed matrix / assignment ring-product coefficients.
 
 Owns: the closed-form Phi81 bar transform on coefficient bases; the exact
 coefficient kernel obtained by multiplying that transformed basis by an
 assignment basis with the independently defined Phi81 ring multiplication;
-and the constant-term Kronecker law required by Theorem 3.
+and the constant-term Kronecker law required by Theorem 8.
 
 Does not own: proof that Rust's runtime Gram-matrix inversion returns this
 closed form, protocol-level `ConcreteCarrier` refinement or verifier

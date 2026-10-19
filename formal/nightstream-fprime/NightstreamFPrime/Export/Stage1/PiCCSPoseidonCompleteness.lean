@@ -9,7 +9,7 @@ import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxSourceCompletenes
 /-!
 Owns the direct C permutation-plan proof from the actual completed C rows.
 Source input and retained S-box values are tied to the same compact compiler
-invocation. Squeeze pins use the actual compiler assertion meaning.
+invocation. Coins are permutation-output lanes, so the plan has no coin pins.
 -/
 
 set_option autoImplicit false
@@ -41,7 +41,7 @@ variable (application : Lifecycle.Stage1.Application.Program)
   (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
   (target : Env)
   (suffix : Fin (PerApplicationPackage.addedPrivateColumnCount application) → F)
-  (physical : NightstreamFPrime.Layout.PiCCS.v1_1.PhysicalHolds relation
+  (physical : NightstreamFPrime.Layout.PiCCS.v1_2.PhysicalHolds relation
     (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset (Spartan.pullback target))
 
 local notation "raw" => canonicalRawValues application
@@ -248,7 +248,8 @@ private theorem invocation_values (index : InvocationIndex) (lane : Fin 16) :
       PiCCSTranscriptDirectSemantics.statementFits PiCCSTranscriptDirectSemantics.statementOffsetBound
       (by
         rw [PiCCSInvocations.statementWitnessStart, PiCCSStarts.statementWitnessStart_eq]
-        exact Nat.le_refl _) affine.1 affine.2
+        unfold Spartan.piCcsPhaseOffset
+        omega) affine.1 affine.2
       PiCCSInvocationSlices.statement_invocation
       PiCCSTranscriptDirectSemantics.statementKindAt_eq
       (PiCCSPhaseInputs.statement_initial application target suffix)

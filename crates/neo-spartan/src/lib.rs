@@ -529,27 +529,28 @@ pub fn prove(
     }
     let (shape, structure, tables) = (&relation.shape, &key.structure, &setup.tables);
     let statement = ClaimWords::new(shape, claim)?;
-    let z = witness_table(shape, witness)?;
-    let histogram = norm::histogram(&z, shape.norm_bound)?;
-    let early = tables.early(&claim.r);
+    // The P0 commitment takes the only copies of its tables; layer 1 rebuilds
+    // `z` and the early tables after it.
+    let p0_tables = {
+        let early = tables.early(&claim.r);
+        let slot_columns: Vec<Gl> = early
+            .u
+            .iter()
+            .flat_map(|[re, im]| re.iter().chain(im))
+            .copied()
+            .chain(tables.blocks())
+            .collect();
+        let e = [early.e[0].as_slice(), early.e[1].as_slice()].concat();
+        vec![witness_table(shape, witness)?, e, slot_columns, early.mult]
+    };
+    let histogram = norm::histogram(&p0_tables[0], shape.norm_bound)?;
 
     let mut challenger = relation.start(hash::seed(transcript), &statement);
-    let slot_columns: Vec<Gl> = early
-        .u
-        .iter()
-        .flat_map(|[re, im]| re.iter().chain(im))
-        .copied()
-        .chain(tables.blocks())
-        .collect();
-    let p0_tables = vec![
-        z.clone(),
-        [early.e[0].as_slice(), early.e[1].as_slice()].concat(),
-        slot_columns,
-        early.mult.clone(),
-    ];
     let (p0, p0_data) = relation
         .p0
         .commit(p0_tables, &mut challenger, accelerator)?;
+    let z = witness_table(shape, witness)?;
+    let early = tables.early(&claim.r);
     challenger.observe_slice(&norm::words(&histogram));
     let beta: Ext = challenger.sample_algebra_element();
     let challenges = early_challenges(&mut challenger);

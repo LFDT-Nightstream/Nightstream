@@ -96,9 +96,11 @@ impl PreparedLifecycle {
     }
 
     /// Complete the step from the running instance that `prove` returned for
-    /// it. Every prover backend sets the child claim commitments from these
-    /// digit witnesses, so they are compared with the verified children
-    /// instead of recomputed. The terminal verifier recommits all witnesses.
+    /// it. The prover backend set the child claim commitments: the CPU engines
+    /// commit every digit witness, and Metal commits children 1.. and derives
+    /// child 0 from the parent by linearity. They are compared with the
+    /// verified children instead of recomputed. The terminal verifier
+    /// recommits all witnesses.
     pub(super) fn complete_proved_step(
         &self,
         inputs: Stage1StepInputs,

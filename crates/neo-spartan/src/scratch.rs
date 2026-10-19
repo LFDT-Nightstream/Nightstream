@@ -1,6 +1,7 @@
 //! Unlinked scratch files in the system's temporary directory. A prover keeps
 //! a large table there between the step that writes it and the step that
-//! reads it back, so the table costs disk, not RAM, in between.
+//! reads it back, so the table costs disk, not RAM, in between. Words are
+//! stored in native byte order: a file never outlives its process.
 
 use std::fs::{File, OpenOptions};
 use std::io;
@@ -9,8 +10,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use rayon::prelude::*;
 
-/// Reads and writes go in blocks of this many words; it bounds only each
-/// thread's buffer.
+/// Reads and writes go in blocks of this many words, in parallel.
 pub(crate) const BLOCK_WORDS: usize = 1 << 19;
 
 /// A fresh file whose name is already removed: its space returns when it
@@ -36,10 +36,7 @@ pub(crate) fn write(file: &File, offset: usize, words: &[u64]) -> io::Result<()>
     words
         .par_chunks(BLOCK_WORDS)
         .enumerate()
-        .try_for_each(|(block, chunk)| {
-            let bytes: Vec<u8> = chunk.iter().flat_map(|word| word.to_le_bytes()).collect();
-            file.write_all_at(&bytes, (8 * (offset + block * BLOCK_WORDS)) as u64)
-        })
+        .try_for_each(|(block, chunk)| file.write_all_at(bytes(chunk), (8 * (offset + block * BLOCK_WORDS)) as u64))
 }
 
 /// Fill `words` from word `offset`.
@@ -48,11 +45,16 @@ pub(crate) fn read(file: &File, offset: usize, words: &mut [u64]) -> io::Result<
         .par_chunks_mut(BLOCK_WORDS)
         .enumerate()
         .try_for_each(|(block, chunk)| {
-            let mut bytes = vec![0u8; 8 * chunk.len()];
-            file.read_exact_at(&mut bytes, (8 * (offset + block * BLOCK_WORDS)) as u64)?;
-            for (word, bytes) in chunk.iter_mut().zip(bytes.chunks_exact(8)) {
-                *word = u64::from_le_bytes(bytes.try_into().expect("eight bytes"));
-            }
-            Ok(())
+            file.read_exact_at(bytes_mut(chunk), (8 * (offset + block * BLOCK_WORDS)) as u64)
         })
+}
+
+fn bytes(words: &[u64]) -> &[u8] {
+    // SAFETY: a `u64` is eight initialized bytes, and `u8` has alignment 1.
+    unsafe { std::slice::from_raw_parts(words.as_ptr().cast::<u8>(), 8 * words.len()) }
+}
+
+fn bytes_mut(words: &mut [u64]) -> &mut [u8] {
+    // SAFETY: as in `bytes`, and every byte pattern is a valid `u64`.
+    unsafe { std::slice::from_raw_parts_mut(words.as_mut_ptr().cast::<u8>(), 8 * words.len()) }
 }

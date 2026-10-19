@@ -4,9 +4,9 @@ import NightstreamFPrime.Spec.SumCheck.Polynomial
 at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
 
 /-!
-Finite coefficient ownership for the SuperNeo v1.1 joint `Pi_CCS` polynomial.
+Finite coefficient ownership for the SuperNeo v1.2 joint `Pi_CCS` polynomial.
 
-Owns: the selected Section 7.3 / Appendix D.4 gamma-block index layout, finite
+Owns: the selected SuperNeo v1.2 Section 7.3 / Appendix B.2 gamma-block index layout, finite
 alpha coefficient vectors, the three formula-agnostic residual families, and
 the theorem reducing joint coefficient truth to three independently stated
 obligation families.
@@ -23,7 +23,7 @@ prover data. The block positions do not construct any CCS, norm, target, or
 evaluation formula and do not prove the signed joint identity.
 `ResidualizationBoundary` is an explicit, unclosed assumption relating
 caller-stated semantic obligations to these residual coefficients; it is not
-itself a proof of Appendix D.4, Lemma 7.
+itself a proof of Appendix B.2, Lemma 9.
 
 | Gamma coefficient block | Selected positions | Stored data | Zero obligation |
 |---|---|---:|---|
@@ -32,7 +32,7 @@ itself a proof of Appendix D.4, Lemma 7.
 | CCS | `kd(t+1) .. kd(t+1)+K-1` | alpha-polynomial residuals | every entry is zero |
 | norm | `kd(t+1)+K .. kd(t+1)+2K+k-1` | alpha-polynomial residuals | every entry is zero |
 
-This is the v1.1 layout from Section 7.3 and Appendix B.2. `Pad` is a
+This is the v1.2 layout from Section 7.3 and Appendix B.2. `Pad` is a
 separate family and is not one of the `t` CCS matrices.
 -/
 
@@ -164,6 +164,24 @@ def canonicalFinIndices (count : Nat) : List (Fin count) :=
 theorem canonicalFinIndices_length (count : Nat) :
     (canonicalFinIndices count).length = count := by
   simp [canonicalFinIndices]
+
+/-- Position `index` of the canonical enumeration is the coordinate `index`. -/
+theorem canonicalFinIndices_getElem (count index : Nat)
+    (bound : index < (canonicalFinIndices count).length) :
+    (canonicalFinIndices count)[index] =
+      ⟨index, by simpa [canonicalFinIndices] using bound⟩ := by
+  simp [canonicalFinIndices]
+
+/-- Every coordinate occurs in the canonical enumeration. -/
+theorem mem_canonicalFinIndices {count : Nat} (index : Fin count) :
+    index ∈ canonicalFinIndices count := by
+  simp [canonicalFinIndices]
+
+/-- Every coordinate below `bound` occurs in the first `bound` positions. -/
+theorem mem_take_canonicalFinIndices {count : Nat} (index : Fin count) {bound : Nat}
+    (below : index.val < bound) : index ∈ (canonicalFinIndices count).take bound := by
+  rw [List.mem_iff_getElem]
+  exact ⟨index.val, by simp [canonicalFinIndices]; omega, by simp [canonicalFinIndices]⟩
 
 /-- The canonical finite-index enumeration contains no repeated coordinate. -/
 theorem canonicalFinIndices_nodup (count : Nat) :
@@ -482,7 +500,7 @@ structure AlphaMonomial (shape : Shape) where
   arity : exponents.length = shape.cubeVariables
 deriving Repr, DecidableEq
 
-/-- Verifier-owned finite basis for polynomials in Appendix D.4's indeterminates
+/-- Verifier-owned finite basis for polynomials in Appendix B.2's indeterminates
 `A_1, ..., A_logm`. Distinct basis monomials make coefficient truth
 unambiguous. -/
 structure AlphaBasis (shape : Shape) where
@@ -512,7 +530,7 @@ def CoefficientZero
 
 end AlphaPolynomial
 
-/-- The four finite residual families in the v1.1 gamma exponent order. -/
+/-- The four finite residual families in the v1.2 gamma exponent order. -/
 structure Residuals
     (Field : Type uField)
     (shape : Shape)
@@ -615,7 +633,7 @@ end JointCoefficient
 
 namespace Residuals
 
-/-- Constant-first serialization of the four v1.1 residual families. -/
+/-- Constant-first serialization of the four v1.2 residual families. -/
 def jointCoefficients
     {Field : Type uField}
     {shape : Shape}
@@ -639,7 +657,7 @@ def CoefficientTruth
   forall coefficient,
     coefficient ∈ residuals.jointCoefficients -> coefficient.Zero ops
 
-/-- The serialized list has exactly the four v1.1 block sizes. -/
+/-- The serialized list has exactly the four v1.2 block sizes. -/
 theorem jointCoefficients_length
     {Field : Type uField}
     {shape : Shape}
@@ -651,7 +669,7 @@ theorem jointCoefficients_length
     residuals.matrixEvaluationCount, residuals.ccsCount,
     residuals.normCount, Nat.add_assoc]
 
-/-- Joint coefficient truth is exactly the four v1.1 residual families. -/
+/-- Joint coefficient truth is exactly the four v1.2 residual families. -/
 theorem coefficientTruth_iff_residualFamilies
     {Field : Type uField}
     {shape : Shape}
@@ -714,7 +732,7 @@ private theorem forall₂_iff_all
       simp only [List.mem_cons, forall_eq_or_imp]
       exact and_congr headExact inductionHypothesis
 
-/-- Conditional coefficient-level composition for the four v1.1 blocks. -/
+/-- Conditional coefficient-level composition for the four v1.2 blocks. -/
 theorem coefficientTruth_iff_allObligations
     {Field : Type uField}
     {shape : Shape}

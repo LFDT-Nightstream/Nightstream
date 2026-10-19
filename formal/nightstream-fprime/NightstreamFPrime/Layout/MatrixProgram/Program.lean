@@ -6,7 +6,7 @@ import NightstreamFPrime.Layout.MatrixProgram.Poseidon
 
 /-!
 Owns the generic ordered interpreter for a compact sparse 4-matrix program.
-Each decoded row returns the 7 sparse ports.
+Each decoded row returns the 4 sparse ports.
 
 The interpreter does not select Stage 1 phases, row order, or source rows.
 -/
@@ -106,7 +106,7 @@ private theorem Program.select_append_right (blocks tail : List Block)
         ((blocks.map Block.rowCount).sum + ordinal) =
       Program.row?.select logicalWidth sourceRow tail ordinal := by
   induction blocks with
-  | nil => simp [Program.row?.select]
+  | nil => simp []
   | cons block rest ih =>
       simp only [List.map_cons, List.sum_cons, List.cons_append]
       rw [Program.row?.select]

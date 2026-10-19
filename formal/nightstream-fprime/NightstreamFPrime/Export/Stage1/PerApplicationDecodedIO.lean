@@ -55,7 +55,7 @@ private theorem piDecOutput_ext
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
-    (left right : Lifecycle.PiDEC.v1_1.OutputBinding.Output
+    (left right : Lifecycle.PiDEC.v1_2.OutputBinding.Output
       logicalWidth publicFits)
     (constraintSystem : left.constraintSystem = right.constraintSystem)
     (commitment : left.commitment = right.commitment)
@@ -94,10 +94,12 @@ private theorem kExpr_eval_eq_of_support
 def relation (application : Program) (fits : FitsTwoPow28 application) :=
   PerApplicationFixedPoint.relation application fits
 
-def geometry (application : Program) :=
+theorem geometry (application : Program) :
+    NightstreamFPrime.Export.Stage1.ApplicationRetainedGeometry.Geometry application (NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint.logicalWidth application) :=
   PerApplicationFixedPoint.geometry application
 
-def prefixGeometry (application : Program) :=
+theorem prefixGeometry (application : Program) :
+    NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRetainedGeometry.Geometry application (NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint.logicalWidth application) :=
   DirectApplicationPrefixPlan.prefixGeometry (geometry application)
 
 def transitionEnv {application : Program} (raw : RawValues application) : Env :=
@@ -159,7 +161,7 @@ private theorem roundC0Source
     omega
   · norm_num [Spec.Poseidon2.width]
   · rw [PiCCSStarts.roundTranscriptWitnessStart_eq,
-      PiCCSInputs.phaseOffset_eq]
+      PiCCSStarts.statementWitnessStart_eq]
     norm_num [RunningTransitionInputs.roundStride,
       RunningTransitionInputs.roundSampleC0Offset]
     omega
@@ -178,7 +180,7 @@ private theorem roundC1Source
     omega
   · norm_num [Spec.Poseidon2.width]
   · rw [PiCCSStarts.roundTranscriptWitnessStart_eq,
-      PiCCSInputs.phaseOffset_eq]
+      PiCCSStarts.statementWitnessStart_eq]
     norm_num [RunningTransitionInputs.roundStride,
       RunningTransitionInputs.roundSampleC1Offset]
     omega
@@ -222,7 +224,7 @@ private theorem applicationInputEnv_eq_transition
     apply PermutationOutput.Readout.env_of_decode_none
     unfold PermutationOutput.Readout.decode
     rw [dif_neg (by
-      rw [PiCCSTranscriptReadout.phaseStart_eq, ApplicationInputs.inputColumn_value]
+      rw [PiCCSTranscriptReadout.transcriptStart_eq, ApplicationInputs.inputColumn_value]
       have indexBound := index.isLt
       norm_num [ApplicationInputs.currentWordStart,
         Lifecycle.Stage1.Application.stateWordCount] at indexBound ⊢
@@ -262,7 +264,7 @@ private theorem applicationOutputEnv_eq_transition
     apply PermutationOutput.Readout.env_of_decode_none
     unfold PermutationOutput.Readout.decode
     rw [dif_neg (by
-      rw [PiCCSTranscriptReadout.phaseStart_eq, ApplicationInputs.outputColumn_value]
+      rw [PiCCSTranscriptReadout.transcriptStart_eq, ApplicationInputs.outputColumn_value]
       have indexBound := index.isLt
       norm_num [ApplicationInputs.currentWordStart,
         Lifecycle.Stage1.Application.stateWordCount] at indexBound ⊢
@@ -370,7 +372,7 @@ theorem outputState_eq_pilot
 
 theorem priorCanonical_of_stateBinding
     {application : Program} (raw : RawValues application)
-    (canonical : Lifecycle.PiCCS.v1_1.StateBinding.StateCanonical
+    (canonical : Lifecycle.PiCCS.v1_2.StateBinding.StateCanonical
       PiCCSInputs.priorStateWord (commonEnv raw)) :
     StateDecoder.Canonical (priorState raw) := by
   intro word member
@@ -378,13 +380,13 @@ theorem priorCanonical_of_stateBinding
 
 theorem outputCanonical_of_stateBinding
     {application : Program} (raw : RawValues application)
-    (canonical : Lifecycle.PiCCS.v1_1.StateBinding.StateCanonical
+    (canonical : Lifecycle.PiCCS.v1_2.StateBinding.StateCanonical
       PiCCSInputs.outputStateWord (commonEnv raw)) :
     StateDecoder.Canonical (outputState raw) := by
   intro word member
   let bounded : Fin PilotProduction.stateHashWords := ⟨word.index, by
     have indexBound :=
-      Lifecycle.PiCCS.v1_1.StateBinding.fixedWord_index_lt word member
+      Lifecycle.PiCCS.v1_2.StateBinding.fixedWord_index_lt word member
     simpa [PilotProduction.stateHashWords_eq] using indexBound⟩
   calc
     outputState raw word.index = transitionEnv raw
@@ -448,13 +450,13 @@ theorem semantics_imply_canonicalStates
   constructor
   · apply priorCanonical_of_stateBinding raw
     simpa [PiCCSInvocations.parentInterface, PiCCSInputs.interface,
-      Lifecycle.PiCCS.v1_1.Formal.statementBindingInterface,
-      Lifecycle.PiCCS.v1_1.Formal.atOffset, commonEnv] using
+      Lifecycle.PiCCS.v1_2.Formal.statementBindingInterface,
+      Lifecycle.PiCCS.v1_2.Formal.atOffset, commonEnv] using
         binding.priorCanonical
   · apply outputCanonical_of_stateBinding raw
     simpa [PiCCSInvocations.parentInterface, PiCCSInputs.interface,
-      Lifecycle.PiCCS.v1_1.Formal.statementBindingInterface,
-      Lifecycle.PiCCS.v1_1.Formal.atOffset, commonEnv] using
+      Lifecycle.PiCCS.v1_2.Formal.statementBindingInterface,
+      Lifecycle.PiCCS.v1_2.Formal.atOffset, commonEnv] using
         binding.outputCanonical
 
 theorem semantics_imply_contextKeys
@@ -474,12 +476,12 @@ theorem semantics_imply_contextKeys
   intro lane
   let contextLane : Fin 4 := ⟨lane.val, by
     have bound := lane.isLt
-    simpa [PilotProduction.digestWords, PilotValues.digestWords] using bound⟩
+    simp [PilotProduction.digestWords, PilotValues.digestWords]⟩
   have word := preserved contextLane
   let outputWord : Fin PilotProduction.stateHashWords :=
-    ⟨Lifecycle.PiCCS.v1_1.StateBinding.contextWordStart + contextLane.val, by
+    ⟨Lifecycle.PiCCS.v1_2.StateBinding.contextWordStart + contextLane.val, by
       have bound := contextLane.isLt
-      norm_num [Lifecycle.PiCCS.v1_1.StateBinding.contextWordStart,
+      norm_num [Lifecycle.PiCCS.v1_2.StateBinding.contextWordStart,
         PilotProduction.stateHashWords_eq] at bound ⊢
       omega⟩
   have outputCustody : transitionEnv raw
@@ -493,9 +495,9 @@ theorem semantics_imply_contextKeys
     outputCustody]
   simpa [priorState, contextLane, outputWord,
     PiCCSInvocations.parentInterface, PiCCSInputs.interface,
-    Lifecycle.PiCCS.v1_1.Formal.statementBindingInterface,
-    Lifecycle.PiCCS.v1_1.Formal.atOffset,
-    Lifecycle.PiCCS.v1_1.StateBinding.contextWordStart,
+    Lifecycle.PiCCS.v1_2.Formal.statementBindingInterface,
+    Lifecycle.PiCCS.v1_2.Formal.atOffset,
+    Lifecycle.PiCCS.v1_2.StateBinding.contextWordStart,
     PiCCSInputs.priorStateWord, PiCCSInputs.outputStateWord,
     commonEnv] using word
 
@@ -728,13 +730,13 @@ theorem applicationOutputRepresents
 
 private theorem piDecPoint_eq
     {application : Program} (raw : RawValues application) :
-    PiCCS.v1_1.StatementAbsorption.evalPoint
+    PiCCS.v1_2.StatementAbsorption.evalPoint
         ((PiDECInputs.interface
           (PerApplicationFixedPoint.logicalWidth application)
           (PerApplicationFixedPoint.publicFits application)).point
             PiDECInputs.phaseOffset)
         (commonEnv raw) =
-      PiCCS.v1_1.StatementAbsorption.evalPoint
+      PiCCS.v1_2.StatementAbsorption.evalPoint
         ((PiDECInputs.interface
           (PerApplicationFixedPoint.logicalWidth application)
           (PerApplicationFixedPoint.publicFits application)).point
@@ -776,12 +778,12 @@ private theorem piDecPoint_eq
 private theorem piDecOutputs_eq
     (application : Program) (fits : FitsTwoPow28 application)
     (raw : RawValues application) :
-    Lifecycle.PiDEC.v1_1.Semantics.output (relation application fits)
+    Lifecycle.PiDEC.v1_2.Semantics.output (relation application fits)
         (PiDECInputs.interface
           (PerApplicationFixedPoint.logicalWidth application)
           (PerApplicationFixedPoint.publicFits application))
         PiDECInputs.phaseOffset (commonEnv raw) =
-      Lifecycle.PiDEC.v1_1.Semantics.output (relation application fits)
+      Lifecycle.PiDEC.v1_2.Semantics.output (relation application fits)
         (PiDECInputs.interface
           (PerApplicationFixedPoint.logicalWidth application)
           (PerApplicationFixedPoint.publicFits application))
@@ -893,8 +895,8 @@ theorem semantics_imply_nextInitialState
   apply StateDecoder.slice_congr
   intro lane
   let stateLane : Lifecycle.Stage1.RunningTransition.StateIndex :=
-    ⟨lane.val, by simpa [Lifecycle.Stage1.Application.stateWordCount,
-      Lifecycle.Stage1.RunningTransition.stateWordCount] using lane.isLt⟩
+    ⟨lane.val, by simp [Lifecycle.Stage1.Application.stateWordCount,
+      Lifecycle.Stage1.RunningTransition.stateWordCount]⟩
   let word : Fin PilotProduction.stateHashWords :=
     ⟨RunningTransitionInputs.initialStateWordStart + stateLane.val, by
       have bound := stateLane.isLt

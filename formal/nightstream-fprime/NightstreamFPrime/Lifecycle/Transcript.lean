@@ -8,9 +8,10 @@ one absorb per sum-check round, and coins read from consecutive rate lane
 pairs), absorption of the complete Π_CCS output, and the total Π_RLC
 challenge sampler into the strong set `𝓒 = {coefficients in {−2,…,2}}`. The
 fixed pattern has no labels and no length prefixes; the domain chunk binds it. Each scalar uses one four-field Poseidon2
-window, interpreted in base Goldilocks and reduced modulo `5^54`. The absorb order is the paper's
-(SuperNeo B.1): every challenge is squeezed only after the data it must depend
-on has been absorbed. All parity-surface definitions are computable.
+window, interpreted in base Goldilocks and reduced modulo `5^54`. The absorb
+order is the public-coin order of SuperNeo v1.2, Section 7.3: every coin is
+read only after the data it must depend on has been absorbed. All
+parity-surface definitions are computable.
 -/
 
 namespace NightstreamFPrime.Lifecycle.Transcript
@@ -27,34 +28,9 @@ def absorb (s : State) (xs : List F) : State :=
     (fun c => (xs.drop (c * Poseidon2.rate)).take Poseidon2.rate)
   chunks.foldl Poseidon2.absorbBlock s
 
-/-- Absorb a self-delimiting block: length prefix, then the words. -/
-def absorbBlock (s : State) (xs : List F) : State := absorb s (block xs)
-
-/-- Fold a typed list of self-delimiting blocks through the transcript. -/
-def absorbBlocks (state : State) (blocks : List (List F)) : State :=
-  blocks.foldl absorbBlock state
-
-@[simp] theorem absorbBlocks_append (state : State)
-    (left right : List (List F)) :
-    absorbBlocks state (left ++ right) =
-      absorbBlocks (absorbBlocks state left) right := by
-  simp [absorbBlocks, List.foldl_append]
-
 /-! ## Π_CCS oracle -/
 
 def initialState : State := Poseidon2.zeroState
-
-/-- ASCII bytes of `Nightstream/SuperNeo/NIFS/v1`, retained for the complete
-NIFS transcript after PiCCS. -/
-def domainTagBytes : List Nat :=
-  [78, 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47,
-    83, 117, 112, 101, 114, 78, 101, 111, 47, 78, 73, 70, 83, 47, 118, 49]
-
-/-- Domain tag absorbed before every protocol transcript. -/
-def domainTag : List F := domainTagBytes.map Poseidon2.ofNat
-
-@[simp] theorem domainTag_length : domainTag.length = 28 := by
-  simp [domainTag, domainTagBytes]
 
 /-- ASCII bytes of `Nightstream/SuperNeo/fold/v2`. -/
 def foldDomainBytes : List Nat :=
@@ -76,8 +52,9 @@ def foldInitialState : State := absorb initialState foldDomainChunk
 def serializeMessage (m : SumCheck.Finite.Message K) : List F :=
   m.coefficients.flatMap serializeK
 
-/-- The two verifier-input blocks of v1.1 Π_CCS: prior point, then Pad
-claims in `I_K` order followed by matrix claims in `I_A` order. -/
+/-- The two verifier-input blocks of v1.2 Π_CCS: prior point, then Pad
+claims in `I_K` order followed by matrix claims in `I_A` order. This is a
+parity surface only: the transcript does not absorb these blocks. -/
 def verifierInputBlocks
     (input : ProtocolPolynomial.VerifierInput K productionShape) :
     List (List F) :=
@@ -86,12 +63,6 @@ def verifierInputBlocks
         (fun coordinate => serializeK (input.claimedPadCoefficient coordinate)) ++
       (canonicalMatrixCoordinates productionShape).flatMap
         (fun coordinate => serializeK (input.claimedMatrixCoefficient coordinate))]
-
-/-- Absorb the verifier input from its one canonical block list. The
-constraint polynomial is key data bound through the verifier-key digest. -/
-def absorbVerifierInput (state : State)
-    (input : ProtocolPolynomial.VerifierInput K productionShape) : State :=
-  absorbBlocks state (verifierInputBlocks input)
 
 /-- Six extension values fill one rate chunk. -/
 abbrev coinsPerChunk : Nat := Poseidon2.rate / 2

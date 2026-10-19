@@ -11,7 +11,7 @@ namespace NightstreamFPrime.Lifecycle.Stage1.RunningTransition
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Circuit.Quadratic
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
@@ -72,10 +72,10 @@ theorem serializeRunningExpr_varsSatisfy {logicalWidth : Nat}
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (running : StatementAbsorption.RunningExpr logicalWidth publicFits)
     (allowed : Nat → Prop) (support : RunningSupported running allowed) :
-    ∀ expression ∈ StatementAbsorption.serializeRunningExpr running,
+    ∀ expression ∈ RunningWords.serializeRunningExpr running,
       expression.VarsSatisfy allowed := by
   intro expression member
-  rcases StatementAbsorption.serializeRunningExpr_mem member with
+  rcases RunningWords.serializeRunningExpr_mem member with
     ⟨source, row, coefficient, rfl⟩ | ⟨source, coefficient, evalK⟩ |
       ⟨source, matrix, coefficient, evalA⟩ | ⟨coordinate, point⟩ | ⟨word, rfl⟩
   · exact support.commitment source row coefficient
@@ -83,7 +83,7 @@ theorem serializeRunningExpr_varsSatisfy {logicalWidth : Nat}
   · exact serializeKExpr_varsSatisfy _ allowed
       (support.eval_A source matrix coefficient) _ evalA
   · exact serializeKExpr_varsSatisfy _ allowed (support.point coordinate) _ point
-  · exact StatementAbsorption.packWordExpr_parent_closed
+  · exact RunningWords.packWordExpr_parent_closed
       (fun expression => expression.VarsSatisfy allowed) (fun _ => trivial)
       (fun left right => Expr.VarsSatisfy.add left right allowed)
       (fun weight value valueSupport =>
@@ -98,8 +98,8 @@ theorem runningWord_varsSatisfy {logicalWidth : Nat}
     (index : WordIndex) :
     (runningWord running index).VarsSatisfy allowed := by
   have indexBound : index.val <
-      (StatementAbsorption.serializeRunningExpr running).length := by
-    rw [StatementAbsorption.serializeRunningExpr_length]
+      (RunningWords.serializeRunningExpr running).length := by
+    rw [RunningWords.serializeRunningExpr_length]
     exact index.isLt
   rw [runningWord, List.getD_eq_get _ _ ⟨index.val, indexBound⟩]
   exact serializeRunningExpr_varsSatisfy running allowed support _

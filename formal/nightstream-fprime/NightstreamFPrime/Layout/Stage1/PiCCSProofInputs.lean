@@ -2,7 +2,7 @@ import NightstreamFPrime.Layout.Stage1.StateEncodingCanonical
 import NightstreamFPrime.Lifecycle.VerifierContext
 
 /-!
-Paper authority: SuperNeo v1_1, section 7.3, PiCCS prover messages.
+Paper authority: SuperNeo v1.2, section 7.3, PiCCS prover messages.
 Obligation: Give the concrete caller-owned PiCCS columns one typed value
 source and one canonical encoding.
 
@@ -13,12 +13,13 @@ Inputs:
 
 Outputs:
 - a 10,872-word canonical proof-input encoding;
-- the 4,590-word prior child region: child digits, then sign bits;
+- the 4,320-word prior child region: the child digits, child-major (the
+  statement-binding leaf computes the signs);
 - one environment that preserves the pilot prefix and loads both.
 
 Parent coverage:
-- `Lifecycle.PiCCS.v1_1.Formal.evalFresh`;
-- `Lifecycle.PiCCS.v1_1.Formal.evalProof`.
+- `Lifecycle.PiCCS.v1_2.Formal.evalFresh`;
+- `Lifecycle.PiCCS.v1_2.Formal.evalProof`.
 
 This module owns external values only. It adds no constraint row and does not
 derive a verifier challenge from witness data.
@@ -30,7 +31,7 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Layout.Stage1.PiCCSInputs
 
@@ -51,7 +52,7 @@ def roundPolynomial (values : ProofValues)
   coefficients := List.ofFn (values.roundCoefficient roundIndex)
   coefficients_length := by simp
 
-/-- The semantic v1_1 output with Pad and CCS matrix families kept separate. -/
+/-- The semantic v1_2 output with Pad and CCS matrix families kept separate. -/
 def output (values : ProofValues) :
     FullOutputCoordinates.FullOutput K productionShape where
   padCoordinate := values.outputEval_K
@@ -178,22 +179,14 @@ private theorem serializeEvaluations_evalA_getD
         (fun index => serializeK_length (evaluations.matrix matrix index))
         coefficient component.val component.isLt
 
-/-- The sign bit of one prior parent coordinate: one on the negative branch,
-so the common digit sign is `1 - 2 · bit`. -/
-def signWord (parent : F) : F :=
-  if Spec.Phi81Relation.PiDECAlgebra.Radix.isNonnegative parent then 0 else 1
-
-/-- The prior child region: the sixteen child public inputs, child-major,
-then one sign bit per parent coordinate. -/
+/-- The prior child region: the sixteen child public inputs, child-major. -/
 def priorChildWords
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     List F :=
-  serializeChildPublicInputs (publicFits := publicFits) running ++
-    (List.finRange (FullShape logicalWidth publicFits).publicWidth).map fun column =>
-      signWord (parentPublic running column)
+  serializeChildPublicInputs (publicFits := publicFits) running
 
 /-- One combined source for the pilot columns, the prior child region, and
 the new PiCCS proof-input columns. -/
@@ -226,7 +219,7 @@ theorem loadExpectedContext_read (env : Env) (context : VerifierContext.Digest4)
     (expectedContext lane).eval (loadExpectedContext env context) =
       context.toList.getD lane.val 0 := by
   fin_cases lane <;>
-    simp [loadExpectedContext, expectedContext, Expr.eval, Env.set,
+    simp [loadExpectedContext, expectedContext, Env.set,
       VerifierContext.Digest4.toList]
 
 /-- Loading context preserves every other source coordinate, including the
@@ -874,7 +867,7 @@ private theorem fullOutput_ext
   cases right
   simp_all
 
-/-- The concrete symbolic output evaluates to the exact separate v1_1 output
+/-- The concrete symbolic output evaluates to the exact separate v1_2 output
 families. -/
 theorem evalOutput_eq (values : ExternalValues) :
     ∀ {logicalWidth : Nat}
@@ -943,7 +936,6 @@ def relationInterface
   priorState := (interface logicalWidth publicFits).priorState
   outputState := (interface logicalWidth publicFits).outputState
   expectedContext := (interface logicalWidth publicFits).expectedContext
-  priorSign := (interface logicalWidth publicFits).priorSign
   running := (interface logicalWidth publicFits).running
   fresh := (interface logicalWidth publicFits).fresh
   round := fun offset roundIndex => relationMessage relation

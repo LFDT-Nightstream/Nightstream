@@ -60,7 +60,7 @@ def evaluation (values : ParentValues) : PaperAlgebra.Evaluation where
   matrix := fun matrix => (values.evalA.get matrix).toRing
 
 def parent (values : ParentValues) : Claim where
-  constraintSystem := Lifecycle.PiRLC.v1_1.InputBinding.relationSource relation
+  constraintSystem := Lifecycle.PiRLC.v1_2.InputBinding.relationSource relation
   commitment := values.commitment.toCommitment
   publicInput := fun coordinate : Fin 270 => values.publicInput.get coordinate
   point := values.point
@@ -73,8 +73,8 @@ def attempt (values : ParentValues) (messages : Messages) :
       PaperAlgebra.Commitment productionGlobalParams where
   parent := parent values
   messages := fun child => {
-    commitment := (PiCCSInputCheck.runningFromInput messages).commitments child
-    evaluations := #[(PiCCSInputCheck.runningFromInput messages).evaluations child] }
+    commitment := (PiCCSInputCheck.selectedRunningFromInput messages).commitments child
+    evaluations := #[(PiCCSInputCheck.selectedRunningFromInput messages).evaluations child] }
 
 def children (values : ParentValues) (messages : Messages) : Fin 16 → Claim :=
   PiDEC.PaperVerifier.children
@@ -141,7 +141,7 @@ theorem child_point (values : ParentValues) (messages : Messages) (child : Fin 1
 
 theorem child_structure (values : ParentValues) (messages : Messages) (child : Fin 16) :
     (children values messages child).constraintSystem =
-      Lifecycle.PiRLC.v1_1.InputBinding.relationSource
+      Lifecycle.PiRLC.v1_2.InputBinding.relationSource
         (PerApplicationFixedPoint.relation Poseidon2HashChainV1Package.application
           Poseidon2HashChainV1Package.fits) := by
   rw [← relation_eq_selected]
@@ -191,7 +191,7 @@ def runningValue (values : ParentValues) (messages : Messages) : Value :=
       PiDECParity.evalAValue ((children values messages child).evaluations.getD 0 evaluationZero))]
 
 def inputValue (values : ParentValues) (messages : Messages) : Value :=
-  let running := PiCCSInputCheck.runningFromInput messages
+  let running := PiCCSInputCheck.selectedRunningFromInput messages
   .array [claimValue (parent values),
     .array ((List.finRange 16).map fun child => PiDECParity.commitmentValue (running.commitments child)),
     .array ((List.finRange 16).map fun child => PiDECParity.evalKValue (running.evaluations child)),
@@ -209,7 +209,7 @@ def resultValue (values : ParentValues) (messages : Messages) : Value :=
   if !parentBounded values then
     .array [.atom 0, .atom 0, PiCCSParity.stateValue values.outgoing]
   else
-    let running := PiCCSInputCheck.runningFromInput messages
+    let running := PiCCSInputCheck.selectedRunningFromInput messages
     let combinedC := Commitment.recomposeCommitment running.commitments
     let combinedX := PublicInput.recomposePublicInput fun child => (children values messages child).publicInput
     let combinedY := recomposeEvaluationFamily running.evaluations

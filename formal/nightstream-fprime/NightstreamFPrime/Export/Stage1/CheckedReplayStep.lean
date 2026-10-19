@@ -27,10 +27,10 @@ def prior (input : PiCCSInputCheck.Input)
       (publicFits := PerApplicationFixedPoint.publicFits application))
     (freshWitness : Stage1.Terminal.FreshWitness
       (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
-      (publicFits := PerApplicationFixedPoint.publicFits application)) : HyperNovaHistory.Payload where
-  running := fun _ => PiCCSInputCheck.running input
+      (publicFits := PerApplicationFixedPoint.publicFits application)) : HyperNovaHistory.Payload application where
+  running := fun _ => PiCCSInputCheck.selectedRunning input
   runningWitness := fun _ => runningWitness
-  fresh := PiCCSInputCheck.fresh input
+  fresh := PiCCSInputCheck.selectedFresh input
   freshWitness := freshWitness
   pc := 1
 
@@ -56,19 +56,19 @@ theorem checked_step
     (nonwrap : statement.iteration + 1 < goldilocksModulus) :
     let relation := PerApplicationFixedPoint.relation application fits
     let context := (PerApplicationCanonicalPackage.verifierContextDescriptor fits productionSetup).digest4
-    let before := HyperNovaStepData.input statement (prior input runningWitness freshWitness)
+    let before := HyperNovaStepData.input application statement (prior input runningWitness freshWitness)
       advice (CheckedReplayNifs.proof input messages)
-    let after := HyperNovaStepData.output statement advice
-      (PiCCSInputCheck.runningFromInput messages)
+    let after := HyperNovaStepData.output application fits productionSetup statement advice
+      (PiCCSInputCheck.selectedRunningFromInput messages)
     StepHoldsFor relation productionAjtaiKey context.toList application before after ∧
     StateEncoding.WellFormed (priorHashPreimage (setup relation productionAjtaiKey context.toList) before) ∧
     StateEncoding.WellFormed (nextHashPreimage (setup relation productionAjtaiKey context.toList) before after) ∧
     before.fresh.publicInputs ⟨0, by decide⟩ =
       encHash (stateHash (priorHashPreimage (setup relation productionAjtaiKey context.toList) before)) ∧
-    PiCCSInputCheck.runningFromInput messages = after.runningNext functionIndex := by
-  exact HyperNovaStepData.stepHolds_and_wellFormed statement
+    PiCCSInputCheck.selectedRunningFromInput messages = after.runningNext functionIndex := by
+  exact HyperNovaStepData.stepHolds_and_wellFormed application fits productionSetup statement
     (prior input runningWitness freshWitness) advice
-    (CheckedReplayNifs.proof input messages) (PiCCSInputCheck.runningFromInput messages)
+    (CheckedReplayNifs.proof input messages) (PiCCSInputCheck.selectedRunningFromInput messages)
     accepted (CheckedReplayNifs.checked_verifies_selected input batch parent messages
       sampled returned checked) nonwrap
 

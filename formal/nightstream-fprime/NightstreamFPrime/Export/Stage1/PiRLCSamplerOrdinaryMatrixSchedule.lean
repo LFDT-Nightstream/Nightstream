@@ -142,8 +142,8 @@ theorem arithmeticRows_rowIndices
         (logicalWidth := logicalWidth) (publicFits := publicFits)).map
         Rows.CompiledRow.rowIndex = rowIndexReference := by
   simp [PiRLCSamplerOrdinaryRows.rows, ranges, rowIndexReference,
-    List.map_flatMap, sourceRows_rowIndices, List.flatMap_assoc,
-    Function.comp_def]
+    List.map_flatMap, sourceRows_rowIndices, List.flatMap_assoc
+    ]
 
 theorem rowSchedule_index?_eq_arithmeticRowIndex?
     {logicalWidth : Nat}

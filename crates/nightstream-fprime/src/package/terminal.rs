@@ -6,9 +6,9 @@
 
 use serde_json::Value;
 
-use super::v1_1::{
-    PI_CCS_V1_1_COEFFICIENT_COUNT, PI_CCS_V1_1_FRESH_COMMITMENT_WORDS, PI_CCS_V1_1_MATRIX_COUNT,
-    PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_1_ROUND_COUNT,
+use super::v1_2::{
+    PI_CCS_V1_2_COEFFICIENT_COUNT, PI_CCS_V1_2_FRESH_COMMITMENT_WORDS, PI_CCS_V1_2_MATRIX_COUNT,
+    PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_2_ROUND_COUNT,
 };
 use super::{decode_components, owned_witness_intervals, witness_segments, LoadedPackage, PackageError};
 use crate::identity::relation_identifier;
@@ -104,11 +104,11 @@ fn decode_outputs(value: &Value, package: &LoadedPackage) -> Result<TerminalOutp
             .collect()
     };
     Ok(TerminalOutputs {
-        commitment: columns(0, PI_CCS_V1_1_FRESH_COMMITMENT_WORDS)?,
-        public_input: columns(1, PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS)?,
-        point: columns(2, 2 * PI_CCS_V1_1_ROUND_COUNT)?,
-        eval_k: columns(3, 2 * PI_CCS_V1_1_COEFFICIENT_COUNT)?,
-        eval_a: columns(4, 2 * PI_CCS_V1_1_MATRIX_COUNT * PI_CCS_V1_1_COEFFICIENT_COUNT)?,
+        commitment: columns(0, PI_CCS_V1_2_FRESH_COMMITMENT_WORDS)?,
+        public_input: columns(1, PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS)?,
+        point: columns(2, 2 * PI_CCS_V1_2_ROUND_COUNT)?,
+        eval_k: columns(3, 2 * PI_CCS_V1_2_COEFFICIENT_COUNT)?,
+        eval_a: columns(4, 2 * PI_CCS_V1_2_MATRIX_COUNT * PI_CCS_V1_2_COEFFICIENT_COUNT)?,
         state: columns(5, STATE_WORDS)?,
     })
 }

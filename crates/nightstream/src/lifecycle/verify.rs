@@ -1,7 +1,8 @@
 //! Selected terminal verification against an external state statement.
 //! The exact running and fresh openings use the package relation and fixed
-//! key. Parent caches, carried frame digests and redundant `w` storage are
-//! non-authoritative; every witness check uses the complete matrix `Z`.
+//! key. Carried frame digests and redundant `w` storage are not read; every
+//! witness check uses the complete matrix `Z`.
+//! Evaluation vectors have exactly the padded folding width.
 
 use neo_ajtai::{nightstream_fprime_setup::PRODUCTION_VERIFIER_ROWS, Commitment};
 use neo_math::{D, F, K};
@@ -10,12 +11,14 @@ use neo_reductions::{
     superneo_eval::{evaluate_terminal_rows, SuperneoCachedRelationError, SuperneoZBlocks},
     PiCcsError,
 };
-use nightstream_fprime::{PackageError, PI_CCS_V1_1_ROUND_COUNT, PI_DEC_V1_1_CHILD_COUNT};
+use nightstream_fprime::{PackageError, PI_CCS_V1_2_ROUND_COUNT, PI_DEC_V1_2_CHILD_COUNT};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
+use crate::folding::{has_canonical_evaluations, is_canonical_evaluation};
+
 use super::{
-    check_pi_ccs_v1_1_canonical_children, encode_pi_ccs_v1_1_public_input, pi_ccs_v1_1_state_hash,
-    serialize_pi_ccs_v1_1_state_preimage, PiCcsV1_1PackageBridgeError, PreparedLifecycle, Stage1Envelope, Stage1State,
+    encode_pi_ccs_v1_2_public_input, pi_ccs_v1_2_state_hash, serialize_pi_ccs_v1_2_state_preimage,
+    PiCcsV1_2PackageBridgeError, PreparedLifecycle, Stage1Envelope, Stage1State,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -31,7 +34,7 @@ pub enum VerifyError {
     #[error("selected terminal fresh opening: {0}")]
     Fresh(&'static str),
     #[error("selected terminal state hash: {0}")]
-    StateHash(#[from] PiCcsV1_1PackageBridgeError),
+    StateHash(#[from] PiCcsV1_2PackageBridgeError),
     #[error("selected terminal package: {0}")]
     Package(#[from] PackageError),
     #[error("selected terminal running opening computation: {0}")]
@@ -57,26 +60,20 @@ impl PreparedLifecycle {
                 "iteration is not a canonical Goldilocks counter",
             ));
         }
-        if envelope.is_initial() {
+        let Some((running, fresh)) = envelope.active_parts() else {
             if expected_state.iteration() != 0 || expected_state.current() != expected_state.z0() {
                 return Err(VerifyError::Statement(
                     "bottom requires zero iterations and equal endpoints",
                 ));
             }
             return Ok(());
-        }
+        };
         if expected_state.iteration() == 0 || expected_state.iteration() >= F::ORDER_U64 {
             return Err(VerifyError::Statement(
                 "an active proof requires a positive canonical iteration",
             ));
         }
-        let running = envelope
-            .running()
-            .ok_or(VerifyError::Statement("missing running payload"))?;
-        let fresh = envelope
-            .fresh()
-            .ok_or(VerifyError::Statement("missing fresh payload"))?;
-        if running.claims.len() != PI_DEC_V1_1_CHILD_COUNT || running.witnesses.len() != PI_DEC_V1_1_CHILD_COUNT {
+        if running.claims.len() != PI_DEC_V1_2_CHILD_COUNT || running.witnesses.len() != PI_DEC_V1_2_CHILD_COUNT {
             return Err(VerifyError::Statement(
                 "running claim or witness count differs from the selected profile",
             ));
@@ -96,19 +93,13 @@ impl PreparedLifecycle {
                     reason: "commitment or public-input shape",
                 });
             }
-            if claim.r.len() != PI_CCS_V1_1_ROUND_COUNT || claim.r.as_slice() != point.as_slice() {
+            if claim.r.len() != PI_CCS_V1_2_ROUND_COUNT || claim.r.as_slice() != point.as_slice() {
                 return Err(VerifyError::Running {
                     index,
                     reason: "running claims must share the selected evaluation point",
                 });
             }
-            if !evaluation_has_selected_shape(&claim.eval_k)
-                || claim.eval_a.len() != self.structure.t()
-                || claim
-                    .eval_a
-                    .iter()
-                    .any(|values| !evaluation_has_selected_shape(values))
-            {
+            if !has_canonical_evaluations(claim, self.structure.t()) {
                 return Err(VerifyError::Running {
                     index,
                     reason: "evaluation shape or nonzero surplus coefficients",
@@ -137,19 +128,18 @@ impl PreparedLifecycle {
             return Err(VerifyError::Fresh("commitment or public-input shape"));
         }
 
-        // The state hash binds only the parent public input; the decider
-        // accepts only children that are its canonical split.
-        check_pi_ccs_v1_1_canonical_children(&running.claims)?;
         // The formal terminal preimage contains the semantic running claims,
-        // not parent_authority or fold_digest.
-        let preimage = serialize_pi_ccs_v1_1_state_preimage(
+        // not their fold_digest frames. It binds only the parent public input,
+        // so serialization rejects children that are not its canonical split
+        // (`Terminal.ProofCanonical`).
+        let preimage = serialize_pi_ccs_v1_2_state_preimage(
             self.binding.verifier_context().digest().map(F::from_u64),
             expected_state.iteration(),
             expected_state.z0(),
             expected_state.current(),
             &running.claims,
         )?;
-        let public = encode_pi_ccs_v1_1_public_input(pi_ccs_v1_1_state_hash(&preimage)?)?;
+        let public = encode_pi_ccs_v1_2_public_input(pi_ccs_v1_2_state_hash(&preimage)?)?;
         if fresh
             .claim
             .x
@@ -266,10 +256,6 @@ fn commitment_has_selected_shape(commitment: &Commitment) -> bool {
     commitment.d == D && commitment.kappa == rows && commitment.data.len() == D * rows
 }
 
-fn evaluation_has_selected_shape(values: &[K]) -> bool {
-    values.len() >= D && values[D..].iter().all(|value| *value == K::ZERO)
-}
-
 fn evaluation_matches(recorded: &[K], expected: &[K]) -> bool {
-    evaluation_has_selected_shape(recorded) && expected.len() == D && recorded[..D] == *expected
+    is_canonical_evaluation(recorded) && expected.len() == D && recorded[..D] == *expected
 }

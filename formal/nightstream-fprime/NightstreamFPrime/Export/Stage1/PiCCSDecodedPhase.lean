@@ -1,6 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSDecodedEndpoints
 import NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.FormalPhase
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.FormalPhase
 
 /-!
 Owns the emitted-row soundness connection to the existing PiCCS phase
@@ -37,7 +37,7 @@ theorem rowsZero_implies_specHolds
       poseidon).RowsZero assignment)
     (endpointRows : (PiCCSTranscriptEndpointPlan.plan poseidon ordinary).RowsZero
       assignment) :
-    Lifecycle.PiCCS.v1_1.Formal.SpecHolds relation
+    Lifecycle.PiCCS.v1_2.Formal.SpecHolds relation
       (PiCCSInvocations.parentInterface relationLogicalWidth relationPublicFits)
       PiCCSInputs.phaseOffset
       (Spartan.pullback (PiCCSAssignmentSoundness.decodedEnv ordinary assignment)) := by
@@ -72,7 +72,7 @@ theorem selectedRowsZero_implies_specHolds
       (PerApplicationFixedPoint.geometry application)) = 1)
     (accepted : (PerApplicationFixedPoint.structuralPlan application fits).RowsZero
       assignment) :
-    Lifecycle.PiCCS.v1_1.Formal.SpecHolds
+    Lifecycle.PiCCS.v1_2.Formal.SpecHolds
       (PerApplicationFixedPoint.relation application fits)
       (PiCCSInvocations.parentInterface
         (PerApplicationFixedPoint.logicalWidth application)
@@ -123,7 +123,7 @@ theorem selectedRowsZero_implies_phaseHolds
       (PerApplicationFixedPoint.geometry application)) = 1)
     (accepted : (PerApplicationFixedPoint.structuralPlan application fits).RowsZero
       assignment) :
-    Lifecycle.PiCCS.v1_1.Formal.PhaseHolds
+    Lifecycle.PiCCS.v1_2.Formal.PhaseHolds
       (PerApplicationFixedPoint.relation application fits) ajtai
       (PiCCSInvocations.parentInterface
         (PerApplicationFixedPoint.logicalWidth application)
@@ -133,7 +133,7 @@ theorem selectedRowsZero_implies_phaseHolds
         (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry
           (PerApplicationFixedPoint.geometry application)) assignment))
       template :=
-  Lifecycle.PiCCS.v1_1.Formal.spec_implies_phaseHolds _ _ _ _ _ _
+  Lifecycle.PiCCS.v1_2.Formal.spec_implies_phaseHolds _ _ _ _ _ _
     (selectedRowsZero_implies_specHolds application fits assignment one accepted)
 
 end NightstreamFPrime.Export.Stage1.PiCCSDecodedPhase

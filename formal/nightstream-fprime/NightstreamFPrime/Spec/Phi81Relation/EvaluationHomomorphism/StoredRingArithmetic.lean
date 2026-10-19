@@ -13,8 +13,7 @@ set_option autoImplicit false
 namespace NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingArithmetic
 
 open NightstreamFPrime.Spec
-open _root_.NightstreamFPrime.Spec.Folding.Nifs.StoredAssignmentArithmetic
-  (build build_value build_work_le)
+open _root_.NightstreamFPrime.Spec.Folding.Nifs.StoredAssignmentArithmetic (build)
 open _root_.NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork (Result)
 
 abbrev StoredRing := Vector F ringDegree
@@ -50,15 +49,6 @@ private def rawTerm (left right : StoredRing) (degree index : Nat) : Result F :=
     else ⟨0, 5⟩
   else ⟨0, 3⟩
 
-private theorem rawTerm_value (left right : StoredRing) (degree index : Nat)
-    (live : index < ringDegree) :
-    (rawTerm left right degree index).value =
-      if index ≤ degree ∧ degree - index < ringDegree then
-        ringFCoeff left.get index * ringFCoeff right.get (degree - index)
-      else 0 := by
-  by_cases below : index ≤ degree <;> by_cases remaining : degree - index < ringDegree <;>
-    simp [rawTerm, live, below, remaining, ringFCoeff]
-
 private theorem rawTerm_work_le (left right : StoredRing) (degree index : Nat) :
     (rawTerm left right degree index).work ≤ 15 := by
   dsimp only [rawTerm]
@@ -67,28 +57,6 @@ private theorem rawTerm_work_le (left right : StoredRing) (degree index : Nat) :
 private def raw (left right : StoredRing) (degree : Nat) : Result F :=
   let result := sum (rawTerm left right degree) ringDegree
   ⟨result.value, result.work + 2⟩
-
-private theorem raw_prefix_value (left right : StoredRing) (degree count : Nat)
-    (bounded : count ≤ ringDegree) :
-    (sum (rawTerm left right degree) count).value =
-      (List.range count).foldl (fun accumulated index =>
-        if index ≤ degree ∧ degree - index < ringDegree then
-          accumulated + ringFCoeff left.get index * ringFCoeff right.get (degree - index)
-        else accumulated) 0 := by
-  induction count with
-  | zero => rfl
-  | succ count ih =>
-      have earlier := ih (Nat.le_trans (Nat.le_succ count) bounded)
-      have live : count < ringDegree := Nat.lt_of_lt_of_le (Nat.lt_succ_self count) bounded
-      simp only [sum, List.range_succ, List.foldl_append, List.foldl_cons, List.foldl_nil,
-        earlier, rawTerm_value left right degree count live]
-      split_ifs
-      · rfl
-      · exact _root_.NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier.baseLaws.add_zero _
-
-private theorem raw_value (left right : StoredRing) (degree : Nat) :
-    (raw left right degree).value = rawMulCoeffF left.get right.get degree :=
-  raw_prefix_value left right degree ringDegree (Nat.le_refl _)
 
 private def rawWork : Nat := ringDegree * (15 + 4) + 2 + 2
 
@@ -113,11 +81,6 @@ private def coefficient (left right : StoredRing) (output : Fin ringDegree) : Re
     else ⟨0, 4⟩
   ⟨low.value - folded.value + twice.value, low.work + folded.work + twice.work + 4⟩
 
-private theorem coefficient_value (left right : StoredRing) (output : Fin ringDegree) :
-    (coefficient left right output).value = ringFMul left.get right.get output := by
-  dsimp only [coefficient, ringFMul]
-  split_ifs <;> simp only [raw_value]
-
 private theorem coefficient_work_le (left right : StoredRing) (output : Fin ringDegree) :
     (coefficient left right output).work ≤ 3 * rawWork + 12 := by
   have low := raw_work_le left right output.val
@@ -135,19 +98,6 @@ def multiply (left right : StoredRing) : Result StoredRing :=
 
 def multiplyWork : Nat := ringDegree + 1 + ringDegree * ((3 * rawWork + 12) + 2) + 1 + 2
 
-theorem multiply_value (left right : StoredRing) :
-    (multiply left right).value.get = ringFMul left.get right.get := by
-  change _root_.NightstreamFPrime.Spec.Folding.Nifs.StoredAssignmentArithmetic.view
-    (build (coefficient left right)).value = _
-  rw [build_value]
-  funext output
-  exact coefficient_value left right output
-
-theorem multiply_work_le (left right : StoredRing) :
-    (multiply left right).work ≤ multiplyWork :=
-  Nat.add_le_add_right
-    (build_work_le _ _ (fun output => coefficient_work_le left right output)) 2
-
 /-- Build the identity array; each coefficient reads and compares its index,
 branches, and returns. The outer closure and return add two operations. -/
 def one (_ : Unit) : Result StoredRing :=
@@ -157,29 +107,10 @@ def one (_ : Unit) : Result StoredRing :=
 
 def oneWork : Nat := ringDegree + 1 + ringDegree * (4 + 2) + 1 + 2
 
-theorem one_value : (one ()).value.get = ringFOne := by
-  change _root_.NightstreamFPrime.Spec.Folding.Nifs.StoredAssignmentArithmetic.view (build _).value = _
-  rw [build_value]
-  rfl
-
-theorem one_work_le : (one ()).work ≤ oneWork :=
-  Nat.add_le_add_right (build_work_le _ _ (fun _ => Nat.le_refl 4)) 2
-
 /-- Each coordinate reads both stored arrays and adds their field values.
 The read count includes each vector's array projection. -/
 def add (left right : StoredRing) : Result StoredRing :=
   let result := build (fun index => (⟨left.get index + right.get index, 6⟩ : Result F))
   ⟨result.value, result.work + 2⟩
-
-def addWork : Nat := ringDegree + 1 + ringDegree * (6 + 2) + 1 + 2
-
-theorem add_value (left right : StoredRing) :
-    (add left right).value.get = ringFAdd left.get right.get := by
-  change _root_.NightstreamFPrime.Spec.Folding.Nifs.StoredAssignmentArithmetic.view (build _).value = _
-  rw [build_value]
-  rfl
-
-theorem add_work_le (left right : StoredRing) : (add left right).work ≤ addWork :=
-  Nat.add_le_add_right (build_work_le _ _ (fun _ => Nat.le_refl 6)) 2
 
 end NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingArithmetic

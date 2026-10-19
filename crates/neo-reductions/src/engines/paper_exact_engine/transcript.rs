@@ -1,6 +1,6 @@
 //! Independent PaperExact Fiat--Shamir and SumCheck schedule.
 //!
-//! This is a direct Rust transcription of the Lean-owned v1_1 schedule. It
+//! This is a direct Rust transcription of the Lean-owned v1_2 schedule. It
 //! does not call the optimized transcript or proof-assembly implementation.
 //! The canonical statement serializer is shared because it is protocol input,
 //! not an alternative prover computation.
@@ -8,8 +8,8 @@
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsStructure, CeClaim};
 use neo_math::{KExtensions, D, F, K};
-use neo_transcript::{fold_domain_chunk_v1_1, Poseidon2Transcript};
-use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use neo_transcript::{fold_domain_chunk_v1_2, Poseidon2Transcript};
+use p3_field::PrimeCharacteristicRing;
 
 use crate::engines::pi_ccs_joint::{JointDims, ProtocolTrace, TraceEvent};
 use crate::engines::pi_ccs_protocol::{Challenges, PiCcsProof};
@@ -20,72 +20,47 @@ const ALPHA_TAG: u64 = 1;
 const GAMMA_TAG: u64 = 2;
 const ROUND_CHALLENGE_TAG: u64 = 3;
 const RATE: usize = neo_ccs::crypto::poseidon2_goldilocks::RATE;
-const COINS_PER_CHUNK: usize = RATE / 2;
-
-/// The one Lean-owned PaperExact statement binding.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) struct PaperTranscriptBinding;
-
-impl PaperTranscriptBinding {
-    pub(crate) const fn digest_only() -> Self {
-        Self
-    }
-}
 
 fn k_fields(output: &mut Vec<F>, value: K) {
     output.extend_from_slice(&value.as_coeffs());
 }
 
 fn append(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, fields: Vec<F>) {
-    transcript.absorb_v1_1(&fields);
+    transcript.absorb_v1_2(&fields);
     trace.events.push(TraceEvent::Absorb(fields));
 }
 
-fn prior_digest_fields(running: &[CeClaim<Cmt, F, K>]) -> Result<Vec<F>, PiCcsError> {
-    let first = running.first().ok_or_else(|| {
-        PiCcsError::InvalidInput("PaperExact v1_1 digest-only statement requires a running claim".into())
-    })?;
-    if running
-        .iter()
-        .any(|claim| claim.fold_digest != first.fold_digest)
-    {
-        return Err(PiCcsError::InvalidInput(
-            "PaperExact v1_1 running claims do not share the prior digest".into(),
-        ));
-    }
-    first
-        .fold_digest
-        .chunks_exact(8)
-        .map(|chunk| {
-            let word = u64::from_le_bytes(chunk.try_into().expect("digest lane width"));
-            if word >= F::ORDER_U64 {
-                return Err(PiCcsError::InvalidInput(
-                    "PaperExact v1_1 prior digest has a noncanonical field word".into(),
-                ));
+/// Lean `decodeHashWord` for each of the four digest words, read from the
+/// bit cells after the marker of the first fresh public input. A cell past a
+/// shorter input reads as zero; the caller checks the input length, and the
+/// input is absorbed in full after the digest.
+/// The reference engine keeps its own decoder on purpose: it shares no
+/// decoding code with `neo_transcript::prior_digest_v1_2`, which the optimized
+/// engine uses.
+fn prior_digest_fields(fresh: &CcsClaim<Cmt, F>) -> Vec<F> {
+    let mut words = vec![F::ZERO; 4];
+    for (word, value) in words.iter_mut().enumerate() {
+        let mut weight = F::ONE;
+        for bit in 0..64 {
+            if let Some(&cell) = fresh.x.get(1 + word * 64 + bit) {
+                *value += weight * cell;
             }
-            Ok(F::from_u64(word))
-        })
-        .collect()
+            weight = weight.double();
+        }
+    }
+    words
 }
 
-/// Read the coin at `position` from rate-lane pair `position % 6`. The
-/// label is trace metadata only. After the sixth pair of a state, absorb one
-/// zero chunk.
-fn read_coin(
-    transcript: &mut Poseidon2Transcript,
-    trace: &mut ProtocolTrace,
-    label: u64,
-    index: Option<usize>,
-    position: usize,
-) -> K {
-    let pair = position % COINS_PER_CHUNK;
-    let sampled = transcript.read_pair_v1_1(pair);
-    let value = neo_math::from_complex(sampled[0], sampled[1]);
+/// Read the next fold-transcript coin and record it. The label is trace
+/// metadata only. A refresh absorb is recorded like any other absorb.
+fn read_coin(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, label: u64, index: Option<usize>) -> K {
+    let coin = transcript.read_coin_v1_2();
+    let value = neo_math::from_complex(coin.value[0], coin.value[1]);
     trace
         .events
         .push(TraceEvent::Challenge { label, index, value });
-    if pair == COINS_PER_CHUNK - 1 {
-        append(transcript, trace, vec![F::ZERO; RATE]);
+    if coin.refreshed {
+        trace.events.push(TraceEvent::Absorb(vec![F::ZERO; RATE]));
     }
     value
 }
@@ -94,7 +69,7 @@ fn check_commitment(commitment: &Cmt) -> Result<(), PiCcsError> {
     let kappa = neo_params::nightstream_goldilocks_k16::KAPPA as usize;
     if commitment.d != D || commitment.kappa != kappa || commitment.data.len() != D * kappa {
         return Err(PiCcsError::InvalidInput(
-            "PaperExact v1_1 commitment does not have the fixed Ajtai shape".into(),
+            "PaperExact v1_2 commitment does not have the fixed Ajtai shape".into(),
         ));
     }
     Ok(())
@@ -158,11 +133,10 @@ pub(super) fn bind_and_sample(
     fresh: &[CcsClaim<Cmt, F>],
     running: &[CeClaim<Cmt, F, K>],
     dims: JointDims,
-    _binding: PaperTranscriptBinding,
 ) -> Result<Challenges, PiCcsError> {
     if fresh.is_empty() {
         return Err(PiCcsError::InvalidInput(
-            "PaperExact v1_1 digest-only statement requires a fresh claim".into(),
+            "PaperExact v1_2 digest-only statement requires a fresh claim".into(),
         ));
     }
     for claim in running {
@@ -170,7 +144,7 @@ pub(super) fn bind_and_sample(
     }
     if fresh.iter().any(|claim| claim.adv.is_some()) || running.iter().any(|claim| claim.adv.is_some()) {
         return Err(PiCcsError::InvalidInput(
-            "PaperExact v1_1 does not bind auxiliary lane commitments".into(),
+            "PaperExact v1_2 does not bind auxiliary lane commitments".into(),
         ));
     }
     let prior_point = running
@@ -178,14 +152,14 @@ pub(super) fn bind_and_sample(
         .map_or_else(|| vec![K::ZERO; dims.variables], |claim| claim.r.clone());
     if prior_point.len() != dims.variables || running.iter().any(|claim| claim.r != prior_point) {
         return Err(PiCcsError::InvalidInput(
-            "PaperExact v1_1 running claims must share the complete prior point".into(),
+            "PaperExact v1_2 running claims must share the complete prior point".into(),
         ));
     }
 
-    transcript.reset_v1_1();
-    append(transcript, trace, fold_domain_chunk_v1_1().to_vec());
+    transcript.reset_v1_2();
+    append(transcript, trace, fold_domain_chunk_v1_2().to_vec());
 
-    let mut statement = prior_digest_fields(running)?;
+    let mut statement = prior_digest_fields(&fresh[0]);
     for claim in fresh {
         statement.extend(commitment_fields(&claim.c)?);
         statement.extend_from_slice(&claim.x);
@@ -193,9 +167,9 @@ pub(super) fn bind_and_sample(
     append(transcript, trace, statement);
 
     let alpha: Vec<K> = (0..dims.variables)
-        .map(|index| read_coin(transcript, trace, ALPHA_TAG, Some(index), index))
+        .map(|index| read_coin(transcript, trace, ALPHA_TAG, Some(index)))
         .collect();
-    let gamma = read_coin(transcript, trace, GAMMA_TAG, None, dims.variables);
+    let gamma = read_coin(transcript, trace, GAMMA_TAG, None);
     trace.alpha = alpha.clone();
     trace.gamma = gamma;
     trace.pre_sumcheck_state = transcript.state();
@@ -229,7 +203,7 @@ pub(super) fn prove_sumcheck<O: RoundOracle>(
             k_fields(&mut fields, coefficient);
         }
         append(transcript, trace, fields);
-        let challenge = read_coin(transcript, trace, ROUND_CHALLENGE_TAG, Some(round), 0);
+        let challenge = read_coin(transcript, trace, ROUND_CHALLENGE_TAG, Some(round));
         running_claim = paper_poly_eval(&coefficients, challenge);
         oracle.fold(challenge);
         rounds.push(coefficients);
@@ -269,7 +243,7 @@ pub(super) fn verify_sumcheck(
             k_fields(&mut fields, coefficient);
         }
         append(transcript, trace, fields);
-        let challenge = read_coin(transcript, trace, ROUND_CHALLENGE_TAG, Some(round_index), 0);
+        let challenge = read_coin(transcript, trace, ROUND_CHALLENGE_TAG, Some(round_index));
         claim = paper_poly_eval(coefficients, challenge);
         challenges.push(challenge);
         trace.round_states.push(transcript.state());
@@ -301,7 +275,7 @@ pub(super) fn absorb_outputs(
     for output in outputs {
         if output.eval_k.len() < neo_math::D || output.eval_a.len() != dims.matrix_count {
             return Err(PiCcsError::InvalidInput(
-                "PaperExact output v1_1 families are incomplete".into(),
+                "PaperExact output v1_2 families are incomplete".into(),
             ));
         }
         for coefficient in 0..neo_math::D {
@@ -320,7 +294,7 @@ pub(super) fn absorb_outputs(
     }
     append(transcript, trace, fields);
     trace.outgoing_state = transcript.state();
-    let digest = transcript.state_prefix_v1_1();
+    let digest = transcript.state_prefix_v1_2();
     trace.final_digest = digest;
     Ok(digest)
 }

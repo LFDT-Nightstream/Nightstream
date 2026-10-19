@@ -429,7 +429,7 @@ theorem recipesDirect_append (output : Nat) (first second : List Expr)
       constructor
       · exact firstDirect.1
       · apply ih (output + 1) firstDirect.2
-        convert secondDirect using 1 <;> simp <;> omega
+        convert secondDirect using 1; simp; omega
 
 /-- One recognized canonical logical constraint and its direct physical row. -/
 structure DirectConstraintResult (expression : Expr) where
@@ -786,7 +786,7 @@ theorem lowerGenericConstraint_complete_of_mulCount_zero
     LinearCombination.zero⟩
   have rowsEmpty : lowered.rows = [] := by
     have lengthZero : lowered.rows.length = 0 := by
-      simpa [lowered, count] using lowerExpression_rows_length expression start
+      simp [lowered, count]
     cases rowsEquals : lowered.rows with
     | nil => rfl
     | cons row rest => simp [rowsEquals] at lengthZero

@@ -22,7 +22,7 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Layout.ProductionRelation
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
@@ -386,7 +386,7 @@ def priorForm {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (inputs : Inputs program logicalWidth)
     (invocation : Fin PiRLCProductSchedule.invocationCount) : SparseForm logicalWidth :=
   let descriptor := PiRLCProductSchedule.descriptor invocation
-  if first : descriptor.source.val = 0 then
+  if _first : descriptor.source.val = 0 then
     .empty
   else
     inputs.prior invocation
@@ -407,8 +407,7 @@ def interface {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (inputs : Inputs program logicalWidth) :
     Phi81ProductFamilyPlan.Interface logicalWidth
       PiRLCProductRingSchedule.invocationCount :=
-  { oneColumn := inputs.oneColumn
-    left := fun ring => challengeState inputs
+  { left := fun ring => challengeState inputs
       (PiRLCProductRingSchedule.laneInvocation ring PiRLCProductRingSchedule.zeroLane)
     right := fun ring => valueState inputs
       (PiRLCProductRingSchedule.laneInvocation ring PiRLCProductRingSchedule.zeroLane)

@@ -245,7 +245,7 @@ private theorem checkInvocation_sound (block : Poseidon.Block) {columns : Nat}
           else false) 0 150 = true := by
         simpa only [checkInvocation, loaded] using checked
       have rowChecked := allFrom_sound _ 0 150 allRows row.val (by omega) (by
-        simpa using row.isLt)
+        simp)
       simpa only [PiDECPoseidonNumericBlock.row?,
         PiDECPoseidonNumericBlock.loadRow?_encodeProd, loaded,
         Option.map_some, checkRow, ofFn_get, dif_pos row.isLt] using rowChecked
@@ -268,7 +268,7 @@ theorem checkBlock_sound (block : MatrixProgram.Block) {columns : Nat}
       let index : Fin (block.invocationCount * 150) := ⟨row, bounded⟩
       let pair := Fin.decodeProd index
       have invocationChecked := allFrom_sound _ 0 block.invocationCount checked
-        pair.1.val (by omega) (by simpa using pair.1.isLt)
+        pair.1.val (by omega) (by simp)
       have selected : checkInvocation block read pair.1 = true := by
         simpa only [dif_pos pair.1.isLt] using invocationChecked
       have rowChecked := checkInvocation_sound block read pair.1 selected pair.2
@@ -295,8 +295,8 @@ private theorem select_checked {columns : Nat}
         simpa only [PiDECMatrixNumericRows.row?.select, if_neg selected] using
           inductionHypothesis restChecked (row - block.rowCount) (by omega)
 
-/-- Missing active rows reject. All fourteen returned matrix values, including
-the empty fourteenth port, feed the exact production polynomial. -/
+/-- Missing active rows reject. All returned matrix values feed the exact
+production polynomial. -/
 theorem rowsZero_of_blockChecks {columns : Nat}
     (program : MatrixProgram.Program) (plan : ProductionRelation.Plan columns)
     (sourceRow : Nat → Option R1CS.Row) (read : Fin columns → F)

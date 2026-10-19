@@ -16,7 +16,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
 structure Interface (logicalWidth rowCount : Nat) where
-  oneColumn : Fin logicalWidth
   left : Fin rowCount → SparseForm logicalWidth
   right : Fin rowCount → SparseForm logicalWidth
   output : Fin rowCount → SparseForm logicalWidth
@@ -71,8 +70,7 @@ equations. -/
 theorem planRowsZero_iff {logicalWidth rowCount : Nat}
     (interface : Interface logicalWidth rowCount)
     (rowCount_le : rowCount ≤ 2 ^ NightstreamFPrime.Lifecycle.cubeVariables)
-    (assignment : Assignment F logicalWidth)
-    :
+    (assignment : Assignment F logicalWidth) :
     (plan interface rowCount_le).RowsZero assignment ↔
       ∀ row,
         (interface.left row).eval assignment *

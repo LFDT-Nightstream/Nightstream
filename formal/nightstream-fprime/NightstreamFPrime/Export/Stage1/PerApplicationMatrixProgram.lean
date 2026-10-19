@@ -11,7 +11,7 @@ import NightstreamFPrime.Export.Stage1.PilotOrdinaryMatrixProgram
 import NightstreamFPrime.Export.Stage1.PilotPoseidonMatrixProgram
 import NightstreamFPrime.Export.Stage1.PinMatrixPrograms
 import NightstreamFPrime.Export.Stage1.RunningTransitionMatrixProgram
-import NightstreamFPrime.Layout.PiDEC.v1_1.Values
+import NightstreamFPrime.Layout.PiDEC.v1_2.Values
 
 /-!
 Owns the exact compact 4-matrix row program for one Lean-authored
@@ -27,31 +27,40 @@ open NightstreamFPrime.Layout.MatrixProgram
 
 abbrev ApplicationProgram := Lifecycle.Stage1.Application.Program
 
-def applicationGeometry (application : ApplicationProgram) :=
+theorem applicationGeometry (application : ApplicationProgram) :
+    NightstreamFPrime.Export.Stage1.ApplicationRetainedGeometry.Geometry application (NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint.logicalWidth application) :=
   PerApplicationProductionPlan.applicationGeometry application
 
-def samplerGeometry (application : ApplicationProgram) :=
+theorem samplerGeometry (application : ApplicationProgram) :
+    NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRetainedGeometry.Geometry application (NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint.logicalWidth application) :=
   PerApplicationProductionPlan.samplerGeometry application
 
-def piDecGeometry (application : ApplicationProgram) :=
+theorem piDecGeometry (application : ApplicationProgram) :
+    NightstreamFPrime.Export.Stage1.PiDECRetainedGeometry.Geometry application (NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint.logicalWidth application) :=
   PerApplicationProductionPlan.piDecGeometry application
 
-def poseidonGeometry (application : ApplicationProgram) :=
+theorem poseidonGeometry (application : ApplicationProgram) :
+    NightstreamFPrime.Export.Stage1.PiCCSPoseidonPlan.Geometry application (NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint.logicalWidth application) :=
   DirectPiDECPrefixPlan.poseidonGeometry (piDecGeometry application)
 
-def pilotGeometry (application : ApplicationProgram) :=
+theorem pilotGeometry (application : ApplicationProgram) :
+    NightstreamFPrime.Export.Stage1.PiRLCPoseidonGeometry.Geometry application (NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint.logicalWidth application) :=
   DirectPrefixPlan.pilotGeometry (poseidonGeometry application)
 
-def piCcsOrdinaryGeometry (application : ApplicationProgram) :=
+theorem piCcsOrdinaryGeometry (application : ApplicationProgram) :
+    NightstreamFPrime.Export.Stage1.PiCCSOrdinaryRetainedGeometry.Geometry application (NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint.logicalWidth application) :=
   DirectPiDECPrefixPlan.piCcsOrdinaryGeometry (piDecGeometry application)
 
-def pilotOrdinaryGeometry (application : ApplicationProgram) :=
+theorem pilotOrdinaryGeometry (application : ApplicationProgram) :
+    NightstreamFPrime.Export.Stage1.PilotOrdinaryRetainedGeometry.Geometry application (NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint.logicalWidth application) :=
   DirectPiDECPrefixPlan.pilotOrdinaryGeometry (piDecGeometry application)
 
-def piRlcGeometry (application : ApplicationProgram) :=
+theorem piRlcGeometry (application : ApplicationProgram) :
+    NightstreamFPrime.Export.Stage1.PiRLCRetainedGeometry.Geometry application (NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint.logicalWidth application) :=
   DirectPrefixPlan.prefixGeometry (poseidonGeometry application)
 
-def runningGeometry (application : ApplicationProgram) :=
+theorem runningGeometry (application : ApplicationProgram) :
+    NightstreamFPrime.Export.Stage1.RunningTransitionRetainedGeometry.Geometry application (NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint.logicalWidth application) :=
   DirectPiDECPrefixPlan.runningGeometry (piDecGeometry application)
 
 def pilotPoseidonProgram (application : ApplicationProgram) : Program :=
@@ -132,7 +141,7 @@ theorem blockProgram_rowCount (application : ApplicationProgram)
       samplerPoseidonProgram, samplerOrdinaryProgram, piRlcProgram,
       piDecProgram, runningTransitionProgram, applicationProgram,
       nextPreimageProgram, recursivePublicOutputProgram,
-      Layout.PiDEC.v1_1.exactRowCount_value]
+      Layout.PiDEC.v1_2.exactRowCount_value]
 
 /-- Interpret the same ordered tree as a compact matrix program. -/
 def compileMatrix (application : ApplicationProgram) :
@@ -244,7 +253,7 @@ theorem matrixProgram_blocks (application : ApplicationProgram) :
     piCcsEndpointProgram, samplerPoseidonProgram, samplerOrdinaryProgram,
     piRlcProgram, piDecProgram, runningTransitionProgram, applicationProgram,
     nextPreimageProgram, recursivePublicOutputProgram,
-    Layout.PiDEC.v1_1.exactRowCount_value]
+    Layout.PiDEC.v1_2.exactRowCount_value]
 
 theorem matrixProgram_rowCount_eq_structuralPlan
     (application : ApplicationProgram)

@@ -41,7 +41,7 @@ pub(super) fn word(seed: u64, index: u64) -> u64 {
 
 /// The layer-1 seed of an empty fold transcript.
 pub(super) fn seed() -> [Gl; 4] {
-    crate::hash::seed(Poseidon2Transcript::new_v1_1())
+    crate::hash::seed(Poseidon2Transcript::new_v1_2())
 }
 
 /// A prover challenger at `seed()`.
@@ -137,7 +137,7 @@ impl Toy {
             .collect();
         let blocks_view = SuperneoZBlocks::from_witness_mat(&witness, columns).unwrap();
         let opening = cache
-            .eval_real_v1_1_openings(&point, &[blocks_view])
+            .eval_real_v1_2_openings(&point, &[blocks_view])
             .unwrap()
             .remove(0);
         let pad = |mut values: Vec<K>| {

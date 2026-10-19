@@ -1,6 +1,6 @@
 import NightstreamFPrime.Export.Stage1.DirectPiRLCSamplerCompletePrefixPlan
 import NightstreamFPrime.Export.Stage1.PiCCSTranscriptCommonSemantics
-import NightstreamFPrime.Lifecycle.PiCCS.v1_1.FormalPhase
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.FormalPhase
 
 /-!
 Owns deterministic PiCCS parent semantics in the complete PiRLC sampler
@@ -35,7 +35,7 @@ theorem semantics_imply_piCcsSpecHolds
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (semantics : DirectPiRLCSamplerCompletePrefixPlan.Semantics relation
       geometry assignment base groupValue) :
-    Lifecycle.PiCCS.v1_1.Formal.SpecHolds relation
+    Lifecycle.PiCCS.v1_2.Formal.SpecHolds relation
       (PiCCSInvocations.parentInterface relationLogicalWidth
         relationPublicFits)
       PiCCSInputs.phaseOffset
@@ -59,7 +59,7 @@ theorem semantics_imply_piCcsSpecHolds
   have packets := PiCCSArithmetic.arithmeticRows_imply_packetHolds
     relationLogicalWidth relationPublicFits semanticEnv ordinaryRows
   have assumptions :=
-    NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions.production relation
+    NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions.production relation
       (PiCCSInvocations.parentInterface relationLogicalWidth
         relationPublicFits)
       PiCCSInputs.phaseOffset
@@ -105,14 +105,14 @@ theorem semantics_imply_piCcsPhaseHolds
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (semantics : DirectPiRLCSamplerCompletePrefixPlan.Semantics relation
       geometry assignment base groupValue) :
-    Lifecycle.PiCCS.v1_1.Formal.PhaseHolds relation ajtai
+    Lifecycle.PiCCS.v1_2.Formal.PhaseHolds relation ajtai
       (PiCCSInvocations.parentInterface relationLogicalWidth
         relationPublicFits)
       PiCCSInputs.phaseOffset
       (Spartan.pullback
         (PiRLCSamplerRetainedCustody.semanticEnv geometry assignment base))
       template := by
-  apply Lifecycle.PiCCS.v1_1.Formal.spec_implies_phaseHolds relation ajtai
+  apply Lifecycle.PiCCS.v1_2.Formal.spec_implies_phaseHolds relation ajtai
   exact semantics_imply_piCcsSpecHolds relation geometry assignment base
     groupValue semantics
 

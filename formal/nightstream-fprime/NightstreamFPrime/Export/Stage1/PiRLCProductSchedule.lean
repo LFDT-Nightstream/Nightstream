@@ -15,7 +15,7 @@ namespace NightstreamFPrime.Export.Stage1.PiRLCProductSchedule
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Export.Package
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Export.Stage1.PiRLCCombinationInvocations
 
@@ -308,7 +308,7 @@ private theorem ofFn_decodeProd_eq_range_flatMap {Alpha : Type}
     ⟨outer.val * n + inner.val, by
       calc
         outer.val * n + inner.val < (outer.val + 1) * n := by
-          simpa [Nat.add_mul] using Nat.add_lt_add_left inner.isLt (outer.val * n)
+          simp [Nat.add_mul]
         _ ≤ m * n := Nat.mul_le_mul_right n outer.isLt⟩
   change
     value (Fin.decodeProd combined).1.val (Fin.decodeProd combined).2 =

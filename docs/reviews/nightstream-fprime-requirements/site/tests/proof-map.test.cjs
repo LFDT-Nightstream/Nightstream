@@ -21,13 +21,13 @@ function proofMapTrace(diagram, selected) {
 
 test('history security uses its actual premises without depending on native completeness', () => {
   const trace = proofMapTrace(diagram, 'probability');
-  for (const id of ['accept', 'children', 'extraction', 'predecessor', 'history', 'visited', 'fs', 'msis']) assert.ok(trace.inputs.has(id), id);
+  for (const id of ['accept', 'children', 'extraction', 'predecessor', 'history', 'visited', 'fs', 'msis', 'assumption1']) assert.ok(trace.inputs.has(id), id);
   for (const id of ['native', 'extension', 'encoding']) assert.ok(!trace.inputs.has(id), id);
   assert.ok(trace.outputs.has('deployed'));
   assert.equal(diagram.edges.find(e => e.source === 'actual-success' && e.target === 'children').kind, 'supplies');
   const terminal = diagram.edges.find(e => e.source === 'probability' && e.target === 'deployed');
   assert.equal(terminal.kind, 'uses');
-  assert.ok(terminal.refs.some(ref => ref.file === 'HyperNovaFalseAcceptance.lean' && ref.symbol === 'probability_linear_bound'));
+  assert.ok(terminal.refs.some(ref => ref.file === 'HyperNovaFalseAcceptance.lean' && ref.symbol === 'probability_bound'));
 });
 
 test('selection isolates direct connections; the full graph remains available', () => {

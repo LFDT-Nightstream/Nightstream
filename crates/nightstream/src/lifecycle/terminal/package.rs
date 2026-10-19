@@ -19,25 +19,25 @@ use neo_ccs::SparsePoly;
 use neo_math::{D, F};
 use neo_spartan::{Backend, ClaimWords, Error, FoldTranscript, R1cs};
 use nightstream_fprime::{
-    load_terminal_package, LoadedPackage, PackageError, PackageSparseMatrix, PiCcsV1_1EncodedInputs, TerminalOutputs,
-    PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_1_STATE_PREIMAGE_WORDS,
+    load_terminal_package, LoadedPackage, PackageError, PackageSparseMatrix, PiCcsV1_2EncodedInputs, TerminalOutputs,
+    PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_2_STATE_PREIMAGE_WORDS,
 };
 use p3_field::PrimeField64;
 
-use super::super::inputs::{state_domain_words, STATE_CONTEXT_START, STATE_STATEMENT_WORDS};
+use super::super::inputs::{STATE_CONTEXT_START, STATE_DOMAIN_CHUNK, STATE_STATEMENT_WORDS};
 
 const ARTIFACT: &[u8] = include_bytes!("../../../artifacts/compression-terminal-v1.json");
 
 /// The identifier of the embedded artifact.
 pub(crate) const IDENTIFIER: [u64; 4] = [
-    16_428_539_504_810_015_812,
-    301_456_988_600_151_838,
-    13_020_544_018_908_642_000,
-    4_459_281_972_164_541_863,
+    15_606_775_949_683_203_332,
+    10_806_517_727_170_708_686,
+    18_361_906_505_571_982_029,
+    3_191_860_797_915_537_918,
 ];
 
 /// The public inputs: the prior public input, the output digest, the context.
-const PUBLIC_CONTEXT_START: usize = PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS + 4;
+const PUBLIC_CONTEXT_START: usize = PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS + 4;
 
 /// Where the value of one system column comes from.
 #[derive(Clone, Copy)]
@@ -86,7 +86,7 @@ pub(crate) fn package() -> Result<&'static Package, TerminalPackageError> {
 fn load() -> Result<Package, PackageError> {
     let (loaded, outputs) = load_terminal_package(ARTIFACT, IDENTIFIER)?;
     // `apply` reads the first caller inputs as the prior state preimage.
-    if loaded.prior_preimage_inputs() != Some(0..PI_CCS_V1_1_STATE_PREIMAGE_WORDS) {
+    if loaded.prior_preimage_inputs() != Some(0..PI_CCS_V1_2_STATE_PREIMAGE_WORDS) {
         return Err(PackageError::Invalid(
             "the prior state preimage is not the first caller input",
         ));
@@ -181,11 +181,11 @@ impl Package {
         b: &mut B,
         statement: &[B::F],
         context: [u64; 4],
-        inputs: Option<&PiCcsV1_1EncodedInputs>,
+        inputs: Option<&PiCcsV1_2EncodedInputs>,
     ) -> Result<(ClaimWords<B::F>, FoldTranscript<B>), Error> {
         assert_eq!(statement.len(), STATE_STATEMENT_WORDS);
         let computed = b.hint(&[], self.computed.len(), &|_| self.execute(inputs));
-        let domain = state_domain_words();
+        let domain = STATE_DOMAIN_CHUNK;
         let private = |index: usize| inputs.map_or(0, |inputs| inputs.private_values()[index]);
         let public = |index: usize| inputs.map_or(0, |inputs| inputs.public_values()[index]);
         let columns: Vec<B::F> = self
@@ -198,7 +198,7 @@ impl Package {
                     b.constant(context[index - STATE_CONTEXT_START])
                 }
                 Source::Private(index)
-                    if (STATE_CONTEXT_START + 4..PI_CCS_V1_1_STATE_PREIMAGE_WORDS).contains(&index) =>
+                    if (STATE_CONTEXT_START + 4..PI_CCS_V1_2_STATE_PREIMAGE_WORDS).contains(&index) =>
                 {
                     statement[index - STATE_CONTEXT_START - 4]
                 }
@@ -238,7 +238,7 @@ impl Package {
 
     /// The computed columns of an honest run on `inputs`; zeros without
     /// inputs or when a row fails, so that the rows then reject.
-    fn execute(&self, inputs: Option<&PiCcsV1_1EncodedInputs>) -> Vec<u64> {
+    fn execute(&self, inputs: Option<&PiCcsV1_2EncodedInputs>) -> Vec<u64> {
         let assignment = inputs.and_then(|inputs| {
             self.loaded
                 .execute_witness(inputs.private_values(), inputs.public_values())

@@ -60,7 +60,7 @@ end Role
 def logicalWidth : Nat :=
   PhaseReference.logicalWidth
 
-def publicFits : ringDegree * publicRingColumns ≤
+theorem publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth :=
   PhaseReference.publicFits
 
@@ -217,7 +217,7 @@ def outputEval_AWords : Nat :=
 def outputEvaluationWordsPerSource : Nat :=
   outputEval_KWords + outputEval_AWords
 
-/-- The prior child digits and signs open the proof-input interval. -/
+/-- The prior child digits open the proof-input interval. -/
 def freshCommitmentTargetStart : Nat :=
   proofInputStart + NightstreamFPrime.Layout.Stage1.PiCCSInputs.priorChildrenWords
 
@@ -226,7 +226,7 @@ def outputEvaluationTargetStart : Nat :=
     NightstreamFPrime.Layout.Stage1.PiCCSInputs.freshCommitmentWords +
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.roundMessageWords
 
-/-- One exact v1_1 Pad-evaluation segment for one PiCCS output source. -/
+/-- One exact v1_2 Pad-evaluation segment for one PiCCS output source. -/
 def outputEval_KSegment
     (source : Fin productionShape.sourceCount) : Segment :=
   ⟨Role.piCcsOutputEval_K,
@@ -234,7 +234,7 @@ def outputEval_KSegment
       source.val * outputEvaluationWordsPerSource,
     outputEval_KWords⟩
 
-/-- One exact v1_1 CCS-matrix-evaluation segment for one PiCCS output source. -/
+/-- One exact v1_2 CCS-matrix-evaluation segment for one PiCCS output source. -/
 def outputEval_ASegment
     (source : Fin productionShape.sourceCount) : Segment :=
   ⟨Role.piCcsOutputEval_A,

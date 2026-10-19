@@ -1,7 +1,7 @@
 //! Complete openings and row checks from original matrix windows. Global row
 //! weights and columns stay fixed when local cache storage is released.
 
-use neo_ccs::{SparsePoly, V1_1Evaluations};
+use neo_ccs::{SparsePoly, V1_2Evaluations};
 use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
 
@@ -14,7 +14,7 @@ use super::{
 use crate::PiCcsError;
 
 pub struct TerminalEvaluations {
-    pub openings: Vec<V1_1Evaluations<K>>,
+    pub openings: Vec<V1_2Evaluations<K>>,
     pub first_unsatisfied_row: Option<usize>,
 }
 
@@ -40,25 +40,25 @@ pub fn evaluate_terminal_rows(
 
 /// The workspace bounds matrix-window construction; witness and opening-form
 /// storage belong to the caller's separate live-allocation accounting.
-pub fn eval_real_v1_1_openings_from_rows(
+pub fn eval_real_v1_2_openings_from_rows(
     source: &dyn MatrixRows,
     point: &[K],
     witnesses: &[SuperneoZBlocks],
     workspace_bytes: usize,
-) -> Result<Vec<V1_1Evaluations<K>>, PiCcsError> {
-    eval_real_v1_1_openings_from_rows_reusing(source, point, witnesses, workspace_bytes, Vec::new(), None)
+) -> Result<Vec<V1_2Evaluations<K>>, PiCcsError> {
+    eval_real_v1_2_openings_from_rows_reusing(source, point, witnesses, workspace_bytes, Vec::new(), None)
 }
 
 /// `complete` may carry a window over every row of `source`, already built
 /// by the caller; it is used only when it also fits this call's workspace.
-pub(crate) fn eval_real_v1_1_openings_from_rows_reusing(
+pub(crate) fn eval_real_v1_2_openings_from_rows_reusing(
     source: &dyn MatrixRows,
     point: &[K],
     witnesses: &[SuperneoZBlocks],
     workspace_bytes: usize,
     storage: Vec<K>,
     complete: Option<MatrixWindow>,
-) -> Result<Vec<V1_1Evaluations<K>>, PiCcsError> {
+) -> Result<Vec<V1_2Evaluations<K>>, PiCcsError> {
     Ok(evaluate_rows(source, point, witnesses, workspace_bytes, storage, complete, None)?.openings)
 }
 
@@ -99,7 +99,7 @@ fn evaluate_rows(
     let weights = EqualityWeights::new(point);
     let mut result = pad_openings(witnesses, point)
         .into_iter()
-        .map(|eval_k| V1_1Evaluations {
+        .map(|eval_k| V1_2Evaluations {
             eval_k: eval_k.to_vec(),
             eval_a: vec![vec![K::ZERO; D]; shape.matrices],
         })

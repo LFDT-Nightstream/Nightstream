@@ -11,7 +11,7 @@ use neo_reductions::api::{
     rlc_with_commit_refs_and_resident_witness, verify_dec_public, FoldingMode,
 };
 use neo_reductions::common::{
-    compute_v1_1_evaluations_from_z_and_r, left_mul_acc, project_x_from_witness_mat, rot_rhos_to_mats,
+    compute_v1_2_evaluations_from_z_and_r, left_mul_acc, project_x_from_witness_mat, rot_rhos_to_mats,
     sample_rot_rhos_n_typed, split_b_matrix_k_with_nonzero_flags, validate_packed_witness_nc_range, RotRing,
 };
 use neo_reductions::superneo_eval::build_superneo_eval_cache;
@@ -168,13 +168,13 @@ fn typed_rhos(params: &NeoParams, rhos: &[Mat<F>]) -> Vec<neo_reductions::api::R
     neo_reductions::api::rot_rhos_from_mats(params, rhos, "rlc_dec_k_gt1:test rhos").expect("typed rhos")
 }
 
-fn v1_1_test_transcript(domain: &[u8]) -> Poseidon2Transcript {
-    let mut transcript = Poseidon2Transcript::new_v1_1();
+fn v1_2_test_transcript(domain: &[u8]) -> Poseidon2Transcript {
+    let mut transcript = Poseidon2Transcript::new_v1_2();
     let domain_fields = domain
         .iter()
         .map(|byte| F::from_u64(u64::from(*byte)))
         .collect::<Vec<_>>();
-    transcript.absorb_v1_1(&domain_fields);
+    transcript.absorb_v1_2(&domain_fields);
     transcript
 }
 
@@ -184,7 +184,7 @@ fn sampled_rhos(params: &NeoParams, count: usize, alternate: bool) -> (Vec<neo_r
     } else {
         b"rlc_dec_k_gt1/primary"
     };
-    let mut transcript = v1_1_test_transcript(domain);
+    let mut transcript = v1_2_test_transcript(domain);
     let typed = sample_rot_rhos_n_typed(&mut transcript, params, &RotRing::goldilocks(), count)
         .expect("sample selected strong-set rhos");
     let matrices = rot_rhos_to_mats(&typed);
@@ -215,7 +215,7 @@ fn build_me_from_z(
     c: Commitment,
     _aux_seed: u64,
 ) -> CeClaim<Commitment, F, K> {
-    let evaluations = compute_v1_1_evaluations_from_z_and_r(s, Z, r, ell_d);
+    let evaluations = compute_v1_2_evaluations_from_z_and_r(s, Z, r, ell_d);
     let X = neo_reductions::common::project_x_from_witness_mat(Z, s.m, m_in).expect("project X");
     CeClaim {
         adv: None,
@@ -331,7 +331,7 @@ fn rlc_with_commit_sampled_rotation_rhos_matches_public_z_mix() {
         Zs.push(Z);
     }
 
-    let mut transcript = v1_1_test_transcript(b"rlc sampled rotation rho test");
+    let mut transcript = v1_2_test_transcript(b"rlc sampled rotation rho test");
     let rhos_typed =
         sample_rot_rhos_n_typed(&mut transcript, &params, &RotRing::goldilocks(), Zs.len()).expect("sample rhos");
     let rho_mats = rot_rhos_to_mats(&rhos_typed);
@@ -385,7 +385,7 @@ fn rlc_with_commit_sparse_rotation_rhs_matches_public_z_mix() {
         Zs.push(Z);
     }
 
-    let mut transcript = v1_1_test_transcript(b"rlc sparse rotation rhs test");
+    let mut transcript = v1_2_test_transcript(b"rlc sparse rotation rhs test");
     let rhos_typed =
         sample_rot_rhos_n_typed(&mut transcript, &params, &RotRing::goldilocks(), Zs.len()).expect("sample rhos");
     let rho_mats = rot_rhos_to_mats(&rhos_typed);
@@ -439,7 +439,7 @@ fn rlc_x_projection_tracks_mixed_witness_under_rotation_rhos() {
         Zs.push(Z);
     }
 
-    let mut transcript = v1_1_test_transcript(b"rlc_x_projection_tracks_mixed_witness_under_rotation_rhos");
+    let mut transcript = v1_2_test_transcript(b"rlc_x_projection_tracks_mixed_witness_under_rotation_rhos");
     let rhos = rot_rhos_to_mats(
         &sample_rot_rhos_n_typed(&mut transcript, &params, &RotRing::goldilocks(), 2).expect("sample rhos"),
     );
@@ -745,7 +745,7 @@ fn dec_children_trusted_split_digits_matches_checked_path() {
     let openings = checked
         .0
         .iter()
-        .map(|child| neo_ccs::V1_1Evaluations {
+        .map(|child| neo_ccs::V1_2Evaluations {
             eval_k: child.eval_k[..D].to_vec(),
             eval_a: child
                 .eval_a

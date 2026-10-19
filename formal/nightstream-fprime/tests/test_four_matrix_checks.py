@@ -109,7 +109,7 @@ class FourMatrixChecks(unittest.TestCase):
             ("caller.json", self.caller),
         )]
         report = self.run_check("check_independent_nifs_bytes.py", *paths, *paths)
-        self.assertEqual(report["caller_private_words"], 103072)
+        self.assertEqual(report["caller_private_words"], 102802)
         self.assertEqual(report["changed_target"], "rejected")
         caller = copy.deepcopy(self.caller)
         caller[2].pop()

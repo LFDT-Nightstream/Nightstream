@@ -220,8 +220,10 @@ once per lane for both ports. -/
 @[specialize] def evaluate {columns : Nat}
     (prepared : List (Fin columns × (F × F) × (F × F)))
     (read : Fin ringDegree → Fin columns → F) : Vector MaterializedRingK matrixCount :=
+  -- The coefficients become words once, for the reads of all lanes.
+  let words := (prepared.map PiDECNativeSparseEvaluation.TwoPairEntry.ofEntry).toArray
   let lanes := Vector.ofFn fun output : Fin ringDegree =>
-    PiDECNativeSparseEvaluation.nativeEvalTwoPairs prepared (read output)
+    PiDECNativeSparseEvaluation.nativeEvalTwoPairs words (read output)
   Vector.ofFn fun port : Fin matrixCount =>
     match portIndex? port with
     | some 0 => MaterializedRingK.ofRing fun output =>
@@ -395,7 +397,8 @@ private theorem fullLane_value {columns : Nat} (interface : PoseidonSboxPlan.Int
   refine ⟨third.1, fun target => ?_⟩
   unfold fullLane
   rw [third.2 target, second.2 target, first.2 target]
-  fin_cases target <;> simp [change, extensionLaws.add_assoc] <;> rfl
+  fin_cases target <;> simp [change, extensionLaws.add_assoc]
+  rfl
 
 /-- Each lane adds its contribution to every port. -/
 private theorem foldl_lanes {columns : Nat} (update : Fin 16 → Merged columns → Merged columns)

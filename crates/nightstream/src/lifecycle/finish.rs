@@ -13,26 +13,24 @@ use neo_math::{D, F};
 use neo_spartan::shrink::{self, Shape, Shrink, ShrinkProof};
 use neo_spartan::Relation;
 use nightstream_fprime::{
-    PackageError, PiCcsV1_1EncodedInputs, PiCcsV1_1PackageInputs, PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS,
-    PI_CCS_V1_1_ROUND_COUNT, PI_CCS_V1_1_SOURCE_COUNT,
+    PackageError, PiCcsV1_2EncodedInputs, PiCcsV1_2PackageInputs, PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS,
+    PI_CCS_V1_2_ROUND_COUNT, PI_CCS_V1_2_SOURCE_COUNT,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use serde::{Deserialize, Serialize};
 
 use super::terminal::{self, FinalProgram, Package, TerminalPackageError};
 use super::{
-    encode_pi_ccs_v1_1_public_input, extend::prepare_running, pi_ccs_v1_1_prior_children, PiCcsV1_1ProofInputs,
-    PreparedLifecycle, ProofCodecError, ProveError, Stage1Envelope, Stage1State, StepInputError, VerifyError,
+    encode_pi_ccs_v1_2_public_input, pi_ccs_v1_2_prior_children, PiCcsV1_2ProofInputs, PreparedLifecycle,
+    ProofCodecError, ProveError, Stage1Envelope, Stage1State, StepInputError, VerifyError,
 };
-use crate::folding::{
-    self as nifs, ajtai_dec_mixer, pi_ccs, pi_rlc, transcript::Transcript, CcsClaim, RunningInstance,
-};
+use crate::folding::{self as nifs, pi_ccs, pi_rlc, transcript::Transcript, CcsClaim, RunningInstance};
 
 /// The terminal proof the shrink layer proves: the inputs of the terminal
 /// package and the layer-1 argument for one state. It never leaves the
 /// prover.
 pub(crate) struct TerminalProof {
-    pub(crate) inputs: PiCcsV1_1EncodedInputs,
+    pub(crate) inputs: PiCcsV1_2EncodedInputs,
     pub(crate) layer1: neo_spartan::Proof,
 }
 
@@ -150,8 +148,8 @@ impl CompressionKey {
     fn relation(&self) -> Result<Relation<'_>, neo_spartan::Error> {
         Relation::new(
             &self.layer1,
-            PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS / D,
-            PI_CCS_V1_1_ROUND_COUNT,
+            PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS / D,
+            PI_CCS_V1_2_ROUND_COUNT,
             self.bound,
             self.layer_bits,
         )
@@ -260,19 +258,18 @@ impl PreparedLifecycle {
     /// Run PiCCS and PiRLC on the running and fresh claims of `envelope`.
     pub(crate) fn last_fold(&self, envelope: &Stage1Envelope) -> Result<LastFold, CompressionError> {
         let state = envelope.state().clone();
-        let (mut running, mut fresh) = match (envelope.running(), envelope.fresh()) {
-            (Some(running), Some(fresh)) => (running.clone(), fresh.clone()),
-            _ => return Err(CompressionError::Input("an initial proof has no fold to finish")),
+        let Some((running, fresh)) = envelope.active_parts() else {
+            return Err(CompressionError::Input("an initial proof has no fold to finish"));
         };
-        // The state hash reads only the claims; the witnesses go into the fold.
-        let semantic = running.claims_only();
-        let (_, digest) = self.checked_prior_state(&state, &semantic, &fresh.claim)?;
-        prepare_running(&mut running, &self.params, digest);
-        nifs::validate_running_parent_authority(&self.params, &self.structure, ajtai_dec_mixer, &running)
+        let (running, mut fresh) = (running.clone(), fresh.clone());
+        self.checked_prior_state(&state, &running, &fresh.claim)?;
+        nifs::validate_running_children(&self.params, &self.structure, &running)
             .map_err(CompressionError::PriorFamily)?;
         // The complete Z opening is the source; w is a redundant cache.
         fresh.witness.w.clear();
-        self.validate_prover_sources(std::slice::from_ref(&fresh), &running)?;
+        self.validate_prover_sources(&fresh, &running)?;
+        // The state hash reads only the claims; the witnesses go into the fold.
+        let semantic = running.claims_only();
         let fresh_claim = fresh.claim.clone();
 
         let rows = self.matrix_rows();
@@ -294,7 +291,7 @@ impl PreparedLifecycle {
                     &self.structure,
                     &rows,
                     workspace_bytes,
-                    vec![fresh],
+                    fresh,
                     running,
                 )?
             }
@@ -304,7 +301,7 @@ impl PreparedLifecycle {
                 &self.structure,
                 &rows,
                 workspace_bytes,
-                vec![fresh],
+                fresh,
                 running,
             )?,
         };
@@ -321,12 +318,12 @@ impl PreparedLifecycle {
     /// The caller inputs of the Lean terminal package for `last`. The package
     /// has no output state: the prior preimage fills its output-preimage
     /// segment, so the canonical and context rows of PiCCS hold for it too.
-    pub(crate) fn terminal_inputs(&self, last: &LastFold) -> Result<PiCcsV1_1PackageInputs, StepInputError> {
+    pub(crate) fn terminal_inputs(&self, last: &LastFold) -> Result<PiCcsV1_2PackageInputs, StepInputError> {
         let (prior_preimage, prior_digest) = self.checked_prior_state(&last.state, &last.running, &last.fresh)?;
-        let prior_children = pi_ccs_v1_1_prior_children(&last.running.claims)?;
-        let prior_public_input = encode_pi_ccs_v1_1_public_input(prior_digest)?;
+        let prior_children = pi_ccs_v1_2_prior_children(&last.running.claims)?;
+        let prior_public_input = encode_pi_ccs_v1_2_public_input(prior_digest)?;
         Ok(
-            PiCcsV1_1ProofInputs::from_proof(std::slice::from_ref(&last.fresh), &last.pi_ccs)?.into_package_inputs(
+            PiCcsV1_2ProofInputs::from_proof(&last.fresh, &last.pi_ccs)?.into_package_inputs(
                 prior_preimage.clone(),
                 prior_preimage,
                 prior_children,
@@ -428,7 +425,7 @@ impl PreparedLifecycle {
 
     /// PiRLC's guard bound `sources · T · (b - 1)`.
     fn compression_bound(&self) -> u32 {
-        PI_CCS_V1_1_SOURCE_COUNT as u32 * self.params.T() * (self.params.b() - 1)
+        PI_CCS_V1_2_SOURCE_COUNT as u32 * self.params.inner().T * (self.params.b() - 1)
     }
 
     /// The bits each compression layer must reach: layer 1 and the shrink

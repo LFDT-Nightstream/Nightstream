@@ -20,8 +20,8 @@ open NightstreamFPrime.Export.Codec
 open NightstreamFPrime.Export.Package
 open NightstreamFPrime.Gadgets.Poseidon2
 open NightstreamFPrime.Gadgets.Poseidon2.Duplex
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 
 abbrev EState := Invocations.EState
 abbrev ActionShape := Formal.ActionShape
@@ -621,7 +621,7 @@ private theorem ofFn_decodeProd_eq_range_flatMap {Alpha : Type}
     ⟨outer.val * n + inner.val, by
       calc
         outer.val * n + inner.val < (outer.val + 1) * n := by
-          simpa [Nat.add_mul] using Nat.add_lt_add_left inner.isLt (outer.val * n)
+          simp [Nat.add_mul]
         _ ≤ m * n := Nat.mul_le_mul_right n outer.isLt⟩
   change value (Fin.decodeProd combined).1.val (Fin.decodeProd combined).2 =
     value outer.val inner
@@ -727,7 +727,7 @@ private theorem canonicalWitnessStarts_transcript_getD
     (index : Nat) (bound : index < 183) :
     (canonicalWitnessStarts ()).getD index 0 =
       NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
-        (NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset +
+        (NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart +
           index * 1096) := by
   rw [canonicalWitnessStarts, List.getD_append _ _ _ _ (by
     rw [piCcsWitnessStarts_length]
@@ -735,10 +735,8 @@ private theorem canonicalWitnessStarts_transcript_getD
   rw [piCcsWitnessStarts_transcriptPrefix, List.getD_append _ _ _ _ (by
     rw [sequentialWitnessStarts_length]
     exact bound)]
-  simpa only [PiCCSInvocations.statementWitnessStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart] using
-      sequentialWitnessStarts_getD PiCCSInvocations.statementWitnessStart
-        183 index bound
+  exact sequentialWitnessStarts_getD PiCCSInvocations.statementWitnessStart
+    183 index bound
 
 /-- The selected pre-ordinary PiCCS invocation has its exact affine source
 address. The proof uses the structural schedule and does not expand it. -/
@@ -747,7 +745,7 @@ theorem canonicalInvocation_witnessStart_of_transcript
     (bound : index.val < 183) :
     ((Data.permutationInvocations ()).get index).witnessStart =
       NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
-        (NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset +
+        (NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart +
           index.val * 1096) := by
   have selected := canonicalWitnessStarts_transcript_getD index.val bound
   rw [canonicalWitnessStarts_materializes] at selected

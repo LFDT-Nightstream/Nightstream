@@ -2,7 +2,7 @@
 use super::*;
 use neo_reductions::{
     common::{split_b_matrix_k_with_nonzero_flags, validate_superneo_witness_mat},
-    superneo_eval::{eval_real_v1_1_openings_from_rows, SuperneoZBlocks},
+    superneo_eval::{eval_real_v1_2_openings_from_rows, SuperneoZBlocks},
 };
 use std::io::{self, BufRead};
 
@@ -47,7 +47,7 @@ struct SavedChildOpening {
     child: usize,
     parent: CeClaim,
     commitment: Commitment,
-    opening: V1_1Evaluations<K>,
+    opening: V1_2Evaluations<K>,
     transcript_state: [F; 16],
     transcript_absorbed: usize,
 }
@@ -94,7 +94,7 @@ impl SavedNifs {
             &package.structure,
             ajtai_rlc_mixer,
             ajtai_dec_mixer,
-            std::slice::from_ref(&fresh),
+            &fresh,
             &running,
             &proof,
         )
@@ -117,17 +117,9 @@ fn replay_ccs(
     proof: &pi_ccs::Proof,
 ) -> (Transcript, Vec<CeClaim>) {
     let params = params(package);
-    folding::validate_running_parent_authority(&params, &package.structure, ajtai_dec_mixer, running).unwrap();
+    folding::validate_running_children(&params, &package.structure, running).unwrap();
     let mut transcript = Transcript::session();
-    let outputs = pi_ccs::verify(
-        &mut transcript,
-        &params,
-        &package.structure,
-        std::slice::from_ref(fresh),
-        running,
-        proof,
-    )
-    .unwrap();
+    let outputs = pi_ccs::verify(&mut transcript, &params, &package.structure, fresh, running, proof).unwrap();
     (transcript, outputs)
 }
 fn read_parent(package: &PreparedLifecycle, root: &Path, step: u64) -> SavedParent {
@@ -185,8 +177,8 @@ fn committed_split(
     );
     (digits, flags, commitments)
 }
-fn zero_opening(package: &PreparedLifecycle) -> V1_1Evaluations<K> {
-    V1_1Evaluations {
+fn zero_opening(package: &PreparedLifecycle) -> V1_2Evaluations<K> {
+    V1_2Evaluations {
         eval_k: vec![K::ZERO; D],
         eval_a: vec![vec![K::ZERO; D]; package.structure.t()],
     }
@@ -251,8 +243,8 @@ pub(super) fn ccs(root: &Path, step: u64, engine: EvaluationEngine, cpu_referenc
             &package.structure,
             &rows,
             workspace_bytes,
-            std::slice::from_ref(&source.fresh.claim),
-            std::slice::from_ref(&source.fresh.witness),
+            &source.fresh.claim,
+            &source.fresh.witness,
             &source.running,
         )
         .unwrap(),
@@ -376,7 +368,7 @@ pub(super) fn prove(root: &Path, step: u64, engine: EvaluationEngine, reference_
     let fresh = source.fresh.claim.clone();
     let running = source.running.claims_only();
     let started = Instant::now();
-    let (next, proof) = package.prove(vec![source.fresh], source.running).unwrap();
+    let (next, proof) = package.prove(source.fresh, source.running).unwrap();
     eprintln!("complete C/R/D engine={engine:?} elapsed={:?}", started.elapsed());
     let wire = proof.canonical_bytes();
     assert!(
@@ -390,13 +382,12 @@ pub(super) fn prove(root: &Path, step: u64, engine: EvaluationEngine, reference_
         &package.structure,
         ajtai_rlc_mixer,
         ajtai_dec_mixer,
-        std::slice::from_ref(&fresh),
+        &fresh,
         &running,
         &proof,
     )
     .unwrap();
     assert_eq!(next.claims, verified.claims);
-    assert_eq!(next.parent_authority, verified.parent_authority);
     lean::export(
         &directory,
         &package,
@@ -479,7 +470,7 @@ pub(super) fn openings(root: &Path, step: u64) {
         .collect::<Vec<_>>();
     drop(digits);
     let started = Instant::now();
-    let values = eval_real_v1_1_openings_from_rows(
+    let values = eval_real_v1_2_openings_from_rows(
         &package.matrix_rows(),
         &parent.rlc_parent.r,
         &blocks,
@@ -540,7 +531,7 @@ pub(super) fn child(root: &Path, step: u64, child: usize, engine: EvaluationEngi
         let mut openings = match engine {
             EvaluationEngine::Optimized => {
                 let blocks = SuperneoZBlocks::from_witness_mat(&digit, package.structure.m).unwrap();
-                eval_real_v1_1_openings_from_rows(
+                eval_real_v1_2_openings_from_rows(
                     &rows,
                     &parent.rlc_parent.r,
                     std::slice::from_ref(&blocks),

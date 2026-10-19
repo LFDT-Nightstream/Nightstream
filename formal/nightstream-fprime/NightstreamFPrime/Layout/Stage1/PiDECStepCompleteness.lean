@@ -1,7 +1,7 @@
 import NightstreamFPrime.Layout.Stage1.StepWitnessPrefix
 import NightstreamFPrime.Layout.Stage1.PiCCSProofReadback
 import NightstreamFPrime.Layout.Stage1.StateEncoding
-import NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1
+import NightstreamFPrime.Lifecycle.Stage1.Application
 import NightstreamFPrime.Lifecycle.Stage1.Terminal
 
 /-!
@@ -35,8 +35,8 @@ variable {logicalWidth : Nat}
     (Running (logicalWidth := logicalWidth) (publicFits := publicFits)) slotCount)
 
 private theorem recursive_inputs
-    (step : StepHoldsFor relation ajtai context.toList
-      Lifecycle.Stage1.Poseidon2HashChainV1.program input output)
+    (program : Lifecycle.Stage1.Application.Program)
+    (step : StepHoldsFor relation ajtai context.toList program input output)
     (positive : 0 < input.iteration) :
     input.priorPc = 1 ∧
     input.fresh.publicInputs ⟨0, by decide⟩ =
@@ -73,8 +73,8 @@ or source agreement is assumed. -/
 theorem recursive_completePrefix
     (valid : Lifecycle.Stage1.Terminal.StatementValid
       { iteration := input.iteration, z0 := input.z0, zi := input.zi })
-    (step : StepHoldsFor relation ajtai context.toList
-      Lifecycle.Stage1.Poseidon2HashChainV1.program input output)
+    (program : Lifecycle.Stage1.Application.Program)
+    (step : StepHoldsFor relation ajtai context.toList program input output)
     (positive : 0 < input.iteration)
     (successor : input.iteration + 1 < goldilocksModulus)
     (priorCanonical : Lifecycle.ChildrenCanonical (input.running functionIndex)) :
@@ -92,14 +92,14 @@ theorem recursive_completePrefix
           ∃ r : Sequence.Prefix c.current PiRLCInputs.phaseOffset,
             ∃ d : Sequence.Prefix
                 (PiDECProofInputs.load r.current input.nifsProof
-                  (PiRLC.v1_1.Semantics.evalOutput relation
+                  (PiRLC.v1_2.Semantics.evalOutput relation
                     (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
                     PiRLCInputs.phaseOffset r.current).publicInput) PiDECInputs.phaseOffset,
               ∃ t : Sequence.Prefix d.current RunningTransitionInputs.phaseOffset,
                 flatConstraints p.operations = Pilot.logicalConstraints PilotProduction.interface PilotProduction.witnessOffset ∧
-                c.operations = PiCCS.v1_1.Formal.opsAt relation (PiCCSProofInputs.relationInterface relation) PiCCSInputs.phaseOffset ∧
-                r.operations = PiRLC.v1_1.Formal.opsAt relation PiRLCInputs.interface PiRLCInputs.phaseOffset ∧
-                d.operations = PiDEC.v1_1.Formal.opsAt relation (PiDECInputs.interface logicalWidth publicFits) PiDECInputs.phaseOffset ∧
+                c.operations = PiCCS.v1_2.Formal.opsAt relation (PiCCSProofInputs.relationInterface relation) PiCCSInputs.phaseOffset ∧
+                r.operations = PiRLC.v1_2.Formal.opsAt relation PiRLCInputs.interface PiRLCInputs.phaseOffset ∧
+                d.operations = PiDEC.v1_2.Formal.opsAt relation (PiDECInputs.interface logicalWidth publicFits) PiDECInputs.phaseOffset ∧
                 t.operations = Lifecycle.Stage1.RunningTransition.operations
                   (RunningTransitionInputs.interface logicalWidth publicFits) RunningTransitionInputs.phaseOffset ∧
                 holdsFlat t.current p.operations ∧ holdsFlat t.current c.operations ∧
@@ -107,7 +107,7 @@ theorem recursive_completePrefix
                 holdsFlat t.current (Lifecycle.Stage1.NextPreimage.opsAt NextPreimageInputs.sourceInterface
                   RunningTransitionInputs.phaseOffset) ∧
                 Lifecycle.Pilot.SpecHolds PilotProduction.interface PilotProduction.witnessOffset t.current ∧
-                PiDEC.v1_1.Semantics.PhaseHolds relation ajtai (PiDECInputs.interface logicalWidth publicFits)
+                PiDEC.v1_2.Semantics.PhaseHolds relation ajtai (PiDECInputs.interface logicalWidth publicFits)
                   PiDECInputs.phaseOffset t.current ∧
                 Lifecycle.Stage1.RunningTransition.SpecHolds (RunningTransitionInputs.interface logicalWidth publicFits)
                   RunningTransitionInputs.phaseOffset t.current ∧
@@ -121,14 +121,14 @@ theorem recursive_completePrefix
                     (serializePreimage (publicFits := publicFits) next).getD index.val 0) := by
   let prior := priorHashPreimage (setup relation ajtai context.toList) input
   let next := nextHashPreimage (setup relation ajtai context.toList) input output
-  obtain ⟨priorPc, publicLink, accepted⟩ := recursive_inputs relation ajtai context input output step positive
+  obtain ⟨priorPc, publicLink, accepted⟩ := recursive_inputs relation ajtai context input output program step positive
   have priorFixed : PilotProduction.FixedPreimage prior :=
     ⟨context.toList_length, valid.2.1, valid.2.2⟩
   have nextWidth : output.zNext.length = PilotProduction.digestWords := by
     have applicationStep := step.2.1
-    change output.zNext = Lifecycle.Stage1.Poseidon2HashChainV1.step input.zi input.witness at applicationStep
+    change output.zNext = program.step input.zi input.witness at applicationStep
     rw [applicationStep]
-    exact Lifecycle.Stage1.Poseidon2HashChainV1.step_output_length input.zi input.witness
+    exact program.step_length input.zi input.witness valid.2.2
   have nextFixed : PilotProduction.FixedPreimage next :=
     ⟨context.toList_length, valid.2.1, nextWidth⟩
   have nextPc : next.pc = 1 := by
@@ -144,7 +144,7 @@ theorem recursive_completePrefix
     ⟨nextFixed, successor, nextPc, nextCanonical⟩
   exact ⟨priorWellFormed, nextWellFormed,
     StepWitnessPrefix.completePrefix relation ajtai context input output
-      (output.runningNext functionIndex) step priorWellFormed nextWellFormed
+      (output.runningNext functionIndex) program step priorWellFormed nextWellFormed
       publicLink accepted (fun _ => rfl)⟩
 
 end NightstreamFPrime.Layout.Stage1.PiDECStepCompleteness

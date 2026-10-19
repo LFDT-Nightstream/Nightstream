@@ -19,7 +19,7 @@ open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Gadgets.Sampling
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
@@ -95,7 +95,7 @@ theorem laterWitnessStart_sampler
           · rename_i outside
             exfalso
             apply outside
-            simpa [PermutationPlan.samplerStepsPerSource] using current.isLt
+            simp [PermutationPlan.samplerStepsPerSource]
     let leftIndex : Fin
         (PiRLCSamplerInvocations.invocations
           (logicalWidth := Data.logicalWidth)
@@ -192,7 +192,7 @@ theorem sourceColumn_lt (location : StateLocation) :
     Sampler.counts.1, stateStepStride,
     PiRLCStarts.samplerLogicalStart, PiRLCStarts.phaseLogicalStart,
     PiRLCInputs.phaseOffset,
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerOffset] at sourceLt stepLt laneLt ⊢
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.samplerOffset] at sourceLt stepLt laneLt ⊢
   omega
 
 end StateLocation
@@ -428,7 +428,7 @@ private theorem samplerLogicalStart_lt_sourceColumnCount :
   rw [Spartan.sourceColumnCount_eq]
   norm_num [PiRLCStarts.samplerLogicalStart, PiRLCStarts.phaseLogicalStart,
     PiRLCInputs.phaseOffset,
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerOffset]
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.samplerOffset]
 
 private theorem ordinaryTarget_none_of_beforeSampler {column : Nat}
     (before : column < PiRLCStarts.samplerLogicalStart) :
@@ -557,7 +557,7 @@ theorem semanticEnv_state
     have sourceEq : location.sourceColumn =
         (PiRLCSamplerOrdinaryDirectPlan.Location.poseidon location.source lane).sourceColumn := by
       rw [PiRLCSamplerOrdinaryDirectPlan.poseidonColumn]
-      simp only [StateLocation.sourceColumn, stepZero, Fin.val_zero, Nat.zero_mul,
+      simp only [StateLocation.sourceColumn, stepZero, Nat.zero_mul,
         Nat.add_zero, stateOutputOffset, Sampler.counts.1]
       dsimp only [lane]
       omega
@@ -626,9 +626,9 @@ theorem baseEnv_eq_transitionEnv
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → Spec.F)
     (column : Nat)
     (bound : column < PiRLCProductPlan.basePackage.layout.constantColumn)
-    (outside : column < PiCCSInputs.phaseOffset ∨
-      PiCCSInputs.phaseOffset + PiCCSOrdinarySourceSupport.transcriptInvocationCount * 1096 ≤
-        column) :
+    (outside : column < PiCCSStarts.statementWitnessStart ∨
+      PiCCSStarts.statementWitnessStart +
+          PiCCSOrdinarySourceSupport.transcriptInvocationCount * 1096 ≤ column) :
     PiRLCProductPlan.baseEnv program base column =
       RunningTransitionDirectPlan.transitionEnv program base
         (Spartan.sourceToSpartan column) := by

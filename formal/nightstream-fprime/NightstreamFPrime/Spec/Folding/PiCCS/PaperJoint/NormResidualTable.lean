@@ -7,7 +7,7 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 /-!
 Concrete strict-norm residual tables for the paper-level joint `Pi_CCS` model.
 
-Protocol: SuperNeo `Pi_CCS` (Section 7.3 / Appendix D.4).
+Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
 Phase: construction of the uncompressed norm block `NC(X, C)`.
 Constraint family: one strict `b = 2` norm obligation per source and Boolean
 assignment coordinate.
@@ -33,7 +33,7 @@ does not supply a semantic iff or evaluator.
 |---|---|---|---|
 | `BooleanAssignment` | one source `z_i` on `{0,1}^ell` | typed coordinate values | shared low/high order |
 | `residualTable` | one `NC` source factor | `(z+1)z(z-1)` at every vertex | exact canonical leaves |
-| `residualTable_allEntriesZero_iff_strictNormBounded` | Lemma 7 Item 2 | every centered magnitude is `< 2` | conditional only on no zero divisors |
+| `residualTable_allEntriesZero_iff_strictNormBounded` | Lemma 9 Item 2 | every centered magnitude is `< 2` | conditional only on no zero divisors |
 | `strictNormBounded_iff_orderedValues_normBounded` | concrete semantic norm | canonical finite assignment list | exact predicate equivalence |
 | `SourceBatch.allResidualTablesZero_iff_allStrictNormBounded` | all `K+k` sources | every source has fresh norm | typed batch composition |
 -/

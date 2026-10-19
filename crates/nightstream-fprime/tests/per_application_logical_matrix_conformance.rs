@@ -14,7 +14,7 @@ use std::{fs, path::PathBuf};
 
 use nightstream_fprime::{
     load_per_application_package, load_poseidon2_hash_chain_v1_package, CcsMatrixSource, LoadedPerApplicationPackage,
-    LogicalMatrixRow, PackageError, PI_CCS_V1_1_MATRIX_COUNT, POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER,
+    LogicalMatrixRow, PackageError, PI_CCS_V1_2_MATRIX_COUNT, POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER,
 };
 use rayon::prelude::*;
 use serde_json::Value;
@@ -155,8 +155,8 @@ fn assert_independent_decode_then_identity_rejection(
     );
 }
 
-fn compare_row(ordinal: usize, expected: &RowForms, actual: &LogicalMatrixRow) -> [u64; PI_CCS_V1_1_MATRIX_COUNT] {
-    let mut counts = [0u64; PI_CCS_V1_1_MATRIX_COUNT];
+fn compare_row(ordinal: usize, expected: &RowForms, actual: &LogicalMatrixRow) -> [u64; PI_CCS_V1_2_MATRIX_COUNT] {
+    let mut counts = [0u64; PI_CCS_V1_2_MATRIX_COUNT];
     for (matrix, expected_form) in expected.iter().enumerate() {
         let actual_form = actual
             .matrix(matrix)
@@ -308,9 +308,9 @@ pub fn check_logical_matrices(package: LoadedPerApplicationPackage, sealed_bytes
     assert_eq!(relation.row_count(), EXPECTED_ACTIVE_ROWS);
     assert_eq!(relation.column_count(), EXPECTED_LOGICAL_COLUMNS);
     assert_eq!(relation.cube_variables(), EXPECTED_CUBE_VARIABLES);
-    assert_eq!(relation.matrix_sources().len(), PI_CCS_V1_1_MATRIX_COUNT);
+    assert_eq!(relation.matrix_sources().len(), PI_CCS_V1_2_MATRIX_COUNT);
     assert_eq!(
-        relation.matrix_sources()[PI_CCS_V1_1_MATRIX_COUNT - 1],
+        relation.matrix_sources()[PI_CCS_V1_2_MATRIX_COUNT - 1],
         CcsMatrixSource::SboxInput
     );
     assert_eq!(
@@ -349,7 +349,7 @@ pub fn check_logical_matrices(package: LoadedPerApplicationPackage, sealed_bytes
             assert_eq!(expected_next, end, "independent range coverage");
             assert_eq!(expected_rows.len(), end - start, "independent row count");
 
-            let mut counts = [0u64; PI_CCS_V1_1_MATRIX_COUNT];
+            let mut counts = [0u64; PI_CCS_V1_2_MATRIX_COUNT];
             let mut actual_next = start;
             package
                 .visit_matrix_rows(start..end, |ordinal, actual| {
@@ -368,7 +368,7 @@ pub fn check_logical_matrices(package: LoadedPerApplicationPackage, sealed_bytes
             counts
         })
         .reduce(
-            || [0u64; PI_CCS_V1_1_MATRIX_COUNT],
+            || [0u64; PI_CCS_V1_2_MATRIX_COUNT],
             |mut total, row| {
                 for (total, row) in total.iter_mut().zip(row) {
                     *total = total

@@ -5,7 +5,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
 at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
 
 /-!
-Finite SuperNeo v1.1 target polynomial. The target is exactly
+Finite SuperNeo v1.2 target polynomial. The target is exactly
 `T_K + gamma^(k*d) * T_A`; Pad and matrix coefficients have separate typed
 owners and canonical traversals.
 -/
@@ -57,7 +57,7 @@ theorem power_add
       exact (laws.mul_assoc value (power ops value left)
         (power ops value right)).symm
 
-/-- One target coefficient for every v1.1 Pad and matrix coordinate. -/
+/-- One target coefficient for every v1.2 Pad and matrix coordinate. -/
 structure TargetCoefficients
     (Field : Type uField)
     (shape : Shape) where
@@ -139,7 +139,7 @@ def evaluateMatrix
     (canonicalMatrixCoordinates shape).map fun coordinate =>
       matrixTerm ops coefficients gamma coordinate
 
-/-- Exact v1.1 claimed sum `T_K + gamma^(k*d) * T_A`. -/
+/-- Exact v1.2 claimed sum `T_K + gamma^(k*d) * T_A`. -/
 def evaluate
     {Field : Type uField}
     {shape : Shape}
@@ -230,7 +230,7 @@ private theorem matrixTerms_eq_map_shiftedLocal
   intro coordinate _
   exact matrixTerm_eq_shift_mul_local ops laws coefficients gamma coordinate
 
-/-- Exact v1.1 matrix-target shift theorem. -/
+/-- Exact v1.2 matrix-target shift theorem. -/
 theorem evaluateMatrix_eq_shift_mul_evaluateMatrixLocal
     {Field : Type uField}
     {shape : Shape}

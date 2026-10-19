@@ -23,16 +23,16 @@ pub use matrix_program::MatrixRun;
 pub(crate) mod native_application;
 use native_application::PreparedApplication;
 mod prepared;
-pub use prepared::load_compiled_application_package;
-mod v1_1;
-pub use v1_1::{
-    PiCcsV1_1EncodedInputs, PiCcsV1_1OutputEvaluations, PiCcsV1_1PackageInputs, PiDecV1_1PackageInputs,
-    PI_CCS_V1_1_COEFFICIENT_COUNT, PI_CCS_V1_1_FRESH_COMMITMENT_WORDS, PI_CCS_V1_1_MATRIX_COUNT,
-    PI_CCS_V1_1_PRIOR_CHILDREN_WORDS, PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT,
-    PI_CCS_V1_1_ROUND_COUNT, PI_CCS_V1_1_SOURCE_COUNT, PI_CCS_V1_1_STATE_PREIMAGE_WORDS,
-    PI_CCS_V1_1_VERIFIER_CONTEXT_WORDS, PI_DEC_V1_1_CHILD_COUNT, PI_DEC_V1_1_COMMITMENT_WORDS_PER_CHILD,
-    PI_DEC_V1_1_EVAL_A_MATRICES_PER_CHILD, PI_DEC_V1_1_EVAL_K_VALUES_PER_CHILD,
-    PI_DEC_V1_1_PUBLIC_INPUT_WORDS_PER_CHILD,
+pub use prepared::{load_compiled_application_package, PREPARED_FIXED_SOURCE_NODE_LIMIT};
+mod v1_2;
+pub use v1_2::{
+    PiCcsV1_2EncodedInputs, PiCcsV1_2OutputEvaluations, PiCcsV1_2PackageInputs, PiDecV1_2PackageInputs,
+    PI_CCS_V1_2_COEFFICIENT_COUNT, PI_CCS_V1_2_FRESH_COMMITMENT_WORDS, PI_CCS_V1_2_MATRIX_COUNT,
+    PI_CCS_V1_2_PRIOR_CHILDREN_WORDS, PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT,
+    PI_CCS_V1_2_ROUND_COUNT, PI_CCS_V1_2_SOURCE_COUNT, PI_CCS_V1_2_STATE_PREIMAGE_WORDS,
+    PI_CCS_V1_2_VERIFIER_CONTEXT_WORDS, PI_DEC_V1_2_CHILD_COUNT, PI_DEC_V1_2_COMMITMENT_WORDS_PER_CHILD,
+    PI_DEC_V1_2_EVAL_A_MATRICES_PER_CHILD, PI_DEC_V1_2_EVAL_K_VALUES_PER_CHILD,
+    PI_DEC_V1_2_PUBLIC_INPUT_WORDS_PER_CHILD,
 };
 mod r1cs;
 pub use r1cs::{PackageR1cs, PackageSparseMatrix};
@@ -46,9 +46,9 @@ pub use sealed::{
     LogicalMatrixRow,
 };
 pub use terminal::{load_terminal_package, TerminalOutputs};
-mod pi_ccs_v1_1_transcript;
+mod pi_ccs_v1_2_transcript;
 mod source_row;
-pub use pi_ccs_v1_1_transcript::{derive_pi_ccs_v1_1_transcript, PiCcsV1_1Transcript};
+pub use pi_ccs_v1_2_transcript::{derive_pi_ccs_v1_2_transcript, PiCcsV1_2Transcript};
 
 pub(super) const GOLDILOCKS_MODULUS: u64 = 0xffff_ffff_0000_0001;
 const MAX_JOINT_DOMAIN_VARIABLES: u32 = 28;
@@ -363,7 +363,7 @@ impl LoadedPackage {
         self.layout
             .private_segments
             .iter()
-            .filter(|segment| !v1_1::is_witness_role(segment.role))
+            .filter(|segment| !v1_2::is_witness_role(segment.role))
             .map(|segment| segment.length)
             .sum()
     }
@@ -373,7 +373,7 @@ impl LoadedPackage {
     pub fn private_input_index(&self, column: usize) -> Option<usize> {
         let mut offset = 0;
         for segment in &self.layout.private_segments {
-            if v1_1::is_witness_role(segment.role) {
+            if v1_2::is_witness_role(segment.role) {
                 continue;
             }
             if segment.start <= column && column < segment.start + segment.length {
@@ -389,10 +389,10 @@ impl LoadedPackage {
     pub fn prior_preimage_inputs(&self) -> Option<std::ops::Range<usize>> {
         let mut offset = 0;
         for segment in &self.layout.private_segments {
-            if v1_1::is_witness_role(segment.role) {
+            if v1_2::is_witness_role(segment.role) {
                 continue;
             }
-            if segment.role == v1_1::PRIOR_PREIMAGE_ROLE {
+            if segment.role == v1_2::PRIOR_PREIMAGE_ROLE {
                 return Some(offset..offset + segment.length);
             }
             offset += segment.length;
@@ -487,7 +487,7 @@ impl LoadedPackage {
         let mut assignment = vec![Goldilocks::ZERO; self.layout.total_column_count];
         let mut input_cursor = 0usize;
         for segment in &self.layout.private_segments {
-            if v1_1::is_witness_role(segment.role) {
+            if v1_2::is_witness_role(segment.role) {
                 continue;
             }
             let input_end = input_cursor + segment.length;
@@ -873,7 +873,7 @@ fn witness_segments(layout: &Layout) -> Vec<Segment> {
         .private_segments
         .iter()
         .copied()
-        .filter(|segment| v1_1::is_witness_role(segment.role))
+        .filter(|segment| v1_2::is_witness_role(segment.role))
         .collect()
 }
 
@@ -959,7 +959,7 @@ fn validate_profile(raw: RawProfile) -> Result<(), PackageError> {
         16,
         17,
         16,
-        PI_CCS_V1_1_MATRIX_COUNT as u64,
+        PI_CCS_V1_2_MATRIX_COUNT as u64,
         28,
     ) {
         return Err(PackageError::Invalid("fixed production profile"));
@@ -1037,13 +1037,13 @@ fn validate_layout(raw: RawPhysicalLayout) -> Result<Layout, PackageError> {
         return Err(PackageError::Invalid("2^28 joint domain"));
     }
 
-    let mut expected_private_roles = v1_1::private_segment_roles();
+    let mut expected_private_roles = v1_2::private_segment_roles();
     let prefix_segment_count = expected_private_roles.len();
     expected_private_roles.extend([sealed::APPLICATION_WITNESS_ROLE, sealed::APPLICATION_LOCAL_ROLE]);
     let private_segments = validate_segments(private_segments, 0, private_column_count, &expected_private_roles, 2)?;
-    v1_1::validate_private_segments(&private_segments[..prefix_segment_count])?;
+    v1_2::validate_private_segments(&private_segments[..prefix_segment_count])?;
     let public_segments = validate_segments(public_segments, constant_column + 1, total_column_count, &[4, 5, 10], 0)?;
-    v1_1::validate_public_segments(&public_segments)?;
+    v1_2::validate_public_segments(&public_segments)?;
 
     Ok(Layout {
         row_count,

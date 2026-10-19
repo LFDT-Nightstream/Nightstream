@@ -172,6 +172,34 @@ canonical-list or degree Boolean is present. -/
     (key.piCcsFixedCertificate running fresh proof).rounds
     (key.piCcsExecution running fresh proof).coins.roundPoint.coordinates
 
+/-- The probe's raw rounds are the canonical encoding of the proof's typed
+fixed-width round polynomials. -/
+theorem piCcsProbe_rounds
+    {Extension : Type uExtension}
+    {Commitment : Type uCommitment}
+    {PublicInput : Type uPublicInput}
+    {Scalar : Type uScalar}
+    {State : Type uState}
+    {shape : Shape}
+    {columns blockCount degreeBound : Nat}
+    (key : Key Extension Commitment PublicInput Scalar State shape
+      columns blockCount degreeBound)
+    (running : Running Extension Commitment PublicInput shape)
+    (fresh : Fresh Commitment PublicInput shape)
+    (proof : Proof Extension Commitment shape degreeBound) :
+    (key.piCcsProbe running fresh proof).response.rounds =
+      SumCheck.Finite.FixedPhase.RawCertificate.encode
+        (key.piCcsFixedCertificate running fresh proof) := by
+  congr 1
+  simp [Key.piCcsProbe, Key.piCcsCertificate,
+    NightstreamFPrime.Spec.Folding.PiCCS.TranscriptReplay.Certificate.toFinite,
+    NightstreamFPrime.Spec.Folding.PiCCS.TranscriptReplay.Certificate.toTranscript,
+    FiatShamir.Certificate.toFinite, Key.piCcsFixedCertificate,
+    SumCheck.Finite.FixedPhase.RawCertificate.encode]
+  change (List.ofFn fun round => (proof.piCcsRounds round).toMessage) =
+    List.ofFn fun round => (proof.piCcsRounds round).toMessage
+  rfl
+
 /-- The executable NIFS check is exactly the fixed-width public-coin probe
 accepted by the PiCCS strong reduction. The raw-message view is the canonical
 encoding of the same typed fixed-width certificate. -/
@@ -194,20 +222,7 @@ theorem piCcsCheck_eq_true_iff_fixedWidthAccepted
         key.extensionOps key.lift (key.statement running fresh) degreeBound := by
   unfold StrongReduction.Probe.FixedWidthAccepted
   unfold ProtocolPolynomial.FixedWidth.check
-  have rawCertificate :
-      (key.piCcsProbe running fresh proof).response.rounds =
-        SumCheck.Finite.FixedPhase.RawCertificate.encode
-          (key.piCcsFixedCertificate running fresh proof) := by
-    congr 1
-    simp [Key.piCcsProbe, Key.piCcsCertificate,
-      NightstreamFPrime.Spec.Folding.PiCCS.TranscriptReplay.Certificate.toFinite,
-      NightstreamFPrime.Spec.Folding.PiCCS.TranscriptReplay.Certificate.toTranscript,
-      FiatShamir.Certificate.toFinite, Key.piCcsFixedCertificate,
-      SumCheck.Finite.FixedPhase.RawCertificate.encode]
-    change (List.ofFn fun round => (proof.piCcsRounds round).toMessage) =
-      List.ofFn fun round => (proof.piCcsRounds round).toMessage
-    rfl
-  rw [rawCertificate, SumCheck.Finite.FixedPhase.RawCertificate.check_encode]
+  rw [piCcsProbe_rounds, SumCheck.Finite.FixedPhase.RawCertificate.check_encode]
   rfl
 
 /-- Sampler shortfall rejects before a PiDEC attempt or running output can

@@ -15,7 +15,7 @@ namespace CompressionLean.Terminal
 
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Export.Stage1
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 
 /-- The PiRLC output interface of the Stage 1 layout. -/
 abbrev outputInterface :=
@@ -150,7 +150,7 @@ theorem eval_A_eval :
 
 theorem state_eval :
     outputs.state.map (fun expression => expression.eval env) =
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.Sampler.evalState
+      NightstreamFPrime.Lifecycle.PiRLC.v1_2.Sampler.evalState
         (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) samplerState := by
   change (List.ofFn fun lane => column (samplerState lane)).map
     (fun expression => expression.eval env) = _

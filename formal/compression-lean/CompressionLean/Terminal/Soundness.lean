@@ -124,19 +124,19 @@ theorem samplerInitialState_eq
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
     (env : Env)
-    (piCcsPhase : NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.PhaseHolds
+    (piCcsPhase : NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.PhaseHolds
       relation ajtai
       (NightstreamFPrime.Layout.Stage1.AccumulatorInputs.piCcsInterface
         logicalWidth publicFits)
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset env
       (NightstreamFPrime.Layout.Stage1.AccumulatorInputs.proof relation env)) :
-    PiRLC.v1_1.SamplerChain.evalInitialState
-        (PiRLC.v1_1.Formal.samplerInterface
-          (PiRLC.v1_1.Formal.atOffset
+    PiRLC.v1_2.SamplerChain.evalInitialState
+        (PiRLC.v1_2.Formal.samplerInterface
+          (PiRLC.v1_2.Formal.atOffset
             (NightstreamFPrime.Layout.Stage1.PiRLCInputs.interface
               (logicalWidth := logicalWidth) (publicFits := publicFits))
             NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset))
-        (PiRLC.v1_1.Formal.samplerOffset
+        (PiRLC.v1_2.Formal.samplerOffset
           NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset) env =
       ((ProductionKey.key relation ajtai).piCcsExecution
         (NightstreamFPrime.Layout.Stage1.AccumulatorInputs.running
@@ -146,13 +146,13 @@ theorem samplerInitialState_eq
         (NightstreamFPrime.Layout.Stage1.AccumulatorInputs.proof
           relation env)).outgoingState := by
   calc
-    _ = NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.evalState
+    _ = NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption.evalState
         env (NightstreamFPrime.Layout.Stage1.PiRLCInputs.piCcsOutputState
           (logicalWidth := logicalWidth) (publicFits := publicFits)) := by
           rfl
-    _ = NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.evalState
+    _ = NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption.evalState
         env
-        (NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.outputBindingFinalState
+        (NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.outputBindingFinalState
           relation
           (NightstreamFPrime.Layout.Stage1.AccumulatorInputs.piCcsInterface
             logicalWidth publicFits)
@@ -179,20 +179,20 @@ theorem circuitPackage_implies_terminal
     Nifs.PaperNonInteractive.piCcsCheck (ProductionKey.key relation ajtai)
         running fresh proof = true ∧
       (ProductionKey.key relation ajtai).parent running fresh proof =
-        some (PiRLC.v1_1.Semantics.evalOutput relation
+        some (PiRLC.v1_2.Semantics.evalOutput relation
           (NightstreamFPrime.Layout.Stage1.PiRLCInputs.interface
             (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
           NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset pulled) ∧
       PriorStateHash.SpecHolds PilotProduction.priorInterface
         PilotProduction.witnessOffset
         (PilotSpartan.pullback (pilotEnv env)) ∧
-      PiRLC.v1_1.Sampler.evalState pulled samplerState =
+      PiRLC.v1_2.Sampler.evalState pulled samplerState =
         Nifs.NonInteractive.PiRlcSampler.Transcript.stateAt
           ((ProductionKey.key relation ajtai).piCcsExecution running fresh
-            proof).outgoingState PiRLC.v1_1.SamplerChain.sourceCount := by
+            proof).outgoingState PiRLC.v1_2.SamplerChain.sourceCount := by
   intro pulled running fresh proof
   have piCcsPhase :
-      NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.PhaseHolds relation ajtai
+      NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.PhaseHolds relation ajtai
         (NightstreamFPrime.Layout.Stage1.AccumulatorInputs.piCcsInterface
           Data.logicalWidth Data.publicFits)
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset pulled proof := by

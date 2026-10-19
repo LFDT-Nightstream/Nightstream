@@ -38,7 +38,7 @@ include digest publicEqual rows
 /-- Accepted rows split each packed prior parent word into its children, so
 the PiCCS running claim is the running value of the actual prior preimage. -/
 private theorem selectedRowsAndPublic_imply_priorRunning :
-    PiCCS.v1_1.Formal.evalRunning
+    PiCCS.v1_2.Formal.evalRunning
         (PiCCSInvocations.parentInterface (PerApplicationFixedPoint.logicalWidth application)
           (PerApplicationFixedPoint.publicFits application))
         PiCCSInputs.phaseOffset
@@ -115,7 +115,7 @@ theorem selectedRowsAndPublic_imply_decodedOutput :
     (by
       simpa only [Nifs.PaperNonInteractive.Key.outputForAttempt,
         ActualPiDECMessages.proof, ActualStep.withDecodedPiCCS,
-        PiCCS.v1_1.Formal.evalProof, ActualPiDECMessages.sourceProof, relation, env]
+        PiCCS.v1_2.Formal.evalProof, ActualPiDECMessages.sourceProof, relation, env]
         using! AccumulatorSemantics.outputForAttempt_eq_accumulatorOutput
           relation ajtai env phase)
   have agreement := congrArg

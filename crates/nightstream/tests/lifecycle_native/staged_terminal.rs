@@ -22,7 +22,7 @@ pub(super) fn successor(root: &Path, step: u64, engine: EvaluationEngine) {
     super::super::check_next_metadata(&packet, &proof);
     let encoded = package
         .package
-        .encode_stage1_v1_1_inputs(packet.pi_ccs(), packet.pi_dec(), packet.application_witness())
+        .encode_stage1_v1_2_inputs(packet.pi_ccs(), packet.pi_dec(), packet.application_witness())
         .unwrap();
     // Export every caller word for the separate fresh Lean comparison.
     save(
@@ -89,14 +89,15 @@ pub(super) fn accept(root: &Path, step: u64, engine: EvaluationEngine) {
     assert!(package
         .verify(&Stage1State::new(step, expected.z0(), wrong), &envelope)
         .is_err());
+    let (running, fresh) = envelope.active_parts().unwrap();
     save(
         &root.join(format!("terminal-{step}-accepted.json")),
         &json!({
             "schema":1, "package_identity":package.package_identity(), "iteration":step,
             "z0":expected.z0().map(|value| value.as_canonical_u64()),
             "current":expected.current().map(|value| value.as_canonical_u64()),
-            "running_claims":&envelope.running().unwrap().claims,
-            "fresh_claim":&envelope.fresh().unwrap().claim,
+            "running_claims":&running.claims,
+            "fresh_claim":&fresh.claim,
             "engine":format!("{engine:?}"),
             "scope":"new Rust terminal execution on its own generated successor; Lean comparison is a separate check"
         }),

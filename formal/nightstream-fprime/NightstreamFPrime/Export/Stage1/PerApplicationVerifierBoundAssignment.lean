@@ -125,18 +125,9 @@ private theorem boundBase_expectedContext
   rw [dif_pos]
   · apply congrArg (fun index =>
       (verifierContextDigest fits commitmentSetup).getD index 0)
-    change PerApplicationPackage.shiftColumn application
-        (Spartan.expectedContextPublicStart + lane.val) -
-          contextTargetStart application = lane.val
     rw [shifted]
     omega
-  · change contextTargetStart application ≤
-        PerApplicationPackage.shiftColumn application
-          (Spartan.expectedContextPublicStart + lane.val) ∧
-      PerApplicationPackage.shiftColumn application
-          (Spartan.expectedContextPublicStart + lane.val) <
-        contextTargetStart application + 4
-    rw [shifted]
+  · rw [shifted]
     exact ⟨by omega, by have bound := lane.isLt; omega⟩
 
 theorem transitionExpectedContext
@@ -151,7 +142,7 @@ theorem transitionExpectedContext
     (bind fits commitmentSetup raw).base _
     (PiCCSOrdinarySourceSupport.source_lt_sourceColumnCount
       (expectedContextSource lane)) (Or.inl (by
-        rw [PiCCSInputs.expectedContextStart_eq, PiCCSInputs.phaseOffset_eq]
+        rw [PiCCSInputs.expectedContextStart_eq, PiCCSStarts.statementWitnessStart_eq]
         have bound := lane.isLt
         omega)), Spartan.sourceToSpartan_expectedContext lane]
   unfold RunningTransitionDirectPlan.packageEnv PerApplicationPackage.baseEnv
@@ -184,12 +175,9 @@ theorem semantics_imply_contextKey
   unfold PerApplicationDecodedIO.contextKey StateDecoder.keyDigest
     StateDecoder.slice
   apply List.ext_get
-  · simpa [PilotProduction.digestWords, PilotValues.digestWords,
+  · simp [PilotProduction.digestWords, PilotValues.digestWords,
       verifierContextDigest,
-      PerApplicationCanonicalPackage.verifierContextDigest] using
-      (Lifecycle.VerifierContext.Digest4.toList_length
-        (PerApplicationCanonicalPackage.verifierContextDescriptor fits
-          commitmentSetup)).symm
+      PerApplicationCanonicalPackage.verifierContextDigest]
   · intro index leftBound rightBound
     let lane : Fin 4 := ⟨index, by simpa using! leftBound⟩
     have row := context lane
@@ -200,22 +188,22 @@ theorem semantics_imply_contextKey
     have expected := transitionExpectedContext fits commitmentSetup raw lane
     rw [← custody] at expected
     have stateValue : PerApplicationDecodedIO.priorState bound
-        (Lifecycle.PiCCS.v1_1.StateBinding.contextWordStart + lane.val) =
+        (Lifecycle.PiCCS.v1_2.StateBinding.contextWordStart + lane.val) =
       (verifierContextDigest fits commitmentSetup).getD lane.val 0 := by
       calc
         PerApplicationDecodedIO.priorState bound
-            (Lifecycle.PiCCS.v1_1.StateBinding.contextWordStart + lane.val) =
+            (Lifecycle.PiCCS.v1_2.StateBinding.contextWordStart + lane.val) =
           PerApplicationDecodedIO.commonEnv bound
             (PilotProduction.priorPreimageStart +
-              (Lifecycle.PiCCS.v1_1.StateBinding.contextWordStart + lane.val)) :=
+              (Lifecycle.PiCCS.v1_2.StateBinding.contextWordStart + lane.val)) :=
           rfl
         _ = PerApplicationDecodedIO.commonEnv bound
             (PiCCSInputs.expectedContextStart + lane.val) := by
           simpa [PiCCSInvocations.parentInterface, PiCCSInputs.interface,
-            Lifecycle.PiCCS.v1_1.Formal.statementBindingInterface,
-            Lifecycle.PiCCS.v1_1.Formal.atOffset,
+            Lifecycle.PiCCS.v1_2.Formal.statementBindingInterface,
+            Lifecycle.PiCCS.v1_2.Formal.atOffset,
             PiCCSInputs.priorStateWord,
-            Lifecycle.PiCCS.v1_1.StateBinding.contextWordStart,
+            Lifecycle.PiCCS.v1_2.StateBinding.contextWordStart,
             PiCCSInputs.expectedContext] using! row
         _ = (verifierContextDigest fits commitmentSetup).getD lane.val 0 :=
           expected

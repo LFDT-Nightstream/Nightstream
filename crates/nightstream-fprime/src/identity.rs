@@ -7,7 +7,7 @@ use p3_goldilocks::Goldilocks;
 use serde_json::Value;
 
 use crate::package::{
-    PackageError, PI_CCS_V1_1_MATRIX_COUNT, PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT, PI_CCS_V1_1_ROUND_COUNT,
+    PackageError, PI_CCS_V1_2_MATRIX_COUNT, PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT, PI_CCS_V1_2_ROUND_COUNT,
 };
 
 mod native;
@@ -31,9 +31,9 @@ const VERIFIER_CONTEXT_PROFILE: [u64; 14] = [
     16,
     17,
     16,
-    PI_CCS_V1_1_MATRIX_COUNT as u64,
-    PI_CCS_V1_1_ROUND_COUNT as u64,
-    (PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT - 1) as u64,
+    PI_CCS_V1_2_MATRIX_COUNT as u64,
+    PI_CCS_V1_2_ROUND_COUNT as u64,
+    (PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT - 1) as u64,
     54,
     22,
 ];
@@ -41,14 +41,15 @@ const VERIFIER_CONTEXT_SCHEDULE: [u64; 10] = [
     1,
     1,
     1,
-    PI_CCS_V1_1_ROUND_COUNT as u64,
-    PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT as u64,
+    PI_CCS_V1_2_ROUND_COUNT as u64,
+    PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT as u64,
     17,
-    PI_CCS_V1_1_MATRIX_COUNT as u64,
+    PI_CCS_V1_2_MATRIX_COUNT as u64,
     54,
     4,
     1,
 ];
+// These three `v1_1` tags are frozen protocol bytes. They are not paper citations.
 const VERIFIER_CONTEXT_COMPONENT_DOMAIN: &[u8] = b"Nightstream/FPrime/context/v1_1";
 const VERIFIER_CONTEXT_DOMAIN: &[u8] = b"Nightstream/FPrime/verifier-context/v1_1";
 const NIFS_KEY_DOMAIN: &[u8] = b"Nightstream/FPrime/nifs-key/v1_1";
@@ -57,28 +58,28 @@ const VERIFICATION_KEY_DOMAIN: &[u8] = b"Nightstream/FPrime/verifier-key/v1";
 const FORMULA_LIBRARY_DOMAIN: &[u8] = b"Nightstream/FPrime/formulas/v1";
 
 pub const POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER: [u64; 4] = [
-    1_519_372_666_233_055_072,
-    15_858_117_685_771_932_214,
-    1_722_780_355_446_971_483,
-    8_861_693_587_116_758_699,
+    5_156_750_079_506_471_084,
+    25_954_936_854_723_981,
+    3_766_112_621_299_948_091,
+    2_357_000_593_782_310_184,
 ];
 pub const POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY: [u64; 4] = [
-    12_294_505_199_459_960_041,
-    9_915_785_790_079_068_285,
-    3_721_435_449_420_055_247,
-    10_011_396_739_705_945_889,
+    2_750_965_380_250_823_418,
+    16_409_890_074_304_069_397,
+    11_068_150_825_855_552_703,
+    3_665_459_373_282_535_041,
 ];
 pub const POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST: [u64; 4] = [
-    8_852_219_239_720_156_888,
-    2_534_034_525_236_095_222,
-    18_134_484_813_979_303_865,
-    17_552_671_355_184_671_111,
+    8_981_812_563_576_989_885,
+    255_848_964_154_363_374,
+    4_393_268_563_461_410_284,
+    7_044_842_614_397_459_900,
 ];
 
 /// Verifier-owned context derived from one identity-checked package and the
 /// canonical serialization of its commitment setup.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PiCcsV1_1VerifierContext {
+pub struct PiCcsV1_2VerifierContext {
     package_identity: [u64; 4],
     relation_words: Vec<u64>,
     application: ApplicationIdentity,
@@ -88,7 +89,7 @@ pub struct PiCcsV1_1VerifierContext {
     digest: [u64; 4],
 }
 
-impl PiCcsV1_1VerifierContext {
+impl PiCcsV1_2VerifierContext {
     pub fn digest(&self) -> [u64; 4] {
         self.digest
     }
@@ -154,7 +155,7 @@ impl ApplicationIdentity {
 pub struct Stage1VerifierBinding {
     structural_identifier: [u64; 4],
     package_identity: [u64; 4],
-    verifier_context: PiCcsV1_1VerifierContext,
+    verifier_context: PiCcsV1_2VerifierContext,
     verification_key_words: Vec<u64>,
     verification_key_digest: [u64; 4],
 }
@@ -168,7 +169,7 @@ impl Stage1VerifierBinding {
         self.package_identity
     }
 
-    pub fn verifier_context(&self) -> &PiCcsV1_1VerifierContext {
+    pub fn verifier_context(&self) -> &PiCcsV1_2VerifierContext {
         &self.verifier_context
     }
 
@@ -196,10 +197,10 @@ pub(crate) fn formula_library_digest(library: &Value) -> Result<[u64; 4], Packag
     Ok(input.finalize().map(|value| value.as_canonical_u64()))
 }
 
-pub(super) fn pi_ccs_v1_1_verifier_context(
+pub(super) fn pi_ccs_v1_2_verifier_context(
     package_identity: [u64; 4],
     commitment_key_words: &[u64],
-) -> Result<PiCcsV1_1VerifierContext, PackageError> {
+) -> Result<PiCcsV1_2VerifierContext, PackageError> {
     validate_context_words(commitment_key_words)?;
     let relation_words = package_identity.to_vec();
     let application = ApplicationIdentity::from_words(&package_identity)?;
@@ -223,7 +224,7 @@ pub(super) fn pi_ccs_v1_1_verifier_context(
     append_framed(&mut descriptor, &commitment_digest)?;
     let digest = poseidon_words(&descriptor);
 
-    Ok(PiCcsV1_1VerifierContext {
+    Ok(PiCcsV1_2VerifierContext {
         package_identity,
         relation_words,
         application,
@@ -269,7 +270,7 @@ pub(super) fn stage1_verifier_binding(
     append_framed(&mut descriptor_words, &commitment_digest)?;
     let digest = poseidon_words(&descriptor_words);
 
-    let verifier_context = PiCcsV1_1VerifierContext {
+    let verifier_context = PiCcsV1_2VerifierContext {
         package_identity: structural_identifier,
         relation_words,
         application: application.clone(),

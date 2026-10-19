@@ -2,7 +2,7 @@
 
 use std::mem::size_of;
 
-use neo_ccs::V1_1Evaluations;
+use neo_ccs::V1_2Evaluations;
 use neo_math::{KExtensions, D, F, K};
 use neo_reductions::superneo_eval::SuperneoMatrixCache;
 use objc2_foundation::NSString;
@@ -263,7 +263,7 @@ impl MetalSession {
         point: &[K],
         witness_count: usize,
         assignment_width: usize,
-    ) -> Result<Vec<V1_1Evaluations<K>>, MetalError> {
+    ) -> Result<Vec<V1_2Evaluations<K>>, MetalError> {
         Ok(self
             .eval_streamed_rows(plan, masks, point, witness_count, assignment_width, None)?
             .openings)
@@ -609,7 +609,7 @@ impl MetalSession {
         point: &[K],
         witness_count: usize,
         assignment_width: usize,
-    ) -> Result<Vec<V1_1Evaluations<K>>, MetalError> {
+    ) -> Result<Vec<V1_2Evaluations<K>>, MetalError> {
         let chi_len = 1usize
             .checked_shl(u32::try_from(point.len()).map_err(|_| MetalError::Shape("opening point is too long"))?)
             .ok_or(MetalError::Shape("one-joint opening tensor length overflow"))?;
@@ -968,12 +968,12 @@ fn active_count_u32(active: &[u32]) -> Result<u32, MetalError> {
     u32::try_from(active.len()).map_err(|_| MetalError::Shape("one-joint active opening count exceeds u32"))
 }
 
-fn to_evaluations(openings: Vec<Vec<Vec<K>>>) -> Vec<V1_1Evaluations<K>> {
+fn to_evaluations(openings: Vec<Vec<Vec<K>>>) -> Vec<V1_2Evaluations<K>> {
     openings
         .into_iter()
         .map(|families| {
             let mut families = families.into_iter();
-            V1_1Evaluations {
+            V1_2Evaluations {
                 eval_k: families.next().expect("the opening plan includes Pad"),
                 eval_a: families.collect(),
             }

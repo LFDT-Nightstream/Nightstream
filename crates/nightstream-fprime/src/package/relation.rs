@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::{
-    canonical_field, word_to_usize, PackageError, MAX_JOINT_DOMAIN, PI_CCS_V1_1_MATRIX_COUNT, PI_CCS_V1_1_ROUND_COUNT,
+    canonical_field, word_to_usize, PackageError, MAX_JOINT_DOMAIN, PI_CCS_V1_2_MATRIX_COUNT, PI_CCS_V1_2_ROUND_COUNT,
 };
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -88,10 +88,10 @@ pub(super) fn validate(raw: RawCcsRelation) -> Result<PackageCcsRelation, Packag
     if row_count > MAX_JOINT_DOMAIN || carrier_width > MAX_JOINT_DOMAIN {
         return Err(PackageError::Invalid("CCS relation 2^28 domain"));
     }
-    if cube_variables != PI_CCS_V1_1_ROUND_COUNT {
+    if cube_variables != PI_CCS_V1_2_ROUND_COUNT {
         return Err(PackageError::Invalid("CCS relation cube variables"));
     }
-    if matrix_sources.len() != PI_CCS_V1_1_MATRIX_COUNT {
+    if matrix_sources.len() != PI_CCS_V1_2_MATRIX_COUNT {
         return Err(PackageError::Invalid("CCS relation matrix count"));
     }
     if degree_bound == 0 || terms.is_empty() {
@@ -108,12 +108,24 @@ pub(super) fn validate(raw: RawCcsRelation) -> Result<PackageCcsRelation, Packag
             _ => Err(PackageError::Invalid("CCS relation matrix source")),
         })
         .collect::<Result<Vec<_>, _>>()?;
+    // The matrix program writes ports by slot index, so the tags must name
+    // exactly that slot order.
+    if matrix_sources
+        != [
+            CcsMatrixSource::A,
+            CcsMatrixSource::B,
+            CcsMatrixSource::C,
+            CcsMatrixSource::SboxInput,
+        ]
+    {
+        return Err(PackageError::Invalid("CCS relation matrix order"));
+    }
 
     let terms = terms
         .into_iter()
         .map(|RawPolynomialTerm(coefficient, exponents)| {
             canonical_field(coefficient, "CCS polynomial coefficient")?;
-            if exponents.len() != PI_CCS_V1_1_MATRIX_COUNT {
+            if exponents.len() != PI_CCS_V1_2_MATRIX_COUNT {
                 return Err(PackageError::Invalid("CCS polynomial exponent count"));
             }
             let exponents = exponents

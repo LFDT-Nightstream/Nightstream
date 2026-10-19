@@ -400,9 +400,9 @@ private theorem samplerEntryInvocation_witnessStart
   simp [PiRLCSamplerInvocations.entryInvocations,
     PiRLCSamplerInvocations.entryTrace, Invocations.compileActions,
     Invocations.compileBlocks,
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.TranscriptAbsorption.actions,
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.TranscriptAbsorption.constantWords,
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.TranscriptAbsorption.frameWords,
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.TranscriptAbsorption.actions,
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.TranscriptAbsorption.constantWords,
+    NightstreamFPrime.Lifecycle.PiRLC.v1_2.TranscriptAbsorption.frameWords,
     NightstreamFPrime.Gadgets.Poseidon2.Hash.inputChunks,
     NightstreamFPrime.Spec.Poseidon2.rate] at member
   subst invocation
@@ -429,14 +429,14 @@ private theorem samplerInvocation_witnessBound
     apply bounded
     · norm_num [Spartan.piCcsPhaseOffset, PiRLCSamplerInvocations.sourceLogicalStart,
         PiRLCStarts.samplerSourceLogicalStart, PiRLCStarts.samplerLogicalStart,
-        PiRLCStarts.phaseLogicalStart_eq, PiRLC.v1_1.Formal.samplerOffset,
-        PiRLC.v1_1.SamplerChain.sourceOffset, PiRLC.v1_1.Sampler.counts.1]
+        PiRLCStarts.phaseLogicalStart_eq, PiRLC.v1_2.Formal.samplerOffset,
+        PiRLC.v1_2.SamplerChain.sourceOffset, PiRLC.v1_2.Sampler.counts.1]
       omega
     · rw [Spartan.sourceColumnCount_eq]
       norm_num [PiRLCSamplerInvocations.sourceLogicalStart, PiRLCStarts.samplerSourceLogicalStart,
         PiRLCStarts.samplerLogicalStart, PiRLCStarts.phaseLogicalStart_eq,
-        PiRLC.v1_1.Formal.samplerOffset, PiRLC.v1_1.SamplerChain.sourceOffset,
-        PiRLC.v1_1.Sampler.counts.1]
+        PiRLC.v1_2.Formal.samplerOffset, PiRLC.v1_2.SamplerChain.sourceOffset,
+        PiRLC.v1_2.Sampler.counts.1]
       omega
   · have same := List.mem_singleton.mp advanceMember
     subst invocation
@@ -444,17 +444,17 @@ private theorem samplerInvocation_witnessBound
     apply bounded
     · norm_num [Spartan.piCcsPhaseOffset, PiRLCStarts.advanceLogicalStart,
         PiRLCStarts.samplerSourceLogicalStart, PiRLCStarts.samplerLogicalStart,
-        PiRLCStarts.phaseLogicalStart_eq, PiRLC.v1_1.Formal.samplerOffset,
-        PiRLC.v1_1.SamplerChain.sourceOffset, PiRLC.v1_1.Sampler.advanceOffset,
-        PiRLC.v1_1.Sampler.rangeOffset, PiRLC.v1_1.Sampler.counts.1,
+        PiRLCStarts.phaseLogicalStart_eq, PiRLC.v1_2.Formal.samplerOffset,
+        PiRLC.v1_2.SamplerChain.sourceOffset, PiRLC.v1_2.Sampler.advanceOffset,
+        PiRLC.v1_2.Sampler.rangeOffset, PiRLC.v1_2.Sampler.counts.1,
         Gadgets.Sampling.WideReduction.Program.privateCount_eq]
       omega
     · rw [Spartan.sourceColumnCount_eq]
       norm_num [PiRLCStarts.advanceLogicalStart, PiRLCStarts.samplerSourceLogicalStart,
         PiRLCStarts.samplerLogicalStart, PiRLCStarts.phaseLogicalStart_eq,
-        PiRLC.v1_1.Formal.samplerOffset, PiRLC.v1_1.SamplerChain.sourceOffset,
-        PiRLC.v1_1.Sampler.advanceOffset, PiRLC.v1_1.Sampler.rangeOffset,
-        PiRLC.v1_1.Sampler.counts.1, Gadgets.Sampling.WideReduction.Program.privateCount_eq]
+        PiRLC.v1_2.Formal.samplerOffset, PiRLC.v1_2.SamplerChain.sourceOffset,
+        PiRLC.v1_2.Sampler.advanceOffset, PiRLC.v1_2.Sampler.rangeOffset,
+        PiRLC.v1_2.Sampler.counts.1, Gadgets.Sampling.WideReduction.Program.privateCount_eq]
       omega
 
 theorem canonicalPermutationInvocation_witnessBound
@@ -541,7 +541,7 @@ private theorem shiftedHashInvocationInput
     baseRate, finalRate]
   by_cases isFirst : invocation = 0
   · subst invocation
-    simp only [if_pos rfl]
+    simp only []
     by_cases absorbing : 0 < chain.absorbCount
     · simp only [absorbing, if_pos]
       by_cases present : lane < 12 ∧ 0 * 12 + lane < chain.inputLength
@@ -555,7 +555,7 @@ private theorem shiftedHashInvocationInput
           intro both
           exact (Nat.not_lt.mpr (present both.1)) both.2
         simp [absent]
-    · simp only [absorbing, if_neg]
+    · simp only [absorbing]
       by_cases zeroLane : lane = 0
       · simp [zeroLane]
       · simp [zeroLane]
@@ -592,7 +592,7 @@ private theorem shiftedHashInvocationInput
           (invocation * 12 + lane) (by omega)
         simp [present, previousShift, inputShift]
       · simp [present, previousShift]
-    · simp only [absorbing, if_neg]
+    · simp only [absorbing]
       by_cases zeroLane : lane = 0
       · subst lane
         simp at previousShift
@@ -836,8 +836,7 @@ theorem packageRows_imply_basePackage
         basePackage.compactRowTemplates[
           invocation.templateIndex]? with
     | none =>
-        simpa [shiftCompactRowInvocation, templateEquation]
-          using finalRows
+        simp [shiftCompactRowInvocation, templateEquation] at finalRows
     | some template =>
         simp only
         unfold Layout.R1CS.RowsHold

@@ -83,27 +83,6 @@ impl Tree {
         depth
     }
 
-    fn numerator(&self, x: usize) -> Ext {
-        self.factors.iter().map(|factor| factor[x]).product()
-    }
-
-    /// The layer above: one factor `P` and the denominator `Q`.
-    fn parent(&self) -> Tree {
-        let half = self.denominator.len() / 2;
-        let (p, q) = (0..half)
-            .into_par_iter()
-            .map(|y| {
-                let (p0, p1) = (self.numerator(y), self.numerator(y + half));
-                let (q0, q1) = (self.denominator[y], self.denominator[y + half]);
-                (p0 * q1 + p1 * q0, q0 * q1)
-            })
-            .unzip();
-        Tree {
-            factors: vec![p],
-            denominator: q,
-        }
-    }
-
     fn parts(&self) -> impl Iterator<Item = &Vec<Ext>> {
         self.factors
             .iter()
@@ -145,6 +124,45 @@ fn spill(file: &std::fs::File, end: &mut usize, tree: &Tree) -> Result<Spilled, 
         *end += 3 * part.len();
     }
     Ok(spilled)
+}
+
+/// The layer above a spilled layer, one factor `P` and the denominator `Q`,
+/// from its two halves streamed back: the layer and its parent are never in
+/// memory together.
+fn parent(file: &std::fs::File, level: &Spilled) -> Result<Tree, Error> {
+    let half = level.nodes / 2;
+    let factors = level.parts - 1;
+    let (mut p, mut q) = (vec![Ext::ZERO; half], vec![Ext::ZERO; half]);
+    for y0 in (0..half).step_by(CHUNK) {
+        let y1 = (y0 + CHUNK).min(half);
+        let read = |part: usize, child: usize| -> Result<Vec<Ext>, Error> {
+            let mut values = vec![Ext::ZERO; y1 - y0];
+            let offset = level.offset + 3 * (level.nodes * part + child * half + y0);
+            scratch::read(file, offset, ext_words_mut(&mut values)).map_err(scratch_error)?;
+            Ok(values)
+        };
+        let [low, high] = [0, 1].map(|child| {
+            (0..level.parts)
+                .map(|part| read(part, child))
+                .collect::<Result<Vec<_>, Error>>()
+        });
+        let (low, high) = (low?, high?);
+        p[y0..y1]
+            .par_iter_mut()
+            .zip(&mut q[y0..y1])
+            .enumerate()
+            .for_each(|(i, (p, q))| {
+                let p0: Ext = low[..factors].iter().map(|factor| factor[i]).product();
+                let p1: Ext = high[..factors].iter().map(|factor| factor[i]).product();
+                let (q0, q1) = (low[factors][i], high[factors][i]);
+                *p = p0 * q1 + p1 * q0;
+                *q = q0 * q1;
+            });
+    }
+    Ok(Tree {
+        factors: vec![p],
+        denominator: q,
+    })
 }
 
 fn restore(file: &std::fs::File, spilled: &Spilled) -> Result<Tree, Error> {
@@ -253,9 +271,10 @@ pub(crate) fn prove(
         let mut spilled = Vec::new();
         let mut level = leaves;
         while level.denominator.len() > 1 {
-            let parent = level.parent();
-            spilled.push(spill(&file, &mut end, &level)?);
-            level = parent;
+            let below = spill(&file, &mut end, &level)?;
+            drop(level);
+            level = parent(&file, &below)?;
+            spilled.push(below);
         }
         spilled.reverse();
         roots.push([level.factors[0][0], level.denominator[0]]);

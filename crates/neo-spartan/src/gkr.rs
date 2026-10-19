@@ -16,8 +16,8 @@
 //!
 //! The prover takes the trees one at a time and keeps each level in a scratch
 //! file from the moment it is built (bottom up) until its layer's sum-check
-//! (top down), so it holds one tree while building and one layer while
-//! proving.
+//! (top down). A layer's first round streams from the file, so the prover
+//! holds one tree while building and half a layer while proving.
 
 use p3_challenger_v08::FieldChallenger;
 use p3_field_v08::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
@@ -163,8 +163,80 @@ fn restore(file: &std::fs::File, spilled: &Spilled) -> Result<Tree, Error> {
     })
 }
 
+/// Pairs of a streamed first round read at once; it bounds only the buffers.
+const CHUNK: usize = scratch::BLOCK_WORDS / 4;
+
+/// Round 1 of a layer whose tables are in the scratch file: the message from
+/// one pass, then the tables folded at the round's challenge from a second,
+/// so the layer is in memory only at half its size.
+fn first_round(
+    file: &std::fs::File,
+    spilled: &[&Spilled],
+    eq: &[Ext],
+    weights: &[Ext],
+    mu: Ext,
+    degree: usize,
+    challenger: &mut Challenger,
+) -> Result<(Vec<Ext>, Ext, Vec<Tree>), Error> {
+    let nodes = spilled[0].nodes;
+    let (half, quarter) = (nodes / 2, nodes / 4);
+    // Pairs `m0..m1` of every tree: both children's entries of every part.
+    let chunk = |m0: usize, m1: usize| -> Result<Vec<Tree>, Error> {
+        spilled
+            .iter()
+            .map(|level| {
+                let mut parts = (0..level.parts)
+                    .map(|part| {
+                        let mut values = vec![Ext::ZERO; 4 * (m1 - m0)];
+                        let (low, high) = values.split_at_mut(2 * (m1 - m0));
+                        for (child, out) in [low, high].into_iter().enumerate() {
+                            let offset = level.offset + 3 * (level.nodes * part + child * half + 2 * m0);
+                            scratch::read(file, offset, ext_words_mut(out)).map_err(scratch_error)?;
+                        }
+                        Ok(values)
+                    })
+                    .collect::<Result<Vec<_>, Error>>()?;
+                let denominator = parts.pop().expect("a tree has a denominator");
+                Ok(Tree {
+                    factors: parts,
+                    denominator,
+                })
+            })
+            .collect()
+    };
+    let mut message = vec![Ext::ZERO; degree];
+    for m0 in (0..quarter).step_by(CHUNK) {
+        let m1 = (m0 + CHUNK).min(quarter);
+        let part = host_message(&chunk(m0, m1)?, &eq[2 * m0..2 * m1], weights, mu, degree);
+        for (sum, value) in message.iter_mut().zip(part) {
+            *sum += value;
+        }
+    }
+    let r = sumcheck::send(&message, challenger);
+    let mut folded: Vec<Tree> = spilled
+        .iter()
+        .map(|level| Tree {
+            factors: vec![vec![Ext::ZERO; half]; level.parts - 1],
+            denominator: vec![Ext::ZERO; half],
+        })
+        .collect();
+    for m0 in (0..quarter).step_by(CHUNK) {
+        let m1 = (m0 + CHUNK).min(quarter);
+        for (tree, out) in chunk(m0, m1)?.iter_mut().zip(&mut folded) {
+            for (table, target) in tree.parts_mut().zip(out.parts_mut()) {
+                fold_low(table, r);
+                let count = m1 - m0;
+                target[m0..m1].copy_from_slice(&table[..count]);
+                target[quarter + m0..quarter + m1].copy_from_slice(&table[count..]);
+            }
+        }
+    }
+    Ok((message, r, folded))
+}
+
 /// Prove the fraction sums of `trees`; return the proof and one claim per
-/// tree. A layer's rounds run on the accelerator's device when it takes them.
+/// tree. A layer's rounds after the first run on the accelerator's device
+/// when it takes them.
 pub(crate) fn prove(
     trees: impl IntoIterator<Item = Tree>,
     challenger: &mut Challenger,
@@ -198,25 +270,30 @@ pub(crate) fn prove(
     let mut layers = Vec::new();
     for k in 1..=depths.iter().copied().max().unwrap_or(0) {
         let active: Vec<usize> = (0..depths.len()).filter(|&i| depths[i] >= k).collect();
-        let mut tables: Vec<Tree> = active
-            .iter()
-            .map(|&i| restore(&file, &levels[i][k - 1]))
-            .collect::<Result<_, _>>()?;
+        let spilled: Vec<&Spilled> = active.iter().map(|&i| &levels[i][k - 1]).collect();
         let mu: Ext = challenger.sample_algebra_element();
         let nu: Ext = challenger.sample_algebra_element();
-        let degree = degree(tables.iter().map(|tree| tree.factors.len()));
+        let degree = degree(spilled.iter().map(|level| level.parts - 1));
         let weights: Vec<Ext> = std::iter::successors(Some(Ext::ONE), |&w| Some(w * nu))
-            .take(tables.len())
+            .take(spilled.len())
             .collect();
-        let (rounds, mut next, stride) = prove_layer(
-            &mut tables,
-            eq_table(&point),
-            &weights,
-            mu,
-            degree,
-            challenger,
-            accelerator,
-        )?;
+        let mut eq = eq_table(&point);
+        let (mut rounds, mut next) = (Vec::new(), Vec::new());
+        let mut tables: Vec<Tree> = if eq.len() > 1 {
+            let (message, r, tables) = first_round(&file, &spilled, &eq, &weights, mu, degree, challenger)?;
+            fold_low(&mut eq, r);
+            rounds.push(message);
+            next.push(r);
+            tables
+        } else {
+            spilled
+                .iter()
+                .map(|level| restore(&file, level))
+                .collect::<Result<_, _>>()?
+        };
+        let (rest, rest_point, stride) = prove_layer(&mut tables, eq, &weights, mu, degree, challenger, accelerator)?;
+        rounds.extend(rest);
+        next.extend(rest_point);
         let children: Vec<Vec<Ext>> = tables
             .iter()
             .map(|tree| {

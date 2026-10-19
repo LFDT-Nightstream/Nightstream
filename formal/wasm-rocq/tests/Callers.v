@@ -12,7 +12,7 @@ Definition getCallAdd : list instr :=
 
 Example get_call_add_typed : callerFacts callerCallees callState 0 getCallAdd.
 Proof.
-  pose proof (proj1 (proj2 (dirty_callee_is_a_valid_call_input 99))) as Hcall.
+  pose proof read_zero_call_typed as Hcall.
   cbn [getCallAdd callerFacts callerCallees N.eqb instructionStackHeight
     readZeroCallee guestParams guestResults guestModule guestTypeIndex guestLocals guestBody].
   split; [repeat constructor; eexists; reflexivity | ].
@@ -39,7 +39,7 @@ Example calls_share_one_environment_entry :
   callerFacts callerCallees callState 0
     [CALL (mk_uN 0); CALL (mk_uN 0); BINOP I32 (mk_binop__0 Inn_I32 ADD)].
 Proof.
-  pose proof (proj1 (proj2 (dirty_callee_is_a_valid_call_input 99))) as Hcall.
+  pose proof read_zero_call_typed as Hcall.
   split; [exact Hcall | ]. split; [vm_compute; lia | ].
   split; [exact Hcall | ]. split; [cbn; lia | ].
   split; [repeat constructor; eexists; reflexivity | ].

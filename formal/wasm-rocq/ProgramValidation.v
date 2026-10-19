@@ -43,7 +43,7 @@ Lemma validated_code_facts : forall program f z height code,
   frameMatches program f z -> wf_state z -> validatedCode program f z height code ->
   sourceFacts (programCallees program (guestModule f)) z height code.
 Proof.
-  intros program f z height code [Hstore [_ Hlocals]] Hz [Hfunctions [Hsupport [C [Hmodule Hcode]]]].
+  intros program f z height code [Hstore [_ Hlocals]] Hz [[Hfunctions _] [Hsupport [C [Hmodule Hcode]]]].
   apply source_code_supported_iff in Hsupport.
   assert (Htypes : calleeTypes (functionContext C (i32Function (guestModule f) (guestTypeIndex f)
     (guestParams f) (guestResults f) (guestLocals f) (guestBody f))) (programCallees program (guestModule f))).
@@ -53,15 +53,12 @@ Proof.
   specialize (H ltac:(rewrite function_context_locals by (eapply module_context_locals; eassumption);
       now rewrite Hlocals) Htypes).
   assert (Hcalls : forall x g, programCallees program (guestModule f) (x :> N) = Some g ->
-    wf_uN 32%N x -> supportedStraightLineProgram (guestBody g) ->
-    (guestParams g < 256)%nat -> (guestResults g < 256)%nat ->
+    wf_uN 32%N x -> (guestParams g < 256)%nat -> (guestResults g < 256)%nat ->
     typedCall z x (guestModule g) (guestTypeIndex g) (guestParams g)
       (guestResults g) (guestLocals g) (guestBody g)).
-  { intros x g Hg Hx Hs Hp Hr.
+  { intros x g Hg Hx Hp Hr.
     pose proof (program_callee_validates _ _ _ _ _ Hfunctions Hg) as Hinst.
-    split; [exact Hz | ]. split; [exact Hx | ]. split.
-    - inversion Hinst; assumption.
-    - split; [exact Hs | ]. split; [eapply funcinst_body_validates; eassumption | auto]. }
+    split; [exact Hz | ]. split; [exact Hx | ]. split; [inversion Hinst; assumption | auto]. }
   destruct (H Hcalls Hsupport) as [Hfacts _].
   specialize (Hfacts 0%nat [] I). now rewrite app_nil_r in Hfacts.
 Qed.

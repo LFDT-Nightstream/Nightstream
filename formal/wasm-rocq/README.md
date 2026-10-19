@@ -1,7 +1,7 @@
 # Wasm circuit proofs in Rocq
 
 `run_refinement` proves circuit traces against SpecTec's Wasm 2.0 semantics for
-`i32.add/sub`, `local.get/set`, direct guest calls with straight-line bodies, and
+`i32.add/sub`, `local.get/set`, direct guest calls (nested to any depth), and
 zero-result blocks containing those arithmetic/local instructions and `br_if 0`.
 Conditions may be computed, with multiple branches per block; branch sites must
 have only the condition above the label's protected stack prefix (no unwinding).
@@ -12,10 +12,10 @@ takes plain rows, refines them one at a time, and relates circuit and SpecTec st
 at a static control shape, and each frame's code must pass SpecTec validation. A
 run may stop anywhere in its base frame, including inside a block, inside a call,
 or during a callee's frame initialization; the final shape resumes the next run.
-Suspended callers form a stack; callee bodies are straight-line, so it is at most
-one call deep. The store is an input: the circuit does not hold it. Padding, host rows,
-nested/indirect calls, nested blocks and returning out of the base frame are
-excluded. Selected zero-test steps are also proved.
+Suspended callers form a stack of any depth, and blocks run in any frame. The
+store is an input: the circuit does not hold it. A run never halts. Padding, host
+rows, indirect calls, calls inside blocks, nested blocks and returning out of the
+base frame are excluded. Selected zero-test steps are also proved.
 Field primality and memory-event consistency are assumed; the offline memory
 argument is not proved. The program ROM encoder covers this guest-only fragment;
 its correspondence with Rust preprocessing is not yet proved.

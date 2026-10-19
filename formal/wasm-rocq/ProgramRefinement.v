@@ -3,7 +3,7 @@
 From Stdlib Require Import List ZArith Lia.
 Require Import R1CS Columns FullRelation Range MemoryTrace MemoryCatalog OpcodeCatalog TraceRefinement Wasm2
   StraightLineSpec StackSimulation SpecTecCalls CallerSpec CallerRefinement ProgramSpec ProgramEncoding
-  SourceInstructions CodeLayout BlockSpec ControlDecode ControlInvariant ControlState ControlRows CallStack ControlBridge CallContext Fragment
+  SourceInstructions CodeLayout BlockSpec ControlDecode ControlInvariant ControlState ControlRows CallStack ControlBridge CallContext Fragment CallScope
   ProgramBinding Selectors.
 Import ListNotations.
 Open Scope Z_scope.
@@ -14,16 +14,6 @@ Proof.
   intros callees i H. inversion H; subst;
     first [right; right; eexists; reflexivity | solve [right; left; eauto] | solve [left; eauto]].
 Qed.
-
-Lemma straight_lookup : forall body offset i,
-  supportedStraightLineProgram body -> nth_error body offset = Some i -> exists op, encodedOpcode i = Some op.
-Proof.
-  intros body offset i H Hi. apply (proj1 (Forall_forall _ _) H). eapply nth_error_In. exact Hi.
-Qed.
-
-Lemma suspended_callee_straight : forall program f base fbp depth s memory top rest,
-  SuspendedStack program f base fbp depth s memory (top :: rest) -> supportedStraightLineProgram (guestBody f).
-Proof. intros program f base fbp depth s memory top rest [g [x [_ [_ [_ [_ [_ [Hs _]]]]]]]]. exact Hs. Qed.
 
 Lemma active_state_function : forall program cursor z memory boundary c,
   ActiveState program cursor z memory boundary c -> exists f, activeFunction program cursor = Some f.
@@ -79,15 +69,33 @@ Lemma control_row : forall program baseDepth cursor z initial final row c0,
   ControlState program baseDepth cursor z initial (beforeBoundary row) c0 ->
   exists cursor' z' c1, fun_store z' = fun_store z /\ Steps c0 c1 /\ ControlState program baseDepth cursor' z' final (afterBoundary row) c1.
 Proof.
-  intros program baseDepth [stack active] z initial final row c0 Hprime Hloaded Hfull Hreplay [Hkind Hbase] Hstate.
+  intros program baseDepth [stack active] z initial final row c0 Hprime Hloaded Hfull Hreplay
+    [Hkind [Hhalt Hbase]] Hstate.
   pose proof Hstate as Hwhole.
   destruct Hstate as [f [inner [Hactive [Hactivestate [Hsusp [Hbase0 [Hdepth ->]]]]]]].
   cbn [activePosition suspendedCalls] in Hactive, Hactivestate, Hsusp, Hdepth.
   cbn [beforeBoundary boundaryStackBase boundaryLocalsBase boundaryCallDepth] in Hsusp, Hdepth.
-  assert (HbaseFrame : stack = [] -> row COL_IS_PROGRAM_ROW = 1 /\ row COL_CALL_STACK_POP_PRESENT = 0 /\
-      row COL_HALTED = 0) by (intros ->; apply Hbase; cbn in Hdepth; lia).
+  assert (HbaseFrame : stack = [] -> row COL_IS_PROGRAM_ROW = 1 /\ row COL_CALL_STACK_POP_PRESENT = 0)
+    by (intros ->; apply Hbase; cbn in Hdepth; lia).
   assert (Hidle_program : initializationIdle (beforeBoundary row) -> row COL_IS_PROGRAM_ROW = 1).
   { intros [_ [_ [Hza Hpa]]]. cbn in Hza, Hpa. destruct Hkind as [Hp | [Hz | Hq]]; [exact Hp | lia | lia]. }
+  (* A row that stays in the active function, keeps the frame registers and leaves
+     the memory below the frame alone keeps every suspended caller. *)
+  assert (Hkeep : forall position' z' inner', activeFunction program position' = Some f ->
+      fun_store z' = fun_store z -> Steps inner inner' ->
+      ActiveState program position' z' final (afterBoundary row) inner' -> frameRegistersPreserved row ->
+      FrameEffect (row COL_STACK_FRAME_BASE_BEFORE) (row COL_LOCALS_FBP_BEFORE) initial final ->
+      exists cursor' z'' c1, fun_store z'' = fun_store z /\ Steps (plugCalls stack inner) c1 /\
+        ControlState program baseDepth cursor' z'' final (afterBoundary row) c1).
+  { intros position' z' inner' Hf' Hstore Hsteps Hstate' [Hd [Hb Hfbp]] Heffect.
+    exists (controlCursor stack position'), z', (plugCalls stack inner').
+    split; [exact Hstore | ].
+    split; [apply steps_in_plug_calls; [eapply suspended_stack_ready; exact Hsusp | exact Hsteps] | ].
+    exists f, inner'. split; [exact Hf' | ]. split; [exact Hstate' | ].
+    split; [ | split; [exact Hbase0 | split; [cbn [afterBoundary boundaryCallDepth suspendedCalls] in *; lia |
+      reflexivity]]].
+    cbn [suspendedCalls afterBoundary boundaryStackBase boundaryLocalsBase boundaryCallDepth].
+    rewrite Hd, Hb, Hfbp, Hstore. eapply frame_effect_suspended; [exact Heffect | exact Hsusp]. }
   destruct active as [[index offset] | position offset prefix | function arguments].
   - (* An outer instruction, or the function's own END. *)
     destruct Hactivestate as [[code Hsource] Hidle].
@@ -95,55 +103,33 @@ Proof.
     cbn [activeFunction sourceFunction] in Hactive.
     destruct code as [ | i rest].
     + destruct stack as [ | top more].
-      * exfalso. destruct (HbaseFrame eq_refl) as [_ [Hpop Hhalt]].
+      * exfalso. destruct (HbaseFrame eq_refl) as [_ Hpop].
         destruct (function_end_exits_row _ _ _ _ _ _ _ Hprime Hloaded Hfull Hprogram Hreplay Hsource); lia.
       * exact (return_row_step program baseDepth top more (sourcePosition index offset) z initial final row inner f
           Hprime Hloaded Hfull Hprogram Hreplay Hactive Hsource Hidle Hsusp Hbase0
           ltac:(cbn [length] in Hdepth; exact Hdepth)).
     + pose proof Hsource as Hparts. unfold SourceState in Hparts. cbn [sourceFunction sourceOffset] in Hparts.
       rewrite Hactive in Hparts. destruct Hparts as [_ [Hcode [Hvalid _]]].
-      assert (Hlookup : nth_error (guestBody f) offset = Some i).
-      { pose proof (f_equal (fun xs => nth_error xs 0) (proj2 Hcode)) as H.
-        cbn beta in H. rewrite nth_error_skipn, Nat.add_0_r in H. exact H. }
-      assert (Hnested : forall top more, stack = top :: more -> exists op, encodedOpcode i = Some op).
-      { intros top more ->. eapply straight_lookup; [eapply suspended_callee_straight; exact Hsusp | exact Hlookup]. }
       destruct (source_instruction_cases _ _ (Forall_inv (proj1 (proj2 Hvalid))))
         as [[bt [body ->]] | [[x ->] | Hordinary]].
-      * destruct stack as [ | top more]; [ | destruct (Hnested top more eq_refl); discriminate].
-        destruct (HbaseFrame eq_refl) as [_ [Hpop Hhalt]].
-        destruct (block_enter_row program (sourcePosition index offset) bt body rest z initial final row inner
-          Hprime Hloaded Hfull Hreplay Hprogram Hpop Hhalt Hsource Hidle) as [prefix [c1 [Hsteps [Hstate' Hd]]]].
-        exists (controlCursor [] (inBlock (sourcePosition index offset) 0 prefix)), z, c1.
-        split; [reflexivity | ]. split; [exact Hsteps | ]. exists f, c1. split; [exact Hactive | ]. split; [exact Hstate' | ].
-        split; [exact I | ]. split; [exact Hbase0 | ]. split; [cbn in *; lia | reflexivity].
-      * destruct stack as [ | top more]; [ | destruct (Hnested top more eq_refl); discriminate].
-        exact (call_row_enters program baseDepth index offset x rest z initial final row inner Hprime Hloaded Hfull
-          Hprogram Hreplay Hsource ltac:(cbn in Hdepth; lia)).
+      * destruct (block_enter_row program (sourcePosition index offset) bt body rest z initial final row inner
+          Hprime Hloaded Hfull Hreplay Hprogram Hhalt Hsource Hidle) as [prefix [c1 [Hsteps [Hstate' [Hregs Heffect]]]]].
+        exact (Hkeep (inBlock (sourcePosition index offset) 0 prefix) z c1 Hactive eq_refl Hsteps Hstate'
+          Hregs Heffect).
+      * exact (call_row_enters program baseDepth stack index offset x rest f z initial final row inner Hprime
+          Hloaded Hfull Hprogram Hreplay Hactive Hsource Hsusp Hbase0 Hdepth).
       * destruct (source_ordinary_row program index offset i rest z initial final row inner Hprime Hloaded Hfull
           Hprogram Hreplay Hordinary Hsource Hidle) as [z' [c1 [Hsteps [Hsource' [Hidle' [Heffect [Hregs Hstore]]]]]]].
-        exists (controlCursor stack (atInstruction (sourcePosition index (S offset)))), z', (plugCalls stack c1).
-        split; [exact Hstore | ]. split; [apply steps_in_plug_calls; [eapply suspended_stack_ready; exact Hsusp | exact Hsteps] | ].
-        exists f, c1. split; [exact Hactive | ]. split; [split; [exists rest; exact Hsource' | exact Hidle'] | ].
-        destruct Hregs as [Hd [Hb Hfbp]].
-        split; [ | split; [exact Hbase0 | split; [cbn [afterBoundary boundaryCallDepth suspendedCalls] in *; lia |
-          reflexivity]]].
-        cbn [suspendedCalls afterBoundary boundaryStackBase boundaryLocalsBase boundaryCallDepth].
-        rewrite Hd, Hb, Hfbp, Hstore. eapply frame_effect_suspended; [exact Heffect | exact Hsusp].
-  - (* Inside a block, which only the base frame can be. *)
-    destruct stack as [ | top more].
-    + pose proof Hactivestate as Hcopy.
-      destruct Hcopy as [? [? [? [? [_ [_ [_ [_ [_ [_ [_ [_ [_ [_ [_ [_ [_ [Hidle _]]]]]]]]]]]]]]]]]].
-      pose proof (Hidle_program Hidle) as Hprogram.
-      destruct (HbaseFrame eq_refl) as [_ [Hpop Hhalt]].
-      destruct (block_control_row program position offset prefix z initial final row inner Hprime Hloaded Hfull
-        Hreplay Hprogram Hpop Hhalt Hactivestate) as [cursor' [z' [c1 [Hstore [Hsteps [Hstate' Hd]]]]]].
-      destruct (active_state_function _ _ _ _ _ _ Hstate') as [f' Hf'].
-      exists (controlCursor [] cursor'), z', c1. split; [exact Hstore | ]. split; [exact Hsteps | ].
-      exists f', c1. split; [exact Hf' | ]. split; [exact Hstate' | ].
-      split; [exact I | ]. split; [exact Hbase0 | ]. split; [cbn in *; lia | reflexivity].
-    + exfalso. destruct Hactivestate as [f' [body [_ [_ [Hf' [Hblock _]]]]]].
-      cbn [activeFunction] in Hactive. rewrite Hactive in Hf'. injection Hf' as <-.
-      destruct (straight_lookup _ _ _ (suspended_callee_straight _ _ _ _ _ _ _ _ _ Hsusp) Hblock). discriminate.
+        exact (Hkeep (atInstruction (sourcePosition index (S offset))) z' c1 Hactive Hstore Hsteps
+          (conj (ex_intro _ rest Hsource') Hidle') Hregs Heffect).
+  - (* Inside a block. *)
+    pose proof Hactivestate as Hcopy.
+    destruct Hcopy as [? [? [? [? [_ [_ [_ [_ [_ [_ [_ [_ [_ [_ [_ [_ [_ [Hidle _]]]]]]]]]]]]]]]]]].
+    pose proof (Hidle_program Hidle) as Hprogram.
+    destruct (block_control_row program position offset prefix z initial final row inner Hprime Hloaded Hfull
+      Hreplay Hprogram Hhalt Hactivestate) as [cursor' [z' [c1 [Hsame [Hstore [Hsteps [Hstate' [Hregs Heffect]]]]]]]].
+    cbn [activeFunction] in Hactive.
+    exact (Hkeep cursor' z' c1 (eq_trans Hsame Hactive) Hstore Hsteps Hstate' Hregs Heffect).
   - (* A callee whose frame is being initialized. *)
     destruct (init_row_step program baseDepth stack function arguments z initial final row _ Hprime Hloaded Hfull
       Hreplay Hwhole) as [cursor' [c1 [Hsteps Hstate']]].

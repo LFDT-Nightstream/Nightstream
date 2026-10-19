@@ -36,12 +36,6 @@ Lemma ordinary_instruction_size : forall i,
 Proof.
   intros i [op H]. destruct (encoded_opcode_cases _ _ H) as [[-> _] | [[-> _] | [[x [-> _]] | [x [-> _]]]]]; reflexivity.
 Qed.
-Lemma straight_code_size : forall code,
-  supportedStraightLineProgram code -> codeSize code = length code.
-Proof.
-  intros code H. induction H; [reflexivity | ].
-  rewrite code_size_cons, ordinary_instruction_size by assumption. cbn. congruence.
-Qed.
 Lemma firstn_at_instruction : forall (code : list instr) offset i,
   nth_error code offset = Some i -> firstn (S offset) code = firstn offset code ++ [i].
 Proof.

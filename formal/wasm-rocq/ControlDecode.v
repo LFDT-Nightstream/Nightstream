@@ -155,8 +155,7 @@ Fixpoint decodeCalls (program : Program) (s : store) (memory : MemoryState) (cal
       decodeCalls program s memory (sourceFunction site) callerBase callerFbp (depth - 1) rest
         (stackPrefix values (instructionSuffix continuation
           (callContext (activeFrame g locals) (N.of_nat (guestResults f)) c)))
-        (obligations /\ supportedCode calleeSite (guestBody f) /\
-          validatedCode program g (mk_state s (activeFrame g locals))
+        (obligations /\ validatedCode program g (mk_state s (activeFrame g locals))
             (length values + guestResults f) continuation)
   end.
 

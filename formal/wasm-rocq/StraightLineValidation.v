@@ -113,30 +113,3 @@ Proof.
   cbn [i32TypingContext context_LOCALS] in Htyped. rewrite !repeat_length in Htyped, Hdelta.
   auto.
 Qed.
-
-(* Supported straight-line instructions consult only LOCALS. This transports
-   a body validated in its real function context to the internal i32 context. *)
-Lemma straight_line_validation_context : forall C code ft,
-  Instrs_ok C code ft -> supportedStraightLineProgram code ->
-  forall D, wf_context D -> context_LOCALS D = context_LOCALS C -> Instrs_ok D code ft.
-Proof.
-  refine (Instrs_ok_ind (fun C code ft => supportedStraightLineProgram code ->
-    forall D, wf_context D -> context_LOCALS D = context_LOCALS C -> Instrs_ok D code ft)
-    _ _ _ _ _).
-  - intros. constructor; assumption.
-  - intros C i inputs outputs Hi HC Hwi Hsupport D HD Hlocals.
-    apply Instrs_ok__instr; try assumption.
-    destruct (Forall_inv Hsupport) as [opcode Hopcode].
-    destruct (encoded_opcode_cases _ _ Hopcode) as [[-> _] | [[-> _] |
-      [[x [-> _]] | [x [-> _]]]]]; inversion Hi; subst;
-      econstructor; try eassumption;
-      rewrite Hlocals; assumption.
-  - intros C a b inputs outputs middle Ha IHa Hb IHb HC Hwa Hwb Hsupport D HD Hl.
-    apply Forall_app in Hsupport. eapply res_seq; try eassumption.
-    + apply IHa; tauto.
-    + apply IHb; tauto.
-  - intros C code inputs' outputs' inputs outputs Hv IH Hin Hout HC Hw Hsupport D HD Hl.
-    eapply sub; try eassumption. apply IH; assumption.
-  - intros C code prefix inputs outputs Hv IH HC Hw Hsupport D HD Hl.
-    eapply Instrs_ok__frame; try eassumption. apply IH; assumption.
-Qed.

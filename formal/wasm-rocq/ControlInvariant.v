@@ -2,8 +2,7 @@
    active function's position and the suspended callers beneath it. The active
    position is an outer instruction, a position inside one zero-result block, or a
    callee whose frame is still being initialized. Each suspended caller owns the memory its return restores, and its
-   SpecTec continuation wraps the active configuration in a FRAME_/LABEL_ context.
-   Callee bodies are straight-line, so a run's call stack is at most one deep. *)
+   SpecTec continuation wraps the active configuration in a FRAME_/LABEL_ context. *)
 From Stdlib Require Import List ZArith.
 Require Import Wasm2 WasmIntegers R1CS MemoryTrace MemoryCatalog StraightLineSpec StackSimulation
   SpecTecCalls SpecTecBranches CallerSpec ProgramSpec CodeLayout BlockSpec FunctionValidation
@@ -108,7 +107,6 @@ Fixpoint SuspendedStack (program : Program) (callee : GuestFunction) (base fbp d
       codeAt g (S (sourceOffset (callPosition suspended))) (callContinuation suspended) /\
       programCallees program (guestModule g) (x :> N) = Some callee /\
       callResults suspended = guestResults callee /\
-      supportedStraightLineProgram (guestBody callee) /\
       frameMatches program g (mk_state s (callerFrame suspended)) /\ wf_frame (callerFrame suspended) /\
       validatedCode program g (mk_state s (callerFrame suspended))
         (length (callerValues suspended) + callResults suspended) (callContinuation suspended) /\

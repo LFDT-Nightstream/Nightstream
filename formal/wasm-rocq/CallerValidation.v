@@ -30,7 +30,7 @@ Lemma caller_validation_facts : forall C code ft,
   forall callees z,
     length (context_LOCALS C) = length (stateLocals z) -> calleeTypes C callees ->
     (forall x f, callees (x :> N) = Some f -> wf_uN 32%N x ->
-      supportedStraightLineProgram (guestBody f) -> (guestParams f < 256)%nat -> (guestResults f < 256)%nat ->
+      (guestParams f < 256)%nat -> (guestResults f < 256)%nat ->
       typedCall z x (guestModule f) (guestTypeIndex f) (guestParams f)
         (guestResults f) (guestLocals f) (guestBody f)) ->
     supportedCaller callees code ->
@@ -61,7 +61,7 @@ Proof.
       - replace (extra + 1)%nat with (S extra) by lia.
         cbn [instructionStackHeight]. now rewrite Nat.add_0_r in Hsuffix.
     }
-    destruct Hsupported as [f [Hf [Hs [Hp Hr]]]]. inversion Hi; subst.
+    destruct Hsupported as [f [Hf [Hp Hr]]]. inversion Hi; subst.
     pose proof (Htypes _ _ Hf) as Htype.
     apply (elimT eqP) in H4.
     match type of H4 with ?lhs = _ =>

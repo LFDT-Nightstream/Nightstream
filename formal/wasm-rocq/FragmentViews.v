@@ -16,16 +16,6 @@ Proof.
   destruct (encoded_opcode_cases _ _ Hop) as [[-> _] | [[-> _] | [[x [-> _]] | [x [-> _]]]]]; constructor.
 Qed.
 
-Lemma callee_supported_iff : forall i, Supported calleeSite i <-> exists op, encodedOpcode i = Some op.
-Proof.
-  intros i. split; [intros H; inversion H; subst; eexists; reflexivity | ].
-  intros [op Hop]. exact (opcode_supported _ _ _ Hop).
-Qed.
-
-Lemma straight_line_supported_iff : forall code,
-  supportedCode calleeSite code <-> supportedStraightLineProgram code.
-Proof. intros code. apply forall_iff. exact callee_supported_iff. Qed.
-
 Lemma block_supported_iff : forall i,
   Supported blockSite i <-> i = BR_IF (mk_uN 0) \/ exists op, encodedOpcode i = Some op.
 Proof.
@@ -41,11 +31,10 @@ Lemma function_supported_iff : forall callees i,
   Supported (functionSite callees) i <-> supportedSourceInstruction callees i.
 Proof.
   intros callees i. split.
-  - intros H. inversion H as [ | | | | ? x f Hf Hbody Hp Hr | ? body Hbody Hbalanced | ]; subst;
+  - intros H. inversion H as [ | | | | ? x f Hf Hp Hr | ? body Hbody Hbalanced | ]; subst;
       cbn [supportedSourceInstruction].
     1-4: constructor; [eexists; reflexivity | constructor].
-    + constructor; [ | constructor]. exists f. split; [exact Hf | ].
-      split; [apply straight_line_supported_iff; exact Hbody | split; assumption].
+    + constructor; [ | constructor]. exists f. split; [exact Hf | split; assumption].
     + split; [reflexivity | split; [apply branch_body_supported_iff; exact Hbody | exact Hbalanced]].
   - intros H.
     assert (Hcases : (exists bt body, i = BLOCK bt body) \/ (exists x, i = CALL x) \/
@@ -54,8 +43,7 @@ Proof.
     destruct Hcases as [[bt [body ->]] | [[x ->] | [op Hop]]].
     + destruct H as [-> [Hbody Hbalanced]].
       constructor; [apply branch_body_supported_iff; exact Hbody | exact Hbalanced].
-    + destruct (Forall_inv H) as [f [Hf [Hbody [Hp Hr]]]].
-      econstructor; [exact Hf | apply straight_line_supported_iff; exact Hbody | exact Hp | exact Hr].
+    + destruct (Forall_inv H) as [f [Hf [Hp Hr]]]. econstructor; [exact Hf | exact Hp | exact Hr].
     + exact (opcode_supported _ _ _ Hop).
 Qed.
 

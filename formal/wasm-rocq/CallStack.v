@@ -21,7 +21,7 @@ Lemma suspended_stack_ready : forall program stack callee base fbp depth s memor
 Proof.
   intros program stack. induction stack as [ | suspended rest IH]; intros callee base fbp depth s memory H;
     [constructor | ].
-  destruct H as [g [x [_ [_ [_ [_ [_ [_ [_ [HwfFrame [Hvalid [Hbounds [_ [_ [_ [_ [_ [_ [_ [_ Hrest]]]]]]]]]]]]]]]]]]]].
+  destruct H as [g [x [_ [_ [_ [_ [_ [_ [HwfFrame [Hvalid [Hbounds [_ [_ [_ [_ [_ [_ [_ [_ Hrest]]]]]]]]]]]]]]]]]]].
   constructor; [ | eapply IH; exact Hrest].
   split; [exact HwfFrame | ]. split; [exact Hbounds | eapply validated_instructions_wf; exact Hvalid].
 Qed.
@@ -66,8 +66,8 @@ Lemma suspended_stack_preserved : forall program stack callee base fbp depth s m
 Proof.
   intros program stack. induction stack as [ | suspended rest IH];
     intros callee base fbp depth s memory memory' H Hstack Hlocals Hcontext; [exact I | ].
-  destruct H as [g [x [Hg [Hcall [Hcont [Hcallee [Hresults [Hstraight [Hframe [HwfFrame [Hvalid [Hbounds
-    [Hbase0 [Hbase [Hcells [Hfbp [Hlocal [Hret [HsavedFbp [HsavedBase Hrest]]]]]]]]]]]]]]]]]]]].
+  destruct H as [g [x [Hg [Hcall [Hcont [Hcallee [Hresults [Hframe [HwfFrame [Hvalid [Hbounds
+    [Hbase0 [Hbase [Hcells [Hfbp [Hlocal [Hret [HsavedFbp [HsavedBase Hrest]]]]]]]]]]]]]]]]]]].
   exists g, x. repeat (split; [eassumption | ]).
   split.
   - intros index value Hlookup. rewrite Hstack; [apply Hcells; exact Hlookup | ].
@@ -182,13 +182,6 @@ Proof.
            rewrite (code_offset_next _ _ _ Hlookup), (ordinary_instruction_size _ Hordinary), Nat2Z.inj_add. lia.
 Qed.
 
-Lemma straight_source_supported : forall callees code,
-  supportedStraightLineProgram code -> supportedSourceCode callees code.
-Proof.
-  intros callees code H. induction H as [ | i rest [op Hop] Hrest IH]; constructor; [ | exact IH].
-  destruct i; try discriminate; constructor; try constructor; eexists; exact Hop.
-Qed.
-
 (* A callee being entered: still initializing, or, once both countdowns end, at
    the first instruction of its body. *)
 Lemma callee_active_state : forall program function callee z arguments memory boundary,
@@ -239,18 +232,22 @@ Lemma stack_config_split : forall z prefix top i rest,
 Proof. intros. unfold stackConfig, stackPrefix, instructionSuffix. rewrite map_app, <- !app_assoc. reflexivity. Qed.
 
 (* A direct guest call: SpecTec enters the callee's frame; the circuit saves the
-   caller's return context and begins initializing the callee's frame. *)
-Lemma call_row_enters : forall program baseDepth index offset x rest z initial final row c0,
+   caller's return context one level above the callers already suspended, and
+   begins initializing the callee's frame. *)
+Lemma call_row_enters : forall program baseDepth stack index offset x rest f z initial final row c0,
   fieldPrime -> programLoaded program initial -> FullRelation.satFull row -> row COL_IS_PROGRAM_ROW = 1 ->
   Replay initial (eventsForRow memories row) final ->
+  functionAt program index = Some f ->
   SourceState program (sourcePosition index offset) z initial (beforeBoundary row) (CALL x :: rest) c0 ->
-  row COL_CALL_STACK_DEPTH_BEFORE = baseDepth ->
-  exists cursor z' c1, fun_store z' = fun_store z /\ Steps c0 c1 /\ ControlState program baseDepth cursor z' final (afterBoundary row) c1.
+  SuspendedStack program f (row COL_STACK_FRAME_BASE_BEFORE) (row COL_LOCALS_FBP_BEFORE)
+    (row COL_CALL_STACK_DEPTH_BEFORE) (fun_store z) initial stack ->
+  0 <= baseDepth -> row COL_CALL_STACK_DEPTH_BEFORE = baseDepth + Z.of_nat (length stack) ->
+  exists cursor z' c1, fun_store z' = fun_store z /\ Steps (plugCalls stack c0) c1 /\
+    ControlState program baseDepth cursor z' final (afterBoundary row) c1.
 Proof.
-  intros program baseDepth index offset x rest z initial final row c0 Hprime Hloaded Hfull Hprogram Hreplay
-    Hsource Hdepth.
-  unfold SourceState in Hsource. cbn [sourceFunction sourceOffset] in Hsource.
-  destruct (functionAt program index) as [f | ] eqn:Hf; [ | contradiction].
+  intros program baseDepth stack index offset x rest f z initial final row c0 Hprime Hloaded Hfull Hprogram
+    Hreplay Hf Hsource Hsusp Hbase0 Hdepth.
+  unfold SourceState in Hsource. cbn [sourceFunction sourceOffset] in Hsource. rewrite Hf in Hsource.
   destruct Hsource as [Hframe [Hcode [Hvalidation [Hrep Hpc]]]].
   change (row COL_PC_BEFORE = guestEntry f + Z.of_nat (codeOffset (guestBody f) offset)) in Hpc.
   pose proof (represented_state_wf _ _ _ _ _ Hrep) as Hz.
@@ -260,12 +257,12 @@ Proof.
   cbn [sourceInstructionFacts callerFacts sourceHeight] in Hif, Hrest.
   destruct (programCallees program (guestModule f) (x :> N)) as [callee | ] eqn:Hcallee; [ | contradiction].
   destruct Hif as [Htyped [Hparams _]].
-  destruct Htyped as [Hzwf [Hidx [Hfuncwf [Hstraight [_ [Hp Hr]]]]]].
+  destruct Htyped as [Hzwf [Hidx [Hfuncwf [Hp Hr]]]].
   assert (Hlookup : nth_error (guestBody f) offset = Some (CALL x)).
   { pose proof (f_equal (fun xs => nth_error xs 0) (proj2 Hcode)) as H.
     cbn beta in H. rewrite nth_error_skipn, Nat.add_0_r in H. exact H. }
-  pose proof (encoded_call_loaded _ _ _ _ _ _ _ _ Hloaded Hf Hlookup Hframe Hcallee Hstraight) as Hcall.
-  rewrite <- Hpc in Hcall. destruct Hcall as [Himage [HcallerImage _]].
+  pose proof (encoded_call_image _ _ _ _ _ _ _ _ Hloaded Hf Hlookup Hframe Hcallee) as Hcall.
+  rewrite <- Hpc in Hcall. destruct Hcall as [Himage HcallerImage].
   destruct Hrep as [values [Hstack [-> [HconfigWf Hlocals]]]].
   pose proof (stack_matches_height _ _ _ Hstack) as Hheight.
   destruct (split_top_values values (guestParams callee) ltac:(lia)) as [prefix [arguments [-> Hlen]]].
@@ -303,8 +300,8 @@ Proof.
   rewrite Hchoice, HreturnImage in HreturnRead. injection HreturnRead as HreturnValue.
   pose proof (proj1 (proj2 (proj2 Hstack))) as Hbounds. apply Forall_app in Hbounds.
   destruct Hbounds as [HprefixBounds HargBounds].
-  pose proof (proj1 Hvalidation) as Hfunctions.
-  destruct z as [s frame0]. cbn [fun_store] in Hfunctions.
+  destruct (proj1 Hvalidation) as [Hfunctions Hsupported].
+  destruct z as [s frame0]. cbn [fun_store] in Hfunctions, Hsusp.
   set (zc := mk_state s (enteredFrame (guestModule callee) arguments (guestLocals callee))).
   pose proof (entered_body_wf s frame0 (guestModule callee) (guestTypeIndex callee) arguments
     (guestResults callee) (guestLocals callee) (guestBody callee) Hzwf Hfuncwf HargBounds) as HbodyWf.
@@ -314,29 +311,30 @@ Proof.
     Hfuncwf HargBounds) as Henter.
   pose proof (program_callee_validates program s (guestModule f) (x :> N) callee Hfunctions Hcallee) as Hinst.
   destruct (funcinst_body_validated _ _ _ _ _ _ _ Hinst) as [Cc [HCc HbodyTyped]].
+  pose proof Hcallee as HcalleeAt. unfold programCallees in HcalleeAt.
+  destruct (nth_error (FUNCS (guestModule f)) (N.to_nat (x :> N))) as [address | ]; [ | discriminate].
   assert (HcalleeValid : validatedCode program callee zc 0 (guestBody callee)).
-  { split; [exact Hfunctions | ]. split; [apply source_code_supported_iff, straight_source_supported; exact Hstraight | ].
+  { split; [exact (proj1 Hvalidation) | ]. split; [exact (Hsupported _ _ HcalleeAt) | ].
     exists Cc. split; [exact HCc | exact HbodyTyped]. }
   assert (HcalleeFrame : frameMatches program callee zc).
   { split; [exact (proj1 Hframe) | ]. split; [reflexivity | ].
     cbn [stateLocals zc enteredFrame LOCALS]. rewrite length_app, length_map, repeat_length. lia. }
-  pose proof Hcallee as HcalleeAt. unfold programCallees in HcalleeAt.
-  destruct (nth_error (FUNCS (guestModule f)) (N.to_nat (x :> N))) as [address | ]; [ | discriminate].
   destruct (callee_active_state program (N.to_nat address) callee zc arguments final (afterBoundary row)
     HcalleeAt Hlen eq_refl HcalleeFrame Hzc HcalleeValid HbodyWf Hinit
     (full_initialization_flags row Hprime Hfull) Hentry (proj1 (value_bound row _)) HargBounds)
     as [position [Hactive Hstate]].
-  exists (controlCursor [suspendedCall (sourcePosition index offset) frame0 prefix (row COL_STACK_FRAME_BASE_BEFORE)
-    (row COL_LOCALS_FBP_BEFORE) rest (guestResults callee)] position), zc,
-    (plugCalls [suspendedCall (sourcePosition index offset) frame0 prefix (row COL_STACK_FRAME_BASE_BEFORE)
-      (row COL_LOCALS_FBP_BEFORE) rest (guestResults callee)] (stackConfig zc [] (guestBody callee))).
+  exists (controlCursor (suspendedCall (sourcePosition index offset) frame0 prefix (row COL_STACK_FRAME_BASE_BEFORE)
+    (row COL_LOCALS_FBP_BEFORE) rest (guestResults callee) :: stack) position), zc,
+    (plugCalls (suspendedCall (sourcePosition index offset) frame0 prefix (row COL_STACK_FRAME_BASE_BEFORE)
+      (row COL_LOCALS_FBP_BEFORE) rest (guestResults callee) :: stack) (stackConfig zc [] (guestBody callee))).
   split; [reflexivity | ]. split.
-  { rewrite stack_config_split. cbn [plugCalls callerValues callContinuation callerFrame callResults].
-    apply steps_with_stack_prefix; [exact HprefixBounds | ].
+  { cbn [plugCalls callerValues callContinuation callerFrame callResults].
+    apply steps_in_plug_calls; [eapply suspended_stack_ready; exact Hsusp | ].
+    rewrite stack_config_split. apply steps_with_stack_prefix; [exact HprefixBounds | ].
     apply steps_with_instruction_suffix; [exact (Forall_inv_tail Hwf) | exact Henter]. }
   exists callee, (stackConfig zc [] (guestBody callee)).
   split; [exact Hactive | ]. split; [exact Hstate | ].
-  split; [ | split; [subst baseDepth; exact (proj1 (value_bound row _)) | split; [cbn; lia | reflexivity]]].
+  split; [ | split; [exact Hbase0 | split; [cbn [suspendedCalls length afterBoundary boundaryCallDepth]; lia | reflexivity]]].
   cbn [SuspendedStack callPosition callerFrame callerValues callerBase callerFbp callContinuation callResults
     sourceFunction sourceOffset afterBoundary boundaryStackBase boundaryLocalsBase boundaryCallDepth].
   assert (HcodeNext : codeOffset (guestBody f) (S offset) = (codeOffset (guestBody f) offset + 1)%nat)
@@ -345,7 +343,7 @@ Proof.
   cbn [callPosition callerFrame callerValues callerBase callerFbp callContinuation callResults sourceFunction sourceOffset].
   split; [exact Hf | ]. split; [exact Hlookup | ].
   split; [replace (S offset) with (offset + length [CALL x])%nat by (cbn; lia); apply code_at_advance; exact Hcode | ].
-  split; [exact Hcallee | ]. split; [reflexivity | ]. split; [exact Hstraight | ]. split; [exact Hframe | ].
+  split; [exact Hcallee | ]. split; [reflexivity | ]. split; [exact Hframe | ].
   split; [inversion Hzwf; assumption | ].
   split.
   { assert (Hafter : (stackHeight (beforeBoundary row) - guestParams callee + guestResults callee =
@@ -367,7 +365,12 @@ Proof.
   replace (row COL_CALL_STACK_DEPTH_AFTER - 1) with (row COL_CALL_STACK_ADDR) by lia.
   split; [rewrite HsavedPcMem, <- HreturnValue, Hpc, HcodeNext, Nat2Z.inj_add; f_equal; lia | ].
   split; [rewrite HsavedFbpMem, HsavedFbp; reflexivity | ].
-  split; [rewrite HsavedBaseMem, HsavedBase; reflexivity | exact I].
+  split; [rewrite HsavedBaseMem, HsavedBase; reflexivity | ].
+  (* The callers already suspended keep their memory: the push writes only its own level. *)
+  replace (row COL_CALL_STACK_ADDR) with (row COL_CALL_STACK_DEPTH_BEFORE) by lia.
+  eapply suspended_stack_preserved; [exact Hsusp | intros i _; apply HcallStack | intros other i _; apply HcallLocals | ].
+  intros id column level Hin Hbelow. eapply context_push_elsewhere; [exact Hin | exact Hreplay | ].
+  intros Heq. injection Heq as Heq. lia.
 Qed.
 
 Lemma steps_refl_wf : forall c, wf_config c -> Steps c c.
@@ -487,8 +490,8 @@ Proof.
   assert (HcontextMem : forall id column address, In (id, column) contextMemories ->
       final id address = initial id address)
     by (intros id column address Hin; eapply context_preserved_without_push; eassumption).
-  destruct Hsusp as [g [x [Hg [Hcall [Hcont [Hcallee [Hres [Hstraight [HframeC [HwfC [HvalidC [Hbounds
-    [HbaseC0 [HbaseC [Hcells [HfbpC [HlocalsC [Hret [HsavedFbp [HsavedBase Hrest]]]]]]]]]]]]]]]]]]]].
+  destruct Hsusp as [g [x [Hg [Hcall [Hcont [Hcallee [Hres [HframeC [HwfC [HvalidC [Hbounds
+    [HbaseC0 [HbaseC [Hcells [HfbpC [HlocalsC [Hret [HsavedFbp [HsavedBase Hrest]]]]]]]]]]]]]]]]]]].
   assert (Haddress : row COL_CALL_STACK_ADDR = row COL_CALL_STACK_DEPTH_BEFORE - 1) by lia.
   pose proof (context_pop_reads initial final row callStackReturnPcId COL_CALL_STACK_RETURN_PC_VALUE
     ltac:(cbn; auto) Hpush Hpop Hreplay) as HretRead.

@@ -47,8 +47,7 @@ Proof.
       [BINOP I32 (mk_binop__0 Inn_I32 ADD)]).
   split.
   - unfold typedCall. split; [repeat constructor | ]. split; [repeat constructor | ].
-    split; [repeat constructor | ]. split; [repeat constructor; eexists; reflexivity | ].
-    split; [exact read_zero_validates | split; lia].
+    split; [repeat constructor | ]. split; lia.
   - split; [lia | ]. split; [repeat constructor; eexists; reflexivity | ].
     split; [repeat constructor | ]. split; exact I.
 Qed.
@@ -108,22 +107,33 @@ Proof.
   - repeat constructor; exact Hw.
 Qed.
 
+(* local.get 0; call 0 (to readZero); i32.add *)
+Example source_body_supported : supportedCode (functionSite (programCallees sourceProgram callModule)) getCallAdd.
+Proof.
+  constructor; [constructor | constructor; [ | constructor; [constructor | constructor]]].
+  apply supported_call with (f := mkGuestFunction 0%N callModule (mk_uN 0) 0 1 1 readZeroBody 0);
+    [reflexivity | cbn; lia | cbn; lia].
+Qed.
+
+Example source_program_supported : programSupported sourceProgram.
+Proof.
+  intros [ | [ | index]] g Hg; cbn in Hg; [injection Hg as <- | injection Hg as <- | destruct index; discriminate].
+  - repeat constructor.
+  - exact source_body_supported.
+Qed.
+
 Example source_initial_validated :
   validatedCode sourceProgram
     (mkGuestFunction 1%N callModule (mk_uN 0) 0 1 1 getCallAdd 2)
     sourceInitialState 0 getCallAdd.
 Proof.
-  split.
+  split; [split; [ | exact source_program_supported] | ].
   - constructor.
     + apply source_function_validates; [repeat constructor | ].
       apply Instrs_ok__instr; [apply local_get | | ]; try reflexivity; repeat constructor.
     + constructor; [apply source_function_validates; [repeat constructor | exact source_body_validates] | constructor].
-  - split.
-    + (* local.get 0; call 0 (to readZero); i32.add *)
-      constructor; [constructor | constructor; [ | constructor; [constructor | constructor]]].
-      apply supported_call with (f := mkGuestFunction 0%N callModule (mk_uN 0) 0 1 1 readZeroBody 0);
-        [reflexivity | repeat constructor | cbn; lia | cbn; lia].
-    + exists sourceModuleContext. split; [exact source_module_validates | exact source_body_validates].
+  - split; [exact source_body_supported | ].
+    exists sourceModuleContext. split; [exact source_module_validates | exact source_body_validates].
 Qed.
 
 Example source_initial_represents : forall stale,
@@ -262,8 +272,8 @@ Example source_suspended_call_decodes :
   Some (suspendedConfig (MKframe [i32Value 0] callModule)).
 Proof. vm_compute. reflexivity. Qed.
 
-(* At the caller's END no call is suspended: the caller's body is not straight-line,
-   so it cannot be a callee, and the callee's PCs are 0..1. *)
+(* At the caller's END no call is suspended: the program's only CALL targets
+   readZero, so nothing calls the caller, and readZero's PCs are 0..1. *)
 Lemma source_final_shape : forall cursor z memory boundary c,
   ControlState sourceProgram 0 cursor z memory boundary c -> boundaryPC boundary = 5 ->
   shapeOf cursor = controlShape [] (siteInstruction (sourcePosition 1 3)).
@@ -281,9 +291,12 @@ Proof.
       subst code. cbn [activeFunction sourceFunction] in Hf. injection Hf as <-.
       destruct stack as [ | top more].
       * reflexivity.
-      * exfalso. destruct Hsusp as [g [x [_ [_ [_ [_ [_ [Hstraight _]]]]]]]].
-        inversion Hstraight as [ | ? ? _ Hrest]; subst. inversion Hrest as [ | ? ? [op Hop] _]; subst.
-        discriminate.
+      * exfalso. destruct Hsusp as [g [x [Hg [Hcall [_ [Hcallee _]]]]]].
+        destruct (callPosition top) as [[ | [ | caller]] site]; cbn [sourceFunction sourceOffset] in Hg, Hcall;
+          [ | | destruct caller; discriminate]; injection Hg as <-; cbn [guestBody guestModule] in Hcall, Hcallee.
+        -- destruct site as [ | site]; [discriminate | destruct site; discriminate].
+        -- destruct site as [ | [ | [ | site]]]; try discriminate; [ | destruct site; discriminate].
+           injection Hcall as <-. discriminate Hcallee.
     + unfold SourceState in Hstate. destruct index; contradiction.
   - destruct Hactive as [f' [body [continuation [values [Hf' [Hbody _]]]]]].
     destruct index as [ | [ | index]]; try (destruct index; discriminate); injection Hf' as <-.

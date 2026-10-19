@@ -5,6 +5,16 @@
 //! openings in Plonky3 0.8's formats. Verification is Plonky3's own tree
 //! (`hash::Plain`). Commitments and openings equal Plonky3's (test
 //! `tests/internal/merkle.rs`), so no proof depends on the device.
+//!
+//! A committed tree keeps its rows and digest layers in an unlinked scratch
+//! file, not in memory: an opening reads only the rows and siblings it
+//! names, so a commitment costs disk, not RAM, until its last opening.
+
+use std::fs::{File, OpenOptions};
+use std::marker::PhantomData;
+use std::os::unix::fs::FileExt;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, OnceLock};
 
 use neo_ccs::crypto::poseidon2_goldilocks::DIGEST_LEN;
 use p3_commit_v08::{BatchOpening, BatchOpeningRef, Mmcs as Scheme};
@@ -17,8 +27,13 @@ use rayon::prelude::*;
 use crate::device::Accelerator;
 use crate::field::Gl;
 use crate::hash::{permutation, plain, Compress, Packed, Plain, Sponge};
+use crate::Error;
 
 type Digest = [Gl; DIGEST_LEN];
+
+/// Scratch writes go out in blocks of this many bytes; it bounds only each
+/// thread's buffer.
+const WRITE_BYTES: usize = 1 << 22;
 
 /// The Merkle commitment scheme of the WHIR provers; trees build on the
 /// accelerator's device when it has one.
@@ -26,6 +41,8 @@ type Digest = [Gl; DIGEST_LEN];
 pub(crate) struct Mmcs {
     plain: Plain,
     accelerator: Accelerator,
+    /// The first scratch-file failure, shared with every clone of one prover.
+    failure: Arc<OnceLock<String>>,
 }
 
 impl Mmcs {
@@ -33,19 +50,33 @@ impl Mmcs {
         Self {
             plain: plain(),
             accelerator: accelerator.clone(),
+            failure: Arc::default(),
         }
+    }
+
+    /// Fail if a tree of this prover lost its scratch file; its openings
+    /// then read zeros.
+    pub(crate) fn check(&self) -> Result<(), Error> {
+        self.failure
+            .get()
+            .map_or(Ok(()), |reason| Err(Error::Device(reason.clone())))
     }
 }
 
-/// Committed matrices of one power-of-two height, and every digest layer:
-/// the leaves first, the root last.
+/// Committed rows of one power-of-two height and the root. The scratch file
+/// holds the leaf words, row by row, then every digest layer below the root,
+/// the leaves' first.
 pub(crate) struct Tree<M> {
-    matrices: Vec<M>,
-    layers: Vec<Vec<Digest>>,
+    rows: usize,
+    widths: Vec<usize>,
+    root: Digest,
+    file: Option<File>,
+    failure: Arc<OnceLock<String>>,
+    matrices: PhantomData<M>,
 }
 
 impl<M: Matrix<Gl>> Tree<M> {
-    fn build(matrices: Vec<M>, accelerator: &Accelerator) -> Self {
+    fn build(matrices: Vec<M>, accelerator: &Accelerator, failure: Arc<OnceLock<String>>) -> Self {
         let rows = matrices[0].height();
         assert!(
             rows.is_power_of_two() && matrices.iter().all(|matrix| matrix.height() == rows),
@@ -78,33 +109,64 @@ impl<M: Matrix<Gl>> Tree<M> {
                 .collect(),
             None => cpu_layers(&matrices, rows),
         };
-        Self { matrices, layers }
+        let root = layers.last().expect("a tree has a root")[0];
+        let file = spill(&matrices, width, &layers[..layers.len() - 1])
+            .map_err(|error| failure.set(format!("Merkle scratch file: {error}")))
+            .ok();
+        Self {
+            rows,
+            widths: matrices.iter().map(|matrix| matrix.width()).collect(),
+            root,
+            file,
+            failure,
+            matrices: PhantomData,
+        }
     }
 
-    fn rows(&self, index: usize) -> Vec<Vec<Gl>> {
-        self.matrices
-            .iter()
-            .map(|matrix| {
-                matrix
-                    .row(index)
-                    .expect("the index is within the height")
-                    .into_iter()
-                    .collect()
-            })
+    /// `count` words at byte `offset` of the scratch file; zeros, and a
+    /// recorded failure, if the read fails.
+    fn read(&self, offset: usize, count: usize) -> Vec<Gl> {
+        let mut bytes = vec![0u8; 8 * count];
+        if let Err(error) = self
+            .file
+            .as_ref()
+            .map_or(Ok(()), |file| file.read_exact_at(&mut bytes, offset as u64))
+        {
+            let _ = self.failure.set(format!("Merkle scratch read: {error}"));
+        }
+        bytes
+            .chunks_exact(8)
+            .map(|word| Gl::new(u64::from_le_bytes(word.try_into().expect("eight bytes"))))
             .collect()
     }
 
-    /// The layers that hold siblings: every layer but the root's.
-    fn below_root(&self) -> &[Vec<Digest>] {
-        &self.layers[..self.layers.len() - 1]
+    fn rows(&self, index: usize) -> Vec<Vec<Gl>> {
+        let width: usize = self.widths.iter().sum();
+        let mut words = self.read(8 * width * index, width).into_iter();
+        self.widths
+            .iter()
+            .map(|&width| words.by_ref().take(width).collect())
+            .collect()
+    }
+
+    /// How many layers hold siblings: every layer but the root's.
+    fn depth(&self) -> usize {
+        self.rows.trailing_zeros() as usize
+    }
+
+    /// Node `node` of layer `layer`, the leaves' digests being layer 0.
+    fn digest(&self, layer: usize, node: usize) -> Digest {
+        let width: usize = self.widths.iter().sum();
+        let below: usize = (0..layer).map(|l| self.rows >> l).sum();
+        let words = self.read(8 * width * self.rows + 32 * (below + node), DIGEST_LEN);
+        std::array::from_fn(|k| words[k])
     }
 
     /// The siblings on the path from leaf `index` to the root.
     fn path(&self, mut index: usize) -> Vec<Digest> {
-        self.below_root()
-            .iter()
+        (0..self.depth())
             .map(|layer| {
-                let sibling = layer[index ^ 1];
+                let sibling = self.digest(layer, index ^ 1);
                 index /= 2;
                 sibling
             })
@@ -118,14 +180,14 @@ impl<M: Matrix<Gl>> Tree<M> {
         known.sort_unstable();
         known.dedup();
         let mut siblings = Vec::new();
-        for layer in self.below_root() {
+        for layer in 0..self.depth() {
             let mut parents = Vec::with_capacity(known.len());
             let mut i = 0;
             while i < known.len() {
                 let node = known[i];
                 let both = node.is_multiple_of(2) && known.get(i + 1) == Some(&(node + 1));
                 if !both {
-                    siblings.push(layer[node ^ 1]);
+                    siblings.push(self.digest(layer, node ^ 1));
                 }
                 parents.push(node / 2);
                 i += if both { 2 } else { 1 };
@@ -134,6 +196,52 @@ impl<M: Matrix<Gl>> Tree<M> {
         }
         siblings
     }
+}
+
+/// Write the leaf words, then `layers`, to a fresh unlinked file in the
+/// system's temporary directory; its space returns when the tree drops.
+fn spill<M: Matrix<Gl>>(matrices: &[M], width: usize, layers: &[Vec<Digest>]) -> std::io::Result<File> {
+    static NEXT: AtomicUsize = AtomicUsize::new(0);
+    let path = std::env::temp_dir().join(format!(
+        "neo-spartan-merkle-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    let file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create_new(true)
+        .open(&path)?;
+    std::fs::remove_file(&path)?;
+    let rows = matrices[0].height();
+    let block = (WRITE_BYTES / (8 * width)).max(1);
+    (0..rows.div_ceil(block))
+        .into_par_iter()
+        .try_for_each(|chunk| {
+            let first = chunk * block;
+            let bytes: Vec<u8> = (first..rows.min(first + block))
+                .flat_map(|r| leaf(matrices, r))
+                .flat_map(|value| value.as_canonical_u64().to_le_bytes())
+                .collect();
+            file.write_all_at(&bytes, (8 * width * first) as u64)
+        })?;
+    let mut offset = 8 * width * rows;
+    for layer in layers {
+        let block = WRITE_BYTES / 32;
+        layer
+            .par_chunks(block)
+            .enumerate()
+            .try_for_each(|(chunk, digests)| {
+                let bytes: Vec<u8> = digests
+                    .iter()
+                    .flatten()
+                    .flat_map(|value| value.as_canonical_u64().to_le_bytes())
+                    .collect();
+                file.write_all_at(&bytes, (offset + 32 * block * chunk) as u64)
+            })?;
+        offset += 32 * layer.len();
+    }
+    Ok(file)
 }
 
 /// Leaf `r`: row `r` of every matrix, in matrix order.
@@ -205,17 +313,16 @@ impl Scheme<Gl> for Mmcs {
     type Error = <Plain as Scheme<Gl>>::Error;
 
     fn commit<M: Matrix<Gl>>(&self, inputs: Vec<M>) -> (Self::Commitment, Tree<M>) {
-        let tree = Tree::build(inputs, &self.accelerator);
-        let root = tree.layers.last().expect("a tree has a root").clone();
-        (MerkleCap::new(root), tree)
+        let tree = Tree::build(inputs, &self.accelerator, self.failure.clone());
+        (MerkleCap::new(vec![tree.root]), tree)
     }
 
     fn open_batch<M: Matrix<Gl>>(&self, index: usize, tree: &Tree<M>) -> BatchOpening<Gl, Self> {
         BatchOpening::new(tree.rows(index), tree.path(index))
     }
 
-    fn get_matrices<'a, M: Matrix<Gl>>(&self, tree: &'a Tree<M>) -> Vec<&'a M> {
-        tree.matrices.iter().collect()
+    fn get_matrices<'a, M: Matrix<Gl>>(&self, _tree: &'a Tree<M>) -> Vec<&'a M> {
+        unreachable!("WHIR reads committed rows only through openings; the rows live in the scratch file")
     }
 
     fn verify_batch(

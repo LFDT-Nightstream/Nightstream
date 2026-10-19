@@ -246,9 +246,9 @@ impl Pcs {
 
     /// The prover instance whose DFTs and Merkle trees run on `accelerator`,
     /// and its DFT, to check for a device failure.
-    fn prover(&self, accelerator: &Accelerator) -> (Whir, Dft) {
-        let dft = self.dft.on(accelerator);
-        (Whir::new(self.config.clone(), dft.clone(), Mmcs::new(accelerator)), dft)
+    fn prover(&self, accelerator: &Accelerator) -> (Whir, Dft, Mmcs) {
+        let (dft, mmcs) = (self.dft.on(accelerator), Mmcs::new(accelerator));
+        (Whir::new(self.config.clone(), dft.clone(), mmcs.clone()), dft, mmcs)
     }
 
     /// Commit to `tables` (each its columns one after another, low index bit
@@ -269,11 +269,12 @@ impl Pcs {
             })
             .collect();
         let witness = Layout::new_witness(tables, self.profile.first_folding);
-        let (whir, dft) = self.prover(accelerator);
+        let (whir, dft, mmcs) = self.prover(accelerator);
         let committed = whir
             .commit(witness, challenger)
             .expect("the configuration fixes the witness size");
         dft.check()?;
+        mmcs.check()?;
         Ok(committed)
     }
 
@@ -293,11 +294,12 @@ impl Pcs {
         accelerator: &Accelerator,
     ) -> Result<Opening, Error> {
         let points = self.p3_points(points);
-        let (whir, dft) = self.prover(accelerator);
+        let (whir, dft, mmcs) = self.prover(accelerator);
         let opening = whir
             .open_at(data, &self.protocol, &points, challenger)
             .expect("the plan fixes the claims");
         dft.check()?;
+        mmcs.check()?;
         Ok(opening)
     }
 

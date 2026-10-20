@@ -14,11 +14,10 @@ alone: `block_part` sums the entries per row part and cell part, and
 `diagonal` sums the high factors over the blocks.
 
 `block_part` builds the low tables of both parts. A kind whose rows (or
-cells) are a power of two has an empty narrow part, of stride `0`. Then
-`bits(0) = 64`, and the slice `[..64]` of `rx` (or `ry`) panics
-(`layout.rs:180`, `188-189`) whenever the kind has blocks, so Rust rejects
-every proof of that shape. The empty part holds no entry, so the value here
-does not depend on it, and `blockPart_eq` needs no premise for it.
+cells) are a power of two has an empty narrow part, of stride `0`; Rust
+gives it no variables (`layout.rs`, `bits`). The empty part holds no entry,
+so the value here does not depend on it, and `blockPart_eq` needs no premise
+for it.
 -/
 
 namespace CompressionLean.Shrink

@@ -63,9 +63,10 @@ Layer 1 assumes, and does not prove:
   part of the WHIR error.
 - Query indices: the model draws each query leaf as a uniform Goldilocks
   word mod the leaf count, as `sample_bits` does (`HonestStage.lean`).
-  `layer1_budget` needs at most 35 setup variables (`query_half`).
-  `Pcs::new` gives it: P1 stacks `6·2^(setupVars - 3)` cells, and Plonky3's
-  WHIR refuses a first folded domain above `2^32`.
+  `layer1_budget` needs at most 35 setup variables (`query_half`), and the
+  replay bridge at most 31. `Relation::new` refuses more than 31: the setup
+  check draws a root of unity of order `2^(setupVars + 1)`, and Goldilocks
+  has none past `2^32`.
 - Setup root: the Merkle root of the setup binds its leaves, so the opened
   setup values are the honest setup's (`HonestStage.lean`).
 - Key structure: the verifier reads the matrix column and the slot lane
@@ -239,8 +240,8 @@ The chain takes these premises:
     reading of the code. The proof uses only `ReadsBack` of the port, and
     the Rust test `derived_structure_steps_read_back_the_runs` checks the
     same property of `from_rows` on a fixture. The port is Rust's slot key
-    only while there are fewer than `2^24` run classes. Rust does not check
-    that bound.
+    while there are at most `2^24` run classes and the blocks fit 32 bits;
+    `from_rows` refuses wider keys (`slot key width`).
   - Key expander: Rust's `coefficient_block` at `PRODUCTION_SEED` is
     `AjtaiSetupV1.wideCoefficientNat` at `productionSeed`. The Rust tests
     `lean_setup_vectors_match_rust_and_fips202` and

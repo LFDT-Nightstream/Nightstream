@@ -504,7 +504,15 @@ impl Tables {
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect();
-        // Slot key: class, lane, then block, high bits first.
+        // Slot key: class (24 bits), lane (8 bits), then block (32 bits), high
+        // bits first; wider fields would collide.
+        if classes.len() > 1 << 24
+            || runs
+                .iter()
+                .any(|run| run.start / D as u64 > u64::from(u32::MAX))
+        {
+            return Err(Error::Shape("slot key width"));
+        }
         let key = |run: &Run| {
             let class = classes.binary_search(&run.class).expect("collected") as u64;
             (class << 40) | ((run.start % D as u64) << 32) | (run.start / D as u64)

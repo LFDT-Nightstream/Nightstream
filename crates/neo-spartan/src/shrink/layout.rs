@@ -177,7 +177,14 @@ impl Layout {
         assert_eq!(ry.len(), n + 1);
         let w_half = Ext::ONE - ry[n];
         let one_column: Ext = ry[..n].iter().map(|&y| Ext::ONE - y).product::<Ext>() * ry[n];
-        let bits = |stride: usize| stride.trailing_zeros() as usize;
+        // An empty part (stride 0) holds no entry; give it no variables.
+        let bits = |stride: usize| {
+            if stride == 0 {
+                0
+            } else {
+                stride.trailing_zeros() as usize
+            }
+        };
         let mut total = Ext::ZERO;
         for kind in KINDS {
             let count = self.shape.blocks[kind.index()];

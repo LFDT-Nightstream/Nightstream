@@ -14,7 +14,7 @@ use crate::field::{gl, Ext, Gl};
 use crate::hash::{challenger, permutation, seed};
 use crate::matrix::Structure;
 use crate::pcs::{Pcs, TablePlan};
-use crate::{Key, Relation};
+use crate::{Error, Key, Relation};
 
 /// Deterministic pseudo-random words; the tests need variety, not secrecy.
 fn word(seed: u64, index: u64) -> u64 {
@@ -151,7 +151,7 @@ fn wide_key(block_variables: usize) -> Key {
 /// variables. P1 stacks `6·2^(n-3)` cells, and WHIR refuses a first folded
 /// domain above `2^32`, so no relation has more.
 #[test]
-fn relations_refuse_setups_past_35_variables() {
+fn relations_refuse_setups_past_31_variables() {
     let p1 = |key: &Key| Pcs::new(crate::pcs::LAYER1, crate::p1_plans(key, 0), 101.0, &|_| Vec::new()).is_ok();
     let fits = wide_key(29);
     assert_eq!(fits.setup_variables(), 35);
@@ -159,7 +159,15 @@ fn relations_refuse_setups_past_35_variables() {
     let wide = wide_key(30);
     assert_eq!(wide.setup_variables(), 36);
     assert!(!p1(&wide));
-    assert!(Relation::new(&wide, 1, 36, 1, 100.0).is_err());
+    // WHIR's own bound is looser: the setup check needs a root of unity of
+    // order 2^(setup variables + 1), and Goldilocks has none past 2^32.
+    let past = wide_key(26);
+    assert_eq!(past.setup_variables(), 32);
+    assert!(p1(&past));
+    assert!(matches!(
+        Relation::new(&past, 1, 36, 1, 100.0),
+        Err(Error::Setup("setup size"))
+    ));
 }
 
 #[test]

@@ -124,3 +124,13 @@ import CompressionLean
 #audit_axioms CompressionLean.Shrink.le_pow_variablesFor
 #audit_axioms CompressionLean.Shrink.mem_glueEntries
 #audit_axioms CompressionLean.Shrink.ccs_fits
+#audit_axioms CompressionLean.Shrink.eval_outerComb
+#audit_axioms CompressionLean.Shrink.outerComb_degree
+#audit_axioms CompressionLean.Shrink.outer_truth_nil
+#audit_axioms CompressionLean.Shrink.outer_truth_final
+#audit_axioms CompressionLean.Shrink.batchPoly_eval
+#audit_axioms CompressionLean.Shrink.batchPoly_natDegree
+#audit_axioms CompressionLean.Shrink.batchPoly_ne_zero
+#audit_axioms CompressionLean.Shrink.batch_ne
+#audit_axioms CompressionLean.Shrink.inner_truth_nil
+#audit_axioms CompressionLean.Shrink.inner_truth_final

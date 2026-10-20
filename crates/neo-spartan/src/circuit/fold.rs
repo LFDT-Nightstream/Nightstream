@@ -34,6 +34,10 @@ impl<B: Backend> FoldTranscript<B> {
         Self { state }
     }
 
+    pub fn state(&self) -> [B::F; WIDTH] {
+        self.state
+    }
+
     /// Add each word into the rate lanes; permute after every complete or
     /// partial chunk.
     pub fn absorb(&mut self, b: &mut B, words: &[B::F]) {

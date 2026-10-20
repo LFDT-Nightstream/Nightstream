@@ -311,3 +311,37 @@ blocks, statement words and rows, side by side and term by term. For
 `Shared` and the verifier it also writes Lean's program and requires Rust's
 instructions in order: all of `Shared`'s, and the verifier's first ones,
 through `verifier.rs:151`.
+
+## Terminal program
+
+`Circuit/Terminal.lean` writes the final program up to layer 1 as a builder
+program: the wrapper of `FinalProgram::run`
+(`crates/nightstream/src/lifecycle/terminal/mod.rs`) and `Package::apply`
+(`terminal/package.rs`). The layer-1 verifier is a parameter of
+`finalProgram`. It receives the claim and the transcript state that the
+package's output columns hold.
+
+- Package (`Circuit/Package.lean`): `load` is a port of Rust's `load`. It
+  takes F′'s row instantiation (`RowSemantics.lean`) of every producer in
+  Rust's schedule order, writes each side as `finish_row` does, keeps the
+  columns that some row names and gives each column its source. It runs on
+  `circuitPackage ()`, not on the artifact.
+- Check: `terminalCheck` requires the builder's instructions to be Rust's,
+  one by one: every column source, every row and term of the system, and the
+  claim and state handles. Build it with
+  `timeout --signal=KILL 1500 lake build terminalCheck`, then run
+  `cargo test --release -p nightstream --lib terminal_program_matches_lean -- --ignored`
+  under the 5-minute cap. The test logs `FinalProgram::run` with a toy
+  layer-1 relation whose shape the claim does not fit, so the log stops at
+  `verify_with`. It writes `target/lean-lowering/terminal.txt` (about
+  800 MB).
+
+The terminal program assumes, and does not prove:
+
+- Rows: that the system's rows hold, with column one at one, exactly when
+  `CircuitPackage.RowsHold` holds. The rows are F′'s instantiation,
+  reordered and normalized, so this is a Lean proof about `load`. The check
+  shows only that Rust's rows are these rows.
+- Scope: the check runs on the pinned artifact with one context. The
+  instructions do not depend on the statement values, and the context words
+  enter as constants.

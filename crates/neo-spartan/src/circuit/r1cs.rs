@@ -4,7 +4,7 @@
 //! Owns the compact row storage. Row `i` is `(Σ a)·(Σ b) = Σ c` with terms
 //! `(column, coefficient)`; the caller binds column `k` to its `k`-th wire.
 
-use p3_field_v08::PrimeCharacteristicRing;
+use p3_field_v08::{PrimeCharacteristicRing, PrimeField64};
 use rayon::prelude::*;
 
 use crate::field::Gl;
@@ -54,6 +54,17 @@ impl R1cs {
 
     pub fn rows(&self) -> usize {
         self.ends.len()
+    }
+
+    /// Row `row` as `push` takes it, each coefficient a canonical word.
+    pub fn row(&self, row: usize) -> [Vec<(usize, u64)>; 3] {
+        self.sides(row).map(|(columns, coefficients)| {
+            columns
+                .iter()
+                .zip(coefficients)
+                .map(|(&column, coefficient)| (column as usize, coefficient.as_canonical_u64()))
+                .collect()
+        })
     }
 
     /// The `a`, `b` and `c` sides of row `row`.

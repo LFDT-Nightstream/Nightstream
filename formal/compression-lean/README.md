@@ -75,9 +75,16 @@ Layer 1 assumes, and does not prove:
   run bounds, and each slot has its segment's class and lane.
   `Tables::from_rows` (`matrix.rs`) builds the key so. `Structure::check`
   also enforces the order part (`Structure.Checked`) on every key.
-- Transcription: the model is written by hand from the Rust verifier. The
-  replay below is checked against Rust; that its acceptance gives the
-  model's conditions is not proved.
+- Transcription: the model is written by hand from the Rust verifier. A
+  test, not a proof, checks the replay below against Rust. `Bridge/` proves
+  that a run the replay accepts is a path of `layer1Game` that draws the
+  replay's challenges (`replay_accepts_implies_path`). On a path that
+  avoids every bad set, a P0 candidate is a CE(B) witness
+  (`replay_accepts_sound`). The bridge assumes WHIR at Rust's opening
+  points (`WhirOpens`). It assumes that a leaf whose path reaches the key
+  root holds the setup codeword on its coset (`MerkleBinds`). Its premises
+  are the relation facts that the replay does not check (`RelationFacts`),
+  such as at most 31 setup variables.
 - Charges: Plonky3 composes a commitment's error as its WHIR terms plus each
   charged term times its candidate count. `rustDegrees` (`Budget.lean`) is
   `outer_terms` written in Lean, and `Pcs::new` enforces the two composed

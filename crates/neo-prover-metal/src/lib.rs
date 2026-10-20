@@ -26,6 +26,11 @@ mod unsupported;
 #[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
 pub use unsupported::{MetalAjtaiLowNormPlan, MetalKxChainPlan, MetalPoseidonUniformPlan, MetalSession};
 
+/// Owner's Metal memory ceiling, chosen so a prover can run on a current
+/// iPhone. Device buffer requests stay below it; CPU memory is measured
+/// separately.
+pub const BUFFER_LIMIT_BYTES: usize = 24_000_000_000;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct GoldilocksOps {
     pub add: u64,

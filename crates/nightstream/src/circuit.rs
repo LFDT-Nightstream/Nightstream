@@ -117,7 +117,8 @@ pub struct Prover {
 
 impl Prover {
     fn new(compiled: Arc<CompiledCircuit>, backend: Backend, minimum_security_bits: u32) -> Result<Self, Error> {
-        let lifecycle = compiled.lifecycle(backend, minimum_security_bits)?;
+        let mut lifecycle = compiled.lifecycle(backend, minimum_security_bits)?;
+        lifecycle.keep_commitment_key_when_it_fits();
         Ok(Self { compiled, lifecycle })
     }
 

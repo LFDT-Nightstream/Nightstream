@@ -1,45 +1,56 @@
-(* The fragment's per-site restrictions. *)
+(* The fragment's per-instruction restrictions and its branch-site discipline. *)
 From Stdlib Require Import List ZArith Lia.
 Require Import Wasm2 CallerSpec Fragment.
 Import ListNotations.
 
 Definition noCallees : CalleeEnvironment := fun _ => None.
 
-Example nop_rejected : forall site, ~ Supported site NOP.
-Proof. intros site H. inversion H. Qed.
+Example nop_rejected : forall callees, ~ Supported callees NOP.
+Proof. intros callees H. inversion H. Qed.
 
-(* Blocks nest, and branch to the innermost one from any depth. *)
 Example nested_block_supported :
-  Supported (codeSite noCallees false)
-    (BLOCK (_RESULT None) [BLOCK (_RESULT None) [LOCAL_GET (mk_uN 0); BR_IF (mk_uN 0)]]).
-Proof.
-  constructor; [ | reflexivity]. repeat constructor.
-Qed.
+  Supported noCallees (BLOCK (_RESULT None) [BLOCK (_RESULT None) [LOCAL_GET (mk_uN 0); BR_IF (mk_uN 1)]]).
+Proof. repeat constructor. Qed.
 
 (* The call metadata holds the parameter count in one byte. *)
-Example wide_call_rejected : forall callees inside x f, callees (x :> N) = Some f -> guestParams f = 256%nat ->
-  ~ Supported (codeSite callees inside) (CALL x).
+Example wide_call_rejected : forall callees x f, callees (x :> N) = Some f -> guestParams f = 256%nat ->
+  ~ Supported callees (CALL x).
 Proof.
-  intros callees inside x f Hf Hparams H. inversion H as [ | | | | ? ? ? g Hg Hp _ | | ]; subst.
+  intros callees x f Hf Hparams H. inversion H as [ | | | | ? g Hg Hp _ | | ]; subst.
   rewrite Hf in Hg. injection Hg as <-. lia.
 Qed.
 
-Example br_if_outside_block_rejected : forall callees, ~ Supported (codeSite callees false) (BR_IF (mk_uN 0)).
-Proof. intros callees H. inversion H. Qed.
+Example result_block_rejected : forall callees body, ~ Supported callees (BLOCK (_RESULT (Some valtype_I32)) body).
+Proof. intros callees body H. inversion H. Qed.
 
-Example deeper_branch_rejected : forall site, ~ Supported site (BR_IF (mk_uN 1)).
-Proof. intros site H. inversion H. Qed.
+(* Branches leave blocks, never the function, and discard nothing but the condition. *)
+Example br_if_outside_block_rejected : ~ codeBranches noCallees 0 [LOCAL_GET (mk_uN 0); BR_IF (mk_uN 0)] 0.
+Proof. intros H. vm_compute in H. intuition lia. Qed.
 
-Example result_block_rejected : forall site body, ~ Supported site (BLOCK (_RESULT (Some valtype_I32)) body).
-Proof. intros site body H. inversion H. Qed.
+Example br_if_to_function_rejected :
+  ~ codeBranches noCallees 0 [BLOCK (_RESULT None) [LOCAL_GET (mk_uN 0); BR_IF (mk_uN 1)]] 0.
+Proof. intros H. vm_compute in H. intuition lia. Qed.
 
-(* SpecTec permits a taken branch to discard the first local.get's value. The
-   circuit only removes the condition, so a branch site must hold only it. *)
+(* Both blocks were entered with nothing below them: the inner branch may leave both. *)
+Example br_if_out_of_two_blocks :
+  codeBranches noCallees 0 [BLOCK (_RESULT None) [BLOCK (_RESULT None) [LOCAL_GET (mk_uN 0); BR_IF (mk_uN 1)]]] 0.
+Proof. vm_compute. repeat split; lia. Qed.
+
+(* The inner block was entered above a value of the outer block: leaving the outer
+   block would discard it, so only the inner block may be targeted. *)
+Definition aboveValue (depth : N) :=
+  [BLOCK (_RESULT None)
+    [LOCAL_GET (mk_uN 0); BLOCK (_RESULT None) [LOCAL_GET (mk_uN 1); BR_IF (mk_uN depth)]; LOCAL_SET (mk_uN 0)]].
+
+Example inner_branch_above_value : codeBranches noCallees 0 (aboveValue 0) 0.
+Proof. vm_compute. repeat split; lia. Qed.
+
+Example outer_branch_above_value_rejected : ~ codeBranches noCallees 0 (aboveValue 1) 0.
+Proof. intros H. vm_compute in H. intuition lia. Qed.
+
+(* SpecTec permits a taken branch to discard the first local.get's value. *)
 Definition unwindingBody :=
   [LOCAL_GET (mk_uN 0); LOCAL_GET (mk_uN 1); BR_IF (mk_uN 0); LOCAL_SET (mk_uN 0)].
 
-Example unwinding_block_rejected : forall site, ~ Supported site (BLOCK (_RESULT None) unwindingBody).
-Proof.
-  intros site H. inversion H as [ | | | | | ? ? ? _ Hbalanced | ]; subst.
-  destruct Hbalanced as [Hheight _]. discriminate.
-Qed.
+Example unwinding_branch_rejected : ~ codeBranches noCallees 0 [BLOCK (_RESULT None) unwindingBody] 0.
+Proof. intros H. vm_compute in H. intuition lia. Qed.

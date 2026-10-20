@@ -136,7 +136,8 @@ Definition loadProgram (program : Program) (memory : MemoryState) : MemoryState 
 (* Every function body is in the supported fragment, calling within its module. *)
 Definition programSupported (program : Program) : Prop :=
   forall index f, functionAt program index = Some f ->
-    supportedCode (codeSite (programCallees program (guestModule f)) false) (guestBody f).
+    let callees := programCallees program (guestModule f) in
+    supportedCode callees (guestBody f) /\ codeBranches callees 0 (guestBody f) 0.
 
 (* SpecTec validates every function in the store, and the circuit supports each. *)
 Definition programValidated (program : Program) (s : store) : Prop :=

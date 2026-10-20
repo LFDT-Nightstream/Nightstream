@@ -253,7 +253,7 @@ Proof.
   destruct view as [[index labels offset] segments values locals].
   cbn [viewPosition viewSegments viewValues viewLocals positionFunction positionLabels positionOffset viewOperands]
     in Hf, Hi, Hpath, Hheights, Hbounds, Hcells, Hllen, Hlb, Hlc, Hsp, Hpc |- *.
-  destruct (view_facts _ _ _ _ _ _ _ _ Hstore Hvalid Hframe) as [Hfacts [Hsup [_ [_ [Hready Hwfcode]]]]].
+  destruct (view_facts _ _ _ _ _ _ _ _ Hstore Hvalid Hframe) as [Hfacts [[Hsup _] [_ [_ [Hready Hwfcode]]]]].
   cbn [viewPosition viewValues viewSegments positionLabels positionOffset] in Hfacts, Hsup, Hready, Hwfcode.
   set (code := innerCode f (codePosition index labels offset)) in *.
   rewrite (skipn_at_instruction _ _ _ Hi) in Hfacts, Hsup.
@@ -268,11 +268,8 @@ Proof.
   assert (Hidx : wf_uN 32%N x) by (inversion HwfCall; assumption).
   set (z := mk_state s (activeFrame f locals)).
   assert (Hz : wf_state z) by exact (frame_state_wf _ _ _ _ _ Hstore Hwf Hf Hlb).
-  assert (HframeZ : frameMatches program f z).
-  { split; [exact Hstore | ]. split; [reflexivity | ]. cbn [z stateLocals activeFrame LOCALS].
-    rewrite length_map. exact Hllen. }
-  destruct (encoded_path_call program initial index f Hloaded Hf labels code offset z x callee Hpath Hi HframeZ
-    Hcallee) as [Himage HcallerImage].
+  destruct (encoded_path_call program initial index f Hloaded Hf labels code offset s (List.map i32Value locals) x
+    callee Hpath Hi Hstore ltac:(rewrite length_map; exact Hllen) Hcallee) as [Himage HcallerImage].
   unfold pathPC in Himage, HcallerImage.
   change (row COL_PC_BEFORE = guestEntry f + Z.of_nat (pathOffset (guestBody f) labels offset)) in Hpc.
   rewrite <- Hpc in Himage, HcallerImage.
@@ -295,14 +292,14 @@ Proof.
   assert (HcallLocals : forall address, final localLoId address = initial localLoId address).
   { eapply no_local_writes_preserve; [exact Hreplay | ].
     eapply full_call_end_no_local_writes; [exact Hprime | exact Hfull | left; reflexivity | exact HcallSel]. }
-  assert (HcallerCount : row COL_CURRENT_FUNCTION_NUM_LOCALS = Z.of_nat (length (stateLocals z))).
+  assert (HcallerCount : row COL_CURRENT_FUNCTION_NUM_LOCALS = Z.of_nat (frameLocals f)).
   { destruct HcallerImage as [reference [Hreference Hcount]].
     pose proof (current_function_read initial final row Hreplay
       (full_frame_lookup_active row COL_IS_PROGRAM_ROW Hprime Hfull ltac:(cbn; tauto) Hprogram)) as HrefRead.
     rewrite Hreference in HrefRead. injection HrefRead as HrefValue.
     pose proof (program_row_local_count_read initial final row Hreplay Hprogram) as HcountRead.
-    rewrite <- HrefValue, Hcount in HcountRead. congruence. }
-  cbn [z stateLocals activeFrame LOCALS] in HcallerCount. rewrite length_map, Hllen in HcallerCount.
+    rewrite <- HrefValue, Hcount in HcountRead. cbn [stateLocals LOCALS] in HcountRead.
+    rewrite length_map, Hllen in HcountRead. congruence. }
   pose proof (context_push_records initial final row callStackReturnPcId COL_CALL_STACK_RETURN_PC_VALUE
     ltac:(cbn; auto) Hpush Hreplay) as HsavedPcMem.
   pose proof (context_push_records initial final row callStackCallerFbpId COL_CALL_STACK_CALLER_FBP_VALUE

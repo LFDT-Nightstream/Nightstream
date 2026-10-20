@@ -7,13 +7,13 @@ Require Import R1CS Columns FullRelation Range MemoryTrace MemoryCatalog TraceRe
 Import ListNotations.
 Open Scope Z_scope.
 
-Lemma supported_cases : forall site i, Supported site i ->
+Lemma supported_cases : forall callees i, Supported callees i ->
   (exists op, encodedOpcode i = Some op) \/ (exists x, i = CALL x) \/
-  (exists body, i = BLOCK (_RESULT None) body) \/ i = BR_IF (mk_uN 0).
+  (exists body, i = BLOCK (_RESULT None) body) \/ (exists l, i = BR_IF l).
 Proof.
-  intros site i H. inversion H; subst;
+  intros callees i H. inversion H; subst;
     first [solve [left; eexists; reflexivity] | solve [right; left; eauto] | solve [right; right; left; eauto] |
-      right; right; right; reflexivity].
+      solve [right; right; right; eauto]].
 Qed.
 
 Section Run.
@@ -54,9 +54,9 @@ Proof.
     cbn [suspendedCalls afterBoundary boundaryStackBase boundaryLocalsBase boundaryCallDepth].
     rewrite Hd, Hb, Hfbp. eapply frame_effect_suspended; [exact Heffect | exact Hsusp]. }
   destruct (nth_error (innerCode f (viewPosition view)) (positionOffset (viewPosition view))) as [i | ] eqn:Hi.
-  - destruct (view_facts _ _ _ _ _ _ _ _ Hstore Hvalid Hframe) as [_ [Hsup _]].
+  - destruct (view_facts _ _ _ _ _ _ _ _ Hstore Hvalid Hframe) as [_ [[Hsup _] _]].
     rewrite (skipn_at_instruction _ _ _ Hi) in Hsup.
-    destruct (supported_cases _ _ (Forall_inv Hsup)) as [Hop | [[x ->] | [[body ->] | ->]]].
+    destruct (supported_cases _ _ (Forall_inv Hsup)) as [Hop | [[x ->] | [[body ->] | [l ->]]]].
     + apply Hkeep. eapply code_ordinary_row; eassumption.
     + eapply call_row; eassumption.
     + apply Hkeep. eapply code_block_enter_row; eassumption.

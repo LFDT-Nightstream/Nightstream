@@ -2,12 +2,13 @@
 
 `run_refinement` proves circuit traces against SpecTec's Wasm 2.0 semantics for
 `i32.add/sub`, `local.get/set`, direct guest calls, and zero-result blocks with
-`br_if 0` to the innermost one. Blocks nest to any depth, calls nest to any depth,
+`br_if` to any enclosing block. Blocks nest to any depth, calls nest to any depth,
 and any supported instruction, calls included, may appear inside a block.
-Conditions may be computed, with multiple branches per block; branch sites must
-have only the condition above the label's operands (no unwinding).
+Conditions may be computed, with multiple branches per block; a branch site must
+have only the condition above its target block's operands (no unwinding), as the
+Rust front end also requires.
 `Fragment.v` lists the supported instructions, one constructor each with its
-restrictions. Parameters, results, locals and stack values are i32. The theorem
+restrictions, and states the branch-site rule (`codeBranches`). Parameters, results, locals and stack values are i32. The theorem
 takes plain rows, refines them one at a time, and relates circuit and SpecTec states through
 `CircuitConfig` (`ControlDecode.v`): a decoder reads the configuration from memory
 at a static control shape, a code path per frame through its enclosing blocks.
@@ -16,7 +17,8 @@ every function in the store must pass SpecTec validation. A run may stop anywher
 in its base frame, including inside blocks, inside calls, or during a callee's
 frame initialization; the final shape resumes the next run. The store is an input:
 the circuit does not hold it. A run never halts. Padding, host rows, indirect calls,
-loops, `if`, deeper branches and returning out of the base frame are excluded.
+loops, `if`, `br`/`br_table`, branches to the function's own label and returning out
+of the base frame are excluded.
 Selected zero-test steps are also proved.
 Field primality and memory-event consistency are assumed; the offline memory
 argument is not proved. The program ROM encoder covers this guest-only fragment;

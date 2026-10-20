@@ -6,26 +6,33 @@ Open Scope Z_scope.
 
 Definition branchState := mk_state (MKstore [] [] [] [] [] [])
   (MKframe [i32Value 9] (MKmoduleinst [] [] [] [] [] [] [] [])).
-(* A br_if under a block label, with 42 below the label. *)
 Definition branchTail := [LOCAL_GET (mk_uN 0); LOCAL_SET (mk_uN 0)].
 Definition branchContinuation := [LOCAL_GET (mk_uN 0)].
 
-Example zero_condition_keeps_label :
-  Steps (blockBranchConfig branchState [42] 0 branchTail branchContinuation)
-    (stackPrefix [42] (instructionSuffix branchContinuation (blockContext (stackConfig branchState [] branchTail)))).
+Example zero_condition_falls_through :
+  Steps (stackConfig branchState [0] (BR_IF (mk_uN 0) :: branchTail)) (stackConfig branchState [] branchTail).
 Proof.
-  exact (br_if_under_block_context branchState [42] 0 branchTail branchContinuation
-    ltac:(repeat constructor) ltac:(constructor; [unfold i32Modulus; lia | constructor])
+  exact (br_if_steps branchState 0 (mk_uN 0) branchTail ltac:(repeat constructor)
     ltac:(unfold i32Modulus; lia) ltac:(repeat constructor) ltac:(repeat constructor)).
 Qed.
 
-Example non_boolean_condition_exits_label :
-  Steps (blockBranchConfig branchState [42] 7 branchTail branchContinuation)
-    (stackConfig branchState [42] branchContinuation).
+(* A non-boolean condition takes the branch: br_if 1 inside two blocks leaves both,
+   dropping the inner block's continuation. *)
+Example non_boolean_condition_exits_two_labels :
+  Steps (blockContext (instructionSuffix branchContinuation
+      (blockContext (stackConfig branchState [7] (BR_IF (mk_uN 1) :: branchTail)))))
+    (stackConfig branchState [] []).
 Proof.
-  exact (br_if_under_block_context branchState [42] 7 branchTail branchContinuation
-    ltac:(repeat constructor) ltac:(constructor; [unfold i32Modulus; lia | constructor])
-    ltac:(unfold i32Modulus; lia) ltac:(repeat constructor) ltac:(repeat constructor)).
+  assert (Hz : wf_state branchState) by repeat constructor.
+  assert (Hl : wf_uN 32%N (mk_uN 1)) by repeat constructor.
+  assert (Htail : Forall wf_instr branchTail) by repeat constructor.
+  assert (Hcont : Forall wf_instr branchContinuation) by repeat constructor.
+  pose proof (br_if_steps branchState 7 (mk_uN 1) branchTail Hz ltac:(unfold i32Modulus; lia) Hl Htail) as Hbr.
+  cbn [Z.eqb] in Hbr.
+  pose proof (spec_steps_transitive _ _ _ (steps_in_block _ _ Hbr) (br_exit_label branchState 0 branchTail Hz Hl Htail))
+    as Hinner.
+  pose proof (steps_in_block _ _ (steps_with_instruction_suffix branchContinuation _ _ Hcont Hinner)) as Houter.
+  eapply spec_steps_transitive; [exact Houter | exact (br_exit_target branchState branchContinuation Hz Hcont)].
 Qed.
 
 Example wrong_branch_choice_rejected : forall row,

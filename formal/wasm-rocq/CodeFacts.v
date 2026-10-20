@@ -36,11 +36,9 @@ Lemma block_facts : forall localCount callees bt body height,
   wf_instr (BLOCK bt body) /\ sourceHeights callees body 0 = Some 0 /\ codeFacts localCount callees 0 body.
 Proof. reflexivity. Qed.
 
-(* The typing context matches the frame's locals and callees; inside a block, the
-   innermost label is a zero-result one. *)
-Definition contextFits (C : context) (localCount : nat) (callees : CalleeEnvironment) (inside : bool) : Prop :=
-  context_LOCALS C = repeat valtype_I32 localCount /\ calleeTypes C callees /\
-  (inside = true -> nth_error (LABELS C) 0 = Some (mk_list _ [])).
+(* The typing context matches the frame's locals and callees. *)
+Definition contextFits (C : context) (localCount : nat) (callees : CalleeEnvironment) : Prop :=
+  context_LOCALS C = repeat valtype_I32 localCount /\ calleeTypes C callees.
 
 Lemma source_heights_app : forall callees a b h,
   sourceHeights callees (a ++ b) h =
@@ -53,29 +51,28 @@ Proof.
   rewrite length_app, block_code_length. cbn [length codeSize flattenCode flat_map]. lia.
 Qed.
 
-Lemma label_fits : forall C localCount callees inside,
-  contextFits C localCount callees inside -> contextFits (labelContext [] C) localCount callees true.
+Lemma label_fits : forall C localCount callees,
+  contextFits C localCount callees -> contextFits (labelContext [] C) localCount callees.
 Proof.
-  intros C localCount callees inside [Hlocals [Htypes _]].
-  split; [rewrite label_context_locals; exact Hlocals | ]. split; [ | intros _; reflexivity].
-  intros x f Hf. exact (Htypes x f Hf).
+  intros C localCount callees [Hlocals Htypes].
+  split; [rewrite label_context_locals; exact Hlocals | ]. intros x f Hf. exact (Htypes x f Hf).
 Qed.
 
 (* One instruction other than a block: its facts and its height step. *)
-Lemma flat_instruction_facts : forall C i inputs outputs localCount callees inside,
+Lemma flat_instruction_facts : forall C i inputs outputs localCount callees,
   Instr_ok C i (mk_functype (mk_list _ inputs) (mk_list _ outputs)) -> wf_instr i ->
-  contextFits C localCount callees inside -> Supported (codeSite callees inside) i ->
+  contextFits C localCount callees -> Supported callees i ->
   (forall bt body, i <> BLOCK bt body) ->
   (forall extra, instrFacts localCount callees i (extra + length inputs)) /\
   (forall extra, sourceHeight callees i (extra + length inputs) = Some (extra + length outputs)%nat).
 Proof.
-  intros C i inputs outputs localCount callees inside Hi Hw [Hlocals [Htypes Hlabel]] Hsupport Hnot.
+  intros C i inputs outputs localCount callees Hi Hw [Hlocals Htypes] Hsupport Hnot.
   assert (Hordinary : (exists op, encodedOpcode i = Some op) -> forall extra,
       wf_instr i /\ programTyped localCount (extra + length inputs) [i]).
   { intros Hop extra. split; [exact Hw | ].
     pose proof (proj1 (validated_instruction_height _ _ _ _ Hi Hop) extra [] I) as H.
     rewrite Hlocals, repeat_length in H. exact H. }
-  inversion Hsupport as [ | | | | callees' inside' x f Hf Hp Hr | callees' inside' body | callees' ]; subst.
+  inversion Hsupport as [ | | | | x f Hf Hp Hr | body | l ]; subst.
   - split; [exact (Hordinary ltac:(eexists; reflexivity)) | ].
     inversion Hi; subst. intros extra. cbn [length]. rewrite Nat.add_comm. cbn. f_equal; lia.
   - split; [exact (Hordinary ltac:(eexists; reflexivity)) | ].
@@ -95,11 +92,9 @@ Proof.
     f_equal; lia.
   - exfalso. eapply Hnot. reflexivity.
   - split; [intros extra; exact Hw | ].
-    inversion Hi; subst.
-    match goal with H : is_true (_ == _) |- _ => apply (elimT eqP) in H end.
-    match goal with H : proj_list_0 _ _ = _ |- _ =>
-      erewrite spec_lookup_from_nth_error in H by exact (Hlabel Logic.eq_refl); cbn in H; subst end.
-    intros extra. cbn [sourceHeight length]. rewrite Nat.add_1_r, Nat.add_0_r. reflexivity.
+    inversion Hi; subst. intros extra. rewrite length_app. cbn [length].
+    match goal with |- sourceHeight _ _ (extra + (length ?ts + 1)) = _ =>
+      replace (extra + (length ts + 1))%nat with (S (extra + length ts)) by lia end. reflexivity.
 Qed.
 
 Lemma instr_block_cases : forall i, (exists bt body, i = BLOCK bt body) \/ (forall bt body, i <> BLOCK bt body).
@@ -107,8 +102,7 @@ Proof. destruct i; try (right; intros; discriminate). left; eauto. Qed.
 
 Lemma code_validation_facts : forall n C code ft, Instrs_ok C code ft -> (codeSize code < n)%nat ->
   match ft with mk_functype (mk_list inputs) (mk_list outputs) =>
-  forall localCount callees inside, contextFits C localCount callees inside ->
-    supportedCode (codeSite callees inside) code ->
+  forall localCount callees, contextFits C localCount callees -> supportedCode callees code ->
     (forall extra suffix, codeFacts localCount callees (extra + length outputs) suffix ->
       codeFacts localCount callees (extra + length inputs) (code ++ suffix)) /\
     (forall extra, sourceHeights callees code (extra + length inputs) = Some (extra + length outputs)%nat)
@@ -117,8 +111,8 @@ Proof.
   induction n as [ | n IHn]; intros C code ft Hok Hsize; [lia | ]. revert Hsize.
   induction Hok as [C HC | C i inputs outputs Hi HC Hw | C a b inputs outputs middle Ha IHa Hb IHb HC Hwa Hwb
     | C code inputs' outputs' inputs outputs Hv IH Hin Hout HC Hw | C code prefix inputs outputs Hv IH HC Hw].
-  - intros Hsize localCount callees inside _ _. split; intros; [assumption | reflexivity].
-  - intros Hsize localCount callees inside Hfits Hsupport.
+  - intros Hsize localCount callees _ _. split; intros; [assumption | reflexivity].
+  - intros Hsize localCount callees Hfits Hsupport.
     pose proof (Forall_inv Hsupport) as Hsup.
     destruct (instr_block_cases i) as [[bt [body ->]] | Hnot].
     + inversion Hsup; subst. inversion Hi; subst.
@@ -126,7 +120,7 @@ Proof.
       rewrite block_size in Hsize.
       match goal with Hbody : Instrs_ok _ body _ |- _ => pose proof (IHn _ _ _ Hbody ltac:(lia)) as Hinner end.
       cbn [length option_to_list] in Hinner.
-      destruct (Hinner localCount callees true ltac:(eapply label_fits; exact Hfits) ltac:(assumption))
+      destruct (Hinner localCount callees ltac:(eapply label_fits; exact Hfits) ltac:(assumption))
         as [Hbody Hheights].
       split.
       * intros extra suffix Hsuffix. cbn [app codeFacts sourceHeight]. cbn [length] in Hsuffix |- *.
@@ -134,22 +128,22 @@ Proof.
         -- exact (Hheights 0%nat).
         -- pose proof (Hbody 0%nat [] I) as Hb. rewrite app_nil_r in Hb. exact Hb.
       * intros extra. reflexivity.
-    + destruct (flat_instruction_facts C i inputs outputs localCount callees inside Hi Hw Hfits Hsup Hnot)
+    + destruct (flat_instruction_facts C i inputs outputs localCount callees Hi Hw Hfits Hsup Hnot)
         as [Hfact Hheight].
       split.
       * intros extra suffix Hsuffix. cbn [app codeFacts]. rewrite Hheight. split; [ | exact Hsuffix].
         exact (Hfact extra).
       * intros extra. cbn [sourceHeights]. rewrite Hheight. reflexivity.
-  - intros Hsize localCount callees inside Hfits Hsupport.
+  - intros Hsize localCount callees Hfits Hsupport.
     rewrite code_size_app in Hsize. apply Forall_app in Hsupport.
-    destruct (IHa ltac:(lia) localCount callees inside Hfits (proj1 Hsupport)) as [Hfa Hha].
-    destruct (IHb ltac:(lia) localCount callees inside Hfits (proj2 Hsupport)) as [Hfb Hhb]. split.
+    destruct (IHa ltac:(lia) localCount callees Hfits (proj1 Hsupport)) as [Hfa Hha].
+    destruct (IHb ltac:(lia) localCount callees Hfits (proj2 Hsupport)) as [Hfb Hhb]. split.
     + intros extra suffix Hsuffix. rewrite <- app_assoc. apply Hfa. now apply Hfb.
     + intro extra. rewrite source_heights_app, Hha. apply Hhb.
-  - intros Hsize localCount callees inside Hfits Hsupport.
-    rewrite (result_sub_length _ _ Hin), <- (result_sub_length _ _ Hout). exact (IH Hsize localCount callees inside Hfits Hsupport).
-  - intros Hsize localCount callees inside Hfits Hsupport.
-    destruct (IH Hsize localCount callees inside Hfits Hsupport) as [Hfacts Hheight]. rewrite !length_app. split.
+  - intros Hsize localCount callees Hfits Hsupport.
+    rewrite (result_sub_length _ _ Hin), <- (result_sub_length _ _ Hout). exact (IH Hsize localCount callees Hfits Hsupport).
+  - intros Hsize localCount callees Hfits Hsupport.
+    destruct (IH Hsize localCount callees Hfits Hsupport) as [Hfacts Hheight]. rewrite !length_app. split.
     + intros extra suffix Hsuffix. rewrite Nat.add_assoc in Hsuffix |- *. now apply Hfacts.
     + intro extra. rewrite !Nat.add_assoc. apply Hheight.
 Qed.
@@ -166,25 +160,25 @@ Proof.
     exact (IH k next h' Hrest Hheights).
 Qed.
 
-Lemma balanced_skip : forall callees code k h h',
-  branchSitesBalanced callees code h -> sourceHeights callees (firstn k code) h = Some h' ->
-  branchSitesBalanced callees (skipn k code) h'.
+Lemma code_branches_skip : forall callees exits code k h h',
+  codeBranches callees exits code h -> sourceHeights callees (firstn k code) h = Some h' ->
+  codeBranches callees exits (skipn k code) h'.
 Proof.
-  intros callees code. induction code as [ | i rest IH]; intros k h h' Hbalanced Hheights.
+  intros callees exits code. induction code as [ | i rest IH]; intros k h h' Hbranches Hheights.
   - destruct k; cbn in Hheights; injection Hheights as <-; exact I.
-  - destruct k as [ | k]; cbn in Hheights |- *; [injection Hheights as <-; exact Hbalanced | ].
-    assert (Hstep : forall next, sourceHeight callees i h = Some next -> branchSitesBalanced callees rest next).
-    { intros next Hnext. destruct i;
-        try (cbn [branchSitesBalanced] in Hbalanced; rewrite Hnext in Hbalanced; exact Hbalanced).
-      cbn [branchSitesBalanced] in Hbalanced. destruct Hbalanced as [-> Hrest].
-      cbn [sourceHeight] in Hnext. injection Hnext as <-. exact Hrest. }
-    destruct (sourceHeight callees i h) as [next | ] eqn:Hnext; [ | discriminate].
-    exact (IH k next h' (Hstep next Logic.eq_refl) Hheights).
+  - destruct k as [ | k]; cbn in Hheights |- *; [injection Hheights as <-; exact Hbranches | ].
+    destruct Hbranches as [_ Hrest]. destruct (sourceHeight callees i h) as [next | ]; [ | discriminate].
+    exact (IH k next h' Hrest Hheights).
 Qed.
 
-Lemma supported_skip : forall site code k, supportedCode site code -> supportedCode site (skipn k code).
+Lemma block_branches : forall callees bt body height exits,
+  instrBranches callees (BLOCK bt body) height exits <->
+  codeBranches callees (if Nat.eqb height 0 then S exits else 1) body 0.
+Proof. reflexivity. Qed.
+
+Lemma supported_skip : forall callees code k, supportedCode callees code -> supportedCode callees (skipn k code).
 Proof.
-  intros site code k H. unfold supportedCode in *. apply Forall_forall. intros x Hx.
+  intros callees code k H. unfold supportedCode in *. apply Forall_forall. intros x Hx.
   apply (proj1 (Forall_forall _ _) H). rewrite <- (firstn_skipn k code). apply in_or_app. right. exact Hx.
 Qed.
 

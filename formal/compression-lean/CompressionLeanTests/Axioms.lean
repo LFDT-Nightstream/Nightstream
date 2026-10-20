@@ -107,3 +107,20 @@ import CompressionLean
 #audit_axioms CompressionLean.Layer1.evalK_split
 #audit_axioms CompressionLean.Layer1.cubic_no_root
 #audit_axioms CompressionLean.Layer1.cubic_irreducible
+
+/-! Axiom gate for the shrink soundness proof. -/
+
+#audit_axioms CompressionLean.Shrink.map_constraint
+#audit_axioms CompressionLean.Shrink.mle_single
+#audit_axioms CompressionLean.Shrink.mle_rowValue
+#audit_axioms CompressionLean.Shrink.cubeSum_weight
+#audit_axioms CompressionLean.Shrink.sum_powers_entries
+#audit_axioms CompressionLean.Shrink.cubeSum_weight_rows
+#audit_axioms CompressionLean.Shrink.mle_weight
+#audit_axioms CompressionLean.Shrink.publicValue_eq
+#audit_axioms CompressionLean.Shrink.mle_z
+#audit_axioms CompressionLean.Shrink.rest_le_narrow
+#audit_axioms CompressionLean.Shrink.slot_lt
+#audit_axioms CompressionLean.Shrink.le_pow_variablesFor
+#audit_axioms CompressionLean.Shrink.mem_glueEntries
+#audit_axioms CompressionLean.Shrink.ccs_fits

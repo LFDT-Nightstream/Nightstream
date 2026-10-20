@@ -134,3 +134,6 @@ import CompressionLean
 #audit_axioms CompressionLean.Shrink.batch_ne
 #audit_axioms CompressionLean.Shrink.inner_truth_nil
 #audit_axioms CompressionLean.Shrink.inner_truth_final
+#audit_axioms CompressionLean.Shrink.shrinkNodes
+#audit_axioms CompressionLean.Shrink.programGame_avoids
+#audit_axioms CompressionLean.Shrink.shrinkGame_avoids

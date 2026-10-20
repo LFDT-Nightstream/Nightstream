@@ -1,6 +1,7 @@
 import CompressionLean.Circuit.Linear
 import CompressionLean.Circuit.Record
 import CompressionLean.Circuit.Verifier
+import CompressionLean.Circuit.Late
 import CompressionLean.Circuit.Parse
 import NightstreamFPrime.Spec.GoldilocksPrime
 
@@ -30,6 +31,11 @@ compares it with the IR, instruction by instruction, as `Log` writes them
 - `honest <input.json>`: the Lean side of `Honest`, the honest fold
   (`honestStage`) and the query points from the state before `μ`. The whole
   IR must match.
+- `late <input.json>`: the Lean side of `Late`, `lateStage` from the toy
+  proof's state after the setup queries, for the relation and duplex sizes
+  in the file. The whole IR must match.
+- `lane_split`: the Lean side of `LaneSplit`, `laneTables` on classes that
+  the toy relation does not have. The whole IR must match.
 -/
 
 namespace CompressionLean.LowerCheck
@@ -193,9 +199,9 @@ def layer1 (input : Layer1Input) : Build Unit := do
   let proof ← ProofView.read input.relation input.p1Rows input.p0Rows
   verify input.relation (fun lane => seed[lane]!) statement proof
 
-/-- What `linear` and `honest` read (`lowering.rs`, `linear.json` and
-`honest.json`): the replay's relation, and the duplex inputs pending and the
-output lanes unread at the stage's start. -/
+/-- What `linear`, `honest` and `late` read (`lowering.rs`, `linear.json`,
+`honest.json` and `late.json`): the replay's relation, and the duplex inputs
+pending and the output lanes unread at the stage's start. -/
 structure StageInput where
   relation : Replay.Relation
   pending : ℕ
@@ -241,6 +247,37 @@ def honest (input : StageInput) : Build Unit := do
     for bits in out.indexBits do
       let _ ← queryPoint rel.setupVars bits
   let _ ← run.run ⟨state, pending, state.extract 0 input.output⟩
+
+/-- `Late::run` (`lowering.rs`): the duplex, `τ`, the Eval_A weights, the
+late GKR proof and the late values as proof words, then `lateStage`, then
+the late openings into the duplex. -/
+def late (input : StageInput) : Build Unit := do
+  let rel := input.relation
+  let state ← (Array.range 16).mapM fun _ => Build.priv
+  let pending ← (Array.range input.pending).mapM fun _ => Build.priv
+  let tau ← privateExts Replay.D
+  let evalA ← privatePairs rel.matrices
+  let view ← GkrView.read rel.lateShapes
+  let lateValues ← privatePairs rel.matrices
+  let rest : Transcript Unit := do
+    let late ← lateStage rel tau evalA view lateValues
+    (late.pairPoint ++ #[late.block] ++ late.blockPoint ++ #[late.omega]).forM Duplex.observeExt
+  let _ ← rest.run { state, input := pending, output := state.extract 0 input.output }
+
+/-- `LaneSplit::run` (`lowering.rs`): the lane tables of a run of `D` lanes
+with ratio 3 and of a run of 30 lanes with ratio `p - 2`, then every value
+into a duplex. -/
+def laneSplit : Build Unit := do
+  let tau ← privateExts Replay.D
+  let classes := #[⟨Replay.D, 3⟩, ⟨30, Gl.ofNat (goldilocksModulus - 2)⟩]
+  let layout : Replay.Layout := { matrices := 1, rowVariables := 1, runVariables := 1, slotVariables := 1,
+                                  runBounds := #[0, 1], classes, segments := #[], slots := 1 }
+  let lanes ← laneTables layout tau
+  let rest : Transcript Unit := do
+    for (head, tail) in lanes do
+      (head ++ tail).forM Duplex.observeExt
+    let _ ← Duplex.sample
+  let _ ← rest.run (← Duplex.new)
 
 /-- Lean's program for an export, and whether it is the whole program or its
 start. -/
@@ -304,8 +341,13 @@ def arguments : List String → IO (Except String (String × Option Mirror))
       let json ← IO.FS.readFile input
       pure <| (Lean.Json.parse json >>= Lean.fromJson? (α := StageInput)).map fun input =>
         (path, some ⟨(honest input).program, true⟩)
-  | _ => pure (.error "usage: lowerCheck <export.txt> \
-      [shared | early | layer1 <layer1.json> | linear <linear.json> | honest <honest.json>]")
+  | [path, "late", input] => do
+      let json ← IO.FS.readFile input
+      pure <| (Lean.Json.parse json >>= Lean.fromJson? (α := StageInput)).map fun input =>
+        (path, some ⟨(late input).program, true⟩)
+  | [path, "lane_split"] => pure (.ok (path, some ⟨laneSplit.program, true⟩))
+  | _ => pure (.error "usage: lowerCheck <export.txt> [shared | early | layer1 <layer1.json> | \
+      linear <linear.json> | honest <honest.json> | late <late.json> | lane_split]")
 
 end CompressionLean.LowerCheck
 

@@ -323,7 +323,7 @@ pub(crate) fn observe_early<B: Backend>(b: &mut B, duplex: &mut Duplex<B>, value
     duplex.observe_ext(b, values.block);
 }
 
-fn observe_pairs<B: Backend>(b: &mut B, duplex: &mut Duplex<B>, pairs: &[[B::E; 2]]) {
+pub(crate) fn observe_pairs<B: Backend>(b: &mut B, duplex: &mut Duplex<B>, pairs: &[[B::E; 2]]) {
     for pair in pairs {
         duplex.observe_ext(b, pair[0]);
         duplex.observe_ext(b, pair[1]);

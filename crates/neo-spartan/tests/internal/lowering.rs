@@ -11,18 +11,21 @@
 //! requires the lowered run to equal the trace: every row with its seven
 //! sides in order, the glue cells, the blocks and the statement words.
 //!
-//! For `Shared`, `Early`, `Linear`, `Honest` and the layer-1 verifier,
-//! `lowerCheck` also writes the program with the Lean builder and requires
-//! the logged instructions: all of `Shared`'s, `Early`'s, `Linear`'s and
-//! `Honest`'s, and the verifier's first ones, up to `verifier.rs:249`.
+//! For `Shared`, `Early`, `Linear`, `Honest`, `Late`, `LaneSplit` and the
+//! layer-1 verifier, `lowerCheck` also writes the program with the Lean
+//! builder and requires the logged instructions: all of the first six
+//! programs' instructions, and the verifier's first ones, up to
+//! `verifier.rs:249`.
 //! The verifier's relation goes to `target/lean-lowering/layer1.json`, and
-//! `Linear`'s and `Honest`'s inputs to `linear.json` and `honest.json`.
+//! `Linear`'s, `Honest`'s and `Late`'s inputs to `linear.json`,
+//! `honest.json` and `late.json`.
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
+use neo_math::D;
 use p3_field_v08::{PrimeCharacteristicRing, PrimeField64};
 use p3_whir::transcript::WhirShape;
 
@@ -41,12 +44,12 @@ use crate::device::Accelerator;
 use crate::field::{Ext, Gl};
 use crate::gkr::{self, GkrView, TreeShape};
 use crate::hash::seed;
-use crate::matrix::{EarlyChallenges, EarlyValues, Structure};
+use crate::matrix::{Class, EarlyChallenges, EarlyValues, Structure};
 use crate::pcs::Pcs;
 use crate::ring::{self, Mixing};
 use crate::setup::{self, LeafView, FOLD};
 use crate::shrink::Program;
-use crate::verifier::{combine, early_shapes, lane_value, observe_early};
+use crate::verifier::{combine, early_shapes, lane_value, observe_early, observe_pairs};
 use crate::{kappa, mle, norm, prove, setup_point, sumcheck, whir, Claim, ClaimWords, Error, Proof, Relation};
 use crate::{LANE_VARIABLES, RUN_ORACLES};
 
@@ -756,6 +759,185 @@ impl Program for Honest<'_> {
     }
 }
 
+/// The late stage of the layer-1 verifier on the toy proof, from the
+/// verifier's state after the setup queries: the duplex, the lane weights `τ`
+/// and the Eval_A weights as proof words, then the proof's late GKR and late
+/// values. The duplex's unread output is the first `output` lanes of its
+/// state. `run` makes the calls of `verifier.rs:251-260` in its order, then
+/// binds the late openings. `late` in `Circuit/Check.lean` writes the same
+/// program.
+struct Late<'a> {
+    relation: &'a Relation<'a>,
+    state: [Gl; WIDTH],
+    input: Vec<Gl>,
+    output: usize,
+    tau: [Ext; D],
+    eval_a: Vec<[Ext; 2]>,
+    proof: &'a Proof,
+}
+
+impl<'a> Late<'a> {
+    /// The state after `verifier.rs:249` in a native run of the transcript
+    /// calls of `verifier.rs:143-249` on `proof`, with no check outside
+    /// `gkr::verify`.
+    fn new(relation: &'a Relation<'a>, seed: [Gl; 4], claim: &Claim, proof: &'a Proof) -> Self {
+        let statement = ClaimWords::new(&relation.shape, claim).unwrap();
+        let b = &mut Native;
+        let mut duplex = Duplex::new(b);
+        duplex.observe_slice(b, &seed);
+        for word in relation.words() {
+            let word = algebra::constant(b, word);
+            duplex.observe(b, word);
+        }
+        duplex.observe_slice(b, &statement.words());
+        whir::observe_root(b, &mut duplex, proof.p0.roots()[0]);
+        let histogram: Vec<Gl> = proof
+            .histogram
+            .iter()
+            .map(|&count| Gl::from_u64(u64::from(count)))
+            .collect();
+        duplex.observe_slice(b, &histogram);
+        for _ in 0..5 {
+            let _ = duplex.sample_ext(b);
+        }
+        let shapes = early_shapes(relation);
+        let early = GkrView::read(b, Some(&proof.early), &shapes).unwrap();
+        gkr::verify(b, &early, &shapes, &mut duplex).unwrap();
+        observe_early(b, &mut duplex, &proof.early_values);
+        let lambda = duplex.sample_ext(b);
+        for &value in &proof.quotient {
+            duplex.observe_ext(b, value);
+        }
+        let zeta = duplex.sample_ext(b);
+        let _ = sumcheck::replay(b, &mut duplex, &proof.linear, Ext::ZERO);
+        for value in proof.finals {
+            duplex.observe_ext(b, value);
+        }
+        let _ = duplex.sample_ext(b);
+        for &value in proof.partials.iter().flatten() {
+            duplex.observe_ext(b, value);
+        }
+        for _ in 0..FOLD {
+            let _ = duplex.sample_ext(b);
+        }
+        whir::observe_root(b, &mut duplex, proof.p1.roots()[0]);
+        let variables = relation.key.setup_variables();
+        for _ in 0..relation.queries {
+            duplex.sample_bits(b, variables + 1 - FOLD).unwrap();
+        }
+        let output = duplex.output.len();
+        assert_eq!(
+            duplex.output,
+            duplex.state[..output],
+            "the output is the state's rate lanes"
+        );
+        Self {
+            relation,
+            state: duplex.state,
+            input: duplex.input,
+            output,
+            tau: ring::tau(b, zeta),
+            eval_a: Mixing::new(b, lambda, &relation.shape).eval_a(),
+            proof,
+        }
+    }
+}
+
+impl Program for Late<'_> {
+    fn statement(&self) -> Vec<u64> {
+        Vec::new()
+    }
+
+    fn key(&self) -> Vec<u64> {
+        Vec::new()
+    }
+
+    fn run<B: Backend>(&self, b: &mut B) -> Result<(), Error> {
+        let state = self.state.map(|word| algebra::private(b, word));
+        let input = self
+            .input
+            .iter()
+            .map(|&word| algebra::private(b, word))
+            .collect();
+        let mut duplex = Duplex {
+            state,
+            input,
+            output: state[..self.output].to_vec(),
+        };
+        let tau = self.tau.map(|value| algebra::private_ext(b, value));
+        let pairs = |b: &mut B, values: &[[Ext; 2]]| -> Vec<[B::E; 2]> {
+            values
+                .iter()
+                .map(|pair| pair.map(|value| algebra::private_ext(b, value)))
+                .collect()
+        };
+        let eval_a = pairs(b, &self.eval_a);
+        let structure = &self.relation.key.structure;
+        let shapes = structure.late_shapes(self.relation.shape.block_variables);
+        let view = GkrView::read(b, Some(&self.proof.late), &shapes)?;
+        let late_values = pairs(b, &self.proof.late_values);
+
+        let beta = duplex.sample_ext(b);
+        let late_claims = gkr::verify(b, &view, &shapes, &mut duplex)?;
+        let lanes = structure.lane_tables(b, &tau);
+        let late = structure.check_late(b, beta, &eval_a, &lanes, &late_claims, &late_values)?;
+        observe_pairs(b, &mut duplex, &late_values);
+        let openings = late.pair_point.iter().chain([&late.block]);
+        for &value in openings.chain(&late.block_point).chain([&late.omega]) {
+            duplex.observe_ext(b, value);
+        }
+        Ok(())
+    }
+}
+
+/// `Structure::lane_tables` on classes that the toy relation does not have:
+/// a run of `D` lanes, and a run of 30 lanes whose ratio is `p - 2`. The toy's
+/// one class has length one and ratio one, so it never skips the dropped
+/// lane, never fills the tail and multiplies only by one. The program then
+/// binds every table value. `laneSplit` in `Circuit/Check.lean` writes the
+/// same program.
+struct LaneSplit;
+
+impl Program for LaneSplit {
+    fn statement(&self) -> Vec<u64> {
+        Vec::new()
+    }
+
+    fn key(&self) -> Vec<u64> {
+        Vec::new()
+    }
+
+    fn run<B: Backend>(&self, b: &mut B) -> Result<(), Error> {
+        let tau: [B::E; D] = std::array::from_fn(|_| algebra::private_ext(b, Ext::ZERO));
+        let structure = Structure {
+            matrices: 1,
+            row_variables: 1,
+            run_variables: 1,
+            slot_variables: 1,
+            run_bounds: vec![0, 1],
+            classes: vec![
+                Class {
+                    len: D as u64,
+                    ratio: 3,
+                },
+                Class {
+                    len: 30,
+                    ratio: Gl::ORDER_U64 - 2,
+                },
+            ],
+            segments: Vec::new(),
+            slots: 1,
+        };
+        let lanes = structure.lane_tables(b, &tau);
+        let mut duplex = Duplex::new(b);
+        for &value in lanes.iter().flatten().flatten() {
+            duplex.observe_ext(b, value);
+        }
+        duplex.sample(b);
+        Ok(())
+    }
+}
+
 /// What `layer1` in `Circuit/Check.lean` reads: the replay's relation, and
 /// the index bits and folding factor of each query set of the two openings.
 fn layer1_input(relation: &Relation<'_>) -> String {
@@ -881,9 +1063,13 @@ fn lowering_matches_lean() {
     honest
         .run(&mut Native)
         .expect("the toy proof passes the honest fold");
+    let late = Late::new(&relation, seed(transcript(1)), &toy.claim, &proof);
+    late.run(&mut Native)
+        .expect("the toy proof passes the late checks");
     let input = workspace().join("target/lean-lowering/layer1.json");
     let linear_input = workspace().join("target/lean-lowering/linear.json");
     let honest_input = workspace().join("target/lean-lowering/honest.json");
+    let late_input = workspace().join("target/lean-lowering/late.json");
     let exports = [
         ("edges", export("edges", &Edges), vec![]),
         ("shared", export("shared", &Shared), vec!["shared".into()]),
@@ -897,6 +1083,12 @@ fn lowering_matches_lean() {
             "honest",
             export("honest", &honest),
             vec!["honest".into(), honest_input.clone()],
+        ),
+        ("late", export("late", &late), vec!["late".into(), late_input.clone()]),
+        (
+            "lane_split",
+            export("lane_split", &LaneSplit),
+            vec!["lane_split".into()],
         ),
         (
             "layer1",
@@ -922,6 +1114,16 @@ fn lowering_matches_lean() {
             relation_json(&relation),
             honest.input.len(),
             honest.output
+        ),
+    )
+    .unwrap();
+    std::fs::write(
+        &late_input,
+        format!(
+            "{{\"relation\":{},\"pending\":{},\"output\":{}}}",
+            relation_json(&relation),
+            late.input.len(),
+            late.output
         ),
     )
     .unwrap();

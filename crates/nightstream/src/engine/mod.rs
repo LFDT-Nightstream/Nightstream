@@ -11,6 +11,9 @@ pub(crate) mod crosscheck;
 pub(crate) mod metal;
 pub(crate) mod paper_exact;
 
+/// The owner's memory ceiling for the CPU engines.
+pub(crate) const CPU_MEMORY_LIMIT_BYTES: usize = 16_000_000_000;
+
 /// Arithmetic implementation used for proving and terminal row checks.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Engine {
@@ -78,7 +81,18 @@ impl Backend {
             Engine::PaperExact => Ok(Self::PaperExact),
             Engine::Crosscheck => Ok(Self::Crosscheck),
             #[cfg(feature = "metal")]
-            Engine::Metal => Self::metal(engine, neo_prover_metal::MetalRowProver::new()),
+            Engine::Metal => neo_prover_metal::MetalRowProver::new()
+                .map(|device| Self::Metal(std::sync::Arc::new(std::sync::Mutex::new(device))))
+                .map_err(|error| match error {
+                    neo_prover_metal::MetalError::Unavailable => EngineError::Unavailable {
+                        engine,
+                        reason: "Metal requires an Apple device and compiled shaders",
+                    },
+                    error => EngineError::Failure {
+                        engine,
+                        reason: error.to_string(),
+                    },
+                }),
             #[cfg(not(feature = "metal"))]
             Engine::Metal => Err(EngineError::Unavailable {
                 engine,
@@ -94,48 +108,37 @@ impl Backend {
         }
     }
 
-    /// The prover's backend. Metal keeps the commitment key rows on the device,
-    /// because a prover commits at every step; a verifier commits once.
-    pub(crate) fn new_prover(engine: Engine) -> Result<Self, EngineError> {
-        match engine {
+    /// The owner's memory ceiling for the engine's working storage: 24 GB for
+    /// Metal, so a prover can run on a current iPhone, and 16 GB otherwise.
+    pub(crate) fn memory_limit_bytes(&self) -> usize {
+        match self {
             #[cfg(feature = "metal")]
-            Engine::Metal => Self::metal(engine, neo_prover_metal::MetalRowProver::with_resident_commitment_key()),
-            engine => Self::new(engine),
+            Self::Metal(_) => neo_prover_metal::BUFFER_LIMIT_BYTES,
+            _ => CPU_MEMORY_LIMIT_BYTES,
         }
     }
 
-    #[cfg(feature = "metal")]
-    fn metal(
-        engine: Engine,
-        device: Result<neo_prover_metal::MetalRowProver, neo_prover_metal::MetalError>,
-    ) -> Result<Self, EngineError> {
-        device
-            .map(|device| Self::Metal(std::sync::Arc::new(std::sync::Mutex::new(device))))
-            .map_err(|error| match error {
-                neo_prover_metal::MetalError::Unavailable => EngineError::Unavailable {
-                    engine,
-                    reason: "Metal requires an Apple device and compiled shaders",
-                },
-                error => EngineError::Failure {
-                    engine,
-                    reason: error.to_string(),
-                },
-            })
-    }
-
-    /// Device bytes the backend keeps for commitments over `columns` columns.
-    /// Only a Metal prover keeps its commitment key.
-    pub(crate) fn kept_commitment_key_bytes(&self, columns: usize) -> usize {
+    /// Device bytes that keeping the commitment key over `columns` columns
+    /// takes; `None` for engines that expand no key on a device.
+    pub(crate) fn commitment_key_bytes(&self, columns: usize) -> Option<usize> {
         match self {
             #[cfg(feature = "metal")]
-            Self::Metal(device) => device
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .kept_commitment_key_bytes(columns),
+            Self::Metal(_) => Some(neo_prover_metal::MetalRowProver::commitment_key_bytes(columns)),
             _ => {
                 let _ = columns;
-                0
+                None
             }
+        }
+    }
+
+    /// Keep the commitment key on the device after the first commitment.
+    pub(crate) fn keep_commitment_key(&mut self) {
+        #[cfg(feature = "metal")]
+        if let Self::Metal(device) = self {
+            device
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .keep_commitment_key();
         }
     }
 

@@ -75,7 +75,9 @@ Layer 1 assumes, and does not prove:
   run bounds, and each slot has its segment's class and lane.
   `Tables::from_rows` (`matrix.rs`) builds the key so. `Structure::check`
   also enforces the order part (`Structure.Checked`) on every key.
-- Transcription: the model is written by hand from the Rust verifier.
+- Transcription: the model is written by hand from the Rust verifier. The
+  replay below is checked against Rust; that its acceptance gives the
+  model's conditions is not proved.
 - Charges: Plonky3 composes a commitment's error as its WHIR terms plus each
   charged term times its candidate count. `rustDegrees` (`Budget.lean`) is
   `outer_terms` written in Lean, and `Pcs::new` enforces the two composed
@@ -149,3 +151,14 @@ timeout --signal=KILL 1500 .lake/build/bin/emitTerminal artifacts/compression-te
 ```
 
 `lake build` also runs the axiom audit (`CompressionLeanTests/Axioms.lean`).
+
+Replay check. `Replay/` is an executable layer-1 verifier in the model's
+stage order. It draws every challenge as Rust does and runs every check of
+`verifier.rs` except WHIR's own: it replays each WHIR transcript and takes the
+opened values as `Opens` does. Build it with
+`timeout --signal=KILL 1500 lake build replayLayer1`, then run
+`cargo test --release -p neo-spartan --lib lean_replay -- --ignored` under the
+5-minute cap. The test proves a toy claim, writes the honest proof and
+tampered variants to `target/lean-replay/layer1.json`, and requires the
+replay to draw the same challenges and give the same verdict as Rust. When
+Rust rejects inside WHIR, the replay must reject later.

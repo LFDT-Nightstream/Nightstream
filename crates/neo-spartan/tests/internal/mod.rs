@@ -6,6 +6,7 @@ mod layer1;
 mod matrix;
 mod merkle;
 mod mle;
+mod replay;
 mod setup;
 mod shrink;
 mod verifier;

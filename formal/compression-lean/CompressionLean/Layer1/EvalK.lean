@@ -4,7 +4,8 @@ import CompressionLean.Layer1.Weights
 /-!
 Owns `mle.rs::eval_k`: `Σ_{b < blocks} eq(s, b) Σ_{l < D} τ_l χ_r(D·b + l)` by
 binary long division of the coordinate by `D`, most significant bit first
-(`evalKValue_eq`).
+(`evalKValue_eq`). In `K ⊗ Ext` its two parts are the extensions of the
+model's Eval_K tables (`evalK_split`).
 
 The state is the remainder and a flag (`1` when the quotient prefix is
 already below the prefix of `blocks`). `evalKStates` is the Rust loop with
@@ -466,5 +467,25 @@ theorem mle_evalK (r s : List A) (τ : ℕ → A) (cb : ℕ) (positive : 0 < D) 
   exact Finset.sum_congr rfl fun b member => by rw [if_pos (Finset.mem_range.mp member)]
 
 end Value
+
+section Split
+
+variable {F K : Type} [Field F] [Field K] [Algebra F K]
+
+/-- `mle.rs::eval_k` in `K ⊗ Ext`, at `r`, the block point and the lane
+weights at `ζ`, is the pair of the extensions of the model's Eval_K tables. -/
+theorem evalK_split (s : Shape) (bar : ℕ → ℕ → F) (st : Statement F) (zeta : K) (sb : List K) (cb : ℕ)
+    (positive : 0 < s.D) (deep : sb.length ≤ cb) (long : cb ≤ st.r.length)
+    (blocks_le : s.blocks ≤ 2 ^ sb.length) (fits : s.D * s.blocks ≤ 2 ^ cb) (strict : s.blocks < 2 ^ cb) :
+    evalKValue s.D s.blocks (st.point.map fromK) (sb.map (algebraMap K (QuadX K)))
+        (fun l => algebraMap K (QuadX K) (laneWeight s bar zeta l)) cb =
+      ⟨mle sb (evalKTable s bar st zeta 0), mle sb (evalKTable s bar st zeta 1)⟩ := by
+  rw [← mle_evalK (D := s.D) (blocks := s.blocks) _ _ _ cb positive (by simpa using deep)
+      (by simpa [Statement.point] using long) (by simpa using blocks_le) fits strict, mle_split]
+  congr 1 <;> apply mle_congr <;> intro b _ <;>
+    simp only [evalKTable, ↓reduceIte, Nat.one_ne_zero] <;> split_ifs <;>
+    simp [quadX_re_sum, quadX_im_sum, eqAt_map, QuadraticAlgebra.algebraMap_eq, Statement.chi]
+
+end Split
 
 end CompressionLean.Layer1

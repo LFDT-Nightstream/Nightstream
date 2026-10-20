@@ -1,5 +1,6 @@
 import CompressionLean.Layer1.RingRows
 import CompressionLean.Layer1.Lookups
+import Mathlib.Algebra.QuadraticAlgebra.Defs
 
 /-!
 Owns the data of the layer-1 relation (`crates/neo-spartan/src/lib.rs`,
@@ -10,8 +11,9 @@ Owns the data of the layer-1 relation (`crates/neo-spartan/src/lib.rs`,
 - `Setup`: the honest setup: key rows, runs (row, matrix, slot, coefficient)
   and slots (block, lane, class). The verifier holds its root; under Merkle
   binding the opened values are these.
-- `Statement`: the CE(B) claim: commitment rows, public blocks, `χ_r`, Eval_K,
-  Eval_A, as `F` coordinates (`re`, `im` for the quadratic field).
+- `Statement`: the CE(B) claim: commitment rows, public blocks, the point `r`,
+  Eval_K, Eval_A, as `F` coordinates (`re`, `im` for `K = F[u]/(u² - 7)`).
+  `Statement.chi` is `χ_r = eq(r, ·)` in `K`, derived from `r`.
 - `Relation`: every cell in `[-H, H]` and the `κ + 2 + 2·matrices + public`
   ring rows over `F[X]/Φ`, with the weights of `ring.rs`.
 -/
@@ -70,15 +72,25 @@ structure Setup (F : Type) where
   slotRatio : ℕ → F
   slots : ℕ
 
-/-- The CE(B) claim. A quadratic-field value is its `(re, im)` pair. -/
+/-- `K = F[u]/(u² - 7)`, the ring of the CE(B) point (`circuit/algebra.rs`, `K`). -/
+abbrev Quad (F : Type) [Field F] := QuadraticAlgebra F 7 0
+
+/-- The CE(B) claim. A `K` value is its `(re, im)` pair. -/
 structure Statement (F : Type) where
   commitment : ℕ → ℕ → F
   publicInput : ℕ → ℕ → F
-  /-- `χ_r(i)` at every index (rows for the lookup, coordinates for Eval_K),
-  as given values: the model does not derive them from `r`. -/
-  chi : ℕ → F × F
+  /-- The point `r`, low bit first. -/
+  r : List (F × F)
   evalK : ℕ → F × F
   evalA : ℕ → ℕ → F × F
+
+/-- The point `r` in `K`. -/
+def Statement.point {F : Type} [Field F] (st : Statement F) : List (Quad F) := st.r.map fun c => ⟨c.1, c.2⟩
+
+/-- `χ_r(i) = eq(r, i)` in `K`, as `(re, im)`: the weight of row or coordinate
+`i` (`matrix.rs::chi_rows`). -/
+def Statement.chi {F : Type} [Field F] (st : Statement F) (i : ℕ) : F × F :=
+  ((eqAt st.point i).re, (eqAt st.point i).im)
 
 /-- One P0 candidate: the witness cube and the early matrix columns. -/
 structure P0Tables (F : Type) where

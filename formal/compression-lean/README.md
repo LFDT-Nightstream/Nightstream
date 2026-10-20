@@ -41,8 +41,11 @@ circuits without change.
   which is at most `calls / 2^t` at Rust's split.
 - Verifier formulas: the model takes the public tables at their
   definitions. `ClosedForms.lean` and `EvalK.lean` prove the `mle.rs`
-  formulas equal to them. `CubicField.lean` proves that `x³ - x - 1` is
-  irreducible over Goldilocks, so the challenge field is a field.
+  formulas equal to them. The statement carries the point `r`, and `χ_r` is
+  `eq(r, ·)` in `K` (`Model.lean`). `chi` and `eval_k` run in `K ⊗ Ext`, and
+  their two parts are the extensions of the re and im tables of `χ_r`.
+  `CubicField.lean` proves that `x³ - x - 1` is irreducible over Goldilocks,
+  so the challenge field is a field.
 - Stage order (`Stages.lean`): early (norm, row lookup, slot scatter, GKR),
   linear (ring rows at `λ`, `ζ`, two sum-checks), honest fold (setup
   partials, `α`, setup queries), late (block scatter, GKR).
@@ -63,9 +66,6 @@ Layer 1 assumes, and does not prove:
   times as likely as under the uniform law.
 - Setup root: the Merkle root of the setup binds its leaves, so the opened
   setup values are the honest setup's (`HonestStage.lean`).
-- χ: the statement carries the values of `χ_r` (`Model.lean`). `mle_chi`
-  proves the `chi` formula over any commutative ring; that its `K ⊗ Ext`
-  value splits into the model's re and im tables is not proved.
 - Key order: the key's runs are sorted by matrix and its slots by segment,
   so the matrix column and the slot tables are step functions
   (`ClosedForms.lean`).

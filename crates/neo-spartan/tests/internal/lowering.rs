@@ -15,7 +15,7 @@
 //! layer-1 verifier, `lowerCheck` also writes the program with the Lean
 //! builder and requires the logged instructions: all of the first six
 //! programs' instructions, and the verifier's first ones, up to
-//! `verifier.rs:249`.
+//! `verifier.rs:266`.
 //! The verifier's relation goes to `target/lean-lowering/layer1.json`, and
 //! `Linear`'s, `Honest`'s and `Late`'s inputs to `linear.json`,
 //! `honest.json` and `late.json`.

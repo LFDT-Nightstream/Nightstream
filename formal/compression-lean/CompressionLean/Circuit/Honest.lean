@@ -9,8 +9,8 @@ builder programs, with the parts they call: `setup_point` (`lib.rs:726-730`),
 counterpart.
 
 `honestStage` reads the earlier stages' outputs and its proof parts as an
-`HonestInput`. `verify` calls it after the linear stage; the late stage
-calls `queryPoint`.
+`HonestInput`. `verify` calls it after the linear stage, and calls
+`queryPoint` after the late stage.
 -/
 
 namespace CompressionLean.Circuit

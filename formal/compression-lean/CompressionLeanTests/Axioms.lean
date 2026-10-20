@@ -108,6 +108,13 @@ import CompressionLean
 #audit_axioms CompressionLean.Layer1.cubic_no_root
 #audit_axioms CompressionLean.Layer1.cubic_irreducible
 
+/-! Axiom gate for the bridge from the layer-1 replay to the model. -/
+
+#audit_axioms CompressionLean.Bridge.replay_accepts_implies_path
+#audit_axioms CompressionLean.Bridge.replay_accepts_sound
+#audit_axioms CompressionLean.Bridge.queryAt_distinct
+#audit_axioms CompressionLean.Bridge.phi_natDegree
+
 /-! Axiom gate for the shrink soundness proof. -/
 
 #audit_axioms CompressionLean.Shrink.map_constraint

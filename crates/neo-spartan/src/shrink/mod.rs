@@ -90,6 +90,16 @@ impl Shape {
     }
 }
 
+/// The run digest of `program`: a Poseidon2 digest of the counts and every
+/// row of one recorded run, without values, so every run of one program has
+/// one digest. `formal/compression-lean` computes it from the Lean builder's
+/// program (`runDigest`), so a test can pin a program's rows without Lean.
+pub fn run_digest(program: &impl Program) -> Result<[u64; 4], Error> {
+    let mut recorder = Recorder::new(Trace::default());
+    program.run(&mut recorder)?;
+    Ok(recorder.finish().0.digest())
+}
+
 /// The shrink relation of one shape: the layout and the WHIR configuration.
 pub struct Shrink {
     layout: Layout,

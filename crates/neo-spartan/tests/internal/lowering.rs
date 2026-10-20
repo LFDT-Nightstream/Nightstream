@@ -35,13 +35,13 @@ use super::replay::relation_json;
 use super::shrink::Layer1;
 use crate::circuit::block::Kind;
 use crate::circuit::r1cs::R1cs;
-use crate::circuit::record::{Form, Recorder, Trace, Wire};
+use crate::circuit::record::{Form, Recorder, Trace};
 use crate::circuit::{Backend, Native};
 use crate::device::Accelerator;
 use crate::field::Gl;
-use crate::hash::{absorb, seed, squeeze};
+use crate::hash::seed;
 use crate::pcs::Pcs;
-use crate::shrink::{Program, Shape};
+use crate::shrink::{run_digest, Program, Shape};
 use crate::{prove, Error, Key, Relation};
 
 /// A recorded value and its handle.
@@ -301,46 +301,6 @@ fn layer1_input(relation: &Relation<'_>) -> String {
     )
 }
 
-/// Row `r`'s seven sides, each as its term count and, per term, the wire
-/// (`0 cell`, `1 block cell` or `2 index`) and the coefficient.
-fn row_words(trace: &Trace, r: usize) -> Vec<u64> {
-    let offsets = trace.rows[r];
-    let mut words = Vec::new();
-    for side in 0..7 {
-        let terms = &trace.entries[offsets[side] as usize..offsets[side + 1] as usize];
-        words.push(terms.len() as u64);
-        for &(name, coefficient) in terms {
-            match name {
-                Wire::Glue(cell) => words.extend([0, u64::from(cell)]),
-                Wire::Block(_, block, cell) => words.extend([1, u64::from(block), u64::from(cell)]),
-                Wire::Public(index) => words.extend([2, u64::from(index)]),
-            }
-            words.push(coefficient.as_canonical_u64());
-        }
-    }
-    words
-}
-
-/// The run digest (`runDigest` in `Circuit/Check.lean`): the Poseidon2 leaf
-/// sponge (`hash_leaf`) of the glue cell, block, statement word and row
-/// counts, then every row's words. Statement and cell values are not part of
-/// it, so every run of one program has one digest.
-fn run_digest(trace: &Trace) -> [u64; 4] {
-    let counts = [
-        trace.glue.len(),
-        trace.count(Kind::Permutation),
-        trace.public.len(),
-        trace.rows.len(),
-    ];
-    let mut state = [Gl::ZERO; WIDTH];
-    let mut at = absorb(&mut state, 0, &counts.map(Gl::from_usize));
-    for r in 0..trace.rows.len() {
-        let words: Vec<Gl> = row_words(trace, r).into_iter().map(Gl::from_u64).collect();
-        at = absorb(&mut state, at, &words);
-    }
-    squeeze(&mut state, at).map(|word| word.as_canonical_u64())
-}
-
 /// The statement, the IR, then the trace: its counts, its statement words and
 /// every row as seven sides of `(wire, coefficient)` terms.
 fn export_text(statement: &[u64], ir: &str, trace: &Trace) -> String {
@@ -363,7 +323,7 @@ fn export_text(statement: &[u64], ir: &str, trace: &Trace) -> String {
     }
     writeln!(out, "\nrows {}", trace.rows.len()).unwrap();
     for r in 0..trace.rows.len() {
-        for word in row_words(trace, r) {
+        for word in trace.row_words(r) {
             write!(out, " {word}").unwrap();
         }
         writeln!(out).unwrap();
@@ -564,12 +524,6 @@ fn production_relation(key: &Key, bound: u32, bits: f64) -> Relation<'_> {
     Relation::new(key, 270 / D, 28, bound, bits).unwrap()
 }
 
-fn record(program: &impl Program) -> Trace {
-    let mut recorder = Recorder::new(Trace::default());
-    program.run(&mut recorder).unwrap();
-    recorder.finish().0
-}
-
 /// The run digest of the layer-1 verifier's shape run, as `lowerCheck`
 /// computes it from Lean's program (`digest` on its `layer1` line). Update a
 /// pin only after its Lean check passes, from that line: the toy's in
@@ -592,7 +546,7 @@ const PRODUCTION_LAYER1_DIGEST: [u64; 4] = [
 fn toy_layer1_digest_is_pinned() {
     let (toy, setup, _scratch) = setup_toy(8, 4, 6);
     let relation = relation_of(&toy, setup.key());
-    assert_eq!(run_digest(&record(&Layer1::shape(&relation))), TOY_LAYER1_DIGEST);
+    assert_eq!(run_digest(&Layer1::shape(&relation)).unwrap(), TOY_LAYER1_DIGEST);
 }
 
 #[test]
@@ -600,7 +554,7 @@ fn toy_layer1_digest_is_pinned() {
 fn production_layer1_digest_is_pinned() {
     let (key, bound, bits) = production_key();
     let relation = production_relation(&key, bound, bits);
-    assert_eq!(run_digest(&record(&Layer1::shape(&relation))), PRODUCTION_LAYER1_DIGEST);
+    assert_eq!(run_digest(&Layer1::shape(&relation)).unwrap(), PRODUCTION_LAYER1_DIGEST);
 }
 
 /// The layer-1 verifier on the production key: its shape run's export, the

@@ -200,6 +200,22 @@ fn malformed_keys_do_not_decode() {
     }
 }
 
+/// `Relation::new` gives the sizes of the Lean `parentShape_of`
+/// (`formal/compression-lean/CompressionLean/Final/RustSetup.lean`): `D = 54`,
+/// six lane variables, `κ = 22`, the key's matrices and blocks, and the public
+/// blocks and bound that the caller passes. The parent passes five public
+/// blocks and 3672 (`nightstream`, `parent_relation_arguments_are_the_lean_constants`).
+#[test]
+fn relation_shape_has_the_lean_constants() {
+    let toy = Toy::new(5, 6, 6, 4, BOUND);
+    let key = Key::derive(&CachedMatrixRows::new(&toy.cache).unwrap()).unwrap();
+    let relation = Relation::new(&key, 5, toy.point_variables, BOUND, BITS).unwrap();
+    let shape = &relation.shape;
+    assert_eq!((neo_math::D, crate::LANE_VARIABLES, shape.kappa), (54, 6, 22));
+    assert_eq!((shape.matrices, shape.blocks), (4, 6));
+    assert_eq!((shape.public_blocks, shape.norm_bound), (5, 3672));
+}
+
 #[test]
 fn true_claims_verify_and_every_tampered_part_rejects() {
     let (toy, setup, _scratch) = setup_toy(2, 4, 6);

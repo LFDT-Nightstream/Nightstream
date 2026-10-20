@@ -539,6 +539,7 @@ mod base;
 
 mod key_prefix;
 mod matrix_workspace;
+mod parent_shape;
 mod recursive;
 mod state_encoding;
 

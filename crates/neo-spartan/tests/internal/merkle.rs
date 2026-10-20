@@ -15,8 +15,12 @@ use crate::field::{Ext, Gl};
 use crate::hash::{compress, hash_leaf, plain};
 use crate::merkle::Mmcs;
 
-/// A device that builds the tree one hash at a time with the CPU sponge.
-struct Reference;
+/// A device that builds the tree one hash at a time with the CPU sponge,
+/// and records the rows of every request.
+#[derive(Default)]
+struct Reference {
+    requests: std::sync::Mutex<Vec<usize>>,
+}
 
 impl Device for Reference {
     fn merkle_layers(
@@ -25,6 +29,7 @@ impl Device for Reference {
         width: usize,
         fill: &(dyn Fn(&mut [u64]) + Sync),
     ) -> Option<Vec<Vec<[u64; DIGEST_LEN]>>> {
+        self.requests.lock().unwrap().push(rows);
         let mut words = vec![0; rows * width];
         fill(&mut words);
         let leaves: Vec<[Gl; DIGEST_LEN]> = words
@@ -75,9 +80,10 @@ fn matrix(seed: u64, height: usize, width: usize) -> RowMajorMatrix<Gl> {
 #[test]
 fn provers_tree_matches_plonky3() {
     let plain = plain();
+    let reference = Arc::new(Reference::default());
     let schemes = [
         Mmcs::new(&Accelerator::cpu()),
-        Mmcs::new(&Accelerator::new(Arc::new(Reference))),
+        Mmcs::new(&Accelerator::new(reference.clone())),
     ];
     // Rows of one block, of four blocks and of a partial block; two
     // matrices side by side; a single row; rows of two CPU subtrees.
@@ -113,6 +119,11 @@ fn provers_tree_matches_plonky3() {
             );
             assert_eq!(ours.0, theirs.0, "case {case}");
             assert_eq!(ours.1.sibling_hashes, theirs.1.sibling_hashes, "case {case}");
+        }
+        // The device gets one subtree at a time, never the whole tree.
+        let requests = std::mem::take(&mut *reference.requests.lock().unwrap());
+        if case == 0 {
+            assert_eq!(requests, [height / 2; 2]);
         }
     }
     // WHIR's extension rounds commit flattened extension rows.

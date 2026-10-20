@@ -25,9 +25,9 @@ def shrinkCount (m n L : ℕ) : ℕ := m * L + m * (L * 8) + L * 7 + (n + 1) * (
 /-- The shrink error over a challenge field of `size` elements. -/
 noncomputable def shrinkError (m n L size : ℕ) : ℝ := (shrinkCount m n L : ℝ) / size
 
-theorem programGame_cost {I : Type} (i : I) (C : Ccs F) (shapeOk : Prop) (L : ℕ)
-    (nodes7 : NodesDistinct K 7) (nodes1 : NodesDistinct K 1) :
-    (programGame (K := K) i C shapeOk L).CostLe (shrinkError C.rowVars C.cellVars L (Fintype.card K)) := by
+theorem programGame_cost {I : Type} (i : I) (C : Ccs F) (shapeOk : Prop) (matrices : List K → List K → K → K)
+    (L : ℕ) (nodes7 : NodesDistinct K 7) (nodes1 : NodesDistinct K 1) :
+    (programGame (K := K) i C shapeOk matrices L).CostLe (shrinkError C.rowVars C.cellVars L (Fintype.card K)) := by
   intro cands
   have count : (Finset.univ : Finset (Fin cands.1.length)).card ≤ L := by simpa using cands.2
   have positive : (0 : ℝ) < Fintype.card K := by exact_mod_cast Fintype.card_pos
@@ -86,7 +86,8 @@ theorem shrinkGame_cost {I : Type} [Nonempty I] (T : Template F) (s : Counts) (p
     (nodes7 : NodesDistinct K 7) (nodes1 : NodesDistinct K 1) :
     (shrinkGame (K := K) T s prog L).CostLe
       (shrinkError (Layout.rowVars T s) (Layout.cellVars T s) L (Fintype.card K)) :=
-  fun i => programGame_cost i ((prog i).ccs T s) ((prog i).counts = s) L nodes7 nodes1
+  fun i => programGame_cost i ((prog i).ccs T s) ((prog i).counts = s) (verifierMatrices T s (prog i)) L
+    nodes7 nodes1
 
 /-- **Shrink soundness with an idealized WHIR opening.** Against every
 adaptive prover, the shrink verifier accepts while no committed candidate

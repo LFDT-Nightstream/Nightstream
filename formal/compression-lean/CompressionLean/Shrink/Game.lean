@@ -1,4 +1,4 @@
-import CompressionLean.Shrink.Layout
+import CompressionLean.Shrink.Evaluate
 import CompressionLean.Shrink.Rounds
 import CompressionLean.Layer1.HonestStage
 
@@ -21,9 +21,10 @@ them. Then, in transcript order:
    `n = cellVars` (`mod.rs:256-257`);
 7. the opened value of `w̃` at `ry[..n]` (`mod.rs:258-261`);
 8. the last checks (`Final`): the shape run has the shape's counts
-   (`mod.rs:263-274`), the opening holds, and
-   `last = Σ_j ρ^j·M̃_j(rx, ry)·z̃(ry)` with
+   (`mod.rs:263-274`), the opening holds, and `last = matrices·z̃(ry)` with
    `z̃(ry) = (1 - ry_n)·w̃(ry[..n]) + ry_n·x̃(ry[..n])` (`mod.rs:275-286`).
+   `matrices` is the verifier's value of `Σ_j ρ^j·M̃_j(rx, ry)`: the shape
+   run's total plus `block_part` (`verifierMatrices`, `Evaluate.lean`).
 
 The opening is idealized (`Opens`): the verifier accepts it when one
 candidate agrees with the opened value. The WHIR error that this hides is a
@@ -84,15 +85,17 @@ the opened value at `ry[..n]`. -/
 def Opens (C : Ccs F) (cands : List (ℕ → F)) (ry : List K) (opened : K) : Prop :=
   ∃ w ∈ cands, opened = mle (ry.take C.cellVars) fun i => ι (w i)
 
-/-- The verifier's last checks (`mod.rs:258-286`). -/
-def Final (C : Ccs F) (shapeOk : Prop) (cands : List (ℕ → F)) (rx ry : List K) (rho last opened : K) :
+/-- The verifier's last checks (`mod.rs:258-286`); `matrices` is its value
+of `Σ_j ρ^j·M̃_j(rx, ry)` (`mod.rs:275`). -/
+def Final (C : Ccs F) (shapeOk : Prop) (cands : List (ℕ → F)) (ry : List K) (matrices last opened : K) :
     Prop :=
-  shapeOk ∧ Opens C cands ry opened ∧ last = matrixValue C.entries rx ry rho * zValue C ry opened
+  shapeOk ∧ Opens C cands ry opened ∧ last = matrices * zValue C ry opened
 
 open Classical in
-/-- The verifier on one program's CCS `C`; `shapeOk` is its shape-run check. -/
-noncomputable def programGame {I : Type} (i : I) (C : Ccs F) (shapeOk : Prop) (L : ℕ) :
-    Game (Option (Transcript I F K)) :=
+/-- The verifier on one program's CCS `C`; `shapeOk` is its shape-run check
+and `matrices rx ry ρ` its value of `Σ_j ρ^j·M̃_j(rx, ry)`. -/
+noncomputable def programGame {I : Type} (i : I) (C : Ccs F) (shapeOk : Prop)
+    (matrices : List K → List K → K → K) (L : ℕ) : Game (Option (Transcript I F K)) :=
   .recv {l : List (ℕ → F) // l.length ≤ L} fun cands =>
   Game.bind (drawPoint (tauBad C cands.1) C.rowVars []) fun tau =>
   Game.bind (sumcheck Finset.univ 7
@@ -107,16 +110,16 @@ noncomputable def programGame {I : Type} (i : I) (C : Ccs F) (shapeOk : Prop) (L
           combRound (C.cellVars + 1) (innerTables C.entries (C.z (cands.1.get k)) outer.1 rho) productComb)
         (fun _ => ∅) (C.cellVars + 1) [] (batch rho values)) fun inner =>
     .recv K fun opened =>
-    if Final C shapeOk cands.1 outer.1 inner.1 rho inner.2 opened then
+    if Final C shapeOk cands.1 inner.1 (matrices outer.1 inner.1 rho) inner.2 opened then
       .pure (some ⟨i, cands.1, tau, outer.1, outer.2, values, rho, inner.1, inner.2, opened⟩)
     else .pure none
   else .pure none
 
 /-- The shrink verifier for a family of programs: the prover names program
 `i`, whose shape run `prog i` fixes the CCS under the layout of the shape
-`s` (`Shrink::new`, `mod.rs:101-111`). -/
+`s` (`Shrink::new`, `mod.rs:101-111`) and the verifier's matrix value. -/
 noncomputable def shrinkGame {I : Type} [Nonempty I] (T : Template F) (s : Counts) (prog : I → Run F)
     (L : ℕ) : Game (Option (Transcript I F K)) :=
-  .recv I fun i => programGame i ((prog i).ccs T s) ((prog i).counts = s) L
+  .recv I fun i => programGame i ((prog i).ccs T s) ((prog i).counts = s) (verifierMatrices T s (prog i)) L
 
 end CompressionLean.Shrink

@@ -302,6 +302,21 @@ import CompressionLean
 #audit_axioms CompressionLean.Final.array_singleton
 #audit_axioms CompressionLean.Final.parent_holds
 
+/-! Axiom gate for the port of Rust's setup and sizes. -/
+
+#audit_axioms CompressionLean.Final.sum_range_getD
+#audit_axioms CompressionLean.Final.runEntry_eq
+#audit_axioms CompressionLean.Final.runRow_mem
+#audit_axioms CompressionLean.Final.mem_sortedSet
+#audit_axioms CompressionLean.Final.runList_perm
+#audit_axioms CompressionLean.Final.slotKey_eq
+#audit_axioms CompressionLean.Final.getD_idxOf
+#audit_axioms CompressionLean.Final.lists_setupOfRuns
+#audit_axioms CompressionLean.Final.readsBack_of_build
+#audit_axioms CompressionLean.Final.gl_natCast
+#audit_axioms CompressionLean.Final.honestSetup_of_build
+#audit_axioms CompressionLean.Final.parentShape_of
+
 /-! Axiom gate for end-to-end soundness for F′'s relation. -/
 
 #audit_axioms CompressionLean.Final.finalBreak_mono

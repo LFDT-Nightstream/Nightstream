@@ -37,21 +37,31 @@ structure GkrClaims where
 /-- Part `j` of tree `t` at its leaf point. -/
 def GkrClaims.leafValue (claims : GkrClaims) (t j : Nat) : Ext := (claims.leafValues[t]!)[j]!
 
-/-- Factors of each tree that reaches layer `k`: one inside, its own at its leaves. -/
+/-- The trees that reach layer `k`, in tree order (the model's `GkrShape.active`). -/
+def activeTrees (shapes : Array TreeShape) (k : Nat) : Array Nat :=
+  (Array.range shapes.size).filter (k ≤ shapes[·]!.depth)
+
+/-- The numerator factors of tree `t` at layer `k`: one inside, its own at its
+leaves (the model's `partFactors`). -/
+def partFactors (shapes : Array TreeShape) (k t : Nat) : Nat :=
+  if shapes[t]!.depth = k then shapes[t]!.factors else 1
+
+/-- Factors of each tree that reaches layer `k`. -/
 def layerFactors (shapes : Array TreeShape) (k : Nat) : Array Nat :=
-  (shapes.filter (k ≤ ·.depth)).map fun s => if s.depth = k then s.factors else 1
+  (activeTrees shapes k).map (partFactors shapes k)
 
-/-- The batched round degree: 3, or `factors + 2` at a product leaf layer. -/
-def layerDegree (factors : Array Nat) : Nat := max 3 (factors.foldl (fun d f => max d (f + 2)) 0)
+/-- The batched round degree: 3, or `factors + 2` at a product leaf layer
+(the model's `degree`). -/
+def layerDegree (factors : Array Nat) : Nat := factors.foldr (fun f d => max d (f + 2)) 3
 
-def layerCount (shapes : Array TreeShape) : Nat := shapes.foldl (fun d s => max d s.depth) 0
+/-- The largest depth (the model's `layers`). -/
+def layerCount (shapes : Array TreeShape) : Nat := (List.range shapes.size).foldr (fun t d => max d shapes[t]!.depth) 0
 
 /-- Layer `k` has `k - 1` rounds of the batched degree and each active tree's parts. -/
 def layerShapeOk (shapes : Array TreeShape) (k : Nat) (layer : GkrLayer) : Bool :=
-  let factors := layerFactors shapes k
-  layer.rounds.size == k - 1 && layer.rounds.all (·.size == layerDegree factors) &&
-    layer.children.size == factors.size &&
-    (layer.children.zip factors).all fun pair => pair.1.size == 2 * (pair.2 + 1)
+  layer.rounds.size == k - 1 && layer.rounds.all (·.size == layerDegree (layerFactors shapes k)) &&
+    layer.children.size == (activeTrees shapes k).size &&
+    ((activeTrees shapes k).zip layer.children).all fun pair => pair.2.size == 2 * (partFactors shapes k pair.1 + 1)
 
 /-- The proof has the shapes' layers, rounds and children (`GkrView::read`). -/
 def readGkr (proof : GkrProof) (shapes : Array TreeShape) : Except String Unit := do
@@ -72,29 +82,34 @@ def combineVals (children : Array Ext) (mu : Ext) : Ext :=
 /-- One pair reduced at the top variable. -/
 def reduce (pair : Ext × Ext) (tau : Ext) : Ext := pair.1 + tau * (pair.2 - pair.1)
 
-/-- The trees that reach layer `k`, in tree order. -/
-def activeTrees (shapes : Array TreeShape) (k : Nat) : Array Nat :=
-  (Array.range shapes.size).filter (k ≤ shapes[·]!.depth)
+/-- `Σ_i ν^i·(P_i + μ·Q_i)` over the active trees, by Horner's rule (the model's `wsum`). -/
+def batchClaim (current : Array (Ext × Ext)) (mu nu : Ext) : List (Nat × Array Ext) → Ext
+  | [] => 0
+  | (t, _) :: rest => (current[t]!).1 + mu * (current[t]!).2 + nu * batchClaim current mu nu rest
 
-/-- `Σ_i ν^i·(P_i + μ·Q_i)` and `Σ_i ν^i·combine_i` over the active trees, by
-Horner's rule (the model's `wsum`). -/
-def batchClaims (current : Array (Ext × Ext)) (mu nu : Ext) : List (Nat × Array Ext) → Ext × Ext
-  | [] => (0, 0)
-  | (t, values) :: rest =>
-      let (claim, expected) := batchClaims current mu nu rest
-      ((current[t]!).1 + mu * (current[t]!).2 + nu * claim, combineVals values mu + nu * expected)
+/-- `Σ_i ν^i·combine_i` over the active trees' children. -/
+def batchExpected (mu nu : Ext) : List (Nat × Array Ext) → Ext
+  | [] => 0
+  | (_, values) :: rest => combineVals values mu + nu * batchExpected mu nu rest
+
+/-- The pairs of tree `t` reduced at `τ`: its children's values, else none. -/
+def reducedOf (pairs : List (Nat × Array Ext)) (tau : Ext) (t : Nat) : Array Ext :=
+  match pairs.find? (·.1 == t) with
+  | some pair => (Array.range (pair.2.size / 2)).map fun j => reduce (pair.2[2 * j]!, pair.2[2 * j + 1]!) tau
+  | none => #[]
 
 /-- Reduce at `τ`: inner trees keep `(P, Q)`; trees of depth `k` end with
 their leaf point and values (the model's `advance`). -/
 def advance (shapes : Array TreeShape) (k : Nat) (claims : GkrClaims) (pairs : List (Nat × Array Ext))
-    (next : Array Ext) (tau : Ext) : GkrClaims :=
-  let point := next.push tau
-  let claims := pairs.foldl (fun claims pair =>
-    let reduced := (Array.range (pair.2.size / 2)).map fun j => reduce (pair.2[2 * j]!, pair.2[2 * j + 1]!) tau
-    if shapes[pair.1]!.depth == k then
-      { claims with leafPoint := claims.leafPoint.set! pair.1 point, leafValues := claims.leafValues.set! pair.1 reduced }
-    else { claims with current := claims.current.set! pair.1 (reduced[0]!, reduced[1]!) }) claims
-  { claims with point }
+    (next : Array Ext) (tau : Ext) : GkrClaims where
+  roots := claims.roots
+  point := next.push tau
+  current := (Array.range claims.current.size).map fun t =>
+    if k < shapes[t]!.depth then ((reducedOf pairs tau t)[0]!, (reducedOf pairs tau t)[1]!) else claims.current[t]!
+  leafPoint := (Array.range claims.leafPoint.size).map fun t =>
+    if shapes[t]!.depth = k then next.push tau else claims.leafPoint[t]!
+  leafValues := (Array.range claims.leafValues.size).map fun t =>
+    if shapes[t]!.depth = k then reducedOf pairs tau t else claims.leafValues[t]!
 
 /-- Layers `k, k + 1, …` of the batched GKR: per layer `μ`, `ν`, the
 sum-check, the check, the children and `τ`. -/
@@ -104,12 +119,11 @@ def gkrLayers (shapes : Array TreeShape) : Nat → List GkrLayer → GkrClaims �
       let pairs := ((activeTrees shapes k).zip layer.children).toList
       let mu ← sampleExt
       let nu ← sampleExt
-      let (claim, expected) := batchClaims claims.current mu nu pairs
-      let (next, last) ← sumcheckReplay layer.rounds claim
-      ensure (last == eqEval claims.point next * expected) "GKR layer"
+      let result ← sumcheckReplay layer.rounds (batchClaim claims.current mu nu pairs)
+      ensure (result.2 == eqEval claims.point result.1 * batchExpected mu nu pairs) "GKR layer"
       observeExts layer.children.flatten
       let tau ← sampleExt
-      gkrLayers shapes (k + 1) rest (advance shapes k claims pairs next tau)
+      gkrLayers shapes (k + 1) rest (advance shapes k claims pairs result.1 tau)
 
 /-- Verify the batched GKR for trees of `shapes`: the roots, then every layer. -/
 def gkrVerify (proof : GkrProof) (shapes : Array TreeShape) : ReplayM GkrClaims := do

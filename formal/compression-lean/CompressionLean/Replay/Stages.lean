@@ -41,12 +41,15 @@ structure EarlyChallenges where
   lookup : Ext × Ext
   scatter : Ext × Ext
 
+/-- One slot of `table_sum`: `total + m_t/(β - (t - H))`, rejecting a pole. -/
+def tableSumStep (bound : Nat) (counts : Array Gl) (beta total : Ext) (slot : Nat) : Except String Ext := do
+  let denominator := beta - Ext.ofGl (Gl.ofNat slot - Gl.ofNat bound)
+  ensure (!denominator.isZero) "histogram pole"
+  pure (total + denominator.inv.scale counts[slot]!)
+
 /-- `Σ_t m_t/(β - (t - H))`; rejects a pole (`norm::table_sum`, the model's `tableSum`). -/
 def tableSum (bound : Nat) (counts : Array Gl) (beta : Ext) : Except String Ext :=
-  (List.range counts.size).foldlM (fun total slot => do
-    let denominator := beta - Ext.ofGl (Gl.ofNat slot - Gl.ofNat bound)
-    ensure (!denominator.isZero) "histogram pole"
-    pure (total + denominator.inv.scale counts[slot]!)) 0
+  (List.range counts.size).foldlM (tableSumStep bound counts beta) 0
 
 /-- `P_x·Q_y = P_y·Q_x` with both denominators nonzero (`check_pair`, the model's `PairCheck`). -/
 def pairCheck (x y : Ext × Ext) (name : String) : Except String Unit := do

@@ -194,18 +194,19 @@ end Linear
 
 section Honest
 
-/-- The query term: a wrong P1 fold passes every query leaf. -/
-noncomputable def queryError (s : Shape) (L1 L : ℕ) : ℝ :=
-  L1 * (((2 ^ (s.setupVars - 3) - 1 : ℕ) : ℝ) / L) ^ s.queries
+/-- The query term: a wrong P1 fold passes every query leaf, each leaf a
+word below `P` mod `L`. -/
+noncomputable def queryError (s : Shape) (L1 L P : ℕ) : ℝ :=
+  L1 * ((((2 ^ (s.setupVars - 3) - 1) * (P / L + 1) : ℕ) : ℝ) / P) ^ s.queries
 
 omit [Field F] [Field K] [Algebra F K] [Fintype K] [DecidableEq K] in
-theorem queryError_nonneg (s : Shape) (L1 L : ℕ) : 0 ≤ queryError s L1 L := by
+theorem queryError_nonneg (s : Shape) (L1 L P : ℕ) : 0 ≤ queryError s L1 L P := by
   unfold queryError; positivity
 
-theorem honestGame_cost (s : Shape) (S : Setup F) (L1 L : ℕ) [NeZero L] (q : ℕ → K)
+theorem honestGame_cost (s : Shape) (S : Setup F) (L1 L P : ℕ) [NeZero L] [NeZero P] (q : ℕ → K)
     (distinct : ∀ i j, i < L → j < L → q i = q j → i = j) (o : EarlyOut F K) (lin : LinearOut K) :
-    (honestGame s S L1 L q o lin).CostLe (((9 : ℕ) : ℝ) / Fintype.card K + queryError s L1 L) := by
-  refine ⟨((3 : ℕ) : ℝ) * (((2 : ℕ) : ℝ) / Fintype.card K) + queryError s L1 L, ?_, fun mu partials => ?_⟩
+    (honestGame s S L1 L P q o lin).CostLe (((9 : ℕ) : ℝ) / Fintype.card K + queryError s L1 L P) := by
+  refine ⟨((3 : ℕ) : ℝ) * (((2 : ℕ) : ℝ) / Fintype.card K) + queryError s L1 L P, ?_, fun mu partials => ?_⟩
   · have := density_le (zeros (runGroupPoly s S o)) 3
       (zeros_card_le_of_natDegree_le (runGroupPoly_natDegree s S o))
     have nine : ((9 : ℕ) : ℝ) / Fintype.card K =
@@ -223,28 +224,33 @@ theorem honestGame_cost (s : Shape) (S : Setup F) (L1 L : ℕ) [NeZero L] (q : �
   · intro p1
     refine ⟨0, ?_, fun _ => le_rfl⟩
     rw [add_zero]
-    have each := fun v : Fin p1.1.length => foldQueryBad_card (s.setupVars - 3) s.queries L q
+    set B := fun v : Fin p1.1.length => foldQueryBad (s.setupVars - 3) s.queries L q
+      (fold alpha (keyGroup s S lin.lam)) (fold alpha (runGroup S mu)) (p1.1.get v)
+    have each := fun v : Fin p1.1.length => foldQueryBad_card (s.setupVars - 3) s.queries L P q
       (fold alpha (keyGroup s S lin.lam)) (fold alpha (runGroup S mu)) (p1.1.get v) distinct
-    calc ((Finset.univ.biUnion fun v : Fin p1.1.length =>
-            foldQueryBad (s.setupVars - 3) s.queries L q (fold alpha (keyGroup s S lin.lam))
-              (fold alpha (runGroup S mu)) (p1.1.get v)).card : ℝ) / Fintype.card (Fin s.queries → Fin L)
-        ≤ (∑ v : Fin p1.1.length, ((foldQueryBad (s.setupVars - 3) s.queries L q
-            (fold alpha (keyGroup s S lin.lam)) (fold alpha (runGroup S mu)) (p1.1.get v)).card : ℝ)) /
-            Fintype.card (Fin s.queries → Fin L) :=
-          div_le_div_of_nonneg_right (by exact_mod_cast Finset.card_biUnion_le) (by positivity)
-      _ = ∑ v : Fin p1.1.length, ((foldQueryBad (s.setupVars - 3) s.queries L q
-            (fold alpha (keyGroup s S lin.lam)) (fold alpha (runGroup S mu)) (p1.1.get v)).card : ℝ) /
-            Fintype.card (Fin s.queries → Fin L) := Finset.sum_div _ _ _
-      _ ≤ ∑ _v : Fin p1.1.length, (((2 ^ (s.setupVars - 3) - 1 : ℕ) : ℝ) / L) ^ s.queries :=
+    have cover : (Finset.univ.filter fun words : Fin s.queries → Fin P =>
+          lowBits L words ∈ Finset.univ.biUnion B) ⊆
+        Finset.univ.biUnion fun v => Finset.univ.filter fun words => lowBits L words ∈ B v := by
+      intro words member
+      simpa only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_biUnion] using member
+    calc ((Finset.univ.filter fun words : Fin s.queries → Fin P =>
+            lowBits L words ∈ Finset.univ.biUnion B).card : ℝ) / Fintype.card (Fin s.queries → Fin P)
+        ≤ (∑ v : Fin p1.1.length, ((Finset.univ.filter fun words => lowBits L words ∈ B v).card : ℝ)) /
+            Fintype.card (Fin s.queries → Fin P) :=
+          div_le_div_of_nonneg_right (by exact_mod_cast (Finset.card_le_card cover).trans Finset.card_biUnion_le)
+            (by positivity)
+      _ = ∑ v : Fin p1.1.length, ((Finset.univ.filter fun words => lowBits L words ∈ B v).card : ℝ) /
+            Fintype.card (Fin s.queries → Fin P) := Finset.sum_div _ _ _
+      _ ≤ ∑ _v : Fin p1.1.length, ((((2 ^ (s.setupVars - 3) - 1) * (P / L + 1) : ℕ) : ℝ) / P) ^ s.queries :=
           Finset.sum_le_sum fun v _ => each v
-      _ = p1.1.length * (((2 ^ (s.setupVars - 3) - 1 : ℕ) : ℝ) / L) ^ s.queries := by simp
-      _ ≤ queryError s L1 L :=
+      _ = p1.1.length * ((((2 ^ (s.setupVars - 3) - 1) * (P / L + 1) : ℕ) : ℝ) / P) ^ s.queries := by simp
+      _ ≤ queryError s L1 L P :=
           mul_le_mul_of_nonneg_right (by exact_mod_cast p1.2) (by positivity)
-  · exact queryError_nonneg s L1 L
+  · exact queryError_nonneg s L1 L P
 
-theorem honestGame_ends (s : Shape) (S : Setup F) (L1 L : ℕ) [NeZero L] (q : ℕ → K)
+theorem honestGame_ends (s : Shape) (S : Setup F) (L1 L P : ℕ) [NeZero L] [NeZero P] (q : ℕ → K)
     (o : EarlyOut F K) (lin : LinearOut K) :
-    (honestGame s S L1 L q o lin).Ends fun r => ∀ h, r = some h → h.p1.length ≤ L1 := by
+    (honestGame s S L1 L P q o lin).Ends fun r => ∀ h, r = some h → h.p1.length ≤ L1 := by
   intro mu partials
   rw [Game.ends_bind]
   refine Game.Ends.of_forall (fun alpha => ?_) _
@@ -297,33 +303,34 @@ def layer1Count (s : Shape) (L0 L1 : ℕ) : ℕ :=
   earlyCount s L0 + linearCount s L0 + 9 + lateCount s L0 L1
 
 /-- The layer-1 error over a challenge field of `size` elements, with list
-sizes `L0` (P0) and `L1` (P1) and `L` query leaves. -/
-noncomputable def layer1Error (s : Shape) (L0 L1 L size : ℕ) : ℝ :=
-  (layer1Count s L0 L1 : ℝ) / size + queryError s L1 L
+sizes `L0` (P0) and `L1` (P1), `L` query leaves and query words below `P`. -/
+noncomputable def layer1Error (s : Shape) (L0 L1 L P size : ℕ) : ℝ :=
+  (layer1Count s L0 L1 : ℝ) / size + queryError s L1 L P
 
 theorem layer1Game_cost (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : Setup F)
-    (L0 L1 L : ℕ) [NeZero L] (q : ℕ → K) (distinct : ∀ i j, i < L → j < L → q i = q j → i = j)
-    (nodes : ∀ d, d ≤ 3 → NodesDistinct K d) (degree : Φ.natDegree = s.D) (two : 2 ≤ s.D) :
-    (layer1Game s Φ bar S L0 L1 L q).CostLe (layer1Error s L0 L1 L (Fintype.card K)) := by
+    (L0 L1 L P : ℕ) [NeZero L] [NeZero P] (q : ℕ → K)
+    (distinct : ∀ i j, i < L → j < L → q i = q j → i = j) (nodes : ∀ d, d ≤ 3 → NodesDistinct K d)
+    (degree : Φ.natDegree = s.D) (two : 2 ≤ s.D) :
+    (layer1Game s Φ bar S L0 L1 L P q).CostLe (layer1Error s L0 L1 L P (Fintype.card K)) := by
   have rest : 0 ≤ (linearCount s L0 : ℝ) / Fintype.card K +
-      ((((9 : ℕ) : ℝ) / Fintype.card K + queryError s L1 L) + ((lateCount s L0 L1 : ℝ) / Fintype.card K + 0)) := by
-    have := queryError_nonneg s L1 L
+      ((((9 : ℕ) : ℝ) / Fintype.card K + queryError s L1 L P) + ((lateCount s L0 L1 : ℝ) / Fintype.card K + 0)) := by
+    have := queryError_nonneg s L1 L P
     positivity
   unfold layer1Game
   intro st
   refine (Game.costLe_bind_of (earlyGame_cost s S st L0 nodes) (earlyGame_ends s S st L0)
     (δ := (linearCount s L0 : ℝ) / Fintype.card K +
-      ((((9 : ℕ) : ℝ) / Fintype.card K + queryError s L1 L) + ((lateCount s L0 L1 : ℝ) / Fintype.card K + 0)))
+      ((((9 : ℕ) : ℝ) / Fintype.card K + queryError s L1 L P) + ((lateCount s L0 L1 : ℝ) / Fintype.card K + 0)))
     ?_).mono ?_
   · rintro (_ | o) short
     · exact rest
     refine Game.costLe_bind (linearGame_cost s Φ bar S st o.candidates L0 (short o rfl) (nodes 1 (by norm_num))
       degree two) fun linear => ?_
     rcases linear with _ | lin
-    · exact (by have := queryError_nonneg s L1 L; positivity :
-        (0 : ℝ) ≤ (((9 : ℕ) : ℝ) / Fintype.card K + queryError s L1 L) +
+    · exact (by have := queryError_nonneg s L1 L P; positivity :
+        (0 : ℝ) ≤ (((9 : ℕ) : ℝ) / Fintype.card K + queryError s L1 L P) +
           ((lateCount s L0 L1 : ℝ) / Fintype.card K + 0))
-    refine Game.costLe_bind_of (honestGame_cost s S L1 L q distinct o lin) (honestGame_ends s S L1 L q o lin)
+    refine Game.costLe_bind_of (honestGame_cost s S L1 L P q distinct o lin) (honestGame_ends s S L1 L P q o lin)
       fun honest short1 => ?_
     rcases honest with _ | h
     · exact (by positivity : (0 : ℝ) ≤ (lateCount s L0 L1 : ℝ) / Fintype.card K + 0)
@@ -342,21 +349,21 @@ theorem layer1Game_cost (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : S
 prover, the verifier accepts while no P0 candidate is a CE(B) witness with
 probability at most `layer1Error`. -/
 theorem layer1_sound (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : Setup F)
-    (L0 L1 L : ℕ) [NeZero L] (q : ℕ → K) (N : ℕ) (sizes : s.Sizes N)
+    (L0 L1 L P : ℕ) [NeZero L] [NeZero P] (q : ℕ → K) (N : ℕ) (sizes : s.Sizes N)
     (cast : ∀ a b : ℕ, a < N → b < N → (a : K) = b → a = b)
     (distinct : ∀ i j, i < L → j < L → q i = q j → i = j) (fits : S.Fits s) (monic : Φ.Monic)
     (degree : Φ.natDegree = s.D) (two : 2 ≤ s.D) (prover : Game.Strategy (Option (Transcript F K s.queries L))) :
-    Game.prob prover (layer1Game s Φ bar S L0 L1 L q)
+    Game.prob prover (layer1Game s Φ bar S L0 L1 L P q)
         (fun r => ∃ tr, r = some tr ∧ ¬ ∃ w ∈ tr.early.candidates, Relation s Φ bar S tr.statement w.z) ≤
-      layer1Error s L0 L1 L (Fintype.card K) := by
+      layer1Error s L0 L1 L P (Fintype.card K) := by
   have proper : Φ ≠ 1 := by
     rintro rfl
     rw [natDegree_one] at degree
     omega
   rw [Game.prob_congr _ _ (E' := fun r =>
     ¬ ∀ tr, r = some tr → ∃ w ∈ tr.early.candidates, Relation s Φ bar S tr.statement w.z)]
-  · exact Game.prob_not_le _ _ _ _ (layer1Game_avoids s Φ bar S L0 L1 L q N sizes cast fits monic proper)
-      (layer1Game_cost s Φ bar S L0 L1 L q distinct (nodes_of_cast N cast sizes.big_nodes) degree two)
+  · exact Game.prob_not_le _ _ _ _ (layer1Game_avoids s Φ bar S L0 L1 L P q N sizes cast fits monic proper)
+      (layer1Game_cost s Φ bar S L0 L1 L P q distinct (nodes_of_cast N cast sizes.big_nodes) degree two)
   · intro r
     constructor
     · rintro ⟨tr, rfl, none⟩ all

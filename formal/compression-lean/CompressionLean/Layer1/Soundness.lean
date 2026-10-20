@@ -44,7 +44,7 @@ instance : Nonempty (Statement F) := ⟨⟨fun _ _ => 0, fun _ _ => 0, [], fun _
 
 /-- The layer-1 verifier: the statement, early, linear, honest fold, late, then the openings. -/
 noncomputable def layer1Game (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : Setup F)
-    (L0 L1 L : ℕ) [NeZero L] (q : ℕ → K) : Game (Option (Transcript F K s.queries L)) :=
+    (L0 L1 L P : ℕ) [NeZero L] [NeZero P] (q : ℕ → K) : Game (Option (Transcript F K s.queries L)) :=
   .recv (Statement F) fun st =>
   Game.bind (earlyGame s S st L0) fun early =>
   match early with
@@ -54,7 +54,7 @@ noncomputable def layer1Game (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (
   match linear with
   | none => .pure none
   | some lin =>
-  Game.bind (honestGame s S L1 L q o lin) fun honest =>
+  Game.bind (honestGame s S L1 L P q o lin) fun honest =>
   match honest with
   | none => .pure none
   | some h =>
@@ -139,10 +139,10 @@ theorem slotValue_of_map (H t : ℕ) (x : F) (equal : ι x = slotValue (K := K) 
 /-- Along every path that avoids the bad sets, an accepted transcript has a
 P0 candidate that is a CE(B) witness. -/
 theorem layer1Game_avoids (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : Setup F)
-    (L0 L1 L : ℕ) [NeZero L] (q : ℕ → K) (N : ℕ) (sizes : s.Sizes N)
+    (L0 L1 L P : ℕ) [NeZero L] [NeZero P] (q : ℕ → K) (N : ℕ) (sizes : s.Sizes N)
     (cast : ∀ a b : ℕ, a < N → b < N → (a : K) = b → a = b) (fits : S.Fits s) (monic : Φ.Monic)
     (proper : Φ ≠ 1) :
-    (layer1Game s Φ bar S L0 L1 L q).Avoids fun r =>
+    (layer1Game s Φ bar S L0 L1 L P q).Avoids fun r =>
       ∀ tr, r = some tr → ∃ w ∈ tr.early.candidates, Relation s Φ bar S tr.statement w.z := by
   have nodes := nodes_of_cast N cast sizes.big_nodes
   unfold layer1Game
@@ -159,7 +159,7 @@ theorem layer1Game_avoids (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S :
   · intro tr none; cases none
   obtain ⟨linearCheck, blockLength, laneLength, linearBad⟩ := linear lin rfl
   rw [Game.avoids_bind]
-  refine (honestGame_avoids s S L1 L q o lin).mono ?_
+  refine (honestGame_avoids s S L1 L P q o lin).mono ?_
   rintro (_ | h) honest
   · intro tr none; cases none
   obtain ⟨hμ, alphaLength, alphaPath, partialCheck, queryBad⟩ := honest h rfl

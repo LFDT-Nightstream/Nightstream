@@ -139,22 +139,20 @@ noncomputable def foldQueryBad (m t L : ℕ) (q : ℕ → K) (honestKey honestRu
       (univ m v.foldRun).eval (q j) = (univ m honestRun).eval (q j)
 
 omit [Fintype K] in
-theorem foldQueryBad_card (m t L : ℕ) (q : ℕ → K) (honestKey honestRun : ℕ → K) (v : P1Tables K)
-    (distinct : ∀ i j, i < L → j < L → q i = q j → i = j) :
-    ((foldQueryBad m t L q honestKey honestRun v).card : ℝ) / Fintype.card (Fin t → Fin L) ≤
-      ((2 ^ m - 1 : ℕ) / (L : ℝ)) ^ t := by
+/-- Words whose every leaf a wrong P1 candidate passes: density at most
+`((2^m - 1)·(P / L + 1) / P)^t`. -/
+theorem foldQueryBad_card (m t L P : ℕ) [NeZero L] (q : ℕ → K) (honestKey honestRun : ℕ → K)
+    (v : P1Tables K) (distinct : ∀ i j, i < L → j < L → q i = q j → i = j) :
+    ((Finset.univ.filter fun x : Fin t → Fin P => lowBits L x ∈ foldQueryBad m t L q honestKey honestRun v).card :
+        ℝ) / Fintype.card (Fin t → Fin P) ≤
+      ((((2 ^ m - 1) * (P / L + 1) : ℕ) : ℝ) / P) ^ t := by
   classical
   unfold foldQueryBad
   split
-  · simp only [Finset.card_empty, Nat.cast_zero, zero_div]
+  · simp only [Finset.notMem_empty, Finset.filter_false, Finset.card_empty, Nat.cast_zero, zero_div]
     positivity
   · rename_i wrong
-    by_cases empty : L = 0
-    · subst empty
-      cases t with
-      | zero => simp [queryBad]
-      | succ t => simp
-    apply queryBad_density _ _ _ _ (Nat.pos_of_ne_zero empty)
+    apply lowBitsBad_density
     push Not at wrong
     obtain ⟨i, lt, differs⟩ := wrong
     have bound : ∀ (g h : ℕ → K), g i ≠ h i →
@@ -199,8 +197,8 @@ noncomputable def alphaBad (s : Shape) (S : Setup F) (o : EarlyOut F K) (lin : L
 
 open Classical in
 /-- The honest-fold stage: `μ`, the partials, `α`, the partial checks, the P1
-candidates and the query leaves. -/
-noncomputable def honestGame (s : Shape) (S : Setup F) (L1 L : ℕ) [NeZero L] (q : ℕ → K)
+candidates and the query leaves, drawn as uniform words below `P` mod `L`. -/
+noncomputable def honestGame (s : Shape) (S : Setup F) (L1 L P : ℕ) [NeZero L] [NeZero P] (q : ℕ → K)
     (o : EarlyOut F K) (lin : LinearOut K) : Game (Option (HonestOut K s.queries L)) :=
   .draw K (zeros (runGroupPoly s S o)) fun mu =>
   .recv (Fin 2 → ℕ → K) fun partials =>
@@ -208,10 +206,11 @@ noncomputable def honestGame (s : Shape) (S : Setup F) (L1 L : ℕ) [NeZero L] (
     if mle ((keyPoint s lin).take 3) (partials 0) = lin.keyValue ∧
         mle ((padded s.setupVars o.runPoint).take 3) (partials 1) = runValue s S o mu then
       .recv {l : List (P1Tables K) // l.length ≤ L1} fun p1 =>
-      .draw (Fin s.queries → Fin L) (Finset.univ.biUnion fun v : Fin p1.1.length =>
-          foldQueryBad (s.setupVars - 3) s.queries L q (fold alpha (keyGroup s S lin.lam))
-            (fold alpha (runGroup S mu)) (p1.1.get v))
-        fun queries => .pure (some ⟨mu, partials, alpha, p1.1, queries⟩)
+      .draw (Fin s.queries → Fin P) (Finset.univ.filter fun words => lowBits L words ∈
+          Finset.univ.biUnion fun v : Fin p1.1.length =>
+            foldQueryBad (s.setupVars - 3) s.queries L q (fold alpha (keyGroup s S lin.lam))
+              (fold alpha (runGroup S mu)) (p1.1.get v))
+        fun words => .pure (some ⟨mu, partials, alpha, p1.1, lowBits L words⟩)
     else .pure none
 
 /-- The P1 openings of the honest-fold stage agree with candidate `v`. -/

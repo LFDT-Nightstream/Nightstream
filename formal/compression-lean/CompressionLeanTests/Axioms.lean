@@ -47,7 +47,10 @@ import CompressionLean
 #audit_axioms CompressionLean.Layer1.univ_eq_zero
 #audit_axioms CompressionLean.Layer1.leaf_formula
 #audit_axioms CompressionLean.Layer1.agreement_card
-#audit_axioms CompressionLean.Layer1.queryBad_density
+#audit_axioms CompressionLean.Layer1.residue_card
+#audit_axioms CompressionLean.Layer1.lowBits_fiber_card
+#audit_axioms CompressionLean.Layer1.lowBitsBad_density
+#audit_axioms CompressionLean.Layer1.foldQueryBad_card
 #audit_axioms CompressionLean.Layer1.early_world
 #audit_axioms CompressionLean.Layer1.late_world
 #audit_axioms CompressionLean.Layer1.slotWeights_eq
@@ -67,6 +70,8 @@ import CompressionLean
 #audit_axioms CompressionLean.Layer1.layer1Game_cost
 #audit_axioms CompressionLean.Layer1.layer1_sound
 #audit_axioms CompressionLean.Layer1.layer1Count_le_rust
+#audit_axioms CompressionLean.Layer1.goldilocks_half
+#audit_axioms CompressionLean.Layer1.query_half
 #audit_axioms CompressionLean.Layer1.layer1_budget
 #audit_axioms CompressionLean.Layer1.Game.restore_sound
 #audit_axioms CompressionLean.Layer1.layer1_restore_sound

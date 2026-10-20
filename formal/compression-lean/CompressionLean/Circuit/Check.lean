@@ -10,12 +10,14 @@ The `lowerCheck` executable. It reads one export of `neo-spartan`'s
 `tests/internal/lowering.rs` (the statement, the IR, then Rust's trace),
 lowers the IR in Goldilocks and compares the run with the trace: the glue
 cells, the blocks, the statement words and every glue row, side by side and
-term by term (`Call.computedRows`, which is `Call.rows`). It prints `match`
-and the counts, or the first difference and exits with 1.
+term by term (`Call.computedRows`, which is `Call.rows`). It prints `match`,
+the counts and the run digest (`runDigest`), or the first difference and
+exits with 1.
 
 With a program name it also writes that program with the Lean builder and
 compares it with the IR, instruction by instruction, as `Log` writes them
-(`line`):
+(`line`). It then lowers Lean's program, so the digest is that of Lean's
+run:
 
 - `shared`: the Lean side of `Shared`, every helper of `Algebra.lean`,
   `Hash.lean`, `Fold.lean` and `Sumcheck.lean`. The whole IR must match.
@@ -351,6 +353,22 @@ def compareMirror (mirror : Mirror) (rust : Array Instr) : Except String String 
   pure s!"Lean's program is {if mirror.whole then "all" else "the first"} {mirror.instrs.size} of Rust's \
     {rust.size} instructions"
 
+/-- The run digest (`run_digest`, `lowering.rs`): Poseidon2's leaf sponge
+(`Replay.hashLeaf`) of the glue cell, block, statement word and row counts,
+then every row's seven sides, each as its term count and, per term, the wire
+(`0 cell`, `1 block cell` or `2 index`) and the coefficient. The statement
+and cell values are not part of it. -/
+def runDigest (run : Run G) (rows : Array (GlueRow G)) : Array Gl :=
+  let wireWords : Wire → Array ℕ
+    | .glue cell => #[0, cell]
+    | .block b cell => #[1, b, cell]
+    | .pub index => #[2, index]
+  let sideWords (side : List (Wire × G)) : Array ℕ :=
+    side.foldl (fun out (w, c) => (out ++ wireWords w).push c.val) #[side.length]
+  let words := rows.foldl (init := #[run.cells, run.blocks, run.publics.length, rows.size]) fun out row =>
+    (List.finRange 7).foldl (fun out s => out ++ sideWords (row.side s)) out
+  Replay.hashLeaf (words.map Gl.ofNat)
+
 /-- Compare `mirror` with the IR, then the lowered run with the trace that
 follows the program. -/
 def check (mirror : Option Mirror) : Parser String := do
@@ -361,7 +379,8 @@ def check (mirror : Option Mirror) : Parser String := do
     | none => pure ""
     | some (.ok message) => pure s!"; {message}"
     | some (.error message) => throw message
-  let run := lower (F := G) instrs (stmt.map fun g => (g.toNat : G))
+  let source := ((mirror.filter (·.whole)).map (·.instrs)).getD instrs
+  let run := lower (F := G) source (stmt.map fun g => (g.toNat : G))
   keyword "cells"
   expect "glue cells" run.cells (← nat)
   keyword "blocks"
@@ -377,7 +396,7 @@ def check (mirror : Option Mirror) : Parser String := do
     for s in List.finRange 7 do
       expect s!"row {r} side {s}" ((rows[r]'h.2.1).side s |>.map fun t => (t.1, t.2.val)) (← traceSide)
   pure s!"match: {instrs.size} instructions, {rows.size} rows, {run.cells} glue cells, {run.blocks} blocks, \
-    {run.publics.length} statement words{mirrored}"
+    {run.publics.length} statement words{mirrored}; digest {(runDigest run rows).toList.map Gl.toNat}"
 
 /-- The export's path and Lean's program for it, from the arguments. -/
 def arguments : List String → IO (Except String (String × Option Mirror))

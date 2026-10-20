@@ -26,40 +26,39 @@ def readOpening (shape : WhirShape) (o : Opening) : Except String Unit := do
 def whirSumcheck (shape : SumcheckShape) (pairs : Array (Ext × Ext)) : ReplayM Unit := do
   unless pairs.isEmpty do
     observeAll shape.seed
-    for pair in pairs do
-      observeExt pair.1
-      observeExt pair.2
+    pairs.toList.forM fun pair => do
+      observeExts #[pair.1, pair.2]
       discard sampleExt
 
 /-- `draws` query indices: a sample, rejected when it is `p - 1` (`query_index`). -/
-def whirQueries (draws : Nat) : ReplayM Unit := do
-  for _ in [0:draws] do
+def whirQueries (draws : Nat) : ReplayM Unit :=
+  (List.range draws).forM fun _ => do
     let word ← sampleWord
     ensure (!(word + 1 == 0)) "WHIR query sample p - 1"
     record (.sample word)
 
 /-- The transcript of one WHIR opening; returns the opened batch values. -/
 def whirTranscript (shape : WhirShape) (o : Opening) : ReplayM (Array (Array Ext)) := do
-  for answer in o.initialOod do
+  o.initialOod.toList.forM fun answer => do
     observeAll shape.virtualSeed
     discard sampleExt
     observeExt answer
-  for pair in shape.batches.zip o.evals do
+  (shape.batches.zip o.evals).toList.forM fun pair => do
     observeAll pair.1.seed
-    pair.2.forM observeExt
+    observeExts pair.2
   observeAll shape.whirSeed
   observeAll shape.batchingSeed
   discard sampleExt
   whirSumcheck shape.initialSumcheck o.initialSumcheck
-  for pair in shape.rounds.zip o.rounds do
+  (shape.rounds.zip o.rounds).toList.forM fun pair => do
     observeAll pair.2.root
-    for answer in pair.2.ood do
+    pair.2.ood.toList.forM fun answer => do
       discard sampleExt
       observeExt answer
     whirQueries pair.1.queryDraws
     discard sampleExt
     whirSumcheck pair.1.sumcheck pair.2.sumcheck
-  o.finalPoly.forM observeExt
+  observeExts o.finalPoly
   whirQueries shape.finalQueryDraws
   whirSumcheck shape.finalSumcheck o.finalSumcheck
   return o.evals

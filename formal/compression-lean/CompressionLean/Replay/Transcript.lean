@@ -68,10 +68,13 @@ def sample (d : Duplex) : Gl × Duplex :=
 
 end Duplex
 
-/-- One challenge as Rust's verifier draws it: an extension value
-(`sample_ext`), or a raw word split into bits (`sample_bits`, WHIR queries). -/
+/-- One challenge as the model draws it: an extension value, a pair of them
+(the early `(β, γ)` and `(β, μ)`), or the words of the setup queries
+(`sample_bits`). WHIR's query words are single samples. -/
 inductive Draw where
   | ext (value : Ext)
+  | pair (first second : Ext)
+  | words (values : Array Gl)
   | sample (word : Gl)
 
 structure Transcript where
@@ -85,17 +88,17 @@ abbrev ReplayM := ExceptT String (StateM Transcript)
 def ensure {m : Type → Type} [Monad m] [MonadExcept String m] (ok : Bool) (what : String) : m Unit :=
   unless ok do throw what
 
-def observe (value : Gl) : ReplayM Unit :=
-  modify fun t => { t with duplex := t.duplex.observe value }
-
+/-- Absorb `values` in order. -/
 def observeAll (values : Array Gl) : ReplayM Unit :=
-  values.forM observe
+  modify fun t => { t with duplex := values.foldl Duplex.observe t.duplex }
 
-/-- The basis coefficients in order (`observe_ext`). -/
-def observeExt (value : Ext) : ReplayM Unit := do
-  observe value.c0
-  observe value.c1
-  observe value.c2
+/-- The basis coefficients of each value in order (`observe_ext`). -/
+def observeExts (values : Array Ext) : ReplayM Unit :=
+  observeAll (values.flatMap fun value => #[value.c0, value.c1, value.c2])
+
+def observeExt (value : Ext) : ReplayM Unit := observeExts #[value]
+
+def flatPairs (pairs : Array (Ext × Ext)) : Array Ext := pairs.flatMap fun pair => #[pair.1, pair.2]
 
 def sampleWord : ReplayM Gl :=
   modifyGet fun t => let (word, duplex) := t.duplex.sample; (word, { t with duplex })
@@ -103,20 +106,30 @@ def sampleWord : ReplayM Gl :=
 def record (draw : Draw) : ReplayM Unit :=
   modify fun t => { t with draws := t.draws.push draw }
 
-/-- Coefficient `i` is the `i`-th sample (`sample_ext`). -/
-def sampleExt : ReplayM Ext := do
+/-- Coefficient `i` is the `i`-th sample (`sample_ext`); not recorded. -/
+def drawExt : ReplayM Ext := do
   let c0 ← sampleWord
   let c1 ← sampleWord
   let c2 ← sampleWord
-  let value : Ext := ⟨c0, c1, c2⟩
+  pure ⟨c0, c1, c2⟩
+
+def sampleExt : ReplayM Ext := do
+  let value ← drawExt
   record (.ext value)
   pure value
 
-/-- The low `bits` bits of a sample, as an index (`sample_bits`). -/
-def sampleBits (bits : Nat) : ReplayM Nat := do
-  let word ← sampleWord
-  record (.sample word)
-  pure (word.toNat % 2 ^ bits)
+/-- Two extension samples that the model draws as one pair. -/
+def samplePair : ReplayM (Ext × Ext) := do
+  let first ← drawExt
+  let second ← drawExt
+  record (.pair first second)
+  pure (first, second)
+
+/-- `count` words, recorded as one draw (the setup queries). -/
+def sampleWords (count : Nat) : ReplayM (Array Gl) := do
+  let values ← (List.range count).foldlM (fun values _ => do pure (values.push (← sampleWord))) #[]
+  record (.words values)
+  pure values
 
 /-- The overwrite sponge of Plonky3's `PaddingFreeSponge` (`hash_leaf`). -/
 def hashLeaf (values : Array Gl) : Array Gl :=

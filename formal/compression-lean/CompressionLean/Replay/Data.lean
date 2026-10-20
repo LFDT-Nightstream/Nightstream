@@ -219,9 +219,6 @@ def cubeVars : Nat := rel.blockVars + laneVars
 /-- Every setup oracle has this many variables (`Key::setup_variables`). -/
 def setupVars : Nat := max rel.cubeVars rel.key.layout.runVariables
 def matrixVars : Nat := Nat.log2 rel.matrices.nextPowerOfTwo
-/-- Commitment rows, Eval_K (2), Eval_A (2 per matrix), public blocks (`ring::row_count`). -/
-def rowCount : Nat := rel.kappa + 2 + 2 * rel.matrices + rel.publicBlocks
-
 /-- The norm tree over the cube, then the four matrix early trees. -/
 def earlyShapes : Array TreeShape :=
   let l := rel.key.layout

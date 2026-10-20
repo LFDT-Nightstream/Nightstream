@@ -10,9 +10,15 @@ verdicts; the comparison is the Rust test's.
 
 open Lean CompressionLean.Replay
 
-def drawLine : Draw → String
-  | .ext value => s!"e {value.c0.toNat} {value.c1.toNat} {value.c2.toNat}"
-  | .sample word => s!"s {word.toNat}"
+def extLine (value : Ext) : String := s!"e {value.c0.toNat} {value.c1.toNat} {value.c2.toNat}"
+
+/-- One line per sample, as Rust logs them: a pair is two extension draws and
+the setup query words are one sample each. -/
+def drawLines : Draw → List String
+  | .ext value => [extLine value]
+  | .pair first second => [extLine first, extLine second]
+  | .words values => values.toList.map fun word => s!"s {word.toNat}"
+  | .sample word => [s!"s {word.toNat}"]
 
 def main (args : List String) : IO UInt32 := do
   let [path] := args | IO.eprintln "usage: replayLayer1 <export.json>"; return 2
@@ -24,6 +30,7 @@ def main (args : List String) : IO UInt32 := do
       (verify data.relation variant.seed variant.statement variant.proof).run.run ⟨Duplex.new, #[]⟩
     out.putStrLn s!"variant {variant.name}"
     for draw in transcript.draws do
-      out.putStrLn (drawLine draw)
+      for line in drawLines draw do
+        out.putStrLn line
     out.putStrLn (match verdict with | .ok () => "accept" | .error what => s!"reject {what}")
   return 0

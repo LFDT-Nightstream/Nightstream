@@ -107,6 +107,7 @@ end Ext
 structure Kx where
   re : Ext
   im : Ext
+deriving Inhabited
 
 namespace Kx
 

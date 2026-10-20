@@ -4,13 +4,14 @@ import CompressionLean.Replay.Whir
 Owns the replay of the layer-1 verifier (`crates/neo-spartan/src/verifier.rs`)
 in the stage order of the model (`Layer1/Stages.lean`, `Layer1/Soundness.lean`):
 the proof shape, early, linear, honest fold, late, then the two openings.
-Each stage draws its challenges, checks what Rust checks in Rust's order,
-rejects with Rust's name for the first failed check, and returns the values
-the model's transcript holds (`EarlyOut`, `LinearOut`, `HonestOut`, `LateOut`).
-WHIR's own checks are not replayed (`Whir.lean`).
+Each stage draws its challenges as the model draws them, checks what Rust
+checks in Rust's order, rejects with Rust's name for the first failed check,
+and returns the values the model's transcript holds (`EarlyOut`,
+`LinearOut`, `HonestOut`, `LateOut`). WHIR's own checks are not replayed
+(`Whir.lean`).
 
 The check families are pure functions (`checkEarly`, `checkLate`,
-`setupCheck`), so a later bridge can relate each one to the model's
+`setupCheck`, `openingsAgree`); `Bridge/` relates each one to the model's
 conditions (`EarlyChecks`, `LinearCheck`, `HonestConsistent`, `LateChecks`,
 `Opens`).
 -/
@@ -26,9 +27,8 @@ def readProof (rel : Relation) (proof : Proof) : Except String Unit := do
     proof.p0.size == 4 && proof.p1.size == 4 && proof.finals.size == 3 &&
     proof.partials.size == 2 && proof.partials.all (·.size == 2 ^ foldVars)) "proof shape"
   readGkr proof.early rel.earlyShapes
-  for leaf in proof.leaves do
-    ensure (leaf.values.size == (rel.kappa + runOracles) * 2 ^ foldVars &&
-      leaf.path.size == rel.setupVars + 1 - foldVars) "setup leaf shape"
+  ensure (proof.leaves.all fun leaf => leaf.values.size == (rel.kappa + runOracles) * 2 ^ foldVars &&
+    leaf.path.size == rel.setupVars + 1 - foldVars) "setup leaf shape"
   readGkr proof.late rel.lateShapes
   readOpening rel.p1Whir proof.p1Opening
   readOpening rel.p0Whir proof.p0Opening
@@ -42,13 +42,11 @@ structure EarlyChallenges where
   scatter : Ext × Ext
 
 /-- `Σ_t m_t/(β - (t - H))`; rejects a pole (`norm::table_sum`, the model's `tableSum`). -/
-def tableSum (bound : Nat) (counts : Array Gl) (beta : Ext) : Except String Ext := do
-  let mut total : Ext := 0
-  for slot in [0:counts.size] do
+def tableSum (bound : Nat) (counts : Array Gl) (beta : Ext) : Except String Ext :=
+  (List.range counts.size).foldlM (fun total slot => do
     let denominator := beta - Ext.ofGl (Gl.ofNat slot - Gl.ofNat bound)
     ensure (!denominator.isZero) "histogram pole"
-    total := total + denominator.inv.scale counts[slot]!
-  return total
+    pure (total + denominator.inv.scale counts[slot]!)) 0
 
 /-- `P_x·Q_y = P_y·Q_x` with both denominators nonzero (`check_pair`, the model's `PairCheck`). -/
 def pairCheck (x y : Ext × Ext) (name : String) : Except String Unit := do
@@ -61,8 +59,8 @@ def tuple (gamma r e₁ e₂ : Ext) : Ext := r + gamma * (e₁ + gamma * e₂)
 
 /-- `j~` over runs: matrix `j` on its run range, zero on padding runs (`matrix_step`). -/
 def matrixStep (layout : Layout) (point : Array Ext) : Ext :=
-  step point (layout.runBounds.extract 0 layout.matrices)
-    ((Array.range layout.matrices).map fun j => Ext.ofGl (Gl.ofNat j)) layout.runBounds[layout.matrices]!
+  step point ((layout.runBounds.extract 0 layout.matrices).toList.zip
+    ((List.range layout.matrices).map fun j => Ext.ofGl (Gl.ofNat j))) layout.runBounds[layout.matrices]!
 
 /-- What the early leaf checks leave to openings and to the honest fold. -/
 structure EarlyOpenings where
@@ -80,22 +78,21 @@ def checkEarly (layout : Layout) (r : Array (Gl × Gl)) (ch : EarlyChallenges) (
     (v : EarlyValues) : Except String EarlyOpenings := do
   pairCheck claims.roots[1]! claims.roots[2]! "row lookup"
   pairCheck claims.roots[3]! claims.roots[4]! "slot scatter"
-  let (beta, gamma) := ch.lookup
-  ensure (claims.leafValue 1 0 == beta - tuple gamma v.row v.eRe v.eIm) "row lookup run leaf"
+  ensure (claims.leafValue 1 0 == ch.lookup.1 - tuple ch.lookup.2 v.row v.eRe v.eIm) "row lookup run leaf"
   let rowPoint := claims.leafPoint[2]!
   let chiValue := chi r rowPoint
-  ensure (claims.leafValue 2 1 == beta - tuple gamma (identityValue rowPoint) chiValue.re chiValue.im)
+  ensure (claims.leafValue 2 1 == ch.lookup.1 - tuple ch.lookup.2 (identityValue rowPoint) chiValue.re chiValue.im)
     "row lookup row leaf"
-  let (beta, mu) := ch.scatter
-  ensure (claims.leafValue 3 1 == v.eRe + mu * v.eIm) "slot scatter run leaf"
+  ensure (claims.leafValue 3 1 == v.eRe + ch.scatter.2 * v.eIm) "slot scatter run leaf"
   let runPoint := claims.leafPoint[3]!
   let tag := (matrixStep layout runPoint).scale (Gl.ofNat (2 ^ layout.slotVariables))
-  let slotClaim := beta - claims.leafValue 3 2 - tag
+  let slotClaim := ch.scatter.1 - claims.leafValue 3 2 - tag
   let pairPoint := claims.leafPoint[4]!
   let eq := eqTable (pairPoint.extract layout.slotVariables pairPoint.size)
-  let combined := (v.pairs.zip eq).foldl (fun total pair => total + pair.2 * (pair.1.1 + mu * pair.1.2)) 0
+  let combined := sumRange (min v.pairs.size eq.size) fun j =>
+    eq[j]! * ((v.pairs[j]!).1 + ch.scatter.2 * (v.pairs[j]!).2)
   ensure (claims.leafValue 4 0 == combined) "slot scatter pair leaf"
-  ensure (claims.leafValue 4 1 == beta - identityValue pairPoint) "slot scatter pair leaf"
+  ensure (claims.leafValue 4 1 == ch.scatter.1 - identityValue pairPoint) "slot scatter pair leaf"
   return { runPoint, pairPoint := pairPoint.extract 0 layout.slotVariables, rowPoint,
            mult := claims.leafValue 2 0, rowClaim := v.row, slotClaim,
            coefClaim := claims.leafValue 3 0 }
@@ -114,31 +111,23 @@ def earlyStage (rel : Relation) (st : Statement) (proof : Proof) : ReplayM Early
   observeAll proof.p0
   observeAll proof.histogram
   let beta ← sampleExt
-  let lookup := (← sampleExt, ← sampleExt)
-  let scatter := (← sampleExt, ← sampleExt)
+  let lookup ← samplePair
+  let scatter ← samplePair
   let challenges : EarlyChallenges := { beta, lookup, scatter }
   let total ← liftExcept (tableSum rel.normBound proof.histogram beta)
   let claims ← gkrVerify proof.early rel.earlyShapes
-  let (p, q) := claims.roots[0]!
-  ensure (!q.isZero) "GKR root against the histogram"
-  ensure (p == q * total) "GKR root against the histogram"
+  ensure (!(claims.roots[0]!).2.isZero) "GKR root against the histogram"
+  ensure ((claims.roots[0]!).1 == (claims.roots[0]!).2 * total) "GKR root against the histogram"
   let openings ← liftExcept (checkEarly rel.key.layout st.point challenges claims proof.earlyValues)
   let v := proof.earlyValues
-  observeExt v.eRe
-  observeExt v.eIm
-  observeExt v.row
-  for pair in v.pairs do
-    observeExt pair.1
-    observeExt pair.2
-  observeExt v.block
+  observeExts (#[v.eRe, v.eIm, v.row] ++ flatPairs v.pairs ++ #[v.block])
   return { challenges, gkr := claims, values := v, zLeaf := beta - claims.leafValue 0 0, openings }
 
 /-! ## Linear (`verifier.rs` from `λ` to the linear claim) -/
 
 /-- `Λ~(x) = Σ_{l<D} ζ^l·eq(x, l)` (`lane_value`, the model's `laneTable` extension). -/
 def laneValue (zeta : Ext) (point : Array Ext) : Ext :=
-  let eq := eqTable point
-  ((List.range D).foldl (fun (acc : Ext × Ext) l => (acc.1 + eq[l]! * acc.2, acc.2 * zeta)) (0, 1)).1
+  sumRange D fun l => (eqTable point)[l]! * zeta.pow l
 
 /-- The linear stage's transcript (the model's `LinearOut`) and what later
 stages read. -/
@@ -160,19 +149,19 @@ structure LinearOut where
 def omegaComputed (rel : Relation) (st : Statement) (m : Mixing) (tau blockPoint : Array Ext)
     (scale keyValue omegaValue : Ext) : Ext :=
   let evalKValue := evalK st.point blockPoint tau rel.key.blocks
-  let pub := (List.range rel.publicBlocks).foldl (fun total b => total + eqAt blockPoint b * m.public b) 0
+  let pub := sumRange rel.publicBlocks fun b => eqAt blockPoint b * m.public b
   scale * keyValue + m.evalK.1 * evalKValue.re + m.evalK.2 * evalKValue.im + omegaValue + pub
 
 def linearStage (rel : Relation) (st : Statement) (proof : Proof) : ReplayM LinearOut := do
   let lam ← sampleExt
-  let mixing := Mixing.new lam rel.rowCount rel.kappa rel.matrices
-  proof.quotient.forM observeExt
+  let mixing : Mixing := { lam, kappa := rel.kappa, matrices := rel.matrices }
+  observeExts proof.quotient
   let zeta ← sampleExt
   let value := liftedTarget (targets st mixing) proof.quotient zeta
   -- The block bits bind first, then the lane bits: one replay, split at the block bits.
   let (blockPoint, middle) ← sumcheckReplay (proof.linear.extract 0 rel.blockVars) value
   let (lanePart, last) ← sumcheckReplay (proof.linear.extract rel.blockVars proof.linear.size) middle
-  proof.finals.forM observeExt
+  observeExts proof.finals
   let (scale, lanePoint) ← liftExcept (scaledEqPoint zeta laneVars)
   let tau := tau zeta
   let (keyValue, omegaValue, zValue) := (proof.finals[0]!, proof.finals[1]!, proof.finals[2]!)
@@ -182,47 +171,57 @@ def linearStage (rel : Relation) (st : Statement) (proof : Proof) : ReplayM Line
 
 /-! ## Honest fold (`verifier.rs` from `μ` to the setup queries, `setup.rs`) -/
 
-/-- A point padded with zeros to the setup setupVariables (`setup_point`, the model's `padded`). -/
+/-- A point padded with zeros to the setup variables (`setup_point`, the model's `padded`). -/
 def padded (n : Nat) (point : Array Ext) : Array Ext := point ++ Array.replicate (n - point.size) 0
 
 /-- `Σ_u eq(point, u)·partials[u]` (`combine`). -/
 def combine (partials point : Array Ext) : Ext := dot (eqTable point) partials
 
+/-- The leaf's path reaches the key root, lane by lane (`merkle_root`). -/
+def pathOk (root : Array Gl) (index : Nat) (leaf : Leaf) : Bool :=
+  let computed := merkleRoot (hashLeaf leaf.values) index leaf.path
+  (List.range 4).all fun lane => computed[lane]! == root[lane]!
+
+/-- `α^[u] = Π_i α_i^{bit i of u}`, low bit first (the model's `monomial`). -/
+def monomial : List Ext → Nat → Ext
+  | [], _ => 1
+  | a :: rest, u => (if u % 2 = 1 then a else 1) * monomial rest (u / 2)
+
+/-- The weight of coset value `v`: `Σ_u α^[u]·2^-f·y^-u·ω^-uv` (the model's `leaf_formula`). -/
+def leafWeight (alpha : Array Ext) (yInverse omega : Gl) (v : Nat) : Ext :=
+  sumRange (2 ^ foldVars) fun u =>
+    ((monomial alpha.toList u).scale ((Gl.ofNat (2 ^ foldVars)).inv * yInverse.pow u)).scale
+      (omega.pow ((2 ^ foldVars - u) * v % 2 ^ foldVars))
+
 /-- One queried setup leaf: its path to the key root, then each group's folded
-value `Σ_u α^[u]·Ô_u(q)` (`setup::check`, the model's `leaf_formula`). -/
+value `Σ_v w_v·Σ_k weight_k·Ô_k(y·ω^v)` (`setup::check`, the model's `leaf_formula`). -/
 def setupCheck (root : Array Gl) (setupVariables index : Nat) (leaf : Leaf) (groups : Array (Array Ext))
     (alpha : Array Ext) : Except String (Array Ext) := do
-  let computed := merkleRoot (hashLeaf leaf.values) index leaf.path
-  for lane in [0:4] do
-    ensure (computed[lane]! == root[lane]!) "setup leaf path"
-  let rotation := powerFromBits (twoAdicGenerator (setupVariables + 1)).inv index (setupVariables + 1 - foldVars)
-  let yInverse := rotation * generator.inv
-  let monomials := alpha.foldl (fun ms a => ms ++ ms.map (· * a)) #[(1 : Ext)]
-  let coefficients := (monomials.foldl (fun (acc : Array Ext × Gl) m => (acc.1.push (m.scale acc.2), acc.2 * yInverse))
-    (#[], (Gl.ofNat (2 ^ foldVars)).inv)).1
+  ensure (pathOk root index leaf) "setup leaf path"
+  let yInverse := powerFromBits (twoAdicGenerator (setupVariables + 1)).inv index (setupVariables + 1 - foldVars) *
+    generator.inv
   let omega := twoAdicGenerator foldVars
-  let leafSize := 2 ^ foldVars
-  let weight := (Array.range leafSize).map fun v =>
-    (List.range leafSize).foldl (fun total u => total + coefficients[u]!.scale (omega.pow ((leafSize - u) * v % leafSize))) 0
-  let folded := groups.foldl (fun (acc : Array Ext × Nat) weights =>
-    let combined := (Array.range leafSize).map fun v =>
-      (List.range weights.size).foldl (fun total k => total + weights[k]!.scale leaf.values[(acc.2 + k) * leafSize + v]!) 0
-    (acc.1.push (dot weight combined), acc.2 + weights.size)) (#[], 0)
-  return folded.1
+  let offsets := groups.foldl (fun offsets weights => offsets.push (offsets.back! + weights.size)) #[0]
+  return (groups.zip offsets).map fun pair =>
+    sumRange (2 ^ foldVars) fun v => leafWeight alpha yInverse omega v *
+      sumRange pair.1.size fun k => (pair.1[k]!).scale leaf.values[(pair.2 + k) * 2 ^ foldVars + v]!
 
 /-- The honest-fold stage's transcript (the model's `HonestOut`) and the
 queried folded values. -/
 structure HonestOut where
   mu : Ext
   alpha : Array Ext
+  words : Array Gl
   queries : Array Nat
   queried : Array Ext
 
 def honestStage (rel : Relation) (proof : Proof) (early : EarlyOut) (lin : LinearOut) : ReplayM HonestOut := do
   let mu ← sampleExt
-  for values in proof.partials do
-    values.forM observeExt
-  let alpha := #[← sampleExt, ← sampleExt, ← sampleExt]
+  observeExts proof.partials.flatten
+  let a0 ← sampleExt
+  let a1 ← sampleExt
+  let a2 ← sampleExt
+  let alpha := #[a0, a1, a2]
   let setupVariables := rel.setupVars
   let keyPoint := padded setupVariables (lin.lanePoint ++ lin.blockPoint)
   let runPoint := padded setupVariables early.openings.runPoint
@@ -234,24 +233,19 @@ def honestStage (rel : Relation) (proof : Proof) (early : EarlyOut) (lin : Linea
   ensure (combine proof.partials[1]! (runPoint.extract 0 foldVars) == runValue) "honest-fold partials"
   observeAll rel.commitmentSeed
   observeAll proof.p1
-  let mut queries := #[]
-  for _ in [0:rel.queries] do
-    queries := queries.push (← sampleBits (setupVariables + 1 - foldVars))
-  let commitmentRows := (Array.range rel.kappa).map lin.mixing.commitment
-  let runWeights := (List.range (runOracles - 1)).foldl (fun ws _ => ws.push (ws.back! * mu)) #[(1 : Ext)]
-  let mut queried := #[]
-  for pair in queries.zip proof.leaves do
-    queried := queried ++ (← liftExcept (setupCheck rel.key.root setupVariables pair.1 pair.2
-      #[commitmentRows, runWeights] alpha))
-  return { mu, alpha, queries, queried }
+  let words ← sampleWords rel.queries
+  let queries := words.map fun word => word.toNat % 2 ^ (setupVariables + 1 - foldVars)
+  let groups := #[(Array.range rel.kappa).map lin.mixing.commitment, (Array.range runOracles).map mu.pow]
+  let queried ← liftExcept ((queries.zip proof.leaves).toList.foldlM (fun queried pair => do
+    pure (queried ++ (← setupCheck rel.key.root setupVariables pair.1 pair.2 groups alpha))) #[])
+  return { mu, alpha, words, queries, queried }
 
 /-! ## Late (`verifier.rs` after the setup queries, `matrix.rs::check_late`) -/
 
 /-- `Ĥ_t~` over slots: the class's lane table at the slot's lane (`slot_step`). -/
 def slotStep (layout : Layout) (point : Array Ext) (lanes : Array (Array Ext × Array Ext)) (t : Nat) : Ext :=
-  step point (layout.segments.map (·.first))
-    (layout.segments.map fun s => let pair := lanes[s.classIndex]!; (if t = 0 then pair.1 else pair.2)[s.lane]!)
-    layout.slots
+  step point (layout.segments.toList.map fun s =>
+    (s.first, let pair := lanes[s.classIndex]!; (if t = 0 then pair.1 else pair.2)[s.lane]!)) layout.slots
 
 /-- What the late leaf checks leave to openings. -/
 structure LateOpenings where
@@ -267,8 +261,7 @@ def checkLate (layout : Layout) (beta : Ext) (m : Mixing) (lanes : Array (Array 
   let point := claims.leafPoint[0]!
   let slotPart := point.extract 0 layout.slotVariables
   let t := point[layout.slotVariables]!
-  let ubar := (List.range pairs.size).foldl
-    (fun total j => total + ((m.evalA j).1 * pairs[j]!.1 + (m.evalA j).2 * pairs[j]!.2)) 0
+  let ubar := sumRange pairs.size fun j => (m.evalA j).1 * (pairs[j]!).1 + (m.evalA j).2 * (pairs[j]!).2
   let lane := oneMinus t * slotStep layout slotPart lanes 0 + t * slotStep layout slotPart lanes 1
   ensure (claims.leafValue 0 0 == ubar) "block scatter pair leaf"
   ensure (claims.leafValue 0 1 == lane) "block scatter pair leaf"
@@ -288,24 +281,24 @@ def lateStage (rel : Relation) (proof : Proof) (lin : LinearOut) : ReplayM LateO
   let claims ← gkrVerify proof.late rel.lateShapes
   let lanes := rel.key.layout.classes.map fun c => laneSplit lin.tau c.len c.ratio
   let openings ← liftExcept (checkLate rel.key.layout beta lin.mixing lanes claims proof.lateValues)
-  for pair in proof.lateValues do
-    observeExt pair.1
-    observeExt pair.2
+  observeExts (flatPairs proof.lateValues)
   return { beta, gkr := claims, pairs := proof.lateValues, openings }
 
 /-! ## Openings (the model's `Opens`, idealized) -/
 
 /-- The `Ext` value whose coordinate columns opened to `values` (`from_coordinates`). -/
 def fromCoordinates (values : Array Ext) : Ext :=
-  (List.range values.size).foldl (fun total c => total + Ext.basis c * values[c]!) 0
+  sumRange values.size fun c => Ext.basis c * values[c]!
 
-def flatPairs (pairs : Array (Ext × Ext)) : Array Ext := pairs.flatMap fun pair => #[pair.1, pair.2]
+/-- The P1 values: every batch read as triples of coordinate openings. -/
+def p1Values (opened : Array (Array Ext)) : Array Ext :=
+  opened.flatMap fun batch =>
+    (Array.range (batch.size / 3)).map fun i => fromCoordinates (batch.extract (3 * i) (3 * i + 3))
 
 /-- Every opened value equals the value the verifier expects. -/
 def openingsAgree (opened expected : Array (Array Ext)) (what : String) : Except String Unit := do
   ensure (opened.map (·.size) == expected.map (·.size)) what
-  for pair in opened.flatten.zip expected.flatten do
-    ensure (pair.1 == pair.2) what
+  ensure ((opened.flatten.zip expected.flatten).all fun pair => pair.1 == pair.2) what
 
 /-- The P1 openings: the two fold claims, the setup queries, `Ω^A` at the
 linear and the late block points. -/
@@ -334,8 +327,7 @@ def verify (rel : Relation) (seed : Array Gl) (st : Statement) (proof : Proof) :
   let honest ← honestStage rel proof early lin
   let late ← lateStage rel proof lin
   let p1 ← whirTranscript rel.p1Whir proof.p1Opening
-  let values := p1.flatMap fun batch => (Array.range (batch.size / 3)).map fun i => fromCoordinates (batch.extract (3 * i) (3 * i + 3))
-  liftExcept (openingsAgree #[values] #[p1Expected proof honest lin late] "P1 openings")
+  liftExcept (openingsAgree #[p1Values p1] #[p1Expected proof honest lin late] "P1 openings")
   let p0 ← whirTranscript rel.p0Whir proof.p0Opening
   liftExcept (openingsAgree p0 (p0Expected early lin late) "P0 openings")
 

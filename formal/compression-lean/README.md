@@ -225,16 +225,39 @@ The chain takes these premises:
 - Honest setup (`Parent.lean`, `HonestSetup`), for the F′ claim: the
   layer-1 setup's key rows are the rows of F′'s Ajtai key, and its runs give
   every entry of every completed CCS matrix of F′'s relation, with row `i`
-  in F′'s little-endian order. Rust builds the setup in `lib.rs` (`key`,
-  `oracle`) from `Tables::from_rows` (`matrix.rs`). `Structure.Describes`
-  and `Structure.Checked` cover the run matrices, the slot lengths, ratios
-  and lanes, and their order. They do not cover the key rows, the run rows,
-  the run coefficients or the slot blocks. That Rust's tables and seeded
-  key are these is not proved here.
-- Shape (`ParentShape`): `Relation::new` gets `D = 54`, six lane variables,
-  `κ = 22`, four matrices, five public blocks and the carrier's blocks. Its
-  norm bound `H = 17·216·(b - 1) = 3672` (`compression_bound`) is below
-  `B = 2^16`, so layer 1's norm check gives F′'s.
+  in F′'s little-endian order. `RustSetup.lean` ports Rust's setup build
+  (`build`: `key` and `oracle` in `lib.rs` over `Tables::from_rows` in
+  `matrix.rs`). `honestSetup_of_build` proves `HonestSetup` of its result,
+  for the key of the seeded Ajtai setup (`AjtaiSetupV1.Setup.verifierKey`).
+  These parts remain:
+  - Source (`RunsGive`, open): the runs that `PackageRows::visit_rows`
+    pushes name rows below `2^28` and give F′'s matrices. They are the rows
+    of F′'s package that F′'s Rust prover and verifier also read. Rust
+    visits only rows below the row count, and `Relation::new` checks that
+    count against `2^28`.
+  - Port: Rust's `from_rows`, `key` and `oracle` are `build`. This is a
+    reading of the code. The proof uses only `ReadsBack` of the port, and
+    the Rust test `derived_structure_steps_read_back_the_runs` checks the
+    same property of `from_rows` on a fixture. The port is Rust's slot key
+    only while there are fewer than `2^24` run classes. Rust does not check
+    that bound.
+  - Key expander: Rust's `coefficient_block` at `PRODUCTION_SEED` is
+    `AjtaiSetupV1.wideCoefficientNat` at `productionSeed`. The Rust tests
+    `lean_setup_vectors_match_rust_and_fips202` and
+    `streamed_key_blocks_match_all_lanes_of_authoritative_setup_cases`
+    check it against the vectors that Lean emits
+    (`nightstream-fprime-ajtai-setup-v1-parity.json`): the seed in full, and
+    sample rows and blocks.
+  `Structure.Describes` and `Structure.Checked` cover the verifier's copy of
+  the run matrices, the slot lengths, ratios and lanes, and their order.
+- Shape (`ParentShape`): `parentShape_of` gives it from Rust's sizes for
+  `Relation::new`: `D = 54`, six lane variables, `κ = 22`, four matrices,
+  five public blocks, the carrier's blocks and the norm bound
+  `H = 17·216·(b - 1) = 3672` (`compression_bound`). `H` is below
+  `B = 2^16`, so layer 1's norm check gives F′'s. The Rust tests
+  `relation_shape_has_the_lean_constants` (`neo-spartan`) and
+  `parent_relation_arguments_are_the_lean_constants` (`nightstream`) pin
+  these numbers.
 - Ring: `Φ` is `Φ81 = X^54 + X^27 + 1`, and `bar` is F′'s closed-form bar
   transform (`nativeBarEntry`). Only the manual test
   `neo-math/tests/phi81_bar_lean_parity.rs` compares Rust's runtime bar

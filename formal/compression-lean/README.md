@@ -263,13 +263,12 @@ data, and Lean lowers it to the shrink run as `record.rs` does.
   views, `gkr.rs`, the early and late stages' parts of `norm.rs`, `mle.rs`
   and `matrix.rs`, `ring.rs`, `setup.rs`, `verifier.rs`). The sizes come
   from the replay's relation (`Replay/Data.lean`). `verify` is ported up to
-  `verifier.rs:249`: the seed, the relation words and the statement words,
+  `verifier.rs:266`: the seed, the relation words and the statement words,
   then the early stage (norm root, GKR, matrix leaf checks, early values),
-  the linear stage (`verifier.rs:170-206`) and the honest fold
-  (`verifier.rs:208-249`: setup partials, `α`, setup queries). `lateStage`
-  is the late stage (`verifier.rs:251-260`: late `β`, GKR, lane tables,
-  block scatter leaf checks, late values); `verify` does not call it yet,
-  and `queryPoint` (`setup::query_point`) waits for its wiring.
+  the linear stage (`verifier.rs:170-206`), the honest fold
+  (`verifier.rs:208-249`: setup partials, `α`, setup queries), the late
+  stage (`verifier.rs:251-260`: late `β`, GKR, lane tables, block scatter
+  leaf checks, late values) and the query points (`verifier.rs:262-265`).
 
 The lowering assumes, and does not prove:
 
@@ -327,7 +326,7 @@ requires the same glue cells, blocks, statement words and rows, side by side
 and term by term. For `Shared`, `Early`, `Linear`, `Honest`, `Late`,
 `LaneSplit` and the verifier it also writes Lean's program and requires
 Rust's instructions in order: all of the first six programs' instructions,
-and the verifier's first ones, through `verifier.rs:249`.
+and the verifier's first ones, through `verifier.rs:266`.
 
 ## Terminal program
 

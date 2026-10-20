@@ -1,15 +1,16 @@
 import CompressionLean.Circuit.Early
 import CompressionLean.Circuit.Fold
 import CompressionLean.Circuit.Honest
+import CompressionLean.Circuit.Late
 import CompressionLean.Circuit.Linear
 
 /-!
 Owns the layer-1 verifier of `crates/neo-spartan/src/verifier.rs` as a
 builder program: the view of a proof as handles (`ProofView`, its shape run
-`ProofView.read`) and `verify`, ported so far up to `verifier.rs:249`: the
+`ProofView.read`) and `verify`, ported so far up to `verifier.rs:266`: the
 seed, the relation words and the statement words in the duplex, then the
-early stage (`earlyStage`), the linear stage (`linearStage`) and the honest
-fold (`honestStage`).
+early stage (`earlyStage`), the linear stage (`linearStage`), the honest
+fold (`honestStage`), the late stage (`lateStage`) and the query points.
 
 The relation is the replay's (`Replay/Data.lean`): its sizes, tree shapes,
 WHIR shapes and transcript words. The statement is a `ClaimView`.
@@ -91,9 +92,10 @@ def earlyStage (rel : Relation) (statement : ClaimView) (proof : ProofView) : Tr
   observeEarly proof.earlyValues
   pure { normPoint := claims[0]!.point, zLeaf, openings }
 
-/-- `verify` (`verifier.rs:136-249`): a new duplex binds the seed, the
+/-- `verify` (`verifier.rs:136-266`): a new duplex binds the seed, the
 relation words as constants and the statement words; then the early stage,
-the linear stage and the honest fold. -/
+the linear stage, the honest fold, the late stage and each query's point
+(`verifier.rs:262-265`). -/
 def verify (rel : Relation) (seed : DigestVar) (statement : ClaimView) (proof : ProofView) : Build Unit := do
   let duplex ← Duplex.new
   let run : Transcript Unit := do
@@ -103,11 +105,14 @@ def verify (rel : Relation) (seed : DigestVar) (statement : ClaimView) (proof : 
     Duplex.observeSlice statement.words
     let early ← earlyStage rel statement proof
     let lin ← linearStage rel statement proof.quotient proof.linear proof.finals
-    let _ ← honestStage rel
+    let honest ← honestStage rel
       { lanePoint := lin.lanePoint, blockPoint := lin.blockPoint, runPoint := early.openings.runPoint,
         setup := early.openings.setup, block := proof.earlyValues.block,
         commitmentRows := (Array.range rel.kappa).map lin.mixing.commitment, keyValue := lin.keyValue,
         partials := proof.partials, p1 := proof.p1, leaves := proof.leaves }
+    let _ ← lateStage rel lin.tau ((Array.range rel.matrices).map lin.mixing.evalA) proof.late proof.lateValues
+    for bits in honest.indexBits do
+      let _ ← queryPoint rel.setupVars bits
   let _ ← run.run duplex
 
 end CompressionLean.Circuit

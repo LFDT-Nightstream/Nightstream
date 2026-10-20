@@ -24,7 +24,7 @@ compares it with the IR, instruction by instruction, as `Log` writes them
   IR must match.
 - `layer1 <input.json>`: the Lean side of `Layer1::run` for the relation in
   the file. Its instructions must be the first ones of the IR: the verifier
-  is ported up to `verifier.rs:249`.
+  is ported up to `verifier.rs:266`.
 - `linear <input.json>`: the Lean side of `Linear`, the linear stage
   (`linearStage`) from the state after the early stage. The whole IR must
   match.

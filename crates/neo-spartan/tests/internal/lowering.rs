@@ -604,8 +604,9 @@ fn production_layer1_digest_is_pinned() {
 }
 
 /// The layer-1 verifier on the production key: its shape run's export, the
-/// relation and WHIR keys to `production_layer1.json`, then `lowerCheck`
-/// with Lean's `layer1` program.
+/// relation and WHIR keys to `production_layer1.json` (which `nightstream`'s
+/// `final_program_matches_lean` also reads), then `lowerCheck` with Lean's
+/// `layer1` program.
 #[test]
 #[ignore = "needs target/compression-setup/key.bin and the Lean check: lake build lowerCheck in formal/compression-lean"]
 fn production_layer1_matches_lean() {

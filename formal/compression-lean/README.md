@@ -383,6 +383,13 @@ package's output columns hold.
   layer-1 relation whose shape the claim does not fit, so the log stops at
   `verify_with`. It writes `target/lean-lowering/terminal.txt` (about
   800 MB).
+- Full check: with a second argument, the layer-1 key file, `terminalCheck`
+  writes `finalProgram` with `verifyWith` (`Verifier.lean`) and requires
+  every instruction. `final_program_matches_lean` (same crate, ignored) logs
+  the shape run of `FinalProgram::run` on the production compression key and
+  package and passes the `production_layer1.json` of
+  `production_layer1_matches_lean` (run it first). The final program is
+  1,970,210 instructions; the test takes about 47 s and 14 GB.
 
 The terminal program assumes, and does not prove:
 
@@ -390,6 +397,8 @@ The terminal program assumes, and does not prove:
   `CircuitPackage.RowsHold` holds. The rows are F′'s instantiation,
   reordered and normalized, so this is a Lean proof about `load`. The check
   shows only that Rust's rows are these rows.
-- Scope: the check runs on the pinned artifact with one context. The
+- Scope: the checks run on the pinned artifact with one context. The
   instructions do not depend on the statement values, and the context words
-  enter as constants.
+  enter as constants. No digest pins the final program, since
+  `nightstream` cannot record rows; the layer-1 pins cover the verifier
+  that it runs.

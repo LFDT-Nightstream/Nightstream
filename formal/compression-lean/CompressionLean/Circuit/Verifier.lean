@@ -12,7 +12,8 @@ builder program: the view of a proof as handles (`ProofView`, its shape run
 seed, the relation words and the statement words in the duplex, then the
 early stage (`earlyStage`), the linear stage (`linearStage`), the honest
 fold (`honestStage`), the late stage (`lateStage`), the query points and the
-openings (`openingsStage`).
+openings (`openingsStage`). `verifyWith` is `verify_with` around it: the
+handoff of a fold transcript, then the proof view.
 
 The relation is the replay's (`Replay/Data.lean`): its sizes, tree shapes,
 WHIR shapes and transcript words. What the openings read of each `Pcs`
@@ -22,6 +23,14 @@ beyond its `WhirShape` is a `WhirKey`. The statement is a `ClaimView`.
 namespace CompressionLean.Circuit
 
 open CompressionLean.Replay (Relation D runOracles foldVars)
+
+/-- What the verifier reads of its key (`layer1.json`, written by
+`lowering.rs`): the replay's relation and the `WhirKey` of each opening. -/
+structure Layer1Input where
+  relation : Relation
+  p1Key : WhirKey
+  p0Key : WhirKey
+deriving Lean.FromJson
 
 /-- A layer-1 proof as handles (`verifier.rs:24-39`). -/
 structure ProofView where
@@ -126,5 +135,13 @@ def verify (rel : Relation) (p1Key p0Key : WhirKey) (seed : DigestVar) (statemen
         p1 := proof.p1, p0 := proof.p0, partials := proof.partials, earlyValues := proof.earlyValues,
         lateValues := proof.lateValues, p1Opening := proof.p1Opening, p0Opening := proof.p0Opening }
   let _ ← run.run duplex
+
+/-- `verify_with` (`lib.rs:692-703`): the handoff of the fold transcript
+`state`, the proof view, then `verify`. The claim's shape check writes no
+instruction. -/
+def verifyWith (key : Layer1Input) (state : Fin 16 → Var) (claim : ClaimView) : Build Unit := do
+  let seed ← (FoldTranscript.fromState state).handoff
+  let proof ← ProofView.read key.relation key.p1Key.rows key.p0Key.rows
+  verify key.relation key.p1Key key.p0Key seed claim proof
 
 end CompressionLean.Circuit

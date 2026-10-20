@@ -1,15 +1,18 @@
 import CompressionLean.Circuit.Terminal
 import CompressionLean.Circuit.Parse
+import CompressionLean.Circuit.Verifier
 
 /-!
-The `terminalCheck` executable. It reads the export of `nightstream`'s
+The `terminalCheck` executable. It reads an export of `nightstream`'s
 `tests/lifecycle_native/terminal_ir.rs`: the context words, the IR that Rust
-logs for `FinalProgram::run` up to `verify_with`, and the claim and state
-handles that `Package::apply` hands to layer 1. It loads the Lean terminal
-package (`Package.load`), writes `finalProgram` with a layer-1 step that
-returns its arguments, and requires the same instructions, one by one, and
-the same handles. It prints `match` and the counts, or the first difference
-and exits with 1.
+logs for `FinalProgram::run`, and for a run that stops at `verify_with` the
+claim and state handles that `Package::apply` hands to layer 1. It loads the
+Lean terminal package (`Package.load`) and writes `finalProgram`. Without a
+layer-1 key the layer-1 step returns its arguments, and the check requires
+the same instructions, one by one, and the same handles. With the key file
+of `neo-spartan`'s `lowering.rs` the step is `verifyWith`, and the check
+requires every instruction of the final program. It prints `match` and the
+counts, or the first difference and exits with 1.
 -/
 
 namespace CompressionLean.TerminalCheck
@@ -53,19 +56,33 @@ def handles : Parser (List Var) := do many (← nat) nat
 
 def flatPairs (list : Array (Var × Var)) : List Var := list.toList.flatMap fun (re, im) => [re, im]
 
-/-- Compare `finalProgram` on `package` with the export. -/
-def check (package : Loaded) : Parser String := do
-  keyword "context"
-  let context := (← many (← nat) glWord).toArray
-  let rust ← program
-  let ((claim, state), built) :=
-    (finalProgram package context fun claim state => pure (claim, state)).run {}
-  let lean := built.instrs
+/-- Lean's instructions against Rust's, one by one. -/
+def sameInstrs (lean rust : Array Instr) : Parser Unit := do
   for k in [0:max lean.size rust.size] do
     match lean[k]?, rust[k]? with
     | some l, some r =>
         if let some why := difference l r then throw s!"instruction {k}: {why} (Lean, Rust)"
     | _, _ => throw s!"instructions: Lean {lean.size}, Rust {rust.size}"
+
+/-- The terminal claim as the verifier's statement. -/
+def claimView (claim : ClaimVars) : ClaimView :=
+  { commitment := claim.commitment, publicInput := claim.publicInput, point := claim.point,
+    evalK := claim.evalK, evalA := claim.evalA }
+
+/-- Compare `finalProgram` on `package` with the export: up to layer 1, or
+with `verifyWith` for `key`. -/
+def check (package : Loaded) (key : Option Layer1Input) : Parser String := do
+  keyword "context"
+  let context := (← many (← nat) glWord).toArray
+  let rust ← program
+  if let some key := key then
+    let lean := (finalProgram package context fun claim state => verifyWith key state (claimView claim)).program
+    sameInstrs lean rust
+    return s!"match: all {lean.size} instructions of the final program, {package.system.size} package rows"
+  let ((claim, state), built) :=
+    (finalProgram package context fun claim state => pure (claim, state)).run {}
+  let lean := built.instrs
+  sameInstrs lean rust
   keyword "commitment"
   expect "commitment" (claim.commitment.toList.flatMap Array.toList) (← handles)
   keyword "public"
@@ -85,11 +102,17 @@ end CompressionLean.TerminalCheck
 
 open CompressionLean.TerminalCheck in
 def main (args : List String) : IO UInt32 := do
-  let [path] := args | IO.eprintln "usage: terminalCheck <export.txt>"; return 2
   let started ← IO.monoMsNow
+  let (path, key) ← match args with
+    | [path] => pure (path, none)
+    | [path, keyPath] =>
+        match Lean.Json.parse (← IO.FS.readFile keyPath) >>= Lean.fromJson? (α := CompressionLean.Circuit.Layer1Input) with
+        | .ok key => pure (path, some key)
+        | .error message => IO.eprintln s!"{keyPath}: {message}"; return 2
+    | _ => IO.eprintln "usage: terminalCheck <export.txt> [<layer1.json>]"; return 2
   match CompressionLean.Circuit.Package.load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs with
   | .error message => IO.println s!"the Lean package does not load: {message}"; return 1
   | .ok package =>
-      match (check package |>.run 0).run (← IO.FS.readBinFile path) with
+      match (check package key |>.run 0).run (← IO.FS.readBinFile path) with
       | .ok (message, _) => IO.println s!"{message} ({(← IO.monoMsNow) - started} ms)"; return 0
       | .error message => IO.println s!"mismatch: {message}"; return 1

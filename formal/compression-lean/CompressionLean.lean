@@ -11,3 +11,4 @@ import CompressionLean.Bridge.Path
 import CompressionLean.Bridge.Run
 import CompressionLean.Bridge.Formulas
 import CompressionLean.Bridge.Early
+import CompressionLean.Bridge.Linear

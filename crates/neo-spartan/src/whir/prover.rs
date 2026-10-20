@@ -38,7 +38,12 @@ use crate::pcs::{Commitment, Config, Dft, Layout, MultiProof, Opening};
 use crate::scratch;
 
 /// Cosets per codeword: one coset, a sixteenth of the codeword, is in memory
-/// at a time.
+/// at a time. Measured on a P0-like table set at 2^27 cells on the CPU
+/// (`p0_like_heap_and_time`, 2026-10-20): the commitment adds 0.22 GB to
+/// its tables (4 cosets: 0.67 GB, 8: 0.37 GB, 32: 0.14 GB), below the
+/// opening's 0.56 GB, which Plonky3's layout phase sets at any count. The
+/// fold of the stacked message, one pass per coset, takes 0.15 s of the
+/// 3.4 s commitment.
 const COSETS: usize = 16;
 
 type Tree = merkle::Tree<RowMajorMatrix<Gl>>;

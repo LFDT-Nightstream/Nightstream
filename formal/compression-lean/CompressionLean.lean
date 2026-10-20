@@ -13,3 +13,4 @@ import CompressionLean.Bridge.Formulas
 import CompressionLean.Bridge.Early
 import CompressionLean.Bridge.Linear
 import CompressionLean.Bridge.Late
+import CompressionLean.Bridge.Honest

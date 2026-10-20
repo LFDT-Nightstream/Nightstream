@@ -66,9 +66,13 @@ Layer 1 assumes, and does not prove:
   times as likely as under the uniform law.
 - Setup root: the Merkle root of the setup binds its leaves, so the opened
   setup values are the honest setup's (`HonestStage.lean`).
-- Key order: the key's runs are sorted by matrix and its slots by segment,
-  so the matrix column and the slot tables are step functions
-  (`ClosedForms.lean`).
+- Key structure: the verifier reads the matrix column and the slot lane
+  tables as step functions of the key's run bounds and slot segments
+  (`KeyStructure.lean`). The honest key describes its setup
+  (`Structure.Describes`): run `k` of matrix `j` lies between that matrix's
+  run bounds, and each slot has its segment's class and lane.
+  `Tables::from_rows` (`matrix.rs`) builds the key so. `Structure::check`
+  also enforces the order part (`Structure.Checked`) on every key.
 - Transcription: the model is written by hand from the Rust verifier.
 - Charges: Plonky3 composes a commitment's error as its WHIR terms plus each
   charged term times its candidate count. `rustDegrees` (`Budget.lean`) is

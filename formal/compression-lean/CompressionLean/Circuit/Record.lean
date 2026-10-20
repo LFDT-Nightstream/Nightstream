@@ -94,12 +94,24 @@ def blockCells : ℕ := 182
 /-- Its first output cell (`poseidon2::OUTPUT`, `circuit/poseidon2.rs:24`). -/
 def outputCell : ℕ := 166
 
-section Lowering
+section Ring
 
-variable {F : Type} [Field F] [DecidableEq F]
+variable {F : Type} [CommRing F]
 
 /-- A Goldilocks word in `F` (`Gl::from_u64`). -/
 def word (g : Gl) : F := (g.toNat : F)
+
+/-- The coordinates of `a·b` in `F[x]/(x³ - x - 1)`. -/
+def extProduct (a b : Fin 3 → F) : Fin 3 → F :=
+  ![a 0 * b 0 + a 1 * b 2 + a 2 * b 1,
+    a 0 * b 1 + a 1 * (b 0 + b 2) + a 2 * (b 1 + b 2),
+    a 0 * b 2 + a 1 * b 1 + a 2 * (b 0 + b 2)]
+
+end Ring
+
+section Lowering
+
+variable {F : Type} [Field F] [DecidableEq F]
 
 /-- Add `t` to the first term on its wire, or append it
 (`record.rs:108-111`). -/
@@ -184,12 +196,6 @@ def extRow (a b : Fin 3 → Form F) : Fin 3 → List (List (Wire × F) × List (
 
 theorem extRow_length (a b : Fin 3 → Form F) (k : Fin 3) : (extRow a b k).length ≤ 3 := by
   fin_cases k <;> simp [extRow]
-
-/-- The coordinates of `a·b` in `F[x]/(x³ - x - 1)`. -/
-def extProduct (a b : Fin 3 → F) : Fin 3 → F :=
-  ![a 0 * b 0 + a 1 * b 2 + a 2 * b 1,
-    a 0 * b 1 + a 1 * (b 0 + b 2) + a 2 * (b 1 + b 2),
-    a 0 * b 2 + a 1 * b 1 + a 2 * (b 0 + b 2)]
 
 /-- The inverse in `F[x]/(x³ - x - 1)`: Cramer's rule on multiplication by
 `a`, none when its determinant is zero. Over Goldilocks the determinant is

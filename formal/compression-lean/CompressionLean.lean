@@ -18,3 +18,4 @@ import CompressionLean.Bridge.Setup
 import CompressionLean.Bridge.Openings
 import CompressionLean.Bridge.Main
 import CompressionLean.Circuit.Exec
+import CompressionLean.Circuit.Sound

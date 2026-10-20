@@ -330,3 +330,27 @@ import CompressionLean
 #audit_axioms CompressionLean.Final.modulus_natDegree
 #audit_axioms CompressionLean.Final.final_sound_parent
 #audit_axioms CompressionLean.Final.final_restore_budget_parent
+
+/-! Axiom gate for the soundness of the lowering. -/
+
+#audit_axioms CompressionLean.Shrink.slot_inj
+#audit_axioms CompressionLean.Shrink.Run.rows_hold
+#audit_axioms CompressionLean.Shrink.Run.blocks_hold
+#audit_axioms CompressionLean.Shrink.Run.wireValue_one
+#audit_axioms CompressionLean.Shrink.Run.wireValue_pub
+#audit_axioms CompressionLean.Circuit.combine_value
+#audit_axioms CompressionLean.Circuit.ofCall_holds
+#audit_axioms CompressionLean.Circuit.form_sound
+#audit_axioms CompressionLean.Circuit.linear_sound
+#audit_axioms CompressionLean.Circuit.mul_sound
+#audit_axioms CompressionLean.Circuit.extMul_sound
+#audit_axioms CompressionLean.Circuit.extInverse_mul
+#audit_axioms CompressionLean.Circuit.extInv_sound
+#audit_axioms CompressionLean.Circuit.assertZero_sound
+#audit_axioms CompressionLean.Circuit.bits_sound
+#audit_axioms CompressionLean.Circuit.permute_sound
+#audit_axioms CompressionLean.Circuit.step_extends
+#audit_axioms CompressionLean.Circuit.step_agrees
+#audit_axioms CompressionLean.Circuit.steps_agrees
+#audit_axioms CompressionLean.Circuit.lower_exec
+#audit_axioms CompressionLean.Circuit.lower_sound

@@ -284,6 +284,12 @@ data, and Lean lowers it to the shrink run as `record.rs` does.
 - Claim (`Valid.lean`): `lower_valid`. Every glue row of `lower L stmt` names
   only its own glue cells, the cells of its blocks, the constant one and its
   statement words (`Run.Valid`), for a template of at least 182 cells.
+- Claim (`Sound.lean`): `lower_sound`. A witness of the CCS of `lower L stmt`
+  with the Poseidon2 template gives an accepting run of the executor `Exec`
+  (`Exec.lean`) on the tape read out of the witness (`tapeOf`): every
+  `assertZero` value is zero, every `bits` decomposition is boolean, sums to
+  its value and is canonical at 64 bits, every `extInv` output is an inverse,
+  every `r1cs` row holds, and every block computes Poseidon2.
 - `select` lowers to `whenZero + bit·(whenOne - whenZero)`, as `record.rs`
   records it. `Native::select` branches. The two agree when `bit` is 0 or 1.
 - Verifier (`Algebra.lean`, `Hash.lean`, `Fold.lean`, `Sumcheck.lean`,
@@ -313,8 +319,9 @@ The lowering assumes, and does not prove:
   production key's relation.
 - Fields: the check runs `lower` in Goldilocks. In another field, the zero
   tests of constant folding can differ from Rust's.
-- Encoding: that a witness of a lowered run's CCS gives an accepting run of
-  the program.
+- Encoding: that an accepting run of `Exec` on the final program is an
+  accepting run of the layer-1 verifier for its terminal claim
+  (`ProgramEncodes`).
 
 Build and emit (each Lean command under the 1,500 s cap). Copy the F′ build
 cache into `.lake` first (`cp -cR ../nightstream-fprime/.lake/packages .lake/`)

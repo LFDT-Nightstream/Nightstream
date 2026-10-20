@@ -1,4 +1,5 @@
 import CompressionLean.Circuit.Record
+import CompressionLean.Circuit.Verifier
 import NightstreamFPrime.Spec.GoldilocksPrime
 
 /-!
@@ -8,6 +9,16 @@ lowers the IR in Goldilocks and compares the run with the trace: the glue
 cells, the blocks, the statement words and every glue row, side by side and
 term by term (`Call.computedRows`, which is `Call.rows`). It prints `match`
 and the counts, or the first difference and exits with 1.
+
+With a program name it also writes that program with the Lean builder and
+compares it with the IR, instruction by instruction, as `Log` writes them
+(`line`):
+
+- `shared`: the Lean side of `Shared`, every helper of `Algebra.lean`,
+  `Hash.lean`, `Fold.lean` and `Sumcheck.lean`. The whole IR must match.
+- `layer1 <input.json>`: the Lean side of `Layer1::run` for the relation in
+  the file. Its instructions must be the first ones of the IR: the verifier
+  is ported up to `verifier.rs:151`.
 -/
 
 namespace CompressionLean.LowerCheck
@@ -127,11 +138,137 @@ def traceSide : Parser (List (Wire × ℕ)) := do
 def expect {α : Type} [BEq α] [Repr α] (what : String) (lean rust : α) : Parser Unit :=
   if lean == rust then pure () else throw s!"{what}: Lean {repr lean}, Rust {repr rust}"
 
-/-- Compare the lowered run with the trace that follows the program. -/
-def check : Parser String := do
+/-! ## Lean's own programs -/
+
+def handlesText {n : ℕ} (a : Fin n → Var) : String :=
+  String.join ((List.finRange n).map fun k => s!" {a k}")
+
+def termsText (terms : List (ℕ × Gl)) : String :=
+  s!" {terms.length}" ++ String.join (terms.map fun t => s!" {t.1} {t.2.toNat}")
+
+/-- The line that `Log` writes for an instruction (`lowering.rs`). -/
+def line : Instr → String
+  | .const value => s!"c {value.toNat}"
+  | .priv => "p"
+  | .pub => "u"
+  | .linear parts => s!"l{termsText parts}"
+  | .mul a b => s!"m {a} {b}"
+  | .extMul a b => s!"x{handlesText a}{handlesText b}"
+  | .extInv a => s!"i{handlesText a}"
+  | .assertZero a => s!"z {a}"
+  | .bits a count => s!"b {a} {count}"
+  | .hint count => s!"h {count}"
+  | .permute state => s!"q{handlesText state}"
+  | .r1cs rows columns =>
+      s!"r {rows.length} {columns.length}" ++ String.join (columns.map (s!" {·}")) ++
+        String.join (rows.map fun row => termsText row.a ++ termsText row.b ++ termsText row.c)
+
+/-- `Shared::run` (`lowering.rs`): every shared helper, in Rust's order. -/
+def shared : Build Unit := do
+  let words ← (Array.range 14).mapM fun _ => Build.priv
+  let x ← privateExts 4
+  let scaled ← Build.scale words[0]! 3
+  let lifted ← Algebra.lift scaled
+  let weighted ← Algebra.extScaleConstant lifted 9
+  let dot ← Algebra.dot (x.extract 0 2) (x.extract 2 4)
+  let eq ← Algebra.eqEval (x.extract 0 2) (x.extract 2 4)
+  let table ← Algebra.eqTable (x.extract 0 2)
+  let at_ ← Algebra.eqAt (x.extract 1 4) 5
+  let value ← Algebra.interpolate table weighted
+  let horner ← Algebra.horner x dot
+  let k ← KxVar.fromK (scaled, words[1]!)
+  let one ← KxVar.one
+  let zero ← KxVar.zero
+  let k ← k.mul ⟨eq, at_⟩
+  let k ← k.add one
+  let k ← k.scale horner
+  let k ← k.oneMinus
+  let k ← k.add zero
+  let bits := Array.ofFn (← Build.bits words[2]! 5)
+  let power ← Algebra.powerFromBits 7 bits
+  let leaf ← hashLeaf words
+  let short ← hashLeaf (words.extract 0 3)
+  let node ← compress leaf short
+  let root ← merkleRoot leaf (bits.extract 0 2) #[short, node]
+  let rest : Transcript Unit := do
+    Duplex.observeSlice words
+    Duplex.observeExt k.re
+    let first ← Duplex.sample
+    let drawn ← Duplex.sampleExt
+    let index ← Duplex.sampleBits 10
+    let more ← (Array.range 3).mapM fun _ => Duplex.sampleExt
+    Duplex.observe power
+    let (point, last) ← sumcheckReplay #[#[x[0]!, x[1]!], #[x[2]!, x[3]!, value]] drawn
+    let fold ← FoldTranscript.new
+    let fold ← fold.absorb words
+    let fold ← fold.absorbConstants #[1, 2, 3]
+    let (digest, fold) ← fold.squeezeDigest
+    let seed ← (FoldTranscript.fromState fun lane => words[lane.val % 14]!).handoff
+    Build.assertExtEqual last point[1]!
+    Build.assertExtEqual k.im more[2]!
+    Build.assertEqual first index[3]!
+    for lane in List.finRange 4 do
+      Build.assertEqual (root lane) (seed lane)
+      Build.assertEqual (digest lane) (fold.statePrefix lane)
+  let _ ← rest.run (← Duplex.new)
+
+/-- What `layer1` reads (`lowering.rs`, `layer1.json`): the replay's relation
+and the query sets of the two openings. -/
+structure Layer1Input where
+  relation : Replay.Relation
+  p1Rows : OpeningRows
+  p0Rows : OpeningRows
+deriving Lean.FromJson
+
+/-- `statement_input` (`tests/internal/verifier.rs`): every statement word,
+in `ClaimWords::words` order. -/
+def statementInput (rel : Replay.Relation) : Build ClaimView := do
+  let ring := (Array.range Replay.D).mapM fun _ => Build.pub
+  let pair : Build KVar := do
+    let re ← Build.pub
+    pure (re, ← Build.pub)
+  let commitment ← (Array.range rel.kappa).mapM fun _ => ring
+  let publicInput ← (Array.range rel.publicBlocks).mapM fun _ => ring
+  let point ← (Array.range rel.pointVariables).mapM fun _ => pair
+  let evalK ← (Array.range Replay.D).mapM fun _ => pair
+  let evalA ← (Array.range rel.matrices).mapM fun _ => (Array.range Replay.D).mapM fun _ => pair
+  pure { commitment, publicInput, point, evalK, evalA }
+
+/-- `Layer1::run` (`tests/internal/shrink.rs`): the seed and the statement as
+statement words, the proof view, then the verifier. -/
+def layer1 (input : Layer1Input) : Build Unit := do
+  let seed ← (Array.range 4).mapM fun _ => Build.pub
+  let statement ← statementInput input.relation
+  let _ ← ProofView.read input.relation input.p1Rows input.p0Rows
+  verify input.relation (fun lane => seed[lane]!) statement
+
+/-- Lean's program for an export, and whether it is the whole program or its
+start. -/
+structure Mirror where
+  instrs : Array Instr
+  whole : Bool
+
+/-- Lean's instructions against Rust's, one by one. -/
+def compareMirror (mirror : Mirror) (rust : Array Instr) : Except String String := do
+  for (instr, k) in mirror.instrs.zipIdx do
+    match rust[k]? with
+    | none => throw s!"instruction {k}: Lean `{line instr}`, Rust's program has ended"
+    | some r => unless line instr == line r do throw s!"instruction {k}: Lean `{line instr}`, Rust `{line r}`"
+  if mirror.whole && mirror.instrs.size != rust.size then
+    throw s!"Lean writes {mirror.instrs.size} instructions, Rust {rust.size}"
+  pure s!"Lean's program is {if mirror.whole then "all" else "the first"} {mirror.instrs.size} of Rust's \
+    {rust.size} instructions"
+
+/-- Compare `mirror` with the IR, then the lowered run with the trace that
+follows the program. -/
+def check (mirror : Option Mirror) : Parser String := do
   keyword "statement"
   let stmt ← many (← nat) glWord
   let instrs ← program
+  let mirrored ← match mirror.map (compareMirror · instrs) with
+    | none => pure ""
+    | some (.ok message) => pure s!"; {message}"
+    | some (.error message) => throw message
   let run := lower (F := G) instrs (stmt.map fun g => (g.toNat : G))
   keyword "cells"
   expect "glue cells" run.cells (← nat)
@@ -148,13 +285,25 @@ def check : Parser String := do
     for s in List.finRange 7 do
       expect s!"row {r} side {s}" ((rows[r]'h.2.1).side s |>.map fun t => (t.1, t.2.val)) (← traceSide)
   pure s!"match: {instrs.size} instructions, {rows.size} rows, {run.cells} glue cells, {run.blocks} blocks, \
-    {run.publics.length} statement words"
+    {run.publics.length} statement words{mirrored}"
+
+/-- The export's path and Lean's program for it, from the arguments. -/
+def arguments : List String → IO (Except String (String × Option Mirror))
+  | [path] => pure (.ok (path, none))
+  | [path, "shared"] => pure (.ok (path, some ⟨shared.program, true⟩))
+  | [path, "layer1", input] => do
+      let json ← IO.FS.readFile input
+      pure <| (Lean.Json.parse json >>= Lean.fromJson? (α := Layer1Input)).map fun input =>
+        (path, some ⟨(layer1 input).program, false⟩)
+  | _ => pure (.error "usage: lowerCheck <export.txt> [shared | layer1 <layer1.json>]")
 
 end CompressionLean.LowerCheck
 
 open CompressionLean.LowerCheck in
 def main (args : List String) : IO UInt32 := do
-  let [path] := args | IO.eprintln "usage: lowerCheck <export.txt>"; return 2
-  match (check.run 0).run (← IO.FS.readBinFile path) with
+  let (path, mirror) ← match ← arguments args with
+    | .ok parsed => pure parsed
+    | .error message => IO.eprintln message; return 2
+  match ((check mirror).run 0).run (← IO.FS.readBinFile path) with
   | .ok (message, _) => IO.println message; return 0
   | .error message => IO.println s!"mismatch: {message}"; return 1

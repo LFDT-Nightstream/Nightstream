@@ -10,6 +10,11 @@
 //! `target/lean-lowering/<program>.txt`, runs `lowerCheck` on the file, and
 //! requires the lowered run to equal the trace: every row with its seven
 //! sides in order, the glue cells, the blocks and the statement words.
+//!
+//! For `Shared` and the layer-1 verifier, `lowerCheck` also writes the
+//! program with the Lean builder and requires the logged instructions: all
+//! of `Shared`'s, and the verifier's first ones, up to `verifier.rs:151`.
+//! The verifier's relation goes to `target/lean-lowering/layer1.json`.
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -17,18 +22,24 @@ use std::process::Command;
 
 use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
 use p3_field_v08::{PrimeCharacteristicRing, PrimeField64};
+use p3_whir::transcript::WhirShape;
 
 use super::layer1::{relation_of, setup_toy, transcript};
+use super::replay::relation_json;
 use super::shrink::Layer1;
+use crate::circuit::algebra::{self, Kx};
 use crate::circuit::block::Kind;
+use crate::circuit::fold::FoldTranscript;
+use crate::circuit::hash::{compress, hash_leaf, merkle_root, Duplex};
 use crate::circuit::r1cs::R1cs;
 use crate::circuit::record::{Form, Recorder, Trace, Wire};
 use crate::circuit::Backend;
 use crate::device::Accelerator;
-use crate::field::Gl;
+use crate::field::{Ext, Gl};
 use crate::hash::seed;
+use crate::pcs::Pcs;
 use crate::shrink::Program;
-use crate::{prove, Error};
+use crate::{prove, sumcheck, Error, Relation};
 
 /// A recorded value and its handle.
 #[derive(Clone, Copy)]
@@ -290,6 +301,97 @@ impl Program for Edges {
     }
 }
 
+/// Every helper that the layer-1 verifier shares, over proof words: the
+/// algebra (`circuit/algebra.rs`), the hashes and the duplex
+/// (`circuit/hash.rs`), the fold transcript and its handoff
+/// (`circuit/fold.rs`) and `sumcheck::replay`. The duplex absorbs a full and
+/// a partial chunk, reads its output, and duplexes once with no input.
+/// `shared` in `Circuit/Check.lean` writes the same program.
+struct Shared;
+
+impl Program for Shared {
+    fn statement(&self) -> Vec<u64> {
+        Vec::new()
+    }
+
+    fn key(&self) -> Vec<u64> {
+        Vec::new()
+    }
+
+    fn run<B: Backend>(&self, b: &mut B) -> Result<(), Error> {
+        let words: Vec<B::F> = (0..14).map(|word| b.private(word)).collect();
+        let x: Vec<B::E> = (0..4).map(|_| algebra::private_ext(b, Ext::ZERO)).collect();
+        let scaled = algebra::scale(b, words[0], Gl::from_u64(3));
+        let lifted = algebra::lift(b, scaled);
+        let weighted = algebra::ext_scale_constant(b, lifted, Gl::from_u64(9));
+        let dot = algebra::dot(b, &x[..2], &x[2..]);
+        let eq = algebra::eq_eval(b, &x[..2], &x[2..]);
+        let table = algebra::eq_table(b, &x[..2]);
+        let at = algebra::eq_at(b, &x[1..], 5);
+        let value = algebra::interpolate(b, &table, weighted);
+        let horner = algebra::horner(b, &x, dot);
+        let k = Kx::from_k(b, [scaled, words[1]]);
+        let one = Kx::one(b);
+        let zero = Kx::zero(b);
+        let k = k.mul(b, Kx { re: eq, im: at });
+        let k = k.add(b, one).scale(b, horner).one_minus(b).add(b, zero);
+        let bits = b.bits(words[2], 5, "bits")?;
+        let power = algebra::power_from_bits(b, Gl::from_u64(7), &bits);
+        let leaf = hash_leaf(b, &words);
+        let short = hash_leaf(b, &words[..3]);
+        let node = compress(b, leaf, short);
+        let root = merkle_root(b, leaf, &bits[..2], &[short, node]);
+        let mut duplex = Duplex::new(b);
+        duplex.observe_slice(b, &words);
+        duplex.observe_ext(b, k.re);
+        let first = duplex.sample(b);
+        let drawn = duplex.sample_ext(b);
+        let index = duplex.sample_bits(b, 10)?;
+        let more: Vec<B::E> = (0..3).map(|_| duplex.sample_ext(b)).collect();
+        duplex.observe(b, power);
+        let rounds = [vec![x[0], x[1]], vec![x[2], x[3], value]];
+        let (point, last) = sumcheck::replay(b, &mut duplex, &rounds, drawn);
+        let mut fold = FoldTranscript::new(b);
+        fold.absorb(b, &words);
+        fold.absorb_constants(b, &[1, 2, 3]);
+        let digest = fold.squeeze_digest(b);
+        let seed = FoldTranscript::from_state(std::array::from_fn(|lane| words[lane % words.len()])).handoff(b);
+        b.assert_ext_equal(last, point[1], "replay")?;
+        b.assert_ext_equal(k.im, more[2], "draws")?;
+        b.assert_equal(first, index[3], "index")?;
+        for lane in 0..4 {
+            b.assert_equal(root[lane], seed[lane], "root")?;
+            b.assert_equal(digest[lane], fold.prefix()[lane], "digest")?;
+        }
+        Ok(())
+    }
+}
+
+/// What `layer1` in `Circuit/Check.lean` reads: the replay's relation, and
+/// the index bits and folding factor of each query set of the two openings.
+fn layer1_input(relation: &Relation<'_>) -> String {
+    let rows = |pcs: &Pcs| {
+        let config = pcs.config();
+        let shape = WhirShape::new(config, pcs.protocol().num_openings());
+        let set =
+            |index_bits: usize, folding: usize| format!("{{\"indexBits\":{index_bits},\"foldingFactor\":{folding}}}");
+        let rounds: Vec<String> = shape
+            .rounds
+            .iter()
+            .enumerate()
+            .map(|(r, round)| set(round.index_bits, config.round_folding_factor(r)))
+            .collect();
+        let last = set(shape.final_index_bits, config.final_round_config().folding_factor);
+        format!("{{\"rounds\":[{}],\"final\":{last}}}", rounds.join(","))
+    };
+    format!(
+        "{{\"relation\":{},\"p1Rows\":{},\"p0Rows\":{}}}",
+        relation_json(relation),
+        rows(&relation.p1),
+        rows(&relation.p0)
+    )
+}
+
 fn wire(out: &mut String, wire: Wire) {
     match wire {
         Wire::Glue(cell) => write!(out, " 0 {cell}"),
@@ -382,17 +484,28 @@ fn lowering_matches_lean() {
     )
     .unwrap();
     let layer1 = Layer1::new(&relation, seed(transcript(1)), &toy.claim, Some(&proof));
+    let input = workspace().join("target/lean-lowering/layer1.json");
     let exports = [
-        ("edges", export("edges", &Edges)),
-        ("layer1", export("layer1", &layer1)),
+        ("edges", export("edges", &Edges), vec![]),
+        ("shared", export("shared", &Shared), vec!["shared".into()]),
+        (
+            "layer1",
+            export("layer1", &layer1),
+            vec!["layer1".into(), input.clone()],
+        ),
     ];
+    std::fs::write(&input, layer1_input(&relation)).unwrap();
     let check = workspace().join("formal/compression-lean/.lake/build/bin/lowerCheck");
     assert!(
         check.exists(),
         "wrote target/lean-lowering; build the check with `lake build lowerCheck` in formal/compression-lean"
     );
-    for (name, path) in exports {
-        let output = Command::new(&check).arg(&path).output().unwrap();
+    for (name, path, program) in exports {
+        let output = Command::new(&check)
+            .arg(&path)
+            .args(program)
+            .output()
+            .unwrap();
         let stdout = String::from_utf8_lossy(&output.stdout);
         eprintln!("{name}: {}", stdout.trim_end());
         assert!(

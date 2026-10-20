@@ -1,2 +1,3 @@
 import CompressionLean.Terminal.Soundness
 import CompressionLean.Layer1
+import CompressionLean.Shrink

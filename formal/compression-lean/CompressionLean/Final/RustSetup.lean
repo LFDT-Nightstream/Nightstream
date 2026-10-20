@@ -146,9 +146,8 @@ def classesOf (runs : List Push) : List ℕ := sortedSet (runs.map Push.classCod
 
 /-- The slot key of a run: its class, lane and block in one word, class high.
 Rust packs it in a `u64` as `class << 40 | lane << 32 | block`. The port is
-that word while the blocks are below `2^32` (`key` checks
-`MAX_MESSAGE_COLUMNS`) and the classes below `2^24`, which Rust does not
-check. -/
+that word while the blocks are below `2^32` and the classes at most `2^24`;
+`from_rows` refuses wider keys. -/
 def slotKey (classes : List ℕ) (p : Push) : ℕ :=
   classes.idxOf p.classCode * 2 ^ 40 + p.start % ringDegree * 2 ^ 32 + p.start / ringDegree
 

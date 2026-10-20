@@ -62,7 +62,7 @@ use neo_reductions::superneo_eval::MatrixRows;
 use neo_transcript::Poseidon2Transcript;
 use p3_challenger_v08::{CanObserve, CanSampleBits, FieldChallenger};
 use p3_field::PrimeCharacteristicRing as _;
-use p3_field_v08::{Field, PrimeCharacteristicRing, PrimeField64};
+use p3_field_v08::{Field, PrimeCharacteristicRing, PrimeField64, TwoAdicField};
 use p3_security_v08::{ErrorBits, SecurityTerm};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -344,6 +344,10 @@ impl<'k> Relation<'k> {
         }
         if point_variables >= usize::BITS as usize || (1usize << point_variables) < (D * blocks).max(key.rows) {
             return Err(Error::Shape("point length"));
+        }
+        // `setup::check` draws a root of unity of order 2^(setup variables + 1).
+        if key.setup_variables() + 1 > Gl::TWO_ADICITY {
+            return Err(Error::Setup("setup size"));
         }
         let shape = Shape {
             blocks,

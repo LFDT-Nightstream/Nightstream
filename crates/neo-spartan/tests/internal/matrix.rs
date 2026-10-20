@@ -8,7 +8,7 @@ use neo_math::{KExtensions, D, F, K};
 use neo_reductions::superneo_eval::{MatrixRowSink, MatrixRows, MatrixShape};
 use neo_reductions::PiCcsError;
 use p3_field::PrimeCharacteristicRing as _;
-use p3_field_v08::{BasedVectorSpace, PrimeCharacteristicRing};
+use p3_field_v08::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
 
 use super::{fresh, gkr_verify, word};
 use crate::circuit::Native;
@@ -145,6 +145,71 @@ fn two_level_scatter_matches_the_direct_scatter() {
         .map(|&[head, _]| [head, [Ext::ZERO; D]])
         .collect();
     assert_ne!(tables.block_weights(&ubar, &no_spill, 3), omega);
+}
+
+/// The one segment `i` with `starts[i] ≤ x < starts[i + 1]`, the last ending
+/// at `end`: the segment whose value a step function gives `x`.
+fn holder(starts: &[u64], end: u64, x: u64) -> usize {
+    let holders: Vec<usize> = (0..starts.len())
+        .filter(|&i| starts[i] <= x && x < starts.get(i + 1).copied().unwrap_or(end))
+        .collect();
+    assert_eq!(holders.len(), 1, "one segment holds {x}");
+    holders[0]
+}
+
+/// The derived structure read through its step functions gives back every
+/// run: its matrix from the run bounds, its class and lane from the slot
+/// segments (`Structure.Describes` in `formal/compression-lean`).
+#[test]
+fn derived_structure_steps_read_back_the_runs() {
+    let runs = runs();
+    let tables = Tables::from_rows(&runs).unwrap();
+    let structure = tables.structure();
+    structure.check().unwrap();
+    assert_eq!(structure.segments.is_empty(), structure.slots == 0);
+    let count = structure.run_bounds[structure.matrices];
+    assert_eq!(count as usize, runs.0.len());
+    let words = |column: Vec<Gl>| {
+        column
+            .iter()
+            .map(|word| word.as_canonical_u64())
+            .collect::<Vec<u64>>()
+    };
+    let row = words(tables.setup_column(0, structure.run_variables));
+    let slot = words(tables.setup_column(1, structure.run_variables));
+    let coefficient = words(tables.setup_column(2, structure.run_variables));
+    let block = words(tables.blocks());
+    let firsts: Vec<u64> = structure
+        .segments
+        .iter()
+        .map(|segment| segment.first)
+        .collect();
+    let mut decoded: Vec<(usize, usize, usize, usize, u64, u64)> = (0..count as usize)
+        .map(|k| {
+            let matrix = holder(&structure.run_bounds[..structure.matrices], count, k as u64);
+            let segment = structure.segments[holder(&firsts, structure.slots, slot[k])];
+            let class = structure.classes[segment.class as usize];
+            let start = block[slot[k] as usize] as usize * D + segment.lane as usize;
+            (
+                row[k] as usize,
+                matrix,
+                start,
+                class.len as usize,
+                coefficient[k],
+                class.ratio,
+            )
+        })
+        .collect();
+    let mut expected: Vec<(usize, usize, usize, usize, u64, u64)> = runs
+        .0
+        .iter()
+        .map(|&(row, matrix, start, len, initial, ratio)| {
+            (row, matrix, start, len, initial, if len == 1 { 1 } else { ratio })
+        })
+        .collect();
+    decoded.sort_unstable();
+    expected.sort_unstable();
+    assert_eq!(decoded, expected);
 }
 
 #[test]

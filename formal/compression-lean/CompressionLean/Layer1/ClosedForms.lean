@@ -16,8 +16,8 @@ equal to the extension of its table:
 
 `Weights.lean` owns `scaled_eq_point` (`scaled_eq`). `EvalK.lean` owns
 `eval_k`. The transcription of the Rust loops into these definitions is by
-hand. The Rust key's segment and run orders, which make the slot tables and
-`matrixColumn` step functions, are not modeled here.
+hand. `KeyStructure.lean` reads `step` over the key's run bounds and slot
+segments.
 -/
 
 namespace CompressionLean.Layer1

@@ -13,6 +13,7 @@ mod setup;
 mod shrink;
 mod verifier;
 mod whir;
+mod whir_prover;
 mod whir_verify;
 
 use std::path::PathBuf;

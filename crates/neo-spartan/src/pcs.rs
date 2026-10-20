@@ -3,7 +3,8 @@
 //! Owns: the WHIR configuration, the commitment to a list of base-field
 //! tables, and openings at points the caller fixes. The required security
 //! comes from the caller; a `Profile` holds performance choices, not
-//! security parameters. Plonky3 0.8 PCS types do not leave this file.
+//! security parameters. Plonky3 0.8 PCS types do not leave this file and
+//! `whir/`.
 
 use std::sync::{Arc, OnceLock};
 
@@ -22,13 +23,14 @@ use crate::device::Accelerator;
 use crate::field::{p3_point, Ext, Gl};
 use crate::hash::Challenger;
 use crate::merkle::Mmcs;
+use crate::whir::prover;
 use crate::Error;
 
-type Layout = SuffixProver<Gl, Ext>;
-type Whir = WhirProver<Ext, Gl, Dft, Mmcs, Challenger, Layout>;
+pub(crate) type Layout = SuffixProver<Gl, Ext>;
+pub(crate) type Whir = WhirProver<Ext, Gl, Dft, Mmcs, Challenger, Layout>;
 pub(crate) type Config = WhirConfig<Ext, Gl, Challenger>;
 pub(crate) type Commitment = <Whir as MultilinearPcs<Ext, Challenger>>::Commitment;
-pub(crate) type ProverData = <Whir as MultilinearPcs<Ext, Challenger>>::ProverData;
+pub(crate) use crate::whir::prover::ProverData;
 pub(crate) type Opening = <Whir as MultilinearPcs<Ext, Challenger>>::Proof;
 pub(crate) type MultiProof = <Mmcs as p3_commit_v08::Mmcs<Gl>>::MultiProof;
 
@@ -259,10 +261,8 @@ impl Pcs {
         challenger: &mut Challenger,
         accelerator: &Accelerator,
     ) -> Result<(Commitment, ProverData), Error> {
-        let (whir, dft, mmcs) = self.prover(accelerator);
-        let committed = whir
-            .commit(self.witness(tables), challenger)
-            .expect("the configuration fixes the witness size");
+        let (_, dft, mmcs) = self.prover(accelerator);
+        let committed = prover::commit(&self.config, &dft, &mmcs, self.witness(tables), challenger);
         dft.check()?;
         mmcs.check()?;
         Ok(committed)
@@ -274,7 +274,7 @@ impl Pcs {
         Layout::from_witness(self.witness(tables))
     }
 
-    fn witness(&self, tables: Vec<Vec<Gl>>) -> Witness<Gl> {
+    pub(crate) fn witness(&self, tables: Vec<Vec<Gl>>) -> Witness<Gl> {
         assert_eq!(tables.len(), self.plans.len());
         let tables = tables
             .into_iter()
@@ -304,9 +304,7 @@ impl Pcs {
     ) -> Result<Opening, Error> {
         let points = self.p3_points(points);
         let (whir, dft, mmcs) = self.prover(accelerator);
-        let opening = whir
-            .open_at(data, &self.protocol, &points, challenger)
-            .expect("the plan fixes the claims");
+        let opening = prover::open(&whir, data, &self.protocol, &points, challenger);
         dft.check()?;
         mmcs.check()?;
         Ok(opening)
@@ -335,7 +333,7 @@ impl Pcs {
 
     /// Points in Plonky3 order, padded with zeros for tables the protocol
     /// padded to the first folding round.
-    fn p3_points(&self, points: &[Vec<Ext>]) -> Vec<p3_multilinear_util_v08::point::Point<Ext>> {
+    pub(crate) fn p3_points(&self, points: &[Vec<Ext>]) -> Vec<p3_multilinear_util_v08::point::Point<Ext>> {
         let shapes = self.protocol.table_shapes();
         self.protocol
             .iter_openings()

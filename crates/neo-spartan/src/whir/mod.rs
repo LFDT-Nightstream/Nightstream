@@ -12,6 +12,7 @@
 //! file; callers pass low-bit-first points, as everywhere else.
 
 pub(crate) mod paths;
+pub(crate) mod prover;
 pub(crate) mod seeds;
 
 use p3_field_v08::{PrimeCharacteristicRing, TwoAdicField};

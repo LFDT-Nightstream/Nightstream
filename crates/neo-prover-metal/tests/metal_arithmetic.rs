@@ -419,7 +419,8 @@ fn metal_resident_kx_throughput_snapshot() {
 #[test]
 fn metal_key_weights_match_cpu_key_rows() {
     use neo_ajtai::nightstream_fprime_setup::{coefficient_block, PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS};
-    let prover = neo_prover_metal::MetalRowProver::with_resident_commitment_key().expect("Metal prover");
+    let mut prover = neo_prover_metal::MetalRowProver::new().expect("Metal prover");
+    prover.keep_commitment_key();
     let mut rng = rand::rngs::StdRng::seed_from_u64(91);
     let rows = PRODUCTION_VERIFIER_ROWS as usize;
     let columns = 5;

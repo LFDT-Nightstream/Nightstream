@@ -232,6 +232,32 @@ fn poseidon_final_verification_time() {
     eprintln!("final verification median={:?} runs={times:?}", times[2]);
 }
 
+/// About 2.0M key columns. The key (19 GB) and the reserves still fit under the
+/// 24 GB Metal ceiling, but keeping the key would leave the rows about 65 MB.
+/// The prover streams key rows instead, and the fold still verifies.
+#[cfg(feature = "metal")]
+#[test]
+#[ignore = "Wide production Metal lifecycle; run this test separately under the 300-second cap."]
+fn metal_prover_streams_a_commitment_key_that_does_not_fit() {
+    let words = 1_580_000;
+    let builder = ApplicationBuilder::new(words).unwrap();
+    let input = builder.input_state();
+    let private = builder.private_inputs().to_vec();
+    let outputs = std::array::from_fn(|lane| Affine::from(input[lane]) + Affine::from(private[lane]));
+    let circuit = Circuit::compile(&selected_reference(), builder.finish(outputs).unwrap()).unwrap();
+    let prover = circuit.prover(Engine::Metal, 114).unwrap();
+    let initial = [1, 2, 3, 4].map(F::from_u64);
+    let values: Vec<F> = (0..words as u64).map(F::from_u64).collect();
+    let proof = prover
+        .extend(&prover.prove(initial, &values).unwrap(), &values)
+        .unwrap();
+    let expected = State::new(2, initial, [1, 4, 7, 10].map(F::from_u64));
+    Verifier::from_package(&circuit, Engine::Metal, 114)
+        .unwrap()
+        .verify(&expected, &proof)
+        .unwrap();
+}
+
 fn poseidon_lifecycle(engine: Engine, recursive: bool) {
     let started = Instant::now();
     let reference: Value = serde_json::from_slice(

@@ -10,9 +10,14 @@
 //! the claim and the state that it hands to layer 1; its instructions must be
 //! those of the run. The test writes the context, the IR and those handles to
 //! `target/lean-lowering/terminal.txt` and requires `terminalCheck` to accept.
+//!
+//! `final_program_matches_lean` logs the whole shape run on the production
+//! compression key and requires `terminalCheck` with Lean's layer-1 verifier
+//! for that key (`production_layer1.json`, from `neo-spartan`'s
+//! `production_layer1_matches_lean`).
 
 use std::fmt::Write as _;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
@@ -22,6 +27,7 @@ use neo_spartan::shrink::Program;
 use neo_spartan::{Backend, Error, Key, R1cs, Relation};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
+use super::super::finish::CompressionKey;
 use super::super::terminal::{package, FinalProgram};
 use super::Stage1State;
 
@@ -226,20 +232,28 @@ fn terminal_program_matches_lean() {
     list(&mut out, "eval_k", claim.eval_k.iter().flatten().copied());
     list(&mut out, "eval_a", claim.eval_a.iter().flatten().flatten().copied());
     list(&mut out, "state", transcript.state());
-    let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let dir = workspace.join("target/lean-lowering");
-    std::fs::create_dir_all(&dir).unwrap();
-    let path = dir.join("terminal.txt");
-    std::fs::write(&path, &out).unwrap();
     eprintln!("terminal: {} values, {} bytes", run.values, out.len());
+    terminal_check("terminal.txt", &out, &[]);
+}
 
-    let check = workspace.join("formal/compression-lean/.lake/build/bin/terminalCheck");
+fn workspace() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
+}
+
+/// Write `out` to `target/lean-lowering/<name>` and require `terminalCheck`
+/// to accept it with `args`.
+fn terminal_check(name: &str, out: &str, args: &[PathBuf]) {
+    let dir = workspace().join("target/lean-lowering");
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join(name);
+    std::fs::write(&path, out).unwrap();
+    let check = workspace().join("formal/compression-lean/.lake/build/bin/terminalCheck");
     assert!(
         check.exists(),
         "wrote {}; build the check with `lake build terminalCheck` in formal/compression-lean",
         path.display()
     );
-    let output = Command::new(&check).arg(&path).output().unwrap();
+    let output = Command::new(&check).arg(&path).args(args).output().unwrap();
     let stdout = String::from_utf8_lossy(&output.stdout);
     eprintln!("terminalCheck: {}", stdout.trim_end());
     assert!(
@@ -247,4 +261,30 @@ fn terminal_program_matches_lean() {
         "{stdout}{}",
         String::from_utf8_lossy(&output.stderr)
     );
+}
+
+/// The final program on the production key and package: the shape run of
+/// `FinalProgram::run`, terminal and layer 1, against Lean's `finalProgram`
+/// with `verifyWith`.
+#[test]
+#[ignore = "needs target/compression-setup/key.bin, the production_layer1.json of neo-spartan's \
+            production_layer1_matches_lean, and lake build terminalCheck in formal/compression-lean"]
+fn final_program_matches_lean() {
+    let bytes = std::fs::read(workspace().join("target/compression-setup/key.bin")).unwrap();
+    let key = CompressionKey::from_bytes(&bytes).unwrap();
+    let relation = key.relation().unwrap();
+    let state = Stage1State::new(3, [5, 7, 11, 13].map(F::from_u64), [17, 19, 23, 29].map(F::from_u64));
+    let program = key.program(&relation, package().unwrap(), &state, None);
+    let mut run = Log::default();
+    program.run(&mut run).unwrap();
+
+    let context = program.context.map(|word| word.to_string()).join(" ");
+    let out = format!("context 4 {context}\n{}end\n", run.ir);
+    eprintln!("final program: {} values, {} bytes", run.values, out.len());
+    let layer1 = workspace().join("target/lean-lowering/production_layer1.json");
+    assert!(
+        layer1.exists(),
+        "run neo-spartan's production_layer1_matches_lean first"
+    );
+    terminal_check("final.txt", &out, &[layer1]);
 }

@@ -145,7 +145,7 @@ impl CompressionKey {
     }
 
     /// The layer-1 relation of the parent claim.
-    fn relation(&self) -> Result<Relation<'_>, neo_spartan::Error> {
+    pub(crate) fn relation(&self) -> Result<Relation<'_>, neo_spartan::Error> {
         Relation::new(
             &self.layer1,
             PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS / D,
@@ -155,7 +155,7 @@ impl CompressionKey {
         )
     }
 
-    fn program<'a>(
+    pub(crate) fn program<'a>(
         &'a self,
         relation: &'a Relation<'a>,
         package: &'a Package,

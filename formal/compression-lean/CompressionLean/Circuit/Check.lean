@@ -173,14 +173,6 @@ def early : Build Unit := do
     Build.assertExtEqual early.mult claims[0]!.point[1]!
   let _ ← rest.run (← Duplex.new)
 
-/-- What `layer1` reads (`lowering.rs`, `layer1.json`): the replay's relation
-and the `WhirKey` of each opening. -/
-structure Layer1Input where
-  relation : Replay.Relation
-  p1Key : WhirKey
-  p0Key : WhirKey
-deriving Lean.FromJson
-
 /-- `statement_input` (`tests/internal/verifier.rs`): every statement word,
 in `ClaimWords::words` order. -/
 def statementInput (rel : Replay.Relation) : Build ClaimView := do

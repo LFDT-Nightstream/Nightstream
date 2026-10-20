@@ -1,12 +1,12 @@
+import CompressionLean.Circuit.Early
 import CompressionLean.Circuit.Fold
-import CompressionLean.Circuit.Sumcheck
-import CompressionLean.Circuit.Views
 
 /-!
 Owns the layer-1 verifier of `crates/neo-spartan/src/verifier.rs` as a
 builder program: the view of a proof as handles (`ProofView`, its shape run
-`ProofView.read`) and `verify`, ported so far up to `verifier.rs:151` (the
-seed, the relation words and the statement words in the duplex).
+`ProofView.read`) and `verify`, ported so far up to `verifier.rs:168`: the
+seed, the relation words and the statement words in the duplex, then the
+early stage (`earlyStage`).
 
 The relation is the replay's (`Replay/Data.lean`): its sizes, tree shapes,
 WHIR shapes and transcript words. The statement is a `ClaimView`.
@@ -28,13 +28,6 @@ structure ClaimView where
 def ClaimView.words (c : ClaimView) : Array Var :=
   c.commitment.flatten ++ c.publicInput.flatten ++
     (c.point ++ c.evalK ++ c.evalA.flatten).flatMap fun value => #[value.1, value.2]
-
-/-- The prover's early values (`matrix::EarlyValues`): `e_re`, `e_im` and
-the row column at the run point, the matrix pairs and the slot blocks. -/
-structure EarlyValuesView where
-  runs : Array ExtVar
-  pairs : Array (ExtVar × ExtVar)
-  block : ExtVar
 
 /-- A layer-1 proof as handles (`verifier.rs:24-39`). -/
 structure ProofView where
@@ -76,15 +69,48 @@ def ProofView.read (rel : Relation) (p1Rows p0Rows : OpeningRows) : Build ProofV
   pure { p0, histogram, early, earlyValues := { runs, pairs, block }, quotient, linear, finals, partials,
          p1, leaves, late, lateValues, p1Opening, p0Opening }
 
-/-- `verify` (`verifier.rs:136-151`): a new duplex binds the seed, the
-relation words as constants and the statement words. -/
-def verify (rel : Relation) (seed : DigestVar) (statement : ClaimView) : Build Unit := do
+/-- What the early stage leaves to later stages: the norm tree's leaf point,
+`z~` at it (`β - q~`) and the matrix openings. -/
+structure EarlyOut where
+  normPoint : Array ExtVar
+  zLeaf : ExtVar
+  openings : EarlyOpeningsView
+
+/-- The early stage (`verifier.rs:153-168`): bind P0's root and the
+histogram, draw `β` and the lookup and scatter challenges, check the norm
+root against the histogram's fraction sum, then the matrix leaf claims, and
+bind the early values. -/
+def earlyStage (rel : Relation) (statement : ClaimView) (proof : ProofView) : Transcript EarlyOut := do
+  observeRoot rel.commitmentSeed proof.p0
+  Duplex.observeSlice proof.histogram
+  let beta ← Duplex.sampleExt
+  let lookupBeta ← Duplex.sampleExt
+  let gamma ← Duplex.sampleExt
+  let scatterBeta ← Duplex.sampleExt
+  let mu ← Duplex.sampleExt
+  let challenges : EarlyChallengesView := { lookup := (lookupBeta, gamma), scatter := (scatterBeta, mu) }
+  let total ← tableSum proof.histogram rel.normBound beta
+  let claims ← gkrVerify proof.early rel.earlyShapes
+  let (p, q) := claims[0]!.root
+  let _ ← Build.extInv q
+  let expected ← Build.extMul q total
+  Build.assertExtEqual p expected
+  let zLeaf ← Build.extSub beta claims[0]!.values[0]!
+  let openings ← checkEarly rel.key.layout statement.point challenges (claims.extract 1 claims.size)
+    proof.earlyValues
+  observeEarly proof.earlyValues
+  pure { normPoint := claims[0]!.point, zLeaf, openings }
+
+/-- `verify` (`verifier.rs:136-168`): a new duplex binds the seed, the
+relation words as constants and the statement words; then the early stage. -/
+def verify (rel : Relation) (seed : DigestVar) (statement : ClaimView) (proof : ProofView) : Build Unit := do
   let duplex ← Duplex.new
   let run : Transcript Unit := do
     Duplex.observeSlice (Array.ofFn seed)
     for word in rel.words do
       Duplex.observe (← Build.const word)
     Duplex.observeSlice statement.words
+    let _ ← earlyStage rel statement proof
   let _ ← run.run duplex
 
 end CompressionLean.Circuit

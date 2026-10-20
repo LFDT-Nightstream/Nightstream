@@ -11,9 +11,10 @@
 //! requires the lowered run to equal the trace: every row with its seven
 //! sides in order, the glue cells, the blocks and the statement words.
 //!
-//! For `Shared` and the layer-1 verifier, `lowerCheck` also writes the
-//! program with the Lean builder and requires the logged instructions: all
-//! of `Shared`'s, and the verifier's first ones, up to `verifier.rs:151`.
+//! For `Shared`, `Early` and the layer-1 verifier, `lowerCheck` also writes
+//! the program with the Lean builder and requires the logged instructions:
+//! all of `Shared`'s and `Early`'s, and the verifier's first ones, up to
+//! `verifier.rs:168`.
 //! The verifier's relation goes to `target/lean-lowering/layer1.json`.
 
 use std::fmt::Write as _;
@@ -27,7 +28,7 @@ use p3_whir::transcript::WhirShape;
 use super::layer1::{relation_of, setup_toy, transcript};
 use super::replay::relation_json;
 use super::shrink::Layer1;
-use crate::circuit::algebra::{self, Kx};
+use crate::circuit::algebra::{self, Kx, K};
 use crate::circuit::block::Kind;
 use crate::circuit::fold::FoldTranscript;
 use crate::circuit::hash::{compress, hash_leaf, merkle_root, Duplex};
@@ -36,10 +37,12 @@ use crate::circuit::record::{Form, Recorder, Trace, Wire};
 use crate::circuit::Backend;
 use crate::device::Accelerator;
 use crate::field::{Ext, Gl};
+use crate::gkr::{self, GkrView, TreeShape};
 use crate::hash::seed;
+use crate::matrix::{EarlyChallenges, EarlyValues, Structure};
 use crate::pcs::Pcs;
 use crate::shrink::Program;
-use crate::{prove, sumcheck, Error, Relation};
+use crate::{norm, prove, sumcheck, Error, Relation};
 
 /// A recorded value and its handle.
 #[derive(Clone, Copy)]
@@ -367,6 +370,70 @@ impl Program for Shared {
     }
 }
 
+/// The early stage's helpers in `verify`'s order (`verifier.rs:154-167`), on
+/// a structure that the toy relation does not have: three matrices, an
+/// empty run range, a run count of `2^run_variables`, a GKR tree of depth
+/// one and a row point shorter than `r`. The program then reads every
+/// early opening. `early` in `Circuit/Check.lean` writes the same program.
+struct Early;
+
+impl Program for Early {
+    fn statement(&self) -> Vec<u64> {
+        Vec::new()
+    }
+
+    fn key(&self) -> Vec<u64> {
+        Vec::new()
+    }
+
+    fn run<B: Backend>(&self, b: &mut B) -> Result<(), Error> {
+        let structure = Structure {
+            matrices: 3,
+            row_variables: 1,
+            run_variables: 3,
+            slot_variables: 1,
+            run_bounds: vec![0, 2, 2, 8],
+            classes: Vec::new(),
+            segments: Vec::new(),
+            slots: 2,
+        };
+        let mut shapes = vec![TreeShape { depth: 2, factors: 0 }];
+        shapes.extend(structure.early_shapes());
+        let histogram: Vec<B::F> = (0..5).map(|count| b.private(count)).collect();
+        let r: Vec<K<B>> = (0..3).map(|_| [b.private(1), b.private(2)]).collect();
+        let view = GkrView::read(b, None, &shapes)?;
+        let values = EarlyValues {
+            runs: std::array::from_fn(|_| algebra::private_ext(b, Ext::ZERO)),
+            pairs: (0..structure.matrices)
+                .map(|_| std::array::from_fn(|_| algebra::private_ext(b, Ext::ZERO)))
+                .collect(),
+            block: algebra::private_ext(b, Ext::ZERO),
+        };
+        let mut duplex = Duplex::new(b);
+        duplex.observe_slice(b, &histogram);
+        let beta = duplex.sample_ext(b);
+        let challenges = EarlyChallenges {
+            lookup: [duplex.sample_ext(b), duplex.sample_ext(b)],
+            scatter: [duplex.sample_ext(b), duplex.sample_ext(b)],
+        };
+        let total = norm::table_sum(b, &histogram, 2, beta)?;
+        let claims = gkr::verify(b, &view, &shapes, &mut duplex)?;
+        let early = structure.check_early(b, &r, challenges, &claims[1..], &values)?;
+        for &x in early
+            .run_point
+            .iter()
+            .chain(&early.pair_point)
+            .chain(&early.row_point)
+        {
+            duplex.observe_ext(b, x);
+        }
+        let [row, slot, coefficient] = early.setup;
+        b.assert_ext_equal(slot, total, "slot")?;
+        b.assert_ext_equal(row, coefficient, "setup")?;
+        b.assert_ext_equal(early.mult, claims[0].point[1], "mult")
+    }
+}
+
 /// What `layer1` in `Circuit/Check.lean` reads: the replay's relation, and
 /// the index bits and folding factor of each query set of the two openings.
 fn layer1_input(relation: &Relation<'_>) -> String {
@@ -488,6 +555,7 @@ fn lowering_matches_lean() {
     let exports = [
         ("edges", export("edges", &Edges), vec![]),
         ("shared", export("shared", &Shared), vec!["shared".into()]),
+        ("early", export("early", &Early), vec!["early".into()]),
         (
             "layer1",
             export("layer1", &layer1),

@@ -17,9 +17,12 @@ compares it with the IR, instruction by instruction, as `Log` writes them
 
 - `shared`: the Lean side of `Shared`, every helper of `Algebra.lean`,
   `Hash.lean`, `Fold.lean` and `Sumcheck.lean`. The whole IR must match.
+- `early`: the Lean side of `Early`, the helpers of `Gkr.lean` and
+  `Early.lean` on a structure that the toy relation does not have. The whole
+  IR must match.
 - `layer1 <input.json>`: the Lean side of `Layer1::run` for the relation in
   the file. Its instructions must be the first ones of the IR: the verifier
-  is ported up to `verifier.rs:151`.
+  is ported up to `verifier.rs:168`.
 -/
 
 namespace CompressionLean.LowerCheck
@@ -120,6 +123,39 @@ def shared : Build Unit := do
       Build.assertEqual (digest lane) (fold.statePrefix lane)
   let _ ← rest.run (← Duplex.new)
 
+/-- `Early::run` (`lowering.rs`): the early stage's helpers on a small
+structure, in Rust's order. -/
+def early : Build Unit := do
+  let layout : Replay.Layout := { matrices := 3, rowVariables := 1, runVariables := 3, slotVariables := 1,
+                                  runBounds := #[0, 2, 2, 8], classes := #[], segments := #[], slots := 2 }
+  let shapes : Array Replay.TreeShape := #[⟨2, 0⟩, ⟨3, 0⟩, ⟨1, 1⟩, ⟨3, 2⟩, ⟨3, 1⟩]
+  let histogram ← (Array.range 5).mapM fun _ => Build.priv
+  let r ← (Array.range 3).mapM fun _ => do
+    let re ← Build.priv
+    pure (re, ← Build.priv)
+  let view ← GkrView.read shapes
+  let runs ← privateExts 3
+  let pairs ← privatePairs layout.matrices
+  let block ← Algebra.privateExt
+  let values : EarlyValuesView := { runs, pairs, block }
+  let rest : Transcript Unit := do
+    Duplex.observeSlice histogram
+    let beta ← Duplex.sampleExt
+    let lookupBeta ← Duplex.sampleExt
+    let gamma ← Duplex.sampleExt
+    let scatterBeta ← Duplex.sampleExt
+    let mu ← Duplex.sampleExt
+    let challenges : EarlyChallengesView := { lookup := (lookupBeta, gamma), scatter := (scatterBeta, mu) }
+    let total ← tableSum histogram 2 beta
+    let claims ← gkrVerify view shapes
+    let early ← checkEarly layout r challenges (claims.extract 1 claims.size) values
+    (early.runPoint ++ early.pairPoint ++ early.rowPoint).forM Duplex.observeExt
+    let (row, slot, coefficient) := early.setup
+    Build.assertExtEqual slot total
+    Build.assertExtEqual row coefficient
+    Build.assertExtEqual early.mult claims[0]!.point[1]!
+  let _ ← rest.run (← Duplex.new)
+
 /-- What `layer1` reads (`lowering.rs`, `layer1.json`): the replay's relation
 and the query sets of the two openings. -/
 structure Layer1Input where
@@ -147,8 +183,8 @@ statement words, the proof view, then the verifier. -/
 def layer1 (input : Layer1Input) : Build Unit := do
   let seed ← (Array.range 4).mapM fun _ => Build.pub
   let statement ← statementInput input.relation
-  let _ ← ProofView.read input.relation input.p1Rows input.p0Rows
-  verify input.relation (fun lane => seed[lane]!) statement
+  let proof ← ProofView.read input.relation input.p1Rows input.p0Rows
+  verify input.relation (fun lane => seed[lane]!) statement proof
 
 /-- Lean's program for an export, and whether it is the whole program or its
 start. -/
@@ -199,11 +235,12 @@ def check (mirror : Option Mirror) : Parser String := do
 def arguments : List String → IO (Except String (String × Option Mirror))
   | [path] => pure (.ok (path, none))
   | [path, "shared"] => pure (.ok (path, some ⟨shared.program, true⟩))
+  | [path, "early"] => pure (.ok (path, some ⟨early.program, true⟩))
   | [path, "layer1", input] => do
       let json ← IO.FS.readFile input
       pure <| (Lean.Json.parse json >>= Lean.fromJson? (α := Layer1Input)).map fun input =>
         (path, some ⟨(layer1 input).program, false⟩)
-  | _ => pure (.error "usage: lowerCheck <export.txt> [shared | layer1 <layer1.json>]")
+  | _ => pure (.error "usage: lowerCheck <export.txt> [shared | early | layer1 <layer1.json>]")
 
 end CompressionLean.LowerCheck
 

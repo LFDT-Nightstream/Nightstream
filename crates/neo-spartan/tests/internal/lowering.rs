@@ -16,13 +16,15 @@
 //! all of the logged instructions. The verifier's relation and WHIR keys go
 //! to `target/lean-lowering/layer1.json`, and `Linear`'s, `Honest`'s,
 //! `Late`'s and `Openings`' inputs to `linear.json`, `honest.json`,
-//! `late.json` and `openings.json`.
+//! `late.json` and `openings.json`. `production_layer1_matches_lean` checks
+//! the verifier's shape run on the production key the same way.
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
+use neo_math::D;
 use p3_field_v08::{PrimeCharacteristicRing, PrimeField64};
 use p3_sumcheck_v08::layout::plan_stacked_layout;
 use p3_whir::transcript::WhirShape;
@@ -39,8 +41,8 @@ use crate::device::Accelerator;
 use crate::field::Gl;
 use crate::hash::seed;
 use crate::pcs::Pcs;
-use crate::shrink::Program;
-use crate::{prove, Error, Relation};
+use crate::shrink::{Program, Shape};
+use crate::{prove, Error, Key, Relation};
 
 /// A recorded value and its handle.
 #[derive(Clone, Copy)]
@@ -485,23 +487,68 @@ fn lowering_matches_lean() {
         ),
     )
     .unwrap();
+    for (name, path, program) in exports {
+        lower_check(name, &path, &program);
+    }
+}
+
+/// Run `lowerCheck` on the export at `path` with `program`, and require
+/// `match`.
+fn lower_check(name: &str, path: &Path, program: &[PathBuf]) {
     let check = workspace().join("formal/compression-lean/.lake/build/bin/lowerCheck");
     assert!(
         check.exists(),
         "wrote target/lean-lowering; build the check with `lake build lowerCheck` in formal/compression-lean"
     );
-    for (name, path, program) in exports {
-        let output = Command::new(&check)
-            .arg(&path)
-            .args(program)
-            .output()
-            .unwrap();
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        eprintln!("{name}: {}", stdout.trim_end());
-        assert!(
-            output.status.success(),
-            "{name}: {stdout}{}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-    }
+    let output = Command::new(&check)
+        .arg(path)
+        .args(program)
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    eprintln!("{name}: {}", stdout.trim_end());
+    assert!(
+        output.status.success(),
+        "{name}: {stdout}{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+/// The layer-1 key, PiRLC's bound and the layer bits of the production
+/// compression key (`target/compression-setup/key.bin`, written by
+/// `nightstream`'s `poseidon_compression_setup_matches_the_derived_key`).
+/// The file is the bincode of `CompressionKey` (`finish.rs`): these three,
+/// the context and the shrink shape.
+fn production_key() -> (Key, u32, f64) {
+    let path = workspace().join("target/compression-setup/key.bin");
+    let bytes = std::fs::read(&path).unwrap_or_else(|error| panic!("{}: {error}", path.display()));
+    let fields: (Key, [u64; 4], u32, f64, Shape) = bincode::deserialize(&bytes).unwrap();
+    assert!(
+        bincode::serialize(&fields).unwrap() == bytes,
+        "the fields are the whole key"
+    );
+    let (key, _, bound, bits, _) = fields;
+    (key, bound, bits)
+}
+
+/// `CompressionKey::relation` (`finish.rs`): the parent claim has 270 public
+/// words and 28 point variables (`PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS`,
+/// `PI_CCS_V1_2_ROUND_COUNT`).
+fn production_relation(key: &Key, bound: u32, bits: f64) -> Relation<'_> {
+    Relation::new(key, 270 / D, 28, bound, bits).unwrap()
+}
+
+/// The layer-1 verifier on the production key: its shape run's export, the
+/// relation and WHIR keys to `production_layer1.json`, then `lowerCheck`
+/// with Lean's `layer1` program.
+#[test]
+#[ignore = "needs target/compression-setup/key.bin and the Lean check: lake build lowerCheck in formal/compression-lean"]
+fn production_layer1_matches_lean() {
+    let (key, bound, bits) = production_key();
+    let relation = production_relation(&key, bound, bits);
+    let layer1 = Layer1::shape(&relation);
+    let path = export("production_layer1", &layer1);
+    let input = workspace().join("target/lean-lowering/production_layer1.json");
+    std::fs::write(&input, layer1_input(&relation)).unwrap();
+    lower_check("production_layer1", &path, &["layer1".into(), input]);
 }

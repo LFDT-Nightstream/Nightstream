@@ -390,6 +390,11 @@ require the pinned value, so a change to the program or to `record.rs` that
 changes a row fails them. To update a pin, run its Lean check
 (`lowering_matches_lean` or `production_layer1_matches_lean`), and only when
 it passes copy the `digest` of its `layer1` line into `lowering.rs`.
+`nightstream`'s `terminal_digest_is_pinned` (CI) and
+`final_program_digest_is_pinned` (ignored) pin the final program the same way,
+up to layer 1 and whole: run `terminal_program_matches_lean` or
+`final_program_matches_lean`, and only when it passes copy the `digest` of its
+`match` line into `terminal_ir.rs`.
 
 ## Terminal program
 
@@ -413,14 +418,14 @@ package's output columns hold.
   under the 5-minute cap. The test logs `FinalProgram::run` with a toy
   layer-1 relation whose shape the claim does not fit, so the log stops at
   `verify_with`. It writes `target/lean-lowering/terminal.txt` (about
-  800 MB).
+  800 MB). The test takes about 130 s and 22 GB.
 - Full check: with a second argument, the layer-1 key file, `terminalCheck`
   writes `finalProgram` with `verifyWith` (`Verifier.lean`) and requires
   every instruction. `final_program_matches_lean` (same crate, ignored) logs
   the shape run of `FinalProgram::run` on the production compression key and
   package and passes the `production_layer1.json` of
   `production_layer1_matches_lean` (run it first). The final program is
-  1,970,210 instructions; the test takes about 47 s and 14 GB.
+  1,970,210 instructions; the test takes about 140 s and 23 GB.
 
 The terminal program assumes, and does not prove:
 
@@ -430,6 +435,4 @@ The terminal program assumes, and does not prove:
   shows only that Rust's rows are these rows.
 - Scope: the checks run on the pinned artifact with one context. The
   instructions do not depend on the statement values, and the context words
-  enter as constants. No digest pins the final program, since
-  `nightstream` cannot record rows; the layer-1 pins cover the verifier
-  that it runs.
+  enter as constants.

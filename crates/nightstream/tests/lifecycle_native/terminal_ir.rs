@@ -15,6 +15,11 @@
 //! compression key and requires `terminalCheck` with Lean's layer-1 verifier
 //! for that key (`production_layer1.json`, from `neo-spartan`'s
 //! `production_layer1_matches_lean`).
+//!
+//! `terminal_digest_is_pinned` (CI) and `final_program_digest_is_pinned`
+//! record the same two runs with `neo_spartan::shrink::run_digest` and
+//! require the digests that `terminalCheck` prints, so a change to the
+//! wrapper, `load` or `apply` that changes a row fails without Lean.
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -23,7 +28,7 @@ use std::process::Command;
 use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
 use neo_math::{D, F};
 use neo_reductions::superneo_eval::{CachedMatrixRows, SuperneoEvalCacheBuilder};
-use neo_spartan::shrink::Program;
+use neo_spartan::shrink::{run_digest, Program};
 use neo_spartan::{Backend, Error, Key, R1cs, Relation};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
@@ -183,15 +188,95 @@ fn list(out: &mut String, name: &str, values: impl IntoIterator<Item = u32>) {
     writeln!(out, "{name} {}{}", values.len(), handles(&values)).unwrap();
 }
 
+/// One public block: the terminal claim has five, so `verify_with` returns at
+/// its shape check, before any backend call.
+fn toy_relation(key: &Key) -> Relation<'_> {
+    Relation::new(key, 1, 9, 3_672, 100.0).unwrap()
+}
+
+const CONTEXT: [u64; 4] = [101, 103, 107, 109];
+
+fn state() -> Stage1State {
+    Stage1State::new(3, [5, 7, 11, 13].map(F::from_u64), [17, 19, 23, 29].map(F::from_u64))
+}
+
+fn production_key() -> CompressionKey {
+    let bytes = std::fs::read(workspace().join("target/compression-setup/key.bin")).unwrap();
+    CompressionKey::from_bytes(&bytes).unwrap()
+}
+
+/// `FinalProgram::run` on `toy_relation`, which stops at layer 1's shape
+/// check: the run up to layer 1.
+struct Terminal<'a>(FinalProgram<'a>);
+
+impl Program for Terminal<'_> {
+    fn statement(&self) -> Vec<u64> {
+        self.0.statement()
+    }
+
+    fn key(&self) -> Vec<u64> {
+        self.0.key()
+    }
+
+    fn run<B: Backend>(&self, b: &mut B) -> Result<(), Error> {
+        match self.0.run(b) {
+            Err(Error::Shape("claim words")) => Ok(()),
+            other => other,
+        }
+    }
+}
+
+/// The run digest (`run_digest`) of the final program as `terminalCheck`
+/// computes it from Lean's `finalProgram` (`digest` on its `match` line):
+/// up to layer 1 on `toy_relation` and `CONTEXT`, and whole on the production
+/// key. Update a pin only after its Lean check passes, from that line:
+/// `terminal_program_matches_lean` or `final_program_matches_lean`.
+const TERMINAL_DIGEST: [u64; 4] = [
+    16410863328979593198,
+    7181375196460713867,
+    6085068597532652256,
+    6171033847868749347,
+];
+const FINAL_PROGRAM_DIGEST: [u64; 4] = [
+    5659430957240615970,
+    6226718047465598965,
+    5404693510076364812,
+    7916513672709227231,
+];
+
+#[test]
+fn terminal_digest_is_pinned() {
+    let key = toy_key();
+    let relation = toy_relation(&key);
+    let state = state();
+    let program = FinalProgram {
+        context: CONTEXT,
+        package: package().unwrap(),
+        relation: &relation,
+        state: &state,
+        proof: None,
+    };
+    assert_eq!(run_digest(&Terminal(program)).unwrap(), TERMINAL_DIGEST);
+}
+
+#[test]
+#[ignore = "needs the production compression key, target/compression-setup/key.bin"]
+fn final_program_digest_is_pinned() {
+    let key = production_key();
+    let relation = key.relation().unwrap();
+    let state = state();
+    let program = key.program(&relation, package().unwrap(), &state, None);
+    assert_eq!(run_digest(&program).unwrap(), FINAL_PROGRAM_DIGEST);
+}
+
 #[test]
 #[ignore = "needs the Lean check: lake build terminalCheck in formal/compression-lean"]
 fn terminal_program_matches_lean() {
     let package = package().unwrap();
     let key = toy_key();
-    // One public block: the terminal claim has five, so `check_shape` fails.
-    let relation = Relation::new(&key, 1, 9, 3_672, 100.0).unwrap();
-    let state = Stage1State::new(3, [5, 7, 11, 13].map(F::from_u64), [17, 19, 23, 29].map(F::from_u64));
-    let context = [101, 103, 107, 109];
+    let relation = toy_relation(&key);
+    let state = state();
+    let context = CONTEXT;
     let program = FinalProgram {
         context,
         package,
@@ -270,10 +355,9 @@ fn terminal_check(name: &str, out: &str, args: &[PathBuf]) {
 #[ignore = "needs target/compression-setup/key.bin, the production_layer1.json of neo-spartan's \
             production_layer1_matches_lean, and lake build terminalCheck in formal/compression-lean"]
 fn final_program_matches_lean() {
-    let bytes = std::fs::read(workspace().join("target/compression-setup/key.bin")).unwrap();
-    let key = CompressionKey::from_bytes(&bytes).unwrap();
+    let key = production_key();
     let relation = key.relation().unwrap();
-    let state = Stage1State::new(3, [5, 7, 11, 13].map(F::from_u64), [17, 19, 23, 29].map(F::from_u64));
+    let state = state();
     let program = key.program(&relation, package().unwrap(), &state, None);
     let mut run = Log::default();
     program.run(&mut run).unwrap();

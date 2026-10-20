@@ -179,6 +179,10 @@ fn metal_goldilocks_and_extension_arithmetic_match_cpu() {
             .poseidon2_merkle_layers(rows, width, |words| words.copy_from_slice(&fields))
             .expect("Poseidon2 Metal Merkle tree");
         let mut expected: Vec<[u64; 4]> = fields.chunks_exact(width).map(sponge).collect();
+        let leaves = session
+            .poseidon2_merkle_leaves(&fields, width)
+            .expect("Poseidon2 Metal Merkle leaves");
+        assert_eq!(leaves, expected, "leaves of rows {rows} width {width}");
         for layer in &layers {
             assert_eq!(layer, &expected, "rows {rows} width {width}");
             expected = expected
@@ -188,6 +192,26 @@ fn metal_goldilocks_and_extension_arithmetic_match_cpu() {
         }
         assert_eq!(layers.last().map(Vec::len), Some(1), "rows {rows} width {width}");
     }
+    // Leaves of rows on whole pages are read in place: only the width word
+    // is uploaded. Rows one row off the page are copied.
+    let page = std::alloc::Layout::from_size_align(1 << 16, 1 << 14).unwrap();
+    let pointer = unsafe { std::alloc::alloc(page) }.cast::<u64>();
+    assert!(!pointer.is_null());
+    let words = unsafe { std::slice::from_raw_parts_mut(pointer, page.size() / 8) };
+    words
+        .iter_mut()
+        .for_each(|word| *word = rng.random::<u64>());
+    for (start, len, in_place) in [(0, words.len(), true), (16, words.len() / 2, false)] {
+        let rows = &words[start..start + len];
+        let uploaded = session.activity().uploaded_bytes;
+        let leaves = session
+            .poseidon2_merkle_leaves(rows, 16)
+            .expect("Poseidon2 Metal Merkle leaves");
+        let uploaded = session.activity().uploaded_bytes - uploaded;
+        assert_eq!(leaves, rows.chunks_exact(16).map(sponge).collect::<Vec<_>>());
+        assert_eq!(uploaded == 8, in_place, "uploaded {uploaded} bytes");
+    }
+    unsafe { std::alloc::dealloc(pointer.cast(), page) };
 
     let rows = 3;
     let cols = 5;

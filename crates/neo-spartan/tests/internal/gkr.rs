@@ -279,6 +279,10 @@ impl crate::device::Device for StridedLayers {
         None
     }
 
+    fn merkle_leaves(&self, _values: &[u64], _width: usize) -> Option<Vec<[u64; 4]>> {
+        None
+    }
+
     fn key_weights(&self, _powers: &[[u64; 3]], _blocks: usize) -> Option<Vec<[u64; 3]>> {
         None
     }

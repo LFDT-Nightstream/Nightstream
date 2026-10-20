@@ -23,6 +23,8 @@ use crate::merkle::{Mmcs, Tree};
 pub(super) struct Reference {
     /// `(rows, width)` of every tree request.
     pub(super) trees: Mutex<Vec<(usize, usize)>>,
+    /// `(rows, width)` of every leaf request.
+    pub(super) leaves: Mutex<Vec<(usize, usize)>>,
     /// Rows of every DFT request.
     pub(super) dfts: Mutex<Vec<usize>>,
 }
@@ -54,6 +56,22 @@ impl Device for Reference {
             layers
                 .into_iter()
                 .map(|layer| layer.into_iter().map(words).collect())
+                .collect(),
+        )
+    }
+
+    fn merkle_leaves(&self, values: &[u64], width: usize) -> Option<Vec<[u64; DIGEST_LEN]>> {
+        self.leaves
+            .lock()
+            .unwrap()
+            .push((values.len() / width, width));
+        Some(
+            values
+                .chunks_exact(width)
+                .map(|row| {
+                    hash_leaf(&row.iter().map(|&w| Gl::from_u64(w)).collect::<Vec<_>>())
+                        .map(|value| value.as_canonical_u64())
+                })
                 .collect(),
         )
     }
@@ -137,14 +155,13 @@ fn provers_tree_matches_plonky3() {
             assert_eq!(ours.0, theirs.0, "case {case}");
             assert_eq!(ours.1.sibling_hashes, theirs.1.sibling_hashes, "case {case}");
         }
-        // The device gets one subtree at a time, never the whole tree: the
-        // leaves of each subtree, then the nodes above them.
-        let requests = std::mem::take(&mut *reference.trees.lock().unwrap());
+        // The device hashes the leaves of the rows, then the nodes above
+        // one subtree's leaves at a time, never the whole tree.
+        let leaves = std::mem::take(&mut *reference.leaves.lock().unwrap());
+        let trees = std::mem::take(&mut *reference.trees.lock().unwrap());
         if case == 0 {
-            assert_eq!(
-                requests,
-                [(height / 2, 2), (height / 2, 2), (height / 4, 8), (height / 4, 8)]
-            );
+            assert_eq!(leaves, [(height, 2)]);
+            assert_eq!(trees, [(height / 4, 8), (height / 4, 8)]);
         }
     }
     // WHIR's extension rounds commit flattened extension rows.
@@ -166,8 +183,8 @@ fn provers_tree_matches_plonky3() {
 }
 
 /// Rows that arrive one coset at a time commit to Plonky3's tree over the
-/// rows in order, with Plonky3's openings, and the device never hashes more
-/// than one coset's subtree of rows at once.
+/// rows in order, with Plonky3's openings, and the device hashes one
+/// coset's leaves at a time.
 #[test]
 fn cosets_commit_to_the_rows_in_order() {
     let plain = plain();
@@ -211,14 +228,15 @@ fn cosets_commit_to_the_rows_in_order() {
             assert_eq!(ours.1.sibling_hashes, theirs.1.sibling_hashes, "case {case}");
             assert!(scheme.check().is_ok());
         }
-        let requests = std::mem::take(&mut *reference.trees.lock().unwrap());
-        let coset_rows = (height / cosets).min(1 << 19);
+        let leaves = std::mem::take(&mut *reference.leaves.lock().unwrap());
+        assert_eq!(leaves, vec![(height / cosets, width); cosets], "case {case}");
+        let trees = std::mem::take(&mut *reference.trees.lock().unwrap());
         assert!(
-            requests
-                .iter()
-                .all(|&(rows, request_width)| (request_width == width && rows <= coset_rows)
-                    || (request_width == 2 * DIGEST_LEN && rows <= (1 << 18))),
-            "case {case}: {requests:?}"
+            !trees.is_empty()
+                && trees
+                    .iter()
+                    .all(|&(rows, request_width)| request_width == 2 * DIGEST_LEN && rows <= (1 << 18)),
+            "case {case}: {trees:?}"
         );
     }
     // Control: a coset in the wrong place changes the root.

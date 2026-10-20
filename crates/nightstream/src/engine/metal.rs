@@ -198,6 +198,10 @@ impl neo_spartan::Device for CompressionDevice {
         self.lock()?.merkle_layers(rows, width, fill).ok()
     }
 
+    fn merkle_leaves(&self, values: &[u64], width: usize) -> Option<Vec<[u64; 4]>> {
+        self.lock()?.merkle_leaves(values, width).ok()
+    }
+
     fn key_weights(&self, powers: &[[u64; 3]], blocks: usize) -> Option<Vec<[u64; 3]>> {
         self.lock()?.production_key_weights(powers, blocks).ok()
     }

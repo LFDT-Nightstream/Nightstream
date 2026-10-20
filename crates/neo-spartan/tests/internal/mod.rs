@@ -4,6 +4,7 @@ mod circuit;
 mod gkr;
 mod layer1;
 mod lowering;
+mod lowering_stages;
 mod matrix;
 mod merkle;
 mod mle;

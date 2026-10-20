@@ -350,7 +350,7 @@ pub(crate) fn lane_value<B: Backend>(b: &mut B, zeta: B::E, point: &[B::E]) -> B
 }
 
 /// The `Ext` value whose coordinate columns opened to `values`.
-fn from_coordinates<B: Backend>(b: &mut B, values: &[B::E]) -> B::E {
+pub(crate) fn from_coordinates<B: Backend>(b: &mut B, values: &[B::E]) -> B::E {
     let mut total = algebra::ext_zero(b);
     for (c, &value) in values.iter().enumerate() {
         let basis = <Ext as BasedVectorSpace<Gl>>::ith_basis_element(c).expect("three coordinates");

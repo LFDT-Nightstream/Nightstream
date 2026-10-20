@@ -18,6 +18,9 @@ Owns where the rows and the cells of a shape run sit in the shrink CCS
 - Glue rows and glue cells follow the block parts (`layout.rs:149-165`).
 - The constant one sits at column `2^cellVars` and public word `i` at
   `2^cellVars + i` (`layout.rs:154-164`).
+- A run records its sink calls that emit glue rows, in order (`Call`,
+  `circuit/record.rs:136-152`). Its glue rows are the ones that `Trace`
+  stores for them (`Run.rows`).
 
 The entries of a run's CCS are the block entries, then the glue entries.
 Their two sums are the verifier's `block_part` and its shape run's
@@ -39,6 +42,59 @@ terms of its sides `A_0, B_0, A_1, B_1, A_2, B_2, C`. Side `s` is matrix
 `Σ_i (A_i·z)·(B_i·z) - C·z = 0`. -/
 structure GlueRow (F : Type) where
   side : Fin 7 → List (Wire × F)
+
+/-- The row that `Trace::row` stores for a row call (`record.rs:492-507`):
+product `i` gives sides `2i` and `2i + 1`, the linear terms side `6`, and a
+missing product leaves its sides empty. -/
+def GlueRow.ofCall {F : Type} (products : List (List (Wire × F) × List (Wire × F))) (linear : List (Wire × F)) :
+    GlueRow F :=
+  ⟨fun side =>
+    if (side : ℕ) = 6 then linear
+    else
+      match products[(side : ℕ) / 2]? with
+      | some pair => if (side : ℕ) % 2 = 0 then pair.1 else pair.2
+      | none => []⟩
+
+/-- `Σ coefficient·wire + constant` (`Form`, `record.rs:39-46`). -/
+structure Form (F : Type) where
+  terms : List (Wire × F)
+  constant : F
+
+/-- One row `(Σ a)·(Σ b) = Σ c` of a fixed R1CS system, each side as
+`(column, coefficient)` terms (`R1cs::sides`, `circuit/r1cs.rs:59-65`). -/
+structure R1csRow (F : Type) where
+  a : List (ℕ × F)
+  b : List (ℕ × F)
+  c : List (ℕ × F)
+
+open Classical in
+/-- `expand` (`record.rs:118-134`): each column's form times its
+coefficient, the form's constant on the one column when it is nonzero. A
+column past `columns` reads the zero form; Rust asserts that none is
+(`r1cs.rs:42`, `record.rs:451`). -/
+noncomputable def expand {F : Type} [Field F] (side : List (ℕ × F)) (columns : List (Form F)) :
+    List (Wire × F) :=
+  side.flatMap fun t =>
+    (columns.getD t.1 ⟨[], 0⟩).terms.map (fun u => (u.1, u.2 * t.2)) ++
+      if (columns.getD t.1 ⟨[], 0⟩).constant ≠ 0 then [(.pub 0, (columns.getD t.1 ⟨[], 0⟩).constant * t.2)]
+      else []
+
+/-- A sink call of the shape run that emits glue rows (`Sink`,
+`record.rs:136-152`): one row of at most three products and a linear side
+(`Trace::row` asserts the bound, `record.rs:493`), or the rows of a fixed
+R1CS system over form columns. -/
+inductive Call (F : Type) where
+  | row (products : List (List (Wire × F) × List (Wire × F))) (linear : List (Wire × F))
+      (three : products.length ≤ 3)
+  | r1cs (rows : List (R1csRow F)) (columns : List (Form F))
+
+/-- The glue rows of a call as `Trace` stores them: the default `Sink::r1cs`
+emits each R1CS row as a row call of one product (`record.rs:147-152`), and
+`Trace::r1cs` builds the same rows (`record.rs:521-572`). -/
+noncomputable def Call.rows {F : Type} [Field F] : Call F → List (GlueRow F)
+  | .row products linear _ => [GlueRow.ofCall products linear]
+  | .r1cs rows columns =>
+      rows.map fun r => GlueRow.ofCall [(expand r.a columns, expand r.b columns)] (expand r.c columns)
 
 /-- One template entry (`circuit/block.rs:28-36`): matrix, template row,
 block cell (`none` is the constant one), coefficient. -/
@@ -67,16 +123,20 @@ structure Counts where
   publics : ℕ
 
 /-- What the verifier's shape run of one program records
-(`mod.rs:263-271`, `evaluate.rs`): its glue rows in order, its glue cells,
-its blocks and its public words. -/
+(`mod.rs:263-271`, `evaluate.rs`): its calls that emit glue rows in order,
+its glue cells, its blocks and its public words. -/
 structure Run (F : Type) where
-  rows : List (GlueRow F)
+  calls : List (Call F)
   cells : ℕ
   blocks : ℕ
   publics : List F
 
+/-- The run's glue rows, in order. -/
+noncomputable def Run.rows {F : Type} [Field F] (run : Run F) : List (GlueRow F) :=
+  run.calls.flatMap Call.rows
+
 /-- The counts that the verifier compares with the shape (`mod.rs:266-271`). -/
-def Run.counts {F : Type} (run : Run F) : Counts :=
+noncomputable def Run.counts {F : Type} [Field F] (run : Run F) : Counts :=
   ⟨run.blocks, run.rows.length, run.cells, run.publics.length⟩
 
 /-- A wire names a cell of the run. The recorder creates no other wire
@@ -87,7 +147,7 @@ def Wire.Valid {F : Type} (T : Template F) (run : Run F) : Wire → Prop
   | .pub i => i ≤ run.publics.length
 
 /-- Every term of every glue row names a cell of the run. -/
-def Run.Valid {F : Type} (T : Template F) (run : Run F) : Prop :=
+def Run.Valid {F : Type} [Field F] (T : Template F) (run : Run F) : Prop :=
   ∀ row ∈ run.rows, ∀ side, ∀ t ∈ row.side side, t.1.Valid T run
 
 /-- The wide part of `size` indices: `2^⌊log2 size⌋` (`layout.rs:58`). -/
@@ -160,7 +220,7 @@ end Layout
 
 /-- The CCS of a run under the layout of the shape `s`: the block entries,
 then the glue entries (`mod.rs:275`). -/
-def Run.ccs {F : Type} (T : Template F) (s : Counts) (run : Run F) : Ccs F :=
+noncomputable def Run.ccs {F : Type} [Field F] (T : Template F) (s : Counts) (run : Run F) : Ccs F :=
   ⟨Layout.rowVars T s, Layout.cellVars T s,
     Layout.blockEntries T s ++ Layout.glueEntries T s 0 run.rows, run.publics⟩
 
@@ -205,7 +265,7 @@ theorem mem_glueEntries {e : Entry F} :
           side, t, tm, colEq⟩
 
 /-- On a run with the shape's counts, every entry sits inside the cubes. -/
-theorem ccs_fits (run : Run F) (wf : T.WellFormed) (valid : run.Valid T) (counts : run.counts = s) :
+theorem ccs_fits [Field F] (run : Run F) (wf : T.WellFormed) (valid : run.Valid T) (counts : run.counts = s) :
     (run.ccs T s).Fits := by
   have blocks : run.blocks = s.blocks := congrArg Counts.blocks counts
   have glueRows : run.rows.length = s.glueRows := congrArg Counts.glueRows counts

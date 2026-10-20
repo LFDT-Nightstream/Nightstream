@@ -82,10 +82,10 @@ at the points that it returns. Some path of `layer1Game` draws the replay's
 challenges before WHIR's own and ends in a model transcript of the replay's
 statement and the prover's P0 candidates. -/
 theorem replay_accepts_implies_path (rel : Replay.Relation) (S : Setup Fp) (facts : RelationFacts rel S)
-    (merkle : MerkleBinds rel S) (seed : Array Gl) (st : Replay.Statement) (proof : Replay.Proof) (L0 L1 : ℕ)
-    (cands : List (P0Tables Fp)) (short0 : cands.length ≤ L0) (p1 : List (P1Tables K)) (short1 : p1.length ≤ L1)
-    {t t' : Replay.Transcript} {points : OpeningPoints} (run : Runs (verify rel seed st proof) t points t')
-    (whir : WhirOpens (shapeOf rel) proof points cands p1) :
+    (seed : Array Gl) (st : Replay.Statement) (proof : Replay.Proof) (merkle : MerkleBinds rel S proof.leaves)
+    (L0 L1 : ℕ) (cands : List (P0Tables Fp)) (short0 : cands.length ≤ L0) (p1 : List (P1Tables K))
+    (short1 : p1.length ≤ L1) {t t' : Replay.Transcript} {points : OpeningPoints}
+    (run : Runs (verify rel seed st proof) t points t') (whir : WhirOpens (shapeOf rel) proof points cands p1) :
     ∃ (tr : Transcript Fp K (shapeOf rel).queries (2 ^ (rel.setupVars - 2))) (ds rest : List Draw),
       t'.draws.toList = t.draws.toList ++ ds ++ rest ∧ tr.statement = statementOf st ∧
       tr.early.candidates = cands ∧
@@ -146,12 +146,12 @@ with WHIR's guarantee at the points that it returns, is a path of
 avoids every bad set, a P0 candidate is a CE(B) witness for the replay's
 statement. The paths that do not avoid them are the event that
 `layer1_sound` bounds. -/
-theorem replay_accepts_sound (rel : Replay.Relation) (S : Setup Fp) (facts : RelationFacts rel S)
-    (merkle : MerkleBinds rel S) (N : ℕ) (sizes : (shapeOf rel).Sizes N)
-    (cast : ∀ a b : ℕ, a < N → b < N → (a : K) = b → a = b) (seed : Array Gl) (st : Replay.Statement)
-    (proof : Replay.Proof) (L0 L1 : ℕ) (cands : List (P0Tables Fp)) (short0 : cands.length ≤ L0)
-    (p1 : List (P1Tables K)) (short1 : p1.length ≤ L1) {t t' : Replay.Transcript} {points : OpeningPoints}
-    (run : Runs (verify rel seed st proof) t points t') (whir : WhirOpens (shapeOf rel) proof points cands p1) :
+theorem replay_accepts_sound (rel : Replay.Relation) (S : Setup Fp) (facts : RelationFacts rel S) (N : ℕ)
+    (sizes : (shapeOf rel).Sizes N) (cast : ∀ a b : ℕ, a < N → b < N → (a : K) = b → a = b) (seed : Array Gl)
+    (st : Replay.Statement) (proof : Replay.Proof) (merkle : MerkleBinds rel S proof.leaves) (L0 L1 : ℕ)
+    (cands : List (P0Tables Fp)) (short0 : cands.length ≤ L0) (p1 : List (P1Tables K)) (short1 : p1.length ≤ L1)
+    {t t' : Replay.Transcript} {points : OpeningPoints} (run : Runs (verify rel seed st proof) t points t')
+    (whir : WhirOpens (shapeOf rel) proof points cands p1) :
     ∃ ds rest : List Draw, t'.draws.toList = t.draws.toList ++ ds ++ rest ∧
       ∃ p : Game.Pos (layer1Game (shapeOf rel) phi barOf S L0 L1 (2 ^ (rel.setupVars - 2)) goldilocks
           (queryAt (K := K) rel)),
@@ -159,7 +159,7 @@ theorem replay_accepts_sound (rel : Replay.Relation) (S : Setup Fp) (facts : Rel
         (∃ tr, Game.Pos.node _ p = .pure (some tr)) ∧
         (Game.Pos.Avoids _ p → ∃ w ∈ cands, Relation (shapeOf rel) phi barOf S (statementOf st) w.z) := by
   obtain ⟨tr, ds, rest, draws, statement, candidates, p, node, pathDraws⟩ :=
-    replay_accepts_implies_path rel S facts merkle seed st proof L0 L1 cands short0 p1 short1 run whir
+    replay_accepts_implies_path rel S facts seed st proof merkle L0 L1 cands short0 p1 short1 run whir
   refine ⟨ds, rest, draws, p, pathDraws, ⟨tr, node⟩, fun clean => ?_⟩
   have witness := Game.Pos.sound (layer1Game_avoids (shapeOf rel) phi barOf S L0 L1 (2 ^ (rel.setupVars - 2))
     goldilocks (queryAt rel) N sizes cast facts.fits phi_monic phi_ne_one) p (some tr) clean node tr rfl

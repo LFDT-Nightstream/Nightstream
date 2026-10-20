@@ -123,7 +123,7 @@ impl<'p, B: Backend> ProofView<'p, B> {
 }
 
 /// The norm tree over the cube, then the matrix early trees.
-fn early_shapes(relation: &Relation<'_>) -> Vec<TreeShape> {
+pub(crate) fn early_shapes(relation: &Relation<'_>) -> Vec<TreeShape> {
     let mut shapes = vec![TreeShape {
         depth: relation.shape.cube_variables(),
         factors: 0,
@@ -315,7 +315,7 @@ pub(crate) fn verify<B: Backend>(
     Ok(())
 }
 
-fn observe_early<B: Backend>(b: &mut B, duplex: &mut Duplex<B>, values: &EarlyValues<B::E>) {
+pub(crate) fn observe_early<B: Backend>(b: &mut B, duplex: &mut Duplex<B>, values: &EarlyValues<B::E>) {
     for value in values.runs {
         duplex.observe_ext(b, value);
     }
@@ -337,7 +337,7 @@ fn combine<B: Backend>(b: &mut B, partials: &[B::E; 1 << FOLD], point: &[B::E]) 
 }
 
 /// `Λ~(x) = Σ_{l<D} ζ^l·eq(x, l)` at the lane part of the linear point.
-fn lane_value<B: Backend>(b: &mut B, zeta: B::E, point: &[B::E]) -> B::E {
+pub(crate) fn lane_value<B: Backend>(b: &mut B, zeta: B::E, point: &[B::E]) -> B::E {
     let eq = algebra::eq_table(b, point);
     let mut total = algebra::ext_zero(b);
     let mut power = algebra::ext_one(b);

@@ -1,3 +1,4 @@
+import CompressionLean.Circuit.Linear
 import CompressionLean.Circuit.Record
 import CompressionLean.Circuit.Verifier
 import CompressionLean.Circuit.Parse
@@ -23,6 +24,9 @@ compares it with the IR, instruction by instruction, as `Log` writes them
 - `layer1 <input.json>`: the Lean side of `Layer1::run` for the relation in
   the file. Its instructions must be the first ones of the IR: the verifier
   is ported up to `verifier.rs:168`.
+- `linear <input.json>`: the Lean side of `Linear`, the linear stage
+  (`linearStage`) from the state after the early stage. The whole IR must
+  match.
 -/
 
 namespace CompressionLean.LowerCheck
@@ -186,6 +190,28 @@ def layer1 (input : Layer1Input) : Build Unit := do
   let proof ← ProofView.read input.relation input.p1Rows input.p0Rows
   verify input.relation (fun lane => seed[lane]!) statement proof
 
+/-- What `linear` reads (`lowering.rs`, `linear.json`): the replay's relation,
+and the duplex inputs pending and the output lanes unread after the early
+stage. -/
+structure LinearInput where
+  relation : Replay.Relation
+  pending : ℕ
+  output : ℕ
+deriving Lean.FromJson
+
+/-- `Linear::run` (`lowering.rs`): the statement as statement words; the
+duplex state, its pending inputs and the linear stage's proof values as proof
+words; then the linear stage. The unread output is the state's first lanes. -/
+def linear (input : LinearInput) : Build Unit := do
+  let rel := input.relation
+  let statement ← statementInput rel
+  let state ← (Array.range 16).mapM fun _ => Build.priv
+  let pending ← (Array.range input.pending).mapM fun _ => Build.priv
+  let quotient ← privateExts (Replay.D - 1)
+  let rounds ← (Array.range rel.cubeVars).mapM fun _ => privateExts 2
+  let finals ← privateExts 3
+  let _ ← (linearStage rel statement quotient rounds finals).run ⟨state, pending, state.extract 0 input.output⟩
+
 /-- Lean's program for an export, and whether it is the whole program or its
 start. -/
 structure Mirror where
@@ -240,7 +266,11 @@ def arguments : List String → IO (Except String (String × Option Mirror))
       let json ← IO.FS.readFile input
       pure <| (Lean.Json.parse json >>= Lean.fromJson? (α := Layer1Input)).map fun input =>
         (path, some ⟨(layer1 input).program, false⟩)
-  | _ => pure (.error "usage: lowerCheck <export.txt> [shared | early | layer1 <layer1.json>]")
+  | [path, "linear", input] => do
+      let json ← IO.FS.readFile input
+      pure <| (Lean.Json.parse json >>= Lean.fromJson? (α := LinearInput)).map fun input =>
+        (path, some ⟨(linear input).program, true⟩)
+  | _ => pure (.error "usage: lowerCheck <export.txt> [shared | early | layer1 <layer1.json> | linear <linear.json>]")
 
 end CompressionLean.LowerCheck
 

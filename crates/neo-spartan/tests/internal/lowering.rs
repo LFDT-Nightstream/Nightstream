@@ -11,11 +11,12 @@
 //! requires the lowered run to equal the trace: every row with its seven
 //! sides in order, the glue cells, the blocks and the statement words.
 //!
-//! For `Shared`, `Early` and the layer-1 verifier, `lowerCheck` also writes
-//! the program with the Lean builder and requires the logged instructions:
-//! all of `Shared`'s and `Early`'s, and the verifier's first ones, up to
-//! `verifier.rs:168`.
-//! The verifier's relation goes to `target/lean-lowering/layer1.json`.
+//! For `Shared`, `Early`, `Linear` and the layer-1 verifier, `lowerCheck`
+//! also writes the program with the Lean builder and requires the logged
+//! instructions: all of `Shared`'s, `Early`'s and `Linear`'s, and the
+//! verifier's first ones, up to `verifier.rs:168`.
+//! The verifier's relation goes to `target/lean-lowering/layer1.json`, and
+//! `Linear`'s input to `linear.json`.
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -28,21 +29,24 @@ use p3_whir::transcript::WhirShape;
 use super::layer1::{relation_of, setup_toy, transcript};
 use super::replay::relation_json;
 use super::shrink::Layer1;
+use super::verifier::statement_input;
 use crate::circuit::algebra::{self, Kx, K};
 use crate::circuit::block::Kind;
 use crate::circuit::fold::FoldTranscript;
 use crate::circuit::hash::{compress, hash_leaf, merkle_root, Duplex};
 use crate::circuit::r1cs::R1cs;
 use crate::circuit::record::{Form, Recorder, Trace, Wire};
-use crate::circuit::Backend;
+use crate::circuit::{Backend, Native};
 use crate::device::Accelerator;
 use crate::field::{Ext, Gl};
 use crate::gkr::{self, GkrView, TreeShape};
 use crate::hash::seed;
 use crate::matrix::{EarlyChallenges, EarlyValues, Structure};
 use crate::pcs::Pcs;
+use crate::ring::{self, Mixing};
 use crate::shrink::Program;
-use crate::{norm, prove, sumcheck, Error, Relation};
+use crate::verifier::{early_shapes, lane_value, observe_early};
+use crate::{mle, norm, prove, sumcheck, whir, Claim, ClaimWords, Error, Proof, Relation, LANE_VARIABLES};
 
 /// A recorded value and its handle.
 #[derive(Clone, Copy)]
@@ -434,6 +438,145 @@ impl Program for Early {
     }
 }
 
+/// The linear stage of the layer-1 verifier on the toy proof, from the state
+/// after the early stage: the statement as statement words, then the duplex
+/// after `observe_early` and the proof's quotient, linear rounds and finals as
+/// proof words. The duplex's unread output is the first `output` lanes of its
+/// state. `run` makes the calls of `verifier.rs:170-206` in its order.
+/// `linear` in `Circuit/Check.lean` writes the same program.
+struct Linear<'a> {
+    relation: &'a Relation<'a>,
+    statement: ClaimWords<Gl>,
+    state: [Gl; WIDTH],
+    input: Vec<Gl>,
+    output: usize,
+    proof: &'a Proof,
+}
+
+impl<'a> Linear<'a> {
+    /// The duplex after `observe_early` in a native run of `verifier.rs:143-168`
+    /// on `proof`: the early stage's transcript calls, without its checks.
+    fn new(relation: &'a Relation<'a>, seed: [Gl; 4], claim: &Claim, proof: &'a Proof) -> Self {
+        let statement = ClaimWords::new(&relation.shape, claim).unwrap();
+        let b = &mut Native;
+        let mut duplex = Duplex::new(b);
+        duplex.observe_slice(b, &seed);
+        for word in relation.words() {
+            let word = algebra::constant(b, word);
+            duplex.observe(b, word);
+        }
+        duplex.observe_slice(b, &statement.words());
+        whir::observe_root(b, &mut duplex, proof.p0.roots()[0]);
+        let histogram: Vec<Gl> = proof
+            .histogram
+            .iter()
+            .map(|&count| Gl::from_u64(u64::from(count)))
+            .collect();
+        duplex.observe_slice(b, &histogram);
+        for _ in 0..5 {
+            let _ = duplex.sample_ext(b);
+        }
+        let shapes = early_shapes(relation);
+        let early = GkrView::read(b, Some(&proof.early), &shapes).unwrap();
+        gkr::verify(b, &early, &shapes, &mut duplex).unwrap();
+        observe_early(b, &mut duplex, &proof.early_values);
+        let output = duplex.output.len();
+        assert_eq!(
+            duplex.output,
+            duplex.state[..output],
+            "the output is the state's rate lanes"
+        );
+        Self {
+            relation,
+            statement,
+            state: duplex.state,
+            input: duplex.input,
+            output,
+            proof,
+        }
+    }
+}
+
+impl Program for Linear<'_> {
+    fn statement(&self) -> Vec<u64> {
+        self.statement
+            .words()
+            .iter()
+            .map(Gl::as_canonical_u64)
+            .collect()
+    }
+
+    fn key(&self) -> Vec<u64> {
+        Vec::new()
+    }
+
+    fn run<B: Backend>(&self, b: &mut B) -> Result<(), Error> {
+        let statement = statement_input(b, &self.statement);
+        let state = self.state.map(|word| algebra::private(b, word));
+        let mut duplex = Duplex {
+            state,
+            input: self
+                .input
+                .iter()
+                .map(|&word| algebra::private(b, word))
+                .collect(),
+            output: state[..self.output].to_vec(),
+        };
+        let exts = |b: &mut B, values: &[Ext]| -> Vec<B::E> {
+            values
+                .iter()
+                .map(|&value| algebra::private_ext(b, value))
+                .collect()
+        };
+        let quotient = exts(b, &self.proof.quotient);
+        let linear: Vec<Vec<B::E>> = self
+            .proof
+            .linear
+            .iter()
+            .map(|message| exts(b, message))
+            .collect();
+        let finals = self
+            .proof
+            .finals
+            .map(|value| algebra::private_ext(b, value));
+        let shape = &self.relation.shape;
+
+        let lambda = duplex.sample_ext(b);
+        let mixing = Mixing::new(b, lambda, shape);
+        for &value in &quotient {
+            duplex.observe_ext(b, value);
+        }
+        let zeta = duplex.sample_ext(b);
+        let targets = ring::targets(b, &statement, &mixing);
+        let value = ring::lifted_target(b, &targets, &quotient, zeta);
+        let (point, last) = sumcheck::replay(b, &mut duplex, &linear, value);
+        let (block_point, lane_part) = point.split_at(shape.block_variables);
+        let [key_value, omega_value, z_value] = finals;
+        for value in finals {
+            duplex.observe_ext(b, value);
+        }
+        let (scale, _) = mle::scaled_eq_point(b, zeta, LANE_VARIABLES)?;
+        let tau = ring::tau(b, zeta);
+        let eval_k = mle::eval_k(b, &statement.point, block_point, &tau, shape.blocks);
+        let [k_re, k_im] = mixing.eval_k();
+        let mut omega = b.ext_mul(scale, key_value);
+        for (weight, value) in [(k_re, eval_k.re), (k_im, eval_k.im)] {
+            let term = b.ext_mul(weight, value);
+            omega = b.ext_add(omega, term);
+        }
+        omega = b.ext_add(omega, omega_value);
+        for block in 0..shape.public_blocks {
+            let eq = algebra::eq_at(b, block_point, block);
+            let term = b.ext_mul(eq, mixing.public(block));
+            omega = b.ext_add(omega, term);
+        }
+        let lanes = lane_value(b, zeta, lane_part);
+        let weighted = b.ext_mul(omega, lanes);
+        let expected = b.ext_mul(weighted, z_value);
+        b.assert_ext_equal(last, expected, "linear claim")
+    }
+}
+
 /// What `layer1` in `Circuit/Check.lean` reads: the replay's relation, and
 /// the index bits and folding factor of each query set of the two openings.
 fn layer1_input(relation: &Relation<'_>) -> String {
@@ -551,11 +694,21 @@ fn lowering_matches_lean() {
     )
     .unwrap();
     let layer1 = Layer1::new(&relation, seed(transcript(1)), &toy.claim, Some(&proof));
+    let linear = Linear::new(&relation, seed(transcript(1)), &toy.claim, &proof);
+    linear
+        .run(&mut Native)
+        .expect("the toy proof passes the linear claim");
     let input = workspace().join("target/lean-lowering/layer1.json");
+    let linear_input = workspace().join("target/lean-lowering/linear.json");
     let exports = [
         ("edges", export("edges", &Edges), vec![]),
         ("shared", export("shared", &Shared), vec!["shared".into()]),
         ("early", export("early", &Early), vec!["early".into()]),
+        (
+            "linear",
+            export("linear", &linear),
+            vec!["linear".into(), linear_input.clone()],
+        ),
         (
             "layer1",
             export("layer1", &layer1),
@@ -563,6 +716,16 @@ fn lowering_matches_lean() {
         ),
     ];
     std::fs::write(&input, layer1_input(&relation)).unwrap();
+    std::fs::write(
+        &linear_input,
+        format!(
+            "{{\"relation\":{},\"pending\":{},\"output\":{}}}",
+            relation_json(&relation),
+            linear.input.len(),
+            linear.output
+        ),
+    )
+    .unwrap();
     let check = workspace().join("formal/compression-lean/.lake/build/bin/lowerCheck");
     assert!(
         check.exists(),

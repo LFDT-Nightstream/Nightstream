@@ -3,8 +3,9 @@ import CompressionLean.Circuit.Hash
 import CompressionLean.Replay.Gkr
 
 /-!
-Owns the views of the parts of a layer-1 proof that later verifier stages
-read, as handles: a GKR proof (`gkr.rs:591-656`), a queried setup leaf
+Owns the views of the statement and of the parts of a layer-1 proof that
+later verifier stages read, as handles: the statement (`ClaimWords`,
+`lib.rs:776-843`), a GKR proof (`gkr.rs:591-656`), a queried setup leaf
 (`setup.rs:216-237`) and one WHIR opening (`whir/mod.rs:28-224`). Each
 `read` is the shape run of its Rust counterpart (`proof = None`): it writes
 one `private` per proof word, in Rust's order.
@@ -19,6 +20,19 @@ namespace CompressionLean.Circuit
 
 open Lean (FromJson)
 open CompressionLean.Replay (TreeShape WhirShape layerFactors layerDegree layerCount foldVars)
+
+/-- `ClaimWords` over handles (`lib.rs:776-783`); a `K` value is `(re, im)`. -/
+structure ClaimView where
+  commitment : Array (Array Var)
+  publicInput : Array (Array Var)
+  point : Array KVar
+  evalK : Array KVar
+  evalA : Array (Array KVar)
+
+/-- The ring rows, then the `K` values (`ClaimWords::words`, `lib.rs:834-843`). -/
+def ClaimView.words (c : ClaimView) : Array Var :=
+  c.commitment.flatten ++ c.publicInput.flatten ++
+    (c.point ++ c.evalK ++ c.evalA.flatten).flatMap fun value => #[value.1, value.2]
 
 /-- `count` extension proof values. -/
 def privateExts (count : ℕ) : Build (Array ExtVar) :=

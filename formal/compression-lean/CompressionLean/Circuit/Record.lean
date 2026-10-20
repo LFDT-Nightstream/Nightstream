@@ -69,13 +69,14 @@ theorem expandArray_eq (side : List (ℕ × F)) (columns : List (Form F)) :
   split_ifs <;> rfl
 
 /-- The glue rows of a call, computed (`Trace::row`, `Trace::r1cs`,
-`record.rs:491-572`). -/
+`record.rs:491-572`). The column array is built once per call, not once per
+row: the terminal package is one call of 8,800,800 rows. -/
 def Call.computedRows : Call F → List (GlueRow F)
   | .row products linear _ => [GlueRow.ofCall products linear]
   | .r1cs rows columns =>
+      let columns := columns.toArray
       rows.map fun r =>
-        GlueRow.ofCall [(expandArray r.a columns.toArray, expandArray r.b columns.toArray)]
-          (expandArray r.c columns.toArray)
+        GlueRow.ofCall [(expandArray r.a columns, expandArray r.b columns)] (expandArray r.c columns)
 
 theorem Call.computedRows_eq (c : Call F) : c.computedRows = c.rows := by
   cases c <;> simp [computedRows, Call.rows, expandArray_eq]

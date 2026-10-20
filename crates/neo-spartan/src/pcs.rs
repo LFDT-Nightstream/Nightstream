@@ -13,7 +13,7 @@ use p3_field_v08::{PrimeCharacteristicRing, PrimeField64, TwoAdicField};
 use p3_matrix_v08::dense::RowMajorMatrix;
 use p3_matrix_v08::Matrix;
 use p3_security_v08::SecurityTerm;
-use p3_sumcheck_v08::layout::{plan_stacked_layout, Layout as _, SuffixProver, Table};
+use p3_sumcheck_v08::layout::{plan_stacked_layout, Layout as _, SuffixProver, Table, Witness};
 use p3_sumcheck_v08::{OpeningBatch, OpeningProtocol, PrescribedPointPcs, TableShape, TableSpec};
 use p3_whir::parameters::{FoldingFactor, ProtocolParameters, SecurityAssumption, WhirConfig};
 use p3_whir::pcs::prover::WhirProver;
@@ -259,6 +259,22 @@ impl Pcs {
         challenger: &mut Challenger,
         accelerator: &Accelerator,
     ) -> Result<(Commitment, ProverData), Error> {
+        let (whir, dft, mmcs) = self.prover(accelerator);
+        let committed = whir
+            .commit(self.witness(tables), challenger)
+            .expect("the configuration fixes the witness size");
+        dft.check()?;
+        mmcs.check()?;
+        Ok(committed)
+    }
+
+    /// The layout that `commit` leaves in its prover data for `tables`: the
+    /// opening needs it, the commitment does not.
+    pub(crate) fn layout(&self, tables: Vec<Vec<Gl>>) -> Layout {
+        Layout::from_witness(self.witness(tables))
+    }
+
+    fn witness(&self, tables: Vec<Vec<Gl>>) -> Witness<Gl> {
         assert_eq!(tables.len(), self.plans.len());
         let tables = tables
             .into_iter()
@@ -268,14 +284,7 @@ impl Pcs {
                 Table::new(RowMajorMatrix::new(values, 1 << plan.variables))
             })
             .collect();
-        let witness = Layout::new_witness(tables, self.profile.first_folding);
-        let (whir, dft, mmcs) = self.prover(accelerator);
-        let committed = whir
-            .commit(witness, challenger)
-            .expect("the configuration fixes the witness size");
-        dft.check()?;
-        mmcs.check()?;
-        Ok(committed)
+        Layout::new_witness(tables, self.profile.first_folding)
     }
 
     /// Plonky3's own root binding: the shrink layer's, and the reference for

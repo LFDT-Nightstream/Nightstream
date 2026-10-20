@@ -533,24 +533,17 @@ pub fn prove(
     let statement = ClaimWords::new(shape, claim)?;
     // The P0 commitment takes the only copies of its tables; layer 1 rebuilds
     // `z` and the early tables after it.
-    let p0_tables = {
-        let early = tables.early(&claim.r);
-        let slot_columns: Vec<Gl> = early
-            .u
-            .iter()
-            .flat_map(|[re, im]| re.iter().chain(im))
-            .copied()
-            .chain(tables.blocks())
-            .collect();
-        let e = [early.e[0].as_slice(), early.e[1].as_slice()].concat();
-        vec![witness_table(shape, witness)?, e, slot_columns, early.mult]
-    };
-    let histogram = norm::histogram(&p0_tables[0], shape.norm_bound)?;
+    let p0_values = p0_tables(shape, tables, claim, witness)?;
+    let histogram = norm::histogram(&p0_values[0], shape.norm_bound)?;
 
     let mut challenger = relation.start(hash::seed(transcript), &statement);
-    let (p0, p0_data) = relation
+    let (p0, mut p0_data) = relation
         .p0
-        .commit(p0_tables, &mut challenger, accelerator)?;
+        .commit(p0_values, &mut challenger, accelerator)?;
+    // The commitment's layout holds the P0 tables until the opening. Layer 1
+    // frees it now and rebuilds it for the opening, so the tables are not
+    // held twice in between.
+    drop(p0_data.layout);
     let z = witness_table(shape, witness)?;
     let early = tables.early(&claim.r);
     challenger.observe_slice(&norm::words(&histogram));
@@ -655,6 +648,9 @@ pub fn prove(
         slots(&late[0].point),
         claims[2].point.clone(),
     ];
+    p0_data.layout = relation
+        .p0
+        .layout(p0_tables(shape, tables, claim, witness)?);
     let p0_opening = relation
         .p0
         .open(p0_data, &p0_points, &mut challenger, accelerator)?;
@@ -848,6 +844,21 @@ impl<F: Copy> ClaimWords<F> {
 }
 
 /// `z` on the cube: `z[64·block + lane] = Z[lane, block]`, zero elsewhere.
+/// The P0 tables: `z`, the run columns `e`, the slot columns, and the row
+/// counts.
+fn p0_tables(shape: &Shape, tables: &Tables, claim: &Claim, witness: &Mat<F>) -> Result<Vec<Vec<Gl>>, Error> {
+    let early = tables.early(&claim.r);
+    let slot_columns: Vec<Gl> = early
+        .u
+        .iter()
+        .flat_map(|[re, im]| re.iter().chain(im))
+        .copied()
+        .chain(tables.blocks())
+        .collect();
+    let e = [early.e[0].as_slice(), early.e[1].as_slice()].concat();
+    Ok(vec![witness_table(shape, witness)?, e, slot_columns, early.mult])
+}
+
 fn witness_table(shape: &Shape, witness: &Mat<F>) -> Result<Vec<Gl>, Error> {
     if witness.rows() != D || witness.cols() != shape.blocks {
         return Err(Error::Shape("witness dimensions"));

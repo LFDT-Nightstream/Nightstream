@@ -263,12 +263,15 @@ data, and Lean lowers it to the shrink run as `record.rs` does.
   `matrix.rs`, `verifier.rs`). The sizes come from the replay's relation
   (`Replay/Data.lean`). `verify` is ported up to `verifier.rs:168`: the
   seed, the relation words and the statement words, then the early stage
-  (norm root, GKR, matrix leaf checks, early values).
+  (norm root, GKR, matrix leaf checks, early values). `linearStage`
+  (`Ring.lean`, `Mle.lean`, `Linear.lean`; `ring.rs`, `mle.rs` and
+  `verifier.rs:170-206`) ports the linear stage; `verify` does not call it
+  yet.
 
 The lowering assumes, and does not prove:
 
 - Port: that `lower` equals `record.rs` on every program. The check below
-  compares the two on four runs.
+  compares the two on five runs.
 - Verifier port: that Lean's programs write Rust's instructions for every
   relation. The check below compares them on one toy relation.
 - Fields: the check runs `lower` in Goldilocks. In another field, the zero
@@ -302,19 +305,21 @@ Rust rejects inside WHIR, the replay must reject later.
 Lowering check. Build it with
 `timeout --signal=KILL 1500 lake build lowerCheck`, then run
 `cargo test --release -p neo-spartan --lib lowering_matches_lean -- --ignored`
-under the 5-minute cap. The test records four programs through
+under the 5-minute cap. The test records five programs through
 `record.rs` and logs each `Backend` call as an instruction: `Edges`, which
 takes every branch of `record.rs`, `Shared`, which calls every helper of the
 verifier, `Early`, which runs the early stage's helpers on a structure that
-the toy relation does not have, and the toy layer-1 verifier of
-`layer1_verifier_shrinks`. It
+the toy relation does not have, `Linear`, which runs the linear stage on the
+toy proof from the duplex state after the early stage, and the toy layer-1
+verifier of `layer1_verifier_shrinks`. It
 writes the statement, the IR and Rust's trace to
-`target/lean-lowering/<program>.txt`, and the verifier's relation to
-`layer1.json`. `lowerCheck` lowers the IR and requires the same glue cells,
-blocks, statement words and rows, side by side and term by term. For
-`Shared`, `Early` and the verifier it also writes Lean's program and requires
-Rust's instructions in order: all of `Shared`'s and `Early`'s, and the
-verifier's first ones, through `verifier.rs:168`.
+`target/lean-lowering/<program>.txt`, the verifier's relation to
+`layer1.json` and `Linear`'s input to `linear.json`. `lowerCheck` lowers the
+IR and requires the same glue cells, blocks, statement words and rows, side
+by side and term by term. For `Shared`, `Early`, `Linear` and the verifier it
+also writes Lean's program and requires Rust's instructions in order: all of
+`Shared`'s, `Early`'s and `Linear`'s, and the verifier's first ones, through
+`verifier.rs:168`.
 
 ## Terminal program
 

@@ -13,9 +13,9 @@ pub(crate) type Digest<B> = [<B as Backend>::F; DIGEST_LEN];
 /// The p3 duplex challenger: overwrite absorb, zero fill and a length tag in
 /// lane `RATE` when a partial block is duplexed, samples popped from the end.
 pub(crate) struct Duplex<B: Backend> {
-    state: [B::F; WIDTH],
-    input: Vec<B::F>,
-    output: Vec<B::F>,
+    pub(crate) state: [B::F; WIDTH],
+    pub(crate) input: Vec<B::F>,
+    pub(crate) output: Vec<B::F>,
 }
 
 impl<B: Backend> Duplex<B> {

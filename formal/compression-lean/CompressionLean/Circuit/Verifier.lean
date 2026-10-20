@@ -16,19 +16,6 @@ namespace CompressionLean.Circuit
 
 open CompressionLean.Replay (Relation D runOracles foldVars)
 
-/-- `ClaimWords` over handles (`lib.rs:776-783`); a `K` value is `(re, im)`. -/
-structure ClaimView where
-  commitment : Array (Array Var)
-  publicInput : Array (Array Var)
-  point : Array KVar
-  evalK : Array KVar
-  evalA : Array (Array KVar)
-
-/-- The ring rows, then the `K` values (`ClaimWords::words`, `lib.rs:834-843`). -/
-def ClaimView.words (c : ClaimView) : Array Var :=
-  c.commitment.flatten ++ c.publicInput.flatten ++
-    (c.point ++ c.evalK ++ c.evalA.flatten).flatMap fun value => #[value.1, value.2]
-
 /-- A layer-1 proof as handles (`verifier.rs:24-39`). -/
 structure ProofView where
   p0 : DigestVar

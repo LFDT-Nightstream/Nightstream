@@ -30,6 +30,12 @@ pub trait Device: Send + Sync {
         fill: &(dyn Fn(&mut [u64]) + Sync),
     ) -> Option<Vec<Vec<[u64; DIGEST_LEN]>>>;
 
+    /// The leaf digests of the rows of `width` words in `values`: the leaves
+    /// of `merkle_layers`, and no layer above them. Words may be
+    /// non-canonical, digests are canonical. `None` when the device cannot
+    /// hash them: the caller hashes them on the CPU, with the same digests.
+    fn merkle_leaves(&self, values: &[u64], width: usize) -> Option<Vec<[u64; DIGEST_LEN]>>;
+
     /// `Σ_i powers[i]·a_{i,b}` for every block `b < blocks`, with `a_{i,b}`
     /// the `D` coefficients of row `i` of the production commitment key
     /// (`neo_ajtai::nightstream_fprime_setup::coefficient_block(&PRODUCTION_SEED, i, b)`)

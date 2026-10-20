@@ -147,7 +147,11 @@ fn device_openings_equal_plonky3() {
         check(LAYER1, plans, 21 + seed as u64, &Accelerator::new(device.clone()));
     }
     assert!(!device.dfts.lock().unwrap().is_empty(), "the device ran the DFTs");
-    assert!(!device.trees.lock().unwrap().is_empty(), "the device hashed the trees");
+    assert!(
+        !device.leaves.lock().unwrap().is_empty(),
+        "the device hashed the leaves"
+    );
+    assert!(!device.trees.lock().unwrap().is_empty(), "the device hashed the nodes");
 }
 
 /// The shrink profile grinds. Plonky3 grinds in parallel and takes any

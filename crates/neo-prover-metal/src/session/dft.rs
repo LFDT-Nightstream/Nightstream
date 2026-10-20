@@ -107,9 +107,17 @@ impl MetalSession {
     /// page and spans whole pages (16 KiB, the Apple silicon VM page). The
     /// buffer must be dropped before `values` is used again.
     pub(super) fn wrap_pages(&self, values: &mut [u64]) -> Option<Buffer> {
+        self.wrap(values.as_mut_ptr(), size_of_val(values))
+    }
+
+    /// `wrap_pages` for memory that kernels only read.
+    pub(super) fn wrap_read_pages(&self, values: &[u64]) -> Option<Buffer> {
+        self.wrap(values.as_ptr().cast_mut(), size_of_val(values))
+    }
+
+    fn wrap(&self, words: *mut u64, bytes: usize) -> Option<Buffer> {
         const PAGE: usize = 16 * 1024;
-        let bytes = size_of_val(values);
-        let pointer = std::ptr::NonNull::new(values.as_mut_ptr().cast::<std::ffi::c_void>())?;
+        let pointer = std::ptr::NonNull::new(words.cast::<std::ffi::c_void>())?;
         if !(pointer.as_ptr() as usize).is_multiple_of(PAGE) || !bytes.is_multiple_of(PAGE) {
             return None;
         }

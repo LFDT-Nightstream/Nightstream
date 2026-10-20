@@ -1,5 +1,5 @@
-//! The Poseidon2 Merkle tree of a row-major matrix in one command buffer:
-//! the layer-1 prover's commitments.
+//! The Poseidon2 Merkle tree of a row-major matrix in one command buffer,
+//! or its leaf digests alone: the layer-1 prover's commitments.
 
 use objc2_metal::{MTLBuffer, MTLCommandBuffer, MTLCommandEncoder, MTLComputeCommandEncoder};
 
@@ -60,5 +60,41 @@ impl MetalSession {
             .zip(&sizes)
             .map(|(layer, &n)| self.read_buffer_parallel::<PoseidonDigest>(layer, n))
             .collect())
+    }
+
+    /// The leaf digests of the rows of `width` words in `values`: the leaves
+    /// of `poseidon2_merkle_layers`, and no layer above them. The rows are
+    /// read in place when `values` spans whole pages, otherwise copied once;
+    /// words may be non-canonical, digests are canonical.
+    pub fn poseidon2_merkle_leaves(&self, values: &[u64], width: usize) -> Result<Vec<PoseidonDigest>, MetalError> {
+        if width == 0 || values.is_empty() || !values.len().is_multiple_of(width) {
+            return Err(MetalError::Shape("Merkle leaves need whole rows of a positive width"));
+        }
+        let rows = values.len() / width;
+        let wrapped = self.wrap_read_pages(values);
+        let copied = match wrapped {
+            Some(_) => None,
+            None => Some(self.buffer_from_slice(values)?),
+        };
+        let input = wrapped
+            .as_ref()
+            .or(copied.as_ref())
+            .expect("one of the two buffers");
+        let output = self.buffer(rows * poseidon2::DIGEST_LEN * size_of::<u64>())?;
+        let leaf_width = self.buffer_from_slice(&[width as u64])?;
+        let command = self.command_buffer("nightstream.poseidon2.merkle_leaves")?;
+        let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
+        encoder.setComputePipelineState(&self.poseidon2_hash_rows_overwrite);
+        unsafe {
+            encoder.setBuffer_offset_atIndex(Some(input), 0, 0);
+            encoder.setBuffer_offset_atIndex(Some(&output), 0, 1);
+            encoder.setBuffer_offset_atIndex(Some(&self.poseidon2_constants), 0, 2);
+            encoder.setBuffer_offset_atIndex(Some(&leaf_width), 0, 3);
+        }
+        self.dispatch(&encoder, &self.poseidon2_hash_rows_overwrite, rows);
+        encoder.endEncoding();
+        self.finish(&command)?;
+        drop(wrapped);
+        Ok(self.read_buffer_parallel::<PoseidonDigest>(&output, rows))
     }
 }

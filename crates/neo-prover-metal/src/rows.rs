@@ -90,6 +90,11 @@ impl MetalRowProver {
         self.session.poseidon2_merkle_layers(rows, width, fill)
     }
 
+    /// The leaf digests of rows; see `MetalSession::poseidon2_merkle_leaves`.
+    pub fn merkle_leaves(&self, values: &[u64], width: usize) -> Result<Vec<[u64; 4]>, MetalError> {
+        self.session.poseidon2_merkle_leaves(values, width)
+    }
+
     /// Device bytes a kept commitment key holds over `columns` commitment
     /// columns, at 8 bytes per key coefficient.
     pub fn commitment_key_bytes(columns: usize) -> usize {

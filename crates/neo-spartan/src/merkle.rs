@@ -267,17 +267,17 @@ fn tree(
     mut coset: impl FnMut(usize, &mut Vec<Gl>),
 ) -> io::Result<Digest> {
     let length = rows / cosets;
-    let block = SUBTREE.min(length);
     let leaves_at = layer_offset(width, rows, 0);
     let mut values = vec![Gl::ZERO; length * width];
     for a in 0..cosets {
         coset(a, &mut values);
         assert_eq!(values.len(), length * width, "a coset keeps its shape");
         write_values(file, width * a * length, &values)?;
-        for (b, chunk) in values.chunks(block * width).enumerate() {
-            let digests = leaves(chunk, width, accelerator);
-            write_digests(file, leaves_at + DIGEST_LEN * (a * length + b * block), &digests)?;
-        }
+        write_digests(
+            file,
+            leaves_at + DIGEST_LEN * a * length,
+            &leaves(&values, width, accelerator),
+        )?;
     }
     drop(values);
     let size = SUBTREE.min(rows);
@@ -334,25 +334,16 @@ fn leaf<M: Matrix<Gl>>(matrices: &[M], r: usize) -> impl Iterator<Item = Gl> + '
         .flat_map(move |matrix| matrix.row(r).expect("the row is within the height"))
 }
 
-/// The leaf digests of the rows of `width` words in `values` (a
-/// power-of-two count), on the device when it takes them.
+/// The leaf digests of the rows of `width` words in `values`, on the device
+/// when it takes them.
 fn leaves(values: &[Gl], width: usize, accelerator: &Accelerator) -> Vec<Digest> {
-    let fill = |words: &mut [u64]| {
-        words
-            .par_iter_mut()
-            .zip(values.par_iter())
-            .for_each(|(word, value)| *word = value.as_canonical_u64());
-    };
+    // SAFETY: `Goldilocks` is `repr(transparent)` over `u64`.
+    let words = unsafe { std::slice::from_raw_parts(values.as_ptr().cast::<u64>(), values.len()) };
     match accelerator
         .device()
-        .and_then(|device| device.merkle_layers(values.len() / width, width, &fill))
+        .and_then(|device| device.merkle_leaves(words, width))
     {
-        // The device builds a tree over these rows, which are not a subtree
-        // of this one when they come from a coset: only its leaves count.
-        Some(layers) => layers
-            .into_iter()
-            .next()
-            .expect("a tree has leaves")
+        Some(digests) => digests
             .into_iter()
             .map(|digest| digest.map(Gl::new))
             .collect(),

@@ -81,6 +81,63 @@ Layer 1 assumes, and does not prove:
   `outer_terms` written in Lean, and `Pcs::new` enforces the two composed
   bounds that `layer1_budget` takes as premises.
 
+## Shrink
+
+`Shrink/` proves the soundness of the shrink verifier
+(`crates/neo-spartan/src/shrink/mod.rs`) against an adaptive prover. The
+argument is SuperSpartan (ePrint 2023/552) for the CCS that `layout.rs`
+defines.
+
+- Model: the relation is a CCS (`Ccs.lean`). Its eight matrices are a list
+  of entries over `2^m` rows, and `z = (w, 1, x)` has `2^(n+1)` columns. A
+  row holds when `(X·z)^7 + Σ_i (A_i·z)·(B_i·z) - C·z = 0`. `Layout.lean`
+  builds the CCS of a program's shape run as `layout.rs` places it: the
+  Poseidon2 block rows and cells in their wide and narrow parts, then the
+  glue rows and cells, then the constant one and the statement words. The
+  verifier is a game in the model of `Layer1/Game.lean` (`Game.lean`): `τ`,
+  an outer sum-check of `m` rounds of degree 8 from `0`, the claimed values
+  `M̃_j·z(rx)`, `ρ`, an inner sum-check of `n + 1` rounds of degree 2 from
+  `Σ_j ρ^j·v_j`, the opening, and the checks of `mod.rs`.
+- Adversary: the prover names the program first, because Rust absorbs its
+  key and statement before the commitment. It picks every message after it
+  sees all earlier challenges. It commits to at most `L` candidates for `w`
+  (the WHIR list). Every bad set is a union over these candidates.
+- Idealized opening: the verifier accepts the WHIR opening when one
+  candidate agrees with the opened value (`Game.lean`, `Opens`). The WHIR
+  error of this step is a named term of the budget (`Budget.lean`), not
+  proved here.
+- Claim: `Cost.lean`, `shrink_sound`. An accepted transcript has a
+  candidate `w` such that `z = (w, 1, x)` satisfies every row of the named
+  program's CCS, except with probability `shrinkError`. Per candidate, the
+  error counts `m` bad values for `τ`, `8m` for the outer rounds, `7` for
+  `ρ` and `2(n + 1)` for the inner rounds, over `|Ext|`.
+- Rust's charge: the count is exactly `L` times the degrees of `terms`
+  (`Budget.lean`, `shrinkCount_eq_rust`). So when `Pcs::new` accepts the
+  configuration for the layer bits `t`, the WHIR error plus `shrinkError`
+  is at most `2^-t` (`shrink_budget`).
+- Fiat–Shamir: in the state-restoration experiment of `Restoration.lean`,
+  the shrink layer errs with probability at most `calls · shrinkError`
+  (`shrink_restore_sound`). At Rust's charge this is at most `calls / 2^t`
+  (`shrink_restore_budget`).
+
+The shrink layer assumes, and does not prove:
+
+- WHIR: an opening is accepted only when one listed candidate agrees with
+  the opened value (`Opens`), except with the opening's error. The
+  candidates are tables over the base field; candidates over `Ext` are not
+  modeled. The errors come from Plonky3's Johnson-bound report (`pcs.rs`).
+- Fiat–Shamir: as in layer 1. Poseidon2 acts as a random oracle, and the
+  transcript encoding is injective on prefixes. The shape words fix the
+  statement length.
+- Verifier formulas: the model takes `Σ_j ρ^j·M̃_j(rx, ry)` as the sum
+  over the CCS entries. That the shape run (`evaluate.rs`) and the closed
+  form of `block_part` (`layout.rs`) compute this sum is not proved.
+- Recorder: every glue wire names a cell of its run (`Run.Valid`), and the
+  template entries name template rows and cells (`Template.WellFormed`).
+  The model has one block kind, as `KINDS` has.
+- Scope: that this CCS encodes the layer-1 verifier is not proved here.
+- Transcription: the model is written by hand from the Rust verifier.
+
 Build and emit (each Lean command under the 1,500 s cap). Copy the F′ build
 cache into `.lake` first (`cp -cR ../nightstream-fprime/.lake/packages .lake/`)
 so that Lake does not rebuild Mathlib.

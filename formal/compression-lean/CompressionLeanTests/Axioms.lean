@@ -137,3 +137,10 @@ import CompressionLean
 #audit_axioms CompressionLean.Shrink.shrinkNodes
 #audit_axioms CompressionLean.Shrink.programGame_avoids
 #audit_axioms CompressionLean.Shrink.shrinkGame_avoids
+#audit_axioms CompressionLean.Shrink.programGame_cost
+#audit_axioms CompressionLean.Shrink.shrinkGame_cost
+#audit_axioms CompressionLean.Shrink.shrink_sound
+#audit_axioms CompressionLean.Shrink.shrinkCount_eq_rust
+#audit_axioms CompressionLean.Shrink.shrink_budget
+#audit_axioms CompressionLean.Shrink.shrink_restore_sound
+#audit_axioms CompressionLean.Shrink.shrink_restore_budget

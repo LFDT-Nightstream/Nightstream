@@ -99,7 +99,7 @@ See [the production comparison](VALIDATION.md#nonzero-carried-production-fold).
 The CUDA comparisons are explicitly ignored until its kernel exists.
 
 Metal rejects a buffer request that would put its tracked device allocation
-above 16 GB. This does not establish the total CPU-plus-GPU memory bound for
+above 24 GB. This does not establish the total CPU-plus-GPU memory bound for
 every circuit; that requires the complete lifecycle measurements.
 
 Cache construction keeps coefficient runs compact and takes about 5 s on the
@@ -238,8 +238,9 @@ Run engines separately with the same step count, then compare their logs
 manually. The owner's Metal target is at least 5× faster over the full lifecycle,
 including package loading, proving, and terminal verification. One-time circuit
 compilation is excluded from that total and measured separately. The current
-memory target is at most 16 GB for either engine on every supported circuit; 8 GB is
-the future mobile target. The owner has accepted approximately 16 GB for this
+memory target on every supported circuit is at most 24 GB for Metal, so a prover can
+run on a current iPhone, and at most 16 GB for the CPU engine; 8 GB is the future
+mobile target. The owner has accepted approximately 16 GB for this
 pass, using RSS, and deferred further memory tuning. Storage is bounded across
 supported native circuit shapes; a universal process-RSS guarantee remains
 unproven because runtime and driver residency also contribute. An earlier image

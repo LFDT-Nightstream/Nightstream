@@ -24,6 +24,8 @@ impl MetalSession {
         0
     }
 
+    pub(crate) fn keep_production_key(&mut self) {}
+
     pub fn goldilocks_ops(&self, _lhs: &[u64], _rhs: &[u64]) -> Result<Vec<GoldilocksOps>, MetalError> {
         Err(MetalError::Unavailable)
     }

@@ -11,6 +11,9 @@ pub(crate) mod crosscheck;
 pub(crate) mod metal;
 pub(crate) mod paper_exact;
 
+/// The owner's memory ceiling for the CPU engines.
+pub(crate) const CPU_MEMORY_LIMIT_BYTES: usize = 16_000_000_000;
+
 /// Arithmetic implementation used for proving and terminal row checks.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Engine {
@@ -102,6 +105,40 @@ impl Backend {
                 #[cfg(not(feature = "cuda"))]
                 reason: "build nightstream with the cuda feature; its canonical kernel is not implemented",
             }),
+        }
+    }
+
+    /// The owner's memory ceiling for the engine's working storage: 24 GB for
+    /// Metal, so a prover can run on a current iPhone, and 16 GB otherwise.
+    pub(crate) fn memory_limit_bytes(&self) -> usize {
+        match self {
+            #[cfg(feature = "metal")]
+            Self::Metal(_) => neo_prover_metal::BUFFER_LIMIT_BYTES,
+            _ => CPU_MEMORY_LIMIT_BYTES,
+        }
+    }
+
+    /// Device bytes that keeping the commitment key over `columns` columns
+    /// takes; `None` for engines that expand no key on a device.
+    pub(crate) fn commitment_key_bytes(&self, columns: usize) -> Option<usize> {
+        match self {
+            #[cfg(feature = "metal")]
+            Self::Metal(_) => Some(neo_prover_metal::MetalRowProver::commitment_key_bytes(columns)),
+            _ => {
+                let _ = columns;
+                None
+            }
+        }
+    }
+
+    /// Keep the commitment key on the device after the first commitment.
+    pub(crate) fn keep_commitment_key(&mut self) {
+        #[cfg(feature = "metal")]
+        if let Self::Metal(device) = self {
+            device
+                .get_mut()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .keep_commitment_key();
         }
     }
 

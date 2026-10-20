@@ -18,10 +18,25 @@ pub struct MetalRowProver {
 }
 
 impl MetalRowProver {
+    /// A session that expands the needed commitment key rows in every call.
     pub fn new() -> Result<Self, MetalError> {
         Ok(Self {
             session: MetalSession::new()?,
         })
+    }
+
+    /// Keep the commitment key rows on the device after the first commitment.
+    pub fn keep_commitment_key(&mut self) {
+        self.session.keep_production_key();
+    }
+
+    /// Device bytes a kept commitment key holds over `columns` commitment
+    /// columns, at 8 bytes per key coefficient.
+    pub fn commitment_key_bytes(columns: usize) -> usize {
+        neo_ajtai::nightstream_fprime_setup::PRODUCTION_VERIFIER_ROWS as usize
+            * columns
+            * neo_math::D
+            * size_of::<u64>()
     }
 
     pub fn activity(&self) -> MetalActivity {

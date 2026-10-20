@@ -3,7 +3,7 @@ import CompressionLean.Circuit.Record
 import CompressionLean.Circuit.Verifier
 import CompressionLean.Circuit.Late
 import CompressionLean.Circuit.Parse
-import NightstreamFPrime.Spec.GoldilocksPrime
+import CompressionLean.Circuit.Digest
 
 /-!
 The `lowerCheck` executable. It reads one export of `neo-spartan`'s
@@ -45,12 +45,8 @@ run:
 namespace CompressionLean.LowerCheck
 
 open CompressionLean.Shrink CompressionLean.Circuit CompressionLean.Circuit.Parse NightstreamFPrime.Spec
+open CompressionLean.Circuit.Digest
 open CompressionLean.Replay (Gl)
-
-instance : Fact (Nat.Prime goldilocksModulus) := ⟨GoldilocksPrime.goldilocks_natPrime⟩
-
-/-- Goldilocks: there the lowering's zero tests are Rust's. -/
-abbrev G := ZMod goldilocksModulus
 
 def wire : Parser Wire := do
   match ← nat with
@@ -344,22 +340,6 @@ def compareMirror (mirror : Mirror) (rust : Array Instr) : Except String String 
     throw s!"Lean writes {mirror.instrs.size} instructions, Rust {rust.size}"
   pure s!"Lean's program is {if mirror.whole then "all" else "the first"} {mirror.instrs.size} of Rust's \
     {rust.size} instructions"
-
-/-- The run digest (`run_digest`, `lowering.rs`): Poseidon2's leaf sponge
-(`Replay.hashLeaf`) of the glue cell, block, statement word and row counts,
-then every row's seven sides, each as its term count and, per term, the wire
-(`0 cell`, `1 block cell` or `2 index`) and the coefficient. The statement
-and cell values are not part of it. -/
-def runDigest (run : Run G) (rows : Array (GlueRow G)) : Array Gl :=
-  let wireWords : Wire → Array ℕ
-    | .glue cell => #[0, cell]
-    | .block b cell => #[1, b, cell]
-    | .pub index => #[2, index]
-  let sideWords (side : List (Wire × G)) : Array ℕ :=
-    side.foldl (fun out (w, c) => (out ++ wireWords w).push c.val) #[side.length]
-  let words := rows.foldl (init := #[run.cells, run.blocks, run.publics.length, rows.size]) fun out row =>
-    (List.finRange 7).foldl (fun out s => out ++ sideWords (row.side s)) out
-  Replay.hashLeaf (words.map Gl.ofNat)
 
 /-- Compare `mirror` with the IR, then the lowered run with the trace that
 follows the program. -/

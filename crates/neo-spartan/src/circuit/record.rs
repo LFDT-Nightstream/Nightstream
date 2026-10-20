@@ -19,6 +19,7 @@ use super::block::{Kind, KINDS};
 use super::r1cs::{self, R1cs, Side};
 use super::Backend;
 use crate::field::{Ext, Gl};
+use crate::hash::{absorb, squeeze};
 use crate::Error;
 
 /// A witness cell or a public word. `Public(0)` is the constant one.
@@ -598,6 +599,46 @@ impl Trace {
     /// The number of blocks of `kind`.
     pub(crate) fn count(&self, kind: Kind) -> usize {
         self.blocks[kind.index()].len() / kind.cells()
+    }
+
+    /// Row `r`'s seven sides, each as its term count and, per term, the wire
+    /// (`0 cell`, `1 block cell` or `2 index`) and the coefficient.
+    pub(crate) fn row_words(&self, r: usize) -> Vec<u64> {
+        let offsets = self.rows[r];
+        let mut words = Vec::new();
+        for side in 0..7 {
+            let terms = &self.entries[offsets[side] as usize..offsets[side + 1] as usize];
+            words.push(terms.len() as u64);
+            for &(name, coefficient) in terms {
+                match name {
+                    Wire::Glue(cell) => words.extend([0, u64::from(cell)]),
+                    Wire::Block(_, block, cell) => words.extend([1, u64::from(block), u64::from(cell)]),
+                    Wire::Public(index) => words.extend([2, u64::from(index)]),
+                }
+                words.push(coefficient.as_canonical_u64());
+            }
+        }
+        words
+    }
+
+    /// The run digest (`runDigest` in `formal/compression-lean`,
+    /// `Circuit/Digest.lean`): the Poseidon2 leaf sponge (`hash_leaf`) of the
+    /// glue cell, block, statement word and row counts, then every row's
+    /// words. Statement and cell values are not part of it.
+    pub(crate) fn digest(&self) -> [u64; 4] {
+        let counts = [
+            self.glue.len(),
+            self.count(Kind::Permutation),
+            self.public.len(),
+            self.rows.len(),
+        ];
+        let mut state = [Gl::ZERO; WIDTH];
+        let mut at = absorb(&mut state, 0, &counts.map(Gl::from_usize));
+        for r in 0..self.rows.len() {
+            let words: Vec<Gl> = self.row_words(r).into_iter().map(Gl::from_u64).collect();
+            at = absorb(&mut state, at, &words);
+        }
+        squeeze(&mut state, at).map(|word| word.as_canonical_u64())
     }
 
     /// The first block, of any kind, with a failing row.

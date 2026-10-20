@@ -232,6 +232,9 @@ impl PreparedLifecycle {
         // The package loads while the last fold and layer 1 run.
         terminal::preload();
         let last = self.last_fold(envelope)?;
+        // Layer 1 and the shrink make no Ajtai commitment, so a kept key
+        // would only add to their peak.
+        self.backend.release_commitment_key_rows();
         let terminal_inputs = self.terminal_inputs(&last)?;
         let key = &setup.key;
         let relation = key.relation()?;

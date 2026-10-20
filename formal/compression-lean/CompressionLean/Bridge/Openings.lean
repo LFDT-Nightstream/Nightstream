@@ -84,10 +84,9 @@ local notation "ι" => algebraMap Fp K
 /-! ## The setup queries -/
 
 /-- The values a fold of leaf checks appends, read in `K`. -/
-theorem queried_toK (check : ℕ → Leaf → Except String (Array Ext)) (bound : ℕ) (A B : ℕ → K)
-    (value : ∀ index leaf vals, index < bound → check index leaf = .ok vals →
-      vals.toList.map (Ext.toK (K := K)) = [A index, B index]) :
-    ∀ (l : List (ℕ × Leaf)) (init out : Array Ext), (∀ pair ∈ l, pair.1 < bound) →
+theorem queried_toK (check : ℕ → Leaf → Except String (Array Ext)) (A B : ℕ → K) :
+    ∀ (l : List (ℕ × Leaf)) (init out : Array Ext),
+      (∀ pair ∈ l, ∀ vals, check pair.1 pair.2 = .ok vals → vals.toList.map (Ext.toK (K := K)) = [A pair.1, B pair.1]) →
       l.foldlM (fun queried pair => do pure (queried ++ (← check pair.1 pair.2))) init = .ok out →
       out.toList.map (Ext.toK (K := K)) = init.toList.map Ext.toK ++ (l.map Prod.fst).flatMap fun i => [A i, B i] := by
   intro l
@@ -97,20 +96,21 @@ theorem queried_toK (check : ℕ → Leaf → Except String (Array Ext)) (bound 
       obtain rfl := Except.pure_eq_ok h
       simp
   | cons pair rest ih =>
-      intro init out inside h
+      intro init out value h
       rw [List.foldlM_cons] at h
       obtain ⟨mid, step, h⟩ := Except.bind_ok h
       obtain ⟨vals, checked, step⟩ := Except.bind_ok step
       obtain rfl := Except.pure_eq_ok step
-      rw [ih _ _ (fun p member => inside p (List.mem_cons_of_mem _ member)) h, Array.toList_append, List.map_append,
-        value _ _ _ (inside pair List.mem_cons_self) checked, List.map_cons, List.flatMap_cons, List.append_assoc]
+      rw [ih _ _ (fun p member => value p (List.mem_cons_of_mem _ member)) h, Array.toList_append, List.map_append,
+        value pair List.mem_cons_self _ checked, List.map_cons, List.flatMap_cons, List.append_assoc]
 
 /-- The query point of leaf `i` in `K` (`setup::query_point`). -/
 def queryAt (rel : Replay.Relation) (i : ℕ) : K := ι (queryPoint rel.setupVars i)
 
 /-- The two folded values of a successful leaf check. -/
-theorem setupCheck_toList (rel : Replay.Relation) (S : Setup Fp) (merkle : MerkleBinds rel S) {index : ℕ}
-    (inside : index < 2 ^ (rel.setupVars - 2)) {leaf : Leaf} (lam mu : Ext) {alpha : Array Ext}
+theorem setupCheck_toList (rel : Replay.Relation) (S : Setup Fp) {leaves : Array Leaf}
+    (merkle : MerkleBinds rel S leaves) {index : ℕ} (inside : index < 2 ^ (rel.setupVars - 2)) {leaf : Leaf}
+    (member : leaf ∈ leaves.toList) (lam mu : Ext) {alpha : Array Ext}
     (alphaSize : alpha.size = foldVars) (setup : 3 ≤ rel.setupVars) (high : rel.setupVars + 1 ≤ 32) {vals : Array Ext}
     (ok : setupCheck rel.key.root rel.setupVars index leaf
       #[(Array.range rel.kappa).map (Mixing.commitment ⟨lam, rel.kappa, rel.matrices⟩),
@@ -118,7 +118,7 @@ theorem setupCheck_toList (rel : Replay.Relation) (S : Setup Fp) (merkle : Merkl
     vals.toList.map (Ext.toK (K := K)) =
       [(univ (rel.setupVars - 3) (fold (pointK alpha) (keyGroup (shapeOf rel) S lam.toK))).eval (queryAt rel index),
         (univ (rel.setupVars - 3) (fold (pointK alpha) (runGroup S mu.toK))).eval (queryAt rel index)] := by
-  obtain ⟨size, key, run⟩ := setupCheck_value (K := K) rel S merkle inside lam mu alphaSize setup high ok
+  obtain ⟨size, key, run⟩ := setupCheck_value (K := K) rel S merkle inside member lam mu alphaSize setup high ok
   rw [toList_eq_map_range vals, size, queryAt, ← key, ← run]
   rfl
 
@@ -331,7 +331,7 @@ theorem p1Opened_eq (rel : Replay.Relation) (st : Replay.Statement) (proof : Rep
 /-- The replay's opening checks, under WHIR at Rust's points, give the
 model's `Opens` at the model's transcript of the run. -/
 theorem opens_of_replay (rel : Replay.Relation) (st : Replay.Statement) (proof : Replay.Proof)
-    (shape : ProofShape rel proof) (S : Setup Fp) (merkle : MerkleBinds rel S) (setup : 3 ≤ rel.setupVars)
+    (shape : ProofShape rel proof) (S : Setup Fp) (merkle : MerkleBinds rel S proof.leaves) (setup : 3 ≤ rel.setupVars)
     (high : rel.setupVars + 1 ≤ 32) (cands : List (P0Tables Fp)) (p1 : List (P1Tables K))
     {early : Replay.EarlyOut} {mc : Layer1.GkrClaims K} (agree : ClaimsAgree rel.earlyShapes.size early.gkr mc)
     (values : early.values = proof.earlyValues)
@@ -383,23 +383,24 @@ theorem opens_of_replay (rel : Replay.Relation) (st : Replay.Statement) (proof :
   rw [linRun.mixing] at queriedRun
   have leavesSize : honest.queries.size ≤ proof.leaves.size := by
     rw [honestRun.queries, Array.size_map, honestRun.words, shape.leaves]
-  have inside : ∀ pair ∈ (honest.queries.zip proof.leaves).toList, pair.1 < 2 ^ (rel.setupVars - 2) := by
+  have inside : ∀ pair ∈ (honest.queries.zip proof.leaves).toList,
+      pair.1 < 2 ^ (rel.setupVars - 2) ∧ pair.2 ∈ proof.leaves.toList := by
     rintro ⟨index, leaf⟩ member
     rw [Array.toList_zip] at member
-    have := (List.of_mem_zip member).1
-    rw [honestRun.queries, Array.toList_map] at this
-    obtain ⟨word, _, rfl⟩ := List.mem_map.mp this
+    obtain ⟨queriesMember, leavesMember⟩ := List.of_mem_zip member
+    refine ⟨?_, leavesMember⟩
+    rw [honestRun.queries, Array.toList_map] at queriesMember
+    obtain ⟨word, _, rfl⟩ := List.mem_map.mp queriesMember
     rw [show rel.setupVars + 1 - foldVars = rel.setupVars - 2 by simp only [foldVars]; omega]
     exact Nat.mod_lt _ (by positivity)
   have queried := queried_toK (K := K) (fun i leaf => setupCheck rel.key.root rel.setupVars i leaf
       #[(Array.range rel.kappa).map (Mixing.commitment ⟨lin.lam, rel.kappa, rel.matrices⟩),
         (Array.range runOracles).map honest.mu.pow] honest.alpha)
-    (2 ^ (rel.setupVars - 2))
     (fun i => (univ (rel.setupVars - 3) (fold (pointK honest.alpha)
       (keyGroup (shapeOf rel) S lin.lam.toK))).eval (queryAt rel i))
     (fun i => (univ (rel.setupVars - 3) (fold (pointK honest.alpha) (runGroup S honest.mu.toK))).eval (queryAt rel i))
-    (fun _ _ _ lt ok => setupCheck_toList rel S merkle lt lin.lam honest.mu alphaSize setup high ok)
-    _ #[] honest.queried inside queriedRun
+    _ #[] honest.queried (fun pair member _ ok => setupCheck_toList rel S merkle (inside pair member).1
+      (inside pair member).2 lin.lam honest.mu alphaSize setup high ok) queriedRun
   rw [Array.toList_zip, List.map_fst_zip (by simpa using leavesSize), queries_toList honestRun setup,
     List.flatMap_map] at queried
   simp only [List.map_nil, List.nil_append] at queried

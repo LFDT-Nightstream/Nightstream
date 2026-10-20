@@ -5,9 +5,9 @@ Owns the bridge of the setup queries (`Replay.setupCheck`) to the model's
 honest fold. Plonky3's two-adic generator of order `8` has order `8`
 (`omega_order`, a kernel computation), so the replay's leaf weights are the
 inverse DFT of `HonestFold.leaf_formula`. Under the Merkle assumption
-(`MerkleBinds`: a leaf whose path reaches the key root holds the honest
-setup codeword on its coset), each folded value the replay computes is the
-model's honest fold at the leaf's query point (`setupCheck_value`).
+(`MerkleBinds`: a proof leaf whose path reaches the key root holds the
+honest setup codeword on its coset), each folded value the replay computes
+is the model's honest fold at the leaf's query point (`setupCheck_value`).
 -/
 
 namespace CompressionLean.Bridge
@@ -170,12 +170,13 @@ def setupOracle (rel : Replay.Relation) (S : Setup Fp) (o x : ℕ) : Fp :=
   else if o = rel.kappa + 2 then S.runCoef x
   else if x < S.slots then (S.slotBlock x : Fp) else 0
 
-/-- **Merkle binding**, an assumption: a leaf whose path reaches the key root
-holds, for each setup oracle, its codeword `Ô_o` on the leaf's coset
-`y_i·ω_8^v`. -/
-def MerkleBinds (rel : Replay.Relation) (S : Setup Fp) : Prop :=
-  ∀ (i : ℕ) (leaf : Leaf), pathOk rel.key.root i leaf = true → ∀ o v, o < rel.kappa + runOracles → v < 2 ^ foldVars →
-    (leaf.values[o * 2 ^ foldVars + v]!).toF =
+/-- **Merkle binding**, an assumption on the proof's leaves: a leaf whose path
+reaches the key root at index `i` holds, for each setup oracle, its codeword
+`Ô_o` on the coset `y_i·ω_8^v` of the honest leaf `i`. A leaf that breaks it
+and still reaches the root gives a hash collision. -/
+def MerkleBinds (rel : Replay.Relation) (S : Setup Fp) (leaves : Array Leaf) : Prop :=
+  ∀ leaf ∈ leaves.toList, ∀ i, pathOk rel.key.root i leaf = true → ∀ o v, o < rel.kappa + runOracles →
+    v < 2 ^ foldVars → (leaf.values[o * 2 ^ foldVars + v]!).toF =
       (univ rel.setupVars (setupOracle rel S o)).eval (leafY rel.setupVars i * twoAdic 3 ^ v)
 
 omit [Algebra Fp K] [Fintype K] [ChallengeField K] in
@@ -283,9 +284,10 @@ theorem two_groups (a b : Array Ext) (f : Array Ext × ℕ → Ext) :
 
 /-- The replay's two folded values at a queried leaf are the honest folds of
 the key group and of the run group at the leaf's query point. -/
-theorem setupCheck_value (rel : Replay.Relation) (S : Setup Fp) (merkle : MerkleBinds rel S) {index : ℕ}
-    (inside : index < 2 ^ (rel.setupVars - 2)) {leaf : Leaf} (lam mu : Ext) {alpha : Array Ext}
-    (alphaSize : alpha.size = foldVars) (setup : 3 ≤ rel.setupVars) (high : rel.setupVars + 1 ≤ 32) {vals : Array Ext}
+theorem setupCheck_value (rel : Replay.Relation) (S : Setup Fp) {leaves : Array Leaf} (merkle : MerkleBinds rel S leaves)
+    {index : ℕ} (inside : index < 2 ^ (rel.setupVars - 2)) {leaf : Leaf} (member : leaf ∈ leaves.toList) (lam mu : Ext)
+    {alpha : Array Ext} (alphaSize : alpha.size = foldVars) (setup : 3 ≤ rel.setupVars) (high : rel.setupVars + 1 ≤ 32)
+    {vals : Array Ext}
     (ok : setupCheck rel.key.root rel.setupVars index leaf
       #[(Array.range rel.kappa).map (Mixing.commitment ⟨lam, rel.kappa, rel.matrices⟩),
         (Array.range runOracles).map mu.pow] alpha = .ok vals) :
@@ -296,7 +298,7 @@ theorem setupCheck_value (rel : Replay.Relation) (S : Setup Fp) (merkle : Merkle
         (fold (pointK alpha) (runGroup S mu.toK))).eval (ι (queryPoint rel.setupVars index)) := by
   unfold setupCheck at ok
   obtain ⟨_, path, ok⟩ := Except.bind_ok ok
-  have codeword := merkle index leaf (Except.ensure_ok path)
+  have codeword := merkle leaf member index (Except.ensure_ok path)
   have yInverse := toF_yInverse rel.setupVars index inside (by omega)
   dsimp only at ok
   rw [two_groups] at ok

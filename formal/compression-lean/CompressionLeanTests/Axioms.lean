@@ -219,3 +219,6 @@ import CompressionLean
 
 #audit_axioms CompressionLean.Shrink.expandArray_eq
 #audit_axioms CompressionLean.Shrink.Call.computedRows_eq
+#audit_axioms CompressionLean.Circuit.step_spec
+#audit_axioms CompressionLean.Circuit.steps_ok
+#audit_axioms CompressionLean.Circuit.lower_valid

@@ -139,9 +139,9 @@ The shrink layer assumes, and does not prove:
   statement length.
 - Recorder: a run is its sink calls that emit glue rows, and a row call
   has at most three products (`Trace::row` asserts it). Every glue wire
-  names a cell of its run (`Run.Valid`), and the template entries name
-  template rows and cells (`Template.WellFormed`). The model has one block
-  kind, as `KINDS` has.
+  names a cell of its run (`Run.Valid`; `lower_valid` proves it for a
+  lowered run), and the template entries name template rows and cells
+  (`Template.WellFormed`). The model has one block kind, as `KINDS` has.
 - Scope: that this CCS encodes the layer-1 verifier is not proved here.
 - Transcription: the model is written by hand from the Rust verifier.
 
@@ -221,6 +221,9 @@ data, and Lean lowers it to the shrink run as `record.rs` does.
   in Rust's order, keeps a form of at most four terms, folds constants, and
   numbers the glue cells, blocks, statement words and rows as Rust does. It
   computes in a field `F`.
+- Claim (`Valid.lean`): `lower_valid`. Every glue row of `lower L stmt` names
+  only its own glue cells, the cells of its blocks, the constant one and its
+  statement words (`Run.Valid`), for a template of at least 182 cells.
 - `select` lowers to `whenZero + bit·(whenOne - whenZero)`, as `record.rs`
   records it. `Native::select` branches. The two agree when `bit` is 0 or 1.
 

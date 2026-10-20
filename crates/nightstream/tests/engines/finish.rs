@@ -179,9 +179,7 @@ fn selected_polynomial_finishes_and_verifies() {
 fn metal_layer1_proof_equals_cpu() {
     let fixture = Fixture::selected_polynomial();
     let compression = Compression::new(&fixture, "metal");
-    // The key weights read a kept commitment key.
-    let mut backend = crate::engine::Backend::new(crate::Engine::Metal).unwrap();
-    backend.keep_commitment_key();
+    let backend = crate::engine::Backend::new(crate::Engine::Metal).unwrap();
     let crate::engine::Backend::Metal(device) = &backend else {
         unreachable!("the Metal engine has a Metal backend")
     };

@@ -30,7 +30,12 @@ impl MetalRowProver {
         self.session.keep_production_key();
     }
 
-    /// The key weights `Σ_i λ_i·a_i` over the kept commitment key rows; see
+    /// Free the kept commitment key rows until the next commitment.
+    pub fn release_commitment_key_rows(&self) {
+        self.session.release_production_key_rows();
+    }
+
+    /// The key weights `Σ_i λ_i·a_i` over the commitment key rows; see
     /// `MetalSession::production_key_weights`.
     pub fn production_key_weights(&self, powers: &[[u64; 3]], columns: usize) -> Result<Vec<[u64; 3]>, MetalError> {
         #[cfg(all(target_vendor = "apple", neo_metal_shaders))]

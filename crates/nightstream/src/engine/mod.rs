@@ -142,6 +142,17 @@ impl Backend {
         }
     }
 
+    /// Free a kept commitment key until the next commitment.
+    pub(crate) fn release_commitment_key_rows(&self) {
+        #[cfg(feature = "metal")]
+        if let Self::Metal(device) = self {
+            device
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .release_commitment_key_rows();
+        }
+    }
+
     /// Where the compression prover's batch loops run. Only Metal has a
     /// device; every other engine runs them on the CPU.
     pub(crate) fn accelerator(&self) -> neo_spartan::Accelerator {

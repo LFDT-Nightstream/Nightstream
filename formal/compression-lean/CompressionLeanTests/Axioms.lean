@@ -209,3 +209,8 @@ import CompressionLean
 #audit_axioms CompressionLean.Final.final_restore_sound
 #audit_axioms CompressionLean.Final.final_budget
 #audit_axioms CompressionLean.Final.final_restore_budget
+
+/-! Axiom gate for the Poseidon2 block template. -/
+
+#audit_axioms CompressionLean.Circuit.Block.poseidonTemplate_wellFormed
+#audit_axioms CompressionLean.Circuit.Block.block_sound

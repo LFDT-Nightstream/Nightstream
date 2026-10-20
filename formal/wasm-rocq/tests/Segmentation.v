@@ -12,7 +12,7 @@ Example plain_rows_get_call_add : forall stale rows final,
   boundaryPC (rowsFinalBoundary (mkBoundary 2 4 4 7 0 0 0 0 0) rows) = 5 ->
   exists c, Steps (stackConfig sourceInitialState [] getCallAdd) c /\
     programLoaded sourceProgram final /\
-    CircuitConfig sourceProgram sourceStore 0 (controlShape [] (siteInstruction (sourcePosition 1 3))) final
+    CircuitConfig sourceProgram sourceStore 0 (controlShape [] (siteCode (codePosition 1 [] 3))) final
       (rowsFinalBoundary (mkBoundary 2 4 4 7 0 0 0 0 0) rows) c.
 Proof.
   intros stale rows final Hprime Hrun Hfragment Hpc.
@@ -20,9 +20,9 @@ Proof.
     (source_program_loaded stale) Hrun Hfragment (source_initial_config stale))
     as [shape [c [Hsteps [Hloaded Hconfig]]]].
   exists c. split; [exact Hsteps | ]. split; [exact Hloaded | ].
-  destruct (circuit_config_state _ _ _ _ _ _ _ Hconfig) as [cursor [z [Hstore Hstate]]].
-  rewrite <- (source_final_shape _ _ _ _ _ Hstate Hpc).
-  exact (control_state_circuit _ _ _ _ _ _ _ _ eq_refl source_store_wf Hstore Hstate).
+  destruct (circuit_config_state _ _ _ _ _ _ _ Hconfig) as [cursor Hstate].
+  rewrite <- (source_final_shape _ _ _ _ Hstate Hpc).
+  exact (control_state_circuit _ _ _ _ _ _ _ Logic.eq_refl source_store_wf source_program_validated Hstate).
 Qed.
 
 (* These rows test the scope predicate alone, not full circuit satisfaction or

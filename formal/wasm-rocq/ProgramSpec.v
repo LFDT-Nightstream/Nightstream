@@ -1,8 +1,8 @@
-(* Source functions, their ROM encoding, and the active source position.
+(* Source functions, their ROM encoding, and what a program and a run must satisfy.
    This encoder covers i32 guest functions without imports. Blocks occupy
    flattened instruction addresses; each function also has one trailing END. *)
 From Stdlib Require Import List ZArith Bool.
-Require Import R1CS Columns Wasm2 MemoryTrace MemoryCatalog OpcodeCatalog StraightLineSpec CallerSpec FunctionValidation SpecTecCalls CodeLayout SourceInstructions Fragment.
+Require Import R1CS Columns Wasm2 MemoryTrace MemoryCatalog OpcodeCatalog StraightLineSpec CallerSpec FunctionValidation SpecTecCalls CodeLayout Fragment.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -133,50 +133,14 @@ Definition programLoaded (program : Program) (memory : MemoryState) : Prop :=
 Definition loadProgram (program : Program) (memory : MemoryState) : MemoryState :=
   fun id address => if existsb (Nat.eqb id) programRomIds then encodeProgram program id address else memory id address.
 
-Record SourcePosition := sourcePosition { sourceFunction : nat; sourceOffset : nat }.
-Definition advanceSource (position : SourcePosition) (count : nat) : SourcePosition :=
-  sourcePosition (sourceFunction position) (sourceOffset position + count).
-
-Definition codeAt (f : GuestFunction) (offset : nat) (code : list instr) : Prop :=
-  (offset <= length (guestBody f))%nat /\ skipn offset (guestBody f) = code.
-
-(* Bind the function store, the active function's module, and the frame's local count. *)
-Definition frameMatches (program : Program) (f : GuestFunction) (z : state) : Prop :=
-  fun_funcinst z = program /\ fun_moduleinst z = guestModule f /\
-  length (stateLocals z) = (guestParams f + guestLocals f)%nat.
-
 (* Every function body is in the supported fragment, calling within its module. *)
 Definition programSupported (program : Program) : Prop :=
   forall index f, functionAt program index = Some f ->
-    supportedCode (functionSite (programCallees program (guestModule f))) (guestBody f).
+    supportedCode (codeSite (programCallees program (guestModule f)) false) (guestBody f).
 
 (* SpecTec validates every function in the store, and the circuit supports each. *)
 Definition programValidated (program : Program) (s : store) : Prop :=
   Forall (fun fi => Funcinst_ok s fi (funcinst_TYPE fi)) program /\ programSupported program.
-
-(* Validation uses SpecTec's instantiated functions and the active function's
-   module context. The remaining code ends with the function's declared results.
-   Support (Fragment) only restricts the circuit fragment we can simulate. *)
-Definition validatedCode (program : Program) (f : GuestFunction) (z : state)
-    (height : nat) (code : list instr) : Prop :=
-  programValidated program (fun_store z) /\
-  supportedCode (functionSite (programCallees program (guestModule f))) code /\
-  exists C,
-    Moduleinst_ok (fun_store z) (guestModule f) C /\
-    Instrs_ok (functionContext C (i32Function (guestModule f) (guestTypeIndex f)
-      (guestParams f) (guestResults f) (guestLocals f) (guestBody f))) code
-      (i32StackType height (guestResults f)).
-
-Definition SourceState (program : Program) (position : SourcePosition) (z : state)
-    (memory : MemoryState) (boundary : Boundary) (code : list instr) (c : config) : Prop :=
-  match functionAt program (sourceFunction position) with
-  | None => False
-  | Some f =>
-      frameMatches program f z /\ codeAt f (sourceOffset position) code /\
-      validatedCode program f z (stackHeight boundary) code /\
-      represents z memory boundary code c /\
-      boundaryPC boundary = guestEntry f + Z.of_nat (codeOffset (guestBody f) (sourceOffset position))
-  end.
 
 (* Row kinds a run may contain. A run never halts (the program's final return
    would). Initialization belongs to callees, not to the frame at the given depth;

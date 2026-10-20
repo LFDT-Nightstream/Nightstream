@@ -2,9 +2,57 @@ From Stdlib Require Import List ZArith Lia.
 From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range Add TraceRefinement MemoryTrace MemoryCatalog OpcodeCatalog Wasm2 WasmIntegers Locals
   StraightLineSpec StackSimulation SpecTecCalls CallerSpec CallerValidation FunctionValidation
-  BlockSpec BlockValidation SourceInstructions CodeLayout ProgramSpec ProgramEncoding ProgramRefinement ControlDecode ControlInvariant ControlBridge Fragment.
+  BlockSpec CodeLayout ProgramSpec ProgramEncoding ProgramRefinement ControlDecode ControlInvariant ControlBridge
+  Fragment.
 Import ListNotations.
 Open Scope Z_scope.
+
+(* Typing a sequence one instruction at a time. *)
+Lemma instrs_cons_ok : forall C i rest h mid out,
+  wf_context C -> wf_instr i -> Forall wf_instr rest ->
+  Instrs_ok C [i] (i32StackType h mid) -> Instrs_ok C rest (i32StackType mid out) ->
+  Instrs_ok C (i :: rest) (i32StackType h out).
+Proof.
+  intros C i rest h mid out HC Hi Hrest H1 H2. change (i :: rest) with ([i] ++ rest).
+  unfold i32StackType in *. eapply res_seq; [exact H1 | exact H2 | exact HC | constructor; [exact Hi | constructor] |
+    exact Hrest].
+Qed.
+
+(* One i32 instruction with `inputs` and `outputs`, above `extra` operands. *)
+Ltac typed_instr inputs outputs extra :=
+  apply (i32_validation_frame _ _ inputs outputs extra);
+    [first [apply local_get | apply local_set | apply binop | apply (br_if _ _ [])]; try reflexivity; repeat constructor |
+     repeat constructor | repeat constructor].
+
+Ltac typed_step inputs outputs extra :=
+  apply instrs_cons_ok with (mid := (extra + outputs)%nat);
+    [repeat constructor | repeat constructor | repeat constructor | typed_instr inputs outputs extra | ].
+
+(* A function's first instruction, with its locals at the frame base. *)
+Lemma function_start_config : forall program s index f locals memory boundary,
+  store_FUNCS s = program -> wf_store s -> programValidated program s ->
+  functionAt program index = Some f -> length locals = frameLocals f ->
+  Forall (fun v => 0 <= v < i32Modulus) locals ->
+  (forall i v, nth_error locals i = Some v -> memory localLoId [boundaryLocalsBase boundary; Z.of_nat i] = Some v) ->
+  0 <= boundaryStackBase boundary -> boundarySP boundary = boundaryStackBase boundary ->
+  boundaryPC boundary = guestEntry f -> initializationIdle boundary -> 0 <= boundaryCallDepth boundary ->
+  CircuitConfig program s (boundaryCallDepth boundary) (controlShape [] (siteCode (codePosition index [] 0)))
+    memory boundary (stackConfig (mk_state s (activeFrame f locals)) [] (guestBody f)).
+Proof.
+  intros program s index f locals memory boundary Hstore Hwf Hvalid Hf Hlen Hbounds Hcells Hbase Hsp Hpc Hidle Hdepth.
+  apply (control_state_circuit _ _ _ (controlCursor [] (atCode (frameView (codePosition index [] 0) [] [] locals))));
+    [exact Hstore | exact Hwf | exact Hvalid | ].
+  exists f, (stackConfig (mk_state s (activeFrame f locals)) [] (guestBody f)).
+  split; [exact Hf | ]. split.
+  - exists f. unfold FrameAt, viewOperands.
+    cbn [viewPosition viewSegments viewValues viewLocals positionFunction positionLabels positionOffset concat app].
+    split.
+    + split; [exact Hf | ]. split; [reflexivity | ]. split; [reflexivity | ]. split; [exact Hbase | ].
+      split; [constructor | ]. split; [intros [ | i] v Hv; discriminate | ].
+      split; [exact Hlen | ]. split; [exact Hbounds | exact Hcells].
+    + split; [cbn; lia | ]. split; [cbn; lia | ]. split; [rewrite Hpc; cbn; lia | ]. split; [exact Hidle | reflexivity].
+  - split; [exact I | ]. split; [exact Hdepth | ]. split; [cbn; lia | reflexivity].
+Qed.
 
 Definition conditionalTail := [LOCAL_GET (mk_uN 0); LOCAL_SET (mk_uN 1)].
 Definition conditionalCode := [conditionalBlock (mk_uN 0) conditionalTail; LOCAL_GET (mk_uN 1)].
@@ -20,6 +68,9 @@ Definition conditionalRam condition : MemoryState := fun memory address =>
     match address with [7; 0] => Some condition | [7; 1] => Some 9 | _ => None end
   else None.
 Definition conditionalMemory condition := loadProgram conditionalProgram (conditionalRam condition).
+
+Definition conditionalContext := MKcontext [i32StackType 0 1] [i32StackType 0 1] [] [] [] [] [] [] [] None.
+Definition conditionalBodyContext := functionContext conditionalContext conditionalFunction.
 
 Example conditional_layout :
   codeSize conditionalCode = 7%nat /\
@@ -37,12 +88,13 @@ Example conditional_layout :
 Proof. repeat split; reflexivity. Qed.
 
 Example conditional_block_validates :
-  typedBlock 2 (LOCAL_GET (mk_uN 0) :: BR_IF (mk_uN 0) :: conditionalTail).
+  Instrs_ok (labelContext [] conditionalBodyContext) (LOCAL_GET (mk_uN 0) :: BR_IF (mk_uN 0) :: conditionalTail)
+    (i32StackType 0 0).
 Proof.
-  change (Instrs_ok (blockTypingContext 2)
+  change (Instrs_ok (labelContext [] conditionalBodyContext)
     ([LOCAL_GET (mk_uN 0); BR_IF (mk_uN 0)] ++ conditionalTail) (i32StackType 0 0)).
   eapply res_seq with (t_2_lst := []).
-  - change (Instrs_ok (blockTypingContext 2)
+  - change (Instrs_ok (labelContext [] conditionalBodyContext)
       ([LOCAL_GET (mk_uN 0)] ++ [BR_IF (mk_uN 0)]) (i32StackType 0 0)).
     eapply res_seq with (t_2_lst := [valtype_I32]).
     + apply Instrs_ok__instr; [apply local_get | | ]; try reflexivity; repeat constructor.
@@ -50,7 +102,7 @@ Proof.
     + repeat constructor.
     + repeat constructor.
     + repeat constructor.
-  - change (Instrs_ok (blockTypingContext 2)
+  - change (Instrs_ok (labelContext [] conditionalBodyContext)
       ([LOCAL_GET (mk_uN 0)] ++ [LOCAL_SET (mk_uN 1)]) (i32StackType 0 0)).
     eapply res_seq with (t_2_lst := [valtype_I32]).
     + apply Instrs_ok__instr; [apply local_get | | ]; try reflexivity; repeat constructor.
@@ -63,18 +115,6 @@ Proof.
   - repeat constructor.
 Qed.
 
-Definition conditionalContext := MKcontext [i32StackType 0 1] [i32StackType 0 1] [] [] [] [] [] [] [] None.
-Definition conditionalBodyContext := functionContext conditionalContext conditionalFunction.
-
-Example conditional_supported : supportedBlock (_RESULT None)
-    (LOCAL_GET (mk_uN 0) :: BR_IF (mk_uN 0) :: conditionalTail).
-Proof.
-  split; [reflexivity | ]. split.
-  - unfold supportedBranchBody, conditionalTail.
-    repeat (constructor; [first [left; reflexivity | right; eexists; reflexivity] | ]).
-    constructor.
-  - repeat split; reflexivity.
-Qed.
 
 Example conditional_code_validates : Instrs_ok conditionalBodyContext conditionalCode (i32StackType 0 1).
 Proof.
@@ -82,9 +122,8 @@ Proof.
     ([conditionalBlock (mk_uN 0) conditionalTail] ++ [LOCAL_GET (mk_uN 1)]) (i32StackType 0 1)).
   eapply res_seq with (t_2_lst := []).
   - apply Instrs_ok__instr; [ | repeat constructor | repeat constructor].
-    apply (block_validates_context 2); try reflexivity; try solve [repeat constructor].
-    + exact conditional_supported.
-    + exact conditional_block_validates.
+    apply (block _ _ _ [] []); [apply Blocktype_ok__valtype; repeat constructor | exact conditional_block_validates |
+      repeat constructor | repeat constructor | repeat constructor].
   - apply Instrs_ok__instr; [apply local_get | | ]; try reflexivity; repeat constructor.
   - repeat constructor.
   - repeat constructor.
@@ -119,7 +158,7 @@ Qed.
 
 (* block (local.get 0; br_if 0; local.get 0; local.set 1); local.get 1 *)
 Example conditional_body_supported :
-  supportedCode (functionSite (programCallees conditionalProgram conditionalModule)) conditionalCode.
+  supportedCode (codeSite (programCallees conditionalProgram conditionalModule) false) conditionalCode.
 Proof.
   constructor; [ | constructor; [constructor | constructor]].
   apply supported_block; [repeat constructor | repeat split; reflexivity].
@@ -130,34 +169,22 @@ Proof.
   intros [ | index] g Hg; cbn in Hg; [injection Hg as <-; exact conditional_body_supported | destruct index; discriminate].
 Qed.
 
-Example conditional_initial_state_exists : forall condition,
+Example conditional_initial_config : forall condition,
   0 <= condition < i32Modulus ->
-  programLoaded conditionalProgram (conditionalMemory condition) /\
-  SourceState conditionalProgram (sourcePosition 0 0) (conditionalState condition)
-    (conditionalMemory condition) (mkBoundary 0 4 4 7 0 0 0 0 0) conditionalCode
+  CircuitConfig conditionalProgram conditionalStore 0 (controlShape [] (siteCode (codePosition 0 [] 0)))
+    (conditionalMemory condition) (mkBoundary 0 4 4 7 0 0 0 0 0)
     (stackConfig (conditionalState condition) [] conditionalCode).
 Proof.
-  intros condition Hcondition. split; [apply load_program_loaded | ].
-  split; [repeat split; reflexivity | ]. split; [split; [cbn; lia | reflexivity] | ]. split.
-  - split; [split; [constructor; [apply conditional_function_validates | constructor] |
-      exact conditional_program_supported] | ]. split.
-    + exact conditional_body_supported.
-    + exists conditionalContext. split; [apply conditional_module_validates | ].
-      change (Instrs_ok conditionalBodyContext conditionalCode (i32StackType 0 1)).
-      exact conditional_code_validates.
-  - split; [ | reflexivity]. exists []. split.
-    + unfold stackMatches. cbn. split; [lia | ]. split; [reflexivity | ]. split; [constructor | ].
-      intros [ | index] value H; discriminate.
-    + split; [reflexivity | ]. split.
-      * apply stack_config_wf.
-        -- constructor; [repeat constructor | ]. constructor; [ | repeat constructor].
-           constructor; [apply val_case_0; apply spectec_i32_well_formed; exact Hcondition | repeat constructor].
-        -- constructor.
-        -- repeat constructor.
-      * intros [ | [ | index]] value H; cbn [conditionalState stateLocals LOCALS nth_error] in H.
-        -- injection H as <-. exists condition. repeat split; try reflexivity; lia.
-        -- injection H as <-. exists 9. repeat split; try reflexivity; unfold i32Modulus; lia.
-        -- destruct index; discriminate.
+  intros condition Hcondition.
+  apply (function_start_config conditionalProgram conditionalStore 0
+    (mkGuestFunction 0%N conditionalModule (mk_uN 0) 0 1 2 conditionalCode 0) [condition; 9] _
+    (mkBoundary 0 4 4 7 0 0 0 0 0)); try reflexivity; try (cbn; lia).
+  - repeat constructor.
+  - split; [constructor; [apply (conditional_function_validates 0) | constructor] | exact conditional_program_supported].
+  - repeat constructor; unfold i32Modulus in *; lia.
+  - intros [ | [ | i]] v Hv; cbn in Hv; [injection Hv as <-; reflexivity | injection Hv as <-; reflexivity |
+      destruct i; discriminate].
+  - repeat split.
 Qed.
 
 (* Raw rows may stop anywhere inside the function, including inside the label. *)
@@ -172,13 +199,6 @@ Example conditional_program_refines : forall condition rows final,
       (rowsFinalBoundary (mkBoundary 0 4 4 7 0 0 0 0 0) rows) c.
 Proof.
   intros condition rows final Hprime Hcondition Hrun Hfragment.
-  destruct (conditional_initial_state_exists condition Hcondition) as [Hloaded Hsource].
-  assert (Hidle : initializationIdle (mkBoundary 0 4 4 7 0 0 0 0 0)) by (repeat split).
-  apply (run_refinement conditionalProgram conditionalStore 0 (controlShape [] (siteInstruction (sourcePosition 0 0)))
-    rows (conditionalMemory condition) final _ _ Hprime Hloaded Hrun Hfragment).
-  apply (control_state_circuit _ _ _ (controlCursor [] (atInstruction (sourcePosition 0 0)))
-    (conditionalState condition)); [reflexivity | repeat constructor | reflexivity | ].
-  exact (base_control_state conditionalProgram (atInstruction (sourcePosition 0 0)) (conditionalState condition)
-    (conditionalMemory condition) (mkBoundary 0 4 4 7 0 0 0 0 0) _
-    (conj (ex_intro _ conditionalCode Hsource) Hidle) ltac:(cbn; lia)).
+  exact (run_refinement conditionalProgram conditionalStore 0 _ rows (conditionalMemory condition) final _ _ Hprime
+    (load_program_loaded _ _) Hrun Hfragment (conditional_initial_config condition Hcondition)).
 Qed.

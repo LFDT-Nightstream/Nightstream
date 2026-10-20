@@ -1,6 +1,6 @@
-(* Direct guest calls with i32 parameters, results and locals. Bodies contain
-   add/sub/local.get/local.set and finish with END; nested calls, early return,
-   blocks and call_indirect are outside this fragment. *)
+(* Direct guest calls with i32 parameters, results and locals: the ROM images of
+   a call site, an instruction and a callee's entry. Early return and
+   call_indirect are outside this fragment. *)
 From Stdlib Require Import List ZArith NArith.
 Require Import MemoryTrace MemoryCatalog OpcodeCatalog Wasm2 SpecTecCalls StraightLineSpec.
 Import ListNotations.
@@ -41,10 +41,3 @@ Definition callerFrameImage (memory : MemoryState) (pc : Z) (caller : state) : P
   exists reference,
     memory pcFunctionRefId [pc] = Some reference /\
     memory functionLocalCountId [reference] = Some (Z.of_nat (length (stateLocals caller))).
-
-(* The facts a direct i32 guest call needs at its call site. *)
-Definition typedCall (caller : state) (index : idx) (module : moduleinst) (typeIndex : typeidx)
-    (params results locals : nat) (body : list instr) : Prop :=
-  wf_state caller /\ wf_uN 32%N index /\
-  wf_funcinst (i32Function module typeIndex params results locals body) /\
-  (params < 256)%nat /\ (results < 256)%nat.

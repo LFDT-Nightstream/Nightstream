@@ -18,9 +18,3 @@ Definition callModule := MKmoduleinst [i32StackType 0 1] [0%N] [] [] [] [] [] []
 Definition readZeroFunction := i32Function callModule (mk_uN 0) 0 1 1 readZeroBody.
 Definition callState := mk_state (MKstore [readZeroFunction] [] [] [] [] [])
   (MKframe [i32Value 5] callModule).
-
-Example read_zero_call_typed : typedCall callState (mk_uN 0) callModule (mk_uN 0) 0 1 1 readZeroBody.
-Proof.
-  unfold typedCall, callState, readZeroFunction, i32Function, callModule, readZeroBody, i32Value.
-  split; [repeat constructor | ]. split; [repeat constructor | ]. split; [repeat constructor | ]. split; lia.
-Qed.

@@ -1,6 +1,5 @@
 From Stdlib Require Import List ZArith Lia.
-Require Import R1CS Columns Range MemoryTrace MemoryCatalog OpcodeCatalog TraceRefinement
-  Wasm2 WasmIntegers Locals StraightLineSpec StackSimulation CallSpec CallScope CallerSpec CallerRefinement SpecTecCalls tests.Calls.
+Require Import Wasm2 StraightLineSpec CallerSpec Fragment tests.Calls.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -10,38 +9,17 @@ Definition callerCallees : CalleeEnvironment := fun index =>
 Definition getCallAdd : list instr :=
   [LOCAL_GET (mk_uN 0); CALL (mk_uN 0); BINOP I32 (mk_binop__0 Inn_I32 ADD)].
 
-Example get_call_add_typed : callerFacts callerCallees callState 0 getCallAdd.
-Proof.
-  pose proof read_zero_call_typed as Hcall.
-  cbn [getCallAdd callerFacts callerCallees N.eqb instructionStackHeight
-    readZeroCallee guestParams guestResults guestModule guestTypeIndex guestLocals guestBody].
-  split; [repeat constructor; eexists; reflexivity | ].
-  split; [repeat constructor | ].
-  split; [vm_compute; repeat constructor | ].
-  split; [exact Hcall | ]. split; [vm_compute; lia | ].
-  split; [repeat constructor; eexists; reflexivity | ].
-  split; [repeat constructor | ]. split; exact I.
-Qed.
+(* Operand heights through calls, from the callees' parameter and result counts. *)
+Example get_call_add_height : sourceHeights callerCallees getCallAdd 0 = Some 1%nat.
+Proof. reflexivity. Qed.
 
 Example add_after_call_needs_two_values :
-  ~ callerFacts callerCallees callState 0 [CALL (mk_uN 0); BINOP I32 (mk_binop__0 Inn_I32 ADD)].
-Proof. intros [_ [_ [_ [_ [Hheight _]]]]]. exact Hheight. Qed.
+  sourceHeights callerCallees [CALL (mk_uN 0); BINOP I32 (mk_binop__0 Inn_I32 ADD)] 0 = None.
+Proof. reflexivity. Qed.
 
-Example unsupported_caller_instruction_rejected :
-  ~ callerFacts callerCallees callState 0 [NOP].
-Proof. intros [Hsupported _]. destruct (Forall_inv Hsupported) as [code Hcode]. discriminate. Qed.
-
-Example missing_callee_rejected :
-  ~ callerFacts callerCallees callState 0 [CALL (mk_uN 1)].
-Proof. exact (fun H => H). Qed.
+Example missing_callee_rejected : sourceHeights callerCallees [CALL (mk_uN 1)] 0 = None.
+Proof. reflexivity. Qed.
 
 Example calls_share_one_environment_entry :
-  callerFacts callerCallees callState 0
-    [CALL (mk_uN 0); CALL (mk_uN 0); BINOP I32 (mk_binop__0 Inn_I32 ADD)].
-Proof.
-  pose proof read_zero_call_typed as Hcall.
-  split; [exact Hcall | ]. split; [vm_compute; lia | ].
-  split; [exact Hcall | ]. split; [cbn; lia | ].
-  split; [repeat constructor; eexists; reflexivity | ].
-  split; [repeat constructor | ]. split; exact I.
-Qed.
+  sourceHeights callerCallees [CALL (mk_uN 0); CALL (mk_uN 0); BINOP I32 (mk_binop__0 Inn_I32 ADD)] 0 = Some 1%nat.
+Proof. reflexivity. Qed.

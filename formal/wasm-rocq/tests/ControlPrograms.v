@@ -1,11 +1,15 @@
 From Stdlib Require Import List ZArith Lia.
 From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range Add TraceRefinement MemoryTrace MemoryCatalog OpcodeCatalog Wasm2 WasmIntegers Locals
-  StraightLineSpec StackSimulation SpecTecCalls CallerSpec CallerValidation FunctionValidation
-  BlockSpec BlockValidation SourceInstructions CodeLayout ProgramSpec ProgramEncoding ProgramRefinement ControlDecode ControlInvariant ControlState ControlBridge Fragment FragmentViews ProgramValidation SourceValidation tests.BlockValidation.
+  StraightLineSpec StackSimulation SpecTecCalls CallerSpec CallerValidation FunctionValidation CodeLayout ProgramSpec
+  ProgramEncoding ProgramRefinement ControlDecode ControlInvariant ControlBridge Fragment tests.BlockPrograms.
 Import ListNotations.
 Open Scope Z_scope.
 
+Definition computedBranches :=
+  [LOCAL_GET (mk_uN 0); LOCAL_GET (mk_uN 1); BINOP I32 (mk_binop__0 Inn_I32 SUB);
+   BR_IF (mk_uN 0); LOCAL_GET (mk_uN 1); BR_IF (mk_uN 0);
+   LOCAL_GET (mk_uN 0); LOCAL_SET (mk_uN 1)].
 Definition computedCode := [BLOCK (_RESULT None) computedBranches; LOCAL_GET (mk_uN 1)].
 Definition computedModule := MKmoduleinst [i32StackType 0 1] [0%N] [] [] [] [] [] [].
 Definition computedFunction := i32Function computedModule (mk_uN 0) 0 1 2 computedCode.
@@ -22,6 +26,18 @@ Definition computedMemory condition := loadProgram computedProgram (computedRam 
 
 Definition computedContext := MKcontext [i32StackType 0 1] [i32StackType 0 1] [] [] [] [] [] [] [] None.
 Definition computedBodyContext := functionContext computedContext computedFunction.
+Definition computedGuest := mkGuestFunction 0%N computedModule (mk_uN 0) 0 1 2 computedCode 0.
+
+Section Typing.
+Local Open Scope nat_scope.
+Example computed_branches_validate :
+  Instrs_ok (labelContext [] computedBodyContext) computedBranches (i32StackType 0 0).
+Proof.
+  unfold computedBranches.
+  typed_step 0 1 0. typed_step 0 1 1. typed_step 2 1 0. typed_step 1 0 0.
+  typed_step 0 1 0. typed_step 1 0 0. typed_step 0 1 0. typed_instr 1 0 0.
+Qed.
+End Typing.
 
 Example computed_code_validates : Instrs_ok computedBodyContext computedCode (i32StackType 0 1).
 Proof.
@@ -29,9 +45,8 @@ Proof.
     ([BLOCK (_RESULT None) computedBranches] ++ [LOCAL_GET (mk_uN 1)]) (i32StackType 0 1)).
   eapply res_seq with (t_2_lst := []).
   - apply Instrs_ok__instr; [ | repeat constructor | repeat constructor].
-    apply (block_validates_context 2); try reflexivity; try solve [repeat constructor].
-    + split; [reflexivity | ]. split; [exact computed_branches_supported | exact computed_branches_balanced].
-    + exact computed_branches_validate.
+    apply (block _ _ _ [] []); [apply Blocktype_ok__valtype; repeat constructor | exact computed_branches_validate |
+      repeat constructor | repeat constructor | repeat constructor].
   - apply Instrs_ok__instr; [apply local_get | | ]; try reflexivity; repeat constructor.
   - repeat constructor.
   - repeat constructor.
@@ -66,11 +81,10 @@ Qed.
 
 (* block (computed branches); local.get 1 *)
 Example computed_body_supported :
-  supportedCode (functionSite (programCallees computedProgram computedModule)) computedCode.
+  supportedCode (codeSite (programCallees computedProgram computedModule) false) computedCode.
 Proof.
   constructor; [ | constructor; [constructor | constructor]].
-  apply supported_block; [ | exact computed_branches_balanced].
-  apply branch_body_supported_iff. exact computed_branches_supported.
+  apply supported_block; [repeat constructor | repeat split; reflexivity].
 Qed.
 
 Example computed_program_supported : programSupported computedProgram.
@@ -78,60 +92,28 @@ Proof.
   intros [ | index] g Hg; cbn in Hg; [injection Hg as <-; exact computed_body_supported | destruct index; discriminate].
 Qed.
 
-Example computed_initial_state_exists : forall condition,
-  0 <= condition < i32Modulus ->
-  programLoaded computedProgram (computedMemory condition) /\
-  SourceState computedProgram (sourcePosition 0 0) (computedState condition)
-    (computedMemory condition) (mkBoundary 0 4 4 7 0 0 0 0 0) computedCode
-    (stackConfig (computedState condition) [] computedCode).
-Proof.
-  intros condition Hcondition. split; [apply load_program_loaded | ].
-  split; [repeat split; reflexivity | ]. split; [split; [cbn; lia | reflexivity] | ]. split.
-  - split; [split; [constructor; [apply computed_function_validates | constructor] |
-      exact computed_program_supported] | ]. split.
-    + exact computed_body_supported.
-    + exists computedContext. split; [apply computed_module_validates | ].
-      change (Instrs_ok computedBodyContext computedCode (i32StackType 0 1)).
-      exact computed_code_validates.
-  - split; [ | reflexivity]. exists []. split.
-    + unfold stackMatches. cbn. split; [lia | ]. split; [reflexivity | ]. split; [constructor | ].
-      intros [ | index] value H; discriminate.
-    + split; [reflexivity | ]. split.
-      * apply stack_config_wf.
-        -- constructor; [repeat constructor | ]. constructor; [ | repeat constructor].
-           constructor; [apply val_case_0; apply spectec_i32_well_formed; exact Hcondition | repeat constructor].
-        -- constructor.
-        -- repeat constructor.
-      * intros [ | [ | index]] value H; cbn [computedState stateLocals LOCALS nth_error] in H.
-        -- injection H as <-. exists condition. repeat split; try reflexivity; lia.
-        -- injection H as <-. exists 9. repeat split; try reflexivity; unfold i32Modulus; lia.
-        -- destruct index; discriminate.
-Qed.
-
-Lemma computed_initial_control : forall condition,
-  0 <= condition < i32Modulus ->
-  ControlState computedProgram 0 (controlCursor [] (atInstruction (sourcePosition 0 0))) (computedState condition)
-    (computedMemory condition) (mkBoundary 0 4 4 7 0 0 0 0 0)
-    (stackConfig (computedState condition) [] computedCode).
-Proof.
-  intros condition Hcondition.
-  destruct (computed_initial_state_exists condition Hcondition) as [_ Hsource].
-  apply (base_control_state computedProgram (atInstruction (sourcePosition 0 0)) (computedState condition)
-    (computedMemory condition) (mkBoundary 0 4 4 7 0 0 0 0 0)); [ | cbn; lia].
-  split; [exists computedCode; exact Hsource | repeat split].
-Qed.
-
 Example computed_store_wf : wf_store computedStore.
 Proof. repeat constructor. Qed.
 
+Example computed_program_validated : programValidated computedProgram computedStore.
+Proof.
+  split; [constructor; [apply (computed_function_validates 0) | constructor] | exact computed_program_supported].
+Qed.
+
 Lemma computed_initial_config : forall condition,
   0 <= condition < i32Modulus ->
-  CircuitConfig computedProgram computedStore 0 (controlShape [] (siteInstruction (sourcePosition 0 0)))
+  CircuitConfig computedProgram computedStore 0 (controlShape [] (siteCode (codePosition 0 [] 0)))
     (computedMemory condition) (mkBoundary 0 4 4 7 0 0 0 0 0) (stackConfig (computedState condition) [] computedCode).
 Proof.
   intros condition Hcondition.
-  apply (control_state_circuit _ _ _ (controlCursor [] (atInstruction (sourcePosition 0 0))) (computedState condition));
-    [reflexivity | exact computed_store_wf | reflexivity | exact (computed_initial_control condition Hcondition)].
+  apply (function_start_config computedProgram computedStore 0 computedGuest [condition; 9] _
+    (mkBoundary 0 4 4 7 0 0 0 0 0)); try reflexivity; try (cbn; lia).
+  - exact computed_store_wf.
+  - exact computed_program_validated.
+  - repeat constructor; unfold i32Modulus in *; lia.
+  - intros [ | [ | i]] v Hv; cbn in Hv; [injection Hv as <-; reflexivity | injection Hv as <-; reflexivity |
+      destruct i; discriminate].
+  - repeat split.
 Qed.
 
 (* Raw rows may stop anywhere inside the function, including inside the label. *)
@@ -146,7 +128,7 @@ Example computed_program_refines : forall condition rows final,
 Proof.
   intros condition rows final Hprime Hcondition Hrun Hfragment.
   exact (run_refinement computedProgram computedStore 0 _ rows _ final _ _ Hprime
-    (proj1 (computed_initial_state_exists condition Hcondition)) Hrun Hfragment
+    (load_program_loaded _ _) Hrun Hfragment
     (computed_initial_config condition Hcondition)).
 Qed.
 
@@ -168,56 +150,13 @@ Definition computedInteriorConfig := stackPrefix []
   (instructionSuffix [LOCAL_GET (mk_uN 1)]
     (SpecTecBranches.blockContext (stackConfig (computedState 7) [4294967294] (skipn 3 computedBranches)))).
 
-Example computed_interior_state_exists :
-  programLoaded computedProgram computedInteriorMemory /\
-  ControlState computedProgram 0 (controlCursor [] (inBlock (sourcePosition 0 0) 3 [])) (computedState 7)
-    computedInteriorMemory (mkBoundary 4 5 4 7 0 0 0 0 0) computedInteriorConfig.
-Proof.
-  split; [apply load_program_loaded | ].
-  destruct (computed_initial_state_exists 7 ltac:(unfold i32Modulus; lia)) as [_ Hsource].
-  destruct Hsource as [Hframe [Hcode [Hvalid [Hrep Hpc]]]].
-  pose proof (represented_state_wf _ _ _ _ _ Hrep) as Hz.
-  pose proof (validated_code_facts _ _ _ _ _ Hframe Hz Hvalid) as Hfacts.
-  destruct Hfacts as [_ Hfacts].
-  assert (Hcont : validatedCode computedProgram
-    (mkGuestFunction 0 computedModule (mk_uN 0) 0 1 2 computedCode 0) (computedState 7) 0 [LOCAL_GET (mk_uN 1)]).
-  { eapply validated_code_remaining with (executed := [BLOCK (_RESULT None) computedBranches]); try eassumption.
-    all: try (repeat split; reflexivity); reflexivity. }
-  destruct (validated_code_module _ _ _ _ _ Hcont) as [C HC].
-  apply (base_control_state computedProgram (inBlock (sourcePosition 0 0) 3 []) (computedState 7)
-    computedInteriorMemory (mkBoundary 4 5 4 7 0 0 0 0 0)); [ | cbn; lia].
-  exists (mkGuestFunction 0 computedModule (mk_uN 0) 0 1 2 computedCode 0), computedBranches,
-    [LOCAL_GET (mk_uN 1)], [4294967294].
-  split; [reflexivity | ]. split; [reflexivity | ]. split; [split; [cbn; lia | reflexivity] | ].
-  split; [exact Hframe | ]. split; [exact Hcont | ]. split; [exact computed_branches_supported | ].
-  split; [cbn; lia | ]. split.
-  { eapply block_rest_validated; [exact Hframe | | exact HC | exact remainder_after_sub_validates].
-    apply supported_branch_suffix. exact computed_branches_supported. }
-  split; [exact remainder_after_sub_balanced | ]. split; [exact Hz | ]. split.
-  - unfold stackMatches. cbn. split; [lia | ]. split; [reflexivity | ]. split.
-    + repeat constructor; unfold i32Modulus; lia.
-    + intros [ | index] value H; [injection H as <-; reflexivity | destruct index; discriminate].
-  - split.
-    + intros [ | [ | index]] value H; cbn in H.
-      * injection H as <-. exists 7. repeat split; try reflexivity; unfold i32Modulus; lia.
-      * injection H as <-. exists 9. repeat split; try reflexivity; unfold i32Modulus; lia.
-      * destruct index; discriminate.
-    + split; [reflexivity | ]. split; [repeat split | reflexivity].
-Qed.
-
 (* Inside the label, the decoder splits the operand stack at the block's height. *)
-Example computed_interior_decodes :
-  option_map fst (decodeControl computedProgram computedStore 0
-    (controlShape [] (siteBlock (sourcePosition 0 0) 3 0)) computedInteriorMemory (mkBoundary 4 5 4 7 0 0 0 0 0)) =
-  Some computedInteriorConfig.
-Proof. vm_compute. reflexivity. Qed.
-
 Example computed_interior_config :
-  CircuitConfig computedProgram computedStore 0 (controlShape [] (siteBlock (sourcePosition 0 0) 3 0))
+  CircuitConfig computedProgram computedStore 0 (controlShape [] (siteCode (codePosition 0 [0%nat] 3)))
     computedInteriorMemory (mkBoundary 4 5 4 7 0 0 0 0 0) computedInteriorConfig.
 Proof.
-  apply (control_state_circuit _ _ _ (controlCursor [] (inBlock (sourcePosition 0 0) 3 [])) (computedState 7));
-    [reflexivity | exact computed_store_wf | reflexivity | exact (proj2 computed_interior_state_exists)].
+  split; [reflexivity | ]. split; [exact computed_store_wf | ]. split; [exact computed_program_validated | ].
+  exists True. split; [vm_compute; reflexivity | exact I].
 Qed.
 
 (* No branch outcome is needed, even when starting inside the block. The first
@@ -233,7 +172,7 @@ Proof.
   intros firstRows lastRows final Hprime Hrun Hfirst Hlast.
   destruct (valid_run_split _ _ _ _ Hrun) as [between [Hrun1 Hrun2]].
   destruct (run_refinement computedProgram computedStore 0 _ firstRows computedInteriorMemory between _ _ Hprime
-    (proj1 computed_interior_state_exists) Hrun1 Hfirst computed_interior_config)
+    (load_program_loaded _ _) Hrun1 Hfirst computed_interior_config)
     as [shape1 [c1 [Hsteps1 [Hloaded1 Hconfig1]]]].
   destruct (run_refinement computedProgram computedStore 0 shape1 lastRows between final _ c1 Hprime Hloaded1 Hrun2
     Hlast Hconfig1) as [shape2 [c2 [Hsteps2 [Hloaded2 Hconfig2]]]].
@@ -241,35 +180,73 @@ Proof.
   split; [exact Hloaded2 | ]. rewrite rows_final_boundary_app. exact Hconfig2.
 Qed.
 
-Lemma computed_pc_four_is_inside : forall cursor z memory boundary c,
-  ActiveState computedProgram cursor z memory boundary c -> boundaryPC boundary = 4 ->
-  exists prefix, cursor = inBlock (sourcePosition 0 0) 3 prefix.
+Lemma no_block_path : forall code b rest,
+  Forall (fun i => forall bt body, i <> BLOCK bt body) code -> pathCode code (b :: rest) = None.
 Proof.
-  intros [[index offset] | [index outer] offset prefix | function arguments] z memory boundary c Hstate Hpc.
-  - destruct Hstate as [[code Hstate] _]. unfold SourceState in Hstate.
-    destruct index as [ | index]; [ | destruct index; contradiction].
-    destruct Hstate as [_ [[Hbound _] [_ [_ Hpos]]]].
-    change (offset <= 2)%nat in Hbound.
-    destruct offset as [ | [ | [ | offset]]]; cbn in Hpos; lia.
-  - destruct Hstate as [f [body [continuation [values [Hf [Hbody [_ [_ [_ [_ [Hbound [_ [_ [_ [_ [_ [Hpos _]]]]]]]]]]]]]]]]].
-    destruct index as [ | index]; [ | destruct index; discriminate].
-    injection Hf as <-.
-    destruct outer as [ | [ | outer]]; [ | discriminate | destruct outer; discriminate].
-    injection Hbody as <-. exists prefix. f_equal. change (boundaryPC boundary = 1 + Z.of_nat offset) in Hpos. lia.
-  - exfalso. destruct Hstate as [f [Hf [_ [_ [_ [_ [_ [_ [_ [_ [_ [_ [Hpos _]]]]]]]]]]]]].
-    destruct function as [ | function]; [ | destruct function; discriminate].
-    injection Hf as <-. cbn in Hpos. lia.
+  intros code b rest H. cbn [pathCode].
+  destruct (nth_error code b) as [i | ] eqn:Hb; [ | reflexivity]. destruct i; try reflexivity.
+  exfalso. eapply (proj1 (Forall_forall _ _) H); [eapply nth_error_In; exact Hb | reflexivity].
 Qed.
 
-(* Splitting the raw trace before the first br_if yields an interior shape,
-   rather than requiring the theorem user to supply a block segment. *)
+(* The only code paths: the function body and the block body. *)
+Lemma computed_paths : forall labels,
+  pathCode computedCode labels = None \/ labels = [] \/ labels = [0%nat].
+Proof.
+  intros [ | [ | b] more]; [right; left; reflexivity | | left].
+  - destruct more as [ | b' more]; [right; right; reflexivity | left].
+    change (pathCode computedBranches (b' :: more) = None). apply no_block_path.
+    repeat constructor; intros ? ? ?; discriminate.
+  - destruct b as [ | b]; [reflexivity | destruct b; reflexivity].
+Qed.
+
+Lemma computed_no_call : forall labels offset x,
+  nth_error (innerCode computedGuest (codePosition 0 labels offset)) offset <> Some (CALL x).
+Proof.
+  intros labels offset x H. unfold innerCode in H. cbn [positionLabels] in H.
+  change (guestBody computedGuest) with computedCode in H.
+  destruct (computed_paths labels) as [Hnone | [-> | ->]].
+  - rewrite Hnone in H. destruct offset; discriminate.
+  - apply nth_error_In in H. cbn in H. intuition discriminate.
+  - apply nth_error_In in H. cbn in H. intuition discriminate.
+Qed.
+
+(* At pc 4 the frame is at the first br_if, inside the block. *)
+Lemma computed_pc_four_shape : forall cursor memory boundary c,
+  ControlState computedProgram computedStore 0 cursor memory boundary c -> boundaryPC boundary = 4 ->
+  shapeOf cursor = controlShape [] (siteCode (codePosition 0 [0%nat] 3)).
+Proof.
+  intros [stack active] memory boundary c [f [inner [Hf [Hactive [Hsusp [_ [_ ->]]]]]]] Hpc.
+  cbn [activePosition suspendedCalls] in *.
+  destruct active as [[[index labels offset] segments values locals] | function arguments].
+  - destruct Hactive as [f' [[Hf' [Hpath _]] [Hoffset [_ [Hpos _]]]]].
+    cbn [activeFunction viewPosition positionFunction positionLabels positionOffset] in *.
+    rewrite Hf in Hf'. injection Hf' as <-.
+    destruct index as [ | index]; [ | destruct index; discriminate]. cbn in Hf. injection Hf as <-.
+    cbn [guestBody] in Hpath.
+    destruct (computed_paths labels) as [Hnone | [-> | ->]].
+    + rewrite Hnone in Hpath. discriminate.
+    + exfalso. unfold innerCode in Hoffset. cbn in Hoffset.
+      destruct offset as [ | [ | [ | offset]]]; cbn in Hpos; lia.
+    + unfold innerCode in Hoffset. cbn in Hoffset.
+      destruct offset as [ | [ | [ | [ | [ | [ | [ | [ | [ | offset]]]]]]]]]; cbn in Hpos; try lia.
+      destruct stack as [ | top more]; [reflexivity | exfalso].
+      destruct Hsusp as [x [[Hg _] [Hcall _]]].
+      destruct (callView top) as [[[ | caller] glabels goffset] gsegments gvalues glocals];
+        cbn [viewPosition positionFunction positionLabels positionOffset] in Hg, Hcall; [ | destruct caller; discriminate].
+      cbn in Hg. injection Hg as Hg. rewrite <- Hg in Hcall. exact (computed_no_call _ _ _ Hcall).
+  - exfalso. destruct Hactive as [f' [Hf' [_ [_ [_ [_ [_ [Hpos _]]]]]]]].
+    destruct function as [ | function]; [ | destruct function; discriminate].
+    injection Hf' as <-. cbn in Hpos. lia.
+Qed.
+
+(* Splitting the raw trace before the first br_if yields the interior shape. *)
 Example computed_split_before_branch : forall firstRows lastRows final,
   fieldPrime -> validCircuitRun (computedMemory 7) (firstRows ++ lastRows) final ->
   runFragment (mkBoundary 0 4 4 7 0 0 0 0 0) 0 firstRows ->
   runFragment (rowsFinalBoundary (mkBoundary 0 4 4 7 0 0 0 0 0) firstRows) 0 lastRows ->
   boundaryPC (rowsFinalBoundary (mkBoundary 0 4 4 7 0 0 0 0 0) firstRows) = 4 ->
-  exists height between c1 shape c,
-    CircuitConfig computedProgram computedStore 0 (controlShape [] (siteBlock (sourcePosition 0 0) 3 height))
+  exists between c1 shape c,
+    CircuitConfig computedProgram computedStore 0 (controlShape [] (siteCode (codePosition 0 [0%nat] 3)))
       between (rowsFinalBoundary (mkBoundary 0 4 4 7 0 0 0 0 0) firstRows) c1 /\
     Steps (stackConfig (computedState 7) [] computedCode) c1 /\ Steps c1 c /\
     programLoaded computedProgram final /\
@@ -277,25 +254,16 @@ Example computed_split_before_branch : forall firstRows lastRows final,
       (rowsFinalBoundary (mkBoundary 0 4 4 7 0 0 0 0 0) (firstRows ++ lastRows)) c.
 Proof.
   intros firstRows lastRows final Hprime Hrun Hfirst Hlast Hpc.
-  pose proof (proj1 (computed_initial_state_exists 7 ltac:(unfold i32Modulus; lia))) as Hloaded.
   destruct (valid_run_split _ _ _ _ Hrun) as [between [Hrun1 Hrun2]].
-  destruct (run_refinement computedProgram computedStore 0 _ firstRows (computedMemory 7) between _ _ Hprime Hloaded
-    Hrun1 Hfirst (computed_initial_config 7 ltac:(unfold i32Modulus; lia)))
+  destruct (run_refinement computedProgram computedStore 0 _ firstRows (computedMemory 7) between _ _ Hprime
+    (load_program_loaded _ _) Hrun1 Hfirst (computed_initial_config 7 ltac:(unfold i32Modulus; lia)))
     as [shape1 [c1 [Hsteps1 [Hloaded1 Hconfig1]]]].
   destruct (run_refinement computedProgram computedStore 0 shape1 lastRows between final _ c1 Hprime Hloaded1 Hrun2
     Hlast Hconfig1) as [shape2 [c2 [Hsteps2 [Hloaded2 Hconfig2]]]].
-  destruct (circuit_config_state _ _ _ _ _ _ _ Hconfig1) as [[stack active] [z1 [Hstore Hstate1]]].
-  pose proof Hstate1 as [f [inner [Hf [Hactive [Hsusp _]]]]]. cbn [activePosition suspendedCalls] in *.
-  destruct (computed_pc_four_is_inside _ _ _ _ _ Hactive Hpc) as [prefix ->].
-  destruct stack as [ | top more].
-  (* The program has no CALL, so nothing is suspended. *)
-  2: { exfalso. destruct Hsusp as [g [x [Hg [Hcall _]]]].
-       destruct (callPosition top) as [[ | caller] site]; cbn [sourceFunction sourceOffset] in Hg, Hcall;
-         [ | destruct caller; discriminate].
-       injection Hg as <-. cbn [guestBody] in Hcall.
-       destruct site as [ | [ | site]]; [discriminate | discriminate | destruct site; discriminate]. }
-  exists (length prefix), between, c1, shape2, c2.
-  split; [exact (control_state_circuit _ _ _ _ _ _ _ _ Logic.eq_refl computed_store_wf Hstore Hstate1) | ].
+  destruct (circuit_config_state _ _ _ _ _ _ _ Hconfig1) as [cursor Hstate1].
+  exists between, c1, shape2, c2.
+  split; [rewrite <- (computed_pc_four_shape _ _ _ _ Hstate1 Hpc);
+    exact (control_state_circuit _ _ _ _ _ _ _ Logic.eq_refl computed_store_wf computed_program_validated Hstate1) | ].
   split; [exact Hsteps1 | ]. split; [exact Hsteps2 | ].
   split; [exact Hloaded2 | ]. rewrite rows_final_boundary_app. exact Hconfig2.
 Qed.

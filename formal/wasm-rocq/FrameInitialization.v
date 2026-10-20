@@ -133,34 +133,3 @@ Proof.
     rewrite update_other by (right; intro Heq; inversion Heq; lia).
     apply Hzeros. lia.
 Qed.
-
-Lemma initialized_frame_matches : forall memory boundary arguments locals s module,
-  0 <= boundaryStackBase boundary ->
-  Forall (fun value => 0 <= value < WasmIntegers.i32Modulus) arguments ->
-  InitializingFrame memory boundary arguments (Z.of_nat locals) 0 0 ->
-  stackMatches memory boundary [] /\
-  localsMatch memory boundary (Wasm2.mk_state s
-    (Wasm2.MKframe (map Locals.i32Value arguments ++ repeat (Locals.i32Value 0) locals) module)).
-Proof.
-  intros memory boundary arguments locals s module Hbase Hbounds Hinit.
-  destruct Hinit as [Hz Hp Hphase Hsp Hargs Hparams Hzeros].
-  split.
-  - unfold stackMatches. cbn. repeat split; try assumption; try lia; try constructor.
-    intros [ | index] value H; discriminate.
-  - intros index v Hlookup. cbn [stateLocals Wasm2.LOCALS] in Hlookup.
-    assert (Hlength : (index < length arguments + locals)%nat).
-    { assert (Hlt : (index < length (map Locals.i32Value arguments ++ repeat (Locals.i32Value 0) locals))%nat).
-      { apply nth_error_Some. rewrite Hlookup. discriminate. }
-      rewrite length_app, length_map, repeat_length in Hlt. exact Hlt. }
-    destruct (lt_dec index (length arguments)) as [Hin | Hout].
-    + rewrite nth_error_app1 in Hlookup by (rewrite length_map; exact Hin).
-      rewrite nth_error_map in Hlookup.
-      destruct (nth_error arguments index) as [value | ] eqn:Hvalue; [ | discriminate].
-      injection Hlookup as <-. exists value. split; [reflexivity | ]. split.
-      * apply (proj1 (Forall_forall _ _) Hbounds). apply nth_error_In with (n := index). exact Hvalue.
-      * apply Hparams; [exact Hvalue | lia].
-    + rewrite nth_error_app2 in Hlookup by (rewrite length_map; lia).
-      apply nth_error_In in Hlookup. apply repeat_spec in Hlookup. subst v.
-      exists 0. split; [reflexivity | ]. split; [unfold WasmIntegers.i32Modulus; lia | ].
-      apply Hzeros. lia.
-Qed.

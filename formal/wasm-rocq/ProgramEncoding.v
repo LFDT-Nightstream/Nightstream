@@ -5,6 +5,11 @@ Require Import Wasm2 SpecTecCalls MemoryTrace MemoryCatalog OpcodeCatalog Straig
 Import ListNotations.
 Open Scope Z_scope.
 
+(* A SpecTec state for a frame of f: the program's functions, f's module, and its locals. *)
+Definition frameMatches (program : Program) (f : GuestFunction) (z : state) : Prop :=
+  fun_funcinst z = program /\ fun_moduleinst z = guestModule f /\
+  length (stateLocals z) = (guestParams f + guestLocals f)%nat.
+
 Lemma load_program_loaded : forall program memory, programLoaded program (loadProgram program memory).
 Proof.
   intros program memory id Hin address. unfold loadProgram.
@@ -141,26 +146,6 @@ Proof.
   cbn. f_equal. lia.
 Qed.
 
-Lemma encoded_instruction_image : forall program memory index f offset instruction,
-  programLoaded program memory -> functionAt program index = Some f ->
-  nth_error (guestBody f) offset = Some instruction ->
-  (exists code, encodedOpcode instruction = Some code) ->
-  instructionImage memory (guestEntry f + Z.of_nat (codeOffset (guestBody f) offset)) instruction.
-Proof.
-  intros program memory index f offset instruction Hloaded Hf Hlookup [code Hcode].
-  assert (Hoffset : (offset <= length (guestBody f))%nat).
-  { assert (Hlt : (offset < length (guestBody f))%nat).
-    { apply nth_error_Some. rewrite Hlookup. discriminate. } lia. }
-  pose proof (instruction_at_function_pc _ _ _ (codeOffset (guestBody f) offset) Hf (code_offset_bound _ _)) as Hpc.
-  rewrite (flatten_at_source _ _ _ Hlookup) in Hpc.
-  destruct (encoded_opcode_cases instruction code Hcode)
-    as [[-> _] | [[-> _] | [[x [-> _]] | [x [-> _]]]]];
-    unfold instructionImage; repeat split; try intros choice;
-    try (program_cell Hloaded; unfold encodeProgram;
-      cbn [Nat.eqb pcRomId pcFunctionRefId functionEntryId functionLocalCountId functionCallMetadataId orb];
-      unfold instructionRom; rewrite Hpc; reflexivity).
-Qed.
-
 Lemma encoded_function_end : forall program memory index f,
   programLoaded program memory -> functionAt program index = Some f ->
   memory programOpcodeId [guestEntry f + Z.of_nat (codeSize (guestBody f))] = Some CODE_END /\
@@ -178,44 +163,3 @@ Lemma frame_matches_addresses : forall program f z,
   frameMatches program f z -> fun_funcaddr z = FUNCS (guestModule f).
 Proof. intros program f [s frame] [_ [H _]]. cbn in *. now rewrite H. Qed.
 
-(* A direct call's ROM image: target, return pc and callee metadata. *)
-Lemma encoded_call_image : forall program memory index f offset z x callee,
-  programLoaded program memory -> functionAt program index = Some f ->
-  nth_error (guestBody f) offset = Some (CALL x) -> frameMatches program f z ->
-  programCallees program (guestModule f) (x :> N) = Some callee ->
-  directCallImage memory (guestEntry f + Z.of_nat (codeOffset (guestBody f) offset))
-    (guestEntry f + Z.of_nat (codeOffset (guestBody f) offset) + 1) z x
-    (guestAddress callee) (guestModule callee) (guestTypeIndex callee)
-    (guestParams callee) (guestResults callee) (guestLocals callee) (guestBody callee) (guestEntry callee) /\
-  callerFrameImage memory (guestEntry f + Z.of_nat (codeOffset (guestBody f) offset)) z.
-Proof.
-  intros program memory index f offset z x callee Hloaded Hf Hlookup Hframe Hcallee.
-  assert (Hoffset : (offset <= length (guestBody f))%nat).
-  { assert (Hlt : (offset < length (guestBody f))%nat).
-    { apply nth_error_Some. rewrite Hlookup. discriminate. } lia. }
-  pose proof (instruction_at_function_pc _ _ _ (codeOffset (guestBody f) offset) Hf (code_offset_bound _ _)) as Hpc.
-  rewrite (flatten_at_source _ _ _ Hlookup) in Hpc.
-  unfold programCallees in Hcallee.
-  destruct (nth_error (FUNCS (guestModule f)) (N.to_nat (x :> N))) as [address | ] eqn:Haddress; [ | discriminate].
-  destruct (function_at_sound _ _ _ Hcallee) as [Hinstance [HcalleeAddress Hentry]].
-  replace (N.of_nat (N.to_nat address)) with address in HcalleeAddress by lia.
-  split.
-  - unfold directCallImage. split.
-    + rewrite (frame_matches_addresses _ _ _ Hframe), HcalleeAddress. exact Haddress.
-    + split.
-      * rewrite (proj1 Hframe), HcalleeAddress. exact Hinstance.
-      * split.
-        -- program_cell Hloaded. unfold encodeProgram. cbn.
-           unfold instructionRom. rewrite Hpc. reflexivity.
-        -- split.
-           ++ program_cell Hloaded. unfold encodeProgram. cbn.
-              unfold instructionRom. rewrite Hpc. cbn [Nat.eqb pcRomId programOpcodeId pcEdgeKindId programLocalIndexId callTargetId].
-              change (option_map (fun address => Z.of_N address + 1)
-                (nth_error (FUNCS (guestModule f)) (N.to_nat (x :> N))) = Some (Z.of_N (guestAddress callee) + 1)).
-              rewrite Haddress, HcalleeAddress. reflexivity.
-           ++ split.
-              ** program_cell Hloaded. unfold encodeProgram. cbn.
-                 unfold instructionRom. rewrite Hpc. reflexivity.
-              ** eapply encoded_guest_image; eassumption.
-  - eapply encoded_frame_image; try eassumption; apply code_offset_bound.
-Qed.

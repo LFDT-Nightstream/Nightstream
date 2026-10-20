@@ -1,12 +1,12 @@
 (* The SpecTec configuration a circuit state denotes. A static control shape says
-   where each frame is; the decoder reads operand values and locals from memory,
-   callers from the saved call contexts, and code from the program. It fails when
-   a register or cell disagrees with the shape. The store is not in circuit memory,
-   so it is an input. Each frame also yields the validation facts SpecTec's typing
-   and the supported fragment require of it. *)
+   where each frame is: a code path through nested blocks. The decoder computes the
+   operand height below each enclosing label from the code, reads operand values
+   and locals from memory and callers from the saved call contexts, and fails when
+   a register or cell disagrees. The store is not in circuit memory, so it is an
+   input; the program it holds must validate. *)
 From Stdlib Require Import List ZArith Bool.
 Require Import Wasm2 WasmIntegers R1CS MemoryTrace MemoryCatalog StraightLineSpec SpecTecCalls SpecTecBranches
-  CallerSpec ProgramSpec CodeLayout BlockSpec FunctionValidation FrameInitialization Locals Fragment.
+  CallerSpec ProgramSpec CodeLayout FunctionValidation FrameInitialization Locals Fragment.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -14,28 +14,24 @@ Local Notation "'let?' x ':=' e 'in' k" := (match e with Some x => k | None => N
   (at level 200, x ident, e at level 100, k at level 200).
 Local Notation "'check' b 'in' k" := (if b then k else None) (at level 200, b at level 100, k at level 200).
 
-(* The rest of a block body, typed as SpecTec's BLOCK rule types it: the active
-   function's context with the block's empty result label prepended. *)
-Definition validatedBlockRest (f : GuestFunction) (z : state) (height : nat) (code : list instr) : Prop :=
-  exists C, Moduleinst_ok (fun_store z) (guestModule f) C /\
-    Instrs_ok (labelContext [] (functionContext C (i32Function (guestModule f) (guestTypeIndex f)
-      (guestParams f) (guestResults f) (guestLocals f) (guestBody f)))) code (i32StackType height 0).
+(* A function, the offsets of the BLOCKs enclosing a position (outermost first),
+   and the offset in the innermost body. *)
+Record CodePosition := codePosition {
+  positionFunction : nat;
+  positionLabels : list nat;
+  positionOffset : nat
+}.
 
-(* Where the active frame is: before an outer instruction, inside a zero-result
-   block (with the operand height below its label), or initializing a callee. *)
+(* The active frame runs code, or is a callee whose frame is being initialized. *)
 Inductive ActiveSite :=
-| siteInstruction (position : SourcePosition)
-| siteBlock (position : SourcePosition) (offset prefixHeight : nat)
+| siteCode (position : CodePosition)
 | siteEntering (function : nat).
 
 (* The active site and, top first, the CALL each suspended caller is stopped at. *)
-Record ControlShape := controlShape { callSites : list SourcePosition; activeSite : ActiveSite }.
+Record ControlShape := controlShape { callSites : list CodePosition; activeSite : ActiveSite }.
 
 Definition siteFunction (site : ActiveSite) : nat :=
-  match site with
-  | siteInstruction position | siteBlock position _ _ => sourceFunction position
-  | siteEntering function => function
-  end.
+  match site with siteCode position => positionFunction position | siteEntering function => function end.
 
 (* An i32 occupies its low memory limb. *)
 Definition i32Cell (cell : option Z) : option Z :=
@@ -65,15 +61,44 @@ Definition frameLocals (f : GuestFunction) : nat := (guestParams f + guestLocals
 Definition activeFrame (f : GuestFunction) (locals : list Z) : frame :=
   MKframe (List.map i32Value locals) (guestModule f).
 
-(* The flattened address of a body instruction. *)
-Definition sourceAddress (f : GuestFunction) (offset : nat) : Z :=
-  guestEntry f + Z.of_nat (codeOffset (guestBody f) offset).
+(* The operand height below each enclosing label, and in the innermost code at
+   the offset, from the code's stack effects. *)
+Fixpoint pathHeights (callees : CalleeEnvironment) (code : list instr) (labels : list nat) (offset : nat)
+    : option (list nat * nat) :=
+  match labels with
+  | [] => option_map (fun top => ([], top)) (sourceHeights callees (firstn offset code) 0)
+  | b :: rest =>
+      match nth_error code b, sourceHeights callees (firstn b code) 0 with
+      | Some (BLOCK _ body), Some below =>
+          option_map (fun heights => (below :: fst heights, snd heights)) (pathHeights callees body rest offset)
+      | _, _ => None
+      end
+  end.
 
-Definition blockAt (f : GuestFunction) (offset : nat) : option (list instr) :=
-  match nth_error (guestBody f) offset with Some (BLOCK (_RESULT None) body) => Some body | _ => None end.
+Definition totalHeight (heights : list nat * nat) : nat := fold_right Nat.add (snd heights) (fst heights).
 
-Definition callAt (f : GuestFunction) (offset : nat) : option funcidx :=
-  match nth_error (guestBody f) offset with Some (CALL x) => Some x | _ => None end.
+(* The operands below each label, then the innermost ones. *)
+Fixpoint splitSegments (heights : list nat) (values : list Z) : list (list Z) * list Z :=
+  match heights with
+  | [] => ([], values)
+  | h :: rest => let split := splitSegments rest (skipn h values) in (firstn h values :: fst split, snd split)
+  end.
+
+(* A configuration inside its enclosing labels: each label's operands and the
+   code after its END stay outside its LABEL_. *)
+Fixpoint wrapLabels (code : list instr) (labels : list nat) (segments : list (list Z)) (c : config) : config :=
+  match labels, segments with
+  | b :: rest, segment :: more =>
+      match nth_error code b with
+      | Some (BLOCK _ body) =>
+          stackPrefix segment (instructionSuffix (skipn (S b) code) (blockContext (wrapLabels body rest more c)))
+      | _ => c
+      end
+  | _, _ => c
+  end.
+
+Definition callAt (code : list instr) (offset : nat) : option funcidx :=
+  match nth_error code offset with Some (CALL x) => Some x | _ => None end.
 
 Definition initializationIdleb (boundary : Boundary) : bool :=
   (boundaryZeroRemaining boundary =? 0) && (boundaryParamRemaining boundary =? 0) &&
@@ -91,72 +116,65 @@ Definition initializationFlagsb (boundary : Boundary) : bool :=
 Definition decodeActive (program : Program) (s : store) (memory : MemoryState) (boundary : Boundary)
     (site : ActiveSite) : option (config * Prop) :=
   let base := boundaryStackBase boundary in
-  let height := Z.to_nat (boundarySP boundary - base) in
   match site with
-  | siteInstruction position =>
-      let? f := functionAt program (sourceFunction position) in
-      let offset := sourceOffset position in
-      let code := skipn offset (guestBody f) in
-      check initializationIdleb boundary && (0 <=? base) && (base <=? boundarySP boundary) &&
-        (offset <=? length (guestBody f))%nat && (boundaryPC boundary =? sourceAddress f offset) in
-      let? values := readStack memory base height in
+  | siteCode position =>
+      let labels := positionLabels position in
+      let offset := positionOffset position in
+      let? f := functionAt program (positionFunction position) in
+      let? inner := pathCode (guestBody f) labels in
+      let? heights := pathHeights (programCallees program (guestModule f)) (guestBody f) labels offset in
+      check initializationIdleb boundary && (0 <=? base) &&
+        (boundarySP boundary =? base + Z.of_nat (totalHeight heights)) && (offset <=? length inner)%nat &&
+        (boundaryPC boundary =? guestEntry f + Z.of_nat (pathOffset (guestBody f) labels offset)) in
+      let? stack := readStack memory base (totalHeight heights) in
       let? locals := readLocals memory (boundaryLocalsBase boundary) (frameLocals f) in
-      let z := mk_state s (activeFrame f locals) in
-      Some (stackConfig z values code, validatedCode program f z height code)
-  | siteBlock position offset prefixHeight =>
-      let? f := functionAt program (sourceFunction position) in
-      let? body := blockAt f (sourceOffset position) in
-      let rest := skipn offset body in
-      let continuation := skipn (S (sourceOffset position)) (guestBody f) in
-      check initializationIdleb boundary && (0 <=? base) && (base <=? boundarySP boundary) &&
-        (prefixHeight <=? height)%nat && (offset <=? length body)%nat &&
-        (boundaryPC boundary =? sourceAddress f (sourceOffset position) + 1 + Z.of_nat offset) in
-      let? stack := readStack memory base height in
-      let? locals := readLocals memory (boundaryLocalsBase boundary) (frameLocals f) in
-      let z := mk_state s (activeFrame f locals) in
-      let values := skipn prefixHeight stack in
-      Some (stackPrefix (firstn prefixHeight stack)
-          (instructionSuffix continuation (blockContext (stackConfig z values rest))),
-        validatedCode program f z prefixHeight continuation /\ supportedCode blockSite body /\
-        validatedBlockRest f z (length values) rest /\ branchSitesBalanced rest (length values))
+      let split := splitSegments (fst heights) stack in
+      Some (wrapLabels (guestBody f) labels (fst split)
+        (stackConfig (mk_state s (activeFrame f locals)) (snd split) (skipn offset inner)), True)
   | siteEntering function =>
       let? f := functionAt program function in
       check initializationFlagsb boundary &&
         (0 <? boundaryZeroRemaining boundary + boundaryParamRemaining boundary) &&
         (boundaryPC boundary =? guestEntry f) in
       let? arguments := readStack memory base (guestParams f) in
-      let z := mk_state s (enteredFrame (guestModule f) arguments (guestLocals f)) in
-      Some (stackConfig z [] (guestBody f),
-        validatedCode program f z 0 (guestBody f) /\
+      Some (stackConfig (mk_state s (enteredFrame (guestModule f) arguments (guestLocals f))) [] (guestBody f),
         InitializingFrame memory boundary arguments (Z.of_nat (guestLocals f))
           (boundaryZeroRemaining boundary) (boundaryParamRemaining boundary))
   end.
 
 (* Each suspended caller, relative to the frame registers and depth of the frame it
-   called: its return context is the one saved one level down. The callee's
-   configuration goes inside the caller's FRAME_/LABEL_ context. *)
-Fixpoint decodeCalls (program : Program) (s : store) (memory : MemoryState) (callee : nat) (base fbp depth : Z)
-    (sites : list SourcePosition) (c : config) (obligations : Prop) : option (config * Prop) :=
+   called: its return context is the one saved one level down. Its operands below
+   the callee's arguments stay with it; the callee's configuration goes inside its
+   FRAME_/LABEL_ context, inside the caller's enclosing labels. *)
+Fixpoint decodeCalls (program : Program) (memory : MemoryState) (callee : nat) (base fbp depth : Z)
+    (sites : list CodePosition) (c : config) (obligations : Prop) : option (config * Prop) :=
   match sites with
   | [] => Some (c, obligations)
   | site :: rest =>
-      let? g := functionAt program (sourceFunction site) in
+      let labels := positionLabels site in
+      let offset := positionOffset site in
+      let? g := functionAt program (positionFunction site) in
       let? f := functionAt program callee in
-      let? x := callAt g (sourceOffset site) in
+      let? inner := pathCode (guestBody g) labels in
+      let? x := callAt inner offset in
       let? address := nth_error (FUNCS (guestModule g)) (N.to_nat (x :> N)) in
+      let? heights := pathHeights (programCallees program (guestModule g)) (guestBody g) labels offset in
       let? returnPC := memory callStackReturnPcId [depth - 1] in
       let? callerFbp := memory callStackCallerFbpId [depth - 1] in
       let? callerBase := memory callStackCallerSpBaseId [depth - 1] in
-      check (N.to_nat address =? callee)%nat && (returnPC =? sourceAddress g (S (sourceOffset site))) &&
-        (0 <=? callerBase) && (callerBase <=? base) && (fbp =? callerFbp + Z.of_nat (frameLocals g)) in
-      let? values := readStack memory callerBase (Z.to_nat (base - callerBase)) in
+      let below := (totalHeight heights - guestParams f)%nat in
+      check (N.to_nat address =? callee)%nat && (guestParams f <=? snd heights)%nat &&
+        (returnPC =? guestEntry g + Z.of_nat (pathOffset (guestBody g) labels (S offset))) &&
+        (0 <=? callerBase) && (base =? callerBase + Z.of_nat below) &&
+        (fbp =? callerFbp + Z.of_nat (frameLocals g)) in
+      let? stack := readStack memory callerBase below in
       let? locals := readLocals memory callerFbp (frameLocals g) in
-      let continuation := skipn (S (sourceOffset site)) (guestBody g) in
-      decodeCalls program s memory (sourceFunction site) callerBase callerFbp (depth - 1) rest
-        (stackPrefix values (instructionSuffix continuation
-          (callContext (activeFrame g locals) (N.of_nat (guestResults f)) c)))
-        (obligations /\ validatedCode program g (mk_state s (activeFrame g locals))
-            (length values + guestResults f) continuation)
+      let split := splitSegments (fst heights) stack in
+      decodeCalls program memory (positionFunction site) callerBase callerFbp (depth - 1) rest
+        (wrapLabels (guestBody g) labels (fst split)
+          (stackPrefix (snd split) (instructionSuffix (skipn (S offset) inner)
+            (callContext (activeFrame g locals) (N.of_nat (guestResults f)) c))))
+        obligations
   end.
 
 (* The base frame sits at a non-negative baseDepth; each suspended caller adds one level. *)
@@ -164,15 +182,15 @@ Definition decodeControl (program : Program) (s : store) (baseDepth : Z) (shape 
     (memory : MemoryState) (boundary : Boundary) : option (config * Prop) :=
   check (0 <=? baseDepth) && (boundaryCallDepth boundary =? baseDepth + Z.of_nat (length (callSites shape))) in
   let? active := decodeActive program s memory boundary (activeSite shape) in
-  decodeCalls program s memory (siteFunction (activeSite shape)) (boundaryStackBase boundary)
+  decodeCalls program memory (siteFunction (activeSite shape)) (boundaryStackBase boundary)
     (boundaryLocalsBase boundary) (boundaryCallDepth boundary) (callSites shape) (fst active) (snd active).
 
-(* The circuit state denotes c: it decodes to c and c's validation facts hold. *)
+(* The circuit state denotes c: the store holds the program, which validates, and
+   the state decodes to c. *)
 Definition CircuitConfig (program : Program) (s : store) (baseDepth : Z) (shape : ControlShape)
     (memory : MemoryState) (boundary : Boundary) (c : config) : Prop :=
-  store_FUNCS s = program /\ wf_store s /\
-  exists obligations,
-    decodeControl program s baseDepth shape memory boundary = Some (c, obligations) /\ obligations.
+  store_FUNCS s = program /\ wf_store s /\ programValidated program s /\
+  exists obligations, decodeControl program s baseDepth shape memory boundary = Some (c, obligations) /\ obligations.
 
 Definition runStartsAt (boundary : Boundary) (rows : list Witness) : Prop :=
   match rows with [] => True | first :: _ => beforeBoundary first = boundary end.

@@ -1,4 +1,5 @@
 import CompressionLean.Circuit.Linear
+import CompressionLean.Circuit.Openings
 import CompressionLean.Circuit.Record
 import CompressionLean.Circuit.Verifier
 import CompressionLean.Circuit.Late
@@ -36,6 +37,9 @@ compares it with the IR, instruction by instruction, as `Log` writes them
   in the file. The whole IR must match.
 - `lane_split`: the Lean side of `LaneSplit`, `laneTables` on classes that
   the toy relation does not have. The whole IR must match.
+- `openings <input.json>`: the Lean side of `Openings`, both openings
+  (`openingsStage`) from the state after the query points. The whole IR must
+  match.
 -/
 
 namespace CompressionLean.LowerCheck
@@ -279,6 +283,59 @@ def laneSplit : Build Unit := do
     let _ ← Duplex.sample
   let _ ← rest.run (← Duplex.new)
 
+/-- What `openings` reads (`lowering.rs`, `openings.json`): the replay's
+relation, the `WhirKey` of each opening, and the duplex inputs pending and the output lanes unread after the
+query points. -/
+structure OpeningsJson where
+  relation : Replay.Relation
+  p1Key : WhirKey
+  p0Key : WhirKey
+  pending : ℕ
+  output : ℕ
+deriving Lean.FromJson
+
+/-- `Openings::run` (`lowering.rs`): the duplex state, its pending inputs,
+the stage values and the proof parts as proof words, in `OpeningsInput`
+order; then both openings. The unread output is the state's first lanes. -/
+def openings (input : OpeningsJson) : Build Unit := do
+  let rel := input.relation
+  let layout := rel.key.layout
+  let state ← (Array.range 16).mapM fun _ => Build.priv
+  let pending ← (Array.range input.pending).mapM fun _ => Build.priv
+  let queryPoints ← (Array.range rel.queries).mapM fun _ => privateExts (rel.setupVars - Replay.foldVars)
+  let keyPoint ← privateExts rel.setupVars
+  let runPoint ← privateExts rel.setupVars
+  let blockPoint ← privateExts rel.blockVars
+  let lateBlockPoint ← privateExts rel.blockVars
+  let alpha ← privateExts Replay.foldVars
+  let queried ← privateExts (2 * rel.queries)
+  let omegaValue ← Algebra.privateExt
+  let lateOmega ← Algebra.privateExt
+  let normPoint ← privateExts rel.cubeVars
+  let linearPoint ← privateExts rel.cubeVars
+  let earlyRunPoint ← privateExts layout.runVariables
+  let pairPoint ← privateExts layout.slotVariables
+  let latePairPoint ← privateExts layout.slotVariables
+  let rowPoint ← privateExts layout.rowVariables
+  let zLeaf ← Algebra.privateExt
+  let zValue ← Algebra.privateExt
+  let lateBlock ← Algebra.privateExt
+  let mult ← Algebra.privateExt
+  let p1 ← privateDigest
+  let p0 ← privateDigest
+  let partials ← (Array.range 2).mapM fun _ => privateExts (2 ^ Replay.foldVars)
+  let runs ← privateExts 3
+  let pairs ← privatePairs rel.matrices
+  let block ← Algebra.privateExt
+  let lateValues ← privatePairs rel.matrices
+  let p1Opening ← OpeningView.read rel.p1Whir input.p1Key.rows
+  let p0Opening ← OpeningView.read rel.p0Whir input.p0Key.rows
+  let stage := openingsStage rel input.p1Key input.p0Key
+    { queryPoints, keyPoint, runPoint, blockPoint, lateBlockPoint, alpha, queried, omegaValue, lateOmega,
+      normPoint, linearPoint, earlyRunPoint, pairPoint, latePairPoint, rowPoint, zLeaf, zValue, lateBlock,
+      mult, p1, p0, partials, earlyValues := { runs, pairs, block }, lateValues, p1Opening, p0Opening }
+  let _ ← stage.run ⟨state, pending, state.extract 0 input.output⟩
+
 /-- Lean's program for an export, and whether it is the whole program or its
 start. -/
 structure Mirror where
@@ -346,8 +403,12 @@ def arguments : List String → IO (Except String (String × Option Mirror))
       pure <| (Lean.Json.parse json >>= Lean.fromJson? (α := StageInput)).map fun input =>
         (path, some ⟨(late input).program, true⟩)
   | [path, "lane_split"] => pure (.ok (path, some ⟨laneSplit.program, true⟩))
+  | [path, "openings", input] => do
+      let json ← IO.FS.readFile input
+      pure <| (Lean.Json.parse json >>= Lean.fromJson? (α := OpeningsJson)).map fun input =>
+        (path, some ⟨(openings input).program, true⟩)
   | _ => pure (.error "usage: lowerCheck <export.txt> [shared | early | layer1 <layer1.json> | \
-      linear <linear.json> | honest <honest.json> | late <late.json> | lane_split]")
+      linear <linear.json> | honest <honest.json> | late <late.json> | lane_split | openings <openings.json>]")
 
 end CompressionLean.LowerCheck
 

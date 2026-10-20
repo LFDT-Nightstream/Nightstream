@@ -257,23 +257,27 @@ data, and Lean lowers it to the shrink run as `record.rs` does.
   records it. `Native::select` branches. The two agree when `bit` is 0 or 1.
 - Verifier (`Algebra.lean`, `Hash.lean`, `Fold.lean`, `Sumcheck.lean`,
   `Views.lean`, `Gkr.lean`, `Early.lean`, `Ring.lean`, `Mle.lean`,
-  `Linear.lean`, `Honest.lean`, `Late.lean`, `Verifier.lean`): the layer-1
-  verifier written with `Build`, each function in the call order of its Rust
-  counterpart (`algebra.rs`, `hash.rs`, `fold.rs`, `sumcheck.rs`, the proof
-  views, `gkr.rs`, the early and late stages' parts of `norm.rs`, `mle.rs`
-  and `matrix.rs`, `ring.rs`, `setup.rs`, `verifier.rs`). The sizes come
-  from the replay's relation (`Replay/Data.lean`). `verify` is ported up to
+  `Linear.lean`, `Honest.lean`, `Late.lean`, `Whir.lean`, `Openings.lean`,
+  `Verifier.lean`): the layer-1 verifier written with `Build`, each function
+  in the call order of its Rust counterpart (`algebra.rs`, `hash.rs`,
+  `fold.rs`, `sumcheck.rs`, the proof views, `gkr.rs`, the early and late
+  stages' parts of `norm.rs`, `mle.rs` and `matrix.rs`, `ring.rs`,
+  `setup.rs`, `whir/mod.rs`, `verifier.rs`). The sizes come from the replay's
+  relation (`Replay/Data.lean`); what the WHIR verifier reads of each `Pcs`
+  beyond the replay's `WhirShape` is a `WhirKey`. `verify` is ported up to
   `verifier.rs:266`: the seed, the relation words and the statement words,
   then the early stage (norm root, GKR, matrix leaf checks, early values),
   the linear stage (`verifier.rs:170-206`), the honest fold
   (`verifier.rs:208-249`: setup partials, `α`, setup queries), the late
   stage (`verifier.rs:251-260`: late `β`, GKR, lane tables, block scatter
   leaf checks, late values) and the query points (`verifier.rs:262-265`).
+  `openingsStage` is the two WHIR openings with their equality checks
+  (`verifier.rs:266-315`); `verify` does not call it yet.
 
 The lowering assumes, and does not prove:
 
 - Port: that `lower` equals `record.rs` on every program. The check below
-  compares the two on eight runs.
+  compares the two on nine runs.
 - Verifier port: that Lean's programs write Rust's instructions for every
   relation. The check below compares them on one toy relation.
 - Fields: the check runs `lower` in Goldilocks. In another field, the zero
@@ -307,7 +311,7 @@ Rust rejects inside WHIR, the replay must reject later.
 Lowering check. Build it with
 `timeout --signal=KILL 1500 lake build lowerCheck`, then run
 `cargo test --release -p neo-spartan --lib lowering_matches_lean -- --ignored`
-under the 5-minute cap. The test records eight programs through
+under the 5-minute cap. The test records nine programs through
 `record.rs` and logs each `Backend` call as an instruction: `Edges`, which
 takes every branch of `record.rs`, `Shared`, which calls every helper of the
 verifier, `Early`, which runs the early stage's helpers on a structure that
@@ -316,17 +320,20 @@ toy proof from the duplex state after the early stage, `Honest`, which runs
 the honest fold and the query points on the toy proof from the state before
 `μ`, `Late`, which runs the late stage on the toy proof from the state after
 the setup queries, `LaneSplit`, which builds the lane tables of run classes
-that the toy relation does not have, and the toy layer-1 verifier of
-`layer1_verifier_shrinks`. It
+that the toy relation does not have, `Openings`, which runs both WHIR
+openings on the toy proof from the state after the query points, and the toy
+layer-1 verifier of `layer1_verifier_shrinks`. The programs are in
+`tests/internal/lowering_stages.rs`. The test
 writes the statement, the IR and Rust's trace to
 `target/lean-lowering/<program>.txt`, the verifier's relation to
-`layer1.json` and the inputs of `Linear`, `Honest` and `Late` to
-`linear.json`, `honest.json` and `late.json`. `lowerCheck` lowers the IR and
+`layer1.json` and the inputs of `Linear`, `Honest`, `Late` and
+`Openings` to `linear.json`, `honest.json`, `late.json` and
+`openings.json`. `lowerCheck` lowers the IR and
 requires the same glue cells, blocks, statement words and rows, side by side
-and term by term. For `Shared`, `Early`, `Linear`, `Honest`, `Late`,
-`LaneSplit` and the verifier it also writes Lean's program and requires
-Rust's instructions in order: all of the first six programs' instructions,
-and the verifier's first ones, through `verifier.rs:266`.
+and term by term. For every program but `Edges` it also writes Lean's
+program and requires Rust's instructions in order: all of the stage
+programs' instructions, and the verifier's first ones, through
+`verifier.rs:266`.
 
 ## Terminal program
 

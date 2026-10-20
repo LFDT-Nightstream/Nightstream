@@ -128,6 +128,40 @@ fn whir_opens_two_tables_through_the_seeded_challenger() {
     assert!(verify(fold_transcript(1), &points, &changed).is_err());
 }
 
+/// A key of `2^block_variables` blocks and one run.
+fn wide_key(block_variables: usize) -> Key {
+    Key {
+        root: [0; 4],
+        blocks: 1 << block_variables,
+        rows: 1,
+        structure: Structure {
+            matrices: 1,
+            row_variables: 1,
+            run_variables: 1,
+            slot_variables: 1,
+            run_bounds: vec![0, 1],
+            classes: Vec::new(),
+            segments: Vec::new(),
+            slots: 0,
+        },
+    }
+}
+
+/// `query_half` in `formal/compression-lean` needs at most 35 setup
+/// variables. P1 stacks `6·2^(n-3)` cells, and WHIR refuses a first folded
+/// domain above `2^32`, so no relation has more.
+#[test]
+fn relations_refuse_setups_past_35_variables() {
+    let p1 = |key: &Key| Pcs::new(crate::pcs::LAYER1, crate::p1_plans(key, 0), 101.0, &|_| Vec::new()).is_ok();
+    let fits = wide_key(29);
+    assert_eq!(fits.setup_variables(), 35);
+    assert!(p1(&fits));
+    let wide = wide_key(30);
+    assert_eq!(wide.setup_variables(), 36);
+    assert!(!p1(&wide));
+    assert!(Relation::new(&wide, 1, 36, 1, 100.0).is_err());
+}
+
 #[test]
 fn production_shape_reaches_the_required_security() {
     // The production shape at e402a6d99: 814,144 blocks (a 2^26 cube),

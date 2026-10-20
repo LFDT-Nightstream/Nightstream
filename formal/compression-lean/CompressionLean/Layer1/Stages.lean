@@ -158,20 +158,21 @@ def HonestGood (s : Shape) (S : Setup F) (q : ℕ → K) (o : EarlyOut F K) (lin
     ∀ v ∈ h.p1, h.queries ∉ foldQueryBad (s.setupVars - 3) s.queries L q
       (fold h.alpha (keyGroup s S lin.lam)) (fold h.alpha (runGroup S h.mu)) v
 
-theorem honestGame_avoids (s : Shape) (S : Setup F) (L1 L : ℕ) [NeZero L] (q : ℕ → K)
+theorem honestGame_avoids (s : Shape) (S : Setup F) (L1 L P : ℕ) [NeZero L] [NeZero P] (q : ℕ → K)
     (o : EarlyOut F K) (lin : LinearOut K) :
-    (honestGame s S L1 L q o lin).Avoids fun r => ∀ h, r = some h → HonestGood s S q o lin h := by
+    (honestGame s S L1 L P q o lin).Avoids fun r => ∀ h, r = some h → HonestGood s S q o lin h := by
   intro mu hμ partials
   rw [Game.avoids_bind]
   refine (drawPoint_avoids _ 3 []).mono ?_
   rintro alpha ⟨cs, rfl, length, path⟩
   split_ifs with check
-  · intro p1 queries hq
+  · intro p1 words hq
     rintro h ⟨⟩
     refine ⟨hμ, by simpa using length, by simpa using path, check, ?_⟩
     intro v member
     obtain ⟨i, rfl⟩ := mem_get member
-    exact fun hit => hq (Finset.mem_biUnion.mpr ⟨i, Finset.mem_univ _, hit⟩)
+    exact fun hit =>
+      hq (Finset.mem_filter.mpr ⟨Finset.mem_univ _, Finset.mem_biUnion.mpr ⟨i, Finset.mem_univ _, hit⟩⟩)
   · intro h none; cases none
 
 end Honest

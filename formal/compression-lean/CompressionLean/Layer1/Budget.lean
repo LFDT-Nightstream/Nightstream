@@ -13,6 +13,10 @@ charged the setup queries, `L1 · 2^(1-t_q)`. `Pcs::new` accepts a
 configuration only when each composed error is at most `2^-(t+1)`, which is
 what `p0` and `p1` state. `layer1Count_le_rust` shows that the Lean count is
 at most what Rust charges, so the two checks bound the whole layer.
+
+The query leaves are low bits of Goldilocks words. With at most 35 setup
+variables a leaf lands in a wrong fold's agreement set with probability at
+most `1/2` (`query_half`), so the charge holds under that law.
 -/
 
 namespace CompressionLean.Layer1
@@ -113,29 +117,35 @@ theorem layer1Count_le_rust (s : Shape) (L0 L1 : ℕ) (h0 : 1 ≤ L0) (h1 : 1 �
   unfold layer1Count rustDegrees
   nlinarith [Nat.mul_le_mul_right (rustEarly s) product, Nat.mul_le_mul_right (rustLinear s) product]
 
-/-- The query leaves of a fold of `setupVars - 3` variables agree with a
-wrong fold at most half the time. -/
-theorem query_half (s : Shape) :
-    ((2 ^ (s.setupVars - 3) - 1 : ℕ) : ℝ) / ((2 ^ (s.setupVars - 2) : ℕ) : ℝ) ≤ 1 / 2 := by
-  by_cases deep : 3 ≤ s.setupVars
-  · rw [show s.setupVars - 2 = (s.setupVars - 3) + 1 by omega, pow_succ,
-      div_le_div_iff₀ (by positivity) (by norm_num)]
-    have : ((2 ^ (s.setupVars - 3) - 1 : ℕ) : ℝ) ≤ ((2 ^ (s.setupVars - 3) : ℕ) : ℝ) := by
-      exact_mod_cast Nat.sub_le _ _
-    push_cast at this ⊢
-    linarith
-  · rw [show s.setupVars - 3 = 0 by omega]
-    norm_num
+/-- The Goldilocks order: `sample_bits` reads a uniform canonical word below it. -/
+def goldilocks : ℕ := 2 ^ 64 - 2 ^ 32 + 1
+
+instance : NeZero goldilocks := ⟨by decide⟩
+
+/-- `2·(2^(v-3) - 1)·(⌊p / 2^(v-2)⌋ + 1) ≤ p` up to `v = 35`; it fails at `36`. -/
+theorem goldilocks_half : ∀ v < 36, 2 * ((2 ^ (v - 3) - 1) * (goldilocks / 2 ^ (v - 2) + 1)) ≤ goldilocks := by
+  decide
+
+/-- A query leaf drawn as the low `setupVars - 2` bits of a Goldilocks word
+agrees with a wrong fold at most half the time, for at most 35 setup
+variables. -/
+theorem query_half (s : Shape) (index : s.setupVars ≤ 35) :
+    ((((2 ^ (s.setupVars - 3) - 1) * (goldilocks / 2 ^ (s.setupVars - 2) + 1) : ℕ) : ℝ) / goldilocks) ≤
+      1 / 2 := by
+  rw [div_le_div_iff₀ (by exact_mod_cast Nat.pos_of_neZero goldilocks) (by norm_num)]
+  exact_mod_cast (by have := goldilocks_half s.setupVars (by omega); omega :
+    (2 ^ (s.setupVars - 3) - 1) * (goldilocks / 2 ^ (s.setupVars - 2) + 1) * 2 ≤ 1 * goldilocks)
 
 /-- **The layer-1 budget at Rust's split.** If each commitment's composed
 error, as Plonky3 charges it, is at most `2^-(t+1)`, the whole layer errs
 with probability at most `2^-t`. `whirP0`, `whirP1` are the WHIR errors of
-the idealized openings (`Opens`). -/
+the idealized openings (`Opens`). The query leaves are the low bits of
+Goldilocks words; `index` is the setup bound of `query_half`. -/
 theorem layer1_budget (s : Shape) (L0 L1 size t : ℕ) (h0 : 1 ≤ L0) (h1 : 1 ≤ L1) (big : 2 ^ 191 ≤ size)
-    (whirP0 whirP1 : ℝ)
+    (index : s.setupVars ≤ 35) (whirP0 whirP1 : ℝ)
     (p0 : whirP0 + L0 * L1 * rustDegrees s / 2 ^ 191 ≤ 1 / 2 ^ (t + 1))
     (p1 : whirP1 + L1 * (1 / 2) ^ (s.queries - 1) ≤ 1 / 2 ^ (t + 1)) :
-    whirP0 + whirP1 + layer1Error s L0 L1 (2 ^ (s.setupVars - 2)) size ≤ 1 / 2 ^ t := by
+    whirP0 + whirP1 + layer1Error s L0 L1 (2 ^ (s.setupVars - 2)) goldilocks size ≤ 1 / 2 ^ t := by
   unfold layer1Error queryError
   have positive : (0 : ℝ) < 2 ^ 191 := by positivity
   have sizeBig : (2 : ℝ) ^ 191 ≤ size := by exact_mod_cast big
@@ -143,13 +153,13 @@ theorem layer1_budget (s : Shape) (L0 L1 size t : ℕ) (h0 : 1 ≤ L0) (h1 : 1 �
     exact_mod_cast layer1Count_le_rust s L0 L1 h0 h1
   have field : (layer1Count s L0 L1 : ℝ) / size ≤ L0 * L1 * rustDegrees s / 2 ^ 191 :=
     div_le_div₀ (by positivity) count positive sizeBig
-  have half := query_half s
-  have shrink : ((((2 ^ (s.setupVars - 3) - 1 : ℕ) : ℝ) / ((2 ^ (s.setupVars - 2) : ℕ) : ℝ))) ^ s.queries ≤
-      (1 / 2) ^ (s.queries - 1) :=
+  have half := query_half s index
+  have shrink : ((((2 ^ (s.setupVars - 3) - 1) * (goldilocks / 2 ^ (s.setupVars - 2) + 1) : ℕ) : ℝ) /
+      goldilocks) ^ s.queries ≤ (1 / 2) ^ (s.queries - 1) :=
     (pow_le_pow_left₀ (by positivity) half _).trans
       (pow_le_pow_of_le_one (by norm_num) (by norm_num) (Nat.sub_le _ _))
-  have query : (L1 : ℝ) * ((((2 ^ (s.setupVars - 3) - 1 : ℕ) : ℝ) /
-      ((2 ^ (s.setupVars - 2) : ℕ) : ℝ))) ^ s.queries ≤ L1 * (1 / 2) ^ (s.queries - 1) :=
+  have query : (L1 : ℝ) * ((((2 ^ (s.setupVars - 3) - 1) * (goldilocks / 2 ^ (s.setupVars - 2) + 1) : ℕ) : ℝ) /
+      goldilocks) ^ s.queries ≤ L1 * (1 / 2) ^ (s.queries - 1) :=
     mul_le_mul_of_nonneg_left shrink (by positivity)
   have split : (1 : ℝ) / 2 ^ (t + 1) + 1 / 2 ^ (t + 1) = 1 / 2 ^ t := by
     rw [pow_succ]; field_simp; ring

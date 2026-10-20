@@ -61,9 +61,11 @@ Layer 1 assumes, and does not prove:
   challenges, so `Q` calls and the `R` draws of one path are at most
   `k·Q + R` queries of `Restoration.lean`. WHIR's own Fiat–Shamir step is
   part of the WHIR error.
-- Query indices: `sample_bits` takes the low `setupVars - 2` bits of a
-  uniform Goldilocks element. Each index is at most `1 + 2^(setupVars - 66)`
-  times as likely as under the uniform law.
+- Query indices: the model draws each query leaf as a uniform Goldilocks
+  word mod the leaf count, as `sample_bits` does (`HonestStage.lean`).
+  `layer1_budget` needs at most 35 setup variables (`query_half`).
+  `Pcs::new` gives it: P1 stacks `6·2^(setupVars - 3)` cells, and Plonky3's
+  WHIR refuses a first folded domain above `2^32`.
 - Setup root: the Merkle root of the setup binds its leaves, so the opened
   setup values are the honest setup's (`HonestStage.lean`).
 - Key structure: the verifier reads the matrix column and the slot lane

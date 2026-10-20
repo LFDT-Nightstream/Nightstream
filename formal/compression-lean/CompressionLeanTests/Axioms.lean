@@ -222,3 +222,10 @@ import CompressionLean
 #audit_axioms CompressionLean.Circuit.step_spec
 #audit_axioms CompressionLean.Circuit.steps_ok
 #audit_axioms CompressionLean.Circuit.lower_valid
+/-! Axiom gate for the concrete fields. -/
+
+#audit_axioms CompressionLean.Final.cubic_natDegree
+#audit_axioms CompressionLean.Final.cubic_ne_zero
+#audit_axioms CompressionLean.Final.card_cubic
+#audit_axioms CompressionLean.Final.cubic_big
+#audit_axioms CompressionLean.Final.natCast_injective

@@ -264,15 +264,14 @@ data, and Lean lowers it to the shrink run as `record.rs` does.
   stages' parts of `norm.rs`, `mle.rs` and `matrix.rs`, `ring.rs`,
   `setup.rs`, `whir/mod.rs`, `verifier.rs`). The sizes come from the replay's
   relation (`Replay/Data.lean`); what the WHIR verifier reads of each `Pcs`
-  beyond the replay's `WhirShape` is a `WhirKey`. `verify` is ported up to
-  `verifier.rs:266`: the seed, the relation words and the statement words,
+  beyond the replay's `WhirShape` is a `WhirKey`. `verify` is all of
+  `verifier.rs`: the seed, the relation words and the statement words,
   then the early stage (norm root, GKR, matrix leaf checks, early values),
   the linear stage (`verifier.rs:170-206`), the honest fold
   (`verifier.rs:208-249`: setup partials, `α`, setup queries), the late
   stage (`verifier.rs:251-260`: late `β`, GKR, lane tables, block scatter
-  leaf checks, late values) and the query points (`verifier.rs:262-265`).
-  `openingsStage` is the two WHIR openings with their equality checks
-  (`verifier.rs:266-315`); `verify` does not call it yet.
+  leaf checks, late values), the query points (`verifier.rs:262-265`) and
+  the two WHIR openings with their equality checks (`verifier.rs:266-315`).
 
 The lowering assumes, and does not prove:
 
@@ -325,15 +324,14 @@ openings on the toy proof from the state after the query points, and the toy
 layer-1 verifier of `layer1_verifier_shrinks`. The programs are in
 `tests/internal/lowering_stages.rs`. The test
 writes the statement, the IR and Rust's trace to
-`target/lean-lowering/<program>.txt`, the verifier's relation to
-`layer1.json` and the inputs of `Linear`, `Honest`, `Late` and
+`target/lean-lowering/<program>.txt`, the verifier's relation and WHIR keys
+to `layer1.json` and the inputs of `Linear`, `Honest`, `Late` and
 `Openings` to `linear.json`, `honest.json`, `late.json` and
 `openings.json`. `lowerCheck` lowers the IR and
 requires the same glue cells, blocks, statement words and rows, side by side
 and term by term. For every program but `Edges` it also writes Lean's
-program and requires Rust's instructions in order: all of the stage
-programs' instructions, and the verifier's first ones, through
-`verifier.rs:266`.
+program and requires all of Rust's instructions in order. On the toy
+relation the verifier is 651,165 instructions.
 
 ## Terminal program
 

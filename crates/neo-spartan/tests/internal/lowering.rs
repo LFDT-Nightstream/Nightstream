@@ -13,9 +13,8 @@
 //!
 //! The programs are in `lowering_stages.rs`. For every program but `Edges`,
 //! `lowerCheck` also writes the program with the Lean builder and requires
-//! the logged instructions: all of the stage programs' instructions, and the
-//! verifier's first ones, up to `verifier.rs:266`. The verifier's relation
-//! goes to `target/lean-lowering/layer1.json`, and `Linear`'s, `Honest`'s,
+//! all of the logged instructions. The verifier's relation and WHIR keys go
+//! to `target/lean-lowering/layer1.json`, and `Linear`'s, `Honest`'s,
 //! `Late`'s and `Openings`' inputs to `linear.json`, `honest.json`,
 //! `late.json` and `openings.json`.
 
@@ -289,14 +288,14 @@ fn whir_key(pcs: &Pcs) -> String {
     )
 }
 
-/// What `layer1` in `Circuit/Check.lean` reads: the replay's relation, and
-/// the index bits and folding factor of each query set of the two openings.
+/// What `layer1` in `Circuit/Check.lean` reads: the replay's relation and the
+/// `WhirKey` of each opening.
 fn layer1_input(relation: &Relation<'_>) -> String {
     format!(
-        "{{\"relation\":{},\"p1Rows\":{},\"p0Rows\":{}}}",
+        "{{\"relation\":{},\"p1Key\":{},\"p0Key\":{}}}",
         relation_json(relation),
-        opening_rows(&relation.p1),
-        opening_rows(&relation.p0)
+        whir_key(&relation.p1),
+        whir_key(&relation.p0)
     )
 }
 

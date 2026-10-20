@@ -331,7 +331,7 @@ fn observe_pairs<B: Backend>(b: &mut B, duplex: &mut Duplex<B>, pairs: &[[B::E; 
 }
 
 /// `Σ_u eq(point, u)·partials[u]`: a group's value from its partials.
-fn combine<B: Backend>(b: &mut B, partials: &[B::E; 1 << FOLD], point: &[B::E]) -> B::E {
+pub(crate) fn combine<B: Backend>(b: &mut B, partials: &[B::E; 1 << FOLD], point: &[B::E]) -> B::E {
     let eq = algebra::eq_table(b, point);
     algebra::dot(b, &eq, partials)
 }

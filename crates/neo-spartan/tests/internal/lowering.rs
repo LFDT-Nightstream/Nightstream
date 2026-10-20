@@ -11,12 +11,12 @@
 //! requires the lowered run to equal the trace: every row with its seven
 //! sides in order, the glue cells, the blocks and the statement words.
 //!
-//! For `Shared`, `Early`, `Linear` and the layer-1 verifier, `lowerCheck`
-//! also writes the program with the Lean builder and requires the logged
-//! instructions: all of `Shared`'s, `Early`'s and `Linear`'s, and the
-//! verifier's first ones, up to `verifier.rs:168`.
+//! For `Shared`, `Early`, `Linear`, `Honest` and the layer-1 verifier,
+//! `lowerCheck` also writes the program with the Lean builder and requires
+//! the logged instructions: all of `Shared`'s, `Early`'s, `Linear`'s and
+//! `Honest`'s, and the verifier's first ones, up to `verifier.rs:249`.
 //! The verifier's relation goes to `target/lean-lowering/layer1.json`, and
-//! `Linear`'s input to `linear.json`.
+//! `Linear`'s and `Honest`'s inputs to `linear.json` and `honest.json`.
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -44,9 +44,11 @@ use crate::hash::seed;
 use crate::matrix::{EarlyChallenges, EarlyValues, Structure};
 use crate::pcs::Pcs;
 use crate::ring::{self, Mixing};
+use crate::setup::{self, LeafView, FOLD};
 use crate::shrink::Program;
-use crate::verifier::{early_shapes, lane_value, observe_early};
-use crate::{mle, norm, prove, sumcheck, whir, Claim, ClaimWords, Error, Proof, Relation, LANE_VARIABLES};
+use crate::verifier::{combine, early_shapes, lane_value, observe_early};
+use crate::{kappa, mle, norm, prove, setup_point, sumcheck, whir, Claim, ClaimWords, Error, Proof, Relation};
+use crate::{LANE_VARIABLES, RUN_ORACLES};
 
 /// A recorded value and its handle.
 #[derive(Clone, Copy)]
@@ -577,6 +579,183 @@ impl Program for Linear<'_> {
     }
 }
 
+/// The honest fold of the layer-1 verifier on the toy proof, from the state
+/// before `μ`: the duplex and every value that the fold reads of the earlier
+/// stages and of the proof, as proof words. The duplex's unread output is the
+/// first `output` lanes of its state. `run` makes the calls of
+/// `verifier.rs:208-249`, then those of `verifier.rs:262-265`, in their
+/// order. `honest` in `Circuit/Check.lean` writes the same program.
+struct Honest<'a> {
+    relation: &'a Relation<'a>,
+    proof: &'a Proof,
+    state: [Gl; WIDTH],
+    input: Vec<Gl>,
+    output: usize,
+    lane_point: Vec<Ext>,
+    block_point: Vec<Ext>,
+    run_point: Vec<Ext>,
+    setup: [Ext; 3],
+    commitment_rows: Vec<Ext>,
+}
+
+impl<'a> Honest<'a> {
+    /// The state at `verifier.rs:208` in a native run of `verifier.rs:143-206`
+    /// on `proof`: the transcript calls and the values that the honest fold
+    /// reads, without the earlier checks.
+    fn new(relation: &'a Relation<'a>, seed: [Gl; 4], claim: &Claim, proof: &'a Proof) -> Self {
+        let (shape, structure) = (&relation.shape, &relation.key.structure);
+        let statement = ClaimWords::new(shape, claim).unwrap();
+        let b = &mut Native;
+        let mut duplex = Duplex::new(b);
+        duplex.observe_slice(b, &seed);
+        for word in relation.words() {
+            duplex.observe(b, word);
+        }
+        duplex.observe_slice(b, &statement.words());
+        whir::observe_root(b, &mut duplex, proof.p0.roots()[0]);
+        let histogram: Vec<Gl> = proof
+            .histogram
+            .iter()
+            .map(|&count| Gl::from_u64(u64::from(count)))
+            .collect();
+        duplex.observe_slice(b, &histogram);
+        let _beta = duplex.sample_ext(b);
+        let challenges = EarlyChallenges {
+            lookup: [duplex.sample_ext(b), duplex.sample_ext(b)],
+            scatter: [duplex.sample_ext(b), duplex.sample_ext(b)],
+        };
+        let shapes = early_shapes(relation);
+        let view = GkrView::read(b, Some(&proof.early), &shapes).unwrap();
+        let claims = gkr::verify(b, &view, &shapes, &mut duplex).unwrap();
+        let early = structure
+            .check_early(b, &statement.point, challenges, &claims[1..], &proof.early_values)
+            .unwrap();
+        observe_early(b, &mut duplex, &proof.early_values);
+        let lambda = duplex.sample_ext(b);
+        let mixing = Mixing::new(b, lambda, shape);
+        for &value in &proof.quotient {
+            duplex.observe_ext(b, value);
+        }
+        let zeta = duplex.sample_ext(b);
+        let targets = ring::targets(b, &statement, &mixing);
+        let value = ring::lifted_target(b, &targets, &proof.quotient, zeta);
+        let (point, _) = sumcheck::replay(b, &mut duplex, &proof.linear, value);
+        for value in proof.finals {
+            duplex.observe_ext(b, value);
+        }
+        let (_, lane_point) = mle::scaled_eq_point(b, zeta, LANE_VARIABLES).unwrap();
+        let output = duplex.output.len();
+        assert_eq!(
+            duplex.output,
+            duplex.state[..output],
+            "the output is the state's rate lanes"
+        );
+        Self {
+            relation,
+            proof,
+            state: duplex.state,
+            input: duplex.input,
+            output,
+            lane_point,
+            block_point: point[..shape.block_variables].to_vec(),
+            run_point: early.run_point,
+            setup: early.setup,
+            commitment_rows: (0..kappa()).map(|row| mixing.commitment(row)).collect(),
+        }
+    }
+}
+
+impl Program for Honest<'_> {
+    fn statement(&self) -> Vec<u64> {
+        Vec::new()
+    }
+
+    fn key(&self) -> Vec<u64> {
+        Vec::new()
+    }
+
+    fn run<B: Backend>(&self, b: &mut B) -> Result<(), Error> {
+        let (relation, proof) = (self.relation, self.proof);
+        let key = relation.key;
+        let state = self.state.map(|word| algebra::private(b, word));
+        let mut duplex = Duplex {
+            state,
+            input: self
+                .input
+                .iter()
+                .map(|&word| algebra::private(b, word))
+                .collect(),
+            output: state[..self.output].to_vec(),
+        };
+        let exts = |b: &mut B, values: &[Ext]| -> Vec<B::E> {
+            values
+                .iter()
+                .map(|&value| algebra::private_ext(b, value))
+                .collect()
+        };
+        let lane_point = exts(b, &self.lane_point);
+        let block_point = exts(b, &self.block_point);
+        let early_run_point = exts(b, &self.run_point);
+        let [row, slot, coefficient] = self.setup.map(|value| algebra::private_ext(b, value));
+        let block = algebra::private_ext(b, proof.early_values.block);
+        let commitment_rows = exts(b, &self.commitment_rows);
+        let key_value = algebra::private_ext(b, proof.finals[0]);
+        let partials = proof
+            .partials
+            .map(|values| values.map(|value| algebra::private_ext(b, value)));
+        let p1 = proof.p1.roots()[0].map(|word| algebra::private(b, word));
+        let variables = key.setup_variables();
+        let leaves = proof
+            .leaves
+            .iter()
+            .map(|leaf| LeafView::read(b, Some(leaf), kappa() + RUN_ORACLES, variables))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let mu = duplex.sample_ext(b);
+        for values in &partials {
+            for &value in values {
+                duplex.observe_ext(b, value);
+            }
+        }
+        let alpha: [B::E; FOLD] = std::array::from_fn(|_| duplex.sample_ext(b));
+        let key_point = setup_point(b, &[lane_point.as_slice(), &block_point].concat(), variables);
+        let run_point = setup_point(b, &early_run_point, variables);
+        let mut embedded = block;
+        for &x in &early_run_point[key.structure.slot_variables..] {
+            let low = algebra::one_minus(b, x);
+            embedded = b.ext_mul(embedded, low);
+        }
+        let mut run_value = embedded;
+        for value in [coefficient, slot, row] {
+            let scaled = b.ext_mul(mu, run_value);
+            run_value = b.ext_add(value, scaled);
+        }
+        let key_partial = combine(b, &partials[0], &key_point[..FOLD]);
+        b.assert_ext_equal(key_partial, key_value, "honest-fold partials")?;
+        let run_partial = combine(b, &partials[1], &run_point[..FOLD]);
+        b.assert_ext_equal(run_partial, run_value, "honest-fold partials")?;
+
+        whir::observe_root(b, &mut duplex, p1);
+        let index_bits = (0..relation.queries)
+            .map(|_| duplex.sample_bits(b, variables + 1 - FOLD))
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut run_weights = vec![algebra::ext_one(b)];
+        for _ in 1..RUN_ORACLES {
+            let last = *run_weights.last().expect("one weight");
+            run_weights.push(b.ext_mul(last, mu));
+        }
+        let groups = [commitment_rows, run_weights];
+        let root = key.root().map(|word| algebra::constant(b, word));
+        for (bits, leaf) in index_bits.iter().zip(&leaves) {
+            setup::check(b, root, variables, bits, leaf, &groups, &alpha)?;
+        }
+        for bits in &index_bits {
+            setup::query_point(b, variables, bits);
+        }
+        Ok(())
+    }
+}
+
 /// What `layer1` in `Circuit/Check.lean` reads: the replay's relation, and
 /// the index bits and folding factor of each query set of the two openings.
 fn layer1_input(relation: &Relation<'_>) -> String {
@@ -698,8 +877,13 @@ fn lowering_matches_lean() {
     linear
         .run(&mut Native)
         .expect("the toy proof passes the linear claim");
+    let honest = Honest::new(&relation, seed(transcript(1)), &toy.claim, &proof);
+    honest
+        .run(&mut Native)
+        .expect("the toy proof passes the honest fold");
     let input = workspace().join("target/lean-lowering/layer1.json");
     let linear_input = workspace().join("target/lean-lowering/linear.json");
+    let honest_input = workspace().join("target/lean-lowering/honest.json");
     let exports = [
         ("edges", export("edges", &Edges), vec![]),
         ("shared", export("shared", &Shared), vec!["shared".into()]),
@@ -708,6 +892,11 @@ fn lowering_matches_lean() {
             "linear",
             export("linear", &linear),
             vec!["linear".into(), linear_input.clone()],
+        ),
+        (
+            "honest",
+            export("honest", &honest),
+            vec!["honest".into(), honest_input.clone()],
         ),
         (
             "layer1",
@@ -723,6 +912,16 @@ fn lowering_matches_lean() {
             relation_json(&relation),
             linear.input.len(),
             linear.output
+        ),
+    )
+    .unwrap();
+    std::fs::write(
+        &honest_input,
+        format!(
+            "{{\"relation\":{},\"pending\":{},\"output\":{}}}",
+            relation_json(&relation),
+            honest.input.len(),
+            honest.output
         ),
     )
     .unwrap();

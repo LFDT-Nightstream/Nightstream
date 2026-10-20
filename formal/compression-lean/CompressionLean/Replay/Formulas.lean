@@ -107,17 +107,18 @@ def lessThan (point : Array Ext) (bound : Nat) : Ext :=
 /-- The stop of the first segment: the next segment's start, or `stop`. -/
 def nextStart (stop : Nat) (rest : List (Nat × Ext)) : Nat := (rest.head?.map Prod.fst).getD stop
 
-/-- One pass over the segments `(start, value)` (the model's `stepLoop`). -/
-def stepLoop (point : Array Ext) (stop : Nat) : List (Nat × Ext) → Ext → Ext → Ext
-  | [], _, total => total
-  | (_, value) :: rest, low, total =>
-      stepLoop point stop rest (lessThan point (nextStart stop rest))
-        (total + value * (lessThan point (nextStart stop rest) - low))
+/-- The segments `(start, value)` from the one whose interval starts at `low`:
+each value times `lessThan(next start) - low` (the model's `stepLoop`
+without its running total). -/
+def stepSum (point : Array Ext) (stop : Nat) : List (Nat × Ext) → Ext → Ext
+  | [], _ => 0
+  | (_, value) :: rest, low =>
+      value * (lessThan point (nextStart stop rest) - low) + stepSum point stop rest (lessThan point (nextStart stop rest))
 
 /-- Each segment's value on `[start, next start)`, the last one ending at
 `stop` (`step`, the model's `stepValue`). -/
 def step (point : Array Ext) (segments : List (Nat × Ext)) (stop : Nat) : Ext :=
-  stepLoop point stop segments (lessThan point (nextStart stop segments)) 0
+  stepSum point stop segments (lessThan point (nextStart stop segments))
 
 /-- `Σ_t 2^t·point_t` (`identity`, the model's `identityValue`). -/
 def identityValue (point : Array Ext) : Ext :=

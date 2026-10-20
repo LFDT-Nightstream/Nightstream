@@ -326,9 +326,9 @@ def verify (rel : Relation) (seed : Array Gl) (st : Statement) (proof : Proof) :
   let lin ← linearStage rel st proof
   let honest ← honestStage rel proof early lin
   let late ← lateStage rel proof lin
-  let p1 ← whirTranscript rel.p1Whir proof.p1Opening
-  liftExcept (openingsAgree #[p1Values p1] #[p1Expected proof honest lin late] "P1 openings")
-  let p0 ← whirTranscript rel.p0Whir proof.p0Opening
-  liftExcept (openingsAgree p0 (p0Expected early lin late) "P0 openings")
+  whirTranscript rel.p1Whir proof.p1Opening
+  liftExcept (openingsAgree #[p1Values proof.p1Opening.evals] #[p1Expected proof honest lin late] "P1 openings")
+  whirTranscript rel.p0Whir proof.p0Opening
+  liftExcept (openingsAgree proof.p0Opening.evals (p0Expected early lin late) "P0 openings")
 
 end CompressionLean.Replay

@@ -162,6 +162,15 @@ The shrink layer assumes, and does not prove:
   state preimage ends with `x`, and the iteration is not zero
   (`TerminalFor`). Layer 1 reads the parent claim from the output columns
   (`claimOf`).
+- F′ claim (`ParentClaim.lean`, `ParentClaim`): some terminal assignment
+  for `x` holds a PiCCS proof that F′'s verifier accepts, and the PiRLC
+  parent that the verifier computes has a witness of F′'s relation
+  `Spec.CE.Holds` (SuperNeo v1.2 Definition 21). Under the honest setup,
+  the terminal claim gives it (`parentClaim_of_terminalClaim`). `claimOf`
+  reads the parent's statement (`claimOf_parent`), and a layer-1 witness of
+  that statement is an F′ witness (`Parent.lean`, `parent_holds`): the Ajtai
+  commitment, the public input, the norm below `B`, and the Pad and matrix
+  evaluations at the parent's point.
 - Model (`Compose.lean`): both layers' games run in one experiment. In
   sequence, layer 1 runs and then the shrink layer (`pair`). Under
   Fiat–Shamir, one state-restoration experiment keeps one log per layer
@@ -177,6 +186,11 @@ The shrink layer assumes, and does not prove:
   `2 / 2^t` with the WHIR errors, and `final_restore_budget` gives
   `calls / 2^t`. Rust takes the layer bits `t` one above the bits that the
   fold leaves, so `2 / 2^t` is the error that the fold leaves.
+- F′ result (`ParentClaim.lean`): `final_sound_parent` and
+  `final_restore_budget_parent` give the same bounds for the F′ claim. Their
+  base field is Goldilocks, and their challenge field is
+  `Cubic = Gl[x]/(x³ - x - 1)` with `p³` elements (`Fields.lean`). The
+  production bound is `calls / 2^t` under Fiat–Shamir.
 
 The chain takes these premises:
 
@@ -200,11 +214,26 @@ The chain takes these premises:
   prefix, so each layer has its own log. The shrink sponge starts with its
   domain words. The layer-1 sponge starts with the digest that the fold
   transcript hands off.
-- CE(B): the layer-1 `Relation` is taken as the CE(B) relation of the
-  parent claim. No theorem links it to F′'s `Spec.CE.Holds` for the PiRLC
-  parent.
-- Fields: the layers are generic in the base field `F` and the challenge
-  field `K`. The terminal's Goldilocks words enter `F` by `Nat.cast`.
+- Honest setup (`Parent.lean`, `HonestSetup`), for the F′ claim: the
+  layer-1 setup's key rows are the rows of F′'s Ajtai key, and its runs give
+  every entry of every completed CCS matrix of F′'s relation, with row `i`
+  in F′'s little-endian order. Rust builds the setup in `lib.rs` (`key`,
+  `oracle`) from `Tables::from_rows` (`matrix.rs`). `Structure.Describes`
+  and `Structure.Checked` cover the run matrices, the slot lengths, ratios
+  and lanes, and their order. They do not cover the key rows, the run rows,
+  the run coefficients or the slot blocks. That Rust's tables and seeded
+  key are these is not proved here.
+- Shape (`ParentShape`): `Relation::new` gets `D = 54`, six lane variables,
+  `κ = 22`, four matrices, five public blocks and the carrier's blocks. Its
+  norm bound `H = 17·216·(b - 1) = 3672` (`compression_bound`) is below
+  `B = 2^16`, so layer 1's norm check gives F′'s.
+- Ring: `Φ` is `Φ81 = X^54 + X^27 + 1`, and `bar` is F′'s closed-form bar
+  transform (`nativeBarEntry`). Only the manual test
+  `neo-math/tests/phi81_bar_lean_parity.rs` compares Rust's runtime bar
+  matrix with Lean's.
+- Fields: `TerminalClaim` and `final_sound` are generic in the base field
+  `F` and the challenge field `K`. The terminal's words enter `F` by
+  `Nat.cast`. The F′ results fix `F = Gl` and `K = Cubic`.
 - Each layer's assumptions, as listed above.
 
 ## Lowering

@@ -20,3 +20,8 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 name = "emitTerminal"
 root = "CompressionLean.Terminal.Emit"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "replayLayer1"
+root = "CompressionLean.Replay.Main"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }

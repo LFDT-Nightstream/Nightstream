@@ -5,6 +5,7 @@ use p3_challenger_v08::{CanObserve, CanSample, CanSampleBits, FieldChallenger};
 use p3_field_v08::{BasedVectorSpace, Field, PrimeCharacteristicRing, PrimeField64};
 use p3_symmetric_v08::Permutation;
 
+use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing as _;
 use p3_field::PrimeField64 as _;
@@ -44,6 +45,46 @@ fn permutation_block_matches_p3() {
         mutated.blocks[0][cell] += Gl::ONE;
         assert!(mutated.block_failure(Kind::Permutation, 0).is_some(), "cell {cell}");
     }
+}
+
+/// The Poseidon2 digest of the permutation template as the Lean port computes
+/// it from `poseidonTemplate`. The Lean file
+/// `formal/compression-lean/CompressionLeanTests/BlockDigest.lean` pins the
+/// same value. Recompute: in `formal/compression-lean`, run
+/// `lake env lean CompressionLeanTests/BlockDigest.lean`; it prints a changed value.
+const TEMPLATE_DIGEST: [u64; 4] = [
+    9961535152869634148,
+    8036698533330372018,
+    14857419453680543167,
+    17712442702339023467,
+];
+
+/// The words are Lean's `templateWords`: the sizes, the input count, the
+/// output cells, the entry count, then each entry's matrix, row, cell (`0` for
+/// the constant one, else `cell + 1`) and coefficient.
+#[test]
+fn permutation_template_matches_lean() {
+    let kind = Kind::Permutation;
+    let outputs = kind.outputs();
+    let mut words: Vec<u64> = vec![
+        kind.rows() as u64,
+        kind.cells() as u64,
+        kind.inputs() as u64,
+        outputs.start as u64,
+        outputs.end as u64,
+        kind.entries().len() as u64,
+    ];
+    for entry in kind.entries() {
+        words.extend([
+            entry.matrix as u64,
+            entry.row as u64,
+            entry.cell.map_or(0, |cell| cell as u64 + 1),
+            entry.coefficient.as_canonical_u64(),
+        ]);
+    }
+    let words: Vec<F> = words.into_iter().map(F::from_u64).collect();
+    let digest = poseidon2_hash(&words).map(|word| word.as_canonical_u64());
+    assert_eq!(digest, TEMPLATE_DIGEST);
 }
 
 #[test]

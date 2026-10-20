@@ -13,7 +13,7 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_lib]]
 name = "CompressionLeanTests"
-roots = ["CompressionLeanTests.Axioms"]
+roots = ["CompressionLeanTests.Axioms", "CompressionLeanTests.BlockDigest"]
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_exe]]

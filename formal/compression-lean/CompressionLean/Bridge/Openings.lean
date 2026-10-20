@@ -328,8 +328,8 @@ theorem p1Opened_eq (rel : Replay.Relation) (st : Replay.Statement) (proof : Rep
     exact (agreeL.leafPoint 1 (smallL 1 (by norm_num))).symm
   simp only [p1Opened, p1At, keyTail, runTail, queries, block, lateBlock]
 
-/-- The replay's opening checks, under WHIR at Rust's points, give the
-model's `Opens` at the model's transcript of the run. -/
+/-- The replay's opening checks, under WHIR at the points that the replay
+returns, give the model's `Opens` at the model's transcript of the run. -/
 theorem opens_of_replay (rel : Replay.Relation) (st : Replay.Statement) (proof : Replay.Proof)
     (shape : ProofShape rel proof) (S : Setup Fp) (merkle : MerkleBinds rel S proof.leaves) (setup : 3 ≤ rel.setupVars)
     (high : rel.setupVars + 1 ≤ 32) (cands : List (P0Tables Fp)) (p1 : List (P1Tables K))

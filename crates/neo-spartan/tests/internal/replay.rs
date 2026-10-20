@@ -292,7 +292,7 @@ fn whir_shape(pcs: &Pcs) -> String {
     ])
 }
 
-fn relation_json(relation: &Relation<'_>) -> String {
+pub(super) fn relation_json(relation: &Relation<'_>) -> String {
     let (key, shape) = (relation.key, &relation.shape);
     let s = &key.structure;
     let classes = s

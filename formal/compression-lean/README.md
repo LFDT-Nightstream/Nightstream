@@ -255,11 +255,20 @@ data, and Lean lowers it to the shrink run as `record.rs` does.
   statement words (`Run.Valid`), for a template of at least 182 cells.
 - `select` lowers to `whenZero + bit·(whenOne - whenZero)`, as `record.rs`
   records it. `Native::select` branches. The two agree when `bit` is 0 or 1.
+- Verifier (`Algebra.lean`, `Hash.lean`, `Fold.lean`, `Sumcheck.lean`,
+  `Views.lean`, `Verifier.lean`): the layer-1 verifier written with `Build`,
+  each function in the call order of its Rust counterpart (`algebra.rs`,
+  `hash.rs`, `fold.rs`, `sumcheck.rs`, the proof views, `verifier.rs`). The
+  sizes come from the replay's relation (`Replay/Data.lean`). `verify` is
+  ported up to `verifier.rs:151`: the duplex has the seed, the relation
+  words and the statement words.
 
 The lowering assumes, and does not prove:
 
 - Port: that `lower` equals `record.rs` on every program. The check below
-  compares the two on two runs.
+  compares the two on three runs.
+- Verifier port: that Lean's programs write Rust's instructions for every
+  relation. The check below compares them on one toy relation.
 - Fields: the check runs `lower` in Goldilocks. In another field, the zero
   tests of constant folding can differ from Rust's.
 - Encoding: that a witness of a lowered run's CCS gives an accepting run of
@@ -291,10 +300,14 @@ Rust rejects inside WHIR, the replay must reject later.
 Lowering check. Build it with
 `timeout --signal=KILL 1500 lake build lowerCheck`, then run
 `cargo test --release -p neo-spartan --lib lowering_matches_lean -- --ignored`
-under the 5-minute cap. The test records two programs through `record.rs`
-and logs each `Backend` call as an instruction: `Edges`, which takes every
-branch of `record.rs`, and the toy layer-1 verifier of
-`layer1_verifier_shrinks`. It writes the statement, the IR and Rust's trace
-to `target/lean-lowering/<program>.txt`. `lowerCheck` lowers the IR and
-requires the same glue cells, blocks, statement words and rows, side by side
-and term by term.
+under the 5-minute cap. The test records three programs through
+`record.rs` and logs each `Backend` call as an instruction: `Edges`, which
+takes every branch of `record.rs`, `Shared`, which calls every helper of the
+verifier, and the toy layer-1 verifier of `layer1_verifier_shrinks`. It
+writes the statement, the IR and Rust's trace to
+`target/lean-lowering/<program>.txt`, and the verifier's relation to
+`layer1.json`. `lowerCheck` lowers the IR and requires the same glue cells,
+blocks, statement words and rows, side by side and term by term. For
+`Shared` and the verifier it also writes Lean's program and requires Rust's
+instructions in order: all of `Shared`'s, and the verifier's first ones,
+through `verifier.rs:151`.

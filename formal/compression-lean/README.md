@@ -134,9 +134,11 @@ The shrink layer assumes, and does not prove:
 - Verifier formulas: the model takes `Σ_j ρ^j·M̃_j(rx, ry)` as the sum
   over the CCS entries. That the shape run (`evaluate.rs`) and the closed
   form of `block_part` (`layout.rs`) compute this sum is not proved.
-- Recorder: every glue wire names a cell of its run (`Run.Valid`), and the
-  template entries name template rows and cells (`Template.WellFormed`).
-  The model has one block kind, as `KINDS` has.
+- Recorder: a run is its sink calls that emit glue rows, and a row call
+  has at most three products (`Trace::row` asserts it). Every glue wire
+  names a cell of its run (`Run.Valid`), and the template entries name
+  template rows and cells (`Template.WellFormed`). The model has one block
+  kind, as `KINDS` has.
 - Scope: that this CCS encodes the layer-1 verifier is not proved here.
 - Transcription: the model is written by hand from the Rust verifier.
 

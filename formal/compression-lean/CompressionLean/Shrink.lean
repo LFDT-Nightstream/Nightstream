@@ -2,6 +2,7 @@ import CompressionLean.Shrink.Ccs
 import CompressionLean.Shrink.Layout
 import CompressionLean.Shrink.Diagonal
 import CompressionLean.Shrink.BlockPart
+import CompressionLean.Shrink.Evaluate
 import CompressionLean.Shrink.Rounds
 import CompressionLean.Shrink.Game
 import CompressionLean.Shrink.Soundness

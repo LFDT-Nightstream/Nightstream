@@ -286,7 +286,8 @@ The lowering assumes, and does not prove:
 - Port: that `lower` equals `record.rs` on every program. The check below
   compares the two on nine runs.
 - Verifier port: that Lean's programs write Rust's instructions for every
-  relation. The check below compares them on one toy relation.
+  relation. The check below compares them on the toy relation and on the
+  production key's relation.
 - Fields: the check runs `lower` in Goldilocks. In another field, the zero
   tests of constant folding can differ from Rust's.
 - Encoding: that a witness of a lowered run's CCS gives an accepting run of
@@ -340,6 +341,13 @@ requires the same glue cells, blocks, statement words and rows, side by side
 and term by term. For every program but `Edges` it also writes Lean's
 program and requires all of Rust's instructions in order. On the toy
 relation the verifier is 651,165 instructions.
+
+Production check. `production_layer1_matches_lean` (same crate, ignored)
+reads the production compression key (`target/compression-setup/key.bin`),
+records the verifier's shape run (zero statement, no proof) and checks it as
+`layer1` above. It writes `production_layer1.txt` and
+`production_layer1.json`. The verifier is 1,928,933 instructions and
+1,280,147 rows; the test takes about 12 s and 1.7 GB.
 
 ## Terminal program
 

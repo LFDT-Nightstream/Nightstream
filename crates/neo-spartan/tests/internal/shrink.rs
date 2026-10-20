@@ -4,6 +4,7 @@
 use std::time::Instant;
 
 use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
+use neo_math::D;
 use p3_challenger_v08::{CanObserve, FieldChallenger};
 use p3_field_v08::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
 use p3_symmetric_v08::Permutation;
@@ -424,6 +425,26 @@ impl<'a> Layer1<'a> {
             seed,
             statement: ClaimWords::new(&relation.shape, claim).unwrap(),
             proof,
+        }
+    }
+
+    /// A shape run: a zero seed, zero statement words and no proof. A run
+    /// never branches on a value, so every run records these rows.
+    pub(super) fn shape(relation: &'a Relation<'a>) -> Self {
+        let shape = &relation.shape;
+        let pair = [Gl::ZERO; 2];
+        let statement = ClaimWords {
+            commitment: vec![[Gl::ZERO; D]; shape.kappa],
+            public: vec![[Gl::ZERO; D]; shape.public_blocks],
+            point: vec![pair; shape.point_variables],
+            eval_k: [pair; D],
+            eval_a: vec![[pair; D]; shape.matrices],
+        };
+        Self {
+            relation,
+            seed: [Gl::ZERO; 4],
+            statement,
+            proof: None,
         }
     }
 }

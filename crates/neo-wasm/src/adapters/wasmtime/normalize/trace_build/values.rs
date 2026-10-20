@@ -136,6 +136,7 @@ pub(super) fn write_lane_hi(
                 ))
             })?,
         WasmOpcode::LocalGet => current.local_value_hi.unwrap_or(0),
+        WasmOpcode::LocalTee => current.operand_stack_hi.last().copied().unwrap_or(0),
         WasmOpcode::GlobalGet => current.global_value_before_hi.unwrap_or(0),
         WasmOpcode::Call
         | WasmOpcode::CallIndirect

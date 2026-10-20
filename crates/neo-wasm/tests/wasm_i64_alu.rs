@@ -6,6 +6,32 @@
 mod common;
 
 #[test]
+fn i64_local_tee_preserves_high_limb() {
+    let checked = common::checked_main(
+        r#"(module
+            (func (export "main") (result i64)
+                (local i64)
+                i64.const 4294967298
+                i64.const 7
+                i64.add
+                local.tee 0
+                i64.const 9
+                i64.add))"#,
+    );
+    assert_eq!(checked.run.results.as_slice(), &["4294967314".to_string()]);
+    let tee = checked
+        .trace
+        .iter()
+        .find(|row| row.opcode == neo_wasm::WasmOpcode::LocalTee)
+        .expect("local.tee row");
+    let input = tee.stack_read0.expect("stack input");
+    let output = tee.stack_write0.expect("stack output");
+    assert_eq!((input.value_lo, input.value_hi), (9, Some(1)));
+    assert_eq!((output.value_lo, output.value_hi), (9, Some(1)));
+    assert_eq!((tee.local_write_value, tee.local_write_value_hi), (Some(9), Some(1)));
+}
+
+#[test]
 fn i64_comparisons_cover_all_orderings() {
     let checked = common::checked_main(
         r#"(module

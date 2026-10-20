@@ -8,7 +8,8 @@ Each stage draws its challenges as the model draws them, checks what Rust
 checks in Rust's order, rejects with Rust's name for the first failed check,
 and returns the values the model's transcript holds (`EarlyOut`,
 `LinearOut`, `HonestOut`, `LateOut`). WHIR's own checks are not replayed
-(`Whir.lean`).
+(`Whir.lean`), and `verify` returns the points that it gives WHIR
+(`OpeningPoints`).
 
 The check families are pure functions (`checkEarly`, `checkLate`,
 `setupCheck`, `openingsAgree`); `Bridge/` relates each one to the model's
@@ -316,10 +317,49 @@ def p0Expected (early : EarlyOut) (lin : LinearOut) (late : LateOut) : Array (Ar
   #[#[early.zLeaf], #[lin.zValue], #[early.values.eRe, early.values.eIm], flatPairs early.values.pairs,
     #[early.values.block], flatPairs late.pairs ++ #[late.openings.block], #[early.openings.mult]]
 
+/-- The query point of leaf `index`: `(q, q², q⁴, …)` with `q = ω^index·g^8`,
+in `setupVariables - 3` coordinates (`setup::query_point`). -/
+def leafQueryPoint (setupVariables index : Nat) : Array Ext :=
+  let bits := setupVariables + 1 - foldVars
+  let q := powerFromBits (twoAdicGenerator bits) index bits * generator.pow (2 ^ foldVars)
+  ((List.range (setupVariables - foldVars)).map fun k => Ext.ofGl (q.pow (2 ^ k))).toArray
+
+/-- The points that the verifier gives WHIR, one per batch (`verifier.rs`,
+`p1_points`). P0: the norm leaf, the linear point, the run point, the early
+pair point, the run point's slot part, the late pair point and the row
+point. P1: the tails of the key and run points, one point per setup query,
+and the linear and the late block points. -/
+structure OpeningPoints where
+  norm : Array Ext
+  linear : Array Ext
+  run : Array Ext
+  pairs : Array Ext
+  slots : Array Ext
+  latePairs : Array Ext
+  rows : Array Ext
+  keyTail : Array Ext
+  runTail : Array Ext
+  queries : Array (Array Ext)
+  block : Array Ext
+  lateBlock : Array Ext
+
+def openingPoints (rel : Relation) (early : EarlyOut) (lin : LinearOut) (honest : HonestOut) (late : LateOut) :
+    OpeningPoints :=
+  let keyPoint := padded rel.setupVars (lin.lanePoint ++ lin.blockPoint)
+  let runPoint := padded rel.setupVars early.openings.runPoint
+  { norm := early.gkr.leafPoint[0]!, linear := lin.lanePart ++ lin.blockPoint, run := early.openings.runPoint,
+    pairs := early.openings.pairPoint, slots := early.openings.runPoint.extract 0 rel.key.layout.slotVariables,
+    latePairs := late.openings.pairPoint, rows := early.openings.rowPoint,
+    keyTail := keyPoint.extract foldVars keyPoint.size, runTail := runPoint.extract foldVars runPoint.size,
+    queries := honest.queries.map (leafQueryPoint rel.setupVars), block := lin.blockPoint,
+    lateBlock := late.openings.blockPoint }
+
 /-! ## The verifier -/
 
-/-- Replay Rust's layer-1 verifier on `proof` for `st` after `seed`. -/
-def verify (rel : Relation) (seed : Array Gl) (st : Statement) (proof : Proof) : ReplayM Unit := do
+/-- Replay Rust's layer-1 verifier on `proof` for `st` after `seed`. It
+returns the points that it gives WHIR, which the WHIR assumption names
+(`Bridge/Openings.lean`). -/
+def verify (rel : Relation) (seed : Array Gl) (st : Statement) (proof : Proof) : ReplayM OpeningPoints := do
   ensure (st.fits rel) "claim words"
   liftExcept (readProof rel proof)
   observeAll seed
@@ -333,5 +373,6 @@ def verify (rel : Relation) (seed : Array Gl) (st : Statement) (proof : Proof) :
   liftExcept (openingsAgree #[p1Values proof.p1Opening.evals] #[p1Expected proof honest lin late] "P1 openings")
   whirTranscript rel.p0Whir proof.p0Opening
   liftExcept (openingsAgree proof.p0Opening.evals (p0Expected early lin late) "P0 openings")
+  return openingPoints rel early lin honest late
 
 end CompressionLean.Replay

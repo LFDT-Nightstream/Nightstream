@@ -32,5 +32,5 @@ def main (args : List String) : IO UInt32 := do
     for draw in transcript.draws do
       for line in drawLines draw do
         out.putStrLn line
-    out.putStrLn (match verdict with | .ok () => "accept" | .error what => s!"reject {what}")
+    out.putStrLn (match verdict with | .ok _ => "accept" | .error what => s!"reject {what}")
   return 0

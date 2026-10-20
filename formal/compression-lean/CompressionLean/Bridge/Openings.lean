@@ -2,12 +2,14 @@ import CompressionLean.Bridge.Setup
 
 /-!
 Owns the bridge of the two openings to the model's `Opens`. WHIR's guarantee
-is an assumption, as in the model: `WhirOpens` says that one listed P0
-candidate and one listed P1 candidate have the opened values at Rust's
-points, in Rust's batch order (`p0Opened`, `p1Opened`, after `verifier.rs`
-and `p1_points`). The replay checks that the opened values are the values
-it expects (`openingsAgree_ok`), and its queried values are the honest
-folds (`setupCheck_value`). So `Opens` holds (`opens_of_replay`).
+is an assumption, as in the model. `WhirOpens` says that one listed P0
+candidate and one listed P1 candidate have the opened values at the points
+that the replay returns (`OpeningPoints`, computed as Rust computes them),
+in Rust's batch order (`p0Opened`, `p1Opened`). Those points are the model
+transcript's points (`p0Opened_eq`, `p1Opened_eq`). The replay checks that
+the opened values are the values it expects (`openingsAgree_ok`), and its
+queried values are the honest folds (`setupCheck_value`). So `Opens` holds
+(`opens_of_replay`).
 -/
 
 namespace CompressionLean.Bridge
@@ -120,7 +122,66 @@ theorem setupCheck_toList (rel : Replay.Relation) (S : Setup Fp) (merkle : Merkl
   rw [toList_eq_map_range vals, size, queryAt, ← key, ← run]
   rfl
 
-/-! ## The model's transcript and the WHIR assumption -/
+/-! ## The WHIR assumption -/
+
+/-- P0 candidate `w`'s values at the points, one batch per point: `z` at the
+norm leaf and at the linear point, `e`, the early pairs, the early
+slot-block copy, the late pairs and copy, the row counts. -/
+noncomputable def p0Opened (s : Shape) (pts : OpeningPoints) (w : P0Tables Fp) : List (List K) :=
+  [[mle (pointK pts.norm) fun x => ι (w.z x)],
+    [mle (pointK pts.linear) fun x => ι (w.z x)],
+    [mle (pointK pts.run) fun k => ι (w.e k).1, mle (pointK pts.run) fun k => ι (w.e k).2],
+    (List.range s.matrices).flatMap (fun j => [mle (pointK pts.pairs) fun σ => ι (w.U j σ).1,
+      mle (pointK pts.pairs) fun σ => ι (w.U j σ).2]),
+    [mle (pointK pts.slots) fun σ => ι (w.blockCopy σ)],
+    (List.range s.matrices).flatMap (fun j => [mle (pointK pts.latePairs) fun σ => ι (w.U j σ).1,
+      mle (pointK pts.latePairs) fun σ => ι (w.U j σ).2]) ++
+      [mle (pointK pts.latePairs) fun σ => ι (w.blockCopy σ)],
+    [mle (pointK pts.rows) fun i => ι (w.mult i)]]
+
+/-- P1 candidate `v`'s values at the points: the key fold and the run fold at
+their tails, both folds at each query point, `Ω^A` at the two block points. -/
+noncomputable def p1Opened (pts : OpeningPoints) (v : P1Tables K) : List K :=
+  [mle (pointK pts.keyTail) v.foldKey, mle (pointK pts.runTail) v.foldRun] ++
+    pts.queries.toList.flatMap (fun pt => [mle (pointK pt) v.foldKey, mle (pointK pt) v.foldRun]) ++
+    [mle (pointK pts.block) v.omegaA, mle (pointK pts.lateBlock) v.omegaA]
+
+/-- **WHIR opens**, an assumption: one listed P0 candidate and one listed P1
+candidate have the opened values at the points that the verifier gives WHIR.
+A P1 value is read from its three coordinate openings (`from_coordinates`). -/
+def WhirOpens (s : Shape) (proof : Replay.Proof) (pts : OpeningPoints) (cands : List (P0Tables Fp))
+    (p1 : List (P1Tables K)) : Prop :=
+  ∃ w ∈ cands, ∃ v ∈ p1,
+    proof.p0Opening.evals.toList.map (fun batch => batch.toList.map (Ext.toK (K := K))) = p0Opened s pts w ∧
+      (Replay.p1Values proof.p1Opening.evals).toList.map (Ext.toK (K := K)) = p1Opened pts v
+
+omit [Algebra Fp K] [Fintype K] [ChallengeField K] in
+theorem powerPoint_eq_map (x : K) (m : ℕ) : powerPoint x m = (List.range m).map fun k => x ^ 2 ^ k := by
+  induction m generalizing x with
+  | zero => rfl
+  | succ m ih =>
+      rw [powerPoint, ih, List.range_succ_eq_map, List.map_cons, List.map_map, pow_zero, pow_one]
+      congr 1
+      apply List.map_congr_left
+      intro k _
+      rw [Function.comp_apply, ← pow_mul, ← pow_succ']
+
+/-- The replay's query point of leaf `index` is the model's power point. -/
+theorem pointK_leafQueryPoint (n index : ℕ) (inside : index < 2 ^ (n - 2)) (low : 2 ≤ n) :
+    pointK (K := K) (leafQueryPoint n index) = powerPoint (ι (queryPoint n index)) (n - 3) := by
+  have bits : n + 1 - foldVars = n - 2 := by simp only [foldVars]; omega
+  have seven : generator.toF = 7 := Gl.toF_lit 7
+  have value : (powerFromBits (twoAdicGenerator (n + 1 - foldVars)) index (n + 1 - foldVars) *
+      generator.pow (2 ^ foldVars)).toF = queryPoint n index := by
+    rw [Gl.toF_mul, toF_powerFromBits, Gl.toF_pow, toF_twoAdicGenerator, seven, bits, Nat.mod_eq_of_lt inside,
+      queryPoint, show (2 : ℕ) ^ foldVars = 8 from rfl]
+    ring
+  rw [powerPoint_eq_map]
+  simp only [leafQueryPoint, pointK, List.toList_toArray, List.map_map, Function.comp_def, Ext.toK_ofGl, Gl.toF_pow,
+    value, map_pow]
+  rfl
+
+/-! ## The model's transcript -/
 
 /-- The model's transcript of a replay run. -/
 def transcriptOf (rel : Replay.Relation) (st : Replay.Statement) (proof : Replay.Proof) (cands : List (P0Tables Fp))
@@ -133,14 +194,12 @@ def transcriptOf (rel : Replay.Relation) (st : Replay.Statement) (proof : Replay
       lowBits (2 ^ (rel.setupVars - 2)) (wordsOf rel.queries honest.words)⟩,
     ⟨late.beta.toK, mcL, fun j => pairK (proof.lateValues[j]!)⟩⟩
 
-section Opened
+section At
 
 variable {L : ℕ}
 
-/-- P0 candidate `w`'s values at Rust's seven P0 points, one batch per
-point: `z` at the norm leaf and at the linear point, `e`, the early pairs,
-the early slot-block copy, the late pairs and copy, the row counts. -/
-noncomputable def p0Opened (s : Shape) (tr : Transcript Fp K s.queries L) (w : P0Tables Fp) : List (List K) :=
+/-- `p0Opened` at the points of a model transcript. -/
+noncomputable def p0At (s : Shape) (tr : Transcript Fp K s.queries L) (w : P0Tables Fp) : List (List K) :=
   [[mle tr.early.normPoint fun x => ι (w.z x)],
     [mle (tr.linear.lanePart ++ tr.linear.blockPoint) fun x => ι (w.z x)],
     [mle tr.early.runPoint fun k => ι (w.e k).1, mle tr.early.runPoint fun k => ι (w.e k).2],
@@ -151,24 +210,14 @@ noncomputable def p0Opened (s : Shape) (tr : Transcript Fp K s.queries L) (w : P
       mle (tr.late.slotPoint s) fun σ => ι (w.U j σ).2]) ++ [mle (tr.late.slotPoint s) fun σ => ι (w.blockCopy σ)],
     [mle tr.early.rowPoint fun i => ι (w.mult i)]]
 
-/-- P1 candidate `v`'s values at Rust's P1 points (`p1_points`): the key
-fold and the run fold at the tails of the key and run points, both folds at
-each query point, `Ω^A` at the linear and the late block points. -/
-noncomputable def p1Opened (s : Shape) (q : ℕ → K) (tr : Transcript Fp K s.queries L) (v : P1Tables K) : List K :=
-  [mle ((keyPoint s tr.linear).drop 3) v.foldKey, mle ((padded s.setupVars tr.early.runPoint).drop 3) v.foldRun] ++
+/-- `p1Opened` at the points of a model transcript. -/
+noncomputable def p1At (s : Shape) (q : ℕ → K) (tr : Transcript Fp K s.queries L) (v : P1Tables K) : List K :=
+  [mle ((keyPoint s tr.linear).drop 3) v.foldKey, mle ((Layer1.padded s.setupVars tr.early.runPoint).drop 3) v.foldRun] ++
     (List.finRange s.queries).flatMap (fun j => [mle (powerPoint (q (tr.honest.queries j)) (s.setupVars - 3)) v.foldKey,
       mle (powerPoint (q (tr.honest.queries j)) (s.setupVars - 3)) v.foldRun]) ++
     [mle tr.linear.blockPoint v.omegaA, mle tr.late.blockPoint v.omegaA]
 
-/-- **WHIR opens**, an assumption: one listed P0 candidate and one listed P1
-candidate have the opened values at Rust's points. A P1 value is read from
-its three coordinate openings (`from_coordinates`). -/
-def WhirOpens (s : Shape) (q : ℕ → K) (proof : Replay.Proof) (tr : Transcript Fp K s.queries L) : Prop :=
-  ∃ w ∈ tr.early.candidates, ∃ v ∈ tr.honest.p1,
-    proof.p0Opening.evals.toList.map (fun batch => batch.toList.map Ext.toK) = p0Opened s tr w ∧
-      (Replay.p1Values proof.p1Opening.evals).toList.map Ext.toK = p1Opened s q tr v
-
-end Opened
+end At
 
 /-! ## Opens -/
 
@@ -190,6 +239,95 @@ theorem queries_toList {rel : Replay.Relation} {proof : Replay.Proof} {early : R
     simp only [bits]
     rfl
 
+/-- The P0 values at the verifier's points are the values at the model
+transcript's points. -/
+theorem p0Opened_eq (rel : Replay.Relation) (st : Replay.Statement) (proof : Replay.Proof)
+    (cands : List (P0Tables Fp)) (p1 : List (P1Tables K)) {early : Replay.EarlyOut} {mc : Layer1.GkrClaims K}
+    (agree : ClaimsAgree rel.earlyShapes.size early.gkr mc)
+    (openings : early.openings = earlyOpeningsOf rel.key.layout early.challenges early.gkr proof.earlyValues)
+    (lin : Replay.LinearOut) (honest : Replay.HonestOut) {late : Replay.LateOut} {mcL : Layer1.GkrClaims K}
+    (agreeL : ClaimsAgree rel.lateShapes.size late.gkr mcL)
+    (lateOpenings : late.openings = lateOpeningsOf rel.key.layout late.beta late.gkr) (w : P0Tables Fp) :
+    p0Opened (shapeOf rel) (openingPoints rel early lin honest late) w =
+      p0At (shapeOf rel) (transcriptOf rel st proof cands p1 early mc lin honest late mcL) w := by
+  have small : ∀ u, u < 5 → u < rel.earlyShapes.size := fun u lt => by rw [earlyShapes_size]; exact lt
+  have smallL : ∀ u, u < 2 → u < rel.lateShapes.size := fun u lt => by rw [lateShapes_size]; exact lt
+  set pts := openingPoints rel early lin honest late
+  set tr := transcriptOf rel st proof cands p1 early mc lin honest late mcL
+  have norm : pointK (K := K) pts.norm = tr.early.normPoint := (agree.leafPoint 0 (small 0 (by norm_num))).symm
+  have linear : pointK (K := K) pts.linear = tr.linear.lanePart ++ tr.linear.blockPoint := pointK_append _ _
+  have run : pointK (K := K) pts.run = tr.early.runPoint := by
+    show pointK early.openings.runPoint = _
+    rw [openings]
+    exact (agree.leafPoint 3 (small 3 (by norm_num))).symm
+  have pairs : pointK (K := K) pts.pairs = tr.early.pairPoint.take (shapeOf rel).slotVars := by
+    show pointK early.openings.pairPoint = _
+    rw [openings]
+    show pointK ((early.gkr.leafPoint[4]!).extract 0 rel.key.layout.slotVariables) = _
+    rw [pointK_extract_take, ← agree.leafPoint 4 (small 4 (by norm_num))]
+    rfl
+  have slots : pointK (K := K) pts.slots = tr.early.runPoint.take (shapeOf rel).slotVars := by
+    show pointK (early.openings.runPoint.extract 0 rel.key.layout.slotVariables) = _
+    rw [pointK_extract_take, openings]
+    show (pointK (early.gkr.leafPoint[3]!)).take _ = _
+    rw [← agree.leafPoint 3 (small 3 (by norm_num))]
+    rfl
+  have latePairs : pointK (K := K) pts.latePairs = tr.late.slotPoint (shapeOf rel) := by
+    show pointK late.openings.pairPoint = _
+    rw [lateOpenings]
+    show pointK ((late.gkr.leafPoint[0]!).extract 0 rel.key.layout.slotVariables) = _
+    rw [pointK_extract_take, ← agreeL.leafPoint 0 (smallL 0 (by norm_num))]
+    rfl
+  have rows : pointK (K := K) pts.rows = tr.early.rowPoint := by
+    show pointK early.openings.rowPoint = _
+    rw [openings]
+    exact (agree.leafPoint 2 (small 2 (by norm_num))).symm
+  simp only [p0Opened, p0At, norm, linear, run, pairs, slots, latePairs, rows]
+
+/-- The P1 values at the verifier's points are the values at the model
+transcript's points. -/
+theorem p1Opened_eq (rel : Replay.Relation) (st : Replay.Statement) (proof : Replay.Proof) (setup : 3 ≤ rel.setupVars)
+    (cands : List (P0Tables Fp)) (p1 : List (P1Tables K)) {early : Replay.EarlyOut} {mc : Layer1.GkrClaims K}
+    (agree : ClaimsAgree rel.earlyShapes.size early.gkr mc)
+    (openings : early.openings = earlyOpeningsOf rel.key.layout early.challenges early.gkr proof.earlyValues)
+    {lin : Replay.LinearOut} (linRun : LinearRun (K := K) rel proof lin)
+    {honest : Replay.HonestOut} (honestRun : HonestRun rel proof early lin honest)
+    {late : Replay.LateOut} {mcL : Layer1.GkrClaims K} (agreeL : ClaimsAgree rel.lateShapes.size late.gkr mcL)
+    (lateOpenings : late.openings = lateOpeningsOf rel.key.layout late.beta late.gkr) (v : P1Tables K) :
+    p1Opened (openingPoints rel early lin honest late) v =
+      p1At (shapeOf rel) (queryAt rel) (transcriptOf rel st proof cands p1 early mc lin honest late mcL) v := by
+  have small : ∀ u, u < 5 → u < rel.earlyShapes.size := fun u lt => by rw [earlyShapes_size]; exact lt
+  have smallL : ∀ u, u < 2 → u < rel.lateShapes.size := fun u lt => by rw [lateShapes_size]; exact lt
+  set pts := openingPoints rel early lin honest late
+  set tr := transcriptOf rel st proof cands p1 early mc lin honest late mcL
+  have keyTail : pointK (K := K) pts.keyTail = (keyPoint (shapeOf rel) tr.linear).drop 3 := by
+    show pointK ((Replay.padded rel.setupVars (lin.lanePoint ++ lin.blockPoint)).extract foldVars _) = _
+    rw [pointK_extract_drop, pointK_padded, pointK_append, linRun.lanePoint]
+    rfl
+  have runTail : pointK (K := K) pts.runTail = (Layer1.padded (shapeOf rel).setupVars tr.early.runPoint).drop 3 := by
+    show pointK ((Replay.padded rel.setupVars early.openings.runPoint).extract foldVars _) = _
+    rw [pointK_extract_drop, pointK_padded, openings]
+    show (Layer1.padded rel.setupVars (pointK (early.gkr.leafPoint[3]!))).drop foldVars = _
+    rw [← agree.leafPoint 3 (small 3 (by norm_num))]
+    rfl
+  have queries : pts.queries.toList.flatMap (fun pt => [mle (pointK pt) v.foldKey, mle (pointK pt) v.foldRun]) =
+      (List.finRange (shapeOf rel).queries).flatMap (fun j =>
+        [mle (powerPoint (queryAt rel (tr.honest.queries j)) ((shapeOf rel).setupVars - 3)) v.foldKey,
+          mle (powerPoint (queryAt rel (tr.honest.queries j)) ((shapeOf rel).setupVars - 3)) v.foldRun]) := by
+    show (honest.queries.map (leafQueryPoint rel.setupVars)).toList.flatMap _ = _
+    rw [Array.toList_map, List.flatMap_map, queries_toList honestRun setup, List.flatMap_map]
+    apply List.flatMap_congr
+    intro j _
+    rw [pointK_leafQueryPoint _ _ (lowBits (2 ^ (rel.setupVars - 2)) (wordsOf rel.queries honest.words) j).isLt
+      (by omega)]
+    rfl
+  have block : pointK (K := K) pts.block = tr.linear.blockPoint := rfl
+  have lateBlock : pointK (K := K) pts.lateBlock = tr.late.blockPoint := by
+    show pointK late.openings.blockPoint = _
+    rw [lateOpenings]
+    exact (agreeL.leafPoint 1 (smallL 1 (by norm_num))).symm
+  simp only [p1Opened, p1At, keyTail, runTail, queries, block, lateBlock]
+
 /-- The replay's opening checks, under WHIR at Rust's points, give the
 model's `Opens` at the model's transcript of the run. -/
 theorem opens_of_replay (rel : Replay.Relation) (st : Replay.Statement) (proof : Replay.Proof)
@@ -207,18 +345,19 @@ theorem opens_of_replay (rel : Replay.Relation) (st : Replay.Statement) (proof :
     (p1ok : openingsAgree #[p1Values proof.p1Opening.evals] #[p1Expected proof honest lin late] "P1 openings" =
       .ok ())
     (p0ok : openingsAgree proof.p0Opening.evals (p0Expected early lin late) "P0 openings" = .ok ())
-    (whir : WhirOpens (shapeOf rel) (queryAt rel) proof
-      (transcriptOf rel st proof cands p1 early mc lin honest late mcL)) :
+    (whir : WhirOpens (shapeOf rel) proof (openingPoints rel early lin honest late) cands p1) :
     Opens (shapeOf rel) S (queryAt rel) (transcriptOf rel st proof cands p1 early mc lin honest late mcL) := by
   obtain ⟨w, wm, v, vm, whir0, whir1⟩ := whir
+  rw [p0Opened_eq rel st proof cands p1 agree openings lin honest agreeL lateOpenings] at whir0
+  rw [p1Opened_eq rel st proof setup cands p1 agree openings linRun honestRun agreeL lateOpenings] at whir1
   have small : ∀ u, u < 5 → u < rel.earlyShapes.size := fun u lt => by rw [earlyShapes_size]; exact lt
   have smallL : ∀ u, u < 2 → u < rel.lateShapes.size := fun u lt => by rw [lateShapes_size]; exact lt
   -- The P0 batches.
   have p0 : ((p0Expected early lin late).toList.map Array.toList).map (List.map (Ext.toK (K := K))) =
-      p0Opened (shapeOf rel) (transcriptOf rel st proof cands p1 early mc lin honest late mcL) w := by
+      p0At (shapeOf rel) (transcriptOf rel st proof cands p1 early mc lin honest late mcL) w := by
     rw [← openingsAgree_ok p0ok, List.map_map]
     exact whir0
-  simp only [p0Expected, p0Opened, Array.toList_append, List.map_cons, List.map_nil, List.map_append,
+  simp only [p0Expected, p0At, Array.toList_append, List.map_cons, List.map_nil, List.map_append,
     toList_flatPairs, List.map_flatMap, List.cons.injEq, and_true] at p0
   obtain ⟨norm, linear, ⟨eRe, eIm⟩, earlyPairs, block, latePart, mult⟩ := p0
   have pairSize : early.values.pairs.size = rel.matrices := by rw [values]; exact shape.pairs
@@ -229,10 +368,10 @@ theorem opens_of_replay (rel : Replay.Relation) (st : Replay.Statement) (proof :
   have agree1 := openingsAgree_ok p1ok
   simp only [List.map_cons, List.map_nil, List.cons.injEq, and_true] at agree1
   have p1v : (p1Expected proof honest lin late).toList.map (Ext.toK (K := K)) =
-      p1Opened (shapeOf rel) (queryAt rel) (transcriptOf rel st proof cands p1 early mc lin honest late mcL) v := by
+      p1At (shapeOf rel) (queryAt rel) (transcriptOf rel st proof cands p1 early mc lin honest late mcL) v := by
     rw [← agree1]
     exact whir1
-  simp only [p1Expected, p1Opened, Array.toList_append, List.map_append, List.map_cons, List.map_nil] at p1v
+  simp only [p1Expected, p1At, Array.toList_append, List.map_append, List.map_cons, List.map_nil] at p1v
   obtain ⟨front, ends⟩ := List.append_inj' p1v (by simp)
   obtain ⟨folds, middle⟩ := List.append_inj front (by simp)
   simp only [List.cons.injEq, and_true] at ends folds

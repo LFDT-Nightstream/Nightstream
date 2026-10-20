@@ -5,9 +5,9 @@ Owns the bridge of the whole replay (`Replay.verify`) to the model's
 `layer1Game`. A run that the replay accepts is a path of `layer1Game`: the
 replay's draws before WHIR's are the path's challenges, and the path ends in
 the model's transcript of the replay's values (`replay_accepts_implies_path`).
-This holds under WHIR at Rust's points (`WhirOpens`), Merkle binding
-(`MerkleBinds`) and the relation facts that the replay does not check
-(`RelationFacts`).
+This holds under WHIR at the points that the replay returns (`WhirOpens`),
+Merkle binding (`MerkleBinds`) and the relation facts that the replay does
+not check (`RelationFacts`).
 
 With `layer1Game_avoids`, a path that avoids every bad set ends in a
 statement that a P0 candidate satisfies (`replay_accepts_sound`). The other
@@ -77,20 +77,20 @@ structure RelationFacts (rel : Replay.Relation) (S : Setup Fp) : Prop where
   checked : (structureOf rel.key.layout).Checked (shapeOf rel)
   describes : (structureOf rel.key.layout).Describes (shapeOf rel) S
 
-/-- **The bridge.** A run that the replay accepts gives a model transcript
-for the replay's statement and the prover's candidate lists. Under WHIR at
-Rust's points, some path of `layer1Game` draws the replay's challenges
-before WHIR's own and ends in that transcript. -/
+/-- **The bridge.** Take a run that the replay accepts, with WHIR's guarantee
+at the points that it returns. Some path of `layer1Game` draws the replay's
+challenges before WHIR's own and ends in a model transcript of the replay's
+statement and the prover's P0 candidates. -/
 theorem replay_accepts_implies_path (rel : Replay.Relation) (S : Setup Fp) (facts : RelationFacts rel S)
     (merkle : MerkleBinds rel S) (seed : Array Gl) (st : Replay.Statement) (proof : Replay.Proof) (L0 L1 : ℕ)
     (cands : List (P0Tables Fp)) (short0 : cands.length ≤ L0) (p1 : List (P1Tables K)) (short1 : p1.length ≤ L1)
-    {t t' : Replay.Transcript} (run : Runs (verify rel seed st proof) t () t') :
+    {t t' : Replay.Transcript} {points : OpeningPoints} (run : Runs (verify rel seed st proof) t points t')
+    (whir : WhirOpens (shapeOf rel) proof points cands p1) :
     ∃ (tr : Transcript Fp K (shapeOf rel).queries (2 ^ (rel.setupVars - 2))) (ds rest : List Draw),
       t'.draws.toList = t.draws.toList ++ ds ++ rest ∧ tr.statement = statementOf st ∧
-      tr.early.candidates = cands ∧ tr.honest.p1 = p1 ∧
-      (WhirOpens (shapeOf rel) (queryAt rel) proof tr →
-        Game.Reaches (layer1Game (shapeOf rel) phi barOf S L0 L1 (2 ^ (rel.setupVars - 2)) goldilocks (queryAt rel))
-          (ds.map (drawn (K := K) rel.queries)) (some tr)) := by
+      tr.early.candidates = cands ∧
+      Game.Reaches (layer1Game (shapeOf rel) phi barOf S L0 L1 (2 ^ (rel.setupVars - 2)) goldilocks (queryAt rel))
+        (ds.map (drawn (K := K) rel.queries)) (some tr) := by
   unfold verify at run
   obtain ⟨_, t1, h1, r1⟩ := run_bind run
   obtain ⟨_, t2, h2, r2⟩ := run_bind r1
@@ -103,8 +103,10 @@ theorem replay_accepts_implies_path (rel : Replay.Relation) (S : Setup Fp) (fact
   obtain ⟨late, t9, h9, r9⟩ := run_bind r8
   obtain ⟨_, t10, h10, r10⟩ := run_bind r9
   obtain ⟨_, t11, h11, r11⟩ := run_bind r10
-  obtain ⟨_, t12, h12, h13⟩ := run_bind r11
-  clear run r1 r2 r3 r4 r5 r6 r7 r8 r9 r10 r11
+  obtain ⟨_, t12, h12, r12⟩ := run_bind r11
+  obtain ⟨_, t13, h13, h14⟩ := run_bind r12
+  clear run r1 r2 r3 r4 r5 r6 r7 r8 r9 r10 r11 r12
+  obtain ⟨rfl, rfl⟩ := run_pure h14
   obtain ⟨fits, rfl⟩ := run_ensure h1
   obtain ⟨readOk, rfl⟩ := run_liftExcept h2
   obtain ⟨p1ok, rfl⟩ := run_liftExcept h11
@@ -120,13 +122,13 @@ theorem replay_accepts_implies_path (rel : Replay.Relation) (S : Setup Fp) (fact
     facts.fits facts.checked facts.describes linRun cands p1 rel.queries h9
   obtain ⟨dsW1, drawsW1⟩ := whirTranscript_grows _ _ _ _ _ h10
   obtain ⟨dsW0, drawsW0⟩ := whirTranscript_grows _ _ _ _ _ h12
+  have opens := opens_of_replay (K := K) rel st proof shape S merkle facts.sizes.setup facts.high cands p1 agree
+    values zLeaf openings linRun honestRun agreeL latePairs lateOpenings p1ok p0ok whir
   refine ⟨transcriptOf rel st proof cands p1 early mc lin honest late mcL, dsE ++ dsL ++ dsH ++ dsT, dsW1 ++ dsW0,
-    ?_, rfl, rfl, rfl, fun whir => ?_⟩
+    ?_, rfl, rfl, ?_⟩
   · rw [drawsW0, drawsW1, drawsT, drawsH, drawsL, drawsE, run_observeAll h5, run_observeAll h4, run_observeAll h3]
     simp only [List.append_assoc]
-  · have opens := opens_of_replay (K := K) rel st proof shape S merkle facts.sizes.setup facts.high cands p1 agree
-      values zLeaf openings linRun honestRun agreeL latePairs lateOpenings p1ok p0ok whir
-    unfold layer1Game
+  · unfold layer1Game
     apply Game.Reaches.recv (statementOf st)
     simp only [List.map_append, List.append_assoc]
     refine Game.Reaches.bind reachE ?_
@@ -139,28 +141,26 @@ theorem replay_accepts_implies_path (rel : Replay.Relation) (S : Setup Fp) (fact
     · exact absurd opens holds
 
 /-- **The bridge, composed with the model.** A run that the replay accepts,
-under WHIR at Rust's points, is a path of `layer1Game` that draws the
-replay's challenges. If the path avoids every bad set, a P0 candidate is a
-CE(B) witness for the replay's statement. The paths that do not avoid them
-are the event that `layer1_sound` bounds. -/
+with WHIR's guarantee at the points that it returns, is a path of
+`layer1Game` that draws the replay's challenges and accepts. If the path
+avoids every bad set, a P0 candidate is a CE(B) witness for the replay's
+statement. The paths that do not avoid them are the event that
+`layer1_sound` bounds. -/
 theorem replay_accepts_sound (rel : Replay.Relation) (S : Setup Fp) (facts : RelationFacts rel S)
     (merkle : MerkleBinds rel S) (N : ℕ) (sizes : (shapeOf rel).Sizes N)
     (cast : ∀ a b : ℕ, a < N → b < N → (a : K) = b → a = b) (seed : Array Gl) (st : Replay.Statement)
     (proof : Replay.Proof) (L0 L1 : ℕ) (cands : List (P0Tables Fp)) (short0 : cands.length ≤ L0)
-    (p1 : List (P1Tables K)) (short1 : p1.length ≤ L1) {t t' : Replay.Transcript}
-    (run : Runs (verify rel seed st proof) t () t') :
-    ∃ (tr : Transcript Fp K (shapeOf rel).queries (2 ^ (rel.setupVars - 2))) (ds rest : List Draw),
-      t'.draws.toList = t.draws.toList ++ ds ++ rest ∧
-      (WhirOpens (shapeOf rel) (queryAt rel) proof tr →
-        ∃ p : Game.Pos (layer1Game (shapeOf rel) phi barOf S L0 L1 (2 ^ (rel.setupVars - 2)) goldilocks
-            (queryAt rel)),
-          Game.Pos.node _ p = .pure (some tr) ∧ Game.Pos.draws _ p = ds.map (drawn (K := K) rel.queries) ∧
-          (Game.Pos.Avoids _ p → ∃ w ∈ cands, Relation (shapeOf rel) phi barOf S (statementOf st) w.z)) := by
-  obtain ⟨tr, ds, rest, draws, statement, candidates, -, path⟩ :=
-    replay_accepts_implies_path rel S facts merkle seed st proof L0 L1 cands short0 p1 short1 run
-  refine ⟨tr, ds, rest, draws, fun whir => ?_⟩
-  obtain ⟨p, node, pathDraws⟩ := path whir
-  refine ⟨p, node, pathDraws, fun clean => ?_⟩
+    (p1 : List (P1Tables K)) (short1 : p1.length ≤ L1) {t t' : Replay.Transcript} {points : OpeningPoints}
+    (run : Runs (verify rel seed st proof) t points t') (whir : WhirOpens (shapeOf rel) proof points cands p1) :
+    ∃ ds rest : List Draw, t'.draws.toList = t.draws.toList ++ ds ++ rest ∧
+      ∃ p : Game.Pos (layer1Game (shapeOf rel) phi barOf S L0 L1 (2 ^ (rel.setupVars - 2)) goldilocks
+          (queryAt (K := K) rel)),
+        Game.Pos.draws _ p = ds.map (drawn (K := K) rel.queries) ∧
+        (∃ tr, Game.Pos.node _ p = .pure (some tr)) ∧
+        (Game.Pos.Avoids _ p → ∃ w ∈ cands, Relation (shapeOf rel) phi barOf S (statementOf st) w.z) := by
+  obtain ⟨tr, ds, rest, draws, statement, candidates, p, node, pathDraws⟩ :=
+    replay_accepts_implies_path rel S facts merkle seed st proof L0 L1 cands short0 p1 short1 run whir
+  refine ⟨ds, rest, draws, p, pathDraws, ⟨tr, node⟩, fun clean => ?_⟩
   have witness := Game.Pos.sound (layer1Game_avoids (shapeOf rel) phi barOf S L0 L1 (2 ^ (rel.setupVars - 2))
     goldilocks (queryAt rel) N sizes cast facts.fits phi_monic phi_ne_one) p (some tr) clean node tr rfl
   rw [candidates, statement] at witness

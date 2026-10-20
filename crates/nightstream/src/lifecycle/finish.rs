@@ -172,6 +172,13 @@ impl CompressionKey {
     }
 }
 
+/// `exp2` and `log2` come from the platform's libm, so one security
+/// requirement can differ in its last bits between two platforms (about
+/// 1e-14 bits here), and a key pinned on one must pass on the other. 1e-9
+/// bits is far above that noise and raises the error bound by a factor below
+/// 1 + 1e-9.
+const SECURITY_SLACK_BITS: f64 = 1e-9;
+
 /// The prover's compression setup: the setup files and their key.
 pub struct CompressionSetup {
     layer1: neo_spartan::Setup,
@@ -251,7 +258,11 @@ impl PreparedLifecycle {
         let inputs = package.loaded().encode_terminal_inputs(&terminal_inputs)?;
         let terminal = TerminalProof { inputs, layer1 };
         let program = key.program(&relation, package, &last.state, Some(&terminal));
-        let shrink = shrink::prove(&Shrink::new(key.shape, key.layer_bits)?, &program, &accelerator)?;
+        let layer = Shrink::new(key.shape, key.layer_bits)?;
+        let shrink = shrink::prove(&layer, &program, &accelerator)?;
+        // A device fault fails the call here, instead of a returned proof
+        // that does not verify.
+        shrink::verify(&layer, &key.program(&relation, package, &last.state, None), &shrink)?;
         Ok(FinalProof {
             state: last.state,
             shrink,
@@ -298,7 +309,7 @@ impl PreparedLifecycle {
                     running,
                 )?
             }
-            _ => nifs::prove_parent_with_rows(
+            crate::engine::Backend::Optimized => nifs::prove_parent_with_rows(
                 &mut transcript,
                 &self.params,
                 &self.structure,
@@ -307,6 +318,11 @@ impl PreparedLifecycle {
                 fresh,
                 running,
             )?,
+            crate::engine::Backend::PaperExact | crate::engine::Backend::Crosscheck => {
+                return Err(CompressionError::Input(
+                    "compression runs only on the Optimized and Metal engines",
+                ));
+            }
         };
         Ok(LastFold {
             state,
@@ -419,7 +435,7 @@ impl PreparedLifecycle {
         }
         if self
             .compression_layer_bits()
-            .is_none_or(|bits| key.layer_bits < bits)
+            .is_none_or(|bits| key.layer_bits < bits - SECURITY_SLACK_BITS)
         {
             return Err("the compression key is below this circuit's security minimum");
         }

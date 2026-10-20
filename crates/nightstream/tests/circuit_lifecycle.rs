@@ -154,34 +154,75 @@ fn finish_with_spartan_verifies(engine: Engine) {
         .unwrap();
     eprintln!("final verification elapsed={:?}", verifying.elapsed());
 
-    let mut changed = proof.state().current();
+    rejects_changes(&verifier, &key, &bytes);
+}
+
+/// The committed production key and final proof (`tests/fixtures/compression`,
+/// see its README): the proof verifies, and every change of
+/// `rejects_changes` fails.
+#[test]
+fn committed_final_proof_verifies_and_rejects_changes() {
+    let circuit = Circuit::compile(&selected_reference(), poseidon2_hash_chain_v1().unwrap()).unwrap();
+    let verifier = Verifier::from_package(&circuit, Engine::Optimized, 114).unwrap();
+    let fixture = |name| {
+        fs::read(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/compression")
+                .join(name),
+        )
+        .unwrap()
+    };
+    let key = CompressionKey::from_bytes(&fixture("key.bin")).unwrap();
+    let bytes = fixture("final-proof.bin");
+    let proof = FinalProof::from_bytes(&bytes).unwrap();
+    verifier.verify_final(proof.state(), &key, &proof).unwrap();
+    // Layer bits one ulp under this verifier's own, as another platform's
+    // libm may compute them, still pass. The key's encoding ends with the
+    // layer bits (f64) and the shrink shape (4 words).
+    let mut lower = key.to_bytes();
+    let end = lower.len();
+    let bits = f64::from_le_bytes(lower[end - 40..end - 32].try_into().unwrap());
+    lower[end - 40..end - 32].copy_from_slice(&f64::from_bits(bits.to_bits() - 1).to_le_bytes());
+    let lower = CompressionKey::from_bytes(&lower).unwrap();
+    verifier
+        .verify_final(proof.state(), &lower, &proof)
+        .unwrap();
+    rejects_changes(&verifier, &key, &bytes);
+}
+
+/// `verify_final` refuses the final proof `bytes` for a wrong state, after a
+/// changed byte, with the key of another setup root, with a state word
+/// restated in the proof and the expected state together, and with a key of
+/// another circuit or below the verifier's minimum.
+fn rejects_changes(verifier: &Verifier, key: &CompressionKey, bytes: &[u8]) {
+    let decoded = FinalProof::from_bytes(bytes).unwrap();
+    let state = decoded.state();
+    let mut changed = state.current();
     changed[0] += F::ONE;
-    let wrong = State::new(proof.state().iteration(), initial, changed);
-    assert!(verifier.verify_final(&wrong, &key, &decoded).is_err());
-    let mut flipped = bytes.clone();
+    let wrong = State::new(state.iteration(), state.z0(), changed);
+    assert!(verifier.verify_final(&wrong, key, &decoded).is_err());
+    let mut flipped = bytes.to_vec();
     let index = bytes.len() - 100;
     flipped[index] ^= 1;
-    assert!(FinalProof::from_bytes(&flipped).map_or(true, |changed| verifier
-        .verify_final(proof.state(), &key, &changed)
-        .is_err()));
+    assert!(
+        FinalProof::from_bytes(&flipped).map_or(true, |changed| verifier.verify_final(state, key, &changed).is_err())
+    );
     let mut other = key.to_bytes();
     other[0] ^= 1;
     let other = CompressionKey::from_bytes(&other).unwrap();
-    assert!(verifier
-        .verify_final(proof.state(), &other, &decoded)
-        .is_err());
+    assert!(verifier.verify_final(state, &other, &decoded).is_err());
 
     // The shrink binds the state itself: a state word changed in the proof
     // and in the expected state together still fails. The proof bytes are a
     // 16-byte tag, the iteration, z0 (4 words), then the current state.
     for (offset, what) in [(16, "iteration"), (24, "z0"), (56, "current")] {
-        let mut restated = bytes.clone();
+        let mut restated = bytes.to_vec();
         let word = u64::from_le_bytes(restated[offset..offset + 8].try_into().unwrap()) + 1;
         restated[offset..offset + 8].copy_from_slice(&word.to_le_bytes());
         let restated = FinalProof::from_bytes(&restated).unwrap();
         assert!(
             verifier
-                .verify_final(restated.state(), &key, &restated)
+                .verify_final(restated.state(), key, &restated)
                 .is_err(),
             "{what}"
         );
@@ -199,7 +240,7 @@ fn finish_with_spartan_verifies(engine: Engine) {
     for (changed, what) in [(other_context, "another circuit"), (weaker, "security minimum")] {
         let changed = CompressionKey::from_bytes(&changed).unwrap();
         let error = verifier
-            .verify_final(proof.state(), &changed, &decoded)
+            .verify_final(state, &changed, &decoded)
             .unwrap_err();
         assert!(error.to_string().contains(what), "{error}");
     }

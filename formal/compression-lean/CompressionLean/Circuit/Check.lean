@@ -1,5 +1,4 @@
 import CompressionLean.Circuit.Linear
-import CompressionLean.Circuit.Openings
 import CompressionLean.Circuit.Record
 import CompressionLean.Circuit.Verifier
 import CompressionLean.Circuit.Late
@@ -23,9 +22,8 @@ compares it with the IR, instruction by instruction, as `Log` writes them
 - `early`: the Lean side of `Early`, the helpers of `Gkr.lean` and
   `Early.lean` on a structure that the toy relation does not have. The whole
   IR must match.
-- `layer1 <input.json>`: the Lean side of `Layer1::run` for the relation in
-  the file. Its instructions must be the first ones of the IR: the verifier
-  is ported up to `verifier.rs:266`.
+- `layer1 <input.json>`: the Lean side of `Layer1::run` for the relation and
+  the two `WhirKey`s in the file. The whole IR must match.
 - `linear <input.json>`: the Lean side of `Linear`, the linear stage
   (`linearStage`) from the state after the early stage. The whole IR must
   match.
@@ -174,11 +172,11 @@ def early : Build Unit := do
   let _ ← rest.run (← Duplex.new)
 
 /-- What `layer1` reads (`lowering.rs`, `layer1.json`): the replay's relation
-and the query sets of the two openings. -/
+and the `WhirKey` of each opening. -/
 structure Layer1Input where
   relation : Replay.Relation
-  p1Rows : OpeningRows
-  p0Rows : OpeningRows
+  p1Key : WhirKey
+  p0Key : WhirKey
 deriving Lean.FromJson
 
 /-- `statement_input` (`tests/internal/verifier.rs`): every statement word,
@@ -200,8 +198,8 @@ statement words, the proof view, then the verifier. -/
 def layer1 (input : Layer1Input) : Build Unit := do
   let seed ← (Array.range 4).mapM fun _ => Build.pub
   let statement ← statementInput input.relation
-  let proof ← ProofView.read input.relation input.p1Rows input.p0Rows
-  verify input.relation (fun lane => seed[lane]!) statement proof
+  let proof ← ProofView.read input.relation input.p1Key.rows input.p0Key.rows
+  verify input.relation input.p1Key input.p0Key (fun lane => seed[lane]!) statement proof
 
 /-- What `linear`, `honest` and `late` read (`lowering.rs`, `linear.json`,
 `honest.json` and `late.json`): the replay's relation, and the duplex inputs
@@ -283,8 +281,8 @@ def laneSplit : Build Unit := do
     let _ ← Duplex.sample
   let _ ← rest.run (← Duplex.new)
 
-/-- What `openings` reads (`lowering.rs`, `openings.json`): the replay's
-relation, the `WhirKey` of each opening, and the duplex inputs pending and the output lanes unread after the
+/-- What `openings` reads (`lowering.rs`, `openings.json`): the `layer1`
+input, and the duplex inputs pending and the output lanes unread after the
 query points. -/
 structure OpeningsJson where
   relation : Replay.Relation
@@ -389,7 +387,7 @@ def arguments : List String → IO (Except String (String × Option Mirror))
   | [path, "layer1", input] => do
       let json ← IO.FS.readFile input
       pure <| (Lean.Json.parse json >>= Lean.fromJson? (α := Layer1Input)).map fun input =>
-        (path, some ⟨(layer1 input).program, false⟩)
+        (path, some ⟨(layer1 input).program, true⟩)
   | [path, "linear", input] => do
       let json ← IO.FS.readFile input
       pure <| (Lean.Json.parse json >>= Lean.fromJson? (α := StageInput)).map fun input =>

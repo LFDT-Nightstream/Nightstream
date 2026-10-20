@@ -7,7 +7,7 @@ use super::*;
 use crate::application::poseidon2_hash_chain_v1;
 use crate::lifecycle::TERMINAL_PACKAGE_IDENTIFIER;
 use neo_math::KExtensions;
-use nightstream_fprime::load_terminal_package;
+use nightstream_fprime::{load_terminal_package, PackageError};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use std::{fs, path::PathBuf, time::Instant};
 
@@ -20,6 +20,53 @@ fn read(path: &str) -> Vec<u8> {
 #[test]
 fn terminal_package_loads() {
     crate::lifecycle::terminal_package().unwrap();
+}
+
+fn load_error(bytes: &[u8], identifier: [u64; 4]) -> PackageError {
+    load_terminal_package(bytes, identifier).err().unwrap()
+}
+
+/// A space after the first bracket leaves the JSON value the same, so only
+/// the canonical-bytes check rejects it.
+#[test]
+fn terminal_package_rejects_a_non_canonical_byte() {
+    let mut bytes = read("artifacts/compression-terminal-v1.json");
+    bytes.insert(1, b' ');
+    assert!(matches!(
+        load_error(&bytes, TERMINAL_PACKAGE_IDENTIFIER),
+        PackageError::NonCanonicalBytes
+    ));
+}
+
+/// Another last digit keeps the bytes canonical and changes one number.
+#[test]
+fn terminal_package_rejects_a_changed_number() {
+    let mut bytes = read("artifacts/compression-terminal-v1.json");
+    let digit = bytes.iter().rposition(u8::is_ascii_digit).unwrap();
+    bytes[digit] = if bytes[digit] == b'9' { b'0' } else { bytes[digit] + 1 };
+    match load_error(&bytes, TERMINAL_PACKAGE_IDENTIFIER) {
+        PackageError::ExpectedIdentityMismatch { expected, computed } => {
+            assert_eq!(expected, TERMINAL_PACKAGE_IDENTIFIER);
+            assert_ne!(computed, TERMINAL_PACKAGE_IDENTIFIER);
+        }
+        error => panic!("unexpected error: {error}"),
+    }
+}
+
+#[test]
+fn terminal_package_rejects_another_identifier() {
+    let mut expected = TERMINAL_PACKAGE_IDENTIFIER;
+    expected[3] ^= 1;
+    match load_error(&read("artifacts/compression-terminal-v1.json"), expected) {
+        PackageError::ExpectedIdentityMismatch {
+            expected: reported,
+            computed,
+        } => {
+            assert_eq!(reported, expected);
+            assert_eq!(computed, TERMINAL_PACKAGE_IDENTIFIER);
+        }
+        error => panic!("unexpected error: {error}"),
+    }
 }
 
 #[test]

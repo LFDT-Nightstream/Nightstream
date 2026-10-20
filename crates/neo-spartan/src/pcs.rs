@@ -27,7 +27,7 @@ use crate::whir::prover;
 use crate::Error;
 
 pub(crate) type Layout = SuffixProver<Gl, Ext>;
-pub(crate) type Whir = WhirProver<Ext, Gl, Dft, Mmcs, Challenger, Layout>;
+type Whir = WhirProver<Ext, Gl, Dft, Mmcs, Challenger, Layout>;
 pub(crate) type Config = WhirConfig<Ext, Gl, Challenger>;
 pub(crate) type Commitment = <Whir as MultilinearPcs<Ext, Challenger>>::Commitment;
 pub(crate) use crate::whir::prover::ProverData;
@@ -246,11 +246,10 @@ impl Pcs {
             .to_vec()
     }
 
-    /// The prover instance whose DFTs and Merkle trees run on `accelerator`,
-    /// and its DFT, to check for a device failure.
-    fn prover(&self, accelerator: &Accelerator) -> (Whir, Dft, Mmcs) {
-        let (dft, mmcs) = (self.dft.on(accelerator), Mmcs::new(accelerator));
-        (Whir::new(self.config.clone(), dft.clone(), mmcs.clone()), dft, mmcs)
+    /// The DFT and the Merkle tree of a prover on `accelerator`; each records
+    /// its own failures, for `check`.
+    fn prover(&self, accelerator: &Accelerator) -> (Dft, Mmcs) {
+        (self.dft.on(accelerator), Mmcs::new(accelerator))
     }
 
     /// Commit to `tables` (each its columns one after another, low index bit
@@ -261,7 +260,7 @@ impl Pcs {
         challenger: &mut Challenger,
         accelerator: &Accelerator,
     ) -> Result<(Commitment, ProverData), Error> {
-        let (_, dft, mmcs) = self.prover(accelerator);
+        let (dft, mmcs) = self.prover(accelerator);
         let committed = prover::commit(&self.config, &dft, &mmcs, self.witness(tables), challenger);
         dft.check()?;
         mmcs.check()?;
@@ -303,8 +302,8 @@ impl Pcs {
         accelerator: &Accelerator,
     ) -> Result<Opening, Error> {
         let points = self.p3_points(points);
-        let (whir, dft, mmcs) = self.prover(accelerator);
-        let opening = prover::open(&whir, data, &self.protocol, &points, challenger);
+        let (dft, mmcs) = self.prover(accelerator);
+        let opening = prover::open(&self.config, &dft, &mmcs, data, &self.protocol, &points, challenger);
         dft.check()?;
         mmcs.check()?;
         Ok(opening)

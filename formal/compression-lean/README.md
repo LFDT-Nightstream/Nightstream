@@ -145,6 +145,68 @@ The shrink layer assumes, and does not prove:
 - Scope: that this CCS encodes the layer-1 verifier is not proved here.
 - Transcription: the model is written by hand from the Rust verifier.
 
+## End to end
+
+`Final/` chains the three layers into one claim about the final verifier
+(`CompressionKey::verify`, `finish.rs`).
+
+- Chain: the shrink verifier accepts statement `x`, so a candidate `w`
+  satisfies the CCS of program `x`. By the encoding premise, `w` holds a
+  terminal assignment for `x` and accepting layer-1 paths for its parent
+  claim. Layer 1 then gives a P0 candidate that is a CE(B) witness of that
+  claim. `circuitPackage_implies_terminal` gives the F′ meaning of the
+  assignment.
+- Claim (`Claim.lean`, `TerminalClaim`): some terminal assignment for `x`
+  has a parent claim with a CE(B) witness. In that assignment every row
+  holds, the public context columns hold the circuit's context, the prior
+  state preimage ends with `x`, and the iteration is not zero
+  (`TerminalFor`). Layer 1 reads the parent claim from the output columns
+  (`claimOf`).
+- Model (`Compose.lean`): both layers' games run in one experiment. In
+  sequence, layer 1 runs and then the shrink layer (`pair`). Under
+  Fiat–Shamir, one state-restoration experiment keeps one log per layer
+  (`restorePair`). One bad-set argument covers both games, so the proof
+  does not build a layer-1 prover from the shrink prover.
+- Adversary: as in each layer. The shrink extraction can return any
+  candidate that satisfies the program's CCS, so the read condition below
+  covers every such candidate.
+- Result (`Soundness.lean`): `final_sound` bounds the probability of an
+  accepted false claim by `layer1Error + shrinkError`.
+  `final_restore_sound` bounds it by `calls · max shrinkError layer1Error`
+  for `calls` queries in total. At Rust's split, `final_budget` gives
+  `2 / 2^t` with the WHIR errors, and `final_restore_budget` gives
+  `calls / 2^t`. Rust takes the layer bits `t` one above the bits that the
+  fold leaves, so `2 / 2^t` is the error that the fold leaves.
+
+The chain takes these premises:
+
+- Encoding (`ProgramEncodes`, open): a witness of the final program's CCS
+  holds a terminal assignment for its statement, and every reading of its
+  layer-1 part is an accepting layer-1 path for the parent claim of that
+  assignment. It stands for `FinalProgram::run`, recorded by `record.rs`
+  and placed by `layout.rs`. No Lean proof of it exists.
+- Readings: a reading of a witness takes its statement, proof words and
+  challenges from the witness. At each commitment it takes a candidate list
+  with a table that agrees with every value that the witness opens there.
+  The model commits to candidate lists and the program to Merkle roots, so
+  a reading is a relation, not a function.
+- Read condition, part of the bounded event: each program witness among
+  the shrink candidates has a reading that the layer-1 verifier ran. In
+  sequence, the reading ends where layer 1 ended. Under Fiat–Shamir, its
+  walk under the layer-1 log accepts. This is the random-oracle model for
+  the hash inside the program and the WHIR model for the openings inside
+  it.
+- Oracles: the shrink transcript and the layer-1 transcript share no
+  prefix, so each layer has its own log. The shrink sponge starts with its
+  domain words. The layer-1 sponge starts with the digest that the fold
+  transcript hands off.
+- CE(B): the layer-1 `Relation` is taken as the CE(B) relation of the
+  parent claim. No theorem links it to F′'s `Spec.CE.Holds` for the PiRLC
+  parent.
+- Fields: the layers are generic in the base field `F` and the challenge
+  field `K`. The terminal's Goldilocks words enter `F` by `Nat.cast`.
+- Each layer's assumptions, as listed above.
+
 Build and emit (each Lean command under the 1,500 s cap). Copy the F′ build
 cache into `.lake` first (`cp -cR ../nightstream-fprime/.lake/packages .lake/`)
 so that Lake does not rebuild Mathlib.

@@ -196,7 +196,7 @@ import CompressionLean
 #audit_axioms CompressionLean.Shrink.shrink_restore_sound
 #audit_axioms CompressionLean.Shrink.shrink_restore_budget
 
-/-! Axiom gate for the composition of two games. -/
+/-! Axiom gate for the composition of two games and the end-to-end chain. -/
 
 #audit_axioms CompressionLean.Final.prob_mono
 #audit_axioms CompressionLean.Final.pair_sound
@@ -204,3 +204,8 @@ import CompressionLean
 #audit_axioms CompressionLean.Final.restorePair_avoids
 #audit_axioms CompressionLean.Final.restorePair_cost
 #audit_axioms CompressionLean.Final.restorePair_sound
+#audit_axioms CompressionLean.Final.terminalClaim_of
+#audit_axioms CompressionLean.Final.final_sound
+#audit_axioms CompressionLean.Final.final_restore_sound
+#audit_axioms CompressionLean.Final.final_budget
+#audit_axioms CompressionLean.Final.final_restore_budget

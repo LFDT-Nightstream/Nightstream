@@ -77,39 +77,9 @@ impl<M: Matrix<Gl>> Tree<M> {
         );
         let width: usize = matrices.iter().map(|matrix| matrix.width()).sum();
         assert!(width > 0, "a Merkle leaf needs at least one word");
-        let fill = |words: &mut [u64]| {
-            words
-                .par_chunks_mut(width)
-                .enumerate()
-                .for_each(|(r, row)| {
-                    for (word, value) in row.iter_mut().zip(leaf(&matrices, r)) {
-                        *word = value.as_canonical_u64();
-                    }
-                });
-        };
-        let device = accelerator
-            .device()
-            .and_then(|device| device.merkle_layers(rows, width, &fill));
         let built = scratch::file().and_then(|file| {
             write_rows(&file, &matrices, width)?;
-            let root = match device {
-                Some(layers) => {
-                    let layers: Vec<Vec<Digest>> = layers
-                        .into_iter()
-                        .map(|layer| {
-                            layer
-                                .into_iter()
-                                .map(|digest| digest.map(Gl::new))
-                                .collect()
-                        })
-                        .collect();
-                    for (layer, digests) in layers[..layers.len() - 1].iter().enumerate() {
-                        write_digests(&file, layer_offset(width, rows, layer), digests)?;
-                    }
-                    layers.last().expect("a tree has a root")[0]
-                }
-                None => cpu_tree(&file, &matrices, width)?,
-            };
+            let root = tree(&file, &matrices, width, accelerator)?;
             Ok((file, root))
         });
         let (file, root) = match built {
@@ -244,15 +214,44 @@ fn write_digests(file: &File, offset: usize, digests: &[Digest]) -> std::io::Res
         })
 }
 
-/// The tree on the CPU, one subtree at a time, then the layers above the
-/// subtrees' roots; every layer below the root goes to `file`. Returns the
-/// root.
-fn cpu_tree<M: Matrix<Gl>>(file: &File, matrices: &[M], width: usize) -> std::io::Result<Digest> {
+/// The tree one subtree at a time, on the device when it takes the subtree,
+/// then the layers above the subtrees' roots; every layer below the root
+/// goes to `file`. Returns the root.
+fn tree<M: Matrix<Gl>>(
+    file: &File,
+    matrices: &[M],
+    width: usize,
+    accelerator: &Accelerator,
+) -> std::io::Result<Digest> {
     let rows = matrices[0].height();
     let size = SUBTREE.min(rows);
     let mut roots = Vec::with_capacity(rows / size);
     for start in (0..rows).step_by(size) {
-        let layers = cpu_layers(matrices, start, size);
+        let fill = |words: &mut [u64]| {
+            words
+                .par_chunks_mut(width)
+                .enumerate()
+                .for_each(|(r, row)| {
+                    for (word, value) in row.iter_mut().zip(leaf(matrices, start + r)) {
+                        *word = value.as_canonical_u64();
+                    }
+                });
+        };
+        let layers: Vec<Vec<Digest>> = match accelerator
+            .device()
+            .and_then(|device| device.merkle_layers(size, width, &fill))
+        {
+            Some(layers) => layers
+                .into_iter()
+                .map(|layer| {
+                    layer
+                        .into_iter()
+                        .map(|digest| digest.map(Gl::new))
+                        .collect()
+                })
+                .collect(),
+            None => cpu_layers(matrices, start, size),
+        };
         for (layer, digests) in layers[..layers.len() - 1].iter().enumerate() {
             write_digests(
                 file,

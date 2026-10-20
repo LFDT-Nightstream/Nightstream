@@ -1,12 +1,13 @@
 import CompressionLean.Circuit.Early
 import CompressionLean.Circuit.Fold
+import CompressionLean.Circuit.Linear
 
 /-!
 Owns the layer-1 verifier of `crates/neo-spartan/src/verifier.rs` as a
 builder program: the view of a proof as handles (`ProofView`, its shape run
-`ProofView.read`) and `verify`, ported so far up to `verifier.rs:168`: the
+`ProofView.read`) and `verify`, ported so far up to `verifier.rs:206`: the
 seed, the relation words and the statement words in the duplex, then the
-early stage (`earlyStage`).
+early stage (`earlyStage`) and the linear stage (`linearStage`).
 
 The relation is the replay's (`Replay/Data.lean`): its sizes, tree shapes,
 WHIR shapes and transcript words. The statement is a `ClaimView`.
@@ -88,8 +89,9 @@ def earlyStage (rel : Relation) (statement : ClaimView) (proof : ProofView) : Tr
   observeEarly proof.earlyValues
   pure { normPoint := claims[0]!.point, zLeaf, openings }
 
-/-- `verify` (`verifier.rs:136-168`): a new duplex binds the seed, the
-relation words as constants and the statement words; then the early stage. -/
+/-- `verify` (`verifier.rs:136-206`): a new duplex binds the seed, the
+relation words as constants and the statement words; then the early and
+linear stages. -/
 def verify (rel : Relation) (seed : DigestVar) (statement : ClaimView) (proof : ProofView) : Build Unit := do
   let duplex ← Duplex.new
   let run : Transcript Unit := do
@@ -98,6 +100,7 @@ def verify (rel : Relation) (seed : DigestVar) (statement : ClaimView) (proof : 
       Duplex.observe (← Build.const word)
     Duplex.observeSlice statement.words
     let _ ← earlyStage rel statement proof
+    let _ ← linearStage rel statement proof.quotient proof.linear proof.finals
   let _ ← run.run duplex
 
 end CompressionLean.Circuit

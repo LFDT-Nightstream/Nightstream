@@ -30,7 +30,7 @@ Example block_call_layout :
 Proof. repeat split; reflexivity. Qed.
 
 Definition blockContext' :=
-  MKcontext [i32StackType 0 1] [i32StackType 0 1; i32StackType 0 1] [] [] [] [] [] [] [] None.
+  moduleContext [i32StackType 0 1] [i32StackType 0 1; i32StackType 0 1].
 Definition blockBodyContext := functionContext blockContext' (blockFunction []).
 
 Example block_module_validates : Moduleinst_ok blockStore blockModule blockContext'.
@@ -86,10 +86,10 @@ Proof.
   - constructor; [ | constructor; [ | constructor]]; apply block_function_validates; try solve [repeat constructor];
       try exact caller_body_validates.
   - intros [ | [ | index]] g Hg; cbn in Hg; [injection Hg as <- .. | destruct index; discriminate].
-    + repeat constructor.
-    + constructor; [ | constructor; [constructor | constructor]].
-      apply supported_block; [ | repeat split; reflexivity]. constructor; [ | constructor].
-      apply supported_block; [ | repeat split; reflexivity]. constructor; [ | constructor; [constructor | constructor]].
+    + split; [repeat constructor | vm_compute; tauto].
+    + split; [ | vm_compute; tauto]. constructor; [ | constructor; [constructor | constructor]].
+      apply supported_block. constructor; [ | constructor].
+      apply supported_block. constructor; [ | constructor; [constructor | constructor]].
       apply supported_call with (f := blockGuest 0 [LOCAL_GET (mk_uN 0)] 0); [reflexivity | cbn; lia | cbn; lia].
 Qed.
 

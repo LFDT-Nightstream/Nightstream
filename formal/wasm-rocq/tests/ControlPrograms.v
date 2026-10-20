@@ -24,7 +24,7 @@ Definition computedRam condition : MemoryState := fun memory address =>
   else None.
 Definition computedMemory condition := loadProgram computedProgram (computedRam condition).
 
-Definition computedContext := MKcontext [i32StackType 0 1] [i32StackType 0 1] [] [] [] [] [] [] [] None.
+Definition computedContext := moduleContext [i32StackType 0 1] [i32StackType 0 1].
 Definition computedBodyContext := functionContext computedContext computedFunction.
 Definition computedGuest := mkGuestFunction 0%N computedModule (mk_uN 0) 0 1 2 computedCode 0.
 
@@ -81,15 +81,16 @@ Qed.
 
 (* block (computed branches); local.get 1 *)
 Example computed_body_supported :
-  supportedCode (codeSite (programCallees computedProgram computedModule) false) computedCode.
+  supportedCode (programCallees computedProgram computedModule) computedCode.
 Proof.
   constructor; [ | constructor; [constructor | constructor]].
-  apply supported_block; [repeat constructor | repeat split; reflexivity].
+  apply supported_block. repeat constructor.
 Qed.
 
 Example computed_program_supported : programSupported computedProgram.
 Proof.
-  intros [ | index] g Hg; cbn in Hg; [injection Hg as <-; exact computed_body_supported | destruct index; discriminate].
+  intros [ | index] g Hg; cbn in Hg; [injection Hg as <- | destruct index; discriminate].
+  split; [exact computed_body_supported | vm_compute; repeat split; lia].
 Qed.
 
 Example computed_store_wf : wf_store computedStore.

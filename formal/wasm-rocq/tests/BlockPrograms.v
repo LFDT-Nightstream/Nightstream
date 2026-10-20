@@ -69,7 +69,7 @@ Definition conditionalRam condition : MemoryState := fun memory address =>
   else None.
 Definition conditionalMemory condition := loadProgram conditionalProgram (conditionalRam condition).
 
-Definition conditionalContext := MKcontext [i32StackType 0 1] [i32StackType 0 1] [] [] [] [] [] [] [] None.
+Definition conditionalContext := moduleContext [i32StackType 0 1] [i32StackType 0 1].
 Definition conditionalBodyContext := functionContext conditionalContext conditionalFunction.
 
 Example conditional_layout :
@@ -158,15 +158,16 @@ Qed.
 
 (* block (local.get 0; br_if 0; local.get 0; local.set 1); local.get 1 *)
 Example conditional_body_supported :
-  supportedCode (codeSite (programCallees conditionalProgram conditionalModule) false) conditionalCode.
+  supportedCode (programCallees conditionalProgram conditionalModule) conditionalCode.
 Proof.
   constructor; [ | constructor; [constructor | constructor]].
-  apply supported_block; [repeat constructor | repeat split; reflexivity].
+  apply supported_block. repeat constructor.
 Qed.
 
 Example conditional_program_supported : programSupported conditionalProgram.
 Proof.
-  intros [ | index] g Hg; cbn in Hg; [injection Hg as <-; exact conditional_body_supported | destruct index; discriminate].
+  intros [ | index] g Hg; cbn in Hg; [injection Hg as <- | destruct index; discriminate].
+  split; [exact conditional_body_supported | vm_compute; repeat split; lia].
 Qed.
 
 Example conditional_initial_config : forall condition,

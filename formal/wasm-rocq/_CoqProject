@@ -71,3 +71,4 @@ tests/Initialization.v
 tests/Fragment.v
 tests/NestedCalls.v
 tests/BlockCalls.v
+tests/DeepBranches.v

@@ -22,7 +22,7 @@ Example nested_layout :
 Proof. repeat split; reflexivity. Qed.
 
 Definition nestedContext :=
-  MKcontext [i32StackType 0 1] [i32StackType 0 1; i32StackType 0 1] [] [] [] [] [] [] [] None.
+  moduleContext [i32StackType 0 1] [i32StackType 0 1; i32StackType 0 1].
 Definition nestedBodyContext := functionContext nestedContext (nestedFunction []).
 
 Example nested_module_validates : Moduleinst_ok nestedStore nestedModule nestedContext.
@@ -69,10 +69,10 @@ Proof.
     + exact (nested_call_validates 0 ltac:(lia)).
     + exact (nested_call_validates 1 ltac:(lia)).
   - intros [ | [ | [ | index]]] g Hg; cbn in Hg; [injection Hg as <- .. | destruct index; discriminate].
-    + repeat constructor.
-    + constructor; [ | constructor].
+    + split; [repeat constructor | vm_compute; tauto].
+    + split; [ | vm_compute; tauto]. constructor; [ | constructor].
       apply supported_call with (f := nestedGuest 0 [LOCAL_GET (mk_uN 0)] 0); [reflexivity | cbn; lia | cbn; lia].
-    + constructor; [ | constructor].
+    + split; [ | vm_compute; tauto]. constructor; [ | constructor].
       apply supported_call with (f := nestedGuest 1 [CALL (mk_uN 0)] 2); [reflexivity | cbn; lia | cbn; lia].
 Qed.
 

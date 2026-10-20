@@ -1,5 +1,6 @@
-(* Zero-result block contexts and br_if 0 reduction. Values below the block
-   remain outside its label; taken branches discard its instruction continuation. *)
+(* Zero-result block contexts and branch reduction: a br_if becomes a br, which
+   leaves one label per step. Values below a block remain outside its label;
+   taken branches discard its instruction continuation. *)
 From Stdlib Require Import List ZArith Lia Bool.
 From mathcomp Require Import ssrbool eqtype.
 Require Import Wasm2 WasmIntegers StraightLineSpec StackSimulation SpecTecCalls.
@@ -49,55 +50,59 @@ Proof.
   - apply pure. apply (label_vals 0%N [] []).
 Qed.
 
-Definition branchBlockConfig z condition rest : config :=
-  blockContext (stackConfig z [condition] (BR_IF (mk_uN 0) :: rest)).
-
-Definition branchBlockResult z condition rest : config :=
-  if Z.eqb condition 0 then blockContext (stackConfig z [] rest) else stackConfig z [] [].
-
-Lemma br_if_block_reduces : forall z condition rest,
-  wf_state z -> 0 <= condition < i32Modulus -> Forall wf_instr rest ->
-  Steps (branchBlockConfig z condition rest) (branchBlockResult z condition rest).
+Lemma wf_label_le : forall k k', (k <= k')%N -> wf_uN 32%N (mk_uN k') -> wf_uN 32%N (mk_uN k).
 Proof.
-  intros z condition rest Hz Hbound Hrest.
-  assert (Hb : wf_config (stackConfig z [condition] [BR_IF (mk_uN 0)])).
-  { apply stack_config_wf; [exact Hz | constructor; [exact Hbound | constructor] | repeat constructor]. }
-  assert (Hempty : wf_config (stackConfig z [] [])) by (repeat constructor; exact Hz).
+  intros k k' Hk H. inversion H as [? ? Hb]; subst. constructor.
+  apply andb_prop in Hb as [_ Hle]. apply andb_true_intro. split.
+  - apply N.leb_le. lia.
+  - apply N.leb_le. apply N.leb_le in Hle. lia.
+Qed.
+
+(* br_if l with an i32 condition: falls through on zero, otherwise becomes br l. *)
+Lemma br_if_steps : forall z condition l rest,
+  wf_state z -> 0 <= condition < i32Modulus -> wf_uN 32%N l -> Forall wf_instr rest ->
+  Steps (stackConfig z [condition] (BR_IF l :: rest))
+    (if Z.eqb condition 0 then stackConfig z [] rest else stackConfig z [] (BR l :: rest)).
+Proof.
+  intros z condition l rest Hz Hbound Hl Hrest.
+  assert (Hb : wf_config (stackConfig z [condition] [BR_IF l])).
+  { apply stack_config_wf; [exact Hz | constructor; [exact Hbound | constructor] | ].
+    constructor; [constructor; exact Hl | constructor]. }
   destruct (Z.eqb condition 0) eqn:Hcondition.
   - apply Z.eqb_eq in Hcondition. subst condition.
-    assert (Hstep : Step (stackConfig z [0] [BR_IF (mk_uN 0)]) (stackConfig z [] [])).
-    { apply pure. apply br_if_false; reflexivity. }
-    pose proof (steps_in_block _ _ (steps_with_instruction_suffix rest _ _ Hrest
-      (one_spec_step _ _ Hb Hempty Hstep))) as Hsteps.
-    exact Hsteps.
+    assert (Hstep : Step (stackConfig z [0] [BR_IF l]) (stackConfig z [] [])) by (apply pure; apply br_if_false; reflexivity).
+    assert (Hempty : wf_config (stackConfig z [] [])) by (repeat constructor; exact Hz).
+    exact (steps_with_instruction_suffix rest _ _ Hrest (one_spec_step _ _ Hb Hempty Hstep)).
   - apply Z.eqb_neq in Hcondition.
-    assert (Hbr : wf_config (stackConfig z [] [BR (mk_uN 0)])) by (repeat constructor; exact Hz).
-    assert (Hstep : Step (stackConfig z [condition] [BR_IF (mk_uN 0)]) (stackConfig z [] [BR (mk_uN 0)])).
+    assert (Hbr : wf_config (stackConfig z [] [BR l])).
+    { apply stack_config_wf; [exact Hz | constructor | ]. constructor; [constructor; exact Hl | constructor]. }
+    assert (Hstep : Step (stackConfig z [condition] [BR_IF l]) (stackConfig z [] [BR l])).
     { apply pure. apply br_if_true; [reflexivity | ].
       change (is_true (negb (eq_op (Z.to_N condition) 0%N))).
       apply negb_true_iff. apply (introF eqP). intro Heq. apply (f_equal Z.of_N) in Heq.
       rewrite Z2N.id in Heq by lia. cbn in Heq. contradiction. }
-    pose proof (steps_in_block _ _ (steps_with_instruction_suffix rest _ _ Hrest
-      (one_spec_step _ _ Hb Hbr Hstep))) as Hsteps.
-    assert (Hmiddle : wf_config (blockContext (stackConfig z [] (BR (mk_uN 0) :: rest)))).
-    { apply block_context_wf. apply stack_config_wf; [exact Hz | constructor | constructor; [repeat constructor | exact Hrest]]. }
-    assert (Hexit : Step (blockContext (stackConfig z [] (BR (mk_uN 0) :: rest))) (stackConfig z [] [])).
-    { apply pure. apply (br_zero 0%N [] [] [] (map admininstr_instr rest)). reflexivity. }
-    unfold branchBlockConfig, branchBlockResult. apply Z.eqb_neq in Hcondition. rewrite Hcondition.
-    eapply spec_steps_transitive; [exact Hsteps | ]. apply one_spec_step; assumption.
+    exact (steps_with_instruction_suffix rest _ _ Hrest (one_spec_step _ _ Hb Hbr Hstep)).
 Qed.
 
-Definition blockBranchConfig z prefix condition rest continuation : config :=
-  stackPrefix prefix (instructionSuffix continuation (branchBlockConfig z condition rest)).
-Definition blockBranchResult z prefix condition rest continuation : config :=
-  stackPrefix prefix (instructionSuffix continuation (branchBlockResult z condition rest)).
-
-Lemma br_if_under_block_context : forall z prefix condition rest continuation,
-  wf_state z -> Forall (fun value => 0 <= value < i32Modulus) prefix ->
-  0 <= condition < i32Modulus -> Forall wf_instr rest -> Forall wf_instr continuation ->
-  Steps (blockBranchConfig z prefix condition rest continuation)
-    (blockBranchResult z prefix condition rest continuation).
+(* A branch leaves the innermost label: to an outer one, or to this one's end. *)
+Lemma br_exit_label : forall z k rest,
+  wf_state z -> wf_uN 32%N (mk_uN (k + 1)%N) -> Forall wf_instr rest ->
+  Steps (blockContext (stackConfig z [] (BR (mk_uN (k + 1)%N) :: rest))) (stackConfig z [] [BR (mk_uN k)]).
 Proof.
-  intros. apply steps_with_stack_prefix; [assumption | ].
-  apply steps_with_instruction_suffix; [assumption | ]. apply br_if_block_reduces; assumption.
+  intros z k rest Hz Hl Hrest. apply one_spec_step.
+  - apply block_context_wf. apply stack_config_wf; [exact Hz | constructor | ].
+    constructor; [constructor; exact Hl | exact Hrest].
+  - apply stack_config_wf; [exact Hz | constructor | ]. constructor; [apply instr_case_7; exact (wf_label_le k (k + 1)%N ltac:(lia) Hl) | constructor].
+  - apply pure. exact (br_succ 0%N [] [] (mk_uN k) (map admininstr_instr rest)).
+Qed.
+
+Lemma br_exit_target : forall z rest,
+  wf_state z -> Forall wf_instr rest ->
+  Steps (blockContext (stackConfig z [] (BR (mk_uN 0) :: rest))) (stackConfig z [] []).
+Proof.
+  intros z rest Hz Hrest. apply one_spec_step.
+  - apply block_context_wf. apply stack_config_wf; [exact Hz | constructor | ].
+    constructor; [repeat constructor | exact Hrest].
+  - repeat constructor; exact Hz.
+  - apply pure. apply (br_zero 0%N [] [] [] (map admininstr_instr rest)). reflexivity.
 Qed.

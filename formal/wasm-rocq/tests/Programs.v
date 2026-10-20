@@ -38,7 +38,7 @@ Example source_program_keeps_stale_locals : forall stale, sourceMemory stale loc
 Proof. reflexivity. Qed.
 
 Definition sourceModuleContext :=
-  MKcontext [i32StackType 0 1] [i32StackType 0 1] [] [] [] [] [] [] [] None.
+  moduleContext [i32StackType 0 1] [i32StackType 0 1].
 
 Example source_module_validates :
   Moduleinst_ok (fun_store sourceInitialState) callModule sourceModuleContext.
@@ -93,7 +93,7 @@ Proof.
 Qed.
 
 (* local.get 0; call 0 (to readZero); i32.add *)
-Example source_body_supported : supportedCode (codeSite (programCallees sourceProgram callModule) false) getCallAdd.
+Example source_body_supported : supportedCode (programCallees sourceProgram callModule) getCallAdd.
 Proof.
   constructor; [constructor | constructor; [ | constructor; [constructor | constructor]]].
   apply supported_call with (f := mkGuestFunction 0%N callModule (mk_uN 0) 0 1 1 readZeroBody 0);
@@ -103,8 +103,8 @@ Qed.
 Example source_program_supported : programSupported sourceProgram.
 Proof.
   intros [ | [ | index]] g Hg; cbn in Hg; [injection Hg as <- | injection Hg as <- | destruct index; discriminate].
-  - repeat constructor.
-  - exact source_body_supported.
+  - split; [repeat constructor | vm_compute; tauto].
+  - split; [exact source_body_supported | vm_compute; tauto].
 Qed.
 
 Example source_store_wf : wf_store sourceStore.

@@ -6,10 +6,6 @@ Import ListNotations.
 Open Scope Z_scope.
 
 (* A SpecTec state for a frame of f: the program's functions, f's module, and its locals. *)
-Definition frameMatches (program : Program) (f : GuestFunction) (z : state) : Prop :=
-  fun_funcinst z = program /\ fun_moduleinst z = guestModule f /\
-  length (stateLocals z) = (guestParams f + guestLocals f)%nat.
-
 Lemma load_program_loaded : forall program memory, programLoaded program (loadProgram program memory).
 Proof.
   intros program memory id Hin address. unfold loadProgram.
@@ -103,12 +99,13 @@ Ltac program_cell H :=
     rewrite (H id ltac:(unfold programRomIds; simpl; tauto))
   end.
 
-Lemma encoded_frame_image : forall program memory index f offset z,
+(* A frame of f, with f's locals: its function's local count is in the ROM. *)
+Lemma encoded_frame_image : forall program memory index f offset s values,
   programLoaded program memory -> functionAt program index = Some f ->
-  (offset <= codeSize (guestBody f))%nat -> frameMatches program f z ->
-  callerFrameImage memory (guestEntry f + Z.of_nat offset) z.
+  (offset <= codeSize (guestBody f))%nat -> length values = (guestParams f + guestLocals f)%nat ->
+  callerFrameImage memory (guestEntry f + Z.of_nat offset) (mk_state s (MKframe values (guestModule f))).
 Proof.
-  intros program memory index f offset z Hloaded Hf Hoffset [_ [_ Hcount]].
+  intros program memory index f offset s values Hloaded Hf Hoffset Hcount.
   destruct (function_at_sound _ _ _ Hf) as [Hlookup [Haddress Hentry]].
   exists (Z.of_nat index + 1). split.
   - program_cell Hloaded. unfold encodeProgram. cbn [Nat.eqb pcRomId pcFunctionRefId].
@@ -120,7 +117,7 @@ Proof.
     unfold functionRom.
     assert (Hpositive : (Z.of_nat index + 1 <=? 0) = false) by (apply Z.leb_gt; lia).
     rewrite Hpositive. replace (Z.of_nat index + 1 - 1) with (Z.of_nat index) by lia.
-    rewrite Nat2Z.id, Hf. cbn [Nat.eqb functionEntryId functionLocalCountId]. now rewrite Hcount.
+    rewrite Nat2Z.id, Hf. cbn [Nat.eqb functionEntryId functionLocalCountId]. change (length (stateLocals (mk_state s (MKframe values (guestModule f))))) with (length values). now rewrite Hcount.
 Qed.
 
 Lemma encoded_guest_image : forall program memory index f,
@@ -158,8 +155,3 @@ Proof.
     cbn [Nat.eqb pcRomId pcFunctionRefId functionEntryId functionLocalCountId functionCallMetadataId orb];
     unfold instructionRom; rewrite Hpc; reflexivity.
 Qed.
-
-Lemma frame_matches_addresses : forall program f z,
-  frameMatches program f z -> fun_funcaddr z = FUNCS (guestModule f).
-Proof. intros program f [s frame] [_ [H _]]. cbn in *. now rewrite H. Qed.
-

@@ -4,6 +4,11 @@ From mathcomp Require Import ssrbool eqtype.
 Require Import Wasm2 StraightLineSpec SpecTecCalls StraightLineValidation.
 Import ListNotations.
 
+(* A module's context with only a type table and function types: no globals,
+   tables, memories or segments, and nothing of a function body yet. *)
+Definition moduleContext (types funcs : list functype) : context :=
+  MKcontext types funcs [] [] [] [] [] [] [] None.
+
 Definition functionContext (C : context) (f : funcinst) : context :=
   match funcinst_TYPE f, CODE f with
   | mk_functype (mk_list params) (mk_list results), func_FUNC _ locals _ =>

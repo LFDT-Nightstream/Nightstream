@@ -155,6 +155,10 @@ theorem Except.bind_ok {ε α β : Type} {x : Except ε α} {f : α → Except �
   | error e => cases h
   | ok a => exact ⟨a, rfl, h⟩
 
+theorem Except.pure_eq_ok {ε α : Type} {a b : α} (h : (pure a : Except ε α) = .ok b) : a = b := by
+  cases h
+  rfl
+
 theorem Except.ensure_ok {ok : Bool} {what : String} {u : Unit} (h : (ensure ok what : Except String Unit) = .ok u) :
     ok = true := by
   cases ok

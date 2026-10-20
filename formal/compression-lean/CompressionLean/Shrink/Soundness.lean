@@ -35,10 +35,14 @@ theorem shrinkNodes (cast : ∀ a b : ℕ, a < 9 → b < 9 → (a : K) = b → a
 
 /-- Along every path that avoids the bad sets, an accepted transcript names
 this program and has a candidate that satisfies `C`, when the shape check
-puts `C` inside the cubes. -/
-theorem programGame_avoids {I : Type} (i : I) (C : Ccs F) (shapeOk : Prop) (L : ℕ)
-    (fits : shapeOk → C.Fits) (nodes7 : NodesDistinct K 7) (nodes1 : NodesDistinct K 1) :
-    (programGame (K := K) i C shapeOk L).Avoids fun r =>
+puts `C` inside the cubes and the verifier's matrix value is the entry sum
+at points of the cubes' lengths. -/
+theorem programGame_avoids {I : Type} (i : I) (C : Ccs F) (shapeOk : Prop) (matrices : List K → List K → K → K)
+    (L : ℕ) (fits : shapeOk → C.Fits)
+    (agree : ∀ rx ry ρ, rx.length = C.rowVars → ry.length = C.cellVars + 1 →
+      matrices rx ry ρ = matrixValue C.entries rx ry ρ)
+    (nodes7 : NodesDistinct K 7) (nodes1 : NodesDistinct K 1) :
+    (programGame (K := K) i C shapeOk matrices L).Avoids fun r =>
       ∀ tr, r = some tr → tr.inst = i ∧ ∃ w ∈ tr.cands, C.Relation w := by
   intro cands
   rw [Game.avoids_bind]
@@ -76,6 +80,7 @@ theorem programGame_avoids {I : Type} (i : I) (C : Ccs F) (shapeOk : Prop) (L : 
   have ryLen : ry.length = C.cellVars + 1 := by rw [ryEq]; simpa using ryLength
   have rowsRx : ∀ e ∈ C.entries, e.row < 2 ^ rx.length := by rw [rxLen]; exact fit.row_lt
   have colsRy : ∀ e ∈ C.entries, e.col < 2 ^ ry.length := by rw [ryLen]; exact fit.col_lt
+  rw [agree rx ry rho rxLen ryLen] at innerCheck
   -- The inner check and the opening make the inner rounds end true, so they start true.
   have innerEnd : innerLast =
       combTruth (C.cellVars + 1) (innerTables C.entries (C.z (cands.1.get k)) rx rho) productComb ry := by
@@ -120,7 +125,9 @@ theorem shrinkGame_avoids {I : Type} [Nonempty I] (T : Template F) (s : Counts) 
     (shrinkGame (K := K) T s prog L).Avoids fun r =>
       ∀ tr, r = some tr → ∃ w ∈ tr.cands, ((prog tr.inst).ccs T s).Relation w := by
   intro i
-  refine (programGame_avoids i ((prog i).ccs T s) ((prog i).counts = s) L (ccs_fits T s (prog i) wf (valid i))
+  refine (programGame_avoids i ((prog i).ccs T s) ((prog i).counts = s) (verifierMatrices T s (prog i)) L
+    (ccs_fits T s (prog i) wf (valid i))
+    (fun rx ry ρ rxLength ryLength => verifierMatrices_eq T s (prog i) rx ry ρ wf rxLength ryLength)
     nodes7 nodes1).mono ?_
   intro r all tr equal
   obtain ⟨same, holds⟩ := all tr equal

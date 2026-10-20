@@ -100,6 +100,12 @@ defines.
   an outer sum-check of `m` rounds of degree 8 from `0`, the claimed values
   `M̃_j·z(rx)`, `ρ`, an inner sum-check of `n + 1` rounds of degree 2 from
   `Σ_j ρ^j·v_j`, the opening, and the checks of `mod.rs`.
+- Verifier formulas: the last check uses the value that `mod.rs` computes
+  for `Σ_j ρ^j·M̃_j(rx, ry)`: the shape run's total (`evaluate.rs`) plus the
+  closed form `block_part` and its carry walk `diagonal` (`layout.rs`).
+  `Evaluate.lean`, `BlockPart.lean` and `Diagonal.lean` write them in Lean
+  and prove the value equal to the sum over the CCS entries
+  (`verifierMatrices_eq`).
 - Adversary: the prover names the program first, because Rust absorbs its
   key and statement before the commitment. It picks every message after it
   sees all earlier challenges. It commits to at most `L` candidates for `w`
@@ -131,9 +137,6 @@ The shrink layer assumes, and does not prove:
 - Fiat–Shamir: as in layer 1. Poseidon2 acts as a random oracle, and the
   transcript encoding is injective on prefixes. The shape words fix the
   statement length.
-- Verifier formulas: the model takes `Σ_j ρ^j·M̃_j(rx, ry)` as the sum
-  over the CCS entries. That the shape run (`evaluate.rs`) and the closed
-  form of `block_part` (`layout.rs`) compute this sum is not proved.
 - Recorder: a run is its sink calls that emit glue rows, and a row call
   has at most three products (`Trace::row` asserts it). Every glue wire
   names a cell of its run (`Run.Valid`), and the template entries name

@@ -294,3 +294,17 @@ import CompressionLean
 #audit_axioms CompressionLean.Final.matrix_part
 #audit_axioms CompressionLean.Final.array_singleton
 #audit_axioms CompressionLean.Final.parent_holds
+
+/-! Axiom gate for end-to-end soundness for F′'s relation. -/
+
+#audit_axioms CompressionLean.Final.finalBreak_mono
+#audit_axioms CompressionLean.Final.finalRestoreBreak_mono
+#audit_axioms CompressionLean.Final.getD_flatten
+#audit_axioms CompressionLean.Final.length_flatten_uniform
+#audit_axioms CompressionLean.Final.getD_ofFn
+#audit_axioms CompressionLean.Final.word_eq
+#audit_axioms CompressionLean.Final.claimOf_parent
+#audit_axioms CompressionLean.Final.parentClaim_of_terminalClaim
+#audit_axioms CompressionLean.Final.modulus_natDegree
+#audit_axioms CompressionLean.Final.final_sound_parent
+#audit_axioms CompressionLean.Final.final_restore_budget_parent

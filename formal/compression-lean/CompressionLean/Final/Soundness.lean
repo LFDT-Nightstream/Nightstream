@@ -40,16 +40,25 @@ abbrev Outcome (F K : Type) (t L : ℕ) :=
   Option (Layer1.Transcript F K t L) × Option (Shrink.Transcript StateWords F K)
 
 /-- In sequence: the final verifier accepts the statement `x = tr.inst`, the
-terminal claim for `x` is false, and every program witness among the shrink
+claim `Claim x` is false, and every program witness among the shrink
 candidates has a reading that ends where layer 1 ended. -/
-def FinalBreak {t L : ℕ} (s1 : Layer1.Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : Layer1.Setup F)
+def FinalBreak {t L : ℕ} (Claim : StateWords → Prop)
     (T : Shrink.Template F) (s : Shrink.Counts) (prog : StateWords → Shrink.Run F)
-    (authority : Lifecycle.VerifierContext.Authority) (g : Layer1.Game (Option (Layer1.Transcript F K t L)))
+    (g : Layer1.Game (Option (Layer1.Transcript F K t L)))
     (Reads : StateWords → (ℕ → F) → g.Pos → Prop) (r : Outcome F K t L) : Prop :=
   ∃ tr, r.2 = some tr ∧
     (∀ w ∈ tr.cands, ((prog tr.inst).ccs T s).Relation w →
       ∃ p, Reads tr.inst w p ∧ Layer1.Game.Pos.node g p = .pure r.1) ∧
-    ¬ TerminalClaim s1 Φ bar S authority tr.inst
+    ¬ Claim tr.inst
+
+omit [Field K] [Algebra F K] [Fintype K] [DecidableEq K] in
+/-- A weaker claim breaks less often. -/
+theorem finalBreak_mono {t L : ℕ} {Claim Claim' : StateWords → Prop} (imp : ∀ x, Claim x → Claim' x)
+    (T : Shrink.Template F) (s : Shrink.Counts) (prog : StateWords → Shrink.Run F)
+    (g : Layer1.Game (Option (Layer1.Transcript F K t L))) (Reads : StateWords → (ℕ → F) → g.Pos → Prop)
+    (r : Outcome F K t L) (break_ : FinalBreak Claim' T s prog g Reads r) : FinalBreak Claim T s prog g Reads r := by
+  obtain ⟨tr, accepted, reads, notClaim⟩ := break_
+  exact ⟨tr, accepted, reads, fun claim => notClaim (imp _ claim)⟩
 
 /-- **End-to-end soundness, in sequence.** Under the encoding premise and
 with idealized WHIR openings, a prover makes the final verifier accept a
@@ -69,7 +78,8 @@ theorem final_sound (s1 : Layer1.Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S
     (prover : Layer1.Game.Strategy (Outcome F K s1.queries L)) :
     Layer1.Game.prob prover
         (pair (Layer1.layer1Game s1 Φ bar S L0 L1 L P q) (Shrink.shrinkGame T s prog Ls))
-        (FinalBreak s1 Φ bar S T s prog authority (Layer1.layer1Game s1 Φ bar S L0 L1 L P q) Reads) ≤
+        (FinalBreak (TerminalClaim s1 Φ bar S authority) T s prog (Layer1.layer1Game s1 Φ bar S L0 L1 L P q)
+          Reads) ≤
       Layer1.layer1Error s1 L0 L1 L P (Fintype.card K) +
         Shrink.shrinkError (Shrink.Layout.rowVars T s) (Shrink.Layout.cellVars T s) Ls (Fintype.card K) := by
   have proper : Φ ≠ 1 := by
@@ -98,16 +108,26 @@ abbrev RestoreOutcome {t L : ℕ} (F K : Type) (g : Layer1.Game (Option (Layer1.
   Option (Option (Shrink.Transcript StateWords F K)) × (g.Pos → Option (Option (Layer1.Transcript F K t L)))
 
 /-- Under Fiat–Shamir: the final verifier accepts the statement
-`x = tr.inst`, the terminal claim for `x` is false, and every program witness
-among the shrink candidates has a reading whose walk under the layer-1 log
+`x = tr.inst`, the claim `Claim x` is false, and every program witness among
+the shrink candidates has a reading whose walk under the layer-1 log
 accepts. -/
-def FinalRestoreBreak {t L : ℕ} (s1 : Layer1.Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : Layer1.Setup F)
+def FinalRestoreBreak {t L : ℕ} (Claim : StateWords → Prop)
     (T : Shrink.Template F) (s : Shrink.Counts) (prog : StateWords → Shrink.Run F)
-    (authority : Lifecycle.VerifierContext.Authority) (g : Layer1.Game (Option (Layer1.Transcript F K t L)))
+    (g : Layer1.Game (Option (Layer1.Transcript F K t L)))
     (Reads : StateWords → (ℕ → F) → g.Pos → Prop) (r : RestoreOutcome F K g) : Prop :=
   ∃ tr, r.1 = some (some tr) ∧
     (∀ w ∈ tr.cands, ((prog tr.inst).ccs T s).Relation w → ∃ p, Reads tr.inst w p ∧ ∃ b, r.2 p = some b) ∧
-    ¬ TerminalClaim s1 Φ bar S authority tr.inst
+    ¬ Claim tr.inst
+
+omit [Field K] [Algebra F K] [Fintype K] [DecidableEq K] in
+/-- A weaker claim breaks less often. -/
+theorem finalRestoreBreak_mono {t L : ℕ} {Claim Claim' : StateWords → Prop} (imp : ∀ x, Claim x → Claim' x)
+    (T : Shrink.Template F) (s : Shrink.Counts) (prog : StateWords → Shrink.Run F)
+    (g : Layer1.Game (Option (Layer1.Transcript F K t L))) (Reads : StateWords → (ℕ → F) → g.Pos → Prop)
+    (r : RestoreOutcome F K g) (break_ : FinalRestoreBreak Claim' T s prog g Reads r) :
+    FinalRestoreBreak Claim T s prog g Reads r := by
+  obtain ⟨tr, accepted, reads, notClaim⟩ := break_
+  exact ⟨tr, accepted, reads, fun claim => notClaim (imp _ claim)⟩
 
 /-- **End-to-end soundness under Fiat–Shamir.** In the state-restoration
 experiment over both layers, a prover with `calls` queries in total makes
@@ -127,7 +147,8 @@ theorem final_restore_sound (s1 : Layer1.Shape) (Φ : F[X]) (bar : ℕ → ℕ �
     (calls : ℕ) (prover : Layer1.Game.Strategy (RestoreOutcome F K (Layer1.layer1Game s1 Φ bar S L0 L1 L P q))) :
     Layer1.Game.prob prover
         (restorePair (Shrink.shrinkGame T s prog Ls) (Layer1.layer1Game s1 Φ bar S L0 L1 L P q) calls [] [])
-        (FinalRestoreBreak s1 Φ bar S T s prog authority (Layer1.layer1Game s1 Φ bar S L0 L1 L P q) Reads) ≤
+        (FinalRestoreBreak (TerminalClaim s1 Φ bar S authority) T s prog (Layer1.layer1Game s1 Φ bar S L0 L1 L P q)
+          Reads) ≤
       calls * max (Shrink.shrinkError (Shrink.Layout.rowVars T s) (Shrink.Layout.cellVars T s) Ls (Fintype.card K))
         (Layer1.layer1Error s1 L0 L1 L P (Fintype.card K)) := by
   have proper : Φ ≠ 1 := by
@@ -181,7 +202,7 @@ theorem final_budget (s1 : Layer1.Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (
     whirP0 + whirP1 + whirS + Layer1.Game.prob prover
         (pair (Layer1.layer1Game s1 Φ bar S L0 L1 (2 ^ (s1.setupVars - 2)) Layer1.goldilocks q)
           (Shrink.shrinkGame T s prog Ls))
-        (FinalBreak s1 Φ bar S T s prog authority
+        (FinalBreak (TerminalClaim s1 Φ bar S authority) T s prog
           (Layer1.layer1Game s1 Φ bar S L0 L1 (2 ^ (s1.setupVars - 2)) Layer1.goldilocks q) Reads) ≤
       2 / 2 ^ t := by
   have sound := final_sound s1 Φ bar S L0 L1 _ _ q N sizes cast distinct fits monic degree two T s prog Ls wf
@@ -220,7 +241,7 @@ theorem final_restore_budget (s1 : Layer1.Shape) (Φ : F[X]) (bar : ℕ → ℕ 
     Layer1.Game.prob prover
         (restorePair (Shrink.shrinkGame T s prog Ls)
           (Layer1.layer1Game s1 Φ bar S L0 L1 (2 ^ (s1.setupVars - 2)) Layer1.goldilocks q) calls [] [])
-        (FinalRestoreBreak s1 Φ bar S T s prog authority
+        (FinalRestoreBreak (TerminalClaim s1 Φ bar S authority) T s prog
           (Layer1.layer1Game s1 Φ bar S L0 L1 (2 ^ (s1.setupVars - 2)) Layer1.goldilocks q) Reads) ≤
       calls / 2 ^ t := by
   refine (final_restore_sound s1 Φ bar S L0 L1 _ _ q N sizes cast distinct fits monic degree two T s prog Ls

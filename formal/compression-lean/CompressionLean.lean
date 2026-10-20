@@ -4,3 +4,4 @@ import CompressionLean.Shrink
 import CompressionLean.Replay.Stages
 import CompressionLean.Final
 import CompressionLean.Circuit.Block
+import CompressionLean.Circuit.Record

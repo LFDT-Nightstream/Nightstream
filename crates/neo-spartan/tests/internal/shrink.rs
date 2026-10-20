@@ -410,7 +410,7 @@ fn toy_program_proves_verifies_and_rejects_mutations() {
 }
 
 /// The layer-1 verifier as a shrink program.
-struct Layer1<'a> {
+pub(super) struct Layer1<'a> {
     relation: &'a Relation<'a>,
     seed: [Gl; 4],
     statement: ClaimWords<Gl>,
@@ -418,7 +418,7 @@ struct Layer1<'a> {
 }
 
 impl<'a> Layer1<'a> {
-    fn new(relation: &'a Relation<'a>, seed: [Gl; 4], claim: &Claim, proof: Option<&'a Proof>) -> Self {
+    pub(super) fn new(relation: &'a Relation<'a>, seed: [Gl; 4], claim: &Claim, proof: Option<&'a Proof>) -> Self {
         Self {
             relation,
             seed,

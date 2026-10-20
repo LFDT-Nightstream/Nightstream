@@ -2,10 +2,10 @@ import CompressionLean.Replay.Gkr
 
 /-!
 Owns the WHIR openings as the model idealizes them (`Soundness.lean`,
-`Opens`): the opened values are taken as given, and the transcript of
-`whir::verify` is replayed so that every WHIR draw matches Rust's. The WHIR
-checks themselves (Merkle paths, folds, the final polynomial and the final
-sum-check) are not replayed.
+`Opens`): the opened values (`Opening.evals`) are taken as given, and the
+transcript of `whir::verify` is replayed so that every WHIR draw matches
+Rust's. The WHIR checks themselves (Merkle paths, folds, the final
+polynomial and the final sum-check) are not replayed.
 -/
 
 namespace CompressionLean.Replay
@@ -28,7 +28,7 @@ def whirSumcheck (shape : SumcheckShape) (pairs : Array (Ext × Ext)) : ReplayM 
     observeAll shape.seed
     pairs.toList.forM fun pair => do
       observeExts #[pair.1, pair.2]
-      discard sampleExt
+      let _ ← sampleExt
 
 /-- `draws` query indices: a sample, rejected when it is `p - 1` (`query_index`). -/
 def whirQueries (draws : Nat) : ReplayM Unit :=
@@ -37,30 +37,29 @@ def whirQueries (draws : Nat) : ReplayM Unit :=
     ensure (!(word + 1 == 0)) "WHIR query sample p - 1"
     record (.sample word)
 
-/-- The transcript of one WHIR opening; returns the opened batch values. -/
-def whirTranscript (shape : WhirShape) (o : Opening) : ReplayM (Array (Array Ext)) := do
+/-- The transcript of one WHIR opening. -/
+def whirTranscript (shape : WhirShape) (o : Opening) : ReplayM Unit := do
   o.initialOod.toList.forM fun answer => do
     observeAll shape.virtualSeed
-    discard sampleExt
+    let _ ← sampleExt
     observeExt answer
   (shape.batches.zip o.evals).toList.forM fun pair => do
     observeAll pair.1.seed
     observeExts pair.2
   observeAll shape.whirSeed
   observeAll shape.batchingSeed
-  discard sampleExt
+  let _ ← sampleExt
   whirSumcheck shape.initialSumcheck o.initialSumcheck
   (shape.rounds.zip o.rounds).toList.forM fun pair => do
     observeAll pair.2.root
     pair.2.ood.toList.forM fun answer => do
-      discard sampleExt
+      let _ ← sampleExt
       observeExt answer
     whirQueries pair.1.queryDraws
-    discard sampleExt
+    let _ ← sampleExt
     whirSumcheck pair.1.sumcheck pair.2.sumcheck
   observeExts o.finalPoly
   whirQueries shape.finalQueryDraws
   whirSumcheck shape.finalSumcheck o.finalSumcheck
-  return o.evals
 
 end CompressionLean.Replay

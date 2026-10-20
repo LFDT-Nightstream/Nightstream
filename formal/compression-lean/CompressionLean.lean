@@ -7,3 +7,6 @@ import CompressionLean.Circuit.Block
 import CompressionLean.Circuit.Valid
 import CompressionLean.Circuit.Verifier
 import CompressionLean.Circuit.Terminal
+import CompressionLean.Bridge.Path
+import CompressionLean.Bridge.Run
+import CompressionLean.Bridge.Formulas

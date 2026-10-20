@@ -9,7 +9,8 @@ equal to the extension of its table:
 - `lessThan_eq`: `less_than`, the scan from the top coordinate;
 - `step_eq`: `step`, the telescoping of `less_than` over segments;
 - `mle_chi`: `chi`, one factor per coordinate of `r`, over any commutative
-  ring (the verifier runs it in `K ⊗ Ext`);
+  ring; `chi_split`: in `K ⊗ Ext` its two parts are the extensions of the
+  model's `χ_r` tables (`Statement.chi`);
 - `laneSplit_head`, `laneSplit_tail`: `lane_split`, the head recurrence and
   the tail prefix sums, against the model's `laneSplit` of one slot.
 
@@ -344,5 +345,66 @@ theorem laneSplit_tail {F : Type} [Field F] [Algebra F K] (s : Shape) (S : Setup
   · rw [show S.slotLane σ + S.slotLength σ - s.D = 0 by omega, Finset.sum_range_zero]
 
 end Lanes
+
+section Split
+
+variable {F K : Type} [Field F] [Field K] [Algebra F K]
+
+local notation "ι" => algebraMap F K
+
+/-- `K ⊗ Ext = Ext[u]/(u² - 7)`, the ring of `circuit/algebra.rs::Kx`. -/
+abbrev QuadX (K : Type) [Field K] := QuadraticAlgebra K 7 0
+
+/-- `Kx::from_k`: a `K` value in `K ⊗ Ext`, one coordinate at a time. -/
+def fromK : Quad F →+* QuadX K where
+  toFun z := ⟨ι z.re, ι z.im⟩
+  map_one' := by ext <;> simp [QuadraticAlgebra.re_one, QuadraticAlgebra.im_one]
+  map_mul' z w := by ext <;> simp [show ι 7 = 7 from map_ofNat ι 7]
+  map_zero' := by ext <;> simp
+  map_add' z w := by ext <;> simp
+
+@[simp] theorem fromK_re (z : Quad F) : (fromK (K := K) z).re = ι z.re := rfl
+@[simp] theorem fromK_im (z : Quad F) : (fromK (K := K) z).im = ι z.im := rfl
+
+theorem quadX_re_sum {α : Type} (u : Finset α) (f : α → QuadX K) : (∑ x ∈ u, f x).re = ∑ x ∈ u, (f x).re :=
+  map_sum (QuadraticAlgebra.reₗ (R := K) 7 0) f u
+
+theorem quadX_im_sum {α : Type} (u : Finset α) (f : α → QuadX K) : (∑ x ∈ u, f x).im = ∑ x ∈ u, (f x).im :=
+  map_sum (QuadraticAlgebra.imₗ (R := K) 7 0) f u
+
+theorem eqAt_map {A B : Type} [CommRing A] [CommRing B] (f : A →+* B) (ρ : List A) (i : ℕ) :
+    eqAt (ρ.map f) i = f (eqAt ρ i) := by
+  induction ρ generalizing i with
+  | nil => simp [eqAt]
+  | cons r rest ih =>
+      simp only [List.map_cons, eqAt, ih, map_mul]
+      split_ifs <;> simp
+
+/-- The extension of a `K ⊗ Ext` table at an `Ext` point is the pair of the
+extensions of its parts. -/
+theorem mle_split (p : List K) (T : ℕ → QuadX K) :
+    mle (p.map (algebraMap K (QuadX K))) T = ⟨mle p fun i => (T i).re, mle p fun i => (T i).im⟩ := by
+  rw [mle_eq_cubeSum, mle_eq_cubeSum, mle_eq_cubeSum, List.length_map]
+  have weight : ∀ i, eqAt (p.map (algebraMap K (QuadX K))) i * T i =
+      ⟨eqAt p i * (T i).re, eqAt p i * (T i).im⟩ := by
+    intro i
+    rw [eqAt_map]
+    ext <;> simp [QuadraticAlgebra.algebraMap_eq]
+  simp only [weight]
+  ext
+  · exact map_cubeSum (QuadraticAlgebra.reₗ (R := K) (7 : K) 0).toAddMonoidHom _ _
+  · exact map_cubeSum (QuadraticAlgebra.imₗ (R := K) (7 : K) 0).toAddMonoidHom _ _
+
+/-- `mle.rs::chi` in `K ⊗ Ext`, at `r` and an `Ext` point, is the pair of the
+extensions of the model's `χ_r` tables. -/
+theorem chi_split (st : Statement F) (p : List K) (short : p.length ≤ st.r.length) :
+    chiValue (st.point.map fromK) (p.map (algebraMap K (QuadX K))) =
+      ⟨mle p fun i => ι (st.chi i).1, mle p fun i => ι (st.chi i).2⟩ := by
+  rw [← mle_chi _ _ (by simpa [Statement.point] using short),
+    show eqAt (st.point.map fromK) = fun i => fromK (eqAt st.point i) from funext (eqAt_map (fromK (K := K)) st.point),
+    mle_split]
+  rfl
+
+end Split
 
 end CompressionLean.Layer1

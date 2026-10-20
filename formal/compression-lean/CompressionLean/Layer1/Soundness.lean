@@ -40,7 +40,7 @@ def Opens (s : Shape) (S : Setup F) (q : ℕ → K) {L : ℕ} (tr : Transcript F
     HonestConsistent s S q tr.early tr.linear tr.honest v ∧
     tr.linear.omegaValue = mle tr.linear.blockPoint v.omegaA
 
-instance : Nonempty (Statement F) := ⟨⟨fun _ _ => 0, fun _ _ => 0, fun _ => 0, fun _ => 0, fun _ _ => 0⟩⟩
+instance : Nonempty (Statement F) := ⟨⟨fun _ _ => 0, fun _ _ => 0, [], fun _ => 0, fun _ _ => 0⟩⟩
 
 /-- The layer-1 verifier: the statement, early, linear, honest fold, late, then the openings. -/
 noncomputable def layer1Game (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : Setup F)

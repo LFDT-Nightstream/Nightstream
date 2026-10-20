@@ -75,9 +75,17 @@ import CompressionLean
 #audit_axioms CompressionLean.Layer1.lessThan_eq
 #audit_axioms CompressionLean.Layer1.step_eq
 #audit_axioms CompressionLean.Layer1.mle_chi
+#audit_axioms CompressionLean.Layer1.fromK_re
+#audit_axioms CompressionLean.Layer1.fromK_im
+#audit_axioms CompressionLean.Layer1.quadX_re_sum
+#audit_axioms CompressionLean.Layer1.quadX_im_sum
+#audit_axioms CompressionLean.Layer1.eqAt_map
+#audit_axioms CompressionLean.Layer1.mle_split
+#audit_axioms CompressionLean.Layer1.chi_split
 #audit_axioms CompressionLean.Layer1.laneSplit_head
 #audit_axioms CompressionLean.Layer1.laneSplit_tail
 #audit_axioms CompressionLean.Layer1.evalKValue_eq
 #audit_axioms CompressionLean.Layer1.mle_evalK
+#audit_axioms CompressionLean.Layer1.evalK_split
 #audit_axioms CompressionLean.Layer1.cubic_no_root
 #audit_axioms CompressionLean.Layer1.cubic_irreducible

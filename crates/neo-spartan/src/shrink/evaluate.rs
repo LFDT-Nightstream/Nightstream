@@ -61,6 +61,21 @@ impl<'l> Evaluate<'l> {
         }
     }
 
+    /// Whether every count so far, plus `rows` more glue rows, lies inside
+    /// the shape. Past it an index would leave the eq tables; such a run's
+    /// counts differ from the shape, so `verify` rejects it.
+    fn fits(&self, rows: usize) -> bool {
+        let shape = &self.layout.shape;
+        self.glue_rows + rows <= shape.glue_rows
+            && self.glue_cells <= shape.glue_cells
+            && self.publics.len() <= shape.publics
+            && self
+                .blocks
+                .iter()
+                .zip(&shape.blocks)
+                .all(|(count, limit)| count <= limit)
+    }
+
     fn side(&self, terms: &[Term]) -> Ext {
         terms
             .iter()
@@ -71,11 +86,13 @@ impl<'l> Evaluate<'l> {
 
 impl Sink for Evaluate<'_> {
     fn row(&mut self, products: &[(Vec<Term>, Vec<Term>)], linear: &[Term]) {
-        let mut sum = self.rho[C] * self.side(linear);
-        for (i, (a, b)) in products.iter().enumerate() {
-            sum += self.rho[1 + 2 * i] * self.side(a) + self.rho[2 + 2 * i] * self.side(b);
+        if self.fits(1) {
+            let mut sum = self.rho[C] * self.side(linear);
+            for (i, (a, b)) in products.iter().enumerate() {
+                sum += self.rho[1 + 2 * i] * self.side(a) + self.rho[2 + 2 * i] * self.side(b);
+            }
+            self.total += self.rows.at(self.layout.glue_row(self.glue_rows)) * sum;
         }
-        self.total += self.rows.at(self.layout.glue_row(self.glue_rows)) * sum;
         self.glue_rows += 1;
     }
 
@@ -93,6 +110,10 @@ impl Sink for Evaluate<'_> {
 
     /// One `eq` per column, then the rows in parallel.
     fn r1cs(&mut self, system: &R1cs, columns: &[Form]) {
+        if !self.fits(system.rows()) {
+            self.glue_rows += system.rows();
+            return;
+        }
         let at: Vec<Ext> = columns
             .par_iter()
             .map(|form| form.evaluate(|wire| self.columns.at(self.layout.column(wire))))

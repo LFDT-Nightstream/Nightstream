@@ -323,8 +323,9 @@ The selected profile remains `b = 2`, `k_rho = 16`, `B = 2^16`, with one fresh
 claim and sixteen carried claims. Terminal verification checks all remaining
 openings.
 
-`Prover::finish_with_spartan` compresses an active proof. It runs PiCCS and
-PiRLC once more and stops before PiDEC (SuperNeo Lemma 1). The `neo-spartan`
+`Prover::finish_with_spartan` compresses an active proof on the Optimized or
+Metal engine. It runs PiCCS and PiRLC once more and stops before PiDEC
+(SuperNeo Lemma 1). The `neo-spartan`
 crate then proves the folded CE(B) claim with sum-checks and WHIR (layer 1).
 Last, a shrink layer proves that the final verifier accepts both, with
 SuperSpartan and one WHIR commitment. The final verifier's PiCCS, PiRLC and
@@ -348,8 +349,11 @@ takes about 305 ms. Finishing takes about 48 s on CPU and 30 s on Metal. The
 peak memory footprint of the finish is about 9.3 GB on CPU. On Metal the last
 fold still holds the 8 GB commitment key, so the peak is about 11.7 GB, and
 layer 1 itself stays near 10 GB. These are medians of five runs, with
-`MallocLargeCache=0`, on a loaded machine (2026-10-20). Layer 1 keeps its
-Merkle rows and digest layers and its GKR levels in an unlinked scratch file,
+`MallocLargeCache=0`, on a loaded machine (2026-10-20). Before it returns,
+the finish verifies its own final proof (about 0.4 s more), so a device fault
+fails the call instead of returning a proof that does not verify. Layer 1
+keeps its Merkle rows and digest layers and its GKR levels in an unlinked
+scratch file,
 so it also needs temporary disk space. On Metal the device hashes the WHIR
 Merkle leaves, runs the WHIR DFTs and the GKR rounds, computes the key
 weights one key row at a time and runs the last fold's PiCCS; the proof bytes

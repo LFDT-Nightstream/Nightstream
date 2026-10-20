@@ -374,7 +374,8 @@ program and requires all of Rust's instructions in order. On the toy
 relation the verifier is 651,165 instructions.
 
 Production check. `production_layer1_matches_lean` (same crate, ignored)
-reads the production compression key (`target/compression-setup/key.bin`),
+reads the production compression key (`nightstream`'s committed
+`tests/fixtures/compression/key.bin`),
 records the verifier's shape run (zero statement, no proof) and checks it as
 `layer1` above. It writes `production_layer1.txt` and
 `production_layer1.json`. The verifier is 1,928,933 instructions and
@@ -384,14 +385,14 @@ Digest pins. CI runs no Lean, so Rust pins the run digest that `lowerCheck`
 computes from Lean's lowered program (`runDigest`, `digest` on each `match`
 line): Poseidon2's leaf sponge of the glue cell, block, statement word and
 row counts, then every row's sides as term counts, wires and coefficients.
-`toy_layer1_digest_is_pinned` (CI) and `production_layer1_digest_is_pinned`
-(ignored, needs `key.bin`) record the verifier's shape run in Rust and
+`toy_layer1_digest_is_pinned` and `production_layer1_digest_is_pinned` (both
+CI, the second on the committed key) record the verifier's shape run in Rust and
 require the pinned value, so a change to the program or to `record.rs` that
 changes a row fails them. To update a pin, run its Lean check
 (`lowering_matches_lean` or `production_layer1_matches_lean`), and only when
 it passes copy the `digest` of its `layer1` line into `lowering.rs`.
-`nightstream`'s `terminal_digest_is_pinned` (CI) and
-`final_program_digest_is_pinned` (ignored) pin the final program the same way,
+`nightstream`'s `terminal_digest_is_pinned` and
+`final_program_digest_is_pinned` (both CI) pin the final program the same way,
 up to layer 1 and whole: run `terminal_program_matches_lean` or
 `final_program_matches_lean`, and only when it passes copy the `digest` of its
 `match` line into `terminal_ir.rs`.

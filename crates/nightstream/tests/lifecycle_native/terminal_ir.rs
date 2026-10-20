@@ -16,10 +16,11 @@
 //! for that key (`production_layer1.json`, from `neo-spartan`'s
 //! `production_layer1_matches_lean`).
 //!
-//! `terminal_digest_is_pinned` (CI) and `final_program_digest_is_pinned`
-//! record the same two runs with `neo_spartan::shrink::run_digest` and
-//! require the digests that `terminalCheck` prints, so a change to the
-//! wrapper, `load` or `apply` that changes a row fails without Lean.
+//! `terminal_digest_is_pinned` and `final_program_digest_is_pinned` (both in
+//! CI, the second on the committed production key) record the same two runs
+//! with `neo_spartan::shrink::run_digest` and require the digests that
+//! `terminalCheck` prints, so a change to the wrapper, `load` or `apply` that
+//! changes a row fails without Lean.
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -200,8 +201,9 @@ fn state() -> Stage1State {
     Stage1State::new(3, [5, 7, 11, 13].map(F::from_u64), [17, 19, 23, 29].map(F::from_u64))
 }
 
+/// The committed production key (`tests/fixtures/compression/key.bin`).
 fn production_key() -> CompressionKey {
-    let bytes = std::fs::read(workspace().join("target/compression-setup/key.bin")).unwrap();
+    let bytes = std::fs::read(workspace().join("crates/nightstream/tests/fixtures/compression/key.bin")).unwrap();
     CompressionKey::from_bytes(&bytes).unwrap()
 }
 
@@ -260,7 +262,6 @@ fn terminal_digest_is_pinned() {
 }
 
 #[test]
-#[ignore = "needs the production compression key, target/compression-setup/key.bin"]
 fn final_program_digest_is_pinned() {
     let key = production_key();
     let relation = key.relation().unwrap();
@@ -352,8 +353,8 @@ fn terminal_check(name: &str, out: &str, args: &[PathBuf]) {
 /// `FinalProgram::run`, terminal and layer 1, against Lean's `finalProgram`
 /// with `verifyWith`.
 #[test]
-#[ignore = "needs target/compression-setup/key.bin, the production_layer1.json of neo-spartan's \
-            production_layer1_matches_lean, and lake build terminalCheck in formal/compression-lean"]
+#[ignore = "needs the production_layer1.json of neo-spartan's production_layer1_matches_lean, \
+            and lake build terminalCheck in formal/compression-lean"]
 fn final_program_matches_lean() {
     let key = production_key();
     let relation = key.relation().unwrap();

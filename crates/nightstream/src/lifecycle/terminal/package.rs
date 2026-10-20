@@ -27,6 +27,12 @@ use p3_field::PrimeField64;
 use super::super::inputs::{STATE_CONTEXT_START, STATE_DOMAIN_CHUNK, STATE_STATEMENT_WORDS};
 
 const ARTIFACT: &[u8] = include_bytes!("../../../artifacts/compression-terminal-v1.json");
+// Without its Git LFS object, the file is the pointer text: fail the build,
+// not every verification.
+const _: () = assert!(
+    !ARTIFACT.is_empty() && ARTIFACT[0] == b'[',
+    "compression-terminal-v1.json is not the package: run `git lfs pull`"
+);
 
 /// The identifier of the embedded artifact.
 pub(crate) const IDENTIFIER: [u64; 4] = [

@@ -410,6 +410,44 @@ fn toy_program_proves_verifies_and_rejects_mutations() {
     ));
 }
 
+/// The toy's key and statement with no checks: a smaller shape.
+struct Short(Toy);
+
+impl Program for Short {
+    fn statement(&self) -> Vec<u64> {
+        self.0.statement()
+    }
+
+    fn key(&self) -> Vec<u64> {
+        self.0.key()
+    }
+
+    fn run<B: Backend>(&self, b: &mut B) -> Result<(), crate::Error> {
+        for word in self.statement() {
+            b.public(word);
+        }
+        Ok(())
+    }
+}
+
+/// A shape smaller than the program's run, as in a stale pinned key: the
+/// verifier rejects at the count check instead of indexing past its eq
+/// tables.
+#[test]
+fn verify_rejects_a_run_past_the_shape() {
+    let short = Short(Toy::honest(17, 4).1);
+    let shrink = shrink_of(&short);
+    let proof = prove(&shrink, &short, &Accelerator::cpu()).unwrap();
+    verify(&shrink, &short, &proof).unwrap();
+    let (_, toy) = Toy::honest(17, 4);
+    assert!(matches!(
+        verify(&shrink, &toy, &proof),
+        Err(crate::Error::Rejected(
+            "the program's shape run differs from the shrink shape"
+        ))
+    ));
+}
+
 /// The layer-1 verifier as a shrink program.
 pub(super) struct Layer1<'a> {
     relation: &'a Relation<'a>,

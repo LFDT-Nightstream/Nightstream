@@ -501,12 +501,12 @@ fn lower_check(name: &str, path: &Path, program: &[PathBuf]) {
 }
 
 /// The layer-1 key, PiRLC's bound and the layer bits of the production
-/// compression key (`target/compression-setup/key.bin`, written by
-/// `nightstream`'s `poseidon_compression_setup_matches_the_derived_key`).
+/// compression key (`nightstream`'s committed
+/// `tests/fixtures/compression/key.bin`).
 /// The file is the bincode of `CompressionKey` (`finish.rs`): these three,
 /// the context and the shrink shape.
 fn production_key() -> (Key, u32, f64) {
-    let path = workspace().join("target/compression-setup/key.bin");
+    let path = workspace().join("crates/nightstream/tests/fixtures/compression/key.bin");
     let bytes = std::fs::read(&path).unwrap_or_else(|error| panic!("{}: {error}", path.display()));
     let fields: (Key, [u64; 4], u32, f64, Shape) = bincode::deserialize(&bytes).unwrap();
     assert!(
@@ -550,7 +550,6 @@ fn toy_layer1_digest_is_pinned() {
 }
 
 #[test]
-#[ignore = "needs the production compression key, target/compression-setup/key.bin"]
 fn production_layer1_digest_is_pinned() {
     let (key, bound, bits) = production_key();
     let relation = production_relation(&key, bound, bits);
@@ -562,7 +561,7 @@ fn production_layer1_digest_is_pinned() {
 /// `final_program_matches_lean` also reads), then `lowerCheck` with Lean's
 /// `layer1` program.
 #[test]
-#[ignore = "needs target/compression-setup/key.bin and the Lean check: lake build lowerCheck in formal/compression-lean"]
+#[ignore = "needs the Lean check: lake build lowerCheck in formal/compression-lean"]
 fn production_layer1_matches_lean() {
     let (key, bound, bits) = production_key();
     let relation = production_relation(&key, bound, bits);

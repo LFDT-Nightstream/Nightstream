@@ -39,7 +39,7 @@ use crate::circuit::record::{Form, Recorder, Trace, Wire};
 use crate::circuit::{Backend, Native};
 use crate::device::Accelerator;
 use crate::field::Gl;
-use crate::hash::seed;
+use crate::hash::{absorb, seed, squeeze};
 use crate::pcs::Pcs;
 use crate::shrink::{Program, Shape};
 use crate::{prove, Error, Key, Relation};
@@ -301,13 +301,44 @@ fn layer1_input(relation: &Relation<'_>) -> String {
     )
 }
 
-fn wire(out: &mut String, wire: Wire) {
-    match wire {
-        Wire::Glue(cell) => write!(out, " 0 {cell}"),
-        Wire::Block(_, block, cell) => write!(out, " 1 {block} {cell}"),
-        Wire::Public(index) => write!(out, " 2 {index}"),
+/// Row `r`'s seven sides, each as its term count and, per term, the wire
+/// (`0 cell`, `1 block cell` or `2 index`) and the coefficient.
+fn row_words(trace: &Trace, r: usize) -> Vec<u64> {
+    let offsets = trace.rows[r];
+    let mut words = Vec::new();
+    for side in 0..7 {
+        let terms = &trace.entries[offsets[side] as usize..offsets[side + 1] as usize];
+        words.push(terms.len() as u64);
+        for &(name, coefficient) in terms {
+            match name {
+                Wire::Glue(cell) => words.extend([0, u64::from(cell)]),
+                Wire::Block(_, block, cell) => words.extend([1, u64::from(block), u64::from(cell)]),
+                Wire::Public(index) => words.extend([2, u64::from(index)]),
+            }
+            words.push(coefficient.as_canonical_u64());
+        }
     }
-    .unwrap();
+    words
+}
+
+/// The run digest (`runDigest` in `Circuit/Check.lean`): the Poseidon2 leaf
+/// sponge (`hash_leaf`) of the glue cell, block, statement word and row
+/// counts, then every row's words. Statement and cell values are not part of
+/// it, so every run of one program has one digest.
+fn run_digest(trace: &Trace) -> [u64; 4] {
+    let counts = [
+        trace.glue.len(),
+        trace.count(Kind::Permutation),
+        trace.public.len(),
+        trace.rows.len(),
+    ];
+    let mut state = [Gl::ZERO; WIDTH];
+    let mut at = absorb(&mut state, 0, &counts.map(Gl::from_usize));
+    for r in 0..trace.rows.len() {
+        let words: Vec<Gl> = row_words(trace, r).into_iter().map(Gl::from_u64).collect();
+        at = absorb(&mut state, at, &words);
+    }
+    squeeze(&mut state, at).map(|word| word.as_canonical_u64())
 }
 
 /// The statement, the IR, then the trace: its counts, its statement words and
@@ -331,14 +362,9 @@ fn export_text(statement: &[u64], ir: &str, trace: &Trace) -> String {
         write!(out, " {}", word.as_canonical_u64()).unwrap();
     }
     writeln!(out, "\nrows {}", trace.rows.len()).unwrap();
-    for offsets in &trace.rows {
-        for side in 0..7 {
-            let terms = &trace.entries[offsets[side] as usize..offsets[side + 1] as usize];
-            write!(out, " {}", terms.len()).unwrap();
-            for &(name, coefficient) in terms {
-                wire(&mut out, name);
-                write!(out, " {}", coefficient.as_canonical_u64()).unwrap();
-            }
+    for r in 0..trace.rows.len() {
+        for word in row_words(trace, r) {
+            write!(out, " {word}").unwrap();
         }
         writeln!(out).unwrap();
     }
@@ -536,6 +562,45 @@ fn production_key() -> (Key, u32, f64) {
 /// `PI_CCS_V1_2_ROUND_COUNT`).
 fn production_relation(key: &Key, bound: u32, bits: f64) -> Relation<'_> {
     Relation::new(key, 270 / D, 28, bound, bits).unwrap()
+}
+
+fn record(program: &impl Program) -> Trace {
+    let mut recorder = Recorder::new(Trace::default());
+    program.run(&mut recorder).unwrap();
+    recorder.finish().0
+}
+
+/// The run digest of the layer-1 verifier's shape run, as `lowerCheck`
+/// computes it from Lean's program (`digest` on its `layer1` line). Update a
+/// pin only after its Lean check passes, from that line: the toy's in
+/// `lowering_matches_lean`, the production one in
+/// `production_layer1_matches_lean`.
+const TOY_LAYER1_DIGEST: [u64; 4] = [
+    458324187185090560,
+    16247591410920104884,
+    15972692791106074973,
+    17533094710872430588,
+];
+const PRODUCTION_LAYER1_DIGEST: [u64; 4] = [
+    14759964186554044085,
+    14010013228992140379,
+    13362137549864309408,
+    12845729127227193231,
+];
+
+#[test]
+fn toy_layer1_digest_is_pinned() {
+    let (toy, setup, _scratch) = setup_toy(8, 4, 6);
+    let relation = relation_of(&toy, setup.key());
+    assert_eq!(run_digest(&record(&Layer1::shape(&relation))), TOY_LAYER1_DIGEST);
+}
+
+#[test]
+#[ignore = "needs the production compression key, target/compression-setup/key.bin"]
+fn production_layer1_digest_is_pinned() {
+    let (key, bound, bits) = production_key();
+    let relation = production_relation(&key, bound, bits);
+    assert_eq!(run_digest(&record(&Layer1::shape(&relation))), PRODUCTION_LAYER1_DIGEST);
 }
 
 /// The layer-1 verifier on the production key: its shape run's export, the

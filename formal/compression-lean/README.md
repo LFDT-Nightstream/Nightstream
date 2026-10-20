@@ -349,6 +349,17 @@ records the verifier's shape run (zero statement, no proof) and checks it as
 `production_layer1.json`. The verifier is 1,928,933 instructions and
 1,280,147 rows; the test takes about 12 s and 1.7 GB.
 
+Digest pins. CI runs no Lean, so Rust pins the run digest that `lowerCheck`
+computes from Lean's lowered program (`runDigest`, `digest` on each `match`
+line): Poseidon2's leaf sponge of the glue cell, block, statement word and
+row counts, then every row's sides as term counts, wires and coefficients.
+`toy_layer1_digest_is_pinned` (CI) and `production_layer1_digest_is_pinned`
+(ignored, needs `key.bin`) record the verifier's shape run in Rust and
+require the pinned value, so a change to the program or to `record.rs` that
+changes a row fails them. To update a pin, run its Lean check
+(`lowering_matches_lean` or `production_layer1_matches_lean`), and only when
+it passes copy the `digest` of its `layer1` line into `lowering.rs`.
+
 ## Terminal program
 
 `Circuit/Terminal.lean` writes the final program up to layer 1 as a builder

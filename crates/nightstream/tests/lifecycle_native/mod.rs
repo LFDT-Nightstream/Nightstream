@@ -543,4 +543,5 @@ mod recursive;
 mod state_encoding;
 
 mod staged;
+mod terminal_ir;
 mod terminal_sweep;

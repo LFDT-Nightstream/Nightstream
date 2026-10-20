@@ -1,0 +1,404 @@
+//! The Lean lowering (`formal/compression-lean`, `Circuit/Record.lean`)
+//! against `record.rs` on real program runs.
+//!
+//! `Log` forwards every `Backend` call to a `Recorder<Trace>` and logs it as
+//! one instruction over value handles (`Circuit/Ir.lean`). Handle `v` is the
+//! `v`-th value of the run; each instruction appends its outputs in order.
+//! `add`, `sub` and `scale` log `linear`. `select`, the extension sums and
+//! scales and the default assertions log the calls that `record.rs` makes
+//! for them. The test writes each program's statement, IR and trace to
+//! `target/lean-lowering/<program>.txt`, runs `lowerCheck` on the file, and
+//! requires the lowered run to equal the trace: every row with its seven
+//! sides in order, the glue cells, the blocks and the statement words.
+
+use std::fmt::Write as _;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
+use p3_field_v08::{PrimeCharacteristicRing, PrimeField64};
+
+use super::layer1::{relation_of, setup_toy, transcript};
+use super::shrink::Layer1;
+use crate::circuit::block::Kind;
+use crate::circuit::r1cs::R1cs;
+use crate::circuit::record::{Form, Recorder, Trace, Wire};
+use crate::circuit::Backend;
+use crate::device::Accelerator;
+use crate::field::Gl;
+use crate::hash::seed;
+use crate::shrink::Program;
+use crate::{prove, Error};
+
+/// A recorded value and its handle.
+#[derive(Clone, Copy)]
+struct Value {
+    form: Form,
+    handle: u32,
+}
+
+/// `Recorder<Trace>` with every call logged as an instruction.
+struct Log {
+    recorder: Recorder<Trace>,
+    ir: String,
+    values: u32,
+}
+
+impl Log {
+    fn new() -> Self {
+        Self {
+            recorder: Recorder::new(Trace::default()),
+            ir: String::new(),
+            values: 0,
+        }
+    }
+
+    /// Log one instruction and hand out the handles of its outputs.
+    fn emit(&mut self, instruction: String, forms: &[Form]) -> Vec<Value> {
+        self.ir.push_str(&instruction);
+        self.ir.push('\n');
+        forms
+            .iter()
+            .map(|&form| {
+                self.values += 1;
+                Value {
+                    form,
+                    handle: self.values - 1,
+                }
+            })
+            .collect()
+    }
+
+    fn one(&mut self, instruction: String, form: Form) -> Value {
+        self.emit(instruction, &[form])[0]
+    }
+
+    fn linear(&mut self, parts: &[(Value, Gl)], form: Form) -> Value {
+        let mut line = format!("l {}", parts.len());
+        for (value, weight) in parts {
+            write!(line, " {} {}", value.handle, weight.as_canonical_u64()).unwrap();
+        }
+        self.one(line, form)
+    }
+}
+
+fn handles(values: &[Value]) -> String {
+    values
+        .iter()
+        .map(|value| format!(" {}", value.handle))
+        .collect()
+}
+
+fn three(values: Vec<Value>) -> [Value; 3] {
+    [values[0], values[1], values[2]]
+}
+
+impl Backend for Log {
+    type F = Value;
+    type E = [Value; 3];
+
+    fn constant(&mut self, value: u64) -> Value {
+        let form = self.recorder.constant(value);
+        self.one(format!("c {}", Gl::from_u64(value).as_canonical_u64()), form)
+    }
+
+    fn private(&mut self, value: u64) -> Value {
+        let form = self.recorder.private(value);
+        self.one("p".to_string(), form)
+    }
+
+    fn public(&mut self, value: u64) -> Value {
+        let form = self.recorder.public(value);
+        self.one("u".to_string(), form)
+    }
+
+    fn add(&mut self, a: Value, b: Value) -> Value {
+        let form = self.recorder.add(a.form, b.form);
+        self.linear(&[(a, Gl::ONE), (b, Gl::ONE)], form)
+    }
+
+    fn sub(&mut self, a: Value, b: Value) -> Value {
+        let form = self.recorder.sub(a.form, b.form);
+        self.linear(&[(a, Gl::ONE), (b, -Gl::ONE)], form)
+    }
+
+    fn scale(&mut self, a: Value, by: u64) -> Value {
+        let form = self.recorder.scale(a.form, by);
+        self.linear(&[(a, Gl::from_u64(by))], form)
+    }
+
+    fn mul(&mut self, a: Value, b: Value) -> Value {
+        let form = self.recorder.mul(a.form, b.form);
+        self.one(format!("m {} {}", a.handle, b.handle), form)
+    }
+
+    fn ext(&mut self, coordinates: [Value; 3]) -> [Value; 3] {
+        coordinates
+    }
+
+    fn coordinates(&mut self, a: [Value; 3]) -> [Value; 3] {
+        a
+    }
+
+    fn ext_constant(&mut self, value: [u64; 3]) -> [Value; 3] {
+        value.map(|word| self.constant(word))
+    }
+
+    fn ext_add(&mut self, a: [Value; 3], b: [Value; 3]) -> [Value; 3] {
+        std::array::from_fn(|i| self.add(a[i], b[i]))
+    }
+
+    fn ext_sub(&mut self, a: [Value; 3], b: [Value; 3]) -> [Value; 3] {
+        std::array::from_fn(|i| self.sub(a[i], b[i]))
+    }
+
+    fn ext_mul(&mut self, a: [Value; 3], b: [Value; 3]) -> [Value; 3] {
+        let product = self
+            .recorder
+            .ext_mul(a.map(|value| value.form), b.map(|value| value.form));
+        three(self.emit(format!("x{}{}", handles(&a), handles(&b)), &product))
+    }
+
+    fn ext_scale(&mut self, a: [Value; 3], by: Value) -> [Value; 3] {
+        std::array::from_fn(|i| self.mul(a[i], by))
+    }
+
+    fn ext_inverse(&mut self, a: [Value; 3], what: &'static str) -> Result<[Value; 3], Error> {
+        let inverse = self.recorder.ext_inverse(a.map(|value| value.form), what)?;
+        Ok(three(self.emit(format!("i{}", handles(&a)), &inverse)))
+    }
+
+    fn assert_zero(&mut self, a: Value, what: &'static str) -> Result<(), Error> {
+        self.recorder.assert_zero(a.form, what)?;
+        self.emit(format!("z {}", a.handle), &[]);
+        Ok(())
+    }
+
+    fn bits(&mut self, a: Value, count: usize, what: &'static str) -> Result<Vec<Value>, Error> {
+        let bits = self.recorder.bits(a.form, count, what)?;
+        Ok(self.emit(format!("b {} {count}", a.handle), &bits))
+    }
+
+    fn select(&mut self, bit: Value, zero: Value, one: Value) -> Value {
+        let difference = self.sub(one, zero);
+        let chosen = self.mul(bit, difference);
+        self.add(zero, chosen)
+    }
+
+    fn permute(&mut self, state: [Value; WIDTH]) -> [Value; WIDTH] {
+        let outputs = self.recorder.permute(state.map(|value| value.form));
+        let outputs = self.emit(format!("q{}", handles(&state)), &outputs);
+        std::array::from_fn(|lane| outputs[lane])
+    }
+
+    fn hint(&mut self, inputs: &[Value], len: usize, compute: &dyn Fn(&[u64]) -> Vec<u64>) -> Vec<Value> {
+        let inputs: Vec<Form> = inputs.iter().map(|value| value.form).collect();
+        let outputs = self.recorder.hint(&inputs, len, compute);
+        self.emit(format!("h {len}"), &outputs)
+    }
+
+    fn r1cs(&mut self, system: &R1cs, columns: &[Value], what: &'static str) -> Result<(), Error> {
+        let forms: Vec<Form> = columns.iter().map(|value| value.form).collect();
+        self.recorder.r1cs(system, &forms, what)?;
+        let mut line = format!("r {} {}{}", system.rows(), columns.len(), handles(columns));
+        for row in 0..system.rows() {
+            for (columns, coefficients) in system.sides(row) {
+                write!(line, " {}", columns.len()).unwrap();
+                for (column, coefficient) in columns.iter().zip(coefficients) {
+                    write!(line, " {column} {}", coefficient.as_canonical_u64()).unwrap();
+                }
+            }
+        }
+        self.emit(line, &[]);
+        Ok(())
+    }
+}
+
+/// Every branch of `record.rs`: merged, cancelled, zero-weight and long
+/// forms; constant sides of products; extension products by and from
+/// constants; a folded, a recorded and a failing constant inverse; a skipped
+/// and a failing constant assertion; short and 64-bit splits; a selection; a
+/// hint; a fixed R1CS system over forms with constants; and a permutation of
+/// mixed lanes. Some checks fail: the rows do not depend on that.
+struct Edges;
+
+impl Program for Edges {
+    fn statement(&self) -> Vec<u64> {
+        vec![7, 11]
+    }
+
+    fn key(&self) -> Vec<u64> {
+        Vec::new()
+    }
+
+    fn run<B: Backend>(&self, b: &mut B) -> Result<(), Error> {
+        let t = b.public(7);
+        let t2 = b.public(11);
+        let s = b.private(5);
+        let u = b.private(3);
+        let w = b.private(9);
+        let zero = b.constant(0);
+        let two = b.constant(2);
+        let double = b.add(s, s);
+        let sum = b.add(s, u);
+        let sum = b.add(sum, t);
+        let four = b.add(sum, t2);
+        let shifted = b.add(four, two);
+        let five = b.add(shifted, w);
+        let cancelled = b.sub(four, s);
+        let scaled = b.scale(cancelled, 3);
+        let vanished = b.scale(double, 0);
+        let left = b.mul(two, s);
+        let right = b.mul(scaled, two);
+        let constant = b.mul(two, two);
+        let product = b.mul(shifted, five);
+        let e = b.ext([s, shifted, product]);
+        let c = b.ext_constant([3, 0, 1]);
+        let by_constant = b.ext_mul(c, e);
+        let from_constant = b.ext_mul(e, c);
+        let both = b.ext_mul(e, by_constant);
+        let folded = b.ext_inverse(c, "constant inverse")?;
+        let probe = b.ext_mul(folded, e);
+        b.assert_ext_zero(probe, "probe")?;
+        let inverse = b.ext_inverse(e, "inverse")?;
+        let sum3 = b.ext_add(e, inverse);
+        let difference3 = b.ext_sub(sum3, from_constant);
+        let scaled3 = b.ext_scale(difference3, u);
+        let zero3 = b.ext_constant([0, 0, 0]);
+        b.ext_inverse(zero3, "zero inverse")?;
+        b.assert_zero(zero, "zero constant")?;
+        b.assert_zero(two, "nonzero constant")?;
+        b.assert_zero(vanished, "vanished")?;
+        b.assert_equal(left, right, "difference")?;
+        b.assert_equal(constant, two, "constants")?;
+        let low = b.bits(s, 8, "short split")?;
+        let all = b.bits(five, 64, "full split")?;
+        let chosen = b.select(low[0], u, w);
+        let hinted = b.hint(&[s], 2, &|values| vec![values[0] + 1, 9]);
+        let mut system = R1cs::new(4);
+        system.push(&[(0, 1)], &[(0, 1)], &[(1, 1)]);
+        system.push(&[(2, 3), (3, 1), (2, 1)], &[(2, 1)], &[(3, 5)]);
+        b.r1cs(&system, &[s, product, two, shifted], "system")?;
+        let [_, _, scaled3] = b.coordinates(scaled3);
+        let [_, both, _] = b.coordinates(both);
+        let mut state = [zero; WIDTH];
+        let lanes = [chosen, two, shifted, hinted[0], all[63], scaled3, both, five];
+        state[..lanes.len()].copy_from_slice(&lanes);
+        let digest = b.permute(state);
+        b.assert_equal(digest[0], t, "digest")?;
+        Ok(())
+    }
+}
+
+fn wire(out: &mut String, wire: Wire) {
+    match wire {
+        Wire::Glue(cell) => write!(out, " 0 {cell}"),
+        Wire::Block(_, block, cell) => write!(out, " 1 {block} {cell}"),
+        Wire::Public(index) => write!(out, " 2 {index}"),
+    }
+    .unwrap();
+}
+
+/// The statement, the IR, then the trace: its counts, its statement words and
+/// every row as seven sides of `(wire, coefficient)` terms.
+fn export_text(statement: &[u64], ir: &str, trace: &Trace) -> String {
+    let mut out = format!("statement {}", statement.len());
+    for word in statement {
+        write!(out, " {word}").unwrap();
+    }
+    writeln!(out).unwrap();
+    out.push_str(ir);
+    writeln!(
+        out,
+        "end\ncells {} blocks {} publics {}",
+        trace.glue.len(),
+        trace.count(Kind::Permutation),
+        trace.public.len()
+    )
+    .unwrap();
+    for word in &trace.public {
+        write!(out, " {}", word.as_canonical_u64()).unwrap();
+    }
+    writeln!(out, "\nrows {}", trace.rows.len()).unwrap();
+    for offsets in &trace.rows {
+        for side in 0..7 {
+            let terms = &trace.entries[offsets[side] as usize..offsets[side + 1] as usize];
+            write!(out, " {}", terms.len()).unwrap();
+            for &(name, coefficient) in terms {
+                wire(&mut out, name);
+                write!(out, " {}", coefficient.as_canonical_u64()).unwrap();
+            }
+        }
+        writeln!(out).unwrap();
+    }
+    out
+}
+
+/// Record `program` with and without the log, require one trace, and write
+/// the export.
+fn export(name: &str, program: &impl Program) -> PathBuf {
+    let mut plain = Recorder::new(Trace::default());
+    let plain_ok = program.run(&mut plain).is_ok();
+    let mut log = Log::new();
+    let logged_ok = program.run(&mut log).is_ok();
+    let (trace, failure) = log.recorder.finish();
+    let (plain, plain_failure) = plain.finish();
+    assert_eq!(logged_ok, plain_ok, "{name}: one verdict");
+    assert_eq!(failure, plain_failure, "{name}: one failed check");
+    assert!(trace == plain, "{name}: the log leaves the trace unchanged");
+    let text = export_text(&program.statement(), &log.ir, &trace);
+    let dir = workspace().join("target/lean-lowering");
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join(format!("{name}.txt"));
+    std::fs::write(&path, &text).unwrap();
+    eprintln!(
+        "{name}: {} values, {} glue cells, {} blocks, {} rows, {} entries, {} bytes, first failed check {failure:?}",
+        log.values,
+        trace.glue.len(),
+        trace.count(Kind::Permutation),
+        trace.rows.len(),
+        trace.entries.len(),
+        text.len()
+    );
+    path
+}
+
+fn workspace() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
+}
+
+#[test]
+#[ignore = "needs the Lean check: lake build lowerCheck in formal/compression-lean"]
+fn lowering_matches_lean() {
+    let (toy, setup, _scratch) = setup_toy(8, 4, 6);
+    let relation = relation_of(&toy, setup.key());
+    let proof = prove(
+        &relation,
+        &setup,
+        &Accelerator::cpu(),
+        transcript(1),
+        &toy.claim,
+        &toy.witness,
+    )
+    .unwrap();
+    let layer1 = Layer1::new(&relation, seed(transcript(1)), &toy.claim, Some(&proof));
+    let exports = [
+        ("edges", export("edges", &Edges)),
+        ("layer1", export("layer1", &layer1)),
+    ];
+    let check = workspace().join("formal/compression-lean/.lake/build/bin/lowerCheck");
+    assert!(
+        check.exists(),
+        "wrote target/lean-lowering; build the check with `lake build lowerCheck` in formal/compression-lean"
+    );
+    for (name, path) in exports {
+        let output = Command::new(&check).arg(&path).output().unwrap();
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        eprintln!("{name}: {}", stdout.trim_end());
+        assert!(
+            output.status.success(),
+            "{name}: {stdout}{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}

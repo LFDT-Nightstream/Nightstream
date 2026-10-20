@@ -25,3 +25,8 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 name = "replayLayer1"
 root = "CompressionLean.Replay.Main"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "lowerCheck"
+root = "CompressionLean.Circuit.Check"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }

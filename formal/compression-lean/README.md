@@ -207,6 +207,32 @@ The chain takes these premises:
   field `K`. The terminal's Goldilocks words enter `F` by `Nat.cast`.
 - Each layer's assumptions, as listed above.
 
+## Lowering
+
+`Circuit/` is the first step toward `ProgramEncodes`. A program is Lean
+data, and Lean lowers it to the shrink run as `record.rs` does.
+
+- Model (`Ir.lean`): a program is a flat list of instructions over value
+  handles (`Instr`). An instruction is one `Backend` call that `record.rs`
+  lowers by itself. Handle `v` is the `v`-th value of the run. The program
+  cannot read a value, so no instruction depends on one. `Build` writes the
+  list.
+- Lowering (`Record.lean`): `lower` is a port of `record.rs`. It merges terms
+  in Rust's order, keeps a form of at most four terms, folds constants, and
+  numbers the glue cells, blocks, statement words and rows as Rust does. It
+  computes in a field `F`.
+- `select` lowers to `whenZero + bit·(whenOne - whenZero)`, as `record.rs`
+  records it. `Native::select` branches. The two agree when `bit` is 0 or 1.
+
+The lowering assumes, and does not prove:
+
+- Port: that `lower` equals `record.rs` on every program. The check below
+  compares the two on two runs.
+- Fields: the check runs `lower` in Goldilocks. In another field, the zero
+  tests of constant folding can differ from Rust's.
+- Encoding: that a witness of a lowered run's CCS gives an accepting run of
+  the program.
+
 Build and emit (each Lean command under the 1,500 s cap). Copy the F′ build
 cache into `.lake` first (`cp -cR ../nightstream-fprime/.lake/packages .lake/`)
 so that Lake does not rebuild Mathlib.
@@ -229,3 +255,14 @@ opened values as `Opens` does. Build it with
 tampered variants to `target/lean-replay/layer1.json`, and requires the
 replay to draw the same challenges and give the same verdict as Rust. When
 Rust rejects inside WHIR, the replay must reject later.
+
+Lowering check. Build it with
+`timeout --signal=KILL 1500 lake build lowerCheck`, then run
+`cargo test --release -p neo-spartan --lib lowering_matches_lean -- --ignored`
+under the 5-minute cap. The test records two programs through `record.rs`
+and logs each `Backend` call as an instruction: `Edges`, which takes every
+branch of `record.rs`, and the toy layer-1 verifier of
+`layer1_verifier_shrinks`. It writes the statement, the IR and Rust's trace
+to `target/lean-lowering/<program>.txt`. `lowerCheck` lowers the IR and
+requires the same glue cells, blocks, statement words and rows, side by side
+and term by term.

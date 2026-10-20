@@ -214,3 +214,8 @@ import CompressionLean
 
 #audit_axioms CompressionLean.Circuit.Block.poseidonTemplate_wellFormed
 #audit_axioms CompressionLean.Circuit.Block.block_sound
+
+/-! Axiom gate for the lowering of shrink programs. -/
+
+#audit_axioms CompressionLean.Shrink.expandArray_eq
+#audit_axioms CompressionLean.Shrink.Call.computedRows_eq

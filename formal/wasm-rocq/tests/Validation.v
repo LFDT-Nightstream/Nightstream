@@ -44,7 +44,7 @@ Proof.
   - repeat constructor.
 Qed.
 
-Require Import FunctionValidation SpecTecCalls ProgramSpec ProgramValidation
+Require Import FunctionValidation SpecTecCalls ProgramSpec
   CallerValidation CallerSpec tests.Calls tests.Callers tests.Programs.
 
 (* Validation must reject a type table that disagrees with the instantiated

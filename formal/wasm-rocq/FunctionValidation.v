@@ -21,20 +21,9 @@ Lemma label_context_locals : forall results C,
   context_LOCALS (labelContext results C) = context_LOCALS C.
 Proof. reflexivity. Qed.
 
-Lemma label_context_label : forall results C,
-  nth_error (LABELS (labelContext results C)) 0 = Some (mk_list _ results).
-Proof. reflexivity. Qed.
-
-Lemma label_context_wf : forall results C, wf_context C -> wf_context (labelContext results C).
-Proof. intros results C H. inversion H; subst. constructor; assumption. Qed.
-
 Lemma module_context_locals : forall s m C,
   Moduleinst_ok s m C -> context_LOCALS C = [].
 Proof. intros s m C H; inversion H; reflexivity. Qed.
-
-Lemma module_context_wf : forall s m C,
-  Moduleinst_ok s m C -> wf_context C.
-Proof. intros s m C H; inversion H; assumption. Qed.
 
 Lemma function_context_locals : forall C m ti p r l body,
   context_LOCALS C = [] ->
@@ -43,12 +32,6 @@ Proof.
   intros. cbn [functionContext i32Function funcinst_TYPE CODE _append_context context_LOCALS].
   rewrite map_map. change ((repeat valtype_I32 p ++ map (fun x : valtype => x) (repeat valtype_I32 l)) ++ context_LOCALS C = repeat valtype_I32 (p + l)).
   rewrite map_id, H, app_nil_r, repeat_app. reflexivity.
-Qed.
-
-Lemma function_context_wf : forall C f, wf_context C -> wf_context (functionContext C f).
-Proof.
-  intros C [ [ [params] [results]] m [ti locals body]] H.
-  inversion H; constructor; assumption.
 Qed.
 
 (* Func_ok types the body in exactly functionContext, from an empty stack to the results. *)

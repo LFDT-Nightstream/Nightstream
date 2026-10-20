@@ -80,27 +80,3 @@ Proof.
               rewrite (local_writes_in_row w Hparam Hzero HgatherLocal), HlocalWrite; reflexivity ] ] ] ]
     end.
 Qed.
-
-Lemma block_memory_preserved : forall initial final w chosen,
-  fieldPrime -> FullRelation.satFull w ->
-  (chosen = COL_SEL_BLOCK \/ chosen = COL_SEL_END) -> w chosen = 1 ->
-  w COL_CALL_STACK_POP_PRESENT = 0 -> w COL_HALTED = 0 ->
-  Replay initial (eventsForRow memories w) final ->
-  (forall values, stackMatches initial (beforeBoundary w) values -> stackMatches final (afterBoundary w) values) /\
-  (forall z, localsMatch initial (beforeBoundary w) z -> localsMatch final (afterBoundary w) z).
-Proof.
-  intros initial final w chosen Hprime Hfull Hkind Hchosen Hpop Hhalt Hreplay.
-  destruct (full_block_context w chosen Hprime Hfull Hkind Hchosen Hpop Hhalt)
-    as [Hsp [Hbase [Hfbp [Hdepth [Hlo [Hhi Hlocals]]]]]].
-  assert (Hstack : forall address, final stackId address = initial stackId address).
-  { intro address. eapply replay_preserves; [exact Hreplay | ].
-    apply stack_writes_inactive; assumption. }
-  split.
-  - intros values Hvalues. unfold stackMatches in *.
-    cbn [beforeBoundary afterBoundary boundarySP boundaryStackBase] in *.
-    rewrite Hsp, Hbase. destruct Hvalues as [Hb [Hs [Hv Hcells]]].
-    repeat split; try assumption. intros index value Hlookup. rewrite Hstack. now apply Hcells.
-  - intros z Hz. eapply (locals_match_preserved initial final (beforeBoundary w) (afterBoundary w) z);
-      [exact Hfbp | | exact Hz].
-    eapply no_local_writes_preserve; eassumption.
-Qed.

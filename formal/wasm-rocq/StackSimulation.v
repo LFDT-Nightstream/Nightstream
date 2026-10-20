@@ -5,34 +5,6 @@ Require Import R1CS Columns FullRelation Range MemoryTrace MemoryCatalog
 Import ListNotations.
 Open Scope Z_scope.
 
-Lemma instruction_stack_height_delta : forall instruction before after,
-  instructionStackHeight instruction before = Some after ->
-  instructionStackDelta instruction = Some (Z.of_nat after - Z.of_nat before).
-Proof.
-  intros instruction before after Hheight.
-  destruct instruction; cbn [instructionStackHeight instructionStackDelta] in *; try discriminate;
-    repeat match goal with
-    | x : numtype |- _ => destruct x; try discriminate
-    | x : binop_ |- _ => destruct x; try discriminate
-    | x : Inn |- _ => destruct x; try discriminate
-    | x : binop_Inn |- _ => destruct x; try discriminate
-    end;
-    destruct before as [ | [ | before]]; cbn in Hheight; try discriminate;
-    inversion Hheight; subst; f_equal; lia.
-Qed.
-
-Lemma program_typed_binary : forall localCount height op rest,
-  programTyped localCount height (BINOP I32 op :: rest) ->
-  match height with S (S remaining) => programTyped localCount (S remaining) rest | _ => False end.
-Proof.
-  intros localCount height op rest Htyped.
-  destruct op; repeat match goal with
-    | x : Inn |- _ => destruct x
-    | x : binop_Inn |- _ => destruct x
-    end; cbn [programTyped instructionStackHeight] in Htyped; try contradiction;
-    destruct height as [ | [ | remaining]]; exact Htyped.
-Qed.
-
 Lemma follows_boundary : forall previous next,
   Follows MemoryCatalog.continuityLinks previous next ->
   afterBoundary previous = beforeBoundary next.
@@ -62,10 +34,6 @@ Proof.
     + rewrite (stack_matches_height _ _ _ Hs). exact Ht.
     + exists values. auto.
 Qed.
-
-Lemma represents_wf : forall z memory boundary code c,
-  represents z memory boundary code c -> wf_config c.
-Proof. intros z memory boundary code c [values [_ [_ [Hwf _]]]]. exact Hwf. Qed.
 
 Lemma stack_matches_binary_step : forall w initial final prefix a b,
   BinaryStackShape w ->

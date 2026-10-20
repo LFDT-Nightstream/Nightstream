@@ -91,7 +91,7 @@ Definition zeroFrame := MKframe [i32Value 0] nestedModule.
 (* readZero runs inside relay's FRAME_/LABEL_, itself inside top's. *)
 Example nested_suspended_calls_decode :
   option_map fst (decodeControl nestedProgram nestedStore 0
-    (controlShape [sourcePosition 1 0; sourcePosition 2 0] (siteInstruction (sourcePosition 0 0)))
+    (controlShape [codePosition 1 [] 0; codePosition 2 [] 0] (siteCode (codePosition 0 [] 0)))
     nestedMemory (mkBoundary 0 4 4 9 2 0 0 0 0)) =
   Some (mk_config (mk_state nestedStore zeroFrame)
     [FRAME_ 1%N zeroFrame [LABEL_ 1%N [] [FRAME_ 1%N zeroFrame [LABEL_ 1%N []
@@ -100,18 +100,12 @@ Proof. vm_compute. reflexivity. Qed.
 
 (* The start of top: the theorem's premise holds for a nested program. *)
 Example nested_initial_config :
-  CircuitConfig nestedProgram nestedStore 0 (controlShape [] (siteInstruction (sourcePosition 2 0)))
+  CircuitConfig nestedProgram nestedStore 0 (controlShape [] (siteCode (codePosition 2 [] 0)))
     nestedMemory (mkBoundary 4 4 4 7 0 0 0 0 0)
     (mk_config (mk_state nestedStore zeroFrame) [admininstr_instr (CALL (mk_uN 1))]).
 Proof.
-  split; [reflexivity | ]. split; [repeat constructor | ].
-  exists (validatedCode nestedProgram (nestedGuest 2 [CALL (mk_uN 1)] 4) (mk_state nestedStore zeroFrame) 0
-    [CALL (mk_uN 1)]).
-  split; [vm_compute; reflexivity | ].
-  split; [exact nested_program_validated | ]. split.
-  - constructor; [ | constructor].
-    apply supported_call with (f := nestedGuest 1 [CALL (mk_uN 0)] 2); [reflexivity | cbn; lia | cbn; lia].
-  - exists nestedContext. split; [exact nested_module_validates | exact (nested_call_validates 1 ltac:(lia))].
+  split; [reflexivity | ]. split; [repeat constructor | ]. split; [exact nested_program_validated | ].
+  exists True. split; [vm_compute; reflexivity | exact I].
 Qed.
 
 (* Any run of top's rows refines SpecTec, through both nested calls and back. *)

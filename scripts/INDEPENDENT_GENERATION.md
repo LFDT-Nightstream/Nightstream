@@ -8,9 +8,9 @@ the same ones used by the maintained prover.
 
 **The complete author-run sequence passed:** both independent Lean folds, both
 fresh successors and iteration-four terminal acceptance and rejection checks.
-The second fold uses the exact first Lean successor. See the
-[execution index](../docs/reviews/pirlc-sampler-replacement/INDEPENDENT_EXECUTION.json)
-and [implementation report](../docs/reviews/pirlc-sampler-replacement/REPORT.md).
+The second fold uses the exact first Lean successor. See the execution index
+and the implementation report in `docs/reviews/pirlc-sampler-replacement` at
+commit `f7e093d8f`.
 Independent review remains pending.
 
 The selected trace starts with the nonzero iteration-2 bootstrap, generates

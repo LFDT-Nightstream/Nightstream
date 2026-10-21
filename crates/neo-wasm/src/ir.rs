@@ -660,22 +660,34 @@ pub struct WasmVmStep {
     pub host_event_exit_schedule_count: Option<u32>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum WasmBuildError {
+    #[error(transparent)]
+    Program(#[from] WasmProgramError),
+    #[error("{0}")]
     Trace(String),
+    #[error("{0}")]
     Unsupported(String),
+    #[error("{0}")]
     StateMismatch(String),
 }
 
-impl core::fmt::Display for WasmBuildError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::Trace(msg) | Self::Unsupported(msg) | Self::StateMismatch(msg) => f.write_str(msg),
-        }
-    }
+/// Failure to extract static program artifacts, independent of execution.
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+pub enum WasmProgramError {
+    #[error("{0}")]
+    Invalid(String),
+    #[error("{0}")]
+    Unsupported(String),
+    #[error(
+        "unsupported wasm operator {operator} in defined function {defined_function_index} at byte offset {byte_offset}"
+    )]
+    UnsupportedOpcode {
+        operator: String,
+        defined_function_index: u32,
+        byte_offset: u32,
+    },
 }
-
-impl std::error::Error for WasmBuildError {}
 
 pub fn boundary_states(trace: &[WasmVmStep]) -> Vec<(WasmBoundaryState, WasmBoundaryState)> {
     trace

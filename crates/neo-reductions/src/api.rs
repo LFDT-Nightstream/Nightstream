@@ -33,7 +33,6 @@ pub(crate) use validation::{
 // Re-export types that are part of the public API
 pub use crate::engines::optimized_engine::PiCcsProof;
 
-// Re-export common utilities for convenience (single import path for users)
 pub use crate::common::{
     compute_v1_2_evaluations_from_z_and_r,
     left_mul_acc,

@@ -1,8 +1,5 @@
-//! Internal engine modules used by the public facade.
-//!
-//! This keeps the external API stable while allowing multiple
-//! prover/verification backends (optimized, paper-exact, and
-//! an optional cross-checking wrapper used during development).
+//! Internal engine modules used by the public facade: the optimized and
+//! paper-exact prover/verifier backends and the cross-checking wrapper.
 
 #![allow(non_snake_case)]
 

@@ -4,7 +4,7 @@ The owner approved this assumption on 2026-09-08 with the six conditions below. 
 
 ## Status after the SHAKE128 expander change (2026-09-29)
 
-The approval below covers the matrix of `nightstream-ajtai-chacha20-wide256-v1`. The package now uses `nightstream-ajtai-shake128-wide256-v1` ([decision](../../../decisions/fprime-ajtai-shake128-setup.md)). As the section on seed independence states, this approval does not cover a changed expansion. The decision records the replacement premises: SHAKE128 as a random oracle and MSIS for a uniform matrix. [`SECURITY_ARGUMENT.md`](../ajtai-key-expander/SECURITY_ARGUMENT.md) gives the reduction; Lean proves its ideal-model steps (`production_binding_lt_solver`, error below `2^-190`). Both premises stay explicit, and no external review has checked the argument.
+The approval below covers the matrix of `nightstream-ajtai-chacha20-wide256-v1`. The package now uses `nightstream-ajtai-shake128-wide256-v1` ([decision](fprime-ajtai-shake128-setup.md)). As the section on seed independence states, this approval does not cover a changed expansion. The decision records the replacement premises: SHAKE128 as a random oracle and MSIS for a uniform matrix. [The security argument](fprime-ajtai-shake128-security-argument.md) gives the reduction; Lean proves its ideal-model steps (`production_binding_lt_solver`, error below `2^-190`). Both premises stay explicit, and no external review has checked the argument.
 
 ## Exact selected setup
 
@@ -47,7 +47,7 @@ The verifier must pin or allowlist the expected package identity from its own co
 
 ## Security estimates and final claim
 
-Do not inherit SuperNeo's concrete MSIS estimate for uniform matrices. `FOUNDATION_SECURITY_PARAMETERS.json` records only named generic lattice-cost model calculations. These are not a reduction from this fixed matrix to a uniform matrix, an indistinguishability proof, or a production security certificate.
+Do not inherit SuperNeo's concrete MSIS estimate for uniform matrices. `FOUNDATION_SECURITY_PARAMETERS.json` (in `docs/reviews/nightstream-fprime-requirements` at commit `f7e093d8f`) records only named generic lattice-cost model calculations. These are not a reduction from this fixed matrix to a uniform matrix, an indistinguishability proof, or a production security certificate.
 
 The final Stage 1 security claim must say:
 

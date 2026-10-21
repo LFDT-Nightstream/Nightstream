@@ -15,7 +15,7 @@ import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Binding
 
 /-!
 Owns the ideal-model programming step of the SHAKE128 setup argument
-(`docs/reviews/ajtai-key-expander/SECURITY_ARGUMENT.md`, section 5).
+(`decisions/fprime-ajtai-shake128-security-argument.md`, section 5).
 
 Each key coefficient is one 32-byte SHAKE128 output chunk, read as an integer
 below `2 ^ 256` and reduced modulo the Goldilocks prime (`verifierKey_eq`).

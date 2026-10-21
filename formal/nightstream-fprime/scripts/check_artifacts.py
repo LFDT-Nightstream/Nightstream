@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+"""Check that each artifact directory's SHA256SUMS matches its JSON files, and that
+every tracked copy of an artifact elsewhere is a symbolic link to it. It does not
+regenerate an artifact or decide whether a digest change is valid."""
 
 import hashlib
 import os

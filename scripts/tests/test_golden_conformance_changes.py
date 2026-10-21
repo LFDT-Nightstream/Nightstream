@@ -83,6 +83,7 @@ class GoldenConformanceChangesTests(unittest.TestCase):
     def test_removed_legacy_paths_do_not_select_supported_checks(self):
         for path in ("crates/neo-fold-legacy/src/lib.rs",
                      "crates/neo-fold-legacy/tests/preprocessing_read_only.md",
+                     "crates/neo-reductions/tests-paper-exact/mod.rs",
                      "scripts/check_selected_replay.py", "scripts/bridge_first_second.py"):
             with self.subTest(path=path):
                 self.assertEqual(checks_for_path(path), ())

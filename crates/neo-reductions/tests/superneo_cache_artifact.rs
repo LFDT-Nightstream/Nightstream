@@ -2,6 +2,7 @@ use std::io::Cursor;
 
 use neo_ccs::{CcsMatrix, CcsStructure, CscMat, GeometricRowRun, SparsePoly};
 use neo_math::{KExtensions, D, F, K};
+use neo_reductions::engines::utils::digest_ccs_matrices;
 use neo_reductions::superneo_eval::{
     build_superneo_eval_cache, eval_all_mats_cached, SuperneoCacheArtifactLimits, SuperneoCacheArtifactReceipt,
 };
@@ -81,6 +82,43 @@ fn compact_cache_artifact_roundtrip_preserves_every_evaluator_result() {
         .expect("rewrite compact cache artifact");
     assert_eq!(rewritten_receipt, receipt);
     assert_eq!(rewritten, bytes);
+}
+
+#[test]
+fn compact_cache_artifact_preserves_a_rectangular_partial_final_ring() {
+    let logical_columns = D + 1;
+    let padded_columns = 2 * D;
+    let matrix = CcsMatrix::Csc(CscMat::from_triplets(
+        vec![(0, 0, F::ONE), (1, D, -F::ONE)],
+        2,
+        logical_columns,
+    ));
+    let structure = CcsStructure::new_sparse(vec![matrix], SparsePoly::new(1, vec![])).expect("rectangular relation");
+    let cache = build_superneo_eval_cache(&structure).expect("padded SuperNeo cache");
+    let matrix_digest = digest_ccs_matrices(&structure)
+        .try_into()
+        .expect("matrix digest words");
+    let mut bytes = Vec::new();
+    let receipt = cache
+        .write_artifact(&mut bytes, matrix_digest)
+        .expect("write cache");
+    let loaded = neo_reductions::superneo_eval::SuperneoEvalCache::read_artifact(
+        Cursor::new(bytes),
+        &receipt,
+        SuperneoCacheArtifactLimits::new(receipt.artifact_bytes(), structure.n, padded_columns, structure.t()),
+    )
+    .expect("load rectangular cache with distinct row and column limits");
+    assert_eq!(loaded.relation_shape(), Some((2, padded_columns, 1)));
+
+    let mut assignment = (0..logical_columns)
+        .map(|column| K::from(F::from_u64(column as u64 + 1)))
+        .collect::<Vec<_>>();
+    assignment.resize(padded_columns, K::ZERO);
+    assert_eq!(
+        eval_all_mats_cached(&loaded, &assignment, &[K::ONE, K::ONE], structure.n),
+        vec![-K::from(F::from_u64(D as u64))],
+        "the loaded cache preserves logical entries and zero padding",
+    );
 }
 
 #[test]

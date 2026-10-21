@@ -1,4 +1,5 @@
-use neo_ajtai::util::{to_balanced_i128, to_balanced_i64};
+use neo_ajtai::util::to_balanced_i64;
+use neo_math::balanced::to_balanced_i128;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks as F;
 

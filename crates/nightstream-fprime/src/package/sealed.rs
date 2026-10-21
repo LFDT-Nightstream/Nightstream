@@ -469,31 +469,6 @@ impl LoadedPerApplicationPackage {
         )
     }
 
-    /// Visit the same linear maps without expanding retained-field coordinates.
-    /// Coefficients from overlapping runs add.
-    pub fn visit_matrix_runs(
-        &self,
-        rows: Range<usize>,
-        mut visit: impl FnMut(usize, [Vec<MatrixRun>; MATRIX_COUNT]) -> Result<(), PackageError>,
-    ) -> Result<(), PackageError> {
-        if rows.start > rows.end || rows.end > self.row_count() {
-            return Err(PackageError::Invalid("logical matrix row range"));
-        }
-        self.matrix_program.visit_rows(
-            self.logical_column_count(),
-            rows.start,
-            rows.end,
-            &|source| self.circuit.source_row(source),
-            |ordinal, forms| {
-                let mut forms = forms.into_iter();
-                visit(
-                    ordinal,
-                    std::array::from_fn(|_| forms.next().map_or_else(Vec::new, |form| form.into_terms())),
-                )
-            },
-        )
-    }
-
     /// Stop after the visitor accepts a complete prefix of original matrix rows.
     pub fn visit_matrix_runs_until(
         &self,
@@ -540,14 +515,6 @@ pub fn load_per_application_package(
         });
     }
 
-    decode_per_application_value(value, computed)
-}
-
-/// Prepare caller-owned circuit data and recompute its complete structural
-/// identity. This does not authorize a circuit supplied by a prover. A verifier
-/// must retain the result of its own circuit preparation as its expected circuit.
-pub fn load_prepared_application_value(value: Value) -> Result<LoadedPerApplicationPackage, PackageError> {
-    let computed = relation_identifier(&value)?;
     decode_per_application_value(value, computed)
 }
 

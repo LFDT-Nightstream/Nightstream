@@ -152,10 +152,6 @@ pub fn is_superneo_compatible_shape(cols: usize) -> bool {
     cols > 0
 }
 
-pub fn should_enable_superneo_cache_default<Ff>(s: &CcsStructure<Ff>, _b: u32) -> bool {
-    is_superneo_compatible_shape(s.m) && !s.matrices.is_empty()
-}
-
 pub fn eval_all_mats_transformed(s_bar: &CcsStructure<F>, z: &[K], chi_r: &[K], n_eff: usize) -> Vec<K> {
     let mut out = Vec::with_capacity(s_bar.matrices.len());
     for m in &s_bar.matrices {

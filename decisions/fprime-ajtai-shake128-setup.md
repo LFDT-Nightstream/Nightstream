@@ -11,7 +11,7 @@ The seed is public, so anyone can compute the key. Pseudorandomness of the
 expander under a secret key therefore gives no security argument for the
 commitment. The previous premise was MSIS hardness for one fixed
 ChaCha20-generated matrix
-([`PUBLIC_SEED_MSIS_ASSUMPTION.md`](../docs/reviews/nightstream-fprime-requirements/PUBLIC_SEED_MSIS_ASSUMPTION.md)).
+([public-seed MSIS assumption](fprime-ajtai-public-seed-msis-assumption.md)).
 We found no published argument for ChaCha20 as a public-matrix expander.
 
 ## SuperNeo
@@ -45,7 +45,7 @@ It also uses the wide-reduction bound and low-norm invertibility, which Lean
 proves.
 
 The reduction from these premises to binding of the expanded key is
-[`SECURITY_ARGUMENT.md`](../docs/reviews/ajtai-key-expander/SECURITY_ARGUMENT.md).
+[the security argument](fprime-ajtai-shake128-security-argument.md).
 Lean proves its ideal-model steps (`production_binding_lt_solver`). The
 premises stay external, and no external review has checked the argument. The
 seed-and-domain policy questions in that document stay open.

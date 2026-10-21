@@ -69,7 +69,8 @@ commitment authority.
 The linked files have one copy in Git. The archive excludes private witness
 matrices; fresh conformance separately compares complete physical witnesses.
 See [the workflow](../../../../scripts/GOLDEN_CONFORMANCE.md) and
-[the replacement report](../../../../docs/reviews/pirlc-sampler-replacement/REPORT.md).
+the replacement report, `docs/reviews/pirlc-sampler-replacement/REPORT.md` at
+commit `f7e093d8f`.
 
 The selected verifier blueprint has one package copy under `artifacts`, shared
 by assembly and lifecycle tests. These test-only saved outputs are never read

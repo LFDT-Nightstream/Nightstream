@@ -7,11 +7,10 @@
 
 use crate::engines::utils::digest_ccs_matrices;
 use crate::error::PiCcsError;
-use crate::superneo_eval::{build_superneo_eval_cache, SuperneoEvalCache, VerifiedSuperneoCacheArtifact};
+use crate::superneo_eval::{build_superneo_eval_cache, SuperneoEvalCache};
 use neo_ccs::CcsStructure;
 use neo_math::F;
 use neo_math::K;
-use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
 use std::sync::Arc;
 
@@ -21,7 +20,6 @@ pub(crate) mod paper_joint;
 mod prefix;
 mod prove;
 mod rlc;
-mod sparse;
 mod verify;
 
 // Re-export commonly used items
@@ -30,9 +28,7 @@ pub use crate::engines::pi_ccs_protocol::{Challenges, PiCcsProof};
 pub use paper_joint::prove_with_complete_oracle as optimized_prove_with_complete_oracle;
 pub use paper_joint::prove_with_matrix_rows as optimized_prove_with_matrix_rows;
 pub use paper_joint::prove_with_row_cache as optimized_prove_with_row_cache;
-pub use paper_joint::prove_with_row_cache_and_backend as optimized_prove_with_row_cache_and_backend;
 pub use paper_joint::{PaperJointOracleBackend, PaperJointOracleInput};
-pub use sparse::{CscMat, SparseCache};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct PiCcsProvePerf {
@@ -64,22 +60,16 @@ pub struct PiCcsVerifyPerf {
     pub total_ms: f64,
 }
 
-pub use common::{
-    dec_reduction_optimized, dec_reduction_optimized_with_digit_flags, dec_reduction_optimized_with_superneo_cache,
-};
+pub use common::{dec_reduction_optimized, dec_reduction_optimized_with_digit_flags};
 pub use rlc::{
     rlc_combine_claims, rlc_mix_witnesses, rlc_reduction_optimized, rlc_reduction_optimized_with_commit_mix,
     rlc_reduction_optimized_with_mixers,
 };
 // The normal optimized interface implements SuperNeo v1.2 PiCCS.
 pub use prove::optimized_prove as pi_ccs_prove;
-pub use prove::optimized_prove_with_cache;
 pub use prove::optimized_prove_with_cache_and_perf;
-pub use prove::optimized_prove_with_cache_and_precompute_and_backend_and_perf;
 pub use prove::optimized_prove_with_cache_and_precompute_and_perf;
 pub use verify::optimized_verify as pi_ccs_verify;
-pub use verify::optimized_verify_with_cache;
-pub use verify::optimized_verify_with_cache_and_perf;
 pub use verify::optimized_verify_with_trace;
 
 /// Canonical oracle types exposed only for the independent PaperExact audit
@@ -91,67 +81,15 @@ pub mod canonical_audit {
 
 #[derive(Clone)]
 pub struct OptimizedStructureCache {
-    sparse: Arc<SparseCache<F>>,
     superneo: Arc<SuperneoEvalCache>,
     matrix_digest: [Goldilocks; 4],
     /// Shape fingerprint of the source structure: `(n, m, t)`.
-    /// Full cache validation also uses shared ownership or the matrix digest.
+    /// Full cache validation also checks the matrix digest.
     shape: (usize, usize, usize),
-    authority: CacheAuthority,
-}
-
-#[derive(Clone, Copy)]
-enum CacheAuthority {
-    DerivedStructure,
-    VerifierArtifact,
 }
 
 impl OptimizedStructureCache {
     pub fn build(s: &CcsStructure<F>) -> Result<Self, PiCcsError> {
-        Self::build_with_sparse(s, Arc::new(SparseCache::build(s)))
-    }
-
-    pub fn build_shared(structure: Arc<CcsStructure<F>>) -> Result<Self, PiCcsError> {
-        let sparse = Arc::new(SparseCache::from_shared_structure(Arc::clone(&structure)));
-        Self::build_with_sparse(structure.as_ref(), sparse)
-    }
-
-    /// Install a bounded cache artifact selected by verifier-owned profile
-    /// metadata. The artifact matrices are the authority. `structure` supplies
-    /// the matching polynomial and dimensions until the full relation artifact
-    /// owns those small values too.
-    pub fn from_verified_artifact(
-        structure: Arc<CcsStructure<F>>,
-        artifact: VerifiedSuperneoCacheArtifact,
-    ) -> Result<Self, PiCcsError> {
-        let (superneo, receipt) = artifact.into_parts();
-        let expected_shape = (structure.n, structure.m, structure.t());
-        let expected_cache_shape = (
-            structure.n,
-            crate::common::superneo_carrier_width(structure.m),
-            structure.t(),
-        );
-        if superneo.relation_shape() != Some(expected_cache_shape) || receipt.matrix_count() != structure.t() {
-            return Err(PiCcsError::InvalidInput(
-                "compact cache artifact shape does not match the selected CCS header".into(),
-            ));
-        }
-        let matrix_digest = receipt.matrix_digest().map(Goldilocks::from_u64);
-        Ok(Self {
-            sparse: Arc::new(SparseCache::from_shared_structure(structure)),
-            superneo: Arc::new(superneo),
-            matrix_digest,
-            shape: expected_shape,
-            authority: CacheAuthority::VerifierArtifact,
-        })
-    }
-
-    #[doc(hidden)]
-    pub fn shares_storage_with(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.sparse, &other.sparse) && Arc::ptr_eq(&self.superneo, &other.superneo)
-    }
-
-    fn build_with_sparse(s: &CcsStructure<F>, sparse: Arc<SparseCache<F>>) -> Result<Self, PiCcsError> {
         #[cfg(feature = "perf-timers")]
         let t_total = std::time::Instant::now();
         #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
@@ -235,30 +173,14 @@ impl OptimizedStructureCache {
             t_total.elapsed()
         );
         Ok(Self {
-            sparse,
             superneo: Arc::new(superneo),
             matrix_digest,
             shape: (s.n, s.m, s.matrices.len()),
-            authority: CacheAuthority::DerivedStructure,
         })
-    }
-
-    pub fn sparse(&self) -> &SparseCache<F> {
-        self.sparse.as_ref()
     }
 
     pub fn superneo(&self) -> &SuperneoEvalCache {
         self.superneo.as_ref()
-    }
-
-    /// Shared handles for constructing oracles outside this crate (e.g.
-    /// accelerator backends building an `OptimizedOracle` for snapshots).
-    pub fn sparse_arc(&self) -> Arc<SparseCache<F>> {
-        self.sparse.clone()
-    }
-
-    pub fn superneo_arc(&self) -> Arc<SuperneoEvalCache> {
-        self.superneo.clone()
     }
 
     pub fn matrix_digest(&self) -> &[Goldilocks; 4] {
@@ -267,21 +189,13 @@ impl OptimizedStructureCache {
 
     /// Check that this cache belongs to the selected CCS structure.
     ///
-    /// A shared cache owns the same immutable `Arc` as production
-    /// preprocessing, so pointer identity is sufficient and constant-time.
-    /// Standalone caches recompute the canonical digest to keep the public
+    /// The canonical matrix digest is recomputed to keep the public
     /// low-level API safe against same-shape cache substitution.
     pub fn validate_structure(&self, structure: &CcsStructure<F>) -> Result<(), PiCcsError> {
         if self.shape != (structure.n, structure.m, structure.t()) {
             return Err(PiCcsError::InvalidInput(
                 "optimized structure cache shape does not match the selected CCS structure".into(),
             ));
-        }
-        if matches!(self.authority, CacheAuthority::VerifierArtifact) {
-            return Ok(());
-        }
-        if self.sparse.shares_structure(structure) {
-            return Ok(());
         }
         let digest: [Goldilocks; 4] =
             digest_ccs_matrices(structure)
@@ -298,12 +212,5 @@ impl OptimizedStructureCache {
             ));
         }
         Ok(())
-    }
-
-    /// `(n, m, t)` of the structure this cache was built from. Used as
-    /// a cheap pre-digest fingerprint when validating that the cache
-    /// still matches its owning `Structure`.
-    pub fn shape(&self) -> (usize, usize, usize) {
-        self.shape
     }
 }

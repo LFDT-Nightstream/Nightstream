@@ -8,7 +8,6 @@ profile-xctrace-sym.trace
 profile-xctrace-user.trace
 profile-xctrace-user-sym.trace
 dist
-demos/ios-demo/TestingWasm.xcodeproj/project.xcworkspace/xcuserdata/nicolasarqueros.xcuserdatad/UserInterfaceState.xcuserstate
 profile-xctrace-poseidon.trace
 formal/*-lean/.lake
 /formal/nightstream-fprime/.lake/
@@ -56,7 +55,6 @@ profile-xctrace.txt
 !**/Artifacts/**
 
 # Contract checks import local Python modules. Their bytecode is not source.
-protocol-contract/__pycache__/
 nightstream-fprime-source.zip
 FPRIME_LEAN_ARCHITECTURE_SPEC.md
 FPRIME_STAGE1_EXTERNAL_FABLE_REVIEW.md

@@ -5,7 +5,7 @@ import NightstreamFPrime.Export.Stage1.PerApplicationSecurity
 for the selected setup, not SuperNeo's uniform-matrix assumption. This
 package freezes `productionSeed`; its assumption concerns that specific
 matrix. No uniform-setup estimate is inherited. The complete premise is in
-`docs/reviews/nightstream-fprime-requirements/PUBLIC_SEED_MSIS_ASSUMPTION.md`.
+`decisions/fprime-ajtai-public-seed-msis-assumption.md`.
 
 This theorem identifies the verifier-selected setup from its expected package
 identity, or exposes a named Poseidon2 collision. A prover-supplied expected

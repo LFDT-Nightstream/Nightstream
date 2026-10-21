@@ -33,21 +33,6 @@ where
     dec_reduction_optimized_inner(s, params, parent, Z_split, ell_d, None, None, None, None)
 }
 
-pub fn dec_reduction_optimized_with_superneo_cache<Ff>(
-    s: &CcsStructure<Ff>,
-    params: &NeoParams,
-    parent: &CeClaim<Cmt, Ff, K>,
-    Z_split: &[Mat<Ff>],
-    ell_d: usize,
-    cache: &crate::superneo_eval::SuperneoEvalCache,
-) -> (Vec<CeClaim<Cmt, Ff, K>>, bool, bool)
-where
-    Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
-    K: From<Ff>,
-{
-    dec_reduction_optimized_inner(s, params, parent, Z_split, ell_d, Some(cache), None, None, None)
-}
-
 pub fn dec_reduction_optimized_with_digit_flags<Ff>(
     s: &CcsStructure<Ff>,
     params: &NeoParams,
@@ -223,7 +208,6 @@ where
     (children, eval_k_ok && eval_a_ok, x_ok)
 }
 
-#[allow(clippy::too_many_arguments)]
 fn streamed_application_rows<Ff>(
     s: &CcsStructure<Ff>,
     Z_split: &[Mat<Ff>],

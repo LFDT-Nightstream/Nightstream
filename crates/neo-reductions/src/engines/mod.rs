@@ -1,8 +1,6 @@
-//! Internal engine modules used by the public facade.
-//!
-//! This keeps the external API stable while allowing multiple
-//! prover/verification backends (optimized, paper-exact, and
-//! an optional cross-checking wrapper used during development).
+//! Π_CCS, Π_RLC, and Π_DEC engines. Owns the optimized and paper-exact
+//! backends, the cross-checking wrapper, and the shared protocol and receipt
+//! modules.
 
 #![allow(non_snake_case)]
 

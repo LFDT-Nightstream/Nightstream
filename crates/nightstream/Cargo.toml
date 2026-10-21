@@ -4,7 +4,7 @@ edition = { workspace = true }
 version = { workspace = true }
 authors = { workspace = true }
 license = "Apache-2.0"
-include = ["/src/**", "/tests/**", "/artifacts/**", "/README.md", "/VALIDATION.md"]
+include = ["/src/**", "/tests/**", "/artifacts/**", "/README.md"]
 
 [lints]
 workspace = true

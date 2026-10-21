@@ -27,7 +27,7 @@ fn sparseish_matrix(rows: usize, cols: usize, seed: u64) -> Mat<F> {
     let mut m = Mat::zero(rows, cols, F::ZERO);
     for r in 0..rows {
         for c in 0..cols {
-            if ((r as u64 * 17) + (c as u64 * 13) + seed) % 37 == 0 {
+            if ((r as u64 * 17) + (c as u64 * 13) + seed).is_multiple_of(37) {
                 m[(r, c)] = F::from_u64(((r + 3 * c + (seed as usize % 19)) % 23 + 1) as u64);
             }
         }

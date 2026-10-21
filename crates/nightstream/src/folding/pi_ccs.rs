@@ -1,4 +1,4 @@
-//! Selected PiCCS validation and shared native proving. Copied from neo-fold-clean.
+//! Selected PiCCS validation and shared native proving.
 use super::{
     has_canonical_evaluations, kernels as engine, superneo_has_canonical_x_shape, transcript::Transcript, CcsClaim,
     CcsWitness, CeClaim, Params, RunningInstance, Structure,

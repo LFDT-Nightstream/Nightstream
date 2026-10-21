@@ -137,7 +137,7 @@ fn original_first_round_inner_norm_matches_lean() {
         "the completion check requires the complete carrier"
     );
     assert_eq!(D % 2, 0, "adjacent pairs stay within complete carrier blocks");
-    assert!(BLOCKS * D <= 1usize << ROUNDS, "selected carrier fits the Boolean cube");
+    const { assert!(BLOCKS * D <= 1usize << ROUNDS, "selected carrier fits the Boolean cube") };
     let alpha = alpha_words
         .into_iter()
         .map(field)

@@ -647,15 +647,6 @@ impl CsrMatrix {
         }
         row_ptrs[dense.rows] = col_indices.len();
 
-        #[cfg(feature = "neo-logs")]
-        tracing::info!(
-            "CSR conversion: {}×{} → {} non-zeros ({:.1}% density)",
-            dense.rows,
-            dense.cols,
-            values.len(),
-            100.0 * values.len() as f64 / (dense.rows * dense.cols) as f64
-        );
-
         Self {
             rows: dense.rows,
             cols: dense.cols,

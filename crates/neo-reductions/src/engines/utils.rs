@@ -5,10 +5,8 @@
 #![allow(non_snake_case)]
 
 use crate::error::PiCcsError;
-use neo_ajtai::Commitment as Cmt;
-use neo_ccs::{CcsClaim, CcsMatrix, CcsStructure, CeClaim};
-use neo_math::{D, K};
-use neo_params::NeoParams;
+use neo_ccs::{CcsMatrix, CcsStructure, CeClaim};
+use neo_math::K;
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::{Goldilocks, Poseidon2Goldilocks};
 use p3_symmetric::Permutation;
@@ -53,66 +51,6 @@ where
     }
 
     Ok(Some(r0))
-}
-
-/// Validate MCS-output `X` content against public `x` under SuperNeo packed semantics.
-///
-/// CE carries projected input ring slots. Public field `x[c]` must occupy row
-/// `c % D` in ring-slot column `c / D`; other lanes in those slots are owned by
-/// `L_in(z)` and may be non-zero after ring-linear folding.
-pub fn validate_mcs_output_x_recomposition<Ff>(
-    _params: &NeoParams,
-    ccs_m: usize,
-    mcs_list: &[CcsClaim<Cmt, Ff>],
-    me_outputs: &[CeClaim<Cmt, Ff, K>],
-) -> Result<(), PiCcsError>
-where
-    Ff: Field + PrimeCharacteristicRing + Copy,
-{
-    if ccs_m == 0 {
-        return Err(PiCcsError::InvalidInput("CCS width m must be > 0".into()));
-    }
-    for (idx, inst) in mcs_list.iter().enumerate() {
-        let out = me_outputs.get(idx).ok_or_else(|| {
-            PiCcsError::ProtocolError(format!(
-                "missing me_outputs entry for mcs_list index {} (|me_outputs|={})",
-                idx,
-                me_outputs.len()
-            ))
-        })?;
-
-        if inst.m_in % D != 0 || inst.x.len() != inst.m_in {
-            return Err(PiCcsError::InvalidInput(format!(
-                "mcs_list[{idx}] must contain whole degree-{D} ring elements and x.len()={} must equal m_in={}",
-                inst.x.len(),
-                inst.m_in
-            )));
-        }
-        let expected_x_cols = neo_ccs::superneo_public_x_cols(inst.m_in);
-        if out.m_in != inst.m_in || out.X.rows() != D || out.X.cols() != expected_x_cols {
-            return Err(PiCcsError::ProtocolError(format!(
-                "me_outputs[{idx}] has m_in={} and X shape {}x{}, expected m_in={} and {D}x{}",
-                out.m_in,
-                out.X.rows(),
-                out.X.cols(),
-                inst.m_in,
-                expected_x_cols
-            )));
-        }
-
-        for c in 0..inst.m_in {
-            let lane = c % D;
-            let column = c / D;
-            let got = out.X[(lane, column)];
-            if got != inst.x[c] {
-                return Err(PiCcsError::ProtocolError(format!(
-                    "me_outputs[{idx}].X lane {lane} at ring column {column} does not match mcs_list[{idx}].x[{c}]"
-                )));
-            }
-        }
-    }
-
-    Ok(())
 }
 
 /// Compute the canonical Poseidon2 digest of the sparse CCS artifact.

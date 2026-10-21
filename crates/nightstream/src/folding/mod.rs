@@ -1,4 +1,4 @@
-//! Native selected C/R/D composition copied from neo-fold-clean's Stage 1 path.
+//! Native selected C/R/D composition for the Stage 1 path.
 //! Witnesses remain prover data. Public claims acquire authority only through verification.
 
 mod claims;

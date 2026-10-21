@@ -6,7 +6,6 @@ use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat};
 use neo_math::{superneo_bar_block, Fq, KExtensions, Rq, D, F, K};
 use neo_transcript::Poseidon2Transcript;
 use p3_field::{Field, PrimeCharacteristicRing};
-use std::sync::Arc;
 
 pub use super::cpu_oracle::OptimizedPaperJointOracle;
 use crate::engines::pi_ccs_joint::{
@@ -248,7 +247,6 @@ enum OracleSource<'a> {
     },
 }
 
-#[allow(clippy::too_many_arguments)]
 fn build_outputs(
     structure: &CcsStructure<F>,
     fresh_claims: &[CcsClaim<Cmt, F>],
@@ -350,7 +348,6 @@ fn build_outputs(
     Ok(outputs)
 }
 
-#[allow(clippy::too_many_arguments)]
 fn prove_with_trace_inner(
     transcript: &mut Poseidon2Transcript,
     params: &neo_params::NeoParams,
@@ -568,7 +565,7 @@ fn prove_with_trace_inner(
     Ok((outputs, proof, perf, trace))
 }
 
-pub(crate) fn prove_with_trace<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
+pub(crate) fn prove_with_trace(
     transcript: &mut Poseidon2Transcript,
     params: &neo_params::NeoParams,
     structure: &CcsStructure<F>,
@@ -576,7 +573,6 @@ pub(crate) fn prove_with_trace<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     fresh_witnesses: &[CcsWitness<F>],
     running_claims: &[CeClaim<Cmt, F, K>],
     running_witnesses: &[Mat<F>],
-    _commitment: &L,
     cache: &OptimizedStructureCache,
 ) -> Result<
     (
@@ -599,8 +595,7 @@ pub(crate) fn prove_with_trace<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     )
 }
 
-#[allow(clippy::too_many_arguments)]
-pub fn prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
+pub fn prove(
     transcript: &mut Poseidon2Transcript,
     params: &neo_params::NeoParams,
     structure: &CcsStructure<F>,
@@ -608,7 +603,6 @@ pub fn prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     fresh_witnesses: &[CcsWitness<F>],
     running_claims: &[CeClaim<Cmt, F, K>],
     running_witnesses: &[Mat<F>],
-    commitment: &L,
     cache: &OptimizedStructureCache,
 ) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, super::PiCcsProvePerf), PiCcsError> {
     let (outputs, proof, perf, _) = prove_with_trace(
@@ -619,37 +613,7 @@ pub fn prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         fresh_witnesses,
         running_claims,
         running_witnesses,
-        commitment,
         cache,
-    )?;
-    Ok((outputs, proof, perf))
-}
-
-#[allow(clippy::too_many_arguments)]
-pub fn prove_with_backend<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
-    transcript: &mut Poseidon2Transcript,
-    params: &neo_params::NeoParams,
-    structure: &CcsStructure<F>,
-    fresh_claims: &[CcsClaim<Cmt, F>],
-    fresh_witnesses: &[CcsWitness<F>],
-    running_claims: &[CeClaim<Cmt, F, K>],
-    running_witnesses: &[Mat<F>],
-    _commitment: &L,
-    cache: &OptimizedStructureCache,
-    backend: &mut dyn PaperJointOracleBackend,
-) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, super::PiCcsProvePerf), PiCcsError> {
-    let (outputs, proof, perf, _) = prove_with_trace_inner(
-        transcript,
-        params,
-        structure,
-        fresh_claims,
-        fresh_witnesses,
-        running_claims,
-        running_witnesses,
-        OracleSource::Cached {
-            cache,
-            backend: Some(backend),
-        },
     )?;
     Ok((outputs, proof, perf))
 }
@@ -658,7 +622,6 @@ pub fn prove_with_backend<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
 /// The evaluator must use these exact ordered sources and prepared challenges,
 /// and return all ring openings. The driver rebinds the statement and rejects
 /// missing openings; this route never constructs a host cache or full tensor.
-#[allow(clippy::too_many_arguments)]
 pub fn prove_with_complete_oracle(
     transcript: &mut Poseidon2Transcript,
     params: &neo_params::NeoParams,
@@ -696,7 +659,6 @@ pub fn prove_with_complete_oracle(
 /// Prove with row-cache arithmetic supplied by the owning relation adapter.
 /// This cache is prover data. This function does not create or validate a
 /// verifier-artifact authority; the owner must supply its matching header.
-#[allow(clippy::too_many_arguments)]
 pub fn prove_with_row_cache(
     transcript: &mut Poseidon2Transcript,
     params: &neo_params::NeoParams,
@@ -731,44 +693,6 @@ pub fn prove_with_row_cache(
     )
 }
 
-/// Use a device evaluator with rows prepared by the circuit owner. Transcript
-/// order and output checks are the same as the CPU row-cache path.
-#[allow(clippy::too_many_arguments)]
-pub fn prove_with_row_cache_and_backend(
-    transcript: &mut Poseidon2Transcript,
-    params: &neo_params::NeoParams,
-    structure: &CcsStructure<F>,
-    fresh_claims: &[CcsClaim<Cmt, F>],
-    fresh_witnesses: &[CcsWitness<F>],
-    running_claims: &[CeClaim<Cmt, F, K>],
-    running_witnesses: &[Mat<F>],
-    cache: &Arc<SuperneoEvalCache>,
-    backend: &mut dyn PaperJointOracleBackend,
-) -> Result<
-    (
-        Vec<CeClaim<Cmt, F, K>>,
-        PiCcsProof,
-        super::PiCcsProvePerf,
-        ProtocolTrace,
-    ),
-    PiCcsError,
-> {
-    let rows = CachedMatrixRows::new(cache)?;
-    let workspace_bytes = resident_row_workspace(&rows, fresh_witnesses.len())?;
-    prove_with_matrix_rows(
-        transcript,
-        params,
-        structure,
-        fresh_claims,
-        fresh_witnesses,
-        running_claims,
-        running_witnesses,
-        &rows,
-        workspace_bytes,
-        Some(backend),
-    )
-}
-
 // The existing resident-cache entrypoints have no workspace argument. Derive
 // their full resident requirement instead of assigning a numeric default.
 fn resident_row_workspace(rows: &dyn MatrixRows, fresh_count: usize) -> Result<usize, PiCcsError> {
@@ -786,7 +710,6 @@ fn resident_row_workspace(rows: &dyn MatrixRows, fresh_count: usize) -> Result<u
 
 /// Prove from original rows with explicit working storage and an optional
 /// device evaluator. The caller owns row authority and total live-memory accounting.
-#[allow(clippy::too_many_arguments)]
 pub fn prove_with_matrix_rows<'a>(
     transcript: &mut Poseidon2Transcript,
     params: &neo_params::NeoParams,

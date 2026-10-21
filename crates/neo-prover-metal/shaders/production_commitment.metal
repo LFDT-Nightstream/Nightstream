@@ -82,6 +82,7 @@ inline void production_keccak_f(thread ulong *st) {
     for (uint round = 0; round < 24; ++round) production_keccak_round(st, PRODUCTION_KECCAK_RC[round]);
 }
 
+// For x = 2^32, x^2 = x - 1 and x^6 = 1, so a 32-byte chunk reduces to a + b*x.
 inline long2 wide256_signed_halves(ulong q0, ulong q1, ulong q2, ulong q3) {
     uint w0 = (uint)q0, w1 = (uint)(q0 >> 32), w2 = (uint)q1, w3 = (uint)(q1 >> 32);
     uint w4 = (uint)q2, w5 = (uint)(q2 >> 32), w6 = (uint)q3, w7 = (uint)(q3 >> 32);
@@ -97,6 +98,7 @@ inline ulong production_wide_coefficient(ulong q0, ulong q1, ulong q2, ulong q3)
     return gl_add(a_field, gl_mul_native(b_field, 1ul << 32));
 }
 
+// Input: SHAKE128(setup ID ‖ seed ‖ row_u32_le ‖ column_u64_le), 81 bytes. `prefix` holds bytes 0..68.
 inline void production_ajtai_element(
     device const ulong *prefix, uint row, ulong column, device ulong *out, ulong stride) {
     ulong st[25];

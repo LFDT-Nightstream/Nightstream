@@ -68,6 +68,8 @@ impl Poseidon2Transcript {
         }
     }
 
+    /// Coin `n` of one state is rate lanes `2n` and `2n + 1`; after the sixth, one zero chunk is
+    /// absorbed. This is the Lean `squeezeAt` schedule.
     pub fn read_coin_v1_2(&mut self) -> FoldCoin {
         assert_eq!(self.absorbed, 0, "v1_2 transcript cannot inherit an absorb cursor");
         let pair = self.coins_read;
@@ -152,6 +154,7 @@ impl Poseidon2Transcript {
     fn absorb_packed_bytes_with_len(&mut self, bytes: &[u8]) {
         self.absorb_elem(Goldilocks::from_u64(bytes.len() as u64));
 
+        // Every limb value is below 2^56 < p, so packing stays injective.
         const BYTES_PER_LIMB: usize = 7;
         const LIMB_CHUNK: usize = 64;
         let mut packed = [Goldilocks::ZERO; LIMB_CHUNK];

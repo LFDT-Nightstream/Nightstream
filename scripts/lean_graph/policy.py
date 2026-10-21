@@ -159,6 +159,8 @@ def validate(policy):
 
 
 class Authority:
+    """Filesystem separation alone is not isolation. The operator must stop candidate
+    processes from reading this key or changing the approved policy."""
 
     def __init__(self, directory):
         self.directory = Path(directory).resolve()

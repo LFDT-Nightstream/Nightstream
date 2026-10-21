@@ -1,3 +1,4 @@
+// Child masks are planar: the positive columns, then the negative columns, of each child.
 constant ushort DEC_SPLIT_CHILDREN_PER_THREAD = 14;
 
 kernel void dec_split_base2_masks(

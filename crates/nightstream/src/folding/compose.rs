@@ -24,6 +24,8 @@ pub(crate) fn prove_owned_with_rows(
         },
     ))
 }
+/// PiCCS absorbs the prior digest from the fresh public input, not from the running claims, so
+/// the caller must first bind that digest to these claims (`checked_prior_state`).
 #[derive(Clone, Copy)]
 pub(crate) struct BoundRunning<'a>(&'a RunningInstance);
 impl<'a> BoundRunning<'a> {

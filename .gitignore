@@ -8,7 +8,6 @@ profile-xctrace-sym.trace
 profile-xctrace-user.trace
 profile-xctrace-user-sym.trace
 dist
-demos/ios-demo/TestingWasm.xcodeproj/project.xcworkspace/xcuserdata/nicolasarqueros.xcuserdatad/UserInterfaceState.xcuserstate
 profile-xctrace-poseidon.trace
 formal/*-lean/.lake
 /formal/nightstream-fprime/.lake/

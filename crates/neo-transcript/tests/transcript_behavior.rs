@@ -200,7 +200,7 @@ fn append_fields_iter_length_mismatch_panics() {
     let mut t = Poseidon2Transcript::new(b"neo/iter");
     let fields = vec![F::from_u64(1), F::from_u64(2)];
     // Declare length 5, but only provide 2 elements
-    t.append_fields_iter(b"bad", 5, fields.into_iter());
+    t.append_fields_iter(b"bad", 5, fields);
 }
 
 // ---------------------------------------------------------------------------

@@ -112,7 +112,11 @@ fn make_sparse_signed_unit_z(seed: usize, m: usize) -> Mat<F> {
     let neg_one = F::ZERO - F::ONE;
     for col in 0..cols {
         let row = (seed + col * 7) % D;
-        out[(row, col)] = if (seed + col) % 2 == 0 { F::ONE } else { neg_one };
+        out[(row, col)] = if (seed + col).is_multiple_of(2) {
+            F::ONE
+        } else {
+            neg_one
+        };
     }
     out
 }

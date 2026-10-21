@@ -1,6 +1,6 @@
 //! Owns direct Wasmtime tracing and normalization into the generic WASM IR.
 
-use super::super::ir::{WasmBuildError, WasmPcEdgeKind, WasmVmStep};
+use super::super::ir::{WasmBuildError, WasmPcEdgeKind, WasmProgramError, WasmVmStep};
 use super::super::isa::WasmOpcode;
 use crate::host_event_bindings::HostEventBindings;
 use futures::executor::block_on;
@@ -256,7 +256,7 @@ pub fn collect_wasmtime_steps(
         .get_func(&mut store, export)
         .ok_or_else(|| WasmBuildError::Trace(format!("export '{export}' not found")))?;
     let param_vals: Vec<Val> = params.iter().map(|&v| Val::I32(v)).collect();
-    let mut results = vec![Val::I32(0)];
+    let mut results = vec![Val::I32(0); func.ty(&store).results().len()];
     let call_result = block_on(func.call_async(&mut store, &param_vals, &mut results));
     store.data().check_errors()?;
     let results = match call_result {
@@ -485,13 +485,13 @@ impl<T: WasmTraceSink + Send + 'static> DebugHandler for WasmtimeTraceHandler<T>
 
 /// Parse a wasm binary into the static program artifacts used to seed
 /// verifier/prover memory tables.
-pub fn extract_wasm_program_artifacts(wasm_bytes: &[u8]) -> Result<WasmProgramArtifacts, WasmBuildError> {
+pub fn extract_wasm_program_artifacts(wasm_bytes: &[u8]) -> Result<WasmProgramArtifacts, WasmProgramError> {
     parse_wasm_artifacts(wasm_bytes)
 }
 
 pub fn extract_first_component_core_program_artifacts(
     component_bytes: &[u8],
-) -> Result<WasmProgramArtifacts, WasmBuildError> {
+) -> Result<WasmProgramArtifacts, WasmProgramError> {
     parse_first_component_core_module_artifacts(component_bytes)
 }
 
@@ -500,6 +500,6 @@ pub fn extract_first_component_core_program_artifacts(
 /// Conditional control rows (`if`, `br_if`) emit both possible successors. Structural rows
 /// (`block`, `loop`, `else`, inner `end`) are kept as explicit ROM entries so the trace can
 /// carry them as regular witness rows.
-pub fn build_pc_rom_from_binary(wasm_bytes: &[u8]) -> Result<Vec<(u64, u64, u64)>, WasmBuildError> {
+pub fn build_pc_rom_from_binary(wasm_bytes: &[u8]) -> Result<Vec<(u64, u64, u64)>, WasmProgramError> {
     Ok(extract_wasm_program_artifacts(wasm_bytes)?.tables.pc_rom)
 }

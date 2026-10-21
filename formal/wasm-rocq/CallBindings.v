@@ -66,13 +66,15 @@ Qed.
 
 Lemma full_call_frame_entry : forall (w : Witness),
   fieldPrime -> FullRelation.satFull w -> w COL_GUEST_ENTRY_ACTIVE = 1 ->
-  w COL_CALL_STACK_PUSH_PRESENT = 1 -> w COL_CALL_STACK_POP_PRESENT = 0 ->
+  w COL_CALL_STACK_PUSH_PRESENT = 1 -> w COL_CALL_STACK_POP_PRESENT = 0 -> w COL_IS_PROGRAM_ROW = 1 ->
   w COL_LOCALS_FBP_AFTER = w COL_LOCALS_FBP_BEFORE + w COL_CURRENT_FUNCTION_NUM_LOCALS /\
   w COL_STACK_FRAME_BASE_AFTER = w COL_SP_AFTER - w COL_CALL_PARAM_COUNT /\
   w COL_CALL_STACK_DEPTH_AFTER = w COL_CALL_STACK_DEPTH_BEFORE + 1.
 Proof.
-  intros w Hprime Hfull Hguest Hpush Hpop.
+  intros w Hprime Hfull Hguest Hpush Hpop Hprogram.
   assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
+  destruct (full_host_switch_absent w COL_IS_PROGRAM_ROW Hprime Hfull ltac:(cbn; auto 20)
+    ltac:(cbn; discriminate) ltac:(cbn; discriminate) ltac:(cbn; discriminate) Hprogram) as [Hsuspend [Hresume _]].
   circuit_range COL_LOCALS_FBP_BEFORE Hfb.
   circuit_range COL_LOCALS_FBP_AFTER Hfa.
   circuit_range COL_CURRENT_FUNCTION_NUM_LOCALS Hlocals.
@@ -88,11 +90,11 @@ Proof.
     [(COL_STACK_FRAME_BASE_AFTER, 1); (COL_SP_AFTER, -1); (COL_CALL_PARAM_COUNT, 1)],
     ([] : SparseRow)) Hstack.
   circuit_row ([(COL_CALL_STACK_DEPTH_AFTER, 1); (COL_CALL_STACK_DEPTH_BEFORE, -1);
-    (COL_CALL_STACK_PUSH_PRESENT, -1); (COL_CALL_STACK_POP_PRESENT, 1)],
-    [(COL_ONE, 1)], ([] : SparseRow)) Hdepth.
+    (COL_CALL_STACK_PUSH_PRESENT, -1); (COL_CALL_STACK_POP_PRESENT, 1);
+    (COL_HOST_SUSPEND, -1); (COL_HOST_RESUME, 1)], [(COL_ONE, 1)], ([] : SparseRow)) Hdepth.
   expand_row Hfbp. expand_row Hstack. expand_row Hdepth.
   normalize_columns. rewrite Hguest in Hfbp. rewrite Hpush in Hstack.
-  rewrite Hpush, Hpop, Hone in Hdepth.
+  rewrite Hpush, Hpop, Hone, Hsuspend, Hresume in Hdepth.
   repeat split; [field_linear Hfbp | field_linear Hstack | field_linear Hdepth].
 Qed.
 
@@ -142,7 +144,8 @@ Proof.
     normalize_columns. rewrite Hone, Hguest, HciZero in Hrow.
     pose proof (value_bound w COL_HOST_CALL_ACTIVE). field_linear Hrow. }
   assert (Hparams : w GHC_PARAMS = 0).
-  { full_row hostCallParamsRow Hrow. rewrite Hhost in Hrow.
+  { full_row hostCallParamsRow Hrow. pose proof (full_no_host_split w Hfull Hhost) as Hsplit. normalize_columns.
+    rewrite Hhost, Hsplit in Hrow.
     pose proof (value_bound w GHC_PARAMS). field_linear Hrow. }
   assert (Hreads : w COL_STACK_READS = 0).
   { selected_circuit_row COL_SEL_CALL
@@ -164,7 +167,7 @@ Proof.
   { full_row stackWriteHighActiveRow Hrow. rewrite Hone, Hwrite, Hhi in Hrow.
     pose proof (value_bound w COL_STACK_WRITE0_HI_ACTIVE). field_linear Hrow. }
   split; [exact Hwrite | ]. split; [exact HwriteHi | ].
-  full_row stackPointerBalanceRow Hrow. zero_gather_kinds Hkinds Hrow.
+  full_row stackPointerBalanceRow Hrow. zero_host_switch Hrow. zero_gather_kinds Hkinds Hrow.
   rewrite Hone, Hreads, Hwrites, Hlocal, Houtput, Hdiscard, Hcapture, Hparams in Hrow.
   pose proof (value_bound w COL_SP_BEFORE). pose proof (value_bound w COL_SP_AFTER).
   field_linear Hrow.

@@ -44,5 +44,5 @@ Example explicit_return_rejected_by_caller_scope :
 Proof. vm_compute. intuition discriminate. Qed.
 
 Example depth_zero_halt_rejected_by_caller_scope :
-  ~ callerRow 0 (scopeFlags [COL_IS_PROGRAM_ROW; COL_SEL_END; COL_HALTED]).
+  ~ callerRow 0 (scopeFlags [COL_IS_PROGRAM_ROW; COL_SEL_END; COL_ACTIVATION_FINISHED_AFTER]).
 Proof. vm_compute. intuition discriminate. Qed.

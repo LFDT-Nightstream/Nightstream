@@ -31,7 +31,9 @@ Proof.
       apply update_other. right. congruence.
     + intros other index Hneq. eapply no_local_writes_preserve; eassumption.
   - intros memory column address Hin.
-    eapply context_preserved_without_push; [exact Hin | | exact Hreplay].
+    destruct (full_selected_no_host_switch w chosen Hprime Hfull (straight_line_selector_in chosen Hchoice) Hchosen)
+      as [Hsuspend [_ [_ [_ Hread]]]].
+    eapply context_preserved_without_push; [exact Hin | | exact Hsuspend | exact Hread | exact Hreplay].
     exact (proj1 (full_body_context_quiet w chosen Hprime Hfull Hchoice Hchosen)).
 Qed.
 
@@ -107,7 +109,12 @@ Proof.
   - intros other index Hneq.
     rewrite (initialization_writes_local initial final w chosen Hprime Hfull Hkind Hchosen Hreplay).
     apply update_other. right. congruence.
-  - intros memory column address Hin. eapply context_preserved_without_push; [exact Hin | | exact Hreplay].
+  - intros memory column address Hin.
+    destruct (full_host_switch_absent w chosen Hprime Hfull (initialization_kind_in chosen Hkind)
+      ltac:(destruct Hkind as [-> | ->]; discriminate) ltac:(destruct Hkind as [-> | ->]; discriminate)
+      ltac:(destruct Hkind as [-> | ->]; discriminate) Hchosen) as [Hsuspend [Hresume Hnested]].
+    eapply context_preserved_without_push; [exact Hin | | exact Hsuspend |
+      exact (full_no_host_context_read w Hfull Hresume Hnested) | exact Hreplay].
     destruct (full_initialization_auxiliary w chosen Hprime Hfull Hkind Hchosen) as [_ [_ [Hpush _]]].
     exact Hpush.
 Qed.

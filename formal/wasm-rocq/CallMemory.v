@@ -155,7 +155,8 @@ Proof.
     normalize_columns. rewrite Hone in Hrow.
     pose proof (value_bound w COL_HOST_CALL_ACTIVE). field_linear Hrow. }
   assert (Hparams : w GHC_PARAMS = 0).
-  { full_row hostCallParamsRow Hrow. normalize_columns. rewrite Hhost in Hrow.
+  { full_row hostCallParamsRow Hrow. pose proof (full_no_host_split w Hfull Hhost) as Hsplit. normalize_columns.
+    rewrite Hhost, Hsplit in Hrow.
     pose proof (value_bound w GHC_PARAMS). field_linear Hrow. }
   assert (Hreads : w COL_STACK_READS = w COL_PARAM_INIT_ACTIVE_BEFORE).
   { auxiliary_row stackReadsArityRow Hrow.
@@ -183,7 +184,11 @@ Proof.
   { full_row stackWriteHighActiveRow Hrow. normalize_columns. rewrite Hone, Hwrite, Hhi in Hrow.
     pose proof (value_bound w COL_STACK_WRITE0_HI_ACTIVE). field_linear Hrow. }
   split; [exact Hwrite | ]. split; [exact HwriteHi | ]. split; [exact Hread0 | ].
-  full_row stackPointerBalanceRow Hrow. zero_gather_kinds Hkinds Hrow.
+  destruct (full_host_switch_absent w chosen Hprime Hfull (initialization_kind_in chosen Hkind)
+    ltac:(destruct Hkind as [-> | ->]; discriminate) ltac:(destruct Hkind as [-> | ->]; discriminate)
+    ltac:(destruct Hkind as [-> | ->]; discriminate) Hchosen) as [_ [Hresume _]].
+  pose proof (full_no_resume_pop w Hfull Hresume) as HresumePop.
+  full_row stackPointerBalanceRow Hrow. normalize_columns. rewrite HresumePop in Hrow. zero_gather_kinds Hkinds Hrow.
   normalize_columns. rewrite Hone, Hreads, Hwrites, Hlocal, Houtput, Hdiscard, Hcapture, Hparams in Hrow.
   circuit_range COL_SP_BEFORE Hspb. circuit_range COL_SP_AFTER Hspa.
   circuit_boolean COL_PARAM_INIT_ACTIVE_BEFORE Hparam.

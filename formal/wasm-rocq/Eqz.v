@@ -41,20 +41,20 @@ Definition writeRow : Row :=
    [(eqzWrite, 1); (cmpFlag, -1)], []).
 
 Lemma inverse_row_in_full :
-  nth_error FullRelation.rows 515%nat =
+  nth_error FullRelation.rows 574%nat =
     Some (inverseRow cmpInput cmpInverse cmpFlag).
 Proof. vm_compute. reflexivity. Qed.
 
 Lemma zero_row_in_full :
-  nth_error FullRelation.rows 516%nat = Some (zeroRow cmpInput cmpFlag).
+  nth_error FullRelation.rows 575%nat = Some (zeroRow cmpInput cmpFlag).
 Proof. vm_compute. reflexivity. Qed.
 
 Lemma pin_row_in_full :
-  nth_error FullRelation.rows 512%nat = Some pinRow.
+  nth_error FullRelation.rows 571%nat = Some pinRow.
 Proof. vm_compute. reflexivity. Qed.
 
 Lemma write_row_in_full :
-  nth_error FullRelation.rows 522%nat = Some writeRow.
+  nth_error FullRelation.rows 581%nat = Some writeRow.
 Proof. vm_compute. reflexivity. Qed.
 
 Theorem full_relation_eqz_value : forall (w : Witness),
@@ -64,12 +64,12 @@ Theorem full_relation_eqz_value : forall (w : Witness),
   w eqzWrite = (if Z.eqb (w eqzRead) 0 then 1 else 0).
 Proof.
   intros w Hprime Hsel [Hone Hall].
-  pose proof (sat_row w 515%nat _ Hall inverse_row_in_full) as Hinv.
-  pose proof (sat_row w 516%nat _ Hall zero_row_in_full) as Hzero.
+  pose proof (sat_row w 574%nat _ Hall inverse_row_in_full) as Hinv.
+  pose proof (sat_row w 575%nat _ Hall zero_row_in_full) as Hzero.
   pose proof (zero_test_value w cmpInput cmpInverse cmpFlag
     Hprime Hone Hinv Hzero) as Hvalue.
-  pose proof (sat_row w 512%nat _ Hall pin_row_in_full) as Hpin.
-  pose proof (sat_row w 522%nat _ Hall write_row_in_full) as Hwrite.
+  pose proof (sat_row w 571%nat _ Hall pin_row_in_full) as Hpin.
+  pose proof (sat_row w 581%nat _ Hall write_row_in_full) as Hwrite.
   pose proof (Range.full_eq_selector_boolean w Hprime (conj Hone Hall)) as Heq.
   unfold sat, pinRow in Hpin; cbn [eval fold_right] in Hpin.
   rewrite Hsel in Hpin.

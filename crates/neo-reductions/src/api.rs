@@ -20,7 +20,7 @@ use std::time::Instant;
 use crate::error::PiCcsError;
 
 mod accelerator;
-pub use accelerator::{rlc_with_commit_refs_and_resident_witness, rlc_with_commit_refs_and_witness_mix};
+pub use accelerator::rlc_with_commit_refs_and_resident_witness;
 mod dec;
 pub use dec::verify_dec_public;
 mod validation;
@@ -33,10 +33,8 @@ pub(crate) use validation::{
 // Re-export types that are part of the public API
 pub use crate::engines::optimized_engine::PiCcsProof;
 
-// Re-export common utilities for convenience (single import path for users)
 pub use crate::common::{
     compute_v1_2_evaluations_from_z_and_r,
-    format_ext,
     left_mul_acc,
     rot_rhos_from_mats,
     rot_rhos_to_mats,
@@ -178,7 +176,6 @@ where
 }
 
 /// Input checks shared by the borrowed-matrix Π_RLC prover entry points.
-#[allow(clippy::too_many_arguments)]
 fn validate_rlc_refs(
     label: &str,
     mode: &FoldingMode,
@@ -367,88 +364,6 @@ where
     }
 }
 
-/// DEC (SuperNeo-cached): same as `dec_children_with_commit`, but reuses a
-/// caller-provided SuperNeo eval cache.
-///
-/// This is intended for high-level coordinators that already precompute the
-/// verifier-owned optimized structure cache and want Π_DEC to avoid rebuilding
-/// the SuperNeo transformed-matrix view on every prover call.
-pub fn dec_children_with_commit_superneo_cached<Comb>(
-    mode: FoldingMode,
-    s: &CcsStructure<F>,
-    params: &NeoParams,
-    parent: &CeClaim<Cmt, F, K>,
-    Z_split: &[Mat<F>],
-    ell_d: usize,
-    child_commitments: &[Cmt],
-    combine_b_pows: Comb,
-    superneo_cache: &crate::superneo_eval::SuperneoEvalCache,
-) -> (Vec<CeClaim<Cmt, F, K>>, bool, bool, bool)
-where
-    Comb: Fn(&[Cmt], u32) -> Cmt,
-{
-    use crate::engines::pi_rlc_dec::OptimizedRlcDec;
-    if let Err(e) = validate_dec_boundary_inputs(s, params, parent, Z_split, child_commitments, ell_d) {
-        eprintln!("dec_children_with_commit_superneo_cached input validation failed: {e}");
-        return (Vec::new(), false, false, false);
-    }
-    if let Err(error) = validate_selected_reduction_claims(
-        &mode,
-        "dec_children_with_commit_superneo_cached: selected parent",
-        s,
-        std::slice::from_ref(parent),
-    ) {
-        eprintln!("dec_children_with_commit_superneo_cached input validation failed: {error}");
-        return (Vec::new(), false, false, false);
-    }
-
-    match mode {
-        FoldingMode::Optimized => OptimizedRlcDec::dec_children_with_commit_superneo_cached(
-            s,
-            params,
-            parent,
-            Z_split,
-            ell_d,
-            child_commitments,
-            combine_b_pows,
-            superneo_cache,
-        ),
-        #[cfg(feature = "paper-exact")]
-        FoldingMode::PaperExact => crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
-            s,
-            params,
-            parent,
-            Z_split,
-            ell_d,
-            child_commitments,
-            combine_b_pows,
-        ),
-        #[cfg(feature = "paper-exact")]
-        FoldingMode::OptimizedWithCrosscheck => {
-            let optimized = OptimizedRlcDec::dec_children_with_commit_superneo_cached(
-                s,
-                params,
-                parent,
-                Z_split,
-                ell_d,
-                child_commitments,
-                &combine_b_pows,
-                superneo_cache,
-            );
-            let reference = crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
-                s,
-                params,
-                parent,
-                Z_split,
-                ell_d,
-                child_commitments,
-                &combine_b_pows,
-            );
-            require_dec_crosscheck(optimized, reference)
-        }
-    }
-}
-
 pub fn dec_children_with_commit_superneo_cached_with_digit_flags<Comb>(
     mode: FoldingMode,
     s: &CcsStructure<F>,
@@ -466,11 +381,6 @@ where
 {
     use crate::engines::pi_rlc_dec::OptimizedRlcDec;
     if digit_nonzero.len() != Z_split.len() {
-        eprintln!(
-            "dec_children_with_commit_superneo_cached_with_digit_flags input validation failed: digit flag count {} != split witness count {}",
-            digit_nonzero.len(),
-            Z_split.len()
-        );
         return (Vec::new(), false, false, false);
     }
     if let Err(e) = validate_dec_boundary_inputs(s, params, parent, Z_split, child_commitments, ell_d) {
@@ -569,11 +479,6 @@ where
 {
     use crate::engines::pi_rlc_dec::OptimizedRlcDec;
     if digit_nonzero.len() != Z_split.len() {
-        eprintln!(
-            "dec_children_with_commit_superneo_cached_from_trusted_split_digits input validation failed: digit flag count {} != split witness count {}",
-            digit_nonzero.len(),
-            Z_split.len()
-        );
         return (Vec::new(), false, false, false);
     }
     if let Err(e) =
@@ -834,6 +739,9 @@ where
     Ok(rlc_public_matches_with_perf(s, params, rhos, inputs, expected, mix_rhos_commits, ell_d)?.0)
 }
 
+/// Recompute the public RLC parent claim and compare every field with `expected`.
+///
+/// Returns `false` when recomputation rejects the inputs.
 pub fn rlc_public_matches_with_perf<MR>(
     s: &CcsStructure<F>,
     params: &NeoParams,
@@ -842,41 +750,6 @@ pub fn rlc_public_matches_with_perf<MR>(
     expected: &CeClaim<Cmt, F, K>,
     mix_rhos_commits: MR,
     ell_d: usize,
-) -> Result<(bool, RlcPublicVerifyPerf), PiCcsError>
-where
-    MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt,
-{
-    rlc_public_matches_with_perf_impl(s, params, rhos, inputs, expected, mix_rhos_commits, ell_d, true)
-}
-
-/// Fast verifier path for callers that already established `inputs` as valid Π_CCS outputs.
-///
-/// This checks the same public RLC relation as `rlc_public_matches_with_perf`, but skips
-/// revalidating input-side CE invariants that Π_CCS verification already proved.
-pub fn rlc_public_matches_verified_inputs_with_perf<MR>(
-    s: &CcsStructure<F>,
-    params: &NeoParams,
-    rhos: &[RotRho],
-    inputs: &[CeClaim<Cmt, F, K>],
-    expected: &CeClaim<Cmt, F, K>,
-    mix_rhos_commits: MR,
-    ell_d: usize,
-) -> Result<(bool, RlcPublicVerifyPerf), PiCcsError>
-where
-    MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt,
-{
-    rlc_public_matches_with_perf_impl(s, params, rhos, inputs, expected, mix_rhos_commits, ell_d, false)
-}
-
-fn rlc_public_matches_with_perf_impl<MR>(
-    s: &CcsStructure<F>,
-    params: &NeoParams,
-    rhos: &[RotRho],
-    inputs: &[CeClaim<Cmt, F, K>],
-    expected: &CeClaim<Cmt, F, K>,
-    mix_rhos_commits: MR,
-    ell_d: usize,
-    _validate_input_ce_invariants: bool,
 ) -> Result<(bool, RlcPublicVerifyPerf), PiCcsError>
 where
     MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt,

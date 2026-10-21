@@ -54,7 +54,6 @@ pub struct CrossCheckEngine<I, R> {
     pub ref_oracle: R,
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn crosscheck_prove<I, R, L>(
     _inner: &I,
     _reference: &R,
@@ -82,7 +81,6 @@ where
                 fresh_witnesses,
                 running_claims,
                 running_witnesses,
-                commitment,
                 &cache,
             )
         },
@@ -148,7 +146,6 @@ where
 /// Verify PiCCS with both engines and compare their complete execution traces.
 ///
 /// The [caller contract](crate::engines::PiCcsEngine::verify) applies.
-#[allow(clippy::too_many_arguments)]
 pub fn crosscheck_verify<I, R>(
     _inner: &I,
     _reference: &R,

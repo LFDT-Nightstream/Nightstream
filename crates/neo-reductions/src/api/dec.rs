@@ -29,10 +29,10 @@ where
     }
 
     if s.m == 0 {
-        return fail(format!("SuperNeo-only mode requires m > 0 (got m={})", s.m));
+        return false;
     }
     if params.b < 2 {
-        return fail(format!("invalid decomposition base b={}", params.b));
+        return false;
     }
     if let Err(error) = super::validate_ce_claim_shape("verify_dec_public: parent", s, parent) {
         return fail(error);
@@ -44,13 +44,10 @@ where
     }
     let k = children.len();
     if k == 0 {
-        return fail("no children");
+        return false;
     }
     if k != params.k_rho as usize {
-        return fail(format!(
-            "child count mismatch (expected k_rho={}, got {k})",
-            params.k_rho
-        ));
+        return false;
     }
     for (index, child) in children.iter().enumerate() {
         if let Err(error) = super::validate_ce_claim_shape(&format!("verify_dec_public: children[{index}]"), s, child) {
@@ -69,58 +66,34 @@ where
             return fail(error);
         }
         if child.fold_digest != parent.fold_digest {
-            return fail(format!(
-                "child {index} fold digest does not match the parent transcript"
-            ));
+            return false;
         }
     }
 
     let shared_children_r = match crate::engines::utils::shared_me_input_r(children, parent.r.len()) {
         Ok(Some(r)) => r,
-        Ok(None) => return fail("no children"),
+        Ok(None) => return false,
         Err(e) => return fail(e),
     };
     if parent.r.as_slice() != shared_children_r {
-        return fail("r mismatch between parent and children");
+        return false;
     }
 
     if parent.m_in > s.m {
-        return fail(format!("parent m_in={} exceeds CCS width m={}", parent.m_in, s.m));
+        return false;
     }
     let x_cols = neo_ccs::superneo_public_x_cols(parent.m_in);
     if parent.X.rows() != D || parent.X.cols() != x_cols {
-        eprintln!(
-            "verify_dec_public failed: parent X has shape {}x{}, expected {}x{}",
-            parent.X.rows(),
-            parent.X.cols(),
-            D,
-            x_cols
-        );
         return false;
     }
-    for (idx, ch) in children.iter().enumerate() {
+    for ch in children {
         if ch.m_in > s.m {
-            return fail(format!(
-                "child {} has m_in={} exceeding CCS width m={}",
-                idx, ch.m_in, s.m
-            ));
+            return false;
         }
         if ch.m_in != parent.m_in {
-            eprintln!(
-                "verify_dec_public failed: child m_in mismatch (child {} has {}, expected {})",
-                idx, ch.m_in, parent.m_in
-            );
             return false;
         }
         if ch.X.rows() != D || ch.X.cols() != x_cols {
-            eprintln!(
-                "verify_dec_public failed: child X shape mismatch (child {} has {}x{}, expected {}x{})",
-                idx,
-                ch.X.rows(),
-                ch.X.cols(),
-                D,
-                x_cols
-            );
             return false;
         }
     }
@@ -130,34 +103,16 @@ where
     };
     let matrix_count = parent.eval_a.len();
     if matrix_count != s.t() {
-        eprintln!(
-            "verify_dec_public failed: parent Eval_A count {} != matrix count {}",
-            matrix_count,
-            s.t()
-        );
         return false;
     }
     if parent.eval_k.len() != d_pad {
-        eprintln!("verify_dec_public failed: parent Eval_K width mismatch");
         return false;
     }
-    for (idx, ch) in children.iter().enumerate() {
+    for ch in children {
         if ch.eval_k.len() != d_pad {
-            eprintln!(
-                "verify_dec_public failed: child Eval_K width mismatch (child {} has {}, expected {})",
-                idx,
-                ch.eval_k.len(),
-                d_pad
-            );
             return false;
         }
         if ch.eval_a.len() != matrix_count {
-            eprintln!(
-                "verify_dec_public failed: child Eval_A count mismatch (child {} has {}, expected {})",
-                idx,
-                ch.eval_a.len(),
-                matrix_count
-            );
             return false;
         }
     }
@@ -185,10 +140,9 @@ where
 
     let recombines = |select: &dyn Fn(&CeClaim<Cmt, F, K>) -> &[K], expected: &[K]| {
         let mut lhs = vec![K::ZERO; d_pad];
-        for (idx, (pow, child)) in b_pows_k.iter().zip(children.iter()).enumerate() {
+        for (pow, child) in b_pows_k.iter().zip(children) {
             let values = select(child);
             if values.len() != d_pad {
-                eprintln!("verify_dec_public failed: child {idx} evaluation width mismatch");
                 return false;
             }
             for coordinate in 0..d_pad {

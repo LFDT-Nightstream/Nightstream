@@ -77,7 +77,7 @@ repository = "https://github.com/LFDT-Nightstream/Nightstream"
 [workspace.lints.clippy]
 # Allow older-style format strings (prefer explicit for complex error messages)
 uninlined_format_args = "allow"
-# Allow functions with more than 7 arguments (cryptographic functions often need many params)
+# Allow functions with many arguments (cryptographic functions often need many params)
 too_many_arguments = "allow"
 # Allow range loops with indices (simple for i in 0..D is more performant for fixed-size arrays)
 needless_range_loop = "allow"

@@ -141,12 +141,6 @@ pub struct Port {
 }
 
 impl Port {
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-    pub fn role(&self) -> PortRole {
-        self.role
-    }
     pub fn range(&self) -> std::ops::Range<usize> {
         self.start..self.start + self.count
     }
@@ -242,13 +236,6 @@ impl FormulaVariant {
         })
     }
 
-    pub fn row_count(&self) -> usize {
-        self.rows.len()
-    }
-    pub fn output_count(&self) -> usize {
-        self.outputs.len()
-    }
-
     pub(crate) fn input_count(&self) -> usize {
         self.input_count
     }
@@ -320,8 +307,6 @@ pub struct FormulaComponent {
     input_count: usize,
     ports: Vec<Port>,
     variants: Vec<FormulaVariant>,
-    definitions: Vec<String>,
-    contracts: Vec<String>,
 }
 
 impl FormulaComponent {
@@ -352,14 +337,9 @@ impl FormulaComponent {
             input_count: raw.input_count,
             ports: raw.ports,
             variants,
-            definitions: raw.definitions,
-            contracts: raw.contracts,
         })
     }
 
-    pub fn id(&self) -> &str {
-        &self.id
-    }
     pub fn input_count(&self) -> usize {
         self.input_count
     }
@@ -368,15 +348,6 @@ impl FormulaComponent {
     }
     pub fn variant(&self, index: usize) -> Option<&FormulaVariant> {
         self.variants.get(index)
-    }
-    pub fn variant_count(&self) -> usize {
-        self.variants.len()
-    }
-    pub fn definitions(&self) -> &[String] {
-        &self.definitions
-    }
-    pub fn contracts(&self) -> &[String] {
-        &self.contracts
     }
 }
 
@@ -417,10 +388,6 @@ impl FormulaLibrary {
 
     pub fn component(&self, id: &str) -> Option<&FormulaComponent> {
         self.components.iter().find(|component| component.id == id)
-    }
-
-    pub fn components(&self) -> &[FormulaComponent] {
-        &self.components
     }
 }
 

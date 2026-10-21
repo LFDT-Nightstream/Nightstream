@@ -34,7 +34,7 @@ pub fn set_global_pp(pp: PP<RqEl>) -> Result<(), AjtaiError> {
     Ok(())
 }
 
-/// Legacy: pick the sole PP if only one exists.
+/// Pick the sole PP if only one exists.
 pub fn get_global_pp() -> Result<PPRef, AjtaiError> {
     let r = registry()
         .read()
@@ -93,15 +93,13 @@ impl AjtaiSModule {
         Self { pp }
     }
 
-    /// Legacy: pick the sole PP if only one exists.
+    /// Pick the sole PP if only one exists.
     pub fn from_global() -> Result<Self, AjtaiError> {
         Ok(Self::new(get_global_pp()?))
     }
-    /// New: pick PP that matches (d,m).
     pub fn from_global_for_dims(d: usize, m: usize) -> Result<Self, AjtaiError> {
         Ok(Self::new(get_global_pp_for_dims(d, m)?))
     }
-    /// New: pick PP that matches `z_len = d*m`.
     pub fn from_global_for_z_len(z_len: usize) -> Result<Self, AjtaiError> {
         Ok(Self::new(get_global_pp_for_z_len(z_len)?))
     }

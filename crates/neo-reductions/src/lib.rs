@@ -12,19 +12,11 @@ pub mod common; // shared utilities and helper functions
 pub mod engines; // internal engine trait + wrappers (includes optimized_engine, paper_exact_engine, crosscheck_engine)
 pub mod error;
 pub mod sumcheck;
-pub mod superneo_eval; // transformed-matrix evaluators for SuperNeo migration
-                       // Re-export RLC/DEC from engines for a stable path
-pub use engines::pi_rlc_dec;
+pub mod superneo_eval;
 
-// Re-export engine modules for convenience
 pub use engines::optimized_engine;
 #[cfg(feature = "paper-exact")]
 pub use engines::paper_exact_engine;
-
-// Re-exports for convenience
-pub use api as pi_ccs; // main public API
-#[cfg(feature = "paper-exact")]
-pub use engines::paper_exact_engine as pi_ccs_paper_exact;
 
 // Re-export commonly used types
 pub use engines::optimized_engine::{pi_ccs_prove, pi_ccs_verify, Challenges, PiCcsProof};

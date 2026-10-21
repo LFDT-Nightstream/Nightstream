@@ -1,4 +1,5 @@
-use neo_ajtai::util::{to_balanced_i128, to_balanced_i64};
+use neo_ajtai::util::to_balanced_i64;
+use neo_math::balanced::to_balanced_i128;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks as F;
 
@@ -64,7 +65,7 @@ fn balanced_i128_and_i64_conversions_agree_at_field_boundaries() {
         2,
         1u64 << 32,
         (modulus - 1) / 2,
-        (modulus + 1) / 2,
+        modulus.div_ceil(2),
         1u64 << 63,
         modulus - 1,
     ];

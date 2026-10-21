@@ -7,4 +7,4 @@ All notable changes to this project will be documented here. The format is based
 ## [Unreleased]
 - Initial publication of governance documents for Linux Foundation compliance.
 
-For detailed release notes once tags are published, see the [GitHub Releases](https://github.com/nicarq/halo3/releases) page.
+For detailed release notes once tags are published, see the [GitHub Releases](https://github.com/LFDT-Nightstream/Nightstream/releases) page.

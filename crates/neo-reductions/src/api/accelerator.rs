@@ -2,44 +2,11 @@
 
 use super::*;
 
-/// Borrowed-matrix Π_RLC with an accelerator-owned witness mixer.
-///
-/// Claim algebra, commitment mixing, validation, and transcript ownership stay
-/// with the canonical reduction. Only `sum_i rho_i * Z_i` is delegated.
-pub fn rlc_with_commit_refs_and_witness_mix<Comb, MixWitness>(
-    mode: FoldingMode,
-    s: &CcsStructure<F>,
-    params: &NeoParams,
-    rhos: &[RotRho],
-    me_inputs: &[CeClaim<Cmt, F, K>],
-    witnesses: &[&Mat<F>],
-    ell_d: usize,
-    mix_commits: Comb,
-    mix_witnesses: MixWitness,
-) -> Result<(CeClaim<Cmt, F, K>, Mat<F>), PiCcsError>
-where
-    Comb: Fn(&[Mat<F>], &[Cmt]) -> Cmt,
-    MixWitness: Fn(&[Mat<F>], &[&Mat<F>]) -> Mat<F>,
-{
-    rlc_with_commit_refs_and_resident_witness(
-        mode,
-        s,
-        params,
-        rhos,
-        me_inputs,
-        witnesses,
-        ell_d,
-        mix_commits,
-        mix_witnesses,
-    )
-}
-
 /// Borrowed-matrix Π_RLC with an accelerator-owned resident witness.
 ///
 /// The returned handle is opaque to the reduction. Public claim algebra and
 /// commitment mixing remain canonical, while the accelerator can pass its
 /// witness directly to Π_DEC without manufacturing a host matrix.
-#[allow(clippy::too_many_arguments)]
 pub fn rlc_with_commit_refs_and_resident_witness<Comb, MixWitness, Resident>(
     mode: FoldingMode,
     s: &CcsStructure<F>,

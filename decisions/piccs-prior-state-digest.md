@@ -159,6 +159,4 @@ this boundary and the exact SuperNeo statistical and commitment bounds.
 
 This accepted choice changes transcript order and proof bytes. The F-prime
 Stage 1 Lean relation must implement the rule and select a new verifier-owned
-relation identity before PiCCS conformance closes. The separate legacy
-`protocol-contract` profile fixes incompatible dimensions and is not authority
-for this Stage 1 package.
+relation identity before PiCCS conformance closes.

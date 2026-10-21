@@ -5,7 +5,8 @@ Run with malb/lattice-estimator commit 3e48ef421ec256afddb3e7d2249a77eab6e9ba12:
     sage -python scripts/estimate_nebula_sis.sage
 
 The estimator package must be on PYTHONPATH. The quantum Core-SVP profile
-matches the policy formalized in `formal/ajtai-lean/Ajtai/EstimatorModel.lean`.
+matches the policy that `formal/ajtai-lean/Ajtai/EstimatorModel.lean` formalized
+at commit `f7e093d8f`.
 The classical rough and default full models are printed for comparison.
 """
 

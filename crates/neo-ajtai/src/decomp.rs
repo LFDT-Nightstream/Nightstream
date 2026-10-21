@@ -374,7 +374,7 @@ pub fn split_b(Z: &[Fq], b: u32, d: usize, m: usize, k: usize, style: DecompStyl
 pub fn assert_range_b(Z: &[Fq], b: u32) -> AjtaiResult<()> {
     let b_i = b as i128;
     for &x in Z {
-        let v = crate::util::to_balanced_i128(x);
+        let v = neo_math::balanced::to_balanced_i128(x);
         if v.abs() >= b_i {
             return Err(AjtaiError::RangeViolation { value: v, bound: b });
         }

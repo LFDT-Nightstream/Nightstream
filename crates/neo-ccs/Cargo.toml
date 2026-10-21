@@ -23,16 +23,11 @@ rand_chacha_p3 = { workspace = true }
 rand_p3 = { workspace = true }
 once_cell = { workspace = true }
 
-# For structured logging (gated behind neo-logs feature)  
-tracing = { version = "0.1", default-features = false, features = ["std"] }
-
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 rayon = { workspace = true }
 
 [features]
 default = []
-# Enable verbose logging for debugging (OFF by default for security - CWE-532) 
-neo-logs = []
 wasm-threads = []
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

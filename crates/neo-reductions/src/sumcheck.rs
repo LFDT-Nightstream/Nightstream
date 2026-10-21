@@ -7,8 +7,6 @@ use thiserror::Error;
 
 pub const SUMCHECK_ROUND_COEFF_LABEL: &[u8] = b"sc/c";
 pub const SUMCHECK_CHALLENGE_LABEL: &[u8] = b"sc/q";
-pub const SUMCHECK_TRANSCRIPT_V3_LABEL: &[u8] = b"sc/v3";
-pub const SUMCHECK_TRANSCRIPT_V3_RAW_DOMAIN_TAG: u64 = 10;
 
 /// Format K value compactly for logging
 #[cfg(feature = "debug-logs")]
@@ -397,15 +395,11 @@ pub fn verify_sumcheck_rounds<Tr: Transcript>(
         format_k(&initial_sum)
     );
 
-    for (i, round_poly) in rounds.iter().enumerate() {
+    for round_poly in rounds {
+        #[cfg(feature = "debug-logs")]
+        let i = challenges.len();
         // Check degree bound
         if exceeds_degree_bound(round_poly, degree_bound) {
-            eprintln!(
-                "Round {} failed: degree check. len={}, degree_bound={}",
-                i,
-                round_poly.len(),
-                degree_bound
-            );
             return (challenges, running_sum, false);
         }
 
@@ -437,14 +431,6 @@ pub fn verify_sumcheck_rounds<Tr: Transcript>(
         }
 
         if eval_0 + eval_1 != running_sum {
-            eprintln!(
-                "Round {} failed: invariant check. eval_0={:?}, eval_1={:?}, sum={:?}, running_sum={:?}",
-                i,
-                eval_0,
-                eval_1,
-                eval_0 + eval_1,
-                running_sum
-            );
             return (challenges, running_sum, false);
         }
 
@@ -828,14 +814,8 @@ pub fn verify_batched_sumcheck_rounds<Tr: Transcript>(
 
     // All claims must have the same number of rounds
     let num_rounds = per_claim_rounds[0].len();
-    for (i, rounds) in per_claim_rounds.iter().enumerate() {
+    for rounds in per_claim_rounds {
         if rounds.len() != num_rounds {
-            eprintln!(
-                "Batched verify: claim {} has {} rounds, expected {}",
-                i,
-                rounds.len(),
-                num_rounds
-            );
             return (vec![], vec![], false);
         }
     }
@@ -861,13 +841,6 @@ pub fn verify_batched_sumcheck_rounds<Tr: Transcript>(
 
             // Check degree bound
             if exceeds_degree_bound(round_poly, degree_bound) {
-                eprintln!(
-                    "Claim {} round {} failed: degree check. len={}, degree_bound={}",
-                    claim_idx,
-                    round_idx,
-                    round_poly.len(),
-                    degree_bound
-                );
                 return (shared_challenges, running_sums, false);
             }
 
@@ -876,13 +849,6 @@ pub fn verify_batched_sumcheck_rounds<Tr: Transcript>(
             let eval_1 = poly_eval_k(round_poly, K::ONE);
 
             if eval_0 + eval_1 != running_sums[claim_idx] {
-                eprintln!(
-                    "Claim {} round {} failed: invariant. sum={:?}, running_sum={:?}",
-                    claim_idx,
-                    round_idx,
-                    eval_0 + eval_1,
-                    running_sums[claim_idx]
-                );
                 return (shared_challenges, running_sums, false);
             }
         }

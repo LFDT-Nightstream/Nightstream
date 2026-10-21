@@ -16,8 +16,6 @@ use neo_math::{
 use neo_params::{goldilocks_paper_b2, NeoParams};
 use neo_transcript::Poseidon2Transcript;
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
-#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-use rayon::prelude::*;
 
 use crate::error::PiCcsError;
 
@@ -631,11 +629,6 @@ impl RotRho {
     pub fn as_mat(&self) -> &Mat<F> {
         &self.0
     }
-
-    #[inline]
-    pub fn into_mat(self) -> Mat<F> {
-        self.0
-    }
 }
 
 impl<'de> serde::Deserialize<'de> for RotRho {
@@ -1045,79 +1038,6 @@ where
     Ok(z)
 }
 
-#[inline]
-fn i128_to_field_f<Ff>(v: i128) -> Ff
-where
-    Ff: PrimeField64 + PrimeCharacteristicRing + Copy,
-{
-    if v >= 0 {
-        Ff::from_u64(v as u64)
-    } else {
-        Ff::ZERO - Ff::from_u64((-v) as u64)
-    }
-}
-
-/// Balanced base-`b` decomposition of one field value into exactly `D` digits.
-///
-/// Returns an error when the value is not representable with `D` balanced digits for this base.
-pub fn decompose_balanced_fixed_d_digits_k<Ff>(val: Ff, b: u32) -> Result<[K; D], PiCcsError>
-where
-    Ff: PrimeField64 + PrimeCharacteristicRing + Copy,
-    K: From<Ff>,
-{
-    if b < 2 {
-        return Err(PiCcsError::InvalidInput(format!(
-            "decompose_balanced_fixed_d_digits_k: invalid base b={b}"
-        )));
-    }
-    if val == Ff::ZERO {
-        return Ok([K::ZERO; D]);
-    }
-    if val == Ff::ONE {
-        let mut out = [K::ZERO; D];
-        out[0] = K::ONE;
-        return Ok(out);
-    }
-
-    let mut rem = to_balanced_i128(val);
-    let b_i = b as i128;
-    let mut digits_f = [Ff::ZERO; D];
-    if rem >= i64::MIN as i128 && rem <= i64::MAX as i128 {
-        let mut rem64 = rem as i64;
-        let b_i64 = b as i64;
-        for d in digits_f.iter_mut().take(D) {
-            let (r_i, q) = if b == 2 {
-                balanced_divrem_i64_base2(rem64)
-            } else {
-                balanced_divrem_i64(rem64, b_i64)
-            };
-            *d = i128_to_field_f(r_i as i128);
-            rem64 = q;
-        }
-        rem = rem64 as i128;
-    } else {
-        for d in digits_f.iter_mut().take(D) {
-            let (r_i, q) = balanced_divrem(rem, b_i);
-            *d = i128_to_field_f(r_i);
-            rem = q;
-        }
-    }
-    if rem != 0 {
-        return Err(PiCcsError::InvalidInput(format!(
-            "value {} is not representable in D={} balanced digits for base b={}",
-            to_balanced_i128(val),
-            D,
-            b
-        )));
-    }
-
-    let mut out = [K::ZERO; D];
-    for rho in 0..D {
-        out[rho] = K::from(digits_f[rho]);
-    }
-    Ok(out)
-}
-
 /// Check whether one value is representable in exactly `D` balanced base-`b` digits.
 #[inline]
 fn is_representable_balanced_fixed_d_digits<Ff>(val: Ff, b: u32) -> Result<bool, PiCcsError>
@@ -1157,88 +1077,6 @@ where
         rem = q;
     }
     Ok(rem == 0)
-}
-
-/// Build NC rows (`D` coefficient lanes per logical column) for a witness matrix.
-///
-/// SuperNeo's NC polynomial checks the witness coefficient itself:
-/// `range_product(z_i[col], b)`. It must not check a balanced base-`b`
-/// decomposition of that coefficient; otherwise a high-norm value such as
-/// `2` at `b=2` decomposes into low-norm digits and evades the NC check.
-pub fn build_witness_nc_digit_table<Ff>(
-    params: &NeoParams,
-    Z: &Mat<Ff>,
-    expected_m: usize,
-) -> Result<Vec<[K; D]>, PiCcsError>
-where
-    Ff: PrimeField64 + PrimeCharacteristicRing + Copy + Send + Sync,
-    K: From<Ff>,
-{
-    build_witness_nc_digit_table_with_masks(params, Z, expected_m).map(|(digits, _masks)| digits)
-}
-
-pub fn build_witness_nc_digit_table_with_masks<Ff>(
-    params: &NeoParams,
-    Z: &Mat<Ff>,
-    expected_m: usize,
-) -> Result<(Vec<[K; D]>, Vec<u64>), PiCcsError>
-where
-    Ff: PrimeField64 + PrimeCharacteristicRing + Copy + Send + Sync,
-    K: From<Ff>,
-{
-    validate_superneo_witness_mat(Z, expected_m)?;
-    if params.b < 2 {
-        return Err(PiCcsError::InvalidInput(format!(
-            "NC witness table: invalid b={} (must be >= 2)",
-            params.b
-        )));
-    }
-    let carrier_width = superneo_carrier_width(expected_m);
-    let mut out = vec![[K::ZERO; D]; carrier_width];
-    let mut masks = vec![0u64; carrier_width];
-    let active_cols = expected_m.div_ceil(D);
-    // Process column blocks in parallel; each block writes to disjoint
-    // slices of `out` and `masks` (D contiguous columns per block).
-    let process_block = |blk: usize, out_chunk: &mut [[K; D]], mask_chunk: &mut [u64]| -> Result<(), PiCcsError> {
-        if blk >= active_cols {
-            return Ok(());
-        }
-        for (rho, (dst, mask_slot)) in out_chunk.iter_mut().zip(mask_chunk.iter_mut()).enumerate() {
-            let col = blk * D + rho;
-            if col >= carrier_width {
-                break;
-            }
-            let raw = Z[(rho, blk)];
-            if raw == Ff::ZERO {
-                continue;
-            }
-            dst[rho] = K::from(raw);
-            *mask_slot = 1u64 << rho;
-        }
-        Ok(())
-    };
-
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-    {
-        if rayon::current_thread_index().is_none() {
-            out.par_chunks_mut(D)
-                .zip(masks.par_chunks_mut(D))
-                .enumerate()
-                .try_for_each(|(blk, (out_chunk, mask_chunk))| process_block(blk, out_chunk, mask_chunk))?;
-        } else {
-            for (blk, (out_chunk, mask_chunk)) in out.chunks_mut(D).zip(masks.chunks_mut(D)).enumerate() {
-                process_block(blk, out_chunk, mask_chunk)?;
-            }
-        }
-    }
-    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-    {
-        for (blk, (out_chunk, mask_chunk)) in out.chunks_mut(D).zip(masks.chunks_mut(D)).enumerate() {
-            process_block(blk, out_chunk, mask_chunk)?;
-        }
-    }
-
-    Ok((out, masks))
 }
 
 /// Enforce DEC/RLC packed-witness representability.
@@ -1427,14 +1265,4 @@ pub fn left_mul_acc(acc: &mut Mat<F>, rho: &Mat<F>, a: &Mat<F>) {
             acc[(r, c)] += sum;
         }
     }
-}
-
-// ---------------------------------------------------------------------------
-// Formatting Utilities
-// ---------------------------------------------------------------------------
-
-/// Helper formatting for extension field elements used in debug logs.
-pub fn format_ext(x: K) -> String {
-    let coeffs = x.as_coeffs();
-    format!("({}, {})", coeffs[0].as_canonical_u64(), coeffs[1].as_canonical_u64())
 }

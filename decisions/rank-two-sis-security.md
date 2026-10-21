@@ -14,8 +14,7 @@ They must not be confused with the main SuperNeo witness commitment.
 
 The selected main commitment originally used `κ = 18`. The SuperNeo paper does not
 define a rank-two profile for Nightstream's auxiliary protocol-binding maps.
-See [Appendix B.2](../docs/superneo-paper/11-b-concrete-parameters.md) and the
-[Nightstream commitment profile](../protocol-contract/src/normative/50-nightstream-profile.md).
+See [Appendix B.2](../docs/superneo-paper/11-b-concrete-parameters.md).
 
 ## Decision
 
@@ -32,7 +31,7 @@ protocol-binding SIS map may use `κ = 2` only if:
 
 For `W` source fields, `r = ceil(41W/54)`, so the certified limit is also
 `W <= 66,342`. The selected model targets 128 post-union quantum Core-SVP bits
-and rounds seven targets to eight. Lean proves the arithmetic boundary in
-[Ajtai/EstimatorModel.lean](../formal/ajtai-lean/Ajtai/EstimatorModel.lean) and
-states the external hardness boundary in
-[Ajtai/SecurityBoundary.lean](../formal/ajtai-lean/Ajtai/SecurityBoundary.lean).
+and rounds seven targets to eight. Lean proved the arithmetic boundary in
+`formal/ajtai-lean/Ajtai/EstimatorModel.lean` and stated the external hardness
+boundary in `formal/ajtai-lean/Ajtai/SecurityBoundary.lean`. Both files are at
+commit `f7e093d8f`. That project was later deleted.

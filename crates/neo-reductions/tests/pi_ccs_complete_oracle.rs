@@ -32,7 +32,6 @@ fn transcript() -> Poseidon2Transcript {
 struct Case {
     structure: CcsStructure<F>,
     params: NeoParams,
-    commitment: AjtaiSModule,
     cache: OptimizedStructureCache,
     fresh: Vec<CcsClaim<Commitment, F>>,
     witnesses: Vec<CcsWitness<F>>,
@@ -103,7 +102,6 @@ impl Case {
         Self {
             structure,
             params,
-            commitment,
             cache,
             fresh,
             witnesses,
@@ -127,7 +125,6 @@ impl Case {
             &self.witnesses,
             &self.running,
             &self.running_witnesses,
-            &self.commitment,
             &self.cache,
         )
         .unwrap();
@@ -326,7 +323,6 @@ fn cached_optimized_prover_keeps_its_matrix_binding_check() {
         &case.witnesses,
         &case.running,
         &case.running_witnesses,
-        &case.commitment,
         &case.cache,
     )
     .unwrap_err();

@@ -17,7 +17,6 @@ use super::paper_joint::{
 use super::transcript::{absorb_outputs, assemble_proof, bind_and_sample, prove_sumcheck};
 use super::PaperMatrixRows;
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn paper_exact_prove_with_trace<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,
@@ -41,7 +40,6 @@ pub(crate) fn paper_exact_prove_with_trace<L: neo_ccs::traits::SModuleHomomorphi
 }
 
 /// Direct paper evaluation of a header with circuit-owned original matrix rows.
-#[allow(clippy::too_many_arguments)]
 pub fn paper_exact_prove_with_rows(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,
@@ -64,7 +62,6 @@ pub fn paper_exact_prove_with_rows(
     )
 }
 
-#[allow(clippy::too_many_arguments)]
 fn prove_with_rows_inner(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,

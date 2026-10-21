@@ -20,7 +20,7 @@ use std::time::Instant;
 use crate::error::PiCcsError;
 
 mod accelerator;
-pub use accelerator::{rlc_with_commit_refs_and_resident_witness, rlc_with_commit_refs_and_witness_mix};
+pub use accelerator::rlc_with_commit_refs_and_resident_witness;
 mod dec;
 pub use dec::verify_dec_public;
 mod validation;
@@ -36,7 +36,6 @@ pub use crate::engines::optimized_engine::PiCcsProof;
 // Re-export common utilities for convenience (single import path for users)
 pub use crate::common::{
     compute_v1_2_evaluations_from_z_and_r,
-    format_ext,
     left_mul_acc,
     rot_rhos_from_mats,
     rot_rhos_to_mats,
@@ -352,88 +351,6 @@ where
                 ell_d,
                 child_commitments,
                 &combine_b_pows,
-            );
-            let reference = crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
-                s,
-                params,
-                parent,
-                Z_split,
-                ell_d,
-                child_commitments,
-                &combine_b_pows,
-            );
-            require_dec_crosscheck(optimized, reference)
-        }
-    }
-}
-
-/// DEC (SuperNeo-cached): same as `dec_children_with_commit`, but reuses a
-/// caller-provided SuperNeo eval cache.
-///
-/// This is intended for high-level coordinators that already precompute the
-/// verifier-owned optimized structure cache and want Π_DEC to avoid rebuilding
-/// the SuperNeo transformed-matrix view on every prover call.
-pub fn dec_children_with_commit_superneo_cached<Comb>(
-    mode: FoldingMode,
-    s: &CcsStructure<F>,
-    params: &NeoParams,
-    parent: &CeClaim<Cmt, F, K>,
-    Z_split: &[Mat<F>],
-    ell_d: usize,
-    child_commitments: &[Cmt],
-    combine_b_pows: Comb,
-    superneo_cache: &crate::superneo_eval::SuperneoEvalCache,
-) -> (Vec<CeClaim<Cmt, F, K>>, bool, bool, bool)
-where
-    Comb: Fn(&[Cmt], u32) -> Cmt,
-{
-    use crate::engines::pi_rlc_dec::OptimizedRlcDec;
-    if let Err(e) = validate_dec_boundary_inputs(s, params, parent, Z_split, child_commitments, ell_d) {
-        eprintln!("dec_children_with_commit_superneo_cached input validation failed: {e}");
-        return (Vec::new(), false, false, false);
-    }
-    if let Err(error) = validate_selected_reduction_claims(
-        &mode,
-        "dec_children_with_commit_superneo_cached: selected parent",
-        s,
-        std::slice::from_ref(parent),
-    ) {
-        eprintln!("dec_children_with_commit_superneo_cached input validation failed: {error}");
-        return (Vec::new(), false, false, false);
-    }
-
-    match mode {
-        FoldingMode::Optimized => OptimizedRlcDec::dec_children_with_commit_superneo_cached(
-            s,
-            params,
-            parent,
-            Z_split,
-            ell_d,
-            child_commitments,
-            combine_b_pows,
-            superneo_cache,
-        ),
-        #[cfg(feature = "paper-exact")]
-        FoldingMode::PaperExact => crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
-            s,
-            params,
-            parent,
-            Z_split,
-            ell_d,
-            child_commitments,
-            combine_b_pows,
-        ),
-        #[cfg(feature = "paper-exact")]
-        FoldingMode::OptimizedWithCrosscheck => {
-            let optimized = OptimizedRlcDec::dec_children_with_commit_superneo_cached(
-                s,
-                params,
-                parent,
-                Z_split,
-                ell_d,
-                child_commitments,
-                &combine_b_pows,
-                superneo_cache,
             );
             let reference = crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
                 s,

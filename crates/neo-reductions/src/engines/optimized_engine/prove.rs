@@ -8,7 +8,7 @@ use neo_transcript::Poseidon2Transcript;
 
 use crate::error::PiCcsError;
 
-use super::{OptimizedStructureCache, PaperJointOracleBackend, PiCcsProof, PiCcsProvePerf, PiDecProverPrecompute};
+use super::{OptimizedStructureCache, PiCcsProof, PiCcsProvePerf, PiDecProverPrecompute};
 
 #[allow(clippy::too_many_arguments)]
 pub fn optimized_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
@@ -116,51 +116,6 @@ pub fn optimized_prove_with_cache_and_precompute_and_perf<L: neo_ccs::traits::SM
         running_witnesses,
         commitment,
         cache,
-    )?;
-    let precompute = PiDecProverPrecompute {
-        row_chals: outputs
-            .first()
-            .ok_or_else(|| PiCcsError::ProtocolError("Pi_CCS produced no output claims".into()))?
-            .r
-            .clone(),
-    };
-    Ok((outputs, proof, perf, precompute))
-}
-
-#[allow(clippy::too_many_arguments)]
-pub fn optimized_prove_with_cache_and_precompute_and_backend_and_perf<
-    L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>,
->(
-    transcript: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    structure: &CcsStructure<F>,
-    fresh_claims: &[CcsClaim<Cmt, F>],
-    fresh_witnesses: &[CcsWitness<F>],
-    running_claims: &[CeClaim<Cmt, F, K>],
-    running_witnesses: &[Mat<F>],
-    commitment: &L,
-    cache: &OptimizedStructureCache,
-    backend: &mut dyn PaperJointOracleBackend,
-) -> Result<
-    (
-        Vec<CeClaim<Cmt, F, K>>,
-        PiCcsProof,
-        PiCcsProvePerf,
-        PiDecProverPrecompute,
-    ),
-    PiCcsError,
-> {
-    let (outputs, proof, perf) = super::paper_joint::prove_with_backend(
-        transcript,
-        params,
-        structure,
-        fresh_claims,
-        fresh_witnesses,
-        running_claims,
-        running_witnesses,
-        commitment,
-        cache,
-        backend,
     )?;
     let precompute = PiDecProverPrecompute {
         row_chals: outputs

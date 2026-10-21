@@ -17,7 +17,7 @@ pub mod verify;
 
 pub use rlc_dec::{
     dec_reduction_paper_exact_with_commit_check, dec_reduction_paper_exact_with_rows,
-    rlc_claim_paper_exact_with_commit_mix, rlc_reduction_paper_exact_with_commit_mix, verify_dec_public_paper_exact,
+    rlc_claim_paper_exact_with_commit_mix, rlc_reduction_paper_exact_with_commit_mix,
 };
 
 pub use paper_rows::PaperMatrixRows;

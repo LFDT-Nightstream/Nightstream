@@ -6,7 +6,6 @@ use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat};
 use neo_math::{superneo_bar_block, Fq, KExtensions, Rq, D, F, K};
 use neo_transcript::Poseidon2Transcript;
 use p3_field::{Field, PrimeCharacteristicRing};
-use std::sync::Arc;
 
 pub use super::cpu_oracle::OptimizedPaperJointOracle;
 use crate::engines::pi_ccs_joint::{
@@ -625,35 +624,6 @@ pub fn prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     Ok((outputs, proof, perf))
 }
 
-#[allow(clippy::too_many_arguments)]
-pub fn prove_with_backend<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
-    transcript: &mut Poseidon2Transcript,
-    params: &neo_params::NeoParams,
-    structure: &CcsStructure<F>,
-    fresh_claims: &[CcsClaim<Cmt, F>],
-    fresh_witnesses: &[CcsWitness<F>],
-    running_claims: &[CeClaim<Cmt, F, K>],
-    running_witnesses: &[Mat<F>],
-    _commitment: &L,
-    cache: &OptimizedStructureCache,
-    backend: &mut dyn PaperJointOracleBackend,
-) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, super::PiCcsProvePerf), PiCcsError> {
-    let (outputs, proof, perf, _) = prove_with_trace_inner(
-        transcript,
-        params,
-        structure,
-        fresh_claims,
-        fresh_witnesses,
-        running_claims,
-        running_witnesses,
-        OracleSource::Cached {
-            cache,
-            backend: Some(backend),
-        },
-    )?;
-    Ok((outputs, proof, perf))
-}
-
 /// Run the canonical optimized prover with an already prepared evaluator.
 /// The evaluator must use these exact ordered sources and prepared challenges,
 /// and return all ring openings. The driver rebinds the statement and rejects
@@ -728,44 +698,6 @@ pub fn prove_with_row_cache(
         &rows,
         workspace_bytes,
         None,
-    )
-}
-
-/// Use a device evaluator with rows prepared by the circuit owner. Transcript
-/// order and output checks are the same as the CPU row-cache path.
-#[allow(clippy::too_many_arguments)]
-pub fn prove_with_row_cache_and_backend(
-    transcript: &mut Poseidon2Transcript,
-    params: &neo_params::NeoParams,
-    structure: &CcsStructure<F>,
-    fresh_claims: &[CcsClaim<Cmt, F>],
-    fresh_witnesses: &[CcsWitness<F>],
-    running_claims: &[CeClaim<Cmt, F, K>],
-    running_witnesses: &[Mat<F>],
-    cache: &Arc<SuperneoEvalCache>,
-    backend: &mut dyn PaperJointOracleBackend,
-) -> Result<
-    (
-        Vec<CeClaim<Cmt, F, K>>,
-        PiCcsProof,
-        super::PiCcsProvePerf,
-        ProtocolTrace,
-    ),
-    PiCcsError,
-> {
-    let rows = CachedMatrixRows::new(cache)?;
-    let workspace_bytes = resident_row_workspace(&rows, fresh_witnesses.len())?;
-    prove_with_matrix_rows(
-        transcript,
-        params,
-        structure,
-        fresh_claims,
-        fresh_witnesses,
-        running_claims,
-        running_witnesses,
-        &rows,
-        workspace_bytes,
-        Some(backend),
     )
 }
 

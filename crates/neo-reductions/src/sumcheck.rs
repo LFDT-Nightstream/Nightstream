@@ -7,8 +7,6 @@ use thiserror::Error;
 
 pub const SUMCHECK_ROUND_COEFF_LABEL: &[u8] = b"sc/c";
 pub const SUMCHECK_CHALLENGE_LABEL: &[u8] = b"sc/q";
-pub const SUMCHECK_TRANSCRIPT_V3_LABEL: &[u8] = b"sc/v3";
-pub const SUMCHECK_TRANSCRIPT_V3_RAW_DOMAIN_TAG: u64 = 10;
 
 /// Format K value compactly for logging
 #[cfg(feature = "debug-logs")]

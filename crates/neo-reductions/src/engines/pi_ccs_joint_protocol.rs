@@ -410,18 +410,3 @@ pub(crate) fn verify_with_trace(
     }
     Ok((final_claim == expected, trace))
 }
-
-/// Verify PiCCS with the digest-only transcript binding.
-///
-/// The [caller contract](crate::engines::PiCcsEngine::verify) applies.
-pub fn verify(
-    transcript: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    structure: &CcsStructure<F>,
-    fresh: &[CcsClaim<Cmt, F>],
-    running: &[CeClaim<Cmt, F, K>],
-    outputs: &[CeClaim<Cmt, F, K>],
-    proof: &PiCcsProof,
-) -> Result<bool, PiCcsError> {
-    Ok(verify_with_trace(transcript, params, structure, fresh, running, outputs, proof)?.0)
-}

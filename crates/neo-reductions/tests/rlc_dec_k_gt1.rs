@@ -6,9 +6,8 @@ use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use neo_reductions::api::{
     dec_children_with_commit, dec_children_with_commit_superneo_cached_from_trusted_split_digits,
-    dec_children_with_commit_superneo_cached_with_digit_flags, rlc_public,
-    rlc_public_matches_verified_inputs_with_perf, rlc_public_matches_with_perf, rlc_with_commit,
-    rlc_with_commit_refs_and_resident_witness, verify_dec_public, FoldingMode,
+    dec_children_with_commit_superneo_cached_with_digit_flags, rlc_public, rlc_public_matches_with_perf,
+    rlc_with_commit, rlc_with_commit_refs_and_resident_witness, verify_dec_public, FoldingMode,
 };
 use neo_reductions::common::{
     compute_v1_2_evaluations_from_z_and_r, left_mul_acc, project_x_from_witness_mat, rot_rhos_to_mats,
@@ -470,7 +469,7 @@ fn rlc_x_projection_tracks_mixed_witness_under_rotation_rhos() {
 }
 
 #[test]
-fn rlc_public_verified_inputs_fast_path_matches_full_public_check() {
+fn rlc_public_matches_with_perf_rejects_tampered_rhos() {
     let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_structure(D, D);
@@ -508,7 +507,7 @@ fn rlc_public_verified_inputs_fast_path_matches_full_public_check() {
     )
     .expect("optimized rlc_with_commit");
 
-    let (full_ok, _) = rlc_public_matches_with_perf(
+    let (ok, _) = rlc_public_matches_with_perf(
         &s,
         &params,
         &rhos_typed,
@@ -517,22 +516,11 @@ fn rlc_public_verified_inputs_fast_path_matches_full_public_check() {
         mix_commitments_from_rhos,
         ell_d,
     )
-    .expect("full rlc_public_matches_with_perf");
-    let (verified_ok, _) = rlc_public_matches_verified_inputs_with_perf(
-        &s,
-        &params,
-        &rhos_typed,
-        &me_inputs,
-        &parent,
-        mix_commitments_from_rhos,
-        ell_d,
-    )
-    .expect("verified-inputs rlc_public_matches_with_perf");
-    assert_eq!(verified_ok, full_ok, "fast path must agree on valid verified inputs");
-    assert!(verified_ok, "valid verified inputs must satisfy the public RLC check");
+    .expect("rlc_public_matches_with_perf");
+    assert!(ok, "valid inputs must satisfy the public RLC check");
 
     let (rhos_tampered, _) = sampled_rhos(&params, Zs.len(), true);
-    let (full_bad, _) = rlc_public_matches_with_perf(
+    let (bad, _) = rlc_public_matches_with_perf(
         &s,
         &params,
         &rhos_tampered,
@@ -541,19 +529,8 @@ fn rlc_public_verified_inputs_fast_path_matches_full_public_check() {
         mix_commitments_from_rhos,
         ell_d,
     )
-    .expect("full tampered rlc_public_matches_with_perf");
-    let (verified_bad, _) = rlc_public_matches_verified_inputs_with_perf(
-        &s,
-        &params,
-        &rhos_tampered,
-        &me_inputs,
-        &parent,
-        mix_commitments_from_rhos,
-        ell_d,
-    )
-    .expect("verified-inputs tampered rlc_public_matches_with_perf");
-    assert_eq!(verified_bad, full_bad, "fast path must agree on tampered rho checks");
-    assert!(!verified_bad, "tampered rho must fail the public RLC check");
+    .expect("tampered rlc_public_matches_with_perf");
+    assert!(!bad, "tampered rho must fail the public RLC check");
 }
 
 #[cfg(feature = "paper-exact")]

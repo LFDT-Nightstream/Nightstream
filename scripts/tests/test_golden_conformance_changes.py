@@ -87,8 +87,8 @@ class GoldenConformanceChangesTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(checks_for_path(path), ())
 
-    def test_mutation_archive_selects_native_regression_without_regeneration(self):
-        path = "docs/reviews/nightstream-fprime-requirements/NIFS_DEC_AND_FINAL_OUTPUT_EVIDENCE.zip"
+    def test_mutation_manifest_selects_native_regression_without_regeneration(self):
+        path = "crates/nightstream/tests/fixtures/dec_mutation_manifest.json"
         self.assertEqual(classify([path]), {
             "native": True, "lean_reference": False, "metal": False,
             "triggers": {"native": [path], "lean_reference": [], "metal": []},

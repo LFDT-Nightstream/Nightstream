@@ -79,10 +79,7 @@ where
         return false;
     }
     let Some(x_cols) = neo_ccs::superneo_public_x_cols(parent.m_in) else {
-        return fail(format!(
-            "parent m_in={} is not a whole number of ring elements",
-            parent.m_in
-        ));
+        return false;
     };
     if parent.X.rows() != D || parent.X.cols() != x_cols {
         return false;

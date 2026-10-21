@@ -113,12 +113,9 @@ Proof.
 Qed.
 
 Lemma static_pc_gate_rows :
-  nth_error FullRelation.rows 520%nat =
-    Some (ZeroTest.inverseRow COL_PC_EDGE_KIND COL_PC_EDGE_KIND_INV COL_PC_EDGE_KIND_IS_STATIC) /\
-  nth_error FullRelation.rows 521%nat =
-    Some (ZeroTest.zeroRow COL_PC_EDGE_KIND COL_PC_EDGE_KIND_IS_STATIC) /\
-  nth_error FullRelation.rows 522%nat =
-    Some ([(COL_IS_PROGRAM_ROW, 1)], [(COL_PC_EDGE_KIND_IS_STATIC, 1)], [(COL_PC_ROM_ACTIVE, 1)]).
+  Range.inFull (ZeroTest.inverseRow COL_PC_EDGE_KIND COL_PC_EDGE_KIND_INV COL_PC_EDGE_KIND_IS_STATIC) = true /\
+  Range.inFull (ZeroTest.zeroRow COL_PC_EDGE_KIND COL_PC_EDGE_KIND_IS_STATIC) = true /\
+  Range.inFull ([(COL_IS_PROGRAM_ROW, 1)], [(COL_PC_EDGE_KIND_IS_STATIC, 1)], [(COL_PC_ROM_ACTIVE, 1)]) = true.
 Proof. vm_compute. repeat split; reflexivity. Qed.
 
 Lemma full_static_pc_rom_active : forall (w : Witness),
@@ -129,9 +126,9 @@ Proof.
   destruct static_pc_gate_rows as [Hinv [Hzero Hgate]].
   pose proof (ZeroTest.zero_test_value w COL_PC_EDGE_KIND COL_PC_EDGE_KIND_INV
     COL_PC_EDGE_KIND_IS_STATIC Hprime Hone
-    (Range.sat_row w _ _ Hall Hinv) (Range.sat_row w _ _ Hall Hzero)) as Hstatic.
+    (Range.in_full_sat w _ Hall Hinv) (Range.in_full_sat w _ Hall Hzero)) as Hstatic.
   rewrite Hkind in Hstatic. cbn in Hstatic.
-  pose proof (Range.sat_row w _ _ Hall Hgate) as Hsat.
+  pose proof (Range.in_full_sat w _ Hall Hgate) as Hsat.
   unfold sat in Hsat. cbn [eval fold_right] in Hsat.
   rewrite Hprogram, Hstatic in Hsat.
   pose proof (value_bound w COL_PC_ROM_ACTIVE) as Hbound.

@@ -16,11 +16,10 @@ use neo_wasm::ccs::build_wasm_relation;
 use neo_wasm::isa::{opcode_code, WasmOpcode};
 use neo_wasm::layout::{
     selector_col, COL_CALL_STACK_PUSH_PRESENT, COL_HOST_CALL_ACTIVE, COL_LOCAL_VALUE, COL_ONE, COL_OUTPUT_CAPTURED,
-    COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READS, COL_STACK_READ_ACTIVE, COL_STACK_READ_ADDR_LO,
-    COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_HI_ACTIVE,
-    COL_STACK_WRITES, NAMED_COLUMN_COUNT,
+    COL_SP_AFTER, COL_STACK_READS, COL_STACK_READ_ACTIVE, COL_STACK_READ_ADDR_LO, COL_STACK_WRITE0_ACTIVE,
+    COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_HI_ACTIVE, COL_STACK_WRITES,
+    NAMED_COLUMN_COUNT,
 };
-use neo_wasm::range_check::range_checked_bit_columns;
 use neo_wasm::relation_layout::build_wasm_relation_layout;
 use neo_wasm::tagged_r1cs_builder::WasmConstraintScope;
 use neo_wasm::WasmMemoryId;
@@ -323,17 +322,6 @@ fn emit_stack_proof_indices(relation: &ApplicationRelation<WasmConstraintScope>,
         assert!(matches.next().is_none(), "ambiguous row for {name}: {label}");
         out.push_str(&format!("Definition {name} : nat := {index}%nat.\n"));
     }
-    let bits = range_checked_bit_columns(COL_SP_BEFORE).expect("stack pointer range bits");
-    assert_eq!(bits.len(), 32);
-    let range_start = catalog
-        .rows()
-        .iter()
-        .position(|row| row.tag().label() == "COL_SP_BEFORE")
-        .expect("stack pointer range rows");
-    out.push_str(&format!(
-        "Definition spBeforeRangeStart : nat := {range_start}%nat.\nDefinition spBeforeBitStart : nat := {}%nat.\n",
-        bits.start
-    ));
 }
 
 fn emit_rocq_memory_catalog() -> String {

@@ -1,5 +1,5 @@
 (* Range checks obtained from the exported Boolean and recomposition rows. *)
-From Stdlib Require Import List ZArith Znumtheory Lia.
+From Stdlib Require Import List ZArith Znumtheory Bool Lia.
 Require Import R1CS Columns FullRelation.
 Import ListNotations.
 Open Scope Z_scope.
@@ -24,23 +24,6 @@ Proof.
   unfold satAll in Hall.
   apply (proj1 (Forall_forall (sat w) FullRelation.rows) Hall).
   eapply nth_error_In; exact Hrow.
-Qed.
-
-Lemma sat_slice : forall w start count,
-  satAll w FullRelation.rows ->
-  Forall (sat w) (firstn count (skipn start FullRelation.rows)).
-Proof.
-  intros w start count Hall.
-  unfold satAll in Hall.
-  apply Forall_forall.
-  intros row Hin.
-  apply (proj1 (Forall_forall (sat w) FullRelation.rows) Hall).
-  rewrite <- (firstn_skipn start FullRelation.rows).
-  apply in_or_app.
-  right.
-  rewrite <- (firstn_skipn count (skipn start FullRelation.rows)).
-  apply in_or_app.
-  left; exact Hin.
 Qed.
 
 Lemma boolean_row_bound : forall (w : Witness) column,
@@ -114,117 +97,140 @@ Lemma u32_max : forall start,
   eval (fun _ => 1) (bitTerms (u32Bits start)) = 4294967295.
 Proof. intro start. unfold bitTerms, u32Bits, eval. cbn. reflexivity. Qed.
 
-Definition rangeBlock (rowStart bitStart : nat) : Prop :=
-  firstn 32%nat (skipn rowStart FullRelation.rows) =
-    map booleanRow (u32Bits bitStart).
+(* Locate rows by shape. The search is computation, not an assumption: a row it
+   finds is checked equal to the requested one, so the circuit's row order and
+   auxiliary columns never appear in a proof. *)
+Fixpoint termsEqual (a b : SparseRow) : bool :=
+  match a, b with
+  | [], [] => true
+  | (c, k) :: a, (d, l) :: b => Nat.eqb c d && Z.eqb k l && termsEqual a b
+  | _, _ => false
+  end.
 
-Lemma u32_from_full : forall (w : Witness) column rowStart bitStart,
-  fieldPrime -> FullRelation.satFull w ->
-  rangeBlock rowStart bitStart ->
-  nth_error FullRelation.rows (rowStart + 32)%nat =
-    Some (recomposeRow column (u32Bits bitStart)) ->
-  0 <= w column < 4294967296.
+Definition rowsEqual (a b : Row) : bool :=
+  let '(a1, a2, a3) := a in let '(b1, b2, b3) := b in
+  termsEqual a1 b1 && termsEqual a2 b2 && termsEqual a3 b3.
+
+Fixpoint findRow (test : Row -> bool) (rows : list Row) : option nat :=
+  match rows with
+  | [] => None
+  | row :: rest => if test row then Some 0%nat else option_map S (findRow test rest)
+  end.
+
+Lemma terms_equal_sound : forall a b, termsEqual a b = true -> a = b.
 Proof.
-  intros w column rowStart bitStart Hprime [Hone Hall] Hblock Hrow.
-  assert (Hbits : Forall (fun bit => sat w (booleanRow bit)) (u32Bits bitStart)).
-  { pose proof (sat_slice w rowStart 32%nat Hall) as Hslice.
-    rewrite Hblock in Hslice.
-    exact (proj1 (Forall_map booleanRow (sat w) (u32Bits bitStart)) Hslice). }
-  pose proof (sat_row w _ _ Hall Hrow) as Hrecompose.
-  pose proof (range_from_rows w column (u32Bits bitStart)
-    Hprime Hone Hbits Hrecompose) as Hbound.
-  rewrite u32_max in Hbound.
-  assert (4294967295 < modulus) by (unfold modulus; lia).
-  specialize (Hbound H).
-  lia.
+  induction a as [ | [c k] a IH]; intros [ | [d l] b] H; try discriminate; [reflexivity | ].
+  cbn in H. apply andb_prop in H as [H Hrest]. apply andb_prop in H as [Hc Hk].
+  apply Nat.eqb_eq in Hc. apply Z.eqb_eq in Hk. subst. f_equal. exact (IH _ Hrest).
 Qed.
 
-Lemma read0_range_block : rangeBlock 2616%nat 2278%nat.
-Proof. vm_compute. reflexivity. Qed.
-Lemma read0_recompose :
-  nth_error FullRelation.rows 2648%nat =
-  Some (recomposeRow (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)
-    (u32Bits 2278%nat)).
-Proof. vm_compute. reflexivity. Qed.
-Lemma read1_range_block : rangeBlock 2649%nat 2310%nat.
-Proof. vm_compute. reflexivity. Qed.
-Lemma read1_recompose :
-  nth_error FullRelation.rows 2681%nat =
-  Some (recomposeRow (List.nth 1%nat COL_STACK_READ_VALUE_LO 0%nat)
-    (u32Bits 2310%nat)).
-Proof. vm_compute. reflexivity. Qed.
-Lemma write0_range_block : rangeBlock 2880%nat 2534%nat.
-Proof. vm_compute. reflexivity. Qed.
-Lemma write0_recompose :
-  nth_error FullRelation.rows 2912%nat =
-  Some (recomposeRow COL_STACK_WRITE0_VALUE_LO (u32Bits 2534%nat)).
-Proof. vm_compute. reflexivity. Qed.
+Lemma rows_equal_sound : forall a b, rowsEqual a b = true -> a = b.
+Proof.
+  intros [[a1 a2] a3] [[b1 b2] b3] H. cbn in H.
+  apply andb_prop in H as [H H3]. apply andb_prop in H as [H1 H2].
+  rewrite (terms_equal_sound _ _ H1), (terms_equal_sound _ _ H2), (terms_equal_sound _ _ H3). reflexivity.
+Qed.
+
+Lemma find_row_sound : forall test rows index, findRow test rows = Some index ->
+  exists row, nth_error rows index = Some row /\ test row = true.
+Proof.
+  intros test. induction rows as [ | row rest IH]; intros index H; cbn in H; [discriminate | ].
+  destruct (test row) eqn:Htest.
+  - injection H as <-. exists row. split; [reflexivity | exact Htest].
+  - destruct (findRow test rest) as [n | ]; cbn in H; [ | discriminate]. injection H as <-.
+    exact (IH n Logic.eq_refl).
+Qed.
+
+Definition inRows (rows : list Row) (row : Row) : bool :=
+  match findRow (rowsEqual row) rows with Some _ => true | None => false end.
+
+Lemma in_rows_sat : forall w rows row, satAll w rows -> inRows rows row = true -> sat w row.
+Proof.
+  intros w rows row Hall Hin. unfold inRows in Hin.
+  destruct (findRow (rowsEqual row) rows) as [index | ] eqn:Hfind; [ | discriminate].
+  destruct (find_row_sound _ _ _ Hfind) as [found [Hnth Hequal]].
+  rewrite <- (rows_equal_sound _ _ Hequal) in Hnth.
+  apply (proj1 (Forall_forall _ _) Hall). eapply nth_error_In; exact Hnth.
+Qed.
+
+(* The exported relation contains this row. *)
+Definition inFull : Row -> bool := inRows FullRelation.rows.
+
+Lemma in_full_sat : forall w row, satAll w FullRelation.rows -> inFull row = true -> sat w row.
+Proof. intros. eapply in_rows_sat; eassumption. Qed.
+
+Lemma full_boolean : forall (w : Witness) column,
+  fieldPrime -> FullRelation.satFull w -> inFull (booleanRow column) = true -> w column = 0 \/ w column = 1.
+Proof.
+  intros w column Hprime [Hone Hall] Hin. exact (boolean_row_bound w column Hprime Hone (in_full_sat w _ Hall Hin)).
+Qed.
+
+(* Check the complete candidate before selecting it. Boolean rows may occur
+   anywhere in the relation; only the bit columns themselves are consecutive. *)
+Definition rangeRowChecked (rows : list Row) (column count : nat) (row : Row) : bool :=
+  match row with
+  | ((bit, _) :: _, _, _) =>
+      let bits := seq bit count in
+      if rowsEqual row (recomposeRow column bits) then
+        forallb (fun b => inRows rows (booleanRow b)) bits
+      else false
+  | _ => false
+  end.
+
+Definition u32Checked (column : nat) : bool :=
+  match findRow (rangeRowChecked FullRelation.rows column 32%nat) FullRelation.rows with
+  | Some _ => true | None => false end.
+
+Lemma full_u32 : forall (w : Witness) column,
+  fieldPrime -> FullRelation.satFull w -> u32Checked column = true -> 0 <= w column < 4294967296.
+Proof.
+  intros w column Hprime [Hone Hall] Hchecked. unfold u32Checked in Hchecked.
+  destruct (findRow _ FullRelation.rows) as [index | ] eqn:Hfind; [ | discriminate].
+  destruct (find_row_sound _ _ _ Hfind) as [row [Hnth Hrow]].
+  destruct row as [[[ | [bit coeff] rest] middle] last]; [discriminate | ].
+  change ((if rowsEqual ((bit, coeff) :: rest, middle, last) (recomposeRow column (u32Bits bit))
+    then forallb (fun b => inRows FullRelation.rows (booleanRow b)) (u32Bits bit)
+    else false) = true) in Hrow.
+  destruct (rowsEqual ((bit, coeff) :: rest, middle, last)
+    (recomposeRow column (u32Bits bit))) eqn:Hrecompose; [ | discriminate].
+  rename Hrow into Hbits.
+  apply rows_equal_sound in Hrecompose.
+  assert (Hbooleans : Forall (fun bit => sat w (booleanRow bit)) (u32Bits bit)).
+  { apply Forall_forall. intros other Hother. apply (in_rows_sat w _ _ Hall).
+    exact (proj1 (forallb_forall _ _) Hbits other Hother). }
+  pose proof (sat_row w index _ Hall (eq_trans Hnth (f_equal (@Some Row) Hrecompose))) as Hsat.
+  pose proof (range_from_rows w column (u32Bits bit) Hprime Hone Hbooleans Hsat)
+    as Hbound.
+  rewrite u32_max in Hbound. assert (4294967295 < modulus) by (unfold modulus; lia).
+  specialize (Hbound H). lia.
+Qed.
 
 Lemma full_read0_u32 : forall (w : Witness),
   fieldPrime -> FullRelation.satFull w ->
   0 <= w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat) < 4294967296.
-Proof.
-  intros w Hprime Hsat.
-  exact (u32_from_full w _ 2616%nat 2278%nat Hprime Hsat
-    read0_range_block read0_recompose).
-Qed.
+Proof. intros w Hprime Hfull. apply (full_u32 w _ Hprime Hfull). vm_compute. reflexivity. Qed.
 
 Lemma full_read1_u32 : forall (w : Witness),
   fieldPrime -> FullRelation.satFull w ->
   0 <= w (List.nth 1%nat COL_STACK_READ_VALUE_LO 0%nat) < 4294967296.
-Proof.
-  intros w Hprime Hsat.
-  exact (u32_from_full w _ 2649%nat 2310%nat Hprime Hsat
-    read1_range_block read1_recompose).
-Qed.
+Proof. intros w Hprime Hfull. apply (full_u32 w _ Hprime Hfull). vm_compute. reflexivity. Qed.
 
 Lemma full_write0_u32 : forall (w : Witness),
   fieldPrime -> FullRelation.satFull w ->
   0 <= w COL_STACK_WRITE0_VALUE_LO < 4294967296.
-Proof.
-  intros w Hprime Hsat.
-  exact (u32_from_full w _ 2880%nat 2534%nat Hprime Hsat
-    write0_range_block write0_recompose).
-Qed.
-
-Lemma local_value_range_block : rangeBlock 1838%nat 1526%nat.
-Proof. vm_compute. reflexivity. Qed.
-Lemma local_value_recompose :
-  nth_error FullRelation.rows 1870%nat =
-  Some (recomposeRow COL_LOCAL_VALUE (u32Bits 1526%nat)).
-Proof. vm_compute. reflexivity. Qed.
+Proof. intros w Hprime Hfull. apply (full_u32 w _ Hprime Hfull). vm_compute. reflexivity. Qed.
 
 Lemma full_local_value_u32 : forall (w : Witness),
   fieldPrime -> FullRelation.satFull w ->
   0 <= w COL_LOCAL_VALUE < 4294967296.
-Proof.
-  intros w Hprime Hsat.
-  exact (u32_from_full w _ 1838%nat 1526%nat Hprime Hsat
-    local_value_range_block local_value_recompose).
-Qed.
-
-Lemma wide_aux0_boolean_row :
-  nth_error FullRelation.rows 2946%nat = Some (booleanRow COL_WIDE_AUX0).
-Proof. vm_compute. reflexivity. Qed.
-
-Lemma eq_selector_boolean_row :
-  nth_error FullRelation.rows 1684%nat = Some (booleanRow COL_SEL_I32_EQ).
-Proof. vm_compute. reflexivity. Qed.
+Proof. intros w Hprime Hfull. apply (full_u32 w _ Hprime Hfull). vm_compute. reflexivity. Qed.
 
 Lemma full_eq_selector_boolean : forall (w : Witness),
   fieldPrime -> FullRelation.satFull w ->
   w COL_SEL_I32_EQ = 0 \/ w COL_SEL_I32_EQ = 1.
-Proof.
-  intros w Hprime [Hone Hall].
-  exact (boolean_row_bound w COL_SEL_I32_EQ Hprime Hone
-    (sat_row w 1684%nat _ Hall eq_selector_boolean_row)).
-Qed.
+Proof. intros w Hprime Hfull. apply (full_boolean w _ Hprime Hfull). vm_compute. reflexivity. Qed.
 
 Lemma full_wide_aux0_boolean : forall (w : Witness),
   fieldPrime -> FullRelation.satFull w ->
   w COL_WIDE_AUX0 = 0 \/ w COL_WIDE_AUX0 = 1.
-Proof.
-  intros w Hprime [Hone Hall].
-  exact (boolean_row_bound w COL_WIDE_AUX0 Hprime Hone
-    (sat_row w 2946%nat _ Hall wide_aux0_boolean_row)).
-Qed.
+Proof. intros w Hprime Hfull. apply (full_boolean w _ Hprime Hfull). vm_compute. reflexivity. Qed.

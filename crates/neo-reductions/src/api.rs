@@ -381,11 +381,6 @@ where
 {
     use crate::engines::pi_rlc_dec::OptimizedRlcDec;
     if digit_nonzero.len() != Z_split.len() {
-        eprintln!(
-            "dec_children_with_commit_superneo_cached_with_digit_flags input validation failed: digit flag count {} != split witness count {}",
-            digit_nonzero.len(),
-            Z_split.len()
-        );
         return (Vec::new(), false, false, false);
     }
     if let Err(e) = validate_dec_boundary_inputs(s, params, parent, Z_split, child_commitments, ell_d) {
@@ -484,11 +479,6 @@ where
 {
     use crate::engines::pi_rlc_dec::OptimizedRlcDec;
     if digit_nonzero.len() != Z_split.len() {
-        eprintln!(
-            "dec_children_with_commit_superneo_cached_from_trusted_split_digits input validation failed: digit flag count {} != split witness count {}",
-            digit_nonzero.len(),
-            Z_split.len()
-        );
         return (Vec::new(), false, false, false);
     }
     if let Err(e) =

@@ -17,7 +17,9 @@ mod value;
 
 const MAGIC: &[u8; 8] = b"NSFPREP1";
 
-const BASE_FIXED_SOURCE_NODES: usize = 12_164_481;
+// Derivation: nightstream/tests/evidence/prepared-fixed-source-bound.md.
+// The 12_164_493-node reference application adds 12 nodes (W = 4, both segments nonempty).
+const BASE_FIXED_SOURCE_NODES: usize = 12_164_493 - 12;
 const FIXED_CARRIER_WIDTH: usize = 43_738_906;
 const MAX_APPLICATION_FIELDS: usize =
     (neo_ajtai::nightstream_fprime_setup::MAX_CARRIER_WIDTH - FIXED_CARRIER_WIDTH) / FIELD_COORDINATES;

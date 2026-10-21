@@ -6,9 +6,9 @@ set -eo pipefail
 # Usage: ./scripts/profile_for_ai.sh <package> <test_file> <test_function> [--ignored] [--features <csv>]
 #
 # Examples:
-#   ./scripts/profile_for_ai.sh neo-fold test_sha256_single_step test_sha256_preimage_64_bytes --ignored
-#   ./scripts/profile_for_ai.sh neo-fold test_riscv_circuit_l2_transfer_compiled_trace_prove_verify test_note_spend_1in_1out_transfer_prove_verify --ignored --features poseidon-precompile
-#   ./scripts/profile_for_ai.sh neo-fold test_starstream_tx_valid_optimized test_starstream_tx_valid_optimized
+#   ./scripts/profile_for_ai.sh nightstream circuit_lifecycle poseidon_base_step_matches_lean_and_verifies --ignored
+#   ./scripts/profile_for_ai.sh nightstream circuit_lifecycle poseidon_metal_recursive_lifecycle --ignored --features metal
+#   ./scripts/profile_for_ai.sh nightstream application_poseidon2 every_poseidon2_application_row_matches_the_saved_lean_reference
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -23,10 +23,10 @@ if [ $# -lt 3 ]; then
   echo "  <number>     Sample duration in seconds (default: 10)"
   echo ""
   echo "Examples:"
-  echo "  $0 neo-fold test_sha256_single_step test_sha256_preimage_64_bytes --ignored"
-  echo "  $0 neo-fold test_sha256_single_step test_sha256_preimage_64_bytes --ignored 20"
-  echo "  $0 neo-fold test_starstream_tx_valid_optimized test_starstream_tx_valid_optimized 30"
-  echo "  $0 neo-fold test_riscv_program_compiled_full_prove_verify test_riscv_program_compiled_full_prove_verify"
+  echo "  $0 nightstream circuit_lifecycle poseidon_base_step_matches_lean_and_verifies --ignored"
+  echo "  $0 nightstream circuit_lifecycle poseidon_base_step_matches_lean_and_verifies --ignored 20"
+  echo "  $0 nightstream application_poseidon2 every_poseidon2_application_row_matches_the_saved_lean_reference 30"
+  echo "  $0 nightstream circuit_lifecycle poseidon_metal_recursive_lifecycle --ignored --features metal"
   echo ""
   echo "Output: Writes profile to profile-output.txt for AI analysis"
   exit 1

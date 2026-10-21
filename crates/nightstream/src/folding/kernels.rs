@@ -116,15 +116,8 @@ pub fn verify_pi_rlc<MR>(
 where
     MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment,
 {
-    let (ok, perf) = nr::rlc_public_matches_verified_inputs_with_perf(
-        s,
-        pp.inner(),
-        rhos,
-        me_inputs,
-        expected,
-        mix_rhos_commits,
-        ell_d(),
-    )?;
+    let (ok, perf) =
+        nr::rlc_public_matches_with_perf(s, pp.inner(), rhos, me_inputs, expected, mix_rhos_commits, ell_d())?;
     let _ = perf;
     Ok(ok)
 }

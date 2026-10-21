@@ -751,6 +751,10 @@ where
     Ok(rlc_public_matches_with_perf(s, params, rhos, inputs, expected, mix_rhos_commits, ell_d)?.0)
 }
 
+/// Recompute the public RLC parent claim and compare every field with `expected`.
+///
+/// Returns `false` when recomputation rejects the inputs. The timing record
+/// fills only `total_ms`.
 pub fn rlc_public_matches_with_perf<MR>(
     s: &CcsStructure<F>,
     params: &NeoParams,
@@ -759,41 +763,6 @@ pub fn rlc_public_matches_with_perf<MR>(
     expected: &CeClaim<Cmt, F, K>,
     mix_rhos_commits: MR,
     ell_d: usize,
-) -> Result<(bool, RlcPublicVerifyPerf), PiCcsError>
-where
-    MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt,
-{
-    rlc_public_matches_with_perf_impl(s, params, rhos, inputs, expected, mix_rhos_commits, ell_d, true)
-}
-
-/// Fast verifier path for callers that already established `inputs` as valid Π_CCS outputs.
-///
-/// This checks the same public RLC relation as `rlc_public_matches_with_perf`, but skips
-/// revalidating input-side CE invariants that Π_CCS verification already proved.
-pub fn rlc_public_matches_verified_inputs_with_perf<MR>(
-    s: &CcsStructure<F>,
-    params: &NeoParams,
-    rhos: &[RotRho],
-    inputs: &[CeClaim<Cmt, F, K>],
-    expected: &CeClaim<Cmt, F, K>,
-    mix_rhos_commits: MR,
-    ell_d: usize,
-) -> Result<(bool, RlcPublicVerifyPerf), PiCcsError>
-where
-    MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt,
-{
-    rlc_public_matches_with_perf_impl(s, params, rhos, inputs, expected, mix_rhos_commits, ell_d, false)
-}
-
-fn rlc_public_matches_with_perf_impl<MR>(
-    s: &CcsStructure<F>,
-    params: &NeoParams,
-    rhos: &[RotRho],
-    inputs: &[CeClaim<Cmt, F, K>],
-    expected: &CeClaim<Cmt, F, K>,
-    mix_rhos_commits: MR,
-    ell_d: usize,
-    _validate_input_ce_invariants: bool,
 ) -> Result<(bool, RlcPublicVerifyPerf), PiCcsError>
 where
     MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt,

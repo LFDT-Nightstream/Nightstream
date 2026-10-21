@@ -12,7 +12,7 @@ pub mod common; // shared utilities and helper functions
 pub mod engines; // internal engine trait + wrappers (includes optimized_engine, paper_exact_engine, crosscheck_engine)
 pub mod error;
 pub mod sumcheck;
-pub mod superneo_eval; // transformed-matrix evaluators
+pub mod superneo_eval;
 
 pub use engines::optimized_engine;
 #[cfg(feature = "paper-exact")]

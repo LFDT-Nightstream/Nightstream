@@ -741,8 +741,7 @@ where
 
 /// Recompute the public RLC parent claim and compare every field with `expected`.
 ///
-/// Returns `false` when recomputation rejects the inputs. The timing record
-/// fills only `total_ms`.
+/// Returns `false` when recomputation rejects the inputs.
 pub fn rlc_public_matches_with_perf<MR>(
     s: &CcsStructure<F>,
     params: &NeoParams,

@@ -1,5 +1,3 @@
-//! Error types for the neo-reductions crate
-
 use thiserror::Error;
 
 #[derive(Error, Debug)]

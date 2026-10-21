@@ -23,6 +23,25 @@ impl<Ff> DecOutcome<Ff> {
             ok_c: false,
         }
     }
+
+    pub fn into_children(self) -> Result<Vec<neo_ccs::CeClaim<neo_ajtai::Commitment, Ff, neo_math::K>>, DecRejected> {
+        if self.ok_y && self.ok_x && self.ok_c {
+            Ok(self.children)
+        } else {
+            Err(DecRejected {
+                ok_y: self.ok_y,
+                ok_x: self.ok_x,
+                ok_c: self.ok_c,
+            })
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DecRejected {
+    pub ok_y: bool,
+    pub ok_x: bool,
+    pub ok_c: bool,
 }
 
 pub type RlcMixer<Ff = neo_math::F> = fn(&[neo_ccs::Mat<Ff>], &[neo_ajtai::Commitment]) -> neo_ajtai::Commitment;

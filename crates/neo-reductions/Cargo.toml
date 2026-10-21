@@ -22,12 +22,6 @@ debug-logs = ["neo-transcript/debug-log"]
 perf-timers = []
 # Forward fs-guard so tests can compare prover vs verifier transcript events
 fs-guard = ["neo-transcript/fs-guard"]
-# Enable verbose logging for debugging (no-op in this crate; used for cfg gating)
-neo-logs = []
-# Enable constraint diagnostic system
-prove-diagnostics = ["serde_json", "flate2", "hex", "chrono"]
-# Enable CBOR format for diagnostics (smaller but less readable)
-prove-diagnostics-cbor = ["prove-diagnostics", "serde_cbor"]
 wasm-threads = ["neo-ajtai/wasm-threads", "neo-ccs/wasm-threads"]
 
 [dependencies]
@@ -48,14 +42,7 @@ rand = { workspace = true }
 rand_chacha_p3 = { workspace = true }
 thiserror = { workspace = true }
 bincode = { workspace = true }
-
-# Diagnostic system dependencies (feature-gated)
 serde = { workspace = true }
-serde_json = { workspace = true, optional = true }
-flate2 = { version = "1.0", optional = true }
-hex = { version = "0.4", optional = true }
-serde_cbor = { version = "0.11", optional = true }
-chrono = { workspace = true, optional = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 rayon = { workspace = true }

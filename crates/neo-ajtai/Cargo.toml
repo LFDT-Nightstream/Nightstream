@@ -11,8 +11,6 @@ workspace = true
 default = []
 # Expose testing utilities (like commit_spec) without making them part of the stable API
 testing = []
-# Enable verbose logging for debugging (OFF by default for security - CWE-532)
-neo-logs = []
 wasm-threads = ["neo-ccs/wasm-threads"]
 
 [dependencies]

@@ -1,4 +1,4 @@
-//! Reject branch stack unwinding until the circuit binds the discarded count
+//! Reject branch and `return` stack unwinding until the circuit binds the discarded count
 //! and relocates carried results. PC-ROM edges alone only constrain the jump.
 
 use crate::ir::WasmProgramError;
@@ -63,6 +63,8 @@ pub(super) fn validate_branch_stack_support(bytes: &[u8]) -> Result<(), WasmProg
                         }
                         validate_target(&function, targets.default(), 1, offset)?;
                     }
+                    // `return` branches to the function frame, the outermost control frame.
+                    Operator::Return => validate_target(&function, function.control_stack_height() - 1, 0, offset)?,
                     _ => {}
                 }
                 function.op(offset, &operator).map_err(invalid)?;

@@ -4,7 +4,7 @@
 //! semantics, choose offsets, or merge the Pad and CCS evaluation families.
 
 use super::{canonical_field, LoadedPackage, PackageError, Segment};
-use crate::identity::{pi_ccs_v1_2_verifier_context, PiCcsV1_2VerifierContext};
+use crate::identity::PiCcsV1_2VerifierContext;
 
 pub(crate) const PRIOR_PREIMAGE_ROLE: u64 = 1;
 const OUTPUT_PREIMAGE_ROLE: u64 = 2;
@@ -316,22 +316,6 @@ impl PiDecV1_2PackageInputs {
         })
     }
 
-    pub fn child_commitments(&self) -> &[Vec<u64>] {
-        &self.child_commitments
-    }
-
-    pub fn child_eval_k(&self) -> &[Vec<[u64; EXTENSION_WORDS]>] {
-        &self.child_eval_k
-    }
-
-    pub fn child_eval_a(&self) -> &[Vec<Vec<[u64; EXTENSION_WORDS]>>] {
-        &self.child_eval_a
-    }
-
-    pub fn child_public_inputs(&self) -> &[Vec<u64>] {
-        &self.child_public_inputs
-    }
-
     pub(super) fn append_private_values(&self, values: &mut Vec<u64>) {
         for commitment in &self.child_commitments {
             values.extend_from_slice(commitment);
@@ -379,15 +363,6 @@ impl PiCcsV1_2EncodedInputs {
 }
 
 impl LoadedPackage {
-    /// Derive the only context value accepted by this loaded package. The
-    /// caller supplies canonical commitment-setup words, never a digest.
-    pub fn derive_pi_ccs_v1_2_verifier_context(
-        &self,
-        commitment_key_words: &[u64],
-    ) -> Result<PiCcsV1_2VerifierContext, PackageError> {
-        pi_ccs_v1_2_verifier_context(self.relation_identifier, commitment_key_words)
-    }
-
     /// Encode typed v1_2 values in the exact segment order owned by this
     /// verifier-checked package.
     pub fn encode_pi_ccs_v1_2_inputs(
@@ -454,27 +429,6 @@ impl LoadedPackage {
         Ok(PiCcsV1_2EncodedInputs {
             private_values,
             public_values,
-        })
-    }
-
-    /// Encode the complete current Stage 1 caller input, including PiDEC.
-    pub fn encode_stage1_v1_2_inputs(
-        &self,
-        pi_ccs: &PiCcsV1_2PackageInputs,
-        pi_dec: &PiDecV1_2PackageInputs,
-    ) -> Result<PiCcsV1_2EncodedInputs, PackageError> {
-        let encoded = self.encode_pi_ccs_v1_2_inputs(pi_ccs)?;
-        let mut private_values = encoded.private_values;
-        private_values.reserve(
-            PI_DEC_COMMITMENT_WORDS + PI_DEC_EVAL_K_WORDS + PI_DEC_EVAL_A_WORDS + PI_DEC_CHILD_PUBLIC_INPUT_WORDS,
-        );
-        pi_dec.append_private_values(&mut private_values);
-        if private_values.len() != self.private_input_count() {
-            return Err(PackageError::Invalid("Stage 1 v1_2 encoded private-input length"));
-        }
-        Ok(PiCcsV1_2EncodedInputs {
-            private_values,
-            public_values: encoded.public_values,
         })
     }
 

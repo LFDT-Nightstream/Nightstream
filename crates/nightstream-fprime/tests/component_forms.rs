@@ -19,7 +19,9 @@ fn component_form_row_ranges_check_bounds_and_match_complete_rows() {
         .rows_range(&inputs, width, end..end)
         .unwrap()
         .is_empty());
-    assert!(variant.rows_range(&inputs, width, 1..0).is_err());
+    assert!(variant
+        .rows_range(&inputs, width, std::ops::Range { start: 1, end: 0 })
+        .is_err());
     assert!(variant.rows_range(&inputs, width, 0..end + 1).is_err());
     assert!(variant
         .rows_range(&inputs, width, end + 1..end + 1)

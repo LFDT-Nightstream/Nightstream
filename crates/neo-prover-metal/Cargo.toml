@@ -39,6 +39,7 @@ objc2 = { version = "0.6.4", default-features = false, features = ["std"], optio
 objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSError", "NSString"], optional = true }
 objc2-metal = { version = "0.3.2", default-features = false, features = [
     "std",
+    "block2",
     "dispatch2",
     "MTLAllocation",
     "MTLBuffer",

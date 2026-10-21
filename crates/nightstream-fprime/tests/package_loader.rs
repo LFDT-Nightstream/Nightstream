@@ -375,8 +375,7 @@ fn loader_rejects_a_missing_sampler_coefficient_witness_batch() {
         _ => panic!("the mutation must change the structural identity"),
     };
     let error = load_per_application_package(&changed, identity)
-        .err()
-        .expect("a rehashed incomplete witness program must be rejected");
+        .expect_err("a rehashed incomplete witness program must be rejected");
     assert!(
         matches!(error, PackageError::Invalid("witness column coverage")),
         "{error:?}"
@@ -394,9 +393,8 @@ fn loader_rejects_a_rehashed_matrix_slot_permutation() {
         Err(PackageError::ExpectedIdentityMismatch { computed, .. }) => computed,
         _ => panic!("the mutation must change the structural identity"),
     };
-    let error = load_per_application_package(&changed, identity)
-        .err()
-        .expect("a rehashed matrix permutation must be rejected");
+    let error =
+        load_per_application_package(&changed, identity).expect_err("a rehashed matrix permutation must be rejected");
     assert!(
         matches!(error, PackageError::Invalid("CCS relation matrix order")),
         "{error:?}"

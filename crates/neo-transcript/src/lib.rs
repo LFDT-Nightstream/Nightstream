@@ -36,7 +36,7 @@ pub trait TranscriptProtocol {
     fn absorb_public_fields(&mut self, label: &'static [u8], fs: &[F]);
 }
 
-pub use poseidon2::{fold_domain_chunk_v1_2, FoldCoin, Poseidon2Transcript};
+pub use poseidon2::{domain_chunk_v1_2, fold_domain_chunk_v1_2, FoldCoin, Poseidon2Transcript};
 
 /// Lean `ProductionKey.priorDigest` (`decodeHash`) of a v1.2 fresh public
 /// input: digest word `w` is `sum over bit < 64 of 2^bit * input[1 + 64 w + bit]`,

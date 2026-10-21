@@ -106,7 +106,7 @@ fn validate_input_shape(
     if fresh_claim.m_in > s.m {
         return Err(Error::Shape("fresh m_in exceeds structure.m"));
     }
-    if fresh_claim.m_in % D != 0 {
+    if !fresh_claim.m_in.is_multiple_of(D) {
         return Err(Error::Shape("fresh m_in must contain whole degree-D ring elements"));
     }
     if fresh_claim.x.len() != fresh_claim.m_in {

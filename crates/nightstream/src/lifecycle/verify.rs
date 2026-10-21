@@ -41,6 +41,10 @@ pub enum VerifyError {
     RunningOpenings(#[source] PiCcsError),
     #[error("selected terminal fresh CCS relation: {0}")]
     FreshRelation(#[source] SuperneoCachedRelationError),
+    #[error("final proof: {0}")]
+    Final(#[source] neo_spartan::Error),
+    #[error(transparent)]
+    TerminalPackage(#[from] super::terminal::TerminalPackageError),
 }
 
 impl PreparedLifecycle {
@@ -64,8 +68,10 @@ impl PreparedLifecycle {
             }
             return Ok(());
         };
-        if expected_state.iteration() == 0 {
-            return Err(VerifyError::Statement("an active proof requires a positive iteration"));
+        if expected_state.iteration() == 0 || expected_state.iteration() >= F::ORDER_U64 {
+            return Err(VerifyError::Statement(
+                "an active proof requires a positive canonical iteration",
+            ));
         }
         if running.claims.len() != PI_DEC_V1_2_CHILD_COUNT || running.witnesses.len() != PI_DEC_V1_2_CHILD_COUNT {
             return Err(VerifyError::Statement(

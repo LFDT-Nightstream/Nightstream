@@ -98,6 +98,78 @@ impl MetalSession {
         Ok(())
     }
 
+    /// `Σ_i λ_i·a_{i,e}` over key rows `i < powers.len()` for every key
+    /// coefficient `e < columns·D` (column-major, `D` per column), with each
+    /// `λ_i` and result a cubic-extension value as three base words. Each row
+    /// is expanded into one reused buffer and added in, so the weights hold
+    /// one key row on the device, not the key.
+    pub(crate) fn production_key_weights(
+        &self,
+        powers: &[[u64; 3]],
+        columns: usize,
+    ) -> Result<Vec<[u64; 3]>, MetalError> {
+        if powers.is_empty() || powers.len() > PRODUCTION_VERIFIER_ROWS as usize {
+            return Err(MetalError::Shape("key weights take one power per key row"));
+        }
+        let elements = columns
+            .checked_mul(D)
+            .ok_or(MetalError::Shape("key weights overflow"))?;
+        let row = self.buffer(elements * size_of::<u64>())?;
+        let out = self.buffer(elements * 3 * size_of::<u64>())?;
+        let prefix = self.production_key_prefix()?;
+        let all_columns = self.buffer_from_slice(&(0..columns as u32).collect::<Vec<_>>())?;
+        let shape_words: Vec<u64> = (0..powers.len() as u64)
+            .flat_map(|row| [columns as u64, 0, 0, 0, row, 0])
+            .collect();
+        let shapes = self.buffer_from_slice(&shape_words)?;
+        let inputs = powers
+            .iter()
+            .enumerate()
+            .map(|(row, power)| {
+                Ok((
+                    self.buffer_from_slice(power)?,
+                    self.buffer_from_slice(&[elements as u64, u64::from(row == 0)])?,
+                ))
+            })
+            .collect::<Result<Vec<_>, MetalError>>()?;
+        // Encoders run in order: each row's expansion waits for the previous
+        // row's sum to finish reading the buffer.
+        let command = self.command_buffer("nightstream.production_key_weights")?;
+        for (index, (power, shape)) in inputs.iter().enumerate() {
+            let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
+            encoder.setComputePipelineState(&self.production_key_row);
+            unsafe {
+                encoder.setBuffer_offset_atIndex(Some(&prefix), 0, 0);
+                encoder.setBuffer_offset_atIndex(Some(&all_columns), 0, 1);
+                encoder.setBuffer_offset_atIndex(Some(&shapes), index * 6 * size_of::<u64>(), 2);
+                encoder.setBuffer_offset_atIndex(Some(&row), 0, 3);
+            }
+            self.dispatch(&encoder, &self.production_key_row, columns);
+            encoder.endEncoding();
+            let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
+            encoder.setComputePipelineState(&self.production_key_weights);
+            unsafe {
+                encoder.setBuffer_offset_atIndex(Some(&row), 0, 0);
+                encoder.setBuffer_offset_atIndex(Some(&out), 0, 1);
+                encoder.setBuffer_offset_atIndex(Some(power), 0, 2);
+                encoder.setBuffer_offset_atIndex(Some(shape), 0, 3);
+            }
+            self.dispatch(&encoder, &self.production_key_weights, elements);
+            encoder.endEncoding();
+        }
+        self.finish(&command)?;
+        Ok(self.read_buffer::<[u64; 3]>(&out, elements))
+    }
+
+    /// Free the kept key rows. A kept key expands them again at its next
+    /// commitment.
+    pub(crate) fn release_production_key_rows(&self) {
+        if let Some(key) = &self.production_key {
+            *key.lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = ResidentKeyRows::default();
+        }
+    }
+
     pub(crate) fn commit_production_prefixes<W: Borrow<Mat<F>>>(
         &self,
         witnesses: &[W],

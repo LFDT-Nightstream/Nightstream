@@ -265,30 +265,54 @@ impl CsrBuilder {
     }
 }
 
-fn expand_r1cs(package: &LoadedPackage) -> Result<PackageR1cs, PackageError> {
+/// Where expanded rows go.
+#[derive(Clone, Copy)]
+enum Placement {
+    /// Each row at its physical index; the indices cover the layout.
+    Physical,
+    /// The rows in schedule order; the physical indices may have gaps.
+    Ordered,
+}
+
+fn expand_r1cs(package: &LoadedPackage, placement: Placement) -> Result<PackageR1cs, PackageError> {
     let schedule = scheduled_witnesses(package)?;
     let (a, (b, c)) = rayon::join(
-        || expand_matrix(package, &schedule, MatrixSide::A),
+        || expand_matrix(package, &schedule, MatrixSide::A, placement),
         || {
             rayon::join(
-                || expand_matrix(package, &schedule, MatrixSide::B),
-                || expand_matrix(package, &schedule, MatrixSide::C),
+                || expand_matrix(package, &schedule, MatrixSide::B, placement),
+                || expand_matrix(package, &schedule, MatrixSide::C, placement),
             )
         },
     );
     Ok(PackageR1cs { a: a?, b: b?, c: c? })
 }
 
+/// The number of rows the schedule emits.
+fn scheduled_row_count(package: &LoadedPackage, schedule: &[ScheduledWitness<'_>]) -> usize {
+    let witness_rows: usize = schedule
+        .iter()
+        .map(|witness| match witness {
+            ScheduledWitness::Permutation(_) => package.permutation.rows.len(),
+            ScheduledWitness::Compact(invocation) => invocation.row_count(&package.compact_templates),
+            ScheduledWitness::Generic(_) => 1,
+            ScheduledWitness::Application(application) => application.records().row_count(),
+        })
+        .sum();
+    witness_rows + package.assertion_rows.len()
+}
+
 fn expand_matrix(
     package: &LoadedPackage,
     schedule: &[ScheduledWitness<'_>],
     side: MatrixSide,
+    placement: Placement,
 ) -> Result<PackageSparseMatrix, PackageError> {
-    let mut builder = CsrBuilder::new(
-        package.layout.row_count,
-        package.layout.total_column_count,
-        entry_capacity(package, side)?,
-    )?;
+    let rows = match placement {
+        Placement::Physical => package.layout.row_count,
+        Placement::Ordered => scheduled_row_count(package, schedule),
+    };
+    let mut builder = CsrBuilder::new(rows, package.layout.total_column_count, entry_capacity(package, side)?)?;
     let mut row_cursor = 0usize;
     let mut assertion_cursor = 0usize;
     for &witness in schedule {
@@ -304,8 +328,12 @@ fn expand_matrix(
             assertion_cursor += 1;
             row_cursor += 1;
         }
-        if row_cursor != witness.row_start() {
-            return Err(PackageError::Invalid("expanded witness row start"));
+        match placement {
+            Placement::Physical if row_cursor != witness.row_start() => {
+                return Err(PackageError::Invalid("expanded witness row start"));
+            }
+            Placement::Physical => {}
+            Placement::Ordered => row_cursor = witness.row_start(),
         }
         match witness {
             ScheduledWitness::Permutation(invocation) => {
@@ -348,7 +376,7 @@ fn expand_matrix(
         assertion_cursor += 1;
         row_cursor += 1;
     }
-    if row_cursor != package.layout.row_count {
+    if matches!(placement, Placement::Physical) && row_cursor != package.layout.row_count {
         return Err(PackageError::Invalid("expanded physical row count"));
     }
     builder.finish()
@@ -503,10 +531,16 @@ impl LoadedPackage {
         let domain_size = 1usize
             .checked_shl(shift)
             .ok_or(PackageError::Invalid("final matrix domain"))?;
-        expand_r1cs(self)?.into_final_layout(
+        expand_r1cs(self, Placement::Physical)?.into_final_layout(
             self.layout.constant_column,
             self.layout.public_column_count,
             domain_size,
         )
+    }
+
+    /// The rows of a package with gaps (the terminal package) in schedule
+    /// order, over the package columns.
+    pub fn ordered_r1cs(&self) -> Result<PackageR1cs, PackageError> {
+        expand_r1cs(self, Placement::Ordered)
     }
 }

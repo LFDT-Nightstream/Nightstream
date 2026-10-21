@@ -76,7 +76,7 @@ pub fn get_global_pp_for_dims(d: usize, m: usize) -> Result<PPRef, AjtaiError> {
 /// Get the Ajtai PP using `z_len = d*m`.
 pub fn get_global_pp_for_z_len(z_len: usize) -> Result<PPRef, AjtaiError> {
     let d = neo_math::D;
-    if z_len % d != 0 {
+    if !z_len.is_multiple_of(d) {
         return Err(AjtaiError::InvalidInput("z_len not multiple of D".to_string()));
     }
     get_global_pp_for_dims(d, z_len / d)

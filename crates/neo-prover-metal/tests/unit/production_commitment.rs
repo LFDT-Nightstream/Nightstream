@@ -110,6 +110,27 @@ fn kept_production_key_matches_cpu_and_grows_for_a_wider_witness() {
 }
 
 #[test]
+fn a_released_production_key_expands_again_at_the_next_commitment() {
+    let mut session = MetalSession::new().unwrap();
+    session.keep_production_key();
+    let witnesses = sparse_witnesses(10, &[2, 9]);
+    let expected = commit_production_signed_unit_prefix_matrices(&witnesses).unwrap();
+    let mut dispatches = Vec::new();
+    for release in [false, true, false] {
+        if release {
+            session.release_production_key_rows();
+        }
+        let before = session.activity().dispatches;
+        assert_eq!(session.commit_production_prefixes(&witnesses).unwrap(), expected);
+        dispatches.push(session.activity().dispatches - before);
+    }
+    // Expanding all key rows costs one dispatch per row on top of the two
+    // that accumulate and sum it.
+    let rows = PRODUCTION_VERIFIER_ROWS;
+    assert_eq!(dispatches, [3 * rows, 3 * rows, 2 * rows]);
+}
+
+#[test]
 fn production_key_coefficients_use_exact_first_and_last_indexed_addresses() {
     let session = MetalSession::new().unwrap();
     for column in [0, PRODUCTION_MESSAGE_COLUMNS as usize - 1] {

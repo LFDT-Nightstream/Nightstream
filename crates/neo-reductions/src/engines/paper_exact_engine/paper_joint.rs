@@ -125,10 +125,10 @@ where
     Ok(())
 }
 
-pub(super) fn paper_prior_point<'a, Ff>(
-    running: &'a [CeClaim<Cmt, Ff, K>],
+pub(super) fn paper_prior_point<Ff>(
+    running: &[CeClaim<Cmt, Ff, K>],
     variables: usize,
-) -> Result<Option<&'a [K]>, PiCcsError> {
+) -> Result<Option<&[K]>, PiCcsError> {
     let Some(first) = running.first() else {
         return Ok(None);
     };
@@ -239,7 +239,7 @@ pub(super) fn direct_public_input<Ff>(
 where
     Ff: Field + PrimeCharacteristicRing + Copy,
 {
-    if public_width % D != 0 {
+    if !public_width.is_multiple_of(D) {
         return Err(PiCcsError::InvalidInput(
             "PaperExact requires the public input to contain whole ring elements".into(),
         ));

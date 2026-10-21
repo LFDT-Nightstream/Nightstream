@@ -19,12 +19,12 @@ pub use rows::MetalRowProver;
 #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
 mod session;
 #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
-pub use session::{MetalAjtaiLowNormPlan, MetalKxChainPlan, MetalPoseidonUniformPlan, MetalSession};
+pub use session::{MetalAjtaiLowNormPlan, MetalGkrLayer, MetalKxChainPlan, MetalPoseidonUniformPlan, MetalSession};
 
 #[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
 mod unsupported;
 #[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
-pub use unsupported::{MetalAjtaiLowNormPlan, MetalKxChainPlan, MetalPoseidonUniformPlan, MetalSession};
+pub use unsupported::{MetalAjtaiLowNormPlan, MetalGkrLayer, MetalKxChainPlan, MetalPoseidonUniformPlan, MetalSession};
 
 /// Owner's Metal memory ceiling, chosen so a prover can run on a current
 /// iPhone. Device buffer requests stay below it; CPU memory is measured

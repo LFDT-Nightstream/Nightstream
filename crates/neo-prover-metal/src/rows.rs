@@ -30,6 +30,71 @@ impl MetalRowProver {
         self.session.keep_production_key();
     }
 
+    /// Free the kept commitment key rows until the next commitment.
+    pub fn release_commitment_key_rows(&self) {
+        self.session.release_production_key_rows();
+    }
+
+    /// The key weights `Σ_i λ_i·a_i` over the commitment key rows; see
+    /// `MetalSession::production_key_weights`.
+    pub fn production_key_weights(&self, powers: &[[u64; 3]], columns: usize) -> Result<Vec<[u64; 3]>, MetalError> {
+        #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
+        {
+            self.session.production_key_weights(powers, columns)
+        }
+        #[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
+        {
+            let _ = (powers, columns);
+            Err(MetalError::Unavailable)
+        }
+    }
+
+    /// The device view of one GKR layer over the caller's tables; see
+    /// `MetalSession::gkr_layer`.
+    pub fn gkr_layer<'a>(
+        &self,
+        trees: Vec<Vec<&'a mut [u64]>>,
+        eq: &'a mut [u64],
+    ) -> Result<crate::MetalGkrLayer<'a>, MetalError> {
+        self.session.gkr_layer(trees, eq)
+    }
+
+    pub fn gkr_message(
+        &self,
+        layer: &crate::MetalGkrLayer<'_>,
+        weights: &[[u64; 3]],
+        mu: [u64; 3],
+        degree: usize,
+    ) -> Result<Vec<[u64; 3]>, MetalError> {
+        self.session.gkr_message(layer, weights, mu, degree)
+    }
+
+    pub fn gkr_fold(&self, layer: &mut crate::MetalGkrLayer<'_>, r: [u64; 3]) -> Result<(), MetalError> {
+        self.session.gkr_fold(layer, r)
+    }
+
+    /// The DFT of every column of a row-major matrix; see
+    /// `MetalSession::dft_columns`.
+    pub fn dft_columns(&self, values: &mut [u64], width: usize, generator: u64) -> Result<(), MetalError> {
+        self.session.dft_columns(values, width, generator)
+    }
+
+    /// Every digest layer of a Merkle tree; see
+    /// `MetalSession::poseidon2_merkle_layers`.
+    pub fn merkle_layers(
+        &self,
+        rows: usize,
+        width: usize,
+        fill: impl FnOnce(&mut [u64]),
+    ) -> Result<Vec<Vec<[u64; 4]>>, MetalError> {
+        self.session.poseidon2_merkle_layers(rows, width, fill)
+    }
+
+    /// The leaf digests of rows; see `MetalSession::poseidon2_merkle_leaves`.
+    pub fn merkle_leaves(&self, values: &[u64], width: usize) -> Result<Vec<[u64; 4]>, MetalError> {
+        self.session.poseidon2_merkle_leaves(values, width)
+    }
+
     /// Device bytes a kept commitment key holds over `columns` commitment
     /// columns, at 8 bytes per key coefficient.
     pub fn commitment_key_bytes(columns: usize) -> usize {

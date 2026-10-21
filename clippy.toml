@@ -1,9 +1,5 @@
 # Clippy configuration for nightstream workspace
 
-# Lint functions with more than 12 arguments
-# Folding and cryptographic functions often require many parameters
-too-many-arguments-threshold = 12
-
 # Disallow no identifier names (clears clippy's default foo/baz/quux list)
 disallowed-names = []
 

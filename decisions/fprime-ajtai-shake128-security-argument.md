@@ -1,7 +1,7 @@
 # Ajtai key expander: security argument for review
 
 Status: draft for external review, 2026-09-29. The owner selected SHAKE128
-([decision](../../../decisions/fprime-ajtai-shake128-setup.md)), and Lean and
+([decision](fprime-ajtai-shake128-setup.md)), and Lean and
 Rust now implement the construction of section 4. Lean proves the
 ideal-model steps of section 5 (section 7). Premises P1 and P2 stay external,
 and no external review has checked the argument. The seed and domain policy
@@ -10,7 +10,7 @@ and no external review has checked the argument. The seed and domain policy
 ## 1. Purpose
 
 The current setup rests on a premise about one fixed matrix
-(`PUBLIC_SEED_MSIS_ASSUMPTION.md`). This document proposes standard premises
+(`fprime-ajtai-public-seed-msis-assumption.md`). This document proposes standard premises
 and a reduction from them, and it selects an expander that supports that
 reduction.
 
@@ -21,7 +21,7 @@ reduction.
   paper does not discuss seeds.
 - Until 2026-09-29, Nightstream expanded `M` with
   `nightstream-ajtai-chacha20-wide256-v1` from one fixed public seed.
-  `PUBLIC_SEED_MSIS_ASSUMPTION.md` assumes that MSIS is hard for that specific
+  `fprime-ajtai-public-seed-msis-assumption.md` assumes that MSIS is hard for that specific
   matrix. The approval does not cover the SHAKE128 matrix.
 - Lean proves that a binding collision gives a short kernel vector for the
   same key: below `2B` for ordinary binding (`Binding.lean`) and below
@@ -34,7 +34,7 @@ reduction.
   `Programming.expect_le_programmed`). Hardness of the kernel problem is a
   premise. No Lean result proves it.
 - Pseudorandomness of the expander does not help. The seed is public, so any
-  attacker can calculate `M` (`FOUNDATION_SECURITY_REVIEW.md`).
+  attacker can calculate `M` (`FOUNDATION_SECURITY_REVIEW.md` in `docs/reviews/nightstream-fprime-requirements` at commit `f7e093d8f`).
 
 ## 3. Premises
 
@@ -230,5 +230,6 @@ tuned.
   the multi-user setting, CCS 2021: <https://eprint.iacr.org/2023/085>
 - Barbero, Bellini, Makarim, Rotational analysis of ChaCha permutation, 2020:
   <https://arxiv.org/abs/2008.13406>
-- Nightstream: `PUBLIC_SEED_MSIS_ASSUMPTION.md`,
-  `FOUNDATION_SECURITY_REVIEW.md`, `decisions/fprime-stage1-main-ajtai-setup.md`.
+- Nightstream: `fprime-ajtai-public-seed-msis-assumption.md`,
+  `FOUNDATION_SECURITY_REVIEW.md` in `docs/reviews/nightstream-fprime-requirements` at commit `f7e093d8f`,
+  `decisions/fprime-stage1-main-ajtai-setup.md`.

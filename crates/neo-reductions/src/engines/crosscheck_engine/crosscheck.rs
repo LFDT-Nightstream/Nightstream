@@ -82,7 +82,6 @@ where
                 fresh_witnesses,
                 running_claims,
                 running_witnesses,
-                commitment,
                 &cache,
             )
         },

@@ -53,7 +53,6 @@ fn fixture() -> Fixture {
         std::slice::from_ref(&witness),
         &running,
         &running_witnesses,
-        &committer,
     )
     .unwrap();
     Fixture {

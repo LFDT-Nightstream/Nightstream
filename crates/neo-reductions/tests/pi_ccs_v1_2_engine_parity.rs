@@ -607,7 +607,6 @@ fn accepting_v1_2_path_exports_receipt_and_rejects_mutations() {
         std::slice::from_ref(&witness),
         &running,
         &running_witnesses,
-        &log,
         &cache,
     )
     .expect("v1_2 production proof");

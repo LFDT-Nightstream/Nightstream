@@ -91,17 +91,8 @@ fn run_case_with_n(n: usize, k_mcs: usize) {
 
     let (running, running_wits) = zero_running::zero_running(&params, &ccs, mcs_list.len(), D);
     let mut tr_p = Poseidon2Transcript::new(b"neo.reductions/k_mcs_e2e");
-    let (out, proof) = pi_ccs_prove(
-        &mut tr_p,
-        &params,
-        &ccs,
-        &mcs_list,
-        &mcs_wits,
-        &running,
-        &running_wits,
-        &l,
-    )
-    .expect("pi_ccs prove");
+    let (out, proof) =
+        pi_ccs_prove(&mut tr_p, &params, &ccs, &mcs_list, &mcs_wits, &running, &running_wits).expect("pi_ccs prove");
 
     let mut tr_v = Poseidon2Transcript::new(b"neo.reductions/k_mcs_e2e");
     let ok = pi_ccs_verify(&mut tr_v, &params, &ccs, &mcs_list, &running, &out, &proof).expect("pi_ccs verify");
@@ -159,17 +150,8 @@ fn pi_ccs_prove_verify_superneo_shape_nonzero_digits_k_mcs_2() {
 
     let (running, running_wits) = zero_running::zero_running(&params, &ccs, mcs_list.len(), D);
     let mut tr_p = Poseidon2Transcript::new(b"neo.reductions/superneo_packed_digits");
-    let (out, proof) = pi_ccs_prove(
-        &mut tr_p,
-        &params,
-        &ccs,
-        &mcs_list,
-        &mcs_wits,
-        &running,
-        &running_wits,
-        &l,
-    )
-    .expect("pi_ccs prove");
+    let (out, proof) =
+        pi_ccs_prove(&mut tr_p, &params, &ccs, &mcs_list, &mcs_wits, &running, &running_wits).expect("pi_ccs prove");
 
     let mut tr_v = Poseidon2Transcript::new(b"neo.reductions/superneo_packed_digits");
     let ok = pi_ccs_verify(&mut tr_v, &params, &ccs, &mcs_list, &running, &out, &proof).expect("pi_ccs verify");
@@ -200,7 +182,6 @@ fn pi_ccs_prove_rejects_non_shared_me_r() {
         &[mcs_wit],
         &me_inputs,
         &me_witnesses,
-        &l,
     )
     .expect_err("prove must reject me_inputs with distinct r points");
 
@@ -228,17 +209,8 @@ fn pi_ccs_verify_rejects_tampered_mcs_output_x_recomposition() {
 
     let (running, running_wits) = zero_running::zero_running(&params, &ccs, mcs_list.len(), D);
     let mut tr_p = Poseidon2Transcript::new(b"neo.reductions/tamper_mcs_x");
-    let (mut out, proof) = pi_ccs_prove(
-        &mut tr_p,
-        &params,
-        &ccs,
-        &mcs_list,
-        &mcs_wits,
-        &running,
-        &running_wits,
-        &l,
-    )
-    .expect("pi_ccs prove");
+    let (mut out, proof) =
+        pi_ccs_prove(&mut tr_p, &params, &ccs, &mcs_list, &mcs_wits, &running, &running_wits).expect("pi_ccs prove");
 
     out[0].X[(0, 0)] += F::ONE;
 
@@ -268,17 +240,8 @@ fn pi_ccs_verify_rejects_noncanonical_extra_x_column() {
 
     let (running, running_wits) = zero_running::zero_running(&params, &ccs, mcs_list.len(), D);
     let mut tr_p = Poseidon2Transcript::new(b"neo.reductions/tamper_mcs_x_permute");
-    let (mut out, proof) = pi_ccs_prove(
-        &mut tr_p,
-        &params,
-        &ccs,
-        &mcs_list,
-        &mcs_wits,
-        &running,
-        &running_wits,
-        &l,
-    )
-    .expect("pi_ccs prove");
+    let (mut out, proof) =
+        pi_ccs_prove(&mut tr_p, &params, &ccs, &mcs_list, &mcs_wits, &running, &running_wits).expect("pi_ccs prove");
 
     // Add a noncanonical column and move the active input into it.
     let old_x = out[0].X.clone();

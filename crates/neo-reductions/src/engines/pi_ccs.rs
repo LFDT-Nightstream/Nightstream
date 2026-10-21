@@ -76,9 +76,9 @@ impl PiCcsEngine for OptimizedEngine {
         mcs_witnesses: &[CcsWitness<F>],
         me_inputs: &[CeClaim<Cmt, F, K>],
         me_witnesses: &[Mat<F>],
-        log: &L,
+        _log: &L,
     ) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof), PiCcsError> {
-        super::optimized_engine::pi_ccs_prove(tr, params, s, mcs_list, mcs_witnesses, me_inputs, me_witnesses, log)
+        super::optimized_engine::pi_ccs_prove(tr, params, s, mcs_list, mcs_witnesses, me_inputs, me_witnesses)
     }
 
     fn verify(

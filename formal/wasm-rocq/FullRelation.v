@@ -4436,5 +4436,3 @@ Definition gmemByteBooleanRow : nat := 4369%nat.
 Definition gmemHalfBooleanRow : nat := 4370%nat.
 Definition stackRead0BooleanRow : nat := 1642%nat.
 Definition stackRead1BooleanRow : nat := 1643%nat.
-Definition spBeforeRangeStart : nat := 932%nat.
-Definition spBeforeBitStart : nat := 758%nat.

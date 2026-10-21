@@ -27,8 +27,7 @@ Lemma full_sp_before_u32 : forall (w : Witness),
   Range.fieldPrime -> FullRelation.satFull w -> 0 <= w COL_SP_BEFORE < 4294967296.
 Proof.
   intros w Hprime Hfull.
-  apply (Range.u32_from_full w COL_SP_BEFORE spBeforeRangeStart spBeforeBitStart Hprime Hfull);
-    vm_compute; reflexivity.
+  apply (Range.full_u32 w COL_SP_BEFORE Hprime Hfull). vm_compute. reflexivity.
 Qed.
 
 Record BinaryStackShape (w : Witness) : Prop := {

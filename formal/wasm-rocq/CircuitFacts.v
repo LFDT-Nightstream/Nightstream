@@ -5,23 +5,6 @@ Require Import R1CS Columns FullRelation Range Selectors ZeroTest.
 Import ListNotations.
 Open Scope Z_scope.
 
-Fixpoint termsEqual (a b : SparseRow) : bool :=
-  match a, b with
-  | [], [] => true
-  | (c, k) :: a, (d, l) :: b => Nat.eqb c d && Z.eqb k l && termsEqual a b
-  | _, _ => false
-  end.
-
-Definition rowsEqual (a b : Row) : bool :=
-  let '(a1, a2, a3) := a in let '(b1, b2, b3) := b in
-  termsEqual a1 b1 && termsEqual a2 b2 && termsEqual a3 b3.
-
-Fixpoint findRow (test : Row -> bool) (rows : list Row) : option nat :=
-  match rows with
-  | [] => None
-  | row :: rest => if test row then Some 0%nat else option_map S (findRow test rest)
-  end.
-
 Ltac circuit_row shape name :=
   match goal with Hfull : FullRelation.satFull ?w |- _ =>
     let found := eval vm_compute in (findRow (rowsEqual shape) FullRelation.rows) in
@@ -46,29 +29,29 @@ Ltac circuit_boolean column name :=
 
 Ltac circuit_range column name :=
   let found := eval vm_compute in (findRow
-    (fun row => let '(_, b, c) := row in
-      termsEqual b [(COL_ONE, 1)] && termsEqual c [(column, 1)]) FullRelation.rows) in
+    (fun row => let '(a, _, _) := row in
+      rangeRowChecked FullRelation.rows column (length a) row) FullRelation.rows) in
   lazymatch found with
   | Some ?index =>
     let raw := eval vm_compute in (List.nth index FullRelation.rows ([], [], [])) in
     lazymatch raw with ((?bit, _) :: ?tail, _, _) =>
       let count := eval compute in (S (length tail)) in
-      let start := eval compute in (index - count)%nat in
       let bits := constr:(seq bit count) in
-      let Hblock := fresh "Hblock" in let Hslice := fresh "Hslice" in
+      let Hfound := fresh "Hfound" in
       let Hbits := fresh "Hbits" in let Hrow := fresh "Hrow" in
-      assert (Hblock : firstn count (skipn start FullRelation.rows) = map booleanRow bits)
+      assert (Hfound : forallb (fun b => inFull (booleanRow b)) bits = true)
         by (vm_compute; reflexivity);
       match goal with Hprime : Range.fieldPrime, Hfull : FullRelation.satFull ?w |- _ =>
-        pose proof (Range.sat_slice w start count (proj2 Hfull)) as Hslice;
-        rewrite Hblock in Hslice;
-        pose proof (proj1 (Forall_map booleanRow (sat w) bits) Hslice) as Hbits;
+        let other := fresh "bitColumn" in let Hin := fresh "Hin" in
+        assert (Hbits : Forall (fun b => sat w (booleanRow b)) bits) by
+          (apply Forall_forall; intros other Hin; apply (in_full_sat w _ (proj2 Hfull));
+           exact (proj1 (forallb_forall _ _) Hfound other Hin));
         circuit_row (recomposeRow column bits) Hrow;
         pose proof (range_from_rows w column bits Hprime (proj1 Hfull) Hbits Hrow
           ltac:(vm_compute; reflexivity)) as name;
         let maximum := eval vm_compute in (eval (fun _ => 1) (bitTerms bits)) in
         change (0 <= w column <= maximum) in name;
-        clear Hblock Hslice Hbits Hrow
+        clear Hfound Hbits Hrow
       end
     end
   | None => fail "Missing range recomposition" column
@@ -212,7 +195,7 @@ Proof.
   circuit_boolean COL_GATHER_ACTIVE Hb5. circuit_boolean COL_TURN_BOUNDARY Hb6.
   circuit_boolean COL_HOST_RESUME Hb7. circuit_boolean COL_HOST_SUSPEND Hb8.
   circuit_boolean COL_PERM_PENDING_BEFORE Hb9. circuit_boolean COL_PERM_ROUND_BEFORE_IS_ZERO Hb10.
-  pose proof (Range.sat_row w _ _ (proj2 Hfull) row_kind_row_in_full) as Hkinds.
+  pose proof (Range.in_full_sat w _ (proj2 Hfull) row_kind_row_in_full) as Hkinds.
   unfold sat, rowKindRow in Hkinds. cbn [eval fold_right] in Hkinds. change (w COL_ONE = 1) in Hone.
   rewrite Hone, Hprogram in Hkinds. apply Z.mod_divide in Hkinds; [ | unfold modulus; lia].
   destruct Hkinds as [k Hk]. unfold modulus in *.

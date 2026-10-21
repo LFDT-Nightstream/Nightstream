@@ -14,21 +14,12 @@ Definition selectorRow : Row :=
   (map (fun column => (column, 1)) selectorColumns ++
      [(COL_IS_PROGRAM_ROW, -1)], [(COL_ONE, 1)], []).
 
-Lemma selector_row_in_full :
-  nth_error FullRelation.rows 436%nat = Some selectorRow.
+Lemma selector_row_in_full : Range.inFull selectorRow = true.
 Proof. vm_compute. reflexivity. Qed.
 
-Lemma program_row_boolean_in_full :
-  nth_error FullRelation.rows 1065%nat =
-    Some (Range.booleanRow COL_IS_PROGRAM_ROW).
+Lemma selector_booleans_in_full :
+  forallb (fun column => Range.inFull (Range.booleanRow column)) selectorColumns = true.
 Proof. vm_compute. reflexivity. Qed.
-
-Lemma selector_boolean_blocks :
-  firstn 85%nat (skipn 1648%nat FullRelation.rows) =
-    map Range.booleanRow (seq 61%nat 85%nat) /\
-  firstn 30%nat (skipn 3489%nat FullRelation.rows) =
-    map Range.booleanRow (seq 293%nat 30%nat).
-Proof. vm_compute. split; reflexivity. Qed.
 
 Definition selectorSum (w : Witness) (columns : list Column) : Z :=
   fold_right (fun column sum => w column + sum) 0 columns.
@@ -132,19 +123,14 @@ Proof.
     destruct H; subst; lia.
 Qed.
 
-Lemma selector_boolean_from_block : forall (w : Witness) start count columns,
+Lemma full_booleans : forall (w : Witness) columns,
   Range.fieldPrime -> FullRelation.satFull w ->
-  firstn count (skipn start FullRelation.rows) =
-    map Range.booleanRow columns ->
+  forallb (fun column => Range.inFull (Range.booleanRow column)) columns = true ->
   Forall (fun column => w column = 0 \/ w column = 1) columns.
 Proof.
-  intros w start count columns Hprime [Hone Hall] Hblock.
+  intros w columns Hprime Hfull Hfound.
   apply Forall_forall. intros column Hin.
-  apply Range.boolean_row_bound; try assumption.
-  pose proof (Range.sat_slice w start count Hall) as Hslice.
-  rewrite Hblock in Hslice.
-  apply (proj1 (Forall_forall _ _) Hslice).
-  apply in_map. exact Hin.
+  exact (Range.full_boolean w column Hprime Hfull (proj1 (forallb_forall _ _) Hfound column Hin)).
 Qed.
 
 Theorem full_opcode_selectors_one_hot : forall (w : Witness),
@@ -154,19 +140,12 @@ Theorem full_opcode_selectors_one_hot : forall (w : Witness),
   (w COL_IS_PROGRAM_ROW = 0 \/ w COL_IS_PROGRAM_ROW = 1).
 Proof.
   intros w Hprime Hfull.
+  pose proof (full_booleans w selectorColumns Hprime Hfull selector_booleans_in_full) as Hbits.
+  pose proof (Range.full_boolean w COL_IS_PROGRAM_ROW Hprime Hfull ltac:(vm_compute; reflexivity)) as Hprogram.
   destruct Hfull as [Hone Hall].
-  destruct selector_boolean_blocks as [HblockA HblockB].
-  pose proof (selector_boolean_from_block w 1648%nat 85%nat
-    (seq 61%nat 85%nat) Hprime (conj Hone Hall) HblockA) as HA.
-  pose proof (selector_boolean_from_block w 3489%nat 30%nat
-    (seq 293%nat 30%nat) Hprime (conj Hone Hall) HblockB) as HB.
-  assert (Hbits : Forall (fun c => w c = 0 \/ w c = 1) selectorColumns).
-  { unfold selectorColumns. apply Forall_app. split; assumption. }
   pose proof (selector_sum_boolean_bound w selectorColumns Hbits) as HsumBound.
   change (0 <= selectorSum w selectorColumns <= 115) in HsumBound.
-  pose proof (Range.boolean_row_bound w COL_IS_PROGRAM_ROW Hprime Hone
-    (Range.sat_row w 1065%nat _ Hall program_row_boolean_in_full)) as Hprogram.
-  pose proof (Range.sat_row w 436%nat _ Hall selector_row_in_full) as Honehot.
+  pose proof (Range.in_full_sat w _ Hall selector_row_in_full) as Honehot.
   unfold sat, selectorRow in Honehot.
   rewrite eval_app in Honehot.
   rewrite selector_sum_eval in Honehot.
@@ -214,8 +193,7 @@ Definition opcodeDecodeRow : Row :=
   ((COL_OPCODE_CODE, 1) :: map (fun '(column, code) => (column, -code)) selectorCodes,
    [(COL_ONE, 1)], []).
 
-Lemma opcode_decode_in_full :
-  nth_error FullRelation.rows 479%nat = Some opcodeDecodeRow.
+Lemma opcode_decode_in_full : Range.inFull opcodeDecodeRow = true.
 Proof. vm_compute. reflexivity. Qed.
 
 Lemma opcode_selector_columns : forall column,
@@ -317,7 +295,7 @@ Proof.
     - intros other Hother Hneq.
       rewrite opcode_selector_columns in Hother.
       eapply full_opcode_selector_exclusive; try eassumption. congruence. }
-  pose proof (Range.sat_row w 479%nat _ (proj2 Hfull) opcode_decode_in_full) as Hdecode.
+  pose proof (Range.in_full_sat w _ (proj2 Hfull) opcode_decode_in_full) as Hdecode.
   unfold sat, opcodeDecodeRow in Hdecode.
   change (((1 * w COL_OPCODE_CODE +
     eval w (map (fun '(column, code) => (column, -code)) selectorCodes)) *
@@ -354,8 +332,7 @@ Definition rowKindRow : Row :=
     (COL_PERM_PENDING_BEFORE, 1); (COL_PERM_ROUND_BEFORE_IS_ZERO, -1)],
    [(COL_ONE, 1)], []).
 
-Lemma row_kind_row_in_full :
-  nth_error FullRelation.rows 37%nat = Some rowKindRow.
+Lemma row_kind_row_in_full : Range.inFull rowKindRow = true.
 Proof. vm_compute. reflexivity. Qed.
 
 Lemma full_boolean_at : forall (w : Witness) column index,
@@ -385,27 +362,17 @@ Proof.
   assert (Hprogram : w COL_IS_PROGRAM_ROW = 1).
   { destruct HprogramBit; lia. }
   destruct Hfull as [Hone Hall].
-  pose proof (full_boolean_at w COL_PARAM_INIT_ACTIVE_BEFORE 1137%nat
-    Hprime (conj Hone Hall) eq_refl) as Hparam.
-  pose proof (full_boolean_at w COL_LOCAL_ZERO_ACTIVE_BEFORE 1068%nat
-    Hprime (conj Hone Hall) eq_refl) as Hzero.
-  pose proof (full_boolean_at w COL_TAIL_ENTER_ACTIVE 1141%nat
-    Hprime (conj Hone Hall) eq_refl) as Htail.
-  pose proof (full_boolean_at w COL_PADDING_ACTIVE 1175%nat
-    Hprime (conj Hone Hall) eq_refl) as Hpadding.
-  pose proof (full_boolean_at w COL_GATHER_ACTIVE 4319%nat
-    Hprime (conj Hone Hall) eq_refl) as Hgather.
-  pose proof (full_boolean_at w COL_TURN_BOUNDARY 4325%nat
-    Hprime (conj Hone Hall) eq_refl) as Hturn.
-  pose proof (full_boolean_at w COL_HOST_RESUME 3746%nat
-    Hprime (conj Hone Hall) eq_refl) as Hresume.
-  pose proof (full_boolean_at w COL_HOST_SUSPEND 3744%nat
-    Hprime (conj Hone Hall) eq_refl) as Hsuspend.
-  pose proof (full_boolean_at w COL_PERM_PENDING_BEFORE 4316%nat
-    Hprime (conj Hone Hall) eq_refl) as Hpending.
-  pose proof (full_boolean_at w COL_PERM_ROUND_BEFORE_IS_ZERO 4318%nat
-    Hprime (conj Hone Hall) eq_refl) as Hround.
-  pose proof (Range.sat_row w 37%nat _ Hall row_kind_row_in_full) as Hrow.
+  pose proof (Range.full_boolean w COL_PARAM_INIT_ACTIVE_BEFORE Hprime (conj Hone Hall) ltac:(vm_compute; reflexivity)) as Hparam.
+  pose proof (Range.full_boolean w COL_LOCAL_ZERO_ACTIVE_BEFORE Hprime (conj Hone Hall) ltac:(vm_compute; reflexivity)) as Hzero.
+  pose proof (Range.full_boolean w COL_TAIL_ENTER_ACTIVE Hprime (conj Hone Hall) ltac:(vm_compute; reflexivity)) as Htail.
+  pose proof (Range.full_boolean w COL_PADDING_ACTIVE Hprime (conj Hone Hall) ltac:(vm_compute; reflexivity)) as Hpadding.
+  pose proof (Range.full_boolean w COL_GATHER_ACTIVE Hprime (conj Hone Hall) ltac:(vm_compute; reflexivity)) as Hgather.
+  pose proof (Range.full_boolean w COL_TURN_BOUNDARY Hprime (conj Hone Hall) ltac:(vm_compute; reflexivity)) as Hturn.
+  pose proof (Range.full_boolean w COL_HOST_RESUME Hprime (conj Hone Hall) ltac:(vm_compute; reflexivity)) as Hresume.
+  pose proof (Range.full_boolean w COL_HOST_SUSPEND Hprime (conj Hone Hall) ltac:(vm_compute; reflexivity)) as Hsuspend.
+  pose proof (Range.full_boolean w COL_PERM_PENDING_BEFORE Hprime (conj Hone Hall) ltac:(vm_compute; reflexivity)) as Hpending.
+  pose proof (Range.full_boolean w COL_PERM_ROUND_BEFORE_IS_ZERO Hprime (conj Hone Hall) ltac:(vm_compute; reflexivity)) as Hround.
+  pose proof (Range.in_full_sat w _ Hall row_kind_row_in_full) as Hrow.
   unfold sat, rowKindRow in Hrow.
   cbn [eval fold_right] in Hrow.
   change (w COL_ONE = 1) in Hone.
@@ -421,13 +388,11 @@ Definition gatherKindRow : Row :=
   (map (fun column => (column, 1)) gatherKindColumns ++
     [(COL_GATHER_ACTIVE, -1)], [(COL_ONE, 1)], []).
 
-Lemma gather_kind_row_in_full :
-  nth_error FullRelation.rows 211%nat = Some gatherKindRow.
+Lemma gather_kind_row_in_full : Range.inFull gatherKindRow = true.
 Proof. vm_compute. reflexivity. Qed.
 
-Lemma gather_kind_boolean_block :
-  firstn 10%nat (skipn 4355%nat FullRelation.rows) =
-    map Range.booleanRow gatherKindColumns.
+Lemma gather_kind_booleans_in_full :
+  forallb (fun column => Range.inFull (Range.booleanRow column)) gatherKindColumns = true.
 Proof. vm_compute. reflexivity. Qed.
 
 Lemma full_no_gather_kind : forall (w : Witness) column,
@@ -435,11 +400,10 @@ Lemma full_no_gather_kind : forall (w : Witness) column,
   In column gatherKindColumns -> w column = 0.
 Proof.
   intros w column Hprime Hfull Hgather Hin.
-  pose proof (selector_boolean_from_block w 4355%nat 10%nat
-    gatherKindColumns Hprime Hfull gather_kind_boolean_block) as Hbits.
+  pose proof (full_booleans w gatherKindColumns Hprime Hfull gather_kind_booleans_in_full) as Hbits.
   pose proof (selector_sum_boolean_bound w gatherKindColumns Hbits) as Hbound.
   change (0 <= selectorSum w gatherKindColumns <= 10) in Hbound.
-  pose proof (Range.sat_row w 211%nat _ (proj2 Hfull) gather_kind_row_in_full) as Hrow.
+  pose proof (Range.in_full_sat w _ (proj2 Hfull) gather_kind_row_in_full) as Hrow.
   unfold sat, gatherKindRow in Hrow.
   rewrite eval_app, selector_sum_eval in Hrow. cbn [eval fold_right] in Hrow.
   assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).

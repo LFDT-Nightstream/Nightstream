@@ -66,7 +66,7 @@ products are recoverable from ring-level products, and linear combinations of
 evaluations commute with the commitment's S-action (Thm. 5). In code:
 `neo_math::superneo_bar_*`, enforced at the seam by `nightstream/src/folding/pi_rlc.rs`.
 The maintained proof and Rust/R1CS refinement work lives in
-`formal/nightstream-fprime`; the older `formal/nightstream-lean` is frozen.
+`formal/nightstream-fprime`.
 
 ## Engines
 

@@ -394,11 +394,6 @@ impl RotRho {
     pub fn as_mat(&self) -> &Mat<F> {
         &self.0
     }
-
-    #[inline]
-    pub fn into_mat(self) -> Mat<F> {
-        self.0
-    }
 }
 
 impl<'de> serde::Deserialize<'de> for RotRho {
@@ -653,7 +648,7 @@ where
             "project_x_from_witness_mat: m_in={m_in} exceeds expected_m={expected_m}"
         )));
     }
-    if m_in % D != 0 {
+    if !m_in.is_multiple_of(D) {
         return Err(PiCcsError::InvalidInput(format!(
             "project_x_from_witness_mat: m_in={m_in} is not a whole number of degree-{D} ring elements"
         )));
@@ -704,75 +699,6 @@ where
         }
     }
     Ok(z)
-}
-
-#[inline]
-fn i128_to_field_f<Ff>(v: i128) -> Ff
-where
-    Ff: PrimeField64 + PrimeCharacteristicRing + Copy,
-{
-    if v >= 0 {
-        Ff::from_u64(v as u64)
-    } else {
-        Ff::ZERO - Ff::from_u64((-v) as u64)
-    }
-}
-
-pub fn decompose_balanced_fixed_d_digits_k<Ff>(val: Ff, b: u32) -> Result<[K; D], PiCcsError>
-where
-    Ff: PrimeField64 + PrimeCharacteristicRing + Copy,
-    K: From<Ff>,
-{
-    if b < 2 {
-        return Err(PiCcsError::InvalidInput(format!(
-            "decompose_balanced_fixed_d_digits_k: invalid base b={b}"
-        )));
-    }
-    if val == Ff::ZERO {
-        return Ok([K::ZERO; D]);
-    }
-    if val == Ff::ONE {
-        let mut out = [K::ZERO; D];
-        out[0] = K::ONE;
-        return Ok(out);
-    }
-
-    let mut rem = to_balanced_i128(val);
-    let b_i = b as i128;
-    let mut digits_f = [Ff::ZERO; D];
-    if rem >= i64::MIN as i128 && rem <= i64::MAX as i128 {
-        let mut rem64 = rem as i64;
-        let b_i64 = b as i64;
-        for d in digits_f.iter_mut().take(D) {
-            let (r_i, q) = if b == 2 {
-                signed_divrem_base2(rem64)
-            } else {
-                (rem64 % b_i64, rem64 / b_i64)
-            };
-            *d = i128_to_field_f(r_i as i128);
-            rem64 = q;
-        }
-        rem = rem64 as i128;
-    } else {
-        for d in digits_f.iter_mut().take(D) {
-            *d = i128_to_field_f(rem % b_i);
-            rem /= b_i;
-        }
-    }
-    if rem != 0 {
-        return Err(PiCcsError::InvalidInput(format!(
-            "value {} is not representable in D={} balanced digits for base b={}",
-            to_balanced_i128(val),
-            D,
-            b
-        )));
-    }
-
-    let mut out = [K::ZERO; D];
-    for rho in 0..D {
-        out[rho] = K::from(digits_f[rho]);
-    }
-    Ok(out)
 }
 
 #[inline]
@@ -982,9 +908,4 @@ pub fn left_mul_acc(acc: &mut Mat<F>, rho: &Mat<F>, a: &Mat<F>) {
             acc[(r, c)] += sum;
         }
     }
-}
-
-pub fn format_ext(x: K) -> String {
-    let coeffs = x.as_coeffs();
-    format!("({}, {})", coeffs[0].as_canonical_u64(), coeffs[1].as_canonical_u64())
 }

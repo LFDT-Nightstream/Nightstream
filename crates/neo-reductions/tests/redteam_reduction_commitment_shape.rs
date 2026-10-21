@@ -139,7 +139,7 @@ fn dec_constructors_reject_malformed_child_commitments() {
                     &structure,
                     &params,
                     &parent,
-                    &digits,
+                    digits,
                     ell_d,
                     commitments,
                     dec_mix,

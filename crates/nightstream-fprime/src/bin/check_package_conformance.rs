@@ -2,6 +2,9 @@
 //! Expected identities and metadata are separate caller-selected Lean outputs;
 //! no published production identity pin is changed by this executable.
 
+// The test files reused below each include the shared reference modules.
+#![allow(clippy::duplicate_mod)]
+
 #[allow(dead_code, unused_imports)]
 #[path = "../../tests/per_application_assignment.rs"]
 mod assignment_checks;

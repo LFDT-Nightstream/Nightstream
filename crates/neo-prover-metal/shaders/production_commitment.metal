@@ -174,10 +174,11 @@ inline ulong production_join_halves(ulong lo, ulong hi) {
 // The integer work is 32-bit where it can be: the GPU emulates 64-bit
 // operations, and this loop is ALU-bound.
 kernel void production_ajtai_accumulate(
-    device const ulong *slab [[buffer(0)]],
+    device const ulong *key [[buffer(0)]],
     device const ulong2 *masks [[buffer(1)]],
     device const ulong *shape [[buffer(2)]],
     device ulong *partials [[buffer(3)]],
+    device const uint *key_columns [[buffer(4)]],
     threadgroup ulong *scratch [[threadgroup(0)]],
     uint group_index [[threadgroup_position_in_grid]],
     uint thread_index [[thread_index_in_threadgroup]]) {
@@ -197,8 +198,9 @@ kernel void production_ajtai_accumulate(
     if (active) {
         for (ulong position = first; position < end; ++position) {
             ulong2 digits = masks[witness * count + position];
-            production_add_digits(digits.x, slab + position * RING_DEGREE, lane, positive);
-            production_add_digits(digits.y, slab + position * RING_DEGREE, lane, negative);
+            device const ulong *element = key + (ulong)key_columns[position] * RING_DEGREE;
+            production_add_digits(digits.x, element, lane, positive);
+            production_add_digits(digits.y, element, lane, negative);
         }
     }
     threadgroup ulong *raw = scratch + (thread_index / 64) * RING_PRODUCT_COEFFICIENTS;
@@ -238,4 +240,22 @@ kernel void production_ajtai_sum_groups(
         value = gl_add(value, partials[(witness * groups + group) * RING_DEGREE + coefficient]);
     }
     output[index] = value;
+}
+
+// One key row's part of Σ_i λ_i·a_i: out[3e + c] = (out[3e + c] +) λ[c]·row[e]
+// for every coefficient e < shape[0]; shape[1] = 1 starts the sum. λ is a
+// cubic-extension value given as its three base coordinates.
+kernel void production_key_weights(
+    device const ulong *row [[buffer(0)]],
+    device ulong *out [[buffer(1)]],
+    device const ulong *power [[buffer(2)]],
+    device const ulong *shape [[buffer(3)]],
+    uint index [[thread_position_in_grid]]) {
+    ulong value = row[index];
+    bool first = shape[1] != 0;
+    for (uint c = 0; c < 3; ++c) {
+        ulong term = gl_mul(value, power[c]);
+        ulong at = 3 * (ulong)index + c;
+        out[at] = first ? term : gl_add(out[at], term);
+    }
 }

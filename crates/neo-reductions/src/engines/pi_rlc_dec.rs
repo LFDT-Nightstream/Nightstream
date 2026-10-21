@@ -73,44 +73,6 @@ pub trait RlcDecOps {
 pub struct OptimizedRlcDec;
 
 impl OptimizedRlcDec {
-    pub fn dec_children_with_commit_superneo_cached<Comb>(
-        s: &CcsStructure<F>,
-        params: &NeoParams,
-        parent: &CeClaim<Cmt, F, K>,
-        Z_split: &[Mat<F>],
-        ell_d: usize,
-        child_commitments: &[Cmt],
-        combine_b_pows: Comb,
-        superneo_cache: &crate::superneo_eval::SuperneoEvalCache,
-    ) -> DecOutcome
-    where
-        Comb: Fn(&[Cmt], u32) -> Cmt,
-    {
-        if Z_split.len() != params.k_rho as usize || child_commitments.len() != Z_split.len() {
-            return DecOutcome::rejected();
-        }
-        let split_valid = canonical_dec_split(Z_split, params.b);
-        let (mut children, ok_y, ok_X) = super::optimized_engine::dec_reduction_optimized_with_superneo_cache::<F>(
-            s,
-            params,
-            parent,
-            Z_split,
-            ell_d,
-            superneo_cache,
-        );
-
-        for (ch, c) in children.iter_mut().zip(child_commitments.iter()) {
-            ch.c = c.clone();
-        }
-        let ok_c = split_valid && combine_b_pows(child_commitments, params.b) == parent.c;
-        DecOutcome {
-            children,
-            ok_y: split_valid && ok_y,
-            ok_x: split_valid && ok_X,
-            ok_c,
-        }
-    }
-
     pub fn dec_children_with_commit_superneo_cached_with_digit_flags<Comb>(
         s: &CcsStructure<F>,
         params: &NeoParams,
@@ -153,7 +115,6 @@ impl OptimizedRlcDec {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub fn dec_children_with_commit_superneo_cached_from_trusted_split_digits<Comb>(
         s: &CcsStructure<F>,
         params: &NeoParams,
@@ -245,55 +206,5 @@ impl RlcDecOps for OptimizedRlcDec {
             ok_x: split_valid && ok_X,
             ok_c,
         }
-    }
-}
-
-#[cfg(feature = "paper-exact")]
-#[derive(Clone, Debug, Default, Copy)]
-pub struct PaperExactRlcDec;
-
-#[cfg(feature = "paper-exact")]
-impl RlcDecOps for PaperExactRlcDec {
-    fn rlc_with_commit(
-        s: &CcsStructure<F>,
-        params: &NeoParams,
-        rhos: &[Mat<F>],
-        me_inputs: &[CeClaim<Cmt, F, K>],
-        Zs: &[Mat<F>],
-        ell_d: usize,
-        mix_commits: RlcMixer,
-    ) -> (CeClaim<Cmt, F, K>, Mat<F>) {
-        super::paper_exact_engine::rlc_reduction_paper_exact_with_commit_mix(
-            s,
-            params,
-            rhos,
-            me_inputs,
-            Zs,
-            ell_d,
-            mix_commits,
-        )
-    }
-
-    fn dec_children_with_commit<Comb>(
-        s: &CcsStructure<F>,
-        params: &NeoParams,
-        parent: &CeClaim<Cmt, F, K>,
-        Z_split: &[Mat<F>],
-        ell_d: usize,
-        child_commitments: &[Cmt],
-        combine_b_pows: Comb,
-    ) -> DecOutcome
-    where
-        Comb: Fn(&[Cmt], u32) -> Cmt,
-    {
-        super::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
-            s,
-            params,
-            parent,
-            Z_split,
-            ell_d,
-            child_commitments,
-            combine_b_pows,
-        )
     }
 }

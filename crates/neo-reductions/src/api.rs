@@ -13,7 +13,7 @@ use rayon::prelude::*;
 use crate::error::PiCcsError;
 
 mod accelerator;
-pub use accelerator::{rlc_with_commit_refs_and_resident_witness, rlc_with_commit_refs_and_witness_mix};
+pub use accelerator::rlc_with_commit_refs_and_resident_witness;
 mod dec;
 pub use dec::verify_dec_public;
 mod validation;
@@ -27,8 +27,8 @@ pub use crate::engines::optimized_engine::PiCcsProof;
 pub use crate::engines::{DecOutcome, RlcMixer};
 
 pub use crate::common::{
-    compute_v1_2_evaluations_from_z_and_r, format_ext, left_mul_acc, rot_rhos_from_mats, rot_rhos_to_mats,
-    sample_rot_rhos_n_typed, split_b_matrix_k, split_b_matrix_k_with_nonzero_flags, RotRho, RotRing, SplitDigits,
+    compute_v1_2_evaluations_from_z_and_r, left_mul_acc, rot_rhos_from_mats, rot_rhos_to_mats, sample_rot_rhos_n_typed,
+    split_b_matrix_k, split_b_matrix_k_with_nonzero_flags, RotRho, RotRing, SplitDigits,
 };
 
 #[derive(Clone, Debug)]
@@ -145,7 +145,6 @@ pub fn rlc_with_commit(
     Ok((out, Z_mix))
 }
 
-#[allow(clippy::too_many_arguments)]
 fn validate_rlc_refs(
     label: &str,
     mode: &FoldingMode,
@@ -321,82 +320,6 @@ where
     }
 }
 
-pub fn dec_children_with_commit_superneo_cached<Comb>(
-    mode: FoldingMode,
-    s: &CcsStructure<F>,
-    params: &NeoParams,
-    parent: &CeClaim<Cmt, F, K>,
-    Z_split: &[Mat<F>],
-    ell_d: usize,
-    child_commitments: &[Cmt],
-    combine_b_pows: Comb,
-    superneo_cache: &crate::superneo_eval::SuperneoEvalCache,
-) -> DecOutcome
-where
-    Comb: Fn(&[Cmt], u32) -> Cmt,
-{
-    use crate::engines::pi_rlc_dec::OptimizedRlcDec;
-    if let Err(e) = validate_dec_boundary_inputs(s, params, parent, Z_split, child_commitments, ell_d) {
-        eprintln!("dec_children_with_commit_superneo_cached input validation failed: {e}");
-        return DecOutcome::rejected();
-    }
-    if let Err(error) = validate_selected_reduction_claims(
-        &mode,
-        "dec_children_with_commit_superneo_cached: selected parent",
-        s,
-        std::slice::from_ref(parent),
-    ) {
-        eprintln!("dec_children_with_commit_superneo_cached input validation failed: {error}");
-        return DecOutcome::rejected();
-    }
-
-    match mode {
-        FoldingMode::Optimized => OptimizedRlcDec::dec_children_with_commit_superneo_cached(
-            s,
-            params,
-            parent,
-            Z_split,
-            ell_d,
-            child_commitments,
-            combine_b_pows,
-            superneo_cache,
-        ),
-        #[cfg(feature = "paper-exact")]
-        FoldingMode::PaperExact => crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
-            s,
-            params,
-            parent,
-            Z_split,
-            ell_d,
-            child_commitments,
-            combine_b_pows,
-        ),
-        #[cfg(feature = "paper-exact")]
-        FoldingMode::OptimizedWithCrosscheck => {
-            let optimized = OptimizedRlcDec::dec_children_with_commit_superneo_cached(
-                s,
-                params,
-                parent,
-                Z_split,
-                ell_d,
-                child_commitments,
-                &combine_b_pows,
-                superneo_cache,
-            );
-            let reference = crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
-                s,
-                params,
-                parent,
-                Z_split,
-                ell_d,
-                child_commitments,
-                &combine_b_pows,
-            );
-            require_dec_crosscheck(optimized, reference)
-        }
-    }
-}
-
 pub fn dec_children_with_commit_superneo_cached_with_digit_flags<Comb>(
     mode: FoldingMode,
     s: &CcsStructure<F>,
@@ -414,11 +337,6 @@ where
 {
     use crate::engines::pi_rlc_dec::OptimizedRlcDec;
     if digit_nonzero.len() != Z_split.len() {
-        eprintln!(
-            "dec_children_with_commit_superneo_cached_with_digit_flags input validation failed: digit flag count {} != split witness count {}",
-            digit_nonzero.len(),
-            Z_split.len()
-        );
         return DecOutcome::rejected();
     }
     if let Err(e) = validate_dec_boundary_inputs(s, params, parent, Z_split, child_commitments, ell_d) {

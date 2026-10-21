@@ -17,7 +17,7 @@ if [ $# -lt 3 ]; then
   echo "It shows how memory grows over time and which functions allocate the most."
   echo ""
   echo "Example:"
-  echo "  $0 neo-fold test_sha256_single_step test_sha256_preimage_64_bytes --ignored"
+  echo "  $0 nightstream circuit_lifecycle poseidon_base_step_matches_lean_and_verifies --ignored"
   echo ""
   echo "Output: profile-memory-deep.txt"
   exit 1

@@ -32,7 +32,7 @@ fn check_block(vectors: &[SplitVector], digit_count: usize, base: u32) {
             assert_eq!(actual, expected_digit, "value={value}, digit={index}");
             any_nonzero |= expected_digit != 0;
         }
-        if vectors.len() % 2 != 0 {
+        if !vectors.len().is_multiple_of(2) {
             assert_eq!(digits[index][(rows - 1, 1)], F::ZERO, "padding stays zero");
         }
         assert_eq!(nonzero[index], any_nonzero, "digit {index} nonzero flag");

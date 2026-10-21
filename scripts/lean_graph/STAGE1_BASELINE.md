@@ -1,5 +1,9 @@
 # Current Stage 1 baseline closure
 
+The replay records that this file names, such as `SELECTED_PLAIN_REPLAY.json`,
+were in `docs/reviews/nightstream-fprime-requirements`. They are at commit
+`f7e093d8f`.
+
 ## Active goal: independent prover replay
 
 The owner changed the active target on September 13: independently execute
@@ -295,7 +299,6 @@ upstream license, authors and exact source commit. The reviewed snapshot is
 Apache-2.0 OR MIT, Copyright (c) 2026 Zcash Protocol Developers, commit
 `22dfee003b639eff660f68ea69a98a00409a9cb1`; reused code must keep its
 notices. A review citation is not code reuse.
-Publish the requirements map only from committed inputs.
 
 The public flow remains `Stage1Envelope::initial`, `package.extend` and
 `package.verify`. Add no redundant initialization wrapper or public state

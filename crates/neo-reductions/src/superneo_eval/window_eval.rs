@@ -80,7 +80,7 @@ fn evaluate_rows(
             .saturating_sub(1)
             .leading_zeros()) as usize;
     if shape.columns == 0
-        || shape.columns % D != 0
+        || !shape.columns.is_multiple_of(D)
         || shape.matrices == 0
         || point.len() < variables
         || witnesses

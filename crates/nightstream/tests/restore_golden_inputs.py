@@ -16,7 +16,7 @@ import tarfile
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[3]
-REVIEW = ROOT / "docs/reviews/nightstream-fprime-requirements"
+REVIEW = Path(__file__).with_name("fixtures") / "golden-release"
 
 
 def read(name):

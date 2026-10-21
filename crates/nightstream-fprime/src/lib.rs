@@ -26,11 +26,11 @@ pub use identity::{
 };
 pub use package::{
     derive_pi_ccs_v1_2_transcript, load_per_application_package, load_poseidon2_hash_chain_v1_package,
-    load_prepared_application_records, load_prepared_application_value, load_trusted_compiled_application_package,
+    load_prepared_application_records, load_terminal_package, load_trusted_compiled_application_package,
     CcsMatrixSource, LoadedApplicationPlan, LoadedAssignmentPlan, LoadedPackage, LoadedPerApplicationPackage,
     LoadedTerminalLayout, LogicalAssignment, LogicalMatrixEntry, LogicalMatrixRow, MatrixRun, PackageCcsRelation,
     PackageError, PackagePolynomialTerm, PackageR1cs, PackageSparseMatrix, PiCcsV1_2EncodedInputs,
-    PiCcsV1_2OutputEvaluations, PiCcsV1_2PackageInputs, PiCcsV1_2Transcript, PiDecV1_2PackageInputs,
+    PiCcsV1_2OutputEvaluations, PiCcsV1_2PackageInputs, PiCcsV1_2Transcript, PiDecV1_2PackageInputs, TerminalOutputs,
     PI_CCS_V1_2_COEFFICIENT_COUNT, PI_CCS_V1_2_FRESH_COMMITMENT_WORDS, PI_CCS_V1_2_MATRIX_COUNT,
     PI_CCS_V1_2_PRIOR_CHILDREN_WORDS, PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT,
     PI_CCS_V1_2_ROUND_COUNT, PI_CCS_V1_2_SOURCE_COUNT, PI_CCS_V1_2_STATE_PREIMAGE_WORDS,
@@ -38,4 +38,4 @@ pub use package::{
     PI_DEC_V1_2_EVAL_A_MATRICES_PER_CHILD, PI_DEC_V1_2_EVAL_K_VALUES_PER_CHILD,
     PI_DEC_V1_2_PUBLIC_INPUT_WORDS_PER_CHILD, PREPARED_FIXED_SOURCE_NODE_LIMIT,
 };
-pub use proof::{ProofRun, WitnessAssignment};
+pub use proof::WitnessAssignment;

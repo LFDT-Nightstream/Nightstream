@@ -492,7 +492,7 @@ impl<'a> MetalPaperJointOracle<'a> {
         }
         let fresh_count = input.fresh_witnesses.len();
         let opening_assignment_count = fresh_count + input.running_witnesses.len();
-        if input.prior_point.is_some() != !input.running_witnesses.is_empty() {
+        if input.prior_point.is_some() == input.running_witnesses.is_empty() {
             return Err(oracle_error(MetalError::Shape(
                 "one-joint prior point and running witnesses disagree",
             )));

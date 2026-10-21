@@ -5,7 +5,6 @@ use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
-mod artifact;
 mod authority;
 mod baseline;
 mod block_sums;
@@ -27,15 +26,11 @@ mod weighted;
 mod weighted_table;
 mod window_eval;
 
-pub use artifact::{
-    SuperneoCacheArtifactError, SuperneoCacheArtifactLimits, SuperneoCacheArtifactReceipt,
-    VerifiedSuperneoCacheArtifact,
-};
 pub use authority::{check_ccs_relation_zero_cached_with_blocks, SuperneoCachedRelationError};
 pub use baseline::{
     eval_all_mats_direct, eval_all_mats_superneo, eval_all_mats_transformed, eval_mle_direct_matrix,
     eval_mle_superneo_from_original, eval_mle_transformed_matrix, is_superneo_compatible_shape,
-    should_enable_superneo_cache_default, superneo_row_dot_from_original,
+    superneo_row_dot_from_original,
 };
 pub use cache::build_superneo_eval_cache;
 #[doc(hidden)]
@@ -355,41 +350,6 @@ pub struct SuperneoMatrixCache {
     identity: bool,
 }
 
-impl SuperneoMatrixCache {
-    pub fn bar_shape(&self) -> (usize, usize, Vec<usize>, usize) {
-        if self.identity {
-            return (self.rows, self.cols, (0..=self.rows).collect(), self.rows);
-        }
-        (
-            self.rows,
-            self.cols,
-            (0..=self.rows)
-                .map(|row| self.row_offsets.get(row) as usize)
-                .collect(),
-            self.row_blocks.len(),
-        )
-    }
-
-    pub fn bar_entry(&self, i: usize) -> (usize, Rq) {
-        if self.identity {
-            let mut orig = [F::ZERO; D];
-            orig[i % D] = F::ONE;
-            return (i / D, Rq(neo_math::superneo_bar_block(orig)));
-        }
-        let row_block = self.expanded_block(self.row_blocks[i]);
-        (row_block.blk, row_block.bar)
-    }
-
-    pub fn orig_entry(&self, i: usize) -> (usize, Rq) {
-        if self.identity {
-            let mut orig = [F::ZERO; D];
-            orig[i % D] = F::ONE;
-            return (i / D, Rq(orig));
-        }
-        let row_block = self.expanded_block(self.row_blocks[i]);
-        (row_block.blk, row_block.orig)
-    }
-}
 #[derive(Clone, Copy, Debug)]
 struct WeightedRowBlock {
     blk: usize,
@@ -411,11 +371,6 @@ pub struct SuperneoLinearForm {
 
 impl SuperneoLinearForm {
     #[inline]
-    pub fn cols(&self) -> usize {
-        self.cols
-    }
-
-    #[inline]
     pub fn eval_vec_k(&self, z: &[K]) -> K {
         assert_eq!(
             z.len(),
@@ -427,20 +382,6 @@ impl SuperneoLinearForm {
             acc += z[c] * v;
         }
         acc
-    }
-
-    #[inline]
-    pub fn eval_packed_digits_k(&self, z: &[K]) -> [K; D] {
-        assert_eq!(
-            z.len(),
-            self.cols,
-            "SuperneoLinearForm::eval_packed_digits_k: column/vector length mismatch"
-        );
-        let mut out = [K::ZERO; D];
-        for &(c, v) in &self.nz {
-            out[c % D] += z[c] * v;
-        }
-        out
     }
 
     #[inline]
@@ -457,20 +398,6 @@ impl SuperneoLinearForm {
         let mut acc = K::ZERO;
         for &(c, v) in &self.nz {
             acc += v.scale_base_k(K::from(z_row[c]));
-        }
-        acc
-    }
-
-    #[inline]
-    pub fn eval_vec_base_f_with<Ff, G>(&self, mut get: G) -> K
-    where
-        Ff: Field + PrimeCharacteristicRing + Copy,
-        K: From<Ff>,
-        G: FnMut(usize) -> Ff,
-    {
-        let mut acc = K::ZERO;
-        for &(c, v) in &self.nz {
-            acc += v.scale_base_k(K::from(get(c)));
         }
         acc
     }
@@ -492,18 +419,6 @@ struct SuperneoRingLinearBlock {
 }
 
 impl SuperneoRingLinearForm {
-    pub fn to_dense_block_coeffs(&self) -> (Vec<F>, Vec<F>) {
-        let blocks = self.cols.div_ceil(D);
-        let mut re = vec![F::ZERO; blocks * D];
-        let mut im = vec![F::ZERO; blocks * D];
-        for entry in &self.entries {
-            let base = entry.blk * D;
-            re[base..base + D].copy_from_slice(&entry.re_form.0);
-            im[base..base + D].copy_from_slice(&entry.im_form.0);
-        }
-        (re, im)
-    }
-
     #[inline]
     pub fn eval_real_z_blocks(&self, z_blocks: &SuperneoZBlocks) -> [K; D] {
         debug_assert_eq!(
@@ -875,40 +790,6 @@ impl SuperneoZBlocks {
             im_nonzero: vec![false; blocks],
             imag_all_zero: true,
         }
-    }
-
-    #[inline]
-    pub fn load_base_row_f<Ff>(&mut self, row: &[Ff])
-    where
-        Ff: Field + PrimeCharacteristicRing + Copy,
-        K: From<Ff>,
-    {
-        let blocks = row.len().div_ceil(D);
-        let mut re = vec![Rq([F::ZERO; D]); blocks];
-        let mut re_nonzero = vec![false; blocks];
-        self.imag_all_zero = true;
-        self.im.clear();
-        if self.im_nonzero.len() != blocks {
-            self.im_nonzero.resize(blocks, false);
-        }
-        for blk in 0..blocks {
-            let base = blk * D;
-            let mut block_nonzero = false;
-            for i in 0..D {
-                re[blk].0[i] = if base + i < row.len() {
-                    as_base_field(row[base + i])
-                } else {
-                    F::ZERO
-                };
-                block_nonzero |= re[blk].0[i] != F::ZERO;
-            }
-            re_nonzero[blk] = block_nonzero;
-            self.im_nonzero[blk] = false;
-        }
-        self.re = RealBlockStorage::Dense {
-            blocks: re,
-            nonzero: re_nonzero,
-        };
     }
 
     #[inline]

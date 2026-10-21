@@ -72,7 +72,6 @@ pub struct OptimizedPaperJointOracle<'a> {
 }
 
 impl<'a> OptimizedPaperJointOracle<'a> {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         structure: &'a CcsStructure<F>,
         params: &neo_params::NeoParams,

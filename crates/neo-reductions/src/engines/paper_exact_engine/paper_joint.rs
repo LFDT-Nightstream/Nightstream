@@ -120,10 +120,10 @@ where
     Ok(())
 }
 
-pub(super) fn paper_prior_point<'a, Ff>(
-    running: &'a [CeClaim<Cmt, Ff, K>],
+pub(super) fn paper_prior_point<Ff>(
+    running: &[CeClaim<Cmt, Ff, K>],
     variables: usize,
-) -> Result<Option<&'a [K]>, PiCcsError> {
+) -> Result<Option<&[K]>, PiCcsError> {
     let Some(first) = running.first() else {
         return Ok(None);
     };
@@ -234,7 +234,7 @@ pub(super) fn direct_public_input<Ff>(
 where
     Ff: Field + PrimeCharacteristicRing + Copy,
 {
-    if public_width % D != 0 {
+    if !public_width.is_multiple_of(D) {
         return Err(PiCcsError::InvalidInput(
             "PaperExact requires the public input to contain whole ring elements".into(),
         ));
@@ -479,7 +479,6 @@ where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
     K: From<Ff>,
 {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         structure: &'a CcsStructure<Ff>,
         params: &'a neo_params::NeoParams,
@@ -492,7 +491,6 @@ where
         Self::with_matrix_rows(structure, params, fresh, running, challenges, prior_point, dims, None)
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub fn from_rows(
         structure: &'a CcsStructure<Ff>,
         params: &'a neo_params::NeoParams,
@@ -515,7 +513,6 @@ where
         )
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn with_matrix_rows(
         structure: &'a CcsStructure<Ff>,
         params: &'a neo_params::NeoParams,
@@ -670,7 +667,6 @@ where
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(super) fn build_outputs<Ff>(
     structure: &CcsStructure<Ff>,
     fresh_claims: &[CcsClaim<Cmt, Ff>],

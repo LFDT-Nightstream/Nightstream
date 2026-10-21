@@ -237,7 +237,6 @@ enum OracleSource<'a> {
     },
 }
 
-#[allow(clippy::too_many_arguments)]
 fn build_outputs(
     structure: &CcsStructure<F>,
     fresh_claims: &[CcsClaim<Cmt, F>],
@@ -294,11 +293,11 @@ fn build_outputs(
             .as_deref()
             .expect("host openings require the equality tensor");
         let assignment = crate::common::decode_superneo_coeffs_from_witness_mat(witness, structure.m)?;
-        let mut eval_k = identity_ring_mle(&assignment, &weights).to_vec();
+        let mut eval_k = identity_ring_mle(&assignment, weights).to_vec();
         eval_k.resize(d_pad, K::ZERO);
         let cache = cache.expect("host openings require the validated structure cache");
         let eval_a =
-            crate::superneo_eval::eval_all_mats_ring_cached(cache.superneo(), &assignment, &weights, structure.n)
+            crate::superneo_eval::eval_all_mats_ring_cached(cache.superneo(), &assignment, weights, structure.n)
                 .into_iter()
                 .map(|coefficients| {
                     let mut row = coefficients.to_vec();
@@ -339,7 +338,6 @@ fn build_outputs(
     Ok(outputs)
 }
 
-#[allow(clippy::too_many_arguments)]
 fn prove_with_trace_inner(
     transcript: &mut Poseidon2Transcript,
     params: &neo_params::NeoParams,
@@ -557,7 +555,7 @@ fn prove_with_trace_inner(
     Ok((outputs, proof, perf, trace))
 }
 
-pub(crate) fn prove_with_trace<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
+pub(crate) fn prove_with_trace(
     transcript: &mut Poseidon2Transcript,
     params: &neo_params::NeoParams,
     structure: &CcsStructure<F>,
@@ -565,7 +563,6 @@ pub(crate) fn prove_with_trace<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     fresh_witnesses: &[CcsWitness<F>],
     running_claims: &[CeClaim<Cmt, F, K>],
     running_witnesses: &[Mat<F>],
-    _commitment: &L,
     cache: &OptimizedStructureCache,
 ) -> Result<
     (
@@ -588,8 +585,7 @@ pub(crate) fn prove_with_trace<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     )
 }
 
-#[allow(clippy::too_many_arguments)]
-pub fn prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
+pub fn prove(
     transcript: &mut Poseidon2Transcript,
     params: &neo_params::NeoParams,
     structure: &CcsStructure<F>,
@@ -597,7 +593,6 @@ pub fn prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     fresh_witnesses: &[CcsWitness<F>],
     running_claims: &[CeClaim<Cmt, F, K>],
     running_witnesses: &[Mat<F>],
-    commitment: &L,
     cache: &OptimizedStructureCache,
 ) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, super::PiCcsProvePerf), PiCcsError> {
     let (outputs, proof, perf, _) = prove_with_trace(
@@ -608,42 +603,11 @@ pub fn prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         fresh_witnesses,
         running_claims,
         running_witnesses,
-        commitment,
         cache,
     )?;
     Ok((outputs, proof, perf))
 }
 
-#[allow(clippy::too_many_arguments)]
-pub fn prove_with_backend<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
-    transcript: &mut Poseidon2Transcript,
-    params: &neo_params::NeoParams,
-    structure: &CcsStructure<F>,
-    fresh_claims: &[CcsClaim<Cmt, F>],
-    fresh_witnesses: &[CcsWitness<F>],
-    running_claims: &[CeClaim<Cmt, F, K>],
-    running_witnesses: &[Mat<F>],
-    _commitment: &L,
-    cache: &OptimizedStructureCache,
-    backend: &mut dyn PaperJointOracleBackend,
-) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, super::PiCcsProvePerf), PiCcsError> {
-    let (outputs, proof, perf, _) = prove_with_trace_inner(
-        transcript,
-        params,
-        structure,
-        fresh_claims,
-        fresh_witnesses,
-        running_claims,
-        running_witnesses,
-        OracleSource::Cached {
-            cache,
-            backend: Some(backend),
-        },
-    )?;
-    Ok((outputs, proof, perf))
-}
-
-#[allow(clippy::too_many_arguments)]
 pub fn prove_with_complete_oracle(
     transcript: &mut Poseidon2Transcript,
     params: &neo_params::NeoParams,
@@ -690,7 +654,6 @@ fn resident_row_workspace(rows: &dyn MatrixRows, fresh_count: usize) -> Result<u
         .ok_or_else(|| PiCcsError::InvalidInput("resident row workspace overflow".into()))
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn prove_with_matrix_rows<'a>(
     transcript: &mut Poseidon2Transcript,
     params: &neo_params::NeoParams,

@@ -14,7 +14,8 @@ import sys
 # Spec/Algebra.lean defines p and K.mul on the basis (1,u), with u² = 7.
 P = 18446744069414584321
 NONRESIDUE = 7
-# Selected geometry: PICCS_CARRIED_PREFIX_REPLAY.json, pad and matrix records.
+# Selected geometry: PICCS_CARRIED_PREFIX_REPLAY.json at commit f7e093d8f, pad
+# and matrix records.
 # Profile.lean fixes ring degree 54 and the 4 separate matrix ports.
 ORIGINAL_ROWS = 1004131
 PAD_RECORDS = 814144

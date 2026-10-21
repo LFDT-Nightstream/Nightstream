@@ -62,7 +62,6 @@ fn prove_accepts_nc_alphabet_packed_witness_values() {
         &mcs_witnesses,
         &running,
         &running_witnesses,
-        &l,
     )
     .expect("prove should accept NC-range packed witness values");
 

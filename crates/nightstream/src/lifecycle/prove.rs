@@ -74,7 +74,11 @@ impl PreparedLifecycle {
         })
     }
 
-    fn validate_prover_sources(&self, fresh: &CcsInstance, running: &RunningInstance) -> Result<(), ProveError> {
+    pub(super) fn validate_prover_sources(
+        &self,
+        fresh: &CcsInstance,
+        running: &RunningInstance,
+    ) -> Result<(), ProveError> {
         if running.claims.len() != PI_DEC_V1_2_CHILD_COUNT || !running.prover_shape_is_valid() {
             return Err(ProveError::Input("source counts do not match the selected profile"));
         }

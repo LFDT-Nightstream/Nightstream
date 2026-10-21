@@ -529,7 +529,7 @@ fn malformed_order_range_and_ignored_stop_are_not_workspace_failures() {
         ));
     }
     let mut source = PatternRows::new(5);
-    for rows in [3..2, 0..6, 0..0] {
+    for rows in [Range { start: 3, end: 2 }, 0..6, 0..0] {
         assert!(matches!(
             MatrixWindow::load_next(&source, rows, usize::MAX),
             Err(PiCcsError::InvalidInput(_))

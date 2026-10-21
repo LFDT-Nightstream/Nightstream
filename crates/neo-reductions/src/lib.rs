@@ -12,15 +12,10 @@ pub mod engines;
 pub mod error;
 pub mod sumcheck;
 pub mod superneo_eval;
-pub use engines::pi_rlc_dec;
 
 pub use engines::optimized_engine;
 #[cfg(feature = "paper-exact")]
 pub use engines::paper_exact_engine;
-
-pub use api as pi_ccs;
-#[cfg(feature = "paper-exact")]
-pub use engines::paper_exact_engine as pi_ccs_paper_exact;
 
 pub use engines::optimized_engine::{pi_ccs_prove, pi_ccs_verify, Challenges, PiCcsProof};
 

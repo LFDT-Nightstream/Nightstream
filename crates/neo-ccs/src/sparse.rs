@@ -48,7 +48,7 @@ impl<Ff: Field> CscMat<Ff> {
             let rows = &self.row_idx[start..end];
             if rows.iter().any(|&row| row as usize >= self.nrows)
                 || rows.windows(2).any(|pair| pair[0] >= pair[1])
-                || self.vals[start..end].iter().any(|value| *value == Ff::ZERO)
+                || self.vals[start..end].contains(&Ff::ZERO)
             {
                 return false;
             }

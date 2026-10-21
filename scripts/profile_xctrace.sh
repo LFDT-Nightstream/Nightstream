@@ -38,10 +38,10 @@ if [ $# -lt 3 ]; then
   echo "Run 'xcrun xctrace list templates' for full list"
   echo ""
   echo "Examples:"
-  echo "  $0 neo-fold test_sha256_single_step test_sha256_preimage_128_bytes --ignored"
-  echo "  $0 neo-fold test_sha256_single_step test_sha256_preimage_128_bytes --ignored --template Allocations"
-  echo "  $0 neo-prover-metal-bench benchmark_contract sha256_lifecycle_baseline_proves_and_verifies --ignored --template \"Metal System Trace\" --instrument \"Metal GPU Counters\" --time-limit 60s"
-  echo "  $0 neo-fold test_riscv_circuit_l2_transfer_compiled_trace_prove_verify test_note_spend_1in_1out_transfer_prove_verify --ignored --features poseidon-precompile --time-limit 20"
+  echo "  $0 nightstream circuit_lifecycle poseidon_base_step_matches_lean_and_verifies --ignored"
+  echo "  $0 nightstream circuit_lifecycle poseidon_base_step_matches_lean_and_verifies --ignored --template Allocations"
+  echo "  $0 nightstream circuit_lifecycle poseidon_metal_recursive_lifecycle --ignored --features metal --template \"Metal System Trace\" --instrument \"Metal GPU Counters\" --time-limit 60s"
+  echo "  $0 nightstream application_poseidon2 every_poseidon2_application_row_matches_the_saved_lean_reference --time-limit 20"
   exit 1
 fi
 

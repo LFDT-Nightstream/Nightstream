@@ -1,10 +1,5 @@
 # Clippy configuration for nightstream workspace
 
-# Allow functions with more than 7 arguments
-# Folding and cryptographic functions often require many parameters
-too-many-arguments-threshold = 12
-
-# Allow range loops when using index for clarity
-# Matrix operations and cryptographic code often benefit from explicit indexing
+# Disallow no identifier names (clears clippy's default foo/baz/quux list)
 disallowed-names = []
 

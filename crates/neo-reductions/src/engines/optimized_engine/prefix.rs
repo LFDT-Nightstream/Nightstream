@@ -211,7 +211,7 @@ mod tests;
 
 const MAX_EARLY_VALUES: usize = 3usize.pow(4);
 const ZERO_PAIR: usize = 1 + 3 * 1;
-const _: () = assert!(D % 2 == 0);
+const _: () = assert!(D.is_multiple_of(2));
 
 pub(super) enum EarlyPairs<'a> {
     Masks {

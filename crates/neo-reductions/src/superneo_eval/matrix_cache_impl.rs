@@ -310,17 +310,6 @@ impl SuperneoMatrixCache {
     }
 
     #[inline]
-    pub fn row_dot(&self, row: usize, z: &[K]) -> K {
-        assert_eq!(
-            self.cols,
-            z.len(),
-            "SuperneoMatrixCache::row_dot: column/vector length mismatch"
-        );
-        let z_blocks = SuperneoZBlocks::from_z(z);
-        self.row_dot_with_blocks(row, &z_blocks)
-    }
-
-    #[inline]
     pub fn eval_mle_with_blocks(&self, z_blocks: &SuperneoZBlocks, chi_r: &[K], n_eff: usize) -> K {
         debug_assert_eq!(
             self.cols.div_ceil(D),
@@ -336,17 +325,6 @@ impl SuperneoMatrixCache {
             acc += w * self.row_dot_with_blocks(row, z_blocks);
         }
         acc
-    }
-
-    #[inline]
-    pub fn eval_mle(&self, z: &[K], chi_r: &[K], n_eff: usize) -> K {
-        assert_eq!(
-            self.cols,
-            z.len(),
-            "SuperneoMatrixCache::eval_mle: column/vector length mismatch"
-        );
-        let z_blocks = SuperneoZBlocks::from_z(z);
-        self.eval_mle_with_blocks(&z_blocks, chi_r, n_eff)
     }
 
     /// Evaluate `\widetilde{(M z)}(r)` in ring-coefficient form.
@@ -424,17 +402,6 @@ impl SuperneoMatrixCache {
         out
     }
 
-    #[inline]
-    pub fn eval_mle_ring(&self, z: &[K], chi_r: &[K], n_eff: usize) -> [K; D] {
-        assert_eq!(
-            self.cols,
-            z.len(),
-            "SuperneoMatrixCache::eval_mle_ring: column/vector length mismatch"
-        );
-        let z_blocks = SuperneoZBlocks::from_z(z);
-        self.eval_mle_ring_with_blocks(&z_blocks, chi_r, n_eff)
-    }
-
     /// Build sparse `v = M^T · χ_r` once, so repeated evals at the same `r` are cheap.
     #[inline]
     pub fn build_linear_form(&self, chi_r: &[K], n_eff: usize) -> SuperneoLinearForm {
@@ -460,25 +427,6 @@ impl SuperneoMatrixCache {
             .filter_map(|(c, v)| (v != K::ZERO).then_some((c, v)))
             .collect();
         SuperneoLinearForm { cols: self.cols, nz }
-    }
-
-    /// Build a sparse ring-linear form for repeated real-only packed witness evals.
-    #[inline]
-    pub fn build_ring_linear_form(&self, chi_r: &[K], n_eff: usize) -> SuperneoRingLinearForm {
-        let (chi_re, chi_im) = split_chi_coeffs(chi_r, n_eff);
-        self.build_ring_linear_form_split_chi(&chi_re, &chi_im, n_eff)
-    }
-
-    #[inline]
-    pub(super) fn build_ring_linear_form_split_chi(
-        &self,
-        chi_re: &[F],
-        chi_im: &[F],
-        n_eff: usize,
-    ) -> SuperneoRingLinearForm {
-        let block_count = self.cols.div_ceil(D);
-        let mut scratch = RingEvalScratch::new(block_count);
-        self.build_ring_linear_form_split_chi_with_scratch(chi_re, chi_im, n_eff, &mut scratch)
     }
 
     #[inline]

@@ -144,6 +144,7 @@ impl MetalSession {
             .ok_or(MetalError::Shape("witness mask dimensions overflow"))?
             .max(1);
         let words = self.filled_buffer(word_count, |destination| {
+            destination.fill(0);
             for (source, witness) in witnesses[..stored_witnesses].iter().enumerate() {
                 if witness.is_zero() {
                     continue;

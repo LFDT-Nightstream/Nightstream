@@ -935,11 +935,7 @@ impl MetalSession {
         let buffer = self.buffer(bytes)?;
         // SAFETY: Metal gives a shared-storage buffer a CPU-visible, aligned `contents()`
         // pointer that stays valid while the buffer lives; this new buffer has no device readers.
-        let destination = unsafe {
-            let pointer = buffer.contents().as_ptr().cast::<u64>();
-            pointer.write_bytes(0, words);
-            std::slice::from_raw_parts_mut(pointer, words)
-        };
+        let destination = unsafe { std::slice::from_raw_parts_mut(buffer.contents().as_ptr().cast::<u64>(), words) };
         fill(destination)?;
         self.activity
             .uploaded_bytes

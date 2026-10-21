@@ -172,7 +172,7 @@ term `N² / 2^257`. The Lean result stays conditional on P1 and P2.
 ## 8. Expander choice
 
 Measured cost of one production key pass
-(`crates/neo-ajtai/tests/evidence/key-expander-20260929/`):
+(`crates/neo-ajtai/tests/evidence/key-expander-20260929/` at commit `f7e093d8f`):
 
 | Expander | CPU | Metal |
 |---|---:|---:|

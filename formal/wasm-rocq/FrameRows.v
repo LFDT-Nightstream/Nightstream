@@ -6,7 +6,8 @@ Require Import Wasm2 WasmIntegers Add R1CS Columns Range FullRelation MemoryTrac
   TraceRefinement StraightLineSpec StackSimulation LocalSimulation SpecTecCalls SpecTecBranches CallerSpec
   CallerRefinement ProgramSpec ProgramEncoding CodeLayout BlockSpec BlockBindings BlockEncoding BlockInstructions
   BlockTrace BranchBindings StackBindings CallInitialization Selectors CallScope CallContext CallMemory LocalBindings
-  StraightLineInstructions ProgramBinding Fragment CodeFacts ControlDecode ControlInvariant FrameFacts ControlBridge.
+  StraightLineInstructions ProgramBinding Fragment CodeFacts ControlDecode ControlInvariant FrameFacts ControlBridge
+  CircuitFacts.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -39,9 +40,9 @@ Lemma quiet_row_frame_effect : forall initial final row base fbp,
   Replay initial (eventsForRow memories row) final ->
   row COL_STACK_WRITE0_ACTIVE = 0 -> row COL_STACK_WRITE0_HI_ACTIVE = 0 ->
   filter isLocalWrite (eventsForRow memories row) = [] -> row COL_CALL_STACK_PUSH_PRESENT = 0 ->
-  FrameEffect base fbp initial final.
+  row COL_HOST_SUSPEND = 0 -> row COL_HOST_CONTEXT_READ = 0 -> FrameEffect base fbp initial final.
 Proof.
-  intros initial final row base fbp Hreplay Hlo Hhi Hlocal Hpush. constructor.
+  intros initial final row base fbp Hreplay Hlo Hhi Hlocal Hpush Hsuspend Hread. constructor.
   - intros index _. eapply replay_preserves; [exact Hreplay | apply stack_writes_inactive; assumption].
   - intros other index _. eapply no_local_writes_preserve; eassumption.
   - intros memory column address Hin. eapply context_preserved_without_push; eassumption.
@@ -401,7 +402,7 @@ Qed.
 
 Lemma code_block_enter_row : forall view f body initial final row inner,
   fieldPrime -> programLoaded program initial -> FullRelation.satFull row -> row COL_IS_PROGRAM_ROW = 1 ->
-  row COL_HALTED = 0 -> Replay initial (eventsForRow memories row) final ->
+  row COL_ACTIVATION_FINISHED_AFTER = 0 -> Replay initial (eventsForRow memories row) final ->
   ActiveState program s initial (beforeBoundary row) (atCode view) inner ->
   functionAt program (positionFunction (viewPosition view)) = Some f ->
   nth_error (innerCode f (viewPosition view)) (positionOffset (viewPosition view)) =
@@ -427,6 +428,8 @@ Proof.
   rewrite <- Hpc in Himage.
   destruct (BlockTrace.control_row _ _ row _ CODE_BLOCK COL_SEL_BLOCK _ Hprime Hfull Hprogram Hreplay Logic.eq_refl
     ltac:(vm_compute; reflexivity) Himage) as [Hchosen Hnext].
+  destruct (full_selected_no_host_switch row COL_SEL_BLOCK Hprime Hfull ltac:(vm_compute; tauto) Hchosen)
+    as [Hsuspend [_ [_ [_ Hread]]]].
   destruct (full_block_selector_quiet row COL_SEL_BLOCK Hprime Hfull (or_introl Logic.eq_refl) Hchosen)
     as [Hpush Hpop].
   destruct (full_block_context row COL_SEL_BLOCK Hprime Hfull (or_introl Logic.eq_refl) Hchosen Hpop Hhalt)
@@ -510,7 +513,7 @@ Qed.
 
 Lemma code_block_end_row : forall view f initial final row inner,
   fieldPrime -> programLoaded program initial -> FullRelation.satFull row -> row COL_IS_PROGRAM_ROW = 1 ->
-  row COL_HALTED = 0 -> Replay initial (eventsForRow memories row) final ->
+  row COL_ACTIVATION_FINISHED_AFTER = 0 -> Replay initial (eventsForRow memories row) final ->
   ActiveState program s initial (beforeBoundary row) (atCode view) inner ->
   functionAt program (positionFunction (viewPosition view)) = Some f ->
   positionLabels (viewPosition view) <> [] ->
@@ -546,6 +549,8 @@ Proof.
   pose proof (control_row_static_edge _ _ row _ _ _ Hprogram Hreplay Logic.eq_refl Himage) as Hedge.
   destruct (BlockTrace.control_row _ _ row _ CODE_END COL_SEL_END _ Hprime Hfull Hprogram Hreplay Logic.eq_refl
     ltac:(vm_compute; reflexivity) Himage) as [Hchosen Hnext].
+  destruct (full_selected_no_host_switch row COL_SEL_END Hprime Hfull ltac:(vm_compute; tauto) Hchosen)
+    as [Hsuspend [_ [_ [_ Hread]]]].
   destruct (full_block_end_quiet row Hprime Hfull Hchosen Hedge Hhalt) as [Hpush Hpop].
   destruct (full_block_context row COL_SEL_END Hprime Hfull (or_intror Logic.eq_refl) Hchosen Hpop Hhalt)
     as [Hsp' [Hbase' [Hfbp' [Hdepth' [Hw0 [Hw1 Hlw]]]]]].
@@ -658,6 +663,8 @@ Proof.
   change (row COL_PC_BEFORE = guestEntry f + Z.of_nat (pathOffset (guestBody f) (pre ++ b :: post) offset)) in Hpc.
   rewrite <- Hpc in Himage.
   destruct (circuit_br_if_control _ _ _ _ _ _ Hprime Hfull Hreplay Hprogram Logic.eq_refl Himage) as [Hchosen Hnext].
+  destruct (full_selected_no_host_switch row COL_SEL_BR_IF_EQZ Hprime Hfull ltac:(vm_compute; tauto) Hchosen)
+    as [Hsuspend [_ [_ [_ HcontextRead]]]].
   pose proof (br_if_depth_preserved row Hprime Hfull Hchosen) as Hdepth.
   destruct (full_block_selector_quiet row COL_SEL_BR_IF_EQZ Hprime Hfull (or_intror Logic.eq_refl) Hchosen)
     as [Hpush _].
@@ -676,7 +683,7 @@ Proof.
     by (split; [exact Hdepth | split; [exact (local_stack_base_after _ _ Hshape) | exact Hfbp]]).
   assert (Heffect : FrameEffect (row COL_STACK_FRAME_BASE_BEFORE) (row COL_LOCALS_FBP_BEFORE) initial final)
     by (eapply quiet_row_frame_effect; [exact Hreplay | exact (local_write_active _ _ Hshape) |
-      exact (local_write_hi_active _ _ Hshape) | exact Hlw | exact Hpush]).
+      exact (local_write_hi_active _ _ Hshape) | exact Hlw | exact Hpush | exact Hsuspend | exact HcontextRead]).
   pose proof (program_row_keeps_idle row COL_SEL_BR_IF_EQZ Hprime Hfull ltac:(vm_compute; tauto) Hchosen
     ltac:(not_call_selector) Hidle) as HidleAfter.
   (* SpecTec: the same choice. *)

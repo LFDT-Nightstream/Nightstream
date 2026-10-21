@@ -8,7 +8,7 @@ Open Scope Z_scope.
 Definition rowKindFlags : list Column :=
   [COL_IS_PROGRAM_ROW; COL_PARAM_INIT_ACTIVE_BEFORE; COL_LOCAL_ZERO_ACTIVE_BEFORE;
    COL_TAIL_ENTER_ACTIVE; COL_PADDING_ACTIVE; COL_GATHER_ACTIVE; COL_TURN_BOUNDARY;
-   COL_PERM_PENDING_BEFORE].
+   COL_HOST_RESUME; COL_HOST_SUSPEND; COL_PERM_PENDING_BEFORE].
 
 Lemma full_row_kind_sum : forall (w : Witness),
   fieldPrime -> FullRelation.satFull w ->
@@ -29,7 +29,7 @@ Proof.
   rewrite eval_app, selector_sum_eval, Hone in Hrow.
   cbn [eval fold_right] in Hrow.
   pose proof (selector_sum_boolean_bound w rowKindFlags Hbits) as Hbound.
-  change (0 <= selectorSum w rowKindFlags <= 8) in Hbound.
+  change (0 <= selectorSum w rowKindFlags <= 10) in Hbound.
   apply Z.mod_divide in Hrow; [ | unfold modulus; lia].
   destruct Hrow as [k Hrow]. unfold modulus in Hrow.
   destruct Hperm; split; lia.
@@ -44,6 +44,23 @@ Proof.
   destruct (full_row_kind_sum w Hprime Hfull) as [Hsum Hbound].
   pose proof (selector_sum_two w rowKindFlags active other Hneq Ha Ho).
   pose proof (value_bound w other). lia.
+Qed.
+
+(* Host suspend and resume are row kinds of their own, and a nested host entry
+   happens only at a turn boundary. *)
+Lemma full_host_switch_absent : forall (w : Witness) kind,
+  fieldPrime -> FullRelation.satFull w -> In kind rowKindFlags ->
+  kind <> COL_HOST_SUSPEND -> kind <> COL_HOST_RESUME -> kind <> COL_TURN_BOUNDARY -> w kind = 1 ->
+  w COL_HOST_SUSPEND = 0 /\ w COL_HOST_RESUME = 0 /\ w COL_HOST_NESTED_ENTRY = 0.
+Proof.
+  intros w kind Hprime Hfull Hin Hs Hr Ht Hkind. split; [ | split].
+  - exact (full_row_kind_exclusive w kind COL_HOST_SUSPEND Hprime Hfull Hin ltac:(cbn; auto 20) Hs Hkind).
+  - exact (full_row_kind_exclusive w kind COL_HOST_RESUME Hprime Hfull Hin ltac:(cbn; auto 20) Hr Hkind).
+  - pose proof (full_row_kind_exclusive w kind COL_TURN_BOUNDARY Hprime Hfull Hin ltac:(cbn; auto 20) Ht Hkind)
+      as Hturn.
+    circuit_row ([(COL_TURN_BOUNDARY, 1)], [(COL_HOST_AWAITING_BEFORE, 1)], [(COL_HOST_NESTED_ENTRY, 1)]) Hrow.
+    expand_row Hrow. normalize_columns. rewrite Hturn in Hrow.
+    pose proof (value_bound w COL_HOST_NESTED_ENTRY). field_linear Hrow.
 Qed.
 
 Lemma full_initialization_flags : forall (w : Witness),
@@ -216,13 +233,17 @@ Proof.
   destruct (full_initialization_auxiliary w chosen Hprime Hfull Hkind Hchosen)
     as [Hprogram [Hguest [Hpush [Hpop [Hturn Hquiet]]]]].
   assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
+  destruct (full_host_switch_absent w chosen Hprime Hfull (initialization_kind_in chosen Hkind)
+    ltac:(destruct Hkind as [-> | ->]; discriminate) ltac:(destruct Hkind as [-> | ->]; discriminate)
+    ltac:(destruct Hkind as [-> | ->]; discriminate) Hchosen) as [Hsuspend [Hresume Hnested]].
   full_row localsBasePreservedRow Hfbp.
   full_row stackFrameBasePreservedRow Hbase.
   circuit_row ([(COL_CALL_STACK_DEPTH_AFTER, 1); (COL_CALL_STACK_DEPTH_BEFORE, -1);
-    (COL_CALL_STACK_PUSH_PRESENT, -1); (COL_CALL_STACK_POP_PRESENT, 1)],
-    [(COL_ONE, 1)], ([] : SparseRow)) Hdepth.
+    (COL_CALL_STACK_PUSH_PRESENT, -1); (COL_CALL_STACK_POP_PRESENT, 1);
+    (COL_HOST_SUSPEND, -1); (COL_HOST_RESUME, 1)], [(COL_ONE, 1)], ([] : SparseRow)) Hdepth.
   expand_row Hdepth. normalize_columns.
-  rewrite Hone, Hguest, Hpop in Hfbp. rewrite Hone, Hpush, Hpop in Hbase, Hdepth.
+  rewrite Hone, Hguest, Hpop, Hresume, Hnested in Hfbp. rewrite Hone, Hpush, Hpop, Hresume, Hnested in Hbase.
+  rewrite Hone, Hpush, Hpop, Hsuspend, Hresume in Hdepth.
   pose proof (value_bound w COL_LOCALS_FBP_BEFORE). pose proof (value_bound w COL_LOCALS_FBP_AFTER).
   pose proof (value_bound w COL_STACK_FRAME_BASE_BEFORE). pose proof (value_bound w COL_STACK_FRAME_BASE_AFTER).
   pose proof (value_bound w COL_CALL_STACK_DEPTH_BEFORE). pose proof (value_bound w COL_CALL_STACK_DEPTH_AFTER).
@@ -270,7 +291,7 @@ Proof.
   assert (Hperm : w COL_PERM_ROUND_BEFORE_IS_ZERO = 1).
   { destruct (full_row_kind_sum w Hprime Hfull) as [Hsum Hbound].
     pose proof (selector_sum_one w rowKindFlags COL_LOCAL_ZERO_ACTIVE_BEFORE ltac:(cbn; tauto)). lia. }
-  circuit_row ([(COL_PARAM_INIT_ACTIVE_BEFORE, 1); (COL_LOCAL_ZERO_ACTIVE_BEFORE, 1);
+  circuit_row ([(COL_HOST_SUSPEND, 1); (COL_PARAM_INIT_ACTIVE_BEFORE, 1); (COL_LOCAL_ZERO_ACTIVE_BEFORE, 1);
     (COL_TAIL_ENTER_ACTIVE, 1); (COL_PADDING_ACTIVE, 1); (COL_GATHER_ACTIVE, 1);
     (COL_PERM_PENDING_BEFORE, 1); (COL_ONE, 1); (COL_PERM_ROUND_BEFORE_IS_ZERO, -1)],
     [(COL_PC_AFTER, 1); (COL_PC_BEFORE, -1)], ([] : SparseRow)) Hrow.
@@ -307,16 +328,17 @@ Proof.
     (destruct Hchoice as [<- | [<- | [<- | [<- | []]]]]; cbn; tauto).
   assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
   assert (Hother : forall c, In c [COL_GATHER_ACTIVE; COL_PERM_PENDING_BEFORE;
-      COL_TURN_BOUNDARY; COL_PADDING_ACTIVE] -> w c = 0).
+      COL_TURN_BOUNDARY; COL_PADDING_ACTIVE; COL_HOST_RESUME] -> w c = 0).
   { intros c Hc. eapply full_row_kind_exclusive; try eassumption.
-    - destruct Hc as [<- | [<- | [<- | [<- | []]]]]; cbn; tauto.
+    - destruct Hc as [<- | [<- | [<- | [<- | [<- | []]]]]]; cbn; tauto.
     - destruct Hchoice as [<- | [<- | [<- | [<- | []]]]];
-        destruct Hc as [<- | [<- | [<- | [<- | []]]]]; discriminate. }
+        destruct Hc as [<- | [<- | [<- | [<- | [<- | []]]]]]; discriminate. }
   assert (Hperm : w COL_PERM_ROUND_BEFORE_IS_ZERO = 1).
   { destruct (full_row_kind_sum w Hprime Hfull) as [Hsum Hbound].
     pose proof (selector_sum_one w rowKindFlags chosen Hin). lia. }
   circuit_row ([(COL_PC_FREF_ACTIVE, 1); (COL_PERM_ROUND_BEFORE_IS_ZERO, -1);
-    (COL_GATHER_ACTIVE, 1); (COL_PERM_PENDING_BEFORE, 1); (COL_TURN_BOUNDARY, 1); (COL_PADDING_ACTIVE, 1)],
+    (COL_GATHER_ACTIVE, 1); (COL_PERM_PENDING_BEFORE, 1); (COL_TURN_BOUNDARY, 1); (COL_PADDING_ACTIVE, 1);
+    (COL_HOST_RESUME, 1)],
     [(COL_ONE, 1)], ([] : SparseRow)) Hrow.
   expand_row Hrow.
   repeat match type of Hrow with

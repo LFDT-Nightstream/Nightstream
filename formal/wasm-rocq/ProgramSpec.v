@@ -143,12 +143,13 @@ Definition programSupported (program : Program) : Prop :=
 Definition programValidated (program : Program) (s : store) : Prop :=
   Forall (fun fi => Funcinst_ok s fi (funcinst_TYPE fi)) program /\ programSupported program.
 
-(* Row kinds a run may contain. A run never halts (the program's final return
-   would). Initialization belongs to callees, not to the frame at the given depth;
-   at that depth a row may not pop, so the run stays in that frame. *)
+(* Row kinds a run may contain. The run's activation never finishes: it neither
+   returns from its export nor traps. Initialization belongs to callees, not to the
+   frame at the given depth; at that depth a row may not pop, so the run stays in
+   that frame. *)
 Definition callerRow (depth : Z) (row : Witness) : Prop :=
   (row COL_IS_PROGRAM_ROW = 1 \/ row COL_LOCAL_ZERO_ACTIVE_BEFORE = 1 \/
-    row COL_PARAM_INIT_ACTIVE_BEFORE = 1) /\ row COL_HALTED = 0 /\
+    row COL_PARAM_INIT_ACTIVE_BEFORE = 1) /\ row COL_ACTIVATION_FINISHED_AFTER = 0 /\
   (row COL_CALL_STACK_DEPTH_BEFORE = depth ->
     row COL_IS_PROGRAM_ROW = 1 /\ row COL_CALL_STACK_POP_PRESENT = 0).
 

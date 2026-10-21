@@ -7,7 +7,7 @@ Require Import Wasm2 WasmIntegers R1CS Columns Range FullRelation MemoryTrace Me
   TraceRefinement StraightLineSpec StackSimulation SpecTecCalls CallerSpec CallerRefinement CallSpec CallEntry
   CallBindings CallContext CallMemory CallReturn CallInitialization CallScope LocalBindings FrameInitialization
   Locals ProgramSpec ProgramEncoding CodeLayout BlockEncoding Fragment CodeFacts ControlDecode ControlInvariant
-  FrameFacts ControlBridge FrameRows ProgramBinding Selectors.
+  FrameFacts ControlBridge FrameRows ProgramBinding Selectors CircuitFacts.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -284,7 +284,9 @@ Proof.
   pose proof (call_starts_frame_initialization initial final row (concat segments ++ prefix) arguments
     (guestLocals callee) Hprime Hfull HcallSel Htarget HparamCount HzSeed HpSeed Hreplay Hstack) as Hinit.
   destruct (full_direct_guest_call row Hprime Hfull HcallSel Htarget) as [Hguest [Hpush Hpop]].
-  destruct (full_call_frame_entry row Hprime Hfull Hguest Hpush Hpop) as [HfbpAfter [HbaseAfter HdepthAfter]].
+  destruct (full_selected_no_host_switch row COL_SEL_CALL Hprime Hfull ltac:(vm_compute; tauto) HcallSel)
+    as [Hsuspend [_ [_ [_ HcontextRead]]]].
+  destruct (full_call_frame_entry row Hprime Hfull Hguest Hpush Hpop Hprogram) as [HfbpAfter [HbaseAfter HdepthAfter]].
   destruct (full_direct_guest_call_stack row Hprime Hfull HcallSel Htarget) as [Hlo [Hhi HspAfter]].
   destruct (full_call_context_push row Hfull Hpush) as [Haddr [HsavedFbp [HsavedBase Hchoice]]].
   assert (HcallStack : forall address, final stackId address = initial stackId address)
@@ -301,11 +303,11 @@ Proof.
     rewrite <- HrefValue, Hcount in HcountRead. cbn [stateLocals LOCALS] in HcountRead.
     rewrite length_map, Hllen in HcountRead. congruence. }
   pose proof (context_push_records initial final row callStackReturnPcId COL_CALL_STACK_RETURN_PC_VALUE
-    ltac:(cbn; auto) Hpush Hreplay) as HsavedPcMem.
+    ltac:(cbn; auto) Hpush Hsuspend HcontextRead Hreplay) as HsavedPcMem.
   pose proof (context_push_records initial final row callStackCallerFbpId COL_CALL_STACK_CALLER_FBP_VALUE
-    ltac:(cbn; auto) Hpush Hreplay) as HsavedFbpMem.
+    ltac:(cbn; auto) Hpush Hsuspend HcontextRead Hreplay) as HsavedFbpMem.
   pose proof (context_push_records initial final row callStackCallerSpBaseId COL_CALL_STACK_CALLER_SP_BASE_VALUE
-    ltac:(cbn; auto) Hpush Hreplay) as HsavedBaseMem.
+    ltac:(cbn; auto) Hpush Hsuspend HcontextRead Hreplay) as HsavedBaseMem.
   pose proof (call_return_pc_read initial final row Hreplay Hpush) as HreturnRead.
   destruct Himage as [Haddress [Hfunction [_ [_ [HreturnImage _]]]]].
   rewrite Hchoice, HreturnImage in HreturnRead. injection HreturnRead as HreturnValue.
@@ -374,7 +376,7 @@ Proof.
   (* The callers already suspended keep their memory: the push writes only its own level. *)
   replace (row COL_CALL_STACK_ADDR) with (row COL_CALL_STACK_DEPTH_BEFORE) by lia.
   eapply suspended_stack_preserved; [exact Hsusp | intros i _; apply HcallStack | intros other i _; apply HcallLocals | ].
-  intros id column level Hin Hbelow. eapply context_push_elsewhere; [exact Hin | exact Hreplay | ].
+  intros id column level Hin Hbelow. eapply context_push_elsewhere; [exact Hin | exact Hsuspend | exact HcontextRead | exact Hreplay | ].
   intros Heq. injection Heq as Heq. lia.
 Qed.
 
@@ -466,7 +468,7 @@ Qed.
    The caller resumes after its CALL, inside its labels. *)
 Lemma return_row : forall baseDepth top rest view f initial final row inner,
   fieldPrime -> programLoaded program initial -> FullRelation.satFull row -> row COL_IS_PROGRAM_ROW = 1 ->
-  Replay initial (eventsForRow memories row) final ->
+  row COL_ACTIVATION_FINISHED_AFTER = 0 -> Replay initial (eventsForRow memories row) final ->
   ActiveState program s initial (beforeBoundary row) (atCode view) inner ->
   functionAt program (positionFunction (viewPosition view)) = Some f ->
   positionLabels (viewPosition view) = [] -> positionOffset (viewPosition view) = length (guestBody f) ->
@@ -476,7 +478,7 @@ Lemma return_row : forall baseDepth top rest view f initial final row inner,
   exists cursor c1, Steps (plugCalls (top :: rest) inner) c1 /\
     ControlState program s baseDepth cursor final (afterBoundary row) c1.
 Proof.
-  intros baseDepth top rest view f initial final row inner Hprime Hloaded Hfull Hprogram Hreplay Hstate Hf
+  intros baseDepth top rest view f initial final row inner Hprime Hloaded Hfull Hprogram Hhalt Hreplay Hstate Hf
     Hlabels Hend Hsusp Hbase0 Hdepth.
   destruct (function_end_selected view f initial final row inner Hprime Hloaded Hfull Hprogram Hreplay Hstate Hf
     Hlabels Hend) as [HselEnd Hkind].
@@ -495,9 +497,11 @@ Proof.
   cbn [viewSegments viewValues concat app] in Hbounds, Hcells, Hsp.
   cbn [beforeBoundary boundarySP boundaryStackBase] in Hsp.
   (* The END row pops the context saved one level down. *)
-  destruct (full_end_pops_nonempty_context row Hprime Hfull HselEnd Hkind ltac:(lia)) as [Hpop [Hpush Hcapture]].
+  destruct (full_end_pops_nonempty_context row Hprime Hfull HselEnd Hkind Hhalt) as [Hpop [Hpush Hcapture]].
+  destruct (full_selected_no_host_switch row COL_SEL_END Hprime Hfull ltac:(vm_compute; tauto) HselEnd)
+    as [Hsuspend [_ [_ [_ HcontextRead]]]].
   destruct (full_return_context_restore row Hfull Hpop) as [HpcAfter [HfbpAfter [HbaseAfter HaddrAfter]]].
-  pose proof (full_call_depth_balance row Hprime Hfull) as HdepthBalance.
+  pose proof (full_call_depth_balance row COL_SEL_END Hprime Hfull ltac:(vm_compute; tauto) HselEnd) as HdepthBalance.
   rewrite Hpush, Hpop in HdepthBalance.
   destruct (full_end_stack row Hprime Hfull HselEnd Hcapture) as [Hlo [Hhi HspEnd]].
   assert (HstackMem : forall address, final stackId address = initial stackId address)
@@ -521,11 +525,11 @@ Proof.
   cbn [viewPosition viewSegments viewValues viewLocals positionLabels] in HreadyC, HvaluesC, HcodeC, HstateC.
   assert (Haddress : row COL_CALL_STACK_ADDR = row COL_CALL_STACK_DEPTH_BEFORE - 1) by lia.
   pose proof (context_pop_reads initial final row callStackReturnPcId COL_CALL_STACK_RETURN_PC_VALUE
-    ltac:(cbn; auto) Hpush Hpop Hreplay) as HretRead.
+    ltac:(cbn; auto) Hpush Hpop Hsuspend HcontextRead Hreplay) as HretRead.
   pose proof (context_pop_reads initial final row callStackCallerFbpId COL_CALL_STACK_CALLER_FBP_VALUE
-    ltac:(cbn; auto) Hpush Hpop Hreplay) as HfbpRead.
+    ltac:(cbn; auto) Hpush Hpop Hsuspend HcontextRead Hreplay) as HfbpRead.
   pose proof (context_pop_reads initial final row callStackCallerSpBaseId COL_CALL_STACK_CALLER_SP_BASE_VALUE
-    ltac:(cbn; auto) Hpush Hpop Hreplay) as HbaseRead.
+    ltac:(cbn; auto) Hpush Hpop Hsuspend HcontextRead Hreplay) as HbaseRead.
   rewrite Haddress, Hret in HretRead. rewrite Haddress, HsavedFbp in HfbpRead.
   rewrite Haddress, HsavedBase in HbaseRead.
   injection HretRead as HretValue. injection HfbpRead as HfbpValue. injection HbaseRead as HbaseValue.

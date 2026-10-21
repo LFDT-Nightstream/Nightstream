@@ -54,7 +54,8 @@ Lemma call_starts_frame_initialization : forall initial final w prefix arguments
 Proof.
   intros initial final w prefix arguments locals Hprime Hfull Hcall Htarget Hp Hz Hremaining Hreplay Hstack.
   destruct (full_direct_guest_call w Hprime Hfull Hcall Htarget) as [Hguest [Hpush Hpop]].
-  destruct (full_call_frame_entry w Hprime Hfull Hguest Hpush Hpop) as [_ [Hbase _]].
+  destruct (full_call_frame_entry w Hprime Hfull Hguest Hpush Hpop
+    (full_selected_is_program_row w COL_SEL_CALL Hprime Hfull ltac:(vm_compute; tauto) Hcall)) as [_ [Hbase _]].
   destruct (full_direct_guest_call_stack w Hprime Hfull Hcall Htarget) as [Hlo [Hhi Hsp]].
   destruct Hstack as [HbaseBefore [Hheight [Hbounds Hcells]]].
   cbn [beforeBoundary boundarySP boundaryStackBase] in Hheight, Hcells.

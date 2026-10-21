@@ -45,5 +45,5 @@ Proof.
   assert (Hpop : w COL_CALL_STACK_POP_PRESENT = 0).
   { selected_row COL_SEL_BR_IF_EQZ callStackPopSupportRow Hrow. rewrite Hone in Hrow.
     pose proof (value_bound w COL_CALL_STACK_POP_PRESENT). field_linear Hrow. }
-  pose proof (full_call_depth_balance w Hprime Hfull). lia.
+  pose proof (full_call_depth_balance w COL_SEL_BR_IF_EQZ Hprime Hfull Hin Hchosen). lia.
 Qed.

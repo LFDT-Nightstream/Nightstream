@@ -1,6 +1,6 @@
 (* Stack port activation, addresses, and memory effects for arithmetic and local instructions. *)
 From Stdlib Require Import List ZArith Lia Bool.
-Require Import R1CS Columns FullRelation Range Selectors MemoryTrace MemoryCatalog.
+Require Import R1CS Columns FullRelation Range Selectors CircuitFacts MemoryTrace MemoryCatalog.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -67,7 +67,8 @@ Proof.
   { arithmetic_row hostCallSupportRow Hrow. rewrite Hone in Hrow.
     pose proof (value_bound w COL_HOST_CALL_ACTIVE). field_linear Hrow. }
   assert (Hparams : w GHC_PARAMS = 0).
-  { arithmetic_row hostCallParamsRow Hrow. rewrite Hhost in Hrow.
+  { arithmetic_row hostCallParamsRow Hrow. pose proof (full_no_host_split w Hfull Hhost) as Hsplit. normalize_columns.
+    rewrite Hhost, Hsplit in Hrow.
     pose proof (value_bound w GHC_PARAMS). field_linear Hrow. }
   assert (Hreads : w COL_STACK_READS = 2).
   { arithmetic_row stackReadsArityRow Hrow.
@@ -112,11 +113,11 @@ Proof.
     pose proof (value_bound w COL_STACK_WRITE0_ADDR_HI).
     assert (Haddr : w COL_STACK_WRITE0_ADDR_LO = 2 * (w COL_SP_BEFORE - 2)) by (field_linear Hlo).
     normalize_columns. rewrite Haddr in Hrow. field_linear Hrow.
-  - arithmetic_row stackPointerBalanceRow Hrow.
+  - arithmetic_row stackPointerBalanceRow Hrow. zero_host_switch Hrow.
     zero_gather_kinds Hkinds Hrow.
     rewrite Hone, Hreads, Hwrites, Hdiscard, Hlocal, Houtput, Hcapture, Hparams in Hrow.
     pose proof (value_bound w COL_SP_AFTER). field_linear Hrow.
-  - arithmetic_row stackFrameBasePreservedRow Hrow.
+  - arithmetic_row stackFrameBasePreservedRow Hrow. zero_host_switch Hrow.
     rewrite Hone, Hpush, Hpop in Hrow.
     pose proof (value_bound w COL_STACK_FRAME_BASE_BEFORE).
     pose proof (value_bound w COL_STACK_FRAME_BASE_AFTER). field_linear Hrow.
@@ -215,7 +216,8 @@ Ltac unary_stack_facts chosen reads writes :=
     (selected_row chosen hostCallSupportRow Hrow; rewrite Hone in Hrow;
      pose proof (value_bound w COL_HOST_CALL_ACTIVE); field_linear Hrow);
   assert (Hparams : w GHC_PARAMS = 0) by
-    (selected_row chosen hostCallParamsRow Hrow; rewrite Hhost in Hrow;
+    (selected_row chosen hostCallParamsRow Hrow; pose proof (full_no_host_split w Hfull Hhost) as Hsplit; normalize_columns;
+     rewrite Hhost, Hsplit in Hrow;
      pose proof (value_bound w GHC_PARAMS); field_linear Hrow);
   assert (Hreads : w COL_STACK_READS = reads) by
     (selected_row chosen stackReadsArityRow Hrow; rewrite Hone, Hgather, Hparam in Hrow;
@@ -254,10 +256,10 @@ Proof.
   try (intro H; discriminate H);
   [ intro H; selected_row COL_SEL_LOCAL_SET unaryReadAddressRow Hrow; rewrite Hone in Hrow;
     pose proof (value_bound w (List.nth 0%nat COL_STACK_READ_ADDR_LO 0%nat)); field_linear Hrow
-  | selected_row COL_SEL_LOCAL_SET stackPointerBalanceRow Hrow; zero_gather_kinds Hkinds Hrow;
+  | selected_row COL_SEL_LOCAL_SET stackPointerBalanceRow Hrow; zero_host_switch Hrow; zero_gather_kinds Hkinds Hrow;
     rewrite Hone, Hreads, Hwrites, Hdiscard, Hlocal, Houtput, Hcapture, Hparams in Hrow;
     pose proof (value_bound w COL_SP_AFTER); field_linear Hrow
-  | selected_row COL_SEL_LOCAL_SET stackFrameBasePreservedRow Hrow; rewrite Hone, Hpush, Hpop in Hrow;
+  | selected_row COL_SEL_LOCAL_SET stackFrameBasePreservedRow Hrow; zero_host_switch Hrow; rewrite Hone, Hpush, Hpop in Hrow;
     pose proof (value_bound w COL_STACK_FRAME_BASE_BEFORE);
     pose proof (value_bound w COL_STACK_FRAME_BASE_AFTER); field_linear Hrow ].
 Qed.
@@ -277,10 +279,10 @@ Proof.
     pose proof (value_bound w COL_STACK_WRITE0_ADDR_HI).
     assert (Haddr : w COL_STACK_WRITE0_ADDR_LO = 2 * w COL_SP_BEFORE) by (field_linear Hlo).
     normalize_columns. rewrite Haddr in Hrow. field_linear Hrow.
-  - selected_row COL_SEL_LOCAL_GET stackPointerBalanceRow Hrow. zero_gather_kinds Hkinds Hrow.
+  - selected_row COL_SEL_LOCAL_GET stackPointerBalanceRow Hrow. zero_host_switch Hrow. zero_gather_kinds Hkinds Hrow.
     rewrite Hone, Hreads, Hwrites, Hdiscard, Hlocal, Houtput, Hcapture, Hparams in Hrow.
     pose proof (value_bound w COL_SP_AFTER). field_linear Hrow.
-  - selected_row COL_SEL_LOCAL_GET stackFrameBasePreservedRow Hrow. rewrite Hone, Hpush, Hpop in Hrow.
+  - selected_row COL_SEL_LOCAL_GET stackFrameBasePreservedRow Hrow. zero_host_switch Hrow. rewrite Hone, Hpush, Hpop in Hrow.
     pose proof (value_bound w COL_STACK_FRAME_BASE_BEFORE).
     pose proof (value_bound w COL_STACK_FRAME_BASE_AFTER). field_linear Hrow.
 Qed.

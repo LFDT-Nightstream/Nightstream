@@ -113,11 +113,11 @@ Proof.
 Qed.
 
 Lemma static_pc_gate_rows :
-  nth_error FullRelation.rows 461%nat =
+  nth_error FullRelation.rows 520%nat =
     Some (ZeroTest.inverseRow COL_PC_EDGE_KIND COL_PC_EDGE_KIND_INV COL_PC_EDGE_KIND_IS_STATIC) /\
-  nth_error FullRelation.rows 462%nat =
+  nth_error FullRelation.rows 521%nat =
     Some (ZeroTest.zeroRow COL_PC_EDGE_KIND COL_PC_EDGE_KIND_IS_STATIC) /\
-  nth_error FullRelation.rows 463%nat =
+  nth_error FullRelation.rows 522%nat =
     Some ([(COL_IS_PROGRAM_ROW, 1)], [(COL_PC_EDGE_KIND_IS_STATIC, 1)], [(COL_PC_ROM_ACTIVE, 1)]).
 Proof. vm_compute. repeat split; reflexivity. Qed.
 

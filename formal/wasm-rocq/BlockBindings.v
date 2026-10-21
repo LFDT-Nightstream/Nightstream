@@ -6,10 +6,10 @@ Import ListNotations.
 Open Scope Z_scope.
 
 Lemma full_live_capture_zero : forall (w : Witness),
-  FullRelation.satFull w -> w COL_HALTED = 0 -> w COL_OUTPUT_CAPTURED = 0.
+  FullRelation.satFull w -> w COL_ACTIVATION_FINISHED_AFTER = 0 -> w COL_OUTPUT_CAPTURED = 0.
 Proof.
   intros w Hfull Hhalt. pose proof (proj1 Hfull) as Hone.
-  circuit_row ([(COL_OUTPUT_CAPTURED, 1)], [(COL_ONE, 1); (COL_HALTED, -1)], ([] : SparseRow)) Hrow.
+  circuit_row ([(COL_OUTPUT_CAPTURED, 1)], [(COL_ONE, 1); (COL_ACTIVATION_FINISHED_AFTER, -1)], ([] : SparseRow)) Hrow.
   expand_row Hrow. rewrite Hone, Hhalt in Hrow.
   pose proof (value_bound w COL_OUTPUT_CAPTURED). field_linear Hrow.
 Qed.
@@ -17,7 +17,7 @@ Qed.
 Lemma full_block_context : forall (w : Witness) chosen,
   fieldPrime -> FullRelation.satFull w ->
   (chosen = COL_SEL_BLOCK \/ chosen = COL_SEL_END) -> w chosen = 1 ->
-  w COL_CALL_STACK_POP_PRESENT = 0 -> w COL_HALTED = 0 ->
+  w COL_CALL_STACK_POP_PRESENT = 0 -> w COL_ACTIVATION_FINISHED_AFTER = 0 ->
   w COL_SP_AFTER = w COL_SP_BEFORE /\
   w COL_STACK_FRAME_BASE_AFTER = w COL_STACK_FRAME_BASE_BEFORE /\
   w COL_LOCALS_FBP_AFTER = w COL_LOCALS_FBP_BEFORE /\
@@ -45,7 +45,8 @@ Proof.
         (selected_row chosen hostCallSupportRow Hrow; rewrite Hone in Hrow;
          pose proof (value_bound w COL_HOST_CALL_ACTIVE); field_linear Hrow);
       assert (Hparams : w GHC_PARAMS = 0) by
-        (full_row hostCallParamsRow Hrow; rewrite Hhost in Hrow;
+        (full_row hostCallParamsRow Hrow; pose proof (full_no_host_split w Hfull Hhost) as Hsplit; normalize_columns;
+     rewrite Hhost, Hsplit in Hrow;
          pose proof (value_bound w GHC_PARAMS); field_linear Hrow);
       assert (Hreads : w COL_STACK_READS = 0) by
         (selected_row chosen stackReadsArityRow Hrow; rewrite Hone, Hgather, Hparam in Hrow;
@@ -63,19 +64,19 @@ Proof.
         (selected_row chosen localWriteGateIndex Hrow; rewrite Hone in Hrow;
          pose proof (value_bound w COL_LOCAL_WRITE_ENABLED); field_linear Hrow);
       split;
-      [ full_row stackPointerBalanceRow Hrow; zero_gather_kinds Hkinds Hrow;
+      [ full_row stackPointerBalanceRow Hrow; zero_host_switch Hrow; zero_gather_kinds Hkinds Hrow;
         rewrite Hone, Hreads, Hwrites, Hlocal, Houtput, Hdiscard, Hcapture, Hparams in Hrow;
         pose proof (value_bound w COL_SP_BEFORE); pose proof (value_bound w COL_SP_AFTER); field_linear Hrow
       | split;
-        [ full_row stackFrameBasePreservedRow Hrow; rewrite Hone, Hpush, Hpop in Hrow;
+        [ full_row stackFrameBasePreservedRow Hrow; zero_host_switch Hrow; rewrite Hone, Hpush, Hpop in Hrow;
           pose proof (value_bound w COL_STACK_FRAME_BASE_BEFORE);
           pose proof (value_bound w COL_STACK_FRAME_BASE_AFTER); field_linear Hrow
         | split;
-          [ full_row localsBasePreservedRow Hrow; rewrite Hone, Hguest, Hpop in Hrow;
+          [ full_row localsBasePreservedRow Hrow; zero_host_switch Hrow; rewrite Hone, Hguest, Hpop in Hrow;
             pose proof (value_bound w COL_LOCALS_FBP_BEFORE);
             pose proof (value_bound w COL_LOCALS_FBP_AFTER); field_linear Hrow
           | split;
-            [ pose proof (full_call_depth_balance w Hprime Hfull); lia
+            [ pose proof (full_call_depth_balance w chosen Hprime Hfull Hin Hchosen); lia
             | split; [exact Hwrite | split; [exact HwriteHi | ]];
               rewrite (local_writes_in_row w Hparam Hzero HgatherLocal), HlocalWrite; reflexivity ] ] ] ]
     end.

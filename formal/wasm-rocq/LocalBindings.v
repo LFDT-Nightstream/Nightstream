@@ -1,6 +1,6 @@
 (* Circuit-derived local memory gates and frame-base preservation. *)
 From Stdlib Require Import List ZArith Lia Bool.
-Require Import R1CS Columns FullRelation Range Selectors MemoryTrace MemoryCatalog.
+Require Import R1CS Columns FullRelation Range Selectors CircuitFacts MemoryTrace MemoryCatalog.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -32,7 +32,7 @@ Proof.
         (selected_row chosen callStackPopSupportRow Hrow; rewrite Hone in Hrow;
          pose proof (value_bound w COL_CALL_STACK_POP_PRESENT); field_linear Hrow);
       split;
-      [ selected_row chosen localsBasePreservedRow Hrow; rewrite Hone, Hguest, Hpop in Hrow;
+      [ selected_row chosen localsBasePreservedRow Hrow; zero_host_switch Hrow; rewrite Hone, Hguest, Hpop in Hrow;
         pose proof (value_bound w COL_LOCALS_FBP_BEFORE);
         pose proof (value_bound w COL_LOCALS_FBP_AFTER); field_linear Hrow
       | split;

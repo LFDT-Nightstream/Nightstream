@@ -38,10 +38,10 @@ Proof.
   constructor; try assumption; try (intro H; discriminate H).
   - intro H. selected_row COL_SEL_BR_IF_EQZ unaryReadAddressRow Hrow. rewrite Hone in Hrow.
     pose proof (value_bound w (nth 0%nat COL_STACK_READ_ADDR_LO 0%nat)). field_linear Hrow.
-  - selected_row COL_SEL_BR_IF_EQZ stackPointerBalanceRow Hrow. zero_gather_kinds Hkinds Hrow.
+  - selected_row COL_SEL_BR_IF_EQZ stackPointerBalanceRow Hrow. zero_host_switch Hrow. zero_gather_kinds Hkinds Hrow.
     rewrite Hone, Hreads, Hwrites, Hdiscard, Hlocal, Houtput, Hcapture, Hparams in Hrow.
     pose proof (value_bound w COL_SP_AFTER). field_linear Hrow.
-  - selected_row COL_SEL_BR_IF_EQZ stackFrameBasePreservedRow Hrow. rewrite Hone, Hpush, Hpop in Hrow.
+  - selected_row COL_SEL_BR_IF_EQZ stackFrameBasePreservedRow Hrow. zero_host_switch Hrow. rewrite Hone, Hpush, Hpop in Hrow.
     pose proof (value_bound w COL_STACK_FRAME_BASE_BEFORE).
     pose proof (value_bound w COL_STACK_FRAME_BASE_AFTER). field_linear Hrow.
 Qed.
@@ -63,7 +63,7 @@ Proof.
   { selected_row COL_SEL_BR_IF_EQZ callStackPopSupportRow Hrow. rewrite Hone in Hrow.
     pose proof (value_bound w COL_CALL_STACK_POP_PRESENT). field_linear Hrow. }
   split.
-  - selected_row COL_SEL_BR_IF_EQZ localsBasePreservedRow Hrow. rewrite Hone, Hguest, Hpop in Hrow.
+  - selected_row COL_SEL_BR_IF_EQZ localsBasePreservedRow Hrow. zero_host_switch Hrow. rewrite Hone, Hguest, Hpop in Hrow.
     pose proof (value_bound w COL_LOCALS_FBP_BEFORE).
     pose proof (value_bound w COL_LOCALS_FBP_AFTER). field_linear Hrow.
   - rewrite (local_writes_in_row w Hparam Hzero Hlo).

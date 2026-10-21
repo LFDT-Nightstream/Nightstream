@@ -153,3 +153,99 @@ Ltac selected_circuit_row chosen shape name :=
   | Some ?index => selected_row chosen index name
   | None => fail "Missing circuit row" shape
   end.
+
+(* A split host call is a host call. *)
+Lemma full_no_host_split : forall (w : Witness),
+  FullRelation.satFull w -> w COL_HOST_CALL_ACTIVE = 0 -> w COL_HOST_SPLIT_CALL = 0.
+Proof.
+  intros w Hfull Hhost.
+  circuit_row ([(COL_HOST_CALL_ACTIVE, 1)], [(COL_ONE, 1); (COL_HOST_RETURN_COUNT_IS_ZERO, -1)],
+    [(COL_HOST_SPLIT_CALL, 1)]) Hrow.
+  expand_row Hrow. normalize_columns. rewrite Hhost in Hrow.
+  pose proof (value_bound w COL_HOST_SPLIT_CALL). field_linear Hrow.
+Qed.
+
+Lemma full_no_resume_pop : forall (w : Witness),
+  FullRelation.satFull w -> w COL_HOST_RESUME = 0 -> w COL_HOST_RESUME_POP = 0.
+Proof.
+  intros w Hfull Hresume. assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
+  circuit_row ([(COL_ONE, 1); (COL_HOST_RESUME, -1)], [(COL_HOST_RESUME_POP, 1)], ([] : SparseRow)) Hrow.
+  expand_row Hrow. normalize_columns. rewrite Hone, Hresume in Hrow.
+  pose proof (value_bound w COL_HOST_RESUME_POP). field_linear Hrow.
+Qed.
+
+(* Host contexts are read only on a resume or a nested entry. *)
+Lemma full_no_host_context_read : forall (w : Witness),
+  FullRelation.satFull w -> w COL_HOST_RESUME = 0 -> w COL_HOST_NESTED_ENTRY = 0 -> w COL_HOST_CONTEXT_READ = 0.
+Proof.
+  intros w Hfull Hresume Hnested. assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
+  circuit_row ([(COL_HOST_CONTEXT_READ, 1); (COL_HOST_NESTED_ENTRY, -1); (COL_HOST_RESUME, -1)], [(COL_ONE, 1)],
+    ([] : SparseRow)) Hrow.
+  expand_row Hrow. normalize_columns. rewrite Hone, Hresume, Hnested in Hrow.
+  pose proof (value_bound w COL_HOST_CONTEXT_READ). field_linear Hrow.
+Qed.
+
+(* Only a turn boundary or a resume clears a finished activation. *)
+Lemma full_no_activation_clear : forall (w : Witness),
+  FullRelation.satFull w -> w COL_TURN_BOUNDARY = 0 -> w COL_HOST_RESUME = 0 ->
+  w COL_HOST_CLEAR_ACTIVATION_FINISHED = 0.
+Proof.
+  intros w Hfull Hturn Hresume.
+  circuit_row ([(COL_TURN_BOUNDARY, 1); (COL_HOST_RESUME, 1)], [(COL_ACTIVATION_FINISHED_BEFORE, 1)],
+    [(COL_HOST_CLEAR_ACTIVATION_FINISHED, 1)]) Hrow.
+  expand_row Hrow. normalize_columns. rewrite Hturn, Hresume in Hrow.
+  pose proof (value_bound w COL_HOST_CLEAR_ACTIVATION_FINISHED). field_linear Hrow.
+Qed.
+
+(* An opcode row is no host switch: suspend, resume, nested entry and resume pop
+   are other row kinds, or only happen with them. *)
+Lemma full_selected_no_host_switch : forall (w : Witness) selected,
+  Range.fieldPrime -> FullRelation.satFull w -> In selected selectorColumns -> w selected = 1 ->
+  w COL_HOST_SUSPEND = 0 /\ w COL_HOST_RESUME = 0 /\ w COL_HOST_NESTED_ENTRY = 0 /\ w COL_HOST_RESUME_POP = 0 /\
+  w COL_HOST_CONTEXT_READ = 0.
+Proof.
+  intros w selected Hprime Hfull Hin Hselected.
+  pose proof (full_selected_is_program_row w selected Hprime Hfull Hin Hselected) as Hprogram.
+  assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
+  circuit_boolean COL_PARAM_INIT_ACTIVE_BEFORE Hb1. circuit_boolean COL_LOCAL_ZERO_ACTIVE_BEFORE Hb2.
+  circuit_boolean COL_TAIL_ENTER_ACTIVE Hb3. circuit_boolean COL_PADDING_ACTIVE Hb4.
+  circuit_boolean COL_GATHER_ACTIVE Hb5. circuit_boolean COL_TURN_BOUNDARY Hb6.
+  circuit_boolean COL_HOST_RESUME Hb7. circuit_boolean COL_HOST_SUSPEND Hb8.
+  circuit_boolean COL_PERM_PENDING_BEFORE Hb9. circuit_boolean COL_PERM_ROUND_BEFORE_IS_ZERO Hb10.
+  pose proof (Range.sat_row w _ _ (proj2 Hfull) row_kind_row_in_full) as Hkinds.
+  unfold sat, rowKindRow in Hkinds. cbn [eval fold_right] in Hkinds. change (w COL_ONE = 1) in Hone.
+  rewrite Hone, Hprogram in Hkinds. apply Z.mod_divide in Hkinds; [ | unfold modulus; lia].
+  destruct Hkinds as [k Hk]. unfold modulus in *.
+  assert (Hturn : w COL_TURN_BOUNDARY = 0) by lia.
+  assert (Hresume : w COL_HOST_RESUME = 0) by lia.
+  assert (Hsuspend : w COL_HOST_SUSPEND = 0) by lia.
+  assert (Hnested : w COL_HOST_NESTED_ENTRY = 0).
+  { circuit_row ([(COL_TURN_BOUNDARY, 1)], [(COL_HOST_AWAITING_BEFORE, 1)], [(COL_HOST_NESTED_ENTRY, 1)]) Hrow.
+    expand_row Hrow. normalize_columns. rewrite Hturn in Hrow.
+    pose proof (value_bound w COL_HOST_NESTED_ENTRY). field_linear Hrow. }
+  split; [exact Hsuspend | ]. split; [exact Hresume | ]. split; [exact Hnested | ].
+  split; [exact (full_no_resume_pop w Hfull Hresume) | exact (full_no_host_context_read w Hfull Hresume Hnested)].
+Qed.
+
+(* Zero the host-switch terms of a row taken on an opcode row. *)
+Ltac zero_host_switch H :=
+  match goal with
+  | Hprime : Range.fieldPrime, Hfull : FullRelation.satFull ?w, Hin : In ?s selectorColumns,
+    Hs : value ?w ?s = 1 |- _ =>
+      let Ha := fresh "Hsuspend" in let Hb := fresh "Hresume" in
+      let Hc := fresh "Hnested" in let Hd := fresh "HresumePop" in
+      destruct (full_selected_no_host_switch w s Hprime Hfull Hin Hs) as [Ha [Hb [Hc [Hd _]]]];
+      normalize_columns; try rewrite Ha in H; try rewrite Hb in H; try rewrite Hc in H;
+      try rewrite Hd in H; clear Ha Hb Hc Hd
+  | Hprime : Range.fieldPrime, Hfull : FullRelation.satFull ?w, Hs : value ?w ?s = 1 |- _ =>
+      let member := eval vm_compute in (existsb (Nat.eqb s) selectorColumns) in
+      lazymatch member with
+      | true =>
+          let Hin := fresh "Hin" in let Ha := fresh "Hsuspend" in let Hb := fresh "Hresume" in
+          let Hc := fresh "Hnested" in let Hd := fresh "HresumePop" in
+          assert (Hin : In s selectorColumns) by (vm_compute; tauto);
+          destruct (full_selected_no_host_switch w s Hprime Hfull Hin Hs) as [Ha [Hb [Hc [Hd _]]]];
+          normalize_columns; try rewrite Ha in H; try rewrite Hb in H; try rewrite Hc in H;
+          try rewrite Hd in H; clear Hin Ha Hb Hc Hd
+      end
+  end.

@@ -18,6 +18,11 @@ pub enum Error {
     #[error("PiDEC public checks failed: y={ok_y}, x={ok_x}, c={ok_c}")]
     PiDecPublicCheckFailed { ok_y: bool, ok_x: bool, ok_c: bool },
 }
+impl From<nr::DecRejected> for Error {
+    fn from(nr::DecRejected { ok_y, ok_x, ok_c }: nr::DecRejected) -> Self {
+        Self::PiDecPublicCheckFailed { ok_y, ok_x, ok_c }
+    }
+}
 fn ell_d() -> usize {
     neo_math::D.next_power_of_two().trailing_zeros() as usize
 }

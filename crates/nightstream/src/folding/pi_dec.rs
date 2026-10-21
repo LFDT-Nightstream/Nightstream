@@ -90,12 +90,7 @@ pub(crate) fn prove_with_production_key(
     let openings =
         eval_real_v1_2_openings_from_rows(rows, &parent.r, &blocks, workspace_bytes).map_err(engine::Error::from)?;
     drop(blocks);
-    let neo_reductions::api::DecOutcome {
-        children,
-        ok_y,
-        ok_x,
-        ok_c,
-    } = neo_reductions::api::dec_children_with_commit_superneo_cached_from_trusted_split_digits(
+    let outcome = neo_reductions::api::dec_children_with_commit_superneo_cached_from_trusted_split_digits(
         neo_reductions::api::FoldingMode::Optimized,
         s,
         pp.inner(),
@@ -107,12 +102,10 @@ pub(crate) fn prove_with_production_key(
         None,
         Some(&openings),
     );
-    if children.is_empty() {
+    if outcome.children.is_empty() {
         return Err(engine::Error::PiDecFailed.into());
     }
-    if !(ok_y && ok_x && ok_c) {
-        return Err(engine::Error::PiDecPublicCheckFailed { ok_y, ok_x, ok_c }.into());
-    }
+    let children = outcome.into_children().map_err(engine::Error::from)?;
     let proof = Proof { children };
     let claims = verify(pp, s, ajtai_dec_mixer, parent, &proof)?;
     Ok((

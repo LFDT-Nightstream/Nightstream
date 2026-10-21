@@ -66,12 +66,7 @@ pub(crate) fn prove(
         .child_openings(rows, workspace_bytes, split.planes(), &parent.r, structure.m)
         .map_err(folding::kernels::Error::from)
         .map_err(pi_dec::Error::from)?;
-    let neo_reductions::api::DecOutcome {
-        children,
-        ok_y,
-        ok_x,
-        ok_c,
-    } = neo_reductions::api::dec_children_with_commit_superneo_cached_from_trusted_split_digits(
+    let children = neo_reductions::api::dec_children_with_commit_superneo_cached_from_trusted_split_digits(
         neo_reductions::api::FoldingMode::Optimized,
         structure,
         params.inner(),
@@ -82,10 +77,10 @@ pub(crate) fn prove(
         ajtai_dec_mixer,
         None,
         Some(&openings),
-    );
-    if !(ok_y && ok_x && ok_c) {
-        return Err(pi_dec::Error::Engine(folding::kernels::Error::PiDecPublicCheckFailed { ok_y, ok_x, ok_c }).into());
-    }
+    )
+    .into_children()
+    .map_err(folding::kernels::Error::from)
+    .map_err(pi_dec::Error::from)?;
     let d = pi_dec::Proof { children };
     let children = pi_dec::verify(params, structure, ajtai_dec_mixer, &parent, &d)?;
     Ok((

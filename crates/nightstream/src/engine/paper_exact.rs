@@ -90,12 +90,7 @@ pub(crate) fn prove(
         .map_err(pi_dec::Error::from)?;
     let commitments = commit_production_signed_unit_prefix_matrices(&digits)
         .map_err(|error| pi_dec::Error::from(error.into_error()))?;
-    let neo_reductions::api::DecOutcome {
-        children,
-        ok_y,
-        ok_x,
-        ok_c,
-    } = dec_reduction_paper_exact_with_rows(
+    let children = dec_reduction_paper_exact_with_rows(
         structure,
         params.inner(),
         &parent,
@@ -106,10 +101,10 @@ pub(crate) fn prove(
         rows,
     )
     .map_err(folding::kernels::Error::from)
+    .map_err(pi_dec::Error::from)?
+    .into_children()
+    .map_err(folding::kernels::Error::from)
     .map_err(pi_dec::Error::from)?;
-    if !(ok_y && ok_x && ok_c) {
-        return Err(pi_dec::Error::Engine(folding::kernels::Error::PiDecPublicCheckFailed { ok_y, ok_x, ok_c }).into());
-    }
     Ok((
         RunningInstance::new(children.clone(), digits),
         NifsProof {

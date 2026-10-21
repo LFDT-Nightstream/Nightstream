@@ -24,7 +24,7 @@ pub(crate) use validation::{
 };
 
 pub use crate::engines::optimized_engine::PiCcsProof;
-pub use crate::engines::{DecOutcome, RlcMixer};
+pub use crate::engines::{DecOutcome, DecRejected, RlcMixer};
 
 pub use crate::common::{
     compute_v1_2_evaluations_from_z_and_r, left_mul_acc, rot_rhos_from_mats, rot_rhos_to_mats, sample_rot_rhos_n_typed,

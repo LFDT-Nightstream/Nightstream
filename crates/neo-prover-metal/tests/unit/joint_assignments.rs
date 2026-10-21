@@ -107,3 +107,16 @@ fn zero_witnesses_need_no_folded_assignment_buffer() {
     assert_eq!(session.activity().allocated_bytes, before.allocated_bytes);
     assert_eq!(session.activity().dispatches, before.dispatches);
 }
+
+#[test]
+fn encoding_tags_match_assignments_shader() {
+    let shader = include_str!("../../shaders/assignments.metal");
+    for encoding in [
+        AssignmentEncoding::Masks,
+        AssignmentEncoding::U8Codes,
+        AssignmentEncoding::U16Codes,
+        AssignmentEncoding::Dense,
+    ] {
+        assert!(shader.contains(&format!("(encoding == {})", encoding as u64)));
+    }
+}

@@ -197,44 +197,6 @@ pub(crate) fn formula_library_digest(library: &Value) -> Result<[u64; 4], Packag
     Ok(input.finalize().map(|value| value.as_canonical_u64()))
 }
 
-pub(super) fn pi_ccs_v1_2_verifier_context(
-    package_identity: [u64; 4],
-    commitment_key_words: &[u64],
-) -> Result<PiCcsV1_2VerifierContext, PackageError> {
-    validate_context_words(commitment_key_words)?;
-    let relation_words = package_identity.to_vec();
-    let application = ApplicationIdentity::from_words(&package_identity)?;
-    let commitment_digest = component_digest(4, commitment_key_words)?;
-
-    let mut nifs_key_words = bytes_as_words(NIFS_KEY_DOMAIN);
-    append_framed(&mut nifs_key_words, &VERIFIER_CONTEXT_PROFILE)?;
-    append_framed(&mut nifs_key_words, &VERIFIER_CONTEXT_SCHEDULE)?;
-    append_framed(&mut nifs_key_words, &relation_words)?;
-    append_framed(&mut nifs_key_words, &commitment_digest)?;
-
-    let relation = component_digest(1, &relation_words)?;
-    let nifs_key = component_digest(3, &nifs_key_words)?;
-
-    let mut descriptor = bytes_as_words(VERIFIER_CONTEXT_DOMAIN);
-    append_framed(&mut descriptor, &VERIFIER_CONTEXT_PROFILE)?;
-    append_framed(&mut descriptor, &VERIFIER_CONTEXT_SCHEDULE)?;
-    append_framed(&mut descriptor, &relation)?;
-    append_framed(&mut descriptor, &application.digest)?;
-    append_framed(&mut descriptor, &nifs_key)?;
-    append_framed(&mut descriptor, &commitment_digest)?;
-    let digest = poseidon_words(&descriptor);
-
-    Ok(PiCcsV1_2VerifierContext {
-        package_identity,
-        relation_words,
-        application,
-        nifs_key_words,
-        commitment_key_words: commitment_key_words.to_vec(),
-        descriptor_words: descriptor,
-        digest,
-    })
-}
-
 pub(super) fn stage1_verifier_binding(
     structural_identifier: [u64; 4],
     logical_columns: usize,

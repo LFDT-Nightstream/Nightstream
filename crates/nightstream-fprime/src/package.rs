@@ -42,8 +42,7 @@ mod sealed;
 mod terminal;
 pub use sealed::{
     load_per_application_package, load_poseidon2_hash_chain_v1_package, load_prepared_application_records,
-    load_prepared_application_value, LoadedApplicationPlan, LoadedPerApplicationPackage, LogicalMatrixEntry,
-    LogicalMatrixRow,
+    LoadedApplicationPlan, LoadedPerApplicationPackage, LogicalMatrixEntry, LogicalMatrixRow,
 };
 pub use terminal::{load_terminal_package, TerminalOutputs};
 mod pi_ccs_v1_2_transcript;
@@ -347,10 +346,6 @@ impl LoadedTerminalLayout {
 }
 
 impl LoadedPackage {
-    pub fn relation_identifier(&self) -> [u64; 4] {
-        self.relation_identifier
-    }
-
     pub fn row_count(&self) -> usize {
         self.layout.row_count
     }
@@ -414,34 +409,6 @@ impl LoadedPackage {
 
     pub fn terminal(&self) -> Option<&LoadedTerminalLayout> {
         self.terminal.as_ref()
-    }
-
-    pub fn template_row_count(&self) -> usize {
-        self.permutation.rows.len()
-    }
-
-    pub fn assertion_row_count(&self) -> usize {
-        self.assertion_rows.len()
-            + self
-                .native_application
-                .as_ref()
-                .map_or(0, |app| app.records().row_count())
-    }
-
-    pub fn permutation_invocation_count(&self) -> usize {
-        self.permutation_invocations.len()
-    }
-
-    pub fn compact_template_count(&self) -> usize {
-        self.compact_templates.len()
-    }
-
-    pub fn compact_invocation_count(&self) -> usize {
-        self.compact_invocations.len()
-    }
-
-    pub fn witness_instruction_count(&self) -> usize {
-        self.witness_instructions.len()
     }
 
     /// Execute the canonical sparse-row witness program. `private_inputs`

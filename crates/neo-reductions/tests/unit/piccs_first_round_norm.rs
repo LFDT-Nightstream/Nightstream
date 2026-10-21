@@ -14,7 +14,7 @@ use neo_math::{from_complex, KExtensions, D, F, K};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use serde::Deserialize;
 
-use super::{norm_coefficients, Assignment, EqualityWeights};
+use super::{norm_coefficients, prefix, Assignment, EqualityWeights};
 
 const SOURCES: usize = 1 + neo_params::nightstream_goldilocks_k16::K_RHO as usize;
 const ROUNDS: usize = 28;
@@ -255,7 +255,7 @@ fn capture(records: &str) -> String {
 }
 
 #[test]
-fn range_keeps_the_last_running_lane() {
+fn range_norm_includes_the_last_running_source() {
     let last_source = SOURCES - 1;
     let text = capture(&format!("[1,[[0,1,0],[{last_source},0,{}]]]\n", 1u64 << (D - 1)));
     let witnesses = source_range(Cursor::new(text), 1, 3).unwrap();
@@ -265,6 +265,22 @@ fn range_keeps_the_last_running_lane() {
         assert_eq!(witness[(D - 1, 1)], F::ZERO, "omitted second block is zero");
     }
     assert_eq!(witnesses[last_source][(D - 1, 0)], -F::ONE);
+
+    let assignments = witnesses
+        .iter()
+        .map(|witness| Assignment::new(witness, 2 * D))
+        .collect::<Vec<_>>();
+    let alpha: Vec<_> = (0..ROUNDS)
+        .map(|index| K::from(F::from_u64(index as u64 + 2)))
+        .collect();
+    let gamma = K::from(F::from_u64(3));
+    let weights = EqualityWeights::new(&alpha[1..]);
+    let fresh = prefix::norm_pair(K::ONE, K::ZERO).map(|value| value * weights.at(0));
+    let running = prefix::norm_pair(K::ZERO, -K::ONE)
+        .map(|value| super::gamma_power(gamma, last_source) * value * weights.at(D / 2 - 1));
+    assert_ne!(running, [K::ZERO; 4]);
+    let expected = std::array::from_fn(|index| fresh[index] + running[index]);
+    assert_eq!(norm_coefficients(&assignments, gamma, &weights), expected);
 }
 
 #[test]

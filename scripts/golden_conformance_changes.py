@@ -99,7 +99,7 @@ def checks_for_path(name: str) -> tuple[str, ...]:
         if crate == "nightstream-fprime":
             return NATIVE
         return ()
-    if part in {"LICENSE", "rustfmt.toml", "open-questions"}:
+    if part in {"LICENSE", "rustfmt.toml", "open-questions", "tests-paper-exact"}:
         return ()
     raise ValueError(f"unclassified file in a golden dependency: {name}")
 

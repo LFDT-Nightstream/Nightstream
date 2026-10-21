@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Create the retained C/D mutation classes from fresh numeric checker inputs.
 
-The case definitions come from NIFS_DEC_AND_FINAL_OUTPUT_EVIDENCE.zip.
+The case definitions follow fixtures/dec_mutation_manifest.json.
 Run PiDECActualMutations through validate.sh to check these files. Generating
 them establishes no rejection result and no witness-opening validity.
 """

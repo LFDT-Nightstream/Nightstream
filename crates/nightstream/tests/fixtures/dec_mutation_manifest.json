@@ -1,0 +1,222 @@
+[
+  {
+    "name": "public_child_0_commitment",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/public_child_0_commitment.json",
+    "expected_owner": "public_check"
+  },
+  {
+    "name": "public_child_1_commitment",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/public_child_1_commitment.json",
+    "expected_owner": "public_check"
+  },
+  {
+    "name": "public_child_2_commitment",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/public_child_2_commitment.json",
+    "expected_owner": "public_check"
+  },
+  {
+    "name": "public_child_3_commitment",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/public_child_3_commitment.json",
+    "expected_owner": "public_check"
+  },
+  {
+    "name": "public_child_4_commitment",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/public_child_4_commitment.json",
+    "expected_owner": "public_check"
+  },
+  {
+    "name": "public_child_5_commitment",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/public_child_5_commitment.json",
+    "expected_owner": "public_check"
+  },
+  {
+    "name": "public_child_6_commitment",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/public_child_6_commitment.json",
+    "expected_owner": "public_check"
+  },
+  {
+    "name": "public_child_7_commitment",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/public_child_7_commitment.json",
+    "expected_owner": "public_check"
+  },
+  {
+    "name": "public_child_8_commitment",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/public_child_8_commitment.json",
+    "expected_owner": "public_check"
+  },
+  {
+    "name": "public_child_9_commitment",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/public_child_9_commitment.json",
+    "expected_owner": "public_check"
+  },
+  {
+    "name": "public_child_10_commitment",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/public_child_10_commitment.json",
+    "expected_owner": "public_check"
+  },
+  {
+    "name": "public_child_11_commitment",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/public_child_11_commitment.json",
+    "expected_owner": "public_check"
+  },
+  {
+    "name": "public_child_12_commitment",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/public_child_12_commitment.json",
+    "expected_owner": "public_check"
+  },
+  {
+    "name": "public_child_13_commitment",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/public_child_13_commitment.json",
+    "expected_owner": "public_check"
+  },
+  {
+    "name": "public_child_14_commitment",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/public_child_14_commitment.json",
+    "expected_owner": "public_check"
+  },
+  {
+    "name": "public_child_15_commitment",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/public_child_15_commitment.json",
+    "expected_owner": "public_check"
+  },
+  {
+    "name": "public_child_public",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/public_child_public.json",
+    "expected_owner": "public_check"
+  },
+  {
+    "name": "public_shared_point",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/public_shared_point.json",
+    "expected_owner": "public_check"
+  },
+  {
+    "name": "public_child_eval_K",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/public_child_eval_K.json",
+    "expected_owner": "public_check"
+  },
+  {
+    "name": "public_child_eval_A0",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/public_child_eval_A0.json",
+    "expected_owner": "public_check"
+  },
+  {
+    "name": "public_child_eval_A1",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/public_child_eval_A1.json",
+    "expected_owner": "public_check"
+  },
+  {
+    "name": "public_child_eval_A2",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/public_child_eval_A2.json",
+    "expected_owner": "public_check"
+  },
+  {
+    "name": "public_child_eval_A3",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/public_child_eval_A3.json",
+    "expected_owner": "public_check"
+  },
+  {
+    "name": "public_child_eval_A4",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/public_child_eval_A4.json",
+    "expected_owner": "public_check"
+  },
+  {
+    "name": "public_child_eval_A5",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/public_child_eval_A5.json",
+    "expected_owner": "public_check"
+  },
+  {
+    "name": "public_child_eval_A6",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/public_child_eval_A6.json",
+    "expected_owner": "public_check"
+  },
+  {
+    "name": "public_child_eval_A7",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/public_child_eval_A7.json",
+    "expected_owner": "public_check"
+  },
+  {
+    "name": "public_child_eval_A8",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/public_child_eval_A8.json",
+    "expected_owner": "public_check"
+  },
+  {
+    "name": "public_child_eval_A9",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/public_child_eval_A9.json",
+    "expected_owner": "public_check"
+  },
+  {
+    "name": "public_child_eval_A10",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/public_child_eval_A10.json",
+    "expected_owner": "public_check"
+  },
+  {
+    "name": "public_child_eval_A11",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/public_child_eval_A11.json",
+    "expected_owner": "public_check"
+  },
+  {
+    "name": "public_child_eval_A12",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/public_child_eval_A12.json",
+    "expected_owner": "public_check"
+  },
+  {
+    "name": "public_child_eval_A13",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/public_child_eval_A13.json",
+    "expected_owner": "public_check"
+  },
+  {
+    "name": "public_child_digit_range",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/public_child_digit_range.json",
+    "expected_owner": "public_check"
+  },
+  {
+    "name": "encoding_missing_child",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/encoding_missing_child.json",
+    "expected_owner": "decoder"
+  },
+  {
+    "name": "encoding_short_commitment",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/encoding_short_commitment.json",
+    "expected_owner": "decoder"
+  },
+  {
+    "name": "encoding_short_public",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/encoding_short_public.json",
+    "expected_owner": "decoder"
+  },
+  {
+    "name": "encoding_short_point",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/encoding_short_point.json",
+    "expected_owner": "decoder"
+  },
+  {
+    "name": "encoding_short_eval_K",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/encoding_short_eval_K.json",
+    "expected_owner": "decoder"
+  },
+  {
+    "name": "encoding_missing_matrix",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/encoding_missing_matrix.json",
+    "expected_owner": "decoder"
+  },
+  {
+    "name": "encoding_short_eval_A",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/encoding_short_eval_A.json",
+    "expected_owner": "decoder"
+  },
+  {
+    "name": "encoding_noncanonical_field",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/encoding_noncanonical_field.json",
+    "expected_owner": "decoder"
+  },
+  {
+    "name": "encoding_extra_field",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/encoding_extra_field.json",
+    "expected_owner": "decoder"
+  },
+  {
+    "name": "encoding_alternate_number",
+    "path": "/tmp/nightstream-nifs-conformance-z5w8wiof/dec_mutations/encoding_alternate_number.json",
+    "expected_owner": "decoder"
+  }
+]

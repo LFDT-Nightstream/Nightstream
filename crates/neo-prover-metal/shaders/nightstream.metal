@@ -97,6 +97,7 @@ inline ulong gl_sbox(ulong value) {
     return gl_mul(gl_mul(cube, cube), value);
 }
 
+// Quadratic extension layout is interleaved c0, c1 with u^2 = 7.
 struct Kx {
     ulong c0;
     ulong c1;
@@ -1037,6 +1038,7 @@ inline void accumulate_signed_mask_rhos(
     }
 }
 
+// Signed masks are planar: the positive columns, then the negative columns, of each input.
 kernel void rlc_witness_mix_signed_masks(
     device const char *rhos [[buffer(0)]],
     device const ulong *masks [[buffer(1)]],

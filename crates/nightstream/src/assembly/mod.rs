@@ -43,6 +43,8 @@ pub fn prepare(
     application: &ApplicationCircuit,
 ) -> Result<(LoadedPerApplicationPackage, Stage1VerifierBinding), AssemblyError> {
     std::thread::scope(|scope| {
+        // Reference and candidate identity have independent Poseidon2 preimages.
+        // Neither result authorizes the other.
         let reference = scope.spawn(|| check_reference_pins(reference_bytes));
         let candidate = prepare_application(reference_bytes, application);
         reference

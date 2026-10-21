@@ -6,6 +6,8 @@ use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use p3_field::PrimeCharacteristicRing;
 
+/// Computes `split_b(parent.X, params.k_rho, params.b)` itself and requires each child's public
+/// `X` to equal its digit matrix.
 pub fn verify_dec_public<MB>(
     s: &CcsStructure<F>,
     params: &NeoParams,

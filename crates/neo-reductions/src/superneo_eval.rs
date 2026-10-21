@@ -5,7 +5,6 @@ use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
-mod artifact;
 mod authority;
 mod baseline;
 mod block_sums;
@@ -27,10 +26,6 @@ mod weighted;
 mod weighted_table;
 mod window_eval;
 
-pub use artifact::{
-    SuperneoCacheArtifactError, SuperneoCacheArtifactLimits, SuperneoCacheArtifactReceipt,
-    VerifiedSuperneoCacheArtifact,
-};
 pub use authority::{
     check_ccs_relation_zero_cached, check_ccs_relation_zero_cached_with_blocks, SuperneoCachedRelationError,
 };

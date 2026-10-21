@@ -47,15 +47,20 @@ end Pins
 section TagsAndLabels
 
 example : Transcript.foldDomainBytes =
-    "Nightstream/SuperNeo/fold/v2".toList.map Char.toNat :=
+    [78, 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47,
+      83, 117, 112, 101, 114, 78, 101, 111, 47, 102, 111, 108, 100, 47, 118, 50] :=
   rfl
 
 example : Lifecycle.stateDomainBytes =
-    "HyperNova/NIVC/state/v2".toList.map Char.toNat :=
+    [72, 121, 112, 101, 114, 78, 111, 118, 97, 47, 78, 73, 86, 67,
+      47, 115, 116, 97, 116, 101, 47, 118, 50] :=
   rfl
 
 example : Lifecycle.Stage1.Poseidon2HashChainV1.domainTagBytes =
-    "Nightstream/Stage1/Poseidon2HashChain/v1".toList.map Char.toNat :=
+    [78, 105, 103, 104, 116, 115, 116, 114, 101, 97,
+      109, 47, 83, 116, 97, 103, 101, 49, 47, 80,
+      111, 115, 101, 105, 100, 111, 110, 50, 72, 97,
+      115, 104, 67, 104, 97, 105, 110, 47, 118, 49] :=
   rfl
 
 example (coordinate : Fin productionShape.cubeVariables) :

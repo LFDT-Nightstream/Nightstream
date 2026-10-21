@@ -208,7 +208,6 @@ where
     (children, eval_k_ok && eval_a_ok, x_ok)
 }
 
-#[allow(clippy::too_many_arguments)]
 fn streamed_application_rows<Ff>(
     s: &CcsStructure<Ff>,
     Z_split: &[Mat<Ff>],

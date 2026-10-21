@@ -100,7 +100,6 @@ pub(crate) fn prove(
 /// One fold up to its parent, for compression: PiCCS with its round oracle
 /// on the device, then PiRLC on the host, which returns the parent witness.
 /// The same outputs as `folding::prove_parent_with_rows`.
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn prove_parent(
     device: &mut MetalRowProver,
     transcript: &mut Transcript,
@@ -131,7 +130,6 @@ pub(crate) fn prove_parent(
 }
 
 /// PiCCS with its round oracle on the device.
-#[allow(clippy::too_many_arguments)]
 fn prove_pi_ccs(
     device: &mut MetalRowProver,
     transcript: &mut Transcript,

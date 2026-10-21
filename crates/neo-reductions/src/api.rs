@@ -176,7 +176,6 @@ where
 }
 
 /// Input checks shared by the borrowed-matrix Π_RLC prover entry points.
-#[allow(clippy::too_many_arguments)]
 fn validate_rlc_refs(
     label: &str,
     mode: &FoldingMode,

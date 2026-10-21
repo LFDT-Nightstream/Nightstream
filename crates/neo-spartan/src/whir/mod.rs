@@ -418,7 +418,6 @@ fn query_index<B: Backend>(b: &mut B, duplex: &mut Duplex<B>, width: usize) -> R
 
 /// The STIR checks of one query set against `root`: indices, full paths,
 /// folds at `folding` (low bit first). Returns the select statements.
-#[allow(clippy::too_many_arguments)]
 fn stir<B: Backend>(
     b: &mut B,
     duplex: &mut Duplex<B>,

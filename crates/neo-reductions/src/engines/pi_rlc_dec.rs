@@ -128,7 +128,6 @@ impl OptimizedRlcDec {
     /// The caller owns the canonical split boundary. This path keeps the
     /// public y, X, and commitment recomposition checks, but it does not
     /// reconstruct and split the full witness a second time.
-    #[allow(clippy::too_many_arguments)]
     pub fn dec_children_with_commit_superneo_cached_from_trusted_split_digits<Comb>(
         s: &CcsStructure<F>,
         params: &NeoParams,

@@ -229,7 +229,6 @@ impl ApplicationTables {
         Ok(output)
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn accumulate_pairs(
         &self,
         values: &Values,
@@ -276,7 +275,6 @@ impl ApplicationTables {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn accumulate(
         &self,
         values: &Values,
@@ -363,7 +361,6 @@ impl ApplicationTables {
         Ok(live_bytes)
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub(super) fn evals_at(
         &mut self,
         source: &dyn MatrixRows,

@@ -157,7 +157,6 @@ pub enum ParamsError {
 impl NeoParams {
     /// Construct and validate a parameter set; computes B=b^{k_rho} and enforces the RLC guard.
     #[allow(non_snake_case)] // Allow mathematical notation from paper
-    #[allow(clippy::too_many_arguments)] // All parameters needed for comprehensive validation
     pub fn new(
         q: u64,
         eta: u32,

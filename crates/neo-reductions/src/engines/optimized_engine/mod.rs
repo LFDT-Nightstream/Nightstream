@@ -7,11 +7,10 @@
 
 use crate::engines::utils::digest_ccs_matrices;
 use crate::error::PiCcsError;
-use crate::superneo_eval::{build_superneo_eval_cache, SuperneoEvalCache, VerifiedSuperneoCacheArtifact};
+use crate::superneo_eval::{build_superneo_eval_cache, SuperneoEvalCache};
 use neo_ccs::CcsStructure;
 use neo_math::F;
 use neo_math::K;
-use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
 use std::sync::Arc;
 
@@ -97,13 +96,6 @@ pub struct OptimizedStructureCache {
     /// Shape fingerprint of the source structure: `(n, m, t)`.
     /// Full cache validation also uses shared ownership or the matrix digest.
     shape: (usize, usize, usize),
-    authority: CacheAuthority,
-}
-
-#[derive(Clone, Copy)]
-enum CacheAuthority {
-    DerivedStructure,
-    VerifierArtifact,
 }
 
 impl OptimizedStructureCache {
@@ -114,36 +106,6 @@ impl OptimizedStructureCache {
     pub fn build_shared(structure: Arc<CcsStructure<F>>) -> Result<Self, PiCcsError> {
         let sparse = Arc::new(SparseCache::from_shared_structure(Arc::clone(&structure)));
         Self::build_with_sparse(structure.as_ref(), sparse)
-    }
-
-    /// Install a bounded cache artifact selected by verifier-owned profile
-    /// metadata. The artifact matrices are the authority. `structure` supplies
-    /// the matching polynomial and dimensions until the full relation artifact
-    /// owns those small values too.
-    pub fn from_verified_artifact(
-        structure: Arc<CcsStructure<F>>,
-        artifact: VerifiedSuperneoCacheArtifact,
-    ) -> Result<Self, PiCcsError> {
-        let (superneo, receipt) = artifact.into_parts();
-        let expected_shape = (structure.n, structure.m, structure.t());
-        let expected_cache_shape = (
-            structure.n,
-            crate::common::superneo_carrier_width(structure.m),
-            structure.t(),
-        );
-        if superneo.relation_shape() != Some(expected_cache_shape) || receipt.matrix_count() != structure.t() {
-            return Err(PiCcsError::InvalidInput(
-                "compact cache artifact shape does not match the selected CCS header".into(),
-            ));
-        }
-        let matrix_digest = receipt.matrix_digest().map(Goldilocks::from_u64);
-        Ok(Self {
-            sparse: Arc::new(SparseCache::from_shared_structure(structure)),
-            superneo: Arc::new(superneo),
-            matrix_digest,
-            shape: expected_shape,
-            authority: CacheAuthority::VerifierArtifact,
-        })
     }
 
     #[doc(hidden)]
@@ -239,7 +201,6 @@ impl OptimizedStructureCache {
             superneo: Arc::new(superneo),
             matrix_digest,
             shape: (s.n, s.m, s.matrices.len()),
-            authority: CacheAuthority::DerivedStructure,
         })
     }
 
@@ -276,9 +237,6 @@ impl OptimizedStructureCache {
             return Err(PiCcsError::InvalidInput(
                 "optimized structure cache shape does not match the selected CCS structure".into(),
             ));
-        }
-        if matches!(self.authority, CacheAuthority::VerifierArtifact) {
-            return Ok(());
         }
         if self.sparse.shares_structure(structure) {
             return Ok(());

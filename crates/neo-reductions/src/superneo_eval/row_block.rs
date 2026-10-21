@@ -42,16 +42,6 @@ impl CompactRowBlock {
     }
 
     #[inline]
-    pub(super) fn from_word(word: u32) -> Self {
-        Self(word)
-    }
-
-    #[inline]
-    pub(super) fn word(self) -> u32 {
-        self.0
-    }
-
-    #[inline]
     pub(super) fn single_parts(self) -> Option<(usize, usize, F)> {
         (self.0 & COMPACT_DENSE_TAG == 0).then(|| {
             let coefficient = if self.0 & COMPACT_NEGATIVE_TAG == 0 {
@@ -89,16 +79,6 @@ impl DenseRowBlock {
             block: u32::try_from(block).expect("SuperNeo block index exceeds u32"),
             pattern: u32::try_from(pattern).expect("SuperNeo dense pattern index exceeds u32"),
         }
-    }
-
-    #[inline]
-    pub(super) fn from_words(block: u32, pattern: u32) -> Self {
-        Self { block, pattern }
-    }
-
-    #[inline]
-    pub(super) fn words(self) -> [u32; 2] {
-        [self.block, self.pattern]
     }
 
     #[inline]

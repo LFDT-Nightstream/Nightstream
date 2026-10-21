@@ -65,7 +65,7 @@ fn balanced_i128_and_i64_conversions_agree_at_field_boundaries() {
         2,
         1u64 << 32,
         (modulus - 1) / 2,
-        (modulus + 1) / 2,
+        modulus.div_ceil(2),
         1u64 << 63,
         modulus - 1,
     ];

@@ -6,7 +6,7 @@
 use super::{canonical_field, LoadedPackage, PackageError, Segment};
 use crate::identity::PiCcsV1_2VerifierContext;
 
-const PRIOR_PREIMAGE_ROLE: u64 = 1;
+pub(crate) const PRIOR_PREIMAGE_ROLE: u64 = 1;
 const OUTPUT_PREIMAGE_ROLE: u64 = 2;
 const WITNESS_ROLE: u64 = 3;
 const FRESH_COMMITMENT_ROLE: u64 = 6;
@@ -188,7 +188,6 @@ pub struct PiCcsV1_2PackageInputs {
 }
 
 impl PiCcsV1_2PackageInputs {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         prior_preimage: Vec<u64>,
         output_preimage: Vec<u64>,
@@ -299,22 +298,6 @@ impl PiDecV1_2PackageInputs {
         })
     }
 
-    pub fn child_commitments(&self) -> &[Vec<u64>] {
-        &self.child_commitments
-    }
-
-    pub fn child_eval_k(&self) -> &[Vec<[u64; EXTENSION_WORDS]>] {
-        &self.child_eval_k
-    }
-
-    pub fn child_eval_a(&self) -> &[Vec<Vec<[u64; EXTENSION_WORDS]>>] {
-        &self.child_eval_a
-    }
-
-    pub fn child_public_inputs(&self) -> &[Vec<u64>] {
-        &self.child_public_inputs
-    }
-
     pub(super) fn append_private_values(&self, values: &mut Vec<u64>) {
         for commitment in &self.child_commitments {
             values.extend_from_slice(commitment);
@@ -368,6 +351,22 @@ impl LoadedPackage {
         if inputs.verifier_context.structural_identifier() != self.relation_identifier {
             return Err(PackageError::Invalid("PiCCS v1_2 verifier-context package identity"));
         }
+        self.encode_pi_ccs_segments(inputs)
+    }
+
+    /// Encode the inputs of the compression terminal package: the PiCCS
+    /// segments, then zero PiDEC segments, which no terminal row reads. The
+    /// context is the folded circuit's, not the terminal package's.
+    pub fn encode_terminal_inputs(
+        &self,
+        inputs: &PiCcsV1_2PackageInputs,
+    ) -> Result<PiCcsV1_2EncodedInputs, PackageError> {
+        let mut encoded = self.encode_pi_ccs_segments(inputs)?;
+        encoded.private_values.resize(self.private_input_count(), 0);
+        Ok(encoded)
+    }
+
+    fn encode_pi_ccs_segments(&self, inputs: &PiCcsV1_2PackageInputs) -> Result<PiCcsV1_2EncodedInputs, PackageError> {
         let pi_ccs_input_count = self
             .layout
             .private_segments
@@ -409,26 +408,6 @@ impl LoadedPackage {
         Ok(PiCcsV1_2EncodedInputs {
             private_values,
             public_values,
-        })
-    }
-
-    pub fn encode_stage1_v1_2_inputs(
-        &self,
-        pi_ccs: &PiCcsV1_2PackageInputs,
-        pi_dec: &PiDecV1_2PackageInputs,
-    ) -> Result<PiCcsV1_2EncodedInputs, PackageError> {
-        let encoded = self.encode_pi_ccs_v1_2_inputs(pi_ccs)?;
-        let mut private_values = encoded.private_values;
-        private_values.reserve(
-            PI_DEC_COMMITMENT_WORDS + PI_DEC_EVAL_K_WORDS + PI_DEC_EVAL_A_WORDS + PI_DEC_CHILD_PUBLIC_INPUT_WORDS,
-        );
-        pi_dec.append_private_values(&mut private_values);
-        if private_values.len() != self.private_input_count() {
-            return Err(PackageError::Invalid("Stage 1 v1_2 encoded private-input length"));
-        }
-        Ok(PiCcsV1_2EncodedInputs {
-            private_values,
-            public_values: encoded.public_values,
         })
     }
 

@@ -28,7 +28,7 @@ impl CompactRowBlock {
         Self(
             block as u32
                 | (local as u32) << COMPACT_SINGLE_LOCAL_SHIFT
-                | u32::from(coefficient == F::ZERO - F::ONE) * COMPACT_NEGATIVE_TAG,
+                | (u32::from(coefficient == F::ZERO - F::ONE) * COMPACT_NEGATIVE_TAG),
         )
     }
 
@@ -39,16 +39,6 @@ impl CompactRowBlock {
             "SuperNeo dense row-block cache exceeds u31"
         );
         Self(COMPACT_DENSE_TAG | index as u32)
-    }
-
-    #[inline]
-    pub(super) fn from_word(word: u32) -> Self {
-        Self(word)
-    }
-
-    #[inline]
-    pub(super) fn word(self) -> u32 {
-        self.0
     }
 
     #[inline]
@@ -89,16 +79,6 @@ impl DenseRowBlock {
             block: u32::try_from(block).expect("SuperNeo block index exceeds u32"),
             pattern: u32::try_from(pattern).expect("SuperNeo dense pattern index exceeds u32"),
         }
-    }
-
-    #[inline]
-    pub(super) fn from_words(block: u32, pattern: u32) -> Self {
-        Self { block, pattern }
-    }
-
-    #[inline]
-    pub(super) fn words(self) -> [u32; 2] {
-        [self.block, self.pattern]
     }
 
     #[inline]

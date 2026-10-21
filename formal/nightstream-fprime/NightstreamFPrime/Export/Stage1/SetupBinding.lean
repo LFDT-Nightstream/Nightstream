@@ -35,7 +35,7 @@ def productionRelaxedBindingCollision_to_shortKernel
   Binding.relaxedBindingCollision_to_shortKernel productionAjtaiKey commitment collision
 
 /-- Shape of the larger fixed-seed instance named in the approved
-`PUBLIC_SEED_MSIS_ASSUMPTION.md`. -/
+`decisions/fprime-ajtai-public-seed-msis-assumption.md`. -/
 def approvedMsisShape : Phi81Relation.Shape :=
   Lifecycle.PaperAlgebra.fullShape 254260583 (by decide)
 

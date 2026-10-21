@@ -4,10 +4,11 @@ use p3_field::PrimeField64;
 use serde_json::json;
 use std::ops::ControlFlow;
 
-#[allow(dead_code)]
+#[allow(dead_code, clippy::duplicate_mod)]
 #[path = "../per_application_logical_matrix_conformance/reference/mod.rs"]
 mod reference;
 
+#[allow(clippy::duplicate_mod)]
 #[path = "../support/poseidon_affine_fixture.rs"]
 mod affine_fixture;
 

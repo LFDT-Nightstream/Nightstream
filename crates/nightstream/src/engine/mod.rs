@@ -11,6 +11,9 @@ pub(crate) mod crosscheck;
 pub(crate) mod metal;
 pub(crate) mod paper_exact;
 
+/// The owner's memory ceiling for the CPU engines.
+pub(crate) const CPU_MEMORY_LIMIT_BYTES: usize = 16_000_000_000;
+
 /// Arithmetic implementation used for proving and terminal row checks.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Engine {
@@ -43,7 +46,7 @@ pub enum EngineError {
 
 pub(crate) enum Backend {
     #[cfg(feature = "metal")]
-    Metal(Box<std::sync::Mutex<neo_prover_metal::MetalRowProver>>),
+    Metal(std::sync::Arc<std::sync::Mutex<neo_prover_metal::MetalRowProver>>),
     PaperExact,
     Optimized,
     Crosscheck,
@@ -79,7 +82,7 @@ impl Backend {
             Engine::Crosscheck => Ok(Self::Crosscheck),
             #[cfg(feature = "metal")]
             Engine::Metal => neo_prover_metal::MetalRowProver::new()
-                .map(|device| Self::Metal(Box::new(std::sync::Mutex::new(device))))
+                .map(|device| Self::Metal(std::sync::Arc::new(std::sync::Mutex::new(device))))
                 .map_err(|error| match error {
                     neo_prover_metal::MetalError::Unavailable => EngineError::Unavailable {
                         engine,
@@ -102,6 +105,63 @@ impl Backend {
                 #[cfg(not(feature = "cuda"))]
                 reason: "build nightstream with the cuda feature; its canonical kernel is not implemented",
             }),
+        }
+    }
+
+    /// The owner's memory ceiling for the engine's working storage: 24 GB for
+    /// Metal, so a prover can run on a current iPhone, and 16 GB otherwise.
+    pub(crate) fn memory_limit_bytes(&self) -> usize {
+        match self {
+            #[cfg(feature = "metal")]
+            Self::Metal(_) => neo_prover_metal::BUFFER_LIMIT_BYTES,
+            _ => CPU_MEMORY_LIMIT_BYTES,
+        }
+    }
+
+    /// Device bytes that keeping the commitment key over `columns` columns
+    /// takes; `None` for engines that expand no key on a device.
+    pub(crate) fn commitment_key_bytes(&self, columns: usize) -> Option<usize> {
+        match self {
+            #[cfg(feature = "metal")]
+            Self::Metal(_) => Some(neo_prover_metal::MetalRowProver::commitment_key_bytes(columns)),
+            _ => {
+                let _ = columns;
+                None
+            }
+        }
+    }
+
+    /// Keep the commitment key on the device after the first commitment.
+    pub(crate) fn keep_commitment_key(&mut self) {
+        #[cfg(feature = "metal")]
+        if let Self::Metal(device) = self {
+            device
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .keep_commitment_key();
+        }
+    }
+
+    /// Free a kept commitment key until the next commitment.
+    pub(crate) fn release_commitment_key_rows(&self) {
+        #[cfg(feature = "metal")]
+        if let Self::Metal(device) = self {
+            device
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .release_commitment_key_rows();
+        }
+    }
+
+    /// Where the compression prover's batch loops run. Only Metal has a
+    /// device; every other engine runs them on the CPU.
+    pub(crate) fn accelerator(&self) -> neo_spartan::Accelerator {
+        match self {
+            #[cfg(feature = "metal")]
+            Self::Metal(device) => neo_spartan::Accelerator::new(std::sync::Arc::new(metal::CompressionDevice::new(
+                std::sync::Arc::clone(device),
+            ))),
+            _ => neo_spartan::Accelerator::cpu(),
         }
     }
 

@@ -19,14 +19,11 @@ ROOT = Path(__file__).resolve().parents[1]
 CRATES = {
     "nightstream", "nightstream-fprime",
     "neo-math", "neo-params", "neo-ccs", "neo-ajtai", "neo-transcript",
-    "neo-reductions", "neo-prover-metal", "neo-prover-cuda",
+    "neo-reductions", "neo-prover-metal", "neo-prover-cuda", "neo-spartan",
 }
 NATIVE = ("native", "metal")
 ALL = ("native", "lean_reference", "metal")
 BUILD_FILES = {"Cargo.toml", "Cargo.lock", "rust-toolchain", "rust-toolchain.toml", ".gitattributes"}
-REPLAY_INPUTS = {
-    "EVIDENCE_RELEASE.json", "TERMINAL_REPLAY_INPUTS.json", "NONZERO_EXECUTION_RELEASE.json",
-}
 
 
 def check_dependency_roots(root: Path) -> None:
@@ -73,9 +70,7 @@ def checks_for_path(name: str) -> tuple[str, ...]:
             or name == "scripts/fprime_stage1_review_manifest.py"
             or name.startswith(".github/workflows/")):
         return ALL
-    if name.startswith("docs/reviews/nightstream-fprime-requirements/") and path.name in REPLAY_INPUTS:
-        return ALL
-    if name == "docs/reviews/nightstream-fprime-requirements/NIFS_DEC_AND_FINAL_OUTPUT_EVIDENCE.zip":
+    if name == "crates/nightstream/tests/fixtures/dec_mutation_manifest.json":
         return ("native",)
     if name == "crates/nightstream/tests/restore_golden_inputs.py":
         return ALL

@@ -536,8 +536,10 @@ mod base;
 
 mod key_prefix;
 mod matrix_workspace;
+mod parent_shape;
 mod recursive;
 mod state_encoding;
 
 mod staged;
+mod terminal_ir;
 mod terminal_sweep;

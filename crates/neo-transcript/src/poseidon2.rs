@@ -9,8 +9,15 @@ const APP_DOMAIN: &[u8] = b"neo/transcript/v1|poseidon2-goldilocks-w8-r4";
 const FOLD_DOMAIN: &[u8] = b"Nightstream/SuperNeo/fold/v2";
 
 pub fn fold_domain_chunk_v1_2() -> [F; p2::RATE] {
+    domain_chunk_v1_2(FOLD_DOMAIN)
+}
+
+/// One rate chunk that names a protocol: `label`, eight little-endian bytes
+/// per word, then zero words. The label fits in one chunk.
+pub fn domain_chunk_v1_2(label: &[u8]) -> [F; p2::RATE] {
+    assert!(label.len() <= 8 * p2::RATE, "domain label exceeds one rate chunk");
     std::array::from_fn(|word| {
-        let bytes = FOLD_DOMAIN.get(8 * word..).unwrap_or_default();
+        let bytes = label.get(8 * word..).unwrap_or_default();
         let mut packed = [0u8; 8];
         let length = bytes.len().min(8);
         packed[..length].copy_from_slice(&bytes[..length]);

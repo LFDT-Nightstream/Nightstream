@@ -2,34 +2,6 @@
 
 use super::*;
 
-pub fn rlc_with_commit_refs_and_witness_mix<MixWitness>(
-    mode: FoldingMode,
-    s: &CcsStructure<F>,
-    params: &NeoParams,
-    rhos: &[RotRho],
-    me_inputs: &[CeClaim<Cmt, F, K>],
-    witnesses: &[&Mat<F>],
-    ell_d: usize,
-    mix_commits: RlcMixer,
-    mix_witnesses: MixWitness,
-) -> Result<(CeClaim<Cmt, F, K>, Mat<F>), PiCcsError>
-where
-    MixWitness: Fn(&[Mat<F>], &[&Mat<F>]) -> Mat<F>,
-{
-    rlc_with_commit_refs_and_resident_witness(
-        mode,
-        s,
-        params,
-        rhos,
-        me_inputs,
-        witnesses,
-        ell_d,
-        mix_commits,
-        mix_witnesses,
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
 pub fn rlc_with_commit_refs_and_resident_witness<MixWitness, Resident>(
     mode: FoldingMode,
     s: &CcsStructure<F>,

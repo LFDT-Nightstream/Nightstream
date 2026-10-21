@@ -3,7 +3,7 @@
 use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;
 
-use super::{DenseBlockStore, RealBlockStorage, SuperneoMatrixCache, SuperneoRingLinearForm, SuperneoZBlocks};
+use super::{DenseBlockStore, RealBlockStorage, SuperneoMatrixCache, SuperneoZBlocks};
 
 #[doc(hidden)]
 #[derive(Clone, Copy)]
@@ -227,14 +227,5 @@ impl SuperneoMatrixCache {
                 .count(),
             DenseBlockStore::Compact { offsets, .. } => (offsets[dense + 1] - offsets[dense]) as usize,
         }
-    }
-}
-
-impl SuperneoRingLinearForm {
-    pub fn to_sparse_block_coeffs(&self) -> Vec<(usize, [F; D], [F; D])> {
-        self.entries
-            .iter()
-            .map(|entry| (entry.blk, entry.re_form.0, entry.im_form.0))
-            .collect()
     }
 }

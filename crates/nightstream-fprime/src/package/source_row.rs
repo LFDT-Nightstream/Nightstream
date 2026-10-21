@@ -115,10 +115,10 @@ fn locate_hash_row(
     Ok(Some((chain, delta / template_rows, delta % template_rows)))
 }
 
-fn locate_permutation_row<'a>(
-    package: &'a LoadedPackage,
+fn locate_permutation_row(
+    package: &LoadedPackage,
     row_index: usize,
-) -> Result<Option<(&'a PermutationInvocation, usize)>, PackageError> {
+) -> Result<Option<(&PermutationInvocation, usize)>, PackageError> {
     let template_rows = package.permutation.rows.len();
     let Some(position) = package
         .permutation_invocations
@@ -135,10 +135,10 @@ fn locate_permutation_row<'a>(
     Ok((row_index < end).then_some((invocation, row_index - invocation.row_start)))
 }
 
-fn locate_compact_row<'a>(
-    package: &'a LoadedPackage,
+fn locate_compact_row(
+    package: &LoadedPackage,
     row_index: usize,
-) -> Result<Option<(&'a CompactRowInvocation, usize)>, PackageError> {
+) -> Result<Option<(&CompactRowInvocation, usize)>, PackageError> {
     let Some(position) = package
         .compact_invocations
         .partition_point(|invocation| invocation.row_start <= row_index)

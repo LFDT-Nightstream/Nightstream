@@ -1,5 +1,5 @@
 use super::*;
-use crate::package::{TemplateTerm, GOLDILOCKS_MODULUS};
+use crate::package::TemplateTerm;
 use crate::sparse::SparseTerm;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
@@ -181,5 +181,4 @@ fn assertion_and_generic_witness_rows_are_independent_of_matrix_expansion() {
         merge_row(&mut selected, decoded_witness),
         Err(PackageError::Invalid("duplicate matrix source row"))
     ));
-    assert!(GOLDILOCKS_MODULUS > 18);
 }

@@ -35,7 +35,7 @@ pub trait TranscriptProtocol {
     fn absorb_public_fields(&mut self, label: &'static [u8], fs: &[F]);
 }
 
-pub use poseidon2::{fold_domain_chunk_v1_2, FoldCoin, Poseidon2Transcript};
+pub use poseidon2::{domain_chunk_v1_2, fold_domain_chunk_v1_2, FoldCoin, Poseidon2Transcript};
 
 pub fn prior_digest_v1_2(public_input: &[F]) -> [F; 4] {
     core::array::from_fn(|word| {

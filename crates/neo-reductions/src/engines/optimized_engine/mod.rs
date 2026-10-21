@@ -57,20 +57,14 @@ pub struct PiCcsVerifyPerf {
     pub total_ms: f64,
 }
 
-pub use common::{
-    dec_reduction_optimized, dec_reduction_optimized_with_digit_flags, dec_reduction_optimized_with_superneo_cache,
-};
+pub use common::{dec_reduction_optimized, dec_reduction_optimized_with_digit_flags};
 pub use prove::optimized_prove as pi_ccs_prove;
-pub use prove::optimized_prove_with_cache;
 pub use prove::optimized_prove_with_cache_and_perf;
-pub use prove::optimized_prove_with_cache_and_precompute_and_backend_and_perf;
 pub use prove::optimized_prove_with_cache_and_precompute_and_perf;
 pub use rlc::{
     rlc_combine_claims, rlc_mix_witnesses, rlc_reduction_optimized_with_commit_mix, rlc_reduction_optimized_with_mixers,
 };
 pub use verify::optimized_verify as pi_ccs_verify;
-pub use verify::optimized_verify_with_cache;
-pub use verify::optimized_verify_with_cache_and_perf;
 pub use verify::optimized_verify_with_trace;
 
 #[cfg(feature = "paper-exact")]
@@ -205,9 +199,5 @@ impl OptimizedStructureCache {
             ));
         }
         Ok(())
-    }
-
-    pub fn shape(&self) -> (usize, usize, usize) {
-        self.shape
     }
 }

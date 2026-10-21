@@ -9,7 +9,7 @@ if [ $# -lt 2 ]; then
   echo "Usage: $0 <package> <test_name> [mode]"
   echo ""
   echo "Examples:"
-  echo "  $0 neo-fold test_starstream_tx_valid_optimized flamegraph"
+  echo "  $0 nightstream application_poseidon2 flamegraph"
   echo "  $0 neo-ajtai basic_commit_tests instruments"
   echo "  $0 neo-ccs ccs_property_tests samply"
   echo ""

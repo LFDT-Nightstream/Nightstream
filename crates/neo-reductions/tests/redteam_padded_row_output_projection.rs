@@ -72,7 +72,6 @@ fn honest_proof(label: &'static [u8]) -> HonestProof {
         core::slice::from_ref(&witness),
         &running,
         &running_witnesses,
-        &commitment_scheme,
     )
     .expect("honest proof");
 

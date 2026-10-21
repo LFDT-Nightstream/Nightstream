@@ -1,0 +1,356 @@
+import tests.AxiomAudit
+import CompressionLean
+
+/-! Axiom gate for every exported terminal theorem. -/
+
+#audit_axioms CompressionLean.Terminal.circuitPackage_implies_terminal
+#audit_axioms CompressionLean.Terminal.priorSpec
+#audit_axioms CompressionLean.Terminal.piCcsPhaseHolds
+#audit_axioms CompressionLean.Terminal.piCcsSpecHolds
+#audit_axioms CompressionLean.Terminal.selectedVerifierContext
+#audit_axioms CompressionLean.Terminal.piRlcPhaseHolds
+#audit_axioms CompressionLean.Terminal.piRlcSpecHolds
+#audit_axioms CompressionLean.Terminal.piRlcCombinationRows
+#audit_axioms CompressionLean.Terminal.piRlcSamplerChain
+#audit_axioms CompressionLean.Terminal.priorExtraRows_hold
+#audit_axioms CompressionLean.Terminal.arithmeticRows_hold
+#audit_axioms CompressionLean.Terminal.samplerInitialState_eq
+#audit_axioms CompressionLean.Terminal.commitment_eval
+#audit_axioms CompressionLean.Terminal.publicInput_eval
+#audit_axioms CompressionLean.Terminal.point_eval
+#audit_axioms CompressionLean.Terminal.eval_K_eval
+#audit_axioms CompressionLean.Terminal.eval_A_eval
+#audit_axioms CompressionLean.Terminal.state_eval
+
+/-! Axiom gate for the layer-1 soundness proof. -/
+
+#audit_axioms CompressionLean.Layer1.Game.prob_not_le
+#audit_axioms CompressionLean.Layer1.Game.avoids_bind
+#audit_axioms CompressionLean.Layer1.Game.costLe_bind
+#audit_axioms CompressionLean.Layer1.sumcheck_avoids
+#audit_axioms CompressionLean.Layer1.sumcheck_cost
+#audit_axioms CompressionLean.Layer1.combRound_truth
+#audit_axioms CompressionLean.Layer1.fraction_sum_bad
+#audit_axioms CompressionLean.Layer1.Level.root_fraction
+#audit_axioms CompressionLean.Layer1.gkr_avoids
+#audit_axioms CompressionLean.Layer1.gkr_cost
+#audit_axioms CompressionLean.Layer1.mle_ne_zero_of_path'
+#audit_axioms CompressionLean.Layer1.twoSided
+#audit_axioms CompressionLean.Layer1.norm_sound
+#audit_axioms CompressionLean.Layer1.Lookup.sound
+#audit_axioms CompressionLean.Layer1.Lookup.bad_card
+#audit_axioms CompressionLean.Layer1.Scatter.sound
+#audit_axioms CompressionLean.Layer1.Scatter.bad_card
+#audit_axioms CompressionLean.Layer1.RingRows.ring_sound
+#audit_axioms CompressionLean.Layer1.RingRows.zetaBad_card
+#audit_axioms CompressionLean.Layer1.univ_eval
+#audit_axioms CompressionLean.Layer1.univ_eq_zero
+#audit_axioms CompressionLean.Layer1.leaf_formula
+#audit_axioms CompressionLean.Layer1.agreement_card
+#audit_axioms CompressionLean.Layer1.residue_card
+#audit_axioms CompressionLean.Layer1.lowBits_fiber_card
+#audit_axioms CompressionLean.Layer1.lowBitsBad_density
+#audit_axioms CompressionLean.Layer1.foldQueryBad_card
+#audit_axioms CompressionLean.Layer1.early_world
+#audit_axioms CompressionLean.Layer1.late_world
+#audit_axioms CompressionLean.Layer1.slotWeights_eq
+#audit_axioms CompressionLean.Layer1.scaled_eq
+#audit_axioms CompressionLean.Layer1.omegaTrue_parts
+#audit_axioms CompressionLean.Layer1.linear_world
+#audit_axioms CompressionLean.Layer1.honest_world
+#audit_axioms CompressionLean.Layer1.earlyGame_avoids
+#audit_axioms CompressionLean.Layer1.linearGame_avoids
+#audit_axioms CompressionLean.Layer1.honestGame_avoids
+#audit_axioms CompressionLean.Layer1.lateGame_avoids
+#audit_axioms CompressionLean.Layer1.layer1Game_avoids
+#audit_axioms CompressionLean.Layer1.earlyGame_cost
+#audit_axioms CompressionLean.Layer1.linearGame_cost
+#audit_axioms CompressionLean.Layer1.honestGame_cost
+#audit_axioms CompressionLean.Layer1.lateGame_cost
+#audit_axioms CompressionLean.Layer1.layer1Game_cost
+#audit_axioms CompressionLean.Layer1.layer1_sound
+#audit_axioms CompressionLean.Layer1.layer1Count_le_rust
+#audit_axioms CompressionLean.Layer1.goldilocks_half
+#audit_axioms CompressionLean.Layer1.query_half
+#audit_axioms CompressionLean.Layer1.layer1_budget
+#audit_axioms CompressionLean.Layer1.Game.restore_sound
+#audit_axioms CompressionLean.Layer1.layer1_restore_sound
+#audit_axioms CompressionLean.Layer1.layer1_restore_budget
+#audit_axioms CompressionLean.Layer1.mle_identity
+#audit_axioms CompressionLean.Layer1.lessThan_eq
+#audit_axioms CompressionLean.Layer1.step_eq
+#audit_axioms CompressionLean.Layer1.mle_chi
+#audit_axioms CompressionLean.Layer1.fromK_re
+#audit_axioms CompressionLean.Layer1.fromK_im
+#audit_axioms CompressionLean.Layer1.quadX_re_sum
+#audit_axioms CompressionLean.Layer1.quadX_im_sum
+#audit_axioms CompressionLean.Layer1.eqAt_map
+#audit_axioms CompressionLean.Layer1.mle_split
+#audit_axioms CompressionLean.Layer1.chi_split
+#audit_axioms CompressionLean.Layer1.laneSplit_head
+#audit_axioms CompressionLean.Layer1.laneSplit_tail
+#audit_axioms CompressionLean.Layer1.stepTable_range'
+#audit_axioms CompressionLean.Layer1.stepTable_range
+#audit_axioms CompressionLean.Layer1.ordered_range'
+#audit_axioms CompressionLean.Layer1.stepTable_eq
+#audit_axioms CompressionLean.Layer1.segmentStart_zero
+#audit_axioms CompressionLean.Layer1.segmentStart_mono
+#audit_axioms CompressionLean.Layer1.segmentStart_end
+#audit_axioms CompressionLean.Layer1.segments_eq
+#audit_axioms CompressionLean.Layer1.matrixStep_eq
+#audit_axioms CompressionLean.Layer1.segments_ordered
+#audit_axioms CompressionLean.Layer1.slotStep_eq
+#audit_axioms CompressionLean.Layer1.slotStep_head
+#audit_axioms CompressionLean.Layer1.slotStep_tail
+#audit_axioms CompressionLean.Layer1.evalKValue_eq
+#audit_axioms CompressionLean.Layer1.mle_evalK
+#audit_axioms CompressionLean.Layer1.evalK_split
+#audit_axioms CompressionLean.Layer1.cubic_no_root
+#audit_axioms CompressionLean.Layer1.cubic_irreducible
+
+/-! Axiom gate for the bridge from the layer-1 replay to the model. -/
+
+#audit_axioms CompressionLean.Bridge.replay_accepts_implies_path
+#audit_axioms CompressionLean.Bridge.replay_accepts_sound
+#audit_axioms CompressionLean.Bridge.queryAt_distinct
+#audit_axioms CompressionLean.Bridge.phi_natDegree
+
+/-! Axiom gate for the shrink soundness proof. -/
+
+#audit_axioms CompressionLean.Shrink.map_constraint
+#audit_axioms CompressionLean.Shrink.mle_single
+#audit_axioms CompressionLean.Shrink.mle_rowValue
+#audit_axioms CompressionLean.Shrink.cubeSum_weight
+#audit_axioms CompressionLean.Shrink.sum_powers_entries
+#audit_axioms CompressionLean.Shrink.cubeSum_weight_rows
+#audit_axioms CompressionLean.Shrink.mle_weight
+#audit_axioms CompressionLean.Shrink.publicValue_eq
+#audit_axioms CompressionLean.Shrink.mle_z
+#audit_axioms CompressionLean.Shrink.rest_le_narrow
+#audit_axioms CompressionLean.Shrink.slot_lt
+#audit_axioms CompressionLean.Shrink.le_pow_variablesFor
+#audit_axioms CompressionLean.Shrink.mem_glueEntries
+#audit_axioms CompressionLean.Shrink.ccs_fits
+#audit_axioms CompressionLean.Shrink.trackEq_step
+#audit_axioms CompressionLean.Shrink.highProduct_step
+#audit_axioms CompressionLean.Shrink.sum_range_parity
+#audit_axioms CompressionLean.Shrink.suffix_step
+#audit_axioms CompressionLean.Shrink.tracksStep_carry_lt
+#audit_axioms CompressionLean.Shrink.highProduct_end
+#audit_axioms CompressionLean.Shrink.suffix_end
+#audit_axioms CompressionLean.Shrink.scatter_pairing
+#audit_axioms CompressionLean.Shrink.sum_sum_point
+#audit_axioms CompressionLean.Shrink.walkStep_eq
+#audit_axioms CompressionLean.Shrink.pairing_step
+#audit_axioms CompressionLean.Shrink.pairing_walk
+#audit_axioms CompressionLean.Shrink.walkBits_covers
+#audit_axioms CompressionLean.Shrink.highProduct_zero
+#audit_axioms CompressionLean.Shrink.diagonal_eq_sum
+#audit_axioms CompressionLean.Shrink.diagonal_eq
+#audit_axioms CompressionLean.Shrink.eqAt_split
+#audit_axioms CompressionLean.Shrink.eqAt_zero
+#audit_axioms CompressionLean.Shrink.wide_pos
+#audit_axioms CompressionLean.Shrink.size_lt_wide
+#audit_axioms CompressionLean.Shrink.narrow_spec
+#audit_axioms CompressionLean.Shrink.slot_split
+#audit_axioms CompressionLean.Shrink.lt_pow_sub
+#audit_axioms CompressionLean.Shrink.part_stride_le
+#audit_axioms CompressionLean.Shrink.eqAt_slot
+#audit_axioms CompressionLean.Shrink.slot_fits
+#audit_axioms CompressionLean.Shrink.drop_last
+#audit_axioms CompressionLean.Shrink.eqAt_low_half
+#audit_axioms CompressionLean.Shrink.eqAt_one
+#audit_axioms CompressionLean.Shrink.sum_flatMap_range
+#audit_axioms CompressionLean.Shrink.matrixValue_blockEntries
+#audit_axioms CompressionLean.Shrink.entry_blocks
+#audit_axioms CompressionLean.Shrink.entryTerm_parts
+#audit_axioms CompressionLean.Shrink.entryTerm_row
+#audit_axioms CompressionLean.Shrink.sum_by_parts
+#audit_axioms CompressionLean.Shrink.partSum_empty
+#audit_axioms CompressionLean.Shrink.blockPart_eq_sum
+#audit_axioms CompressionLean.Shrink.blockPart_eq
+#audit_axioms CompressionLean.Shrink.splitEq_eq
+#audit_axioms CompressionLean.Shrink.foldl_add_eq
+#audit_axioms CompressionLean.Shrink.sideValue_append
+#audit_axioms CompressionLean.Shrink.sideValue_expand
+#audit_axioms CompressionLean.Shrink.matrixValue_append
+#audit_axioms CompressionLean.Shrink.glueEntries_append
+#audit_axioms CompressionLean.Shrink.sum_map_flatMap
+#audit_axioms CompressionLean.Shrink.matrixValue_rowEntries
+#audit_axioms CompressionLean.Shrink.sideValue_nil
+#audit_axioms CompressionLean.Shrink.rowCall_sides
+#audit_axioms CompressionLean.Shrink.r1csValue_eq
+#audit_axioms CompressionLean.Shrink.glueTotal_eq
+#audit_axioms CompressionLean.Shrink.verifierMatrices_eq
+#audit_axioms CompressionLean.Shrink.eval_outerComb
+#audit_axioms CompressionLean.Shrink.outerComb_degree
+#audit_axioms CompressionLean.Shrink.outer_truth_nil
+#audit_axioms CompressionLean.Shrink.outer_truth_final
+#audit_axioms CompressionLean.Shrink.batchPoly_eval
+#audit_axioms CompressionLean.Shrink.batchPoly_natDegree
+#audit_axioms CompressionLean.Shrink.batchPoly_ne_zero
+#audit_axioms CompressionLean.Shrink.batch_ne
+#audit_axioms CompressionLean.Shrink.inner_truth_nil
+#audit_axioms CompressionLean.Shrink.inner_truth_final
+#audit_axioms CompressionLean.Shrink.shrinkNodes
+#audit_axioms CompressionLean.Shrink.programGame_avoids
+#audit_axioms CompressionLean.Shrink.shrinkGame_avoids
+#audit_axioms CompressionLean.Shrink.programGame_cost
+#audit_axioms CompressionLean.Shrink.shrinkGame_cost
+#audit_axioms CompressionLean.Shrink.shrink_sound
+#audit_axioms CompressionLean.Shrink.shrinkCount_eq_rust
+#audit_axioms CompressionLean.Shrink.shrink_budget
+#audit_axioms CompressionLean.Shrink.shrink_restore_sound
+#audit_axioms CompressionLean.Shrink.shrink_restore_budget
+
+/-! Axiom gate for the composition of two games and the end-to-end chain. -/
+
+#audit_axioms CompressionLean.Final.prob_mono
+#audit_axioms CompressionLean.Final.pair_sound
+#audit_axioms CompressionLean.Final.node_of_walk
+#audit_axioms CompressionLean.Final.restorePair_avoids
+#audit_axioms CompressionLean.Final.restorePair_cost
+#audit_axioms CompressionLean.Final.restorePair_sound
+#audit_axioms CompressionLean.Final.terminalClaim_of
+#audit_axioms CompressionLean.Final.final_sound
+#audit_axioms CompressionLean.Final.final_restore_sound
+#audit_axioms CompressionLean.Final.final_budget
+#audit_axioms CompressionLean.Final.final_restore_budget
+
+/-! Axiom gate for the Poseidon2 block template. -/
+
+#audit_axioms CompressionLean.Circuit.Block.poseidonTemplate_wellFormed
+#audit_axioms CompressionLean.Circuit.Block.block_sound
+
+/-! Axiom gate for the lowering of shrink programs. -/
+
+#audit_axioms CompressionLean.Shrink.expandArray_eq
+#audit_axioms CompressionLean.Shrink.Call.computedRows_eq
+#audit_axioms CompressionLean.Circuit.step_spec
+#audit_axioms CompressionLean.Circuit.steps_ok
+#audit_axioms CompressionLean.Circuit.lower_valid
+/-! Axiom gate for the concrete fields. -/
+
+#audit_axioms CompressionLean.Final.cubic_natDegree
+#audit_axioms CompressionLean.Final.cubic_ne_zero
+#audit_axioms CompressionLean.Final.card_cubic
+#audit_axioms CompressionLean.Final.cubic_big
+#audit_axioms CompressionLean.Final.natCast_injective
+
+/-! Axiom gate for the link from layer 1's relation to F′'s. -/
+
+#audit_axioms CompressionLean.Final.toQuad_add
+#audit_axioms CompressionLean.Final.toQuad_sub
+#audit_axioms CompressionLean.Final.toQuad_zero
+#audit_axioms CompressionLean.Final.toQuad_mul
+#audit_axioms CompressionLean.Final.toQuad_ops_add
+#audit_axioms CompressionLean.Final.toQuad_ops_mul
+#audit_axioms CompressionLean.Final.toQuad_ops_sub
+#audit_axioms CompressionLean.Final.index_vertexAt
+#audit_axioms CompressionLean.Final.vertexAt_index
+#audit_axioms CompressionLean.Final.vertexAt_eq_iff
+#audit_axioms CompressionLean.Final.vertexAt_bit
+#audit_axioms CompressionLean.Final.evaluate_tabulate
+#audit_axioms CompressionLean.Final.foldl_add_eq_sum
+#audit_axioms CompressionLean.Final.matrixVectorAt_eq
+#audit_axioms CompressionLean.Final.sumRange_eq
+#audit_axioms CompressionLean.Final.toPolynomial_add'
+#audit_axioms CompressionLean.Final.toPolynomial_ringFSum
+#audit_axioms CompressionLean.Final.degree_toPolynomial'
+#audit_axioms CompressionLean.Final.eq_of_dvd
+#audit_axioms CompressionLean.Final.ringSum_eq_of_dvd
+#audit_axioms CompressionLean.Final.ringFSum_apply
+#audit_axioms CompressionLean.Final.coeff_toPolynomial'
+#audit_axioms CompressionLean.Final.toPolynomial_monomial
+#audit_axioms CompressionLean.Final.toPolynomial_barRing
+#audit_axioms CompressionLean.Final.ringFMul_barRing
+#audit_axioms CompressionLean.Final.sum_columns
+#audit_axioms CompressionLean.Final.reHom_scale
+#audit_axioms CompressionLean.Final.imHom_scale
+#audit_axioms CompressionLean.Final.paddedEntry_eq
+#audit_axioms CompressionLean.Final.evaluate_coefficient
+#audit_axioms CompressionLean.Final.weight_key
+#audit_axioms CompressionLean.Final.target_key
+#audit_axioms CompressionLean.Final.weight_evalK
+#audit_axioms CompressionLean.Final.target_evalK
+#audit_axioms CompressionLean.Final.weight_evalA
+#audit_axioms CompressionLean.Final.target_evalA
+#audit_axioms CompressionLean.Final.weight_public
+#audit_axioms CompressionLean.Final.target_public
+#audit_axioms CompressionLean.Final.evalAWeight_eq
+#audit_axioms CompressionLean.Final.statementOf_point
+#audit_axioms CompressionLean.Final.coeffPoly_eq
+#audit_axioms CompressionLean.Final.barPoly_eq
+#audit_axioms CompressionLean.Final.assignmentBlock_apply
+#audit_axioms CompressionLean.Final.witnessBlock_eq
+#audit_axioms CompressionLean.Final.row_dvd
+#audit_axioms CompressionLean.Final.evalRow_coeff
+#audit_axioms CompressionLean.Final.sel_sum
+#audit_axioms CompressionLean.Final.sel_smul
+#audit_axioms CompressionLean.Final.centeredMagnitude_slotValue
+#audit_axioms CompressionLean.Final.family_ext
+#audit_axioms CompressionLean.Final.K_ext
+#audit_axioms CompressionLean.Final.entryAt_pad
+#audit_axioms CompressionLean.Final.pad_weight
+#audit_axioms CompressionLean.Final.column_lt
+#audit_axioms CompressionLean.Final.public_lt
+#audit_axioms CompressionLean.Final.rows_eq
+#audit_axioms CompressionLean.Final.chi_part
+#audit_axioms CompressionLean.Final.evalA_weight
+#audit_axioms CompressionLean.Final.pad_part
+#audit_axioms CompressionLean.Final.matrix_part
+#audit_axioms CompressionLean.Final.array_singleton
+#audit_axioms CompressionLean.Final.parent_holds
+
+/-! Axiom gate for the port of Rust's setup and sizes. -/
+
+#audit_axioms CompressionLean.Final.sum_range_getD
+#audit_axioms CompressionLean.Final.runEntry_eq
+#audit_axioms CompressionLean.Final.runRow_mem
+#audit_axioms CompressionLean.Final.mem_sortedSet
+#audit_axioms CompressionLean.Final.runList_perm
+#audit_axioms CompressionLean.Final.slotKey_eq
+#audit_axioms CompressionLean.Final.getD_idxOf
+#audit_axioms CompressionLean.Final.lists_setupOfRuns
+#audit_axioms CompressionLean.Final.readsBack_of_build
+#audit_axioms CompressionLean.Final.gl_natCast
+#audit_axioms CompressionLean.Final.honestSetup_of_build
+#audit_axioms CompressionLean.Final.parentShape_of
+
+/-! Axiom gate for end-to-end soundness for F′'s relation. -/
+
+#audit_axioms CompressionLean.Final.finalBreak_mono
+#audit_axioms CompressionLean.Final.finalRestoreBreak_mono
+#audit_axioms CompressionLean.Final.getD_flatten
+#audit_axioms CompressionLean.Final.length_flatten_uniform
+#audit_axioms CompressionLean.Final.getD_ofFn
+#audit_axioms CompressionLean.Final.word_eq
+#audit_axioms CompressionLean.Final.claimOf_parent
+#audit_axioms CompressionLean.Final.parentClaim_of_terminalClaim
+#audit_axioms CompressionLean.Final.modulus_natDegree
+#audit_axioms CompressionLean.Final.final_sound_parent
+#audit_axioms CompressionLean.Final.final_restore_budget_parent
+
+/-! Axiom gate for the soundness of the lowering. -/
+
+#audit_axioms CompressionLean.Shrink.slot_inj
+#audit_axioms CompressionLean.Shrink.Run.rows_hold
+#audit_axioms CompressionLean.Shrink.Run.blocks_hold
+#audit_axioms CompressionLean.Shrink.Run.wireValue_one
+#audit_axioms CompressionLean.Shrink.Run.wireValue_pub
+#audit_axioms CompressionLean.Circuit.combine_value
+#audit_axioms CompressionLean.Circuit.ofCall_holds
+#audit_axioms CompressionLean.Circuit.form_sound
+#audit_axioms CompressionLean.Circuit.linear_sound
+#audit_axioms CompressionLean.Circuit.mul_sound
+#audit_axioms CompressionLean.Circuit.extMul_sound
+#audit_axioms CompressionLean.Circuit.extInverse_mul
+#audit_axioms CompressionLean.Circuit.extInv_sound
+#audit_axioms CompressionLean.Circuit.assertZero_sound
+#audit_axioms CompressionLean.Circuit.bits_sound
+#audit_axioms CompressionLean.Circuit.permute_sound
+#audit_axioms CompressionLean.Circuit.step_extends
+#audit_axioms CompressionLean.Circuit.step_agrees
+#audit_axioms CompressionLean.Circuit.steps_agrees
+#audit_axioms CompressionLean.Circuit.lower_exec
+#audit_axioms CompressionLean.Circuit.lower_sound

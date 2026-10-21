@@ -118,7 +118,6 @@ pub enum ParamsError {
 
 impl NeoParams {
     #[allow(non_snake_case)]
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         q: u64,
         eta: u32,

@@ -110,7 +110,6 @@ fn validate_selected_inputs(
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn bind_and_sample_with_trace(
     transcript: &mut Poseidon2Transcript,
     trace: &mut ProtocolTrace,
@@ -356,7 +355,6 @@ fn validate_outputs(
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn verify_with_trace(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,
@@ -390,16 +388,4 @@ pub(crate) fn verify_with_trace(
         ));
     }
     Ok((final_claim == expected, trace))
-}
-
-pub fn verify(
-    transcript: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    structure: &CcsStructure<F>,
-    fresh: &[CcsClaim<Cmt, F>],
-    running: &[CeClaim<Cmt, F, K>],
-    outputs: &[CeClaim<Cmt, F, K>],
-    proof: &PiCcsProof,
-) -> Result<bool, PiCcsError> {
-    Ok(verify_with_trace(transcript, params, structure, fresh, running, outputs, proof)?.0)
 }

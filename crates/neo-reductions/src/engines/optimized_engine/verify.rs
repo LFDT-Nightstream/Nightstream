@@ -9,7 +9,7 @@ use neo_transcript::Poseidon2Transcript;
 use crate::engines::pi_ccs_joint::ProtocolTrace;
 use crate::error::PiCcsError;
 
-use super::{OptimizedStructureCache, PiCcsProof, PiCcsVerifyPerf};
+use super::PiCcsProof;
 
 pub fn optimized_verify_with_trace(
     transcript: &mut Poseidon2Transcript,
@@ -50,59 +50,4 @@ pub fn optimized_verify(
         proof,
     )?
     .0)
-}
-
-#[allow(clippy::too_many_arguments)]
-pub fn optimized_verify_with_cache(
-    transcript: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    structure: &CcsStructure<F>,
-    fresh_claims: &[CcsClaim<Cmt, F>],
-    running_claims: &[CeClaim<Cmt, F, K>],
-    outputs: &[CeClaim<Cmt, F, K>],
-    proof: &PiCcsProof,
-    cache: &OptimizedStructureCache,
-) -> Result<bool, PiCcsError> {
-    Ok(optimized_verify_with_cache_and_perf(
-        transcript,
-        params,
-        structure,
-        fresh_claims,
-        running_claims,
-        outputs,
-        proof,
-        cache,
-    )?
-    .0)
-}
-
-#[allow(clippy::too_many_arguments)]
-pub fn optimized_verify_with_cache_and_perf(
-    transcript: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    structure: &CcsStructure<F>,
-    fresh_claims: &[CcsClaim<Cmt, F>],
-    running_claims: &[CeClaim<Cmt, F, K>],
-    outputs: &[CeClaim<Cmt, F, K>],
-    proof: &PiCcsProof,
-    cache: &OptimizedStructureCache,
-) -> Result<(bool, PiCcsVerifyPerf), PiCcsError> {
-    cache.validate_structure(structure)?;
-    let started = std::time::Instant::now();
-    let (valid, _) = crate::engines::pi_ccs_joint_protocol::verify_with_trace(
-        transcript,
-        params,
-        structure,
-        fresh_claims,
-        running_claims,
-        outputs,
-        proof,
-    )?;
-    Ok((
-        valid,
-        PiCcsVerifyPerf {
-            total_ms: started.elapsed().as_secs_f64() * 1_000.0,
-            ..PiCcsVerifyPerf::default()
-        },
-    ))
 }

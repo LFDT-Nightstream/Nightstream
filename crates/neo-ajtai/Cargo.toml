@@ -10,7 +10,6 @@ workspace = true
 [features]
 default = []
 testing = []
-neo-logs = []
 wasm-threads = ["neo-ccs/wasm-threads"]
 
 [dependencies]

@@ -52,7 +52,7 @@ impl ApplicationTables {
         if shape.rows == 0
             || shape.matrices == 0
             || shape.columns == 0
-            || shape.columns % D != 0
+            || !shape.columns.is_multiple_of(D)
             || witnesses.is_empty()
             || witnesses
                 .iter()
@@ -222,7 +222,6 @@ impl ApplicationTables {
         Ok(output)
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn accumulate_pairs(
         &self,
         values: &Values,
@@ -269,7 +268,6 @@ impl ApplicationTables {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn accumulate(
         &self,
         values: &Values,
@@ -354,7 +352,6 @@ impl ApplicationTables {
         Ok(live_bytes)
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub(super) fn evals_at(
         &mut self,
         source: &dyn MatrixRows,

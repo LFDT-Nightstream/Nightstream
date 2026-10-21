@@ -26,7 +26,6 @@ OPENING_TESTS = {
 }
 # NIGHTSTREAM_CRATE_GOAL.md, current owner-approved RSS guard.
 RSS_CAP_BYTES = 16 * 1024**3
-# Same cadence as tests/evidence/nonzero-fold-20260921/run_rss_test.py.
 RSS_POLL_SECONDS = 1
 
 

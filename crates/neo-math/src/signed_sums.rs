@@ -55,6 +55,7 @@ impl SplitRing {
 pub struct SignedShiftSums {
     low: [i64; 2 * D - 1],
     high: [i64; 2 * D - 1],
+    #[cfg(debug_assertions)]
     terms: u64,
 }
 
@@ -65,6 +66,7 @@ impl SignedShiftSums {
         Self {
             low: [0; 2 * D - 1],
             high: [0; 2 * D - 1],
+            #[cfg(debug_assertions)]
             terms: 0,
         }
     }
@@ -76,11 +78,14 @@ impl SignedShiftSums {
             0,
             "signed-unit mask exceeds the ring dimension"
         );
-        self.terms += 1;
-        assert!(
-            self.terms <= MAX_TERMS,
-            "signed shift sums exceed the exact i64 term bound"
-        );
+        #[cfg(debug_assertions)]
+        {
+            self.terms += 1;
+            debug_assert!(
+                self.terms <= MAX_TERMS,
+                "signed shift sums exceed the exact i64 term bound"
+            );
+        }
         let cancelled = positive & negative;
         positive ^= cancelled;
         negative ^= cancelled;
@@ -107,11 +112,14 @@ impl SignedShiftSums {
     }
 
     pub fn add(&mut self, other: &Self) {
-        self.terms += other.terms;
-        assert!(
-            self.terms <= MAX_TERMS,
-            "signed shift sums exceed the exact i64 term bound"
-        );
+        #[cfg(debug_assertions)]
+        {
+            self.terms += other.terms;
+            debug_assert!(
+                self.terms <= MAX_TERMS,
+                "signed shift sums exceed the exact i64 term bound"
+            );
+        }
         for degree in 0..2 * D - 1 {
             self.low[degree] += other.low[degree];
             self.high[degree] += other.high[degree];

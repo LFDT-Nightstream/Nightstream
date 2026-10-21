@@ -32,6 +32,7 @@ fn native_roots_cover_empty_partial_and_multiple_blocks_at_every_position() {
         let root = opaque_value_root(SCHEMA, &words).unwrap();
         for word in 0..=4 {
             let template = ImportTemplate {
+                return_events: None,
                 events: outer(word)
                     .with_opaque(word, SCHEMA, words.iter().copied().map(SlotBinding::Const).collect())
                     .unwrap(),
@@ -75,9 +76,13 @@ fn malformed_or_nested_schedules_are_rejected() {
         .unwrap();
     let assert_rejected = |events, case: &str| {
         assert!(
-            ImportTemplate { events, input_count: 0 }
-                .validate(0, 0)
-                .is_err(),
+            ImportTemplate {
+                return_events: None,
+                events,
+                input_count: 0
+            }
+            .validate(0, 0)
+            .is_err(),
             "accepted {case}"
         );
     };
@@ -541,11 +546,11 @@ fn ccs_rejects_forged_context_roots_prefix_and_chain_updates() {
 }
 
 #[test]
-fn halted_export_is_not_terminal_until_opaque_exit_finishes() {
+fn activation_finished_export_is_not_terminal_until_opaque_exit_finishes() {
     let trace = &checked().trace;
     assert!(trace
         .iter()
-        .any(|row| row.state_after.halted && row.state_after.event_absorb.object_active));
+        .any(|row| row.state_after.activation_finished && row.state_after.event_absorb.object_active));
     for (index, row) in trace.iter().enumerate() {
         assert_eq!(row.state_after.is_terminal(), index + 1 == trace.len());
     }
@@ -553,7 +558,7 @@ fn halted_export_is_not_terminal_until_opaque_exit_finishes() {
     for mutation in 0..6 {
         let mut incomplete = final_state;
         match mutation {
-            0 => incomplete.halted = false,
+            0 => incomplete.activation_finished = false,
             1 => incomplete.event_absorb.object_active = true,
             2 => incomplete.event_absorb.perm_pending = true,
             3 => incomplete.event_absorb.perm_round = 1,
@@ -599,9 +604,13 @@ fn object_lowering_preserves_import_result_order_and_export_validation() {
             ],
         )
         .unwrap();
-    assert!(ImportTemplate { events, input_count: 0 }
-        .validate(1, 1)
-        .is_err());
+    assert!(ImportTemplate {
+        return_events: None,
+        events,
+        input_count: 0
+    }
+    .validate(1, 1)
+    .is_err());
     let events = outer(0)
         .with_opaque(0, SCHEMA, vec![SlotBinding::OutputElem { limb: Limb::Lo }])
         .unwrap();

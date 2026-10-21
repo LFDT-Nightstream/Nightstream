@@ -4,6 +4,7 @@
 //! interface columns that the base VM constrains or consumes. Poseidon and
 //! gather scratch advice remains private to `ccs::host_event_chain`.
 
+use crate::host_event_bindings::IMPORT_SCHEDULE_COUNT_BITS;
 use neo_application::define_column_region;
 
 define_column_region! {
@@ -13,6 +14,32 @@ define_column_region! {
     families: pub HOST_EVENT_COLUMN_FAMILIES,
     indices: pub,
     columns: [
+        COL_HOST_FRAME_DEPTH_BEFORE: U32 => "innermost suspended host-frame boundary before",
+        COL_HOST_FRAME_DEPTH_AFTER: U32 => "innermost suspended host-frame boundary after",
+        COL_HOST_FRAME_DEPTH_IS_ZERO: Boolean => "no suspended host frame before",
+        COL_HOST_FRAME_DEPTH_INV: Field => "inverse witness for host-frame depth",
+        COL_HOST_AWAITING_BEFORE: Boolean => "activation awaits host before",
+        COL_HOST_AWAITING_AFTER: Boolean => "activation awaits host after",
+        COL_GUEST_DEPTH_BEFORE: U32 => "guest frames above the host boundary before",
+        COL_GUEST_DEPTH_AFTER: U32 => "guest frames above the host boundary after",
+        COL_HOST_SUSPEND_PENDING_BEFORE: Boolean => "split call owes a context-save row before",
+        COL_HOST_SUSPEND_PENDING_AFTER: Boolean => "split call owes a context-save row after",
+        COL_HOST_SUSPEND: Boolean => "save the split import context",
+        COL_HOST_SPLIT_CALL: Boolean => "host call with a split template",
+        COL_HOST_RESUME: Boolean => "restore a suspended host frame and load its return schedule",
+        COL_HOST_NESTED_ENTRY: Boolean => "export entry above a suspended host frame",
+        COL_HOST_NESTED_EXIT: Boolean => "export exit above a suspended host frame",
+        COL_HOST_CONTEXT_READ: Boolean => "read suspended context at nested entry or resume",
+        COL_HOST_CONTEXT_ADDR: U32 => "suspended context call-stack address",
+        COL_HOST_CONTEXT: [U32; 9] => "saved pc, fbp, stack base, export, import, args base, parent host depth, sp, locals end",
+        COL_HOST_IMPORT_SCHEDULE_COUNTS: U32 => "packed import call/return biased counts",
+        COL_HOST_INITIAL_COUNT: (Bits(IMPORT_SCHEDULE_COUNT_BITS)) => "import call-block count plus one",
+        COL_HOST_RETURN_COUNT: (Bits(IMPORT_SCHEDULE_COUNT_BITS)) => "zero for atomic, otherwise one plus the import return-schedule length",
+        COL_HOST_RETURN_COUNT_IS_ZERO: Boolean => "selected import is atomic",
+        COL_HOST_RETURN_COUNT_INV: Field => "inverse witness for return count",
+        COL_HOST_CLEAR_ACTIVATION_FINISHED: Boolean => "entry or resume clears the previous activation-finished flag",
+        COL_HOST_RESUME_POP: U32 => "argument cells released by resume",
+
         COL_OBJECT_ACTIVE_BEFORE: Boolean => "static opaque object active before this row",
         COL_OBJECT_ACTIVE_AFTER: Boolean => "static opaque object active after this row",
         COL_OUTER_CHAIN_BEFORE: [Field; 4] => "suspended outer chain before this row",
@@ -69,17 +96,17 @@ define_column_region! {
         COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT: Field =>
             "host-event ROM initial-schedule count for the called import or entered export (biased +1; reread to offset export-exit indices)",
         COL_HOST_EVENT_EXIT_SCHEDULE_COUNT: Field =>
-            "host-event ROM exit-schedule count for the halting export",
+            "host-event ROM exit-schedule count for the returning export",
         COL_GATHER_LOCAL_WRITE: Boolean =>
             "gather row writing an input word into an entry-frame locals lane (input-local slot); gates the hi-lane write (zero on lo rows)",
         COL_GATHER_LOCAL_WRITE_LO: Boolean =>
             "input-local gather row targeting the lo lane: gather_local_write · (1 - slot_variant)",
         COL_HOST_EVENT_EXIT_LATCH: Boolean =>
-            "clean export-halt row: loads the export's exit-event schedule",
+            "clean activation-return row: loads the export's exit-event schedule",
         COL_TURN_BOUNDARY: Boolean =>
             "multi-turn re-entry row: re-arms the output, loads the next export's entry schedule, jumps to its entry pc",
         COL_PC_FREF_ACTIVE: Boolean =>
-            "pc -> function-ref ROM gate: every row except gather rows (post-halt exit gathers sit past the last pc)",
+            "pc -> function-ref ROM gate: every row except gather rows (post-return exit gathers sit past the last pc)",
         COL_CI_HOST_CALL: Boolean => "non-trapping call_indirect row targeting a host import",
     ]
 }

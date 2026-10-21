@@ -9,8 +9,7 @@
 
 use crate::comm_chain::{perm_row_checkpoints, COMM_CHAIN_BLOCK_WORDS, COMM_CHAIN_PERM_ROWS};
 use crate::host_event_bindings::{
-    expand_import_events, memory_rom_arg_variant, opaque_control_encoding, EventBlock, ImportTemplate, Limb,
-    MemoryBase, SlotBinding,
+    expand_import_phase, memory_rom_arg_variant, opaque_control_encoding, EventBlock, Limb, MemoryBase, SlotBinding,
 };
 use crate::ir::{
     LinearMemoryAccess, StackValueAccess, WasmAuxOpcode, WasmBuildError, WasmCountdownState, WasmEventAbsorbState,
@@ -29,6 +28,7 @@ use super::memory::LinearMemoryImage;
 /// for arg slots, a stack WRITE for result slots (the Lo slot is the push,
 /// the Hi slot writes only the cell's hi word; the inactive lane is zero),
 /// an entry-frame locals access, or one static linear-memory access.
+#[derive(Clone)]
 pub(super) struct EventSlotRow {
     pub(super) value: u64,
     pub(super) rom: crate::ir::WasmHostEventRomEntry,
@@ -40,6 +40,7 @@ pub(super) struct EventSlotRow {
 }
 
 /// One ROM group's slot plans and absorb policy. Enter ends a prefix group early.
+#[derive(Clone)]
 pub(super) struct EventBlockPlan {
     pub(super) rows: Vec<EventSlotRow>,
     /// Whether the staged block enters the transcript.
@@ -56,8 +57,8 @@ pub(super) struct ResolvedEventMemory {
     pub(super) accesses: Vec<LinearMemoryAccess>,
 }
 
-pub(super) fn plan_import_call(
-    template: &ImportTemplate,
+pub(super) fn plan_import_phase(
+    events: &[EventBlock],
     args_base: u64,
     args: &[(u32, u32)],
     result: Option<(u32, u32)>,
@@ -65,23 +66,16 @@ pub(super) fn plan_import_call(
     memory_pages: Option<u32>,
     memory: &mut LinearMemoryImage,
 ) -> Result<HostCallEventPlan, WasmBuildError> {
-    let resolved_memory = resolve_import_memory(template, args, inputs, memory_pages, memory)?;
-    let blocks = expand_import_events(template, args, result, inputs, &resolved_memory.reads)?;
+    let resolved_memory = resolve_import_memory(events, args, inputs, memory_pages, memory)?;
+    let blocks = expand_import_phase(events, args, result, inputs, &resolved_memory.reads)?;
     Ok(HostCallEventPlan {
-        blocks: plan_event_blocks(
-            &template.events,
-            &blocks,
-            args_base,
-            args,
-            result,
-            &resolved_memory.accesses,
-        )?,
+        blocks: plan_event_blocks(events, &blocks, args_base, args, result, &resolved_memory.accesses)?,
         args_base,
     })
 }
 
 fn resolve_import_memory(
-    template: &ImportTemplate,
+    events: &[EventBlock],
     import_args: &[(u32, u32)],
     inputs: &[u64],
     memory_pages: Option<u32>,
@@ -89,7 +83,7 @@ fn resolve_import_memory(
 ) -> Result<ResolvedEventMemory, WasmBuildError> {
     let mut reads = Vec::new();
     let mut accesses = Vec::new();
-    for source in template.events.iter().flat_map(|event| &event.block) {
+    for source in events.iter().flat_map(|event| &event.block) {
         match *source {
             SlotBinding::MemoryRead32 { base, byte_offset } => {
                 let MemoryBase::Arg(arg) = base else {
@@ -624,9 +618,9 @@ pub(super) struct HostEventRowContext {
     pub(super) host_callee_fref: u32,
     pub(super) current_function_ref: u32,
     pub(super) current_function_num_locals: u32,
-    /// The carried halted latch on both sides of these aux rows (true for
-    /// post-halt exit gathers, false mid-turn).
-    pub(super) halted: bool,
+    /// The carried activation_finished latch on both sides of these aux rows (true for
+    /// post-return exit gathers, false mid-turn).
+    pub(super) activation_finished: bool,
 }
 
 impl HostEventRowContext {
@@ -645,7 +639,7 @@ impl HostEventRowContext {
             memory_pages: self.memory_pages,
             max_memory_pages: self.max_memory_pages,
             locals_fbp: self.locals_fbp,
-            halted: self.halted,
+            activation_finished: self.activation_finished,
             trapped: false,
             param_init: WasmCountdownState::ZERO,
             local_zero: WasmCountdownState::ZERO,
@@ -709,6 +703,8 @@ impl HostEventRowContext {
             call_result_count: None,
             call_stack_push: None,
             call_stack_pop: None,
+            host_context: None,
+            host_event_return_schedule_count: None,
             host_event_rom_slot: None,
             host_event_initial_schedule_count: None,
             host_event_exit_schedule_count: None,
@@ -838,6 +834,8 @@ pub(super) fn emit_block_plan(
             local_write_value_hi: slot
                 .local_write
                 .map(|(_, limb, value)| if limb == 0 { 0 } else { value }),
+            host_context: None,
+            host_event_return_schedule_count: None,
             host_event_rom_slot: Some(slot.rom),
             ..ctx.row(
                 out.len() as u64,

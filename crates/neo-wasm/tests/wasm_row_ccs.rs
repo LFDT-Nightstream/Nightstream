@@ -1016,14 +1016,14 @@ fn structured_end_row_is_accepted() {
     );
     let row = trace
         .iter()
-        .find(|row| row.opcode == WasmOpcode::End && !row.state_after.halted)
+        .find(|row| row.opcode == WasmOpcode::End && !row.state_after.activation_finished)
         .expect("structured end row");
     assert_eq!(row.pc_edge_kind, WasmPcEdgeKind::Static);
     assert_satisfied(&build_witness_vector(row), "structured end row");
 }
 
 #[test]
-fn return_row_requires_halted_boundary() {
+fn return_row_requires_activation_finished_boundary() {
     let row = build_witness_vector(&step(
         0,
         9,
@@ -1038,7 +1038,7 @@ fn return_row_requires_halted_boundary() {
         0,
         false,
     ));
-    assert_rejected(&row, "return row with halted=0");
+    assert_rejected(&row, "return row with activation_finished=0");
 }
 
 #[test]

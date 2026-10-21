@@ -231,7 +231,12 @@ fn host_events_use_linear_memory(bindings: &HostEventBindings) -> bool {
     bindings
         .imports
         .values()
-        .flat_map(|template| &template.events)
+        .flat_map(|template| {
+            template
+                .events
+                .iter()
+                .chain(template.return_events.iter().flatten())
+        })
         .chain(
             bindings
                 .exports

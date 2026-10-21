@@ -11,6 +11,7 @@ mod call;
 pub mod host_event_chain;
 mod linear_memory;
 mod memory_pages;
+pub(crate) mod reentry;
 mod stack_io;
 mod trap;
 
@@ -30,16 +31,16 @@ use super::layout::{
 use super::relation_layout::{build_wasm_relation_layout, SignExtensionColumns};
 use super::tagged_r1cs_builder::{WasmConstraintScope, WasmConstraintTag, WasmR1csBuilder, WasmTaggedR1csBuilder};
 use crate::layout::{
-    COL_CALL_INDIRECT_IS_TRAP, COL_CALL_STACK_POP_PRESENT, COL_CMP_AND, COL_DIV_TRAP, COL_GATHER_ACTIVE,
-    COL_GLOBAL_VALUE_HI, COL_HALTED, COL_HALTED_BEFORE, COL_IS_PROGRAM_ROW, COL_LOCAL_VALUE_HI, COL_MEM_OOB,
-    COL_OPCODE_CODE, COL_OP_TABLE_ENABLED, COL_OP_TABLE_ID, COL_OP_TABLE_VALUE, COL_OUTPUT_CAPTURED,
-    COL_PARAM_INIT_ACTIVE_BEFORE, COL_PC_EDGE_KIND_INV, COL_PC_EDGE_KIND_IS_STATIC, COL_PC_ROM_ACTIVE,
-    COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE, COL_PROGRAM_GLOBAL_INDEX_ACTIVE, COL_PROGRAM_LOCAL_INDEX_ACTIVE,
-    COL_PROGRAM_TABLE_ID_ACTIVE, COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV, COL_SEL_SELECT, COL_SP_AFTER,
-    COL_SP_BEFORE, COL_STACK_READS, COL_STACK_READ_ACTIVE, COL_STACK_READ_ADDR_HI, COL_STACK_READ_ADDR_LO,
-    COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI,
-    COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES,
-    COL_WIDE_VALUES_ENABLED, COL_ZERO_TEST_HI_INPUT, COL_ZERO_TEST_HI_INV, COL_ZERO_TEST_HI_IS_ZERO,
+    COL_ACTIVATION_FINISHED_AFTER, COL_ACTIVATION_FINISHED_BEFORE, COL_CALL_INDIRECT_IS_TRAP,
+    COL_CALL_STACK_POP_PRESENT, COL_CMP_AND, COL_DIV_TRAP, COL_GATHER_ACTIVE, COL_GLOBAL_VALUE_HI, COL_IS_PROGRAM_ROW,
+    COL_LOCAL_VALUE_HI, COL_MEM_OOB, COL_OPCODE_CODE, COL_OP_TABLE_ENABLED, COL_OP_TABLE_ID, COL_OP_TABLE_VALUE,
+    COL_OUTPUT_CAPTURED, COL_PARAM_INIT_ACTIVE_BEFORE, COL_PC_EDGE_KIND_INV, COL_PC_EDGE_KIND_IS_STATIC,
+    COL_PC_ROM_ACTIVE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE, COL_PROGRAM_GLOBAL_INDEX_ACTIVE,
+    COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE, COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV,
+    COL_SEL_SELECT, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READS, COL_STACK_READ_ACTIVE, COL_STACK_READ_ADDR_HI,
+    COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ACTIVE,
+    COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO,
+    COL_STACK_WRITES, COL_WIDE_VALUES_ENABLED, COL_ZERO_TEST_HI_INPUT, COL_ZERO_TEST_HI_INV, COL_ZERO_TEST_HI_IS_ZERO,
     COL_ZERO_TEST_LO_INPUT, COL_ZERO_TEST_LO_INV, COL_ZERO_TEST_LO_IS_ZERO,
 };
 use neo_application::{ApplicationRelation, ConditionalSelect, ZeroTest};
@@ -250,20 +251,29 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
     });
 
     call::push_call_constraints(&mut b);
+    reentry::push_constraints(&mut b);
 
-    b.with_tag(always("halted state transition"), |b| {
-        // No decoded instruction may execute after the carried state halted.
-        b.push_row([(COL_IS_PROGRAM_ROW, F::ONE)], [(COL_HALTED_BEFORE, F::ONE)], []);
+    b.with_tag(always("activation_finished state transition"), |b| {
+        // No decoded instruction may execute after the current activation finishes.
+        b.push_row(
+            [(COL_IS_PROGRAM_ROW, F::ONE)],
+            [(COL_ACTIVATION_FINISHED_BEFORE, F::ONE)],
+            [],
+        );
         // Auxiliary rows, including fixed-shape padding, preserve
-        // terminality — except a turn boundary, which clears the latch to
-        // re-enter the next export (see `ccs/call.rs`).
+        // activation completion — except a turn boundary, which clears the latch to
+        // enter an export, or resume restores its suspended caller.
         b.push_row(
             [
                 (COL_ONE, F::ONE),
                 (COL_IS_PROGRAM_ROW, -F::ONE),
                 (super::layout::COL_TURN_BOUNDARY, -F::ONE),
+                (super::layout::COL_HOST_RESUME, -F::ONE),
             ],
-            [(COL_HALTED, F::ONE), (COL_HALTED_BEFORE, -F::ONE)],
+            [
+                (COL_ACTIVATION_FINISHED_AFTER, F::ONE),
+                (COL_ACTIVATION_FINISHED_BEFORE, -F::ONE),
+            ],
             [],
         );
     });
@@ -344,8 +354,9 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
         (host_event_chain::gather_memory_local_base_col(), F::ONE),
         (host_event_chain::gather_memory_output_base_col(), F::ONE),
         (super::layout::COL_OUTPUT_CAPTURED, F::ONE),
-        // Bound host calls pop their args on the call row itself.
+        // Atomic host calls pop args on the call row; split imports pop them at resume.
         (host_event_chain::host_call_params_col(), F::ONE),
+        (super::layout::COL_HOST_RESUME_POP, F::ONE),
     ]);
     b.with_tag(always("fixed stack arity"), |b| {
         b.push_row(fixed_stack_arity_gate_terms(), fixed_stack_reads_terms(), []);
@@ -373,20 +384,20 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
         // Edge kind encodes the next-PC source:
         // 0 = static pc ROM, 1 = return-like, 2 = call_indirect target,
         // 3 = terminal unreachable. Return-like rows are identified by
-        // the transition into `halted` for the final frame and by
+        // the transition into `activation_finished` for the final frame and by
         // `call_stack_pop_present` for
         // non-final returns; the latter intentionally covers both explicit
         // `return` and a callee's function-ending `end`. A div trap row
         // halts but keeps its Static edge kind, and a call_indirect trap
         // row halts but keeps its DynamicCallIndirect edge kind (the per-pc
-        // edge-kind ROM binds both); the -trap terms absorb their `halted`
-        // contributions. A turn boundary clears the latch (its own rules pin
-        // halted_before = 1, halted = 0), so +TB cancels that -1 delta.
+        // edge-kind ROM binds both); the -trap terms absorb their `activation_finished`
+        // contributions. Entry/resume can clear the latch; the authenticated
+        // clear flag cancels that delta only when the latch was set.
         b.push_linear_zero(
             [
-                (COL_HALTED, F::ONE),
-                (COL_HALTED_BEFORE, -F::ONE),
-                (super::layout::COL_TURN_BOUNDARY, F::ONE),
+                (COL_ACTIVATION_FINISHED_AFTER, F::ONE),
+                (COL_ACTIVATION_FINISHED_BEFORE, -F::ONE),
+                (super::layout::COL_HOST_CLEAR_ACTIVATION_FINISHED, F::ONE),
                 (COL_CALL_STACK_POP_PRESENT, F::ONE),
                 (COL_PC_EDGE_KIND, -F::ONE),
                 (selector_col(WasmOpcode::CallIndirect).unwrap(), F::from_u64(2)),

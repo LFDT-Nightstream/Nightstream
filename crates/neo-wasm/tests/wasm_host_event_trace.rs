@@ -33,6 +33,7 @@ fn test_bindings(mul_fref: u32, sink_fref: u32) -> HostEventBindings {
     bindings.imports.insert(
         mul_fref,
         ImportTemplate {
+            return_events: None,
             events: vec![
                 EventBlock::op(MUL_ARGS_TAG, slots(&[(0, arg(0, Limb::Lo)), (1, arg(1, Limb::Lo))])),
                 // The ResultElem Lo slot is the gather row that pushes the
@@ -52,6 +53,7 @@ fn test_bindings(mul_fref: u32, sink_fref: u32) -> HostEventBindings {
     bindings.imports.insert(
         sink_fref,
         ImportTemplate {
+            return_events: None,
             events: vec![EventBlock::op(SINK_TAG, slots(&[(0, arg(0, Limb::Lo))]))],
             input_count: 0,
         },
@@ -208,6 +210,7 @@ fn i64_result_lane_writes() {
     bindings.imports.insert(
         frefs[0],
         ImportTemplate {
+            return_events: None,
             events: vec![
                 EventBlock::op(
                     3,
@@ -328,6 +331,7 @@ fn advice_import_pushes_without_absorbing() {
     bindings.imports.insert(
         frefs[0],
         ImportTemplate {
+            return_events: None,
             events: vec![EventBlock::advice(advice_block)],
             input_count: 0,
         },
@@ -335,6 +339,7 @@ fn advice_import_pushes_without_absorbing() {
     bindings.imports.insert(
         frefs[1],
         ImportTemplate {
+            return_events: None,
             events: vec![EventBlock::op(SINK_TAG, slots(&[(0, arg(0, Limb::Lo))]))],
             input_count: 0,
         },
@@ -601,6 +606,8 @@ fn ccs_forces_untemplated_import_into_poisoned_schedule() {
     // An undeclared import's cell is 0; a normal schedule can't load from it.
     let mut forged = witness.clone();
     forged[neo_wasm::layout::COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT] = neo_math::F::ZERO;
+    forged[neo_wasm::layout::COL_HOST_INITIAL_COUNT] = neo_math::F::ZERO;
+    forged[neo_wasm::layout::COL_HOST_IMPORT_SCHEDULE_COUNTS] = neo_math::F::ZERO;
     common::assert_rejected(&forged, "untemplated import call claiming a normal schedule");
 
     // The poisoned schedule satisfies the row itself. The composed circuit's

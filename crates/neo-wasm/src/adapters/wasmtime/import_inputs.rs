@@ -11,6 +11,7 @@ use std::collections::BTreeMap;
 #[derive(Debug)]
 pub(super) struct PendingImport {
     pub(super) row: usize,
+    pub(super) split: bool,
     // Host-to-guest activations, not guest call depth. Reentry adds an activation.
     pub(super) activation_depth: usize,
     pub(super) function_index: u32,
@@ -36,9 +37,6 @@ impl PendingImport {
         else {
             return Ok(None);
         };
-        if template.input_count == 0 {
-            return Ok(None);
-        }
         let function_index = row.function_index.ok_or_else(|| {
             WasmBuildError::Trace(format!(
                 "missing caller function index for host call at step {}",
@@ -46,7 +44,7 @@ impl PendingImport {
             ))
         })?;
         let return_pc = row
-            .call_return_pc
+            .pc_after_instruction
             .ok_or_else(|| WasmBuildError::Trace(format!("missing return PC for host call at step {}", row.step)))?;
         let writes = (|| {
             let count = row
@@ -66,9 +64,18 @@ impl PendingImport {
                     )
                 })
                 .collect();
-            import_memory_writes(template, &args, row.memory_pages_before)
+            // Reentrant guest invocations may grow memory before the host writes. Resolve
+            // wasm32 addresses now; live capture and replay check return bounds.
+            let pages = if template.is_split() {
+                row.memory_pages_before
+                    .map(|_| super::parse::WASM32_MAX_PAGES)
+            } else {
+                row.memory_pages_before
+            };
+            import_memory_writes(template, &args, pages)
         })();
         Ok(Some(Self {
+            split: template.is_split(),
             row: row.step as usize,
             activation_depth,
             function_index,
@@ -85,7 +92,11 @@ fn import_memory_writes(
     pages: Option<u32>,
 ) -> Result<Vec<MemoryInputWrite>, WasmBuildError> {
     memory_input_writes(
-        &template.events,
+        if template.is_split() {
+            template.return_events.as_deref().unwrap()
+        } else {
+            &template.events
+        },
         |base| {
             let MemoryBase::Arg(arg) = base else {
                 return Err(WasmBuildError::Trace(

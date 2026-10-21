@@ -97,11 +97,9 @@ impl AjtaiSModule {
     pub fn from_global() -> Result<Self, AjtaiError> {
         Ok(Self::new(get_global_pp()?))
     }
-    /// Pick the PP that matches (d,m).
     pub fn from_global_for_dims(d: usize, m: usize) -> Result<Self, AjtaiError> {
         Ok(Self::new(get_global_pp_for_dims(d, m)?))
     }
-    /// Pick the PP that matches `z_len = d*m`.
     pub fn from_global_for_z_len(z_len: usize) -> Result<Self, AjtaiError> {
         Ok(Self::new(get_global_pp_for_z_len(z_len)?))
     }

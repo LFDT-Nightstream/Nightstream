@@ -47,7 +47,7 @@ impl RunningInstance {
         self.claims.len() == self.witnesses.len()
     }
     pub(crate) fn canonical_zero(pp: &Params, s: &Structure, m_in: usize) -> Result<Self, &'static str> {
-        if m_in > s.m || m_in % D != 0 {
+        if m_in > s.m || !m_in.is_multiple_of(D) {
             return Err("canonical zero public input shape");
         }
         let ell = s
@@ -73,7 +73,7 @@ impl RunningInstance {
     }
 }
 pub(crate) fn superneo_has_canonical_x_shape(x: &Mat<F>, m_in: usize) -> bool {
-    m_in % D == 0 && x.rows() == D && x.cols() == superneo_public_x_cols(m_in)
+    m_in.is_multiple_of(D) && x.rows() == D && x.cols() == superneo_public_x_cols(m_in)
 }
 pub fn ajtai_rlc_mixer(rhos: &[Mat<F>], commits: &[Commitment]) -> Commitment {
     debug_assert!(!commits.is_empty(), "commit_mix: empty commitments");

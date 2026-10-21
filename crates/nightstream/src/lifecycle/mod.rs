@@ -18,19 +18,24 @@ mod complete;
 mod encoding;
 mod evaluation;
 mod extend;
+mod finish;
 mod inputs;
 mod prove;
 mod step_inputs;
+mod terminal;
 mod verify;
 pub use complete::{CompleteStepError, Stage1Envelope};
 pub use encoding::ProofCodecError;
 pub use extend::ExtendError;
+pub use finish::{CompressionError, CompressionKey, CompressionSetup, FinalProof};
 pub use inputs::{
     encode_pi_ccs_v1_2_public_input, pi_ccs_v1_2_prior_children, pi_ccs_v1_2_state_hash,
     serialize_pi_ccs_v1_2_state_preimage, PiCcsV1_2PackageBridgeError, PiCcsV1_2ProofInputs,
 };
 pub use prove::ProveError;
 pub use step_inputs::{Stage1State, Stage1StepInputs, StepInputError};
+#[cfg(test)]
+pub(crate) use terminal::{package as terminal_package, TERMINAL_PACKAGE_IDENTIFIER};
 pub use verify::VerifyError;
 
 pub struct PreparedLifecycle {
@@ -124,6 +129,10 @@ const _: () = assert!(D == PI_CCS_V1_2_COEFFICIENT_COUNT);
 
 /// The selected profile carries exactly one fresh instance per active proof.
 #[derive(Clone, Debug)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "one per lifecycle; a box adds only an allocation"
+)]
 enum ProofState {
     Initial,
     Active {

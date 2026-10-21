@@ -316,14 +316,6 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> SparseCache<Ff> {
     }
 
     #[inline]
-    pub fn len(&self) -> usize {
-        match &self.source {
-            SparseCacheSource::Owned(csc) => csc.len(),
-            SparseCacheSource::Shared(structure) => structure.matrices.len(),
-        }
-    }
-
-    #[inline]
     pub fn csc(&self, j: usize) -> Option<&CscMat<Ff>> {
         match &self.source {
             SparseCacheSource::Owned(csc) => csc.get(j).and_then(|matrix| matrix.as_ref()),

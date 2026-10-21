@@ -1,6 +1,7 @@
 use super::*;
 use crate::lifecycle::tests::{claim, commitment, fields as input_fields, proof as fixture_proof};
 
+#[allow(clippy::duplicate_mod)]
 #[path = "golden_ccs_mutations.rs"]
 mod mutations;
 

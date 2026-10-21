@@ -267,3 +267,21 @@ kernel void production_ajtai_sum_groups(
     }
     output[index] = value;
 }
+
+// One key row's part of Σ_i λ_i·a_i: out[3e + c] = (out[3e + c] +) λ[c]·row[e]
+// for every coefficient e < shape[0]; shape[1] = 1 starts the sum. λ is a
+// cubic-extension value given as its three base coordinates.
+kernel void production_key_weights(
+    device const ulong *row [[buffer(0)]],
+    device ulong *out [[buffer(1)]],
+    device const ulong *power [[buffer(2)]],
+    device const ulong *shape [[buffer(3)]],
+    uint index [[thread_position_in_grid]]) {
+    ulong value = row[index];
+    bool first = shape[1] != 0;
+    for (uint c = 0; c < 3; ++c) {
+        ulong term = gl_mul(value, power[c]);
+        ulong at = 3 * (ulong)index + c;
+        out[at] = first ? term : gl_add(out[at], term);
+    }
+}

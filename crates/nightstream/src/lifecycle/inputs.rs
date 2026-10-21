@@ -27,7 +27,7 @@ const STATE_DOMAIN_TAG: &[u8; 23] = b"HyperNova/NIVC/state/v2";
 const STATE_DOMAIN_WORDS: usize = 12;
 /// Lean `stateDomainChunk`: the tag bytes, little-endian, zero-padded to one
 /// full sponge rate.
-const STATE_DOMAIN_CHUNK: [u64; STATE_DOMAIN_WORDS] = {
+pub(crate) const STATE_DOMAIN_CHUNK: [u64; STATE_DOMAIN_WORDS] = {
     let mut words = [0; STATE_DOMAIN_WORDS];
     let mut index = 0;
     while index < STATE_DOMAIN_TAG.len() {
@@ -36,6 +36,11 @@ const STATE_DOMAIN_CHUNK: [u64; STATE_DOMAIN_WORDS] = {
     }
     words
 };
+/// A state preimage ends with the verifier context (4 words), then the
+/// statement: the iteration, `z0` (4) and the current state (4).
+pub(crate) const STATE_STATEMENT_WORDS: usize = 9;
+/// Where the verifier context starts in a state preimage.
+pub(crate) const STATE_CONTEXT_START: usize = PI_CCS_V1_2_STATE_PREIMAGE_WORDS - STATE_STATEMENT_WORDS - 4;
 const COMMITMENT_WIDTH: usize = PI_CCS_V1_2_FRESH_COMMITMENT_WORDS / PI_CCS_V1_2_COEFFICIENT_COUNT;
 /// Three parent coordinates share one state word in radix `2^17`.
 const PACK_RADIX: u64 = 1 << 17;

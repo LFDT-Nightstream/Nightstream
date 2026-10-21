@@ -137,8 +137,8 @@ impl SuperneoMatrixCache {
             offsets.push(0);
             for row in row_start..row_end {
                 for rb in self.expanded_row_blocks(row) {
-                    let re_form = weighted_projection_form_from_orig(&rb.orig, &basis_re_forms);
-                    let im_form = weighted_projection_form_from_orig(&rb.orig, &basis_im_forms);
+                    let re_form = weighted_projection_form_from_orig(&rb.orig, basis_re_forms);
+                    let im_form = weighted_projection_form_from_orig(&rb.orig, basis_im_forms);
                     if is_all_zero(&re_form.0) && is_all_zero(&im_form.0) {
                         continue;
                     }

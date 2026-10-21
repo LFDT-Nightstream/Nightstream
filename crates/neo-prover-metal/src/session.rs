@@ -21,7 +21,11 @@ use crate::{
     PoseidonDigest, PoseidonHashVariant, PoseidonState, BUFFER_LIMIT_BYTES,
 };
 
+mod dft;
+mod gkr;
 mod joint;
+mod merkle;
+pub use gkr::MetalGkrLayer;
 mod masks;
 mod production_commitment;
 mod rlc;
@@ -65,12 +69,19 @@ pub struct MetalSession {
     poseidon2_hash_simd: Pipeline,
     poseidon2_hash_uniform: Pipeline,
     poseidon2_hash_uniform_simd: Pipeline,
+    poseidon2_hash_rows_overwrite: Pipeline,
     poseidon2_constants: Buffer,
     // Ajtai commitment pipelines.
     ajtai_mat_vec: Pipeline,
     ajtai_low_norm_products: Pipeline,
     ajtai_reduce_columns: Pipeline,
     production_key_row: Pipeline,
+    production_key_weights: Pipeline,
+    dft_twiddles: Pipeline,
+    dft_dif_pass: Pipeline,
+    dft_bit_reverse: Pipeline,
+    gkr_message: Pipeline,
+    gkr_fold: Pipeline,
     production_ajtai_accumulate: Pipeline,
     production_ajtai_sum_groups: Pipeline,
     fold_k_table: Pipeline,
@@ -106,6 +117,13 @@ pub struct MetalSession {
     production_key: Option<Mutex<production_commitment::ResidentKeyRows>>,
     activity: ActivityCounters,
 }
+
+// SAFETY: the session owns a device, command queues, pipelines and buffers,
+// which Apple documents as safe to retain, release and use from any thread;
+// its other state is atomics and a mutex. Every command buffer and encoder
+// is created, used and dropped inside one call. So the session may move
+// between threads; callers that share it still serialize calls (a mutex).
+unsafe impl Send for MetalSession {}
 
 /// Resident Ajtai matrix and reduction scratch reused across commitments.
 pub struct MetalAjtaiLowNormPlan {
@@ -153,11 +171,18 @@ impl MetalSession {
         let poseidon2_hash_simd = pipeline(&device, &library, "poseidon2_hash_fields_simd")?;
         let poseidon2_hash_uniform = pipeline(&device, &library, "poseidon2_hash_uniform")?;
         let poseidon2_hash_uniform_simd = pipeline(&device, &library, "poseidon2_hash_uniform_simd")?;
+        let poseidon2_hash_rows_overwrite = pipeline(&device, &library, "poseidon2_hash_rows_overwrite")?;
         let poseidon2_constants = buffer_from_slice(&device, &poseidon2_round_constants())?;
         let ajtai_mat_vec = pipeline(&device, &library, "ajtai_mat_vec")?;
         let ajtai_low_norm_products = pipeline(&device, &library, "ajtai_low_norm_products")?;
         let ajtai_reduce_columns = pipeline(&device, &library, "ajtai_reduce_columns")?;
         let production_key_row = pipeline(&device, &library, "production_key_row")?;
+        let production_key_weights = pipeline(&device, &library, "production_key_weights")?;
+        let dft_twiddles = pipeline(&device, &library, "dft_twiddles")?;
+        let dft_dif_pass = pipeline(&device, &library, "dft_dif_pass")?;
+        let dft_bit_reverse = pipeline(&device, &library, "dft_bit_reverse")?;
+        let gkr_message = pipeline(&device, &library, "gkr_message")?;
+        let gkr_fold = pipeline(&device, &library, "gkr_fold")?;
         let production_ajtai_accumulate = pipeline(&device, &library, "production_ajtai_accumulate")?;
         let production_ajtai_sum_groups = pipeline(&device, &library, "production_ajtai_sum_groups")?;
         let fold_k_table = pipeline(&device, &library, "fold_k_table")?;
@@ -201,11 +226,18 @@ impl MetalSession {
             poseidon2_hash_simd,
             poseidon2_hash_uniform,
             poseidon2_hash_uniform_simd,
+            poseidon2_hash_rows_overwrite,
             poseidon2_constants,
             ajtai_mat_vec,
             ajtai_low_norm_products,
             ajtai_reduce_columns,
             production_key_row,
+            production_key_weights,
+            dft_twiddles,
+            dft_dif_pass,
+            dft_bit_reverse,
+            gkr_message,
+            gkr_fold,
             production_ajtai_accumulate,
             production_ajtai_sum_groups,
             fold_k_table,
@@ -980,6 +1012,20 @@ impl MetalSession {
     fn finish(&self, command: &ProtocolObject<dyn MTLCommandBuffer>) -> Result<(), MetalError> {
         self.activity.host_waits.fetch_add(1, Ordering::Relaxed);
         finish(command)
+    }
+
+    /// `read_buffer` with the copy split over the CPU cores.
+    fn read_buffer_parallel<T: Copy + Send + Sync>(
+        &self,
+        buffer: &ProtocolObject<dyn MTLBuffer>,
+        len: usize,
+    ) -> Vec<T> {
+        use rayon::prelude::*;
+        self.activity
+            .downloaded_bytes
+            .fetch_add((len * size_of::<T>()) as u64, Ordering::Relaxed);
+        let source = unsafe { std::slice::from_raw_parts(buffer.contents().as_ptr().cast::<T>(), len) };
+        source.par_iter().copied().collect()
     }
 
     fn read_buffer<T: Copy>(&self, buffer: &ProtocolObject<dyn MTLBuffer>, len: usize) -> Vec<T> {

@@ -5,6 +5,7 @@ Library users need these saved artifacts:
 | `shared-verifier-v1.json` | Included by the `nightstream` Rust build. Declares mandatory components, application ports, dimensions, and relocation rules. |
 | `nightstream-fprime-stage1-poseidon2-hash-chain-v1.json` | Included in this package. Pass these bytes to `Circuit::compile` as verifier configuration. |
 | `shared-formulas-v1.json` | Included by the `nightstream-fprime` dependency's Rust build. Supplies the shared Poseidon2 and Phi81 formulas. |
+| `compression-terminal-v1.json` | Included by the `nightstream` Rust build. The Lean terminal package that the final verifier checks (`formal/compression-lean`); `IDENTIFIER` in `src/lifecycle/terminal/package.rs` pins it. |
 
 Application preparation, proving, verification, and Rust builds do not run
 Lean. The selected blueprint is required even for a different Rust application:
@@ -12,7 +13,8 @@ the assembler retains its shared verifier and replaces only its application.
 It checks the original package and key identities before that replacement.
 
 In this repository, the blueprint path is a symbolic link to the existing
-file under `formal/nightstream-fprime/artifacts`. This avoids another large
+file under `formal/nightstream-fprime/artifacts`, and the terminal package
+path is one to `formal/compression-lean/artifacts`. This avoids another large
 copy in Git. The explicit Cargo `include` list includes the artifact, and
 [Cargo packaging replaces symbolic links with their target files](https://doc.rust-lang.org/cargo/commands/cargo-package.html).
 An extracted Cargo package therefore contains the JSON file and needs no

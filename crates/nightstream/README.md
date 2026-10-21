@@ -321,7 +321,44 @@ The exported row and domain checks also apply. See the
 
 The selected profile remains `b = 2`, `k_rho = 16`, `B = 2^16`, with one fresh
 claim and sixteen carried claims. Terminal verification checks all remaining
-openings. A production compression backend is outside this crate goal.
+openings.
+
+`Prover::finish_with_spartan` compresses an active proof on the Optimized or
+Metal engine. It runs PiCCS and PiRLC once more and stops before PiDEC
+(SuperNeo Lemma 1). The `neo-spartan`
+crate then proves the folded CE(B) claim with sum-checks and WHIR (layer 1).
+Last, a shrink layer proves that the final verifier accepts both, with
+SuperSpartan and one WHIR commitment. The final verifier's PiCCS, PiRLC and
+prior-state hash are the F′ rows themselves: `formal/compression-lean` takes
+them from the F′ Stage 1 package without change and proves what they imply.
+The crate embeds that artifact and pins its identifier. The rest of the final
+verifier (statement, layer 1) is written once over `neo_spartan::Backend`.
+The final proof carries no witness. Compression needs a one-time setup per
+circuit: `Prover::compression_setup` writes the setup files (about 29 GB for
+the production package) and returns the setup, whose `CompressionKey` is
+1,988 bytes. `Verifier::verify_final` checks a final proof with that key and
+the embedded terminal package: no files, no commitment key, no matrix rows.
+It first refuses a key of another circuit or below the verifier's security
+minimum. The first verification in a process loads the package (about 6 s).
+Take the key from `Verifier::compression_key` (about 60 s, no files) or from
+a copy you pinned; never from a prover. In the
+production test, one fold gives a final proof of about 129-130 KB
+(`FinalProof::to_bytes`; the shrink's proof-of-work changes the size a
+little), against 221,738,816 bytes for the accumulator proof. Verification
+takes about 305 ms. Finishing takes about 48 s on CPU and 30 s on Metal. The
+peak memory footprint of the finish is about 9.3 GB on CPU. On Metal the last
+fold still holds the 8 GB commitment key, so the peak is about 11.7 GB, and
+layer 1 itself stays near 10 GB. These are medians of five runs, with
+`MallocLargeCache=0`, on a loaded machine (2026-10-20). Before it returns,
+the finish verifies its own final proof (about 0.4 s more), so a device fault
+fails the call instead of returning a proof that does not verify. Layer 1
+keeps its Merkle rows and digest layers and its GKR levels in an unlinked
+scratch file,
+so it also needs temporary disk space. On Metal the device hashes the WHIR
+Merkle leaves, runs the WHIR DFTs and the GKR rounds, computes the key
+weights one key row at a time and runs the last fold's PiCCS; the proof bytes
+do not depend on the engine before the shrink's proof-of-work. The shrink commitment uses WHIR at rate 1/8: a smaller
+proof (rate 1/64: 97.6 KB) costs about 30 s more to finish.
 
 The independent Rust Poseidon2 application supplies the first comparison with
 the existing Lean package. Exact comparisons are implementation evidence, not

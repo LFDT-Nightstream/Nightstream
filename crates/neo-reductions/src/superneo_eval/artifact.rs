@@ -319,7 +319,7 @@ fn validate_cache(cache: &SuperneoEvalCache) -> Result<(), SuperneoCacheArtifact
 }
 
 fn validate_matrix(index: usize, matrix: &SuperneoMatrixCache) -> Result<(), SuperneoCacheArtifactError> {
-    if matrix.cols == 0 || matrix.cols % D != 0 {
+    if matrix.cols == 0 || !matrix.cols.is_multiple_of(D) {
         return Err(invalid(format!(
             "matrix {index} column count is not a nonzero multiple of D"
         )));
@@ -404,9 +404,7 @@ fn validate_dense(
         let local_slice = &locals[start..end];
         if local_slice.iter().any(|&local| local as usize >= D)
             || local_slice.windows(2).any(|pair| pair[0] >= pair[1])
-            || coefficients[start..end]
-                .iter()
-                .any(|&value| value == F::ZERO)
+            || coefficients[start..end].contains(&F::ZERO)
         {
             return Err(invalid(format!(
                 "matrix {matrix} dense pattern {pattern} is not canonical"

@@ -420,17 +420,18 @@ private def rangeCount (extent workers rangeSize : Nat) : Nat :=
   min extent (max workers ((extent + rangeSize - 1) / rangeSize))
 
 /-- One full low-weight cycle was measured across the runtime workers
-(`docs/reviews/nightstream-fprime-requirements/PICCS_CARRIED_PREFIX_REPLAY.json`, `matrix_preflight`). -/
+(`docs/reviews/nightstream-fprime-requirements/PICCS_CARRIED_PREFIX_REPLAY.json` at commit
+`f7e093d8f`, `matrix_preflight`). -/
 private def carriedMatrixRangeSize (weightCount workers : Nat) : Nat :=
   max 1 ((2 * weightCount) / workers)
 
 /-- The measured 8192-block preflight is the existing low-weight table size; batches retain the
-measured extent (`PICCS_CARRIED_PREFIX_REPLAY.json`, `pad`). -/
+measured extent (`PICCS_CARRIED_PREFIX_REPLAY.json` at commit `f7e093d8f`, `pad`). -/
 private def carriedPadRangeSize (weightCount : Nat) : Nat :=
   max 1 weightCount
 
 /-- Reuses the measured Pad block and matrix row extents of the original carried scans
-(`PICCS_CARRIED_PREFIX_REPLAY.json`, `pad` and `matrix`). -/
+(`PICCS_CARRIED_PREFIX_REPLAY.json` at commit `f7e093d8f`, `pad` and `matrix`). -/
 private def carriedPrefixRangeSize (pad : Bool) (weightCount workers : Nat) : Nat :=
   if pad then carriedPadRangeSize weightCount else max 1 (weightCount / workers)
 

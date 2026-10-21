@@ -14,8 +14,7 @@ They must not be confused with the main SuperNeo witness commitment.
 
 The selected main commitment originally used `κ = 18`. The SuperNeo paper does not
 define a rank-two profile for Nightstream's auxiliary protocol-binding maps.
-See [Appendix B.2](../docs/superneo-paper/11-b-concrete-parameters.md) and the
-[Nightstream commitment profile](../protocol-contract/src/normative/50-nightstream-profile.md).
+See [Appendix B.2](../docs/superneo-paper/11-b-concrete-parameters.md).
 
 ## Decision
 

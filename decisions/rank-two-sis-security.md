@@ -31,7 +31,7 @@ protocol-binding SIS map may use `κ = 2` only if:
 
 For `W` source fields, `r = ceil(41W/54)`, so the certified limit is also
 `W <= 66,342`. The selected model targets 128 post-union quantum Core-SVP bits
-and rounds seven targets to eight. Lean proves the arithmetic boundary in
-[Ajtai/EstimatorModel.lean](../formal/ajtai-lean/Ajtai/EstimatorModel.lean) and
-states the external hardness boundary in
-[Ajtai/SecurityBoundary.lean](../formal/ajtai-lean/Ajtai/SecurityBoundary.lean).
+and rounds seven targets to eight. Lean proved the arithmetic boundary in
+`formal/ajtai-lean/Ajtai/EstimatorModel.lean` and stated the external hardness
+boundary in `formal/ajtai-lean/Ajtai/SecurityBoundary.lean`. Both files are at
+commit `f7e093d8f`. That project was later deleted.

@@ -153,9 +153,9 @@ pub fn step(
     stack_write0: Option<StackValueAccess>,
     linear_memory: Option<LinearMemoryAccess>,
     linear_memory_offset: u64,
-    halted: bool,
+    activation_finished: bool,
 ) -> WasmVmStep {
-    fn state(pc: u64, sp: u64, halted: bool) -> WasmStepState {
+    fn state(pc: u64, sp: u64, activation_finished: bool) -> WasmStepState {
         WasmStepState {
             pc,
             sp,
@@ -165,7 +165,7 @@ pub fn step(
             memory_pages: None,
             max_memory_pages: None,
             locals_fbp: 0,
-            halted,
+            activation_finished,
             trapped: false,
             param_init: WasmCountdownState::ZERO,
             local_zero: WasmCountdownState::ZERO,
@@ -201,7 +201,7 @@ pub fn step(
         state_before: state(pc_before, sp_before, false),
         state_after: WasmStepState {
             trapped,
-            ..state(pc_before + 1, sp_after, halted)
+            ..state(pc_before + 1, sp_after, activation_finished)
         },
         control_choice: 0,
         br_table_len: 0,
@@ -248,12 +248,14 @@ pub fn step(
         call_result_count: None,
         call_stack_push: None,
         call_stack_pop: None,
+        host_context: None,
+        host_event_return_schedule_count: None,
         host_event_rom_slot: None,
-        // A clean halt fires the exit latch, which re-reads the (biased)
+        // A clean activation return fires the exit latch, which re-reads the (biased)
         // entry-count cell and the exit count; the empty boundary template
         // of a single-shot row is (1, 0).
-        host_event_initial_schedule_count: (halted && !trapped).then_some(1),
-        host_event_exit_schedule_count: (halted && !trapped).then_some(0),
+        host_event_initial_schedule_count: (activation_finished && !trapped).then_some(1),
+        host_event_exit_schedule_count: (activation_finished && !trapped).then_some(0),
     }
 }
 
@@ -316,8 +318,8 @@ pub fn ccs_check_trace(trace: &[WasmVmStep]) {
                 })
                 .unwrap_or_else(|| "terms unavailable".to_string());
             panic!(
-                "trace row {idx} {:?} pc {}->{} sp {}->{} halted={} failed CCS satisfaction: {err}; tag={tag:?}; {terms}",
-                row.opcode, row.state_before.pc, row.state_after.pc, row.state_before.sp, row.state_after.sp, row.state_after.halted
+                "trace row {idx} {:?} pc {}->{} sp {}->{} activation_finished={} failed CCS satisfaction: {err}; tag={tag:?}; {terms}",
+                row.opcode, row.state_before.pc, row.state_after.pc, row.state_before.sp, row.state_after.sp, row.state_after.activation_finished
             );
         });
     }

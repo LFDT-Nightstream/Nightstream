@@ -162,8 +162,14 @@ impl Default for WasmEventAbsorbState {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct WasmHostEventState {
     /// Export whose invocation owns this turn. Stable across import calls
-    /// and guest tail calls; changed only by a turn boundary.
+    /// and guest tail calls; nested entry replaces it and resume restores it.
     pub turn_export_fref: u32,
+    /// Call-stack depth immediately above the suspended host frame, or zero.
+    pub host_frame_depth: u64,
+    /// The current activation is suspended at a split import boundary.
+    pub awaiting_host: bool,
+    /// The split call must save its context on the next row.
+    pub suspend_pending: bool,
     /// Events still owed in the current phase; loaded from the event-count
     /// ROM on the call row (pre) and the result row (post), decremented as
     /// each group ends at slot seven or an early Enter. Program rows require zero.
@@ -181,6 +187,9 @@ pub struct WasmHostEventState {
 impl WasmHostEventState {
     pub const ZERO: Self = Self {
         turn_export_fref: 0,
+        host_frame_depth: 0,
+        awaiting_host: false,
+        suspend_pending: false,
         events_remaining: 0,
         event_index: 0,
         args_base: 0,
@@ -204,7 +213,7 @@ pub struct WasmBoundaryState {
     pub output_value_hi: u32,
     pub memory_pages: Option<u32>,
     pub locals_fbp: u64,
-    pub halted: bool,
+    pub activation_finished: bool,
     pub trapped: bool,
     pub param_init: WasmCountdownState,
     pub local_zero: WasmCountdownState,
@@ -257,11 +266,11 @@ pub struct WasmStepState {
     /// — `memory.grow` and the OOB bound check depend on it not being forgeable.
     pub max_memory_pages: Option<u32>,
     pub locals_fbp: u64,
-    /// The current turn has halted: raised by the halting row, carried (and
-    /// digest-bound) until a turn boundary clears it. Program rows require
-    /// `false`, so halt is terminal except for exit-event draining, padding,
-    /// and an explicit re-entry.
-    pub halted: bool,
+    /// The current activation returned or trapped. Carried and digest-bound
+    /// while exit events drain; cleared by export entry or host resumption.
+    /// Program rows require `false`. Suspended outer activations may remain:
+    /// use `is_terminal()` to check whole-execution completion.
+    pub activation_finished: bool,
     /// Execution ended in a wasm trap. Terminal and mutually exclusive with
     /// a captured output; carried into the semantic-state digest so a
     /// verifier can assert "this execution trapped".
@@ -288,11 +297,45 @@ pub struct WasmStepState {
     pub host_events: WasmHostEventState,
 }
 
+/// Suspended import caller state, authenticated through context RAM.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct WasmHostContext {
+    pub continuation_pc: u64,
+    pub locals_fbp: u64,
+    pub stack_frame_base: u64,
+    pub export_fref: u32,
+    pub import_fref: u32,
+    pub args_base: u64,
+    pub parent_host_frame_depth: u64,
+    pub retained_sp: u64,
+    pub locals_end: u64,
+}
+
+impl WasmHostContext {
+    /// Ordered values for `COL_HOST_CONTEXT` and its corresponding RAM ports.
+    pub(crate) fn to_words(self) -> [u64; 9] {
+        [
+            self.continuation_pc,
+            self.locals_fbp,
+            self.stack_frame_base,
+            u64::from(self.export_fref),
+            u64::from(self.import_fref),
+            self.args_base,
+            self.parent_host_frame_depth,
+            self.retained_sp,
+            self.locals_end,
+        ]
+    }
+}
+
 impl WasmStepState {
     /// Execution and its host-event schedule are complete. Only then is
     /// `comm_chain` the final outer transcript commitment.
     pub fn is_terminal(self) -> bool {
-        self.halted
+        self.activation_finished
+            && self.host_events.host_frame_depth == 0
+            && !self.host_events.awaiting_host
+            && !self.host_events.suspend_pending
             && !self.event_absorb.object_active
             && !self.event_absorb.perm_pending
             && self.event_absorb.perm_round == 0
@@ -316,9 +359,13 @@ pub enum WasmAuxOpcode {
     /// Stage an expanded event slot. A full block raises `perm_pending`;
     /// opaque Enter ends the prefix group early without hashing it.
     HostEventGather,
-    /// Re-entry between export invocations. Requires the previous turn to be
-    /// halted and drained, then loads the next export's entry PC and schedule.
+    /// Export entry after a completed root activation or while a split import
+    /// is suspended. Loads the declared entry PC, initialization and schedule.
     TurnBoundary,
+    /// Saves a split import context before its call-phase events run.
+    HostSuspend,
+    /// Restores a suspended import and loads its explicit return schedule.
+    HostResume,
     /// Synthetic state-preserving row used to pad a trace up to a
     /// multiple of `batch_size`. Not a real wasm opcode — the CCS gates
     /// these rows so that `_after == _before` for every state column.
@@ -358,6 +405,14 @@ impl WasmRowKind {
 
     pub fn is_turn_boundary(self) -> bool {
         matches!(self, Self::Aux(WasmAuxOpcode::TurnBoundary))
+    }
+
+    pub fn is_host_suspend(self) -> bool {
+        matches!(self, Self::Aux(WasmAuxOpcode::HostSuspend))
+    }
+
+    pub fn is_host_resume(self) -> bool {
+        matches!(self, Self::Aux(WasmAuxOpcode::HostResume))
     }
 
     pub fn is_padding(self) -> bool {
@@ -594,11 +649,15 @@ pub struct WasmVmStep {
     pub call_stack_push: Option<(u64, u64, u64)>,
     /// Popped by non-final returns, restoring the same three caller fields.
     pub call_stack_pop: Option<(u64, u64, u64)>,
+    /// Caller context written at split call, read on nested entry or resume.
+    pub host_context: Option<WasmHostContext>,
+    /// ROM encoding: zero for atomic, otherwise one plus the return-block count.
+    pub host_event_return_schedule_count: Option<u32>,
     /// Host-event ROM slot entry for `HostEventGather` rows.
     pub host_event_rom_slot: Option<WasmHostEventRomEntry>,
     /// Biased initial-schedule count read when a host-event schedule starts.
     pub host_event_initial_schedule_count: Option<u32>,
-    /// Exit-schedule count read at clean halt and at re-entry for the
+    /// Exit-schedule count read at clean activation return and at re-entry for the
     /// nonempty-template guard.
     pub host_event_exit_schedule_count: Option<u32>,
 }
@@ -634,7 +693,7 @@ pub fn boundary_states(trace: &[WasmVmStep]) -> Vec<(WasmBoundaryState, WasmBoun
                     output_value_hi: row.state_before.output.value_hi,
                     memory_pages: row.state_before.memory_pages,
                     locals_fbp: row.state_before.locals_fbp,
-                    halted: row.state_before.halted,
+                    activation_finished: row.state_before.activation_finished,
                     trapped: row.state_before.trapped,
                     param_init: row.state_before.param_init,
                     local_zero: row.state_before.local_zero,
@@ -653,7 +712,7 @@ pub fn boundary_states(trace: &[WasmVmStep]) -> Vec<(WasmBoundaryState, WasmBoun
                     output_value_hi: row.state_after.output.value_hi,
                     memory_pages: row.state_after.memory_pages,
                     locals_fbp: row.state_after.locals_fbp,
-                    halted: row.state_after.halted,
+                    activation_finished: row.state_after.activation_finished,
                     trapped: row.state_after.trapped,
                     param_init: row.state_after.param_init,
                     local_zero: row.state_after.local_zero,

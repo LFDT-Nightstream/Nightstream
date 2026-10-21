@@ -156,6 +156,7 @@ fn wasm_component_import_kernel_roundtrip_for_embedded_core_trace() {
     bindings.imports.insert(
         import_fref,
         neo_wasm::host_event_bindings::ImportTemplate {
+            return_events: None,
             events: vec![neo_wasm::host_event_bindings::EventBlock::op(1, slots)],
             input_count: 0,
         },

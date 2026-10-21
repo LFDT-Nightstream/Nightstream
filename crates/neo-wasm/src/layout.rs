@@ -42,7 +42,7 @@ define_column_region! {
         COL_SP_AFTER: U32 => "transition destination stack pointer",
         COL_STACK_FRAME_BASE_BEFORE: U32 => "operand-stack frame base before",
         COL_STACK_FRAME_BASE_AFTER: U32 => "operand-stack frame base after",
-        COL_HALTED: Boolean => "terminal row flag",
+        COL_ACTIVATION_FINISHED_AFTER: Boolean => "current activation has returned or trapped after this row",
         COL_IS_PROGRAM_ROW: Boolean => "decoded wasm program row",
         COL_PC_ROM_ACTIVE: Boolean => "static pc-edge ROM gate",
         COL_PC_EDGE_KIND_IS_STATIC: Boolean => "static pc-edge flag",
@@ -344,7 +344,7 @@ define_column_region! {
         COL_LINEAR_MEM_ACCESS_BYTE7: Byte => "linear-memory access value hi byte 3 (i64 only)",
         // Genuine range is 7 bits, [0, 128). Annotated `Byte` as a conservative
         // (over-)approximation so it gets the same enforcement as other byte
-        // columns. Tighten to a 7-bit declaration when a `Bits(N)` variant lands.
+        // columns. This could be tightened to `Bits(7)`.
         COL_SIGN_EXT_LOW7: Byte => "sign-extension scratch lower 7 bits of the sign source byte",
         COL_SIGN_EXT_BIT: Boolean => "sign-extension scratch sign bit",
         COL_SEL_I32_WRAP_I64: Boolean => "selector for i32.wrap_i64",
@@ -419,7 +419,7 @@ define_column_region! {
         COL_MEM_STORE_LIVE: Boolean =>
             "store lane gate factor: a store row that is not OOB (de-gates lane writes on an OOB trap)",
         COL_GROW_SUCCESS: Boolean => "memory.grow row: the growth fits under max pages (before + delta <= max)",
-        COL_HALTED_BEFORE: Boolean => "carried terminal flag before this row",
+        COL_ACTIVATION_FINISHED_BEFORE: Boolean => "current activation has returned or trapped before this row",
         COL_BR_TABLE_LEN: U32 => "number of explicit br_table arms, read from the program ROM",
         COL_BR_TABLE_IN_BOUNDS: Boolean => "br_table row with an index below its arm count",
     ]

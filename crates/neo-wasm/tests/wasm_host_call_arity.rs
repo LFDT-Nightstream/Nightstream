@@ -121,6 +121,7 @@ fn five_arg_component_wat() -> &'static str {
 fn sum5_template() -> ImportTemplate {
     let arg = |arg, limb| SlotBinding::ArgElem { arg, limb };
     ImportTemplate {
+        return_events: None,
         events: vec![
             EventBlock::op(
                 10,
@@ -204,6 +205,7 @@ fn direct_host_call_with_five_scalar_args_is_provable() {
 fn indirect_host_call_with_three_args_is_provable() {
     let arg = |arg, limb| SlotBinding::ArgElem { arg, limb };
     let template = ImportTemplate {
+        return_events: None,
         events: vec![
             EventBlock::op(
                 3,

@@ -9,6 +9,7 @@
 //! `normalize` module; this module reads it only through `NormalizedStep`.
 
 mod local_zero;
+mod reentry;
 mod tail_call;
 mod turn;
 mod values;
@@ -20,7 +21,7 @@ use super::super::import_inputs::recover_import_inputs;
 use super::super::runtime_read::{read_lane, read_lane_hi};
 use super::super::WasmtimeTraceStep;
 use super::host_event_emit::{
-    emit_block_plan, plan_import_call, EventBlockPlan, HostCallEventPlan, HostEventRowContext,
+    emit_block_plan, plan_import_phase, EventBlockPlan, HostCallEventPlan, HostEventRowContext,
 };
 use super::memory::LinearMemoryImage;
 use super::normalize_step;
@@ -62,10 +63,11 @@ pub(super) fn build_trace(
     let tracks_linear_memory = linear_memory.is_some();
     let mut linear_memory = linear_memory.unwrap_or_default();
     let mut out: Vec<WasmVmStep> = Vec::with_capacity(supported.len());
-    // Runtime call stack: (return_pc, caller_fbp, caller_stack_base) per live
-    // guest frame. Grows on Call, shrinks on non-final Return.
+    // Shared return-context stack. Guest calls push/pop normally; split
+    // imports reserve one entry until resume, below any reentrant guest frames.
     let mut call_stack: Vec<(u64, u64, u64)> = Vec::new();
     let mut call_stack_depth: u64 = 0;
+    let mut suspended: Vec<reentry::Suspended<'_>> = vec![];
     // Wasmtime snapshots the operand stack per frame, but the VM's `stack`
     // memory is one global address space. Each frame's slots live above the
     // caller's residual operands: global sp = stack_base + frame-local len.
@@ -92,6 +94,9 @@ pub(super) fn build_trace(
         let setup = setup_turn(bindings, first, program, false, &mut linear_memory)?;
         host_event_state = crate::ir::WasmHostEventState {
             turn_export_fref: setup.fref,
+            host_frame_depth: 0,
+            awaiting_host: false,
+            suspend_pending: false,
             events_remaining: setup.entry_plans.len() as u32,
             event_index: 0,
             args_base: 0,
@@ -103,7 +108,7 @@ pub(super) fn build_trace(
         None
     };
     let mut entry_emitted = false;
-    // Carried halt latch; a turn boundary clears it for re-entry.
+    // Activation completion latch; export entry or import resume clears it.
     let mut turn_done = false;
     let mut output_enabled = false;
     let mut output_value_lo = 0;
@@ -113,20 +118,23 @@ pub(super) fn build_trace(
         let next = supported.get(idx + 1);
         let pc_before = u64::from(current.pc);
         // A return-like edge with no caller ends the current export invocation.
-        let turn_terminal = current.pc_edge_kind == WasmPcEdgeKind::ReturnLike && call_stack.is_empty();
-        let halted = next.is_none() || turn_terminal;
-        // Halting rows keep their one-past pc (terminal traps have no next
+        let turn_terminal =
+            current.pc_edge_kind == WasmPcEdgeKind::ReturnLike && call_stack_depth == host_event_state.host_frame_depth;
+        let activation_finished = next.is_none() || turn_terminal;
+        // Rows finishing an activation keep their one-past pc (terminal traps have no next
         // row; a turn boundary bridges to the next turn's entry pc).
-        let pc_after = if halted {
+        let pc_after = if matches!(current.opcode, WasmOpcode::Call | WasmOpcode::CallIndirect)
+            && !current.target_function_is_guest
+        {
+            current
+                .pc_after_instruction
+                .ok_or_else(|| WasmBuildError::Trace("import lacks continuation PC".into()))?
+        } else if activation_finished {
             current
                 .pc_after_instruction
                 .unwrap_or_else(|| pc_before.saturating_add(1))
         } else {
-            next.map(|row| u64::from(row.pc)).unwrap_or_else(|| {
-                current
-                    .pc_after_instruction
-                    .unwrap_or_else(|| pc_before.saturating_add(1))
-            })
+            u64::from(next.expect("unfinished activation has a successor").pc)
         };
         let stack_reads = current
             .stack_reads_override
@@ -150,13 +158,13 @@ pub(super) fn build_trace(
         // in the current frame.
         let is_return_row = matches!(current.opcode, WasmOpcode::Return | WasmOpcode::End)
             && current.pc_edge_kind == WasmPcEdgeKind::ReturnLike
-            && !call_stack.is_empty();
+            && call_stack_depth > host_event_state.host_frame_depth;
         let next_row_base = if is_return_row {
             call_stack.last().map(|&(_, _, base)| base).unwrap_or(0)
         } else {
             stack_base
         };
-        let sp_after = if is_call_row || halted {
+        let sp_after = if is_call_row || activation_finished {
             // A later turn has a fresh stack, so terminal rows use their own arity.
             expected_sp_after
         } else {
@@ -211,7 +219,7 @@ pub(super) fn build_trace(
         // A trap is terminal: wasmtime stops stepping at the faulting
         // instruction, so a trapping opcode can only be the last row.
         let trapped = matches!(current.opcode, WasmOpcode::Unreachable) || div_trap || ci_trap || mem_oob;
-        if trapped && !halted {
+        if trapped && !activation_finished {
             return Err(WasmBuildError::Trace(format!(
                 "trapping {} row at cycle {} is not the final step",
                 current.info.name, current.cycle
@@ -222,9 +230,9 @@ pub(super) fn build_trace(
         let output_value_lo_before = output_value_lo;
         let output_value_hi_before = output_value_hi;
         let mut output_captured = false;
-        // A trapped execution has no output: capture is for clean halts only
+        // A trapped execution has no output: capture is for clean activation returns only
         // (the CCS enforces the same exclusion).
-        if halted && !trapped && !output_enabled {
+        if activation_finished && !trapped && !output_enabled {
             if let Some(value) = current.operand_stack.last().copied() {
                 output_enabled = true;
                 output_value_lo = value;
@@ -274,7 +282,7 @@ pub(super) fn build_trace(
 
         match current.opcode {
             WasmOpcode::Call | WasmOpcode::CallIndirect => {
-                let return_pc = current.call_return_pc.unwrap_or(pc_after);
+                let return_pc = current.pc_after_instruction.unwrap_or(pc_after);
                 if !current.target_function_is_guest || ci_trap {
                     // Imported/host callees do not produce guest core rows. In that case the next
                     // guest row is already the post-call continuation, so there is no guest
@@ -379,7 +387,7 @@ pub(super) fn build_trace(
                 guest_callee_fbp = None;
             }
         }
-        let call_stack_depth_after = call_stack_depth;
+        let mut call_stack_depth_after = call_stack_depth;
 
         let program_cycle = out.len() as u64;
         let param_init_before = param_init_state;
@@ -442,7 +450,7 @@ pub(super) fn build_trace(
                     host_callee_fref,
                     current_function_ref: current.current_function_ref.unwrap_or(0),
                     current_function_num_locals: current.num_locals,
-                    halted: turn_done,
+                    activation_finished: turn_done,
                 };
                 if local_zero_state.active {
                     let state = out
@@ -473,6 +481,8 @@ pub(super) fn build_trace(
             && !current.target_function_is_guest
             && !ci_trap;
         let mut host_event_plan: Option<HostCallEventPlan> = None;
+        let mut host_context = None;
+        let mut return_count = None;
         let host_event_state_before_row = host_event_state;
         let host_callee_fref_before = host_callee_fref;
         let comm_chain_before_row = comm_chain;
@@ -490,7 +500,15 @@ pub(super) fn build_trace(
                     current.cycle
                 ))
             })?;
-            if template.input_count > 0 && next.is_none_or(|row| Some(u64::from(row.pc)) != current.call_return_pc) {
+            if !template.is_split() && next.is_some_and(|row| row.activation_depth > current.activation_depth) {
+                return Err(WasmBuildError::Unsupported(
+                    "same-instance reentry under an atomic import".into(),
+                ));
+            }
+            if !template.is_split()
+                && template.input_count > 0
+                && next.is_none_or(|row| Some(u64::from(row.pc)) != current.pc_after_instruction)
+            {
                 return Err(WasmBuildError::Trace(format!(
                     "import memory recovery at cycle {} requires the caller continuation; \
                      same-instance reentry is not supported by normalization",
@@ -542,7 +560,7 @@ pub(super) fn build_trace(
                     )
                 })
                 .collect();
-            let result_limbs = if result_count == 1 {
+            let result_limbs = if result_count == 1 && !template.is_split() {
                 let next_row = next.ok_or_else(|| {
                     WasmBuildError::Trace(format!(
                         "missing Wasmtime post-call stack result for host call at cycle {}",
@@ -559,16 +577,20 @@ pub(super) fn build_trace(
             } else {
                 None
             };
-            let inputs = recover_import_inputs(
-                template,
-                &arg_limbs,
-                current.memory_pages_before,
-                current.host_call_memory.as_ref(),
-            )?;
+            let inputs = if template.is_split() {
+                vec![]
+            } else {
+                recover_import_inputs(
+                    template,
+                    &arg_limbs,
+                    current.memory_pages_before,
+                    current.host_call_memory.as_ref(),
+                )?
+            };
             let args_base = sp_before - index_pops as u64 - u64::from(param_count);
             host_event_plan = Some(
-                plan_import_call(
-                    template,
+                plan_import_phase(
+                    &template.events,
                     args_base,
                     &arg_limbs,
                     result_limbs,
@@ -583,26 +605,55 @@ pub(super) fn build_trace(
                     ))
                 })?,
             );
-            // The call row pops all args; a result gather row pushes the
-            // result later in the schedule.
-            sp_after = args_base;
+            // Atomic calls release arguments now; split calls retain them
+            // below the unchanged SP until resume releases their cells.
+            return_count = Some(template.return_schedule_count());
+            if template.is_split() {
+                sp_after = sp_before - index_pops as u64;
+                let context = crate::ir::WasmHostContext {
+                    continuation_pc: pc_after,
+                    locals_fbp: current_fbp,
+                    stack_frame_base: current_stack_base,
+                    export_fref: host_event_state.turn_export_fref,
+                    import_fref: host_callee_fref,
+                    args_base,
+                    parent_host_frame_depth: host_event_state.host_frame_depth,
+                    retained_sp: sp_after,
+                    locals_end: current_fbp
+                        .checked_add(u64::from(current.num_locals))
+                        .ok_or_else(|| WasmBuildError::Trace("suspended locals frame overflows".into()))?,
+                };
+                host_event_state.suspend_pending = true;
+                host_context = Some(context);
+                suspended.push(reentry::Suspended {
+                    context,
+                    call_index: idx,
+                    activation_depth: current.activation_depth,
+                    export: export_boundary.as_ref().expect("active export").clone(),
+                });
+            } else {
+                sp_after = args_base;
+            }
         }
         // The call row latches the event schedule and argument-region base.
         if let Some(plan) = &host_event_plan {
             host_event_state = crate::ir::WasmHostEventState {
                 turn_export_fref: host_event_state.turn_export_fref,
+                host_frame_depth: host_event_state.host_frame_depth,
+                awaiting_host: host_event_state.awaiting_host,
+                suspend_pending: host_event_state.suspend_pending,
                 events_remaining: plan.blocks.len() as u32,
                 event_index: 0,
                 args_base: plan.args_base,
                 slot_cursor: 0,
             };
         }
-        // A clean export halt loads the exit schedule and attribution. Result
+        // A clean export return loads the exit schedule and attribution. Result
         // publication is optional: constant-only exit events also apply to
         // resultless exports.
         let mut exit_plans: Option<Vec<EventBlockPlan>> = None;
         let mut exit_counts: Option<(u32, u32)> = None;
-        if halted && !trapped {
+        if activation_finished && !trapped {
             if let Some(setup) = &export_boundary {
                 let plans = plan_turn_exit(
                     setup.template,
@@ -613,6 +664,9 @@ pub(super) fn build_trace(
                 host_callee_fref = setup.fref;
                 host_event_state = crate::ir::WasmHostEventState {
                     turn_export_fref: host_event_state.turn_export_fref,
+                    host_frame_depth: host_event_state.host_frame_depth,
+                    awaiting_host: host_event_state.host_frame_depth != 0,
+                    suspend_pending: false,
                     events_remaining: plans.len() as u32,
                     event_index: setup.template.entry.len() as u32,
                     args_base: host_event_state.args_base,
@@ -643,7 +697,7 @@ pub(super) fn build_trace(
                 memory_pages: current.memory_pages_before,
                 max_memory_pages: current.max_memory_pages,
                 locals_fbp: current_fbp,
-                halted: turn_done,
+                activation_finished: turn_done,
                 trapped: false,
                 param_init: param_init_before,
                 local_zero: zero_before,
@@ -666,7 +720,7 @@ pub(super) fn build_trace(
                 memory_pages: current.memory_pages_after,
                 max_memory_pages: current.max_memory_pages,
                 locals_fbp: fbp,
-                halted: turn_done || halted,
+                activation_finished: turn_done || activation_finished,
                 trapped,
                 param_init: param_init_after,
                 local_zero: zero_after,
@@ -740,6 +794,8 @@ pub(super) fn build_trace(
             call_result_count: current.call_result_count.filter(|_| !ci_trap),
             call_stack_push,
             call_stack_pop,
+            host_context: None,
+            host_event_return_schedule_count: return_count,
             host_event_rom_slot: None,
             // Count cells carry the presence bias (count + 1).
             host_event_initial_schedule_count: host_event_plan
@@ -748,7 +804,14 @@ pub(super) fn build_trace(
                 .or(exit_counts.map(|(pre, _)| pre + 1)),
             host_event_exit_schedule_count: exit_counts.map(|(_, exit)| exit),
         });
-        turn_done = turn_done || halted;
+        if let Some(context) = host_context {
+            let after = reentry::suspend(&mut out, current, context)?;
+            call_stack.push((pc_after, current_fbp, current_stack_base));
+            call_stack_depth = after.call_stack_depth;
+            call_stack_depth_after = call_stack_depth;
+            host_event_state = after.host_events;
+        }
+        turn_done = turn_done || activation_finished;
         param_init_state = param_init_after;
         local_zero_state = zero_after;
         if local_zero_state.active {
@@ -769,7 +832,7 @@ pub(super) fn build_trace(
                 host_callee_fref: state.host_callee_fref,
                 current_function_ref: callee.current_function_ref.unwrap_or(0),
                 current_function_num_locals: callee.num_locals,
-                halted: state.halted,
+                activation_finished: state.activation_finished,
             };
             let after = emit_local_zero_rows(&mut out, &ctx, state);
             local_zero_state = after.local_zero;
@@ -858,7 +921,7 @@ pub(super) fn build_trace(
                         memory_pages: current.memory_pages_after,
                         max_memory_pages: current.max_memory_pages,
                         locals_fbp: callee_fbp,
-                        halted: turn_done,
+                        activation_finished: turn_done,
                         trapped: false,
                         param_init: aux_param_init_before,
                         local_zero: local_zero_state,
@@ -881,7 +944,7 @@ pub(super) fn build_trace(
                         memory_pages: current.memory_pages_after,
                         max_memory_pages: current.max_memory_pages,
                         locals_fbp: callee_fbp,
-                        halted: turn_done,
+                        activation_finished: turn_done,
                         trapped: false,
                         param_init: aux_param_init_after,
                         local_zero: local_zero_state,
@@ -933,6 +996,8 @@ pub(super) fn build_trace(
                     call_result_count: None,
                     call_stack_push: None,
                     call_stack_pop: None,
+                    host_context: None,
+                    host_event_return_schedule_count: None,
                     host_event_rom_slot: None,
                     host_event_initial_schedule_count: None,
                     host_event_exit_schedule_count: None,
@@ -971,7 +1036,7 @@ pub(super) fn build_trace(
                 memory_pages: current.memory_pages_after,
                 max_memory_pages: current.max_memory_pages,
                 locals_fbp: fbp,
-                halted: turn_done,
+                activation_finished: turn_done,
                 trapped: false,
                 param_init: WasmCountdownState::ZERO,
                 local_zero: local_zero_state,
@@ -1009,7 +1074,7 @@ pub(super) fn build_trace(
                 host_callee_fref,
                 current_function_ref: current.current_function_ref.unwrap_or(0),
                 current_function_num_locals: current.num_locals,
-                halted: turn_done,
+                activation_finished: turn_done,
             };
             for block_plan in &plan.blocks {
                 emit_block_plan(
@@ -1021,7 +1086,7 @@ pub(super) fn build_trace(
                     block_plan,
                 );
             }
-            let gather_pushes = if plan.blocks.is_empty() {
+            let gather_pushes = if plan.blocks.is_empty() || host_context.is_some() {
                 0
             } else {
                 u64::from(current.call_result_count.unwrap_or(0))
@@ -1048,7 +1113,7 @@ pub(super) fn build_trace(
                 host_callee_fref,
                 current_function_ref: current.current_function_ref.unwrap_or(0),
                 current_function_num_locals: current.num_locals,
-                halted: turn_done,
+                activation_finished: turn_done,
             };
             for plan in &plans {
                 emit_block_plan(
@@ -1062,114 +1127,70 @@ pub(super) fn build_trace(
             }
         }
 
-        // Bridge to the next export and load its entry attribution and schedule.
-        if halted && next.is_some() {
-            let next_row = next.expect("checked");
-            let setup = setup_turn(bindings, next_row, program, true, &mut linear_memory)?;
-            let zero_count = next_row
-                .num_locals
-                .checked_sub(u32::from(setup.param_count))
-                .ok_or_else(|| {
-                    WasmBuildError::Trace(format!("export fref {} has more parameters than locals", setup.fref))
-                })?;
-            let entry_count = setup.entry_plans.len() as u32;
-            let boundary_state = |pc: u64,
-                                  sp: u64,
-                                  stack_frame_base: u64,
-                                  output: WasmOutputState,
-                                  host_fref: u32,
-                                  host_event_state: crate::ir::WasmHostEventState,
-                                  done: bool,
-                                  local_zero: WasmCountdownState| {
-                WasmStepState {
-                    pc,
-                    sp,
-                    stack_frame_base,
-                    output,
-                    call_stack_depth: 0,
-                    memory_pages: current.memory_pages_after,
-                    max_memory_pages: current.max_memory_pages,
-                    locals_fbp: fbp,
-                    halted: done,
-                    trapped: false,
-                    param_init: WasmCountdownState::ZERO,
-                    local_zero,
-                    tail_call_pending: false,
-                    host_callee_fref: host_fref,
-                    comm_chain,
-                    event_absorb,
-                    host_events: host_event_state,
-                }
-            };
-            let state_before = boundary_state(
-                pc_after,
-                sp_after,
-                stack_base,
-                WasmOutputState {
-                    enabled: output_enabled_after,
-                    value_lo: output_value_lo_after,
-                    value_hi: output_value_hi_after,
-                },
-                host_callee_fref,
-                host_event_state,
-                true,
-                WasmCountdownState::ZERO,
-            );
-            host_callee_fref = setup.fref;
-            host_event_state = crate::ir::WasmHostEventState {
-                turn_export_fref: setup.fref,
-                events_remaining: entry_count,
-                event_index: 0,
-                args_base: host_event_state.args_base,
-                slot_cursor: 0,
-            };
-            let state_after = boundary_state(
-                u64::from(next_row.pc),
-                0,
-                0,
-                WasmOutputState::ZERO,
-                host_callee_fref,
-                host_event_state,
-                false,
-                WasmCountdownState {
-                    active: zero_count != 0,
-                    remaining: zero_count,
-                },
-            );
-            let helper_ctx = HostEventRowContext {
-                pc: pc_after,
-                sp: sp_after,
-                stack_frame_base: stack_base,
-                output: WasmOutputState::ZERO,
-                call_stack_depth: 0,
-                memory_pages: current.memory_pages_after,
-                max_memory_pages: current.max_memory_pages,
-                locals_fbp: fbp,
-                host_callee_fref,
-                current_function_ref: current.current_function_ref.unwrap_or(0),
-                current_function_num_locals: current.num_locals,
-                halted: true,
-            };
-            out.push(WasmVmStep {
-                call_param_count: Some(setup.param_count),
-                call_result_count: Some(setup.result_count),
-                target_function_is_guest: true,
-                // Export entry-count cell carries the presence bias.
-                host_event_initial_schedule_count: Some(entry_count + 1),
-                host_event_exit_schedule_count: Some(setup.template.exit.len() as u32),
-                ..helper_ctx.row(out.len() as u64, WasmAuxOpcode::TurnBoundary, state_before, state_after)
-            });
-            turn_done = false;
-            output_enabled = false;
-            output_value_lo = 0;
-            output_value_hi = 0;
-            stack_base = 0;
-            export_boundary = Some(setup);
-            local_zero_state = state_after.local_zero;
+        // A suspended import may receive another export activation, or resume.
+        // Export exits return to the host; they never supply the import result.
+        if host_event_state.awaiting_host {
+            let next_row = next.ok_or_else(|| WasmBuildError::Trace("trace ends with a suspended import".into()))?;
+            let saved = suspended.last().expect("pending import has saved context");
+            if next_row.activation_depth > saved.activation_depth {
+                export_boundary = Some(reentry::enter(
+                    &mut out,
+                    current,
+                    next_row,
+                    bindings,
+                    program,
+                    &mut linear_memory,
+                    Some(saved),
+                )?);
+                entry_emitted = false;
+            } else {
+                let saved = suspended.pop().expect("checked");
+                reentry::resume(
+                    &mut out,
+                    &saved,
+                    &supported[saved.call_index],
+                    next_row,
+                    bindings,
+                    &mut linear_memory,
+                )?;
+                call_stack.pop().expect("host context stack entry");
+                export_boundary = Some(saved.export);
+                entry_emitted = true;
+            }
+        } else if activation_finished && next.is_some() {
+            export_boundary = Some(reentry::enter(
+                &mut out,
+                current,
+                next.expect("checked"),
+                bindings,
+                program,
+                &mut linear_memory,
+                None,
+            )?);
             entry_emitted = false;
+        }
+        if let Some(last) = out.last() {
+            let state = last.state_after;
+            fbp = state.locals_fbp;
+            stack_base = state.stack_frame_base;
+            call_stack_depth = state.call_stack_depth;
+            host_event_state = state.host_events;
+            host_callee_fref = state.host_callee_fref;
+            comm_chain = state.comm_chain;
+            event_absorb = state.event_absorb;
+            turn_done = state.activation_finished;
+            output_enabled = state.output.enabled;
+            output_value_lo = state.output.value_lo;
+            output_value_hi = state.output.value_hi;
+            local_zero_state = state.local_zero;
         }
     }
 
+    if !suspended.is_empty() {
+        return Err(WasmBuildError::Trace(
+            "trace ends inside a suspended host activation".into(),
+        ));
+    }
     if out.is_empty() {
         return Err(WasmBuildError::Unsupported(
             "wasmtime trace did not contain any currently supported wasm rows".to_string(),

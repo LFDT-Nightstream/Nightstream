@@ -27,9 +27,16 @@ pub(super) enum AssignmentEncoding {
     Dense = 16,
 }
 
-const _: () = assert!(AssignmentEncoding::Dense as usize == size_of::<K>());
-
 impl AssignmentEncoding {
+    fn entry_bytes(self) -> usize {
+        match self {
+            Self::Masks => 0,
+            Self::U8Codes => size_of::<u8>(),
+            Self::U16Codes => size_of::<u16>(),
+            Self::Dense => size_of::<K>(),
+        }
+    }
+
     fn for_codes(alphabet: Option<usize>) -> Self {
         match alphabet {
             Some(size) if size <= usize::from(u8::MAX) + 1 => Self::U8Codes,
@@ -100,7 +107,7 @@ impl AssignmentTables {
         let next = alphabet
             .checked_mul(alphabet)
             .filter(|&n| n > 0 && n <= usize::from(u16::MAX) + 1);
-        let entry_bytes = AssignmentEncoding::for_codes(next) as usize;
+        let entry_bytes = AssignmentEncoding::for_codes(next).entry_bytes();
         self.count
             .checked_mul(self.len.div_ceil(2))
             .and_then(|n| n.checked_mul(entry_bytes))
@@ -128,7 +135,7 @@ impl AssignmentTables {
             .checked_mul(alphabet)
             .filter(|&size| size > 0 && size <= usize::from(u16::MAX) + 1);
         let next_encoding = AssignmentEncoding::for_codes(next_alphabet);
-        let bytes = next_encoding as usize;
+        let bytes = next_encoding.entry_bytes();
         let entries = self
             .count
             .checked_mul(next_len)

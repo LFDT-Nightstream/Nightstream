@@ -129,12 +129,18 @@ fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, Was
 
     let (opcode, immediate_i32) = match row.opcode_decoded {
         Some(op) => (op, row.immediate_i32),
-        None => return Ok(None),
+        None => {
+            return Err(WasmBuildError::Trace(format!(
+                "missing decoded metadata for wasm operator {} at step {} pc {pc}",
+                row.opcode.as_deref().unwrap_or("<unknown>"),
+                row.step
+            )));
+        }
     };
 
     if matches!(opcode, WasmOpcode::Trap | WasmOpcode::Unsupported) {
         return Err(WasmBuildError::Unsupported(format!(
-            "row decodes to {} at step {}: this execution cannot be proven",
+            "unsupported trace opcode {} at step {}",
             opcode.name(),
             row.step
         )));

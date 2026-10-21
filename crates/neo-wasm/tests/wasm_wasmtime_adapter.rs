@@ -2,7 +2,8 @@ use neo_wasm::host_event_bindings::HostEventBindings;
 use neo_wasm::{
     build_pc_rom_from_binary, collect_wasmtime_steps, extract_wasm_program_artifacts, opcode_code,
     traces_from_wasmtime_steps, traces_from_wasmtime_wasm_bytes, StackValueAccess, WasmOpcode, WasmPcEdgeKind,
-    WasmTraceSink, WasmtimeTraceHandler, WasmtimeTraceRegistry, WasmtimeTraceState, WasmtimeTraceStep,
+    WasmProgramError, WasmTraceSink, WasmtimeTraceHandler, WasmtimeTraceRegistry, WasmtimeTraceState,
+    WasmtimeTraceStep,
 };
 use wasmparser::{Parser, Payload};
 use wasmtime::{Config, Engine, Linker, Module, Store, Val};
@@ -457,6 +458,26 @@ fn float_global_initializer_is_rejected_at_parse() {
 }
 
 #[test]
+fn unsupported_operator_in_uncalled_function_is_rejected_at_parse() {
+    let wasm = wat::parse_str(
+        r#"(module
+            (func (export "run") (result i32)
+                i32.const 1)
+            (func
+                f32.const 0
+                drop)
+        )"#,
+    )
+    .expect("wat");
+
+    let err = extract_wasm_program_artifacts(&wasm).expect_err("unsupported operator must be rejected");
+    assert!(
+        matches!(&err, WasmProgramError::UnsupportedOpcode { operator, defined_function_index: 1, .. } if operator.starts_with("F32Const")),
+        "expected unsupported-opcode rejection, got: {err:?}",
+    );
+}
+
+#[test]
 fn function_type_arity_limit_is_checked_without_truncation() {
     let params_255 = vec!["i32"; 255].join(" ");
     let params_256 = vec!["i32"; 256].join(" ");
@@ -552,10 +573,10 @@ fn table_get_out_of_bounds_stays_a_loud_error() {
     let wasm = wat::parse_str(
         r#"(module
             (table 1 funcref)
-            (func (export "run") (result i32)
+            (func (export "run")
                 i32.const 5
                 table.get 0
-                ref.is_null))"#,
+                drop))"#,
     )
     .expect("valid WAT");
     let err = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[])

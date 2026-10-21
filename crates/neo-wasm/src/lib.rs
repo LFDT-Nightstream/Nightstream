@@ -42,7 +42,7 @@ pub use ir::{
     boundary_states, LinearMemoryAccess, LinearMemoryWordLane, StackValueAccess, WasmAuxOpcode, WasmBoundaryState,
     WasmBuildError, WasmCountdownState, WasmEventAbsorbState, WasmHostContext, WasmHostEventMemoryWidth,
     WasmHostEventRomEntry, WasmHostEventRomVariant, WasmHostEventSlotKind, WasmHostEventState, WasmOutputState,
-    WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep,
+    WasmPcEdgeKind, WasmProgramError, WasmRowKind, WasmStepState, WasmVmStep,
 };
 pub use isa::{
     opcode_code, opcode_info_from_code, WasmMemoryAccessInfo, WasmMemoryAccessKind, WasmMemoryExtension, WasmOpTable,

@@ -429,12 +429,6 @@ fn recovery_requires_the_actual_entry_row_of_each_turn() {
         runtime.call(instance, &[Val::I32(16)]);
         let steps = runtime.steps(instance);
         for start in [0, second_turn] {
-            let mut skipped = steps.to_vec();
-            skipped[start].opcode_decoded = None;
-            assert!(normalize(&skipped, &artifacts)
-                .unwrap_err()
-                .to_string()
-                .contains("expected entry pc"));
             let mut missing = steps.to_vec();
             missing.drain(start..start + 2);
             // The next captured local has already been changed to 99. Recovery

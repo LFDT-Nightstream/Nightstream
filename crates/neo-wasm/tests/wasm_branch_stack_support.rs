@@ -1,11 +1,11 @@
-use neo_wasm::{extract_wasm_program_artifacts, WasmBuildError};
+use neo_wasm::{extract_wasm_program_artifacts, WasmProgramError};
 
 fn reject_unwinding(body: &str) {
     let wasm = wat::parse_str(format!("(module (func (export \"main\") {body}))")).unwrap();
     wasmparser::Validator::new().validate_all(&wasm).unwrap();
     let error =
         extract_wasm_program_artifacts(&wasm).expect_err("branch stack unwinding has no circuit constraints yet");
-    assert!(matches!(error, WasmBuildError::Unsupported(_)), "{error}");
+    assert!(matches!(error, WasmProgramError::Unsupported(_)), "{error}");
     assert!(error.to_string().contains("branch stack unwinding"), "{error}");
 }
 

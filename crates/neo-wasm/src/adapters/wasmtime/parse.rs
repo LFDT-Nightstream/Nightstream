@@ -11,7 +11,7 @@
 use super::decode::{
     decode_control_opcode, decode_memory_opcode, decode_opcode, ControlFrame, ControlFrameKind, DecodedOpcode,
 };
-use crate::ir::{pack_function_call_metadata, WasmBuildError, WasmPcEdgeKind};
+use crate::ir::{pack_function_call_metadata, WasmPcEdgeKind, WasmProgramError};
 use crate::isa::{opcode_code, WasmOpcode};
 use crate::layout::PC_ROM_CALL_RETURN_CHOICE;
 use std::collections::BTreeMap;
@@ -153,11 +153,12 @@ pub(crate) struct ParsedFunctionMeta {
     pub(crate) entry_pc: Option<u64>,
 }
 
-pub(super) fn parse_wasm_artifacts(wasm_bytes: &[u8]) -> Result<WasmProgramArtifacts, WasmBuildError> {
+pub(super) fn parse_wasm_artifacts(wasm_bytes: &[u8]) -> Result<WasmProgramArtifacts, WasmProgramError> {
     super::branch_stack::validate_branch_stack_support(wasm_bytes)?;
     let mut builder = ParsedWasmArtifactsBuilder::default();
     for payload in Parser::new(0).parse_all(wasm_bytes) {
-        let payload = payload.map_err(|err| WasmBuildError::Trace(format!("failed to parse wasm payload: {err}")))?;
+        let payload =
+            payload.map_err(|err| WasmProgramError::Invalid(format!("failed to parse wasm payload: {err}")))?;
         builder.consume_payload(payload)?;
     }
     builder.finish()
@@ -165,18 +166,18 @@ pub(super) fn parse_wasm_artifacts(wasm_bytes: &[u8]) -> Result<WasmProgramArtif
 
 pub(crate) fn parse_first_component_core_module_artifacts(
     component_bytes: &[u8],
-) -> Result<WasmProgramArtifacts, WasmBuildError> {
+) -> Result<WasmProgramArtifacts, WasmProgramError> {
     // Parse the embedded module slice so bytecode PCs are module-relative,
     // matching Wasmtime component frame PCs. Multi-module components need a
     // resolver for the actually executed core module.
     for payload in Parser::new(0).parse_all(component_bytes) {
         let payload =
-            payload.map_err(|err| WasmBuildError::Trace(format!("failed to parse component payload: {err}")))?;
+            payload.map_err(|err| WasmProgramError::Invalid(format!("failed to parse component payload: {err}")))?;
         if let Payload::ModuleSection { unchecked_range, .. } = payload {
             let module_bytes = component_bytes
                 .get(unchecked_range.clone())
                 .ok_or_else(|| {
-                    WasmBuildError::Trace(format!(
+                    WasmProgramError::Invalid(format!(
                         "embedded core module range {unchecked_range:?} out of bounds for component of {} bytes",
                         component_bytes.len()
                     ))
@@ -185,20 +186,20 @@ pub(crate) fn parse_first_component_core_module_artifacts(
         }
     }
 
-    Err(WasmBuildError::Unsupported(
+    Err(WasmProgramError::Unsupported(
         "component did not contain any embedded core module sections".to_string(),
     ))
 }
 
 /// The convenience collector deliberately refuses ambiguous component routing.
-pub(super) fn single_component_core_module(bytes: &[u8]) -> Result<&[u8], WasmBuildError> {
+pub(super) fn single_component_core_module(bytes: &[u8]) -> Result<&[u8], WasmProgramError> {
     let mut module = None;
     for payload in Parser::new(0).parse_all(bytes) {
         if let Payload::ModuleSection { unchecked_range, .. } =
-            payload.map_err(|err| WasmBuildError::Trace(format!("failed to parse component: {err}")))?
+            payload.map_err(|err| WasmProgramError::Invalid(format!("failed to parse component: {err}")))?
         {
             if module.is_some() {
-                return Err(WasmBuildError::Unsupported(
+                return Err(WasmProgramError::Unsupported(
                     "component collector requires exactly one core module; use WasmtimeTraceRegistry to select modules"
                         .into(),
                 ));
@@ -206,7 +207,7 @@ pub(super) fn single_component_core_module(bytes: &[u8]) -> Result<&[u8], WasmBu
             module = bytes.get(unchecked_range);
         }
     }
-    module.ok_or_else(|| WasmBuildError::Trace("component has no embedded core module".into()))
+    module.ok_or_else(|| WasmProgramError::Invalid("component has no embedded core module".into()))
 }
 
 struct ParsedWasmArtifactsBuilder {
@@ -272,9 +273,9 @@ impl Default for ParsedWasmArtifactsBuilder {
 }
 
 impl ParsedWasmArtifactsBuilder {
-    fn narrow_u32(value: u64, field: &str) -> Result<u32, WasmBuildError> {
+    fn narrow_u32(value: u64, field: &str) -> Result<u32, WasmProgramError> {
         u32::try_from(value).map_err(|_| {
-            WasmBuildError::Unsupported(format!(
+            WasmProgramError::Unsupported(format!(
                 "wasm program field `{field}` value {value} does not fit in u32"
             ))
         })
@@ -284,7 +285,7 @@ impl ParsedWasmArtifactsBuilder {
         self.pc_rom.push((pc_before, control_choice, pc_after));
     }
 
-    fn finish(mut self) -> Result<WasmProgramArtifacts, WasmBuildError> {
+    fn finish(mut self) -> Result<WasmProgramArtifacts, WasmProgramError> {
         let unresolved_call_edges = std::mem::take(&mut self.unresolved_call_edges);
         for (pc_before, function_ref) in unresolved_call_edges {
             let entry_pc = self
@@ -292,7 +293,7 @@ impl ParsedWasmArtifactsBuilder {
                 .get(&function_ref)
                 .and_then(|meta| meta.entry_pc)
                 .ok_or_else(|| {
-                    WasmBuildError::Trace(format!(
+                    WasmProgramError::Invalid(format!(
                         "missing entry pc for direct call target function ref {function_ref}"
                     ))
                 })?;
@@ -372,12 +373,12 @@ impl ParsedWasmArtifactsBuilder {
         })
     }
 
-    fn consume_payload(&mut self, payload: Payload<'_>) -> Result<(), WasmBuildError> {
+    fn consume_payload(&mut self, payload: Payload<'_>) -> Result<(), WasmProgramError> {
         match payload {
             Payload::TypeSection(reader) => {
                 for (raw_type_index, func_type_result) in reader.into_iter_err_on_gc_types().enumerate() {
                     let func_type = func_type_result
-                        .map_err(|err| WasmBuildError::Trace(format!("failed to decode wasm func type: {err}")))?;
+                        .map_err(|err| WasmProgramError::Invalid(format!("failed to decode wasm func type: {err}")))?;
                     let signature = canonical_wasmparser_func_signature(&func_type);
                     let type_id = *self.signature_ids.entry(signature).or_insert_with(|| {
                         let assigned = self.next_type_id;
@@ -387,13 +388,13 @@ impl ParsedWasmArtifactsBuilder {
                     self.raw_type_id_by_index
                         .insert(raw_type_index as u32, type_id);
                     let param_count = u8::try_from(func_type.params().len()).map_err(|_| {
-                        WasmBuildError::Unsupported(format!(
+                        WasmProgramError::Unsupported(format!(
                             "function type {raw_type_index} declares {} parameters; neo-wasm supports at most 255",
                             func_type.params().len()
                         ))
                     })?;
                     let result_count = u8::try_from(func_type.results().len()).map_err(|_| {
-                        WasmBuildError::Unsupported(format!(
+                        WasmProgramError::Unsupported(format!(
                             "function type {raw_type_index} declares {} results; neo-wasm supports at most 255",
                             func_type.results().len()
                         ))
@@ -405,7 +406,7 @@ impl ParsedWasmArtifactsBuilder {
             Payload::ImportSection(reader) => {
                 for import_result in reader {
                     let import = import_result
-                        .map_err(|err| WasmBuildError::Trace(format!("failed to decode wasm import: {err}")))?;
+                        .map_err(|err| WasmProgramError::Invalid(format!("failed to decode wasm import: {err}")))?;
                     if matches!(import.ty, wasmparser::TypeRef::Global(_)) {
                         // Imported globals occupy the leading global indexes.
                         self.imported_global_count = self.imported_global_count.saturating_add(1);
@@ -414,7 +415,7 @@ impl ParsedWasmArtifactsBuilder {
                     if matches!(import.ty, wasmparser::TypeRef::Table(_)) {
                         // An imported table's size and contents are host-defined, so the
                         // static `tables` / `table_sizes` preload cannot be authoritative.
-                        return Err(WasmBuildError::Unsupported(
+                        return Err(WasmProgramError::Unsupported(
                             "imported tables are not supported by the wasm proof tables".to_string(),
                         ));
                     }
@@ -429,7 +430,7 @@ impl ParsedWasmArtifactsBuilder {
                             .raw_type_id_by_index
                             .get(&raw_type_index)
                             .ok_or_else(|| {
-                                WasmBuildError::Trace(format!(
+                                WasmProgramError::Invalid(format!(
                                     "missing normalized type id for imported function type {raw_type_index}"
                                 ))
                             })?;
@@ -437,7 +438,7 @@ impl ParsedWasmArtifactsBuilder {
                             .raw_type_shape_by_index
                             .get(&raw_type_index)
                             .ok_or_else(|| {
-                                WasmBuildError::Trace(format!(
+                                WasmProgramError::Invalid(format!(
                                     "missing raw type shape for imported function type {raw_type_index}"
                                 ))
                             })?;
@@ -457,7 +458,7 @@ impl ParsedWasmArtifactsBuilder {
             Payload::FunctionSection(reader) => {
                 for raw_type_index_result in reader {
                     let raw_type_index = raw_type_index_result.map_err(|err| {
-                        WasmBuildError::Trace(format!("failed to decode wasm function type index: {err}"))
+                        WasmProgramError::Invalid(format!("failed to decode wasm function type index: {err}"))
                     })?;
                     self.defined_function_type_indices.push(raw_type_index);
                 }
@@ -465,7 +466,7 @@ impl ParsedWasmArtifactsBuilder {
             Payload::MemorySection(reader) => {
                 for memory_result in reader {
                     let memory = memory_result
-                        .map_err(|err| WasmBuildError::Trace(format!("failed to decode wasm memory: {err}")))?;
+                        .map_err(|err| WasmProgramError::Invalid(format!("failed to decode wasm memory: {err}")))?;
                     self.set_initial_memory_pages(memory)?;
                 }
             }
@@ -474,12 +475,12 @@ impl ParsedWasmArtifactsBuilder {
                     .imported_function_count
                     .checked_add(self.defined_function_index)
                     .and_then(|index| index.checked_add(1))
-                    .ok_or_else(|| WasmBuildError::Trace("function ref id overflow".to_string()))?;
+                    .ok_or_else(|| WasmProgramError::Invalid("function ref id overflow".to_string()))?;
                 let raw_type_index = *self
                     .defined_function_type_indices
                     .get(self.defined_function_index as usize)
                     .ok_or_else(|| {
-                        WasmBuildError::Trace(format!(
+                        WasmProgramError::Invalid(format!(
                             "missing type index for defined function {}",
                             self.defined_function_index
                         ))
@@ -488,27 +489,27 @@ impl ParsedWasmArtifactsBuilder {
                     .raw_type_shape_by_index
                     .get(&raw_type_index)
                     .ok_or_else(|| {
-                        WasmBuildError::Trace(format!(
+                        WasmProgramError::Invalid(format!(
                             "missing raw type shape for defined function type {raw_type_index}"
                         ))
                     })?;
                 let mut declared_local_count = 0_u32;
                 let locals_reader = body
                     .get_locals_reader()
-                    .map_err(|err| WasmBuildError::Trace(format!("failed to read wasm locals: {err}")))?;
+                    .map_err(|err| WasmProgramError::Invalid(format!("failed to read wasm locals: {err}")))?;
                 for local_result in locals_reader {
                     let (count, _) = local_result
-                        .map_err(|err| WasmBuildError::Trace(format!("failed to decode wasm local decl: {err}")))?;
+                        .map_err(|err| WasmProgramError::Invalid(format!("failed to decode wasm local decl: {err}")))?;
                     declared_local_count = declared_local_count
                         .checked_add(count)
-                        .ok_or_else(|| WasmBuildError::Trace("declared local count overflow".to_string()))?;
+                        .ok_or_else(|| WasmProgramError::Invalid("declared local count overflow".to_string()))?;
                 }
                 let num_locals = u32::from(param_count)
                     .checked_add(declared_local_count)
-                    .ok_or_else(|| WasmBuildError::Trace("total local count overflow".to_string()))?;
+                    .ok_or_else(|| WasmProgramError::Invalid("total local count overflow".to_string()))?;
                 let mut reader = body
                     .get_operators_reader()
-                    .map_err(|err| WasmBuildError::Trace(format!("failed to read wasm operators: {err}")))?;
+                    .map_err(|err| WasmProgramError::Invalid(format!("failed to read wasm operators: {err}")))?;
                 let mut curr_depth = 0_usize;
                 let mut control_stack: Vec<ControlFrame> = Vec::new();
                 let mut entry_pc = None;
@@ -517,14 +518,14 @@ impl ParsedWasmArtifactsBuilder {
                     let pc = self.next_pc;
                     self.next_pc = pc
                         .checked_add(1)
-                        .ok_or_else(|| WasmBuildError::Unsupported("wasm instruction PC exceeds u32".to_string()))?;
+                        .ok_or_else(|| WasmProgramError::Unsupported("wasm instruction PC exceeds u32".to_string()))?;
                     if entry_pc.is_none() {
                         entry_pc = Some(u64::from(pc));
                     }
                     let pc_before = u64::from(pc);
                     let operator = reader
                         .read()
-                        .map_err(|err| WasmBuildError::Trace(format!("failed to decode wasm operator: {err}")))?;
+                        .map_err(|err| WasmProgramError::Invalid(format!("failed to decode wasm operator: {err}")))?;
                     let pc_after = u64::from(self.next_pc);
                     let is_function_end = matches!(&operator, wasmparser::Operator::End) && curr_depth == 0;
                     let decoded = match &operator {
@@ -553,12 +554,19 @@ impl ParsedWasmArtifactsBuilder {
                         }
                         _ => decode_opcode(&operator),
                     };
+                    if decoded.is_none() {
+                        return Err(WasmProgramError::UnsupportedOpcode {
+                            operator: format!("{operator:?}"),
+                            defined_function_index: self.defined_function_index,
+                            byte_offset: offset,
+                        });
+                    }
                     let memory = decode_memory_opcode(&operator);
                     let (call_indirect_type_index, expected_type_id) = match &operator {
                         wasmparser::Operator::CallIndirect { type_index, .. }
                         | wasmparser::Operator::ReturnCallIndirect { type_index, .. } => {
                             let expected_type_id = *self.raw_type_id_by_index.get(type_index).ok_or_else(|| {
-                                WasmBuildError::Trace(format!(
+                                WasmProgramError::Invalid(format!(
                                     "missing normalized type id for call_indirect type {type_index}"
                                 ))
                             })?;
@@ -660,10 +668,10 @@ impl ParsedWasmArtifactsBuilder {
                         }
                         wasmparser::Operator::Else => {
                             let frame = control_stack.last_mut().ok_or_else(|| {
-                                WasmBuildError::Trace("encountered else without an open control frame".to_string())
+                                WasmProgramError::Invalid("encountered else without an open control frame".to_string())
                             })?;
                             if frame.kind != ControlFrameKind::If {
-                                return Err(WasmBuildError::Trace(
+                                return Err(WasmProgramError::Invalid(
                                     "encountered else outside an if frame".to_string(),
                                 ));
                             }
@@ -687,7 +695,7 @@ impl ParsedWasmArtifactsBuilder {
                             self.push_pc_rom_edge(pc_before, 0, pc_after);
                             let depth = *relative_depth as usize;
                             let Some(target_index) = control_stack.len().checked_sub(depth + 1) else {
-                                return Err(WasmBuildError::Trace(format!(
+                                return Err(WasmProgramError::Invalid(format!(
                                     "br_if depth {depth} exceeded control nesting"
                                 )));
                             };
@@ -701,7 +709,7 @@ impl ParsedWasmArtifactsBuilder {
                         wasmparser::Operator::Br { relative_depth } => {
                             let depth = *relative_depth as usize;
                             let Some(target_index) = control_stack.len().checked_sub(depth + 1) else {
-                                return Err(WasmBuildError::Trace(format!(
+                                return Err(WasmProgramError::Invalid(format!(
                                     "br depth {depth} exceeded control nesting"
                                 )));
                             };
@@ -715,10 +723,10 @@ impl ParsedWasmArtifactsBuilder {
                         wasmparser::Operator::BrTable { targets } => {
                             for (choice_index, depth_result) in targets.targets().enumerate() {
                                 let depth = depth_result.map_err(|err| {
-                                    WasmBuildError::Trace(format!("failed to decode br_table target: {err}"))
+                                    WasmProgramError::Invalid(format!("failed to decode br_table target: {err}"))
                                 })? as usize;
                                 let Some(target_index) = control_stack.len().checked_sub(depth + 1) else {
-                                    return Err(WasmBuildError::Trace(format!(
+                                    return Err(WasmProgramError::Invalid(format!(
                                         "br_table depth {depth} exceeded control nesting"
                                     )));
                                 };
@@ -733,7 +741,7 @@ impl ParsedWasmArtifactsBuilder {
                             }
                             let default_depth = targets.default() as usize;
                             let Some(target_index) = control_stack.len().checked_sub(default_depth + 1) else {
-                                return Err(WasmBuildError::Trace(format!(
+                                return Err(WasmProgramError::Invalid(format!(
                                     "br_table default depth {default_depth} exceeded control nesting"
                                 )));
                             };
@@ -776,7 +784,7 @@ impl ParsedWasmArtifactsBuilder {
                     .raw_type_id_by_index
                     .get(&raw_type_index)
                     .ok_or_else(|| {
-                        WasmBuildError::Trace(format!(
+                        WasmProgramError::Invalid(format!(
                             "missing normalized type id for defined function type {raw_type_index}"
                         ))
                     })?;
@@ -799,14 +807,14 @@ impl ParsedWasmArtifactsBuilder {
             Payload::TableSection(reader) => {
                 for table_result in reader {
                     let table = table_result
-                        .map_err(|err| WasmBuildError::Trace(format!("failed to decode wasm table: {err}")))?;
+                        .map_err(|err| WasmProgramError::Invalid(format!("failed to decode wasm table: {err}")))?;
                     if table.ty.table64 {
-                        return Err(WasmBuildError::Unsupported(
+                        return Err(WasmProgramError::Unsupported(
                             "table64 tables are not supported by the wasm proof tables".to_string(),
                         ));
                     }
                     if !matches!(table.init, wasmparser::TableInit::RefNull) {
-                        return Err(WasmBuildError::Unsupported(
+                        return Err(WasmProgramError::Unsupported(
                             "tables with explicit init expressions are not supported".to_string(),
                         ));
                     }
@@ -818,7 +826,7 @@ impl ParsedWasmArtifactsBuilder {
             Payload::ElementSection(reader) => {
                 for element_result in reader {
                     let element = element_result.map_err(|err| {
-                        WasmBuildError::Trace(format!("failed to decode wasm element segment: {err}"))
+                        WasmProgramError::Invalid(format!("failed to decode wasm element segment: {err}"))
                     })?;
                     let (table_id, offset_expr) = match element.kind {
                         wasmparser::ElementKind::Active {
@@ -834,12 +842,12 @@ impl ParsedWasmArtifactsBuilder {
                     // policy as active data segments.
                     let mut ops = offset_expr.get_operators_reader();
                     let first = ops.read().map_err(|err| {
-                        WasmBuildError::Trace(format!("failed to read element segment offset expr: {err}"))
+                        WasmProgramError::Invalid(format!("failed to read element segment offset expr: {err}"))
                     })?;
                     let offset = match first {
                         wasmparser::Operator::I32Const { value } => value as u32,
                         other => {
-                            return Err(WasmBuildError::Unsupported(format!(
+                            return Err(WasmProgramError::Unsupported(format!(
                                 "element segment with non-i32.const offset expr: {other:?}"
                             )));
                         }
@@ -851,7 +859,7 @@ impl ParsedWasmArtifactsBuilder {
                         wasmparser::ElementItems::Functions(items) => {
                             for item in items {
                                 let function_index = item.map_err(|err| {
-                                    WasmBuildError::Trace(format!("failed to decode element function index: {err}"))
+                                    WasmProgramError::Invalid(format!("failed to decode element function index: {err}"))
                                 })?;
                                 funcrefs.push(function_index.saturating_add(1));
                             }
@@ -859,11 +867,11 @@ impl ParsedWasmArtifactsBuilder {
                         wasmparser::ElementItems::Expressions(_, items) => {
                             for item in items {
                                 let expr = item.map_err(|err| {
-                                    WasmBuildError::Trace(format!("failed to decode element init expr: {err}"))
+                                    WasmProgramError::Invalid(format!("failed to decode element init expr: {err}"))
                                 })?;
                                 let mut ops = expr.get_operators_reader();
                                 let first = ops.read().map_err(|err| {
-                                    WasmBuildError::Trace(format!("failed to read element init expr: {err}"))
+                                    WasmProgramError::Invalid(format!("failed to read element init expr: {err}"))
                                 })?;
                                 match first {
                                     wasmparser::Operator::RefFunc { function_index } => {
@@ -871,7 +879,7 @@ impl ParsedWasmArtifactsBuilder {
                                     }
                                     wasmparser::Operator::RefNull { .. } => funcrefs.push(0),
                                     other => {
-                                        return Err(WasmBuildError::Unsupported(format!(
+                                        return Err(WasmProgramError::Unsupported(format!(
                                             "element segment with non-funcref init expr: {other:?}"
                                         )));
                                     }
@@ -882,15 +890,16 @@ impl ParsedWasmArtifactsBuilder {
                     for (i, funcref) in funcrefs.into_iter().enumerate() {
                         let index = offset
                             .checked_add(i as u32)
-                            .ok_or_else(|| WasmBuildError::Trace("element segment index overflow".to_string()))?;
+                            .ok_or_else(|| WasmProgramError::Invalid("element segment index overflow".to_string()))?;
                         self.tables_init.push((table_id, index, funcref));
                     }
                 }
             }
             Payload::DataSection(reader) => {
                 for segment_result in reader {
-                    let segment = segment_result
-                        .map_err(|err| WasmBuildError::Trace(format!("failed to decode wasm data segment: {err}")))?;
+                    let segment = segment_result.map_err(|err| {
+                        WasmProgramError::Invalid(format!("failed to decode wasm data segment: {err}"))
+                    })?;
                     let (memory_index, offset) = match segment.kind {
                         wasmparser::DataKind::Active {
                             memory_index,
@@ -901,12 +910,12 @@ impl ParsedWasmArtifactsBuilder {
                             // scope for static preload.
                             let mut reader = offset_expr.get_operators_reader();
                             let first = reader.read().map_err(|err| {
-                                WasmBuildError::Trace(format!("failed to read data segment offset expr: {err}"))
+                                WasmProgramError::Invalid(format!("failed to read data segment offset expr: {err}"))
                             })?;
                             let offset = match first {
                                 wasmparser::Operator::I32Const { value } => value as u32 as u64,
                                 other => {
-                                    return Err(WasmBuildError::Unsupported(format!(
+                                    return Err(WasmProgramError::Unsupported(format!(
                                         "data segment with non-i32.const offset expr: {other:?}"
                                     )));
                                 }
@@ -916,7 +925,7 @@ impl ParsedWasmArtifactsBuilder {
                         wasmparser::DataKind::Passive => continue,
                     };
                     if memory_index != 0 {
-                        return Err(WasmBuildError::Unsupported(format!(
+                        return Err(WasmProgramError::Unsupported(format!(
                             "data segment targeting non-default memory {memory_index} not supported"
                         )));
                     }
@@ -928,11 +937,11 @@ impl ParsedWasmArtifactsBuilder {
             Payload::GlobalSection(reader) => {
                 for global_result in reader {
                     let global = global_result
-                        .map_err(|err| WasmBuildError::Trace(format!("failed to decode wasm global: {err}")))?;
+                        .map_err(|err| WasmProgramError::Invalid(format!("failed to decode wasm global: {err}")))?;
                     let mut ops = global.init_expr.get_operators_reader();
-                    let first = ops
-                        .read()
-                        .map_err(|err| WasmBuildError::Trace(format!("failed to read wasm global init expr: {err}")))?;
+                    let first = ops.read().map_err(|err| {
+                        WasmProgramError::Invalid(format!("failed to read wasm global init expr: {err}"))
+                    })?;
                     let (lo, hi) = match first {
                         wasmparser::Operator::I32Const { value } => (value as u32, 0),
                         wasmparser::Operator::I64Const { value } => {
@@ -940,12 +949,12 @@ impl ParsedWasmArtifactsBuilder {
                             (v as u32, (v >> 32) as u32)
                         }
                         wasmparser::Operator::F32Const { .. } | wasmparser::Operator::F64Const { .. } => {
-                            return Err(WasmBuildError::Unsupported(
+                            return Err(WasmProgramError::Unsupported(
                                 "wasm global with float initializer: floats are unsupported".to_string(),
                             ));
                         }
                         other => {
-                            return Err(WasmBuildError::Unsupported(format!(
+                            return Err(WasmProgramError::Unsupported(format!(
                                 "wasm global with non-const init expr: {other:?}"
                             )));
                         }
@@ -960,15 +969,15 @@ impl ParsedWasmArtifactsBuilder {
         Ok(())
     }
 
-    fn set_initial_memory_pages(&mut self, memory: wasmparser::MemoryType) -> Result<(), WasmBuildError> {
+    fn set_initial_memory_pages(&mut self, memory: wasmparser::MemoryType) -> Result<(), WasmProgramError> {
         if memory.memory64 {
-            return Err(WasmBuildError::Unsupported(
+            return Err(WasmProgramError::Unsupported(
                 "memory64 default memory is not supported by the wasm proof tables".to_string(),
             ));
         }
 
         if self.initial_memory_pages.is_some() {
-            return Err(WasmBuildError::Unsupported(
+            return Err(WasmProgramError::Unsupported(
                 "multiple memories are not supported by the wasm proof tables".to_string(),
             ));
         }

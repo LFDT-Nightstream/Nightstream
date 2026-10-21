@@ -1,7 +1,7 @@
 //! Reject branch stack unwinding until the circuit binds the discarded count
 //! and relocates carried results. PC-ROM edges alone only constrain the jump.
 
-use crate::ir::WasmBuildError;
+use crate::ir::WasmProgramError;
 use wasmparser::{
     FrameKind, FuncValidator, ModuleArity, Operator, Parser, ValidPayload, Validator, WasmModuleResources,
 };
@@ -11,7 +11,7 @@ fn validate_target<T: WasmModuleResources>(
     depth: u32,
     condition_operands: usize,
     offset: usize,
-) -> Result<(), WasmBuildError> {
+) -> Result<(), WasmProgramError> {
     // Polymorphic stacks in unreachable code do not describe an executed row.
     if validator
         .get_control_frame(0)
@@ -21,10 +21,10 @@ fn validate_target<T: WasmModuleResources>(
     }
     let target = validator
         .get_control_frame(depth as usize)
-        .ok_or_else(|| WasmBuildError::Trace(format!("invalid branch depth at byte {offset}")))?;
+        .ok_or_else(|| WasmProgramError::Invalid(format!("invalid branch depth at byte {offset}")))?;
     let (params, results) = validator
         .block_type_arity(target.block_type)
-        .ok_or_else(|| WasmBuildError::Trace(format!("invalid branch target type at byte {offset}")))?;
+        .ok_or_else(|| WasmProgramError::Invalid(format!("invalid branch target type at byte {offset}")))?;
     let carried = if target.kind == FrameKind::Loop {
         params
     } else {
@@ -32,15 +32,15 @@ fn validate_target<T: WasmModuleResources>(
     };
     let kept = target.height + carried as usize + condition_operands;
     if validator.operand_stack_height() as usize > kept {
-        return Err(WasmBuildError::Unsupported(format!(
+        return Err(WasmProgramError::Unsupported(format!(
             "branch stack unwinding at byte {offset}: discarding temporary operands is not constrained by the circuit"
         )));
     }
     Ok(())
 }
 
-pub(super) fn validate_branch_stack_support(bytes: &[u8]) -> Result<(), WasmBuildError> {
-    let invalid = |error| WasmBuildError::Trace(format!("invalid wasm program: {error}"));
+pub(super) fn validate_branch_stack_support(bytes: &[u8]) -> Result<(), WasmProgramError> {
+    let invalid = |error| WasmProgramError::Invalid(format!("invalid wasm program: {error}"));
     let mut validator = Validator::new();
     let mut allocations = Default::default();
     for payload in Parser::new(0).parse_all(bytes) {

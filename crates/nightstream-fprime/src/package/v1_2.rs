@@ -201,7 +201,6 @@ pub struct PiCcsV1_2PackageInputs {
 }
 
 impl PiCcsV1_2PackageInputs {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         prior_preimage: Vec<u64>,
         output_preimage: Vec<u64>,

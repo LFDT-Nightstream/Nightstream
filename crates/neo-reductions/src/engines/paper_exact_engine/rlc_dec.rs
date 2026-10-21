@@ -280,7 +280,6 @@ where
 }
 
 /// Evaluate PiDEC child openings directly from circuit-owned original rows.
-#[allow(clippy::too_many_arguments)]
 pub fn dec_reduction_paper_exact_with_rows<Ff, Combine>(
     structure: &CcsStructure<Ff>,
     params: &NeoParams,
@@ -309,7 +308,6 @@ where
     ))
 }
 
-#[allow(clippy::too_many_arguments)]
 fn dec_children<Ff, Combine>(
     structure: &CcsStructure<Ff>,
     params: &NeoParams,

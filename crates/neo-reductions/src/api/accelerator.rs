@@ -7,7 +7,6 @@ use super::*;
 /// The returned handle is opaque to the reduction. Public claim algebra and
 /// commitment mixing remain canonical, while the accelerator can pass its
 /// witness directly to Π_DEC without manufacturing a host matrix.
-#[allow(clippy::too_many_arguments)]
 pub fn rlc_with_commit_refs_and_resident_witness<Comb, MixWitness, Resident>(
     mode: FoldingMode,
     s: &CcsStructure<F>,

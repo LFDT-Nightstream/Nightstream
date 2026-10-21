@@ -124,7 +124,6 @@ fn validate_selected_inputs(
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn bind_and_sample_with_trace(
     transcript: &mut Poseidon2Transcript,
     trace: &mut ProtocolTrace,
@@ -374,7 +373,6 @@ fn validate_outputs(
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn verify_with_trace(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,

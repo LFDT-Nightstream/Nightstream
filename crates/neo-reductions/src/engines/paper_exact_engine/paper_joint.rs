@@ -486,7 +486,6 @@ where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
     K: From<Ff>,
 {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         structure: &'a CcsStructure<Ff>,
         params: &'a neo_params::NeoParams,
@@ -500,7 +499,6 @@ where
     }
 
     /// Evaluate exported original rows with the same direct paper formulas.
-    #[allow(clippy::too_many_arguments)]
     pub fn from_rows(
         structure: &'a CcsStructure<Ff>,
         params: &'a neo_params::NeoParams,
@@ -523,7 +521,6 @@ where
         )
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn with_matrix_rows(
         structure: &'a CcsStructure<Ff>,
         params: &'a neo_params::NeoParams,
@@ -678,7 +675,6 @@ where
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(super) fn build_outputs<Ff>(
     structure: &CcsStructure<Ff>,
     fresh_claims: &[CcsClaim<Cmt, Ff>],

@@ -33,7 +33,6 @@ pub fn optimized_prove(
     Ok((outputs, proof))
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn optimized_prove_with_cache_and_perf(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,
@@ -56,7 +55,6 @@ pub fn optimized_prove_with_cache_and_perf(
     )
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn optimized_prove_with_cache_and_precompute_and_perf(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,

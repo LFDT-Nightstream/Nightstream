@@ -247,7 +247,6 @@ enum OracleSource<'a> {
     },
 }
 
-#[allow(clippy::too_many_arguments)]
 fn build_outputs(
     structure: &CcsStructure<F>,
     fresh_claims: &[CcsClaim<Cmt, F>],
@@ -349,7 +348,6 @@ fn build_outputs(
     Ok(outputs)
 }
 
-#[allow(clippy::too_many_arguments)]
 fn prove_with_trace_inner(
     transcript: &mut Poseidon2Transcript,
     params: &neo_params::NeoParams,
@@ -597,7 +595,6 @@ pub(crate) fn prove_with_trace(
     )
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn prove(
     transcript: &mut Poseidon2Transcript,
     params: &neo_params::NeoParams,
@@ -625,7 +622,6 @@ pub fn prove(
 /// The evaluator must use these exact ordered sources and prepared challenges,
 /// and return all ring openings. The driver rebinds the statement and rejects
 /// missing openings; this route never constructs a host cache or full tensor.
-#[allow(clippy::too_many_arguments)]
 pub fn prove_with_complete_oracle(
     transcript: &mut Poseidon2Transcript,
     params: &neo_params::NeoParams,
@@ -663,7 +659,6 @@ pub fn prove_with_complete_oracle(
 /// Prove with row-cache arithmetic supplied by the owning relation adapter.
 /// This cache is prover data. This function does not create or validate a
 /// verifier-artifact authority; the owner must supply its matching header.
-#[allow(clippy::too_many_arguments)]
 pub fn prove_with_row_cache(
     transcript: &mut Poseidon2Transcript,
     params: &neo_params::NeoParams,
@@ -715,7 +710,6 @@ fn resident_row_workspace(rows: &dyn MatrixRows, fresh_count: usize) -> Result<u
 
 /// Prove from original rows with explicit working storage and an optional
 /// device evaluator. The caller owns row authority and total live-memory accounting.
-#[allow(clippy::too_many_arguments)]
 pub fn prove_with_matrix_rows<'a>(
     transcript: &mut Poseidon2Transcript,
     params: &neo_params::NeoParams,

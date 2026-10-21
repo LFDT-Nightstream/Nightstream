@@ -1,4 +1,4 @@
-//! Error types for the neo-fold crate
+//! Error types for the neo-reductions crate
 
 use thiserror::Error;
 

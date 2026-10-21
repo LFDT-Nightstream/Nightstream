@@ -12,8 +12,8 @@
 //! References: SuperNeo v1.2 Section 4 (Ajtai, strong set), Section 7.4 and
 //! Definition 22 (Π_RLC bound), Section 8.2 (Goldilocks preset).
 //!
-//! NOTE: The per-instance (ℓ, d_sc) used in the sum-check live in neo-fold.
-//!       Use `extension_check()` *there* with the preset's q, s, λ.
+//! NOTE: This crate does not know the per-instance sum-check shape. The Π_CCS
+//!       reduction passes it to `padded_row_security_check_for_shape()`.
 //!
 //! ## Cryptographic Primitives
 //!

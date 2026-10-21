@@ -8,8 +8,8 @@
 //!
 //! ## API Guard: verify_linear
 //!
-//! This crate intentionally does NOT export `verify_linear`. Linear relation verification
-//! must be performed at the folding layer via `neo_fold::verify_linear` (Π_RLC).
+//! This crate intentionally does NOT export `verify_linear`. The Π_RLC verifier in
+//! `neo-reductions` checks linear relations.
 //!
 //! ```compile_fail
 //! // This must fail to compile - verify_linear is not provided by neo-ajtai

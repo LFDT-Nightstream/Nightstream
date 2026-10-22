@@ -324,7 +324,14 @@ fn v1_2_input_encoder_rejects_a_missing_eval_a_matrix() {
     let eval_k = vec![vec![[0, 0]; PI_CCS_V1_2_COEFFICIENT_COUNT]; PI_CCS_V1_2_SOURCE_COUNT];
     let eval_a =
         vec![vec![vec![[0, 0]; PI_CCS_V1_2_COEFFICIENT_COUNT]; PI_CCS_V1_2_MATRIX_COUNT - 1]; PI_CCS_V1_2_SOURCE_COUNT];
-    assert!(PiCcsV1_2OutputEvaluations::new(eval_k, eval_a).is_err());
+    assert!(matches!(
+        PiCcsV1_2OutputEvaluations::new(eval_k, eval_a),
+        Err(PackageError::InputLength {
+            what: "PiCCS v1_2 output family shape",
+            expected: PI_CCS_V1_2_MATRIX_COUNT,
+            actual,
+        }) if actual == PI_CCS_V1_2_MATRIX_COUNT - 1
+    ));
 }
 
 #[test]

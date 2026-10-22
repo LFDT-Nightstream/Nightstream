@@ -496,7 +496,7 @@ impl<'a> MetalPaperJointOracle<'a> {
         if !plan.matches(input.rows)
             || plan.rows != input.structure.n
             || plan.matrix_count != input.structure.t()
-            || !matches!(input.params.b, 2 | 4)
+            || input.params.b != 2
             || input.dims.degree + 1 > MAX_COEFFICIENTS
             || input.dims.row_count < 2
         {

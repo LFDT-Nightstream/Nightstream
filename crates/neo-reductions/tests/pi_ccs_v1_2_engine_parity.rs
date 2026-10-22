@@ -69,8 +69,8 @@ fn selected_parameters(structure: &CcsStructure<F>) -> NeoParams {
 
 fn committer(params: &NeoParams, columns: usize) -> PP<neo_math::ring::Rq> {
     let mut rng = ChaCha8Rng::seed_from_u64(0x5041_4444_4544_524f);
-    let public_parameters = ajtai_setup(&mut rng, D, params.kappa as usize, columns.div_ceil(D)).expect("Ajtai setup");
-    public_parameters
+
+    ajtai_setup(&mut rng, D, params.kappa as usize, columns.div_ceil(D)).expect("Ajtai setup")
 }
 
 fn combine_commitments_b_pows(commitments: &[neo_ajtai::Commitment], base: u32) -> neo_ajtai::Commitment {

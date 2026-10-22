@@ -125,7 +125,7 @@ pub fn verify(
     proof: &Proof,
 ) -> Result<Vec<CeClaim>, Error> {
     validate_verifier_inputs(pp, s, parent, proof)?;
-    engine::verify_pi_dec(pp, s, parent, &proof.children, |cs, b| combine(cs, b)).map_err(Error::VerifyRejected)?;
+    engine::verify_pi_dec(pp, s, parent, &proof.children, combine).map_err(Error::VerifyRejected)?;
     Ok(proof.children.clone())
 }
 

@@ -25,7 +25,7 @@ pub struct Stage1Envelope {
 impl Stage1Envelope {
     pub(crate) fn snapshot(&self) -> Self {
         Self {
-            state: self.state.clone(),
+            state: self.state,
             proof: self.proof.clone(),
         }
     }

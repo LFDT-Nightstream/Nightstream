@@ -144,7 +144,7 @@ fn ccs_matrix_identity_mul() {
     let n = 4;
     let id = CcsMatrix::<F>::Identity { n };
 
-    let x: Vec<F> = (1..=4).map(|k| F::from_u64(k)).collect();
+    let x: Vec<F> = (1..=4).map(F::from_u64).collect();
 
     let mut y = vec![F::ZERO; n];
     id.add_mul_into(&x, &mut y, n);

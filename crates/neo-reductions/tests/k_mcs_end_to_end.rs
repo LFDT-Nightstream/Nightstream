@@ -24,8 +24,8 @@ fn commit_cols_for_ccs_m(ccs_m: usize) -> usize {
 fn setup_ajtai_committer(params: &NeoParams, m: usize) -> PP<neo_math::ring::Rq> {
     let m_commit = commit_cols_for_ccs_m(m);
     let mut rng = ChaCha8Rng::seed_from_u64(19);
-    let pp = ajtai_setup(&mut rng, D, params.kappa as usize, m_commit).expect("Ajtai setup");
-    pp
+
+    ajtai_setup(&mut rng, D, params.kappa as usize, m_commit).expect("Ajtai setup")
 }
 
 fn build_mcs_step(

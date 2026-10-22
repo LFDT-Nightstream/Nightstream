@@ -308,7 +308,7 @@ fn verify_dec_public_rejects_out_of_range_child_x_at_correct_arity() {
         .zip(&child_commitments)
         .enumerate()
         .map(|(index, (z, commitment))| {
-            let claim = build_me_from_z(
+            build_me_from_z(
                 &params,
                 &structure,
                 z,
@@ -317,8 +317,7 @@ fn verify_dec_public_rejects_out_of_range_child_x_at_correct_arity() {
                 D,
                 commitment.clone(),
                 122_000 + 2 * index as u64,
-            );
-            claim
+            )
         })
         .collect::<Vec<_>>();
     assert!(

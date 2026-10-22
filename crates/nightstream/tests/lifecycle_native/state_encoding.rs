@@ -102,7 +102,7 @@ fn verify_rejects_a_second_split_of_the_running_parent() {
                 Z: Mat::virtual_constant(D, blocks, F::ZERO),
             },
         };
-        Stage1Envelope::from_parts(state.clone(), running, fresh)
+        Stage1Envelope::from_parts(state, running, fresh)
     };
 
     let canonical = package.verify(&state, &envelope(&[(0, F::ONE)]));

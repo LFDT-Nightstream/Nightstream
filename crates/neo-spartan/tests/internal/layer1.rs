@@ -69,11 +69,11 @@ pub(super) fn claim_mutations(claim: &Claim) -> Vec<(&'static str, Claim)> {
     };
     let mut cases = Vec::new();
     let mut changed = claim.clone();
-    changed.c.data[0] += F::ONE;
+    changed.c.data_mut()[0] += F::ONE;
     cases.push(("commitment row 0", changed));
     let mut changed = claim.clone();
-    let last = changed.c.data.len() - 1;
-    changed.c.data[last] += F::ONE;
+    let last = changed.c.data().len() - 1;
+    changed.c.data_mut()[last] += F::ONE;
     cases.push(("commitment last row", changed));
     let mut changed = claim.clone();
     changed.X[(5, 0)] += F::ONE;

@@ -162,7 +162,7 @@ impl PreparedLifecycle {
                 .map(|child| {
                     child
                         .c
-                        .data
+                        .data()
                         .iter()
                         .map(|field| field.as_canonical_u64())
                         .collect()

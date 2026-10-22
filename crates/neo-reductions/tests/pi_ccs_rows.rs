@@ -79,7 +79,7 @@ fn row_prover_preserves_odd_prefixes_singletons_and_complete_pad_blocks() {
     };
     let running_witness = packed(&running_values);
     let fresh_claim = CcsClaim {
-        c: Commitment::zeros(D, params.kappa() as usize),
+        c: Commitment::zeros(params.kappa() as usize),
         x: fresh_values[..D].to_vec(),
         m_in: D,
         adv: None,
@@ -103,7 +103,7 @@ fn row_prover_preserves_odd_prefixes_singletons_and_complete_pad_blocks() {
         })
         .collect();
     let running_claim = CeClaim {
-        c: Commitment::zeros(D, params.kappa() as usize),
+        c: Commitment::zeros(params.kappa() as usize),
         X: Mat::zero(D, 1, F::ZERO),
         r: point,
         eval_k,

@@ -79,7 +79,7 @@ impl Case {
         let witnesses = vec![CcsWitness { Z: assignment }];
         let dims = build_joint_dims(&params, &structure, 1, 1).unwrap();
         let running = vec![Output {
-            c: Commitment::zeros(D, params.kappa() as usize),
+            c: Commitment::zeros(params.kappa() as usize),
             X: Mat::zero(D, 1, F::ZERO),
             r: vec![K::ZERO; dims.variables],
             eval_k: vec![K::ZERO; D.next_power_of_two()],

@@ -15,7 +15,7 @@ fn sample_commitment() -> Commitment {
             _ => Fq::from_u64(11),
         });
     }
-    Commitment { d: D, kappa: 3, data }
+    Commitment::new(3, data).expect("commitment shape")
 }
 
 #[test]

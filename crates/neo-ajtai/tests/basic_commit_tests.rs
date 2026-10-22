@@ -295,7 +295,7 @@ fn rows_for_coords_matches_commit() {
     let mut c_flat_expected = vec![Fq::ZERO; num_coords];
     for i in 0..kappa {
         for r in 0..d {
-            c_flat_expected[i * d + r] = c.data[i * d + r];
+            c_flat_expected[i * d + r] = c.data()[i * d + r];
         }
     }
 

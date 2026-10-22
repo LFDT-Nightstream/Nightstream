@@ -127,7 +127,7 @@ fn terminal_package_accepts_the_last_fold() {
             .collect()
     };
     let parent = &last.parent.claim;
-    assert_eq!(words(&outputs.commitment), canonical(&parent.c.data), "commitment");
+    assert_eq!(words(&outputs.commitment), canonical(parent.c.data()), "commitment");
     let x: Vec<F> = (0..outputs.public_input.len())
         .map(|column| parent.X[(column % neo_math::D, column / neo_math::D)])
         .collect();

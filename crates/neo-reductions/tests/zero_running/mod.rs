@@ -18,7 +18,7 @@ pub(crate) fn zero_running(
         .variables;
     let padded = D.next_power_of_two();
     let claim = CeClaim {
-        c: Commitment::zeros(D, params.kappa() as usize),
+        c: Commitment::zeros(params.kappa() as usize),
         X: Mat::zero(D, neo_ccs::superneo_public_x_cols(m_in).unwrap(), F::ZERO),
         r: vec![K::ZERO; variables],
         eval_k: vec![K::ZERO; padded],

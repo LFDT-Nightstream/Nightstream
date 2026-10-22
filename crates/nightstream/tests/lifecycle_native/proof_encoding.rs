@@ -59,10 +59,10 @@ fn push_k(output: &mut Vec<u8>, value: K) {
 }
 
 fn push_commitment(output: &mut Vec<u8>, commitment: &Commitment) {
-    push_u64(output, commitment.d as u64);
-    push_u64(output, commitment.kappa as u64);
-    push_u64(output, commitment.data.len() as u64);
-    for &value in &commitment.data {
+    push_u64(output, commitment.d() as u64);
+    push_u64(output, commitment.kappa() as u64);
+    push_u64(output, commitment.data().len() as u64);
+    for &value in commitment.data() {
         push_f(output, value);
     }
 }

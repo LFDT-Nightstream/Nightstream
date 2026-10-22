@@ -101,7 +101,7 @@ fn extension_errors_leave_the_supplied_proof_unchanged() {
         crate::folding::RunningInstance::default(),
         crate::folding::CcsInstance {
             claim: crate::folding::CcsClaim {
-                c: neo_ajtai::Commitment::zeros(neo_math::D, 22),
+                c: neo_ajtai::Commitment::zeros(22),
                 x: Vec::new(),
                 m_in: 0,
                 adv: None,
@@ -426,12 +426,14 @@ fn shaped_proof(prover: &Prover) -> Stage1Envelope {
         values.resize(D.next_power_of_two(), K::ZERO);
         values
     };
-    let commitment = |seed: u64| neo_ajtai::Commitment {
-        d: D,
-        kappa: 22,
-        data: (0..D as u64 * 22)
-            .map(|word| F::from_u64(seed + word))
-            .collect(),
+    let commitment = |seed: u64| {
+        neo_ajtai::Commitment::new(
+            22,
+            (0..D as u64 * 22)
+                .map(|word| F::from_u64(seed + word))
+                .collect(),
+        )
+        .expect("commitment shape")
     };
     let claim = |seed: u64| CeClaim {
         c: commitment(seed),

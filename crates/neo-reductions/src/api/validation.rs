@@ -27,15 +27,15 @@ pub(super) fn validate_commitment_shape(
     commitment: &Cmt,
     expected_kappa: usize,
 ) -> Result<(), PiCcsError> {
-    if commitment.d != D
-        || commitment.kappa != expected_kappa
-        || D.checked_mul(expected_kappa) != Some(commitment.data.len())
+    if commitment.d() != D
+        || commitment.kappa() != expected_kappa
+        || D.checked_mul(expected_kappa) != Some(commitment.data().len())
     {
         return Err(PiCcsError::InvalidInput(format!(
             "{label}: commitment must have a complete {D}x{expected_kappa} payload (got {}x{} with {} entries)",
-            commitment.d,
-            commitment.kappa,
-            commitment.data.len()
+            commitment.d(),
+            commitment.kappa(),
+            commitment.data().len()
         )));
     }
     Ok(())
@@ -46,7 +46,7 @@ pub(crate) fn validate_ce_claim_shape(
     s: &CcsStructure<F>,
     ce: &CeClaim<Cmt, F, K>,
 ) -> Result<(), PiCcsError> {
-    validate_commitment_shape(label, &ce.c, ce.c.kappa)?;
+    validate_commitment_shape(label, &ce.c, ce.c.kappa())?;
     if ce.adv.is_some() {
         return Err(PiCcsError::InvalidInput(format!(
             "{label}: no reduction binds auxiliary lane commitments"
@@ -191,7 +191,7 @@ pub(crate) fn validate_rlc_batch_compatibility(
         return Err(PiCcsError::InvalidInput(format!("{label}: empty inputs")));
     };
     for (index, claim) in claims.iter().enumerate() {
-        validate_commitment_shape(label, &claim.c, first.c.kappa)?;
+        validate_commitment_shape(label, &claim.c, first.c.kappa())?;
         if claim.m_in != first.m_in {
             return Err(PiCcsError::InvalidInput(format!(
                 "{label}: m_in mismatch at input {index} (expected {}, got {})",
@@ -251,7 +251,7 @@ pub(crate) fn validate_dec_boundary_inputs(
     }
     checked_superneo_d_pad("DEC ell_d", ell_d)?;
     for (idx, (z, commitment)) in z_split.iter().zip(child_commitments).enumerate() {
-        validate_commitment_shape("dec_child", commitment, parent.c.kappa)?;
+        validate_commitment_shape("dec_child", commitment, parent.c.kappa())?;
         crate::common::validate_packed_witness_dec_representable(params, z, s.m, &format!("dec: Z_split[{idx}]"))?;
     }
     Ok(())
@@ -283,7 +283,7 @@ pub(crate) fn validate_dec_boundary_inputs_from_trusted_split(
     }
     checked_superneo_d_pad("DEC ell_d", ell_d)?;
     for (idx, (z, commitment)) in z_split.iter().zip(child_commitments).enumerate() {
-        validate_commitment_shape("dec_child", commitment, parent.c.kappa)?;
+        validate_commitment_shape("dec_child", commitment, parent.c.kappa())?;
         crate::common::validate_superneo_witness_shape(z, s.m)
             .map_err(|e| PiCcsError::InvalidInput(format!("dec trusted split: Z_split[{idx}] shape failed: {e}")))?;
     }

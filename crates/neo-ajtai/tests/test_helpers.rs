@@ -163,7 +163,7 @@ fn precompute_rot_columns(a: RqEl, cols: &mut [[Fq; D]]) {
 pub(crate) fn commit_spec(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {
     let d = pp.d();
     let m = pp.m();
-    let mut c = Commitment::zeros(d, pp.kappa());
+    let mut c = Commitment::zeros(pp.kappa());
 
     for i in 0..pp.kappa() {
         let acc_i = c.col_mut(i);

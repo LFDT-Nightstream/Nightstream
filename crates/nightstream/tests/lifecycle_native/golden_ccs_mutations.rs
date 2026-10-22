@@ -146,7 +146,7 @@ pub(crate) fn check_claim_mutations(
                 for family in 0..claim_families {
                     let mut changed = running.to_vec();
                     match family {
-                        0 => changed[source].c.data[0] += F::ONE,
+                        0 => changed[source].c.data_mut()[0] += F::ONE,
                         1 => changed[source].X[(0, 0)] += F::ONE,
                         2 => changed[source].eval_k[0] += K::ONE,
                         _ => changed[source].eval_a[family - 3][0] += K::ONE,
@@ -160,7 +160,7 @@ pub(crate) fn check_claim_mutations(
                 }
             }
             let mut changed = fresh.clone();
-            changed.c.data[0] += F::ONE;
+            changed.c.data_mut()[0] += F::ONE;
             rejects(&changed, running, outputs, "fresh commitment");
             let mut changed = fresh.clone();
             changed.x[0] += F::ONE;
@@ -175,7 +175,7 @@ pub(crate) fn check_claim_mutations(
                 let mut changed = outputs.to_vec();
                 let label = if mutation < claim_families {
                     match mutation {
-                        0 => changed[source].c.data[0] += F::ONE,
+                        0 => changed[source].c.data_mut()[0] += F::ONE,
                         1 => changed[source].X[(0, 0)] += F::ONE,
                         2 => changed[source].eval_k[0] += K::ONE,
                         _ => changed[source].eval_a[mutation - 3][0] += K::ONE,
@@ -192,36 +192,33 @@ pub(crate) fn check_claim_mutations(
                 };
                 rejects(fresh, running, &changed, &label);
             });
-            for shape in 0..10 {
+            for shape in 0..9 {
                 let mut changed = outputs.to_vec();
                 match shape {
                     0 => {
                         changed.pop();
                     }
                     1 => {
-                        changed[0].c.data.pop();
-                    }
-                    2 => {
                         changed[0].r.pop();
                     }
-                    3 => {
+                    2 => {
                         changed[0].eval_k.pop();
                     }
-                    4 => changed[0].eval_k[D] = K::ONE,
-                    5 => {
+                    3 => changed[0].eval_k[D] = K::ONE,
+                    4 => {
                         changed[0].eval_a.pop();
                     }
-                    6 => {
+                    5 => {
                         changed[0].eval_a[0].pop();
                     }
-                    7 => changed[0].eval_a[0][D] = K::ONE,
-                    8 => changed[0].X = neo_ccs::Mat::zero(D, 4, F::ZERO),
-                    9 => changed[0].m_in -= 1,
+                    6 => changed[0].eval_a[0][D] = K::ONE,
+                    7 => changed[0].X = neo_ccs::Mat::zero(D, 4, F::ZERO),
+                    8 => changed[0].m_in -= 1,
                     _ => unreachable!(),
                 }
                 rejects(fresh, running, &changed, &format!("malformed output shape {shape}"));
             }
-            assert_eq!(checked.get(), outputs.len() * mutations_per_source + 10);
+            assert_eq!(checked.get(), outputs.len() * mutations_per_source + 9);
         }
         _ => panic!("unknown claim mutation group"),
     }

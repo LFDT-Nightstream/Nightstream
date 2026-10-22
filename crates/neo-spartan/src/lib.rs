@@ -357,7 +357,7 @@ pub struct ClaimWords<F> {
 impl ClaimWords<Gl> {
     fn new(shape: &Shape, claim: &Claim) -> Result<Self, Error> {
         let c = &claim.c;
-        if c.d != D || c.kappa != shape.kappa || c.data.len() != D * shape.kappa {
+        if c.d() != D || c.kappa() != shape.kappa || c.data().len() != D * shape.kappa {
             return Err(Error::Shape("commitment"));
         }
         if claim.X.rows() != D || claim.X.cols() != shape.public_blocks || claim.m_in != D * shape.public_blocks {

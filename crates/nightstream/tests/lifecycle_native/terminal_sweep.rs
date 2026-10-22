@@ -136,23 +136,18 @@ fn cases() -> Vec<Case> {
             Statement("running claim or witness count differs from the selected profile"),
         ),
         rejected(
-            "last running commitment d",
-            |parts| parts.last_claim().c.d += 1,
-            Running(LAST, "commitment or public-input shape"),
-        ),
-        rejected(
             "last running commitment kappa",
-            |parts| parts.last_claim().c.kappa += 1,
+            |parts| parts.last_claim().c = neo_ajtai::Commitment::zeros(parts.last_claim().c.kappa() + 1),
             Running(LAST, "commitment or public-input shape"),
         ),
         rejected(
             "first running commitment data",
-            |parts| parts.running.claims[0].c.data[0] += F::ONE,
+            |parts| parts.running.claims[0].c.data_mut()[0] += F::ONE,
             HASH,
         ),
         rejected(
             "last running commitment data",
-            |parts| parts.last_claim().c.data[0] += F::ONE,
+            |parts| parts.last_claim().c.data_mut()[0] += F::ONE,
             HASH,
         ),
         rejected(
@@ -281,18 +276,13 @@ fn cases() -> Vec<Case> {
             Running(LAST, "fixed-key commitment differs from the witness"),
         ),
         rejected(
-            "fresh commitment d",
-            |parts| parts.fresh.claim.c.d += 1,
-            Fresh("commitment or public-input shape"),
-        ),
-        rejected(
             "fresh commitment kappa",
-            |parts| parts.fresh.claim.c.kappa += 1,
+            |parts| parts.fresh.claim.c = neo_ajtai::Commitment::zeros(parts.fresh.claim.c.kappa() + 1),
             Fresh("commitment or public-input shape"),
         ),
         rejected(
             "fresh commitment data",
-            |parts| parts.fresh.claim.c.data[0] += F::ONE,
+            |parts| parts.fresh.claim.c.data_mut()[0] += F::ONE,
             Fresh("fixed-key commitment differs from the witness"),
         ),
         rejected("fresh public input x", |parts| parts.fresh.claim.x[1] += F::ONE, HASH),
@@ -406,11 +396,6 @@ fn terminal_rejects_every_authoritative_envelope_change() {
         adv: _,
     } = &honest.fresh.claim;
     let CcsWitness { Z: _ } = &honest.fresh.witness;
-    let Commitment {
-        d: _,
-        kappa: _,
-        data: _,
-    } = &honest.fresh.claim.c;
     let LaneCommitments { ops: _, is: _, fs: _ } = lanes(&honest.fresh.claim.c);
     assert_ne!(
         honest.running.claims[0].eval_k, honest.running.claims[1].eval_k,

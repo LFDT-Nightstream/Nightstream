@@ -76,12 +76,12 @@ fn committer(params: &NeoParams, columns: usize) -> PP<neo_math::ring::Rq> {
 }
 
 fn combine_commitments_b_pows(commitments: &[neo_ajtai::Commitment], base: u32) -> neo_ajtai::Commitment {
-    let mut output = neo_ajtai::Commitment::zeros(commitments[0].d, commitments[0].kappa);
+    let mut output = neo_ajtai::Commitment::zeros(commitments[0].kappa());
     let mut power = F::ONE;
     let base = F::from_u64(base as u64);
     for commitment in commitments {
         let mut term = commitment.clone();
-        for value in &mut term.data {
+        for value in term.data_mut() {
             *value *= power;
         }
         output.add_inplace(&term);

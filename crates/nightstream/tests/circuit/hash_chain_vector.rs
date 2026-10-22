@@ -132,7 +132,7 @@ fn two_link_hash_chain_base_step_verifies_and_rejects_changes() {
     ));
 
     let mut commitment = fresh;
-    commitment.claim.c.data[0] += F::ONE;
+    commitment.claim.c.data_mut()[0] += F::ONE;
     assert!(matches!(
         verifier.verify(&expected, &reseal(&expected, commitment)),
         Err(Error::Verify(VerifyError::Fresh(

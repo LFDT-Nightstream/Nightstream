@@ -99,7 +99,7 @@ impl PreparedLifecycle {
         &self.structure
     }
     #[cfg(test)]
-    pub(crate) fn package_identity(&self) -> [u64; 4] {
+    pub(crate) fn package_identity(&self) -> nightstream_fprime::PackageIdentity {
         self.binding.package_identity()
     }
     pub(crate) fn execute_step_witness(

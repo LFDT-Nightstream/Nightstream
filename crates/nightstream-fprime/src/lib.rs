@@ -21,8 +21,9 @@ pub use application_records::{
 };
 
 pub use identity::{
-    PiCcsV1_2VerifierContext, Stage1VerifierBinding, POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY,
-    POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER, POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST,
+    PackageIdentity, PiCcsV1_2VerifierContext, Stage1VerifierBinding, StructuralIdentifier, VerificationKeyDigest,
+    POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY, POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER,
+    POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST,
 };
 pub use package::{
     derive_pi_ccs_v1_2_transcript, load_per_application_package, load_poseidon2_hash_chain_v1_package,

@@ -12,7 +12,7 @@ use neo_ajtai::nightstream_fprime_setup::{
     SETUP_ID,
 };
 use neo_ccs::{crypto::poseidon2_goldilocks::poseidon2_hash, Mat};
-use nightstream_fprime::{load_per_application_package, LoadedPerApplicationPackage};
+use nightstream_fprime::{load_per_application_package, LoadedPerApplicationPackage, StructuralIdentifier};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 use serde::{de::IgnoredAny, Deserialize};
@@ -208,7 +208,8 @@ impl Candidate {
             "canonical expected identity"
         );
         let bytes = fs::read(path).expect("Lean candidate sealed package");
-        let package = load_per_application_package(&bytes, expected).expect("expected Lean candidate identity");
+        let package = load_per_application_package(&bytes, StructuralIdentifier::from_words(expected))
+            .expect("expected Lean candidate identity");
         let LeanBinding(schema, structural, package_identity, descriptor, key_preimage, key_digest, formulas) =
             serde_json::from_value(read_metadata(binding_path)).expect("Lean binding schema");
         assert_eq!(schema, 2);
@@ -281,9 +282,9 @@ impl Candidate {
         let binding = package
             .production_verifier_binding()
             .expect("candidate binding recomputation");
-        assert_eq!(binding.structural_identifier(), structural);
-        assert_eq!(binding.package_identity(), package_identity);
-        assert_eq!(binding.verification_key_digest(), key_digest);
+        assert_eq!(binding.structural_identifier().words(), structural);
+        assert_eq!(binding.package_identity().words(), package_identity);
+        assert_eq!(binding.verification_key_digest().words(), key_digest);
         require_words(
             binding.verification_key_words(),
             &key_preimage,

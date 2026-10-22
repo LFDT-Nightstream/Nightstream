@@ -183,8 +183,8 @@ pub(super) fn export(
     let children = running_value(&proof.pi_dec.children);
     let observed = json!({
         "schema": 1,
-        "structural_identifier": package.package.structural_identifier(),
-        "package_identity": package.package_identity(),
+        "structural_identifier": package.package.structural_identifier().words(),
+        "package_identity": package.package_identity().words(),
         "pi_ccs_input": input,
         "pi_ccs_phase": ccs_phase(&proof.pi_ccs, &trace),
         "pi_rlc_parent": claim_value(&proof.pi_rlc.combined, true),

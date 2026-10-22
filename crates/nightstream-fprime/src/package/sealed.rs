@@ -29,8 +29,9 @@ use super::{
 use crate::application_records::{ApplicationRecords, PrivateSnapshot};
 use crate::identity::{
     native_application_identity, native_relation_identifier, stage1_verifier_binding, value_preimage_words,
-    visit_native_application_words, ApplicationIdentity, POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY,
-    POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER, POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST,
+    visit_native_application_words, ApplicationIdentity, StructuralIdentifier,
+    POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY, POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER,
+    POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST,
 };
 use crate::Stage1VerifierBinding;
 use crate::WitnessAssignment;
@@ -167,7 +168,7 @@ pub struct LoadedPerApplicationPackage {
     assignment_plan: LoadedAssignmentPlan,
     next_preimage_rows: std::ops::Range<usize>,
     logical_public_input_count: usize,
-    structural_identifier: [u64; 4],
+    structural_identifier: StructuralIdentifier,
     relation_value_words: Vec<u64>,
     application_identity: ApplicationIdentity,
     application_source: ApplicationSource,
@@ -206,7 +207,7 @@ impl LoadedPerApplicationPackage {
         }
     }
 
-    pub fn structural_identifier(&self) -> [u64; 4] {
+    pub fn structural_identifier(&self) -> StructuralIdentifier {
         self.structural_identifier
     }
 
@@ -468,7 +469,7 @@ impl LoadedPerApplicationPackage {
 
 pub fn load_per_application_package(
     bytes: &[u8],
-    expected_structural_identifier: [u64; 4],
+    expected_structural_identifier: StructuralIdentifier,
 ) -> Result<LoadedPerApplicationPackage, PackageError> {
     let value: Value = serde_json::from_slice(bytes)?;
     let mut canonical = serde_json::to_vec(&value)?;
@@ -477,12 +478,12 @@ pub fn load_per_application_package(
         return Err(PackageError::NonCanonicalBytes);
     }
 
-    let computed = relation_identifier(&value)?;
+    let computed = StructuralIdentifier::from_words(relation_identifier(&value)?);
     if computed != expected_structural_identifier {
         return Err(PackageError::IdentityMismatch {
             kind: IdentityKind::Relation,
-            expected: expected_structural_identifier,
-            computed,
+            expected: expected_structural_identifier.words(),
+            computed: computed.words(),
         });
     }
 
@@ -514,7 +515,7 @@ struct SealedEnvelope {
 impl SealedEnvelope {
     fn bind(
         self,
-        structural_identifier: [u64; 4],
+        structural_identifier: StructuralIdentifier,
         application_identity: ApplicationIdentity,
         application_source: ApplicationSource,
     ) -> LoadedPerApplicationPackage {
@@ -545,7 +546,7 @@ impl NativePackage {
 
     pub(super) fn bind(
         self,
-        structural_identifier: [u64; 4],
+        structural_identifier: StructuralIdentifier,
         application_identity: ApplicationIdentity,
         source: PrivateSnapshot,
     ) -> LoadedPerApplicationPackage {
@@ -704,7 +705,7 @@ pub(super) fn prepared_record_counts(fixed: &Value) -> Result<(usize, usize), Pa
 
 fn decode_per_application_value(
     value: &Value,
-    structural_identifier: [u64; 4],
+    structural_identifier: StructuralIdentifier,
 ) -> Result<LoadedPerApplicationPackage, PackageError> {
     let sealed = decode_sealed(value, None)?;
     let application_words = value_preimage_words(&value[3])?;
@@ -722,15 +723,15 @@ pub fn load_poseidon2_hash_chain_v1_package(bytes: &[u8]) -> Result<LoadedPerApp
     if binding.package_identity() != POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY {
         return Err(PackageError::IdentityMismatch {
             kind: IdentityKind::Package,
-            expected: POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY,
-            computed: binding.package_identity(),
+            expected: POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY.words(),
+            computed: binding.package_identity().words(),
         });
     }
     if binding.verification_key_digest() != POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST {
         return Err(PackageError::IdentityMismatch {
             kind: IdentityKind::VerificationKeyBinding,
-            expected: POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST,
-            computed: binding.verification_key_digest(),
+            expected: POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST.words(),
+            computed: binding.verification_key_digest().words(),
         });
     }
     Ok(package)

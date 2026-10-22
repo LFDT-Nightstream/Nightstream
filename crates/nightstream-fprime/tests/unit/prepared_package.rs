@@ -165,10 +165,10 @@ fn prepared_loading_keeps_cached_identity_components_non_authoritative() {
     let (original, encoded) = fixture();
     let mut changed = encoded.clone();
     let start = MAGIC.len() + size_of::<u64>();
-    let replacement = (original.structural_identifier()[0] + 1) % Goldilocks::ORDER_U64;
+    let replacement = (original.structural_identifier().words()[0] + 1) % Goldilocks::ORDER_U64;
     changed[start..start + 8].copy_from_slice(&replacement.to_le_bytes());
     let loaded = load_prepared_package(changed.as_slice()).unwrap();
-    assert_eq!(loaded.structural_identifier()[0], replacement);
+    assert_eq!(loaded.structural_identifier().words()[0], replacement);
     assert_ne!(
         loaded.production_verifier_binding().unwrap(),
         original.production_verifier_binding().unwrap()

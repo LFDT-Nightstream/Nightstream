@@ -3,7 +3,7 @@ use std::{fs, path::PathBuf};
 use nightstream_fprime::{
     derive_pi_ccs_v1_2_transcript, load_per_application_package, load_poseidon2_hash_chain_v1_package, CcsMatrixSource,
     IdentityKind, PackageError, PiCcsV1_2OutputEvaluations, PiCcsV1_2PackageInputs, PiDecV1_2PackageInputs,
-    PI_CCS_V1_2_COEFFICIENT_COUNT, PI_CCS_V1_2_FRESH_COMMITMENT_WORDS, PI_CCS_V1_2_MATRIX_COUNT,
+    StructuralIdentifier, PI_CCS_V1_2_COEFFICIENT_COUNT, PI_CCS_V1_2_FRESH_COMMITMENT_WORDS, PI_CCS_V1_2_MATRIX_COUNT,
     PI_CCS_V1_2_PRIOR_CHILDREN_WORDS, PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT,
     PI_CCS_V1_2_ROUND_COUNT, PI_CCS_V1_2_SOURCE_COUNT, PI_CCS_V1_2_STATE_PREIMAGE_WORDS, PI_DEC_V1_2_CHILD_COUNT,
     PI_DEC_V1_2_COMMITMENT_WORDS_PER_CHILD, PI_DEC_V1_2_EVAL_A_MATRICES_PER_CHILD, PI_DEC_V1_2_EVAL_K_VALUES_PER_CHILD,
@@ -337,7 +337,7 @@ fn v1_2_input_encoder_rejects_a_missing_eval_a_matrix() {
 #[test]
 fn loader_rejects_a_different_verifier_owned_identity() {
     assert!(matches!(
-        load_per_application_package(&sealed_artifact_bytes(), [0; 4]),
+        load_per_application_package(&sealed_artifact_bytes(), StructuralIdentifier::from_words([0; 4])),
         Err(PackageError::IdentityMismatch {
             kind: IdentityKind::Relation,
             ..
@@ -394,7 +394,7 @@ fn loader_rejects_a_missing_sampler_coefficient_witness_batch() {
     assert_eq!(batches[index][1].as_array().unwrap().len(), 54);
     batches.remove(index);
     let changed = canonical_bytes(&value);
-    let identity = match load_per_application_package(&changed, [0; 4]) {
+    let identity = match load_per_application_package(&changed, StructuralIdentifier::from_words([0; 4])) {
         Err(PackageError::IdentityMismatch {
             kind: IdentityKind::Relation,
             computed,
@@ -402,7 +402,7 @@ fn loader_rejects_a_missing_sampler_coefficient_witness_batch() {
         }) => computed,
         _ => panic!("the mutation must change the structural identity"),
     };
-    let error = load_per_application_package(&changed, identity)
+    let error = load_per_application_package(&changed, StructuralIdentifier::from_words(identity))
         .expect_err("a rehashed incomplete witness program must be rejected");
     assert!(
         matches!(error, PackageError::Malformed("witness column coverage")),
@@ -417,7 +417,7 @@ fn loader_rejects_a_rehashed_matrix_slot_permutation() {
     assert_eq!(*sources, json!([0, 1, 2, 3]));
     *sources = json!([1, 0, 2, 3]);
     let changed = canonical_bytes(&value);
-    let identity = match load_per_application_package(&changed, [0; 4]) {
+    let identity = match load_per_application_package(&changed, StructuralIdentifier::from_words([0; 4])) {
         Err(PackageError::IdentityMismatch {
             kind: IdentityKind::Relation,
             computed,
@@ -425,8 +425,8 @@ fn loader_rejects_a_rehashed_matrix_slot_permutation() {
         }) => computed,
         _ => panic!("the mutation must change the structural identity"),
     };
-    let error =
-        load_per_application_package(&changed, identity).expect_err("a rehashed matrix permutation must be rejected");
+    let error = load_per_application_package(&changed, StructuralIdentifier::from_words(identity))
+        .expect_err("a rehashed matrix permutation must be rejected");
     assert!(
         matches!(error, PackageError::Malformed("CCS relation matrix order")),
         "{error:?}"

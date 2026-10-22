@@ -4,7 +4,7 @@
 //! semantics, choose offsets, or merge the Pad and CCS evaluation families.
 
 use super::{canonical_field, require_input_length, IdentityKind, LoadedPackage, PackageError, Segment};
-use crate::identity::PiCcsV1_2VerifierContext;
+use crate::identity::{PiCcsV1_2VerifierContext, StructuralIdentifier};
 
 pub(crate) const PRIOR_PREIMAGE_ROLE: u64 = 1;
 const OUTPUT_PREIMAGE_ROLE: u64 = 2;
@@ -336,13 +336,13 @@ impl LoadedPackage {
     pub(super) fn encode_pi_ccs_v1_2_inputs(
         &self,
         inputs: &PiCcsV1_2PackageInputs,
-        structural_identifier: [u64; 4],
+        structural_identifier: StructuralIdentifier,
     ) -> Result<PiCcsV1_2EncodedInputs, PackageError> {
         if inputs.verifier_context.structural_identifier() != structural_identifier {
             return Err(PackageError::IdentityMismatch {
                 kind: IdentityKind::VerifierContext,
-                expected: structural_identifier,
-                computed: inputs.verifier_context.structural_identifier(),
+                expected: structural_identifier.words(),
+                computed: inputs.verifier_context.structural_identifier().words(),
             });
         }
         self.encode_pi_ccs_segments(inputs)

@@ -492,7 +492,10 @@ impl Scheme<Gl> for Mmcs {
     }
 
     fn get_matrices<'a, M: Matrix<Gl>>(&self, _tree: &'a Tree<M>) -> Vec<&'a M> {
-        unreachable!("WHIR reads committed rows only through openings; the rows live in the scratch file")
+        unreachable!(
+            "the rows live in the scratch file; this scheme overrides `get_matrix_heights` and \
+             `get_max_height`, the Plonky3 0.8 defaults that call `get_matrices`"
+        )
     }
 
     fn get_matrix_heights<M: Matrix<Gl>>(&self, tree: &Tree<M>) -> Vec<usize> {

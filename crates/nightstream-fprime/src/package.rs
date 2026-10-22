@@ -313,7 +313,6 @@ pub struct LoadedPackage {
     witness_instructions: Vec<WitnessInstruction>,
     assertion_rows: Vec<SparseRow>,
     native_application: Option<Arc<PreparedApplication>>,
-    relation_identifier: [u64; 4],
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -698,10 +697,9 @@ fn scheduled_assignments(package: &LoadedPackage) -> Result<Vec<ScheduledAssignm
 
 fn validate_package(
     raw: RawPackage,
-    relation_identifier: [u64; 4],
-    native_application: Option<PreparedApplication>,
+    native_application: Option<Arc<PreparedApplication>>,
 ) -> Result<LoadedPackage, PackageError> {
-    let (mut package, terminal) = decode_components(raw, relation_identifier, native_application)?;
+    let (mut package, terminal) = decode_components(raw, native_application)?;
     package.terminal = validate_terminal(&terminal, package.relation.row_count())?;
     validate_chain_order(&package.hash_chains)?;
     validate_row_coverage(
@@ -733,8 +731,7 @@ fn validate_package(
 /// raw) and the physical coverage checks.
 fn decode_components(
     raw: RawPackage,
-    relation_identifier: [u64; 4],
-    native_application: Option<PreparedApplication>,
+    native_application: Option<Arc<PreparedApplication>>,
 ) -> Result<(LoadedPackage, Vec<Value>), PackageError> {
     let RawPackage(
         schema,
@@ -759,12 +756,9 @@ fn decode_components(
     validate_poseidon(poseidon)?;
 
     let layout = validate_layout(layout)?;
-    let native_application = native_application
-        .map(|application| {
-            application.validate(&layout)?;
-            Ok::<_, PackageError>(Arc::new(application))
-        })
-        .transpose()?;
+    if let Some(application) = &native_application {
+        application.validate(&layout)?;
+    }
     let relation = relation::validate(relation)?;
     let permutation = validate_permutation(permutation)?;
     let hash_chains = chains
@@ -825,7 +819,6 @@ fn decode_components(
         witness_instructions,
         assertion_rows,
         native_application,
-        relation_identifier,
     };
     Ok((package, terminal))
 }

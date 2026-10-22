@@ -13,9 +13,7 @@ use rayon::prelude::*;
 use super::{matrix_window::smaller_window, Arg, Buffer, Grid, MetalJointMatrixPlan, MetalSession, MetalWitnessMasks};
 use crate::MetalError;
 
-#[path = "spans.rs"]
 mod spans;
-#[path = "transpose.rs"]
 mod transpose;
 use spans::SpanLayer;
 use transpose::BlockTranspose;

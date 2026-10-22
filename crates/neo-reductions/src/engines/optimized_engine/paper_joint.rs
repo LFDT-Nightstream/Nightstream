@@ -209,16 +209,6 @@ pub trait PaperJointOracleBackend {
         &'a mut self,
         input: PaperJointOracleInput<'a>,
     ) -> Result<Box<dyn PaperJointRoundOracle + 'a>, PiCcsError>;
-
-    fn dec_openings(
-        &mut self,
-        _cache: &OptimizedStructureCache,
-        _witnesses: &[Mat<F>],
-        _point: &[K],
-        _assignment_width: usize,
-    ) -> Result<Option<Vec<V1_2OutputOpening>>, PiCcsError> {
-        Ok(None)
-    }
 }
 
 enum OracleSource<'a> {

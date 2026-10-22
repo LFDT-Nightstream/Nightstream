@@ -89,27 +89,25 @@ where
             )
         },
     )?;
-    let (
-        (optimized_outputs, optimized_proof, _, optimized_trace),
-        (reference_outputs, reference_proof, reference_trace),
-    ) = match (optimized, reference) {
-        (Ok(optimized), Ok(reference)) => (optimized, reference),
-        (Err(optimized), Ok(_)) => {
-            return Err(PiCcsError::ProtocolError(format!(
-                "optimized prover failed while PaperExact succeeded: {optimized}"
-            )))
-        }
-        (Ok(_), Err(reference)) => {
-            return Err(PiCcsError::ProtocolError(format!(
-                "PaperExact prover failed while optimized succeeded: {reference}"
-            )))
-        }
-        (Err(optimized), Err(reference)) => {
-            return Err(PiCcsError::ProtocolError(format!(
-                "both crosscheck provers failed (optimized: {optimized}; PaperExact: {reference})"
-            )))
-        }
-    };
+    let ((optimized_outputs, optimized_proof, optimized_trace), (reference_outputs, reference_proof, reference_trace)) =
+        match (optimized, reference) {
+            (Ok(optimized), Ok(reference)) => (optimized, reference),
+            (Err(optimized), Ok(_)) => {
+                return Err(PiCcsError::ProtocolError(format!(
+                    "optimized prover failed while PaperExact succeeded: {optimized}"
+                )))
+            }
+            (Ok(_), Err(reference)) => {
+                return Err(PiCcsError::ProtocolError(format!(
+                    "PaperExact prover failed while optimized succeeded: {reference}"
+                )))
+            }
+            (Err(optimized), Err(reference)) => {
+                return Err(PiCcsError::ProtocolError(format!(
+                    "both crosscheck provers failed (optimized: {optimized}; PaperExact: {reference})"
+                )))
+            }
+        };
 
     if optimized_trace != reference_trace {
         return Err(PiCcsError::ProtocolError(

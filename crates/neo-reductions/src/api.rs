@@ -40,15 +40,6 @@ pub enum FoldingMode {
     OptimizedWithCrosscheck,
 }
 
-fn validate_selected_reduction_claims(
-    _mode: &FoldingMode,
-    label: &str,
-    structure: &CcsStructure<F>,
-    claims: &[CeClaim<Cmt, F, K>],
-) -> Result<(), PiCcsError> {
-    validate_pi_ccs_outputs(label, structure, claims)
-}
-
 #[cfg(feature = "paper-exact")]
 fn require_rlc_crosscheck(
     optimized: (CeClaim<Cmt, F, K>, Mat<F>),
@@ -100,7 +91,7 @@ pub fn rlc_with_commit(
     }
     let rho_mats = crate::common::rot_rhos_to_mats(rhos);
     validate_ce_claims_shape("rlc_with_commit: me_inputs", s, me_inputs)?;
-    validate_selected_reduction_claims(&mode, "rlc_with_commit: selected inputs", s, me_inputs)?;
+    validate_pi_ccs_outputs("rlc_with_commit: selected inputs", s, me_inputs)?;
     validate_rlc_batch_compatibility("rlc_with_commit", params, me_inputs)?;
     checked_superneo_d_pad("rlc_with_commit ell_d", ell_d)?;
     let _ = crate::engines::utils::shared_me_input_r(me_inputs, s.cube_variables())?;
@@ -147,7 +138,6 @@ pub fn rlc_with_commit(
 
 fn validate_rlc_refs(
     label: &str,
-    mode: &FoldingMode,
     s: &CcsStructure<F>,
     params: &NeoParams,
     rhos: &[RotRho],
@@ -174,7 +164,7 @@ fn validate_rlc_refs(
         )));
     }
     validate_ce_claims_shape(&format!("{label}: me_inputs"), s, me_inputs)?;
-    validate_selected_reduction_claims(mode, &format!("{label}: selected inputs"), s, me_inputs)?;
+    validate_pi_ccs_outputs(&format!("{label}: selected inputs"), s, me_inputs)?;
     validate_rlc_batch_compatibility(label, params, me_inputs)?;
     checked_superneo_d_pad(&format!("{label} ell_d"), ell_d)?;
     let _ = crate::engines::utils::shared_me_input_r(me_inputs, s.cube_variables())?;
@@ -194,7 +184,7 @@ pub fn rlc_with_commit_refs(
     ell_d: usize,
     mix_commits: RlcMixer,
 ) -> Result<(CeClaim<Cmt, F, K>, Mat<F>), PiCcsError> {
-    validate_rlc_refs("rlc_with_commit_refs", &mode, s, params, rhos, me_inputs, Zs, ell_d)?;
+    validate_rlc_refs("rlc_with_commit_refs", s, params, rhos, me_inputs, Zs, ell_d)?;
     let rho_mats = crate::common::rot_rhos_to_mats(rhos);
 
     let (out, Z_mix) = match mode {
@@ -265,8 +255,7 @@ where
         eprintln!("dec_children_with_commit input validation failed: {e}");
         return DecOutcome::rejected();
     }
-    if let Err(error) = validate_selected_reduction_claims(
-        &mode,
+    if let Err(error) = validate_pi_ccs_outputs(
         "dec_children_with_commit: selected parent",
         s,
         std::slice::from_ref(parent),
@@ -343,8 +332,7 @@ where
         eprintln!("dec_children_with_commit_superneo_cached_with_digit_flags input validation failed: {e}");
         return DecOutcome::rejected();
     }
-    if let Err(error) = validate_selected_reduction_claims(
-        &mode,
+    if let Err(error) = validate_pi_ccs_outputs(
         "dec_children_with_commit_superneo_cached_with_digit_flags: selected parent",
         s,
         std::slice::from_ref(parent),
@@ -427,8 +415,7 @@ where
         eprintln!("dec_children_with_commit_superneo_cached_from_trusted_split_digits input validation failed: {e}");
         return DecOutcome::rejected();
     }
-    if let Err(error) = validate_selected_reduction_claims(
-        &mode,
+    if let Err(error) = validate_pi_ccs_outputs(
         "dec_children_with_commit_superneo_cached_from_trusted_split_digits: selected parent",
         s,
         std::slice::from_ref(parent),

@@ -10,7 +10,6 @@ use crate::error::PiCcsError;
 use crate::superneo_eval::{build_superneo_eval_cache, SuperneoEvalCache};
 use neo_ccs::CcsStructure;
 use neo_math::F;
-use neo_math::K;
 use p3_goldilocks::Goldilocks;
 use std::sync::Arc;
 
@@ -28,39 +27,9 @@ pub use paper_joint::prove_with_complete_oracle as optimized_prove_with_complete
 pub use paper_joint::prove_with_matrix_rows as optimized_prove_with_matrix_rows;
 pub use paper_joint::{PaperJointOracleBackend, PaperJointOracleInput};
 
-#[derive(Debug, Clone, Copy, Default)]
-pub struct PiCcsProvePerf {
-    pub bind_ms: f64,
-    pub sample_challenges_ms: f64,
-    pub sumcheck_ms: f64,
-    pub output_materialize_ms: f64,
-    pub total_ms: f64,
-}
-
-#[derive(Debug, Clone)]
-pub struct PiDecProverPrecompute {
-    pub row_chals: Vec<K>,
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct PiCcsVerifyPerf {
-    pub bind_ms: f64,
-    pub bind_header_instances_ms: f64,
-    pub bind_header_prefix_ms: f64,
-    pub bind_header_poly_ms: f64,
-    pub bind_header_public_instances_ms: f64,
-    pub bind_me_inputs_ms: f64,
-    pub bind_sample_challenges_ms: f64,
-    pub sumcheck_ms: f64,
-    pub output_checks_ms: f64,
-    pub terminal_ms: f64,
-    pub total_ms: f64,
-}
-
 pub use common::{dec_reduction_optimized, dec_reduction_optimized_with_digit_flags};
 pub use prove::optimized_prove as pi_ccs_prove;
-pub use prove::optimized_prove_with_cache_and_perf;
-pub use prove::optimized_prove_with_cache_and_precompute_and_perf;
+pub use prove::optimized_prove_with_cache;
 pub use rlc::{
     rlc_combine_claims, rlc_mix_witnesses, rlc_reduction_optimized_with_commit_mix, rlc_reduction_optimized_with_mixers,
 };

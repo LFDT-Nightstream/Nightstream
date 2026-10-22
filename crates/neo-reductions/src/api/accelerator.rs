@@ -20,7 +20,6 @@ where
     let total_started = std::time::Instant::now();
     validate_rlc_refs(
         "rlc_with_commit_refs_and_witness_mix",
-        &mode,
         s,
         params,
         rhos,

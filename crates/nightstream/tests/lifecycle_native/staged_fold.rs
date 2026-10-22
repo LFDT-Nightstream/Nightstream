@@ -252,7 +252,7 @@ pub(super) fn ccs(root: &Path, step: u64, engine: EvaluationEngine, cpu_referenc
         #[cfg(feature = "metal")]
         EvaluationEngine::Metal => {
             let mut device = neo_prover_metal::MetalRowProver::new().unwrap();
-            let (outputs, sumcheck, _, _) = neo_reductions::optimized_engine::optimized_prove_with_matrix_rows(
+            let (outputs, sumcheck, _) = neo_reductions::optimized_engine::optimized_prove_with_matrix_rows(
                 transcript.inner_mut(),
                 params(&package).inner(),
                 &package.structure,

@@ -8,7 +8,7 @@ use neo_transcript::Poseidon2Transcript;
 
 use crate::error::PiCcsError;
 
-use super::{OptimizedStructureCache, PiCcsProof, PiCcsProvePerf, PiDecProverPrecompute};
+use super::{OptimizedStructureCache, PiCcsProof};
 
 pub fn optimized_prove(
     transcript: &mut Poseidon2Transcript,
@@ -20,7 +20,7 @@ pub fn optimized_prove(
     running_witnesses: &[Mat<F>],
 ) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof), PiCcsError> {
     let cache = OptimizedStructureCache::build(structure)?;
-    let (outputs, proof, _) = optimized_prove_with_cache_and_perf(
+    optimized_prove_with_cache(
         transcript,
         params,
         structure,
@@ -29,33 +29,10 @@ pub fn optimized_prove(
         running_claims,
         running_witnesses,
         &cache,
-    )?;
-    Ok((outputs, proof))
-}
-
-pub fn optimized_prove_with_cache_and_perf(
-    transcript: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    structure: &CcsStructure<F>,
-    fresh_claims: &[CcsClaim<Cmt, F>],
-    fresh_witnesses: &[CcsWitness<F>],
-    running_claims: &[CeClaim<Cmt, F, K>],
-    running_witnesses: &[Mat<F>],
-    cache: &OptimizedStructureCache,
-) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, PiCcsProvePerf), PiCcsError> {
-    super::paper_joint::prove(
-        transcript,
-        params,
-        structure,
-        fresh_claims,
-        fresh_witnesses,
-        running_claims,
-        running_witnesses,
-        cache,
     )
 }
 
-pub fn optimized_prove_with_cache_and_precompute_and_perf(
+pub fn optimized_prove_with_cache(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,
     structure: &CcsStructure<F>,
@@ -64,16 +41,8 @@ pub fn optimized_prove_with_cache_and_precompute_and_perf(
     running_claims: &[CeClaim<Cmt, F, K>],
     running_witnesses: &[Mat<F>],
     cache: &OptimizedStructureCache,
-) -> Result<
-    (
-        Vec<CeClaim<Cmt, F, K>>,
-        PiCcsProof,
-        PiCcsProvePerf,
-        PiDecProverPrecompute,
-    ),
-    PiCcsError,
-> {
-    let (outputs, proof, perf) = super::paper_joint::prove(
+) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof), PiCcsError> {
+    let (outputs, proof, _) = super::paper_joint::prove_with_trace(
         transcript,
         params,
         structure,
@@ -83,12 +52,5 @@ pub fn optimized_prove_with_cache_and_precompute_and_perf(
         running_witnesses,
         cache,
     )?;
-    let precompute = PiDecProverPrecompute {
-        row_chals: outputs
-            .first()
-            .ok_or_else(|| PiCcsError::ProtocolError("Pi_CCS produced no output claims".into()))?
-            .r
-            .clone(),
-    };
-    Ok((outputs, proof, perf, precompute))
+    Ok((outputs, proof))
 }

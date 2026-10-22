@@ -11,9 +11,8 @@ use neo_params::NeoParams;
 use neo_reductions::{
     engines::{pi_ccs_joint::build_joint_dims, pi_ccs_joint_protocol::V1_2OutputOpening},
     optimized_engine::{
-        canonical_audit::OptimizedPaperJointOracle, optimized_prove_with_cache_and_perf,
-        optimized_prove_with_complete_oracle, optimized_verify_with_trace, Challenges, OptimizedStructureCache,
-        PaperJointRoundOracle,
+        canonical_audit::OptimizedPaperJointOracle, optimized_prove_with_cache, optimized_prove_with_complete_oracle,
+        optimized_verify_with_trace, Challenges, OptimizedStructureCache, PaperJointRoundOracle,
     },
     superneo_eval::{CachedMatrixRows, MatrixRows, MatrixWindow},
     PiCcsError,
@@ -113,7 +112,7 @@ impl Case {
         neo_reductions::PiCcsProof,
         neo_reductions::engines::pi_ccs_joint::ProtocolTrace,
     ) {
-        let (outputs, proof, _) = optimized_prove_with_cache_and_perf(
+        let (outputs, proof) = optimized_prove_with_cache(
             &mut transcript(),
             &self.params,
             &self.structure,
@@ -215,7 +214,7 @@ fn complete_oracle_matches_cached_optimized_prover() {
     let (expected, expected_proof, expected_trace) = case.reference();
     let challenges = Challenges::new(expected_trace.alpha.clone(), expected_trace.gamma);
     let mut oracle = case.oracle(&source, &challenges, expected_trace.round_challenges.clone(), &expected);
-    let (outputs, proof, _, trace) = optimized_prove_with_complete_oracle(
+    let (outputs, proof, trace) = optimized_prove_with_complete_oracle(
         &mut transcript(),
         &case.params,
         &case.structure,
@@ -309,7 +308,7 @@ fn complete_oracle_rejects_missing_or_incomplete_openings() {
 fn cached_optimized_prover_keeps_its_matrix_binding_check() {
     let case = Case::new();
     let changed = CcsStructure::new(vec![Mat::zero(D / 2, D + 1, F::ONE); 2], case.structure.f.clone()).unwrap();
-    let error = optimized_prove_with_cache_and_perf(
+    let error = optimized_prove_with_cache(
         &mut transcript(),
         &case.params,
         &changed,

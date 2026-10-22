@@ -36,7 +36,7 @@ pub(crate) fn prove_from_parts_with_rows(
 ) -> Result<Proof, Error> {
     reject_auxiliary(fresh_claim, &running.claims)?;
     validate_input_shape(pp, s, fresh_claim, fresh_witness, running)?;
-    let (outputs, sumcheck, _, _) = optimized_prove_with_matrix_rows(
+    let (outputs, sumcheck, _) = optimized_prove_with_matrix_rows(
         tr.inner_mut(),
         pp.inner(),
         s,

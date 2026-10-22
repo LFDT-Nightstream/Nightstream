@@ -112,7 +112,7 @@ fn row_prover_preserves_odd_prefixes_singletons_and_complete_pad_blocks() {
     let shape = matrix_rows.shape();
     let payload = shape.matrices * size_of::<K>() + size_of::<F>() + size_of::<K>();
     let workspace_bytes = 2 * MatrixWindow::required_workspace(&matrix_rows, 0..shape.rows, payload).unwrap();
-    let (outputs, proof, _, prover_trace) = optimized_prove_with_matrix_rows(
+    let (outputs, proof, prover_trace) = optimized_prove_with_matrix_rows(
         &mut transcript(),
         &params,
         &structure,

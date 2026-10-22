@@ -30,7 +30,7 @@ use crate::circuit::algebra;
 use crate::circuit::hash::Duplex;
 use crate::circuit::Backend;
 use crate::device::Accelerator;
-use crate::field::{eq_table, ext_words, fold_low, Ext, Gl};
+use crate::field::{as_base, as_base_mut, as_words, as_words_mut, eq_table, ext_words, fold_low, Ext, Gl};
 use crate::hash::Challenger;
 use crate::{scratch, sumcheck, Error};
 
@@ -167,7 +167,7 @@ fn spill(file: &std::fs::File, end: &mut usize, tree: &Tree) -> Result<Spilled, 
         nodes: tree.denominator.len(),
     };
     for part in tree.parts() {
-        scratch::write(file, *end, table_words(part))?;
+        scratch::write(file, *end, as_words(as_base(part)))?;
         *end += 3 * part.len();
     }
     Ok(spilled)
@@ -178,7 +178,7 @@ fn restore(file: &std::fs::File, spilled: &Spilled) -> Result<Tree, Error> {
         .map(|part| {
             let mut values = vec![Ext::ZERO; spilled.nodes];
             let offset = spilled.offset + 3 * spilled.nodes * part;
-            scratch::read(file, offset, ext_words_mut(&mut values))?;
+            scratch::read(file, offset, as_words_mut(as_base_mut(&mut values)))?;
             Ok(values)
         })
         .collect::<Result<Vec<_>, Error>>()?;
@@ -524,11 +524,15 @@ fn prove_layer(
     if count > 0 {
         let words: Vec<Vec<&mut [u64]>> = tables
             .iter_mut()
-            .map(|tree| tree.parts_mut().map(|part| ext_words_mut(part)).collect())
+            .map(|tree| {
+                tree.parts_mut()
+                    .map(|part| as_words_mut(as_base_mut(part)))
+                    .collect()
+            })
             .collect();
         let layer = accelerator
             .device()
-            .and_then(|device| device.gkr_layer(words, ext_words_mut(&mut eq)));
+            .and_then(|device| device.gkr_layer(words, as_words_mut(as_base_mut(&mut eq))));
         if let Some(mut layer) = layer {
             let weights: Vec<[u64; 3]> = weights.iter().map(|&w| words_of_ext(w)).collect();
             for _ in 0..count {
@@ -567,20 +571,6 @@ fn words_of_ext(value: Ext) -> [u64; 3] {
 
 fn ext_of_words(words: [u64; 3]) -> Ext {
     Ext::from_basis_coefficients_fn(|c| Gl::new(words[c]))
-}
-
-/// The base words of `values`, three per element.
-fn table_words(values: &[Ext]) -> &[u64] {
-    // SAFETY: `Ext` is `repr(transparent)` over `[Goldilocks; 3]` and
-    // `Goldilocks` over `u64`.
-    unsafe { std::slice::from_raw_parts(values.as_ptr().cast::<u64>(), 3 * values.len()) }
-}
-
-/// The base words of `values`, three per element.
-fn ext_words_mut(values: &mut [Ext]) -> &mut [u64] {
-    // SAFETY: `Ext` is `repr(transparent)` over `[Goldilocks; 3]` and
-    // `Goldilocks` over `u64`; a device writes canonical words.
-    unsafe { std::slice::from_raw_parts_mut(values.as_mut_ptr().cast::<u64>(), 3 * values.len()) }
 }
 
 /// A `GkrProof` as backend words, or zeros of its shape.

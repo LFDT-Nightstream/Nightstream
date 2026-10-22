@@ -20,7 +20,7 @@ use p3_whir::parameters::{FoldingFactor, ProtocolParameters, SecurityAssumption,
 use p3_whir::pcs::prover::WhirProver;
 
 use crate::device::Accelerator;
-use crate::field::{p3_point, Ext, Gl};
+use crate::field::{as_words_mut, p3_point, Ext, Gl};
 use crate::hash::Challenger;
 use crate::merkle::Mmcs;
 use crate::whir::prover;
@@ -120,12 +120,7 @@ impl TwoAdicSubgroupDft<Gl> for Dft {
         let (rows, width) = (matrix.height(), matrix.width());
         if let Some(device) = self.accelerator.device().filter(|_| rows.is_power_of_two()) {
             let generator = Gl::two_adic_generator(rows.trailing_zeros() as usize).as_canonical_u64();
-            // SAFETY: `Goldilocks` is `repr(transparent)` over `u64`; the
-            // device leaves canonical words.
-            let words = unsafe {
-                std::slice::from_raw_parts_mut(matrix.values.as_mut_ptr().cast::<u64>(), matrix.values.len())
-            };
-            match device.dft_columns(words, width, generator) {
+            match device.dft_columns(as_words_mut(&mut matrix.values), width, generator) {
                 Ok(true) => return matrix,
                 Ok(false) => {}
                 Err(reason) => {

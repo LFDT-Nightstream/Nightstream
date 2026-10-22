@@ -27,7 +27,7 @@ use p3_symmetric_v08::{CryptographicHasher, PseudoCompressionFunction};
 use rayon::prelude::*;
 
 use crate::device::Accelerator;
-use crate::field::Gl;
+use crate::field::{as_words, Gl};
 use crate::hash::{permutation, plain, Compress, Packed, Plain, Sponge};
 use crate::{scratch, Error};
 
@@ -348,11 +348,9 @@ fn leaf<M: Matrix<Gl>>(matrices: &[M], r: usize) -> impl Iterator<Item = Gl> + '
 /// The leaf digests of the rows of `width` words in `values`, on the device
 /// when it takes them.
 fn leaves(values: &[Gl], width: usize, accelerator: &Accelerator) -> Vec<Digest> {
-    // SAFETY: `Goldilocks` is `repr(transparent)` over `u64`.
-    let words = unsafe { std::slice::from_raw_parts(values.as_ptr().cast::<u64>(), values.len()) };
     match accelerator
         .device()
-        .and_then(|device| device.merkle_leaves(words, width))
+        .and_then(|device| device.merkle_leaves(as_words(values), width))
     {
         Some(digests) => digests
             .into_iter()

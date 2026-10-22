@@ -21,7 +21,7 @@ use neo_reductions::optimized_engine::{optimized_verify_with_trace, OptimizedStr
 use neo_reductions::sumcheck::RoundOracle;
 use neo_reductions::superneo_eval::{CachedMatrixRows, MatrixWindow};
 use neo_reductions::{split_b_matrix_k, PiCcsError, PiCcsProof};
-use neo_transcript::{Poseidon2Transcript, Transcript};
+use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeCharacteristicRing;
 use rand_chacha::rand_core::SeedableRng;
 use rand_chacha::ChaCha8Rng;
@@ -192,7 +192,6 @@ fn mode_verify(
 #[allow(clippy::too_many_arguments)]
 fn prove_mode(
     mode: FoldingMode,
-    label: &'static [u8],
     params: &NeoParams,
     structure: &CcsStructure<F>,
     claims: &[Claim],
@@ -203,7 +202,6 @@ fn prove_mode(
 ) -> Result<(Vec<Output>, PiCcsProof), PiCcsError> {
     prove_mode_and_state(
         mode,
-        label,
         params,
         structure,
         claims,
@@ -218,7 +216,6 @@ fn prove_mode(
 #[allow(clippy::too_many_arguments)]
 fn prove_mode_and_state(
     mode: FoldingMode,
-    label: &'static [u8],
     params: &NeoParams,
     structure: &CcsStructure<F>,
     claims: &[Claim],
@@ -234,7 +231,7 @@ fn prove_mode_and_state(
     ),
     PiCcsError,
 > {
-    let mut transcript = Poseidon2Transcript::new(label);
+    let mut transcript = Poseidon2Transcript::new_v1_2();
     let (outputs, proof) = mode_prove(
         mode,
         &mut transcript,
@@ -259,7 +256,6 @@ fn seed_running(
     let (zero, zero_witnesses) = zero_running::zero_running(params, structure, 1, claim.m_in);
     prove_mode(
         FoldingMode::PaperExact,
-        b"padded-row/seed",
         params,
         structure,
         std::slice::from_ref(claim),
@@ -284,11 +280,9 @@ fn assert_parity(rows: usize, columns: usize) {
     let (second_claim, second_witness) = source(&log, columns, 7);
     let claims = vec![first_claim, second_claim];
     let witnesses = vec![first_witness, second_witness];
-    let label = b"padded-row/parity";
 
     let (paper_outputs, paper_proof, paper_state) = prove_mode_and_state(
         FoldingMode::PaperExact,
-        label,
         &params,
         &structure,
         &claims,
@@ -300,7 +294,6 @@ fn assert_parity(rows: usize, columns: usize) {
     .expect("PaperExact proof");
     let (optimized_outputs, optimized_proof, optimized_state) = prove_mode_and_state(
         FoldingMode::Optimized,
-        label,
         &params,
         &structure,
         &claims,
@@ -325,7 +318,7 @@ fn assert_parity(rows: usize, columns: usize) {
     for mode in [FoldingMode::PaperExact, FoldingMode::Optimized] {
         assert!(mode_verify(
             mode,
-            &mut Poseidon2Transcript::new(label),
+            &mut Poseidon2Transcript::new_v1_2(),
             &params,
             &structure,
             &claims,
@@ -419,10 +412,8 @@ fn public_crosscheck_compares_the_complete_execution() {
     let (claim, witness) = source(&log, D + 1, 5);
     let (running, running_witnesses) = zero_running::zero_running(&params, &structure, 1, claim.m_in);
     let mode = FoldingMode::OptimizedWithCrosscheck;
-    let label = b"padded-row/crosscheck";
     let (outputs, proof) = prove_mode(
         mode.clone(),
-        label,
         &params,
         &structure,
         std::slice::from_ref(&claim),
@@ -434,7 +425,7 @@ fn public_crosscheck_compares_the_complete_execution() {
     .expect("crosscheck proof");
     assert!(mode_verify(
         mode,
-        &mut Poseidon2Transcript::new(label),
+        &mut Poseidon2Transcript::new_v1_2(),
         &params,
         &structure,
         std::slice::from_ref(&claim),
@@ -452,9 +443,8 @@ fn v1_2_transcript_matches_the_independent_reference() {
     let log = committer(&params, D + 1);
     let (claim, witness) = source(&log, D + 1, 6);
     let (running, running_witnesses) = zero_running::zero_running(&params, &structure, 1, claim.m_in);
-    let label = b"pi-ccs/v1_2/crosscheck";
     let (outputs, proof) = crosscheck_prove(
-        &mut Poseidon2Transcript::new(label),
+        &mut Poseidon2Transcript::new_v1_2(),
         &params,
         &structure,
         std::slice::from_ref(&claim),
@@ -465,7 +455,7 @@ fn v1_2_transcript_matches_the_independent_reference() {
     )
     .expect("v1_2 transcript crosscheck proof");
     assert!(crosscheck_verify(
-        &mut Poseidon2Transcript::new(label),
+        &mut Poseidon2Transcript::new_v1_2(),
         &params,
         &structure,
         std::slice::from_ref(&claim),
@@ -511,9 +501,8 @@ fn prior_digest_comes_from_the_fresh_public_input() {
     };
     let witness = CcsWitness { Z };
     let (running, running_witnesses) = zero_running::zero_running(&params, &structure, 1, public);
-    let label = b"pi-ccs/v1_2/prior-digest";
     let (outputs, proof) = crosscheck_prove(
-        &mut Poseidon2Transcript::new(label),
+        &mut Poseidon2Transcript::new_v1_2(),
         &params,
         &structure,
         std::slice::from_ref(&claim),
@@ -527,7 +516,7 @@ fn prior_digest_comes_from_the_fresh_public_input() {
     let mut reframed = running.clone();
     reframed[0].fold_digest = [7; 32];
     assert!(crosscheck_verify(
-        &mut Poseidon2Transcript::new(label),
+        &mut Poseidon2Transcript::new_v1_2(),
         &params,
         &structure,
         std::slice::from_ref(&claim),
@@ -538,7 +527,7 @@ fn prior_digest_comes_from_the_fresh_public_input() {
     .expect("a running frame is not transcript input"));
 
     let (accepted, trace) = optimized_verify_with_trace(
-        &mut Poseidon2Transcript::new(label),
+        &mut Poseidon2Transcript::new_v1_2(),
         &params,
         &structure,
         std::slice::from_ref(&claim),
@@ -565,7 +554,6 @@ fn public_crosscheck_covers_v1_2_rlc_and_dec() {
     let mode = FoldingMode::OptimizedWithCrosscheck;
     let (outputs, _) = prove_mode(
         mode.clone(),
-        b"padded-row/rlc-dec",
         &params,
         &structure,
         std::slice::from_ref(&claim),
@@ -630,10 +618,8 @@ fn verifier_matches_the_paper_mutation_boundary() {
     let claims = vec![first_claim, second_claim];
     let witnesses = vec![first_witness, second_witness];
     let (running, running_witnesses) = zero_running::zero_running(&params, &structure, claims.len(), claims[0].m_in);
-    let label = b"padded-row/mutation";
     let (outputs, proof) = prove_mode(
         FoldingMode::Optimized,
-        label,
         &params,
         &structure,
         &claims,
@@ -647,7 +633,7 @@ fn verifier_matches_the_paper_mutation_boundary() {
         !matches!(
             mode_verify(
                 FoldingMode::Optimized,
-                &mut Poseidon2Transcript::new(label),
+                &mut Poseidon2Transcript::new_v1_2(),
                 &params,
                 &structure,
                 claims,
@@ -703,7 +689,6 @@ fn crosscheck_rejects_a_noncanonical_dec_split_that_recomposes() {
     let mode = FoldingMode::OptimizedWithCrosscheck;
     let (outputs, _) = prove_mode(
         mode.clone(),
-        b"padded-row/noncanonical-dec",
         &params,
         &structure,
         std::slice::from_ref(&claim),
@@ -766,7 +751,6 @@ fn full_carrier_tail_is_part_of_the_padded_identity_relation() {
     witness.Z[(257 % D, 257 / D)] = F::from_u64(2);
     let result = prove_mode(
         FoldingMode::OptimizedWithCrosscheck,
-        b"padded-row/full-carrier",
         &params,
         &structure,
         std::slice::from_ref(&claim),

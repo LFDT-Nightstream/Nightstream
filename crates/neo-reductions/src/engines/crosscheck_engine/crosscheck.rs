@@ -10,7 +10,7 @@ use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat};
 use neo_math::{F, K};
 use neo_params::NeoParams;
-use neo_transcript::{Poseidon2Transcript, Transcript};
+use neo_transcript::Poseidon2Transcript;
 
 #[cfg(not(target_arch = "wasm32"))]
 fn run_pair<Optimized, Reference, RunOptimized, RunReference>(
@@ -44,8 +44,8 @@ where
     Ok((run_optimized(), run_reference()))
 }
 
-fn checkpoint(transcript: &Poseidon2Transcript) -> [u8; 32] {
-    transcript.clone().digest32()
+fn checkpoint(transcript: &Poseidon2Transcript) -> ([F; neo_ccs::crypto::poseidon2_goldilocks::WIDTH], usize) {
+    (transcript.state(), transcript.absorbed())
 }
 
 pub fn crosscheck_prove<L>(

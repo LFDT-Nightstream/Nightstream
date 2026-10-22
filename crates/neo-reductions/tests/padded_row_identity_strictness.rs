@@ -7,7 +7,6 @@ use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use neo_reductions::{pi_ccs_prove, pi_ccs_verify};
 use neo_transcript::Poseidon2Transcript;
-use neo_transcript::Transcript;
 use p3_field::PrimeCharacteristicRing;
 use rand_chacha::rand_core::SeedableRng;
 
@@ -26,7 +25,6 @@ fn zero_poly(t: usize) -> SparsePoly<F> {
 }
 
 fn build_fixture(
-    label: &'static [u8],
     n: usize,
     m: usize,
 ) -> (
@@ -53,14 +51,13 @@ fn build_fixture(
     };
     let mcs_wit = CcsWitness { Z: z };
 
-    let tr = Poseidon2Transcript::new(label);
+    let tr = Poseidon2Transcript::new_v1_2();
     (params, s, mcs_inst, mcs_wit, tr)
 }
 
 #[test]
 fn padded_row_identity_rejects_an_extra_sumcheck_round() {
-    let label = b"test/padded_row_identity/second_sumcheck";
-    let (params, s, mcs_inst, mcs_wit, mut tr_p) = build_fixture(label, 4, D);
+    let (params, s, mcs_inst, mcs_wit, mut tr_p) = build_fixture(4, D);
 
     let (running, running_witnesses) = zero_running::zero_running(&params, &s, 1, mcs_inst.m_in);
     let (out_me, mut proof) = pi_ccs_prove(
@@ -76,7 +73,7 @@ fn padded_row_identity_rejects_an_extra_sumcheck_round() {
 
     proof.sumcheck_rounds.push(vec![K::ZERO]);
 
-    let mut tr_v = Poseidon2Transcript::new(label);
+    let mut tr_v = Poseidon2Transcript::new_v1_2();
     let res = pi_ccs_verify(
         &mut tr_v,
         &params,
@@ -91,8 +88,7 @@ fn padded_row_identity_rejects_an_extra_sumcheck_round() {
 
 #[test]
 fn padded_row_identity_uses_one_joint_row_cube() {
-    let label = b"test/padded_row_identity/joint_cube";
-    let (params, s, mcs_inst, mcs_wit, mut tr_p) = build_fixture(label, 4, D);
+    let (params, s, mcs_inst, mcs_wit, mut tr_p) = build_fixture(4, D);
     let assignment_width = neo_reductions::common::superneo_carrier_width(s.m);
     let variables =
         s.n.max(assignment_width)
@@ -116,7 +112,7 @@ fn padded_row_identity_uses_one_joint_row_cube() {
     assert!(!out_me.is_empty());
     assert_eq!(out_me[0].r.len(), variables);
 
-    let mut tr_v = Poseidon2Transcript::new(label);
+    let mut tr_v = Poseidon2Transcript::new_v1_2();
     let ok = pi_ccs_verify(
         &mut tr_v,
         &params,
@@ -132,8 +128,7 @@ fn padded_row_identity_uses_one_joint_row_cube() {
 
 #[test]
 fn padded_row_identity_verify_rejects_eval_k_mutation() {
-    let label = b"test/padded_row_identity/eval_k_mutation";
-    let (params, s, mcs_inst, mcs_wit, mut tr_p) = build_fixture(label, 4, D);
+    let (params, s, mcs_inst, mcs_wit, mut tr_p) = build_fixture(4, D);
 
     let (running, running_witnesses) = zero_running::zero_running(&params, &s, 1, mcs_inst.m_in);
     let (mut out_me, proof) = pi_ccs_prove(
@@ -150,7 +145,7 @@ fn padded_row_identity_verify_rejects_eval_k_mutation() {
     assert!(!out_me.is_empty());
     out_me[0].eval_k[0] += K::ONE;
 
-    let mut tr_v = Poseidon2Transcript::new(label);
+    let mut tr_v = Poseidon2Transcript::new_v1_2();
     let result = pi_ccs_verify(
         &mut tr_v,
         &params,
@@ -165,8 +160,7 @@ fn padded_row_identity_verify_rejects_eval_k_mutation() {
 
 #[test]
 fn padded_row_identity_raw_verify_rejects_eval_a_mutation() {
-    let label = b"test/padded_row_identity/redteam/eval_a_mutation";
-    let (params, s, mcs_inst, mcs_wit, mut tr_p) = build_fixture(label, 4, D);
+    let (params, s, mcs_inst, mcs_wit, mut tr_p) = build_fixture(4, D);
 
     let (running, running_witnesses) = zero_running::zero_running(&params, &s, 1, mcs_inst.m_in);
     let (mut outputs, proof) = pi_ccs_prove(
@@ -183,7 +177,7 @@ fn padded_row_identity_raw_verify_rejects_eval_a_mutation() {
     assert!(!outputs[0].eval_a.is_empty() && !outputs[0].eval_a[0].is_empty());
     outputs[0].eval_a[0][0] += K::ONE;
 
-    let mut tr_v = Poseidon2Transcript::new(label);
+    let mut tr_v = Poseidon2Transcript::new_v1_2();
     let result = pi_ccs_verify(
         &mut tr_v,
         &params,
@@ -202,8 +196,7 @@ fn padded_row_identity_raw_verify_rejects_eval_a_mutation() {
 
 #[test]
 fn padded_row_identity_raw_verify_rejects_noncanonical_extra_output_x_column() {
-    let label = b"test/padded_row_identity/redteam/inactive_output_x";
-    let (params, s, mut mcs, wit, mut tr_p) = build_fixture(label, 4, D);
+    let (params, s, mut mcs, wit, mut tr_p) = build_fixture(4, D);
     mcs.m_in = D;
     mcs.x = vec![F::ZERO; D];
 
@@ -224,7 +217,7 @@ fn padded_row_identity_raw_verify_rejects_noncanonical_extra_output_x_column() {
     outputs[0].X = Mat::zero(D, 2, F::ZERO);
     outputs[0].X[(0, 1)] = F::ONE;
 
-    let mut tr_v = Poseidon2Transcript::new(label);
+    let mut tr_v = Poseidon2Transcript::new_v1_2();
     let result = pi_ccs_verify(
         &mut tr_v,
         &params,
@@ -243,8 +236,7 @@ fn padded_row_identity_raw_verify_rejects_noncanonical_extra_output_x_column() {
 
 #[test]
 fn raw_pi_ccs_rejects_fresh_count_above_parameter_profile() {
-    let label = b"test/padded_row_identity/redteam/fresh_count_policy";
-    let (params, s, claim, witness, mut tr_p) = build_fixture(label, 4, D);
+    let (params, s, claim, witness, mut tr_p) = build_fixture(4, D);
     let cap = params.max_fresh_count_from_rlc_guard().expect("guard") as usize;
     let count = cap + 1;
     let (running, running_witnesses) = zero_running::zero_running(&params, &s, 1, claim.m_in);
@@ -275,15 +267,13 @@ fn raw_pi_ccs_rejects_fresh_count_above_parameter_profile() {
 
 #[test]
 fn raw_pi_ccs_rejects_running_count_above_parameter_profile() {
-    let seed_label = b"test/padded_row_identity/redteam/running_count_seed";
-    let (params, s, claim, witness, _) = build_fixture(seed_label, 4, D);
+    let (params, s, claim, witness, _) = build_fixture(4, D);
     let (seed, seed_witnesses) = zero_running::zero_running(&params, &s, 1, claim.m_in);
 
     let count = params.k_rho as usize + 1;
     let running = vec![seed[0].clone(); count];
     let running_witnesses = vec![seed_witnesses[0].clone(); count];
-    let label = b"test/padded_row_identity/redteam/running_count_policy";
-    let mut tr_p = Poseidon2Transcript::new(label);
+    let mut tr_p = Poseidon2Transcript::new_v1_2();
     let result = pi_ccs_prove(
         &mut tr_p,
         &params,

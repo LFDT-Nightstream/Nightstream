@@ -1,33 +1,10 @@
 # neo-params
 
-Typed parameter sets with validation and security estimates for Nightstream protocol.
+Typed parameter sets and their checks.
 
-## Surface
-- `NeoParams` struct with typed presets for different security levels and field choices.
-- **SuperNeo v1.2 Section 8.2 Goldilocks preset**: Goldilocks field, η=81, s=2, paper challenge set size |C|≈2^125, expansion T=216.
-- **Guard enforcement**: validates `(k+1)·T·(b−1) < B` at parameter load; rejects unsafe combinations.
-- **Extension degree computation**: computes minimal s for target soundness (v1 supports s=2 only).
-
-## Presets
-- **goldilocks_paper_b2**: SuperNeo v1.2 Section 8.2 parameters with Goldilocks prime
-  - Base field: q = 2^64 - 2^32 + 1
-  - Extension: K = F_{q^2} (s=2) 
-  - Cyclotomic: η=81, d=φ(81)=54, Φ_η = X^54 + X^27 + 1
-  - Ajtai: κ=18 rows, m=2^30 columns
-  - Norm schedule: b=2, k=14, B=2^14=16384
-  - Strong sampler: T=216 from coeffs ∈ [-2,-1,0,1,2]
-  - **Verified**: (k+1)·T·(b−1) = 15·216·1 = 3240 < 16384 ✓
-
-- **MERSENNE61_128**: Alternative using 2^61-1 prime (when supported)
-- **TOY**: Insecure parameters for testing and development only
-
-## Requirements
-- **MUST** enforce parameter safety: reject any preset where (k+1)·T·(b−1) ≥ B
-- **MUST** compute minimal extension degree s for target soundness λ (currently fixed s=2)
-- **MUST** export all parameters as typed values: (q,η,d,κ,m,b,k,B,T,C,s)
-- **MUST** provide security estimates and validation methods
-
-## Tests
-- Parameter consistency validation across all presets
-- Guard inequality verification for Section 8.2 Goldilocks and other secure presets
-- Security estimate regression tests
+- `NeoParams::nightstream_goldilocks_k16()`: the Nightstream Goldilocks production profile, with
+  k_rho = 16. It uses b = 2, B = 2^16, κ = 22, T = 216, η = 81 and s = 2.
+- `NeoParams::goldilocks_paper_b2()`: the SuperNeo v1.2 Section 8.2 values (k_rho = 14, B = 2^14). They are
+  reference values only. Do not use them for a production proof.
+- The RLC guard `(k + 1)·T·(b − 1) < B`, and the PiCCS security census for a CCS shape.
+- The `goldilocks_auto_*` selectors start from the Section 8.2 values. Tests use them.

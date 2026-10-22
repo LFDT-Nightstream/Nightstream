@@ -4,8 +4,6 @@
 //! genuine CCS matrices. This file uses explicit loops and owns its formula
 //! copy. It does not import optimized evaluators, caches, or protocol flow.
 
-#![allow(non_snake_case)]
-
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsMatrix, CcsStructure, CcsWitness, CeClaim, Mat};
 use neo_math::{Fq, D, K};

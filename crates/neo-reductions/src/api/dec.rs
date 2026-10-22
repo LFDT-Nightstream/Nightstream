@@ -6,6 +6,8 @@ use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use p3_field::PrimeCharacteristicRing;
 
+use crate::error::PiCcsError;
+
 /// Computes `split_b(parent.X, params.k_rho, params.b)` itself and requires each child's public
 /// `X` to equal its digit matrix.
 pub fn verify_dec_public<MB>(
@@ -15,115 +17,97 @@ pub fn verify_dec_public<MB>(
     children: &[CeClaim<Cmt, F, K>],
     combine_b_pows: MB,
     ell_d: usize,
-) -> bool
+) -> Result<(), PiCcsError>
 where
     MB: Fn(&[Cmt], u32) -> Cmt,
 {
-    fn fail(msg: impl core::fmt::Display) -> bool {
-        eprintln!("verify_dec_public failed: {msg}");
-        false
+    fn reject(reason: impl core::fmt::Display) -> PiCcsError {
+        PiCcsError::ProtocolError(format!("verify_dec_public: {reason}"))
     }
 
     if s.m == 0 {
-        return false;
+        return Err(reject("empty structure"));
     }
     if params.b < 2 {
-        return false;
+        return Err(reject("decomposition base below 2"));
     }
-    if let Err(error) = super::validate_ce_claim_shape("verify_dec_public: parent", s, parent) {
-        return fail(error);
-    }
-    if let Err(error) =
-        super::validate_pi_ccs_outputs("verify_dec_public: selected parent", s, std::slice::from_ref(parent))
-    {
-        return fail(error);
-    }
+    super::validate_ce_claim_shape("verify_dec_public: parent", s, parent)?;
+    super::validate_pi_ccs_outputs("verify_dec_public: selected parent", s, std::slice::from_ref(parent))?;
     let k = children.len();
     if k == 0 {
-        return false;
+        return Err(reject("no children"));
     }
     if k != params.k_rho as usize {
-        return false;
+        return Err(reject("child count differs from k_rho"));
     }
     for (index, child) in children.iter().enumerate() {
-        if let Err(error) = super::validate_ce_claim_shape(&format!("verify_dec_public: children[{index}]"), s, child) {
-            return fail(error);
-        }
-        if let Err(error) =
-            super::validation::validate_commitment_shape("verify_dec_public: child", &child.c, parent.c.kappa)
-        {
-            return fail(error);
-        }
-        if let Err(error) = super::validate_pi_ccs_outputs(
+        super::validate_ce_claim_shape(&format!("verify_dec_public: children[{index}]"), s, child)?;
+        super::validation::validate_commitment_shape("verify_dec_public: child", &child.c, parent.c.kappa)?;
+        super::validate_pi_ccs_outputs(
             &format!("verify_dec_public: selected child[{index}]"),
             s,
             std::slice::from_ref(child),
-        ) {
-            return fail(error);
-        }
+        )?;
         if child.fold_digest != parent.fold_digest {
-            return false;
+            return Err(reject("child frame differs from the parent"));
         }
     }
 
     let shared_children_r = match crate::engines::utils::shared_me_input_r(children, parent.r.len()) {
         Ok(Some(r)) => r,
-        Ok(None) => return false,
-        Err(e) => return fail(e),
+        Ok(None) => return Err(reject("children share no point")),
+        Err(error) => return Err(error),
     };
     if parent.r.as_slice() != shared_children_r {
-        return false;
+        return Err(reject("parent point differs from the children"));
     }
 
     if parent.m_in > s.m {
-        return false;
+        return Err(reject("parent public width exceeds the structure"));
     }
     let Some(x_cols) = neo_ccs::superneo_public_x_cols(parent.m_in) else {
-        return false;
+        return Err(reject("parent public width has no packed shape"));
     };
     if parent.X.rows() != D || parent.X.cols() != x_cols {
-        return false;
+        return Err(reject("parent X shape"));
     }
     for ch in children {
         if ch.m_in > s.m {
-            return false;
+            return Err(reject("child public width exceeds the structure"));
         }
         if ch.m_in != parent.m_in {
-            return false;
+            return Err(reject("child public width differs from the parent"));
         }
         if ch.X.rows() != D || ch.X.cols() != x_cols {
-            return false;
+            return Err(reject("child X shape"));
         }
     }
-    let d_pad = match super::checked_superneo_d_pad("verify_dec_public ell_d", ell_d) {
-        Ok(value) => value,
-        Err(error) => return fail(error),
-    };
+    let d_pad = super::checked_superneo_d_pad("verify_dec_public ell_d", ell_d)?;
     let matrix_count = parent.eval_a.len();
     if matrix_count != s.t() {
-        return false;
+        return Err(reject("parent Eval_A matrix count"));
     }
     if parent.eval_k.len() != d_pad {
-        return false;
+        return Err(reject("parent Eval_K width"));
     }
     for ch in children {
         if ch.eval_k.len() != d_pad {
-            return false;
+            return Err(reject("child Eval_K width"));
         }
         if ch.eval_a.len() != matrix_count {
-            return false;
+            return Err(reject("child Eval_A matrix count"));
         }
     }
 
     let expected_child_x = match crate::common::split_b_matrix_k(&parent.X, k, params.b) {
         Ok(split) => split,
-        Err(e) => return fail(format!("parent X is not representable by split_b: {e}")),
+        Err(error) => return Err(reject(format!("parent X is not representable by split_b: {error}"))),
     };
     for (idx, (expected, child)) in expected_child_x.iter().zip(children.iter()).enumerate() {
         if child.X != *expected {
-            return fail(format!(
+            return Err(reject(format!(
                 "child {idx} X does not equal verifier-computed split_b(parent.X)"
-            ));
+            )));
         }
     }
 
@@ -149,21 +133,18 @@ where
         lhs == expected
     };
     if !recombines(&|claim| &claim.eval_k, &parent.eval_k) {
-        eprintln!("verify_dec_public failed: Eval_K recomposition mismatch");
-        return false;
+        return Err(reject("Eval_K recomposition mismatch"));
     }
     for matrix in 0..matrix_count {
         if !recombines(&|claim| &claim.eval_a[matrix], &parent.eval_a[matrix]) {
-            eprintln!("verify_dec_public failed: Eval_A recomposition mismatch at matrix {matrix}");
-            return false;
+            return Err(reject(format!("Eval_A recomposition mismatch at matrix {matrix}")));
         }
     }
 
     let want_c = combine_b_pows(&children.iter().map(|c| c.c.clone()).collect::<Vec<_>>(), params.b);
     if want_c != parent.c {
-        eprintln!("verify_dec_public failed: commitment check mismatch");
-        return false;
+        return Err(reject("commitment check mismatch"));
     }
 
-    true
+    Ok(())
 }

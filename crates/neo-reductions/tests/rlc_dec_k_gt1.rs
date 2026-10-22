@@ -641,25 +641,11 @@ fn dec_children_with_commit_fixed_arity_public_and_tamper_checks() {
         combine_commitments_b_pows,
     );
     assert!(ok_y && ok_X && ok_c, "optimized DEC must satisfy y/X/c checks");
-    assert!(verify_dec_public(
-        &s,
-        &params,
-        &parent,
-        &children,
-        combine_commitments_b_pows,
-        ell_d
-    ));
+    assert!(verify_dec_public(&s, &params, &parent, &children, combine_commitments_b_pows, ell_d).is_ok());
 
     let mut tampered_child = children.clone();
     tampered_child[2].eval_a[0][0] += K::ONE;
-    assert!(!verify_dec_public(
-        &s,
-        &params,
-        &parent,
-        &tampered_child,
-        combine_commitments_b_pows,
-        ell_d
-    ));
+    assert!(verify_dec_public(&s, &params, &parent, &tampered_child, combine_commitments_b_pows, ell_d).is_err());
 }
 
 #[test]

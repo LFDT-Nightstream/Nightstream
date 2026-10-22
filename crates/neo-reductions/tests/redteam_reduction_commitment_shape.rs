@@ -102,9 +102,7 @@ fn dec_verifier_rejects_mixed_commitment_widths() {
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let parent = zero_claim(&params);
     let children = vec![parent.clone(); params.k_rho as usize];
-    assert!(verify_dec_public(
-        &structure, &params, &parent, &children, dec_mix, ell_d
-    ));
+    assert!(verify_dec_public(&structure, &params, &parent, &children, dec_mix, ell_d).is_ok());
 
     for width in [params.kappa as usize - 1, params.kappa as usize + 1] {
         let mut mixed = children.clone();
@@ -114,7 +112,7 @@ fn dec_verifier_rejects_mixed_commitment_widths() {
             later.c.data[D * params.kappa as usize] = F::ONE;
         }
         assert!(
-            !verify_dec_public(&structure, &params, &parent, &mixed, dec_mix, ell_d),
+            verify_dec_public(&structure, &params, &parent, &mixed, dec_mix, ell_d).is_err(),
             "DEC verifier accepted a child with a different commitment width"
         );
     }
@@ -167,14 +165,7 @@ fn dec_constructors_reject_malformed_child_commitments() {
             outcome.ok_y && outcome.ok_x && outcome.ok_c,
             "{path}: honest DEC constructor"
         );
-        assert!(verify_dec_public(
-            &structure,
-            &params,
-            &parent,
-            &outcome.children,
-            dec_mix,
-            ell_d
-        ));
+        assert!(verify_dec_public(&structure, &params, &parent, &outcome.children, dec_mix, ell_d).is_ok());
     }
 
     let mut truncated = parent.c.clone();

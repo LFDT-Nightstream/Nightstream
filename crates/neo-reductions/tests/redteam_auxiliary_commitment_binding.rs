@@ -96,8 +96,9 @@ fn rlc_and_dec_reject_auxiliary_lane_commitments() {
 
     let children = vec![claim(&structure, &params, None); params.k_rho as usize];
     let zero_mix = |_: &[Commitment], _: u32| Commitment::zeros(D, kappa);
-    let dec =
-        |parent: &CeClaim<Commitment, F, K>| verify_dec_public(&structure, &params, parent, &children, zero_mix, ell_d);
+    let dec = |parent: &CeClaim<Commitment, F, K>| {
+        verify_dec_public(&structure, &params, parent, &children, zero_mix, ell_d).is_ok()
+    };
     assert!(dec(&claim(&structure, &params, None)), "honest PiDEC recomposition");
     assert!(
         !dec(&claim(&structure, &params, Some(auxiliary(17, kappa)))),

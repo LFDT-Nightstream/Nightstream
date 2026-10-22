@@ -1,4 +1,4 @@
-use nightstream::components::{FormulaLibrary, SparseForm};
+use nightstream_fprime::components::{FormulaLibrary, SparseForm};
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
 use serde_json::{json, Value};
@@ -22,7 +22,7 @@ fn library() -> Value {
     })
 }
 
-fn decode(value: &Value) -> Result<FormulaLibrary, nightstream::components::ComponentError> {
+fn decode(value: &Value) -> Result<FormulaLibrary, nightstream_fprime::components::ComponentError> {
     FormulaLibrary::from_json(&serde_json::to_vec(value).unwrap())
 }
 

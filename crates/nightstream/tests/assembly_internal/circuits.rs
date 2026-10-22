@@ -1,6 +1,6 @@
 use std::{fs, path::PathBuf};
 
-use nightstream::{
+use crate::{
     application::{poseidon2_hash_chain_v1, Affine, ApplicationBuilder},
     assembly,
 };

@@ -12,7 +12,7 @@ const PARENT_COORDINATES: usize = 270;
 
 fn zero_running() -> Vec<CeClaim> {
     let claim = CeClaim {
-        c: Commitment::zeros(D, 22),
+        c: Commitment::zeros(22),
         X: Mat::zero(D, PARENT_COORDINATES / D, F::ZERO),
         r: vec![K::ZERO; 28],
         eval_k: vec![K::ZERO; EVALUATION_WIDTH],
@@ -93,7 +93,7 @@ fn verify_rejects_a_second_split_of_the_running_parent() {
         }
         let fresh = CcsInstance {
             claim: CcsClaim {
-                c: Commitment::zeros(D, params.kappa() as usize),
+                c: Commitment::zeros(params.kappa() as usize),
                 x: vec![F::ZERO; PARENT_COORDINATES],
                 m_in: PARENT_COORDINATES,
                 adv: None,

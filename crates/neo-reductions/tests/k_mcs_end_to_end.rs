@@ -100,7 +100,7 @@ fn run_case(k_mcs: usize) {
 fn make_dummy_me_input(params: &NeoParams, m_in: usize, r: Vec<K>) -> CeClaim<neo_ajtai::Commitment, F, K> {
     CeClaim {
         adv: None,
-        c: neo_ajtai::Commitment::zeros(D, params.kappa() as usize),
+        c: neo_ajtai::Commitment::zeros(params.kappa() as usize),
         X: Mat::zero(D, neo_ccs::superneo_public_x_cols(m_in).unwrap(), F::ZERO),
         r,
         eval_k: vec![K::ZERO; D.next_power_of_two()],

@@ -265,7 +265,7 @@ class Check:
         expected = {f"child_{child}_commitment" for child in range(CHILDREN)} | {
             f"child_eval_A{matrix}" for matrix in range(MATRICES)
         } | {f"nonzero_eval_A{matrix}_padding" for matrix in range(MATRICES)} | {
-            "child_public", "child_point", "child_eval_K", "missing_child", "short_commitment",
+            "child_public", "child_point", "child_eval_K", "missing_child",
             "short_point", "short_eval_K", "missing_matrix", "nonzero_eval_K_padding",
             "child_fold_digest", "child_digit_range",
         }

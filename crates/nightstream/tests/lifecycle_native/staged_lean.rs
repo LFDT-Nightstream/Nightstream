@@ -28,8 +28,8 @@ fn public_words(value: &Mat<F>) -> Vec<u64> {
 }
 
 fn claim_value(claim: &CeClaim, combined: bool) -> Value {
-    assert_eq!((claim.c.d, claim.c.kappa, claim.m_in), (D, 22, 270));
-    assert_eq!(claim.c.data.len(), 22 * D);
+    assert_eq!((claim.c.d(), claim.c.kappa(), claim.m_in), (D, 22, 270));
+    assert_eq!(claim.c.data().len(), 22 * D);
     assert_eq!(claim.r.len(), 28);
     assert_eq!(claim.eval_k.len(), D.next_power_of_two());
     assert_eq!(claim.eval_a.len(), 4);
@@ -40,7 +40,7 @@ fn claim_value(claim: &CeClaim, combined: bool) -> Value {
         assert!(family[D..].iter().all(|&value| value == K::ZERO));
     }
     json!([
-        fields(&claim.c.data),
+        fields(claim.c.data()),
         public_words(&claim.X),
         words(&claim.r),
         words(&claim.eval_k[..D]),
@@ -70,8 +70,8 @@ fn running_value(claims: &[CeClaim]) -> Value {
 }
 
 fn ccs_input(fresh: &CcsClaim, running: &[CeClaim], proof: &pi_ccs::Proof) -> Value {
-    assert_eq!((fresh.c.d, fresh.c.kappa, fresh.m_in), (D, 22, 270));
-    assert_eq!(fresh.c.data.len(), 22 * D);
+    assert_eq!((fresh.c.d(), fresh.c.kappa(), fresh.m_in), (D, 22, 270));
+    assert_eq!(fresh.c.data().len(), 22 * D);
     assert_eq!(fresh.x.len(), 270);
     assert!(fresh.adv.is_none());
     assert_eq!(proof.sumcheck.sumcheck_rounds.len(), 28);
@@ -88,7 +88,7 @@ fn ccs_input(fresh: &CcsClaim, running: &[CeClaim], proof: &pi_ccs::Proof) -> Va
         .collect();
     json!([
         2,
-        fields(&fresh.c.data),
+        fields(fresh.c.data()),
         fields(&fresh.x),
         proof
             .sumcheck
@@ -133,7 +133,7 @@ fn ccs_phase(proof: &pi_ccs::Proof, trace: &ProtocolTrace) -> Value {
         proof
             .outputs
             .iter()
-            .map(|claim| fields(&claim.c.data))
+            .map(|claim| fields(claim.c.data()))
             .collect::<Vec<_>>(),
         proof
             .outputs

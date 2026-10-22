@@ -266,7 +266,7 @@ fn device_error(error: PiCcsError) -> VerifyError {
 
 fn commitment_has_selected_shape(commitment: &Commitment) -> bool {
     let rows = PRODUCTION_VERIFIER_ROWS as usize;
-    commitment.d == D && commitment.kappa == rows && commitment.data.len() == D * rows
+    commitment.d() == D && commitment.kappa() == rows && commitment.data().len() == D * rows
 }
 
 fn evaluation_matches(recorded: &[K], expected: &[K]) -> bool {

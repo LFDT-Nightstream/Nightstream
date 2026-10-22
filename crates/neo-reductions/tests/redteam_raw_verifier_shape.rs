@@ -12,7 +12,7 @@ use p3_field::PrimeCharacteristicRing;
 fn raw_pi_ccs_verifier_rejects_malformed_ce_shape_without_panicking() {
     let s = CcsStructure::new(vec![Mat::identity(D)], SparsePoly::new(1, Vec::new())).expect("valid identity CCS");
     let params = NeoParams::goldilocks_auto_rectangular_r1cs_ccs(D, D).expect("params");
-    let commitment = Commitment::zeros(D, params.kappa() as usize);
+    let commitment = Commitment::zeros(params.kappa() as usize);
     let mcs = CcsClaim {
         c: commitment.clone(),
         x: vec![F::ZERO],
@@ -54,7 +54,7 @@ fn public_pi_ccs_verifier_handles_documented_unpadded_v1_2_evaluations() {
     let structure =
         CcsStructure::new(vec![Mat::identity(D)], SparsePoly::new(1, Vec::new())).expect("valid identity CCS");
     let params = NeoParams::goldilocks_auto_rectangular_r1cs_ccs(D, D).expect("params");
-    let commitment = Commitment::zeros(D, params.kappa() as usize);
+    let commitment = Commitment::zeros(params.kappa() as usize);
     let mcs = CcsClaim {
         c: commitment.clone(),
         x: vec![F::ZERO],

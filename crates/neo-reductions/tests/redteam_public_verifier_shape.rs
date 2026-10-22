@@ -50,22 +50,22 @@ fn make_z(seed: u64, m: usize) -> Mat<F> {
     Mat::from_row_major(D, m / D, data)
 }
 
-fn make_commitment(params: &NeoParams, seed: u64) -> Commitment {
-    let mut commitment = Commitment::zeros(params.d() as usize, 1);
-    commitment.data[0] = F::from_u64(seed);
+fn make_commitment(seed: u64) -> Commitment {
+    let mut commitment = Commitment::zeros(1);
+    commitment.data_mut()[0] = F::from_u64(seed);
     commitment
 }
 
 fn scale_commitment(commitment: &Commitment, scale: F) -> Commitment {
     let mut out = commitment.clone();
-    for value in &mut out.data {
+    for value in out.data_mut() {
         *value *= scale;
     }
     out
 }
 
 fn mix_commitments_from_rhos(rhos: &[Mat<F>], commitments: &[Commitment]) -> Commitment {
-    let mut acc = Commitment::zeros(commitments[0].d, commitments[0].kappa);
+    let mut acc = Commitment::zeros(commitments[0].kappa());
     for (rho, commitment) in rhos.iter().zip(commitments) {
         acc.add_inplace(&scale_commitment(commitment, rho[(0, 0)]));
     }
@@ -73,7 +73,7 @@ fn mix_commitments_from_rhos(rhos: &[Mat<F>], commitments: &[Commitment]) -> Com
 }
 
 fn combine_commitments_b_pows(commitments: &[Commitment], b: u32) -> Commitment {
-    let mut acc = Commitment::zeros(commitments[0].d, commitments[0].kappa);
+    let mut acc = Commitment::zeros(commitments[0].kappa());
     let mut power = F::ONE;
     let b_f = F::from_u64(b as u64);
     for commitment in commitments {
@@ -137,7 +137,7 @@ fn rlc_public_matches_rejects_common_short_row_point() {
             &r,
             ell_d,
             m_in,
-            make_commitment(&params, 93_000),
+            make_commitment(93_000),
             94_000,
         ),
         build_me_from_z(
@@ -147,7 +147,7 @@ fn rlc_public_matches_rejects_common_short_row_point() {
             &r,
             ell_d,
             m_in,
-            make_commitment(&params, 95_000),
+            make_commitment(95_000),
             96_000,
         ),
     ];
@@ -206,7 +206,7 @@ fn verify_dec_public_rejects_common_short_row_point() {
         power *= b_f;
     }
     let child_commitments = (0..params.k_rho())
-        .map(|index| make_commitment(&params, 103_000 + index as u64))
+        .map(|index| make_commitment(103_000 + index as u64))
         .collect::<Vec<_>>();
     let mut parent = build_me_from_z(
         &params,
@@ -262,16 +262,7 @@ fn verify_dec_public_rejects_child_count_different_from_k_rho() {
     let r = vec![k(17); structure.n.next_power_of_two().max(2).trailing_zeros() as usize];
     let mut z = Mat::zero(D, structure.m / D, F::ZERO);
     z[(0, 0)] = F::ONE;
-    let child = build_me_from_z(
-        &params,
-        &structure,
-        &z,
-        &r,
-        ell_d,
-        D,
-        make_commitment(&params, 120_001),
-        120_002,
-    );
+    let child = build_me_from_z(&params, &structure, &z, &r, ell_d, D, make_commitment(120_001), 120_002);
     let parent = child.clone();
 
     assert_eq!(params.k_rho(), 14);
@@ -301,7 +292,7 @@ fn verify_dec_public_rejects_out_of_range_child_x_at_correct_arity() {
     child_zs[0][(0, 0)] = F::from_u64(params.b() as u64);
 
     let child_commitments = (0..child_count)
-        .map(|index| make_commitment(&params, 121_000 + index as u64))
+        .map(|index| make_commitment(121_000 + index as u64))
         .collect::<Vec<_>>();
     let children = child_zs
         .iter()
@@ -371,7 +362,7 @@ fn rlc_public_rejects_ell_d_that_cannot_describe_a_usize_domain() {
     let structure =
         CcsStructure::new(vec![Mat::identity(D)], SparsePoly::new(1, Vec::new())).expect("valid CCS structure");
     let input = CeClaim::<Commitment, F, K> {
-        c: Commitment::zeros(D, 1),
+        c: Commitment::zeros(1),
         X: Mat::zero(D, neo_ccs::superneo_public_x_cols(D).unwrap(), F::ZERO),
         r: vec![K::ZERO; D.next_power_of_two().trailing_zeros() as usize],
         eval_k: vec![K::ZERO; d_pad],
@@ -388,7 +379,7 @@ fn rlc_public_rejects_ell_d_that_cannot_describe_a_usize_domain() {
             &params,
             &rhos,
             core::slice::from_ref(&input),
-            |_, _| Commitment::zeros(D, 1),
+            |_, _| Commitment::zeros(1),
             declared_ell_d,
         )
     };
@@ -410,16 +401,7 @@ fn rlc_public_rejects_instance_count_above_parameter_guard() {
     let structure = build_structure(D, D);
     let r = vec![k(23); structure.n.next_power_of_two().max(2).trailing_zeros() as usize];
     let z = Mat::zero(D, structure.m / D, F::ZERO);
-    let input = build_me_from_z(
-        &params,
-        &structure,
-        &z,
-        &r,
-        ell_d,
-        D,
-        make_commitment(&params, 130_000),
-        130_001,
-    );
+    let input = build_me_from_z(&params, &structure, &z, &r, ell_d, D, make_commitment(130_000), 130_001);
     let inputs = vec![input; INPUT_COUNT];
 
     let mut transcript = Poseidon2Transcript::new_v1_2();
@@ -444,18 +426,9 @@ fn rlc_public_rejects_inputs_from_different_fold_transcripts() {
     let structure = build_structure(D, D);
     let r = vec![k(29); structure.n.next_power_of_two().max(2).trailing_zeros() as usize];
     let z = Mat::zero(D, structure.m / D, F::ZERO);
-    let first = build_me_from_z(
-        &params,
-        &structure,
-        &z,
-        &r,
-        ell_d,
-        D,
-        make_commitment(&params, 131_000),
-        131_001,
-    );
+    let first = build_me_from_z(&params, &structure, &z, &r, ell_d, D, make_commitment(131_000), 131_001);
     let mut second = first.clone();
-    second.c = make_commitment(&params, 131_002);
+    second.c = make_commitment(131_002);
     second.fold_digest[0] = 1;
     let inputs = vec![first, second];
     let rhos = typed_rhos(&params, &[Mat::identity(D), Mat::identity(D)]);
@@ -475,7 +448,7 @@ fn verify_dec_public_rejects_children_from_different_fold_transcript() {
     let structure = build_structure(D, D);
     let r = vec![k(31); structure.n.next_power_of_two().max(2).trailing_zeros() as usize];
     let z = Mat::zero(D, structure.m / D, F::ZERO);
-    let parent = build_me_from_z(&params, &structure, &z, &r, ell_d, D, Commitment::zeros(D, 1), 132_000);
+    let parent = build_me_from_z(&params, &structure, &z, &r, ell_d, D, Commitment::zeros(1), 132_000);
     let mut children = vec![parent.clone(); params.k_rho() as usize];
     children[1].fold_digest[0] = 1;
 
@@ -490,61 +463,6 @@ fn verify_dec_public_rejects_children_from_different_fold_transcript() {
         )
         .is_err(),
         "public DEC accepted a child authenticated by a different fold transcript"
-    );
-}
-
-#[test]
-fn verify_dec_public_rejects_malformed_commitment_payloads() {
-    let params = NeoParams::nightstream_goldilocks_k16();
-    let ell_d = D.next_power_of_two().trailing_zeros() as usize;
-    let structure = build_structure(D, D);
-    let r = vec![k(37); structure.n.next_power_of_two().max(2).trailing_zeros() as usize];
-    let z = Mat::zero(D, structure.m / D, F::ZERO);
-    let parent = build_me_from_z(&params, &structure, &z, &r, ell_d, D, Commitment::zeros(D, 1), 133_000);
-    let mut children = vec![parent.clone(); params.k_rho() as usize];
-    for child in &mut children {
-        child.c.data.clear();
-    }
-
-    assert!(
-        verify_dec_public(
-            &structure,
-            &params,
-            &parent,
-            &children,
-            combine_commitments_b_pows,
-            ell_d,
-        )
-        .is_err(),
-        "public DEC accepted commitments whose declared dimensions do not match their payloads"
-    );
-}
-
-#[test]
-fn rlc_public_rejects_malformed_commitment_payloads() {
-    let params = NeoParams::nightstream_goldilocks_k16();
-    let ell_d = D.next_power_of_two().trailing_zeros() as usize;
-    let structure = build_structure(D, D);
-    let r = vec![k(41); structure.n.next_power_of_two().max(2).trailing_zeros() as usize];
-    let z = Mat::zero(D, structure.m / D, F::ZERO);
-    let mut input = build_me_from_z(
-        &params,
-        &structure,
-        &z,
-        &r,
-        ell_d,
-        D,
-        Commitment::zeros(D, params.kappa() as usize),
-        133_001,
-    );
-    input.c.data.clear();
-    let rhos = typed_rhos(&params, &[Mat::identity(D)]);
-
-    let result = rlc_public(&structure, &params, &rhos, &[input], mix_commitments_from_rhos, ell_d);
-
-    assert!(
-        result.is_err(),
-        "public RLC accepted a commitment whose declared dimensions do not match its payload"
     );
 }
 
@@ -589,26 +507,8 @@ fn rlc_with_commit_rejects_mixed_public_widths_without_panicking() {
     let r = vec![K::ZERO; structure.n.next_power_of_two().max(2).trailing_zeros() as usize];
     let z = Mat::zero(D, structure.m / D, F::ZERO);
     let inputs = vec![
-        build_me_from_z(
-            &params,
-            &structure,
-            &z,
-            &r,
-            ell_d,
-            D,
-            make_commitment(&params, 140_000),
-            140_001,
-        ),
-        build_me_from_z(
-            &params,
-            &structure,
-            &z,
-            &r,
-            ell_d,
-            0,
-            make_commitment(&params, 140_002),
-            140_003,
-        ),
+        build_me_from_z(&params, &structure, &z, &r, ell_d, D, make_commitment(140_000), 140_001),
+        build_me_from_z(&params, &structure, &z, &r, ell_d, 0, make_commitment(140_002), 140_003),
     ];
     let rhos = typed_rhos(&params, &[Mat::identity(D), Mat::identity(D)]);
     let witnesses = vec![z.clone(), z];

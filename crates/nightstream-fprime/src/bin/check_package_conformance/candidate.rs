@@ -185,19 +185,19 @@ pub(crate) fn check_sparse_commitment(path: &Path) {
         .expect("complete candidate carrier");
     let actual =
         commit_production_signed_unit_prefix_matrix(&carrier).expect("actual full-carrier candidate-key commitment");
-    assert_eq!((actual.d, actual.kappa), (54, PRODUCTION_VERIFIER_ROWS as usize));
-    assert_eq!(actual.data.len(), expected_rows.len() * 54);
+    assert_eq!((actual.d(), actual.kappa()), (54, PRODUCTION_VERIFIER_ROWS as usize));
+    assert_eq!(actual.data().len(), expected_rows.len() * 54);
     for (row, expected) in expected_rows.iter().enumerate() {
         for (lane, expected) in expected.iter().enumerate() {
             assert_eq!(
-                actual.data[row * 54 + lane].as_canonical_u64(),
+                actual.data()[row * 54 + lane].as_canonical_u64(),
                 *expected,
                 "Lean/Rust commitment row {row}, lane {lane}"
             );
         }
     }
     println!("primitive_support_coordinates={}", support.len());
-    println!("primitive_commitment_coefficients={}", actual.data.len());
+    println!("primitive_commitment_coefficients={}", actual.data().len());
     println!("candidate_primitive_conformance=passed elapsed={:?}", started.elapsed());
 }
 

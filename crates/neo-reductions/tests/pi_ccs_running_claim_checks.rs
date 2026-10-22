@@ -78,27 +78,12 @@ fn accepts(fixture: &Fixture, running: &[Output], outputs: &[Output]) -> bool {
 }
 
 #[test]
-fn pi_ccs_rejects_a_running_commitment_payload_shorter_than_its_shape() {
-    let fixture = fixture();
-    assert!(accepts(&fixture, &fixture.running, &fixture.outputs), "honest baseline");
-
-    let mut running = fixture.running.clone();
-    let mut outputs = fixture.outputs.clone();
-    running[0].c.data.clear();
-    outputs[1].c.data.clear();
-    assert!(
-        !accepts(&fixture, &running, &outputs),
-        "PiCCS accepted a carried commitment whose payload does not match its shape"
-    );
-}
-
-#[test]
 fn pi_ccs_rejects_auxiliary_lane_commitments() {
     let fixture = fixture();
     let lanes = LaneCommitments {
-        ops: Commitment::zeros(D, fixture.params.kappa() as usize),
-        is: Commitment::zeros(D, fixture.params.kappa() as usize),
-        fs: Commitment::zeros(D, fixture.params.kappa() as usize),
+        ops: Commitment::zeros(fixture.params.kappa() as usize),
+        is: Commitment::zeros(fixture.params.kappa() as usize),
+        fs: Commitment::zeros(fixture.params.kappa() as usize),
     };
     let mut running = fixture.running.clone();
     let mut outputs = fixture.outputs.clone();

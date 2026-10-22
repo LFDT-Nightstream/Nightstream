@@ -186,7 +186,7 @@ impl MetalSession {
             .iter()
             .map(|witness| signed_unit_prefix_blocks(witness.borrow()))
             .collect::<Result<Vec<_>, _>>()?;
-        let mut output = vec![Commitment::zeros(D, PRODUCTION_VERIFIER_ROWS as usize); witnesses.len()];
+        let mut output = vec![Commitment::zeros(PRODUCTION_VERIFIER_ROWS as usize); witnesses.len()];
         let active = blocks
             .iter()
             .enumerate()

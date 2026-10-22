@@ -46,7 +46,7 @@ fn prefix_commitment_equals_exact_suffix_zero_extension() {
     assert_eq!(actual, commit_production_signed_unit_matrix(&extended).unwrap());
     assert_eq!(actual, commit_production_signed_unit_prefix_matrix(&extended).unwrap());
 
-    let mut expected = Commitment::zeros(D, PRODUCTION_VERIFIER_ROWS as usize);
+    let mut expected = Commitment::zeros(PRODUCTION_VERIFIER_ROWS as usize);
     for row in 0..PRODUCTION_VERIFIER_ROWS as usize {
         for (block, entries) in support {
             let key = Rq(std::array::from_fn(|lane| {
@@ -58,12 +58,12 @@ fn prefix_commitment_equals_exact_suffix_zero_extension() {
             }
             let product = key.mul(&Rq(value));
             for lane in 0..D {
-                expected.data[row * D + lane] += product.0[lane];
+                expected.data_mut()[row * D + lane] += product.0[lane];
             }
         }
     }
     assert_eq!(actual, expected);
-    assert_ne!(actual, Commitment::zeros(D, PRODUCTION_VERIFIER_ROWS as usize));
+    assert_ne!(actual, Commitment::zeros(PRODUCTION_VERIFIER_ROWS as usize));
     assert!(matches!(
         commit_production_signed_unit_matrix(&prefix),
         Err(AjtaiError::InvalidDimensions(_))
@@ -85,7 +85,7 @@ fn prefix_commitment_checks_bounds_before_zero_or_key_expansion() {
         let zero = Mat::virtual_constant(D, width, Goldilocks::ZERO);
         assert_eq!(
             commit_production_signed_unit_prefix_matrix(&zero).unwrap(),
-            Commitment::zeros(D, PRODUCTION_VERIFIER_ROWS as usize)
+            Commitment::zeros(PRODUCTION_VERIFIER_ROWS as usize)
         );
     }
     for value in [2i128, -2] {

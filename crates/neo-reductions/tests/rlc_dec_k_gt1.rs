@@ -125,15 +125,15 @@ fn make_sparse_signed_unit_z(seed: usize, m: usize) -> Mat<F> {
     out
 }
 
-fn make_commitment(params: &NeoParams, seed: u64) -> Commitment {
-    let mut c = Commitment::zeros(params.d() as usize, 1);
-    c.data[0] = F::from_u64(seed);
+fn make_commitment(seed: u64) -> Commitment {
+    let mut c = Commitment::zeros(1);
+    c.data_mut()[0] = F::from_u64(seed);
     c
 }
 
 fn scale_commitment(c: &Commitment, scale: F) -> Commitment {
     let mut out = c.clone();
-    for v in out.data.iter_mut() {
+    for v in out.data_mut().iter_mut() {
         *v *= scale;
     }
     out
@@ -146,12 +146,12 @@ fn add_commitments(a: &Commitment, b: &Commitment) -> Commitment {
 }
 
 fn mix_commitments_from_rhos(rhos: &[Mat<F>], commits: &[Commitment]) -> Commitment {
-    let mut acc = Commitment::zeros(commits[0].d, commits[0].kappa);
+    let mut acc = Commitment::zeros(commits[0].kappa());
     for (rho, c) in rhos.iter().zip(commits.iter()) {
-        for lane in 0..c.kappa {
+        for lane in 0..c.kappa() {
             for row in 0..D {
                 for coefficient in 0..D {
-                    acc.data[lane * D + row] += rho[(row, coefficient)] * c.data[lane * D + coefficient];
+                    acc.data_mut()[lane * D + row] += rho[(row, coefficient)] * c.data()[lane * D + coefficient];
                 }
             }
         }
@@ -160,7 +160,7 @@ fn mix_commitments_from_rhos(rhos: &[Mat<F>], commits: &[Commitment]) -> Commitm
 }
 
 fn combine_commitments_b_pows(commits: &[Commitment], b: u32) -> Commitment {
-    let mut acc = Commitment::zeros(commits[0].d, commits[0].kappa);
+    let mut acc = Commitment::zeros(commits[0].kappa());
     let mut pow = F::ONE;
     let bF = F::from_u64(b as u64);
     for c in commits {
@@ -248,7 +248,7 @@ fn rlc_with_commit_k4_matches_public_recompute_and_detects_rho_tamper() {
     let mut me_inputs = Vec::new();
     for i in 0..4usize {
         let Z = make_z(1000 + i as u64 * 100, s.m);
-        let c = make_commitment(&params, 2000 + i as u64);
+        let c = make_commitment(2000 + i as u64);
         me_inputs.push(build_me_from_z(
             &params,
             &s,
@@ -324,7 +324,7 @@ fn rlc_with_commit_sampled_rotation_rhos_matches_public_z_mix() {
     let mut me_inputs = Vec::new();
     for i in 0..5usize {
         let Z = make_z(4_200 + i as u64 * 137, s.m);
-        let c = make_commitment(&params, 5_200 + i as u64);
+        let c = make_commitment(5_200 + i as u64);
         me_inputs.push(build_me_from_z(
             &params,
             &s,
@@ -378,7 +378,7 @@ fn rlc_with_commit_sparse_rotation_rhs_matches_public_z_mix() {
     let mut me_inputs = Vec::new();
     for i in 0..5usize {
         let Z = make_sparse_signed_unit_z(i, s.m);
-        let c = make_commitment(&params, 7_200 + i as u64);
+        let c = make_commitment(7_200 + i as u64);
         me_inputs.push(build_me_from_z(
             &params,
             &s,
@@ -432,7 +432,7 @@ fn rlc_x_projection_tracks_mixed_witness_under_rotation_rhos() {
     let mut me_inputs = Vec::new();
     for i in 0..2usize {
         let Z = make_z(4000 + i as u64 * 100, s.m);
-        let c = make_commitment(&params, 5000 + i as u64);
+        let c = make_commitment(5000 + i as u64);
         me_inputs.push(build_me_from_z(
             &params,
             &s,
@@ -488,7 +488,7 @@ fn rlc_public_matches_accepts_valid_inputs_and_rejects_tampered_rhos() {
     let mut me_inputs = Vec::new();
     for i in 0..4usize {
         let Z = make_z(2200 + i as u64 * 97, s.m);
-        let c = make_commitment(&params, 3300 + i as u64);
+        let c = make_commitment(3300 + i as u64);
         me_inputs.push(build_me_from_z(
             &params,
             &s,
@@ -554,7 +554,7 @@ fn rlc_with_commit_k4_optimized_matches_paper_exact() {
     let mut me_inputs = Vec::new();
     for i in 0..4usize {
         let Z = make_z(1500 + i as u64 * 101, s.m);
-        let c = make_commitment(&params, 6000 + i as u64);
+        let c = make_commitment(6000 + i as u64);
         me_inputs.push(build_me_from_z(
             &params,
             &s,
@@ -609,19 +609,10 @@ fn dec_children_with_commit_fixed_arity_public_and_tamper_checks() {
     let k_dec = params.k_rho() as usize;
     let Z_parent = make_z(1000, s.m);
     let Z_split = split_b_matrix_k(&Z_parent, k_dec, params.b()).expect("parent must have a canonical split");
-    let mut parent = build_me_from_z(
-        &params,
-        &s,
-        &Z_parent,
-        &r,
-        ell_d,
-        m_in,
-        make_commitment(&params, 55_000),
-        88_000,
-    );
+    let mut parent = build_me_from_z(&params, &s, &Z_parent, &r, ell_d, m_in, make_commitment(55_000), 88_000);
 
     let child_commitments: Vec<Commitment> = (0..k_dec)
-        .map(|i| make_commitment(&params, 56_000 + i as u64))
+        .map(|i| make_commitment(56_000 + i as u64))
         .collect();
     parent.c = combine_commitments_b_pows(&child_commitments, params.b());
 
@@ -669,18 +660,9 @@ fn dec_children_trusted_split_digits_matches_checked_path() {
 
     let split = split_b_matrix_k_with_nonzero_flags(&z_parent, k_dec, params.b()).expect("split small witness");
     let child_commitments: Vec<Commitment> = (0..k_dec)
-        .map(|i| make_commitment(&params, 72_000 + i as u64))
+        .map(|i| make_commitment(72_000 + i as u64))
         .collect();
-    let mut parent = build_me_from_z(
-        &params,
-        &s,
-        &z_parent,
-        &r,
-        ell_d,
-        m_in,
-        make_commitment(&params, 71_000),
-        91_000,
-    );
+    let mut parent = build_me_from_z(&params, &s, &z_parent, &r, ell_d, m_in, make_commitment(71_000), 91_000);
     parent.c = combine_commitments_b_pows(&child_commitments, params.b());
     let superneo_cache = build_superneo_eval_cache(&s).expect("SuperNeo-compatible test structure");
 
@@ -763,19 +745,10 @@ fn dec_children_with_commit_optimized_matches_paper_exact() {
     let Z_parent = make_z(1300, s.m);
     let Z_split = split_b_matrix_k(&Z_parent, k_dec, params.b()).expect("parent must have a canonical split");
 
-    let mut parent = build_me_from_z(
-        &params,
-        &s,
-        &Z_parent,
-        &r,
-        ell_d,
-        m_in,
-        make_commitment(&params, 66_000),
-        99_000,
-    );
+    let mut parent = build_me_from_z(&params, &s, &Z_parent, &r, ell_d, m_in, make_commitment(66_000), 99_000);
 
     let child_commitments: Vec<Commitment> = (0..k_dec)
-        .map(|i| make_commitment(&params, 67_000 + i as u64))
+        .map(|i| make_commitment(67_000 + i as u64))
         .collect();
     parent.c = combine_commitments_b_pows(&child_commitments, params.b());
 
@@ -827,7 +800,7 @@ fn rlc_with_commit_k61_boundary_smoke() {
 
     for i in 0..k_inputs {
         let Z = make_z(1000 + i as u64 * 19, s.m);
-        let c = make_commitment(&params, 30_000 + i as u64);
+        let c = make_commitment(30_000 + i as u64);
         me_inputs.push(build_me_from_z(
             &params,
             &s,

@@ -42,7 +42,7 @@ where
     }
     for (index, child) in children.iter().enumerate() {
         super::validate_ce_claim_shape(&format!("verify_dec_public: children[{index}]"), s, child)?;
-        super::validation::validate_commitment_shape("verify_dec_public: child", &child.c, parent.c.kappa)?;
+        super::validation::validate_commitment_shape("verify_dec_public: child", &child.c, parent.c.kappa())?;
         super::validate_pi_ccs_outputs(
             &format!("verify_dec_public: selected child[{index}]"),
             s,

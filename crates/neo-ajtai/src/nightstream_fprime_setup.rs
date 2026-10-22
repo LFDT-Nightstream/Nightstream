@@ -292,7 +292,7 @@ pub fn commit_production_signed_unit_prefix_matrices<W: Borrow<Mat<Goldilocks>>>
         })
         .collect::<Result<Vec<_>, _>>()?;
     let mut commitments: Vec<_> = (0..witnesses.len())
-        .map(|_| Commitment::zeros(D, PRODUCTION_VERIFIER_ROWS as usize))
+        .map(|_| Commitment::zeros(PRODUCTION_VERIFIER_ROWS as usize))
         .collect();
     if blocks.iter().all(Vec::is_empty) {
         return Ok(commitments);
@@ -347,14 +347,14 @@ fn batch_sums(row: u32, columns: &[u64], blocks: &[&[SignedBlock]]) -> Vec<Signe
 }
 
 fn commit_signed_blocks(blocks: &[SignedBlock]) -> Commitment {
-    let mut commitment = Commitment::zeros(D, PRODUCTION_VERIFIER_ROWS as usize);
+    let mut commitment = Commitment::zeros(PRODUCTION_VERIFIER_ROWS as usize);
     let Some(last) = blocks.last() else {
         return commitment;
     };
     let totals = row_totals(last.index + 1, |row, columns| {
         vec![signed_sums(row, column_slice(blocks, &columns))]
     });
-    for (output, totals) in commitment.data.chunks_mut(D).zip(totals) {
+    for (output, totals) in commitment.data_mut().chunks_mut(D).zip(totals) {
         output.copy_from_slice(&totals[0].reduce());
     }
     commitment

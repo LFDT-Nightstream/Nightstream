@@ -723,9 +723,9 @@ pub(crate) fn check_base_commitment(package: LoadedPerApplicationPackage, bytes:
     );
     let commitment =
         commit_production_signed_unit_prefix_matrix(&carrier).expect("actual selected-key base commitment");
-    assert_eq!((commitment.d, commitment.kappa), (54, 22));
+    assert_eq!((commitment.d(), commitment.kappa()), (54, 22));
     let words = commitment
-        .data
+        .data()
         .iter()
         .map(|word| word.as_canonical_u64())
         .collect::<Vec<_>>();

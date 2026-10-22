@@ -46,7 +46,7 @@ impl RunningInstance {
         };
         let ell = s.cube_variables();
         let claim = CeClaim {
-            c: Commitment::zeros(D, pp.kappa() as usize),
+            c: Commitment::zeros(pp.kappa() as usize),
             X: Mat::virtual_constant(D, x_cols, F::ZERO),
             r: vec![K::ZERO; ell],
             eval_k: vec![K::ZERO; EVALUATION_WIDTH],
@@ -67,7 +67,7 @@ pub(crate) fn superneo_has_canonical_x_shape(x: &Mat<F>, m_in: usize) -> bool {
 pub(crate) fn ajtai_rlc_mixer(rhos: &[Mat<F>], commits: &[Commitment]) -> Commitment {
     debug_assert!(!commits.is_empty(), "commit_mix: empty commitments");
     debug_assert_eq!(rhos.len(), commits.len(), "commit_mix: |rhos| != |commits|");
-    let mut acc = Commitment::zeros(commits[0].d, commits[0].kappa);
+    let mut acc = Commitment::zeros(commits[0].kappa());
     for (rho, c) in rhos.iter().zip(commits.iter()) {
         let rq = rot_matrix_to_rq(rho);
         s_mul_add(&mut acc, &rq, c);
@@ -76,7 +76,7 @@ pub(crate) fn ajtai_rlc_mixer(rhos: &[Mat<F>], commits: &[Commitment]) -> Commit
 }
 pub(crate) fn ajtai_dec_mixer(commits: &[Commitment], b: u32) -> Commitment {
     debug_assert!(!commits.is_empty(), "dec_mix: empty commitments");
-    let mut acc = Commitment::zeros(commits[0].d, commits[0].kappa);
+    let mut acc = Commitment::zeros(commits[0].kappa());
     let base = F::from_u64(b as u64);
     let mut pow = F::ONE;
     for c in commits {

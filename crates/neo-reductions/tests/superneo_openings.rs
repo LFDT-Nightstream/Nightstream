@@ -152,7 +152,7 @@ fn real_witness_openings_match_direct_ring_rows() {
         values
     };
     let parent = CeClaim {
-        c: Commitment::zeros(D, params.kappa() as usize),
+        c: Commitment::zeros(params.kappa() as usize),
         X: Mat::from_row_major(D, 1, parent_values[..D].to_vec()),
         r: point.clone(),
         eval_k: pad(parent_opening.eval_k),

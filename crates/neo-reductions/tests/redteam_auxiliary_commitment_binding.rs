@@ -6,8 +6,8 @@ use neo_reductions::api::{rlc_public, rlc_public_matches, verify_dec_public, Rot
 use p3_field::PrimeCharacteristicRing;
 
 fn commitment(value: u64, kappa: usize) -> Commitment {
-    let mut commitment = Commitment::zeros(D, kappa);
-    commitment.data[0] = F::from_u64(value);
+    let mut commitment = Commitment::zeros(kappa);
+    commitment.data_mut()[0] = F::from_u64(value);
     commitment
 }
 
@@ -30,7 +30,7 @@ fn claim(
         .next_power_of_two()
         .trailing_zeros() as usize;
     CeClaim {
-        c: Commitment::zeros(D, params.kappa() as usize),
+        c: Commitment::zeros(params.kappa() as usize),
         X: Mat::zero(D, 1, F::ZERO),
         r: vec![K::ZERO; point_len],
         eval_k: vec![K::ZERO; D.next_power_of_two()],
@@ -95,7 +95,7 @@ fn rlc_and_dec_reject_auxiliary_lane_commitments() {
     );
 
     let children = vec![claim(&structure, &params, None); params.k_rho() as usize];
-    let zero_mix = |_: &[Commitment], _: u32| Commitment::zeros(D, kappa);
+    let zero_mix = |_: &[Commitment], _: u32| Commitment::zeros(kappa);
     let dec = |parent: &CeClaim<Commitment, F, K>| {
         verify_dec_public(&structure, &params, parent, &children, zero_mix, ell_d).is_ok()
     };

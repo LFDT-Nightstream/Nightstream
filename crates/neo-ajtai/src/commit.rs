@@ -185,14 +185,14 @@ pub fn verify_open(pp: &PP<RqEl>, c: &Commitment, Z: &[Fq]) -> bool {
 }
 
 pub fn s_mul_add_from_rot_col(acc: &mut Commitment, first_rot_col: &[Fq; D], c: &Commitment) {
-    let d = c.d;
-    let kappa = c.kappa;
+    let d = c.d();
+    let kappa = c.kappa();
     debug_assert_eq!(d, D, "Ajtai commitment columns must have D rows");
-    debug_assert_eq!(acc.d, d);
-    debug_assert_eq!(acc.kappa, kappa);
+    debug_assert_eq!(acc.d(), d);
+    debug_assert_eq!(acc.kappa(), kappa);
 
-    let (acc_cols, acc_rem) = acc.data.as_chunks_mut::<D>();
-    let (c_cols, c_rem) = c.data.as_chunks::<D>();
+    let (acc_cols, acc_rem) = acc.data_mut().as_chunks_mut::<D>();
+    let (c_cols, c_rem) = c.data().as_chunks::<D>();
     debug_assert!(acc_rem.is_empty(), "accumulator commitment columns must be D-wide");
     debug_assert!(c_rem.is_empty(), "input commitment columns must be D-wide");
     debug_assert_eq!(acc_cols.len(), kappa);
@@ -215,8 +215,8 @@ pub fn s_mul_add(acc: &mut Commitment, rho_ring: &RqEl, c: &Commitment) {
 }
 
 pub fn scale_commitment_add_inplace(acc: &mut Commitment, scalar: Fq, c: &Commitment) {
-    debug_assert_eq!(acc.d, c.d);
-    debug_assert_eq!(acc.kappa, c.kappa);
+    debug_assert_eq!(acc.d(), c.d());
+    debug_assert_eq!(acc.kappa(), c.kappa());
 
     if scalar == Fq::ZERO {
         return;
@@ -227,27 +227,25 @@ pub fn scale_commitment_add_inplace(acc: &mut Commitment, scalar: Fq, c: &Commit
     }
     let neg_one = Fq::ZERO - Fq::ONE;
     if scalar == neg_one {
-        for (dst, src) in acc.data.iter_mut().zip(c.data.iter()) {
+        for (dst, src) in acc.data_mut().iter_mut().zip(c.data().iter()) {
             *dst -= *src;
         }
         return;
     }
 
-    for (dst, src) in acc.data.iter_mut().zip(c.data.iter()) {
+    for (dst, src) in acc.data_mut().iter_mut().zip(c.data().iter()) {
         *dst += *src * scalar;
     }
 }
 
 pub fn scale_commitment(scalar: Fq, c: &Commitment) -> Commitment {
-    let mut out = Commitment::zeros(c.d, c.kappa);
+    let mut out = Commitment::zeros(c.kappa());
     scale_commitment_add_inplace(&mut out, scalar, c);
     out
 }
 
 pub fn s_mul(rho_ring: &RqEl, c: &Commitment) -> Commitment {
-    let d = c.d;
-    let kappa = c.kappa;
-    let mut out = Commitment::zeros(d, kappa);
+    let mut out = Commitment::zeros(c.kappa());
     s_mul_add(&mut out, rho_ring, c);
     out
 }
@@ -266,21 +264,21 @@ pub fn s_lincomb(rhos: &[RqEl], cs: &[Commitment]) -> AjtaiResult<Commitment> {
         return Err(AjtaiError::EmptyInput);
     }
 
-    let expected_d = cs[0].d;
-    let expected_kappa = cs[0].kappa;
+    let expected_d = cs[0].d();
+    let expected_kappa = cs[0].kappa();
     let expected_len = expected_d
         .checked_mul(expected_kappa)
         .ok_or_else(|| AjtaiError::InvalidDimensions("commitment shape overflows usize".to_string()))?;
     if cs
         .iter()
-        .any(|c| c.d != expected_d || c.kappa != expected_kappa || c.data.len() != expected_len)
+        .any(|c| c.d() != expected_d || c.kappa() != expected_kappa || c.data().len() != expected_len)
     {
         return Err(AjtaiError::InvalidDimensions(
             "all commitments must have the same canonical shape".to_string(),
         ));
     }
 
-    let mut acc = Commitment::zeros(expected_d, expected_kappa);
+    let mut acc = Commitment::zeros(expected_kappa);
     for (rho, c) in rhos.iter().zip(cs) {
         s_mul_add(&mut acc, rho, c);
     }
@@ -296,7 +294,7 @@ pub fn commit_masked_ct(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {
     assert_eq!(d, D, "Ajtai dimension mismatch: runtime d != compile-time D");
     assert_eq!(Z.len(), d * m, "Z must be d×m");
 
-    let mut C = Commitment::zeros(d, kappa);
+    let mut C = Commitment::zeros(kappa);
 
     for i in 0..kappa {
         let acc_i = C.col_mut(i);
@@ -328,7 +326,7 @@ fn commit_masked_ct_row_major(pp: &PP<RqEl>, Z: &Mat<Fq>) -> Commitment {
     assert_eq!(Z.rows(), d, "Z must be d×m");
     assert_eq!(Z.cols(), m, "Z must be d×m");
 
-    let mut C = Commitment::zeros(d, kappa);
+    let mut C = Commitment::zeros(kappa);
 
     for i in 0..kappa {
         let acc_i = C.col_mut(i);
@@ -370,7 +368,7 @@ pub fn commit_precomp_ct(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {
     assert_eq!(d, D, "Ajtai dimension mismatch: runtime d != compile-time D");
     assert_eq!(Z.len(), d * m, "Z must be d×m");
 
-    let mut C = Commitment::zeros(d, kappa);
+    let mut C = Commitment::zeros(kappa);
 
     if m == 0 {
         return C;
@@ -452,7 +450,7 @@ fn commit_precomp_ct_row_major(pp: &PP<RqEl>, Z: &Mat<Fq>) -> Commitment {
     assert_eq!(Z.rows(), d, "Z must be d×m");
     assert_eq!(Z.cols(), m, "Z must be d×m");
 
-    let mut C = Commitment::zeros(d, kappa);
+    let mut C = Commitment::zeros(kappa);
     if m == 0 {
         return C;
     }

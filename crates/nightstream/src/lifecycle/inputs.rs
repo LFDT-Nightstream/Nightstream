@@ -67,9 +67,9 @@ pub(crate) struct PiCcsV1_2ProofInputs {
 impl PiCcsV1_2ProofInputs {
     /// Convert one native v1_2 PiCCS proof without changing its order.
     pub(crate) fn from_proof(fresh: &CcsClaim, proof: &pi_ccs::Proof) -> Result<Self, PiCcsV1_2PackageBridgeError> {
-        if fresh.c.d != PI_CCS_V1_2_COEFFICIENT_COUNT
-            || fresh.c.kappa != COMMITMENT_WIDTH
-            || fresh.c.data.len() != PI_CCS_V1_2_FRESH_COMMITMENT_WORDS
+        if fresh.c.d() != PI_CCS_V1_2_COEFFICIENT_COUNT
+            || fresh.c.kappa() != COMMITMENT_WIDTH
+            || fresh.c.data().len() != PI_CCS_V1_2_FRESH_COMMITMENT_WORDS
         {
             return Err(PiCcsV1_2PackageBridgeError::Shape("fresh commitment width"));
         }
@@ -86,7 +86,7 @@ impl PiCcsV1_2ProofInputs {
             return Err(PiCcsV1_2PackageBridgeError::Shape("output source count"));
         }
 
-        let fresh_commitment = Box::new(std::array::from_fn(|index| fresh.c.data[index].as_canonical_u64()));
+        let fresh_commitment = Box::new(std::array::from_fn(|index| fresh.c.data()[index].as_canonical_u64()));
         let rounds = &proof.sumcheck.sumcheck_rounds;
         let round_messages = Box::new(std::array::from_fn(|round| {
             std::array::from_fn(|coefficient| extension_words(rounds[round][coefficient]))
@@ -183,13 +183,13 @@ pub(crate) fn serialize_pi_ccs_v1_2_state_preimage(
     let mut words = Vec::with_capacity(PI_CCS_V1_2_STATE_PREIMAGE_WORDS);
     words.extend_from_slice(&STATE_DOMAIN_CHUNK);
     for claim in running {
-        if claim.c.d != PI_CCS_V1_2_COEFFICIENT_COUNT
-            || claim.c.kappa != COMMITMENT_WIDTH
-            || claim.c.data.len() != PI_CCS_V1_2_FRESH_COMMITMENT_WORDS
+        if claim.c.d() != PI_CCS_V1_2_COEFFICIENT_COUNT
+            || claim.c.kappa() != COMMITMENT_WIDTH
+            || claim.c.data().len() != PI_CCS_V1_2_FRESH_COMMITMENT_WORDS
         {
             return Err(PiCcsV1_2PackageBridgeError::Shape("running commitment"));
         }
-        words.extend(claim.c.data.iter().map(|value| value.as_canonical_u64()));
+        words.extend(claim.c.data().iter().map(|value| value.as_canonical_u64()));
     }
     for claim in running {
         validate_family(&claim.eval_k)?;

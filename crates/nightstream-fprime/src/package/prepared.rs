@@ -92,9 +92,7 @@ pub(super) fn write(
     records.write_to(&mut output)
 }
 
-pub fn load_trusted_compiled_application_package(
-    mut input: impl Read,
-) -> Result<LoadedPerApplicationPackage, PackageError> {
+pub fn load_prepared_package(mut input: impl Read) -> Result<LoadedPerApplicationPackage, PackageError> {
     let mut magic = [0; MAGIC.len()];
     input.read_exact(&mut magic)?;
     if magic != *MAGIC {

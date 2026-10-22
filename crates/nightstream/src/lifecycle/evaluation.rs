@@ -2,13 +2,13 @@
 //! consumers request windows from the unchanged relation.
 
 use super::PreparedLifecycle;
-use crate::engine::CPU_MEMORY_LIMIT_BYTES;
+use crate::engine::{EngineError, CPU_MEMORY_LIMIT_BYTES};
 use crate::folding::FoldContext;
 use neo_ccs::GeometricRowRun;
 use neo_math::{D, F};
 use neo_reductions::superneo_eval::{MatrixRowSink, MatrixRows, MatrixShape, RetainedMatrixWindow};
 use neo_reductions::PiCcsError;
-use nightstream_fprime::{LoadedPerApplicationPackage, PackageError};
+use nightstream_fprime::LoadedPerApplicationPackage;
 use p3_field::PrimeCharacteristicRing;
 use std::ops::{ControlFlow, Range};
 
@@ -71,7 +71,7 @@ impl PreparedLifecycle {
     }
 
     /// The engine inputs of this circuit over `rows`, its `matrix_rows()`.
-    pub(crate) fn fold_context<'a>(&'a self, rows: &'a PackageRows<'_>) -> Result<FoldContext<'a>, PackageError> {
+    pub(crate) fn fold_context<'a>(&'a self, rows: &'a PackageRows<'_>) -> Result<FoldContext<'a>, EngineError> {
         Ok(FoldContext {
             params: &self.params,
             structure: &self.structure,
@@ -105,7 +105,7 @@ impl PreparedLifecycle {
     /// largest assignment-fold overlap, and a prover's kept commitment key
     /// before giving rows working space. This accounts for engine payload, not
     /// package/allocator/driver RSS.
-    pub(crate) fn matrix_workspace_bytes(&self) -> Result<usize, PackageError> {
+    pub(crate) fn matrix_workspace_bytes(&self) -> Result<usize, EngineError> {
         let width = self.structure.m.div_ceil(D) as u128 * D as u128;
         let rows = self.structure.n as u128;
         let sources = nightstream_fprime::PI_CCS_V1_2_SOURCE_COUNT as u128;
@@ -119,11 +119,13 @@ impl PreparedLifecycle {
         let assignments = (sources + 1) * (codes + values);
         let matrix_projection = rows * size_of::<neo_math::K>() as u128;
         let reserved = masks + common + assignments.max(matrix_projection) + self.kept_key_bytes as u128;
+        let unavailable = |reason| EngineError::Unavailable {
+            engine: self.backend.engine(),
+            reason,
+        };
         let remaining = (self.backend.memory_limit_bytes() as u128)
             .checked_sub(reserved)
-            .ok_or(PackageError::Malformed(
-                "selected row workspace exceeds memory allowance",
-            ))?;
-        usize::try_from(remaining).map_err(|_| PackageError::Malformed("selected row workspace exceeds address space"))
+            .ok_or_else(|| unavailable("selected row workspace exceeds memory allowance"))?;
+        usize::try_from(remaining).map_err(|_| unavailable("selected row workspace exceeds address space"))
     }
 }

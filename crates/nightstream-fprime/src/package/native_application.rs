@@ -244,13 +244,12 @@ impl PreparedApplication {
 
     fn check_assertions(&self, assignment: &[Goldilocks]) -> Result<(), PackageError> {
         for row in 0..self.records.row_count() {
-            let values = self
-                .records
-                .evaluate_row(
-                    row,
-                    |variable| Ok(assignment[self.column(variable)?].as_canonical_u64()),
-                )?
-                .map(Goldilocks::from_u64);
+            let values =
+                self.records
+                    .evaluate_row::<PackageError>(row, |variable| {
+                        Ok(assignment[self.column(variable)?].as_canonical_u64())
+                    })?
+                    .map(Goldilocks::from_u64);
             if values[0] * values[1] != values[2] {
                 return Err(PackageError::UnsatisfiedAssertionRow {
                     row: self.plan.row_range().start + row,

@@ -63,7 +63,7 @@ fn ordered_terms_recipes_and_framing_counts_survive_sealing() {
     assert_eq!(actual, nodes());
     assert_eq!(
         records
-            .evaluate_form(0, ApplicationForm::A, |_| Ok(7))
+            .evaluate_form::<PackageError>(0, ApplicationForm::A, |_| Ok(7))
             .unwrap(),
         5
     );
@@ -74,7 +74,7 @@ fn ordered_terms_recipes_and_framing_counts_survive_sealing() {
         let read = scope.spawn(|| records.evaluate_recipe(0, |_| Ok(11)).unwrap());
         assert_eq!(
             clone
-                .evaluate_form(0, ApplicationForm::A, |_| Ok(9))
+                .evaluate_form::<PackageError>(0, ApplicationForm::A, |_| Ok(9))
                 .unwrap(),
             5
         );
@@ -208,7 +208,7 @@ fn writer_buffers_do_not_grow_with_distinct_rows_or_terms() {
     for row in [0, rows / 2, rows - 1] {
         assert_eq!(
             records
-                .evaluate_form(row, ApplicationForm::A, |variable| Ok(variable as u64))
+                .evaluate_form::<PackageError>(row, ApplicationForm::A, |variable| Ok(variable as u64))
                 .unwrap(),
             2 * row as u64
         );
@@ -345,7 +345,7 @@ fn streamed_records_preserve_exact_words_and_rebuild_sealed_indices() {
     );
     assert_eq!(
         restored
-            .evaluate_form(0, ApplicationForm::A, |_| Ok(9))
+            .evaluate_form::<PackageError>(0, ApplicationForm::A, |_| Ok(9))
             .unwrap(),
         5
     );
@@ -398,7 +398,7 @@ fn streamed_records_rebuild_indices_after_interleaved_appends() {
         assert_eq!(restored.recipe_row(row).unwrap(), row);
         assert_eq!(
             restored
-                .evaluate_form(row, ApplicationForm::A, |variable| Ok(3 + variable as u64))
+                .evaluate_form::<PackageError>(row, ApplicationForm::A, |variable| Ok(3 + variable as u64))
                 .unwrap(),
             6 + 3 * row as u64,
         );

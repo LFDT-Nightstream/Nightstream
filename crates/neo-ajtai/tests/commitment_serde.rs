@@ -23,5 +23,8 @@ fn decode_rejects_a_payload_that_does_not_match_the_shape() {
 
     let mut value = serde_json::to_value(Commitment::zeros(1)).expect("encode");
     value["d"] = serde_json::json!(D - 1);
-    assert!(serde_json::from_value::<Commitment>(value).is_err(), "wrong column height");
+    assert!(
+        serde_json::from_value::<Commitment>(value).is_err(),
+        "wrong column height"
+    );
 }

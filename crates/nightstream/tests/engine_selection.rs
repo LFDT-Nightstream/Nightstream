@@ -28,7 +28,7 @@ fn explicit_cpu_selection_keeps_circuit_validation() {
                 engine,
                 114
             ),
-            Err(Error::Package(_))
+            Err(Error::Circuit("compiled circuit file version"))
         ));
     }
 }

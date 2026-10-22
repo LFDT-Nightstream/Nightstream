@@ -31,6 +31,8 @@ pub enum Error {
     Application(#[from] ApplicationError),
     #[error(transparent)]
     Package(#[from] nightstream_fprime::PackageError),
+    #[error("invalid compiled circuit: {0}")]
+    Circuit(&'static str),
     #[error(transparent)]
     Io(#[from] std::io::Error),
     #[error(transparent)]

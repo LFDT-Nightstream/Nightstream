@@ -100,7 +100,7 @@ fn cases() -> Vec<Case> {
         rejected(
             "zero state iteration",
             |parts| parts.with_state(0, parts.state.z0(), parts.state.current()),
-            Statement("an active proof requires a positive iteration"),
+            Statement("an active proof requires a positive canonical iteration"),
         ),
         rejected(
             "non-canonical state iteration",

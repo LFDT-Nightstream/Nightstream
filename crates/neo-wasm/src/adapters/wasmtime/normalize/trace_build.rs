@@ -732,6 +732,11 @@ pub(super) fn build_trace(
                 host_events: host_event_state,
             },
             control_choice: current.control_choice,
+            br_table_len: if current.opcode == WasmOpcode::BrTable {
+                current.immediate_i32.expect("decoded br_table arm count")
+            } else {
+                0
+            },
             pc_edge_kind: current.pc_edge_kind,
             wide_values_enabled: current.wide_values_enabled,
             opcode: current.opcode,
@@ -950,6 +955,7 @@ pub(super) fn build_trace(
                         host_events: host_event_state,
                     },
                     control_choice: 0,
+                    br_table_len: 0,
                     pc_edge_kind: WasmPcEdgeKind::Static,
                     wide_values_enabled: src_value_hi.is_some_and(|hi| hi != 0),
                     opcode: WasmOpcode::Nop,

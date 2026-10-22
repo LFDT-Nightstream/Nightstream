@@ -32,8 +32,7 @@ use super::relation_layout::{build_wasm_relation_layout, SignExtensionColumns};
 use super::tagged_r1cs_builder::{WasmConstraintScope, WasmConstraintTag, WasmR1csBuilder, WasmTaggedR1csBuilder};
 use crate::layout::{
     COL_ACTIVATION_FINISHED_AFTER, COL_ACTIVATION_FINISHED_BEFORE, COL_CALL_INDIRECT_IS_TRAP,
-    COL_CALL_STACK_POP_PRESENT, COL_CMP_AND, COL_CMP_HI_DIFF, COL_CMP_HI_INV, COL_CMP_HI_IS_ZERO, COL_CMP_LO_DIFF,
-    COL_CMP_LO_INV, COL_CMP_LO_IS_ZERO, COL_DIV_TRAP, COL_GATHER_ACTIVE, COL_GLOBAL_VALUE_HI, COL_IS_PROGRAM_ROW,
+    COL_CALL_STACK_POP_PRESENT, COL_CMP_AND, COL_DIV_TRAP, COL_GATHER_ACTIVE, COL_GLOBAL_VALUE_HI, COL_IS_PROGRAM_ROW,
     COL_LOCAL_VALUE_HI, COL_MEM_OOB, COL_OPCODE_CODE, COL_OP_TABLE_ENABLED, COL_OP_TABLE_ID, COL_OP_TABLE_VALUE,
     COL_OUTPUT_CAPTURED, COL_PARAM_INIT_ACTIVE_BEFORE, COL_PC_EDGE_KIND_INV, COL_PC_EDGE_KIND_IS_STATIC,
     COL_PC_ROM_ACTIVE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE, COL_PROGRAM_GLOBAL_INDEX_ACTIVE,
@@ -41,7 +40,8 @@ use crate::layout::{
     COL_SEL_SELECT, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READS, COL_STACK_READ_ACTIVE, COL_STACK_READ_ADDR_HI,
     COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ACTIVE,
     COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO,
-    COL_STACK_WRITES, COL_WIDE_VALUES_ENABLED,
+    COL_STACK_WRITES, COL_WIDE_VALUES_ENABLED, COL_ZERO_TEST_HI_INPUT, COL_ZERO_TEST_HI_INV, COL_ZERO_TEST_HI_IS_ZERO,
+    COL_ZERO_TEST_LO_INPUT, COL_ZERO_TEST_LO_INV, COL_ZERO_TEST_LO_IS_ZERO,
 };
 use neo_application::{ApplicationRelation, ConditionalSelect, ZeroTest};
 use neo_math::F;
@@ -56,9 +56,11 @@ pub(crate) const SELECT_COND_ZERO_TEST: ZeroTest = ZeroTest::column(
     COL_SELECT_COND_IS_ZERO,
 );
 
-pub(crate) const CMP_LO_ZERO_TEST: ZeroTest = ZeroTest::column(COL_CMP_LO_DIFF, COL_CMP_LO_INV, COL_CMP_LO_IS_ZERO);
+pub(crate) const LO_ZERO_TEST: ZeroTest =
+    ZeroTest::column(COL_ZERO_TEST_LO_INPUT, COL_ZERO_TEST_LO_INV, COL_ZERO_TEST_LO_IS_ZERO);
 
-pub(crate) const CMP_HI_ZERO_TEST: ZeroTest = ZeroTest::column(COL_CMP_HI_DIFF, COL_CMP_HI_INV, COL_CMP_HI_IS_ZERO);
+pub(crate) const HI_ZERO_TEST: ZeroTest =
+    ZeroTest::column(COL_ZERO_TEST_HI_INPUT, COL_ZERO_TEST_HI_INV, COL_ZERO_TEST_HI_IS_ZERO);
 
 pub(crate) const SELECT_LO_MUX: ConditionalSelect<2> = ConditionalSelect {
     activation: COL_SEL_SELECT,
@@ -568,6 +570,61 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
         push_shout_constraints(b);
     });
     crate::range_check::push_range_check_rows(&mut b);
+    b.with_tag(
+        shared("conditional control choice", &[WasmOpcode::BrIf, WasmOpcode::If]),
+        |b| {
+            let selectors = [
+                (selector_col(WasmOpcode::BrIf).unwrap(), F::ONE),
+                (selector_col(WasmOpcode::If).unwrap(), F::ONE),
+            ];
+            b.push_row(
+                selectors,
+                [(COL_ZERO_TEST_LO_INPUT, F::ONE), (COL_STACK_READ_VALUE_LO[0], -F::ONE)],
+                [],
+            );
+            b.push_row(
+                selectors,
+                [
+                    (super::layout::COL_CONTROL_CHOICE, F::ONE),
+                    (COL_ZERO_TEST_LO_IS_ZERO, F::ONE),
+                    (COL_ONE, -F::ONE),
+                ],
+                [],
+            );
+        },
+    );
+    b.with_tag(opcode_tag("br_table control choice", WasmOpcode::BrTable), |b| {
+        use super::layout::{COL_BR_TABLE_IN_BOUNDS, COL_BR_TABLE_LEN, COL_CMP_GE, COL_CMP_LOW, COL_CONTROL_CHOICE};
+        let selector = selector_col(WasmOpcode::BrTable).unwrap();
+        super::gadgets::push_unsigned_ge_gadget(
+            b,
+            [selector],
+            [(COL_STACK_READ_VALUE_LO[0], F::ONE)],
+            [(COL_BR_TABLE_LEN, F::ONE)],
+            COL_CMP_LOW,
+            COL_CMP_GE,
+        );
+        b.push_row(
+            [(selector, F::ONE)],
+            [(COL_ONE, F::ONE), (COL_CMP_GE, -F::ONE)],
+            [(COL_BR_TABLE_IN_BOUNDS, F::ONE)],
+        );
+        // Explicit arm i uses key i + 1; all out-of-bounds indices use key 0.
+        b.push_row(
+            [(COL_BR_TABLE_IN_BOUNDS, F::ONE)],
+            [
+                (COL_CONTROL_CHOICE, F::ONE),
+                (COL_STACK_READ_VALUE_LO[0], -F::ONE),
+                (COL_ONE, -F::ONE),
+            ],
+            [],
+        );
+        b.push_row(
+            [(selector, F::ONE), (COL_BR_TABLE_IN_BOUNDS, -F::ONE)],
+            [(COL_CONTROL_CHOICE, F::ONE)],
+            [],
+        );
+    });
     let r1cs = builder.build().map_err(|error| error.to_string())?;
     ApplicationRelation::new(r1cs, crate::witness_layout::range_checked_column_registry())
         .map_err(|error| error.to_string())
@@ -907,25 +964,26 @@ const COMPARATOR_OPS: &[WasmOpcode] = &[
 
 /// CCS-native gates for i32.eqz / i64.eqz / i32.eq / i32.ne / i64.eq / i64.ne.
 ///
-/// The opcode's selector pins `COL_CMP_LO_DIFF` to the zero-test input for
+/// The opcode's selector pins `COL_ZERO_TEST_LO_INPUT` to the zero-test input for
 /// the lo limb (`read0`, `read0_lo`, `read0 - read1`, or `read0_lo -
 /// read1_lo`); the zero-test gadget forces
-/// `COL_CMP_LO_IS_ZERO = (cmp_lo_diff == 0)`.
+/// `COL_ZERO_TEST_LO_IS_ZERO = (zero_test_lo_input == 0)`.
 ///
 /// **The i64 comparators need a split limb-by-limb zero-test.** The
 /// Goldilocks modulus `q = 2^64 - 2^32 + 1` does not have an injective
 /// u64 → field-element embedding for the obvious `lo + hi*2^32` map: the
 /// value `(lo=1, hi=0xffffffff)` is exactly `q ≡ 0`, so a single field
 /// zero-test would wrongly accept it. For i64.eqz / i64.eq / i64.ne we
-/// pin `COL_CMP_HI_DIFF` to the hi-limb diff, zero-test it independently,
+/// pin `COL_ZERO_TEST_HI_INPUT` to the hi-limb diff, zero-test it independently,
 /// and AND the two flags into `COL_CMP_AND`. The i64 write-backs use
-/// `cmp_and`; the i32 write-backs use `cmp_lo_is_zero` directly (their
+/// `cmp_and`; the i32 write-backs use `zero_test_lo_is_zero` directly (their
 /// inputs fit safely below q, so the hi limb is unused).
 ///
-/// On non-comparator rows all six selectors are 0, the diff-pinning
-/// gates degenerate, and the witness sets `cmp_lo_diff = cmp_hi_diff = 0`
+/// Conditional control rows also use the low zero-test to bind their edge choice.
+/// On other non-comparator rows all six selectors are 0, the diff-pinning
+/// gates degenerate, and the witness sets `zero_test_lo_input = zero_test_hi_input = 0`
 /// → both flags = 1, `cmp_and = 1`. None of those values are observed
-/// elsewhere on non-comparator rows.
+/// elsewhere on those rows.
 fn push_comparator_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     let sel_eqz_i32 = selector_col(WasmOpcode::I32Eqz).unwrap();
     let sel_eqz_i64 = selector_col(WasmOpcode::I64Eqz).unwrap();
@@ -934,19 +992,19 @@ fn push_comparator_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     let sel_i64_eq = selector_col(WasmOpcode::I64Eq).unwrap();
     let sel_i64_ne = selector_col(WasmOpcode::I64Ne).unwrap();
 
-    // cmp_lo_diff = read0_value on i32.eqz rows.
+    // zero_test_lo_input = read0_value on i32.eqz rows.
     push_gated_linear_zero(
         b,
         sel_eqz_i32,
-        [(COL_CMP_LO_DIFF, F::ONE), (COL_STACK_READ_VALUE_LO[0], -F::ONE)],
+        [(COL_ZERO_TEST_LO_INPUT, F::ONE), (COL_STACK_READ_VALUE_LO[0], -F::ONE)],
     );
-    // cmp_lo_diff = read0_value (lo limb only) on i64.eqz rows.
+    // zero_test_lo_input = read0_value (lo limb only) on i64.eqz rows.
     push_gated_linear_zero(
         b,
         sel_eqz_i64,
-        [(COL_CMP_LO_DIFF, F::ONE), (COL_STACK_READ_VALUE_LO[0], -F::ONE)],
+        [(COL_ZERO_TEST_LO_INPUT, F::ONE), (COL_STACK_READ_VALUE_LO[0], -F::ONE)],
     );
-    // cmp_lo_diff = read0_value - read1_value on i32.eq/ne and i64.eq/ne rows.
+    // zero_test_lo_input = read0_value - read1_value on i32.eq/ne and i64.eq/ne rows.
     // (Same lo-limb diff expression for all four; hi-limb diff is pinned
     // separately below for the i64 pair.)
     b.push_row(
@@ -957,46 +1015,46 @@ fn push_comparator_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             (sel_i64_ne, F::ONE),
         ],
         [
-            (COL_CMP_LO_DIFF, F::ONE),
+            (COL_ZERO_TEST_LO_INPUT, F::ONE),
             (COL_STACK_READ_VALUE_LO[0], -F::ONE),
             (COL_STACK_READ_VALUE_LO[1], F::ONE),
         ],
         [],
     );
 
-    CMP_LO_ZERO_TEST.push_constraints(b);
+    LO_ZERO_TEST.push_constraints(b);
 
-    // cmp_hi_diff bindings for the i64 comparators (i64.eqz: read0_hi;
+    // zero_test_hi_input bindings for the i64 comparators (i64.eqz: read0_hi;
     // i64.eq/ne: read0_hi - read1_hi). Unconstrained on every other row
     // — the witness sets it to 0 so the hi zero-test flag becomes 1.
     push_gated_linear_zero(
         b,
         sel_eqz_i64,
-        [(COL_CMP_HI_DIFF, F::ONE), (COL_STACK_READ_VALUE_HI[0], -F::ONE)],
+        [(COL_ZERO_TEST_HI_INPUT, F::ONE), (COL_STACK_READ_VALUE_HI[0], -F::ONE)],
     );
     b.push_row(
         [(sel_i64_eq, F::ONE), (sel_i64_ne, F::ONE)],
         [
-            (COL_CMP_HI_DIFF, F::ONE),
+            (COL_ZERO_TEST_HI_INPUT, F::ONE),
             (COL_STACK_READ_VALUE_HI[0], -F::ONE),
             (COL_STACK_READ_VALUE_HI[1], F::ONE),
         ],
         [],
     );
 
-    CMP_HI_ZERO_TEST.push_constraints(b);
+    HI_ZERO_TEST.push_constraints(b);
 
-    // cmp_and = cmp_lo_is_zero * cmp_hi_is_zero (unconditional).
+    // cmp_and = zero_test_lo_is_zero * zero_test_hi_is_zero (unconditional).
     b.push_row(
-        [(COL_CMP_LO_IS_ZERO, F::ONE)],
-        [(COL_CMP_HI_IS_ZERO, F::ONE)],
+        [(COL_ZERO_TEST_LO_IS_ZERO, F::ONE)],
+        [(COL_ZERO_TEST_HI_IS_ZERO, F::ONE)],
         [(COL_CMP_AND, F::ONE)],
     );
 
-    // write0_value = cmp_lo_is_zero on i32.eqz / i32.eq rows.
+    // write0_value = zero_test_lo_is_zero on i32.eqz / i32.eq rows.
     b.push_row(
         [(sel_eqz_i32, F::ONE), (sel_eq, F::ONE)],
-        [(COL_STACK_WRITE0_VALUE_LO, F::ONE), (COL_CMP_LO_IS_ZERO, -F::ONE)],
+        [(COL_STACK_WRITE0_VALUE_LO, F::ONE), (COL_ZERO_TEST_LO_IS_ZERO, -F::ONE)],
         [],
     );
     // write0_value = cmp_and on i64.eqz / i64.eq rows.
@@ -1005,13 +1063,13 @@ fn push_comparator_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         [(COL_STACK_WRITE0_VALUE_LO, F::ONE), (COL_CMP_AND, -F::ONE)],
         [],
     );
-    // write0_value = 1 - cmp_lo_is_zero on i32.ne rows.
+    // write0_value = 1 - zero_test_lo_is_zero on i32.ne rows.
     push_gated_linear_zero(
         b,
         sel_ne,
         [
             (COL_STACK_WRITE0_VALUE_LO, F::ONE),
-            (COL_CMP_LO_IS_ZERO, F::ONE),
+            (COL_ZERO_TEST_LO_IS_ZERO, F::ONE),
             (COL_ONE, -F::ONE),
         ],
     );

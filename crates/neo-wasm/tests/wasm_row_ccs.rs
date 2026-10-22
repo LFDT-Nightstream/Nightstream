@@ -985,7 +985,7 @@ fn br_row_is_accepted() {
 
 #[test]
 fn if_row_is_accepted() {
-    let row = build_witness_vector(&step(
+    let mut row = build_witness_vector(&step(
         0,
         12,
         opcode_code(WasmOpcode::If),
@@ -999,6 +999,7 @@ fn if_row_is_accepted() {
         0,
         false,
     ));
+    row[neo_wasm::layout::COL_CONTROL_CHOICE] = F::ONE;
     assert_satisfied(&row, "if row");
 }
 

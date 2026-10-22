@@ -29,10 +29,7 @@ impl PreparedLifecycle {
         Ok(match &self.backend {
             #[cfg(feature = "metal")]
             Backend::Metal(device) => {
-                let mut device = device.lock().map_err(|_| crate::EngineError::Failure {
-                    engine: crate::Engine::Metal,
-                    reason: "device session lock was poisoned".into(),
-                })?;
+                let mut device = crate::engine::metal::lock(device)?;
                 crate::engine::metal::prove(
                     &mut device,
                     &mut transcript,

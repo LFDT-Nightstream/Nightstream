@@ -638,6 +638,8 @@ fn engine_failures_reach_the_caller_as_engine_errors() {
         Error::Engine(_)
     ));
     assert!(matches!(Error::from(VerifyError::Engine(failure())), Error::Engine(_)));
+    // `Prover::new` returns a failure to keep the commitment key directly.
+    assert!(matches!(Error::from(failure()), Error::Engine(_)));
     assert!(matches!(
         Error::from(CompressionError::Prove(ProveError::Engine(failure()))),
         Error::Engine(_)

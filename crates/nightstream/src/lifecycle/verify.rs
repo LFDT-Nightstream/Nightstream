@@ -179,9 +179,7 @@ impl PreparedLifecycle {
         let workspace_bytes = self.matrix_workspace_bytes()?;
         let evaluated = match &self.backend {
             #[cfg(feature = "metal")]
-            crate::engine::Backend::Metal(device) => device
-                .lock()
-                .map_err(|_| device_lock_error())?
+            crate::engine::Backend::Metal(device) => crate::engine::metal::lock(device)?
                 .evaluate_terminal_rows(
                     &rows,
                     workspace_bytes,
@@ -241,14 +239,6 @@ impl PreparedLifecycle {
         }
         Ok(())
     }
-}
-
-#[cfg(feature = "metal")]
-fn device_lock_error() -> VerifyError {
-    VerifyError::Engine(crate::engine::EngineError::Failure {
-        engine: crate::Engine::Metal,
-        reason: "terminal device session lock was poisoned".into(),
-    })
 }
 
 /// A device failure judges nothing, so it is an engine error. A shape error

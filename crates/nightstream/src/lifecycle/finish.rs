@@ -241,7 +241,9 @@ impl PreparedLifecycle {
         let last = self.last_fold(envelope)?;
         // Layer 1 and the shrink make no Ajtai commitment, so a kept key
         // would only add to their peak.
-        self.backend.release_commitment_key_rows();
+        self.backend
+            .release_commitment_key_rows()
+            .map_err(ProveError::from)?;
         let terminal_inputs = self.terminal_inputs(&last)?;
         let key = &setup.key;
         let relation = key.relation()?;
@@ -289,12 +291,7 @@ impl PreparedLifecycle {
         let (pi_ccs, parent, _) = match &self.backend {
             #[cfg(feature = "metal")]
             crate::engine::Backend::Metal(device) => {
-                let mut device = device.lock().map_err(|_| {
-                    ProveError::from(crate::EngineError::Failure {
-                        engine: crate::Engine::Metal,
-                        reason: "device session lock was poisoned".into(),
-                    })
-                })?;
+                let mut device = crate::engine::metal::lock(device).map_err(ProveError::from)?;
                 crate::engine::metal::prove_parent(
                     &mut device,
                     &mut transcript,

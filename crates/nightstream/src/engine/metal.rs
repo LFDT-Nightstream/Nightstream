@@ -12,6 +12,19 @@ use neo_prover_metal::MetalRowProver;
 use neo_reductions::{optimized_engine::optimized_prove_with_matrix_rows, superneo_eval::MatrixRows};
 use p3_field::PrimeCharacteristicRing;
 
+use super::{Engine, EngineError};
+
+/// The device session. A panic during a device call poisons the lock and
+/// leaves the session in an unknown state, so that is an engine failure.
+pub(crate) fn lock(
+    device: &std::sync::Mutex<MetalRowProver>,
+) -> Result<std::sync::MutexGuard<'_, MetalRowProver>, EngineError> {
+    device.lock().map_err(|_| EngineError::Failure {
+        engine: Engine::Metal,
+        reason: "device session lock was poisoned".into(),
+    })
+}
+
 pub(crate) fn prove(
     device: &mut MetalRowProver,
     transcript: &mut Transcript,

@@ -15,7 +15,7 @@ use neo_ccs::crypto::poseidon2_goldilocks::{round_constants, WIDTH};
 use p3_field_v08::PrimeCharacteristicRing;
 
 use super::block::{Entry, C, X};
-use crate::field::Gl;
+use crate::field::{from_word, Gl};
 
 pub(crate) const SBOXES: usize = 150;
 pub(crate) const CELLS: usize = WIDTH + SBOXES + WIDTH;
@@ -137,14 +137,14 @@ pub(crate) fn entries() -> Vec<Entry> {
 
 fn build() -> Template {
     let constants = round_constants();
-    let diag: [Gl; WIDTH] = constants.diag.map(Gl::new);
+    let diag: [Gl; WIDTH] = constants.diag.map(from_word);
     let mut state: Vec<Linear> = (0..WIDTH).map(Linear::cell).collect();
     let mut sbox_inputs = Vec::with_capacity(SBOXES);
     state = external_linear(&state);
     full_rounds(&mut state, &constants.initial, &mut sbox_inputs);
     for &constant in &constants.internal {
         let mut input = state[0].clone();
-        input.constant += Gl::new(constant);
+        input.constant += from_word(constant);
         state[0] = Linear::cell(WIDTH + sbox_inputs.len());
         sbox_inputs.push(input);
         let parts: Vec<(&Linear, Gl)> = state.iter().map(|form| (form, Gl::ONE)).collect();
@@ -168,7 +168,7 @@ fn full_rounds(state: &mut Vec<Linear>, rounds: &[[u64; WIDTH]], inputs: &mut Ve
     for round in rounds {
         for (lane, form) in state.iter_mut().enumerate() {
             let mut input = form.clone();
-            input.constant += Gl::new(round[lane]);
+            input.constant += from_word(round[lane]);
             *form = Linear::cell(WIDTH + inputs.len());
             inputs.push(input);
         }

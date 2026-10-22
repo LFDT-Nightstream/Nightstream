@@ -59,8 +59,8 @@ pub enum PiCcsV1_2PackageBridgeError {
 /// Exact PiCCS-owned part of one Lean package assignment.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PiCcsV1_2ProofInputs {
-    fresh_commitment: Vec<u64>,
-    round_messages: Vec<Vec<[u64; 2]>>,
+    fresh_commitment: Box<[u64; PI_CCS_V1_2_FRESH_COMMITMENT_WORDS]>,
+    round_messages: Box<[[[u64; 2]; PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT]; PI_CCS_V1_2_ROUND_COUNT]>,
     output_evaluations: PiCcsV1_2OutputEvaluations,
 }
 
@@ -86,18 +86,11 @@ impl PiCcsV1_2ProofInputs {
             return Err(PiCcsV1_2PackageBridgeError::Shape("output source count"));
         }
 
-        let fresh_commitment = fresh
-            .c
-            .data
-            .iter()
-            .map(|value| value.as_canonical_u64())
-            .collect();
-        let round_messages = proof
-            .sumcheck
-            .sumcheck_rounds
-            .iter()
-            .map(|round| round.iter().copied().map(extension_words).collect())
-            .collect();
+        let fresh_commitment = Box::new(std::array::from_fn(|index| fresh.c.data[index].as_canonical_u64()));
+        let rounds = &proof.sumcheck.sumcheck_rounds;
+        let round_messages = Box::new(std::array::from_fn(|round| {
+            std::array::from_fn(|coefficient| extension_words(rounds[round][coefficient]))
+        }));
 
         let mut eval_k = Vec::with_capacity(PI_CCS_V1_2_SOURCE_COUNT);
         let mut eval_a = Vec::with_capacity(PI_CCS_V1_2_SOURCE_COUNT);
@@ -145,17 +138,28 @@ impl PiCcsV1_2ProofInputs {
         verifier_context: PiCcsV1_2VerifierContext,
     ) -> Result<PiCcsV1_2PackageInputs, PiCcsV1_2PackageBridgeError> {
         Ok(PiCcsV1_2PackageInputs::new(
-            prior_preimage,
-            output_preimage,
-            prior_children,
+            fixed(prior_preimage, "state preimage shape")?,
+            fixed(output_preimage, "state preimage shape")?,
+            fixed(prior_children, "prior children shape")?,
             self.fresh_commitment,
             self.round_messages,
             self.output_evaluations,
-            prior_public_input,
+            fixed(prior_public_input, "prior public-input shape")?,
             output_digest,
             verifier_context,
         )?)
     }
+}
+
+/// Move a list into a fixed-length package input.
+pub(super) fn fixed<const N: usize>(
+    words: Vec<u64>,
+    location: &'static str,
+) -> Result<Box<[u64; N]>, PiCcsV1_2PackageBridgeError> {
+    words
+        .into_boxed_slice()
+        .try_into()
+        .map_err(|_| PiCcsV1_2PackageBridgeError::Shape(location))
 }
 
 /// Serialize the exact Lean `HashPreimage` for the fixed v1_2 profile: the

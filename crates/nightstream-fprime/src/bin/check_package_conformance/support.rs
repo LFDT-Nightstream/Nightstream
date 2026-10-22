@@ -13,10 +13,7 @@ mod owner_mutations;
 mod raw_assignment;
 mod reference;
 #[allow(unused_imports)]
-pub use canonical_assignment::{
-    evaluate_canonical_assignment, evaluate_canonical_rows, evaluate_pi_ccs_prefix_assignment,
-    evaluate_pilot_assignment,
-};
+pub use canonical_assignment::{evaluate_canonical_assignment, evaluate_canonical_rows};
 #[allow(unused_imports)]
 pub use independent_assignment::{
     check_piccs_owner_mutations, compare_lean_expanded_matrices, compare_sealed_matrices,

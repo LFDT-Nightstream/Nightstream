@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 fn main() {
-    println!("cargo:rustc-check-cfg=cfg(neo_metal_shaders)");
     println!("cargo:rerun-if-changed=shaders/nightstream.metal");
     println!("cargo:rerun-if-changed=shaders/joint.metal");
     println!("cargo:rerun-if-changed=shaders/assignments.metal");
@@ -64,8 +63,6 @@ fn main() {
     if !link.status.success() {
         panic!("link Metal library: {}", String::from_utf8_lossy(&link.stderr).trim());
     }
-
-    println!("cargo:rustc-cfg=neo_metal_shaders");
 }
 
 fn write_poseidon2_constants(path: &Path) {

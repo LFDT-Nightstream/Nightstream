@@ -28,7 +28,7 @@ where
     if s.m == 0 {
         return Err(reject("empty structure"));
     }
-    if params.b < 2 {
+    if params.b() < 2 {
         return Err(reject("decomposition base below 2"));
     }
     super::validate_ce_claim_shape("verify_dec_public: parent", s, parent)?;
@@ -37,7 +37,7 @@ where
     if k == 0 {
         return Err(reject("no children"));
     }
-    if k != params.k_rho as usize {
+    if k != params.k_rho() as usize {
         return Err(reject("child count differs from k_rho"));
     }
     for (index, child) in children.iter().enumerate() {
@@ -99,7 +99,7 @@ where
         }
     }
 
-    let expected_child_x = match crate::common::split_b_matrix_k(&parent.X, k, params.b) {
+    let expected_child_x = match crate::common::split_b_matrix_k(&parent.X, k, params.b()) {
         Ok(split) => split,
         Err(error) => return Err(reject(format!("parent X is not representable by split_b: {error}"))),
     };
@@ -111,7 +111,7 @@ where
         }
     }
 
-    let b_k = K::from(F::from_u64(params.b as u64));
+    let b_k = K::from(F::from_u64(params.b() as u64));
     let mut b_pows_k = Vec::with_capacity(k);
     let mut p_k = K::ONE;
     for _ in 0..k {
@@ -141,7 +141,7 @@ where
         }
     }
 
-    let want_c = combine_b_pows(&children.iter().map(|c| c.c.clone()).collect::<Vec<_>>(), params.b);
+    let want_c = combine_b_pows(&children.iter().map(|c| c.c.clone()).collect::<Vec<_>>(), params.b());
     if want_c != parent.c {
         return Err(reject("commitment check mismatch"));
     }

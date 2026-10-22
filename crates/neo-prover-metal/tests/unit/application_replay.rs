@@ -94,8 +94,10 @@ impl Fixture {
                 neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
             )
             .unwrap();
-        params.lambda = params.lambda.min(security.security_bits);
-        let dims = build_joint_dims(&params, &structure, 1, params.k_rho as usize).unwrap();
+        params = params
+            .with_lambda(params.lambda().min(security.security_bits))
+            .unwrap();
+        let dims = build_joint_dims(&params, &structure, 1, params.k_rho() as usize).unwrap();
         let blocks = columns.div_ceil(D);
         let mut fresh = Mat::zero(D, blocks, F::ZERO);
         for column in 0..columns {
@@ -103,7 +105,7 @@ impl Fixture {
         }
         fresh[(0, 0)] = F::ONE;
         fresh[(0, 1)] = F::ONE;
-        let running = (0..params.k_rho as usize)
+        let running = (0..params.k_rho() as usize)
             .map(|source| {
                 let mut witness = Mat::zero(D, blocks, F::ZERO);
                 for column in 0..blocks * D {

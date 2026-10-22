@@ -40,7 +40,7 @@ where
             "PaperExact fresh source count exceeds the RLC guard of the selected parameters".into(),
         ));
     }
-    if running_count > params.k_rho as usize {
+    if running_count > params.k_rho() as usize {
         return Err(PiCcsError::InvalidInput(
             "PaperExact running source count exceeds k_rho".into(),
         ));
@@ -56,7 +56,7 @@ where
     let row_count = 1 << variables;
     let matrix_count = structure.t();
     let degree = (structure.max_degree() as usize + 1)
-        .max(2 * params.b as usize)
+        .max(2 * params.b() as usize)
         .max(2);
     params
         .padded_row_security_check_for_shape(
@@ -403,7 +403,7 @@ where
             .eval_k
             .first()
             .ok_or_else(|| PiCcsError::InvalidInput("PaperExact Eval_K output is missing".into()))?;
-        norm += gamma_power(challenges.gamma, source) * range_product::<Ff>(assignment_value, params.b);
+        norm += gamma_power(challenges.gamma, source) * range_product::<Ff>(assignment_value, params.b());
     }
     let running_count = outputs.len() - fresh_count;
     let mut eval_k = K::ZERO;
@@ -580,7 +580,7 @@ where
                 .iter()
                 .enumerate()
                 .fold(K::ZERO, |sum, (row, &entry)| sum + boolean_weight(point, row) * entry);
-            norm += gamma_power(self.challenges.gamma, source) * range_product::<Ff>(value, self.params.b);
+            norm += gamma_power(self.challenges.gamma, source) * range_product::<Ff>(value, self.params.b());
         }
 
         let matrix_count = self.structure.t();

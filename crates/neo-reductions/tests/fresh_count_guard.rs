@@ -12,7 +12,7 @@ fn production_profile_accepts_every_fresh_count_its_guard_allows() {
         CcsStructure::new(vec![Mat::zero(1, D, F::ZERO)], SparsePoly::new(1, Vec::new())).expect("structure");
     let mut params = NeoParams::nightstream_goldilocks_k16();
     // The production minimum; `nightstream` lowers lambda to what the census provides.
-    params.lambda = 114;
+    params = params.with_lambda(114).unwrap();
     let cap = params.max_fresh_count_from_rlc_guard().expect("guard") as usize;
     assert_eq!(cap, 287);
     build_joint_dims(&params, &structure, cap, 0).expect("the guard's own maximum");

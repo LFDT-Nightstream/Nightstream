@@ -131,7 +131,7 @@ where
             .eval_k
             .first()
             .ok_or_else(|| PiCcsError::InvalidInput("optimized Eval_K output is missing".into()))?;
-        norm += gamma_power(challenges.gamma, source) * range_product::<Ff>(assignment, params.b);
+        norm += gamma_power(challenges.gamma, source) * range_product::<Ff>(assignment, params.b());
     }
     let running_count = outputs.len() - fresh_count;
     let mut eval_k = K::ZERO;

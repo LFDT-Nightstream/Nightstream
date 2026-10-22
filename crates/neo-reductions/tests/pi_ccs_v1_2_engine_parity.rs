@@ -63,14 +63,16 @@ fn selected_parameters(structure: &CcsStructure<F>) -> NeoParams {
             neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
         )
         .expect("shape census");
-    params.lambda = params.lambda.min(summary.security_bits);
+    params = params
+        .with_lambda(params.lambda().min(summary.security_bits))
+        .unwrap();
     params
 }
 
 fn committer(params: &NeoParams, columns: usize) -> PP<neo_math::ring::Rq> {
     let mut rng = ChaCha8Rng::seed_from_u64(0x5041_4444_4544_524f);
 
-    ajtai_setup(&mut rng, D, params.kappa as usize, columns.div_ceil(D)).expect("Ajtai setup")
+    ajtai_setup(&mut rng, D, params.kappa() as usize, columns.div_ceil(D)).expect("Ajtai setup")
 }
 
 fn combine_commitments_b_pows(commitments: &[neo_ajtai::Commitment], base: u32) -> neo_ajtai::Commitment {
@@ -552,7 +554,7 @@ fn public_crosscheck_covers_v1_2_rlc_and_dec() {
     assert_eq!(parent.eval_a.len(), structure.t());
 
     let split_witnesses =
-        split_b_matrix_k(&mixed_witness, params.k_rho as usize, params.b).expect("canonical PiDEC split");
+        split_b_matrix_k(&mixed_witness, params.k_rho() as usize, params.b()).expect("canonical PiDEC split");
     let child_commitments: Vec<_> = split_witnesses
         .iter()
         .map(|child| commit_row_major(&log, child))
@@ -650,7 +652,7 @@ fn crosscheck_rejects_a_noncanonical_dec_split_that_recomposes() {
     let columns = D;
     let structure = rectangular_ccs(D / 2, columns);
     let params = selected_parameters(&structure);
-    assert!(params.k_rho >= 2);
+    assert!(params.k_rho() >= 2);
     let log = committer(&params, columns);
     let (claim, witness) = source(&log, columns, 4);
     let (running, running_witnesses) = zero_running::zero_running(&params, &structure, 1, claim.m_in);
@@ -679,7 +681,7 @@ fn crosscheck_rejects_a_noncanonical_dec_split_that_recomposes() {
         |_, commitments| commitments[0].clone(),
     )
     .expect("PiRLC crosscheck");
-    let mut split = split_b_matrix_k(&mixed_witness, params.k_rho as usize, params.b).expect("canonical split");
+    let mut split = split_b_matrix_k(&mixed_witness, params.k_rho() as usize, params.b()).expect("canonical split");
     let coordinate = (0..split[0].rows())
         .flat_map(|row| (0..split[0].cols()).map(move |column| (row, column)))
         .find(|&(row, column)| split[0][(row, column)] != F::ZERO && split[1][(row, column)] == F::ZERO)

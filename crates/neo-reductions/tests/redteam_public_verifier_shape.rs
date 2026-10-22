@@ -51,7 +51,7 @@ fn make_z(seed: u64, m: usize) -> Mat<F> {
 }
 
 fn make_commitment(params: &NeoParams, seed: u64) -> Commitment {
-    let mut commitment = Commitment::zeros(params.d as usize, 1);
+    let mut commitment = Commitment::zeros(params.d() as usize, 1);
     commitment.data[0] = F::from_u64(seed);
     commitment
 }
@@ -192,11 +192,11 @@ fn verify_dec_public_rejects_common_short_row_point() {
     let structure = build_structure(D, D);
     let m_in = D;
     let r = vec![k(13); structure.n.next_power_of_two().max(2).trailing_zeros() as usize];
-    let z_split = vec![Mat::zero(D, structure.m / D, F::ZERO); params.k_rho as usize];
+    let z_split = vec![Mat::zero(D, structure.m / D, F::ZERO); params.k_rho() as usize];
 
     let mut z_parent = Mat::zero(D, z_split[0].cols(), F::ZERO);
     let mut power = F::ONE;
-    let b_f = F::from_u64(params.b as u64);
+    let b_f = F::from_u64(params.b() as u64);
     for z_i in &z_split {
         for row in 0..D {
             for column in 0..z_parent.cols() {
@@ -205,7 +205,7 @@ fn verify_dec_public_rejects_common_short_row_point() {
         }
         power *= b_f;
     }
-    let child_commitments = (0..params.k_rho)
+    let child_commitments = (0..params.k_rho())
         .map(|index| make_commitment(&params, 103_000 + index as u64))
         .collect::<Vec<_>>();
     let mut parent = build_me_from_z(
@@ -215,7 +215,7 @@ fn verify_dec_public_rejects_common_short_row_point() {
         &r,
         ell_d,
         m_in,
-        combine_commitments_b_pows(&child_commitments, params.b),
+        combine_commitments_b_pows(&child_commitments, params.b()),
         105_000,
     );
     let DecOutcome {
@@ -274,7 +274,7 @@ fn verify_dec_public_rejects_child_count_different_from_k_rho() {
     );
     let parent = child.clone();
 
-    assert_eq!(params.k_rho, 14);
+    assert_eq!(params.k_rho(), 14);
     assert!(
         verify_dec_public(
             &structure,
@@ -295,10 +295,10 @@ fn verify_dec_public_rejects_out_of_range_child_x_at_correct_arity() {
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let structure = build_structure(D, D);
     let r = vec![k(19); structure.n.next_power_of_two().max(2).trailing_zeros() as usize];
-    let child_count = params.k_rho as usize;
+    let child_count = params.k_rho() as usize;
 
     let mut child_zs = vec![Mat::zero(D, structure.m / D, F::ZERO); child_count];
-    child_zs[0][(0, 0)] = F::from_u64(params.b as u64);
+    child_zs[0][(0, 0)] = F::from_u64(params.b() as u64);
 
     let child_commitments = (0..child_count)
         .map(|index| make_commitment(&params, 121_000 + index as u64))
@@ -321,13 +321,13 @@ fn verify_dec_public_rejects_out_of_range_child_x_at_correct_arity() {
         })
         .collect::<Vec<_>>();
     assert!(
-        !neo_math::balanced::within_nc_bound(children[0].X[(0, 0)], params.b),
+        !neo_math::balanced::within_nc_bound(children[0].X[(0, 0)], params.b()),
         "control: public child coordinate b must be outside CE(b)"
     );
 
     let mut parent_z = Mat::zero(D, structure.m / D, F::ZERO);
     let mut power = F::ONE;
-    let b_f = F::from_u64(params.b as u64);
+    let b_f = F::from_u64(params.b() as u64);
     for z in &child_zs {
         for row in 0..D {
             for column in 0..parent_z.cols() {
@@ -343,7 +343,7 @@ fn verify_dec_public_rejects_out_of_range_child_x_at_correct_arity() {
         &r,
         ell_d,
         D,
-        combine_commitments_b_pows(&child_commitments, params.b),
+        combine_commitments_b_pows(&child_commitments, params.b()),
         123_000,
     );
 
@@ -476,7 +476,7 @@ fn verify_dec_public_rejects_children_from_different_fold_transcript() {
     let r = vec![k(31); structure.n.next_power_of_two().max(2).trailing_zeros() as usize];
     let z = Mat::zero(D, structure.m / D, F::ZERO);
     let parent = build_me_from_z(&params, &structure, &z, &r, ell_d, D, Commitment::zeros(D, 1), 132_000);
-    let mut children = vec![parent.clone(); params.k_rho as usize];
+    let mut children = vec![parent.clone(); params.k_rho() as usize];
     children[1].fold_digest[0] = 1;
 
     assert!(
@@ -501,7 +501,7 @@ fn verify_dec_public_rejects_malformed_commitment_payloads() {
     let r = vec![k(37); structure.n.next_power_of_two().max(2).trailing_zeros() as usize];
     let z = Mat::zero(D, structure.m / D, F::ZERO);
     let parent = build_me_from_z(&params, &structure, &z, &r, ell_d, D, Commitment::zeros(D, 1), 133_000);
-    let mut children = vec![parent.clone(); params.k_rho as usize];
+    let mut children = vec![parent.clone(); params.k_rho() as usize];
     for child in &mut children {
         child.c.data.clear();
     }
@@ -534,7 +534,7 @@ fn rlc_public_rejects_malformed_commitment_payloads() {
         &r,
         ell_d,
         D,
-        Commitment::zeros(D, params.kappa as usize),
+        Commitment::zeros(D, params.kappa() as usize),
         133_001,
     );
     input.c.data.clear();
@@ -550,10 +550,23 @@ fn rlc_public_rejects_malformed_commitment_payloads() {
 
 #[test]
 fn reduction_policy_rejects_parameter_modulus_different_from_field() {
-    let mut actual_field_params = NeoParams::goldilocks_paper_b2();
-    actual_field_params.lambda = 100;
-    let mut claimed_larger_field_params = actual_field_params;
-    claimed_larger_field_params.q = u64::MAX;
+    let actual_field_params = NeoParams::goldilocks_paper_b2()
+        .with_lambda(100)
+        .expect("lambda");
+    let p = actual_field_params;
+    let claimed_larger_field_params = NeoParams::new(
+        u64::MAX,
+        p.eta(),
+        p.d(),
+        p.kappa(),
+        p.m(),
+        p.b(),
+        p.k_rho(),
+        p.T(),
+        p.s(),
+        p.lambda(),
+    )
+    .expect("new accepts any modulus that bounds 2B");
     let structure =
         CcsStructure::new(vec![Mat::identity(1)], SparsePoly::new(1, Vec::new())).expect("minimal CCS structure");
 

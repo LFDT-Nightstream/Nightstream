@@ -30,7 +30,7 @@ fn claim(
         .next_power_of_two()
         .trailing_zeros() as usize;
     CeClaim {
-        c: Commitment::zeros(D, params.kappa as usize),
+        c: Commitment::zeros(D, params.kappa() as usize),
         X: Mat::zero(D, 1, F::ZERO),
         r: vec![K::ZERO; point_len],
         eval_k: vec![K::ZERO; D.next_power_of_two()],
@@ -45,7 +45,7 @@ fn claim(
 fn rlc_and_dec_reject_auxiliary_lane_commitments() {
     let structure = CcsStructure::new(vec![Mat::identity(D)], SparsePoly::new(1, Vec::new())).unwrap();
     let params = NeoParams::nightstream_goldilocks_k16();
-    let kappa = params.kappa as usize;
+    let kappa = params.kappa() as usize;
     let rho = RotRho::new_checked(&params, Mat::identity(D)).unwrap();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let mix = |_: &[Mat<F>], commitments: &[Commitment]| commitments[0].clone();
@@ -94,7 +94,7 @@ fn rlc_and_dec_reject_auxiliary_lane_commitments() {
         "PiRLC accepted a parent with auxiliary lane commitments"
     );
 
-    let children = vec![claim(&structure, &params, None); params.k_rho as usize];
+    let children = vec![claim(&structure, &params, None); params.k_rho() as usize];
     let zero_mix = |_: &[Commitment], _: u32| Commitment::zeros(D, kappa);
     let dec = |parent: &CeClaim<Commitment, F, K>| {
         verify_dec_public(&structure, &params, parent, &children, zero_mix, ell_d).is_ok()

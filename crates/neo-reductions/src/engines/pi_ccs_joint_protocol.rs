@@ -54,8 +54,8 @@ fn read_coin(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, la
 
 fn check_commitment(commitment: &Cmt, params: &NeoParams) -> Result<(), PiCcsError> {
     if commitment.d != D
-        || commitment.kappa != params.kappa as usize
-        || commitment.data.len() != D * params.kappa as usize
+        || commitment.kappa != params.kappa() as usize
+        || commitment.data.len() != D * params.kappa() as usize
     {
         return Err(PiCcsError::InvalidInput(
             "PiCCS v1_2 commitment does not have the fixed Ajtai shape".into(),

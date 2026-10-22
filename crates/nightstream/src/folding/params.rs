@@ -28,7 +28,7 @@ impl Params {
                 "minimum statistical security must be positive",
             ));
         }
-        let mut inner = NeoParams::nightstream_goldilocks_k16();
+        let inner = NeoParams::nightstream_goldilocks_k16();
         let summary = inner.padded_row_security_summary_for_shape(
             rows,
             columns,
@@ -36,15 +36,16 @@ impl Params {
             poly_degree,
             neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
         )?;
-        inner.lambda = inner.lambda.min(summary.security_bits);
-        if inner.lambda < minimum_security_bits {
+        let available = inner.lambda().min(summary.security_bits);
+        if available < minimum_security_bits {
             return Err(neo_params::ParamsError::InsufficientStatisticalSecurity {
                 required: minimum_security_bits,
-                available: inner.lambda,
+                available,
             });
         }
+        let inner = inner.with_lambda(available)?;
         // field_factor / q^s + fork_factor / |C|, the error `security_bits` floors.
-        let field = (summary.field_factor as f64).log2() - f64::from(inner.s) * (inner.q as f64).log2();
+        let field = (summary.field_factor as f64).log2() - f64::from(inner.s()) * (inner.q() as f64).log2();
         let fork = (summary.fork_factor as f64).log2() - (summary.challenge_set_cardinality as f64).log2();
         let fold_error_bits = -(field.exp2() + fork.exp2()).log2();
         Ok(Self {
@@ -60,16 +61,16 @@ impl Params {
         (remaining > 0.0).then(|| -remaining.log2())
     }
     pub(crate) fn b(&self) -> u32 {
-        self.inner.b
+        self.inner.b()
     }
     pub(crate) fn k_rho(&self) -> u32 {
-        self.inner.k_rho
+        self.inner.k_rho()
     }
     pub(crate) fn big_b(&self) -> u64 {
-        self.inner.B
+        self.inner.B()
     }
     pub(crate) fn kappa(&self) -> u32 {
-        self.inner.kappa
+        self.inner.kappa()
     }
     pub(crate) fn inner(&self) -> &NeoParams {
         &self.inner

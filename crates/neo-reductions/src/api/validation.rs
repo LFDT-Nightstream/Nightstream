@@ -205,11 +205,11 @@ pub(crate) fn validate_rlc_batch_compatibility(
         }
     }
     let required = crate::common::min_k_rho_for_rlc_count(params, &crate::common::RotRing::goldilocks(), claims.len())?;
-    if params.k_rho < required {
+    if params.k_rho() < required {
         return Err(PiCcsError::InvalidInput(format!(
             "{label}: {} inputs require k_rho >= {required}, got {}",
             claims.len(),
-            params.k_rho
+            params.k_rho()
         )));
     }
     Ok(())
@@ -242,10 +242,10 @@ pub(crate) fn validate_dec_boundary_inputs(
             child_commitments.len()
         )));
     }
-    if z_split.len() != params.k_rho as usize {
+    if z_split.len() != params.k_rho() as usize {
         return Err(PiCcsError::InvalidInput(format!(
             "DEC requires exactly k_rho={} child witnesses, got {}",
-            params.k_rho,
+            params.k_rho(),
             z_split.len()
         )));
     }
@@ -274,10 +274,10 @@ pub(crate) fn validate_dec_boundary_inputs_from_trusted_split(
             child_commitments.len()
         )));
     }
-    if z_split.len() != params.k_rho as usize {
+    if z_split.len() != params.k_rho() as usize {
         return Err(PiCcsError::InvalidInput(format!(
             "DEC requires exactly k_rho={} child witnesses, got {}",
-            params.k_rho,
+            params.k_rho(),
             z_split.len()
         )));
     }

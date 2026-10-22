@@ -152,7 +152,7 @@ fn real_witness_openings_match_direct_ring_rows() {
         values
     };
     let parent = CeClaim {
-        c: Commitment::zeros(D, params.kappa as usize),
+        c: Commitment::zeros(D, params.kappa() as usize),
         X: Mat::from_row_major(D, 1, parent_values[..D].to_vec()),
         r: point.clone(),
         eval_k: pad(parent_opening.eval_k),
@@ -161,7 +161,7 @@ fn real_witness_openings_match_direct_ring_rows() {
         fold_digest: [0; 32],
         adv: None,
     };
-    let (digits, flags) = split_b_matrix_k_with_nonzero_flags(&parent_witness, params.k_rho as usize, 2)
+    let (digits, flags) = split_b_matrix_k_with_nonzero_flags(&parent_witness, params.k_rho() as usize, 2)
         .unwrap()
         .into_parts();
     let (children, evaluations_ok, public_ok) = dec_reduction_optimized_with_digit_flags(
@@ -175,7 +175,7 @@ fn real_witness_openings_match_direct_ring_rows() {
         None,
     );
     assert!(evaluations_ok && public_ok);
-    assert_eq!(children.len(), params.k_rho as usize);
+    assert_eq!(children.len(), params.k_rho() as usize);
     for (child, digit) in children.iter().zip(&digits) {
         let values = (0..width)
             .map(|column| digit[(column % D, column / D)])

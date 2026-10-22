@@ -151,7 +151,7 @@ where
     #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
     let children: Vec<_> = (0..Z_split.len()).map(build_child).collect();
 
-    let base_f = Ff::from_u64(params.b as u64);
+    let base_f = Ff::from_u64(params.b() as u64);
     let base_k = K::from(base_f);
     let eval_k_ok = {
         let mut sum = vec![K::ZERO; d_pad];

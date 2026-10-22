@@ -102,8 +102,18 @@ impl SuperneoMatrixCache {
             super::RowOffsetStore::U24(bytes) => SuperneoCompactRowOffsets::U24(bytes),
             super::RowOffsetStore::U32(offsets) => SuperneoCompactRowOffsets::U32(offsets),
         };
+        // SAFETY: `CompactRowBlock` is `repr(transparent)` over `u32`, with
+        // the size and alignment of `u32` (asserted in `row_block.rs`). So
+        // the `row_blocks.len()` values of `self.row_blocks` are that many
+        // `u32` values in the same memory, borrowed from `self`.
         let row_blocks =
             unsafe { core::slice::from_raw_parts(self.row_blocks.as_ptr().cast::<u32>(), self.row_blocks.len()) };
+        // SAFETY: `DenseRowBlock` is `repr(C)` with two `u32` fields, `block`
+        // then `pattern`, so it has no padding, and it has the size and
+        // alignment of `[u32; 2]` (asserted in `row_block.rs`). So the
+        // `dense_row_blocks.len()` values of `self.dense_row_blocks` are that
+        // many `[block, pattern]` pairs in the same memory, borrowed from
+        // `self`.
         let dense_row_blocks = unsafe {
             core::slice::from_raw_parts(
                 self.dense_row_blocks.as_ptr().cast::<[u32; 2]>(),

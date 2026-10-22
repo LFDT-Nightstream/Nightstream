@@ -14,7 +14,11 @@ pub(super) const COMPACT_DENSE_INDEX_MASK: u32 = COMPACT_DENSE_TAG - 1;
 #[repr(transparent)]
 pub(super) struct CompactRowBlock(u32);
 
-const _: [(); 4] = [(); core::mem::size_of::<CompactRowBlock>()];
+// `compact_device_parts` exports these values as `u32`.
+const _: () = assert!(
+    core::mem::size_of::<CompactRowBlock>() == core::mem::size_of::<u32>()
+        && core::mem::align_of::<CompactRowBlock>() == core::mem::align_of::<u32>()
+);
 
 impl CompactRowBlock {
     #[inline]
@@ -70,7 +74,11 @@ pub(super) struct DenseRowBlock {
     pattern: u32,
 }
 
-const _: [(); 8] = [(); core::mem::size_of::<DenseRowBlock>()];
+// `compact_device_parts` exports these values as `[block, pattern]`.
+const _: () = assert!(
+    core::mem::size_of::<DenseRowBlock>() == core::mem::size_of::<[u32; 2]>()
+        && core::mem::align_of::<DenseRowBlock>() == core::mem::align_of::<[u32; 2]>()
+);
 
 impl DenseRowBlock {
     #[inline]

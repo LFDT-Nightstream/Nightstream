@@ -664,6 +664,7 @@ impl HostEventRowContext {
             state_before,
             state_after,
             control_choice: 0,
+            br_table_len: 0,
             pc_edge_kind: WasmPcEdgeKind::Static,
             wide_values_enabled: false,
             opcode: WasmOpcode::Nop,

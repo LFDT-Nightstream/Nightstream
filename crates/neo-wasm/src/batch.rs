@@ -324,6 +324,7 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
             host_events,
         },
         control_choice: 0,
+        br_table_len: 0,
         pc_edge_kind: WasmPcEdgeKind::Static,
         wide_values_enabled: false,
         // opcode_code = 0: no opcode selector fires on this row (the

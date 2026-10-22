@@ -14,6 +14,7 @@ use wasmtime::{
     Config, DebugEvent, DebugHandler, Engine, FrameHandle, Func, Linker, Module, Store, StoreContextMut, Trap, Val,
 };
 
+mod branch_stack;
 mod decode;
 mod entry_inputs;
 mod import_inputs;
@@ -47,7 +48,7 @@ pub struct WasmtimeTraceStep {
     /// Structurally decoded opcode, populated at trace-collection time from
     /// `wasmparser::Operator`. Not serialized (runtime-only).
     pub opcode_decoded: Option<WasmOpcode>,
-    /// Immediate value for `i32.const`, decoded at collection time.
+    /// Opcode-specific u32 immediate (constant, index, or br_table arm count).
     pub immediate_i32: Option<u32>,
     /// Normalized control-edge selector. `0` means default/fallthrough.
     pub control_choice: Option<u32>,

@@ -8,8 +8,8 @@ mod common;
 use common::{assert_rejected, assert_satisfied};
 use neo_math::F;
 use neo_wasm::layout::{
-    COL_CMP_LO_DIFF, COL_CMP_LO_INV, COL_CMP_LO_IS_ZERO, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO,
-    COL_STACK_WRITE0_VALUE_LO,
+    COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_VALUE_LO, COL_ZERO_TEST_LO_INPUT,
+    COL_ZERO_TEST_LO_INV, COL_ZERO_TEST_LO_IS_ZERO,
 };
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{
@@ -60,6 +60,7 @@ fn step(
         state_before: state(2, sp_before),
         state_after: state(3, sp_after),
         control_choice: 0,
+        br_table_len: 0,
         pc_edge_kind: WasmPcEdgeKind::Static,
         wide_values_enabled,
         opcode,
@@ -172,9 +173,9 @@ fn i64_eqz_row_rejects_goldilocks_modulus_collision() {
     ));
     row[COL_STACK_READ_VALUE_LO[0]] = F::from_u64(1);
     row[COL_STACK_READ_VALUE_HI[0]] = F::from_u64(0xFFFF_FFFFu64);
-    row[COL_CMP_LO_DIFF] = F::ZERO;
-    row[COL_CMP_LO_INV] = F::ZERO;
-    row[COL_CMP_LO_IS_ZERO] = F::ONE;
+    row[COL_ZERO_TEST_LO_INPUT] = F::ZERO;
+    row[COL_ZERO_TEST_LO_INV] = F::ZERO;
+    row[COL_ZERO_TEST_LO_IS_ZERO] = F::ONE;
     assert_rejected(&row, "i64.eqz must reject Goldilocks-modulus collision");
 }
 
@@ -265,9 +266,9 @@ fn i64_eq_row_rejects_goldilocks_modulus_collision() {
     row[COL_STACK_READ_VALUE_HI[0]] = F::from_u64(0xFFFF_FFFFu64);
     row[COL_STACK_READ_VALUE_LO[1]] = F::ZERO;
     row[COL_STACK_READ_VALUE_HI[1]] = F::ZERO;
-    row[COL_CMP_LO_DIFF] = F::ZERO;
-    row[COL_CMP_LO_INV] = F::ZERO;
-    row[COL_CMP_LO_IS_ZERO] = F::ONE;
+    row[COL_ZERO_TEST_LO_INPUT] = F::ZERO;
+    row[COL_ZERO_TEST_LO_INV] = F::ZERO;
+    row[COL_ZERO_TEST_LO_IS_ZERO] = F::ONE;
     assert_rejected(&row, "i64.eq must reject Goldilocks-modulus collision");
 }
 

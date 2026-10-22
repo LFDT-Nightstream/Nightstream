@@ -1125,6 +1125,12 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                 },
             ],
         },
+        rom_read_spec(
+            WasmMemoryId::ProgramBrTableLen,
+            vec![Column(COL_PC_BEFORE)],
+            Column(super::layout::COL_BR_TABLE_LEN),
+            active_when(Column(selector_col(WasmOpcode::BrTable).unwrap())),
+        ),
     ];
 
     use crate::layout::{COL_HOST_CONTEXT, COL_HOST_CONTEXT_ADDR, COL_HOST_CONTEXT_READ, COL_HOST_SUSPEND};

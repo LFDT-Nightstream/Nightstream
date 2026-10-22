@@ -229,7 +229,7 @@ pub(crate) fn decode_opcode(operator: &wasmparser::Operator<'_>) -> Option<(Wasm
         wasmparser::Operator::Select => Some((WasmOpcode::Select, None)),
         wasmparser::Operator::TypedSelect { .. } => Some((WasmOpcode::Select, None)),
         wasmparser::Operator::BrIf { .. } => Some((WasmOpcode::BrIf, None)),
-        wasmparser::Operator::BrTable { .. } => Some((WasmOpcode::BrTable, None)),
+        wasmparser::Operator::BrTable { targets } => Some((WasmOpcode::BrTable, Some(targets.len()))),
         wasmparser::Operator::Return => Some((WasmOpcode::Return, None)),
         // Local index stored as immediate; locals value captured at runtime from frame snapshot.
         wasmparser::Operator::LocalGet { local_index } => Some((WasmOpcode::LocalGet, Some(*local_index))),

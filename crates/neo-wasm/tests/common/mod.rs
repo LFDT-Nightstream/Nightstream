@@ -204,6 +204,7 @@ pub fn step(
             ..state(pc_before + 1, sp_after, activation_finished)
         },
         control_choice: 0,
+        br_table_len: 0,
         pc_edge_kind: match opcode {
             WasmOpcode::Return | WasmOpcode::End => WasmPcEdgeKind::ReturnLike,
             WasmOpcode::CallIndirect => WasmPcEdgeKind::DynamicCallIndirect,

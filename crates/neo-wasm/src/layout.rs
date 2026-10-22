@@ -244,24 +244,23 @@ define_column_region! {
         COL_SELECT_SCRATCH_INV: Field => "scratch column for push_select_constraints for select opcode",
         COL_SELECT_OUT_DELTA_LO: Field => "scratch column for push_select_constraints low-limb mux",
         COL_SELECT_OUT_DELTA_HI: Field => "scratch column for push_select_constraints high-limb mux",
-        // Shared zero-test scratch columns for the CCS-native comparators:
-        // i32.eqz / i64.eqz / i32.eq / i32.ne / i64.eq / i64.ne. The active
-        // opcode's selector pins COL_CMP_LO_DIFF to the lo-limb input
+        // Shared zero-test scratch for equality, eqz, and conditional control. The active
+        // opcode's selector pins COL_ZERO_TEST_LO_INPUT to the lo-limb input
         // (read0, read0_lo, or read0[_lo] - read1[_lo]); the zero-test gadget
-        // forces COL_CMP_LO_IS_ZERO = (cmp_lo_diff == 0).
+        // forces COL_ZERO_TEST_LO_IS_ZERO = (zero_test_lo_input == 0).
         //
         // The i64 comparators (i64.eqz / i64.eq / i64.ne) need a hi-limb
         // zero-test too: the full u64 value does not embed injectively into
         // Goldilocks (q = 2^64 - 2^32 + 1 has a nontrivial preimage at
-        // lo=1, hi=0xffffffff). We pin COL_CMP_HI_DIFF to the hi-limb input,
+        // lo=1, hi=0xffffffff). We pin COL_ZERO_TEST_HI_INPUT to the hi-limb input,
         // zero-test it independently, and AND the two flags into COL_CMP_AND.
-        COL_CMP_LO_DIFF: Field => "comparator zero-test input (lo limb / full i32 input)",
-        COL_CMP_LO_INV: Field => "comparator zero-test inverse witness",
-        COL_CMP_LO_IS_ZERO: Boolean => "comparator zero-test result",
-        COL_CMP_HI_DIFF: Field => "comparator hi-limb zero-test input (i64.eqz / i64.eq / i64.ne)",
-        COL_CMP_HI_INV: Field => "comparator hi-limb zero-test inverse witness",
-        COL_CMP_HI_IS_ZERO: Boolean => "comparator hi-limb zero-test result",
-        COL_CMP_AND: Boolean => "AND of COL_CMP_LO_IS_ZERO and COL_CMP_HI_IS_ZERO; i64.eqz / i64.eq result",
+        COL_ZERO_TEST_LO_INPUT: Field => "shared zero-test input (lo limb / full i32 input)",
+        COL_ZERO_TEST_LO_INV: Field => "shared zero-test inverse witness",
+        COL_ZERO_TEST_LO_IS_ZERO: Boolean => "shared zero-test result",
+        COL_ZERO_TEST_HI_INPUT: Field => "shared hi-limb zero-test input (i64.eqz / i64.eq / i64.ne)",
+        COL_ZERO_TEST_HI_INV: Field => "shared hi-limb zero-test inverse witness",
+        COL_ZERO_TEST_HI_IS_ZERO: Boolean => "shared hi-limb zero-test result",
+        COL_CMP_AND: Boolean => "AND of COL_ZERO_TEST_LO_IS_ZERO and COL_ZERO_TEST_HI_IS_ZERO; i64.eqz / i64.eq result",
         COL_LINEAR_MEM_OFFSET_IS_0: Boolean => "linear-memory offset case selector for byte offset 0",
         COL_LINEAR_MEM_OFFSET_IS_1: Boolean => "linear-memory offset case selector for byte offset 1",
         COL_LINEAR_MEM_OFFSET_IS_2: Boolean => "linear-memory offset case selector for byte offset 2",
@@ -421,6 +420,8 @@ define_column_region! {
             "store lane gate factor: a store row that is not OOB (de-gates lane writes on an OOB trap)",
         COL_GROW_SUCCESS: Boolean => "memory.grow row: the growth fits under max pages (before + delta <= max)",
         COL_ACTIVATION_FINISHED_BEFORE: Boolean => "current activation has returned or trapped before this row",
+        COL_BR_TABLE_LEN: U32 => "number of explicit br_table arms, read from the program ROM",
+        COL_BR_TABLE_IN_BOUNDS: Boolean => "br_table row with an index below its arm count",
     ]
 }
 
